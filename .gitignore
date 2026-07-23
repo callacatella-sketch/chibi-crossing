@@ -15,3 +15,6 @@
 # riscaricano dalla release ufficiale dell'addon quando serviranno
 addons/lua-gdextension/build/*
 !addons/lua-gdextension/build/*windows*
+
+# file temporanei di Windows (sostituzione DLL a caldo)
+*.TMP
