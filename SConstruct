@@ -1,37 +1,34 @@
 #!/usr/bin/env python
 import os
 
-env = Environment(tools=["default"])
+# godot-cpp compila se stesso e restituisce un ambiente gia configurato
+# per la piattaforma corrente (Windows, macOS, Linux): compilatore, flag
+# giusti e libreria statica di godot-cpp sono gia agganciati. Cosi lo
+# stesso SConstruct costruisce il cuore C++ su ogni sistema, senza piu
+# blocchi specifici per Windows.
+env = SConscript("godot-cpp/SConstruct")
 
-opts = Variables([], ARGUMENTS)
-opts.Add(EnumVariable("target", "Compilation target", "template_debug", ["template_debug", "template_release"]))
-opts.Update(env)
-
-# Ensure godot-cpp builds
-env.SConscript("godot-cpp/SConstruct")
-
-env.Append(CPPPATH=[
-    "src/",
-    "godot-cpp/gdextension",
-    "godot-cpp/include",
-    "godot-cpp/gen/include"
-])
-
-# For MSVC we need these flags
-if env["PLATFORM"] == "win32":
-    env.Append(CPPDEFINES=["TYPED_METHOD_BIND", "WIN32", "_WINDOWS"])
-    env.Append(CXXFLAGS=["/std:c++17", "/EHsc", "/Zc:preprocessor", "/vmp", "/vmg"])
-    env.Append(LIBPATH=["godot-cpp/bin"])
-    if env["target"] == "template_debug":
-        env.Append(LIBS=["libgodot-cpp.windows.template_debug.x86_64.lib"])
-    else:
-        env.Append(LIBS=["libgodot-cpp.windows.template_release.x86_64.lib"])
-
+env.Append(CPPPATH=["src/"])
 sources = Glob("src/*.cpp")
 
-library = env.SharedLibrary(
-    "bin/chibi_crossing",
-    source=sources
-)
+if env["platform"] == "macos":
+    # dylib universale (arm64 + x86_64): gira su Apple Silicon e Intel.
+    # Il nome porta la piattaforma e il target, cosi debug e release
+    # convivono nella stessa cartella bin/ e il .gdextension li distingue.
+    library = env.SharedLibrary(
+        "bin/chibi_crossing.macos.{}.dylib".format(env["target"]),
+        source=sources,
+    )
+elif env["platform"] == "linux":
+    library = env.SharedLibrary(
+        "bin/chibi_crossing.linux.{}.x86_64.so".format(env["target"]),
+        source=sources,
+    )
+else:
+    # Windows: resta bin/chibi_crossing.dll, come i binari gia versionati
+    library = env.SharedLibrary(
+        "bin/chibi_crossing",
+        source=sources,
+    )
 
 Default(library)
