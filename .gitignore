@@ -1,0 +1,17 @@
+# Godot 4+ specific ignores
+.godot/
+/android/
+
+# cache e artefatti di compilazione (SCons / GDExtension C++)
+.sconsign.dblite
+*.obj
+*.os
+*.pdb
+*.exp
+*.ilk
+
+# binari precompilati di lua-gdextension: su GitHub viaggiano solo
+# quelli Windows (il PC di sviluppo); le altre piattaforme si
+# riscaricano dalla release ufficiale dell'addon quando serviranno
+addons/lua-gdextension/build/*
+!addons/lua-gdextension/build/*windows*

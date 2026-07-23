@@ -1,0 +1,142 @@
+shader_type spatial;
+render_mode diffuse_toon, specular_toon;
+
+// Il manto del prato, ridipinto da zero. Tre scale di chiazze (macro
+// stagionali, meso a ciuffi, micro pennellate), trifogli e margheritine
+// dipinti direttamente nel manto, la lettiera della foresta a nord, la
+// pioggia che scurisce e fa scintillare la rugiada — e oltre i confini
+// del villaggio il piano si solleva in colline morbide: l'orizzonte di
+// un mondo, non il bordo di un pavimento.
+
+uniform vec4 grass_a : source_color = vec4(0.55, 0.74, 0.43, 1.0);
+uniform vec4 grass_b : source_color = vec4(0.36, 0.57, 0.33, 1.0);
+uniform vec4 grass_c : source_color = vec4(0.70, 0.84, 0.47, 1.0);
+uniform vec4 clover_color : source_color = vec4(0.33, 0.56, 0.33, 1.0);
+uniform vec4 daisy_color : source_color = vec4(0.97, 0.95, 0.89, 1.0);
+// sottobosco della foresta (a nord): verdi più cupi e lettiera di foglie
+uniform vec4 forest_a : source_color = vec4(0.30, 0.43, 0.27, 1.0);
+uniform vec4 forest_b : source_color = vec4(0.22, 0.33, 0.20, 1.0);
+uniform vec4 forest_litter : source_color = vec4(0.45, 0.37, 0.24, 1.0);
+// 0..1: quando piove il prato si scurisce e prende un velo lucido
+uniform float wetness : hint_range(0.0, 1.0) = 0.0;
+// il campo dei ciuffi, cotto dal CozyWorld: il manto si scurisce
+// esattamente dove l'erba affonda le radici — un tappeto unico
+uniform sampler2D tuft_map : filter_linear, repeat_disable, hint_default_black;
+uniform vec2 tuft_origin = vec2(-16.0, -19.0);
+uniform vec2 tuft_size = vec2(32.0, 33.0);
+
+varying vec3 wpos;
+varying float v_hill;
+varying float v_river;
+
+float hash12(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float vnoise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	vec2 u = f * f * (3.0 - 2.0 * f);
+	return mix(mix(hash12(i), hash12(i + vec2(1.0, 0.0)), u.x),
+			mix(hash12(i + vec2(0.0, 1.0)), hash12(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+
+float fbm(vec2 p) {
+	return vnoise(p) * 0.6 + vnoise(p * 2.7 + 13.0) * 0.4;
+}
+
+float fbm3(vec2 p) {
+	return vnoise(p) * 0.5 + vnoise(p * 2.3 + 7.0) * 0.3 + vnoise(p * 5.1 + 23.0) * 0.2;
+}
+
+void vertex() {
+	vec3 w = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	// L'INTERA area di gioco è una tavola: piatta fino a ±45 m (prato,
+	// foresta, radure, e tutto lo spazio dove si costruisce). Solo in
+	// LONTANANZA ESTREMA il mondo si solleva: prima colline morbide,
+	// poi montagne pastello che delimitano l'orizzonte.
+	vec2 dc = abs(w.xz - vec2(0.0, -12.0)) - vec2(45.0, 55.0);
+	float fuori = length(max(dc, vec2(0.0)));
+	float m_colline = smoothstep(12.0, 48.0, fuori);
+	float m_monti = smoothstep(42.0, 90.0, fuori);
+	v_hill = (fbm(w.xz * 0.035) * 5.5 + fbm(w.xz * 0.09 + 11.0) * 1.5) * m_colline
+			+ pow(fbm(w.xz * 0.022 + 31.0), 1.6) * 34.0 * m_monti;
+	VERTEX.y += v_hill;
+
+	// il fiume scava il suo letto nel prato. La STESSA curva vive in
+	// CozyWorld._river_x: GDScript e shader disegnano lo stesso corso
+	// (seni di argomenti piccoli: niente divergenze di precisione)
+	float rx = 18.6 + sin(w.z * 0.061) * 1.35 + sin(w.z * 0.023 + 2.0) * 0.85;
+	float rd = abs(w.x - rx);
+	float carve = smoothstep(3.3, 1.5, rd) * 1.15 * (1.0 - m_colline);
+	VERTEX.y -= carve;
+	v_river = carve;
+	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+}
+
+void fragment() {
+	// seconda scala ruotata di ~35°: rompe la griglia del value noise
+	mat2 rot = mat2(vec2(0.819, -0.574), vec2(0.574, 0.819));
+	float macro = fbm(wpos.xz * 0.16);
+	float meso = fbm3(rot * wpos.xz * 0.55 + 5.0);
+	float micro = fbm(rot * wpos.xz * 0.85 + 31.0);
+	float streak = vnoise(vec2(wpos.x * 0.4 + wpos.z * 0.07, wpos.z * 0.06));
+
+	// tre scale di verde: le stagioni del prato in un colpo d'occhio
+	vec3 col = mix(grass_a.rgb, grass_b.rgb, smoothstep(0.22, 0.88, macro));
+	col = mix(col, grass_c.rgb, smoothstep(0.55, 0.85, meso) * 0.30);
+	col = mix(col, grass_b.rgb * 0.93, smoothstep(0.60, 0.88, micro) * 0.28);
+	col *= 1.0 - 0.05 * smoothstep(0.5, 0.9, streak);
+
+	// il bioma foresta sfuma dentro il prato con un bordo irregolare
+	float fmask = smoothstep(14.0, 22.0, -wpos.z + (vnoise(wpos.xz * 0.12) - 0.5) * 9.0);
+	vec3 fcol = mix(forest_a.rgb, forest_b.rgb, smoothstep(0.3, 0.75, macro));
+	fcol = mix(fcol, forest_litter.rgb, smoothstep(0.55, 0.85, micro) * 0.5);
+	col = mix(col, fcol, fmask);
+
+	// l'ombra dei ciuffi: dove l'erba si addensa il manto si scurisce
+	// (stesso campo che decide dove nascono i fili) — le radici hanno
+	// una casa scura in cui affondare, non un pavimento chiaro
+	float tuft = texture(tuft_map, (wpos.xz - tuft_origin) / tuft_size).r;
+	col *= 1.0 - 0.13 * tuft * (1.0 - fmask * 0.6);
+
+	// le sponde del fiume: una battigia sabbiosa STRETTA (l'erba arriva
+	// quasi all'acqua), poi il fondo bruno punteggiato di sassolini
+	float bankm = smoothstep(0.28, 0.62, v_river);
+	col = mix(col, vec3(0.74, 0.66, 0.48), bankm * 0.7);
+	col = mix(col, vec3(0.33, 0.36, 0.31), smoothstep(0.5, 1.05, v_river));
+	vec2 pb = wpos.xz * 5.0;
+	vec2 pid = floor(pb);
+	float pr = hash12(pid + 3.0);
+	vec2 pj = vec2(hash12(pid + 13.0), hash12(pid + 29.0)) - 0.5;
+	float pd = length(fract(pb) - 0.5 - pj * 0.5);
+	float peb = smoothstep(0.32, 0.18, pd) * step(pr, 0.4) * smoothstep(0.5, 0.9, v_river);
+	col = mix(col, vec3(0.56, 0.55, 0.51) * (0.8 + 0.4 * hash12(pid)), peb * 0.9);
+
+	// trifogli e margheritine dipinti nel manto (solo su prato aperto)
+	vec2 cellp = wpos.xz * 2.6;
+	vec2 cid = floor(cellp);
+	float r1 = hash12(cid);
+	vec2 jitter = vec2(hash12(cid + 7.0), hash12(cid + 19.0)) - 0.5;
+	float dd = length(fract(cellp) - 0.5 - jitter * 0.55);
+	float dotm = smoothstep(0.17, 0.10, dd);
+	float aperto = (1.0 - fmask) * (1.0 - smoothstep(0.5, 3.0, v_hill))
+			* (1.0 - smoothstep(0.05, 0.3, v_river));
+	col = mix(col, clover_color.rgb, dotm * step(r1, 0.11) * 0.75 * aperto);
+	col = mix(col, daisy_color.rgb, dotm * step(0.986, r1) * 0.85 * aperto);
+
+	// prospettiva aerea: più il rilievo sale, più si vela di foschia
+	// verde-azzurra, e le cime delle montagne sfumano in crema pastello
+	float aria = clamp(v_hill * 0.045, 0.0, 0.55);
+	col = mix(col, vec3(0.78, 0.87, 0.81), aria);
+	col = mix(col, vec3(0.96, 0.95, 0.90), smoothstep(15.0, 27.0, v_hill) * 0.8);
+
+	// pioggia: manto scuro e lucido, rugiada che scintilla
+	col *= 1.0 - 0.18 * wetness;
+	float glint = step(0.993, hash12(floor(wpos.xz * 22.0) + floor(TIME * 2.5)));
+	EMISSION = vec3(0.50, 0.60, 0.55) * glint * wetness * 0.4;
+
+	ALBEDO = col;
+	ROUGHNESS = 1.0 - 0.4 * wetness;
+	SPECULAR = 0.05 + 0.3 * wetness;
+}

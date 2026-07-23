@@ -1,0 +1,1178 @@
+class_name BuildSystem
+extends Node3D
+
+## Modalità costruzione stile Animal Crossing.
+##
+## B entra/esce · rotella o 1-9 scegli · R ruota il pezzo · F ruota un
+## oggetto già piazzato · clic piazza · X rimuovi. La griglia è del
+## GridManager C++ (1 cella = 1 metro, celle centrate sugli interi).
+##
+## I pezzi "cell" occupano una cella su 3 layer sovrapponibili
+## (pavimento / tappeto / oggetto). I pezzi "edge" (muri, staccionate,
+## porte, finestre) stanno sui BORDI tra le celle, come in AC: il cursore
+## aggancia il bordo più vicino e l'orientamento segue il bordo.
+## Ogni pezzo piazzato riceve le sue collisioni (StaticBody3D).
+##
+## Il villaggio si salva da solo (user://village.json) a ogni piazzamento,
+## rimozione o rotazione, e riappare al prossimo avvio.
+
+signal mode_changed(active: bool)
+## Il villaggio è cambiato (pezzo piazzato/rimosso, o caricamento finito):
+## i sistemi che tengono cache di pezzi (Garden, Mail, Calendar…) si
+## rinfrescano qui invece di riscandire tutto a ogni frame.
+signal placed_changed
+
+# preload esplicito: non dipende dalla cache globale delle class_name
+const CATALOG := preload("res://scenes/build/BuildCatalog.gd")
+const GRID_SHADER := preload("res://shaders/grid.gdshader")
+
+const VALID_TINT := Color(0.45, 0.9, 0.5, 0.38)
+const INVALID_TINT := Color(0.95, 0.35, 0.3, 0.42)
+const UI_BROWN := Color("6a4a3a")
+const CAT_NAMES := ["Struttura", "Arredo", "Giardino"]
+
+var _grid: GridManager
+var _items: Array[Dictionary] = []
+var _index := 0
+var _rot := 0
+var _active := false
+var _valid := false
+
+# cursore corrente
+var _cursor_key := Vector2i.ZERO      # celle: coordinate cella · bordi: coordinate raddoppiate
+var _cursor_pos := Vector3.ZERO
+var _cursor_yaw := 0.0
+var _hover_cell := Vector2i.ZERO
+var _mouse_world := Vector3.ZERO
+
+var _ghost: Node3D
+var _overlay: StandardMaterial3D
+var _grid_plane: MeshInstance3D
+var _placed_root: Node3D
+# celle per layer (3 = tetti) + bordi, chiave -> StaticBody3D/Node3D
+var _placed := {0: {}, 1: {}, 2: {}, 3: {}, "edge": {}}
+
+# il piano di sopra: stesse chiavi, quota +FLOOR_H. Il tasto V alterna
+# il piano attivo in modalità costruzione.
+const FLOOR_H := 2.15
+const UP_AUTO := ["Solaio", "Ponticello"]
+var _level := 0
+var _placed_up := {0: {}, 1: {}, 2: {}, 3: {}, "edge": {}}
+
+# offset locali della Casa albero (base scala, cima, trespolo ospiti)
+const TH_BASE := Vector3(0, 0, 2.35)
+const TH_TOP := Vector3(0, 2.62, 0.85)
+const TH_PERCH := Vector3(-0.72, 2.62, 0.72)
+
+# porte animate, tetti e muri (nodo -> mesh per le dissolvenze), demolizione
+var _player: Node3D
+var _doors: Array[Dictionary] = []
+var _roofs := {}
+var _roof_fade := 0.0
+var _walls := {}
+# pezzi del piano di sopra (solai, ponticelli, arredo): dissolvono
+# quando Mochi è al piano terra, sotto di loro
+var _ups := {}
+var _up_fade := 0.0
+# le lanterne che dondolano (Casa albero)
+var _lanterns: Array[Node3D] = []
+var _sway_t := 0.0
+
+const WALL_ITEMS := ["Muro", "Finestra", "Porta"]
+var _demolish := false
+var _demo_btn: Button
+var _demo_target: Node3D
+var _demo_overlay: StandardMaterial3D
+
+const INTERACTABLE := ["Sedia", "Sgabello", "Panchina", "Letto"]
+
+# L'autoload viene registrato a metà della prima scansione del filesystem,
+# quindi al primo avvio non è ancora visibile al parser: lo risolviamo a
+# runtime (var non tipizzata = chiamate dinamiche, nessun errore di parse).
+var _sfx
+# il CozyWorld: sa dove scorre il fiume (lì non si costruisce)
+var _cozy: Node3D
+
+var _ui: CanvasLayer
+var _panel: PanelContainer
+var _idle_hint: Label
+var _items_row: HBoxContainer
+var _cat_buttons: Array[Button] = []
+var _item_buttons: Array[Button] = []
+var _cat := 0
+
+## Per gli screenshot da CLI: se impostato, il fantasma usa questa
+## posizione invece del mouse.
+var debug_ghost_pos := Vector3.INF
+
+# persistenza: il villaggio si risalva da solo a ogni modifica
+# (var e non const: la verifica CLI lo punta a un file di prova)
+var save_path := "user://village.json"
+var _persist := true
+var _loading := false
+
+
+func _ready() -> void:
+	add_to_group("build_system")
+	_sfx = get_node_or_null(^"/root/Sfx")
+	_player = get_node_or_null("%Player")
+	_cozy = get_node_or_null("../CozyWorld")
+
+	_demo_overlay = StandardMaterial3D.new()
+	_demo_overlay.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_demo_overlay.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_demo_overlay.albedo_color = Color(0.95, 0.3, 0.25, 0.45)
+	_demo_overlay.render_priority = 10
+
+	_grid = GridManager.new()
+	_grid.grid_size = 1.0
+	add_child(_grid)
+
+	_placed_root = Node3D.new()
+	_placed_root.name = "Placed"
+	add_child(_placed_root)
+
+	_items = CATALOG.items()
+
+	_overlay = StandardMaterial3D.new()
+	_overlay.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_overlay.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_overlay.albedo_color = VALID_TINT
+	_overlay.render_priority = 10
+
+	_build_grid_plane()
+	_build_ui()
+	_refresh_ghost()
+
+	# in modalità screenshot CLI la demo costruisce una casetta di prova:
+	# niente caricamento né salvataggio, il villaggio vero resta intatto
+	_persist = OS.get_environment("CHIBI_SHOT") == ""
+	if _persist:
+		_load_village.call_deferred()
+
+
+func is_active() -> bool:
+	return _active
+
+
+func item_index(piece: String) -> int:
+	for i in _items.size():
+		if _items[i]["name"] == piece:
+			return i
+	return -1  # nome sconosciuto: mai trasformarlo in silenzio nel pezzo 0
+
+
+# i dizionari del piano richiesto (0 = terra, 1 = sopra)
+func _dicts(lvl: int) -> Dictionary:
+	return _placed_up if lvl == 1 else _placed
+
+
+## C'è qualcosa sopra la testa in questa cella? Tetto a terra, solaio o
+## tetto del piano di sopra. Usato dal trasloco ("un letto col tetto").
+func has_cover(cell: Vector2i) -> bool:
+	return (_placed[3] as Dictionary).has(cell) \
+			or (_placed_up[0] as Dictionary).has(cell) \
+			or (_placed_up[3] as Dictionary).has(cell)
+
+
+# ---------------------------------------------------------------- input
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("build_toggle"):
+		_set_active(not _active)
+		get_viewport().set_input_as_handled()
+		return
+	if not _active:
+		return
+
+	if event.is_action_pressed("build_level"):
+		_set_level(1 - _level)
+		get_viewport().set_input_as_handled()
+		return
+	if event.is_action_pressed("build_rotate"):
+		if not _demolish:
+			_rot = (_rot + 1) % 4
+			_bounce(_ghost)
+			if _sfx: _sfx.rotate_tick()
+	elif event.is_action_pressed("build_rotate_placed"):
+		_rotate_placed()
+	elif event.is_action_pressed("build_place"):
+		if _demolish:
+			_try_remove()
+		else:
+			_try_place()
+	elif event.is_action_pressed("build_remove"):
+		_try_remove()
+	elif event is InputEventMouseButton and event.pressed:
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			_select(posmod(_index - 1, _items.size()))
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			_select(posmod(_index + 1, _items.size()))
+	elif event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode >= KEY_1 and event.keycode <= KEY_9:
+			var i: int = event.keycode - KEY_1
+			var cat_items := _cat_item_indices(_cat)
+			if i < cat_items.size():
+				_select(cat_items[i])
+
+
+func _set_active(active: bool) -> void:
+	_active = active
+	if not active:
+		_set_demolish(false)
+	_ghost.visible = active and not _demolish
+	_grid_plane.visible = active
+	_panel.visible = active
+	_idle_hint.visible = not active
+	if _sfx:
+		if active:
+			_sfx.build_open()
+		else:
+			_sfx.build_close()
+	mode_changed.emit(active)
+
+
+## Attiva la modalità build con fantasma in una posizione fissa (per debug/CLI).
+func set_active_for_debug(active: bool, ghost_world_pos: Vector3, item_name := "") -> void:
+	debug_ghost_pos = ghost_world_pos
+	if item_name != "" and item_index(item_name) >= 0:
+		_select(item_index(item_name))
+	_set_active(active)
+
+
+# ---------------------------------------------------------------- selezione
+
+func _cat_item_indices(cat: int) -> Array[int]:
+	var out: Array[int] = []
+	for i in _items.size():
+		if _items[i]["cat"] == cat:
+			out.append(i)
+	return out
+
+
+func _select(i: int) -> void:
+	_set_demolish(false)
+	_index = i
+	if _items[i]["cat"] != _cat:
+		_cat = _items[i]["cat"]
+		_rebuild_item_row()
+	# i pezzi del piano di sopra portano il cursore su da soli
+	if bool(_items[i].get("up", false)) and _level == 0:
+		_set_level(1)
+	_refresh_ghost()
+	_sync_ui_selection()
+	if _sfx: _sfx.ui_select()
+
+
+# alterna il piano di costruzione: la griglia sale a quota solaio
+func _set_level(lvl: int) -> void:
+	if _level == lvl:
+		return
+	_level = lvl
+	if _ghost:
+		_bounce(_ghost)
+	if _sfx:
+		_sfx.rotate_tick()
+
+
+func _sync_ui_selection() -> void:
+	for j in _cat_buttons.size():
+		_cat_buttons[j].set_pressed_no_signal(j == _cat)
+	var cat_items := _cat_item_indices(_cat)
+	for j in _item_buttons.size():
+		_item_buttons[j].set_pressed_no_signal(cat_items[j] == _index)
+
+
+func _refresh_ghost() -> void:
+	if _ghost:
+		_ghost.queue_free()
+	var builder: Callable = _items[_index]["builder"]
+	_ghost = builder.call()
+	_ghost.visible = _active
+	add_child(_ghost)
+	for mi in _ghost.find_children("*", "MeshInstance3D", true, false):
+		(mi as MeshInstance3D).transparency = 0.45
+		(mi as MeshInstance3D).material_overlay = _overlay
+		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for light in _ghost.find_children("*", "Light3D", true, false):
+		(light as Light3D).visible = false
+	for part in _ghost.find_children("*", "GPUParticles3D", true, false):
+		(part as GPUParticles3D).emitting = false
+	# il ghost del Tetto non deve fermare la pioggia a mezz'aria
+	for pc in _ghost.find_children("*", "GPUParticlesCollision3D", true, false):
+		(pc as GPUParticlesCollision3D).cull_mask = 0
+
+
+# ---------------------------------------------------------------- cursore
+
+func _process(delta: float) -> void:
+	_update_doors()
+	_update_roof_fade(delta)
+	_update_up_fade(delta)
+	_update_wall_fade(delta)
+
+	# le lanterne delle case sull'albero dondolano piano nel vento
+	_sway_t += delta
+	for pivot in _lanterns:
+		if is_instance_valid(pivot):
+			pivot.rotation.z = sin(_sway_t * 1.35) * 0.15
+			pivot.rotation.x = sin(_sway_t * 0.9 + 1.3) * 0.09
+
+	if not _active or _ghost == null:
+		return
+
+	# un pezzo del piano di sopra (Solaio, Ponticello…) vive sempre al
+	# piano 1: cursore e validazione lo seguono anche col piano attivo a 0
+	var eff := _level
+	if not _demolish and bool(_items[_index].get("up", false)):
+		eff = 1
+	var lvl_y := FLOOR_H * float(eff)
+	var world_pos: Vector3
+	if debug_ghost_pos != Vector3.INF:
+		world_pos = debug_ghost_pos
+	else:
+		var cam := get_viewport().get_camera_3d()
+		if cam == null:
+			return
+		var mouse := get_viewport().get_mouse_position()
+		var from := cam.project_ray_origin(mouse)
+		var dir := cam.project_ray_normal(mouse)
+		if absf(dir.y) < 0.0001 or (lvl_y - from.y) / dir.y < 0.0:
+			return
+		world_pos = from + dir * ((lvl_y - from.y) / dir.y)
+
+	_mouse_world = world_pos
+	# lo snap alla cella lo fa il GridManager (C++)
+	var cell_pos: Vector3 = _grid.snap_to_grid(world_pos)
+	_hover_cell = Vector2i(roundi(cell_pos.x), roundi(cell_pos.z))
+	_grid_plane.position = Vector3(_hover_cell.x, 0.015 + lvl_y, _hover_cell.y)
+
+	# modalità demolizione: evidenzia in rosso il pezzo sotto il cursore
+	if _demolish:
+		_update_demolish_target()
+		return
+
+	var item := _items[_index]
+	if item["type"] == "edge":
+		_update_edge_cursor(world_pos)
+	else:
+		_cursor_key = _hover_cell
+		_cursor_pos = Vector3(_hover_cell.x, lvl_y, _hover_cell.y)
+		_cursor_yaw = -_rot * PI * 0.5
+		_valid = not (_dicts(eff)[item["layer"]] as Dictionary).has(_cursor_key)
+		if eff == 1:
+			_valid = _valid and _up_supported(item, _cursor_key)
+		# sul fiume non si costruisce (i ponti ci sono già, e sono belli)
+		if _valid and _cozy \
+				and bool(_cozy.call("is_river", Vector3(_cursor_key.x, 0, _cursor_key.y))):
+			_valid = false
+
+	_ghost.position = _ghost.position.lerp(_cursor_pos, 1.0 - exp(-22.0 * delta))
+	_ghost.rotation.y = lerp_angle(_ghost.rotation.y, _cursor_yaw, 1.0 - exp(-18.0 * delta))
+	_overlay.albedo_color = VALID_TINT if _valid else INVALID_TINT
+
+
+# bordo più vicino al cursore: orizzontale (lungo X) o verticale (lungo Z)
+func _update_edge_cursor(p: Vector3) -> void:
+	var lvl_y := FLOOR_H * float(_level)
+	var hz := floorf(p.z) + 0.5
+	var h_center := Vector3(roundf(p.x), lvl_y, hz)
+	var vx := floorf(p.x) + 0.5
+	var v_center := Vector3(vx, lvl_y, roundf(p.z))
+	var flip := PI if _rot % 2 == 1 else 0.0
+	if absf(p.z - hz) <= absf(p.x - vx):
+		_cursor_pos = h_center
+		_cursor_yaw = 0.0 + flip
+	else:
+		_cursor_pos = v_center
+		_cursor_yaw = PI * 0.5 + flip
+	_cursor_key = Vector2i(roundi(_cursor_pos.x * 2.0), roundi(_cursor_pos.z * 2.0))
+	_valid = not (_dicts(_level)["edge"] as Dictionary).has(_cursor_key)
+	# di sopra, un muro vuole un solaio in una delle due celle che separa
+	if _valid and _level == 1:
+		var ok := false
+		for cell in _edge_neighbor_cells(_cursor_key):
+			if (_placed_up[0] as Dictionary).has(cell):
+				ok = true
+		_valid = ok
+
+
+# le due celle separate da un bordo (chiave raddoppiata)
+func _edge_neighbor_cells(key: Vector2i) -> Array[Vector2i]:
+	if posmod(key.y, 2) == 1:
+		# bordo orizzontale: celle a nord e sud
+		@warning_ignore("integer_division")
+		var cy := (key.y - 1) / 2
+		@warning_ignore("integer_division")
+		return [Vector2i(key.x / 2, cy), Vector2i(key.x / 2, cy + 1)]
+	@warning_ignore("integer_division")
+	var cx := (key.x - 1) / 2
+	@warning_ignore("integer_division")
+	return [Vector2i(cx, key.y / 2), Vector2i(cx + 1, key.y / 2)]
+
+
+# regola di sostegno del piano di sopra: un solaio vuole un appoggio
+# (muro a terra sul perimetro, solaio/ponticello vicino, o una Scala o
+# Casa albero in una cella adiacente); tutto il resto vuole un solaio.
+func _up_supported(item: Dictionary, cell: Vector2i) -> bool:
+	if not str(item["name"]) in UP_AUTO:
+		return (_placed_up[0] as Dictionary).has(cell)
+	# muri a terra sul perimetro della cella
+	var edges := [
+		Vector2i(cell.x * 2, cell.y * 2 - 1), Vector2i(cell.x * 2, cell.y * 2 + 1),
+		Vector2i(cell.x * 2 - 1, cell.y * 2), Vector2i(cell.x * 2 + 1, cell.y * 2),
+	]
+	for e in edges:
+		var wall = (_placed["edge"] as Dictionary).get(e)
+		if wall and str((wall as Node3D).get_meta("item_name", "")) in WALL_ITEMS:
+			return true
+	for off: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		var near := cell + off
+		if (_placed_up[0] as Dictionary).has(near):
+			return true
+		var ground = (_placed[2] as Dictionary).get(near)
+		if ground == null:
+			ground = (_placed[2] as Dictionary).get(cell)
+		if ground and str((ground as Node3D).get_meta("item_name", "")) in ["Scala", "Casa albero"]:
+			return true
+	return false
+
+
+func _edge_key_to_transform(key: Vector2i) -> Array:
+	var pos := Vector3(key.x * 0.5, 0, key.y * 0.5)
+	var yaw := 0.0 if posmod(key.y, 2) == 1 else PI * 0.5
+	return [pos, yaw]
+
+
+# ------------------------------------------------------- porte e tetti
+
+# le porte si aprono da sole quando Mochi si avvicina, e si richiudono
+func _update_doors() -> void:
+	if _player == null:
+		return
+	for d in _doors:
+		var node := d["node"] as Node3D
+		var open: bool = _player.global_position.distance_to(node.global_position) < 1.3
+		if open != d["open"]:
+			d["open"] = open
+			var tw := create_tween()
+			tw.tween_property(d["hinge"], "rotation:y", -1.95 if open else 0.0, 0.32) \
+					.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+			if _sfx:
+				_sfx.play("door_open" if open else "door_close", -13.0)
+
+
+# quando Mochi è sotto un tetto (a terra o in quota), i tetti dissolvono
+var _roof_fade_applied := -1.0
+var _up_fade_applied := -1.0
+
+
+func _update_roof_fade(delta: float) -> void:
+	if _roofs.is_empty():
+		return
+	var target := 0.0
+	if _player:
+		var cell := Vector2i(roundi(_player.global_position.x), roundi(_player.global_position.z))
+		if (_placed[3] as Dictionary).has(cell) or (_placed_up[3] as Dictionary).has(cell):
+			target = 0.85
+	_roof_fade = lerpf(_roof_fade, target, 1.0 - exp(-9.0 * delta))
+	if absf(_roof_fade - target) < 0.001:
+		_roof_fade = target  # converso: da qui in poi niente riscritture
+	if is_equal_approx(_roof_fade, _roof_fade_applied):
+		return
+	_roof_fade_applied = _roof_fade
+	for meshes in _roofs.values():
+		for mi in meshes:
+			mi.transparency = _roof_fade
+
+
+# quando Mochi è al piano terra sotto un solaio, il piano di sopra
+# intero (solai, ponticelli, arredo) si dissolve per lasciarla vedere
+func _update_up_fade(delta: float) -> void:
+	if _ups.is_empty():
+		return
+	var target := 0.0
+	if _player and _player.global_position.y < FLOOR_H - 0.7:
+		var cell := Vector2i(roundi(_player.global_position.x), roundi(_player.global_position.z))
+		if (_placed_up[0] as Dictionary).has(cell):
+			target = 0.85
+	_up_fade = lerpf(_up_fade, target, 1.0 - exp(-9.0 * delta))
+	if absf(_up_fade - target) < 0.001:
+		_up_fade = target
+	if is_equal_approx(_up_fade, _up_fade_applied):
+		return
+	_up_fade_applied = _up_fade
+	for meshes in _ups.values():
+		for mi in meshes:
+			mi.transparency = _up_fade
+
+
+func _register_special(item_name: String, node: Node3D) -> void:
+	node.set_meta("item_name", item_name)
+	var lvl := int(node.get_meta("lvl", 0))
+	if item_name == "Porta":
+		var hinge := node.find_child("Hinge", true, false)
+		if hinge:
+			_doors.append({"node": node, "hinge": hinge, "open": false})
+	if item_name == "Casa albero":
+		var pivot := node.find_child("LanternaPivot", true, false)
+		if pivot:
+			_lanterns.append(pivot)
+		# una casa sull'albero nuova di zecca merita gli anelli
+		if not _loading:
+			var gtree := get_tree().get_first_node_in_group("grande_albero")
+			if gtree:
+				gtree.engrave_once("casa_albero", "★", "è nata una casa sull'albero")
+	if item_name == "Tetto":
+		var meshes: Array[MeshInstance3D] = []
+		for mi in node.find_children("*", "MeshInstance3D", true, false):
+			meshes.append(mi)
+			(mi as MeshInstance3D).transparency = _roof_fade
+		_roofs[node] = meshes
+	elif item_name in WALL_ITEMS:
+		var meshes: Array[MeshInstance3D] = []
+		for mi in node.find_children("*", "MeshInstance3D", true, false):
+			meshes.append(mi)
+		_walls[node] = {"meshes": meshes, "fade": 0.0}
+	elif lvl == 1:
+		# solai, ponticelli e arredo del piano di sopra: dissolvono
+		# quando Mochi sta sotto di loro
+		var meshes: Array[MeshInstance3D] = []
+		for mi in node.find_children("*", "MeshInstance3D", true, false):
+			meshes.append(mi)
+			(mi as MeshInstance3D).transparency = _up_fade
+		_ups[node] = meshes
+
+
+func _unregister_special(node: Node3D) -> void:
+	var item_name: String = node.get_meta("item_name", "")
+	if item_name == "Porta":
+		_doors = _doors.filter(func(d): return d["node"] != node)
+	if item_name == "Casa albero":
+		var pivot := node.find_child("LanternaPivot", true, false)
+		_lanterns.erase(pivot)
+	if item_name == "Tetto":
+		_roofs.erase(node)
+	elif item_name in WALL_ITEMS:
+		_walls.erase(node)
+	else:
+		_ups.erase(node)
+
+
+# muri "cutaway" alla The Sims: quando un muro sta tra la camera e Mochi
+# (cioè quando lei è dietro o dentro casa), si dissolve per lasciarti vedere
+func _update_wall_fade(delta: float) -> void:
+	if _walls.is_empty() or _player == null:
+		return
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	var pp := _player.global_position
+	pp.y = 0.0
+	var cp := cam.global_position
+	cp.y = 0.0
+	var seg := pp - cp
+	var seg_len2 := seg.length_squared()
+	var k := 1.0 - exp(-10.0 * delta)
+	for node in _walls:
+		var w: Dictionary = _walls[node]
+		var wp: Vector3 = (node as Node3D).global_position
+		wp.y = 0.0
+		var target := 0.0
+		if seg_len2 > 0.01:
+			var t := (wp - cp).dot(seg) / seg_len2
+			if t > 0.15 and t < 0.97 and wp.distance_to(cp + seg * t) < 1.15:
+				target = 0.82
+		var f := lerpf(w["fade"], target, k)
+		w["fade"] = f
+		# i muri del piano di sopra seguono anche la dissolvenza dei solai
+		if int((node as Node3D).get_meta("lvl", 0)) == 1:
+			f = maxf(f, _up_fade)
+		if absf(f - float(w.get("shown", -1.0))) > 0.0004:
+			w["shown"] = f
+			for mi in w["meshes"]:
+				(mi as MeshInstance3D).transparency = f
+				(mi as MeshInstance3D).cast_shadow = \
+						GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if f > 0.4 \
+						else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+
+
+## Superficie sotto una posizione: "wood" sul pavimento, "stone" sul
+## sentiero, altrimenti "grass". Usata per i suoni dei passi.
+func surface_at(pos: Vector3) -> String:
+	var cell := Vector2i(roundi(pos.x), roundi(pos.z))
+	# al piano di sopra si cammina sull'assito
+	if pos.y > 1.2 and (_placed_up[0] as Dictionary).has(cell):
+		return "wood"
+	var floor_node = (_placed[0] as Dictionary).get(cell)
+	if floor_node:
+		var n: String = (floor_node as Node3D).get_meta("item_name", "")
+		return "stone" if n == "Sentiero" else "wood"
+	return "grass"
+
+
+## Tutti i pezzi piazzati con un certo nome (es. "Cassetta posta"),
+## su qualunque layer e piano.
+func get_placed_by_name(item_name: String) -> Array[Node3D]:
+	var out: Array[Node3D] = []
+	for dicts in [_placed, _placed_up]:
+		for layer in [0, 1, 2, 3, "edge"]:
+			for node in (dicts[layer] as Dictionary).values():
+				if (node as Node3D).get_meta("item_name", "") == item_name:
+					out.append(node)
+	return out
+
+
+## I pezzi su cui ci si può sedere o dormire (per il sistema di interazione).
+func get_interactables() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for dicts in [_placed, _placed_up]:
+		for node in (dicts[2] as Dictionary).values():
+			var n: String = (node as Node3D).get_meta("item_name", "")
+			if n in INTERACTABLE:
+				out.append({"node": node, "name": n})
+	return out
+
+
+# ---------------------------------------------------------------- azioni
+
+func _try_place() -> void:
+	if not _valid:
+		_shake(_ghost)
+		if _sfx: _sfx.place_deny()
+		return
+	var item := _items[_index]
+	if item["type"] == "edge":
+		place_edge(_cursor_key, item["name"], _rot % 2 == 1, true, _level)
+	else:
+		place_cell(_cursor_key, item["name"], _rot, true, _level)
+	if _sfx: _sfx.place_ok()
+	get_tree().call_group("regista", "note", "costruzione")
+
+
+## Piazza un pezzo "cell" nella cella data (lvl 1 = piano di sopra).
+## Usato anche dalla demo CLI.
+func place_cell(cell: Vector2i, piece: String, rot := 0, animate := true, lvl := 0) -> void:
+	var index := item_index(piece)
+	if index < 0:
+		push_warning("BuildSystem: pezzo sconosciuto nel salvataggio: %s" % piece)
+		return
+	var item := _items[index]
+	if bool(item.get("up", false)):
+		lvl = 1
+	var dict := _dicts(lvl)[item["layer"]] as Dictionary
+	if dict.has(cell):
+		return
+	if _cozy and bool(_cozy.call("is_river", Vector3(cell.x, 0, cell.y))):
+		return  # il letto del fiume resta del fiume
+	var node := _build_placed(index)
+	node.position = Vector3(cell.x, FLOOR_H * lvl, cell.y)
+	node.rotation.y = -rot * PI * 0.5
+	_placed_root.add_child(node)
+	dict[cell] = node
+	node.set_meta("lvl", lvl)
+	_register_special(piece, node)
+	node.set_meta("rot", rot)
+	# pavimenti, sentieri e tappeti a terra schiacciano l'erba sotto di sé
+	if lvl == 0 and int(item["layer"]) <= 1:
+		get_tree().call_group("cozy_world", "flatten_cell", cell)
+	if animate:
+		_pop_in(node)
+	if not _loading:
+		placed_changed.emit()
+	_save_village()
+
+
+## Piazza un pezzo "edge" sul bordo con chiave raddoppiata data.
+func place_edge(key: Vector2i, piece: String, flip := false, animate := true, lvl := 0) -> void:
+	var index := item_index(piece)
+	if index < 0:
+		push_warning("BuildSystem: pezzo sconosciuto nel salvataggio: %s" % piece)
+		return
+	var dict := _dicts(lvl)["edge"] as Dictionary
+	if dict.has(key):
+		return
+	var tf := _edge_key_to_transform(key)
+	var node := _build_placed(index)
+	node.position = tf[0] + Vector3(0, FLOOR_H * lvl, 0)
+	# micro-sfalsamento verticale deterministico (±3 mm): le modanature di
+	# pezzi adiacenti non condividono mai lo stesso piano -> niente z-fighting
+	node.position.y += 0.0015 * float(posmod(key.x * 7 + key.y * 13, 5) - 2)
+	node.rotation.y = tf[1] + (PI if flip else 0.0)
+	_placed_root.add_child(node)
+	dict[key] = node
+	node.set_meta("lvl", lvl)
+	_register_special(piece, node)
+	node.set_meta("flip", flip)
+	if animate:
+		_pop_in(node)
+	if not _loading:
+		placed_changed.emit()
+	_save_village()
+
+
+# visual del catalogo + StaticBody3D con le collisioni del pezzo
+# (il terzo elemento opzionale di una collisione è la rotazione X: rampe)
+func _build_placed(index: int) -> Node3D:
+	var item := _items[index]
+	var builder: Callable = item["builder"]
+	var visual: Node3D = builder.call()
+	var cols: Array = item["cols"]
+	if cols.is_empty():
+		return visual
+	var body := StaticBody3D.new()
+	body.add_child(visual)
+	for c in cols:
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = c[0]
+		shape.shape = box
+		shape.position = c[1]
+		if c.size() > 2:
+			shape.rotation.x = float(c[2])
+		body.add_child(shape)
+	return body
+
+
+func _pop_in(node: Node3D) -> void:
+	node.scale = Vector3.ONE * 0.55
+	var tween := create_tween()
+	tween.tween_property(node, "scale", Vector3.ONE, 0.28) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_spawn_poof(node.position + Vector3(0, 0.35, 0), Color(1.0, 0.9, 0.55))
+
+
+# cerca il pezzo rimovibile sotto il cursore, per priorità:
+# tetto, poi oggetti, poi bordi, poi tappeti e pavimenti — sul piano attivo
+func _find_removable() -> Array:
+	for layer in [3, 2, "edge", 1, 0]:
+		var key: Vector2i = _hover_cell
+		if layer is String:
+			var near := _nearest_edge_key()
+			if near == Vector2i.MAX:
+				continue
+			key = near
+		var dict := _dicts(_level)[layer] as Dictionary
+		if dict.has(key):
+			return [layer, key, dict[key]]
+	return []
+
+
+func _try_remove() -> void:
+	var found := _find_removable()
+	if found.is_empty():
+		return
+	_remove_at(found[0], found[1], _level)
+
+
+func _remove_at(layer, key, lvl := 0) -> void:
+	var dict := _dicts(lvl)[layer] as Dictionary
+	if not dict.has(key):
+		return
+	var node := dict[key] as Node3D
+	dict.erase(key)
+	_unregister_special(node)
+	if node == _demo_target:
+		_demo_target = null
+	var tween := create_tween()
+	tween.tween_property(node, "scale", Vector3.ONE * 0.02, 0.16) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tween.tween_callback(node.queue_free)
+	_spawn_poof(node.position + Vector3(0, 0.3, 0), Color(0.9, 0.85, 0.8))
+	if _sfx: _sfx.remove_item()
+	# se la cella a terra è tornata libera (né pavimento né tappeto),
+	# l'erba rinasce
+	if lvl == 0 and layer is int and int(layer) <= 1 and key is Vector2i:
+		if not (_placed[0] as Dictionary).has(key) and not (_placed[1] as Dictionary).has(key):
+			get_tree().call_group("cozy_world", "unflatten_cell", key)
+	placed_changed.emit()
+	_save_village()
+
+
+# ------------------------------------------------------- salvataggio
+
+# Il villaggio vive in user://village.json: una riga per pezzo, celle come
+# [layer, x, z, nome, rot] e bordi come [kx, ky, nome, flip]. Il file è
+# minuscolo, quindi si riscrive per intero a ogni modifica: niente timer,
+# niente "vuoi salvare?", il villaggio c'è e basta.
+
+func _save_village() -> void:
+	if not _persist or _loading:
+		return
+	var cells := []
+	var up_cells := []
+	for layer in [0, 1, 2, 3]:
+		for lvl in 2:
+			var dict := _dicts(lvl)[layer] as Dictionary
+			var rows := cells if lvl == 0 else up_cells
+			for cell: Vector2i in dict:
+				var node := dict[cell] as Node3D
+				rows.append([layer, cell.x, cell.y,
+						node.get_meta("item_name", ""), int(node.get_meta("rot", 0))])
+	var edges := []
+	var up_edges := []
+	for lvl in 2:
+		var edict := _dicts(lvl)["edge"] as Dictionary
+		var rows := edges if lvl == 0 else up_edges
+		for key: Vector2i in edict:
+			var node := edict[key] as Node3D
+			rows.append([key.x, key.y,
+					node.get_meta("item_name", ""), bool(node.get_meta("flip", false))])
+	var payload := {"cells": cells, "edges": edges,
+			"up_cells": up_cells, "up_edges": up_edges}
+	# stato extra (giorno del calendario, giardino…) dai nodi "persistable"
+	for node in get_tree().get_nodes_in_group("persistable"):
+		payload.merge(node.save_extra())
+	var f := FileAccess.open(save_path, FileAccess.WRITE)
+	if f == null:
+		printerr("BuildSystem: salvataggio fallito (%s)" % error_string(FileAccess.get_open_error()))
+		return
+	f.store_string(JSON.stringify(payload))
+
+
+func _load_village() -> void:
+	if not FileAccess.file_exists(save_path):
+		return
+	var f := FileAccess.open(save_path, FileAccess.READ)
+	if f == null:
+		return
+	var data: Variant = JSON.parse_string(f.get_as_text())
+	if data is not Dictionary:
+		return
+	_loading = true
+	for c in data.get("cells", []):
+		if c is Array and c.size() == 5:
+			place_cell(Vector2i(int(c[1]), int(c[2])), str(c[3]), int(c[4]), false)
+	for e in data.get("edges", []):
+		if e is Array and e.size() == 4:
+			place_edge(Vector2i(int(e[0]), int(e[1])), str(e[2]), bool(e[3]), false)
+	for c in data.get("up_cells", []):
+		if c is Array and c.size() == 5:
+			place_cell(Vector2i(int(c[1]), int(c[2])), str(c[3]), int(c[4]), false, 1)
+	for e in data.get("up_edges", []):
+		if e is Array and e.size() == 4:
+			place_edge(Vector2i(int(e[0]), int(e[1])), str(e[2]), bool(e[3]), false, 1)
+	for node in get_tree().get_nodes_in_group("persistable"):
+		node.load_extra(data)
+	_loading = false
+	placed_changed.emit()
+
+
+## Per la verifica CLI: quanti pezzi ci sono nel villaggio (tutti i piani).
+func piece_count() -> int:
+	var n := 0
+	for lvl in 2:
+		for layer in [0, 1, 2, 3, "edge"]:
+			n += (_dicts(lvl)[layer] as Dictionary).size()
+	return n
+
+
+## Per la verifica CLI: rimuove tutti i pezzi piazzati.
+func debug_clear() -> void:
+	for lvl in 2:
+		for layer in [0, 1, 2, 3, "edge"]:
+			for key in (_dicts(lvl)[layer] as Dictionary).keys():
+				_remove_at(layer, key, lvl)
+
+
+# ------------------------------------------------------- demolizione
+
+func _set_demolish(on: bool) -> void:
+	if _demolish == on:
+		return
+	_demolish = on
+	if _demo_btn:
+		_demo_btn.set_pressed_no_signal(on)
+	if _ghost:
+		_ghost.visible = _active and not on
+	if not on:
+		_clear_demolish_target()
+
+
+func _clear_demolish_target() -> void:
+	if _demo_target and is_instance_valid(_demo_target):
+		for mi in _demo_target.find_children("*", "MeshInstance3D", true, false):
+			(mi as MeshInstance3D).material_overlay = null
+	_demo_target = null
+
+
+func _update_demolish_target() -> void:
+	var found := _find_removable()
+	var node: Node3D = found[2] if not found.is_empty() else null
+	if node == _demo_target:
+		return
+	_clear_demolish_target()
+	_demo_target = node
+	if node:
+		for mi in node.find_children("*", "MeshInstance3D", true, false):
+			(mi as MeshInstance3D).material_overlay = _demo_overlay
+
+
+func _nearest_edge_key() -> Vector2i:
+	var p := _mouse_world
+	var hz := floorf(p.z) + 0.5
+	var vx := floorf(p.x) + 0.5
+	var h_d := absf(p.z - hz)
+	var v_d := absf(p.x - vx)
+	if minf(h_d, v_d) > 0.45:
+		return Vector2i.MAX
+	if h_d <= v_d:
+		return Vector2i(roundi(roundf(p.x) * 2.0), roundi(hz * 2.0))
+	return Vector2i(roundi(vx * 2.0), roundi(roundf(p.z) * 2.0))
+
+
+# F: ruota di 90° l'oggetto già piazzato sotto il cursore (del piano attivo)
+func _rotate_placed() -> void:
+	var dict := _dicts(_level)[2] as Dictionary
+	if not dict.has(_hover_cell):
+		return
+	var node := dict[_hover_cell] as Node3D
+	node.set_meta("rot", posmod(int(node.get_meta("rot", 0)) + 1, 4))
+	# pressioni ravvicinate: si mira sempre al bersaglio assoluto accumulato,
+	# uccidendo il tween in volo (niente derive di 90° persi per strada)
+	var target := float(node.get_meta("rot_target", node.rotation.y)) - PI * 0.5
+	node.set_meta("rot_target", target)
+	var old_tw = node.get_meta("rot_tw", null)
+	if old_tw is Tween and (old_tw as Tween).is_valid():
+		(old_tw as Tween).kill()
+	var tween := create_tween()
+	node.set_meta("rot_tw", tween)
+	tween.tween_property(node, "rotation:y", target, 0.22) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_bounce(node)
+	if _sfx: _sfx.rotate_tick()
+	_save_village()
+
+
+func _spawn_poof(pos: Vector3, color: Color) -> void:
+	var tex := GradientTexture2D.new()
+	tex.width = 64
+	tex.height = 64
+	tex.fill = GradientTexture2D.FILL_RADIAL
+	tex.fill_from = Vector2(0.5, 0.5)
+	tex.fill_to = Vector2(0.5, 0.0)
+	var grad := Gradient.new()
+	grad.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
+	grad.colors = PackedColorArray([color, Color(color, 0.6), Color(color, 0.0)])
+	tex.gradient = grad
+
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.16, 0.16)
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.albedo_texture = tex
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	mat.vertex_color_use_as_albedo = true
+	quad.material = mat
+
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	pm.emission_sphere_radius = 0.15
+	pm.direction = Vector3(0, 1, 0)
+	pm.spread = 180.0
+	pm.initial_velocity_min = 1.0
+	pm.initial_velocity_max = 2.0
+	pm.gravity = Vector3(0, -3.2, 0)
+	pm.scale_min = 0.5
+	pm.scale_max = 1.1
+	var ramp := Gradient.new()
+	ramp.offsets = PackedFloat32Array([0.0, 0.7, 1.0])
+	ramp.colors = PackedColorArray([Color(1, 1, 1, 1), Color(1, 1, 1, 0.8), Color(1, 1, 1, 0)])
+	var ramp_tex := GradientTexture1D.new()
+	ramp_tex.gradient = ramp
+	pm.color_ramp = ramp_tex
+
+	var poof := GPUParticles3D.new()
+	poof.amount = 16
+	poof.lifetime = 0.55
+	poof.one_shot = true
+	poof.explosiveness = 1.0
+	poof.local_coords = false
+	poof.process_material = pm
+	poof.draw_pass_1 = quad
+	poof.position = pos
+	add_child(poof)
+	poof.emitting = true
+	get_tree().create_timer(1.2).timeout.connect(poof.queue_free)
+
+
+func _bounce(node: Node3D) -> void:
+	var tween := create_tween()
+	tween.tween_property(node, "scale", Vector3.ONE * 1.12, 0.07)
+	tween.tween_property(node, "scale", Vector3.ONE, 0.12) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+func _shake(node: Node3D) -> void:
+	var origin := node.position
+	var tween := create_tween()
+	tween.tween_property(node, "position:x", origin.x + 0.06, 0.04)
+	tween.tween_property(node, "position:x", origin.x - 0.06, 0.05)
+	tween.tween_property(node, "position:x", origin.x, 0.05)
+
+
+# ---------------------------------------------------------------- griglia
+
+func _build_grid_plane() -> void:
+	var mat := ShaderMaterial.new()
+	mat.shader = GRID_SHADER
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(8, 8)
+	_grid_plane = MeshInstance3D.new()
+	_grid_plane.mesh = plane
+	_grid_plane.material_override = mat
+	_grid_plane.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_grid_plane.visible = false
+	add_child(_grid_plane)
+
+
+# ---------------------------------------------------------------- UI
+
+func _build_ui() -> void:
+	_ui = CanvasLayer.new()
+	_ui.layer = 3
+	add_child(_ui)
+
+	var root := Control.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ui.add_child(root)
+
+	_panel = PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.98, 0.95, 0.88, 0.94)
+	sb.set_corner_radius_all(16)
+	sb.border_color = Color(0.62, 0.46, 0.34, 0.5)
+	sb.set_border_width_all(2)
+	sb.content_margin_left = 14.0
+	sb.content_margin_right = 14.0
+	sb.content_margin_top = 8.0
+	sb.content_margin_bottom = 8.0
+	_panel.add_theme_stylebox_override("panel", sb)
+	var dock := CenterContainer.new()
+	dock.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	dock.offset_top = -172.0
+	dock.offset_bottom = -14.0
+	dock.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(dock)
+	dock.add_child(_panel)
+	_panel.visible = false
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 6)
+	_panel.add_child(vbox)
+
+	# riga delle categorie
+	var cats := HBoxContainer.new()
+	cats.add_theme_constant_override("separation", 6)
+	cats.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(cats)
+	var cat_group := ButtonGroup.new()
+	for c in CAT_NAMES.size():
+		var btn := _make_button(CAT_NAMES[c], cat_group, 12)
+		btn.pressed.connect(_on_cat_pressed.bind(c))
+		cats.add_child(btn)
+		_cat_buttons.append(btn)
+
+	# lo strumento demolizione: evidenzia in rosso, clic per abbattere
+	_demo_btn = _make_button("✕ Demolisci", null, 12)
+	_demo_btn.add_theme_color_override("font_color", Color("a83a3a"))
+	_demo_btn.add_theme_color_override("font_hover_color", Color("a83a3a"))
+	_demo_btn.add_theme_color_override("font_pressed_color", Color("7a1f1f"))
+	var dsb := StyleBoxFlat.new()
+	dsb.bg_color = Color(0.95, 0.55, 0.5, 0.75)
+	dsb.set_corner_radius_all(10)
+	dsb.content_margin_left = 10.0
+	dsb.content_margin_right = 10.0
+	_demo_btn.add_theme_stylebox_override("pressed", dsb)
+	_demo_btn.add_theme_stylebox_override("hover_pressed", dsb)
+	_demo_btn.toggled.connect(func(on: bool): _set_demolish(on))
+	cats.add_child(_demo_btn)
+
+	# riga dei pezzi della categoria corrente
+	_items_row = HBoxContainer.new()
+	_items_row.add_theme_constant_override("separation", 6)
+	_items_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(_items_row)
+
+	var hint := Label.new()
+	hint.text = "B esci  ·  rotella / 1-9 scegli  ·  R ruota  ·  V piano su/giù  ·  F ruota piazzato  ·  clic piazza  ·  X rimuovi"
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.add_theme_font_size_override("font_size", 12)
+	hint.add_theme_color_override("font_color", Color(UI_BROWN, 0.75))
+	vbox.add_child(hint)
+
+	_rebuild_item_row()
+	_sync_ui_selection()
+
+	_idle_hint = Label.new()
+	_idle_hint.text = "B — modalità costruzione"
+	_idle_hint.add_theme_font_size_override("font_size", 13)
+	_idle_hint.add_theme_color_override("font_color", Color(1, 1, 1, 0.8))
+	_idle_hint.add_theme_color_override("font_shadow_color", Color(0.3, 0.2, 0.15, 0.5))
+	_idle_hint.add_theme_constant_override("shadow_offset_y", 1)
+	_idle_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	root.add_child(_idle_hint)
+	_idle_hint.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_idle_hint.offset_left = -260.0
+	_idle_hint.offset_right = -16.0
+	_idle_hint.offset_top = -36.0
+	_idle_hint.offset_bottom = -12.0
+
+
+func _make_button(text: String, group: ButtonGroup, font_size: int) -> Button:
+	var btn := Button.new()
+	btn.text = text
+	btn.toggle_mode = true
+	if group:
+		btn.button_group = group
+	btn.focus_mode = Control.FOCUS_NONE
+	btn.custom_minimum_size = Vector2(0, 34)
+	btn.add_theme_font_size_override("font_size", font_size)
+	btn.add_theme_color_override("font_color", UI_BROWN)
+	btn.add_theme_color_override("font_pressed_color", Color("a83a5c"))
+	btn.add_theme_color_override("font_hover_color", UI_BROWN)
+	var bsb := StyleBoxFlat.new()
+	bsb.bg_color = Color(1, 1, 1, 0.35)
+	bsb.set_corner_radius_all(10)
+	bsb.content_margin_left = 10.0
+	bsb.content_margin_right = 10.0
+	btn.add_theme_stylebox_override("normal", bsb)
+	btn.add_theme_stylebox_override("hover", bsb)
+	var psb := bsb.duplicate() as StyleBoxFlat
+	psb.bg_color = Color(0.96, 0.72, 0.8, 0.85)
+	btn.add_theme_stylebox_override("pressed", psb)
+	btn.add_theme_stylebox_override("hover_pressed", psb)
+	return btn
+
+
+func _on_cat_pressed(cat: int) -> void:
+	if cat == _cat:
+		return
+	_set_demolish(false)  # cambiare categoria esce dalla demolizione
+	_cat = cat
+	_rebuild_item_row()
+	# seleziona il primo pezzo della categoria
+	var cat_items := _cat_item_indices(cat)
+	if not cat_items.is_empty():
+		_index = cat_items[0]
+		_refresh_ghost()
+	_sync_ui_selection()
+	if _sfx: _sfx.ui_select()
+
+
+func _rebuild_item_row() -> void:
+	for btn in _item_buttons:
+		btn.queue_free()
+	_item_buttons.clear()
+	var group := ButtonGroup.new()
+	var cat_items := _cat_item_indices(_cat)
+	for j in cat_items.size():
+		var i := cat_items[j]
+		var btn := _make_button(str(j + 1) + " " + _items[i]["name"], group, 13)
+		btn.custom_minimum_size = Vector2(0, 38)
+		btn.pressed.connect(_select.bind(i))
+		_items_row.add_child(btn)
+		_item_buttons.append(btn)

@@ -1,0 +1,25 @@
+[gd_scene load_steps=3 format=3 uid="uid://d3u2b9x8y8v"]
+
+[ext_resource type="PackedScene" path="res://scenes/characters/Mochi.tscn" id="1_mochi"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_y7k8p"]
+radius = 0.26
+height = 0.9
+
+[node name="Player" type="PlayerController"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
+shape = SubResource("CapsuleShape3D_y7k8p")
+
+[node name="Mochi" parent="." instance=ExtResource("1_mochi")]
+transform = Transform3D(-0.75, 0, 0, 0, 0.75, 0, 0, 0, -0.75, 0, 0, 0)
+
+[node name="SurvivalComponent" type="SurvivalComponent" parent="."]
+
+[node name="CameraPivot" type="Node3D" parent="."]
+
+[node name="Camera3D" type="Camera3D" parent="CameraPivot"]
+transform = Transform3D(1, 0, 0, 0, 0.882, 0.471, 0, -0.471, 0.882, 0, 2.7, 3.7)
+current = true
+fov = 50.0

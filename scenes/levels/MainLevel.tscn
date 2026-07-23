@@ -1,0 +1,151 @@
+[gd_scene load_steps=28 format=3 uid="uid://mainlevel_uid"]
+
+[ext_resource type="Script" path="res://scenes/levels/MainLevel.gd" id="1_xxyz1"]
+[ext_resource type="PackedScene" uid="uid://d3u2b9x8y8v" path="res://scenes/characters/Player.tscn" id="2_yyzx2"]
+[ext_resource type="PackedScene" uid="uid://cxab35h2o3f1v" path="res://scenes/ui/HUD.tscn" id="3_zzyx3"]
+[ext_resource type="Script" path="res://scenes/world/CozyWorld.gd" id="4_cozy1"]
+[ext_resource type="Script" path="res://scenes/build/BuildSystem.gd" id="5_build1"]
+[ext_resource type="Shader" path="res://shaders/ground.gdshader" id="6_grnd1"]
+[ext_resource type="Shader" path="res://shaders/vignette.gdshader" id="7_vign1"]
+[ext_resource type="Script" path="res://scenes/interact/Interactions.gd" id="8_inter1"]
+[ext_resource type="Script" path="res://scenes/world/DayNight.gd" id="9_dayn1"]
+[ext_resource type="Script" path="res://scenes/interact/Mail.gd" id="10_mail1"]
+[ext_resource type="Script" path="res://scenes/interact/Garden.gd" id="11_gard1"]
+[ext_resource type="Script" path="res://scenes/interact/Cooking.gd" id="12_cook1"]
+[ext_resource type="Script" path="res://scenes/world/Weather.gd" id="13_weat1"]
+[ext_resource type="Script" path="res://scenes/npc/Visitors.gd" id="14_visi1"]
+[ext_resource type="Script" path="res://scenes/interact/Home.gd" id="15_home1"]
+[ext_resource type="Script" path="res://scenes/interact/Collection.gd" id="16_coll1"]
+[ext_resource type="Script" path="res://scenes/interact/PhotoMode.gd" id="17_phot1"]
+[ext_resource type="Script" path="res://scenes/interact/Fishing.gd" id="18_fish1"]
+[ext_resource type="Shader" path="res://shaders/sky.gdshader" id="19_sky1"]
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_1a2b3"]
+size = Vector2(240, 240)
+subdivide_width = 300
+subdivide_depth = 300
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_grnd1"]
+shader = ExtResource("6_grnd1")
+
+[sub_resource type="ConcavePolygonShape3D" id="ConcavePolygonShape3D_7e8f9"]
+data = PackedVector3Array(120, 0, 120, -120, 0, 120, 120, 0, -120, -120, 0, 120, -120, 0, -120, 120, 0, -120)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_sky1"]
+shader = ExtResource("19_sky1")
+
+[sub_resource type="Sky" id="Sky_day1"]
+sky_material = SubResource("ShaderMaterial_sky1")
+
+[sub_resource type="Environment" id="Environment_day1"]
+background_mode = 2
+sky = SubResource("Sky_day1")
+ambient_light_source = 2
+ambient_light_color = Color(0.6, 0.66, 0.86, 1)
+ambient_light_energy = 0.68
+tonemap_mode = 3
+ssao_enabled = true
+ssao_radius = 1.2
+ssao_intensity = 2.0
+glow_enabled = true
+glow_intensity = 0.22
+fog_enabled = true
+fog_light_color = Color(0.93, 0.89, 0.79, 1)
+fog_density = 0.0012
+fog_sky_affect = 0.0
+adjustment_enabled = true
+adjustment_brightness = 0.97
+adjustment_contrast = 1.07
+adjustment_saturation = 1.2
+
+[sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_dof1"]
+dof_blur_far_enabled = true
+dof_blur_far_distance = 16.0
+dof_blur_far_transition = 8.0
+dof_blur_amount = 0.05
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_vign1"]
+shader = ExtResource("7_vign1")
+
+[node name="MainLevel" type="Node3D"]
+script = ExtResource("1_xxyz1")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_day1")
+camera_attributes = SubResource("CameraAttributesPractical_dof1")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.8776, -0.3089, 0.3667, 0, 0.7648, 0.6442, -0.4794, -0.5654, 0.6712, 0, 12, 0)
+light_color = Color(1, 0.9, 0.72, 1)
+light_energy = 1.5
+light_angular_distance = 1.4
+shadow_enabled = true
+shadow_blur = 0.8
+directional_shadow_mode = 0
+directional_shadow_max_distance = 48.0
+
+[node name="Floor" type="StaticBody3D" parent="."]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor"]
+mesh = SubResource("PlaneMesh_1a2b3")
+surface_material_override/0 = SubResource("ShaderMaterial_grnd1")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor"]
+shape = SubResource("ConcavePolygonShape3D_7e8f9")
+
+[node name="CozyWorld" type="Node3D" parent="."]
+script = ExtResource("4_cozy1")
+
+[node name="BuildSystem" type="Node3D" parent="."]
+script = ExtResource("5_build1")
+
+[node name="Player" parent="." instance=ExtResource("2_yyzx2")]
+unique_name_in_owner = true
+
+[node name="HUD" parent="." instance=ExtResource("3_zzyx3")]
+unique_name_in_owner = true
+
+[node name="Interactions" type="Node" parent="."]
+script = ExtResource("8_inter1")
+
+[node name="DayNight" type="Node3D" parent="."]
+script = ExtResource("9_dayn1")
+
+[node name="Weather" type="Node3D" parent="."]
+script = ExtResource("13_weat1")
+
+[node name="Mail" type="Node" parent="."]
+script = ExtResource("10_mail1")
+
+[node name="Garden" type="Node" parent="."]
+script = ExtResource("11_gard1")
+
+[node name="Cooking" type="Node" parent="."]
+script = ExtResource("12_cook1")
+
+[node name="Home" type="Node" parent="."]
+script = ExtResource("15_home1")
+
+[node name="Visitors" type="Node" parent="."]
+script = ExtResource("14_visi1")
+
+[node name="Collection" type="Node" parent="."]
+script = ExtResource("16_coll1")
+
+[node name="Fishing" type="Node" parent="."]
+script = ExtResource("18_fish1")
+
+[node name="PhotoMode" type="Node" parent="."]
+script = ExtResource("17_phot1")
+
+[node name="Vignette" type="CanvasLayer" parent="."]
+layer = 0
+
+[node name="ColorRect" type="ColorRect" parent="Vignette"]
+material = SubResource("ShaderMaterial_vign1")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
