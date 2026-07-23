@@ -18,3 +18,4 @@ addons/lua-gdextension/build/*
 
 # file temporanei di Windows (sostituzione DLL a caldo)
 *.TMP
+!addons/lua-gdextension/build/*macos*
