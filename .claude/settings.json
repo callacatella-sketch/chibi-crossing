@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/git-backup.sh\"",
+            "timeout": 45,
+            "statusMessage": "Backup Git automatico (commit + push)..."
+          }
+        ]
+      }
+    ]
+  }
+}

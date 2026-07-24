@@ -19,3 +19,7 @@ addons/lua-gdextension/build/*
 # file temporanei di Windows (sostituzione DLL a caldo)
 *.TMP
 !addons/lua-gdextension/build/*macos*
+
+# impostazioni personali di Claude Code (permessi locali della macchina):
+# restano fuori dal repo. La config condivisa e' in .claude/settings.json.
+.claude/settings.local.json
