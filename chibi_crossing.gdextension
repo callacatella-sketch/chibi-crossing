@@ -7,3 +7,5 @@ compatibility_minimum = 4.1
 
 windows.debug.x86_64 = "res://bin/chibi_crossing.dll"
 windows.release.x86_64 = "res://bin/chibi_crossing.dll"
+macos.debug = "res://bin/libchibi_crossing.macos.template_debug.universal.dylib"
+macos.release = "res://bin/libchibi_crossing.macos.template_release.universal.dylib"

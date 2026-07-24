@@ -7,18 +7,21 @@ opts = Variables([], ARGUMENTS)
 opts.Add(EnumVariable("target", "Compilation target", "template_debug", ["template_debug", "template_release"]))
 opts.Update(env)
 
-# Ensure godot-cpp builds
-env.SConscript("godot-cpp/SConstruct")
+# Compila godot-cpp e cattura l'ambiente gia' configurato che restituisce
+# (Return("env")): contiene standard C++, define, flag di architettura e il
+# link alla libreria statica di godot-cpp gia' pronti per la piattaforma scelta.
+godot_env = env.SConscript("godot-cpp/SConstruct")
 
-env.Append(CPPPATH=[
-    "src/",
-    "godot-cpp/gdextension",
-    "godot-cpp/include",
-    "godot-cpp/gen/include"
-])
+sources = Glob("src/*.cpp")
 
-# For MSVC we need these flags
 if env["PLATFORM"] == "win32":
+    # --- Windows (PC di sviluppo): setup MSVC manuale, un'unica DLL ---
+    env.Append(CPPPATH=[
+        "src/",
+        "godot-cpp/gdextension",
+        "godot-cpp/include",
+        "godot-cpp/gen/include"
+    ])
     env.Append(CPPDEFINES=["TYPED_METHOD_BIND", "WIN32", "_WINDOWS"])
     env.Append(CXXFLAGS=["/std:c++17", "/EHsc", "/Zc:preprocessor", "/vmp", "/vmg"])
     env.Append(LIBPATH=["godot-cpp/bin"])
@@ -27,11 +30,27 @@ if env["PLATFORM"] == "win32":
     else:
         env.Append(LIBS=["libgodot-cpp.windows.template_release.x86_64.lib"])
 
-sources = Glob("src/*.cpp")
-
-library = env.SharedLibrary(
-    "bin/chibi_crossing",
-    source=sources
-)
+    library = env.SharedLibrary(
+        "bin/chibi_crossing",
+        source=sources
+    )
+else:
+    # --- macOS / Linux: si usa l'ambiente di godot-cpp cosi' i nostri sorgenti
+    # ereditano -std=c++17, i define, i flag di architettura (es. universale)
+    # e il link automatico alla libreria statica di godot-cpp. Il nome del file
+    # segue la convenzione Godot (lib<nome>.<piattaforma>.<target>.<arch>.dylib),
+    # la stessa usata dagli addon del progetto.
+    godot_env.Append(CPPPATH=["src/"])
+    # godot_env["suffix"] == ".<piattaforma>.<target>.<arch>" (es. ".macos.template_debug.universal")
+    # SHLIBSUFFIX == ".dylib" su macOS / ".so" su Linux. Il prefisso "lib" e il
+    # suffisso vanno messi espliciti, altrimenti SCons scambia ".universal" per
+    # estensione e non aggiunge ".dylib".
+    lib_name = "bin/libchibi_crossing{}{}".format(
+        godot_env["suffix"], godot_env["SHLIBSUFFIX"]
+    )
+    library = godot_env.SharedLibrary(
+        lib_name,
+        source=sources
+    )
 
 Default(library)
