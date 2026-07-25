@@ -8,6 +8,7 @@ func _initialize() -> void:
 	var util_script := load("res://tests/test_util.gd")
 	var t = util_script.new()
 	for fname in _list_cases():
+		print("RUN  ", fname)
 		var script := load("res://tests/cases/" + fname)
 		if script == null:
 			push_error("Impossibile caricare " + fname)
@@ -16,6 +17,7 @@ func _initialize() -> void:
 		t.current_file = fname
 		if case.has_method("run"):
 			case.run(t)
+		print("DONE ", fname)
 	t.report()
 	quit(1 if t.failures > 0 else 0)
 
