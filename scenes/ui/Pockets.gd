@@ -13,6 +13,7 @@ extends Node
 ## scena (guardia is_physics_processing).
 
 const ICON := preload("res://scenes/ui/PocketIcon.gd")
+const INV := preload("res://scenes/ui/Inventory.gd")
 
 const UI_BROWN := Color("6a4a3a")
 const UI_BROWN2 := Color("8a5a3a")
@@ -212,7 +213,7 @@ func _gather() -> Array[Dictionary]:
 				var e: Dictionary = (INGREDIENTS[id] as Dictionary).duplicate()
 				e["id"] = id
 				e["count"] = n
-				e["tags"] = Inventory.dish_tags(false, {id: 1})
+				e["tags"] = INV.dish_tags(false, {id: 1})
 				e["kind"] = "ingredient"
 				e["giftable"] = false
 				out.append(e)
@@ -539,7 +540,7 @@ func _loves(e: Dictionary) -> bool:
 	if _gift_target.is_empty() or not bool(e.get("giftable", false)) or _inventory == null:
 		return false
 	var w: Dictionary = (_gift_target.get("dna", {}) as Dictionary).get("weights", {})
-	return _inventory.affinity(e.get("tags", []), w) == Inventory.REACT_LOVES
+	return _inventory.affinity(e.get("tags", []), w) == INV.REACT_LOVES
 
 
 # ---------------------------------------------------------------- costruzione UI
