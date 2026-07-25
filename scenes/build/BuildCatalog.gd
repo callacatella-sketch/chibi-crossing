@@ -94,6 +94,27 @@ static func items() -> Array[Dictionary]:
 			"cols": [[Vector3(0.95, 0.85, 0.42), Vector3(0, 0.42, 0)]]},
 		{"name": "Lavagna", "cat": 2, "type": "cell", "layer": 2, "builder": _blackboard,
 			"cols": [[Vector3(1.05, 1.6, 0.16), Vector3(0, 0.8, 0.05)]]},
+
+		# --- pezzi del NEGOZIO (si comprano dal mercante · vedi Economy.gd) ---
+		{"name": "Casetta uccellini", "cat": 2, "type": "cell", "layer": 2, "builder": _birdhouse,
+			"cols": [[Vector3(0.28, 1.5, 0.28), Vector3(0, 0.75, 0)]]},
+		{"name": "Lampione", "cat": 2, "type": "cell", "layer": 2, "builder": _streetlamp,
+			"cols": [[Vector3(0.22, 2.3, 0.22), Vector3(0, 1.15, 0)]]},
+		{"name": "Amaca", "cat": 1, "type": "cell", "layer": 2, "builder": _hammock,
+			"cols": [[Vector3(0.95, 0.95, 0.4), Vector3(0, 0.45, 0)]]},
+		{"name": "Altalena", "cat": 2, "type": "cell", "layer": 2, "builder": _swing,
+			"cols": [[Vector3(1.1, 1.65, 0.14), Vector3(0, 0.82, 0)]]},
+		{"name": "Fontana", "cat": 2, "type": "cell", "layer": 2, "builder": _fountain,
+			"cols": [[Vector3(0.98, 0.6, 0.98), Vector3(0, 0.3, 0)]]},
+		{"name": "Gazebo", "cat": 0, "type": "cell", "layer": 2, "builder": _gazebo,
+			"cols": [[Vector3(0.16, 2.2, 0.16), Vector3(0.5, 1.1, 0.5)],
+					[Vector3(0.16, 2.2, 0.16), Vector3(-0.5, 1.1, 0.5)],
+					[Vector3(0.16, 2.2, 0.16), Vector3(0.5, 1.1, -0.5)],
+					[Vector3(0.16, 2.2, 0.16), Vector3(-0.5, 1.1, -0.5)]]},
+		{"name": "Giostrina", "cat": 2, "type": "cell", "layer": 2, "builder": _carousel,
+			"cols": [[Vector3(0.5, 1.6, 0.5), Vector3(0, 0.8, 0)]]},
+		{"name": "Braciere stellato", "cat": 1, "type": "cell", "layer": 2, "builder": _brazier,
+			"cols": [[Vector3(0.5, 0.8, 0.5), Vector3(0, 0.4, 0)]]},
 	]
 
 
@@ -785,4 +806,205 @@ static func _bench() -> Node3D:
 	var back_b := _box(n, Vector3(0.95, 0.14, 0.04), wood, Vector3(0, 0.8, -0.22))
 	back_a.rotation.x = 0.15
 	back_b.rotation.x = 0.15
+	return n
+
+
+# ================================================================ NEGOZIO
+# I pezzi che si comprano dal mercante (con le noccioline o le stelline).
+# Stessa mano pastello del resto del catalogo.
+
+static func _glow(albedo: Color, emission: Color, energy: float) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = albedo
+	m.emission_enabled = true
+	m.emission = emission
+	m.emission_energy_multiplier = energy
+	return m
+
+
+# uno zampillo / scintillio di particelle morbide (fontana, braciere)
+static func _emit_fx(parent: Node3D, pos: Vector3, color: Color, up_vel: float, grav: float, amount: int, life: float, size: float) -> void:
+	var tex := GradientTexture2D.new()
+	tex.width = 32
+	tex.height = 32
+	tex.fill = GradientTexture2D.FILL_RADIAL
+	tex.fill_from = Vector2(0.5, 0.5)
+	tex.fill_to = Vector2(0.5, 0.0)
+	var g := Gradient.new()
+	g.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
+	g.colors = PackedColorArray([color, Color(color, 0.5), Color(color, 0.0)])
+	tex.gradient = g
+	var quad := QuadMesh.new()
+	quad.size = Vector2(size, size)
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.albedo_texture = tex
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	mat.vertex_color_use_as_albedo = true
+	quad.material = mat
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	pm.emission_sphere_radius = size * 0.5
+	pm.direction = Vector3(0, 1, 0)
+	pm.spread = 22.0
+	pm.initial_velocity_min = up_vel * 0.6
+	pm.initial_velocity_max = up_vel
+	pm.gravity = Vector3(0, grav, 0)
+	pm.scale_min = 0.5
+	pm.scale_max = 1.1
+	var ramp := Gradient.new()
+	ramp.offsets = PackedFloat32Array([0.0, 0.3, 1.0])
+	ramp.colors = PackedColorArray([Color(1, 1, 1, 0.0), Color(1, 1, 1, 1.0), Color(1, 1, 1, 0.0)])
+	var ramp_tex := GradientTexture1D.new()
+	ramp_tex.gradient = ramp
+	pm.color_ramp = ramp_tex
+	var p := GPUParticles3D.new()
+	p.amount = amount
+	p.lifetime = life
+	p.process_material = pm
+	p.draw_pass_1 = quad
+	p.position = pos
+	parent.add_child(p)
+
+
+static func _birdhouse() -> Node3D:
+	var n := Node3D.new()
+	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	_cyl(n, 0.035, 0.05, 1.05, wood, Vector3(0, 0.52, 0))
+	_box(n, Vector3(0.28, 0.3, 0.26), _mat(PLASTER, PLASTER_SHADE, 3.0, 0.45), Vector3(0, 1.18, 0))
+	var tile := _mat(TERRACOTTA, Color("c47a58"), 3.0, 0.5)
+	for s: float in [-1.0, 1.0]:
+		var r := _box(n, Vector3(0.24, 0.03, 0.32), tile, Vector3(s * 0.08, 1.36, 0))
+		r.rotation.z = -s * 0.6
+	var hole := _cyl(n, 0.05, 0.05, 0.04, _mat(Color("4a3226"), Color("31201a"), 3.0, 0.4), Vector3(0, 1.18, 0.14))
+	hole.rotation.x = PI * 0.5
+	var perch := _cyl(n, 0.012, 0.012, 0.12, wood, Vector3(0, 1.1, 0.17))
+	perch.rotation.x = PI * 0.5
+	return n
+
+
+static func _streetlamp() -> Node3D:
+	var n := Node3D.new()
+	var metal := _mat(METAL, Color("6f665b"), 5.0, 0.4)
+	_cyl(n, 0.14, 0.18, 0.1, metal, Vector3(0, 0.05, 0))
+	_cyl(n, 0.035, 0.05, 2.0, metal, Vector3(0, 1.0, 0))
+	_box(n, Vector3(0.24, 0.06, 0.24), metal, Vector3(0, 2.02, 0))
+	_box(n, Vector3(0.17, 0.2, 0.17), _glow(Color("ffe6b0"), Color("ffd382"), 2.0), Vector3(0, 2.14, 0))
+	var cap := _cyl(n, 0.02, 0.14, 0.12, metal, Vector3(0, 2.3, 0))
+	cap.name = "cap"
+	var light := OmniLight3D.new()
+	light.light_color = Color(1.0, 0.86, 0.6)
+	light.light_energy = 1.6
+	light.omni_range = 5.5
+	light.position = Vector3(0, 2.14, 0)
+	n.add_child(light)
+	return n
+
+
+static func _hammock() -> Node3D:
+	var n := Node3D.new()
+	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	for x: float in [-0.42, 0.42]:
+		var post := _cyl(n, 0.04, 0.06, 0.9, wood, Vector3(x, 0.45, 0))
+		post.rotation.z = -signf(x) * 0.12
+	var a := _mat(PINK, PINK_DEEP, 5.0, 0.4)
+	var b := _mat(CREAM, Color("f3dfc8"), 5.0, 0.4)
+	for i in 9:
+		var t := float(i) / 8.0
+		var x := -0.36 + t * 0.72
+		var dip := 0.44 - 0.16 * sin(PI * t)
+		_box(n, Vector3(0.08, 0.02, 0.34), a if i % 2 == 0 else b, Vector3(x, dip, 0))
+	return n
+
+
+static func _swing() -> Node3D:
+	var n := Node3D.new()
+	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	for x: float in [-0.48, 0.48]:
+		_cyl(n, 0.035, 0.05, 1.55, wood, Vector3(x, 0.77, 0))
+	var bar := _cyl(n, 0.04, 0.04, 1.05, wood, Vector3(0, 1.53, 0))
+	bar.rotation.z = PI * 0.5
+	var rope := _mat(Color("c9b088"), Color("ab9066"), 5.0, 0.5)
+	for x: float in [-0.16, 0.16]:
+		_cyl(n, 0.01, 0.01, 0.95, rope, Vector3(x, 1.05, 0.05))
+	_box(n, Vector3(0.44, 0.05, 0.22), _mat(WOOD_PALE, WOOD, 3.0, 0.5), Vector3(0, 0.6, 0.05))
+	return n
+
+
+static func _fountain() -> Node3D:
+	var n := Node3D.new()
+	var stone := _mat(STONE, STONE_DARK, 3.0, 0.5)
+	_cyl(n, 0.46, 0.5, 0.16, stone, Vector3(0, 0.08, 0))
+	_cyl(n, 0.42, 0.42, 0.02, stone, Vector3(0, 0.02, 0))
+	var water := _glow(Color(0.55, 0.82, 0.95, 0.75), Color(0.4, 0.7, 0.9), 0.15)
+	water.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_cyl(n, 0.42, 0.42, 0.02, water, Vector3(0, 0.14, 0))
+	_cyl(n, 0.09, 0.13, 0.36, stone, Vector3(0, 0.32, 0))
+	_cyl(n, 0.17, 0.2, 0.05, stone, Vector3(0, 0.5, 0))
+	var wtop := _glow(Color(0.6, 0.84, 0.95, 0.8), Color(0.45, 0.72, 0.92), 0.2)
+	wtop.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_cyl(n, 0.15, 0.15, 0.02, wtop, Vector3(0, 0.53, 0))
+	_emit_fx(n, Vector3(0, 0.62, 0), Color(0.72, 0.9, 1.0), 1.4, -3.2, 20, 1.0, 0.08)
+	return n
+
+
+static func _gazebo() -> Node3D:
+	var n := Node3D.new()
+	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var pale := _mat(WOOD_PALE, WOOD, 3.0, 0.45)
+	_box(n, Vector3(1.12, 0.08, 1.12), pale, Vector3(0, 0.04, 0))
+	for sx: float in [-0.5, 0.5]:
+		for sz: float in [-0.5, 0.5]:
+			_box(n, Vector3(0.09, 2.1, 0.09), wood, Vector3(sx, 1.05, sz))
+	_box(n, Vector3(1.18, 0.08, 1.18), wood, Vector3(0, 2.12, 0))
+	var tile := _mat(TERRACOTTA, Color("c47a58"), 3.0, 0.5)
+	for i in 4:
+		var a := float(i) * PI * 0.5
+		var slope := _box(n, Vector3(1.35, 0.06, 0.72), tile, Vector3(cos(a) * 0.32, 2.4, sin(a) * 0.32))
+		slope.rotation.y = a
+		slope.rotation.x = -0.72
+	_ball(n, 0.1, _mat(Color("f2cf7e"), Color("d9a84a"), 3.0, 0.4), Vector3(0, 2.78, 0))
+	return n
+
+
+static func _carousel() -> Node3D:
+	var n := Node3D.new()
+	var pole := _mat(METAL, Color("6f665b"), 5.0, 0.4)
+	_cyl(n, 0.42, 0.44, 0.04, _mat(WOOD_PALE, WOOD, 3.0, 0.4), Vector3(0, 0.03, 0))
+	_cyl(n, 0.03, 0.05, 1.5, pole, Vector3(0, 0.77, 0))
+	for i in 8:
+		var a := float(i) * TAU / 8.0
+		var mat := _mat(PINK, PINK_DEEP, 4.0, 0.4) if i % 2 == 0 else _mat(CREAM, Color("f3dfc8"), 4.0, 0.4)
+		var stripe := _box(n, Vector3(0.34, 0.04, 0.16), mat, Vector3(cos(a) * 0.22, 1.48, sin(a) * 0.22))
+		stripe.rotation.y = a
+		stripe.rotation.x = -0.5
+	_ball(n, 0.06, _mat(Color("f2cf7e"), Color("d9a84a"), 3.0, 0.4), Vector3(0, 1.6, 0))
+	for i in 3:
+		var a := float(i) * TAU / 3.0
+		var hx := cos(a) * 0.3
+		var hz := sin(a) * 0.3
+		_cyl(n, 0.008, 0.008, 0.62, pole, Vector3(hx, 0.6, hz))
+		_ball(n, 0.075, _mat(CREAM, PINK, 4.0, 0.4), Vector3(hx, 0.42, hz), Vector3(1.5, 0.95, 0.7))
+	return n
+
+
+static func _brazier() -> Node3D:
+	var n := Node3D.new()
+	var metal := _mat(METAL, Color("5f564c"), 5.0, 0.4)
+	_cyl(n, 0.22, 0.13, 0.16, metal, Vector3(0, 0.55, 0))
+	_cyl(n, 0.2, 0.2, 0.02, _glow(Color("ff9440"), Color("ff7a26"), 1.8), Vector3(0, 0.6, 0))
+	for i in 3:
+		var a := (float(i) + 0.5) * TAU / 3.0
+		var leg := _cyl(n, 0.015, 0.022, 0.5, metal, Vector3(cos(a) * 0.14, 0.25, sin(a) * 0.14))
+		leg.rotation.z = cos(a) * 0.24
+		leg.rotation.x = -sin(a) * 0.24
+	_emit_fx(n, Vector3(0, 0.66, 0), Color("ffd257"), 0.9, 0.5, 22, 1.1, 0.09)
+	var light := OmniLight3D.new()
+	light.light_color = Color(1.0, 0.82, 0.5)
+	light.light_energy = 1.7
+	light.omni_range = 4.2
+	light.position = Vector3(0, 0.72, 0)
+	n.add_child(light)
 	return n

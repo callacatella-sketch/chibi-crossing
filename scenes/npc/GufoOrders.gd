@@ -39,7 +39,7 @@ const CHAIN := [
     {"id": "un-posto-per-due", "title": "Un posto per due", "letter_text": "Un tavolo apparecchiato per uno fa un po' di malinconia.\nMetti un tavolino e due sedie:\nprima o poi qualcuno verrà a sedersi di fronte a te.", "hint": "un tavolino e almeno 2 sedie", "done_text": "Due sedie una di fronte all'altra. Ho già in mente chi potrebbe riempirne una.", "predicate": {"type": "table_with_chairs", "chairs": 2}, "unlocks": ["Camino", "Lampada"], "celebrate_letter": ""},
     {"id": "il-fuoco-e-la-luce", "title": "Il fuoco e la luce", "letter_text": "Quando cala il buio, un villaggio si riconosce da come si illumina.\nAccendi un camino e appendi una lampada:\ndue piccole luci bastano a dire «qui c'è vita».", "hint": "due piccole luci accese", "done_text": "Da quassù vedo le tue luci: sembrano un piccolo faro tra gli alberi.", "predicate": {"type": "any_count", "names": ["Camino", "Lampada"], "n": 2}, "unlocks": ["Letto", "Libreria"], "celebrate_letter": ""},
     {"id": "una-stanza-per-un-ospite", "title": "Una stanza per un ospite", "letter_text": "Prepara un letto e mettilo al riparo di un tetto.\nQualcuno, con una valigia e tanta timidezza,\nsta cercando proprio un posto così per fermarsi.", "hint": "un letto sotto un tetto", "done_text": "C'è un letto pronto, all'asciutto. Ora aspettiamo: qualcuno arriverà.", "predicate": {"type": "bed_under_roof"}, "unlocks": ["Comodino"], "celebrate_letter": "All'alba ho visto una valigia posata sulla soglia. Il tuo primo ospite ha annusato l'aria, ha guardato il letto sotto il tetto, e ha deciso di restare."},
-    {"id": "il-primo-abitante", "title": "Il primo abitante", "letter_text": "Alla tua porta c'è una valigia e un sorriso timido.\nTieni il letto pronto sotto il suo tetto:\nfa' che il primo ospite scelga di restare per sempre.", "hint": "accogli il primo abitante (tieni un letto sotto un tetto)", "done_text": "Un abitante! Il villaggio ha smesso di essere un'idea: adesso respira.", "predicate": {"type": "resident_moved_in", "n": 1}, "unlocks": ["Scala", "Solaio", "Lavagna"], "celebrate_letter": "Il tuo nuovo vicino stamattina ha spazzato la soglia canticchiando, e mi ha chiesto dove potrà segnare i giorni di festa. Gli ho promesso che gli avresti dato una lavagna tutta sua. Una casa che accoglie, prima o poi, ha voglia di crescere anche verso l'alto."},
+    {"id": "il-primo-abitante", "title": "Il primo abitante", "letter_text": "Presto, col sereno del giorno, busserà un ospite\ncon la valigia in zampa. Preparagli un letto tutto suo,\nsotto un tetto — non quello di casa tua — e aspetta:\nsceglierà di restare.", "hint": "un letto per l'ospite (non quello di casa) sotto un tetto, poi aspetta", "done_text": "Un abitante! Il villaggio ha smesso di essere un'idea: adesso respira.", "predicate": {"type": "resident_moved_in", "n": 1}, "unlocks": ["Scala", "Solaio", "Lavagna"], "celebrate_letter": "Il tuo nuovo vicino stamattina ha spazzato la soglia canticchiando, e mi ha chiesto dove potrà segnare i giorni di festa. Gli ho promesso che gli avresti dato una lavagna tutta sua. Una casa che accoglie, prima o poi, ha voglia di crescere anche verso l'alto."},
     {"id": "verso-l-alto", "title": "Verso l'alto", "letter_text": "Il villaggio ha preso coraggio e vuole guardare più lontano.\nCostruisci un piano di sopra, un solaio:\nda lassù anche i tetti sembrano un piccolo mare ondulato.", "hint": "un piano di sopra (un Solaio)", "done_text": "Un piano nuovo, più vicino ai rami. Comincio a sentirti quasi alla mia altezza.", "predicate": {"type": "has_upper_floor"}, "unlocks": ["Ponticello"], "celebrate_letter": ""},
     {"id": "la-casa-sull-albero", "title": "La casa sull'albero", "letter_text": "Ci siamo arrivati in cima, tu ed io.\nLancia un ponticello di corda tra i tetti più alti:\nè l'ultimo ponte prima del ramo dove ti aspetto.", "hint": "un ponticello tra i tetti alti", "done_text": "Il ponte regge. Il villaggio adesso tocca i rami: puoi costruire la casa sull'albero.", "predicate": {"type": "has", "name": "Ponticello"}, "unlocks": ["Casa albero"], "celebrate_letter": "Stanotte mi trasferisco nella casa sull'albero che hai immaginato per me. Dal ramo più alto conto i tetti nuovi, le luci, gli orti, l'ospite che ora ha un nome: hai costruito un mondo intero, e io ho avuto il posto in prima fila. Grazie, piccolo Regista. — Il Gufo"},
 ]
@@ -47,6 +47,7 @@ const CHAIN := [
 # --- stato della progressione (persistito sotto la chiave "gufo") ---
 var _build: Node
 var _mail: Node
+var _visitors: Node
 var _sfx
 var _dormant := false            # CLI screenshot / makesave: recinto spento
 var _current := 0                # indice dell'Ordine in corso in CHAIN
@@ -85,6 +86,7 @@ func _ready() -> void:
     # (siamo piu' in basso nell'albero): il gruppo e' gia' popolato.
     _build = get_tree().get_first_node_in_group("build_system")
     _mail = get_node_or_null("../Mail")
+    _visitors = get_node_or_null("../Visitors")
     _build_ui()
     if _build and _build.has_signal("placed_changed"):
         _build.connect("placed_changed", _on_placed_changed)
@@ -119,11 +121,35 @@ func _apply_to_build() -> void:
         _build.call("set_order_banner", "")
         return
     _build.call("apply_unlocks", _unlocked.keys(), true)
+    _update_banner()
+
+
+func _update_banner() -> void:
+    if _build == null:
+        return
+    if _veteran:
+        _build.call("set_order_banner", "")
+        return
     var o := _active_order()
     if o.is_empty():
         _build.call("set_order_banner", "Il villaggio e' completo — la tela e' tua.")
-    else:
-        _build.call("set_order_banner", "Il Gufo sussurra:  %s" % str(o["hint"]))
+        return
+    _build.call("set_order_banner", "Il Gufo sussurra:  %s" % _banner_hint(o))
+
+
+# di norma il banner mostra l'hint statico; ma l'Ordine "arriva un ospite"
+# e' un'attesa passiva (col sereno, di giorno) con un caso scomodo: se il
+# solo letto coperto e' quello di casa, nessun ospite puo' prenderlo. Qui la
+# guida diventa esplicita, cosi' non ci si blocca senza capire perche'.
+func _banner_hint(o: Dictionary) -> String:
+    var pred: Dictionary = o.get("predicate", {})
+    if str(pred.get("type", "")) == "resident_moved_in":
+        if not bool(_build.call("has_bed_under_roof")):
+            return "prepara un letto sotto un tetto per l'ospite in arrivo"
+        if _visitors != null and not bool(_visitors.call("has_free_house")):
+            return "l'ospite vuole un letto tutto suo (non quello di casa), sotto un tetto"
+        return "col sereno, di giorno, qualcuno arrivera' con la valigia — tieni il letto pronto"
+    return str(o.get("hint", ""))
 
 
 # ---------------------------------------------------------------- Ordini
@@ -202,6 +228,7 @@ func _on_placed_changed() -> void:
     if _dormant or _veteran:
         return
     _check_current()
+    _update_banner()  # la guida dell'Ordine "arriva un ospite" resta viva
 
 
 ## Un residente ha traslocato: lo segnala Visitors. Fa avanzare gli Ordini
@@ -223,6 +250,10 @@ func _check_current() -> void:
 
 
 func _complete(o: Dictionary) -> void:
+    # difesa: un Ordine gia' esaudito non si ricompleta (niente doppioni di
+    # lettera/regalo se un placed_changed lo rivaluta dopo un reload)
+    if _done.has(str(o["id"])):
+        return
     _done[str(o["id"])] = true
     for name in o.get("unlocks", []):
         _unlocked[str(name)] = true
@@ -298,6 +329,10 @@ func load_extra(data: Dictionary) -> void:
         _announced = {}
         for oid in d.get("announced", []):
             _announced[str(oid)] = true
+        # riconciliazione: _current non deve puntare a un Ordine gia' fatto
+        # (es. se un crash ha salvato tra la marcatura e l'avanzamento)
+        while _current < CHAIN.size() and _done.has(str(CHAIN[_current]["id"])):
+            _current += 1
         _reveal_current()
         return
     # --- migrazione: salvataggio precedente agli Ordini ---

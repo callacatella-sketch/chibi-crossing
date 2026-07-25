@@ -842,6 +842,12 @@ func _make_bowl(col: Color) -> Node3D:
 # ---------------------------------------------------------------- trasloco
 
 # una casa libera = un Letto col tetto, non reclamato, non casa del giocatore
+## C'è una casa pronta per un ospite (Letto coperto, libero, non di casa)?
+## Lo usano gli Ordini del Gufo per sapere se un trasloco è davvero possibile.
+func has_free_house() -> bool:
+	return not _free_house().is_empty()
+
+
 func _free_house() -> Dictionary:
 	var home := get_node_or_null("../Home")
 	for bed in _build.get_placed_by_name("Letto"):
