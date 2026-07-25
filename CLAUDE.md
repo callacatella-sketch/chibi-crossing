@@ -50,3 +50,23 @@ La `godot-cpp` è un submodule (`git submodule update --init --recursive`).
   GDExtension si caricano solo all'avvio. Sintomo tipico di estensione non
   caricata: schermo grigio con la sola musica (il `PlayerController`, che
   contiene la camera, non viene creato).
+
+## REGOLA: ottimizzazione multipiattaforma (Windows **e** macOS)
+
+Il gioco verrà pubblicato **sia per Windows sia per macOS**: la build release del
+cuore C++ va tenuta ottimizzata **su entrambe le piattaforme**, anche quando si
+lavora da Mac.
+
+- **Windows** (ramo `win32` del `SConstruct`, setup MSVC manuale): la release
+  DEVE usare i flag di ottimizzazione — `/O2 /Oi /Gy`, define `NDEBUG` e link
+  `/OPT:REF /OPT:ICF`; la debug usa `/Od /Zi` con link `/DEBUG`. Non farli
+  regredire (in passato la release veniva compilata senza ottimizzazione, come
+  una debug). La build Windows va verificata **compilandola su Windows**: non è
+  testabile da Mac.
+- **macOS / Linux**: la build eredita l'ambiente di `godot-cpp/SConstruct`, che
+  applica già l'ottimizzazione in `target=template_release` (`-O3`). Quindi
+  l'ottimizzazione qui è automatica: **non rompere** l'ereditarietà da
+  `godot_env` e non spostare la build macOS sul ramo Windows.
+- Compilare sempre entrambi i target (`template_debug` e `template_release`) per
+  la piattaforma su cui si lavora prima di considerare finito un cambiamento al
+  cuore C++.

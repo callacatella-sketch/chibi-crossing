@@ -26,8 +26,19 @@ if env["PLATFORM"] == "win32":
     env.Append(CXXFLAGS=["/std:c++17", "/EHsc", "/Zc:preprocessor", "/vmp", "/vmg"])
     env.Append(LIBPATH=["godot-cpp/bin"])
     if env["target"] == "template_debug":
+        # Debug: nessuna ottimizzazione (/Od) + info di debug complete (/Zi ->
+        # .pdb, gia' in .gitignore). /DEBUG lato linker per generare il PDB.
+        env.Append(CXXFLAGS=["/Od", "/Zi"])
+        env.Append(LINKFLAGS=["/DEBUG"])
         env.Append(LIBS=["libgodot-cpp.windows.template_debug.x86_64.lib"])
     else:
+        # Release: ottimizzazione per velocita' (/O2), intrinseche (/Oi),
+        # linking a livello di funzione (/Gy) e NDEBUG per disattivare gli
+        # assert. Il linker rimuove funzioni/dati morti (/OPT:REF) e fonde le
+        # sezioni identiche (/OPT:ICF): DLL piu' piccola e veloce.
+        env.Append(CXXFLAGS=["/O2", "/Oi", "/Gy"])
+        env.Append(CPPDEFINES=["NDEBUG"])
+        env.Append(LINKFLAGS=["/OPT:REF", "/OPT:ICF"])
         env.Append(LIBS=["libgodot-cpp.windows.template_release.x86_64.lib"])
 
     library = env.SharedLibrary(
