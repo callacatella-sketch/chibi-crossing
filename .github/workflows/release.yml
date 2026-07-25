@@ -1,0 +1,218 @@
+name: Release firmata (Windows + macOS)
+
+# Esporta il GIOCO COMPLETO (non solo i binari C++), lo firma/notarizza e lo
+# allega a una GitHub Release. La firma e' CONDIZIONALE ai secret: finche' non
+# carichi i certificati come GitHub Secrets, la build esce NON firmata; appena
+# aggiungi i secret, la firma si attiva da sola senza altre modifiche.
+#
+# Vedi RELEASE_SIGNING.md per come ottenere i certificati e quali secret creare.
+#
+# Come pubblicare una release:
+#   git tag v1.0.0 && git push origin v1.0.0
+# (oppure Actions -> questo workflow -> Run workflow, per una prova senza tag)
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+env:
+  # Deve combaciare con la versione in project.godot (config/features "4.7").
+  GODOT_VERSION: 4.7.1
+
+jobs:
+  # ---------------------------------------------------------------------------
+  windows:
+    name: Export Windows (.exe firmato)
+    runs-on: windows-latest
+    env:
+      # Secret di Azure Trusted Signing (vuoti finche' non li carichi -> firma saltata).
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_TS_ENDPOINT: ${{ secrets.AZURE_TS_ENDPOINT }}
+      AZURE_TS_ACCOUNT: ${{ secrets.AZURE_TS_ACCOUNT }}
+      AZURE_TS_CERT_PROFILE: ${{ secrets.AZURE_TS_CERT_PROFILE }}
+    steps:
+      - name: Checkout (con submodule godot-cpp)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Installa SCons
+        run: python -m pip install --upgrade pip scons
+
+      - name: Compila il cuore C++ (release)
+        shell: bash
+        run: scons platform=windows target=template_release -j4
+
+      - name: Setup Godot + export templates
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: ${{ env.GODOT_VERSION }}
+          use-dotnet: false
+          include-templates: true
+
+      - name: Importa le risorse
+        shell: bash
+        run: godot --headless --import
+
+      - name: Esporta il gioco (Windows Desktop)
+        shell: bash
+        run: |
+          mkdir -p build/windows
+          godot --headless --export-release "Windows Desktop" build/windows/ChibiCrossing.exe
+
+      - name: Firma con Azure Trusted Signing (solo se ci sono i secret)
+        if: env.AZURE_CLIENT_ID != ''
+        uses: azure/trusted-signing-action@v0
+        with:
+          azure-tenant-id: ${{ env.AZURE_TENANT_ID }}
+          azure-client-id: ${{ env.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ env.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ env.AZURE_TS_ENDPOINT }}
+          trusted-signing-account-name: ${{ env.AZURE_TS_ACCOUNT }}
+          certificate-profile-name: ${{ env.AZURE_TS_CERT_PROFILE }}
+          files-folder: ${{ github.workspace }}/build/windows
+          files-folder-filter: exe,dll
+          file-digest: SHA256
+
+      - name: Avviso se la firma e' stata saltata
+        if: env.AZURE_CLIENT_ID == ''
+        shell: bash
+        run: echo "::warning::Secret Azure Trusted Signing assenti -> .exe NON firmato. Vedi RELEASE_SIGNING.md."
+
+      - name: Comprimi la build
+        shell: pwsh
+        run: Compress-Archive -Path build/windows/* -DestinationPath ChibiCrossing-windows.zip -Force
+
+      - name: Carica artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChibiCrossing-windows
+          path: ChibiCrossing-windows.zip
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  macos:
+    name: Export macOS (.app notarizzata)
+    runs-on: macos-latest
+    env:
+      # Secret Apple (vuoti finche' non li carichi -> firma/notarizzazione saltate).
+      MACOS_CERT_BASE64: ${{ secrets.MACOS_CERT_BASE64 }}
+      MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+      MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+    steps:
+      - name: Checkout (con submodule godot-cpp)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Installa SCons
+        run: python -m pip install --upgrade pip scons
+
+      - name: Compila il cuore C++ (release, universale)
+        run: scons platform=macos arch=universal target=template_release -j4
+
+      - name: Setup Godot + export templates
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: ${{ env.GODOT_VERSION }}
+          use-dotnet: false
+          include-templates: true
+
+      - name: Importa le risorse
+        run: godot --headless --import
+
+      - name: Esporta il gioco (macOS)
+        run: |
+          mkdir -p build/macos
+          godot --headless --export-release "macOS" build/macos/ChibiCrossing.zip
+
+      - name: Firma + notarizza (solo se ci sono i secret Apple)
+        if: env.MACOS_CERT_BASE64 != ''
+        run: |
+          set -euo pipefail
+          cd build/macos
+
+          # 1) Importa il certificato in un keychain temporaneo.
+          KEYCHAIN="$RUNNER_TEMP/build.keychain"
+          KPASS="$(openssl rand -base64 24)"
+          echo "$MACOS_CERT_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KPASS" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KPASS" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KPASS" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+
+          # 2) Estrai la .app dallo zip esportato da Godot.
+          unzip -oq ChibiCrossing.zip
+          APP="$(find . -maxdepth 1 -name '*.app' | head -n1)"
+          ENT="$GITHUB_WORKSPACE/misc/macos_entitlements.plist"
+
+          # 3) Firma prima le librerie native annidate, poi l'app (hardened runtime).
+          find "$APP" \( -name '*.dylib' -o -name '*.framework' \) -print0 | while IFS= read -r -d '' lib; do
+            codesign --force --timestamp --options runtime --sign "$MACOS_SIGNING_IDENTITY" "$lib"
+          done
+          codesign --force --timestamp --options runtime --entitlements "$ENT" --sign "$MACOS_SIGNING_IDENTITY" "$APP"
+
+          # 4) Notarizza e "graffa" (staple) il ticket sull'app.
+          ditto -c -k --keepParent "$APP" "notarize.zip"
+          xcrun notarytool submit "notarize.zip" \
+            --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+          xcrun stapler staple "$APP"
+
+          # 5) Ricomprimi l'app firmata+notarizzata per la distribuzione.
+          rm -f ChibiCrossing.zip notarize.zip
+          ditto -c -k --keepParent "$APP" "ChibiCrossing.zip"
+
+      - name: Avviso se firma/notarizzazione saltate
+        if: env.MACOS_CERT_BASE64 == ''
+        run: echo "::warning::Secret Apple assenti -> app NON firmata/notarizzata. Vedi RELEASE_SIGNING.md."
+
+      - name: Rinomina l'artifact
+        run: mv build/macos/ChibiCrossing.zip ChibiCrossing-macos.zip
+
+      - name: Carica artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChibiCrossing-macos
+          path: ChibiCrossing-macos.zip
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  release:
+    name: Pubblica la Release
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Scarica gli artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ChibiCrossing-*
+          path: dist
+          merge-multiple: true
+
+      - name: Crea la GitHub Release (solo sui tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          generate_release_notes: true

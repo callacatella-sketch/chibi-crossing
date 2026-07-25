@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Entitlements per la firma "hardened runtime" richiesta dalla notarizzazione
+  Apple. Usato da .github/workflows/release.yml SOLO quando sono presenti i
+  secret del certificato Apple.
+
+  Nota: alcune di queste entitlement servono perche' il gioco carica librerie
+  native di terze parti (GDExtension del "cuore" C++ e addon lua-gdextension).
+  Se la notarizzazione dovesse fallire o l'app crashare all'avvio, questo e' il
+  primo file da rivedere (togliere/aggiungere entitlement).
+-->
+<plist version="1.0">
+<dict>
+    <!-- Consente il caricamento di dylib firmate con un Team ID diverso o non
+         firmate (necessario per alcuni addon nativi). -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+    <!-- Alcune VM/JIT (es. LuaJIT) richiedono memoria eseguibile scrivibile. -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+</dict>
+</plist>

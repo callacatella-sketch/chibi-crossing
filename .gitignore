@@ -2,6 +2,9 @@
 .godot/
 /android/
 
+# output dell'export del gioco (creato dalla CI release.yml, non va committato)
+/build/
+
 # cache e artefatti di compilazione (SCons / GDExtension C++)
 .sconsign.dblite
 *.obj

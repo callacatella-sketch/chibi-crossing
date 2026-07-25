@@ -92,3 +92,32 @@ compila il cuore C++ su **Windows (MSVC reale)** e **macOS (universale)** e
 - Non serve più compilare Windows a mano. Per verificare le modifiche al
   `SConstruct` (ramo `win32`) basta lasciar girare la CI e guardare il log del
   job *Compila (windows)*.
+
+## Release firmate/notarizzate (Windows + macOS)
+
+Il workflow [`.github/workflows/release.yml`](.github/workflows/release.yml)
+esporta il **gioco completo** (non solo i binari C++), lo firma/notarizza e lo
+allega a una **GitHub Release**. Si lancia con un tag (`git tag v1.0.0 && git
+push origin v1.0.0`) o a mano da *Actions → Run workflow*.
+
+- Usa l'action `chickensoft-games/setup-godot@v2` per installare Godot +
+  export templates; la versione è in `env.GODOT_VERSION` e **deve combaciare**
+  con `project.godot` (attualmente **4.7.1**).
+- I preset di export sono in [`export_presets.cfg`](export_presets.cfg) ("Windows
+  Desktop" e "macOS"). L'export macOS richiede **ETC2 ASTC abilitato** in
+  `project.godot` (`rendering/textures/vram_compression/import_etc2_astc=true`):
+  senza, l'export universale/x86_64 fallisce. Non rimuovere quel setting.
+- **Firma condizionale ai secret:** senza i certificati il gioco esce **non
+  firmato** (avviso giallo nel log); appena i secret ci sono, la firma parte da
+  sola. Windows usa **Azure Trusted Signing**; macOS usa `codesign` +
+  `notarytool` + `stapler` con le entitlement in
+  [`misc/macos_entitlements.plist`](misc/macos_entitlements.plist).
+- Guida completa ai certificati e all'elenco dei secret:
+  [`RELEASE_SIGNING.md`](RELEASE_SIGNING.md). I certificati costano e sono legati
+  all'identità dell'utente: **li carica solo lui** come GitHub Secrets, l'agente
+  non li vede né li inserisce.
+- **Godot in locale** è portabile in `~/Downloads/Godot.app` (4.7.1): utile per
+  validare in fretta un export headless
+  (`.../Godot.app/Contents/MacOS/Godot --headless --path . --export-release ...`).
+  Gli export templates NON sono installati in locale, quindi l'export completo
+  gira solo in CI, ma l'import/validazione dei preset si fa anche da qui.
