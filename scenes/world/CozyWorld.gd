@@ -72,11 +72,23 @@ func set_night(night: bool) -> void:
 		_shaft_tw.tween_property(_shaft_mat, "albedo_color:a", target, 1.5)
 
 
+## Emesso quando tutta la geometria differita è stata costruita.
+signal world_built
+
+
 func _ready() -> void:
 	add_to_group("cozy_world")
+	# Generazione DIFFERITA su più frame: toglie l'hitch d'avvio (prima tutta la
+	# geometria — erba, fiori, alberi, bosco, stagno, fiume — nasceva in un solo
+	# frame). L'ordine è identico a prima e il mondo "compare" in una frazione di
+	# secondo. I fratelli prendono comunque subito il riferimento a CozyWorld (il
+	# nodo esiste da subito) e interrogano la geometria solo a runtime.
 	_build_grass()
+	await get_tree().process_frame
 	_build_flowers()
+	await get_tree().process_frame
 	_build_trees()
+	await get_tree().process_frame
 	# il Grande Albero: il monumento che cresce coi giorni del villaggio
 	add_child(preload("res://scenes/world/GrandTree.gd").new())
 	# il timelapse dei ricordi e l'amico co-op del divano
@@ -93,15 +105,21 @@ func _ready() -> void:
 	add_child(preload("res://scenes/npc/Director.gd").new())
 	# il Filo Rosso: la memoria dei momenti condivisi coi vicini
 	add_child(preload("res://scenes/world/Legami.gd").new())
+	await get_tree().process_frame
 	_build_stones()
 	_build_clouds()
+	await get_tree().process_frame
 	_build_butterflies()
 	_build_pollen()
+	await get_tree().process_frame
 	_build_forest()
+	await get_tree().process_frame
 	_build_pond()
+	await get_tree().process_frame
 	# il fiume a est, con la scogliera a gradoni, la cascata e i ponti
 	_build_river()
 	_build_boundary()
+	world_built.emit()
 
 
 func _paint_mat(a: Color, b: Color, grain := 4.0, amount := 0.45, wind := 0.0,

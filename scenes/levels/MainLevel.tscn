@@ -22,8 +22,8 @@
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_1a2b3"]
 size = Vector2(240, 240)
-subdivide_width = 300
-subdivide_depth = 300
+subdivide_width = 160
+subdivide_depth = 160
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_grnd1"]
 shader = ExtResource("6_grnd1")
