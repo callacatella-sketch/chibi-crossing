@@ -44,6 +44,23 @@ Questo repository deve avere **sempre una copia di backup aggiornata su GitHub**
 4. Il push va sul **branch corrente**. Se stai lavorando su un branch di
    feature, il backup finisce lì; per portarlo su `main` fai un merge/PR.
 
+## Commit firmati (SSH)
+
+Dal 2026-07-26 i commit e i tag di questo repository sono **firmati con SSH**:
+provano che il codice è dell'autore e non è stato alterato (prova di paternità;
+NON impediscono a terzi di usare il codice — a quello serve la
+[`LICENSE`](LICENSE) proprietaria).
+
+- Config (già impostata, a livello di repo): `gpg.format=ssh`,
+  `user.signingkey=~/.ssh/id_ed25519.pub`, `commit.gpgsign=true`,
+  `tag.gpgsign=true`, `gpg.ssh.allowedSignersFile=~/.ssh/allowed_signers`.
+- La chiave **non ha passphrase**: la firma automatica non blocca l'hook di
+  backup. Se un domani la chiave venisse protetta da passphrase, servirebbe
+  `ssh-agent` altrimenti l'hook fallirebbe silenziosamente il commit.
+- La chiave pubblica è registrata su GitHub come **Signing Key** (tipo diverso
+  da "Authentication"): senza, i commit non mostrano la spunta *Verified*.
+- Verifica locale: `git log --show-signature -1` (atteso: `Good "git" signature`).
+
 ## Compilare il "cuore" (GDExtension C++)
 
 Serve **SCons** (es. in un virtualenv, oppure `pipx install scons`) e Xcode.
