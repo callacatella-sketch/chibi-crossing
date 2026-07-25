@@ -203,6 +203,29 @@ static func piece_takes_variant(name: String) -> bool:
 	return name in VARIANT_PIECES
 
 
+## Tinge un mobile (Node3D) con la variante scelta. Tocca SOLO i materiali
+## "handpaint" (quelli con color_a/color_b): lampade, vetri, fuoco e braci
+## restano intatti. Duplica il materiale, così tinge solo QUESTA istanza.
+func apply_variant(root: Node3D, vid: String) -> void:
+	if vid == "" or root == null:
+		return
+	var def := variant_def(vid)
+	if def.is_empty():
+		return
+	var tint: Color = def["tint"]
+	for mi in root.find_children("*", "MeshInstance3D", true, false):
+		var mat = (mi as MeshInstance3D).material_override
+		if mat is ShaderMaterial:
+			var sm := mat as ShaderMaterial
+			var a = sm.get_shader_parameter("color_a")
+			var b = sm.get_shader_parameter("color_b")
+			if a is Color and b is Color:
+				var nm := sm.duplicate() as ShaderMaterial
+				nm.set_shader_parameter("color_a", (a as Color).lerp(tint, 0.6))
+				nm.set_shader_parameter("color_b", (b as Color).lerp(tint.darkened(0.15), 0.62))
+				(mi as MeshInstance3D).material_override = nm
+
+
 # ---------------------------------------------------------------- persistenza
 func save_extra() -> Dictionary:
 	return {

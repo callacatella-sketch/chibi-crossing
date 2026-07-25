@@ -120,6 +120,11 @@ func _apply_to_build() -> void:
         _build.call("apply_unlocks", all_piece_names(), false)
         _build.call("set_order_banner", "")
         return
+    # campagna finita: apri tutto il catalogo — anche i pezzi aggiunti dopo,
+    # non previsti dagli Ordini, restano raggiungibili (mai persi). La tela e' tua.
+    if _active_order().is_empty():
+        for nm in all_piece_names():
+            _unlocked[str(nm)] = true
     _build.call("apply_unlocks", _unlocked.keys(), true)
     _update_banner()
 

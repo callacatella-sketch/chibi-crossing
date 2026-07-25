@@ -389,6 +389,12 @@ func _merchant_speak(concepts: Array, mood := "neutro") -> void:
 
 # il baratto: un piatto caldo per un sacchetto di ingredienti rari
 func _merchant_trade() -> void:
+	# il carretto ora è un vero negozio: vendi farfalle/pesci/raccolti e compra
+	var shop := get_tree().get_first_node_in_group("shop")
+	if shop and shop.has_method("open"):
+		shop.open(_merchant)
+		return
+	# fallback (nessun negozio in scena): il vecchio baratto di un piatto
 	var cooking := get_node_or_null("../../Cooking")
 	if cooking == null:
 		return

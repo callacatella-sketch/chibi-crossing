@@ -1175,7 +1175,7 @@ func _update_face(delta: float) -> void:
 	elif _hold > 0.5 and _hold_pose == "letter":
 		# lettura: concentrata riga per riga, poi il sorrisino alla firma
 		expr = "felice" if smoothstep(0.9, 1.0, pour) > 0.5 else "concentrato"
-	elif _hold > 0.5 and _hold_pose in ["offer", "reach"]:
+	elif _hold > 0.5 and (_hold_pose == "offer" or _hold_pose == "reach"):
 		expr = "felice"
 	elif _tired:
 		expr = "assonnato"
@@ -1199,6 +1199,11 @@ func _update_face(delta: float) -> void:
 			_face.clear_gaze()
 	else:
 		_face.clear_gaze()
+
+	# la testolina si inclina con l'espressione (curiosità, tenerezza): è il
+	# suggerimento del volto, che applico alla MIA testa (già posata sopra).
+	# Non è cumulativo: _head.rotation viene riscritto ogni frame prima di qui.
+	_head.rotation.z += _face.head_tilt()
 
 	_face.update(delta)
 

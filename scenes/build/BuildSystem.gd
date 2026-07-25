@@ -111,6 +111,13 @@ var _unlocked := {}
 var _locks_active := false
 var _order_banner: Label
 
+# --- economia: varianti di colore comprate dal mercante (vedi Economy.gd) ---
+# _variant è il colore scelto per il PROSSIMO pezzo da piazzare ("" = originale)
+var _variant := ""
+var _eco: Node
+var _variant_bar: PanelContainer
+var _variant_row: HBoxContainer
+
 ## Per gli screenshot da CLI: se impostato, il fantasma usa questa
 ## posizione invece del mouse.
 var debug_ghost_pos := Vector3.INF
@@ -152,6 +159,7 @@ func _ready() -> void:
 
 	_build_grid_plane()
 	_build_ui()
+	_build_variant_bar()
 	_refresh_ghost()
 
 	# in modalità screenshot CLI la demo costruisce una casetta di prova:
@@ -159,6 +167,7 @@ func _ready() -> void:
 	_persist = OS.get_environment("CHIBI_SHOT") == ""
 	if _persist:
 		_load_village.call_deferred()
+	_hook_economy.call_deferred()
 
 
 func is_active() -> bool:
@@ -179,6 +188,10 @@ func item_index(piece: String) -> int:
 
 ## True se il pezzo è disponibile — o se il recinto è spento (catalogo pieno).
 func is_unlocked(piece: String) -> bool:
+	# i pezzi del NEGOZIO si sbloccano SOLO comprandoli (a parte dagli Ordini)
+	var eco := _economy()
+	if eco and eco.has_method("is_shop_piece") and eco.is_shop_piece(piece):
+		return eco.is_piece_unlocked(piece)
 	return not _locks_active or _unlocked.has(piece)
 
 
@@ -317,6 +330,7 @@ func _set_active(active: bool) -> void:
 	_grid_plane.visible = active
 	_panel.visible = active
 	_idle_hint.visible = not active
+	_update_variant_bar()
 	if _sfx:
 		if active:
 			_sfx.build_open()
@@ -398,6 +412,9 @@ func _refresh_ghost() -> void:
 	# il ghost del Tetto non deve fermare la pioggia a mezz'aria
 	for pc in _ghost.find_children("*", "GPUParticlesCollision3D", true, false):
 		(pc as GPUParticlesCollision3D).cull_mask = 0
+	# tinge il fantasma col colore scelto e aggiorna la barra dei colori
+	_apply_ghost_variant()
+	_update_variant_bar()
 
 
 # ---------------------------------------------------------------- cursore
@@ -744,17 +761,18 @@ func _try_place() -> void:
 		if _sfx: _sfx.place_deny()
 		return
 	var item := _items[_index]
+	var v := _variant_for_current()
 	if item["type"] == "edge":
-		place_edge(_cursor_key, item["name"], _rot % 2 == 1, true, _level)
+		place_edge(_cursor_key, item["name"], _rot % 2 == 1, true, _level, v)
 	else:
-		place_cell(_cursor_key, item["name"], _rot, true, _level)
+		place_cell(_cursor_key, item["name"], _rot, true, _level, v)
 	if _sfx: _sfx.place_ok()
 	get_tree().call_group("regista", "note", "costruzione")
 
 
 ## Piazza un pezzo "cell" nella cella data (lvl 1 = piano di sopra).
 ## Usato anche dalla demo CLI.
-func place_cell(cell: Vector2i, piece: String, rot := 0, animate := true, lvl := 0) -> void:
+func place_cell(cell: Vector2i, piece: String, rot := 0, animate := true, lvl := 0, variant := "") -> void:
 	var index := item_index(piece)
 	if index < 0:
 		push_warning("BuildSystem: pezzo sconosciuto nel salvataggio: %s" % piece)
@@ -767,7 +785,7 @@ func place_cell(cell: Vector2i, piece: String, rot := 0, animate := true, lvl :=
 		return
 	if _cozy and bool(_cozy.call("is_river", Vector3(cell.x, 0, cell.y))):
 		return  # il letto del fiume resta del fiume
-	var node := _build_placed(index)
+	var node := _build_placed(index, variant)
 	node.position = Vector3(cell.x, FLOOR_H * lvl, cell.y)
 	node.rotation.y = -rot * PI * 0.5
 	_placed_root.add_child(node)
@@ -775,6 +793,7 @@ func place_cell(cell: Vector2i, piece: String, rot := 0, animate := true, lvl :=
 	node.set_meta("lvl", lvl)
 	_register_special(piece, node)
 	node.set_meta("rot", rot)
+	node.set_meta("variant", variant)
 	# pavimenti, sentieri e tappeti a terra schiacciano l'erba sotto di sé
 	if lvl == 0 and int(item["layer"]) <= 1:
 		get_tree().call_group("cozy_world", "flatten_cell", cell)
@@ -786,7 +805,7 @@ func place_cell(cell: Vector2i, piece: String, rot := 0, animate := true, lvl :=
 
 
 ## Piazza un pezzo "edge" sul bordo con chiave raddoppiata data.
-func place_edge(key: Vector2i, piece: String, flip := false, animate := true, lvl := 0) -> void:
+func place_edge(key: Vector2i, piece: String, flip := false, animate := true, lvl := 0, variant := "") -> void:
 	var index := item_index(piece)
 	if index < 0:
 		push_warning("BuildSystem: pezzo sconosciuto nel salvataggio: %s" % piece)
@@ -795,7 +814,7 @@ func place_edge(key: Vector2i, piece: String, flip := false, animate := true, lv
 	if dict.has(key):
 		return
 	var tf := _edge_key_to_transform(key)
-	var node := _build_placed(index)
+	var node := _build_placed(index, variant)
 	node.position = tf[0] + Vector3(0, FLOOR_H * lvl, 0)
 	# micro-sfalsamento verticale deterministico (±3 mm): le modanature di
 	# pezzi adiacenti non condividono mai lo stesso piano -> niente z-fighting
@@ -806,6 +825,7 @@ func place_edge(key: Vector2i, piece: String, flip := false, animate := true, lv
 	node.set_meta("lvl", lvl)
 	_register_special(piece, node)
 	node.set_meta("flip", flip)
+	node.set_meta("variant", variant)
 	if animate:
 		_pop_in(node)
 	if not _loading:
@@ -815,10 +835,14 @@ func place_edge(key: Vector2i, piece: String, flip := false, animate := true, lv
 
 # visual del catalogo + StaticBody3D con le collisioni del pezzo
 # (il terzo elemento opzionale di una collisione è la rotazione X: rampe)
-func _build_placed(index: int) -> Node3D:
+func _build_placed(index: int, variant := "") -> Node3D:
 	var item := _items[index]
 	var builder: Callable = item["builder"]
 	var visual: Node3D = builder.call()
+	if variant != "":
+		var eco := _economy()
+		if eco and eco.piece_takes_variant(str(item["name"])):
+			eco.apply_variant(visual, variant)
 	var cols: Array = item["cols"]
 	if cols.is_empty():
 		return visual
@@ -921,7 +945,8 @@ func _save_village() -> void:
 			rows.append([key.x, key.y,
 					node.get_meta("item_name", ""), bool(node.get_meta("flip", false))])
 	var payload := {"cells": cells, "edges": edges,
-			"up_cells": up_cells, "up_edges": up_edges}
+			"up_cells": up_cells, "up_edges": up_edges,
+			"variants": _collect_variants()}
 	# stato extra (giorno del calendario, giardino…) dai nodi "persistable"
 	for node in get_tree().get_nodes_in_group("persistable"):
 		payload.merge(node.save_extra())
@@ -942,18 +967,23 @@ func _load_village() -> void:
 	if data is not Dictionary:
 		return
 	_loading = true
+	var vmap: Dictionary = data.get("variants", {})
 	for c in data.get("cells", []):
 		if c is Array and c.size() == 5:
-			place_cell(Vector2i(int(c[1]), int(c[2])), str(c[3]), int(c[4]), false)
+			var cell := Vector2i(int(c[1]), int(c[2]))
+			place_cell(cell, str(c[3]), int(c[4]), false, 0, str(vmap.get(_pkey(0, int(c[0]), cell), "")))
 	for e in data.get("edges", []):
 		if e is Array and e.size() == 4:
-			place_edge(Vector2i(int(e[0]), int(e[1])), str(e[2]), bool(e[3]), false)
+			var key := Vector2i(int(e[0]), int(e[1]))
+			place_edge(key, str(e[2]), bool(e[3]), false, 0, str(vmap.get(_pkey(0, "edge", key), "")))
 	for c in data.get("up_cells", []):
 		if c is Array and c.size() == 5:
-			place_cell(Vector2i(int(c[1]), int(c[2])), str(c[3]), int(c[4]), false, 1)
+			var ucell := Vector2i(int(c[1]), int(c[2]))
+			place_cell(ucell, str(c[3]), int(c[4]), false, 1, str(vmap.get(_pkey(1, int(c[0]), ucell), "")))
 	for e in data.get("up_edges", []):
 		if e is Array and e.size() == 4:
-			place_edge(Vector2i(int(e[0]), int(e[1])), str(e[2]), bool(e[3]), false, 1)
+			var ukey := Vector2i(int(e[0]), int(e[1]))
+			place_edge(ukey, str(e[2]), bool(e[3]), false, 1, str(vmap.get(_pkey(1, "edge", ukey), "")))
 	for node in get_tree().get_nodes_in_group("persistable"):
 		node.load_extra(data)
 	_loading = false
@@ -1303,3 +1333,140 @@ func _rebuild_item_row() -> void:
 			btn.pressed.connect(_select.bind(i))
 		_items_row.add_child(btn)
 		_item_buttons.append(btn)
+
+
+# ============================================================ economia colori
+# Le varianti di colore comprate al mercante: qui si tinge il fantasma e il
+# pezzo piazzato, si sceglie il colore con una barra di campioni, e la tinta
+# per-pezzo viaggia nel salvataggio (chiave "variants", additiva: i vecchi
+# salvataggi e l'altra progressione non ne sanno nulla).
+
+func _economy() -> Node:
+	if _eco == null or not is_instance_valid(_eco):
+		_eco = get_tree().get_first_node_in_group("economy")
+	return _eco
+
+
+func _hook_economy() -> void:
+	var eco := _economy()
+	if eco and eco.has_signal("shop_changed") and not eco.shop_changed.is_connected(_on_shop_changed):
+		eco.shop_changed.connect(_on_shop_changed)
+	_update_variant_bar()
+
+
+# comprato qualcosa: rinfresca la fila dei pezzi (nuovi sblocchi) e i colori
+func _on_shop_changed() -> void:
+	if not _item_buttons.is_empty():
+		_rebuild_item_row()
+		_sync_ui_selection()
+	_update_variant_bar()
+
+
+func _apply_ghost_variant() -> void:
+	if _ghost == null or _variant == "":
+		return
+	var eco := _economy()
+	if eco and eco.piece_takes_variant(str(_items[_index]["name"])):
+		eco.apply_variant(_ghost, _variant)
+
+
+# la variante valida per il pezzo corrente ("" se non è tingibile)
+func _variant_for_current() -> String:
+	var eco := _economy()
+	if eco and eco.piece_takes_variant(str(_items[_index]["name"])):
+		return _variant
+	return ""
+
+
+# ------------------------------------------------------- barra dei colori
+func _build_variant_bar() -> void:
+	if _ui == null:
+		return
+	var dock := CenterContainer.new()
+	dock.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	dock.offset_top = -214.0
+	dock.offset_bottom = -180.0
+	dock.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ui.add_child(dock)
+	_variant_bar = PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.98, 0.95, 0.88, 0.94)
+	sb.set_corner_radius_all(14)
+	sb.border_color = Color(0.62, 0.46, 0.34, 0.5)
+	sb.set_border_width_all(2)
+	sb.content_margin_left = 10.0
+	sb.content_margin_right = 10.0
+	sb.content_margin_top = 5.0
+	sb.content_margin_bottom = 5.0
+	_variant_bar.add_theme_stylebox_override("panel", sb)
+	_variant_bar.visible = false
+	dock.add_child(_variant_bar)
+	_variant_row = HBoxContainer.new()
+	_variant_row.add_theme_constant_override("separation", 6)
+	_variant_bar.add_child(_variant_row)
+
+
+func _update_variant_bar() -> void:
+	if _variant_bar == null or _variant_row == null:
+		return
+	var eco := _economy()
+	var piece := str(_items[_index]["name"]) if _index < _items.size() else ""
+	var takes := eco != null and eco.piece_takes_variant(piece)
+	var owned: Array = eco.owned_variants() if eco else []
+	if not (_active and takes and not owned.is_empty()):
+		_variant_bar.visible = false
+		return
+	# se il colore scelto non è (più) posseduto, torna all'originale
+	if _variant != "" and not owned.has(_variant):
+		_variant = ""
+	for c in _variant_row.get_children():
+		c.queue_free()
+	_variant_row.add_child(_variant_swatch("", Color("efe0c6"), "Originale"))
+	for vid in owned:
+		var def: Dictionary = eco.variant_def(vid)
+		_variant_row.add_child(_variant_swatch(str(vid), def.get("tint", Color.WHITE), str(def.get("label", vid))))
+	_variant_bar.visible = true
+
+
+func _variant_swatch(vid: String, color: Color, label: String) -> Button:
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(30, 30)
+	b.focus_mode = Control.FOCUS_NONE
+	b.tooltip_text = label
+	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = color
+	sb.set_corner_radius_all(15)
+	var on := _variant == vid
+	sb.border_color = Color("6a4a3a") if on else Color(0.62, 0.46, 0.34, 0.35)
+	sb.set_border_width_all(3 if on else 1)
+	b.add_theme_stylebox_override("normal", sb)
+	b.add_theme_stylebox_override("hover", sb)
+	b.add_theme_stylebox_override("pressed", sb)
+	b.add_theme_stylebox_override("focus", sb)
+	b.pressed.connect(_pick_variant.bind(vid))
+	return b
+
+
+func _pick_variant(vid: String) -> void:
+	_variant = vid
+	if _sfx: _sfx.ui_select()
+	_refresh_ghost()
+
+
+# ------------------------------------------------------- persistenza colori
+func _pkey(lvl, layer, key: Vector2i) -> String:
+	return "%d:%s:%d:%d" % [int(lvl), str(layer), key.x, key.y]
+
+
+func _collect_variants() -> Dictionary:
+	var out := {}
+	for lvl in 2:
+		for layer in [0, 1, 2, 3, "edge"]:
+			var dict := _dicts(lvl)[layer] as Dictionary
+			for key in dict:
+				var node := dict[key] as Node3D
+				var v := str(node.get_meta("variant", ""))
+				if v != "":
+					out[_pkey(lvl, layer, key)] = v
+	return out

@@ -134,7 +134,7 @@ var _mouth_open_node: Node3D             # la cavità scura che si apre (parlare
 # stati di riposo memorizzati al setup, per animare in RELATIVO
 var _eye_base_scale := Vector3(1, 1.18, 0.55)
 var _eye_base_pos: Array[Vector3] = []
-var _iris_base_scale := Vector3.ONE
+var _iris_base_scales: Array[Vector3] = []   # scala di riposo per lato (dilatazione)
 var _brow_base_pos: Array[Vector3] = []
 var _brow_base_rot: Array[Vector3] = []
 var _blush_base_scale: Array[Vector3] = []
@@ -185,6 +185,7 @@ var _next_blink := 2.0
 var _blink_t := -1.0
 var _blink_dur := 0.13
 var _blink_queue := 0    # battiti extra in coda (doppio ammicco)
+var _blink_frozen := 0.0 # finestra di congelamento (scatti ravvicinati)
 
 # sguardo
 var _gaze_node: Node3D
@@ -219,14 +220,13 @@ func setup(rig: Dictionary) -> void:
 	_mouths = rig.get("mouths", {})
 	_mouth_open_node = rig.get("mouth_open")
 	_eye_base_scale = rig.get("eye_base_scale", _eye_base_scale)
-	_iris_base_scale = rig.get("iris_base_scale", Vector3.ONE)
 	_face_side = rig.get("face_side", 0.36)
 
 	_rng.randomize()
 	for eye in _eyes:
 		_eye_base_pos.append(eye.position)
 	for iris in _irises:
-		_iris_base_scale = iris.scale
+		_iris_base_scales.append(iris.scale)
 	for h in _happy:
 		_happy_base_scale.append(h.scale)
 	for sq in _squint:
@@ -254,9 +254,14 @@ func setup(rig: Dictionary) -> void:
 
 ## Imposta l'espressione bersaglio. [param intensity] la scala (0..1+),
 ## [param speed] quanto è rapida la fusione (più alto = più svelto).
+## I proprietari la chiamano OGNI frame: se nulla è cambiato esce subito,
+## così non si ricalcolano gli obiettivi identici 60 volte al secondo.
 func set_expression(name: String, intensity := 1.0, speed := 9.0) -> void:
 	if not EXPRESSIONS.has(name):
 		name = "neutro"
+	if name == _expr and is_equal_approx(intensity, _intensity) \
+			and is_equal_approx(speed, _blend):
+		return
 	_expr = name
 	_intensity = intensity
 	_blend = speed
@@ -325,13 +330,16 @@ func set_blink_enabled(on: bool) -> void:
 
 
 func blink_now() -> void:
-	if _blink_t < 0.0:
+	# rispetta il congelamento: nessun battito mentre siamo "in posa"
+	if _blink_t < 0.0 and _blink_frozen <= 0.0:
 		_blink_t = 0.0
 
 
 ## Congela l'ammicco per [param sec] secondi (per gli scatti ravvicinati
-## del DebugHarness: niente palpebre a metà nella foto).
+## del DebugHarness: niente palpebre a metà nella foto). È AUTORITATIVO:
+## nemmeno un ammicco accoppiato alla saccade può filtrare.
 func freeze_blink(sec: float) -> void:
+	_blink_frozen = maxf(_blink_frozen, sec)
 	_next_blink = maxf(_next_blink, sec)
 	_blink_t = -1.0
 
@@ -348,6 +356,8 @@ func update(delta: float) -> void:
 	if _eyes.is_empty() and _brows.is_empty() and _mouths.is_empty():
 		return
 	_t += delta
+	if _blink_frozen > 0.0:
+		_blink_frozen -= delta
 
 	# impulso transitorio: allo scadere, torna all'espressione di sfondo
 	if _pulse_t >= 0.0:
@@ -396,6 +406,9 @@ func _load_targets(name: String, intensity: float) -> void:
 		_eye_shape_prev = _eye_shape
 		_eye_shape = shape
 		_shape_mix = 0.0
+		# nascondi lo scambio di forma dietro un ammicco: molto più pulito
+		# che vedere l'occhio-palla sparire e l'arco comparire a occhi aperti
+		blink_now()
 	# forma bocca (crossfade)
 	var m := str(e.get("mouth", "neutral"))
 	if not _mouths.has(m):
@@ -471,9 +484,20 @@ func _apply_eyes(delta: float) -> void:
 		# iride/luci: dilatazione + inseguimento dello sguardo dentro l'occhio
 		if i < _irises.size() and _irises[i] != null:
 			var iris := _irises[i]
-			iris.scale = _iris_base_scale * _c_pupil
+			iris.scale = _iris_base_scales[i] * _c_pupil
 			iris.position.x = _gaze_cur.x * 0.02
 			iris.position.y = _gaze_cur.y * 0.016
+
+	# vita degli occhi "chiusi" (^^ o >.<): l'occhio-palla è nascosto, quindi
+	# l'ammicco non si vedrebbe — così faccio BATTERE e respirare l'arco, che
+	# altrimenti resterebbe un adesivo immobile proprio nei momenti più teneri
+	if _shape_mix >= 1.0 and _eye_shape != "open":
+		var arcs := _happy if _eye_shape == "happy" else _squint
+		var bases := _happy_base_scale if _eye_shape == "happy" else _squint_base_scale
+		var life := (1.0 - blink_close * 0.5) * (1.0 + sin(_t * 2.0) * 0.03)
+		for j in arcs.size():
+			if j < bases.size() and arcs[j] and arcs[j].visible:
+				arcs[j].scale.y = bases[j].y * life
 
 
 func _apply_shape_visibility() -> void:
@@ -503,10 +527,10 @@ func _apply_shape_visibility() -> void:
 
 
 func _update_blink(delta: float) -> void:
-	# nessun ammicco se disattivato o se l'espressione tiene già gli occhi
-	# quasi chiusi (dorme, raggiante): sarebbe un doppione innaturale
+	# nessun ammicco se congelato (scatti), disattivato, o se l'espressione
+	# tiene già gli occhi quasi chiusi (dorme, raggiante): sarebbe un doppione
 	var eyes_shut := _t_eye_open < 0.18
-	if not _blink_enabled or eyes_shut:
+	if _blink_frozen > 0.0 or not _blink_enabled or eyes_shut:
 		if _blink_t >= 0.0:
 			_blink_t = -1.0
 		return
@@ -577,15 +601,17 @@ func _update_gaze(delta: float) -> void:
 func _apply_mouth(delta: float) -> void:
 	if _mouths.is_empty():
 		return
-	# crossfade tra forme: la nuova cresce, la vecchia rimpicciolisce
+	# crossfade tra forme: la vecchia si RITRAE fin quasi a un puntino, poi
+	# si scambia con la nuova che ricresce — così il cambio di geometria si
+	# nasconde in uno "squash" invece di fare "pop" a mezza scala
 	if _mouth_mix < 1.0:
 		_mouth_mix = minf(1.0, _mouth_mix + delta * 10.0)
 	var on_new := _mouth_mix >= 0.5
 	var show: String = _mouth if on_new else _mouth_prev
-	var pop := 0.6 + 0.4 * (_mouth_mix if on_new else 1.0 - _mouth_mix)
+	var pop := 0.18 + 0.82 * absf(_mouth_mix - 0.5) * 2.0
 	for mn in _mouths:
 		var node: Node3D = _mouths[mn]
-		var vis: bool = str(mn) == show
+		var vis: bool = mn == show
 		node.visible = vis
 		if vis:
 			node.scale = Vector3.ONE * pop
@@ -690,19 +716,20 @@ static func build_mouth_set(parent: Node3D, mat: Material, center: Vector3,
 			var a := PI + (float(i) / 6.0) * PI
 			dot.call(wnode, Vector3(s * 0.024 + cos(a) * 0.024, sin(a) * 0.024, mz), 0.0085)
 
-	# smile: un arco dolce all'insù (concavo in alto)
+	# smile: un arco dolce all'INSÙ (una ∪): gli angoli si alzano, il centro
+	# scende — quindi y = base - sin(a)*amp (con +sin avremmo un broncio!)
 	var sm_node: Node3D = mk.call("smile")
 	for i in 11:
 		var f := float(i) / 10.0
 		var a := PI * (1.0 - f)                # da PI a 0
-		dot.call(sm_node, Vector3(cos(a) * 0.05, -0.006 + sin(a) * 0.03, mz), 0.009)
+		dot.call(sm_node, Vector3(cos(a) * 0.05, 0.012 - sin(a) * 0.036, mz), 0.009)
 
 	# grin: sorriso più largo e aperto (la cavità la aggiunge mouth_open)
 	var gr_node: Node3D = mk.call("grin")
 	for i in 13:
 		var f := float(i) / 12.0
 		var a := PI * (1.0 - f)
-		dot.call(gr_node, Vector3(cos(a) * 0.062, -0.004 + sin(a) * 0.026, mz), 0.0092)
+		dot.call(gr_node, Vector3(cos(a) * 0.062, 0.01 - sin(a) * 0.032, mz), 0.0092)
 
 	# frown: arco all'ingiù (concavo in basso)
 	var fr_node: Node3D = mk.call("frown")

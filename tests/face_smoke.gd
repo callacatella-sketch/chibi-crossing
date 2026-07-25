@@ -55,6 +55,23 @@ func _initialize() -> void:
 	var mouths: Dictionary = FC.build_mouth_set(head, mat, Vector3(0, -0.1, -0.408))
 	var mouth_open: Node3D = FC.build_mouth_open(head, mat, Vector3(0, -0.1, -0.408))
 
+	# la curvatura: uno smile deve essere ∪ (angoli PIÙ IN ALTO del centro),
+	# un frown ∩ (angoli più in basso). Regressione del bug "bocca capovolta".
+	var curve := func(shape: String) -> float:
+		var node: Node3D = mouths[shape]
+		var kids := node.get_children()
+		var corner: float = maxf((kids[0] as Node3D).position.y,
+				(kids[kids.size() - 1] as Node3D).position.y)
+		var center: float = (kids[kids.size() / 2] as Node3D).position.y
+		return corner - center   # >0 = ∪ (sorriso), <0 = ∩ (broncio)
+	if curve.call("smile") <= 0.0:
+		push_error("smile NON è ∪ (bocca capovolta): %.3f" % curve.call("smile"))
+		quit(1); return
+	if curve.call("frown") >= 0.0:
+		push_error("frown NON è ∩: %.3f" % curve.call("frown"))
+		quit(1); return
+	print("MOUTH_CURVE ok smile=%.3f frown=%.3f" % [curve.call("smile"), curve.call("frown")])
+
 	var face = FC.new()
 	face.setup({
 		"head": head, "eyes": eyes, "eyeballs": eyeballs, "irises": irises,

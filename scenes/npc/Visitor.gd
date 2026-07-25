@@ -17,6 +17,12 @@ const BUILDER := preload("res://scenes/npc/ChibiBuilder.gd")
 const CHIBIESE := preload("res://audio/Chibiese.gd")
 const FACE := preload("res://scenes/characters/FaceController.gd")
 
+# gli stati in cui lo sguardo si posa su ciò che il villager esamina (_target).
+# Dizionario-come-insieme, const: nessuna allocazione per-frame nel _process.
+const LOOK_STATES := {
+	"inspect": true, "c_inspect": true, "sniff": true, "annusa": true, "r_sniff": true,
+}
+
 var species := "riccio"
 
 ## Se presente, il corpo viene costruito dal genoma (villager generato).
@@ -544,25 +550,6 @@ func _process(delta: float) -> void:
 		_head.rotation.x = move_toward(_head.rotation.x, 0.0, delta * 1.5)
 		_head.rotation.z = move_toward(_head.rotation.z, 0.0, delta * 1.5)
 
-	# --- il volto vivo: espressione dallo stato (o dall'umore mentre parla),
-	# sguardo sul mobile che curiosa o sul giocatore vicino, ammicco naturale ---
-	if _face:
-		if _voice_player and _voice_player.playing:
-			_face.set_talking(true)
-			_face.set_mood(_mood)
-		else:
-			_face.set_talking(false)
-			_face.set_expression(_expr_for_state(_state))
-		if _state in ["inspect", "c_inspect", "sniff", "annusa", "r_sniff"] \
-				and _target != Vector3.ZERO:
-			_face.look_at_world(_target + Vector3(0, 0.35, 0))
-		elif _player_ref and is_instance_valid(_player_ref) \
-				and global_position.distance_to(_player_ref.global_position) < 4.5:
-			_face.look_at_node(_player_ref)
-		else:
-			_face.clear_gaze()
-		_face.update(delta)
-
 	# il tremolio dell'età: un fremito appena percettibile del collo,
 	# sommato alla contro-rotazione della gobba (il collo è nostro:
 	# nessuno stato lo tocca, il musetto continua a recitare intatto)
@@ -807,6 +794,25 @@ func _process(delta: float) -> void:
 			if _timer >= 1.0:
 				position.y = 0.0
 				_enter_state("r_idle")
+
+	# --- il volto vivo, IN CODA (dopo che il match ha posato la testa, così
+	# lo sguardo legge la testa già inclinata): espressione dallo stato o
+	# dall'umore mentre parla, sguardo sul mobile o sul giocatore vicino ---
+	if _face:
+		if _voice_player and _voice_player.playing:
+			_face.set_talking(true)
+			_face.set_mood(_mood)
+		else:
+			_face.set_talking(false)
+			_face.set_expression(_expr_for_state(_state))
+		if LOOK_STATES.has(_state) and _target != Vector3.ZERO:
+			_face.look_at_world(_target + Vector3(0, 0.35, 0))
+		elif _player_ref and is_instance_valid(_player_ref) \
+				and global_position.distance_to(_player_ref.global_position) < 4.5:
+			_face.look_at_node(_player_ref)
+		else:
+			_face.clear_gaze()
+		_face.update(delta)
 
 
 # passo del corpo: il passerotto avanza a scatti (solo mentre è in aria)
