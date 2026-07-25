@@ -125,3 +125,25 @@ push origin v1.0.0`) o a mano da *Actions → Run workflow*.
   (`.../Godot.app/Contents/MacOS/Godot --headless --path . --export-release ...`).
   Gli export templates NON sono installati in locale, quindi l'export completo
   gira solo in CI, ma l'import/validazione dei preset si fa anche da qui.
+
+## Test
+
+Test-suite **dependency-free** (nessun addon, nessuna rete) in `tests/`:
+`test_runner.gd` (estende `SceneTree`) carica ed esegue tutti i `tests/cases/test_*.gd`
+— ognuno espone `func run(t)` e usa gli helper `t.ok/eq/almost`. Copre le classi
+C++ (`SurvivalComponent`, `GridManager`, `PlayerController`, `EcosystemManager`)
+e la logica pura GDScript (`ChibiDNA`, funzioni matematiche di `CozyWorld`).
+
+- **In locale** (col Godot in `~/Downloads`):
+  ```
+  Godot --headless --path . --script res://tests/test_runner.gd
+  ```
+  Esce con codice 0 (tutti passati) o 1 (fallimenti). Il runner **salta** gli
+  script con errori di parse senza appendersi.
+- **In CI**: [`.github/workflows/tests.yml`](.github/workflows/tests.yml) compila
+  il cuore C++ per Linux (i binari non sono versionati) e poi esegue la suite a
+  ogni push.
+- Convenzioni per nuovi test: file `tests/cases/test_<area>.gd`, `extends
+  RefCounted`, niente `add_child` all'albero (le classi C++ si creano con
+  `.new()` e si liberano con `.free()`); usa `var x = ...` (non `:=`) quando il
+  valore viene da un'istanza non tipizzata, altrimenti l'inferenza fallisce.

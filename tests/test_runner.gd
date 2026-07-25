@@ -9,12 +9,15 @@ func _initialize() -> void:
 	var t = util_script.new()
 	for fname in _list_cases():
 		print("RUN  ", fname)
+		t.current_file = fname
 		var script := load("res://tests/cases/" + fname)
-		if script == null:
-			push_error("Impossibile caricare " + fname)
+		# Uno script con errori di parse non deve far cadere l'intero runner
+		# (altrimenti quit() non viene chiamato e il processo resta appeso).
+		if script == null or not (script is GDScript) or not script.can_instantiate():
+			t.ok(false, "%s: non compilabile (errore di parse)" % fname)
+			print("SKIP ", fname)
 			continue
 		var case = script.new()
-		t.current_file = fname
 		if case.has_method("run"):
 			case.run(t)
 		print("DONE ", fname)

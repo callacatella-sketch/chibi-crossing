@@ -5,7 +5,7 @@ extends RefCounted
 ## _ready() (che costruisce tutto il mondo) non parte mai: chiamiamo solo
 ## funzioni pure e alla fine facciamo w.free().
 
-const CW := preload("res://scenes/world/CozyWorld.gd")
+const CW = preload("res://scenes/world/CozyWorld.gd")
 
 
 func run(t) -> void:
@@ -38,12 +38,12 @@ func _test_river_x(t, w) -> void:
 
 	# Riproduce esattamente la formula per piu' z (negativi, zero, positivi).
 	for z: float in [-30.0, 0.0, 12.0, 40.0]:
-		var atteso := 18.6 + sin(z * 0.061) * 1.35 + sin(z * 0.023 + 2.0) * 0.85
+		var atteso = 18.6 + sin(z * 0.061) * 1.35 + sin(z * 0.023 + 2.0) * 0.85
 		t.almost(w._river_x(z), atteso, "_river_x segue la formula per z=%s" % z)
 
 	# Resta nel range dell'ampiezza: 18.6 +/- (1.35 + 0.85) = [16.4, 20.8].
 	for z: float in [-120.0, -56.0, -13.7, 0.0, 7.3, 56.0, 200.0]:
-		var v := w._river_x(z)
+		var v = w._river_x(z)
 		t.ok(v >= 16.4 - 0.001 and v <= 20.8 + 0.001,
 				"_river_x nel range [16.4, 20.8] per z=%s (v=%s)" % [z, v])
 
@@ -82,8 +82,8 @@ func _test_cliff_x(t, w) -> void:
 	# Limiti per ogni z: river_x+2.9 <= cliff_x <= river_x+2.9+9.0.
 	# E la parete e' sempre a est del centro fiume: cliff_x > river_x.
 	for z: float in [-56.0, -20.0, -4.0, 0.0, 3.0, 22.0, 56.0]:
-		var base := w._river_x(z) + 2.9
-		var c := w._cliff_x(z)
+		var base = w._river_x(z) + 2.9
+		var c = w._cliff_x(z)
 		t.ok(c >= base - 0.0001 and c <= base + 9.0 + 0.0001,
 				"_cliff_x nei limiti dello smoothstep per z=%s (c=%s)" % [z, c])
 		t.ok(c > w._river_x(z), "_cliff_x a est del centro fiume per z=%s" % z)
@@ -95,10 +95,10 @@ func _test_cliff_x(t, w) -> void:
 # ------------------------------------------------------------ _catmull
 
 func _test_catmull(t, w) -> void:
-	var a := Vector3(0.0, 0.0, 0.0)
-	var b := Vector3(1.0, 2.0, -1.0)
-	var c := Vector3(3.0, -1.0, 2.0)
-	var d := Vector3(4.0, 4.0, 4.0)
+	var a = Vector3(0.0, 0.0, 0.0)
+	var b = Vector3(1.0, 2.0, -1.0)
+	var c = Vector3(3.0, -1.0, 2.0)
+	var d = Vector3(4.0, 4.0, 4.0)
 
 	# A t=0 restituisce esattamente p1.
 	t.ok(w._catmull(a, b, c, d, 0.0).is_equal_approx(b),
@@ -118,7 +118,7 @@ func _test_catmull(t, w) -> void:
 func _test_tuft_hash(t, w) -> void:
 	# Sempre nel range [0,1] (0xfffff / 1048575.0 = 1.0 e' il massimo).
 	for coppia in [[0, 0], [3, 7], [-5, 2], [123, -456], [-999, -999]]:
-		var v := w._tuft_hash(coppia[0], coppia[1])
+		var v = w._tuft_hash(coppia[0], coppia[1])
 		t.ok(v >= 0.0 and v <= 1.0,
 				"_tuft_hash in [0,1] per (%s,%s) -> %s" % [coppia[0], coppia[1], v])
 
@@ -133,7 +133,7 @@ func _test_tuft_vnoise(t, w) -> void:
 	# Sempre nel range [0,1]: interpolazione bilineare (pesi in [0,1]) di
 	# valori _tuft_hash gia' in [0,1].
 	for p in [[0.0, 0.0], [2.3, -4.1], [-7.6, 5.5], [12.25, 12.25], [-0.5, -0.5]]:
-		var v := w._tuft_vnoise(p[0], p[1])
+		var v = w._tuft_vnoise(p[0], p[1])
 		t.ok(v >= -0.0001 and v <= 1.0001,
 				"_tuft_vnoise in [0,1] per (%s,%s) -> %s" % [p[0], p[1], v])
 
@@ -147,7 +147,7 @@ func _test_tuft_vnoise(t, w) -> void:
 func _test_tuft_field(t, w) -> void:
 	# Sempre nel range [0,1]: 0.65 + 0.35 = 1 su due vnoise ciascuno in [0,1].
 	for p in [[0.0, 0.0], [1.0, 1.0], [-8.3, 6.4], [15.0, -18.0], [-3.3, -3.3]]:
-		var v := w._tuft_field(p[0], p[1])
+		var v = w._tuft_field(p[0], p[1])
 		t.ok(v >= -0.0001 and v <= 1.0001,
 				"_tuft_field in [0,1] per (%s,%s) -> %s" % [p[0], p[1], v])
 
