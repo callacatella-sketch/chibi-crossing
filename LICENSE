@@ -1,19 +1,80 @@
-Copyright (C) 2026 Gil Barbosa Reis.
+Chibi Crossing
+Copyright (c) 2026 Calla Catella. Tutti i diritti riservati / All Rights Reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of
-this software and associated documentation files (the “Software”), to deal in
-the Software without restriction, including without limitation the rights to
-use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
-of the Software, and to permit persons to whom the Software is furnished to do
-so, subject to the following conditions:
+--------------------------------------------------------------------------
+ENGLISH
+--------------------------------------------------------------------------
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+This software, including its source code, assets, art, music, text and
+documentation (the "Work"), is proprietary and confidential.
+All rights are reserved by the copyright holder.
 
-THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+The Work is made visible in this repository for transparency, portfolio and
+continuous-integration purposes ONLY. Making it readable does NOT grant any
+license to it.
+
+NO PERMISSION is granted to any person to use, copy, modify, adapt, merge,
+translate, publish, distribute, sublicense, sell, rent, host, or create
+derivative works from the Work, in whole or in part, by any means, without
+the prior written permission of the copyright holder.
+
+You MAY:
+  - view and read the source code within this repository;
+  - fork the repository on GitHub for the sole purpose of proposing a
+    contribution back to it (any contribution is licensed to the copyright
+    holder for use in the Work).
+
+You MAY NOT:
+  - publish, redistribute or sell the Work or any derivative of it;
+  - reuse its code, art, music or design in another project;
+  - use it to train, fine-tune or evaluate machine-learning models.
+
+Third-party components included in this repository (for example godot-cpp
+and the lua-gdextension addon) remain under their own licenses; see
+THIRD_PARTY_NOTICES.md. Godot Engine is not covered by this license.
+
+THE WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY ARISING FROM THE WORK OR ITS USE.
+
+For permission requests, contact the copyright holder.
+
+--------------------------------------------------------------------------
+ITALIANO (traduzione di cortesia; in caso di conflitto prevale il testo inglese)
+--------------------------------------------------------------------------
+
+Questo software, incluso il codice sorgente, le risorse, la grafica, la
+musica, i testi e la documentazione (l'"Opera"), è proprietario e riservato.
+Tutti i diritti sono riservati al titolare del copyright.
+
+L'Opera è resa visibile in questo repository unicamente per finalità di
+trasparenza, portfolio e integrazione continua. Il fatto che sia leggibile
+NON concede alcuna licenza sull'Opera.
+
+NON è concessa alcuna autorizzazione a usare, copiare, modificare, adattare,
+tradurre, pubblicare, distribuire, concedere in sublicenza, vendere, noleggiare,
+ospitare o creare opere derivate dall'Opera, in tutto o in parte, con qualsiasi
+mezzo, senza previo consenso scritto del titolare del copyright.
+
+È CONSENTITO:
+  - visualizzare e leggere il codice sorgente all'interno di questo repository;
+  - effettuare un fork su GitHub al solo scopo di proporre un contributo al
+    progetto (ogni contributo si intende concesso in licenza al titolare del
+    copyright per l'uso nell'Opera).
+
+NON è CONSENTITO:
+  - pubblicare, ridistribuire o vendere l'Opera o sue derivazioni;
+  - riutilizzarne codice, grafica, musica o design in un altro progetto;
+  - usarla per addestrare, perfezionare o valutare modelli di
+    apprendimento automatico.
+
+I componenti di terze parti inclusi in questo repository (per esempio
+godot-cpp e l'addon lua-gdextension) restano soggetti alle rispettive
+licenze: vedi THIRD_PARTY_NOTICES.md. Il motore Godot non è coperto da
+questa licenza.
+
+L'OPERA È FORNITA "COSÌ COM'È", SENZA GARANZIE DI ALCUN TIPO, ESPRESSE O
+IMPLICITE. IN NESSUN CASO IL TITOLARE DEL COPYRIGHT SARÀ RESPONSABILE PER
+RIVENDICAZIONI, DANNI O ALTRE RESPONSABILITÀ DERIVANTI DALL'OPERA O DAL SUO USO.
+
+Per richieste di autorizzazione, contattare il titolare del copyright.
