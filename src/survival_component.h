@@ -25,6 +25,7 @@ public:
     SurvivalComponent();
     ~SurvivalComponent();
 
+    void _ready() override;
     void _process(double delta) override;
 
     // Stamina

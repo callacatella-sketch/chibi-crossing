@@ -1,5 +1,6 @@
 #include "survival_component.h"
 #include <godot_cpp/classes/engine.hpp>
+#include <godot_cpp/classes/scene_tree.hpp>
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 
@@ -34,19 +35,29 @@ void SurvivalComponent::_bind_methods() {
     ADD_SIGNAL(MethodInfo("water_changed", PropertyInfo(Variant::FLOAT, "new_value"), PropertyInfo(Variant::FLOAT, "max_value")));
 }
 
-SurvivalComponent::SurvivalComponent() {
-    set_process(true);
-}
+SurvivalComponent::SurvivalComponent() {}
 
 SurvivalComponent::~SurvivalComponent() {}
 
+void SurvivalComponent::_ready() {
+    // set_process va attivato quando il nodo è nell'albero, non nel costruttore.
+    if (Engine::get_singleton()->is_editor_hint()) return;
+    set_process(true);
+}
+
 void SurvivalComponent::_process(double delta) {
     if (Engine::get_singleton()->is_editor_hint()) return;
-    // Esempio logica di base: Sete e Fame scendono lentamente nel tempo
-    double hunger_drain_rate = 0.5; // per second
-    double water_drain_rate = 1.0;  // per second
-    
-    // Nel gioco vero questi calcoli verrebbero eseguiti solo se non siamo in pausa, ecc.
+
+    // Non consumare fame/acqua mentre il gioco è in pausa (menu, dialoghi). Con
+    // il process_mode di default (PAUSABLE) _process non verrebbe nemmeno
+    // chiamato a gioco in pausa; questa guardia copre anche il caso in cui il
+    // nodo venga messo in PROCESS_MODE_ALWAYS.
+    SceneTree *tree = get_tree();
+    if (tree && tree->is_paused()) return;
+
+    // Sete e Fame scendono lentamente nel tempo.
+    double hunger_drain_rate = 0.5; // al secondo
+    double water_drain_rate = 1.0;  // al secondo
     set_hunger(hunger - (hunger_drain_rate * delta));
     set_water(water - (water_drain_rate * delta));
 }

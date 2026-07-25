@@ -40,8 +40,11 @@ void PlayerController::_physics_process(double delta) {
     // Lettura input base (assi WASD o controller)
     Vector2 input_dir = input->get_vector("ui_left", "ui_right", "ui_up", "ui_down");
     
-    // Converti l'input direzionale in base all'inquadratura isometrica (assumiamo telecamera statica a 45 gradi)
-    // Per un vero isometrico, spesso si ruota l'input di 45 gradi. Per ora lo teniamo dritto rispetto agli assi globali X/Z.
+    // La CameraPivot non ha yaw (la camera guarda lungo -Z, dietro/sopra Mochi):
+    // quindi l'input mappa direttamente sugli assi mondo X/Z ed è GIÀ corretto
+    // ("su" allontana dalla camera). NON ruotare l'input di 45°: romperebbe i
+    // controlli. Servirebbe il camera-relative movement solo se in futuro la
+    // camera diventasse rotabile (allora: ruotare l'input per lo yaw della camera).
     Vector3 direction = Vector3(input_dir.x, 0, input_dir.y).normalized();
 
     bool is_running = input->is_action_pressed("ui_accept"); // Es. Spazio o Shift per correre
