@@ -12,17 +12,30 @@ Questo repository deve avere **sempre una copia di backup aggiornata su GitHub**
 (`origin`). Il backup è **automatico** e va mantenuto funzionante:
 
 - Un hook **`Stop`** (in `.claude/settings.json`) esegue
-  [`.claude/hooks/git-backup.sh`](.claude/hooks/git-backup.sh) **dopo ogni
-  risposta dell'agente**. Lo script fa `git add -A`, committa le eventuali
-  modifiche sul **branch corrente** con messaggio `backup automatico: <data ora>`
-  e fa `git push` su `origin`.
+  [`.claude/hooks/git-backup.sh`](.claude/hooks/git-backup.sh) dopo ogni risposta
+  dell'agente, ma lo script fa il backup vero (commit + push) **al più una volta
+  ogni 24 ore**: se l'ultimo backup è recente esce subito senza toccare nulla.
+  Quando scatta, fa `git add -A`, committa sul **branch corrente** con messaggio
+  `backup automatico: <data ora>` e fa `git push` su `origin`.
+- **Perché a intervallo e non dopo ogni modifica:** lavorando con **più agenti in
+  parallelo**, un commit+push+rebase dopo ogni risposta muove il working tree
+  mentre gli altri agenti stanno ancora lavorando → conflitti di merge. Un backup
+  giornaliero tiene comunque la copia su GitHub aggiornata senza disturbare il
+  lavoro concorrente.
 - Lo script è pensato per non dare mai fastidio: non blocca il lavoro, non
   chiede credenziali (se l'auth non è in cache il push fallisce ma il commit
-  resta salvato in locale), e non crea commit se non ci sono modifiche.
+  resta salvato in locale), non crea commit se non ci sono modifiche, e usa un
+  lock (`.git/chibi-backup.lock`) così due agenti non fanno backup insieme.
+- Il timbro dell'ultimo backup è in `.git/chibi-last-backup` (per-clone, non
+  versionato). Per **forzare un backup subito**: `rm .git/chibi-last-backup`.
+  Per cambiare l'intervallo: variabile d'ambiente `CHIBI_BACKUP_INTERVAL` (in
+  secondi; default 86400 = 24 ore).
 
 **Cosa devono fare gli agenti futuri:**
 
 1. **Non disattivare** questo hook e non rimuovere lo script: sono il backup.
+   Non riportarlo a "commit dopo ogni risposta": la cadenza a 24 ore è voluta
+   (evita conflitti di merge tra agenti concorrenti).
 2. Va bene fare commit "puliti" a mano durante il lavoro (messaggi descrittivi):
    l'hook interviene solo se restano modifiche non committate, quindi non
    disturba i tuoi commit.
