@@ -90,8 +90,25 @@ lavora da Mac.
 
 Lo sviluppatore **non possiede un PC Windows**: la `.dll` di Windows si ottiene
 in cloud. Il workflow [`.github/workflows/build.yml`](.github/workflows/build.yml)
-compila il cuore C++ su **Windows (MSVC reale)** e **macOS (universale)** e
-pubblica i binari come **artifact scaricabili** dal run.
+compila il cuore C++ su **Windows (MSVC reale)**, **macOS (universale)** e
+**Linux**, e pubblica i binari come **artifact scaricabili** dal run.
+
+> ### ⚠️ REGOLA OBBLIGATORIA — ricompilare il C++ SEMPRE via GitHub, per tutti gli OS
+>
+> Ogni volta che serve **ricompilare il cuore C++** (`src/`) o le librerie
+> native, ogni agente **DEVE**, senza eccezioni:
+> 1. **Committare e pushare** le modifiche su GitHub — anche **a mano e subito**
+>    (`git add … && git commit && git pull --rebase --autostash origin main &&
+>    git push origin main`). Il backup automatico è throttled a 24h: se ti affidi
+>    a quello, la CI continua a compilare codice **vecchio**.
+> 2. Lasciar **compilare la CI** (`build.yml`) per **TUTTI i sistemi operativi
+>    supportati** (Windows, macOS, Linux). Verificare che il run sia verde.
+> 3. **Riscaricare** i binari compilati dagli **artifact** del run quando servono
+>    in locale (i binari NON sono versionati: vedi `.gitignore`).
+>
+> **Non considerare finita** una modifica al C++ basandosi solo sulla build
+> locale: da Mac non si compila Windows, e una singola build locale non copre
+> tutti gli OS. La verità la dà la CI su tutte le piattaforme.
 
 - **I binari NON sono versionati** nel repo: `bin/*.dll`, `bin/*.dylib`,
   `bin/*.lib` sono in `.gitignore`. In locale si producono con `scons`

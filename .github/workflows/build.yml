@@ -42,6 +42,12 @@ jobs:
             artifacts: |
               bin/libchibi_crossing.macos.template_debug.universal.dylib
               bin/libchibi_crossing.macos.template_release.universal.dylib
+          - name: linux
+            os: ubuntu-latest
+            scons_args: platform=linux
+            artifacts: |
+              bin/libchibi_crossing.linux.template_debug.x86_64.so
+              bin/libchibi_crossing.linux.template_release.x86_64.so
     steps:
       - name: Checkout (con submodule godot-cpp)
         uses: actions/checkout@v4
