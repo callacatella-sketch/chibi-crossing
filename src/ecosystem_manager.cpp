@@ -132,7 +132,11 @@ void EcosystemManager::on_new_day() {
                 f.phase = UtilityFunctions::randf();
                 fireflies.push_back(f);
             }
-            eggs.erase(eggs.begin() + i);
+            // swap-and-pop: O(1) invece di erase O(n). L'ordine delle uova non
+            // conta (nessuno le indicizza da fuori) e il loop va a ritroso, così
+            // l'elemento spostato qui è già stato processato.
+            eggs[i] = eggs.back();
+            eggs.pop_back();
         }
     }
     // un po' di mortalità tiene le popolazioni in equilibrio
@@ -142,8 +146,10 @@ void EcosystemManager::on_new_day() {
     }
     int wf_deaths = (int)(wildflowers.size() * 0.04);
     for (int i = 0; i < wf_deaths && !wildflowers.empty(); i++) {
-        wildflowers.erase(wildflowers.begin() +
-                (int)UtilityFunctions::randi_range(0, (int)wildflowers.size() - 1));
+        // swap-and-pop: toglie un fiore a caso senza scalare tutto il vettore
+        int r = (int)UtilityFunctions::randi_range(0, (int)wildflowers.size() - 1);
+        wildflowers[r] = wildflowers.back();
+        wildflowers.pop_back();
     }
     push_flowers();
 }
@@ -156,15 +162,18 @@ Vector3 EcosystemManager::random_meadow_point() const {
 }
 
 Vector3 EcosystemManager::random_flower_point() const {
-    int total = flower_sources.size() + (int)wildflowers.size();
+    // cast espliciti a int: flower_sources.size() e wildflowers.size() hanno tipi
+    // diversi (int64_t / size_t), confrontarli/sommarli così evita warning.
+    int fs = (int)flower_sources.size();
+    int total = fs + (int)wildflowers.size();
     if (total == 0) {
         return random_meadow_point();
     }
     int i = (int)UtilityFunctions::randi_range(0, total - 1);
-    if (i < flower_sources.size()) {
+    if (i < fs) {
         return flower_sources[i];
     }
-    return wildflowers[i - flower_sources.size()].pos;
+    return wildflowers[i - fs].pos;
 }
 
 bool EcosystemManager::ground_ok(const Vector3 &p) {
@@ -354,7 +363,10 @@ void EcosystemManager::update_butterflies(double delta) {
                 b.pos += b.vel * delta;
                 if (b.pos.x < meadow_min.x - 2.0 || b.pos.x > meadow_max.x + 2.0 ||
                         b.pos.z < meadow_min.z - 2.0 || b.pos.z > meadow_max.z + 2.0) {
-                    butterflies.erase(butterflies.begin() + i);
+                    // swap-and-pop: l'ordine delle farfalle è indifferente
+                    // (il MultiMesh le ridisegna tutte ogni frame).
+                    butterflies[i] = butterflies.back();
+                    butterflies.pop_back();
                 }
             } break;
         }
@@ -408,7 +420,10 @@ void EcosystemManager::update_sparrows(double delta) {
                 s.vel = s.vel.lerp(Vector3(2.6f, 2.0f, 0.6f), MIN(1.0, delta * 2.0));
                 s.pos += s.vel * delta;
                 if (s.pos.y > 7.0f) {
-                    sparrows.erase(sparrows.begin() + i);
+                    // swap-and-pop: il lato GDScript riconosce i passerotti per
+                    // `id` (non per posizione), quindi il riordino è sicuro.
+                    sparrows[i] = sparrows.back();
+                    sparrows.pop_back();
                 }
             } break;
         }
