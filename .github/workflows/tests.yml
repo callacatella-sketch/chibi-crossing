@@ -47,7 +47,7 @@ jobs:
       - name: Compila il cuore C++ (Linux, debug)
         run: scons platform=linux target=template_debug -j4
 
-      - name: Setup Godot (senza export templates: servono solo per esportare)
+      - name: Setup Godot (export templates non necessari per i test)
         uses: chickensoft-games/setup-godot@v2
         with:
           version: ${{ env.GODOT_VERSION }}
