@@ -15,6 +15,9 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 export GIT_TERMINAL_PROMPT=0
+# SSH sempre non interattivo: niente prompt di passphrase o host key che
+# possano bloccare l'hook (fallisce in fretta e il commit resta in locale).
+export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10}"
 
 # Portati alla radice del repository (l'hook parte dalla cwd della sessione).
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
