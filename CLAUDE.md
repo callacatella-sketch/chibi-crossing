@@ -59,7 +59,9 @@ lavora da Mac.
 
 - **Windows** (ramo `win32` del `SConstruct`, setup MSVC manuale): la release
   DEVE usare i flag di ottimizzazione — `/O2 /Oi /Gy`, define `NDEBUG` e link
-  `/OPT:REF /OPT:ICF`; la debug usa `/Od /Zi` con link `/DEBUG`. Non farli
+  `/OPT:REF /OPT:ICF`; la debug usa `/Od /Z7` con link `/DEBUG` (**/Z7 e non
+  /Zi**: con la build parallela `-j` i cl.exe si scontrano sul PDB condiviso ->
+  errore C1041). Non farli
   regredire (in passato la release veniva compilata senza ottimizzazione, come
   una debug). La build Windows va verificata **compilandola su Windows**: non è
   testabile da Mac.

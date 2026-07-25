@@ -26,9 +26,12 @@ if env["PLATFORM"] == "win32":
     env.Append(CXXFLAGS=["/std:c++17", "/EHsc", "/Zc:preprocessor", "/vmp", "/vmg"])
     env.Append(LIBPATH=["godot-cpp/bin"])
     if env["target"] == "template_debug":
-        # Debug: nessuna ottimizzazione (/Od) + info di debug complete (/Zi ->
-        # .pdb, gia' in .gitignore). /DEBUG lato linker per generare il PDB.
-        env.Append(CXXFLAGS=["/Od", "/Zi"])
+        # Debug: nessuna ottimizzazione (/Od) + info di debug. Si usa /Z7 (non
+        # /Zi): /Z7 mette le info di debug DENTRO ogni .obj, mentre /Zi le scrive
+        # in un PDB condiviso (vc140.pdb) su cui i cl.exe in parallelo (-j) si
+        # scontrano -> errore C1041. Con /Z7 la build parallela e' sicura; il
+        # linker con /DEBUG produce comunque il .pdb finale della DLL.
+        env.Append(CXXFLAGS=["/Od", "/Z7"])
         env.Append(LINKFLAGS=["/DEBUG"])
         env.Append(LIBS=["libgodot-cpp.windows.template_debug.x86_64.lib"])
     else:
