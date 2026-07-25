@@ -86,6 +86,7 @@ func take_dish(id: String) -> Dictionary:
 		if str(dishes[i].get("id", "")) == id:
 			var d: Dictionary = dishes[i]
 			dishes.remove_at(i)
+			d["kind"] = "dish"   # così chi lo riceve sa che è un piatto
 			return d
 	return {}
 
@@ -145,6 +146,10 @@ func take_treasure(id: String) -> Dictionary:
 		treasures.erase(id)
 	var scheda: Dictionary = TREASURES[id].duplicate(true)
 	scheda["id"] = id
+	# il "kind" viaggia con l'oggetto consumato: senza, offer_item scambia
+	# il tesoro per un piatto (ciotola invece del pacchetto, bond "piatto"
+	# invece di "regalo")
+	scheda["kind"] = "treasure"
 	return scheda
 
 

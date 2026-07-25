@@ -58,6 +58,7 @@ func _test_dish_stacking(t) -> void:
 	t.eq(zc, 2, "la zuppa si impila a quota 2")
 	var taken: Dictionary = inv.take_dish("zuppa")
 	t.eq(str(taken.get("id", "")), "zuppa", "take_dish restituisce la voce giusta")
+	t.eq(str(taken.get("kind", "")), "dish", "take_dish marca kind=dish (offer_item se ne serve)")
 	t.eq(inv.dishes.size(), 2, "dopo take_dish restano 2 piatti (1 zuppa + 1 tè)")
 	t.ok(inv.take_dish("inesistente").is_empty(), "take_dish di id assente -> {}")
 	inv.free()
@@ -71,7 +72,9 @@ func _test_treasures(t) -> void:
 	var lst: Array = inv.treasure_list()
 	t.eq(lst.size(), 1, "un solo tesoro posseduto")
 	t.eq(str(lst[0]["kind"]), "treasure", "voce tesoro etichettata kind=treasure")
-	inv.take_treasure("piuma")
+	# take_gift (via la voce di vetrina) consuma e conserva il kind del tesoro
+	var got: Dictionary = inv.take_gift(lst[0])
+	t.eq(str(got.get("kind", "")), "treasure", "take_gift conserva kind=treasure (niente ciotola per un dono)")
 	t.eq(int(inv.treasures.get("piuma", 0)), 1, "take_treasure scala a 1")
 	inv.take_treasure("piuma")
 	t.ok(not inv.treasures.has("piuma"), "a 0 il tesoro si rimuove")
