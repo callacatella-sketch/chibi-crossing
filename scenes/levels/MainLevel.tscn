@@ -1,4 +1,4 @@
-[gd_scene load_steps=29 format=3 uid="uid://mainlevel_uid"]
+[gd_scene load_steps=31 format=3 uid="uid://mainlevel_uid"]
 
 [ext_resource type="Script" path="res://scenes/levels/MainLevel.gd" id="1_xxyz1"]
 [ext_resource type="PackedScene" uid="uid://d3u2b9x8y8v" path="res://scenes/characters/Player.tscn" id="2_yyzx2"]
@@ -20,6 +20,8 @@
 [ext_resource type="Script" path="res://scenes/interact/Fishing.gd" id="18_fish1"]
 [ext_resource type="Shader" path="res://shaders/sky.gdshader" id="19_sky1"]
 [ext_resource type="Script" path="res://scenes/npc/GufoOrders.gd" id="20_gufo1"]
+[ext_resource type="Script" path="res://scenes/ui/Inventory.gd" id="21_inv1"]
+[ext_resource type="Script" path="res://scenes/ui/Pockets.gd" id="22_pock1"]
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_1a2b3"]
 size = Vector2(240, 240)
@@ -132,6 +134,12 @@ script = ExtResource("14_visi1")
 
 [node name="GufoOrders" type="Node" parent="."]
 script = ExtResource("20_gufo1")
+
+[node name="Inventory" type="Node" parent="."]
+script = ExtResource("21_inv1")
+
+[node name="Pockets" type="Node" parent="."]
+script = ExtResource("22_pock1")
 
 [node name="Collection" type="Node" parent="."]
 script = ExtResource("16_coll1")

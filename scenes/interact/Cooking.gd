@@ -10,6 +10,14 @@ extends Node
 
 const HANDPAINT := preload("res://shaders/handpaint.gdshader")
 const UI_BROWN := Color("6a4a3a")
+const INV := preload("res://scenes/ui/Inventory.gd")
+
+# quale icona delle Tasche per ogni ricetta cucinata
+const DISH_ICON := {
+	"Tè del prato": "te", "Zuppa di carote": "zuppa", "Vellutata di zucca": "vellutata",
+	"Risotto ai funghi": "risotto", "Spiedini di bosco": "risotto",
+	"Crumble di bacche": "crumble", "Tè alle bacche": "te",
+}
 
 const ING_PLURAL := {"carota": "carote", "zucca": "zucche", "bacca": "bacche", "fungo": "funghi"}
 
@@ -36,6 +44,7 @@ var _mochi: Node3D
 var _survival: Node
 var _sfx
 var _weather: Node
+var _inventory: Node
 
 ## La dispensa del villaggio: {"carota": n, …}. Persistita.
 var pantry := {}
@@ -62,6 +71,7 @@ func _ready() -> void:
 	_survival = _player.get_node_or_null("SurvivalComponent")
 	_sfx = get_node_or_null(^"/root/Sfx")
 	_weather = get_tree().get_first_node_in_group("weather")
+	_inventory = get_node_or_null("../Inventory")
 	if _build.has_signal("placed_changed"):
 		_build.connect("placed_changed", func(): _caminos_dirty = true)
 	_build_ui()
@@ -277,9 +287,16 @@ func _ritual(camino: Node3D, recipe: Dictionary) -> void:
 
 	# ne avanza sempre una porzione: la cucina cozy non spreca niente
 	held_dish = {"name": recipe["name"].to_lower(), "art": recipe["art"], "warm": recipe["warm"]}
+	# la porzione entra nelle Tasche (si accumulano): da lì si sceglie chi la riceve
+	if _inventory:
+		_inventory.add_dish({
+			"id": String(recipe["name"]).to_lower().replace(" ", "_"),
+			"name": recipe["name"], "art": recipe["art"], "warm": recipe["warm"],
+			"tags": INV.dish_tags(recipe["warm"], recipe["need"]),
+			"icon": DISH_ICON.get(recipe["name"], "zuppa")})
 	var visitors := get_node_or_null("../Visitors")
 	if visitors:
-		visitors.call("_show_toast", "Ne è avanzata una porzione: regalala a un amico!")
+		visitors.call("_show_toast", "Una porzione è finita nelle tasche (Tab): regalala a un amico!")
 	_build._save_village()
 
 

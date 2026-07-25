@@ -50,6 +50,8 @@ var _cooking: Node
 var _mail: Node
 var _garden: Node
 var _cozy: Node3D
+var _inventory: Node
+var _pockets: Node
 var _chat_acc := 0.0
 var _wish_acc := 0.0
 var _pair_cd := {}
@@ -75,7 +77,9 @@ func _ready() -> void:
 		_cooking = get_node_or_null("../Cooking")
 		_mail = get_node_or_null("../Mail")
 		_garden = get_node_or_null("../Garden")
-		_cozy = get_node_or_null("../CozyWorld")).call_deferred()
+		_cozy = get_node_or_null("../CozyWorld")
+		_inventory = get_node_or_null("../Inventory")
+		_pockets = get_node_or_null("../Pockets")).call_deferred()
 	if _daynight:
 		_daynight.day_changed.connect(_on_new_day)
 	_build_ui()
@@ -812,6 +816,106 @@ func _give_dish(r: Dictionary) -> void:
 	_build._save_village()
 
 
+## Il gesto del regalo generalizzato: una porzione (ciotola) o un tesoro
+## (pacchetto) scelto dalle Tasche. La reazione nasce dall'affinità col gusto
+## del residente; il resto è la stessa coreografia di offerta di _give_dish.
+func offer_item(r: Dictionary, item: Dictionary) -> void:
+	if r.is_empty() or item.is_empty():
+		return
+	var node := r.get("node") as Node3D
+	if node == null or not is_instance_valid(node):
+		return
+	get_tree().call_group("regista", "note", "socievole")
+	var w: Dictionary = r.get("dna", {}).get("weights", {})
+	var loves_it := _item_loved(item, w)
+	node.call("face_towards", _player.global_position)
+	var art := String(item.get("art", "il"))
+	var what := "%s %s" % [art, String(item.get("name", "un regalo")).to_lower()]
+	var is_treasure := String(item.get("kind", "dish")) == "treasure"
+	var dna: Dictionary = r.get("dna", {})
+	# se oggi è il suo compleanno, il regalo diventa la FESTA A SORPRESA
+	var cal := get_tree().get_first_node_in_group("calendario")
+	if cal and cal.call("is_birthday", str(dna.get("name", ""))):
+		cal.call("throw_party", str(dna.get("name", "")), str(r["label"]), node)
+		_bump_friend(r, 3)
+		get_tree().call_group("legami", "momento", str(dna.get("name", "")), "festa", "")
+		_build._save_village()
+		return
+	# --- l'OFFERTA: zampine protese, inchino, il dono che fluttua ---
+	var mochi := _player.get_node_or_null("Mochi")
+	var dir := ((node.global_position - _player.global_position) * Vector3(1, 0, 1)).normalized()
+	if mochi:
+		mochi.set("_yaw", atan2(-dir.x, -dir.z))
+		mochi.call("hold_offer", true)
+	var prop: Node3D = _make_present() if is_treasure else \
+			_make_bowl(Color("e8944a") if bool(item.get("warm", true)) else Color("b04a7a"))
+	add_child(prop)
+	prop.global_position = _player.global_position + dir * 0.34 + Vector3(0, 0.55, 0)
+	prop.scale = Vector3.ONE * 0.05
+
+	var tw := create_tween()
+	tw.tween_property(prop, "scale", Vector3.ONE, 0.25) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	if mochi:
+		tw.parallel().tween_property(mochi, "pour", 1.0, 0.4) \
+				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_interval(0.3)
+	tw.tween_property(prop, "global_position",
+			node.global_position + Vector3(0, 0.55, 0), 0.5) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_callback(func():
+		# ogni dono si annoda al Filo Rosso (una volta al giorno per tipo)
+		get_tree().call_group("legami", "momento", str(dna.get("name", "")),
+				"regalo" if is_treasure else "piatto", String(item.get("name", "")).to_lower())
+		if loves_it:
+			node.call("celebrate")
+			node.call("speak", ["grazie", "felice"], "felice")
+			_bump_friend(r, 2)
+			_show_toast("%s ADORA %s!" % [r["label"], what])
+			if mochi:
+				var jt := create_tween()
+				jt.tween_property(mochi, "joy", 1.0, 0.42).set_trans(Tween.TRANS_SINE)
+				jt.tween_callback(func(): mochi.set("joy", 0.0))
+		else:
+			node.call("_spawn_heart")
+			node.call("speak", ["grazie"], "neutro")
+			_bump_friend(r, 1)
+			_show_toast("%s ringrazia sorridendo per %s." % [r["label"], what])
+		if _sfx:
+			_sfx.place_ok()
+		if mochi:
+			mochi.call("hold_offer", false)
+		var via := create_tween()
+		via.tween_property(prop, "scale", Vector3.ONE * 0.03, 0.28) \
+				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+		via.tween_callback(prop.queue_free))
+	_build._save_village()
+
+
+# lo adorerebbe? l'affinità del modello, o il vecchio caldo-vs-giardino
+func _item_loved(item: Dictionary, weights: Dictionary) -> bool:
+	if _inventory:
+		return _inventory.affinity(item.get("tags", []), weights) == _inventory.REACT_LOVES
+	return bool(item.get("warm", true)) == \
+			(float(weights.get("warmth", 0.5)) >= float(weights.get("garden", 0.5)))
+
+
+## Il residente non nascosto più vicino entro raggio, o {} — usato dalle
+## Tasche per sapere a chi stai per regalare.
+func nearest_giftable_resident(pos: Vector3, radius: float) -> Dictionary:
+	var best: Dictionary = {}
+	var best_d := radius
+	for r in _residents:
+		var node := r.get("node") as Node3D
+		if node == null or not is_instance_valid(node) or node.call("is_hidden"):
+			continue
+		var d: float = pos.distance_to(node.global_position)
+		if d < best_d:
+			best_d = d
+			best = r
+	return best
+
+
 # la ciotolina del piatto avanzato: legno chiaro, contenuto colorato
 func _make_bowl(col: Color) -> Node3D:
 	var bowl := Node3D.new()
@@ -1059,13 +1163,13 @@ func _update_prompts() -> void:
 	if _gift and _player.global_position.distance_to(_gift.global_position) <= 1.2:
 		_update_gift_prompt()
 		return
-	var dr := _dish_target()
-	if not dr.is_empty():
-		var node := dr.get("node") as Node3D
-		var dish: Dictionary = _cooking.get("held_dish")
-		_show_prompt_at("E — regala: %s" % dish.get("name", "?"),
-				node.global_position + Vector3(0, 1.0, 0), cam)
-		return
+	if _inventory and _inventory.has_giftable():
+		var gr := nearest_giftable_resident(_player.global_position, 1.8)
+		if not gr.is_empty():
+			var gnode := gr.get("node") as Node3D
+			_show_prompt_at("E / Tab — regala a %s" % str(gr.get("label", "")),
+					gnode.global_position + Vector3(0, 1.0, 0), cam)
+			return
 	for r in _residents:
 		var node := r.get("node") as Node3D
 		if node == null or not is_instance_valid(node) or node.call("is_hidden"):
@@ -1131,10 +1235,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		_collect_gift()
 		get_viewport().set_input_as_handled()
 		return
-	var dr := _dish_target()
-	if not dr.is_empty():
-		_give_dish(dr)
-		get_viewport().set_input_as_handled()
+	if _inventory and _inventory.has_giftable() and _pockets:
+		var gr := nearest_giftable_resident(_player.global_position, 1.8)
+		if not gr.is_empty():
+			_pockets.open_for_gift(gr)
+			get_viewport().set_input_as_handled()
 
 
 ## T — Mochi saluta con la zampina; il vicino più caro si volta e
@@ -1171,8 +1276,16 @@ func _saluta() -> void:
 func _collect_gift() -> void:
 	if _gift_bob:
 		_gift_bob.kill()
-	var gifts: Array = GIFTS[_gift_species]
-	var what: String = gifts[randi() % gifts.size()]
+	# il dono del bosco diventa un Tesoro vero nelle Tasche (era solo testo)
+	var what := ""
+	if _inventory:
+		var scheda: Dictionary = _inventory.add_random_gift(_gift_species, randi())
+		if not scheda.is_empty():
+			what = "%s %s" % [scheda.get("art", ""), scheda.get("name", "")]
+			_build._save_village()
+	if what == "":
+		var gifts: Array = GIFTS[_gift_species]
+		what = gifts[randi() % gifts.size()]
 	_show_toast("%s ti ha lasciato %s!" % [SPECIES_LABEL[_gift_species], what])
 	# dai regali del passerotto nasce la sciarpina di lana
 	if _gift_species == "passerotto":
