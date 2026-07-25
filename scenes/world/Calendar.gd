@@ -293,7 +293,13 @@ func _spawn_merchant() -> void:
 	_merchant.position = spot + Vector3(1.15, 0, 0.35)
 	_merchant.rotation.y = 0.9
 	add_child(_merchant)
-	_merchant.add_child(BUILDER.build(dna)["root"])
+	var parts: Dictionary = BUILDER.build(dna)
+	_merchant.add_child(parts["root"])
+	if parts.has("face"):
+		var rig: Dictionary = parts["face"]
+		rig["head"] = parts["head"]
+		_merchant_face = FACE.new()
+		_merchant_face.setup(rig)
 	_merchant_voice = CHIBIESE.voice(dna)
 	_merchant_vp = AudioStreamPlayer3D.new()
 	_merchant_vp.position = Vector3(0, 0.8, 0)
@@ -315,6 +321,7 @@ func _despawn_merchant() -> void:
 			tw.tween_property(node, "scale", Vector3.ONE * 0.03, 0.4)
 			tw.tween_callback(node.queue_free)
 	_merchant = null
+	_merchant_face = null
 	_stall = null
 
 
@@ -375,6 +382,7 @@ func _pm(a: Color, b: Color) -> ShaderMaterial:
 func _merchant_speak(concepts: Array, mood := "neutro") -> void:
 	if _merchant_vp == null or _merchant_vp.playing:
 		return
+	_merchant_mood = mood
 	_merchant_vp.stream = CHIBIESE.say(_merchant_voice, concepts, mood)
 	_merchant_vp.play()
 
@@ -449,8 +457,22 @@ func _confetti(pos: Vector3) -> void:
 
 # ---------------------------------------------------------------- UI
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	_update_prompt()
+	# il volto vivo del mercante: sorride, ammicca, ti guarda quando ti avvicini
+	if _merchant_face:
+		if _merchant_vp and _merchant_vp.playing:
+			_merchant_face.set_talking(true)
+			_merchant_face.set_mood(_merchant_mood)
+		else:
+			_merchant_face.set_talking(false)
+			_merchant_face.set_expression("felice")
+		if _player and is_instance_valid(_player) and _merchant \
+				and _merchant.global_position.distance_to(_player.global_position) < 4.0:
+			_merchant_face.look_at_node(_player)
+		else:
+			_merchant_face.clear_gaze()
+		_merchant_face.update(delta)
 
 
 func _unhandled_input(event: InputEvent) -> void:
