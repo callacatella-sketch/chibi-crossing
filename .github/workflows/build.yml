@@ -1,0 +1,120 @@
+name: Build multipiattaforma del cuore C++
+
+# Compila la GDExtension C++ (il "cuore") su Windows e macOS usando i runner
+# di GitHub, cosi' non serve possedere un PC Windows. I binari prodotti vengono
+# ricommittati automaticamente in bin/ (vedi il job "commit").
+#
+# Si attiva quando cambiano i sorgenti C++ o la configurazione di build; non si
+# riattiva sui propri commit di soli binari (paths esclude bin/, + [skip ci], +
+# i push fatti col GITHUB_TOKEN non innescano altri workflow).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'SConstruct'
+      - 'chibi_crossing.gdextension'
+      - '.gitmodules'
+      - '.github/workflows/build.yml'
+  workflow_dispatch: {}
+
+# Non far girare due build sovrapposte sullo stesso ref (eviterebbe commit di
+# binari in conflitto). Non annulliamo quella in corso: la lasciamo finire.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+# Serve per far ricommittare i binari col GITHUB_TOKEN.
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Compila (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows
+            os: windows-latest
+            scons_args: platform=windows
+            artifacts: |
+              bin/chibi_crossing.dll
+              bin/chibi_crossing.lib
+          - name: macos
+            os: macos-latest
+            scons_args: platform=macos arch=universal
+            artifacts: |
+              bin/libchibi_crossing.macos.template_debug.universal.dylib
+              bin/libchibi_crossing.macos.template_release.universal.dylib
+    steps:
+      - name: Checkout (con submodule godot-cpp)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Installa SCons
+        run: python -m pip install --upgrade pip scons
+
+      - name: Build debug
+        run: scons ${{ matrix.scons_args }} target=template_debug -j4
+
+      - name: Build release
+        run: scons ${{ matrix.scons_args }} target=template_release -j4
+
+      - name: Carica i binari come artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bin-${{ matrix.name }}
+          path: ${{ matrix.artifacts }}
+          if-no-files-found: error
+
+  commit:
+    name: Ricommitta i binari in bin/
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Scarica tutti gli artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bin-*
+          path: artifacts
+
+      - name: Copia i binari freschi in bin/
+        run: |
+          mkdir -p bin
+          find artifacts -type f -exec cp -f {} bin/ \;
+
+      - name: Commit & push (solo se cambiano)
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add bin/
+          if git diff --cached --quiet; then
+            echo "Nessun binario cambiato: niente da committare."
+            exit 0
+          fi
+          git commit -m "ci: binari multipiattaforma aggiornati (Windows + macOS) [skip ci]"
+          # Riprova in caso il backup automatico locale abbia spinto nel frattempo.
+          for i in 1 2 3 4 5; do
+            if git pull --rebase origin main && git push origin HEAD:main; then
+              echo "Binari pushati su main."
+              exit 0
+            fi
+            echo "Push rifiutato (main avanzato), riprovo tra poco..."
+            sleep 4
+          done
+          echo "::error::Push dei binari fallito dopo piu' tentativi."
+          exit 1

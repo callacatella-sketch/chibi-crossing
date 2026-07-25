@@ -70,3 +70,25 @@ lavora da Mac.
 - Compilare sempre entrambi i target (`template_debug` e `template_release`) per
   la piattaforma su cui si lavora prima di considerare finito un cambiamento al
   cuore C++.
+
+## Build in cloud (GitHub Actions) — nessun PC Windows necessario
+
+Lo sviluppatore **non possiede un PC Windows**: la `.dll` di Windows si ottiene
+in cloud. Il workflow [`.github/workflows/build.yml`](.github/workflows/build.yml)
+compila il cuore C++ su **Windows (MSVC reale)** e **macOS (universale)** e
+**ricommitta i binari in `bin/`**.
+
+- Si attiva sui push a `main` che toccano `src/**`, `SConstruct`,
+  `chibi_crossing.gdextension` o il workflow stesso; oppure a mano da
+  *Actions → Run workflow* (`workflow_dispatch`).
+- Un job `build` (matrice Windows/macOS) compila debug+release e carica gli
+  artifact; un job `commit` li scarica e li ricommitta in `bin/` con messaggio
+  `[skip ci]`.
+- **Due scrittori su `main`** (l'hook di backup locale + la CI): sono
+  riconciliati automaticamente. La CI fa `pull --rebase` con retry; l'hook
+  [`git-backup.sh`](.claude/hooks/git-backup.sh) fa `pull --rebase` e riprova il
+  push quando il remoto è avanti. Dopo che la CI ha girato, in locale conviene
+  comunque un `git pull` per avere subito i binari aggiornati.
+- Non serve più compilare Windows a mano. Per verificare le modifiche al
+  `SConstruct` (ramo `win32`) basta lasciar girare la CI e guardare il log del
+  job *Compila (windows)*.

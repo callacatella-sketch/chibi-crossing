@@ -41,11 +41,29 @@ git commit -q -m "backup automatico: $ts" 2>/dev/null || exit 0
 # Push. Imposta l'upstream se manca. Errori (offline, branch divergente,
 # auth non in cache) non bloccano: il commit resta salvato in locale e si
 # avvisa l'utente con un systemMessage.
+do_push() {
+	if git rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1; then
+		git push -q origin "$branch" 2>&1
+	else
+		git push -q -u origin "$branch" 2>&1
+	fi
+}
+
 push_err=""
-if git rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1; then
-	push_err="$(git push -q origin "$branch" 2>&1)" || push_ok=1
-else
-	push_err="$(git push -q -u origin "$branch" 2>&1)" || push_ok=1
+push_err="$(do_push)" || push_ok=1
+
+# Se il push e' stato rifiutato perche' il branch remoto e' avanti (tipico
+# quando la CI di GitHub ha appena committato i binari in bin/), riconcilia con
+# un rebase e riprova UNA volta. Qui il working tree e' pulito (abbiamo appena
+# committato), quindi il rebase e' sicuro; se va in conflitto lo si annulla e il
+# commit resta salvato in locale.
+if [ "${push_ok:-0}" = "1" ] && git rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1; then
+	if git pull --rebase -q origin "$branch" 2>/dev/null; then
+		push_ok=0
+		push_err="$(do_push)" || push_ok=1
+	else
+		git rebase --abort >/dev/null 2>&1 || true
+	fi
 fi
 
 if [ "${push_ok:-0}" = "1" ]; then
