@@ -266,7 +266,7 @@ func _refresh() -> void:
 	_sel = clampi(_sel, 0, maxi(0, _entries.size() - 1))
 	# segnalibri
 	for i in _tab_btns.size():
-		var on := TABS[i]["id"] == _cur
+		var on: bool = TABS[i]["id"] == _cur
 		_style_tab(_tab_btns[i], on)
 		_tab_subs[i].add_theme_color_override("font_color", Color(UI_BROWN2, 0.75 if on else 0.5))
 	# barra regalo
