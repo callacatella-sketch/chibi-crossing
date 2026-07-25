@@ -17,7 +17,16 @@ uniform float wind_speed = 1.4;
 // il sole alle spalle di una chioma la accende di verde-oro
 uniform float translucency : hint_range(0.0, 1.0) = 0.0;
 
+// L'INVERNO che copre il mondo: la neve si posa sulle facce rivolte al
+// cielo di tutto ciò che è dipinto a mano — chiome, cespugli, sassi,
+// tetti, tumuli dell'orto. Un solo globale pilota l'intera nevicata
+// (come mochi_pos/erba_bagnata), acceso dal regista delle stagioni.
+global uniform float snow_amount;
+
 varying vec3 v_pos;
+// la componente verticale della normale in spazio-mondo: quanto una
+// faccia guarda il cielo, e quindi quanta neve ci si posa sopra
+varying float v_up;
 
 float hash12(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -38,6 +47,8 @@ float fbm(vec2 p) {
 void vertex() {
 	vec3 wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	v_pos = use_world_noise ? wp : VERTEX;
+	// dove punta la faccia, in spazio-mondo: la neve cade dall'alto
+	v_up = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz).y;
 	if (wind_strength > 0.0) {
 		float h = max(VERTEX.y, 0.0);
 		float sway = sin(TIME * wind_speed + wp.x * 0.9 + wp.z * 0.7) * wind_strength * h * h;
@@ -58,6 +69,21 @@ void fragment() {
 	float rim = 1.0 - dot(normalize(NORMAL), normalize(VIEW));
 	rim = smoothstep(0.6, 0.95, rim);
 	EMISSION = rim_color.rgb * rim * rim_strength * 0.35;
+
+	// --- la neve dell'inverno ---
+	// si posa sulle facce rivolte al cielo, a chiazze irregolari (un fbm
+	// rompe il bordo: cumuli, non un velo uniforme); più il globale sale,
+	// più il manto bianco scende lungo i fianchi delle chiome
+	if (snow_amount > 0.001) {
+		float drift = fbm(v_pos.xz * 2.3 + v_pos.y * 0.6 + 5.0) - 0.5;
+		float cover = smoothstep(0.28, 0.72, clamp(v_up, 0.0, 1.0) + drift * 0.4) * snow_amount;
+		vec3 snow_col = vec3(0.95, 0.965, 1.0);
+		ALBEDO = mix(ALBEDO, snow_col, cover);
+		ROUGHNESS = mix(ROUGHNESS, 1.0, cover);
+		// un brillio freddo e sparso sui cumuli — i cristalli al sole
+		float sparkle = step(0.86, fbm(v_pos.xz * 30.0 + 3.0)) * cover;
+		EMISSION += vec3(0.55, 0.62, 0.75) * sparkle * 0.25;
+	}
 }
 
 // Lo stesso gradino di luce del toon dei chibi: mondo e personaggi

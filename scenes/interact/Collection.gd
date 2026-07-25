@@ -281,12 +281,24 @@ func _make_net() -> Node3D:
 	return net
 
 
+## I conteggi della collezione, in sola lettura: le Tasche li mostrano
+## nell'album (i barattoli veri restano sugli scaffali della Libreria).
+func counts() -> Dictionary:
+	return _counts.duplicate()
+
+
 ## Aggiunge una cattura alla collezione: contatore, toast, vetrine, salvataggio.
 ## Usata anche dalla pesca.
 func add_catch(kind: String) -> void:
 	_counts[kind] = int(_counts.get(kind, 0)) + 1
 	get_tree().call_group("regista", "note", "pesca" if kind in FISH_KINDS else "retino")
-	_show_toast("Hai preso %s! (n. %d)" % [KIND_LABEL[kind], _counts[kind]])
+	# economia gentile: le catture rare regalano una stellina
+	var eco := get_tree().get_first_node_in_group("economy")
+	var got_star := (int(eco.award_catch(kind)) if eco and eco.has_method("award_catch") else 0)
+	if got_star > 0:
+		_show_toast("%s — che rarità! Una stellina per te." % KIND_LABEL[kind])
+	else:
+		_show_toast("Hai preso %s! (n. %d)" % [KIND_LABEL[kind], _counts[kind]])
 	# la prima di ogni specie finisce negli anelli del Grande Albero
 	if int(_counts[kind]) == 1:
 		var gtree := get_tree().get_first_node_in_group("grande_albero")
@@ -299,6 +311,33 @@ func add_catch(kind: String) -> void:
 				wr.unlock("lanterna_lucciola")
 	_refresh_displays()
 	_build._save_village()
+
+
+## Toglie n esemplari di una specie dalla collezione (usato dal negozio per la
+## vendita). Ritorna quanti ne restano.
+func remove_catch(kind: String, n := 1) -> int:
+	var cur := maxi(0, int(_counts.get(kind, 0)) - n)
+	if cur <= 0:
+		_counts.erase(kind)
+	else:
+		_counts[kind] = cur
+	_refresh_displays()
+	_build._save_village()
+	return cur
+
+
+## Quanti esemplari di una specie ci sono in collezione.
+func count_of(kind: String) -> int:
+	return int(_counts.get(kind, 0))
+
+
+## Tutte le specie possedute con conteggio > 0 (per il negozio).
+func owned_kinds() -> Array:
+	var out := []
+	for k in JAR_ORDER:
+		if int(_counts.get(k, 0)) > 0:
+			out.append(k)
+	return out
 
 
 # ---------------------------------------------------------------- vetrina

@@ -32,23 +32,28 @@ func _ready() -> void:
 
 	for i in 8:
 		var p := AudioStreamPlayer.new()
+		p.bus = _bus("Sfx")
 		add_child(p)
 		_pool.append(p)
 
 	_music = AudioStreamPlayer.new()
 	_music.volume_db = -60.0
+	_music.bus = _bus("Music")
 	add_child(_music)
 
 	_wind = AudioStreamPlayer.new()
 	_wind.volume_db = -60.0
+	_wind.bus = _bus("Music")
 	add_child(_wind)
 
 	_bird = AudioStreamPlayer.new()
 	_bird.volume_db = -18.0
+	_bird.bus = _bus("Music")
 	add_child(_bird)
 
 	_rain_p = AudioStreamPlayer.new()
 	_rain_p.volume_db = -60.0
+	_rain_p.bus = _bus("Music")
 	_rain_p.stream = _streams["rain_loop"]
 	add_child(_rain_p)
 
@@ -64,6 +69,12 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	if _thread and _thread.is_started():
 		_thread.wait_to_finish()
+
+
+# Il bus richiesto, se l'autoload Settings l'ha creato; altrimenti Master
+# (così l'audio resta udibile anche se Settings non fosse ancora pronto).
+func _bus(bus_name: String) -> String:
+	return bus_name if AudioServer.get_bus_index(bus_name) != -1 else "Master"
 
 
 # ================================================================ API
@@ -135,6 +146,18 @@ func munch() -> void:
 
 func camera_click() -> void:
 	play("tick", -8.0, 1.5)
+
+
+## Un bisogno è sceso nel critico: un battito di cuore caldo e ovattato, una
+## carezza in avviso — mai un allarme stridulo.
+func need_alert() -> void:
+	play("heartbeat", -11.0, randf_range(0.98, 1.02))
+
+
+## Un bisogno è tornato sereno (una mangiata, un bagno caldo): un arpeggio di
+## carillon che risale, come un sospiro di sollievo.
+func need_relief() -> void:
+	play("relief", -12.0)
 
 
 ## La pioggia entra ed esce in dissolvenza; con lei il vento si fa sentire.
@@ -260,6 +283,8 @@ func _build_sfx() -> void:
 	_streams["swish"] = _gen_swish()
 	_streams["plop"] = _gen_plop()
 	_streams["munch"] = _gen_munch()
+	_streams["heartbeat"] = _gen_heartbeat()
+	_streams["relief"] = _gen_relief()
 
 
 # passo sull'erba: fruscio filtrato + piccolo tonfo
@@ -567,6 +592,42 @@ func _gen_munch() -> AudioStreamWAV:
 			lp += (white - lp) * 0.14
 			buf[start + i] += lp * exp(-t * 55.0) * 0.55 \
 					+ sin(TAU * f * t) * exp(-t * 48.0) * 0.6 * minf(t / 0.006, 1.0)
+	_normalize(buf, 0.6)
+	return _wav(buf)
+
+
+# battito del cuore: due tonfi tondi e caldi ("lub-dub"), frequenza che scende
+# per un suono ovattato, da coccola-in-avviso e non da allarme
+func _gen_heartbeat() -> AudioStreamWAV:
+	var n := int(0.62 * RATE)
+	var buf := PackedFloat32Array()
+	buf.resize(n)
+	# [inizio_s, velocità]: il secondo colpo ("dub") più morbido del primo
+	var beats := [[0.0, 0.9], [0.2, 0.6]]
+	for b in beats:
+		var start := int(b[0] * RATE)
+		var vel: float = b[1]
+		var ph := 0.0
+		for i in int(0.26 * RATE):
+			if start + i >= n:
+				break
+			var t := float(i) / RATE
+			var f := 78.0 - 34.0 * minf(t / 0.12, 1.0)
+			ph += TAU * f / RATE
+			var env := exp(-t * 16.0) * minf(t / 0.008, 1.0)
+			buf[start + i] += sin(ph) * env * vel
+	_normalize(buf, 0.5)
+	return _wav(buf)
+
+
+# sollievo: tre note di carillon che risalgono (D-A-D), un piccolo sospiro felice
+func _gen_relief() -> AudioStreamWAV:
+	var n := int(0.75 * RATE)
+	var buf := PackedFloat32Array()
+	buf.resize(n)
+	_add_musicbox(buf, RATE, 0.0, _mtof(74), 0.4)    # D5
+	_add_musicbox(buf, RATE, 0.11, _mtof(81), 0.42)  # A5
+	_add_musicbox(buf, RATE, 0.24, _mtof(86), 0.3)   # D6, l'ultima scintilla
 	_normalize(buf, 0.6)
 	return _wav(buf)
 

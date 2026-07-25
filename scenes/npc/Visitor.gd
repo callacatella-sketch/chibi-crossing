@@ -15,6 +15,7 @@ signal finished
 const TOON := preload("res://shaders/toon.gdshader")
 const BUILDER := preload("res://scenes/npc/ChibiBuilder.gd")
 const CHIBIESE := preload("res://audio/Chibiese.gd")
+const FACE := preload("res://scenes/characters/FaceController.gd")
 
 var species := "riccio"
 
@@ -72,6 +73,10 @@ var _gift_pos := Vector3.ZERO
 # parti animate
 var _vis: Node3D
 var _head: Node3D
+# il volto vivo del villager (solo per i chibi generati da DNA): sopracciglia,
+# sguardo, ammicco, espressioni. I visitatori "riccio/passerotto" ne sono privi.
+var _face
+var _mood := "neutro"
 var _wings: Array[Node3D] = []
 var _tail_p: Node3D
 var _tail_tip: Node3D
@@ -141,6 +146,12 @@ func _ready() -> void:
 		_tail_p = parts["tail"]
 		_tail_tip = parts.get("tail_tip")
 		_speed = 1.45
+		# monta il volto vivo sul rig facciale costruito dal DNA
+		if parts.has("face"):
+			var rig: Dictionary = parts["face"]
+			rig["head"] = _head
+			_face = FACE.new()
+			_face.setup(rig)
 		_voice = CHIBIESE.voice(dna)
 		_voice_player = AudioStreamPlayer3D.new()
 		_voice_player.position = Vector3(0, 0.8, 0)
@@ -532,6 +543,25 @@ func _process(delta: float) -> void:
 		# in assoluto sovrascrivono comunque dopo, nel match)
 		_head.rotation.x = move_toward(_head.rotation.x, 0.0, delta * 1.5)
 		_head.rotation.z = move_toward(_head.rotation.z, 0.0, delta * 1.5)
+
+	# --- il volto vivo: espressione dallo stato (o dall'umore mentre parla),
+	# sguardo sul mobile che curiosa o sul giocatore vicino, ammicco naturale ---
+	if _face:
+		if _voice_player and _voice_player.playing:
+			_face.set_talking(true)
+			_face.set_mood(_mood)
+		else:
+			_face.set_talking(false)
+			_face.set_expression(_expr_for_state(_state))
+		if _state in ["inspect", "c_inspect", "sniff", "annusa", "r_sniff"] \
+				and _target != Vector3.ZERO:
+			_face.look_at_world(_target + Vector3(0, 0.35, 0))
+		elif _player_ref and is_instance_valid(_player_ref) \
+				and global_position.distance_to(_player_ref.global_position) < 4.5:
+			_face.look_at_node(_player_ref)
+		else:
+			_face.clear_gaze()
+		_face.update(delta)
 
 	# il tremolio dell'età: un fremito appena percettibile del collo,
 	# sommato alla contro-rotazione della gobba (il collo è nostro:
@@ -1160,11 +1190,37 @@ func treehouse_visit(base: Vector3, top: Vector3, perch: Vector3) -> void:
 ## Parla in Chibiese: una lista di concetti del vocabolario (o "~" per
 ## il chiacchiericcio) con lo stato d'animo. La voce è la SUA: stessa
 ## parola, timbro diverso per ogni villager.
+# l'espressione facciale che si addice a ciò che il villager sta facendo:
+# curiosa quando ispeziona/annusa, raggiante quando gioca o dona, in soggezione
+# davanti al cielo, assonnata nel pisolino… il resto è un sereno "neutro".
+func _expr_for_state(s: String) -> String:
+	match s:
+		"browse", "inspect", "c_inspect", "sniff", "annusa", "r_sniff", \
+		"lp_sniff", "write", "tk_chat_fungo", "tk_sasso", "tk_nibble":
+			return "curioso"
+		"gift", "cuoricino", "tk_twirl", "tk_sing":
+			return "gioia"
+		"sole", "tk_stella", "tk_wonder", "th_perch":
+			return "meraviglia"
+		"tk_startle":
+			return "spavento"
+		"tk_nap":
+			return "dorme"
+		"on_soak", "on_dip":
+			return "beato"
+		"sit", "bench", "r_bench", "r_idle", "r_settle", "fire", "r_fire", \
+		"fuoco", "tk_water":
+			return "felice"
+		_:
+			return "neutro"
+
+
 func speak(concepts: Array, mood := "neutro") -> void:
 	if _voice.is_empty() or _voice_player == null or _speak_cd > 0.0 \
 			or _voice_player.playing or _hidden:
 		return
 	_speak_cd = 2.5
+	_mood = mood   # il volto recita l'umore mentre la voce parla
 	_voice_player.stream = CHIBIESE.say(_voice, concepts, mood)
 	_voice_player.play()
 

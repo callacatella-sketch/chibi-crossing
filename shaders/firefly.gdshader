@@ -2,7 +2,9 @@ shader_type spatial;
 render_mode unshaded, blend_add, shadows_disabled, depth_draw_never, cull_disabled;
 
 // Lucciole dell'ecosistema: billboard additivi che respirano luce,
-// ognuna con la sua fase di lampeggio (INSTANCE_CUSTOM.x).
+// ognuna con la sua fase di lampeggio (INSTANCE_CUSTOM.x). Il colore del
+// bagliore lo sceglie la stagione: verde-lime d'estate, ambra d'autunno.
+uniform vec3 glow_color : source_color = vec3(0.80, 1.0, 0.52);
 
 varying float blink;
 
@@ -18,6 +20,6 @@ void fragment() {
 	float d = length(UV - 0.5) * 2.0;
 	float glow = smoothstep(1.0, 0.0, d);
 	glow *= glow;
-	ALBEDO = vec3(0.80, 1.0, 0.52) * glow * blink;
+	ALBEDO = glow_color * glow * blink;
 	ALPHA = glow * blink;
 }

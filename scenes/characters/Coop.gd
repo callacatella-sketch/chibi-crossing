@@ -11,6 +11,7 @@ extends Node
 const DNA_GEN := preload("res://scenes/npc/ChibiDNA.gd")
 const BUILDER := preload("res://scenes/npc/ChibiBuilder.gd")
 const CHIBIESE := preload("res://audio/Chibiese.gd")
+const FACE := preload("res://scenes/characters/FaceController.gd")
 
 var _player: Node3D
 var _garden: Node
@@ -28,6 +29,9 @@ var _babble_cd := 20.0
 var _voice_player: AudioStreamPlayer3D
 var _prompt: PanelContainer
 var _prompt_label: Label
+# il volto vivo dell'amico del divano
+var _face
+var _coop_mood := "neutro"
 
 
 func _ready() -> void:
@@ -79,6 +83,12 @@ func _join() -> void:
 	_p2.add_child(_vis)
 	_parts = BUILDER.build(_dna)
 	_vis.add_child(_parts["root"])
+	# il volto vivo: espressioni, sguardo, ammicco
+	if _parts.has("face"):
+		var rig: Dictionary = _parts["face"]
+		rig["head"] = _parts["head"]
+		_face = FACE.new()
+		_face.setup(rig)
 
 	_voice_player = AudioStreamPlayer3D.new()
 	_voice_player.position = Vector3(0, 0.8, 0)
@@ -128,6 +138,7 @@ func _toast(text: String) -> void:
 
 
 func _speak(concepts: Array, mood := "neutro") -> void:
+	_coop_mood = mood
 	if _voice.is_empty() or _voice_player == null or _voice_player.playing:
 		return
 	_voice_player.stream = CHIBIESE.say(_voice, concepts, mood)
@@ -199,6 +210,22 @@ func _animate(delta: float, speed: float) -> void:
 	var tip := _parts.get("tail_tip") as Node3D
 	if tip:
 		tip.rotation.y = sin(_wag_t - 0.9) * 0.27
+
+	# --- il volto vivo: sorride camminando, recita l'umore mentre parla,
+	# tiene d'occhio Mochi quando le è vicino ---
+	if _face:
+		if _voice_player and _voice_player.playing:
+			_face.set_talking(true)
+			_face.set_mood(_coop_mood)
+		else:
+			_face.set_talking(false)
+			_face.set_expression("felice" if moving else "neutro", 0.5 if moving else 1.0)
+		if _player and is_instance_valid(_player) \
+				and _p2.global_position.distance_to(_player.global_position) < 4.0:
+			_face.look_at_node(_player)
+		else:
+			_face.clear_gaze()
+		_face.update(delta)
 
 	# chiacchiericcio affettuoso quando i due sono vicini
 	_babble_cd -= delta

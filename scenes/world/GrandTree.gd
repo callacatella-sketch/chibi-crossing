@@ -28,6 +28,13 @@ var _col_shape: CollisionShape3D
 var _stage := -1.0
 var _t := 0.0
 
+# le maniglie della chioma, tenute vive: la stagione le ridipinge senza
+# ricostruire l'albero (che si rifà solo quando cresce di un anello)
+var _leaf_mat: ShaderMaterial
+var _leaf2_mat: ShaderMaterial
+var _blossom_mat: ShaderMaterial
+var _season_tw: Tween
+
 var _near := false
 var _open := false
 var _prompt: PanelContainer
@@ -39,6 +46,7 @@ var _rows: VBoxContainer
 func _ready() -> void:
 	add_to_group("persistable")
 	add_to_group("grande_albero")
+	add_to_group("season_listener")
 	position = POS
 	_sfx = get_node_or_null(^"/root/Sfx")
 
@@ -143,9 +151,14 @@ func _rebuild(animate: bool) -> void:
 	var r := 0.30 + 0.55 * s
 	var cr := 1.0 + 3.0 * s
 	var bark := _pm(Color("8a5f43"), Color("6f4a33"), 2.5, 0.55)
-	var leaf := _pm(Color("7fbc62"), Color("5f9c48"), 2.0, 0.6, 0.02)
-	var leaf2 := _pm(Color("97cc74"), Color("74b05c"), 2.0, 0.6, 0.02)
-	var blossom := _pm(Color("ffc2d4"), Color("f5a8c0"), 2.5, 0.5, 0.02)
+	# la chioma nasce già col colore della stagione (poi set_season la sfuma)
+	var sea := _season()
+	var leaf := _pm(_leaf_col(Color("7fbc62"), sea, false), _leaf_col(Color("5f9c48"), sea, false), 2.0, 0.6, 0.02)
+	var leaf2 := _pm(_leaf_col(Color("97cc74"), sea, false), _leaf_col(Color("74b05c"), sea, false), 2.0, 0.6, 0.02)
+	var blossom := _pm(_leaf_col(Color("ffc2d4"), sea, true), _leaf_col(Color("f5a8c0"), sea, true), 2.5, 0.5, 0.02)
+	_leaf_mat = leaf
+	_leaf2_mat = leaf2
+	_blossom_mat = blossom
 
 	# il tronco possente, coi fianchi che si allargano alla base
 	BUILDER.lathe(_tree_root, [Vector2(r * 1.65, 0.0), Vector2(r * 1.12, 0.4),
@@ -213,6 +226,66 @@ func _rebuild(animate: bool) -> void:
 		_sparkle(global_position + Vector3(0, h * 0.7, 0), 26)
 		if _sfx:
 			_sfx.build_open()
+
+
+# ---------------------------------------------------------------- stagioni
+
+func _season() -> int:
+	if _daynight and _daynight.has_method("get_season"):
+		return int(_daynight.get_season())
+	return 0
+
+
+# la tinta della chioma del Grande Albero secondo la stagione (stessa
+# logica del bosco: il valore si conserva, così gli strati restano leggibili)
+func _leaf_col(c: Color, season: int, is_blossom: bool) -> Color:
+	match season:
+		0:  # primavera: verde tenero e sbuffi in fiore
+			return c
+		1:  # estate: verde pieno; i fiori diventano fronda
+			if is_blossom:
+				return Color.from_hsv(0.29, 0.5, clampf(c.v * 0.82, 0.25, 0.9))
+			return Color.from_hsv(c.h, minf(c.s * 1.1, 1.0), c.v * 0.92)
+		2:  # autunno: oro e rame, i fiori cremisi
+			if is_blossom:
+				return Color.from_hsv(0.02, 0.52, clampf(c.v * 0.9, 0.0, 1.0))
+			return Color.from_hsv(lerpf(0.04, 0.10, clampf(c.v, 0.0, 1.0)), 0.72,
+					clampf(c.v + 0.03, 0.0, 1.0))
+		_:  # inverno: chioma brinata, fiori di ghiaccio (la neve fa il resto)
+			if is_blossom:
+				return Color.from_hsv(0.95, 0.08, clampf(c.v * 0.85 + 0.12, 0.0, 1.0))
+			return Color.from_hsv(0.10, 0.14, clampf(c.v * 0.72 + 0.14, 0.0, 1.0))
+
+
+## Il regista delle stagioni chiama qui: ridipinge la chioma già costruita.
+func set_season(season: int, _snow: float, transition: bool) -> void:
+	if _leaf_mat == null:
+		return  # non ancora costruito: _rebuild nascerà già col colore giusto
+	var targets := [
+		[_leaf_mat, "color_a", _leaf_col(Color("7fbc62"), season, false)],
+		[_leaf_mat, "color_b", _leaf_col(Color("5f9c48"), season, false)],
+		[_leaf2_mat, "color_a", _leaf_col(Color("97cc74"), season, false)],
+		[_leaf2_mat, "color_b", _leaf_col(Color("74b05c"), season, false)],
+		[_blossom_mat, "color_a", _leaf_col(Color("ffc2d4"), season, true)],
+		[_blossom_mat, "color_b", _leaf_col(Color("f5a8c0"), season, true)],
+	]
+	if not transition:
+		for t in targets:
+			(t[0] as ShaderMaterial).set_shader_parameter(t[1], t[2])
+		return
+	var froms := []
+	for t in targets:
+		var cur = (t[0] as ShaderMaterial).get_shader_parameter(t[1])
+		froms.append(cur if cur is Color else t[2])
+	if _season_tw and _season_tw.is_valid():
+		_season_tw.kill()
+	_season_tw = create_tween()
+	_season_tw.tween_method(
+			func(x: float) -> void:
+				for i in targets.size():
+					(targets[i][0] as ShaderMaterial).set_shader_parameter(
+							targets[i][1], (froms[i] as Color).lerp(targets[i][2], x)),
+			0.0, 1.0, 2.6).set_trans(Tween.TRANS_SINE)
 
 
 func _ball(parent: Node3D, radius: float, mat: Material, pos: Vector3) -> void:

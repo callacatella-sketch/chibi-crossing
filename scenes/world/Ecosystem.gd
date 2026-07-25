@@ -20,10 +20,18 @@ var _build: Node3D
 var _bloom_acc := 0.0
 var _sparrow_vis: Array[Node3D] = []
 
+# i materiali della fauna, tenuti per ridipingerli con la stagione (le ali
+# color ruggine d'autunno, il bagliore ambrato delle lucciole)
+var _butterfly_mat: ShaderMaterial
+var _firefly_mat: ShaderMaterial
+var _wildflower_mat: ShaderMaterial
+var _season := 0
+
 
 func _ready() -> void:
 	add_to_group("persistable")
 	add_to_group("ecosystem")
+	add_to_group("season_listener")
 	eco = EcosystemManager.new()
 	add_child(eco)
 	eco.configure(_butterfly_mesh(), _firefly_mesh(), _flower_mesh())
@@ -44,6 +52,48 @@ func _ready() -> void:
 # metodo, non lambda: la disconnessione è automatica se il nodo muore
 func _on_day_changed(_d: int) -> void:
 	eco.on_new_day()
+
+
+# ---------------------------------------------------------------- stagioni
+
+# le ali delle farfalle, i fiori selvatici e il bagliore delle lucciole,
+# una veste per stagione (d'inverno la fauna è comunque rada/assente)
+const BF_SEASON := [
+	[Color("f6b3cc"), Color("9ec9f2"), Color("fae499")],  # primavera: pastello
+	[Color("f79ec0"), Color("7fb0f0"), Color("ffe07a")],  # estate: vivido
+	[Color("e79a5e"), Color("d6a94e"), Color("c86a3c")],  # autunno: ruggine, oro, rame
+	[Color("d3dceb"), Color("b8c6de"), Color("dbe0e8")],  # inverno: gelide
+]
+const WF_SEASON := [
+	[Color("fff7ea"), Color("f7bcd2"), Color("c7b3ef"), Color("fcdb8c")],
+	[Color("fffdf2"), Color("ffb0cc"), Color("bfa6ef"), Color("ffd97a")],
+	[Color("f3e6c8"), Color("e29a5e"), Color("caa06a"), Color("f0c05a")],
+	[Color("e8ecf2"), Color("d8c0cc"), Color("c4bcd8"), Color("e6d8b0")],
+]
+const FF_SEASON := [
+	Color(0.80, 1.0, 0.52),   # primavera: verde-lime
+	Color(0.86, 1.0, 0.50),   # estate: caldo
+	Color(1.0, 0.82, 0.42),   # autunno: ambra
+	Color(0.72, 0.86, 1.0),   # inverno: freddo
+]
+
+
+## Il regista delle stagioni ridipinge la fauna del prato.
+func set_season(season: int, _snow: float, _transition: bool) -> void:
+	_season = clampi(season, 0, 3)
+	if _butterfly_mat:
+		var bf: Array = BF_SEASON[_season]
+		_butterfly_mat.set_shader_parameter("col_a", bf[0])
+		_butterfly_mat.set_shader_parameter("col_b", bf[1])
+		_butterfly_mat.set_shader_parameter("col_c", bf[2])
+	if _wildflower_mat:
+		var wf: Array = WF_SEASON[_season]
+		_wildflower_mat.set_shader_parameter("tint_a", wf[0])
+		_wildflower_mat.set_shader_parameter("tint_b", wf[1])
+		_wildflower_mat.set_shader_parameter("tint_c", wf[2])
+		_wildflower_mat.set_shader_parameter("tint_d", wf[3])
+	if _firefly_mat:
+		_firefly_mat.set_shader_parameter("glow_color", FF_SEASON[_season])
 
 
 func _process(delta: float) -> void:
@@ -96,6 +146,7 @@ func _butterfly_mesh() -> ArrayMesh:
 	var mat := ShaderMaterial.new()
 	mat.shader = BUTTERFLY_SHADER
 	mesh.surface_set_material(0, mat)
+	_butterfly_mat = mat
 	return mesh
 
 
@@ -106,6 +157,7 @@ func _firefly_mesh() -> QuadMesh:
 	var mat := ShaderMaterial.new()
 	mat.shader = FIREFLY_SHADER
 	quad.material = mat
+	_firefly_mat = mat
 	return quad
 
 
@@ -149,6 +201,7 @@ func _flower_mesh() -> ArrayMesh:
 	mat.set_shader_parameter("tint_c", Color("c7b3ef"))
 	mat.set_shader_parameter("tint_d", Color("fcdb8c"))
 	mesh.surface_set_material(0, mat)
+	_wildflower_mat = mat
 	return mesh
 
 

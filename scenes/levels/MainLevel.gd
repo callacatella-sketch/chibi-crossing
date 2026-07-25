@@ -17,10 +17,19 @@ const EXHAUSTED_RUN_SPEED := 1.7
 const NORMAL_RUN_SPEED := 6.0
 const RECOVERY_FRACTION := 0.35
 
+var _mochi: Node
+# quali bisogni sono nel critico adesso: se anche solo uno lo è (o Mochi è
+# sfinita), il musetto si affloscia — la faccia racconta lo stato peggiore
+var _need_crit := {"water": false, "hunger": false, "stamina": false}
+
 func _ready():
+	_mochi = player.get_node_or_null("Mochi")
 	# Connette il componente C++ di sopravvivenza del player alla UI
 	var survival_comp = player.get_node_or_null("SurvivalComponent")
 	if survival_comp:
+		# ascolta i cambi di fascia della HUD PRIMA di inizializzarla, così il
+		# musetto è sempre allineato ai ciondoli
+		hud.need_state_changed.connect(_on_need_state_changed)
 		hud.connect_survival_component(survival_comp)
 		survival_comp.stamina_changed.connect(_on_stamina_changed)
 	else:
@@ -37,17 +46,32 @@ func _ready():
 		_start_debug_harness("makesave")
 
 func _on_stamina_changed(value: float, max_value: float):
-	var mochi = player.get_node_or_null("Mochi")
 	if value <= 0.5 and not _exhausted:
 		_exhausted = true
 		player.run_speed = EXHAUSTED_RUN_SPEED
-		if mochi:
-			mochi.set_tired(true)
+		_refresh_tired()
 	elif _exhausted and value >= max_value * RECOVERY_FRACTION:
 		_exhausted = false
 		player.run_speed = NORMAL_RUN_SPEED
-		if mochi:
-			mochi.set_tired(false)
+		_refresh_tired()
+
+# la HUD ci dice quando un bisogno cambia fascia (0 sereno · 1 basso · 2 critico)
+func _on_need_state_changed(kind: String, level: int):
+	var was_crit: bool = _need_crit.get(kind, false)
+	var now_crit := level >= 2
+	_need_crit[kind] = now_crit
+	# nell'istante in cui scivola nel critico, Mochi se ne accorge: una
+	# bollicina del colore del bisogno sale dal musetto
+	if now_crit and not was_crit and _mochi and _mochi.has_method("emote_need"):
+		_mochi.emote_need(kind)
+	_refresh_tired()
+
+# il musetto è affaticato se Mochi è sfinita o se un qualsiasi bisogno è critico
+func _refresh_tired():
+	if not _mochi:
+		return
+	var tired: bool = _exhausted or _need_crit["water"] or _need_crit["hunger"] or _need_crit["stamina"]
+	_mochi.set_tired(tired)
 
 
 # ------------------------------------------------------------------ debug CLI

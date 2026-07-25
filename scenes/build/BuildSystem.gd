@@ -101,6 +101,16 @@ var _cat_buttons: Array[Button] = []
 var _item_buttons: Array[Button] = []
 var _cat := 0
 
+# --- recinto degli "Ordini del Gufo" ---------------------------------------
+# Il catalogo si apre a poco a poco: è GufoOrders che, sbloccando gli Ordini,
+# passa qui l'insieme dei pezzi disponibili (apply_unlocks). Di DEFAULT il
+# recinto è spento (_locks_active = false) e tutto è libero: così i test, la
+# CLI degli screenshot e i salvataggi antecedenti agli Ordini restano a
+# catalogo pieno, senza sapere niente di questa meccanica.
+var _unlocked := {}
+var _locks_active := false
+var _order_banner: Label
+
 ## Per gli screenshot da CLI: se impostato, il fantasma usa questa
 ## posizione invece del mouse.
 var debug_ghost_pos := Vector3.INF
@@ -162,6 +172,86 @@ func item_index(piece: String) -> int:
 	return -1  # nome sconosciuto: mai trasformarlo in silenzio nel pezzo 0
 
 
+# --------------------------------------------------- Ordini del Gufo: API
+# GufoOrders guida il recinto e interroga il villaggio da qui. Tutto ciò
+# che serve alla progressione passa per questi metodi: BuildSystem non sa
+# nulla del contenuto degli Ordini (zero accoppiamento col loro testo).
+
+## True se il pezzo è disponibile — o se il recinto è spento (catalogo pieno).
+func is_unlocked(piece: String) -> bool:
+	return not _locks_active or _unlocked.has(piece)
+
+
+## GufoOrders passa qui l'insieme dei pezzi sbloccati. active=false spegne il
+## recinto (catalogo pieno: veterani, CLI, test). Ricostruisce la UI e, se il
+## pezzo selezionato è finito sotto chiave, scivola al primo libero.
+func apply_unlocks(names: Array, active: bool) -> void:
+	_locks_active = active
+	_unlocked.clear()
+	for n in names:
+		_unlocked[str(n)] = true
+	if _items.is_empty():
+		return  # UI/catalogo non ancora pronti: si riapplica da _build_ui
+	if _locks_active and not is_unlocked(str(_items[_index]["name"])):
+		var first := _first_unlocked_index()
+		if first >= 0:
+			_index = first
+			_cat = int(_items[_index]["cat"])
+			_refresh_ghost()
+	if not _item_buttons.is_empty():
+		_rebuild_item_row()
+		_sync_ui_selection()
+
+
+func _first_unlocked_index() -> int:
+	for i in _items.size():
+		if is_unlocked(str(_items[i]["name"])):
+			return i
+	return -1
+
+
+# il vicino sbloccato nella direzione data (per la rotella), saltando i pezzi
+# ancora sotto chiave; se non ce n'è, resta dov'è
+func _next_unlocked(dir: int) -> int:
+	var n := _items.size()
+	for step in range(1, n + 1):
+		var i := posmod(_index + dir * step, n)
+		if is_unlocked(str(_items[i]["name"])):
+			return i
+	return _index
+
+
+## Conteggio dei pezzi piazzati per nome (tutti i piani e i layer): il
+## vocabolario con cui GufoOrders valuta gli Ordini.
+func piece_counts() -> Dictionary:
+	var out := {}
+	for dicts in [_placed, _placed_up]:
+		for layer in [0, 1, 2, 3, "edge"]:
+			for node in (dicts[layer] as Dictionary).values():
+				var nm: String = (node as Node3D).get_meta("item_name", "")
+				out[nm] = int(out.get(nm, 0)) + 1
+	return out
+
+
+## C'è un Letto con un tetto/solaio sopra la sua cella? (Ordine "una stanza
+## per un ospite" — è la stessa condizione del trasloco dei Visitatori.)
+func has_bed_under_roof() -> bool:
+	for bed in get_placed_by_name("Letto"):
+		var cell := Vector2i(roundi(bed.position.x), roundi(bed.position.z))
+		if has_cover(cell):
+			return true
+	return false
+
+
+## Il testo dell'Ordine in corso, in cima al pannello di costruzione (o "" per
+## nasconderlo). Lo aggiorna GufoOrders.
+func set_order_banner(text: String) -> void:
+	if _order_banner == null:
+		return
+	_order_banner.text = text
+	_order_banner.visible = text != ""
+
+
 # i dizionari del piano richiesto (0 = terra, 1 = sopra)
 func _dicts(lvl: int) -> Dictionary:
 	return _placed_up if lvl == 1 else _placed
@@ -205,15 +295,18 @@ func _unhandled_input(event: InputEvent) -> void:
 		_try_remove()
 	elif event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
-			_select(posmod(_index - 1, _items.size()))
+			_select(_next_unlocked(-1))
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			_select(posmod(_index + 1, _items.size()))
+			_select(_next_unlocked(1))
 	elif event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode >= KEY_1 and event.keycode <= KEY_9:
 			var i: int = event.keycode - KEY_1
 			var cat_items := _cat_item_indices(_cat)
 			if i < cat_items.size():
-				_select(cat_items[i])
+				if is_unlocked(str(_items[cat_items[i]]["name"])):
+					_select(cat_items[i])
+				elif _sfx:
+					_sfx.place_deny()
 
 
 func _set_active(active: bool) -> void:
@@ -251,6 +344,10 @@ func _cat_item_indices(cat: int) -> Array[int]:
 
 
 func _select(i: int) -> void:
+	# un pezzo ancora sotto chiave non si seleziona: piccolo diniego
+	if _locks_active and not is_unlocked(str(_items[i]["name"])):
+		if _sfx: _sfx.place_deny()
+		return
 	_set_demolish(false)
 	_index = i
 	if _items[i]["cat"] != _cat:
@@ -637,6 +734,11 @@ func get_interactables() -> Array[Dictionary]:
 # ---------------------------------------------------------------- azioni
 
 func _try_place() -> void:
+	# rete di sicurezza: il pezzo selezionato dev'essere sbloccato
+	if _locks_active and not is_unlocked(str(_items[_index]["name"])):
+		_shake(_ghost)
+		if _sfx: _sfx.place_deny()
+		return
 	if not _valid:
 		_shake(_ghost)
 		if _sfx: _sfx.place_deny()
@@ -1064,6 +1166,16 @@ func _build_ui() -> void:
 	vbox.add_theme_constant_override("separation", 6)
 	_panel.add_child(vbox)
 
+	# la voce del Gufo in cima al pannello: l'Ordine in corso ("" = nascosto)
+	_order_banner = Label.new()
+	_order_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_order_banner.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_order_banner.custom_minimum_size = Vector2(380, 0)
+	_order_banner.add_theme_font_size_override("font_size", 13)
+	_order_banner.add_theme_color_override("font_color", Color("8a5a3a"))
+	_order_banner.visible = false
+	vbox.add_child(_order_banner)
+
 	# riga delle categorie
 	var cats := HBoxContainer.new()
 	cats.add_theme_constant_override("separation", 6)
@@ -1154,10 +1266,15 @@ func _on_cat_pressed(cat: int) -> void:
 	_set_demolish(false)  # cambiare categoria esce dalla demolizione
 	_cat = cat
 	_rebuild_item_row()
-	# seleziona il primo pezzo della categoria
+	# seleziona il primo pezzo SBLOCCATO della categoria (se ce n'è)
 	var cat_items := _cat_item_indices(cat)
-	if not cat_items.is_empty():
-		_index = cat_items[0]
+	var pick := -1
+	for ci in cat_items:
+		if is_unlocked(str(_items[ci]["name"])):
+			pick = ci
+			break
+	if pick >= 0:
+		_index = pick
 		_refresh_ghost()
 	_sync_ui_selection()
 	if _sfx: _sfx.ui_select()
@@ -1171,8 +1288,18 @@ func _rebuild_item_row() -> void:
 	var cat_items := _cat_item_indices(_cat)
 	for j in cat_items.size():
 		var i := cat_items[j]
-		var btn := _make_button(str(j + 1) + " " + _items[i]["name"], group, 13)
+		var locked := not is_unlocked(str(_items[i]["name"]))
+		# i pezzi ancora da guadagnare restano visibili ma muti: un "?" grigio,
+		# come i ricordi non ancora vissuti del Guardaroba. Sbloccarli è una
+		# piccola rivelazione.
+		var label: String = "?" if locked else (str(j + 1) + " " + str(_items[i]["name"]))
+		var btn := _make_button(label, group, 13)
 		btn.custom_minimum_size = Vector2(0, 38)
-		btn.pressed.connect(_select.bind(i))
+		if locked:
+			btn.disabled = true
+			btn.modulate = Color(1, 1, 1, 0.5)
+			btn.tooltip_text = "Un Ordine del Gufo lo porterà"
+		else:
+			btn.pressed.connect(_select.bind(i))
 		_items_row.add_child(btn)
 		_item_buttons.append(btn)

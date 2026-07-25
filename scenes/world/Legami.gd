@@ -23,6 +23,7 @@ const TIPI := {
 	"trasloco": ["il giorno della valigia sulla soglia", ["casa", "felice"]],
 	"primo_saluto": ["la prima zampina alzata", ["ciao", "ciao"]],
 	"piatto": ["quel piatto fumante diviso in due", ["cibo", "grazie"]],
+	"regalo": ["un dono scelto con cura, zampa a zampa", ["grazie", "regalo"]],
 	"festa": ["la festa a sorpresa coi coriandoli", ["felice", "regalo"]],
 	"onsen": ["il bagno caldo alle terme, fianco a fianco", ["felice", "amico"]],
 	"desiderio": ["il desiderio esaudito vicino a casa", ["grazie", "casa"]],

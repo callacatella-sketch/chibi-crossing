@@ -250,9 +250,18 @@ func _start_bite() -> void:
 				.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
+func _weighted_fish() -> String:
+	# carpetta comune · azzurrino meno · rosina rara (la stellina è preziosa)
+	var r := randf()
+	if r < 0.58:
+		return "carpetta"
+	elif r < 0.88:
+		return "azzurrino"
+	return "rosina"
+
+
 func _catch() -> void:
-	var kinds: Array = _collection.FISH_KINDS if _collection else ["carpetta"]
-	var kind: String = kinds[randi() % kinds.size()]
+	var kind := _weighted_fish()
 	var col := Color("ffd76e")
 	if _collection:
 		col = _collection.JAR_COLORS[kind]

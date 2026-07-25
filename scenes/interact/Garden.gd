@@ -14,6 +14,11 @@ const UI_BROWN := Color("6a4a3a")
 const WATER_COST := 20.0
 
 const PETALS := [Color("f4b8c8"), Color("fff6f9"), Color("c9a8f0"), Color("ffd76e")]
+# i fiori del giardino cambiano tavolozza con la stagione: rosa di ciliegio
+# a primavera, rosso e oro d'autunno (l'inverno mette in pausa, non uccide)
+const PETALS_ESTATE := [Color("ff9ec2"), Color("fff2a8"), Color("b58cf0"), Color("ff8f6e")]
+const PETALS_AUTUNNO := [Color("e0705a"), Color("e8a24a"), Color("c9603a"), Color("f0c050")]
+const PETALS_INVERNO := [Color("cdbfe0"), Color("eaf0f6"), Color("b8c4dc"), Color("dcd0b0")]
 
 # coltura -> [quanti a raccolto, etichetta raccolto, colore festa]
 const CROPS := {
@@ -35,6 +40,7 @@ var _beds := {}
 var _near: Node3D
 var _near_shroom := -1
 var _busy := false
+var _season := 0
 
 var _prompt: PanelContainer
 var _prompt_label: Label
@@ -42,6 +48,7 @@ var _prompt_label: Label
 
 func _ready() -> void:
 	add_to_group("persistable")
+	add_to_group("season_listener")
 	_player = get_node("%Player")
 	_build = get_node("../BuildSystem")
 	_daynight = get_node_or_null("../DayNight")
@@ -456,7 +463,7 @@ func _make_trophy(crop: String) -> Node3D:
 				var a := float(k) / 3.0 * TAU + 0.4
 				var p := Vector3(cos(a) * 0.03, 0.09, sin(a) * 0.03)
 				_mesh(t, _stem_mesh(0.16), stelo, p)
-				var col: Color = PETALS[k % PETALS.size()]
+				var col: Color = _petals()[k % 4]
 				var pet := _pm(col, col.lightened(0.2), 8.0, 0.5)
 				for j in 5:
 					var pa := float(j) / 5.0 * TAU
@@ -522,7 +529,31 @@ func _pick_mushroom(i: int) -> void:
 		_busy = false)
 
 
+# la tavolozza dei fiori di questa stagione
+func _petals() -> Array:
+	match _season:
+		1: return PETALS_ESTATE
+		2: return PETALS_AUTUNNO
+		3: return PETALS_INVERNO
+		_: return PETALS
+
+
+## Il regista delle stagioni: ridipinge i fiori già sbocciati e passa la
+## stagione al giardino (che d'inverno riposa).
+func set_season(season: int, _snow: float, _transition: bool) -> void:
+	_season = clampi(season, 0, 3)
+	# le aiuole in bocciolo/fioritura prendono i colori nuovi
+	for bed in _beds:
+		var b: Dictionary = _beds[bed]
+		if String(b["crop"]).is_empty() and int(b["stage"]) >= 2:
+			_rebuild_vis(bed, false)
+
+
 func _on_new_day(_day: int) -> void:
+	# d'inverno il giardino riposa sotto la neve: i semi aspettano la
+	# primavera. Mai punitivo — niente muore, la crescita si mette in pausa
+	if _season == 3:
+		return
 	for bed in _beds:
 		var b: Dictionary = _beds[bed]
 		if int(b["stage"]) >= 0 and int(b["stage"]) < 3 and b["watered"]:
@@ -653,13 +684,13 @@ func _build_flower_vis(vis: Node3D, stage: int, rng: RandomNumberGenerator,
 			2:
 				# steli con boccioli chiusi
 				_mesh(vis, _stem_mesh(0.2), stem, p + Vector3(0, 0.1, 0))
-				var bud_col: Color = PETALS[rng.randi() % PETALS.size()]
+				var bud_col: Color = _petals()[rng.randi() % 4]
 				_mesh(vis, _ball_mesh(0.038), _pm(bud_col.darkened(0.15), bud_col.darkened(0.3), 8.0, 0.4),
 						p + Vector3(0, 0.22, 0), Vector3(0.8, 1.25, 0.8))
 			3:
 				# fioritura piena
 				_mesh(vis, _stem_mesh(0.24), stem, p + Vector3(0, 0.12, 0))
-				var col: Color = PETALS[rng.randi() % PETALS.size()]
+				var col: Color = _petals()[rng.randi() % 4]
 				var pet := _pm(col, col.lightened(0.18), 8.0, 0.5, 0.02)
 				for k in 5:
 					var pa := float(k) / 5.0 * TAU
@@ -1063,6 +1094,10 @@ func villager_water(bed: Node3D) -> void:
 ## Le aiuole in fiore e gli orti maturi: le fonti di nettare
 ## che l'ecosistema legge per la capacità portante delle farfalle.
 func bloomed_positions() -> PackedVector3Array:
+	# d'inverno niente fiori aperti: le farfalle non hanno più dove posarsi
+	# e sfollano piano dal prato gelato
+	if _season == 3:
+		return PackedVector3Array()
 	var out := PackedVector3Array()
 	for bed in _beds:
 		if int(_beds[bed]["stage"]) == 3:

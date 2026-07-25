@@ -985,6 +985,8 @@ func _decide() -> void:
 		_active = null
 		_spawn_suitcase_prop(cell)
 		_show_toast("%s ha deciso: si trasferisce nel villaggio!" % _cand_label)
+		# gli Ordini del Gufo aspettano il primo abitante
+		get_tree().call_group("gufo", "note_arrival")
 		# un arrivo si incide sugli anelli del Grande Albero
 		var gtree := get_tree().get_first_node_in_group("grande_albero")
 		if gtree:

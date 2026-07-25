@@ -20,6 +20,9 @@ uniform vec2 wind_dir = vec2(0.78, 0.45);
 
 global uniform vec3 mochi_pos;
 global uniform float erba_bagnata;
+// l'inverno: gli stessi fili corti spariscono sotto la coltre, le punte
+// spuntano imbiancate (stesso globale che imbianca manto e chiome)
+global uniform float snow_amount;
 
 varying vec3 wpos;
 varying float v_h;
@@ -106,6 +109,14 @@ void fragment() {
 	float glint = step(0.992, hash12(floor(wpos.xz * 30.0) + floor(TIME * 2.0)));
 	EMISSION = vec3(0.55, 0.65, 0.52) * glint * erba_bagnata * 0.5 * t
 			+ grass_c.rgb * 0.04 * pow(t, 3.0);
+
+	// neve: la coltre inghiotte i fili, le punte restano imbiancate; un
+	// filo di dormienza (grigio-verde) traspare alla radice
+	if (snow_amount > 0.001) {
+		float cover = mix(0.62, 1.0, smoothstep(0.05, 0.85, t)) * snow_amount;
+		col = mix(col, vec3(0.95, 0.965, 1.0), clamp(cover, 0.0, 1.0));
+		EMISSION += vec3(0.58, 0.64, 0.78) * glint * snow_amount * 0.3 * t;
+	}
 
 	ALBEDO = col;
 	ROUGHNESS = 0.95 - 0.4 * erba_bagnata;

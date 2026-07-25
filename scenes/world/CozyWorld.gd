@@ -54,13 +54,30 @@ var _pickup_respawn := 0.0
 var _night := false
 var _shaft_tw: Tween
 
+# ---- STAGIONI ----
+# Il mondo intero cambia veste col calendario (il regista è il DayNight,
+# che chiama set_season). I materiali del fogliame sono locali e cotti
+# nelle mesh da _merge, ma _merge ne TIENE il riferimento: mutarne color_a/
+# color_b ridipinge la chioma dal vivo. Qui raccogliamo quelle maniglie.
+var _season := -1
+var _season_snow := 0.0
+# ogni voce: {"mat": ShaderMaterial, "a": Color, "b": Color, "klass": String}
+# klass: "green" latifoglia · "cherry" ciliegio · "needle" conifera · "bush" cespuglio
+var _leaf_mats: Array = []
+var _ground_mat: ShaderMaterial          # il manto del prato (../Floor)
+var _grass_mat: ShaderMaterial           # i fili d'erba veri
+var _petal_fx: Array[GPUParticles3D] = []   # i petali dei ciliegi (solo primavera)
+var _forest_leaf_fx: GPUParticles3D      # le foglie che cadono nel bosco (autunno)
+var _forest_leaf_mat: StandardMaterial3D  # il loro colore, ridipinto per stagione
+var _flower_fields: Array[MultiMeshInstance3D] = []  # i campi di fiori (spariscono d'inverno)
+var _snow_fx: GPUParticles3D             # la nevicata sul villaggio (inverno)
+var _meadow_leaf_fx: GPUParticles3D      # le foglie che volano sul prato (autunno)
+var _season_tw: Tween
+
 
 func set_night(night: bool) -> void:
 	_night = night
-	if _pollen:
-		_pollen.emitting = not night
-	for b in _butterflies:
-		(b["node"] as Node3D).visible = not night
+	_refresh_critters()
 	if _shaft_mat:
 		# se piove, i fasci restano spenti anche all'alba (li riaccende
 		# il Weather quando smette); un solo tween alla volta
@@ -72,12 +89,23 @@ func set_night(night: bool) -> void:
 		_shaft_tw.tween_property(_shaft_mat, "albedo_color:a", target, 1.5)
 
 
+# pollini e farfalle riposano di notte E d'inverno (il prato gelato non ha
+# né polline né farfalle): il crocevia dei due stati vive qui
+func _refresh_critters() -> void:
+	var awake := not _night and _season != 3
+	if _pollen:
+		_pollen.emitting = awake
+	for b in _butterflies:
+		(b["node"] as Node3D).visible = awake
+
+
 ## Emesso quando tutta la geometria differita è stata costruita.
 signal world_built
 
 
 func _ready() -> void:
 	add_to_group("cozy_world")
+	add_to_group("season_listener")
 	# Generazione DIFFERITA su più frame: toglie l'hitch d'avvio (prima tutta la
 	# geometria — erba, fiori, alberi, bosco, stagno, fiume — nasceva in un solo
 	# frame). L'ordine è identico a prima e il mondo "compare" in una frazione di
@@ -119,7 +147,11 @@ func _ready() -> void:
 	# il fiume a est, con la scogliera a gradoni, la cascata e i ponti
 	_build_river()
 	_build_boundary()
+	# le particelle stagionali (neve e foglie al vento) e la prima veste:
+	# ora tutta la geometria esiste, i materiali sono raccolti, si può dipingere
+	_build_season_fx()
 	world_built.emit()
+	_init_season()
 
 
 func _paint_mat(a: Color, b: Color, grain := 4.0, amount := 0.45, wind := 0.0,
@@ -227,6 +259,8 @@ func _bake_tuft_map() -> void:
 			gmat.set_shader_parameter("tuft_map", ImageTexture.create_from_image(img))
 			gmat.set_shader_parameter("tuft_origin", TUFT_RECT.position)
 			gmat.set_shader_parameter("tuft_size", TUFT_RECT.size)
+			# la maniglia del manto: la stagione ne ridipinge i verdi
+			_ground_mat = gmat
 
 
 func _build_grass() -> void:
@@ -235,6 +269,9 @@ func _build_grass() -> void:
 	var mat := ShaderMaterial.new()
 	mat.shader = GRASS_BLADE
 	mesh.surface_set_material(0, mat)
+	# la maniglia dei fili: vanno tinti come il manto, o prato e terreno
+	# divergerebbero (stessi tre verdi in ground.gdshader e grass_blade)
+	_grass_mat = mat
 
 	_grass_mm = MultiMesh.new()
 	_grass_mm.transform_format = MultiMesh.TRANSFORM_3D
@@ -436,7 +473,7 @@ func _lavender_mesh() -> ArrayMesh:
 # semina un campo a macchie: i fiori veri crescono in famigliole, non
 # equidistanti — centri di macchia + 2-5 fiori stretti intorno + sparsi
 func _flower_field(mesh: Mesh, clusters: int, per_min: int, per_max: int,
-		singles: int, rng: RandomNumberGenerator) -> void:
+		singles: int, rng: RandomNumberGenerator) -> MultiMeshInstance3D:
 	var transforms: Array[Transform3D] = []
 	var spot := func() -> Vector3:
 		for attempt in 10:
@@ -462,18 +499,22 @@ func _flower_field(mesh: Mesh, clusters: int, per_min: int, per_max: int,
 		var b := Basis(Vector3.UP, rng.randf() * TAU) \
 				.scaled(Vector3.ONE * rng.randf_range(0.75, 1.15))
 		transforms.append(Transform3D(b, spot.call()))
-	_scatter_exact(mesh, transforms, false)
+	return _scatter_exact(mesh, transforms, false)
 
 
 func _build_flowers() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 4242
-	# margherite bianche e rosa, tulipani caldi, spighe di lavanda
-	_flower_field(_daisy_mesh(Color("fffaf4"), Color("ffcf5e")), 9, 3, 5, 8, rng)
-	_flower_field(_daisy_mesh(Color("ffc4d6"), Color("ffd76e")), 7, 3, 5, 6, rng)
-	_flower_field(_tulip_mesh(Color("ffb35c")), 5, 2, 4, 4, rng)
-	_flower_field(_tulip_mesh(Color("f2879e")), 5, 2, 4, 4, rng)
-	_flower_field(_lavender_mesh(), 6, 3, 6, 4, rng)
+	# margherite bianche e rosa, tulipani caldi, spighe di lavanda.
+	# I campi si raccolgono: d'inverno il prato gelato li nasconde sotto la neve
+	for field in [
+			_flower_field(_daisy_mesh(Color("fffaf4"), Color("ffcf5e")), 9, 3, 5, 8, rng),
+			_flower_field(_daisy_mesh(Color("ffc4d6"), Color("ffd76e")), 7, 3, 5, 6, rng),
+			_flower_field(_tulip_mesh(Color("ffb35c")), 5, 2, 4, 4, rng),
+			_flower_field(_tulip_mesh(Color("f2879e")), 5, 2, 4, 4, rng),
+			_flower_field(_lavender_mesh(), 6, 3, 6, 4, rng)]:
+		if field:
+			_flower_fields.append(field)
 
 
 # ---------------------------------------------------------------- alberi
@@ -483,7 +524,7 @@ func _build_flowers() -> void:
 # interna), massa centrale a due toni, ciuffi chiari in cima dove batte
 # il sole. Tutto fuso in una sola mesh: un draw call per materiale.
 func _make_tree(pos: Vector3, size: float, leaf_a: Color, leaf_b: Color,
-		seed_v := 0) -> Node3D:
+		seed_v := 0, leaf_klass := "green") -> Node3D:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1000 + seed_v * 37 + int(pos.x * 7.0 + pos.z * 13.0)
 
@@ -493,6 +534,11 @@ func _make_tree(pos: Vector3, size: float, leaf_a: Color, leaf_b: Color,
 	var leaf_dark := _paint_mat(leaf_b.darkened(0.22), leaf_b.darkened(0.34), 1.1, 0.6, 0.012, false, 0.35)
 	var leaf_mid := _paint_mat(leaf_a, leaf_b, 1.1, 0.65, 0.012, false, 0.45)
 	var leaf_light := _paint_mat(leaf_a.lightened(0.16), leaf_a, 1.1, 0.55, 0.014, false, 0.55)
+	# le tre maniglie del fogliame: la stagione le tira verso l'oro, il
+	# rame o il gelo (la primavera è già il loro colore di nascita)
+	_register_leaf(leaf_dark, leaf_b.darkened(0.22), leaf_b.darkened(0.34), leaf_klass)
+	_register_leaf(leaf_mid, leaf_a, leaf_b, leaf_klass)
+	_register_leaf(leaf_light, leaf_a.lightened(0.16), leaf_a, leaf_klass)
 
 	var parts := []
 	# tronco + radici a vista
@@ -543,8 +589,9 @@ func _make_tree(pos: Vector3, size: float, leaf_a: Color, leaf_b: Color,
 
 
 func _build_trees() -> void:
-	# un ciliegio in fiore che perde petali
-	var cherry := _make_tree(Vector3(-6.0, 0, -5.0), 1.25, Color("ffd4e2"), Color("f5a8c0"), 1)
+	# un ciliegio in fiore che perde petali (klass "cherry": fiorisce a
+	# primavera, rinverdisce d'estate, si accende d'oro-rosa in autunno)
+	var cherry := _make_tree(Vector3(-6.0, 0, -5.0), 1.25, Color("ffd4e2"), Color("f5a8c0"), 1, "cherry")
 	_add_petals(cherry)
 
 	_make_tree(Vector3(7.5, 0, -6.0), 1.1, Color("86c46c"), Color("64a854"), 2)
@@ -557,6 +604,9 @@ func _build_trees() -> void:
 	var bush_dark := _paint_mat(Color("5e9a50"), Color("4b8040"), 1.6, 0.6, 0.015, false, 0.35)
 	var bush_light := _paint_mat(Color("8cc873"), Color("6cae5b"), 1.6, 0.6, 0.015, false, 0.45)
 	var berry := _paint_mat(Color("e6607a"), Color("c94a62"), 5.0, 0.35)
+	# i cespugli seguono le stagioni; le bacche restano rosse (rosse sulla neve)
+	_register_leaf(bush_dark, Color("5e9a50"), Color("4b8040"), "bush")
+	_register_leaf(bush_light, Color("8cc873"), Color("6cae5b"), "bush")
 	for p in [Vector3(-3.5, 0, -7.0), Vector3(4.0, 0, 7.5), Vector3(-8.0, 0, -1.5)]:
 		var parts := []
 		parts.append([_puff_mesh(0.52, rng.randi(), 0.62, 0.12),
@@ -637,6 +687,8 @@ func _add_petals(tree: Node3D) -> void:
 	petals.position = Vector3(0, 1.5, 0)
 	petals.visibility_aabb = AABB(Vector3(-6, -3, -6), Vector3(12, 6, 12))
 	tree.add_child(petals)
+	# i petali nevicano solo a PRIMAVERA: la stagione li accende e li spegne
+	_petal_fx.append(petals)
 
 
 # ---------------------------------------------------------------- sassi
@@ -844,9 +896,9 @@ func _merge(parts: Array) -> ArrayMesh:
 	return mesh
 
 
-func _scatter_exact(mesh: Mesh, transforms: Array, shadows := true) -> void:
+func _scatter_exact(mesh: Mesh, transforms: Array, shadows := true) -> MultiMeshInstance3D:
 	if transforms.is_empty():
-		return
+		return null
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = mesh
@@ -858,6 +910,7 @@ func _scatter_exact(mesh: Mesh, transforms: Array, shadows := true) -> void:
 	if not shadows:
 		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mmi)
+	return mmi
 
 
 func _cone_mesh(radius: float, height: float, segments := 10) -> CylinderMesh:
@@ -1097,6 +1150,15 @@ func _build_forest_trees(rng: RandomNumberGenerator) -> void:
 	var leaf_dark := _paint_mat(Color("3a6b3e"), Color("2d5733"), 1.0, 0.6, 0.008, false, 0.35)
 	var leaf := _paint_mat(Color("4e8a52"), Color("3d7344"), 1.0, 0.65, 0.008, false, 0.4)
 	var leaf_lite := _paint_mat(Color("619c5e"), Color("4e8a52"), 1.0, 0.55, 0.01, false, 0.5)
+	# sette materiali per TUTTO il bosco (MultiMesh): mutarli ridipinge
+	# centinaia d'alberi in un colpo. Le conifere (needle_*) restano verdi
+	# tutto l'anno, le latifoglie (leaf_*) si accendono e si spogliano.
+	_register_leaf(needle_a, Color("3f7050"), Color("2f5840"), "needle")
+	_register_leaf(needle_b, Color("4a7d58"), Color("365f46"), "needle")
+	_register_leaf(needle_lite, Color("5c8f65"), Color("477455"), "needle")
+	_register_leaf(leaf_dark, Color("3a6b3e"), Color("2d5733"), "green")
+	_register_leaf(leaf, Color("4e8a52"), Color("3d7344"), "green")
+	_register_leaf(leaf_lite, Color("619c5e"), Color("4e8a52"), "green")
 
 	# il pino: gonne smerlate che ricadono, tono che si schiarisce
 	# salendo verso il germoglio in punta
@@ -1426,6 +1488,9 @@ func _build_forest_leaves() -> void:
 	leaves.position = Vector3(0, 4.2, -30)
 	leaves.visibility_aabb = AABB(Vector3(-10, -6, -18), Vector3(20, 9, 36))
 	add_child(leaves)
+	# la stagione decide quando cadono (e di che colore): piene d'autunno
+	_forest_leaf_fx = leaves
+	_forest_leaf_mat = mat
 
 
 # la radura: cerchio di pietre, falò scoppiettante, luce che respira
@@ -2011,7 +2076,7 @@ func _build_cliff() -> void:
 	# gli alberi sul ciglio: il profilo del mondo di sopra (e un secondo
 	# ciliegio lassù che perde petali giù dalla scogliera)
 	var cherry_up := _make_tree(Vector3(_cliff_x(9.0) + 2.6, CLIFF_H, 9.0), 1.15,
-			Color("ffd4e2"), Color("f5a8c0"), 11)
+			Color("ffd4e2"), Color("f5a8c0"), 11, "cherry")
 	_add_petals(cherry_up)
 	_make_tree(Vector3(_cliff_x(-14.0) + 3.4, CLIFF_H, -14.0), 1.05,
 			Color("86c46c"), Color("64a854"), 12)
@@ -2555,6 +2620,214 @@ func _update_river(delta: float) -> void:
 				randf_range(0.7, 1.2), RIVER_WATER_Y + 0.03)
 
 
+# ---------------------------------------------------------------- stagioni
+# Il mondo cambia veste col calendario. Il regista è il DayNight (chiama
+# set_season a ogni cambio di stagione); qui si ridipingono manto, erba e
+# chiome, e si accendono le particelle giuste — petali a primavera, foglie
+# d'autunno, neve d'inverno. La primavera è il colore di nascita del mondo;
+# le altre stagioni lo tirano verso l'oro, il rame e il gelo.
+
+# le palette del prato e del bosco, una per stagione (source_color dei due
+# shader gemelli ground/grass_blade — vanno tinti INSIEME o divergono)
+const GRASS_PAL := [
+	{  # 0 primavera — il verde tenero di sempre (la tarda primavera attuale)
+		"ga": Color(0.55, 0.74, 0.43), "gb": Color(0.36, 0.57, 0.33), "gc": Color(0.70, 0.84, 0.47),
+		"clover": Color(0.33, 0.56, 0.33), "daisy": Color(0.97, 0.95, 0.89),
+		"fa": Color(0.30, 0.43, 0.27), "fb": Color(0.22, 0.33, 0.20), "fl": Color(0.45, 0.37, 0.24),
+		"tw": Color(0.74, 0.86, 0.42), "tc": Color(0.44, 0.72, 0.52),
+	},
+	{  # 1 estate — verde profondo e rigoglioso
+		"ga": Color(0.45, 0.68, 0.34), "gb": Color(0.29, 0.50, 0.26), "gc": Color(0.60, 0.79, 0.38),
+		"clover": Color(0.28, 0.50, 0.29), "daisy": Color(0.98, 0.96, 0.90),
+		"fa": Color(0.26, 0.40, 0.24), "fb": Color(0.18, 0.30, 0.18), "fl": Color(0.42, 0.35, 0.22),
+		"tw": Color(0.70, 0.84, 0.38), "tc": Color(0.40, 0.70, 0.50),
+	},
+	{  # 2 autunno — oro, paglia e rame; il prato che ingiallisce
+		"ga": Color(0.72, 0.62, 0.33), "gb": Color(0.52, 0.45, 0.25), "gc": Color(0.83, 0.72, 0.40),
+		"clover": Color(0.55, 0.48, 0.26), "daisy": Color(0.92, 0.86, 0.72),
+		"fa": Color(0.52, 0.44, 0.24), "fb": Color(0.38, 0.30, 0.18), "fl": Color(0.60, 0.42, 0.22),
+		"tw": Color(0.86, 0.68, 0.34), "tc": Color(0.66, 0.56, 0.34),
+	},
+	{  # 3 inverno — erba dormiente grigio-salvia (per lo più sotto la neve)
+		"ga": Color(0.55, 0.58, 0.47), "gb": Color(0.42, 0.46, 0.38), "gc": Color(0.63, 0.65, 0.53),
+		"clover": Color(0.46, 0.50, 0.42), "daisy": Color(0.88, 0.90, 0.92),
+		"fa": Color(0.44, 0.47, 0.40), "fb": Color(0.33, 0.36, 0.31), "fl": Color(0.50, 0.45, 0.38),
+		"tw": Color(0.66, 0.68, 0.58), "tc": Color(0.54, 0.60, 0.56),
+	},
+]
+
+
+func _register_leaf(mat: ShaderMaterial, a: Color, b: Color, klass: String) -> void:
+	_leaf_mats.append({"mat": mat, "a": a, "b": b, "klass": klass})
+
+
+# il colore-bersaglio di una chioma, data la sua tinta di primavera e la
+# stagione. Il valore (luminosità) si conserva quasi sempre: così i tre
+# strati scuro/medio/chiaro della nuvola restano leggibili anche d'autunno
+func _leaf_target(c: Color, klass: String, season: int) -> Color:
+	match season:
+		0:  # primavera: il colore di nascita
+			return c
+		1:  # estate: verdi più profondi e ricchi (il ciliegio rinverdisce)
+			if klass == "cherry":
+				return Color.from_hsv(0.28, 0.52, clampf(c.v * 0.9, 0.22, 0.95))
+			if klass == "needle":
+				return Color.from_hsv(c.h, minf(c.s * 1.06, 1.0), c.v * 0.96)
+			return Color.from_hsv(c.h, minf(c.s * 1.12, 1.0), c.v * 0.93)
+		2:  # autunno: oro, rame, cremisi — ma le conifere restano verdi
+			if klass == "needle":
+				return Color.from_hsv(fposmod(c.h - 0.01, 1.0), c.s * 0.95, c.v * 0.97)
+			if klass == "cherry":
+				return Color.from_hsv(lerpf(0.98, 0.07, clampf(c.v, 0.0, 1.0)), 0.55,
+						clampf(c.v * 0.95 + 0.05, 0.0, 1.0))
+			return Color.from_hsv(lerpf(0.03, 0.10, clampf(c.v, 0.0, 1.0)), 0.72,
+					clampf(c.v * 1.02 + 0.05, 0.0, 1.0))
+		_:  # inverno: brina e dormienza (la neve globale imbianca il resto)
+			if klass == "needle":
+				return Color.from_hsv(fposmod(c.h + 0.01, 1.0), c.s * 0.9, c.v * 0.82)
+			return Color.from_hsv(0.09, 0.14, clampf(c.v * 0.72 + 0.14, 0.0, 1.0))
+
+
+## Il regista chiama qui a ogni cambio di stagione (0..3). `snow` è la neve
+## di oggi, `transition` sfuma il cambio con un tween invece dello scatto.
+func set_season(season: int, snow: float, transition: bool) -> void:
+	_season = season
+	_season_snow = snow
+	_apply_season(transition)
+	# le particelle della stagione
+	for p in _petal_fx:
+		p.emitting = season == 0                      # petali: solo primavera
+	if _forest_leaf_fx:
+		_forest_leaf_fx.emitting = season == 2        # foglie nel bosco: autunno
+		if season == 2 and _forest_leaf_mat:
+			_forest_leaf_mat.albedo_texture = _soft_circle(Color("d98a3a", 0.95), 0.55)
+	if _meadow_leaf_fx:
+		_meadow_leaf_fx.emitting = season == 2        # foglie sul prato: autunno
+	if _snow_fx:
+		_snow_fx.emitting = snow > 0.03               # neve: dall'accumulo in poi
+	for f in _flower_fields:
+		if is_instance_valid(f):
+			f.visible = season != 3                   # i fiori spariscono sotto la neve
+	_refresh_critters()
+
+
+# ridipinge manto, erba e tutte le chiome verso la palette della stagione.
+# Al primo giro (senza transizione) imposta secco; ai cambi runtime sfuma.
+func _apply_season(transition: bool) -> void:
+	var pal: Dictionary = GRASS_PAL[clampi(_season, 0, 3)]
+	# [materiale, nome_uniform, colore_bersaglio]
+	var targets: Array = []
+	if _ground_mat:
+		targets.append([_ground_mat, "grass_a", pal["ga"]])
+		targets.append([_ground_mat, "grass_b", pal["gb"]])
+		targets.append([_ground_mat, "grass_c", pal["gc"]])
+		targets.append([_ground_mat, "clover_color", pal["clover"]])
+		targets.append([_ground_mat, "daisy_color", pal["daisy"]])
+		targets.append([_ground_mat, "forest_a", pal["fa"]])
+		targets.append([_ground_mat, "forest_b", pal["fb"]])
+		targets.append([_ground_mat, "forest_litter", pal["fl"]])
+	if _grass_mat:
+		targets.append([_grass_mat, "grass_a", pal["ga"]])
+		targets.append([_grass_mat, "grass_b", pal["gb"]])
+		targets.append([_grass_mat, "grass_c", pal["gc"]])
+		targets.append([_grass_mat, "tint_warm", pal["tw"]])
+		targets.append([_grass_mat, "tint_cool", pal["tc"]])
+	for e in _leaf_mats:
+		var mat: ShaderMaterial = e["mat"]
+		targets.append([mat, "color_a", _leaf_target(e["a"], e["klass"], _season)])
+		targets.append([mat, "color_b", _leaf_target(e["b"], e["klass"], _season)])
+
+	if not transition:
+		for t in targets:
+			(t[0] as ShaderMaterial).set_shader_parameter(t[1], t[2])
+		return
+
+	# transizione: si cattura il colore attuale e si sfuma al bersaglio in
+	# un solo tween (un mattino d'autunno il mondo si accende un po' alla volta)
+	var froms: Array = []
+	for t in targets:
+		var cur = (t[0] as ShaderMaterial).get_shader_parameter(t[1])
+		froms.append(cur if cur is Color else t[2])
+	if _season_tw and _season_tw.is_valid():
+		_season_tw.kill()
+	_season_tw = create_tween()
+	_season_tw.tween_method(
+			func(x: float) -> void:
+				for i in targets.size():
+					(targets[i][0] as ShaderMaterial).set_shader_parameter(
+							targets[i][1], (froms[i] as Color).lerp(targets[i][2], x)),
+			0.0, 1.0, 2.6).set_trans(Tween.TRANS_SINE)
+
+
+func _init_season() -> void:
+	var dn := get_node_or_null("../DayNight")
+	if dn and dn.has_method("get_season"):
+		set_season(int(dn.get_season()), float(dn.snow_amount()), false)
+	else:
+		set_season(0, 0.0, false)
+
+
+# le due nevicate/fogliate che seguono il giocatore (come la pioggia del
+# Weather): sempre attorno alla camera, accese dalla stagione giusta
+func _build_season_fx() -> void:
+	_snow_fx = _drift_emitter(_soft_circle(Color(0.98, 0.99, 1.0, 0.95), 0.5),
+			280, 0.06, Vector3(13.0, 0.4, 13.0), Vector3(0.12, -0.7, 0.06), 6.5, true)
+	_snow_fx.position = Vector3(0, 8.0, 0)
+	add_child(_snow_fx)
+	_meadow_leaf_fx = _drift_emitter(_soft_circle(Color("d98a3a", 0.95), 0.55),
+			44, 0.09, Vector3(13.0, 0.4, 12.0), Vector3(0.25, -0.5, 0.1), 8.0, false)
+	_meadow_leaf_fx.position = Vector3(0, 4.5, 0)
+	add_child(_meadow_leaf_fx)
+
+
+# fabbrica di emettitori "che scendono dal cielo": neve o foglie
+func _drift_emitter(tex: Texture2D, count: int, sz: float, box: Vector3,
+		grav: Vector3, life: float, spin_slow: bool) -> GPUParticles3D:
+	var quad := QuadMesh.new()
+	quad.size = Vector2(sz, sz)
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_texture = tex
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	mat.vertex_color_use_as_albedo = true
+	quad.material = mat
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	pm.emission_box_extents = box
+	pm.direction = Vector3(0.2, -1, 0.1)
+	pm.spread = 14.0
+	pm.initial_velocity_min = 0.15
+	pm.initial_velocity_max = 0.55
+	pm.gravity = grav
+	pm.turbulence_enabled = true
+	pm.turbulence_noise_strength = 0.7 if spin_slow else 0.4
+	pm.turbulence_noise_speed = Vector3(0.25, 0.15, 0.25)
+	pm.scale_min = 0.6
+	pm.scale_max = 1.25
+	pm.angle_min = 0.0
+	pm.angle_max = 360.0
+	pm.angular_velocity_min = -40.0 if spin_slow else -140.0
+	pm.angular_velocity_max = 40.0 if spin_slow else 140.0
+	var ramp := Gradient.new()
+	ramp.offsets = PackedFloat32Array([0.0, 0.12, 0.88, 1.0])
+	ramp.colors = PackedColorArray([
+		Color(1, 1, 1, 0.0), Color(1, 1, 1, 1.0), Color(1, 1, 1, 1.0), Color(1, 1, 1, 0.0)])
+	var ramp_tex := GradientTexture1D.new()
+	ramp_tex.gradient = ramp
+	pm.color_ramp = ramp_tex
+	var fx := GPUParticles3D.new()
+	fx.amount = count
+	fx.lifetime = life
+	fx.preprocess = life * 0.7
+	fx.local_coords = false
+	fx.emitting = false
+	fx.process_material = pm
+	fx.draw_pass_1 = quad
+	fx.visibility_aabb = AABB(Vector3(-16, -12, -16), Vector3(32, 18, 32))
+	return fx
+
+
 # ---------------------------------------------------------------- vita
 
 func _process(delta: float) -> void:
@@ -2565,6 +2838,11 @@ func _process(delta: float) -> void:
 		_player_ref = get_node_or_null("%Player") as Node3D
 	if _player_ref:
 		RenderingServer.global_shader_parameter_set("mochi_pos", _player_ref.global_position)
+		# neve e foglie seguono la camera, come la pioggia: sempre attorno a te
+		if _snow_fx and _snow_fx.emitting:
+			_snow_fx.position = _player_ref.global_position + Vector3(0, 8.0, 0)
+		if _meadow_leaf_fx and _meadow_leaf_fx.emitting:
+			_meadow_leaf_fx.position = _player_ref.global_position + Vector3(0, 4.5, 0)
 
 	for i in _clouds.size():
 		var c := _clouds[i]
@@ -2591,9 +2869,9 @@ func _process(delta: float) -> void:
 	_update_frogs(delta)
 	_update_river(delta)
 
-	# il prato si ripopola di farfalle dopo una cattura (mai di notte:
-	# le nuove nascerebbero visibili violando set_night)
-	if _butterflies.size() < 5 and not _night:
+	# il prato si ripopola di farfalle dopo una cattura (mai di notte né
+	# d'inverno: le nuove nascerebbero visibili violando set_night/stagione)
+	if _butterflies.size() < 5 and not _night and _season != 3:
 		_bf_respawn -= delta
 		if _bf_respawn <= 0.0:
 			_bf_respawn = randf_range(45.0, 90.0)

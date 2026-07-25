@@ -92,7 +92,7 @@ func _debug_screenshots(dir: String):
 	# 4. primo piano di Mochi (prima che la demo del builder occupi la scena)
 	if mochi:
 		await get_tree().create_timer(1.2).timeout
-		mochi.set("_next_blink", 10.0)   # niente palpebre a metà nello scatto
+		mochi.call("freeze_face", 10.0)   # niente palpebre a metà nello scatto
 		var fwd: Vector3 = -mochi.global_transform.basis.z
 		var focus: Vector3 = player.global_position + Vector3(0, 0.78, 0)
 		var ccam := Camera3D.new()
@@ -224,7 +224,7 @@ func _debug_screenshots(dir: String):
 	wardrobe.debug_wear("lanterna_lucciola")
 	player.global_position = Vector3(-1.8, 0, 7.6)
 	player.get_node("Mochi").set("_yaw", 2.7)
-	player.get_node("Mochi").set("_next_blink", 10.0)
+	player.get_node("Mochi").call("freeze_face", 10.0)
 	var wcam2 := Camera3D.new()
 	add_child(wcam2)
 	wcam2.position = Vector3(-2.7, 1.2, 9.6)
@@ -380,7 +380,7 @@ func _debug_screenshots(dir: String):
 	# sinistra del quadro, la card della lettera respira al centro-destra
 	build_system.set_active_for_debug(false, Vector3(1, 0, 4))
 	player.global_position = Vector3(-4.0, 0, 8.0)
-	mochi.set("_next_blink", 10.0)
+	mochi.call("freeze_face", 10.0)
 	mochi.set("_yaw", PI)
 	mail.debug_read()
 	var lcam := Camera3D.new()

@@ -11,6 +11,7 @@ extends RefCounted
 ## Convenzione: la faccia guarda verso -Z.
 
 const TOON := preload("res://shaders/toon.gdshader")
+const FACE := preload("res://scenes/characters/FaceController.gd")
 
 ## Profilo del vestitino (raggio, altezza), dall'orlo alla spalla.
 ## Il primo punto è il sotto-orlo interno: chiude la gonna da sotto.
@@ -274,8 +275,9 @@ static func _capsule(parent: Node3D, r: float, h: float, mat: Material, pos: Vec
 # ---------------------------------------------------------- il chibi
 
 ## Costruisce il chibi. Restituisce
-## {"root", "head", "ears", "arms", "tail", "tail_tip"} — tail_tip è lo
-## snodo della punta (null per le code a ponpon).
+## {"root", "head", "ears", "arms", "tail", "tail_tip", "face"} — tail_tip è
+## lo snodo della punta (null per le code a ponpon), "face" è il rig facciale
+## animabile (occhi, iridi, sopracciglia, bocche…) per il FaceController.
 static func build(dna: Dictionary) -> Dictionary:
 	var fur := _mat(Color(dna["fur"]), 0.45)
 	var fur2 := _mat(Color(dna["fur2"]), 0.45)
@@ -346,13 +348,14 @@ static func build(dna: Dictionary) -> Dictionary:
 				0.03 + 0.09 * fluff, 3, 0.62)
 
 	var ears := _build_ears(head, dna, fur, fur2, inner, hs)
-	_build_face(head, dna, fur, fur2, belly, hs)
+	var face := _build_face(head, dna, fur, fur2, belly, hs)
 	var tail_parts := _build_tail(root, dna, fur, fur2, belly)
 	var acc = load("res://scenes/npc/ChibiAccessories.gd")
 	acc.apply(dna, root, head)
 
 	return {"root": root, "head": head, "ears": ears, "arms": arms,
-			"legs": legs, "tail": tail_parts[0], "tail_tip": tail_parts[1]}
+			"legs": legs, "tail": tail_parts[0], "tail_tip": tail_parts[1],
+			"face": face}
 
 
 # ---------------------------------------------------------- orecchie
@@ -405,7 +408,7 @@ static func _build_ears(head: Node3D, dna: Dictionary, fur: ShaderMaterial,
 # ---------------------------------------------------------- viso
 
 static func _build_face(head: Node3D, dna: Dictionary, fur: ShaderMaterial,
-		_fur2: ShaderMaterial, _belly: ShaderMaterial, hs: float) -> void:
+		_fur2: ShaderMaterial, _belly: ShaderMaterial, hs: float) -> Dictionary:
 	var dark := _flat(Color("2a1d1d"))
 	var front := -0.34 * hs
 	var arche: String = dna["archetype"]
@@ -443,48 +446,46 @@ static func _build_face(head: Node3D, dna: Dictionary, fur: ShaderMaterial,
 			_ball(head, 0.02, _flat(Color("ff8fa3")),
 					Vector3(0, -0.052 * hs, front - 0.058), Vector3(1.3, 0.85, 0.7), false)
 
-	# occhioni con doppia luce
+	# occhioni con doppia luce, raccolti attorno a un nodo "iride": lo sguardo
+	# lo sposta e la tenerezza lo dilata (vedi FaceController). Sopra ogni
+	# occhio un sopracciglio animabile, e un arco "^^" per la felicità piena.
 	var eye_r: float = dna["eye_r"]
 	var gap: float = dna["eye_gap"]
 	var ey: float = 0.035 + float(dna["eye_h"])
+	var eyes: Array[Node3D] = []
+	var eyeballs: Array[MeshInstance3D] = []
+	var irises: Array[Node3D] = []
+	var happy: Array[Node3D] = []
+	var brows: Array[Node3D] = []
+	var brow_mat := _flat(Color(dna["fur"]).darkened(0.62))
 	for side: float in [-1.0, 1.0]:
 		var eye := Node3D.new()
 		eye.position = Vector3(side * gap * hs, ey, front)
 		head.add_child(eye)
-		_ball(eye, eye_r, dark, Vector3.ZERO, Vector3(1, 1.18, 0.55), false)
+		var ball := _ball(eye, eye_r, dark, Vector3.ZERO, Vector3(1, 1.18, 0.55), false)
+		var iris := Node3D.new()
+		eye.add_child(iris)
 		# luci a disco, appoggiate sulla superficie dell'occhio
-		_ball(eye, eye_r * 0.36, _flat(Color.WHITE),
+		_ball(iris, eye_r * 0.36, _flat(Color.WHITE),
 				Vector3(-0.028 * side, eye_r * 0.42, -eye_r * 0.5), Vector3(1, 1, 0.35), false)
-		_ball(eye, eye_r * 0.16, _flat(Color("ffdce4")),
+		_ball(iris, eye_r * 0.16, _flat(Color("ffdce4")),
 				Vector3(0.03 * side, -eye_r * 0.32, -eye_r * 0.52), Vector3(1, 1, 0.35), false)
+		eyes.append(eye)
+		eyeballs.append(ball)
+		irises.append(iris)
+		happy.append(FACE.build_happy_arc(head, dark,
+				Vector3(side * gap * hs, ey + 0.006, front - 0.006), side, eye_r * 0.92))
+		brows.append(FACE.build_brow(head, brow_mat, side,
+				Vector3(side * gap * hs * 0.92, ey + eye_r * 1.7, front + 0.002),
+				eye_r * 1.05, 0.015))
 
-	# la bocca, appoggiata sul musetto
+	# il set completo di bocche morbide (neutra, sorriso, ghigno, o/O, broncio,
+	# triste, seria) + la cavità scura che si apre per parlare/ridere/stupirsi
 	var mouth_mat := _flat(Color("5a3434"))
 	var my := -0.105 * hs
-	match str(dna["mouth"]):
-		"w":
-			for side: float in [-1.0, 1.0]:
-				for i in 7:
-					var a := PI + (float(i) / 6.0) * PI
-					_ball(head, 0.0085, mouth_mat,
-							Vector3(side * 0.023 + cos(a) * 0.023, my + sin(a) * 0.023, mz),
-							Vector3.ONE, false)
-		"smile":
-			for i in 9:
-				var a := PI + (float(i) / 8.0) * PI
-				_ball(head, 0.009, mouth_mat,
-						Vector3(cos(a) * 0.042, my + sin(a) * 0.032, mz), Vector3.ONE, false)
-		"o":
-			var tm := TorusMesh.new()
-			tm.inner_radius = 0.012
-			tm.outer_radius = 0.026
-			var o := MeshInstance3D.new()
-			o.mesh = tm
-			o.material_override = mouth_mat
-			o.position = Vector3(0, my, mz)
-			o.rotation.x = PI * 0.5
-			o.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			head.add_child(o)
+	var mouths := FACE.build_mouth_set(head, mouth_mat, Vector3(0, my, mz), hs)
+	var mouth_open := FACE.build_mouth_open(head, _flat(Color("3a1f1f")),
+			Vector3(0, my, mz), hs)
 
 	# ciuffi sulle guance: quanti e quanto folti dipende dal pelo del DNA
 	var fluff: float = dna.get("fluff", 0.6)
@@ -495,16 +496,26 @@ static func _build_face(head: Node3D, dna: Dictionary, fur: ShaderMaterial,
 
 	# guanciotte e, per qualcuno, lentiggini
 	var blush_a: float = dna["blush"]
+	var blush_nodes: Array[MeshInstance3D] = []
 	for side: float in [-1.0, 1.0]:
 		var blush := _ball(head, 0.052, _flat(Color(1.0, 0.62, 0.7, blush_a * 0.7)),
 				Vector3(side * 0.245 * hs, -0.06, front + 0.045), Vector3(1, 0.6, 0.3), false)
 		blush.rotation.y = side * -0.55
+		blush_nodes.append(blush)
 		if dna["freckles"]:
 			var fr := _flat(Color(Color(dna["fur2"]), 0.85))
 			for i in 3:
 				_ball(head, 0.008, fr,
 						Vector3(side * (0.2 + 0.035 * i) * hs, -0.02 - 0.02 * (i % 2), front + 0.03),
 						Vector3.ONE, false)
+
+	return {
+		"eyes": eyes, "eyeballs": eyeballs, "irises": irises,
+		"happy": happy, "brows": brows, "blush": blush_nodes,
+		"mouths": mouths, "mouth_open": mouth_open,
+		"eye_base_scale": Vector3(1, 1.18, 0.55),
+		"face_side": maxf(gap * hs, 0.12),
+	}
 
 
 # ---------------------------------------------------------- code

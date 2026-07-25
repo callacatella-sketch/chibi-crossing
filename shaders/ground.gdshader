@@ -19,6 +19,9 @@ uniform vec4 forest_b : source_color = vec4(0.22, 0.33, 0.20, 1.0);
 uniform vec4 forest_litter : source_color = vec4(0.45, 0.37, 0.24, 1.0);
 // 0..1: quando piove il prato si scurisce e prende un velo lucido
 uniform float wetness : hint_range(0.0, 1.0) = 0.0;
+// 0..1: l'inverno stende la neve sul manto (globale, pilotato dal regista
+// delle stagioni: lo stesso valore che imbianca chiome e tetti)
+global uniform float snow_amount;
 // il campo dei ciuffi, cotto dal CozyWorld: il manto si scurisce
 // esattamente dove l'erba affonda le radici — un tappeto unico
 uniform sampler2D tuft_map : filter_linear, repeat_disable, hint_default_black;
@@ -126,15 +129,33 @@ void fragment() {
 	col = mix(col, daisy_color.rgb, dotm * step(0.986, r1) * 0.85 * aperto);
 
 	// prospettiva aerea: più il rilievo sale, più si vela di foschia
-	// verde-azzurra, e le cime delle montagne sfumano in crema pastello
+	// verde-azzurra, e le cime delle montagne sfumano in crema pastello.
+	// D'inverno la foschia e le cime virano al bianco-cielo: l'orizzonte
+	// innevato, non solo il prato.
 	float aria = clamp(v_hill * 0.045, 0.0, 0.55);
-	col = mix(col, vec3(0.78, 0.87, 0.81), aria);
-	col = mix(col, vec3(0.96, 0.95, 0.90), smoothstep(15.0, 27.0, v_hill) * 0.8);
+	vec3 haze = mix(vec3(0.78, 0.87, 0.81), vec3(0.90, 0.94, 1.0), snow_amount);
+	vec3 peak = mix(vec3(0.96, 0.95, 0.90), vec3(0.97, 0.98, 1.0), snow_amount);
+	col = mix(col, haze, aria);
+	col = mix(col, peak, smoothstep(15.0, 27.0, v_hill) * 0.8);
 
 	// pioggia: manto scuro e lucido, rugiada che scintilla
 	col *= 1.0 - 0.18 * wetness;
 	float glint = step(0.993, hash12(floor(wpos.xz * 22.0) + floor(TIME * 2.5)));
 	EMISSION = vec3(0.50, 0.60, 0.55) * glint * wetness * 0.4;
+
+	// --- la neve dell'inverno: la coltre bianca sul prato ---
+	// due scale di rumore danno cumuli e conche sgombre — mai un lenzuolo
+	// piatto; l'acqua del fiume non si copre (le sponde sì)
+	if (snow_amount > 0.001) {
+		float drift = fbm(wpos.xz * 0.6 + 20.0) * 0.6 + fbm(wpos.xz * 2.1 + 4.0) * 0.4;
+		float cover = smoothstep(0.32, 0.78, drift + snow_amount * 0.55 - 0.08) * snow_amount;
+		cover *= 1.0 - smoothstep(0.5, 0.95, v_river);
+		cover = clamp(cover, 0.0, 0.93);
+		col = mix(col, vec3(0.93, 0.95, 1.0), cover);
+		// cristalli radi che scintillano al sole
+		float sglint = step(0.9, hash12(floor(wpos.xz * 26.0))) * step(0.42, drift);
+		EMISSION += vec3(0.60, 0.66, 0.80) * sglint * cover * 0.22;
+	}
 
 	ALBEDO = col;
 	ROUGHNESS = 1.0 - 0.4 * wetness;

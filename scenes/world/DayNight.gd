@@ -11,6 +11,9 @@ extends Node3D
 ## I dischi di sole e luna nel cielo sono disegnati dal ProceduralSky.
 
 signal day_changed(day: int)
+## Emesso quando il calendario scivola in una nuova stagione (0 primavera,
+## 1 estate, 2 autunno, 3 inverno). Il mondo intero lo ascolta per ridipingersi.
+signal season_changed(season: int)
 
 @export var cycle_seconds := 240.0
 @export var time := 0.38
@@ -46,6 +49,50 @@ const AMB_DUSK := Color(0.76, 0.55, 0.72)
 const AMB_NIGHT := Color(0.26, 0.32, 0.55)
 const AMB_RAIN := Color(0.71, 0.72, 0.78)
 
+## LE STAGIONI. Il calendario del villaggio è un mese di 28 giorni: quattro
+## settimane, quattro stagioni. La stagione non è uno stato salvato a parte —
+## si DERIVA dal giorno (che è già persistito), così un salvataggio riapre
+## sempre nella stagione giusta. `season_cont()` dà la frazione continua
+## 0..4; il colore del mondo sfuma da una stagione all'altra sugli ultimi
+## giorni di ciascuna (season_blend), non con uno scatto a mezzanotte.
+const YEAR_DAYS := 28
+const SEASON_DAYS := 7
+const SEASON_NAMES := ["primavera", "estate", "autunno", "inverno"]
+
+# --- la regia del CIELO per stagione (bersagli verso cui il colore già
+# calcolato di giorno/notte viene tirato: mai sostituito, solo intonato) ---
+# saturazione globale del quadro: estate vivida, inverno smorto
+const SEA_SAT := [1.18, 1.30, 1.24, 0.96]
+# la temperatura del sole: neutro a primavera, oro d'autunno, azzurro d'inverno
+const SEA_SUN := [Color(1.0, 0.99, 0.96), Color(1.0, 0.97, 0.90),
+		Color(1.0, 0.92, 0.78), Color(0.90, 0.95, 1.06)]
+const SEA_SUN_ENERGY := [1.0, 1.06, 0.98, 0.86]
+# lo zenit e l'orizzonte del cielo di giorno
+const SEA_SKYTOP := [Color(0.42, 0.63, 0.88), Color(0.31, 0.57, 0.90),
+		Color(0.46, 0.62, 0.82), Color(0.63, 0.72, 0.83)]
+const SEA_SKYHOR := [Color(0.92, 0.86, 0.74), Color(0.95, 0.89, 0.73),
+		Color(0.97, 0.81, 0.60), Color(0.88, 0.90, 0.94)]
+# la nebbia: ambrata e più densa d'autunno, bianco-fredda d'inverno
+const SEA_FOG := [Color(0.93, 0.90, 0.82), Color(0.95, 0.92, 0.83),
+		Color(0.94, 0.83, 0.66), Color(0.87, 0.91, 0.97)]
+const SEA_FOG_ADD := [0.0, -0.0003, 0.0018, 0.0016]
+# un soffio caldo/freddo sulla luce d'ombra (moltiplica l'ambiente)
+const SEA_AMB := [Color(1.0, 1.0, 1.0), Color(1.02, 1.0, 0.97),
+		Color(1.07, 1.0, 0.89), Color(0.92, 0.96, 1.06)]
+
+# lo stato-stagione, ricalcolato a ogni nuovo giorno (non a ogni frame)
+var _season := -99
+var _snow := 0.0
+# i fattori di grading fusi per OGGI, letti da _apply() ogni frame
+var _g_sat := 1.2
+var _g_sun := Color(1, 1, 1)
+var _g_sun_energy := 1.0
+var _g_skytop := Color(1, 1, 1)
+var _g_skyhor := Color(1, 1, 1)
+var _g_fog := Color(1, 1, 1)
+var _g_fog_add := 0.0
+var _g_amb := Color(1, 1, 1)
+
 var _sun: DirectionalLight3D
 var _moon: DirectionalLight3D
 var _env: Environment
@@ -70,7 +117,14 @@ func _ready() -> void:
 	_build_moon()
 	_build_stars()
 	_build_fireflies()
+	# la stagione di partenza: neve e grading pronti prima del primo frame,
+	# così un salvataggio invernale riapre già innevato
+	_update_season(false)
 	_apply()
+	# gli ascoltatori del mondo nascono differiti (CozyWorld costruisce su
+	# più frame): a fine frame diamo comunque una spinta iniziale, e ognuno
+	# si auto-inizializza quando la propria geometria esiste
+	_broadcast_season.call_deferred(false)
 
 
 ## Salta a un'ora precisa (0..1). Usato anche dalla verifica CLI.
@@ -88,6 +142,10 @@ func _check_new_day(prev: float, t: float) -> void:
 	var jumped := t < prev and t >= 0.25 and t <= 0.42
 	if crossed or jumped:
 		day += 1
+		# la stagione può scivolare col nuovo giorno: aggiornala PRIMA di
+		# annunciare il giorno, così chi ascolta day_changed legge già la
+		# stagione giusta
+		_update_season()
 		day_changed.emit(day)
 		var bs: Node = get_tree().get_first_node_in_group("build_system")
 		if bs:
@@ -100,11 +158,116 @@ func save_extra() -> Dictionary:
 
 func load_extra(data: Dictionary) -> void:
 	day = maxi(1, int(data.get("day", day)))
+	# il salvataggio non emette day_changed: la stagione va riallineata a
+	# mano al giorno caricato, e il mondo ridipinto (differito: gli
+	# ascoltatori potrebbero essere ancora in costruzione)
+	_update_season(false)
+	_broadcast_season.call_deferred(false)
+	_apply()
+
+
+# --- verifica CLI: salta a un giorno preciso e ridipingi la stagione ---
+func debug_set_day(d: int) -> void:
+	day = maxi(1, d)
+	_update_season(false)
+	_broadcast_season(false)
+	day_changed.emit(day)
+	_apply()
 
 
 ## Vero quando il mondo è in modalità notte (stelle, lucciole, finestre accese).
 func is_night() -> bool:
 	return _night
+
+
+# ---------------------------------------------------------------- stagioni
+
+## La stagione come frazione continua 0..4 letta dal calendario:
+## 0 primavera · 1 estate · 2 autunno · 3 inverno (e poi si richiude).
+func season_cont() -> float:
+	return float((day - 1) % YEAR_DAYS) / float(SEASON_DAYS)
+
+
+## L'indice della stagione di oggi (0..3).
+func get_season() -> int:
+	return int(floor(season_cont())) % 4
+
+
+## Il nome della stagione di oggi, per la lavagna e i toast.
+func season_name() -> String:
+	return SEASON_NAMES[get_season()]
+
+
+## 0..1: quanto siamo avanti dentro la stagione corrente (0 = primo giorno).
+func season_progress() -> float:
+	var s := season_cont()
+	return s - floor(s)
+
+
+## Il primo giorno (assoluto) della PROSSIMA stagione — per il calendario.
+func next_season_day() -> int:
+	var into := (day - 1) % SEASON_DAYS
+	return day + (SEASON_DAYS - into)
+
+
+## 0..1: la neve accumulata. Cade sul finire dell'autunno, piena
+## d'inverno, si scioglie negli ultimi giorni prima della primavera.
+func snow_amount() -> float:
+	var s := season_cont()
+	var acc := smoothstep(2.8, 3.2, s)     # la prima nevicata, a fine autunno
+	var melt := smoothstep(3.6, 4.0, s)    # il disgelo, verso la primavera
+	return clampf(acc - melt, 0.0, 1.0)
+
+
+# fonde quattro colori-ancora (uno per stagione) secondo il calendario:
+# tiene la stagione piena nei primi giorni, poi sfuma nella successiva
+func _blend_season_color(anchors: Array) -> Color:
+	var s := season_cont()
+	var a := int(floor(s)) % 4
+	var t := smoothstep(0.6, 1.0, s - floor(s))
+	return (anchors[a] as Color).lerp(anchors[(a + 1) % 4], t)
+
+
+func _blend_season_float(anchors: Array) -> float:
+	var s := season_cont()
+	var a := int(floor(s)) % 4
+	var t := smoothstep(0.6, 1.0, s - floor(s))
+	return lerpf(anchors[a], anchors[(a + 1) % 4], t)
+
+
+# ricalcola i fattori di grading di OGGI (una volta al giorno, non a frame)
+func _grade_season() -> void:
+	_g_sat = _blend_season_float(SEA_SAT)
+	_g_sun = _blend_season_color(SEA_SUN)
+	_g_sun_energy = _blend_season_float(SEA_SUN_ENERGY)
+	_g_skytop = _blend_season_color(SEA_SKYTOP)
+	_g_skyhor = _blend_season_color(SEA_SKYHOR)
+	_g_fog = _blend_season_color(SEA_FOG)
+	_g_fog_add = _blend_season_float(SEA_FOG_ADD)
+	_g_amb = _blend_season_color(SEA_AMB)
+
+
+## Ricalcola stagione, neve e grading dal giorno corrente. Se la stagione
+## è cambiata, avvisa il mondo (`broadcast`) perché si ridipinga.
+func _update_season(broadcast := true) -> void:
+	_snow = snow_amount()
+	RenderingServer.global_shader_parameter_set("snow_amount", _snow)
+	_grade_season()
+	var s := get_season()
+	if s != _season:
+		_season = s
+		season_changed.emit(s)
+		if broadcast:
+			_broadcast_season(true)
+
+
+# spinge la stagione a tutti gli ascoltatori (CozyWorld, GrandTree, Garden,
+# Ecosystem…): ognuno ridipinge i propri materiali. `transition` fa sfumare
+# il cambio con un tween, invece dello scatto secco al caricamento.
+func _broadcast_season(transition: bool) -> void:
+	for n in get_tree().get_nodes_in_group("season_listener"):
+		if n.has_method("set_season"):
+			n.set_season(_season, _snow, transition)
 
 
 func _process(delta: float) -> void:
@@ -239,8 +402,11 @@ func _apply() -> void:
 	_sun.rotation = Vector3(-(0.12 + 0.9 * maxf(elev, 0.0)), 1.5 - day_prog * 2.4, 0.0)
 	# (all'orizzonte ARANCIO dorato, mai rosso: i marroni caldi del mondo
 	# reggono l'arancio ma virano al rosso acceso con troppa poca G)
-	_sun.light_energy = smoothstep(-0.04, 0.18, elev) * 1.55 * (1.0 - 0.55 * g)
+	_sun.light_energy = smoothstep(-0.04, 0.18, elev) * 1.55 * (1.0 - 0.55 * g) * _g_sun_energy
 	_sun.light_color = Color(1.0, 0.70, 0.46).lerp(Color(1.0, 0.90, 0.72), clampf(elev * 2.2, 0.0, 1.0))
+	# la stagione intona la temperatura del sole: oro d'autunno, cristallo
+	# d'inverno — solo di giorno, per non spegnere l'arancio del tramonto
+	_sun.light_color = _sun.light_color.lerp(_g_sun, 0.32 * day_f)
 	_sun.shadow_enabled = elev > 0.02
 
 	# --- luna: sorge quando il sole tramonta ---
@@ -252,6 +418,10 @@ func _apply() -> void:
 	# --- cielo (con la pioggia scivola verso un grigio-lavanda gentile) ---
 	var hor := NIGHT_HORIZON.lerp(DAY_HORIZON, day_f).lerp(DUSK_GLOW, glow_bell * 0.75)
 	var top := NIGHT_TOP.lerp(DAY_TOP, day_f)
+	# la stagione intona il cielo di GIORNO (di notte resta il suo blu di
+	# sempre): azzurro alto d'estate, cielo pallido d'inverno
+	top = top.lerp(_g_skytop, 0.55 * day_f)
+	hor = hor.lerp(_g_skyhor, 0.5 * day_f)
 	top = top.lerp(Color(0.52, 0.56, 0.66) * maxf(day_f, 0.12), g)
 	hor = hor.lerp(Color(0.72, 0.73, 0.78) * maxf(day_f, 0.12), g)
 	_sky.set_shader_parameter("top_color", top)
@@ -276,6 +446,9 @@ func _apply() -> void:
 	# la ALZA e la ingrigisce: la luce piatta e senza ombre del nuvolo ---
 	var amb := AMB_NIGHT.lerp(AMB_DAY, day_f).lerp(AMB_DUSK, glow_bell * 0.55)
 	amb = amb.lerp(AMB_RAIN, g * 0.7)
+	# un soffio di stagione sulla luce d'ombra: tiepida d'autunno, gelida
+	# d'inverno (moltiplica, così i rapporti di colore restano quelli)
+	amb *= _g_amb
 	_env.ambient_light_color = amb
 	_env.ambient_light_energy = (0.30 + 0.38 * day_f) * (1.0 + 0.4 * g)
 
@@ -283,9 +456,14 @@ func _apply() -> void:
 	# così il tramonto tinge il MONDO e non solo il cielo ---
 	_env.fog_light_color = NIGHT_FOG.lerp(DAY_FOG, day_f) \
 			.lerp(DUSK_GLOW, glow_bell * 0.38) \
+			.lerp(_g_fog, 0.5 * day_f) \
 			.lerp(Color(0.68, 0.7, 0.76) * maxf(day_f, 0.15), g * 0.8)
-	_env.fog_density = 0.0012 + g * 0.0035
+	# la foschia si addensa d'autunno (aria ambrata) e d'inverno (velo
+	# bianco), si dirada d'estate
+	_env.fog_density = maxf(0.0005, 0.0012 + g * 0.0035 + _g_fog_add)
 	_env.glow_intensity = 0.22 + (1.0 - day_f) * 0.25
+	# il grado globale del quadro: estate vivida, inverno smorto e quieto
+	_env.adjustment_saturation = _g_sat
 
 	# --- stelle: si accendono quando il bagliore muore (e le nuvole coprono) ---
 	_stars_mat.albedo_color.a = clampf((1.0 - day_f) - glow_bell * 0.5, 0.0, 1.0) * 0.9 * (1.0 - g)

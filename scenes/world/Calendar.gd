@@ -12,10 +12,19 @@ extends Node3D
 const DNA_GEN := preload("res://scenes/npc/ChibiDNA.gd")
 const BUILDER := preload("res://scenes/npc/ChibiBuilder.gd")
 const CHIBIESE := preload("res://audio/Chibiese.gd")
+const FACE := preload("res://scenes/characters/FaceController.gd")
 
 const UI_BROWN := Color("6a4a3a")
 const CYCLE := 14          # i compleanni tornano ogni due settimane
 const MERCHANT_EVERY := 6
+
+# la stagione sulla lavagna: un colore di gessetto e un annuncio ciascuna
+const SEASON_CHALK := [Color(0.86, 0.98, 0.82, 0.92), Color(0.98, 0.95, 0.72, 0.92),
+		Color(0.99, 0.82, 0.6, 0.92), Color(0.82, 0.92, 1.0, 0.94)]
+const SEASON_TOAST := ["È arrivata la primavera: i ciliegi sono in fiore!",
+		"È arrivata l'estate: il prato è di un verde pieno!",
+		"È arrivato l'autunno: le foglie si accendono d'oro e di rame!",
+		"È arrivato l'inverno: la neve copre il villaggio!"]
 
 var _daynight: Node3D
 var _build: Node3D
@@ -28,11 +37,14 @@ var _sfx
 var _birthdays := {}
 var _merchant_day := 4
 var _party_done := {}
+var _last_season := -1
 
 # il mercante in visita
 var _merchant: Node3D
 var _merchant_voice := {}
 var _merchant_vp: AudioStreamPlayer3D
+var _merchant_face   # il volto vivo del mercante (ammicca, ti guarda, sorride)
+var _merchant_mood := "felice"
 var _stall: Node3D
 
 var _open := false
@@ -55,6 +67,8 @@ func _ready() -> void:
 		_mail = get_node_or_null("../../Mail")
 		if _daynight:
 			_daynight.day_changed.connect(_on_new_day)
+			if _daynight.has_method("get_season"):
+				_last_season = int(_daynight.get_season())
 		if _build and _build.has_signal("placed_changed"):
 			_build.connect("placed_changed", _refresh_board_cache)
 		_refresh_board_cache()
@@ -159,6 +173,12 @@ func throw_party(res_name: String, label: String, node: Node3D) -> void:
 
 func _on_new_day(day: int) -> void:
 	_refresh_boards()
+	# l'arrivo di una nuova stagione: un annuncio caldo sul villaggio
+	if _daynight and _daynight.has_method("get_season"):
+		var s := int(_daynight.get_season())
+		if s != _last_season:
+			_last_season = s
+			_toast(SEASON_TOAST[s])
 	# compleanni di oggi: cappellino a cono e annuncio
 	if _visitors:
 		for r in _visitors.get("_residents"):
@@ -232,6 +252,10 @@ func _refresh_boards() -> void:
 		_chalk[board] = chalk
 		board.add_child(chalk)
 		var lines: Array[Array] = [["· il calendario ·", Color(1, 1, 1, 0.92)]]
+		# la stagione in cima, col suo gessetto colorato
+		if _daynight and _daynight.has_method("season_name"):
+			var s := int(_daynight.get_season())
+			lines.append(["~ %s ~" % _daynight.season_name(), SEASON_CHALK[s]])
 		for res_name in _birthdays:
 			var b: Dictionary = _birthdays[res_name]
 			lines.append(["%s · G%d" % [str(res_name), next_birthday(str(res_name))],
@@ -473,7 +497,20 @@ func _refresh_panel() -> void:
 			"arriva il mercante"])
 	@warning_ignore("integer_division")
 	events.append([(today / 7 + 1) * 7, "compleanno del villaggio"])
+	# il prossimo cambio di stagione entra tra gli eventi in arrivo
+	if _daynight and _daynight.has_method("next_season_day"):
+		events.append([int(_daynight.next_season_day()), "una nuova stagione"])
 	events.sort_custom(func(a, b): return a[0] < b[0])
+	# in cima: la stagione di oggi e il giorno del mese (28 giorni = 1 anno)
+	if _daynight and _daynight.has_method("season_name"):
+		var hdr := Label.new()
+		@warning_ignore("integer_division")
+		var into := ((today - 1) % 28) + 1
+		hdr.text = "Stagione: %s   ·   giorno %d di 28" % [_daynight.season_name(), into]
+		hdr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		hdr.add_theme_font_size_override("font_size", 13)
+		hdr.add_theme_color_override("font_color", Color("8a5a3a"))
+		_rows.add_child(hdr)
 	for ev in events:
 		var row := Label.new()
 		var giorni := int(ev[0]) - today

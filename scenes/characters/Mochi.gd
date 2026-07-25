@@ -17,6 +17,7 @@ signal anomaly_ended
 
 const TOON_SHADER := preload("res://shaders/toon.gdshader")
 const BUILDER := preload("res://scenes/npc/ChibiBuilder.gd")
+const FACE := preload("res://scenes/characters/FaceController.gd")
 
 const FUR := Color("f7e6d0")
 const FUR_DARK := Color("e9cfae")
@@ -34,7 +35,6 @@ const ANOMALY_DURATION := 0.22
 @export var anomalies_enabled := false
 
 var _head: Node3D
-var _mouth: Node3D
 var _tail: Node3D
 var _tail_tip: Node3D
 var _wag_t := 0.0
@@ -42,12 +42,23 @@ var _shadow_blob: MeshInstance3D
 var _dust: GPUParticles3D
 var _ears: Array[Node3D] = []
 var _eyes: Array[Node3D] = []
+var _eyeballs: Array[MeshInstance3D] = []
+var _irises: Array[Node3D] = []
+var _happy: Array[Node3D] = []
+var _brows: Array[Node3D] = []
 var _arms: Array[Node3D] = []
 var _legs: Array[MeshInstance3D] = []
 var _squints: Array[Node3D] = []
 var _highlights: Array[MeshInstance3D] = []
 var _blushes: Array[MeshInstance3D] = []
 var _eye_mat: StandardMaterial3D
+
+# il volto vivo: sopracciglia, sguardo, espressioni fuse (vedi FaceController).
+# Volutamente non tipizzato: usiamo il preload FACE, così non dipendiamo dal
+# fatto che il class_name sia già nella cache globale (primo avvio pulito).
+var _face
+var _mouths := {}
+var _mouth_open: Node3D
 
 # L'autoload viene registrato a metà della prima scansione del filesystem,
 # quindi al primo avvio non è ancora visibile al parser: lo risolviamo a
@@ -64,7 +75,7 @@ var _tired := false
 var _droop := 0.0
 var _sweat: MeshInstance3D
 var _blowing := false
-var _mouth_o: MeshInstance3D
+var _disc_tex: Texture2D   # texture morbida della bollicina di bisogno (lazy)
 
 # posa corrente: "stand" | "sit" | "sleep"
 var _pose := "stand"
@@ -113,8 +124,6 @@ const LEG_POSES := {
 const POSE_LEAN := {"stand": 0.0, "sit": 0.12, "sleep": 0.95, "stargaze": 1.5, "soak": 0.06}
 
 var _t := 0.0
-var _next_blink := randf_range(2.0, 5.0)
-var _blink_t := -1.0
 var _next_twitch := randf_range(3.0, 8.0)
 var _twitch_t := -1.0
 var _twitch_ear: Node3D
@@ -130,6 +139,7 @@ func _ready() -> void:
 	_build_tail()
 	_build_contact_shadow()
 	_build_dust()
+	_setup_face()
 	_sfx = get_node_or_null(^"/root/Sfx")
 	_build_sys = get_tree().get_first_node_in_group("build_system")
 	# il Weather entra in scena dopo il Player: lookup rimandato a fine frame
@@ -238,6 +248,10 @@ func paw_world() -> Vector3:
 func wave() -> void:
 	if _hold_target == 0.0 and _wave_t > 1.5:
 		_wave_t = 0.0
+		# un guizzo lieto del sopracciglio accompagna il saluto
+		if _face:
+			_face.brow_flash(1.0)
+			_face.blink_now()
 
 
 ## Per la verifica CLI: forza la posa d'arrampicata (con fase animata).
@@ -248,33 +262,87 @@ func debug_climb(on: bool) -> void:
 
 
 ## Soffia sulla tazza: testa china, bocca a "o", occhi socchiusi dolci.
+## La faccia recita l'espressione "soffio" (la sceglie _update_face).
 func start_blowing() -> void:
 	_blowing = true
-	_mouth.visible = false
-	_mouth_o.visible = true
 
 
 func stop_blowing() -> void:
 	_blowing = false
-	_mouth.visible = true
-	_mouth_o.visible = false
-	for eye in _eyes:
-		eye.scale.y = 1.0
 
 
-## Guanciotte al massimo (per l'onsen): rosse e grandi il doppio.
+## Guanciotte al massimo (per l'onsen): il rossore extra si somma
+## all'espressione beata senza esserne sovrascritto.
 func set_blush_max(on: bool) -> void:
-	for b in _blushes:
-		b.scale = Vector3(1, 0.62, 0.3) * (1.55 if on else 1.0)
+	if _face:
+		_face.set_blush_boost(0.55 if on else 0.0)
 
 
-## Sfinita: goccia di sudore, orecchie basse, occhi a mezz'asta.
+## Sfinita: goccia di sudore, orecchie basse, occhi a mezz'asta (il musetto
+## assonnato lo mette _update_face leggendo _tired).
 func set_tired(on: bool) -> void:
 	_tired = on
 	_sweat.visible = on
-	if not on:
-		for eye in _eyes:
-			eye.scale.y = 1.0
+
+
+## Una bollicina di bisogno che sboccia sopra il musetto e sale fluttuando,
+## tinta come il ciondolo della HUD (acqua azzurra, fame rosa, energia verde):
+## così il personaggio e l'interfaccia parlano la stessa lingua di colori.
+## Riusa il pattern dei "z" del sonno (Sprite3D billboard che sale e svanisce).
+func emote_need(kind: String) -> void:
+	if not _head:
+		return
+	var tint: Color = {
+		"water": Color("a2d2ff"),
+		"hunger": Color("ffc8dd"),
+		"stamina": Color("b9fbc0"),
+	}.get(kind, Color("ffd5e0"))
+	var bubble := Sprite3D.new()
+	bubble.texture = _need_bubble_texture()
+	bubble.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	bubble.no_depth_test = true
+	bubble.pixel_size = 0.007
+	bubble.scale = Vector3.ONE * 0.6
+	bubble.modulate = Color(tint.r, tint.g, tint.b, 0.0)
+	bubble.position = _head.position + Vector3(randf_range(-0.12, 0.2), 0.5, -0.05)
+	add_child(bubble)
+	# entra con un pop, sale fluttuando alla deriva
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(bubble, "modulate:a", 0.95, 0.18)
+	tw.tween_property(bubble, "scale", Vector3.ONE * 1.12, 0.3) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(bubble, "position:y", bubble.position.y + 0.72, 1.7) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(bubble, "position:x", bubble.position.x + randf_range(-0.1, 0.16), 1.7) \
+			.set_trans(Tween.TRANS_SINE)
+	# la dissolvenza parte a metà volo, poi si congeda
+	var fade := create_tween()
+	fade.tween_interval(1.0)
+	fade.tween_property(bubble, "modulate:a", 0.0, 0.7).set_ease(Tween.EASE_IN)
+	fade.tween_callback(bubble.queue_free)
+
+
+# disco morbido (radiale) per la bollicina di bisogno, creato una volta sola
+func _need_bubble_texture() -> Texture2D:
+	if _disc_tex:
+		return _disc_tex
+	var tex := GradientTexture2D.new()
+	tex.width = 64
+	tex.height = 64
+	tex.fill = GradientTexture2D.FILL_RADIAL
+	tex.fill_from = Vector2(0.5, 0.5)
+	tex.fill_to = Vector2(0.5, 0.0)
+	var grad := Gradient.new()
+	grad.offsets = PackedFloat32Array([0.0, 0.55, 1.0])
+	grad.colors = PackedColorArray([
+		Color(1, 1, 1, 0.95),
+		Color(1, 1, 1, 0.5),
+		Color(1, 1, 1, 0.0),
+	])
+	tex.gradient = grad
+	_disc_tex = tex
+	return _disc_tex
 
 
 ## Il punto di aggancio per i capi del guardaroba: "testa" segue la
@@ -321,8 +389,6 @@ func set_pose(pose: String) -> void:
 	_shadow_blob.visible = pose == "stand"
 	if pose != "sleep":
 		_zzz_t = 0.0
-		for eye in _eyes:
-			eye.scale.y = 1.0
 
 
 # una "z" di carillon che sale fluttuando dalla testa e svanisce
@@ -503,21 +569,36 @@ func _build_head() -> void:
 	ahoge.rotation_degrees = Vector3(55, 10, -20)
 	_head.add_child(ahoge)
 
-	# occhioni lucidi
+	# occhioni lucidi. Struttura pensata per il volto vivo (FaceController):
+	# ogni occhio è un pivot con l'ellissoide scuro (apertura via scale.y) e
+	# un nodo "iride" che raccoglie le due luci — così lo sguardo le sposta
+	# insieme e la tenerezza le dilata.
 	_eye_mat = _flat_mat(EYE)
 	for side: float in [-1.0, 1.0]:
 		var eye := Node3D.new()
 		eye.position = Vector3(side * 0.155, 0.03, -0.355)
 		_head.add_child(eye)
-		_add_mesh(eye, _sphere(0.085, 24), _eye_mat, Vector3.ZERO, Vector3(1, 1.18, 0.55), false)
+		var ball := _add_mesh(eye, _sphere(0.085, 24), _eye_mat, Vector3.ZERO,
+				Vector3(1, 1.18, 0.55), false)
+		var iris := Node3D.new()
+		eye.add_child(iris)
 		# le luci sono DISCHI appoggiati sull'occhio, non palline sporgenti
-		var shine := _add_mesh(eye, _sphere(0.03, 12), _flat_mat(Color.WHITE),
+		var shine := _add_mesh(iris, _sphere(0.03, 12), _flat_mat(Color.WHITE),
 				Vector3(-0.028 * side, 0.038, -0.043), Vector3(1, 1, 0.35), false)
-		var sparkle := _add_mesh(eye, _sphere(0.013, 10), _flat_mat(Color("ffdce4")),
+		var sparkle := _add_mesh(iris, _sphere(0.013, 10), _flat_mat(Color("ffdce4")),
 				Vector3(0.03 * side, -0.028, -0.045), Vector3(1, 1, 0.35), false)
 		_eyes.append(eye)
+		_eyeballs.append(ball)
+		_irises.append(iris)
 		_highlights.append(shine)
 		_highlights.append(sparkle)
+		# l'arco "^^" della felicità piena (nascosto a riposo)
+		_happy.append(FACE.build_happy_arc(_head, _eye_mat,
+				Vector3(side * 0.155, 0.04, -0.362), side, 0.078))
+		# il sopracciglio: una barretta morbida sopra l'occhio — dove vive
+		# gran parte dell'emozione. Tono caldo del musetto, non nero duro.
+		_brows.append(FACE.build_brow(_head, _flat_mat(Color("6b4636")), side,
+				Vector3(side * 0.108, 0.185, -0.352), 0.088, 0.017))
 
 	# occhi ">.<" per la corsa: due chevron di capsule, nascosti a riposo
 	for side: float in [-1.0, 1.0]:
@@ -541,32 +622,13 @@ func _build_head() -> void:
 			Vector3(0.27, 0.12, -0.19), Vector3(0.8, 1.35, 0.8), false)
 	_sweat.visible = false
 
-	# bocca a "w": due archetti di perline scure, appoggiati sul musetto
-	_mouth = Node3D.new()
-	_mouth.position = Vector3(0, -0.1, -0.408)
-	_head.add_child(_mouth)
+	# il set completo di bocche morbide (neutra "w", sorriso, ghigno, o/O,
+	# broncio, triste, seria) più la cavità scura che si apre per parlare/
+	# ridere/stupirsi: il FaceController le sfuma e le anima.
 	var mouth_mat := _flat_mat(MOUTH)
-	for side: float in [-1.0, 1.0]:
-		for i in 7:
-			var a := PI + (float(i) / 6.0) * PI
-			_add_mesh(_mouth, _sphere(0.0085, 8), mouth_mat,
-					Vector3(side * 0.024 + cos(a) * 0.024, sin(a) * 0.024, 0),
-					Vector3.ONE, false)
-
-	# bocca a "o" per soffiare sulla tazza (nascosta a riposo)
-	var o_torus := TorusMesh.new()
-	o_torus.inner_radius = 0.012
-	o_torus.outer_radius = 0.028
-	o_torus.rings = 10
-	o_torus.ring_segments = 12
-	_mouth_o = MeshInstance3D.new()
-	_mouth_o.mesh = o_torus
-	_mouth_o.material_override = _flat_mat(MOUTH)
-	_mouth_o.position = Vector3(0, -0.1, -0.408)
-	_mouth_o.rotation.x = PI * 0.5
-	_mouth_o.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_mouth_o.visible = false
-	_head.add_child(_mouth_o)
+	_mouths = FACE.build_mouth_set(_head, mouth_mat, Vector3(0, -0.1, -0.408), 1.0)
+	_mouth_open = FACE.build_mouth_open(_head, _flat_mat(Color("3a1f1f")),
+			Vector3(0, -0.1, -0.404), 1.0)
 
 	# guanciotte
 	for side: float in [-1.0, 1.0]:
@@ -574,6 +636,24 @@ func _build_head() -> void:
 				Vector3(side * 0.265, -0.055, -0.3), Vector3(1, 0.62, 0.3), false)
 		blush.rotation.y = side * -0.55
 		_blushes.append(blush)
+
+
+# monta il "volto vivo" sulle parti facciali appena costruite
+func _setup_face() -> void:
+	_face = FACE.new()
+	_face.setup({
+		"head": _head,
+		"eyes": _eyes, "eyeballs": _eyeballs, "irises": _irises,
+		"happy": _happy, "squint": _squints, "brows": _brows,
+		"blush": _blushes, "mouths": _mouths, "mouth_open": _mouth_open,
+		"eye_base_scale": Vector3(1, 1.18, 0.55), "face_side": 0.28,
+	})
+
+
+## Congela l'ammicco per gli scatti ravvicinati del DebugHarness.
+func freeze_face(sec := 10.0) -> void:
+	if _face:
+		_face.freeze_blink(sec)
 
 
 func _build_tail() -> void:
@@ -738,13 +818,10 @@ func _process(delta: float) -> void:
 
 	# occhi ">.<" quando corre (con isteresi per non sfarfallare); da
 	# sfinita niente squint: arranca, non sfreccia
+	# lo stato di "sforzo" della corsa: il FaceController mostra i ">.<"
 	var squint_on := (speed > 4.6 or (_squinting and speed > 4.0)) and not _tired
-	if squint_on != _squinting and not is_anomalous():
+	if not is_anomalous():
 		_squinting = squint_on
-		for eye in _eyes:
-			eye.visible = not _squinting
-		for sq in _squints:
-			sq.visible = _squinting
 
 	var hop := absf(sin(_step)) * _walk
 
@@ -796,8 +873,6 @@ func _process(delta: float) -> void:
 		if _blowing:
 			# china sulla tazza, con un dondolio appena percettibile
 			_head.rotation = Vector3(0.3 + sin(_t * 2.4) * 0.03, 0, 0.02)
-			for eye in _eyes:
-				eye.scale.y = 0.55
 		elif _pose == "sleep":
 			# testa abbandonata sul cuscino, appena un fremito di sogno
 			_head.rotation = Vector3(0.14, sin(_t * 0.3) * 0.05, 0.04)
@@ -809,16 +884,11 @@ func _process(delta: float) -> void:
 				sin(_t * 0.8) * 0.045
 			)
 
-	_update_blink(delta)
 	_update_ear_twitch(delta)
 	# orecchie: sobbalzo del passo + eventuale twitch + stanchezza
 	_droop = lerpf(_droop, 0.55 if _tired else 0.0, 1.0 - exp(-6.0 * delta))
 	for ear in _ears:
 		ear.rotation.x = -hop * 0.22 + _droop + (_twitch_value if ear == _twitch_ear else 0.0)
-	# sfinita: occhi a mezz'asta (quando non sta sbattendo le palpebre)
-	if _tired and _blink_t < 0.0 and not _squinting and _pose != "sleep" and not is_anomalous():
-		for eye in _eyes:
-			eye.scale.y = 0.72
 	_update_anomaly(delta)
 
 	# --- pose da seduta / da sonno ---
@@ -1062,8 +1132,6 @@ func _process(delta: float) -> void:
 	if _pose == "sleep":
 		# respiro lento e profondo, occhi chiusi, sogni che salgono
 		position.y = sin(_t * 1.4) * 0.028
-		for eye in _eyes:
-			eye.scale.y = 0.1
 		_zzz_t += delta
 		if _zzz_t > 1.7:
 			_zzz_t = 0.0
@@ -1076,37 +1144,63 @@ func _process(delta: float) -> void:
 		# a mollo fino al musetto: occhi socchiusi beati, dondolio d'acqua
 		position.y = -0.4 + sin(_t * 1.1) * 0.022
 		_head.rotation = Vector3(-0.08 + sin(_t * 0.7) * 0.03, sin(_t * 0.4) * 0.1, 0)
-		if _blink_t < 0.0:
-			for eye in _eyes:
-				eye.scale.y = 0.55
+
+	# il volto vivo: scelgo l'espressione dallo stato e aggiorno il motore
+	# DOPO aver posato testa e corpo (così lo sguardo legge la testa finale)
+	_update_face(delta)
 
 
-func _update_blink(delta: float) -> void:
-	if is_anomalous() or _squinting or _pose == "sleep" or _blowing:
-		# niente sbattito di palpebre: occhi chiusi o... altro
-		if _blink_t >= 0.0:
-			# blink cancellato a metà: la scala torna piena, o gli occhi
-			# resterebbero socchiusi fino al prossimo blink (~5 s)
-			_blink_t = -1.0
-			for eye in _eyes:
-				eye.scale.y = 1.0
+# Sceglie l'espressione facciale dallo stato corrente e la passa al motore
+# del volto, che la fonde dolcemente e ci mette la vita (ammicco, sguardo,
+# micro-movimenti). Un solo punto di verità: niente più pokate sparse.
+func _update_face(delta: float) -> void:
+	if _face == null:
 		return
-	if _blink_t < 0.0:
-		_next_blink -= delta
-		if _next_blink <= 0.0:
-			_blink_t = 0.0
-			_next_blink = randf_range(2.2, 5.6)
-		return
-	_blink_t += delta
-	var p := _blink_t / 0.15
-	if p >= 1.0:
-		_blink_t = -1.0
-		for eye in _eyes:
-			eye.scale.y = 1.0
-		return
-	var closed := sin(p * PI)
-	for eye in _eyes:
-		eye.scale.y = 1.0 - closed * 0.92
+	if is_anomalous():
+		return   # durante l'anomalia il viso lo pilota _update_anomaly
+
+	var expr := "neutro"
+	var inten := 1.0
+	if _blowing:
+		expr = "soffio"
+	elif _pose == "sleep":
+		expr = "dorme"
+	elif _pose == "soak":
+		expr = "beato"
+	elif _pose == "stargaze":
+		expr = "meraviglia"
+	elif joy > 0.05:
+		expr = "gioia"
+		inten = clampf(joy, 0.35, 1.0)
+	elif _hold > 0.5 and _hold_pose == "letter":
+		# lettura: concentrata riga per riga, poi il sorrisino alla firma
+		expr = "felice" if smoothstep(0.9, 1.0, pour) > 0.5 else "concentrato"
+	elif _hold > 0.5 and _hold_pose in ["offer", "reach"]:
+		expr = "felice"
+	elif _tired:
+		expr = "assonnato"
+	elif _squinting:
+		expr = "sforzo"
+	elif _wave_t < 1.5:
+		expr = "felice"
+	elif _walk > 0.45:
+		expr = "felice"
+		inten = 0.45
+	_face.set_expression(expr, inten)
+
+	# lo sguardo: verso la camera durante il saluto (presenza), altrimenti
+	# vaga sognante — mai un laser puntato addosso in continuazione
+	if _wave_t < 1.5:
+		var vp := get_viewport()
+		var cam := vp.get_camera_3d() if vp else null
+		if cam:
+			_face.look_at_node(cam)
+		else:
+			_face.clear_gaze()
+	else:
+		_face.clear_gaze()
+
+	_face.update(delta)
 
 
 func _update_ear_twitch(delta: float) -> void:
@@ -1136,12 +1230,22 @@ func _update_anomaly(delta: float) -> void:
 		if _next_anomaly <= 0.0:
 			_anomaly_t = 0.0
 			_next_anomaly = randf_range(20.0, 45.0)
+			# il vuoto: occhi neri spalancati, niente luci, niente bocca
 			_eye_mat.albedo_color = EYE_VOID
 			for h in _highlights:
 				h.visible = false
-			_mouth.visible = false
-			for eye in _eyes:
-				eye.scale = Vector3(1.18, 1.25, 1.0)
+			for m in _mouths.values():
+				(m as Node3D).visible = false
+			if _mouth_open:
+				_mouth_open.visible = false
+			for i in _eyes.size():
+				_eyes[i].scale = Vector3(1.18, 1.25, 1.0)
+				if i < _eyeballs.size():
+					_eyeballs[i].visible = true
+				if i < _happy.size():
+					_happy[i].visible = false
+				if i < _squints.size():
+					_squints[i].visible = false
 			anomaly_started.emit()
 		return
 
@@ -1156,10 +1260,11 @@ func _update_anomaly(delta: float) -> void:
 	if _anomaly_t >= duration:
 		_anomaly_t = -1.0
 		_anomaly_duration_override = -1.0
+		# torna tutto: bocca e forme degli occhi le ripristina da sé il
+		# prossimo _face.update (quando non è più anomala)
 		_eye_mat.albedo_color = EYE
 		for h in _highlights:
 			h.visible = true
-		_mouth.visible = true
 		for eye in _eyes:
 			eye.scale = Vector3.ONE
 		anomaly_ended.emit()
