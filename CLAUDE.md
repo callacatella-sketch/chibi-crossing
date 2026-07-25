@@ -147,15 +147,22 @@ Test-suite **dependency-free** (nessun addon, nessuna rete) in `tests/`:
 C++ (`SurvivalComponent`, `GridManager`, `PlayerController`, `EcosystemManager`)
 e la logica pura GDScript (`ChibiDNA`, funzioni matematiche di `CozyWorld`).
 
-- **In locale** (col Godot in `~/Downloads`):
+- **In locale** (col Godot in `~/Downloads`): serve prima un import per
+  registrare le GDExtension (vedi sotto), poi:
   ```
+  Godot --headless --path . --import
   Godot --headless --path . --script res://tests/test_runner.gd
   ```
   Esce con codice 0 (tutti passati) o 1 (fallimenti). Il runner **salta** gli
   script con errori di parse senza appendersi.
-- **In CI**: [`.github/workflows/tests.yml`](.github/workflows/tests.yml) compila
-  il cuore C++ per Linux (i binari non sono versionati) e poi esegue la suite a
-  ogni push.
+- **`--import` è obbligatorio prima dei test**: in modalità `--script` Godot
+  carica le GDExtension (cuore C++ chibi + addon lua) SOLO se esiste la cache
+  `.godot/extension_list.cfg`, che è gitignored; l'import la (ri)genera. Senza,
+  nessuna classe C++ risulta registrata (lo smoke test lo rileva).
+- **In CI**: [`.github/workflows/tests.yml`](.github/workflows/tests.yml) gira su
+  **macOS** (non Linux: i binari dell'addon lua sono committati solo per
+  macOS/Windows), compila il cuore C++, fa `--import` e poi esegue la suite. I
+  trigger sono ristretti (i runner macOS costano 10×).
 - Convenzioni per nuovi test: file `tests/cases/test_<area>.gd`, `extends
   RefCounted`, niente `add_child` all'albero (le classi C++ si creano con
   `.new()` e si liberano con `.free()`); usa `var x = ...` (non `:=`) quando il
