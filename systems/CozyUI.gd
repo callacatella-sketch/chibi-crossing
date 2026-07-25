@@ -87,6 +87,9 @@ static func backdrop() -> ColorRect:
 
 
 static func fade_to(r: ColorRect, a: float, dur := 0.3) -> void:
+	if not r.is_inside_tree():
+		r.color.a = a   # robusto: se il nodo non è ancora nell'albero, niente tween
+		return
 	var t := r.create_tween()
 	t.tween_property(r, "color:a", a, dur).set_trans(Tween.TRANS_SINE)
 
@@ -179,18 +182,29 @@ static func _pad(sb: StyleBoxFlat, h: float, v: float) -> void:
 	sb.content_margin_bottom = v
 
 
+# un solo tween di scala per bottone alla volta: quello vecchio si uccide, così
+# hover ed exit ravvicinati non lasciano il bottone incastrato a 1.05
+static func _btween(b: Button) -> Tween:
+	var old = b.get_meta("_hovtw", null)
+	if old is Tween and (old as Tween).is_valid():
+		(old as Tween).kill()
+	var t := b.create_tween()
+	b.set_meta("_hovtw", t)
+	return t
+
+
 static func _animate_button(b: Button) -> void:
 	b.mouse_entered.connect(func() -> void:
 		var sfx := b.get_node_or_null(^"/root/Sfx")
 		if sfx: sfx.call("play", "tick", -24.0, 1.35)
 		if _reduced(b): return
 		b.pivot_offset = b.size * 0.5
-		var t := b.create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		var t := _btween(b).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		t.tween_property(b, "scale", Vector2(1.05, 1.05), 0.14))
 	b.mouse_exited.connect(func() -> void:
 		if _reduced(b): return
 		b.pivot_offset = b.size * 0.5
-		var t := b.create_tween().set_trans(Tween.TRANS_SINE)
+		var t := _btween(b).set_trans(Tween.TRANS_SINE)
 		t.tween_property(b, "scale", Vector2.ONE, 0.14))
 	b.pressed.connect(func() -> void:
 		var sfx := b.get_node_or_null(^"/root/Sfx")
@@ -198,7 +212,7 @@ static func _animate_button(b: Button) -> void:
 		if _reduced(b): return
 		b.pivot_offset = b.size * 0.5
 		var hovered := b.get_global_rect().has_point(b.get_global_mouse_position())
-		var t := b.create_tween()
+		var t := _btween(b)
 		t.tween_property(b, "scale", Vector2(0.95, 0.95), 0.06)
 		t.tween_property(b, "scale", Vector2(1.05, 1.05) if hovered else Vector2.ONE, 0.12) \
 				.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT))

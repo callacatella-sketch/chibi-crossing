@@ -1351,7 +1351,9 @@ func _hook_economy() -> void:
 	var eco := _economy()
 	if eco and eco.has_signal("shop_changed") and not eco.shop_changed.is_connected(_on_shop_changed):
 		eco.shop_changed.connect(_on_shop_changed)
-	_update_variant_bar()
+	# recupera lo stato caricato dopo _load_village: i pezzi già comprati
+	# devono comparire nel catalogo (la riga era stata costruita con eco vuota)
+	_on_shop_changed()
 
 
 # comprato qualcosa: rinfresca la fila dei pezzi (nuovi sblocchi) e i colori

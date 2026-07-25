@@ -311,12 +311,12 @@ func _ask_new() -> void:
 		return
 	_confirm = _build_confirm()
 	_ui.add_child(_confirm)
+	CozyUI.fade_to(_confirm, 0.5, 0.25)   # dopo l'add_child: il tween ha l'albero
 	CozyUI.appear(_confirm, 0.3)
 
 
 func _build_confirm() -> Control:
 	var dim := CozyUI.backdrop()
-	CozyUI.fade_to(dim, 0.5, 0.25)
 	var center := CozyUI.center_root()
 	dim.add_child(center)
 	var panel := PanelContainer.new()

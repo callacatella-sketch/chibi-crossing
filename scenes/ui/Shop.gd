@@ -33,7 +33,8 @@ func _ready() -> void:
 	_sfx = get_node_or_null(^"/root/Sfx")
 	_build_ui()
 	(func() -> void:
-		_player = get_node_or_null("%Player")
+		# %Player non si risolve dai nodi creati a runtime (owner null): gruppo
+		_player = get_tree().get_first_node_in_group("player_controller")
 		_economy = get_tree().get_first_node_in_group("economy")
 		_collection = get_node_or_null("../Collection")
 		_cooking = get_node_or_null("../Cooking")

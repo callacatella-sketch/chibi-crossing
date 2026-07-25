@@ -24,7 +24,8 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_sfx = get_node_or_null(^"/root/Sfx")
 	_build_ui()
-	(func(): _player = get_node_or_null("%Player")).call_deferred()
+	# %Player non si risolve dai nodi creati a runtime (owner null): uso il gruppo
+	(func(): _player = get_tree().get_first_node_in_group("player_controller")).call_deferred()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -74,6 +75,8 @@ func _resume() -> void:
 
 
 func _finish_resume() -> void:
+	if _shown:
+		return   # riaperto durante la dissolvenza: lascialo aperto e in pausa
 	_ui.visible = false
 	get_tree().paused = false
 
