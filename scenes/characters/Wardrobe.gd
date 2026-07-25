@@ -138,6 +138,9 @@ func _pm(a: Color, b: Color, grain := 5.0, amount := 0.5) -> ShaderMaterial:
 	mat.set_shader_parameter("color_b", b)
 	mat.set_shader_parameter("noise_scale", grain)
 	mat.set_shader_parameter("noise_amount", amount)
+	# gli accessori indossati non si coprono di neve d'inverno (i vestiti
+	# di Mochi restano suoi: la neve è del mondo, non dei personaggi)
+	mat.set_shader_parameter("no_snow", true)
 	return mat
 
 

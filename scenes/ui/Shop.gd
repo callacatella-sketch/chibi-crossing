@@ -70,8 +70,12 @@ func close() -> void:
 	if _player and _player.has_method("set_physics_process"):
 		_player.set_physics_process(true)
 	CozyUI.fade_to(_backdrop, 0.0, 0.22)
-	CozyUI.dismiss(_panel, func(): _ui.visible = false, 0.2)
+	CozyUI.dismiss(_panel, _hide_ui, 0.2)
 	if _sfx: _sfx.build_close()
+
+
+func _hide_ui() -> void:
+	_ui.visible = false
 
 
 func _unhandled_input(event: InputEvent) -> void:

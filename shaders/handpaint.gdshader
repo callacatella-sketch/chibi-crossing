@@ -22,6 +22,9 @@ uniform float translucency : hint_range(0.0, 1.0) = 0.0;
 // tetti, tumuli dell'orto. Un solo globale pilota l'intera nevicata
 // (come mochi_pos/erba_bagnata), acceso dal regista delle stagioni.
 global uniform float snow_amount;
+// il mondo si copre di neve, i personaggi no: il guardaroba di Mochi
+// (cappelli, sciarpe, l'impermeabile) alza questo flag per non innevarsi
+uniform bool no_snow = false;
 
 varying vec3 v_pos;
 // la componente verticale della normale in spazio-mondo: quanto una
@@ -74,7 +77,7 @@ void fragment() {
 	// si posa sulle facce rivolte al cielo, a chiazze irregolari (un fbm
 	// rompe il bordo: cumuli, non un velo uniforme); più il globale sale,
 	// più il manto bianco scende lungo i fianchi delle chiome
-	if (snow_amount > 0.001) {
+	if (snow_amount > 0.001 && !no_snow) {
 		float drift = fbm(v_pos.xz * 2.3 + v_pos.y * 0.6 + 5.0) - 0.5;
 		float cover = smoothstep(0.28, 0.72, clamp(v_up, 0.0, 1.0) + drift * 0.4) * snow_amount;
 		vec3 snow_col = vec3(0.95, 0.965, 1.0);

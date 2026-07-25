@@ -214,8 +214,11 @@ func next_season_day() -> int:
 ## d'inverno, si scioglie negli ultimi giorni prima della primavera.
 func snow_amount() -> float:
 	var s := season_cont()
-	var acc := smoothstep(2.8, 3.2, s)     # la prima nevicata, a fine autunno
-	var melt := smoothstep(3.6, 4.0, s)    # il disgelo, verso la primavera
+	var acc := smoothstep(2.8, 3.2, s)      # la prima nevicata, a fine autunno
+	# il disgelo: completo entro l'ULTIMO giorno d'inverno (s arriva solo a
+	# 27/7≈3.857 prima di richiudersi a primavera), così la neve svanisce
+	# piano invece di sparire di colpo al cambio d'anno
+	var melt := smoothstep(3.55, 3.87, s)
 	return clampf(acc - melt, 0.0, 1.0)
 
 

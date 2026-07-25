@@ -2099,7 +2099,10 @@ func _build_cliff() -> void:
 		dts.append(Transform3D(
 				Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.9, 1.2)),
 				Vector3(_cliff_x(dz) + rng.randf_range(0.7, 2.6), CLIFF_H, dz)))
-	_scatter_exact(daisy, dts, false)
+	# anche le margherite della scogliera spariscono sotto la neve d'inverno
+	var cliff_daisies := _scatter_exact(daisy, dts, false)
+	if cliff_daisies:
+		_flower_fields.append(cliff_daisies)
 
 	# la parete è roccia vera: non ci si arrampica. I box seguono il
 	# TANGENTE della parete (vicino alla cascata corre in diagonale)
@@ -2532,8 +2535,13 @@ func _build_east_bank(rng: RandomNumberGenerator) -> void:
 			lts.append(tf)
 		else:
 			dts.append(tf)
-	_scatter_exact(daisy, dts, false)
-	_scatter_exact(lav, lts, false)
+	# le margherite e la lavanda della riva seguono lo stesso destino invernale
+	var bank_daisies := _scatter_exact(daisy, dts, false)
+	if bank_daisies:
+		_flower_fields.append(bank_daisies)
+	var bank_lav := _scatter_exact(lav, lts, false)
+	if bank_lav:
+		_flower_fields.append(bank_lav)
 
 	# due alberi di riva, coi piedi nel prato
 	_make_tree(Vector3(_river_x(9.5) + 6.4, 0, 9.5), 0.95,

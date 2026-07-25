@@ -17,6 +17,9 @@ const EXHAUSTED_RUN_SPEED := 1.7
 const NORMAL_RUN_SPEED := 6.0
 const RECOVERY_FRACTION := 0.35
 
+# moltiplicatore velocità dalle Impostazioni ("Velocità di Mochi")
+var _speed_scale := 1.0
+
 var _mochi: Node
 # quali bisogni sono nel critico adesso: se anche solo uno lo è (o Mochi è
 # sfinita), il musetto si affloscia — la faccia racconta lo stato peggiore
@@ -40,6 +43,15 @@ func _ready():
 	player.floor_max_angle = deg_to_rad(72.0)
 	player.floor_snap_length = 0.5
 
+	# --- economia gentile + menu (istanziati da codice: non tocco la scena) ---
+	player.add_to_group("player_controller")
+	add_child(_spawn_system("res://scenes/ui/Economy.gd", "Economy"))
+	add_child(_spawn_system("res://scenes/ui/Shop.gd", "Shop"))
+	add_child(_spawn_system("res://scenes/ui/PauseMenu.gd", "PauseMenu"))
+	var settings := get_node_or_null(^"/root/Settings")
+	if settings:
+		settings.apply_to_player(player)
+
 	if OS.get_environment("CHIBI_SHOT") != "":
 		_start_debug_harness("shot", OS.get_environment("CHIBI_SHOT"))
 	elif OS.get_environment("CHIBI_MAKESAVE") != "":
@@ -48,11 +60,11 @@ func _ready():
 func _on_stamina_changed(value: float, max_value: float):
 	if value <= 0.5 and not _exhausted:
 		_exhausted = true
-		player.run_speed = EXHAUSTED_RUN_SPEED
+		player.run_speed = EXHAUSTED_RUN_SPEED * _speed_scale
 		_refresh_tired()
 	elif _exhausted and value >= max_value * RECOVERY_FRACTION:
 		_exhausted = false
-		player.run_speed = NORMAL_RUN_SPEED
+		player.run_speed = NORMAL_RUN_SPEED * _speed_scale
 		_refresh_tired()
 
 # la HUD ci dice quando un bisogno cambia fascia (0 sereno · 1 basso · 2 critico)
@@ -72,6 +84,18 @@ func _refresh_tired():
 		return
 	var tired: bool = _exhausted or _need_crit["water"] or _need_crit["hunger"] or _need_crit["stamina"]
 	_mochi.set_tired(tired)
+
+
+## Le Impostazioni cambiano la velocità di Mochi: riscala la corsa corrente.
+func set_speed_scale(s: float) -> void:
+	_speed_scale = maxf(0.1, s)
+	player.run_speed = (EXHAUSTED_RUN_SPEED if _exhausted else NORMAL_RUN_SPEED) * _speed_scale
+
+
+func _spawn_system(path: String, node_name: String) -> Node:
+	var n := (load(path) as GDScript).new()
+	n.name = node_name
+	return n
 
 
 # ------------------------------------------------------------------ debug CLI

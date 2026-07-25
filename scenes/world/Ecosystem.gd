@@ -46,7 +46,13 @@ func _ready() -> void:
 		_garden = get_node_or_null("../../Garden")
 		_build = get_tree().get_first_node_in_group("build_system")
 		if _daynight and _daynight.has_signal("day_changed"):
-			_daynight.day_changed.connect(_on_day_changed)).call_deferred()
+			_daynight.day_changed.connect(_on_day_changed)
+		# l'Ecosystem nasce differito, DENTRO la costruzione del bosco: quando
+		# arriva qui il regista ha già diffuso la stagione a un gruppo di cui
+		# non facevamo ancora parte. Ci auto-inizializziamo dal DayNight, o un
+		# salvataggio non-primaverile terrebbe la fauna coi colori di primavera
+		if _daynight and _daynight.has_method("get_season"):
+			set_season(int(_daynight.get_season()), float(_daynight.snow_amount()), false)).call_deferred()
 
 
 # metodo, non lambda: la disconnessione è automatica se il nodo muore
