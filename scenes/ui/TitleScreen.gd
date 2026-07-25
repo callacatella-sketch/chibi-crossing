@@ -102,9 +102,9 @@ func _build_world() -> void:
 		add_child(f)
 
 	# --- Mochi, seduta sotto l'albero, rivolta alla camera ---
-	var mochi_scene := load("res://scenes/characters/Mochi.tscn")
+	var mochi_scene: PackedScene = load("res://scenes/characters/Mochi.tscn")
 	if mochi_scene:
-		var mochi := mochi_scene.instantiate()
+		var mochi := mochi_scene.instantiate() as Node3D
 		mochi.position = Vector3(-0.5, 0.0, 0.2)
 		mochi.rotation.y = -0.5
 		mochi.scale = Vector3(0.95, 0.95, 0.95)

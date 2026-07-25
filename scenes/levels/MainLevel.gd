@@ -93,7 +93,7 @@ func set_speed_scale(s: float) -> void:
 
 
 func _spawn_system(path: String, node_name: String) -> Node:
-	var n := (load(path) as GDScript).new()
+	var n: Node = (load(path) as GDScript).new()
 	n.name = node_name
 	return n
 

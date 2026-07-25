@@ -251,6 +251,9 @@ func load_extra(data: Dictionary) -> void:
 
 
 func _save() -> void:
-	var bs := get_tree().get_first_node_in_group("build_system")
+	var tree := get_tree()
+	if tree == null:
+		return
+	var bs := tree.get_first_node_in_group("build_system")
 	if bs and bs.has_method("_save_village"):
 		bs._save_village()

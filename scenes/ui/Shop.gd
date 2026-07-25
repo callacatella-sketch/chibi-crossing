@@ -229,10 +229,10 @@ func _sell_row(r: Dictionary) -> Control:
 	card.add_child(h)
 
 	h.add_child(_dot(_economy.KIND_COLOR.get(r["kind"], CozyUI.PINK)))
-	var name := CozyUI.body_label("%s  ×%d" % [_economy.label_for(r["kind"]), r["count"]], 17)
-	name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	h.add_child(name)
+	var lbl := CozyUI.body_label("%s  ×%d" % [_economy.label_for(r["kind"]), r["count"]], 17)
+	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	h.add_child(lbl)
 
 	h.add_child(_price_chip(int(r["value"]), "nut", "cad."))
 
@@ -323,10 +323,10 @@ func _variant_row(v: Dictionary) -> Control:
 	card.add_child(h)
 
 	h.add_child(_dot(v.get("tint", CozyUI.PINK), 30))
-	var name := CozyUI.body_label(str(v["label"]), 18, CozyUI.TITLE)
-	name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	h.add_child(name)
+	var lbl := CozyUI.body_label(str(v["label"]), 18, CozyUI.TITLE)
+	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	h.add_child(lbl)
 
 	var cur := str(v.get("cur", "nut"))
 	h.add_child(_price_chip(int(v["cost"]), cur, ""))
@@ -353,7 +353,7 @@ func _buy_variant(v: Dictionary) -> void:
 
 
 func _buy_button(cost: int, cur: String, cb: Callable) -> Button:
-	var afford := _economy.can_afford(cost, cur)
+	var afford: bool = _economy.can_afford(cost, cur)
 	var b := CozyUI.cozy_button("Compra", CozyUI.PINK if afford else CozyUI.DANGER, 15)
 	b.custom_minimum_size = Vector2(110, 44)
 	b.disabled = not afford

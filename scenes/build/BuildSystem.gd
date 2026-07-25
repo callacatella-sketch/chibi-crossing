@@ -1410,8 +1410,8 @@ func _update_variant_bar() -> void:
 	if _variant_bar == null or _variant_row == null:
 		return
 	var eco := _economy()
-	var piece := str(_items[_index]["name"]) if _index < _items.size() else ""
-	var takes := eco != null and eco.piece_takes_variant(piece)
+	var piece: String = str(_items[_index]["name"]) if _index < _items.size() else ""
+	var takes: bool = eco != null and eco.piece_takes_variant(piece)
 	var owned: Array = eco.owned_variants() if eco else []
 	if not (_active and takes and not owned.is_empty()):
 		_variant_bar.visible = false
