@@ -5,6 +5,13 @@
 # output dell'export del gioco (creato dalla CI release.yml, non va committato)
 /build/
 
+# binari nativi della GDExtension (il "cuore" C++): NON versionati.
+# Si producono con uno `scons` locale (macOS/Linux) o si scaricano come artifact
+# dalla CI build.yml (Windows). Un clone pulito ricompila prima di aprire Godot.
+/bin/*.dll
+/bin/*.dylib
+/bin/*.lib
+
 # cache e artefatti di compilazione (SCons / GDExtension C++)
 .sconsign.dblite
 *.obj

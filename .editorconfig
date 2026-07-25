@@ -2,3 +2,24 @@ root = true
 
 [*]
 charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Godot (GDScript, scene, risorse, config) usa i TAB per l'indentazione.
+[*.{gd,tscn,tres,godot,cfg,gdextension,import}]
+indent_style = tab
+
+# Sorgenti C++ del "cuore" (GDExtension).
+[*.{cpp,h,hpp}]
+indent_style = tab
+indent_size = 4
+
+# File YAML della CI: spazi.
+[*.{yml,yaml}]
+indent_style = space
+indent_size = 2
+
+[*.md]
+indent_style = space
+trim_trailing_whitespace = false

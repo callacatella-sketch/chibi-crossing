@@ -76,22 +76,24 @@ lavora da Mac.
 Lo sviluppatore **non possiede un PC Windows**: la `.dll` di Windows si ottiene
 in cloud. Il workflow [`.github/workflows/build.yml`](.github/workflows/build.yml)
 compila il cuore C++ su **Windows (MSVC reale)** e **macOS (universale)** e
-**ricommitta i binari in `bin/`**.
+pubblica i binari come **artifact scaricabili** dal run.
 
+- **I binari NON sono versionati** nel repo: `bin/*.dll`, `bin/*.dylib`,
+  `bin/*.lib` sono in `.gitignore`. In locale si producono con `scons`
+  (macOS/Linux), la `.dll` Windows si scarica dagli artifact di questo workflow,
+  e per le release li ricostruisce `release.yml`. **Un clone pulito deve
+  ricompilare il cuore prima di aprire Godot** (altrimenti la GDExtension non si
+  carica: schermo grigio con la sola musica).
 - Si attiva sui push a `main` che toccano `src/**`, `SConstruct`,
   `chibi_crossing.gdextension` o il workflow stesso; oppure a mano da
   *Actions → Run workflow* (`workflow_dispatch`).
-- Un job `build` (matrice Windows/macOS) compila debug+release e carica gli
-  artifact; un job `commit` li scarica e li ricommitta in `bin/` con messaggio
-  `[skip ci]`.
-- **Due scrittori su `main`** (l'hook di backup locale + la CI): sono
-  riconciliati automaticamente. La CI fa `pull --rebase` con retry; l'hook
-  [`git-backup.sh`](.claude/hooks/git-backup.sh) fa `pull --rebase` e riprova il
-  push quando il remoto è avanti. Dopo che la CI ha girato, in locale conviene
-  comunque un `git pull` per avere subito i binari aggiornati.
 - Non serve più compilare Windows a mano. Per verificare le modifiche al
   `SConstruct` (ramo `win32`) basta lasciar girare la CI e guardare il log del
-  job *Compila (windows)*.
+  job *Compila (windows)*, poi scaricare l'artifact `bin-windows` se serve la DLL.
+- Nota: l'hook di backup [`git-backup.sh`](.claude/hooks/git-backup.sh) fa
+  comunque `pull --rebase` prima del push (rete di sicurezza se il remoto è
+  avanti, es. per un push manuale o la release); ora che i binari non vengono
+  più committati dalla CI, i conflitti di push sono molto più rari.
 
 ## Release firmate/notarizzate (Windows + macOS)
 

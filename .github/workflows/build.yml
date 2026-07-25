@@ -1,12 +1,11 @@
-name: Build multipiattaforma del cuore C++
+name: Build del cuore C++ (Windows + macOS)
 
-# Compila la GDExtension C++ (il "cuore") su Windows e macOS usando i runner
-# di GitHub, cosi' non serve possedere un PC Windows. I binari prodotti vengono
-# ricommittati automaticamente in bin/ (vedi il job "commit").
+# Verifica che la GDExtension C++ (il "cuore") compili su Windows e macOS e
+# pubblica i binari come artifact SCARICABILI dal run.
 #
-# Si attiva quando cambiano i sorgenti C++ o la configurazione di build; non si
-# riattiva sui propri commit di soli binari (paths esclude bin/, + [skip ci], +
-# i push fatti col GITHUB_TOKEN non innescano altri workflow).
+# I binari NON sono versionati nel repo (vedi .gitignore): in locale si producono
+# con `scons` (macOS/Linux), per le release li ricostruisce release.yml, e la
+# .dll di Windows si scarica da qui (non essendoci un PC Windows).
 
 on:
   push:
@@ -19,15 +18,9 @@ on:
       - '.github/workflows/build.yml'
   workflow_dispatch: {}
 
-# Non far girare due build sovrapposte sullo stesso ref (eviterebbe commit di
-# binari in conflitto). Non annulliamo quella in corso: la lasciamo finire.
 concurrency:
   group: build-${{ github.ref }}
-  cancel-in-progress: false
-
-# Serve per far ricommittare i binari col GITHUB_TOKEN.
-permissions:
-  contents: write
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -75,46 +68,3 @@ jobs:
           name: bin-${{ matrix.name }}
           path: ${{ matrix.artifacts }}
           if-no-files-found: error
-
-  commit:
-    name: Ricommitta i binari in bin/
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout main
-        uses: actions/checkout@v4
-        with:
-          ref: main
-
-      - name: Scarica tutti gli artifact
-        uses: actions/download-artifact@v4
-        with:
-          pattern: bin-*
-          path: artifacts
-
-      - name: Copia i binari freschi in bin/
-        run: |
-          mkdir -p bin
-          find artifacts -type f -exec cp -f {} bin/ \;
-
-      - name: Commit & push (solo se cambiano)
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add bin/
-          if git diff --cached --quiet; then
-            echo "Nessun binario cambiato: niente da committare."
-            exit 0
-          fi
-          git commit -m "ci: binari multipiattaforma aggiornati (Windows + macOS) [skip ci]"
-          # Riprova in caso il backup automatico locale abbia spinto nel frattempo.
-          for i in 1 2 3 4 5; do
-            if git pull --rebase origin main && git push origin HEAD:main; then
-              echo "Binari pushati su main."
-              exit 0
-            fi
-            echo "Push rifiutato (main avanzato), riprovo tra poco..."
-            sleep 4
-          done
-          echo "::error::Push dei binari fallito dopo piu' tentativi."
-          exit 1
