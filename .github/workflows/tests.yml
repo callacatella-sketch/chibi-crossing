@@ -12,7 +12,11 @@ name: Test (GDScript + C++)
 # gitignored; l'import la (ri)genera, cosi' le classi C++ risultano registrate.
 #
 # Trigger mirati (i runner macOS costano 10x e i backup automatici sono
-# frequenti): solo quando cambia il codice realmente coperto dai test.
+# frequenti), ma non TROPPO mirati: i test caricano l'intero progetto, quindi
+# qualunque script di gioco può romperli. Elencare i singoli file (com'era:
+# solo CozyWorld.gd e ChibiDNA.gd) lasciava scoperti 14 dei 16 script coperti
+# dalla suite — e i loro fallimenti arrivavano solo a valle. Si filtra per
+# CARTELLA: se cambia del codice, la suite gira.
 
 on:
   push:
@@ -20,8 +24,10 @@ on:
     paths:
       - 'src/**'
       - 'tests/**'
-      - 'scenes/world/CozyWorld.gd'
-      - 'scenes/npc/ChibiDNA.gd'
+      - 'scenes/**'
+      - 'systems/**'
+      - 'audio/**'
+      - 'shaders/**'
       - 'SConstruct'
       - 'project.godot'
       - 'chibi_crossing.gdextension'

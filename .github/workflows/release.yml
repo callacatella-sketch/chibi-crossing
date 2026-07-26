@@ -19,14 +19,61 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   # Deve combaciare con la versione in project.godot (config/features "4.7").
   GODOT_VERSION: 4.7.1
 
 jobs:
   # ---------------------------------------------------------------------------
+  # Controlli in 10 secondi su un runner gratuito: se la configurazione non
+  # torna, il tag fallisce SUBITO invece che dopo venti minuti di compilazione
+  # (e senza bruciare i runner macOS, che costano 10x).
+  preflight:
+    name: Controlli preliminari
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: La versione di Godot combacia con project.godot?
+        shell: bash
+        run: |
+          set -euo pipefail
+          attesa="$(grep -o 'config/features=PackedStringArray("[0-9]\+\.[0-9]\+"' project.godot \
+                    | grep -o '[0-9]\+\.[0-9]\+')"
+          echo "project.godot chiede Godot $attesa · il workflow usa $GODOT_VERSION"
+          case "$GODOT_VERSION" in
+            "$attesa".*|"$attesa") ;;
+            *) echo "::error::GODOT_VERSION ($GODOT_VERSION) non combacia con project.godot ($attesa): l'export userebbe export templates della versione sbagliata. Allinea env.GODOT_VERSION in questo workflow."; exit 1 ;;
+          esac
+
+      - name: Ci sono i preset di export attesi?
+        shell: bash
+        run: |
+          set -euo pipefail
+          for preset in "Windows Desktop" "macOS"; do
+            grep -q "^name=\"$preset\"$" export_presets.cfg \
+              || { echo "::error::Manca il preset di export \"$preset\" in export_presets.cfg (l'export lo cerca per nome esatto)."; exit 1; }
+            echo "preset trovato: $preset"
+          done
+
+      - name: L'export macOS ha quel che gli serve?
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q '^textures/vram_compression/import_etc2_astc=true' project.godot \
+            || { echo "::error::In project.godot manca import_etc2_astc=true: senza, l'export macOS universale fallisce."; exit 1; }
+          test -f misc/macos_entitlements.plist \
+            || { echo "::error::Manca misc/macos_entitlements.plist, richiesto dalla firma macOS."; exit 1; }
+          echo "ETC2/ASTC abilitato ed entitlement presenti"
+
+  # ---------------------------------------------------------------------------
   windows:
     name: Export Windows (.exe firmato)
+    needs: preflight
     runs-on: windows-latest
     env:
       # Secret di Azure Trusted Signing (vuoti finche' non li carichi -> firma saltata).
@@ -50,9 +97,16 @@ jobs:
       - name: Installa SCons
         run: python -m pip install --upgrade pip scons
 
-      - name: Compila il cuore C++ (release)
+      # ENTRAMBI i target, non solo release: chibi_crossing.gdextension mappa
+      # anche la voce *.debug, ed e' QUELLA che carica l'eseguibile EDITOR di
+      # Godot usato qui sotto per l'import e l'export. Senza, la GDExtension non
+      # si carica, le classi del cuore C++ non risultano registrate e il gioco
+      # esportato parte senza camera (lo "schermo grigio con la sola musica").
+      - name: Compila il cuore C++ (debug + release)
         shell: bash
-        run: scons platform=windows target=template_release -j4
+        run: |
+          scons platform=windows target=template_debug -j4
+          scons platform=windows target=template_release -j4
 
       - name: Setup Godot + export templates
         uses: chickensoft-games/setup-godot@v2
@@ -61,15 +115,26 @@ jobs:
           use-dotnet: false
           include-templates: true
 
-      - name: Importa le risorse
+      - name: Importa le risorse (registra le GDExtension)
         shell: bash
-        run: godot --headless --import
+        run: |
+          set -euo pipefail
+          # --import puo' uscire non-zero anche quando l'import e' riuscito
+          # (avvisi sulle risorse): a contare e' la cache che genera.
+          godot --headless --import || true
+          test -f .godot/extension_list.cfg \
+            || { echo "::error::L'import non ha generato .godot/extension_list.cfg: le GDExtension non verrebbero caricate e il gioco uscirebbe senza il cuore C++."; exit 1; }
+          echo "GDExtension registrate:"; cat .godot/extension_list.cfg
 
       - name: Esporta il gioco (Windows Desktop)
         shell: bash
         run: |
+          set -euo pipefail
           mkdir -p build/windows
           godot --headless --export-release "Windows Desktop" build/windows/ChibiCrossing.exe
+          test -s build/windows/ChibiCrossing.exe \
+            || { echo "::error::L'export non ha prodotto build/windows/ChibiCrossing.exe."; exit 1; }
+          ls -la build/windows
 
       - name: Firma con Azure Trusted Signing (solo se ci sono i secret)
         if: env.AZURE_CLIENT_ID != ''
@@ -104,6 +169,7 @@ jobs:
   # ---------------------------------------------------------------------------
   macos:
     name: Export macOS (.app notarizzata)
+    needs: preflight
     runs-on: macos-latest
     env:
       # Secret Apple (vuoti finche' non li carichi -> firma/notarizzazione saltate).
@@ -127,8 +193,16 @@ jobs:
       - name: Installa SCons
         run: python -m pip install --upgrade pip scons
 
-      - name: Compila il cuore C++ (release, universale)
-        run: scons platform=macos arch=universal target=template_release -j4
+      # ENTRAMBI i target: su macOS i due binari hanno NOMI DIVERSI
+      # (…template_debug.universal.dylib e …template_release.universal.dylib) e
+      # chibi_crossing.gdextension li mappa entrambi. L'eseguibile editor di
+      # Godot — quello che qui sotto importa ed esporta — carica la voce
+      # macos.debug: senza quel file la GDExtension non si carica e il gioco
+      # esportato resta senza il cuore C++.
+      - name: Compila il cuore C++ (debug + release, universale)
+        run: |
+          scons platform=macos arch=universal target=template_debug -j4
+          scons platform=macos arch=universal target=template_release -j4
 
       - name: Setup Godot + export templates
         uses: chickensoft-games/setup-godot@v2
@@ -137,13 +211,24 @@ jobs:
           use-dotnet: false
           include-templates: true
 
-      - name: Importa le risorse
-        run: godot --headless --import
+      - name: Importa le risorse (registra le GDExtension)
+        run: |
+          set -euo pipefail
+          # --import puo' uscire non-zero anche quando l'import e' riuscito
+          # (avvisi sulle risorse): a contare e' la cache che genera.
+          godot --headless --import || true
+          test -f .godot/extension_list.cfg \
+            || { echo "::error::L'import non ha generato .godot/extension_list.cfg: le GDExtension non verrebbero caricate e il gioco uscirebbe senza il cuore C++."; exit 1; }
+          echo "GDExtension registrate:"; cat .godot/extension_list.cfg
 
       - name: Esporta il gioco (macOS)
         run: |
+          set -euo pipefail
           mkdir -p build/macos
           godot --headless --export-release "macOS" build/macos/ChibiCrossing.zip
+          test -s build/macos/ChibiCrossing.zip \
+            || { echo "::error::L'export non ha prodotto build/macos/ChibiCrossing.zip."; exit 1; }
+          ls -la build/macos
 
       - name: Firma + notarizza (solo se ci sono i secret Apple)
         if: env.MACOS_CERT_BASE64 != ''
@@ -210,9 +295,27 @@ jobs:
           path: dist
           merge-multiple: true
 
+      - name: Controlla che ci siano entrambe le build
+        shell: bash
+        run: |
+          set -euo pipefail
+          ls -la dist
+          for z in ChibiCrossing-windows.zip ChibiCrossing-macos.zip; do
+            test -s "dist/$z" || { echo "::error::Manca dist/$z."; exit 1; }
+          done
+
       - name: Crea la GitHub Release (solo sui tag)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*.zip
           generate_release_notes: true
+
+      # Lanciato a mano (Run workflow) il pubblicare si salta: e' la PROVA
+      # GENERALE della pipeline — compila, esporta e impacchetta tutto senza
+      # pubblicare niente. Il tag vero passa per la stessa strada, gia' battuta.
+      - name: Prova generale riuscita (nessun tag, nessuna Release)
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        shell: bash
+        run: |
+          echo "::notice::Prova generale OK: build Windows e macOS esportate e impacchettate. Nessuna Release pubblicata (serve un tag v*)."

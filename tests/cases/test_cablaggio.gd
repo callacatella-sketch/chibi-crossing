@@ -18,6 +18,7 @@ func run(t) -> void:
 	_test_animo_sopravvive_al_salvataggio(t)
 	_test_contratto_chiavi_save_load(t)
 	_test_fili_attaccati(t)
+	_test_nessuno_chiama_il_writer_privato(t)
 
 
 ## Il percorso VERO del ripristino: un animo con rancore viene salvato, rimesso
@@ -69,14 +70,61 @@ func _test_contratto_chiavi_save_load(t) -> void:
 ## I punti di salvataggio e il gesto gentile: controlli sul sorgente, mirati
 ## alla singola funzione (se il filo si stacca, qui si vede subito).
 func _test_fili_attaccati(t) -> void:
+	# NB: il salvataggio si chiede con l'API pubblica `request_save()` (una
+	# scrittura per frame). Prima si chiamava il writer privato del
+	# BuildSystem, `_save_village()`, da mezzo progetto: vedi
+	# _test_nessuno_chiama_il_writer_privato qui sotto.
 	t.ok(_body("res://scenes/interact/Woodcutting.gd", "_give_wood")
-			.contains("_save_village"),
+			.contains("request_save"),
 			"Woodcutting._give_wood mette al sicuro l'abbattimento")
-	t.ok(_body("res://scenes/npc/Lavori.gd", "assegna").contains("_save_village"),
+	t.ok(_body("res://scenes/npc/Lavori.gd", "assegna").contains("request_save"),
 			"Lavori.assegna salva l'incarico appena dato")
 	t.ok(_body("res://scenes/npc/Visitors.gd", "offer_item")
 			.contains("gesto_gentile"),
 			"offer_item porta il regalo fino all'animo (gesto_gentile)")
+
+
+## Il writer del villaggio è PRIVATO del BuildSystem: chi ha stato da salvare
+## chiede `request_save()` (o `save_now()` se sta uscendo). Questo test tiene
+## chiusa la porta: era proprio l'accoppiamento sui membri privati altrui —
+## `_save_village()` chiamato da 16 file — a produrre i buchi di persistenza e
+## le doppie scritture (ogni nocciolina salvava il villaggio due volte).
+func _test_nessuno_chiama_il_writer_privato(t) -> void:
+	var colpevoli: Array[String] = []
+	for path in _tutti_gli_script("res://scenes"):
+		if path.ends_with("/BuildSystem.gd"):
+			continue  # è il suo writer: lì dentro può usarlo
+		var f := FileAccess.open(path, FileAccess.READ)
+		if f == null:
+			continue
+		for riga in f.get_as_text().split("\n"):
+			var r := str(riga).strip_edges()
+			if r.begins_with("#") or r.begins_with("##"):
+				continue  # i commenti possono nominarlo
+			if r.contains("_save_village"):
+				colpevoli.append(path.get_file())
+				break
+	t.eq(colpevoli.size(), 0,
+			"nessuno fuori dal BuildSystem chiama _save_village (colpevoli: %s)"
+			% ", ".join(colpevoli))
+
+
+func _tutti_gli_script(dir_path: String) -> Array[String]:
+	var out: Array[String] = []
+	var d := DirAccess.open(dir_path)
+	if d == null:
+		return out
+	d.list_dir_begin()
+	var n := d.get_next()
+	while n != "":
+		var p := dir_path.path_join(n)
+		if d.current_is_dir():
+			out.append_array(_tutti_gli_script(p))
+		elif n.ends_with(".gd"):
+			out.append(p)
+		n = d.get_next()
+	d.list_dir_end()
+	return out
 
 
 ## Il corpo di una funzione: dal suo `func nome(` alla `func` successiva.
