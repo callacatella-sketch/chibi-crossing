@@ -8,6 +8,8 @@ const VISITOR := preload("res://scenes/npc/Visitor.gd")
 const MIND := preload("res://scenes/npc/VillagerMind.gd")
 const DNA := preload("res://scenes/npc/ChibiDNA.gd")
 const BRAIN := preload("res://scenes/npc/VillagerBrain.gd")
+const ANIMO := preload("res://scenes/npc/Animo.gd")
+const VILLAGGIO := preload("res://scenes/npc/Villaggio.gd")
 const UI_BROWN := Color("6a4a3a")
 const MAX_RESIDENTS := 4
 
@@ -58,6 +60,16 @@ var _pair_cd := {}
 
 # la vita interiore: label -> VillagerBrain (bisogni, indole, memoria)
 var _brains := {}
+## L'ANIMA di ogni residente (scenes/npc/Animo.gd) e il villaggio che li
+## tiene insieme: pressioni, ricordi, carattere e passaparola. Il cervello
+## decide cosa fare adesso; l'animo decide come STA, e se ti perdona.
+var _animi := {}
+var _villaggio: RefCounted
+## Il raffreddamento del sussulto: uno per residente, così la reazione
+## istintiva scatta all'AVVICINARSI e non a ogni fotogramma.
+var _sussulto_cd := {}
+## Chi ti sta venendo a cercare, e da quanto: {label -> secondi di attesa}.
+var _in_confronto := {}
 var _vita_cd := 0.0     # un solo toast di vita quotidiana ogni tanto
 
 var _prompt: PanelContainer
@@ -121,6 +133,7 @@ func _random_resident_node() -> Node3D:
 
 
 func _on_new_day(_day: int) -> void:
+	_giorno_di_animo()
 	# «sa-la! ya-ho!» — il buongiorno al sole di un mattiniero
 	var speaker := _random_resident_node()
 	if speaker:
@@ -141,6 +154,9 @@ func is_bed_claimed(cell: Vector2i) -> bool:
 
 
 func _process(delta: float) -> void:
+	_tick_sussulti(delta)
+	_tick_confronti(delta)
+	_tick_partenze(delta)
 	# il prossimo ospite arriva col sereno, di giorno, quando non c'è nessuno
 	if _active == null:
 		var day: bool = _daynight == null or not _daynight.is_night()
@@ -345,6 +361,8 @@ func _routine(delta: float) -> void:
 				# indole e contesto scelgono l'attività della mezz'ora
 				var brain: RefCounted = _ensure_brain(r)
 				var act: String = brain.choose(_brain_ctx(r, ph))
+				# e se quel posto è diventato insopportabile, cambia idea
+				act = _filtra_luogo(str(r.get("label", "")), act)
 				_recita(r, node, brain, act, ph)
 
 
@@ -478,12 +496,407 @@ func _ensure_brain(r: Dictionary) -> RefCounted:
 		if not salvato.is_empty():
 			brain.from_dict(salvato)
 		_brains[key] = brain
+		# insieme al cervello nasce l'ANIMO: dal genoma prende sogno e tratti
+		var animo: RefCounted = ANIMO.new()
+		animo.setup(r.get("dna", {}))
+		animo.nome = key
+		var salvato_a: Dictionary = r.get("animo", {})
+		if not salvato_a.is_empty():
+			animo.load(salvato_a)
+		_animi[key] = animo
+		_iscrivi_al_villaggio(key, animo)
 		# il timido saluta solo gli amici veri
 		var node := r.get("node") as Node3D
 		if node:
 			node.set("greet_enabled",
 					not brain.has_indole("timido") or int(r.get("friend", 0)) >= 3)
 	return _brains[key]
+
+
+# I POSTI CHE NON SI SOPPORTANO PIÙ.
+#
+# L'ultimo pezzo del limbico: un marchio non è solo un numero nel salvataggio,
+# è una deviazione nel cammino. Il residente arriva in vista dell'orto, si
+# ferma, e va da un'altra parte — e siccome il giocatore vede la scena senza
+# spiegazione, il registro gliela dà: «gira al largo dalla catasta».
+#
+# Ritorna l'attività da fare DAVVERO: quella scelta, o un ripiego se il posto
+# è diventato insopportabile.
+func _filtra_luogo(label: String, act: String) -> String:
+	if not _animi.has(label):
+		return act
+	var luogo := str(LUOGO_ATTIVITA.get(act, ""))
+	if luogo == "":
+		return act
+	var animo: RefCounted = _animi[label]
+	if not animo.limbico.evita(luogo):
+		return act
+	# ci arriva vicino e si blocca: è la scena che il giocatore vede
+	for r in _residents:
+		if str(r.get("label", "")) == label:
+			var node := r.get("node") as Node3D
+			if node != null and is_instance_valid(node) and node.has_method("chat_bubble"):
+				node.call("chat_bubble", "…")
+				node.set_meta("postura", "esita")
+			break
+	return RIPIEGO           # cambia idea e va a cercare compagnia
+
+
+## Da quali posti questo residente gira al largo, e perché. Il registro lo
+## mostra: una deviazione senza spiegazione sembra un difetto di percorso.
+func luoghi_evitati(label: String) -> Array:
+	if not _animi.has(label):
+		return []
+	var out := []
+	var lim = (_animi[label] as RefCounted).limbico
+	for posto in ["catasta", "orto", "cucina", "confine", "bosco"]:
+		if lim.evita(posto):
+			out.append(posto)
+	return out
+
+
+# ============================================ la partenza
+
+## Dopo quanti secondi dallo sfogo chi ha detto «me ne vado» se ne va davvero.
+## Non subito: il giocatore deve avere il tempo di corrergli dietro con un
+## regalo. È l'ultima finestra per rimediare, e dev'essere una finestra vera.
+const ATTESA_PARTENZA := 90.0
+
+# CHI DICE «ME NE VADO» SE NE VA.
+#
+# Era il buco più grande del sistema: la scala arrivava in fondo e non
+# succedeva niente, e una minaccia che non si avvera insegna al giocatore che
+# può ignorare tutto. Ora il residente prepara le sue cose, lascia una
+# LETTERA (non sparisce e basta: sparire è un bug, una lettera è una storia)
+# e il suo letto torna libero.
+func _tick_partenze(delta: float) -> void:
+	for i in range(_residents.size() - 1, -1, -1):
+		var r: Dictionary = _residents[i]
+		var label := str(r.get("label", ""))
+		if label == "" or not _animi.has(label):
+			continue
+		var animo: RefCounted = _animi[label]
+		if int(animo.gradino) < GRADINO_DISERZIONE:
+			r["parte_fra"] = 0.0        # ha cambiato idea: si rimette a posto
+			continue
+		var resta: float = float(r.get("parte_fra", 0.0))
+		if resta <= 0.0:
+			r["parte_fra"] = ATTESA_PARTENZA
+			continue
+		var prima := resta
+		resta -= delta
+		r["parte_fra"] = resta
+		if resta > 0.0:
+			# I NOVANTA SECONDI DEVONO VEDERSI. Se l'unico segnale fosse il
+			# toast finale, la partenza sembrerebbe arbitraria: il giocatore
+			# non ha avuto modo di accorgersene. Invece lo si vede raccogliere
+			# le sue cose, fermarsi sulla soglia, guardarsi intorno — e ha
+			# tutto il tempo di andargli incontro con qualcosa in mano.
+			var node_p := r.get("node") as Node3D
+			for soglia in [ATTESA_PARTENZA * 0.75, ATTESA_PARTENZA * 0.45,
+					ATTESA_PARTENZA * 0.15]:
+				if prima > soglia and resta <= soglia:
+					if node_p != null and is_instance_valid(node_p):
+						node_p.set_meta("postura", "fagotto_in_spalla")
+						if node_p.has_method("chat_bubble"):
+							node_p.call("chat_bubble", "…")
+					_show_toast("%s sta raccogliendo le sue cose." % label)
+					break
+			continue
+		_congeda(i, r, animo)
+
+
+# Il congedo: la lettera, il ricordo sul Filo Rosso, il letto che si libera.
+func _congeda(i: int, r: Dictionary, animo: RefCounted) -> void:
+	var label := str(r.get("label", ""))
+	var node := r.get("node") as Node3D
+	# la lettera d'addio, coi SUOI motivi: è ciò che trasforma una partenza
+	# in una storia che il giocatore si ricorda invece che in un bug
+	var mail := get_node_or_null("../Mail")
+	if mail and mail.has_method("queue_letter"):
+		mail.call("queue_letter", {
+			"from": label,
+			"text": "%s\n\nHo lasciato le mie cose in ordine.\nNon serbo rancore: serbo memoria." % animo.sfogo(),
+			"gift": false,
+		})
+	# il Filo Rosso se lo ricorda: chi se n'è andato non si cancella
+	for legami in get_tree().get_nodes_in_group("legami"):
+		if legami.has_method("momento"):
+			legami.call("momento", label, "addio", animo.racconta())
+			break
+	_show_toast("%s se n'è andato." % label)
+	if node != null and is_instance_valid(node):
+		var tw := create_tween()
+		tw.tween_property(node, "scale", Vector3.ONE * 0.01, 0.8) \
+				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+		tw.tween_callback(node.queue_free)
+	_residents.remove_at(i)          # il letto torna libero
+	_animi.erase(label)
+	_brains.erase(label)
+	# e si congeda anche dal GRAFO del villaggio: senza questa riga il
+	# disertore restava lì come un fantasma — continuava a spettegolare
+	# contro di te a ogni simula_giorno e a tenere alta la tensione di un
+	# posto che aveva già lasciato
+	if _villaggio != null:
+		_villaggio.rimuovi(label)
+	_in_confronto.erase(label)
+	_sussulto_cd.erase(label)
+	_sussulto_cd.erase("morso_" + label)
+
+
+# ============================================ il confronto e il morso
+## Da che gradino in su un residente smette di subire e ti viene a cercare.
+const GRADINO_CONFRONTO := 5
+## Da che gradino in su prepara il fagotto.
+const GRADINO_DISERZIONE := 6
+
+# CHI HA QUALCOSA DA DIRTI TE LO VIENE A DIRE.
+#
+# È il momento che il giocatore ricorderà: non un contatore che sale in un
+# menù, ma qualcuno che attraversa il prato, ti si pianta davanti e ti
+# rinfaccia FATTI PRECISI — quante volte, e cosa aveva sognato di fare.
+# Chi sta più in basso sulla scala invece si morde la lingua: e siccome
+# mordersi la lingua COSTA (Limbico.trattieni), prima o poi qualcosa esce
+# lo stesso, di sbieco. È così che si scoppia «per una sciocchezza».
+func _tick_confronti(delta: float) -> void:
+	if _player == null:
+		return
+	var pp: Vector3 = _player.global_position
+	for r in _residents:
+		var label := str(r.get("label", ""))
+		if label == "" or not _animi.has(label):
+			continue
+		var node := r.get("node") as Node3D
+		if node == null or not is_instance_valid(node):
+			continue
+		var animo: RefCounted = _animi[label]
+		var d: float = pp.distance_to(node.global_position)
+
+		if int(animo.gradino) >= GRADINO_CONFRONTO:
+			# ti viene incontro: si ferma poco distante, non addosso
+			var attesa: float = float(_in_confronto.get(label, 0.0)) - delta
+			if d > 2.2:
+				if attesa <= 0.0 and node.has_method("do_routine"):
+					var verso: Vector3 = pp + (node.global_position - pp).normalized() * 1.6
+					node.call("do_routine", "confronto", verso, pp)
+					_in_confronto[label] = 4.0
+				else:
+					_in_confronto[label] = attesa
+				continue
+			# è arrivato: lo sfogo, una volta sola finché non cambia qualcosa
+			if bool(r.get("sfogato", false)):
+				continue
+			r["sfogato"] = true
+			if node.has_method("face_towards"):
+				node.call("face_towards", pp)   # ti guarda in faccia
+			_show_toast("%s: %s" % [label, animo.sfogo()])
+			if node.has_method("chat_bubble"):
+				node.call("chat_bubble", "!")
+			node.set_meta("postura", "petto_in_fuori")
+			continue
+
+		# sotto il confronto: si trattiene. Ma la forza per farlo è finita.
+		if d < 2.6 and int(animo.gradino) >= 1:
+			var cd: float = float(_sussulto_cd.get("morso_" + label, 0.0)) - delta
+			if cd > 0.0:
+				_sussulto_cd["morso_" + label] = cd
+				continue
+			_sussulto_cd["morso_" + label] = 12.0
+			if not animo.limbico.trattieni():
+				# non ce l'ha fatta: qualcosa esce, di sbieco
+				_show_toast("%s: «…niente. Lascia stare.»" % label)
+				if node.has_method("chat_bubble"):
+					node.call("chat_bubble", "…")
+				node.set_meta("postura", "spalle_basse")
+
+
+# LA STRADA VELOCE, ADDOSSO AL RESIDENTE. Quando Mochi arriva, il corpo del
+# residente reagisce PRIMA che la testa abbia valutato qualcosa: chi ti teme
+# trasalisce, chi ti vuole bene si illumina. È il segnale più onesto che il
+# giocatore riceve — e arriva senza che nessuno debba parlargli.
+func _tick_sussulti(delta: float) -> void:
+	if _player == null:
+		return
+	var pp: Vector3 = _player.global_position
+	for r in _residents:
+		var label := str(r.get("label", ""))
+		if label == "" or not _animi.has(label):
+			continue
+		var cd: float = float(_sussulto_cd.get(label, 0.0)) - delta
+		if cd > 0.0:
+			_sussulto_cd[label] = cd
+			continue
+		var node := r.get("node") as Node3D
+		if node == null or pp.distance_to(node.global_position) > 3.2:
+			continue
+		var animo: RefCounted = _animi[label]
+		var s: Dictionary = animo.limbico.percepisci("giocatore")
+		_sussulto_cd[label] = 9.0
+		match str(s.get("reazione", "nulla")):
+			"trasalisce":
+				node.set_meta("postura", "trasalisce")
+				if node.has_method("chat_bubble"):
+					node.call("chat_bubble", "!")
+			"si_illumina":
+				node.set_meta("postura", "si_illumina")
+				if node.has_method("chat_bubble"):
+					node.call("chat_bubble", "\u2665")
+
+
+# ============================================ l'animo e il villaggio
+
+# Iscrive un residente al grafo del villaggio e lo lega a chi già conosce,
+# usando l'affinità che il cervello tiene da sempre: le voci corrono lungo
+# le amicizie vere, non lungo un grafo inventato per l'occasione.
+func _iscrivi_al_villaggio(key: String, animo: RefCounted) -> void:
+	if _villaggio == null:
+		_villaggio = VILLAGGIO.new()
+	_villaggio.aggiungi(animo)
+	var brain: RefCounted = _brains.get(key)
+	for altro in _animi:
+		if altro == key:
+			continue
+		var forza := 0.45
+		if brain and brain.affinita.has(altro):
+			forza = clampf(0.25 + float(brain.affinita[altro]) * 0.12, 0.0, 1.0)
+		_villaggio.lega(key, altro, forza)
+
+
+## Dove si svolge ogni lavoro. Serve perché il rancore non resti astratto: chi
+## viene mandato novanta giorni alla catasta finisce per non sopportare più
+## LA CATASTA, e gira al largo anche quando è libero. È il condizionamento
+## del limbico (Limbico.marchi) applicato alla geografia del villaggio.
+const LUOGO_DEL_LAVORO := {
+	"taglia_legna": "catasta", "coltiva": "orto", "cucina": "cucina",
+	"guardia": "confine", "esplora": "bosco",
+}
+
+## E dove si svolgono le ATTIVITÀ LIBERE che sceglie il cervello. Sono due
+## vocabolari diversi — il giocatore ordina «coltiva», il cervello sceglie
+## «cura_giardino» — e il ponte fra i due è il LUOGO: chi è stato costretto
+## all'orto per novanta giorni non ci va più nemmeno di sua volontà.
+## (Il filtro prima leggeva le chiavi dei lavori su nomi di attività: non
+## poteva scattare mai. È il tipo di silenzio che non dà errori e non fa
+## niente — il peggiore.)
+const LUOGO_ATTIVITA := {
+	"cura_giardino": "orto", "spuntino": "cucina", "meraviglia": "bosco",
+}
+## Dove ripiega chi cambia idea: deve essere un'attività che _recita CONOSCE,
+## o il ripiego cadrebbe nel vuoto e il residente resterebbe immobile.
+const RIPIEGO := "quattro_chiacchiere"
+
+## Un compito assegnato dal giocatore passa di qui: è il canale che porta al
+## risentimento. Chi sognava altro lo vive tre volte più amaro di chi quel
+## lavoro lo amava — ed è per questo che due residenti mandati allo stesso
+## posto finiscono in due punti diversi della scala.
+func assegna_compito(label: String, compito: String) -> void:
+	if not _animi.has(label):
+		return
+	var animo: RefCounted = _animi[label]
+	animo.esegue(compito, "giocatore")
+	# e il POSTO si carica di com'è andata: dopo abbastanza volte, quel posto
+	# diventa qualcosa da evitare — senza che nessuno lo scriva
+	var luogo := str(LUOGO_DEL_LAVORO.get(compito, ""))
+	if luogo != "" and not animo.ricordi.is_empty():
+		var ultimo: Dictionary = animo.ricordi[animo.ricordi.size() - 1]
+		var sentito: float = float(ultimo.get("valenza", 0.0))
+		if absf(sentito) > 0.25:
+			animo.limbico._marchia("luogo|" + luogo, sentito)
+
+
+## Un gesto bello verso un residente: i regali e le attenzioni SCIOLGONO il
+## rancore. Senza questa porta il sistema sarebbe una condanna, non un
+## dialogo — e il giocatore non avrebbe modo di rimediare.
+func gesto_gentile(label: String, tipo := "regalo", peso := 0.8) -> void:
+	if not _animi.has(label):
+		return
+	(_animi[label] as RefCounted).ricorda(tipo, "giocatore", peso, 0.9)
+	# rimediare RIAPRE il discorso: se scende di gradino tornerà a cercarti
+	# solo se glielo dai di nuovo il motivo
+	for r in _residents:
+		if str(r.get("label", "")) == label:
+			r["sfogato"] = false
+			return
+
+
+## Il lutto di un residente: se nessuno lo consola, il rancore va a chi
+## comanda il villaggio. È l'indifferenza a ferire, non la perdita.
+func lutto_di(label: String, amico: String, consolato_da := "") -> void:
+	if _animi.has(label):
+		(_animi[label] as RefCounted).lutto(amico, consolato_da)
+
+
+## LA FUNZIONE DELLA LEGGIBILITÀ: perché quel residente si comporta così.
+## È ciò che il giocatore legge parlando con lui, ed è la differenza fra
+## «questo gioco è profondo» e «questo gioco ha un bug».
+func perche(label: String) -> String:
+	if not _animi.has(label):
+		return ""
+	return (_animi[label] as RefCounted).racconta()
+
+
+## Come sta il CORPO di un residente (guardingo, di malumore, a corto di
+## pazienza…): è la riga che spiega una reazione sproporzionata.
+func corpo_di(label: String) -> String:
+	if not _animi.has(label):
+		return ""
+	return str((_animi[label] as RefCounted).limbico.stato_corpo())
+
+
+## Il diario di un residente: la STORIA dei suoi scatti, giorno per giorno.
+func diario_di(label: String) -> Array:
+	if not _animi.has(label):
+		return []
+	return (_animi[label] as RefCounted).diario()
+
+
+## Lo stato d'animo attuale (il gradino della scala), per la UI e i test.
+func animo_di(label: String) -> String:
+	if not _animi.has(label):
+		return ""
+	return (_animi[label] as RefCounted).stato()
+
+
+## La cronaca della rivolta, se ce n'è una: chi ha cominciato e perché.
+func cronaca_villaggio() -> Array:
+	if _villaggio == null:
+		return ["Il villaggio è sereno."]
+	return _villaggio.cronaca_rivolta()
+
+
+# Un giorno di vita interiore: ognuno fa i conti con sé stesso, poi le voci
+# girano. Chi scatta di gradino lo TELEGRAFA subito — postura e battuta —
+# perché il giocatore possa accorgersene e correggere in tempo.
+func _giorno_di_animo() -> void:
+	if _villaggio == null:
+		return
+	for evento in _villaggio.simula_giorno():
+		if str(evento.get("tipo", "")) != "scatto":
+			continue
+		var chi := str(evento["chi"])
+		var animo: RefCounted = _animi.get(chi)
+		if animo == null:
+			continue
+		var tel: Array = animo.telegrafo()
+		_mostra_telegrafo(chi, tel)
+		# solo i passaggi che contano finiscono nei toast: se avvisassimo a
+		# ogni mugugno, il giocatore smetterebbe di leggere
+		if animo.gradino >= 3:
+			_show_toast("%s: «%s»" % [chi, tel[1]])
+
+
+# La postura e la battuta del gradino, addosso al residente.
+func _mostra_telegrafo(label: String, tel: Array) -> void:
+	for r in _residents:
+		if str(r.get("label", "")) != label:
+			continue
+		var node := r.get("node") as Node3D
+		if node == null:
+			return
+		node.set_meta("postura", str(tel[0]))
+		if node.has_method("chat_bubble"):
+			node.call("chat_bubble", "!")
+		return
 
 
 # ------------------------------------------------------- le stravaganze
@@ -743,6 +1156,9 @@ func _dish_target() -> Dictionary:
 
 
 func _give_dish(r: Dictionary) -> void:
+	# un piatto caldo non è solo un piatto: SCIOGLIE il rancore. È la porta
+	# che rende il sistema dell'animo un dialogo invece che una condanna.
+	gesto_gentile(str(r.get("label", "")), "piatto", 0.85)
 	get_tree().call_group("regista", "note", "socievole")
 	var dish: Dictionary = _cooking.call("take_dish")
 	var node := r.get("node") as Node3D
@@ -838,6 +1254,8 @@ func offer_item(r: Dictionary, item: Dictionary) -> void:
 	if cal and cal.call("is_birthday", str(dna.get("name", ""))):
 		cal.call("throw_party", str(dna.get("name", "")), str(r["label"]), node)
 		_bump_friend(r, 3)
+		# la festa è il gesto gentile più grande: scioglie il rancore
+		gesto_gentile(str(r.get("label", "")), "festa", 1.0)
 		get_tree().call_group("legami", "momento", str(dna.get("name", "")), "festa", "")
 		_build._save_village()
 		return
@@ -867,6 +1285,11 @@ func offer_item(r: Dictionary, item: Dictionary) -> void:
 		# ogni dono si annoda al Filo Rosso (una volta al giorno per tipo)
 		get_tree().call_group("legami", "momento", str(dna.get("name", "")),
 				"regalo" if is_treasure else "piatto", String(item.get("name", "")).to_lower())
+		# il dono arriva anche all'ANIMO: è l'unico canale con cui il giocatore
+		# scioglie il rancore (senza, il sistema sarebbe una condanna)
+		gesto_gentile(str(r.get("label", "")),
+				"regalo" if is_treasure else "piatto",
+				0.9 if loves_it else 0.55)
 		if loves_it:
 			node.call("celebrate")
 			node.call("speak", ["grazie", "felice"], "felice")
@@ -1409,6 +1832,8 @@ func save_extra() -> Dictionary:
 		var key := str(r.get("label", "?"))
 		if _brains.has(key):
 			row["brain"] = (_brains[key] as RefCounted).to_dict()
+		if _animi.has(key):
+			row["animo"] = (_animi[key] as RefCounted).save()
 		rows.append(row)
 	return {"residents": rows, "cand_mem": _cand_visits}
 
@@ -1436,7 +1861,11 @@ func load_extra(data: Dictionary) -> void:
 				_residents.append({"species": species, "cell": cell, "node": v,
 						"dna": dna, "label": str(row.get("label", "")),
 						"friend": int(row.get("friend", 0)), "wish": row.get("wish", {}),
-						"brain": row.get("brain", {})})
+						"brain": row.get("brain", {}),
+						# senza questa riga l'animo salvato non tornava mai:
+						# _ensure_brain lo cerca in r["animo"] (rancore, ricordi,
+						# gradino di ribellione ripartivano da zero a ogni avvio)
+						"animo": row.get("animo", {})})
 				_spawn_suitcase_prop(cell)
 				# il Filo Rosso lo riconosce (o lo adotta, dai salvataggi
 				# di prima del Filo) e l'età gli torna addosso
@@ -1548,6 +1977,8 @@ func debug_reset() -> void:
 			node.queue_free()
 	_residents.clear()
 	_brains.clear()
+	_animi.clear()
+	_villaggio = null
 
 
 func debug_brain(i: int) -> RefCounted:

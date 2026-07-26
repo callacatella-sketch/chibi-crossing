@@ -1,0 +1,310 @@
+extends Node
+
+## IL REGISTRO DEI LAVORI — dare ordini, e guardare in faccia le conseguenze.
+##
+## Senza questa schermata il sistema dell'animo (scenes/npc/Animo.gd) sarebbe
+## invisibile: nessuno potrebbe dare un ordine, quindi nessun rancore potrebbe
+## nascere, e soprattutto nessuno potrebbe LEGGERE il perché. Un apparato che
+## simula benissimo e non si lascia leggere non è profondo: è rotto.
+##
+## Perciò il registro fa due cose sole, ed entrambe contano uguale:
+##   1. assegnare un lavoro quotidiano a un residente (è il rubinetto da cui
+##      scende il risentimento, giorno dopo giorno);
+##   2. mostrare, accanto a ogni nome, COME STA e PERCHÉ — con le parole del
+##      sistema, non con parole scritte a mano che potrebbero mentire.
+##
+## La riga «perché» viene da Animo.racconta(): se un domani i numeri cambiano,
+## cambia da sola anche la spiegazione. È l'unico modo di non mentire al
+## giocatore mentre si bilancia.
+##
+## Si apre col tasto L. Niente scelte a scomparsa: tutto quello che serve per
+## capire una ribellione è su una schermata sola.
+
+const UI_BROWN := Color("6a4a3a")
+const CREMA := Color(1, 0.98, 0.94, 0.96)
+
+## I lavori assegnabili e come si chiamano davanti al giocatore. Le chiavi
+## sono quelle che Animo.COMPITI conosce: se qui si scrive un nome che di là
+## non esiste, il residente riceverebbe un compito muto — perciò all'apertura
+## il registro lo verifica e lo dice, invece di far finta di niente.
+const LAVORI := {
+	"": "— riposo —",
+	"taglia_legna": "Tagliare la legna",
+	"coltiva": "Curare l'orto",
+	"cucina": "Cucinare",
+	"guardia": "Fare la guardia",
+	"esplora": "Esplorare il bosco",
+}
+const ORDINE := ["", "taglia_legna", "coltiva", "cucina", "guardia", "esplora"]
+
+var _visitors: Node
+var _player: Node3D
+var _daynight: Node
+var _sfx
+var _layer: CanvasLayer
+var _pannello: PanelContainer
+var _lista: VBoxContainer
+var _titolo: Label
+var _aperto := false
+var _sel := 0
+## label del residente -> lavoro assegnato
+var _incarichi := {}
+
+
+func _ready() -> void:
+	add_to_group("persistable")
+	add_to_group("lavori")
+	_sfx = get_node_or_null(^"/root/Sfx")
+	_costruisci_ui()
+	(func() -> void:
+		_visitors = get_node_or_null("../Visitors")
+		_player = get_node_or_null("../Player")
+		_daynight = get_node_or_null("../DayNight")
+		if _daynight and _daynight.has_signal("day_changed"):
+			_daynight.day_changed.connect(_on_nuovo_giorno)
+	).call_deferred()
+
+
+# ---------------------------------------------------------------- la giornata
+
+## Ogni mattina i residenti fanno il lavoro che gli hai dato. È QUI che il
+## rancore scende goccia a goccia: nessun evento drammatico, solo il
+## quarantesimo giorno uguale al primo.
+func _on_nuovo_giorno(_giorno: int) -> void:
+	if _visitors == null or not _visitors.has_method("assegna_compito"):
+		return
+	for label in _incarichi:
+		var lavoro := str(_incarichi[label])
+		if lavoro == "":
+			continue
+		_visitors.assegna_compito(label, lavoro)
+	if _aperto:
+		_riempi()
+
+
+## Assegna (o toglie) un lavoro. Chiamabile anche dai test e dalla CLI.
+func assegna(label: String, lavoro: String) -> void:
+	if lavoro != "" and not LAVORI.has(lavoro):
+		push_warning("Lavori: lavoro sconosciuto '%s'" % lavoro)
+		return
+	if lavoro == "":
+		_incarichi.erase(label)
+	else:
+		_incarichi[label] = lavoro
+	# l'incarico va su disco SUBITO: da qui scende il risentimento di Animo,
+	# e prima sopravviveva solo se si arrivava all'alba (salvataggio di DayNight)
+	var b := get_node_or_null(^"../BuildSystem")
+	if b:
+		b._save_village()
+
+
+func incarico(label: String) -> String:
+	return str(_incarichi.get(label, ""))
+
+
+# ---------------------------------------------------------------- la finestra
+
+func _costruisci_ui() -> void:
+	_layer = CanvasLayer.new()
+	_layer.layer = 12
+	add_child(_layer)
+
+	_pannello = PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = CREMA
+	sb.set_corner_radius_all(16)
+	sb.set_content_margin_all(20)
+	sb.shadow_color = Color(0.3, 0.2, 0.15, 0.3)
+	sb.shadow_size = 18
+	_pannello.add_theme_stylebox_override("panel", sb)
+	_pannello.visible = false
+	_pannello.set_anchors_preset(Control.PRESET_CENTER)
+	_pannello.anchor_left = 0.5
+	_pannello.anchor_right = 0.5
+	_pannello.anchor_top = 0.5
+	_pannello.anchor_bottom = 0.5
+	_pannello.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_pannello.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_pannello.custom_minimum_size = Vector2(720, 0)
+	_pannello.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_layer.add_child(_pannello)
+
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 12)
+	_pannello.add_child(box)
+
+	_titolo = Label.new()
+	_titolo.text = "Il registro dei lavori"
+	_titolo.add_theme_font_size_override("font_size", 26)
+	_titolo.add_theme_color_override("font_color", UI_BROWN)
+	box.add_child(_titolo)
+
+	_lista = VBoxContainer.new()
+	_lista.add_theme_constant_override("separation", 14)
+	box.add_child(_lista)
+
+	var aiuto := Label.new()
+	aiuto.text = "↑↓ scegli il residente   ←→ cambia il suo lavoro   ·   L chiude"
+	aiuto.add_theme_font_size_override("font_size", 14)
+	aiuto.add_theme_color_override("font_color", Color(UI_BROWN, 0.7))
+	box.add_child(aiuto)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("lavori"):
+		_toggle()
+		get_viewport().set_input_as_handled()
+		return
+	if not _aperto:
+		return
+	var righe: Array = _residenti()
+	if righe.is_empty():
+		return
+	if event.is_action_pressed("ui_down") or event.is_action_pressed("ui_up"):
+		var passo := 1 if event.is_action_pressed("ui_down") else -1
+		_sel = posmod(_sel + passo, righe.size())
+		if _sfx:
+			_sfx.ui_select()
+		_riempi()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("ui_right") or event.is_action_pressed("ui_left"):
+		var passo2 := 1 if event.is_action_pressed("ui_right") else -1
+		var label := str(righe[_sel].get("label", ""))
+		var i: int = ORDINE.find(incarico(label))
+		assegna(label, str(ORDINE[posmod(i + passo2, ORDINE.size())]))
+		if _sfx:
+			_sfx.rotate_tick()
+		_riempi()
+		get_viewport().set_input_as_handled()
+
+
+func _toggle() -> void:
+	if not _aperto:
+		# come tutti gli altri pannelli: non rubare la scena a un menu già
+		# aperto, e CONGELA Mochi. La navigazione usa ui_up/down/left/right,
+		# che includono WASD, e il PlayerController legge l'input in polling:
+		# senza congelamento sfogliare il registro faceva camminare Mochi.
+		if _player == null or not _player.is_physics_processing():
+			return
+		_aperto = true
+		_player.set_physics_process(false)
+		_player.velocity = Vector3.ZERO
+		_pannello.visible = true
+		_sel = 0
+		_riempi()
+		if _sfx:
+			_sfx.build_open()
+	else:
+		_aperto = false
+		_pannello.visible = false
+		if _player and not _player.is_physics_processing():
+			_player.set_physics_process(true)
+		if _sfx:
+			_sfx.build_close()
+
+
+func is_open() -> bool:
+	return _aperto
+
+
+func _residenti() -> Array:
+	if _visitors == null:
+		return []
+	var out: Array = []
+	for r in (_visitors.get("_residents") as Array):
+		if r is Dictionary and str(r.get("label", "")) != "":
+			out.append(r)
+	return out
+
+
+# Riempie il registro. Ogni riga è: chi è, che sogno ha, cosa gli hai dato da
+# fare, come sta — e PERCHÉ sta così. La riga del perché è la sola ragione
+# per cui questa schermata esiste.
+func _riempi() -> void:
+	for c in _lista.get_children():
+		c.queue_free()
+	var righe: Array = _residenti()
+	if righe.is_empty():
+		var vuoto := Label.new()
+		vuoto.text = "Non c'è ancora nessuno in paese."
+		vuoto.add_theme_color_override("font_color", UI_BROWN)
+		_lista.add_child(vuoto)
+		return
+	_sel = clampi(_sel, 0, righe.size() - 1)
+
+	for i in righe.size():
+		var label := str(righe[i].get("label", ""))
+		var riga := VBoxContainer.new()
+		riga.add_theme_constant_override("separation", 2)
+		_lista.add_child(riga)
+
+		var testa := Label.new()
+		var stato := ""
+		if _visitors.has_method("animo_di"):
+			stato = str(_visitors.animo_di(label))
+		var freccia := "▸ " if i == _sel else "   "
+		var corpo := ""
+		if _visitors.has_method("corpo_di"):
+			corpo = str(_visitors.corpo_di(label))
+		# il corpo si scrive solo quando ha qualcosa da dire: «tranquillo» a
+		# fianco di ogni nome sarebbe rumore
+		var coda := "" if corpo == "" or corpo == "tranquillo" else "   ·   %s" % corpo
+		testa.text = "%s%s   —   %s   ·   %s%s" % [
+				freccia, label, LAVORI.get(incarico(label), "—"),
+				_stato_umano(stato), coda]
+		testa.add_theme_font_size_override("font_size", 18)
+		testa.add_theme_color_override("font_color",
+				_colore_stato(stato) if i == _sel else Color(UI_BROWN, 0.75))
+		riga.add_child(testa)
+
+		# il PERCHÉ, con le parole del sistema: solo per chi è selezionato,
+		# o la schermata diventa un muro di testo che nessuno legge
+		if i == _sel and _visitors.has_method("perche"):
+			var perche := Label.new()
+			var testo_perche := "     " + str(_visitors.perche(label))
+			if _visitors.has_method("luoghi_evitati"):
+				var evitati: Array = _visitors.luoghi_evitati(label)
+				if not evitati.is_empty():
+					# una deviazione senza spiegazione sembra un difetto di
+					# percorso: qui il giocatore scopre che è una ferita
+					testo_perche += "  ·  gira al largo da: %s" % ", ".join(evitati)
+			perche.text = testo_perche
+			perche.add_theme_font_size_override("font_size", 14)
+			perche.add_theme_color_override("font_color", Color(UI_BROWN, 0.85))
+			perche.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			perche.custom_minimum_size = Vector2(660, 0)
+			riga.add_child(perche)
+
+
+# La scala in parole che il giocatore capisce al volo, senza dover imparare
+# il vocabolario interno del sistema.
+func _stato_umano(gradino: String) -> String:
+	match gradino:
+		"lavoro": return "sereno"
+		"svogliato": return "svogliato"
+		"attrezzi": return "distratto, perde gli attrezzi"
+		"rifiuto": return "si rifiuta"
+		"sabotaggio": return "qualcosa non torna…"
+		"confronto": return "vuole parlarti"
+		"diserzione": return "sta per andarsene"
+		"ammutinamento": return "non ti ascolta più"
+	return "sereno"
+
+
+func _colore_stato(gradino: String) -> Color:
+	var i: int = ["lavoro", "svogliato", "attrezzi", "rifiuto",
+			"sabotaggio", "confronto", "diserzione", "ammutinamento"].find(gradino)
+	if i <= 0:
+		return UI_BROWN
+	# dal marrone al corallo man mano che si scende la scala
+	return UI_BROWN.lerp(Color("c2452f"), float(i) / 7.0)
+
+
+# ---------------------------------------------------------------- salvataggio
+
+func save_extra() -> Dictionary:
+	return {"incarichi": _incarichi.duplicate()}
+
+
+func load_extra(data: Dictionary) -> void:
+	_incarichi = (data.get("incarichi", {}) as Dictionary).duplicate()
