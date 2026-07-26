@@ -10,6 +10,8 @@ extends RefCounted
 
 const CRIT := preload("res://scenes/world/Critters.gd")
 const ANIMO := preload("res://scenes/npc/Animo.gd")
+const LAVORI := preload("res://scenes/npc/Lavori.gd")
+const DNA := preload("res://scenes/npc/ChibiDNA.gd")
 
 
 func run(t) -> void:
@@ -18,6 +20,7 @@ func run(t) -> void:
     _test_elenchi(t)
     _test_scala_unica(t)
     _test_tabelle_parallele_della_scala(t)
+    _test_dna_usa_i_vocabolari_dell_animo(t)
 
 
 # ------------------------------------------------------------- bestiario
@@ -112,8 +115,13 @@ func _test_tabelle_parallele_della_scala(t) -> void:
     for g in ANIMO.SCALA:
         t.ok(ANIMO.SOGLIA.has(g), "SOGLIA copre il gradino '%s'" % g)
         t.ok(ANIMO.TELEGRAFO.has(g), "TELEGRAFO copre il gradino '%s'" % g)
+        # e la tabella che il pannello dei lavori mostra al giocatore: senza
+        # questo controllo un gradino nuovo veniva etichettato "sereno" mentre
+        # il colore lo mostrava già in rivolta, e i test restavano verdi
+        t.ok(LAVORI.STATO_UMANO.has(g), "STATO_UMANO copre il gradino '%s'" % g)
     t.eq(ANIMO.SOGLIA.size(), ANIMO.SCALA.size(), "SOGLIA non ha gradini fantasma")
     t.eq(ANIMO.TELEGRAFO.size(), ANIMO.SCALA.size(), "TELEGRAFO non ha gradini fantasma")
+    t.eq(LAVORI.STATO_UMANO.size(), ANIMO.SCALA.size(), "STATO_UMANO non ha gradini fantasma")
     # le soglie salgono monotone lungo la scala: una scala che torna indietro
     # farebbe scattare due gradini insieme
     var prev := -1.0
@@ -121,3 +129,22 @@ func _test_tabelle_parallele_della_scala(t) -> void:
         var s := float(ANIMO.SOGLIA[g])
         t.ok(s >= prev, "la soglia di '%s' non scende" % g)
         prev = s
+
+
+# ---------------------------------------------------------------- il genoma
+
+func _test_dna_usa_i_vocabolari_dell_animo(t) -> void:
+    # il DNA tira a sorte sogno e tratti dai vocabolari di Animo (SOGNI,
+    # TRATTI): se qualcuno reintroduce le liste inline com'erano, un sogno
+    # aggiunto ad Animo.SOGNI non nascerebbe mai in nessun chibi — o peggio,
+    # nascerebbe un sogno che l'animo non sa interpretare
+    for seed_v in [3, 44, 512]:
+        var dna: Dictionary = DNA.generate(seed_v)
+        t.ok(str(dna.get("sogno", "")) in ANIMO.SOGNI,
+                "seed %d: il sogno '%s' esiste nel vocabolario dell'animo"
+                % [seed_v, dna.get("sogno")])
+        var tratti: Dictionary = dna.get("tratti", {})
+        t.eq(tratti.keys().size(), ANIMO.TRATTI.size(),
+                "seed %d: tanti tratti quanti ne conosce l'animo" % seed_v)
+        for tr in ANIMO.TRATTI:
+            t.ok(tratti.has(tr), "seed %d: il tratto '%s' c'è" % [seed_v, tr])

@@ -200,6 +200,56 @@ quindi un confronto esatto dell'albero dà falsi allarmi. Usare
 l'**istogramma per classe** (quello sì stabile) e, per le funzioni pure, scrivere
 una prova di equivalenza vecchia-vs-nuova implementazione.
 
+## REGOLA: le fonti uniche di verità (una tabella, un posto)
+
+Tre dati del gioco vivevano duplicati in più file e avevano **già cominciato a
+divergere in silenzio**. Ora ognuno ha UNA casa. Non reintrodurre copie: un test
+in [`tests/cases/test_fonti_uniche.gd`](tests/cases/test_fonti_uniche.gd) fa la
+guardia.
+
+- **Le specie** (farfalle, lucciole, pesci, raccolti) →
+  [`scenes/world/Critters.gd`](scenes/world/Critters.gd), `const SPECIE`: una
+  riga per specie con `nome/articolo/classe/colore/vendita/rara`. Prima le
+  tabelle stavano in `Economy` (negozio), `Collection` (barattoli) **e**
+  `CozyWorld` (chi vola): la stessa farfalla era "Farfalla dorata" sul bancone e
+  "una farfalla gialla" in vetrina, con due rosa diversi.
+  I due registri del nome si **derivano** da un unico nome minuscolo:
+  `etichetta()` → "Farfalla dorata" (titolo), `con_articolo()` → "una farfalla
+  dorata" (dentro una frase). Il pallino del negozio è
+  `colore_pallino()` = il colore della creatura più saturo: una trasformazione
+  di presentazione, **non** un secondo colore da mantenere a mano.
+- **La scala della ribellione** → `const SCALA` in
+  [`scenes/npc/Animo.gd`](scenes/npc/Animo.gd), sola definizione. Si interroga
+  **per nome** con `ANIMO.indice(g)` / `ANIMO.almeno(gradino, "diserzione")` /
+  `ANIMO.frazione(gradino)`. Mai indici a mano: `GRADINO_CONFRONTO := 5` e un
+  `.find()` su una lista ricopiata puntavano al gradino sbagliato appena si
+  inseriva un gradino in mezzo — senza un errore. Le tabelle parallele
+  (`SOGLIA`, `TELEGRAFO`, `Lavori.STATO_UMANO`) sono indicizzate per nome e il
+  test verifica che coprano **tutti** i gradini.
+- **Salvare il villaggio** → si chiede con l'**API pubblica** del BuildSystem:
+  `request_save()` (idempotente nel frame: N richieste = UNA scrittura, a fine
+  frame) oppure `save_now()` se si sta uscendo (pausa → titolo, quit, CLI), dove
+  un differito non verrebbe mai eseguito. **Non** chiamare `_save_village()` da
+  fuori: era chiamato da 16 file e ogni singola nocciolina riscriveva il file
+  INTERO due volte. Un test in
+  [`tests/cases/test_cablaggio.gd`](tests/cases/test_cablaggio.gd) tiene chiusa
+  la porta.
+
+## Trappola: i commenti nei file ConfigFile (`;` non `#`)
+
+`*.gdextension`, `export_presets.cfg`, `project.godot` sono in formato
+**ConfigFile**: i commenti vanno con **`;`**. Con `#` il parser **fonde** la riga
+di commento con la successiva in una chiave spazzatura, e la chiave che segue
+**scompare senza errore**. È già costato due volte:
+
+- in `chibi_crossing.gdextension` spariva `compatibility_minimum` → l'intera
+  GDExtension C++ non si caricava (schermo grigio con la sola musica, e le
+  classi native assenti nei test);
+- in `export_presets.cfg` spariva `codesign/codesign=0` dal preset macOS.
+
+I valori vanno anche **fra virgolette** dove sono stringhe: senza, un
+`compatibility_minimum = 4.10` viene letto come il float `4.1`.
+
 ## Test
 
 Test-suite **dependency-free** (nessun addon, nessuna rete) in `tests/`:

@@ -8,6 +8,9 @@ extends RefCounted
 ## salvato rinasce identico.
 
 const ACCESSORIES := preload("res://scenes/npc/ChibiAccessories.gd")
+# l'anima definisce i vocabolari (SOGNI, TRATTI): il DNA li tira a sorte ma
+# non li ridefinisce — una fonte sola, o le copie divergono in silenzio
+const ANIMO := preload("res://scenes/npc/Animo.gd")
 
 const ARCHETYPES := ["gatto", "coniglio", "orsetto", "volpina", "topolino"]
 
@@ -112,10 +115,10 @@ static func generate(seed_v := -1) -> Dictionary:
 	# reagisce sempre in modo coerente con chi è. I tratti NON sono uniformi:
 	# si tira due volte e si fa la media, così i caratteri estremi restano
 	# rari e il villaggio non diventa un carnevale di orgogliosi e codardi.
-	var sogni := ["boscaiolo", "giardiniere", "cuoco", "guerriero", "artista", "esploratore"]
+	var sogni: Array = ANIMO.SOGNI
 	var sogno: String = sogni[rng.randi() % sogni.size()]
 	var tratti := {}
-	for tr in ["orgoglio", "lealta", "grinta", "codardia", "ambizione"]:
+	for tr in ANIMO.TRATTI:
 		tratti[tr] = clampf((rng.randf() + rng.randf()) * 0.5, 0.0, 1.0)
 	# l'archetipo inclina il carattere, senza determinarlo
 	match arche:
