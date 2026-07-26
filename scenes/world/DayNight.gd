@@ -273,10 +273,37 @@ func _broadcast_season(transition: bool) -> void:
 			n.set_season(_season, _snow, transition)
 
 
+# --- IL MONDO IN LUTTO -------------------------------------------------
+# Durante i giorni del lutto (Legami) il quadro si vela: un po' di
+# saturazione in meno, la luce appena più fredda, la foschia un filo più
+# alta. NIENTE di teatrale: il giocatore non deve notarlo, deve sentirlo.
+# Il velo entra e esce PIANO (decine di secondi, mai a scatto): il lutto
+# finisce all'alba, e la saturazione che torna col primo sole — lenta,
+# mentre il mattino si apre — è la catarsi.
+var _lutto_f := 0.0
+var _legami: Node
+
+
+func _lutto_vuole() -> float:
+	if _legami == null or not is_instance_valid(_legami):
+		_legami = get_tree().get_first_node_in_group("legami")
+	if _legami and bool(_legami.call("lutto_attivo")):
+		return 1.0
+	return 0.0
+
+
+## Il passo del velo: verso il lutto in ~45 secondi, verso la luce in ~75
+## — la catarsi è più lenta dell'ombra, si apre col mattino. PURA.
+static func passo_velo(attuale: float, vuole: float, delta: float) -> float:
+	var k := 45.0 if vuole > attuale else 75.0
+	return lerpf(attuale, vuole, 1.0 - exp(-delta / k * 3.0))
+
+
 func _process(delta: float) -> void:
 	var nt := fposmod(time + delta / cycle_seconds, 1.0)
 	_check_new_day(time, nt)
 	time = nt
+	_lutto_f = passo_velo(_lutto_f, _lutto_vuole(), delta)
 	_apply()
 
 
@@ -410,6 +437,9 @@ func _apply() -> void:
 	# la stagione intona la temperatura del sole: oro d'autunno, cristallo
 	# d'inverno — solo di giorno, per non spegnere l'arancio del tramonto
 	_sun.light_color = _sun.light_color.lerp(_g_sun, 0.32 * day_f)
+	# nel lutto il sole si raffredda appena (moltiplica: i rapporti restano)
+	_sun.light_color = _sun.light_color.lerp(
+			_sun.light_color * Color(0.93, 0.97, 1.04), _lutto_f)
 	_sun.shadow_enabled = elev > 0.02
 
 	# --- luna: sorge quando il sole tramonta ---
@@ -462,11 +492,13 @@ func _apply() -> void:
 			.lerp(_g_fog, 0.5 * day_f) \
 			.lerp(Color(0.68, 0.7, 0.76) * maxf(day_f, 0.15), g * 0.8)
 	# la foschia si addensa d'autunno (aria ambrata) e d'inverno (velo
-	# bianco), si dirada d'estate
-	_env.fog_density = maxf(0.0005, 0.0012 + g * 0.0035 + _g_fog_add)
+	# bianco), si dirada d'estate — e nel lutto sale una nebbiolina bassa
+	_env.fog_density = maxf(0.0005, 0.0012 + g * 0.0035 + _g_fog_add \
+			+ 0.0024 * _lutto_f)
 	_env.glow_intensity = 0.22 + (1.0 - day_f) * 0.25
-	# il grado globale del quadro: estate vivida, inverno smorto e quieto
-	_env.adjustment_saturation = _g_sat
+	# il grado globale del quadro: estate vivida, inverno smorto e quieto.
+	# Il lutto toglie il 13%: abbastanza da sentirlo, mai da notarlo
+	_env.adjustment_saturation = _g_sat * (1.0 - 0.13 * _lutto_f)
 
 	# --- stelle: si accendono quando il bagliore muore (e le nuvole coprono) ---
 	_stars_mat.albedo_color.a = clampf((1.0 - day_f) - glow_bell * 0.5, 0.0, 1.0) * 0.9 * (1.0 - g)
