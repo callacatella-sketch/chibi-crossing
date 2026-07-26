@@ -12,6 +12,8 @@ func run(t) -> void:
     _test_copertura_catena(t)
     _test_nessun_riferimento_in_avanti(t)
     _test_primo_e_finale(t)
+    _test_desideri_di_stagione(t)
+    _test_desiderio_della_settimana(t)
 
 
 func _snap(counts: Dictionary, bed := false, residents := 0) -> Dictionary:
@@ -45,6 +47,13 @@ func _test_predicati(t) -> void:
     # resident_moved_in
     t.ok(G.satisfied({"type": "resident_moved_in", "n": 1}, _snap({}, false, 1)), "1 residente soddisfa")
     t.ok(not G.satisfied({"type": "resident_moved_in", "n": 1}, _snap({}, false, 0)), "0 residenti no")
+    # stat: i numeri vivi del mondo (fiori in fiore, alberi del boschetto)
+    var con_stats := _snap({})
+    con_stats["stats"] = {"fiori": 10}
+    t.ok(G.satisfied({"type": "stat", "key": "fiori", "n": 10}, con_stats), "stat: 10 fiori soddisfano")
+    t.ok(not G.satisfied({"type": "stat", "key": "fiori", "n": 11}, con_stats), "stat: 10 fiori su 11 no")
+    t.ok(not G.satisfied({"type": "stat", "key": "alberi", "n": 1}, con_stats), "stat: chiave assente -> 0")
+    t.ok(not G.satisfied({"type": "stat", "key": "fiori", "n": 1}, _snap({})), "stat: snapshot senza stats -> false")
     # predicato sconosciuto: false, niente crash
     t.ok(not G.satisfied({"type": "boh"}, _snap({})), "predicato sconosciuto -> false")
 
@@ -109,3 +118,66 @@ func _test_primo_e_finale(t) -> void:
     t.ok(first_ok, "il primo Ordine si completa col catalogo iniziale")
     var last: Dictionary = G.CHAIN[G.CHAIN.size() - 1]
     t.ok("Casa albero" in last["unlocks"], "l'ultimo Ordine sblocca la Casa albero")
+
+
+## Le lettere-stagione: il tavolo dei desideri e' ben formato — ogni stagione
+## ha il suo pool, ogni riga ha testi pieni e un predicato di tipo noto, i
+## pezzi nominati (anche i regali) esistono nel catalogo.
+func _test_desideri_di_stagione(t) -> void:
+    const TIPI_NOTI := ["has", "count", "any_count", "bed_under_roof",
+            "table_with_chairs", "has_room", "has_upper_floor",
+            "resident_moved_in", "stat"]
+    var catalog := {}
+    for n in G.all_piece_names():
+        catalog[str(n)] = true
+    var per_stagione := {0: 0, 1: 0, 2: 0, 3: 0}
+    var ids := {}
+    for d in G.DESIDERI:
+        var id := str(d["id"])
+        t.ok(not ids.has(id), "id desiderio unico: %s" % id)
+        ids[id] = true
+        per_stagione[int(d["season"])] += 1
+        for campo in ["title", "letter_text", "hint", "done_text"]:
+            t.ok(str(d[campo]) != "", "%s: %s non vuoto" % [id, campo])
+        t.ok(str(d["predicate"]["type"]) in TIPI_NOTI,
+                "%s: predicato di tipo noto" % id)
+        t.ok(int(d.get("stars", 0)) >= 1, "%s: almeno una stellina" % id)
+        for pezzo in G.referenced_pieces(d["predicate"]):
+            t.ok(catalog.has(str(pezzo)),
+                    "%s: il pezzo richiesto '%s' esiste nel catalogo" % [id, pezzo])
+        var regalo := str(d.get("gift_piece", ""))
+        if regalo != "":
+            t.ok(catalog.has(regalo),
+                    "%s: il pezzo in regalo '%s' esiste nel catalogo" % [id, regalo])
+    for s in 4:
+        t.ok(int(per_stagione[s]) >= 1, "la stagione %d ha almeno un desiderio" % s)
+
+
+## La scelta settimanale: deterministica, della stagione giusta, e negli anni
+## il pool ruota (stessa stagione, desiderio diverso, finche' ce n'e').
+func _test_desiderio_della_settimana(t) -> void:
+    t.ok(G.desiderio_della_settimana(-1).is_empty(), "settimana negativa -> nessun desiderio")
+    for w in 8:
+        var d := G.desiderio_della_settimana(w)
+        t.ok(not d.is_empty(), "settimana %d: un desiderio c'e'" % w)
+        t.eq(int(d["season"]), w % 4, "settimana %d: desiderio della sua stagione" % w)
+        t.eq(str(G.desiderio_della_settimana(w)["id"]), str(d["id"]),
+                "settimana %d: scelta deterministica" % w)
+    # la rotazione annuale: con almeno 2 desideri nel pool, l'anno dopo cambia
+    for s in 4:
+        var pool := 0
+        for d in G.DESIDERI:
+            if int(d["season"]) == s:
+                pool += 1
+        if pool >= 2:
+            t.ok(str(G.desiderio_della_settimana(s)["id"])
+                    != str(G.desiderio_della_settimana(s + 4)["id"]),
+                    "stagione %d: l'anno dopo il desiderio ruota" % s)
+    # e al giro completo del pool si ritorna al primo (ripetibile, come promesso)
+    var pool0 := 0
+    for d in G.DESIDERI:
+        if int(d["season"]) == 0:
+            pool0 += 1
+    t.eq(str(G.desiderio_della_settimana(0)["id"]),
+            str(G.desiderio_della_settimana(pool0 * 4)["id"]),
+            "il pool di primavera ricomincia dopo %d anni" % pool0)

@@ -62,6 +62,8 @@ func _ready():
 		_start_debug_harness("legna", OS.get_environment("CHIBI_LEGNA"))
 	elif OS.get_environment("CHIBI_LAVORI") != "":
 		_start_debug_harness("lavori", OS.get_environment("CHIBI_LAVORI"))
+	elif OS.get_environment("CHIBI_FESTA") != "":
+		_start_debug_harness("festa", OS.get_environment("CHIBI_FESTA"))
 	elif OS.get_environment("CHIBI_MAKESAVE") != "":
 		_start_debug_harness("makesave")
 
@@ -110,18 +112,19 @@ func _spawn_system(path: String, node_name: String) -> Node:
 # Istanzia l'harness di verifica (DebugHarness.gd) come nodo figlio e gli passa
 # se stesso, così tutto il codice di test resta fuori dallo script di gioco.
 #
-# IL SALVATAGGIO VERO NON SI TOCCA. Le modalità "lavori" e "legna" fabbricano
-# residenti finti, danno incarichi e simulano novanta giorni di lavoro forzato
-# fino alla diserzione: se le scritture restassero accese, tutta quella roba
-# finirebbe nel villaggio del giocatore (e i disertori se ne andrebbero per
-# davvero, in modo permanente). Qui si spengono le SCRITTURE, non il
-# caricamento: il villaggio si carica ancora, che è proprio ciò che serve alla
-# fase 2 della prova sulla legna. Le eccezioni sono due, entrambe volute:
-# CHIBI_LEGNA_SAVE (fase 1 della stessa prova: abbatte, salva ed esce) e
-# "makesave", che il salvataggio lo crea apposta. "shot" si spegne da sé in
-# BuildSystem._ready.
+# IL SALVATAGGIO VERO NON SI TOCCA. Le modalità "lavori", "festa" e "legna"
+# fabbricano residenti finti, danno incarichi, saltano di stagione in stagione
+# e simulano novanta giorni di lavoro forzato fino alla diserzione: se le
+# scritture restassero accese, tutta quella roba finirebbe nel villaggio del
+# giocatore (e i disertori se ne andrebbero per davvero, in modo permanente).
+# Qui si spengono le SCRITTURE, non il caricamento: il villaggio si carica
+# ancora, che è proprio ciò che serve alla fase 2 della prova sulla legna. Le
+# eccezioni sono due, entrambe volute: CHIBI_LEGNA_SAVE (fase 1 della stessa
+# prova: abbatte, salva ed esce) e "makesave", che il salvataggio lo crea
+# apposta. "shot" si spegne da sé in BuildSystem._ready.
 func _start_debug_harness(mode: String, arg: String = "") -> void:
-	if mode == "lavori" or (mode == "legna" and OS.get_environment("CHIBI_LEGNA_SAVE") == ""):
+	if mode == "lavori" or mode == "festa" \
+			or (mode == "legna" and OS.get_environment("CHIBI_LEGNA_SAVE") == ""):
 		build_system.set_persist_for_debug(false)
 	var h = DEBUG_HARNESS.new()
 	h.name = "DebugHarness"

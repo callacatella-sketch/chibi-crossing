@@ -30,6 +30,8 @@ func run(level: Node3D, mode: String, arg: String = "") -> void:
 			await _debug_woodcutting(arg)
 		"lavori":
 			await _debug_lavori(arg)
+		"festa":
+			await _debug_feste(arg)
 
 func _frames(n: int):
 	for i in n:
@@ -145,6 +147,108 @@ func _debug_lavori(dir: String) -> void:
 	await get_tree().create_timer(0.6).timeout
 	await _shot(dir, "lavori_registro")
 	print("LAVORI: cronaca = %s" % [vis.cronaca_villaggio()])
+	get_tree().quit()
+
+
+# ---------------------------------------------------------------- feste
+# Verifica dell'endgame stagionale: le quattro feste (una per stagione, coi
+# residenti che accorrono) e il generatore delle lettere-stagione del Gufo.
+func _debug_feste(dir: String) -> void:
+	var vis = _level.get_node_or_null("Visitors")
+	var dn = _level.get_node_or_null("DayNight")
+	# il Calendario nasce dentro CozyWorld, che costruisce DIFFERITO su più
+	# frame: si aspetta che compaia nel suo gruppo
+	var calendario = null
+	for attesa in 300:
+		calendario = get_tree().get_first_node_in_group("calendario")
+		if calendario != null:
+			break
+		await get_tree().process_frame
+	if calendario == null or vis == null or dn == null:
+		printerr("FESTA: Calendario, Visitors o DayNight non trovati")
+		get_tree().quit()
+		return
+	await _frames(30)
+
+	# il generatore delle lettere-stagione: due anni di desideri a stampa
+	# (il tavolo e la determinismo li tiene d'occhio test_gufo; qui si vede
+	# che ogni settimana ha la sua lettera, nella stagione giusta)
+	var GUFO = load("res://scenes/npc/GufoOrders.gd")
+	for w in 8:
+		var d: Dictionary = GUFO.desiderio_della_settimana(w)
+		print("FESTA: settimana %d (%s, anno %d) -> «%s» · %s · %d⭐%s"
+				% [w, ["primavera", "estate", "autunno", "inverno"][w % 4],
+				int(w / 4.0) + 1, d["title"], d["hint"], d["stars"],
+				("" if str(d.get("gift_piece", "")) == "" else " + " + str(d["gift_piece"]))])
+
+	# tre residenti per la piazza: alle feste si accorre in compagnia
+	for seed_v in [555, 556, 557]:
+		vis.debug_add_resident(seed_v, player.global_position + Vector3(2.0, 0, 2.0))
+	await _frames(10)
+
+	# il giro dell'anno: si salta al giorno di ogni festa e la si lascia
+	# scattare per la via VERA — debug_set_day emette day_changed, il
+	# Calendar mette la festa in attesa e _tick_festa la fa partire quando
+	# giorno/notte combaciano. debug_festa resta come rete di sicurezza.
+	var nomi := ["hanami", "lucciole", "sagra", "pupazzo"]
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.fov = 46.0
+	for stagione in 4:
+		var giorno: int = stagione * 7 + 4
+		# PRIMA l'ora, POI il giorno: se set_time attraversasse l'alba il
+		# giorno avanzerebbe di uno, e debug_set_day (che emette day_changed
+		# col giorno giusto) deve avere l'ultima parola sul pending
+		dn.set_time(0.97 if stagione == 1 else 0.45)  # le lucciole vogliono il buio
+		dn.debug_set_day(giorno)
+		var pending: Dictionary = calendario.get("_festa_pending")
+		print("FESTA: giorno %d -> in attesa: %s" % [giorno,
+				pending.get("id", "(NIENTE: pending rotto!)")])
+		# i residenti e la camera si mettono a portata PRIMA che scatti
+		var spot: Vector3 = calendario.call("_festa_spot", pending) \
+				if not pending.is_empty() else Vector3.ZERO
+		for i in 3:
+			vis.debug_stage_resident(i, spot + Vector3(1.0 + i * 0.7, 0, 1.2 - i * 0.8))
+		player.global_position = spot + Vector3(-1.4, 0, 1.6)
+		cam.position = spot + Vector3(3.4, 2.2, 3.8)
+		cam.current = true
+		cam.look_at(spot + Vector3(0, 0.6, 0))
+		await _frames(3)   # qui _tick_festa scatta, col suo criterio giorno/notte
+		var registro: Dictionary = calendario.get("_feste_done")
+		if not registro.has("%s|%d" % [str(pending.get("id", "")), giorno]):
+			printerr("FESTA: %s non è scattata da sola, la forzo" % nomi[stagione])
+			calendario.debug_festa(stagione)
+		await get_tree().create_timer(1.1).timeout
+		await _shot(dir, "festa_%d_%s" % [stagione + 1, nomi[stagione]])
+		print("FESTA: %s fatta (registro: %s)" % [nomi[stagione],
+				(calendario.get("_feste_done") as Dictionary).keys()])
+
+	# il pupazzo di neve da vicino: naso di carota e braccia di rametto
+	var pupazzo = calendario.get("_snowman")
+	if pupazzo:
+		cam.position = (pupazzo as Node3D).global_position + Vector3(1.3, 1.25, 1.6)
+		cam.look_at((pupazzo as Node3D).global_position + Vector3(0, 0.75, 0))
+		await get_tree().create_timer(0.5).timeout
+		await _shot(dir, "festa_5_pupazzo_vicino")
+		# e al disgelo si scioglie: si salta a primavera e si controlla
+		dn.debug_set_day(29)
+		await _frames(3)
+		print("FESTA: primavera dell'anno 2, il pupazzo c'e' ancora? %s"
+				% (calendario.get("_snowman") != null))
+
+	# la lavagna sa della prossima festa (pannello del calendario)
+	calendario.debug_seed_board()
+	calendario.debug_open_panel()
+	await get_tree().create_timer(0.5).timeout
+	await _shot(dir, "festa_6_calendario")
+	calendario.debug_close_panel()
+
+	# il Gufo a fine giro: con un salvataggio vero (campagna finita o
+	# veterano) i salti di stagione devono avergli fatto annunciare le
+	# lettere-stagione (wish_week aggiornato all'ultima settimana visitata)
+	var gufo = get_tree().get_first_node_in_group("gufo")
+	if gufo:
+		print("FESTA: gufo = %s" % [gufo.debug_state()])
 	get_tree().quit()
 
 

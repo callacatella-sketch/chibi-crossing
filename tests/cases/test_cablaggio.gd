@@ -123,6 +123,8 @@ func _test_harness_non_riscrive_il_salvataggio(t) -> void:
 			"_start_debug_harness spegne le scritture del BuildSystem")
 	t.ok(avvio.contains("\"lavori\""),
 			"…nella modalità lavori (residenti finti e giorni forzati)")
+	t.ok(avvio.contains("\"festa\""),
+			"…nella modalità festa (salti di stagione e feste forzate)")
 	t.ok(avvio.contains("\"legna\"") and avvio.contains("CHIBI_LEGNA_SAVE"),
 			"…e nella legna, salvo l'opt-in CHIBI_LEGNA_SAVE")
 	t.ok(_body("res://scenes/build/BuildSystem.gd", "set_persist_for_debug") != "",

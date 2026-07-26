@@ -13,6 +13,13 @@ extends Node
 ## funzione PURA su un'istantanea del villaggio (satisfied), cosi' e'
 ## testabile senza SceneTree (vedi tests/cases/test_gufo.gd).
 ##
+## E DOPO la Casa sull'albero, gli Ordini non finiscono: il Gufo passa
+## dalle lettere-campagna alle LETTERE-STAGIONE — un piccolo desiderio
+## ripetibile, uno a settimana (una stagione dura proprio 7 giorni),
+## generato dagli stessi predicati puri su contenuti nuovi. Ricompensa:
+## stelline, una lettera di grazie e — per due desideri — un pezzo del
+## negozio in regalo. Anche i veterani (catalogo pieno) li ricevono.
+##
 ## Nodo fratello nella scena (come Mail/Visitors), NON figlio runtime di
 ## CozyWorld: cosi' e' gia' nel gruppo "persistable" quando BuildSystem
 ## carica il villaggio (load_extra) all'avvio, e la progressione non si
@@ -44,6 +51,52 @@ const CHAIN := [
     {"id": "la-casa-sull-albero", "title": "La casa sull'albero", "letter_text": "Ci siamo arrivati in cima, tu ed io.\nLancia un ponticello di corda tra i tetti più alti:\nè l'ultimo ponte prima del ramo dove ti aspetto.", "hint": "un ponticello tra i tetti alti", "done_text": "Il ponte regge. Il villaggio adesso tocca i rami: puoi costruire la casa sull'albero.", "predicate": {"type": "has", "name": "Ponticello"}, "unlocks": ["Casa albero"], "celebrate_letter": "Stanotte mi trasferisco nella casa sull'albero che hai immaginato per me. Dal ramo più alto conto i tetti nuovi, le luci, gli orti, l'ospite che ora ha un nome: hai costruito un mondo intero, e io ho avuto il posto in prima fila. Grazie, piccolo Regista. — Il Gufo"},
 ]
 
+# --- le lettere-stagione: la campagna e' finita, il carteggio no ---
+# Il calendario e' la fonte dei numeri (7 giorni a stagione, 4 stagioni):
+# niente copie a mano dei suoi const.
+const DN := preload("res://scenes/world/DayNight.gd")
+
+# Un desiderio per stagione a rotazione annuale: la settimana N dell'anno M
+# pesca dal pool della SUA stagione (vedi desiderio_della_settimana). Ogni
+# riga usa i predicati puri di satisfied(); "stat" legge i numeri vivi del
+# mondo (fiori in fiore, alberi del boschetto) dall'istantanea. "stars" e'
+# la ricompensa; "gift_piece" (raro) regala lo sblocco di un pezzo del
+# negozio — il "pezzo esclusivo" delle lettere-stagione.
+const DESIDERI := [
+    # ---- primavera
+    {"id": "fiori-in-fiore", "season": 0, "title": "Un prato che applaude", "letter_text": "Dalla casa sull'albero vedo i prati sbadigliare.\nVorrei contare dieci fiori aperti tutti insieme:\nun applauso colorato per la primavera.", "hint": "dieci fiori in fiore nello stesso giorno", "done_text": "Dieci corolle aperte! Stamattina il prato applaudiva da solo.", "predicate": {"type": "stat", "key": "fiori", "n": 10}, "stars": 2, "gift_piece": ""},
+    {"id": "panchine-coi-petali", "season": 0, "title": "Posti in prima fila", "letter_text": "I petali cadono meglio se qualcuno li guarda.\nMetti due panchine rivolte al vento:\nvoglio vedere chi si siede sotto la neve rosa.", "hint": "due panchine per guardare i petali", "done_text": "Due panchine, e gia' qualcuno ci sonnecchia sotto i petali.", "predicate": {"type": "count", "name": "Panchina", "n": 2}, "stars": 2, "gift_piece": ""},
+    # ---- estate
+    {"id": "lampioni-sul-fiume", "season": 1, "title": "Le stelle basse", "letter_text": "Le sere d'estate meritano una riva accesa.\nPianta tre lampioni lungo il fiume:\nvoglio specchiarli nell'acqua, dalla mia finestra.", "hint": "tre lampioni accesi lungo il fiume", "done_text": "Tre lucine sull'acqua: il fiume adesso ha le sue stelle basse.", "predicate": {"type": "count", "name": "Lampione", "n": 3}, "stars": 3, "gift_piece": ""},
+    {"id": "fontana-delle-cicale", "season": 1, "title": "Il metronomo dell'estate", "letter_text": "Le cicale cantano, ma sono stonate.\nRegala loro una fontana che tenga il tempo:\nlo zampillo e' il metronomo dell'estate.", "hint": "una fontana che canti in piazza", "done_text": "La fontana canta e le cicale la seguono.\nNel pacco c'e' un braciere di scintille: accendilo\nalla prossima notte di lucciole.", "predicate": {"type": "has", "name": "Fontana"}, "stars": 2, "gift_piece": "Braciere stellato"},
+    # ---- autunno
+    {"id": "boschetto-generoso", "season": 2, "title": "Il tepore di domani", "letter_text": "L'autunno e' la stagione delle scorte e dei rami pieni.\nFai crescere il boschetto fino a dodici alberi:\nla legna che non tagli oggi e' il tepore di domani.", "hint": "un boschetto di dodici alberi", "done_text": "Dodici chiome! Il bosco e' piu' ricco di come l'abbiamo trovato.", "predicate": {"type": "stat", "key": "alberi", "n": 12}, "stars": 2, "gift_piece": ""},
+    {"id": "orti-della-sagra", "season": 2, "title": "Le ceste piene", "letter_text": "Si avvicina la sagra e le ceste sono leggere.\nApri quattro orti per il raccolto:\nnessuna festa e' tale a pancia vuota.", "hint": "quattro orti per la sagra del raccolto", "done_text": "Quattro orti in fila: la sagra quest'anno avra' le guance piene.", "predicate": {"type": "count", "name": "Orto", "n": 4}, "stars": 2, "gift_piece": ""},
+    # ---- inverno
+    {"id": "luci-nella-neve", "season": 3, "title": "Respiri dorati", "letter_text": "La neve spegne i colori, non i cuori.\nAccendi cinque luci tra camini, lampade e lampioni:\nvoglio vedere il villaggio respirare vapore dorato.", "hint": "cinque luci accese tra camini, lampade e lampioni", "done_text": "Cinque respiri di luce nella neve. Da quassu' sembrate un presepe.", "predicate": {"type": "any_count", "names": ["Camino", "Lampada", "Lampione"], "n": 5}, "stars": 2, "gift_piece": ""},
+    {"id": "biblioteca-d-inverno", "season": 3, "title": "Primavere tascabili", "letter_text": "Le sere lunghe vogliono storie lunghe.\nMetti due librerie al caldo del villaggio:\nun libro e' una primavera tascabile.", "hint": "due librerie per le sere lunghe", "done_text": "Due librerie piene! Ti lascio la giostrina:\nanche le storie girano in tondo.", "predicate": {"type": "count", "name": "Libreria", "n": 2}, "stars": 2, "gift_piece": "Giostrina"},
+]
+
+
+## Il desiderio della settimana `week` (0 = i primi 7 giorni). PURA e
+## deterministica: stessa settimana, stesso desiderio — cosi' un reload non
+## cambia la lettera, e il test la interroga senza SceneTree. La settimana
+## N cade nella stagione N%4; l'anno (N/4) fa ruotare il pool della stagione.
+static func desiderio_della_settimana(week: int) -> Dictionary:
+    if week < 0:
+        return {}
+    var season := week % DN.SEASON_NAMES.size()
+    var pool := []
+    for d in DESIDERI:
+        if int(d["season"]) == season:
+            pool.append(d)
+    if pool.is_empty():
+        return {}
+    @warning_ignore("integer_division")
+    var year := week / DN.SEASON_NAMES.size()
+    return pool[year % pool.size()]
+
+
 # --- stato della progressione (persistito sotto la chiave "gufo") ---
 var _build: Node
 var _mail: Node
@@ -57,6 +110,9 @@ var _announced := {}             # id Ordine -> true (gia' mostrato al giocatore
 var _veteran := false            # salvataggio precedente agli Ordini: catalogo pieno
 var _arrivals := 0               # residenti traslocati (per resident_moved_in)
 var _settled := false            # il caricamento ha gia' sistemato lo stato?
+var _daynight: Node              # il calendario: da lui la settimana corrente
+var _wish_week := -1             # ultima settimana di cui si e' annunciato il desiderio
+var _wish_done_week := -1        # settimana il cui desiderio e' gia' stato esaudito
 
 # --- UI ---
 var _layer: CanvasLayer
@@ -87,9 +143,15 @@ func _ready() -> void:
     _build = get_tree().get_first_node_in_group("build_system")
     _mail = get_node_or_null("../Mail")
     _visitors = get_node_or_null("../Visitors")
+    _daynight = get_node_or_null("../DayNight")
     _build_ui()
     if _build and _build.has_signal("placed_changed"):
         _build.connect("placed_changed", _on_placed_changed)
+    # le lettere-stagione camminano coi giorni: a ogni mattina si controlla
+    # se e' iniziata una settimana nuova (e se il desiderio si e' avverato
+    # con la notte: i fiori sbocciano proprio al cambio di giorno)
+    if _daynight and _daynight.has_signal("day_changed"):
+        _daynight.connect("day_changed", _on_new_day)
     _apply_to_build()
     # Se un salvataggio esiste, il caricamento differito del villaggio
     # chiamera' load_extra (impostando _settled) prima di questo timer. Se
@@ -136,14 +198,20 @@ func _apply_to_build() -> void:
 func _update_banner() -> void:
     if _build == null:
         return
-    if _veteran:
-        _build.call("set_order_banner", "")
-        return
     var o := _active_order()
-    if o.is_empty():
-        _build.call("set_order_banner", "Il villaggio e' completo — la tela e' tua.")
+    if not o.is_empty():
+        _build.call("set_order_banner", "Il Gufo sussurra:  %s" % _banner_hint(o))
         return
-    _build.call("set_order_banner", "Il Gufo sussurra:  %s" % _banner_hint(o))
+    # campagna finita (o veterano): se c'e' una lettera-stagione in corso, il
+    # banner sogna quella; esaudita, torna il congedo (o il silenzio, per chi
+    # non ha mai avuto il carteggio)
+    var d := _desiderio_attivo()
+    if not d.is_empty():
+        _build.call("set_order_banner", "Il Gufo sogna:  %s" % str(d["hint"]))
+    elif _veteran:
+        _build.call("set_order_banner", "")
+    else:
+        _build.call("set_order_banner", "Il villaggio e' completo — la tela e' tua.")
 
 
 # di norma il banner mostra l'hint statico; ma l'Ordine "arriva un ospite"
@@ -170,14 +238,24 @@ func _active_order() -> Dictionary:
 
 
 # L'istantanea del villaggio con cui si valutano gli Ordini. Solo dati
-# semplici (conteggi + qualche bool): satisfied() ne deriva il resto.
+# semplici (conteggi + qualche bool + i numeri vivi del mondo): satisfied()
+# ne deriva il resto.
 func world_snapshot() -> Dictionary:
     var counts := {}
     var bed := false
     if _build:
         counts = _build.call("piece_counts")
         bed = _build.call("has_bed_under_roof")
-    return {"counts": counts, "bed_under_roof": bed, "residents": _arrivals}
+    # i numeri che non sono pezzi: li leggono i desideri di stagione ("stat")
+    var stats := {}
+    var garden := get_node_or_null("../Garden")
+    if garden and garden.has_method("bloomed_positions"):
+        stats["fiori"] = (garden.bloomed_positions() as PackedVector3Array).size()
+    var wood: Node = get_tree().get_first_node_in_group("woodcutting")
+    if wood and wood.has_method("tree_count"):
+        stats["alberi"] = int(wood.tree_count())
+    return {"counts": counts, "bed_under_roof": bed, "residents": _arrivals,
+            "stats": stats}
 
 
 ## Un Ordine e' esaudito? Funzione PURA sull'istantanea: nessuno stato, nessun
@@ -207,6 +285,11 @@ static func satisfied(pred: Dictionary, snap: Dictionary) -> bool:
         return int(counts.get("Solaio", 0)) >= 1
     elif t == "resident_moved_in":
         return int(snap.get("residents", 0)) >= int(pred.get("n", 1))
+    elif t == "stat":
+        # i numeri vivi del mondo (fiori in fiore, alberi del boschetto):
+        # entrano nell'istantanea da world_snapshot, chiave per chiave
+        var stats: Dictionary = snap.get("stats", {})
+        return int(stats.get(str(pred.get("key", "")), 0)) >= int(pred.get("n", 1))
     push_warning("GufoOrders: predicato sconosciuto '%s'" % t)
     return false
 
@@ -230,13 +313,15 @@ static func referenced_pieces(pred: Dictionary) -> Array:
         return ["Letto", "Tetto"]
     if t == "has_upper_floor":
         return ["Solaio"]
-    return []  # resident_moved_in non dipende da un pezzo
+    return []  # resident_moved_in e stat non dipendono da un pezzo
 
 
 func _on_placed_changed() -> void:
-    if _dormant or _veteran:
+    if _dormant:
         return
-    _check_current()
+    if not _veteran:
+        _check_current()
+    _check_desiderio()  # anche i veterani esaudiscono le lettere-stagione
     _update_banner()  # la guida dell'Ordine "arriva un ospite" resta viva
 
 
@@ -291,11 +376,92 @@ func _reveal_current() -> void:
     _update_journal()
     var o := _active_order()
     if o.is_empty():
+        # campagna chiusa: prende la parola la lettera-stagione. Differito
+        # perche' da load_extra il giorno del DayNight potrebbe non essere
+        # ancora stato servito (l'ordine dentro "persistable" non e' garantito)
+        _aggiorna_desiderio.call_deferred()
         return
     var id := str(o["id"])
     if not _announced.has(id):
         _announced[id] = true
         _owl_toast(str(o["title"]), str(o["letter_text"]))
+
+
+# ------------------------------------------------------- lettere-stagione
+
+# La campagna e' chiusa? (Da qui in poi parlano solo le lettere-stagione.)
+func _campagna_finita() -> bool:
+    return _veteran or _current >= CHAIN.size()
+
+
+# La settimana corrente del calendario (0 = i primi 7 giorni).
+func _settimana() -> int:
+    if _daynight == null:
+        return -1
+    @warning_ignore("integer_division")
+    return (int(_daynight.get("day")) - 1) / DN.SEASON_DAYS
+
+
+# Il desiderio in corso: annunciato e non ancora esaudito ({} altrimenti).
+func _desiderio_attivo() -> Dictionary:
+    if not _campagna_finita() or _wish_week < 0 or _wish_done_week == _wish_week:
+        return {}
+    return desiderio_della_settimana(_wish_week)
+
+
+func _on_new_day(_day: int) -> void:
+    if _dormant:
+        return
+    _aggiorna_desiderio()
+
+
+# Una settimana nuova porta una lettera nuova; poi si guarda se il villaggio
+# gia' la esaudisce (i fiori sbocciano di notte: il controllo del mattino e'
+# quello che se ne accorge). Il desiderio non esaudito NON punisce: a fine
+# settimana sfuma e arriva il successivo.
+func _aggiorna_desiderio() -> void:
+    if _dormant or not _campagna_finita():
+        return
+    var w := _settimana()
+    if w >= 0 and w != _wish_week:
+        _wish_week = w
+        var d := desiderio_della_settimana(w)
+        if not d.is_empty():
+            _owl_toast(str(d["title"]), str(d["letter_text"]))
+        _update_banner()
+        _update_journal()
+        _save()
+    _check_desiderio()
+
+
+func _check_desiderio() -> void:
+    var d := _desiderio_attivo()
+    if d.is_empty() or not satisfied(d["predicate"], world_snapshot()):
+        return
+    _wish_done_week = _wish_week
+    var stelle := int(d.get("stars", 2))
+    var eco: Node = get_tree().get_first_node_in_group("economy")
+    # il pezzo esclusivo: lo sblocco arriva in regalo UNA volta (se il
+    # giocatore l'ha gia' comprato, il Gufo lo sa e aggiunge una stellina)
+    var regalo := str(d.get("gift_piece", ""))
+    if eco:
+        if regalo != "":
+            if bool(eco.call("is_piece_unlocked", regalo)):
+                stelle += 1
+                regalo = ""
+            else:
+                eco.call("unlock_piece", regalo)
+        eco.call("add_stars", stelle)
+    _owl_toast(str(d["title"]), str(d.get("done_text", "")), true)
+    if _mail:
+        var testo := "%s\n\nTi lascio %d stelline sul davanzale." \
+                % [str(d.get("done_text", "")), stelle]
+        if regalo != "":
+            testo += "\nE il pacco contiene: %s. E' tuo." % regalo
+        _mail.call("queue_letter", {"from": "Il Gufo", "text": testo, "gift": true})
+    _update_banner()
+    _update_journal()
+    _save()
 
 
 func _save() -> void:
@@ -315,6 +481,8 @@ func save_extra() -> Dictionary:
         "announced": _announced.keys(),
         "veteran": _veteran,
         "arrivals": _arrivals,
+        "wish_week": _wish_week,
+        "wish_done_week": _wish_done_week,
     }}
 
 
@@ -327,6 +495,8 @@ func load_extra(data: Dictionary) -> void:
         _current = int(d.get("current", 0))
         _veteran = bool(d.get("veteran", false))
         _arrivals = int(d.get("arrivals", 0))
+        _wish_week = int(d.get("wish_week", -1))
+        _wish_done_week = int(d.get("wish_done_week", -1))
         _unlocked = {}
         for n in STARTER:
             _unlocked[str(n)] = true
@@ -357,6 +527,9 @@ func load_extra(data: Dictionary) -> void:
             _done[str(o["id"])] = true
         _apply_to_build()
         _update_journal()
+        # anche il veterano riceve le lettere-stagione (la campagna no, ma il
+        # carteggio si': e' il suo primo contatto col Gufo)
+        _aggiorna_desiderio.call_deferred()
     else:
         _reveal_current()
 
@@ -431,6 +604,7 @@ func _update_journal() -> void:
     if _veteran:
         _add_journal_label("Il tuo villaggio era gia' cresciuto prima di me.\nLa tela e' tua: costruisci come il cuore ti detta.",
                 13, Color("6a4a3a"))
+        _journal_desiderio()
         _add_journal_label("O — chiudi", 11, Color(0.42, 0.29, 0.23), HORIZONTAL_ALIGNMENT_CENTER)
         return
     for i in CHAIN.size():
@@ -449,7 +623,29 @@ func _update_journal() -> void:
     elif _current >= CHAIN.size():
         _add_journal_label("Il villaggio e' completo. Grazie, piccolo Regista. — Il Gufo",
                 13, Color("b98a4a"), HORIZONTAL_ALIGNMENT_CENTER)
+        _journal_desiderio()
     _add_journal_label("O — chiudi", 11, Color(0.42, 0.29, 0.23), HORIZONTAL_ALIGNMENT_CENTER)
+
+
+# La pagina della lettera-stagione in fondo al diario: il desiderio in corso
+# con l'obiettivo, oppure il timbro "esaudito" fino a settimana nuova.
+func _journal_desiderio() -> void:
+    if not _campagna_finita() or _wish_week < 0:
+        return
+    var d := desiderio_della_settimana(_wish_week)
+    if d.is_empty():
+        return
+    var stagione := str(DN.SEASON_NAMES[int(d["season"])])
+    if _wish_done_week == _wish_week:
+        _add_journal_label("✿   lettera di %s: «%s» — esaudita!" % [stagione, str(d["title"])],
+                13, Color("b98a4a"))
+        _add_journal_label("       (una nuova lettera arrivera' con la prossima stagione)",
+                11, Color(0.5, 0.42, 0.34))
+        return
+    _add_journal_label("»   lettera di %s: %s" % [stagione, str(d["title"])], 14, Color("a83a5c"))
+    _add_journal_label("       «%s»" % str(d["letter_text"]).replace("\n", " "),
+            12, Color("6a4a3a"))
+    _add_journal_label("       desiderio:  %s" % str(d["hint"]), 12, Color("7a6a54"))
 
 
 func _build_ui() -> void:
@@ -529,7 +725,8 @@ func _build_ui() -> void:
 
 func debug_state() -> Dictionary:
     return {"current": _current, "unlocked": _unlocked.size(),
-            "done": _done.size(), "veteran": _veteran, "arrivals": _arrivals}
+            "done": _done.size(), "veteran": _veteran, "arrivals": _arrivals,
+            "wish_week": _wish_week, "wish_done_week": _wish_done_week}
 
 
 func debug_force_check() -> void:

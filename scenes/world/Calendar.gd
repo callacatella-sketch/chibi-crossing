@@ -8,6 +8,13 @@ extends Node3D
 ## MERCANTE col suo carretto: annunciato sulla lavagna, baratta un
 ## piatto caldo con un sacchetto di ingredienti rari.
 ## Con E davanti alla Lavagna: gli eventi in arrivo, in bella copia.
+##
+## E le FESTE STAGIONALI: una per stagione, nel cuore della settimana,
+## ognuna nel suo posto del villaggio — l'hanami sotto il Grande Albero,
+## la notte delle lucciole allo stagno, la sagra del raccolto all'orto,
+## il pupazzo di neve in piazza. Annunciate la vigilia sulla lavagna,
+## il giorno giusto tutti i residenti accorrono (come al falò la sera)
+## e la cronaca finisce incisa negli anelli del Grande Albero.
 
 const DNA_GEN := preload("res://scenes/npc/ChibiDNA.gd")
 const BUILDER := preload("res://scenes/npc/ChibiBuilder.gd")
@@ -17,6 +24,60 @@ const FACE := preload("res://scenes/characters/FaceController.gd")
 const UI_BROWN := Color("6a4a3a")
 const CYCLE := 14          # i compleanni tornano ogni due settimane
 const MERCHANT_EVERY := 6
+
+# il calendario delle stagioni e i posti del mondo: fonti uniche, non copie
+const DN := preload("res://scenes/world/DayNight.gd")
+const COZY := preload("res://scenes/world/CozyWorld.gd")
+
+## Le quattro feste dell'anno: una per stagione, il 4° dei suoi 7 giorni
+## (il cuore della settimana: c'è tempo per prepararsi e tempo per i
+## ritardatari). "notte" dice QUANDO scatta nel giorno della festa: solo
+## le lucciole aspettano il buio, le altre si fanno col sole. "luogo" è
+## risolto da _festa_spot (il mondo può cambiare, il posto si ricalcola).
+const FESTE := [
+	{"id": "hanami", "season": 0, "day": 4, "nome": "hanami",
+		"evento": "hanami sotto il Grande Albero", "notte": false, "luogo": "albero", "icona": "✿",
+		"annuncio": "Domani è hanami: picnic sotto il Grande Albero!",
+		"toast": "È hanami! Tutti al picnic, sotto la neve rosa dei petali!",
+		"cronaca": "l'hanami sotto il Grande Albero, coi petali nel tè"},
+	{"id": "lucciole", "season": 1, "day": 4, "nome": "notte delle lucciole",
+		"evento": "la notte delle lucciole allo stagno", "notte": true, "luogo": "stagno", "icona": "✧",
+		"annuncio": "Domani sera, allo stagno: la notte delle lucciole!",
+		"toast": "La notte delle lucciole! Tutti allo stagno, a lume spento!",
+		"cronaca": "la notte delle lucciole, contate a bocca aperta"},
+	{"id": "sagra", "season": 2, "day": 4, "nome": "sagra del raccolto",
+		"evento": "la sagra del raccolto all'orto", "notte": false, "luogo": "orto", "icona": "✦",
+		"annuncio": "Domani è la sagra del raccolto: portate le ceste!",
+		"toast": "La sagra del raccolto! Tutti all'orto con le ceste piene!",
+		"cronaca": "la sagra del raccolto, a pancia piena"},
+	{"id": "pupazzo", "season": 3, "day": 4, "nome": "pupazzo di neve",
+		"evento": "il pupazzo di neve in piazza", "notte": false, "luogo": "piazza", "icona": "❄",
+		"annuncio": "Domani, se nevica ancora: il pupazzo di neve in piazza!",
+		"toast": "Il pupazzo di neve! Tutti in piazza a far palle di neve!",
+		"cronaca": "il pupazzo di neve in piazza, col naso di carota"},
+]
+
+
+## La festa che cade nel giorno assoluto `day` ({} se è un giorno qualsiasi).
+## PURA e statica: la interroga anche il test, senza SceneTree.
+static func festa_del_giorno(day: int) -> Dictionary:
+	@warning_ignore("integer_division")
+	var stagione := ((day - 1) % DN.YEAR_DAYS) / DN.SEASON_DAYS
+	var nel_mese := (day - 1) % DN.SEASON_DAYS + 1
+	for f in FESTE:
+		if int(f["season"]) == stagione and int(f["day"]) == nel_mese:
+			return f
+	return {}
+
+
+## La prossima festa da oggi (incluso): [giorno_assoluto, festa]. Per la
+## lavagna e il pannello degli eventi.
+static func prossima_festa(day: int) -> Array:
+	for delta in DN.YEAR_DAYS:
+		var f := festa_del_giorno(day + delta)
+		if not f.is_empty():
+			return [day + delta, f]
+	return [day, {}]  # impossibile con FESTE non vuota: difesa
 
 # la stagione sulla lavagna: un colore di gessetto e un annuncio ciascuna
 const SEASON_CHALK := [Color(0.86, 0.98, 0.82, 0.92), Color(0.98, 0.95, 0.72, 0.92),
@@ -38,6 +99,13 @@ var _birthdays := {}
 var _merchant_day := 4
 var _party_done := {}
 var _last_season := -1
+
+# le feste stagionali: quella di oggi in attesa del suo momento, e il
+# registro "id|giorno" delle già fatte (persistito: un reload a festa
+# avvenuta non la rilancia)
+var _festa_pending := {}
+var _feste_done := {}
+var _snowman: Node3D
 
 # il mercante in visita
 var _merchant: Node3D
@@ -78,7 +146,12 @@ func _ready() -> void:
 		if today == _merchant_day and _merchant == null:
 			_spawn_merchant()
 		elif today > _merchant_day:
-			_merchant_day = today + 1 + randi() % 3).call_deferred()
+			_merchant_day = today + 1 + randi() % 3
+		# salvato e riaperto nel giorno di una festa non ancora fatta:
+		# la festa aspetta ancora il suo momento
+		var festa := festa_del_giorno(today)
+		if not festa.is_empty() and not _feste_done.has(_festa_key(festa, today)):
+			_festa_pending = festa).call_deferred()
 
 
 func _day() -> int:
@@ -190,6 +263,20 @@ func _on_new_day(day: int) -> void:
 				node.call("set_party_hat", festa)
 				if festa:
 					_toast("Oggi è il compleanno di %s! Preparagli una sorpresa…" % r["label"])
+	# le feste stagionali: annuncio la vigilia, festa il giorno giusto (di
+	# giorno o al buio: decide _tick_festa), e il pupazzo si scioglie quando
+	# l'inverno finisce
+	var domani := festa_del_giorno(day + 1)
+	if not domani.is_empty():
+		_toast(str(domani["annuncio"]))
+	var oggi := festa_del_giorno(day)
+	if not oggi.is_empty() and not _feste_done.has(_festa_key(oggi, day)):
+		_festa_pending = oggi
+	else:
+		_festa_pending = {}
+	if _snowman and _daynight and _daynight.has_method("get_season") \
+			and int(_daynight.get_season()) != 3:
+		_melt_snowman()
 	# il mercante: annuncio il giorno prima, carretto il giorno giusto
 	if day == _merchant_day - 1:
 		_toast("Domani arriva il mercante col suo carretto!")
@@ -261,6 +348,11 @@ func _refresh_boards() -> void:
 			lines.append(["%s · G%d" % [str(res_name), next_birthday(str(res_name))],
 					Color(0.98, 0.85, 0.9, 0.9)])
 		lines.append(["mercante · G%d" % _merchant_day, Color(0.85, 0.93, 1.0, 0.9)])
+		# la prossima festa stagionale, col gessetto verde tenue
+		var pf := prossima_festa(_day())
+		if not (pf[1] as Dictionary).is_empty():
+			lines.append(["%s · G%d" % [str(pf[1]["nome"]), int(pf[0])],
+					Color(0.86, 0.96, 0.84, 0.9)])
 		for i in lines.size():
 			var lbl := Label3D.new()
 			lbl.text = str(lines[i][0])
@@ -414,8 +506,169 @@ func _merchant_trade() -> void:
 
 # ---------------------------------------------------------------- feste
 
-func _confetti(pos: Vector3) -> void:
-	for col in [Color("f4b8c8"), Color("9fd8cf"), Color("ffd76e")]:
+func _festa_key(f: Dictionary, day: int) -> String:
+	return "%s|%d" % [str(f.get("id", "")), day]
+
+
+# La festa di oggi scatta quando arriva il SUO momento: le lucciole col
+# buio, le altre appena c'è luce. Un check a frame, ma solo nei 4 giorni
+# di festa dell'anno (negli altri _festa_pending è vuoto).
+func _tick_festa() -> void:
+	if _festa_pending.is_empty() or _daynight == null:
+		return
+	var notturna: bool = bool(_festa_pending.get("notte", false))
+	if notturna != bool(_daynight.is_night()):
+		return
+	var f: Dictionary = _festa_pending
+	_festa_pending = {}
+	_throw_festa(f)
+
+
+# La festa vera e propria: il posto giusto, i coriandoli del suo colore,
+# tutti i residenti che accorrono (come al falò), la cronaca sugli anelli.
+func _throw_festa(f: Dictionary) -> void:
+	var day := _day()
+	_feste_done[_festa_key(f, day)] = true
+	var spot := _festa_spot(f)
+	_toast(str(f["toast"]))
+	_confetti(spot + Vector3(0, 1.2, 0), _festa_colori(f))
+	if str(f["id"]) == "pupazzo":
+		_spawn_snowman(spot + Vector3(0.9, 0, -0.7))
+	if _sfx:
+		_sfx.build_open()
+		get_tree().create_timer(0.4).timeout.connect(func():
+			if _sfx: _sfx.place_ok())
+	# tutto il villaggio accorre, si guarda intorno e balla
+	if _visitors:
+		for r in _visitors.get("_residents"):
+			var node := r.get("node") as Node3D
+			if node == null or not is_instance_valid(node) or node.call("is_hidden"):
+				continue
+			var off := Vector3(randf_range(-1.6, 1.6), 0, randf_range(-1.6, 1.6))
+			node.call("do_routine", "sniff", spot + off, spot)
+			node.call("speak", ["felice", "~"], "felice")
+			get_tree().create_timer(randf_range(1.2, 2.6)).timeout.connect(func():
+				if is_instance_valid(node):
+					node.call("celebrate"))
+	var gtree := get_tree().get_first_node_in_group("grande_albero")
+	if gtree and gtree.has_method("engrave_once"):
+		gtree.engrave_once(str(f["id"]), str(f["icona"]), str(f["cronaca"]))
+	if _build:
+		_build.request_save()
+
+
+# Dove si festeggia: il luogo si risolve ADESSO (il mondo cambia, il posto
+# si ricalcola). Fallback sempre pieni: una festa non va mai a vuoto.
+func _festa_spot(f: Dictionary) -> Vector3:
+	match str(f.get("luogo", "")):
+		"albero":
+			var gtree := get_tree().get_first_node_in_group("grande_albero") as Node3D
+			if gtree:
+				return gtree.global_position + Vector3(1.8, 0, 1.5)
+			return Vector3(-4.0, 0, -1.5)
+		"stagno":
+			return COZY.POND_CENTER + Vector3(0, 0, COZY.POND_R + 1.3)
+		"orto":
+			if _build:
+				var orti: Array = _build.get_placed_by_name("Orto")
+				if not orti.is_empty():
+					return (orti[0] as Node3D).global_position + Vector3(1.2, 0, 0.8)
+			return Vector3(1.5, 0, 4.5)
+		"piazza":
+			var board := _nearest_board(Vector3.ZERO)
+			if board:
+				return board.global_position + Vector3(-1.8, 0, 1.4)
+			return Vector3(1.0, 0, 1.6)
+	return Vector3.ZERO
+
+
+# i coriandoli col colore della festa: petali rosa all'hanami, scintille
+# calde per le lucciole, oro e rame alla sagra, azzurri gelo per la neve
+func _festa_colori(f: Dictionary) -> Array:
+	match str(f.get("id", "")):
+		"hanami":
+			return [Color("f8c8d8"), Color("fddce8"), Color("fff0f4")]
+		"lucciole":
+			return [Color("ffe98a"), Color("d8f2a0"), Color("ffd76e")]
+		"sagra":
+			return [Color("ffb85c"), Color("e8a03a"), Color("d4643a")]
+		"pupazzo":
+			return [Color("eaf4ff"), Color("cfe4f8"), Color("ffffff")]
+	return [Color("f4b8c8"), Color("9fd8cf"), Color("ffd76e")]
+
+
+# Il pupazzo di neve in piazza: tre palle, il naso di carota, gli occhi di
+# carbone e due rametti. Non è persistito: al disgelo (o a un reload) si è
+# "sciolto", com'è giusto per un pupazzo.
+func _spawn_snowman(pos: Vector3) -> void:
+	if _snowman:
+		return
+	_snowman = Node3D.new()
+	_snowman.position = pos
+	add_child(_snowman)
+	var neve := _pm(Color("f6faff"), Color("dfeaf6"))
+	for palla in [[0.34, 0.30], [0.25, 0.72], [0.18, 1.06]]:
+		var mi := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = palla[0]
+		sm.height = palla[0] * 2.0
+		mi.mesh = sm
+		mi.material_override = neve
+		mi.position = Vector3(0, palla[1], 0)
+		_snowman.add_child(mi)
+	# il naso di carota, dritto in avanti
+	var naso := MeshInstance3D.new()
+	var cono := CylinderMesh.new()
+	cono.top_radius = 0.0
+	cono.bottom_radius = 0.035
+	cono.height = 0.16
+	naso.mesh = cono
+	naso.material_override = _pm(Color("f2953a"), Color("d87c28"))
+	naso.position = Vector3(0, 1.06, 0.2)
+	naso.rotation.x = -PI * 0.5
+	_snowman.add_child(naso)
+	# gli occhi di carbone
+	for sx: float in [-0.06, 0.06]:
+		var occhio := MeshInstance3D.new()
+		var os := SphereMesh.new()
+		os.radius = 0.02
+		os.height = 0.04
+		occhio.mesh = os
+		occhio.material_override = _pm(Color("2c2620"), Color("1c1814"))
+		occhio.position = Vector3(sx, 1.12, 0.165)
+		_snowman.add_child(occhio)
+	# le braccia di rametto
+	for lato: float in [-1.0, 1.0]:
+		var ramo := MeshInstance3D.new()
+		var rm := CylinderMesh.new()
+		rm.top_radius = 0.015
+		rm.bottom_radius = 0.025
+		rm.height = 0.42
+		ramo.mesh = rm
+		ramo.material_override = _pm(Color("8a6440"), Color("6e4e30"))
+		ramo.position = Vector3(lato * 0.36, 0.78, 0)
+		ramo.rotation.z = lato * 1.25
+		_snowman.add_child(ramo)
+	_snowman.scale = Vector3.ONE * 0.05
+	var tw := create_tween()
+	tw.tween_property(_snowman, "scale", Vector3.ONE, 0.6) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+func _melt_snowman() -> void:
+	if _snowman == null:
+		return
+	var pupazzo := _snowman
+	_snowman = null
+	var tw := create_tween()
+	tw.tween_property(pupazzo, "scale", Vector3(1.2, 0.02, 1.2), 1.4) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tw.tween_callback(pupazzo.queue_free)
+	_toast("Il pupazzo di neve si è sciolto. Alla prossima nevicata!")
+
+
+func _confetti(pos: Vector3, colori: Array = [Color("f4b8c8"), Color("9fd8cf"), Color("ffd76e")]) -> void:
+	for col: Color in colori:
 		var tex := GradientTexture2D.new()
 		tex.width = 16
 		tex.height = 16
@@ -465,6 +718,7 @@ func _confetti(pos: Vector3) -> void:
 
 func _process(delta: float) -> void:
 	_update_prompt()
+	_tick_festa()
 	# il volto vivo del mercante: sorride, ammicca, ti guarda quando ti avvicini
 	if _merchant_face:
 		if _merchant_vp and _merchant_vp.playing:
@@ -528,6 +782,10 @@ func _refresh_panel() -> void:
 	# il prossimo cambio di stagione entra tra gli eventi in arrivo
 	if _daynight and _daynight.has_method("next_season_day"):
 		events.append([int(_daynight.next_season_day()), "una nuova stagione"])
+	# e la prossima festa stagionale, in bella copia
+	var pf := prossima_festa(today)
+	if not (pf[1] as Dictionary).is_empty():
+		events.append([int(pf[0]), str(pf[1]["evento"])])
 	events.sort_custom(func(a, b): return a[0] < b[0])
 	# in cima: la stagione di oggi e il giorno del mese (28 giorni = 1 anno)
 	if _daynight and _daynight.has_method("season_name"):
@@ -664,7 +922,8 @@ func save_extra() -> Dictionary:
 	for res_name in _birthdays:
 		var b: Dictionary = _birthdays[res_name]
 		rows.append([str(res_name), str(b["label"]), int(b["anchor"])])
-	return {"birthdays": rows, "merchant_day": _merchant_day}
+	return {"birthdays": rows, "merchant_day": _merchant_day,
+			"feste": _feste_done.keys()}
 
 
 func load_extra(data: Dictionary) -> void:
@@ -672,6 +931,8 @@ func load_extra(data: Dictionary) -> void:
 	for r in data.get("birthdays", []):
 		if r is Array and r.size() == 3:
 			_birthdays[str(r[0])] = {"label": str(r[1]), "anchor": int(r[2])}
+	for k in data.get("feste", []):
+		_feste_done[str(k)] = true
 	(func(): _refresh_boards()).call_deferred()
 
 
@@ -709,3 +970,15 @@ func debug_party(i: int) -> void:
 	var res_name := str(dna.get("name", "Amico"))
 	_birthdays[res_name] = {"label": str(r["label"]), "anchor": _day()}
 	throw_party(res_name, str(r["label"]), r["node"])
+
+
+## Fa scattare SUBITO la festa della stagione data (0..3), saltando
+## l'attesa del giorno e dell'ora giusta. Ritorna il posto della festa
+## (per inquadrarla). Solo per la verifica CLI.
+func debug_festa(season: int) -> Vector3:
+	for f in FESTE:
+		if int(f["season"]) == season:
+			_festa_pending = {}
+			_throw_festa(f)
+			return _festa_spot(f)
+	return Vector3.ZERO
