@@ -1,4 +1,4 @@
-name: Build del cuore C++ (Windows + macOS)
+name: Build del cuore C++ (Windows + macOS + Linux)
 
 # Verifica che la GDExtension C++ (il "cuore") compili su Windows e macOS e
 # pubblica i binari come artifact SCARICABILI dal run.
