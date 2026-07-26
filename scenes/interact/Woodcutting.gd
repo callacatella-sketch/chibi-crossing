@@ -650,6 +650,10 @@ func nearest_tree(pos: Vector3, max_d: float) -> int:
 func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed("interact") or _busy or _player == null:
 		return
+	# player congelato da un pannello/seduta/altra modalità: la E è loro,
+	# niente asciate col carretto o il taccuino aperti (idioma di Calendar)
+	if not _player.is_physics_processing():
+		return
 	var i := nearest_tree(_player.global_position, CHOP_RANGE)
 	if i < 0:
 		return

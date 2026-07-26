@@ -6,6 +6,7 @@ extends Node
 ## salvataggio), poi chiama run(). Tutti gli @onready/$ del vecchio codice sono
 ## rimappati sul MainLevel passato in run() come `_level`.
 
+const ANIMO := preload("res://scenes/npc/Animo.gd")
 const DNA_GEN := preload("res://scenes/npc/ChibiDNA.gd")
 const CHIBI_BUILDER := preload("res://scenes/npc/ChibiBuilder.gd")
 
@@ -65,13 +66,15 @@ func _debug_lavori(dir: String) -> void:
 		lav.assegna(str(r["label"]), "coltiva")
 	print("LAVORI: %d residenti, tutti mandati all orto" % residenti.size())
 
-	# quaranta giorni identici. Nel gioco vero Lavori e Visitors sono agganciati
-	# ENTRAMBI a day_changed; qui li si chiama a mano, nello stesso ordine.
+	# novanta giorni identici, nello STESSO ordine del gioco vero: Visitors
+	# connette day_changed diretto (valuta i ricordi di ieri), Lavori connette
+	# deferred (assegna il lavoro di oggi) — quindi prima l'animo, poi il
+	# registro. Invertirli faceva maturare gli scatti un giorno in anticipo.
 	# novanta giorni: abbastanza per arrivare in fondo alla scala e vedere se
 	# la diserzione avviene DAVVERO (in quaranta si arriva solo al rifiuto)
 	for g in 90:
-		lav._on_nuovo_giorno(g)
 		vis.call("_giorno_di_animo")
+		lav._on_nuovo_giorno(g)
 		if g == 30:
 			for r in residenti:
 				vis.lutto_di(str(r["label"]), "Pepe")   # e nessuno li consola
@@ -92,7 +95,7 @@ func _debug_lavori(dir: String) -> void:
 	for r in residenti:
 		var lb := str(r["label"])
 		var an = vis.get("_animi")[lb]
-		if int(an.gradino) >= 5:
+		if ANIMO.almeno(int(an.gradino), "confronto"):
 			print("LAVORI: SFOGO di %s -> %s" % [lb, an.sfogo()])
 	# chi è alla diserzione se ne va: si accorcia l'attesa e si fa scattare
 	var quanti_prima_p: int = residenti.size()

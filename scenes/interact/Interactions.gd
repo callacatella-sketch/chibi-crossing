@@ -156,9 +156,14 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed("interact") or _sleeping:
 		return
 	if _seated:
+		# la seduta è NOSTRA: alzarsi funziona anche a fisica congelata
 		_stand_up()
 		get_viewport().set_input_as_handled()
-	elif _target:
+	elif _target and is_instance_valid(_target):
+		# ma non ci si siede sopra il congelamento di un altro sistema
+		# (onsen, lavagna, cucina…): scongelarlo dopo sarebbe un furto
+		if not _player.is_physics_processing():
+			return
 		_sit_down(_target, _target_name)
 		get_viewport().set_input_as_handled()
 

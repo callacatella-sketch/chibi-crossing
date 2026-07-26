@@ -80,6 +80,10 @@ func _check_walked_away() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed("interact"):
 		return
+	# player congelato da un pannello (tasche, negozio, lavagna…): la E è del
+	# pannello — niente lanci di canna col menu aperto
+	if _player == null or not _player.is_physics_processing():
+		return
 	match _state:
 		"off":
 			# una farfalla o lucciola a portata di retino ha la precedenza

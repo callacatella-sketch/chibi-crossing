@@ -307,6 +307,13 @@ func _continue() -> void:
 func _start_new() -> void:
 	if FileAccess.file_exists(SAVE_PATH):
 		DirAccess.remove_absolute(SAVE_PATH)
+	# anche il rullino del timelapse riparte: senza, il "film" del villaggio
+	# nuovo proietterebbe le foto del vecchio (e capture() salta i giorni
+	# i cui PNG esistono già). L'album personale user://photos resta.
+	var dir := DirAccess.open("user://ricordi")
+	if dir:
+		for f in dir.get_files():
+			dir.remove(f)
 	_enter()
 
 

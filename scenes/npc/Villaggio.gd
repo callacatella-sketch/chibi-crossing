@@ -17,6 +17,7 @@ extends RefCounted
 
 ## Quanto si smorza una voce a ogni passaggio di bocca. Sotto 1.0, o il
 ## pettegolezzo diventa un moto perpetuo e il villaggio esplode ogni volta.
+const ANIMO := preload("res://scenes/npc/Animo.gd")
 const SMORZAMENTO := 0.55
 ## Sotto questa forza la voce non vale più la pena di essere riportata.
 const SOGLIA_VOCE := 0.06
@@ -126,11 +127,13 @@ func simula_giorno() -> Array:
 
 
 ## Quanti abitanti sono oltre un certo gradino della scala.
+## La soglia si interroga PER NOME (ANIMO.almeno): con il `.find()` a mano un
+## nome sbagliato dava -1, e `gradino >= -1` è vero per tutti — la domanda
+## «quanti sono oltre X?» rispondeva "tutto il villaggio" invece di zero.
 func quanti_oltre(gradino: String) -> int:
-	var soglia: int = (load("res://scenes/npc/Animo.gd").SCALA as Array).find(gradino)
 	var n := 0
 	for nome in animi:
-		if animi[nome].gradino >= soglia:
+		if ANIMO.almeno(int(animi[nome].gradino), gradino):
 			n += 1
 	return n
 

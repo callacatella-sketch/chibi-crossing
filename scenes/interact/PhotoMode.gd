@@ -33,13 +33,23 @@ func is_active() -> bool:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("photo_mode"):
-		_set_active(not _active)
+	# qui vive solo l'ACCENSIONE (così rispetta i modali che consumano prima);
+	# da attiva, la modalità foto ascolta in _input e vince su tutti
+	if event.is_action_pressed("photo_mode") and not _active:
+		_set_active(true)
 		get_viewport().set_input_as_handled()
-		return
+
+
+func _input(event: InputEvent) -> void:
+	# ATTIVA, la modalità foto è un modale assoluto: intercetta in _input,
+	# PRIMA di ogni _unhandled_input — i fratelli aggiunti a runtime (negozio,
+	# pausa) ricevono l'unhandled prima di noi e si rubavano E/ESC dietro
+	# la macchina fotografica (chiudendo pannelli e scongelando Mochi)
 	if not _active:
 		return
-	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+	if event.is_action_pressed("photo_mode"):
+		_set_active(false)
+	elif event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 		_set_active(false)
 	elif event is InputEventMouseMotion:
 		_yaw -= event.relative.x * 0.0032
@@ -59,6 +69,12 @@ func _unhandled_input(event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	if not _active:
 		return
+	# se qualcun altro ha scongelato Mochi a metà volo (risveglio dal letto,
+	# fine di un tween di alzata), in modalità foto si resta fermi: il
+	# congelamento diventa NOSTRO e all'uscita verrà tolto
+	if _player and _player.is_physics_processing():
+		_player.set_physics_process(false)
+		_player_was_frozen = false
 	_cam.rotation = Vector3(_pitch, _yaw, 0)
 	var speed := 6.0 * (2.5 if Input.is_action_pressed("ui_accept") else 1.0)
 	var dir := Vector3.ZERO

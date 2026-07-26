@@ -65,6 +65,9 @@ var _brains := {}
 ## decide cosa fare adesso; l'animo decide come STA, e se ti perdona.
 var _animi := {}
 var _villaggio: RefCounted
+# la memoria dei partiti dal salvataggio, in attesa che il grafo nasca
+# (lazy): reiniettata in _iscrivi_al_villaggio, salvata in save_extra
+var _partiti_salvati := {}
 ## Il raffreddamento del sussulto: uno per residente, così la reazione
 ## istintiva scatta all'AVVICINARSI e non a ogni fotogramma.
 var _sussulto_cd := {}
@@ -642,6 +645,16 @@ func _congeda(i: int, r: Dictionary, animo: RefCounted) -> void:
 	_in_confronto.erase(label)
 	_sussulto_cd.erase(label)
 	_sussulto_cd.erase("morso_" + label)
+	# e l'incarico si azzera: una label riciclata in futuro non deve
+	# ereditare dal giorno uno un lavoro mai assegnato (rancore invisibile)
+	get_tree().call_group("lavori", "assegna", label, "")
+
+
+func _label_in_use(label: String) -> bool:
+	for r in _residents:
+		if str(r.get("label", "")) == label:
+			return true
+	return false
 
 
 # ============================================ il confronto e il morso
@@ -695,7 +708,7 @@ func _tick_confronti(delta: float) -> void:
 			continue
 
 		# sotto il confronto: si trattiene. Ma la forza per farlo è finita.
-		if d < 2.6 and int(animo.gradino) >= 1:
+		if d < 2.6 and ANIMO.almeno(int(animo.gradino), "svogliato"):
 			var cd: float = float(_sussulto_cd.get("morso_" + label, 0.0)) - delta
 			if cd > 0.0:
 				_sussulto_cd["morso_" + label] = cd
@@ -750,6 +763,10 @@ func _tick_sussulti(delta: float) -> void:
 func _iscrivi_al_villaggio(key: String, animo: RefCounted) -> void:
 	if _villaggio == null:
 		_villaggio = VILLAGGIO.new()
+		# reinietta la memoria dei partiti dal salvataggio: la cronaca
+		# della rivolta ricorda il primo focolaio anche dopo un riavvio
+		if not _partiti_salvati.is_empty():
+			_villaggio.partiti = _partiti_salvati.duplicate(true)
 	_villaggio.aggiungi(animo)
 	var brain: RefCounted = _brains.get(key)
 	for altro in _animi:
@@ -880,7 +897,7 @@ func _giorno_di_animo() -> void:
 		_mostra_telegrafo(chi, tel)
 		# solo i passaggi che contano finiscono nei toast: se avvisassimo a
 		# ogni mugugno, il giocatore smetterebbe di leggere
-		if animo.gradino >= 3:
+		if ANIMO.almeno(int(animo.gradino), "rifiuto"):
 			_show_toast("%s: «%s»" % [chi, tel[1]])
 
 
@@ -1449,6 +1466,14 @@ func _house_features(house: Dictionary) -> Dictionary:
 
 
 func _spawn_candidate(dna: Dictionary, house: Dictionary) -> void:
+	# etichette UNICHE: animo, cervello, incarichi e salvataggio sono tutti
+	# keyed sulla label (solo ~80 combinazioni possibili) — due omonimi
+	# condividerebbero la stessa vita interiore. Se il caso la ripesca,
+	# si rigenera il DNA finché la label non è nuova.
+	for _tent in 12:
+		if not _label_in_use(str(dna["label"])):
+			break
+		dna = DNA.generate()
 	_timer = randf_range(80.0, 160.0)
 	_cand_label = str(dna["label"])
 	_mind = MIND.new("chibi", int(_cand_visits.get(dna["name"], 0)), dna["weights"])
@@ -1530,7 +1555,8 @@ func _decide() -> void:
 		if _sfx:
 			_sfx.place_ok()
 			get_tree().create_timer(0.4).timeout.connect(func():
-				if _sfx: _sfx.build_open())
+				# il timer sopravvive al nodo: guardia anti-freed
+				if is_instance_valid(self) and _sfx: _sfx.build_open())
 	else:
 		_cand_visits[dna["name"]] = int(_cand_visits.get(dna["name"], 0)) + 1
 		var miss: String = _mind.call("most_missed", f)
@@ -1660,6 +1686,19 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _inventory and _inventory.has_giftable() and _pockets:
 		var gr := nearest_giftable_resident(_player.global_position, 1.8)
 		if not gr.is_empty():
+			# il carretto ha la precedenza: se il mercante è a portata ed è
+			# più vicino dell'amico, la E è del negozio, non del regalo
+			# (altrimenti col taccuino pieno il mercante era irraggiungibile)
+			var md := INF
+			var cal := get_tree().get_first_node_in_group("calendario")
+			if cal and cal.has_method("merchant_distance"):
+				md = float(cal.call("merchant_distance", _player.global_position))
+			var gd := INF
+			var gnode := gr.get("node") as Node3D
+			if gnode and is_instance_valid(gnode):
+				gd = _player.global_position.distance_to(gnode.global_position)
+			if md < 1.6 and md < gd:
+				return   # la E prosegue fino a Calendar._merchant_trade
 			_pockets.open_for_gift(gr)
 			get_viewport().set_input_as_handled()
 
@@ -1834,11 +1873,20 @@ func save_extra() -> Dictionary:
 		if _animi.has(key):
 			row["animo"] = (_animi[key] as RefCounted).save()
 		rows.append(row)
-	return {"residents": rows, "cand_mem": _cand_visits}
+	# la memoria dei PARTITI (chi ha acceso la miccia della rivolta) vive
+	# nel grafo del villaggio, ricostruito da zero a ogni avvio: senza
+	# salvarla, la cronaca perdeva il primo focolaio a ogni riavvio
+	var partiti: Dictionary = _partiti_salvati
+	if _villaggio != null:
+		partiti = _villaggio.partiti
+	return {"residents": rows, "cand_mem": _cand_visits,
+			"villaggio": {"partiti": partiti}}
 
 
 func load_extra(data: Dictionary) -> void:
 	_cand_visits = data.get("cand_mem", {})
+	var vdata: Dictionary = data.get("villaggio", {})
+	_partiti_salvati = vdata.get("partiti", {})
 	for row in data.get("residents", []):
 		if row is not Dictionary:
 			continue

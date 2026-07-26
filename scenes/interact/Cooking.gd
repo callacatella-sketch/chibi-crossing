@@ -84,6 +84,11 @@ func has_dish() -> bool:
 func take_dish() -> Dictionary:
 	var d := held_dish
 	held_dish = {}
+	# la STESSA porzione vive su due canali (held_dish è quello storico, le
+	# Tasche quello nuovo): consumarla qui la toglie ANCHE dalle Tasche,
+	# altrimenti il baratto di ripiego la lascerebbe regalabile due volte
+	if _inventory and not d.is_empty():
+		_inventory.take_dish(String(d.get("name", "")).replace(" ", "_"))
 	return d
 
 
@@ -141,9 +146,13 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed("interact"):
 		return
 	if _menu_open:
+		# il ricettario è NOSTRO: si chiude anche a fisica congelata
 		_close_menu()
 		get_viewport().set_input_as_handled()
 	elif _near and not _busy:
+		# ma non si APRE sopra il congelamento di un altro pannello
+		if _player and not _player.is_physics_processing():
+			return
 		_open_menu()
 		get_viewport().set_input_as_handled()
 

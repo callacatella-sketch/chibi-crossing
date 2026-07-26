@@ -122,9 +122,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		var kc: int = (event as InputEventKey).keycode
 		if kc >= KEY_1 and kc <= KEY_4:
 			_select_tab(TABS[kc - KEY_1]["id"])
-		# comunque: da qui in poi nessun tasto sfugge ad altri menu
-	if event is InputEventKey:
-		get_viewport().set_input_as_handled()
+	# comunque: col taccuino aperto NESSUN evento sfugge agli altri menu —
+	# nemmeno dal joypad (prima solo i tasti fisici erano marcati handled e
+	# un press "interact" del pad confermava QUI e apriva ANCHE il ricettario)
+	get_viewport().set_input_as_handled()
 
 
 ## Chiamata dai Visitors quando premi E accanto a un amico: apre già in
@@ -517,10 +518,20 @@ func _confirm() -> void:
 func _give(e: Dictionary) -> void:
 	if _inventory == null or _visitors == null:
 		return
+	# valida il destinatario PRIMA di consumare l'oggetto: se il residente è
+	# stato liberato mentre sfogliavi (turnover, cambio giorno), il regalo
+	# non deve svanire nel nulla
+	var target: Dictionary = _gift_target
+	var tnode: Node3D = null
+	if not target.is_empty():
+		tnode = target.get("node") as Node3D
+	if tnode == null or not is_instance_valid(tnode):
+		_show_toast("Il tuo amico si è allontanato…")
+		_close()
+		return
 	var item: Dictionary = _inventory.take_gift(e)
 	if item.is_empty():
 		return
-	var target := _gift_target
 	_close()
 	if _visitors.has_method("offer_item"):
 		_visitors.offer_item(target, item)

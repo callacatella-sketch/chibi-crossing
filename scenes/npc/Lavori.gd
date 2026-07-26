@@ -286,17 +286,25 @@ func _riempi() -> void:
 
 # La scala in parole che il giocatore capisce al volo, senza dover imparare
 # il vocabolario interno del sistema.
+## Tabella (non `match`) indicizzata per NOME del gradino: così un test può
+## verificare che copra tutta ANIMO.SCALA. Col `match` un gradino nuovo
+## cadeva sul fallback "sereno" senza che nulla se ne accorgesse — e il
+## pannello etichettava "sereno" un chibi che il colore mostrava già in
+## rivolta (vedi test_fonti_uniche).
+const STATO_UMANO := {
+	"lavoro": "sereno",
+	"svogliato": "svogliato",
+	"attrezzi": "distratto, perde gli attrezzi",
+	"rifiuto": "si rifiuta",
+	"sabotaggio": "qualcosa non torna…",
+	"confronto": "vuole parlarti",
+	"diserzione": "sta per andarsene",
+	"ammutinamento": "non ti ascolta più",
+}
+
+
 func _stato_umano(gradino: String) -> String:
-	match gradino:
-		"lavoro": return "sereno"
-		"svogliato": return "svogliato"
-		"attrezzi": return "distratto, perde gli attrezzi"
-		"rifiuto": return "si rifiuta"
-		"sabotaggio": return "qualcosa non torna…"
-		"confronto": return "vuole parlarti"
-		"diserzione": return "sta per andarsene"
-		"ammutinamento": return "non ti ascolta più"
-	return "sereno"
+	return str(STATO_UMANO.get(gradino, "sereno"))
 
 
 func _colore_stato(gradino: String) -> Color:

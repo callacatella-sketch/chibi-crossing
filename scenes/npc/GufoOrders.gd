@@ -95,6 +95,10 @@ func _ready() -> void:
     # chiamera' load_extra (impostando _settled) prima di questo timer. Se
     # non arriva nessuno, e' un villaggio nuovo: riveliamo il primo Ordine.
     get_tree().create_timer(0.25).timeout.connect(func() -> void:
+        # il SceneTreeTimer sopravvive al nodo: se la scena muore prima
+        # (ritorno al titolo), niente accessi a un'istanza liberata
+        if not is_instance_valid(self):
+            return
         if not _settled:
             _settled = true
             _reveal_current())

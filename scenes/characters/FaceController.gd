@@ -206,6 +206,7 @@ var _mouth_talk := 0.0
 var _pulse_t := -1.0
 var _pulse_dur := 0.0
 var _pulse_prev := "neutro"
+var _pulse_prev_int := 1.0   # l'intensità di SFONDO da ripristinare al rientro
 
 
 func setup(rig: Dictionary) -> void:
@@ -281,6 +282,9 @@ func set_mood(mood: String, intensity := 1.0) -> void:
 ## il guizzo di sorpresa/gioia di un saluto, un regalo, uno spavento).
 func pulse(name: String, duration := 0.9, intensity := 1.0, back := "") -> void:
 	_pulse_prev = back if back != "" else _expr
+	# l'intensità di sfondo va catturata ORA, prima che set_expression la
+	# sovrascriva con quella del lampo (il rientro tornava a intensità piena)
+	_pulse_prev_int = _intensity
 	_pulse_dur = duration
 	_pulse_t = 0.0
 	set_expression(name, intensity, 13.0)
@@ -364,7 +368,7 @@ func update(delta: float) -> void:
 		_pulse_t += delta
 		if _pulse_t >= _pulse_dur:
 			_pulse_t = -1.0
-			set_expression(_pulse_prev, _intensity, 8.0)
+			set_expression(_pulse_prev, _pulse_prev_int, 8.0)
 
 	_blend_channels(delta)
 	_apply_brows(delta)

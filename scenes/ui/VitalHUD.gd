@@ -53,6 +53,7 @@ var _alert_mix: Array[float] = [0.0, 0.0, 0.0]  # quanto corallo, addolcito
 var _attn: Array[float] = [0.0, 0.0, 0.0]    # "sveglio" (0..1) -> opacità
 var _awake: Array[float] = [0.0, 0.0, 0.0]   # timer di attenzione residua
 var _pop: Array[float] = [0.0, 0.0, 0.0]     # festa del refill (1 -> 0)
+var _wake_ref: Array[float] = [1.0, 1.0, 1.0]  # valore all'ultimo risveglio
 
 
 func _ready() -> void:
@@ -70,11 +71,21 @@ func update_need(i: int, v01: float, level: int) -> void:
 		return
 	v01 = clampf(v01, 0.0, 1.0)
 	# un balzo netto verso l'alto = qualcuno ha mangiato / si è immerso: si festeggia
-	if v01 - _val[i] > 0.12:
+	var refill := v01 - _val[i] > 0.12
+	if refill:
 		_pop[i] = 1.0
+	# il risveglio scatta sugli EVENTI, non a ogni goccia: il drenaggio C++
+	# emette a ogni frame e svegliarsi sempre teneva acqua e fame a piena
+	# opacità per sempre (la "quiete" non arrivava mai). Si sveglia per:
+	# refill, cambio di fascia, o una deriva accumulata percepibile (>10%:
+	# la corsa lo tiene sveglio, il lento sorseggiare no).
+	var woke := refill or level != _alert[i] \
+			or absf(v01 - _wake_ref[i]) > 0.10
 	_val[i] = v01
 	_alert[i] = level
-	_awake[i] = maxf(_awake[i], 2.6)   # ogni cambiamento sveglia il ciondolo
+	if woke:
+		_wake_ref[i] = v01
+		_awake[i] = maxf(_awake[i], 2.6)
 
 
 func _process(delta: float) -> void:

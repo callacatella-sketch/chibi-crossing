@@ -185,6 +185,9 @@ func _nearest_catch() -> Dictionary:
 func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed("interact") or _busy:
 		return
+	# player congelato da un pannello: niente retinate col menu aperto
+	if _player == null or not _player.is_physics_processing():
+		return
 	var target := _nearest_catch()
 	if target.is_empty():
 		return

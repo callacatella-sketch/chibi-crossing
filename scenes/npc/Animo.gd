@@ -271,21 +271,26 @@ func esegue(compito: String, ordinante := "giocatore") -> void:
 		else:
 			drive[d] = clampf(float(drive[d]) + delta, 0.0, 1.0)
 
+	# la classificazione va fatta PRIMA dello scaling dell'ambizione: dopo,
+	# mult non è più confrontabile (il ramo `mult == VERSO_SOGNO` diventava
+	# irraggiungibile e il lavoro-del-sogno maturava un ricordo NEGATIVO;
+	# e `mult > 1.0` scattava anche sui compiti neutri degli ambiziosi,
+	# marchiandoli come tradimenti d'identità)
+	var e_sogno := str(c.get("serve", "")) == sogno
+	var e_tradito := sogno in (c.get("tradisce", []) as Array)
 	var mult := 1.0
-	if str(c.get("serve", "")) == sogno:
+	if e_sogno:
 		mult = VERSO_SOGNO                 # è un passo verso il suo sogno
 		drive["stima"] = clampf(float(drive["stima"]) + 0.05, 0.0, 1.0)
-	elif sogno in (c.get("tradisce", []) as Array):
+	elif e_tradito:
 		mult = CONTRO_SOGNO                # gli stai rubando la vita
 	# l'ambizione rende ogni compito umile più amaro
 	mult *= 0.75 + 0.5 * float(tratti.get("ambizione", 0.5))
-	var valenza: float = -0.28 * mult if mult > 1.0 else -0.08 * mult
-	if mult == VERSO_SOGNO:
-		valenza = 0.12
+	var valenza := 0.12 if e_sogno else (-0.28 * mult if e_tradito else -0.08 * mult)
 	# se il compito tradisce il sogno, l'evento tocca l'IDENTITÀ: non ci si
 	# abitua, ci si sensibilizza (vedi Limbico.rivaluta)
 	ricorda(compito, ordinante, valenza, 0.5 + 0.5 * minf(1.0, mult / CONTRO_SOGNO),
-			"", mult > 1.0)
+			"", e_tradito)
 
 
 ## Un fatto qualunque della vita del villaggio.

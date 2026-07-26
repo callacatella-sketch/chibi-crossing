@@ -166,6 +166,9 @@ func _ready() -> void:
 	# niente caricamento né salvataggio, il villaggio vero resta intatto
 	_persist = OS.get_environment("CHIBI_SHOT") == ""
 	if _persist:
+		# i persistable che nascono dopo il load (mondo differito) si servono
+		# da soli via node_added: vedi _on_node_added
+		get_tree().node_added.connect(_on_node_added)
 		_load_village.call_deferred()
 	_hook_economy.call_deferred()
 
@@ -945,6 +948,34 @@ func _remove_at(layer, key, lvl := 0) -> void:
 # un salvataggio differito, a scena morta, non verrebbe mai eseguito.
 var _save_pending := false
 
+# lo stato extra parsato dal salvataggio (per servire i persistable tardivi)
+# e chi è già stato servito (instance_id -> true): mai servire due volte
+var _loaded_extra := {}
+var _served_extra := {}
+
+
+## Un persistable entrato in scena DOPO il load (generazione differita del
+## mondo) reclama qui la sua fetta di salvataggio, una volta sola.
+func _on_node_added(node: Node) -> void:
+	if _loaded_extra.is_empty():
+		return
+	if not node.has_method("load_extra") or not node.has_method("save_extra"):
+		return
+	if _served_extra.has(node.get_instance_id()):
+		return
+	# il suo load_extra può toccare @onready/figli: aspetta il suo _ready
+	if node.is_node_ready():
+		_serve_late(node)
+	else:
+		node.ready.connect(_serve_late.bind(node), CONNECT_ONE_SHOT)
+
+
+func _serve_late(node: Node) -> void:
+	if not is_instance_valid(node) or _served_extra.has(node.get_instance_id()):
+		return
+	_served_extra[node.get_instance_id()] = true
+	node.load_extra(_loaded_extra)
+
 
 ## Chiede un salvataggio: si scrive una volta sola a fine frame.
 func request_save() -> void:
@@ -999,8 +1030,13 @@ func _save_village() -> void:
 	var payload := {"cells": cells, "edges": edges,
 			"up_cells": up_cells, "up_edges": up_edges,
 			"variants": _collect_variants()}
-	# stato extra (giorno del calendario, giardino…) dai nodi "persistable"
+	# stato extra (giorno del calendario, giardino…) dai nodi "persistable".
+	# Cintura di sicurezza: un ritardatario non ancora servito viene servito
+	# ADESSO, prima del merge — il suo stato vergine non deve mai
+	# sovrascrivere quello salvato.
 	for node in get_tree().get_nodes_in_group("persistable"):
+		if not _loaded_extra.is_empty() and not _served_extra.has(node.get_instance_id()):
+			_serve_late(node)
 		payload.merge(node.save_extra())
 	var f := FileAccess.open(save_path, FileAccess.WRITE)
 	if f == null:
@@ -1036,8 +1072,22 @@ func _load_village() -> void:
 		if e is Array and e.size() == 4:
 			var ukey := Vector2i(int(e[0]), int(e[1]))
 			place_edge(ukey, str(e[2]), bool(e[3]), false, 1, str(vmap.get(_pkey(1, "edge", ukey), "")))
+	# Lo stato extra resta in _loaded_extra per i persistable RITARDATARI:
+	# la generazione differita di CozyWorld aggiunge Calendar, Wardrobe,
+	# Legami, Ecosystem… qualche frame DOPO questo dispatch. Senza il modello
+	# "pull" (vedi _on_node_added) non riceverebbero mai load_extra e il loro
+	# stato vergine cancellerebbe il salvataggio alla prima scrittura.
+	_loaded_extra = data
+	# ogni load_extra su uno stack separato (call_deferred): un errore di
+	# runtime in UN sistema non deve srotolare il load e lasciare _loading
+	# incastrato a true (= salvataggio disattivato in silenzio per sempre)
 	for node in get_tree().get_nodes_in_group("persistable"):
-		node.load_extra(data)
+		_served_extra[node.get_instance_id()] = true
+		node.load_extra.call_deferred(data)
+	_finish_load.call_deferred()
+
+
+func _finish_load() -> void:
 	_loading = false
 	placed_changed.emit()
 
