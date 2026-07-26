@@ -285,6 +285,9 @@ func _build_sfx() -> void:
 	_streams["munch"] = _gen_munch()
 	_streams["heartbeat"] = _gen_heartbeat()
 	_streams["relief"] = _gen_relief()
+	_streams["chop"] = _gen_chop()
+	_streams["creak"] = _gen_creak()
+	_streams["crash"] = _gen_crash()
 
 
 # passo sull'erba: fruscio filtrato + piccolo tonfo
@@ -629,6 +632,111 @@ func _gen_relief() -> AudioStreamWAV:
 	_add_musicbox(buf, RATE, 0.11, _mtof(81), 0.42)  # A5
 	_add_musicbox(buf, RATE, 0.24, _mtof(86), 0.3)   # D6, l'ultima scintilla
 	_normalize(buf, 0.6)
+	return _wav(buf)
+
+
+# il morso dell'ascia: lo schiocco secco del filo che entra, il corpo di
+# legno che risuona e scende di tono, e una scheggia che salta via
+func _gen_chop() -> AudioStreamWAV:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 121
+	var n := int(0.3 * RATE)
+	var buf := PackedFloat32Array()
+	buf.resize(n)
+	var lp := 0.0
+	var ph := 0.0
+	var ph2 := 0.0
+	for i in n:
+		var t := float(i) / RATE
+		# il transiente: banda larga che si spegne in un lampo
+		var white := rng.randf() * 2.0 - 1.0
+		lp += (white - lp) * 0.55
+		buf[i] += (white - lp) * exp(-t * 260.0) * 0.85
+		# il corpo del tronco: due parziali che calano (il legno che cede)
+		ph += TAU * (196.0 - 88.0 * minf(t / 0.12, 1.0)) / RATE
+		ph2 += TAU * (327.0 - 140.0 * minf(t / 0.1, 1.0)) / RATE
+		buf[i] += sin(ph) * exp(-t * 24.0) * 0.75
+		buf[i] += sin(ph2) * exp(-t * 38.0) * 0.34
+		# il fondo cavo: dice "questo è un tronco, non un'asse"
+		buf[i] += sin(TAU * 84.0 * t) * exp(-t * 17.0) * 0.4
+	# la scheggia che salta, poco dopo il colpo
+	var start := int(0.045 * RATE)
+	var ph3 := 0.0
+	for i in int(0.05 * RATE):
+		if start + i >= n:
+			break
+		var t := float(i) / RATE
+		ph3 += TAU * (1500.0 + 2600.0 * t) / RATE
+		buf[start + i] += sin(ph3) * exp(-t * 150.0) * 0.22
+	_normalize(buf, 0.72)
+	return _wav(buf)
+
+
+# lo scricchiolio: le fibre che cedono una a una. Una risonanza che sale
+# lentamente, "grattata" da un tremolo irregolare — il suono dell'attesa
+func _gen_creak() -> AudioStreamWAV:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 133
+	var n := int(1.15 * RATE)
+	var buf := PackedFloat32Array()
+	buf.resize(n)
+	var ph := 0.0
+	var lp := 0.0
+	for i in n:
+		var t := float(i) / RATE
+		var p := t / 1.15
+		# la frequenza sale piano: la tensione che cresce
+		var f := 128.0 + 95.0 * p
+		ph += TAU * f / RATE
+		# il tremolo IRREGOLARE (due seni incommensurabili): mai meccanico
+		var trem := 0.55 + 0.45 * sin(TAU * 11.0 * t) * sin(TAU * 3.7 * t + 0.9)
+		# inviluppo a campana, con la coda che si spegne
+		var env: float = sin(minf(p * 1.05, 1.0) * PI)
+		buf[i] += sin(ph) * trem * env * 0.6
+		buf[i] += sin(ph * 2.02) * trem * env * 0.18
+		# la fibra che gratta: rumore filtrato, sempre in tremolo
+		var white := rng.randf() * 2.0 - 1.0
+		lp += (white - lp) * 0.06
+		buf[i] += lp * trem * env * 0.5
+	_normalize(buf, 0.55)
+	return _wav(buf)
+
+
+# lo schianto: il tonfo profondo del tronco a terra, la nuvola di fogliame
+# che sbatte, e i legni che si assestano dopo
+func _gen_crash() -> AudioStreamWAV:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 147
+	var n := int(1.5 * RATE)
+	var buf := PackedFloat32Array()
+	buf.resize(n)
+	var ph := 0.0
+	var lp := 0.0
+	var lp2 := 0.0
+	for i in n:
+		var t := float(i) / RATE
+		# il TONFO: una sinusoide che precipita di tono
+		ph += TAU * (95.0 - 62.0 * minf(t / 0.2, 1.0)) / RATE
+		buf[i] += sin(ph) * exp(-t * 7.0) * 1.0
+		buf[i] += sin(ph * 0.5) * exp(-t * 5.0) * 0.5
+		# il FOGLIAME: rumore largo che sboccia e si spegne come un respiro
+		var white := rng.randf() * 2.0 - 1.0
+		lp += (white - lp) * 0.42
+		var hiss := white - lp          # la parte acuta: le foglie
+		lp2 += (white - lp2) * 0.1      # la parte cupa: i rami
+		var leaf_env := exp(-t * 3.1) * minf(t / 0.03, 1.0)
+		buf[i] += hiss * leaf_env * 0.5 + lp2 * leaf_env * 0.55
+	# i legni che si assestano: tre schiocchi sparsi nella coda
+	for k in 3:
+		var at := 0.28 + rng.randf_range(0.0, 0.75)
+		var f := rng.randf_range(150.0, 300.0)
+		var start := int(at * RATE)
+		for i in int(0.09 * RATE):
+			if start + i >= n:
+				break
+			var t := float(i) / RATE
+			buf[start + i] += sin(TAU * f * t) * exp(-t * 46.0) * rng.randf_range(0.12, 0.26)
+	_normalize(buf, 0.8)
 	return _wav(buf)
 
 

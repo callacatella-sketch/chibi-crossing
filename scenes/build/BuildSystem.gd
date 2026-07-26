@@ -761,11 +761,20 @@ func _try_place() -> void:
 		if _sfx: _sfx.place_deny()
 		return
 	var item := _items[_index]
+	# i pezzi di legno si pagano in legna tagliata (se il boschetto c'è)
+	var wc := get_tree().get_first_node_in_group("woodcutting")
+	if wc and not wc.can_afford_piece(str(item["name"])):
+		_shake(_ghost)
+		if _sfx: _sfx.place_deny()
+		wc.deny_toast(str(item["name"]))   # dice QUANTA legna manca
+		return
 	var v := _variant_for_current()
 	if item["type"] == "edge":
 		place_edge(_cursor_key, item["name"], _rot % 2 == 1, true, _level, v)
 	else:
 		place_cell(_cursor_key, item["name"], _rot, true, _level, v)
+	if wc:
+		wc.pay_for_piece(str(item["name"]))
 	if _sfx: _sfx.place_ok()
 	get_tree().call_group("regista", "note", "costruzione")
 
@@ -988,6 +997,19 @@ func _load_village() -> void:
 		node.load_extra(data)
 	_loading = false
 	placed_changed.emit()
+
+
+## Dove il villaggio occupa il terreno: [Vector3(x, raggio, z)] per ogni
+## pezzo piazzato. La usa il taglio della legna: un albero non deve rinascere
+## dentro casa, sul pavimento o in mezzo all'orto.
+func occupied_spots() -> Array:
+	var out := []
+	for lvl in 2:
+		for layer in [0, 1, 2, 3, "edge"]:
+			for key in (_dicts(lvl)[layer] as Dictionary).keys():
+				var k: Vector2i = key
+				out.append(Vector3(k.x * 0.5, 1.1, k.y * 0.5))
+	return out
 
 
 ## Per la verifica CLI: quanti pezzi ci sono nel villaggio (tutti i piani).

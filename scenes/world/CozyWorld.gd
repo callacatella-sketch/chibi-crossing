@@ -46,6 +46,16 @@ var _lilies: Array[Node3D] = []
 
 # funghi raccoglibili nel bosco: si rigenerano altrove dopo la raccolta
 var _pickups: Array[Node3D] = []
+
+# --- il bosco, tenuto per il taglio della legna ---------------------------
+# Prima queste cose venivano costruite e dimenticate: il MultiMesh finiva a
+# schermo e nessuno sapeva più dove fossero i suoi alberi. Ora si conservano,
+# perché il boscaiolo possa prendere in mano un albero qualunque del bosco e
+# perché il cercatore di posto sappia dove NON far ricrescere nulla.
+var _forest_chunks := {}          # chiave -> {"mmi": MultiMeshInstance3D, "tf": Array[Transform3D], "kind": "pine"|"broad"}
+var _forest_colliders: Node3D     # lo StaticBody3D con un guscio per albero
+var _forest_shape_at := {}        # "chiave:indice" -> CollisionShape3D
+var _rock_spots: PackedVector3Array = []   # dove stanno i massi del bosco
 var _pickup_respawn := 0.0
 
 
@@ -540,9 +550,16 @@ func _make_tree(pos: Vector3, size: float, leaf_a: Color, leaf_b: Color,
 	_register_leaf(leaf_mid, leaf_a, leaf_b, leaf_klass)
 	_register_leaf(leaf_light, leaf_a.lightened(0.16), leaf_a, leaf_klass)
 
+	# Il tronco vive in una mesh SUA, separata da radici/rami e dalla chioma.
+	# Costa due draw call in più per albero (sono una dozzina: nulla), ma è
+	# ciò che permette al taglio della legna di scavare una tacca VERA nel
+	# tronco — su una mesh fusa si potrebbe solo appiccicarci sopra qualcosa —
+	# e alla chioma di frustare in ritardo mentre l'albero cade.
+	var trunk_seed := rng.randi()
+	var trunk_parts := [[_trunk_mesh(1.35, 0.19, 0.115, trunk_seed),
+			Transform3D.IDENTITY, bark]]
 	var parts := []
-	# tronco + radici a vista
-	parts.append([_trunk_mesh(1.35, 0.19, 0.115, rng.randi()), Transform3D.IDENTITY, bark])
+	# radici a vista
 	for i in 4:
 		var a := float(i) / 4.0 * TAU + rng.randf_range(-0.3, 0.3)
 		var root := Basis(Vector3.UP, -a) \
@@ -558,32 +575,59 @@ func _make_tree(pos: Vector3, size: float, leaf_a: Color, leaf_b: Color,
 				+ tilt * Vector3(0, 0.28, 0)), bark])
 
 	# la chioma-nuvola (16×9: sono gli alberi-protagonisti del prato,
-	# li si guarda da vicino — il bosco resta alla risoluzione economica)
-	parts.append([_puff_mesh(0.92, rng.randi(), 0.6, 0.07, 16, 9), # gonna d'ombra
-			Transform3D(Basis.IDENTITY, Vector3(0, 1.52, 0)), leaf_dark])
-	parts.append([_puff_mesh(0.88, rng.randi(), 0.85, 0.1, 16, 9), # cuore
-			Transform3D(Basis.IDENTITY, Vector3(0, 1.9, 0)), leaf_mid])
+	# li si guarda da vicino — il bosco resta alla risoluzione economica).
+	# Vive in un nodo suo, ancorato alla base della chioma: così può
+	# ondeggiare e frustare in ritardo quando l'albero viene abbattuto.
+	var leaf_parts := []
+	const CANOPY_Y := 1.5
+	leaf_parts.append([_puff_mesh(0.92, rng.randi(), 0.6, 0.07, 16, 9), # gonna d'ombra
+			Transform3D(Basis.IDENTITY, Vector3(0, 1.52 - CANOPY_Y, 0)), leaf_dark])
+	leaf_parts.append([_puff_mesh(0.88, rng.randi(), 0.85, 0.1, 16, 9), # cuore
+			Transform3D(Basis.IDENTITY, Vector3(0, 1.9 - CANOPY_Y, 0)), leaf_mid])
 	for i in 5: # lobi di mezzo intorno
 		var a := float(i) / 5.0 * TAU + rng.randf_range(-0.25, 0.25)
 		var r := rng.randf_range(0.5, 0.64)
-		parts.append([_puff_mesh(r, rng.randi(), 0.82, 0.11, 16, 9),
+		leaf_parts.append([_puff_mesh(r, rng.randi(), 0.82, 0.11, 16, 9),
 				Transform3D(Basis(Vector3.UP, rng.randf() * TAU),
-				Vector3(cos(a) * 0.62, rng.randf_range(1.62, 1.82), sin(a) * 0.62)),
+				Vector3(cos(a) * 0.62, rng.randf_range(1.62, 1.82) - CANOPY_Y, sin(a) * 0.62)),
 				leaf_mid if i % 2 == 0 else leaf_dark])
 	for i in 3: # ciuffi di luce in cima
 		var a := float(i) / 3.0 * TAU + rng.randf_range(-0.4, 0.4)
-		parts.append([_puff_mesh(rng.randf_range(0.3, 0.42), rng.randi(), 0.8, 0.13, 16, 9),
+		leaf_parts.append([_puff_mesh(rng.randf_range(0.3, 0.42), rng.randi(), 0.8, 0.13, 16, 9),
 				Transform3D(Basis(Vector3.UP, rng.randf() * TAU),
-				Vector3(cos(a) * 0.38, rng.randf_range(2.35, 2.55), sin(a) * 0.38)),
+				Vector3(cos(a) * 0.38, rng.randf_range(2.35, 2.55) - CANOPY_Y, sin(a) * 0.38)),
 				leaf_light])
 
 	var tree := Node3D.new()
 	tree.position = pos
 	tree.scale = Vector3.ONE * size
 	tree.rotation.y = randf() * TAU
-	var mi := MeshInstance3D.new()
-	mi.mesh = _merge(parts)
-	tree.add_child(mi)
+
+	var trunk_mi := MeshInstance3D.new()
+	trunk_mi.name = "Tronco"
+	trunk_mi.mesh = _merge(trunk_parts)
+	tree.add_child(trunk_mi)
+
+	var deco_mi := MeshInstance3D.new()
+	deco_mi.name = "Rami"
+	deco_mi.mesh = _merge(parts)
+	tree.add_child(deco_mi)
+
+	var canopy := Node3D.new()
+	canopy.name = "Chioma"
+	canopy.position = Vector3(0, CANOPY_Y, 0)
+	tree.add_child(canopy)
+	var leaf_mi := MeshInstance3D.new()
+	leaf_mi.mesh = _merge(leaf_parts)
+	canopy.add_child(leaf_mi)
+
+	# la carta d'identità che serve al taglio della legna: com'è fatto il
+	# tronco (per rigenerarlo con la tacca) e di che colore è il fogliame
+	tree.add_to_group("albero")
+	tree.set_meta("trunk", [1.35, 0.19, 0.115, trunk_seed])
+	tree.set_meta("leaf_color", leaf_a)
+	tree.set_meta("bark_mat", bark)
+
 	add_child(tree)
 	return tree
 
@@ -1252,16 +1296,22 @@ func _build_forest_trees(rng: RandomNumberGenerator) -> void:
 				shape.shape = cyl
 				shape.position = pos + Vector3(0, 1.5, 0)
 				colliders.add_child(shape)
+				# si annota di CHI è questo guscio: abbattendo quell'albero
+				# va tolto, o resterebbe un muro invisibile nel bosco
+				_forest_shape_at["%s:%d" % [key, (chunks[key] as Array).size() - 1]] = shape
 	add_child(colliders)
 
-	_scatter_exact(pine, chunks["p1w"])
-	_scatter_exact(pine, chunks["p1e"])
-	_scatter_exact(pine2, chunks["p2w"])
-	_scatter_exact(pine2, chunks["p2e"])
-	_scatter_exact(broad, chunks["b1w"])
-	_scatter_exact(broad, chunks["b1e"])
-	_scatter_exact(broad2, chunks["b2w"])
-	_scatter_exact(broad2, chunks["b2e"])
+	_forest_colliders = colliders
+	# ogni chunk si tiene la sua istanza e i suoi transform: da qui il
+	# boscaiolo può far sparire UN albero preciso (istanza a scala zero)
+	for spec in [["p1w", pine, "pine"], ["p1e", pine, "pine"],
+			["p2w", pine2, "pine"], ["p2e", pine2, "pine"],
+			["b1w", broad, "broad"], ["b1e", broad, "broad"],
+			["b2w", broad2, "broad"], ["b2e", broad2, "broad"]]:
+		var key: String = spec[0]
+		var mmi := _scatter_exact(spec[1], chunks[key])
+		if mmi != null:
+			_forest_chunks[key] = {"mmi": mmi, "tf": chunks[key], "kind": spec[2]}
 
 
 func _forest_spot(rng: RandomNumberGenerator, min_path := 1.5) -> Vector3:
@@ -1313,7 +1363,10 @@ func _build_forest_undergrowth(rng: RandomNumberGenerator) -> void:
 	var rock_tf: Array[Transform3D] = []
 	for i in 36:
 		var s := rng.randf_range(0.5, 1.3)
-		rock_tf.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), _forest_spot(rng, 1.1)))
+		var rp := _forest_spot(rng, 1.1)
+		rock_tf.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), rp))
+		# il masso occupa terreno: chi cerca dove piantare un albero deve saperlo
+		_rock_spots.append(Vector3(rp.x, s, rp.z))   # y = raggio del masso
 	_scatter_exact(rock, rock_tf)
 
 	# ciuffi di funghi rossi
@@ -1607,6 +1660,105 @@ func _spawn_pickup_mushroom() -> void:
 	tw.tween_property(node, "scale", Vector3.ONE, 0.5) \
 			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	_pickups.append(node)
+
+
+# ================================================ il bosco e il terreno libero
+# Quello che segue serve al taglio della legna (scenes/interact/Woodcutting.gd):
+# prendere in mano un albero del bosco, e sapere dove un albero NUOVO può
+# nascere senza finire nell'acqua, su un masso o dentro casa di qualcuno.
+
+## Ogni cerchio di terreno OCCUPATO del mondo: [Vector3(x, raggio, z)].
+## Ci sono lo stagno, la radura del falò, il Grande Albero e ogni masso.
+## L'acqua corrente (fiume) e la scogliera NON sono cerchi: si chiedono a
+## parte con is_river() e cliff_x_at(), che seguono il loro andamento.
+func obstacle_circles() -> Array:
+	var out := []
+	out.append(Vector3(POND_CENTER.x, POND_R + 1.6, POND_CENTER.z))
+	out.append(Vector3(CLEARING_CENTER.x, CLEARING_R + 1.0, CLEARING_CENTER.z))
+	for r in _rock_spots:
+		out.append(Vector3(r.x, 0.9 + r.y * 0.7, r.z))   # r.y era il raggio del masso
+	return out
+
+
+## I punti del sentiero del bosco: nessun albero deve nascerci sopra.
+func path_points() -> PackedVector3Array:
+	return _path_samples
+
+
+## La x della parete di scogliera alla quota z (oltre, il terreno sale).
+func cliff_x_at(z: float) -> float:
+	return _cliff_x(z)
+
+
+## La x del fiume alla quota z.
+func river_x_at(z: float) -> float:
+	return _river_x(z)
+
+
+## L'albero del bosco più vicino a pos entro max_d.
+## Ritorna {"key": String, "index": int, "pos": Vector3, "scale": float,
+## "kind": String} oppure {} se non ce n'è nessuno.
+func nearest_forest_tree(pos: Vector3, max_d: float) -> Dictionary:
+	var best := {}
+	var best_d := max_d
+	for key in _forest_chunks:
+		var chunk: Dictionary = _forest_chunks[key]
+		var tfs: Array = chunk["tf"]
+		for i in tfs.size():
+			var tf: Transform3D = tfs[i]
+			if tf.basis.get_scale().x < 0.01:
+				continue                       # già preso: istanza spenta
+			var d := Vector2(tf.origin.x - pos.x, tf.origin.z - pos.z).length()
+			if d < best_d:
+				best_d = d
+				best = {"key": key, "index": i, "pos": tf.origin,
+						"scale": tf.basis.get_scale().x, "kind": chunk["kind"]}
+	return best
+
+
+## Le posizioni degli alberi del bosco ancora in piedi (per il cercatore di
+## posto: un albero nuovo non deve nascere addosso al bosco esistente).
+func forest_positions() -> Array:
+	var out := []
+	for key in _forest_chunks:
+		for tf: Transform3D in (_forest_chunks[key]["tf"] as Array):
+			if tf.basis.get_scale().x >= 0.01:
+				out.append(tf.origin)
+	return out
+
+
+## Toglie dal bosco l'albero indicato: l'istanza del MultiMesh si spegne
+## (scala zero: il modo più economico di far sparire UNA istanza senza
+## ricostruire l'intero buffer) e il suo guscio di collisione se ne va, o
+## resterebbe un ostacolo invisibile in mezzo al bosco.
+func take_forest_tree(key: String, index: int) -> bool:
+	if not _forest_chunks.has(key):
+		return false
+	var chunk: Dictionary = _forest_chunks[key]
+	var tfs: Array = chunk["tf"]
+	if index < 0 or index >= tfs.size():
+		return false
+	var tf: Transform3D = tfs[index]
+	if tf.basis.get_scale().x < 0.01:
+		return false                            # già preso
+	var spento := Transform3D(Basis.IDENTITY.scaled(Vector3.ZERO), tf.origin)
+	tfs[index] = spento
+	(chunk["mmi"] as MultiMeshInstance3D).multimesh.set_instance_transform(index, spento)
+	var sk := "%s:%d" % [key, index]
+	if _forest_shape_at.has(sk):
+		var shape: CollisionShape3D = _forest_shape_at[sk]
+		if is_instance_valid(shape):
+			shape.queue_free()
+		_forest_shape_at.erase(sk)
+	return true
+
+
+## Pianta un albero NUOVO nel mondo (la ricrescita del bosco). È un albero
+## vero, nel gruppo "albero": nasce già tagliabile come tutti gli altri.
+func plant_tree(pos: Vector3, size := 1.0, seed_v := 0) -> Node3D:
+	var verde := Color("86c46c").lerp(Color("a8d98a"), randf())
+	var scuro := Color("64a854").lerp(Color("4e8a52"), randf())
+	return _make_tree(pos, size, verde, scuro, seed_v)
 
 
 ## Il fungo raccoglibile più vicino entro max_d (indice, o -1).

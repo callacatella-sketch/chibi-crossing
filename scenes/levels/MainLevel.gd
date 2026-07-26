@@ -48,12 +48,16 @@ func _ready():
 	add_child(_spawn_system("res://scenes/ui/Economy.gd", "Economy"))
 	add_child(_spawn_system("res://scenes/ui/Shop.gd", "Shop"))
 	add_child(_spawn_system("res://scenes/ui/PauseMenu.gd", "PauseMenu"))
+	# il boschetto da legna: l'ascia, il taglio e la ricrescita
+	add_child(_spawn_system("res://scenes/interact/Woodcutting.gd", "Woodcutting"))
 	var settings := get_node_or_null(^"/root/Settings")
 	if settings:
 		settings.apply_to_player(player)
 
 	if OS.get_environment("CHIBI_SHOT") != "":
 		_start_debug_harness("shot", OS.get_environment("CHIBI_SHOT"))
+	elif OS.get_environment("CHIBI_LEGNA") != "":
+		_start_debug_harness("legna", OS.get_environment("CHIBI_LEGNA"))
 	elif OS.get_environment("CHIBI_MAKESAVE") != "":
 		_start_debug_harness("makesave")
 

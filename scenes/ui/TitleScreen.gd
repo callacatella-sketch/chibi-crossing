@@ -25,6 +25,14 @@ var _sfx
 
 
 func _ready() -> void:
+	# Le verifiche da riga di comando entrano dritte nel villaggio: da quando
+	# il gioco parte dal titolo, un menù che aspetta un clic bloccherebbe
+	# CHIBI_SHOT (gli screenshot documentati nel README), CHIBI_LEGNA e
+	# CHIBI_MAKESAVE — che girano senza nessuno alla tastiera.
+	for v in ["CHIBI_SHOT", "CHIBI_LEGNA", "CHIBI_MAKESAVE"]:
+		if OS.get_environment(v) != "":
+			_enter.call_deferred()
+			return
 	_sfx = get_node_or_null(^"/root/Sfx")
 	_build_world()
 	_build_ui()

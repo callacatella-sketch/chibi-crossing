@@ -25,6 +25,8 @@ func run(level: Node3D, mode: String, arg: String = "") -> void:
 			await _debug_screenshots(arg)
 		"makesave":
 			await _make_save()
+		"legna":
+			await _debug_woodcutting(arg)
 
 func _frames(n: int):
 	for i in n:
@@ -33,6 +35,173 @@ func _frames(n: int):
 func _shot(dir: String, file: String):
 	await _frames(2)
 	get_viewport().get_texture().get_image().save_png(dir.path_join(file + ".png"))
+
+# ---------------------------------------------------------------- legna
+# Verifica del taglio: l'albero in piedi, i tre colpi con la tacca che si
+# scava, la caduta, il ceppo col taglio fresco e i tre stadi di ricrescita.
+func _debug_woodcutting(dir: String) -> void:
+	var wc = _level.get_node_or_null("Woodcutting")
+	if wc == null:
+		printerr("LEGNA: sistema Woodcutting non trovato")
+		get_tree().quit()
+		return
+	# CozyWorld costruisce il mondo DIFFERITO su più frame: si aspetta che gli
+	# alberi esistano e che il sistema li abbia adottati
+	for attesa in 300:
+		if wc.tree_count() > 0:
+			break
+		await get_tree().process_frame
+	await _frames(4)
+	print("LEGNA: %d alberi del mondo adottati (nel gruppo: %d)"
+			% [wc.tree_count(), get_tree().get_nodes_in_group("albero").size()])
+	# gli stadi APPENA CARICATI: è qui che si vede se la persistenza tiene
+	print("LEGNA: legna all'avvio = %d | debito = %d" % [wc.wood, wc.debt_count()])
+	if wc.tree_count() == 0:
+		printerr("LEGNA: nessun albero adottato")
+		get_tree().quit()
+		return
+
+	var tree_pos: Vector3 = wc.tree_position(0)
+	# Mochi si mette accanto all'albero, dalla parte della camera
+	player.global_position = tree_pos + Vector3(1.5, 0.0, 1.5)
+	await _frames(2)
+
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.position = tree_pos + Vector3(4.2, 2.4, 4.6)
+	cam.fov = 46.0
+	cam.current = true
+	cam.look_at(tree_pos + Vector3(0, 1.35, 0))
+	await get_tree().create_timer(0.5).timeout
+	await _shot(dir, "legna_1_albero")
+
+	# --- il tronco PRIMA di ogni colpo: se qui c'è già del chiaro, non è la
+	#     tacca (serve a non inseguire fantasmi) ---
+	var away0: Vector3 = ((tree_pos - player.global_position) * Vector3(1, 0, 1)).normalized()
+	var precam := Camera3D.new()
+	add_child(precam)
+	precam.fov = 30.0
+	precam.position = tree_pos - away0 * 2.0 + Vector3(0, 0.95, 0)
+	precam.look_at(tree_pos + Vector3(0, 0.42, 0))
+	precam.current = true
+	await get_tree().create_timer(0.4).timeout
+	await _shot(dir, "legna_tacca0_prima")
+	cam.current = true
+
+	# --- l'ascia in pugno: primo piano durante la carica del primo colpo ---
+	# Mochi guarda l'albero (verso -x,-z): la camera va di LATO, o si vede
+	# solo la nuca. Perpendicolare alla sua direzione, all'altezza del petto.
+	var axecam := Camera3D.new()
+	add_child(axecam)
+	axecam.position = player.global_position + Vector3(1.85, 0.95, -1.5)
+	axecam.fov = 40.0
+	axecam.look_at(player.global_position + Vector3(-0.15, 0.8, -0.15))
+	wc.chop(0)
+	axecam.current = true
+	# 0.44s = fine della frustata, l'istante prima del morso: è lì che
+	# l'ascia è davanti al corpo e si legge (in carica sta dietro la testona)
+	await get_tree().create_timer(0.44).timeout
+	await _shot(dir, "legna_2_ascia")
+	cam.current = true
+	await get_tree().create_timer(0.26).timeout
+	await _shot(dir, "legna_2_colpo1")
+	print("LEGNA: colpo 1 -> restano %d" % wc.hp_of(0))
+
+	# --- la TACCA da vicino: la camera si mette dal lato che morde ---
+	# (la tacca guarda sempre dalla parte opposta a Mochi: è lì che l'albero
+	#  cadrà, come fa un boscaiolo vero)
+	var away: Vector3 = ((tree_pos - player.global_position) * Vector3(1, 0, 1)).normalized()
+	var notchcam := Camera3D.new()
+	add_child(notchcam)
+	notchcam.fov = 30.0
+	# si punta ESATTAMENTE la tacca, chiedendo al sistema dov'è finita
+	var np: Vector3 = wc.notch_world_pos(0)
+	var fuori: Vector3 = ((np - tree_pos) * Vector3(1, 0, 1)).normalized()
+	print("LEGNA: tacca in %s | tronco in %s | verso %s | Mochi in %s"
+			% [np, tree_pos, fuori, player.global_position])
+	notchcam.current = true
+	notchcam.position = np + fuori * 1.7 + Vector3(0, 0.45, 0)
+	notchcam.look_at(np)
+	await get_tree().create_timer(0.4).timeout
+	await _shot(dir, "legna_tacca1")
+	print("LEGNA: TRONCO dopo 1 colpo -> %s" % wc.trunk_debug(0))
+
+	# --- gli altri due colpi: impatto + primo piano della tacca ---
+	for colpo in [2, 3]:
+		cam.current = true
+		await get_tree().create_timer(0.5).timeout
+		wc.chop(0)
+		await get_tree().create_timer(0.52).timeout   # 0.15 + 0.14/0.26 + 0.16
+		await _shot(dir, "legna_2_colpo%d" % colpo)
+		print("LEGNA: colpo %d -> restano %d" % [colpo, wc.hp_of(0)])
+		if colpo == 2:
+			notchcam.current = true
+			await get_tree().create_timer(0.45).timeout
+			await _shot(dir, "legna_tacca2")
+
+	# --- la caduta: la si coglie a metà volo, poi a terra ---
+	await get_tree().create_timer(0.72).timeout
+	await _shot(dir, "legna_3_caduta")
+	await get_tree().create_timer(0.55).timeout
+	await _shot(dir, "legna_4_terra")
+
+	# --- il dono della legna e il ceppo che resta ---
+	await get_tree().create_timer(1.9).timeout
+	await _shot(dir, "legna_5_dono")
+	# ...e ora il ceppo da vicino: Mochi si fa da parte, camera bassa
+	player.global_position = tree_pos + Vector3(2.6, 0.0, 2.6)
+	var stumpcam := Camera3D.new()
+	add_child(stumpcam)
+	stumpcam.position = tree_pos + Vector3(1.15, 0.72, 1.25)
+	stumpcam.fov = 44.0
+	stumpcam.current = true
+	stumpcam.look_at(tree_pos + Vector3(0, 0.24, 0))
+	await get_tree().create_timer(0.6).timeout
+	await _shot(dir, "legna_5_ceppo")
+	print("LEGNA: legna=%d" % wc.wood)
+
+	# --- il terreno è LIBERO e il bosco rinasce ALTROVE ---
+	print("LEGNA: dopo il taglio -> alberi=%d, debito=%d" % [wc.tree_count(), wc.debt_count()])
+	var quanti_prima: int = wc.tree_count()
+	wc.debug_regrow_now()
+	await get_tree().create_timer(1.2).timeout
+	print("LEGNA: pagato il debito -> alberi=%d, debito=%d" % [wc.tree_count(), wc.debt_count()])
+	if wc.tree_count() > quanti_prima:
+		var nuovo: Vector3 = wc.tree_position(wc.tree_count() - 1)
+		print("LEGNA: l'albero nuovo è nato in %s (il vecchio era in %s)" % [nuovo, tree_pos])
+		cam.position = nuovo + Vector3(4.0, 2.6, 4.4)
+		cam.look_at(nuovo + Vector3(0, 1.2, 0))
+		cam.current = true
+		await get_tree().create_timer(0.5).timeout
+		await _shot(dir, "legna_6_altrove")
+	# e il posto dove si è tagliato è sgombro
+	cam.position = tree_pos + Vector3(3.4, 2.2, 3.8)
+	cam.look_at(tree_pos + Vector3(0, 0.3, 0))
+	await get_tree().create_timer(0.4).timeout
+	await _shot(dir, "legna_7_terreno_libero")
+
+	# --- l'anello con la costruzione: BuildSystem paga in legna? ---
+	var gruppo = get_tree().get_first_node_in_group("woodcutting")
+	var prima: int = wc.wood
+	var costo: int = wc.cost_for("Pavimento")
+	var pagato: bool = gruppo != null and gruppo.pay_for_piece("Pavimento")
+	print("LEGNA: BuildSystem vede il boschetto = %s | pavimento costa %d | pagato = %s | %d -> %d"
+			% [gruppo != null, costo, pagato, prima, wc.wood])
+
+	# --- persistenza: si salva davvero lo stato del boschetto? ---
+	# (CHIBI_LEGNA_SAVE=1 abbatte un albero, salva ed esce: al riavvio senza
+	#  quella variabile si controlla che il ceppo sia ancora lì)
+	if OS.get_environment("CHIBI_LEGNA_SAVE") != "":
+		wc.debug_fell(1)
+		await get_tree().create_timer(1.6).timeout
+		if build_system and build_system.has_method("_save_village"):
+			build_system._save_village()
+		print("LEGNA: salvato. alberi=%d" % wc.tree_count())
+
+	print("LEGNA: fine. legna=%d alberi=%d debito=%d"
+			% [wc.wood, wc.tree_count(), wc.debt_count()])
+	get_tree().quit()
+
 
 func _debug_screenshots(dir: String):
 	var mochi = player.get_node_or_null("Mochi")
