@@ -23,7 +23,10 @@ if env["PLATFORM"] == "win32":
         "godot-cpp/gen/include"
     ])
     env.Append(CPPDEFINES=["TYPED_METHOD_BIND", "WIN32", "_WINDOWS"])
-    env.Append(CXXFLAGS=["/std:c++17", "/EHsc", "/Zc:preprocessor", "/vmp", "/vmg"])
+    # /Zc:__cplusplus e' OBBLIGATORIO con godot-cpp 4.7: senza, MSVC lascia
+    # __cplusplus a 199711L anche con /std:c++17, e defs.hpp fallisce lo
+    # static_assert "Minimum of C++17 required".
+    env.Append(CXXFLAGS=["/std:c++17", "/Zc:__cplusplus", "/EHsc", "/Zc:preprocessor", "/vmp", "/vmg"])
     env.Append(LIBPATH=["godot-cpp/bin"])
     if env["target"] == "template_debug":
         # Debug: nessuna ottimizzazione (/Od) + info di debug. Si usa /Z7 (non
