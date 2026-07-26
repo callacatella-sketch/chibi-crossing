@@ -6,6 +6,7 @@ extends Node3D
 ## petali), sassi del sentiero, nuvole soffici alla deriva, farfalle
 ## e pulviscolo dorato nell'aria.
 
+const MATH := preload("res://scenes/world/WorldMath.gd")
 const HANDPAINT := preload("res://shaders/handpaint.gdshader")
 const RIVER_SHADER := preload("res://shaders/river.gdshader")
 const WATERFALL_SHADER := preload("res://shaders/waterfall.gdshader")
@@ -222,34 +223,10 @@ func _blade_mesh() -> ArrayMesh:
 const TUFT_RECT := Rect2(-16.0, -19.0, 32.0, 33.0)
 
 
-# hash intero deterministico -> [0,1): identico su CPU sempre, niente
-# trigonometria che diverge in precisione
-func _tuft_hash(ix: int, iz: int) -> float:
-	var n := ix * 374761393 + iz * 668265263
-	n = (n ^ (n >> 13)) * 1274126177
-	n = n ^ (n >> 16)
-	return float(n & 0xfffff) / 1048575.0
 
 
-func _tuft_vnoise(x: float, z: float) -> float:
-	var ix := floori(x)
-	var iz := floori(z)
-	var fx := x - float(ix)
-	var fz := z - float(iz)
-	var ux := fx * fx * (3.0 - 2.0 * fx)
-	var uz := fz * fz * (3.0 - 2.0 * fz)
-	return lerpf(
-			lerpf(_tuft_hash(ix, iz), _tuft_hash(ix + 1, iz), ux),
-			lerpf(_tuft_hash(ix, iz + 1), _tuft_hash(ix + 1, iz + 1), ux), uz)
 
 
-func _tuft_field(x: float, z: float) -> float:
-	return _tuft_vnoise(x * 0.30, z * 0.30) * 0.65 \
-			+ _tuft_vnoise(x * 0.85 + 37.0, z * 0.85 + 11.0) * 0.35
-
-
-# cuoce il campo in una texture R8 e la consegna al manto: il terreno
-# si scurisce esattamente dove i ciuffi affondano le radici
 func _bake_tuft_map() -> void:
 	var w := 192
 	var h := 192
@@ -258,7 +235,7 @@ func _bake_tuft_map() -> void:
 		var wz := TUFT_RECT.position.y + (float(py) + 0.5) / float(h) * TUFT_RECT.size.y
 		for px in w:
 			var wx := TUFT_RECT.position.x + (float(px) + 0.5) / float(w) * TUFT_RECT.size.x
-			var v := smoothstep(0.50, 0.80, _tuft_field(wx, wz))
+			var v := smoothstep(0.50, 0.80, MATH.tuft_field(wx, wz))
 			if px == 0 or py == 0 or px == w - 1 or py == h - 1:
 				v = 0.0  # cornice a zero: il clamp non trascina il bordo fuori
 			img.set_pixel(px, py, Color(v, v, v))
@@ -301,7 +278,7 @@ func _build_grass() -> void:
 		if centro.distance_to(POND_CENTER) < POND_R + 1.4:
 			continue
 		# i ciuffi seguono il campo (con qualche ribelle qua e là)
-		if _tuft_field(centro.x, centro.z) < 0.52 and rng.randf() > 0.15:
+		if MATH.tuft_field(centro.x, centro.z) < 0.52 and rng.randf() > 0.15:
 			continue
 		for i in rng.randi_range(10, 17):
 			var ang := rng.randf() * TAU
@@ -1123,12 +1100,6 @@ func _skirt_mesh(r: float, h: float, seed_v: int, droop := 0.14,
 	return _grid_commit(pos, _grid_normals(pos, segs), segs)
 
 
-func _catmull(p0: Vector3, p1: Vector3, p2: Vector3, p3: Vector3, t: float) -> Vector3:
-	var t2 := t * t
-	var t3 := t2 * t
-	return 0.5 * ((2.0 * p1) + (-p0 + p2) * t \
-			+ (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2 \
-			+ (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3)
 
 
 func _path_dist(p: Vector3) -> float:
@@ -1169,7 +1140,7 @@ func _build_forest_path(rng: RandomNumberGenerator) -> void:
 		var p2: Vector3 = pts[seg + 1]
 		var p3: Vector3 = pts[mini(seg + 2, pts.size() - 1)]
 		for i in 20:
-			_path_samples.append(_catmull(p0, p1, p2, p3, float(i) / 20.0))
+			_path_samples.append(MATH.catmull(p0, p1, p2, p3, float(i) / 20.0))
 
 	var disc := _cyl_mesh(0.55, 0.6, 0.05, 10)
 	disc.material = _paint_mat(Color("9a7a55"), Color("83674a"), 0.9, 0.55, 0.0, true)
@@ -1274,10 +1245,10 @@ func _build_forest_trees(rng: RandomNumberGenerator) -> void:
 			# il fiume attraversa il bosco: niente alberi nel letto.
 			# Sulla riva est il bosco continua a terra; oltre la parete
 			# vive SULLA scogliera
-			var rx := _river_x(pos.z)
+			var rx := MATH.river_x(pos.z)
 			if absf(pos.x - rx) < 5.2:
 				continue
-			if pos.x > _cliff_x(pos.z) - 2.5:
+			if pos.x > MATH.cliff_x(pos.z) - 2.5:
 				pos.y = CLIFF_H
 			var s := rng.randf_range(0.75, 1.35)
 			var tf := Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), pos)
@@ -1320,8 +1291,8 @@ func _forest_spot(rng: RandomNumberGenerator, min_path := 1.5) -> Vector3:
 	for attempt in 12:
 		var p := Vector3(rng.randf_range(-48.0, 48.0), 0, rng.randf_range(-50.0, -16.0))
 		if _path_dist(p) > min_path and p.distance_to(CLEARING_CENTER) > CLEARING_R - 1.0 \
-				and (p.x < _river_x(p.z) - 5.0
-				or (p.x > _river_x(p.z) + 5.0 and p.x < _cliff_x(p.z) - 2.0)):
+				and (p.x < MATH.river_x(p.z) - 5.0
+				or (p.x > MATH.river_x(p.z) + 5.0 and p.x < MATH.cliff_x(p.z) - 2.0)):
 			return p
 	return Vector3(-20, 0, -40)
 
@@ -1687,12 +1658,12 @@ func path_points() -> PackedVector3Array:
 
 ## La x della parete di scogliera alla quota z (oltre, il terreno sale).
 func cliff_x_at(z: float) -> float:
-	return _cliff_x(z)
+	return MATH.cliff_x(z)
 
 
 ## La x del fiume alla quota z.
 func river_x_at(z: float) -> float:
-	return _river_x(z)
+	return MATH.river_x(z)
 
 
 ## L'albero del bosco più vicino a pos entro max_d.
@@ -2040,7 +2011,9 @@ const RIVER_WATER_Y := -0.45
 const CLIFF_H := 2.5
 const BRIDGE_Z := 3.2
 const LOG_Z := -26.0
-const FALL_Z := -4.0
+# la fonte di verita' e' WorldMath: qui solo un alias, cosi' i molti usi
+# interni di FALL_Z restano invariati
+const FALL_Z := MATH.FALL_Z
 
 var _river_fish: Array[Dictionary] = []
 var _river_pads: Array[Dictionary] = []
@@ -2048,27 +2021,11 @@ var _fall_base := Vector3.ZERO
 var _fall_ripple_cd := 0.0
 
 
-## Il corso del fiume: x del centro alla quota z data. La stessa curva
-## vive nel vertex di ground.gdshader (seni piccoli: niente divergenze).
-func _river_x(z: float) -> float:
-	return 18.6 + sin(z * 0.061) * 1.35 + sin(z * 0.023 + 2.0) * 0.85
-
-
-## Vero dentro il letto del fiume (il BuildSystem non ci piazza pezzi).
 func is_river(pos: Vector3) -> bool:
-	return absf(pos.x - _river_x(pos.z)) < 2.9 \
+	return absf(pos.x - MATH.river_x(pos.z)) < 2.9 \
 			and pos.z > RIVER_Z_MIN and pos.z < RIVER_Z_MAX
 
 
-# La x della parete di scogliera alla quota z. La scogliera NON
-# costeggia il fiume: si tiene indietro e lascia una riva est larga e
-# percorribile (il ponte porta LÌ, mica contro un muro) — e si stringe
-# fino a baciare l'acqua solo alla cascata, dove il canyon si pinza.
-func _cliff_x(z: float) -> float:
-	return _river_x(z) + 2.9 + 9.0 * smoothstep(1.6, 9.0, absf(z - FALL_Z))
-
-
-# normali morbide di una griglia APERTA (righe × colonne, senza wrap)
 func _strip_normals(pos: Array) -> Array:
 	var rows := pos.size()
 	var cols: int = (pos[0] as Array).size()
@@ -2106,7 +2063,7 @@ func _build_river_water() -> void:
 	var rows: Array[Array] = []
 	var z := RIVER_Z_MIN
 	while z <= RIVER_Z_MAX + 0.01:
-		var cx := _river_x(z)
+		var cx := MATH.river_x(z)
 		rows.append([Vector3(cx - 2.35, RIVER_WATER_Y, z),
 				Vector3(cx + 2.35, RIVER_WATER_Y, z), z])
 		z += 2.0
@@ -2144,10 +2101,10 @@ func _build_cliff() -> void:
 	var pos: Array = []
 	var z := RIVER_Z_MIN
 	while z <= RIVER_Z_MAX + 0.01:
-		var wx := _cliff_x(z)
+		var wx := MATH.cliff_x(z)
 		var row: Array[Vector3] = []
 		for p: Array in prof:
-			var bump := (_tuft_vnoise(z * 0.6, float(p[1]) * 1.3) - 0.5) * 0.3
+			var bump := (MATH.tuft_vnoise(z * 0.6, float(p[1]) * 1.3) - 0.5) * 0.3
 			row.append(Vector3(wx - float(p[0]) - bump, float(p[1]), z))
 		pos.append(row)
 		z += 1.2
@@ -2175,9 +2132,9 @@ func _build_cliff() -> void:
 	var fr: Array = []
 	z = RIVER_Z_MIN
 	while z <= RIVER_Z_MAX + 0.01:
-		var wx := _cliff_x(z)
-		var droop := 0.28 + _tuft_vnoise(z * 1.7, 3.0) * 0.22
-		var reach := 0.55 + _tuft_vnoise(z * 1.1, 9.0) * 0.25
+		var wx := MATH.cliff_x(z)
+		var droop := 0.28 + MATH.tuft_vnoise(z * 1.7, 3.0) * 0.22
+		var reach := 0.55 + MATH.tuft_vnoise(z * 1.1, 9.0) * 0.25
 		if absf(z - FALL_Z) < 1.3:
 			reach = 0.05
 			droop = 0.05
@@ -2205,7 +2162,7 @@ func _build_cliff() -> void:
 	var cap: Array = []
 	z = RIVER_Z_MIN
 	while z <= RIVER_Z_MAX + 0.01:
-		var wx := _cliff_x(z)
+		var wx := MATH.cliff_x(z)
 		var row: Array[Vector3] = []
 		for xo: float in xoff:
 			row.append(Vector3(wx + xo, CLIFF_H, z))
@@ -2227,16 +2184,16 @@ func _build_cliff() -> void:
 
 	# gli alberi sul ciglio: il profilo del mondo di sopra (e un secondo
 	# ciliegio lassù che perde petali giù dalla scogliera)
-	var cherry_up := _make_tree(Vector3(_cliff_x(9.0) + 2.6, CLIFF_H, 9.0), 1.15,
+	var cherry_up := _make_tree(Vector3(MATH.cliff_x(9.0) + 2.6, CLIFF_H, 9.0), 1.15,
 			Color("ffd4e2"), Color("f5a8c0"), 11, "cherry")
 	_add_petals(cherry_up)
-	_make_tree(Vector3(_cliff_x(-14.0) + 3.4, CLIFF_H, -14.0), 1.05,
+	_make_tree(Vector3(MATH.cliff_x(-14.0) + 3.4, CLIFF_H, -14.0), 1.05,
 			Color("86c46c"), Color("64a854"), 12)
-	_make_tree(Vector3(_cliff_x(18.0) + 5.0, CLIFF_H, 18.0), 0.95,
+	_make_tree(Vector3(MATH.cliff_x(18.0) + 5.0, CLIFF_H, 18.0), 0.95,
 			Color("97cc74"), Color("74b05c"), 13)
-	_make_tree(Vector3(_cliff_x(30.0) + 2.8, CLIFF_H, 30.0), 1.1,
+	_make_tree(Vector3(MATH.cliff_x(30.0) + 2.8, CLIFF_H, 30.0), 1.1,
 			Color("7dbd68"), Color("5da050"), 14)
-	_make_tree(Vector3(_cliff_x(42.0) + 4.2, CLIFF_H, 42.0), 0.9,
+	_make_tree(Vector3(MATH.cliff_x(42.0) + 4.2, CLIFF_H, 42.0), 0.9,
 			Color("8cc873"), Color("6cae5b"), 15)
 
 	# margheritine sparse sul ciglio, affacciate sul vuoto
@@ -2250,7 +2207,7 @@ func _build_cliff() -> void:
 			continue
 		dts.append(Transform3D(
 				Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.9, 1.2)),
-				Vector3(_cliff_x(dz) + rng.randf_range(0.7, 2.6), CLIFF_H, dz)))
+				Vector3(MATH.cliff_x(dz) + rng.randf_range(0.7, 2.6), CLIFF_H, dz)))
 	# anche le margherite della scogliera spariscono sotto la neve d'inverno
 	var cliff_daisies := _scatter_exact(daisy, dts, false)
 	if cliff_daisies:
@@ -2262,12 +2219,12 @@ func _build_cliff() -> void:
 	z = RIVER_Z_MIN
 	while z <= RIVER_Z_MAX:
 		var zc := z + 0.6
-		var slope := (_cliff_x(zc + 0.6) - _cliff_x(zc - 0.6)) / 1.2
+		var slope := (MATH.cliff_x(zc + 0.6) - MATH.cliff_x(zc - 0.6)) / 1.2
 		var shape := CollisionShape3D.new()
 		var box := BoxShape3D.new()
 		box.size = Vector3(0.9, CLIFF_H + 1.0, 1.8)
 		shape.shape = box
-		shape.position = Vector3(_cliff_x(zc) + 0.15, (CLIFF_H + 1.0) * 0.5, zc)
+		shape.position = Vector3(MATH.cliff_x(zc) + 0.15, (CLIFF_H + 1.0) * 0.5, zc)
 		shape.rotation.y = atan(slope)
 		body.add_child(shape)
 		z += 1.2
@@ -2277,7 +2234,7 @@ func _build_cliff() -> void:
 # ------------------------------------------------------------ cascata
 
 func _build_waterfall() -> void:
-	var wx := _cliff_x(FALL_Z)
+	var wx := MATH.cliff_x(FALL_Z)
 	_fall_base = Vector3(wx - 0.55, RIVER_WATER_Y, FALL_Z)
 
 	# il velo: bombato verso il fiume, dal ciglio all'acqua
@@ -2399,7 +2356,7 @@ func _build_bridges() -> void:
 
 	# il ponte ad arco: assi che salgono e ridiscendono, corrimano curvi,
 	# pomelli tondi sui montanti — e le rampette dolci alle due estremità
-	var bx := _river_x(BRIDGE_Z)
+	var bx := MATH.river_x(BRIDGE_Z)
 	var bridge := Node3D.new()
 	bridge.position = Vector3(bx, 0, BRIDGE_Z)
 	var body := StaticBody3D.new()
@@ -2469,7 +2426,7 @@ func _build_bridges() -> void:
 	add_child(bridge)
 
 	# il tronco muschioso nella foresta: il guado segreto del bosco
-	var lx2 := _river_x(LOG_Z)
+	var lx2 := MATH.river_x(LOG_Z)
 	var log_bridge := Node3D.new()
 	log_bridge.position = Vector3(lx2, 0, LOG_Z)
 	var bark := _paint_mat(Color("7a5a40"), Color("60462f"), 2.5, 0.55)
@@ -2534,7 +2491,7 @@ func _build_river_barriers() -> void:
 				var box := BoxShape3D.new()
 				box.size = Vector3(0.35, 1.7, 2.55)
 				shape.shape = box
-				shape.position = Vector3(_river_x(z) + side * 2.8, 0.55, z)
+				shape.position = Vector3(MATH.river_x(z) + side * 2.8, 0.55, z)
 				body.add_child(shape)
 		z += 2.4
 	add_child(body)
@@ -2570,7 +2527,7 @@ func _build_river_dressing(rng: RandomNumberGenerator) -> void:
 		var side := 1.0 if rng.randf() < 0.5 else -1.0
 		reed_tf.append(Transform3D(
 				Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.8, 1.2)),
-				Vector3(_river_x(z) + side * rng.randf_range(2.6, 3.05), -0.06, z)))
+				Vector3(MATH.river_x(z) + side * rng.randf_range(2.6, 3.05), -0.06, z)))
 	_scatter_exact(reed, reed_tf, false)
 
 	# ciottoli levigati che spuntano dalle sponde
@@ -2582,7 +2539,7 @@ func _build_river_dressing(rng: RandomNumberGenerator) -> void:
 		peb_parts.append([_sphere_mesh(rng.randf_range(0.09, 0.2), 8),
 				Transform3D(Basis(Vector3.UP, rng.randf() * TAU)
 				.scaled(Vector3(1.2, 0.55, 1.0)),
-				Vector3(_river_x(z) + side * rng.randf_range(2.3, 2.7), -0.12, z)), stone])
+				Vector3(MATH.river_x(z) + side * rng.randf_range(2.3, 2.7), -0.12, z)), stone])
 	var pebs := MeshInstance3D.new()
 	pebs.mesh = _merge(peb_parts)
 	add_child(pebs)
@@ -2613,8 +2570,8 @@ func _build_river_dressing(rng: RandomNumberGenerator) -> void:
 func _build_east_bank(rng: RandomNumberGenerator) -> void:
 	# il sentierino: dallo sbarco del ponte su verso la cascata
 	var path_mat := _paint_mat(Color("c9c2b4"), Color("a89f92"), 5.0, 0.5)
-	var start := Vector3(_river_x(BRIDGE_Z) + 4.3, 0, BRIDGE_Z)
-	var goal := Vector3(_river_x(FALL_Z + 3.4) + 3.5, 0, FALL_Z + 3.4)
+	var start := Vector3(MATH.river_x(BRIDGE_Z) + 4.3, 0, BRIDGE_Z)
+	var goal := Vector3(MATH.river_x(FALL_Z + 3.4) + 3.5, 0, FALL_Z + 3.4)
 	for i in 6:
 		var t := float(i) / 5.0
 		var p := start.lerp(goal, t)
@@ -2632,7 +2589,7 @@ func _build_east_bank(rng: RandomNumberGenerator) -> void:
 
 	# la lanterna di pietra allo sbarco: saluta chi attraversa, la sera
 	var lant := Node3D.new()
-	lant.position = Vector3(_river_x(BRIDGE_Z) + 4.6, 0, BRIDGE_Z + 1.6)
+	lant.position = Vector3(MATH.river_x(BRIDGE_Z) + 4.6, 0, BRIDGE_Z + 1.6)
 	var stone := _paint_mat(Color("b0aa9c"), Color("8d8779"), 3.0, 0.5)
 	var base := MeshInstance3D.new()
 	base.mesh = _cyl_mesh(0.17, 0.22, 0.18, 8)
@@ -2677,9 +2634,9 @@ func _build_east_bank(rng: RandomNumberGenerator) -> void:
 	var lts: Array[Transform3D] = []
 	for i in 14:
 		var z := rng.randf_range(-14.0, 16.0)
-		if _cliff_x(z) - 1.6 < _river_x(z) + 3.8:
+		if MATH.cliff_x(z) - 1.6 < MATH.river_x(z) + 3.8:
 			continue  # troppo vicino alla pinza del canyon
-		var x := rng.randf_range(_river_x(z) + 3.6, _cliff_x(z) - 1.6)
+		var x := rng.randf_range(MATH.river_x(z) + 3.6, MATH.cliff_x(z) - 1.6)
 		var tf := Transform3D(
 				Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.85, 1.15)),
 				Vector3(x, 0, z))
@@ -2696,9 +2653,9 @@ func _build_east_bank(rng: RandomNumberGenerator) -> void:
 		_flower_fields.append(bank_lav)
 
 	# due alberi di riva, coi piedi nel prato
-	_make_tree(Vector3(_river_x(9.5) + 6.4, 0, 9.5), 0.95,
+	_make_tree(Vector3(MATH.river_x(9.5) + 6.4, 0, 9.5), 0.95,
 			Color("8cc873"), Color("6cae5b"), 21)
-	_make_tree(Vector3(_river_x(-11.5) + 7.2, 0, -11.5), 1.05,
+	_make_tree(Vector3(MATH.river_x(-11.5) + 7.2, 0, -11.5), 1.05,
 			Color("86c46c"), Color("64a854"), 22)
 
 
@@ -2757,7 +2714,7 @@ func _update_river(delta: float) -> void:
 		var z: float = f["z"]
 		var node := f["node"] as MeshInstance3D
 		var wob: float = sin(_t * 2.1 + float(f["phase"])) * float(f["amp"])
-		node.position = Vector3(_river_x(z) + wob, RIVER_WATER_Y - 0.08, z)
+		node.position = Vector3(MATH.river_x(z) + wob, RIVER_WATER_Y - 0.08, z)
 		node.rotation.y = PI + cos(_t * 2.1 + float(f["phase"])) * 0.5
 		node.scale.x = 1.0 + sin(_t * 6.0 + float(f["phase"])) * 0.08
 
@@ -2768,7 +2725,7 @@ func _update_river(delta: float) -> void:
 			p["z"] = -50.0
 		var z: float = p["z"]
 		var node := p["node"] as Node3D
-		node.position = Vector3(_river_x(z) + sin(z * 0.4 + float(p["phase"])) * 1.0,
+		node.position = Vector3(MATH.river_x(z) + sin(z * 0.4 + float(p["phase"])) * 1.0,
 				RIVER_WATER_Y + 0.02 + sin(_t * 1.3 + float(p["phase"])) * 0.012, z)
 		node.rotation.y += delta * 0.12
 
