@@ -27,6 +27,14 @@ global uniform float snow_amount;
 uniform sampler2D tuft_map : filter_linear, repeat_disable, hint_default_black;
 uniform vec2 tuft_origin = vec2(-16.0, -19.0);
 uniform vec2 tuft_size = vec2(32.0, 33.0);
+// i sentieri consumati: la tela dell'usura dipinta dai passi (Sentieri.gd,
+// stesso patto di tuft_map). Dove i passi si ripetono l'erba prima si
+// spegne calpestata, poi cede alla terra battuta: il mondo ricorda.
+uniform sampler2D sentieri_tex : filter_linear, repeat_disable, hint_default_black;
+uniform vec2 sentieri_origin = vec2(-22.0, -26.0);
+uniform vec2 sentieri_size = vec2(44.0, 44.0);
+uniform vec4 terra_battuta : source_color = vec4(0.63, 0.53, 0.37, 1.0);
+uniform vec4 terra_orlo : source_color = vec4(0.47, 0.39, 0.28, 1.0);
 
 varying vec3 wpos;
 varying float v_hill;
@@ -116,7 +124,21 @@ void fragment() {
 	float peb = smoothstep(0.32, 0.18, pd) * step(pr, 0.4) * smoothstep(0.5, 0.9, v_river);
 	col = mix(col, vec3(0.56, 0.55, 0.51) * (0.8 + 0.4 * hash12(pid)), peb * 0.9);
 
-	// trifogli e margheritine dipinti nel manto (solo su prato aperto)
+	// --- i sentieri consumati: il manto ricorda i passi ---
+	// L'usura letta dalla tela dei passi; il rumore del manto sgrana il
+	// contorno (mai un bordo a pennarello) e il letto del fiume non si
+	// consuma. Due soglie: erba calpestata, poi terra battuta.
+	vec2 suv = (wpos.xz - sentieri_origin) / sentieri_size;
+	float dentro = step(0.0, suv.x) * step(suv.x, 1.0)
+			* step(0.0, suv.y) * step(suv.y, 1.0);
+	float usura = texture(sentieri_tex, suv).r * dentro
+			* (1.0 - smoothstep(0.25, 0.6, v_river));
+	float sgrana = fbm3(rot * wpos.xz * 1.7 + 47.0) - 0.5;
+	float calpestio = smoothstep(0.10, 0.45, usura + sgrana * 0.18);
+	float battuta = smoothstep(0.48, 0.85, usura + sgrana * 0.26);
+
+	// trifogli e margheritine dipinti nel manto (solo su prato aperto,
+	// e MAI sul sentiero: dove si cammina i fiorellini non attecchiscono)
 	vec2 cellp = wpos.xz * 2.6;
 	vec2 cid = floor(cellp);
 	float r1 = hash12(cid);
@@ -124,9 +146,24 @@ void fragment() {
 	float dd = length(fract(cellp) - 0.5 - jitter * 0.55);
 	float dotm = smoothstep(0.17, 0.10, dd);
 	float aperto = (1.0 - fmask) * (1.0 - smoothstep(0.5, 3.0, v_hill))
-			* (1.0 - smoothstep(0.05, 0.3, v_river));
+			* (1.0 - smoothstep(0.05, 0.3, v_river)) * (1.0 - calpestio);
 	col = mix(col, clover_color.rgb, dotm * step(r1, 0.11) * 0.75 * aperto);
 	col = mix(col, daisy_color.rgb, dotm * step(0.986, r1) * 0.85 * aperto);
+
+	// prima l'erba si spegne e ingiallisce (calpestata ogni giorno)…
+	col = mix(col, col * vec3(0.90, 0.86, 0.70), calpestio * 0.55);
+	// …poi affiora la terra battuta: chiara al colmo del sentiero, più
+	// bruna verso l'orlo, con granelli radi che la sporcano di vivo
+	vec3 terra = mix(terra_orlo.rgb, terra_battuta.rgb,
+			smoothstep(0.45, 0.95, usura + sgrana * 0.2));
+	vec2 gb = wpos.xz * 7.0;
+	vec2 gid = floor(gb);
+	float gr = hash12(gid + 51.0);
+	vec2 gj = vec2(hash12(gid + 63.0), hash12(gid + 71.0)) - 0.5;
+	float gd = length(fract(gb) - 0.5 - gj * 0.5);
+	float granello = smoothstep(0.24, 0.12, gd) * step(gr, 0.3);
+	terra = mix(terra, terra * (0.82 + 0.36 * hash12(gid)), granello);
+	col = mix(col, terra, battuta);
 
 	// prospettiva aerea: più il rilievo sale, più si vela di foschia
 	// verde-azzurra, e le cime delle montagne sfumano in crema pastello.

@@ -136,6 +136,10 @@ func _ready() -> void:
 	# le costellazioni di Mochi e il calendario del villaggio
 	add_child(preload("res://scenes/world/Stargazing.gd").new())
 	add_child(preload("res://scenes/world/Calendar.gd").new())
+	# i sentieri consumati: il terreno che ricorda i passi (di Mochi e
+	# dei residenti) e li trasforma, settimana dopo settimana, in
+	# sentierini d'erba consumata — la memoria dipinta nel prato
+	add_child(preload("res://scenes/world/Sentieri.gd").new())
 	# il guardaroba di Mochi: ricordi indossabili
 	add_child(preload("res://scenes/characters/Wardrobe.gd").new())
 	# l'onsen del bosco, oltre la radura del falò
