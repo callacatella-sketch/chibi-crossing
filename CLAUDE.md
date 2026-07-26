@@ -173,6 +173,33 @@ push origin v1.0.0`) o a mano da *Actions → Run workflow*.
   Gli export templates NON sono installati in locale, quindi l'export completo
   gira solo in CI, ma l'import/validazione dei preset si fa anche da qui.
 
+## Il mondo: CozyWorld e le sue librerie
+
+`scenes/world/CozyWorld.gd` costruisce il villaggio procedurale. Era un file
+unico da oltre 3000 righe; le parti **pure** (senza stato né albero della scena)
+sono state estratte in due librerie di funzioni `static`:
+
+- [`scenes/world/WorldMath.gd`](scenes/world/WorldMath.gd) — matematica del
+  mondo: `river_x`, `cliff_x` (il corso del fiume e la parete di scogliera, la
+  stessa curva che vive in `ground.gdshader`), `catmull`, `tuft_hash/vnoise/field`.
+  È anche la **fonte di verità per `FALL_Z`** (CozyWorld ne tiene un alias).
+- [`scenes/world/WorldGeo.gd`](scenes/world/WorldGeo.gd) — fabbriche di
+  geometria: mesh procedurali (`puff_mesh`, `trunk_mesh`, `skirt_mesh`,
+  `blade_mesh`, fiori), primitive, `merge`, materiali `paint_mat`, texture
+  `soft_circle`, emettitori `drift_emitter`.
+
+Si usano tramite i `const MATH`/`const GEO` in cima a CozyWorld
+(`GEO.cone_mesh(...)`). Nelle librerie i nomi NON hanno l'underscore iniziale.
+CozyWorld resta il nodo: mantiene lo stato, `_process`, la generazione differita
+in `_ready` (con il segnale `world_built`) e tutta la sua API pubblica.
+
+**Attenzione per chi rifattorizza ancora:** la generazione del mondo NON è
+deterministica nel numero di nodi (varia di poche unità tra un avvio e l'altro),
+quindi un confronto esatto dell'albero dà falsi allarmi. Usare
+[`tests/world_snapshot.gd`](tests/world_snapshot.gd) confrontando
+l'**istogramma per classe** (quello sì stabile) e, per le funzioni pure, scrivere
+una prova di equivalenza vecchia-vs-nuova implementazione.
+
 ## Test
 
 Test-suite **dependency-free** (nessun addon, nessuna rete) in `tests/`:

@@ -7,7 +7,7 @@ extends Node3D
 ## e pulviscolo dorato nell'aria.
 
 const MATH := preload("res://scenes/world/WorldMath.gd")
-const HANDPAINT := preload("res://shaders/handpaint.gdshader")
+const GEO := preload("res://scenes/world/WorldGeo.gd")
 const RIVER_SHADER := preload("res://shaders/river.gdshader")
 const WATERFALL_SHADER := preload("res://shaders/waterfall.gdshader")
 const GRASS_BLADE := preload("res://shaders/grass_blade.gdshader")
@@ -165,53 +165,10 @@ func _ready() -> void:
 	_init_season()
 
 
-func _paint_mat(a: Color, b: Color, grain := 4.0, amount := 0.45, wind := 0.0,
-		world_noise := false, trans := 0.0) -> ShaderMaterial:
-	var mat := ShaderMaterial.new()
-	mat.shader = HANDPAINT
-	mat.set_shader_parameter("color_a", a)
-	mat.set_shader_parameter("color_b", b)
-	mat.set_shader_parameter("noise_scale", grain)
-	mat.set_shader_parameter("noise_amount", amount)
-	mat.set_shader_parameter("wind_strength", wind)
-	mat.set_shader_parameter("use_world_noise", world_noise)
-	if trans > 0.0:
-		mat.set_shader_parameter("translucency", trans)
-	return mat
 
 
 # ---------------------------------------------------------------- erba
 
-# il filo d'erba vero: un nastro affusolato che si incurva in avanti,
-# UV.y = altezza (lo shader ci appende gradienti, vento e spinte)
-func _blade_mesh() -> ArrayMesh:
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	# livelli: [altezza, mezza larghezza, curva in avanti]
-	var lv := [[0.0, 0.017, 0.0], [0.12, 0.013, 0.012],
-			[0.22, 0.008, 0.038], [0.30, 0.0, 0.085]]
-	for s in 3:
-		var a: Array = lv[s]
-		var b: Array = lv[s + 1]
-		var auv := float(a[0]) / 0.30
-		var buv := float(b[0]) / 0.30
-		var al := Vector3(-a[1], a[0], a[2])
-		var ar := Vector3(a[1], a[0], a[2])
-		if float(b[1]) > 0.0:
-			var bl := Vector3(-b[1], b[0], b[2])
-			var br := Vector3(b[1], b[0], b[2])
-			for v: Array in [[al, auv], [bl, buv], [ar, auv],
-					[ar, auv], [bl, buv], [br, buv]]:
-				st.set_uv(Vector2(0.0, v[1]))
-				st.set_normal(Vector3.UP)
-				st.add_vertex(v[0])
-		else:
-			var tip := Vector3(0, b[0], b[2])
-			for v: Array in [[al, auv], [tip, 1.0], [ar, auv]]:
-				st.set_uv(Vector2(0.0, v[1]))
-				st.set_normal(Vector3.UP)
-				st.add_vertex(v[0])
-	return st.commit()
 
 
 # ------------------------------------------------ il campo dei ciuffi
@@ -252,7 +209,7 @@ func _bake_tuft_map() -> void:
 
 func _build_grass() -> void:
 	_bake_tuft_map()
-	var mesh := _blade_mesh()
+	var mesh := GEO.blade_mesh()
 	var mat := ShaderMaterial.new()
 	mat.shader = GRASS_BLADE
 	mesh.surface_set_material(0, mat)
@@ -343,118 +300,12 @@ func unflatten_cell(cell: Vector2i) -> void:
 
 # ---------------------------------------------------------------- fiori
 
-# il gambo comune: stelo con una lieve curva naturale + due foglioline
-# basali lanceolate. Ogni specie ci appoggia sopra la sua corolla.
-func _flower_base(mesh: ArrayMesh, h: float, leaf_s := 1.0) -> void:
-	var green := _paint_mat(Color("7fae6a"), Color("5f9050"), 6.0, 0.5, 0.02, true)
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	# stelo in due segmenti, il secondo piegato appena: mai un palo dritto
-	var low := _cyl_mesh(0.011, 0.013, h * 0.55, 6)
-	var high := _cyl_mesh(0.009, 0.011, h * 0.5, 6)
-	st.append_from(low, 0, Transform3D(Basis.IDENTITY, Vector3(0, h * 0.275, 0)))
-	st.append_from(high, 0, Transform3D(
-			Basis(Vector3.RIGHT, 0.12), Vector3(0, h * 0.76, -h * 0.03)))
-	# foglie: ellissoidi lunghi e sottili, inclinati verso l'alto
-	var leaf := _sphere_mesh(0.05, 8)
-	for side: float in [-1.0, 1.0]:
-		var b := Basis(Vector3.UP, side * 1.2 + 0.4) \
-				* Basis(Vector3.RIGHT, -0.55) \
-				* Basis.IDENTITY.scaled(Vector3(0.42, 0.14, 1.5) * leaf_s)
-		st.append_from(leaf, 0, Transform3D(b, Vector3(side * 0.03, h * 0.16, 0.015)))
-	st.set_material(green)
-	st.commit(mesh)
 
 
-## La margherita: doppia corona di petali veri (8 sotto + 5 sopra,
-## ruotati e appena rialzati) attorno al bottone dorato bombato.
-func _daisy_mesh(petal_color: Color, center_color: Color) -> ArrayMesh:
-	var mesh := ArrayMesh.new()
-	_flower_base(mesh, 0.20)
-
-	var pet_mat := _paint_mat(petal_color, petal_color.lightened(0.22), 2.2, 0.5, 0.02, true, 0.5)
-	var petal := _sphere_mesh(0.034, 8)
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	# corona bassa: 8 petali lunghi, appena conici verso l'alto
-	for i in 8:
-		var a := float(i) / 8.0 * TAU
-		var b := Basis(Vector3.UP, -a) * Basis(Vector3.RIGHT, -0.22) \
-				* Basis.IDENTITY.scaled(Vector3(0.62, 0.22, 1.75))
-		st.append_from(petal, 0, Transform3D(b,
-				Vector3(cos(a) * 0.055, 0.205, sin(a) * 0.055)))
-	# corona alta: 5 petali più corti, sfalsati, più alzati
-	for i in 5:
-		var a := float(i) / 5.0 * TAU + 0.63
-		var b := Basis(Vector3.UP, -a) * Basis(Vector3.RIGHT, -0.5) \
-				* Basis.IDENTITY.scaled(Vector3(0.55, 0.2, 1.3))
-		st.append_from(petal, 0, Transform3D(b,
-				Vector3(cos(a) * 0.038, 0.218, sin(a) * 0.038)))
-	st.set_material(pet_mat)
-	st.commit(mesh)
-
-	st = SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	st.append_from(_sphere_mesh(0.03, 10), 0, Transform3D(
-			Basis.IDENTITY.scaled(Vector3(1, 0.62, 1)), Vector3(0, 0.225, 0)))
-	st.set_material(_paint_mat(center_color, center_color.darkened(0.25), 9.0, 0.55))
-	st.commit(mesh)
-	return mesh
 
 
-## Il tulipano: sei petali verticali chiusi a coppa su uno stelo alto,
-## con la foglia lunga avvolgente tipica.
-func _tulip_mesh(cup_color: Color) -> ArrayMesh:
-	var mesh := ArrayMesh.new()
-	_flower_base(mesh, 0.26, 1.25)
-
-	var pet_mat := _paint_mat(cup_color, cup_color.lightened(0.18), 2.0, 0.45, 0.02, true, 0.55)
-	var petal := _sphere_mesh(0.045, 8)
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for i in 6:
-		var a := float(i) / 6.0 * TAU
-		# petali dritti che si stringono in alto: la silhouette a uovo
-		var b := Basis(Vector3.UP, -a) * Basis(Vector3.RIGHT, 0.16) \
-				* Basis.IDENTITY.scaled(Vector3(0.72, 1.35, 0.4))
-		st.append_from(petal, 0, Transform3D(b,
-				Vector3(cos(a) * 0.026, 0.315, sin(a) * 0.026)))
-	st.set_material(pet_mat)
-	st.commit(mesh)
-
-	# il cuoricino scuro appena visibile dentro la coppa
-	st = SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	st.append_from(_sphere_mesh(0.02, 8), 0, Transform3D(
-			Basis.IDENTITY, Vector3(0, 0.31, 0)))
-	st.set_material(_paint_mat(cup_color.darkened(0.4), cup_color.darkened(0.55), 6.0, 0.4))
-	st.commit(mesh)
-	return mesh
 
 
-## La lavanda: spiga di campanellini viola sfalsati su uno stelo slanciato.
-func _lavender_mesh() -> ArrayMesh:
-	var mesh := ArrayMesh.new()
-	_flower_base(mesh, 0.30, 0.8)
-
-	var bud_mat := _paint_mat(Color("a98fd8"), Color("8f6fc4"), 2.5, 0.5, 0.025, true, 0.45)
-	var bud := _sphere_mesh(0.026, 8)
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for i in 7:
-		var t := float(i) / 6.0
-		var a := t * 5.2  # i campanellini salgono a spirale
-		var y := 0.24 + t * 0.11
-		var r := 0.018 * (1.0 - t * 0.45)
-		var b := Basis(Vector3.UP, -a) \
-				* Basis.IDENTITY.scaled(Vector3(1.15, 0.85, 1.15) * (1.0 - t * 0.35))
-		st.append_from(bud, 0, Transform3D(b, Vector3(cos(a) * r, y, sin(a) * r)))
-	# la puntina in cima
-	st.append_from(bud, 0, Transform3D(
-			Basis.IDENTITY.scaled(Vector3(0.6, 0.9, 0.6)), Vector3(0, 0.365, 0)))
-	st.set_material(bud_mat)
-	st.commit(mesh)
-	return mesh
 
 
 # semina un campo a macchie: i fiori veri crescono in famigliole, non
@@ -495,11 +346,11 @@ func _build_flowers() -> void:
 	# margherite bianche e rosa, tulipani caldi, spighe di lavanda.
 	# I campi si raccolgono: d'inverno il prato gelato li nasconde sotto la neve
 	for field in [
-			_flower_field(_daisy_mesh(Color("fffaf4"), Color("ffcf5e")), 9, 3, 5, 8, rng),
-			_flower_field(_daisy_mesh(Color("ffc4d6"), Color("ffd76e")), 7, 3, 5, 6, rng),
-			_flower_field(_tulip_mesh(Color("ffb35c")), 5, 2, 4, 4, rng),
-			_flower_field(_tulip_mesh(Color("f2879e")), 5, 2, 4, 4, rng),
-			_flower_field(_lavender_mesh(), 6, 3, 6, 4, rng)]:
+			_flower_field(GEO.daisy_mesh(Color("fffaf4"), Color("ffcf5e")), 9, 3, 5, 8, rng),
+			_flower_field(GEO.daisy_mesh(Color("ffc4d6"), Color("ffd76e")), 7, 3, 5, 6, rng),
+			_flower_field(GEO.tulip_mesh(Color("ffb35c")), 5, 2, 4, 4, rng),
+			_flower_field(GEO.tulip_mesh(Color("f2879e")), 5, 2, 4, 4, rng),
+			_flower_field(GEO.lavender_mesh(), 6, 3, 6, 4, rng)]:
 		if field:
 			_flower_fields.append(field)
 
@@ -515,12 +366,12 @@ func _make_tree(pos: Vector3, size: float, leaf_a: Color, leaf_b: Color,
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1000 + seed_v * 37 + int(pos.x * 7.0 + pos.z * 13.0)
 
-	var bark := _paint_mat(Color("9a6b4f"), Color("7e563f"), 2.5, 0.55)
+	var bark := GEO.paint_mat(Color("9a6b4f"), Color("7e563f"), 2.5, 0.55)
 	# le chiome lasciano PASSARE il controluce: la frangia si accende
 	# di verde-oro quando il sole è alle loro spalle
-	var leaf_dark := _paint_mat(leaf_b.darkened(0.22), leaf_b.darkened(0.34), 1.1, 0.6, 0.012, false, 0.35)
-	var leaf_mid := _paint_mat(leaf_a, leaf_b, 1.1, 0.65, 0.012, false, 0.45)
-	var leaf_light := _paint_mat(leaf_a.lightened(0.16), leaf_a, 1.1, 0.55, 0.014, false, 0.55)
+	var leaf_dark := GEO.paint_mat(leaf_b.darkened(0.22), leaf_b.darkened(0.34), 1.1, 0.6, 0.012, false, 0.35)
+	var leaf_mid := GEO.paint_mat(leaf_a, leaf_b, 1.1, 0.65, 0.012, false, 0.45)
+	var leaf_light := GEO.paint_mat(leaf_a.lightened(0.16), leaf_a, 1.1, 0.55, 0.014, false, 0.55)
 	# le tre maniglie del fogliame: la stagione le tira verso l'oro, il
 	# rame o il gelo (la primavera è già il loro colore di nascita)
 	_register_leaf(leaf_dark, leaf_b.darkened(0.22), leaf_b.darkened(0.34), leaf_klass)
@@ -533,7 +384,7 @@ func _make_tree(pos: Vector3, size: float, leaf_a: Color, leaf_b: Color,
 	# tronco — su una mesh fusa si potrebbe solo appiccicarci sopra qualcosa —
 	# e alla chioma di frustare in ritardo mentre l'albero cade.
 	var trunk_seed := rng.randi()
-	var trunk_parts := [[_trunk_mesh(1.35, 0.19, 0.115, trunk_seed),
+	var trunk_parts := [[GEO.trunk_mesh(1.35, 0.19, 0.115, trunk_seed),
 			Transform3D.IDENTITY, bark]]
 	var parts := []
 	# radici a vista
@@ -541,13 +392,13 @@ func _make_tree(pos: Vector3, size: float, leaf_a: Color, leaf_b: Color,
 		var a := float(i) / 4.0 * TAU + rng.randf_range(-0.3, 0.3)
 		var root := Basis(Vector3.UP, -a) \
 				* Basis.IDENTITY.scaled(Vector3(0.5, 0.35, 1.25))
-		parts.append([_sphere_mesh(0.16, 8), Transform3D(root,
+		parts.append([GEO.sphere_mesh(0.16, 8), Transform3D(root,
 				Vector3(cos(a) * 0.2, 0.02, sin(a) * 0.2)), bark])
 	# tre rami che si aprono verso i lobi della chioma
 	for i in 3:
 		var a := float(i) / 3.0 * TAU + rng.randf_range(-0.4, 0.4)
 		var tilt := Basis(Vector3.UP, -a) * Basis(Vector3.RIGHT, -0.9)
-		parts.append([_cyl_mesh(0.035, 0.06, 0.62, 7), Transform3D(tilt,
+		parts.append([GEO.cyl_mesh(0.035, 0.06, 0.62, 7), Transform3D(tilt,
 				Vector3(cos(a) * 0.28, 1.32, sin(a) * 0.28)
 				+ tilt * Vector3(0, 0.28, 0)), bark])
 
@@ -557,20 +408,20 @@ func _make_tree(pos: Vector3, size: float, leaf_a: Color, leaf_b: Color,
 	# ondeggiare e frustare in ritardo quando l'albero viene abbattuto.
 	var leaf_parts := []
 	const CANOPY_Y := 1.5
-	leaf_parts.append([_puff_mesh(0.92, rng.randi(), 0.6, 0.07, 16, 9), # gonna d'ombra
+	leaf_parts.append([GEO.puff_mesh(0.92, rng.randi(), 0.6, 0.07, 16, 9), # gonna d'ombra
 			Transform3D(Basis.IDENTITY, Vector3(0, 1.52 - CANOPY_Y, 0)), leaf_dark])
-	leaf_parts.append([_puff_mesh(0.88, rng.randi(), 0.85, 0.1, 16, 9), # cuore
+	leaf_parts.append([GEO.puff_mesh(0.88, rng.randi(), 0.85, 0.1, 16, 9), # cuore
 			Transform3D(Basis.IDENTITY, Vector3(0, 1.9 - CANOPY_Y, 0)), leaf_mid])
 	for i in 5: # lobi di mezzo intorno
 		var a := float(i) / 5.0 * TAU + rng.randf_range(-0.25, 0.25)
 		var r := rng.randf_range(0.5, 0.64)
-		leaf_parts.append([_puff_mesh(r, rng.randi(), 0.82, 0.11, 16, 9),
+		leaf_parts.append([GEO.puff_mesh(r, rng.randi(), 0.82, 0.11, 16, 9),
 				Transform3D(Basis(Vector3.UP, rng.randf() * TAU),
 				Vector3(cos(a) * 0.62, rng.randf_range(1.62, 1.82) - CANOPY_Y, sin(a) * 0.62)),
 				leaf_mid if i % 2 == 0 else leaf_dark])
 	for i in 3: # ciuffi di luce in cima
 		var a := float(i) / 3.0 * TAU + rng.randf_range(-0.4, 0.4)
-		leaf_parts.append([_puff_mesh(rng.randf_range(0.3, 0.42), rng.randi(), 0.8, 0.13, 16, 9),
+		leaf_parts.append([GEO.puff_mesh(rng.randf_range(0.3, 0.42), rng.randi(), 0.8, 0.13, 16, 9),
 				Transform3D(Basis(Vector3.UP, rng.randf() * TAU),
 				Vector3(cos(a) * 0.38, rng.randf_range(2.35, 2.55) - CANOPY_Y, sin(a) * 0.38)),
 				leaf_light])
@@ -582,12 +433,12 @@ func _make_tree(pos: Vector3, size: float, leaf_a: Color, leaf_b: Color,
 
 	var trunk_mi := MeshInstance3D.new()
 	trunk_mi.name = "Tronco"
-	trunk_mi.mesh = _merge(trunk_parts)
+	trunk_mi.mesh = GEO.merge(trunk_parts)
 	tree.add_child(trunk_mi)
 
 	var deco_mi := MeshInstance3D.new()
 	deco_mi.name = "Rami"
-	deco_mi.mesh = _merge(parts)
+	deco_mi.mesh = GEO.merge(parts)
 	tree.add_child(deco_mi)
 
 	var canopy := Node3D.new()
@@ -595,7 +446,7 @@ func _make_tree(pos: Vector3, size: float, leaf_a: Color, leaf_b: Color,
 	canopy.position = Vector3(0, CANOPY_Y, 0)
 	tree.add_child(canopy)
 	var leaf_mi := MeshInstance3D.new()
-	leaf_mi.mesh = _merge(leaf_parts)
+	leaf_mi.mesh = GEO.merge(leaf_parts)
 	canopy.add_child(leaf_mi)
 
 	# la carta d'identità che serve al taglio della legna: com'è fatto il
@@ -622,47 +473,35 @@ func _build_trees() -> void:
 	# cespuglietti: cuscini di verde con l'ombra sotto e le bacche rosse
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 88
-	var bush_dark := _paint_mat(Color("5e9a50"), Color("4b8040"), 1.6, 0.6, 0.015, false, 0.35)
-	var bush_light := _paint_mat(Color("8cc873"), Color("6cae5b"), 1.6, 0.6, 0.015, false, 0.45)
-	var berry := _paint_mat(Color("e6607a"), Color("c94a62"), 5.0, 0.35)
+	var bush_dark := GEO.paint_mat(Color("5e9a50"), Color("4b8040"), 1.6, 0.6, 0.015, false, 0.35)
+	var bush_light := GEO.paint_mat(Color("8cc873"), Color("6cae5b"), 1.6, 0.6, 0.015, false, 0.45)
+	var berry := GEO.paint_mat(Color("e6607a"), Color("c94a62"), 5.0, 0.35)
 	# i cespugli seguono le stagioni; le bacche restano rosse (rosse sulla neve)
 	_register_leaf(bush_dark, Color("5e9a50"), Color("4b8040"), "bush")
 	_register_leaf(bush_light, Color("8cc873"), Color("6cae5b"), "bush")
 	for p in [Vector3(-3.5, 0, -7.0), Vector3(4.0, 0, 7.5), Vector3(-8.0, 0, -1.5)]:
 		var parts := []
-		parts.append([_puff_mesh(0.52, rng.randi(), 0.62, 0.12),
+		parts.append([GEO.puff_mesh(0.52, rng.randi(), 0.62, 0.12),
 				Transform3D(Basis.IDENTITY, Vector3(0, 0.28, 0)), bush_dark])
-		parts.append([_puff_mesh(0.42, rng.randi(), 0.78, 0.13),
+		parts.append([GEO.puff_mesh(0.42, rng.randi(), 0.78, 0.13),
 				Transform3D(Basis.IDENTITY, Vector3(0.24, 0.4, 0.08)), bush_light])
-		parts.append([_puff_mesh(0.36, rng.randi(), 0.78, 0.13),
+		parts.append([GEO.puff_mesh(0.36, rng.randi(), 0.78, 0.13),
 				Transform3D(Basis.IDENTITY, Vector3(-0.24, 0.38, -0.08)), bush_light])
 		for i in 6:
 			var a := rng.randf() * TAU
 			var rr := rng.randf_range(0.26, 0.42)
-			parts.append([_sphere_mesh(0.032, 7), Transform3D(Basis.IDENTITY,
+			parts.append([GEO.sphere_mesh(0.032, 7), Transform3D(Basis.IDENTITY,
 					Vector3(cos(a) * rr, 0.38 + rng.randf_range(-0.08, 0.16),
 					sin(a) * rr)), berry])
 		var bush := Node3D.new()
 		bush.position = p
 		bush.rotation.y = rng.randf() * TAU
 		var mi := MeshInstance3D.new()
-		mi.mesh = _merge(parts)
+		mi.mesh = GEO.merge(parts)
 		bush.add_child(mi)
 		add_child(bush)
 
 
-func _soft_circle(color: Color, edge := 0.6) -> GradientTexture2D:
-	var tex := GradientTexture2D.new()
-	tex.width = 64
-	tex.height = 64
-	tex.fill = GradientTexture2D.FILL_RADIAL
-	tex.fill_from = Vector2(0.5, 0.5)
-	tex.fill_to = Vector2(0.5, 0.0)
-	var grad := Gradient.new()
-	grad.offsets = PackedFloat32Array([0.0, edge, 1.0])
-	grad.colors = PackedColorArray([color, Color(color, color.a * 0.55), Color(color, 0.0)])
-	tex.gradient = grad
-	return tex
 
 
 func _add_petals(tree: Node3D) -> void:
@@ -671,7 +510,7 @@ func _add_petals(tree: Node3D) -> void:
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_texture = _soft_circle(Color("ffc9d9", 0.95), 0.5)
+	mat.albedo_texture = GEO.soft_circle(Color("ffc9d9", 0.95), 0.5)
 	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	mat.vertex_color_use_as_albedo = true
 	quad.material = mat
@@ -715,7 +554,7 @@ func _add_petals(tree: Node3D) -> void:
 # ---------------------------------------------------------------- sassi
 
 func _build_stones() -> void:
-	var mat := _paint_mat(Color("c9c2b4"), Color("a89f92"), 5.0, 0.5)
+	var mat := GEO.paint_mat(Color("c9c2b4"), Color("a89f92"), 5.0, 0.5)
 	var pts := [
 		Vector3(0.9, 0, 1.6), Vector3(1.7, 0, 2.1), Vector3(2.6, 0, 2.4),
 		Vector3(3.5, 0, 2.6), Vector3(4.4, 0, 2.9), Vector3(5.2, 0, 3.3),
@@ -737,7 +576,7 @@ func _build_stones() -> void:
 # ---------------------------------------------------------------- nuvole
 
 func _build_clouds() -> void:
-	var mat := _paint_mat(Color(1, 1, 1), Color("e8ecf5"), 0.8, 0.5)
+	var mat := GEO.paint_mat(Color(1, 1, 1), Color("e8ecf5"), 0.8, 0.5)
 	mat.set_shader_parameter("rim_strength", 0.3)
 	mat.set_shader_parameter("rim_color", Color(1, 0.98, 0.95))
 	for i in 5:
@@ -784,7 +623,7 @@ func _make_butterfly(kind_i: int) -> void:
 	cap.height = 0.07
 	body.mesh = cap
 	body.rotation.x = PI * 0.5
-	body.material_override = _paint_mat(Color("6a5a4a"), Color("4a3e33"), 8.0, 0.4)
+	body.material_override = GEO.paint_mat(Color("6a5a4a"), Color("4a3e33"), 8.0, 0.4)
 	b.add_child(body)
 
 	var wing_col: Color = BUTTERFLY_KINDS[kind_i][1]
@@ -798,7 +637,7 @@ func _make_butterfly(kind_i: int) -> void:
 		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
 		mat.alpha_scissor_threshold = 0.4
-		mat.albedo_texture = _soft_circle(wing_col, 0.75)
+		mat.albedo_texture = GEO.soft_circle(wing_col, 0.75)
 		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 		quad.material = mat
 		var mi := MeshInstance3D.new()
@@ -852,7 +691,7 @@ func _build_pollen() -> void:
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	mat.albedo_texture = _soft_circle(Color(1.0, 0.95, 0.8, 0.7))
+	mat.albedo_texture = GEO.soft_circle(Color(1.0, 0.95, 0.8, 0.7))
 	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	mat.vertex_color_use_as_albedo = true
 	quad.material = mat
@@ -897,24 +736,6 @@ func _build_pollen() -> void:
 # per il frustum culling. Le collisioni dei tronchi stanno in un unico
 # StaticBody3D. Le particelle sono GPU con AABB delimitati.
 
-func _merge(parts: Array) -> ArrayMesh:
-	# [[Mesh, Transform3D, Material], ...] -> ArrayMesh con una superficie
-	# per materiale
-	var groups := {}
-	for p in parts:
-		var mat: Material = p[2]
-		if not groups.has(mat):
-			groups[mat] = []
-		(groups[mat] as Array).append(p)
-	var mesh := ArrayMesh.new()
-	for mat in groups:
-		var st := SurfaceTool.new()
-		st.begin(Mesh.PRIMITIVE_TRIANGLES)
-		for p in groups[mat]:
-			st.append_from(p[0], 0, p[1])
-		st.set_material(mat)
-		st.commit(mesh)
-	return mesh
 
 
 func _scatter_exact(mesh: Mesh, transforms: Array, shadows := true) -> MultiMeshInstance3D:
@@ -934,31 +755,10 @@ func _scatter_exact(mesh: Mesh, transforms: Array, shadows := true) -> MultiMesh
 	return mmi
 
 
-func _cone_mesh(radius: float, height: float, segments := 10) -> CylinderMesh:
-	var m := CylinderMesh.new()
-	m.top_radius = 0.0
-	m.bottom_radius = radius
-	m.height = height
-	m.radial_segments = segments
-	return m
 
 
-func _cyl_mesh(top: float, bottom: float, height: float, segments := 8) -> CylinderMesh:
-	var m := CylinderMesh.new()
-	m.top_radius = top
-	m.bottom_radius = bottom
-	m.height = height
-	m.radial_segments = segments
-	return m
 
 
-func _sphere_mesh(radius: float, segments := 12) -> SphereMesh:
-	var m := SphereMesh.new()
-	m.radius = radius
-	m.height = radius * 2.0
-	m.radial_segments = segments
-	m.rings = int(segments * 0.5)
-	return m
 
 
 # ---------------------------------------------------- il kit botanico
@@ -968,136 +768,14 @@ func _sphere_mesh(radius: float, segments := 12) -> SphereMesh:
 # centrali sui vicini della griglia — così il cel-shading accarezza i
 # gonfiori invece di tagliarli con le bande della forma ideale.
 
-# normali morbide di una griglia di anelli chiusi: tangente lungo
-# l'anello × tangente lungo la colonna (differenze centrali; ai bordi
-# one-sided). Le righe degenerate (poli, punte) ricadono sulla verticale.
-func _grid_normals(pos: Array, segs: int) -> Array:
-	var rows := pos.size()
-	var out: Array = []
-	for i in rows:
-		var nrow: Array[Vector3] = []
-		var below: Array = pos[maxi(i - 1, 0)]
-		var above: Array = pos[mini(i + 1, rows - 1)]
-		for j in segs:
-			var t_lon: Vector3 = pos[i][(j + 1) % segs] - pos[i][(j - 1 + segs) % segs]
-			var t_lat: Vector3 = above[j] - below[j]
-			var n := t_lon.cross(t_lat)
-			if n.length_squared() < 0.0000001:
-				# riga degenere (polo in basso, polo/punta in alto)
-				nrow.append(Vector3.DOWN if i == 0 else Vector3.UP)
-				continue
-			nrow.append(n.normalized())
-		out.append(nrow)
-	return out
 
 
-# griglia + normali -> mesh (due triangoli per quad, facce esterne)
-func _grid_commit(pos: Array, nrm: Array, segs: int) -> ArrayMesh:
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for i in pos.size() - 1:
-		for j in segs:
-			var j2 := (j + 1) % segs
-			for idx: Array in [[i, j], [i + 1, j], [i + 1, j2],
-					[i, j], [i + 1, j2], [i, j2]]:
-				st.set_normal(nrm[idx[0]][idx[1]])
-				st.add_vertex(pos[idx[0]][idx[1]])
-	return st.commit()
 
 
-# nuvola soffice: sfera schiacciata con gonfiori pseudo-noise coerenti.
-# Le normali vere dei gonfiori vengono ammorbidite verso quelle
-# dell'ellissoide liscio (il trucco dello stylized foliage): i lobi si
-# leggono, ma l'ombra resta rotonda come un cuscino — mai accartocciata.
-func _puff_mesh(r: float, seed_v: int, squash := 0.82, lump := 0.09,
-		segs := 12, rings := 7, detail := 0.5) -> ArrayMesh:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = seed_v
-	var v1 := Vector3(rng.randf_range(1.6, 3.0), rng.randf_range(1.6, 3.0),
-			rng.randf_range(1.6, 3.0))
-	var v2 := Vector3(rng.randf_range(2.2, 4.2), rng.randf_range(2.2, 4.2),
-			rng.randf_range(2.2, 4.2))
-	var ph1 := rng.randf() * TAU
-	var ph2 := rng.randf() * TAU
-
-	var pos: Array = []
-	var soft: Array = []  # la normale dell'ellissoide liscio, per il blend
-	for i in rings + 1:
-		var lat := float(i) / float(rings) * PI - PI * 0.5  # -90° (sotto) -> +90°
-		var prow: Array[Vector3] = []
-		var srow: Array[Vector3] = []
-		for j in segs:
-			var lon := float(j) / float(segs) * TAU
-			var d := Vector3(cos(lat) * cos(lon), sin(lat), -cos(lat) * sin(lon))
-			var k := 1.0 + lump * sin(d.dot(v1) * 2.2 + ph1) \
-					* cos(d.dot(v2) * 1.7 + ph2)
-			prow.append(Vector3(d.x, d.y * squash, d.z) * r * k)
-			# normale esatta dell'ellissoide (1, squash, 1): scala inversa
-			srow.append(Vector3(d.x, d.y / squash, d.z).normalized())
-		pos.append(prow)
-		soft.append(srow)
-
-	var nrm := _grid_normals(pos, segs)
-	for i in nrm.size():
-		for j in segs:
-			nrm[i][j] = (soft[i][j].lerp(nrm[i][j], detail)).normalized()
-	return _grid_commit(pos, nrm, segs)
 
 
-# tronco vero: svasato alla base, affusolato in cima, corteccia
-# irregolare e una lieve inclinazione — con le normali che seguono
-# davvero gobbe e svasatura (la luce radente rivela la corteccia)
-func _trunk_mesh(h: float, rb: float, rt: float, seed_v: int,
-		bend := 0.07, segs := 10) -> ArrayMesh:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = seed_v
-	var ph := rng.randf() * TAU
-	var kink := rng.randf_range(2.0, 3.4)
-	var lean := Vector2(cos(ph), sin(ph)) * bend * h
-
-	var ts := [0.0, 0.05, 0.14, 0.32, 0.58, 0.82, 1.0]
-	var pos: Array = []
-	for i in ts.size():
-		var t: float = ts[i]
-		var prow: Array[Vector3] = []
-		for j in segs:
-			var lon := float(j) / float(segs) * TAU
-			# affusolamento + svasatura delle radici alla base
-			var r := lerpf(rb, rt, pow(t, 0.85)) * (1.0 + 1.1 * pow(1.0 - t, 7.0))
-			# corteccia: gobbe radiali che ruotano piano salendo
-			r *= 1.0 + 0.055 * sin(lon * 3.0 + t * kink + ph) \
-					+ 0.03 * sin(lon * 7.0 - t * 2.0)
-			var c := Vector3(lean.x * t * t, t * h, lean.y * t * t)
-			prow.append(c + Vector3(cos(lon) * r, 0, -sin(lon) * r))
-		pos.append(prow)
-	return _grid_commit(pos, _grid_normals(pos, segs), segs)
 
 
-# la gonna di un pino: cono con l'orlo smerlato che ricade. Le normali
-# vere fanno prendere luce a ogni smerlo: la fronda si accende onda
-# per onda invece di essere un cono uniforme.
-func _skirt_mesh(r: float, h: float, seed_v: int, droop := 0.14,
-		waves := 7, segs := 16) -> ArrayMesh:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = seed_v
-	var ph := rng.randf() * TAU
-	# profili bottom→top: [frazione raggio, quota]
-	var prof := [[1.0, 0.0], [0.72, h * 0.2], [0.38, h * 0.55], [0.0, h]]
-	var pos: Array = []
-	for i in prof.size():
-		var prow: Array[Vector3] = []
-		for j in segs:
-			var lon := float(j) / float(segs) * TAU
-			var rr: float = r * float(prof[i][0])
-			var y: float = prof[i][1]
-			if i == 0:
-				# l'orlo: onde che scendono e rientrano appena
-				var w := sin(lon * waves + ph)
-				y -= droop * r * (0.55 + 0.45 * w)
-				rr *= 1.0 + 0.05 * sin(lon * waves + ph + 1.3)
-			prow.append(Vector3(cos(lon) * rr, y, -sin(lon) * rr))
-		pos.append(prow)
-	return _grid_commit(pos, _grid_normals(pos, segs), segs)
 
 
 
@@ -1142,8 +820,8 @@ func _build_forest_path(rng: RandomNumberGenerator) -> void:
 		for i in 20:
 			_path_samples.append(MATH.catmull(p0, p1, p2, p3, float(i) / 20.0))
 
-	var disc := _cyl_mesh(0.55, 0.6, 0.05, 10)
-	disc.material = _paint_mat(Color("9a7a55"), Color("83674a"), 0.9, 0.55, 0.0, true)
+	var disc := GEO.cyl_mesh(0.55, 0.6, 0.05, 10)
+	disc.material = GEO.paint_mat(Color("9a7a55"), Color("83674a"), 0.9, 0.55, 0.0, true)
 	var transforms: Array[Transform3D] = []
 	for i in _path_samples.size():
 		var s := _path_samples[i]
@@ -1156,15 +834,15 @@ func _build_forest_path(rng: RandomNumberGenerator) -> void:
 
 
 func _build_forest_trees(rng: RandomNumberGenerator) -> void:
-	var bark := _paint_mat(Color("6a4e3a"), Color("57402f"), 2.5, 0.55)
+	var bark := GEO.paint_mat(Color("6a4e3a"), Color("57402f"), 2.5, 0.55)
 	# aghi e fronde in controluce: il bosco si accende quando lo
 	# attraversi camminando verso il sole
-	var needle_a := _paint_mat(Color("3f7050"), Color("2f5840"), 1.0, 0.6, 0.008, false, 0.3)
-	var needle_b := _paint_mat(Color("4a7d58"), Color("365f46"), 1.0, 0.6, 0.008, false, 0.3)
-	var needle_lite := _paint_mat(Color("5c8f65"), Color("477455"), 1.0, 0.55, 0.01, false, 0.4)
-	var leaf_dark := _paint_mat(Color("3a6b3e"), Color("2d5733"), 1.0, 0.6, 0.008, false, 0.35)
-	var leaf := _paint_mat(Color("4e8a52"), Color("3d7344"), 1.0, 0.65, 0.008, false, 0.4)
-	var leaf_lite := _paint_mat(Color("619c5e"), Color("4e8a52"), 1.0, 0.55, 0.01, false, 0.5)
+	var needle_a := GEO.paint_mat(Color("3f7050"), Color("2f5840"), 1.0, 0.6, 0.008, false, 0.3)
+	var needle_b := GEO.paint_mat(Color("4a7d58"), Color("365f46"), 1.0, 0.6, 0.008, false, 0.3)
+	var needle_lite := GEO.paint_mat(Color("5c8f65"), Color("477455"), 1.0, 0.55, 0.01, false, 0.4)
+	var leaf_dark := GEO.paint_mat(Color("3a6b3e"), Color("2d5733"), 1.0, 0.6, 0.008, false, 0.35)
+	var leaf := GEO.paint_mat(Color("4e8a52"), Color("3d7344"), 1.0, 0.65, 0.008, false, 0.4)
+	var leaf_lite := GEO.paint_mat(Color("619c5e"), Color("4e8a52"), 1.0, 0.55, 0.01, false, 0.5)
 	# sette materiali per TUTTO il bosco (MultiMesh): mutarli ridipinge
 	# centinaia d'alberi in un colpo. Le conifere (needle_*) restano verdi
 	# tutto l'anno, le latifoglie (leaf_*) si accendono e si spogliano.
@@ -1178,17 +856,17 @@ func _build_forest_trees(rng: RandomNumberGenerator) -> void:
 	# il pino: gonne smerlate che ricadono, tono che si schiarisce
 	# salendo verso il germoglio in punta
 	var pine_kit := func(seed_v: int) -> ArrayMesh:
-		return _merge([
-			[_trunk_mesh(1.9, 0.24, 0.13, seed_v), Transform3D.IDENTITY, bark],
-			[_skirt_mesh(1.4, 1.15, seed_v + 1, 0.16, 7),
+		return GEO.merge([
+			[GEO.trunk_mesh(1.9, 0.24, 0.13, seed_v), Transform3D.IDENTITY, bark],
+			[GEO.skirt_mesh(1.4, 1.15, seed_v + 1, 0.16, 7),
 					Transform3D(Basis.IDENTITY, Vector3(0, 1.5, 0)), needle_a],
-			[_skirt_mesh(1.08, 1.0, seed_v + 2, 0.15, 6),
+			[GEO.skirt_mesh(1.08, 1.0, seed_v + 2, 0.15, 6),
 					Transform3D(Basis(Vector3.UP, 0.4), Vector3(0, 2.3, 0)), needle_b],
-			[_skirt_mesh(0.78, 0.9, seed_v + 3, 0.14, 6),
+			[GEO.skirt_mesh(0.78, 0.9, seed_v + 3, 0.14, 6),
 					Transform3D(Basis(Vector3.UP, 0.9), Vector3(0, 3.05, 0)), needle_a],
-			[_skirt_mesh(0.5, 0.8, seed_v + 4, 0.13, 5),
+			[GEO.skirt_mesh(0.5, 0.8, seed_v + 4, 0.13, 5),
 					Transform3D(Basis(Vector3.UP, 1.3), Vector3(0, 3.75, 0)), needle_lite],
-			[_sphere_mesh(0.09, 7), Transform3D(
+			[GEO.sphere_mesh(0.09, 7), Transform3D(
 					Basis.IDENTITY.scaled(Vector3(0.7, 1.5, 0.7)),
 					Vector3(0, 4.55, 0)), needle_lite],
 		])
@@ -1197,29 +875,29 @@ func _build_forest_trees(rng: RandomNumberGenerator) -> void:
 	# e la mesh è UNA per variante — la risoluzione costa quasi nulla)
 	var broad_kit := func(seed_v: int) -> ArrayMesh:
 		var parts := [
-			[_trunk_mesh(2.9, 0.22, 0.12, seed_v), Transform3D.IDENTITY, bark],
-			[_puff_mesh(1.2, seed_v + 1, 0.6, 0.08, 14, 8),
+			[GEO.trunk_mesh(2.9, 0.22, 0.12, seed_v), Transform3D.IDENTITY, bark],
+			[GEO.puff_mesh(1.2, seed_v + 1, 0.6, 0.08, 14, 8),
 					Transform3D(Basis.IDENTITY, Vector3(0, 2.85, 0)), leaf_dark],
-			[_puff_mesh(1.12, seed_v + 2, 0.85, 0.1, 14, 8),
+			[GEO.puff_mesh(1.12, seed_v + 2, 0.85, 0.1, 14, 8),
 					Transform3D(Basis.IDENTITY, Vector3(0, 3.35, 0)), leaf],
 		]
 		var prng := RandomNumberGenerator.new()
 		prng.seed = seed_v
 		for i in 4:
 			var a := float(i) / 4.0 * TAU + prng.randf_range(-0.3, 0.3)
-			parts.append([_puff_mesh(prng.randf_range(0.6, 0.75), seed_v + 3 + i,
+			parts.append([GEO.puff_mesh(prng.randf_range(0.6, 0.75), seed_v + 3 + i,
 					0.8, 0.12, 14, 8),
 					Transform3D(Basis(Vector3.UP, prng.randf() * TAU),
 					Vector3(cos(a) * 0.8, prng.randf_range(3.0, 3.3), sin(a) * 0.8)),
 					leaf if i % 2 == 0 else leaf_dark])
 		for i in 2:
 			var a := prng.randf() * TAU
-			parts.append([_puff_mesh(prng.randf_range(0.38, 0.5), seed_v + 8 + i,
+			parts.append([GEO.puff_mesh(prng.randf_range(0.38, 0.5), seed_v + 8 + i,
 					0.8, 0.13, 14, 8),
 					Transform3D(Basis.IDENTITY,
 					Vector3(cos(a) * 0.42, prng.randf_range(4.0, 4.2), sin(a) * 0.42)),
 					leaf_lite])
-		return _merge(parts)
+		return GEO.merge(parts)
 
 	# due varianti per specie: il bosco non è mai fatto di cloni
 	var pine: ArrayMesh = pine_kit.call(31)
@@ -1299,14 +977,14 @@ func _forest_spot(rng: RandomNumberGenerator, min_path := 1.5) -> Vector3:
 
 func _build_forest_undergrowth(rng: RandomNumberGenerator) -> void:
 	# felci: rosetta di fronde inclinate, ondeggiano al vento dello shader
-	var fern_mat := _paint_mat(Color("5da060"), Color("487f4a"), 1.4, 0.6, 0.02)
+	var fern_mat := GEO.paint_mat(Color("5da060"), Color("487f4a"), 1.4, 0.6, 0.02)
 	var fern_parts := []
 	for i in 6:
 		var yaw := float(i) / 6.0 * TAU
 		var b := Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, -1.05)
 		var off := Basis(Vector3.UP, yaw) * Vector3(0, 0.1, -0.12)
-		fern_parts.append([_cone_mesh(0.11, 0.95, 6), Transform3D(b, off), fern_mat])
-	var fern := _merge(fern_parts)
+		fern_parts.append([GEO.cone_mesh(0.11, 0.95, 6), Transform3D(b, off), fern_mat])
+	var fern := GEO.merge(fern_parts)
 
 	var fern_tf: Array[Transform3D] = []
 	# molte felci costeggiano il sentiero, le altre sparse nel bosco
@@ -1324,12 +1002,12 @@ func _build_forest_undergrowth(rng: RandomNumberGenerator) -> void:
 	_scatter_exact(fern, fern_tf, false)
 
 	# rocce muschiose
-	var rock_gray := _paint_mat(Color("8f9088"), Color("74786f"), 2.0, 0.5)
-	var moss := _paint_mat(Color("6a9a5a"), Color("55804a"), 3.0, 0.5)
-	var rock := _merge([
-		[_sphere_mesh(0.5, 10), Transform3D(Basis.IDENTITY.scaled(Vector3(1, 0.62, 0.85)), Vector3(0, 0.2, 0)), rock_gray],
-		[_sphere_mesh(0.32, 8), Transform3D(Basis.IDENTITY.scaled(Vector3(1, 0.55, 0.9)), Vector3(0.42, 0.12, 0.18)), rock_gray],
-		[_sphere_mesh(0.3, 8), Transform3D(Basis.IDENTITY.scaled(Vector3(1, 0.4, 1)), Vector3(0, 0.4, -0.04)), moss],
+	var rock_gray := GEO.paint_mat(Color("8f9088"), Color("74786f"), 2.0, 0.5)
+	var moss := GEO.paint_mat(Color("6a9a5a"), Color("55804a"), 3.0, 0.5)
+	var rock := GEO.merge([
+		[GEO.sphere_mesh(0.5, 10), Transform3D(Basis.IDENTITY.scaled(Vector3(1, 0.62, 0.85)), Vector3(0, 0.2, 0)), rock_gray],
+		[GEO.sphere_mesh(0.32, 8), Transform3D(Basis.IDENTITY.scaled(Vector3(1, 0.55, 0.9)), Vector3(0.42, 0.12, 0.18)), rock_gray],
+		[GEO.sphere_mesh(0.3, 8), Transform3D(Basis.IDENTITY.scaled(Vector3(1, 0.4, 1)), Vector3(0, 0.4, -0.04)), moss],
 	])
 	var rock_tf: Array[Transform3D] = []
 	for i in 36:
@@ -1341,13 +1019,13 @@ func _build_forest_undergrowth(rng: RandomNumberGenerator) -> void:
 	_scatter_exact(rock, rock_tf)
 
 	# ciuffi di funghi rossi
-	var stem_mat := _paint_mat(Color("f3e6d5"), Color("e2d2ba"), 5.0, 0.4)
-	var cap_red := _paint_mat(Color("d96a6a"), Color("c25454"), 4.0, 0.5)
+	var stem_mat := GEO.paint_mat(Color("f3e6d5"), Color("e2d2ba"), 5.0, 0.4)
+	var cap_red := GEO.paint_mat(Color("d96a6a"), Color("c25454"), 4.0, 0.5)
 	var shroom_parts := []
 	for off in [Vector3.ZERO, Vector3(0.16, -0.03, 0.06), Vector3(-0.1, -0.05, 0.12)]:
-		shroom_parts.append([_cyl_mesh(0.045, 0.06, 0.13, 6), Transform3D(Basis.IDENTITY, off + Vector3(0, 0.065, 0)), stem_mat])
-		shroom_parts.append([_sphere_mesh(0.12, 10), Transform3D(Basis.IDENTITY.scaled(Vector3(1, 0.6, 1)), off + Vector3(0, 0.14, 0)), cap_red])
-	var shrooms := _merge(shroom_parts)
+		shroom_parts.append([GEO.cyl_mesh(0.045, 0.06, 0.13, 6), Transform3D(Basis.IDENTITY, off + Vector3(0, 0.065, 0)), stem_mat])
+		shroom_parts.append([GEO.sphere_mesh(0.12, 10), Transform3D(Basis.IDENTITY.scaled(Vector3(1, 0.6, 1)), off + Vector3(0, 0.14, 0)), cap_red])
+	var shrooms := GEO.merge(shroom_parts)
 	var shroom_tf: Array[Transform3D] = []
 	for i in 40:
 		var s := rng.randf_range(0.6, 1.2)
@@ -1360,10 +1038,10 @@ func _build_forest_undergrowth(rng: RandomNumberGenerator) -> void:
 	glow_cap.emission_enabled = true
 	glow_cap.emission = Color(0.3, 0.95, 0.85)
 	glow_cap.emission_energy_multiplier = 1.1
-	var glow := _merge([
-		[_cyl_mesh(0.04, 0.055, 0.14, 6), Transform3D(Basis.IDENTITY, Vector3(0, 0.07, 0)), stem_mat],
-		[_sphere_mesh(0.11, 10), Transform3D(Basis.IDENTITY.scaled(Vector3(1, 0.62, 1)), Vector3(0, 0.15, 0)), glow_cap],
-		[_sphere_mesh(0.07, 8), Transform3D(Basis.IDENTITY.scaled(Vector3(1, 0.62, 1)), Vector3(0.14, 0.09, 0.05)), glow_cap],
+	var glow := GEO.merge([
+		[GEO.cyl_mesh(0.04, 0.055, 0.14, 6), Transform3D(Basis.IDENTITY, Vector3(0, 0.07, 0)), stem_mat],
+		[GEO.sphere_mesh(0.11, 10), Transform3D(Basis.IDENTITY.scaled(Vector3(1, 0.62, 1)), Vector3(0, 0.15, 0)), glow_cap],
+		[GEO.sphere_mesh(0.07, 8), Transform3D(Basis.IDENTITY.scaled(Vector3(1, 0.62, 1)), Vector3(0.14, 0.09, 0.05)), glow_cap],
 	])
 	var glow_tf: Array[Transform3D] = []
 	for i in range(4, _path_samples.size() - 2, 8):
@@ -1380,18 +1058,18 @@ func _build_forest_undergrowth(rng: RandomNumberGenerator) -> void:
 	_scatter_exact(glow, glow_tf, false)
 
 	# tronchi caduti e ceppi
-	var log_mesh := _merge([
-		[_cyl_mesh(0.2, 0.2, 1.7, 9), Transform3D(Basis(Vector3.BACK, PI * 0.5), Vector3(0, 0.2, 0)), bark_mat()],
-		[_sphere_mesh(0.24, 8), Transform3D(Basis.IDENTITY.scaled(Vector3(1.6, 0.35, 0.9)), Vector3(0.2, 0.36, 0)), moss],
+	var log_mesh := GEO.merge([
+		[GEO.cyl_mesh(0.2, 0.2, 1.7, 9), Transform3D(Basis(Vector3.BACK, PI * 0.5), Vector3(0, 0.2, 0)), bark_mat()],
+		[GEO.sphere_mesh(0.24, 8), Transform3D(Basis.IDENTITY.scaled(Vector3(1.6, 0.35, 0.9)), Vector3(0.2, 0.36, 0)), moss],
 	])
 	var log_tf: Array[Transform3D] = []
 	for i in 12:
 		log_tf.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU), _forest_spot(rng, 1.6)))
 	_scatter_exact(log_mesh, log_tf)
 
-	var stump := _merge([
-		[_cyl_mesh(0.26, 0.3, 0.42, 9), Transform3D(Basis.IDENTITY, Vector3(0, 0.21, 0)), bark_mat()],
-		[_cyl_mesh(0.24, 0.24, 0.03, 9), Transform3D(Basis.IDENTITY, Vector3(0, 0.43, 0)), stem_mat],
+	var stump := GEO.merge([
+		[GEO.cyl_mesh(0.26, 0.3, 0.42, 9), Transform3D(Basis.IDENTITY, Vector3(0, 0.21, 0)), bark_mat()],
+		[GEO.cyl_mesh(0.24, 0.24, 0.03, 9), Transform3D(Basis.IDENTITY, Vector3(0, 0.43, 0)), stem_mat],
 	])
 	var stump_tf: Array[Transform3D] = []
 	for i in 8:
@@ -1406,7 +1084,7 @@ func _build_forest_undergrowth(rng: RandomNumberGenerator) -> void:
 var _bark_cached: ShaderMaterial
 func bark_mat() -> ShaderMaterial:
 	if _bark_cached == null:
-		_bark_cached = _paint_mat(Color("6a4e3a"), Color("57402f"), 2.5, 0.55)
+		_bark_cached = GEO.paint_mat(Color("6a4e3a"), Color("57402f"), 2.5, 0.55)
 	return _bark_cached
 
 
@@ -1451,7 +1129,7 @@ func _build_forest_mist(rng: RandomNumberGenerator) -> void:
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_texture = _soft_circle(Color(0.88, 0.93, 1.0, 0.5), 0.7)
+	mat.albedo_texture = GEO.soft_circle(Color(0.88, 0.93, 1.0, 0.5), 0.7)
 	mat.albedo_color = Color(1, 1, 1, 0.1)
 	mat.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
 
@@ -1475,7 +1153,7 @@ func _build_forest_leaves() -> void:
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_texture = _soft_circle(Color("c2cc74", 0.95), 0.55)
+	mat.albedo_texture = GEO.soft_circle(Color("c2cc74", 0.95), 0.55)
 	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	mat.vertex_color_use_as_albedo = true
 	quad.material = mat
@@ -1523,8 +1201,8 @@ func _build_campfire() -> void:
 	rng.seed = 99
 	var c := CLEARING_CENTER
 
-	var stone := _sphere_mesh(0.16, 8)
-	stone.material = _paint_mat(Color("8f9088"), Color("74786f"), 3.0, 0.5)
+	var stone := GEO.sphere_mesh(0.16, 8)
+	stone.material = GEO.paint_mat(Color("8f9088"), Color("74786f"), 3.0, 0.5)
 	var ring: Array[Transform3D] = []
 	for i in 8:
 		var a := float(i) / 8.0 * TAU
@@ -1539,14 +1217,14 @@ func _build_campfire() -> void:
 	for i in 3:
 		var a := float(i) / 3.0 * TAU
 		var log_i := MeshInstance3D.new()
-		log_i.mesh = _cyl_mesh(0.06, 0.075, 0.7, 7)
+		log_i.mesh = GEO.cyl_mesh(0.06, 0.075, 0.7, 7)
 		log_i.material_override = bark_mat()
 		log_i.position = Vector3(cos(a) * 0.16, 0.22, sin(a) * 0.16)
 		log_i.rotation = Vector3(cos(a) * 1.1, 0, sin(a) * 1.1)
 		root.add_child(log_i)
 
 	# fiamme + scintille
-	var fire_tex := _soft_circle(Color(1.0, 0.8, 0.35, 0.9), 0.5)
+	var fire_tex := GEO.soft_circle(Color(1.0, 0.8, 0.35, 0.9), 0.5)
 	var fquad := QuadMesh.new()
 	fquad.size = Vector2(0.26, 0.26)
 	var fmat := StandardMaterial3D.new()
@@ -1600,7 +1278,7 @@ func _spawn_pickup_mushroom() -> void:
 	sm.bottom_radius = 0.08
 	sm.height = 0.17
 	stem.mesh = sm
-	stem.material_override = _paint_mat(Color("f3e6d5"), Color("e2d2ba"), 5.0, 0.4)
+	stem.material_override = GEO.paint_mat(Color("f3e6d5"), Color("e2d2ba"), 5.0, 0.4)
 	stem.position = Vector3(0, 0.085, 0)
 	node.add_child(stem)
 	var cap := MeshInstance3D.new()
@@ -1608,11 +1286,11 @@ func _spawn_pickup_mushroom() -> void:
 	cm.radius = 0.17
 	cm.height = 0.34
 	cap.mesh = cm
-	cap.material_override = _paint_mat(Color("d96a6a"), Color("c25454"), 4.0, 0.5)
+	cap.material_override = GEO.paint_mat(Color("d96a6a"), Color("c25454"), 4.0, 0.5)
 	cap.position = Vector3(0, 0.19, 0)
 	cap.scale = Vector3(1, 0.6, 1)
 	node.add_child(cap)
-	var dot_mat := _paint_mat(Color.WHITE, Color("f0e2cc"), 4.0, 0.2)
+	var dot_mat := GEO.paint_mat(Color.WHITE, Color("f0e2cc"), 4.0, 0.2)
 	for i in 3:
 		var a := rng.randf() * TAU
 		var dot := MeshInstance3D.new()
@@ -1766,7 +1444,7 @@ func _build_pond() -> void:
 	rim.radial_segments = 36
 	var rim_mi := MeshInstance3D.new()
 	rim_mi.mesh = rim
-	rim_mi.material_override = _paint_mat(Color("c8b493"), Color("aa9478"), 2.0, 0.5, 0.0, true)
+	rim_mi.material_override = GEO.paint_mat(Color("c8b493"), Color("aa9478"), 2.0, 0.5, 0.0, true)
 	rim_mi.position = POND_CENTER + Vector3(0, 0.02, 0)
 	rim_mi.scale = Vector3(1.15, 1, 1)
 	add_child(rim_mi)
@@ -1788,7 +1466,7 @@ func _build_pond() -> void:
 	add_child(wmi)
 
 	# ninfee: foglie tonde col taglio, un paio in fiore
-	var pad_mat := _paint_mat(Color("6aa858"), Color("548c46"), 3.0, 0.55)
+	var pad_mat := GEO.paint_mat(Color("6aa858"), Color("548c46"), 3.0, 0.55)
 	for i in 6:
 		var lily := Node3D.new()
 		var a := rng.randf() * TAU
@@ -1814,7 +1492,7 @@ func _build_pond() -> void:
 		notch.rotation.y = rng.randf() * TAU
 		lily.add_child(notch)
 		if i < 2:
-			var fmat := _paint_mat(Color("ffd1e0"), Color("f4b8c8"), 8.0, 0.4)
+			var fmat := GEO.paint_mat(Color("ffd1e0"), Color("f4b8c8"), 8.0, 0.4)
 			for k in 5:
 				var pa := float(k) / 5.0 * TAU
 				var petal := MeshInstance3D.new()
@@ -1831,20 +1509,20 @@ func _build_pond() -> void:
 			cs.radius = 0.035
 			cs.height = 0.07
 			core.mesh = cs
-			core.material_override = _paint_mat(Color("ffd76e"), Color("eec254"), 8.0, 0.4)
+			core.material_override = GEO.paint_mat(Color("ffd76e"), Color("eec254"), 8.0, 0.4)
 			core.position = Vector3(0, 0.05, 0)
 			lily.add_child(core)
 		add_child(lily)
 		_lilies.append(lily)
 
 	# canne con la pannocchia, a ciuffi sulla sponda
-	var reed := _merge([
-		[_cyl_mesh(0.012, 0.016, 0.9, 6), Transform3D(Basis.IDENTITY, Vector3(0, 0.45, 0)),
-				_paint_mat(Color("8fae6a"), Color("74945a"), 3.0, 0.5, 0.025)],
-		[_cyl_mesh(0.014, 0.018, 0.75, 6), Transform3D(Basis(Vector3.BACK, 0.12), Vector3(0.08, 0.37, 0.03)),
-				_paint_mat(Color("9aba74"), Color("7ea062"), 3.0, 0.5, 0.025)],
-		[_capsule_mesh(0.035, 0.18), Transform3D(Basis.IDENTITY, Vector3(0, 0.95, 0)),
-				_paint_mat(Color("8a6242"), Color("6f4e34"), 4.0, 0.45)],
+	var reed := GEO.merge([
+		[GEO.cyl_mesh(0.012, 0.016, 0.9, 6), Transform3D(Basis.IDENTITY, Vector3(0, 0.45, 0)),
+				GEO.paint_mat(Color("8fae6a"), Color("74945a"), 3.0, 0.5, 0.025)],
+		[GEO.cyl_mesh(0.014, 0.018, 0.75, 6), Transform3D(Basis(Vector3.BACK, 0.12), Vector3(0.08, 0.37, 0.03)),
+				GEO.paint_mat(Color("9aba74"), Color("7ea062"), 3.0, 0.5, 0.025)],
+		[GEO.capsule_mesh(0.035, 0.18), Transform3D(Basis.IDENTITY, Vector3(0, 0.95, 0)),
+				GEO.paint_mat(Color("8a6242"), Color("6f4e34"), 4.0, 0.45)],
 	])
 	var reed_tf: Array[Transform3D] = []
 	for i in 16:
@@ -1860,16 +1538,11 @@ func _build_pond() -> void:
 		_spawn_frog(rng.randf() * TAU)
 
 
-func _capsule_mesh(r: float, h: float) -> CapsuleMesh:
-	var m := CapsuleMesh.new()
-	m.radius = r
-	m.height = h
-	return m
 
 
 func _spawn_frog(angle: float) -> void:
 	var frog := Node3D.new()
-	var green := _paint_mat(Color("7dbd68"), Color("5da050"), 5.0, 0.5)
+	var green := GEO.paint_mat(Color("7dbd68"), Color("5da050"), 5.0, 0.5)
 	var body := MeshInstance3D.new()
 	var bm := SphereMesh.new()
 	bm.radius = 0.075
@@ -2026,19 +1699,6 @@ func is_river(pos: Vector3) -> bool:
 			and pos.z > RIVER_Z_MIN and pos.z < RIVER_Z_MAX
 
 
-func _strip_normals(pos: Array) -> Array:
-	var rows := pos.size()
-	var cols: int = (pos[0] as Array).size()
-	var out: Array = []
-	for i in rows:
-		var nrow: Array[Vector3] = []
-		for j in cols:
-			var t_row: Vector3 = pos[mini(i + 1, rows - 1)][j] - pos[maxi(i - 1, 0)][j]
-			var t_col: Vector3 = pos[i][mini(j + 1, cols - 1)] - pos[i][maxi(j - 1, 0)]
-			var n := t_row.cross(t_col)
-			nrow.append(n.normalized() if n.length_squared() > 0.000001 else Vector3.UP)
-		out.append(nrow)
-	return out
 
 
 func _build_river() -> void:
@@ -2091,9 +1751,9 @@ func _build_river_water() -> void:
 # ----------------------------------------------------------- scogliera
 
 func _build_cliff() -> void:
-	var rock := _paint_mat(Color("a89e8c"), Color("857b6a"), 2.2, 0.5, 0.0, true)
-	var grass_cap := _paint_mat(Color("85b768"), Color("619a4e"), 0.9, 0.55, 0.0, true)
-	var fringe_mat := _paint_mat(Color("6fa757"), Color("548c46"), 1.6, 0.55, 0.015)
+	var rock := GEO.paint_mat(Color("a89e8c"), Color("857b6a"), 2.2, 0.5, 0.0, true)
+	var grass_cap := GEO.paint_mat(Color("85b768"), Color("619a4e"), 0.9, 0.55, 0.0, true)
+	var fringe_mat := GEO.paint_mat(Color("6fa757"), Color("548c46"), 1.6, 0.55, 0.015)
 
 	# la parete: profilo [sporgenza verso il fiume, quota], svasata alla
 	# base, col ciglio che aggetta — e gobbe di roccia lungo il corso
@@ -2108,7 +1768,7 @@ func _build_cliff() -> void:
 			row.append(Vector3(wx - float(p[0]) - bump, float(p[1]), z))
 		pos.append(row)
 		z += 1.2
-	var nrm := _strip_normals(pos)
+	var nrm := GEO.strip_normals(pos)
 	for i in nrm.size():
 		for j in (nrm[i] as Array).size():
 			if (nrm[i][j] as Vector3).x > 0.0:
@@ -2199,7 +1859,7 @@ func _build_cliff() -> void:
 	# margheritine sparse sul ciglio, affacciate sul vuoto
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 71
-	var daisy := _daisy_mesh(Color("fffaf4"), Color("ffcf5e"))
+	var daisy := GEO.daisy_mesh(Color("fffaf4"), Color("ffcf5e"))
 	var dts: Array[Transform3D] = []
 	for i in 10:
 		var dz := rng.randf_range(RIVER_Z_MIN + 8.0, RIVER_Z_MAX - 8.0)
@@ -2296,24 +1956,24 @@ func _build_waterfall() -> void:
 	add_child(stream)
 
 	# le rocce che incorniciano il salto, su e giù
-	var rock := _paint_mat(Color("968d7c"), Color("6f6759"), 1.8, 0.55, 0.0, true)
+	var rock := GEO.paint_mat(Color("968d7c"), Color("6f6759"), 1.8, 0.55, 0.0, true)
 	var parts := []
 	for side: float in [-1.0, 1.0]:
-		parts.append([_puff_mesh(0.55, 900 + int(side * 3.0), 0.7, 0.16),
+		parts.append([GEO.puff_mesh(0.55, 900 + int(side * 3.0), 0.7, 0.16),
 				Transform3D(Basis(Vector3.UP, side * 0.7),
 				Vector3(wx - 0.25, CLIFF_H - 0.15, FALL_Z + side * 1.15)), rock])
-		parts.append([_puff_mesh(0.38, 910 + int(side * 5.0), 0.6, 0.18),
+		parts.append([GEO.puff_mesh(0.38, 910 + int(side * 5.0), 0.6, 0.18),
 				Transform3D(Basis(Vector3.UP, side * 1.9),
 				Vector3(wx - 0.7, RIVER_WATER_Y + 0.1, FALL_Z + side * 1.05)), rock])
 	var rocks := MeshInstance3D.new()
-	rocks.mesh = _merge(parts)
+	rocks.mesh = GEO.merge(parts)
 	add_child(rocks)
 
 	# la nebbiolina che sale dal tonfo
 	var mist_mat := StandardMaterial3D.new()
 	mist_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mist_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mist_mat.albedo_texture = _soft_circle(Color(0.94, 0.98, 1.0, 0.55), 0.6)
+	mist_mat.albedo_texture = GEO.soft_circle(Color(0.94, 0.98, 1.0, 0.55), 0.6)
 	mist_mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	mist_mat.vertex_color_use_as_albedo = true
 	var quad := QuadMesh.new()
@@ -2350,9 +2010,9 @@ func _build_waterfall() -> void:
 # -------------------------------------------------------------- ponti
 
 func _build_bridges() -> void:
-	var plank_mat := _paint_mat(Color("c89a6b"), Color("a87c50"), 4.0, 0.5)
-	var dark_mat := _paint_mat(Color("a87c50"), Color("8a6440"), 4.0, 0.5)
-	var pale_mat := _paint_mat(Color("e8cfa8"), Color("c89a6b"), 3.5, 0.45)
+	var plank_mat := GEO.paint_mat(Color("c89a6b"), Color("a87c50"), 4.0, 0.5)
+	var dark_mat := GEO.paint_mat(Color("a87c50"), Color("8a6440"), 4.0, 0.5)
+	var pale_mat := GEO.paint_mat(Color("e8cfa8"), Color("c89a6b"), 3.5, 0.45)
 
 	# il ponte ad arco: assi che salgono e ridiscendono, corrimano curvi,
 	# pomelli tondi sui montanti — e le rampette dolci alle due estremità
@@ -2404,7 +2064,7 @@ func _build_bridges() -> void:
 			post.position = Vector3(lx, y + 0.31, side * 0.82)
 			bridge.add_child(post)
 			var knob := MeshInstance3D.new()
-			knob.mesh = _sphere_mesh(0.065, 8)
+			knob.mesh = GEO.sphere_mesh(0.065, 8)
 			knob.material_override = pale_mat
 			knob.position = Vector3(lx, y + 0.66, side * 0.82)
 			bridge.add_child(knob)
@@ -2429,8 +2089,8 @@ func _build_bridges() -> void:
 	var lx2 := MATH.river_x(LOG_Z)
 	var log_bridge := Node3D.new()
 	log_bridge.position = Vector3(lx2, 0, LOG_Z)
-	var bark := _paint_mat(Color("7a5a40"), Color("60462f"), 2.5, 0.55)
-	var moss := _paint_mat(Color("6a9a5a"), Color("55804a"), 3.0, 0.5)
+	var bark := GEO.paint_mat(Color("7a5a40"), Color("60462f"), 2.5, 0.55)
+	var moss := GEO.paint_mat(Color("6a9a5a"), Color("55804a"), 3.0, 0.5)
 	var trunk := MeshInstance3D.new()
 	var tm := CylinderMesh.new()
 	tm.top_radius = 0.34
@@ -2501,13 +2161,13 @@ func _build_river_barriers() -> void:
 
 func _build_river_dressing(rng: RandomNumberGenerator) -> void:
 	# le tife: stelo slanciato, salsicciotto bruno, foglie a nastro
-	var green := _paint_mat(Color("5f9050"), Color("4a7a40"), 3.0, 0.5, 0.035)
-	var brown := _paint_mat(Color("7a5238"), Color("64422c"), 4.0, 0.45, 0.03)
+	var green := GEO.paint_mat(Color("5f9050"), Color("4a7a40"), 3.0, 0.5, 0.035)
+	var brown := GEO.paint_mat(Color("7a5238"), Color("64422c"), 4.0, 0.45, 0.03)
 	var parts := []
 	for k in 3:
 		var off := Vector3(rng.randf_range(-0.16, 0.16), 0, rng.randf_range(-0.16, 0.16))
 		var h := rng.randf_range(0.72, 1.02)
-		parts.append([_cyl_mesh(0.014, 0.02, h, 5),
+		parts.append([GEO.cyl_mesh(0.014, 0.02, h, 5),
 				Transform3D(Basis(Vector3.RIGHT, rng.randf_range(-0.08, 0.08)),
 				off + Vector3(0, h * 0.5, 0)), green])
 		if k < 2:
@@ -2515,10 +2175,10 @@ func _build_river_dressing(rng: RandomNumberGenerator) -> void:
 			cap.radius = 0.05
 			cap.height = 0.24
 			parts.append([cap, Transform3D(Basis.IDENTITY, off + Vector3(0, h + 0.06, 0)), brown])
-		parts.append([_cone_mesh(0.038, rng.randf_range(0.45, 0.62), 5),
+		parts.append([GEO.cone_mesh(0.038, rng.randf_range(0.45, 0.62), 5),
 				Transform3D(Basis(Vector3.UP, rng.randf() * TAU)
 				* Basis(Vector3.RIGHT, -0.5), off + Vector3(0.05, 0.26, 0.03)), green])
-	var reed := _merge(parts)
+	var reed := GEO.merge(parts)
 	var reed_tf: Array[Transform3D] = []
 	for i in 22:
 		var z := rng.randf_range(RIVER_Z_MIN + 4.0, RIVER_Z_MAX - 4.0)
@@ -2531,21 +2191,21 @@ func _build_river_dressing(rng: RandomNumberGenerator) -> void:
 	_scatter_exact(reed, reed_tf, false)
 
 	# ciottoli levigati che spuntano dalle sponde
-	var stone := _paint_mat(Color("b0aa9c"), Color("8d8779"), 3.0, 0.5)
+	var stone := GEO.paint_mat(Color("b0aa9c"), Color("8d8779"), 3.0, 0.5)
 	var peb_parts := []
 	for i in 24:
 		var z := rng.randf_range(RIVER_Z_MIN + 3.0, RIVER_Z_MAX - 3.0)
 		var side := 1.0 if rng.randf() < 0.5 else -1.0
-		peb_parts.append([_sphere_mesh(rng.randf_range(0.09, 0.2), 8),
+		peb_parts.append([GEO.sphere_mesh(rng.randf_range(0.09, 0.2), 8),
 				Transform3D(Basis(Vector3.UP, rng.randf() * TAU)
 				.scaled(Vector3(1.2, 0.55, 1.0)),
 				Vector3(MATH.river_x(z) + side * rng.randf_range(2.3, 2.7), -0.12, z)), stone])
 	var pebs := MeshInstance3D.new()
-	pebs.mesh = _merge(peb_parts)
+	pebs.mesh = GEO.merge(peb_parts)
 	add_child(pebs)
 
 	# il sentiero di pietre si allunga fino al ponte
-	var path_mat := _paint_mat(Color("c9c2b4"), Color("a89f92"), 5.0, 0.5)
+	var path_mat := GEO.paint_mat(Color("c9c2b4"), Color("a89f92"), 5.0, 0.5)
 	for i in 5:
 		var t := float(i) / 4.0
 		var p := Vector3(lerpf(6.4, 14.8, t), 0.035, lerpf(3.0, 3.2, t))
@@ -2569,7 +2229,7 @@ func _build_river_dressing(rng: RandomNumberGenerator) -> void:
 
 func _build_east_bank(rng: RandomNumberGenerator) -> void:
 	# il sentierino: dallo sbarco del ponte su verso la cascata
-	var path_mat := _paint_mat(Color("c9c2b4"), Color("a89f92"), 5.0, 0.5)
+	var path_mat := GEO.paint_mat(Color("c9c2b4"), Color("a89f92"), 5.0, 0.5)
 	var start := Vector3(MATH.river_x(BRIDGE_Z) + 4.3, 0, BRIDGE_Z)
 	var goal := Vector3(MATH.river_x(FALL_Z + 3.4) + 3.5, 0, FALL_Z + 3.4)
 	for i in 6:
@@ -2590,14 +2250,14 @@ func _build_east_bank(rng: RandomNumberGenerator) -> void:
 	# la lanterna di pietra allo sbarco: saluta chi attraversa, la sera
 	var lant := Node3D.new()
 	lant.position = Vector3(MATH.river_x(BRIDGE_Z) + 4.6, 0, BRIDGE_Z + 1.6)
-	var stone := _paint_mat(Color("b0aa9c"), Color("8d8779"), 3.0, 0.5)
+	var stone := GEO.paint_mat(Color("b0aa9c"), Color("8d8779"), 3.0, 0.5)
 	var base := MeshInstance3D.new()
-	base.mesh = _cyl_mesh(0.17, 0.22, 0.18, 8)
+	base.mesh = GEO.cyl_mesh(0.17, 0.22, 0.18, 8)
 	base.material_override = stone
 	base.position = Vector3(0, 0.09, 0)
 	lant.add_child(base)
 	var pillar := MeshInstance3D.new()
-	pillar.mesh = _cyl_mesh(0.09, 0.12, 0.55, 7)
+	pillar.mesh = GEO.cyl_mesh(0.09, 0.12, 0.55, 7)
 	pillar.material_override = stone
 	pillar.position = Vector3(0, 0.45, 0)
 	lant.add_child(pillar)
@@ -2614,7 +2274,7 @@ func _build_east_bank(rng: RandomNumberGenerator) -> void:
 	cell.position = Vector3(0, 0.82, 0)
 	lant.add_child(cell)
 	var roof := MeshInstance3D.new()
-	roof.mesh = _cone_mesh(0.24, 0.18, 8)
+	roof.mesh = GEO.cone_mesh(0.24, 0.18, 8)
 	roof.material_override = stone
 	roof.position = Vector3(0, 1.0, 0)
 	lant.add_child(roof)
@@ -2628,8 +2288,8 @@ func _build_east_bank(rng: RandomNumberGenerator) -> void:
 	add_child(lant)
 
 	# fiori della riva est: margherite bianche e spighe di lavanda
-	var daisy := _daisy_mesh(Color("fffaf4"), Color("ffcf5e"))
-	var lav := _lavender_mesh()
+	var daisy := GEO.daisy_mesh(Color("fffaf4"), Color("ffcf5e"))
+	var lav := GEO.lavender_mesh()
 	var dts: Array[Transform3D] = []
 	var lts: Array[Transform3D] = []
 	for i in 14:
@@ -2666,7 +2326,7 @@ func _build_river_life(rng: RandomNumberGenerator) -> void:
 	var fish_mat := StandardMaterial3D.new()
 	fish_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	fish_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	fish_mat.albedo_texture = _soft_circle(Color(0.10, 0.16, 0.20, 0.34), 0.5)
+	fish_mat.albedo_texture = GEO.soft_circle(Color(0.10, 0.16, 0.20, 0.34), 0.5)
 	for i in 5:
 		var quad := QuadMesh.new()
 		quad.size = Vector2(0.52, 0.2)
@@ -2685,7 +2345,7 @@ func _build_river_life(rng: RandomNumberGenerator) -> void:
 		})
 
 	# ninfee vagabonde che scendono a valle piano piano
-	var pad_mat := _paint_mat(Color("6aa858"), Color("548c46"), 3.0, 0.55)
+	var pad_mat := GEO.paint_mat(Color("6aa858"), Color("548c46"), 3.0, 0.55)
 	for i in 3:
 		var lily := Node3D.new()
 		var pad := CylinderMesh.new()
@@ -2778,31 +2438,6 @@ func _register_leaf(mat: ShaderMaterial, a: Color, b: Color, klass: String) -> v
 	_leaf_mats.append({"mat": mat, "a": a, "b": b, "klass": klass})
 
 
-# il colore-bersaglio di una chioma, data la sua tinta di primavera e la
-# stagione. Il valore (luminosità) si conserva quasi sempre: così i tre
-# strati scuro/medio/chiaro della nuvola restano leggibili anche d'autunno
-func _leaf_target(c: Color, klass: String, season: int) -> Color:
-	match season:
-		0:  # primavera: il colore di nascita
-			return c
-		1:  # estate: verdi più profondi e ricchi (il ciliegio rinverdisce)
-			if klass == "cherry":
-				return Color.from_hsv(0.28, 0.52, clampf(c.v * 0.9, 0.22, 0.95))
-			if klass == "needle":
-				return Color.from_hsv(c.h, minf(c.s * 1.06, 1.0), c.v * 0.96)
-			return Color.from_hsv(c.h, minf(c.s * 1.12, 1.0), c.v * 0.93)
-		2:  # autunno: oro, rame, cremisi — ma le conifere restano verdi
-			if klass == "needle":
-				return Color.from_hsv(fposmod(c.h - 0.01, 1.0), c.s * 0.95, c.v * 0.97)
-			if klass == "cherry":
-				return Color.from_hsv(lerpf(0.98, 0.07, clampf(c.v, 0.0, 1.0)), 0.55,
-						clampf(c.v * 0.95 + 0.05, 0.0, 1.0))
-			return Color.from_hsv(lerpf(0.03, 0.10, clampf(c.v, 0.0, 1.0)), 0.72,
-					clampf(c.v * 1.02 + 0.05, 0.0, 1.0))
-		_:  # inverno: brina e dormienza (la neve globale imbianca il resto)
-			if klass == "needle":
-				return Color.from_hsv(fposmod(c.h + 0.01, 1.0), c.s * 0.9, c.v * 0.82)
-			return Color.from_hsv(0.09, 0.14, clampf(c.v * 0.72 + 0.14, 0.0, 1.0))
 
 
 ## Il regista chiama qui a ogni cambio di stagione (0..3). `snow` è la neve
@@ -2817,7 +2452,7 @@ func set_season(season: int, snow: float, transition: bool) -> void:
 	if _forest_leaf_fx:
 		_forest_leaf_fx.emitting = season == 2        # foglie nel bosco: autunno
 		if season == 2 and _forest_leaf_mat:
-			_forest_leaf_mat.albedo_texture = _soft_circle(Color("d98a3a", 0.95), 0.55)
+			_forest_leaf_mat.albedo_texture = GEO.soft_circle(Color("d98a3a", 0.95), 0.55)
 	if _meadow_leaf_fx:
 		_meadow_leaf_fx.emitting = season == 2        # foglie sul prato: autunno
 	if _snow_fx:
@@ -2851,8 +2486,8 @@ func _apply_season(transition: bool) -> void:
 		targets.append([_grass_mat, "tint_cool", pal["tc"]])
 	for e in _leaf_mats:
 		var mat: ShaderMaterial = e["mat"]
-		targets.append([mat, "color_a", _leaf_target(e["a"], e["klass"], _season)])
-		targets.append([mat, "color_b", _leaf_target(e["b"], e["klass"], _season)])
+		targets.append([mat, "color_a", GEO.leaf_target(e["a"], e["klass"], _season)])
+		targets.append([mat, "color_b", GEO.leaf_target(e["b"], e["klass"], _season)])
 
 	if not transition:
 		for t in targets:
@@ -2887,62 +2522,16 @@ func _init_season() -> void:
 # le due nevicate/fogliate che seguono il giocatore (come la pioggia del
 # Weather): sempre attorno alla camera, accese dalla stagione giusta
 func _build_season_fx() -> void:
-	_snow_fx = _drift_emitter(_soft_circle(Color(0.98, 0.99, 1.0, 0.95), 0.5),
+	_snow_fx = GEO.drift_emitter(GEO.soft_circle(Color(0.98, 0.99, 1.0, 0.95), 0.5),
 			280, 0.06, Vector3(13.0, 0.4, 13.0), Vector3(0.12, -0.7, 0.06), 6.5, true)
 	_snow_fx.position = Vector3(0, 8.0, 0)
 	add_child(_snow_fx)
-	_meadow_leaf_fx = _drift_emitter(_soft_circle(Color("d98a3a", 0.95), 0.55),
+	_meadow_leaf_fx = GEO.drift_emitter(GEO.soft_circle(Color("d98a3a", 0.95), 0.55),
 			44, 0.09, Vector3(13.0, 0.4, 12.0), Vector3(0.25, -0.5, 0.1), 8.0, false)
 	_meadow_leaf_fx.position = Vector3(0, 4.5, 0)
 	add_child(_meadow_leaf_fx)
 
 
-# fabbrica di emettitori "che scendono dal cielo": neve o foglie
-func _drift_emitter(tex: Texture2D, count: int, sz: float, box: Vector3,
-		grav: Vector3, life: float, spin_slow: bool) -> GPUParticles3D:
-	var quad := QuadMesh.new()
-	quad.size = Vector2(sz, sz)
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_texture = tex
-	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	mat.vertex_color_use_as_albedo = true
-	quad.material = mat
-	var pm := ParticleProcessMaterial.new()
-	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
-	pm.emission_box_extents = box
-	pm.direction = Vector3(0.2, -1, 0.1)
-	pm.spread = 14.0
-	pm.initial_velocity_min = 0.15
-	pm.initial_velocity_max = 0.55
-	pm.gravity = grav
-	pm.turbulence_enabled = true
-	pm.turbulence_noise_strength = 0.7 if spin_slow else 0.4
-	pm.turbulence_noise_speed = Vector3(0.25, 0.15, 0.25)
-	pm.scale_min = 0.6
-	pm.scale_max = 1.25
-	pm.angle_min = 0.0
-	pm.angle_max = 360.0
-	pm.angular_velocity_min = -40.0 if spin_slow else -140.0
-	pm.angular_velocity_max = 40.0 if spin_slow else 140.0
-	var ramp := Gradient.new()
-	ramp.offsets = PackedFloat32Array([0.0, 0.12, 0.88, 1.0])
-	ramp.colors = PackedColorArray([
-		Color(1, 1, 1, 0.0), Color(1, 1, 1, 1.0), Color(1, 1, 1, 1.0), Color(1, 1, 1, 0.0)])
-	var ramp_tex := GradientTexture1D.new()
-	ramp_tex.gradient = ramp
-	pm.color_ramp = ramp_tex
-	var fx := GPUParticles3D.new()
-	fx.amount = count
-	fx.lifetime = life
-	fx.preprocess = life * 0.7
-	fx.local_coords = false
-	fx.emitting = false
-	fx.process_material = pm
-	fx.draw_pass_1 = quad
-	fx.visibility_aabb = AABB(Vector3(-16, -12, -16), Vector3(32, 18, 32))
-	return fx
 
 
 # ---------------------------------------------------------------- vita

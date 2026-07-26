@@ -8,6 +8,8 @@ extends RefCounted
 const CW = preload("res://scenes/world/CozyWorld.gd")
 ## la matematica pura vive ora in WorldMath (estratta da CozyWorld)
 const MATH = preload("res://scenes/world/WorldMath.gd")
+## le fabbriche di geometria vivono ora in WorldGeo (estratte da CozyWorld)
+const GEO = preload("res://scenes/world/WorldGeo.gd")
 
 
 func run(t) -> void:
@@ -161,7 +163,7 @@ func _test_tuft_field(t, w) -> void:
 # ------------------------------------------------------------ _cone_mesh
 
 func _test_cone_mesh(t, w) -> void:
-	var m: CylinderMesh = w._cone_mesh(0.5, 1.2, 8)
+	var m: CylinderMesh = GEO.cone_mesh(0.5, 1.2, 8)
 	t.almost(m.top_radius, 0.0, "_cone_mesh top_radius = 0 (cono)")
 	t.almost(m.bottom_radius, 0.5, "_cone_mesh bottom_radius = radius passato")
 	t.almost(m.height, 1.2, "_cone_mesh height = height passato")
@@ -171,7 +173,7 @@ func _test_cone_mesh(t, w) -> void:
 # ------------------------------------------------------------- _cyl_mesh
 
 func _test_cyl_mesh(t, w) -> void:
-	var m: CylinderMesh = w._cyl_mesh(0.1, 0.2, 0.5, 6)
+	var m: CylinderMesh = GEO.cyl_mesh(0.1, 0.2, 0.5, 6)
 	t.almost(m.top_radius, 0.1, "_cyl_mesh top_radius = top passato")
 	t.almost(m.bottom_radius, 0.2, "_cyl_mesh bottom_radius = bottom passato")
 	t.almost(m.height, 0.5, "_cyl_mesh height = height passato")
@@ -181,14 +183,14 @@ func _test_cyl_mesh(t, w) -> void:
 # ----------------------------------------------------------- _sphere_mesh
 
 func _test_sphere_mesh(t, w) -> void:
-	var m: SphereMesh = w._sphere_mesh(0.3, 12)
+	var m: SphereMesh = GEO.sphere_mesh(0.3, 12)
 	t.almost(m.radius, 0.3, "_sphere_mesh radius = radius passato")
 	t.almost(m.height, 0.6, "_sphere_mesh height = radius * 2")
 	t.eq(m.radial_segments, 12, "_sphere_mesh radial_segments = segments passato")
 	t.eq(m.rings, 6, "_sphere_mesh rings = int(12 * 0.5) = 6")
 
 	# rings = int(segments * 0.5): 4 per segments = 8.
-	var m2: SphereMesh = w._sphere_mesh(1.0, 8)
+	var m2: SphereMesh = GEO.sphere_mesh(1.0, 8)
 	t.eq(m2.rings, 4, "_sphere_mesh rings = int(8 * 0.5) = 4")
 
 
@@ -196,7 +198,7 @@ func _test_sphere_mesh(t, w) -> void:
 
 func _test_capsule_mesh(t, w) -> void:
 	# h >= 2*r evita il clamp interno di Godot (0.1 * 2 = 0.2 <= 1.0).
-	var m: CapsuleMesh = w._capsule_mesh(0.1, 1.0)
+	var m: CapsuleMesh = GEO.capsule_mesh(0.1, 1.0)
 	t.almost(m.radius, 0.1, "_capsule_mesh radius = r passato")
 	t.almost(m.height, 1.0, "_capsule_mesh height = h passato (nessun clamp)")
 
@@ -205,7 +207,7 @@ func _test_capsule_mesh(t, w) -> void:
 
 func _test_paint_mat(t, w) -> void:
 	# Assegna lo shader e mappa color_a/color_b agli argomenti.
-	var mat: ShaderMaterial = w._paint_mat(Color(1, 0, 0), Color(0, 1, 0))
+	var mat: ShaderMaterial = GEO.paint_mat(Color(1, 0, 0), Color(0, 1, 0))
 	t.ok(mat.shader != null, "_paint_mat assegna lo shader HANDPAINT")
 	t.ok(mat.get_shader_parameter("color_a") == Color(1, 0, 0),
 			"_paint_mat color_a = argomento a")
@@ -221,13 +223,13 @@ func _test_paint_mat(t, w) -> void:
 			"_paint_mat wind_strength = wind")
 
 	# use_world_noise mappato dal booleano passato.
-	var mat2: ShaderMaterial = w._paint_mat(Color(1, 1, 1), Color(1, 1, 1),
+	var mat2: ShaderMaterial = GEO.paint_mat(Color(1, 1, 1), Color(1, 1, 1),
 			4.0, 0.45, 0.0, true)
 	t.eq(mat2.get_shader_parameter("use_world_noise"), true,
 			"_paint_mat use_world_noise = world_noise")
 
 	# translucency impostato solo se trans > 0.
-	var mat3: ShaderMaterial = w._paint_mat(Color(1, 1, 1), Color(1, 1, 1),
+	var mat3: ShaderMaterial = GEO.paint_mat(Color(1, 1, 1), Color(1, 1, 1),
 			4.0, 0.45, 0.0, false, 0.5)
 	t.almost(mat3.get_shader_parameter("translucency"), 0.5,
 			"_paint_mat translucency = trans (quando > 0)")
@@ -236,7 +238,7 @@ func _test_paint_mat(t, w) -> void:
 # ---------------------------------------------------------- _soft_circle
 
 func _test_soft_circle(t, w) -> void:
-	var tex: GradientTexture2D = w._soft_circle(Color(1, 1, 1), 0.5)
+	var tex: GradientTexture2D = GEO.soft_circle(Color(1, 1, 1), 0.5)
 	t.eq(tex.width, 64, "_soft_circle width = 64")
 	t.eq(tex.height, 64, "_soft_circle height = 64")
 	t.eq(tex.fill, GradientTexture2D.FILL_RADIAL, "_soft_circle fill radiale")
@@ -250,7 +252,7 @@ func _test_soft_circle(t, w) -> void:
 
 func _test_merge_empty(t, w) -> void:
 	# Con lista vuota: ArrayMesh senza superfici.
-	var m: ArrayMesh = w._merge([])
+	var m: ArrayMesh = GEO.merge([])
 	t.eq(m.get_surface_count(), 0, "_merge([]) senza superfici")
 
 
@@ -258,25 +260,25 @@ func _test_merge_empty(t, w) -> void:
 
 func _test_procedural_meshes(t, w) -> void:
 	# _blade_mesh(): esattamente 1 superficie.
-	t.eq(w._blade_mesh().get_surface_count(), 1,
+	t.eq(GEO.blade_mesh().get_surface_count(), 1,
 			"_blade_mesh -> 1 superficie")
 
 	# _puff_mesh(0.9, 42): 1 superficie e deterministico per seme fisso.
-	t.eq(w._puff_mesh(0.9, 42).get_surface_count(), 1,
+	t.eq(GEO.puff_mesh(0.9, 42).get_surface_count(), 1,
 			"_puff_mesh -> 1 superficie")
-	t.ok(w._puff_mesh(0.9, 42).get_faces() == w._puff_mesh(0.9, 42).get_faces(),
+	t.ok(GEO.puff_mesh(0.9, 42).get_faces() == GEO.puff_mesh(0.9, 42).get_faces(),
 			"_puff_mesh deterministico per seme fisso")
 
 	# _trunk_mesh(1.5, 0.2, 0.1, 7): 1 superficie e deterministico.
-	t.eq(w._trunk_mesh(1.5, 0.2, 0.1, 7).get_surface_count(), 1,
+	t.eq(GEO.trunk_mesh(1.5, 0.2, 0.1, 7).get_surface_count(), 1,
 			"_trunk_mesh -> 1 superficie")
-	t.ok(w._trunk_mesh(1.5, 0.2, 0.1, 7).get_faces()
-			== w._trunk_mesh(1.5, 0.2, 0.1, 7).get_faces(),
+	t.ok(GEO.trunk_mesh(1.5, 0.2, 0.1, 7).get_faces()
+			== GEO.trunk_mesh(1.5, 0.2, 0.1, 7).get_faces(),
 			"_trunk_mesh deterministico per seme fisso")
 
 	# _skirt_mesh(1.2, 1.0, 3): 1 superficie e deterministico.
-	t.eq(w._skirt_mesh(1.2, 1.0, 3).get_surface_count(), 1,
+	t.eq(GEO.skirt_mesh(1.2, 1.0, 3).get_surface_count(), 1,
 			"_skirt_mesh -> 1 superficie")
-	t.ok(w._skirt_mesh(1.2, 1.0, 3).get_faces()
-			== w._skirt_mesh(1.2, 1.0, 3).get_faces(),
+	t.ok(GEO.skirt_mesh(1.2, 1.0, 3).get_faces()
+			== GEO.skirt_mesh(1.2, 1.0, 3).get_faces(),
 			"_skirt_mesh deterministico per seme fisso")
