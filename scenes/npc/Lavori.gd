@@ -17,7 +17,8 @@ extends Node
 ## cambia da sola anche la spiegazione. È l'unico modo di non mentire al
 ## giocatore mentre si bilancia.
 ##
-## Si apre col tasto L. Niente scelte a scomparsa: tutto quello che serve per
+## Si apre col tasto N (L appartiene al secondo giocatore, vedi
+## test_input_map.gd). Niente scelte a scomparsa: tutto quello che serve per
 ## capire una ribellione è su una schermata sola.
 
 const ANIMO := preload("res://scenes/npc/Animo.gd")
@@ -148,7 +149,7 @@ func _costruisci_ui() -> void:
 	box.add_child(_lista)
 
 	var aiuto := Label.new()
-	aiuto.text = "↑↓ scegli il residente   ←→ cambia il suo lavoro   ·   L chiude"
+	aiuto.text = "↑↓ scegli il residente   ←→ cambia il suo lavoro   ·   N chiude"
 	aiuto.add_theme_font_size_override("font_size", 14)
 	aiuto.add_theme_color_override("font_color", Color(UI_BROWN, 0.7))
 	box.add_child(aiuto)
@@ -164,6 +165,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	var righe: Array = _residenti()
 	if righe.is_empty():
 		return
+	# un residente può partire col registro aperto (il mondo gira, congela
+	# solo Mochi): senza clamp, righe[_sel] andrebbe fuori range
+	_sel = clampi(_sel, 0, righe.size() - 1)
 	if event.is_action_pressed("ui_down") or event.is_action_pressed("ui_up"):
 		var passo := 1 if event.is_action_pressed("ui_down") else -1
 		_sel = posmod(_sel + passo, righe.size())
