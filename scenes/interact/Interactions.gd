@@ -19,6 +19,15 @@ const SEATS := {
 	"Letto": Vector3(0, 0.3, 0.26),
 }
 
+## Il Carillon comprato dal mercante: E lo carica e cambia la musica del
+## villaggio, un tema alla volta. Il tema scelto persiste col villaggio.
+const CARILLON_CICLO := ["villaggio", "ninnananna", "valzer"]
+const CARILLON_LABEL := {
+	"villaggio": "la musichetta di sempre",
+	"ninnananna": "la ninnananna",
+	"valzer": "il valzer",
+}
+
 var _player: Node3D
 var _mochi: Node3D
 var _build: Node3D
@@ -31,6 +40,13 @@ var _target_name := ""
 var _seated := false
 var _return_pos := Vector3.ZERO
 
+# il carillon a portata di zampa (se nessuna seduta è più vicina); la
+# lista dei piazzati è in cache: si rifà solo quando il villaggio cambia
+var _carillon: Node3D
+var _carillons: Array[Node3D] = []
+var _carillons_dirty := true
+var _tema_scelto := "villaggio"
+
 # il sonno notturno: velo di dissolvenza, saluto del mattino, stato
 var _daynight: Node3D
 var _fade: ColorRect
@@ -39,11 +55,14 @@ var _sleeping := false
 
 
 func _ready() -> void:
+	add_to_group("persistable")
 	_player = get_node("%Player")
 	_mochi = _player.get_node("Mochi")
 	_build = get_node("../BuildSystem")
 	_daynight = get_node_or_null("../DayNight")
 	_sfx = get_node_or_null(^"/root/Sfx")
+	if _build.has_signal("placed_changed"):
+		_build.connect("placed_changed", func(): _carillons_dirty = true)
 	_build_prompt()
 	_build_fade()
 
@@ -133,8 +152,28 @@ func _process(_delta: float) -> void:
 				if not home.call("is_home", cell):
 					text += "  ·  H — imposta casa"
 		_show_prompt(text, _target.global_position + Vector3(0, 1.25, 0), cam)
+		_carillon = null
 	else:
-		_prompt.visible = false
+		# nessuna seduta a tiro: magari c'è il carillon da caricare
+		if _carillons_dirty:
+			_carillons_dirty = false
+			_carillons.clear()
+			for node in _build.get_placed_by_name("Carillon"):
+				_carillons.append(node)
+		_carillon = null
+		var best_c := 1.45
+		for node in _carillons:
+			if not is_instance_valid(node):
+				continue
+			var d: float = _player.global_position.distance_to(node.global_position)
+			if d < best_c:
+				best_c = d
+				_carillon = node
+		if _carillon:
+			_show_prompt("E — carica il carillon (cambia musica)",
+					_carillon.global_position + Vector3(0, 1.0, 0), cam)
+		else:
+			_prompt.visible = false
 
 
 func _is_night() -> bool:
@@ -166,6 +205,39 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 		_sit_down(_target, _target_name)
 		get_viewport().set_input_as_handled()
+	elif _carillon and is_instance_valid(_carillon):
+		if not _player.is_physics_processing():
+			return
+		_gira_carillon()
+		get_viewport().set_input_as_handled()
+
+
+## Un giro di manovella: il tema successivo del ciclo, con tanto di annuncio.
+func _gira_carillon() -> void:
+	var i := CARILLON_CICLO.find(_tema_scelto)
+	_tema_scelto = str(CARILLON_CICLO[posmod(i + 1, CARILLON_CICLO.size())])
+	if _sfx:
+		_sfx.rotate_tick()
+		_sfx.set_music_theme(_tema_scelto)
+	var visitors := get_node_or_null("../Visitors")
+	if visitors:
+		visitors.call("_show_toast",
+				"Il carillon gira piano: %s…" % str(CARILLON_LABEL.get(_tema_scelto, _tema_scelto)))
+	var bs := get_tree().get_first_node_in_group("build_system")
+	if bs and bs.has_method("request_save"):
+		bs.request_save()
+
+
+# ------------------------------------------------------- persistenza
+
+func save_extra() -> Dictionary:
+	return {"carillon_tema": _tema_scelto}
+
+
+func load_extra(data: Dictionary) -> void:
+	_tema_scelto = str(data.get("carillon_tema", "villaggio"))
+	if _sfx:
+		_sfx.set_music_theme(_tema_scelto)
 
 
 # il tween sit/stand corrente: uno solo alla volta, o il callback

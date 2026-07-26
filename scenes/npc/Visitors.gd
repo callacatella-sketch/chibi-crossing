@@ -873,6 +873,14 @@ func animo_di(label: String) -> String:
 	return (_animi[label] as RefCounted).stato()
 
 
+## Il sogno di un residente ("boscaiolo", "cuoco"…). Serve al registro dei
+## lavori per la resa: chi fa il lavoro che sognava produce di più.
+func sogno_di(label: String) -> String:
+	if not _animi.has(label):
+		return ""
+	return str((_animi[label] as RefCounted).sogno)
+
+
 ## La cronaca della rivolta, se ce n'è una: chi ha cominciato e perché.
 func cronaca_villaggio() -> Array:
 	if _villaggio == null:

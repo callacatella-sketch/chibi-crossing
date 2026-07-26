@@ -115,6 +115,13 @@ static func items() -> Array[Dictionary]:
 			"cols": [[Vector3(0.5, 1.6, 0.5), Vector3(0, 0.8, 0)]]},
 		{"name": "Braciere stellato", "cat": 1, "type": "cell", "layer": 2, "builder": _brazier,
 			"cols": [[Vector3(0.5, 0.8, 0.5), Vector3(0, 0.4, 0)]]},
+		{"name": "Carillon", "cat": 1, "type": "cell", "layer": 2, "builder": _musicbox,
+			"cols": [[Vector3(0.45, 0.75, 0.4), Vector3(0, 0.37, 0)]]},
+		{"name": "Serra", "cat": 2, "type": "cell", "layer": 2, "builder": _greenhouse,
+			"cols": [[Vector3(0.98, 1.35, 0.98), Vector3(0, 0.67, 0)]]},
+		{"name": "Mongolfiera", "cat": 2, "type": "cell", "layer": 2, "builder": _balloon,
+			"cols": [[Vector3(0.6, 0.7, 0.6), Vector3(0, 0.35, 0)],
+					[Vector3(1.05, 1.3, 1.05), Vector3(0, 2.05, 0)]]},
 	]
 
 
@@ -812,6 +819,115 @@ static func _bench() -> Node3D:
 # ================================================================ NEGOZIO
 # I pezzi che si comprano dal mercante (con le noccioline o le stelline).
 # Stessa mano pastello del resto del catalogo.
+
+# il carillon: cassa di ciliegio, rullo d'ottone e la manovella sul fianco.
+# La musica vera la mette Interactions (E per caricarlo): qui solo il corpo.
+static func _musicbox() -> Node3D:
+	var n := Node3D.new()
+	var ciliegio := _mat(Color("b06a4a"), Color("8f5238"), 4.0, 0.5)
+	var ottone := _mat(Color("e8c46a"), Color("c49c48"), 5.0, 0.35)
+	_box(n, Vector3(0.42, 0.1, 0.36), _mat(WOOD_DARK, Color("7a5636"), 4.0, 0.5), Vector3(0, 0.05, 0))
+	_box(n, Vector3(0.38, 0.3, 0.32), ciliegio, Vector3(0, 0.25, 0))
+	_box(n, Vector3(0.4, 0.04, 0.34), ottone, Vector3(0, 0.42, 0))
+	# il rullo a pettine, coi dentini che pizzicano le note
+	var rullo := _cyl(n, 0.07, 0.07, 0.26, ottone, Vector3(0, 0.52, 0))
+	rullo.rotation.z = PI * 0.5
+	for i in 5:
+		_box(n, Vector3(0.015, 0.02, 0.09), ciliegio, Vector3(-0.1 + i * 0.05, 0.44, 0.1))
+	# la manovella sul fianco
+	var perno := _cyl(n, 0.018, 0.018, 0.1, ottone, Vector3(0.23, 0.3, 0))
+	perno.rotation.z = PI * 0.5
+	_box(n, Vector3(0.03, 0.11, 0.03), ottone, Vector3(0.28, 0.25, 0))
+	_ball(n, 0.028, ciliegio, Vector3(0.28, 0.19, 0))
+	return n
+
+
+# la serra: un giardino di vetro col telaio chiaro e il tetto a capanna.
+# Dentro, due vasi che sognano l'estate anche a gennaio.
+static func _greenhouse() -> Node3D:
+	var n := Node3D.new()
+	var telaio := _mat(Color("e8e2d2"), Color("cfc8b4"), 4.0, 0.4)
+	var glass := StandardMaterial3D.new()
+	glass.albedo_color = Color(0.81, 0.91, 0.96, 0.42)
+	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	glass.emission_enabled = true
+	glass.emission = Color("bfe0f2")
+	glass.emission_energy_multiplier = 0.25
+	glass.roughness = 0.15
+	_box(n, Vector3(1.0, 0.06, 1.0), _mat(STONE, STONE_DARK, 4.0, 0.45), Vector3(0, 0.03, 0))
+	# i quattro montanti e le pareti di vetro
+	for sx: float in [-0.46, 0.46]:
+		for sz: float in [-0.46, 0.46]:
+			_box(n, Vector3(0.07, 0.95, 0.07), telaio, Vector3(sx, 0.51, sz))
+	_box(n, Vector3(0.92, 0.85, 0.03), glass, Vector3(0, 0.51, -0.46))
+	_box(n, Vector3(0.92, 0.85, 0.03), glass, Vector3(0, 0.51, 0.46))
+	_box(n, Vector3(0.03, 0.85, 0.92), glass, Vector3(-0.46, 0.51, 0))
+	_box(n, Vector3(0.03, 0.85, 0.92), glass, Vector3(0.46, 0.51, 0))
+	_box(n, Vector3(1.0, 0.05, 1.0), telaio, Vector3(0, 0.96, 0))
+	# il tetto a capanna, due falde di vetro sul colmo
+	for lato: float in [-1.0, 1.0]:
+		var falda := _box(n, Vector3(1.02, 0.03, 0.62), glass, Vector3(0, 1.17, lato * 0.26))
+		falda.rotation.x = lato * 0.56
+		var trave := _box(n, Vector3(1.04, 0.05, 0.06), telaio, Vector3(0, 1.17, lato * 0.5))
+		trave.rotation.x = lato * 0.56
+	_box(n, Vector3(1.06, 0.06, 0.06), telaio, Vector3(0, 1.32, 0))
+	# dentro: due vasi col verde che non teme l'inverno
+	for sx: float in [-0.22, 0.24]:
+		_cyl(n, 0.09, 0.11, 0.14, _mat(TERRACOTTA, Color("c47a58"), 3.0, 0.5), Vector3(sx, 0.13, 0.05 * sx * 10.0))
+		_ball(n, 0.11, _mat(LEAF, LEAF_DARK, 4.0, 0.5), Vector3(sx, 0.27, 0.05 * sx * 10.0), Vector3(1.0, 0.85, 1.0))
+	return n
+
+
+# la mongolfiera decorativa: pallone a spicchi rosa e crema, cesto di vimini
+# e quattro corde. Resta ormeggiata e DONDOLA piano: il respiro glielo dà un
+# AnimationPlayer in loop, niente script (i pezzi piazzati sono nodi nudi).
+static func _balloon() -> Node3D:
+	var n := Node3D.new()
+	var vimini := _mat(Color("c9a86a"), Color("a8874c"), 4.0, 0.5)
+	# il cesto, con l'orlo e due sacchetti di zavorra
+	_box(n, Vector3(0.5, 0.42, 0.5), vimini, Vector3(0, 0.31, 0))
+	_box(n, Vector3(0.56, 0.07, 0.56), _mat(WOOD, WOOD_DARK, 4.0, 0.5), Vector3(0, 0.54, 0))
+	_ball(n, 0.09, _mat(Color("d9c4a8"), Color("c4ae90"), 3.0, 0.5), Vector3(0.3, 0.2, 0.22), Vector3(1.0, 1.25, 1.0))
+	_ball(n, 0.09, _mat(Color("d9c4a8"), Color("c4ae90"), 3.0, 0.5), Vector3(-0.28, 0.2, -0.2), Vector3(1.0, 1.25, 1.0))
+	# tutto ciò che dondola sta sotto questo nodo: il pallone e le corde
+	var su := Node3D.new()
+	su.name = "Pallone"
+	n.add_child(su)
+	for i in 8:
+		var a := float(i) * TAU / 8.0
+		var mat := _mat(PINK, PINK_DEEP, 4.0, 0.4) if i % 2 == 0 else _mat(CREAM, Color("f3dfc8"), 4.0, 0.4)
+		var spicchio := _ball(su, 0.5, mat, Vector3(0, 2.05, 0), Vector3(0.42, 1.0, 0.95))
+		spicchio.rotation.y = a
+	_ball(su, 0.5, _mat(Color("f2cf7e"), Color("d9a84a"), 3.0, 0.4), Vector3(0, 1.38, 0), Vector3(0.36, 0.36, 0.36))
+	for sx: float in [-0.2, 0.2]:
+		for sz: float in [-0.2, 0.2]:
+			var corda := _cyl(su, 0.012, 0.012, 0.75, vimini, Vector3(sx, 0.95, sz))
+			corda.rotation.z = -sx * 0.35
+			corda.rotation.x = sz * 0.35
+	# il respiro: su e giù di sei dita, con una punta di rollio
+	var anim := Animation.new()
+	anim.length = 6.0
+	anim.loop_mode = Animation.LOOP_LINEAR
+	var tr_pos := anim.add_track(Animation.TYPE_VALUE)
+	anim.track_set_path(tr_pos, NodePath("Pallone:position:y"))
+	anim.track_insert_key(tr_pos, 0.0, 0.0)
+	anim.track_insert_key(tr_pos, 3.0, 0.12)
+	anim.track_insert_key(tr_pos, 6.0, 0.0)
+	var tr_rot := anim.add_track(Animation.TYPE_VALUE)
+	anim.track_set_path(tr_rot, NodePath("Pallone:rotation:z"))
+	anim.track_insert_key(tr_rot, 0.0, -0.02)
+	anim.track_insert_key(tr_rot, 3.0, 0.02)
+	anim.track_insert_key(tr_rot, 6.0, -0.02)
+	anim.track_set_interpolation_type(tr_pos, Animation.INTERPOLATION_CUBIC)
+	anim.track_set_interpolation_type(tr_rot, Animation.INTERPOLATION_CUBIC)
+	var lib := AnimationLibrary.new()
+	lib.add_animation("dondola", anim)
+	var player := AnimationPlayer.new()
+	n.add_child(player)
+	player.add_animation_library("", lib)
+	player.autoplay = "dondola"
+	return n
+
 
 static func _glow(albedo: Color, emission: Color, energy: float) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()

@@ -44,6 +44,14 @@ const SHOP_PIECES := [
 		"desc": "Una piccola giostra a cavallucci. Gira piano, come un carillon."},
 	{"name": "Braciere stellato", "cost": 4, "cur": "star", "cat": 1,
 		"desc": "Un braciere che sputa scintille dorate nella notte."},
+	# i SOGNI: pezzi da risparmio lungo, perché le noccioline restino
+	# desiderabili anche quando il carretto di tutti i giorni è già tuo
+	{"name": "Carillon", "cost": 500, "cur": "nut", "cat": 1,
+		"desc": "Una scatola di ciliegio con la manovella: caricala\ne cambia la musica di tutto il villaggio."},
+	{"name": "Serra", "cost": 520, "cur": "nut", "cat": 2,
+		"desc": "Un giardino di vetro: col suo tepore, orto e fiori\ncrescono anche sotto la neve."},
+	{"name": "Mongolfiera", "cost": 650, "cur": "nut", "cat": 2,
+		"desc": "Una mongolfiera a strisce, ormeggiata in giardino.\nDondola nel vento e non parte mai senza di te."},
 ]
 
 ## Varianti di colore GLOBALI: comprarne una la rende disponibile per TUTTI i
@@ -64,10 +72,19 @@ const VARIANT_PIECES := [
 	"Libreria", "Lampada", "Tappeto", "Pianta", "Cespuglio", "Amaca",
 ]
 
+## Da questo prezzo in su (o se costa stelline) un pezzo è "raro": può
+## diventare il raro del giorno sul carretto.
+const RARO_SOGLIA := 150
+
 var nuts := 0
 var stars := 0
 var _unlocked_pieces := {}     # {piece_name: true}
 var _unlocked_variants := {}   # {variant_id: true}
+
+## Il banco del mercante di OGGI: nomi di pezzi, il primo è il raro del
+## giorno. Si rifà a ogni visita (rotate_stock), persiste col villaggio.
+var stock: Array = []
+var stock_day := -1
 
 
 func _ready() -> void:
@@ -158,6 +175,65 @@ func is_shop_piece(name: String) -> bool:
 	return not piece_offer(name).is_empty()
 
 
+# ------------------------------------------------- il banco a rotazione
+
+## Pesca il banco di un giorno di visita: 3-4 offerte dal listino, di cui
+## una rara e costosa (il "raro del giorno", primo dell'elenco). PURA e
+## deterministica dato il seme: testabile a freddo, stabile nel giorno.
+static func pesca_stock(disponibili: Array, seed_v: int) -> Array:
+	if disponibili.is_empty():
+		return []
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_v
+	var rari: Array = []
+	var comuni: Array = []
+	for p in disponibili:
+		if str(p.get("cur", "nut")) == "star" or int(p["cost"]) >= RARO_SOGLIA:
+			rari.append(p)
+		else:
+			comuni.append(p)
+	var scelti: Array = []
+	if not rari.is_empty():
+		scelti.append(rari.pop_at(rng.randi() % rari.size()))
+	# 2-3 pezzi di giornata; se i comuni scarseggiano si attinge dai rari
+	for i in 2 + int(rng.randi() % 2):
+		var pool := comuni if not comuni.is_empty() else rari
+		if pool.is_empty():
+			break
+		scelti.append(pool.pop_at(rng.randi() % pool.size()))
+	var nomi: Array = []
+	for p in scelti:
+		nomi.append(str(p["name"]))
+	return nomi
+
+
+## Il mercante rifà il banco per il giorno di visita: al più una volta per
+## giorno (una ricarica nello stesso giorno ritrova lo stesso banco).
+func rotate_stock(day: int) -> void:
+	if day == stock_day:
+		return
+	stock_day = day
+	var disponibili: Array = []
+	for p in SHOP_PIECES:
+		if not is_piece_unlocked(str(p["name"])):
+			disponibili.append(p)
+	stock = pesca_stock(disponibili, day * 2654435761 + 7)
+	shop_changed.emit()
+	_save()
+
+
+## Le offerte di oggi ancora da comprare, raro del giorno per primo.
+func stock_offers() -> Array:
+	var out: Array = []
+	for n in stock:
+		if is_piece_unlocked(str(n)):
+			continue
+		var p := piece_offer(str(n))
+		if not p.is_empty():
+			out.append(p)
+	return out
+
+
 func is_variant_unlocked(vid: String) -> bool:
 	return vid == "" or _unlocked_variants.has(vid)
 
@@ -218,12 +294,16 @@ func save_extra() -> Dictionary:
 		"stars": stars,
 		"shop_pieces": _unlocked_pieces.keys(),
 		"shop_variants": _unlocked_variants.keys(),
+		"shop_stock": stock.duplicate(),
+		"shop_stock_day": stock_day,
 	}
 
 
 func load_extra(data: Dictionary) -> void:
 	nuts = int(data.get("nuts", 0))
 	stars = int(data.get("stars", 0))
+	stock = (data.get("shop_stock", []) as Array).duplicate()
+	stock_day = int(data.get("shop_stock_day", -1))
 	_unlocked_pieces.clear()
 	for n in data.get("shop_pieces", []):
 		_unlocked_pieces[str(n)] = true
@@ -236,6 +316,10 @@ func load_extra(data: Dictionary) -> void:
 
 
 func _save() -> void:
+	# fuori dall'albero (test puri) non c'è niente da salvare — e chiedere
+	# get_tree() da fuori stampa un errore d'engine a vuoto
+	if not is_inside_tree():
+		return
 	var tree := get_tree()
 	if tree == null:
 		return

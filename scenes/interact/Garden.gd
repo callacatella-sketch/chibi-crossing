@@ -551,8 +551,10 @@ func set_season(season: int, _snow: float, _transition: bool) -> void:
 
 func _on_new_day(_day: int) -> void:
 	# d'inverno il giardino riposa sotto la neve: i semi aspettano la
-	# primavera. Mai punitivo — niente muore, la crescita si mette in pausa
-	if _season == 3:
+	# primavera. Mai punitivo — niente muore, la crescita si mette in pausa.
+	# A meno che il villaggio non abbia una Serra (il sogno del mercante):
+	# col suo tepore si cresce anche a gennaio. Una volta al giorno: niente cache
+	if _season == 3 and _build.get_placed_by_name("Serra").is_empty():
 		return
 	for bed in _beds:
 		var b: Dictionary = _beds[bed]

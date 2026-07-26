@@ -69,6 +69,8 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	if _thread and _thread.is_started():
 		_thread.wait_to_finish()
+	if _tema_thread and _tema_thread.is_started():
+		_tema_thread.wait_to_finish()
 
 
 # Il bus richiesto, se l'autoload Settings l'ha creato; altrimenti Master
@@ -889,10 +891,16 @@ func _render_slow_audio() -> void:
 
 
 func _apply_slow_audio(music: AudioStreamWAV, wind: AudioStreamWAV) -> void:
-	_music.stream = music
-	_music.play()
-	var mt := create_tween()
-	mt.tween_property(_music, "volume_db", -16.0, 3.0)
+	_streams["musica_" + TEMA_DEFAULT] = music
+	# se un salvataggio ha già chiesto un altro tema (il Carillon), il
+	# default resta in dispensa e si mette in forno quello giusto
+	if _tema == TEMA_DEFAULT:
+		_music.stream = music
+		_music.play()
+		var mt := create_tween()
+		mt.tween_property(_music, "volume_db", -16.0, 3.0)
+	else:
+		_serve_tema()
 
 	_wind.stream = wind
 	_wind.play()
@@ -902,6 +910,66 @@ func _apply_slow_audio(music: AudioStreamWAV, wind: AudioStreamWAV) -> void:
 	_bird_timer.start(randf_range(2.0, 5.0))
 
 
+# ---------------------------------------------------- il cambio di tema
+
+var _tema := TEMA_DEFAULT
+var _tema_thread: Thread
+var _tema_in_forno := ""   # il tema in cottura nel thread ("" = nessuno)
+
+
+## Cambia il tema musicale del villaggio (lo chiama il Carillon piazzato).
+## Un tema già renderizzato parte subito; gli altri cuociono in un thread
+## e partono appena pronti, sempre con una dissolvenza gentile.
+func set_music_theme(tema: String) -> void:
+	if not TEMI.has(tema) or tema == _tema:
+		return
+	_tema = tema
+	_serve_tema()
+
+
+func music_theme() -> String:
+	return _tema
+
+
+func music_themes() -> Array:
+	return TEMI.keys()
+
+
+func _serve_tema() -> void:
+	var key := "musica_" + _tema
+	if _streams.has(key):
+		_swap_music(_streams[key])
+		return
+	if _tema_in_forno != "":
+		return   # a fine cottura _tema_pronto rifà il punto sul tema attuale
+	_tema_in_forno = _tema
+	if _tema_thread and _tema_thread.is_started():
+		_tema_thread.wait_to_finish()
+	_tema_thread = Thread.new()
+	var tema := _tema
+	_tema_thread.start(func():
+		var wav := _render_music(tema)
+		call_deferred("_tema_pronto", tema, wav))
+
+
+func _tema_pronto(tema: String, wav: AudioStreamWAV) -> void:
+	_streams["musica_" + tema] = wav
+	_tema_in_forno = ""
+	if _tema == tema:
+		_swap_music(wav)
+	elif not _streams.has("musica_" + _tema):
+		_serve_tema()   # nel frattempo il carillon è stato girato ancora
+
+
+func _swap_music(wav: AudioStreamWAV) -> void:
+	var tw := create_tween()
+	tw.tween_property(_music, "volume_db", -60.0, 0.7)
+	tw.tween_callback(func():
+		_music.stream = wav
+		_music.play())
+	tw.tween_property(_music, "volume_db", -16.0, 1.4)
+
+
 func _on_bird_timer() -> void:
 	_bird.stream = _streams["chirp" + str(1 + randi() % 3)]
 	_bird.pitch_scale = randf_range(0.9, 1.15)
@@ -909,40 +977,95 @@ func _on_bird_timer() -> void:
 	_bird_timer.start(randf_range(4.0, 11.0))
 
 
-# la musichetta: carillon su C - G - Am - F, 8 battute in loop senza cuciture
-func _render_music() -> AudioStreamWAV:
-	var bpm := 82.0
-	var spb := 60.0 / bpm
-	var total_beats := 32.0
-	var n := int(total_beats * spb * MUSIC_RATE)
+# ================================================================ i temi
+
+## I temi musicali del villaggio, come DATI puri: bpm, battiti del giro in
+## loop, melodia [beat, midi, velocità] e basso [beat, midi]. "villaggio"
+## suona dall'avvio; gli altri li mette in funzione il Carillon comprato dal
+## mercante (E per caricarlo). L'"acc" del valzer è l'um-pa-pa: per ogni
+## [beat_di_misura, [note]] due tocchi leggeri sui battiti 2 e 3.
+const TEMI := {
+	# il tema di sempre: carillon su C - G - Am - F, 8 battute senza cuciture
+	"villaggio": {"bpm": 82.0, "beats": 32.0,
+		"melody": [
+			[0.0, 79, 0.5], [1.0, 76, 0.45], [2.0, 84, 0.55],
+			[4.0, 86, 0.5], [5.0, 83, 0.45], [6.0, 79, 0.5],
+			[8.0, 81, 0.5], [9.0, 84, 0.45], [10.0, 76, 0.5],
+			[12.0, 77, 0.45], [13.0, 81, 0.45], [14.0, 79, 0.5],
+			[16.0, 76, 0.5], [17.0, 79, 0.45], [18.0, 72, 0.5],
+			[20.0, 74, 0.45], [21.0, 79, 0.45], [22.0, 83, 0.5],
+			[24.0, 84, 0.5], [25.0, 81, 0.45], [26.0, 77, 0.5],
+			[28.0, 86, 0.45], [29.0, 84, 0.55],
+			# scintille alte, come un ricordo
+			[2.5, 96, 0.22], [10.5, 93, 0.2], [18.5, 91, 0.2], [26.5, 96, 0.22],
+		],
+		# giro I - V - vi - IV, poi I - V - IV - I
+		"bass": [
+			[0.0, 48], [2.0, 55], [4.0, 43], [6.0, 50],
+			[8.0, 45], [10.0, 52], [12.0, 41], [14.0, 48],
+			[16.0, 48], [18.0, 55], [20.0, 43], [22.0, 50],
+			[24.0, 41], [26.0, 48], [28.0, 48], [30.0, 55],
+		]},
+	# la ninnananna: lenta, scende piano verso il do centrale e si addormenta
+	"ninnananna": {"bpm": 60.0, "beats": 32.0,
+		"melody": [
+			[0.0, 84, 0.42], [2.0, 88, 0.34],
+			[4.0, 79, 0.4], [5.5, 81, 0.3], [6.0, 79, 0.36],
+			[8.0, 77, 0.4], [9.0, 81, 0.32], [10.0, 84, 0.38],
+			[12.0, 83, 0.36], [13.5, 79, 0.3],
+			[16.0, 81, 0.4], [18.0, 77, 0.34],
+			[20.0, 79, 0.36], [21.5, 76, 0.3], [22.0, 79, 0.32],
+			[24.0, 77, 0.36], [25.0, 74, 0.32], [26.0, 76, 0.34],
+			[28.0, 72, 0.42],
+			# due stelline sul bordo della culla
+			[3.5, 91, 0.14], [19.5, 88, 0.14],
+		],
+		# giro I - vi - IV - V che culla, chiusa sul do
+		"bass": [
+			[0.0, 48], [2.0, 55], [4.0, 45], [6.0, 52],
+			[8.0, 41], [10.0, 48], [12.0, 43], [14.0, 50],
+			[16.0, 48], [18.0, 55], [20.0, 45], [22.0, 52],
+			[24.0, 41], [26.0, 43], [28.0, 48], [30.0, 43],
+		]},
+	# il valzer: otto misure in tre, um-pa-pa e la melodia che gira in tondo
+	"valzer": {"bpm": 104.0, "beats": 24.0,
+		"melody": [
+			[0.0, 84, 0.5], [1.0, 88, 0.4], [2.0, 91, 0.45],
+			[3.0, 89, 0.5], [4.0, 86, 0.4], [5.0, 81, 0.4],
+			[6.0, 83, 0.5], [7.0, 86, 0.4], [8.0, 79, 0.4],
+			[9.0, 84, 0.5], [10.5, 88, 0.32],
+			[12.0, 81, 0.5], [13.0, 84, 0.4], [14.0, 88, 0.44],
+			[15.0, 89, 0.5], [16.0, 84, 0.4], [17.0, 81, 0.4],
+			[18.0, 83, 0.46], [19.0, 79, 0.4], [20.0, 74, 0.4],
+			[21.0, 84, 0.55], [22.5, 96, 0.18],
+		],
+		"bass": [
+			[0.0, 48], [3.0, 41], [6.0, 43], [9.0, 48],
+			[12.0, 45], [15.0, 41], [18.0, 43], [21.0, 48],
+		],
+		"acc": [
+			[0.0, [76, 79]], [3.0, [77, 81]], [6.0, [74, 79]], [9.0, [76, 79]],
+			[12.0, [76, 81]], [15.0, [77, 81]], [18.0, [74, 79]], [21.0, [76, 79]],
+		]},
+}
+const TEMA_DEFAULT := "villaggio"
+
+
+func _render_music(tema := TEMA_DEFAULT) -> AudioStreamWAV:
+	var t: Dictionary = TEMI[tema]
+	var spb: float = 60.0 / float(t["bpm"])
+	var n := int(float(t["beats"]) * spb * MUSIC_RATE)
 	var buf := PackedFloat32Array()
 	buf.resize(n)
 
-	# [beat, midi, velocità]
-	var melody := [
-		[0.0, 79, 0.5], [1.0, 76, 0.45], [2.0, 84, 0.55],
-		[4.0, 86, 0.5], [5.0, 83, 0.45], [6.0, 79, 0.5],
-		[8.0, 81, 0.5], [9.0, 84, 0.45], [10.0, 76, 0.5],
-		[12.0, 77, 0.45], [13.0, 81, 0.45], [14.0, 79, 0.5],
-		[16.0, 76, 0.5], [17.0, 79, 0.45], [18.0, 72, 0.5],
-		[20.0, 74, 0.45], [21.0, 79, 0.45], [22.0, 83, 0.5],
-		[24.0, 84, 0.5], [25.0, 81, 0.45], [26.0, 77, 0.5],
-		[28.0, 86, 0.45], [29.0, 84, 0.55],
-		# scintille alte, come un ricordo
-		[2.5, 96, 0.22], [10.5, 93, 0.2], [18.5, 91, 0.2], [26.5, 96, 0.22],
-	]
-	# giro I - V - vi - IV, poi I - V - IV - I
-	var bass := [
-		[0.0, 48], [2.0, 55], [4.0, 43], [6.0, 50],
-		[8.0, 45], [10.0, 52], [12.0, 41], [14.0, 48],
-		[16.0, 48], [18.0, 55], [20.0, 43], [22.0, 50],
-		[24.0, 41], [26.0, 48], [28.0, 48], [30.0, 55],
-	]
-
-	for m in melody:
-		_add_musicbox(buf, MUSIC_RATE, m[0] * spb, _mtof(m[1]), m[2], true)
-	for b in bass:
-		_add_bass(buf, MUSIC_RATE, b[0] * spb, _mtof(b[1]), 0.3)
+	for m in t["melody"]:
+		_add_musicbox(buf, MUSIC_RATE, float(m[0]) * spb, _mtof(int(m[1])), float(m[2]), true)
+	for b in t["bass"]:
+		_add_bass(buf, MUSIC_RATE, float(b[0]) * spb, _mtof(int(b[1])), 0.3)
+	for a in t.get("acc", []):
+		for off in [1.0, 2.0]:
+			for nota in a[1]:
+				_add_musicbox(buf, MUSIC_RATE, (float(a[0]) + off) * spb, _mtof(int(nota)), 0.13, true)
 
 	_normalize(buf, 0.75)
 	return _wav(buf, MUSIC_RATE, true)

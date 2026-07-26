@@ -99,6 +99,31 @@ func add_ingredient(kind: String, n: int) -> int:
 	return int(pantry[kind])
 
 
+## Il cuoco di turno del registro dei lavori: prepara il primo piatto
+## possibile con la dispensa e lo lascia pronto nelle Tasche (e sul
+## bancone, se il bancone è libero). Solo ricette con ingredienti veri:
+## un tè d'acqua fresca non conta come giornata di lavoro.
+## Ritorna il nome del piatto, o "" se la dispensa non basta.
+func cook_by_villager() -> String:
+	for recipe in RECIPES:
+		if (recipe["need"] as Dictionary).is_empty() or not _can_cook(recipe):
+			continue
+		for kind in recipe["need"]:
+			pantry[kind] = int(pantry.get(kind, 0)) - int(recipe["need"][kind])
+		if held_dish.is_empty():
+			held_dish = {"name": String(recipe["name"]).to_lower(),
+					"art": recipe["art"], "warm": recipe["warm"]}
+		if _inventory:
+			_inventory.add_dish({
+				"id": String(recipe["name"]).to_lower().replace(" ", "_"),
+				"name": recipe["name"], "art": recipe["art"], "warm": recipe["warm"],
+				"tags": INV.dish_tags(recipe["warm"], recipe["need"]),
+				"icon": DISH_ICON.get(recipe["name"], "zuppa")})
+		_build.request_save()
+		return str(recipe["name"])
+	return ""
+
+
 func _can_cook(recipe: Dictionary) -> bool:
 	for kind in recipe["need"]:
 		if int(pantry.get(kind, 0)) < int(recipe["need"][kind]):

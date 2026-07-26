@@ -271,16 +271,29 @@ func _sell(kind: String, source: String, n: int) -> void:
 
 # ---------------------------------------------------------------- COMPRA
 func _build_buy() -> void:
-	# mobili nuovi
-	_content.add_child(_section("Mobili nuovi"))
-	var any_piece := false
-	for offer in _economy.SHOP_PIECES:
-		if _economy.is_piece_unlocked(offer["name"]):
-			continue
-		any_piece = true
-		_content.add_child(_piece_row(offer))
-	if not any_piece:
+	# il banco di OGGI: il mercante porta 3-4 pezzi a rotazione, e il primo
+	# è il raro del giorno. Il listino intero non si vede mai tutto insieme:
+	# ciò che manca oggi tornerà su un altro carretto.
+	var offers: Array = _economy.stock_offers()
+	var tutto_comprato := true
+	for p in _economy.SHOP_PIECES:
+		if not _economy.is_piece_unlocked(p["name"]):
+			tutto_comprato = false
+			break
+	if tutto_comprato:
+		_content.add_child(_section("Mobili nuovi"))
 		_content.add_child(CozyUI.hint_label("Hai già tutti i mobili del carretto!", 14))
+	elif offers.is_empty():
+		_content.add_child(_section("Mobili nuovi"))
+		_content.add_child(CozyUI.hint_label(
+			"Il banco di oggi è già spoglio: alla prossima visita\nil mercante porterà altra merce.", 14))
+	else:
+		_content.add_child(_section("Il raro del giorno"))
+		_content.add_child(_piece_row(offers[0], true))
+		if offers.size() > 1:
+			_content.add_child(_section("Sul carretto oggi"))
+			for i in range(1, offers.size()):
+				_content.add_child(_piece_row(offers[i]))
 
 	# varianti di colore
 	_content.add_child(_section("Colori dei mobili"))
@@ -296,7 +309,7 @@ func _build_buy() -> void:
 		"I colori tingono i mobili: in costruzione scegli la tinta dai campioni.", 13))
 
 
-func _piece_row(offer: Dictionary) -> Control:
+func _piece_row(offer: Dictionary, raro := false) -> Control:
 	var card := PanelContainer.new()
 	card.add_theme_stylebox_override("panel", CozyUI.soft_card())
 	var h := HBoxContainer.new()
@@ -307,7 +320,9 @@ func _piece_row(offer: Dictionary) -> Control:
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col.add_theme_constant_override("separation", 2)
 	h.add_child(col)
-	col.add_child(CozyUI.body_label(str(offer["name"]), 18, CozyUI.TITLE))
+	var nome := str(offer["name"]) + ("   ✦" if raro else "")
+	col.add_child(CozyUI.body_label(nome, 18,
+			CozyUI.HONEY.darkened(0.25) if raro else CozyUI.TITLE))
 	col.add_child(CozyUI.body_label(str(offer.get("desc", "")), 13, CozyUI.INK_SOFT))
 
 	var cur := str(offer.get("cur", "nut"))
