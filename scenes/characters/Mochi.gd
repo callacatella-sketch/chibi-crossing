@@ -525,12 +525,8 @@ func _build_head() -> void:
 	var fur_mat := _toon_mat(FUR, 0.45)
 	_add_mesh(_head, _sphere(0.42, 48), fur_mat, Vector3.ZERO, Vector3(1.04, 0.92, 0.98))
 
-	# il musetto: due cuscinetti in un tono appena più chiaro del pelo
-	# (mai bianco: non deve staccare), col nasino rosa nel mezzo
-	var muso_mat := _toon_mat(FUR.lightened(0.06), 0.35)
-	for side: float in [-1.0, 1.0]:
-		_add_mesh(_head, _sphere(0.085, 20), muso_mat,
-				Vector3(side * 0.048, -0.115, -0.352), Vector3(1, 0.72, 0.5))
+	# niente cuscinetti chiari attorno alla bocca (la macchia color pelo è
+	# stata tolta su richiesta): solo il nasino rosa sul viso nudo
 	_add_mesh(_head, _sphere(0.021, 12), _flat_mat(Color("ff8fa3")),
 			Vector3(0, -0.052, -0.418), Vector3(1.3, 0.85, 0.7), false)
 	# il "filtrino": il trattino naso→labbro dei pupazzi, che cuce il

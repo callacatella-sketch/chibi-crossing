@@ -273,6 +273,25 @@ func _test_musetti(t, dna: GDScript, builder: GDScript) -> void:
 		else:
 			t.ok(rig.get("philtrum") != null,
 					"%s: il filtrino naso→labbro c'è" % arche)
+
+		# REGRESSIONE MACCHIA: niente mesh nel tono "musetto chiaro" (pelo
+		# schiarito) sul viso — la macchia attorno alla bocca è stata tolta.
+		# Sopravvive solo il muso a goccia della volpina (è struttura).
+		var chiaro := Color(str(g["fur"])).lightened(0.07)
+		var macchie := 0
+		for c in (parts["head"] as Node3D).get_children():
+			var mi = c as MeshInstance3D
+			if mi == null or not (mi.material_override is ShaderMaterial):
+				continue
+			var alb = (mi.material_override as ShaderMaterial) \
+					.get_shader_parameter("albedo_color")
+			if alb is Color and (alb as Color).is_equal_approx(chiaro):
+				macchie += 1
+		if arche == "volpina":
+			t.ok(macchie >= 1, "volpina: il muso a goccia resta")
+		else:
+			t.eq(macchie, 0,
+					"%s: nessuna macchia color pelo vicino alla bocca" % arche)
 	t.eq(visti.size(), dna.ARCHETYPES.size(),
 			"il musetto di ogni archetipo è stato verificato")
 

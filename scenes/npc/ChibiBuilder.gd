@@ -413,12 +413,15 @@ static func _build_face(head: Node3D, dna: Dictionary, fur: ShaderMaterial,
 	var front := -0.34 * hs
 	var arche: String = dna["archetype"]
 
-	# il musetto: un tono appena più chiaro del pelo, mai bianco — deve
-	# dare struttura al viso senza staccare come una macchia
-	var muso := _mat(Color(dna["fur"]).lightened(0.07), 0.35)
+	# NIENTE musetto chiaro: la macchia color pelo attorno alla bocca
+	# (cuscinetti, palla-musetto) faceva da adesivo sotto naso e labbra —
+	# tolta su richiesta. Naso, filtrino e bocca vivono sul viso nudo.
+	# Sopravvive solo il muso a goccia della volpina: è STRUTTURA (regge
+	# il nasino in punta), non una macchia.
 	match arche:
 		"volpina":
 			# musetto a goccia morbida col nasino scuro in punta
+			var muso := _mat(Color(dna["fur"]).lightened(0.07), 0.35)
 			var snout := lathe(head, [Vector2(0.0, 0.0), Vector2(0.075, 0.045),
 					Vector2(0.062, 0.10), Vector2(0.03, 0.145), Vector2(0.0, 0.165)],
 					muso, Vector3(0, -0.095 * hs, front + 0.02), 16)
@@ -428,20 +431,15 @@ static func _build_face(head: Node3D, dna: Dictionary, fur: ShaderMaterial,
 			_ball(head, 0.026, dark, Vector3(0, -0.088 * hs, front - 0.135),
 					Vector3(1.15, 0.85, 0.8), false)
 		"topolino":
-			_ball(head, 0.10, muso, Vector3(0, -0.10 * hs, front + 0.01),
-					Vector3(1, 0.68, 0.5))
-			_ball(head, 0.024, dark, Vector3(0, -0.062 * hs, front - 0.075),
+			# solo il nasino, arretrato ad APPOGGIARSI alla testa: prima
+			# stava proud del musetto, senza musetto galleggerebbe
+			_ball(head, 0.024, dark, Vector3(0, -0.062 * hs, front - 0.052),
 					Vector3(1.1, 0.85, 0.8), false)
 		"orsetto":
-			_ball(head, 0.14, muso, Vector3(0, -0.105 * hs, front + 0.005),
-					Vector3(1, 0.66, 0.42))
-			_ball(head, 0.032, dark, Vector3(0, -0.045 * hs, front - 0.062),
+			_ball(head, 0.032, dark, Vector3(0, -0.045 * hs, front - 0.048),
 					Vector3(1.25, 0.8, 0.7), false)
 		_:
-			# gatto e coniglietta: due cuscinetti affiancati e il nasino rosa
-			for side: float in [-1.0, 1.0]:
-				_ball(head, 0.082, muso, Vector3(side * 0.046, -0.115 * hs, front - 0.012),
-						Vector3(1, 0.72, 0.5))
+			# gatto e coniglietta: il nasino rosa e basta
 			_ball(head, 0.02, _flat(Color("ff8fa3")),
 					Vector3(0, -0.052 * hs, front - 0.058), Vector3(1.3, 0.85, 0.7), false)
 
@@ -534,13 +532,14 @@ static func _build_face(head: Node3D, dna: Dictionary, fur: ShaderMaterial,
 					Vector3(0, -0.126 * hs, front - 0.060)],
 					[0.0045 * hs, 0.0035 * hs], mouth_mat, 6, 8)
 		_:
-			# gatto e coniglietta: sull'orlo basso dei cuscinetti, col
-			# filtrino che percorre la loro giuntura dal nasino rosa
-			my = -0.175 * hs
+			# gatto e coniglietta: sotto il nasino rosa, raccolta (senza
+			# più cuscinetti da scavalcare il gruppo naso-filtrino-bocca
+			# sta stretto, come nei pupazzi)
+			my = -0.158 * hs
 			mouth_z = front - 0.055
 			philtrum = tube(head,
 					[Vector3(0, -0.068 * hs, front - 0.062),
-					Vector3(0, -0.168 * hs, front - 0.058)],
+					Vector3(0, -0.150 * hs, front - 0.058)],
 					[0.0048 * hs, 0.0036 * hs], mouth_mat, 8, 8)
 	if philtrum != null:
 		philtrum.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
