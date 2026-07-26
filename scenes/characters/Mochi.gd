@@ -624,10 +624,12 @@ func _build_head() -> void:
 	_sweat.visible = false
 
 	# il set completo di bocche morbide (neutra "w", sorriso, ghigno, o/O,
-	# broncio, triste, seria) più la cavità scura che si apre per parlare/
-	# ridere/stupirsi: il FaceController le sfuma e le anima.
-	var mouth_mat := _flat_mat(MOUTH)
-	_mouths = FACE.build_mouth_set(_head, mouth_mat, Vector3(0, -0.1, -0.408), 1.0)
+	# broncio, triste, seria) più la cavità che si apre per parlare/ridere/
+	# stupirsi: il FaceController le sfuma e le anima. Labbra-fuso in toon,
+	# non unshaded: il rilievo del labbro si deve leggere.
+	var mouth_mat := _toon_mat(MOUTH)
+	_mouths = FACE.build_mouth_set(_head, mouth_mat, Vector3(0, -0.1, -0.408),
+			1.0, "morbida")
 	_mouth_open = FACE.build_mouth_open(_head, _flat_mat(Color("3a1f1f")),
 			Vector3(0, -0.1, -0.404), 1.0)
 

@@ -490,10 +490,20 @@ static func _build_face(head: Node3D, dna: Dictionary, fur: ShaderMaterial,
 				brow_stile, brow_vari))
 
 	# il set completo di bocche morbide (neutra, sorriso, ghigno, o/O, broncio,
-	# triste, seria) + la cavità scura che si apre per parlare/ridere/stupirsi
-	var mouth_mat := _flat(Color("5a3434"))
+	# triste, seria) + la cavità che si apre per parlare/ridere/stupirsi.
+	# Labbra-fuso dal DNA (mazzo dell'archetipo + micro-variazioni), in toon
+	# come le sopracciglia: il rilievo del labbro si deve leggere.
+	var mouth_mat := _mat(Color("5a3434"))
+	var bocca_stile := str(dna.get("bocca", "morbida"))
+	var bocca_ricetta: Dictionary = FACE.MOUTH_STYLES.get(
+			bocca_stile, FACE.MOUTH_STYLES["morbida"])
+	var bocca_vari := {
+		"larg": float(bocca_ricetta["larg"]) * float(dna.get("bocca_larg", 1.0)),
+		"spess": float(bocca_ricetta["spess"]) * float(dna.get("bocca_spess", 1.0)),
+	}
 	var my := -0.105 * hs
-	var mouths := FACE.build_mouth_set(head, mouth_mat, Vector3(0, my, mz), hs)
+	var mouths := FACE.build_mouth_set(head, mouth_mat, Vector3(0, my, mz), hs,
+			bocca_stile, bocca_vari)
 	var mouth_open := FACE.build_mouth_open(head, _flat(Color("3a1f1f")),
 			Vector3(0, my, mz), hs)
 

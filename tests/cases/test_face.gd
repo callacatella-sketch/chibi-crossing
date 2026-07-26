@@ -78,15 +78,25 @@ func _build_rig(t, fc: GDScript) -> Dictionary:
 
 
 # la curvatura di una bocca: quanto gli angoli stanno PIÙ IN ALTO del centro.
-# >0 = ∪ (sorriso) · <0 = ∩ (broncio)
+# >0 = ∪ (sorriso) · <0 = ∩ (broncio). Si misura dai VERTICI del labbro-fuso:
+# la bocca non è più una catena di palline con una posizione per pallina.
 func _curvatura(mouths: Dictionary, shape: String) -> float:
 	var node: Node3D = mouths[shape]
-	var kids := node.get_children()
-	@warning_ignore("integer_division")
-	var mid: int = kids.size() / 2
-	var corner: float = maxf((kids[0] as Node3D).position.y,
-			(kids[kids.size() - 1] as Node3D).position.y)
-	var center: float = (kids[mid] as Node3D).position.y
+	var mi := node.get_child(0) as MeshInstance3D
+	if mi == null or not (mi.mesh is ArrayMesh):
+		return 0.0
+	var vs: PackedVector3Array = \
+			(mi.mesh as ArrayMesh).surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var hw := 0.0
+	for v in vs:
+		hw = maxf(hw, absf(v.x))
+	var corner := -INF
+	var center := -INF
+	for v in vs:
+		if absf(v.x) > hw * 0.8:
+			corner = maxf(corner, v.y)
+		elif absf(v.x) < hw * 0.2:
+			center = maxf(center, v.y)
 	return corner - center
 
 

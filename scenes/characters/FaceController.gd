@@ -734,6 +734,17 @@ static func _brow_mesh(side: float, length: float, thick: float,
 		var fine := lerpf(1.0, punta, smoothstep(0.3, 1.0, f))
 		rads.append(thick * spess * base * fine)
 
+	return _sweep_mesh(centers, rads, 0.62)
+
+
+## La spazzata generica dei fusi facciali (sopracciglia, labbra): un tubo
+## a sezione ellittica — [param squash] schiaccia la profondità contro il
+## viso — spazzato lungo [param centers] col raggio per campione in
+## [param rads]. Frame trasportati in parallelo e winding identici ai tubi
+## di ChibiBuilder, tappi alle estremità, normali morbide.
+static func _sweep_mesh(centers: Array[Vector3], rads: Array[float],
+		squash: float) -> ArrayMesh:
+	var sides_n := 10
 	var count := centers.size()
 	var tans: Array[Vector3] = []
 	for i in count:
@@ -744,7 +755,6 @@ static func _brow_mesh(side: float, length: float, thick: float,
 		nrm = Vector3.UP
 	nrm = (nrm - tans[0] * nrm.dot(tans[0])).normalized()
 
-	var squash := 0.62      # sezione ellittica: il fuso è schiacciato sul viso
 	var verts := []
 	var norms := []
 	for i in count:
@@ -805,13 +815,37 @@ static func _brow_mesh(side: float, length: float, thick: float,
 	return st.commit()
 
 
+## Gli stili di bocca — la fonte unica delle varianti che il DNA può
+## pescare (come BROW_STYLES per le sopracciglia). Ogni stile scala le
+## STESSE forme espressive, non ne cambia il repertorio:
+##   larg   larghezza della bocca
+##   curva  ampiezza delle curve (sorrisi più profondi o più accennati)
+##   spess  spessore del labbro-fuso
+const MOUTH_STYLES := {
+	"morbida": {"larg": 1.00, "curva": 1.00, "spess": 1.00},
+	"minuta": {"larg": 0.80, "curva": 0.85, "spess": 0.90},
+	"larga": {"larg": 1.22, "curva": 1.15, "spess": 1.00},
+	"piena": {"larg": 1.00, "curva": 0.95, "spess": 1.40},
+}
+
+
 ## Il set completo di bocche morbide, tutte figlie di un nodo al centro
 ## bocca (così si scalano/nascondono insieme). Ritorna {nome -> Node3D}.
 ## Le forme: neutral (la "w" da gattino), smile, grin (sorriso aperto),
 ## o / O (stupori), frown, sad, line (bocca seria). [param mz] è la Z locale
-## su cui appoggiarle sul musetto.
+## su cui appoggiarle sul musetto. Niente più palline: ogni bocca è un
+## labbro-fuso continuo, pieno al centro e affilato agli angoli.
+## [param style] è un nome di MOUTH_STYLES; [param vari] sovrascrive
+## singole voci della ricetta (le micro-variazioni del DNA).
 static func build_mouth_set(parent: Node3D, mat: Material, center: Vector3,
-		scale := 1.0) -> Dictionary:
+		scale := 1.0, style := "morbida", vari := {}) -> Dictionary:
+	var ricetta: Dictionary = MOUTH_STYLES.get(style, MOUTH_STYLES["morbida"]).duplicate()
+	for k in vari:
+		ricetta[k] = vari[k]
+	var larg := float(ricetta.get("larg", 1.0))
+	var curva := float(ricetta.get("curva", 1.0))
+	var spess := float(ricetta.get("spess", 1.0))
+
 	var out := {}
 	var mz := 0.0
 	# nodo genitore per ciascuna forma, tutte allo stesso centro
@@ -823,69 +857,94 @@ static func build_mouth_set(parent: Node3D, mat: Material, center: Vector3,
 		out[shape_name] = n
 		return n
 
-	var dot := func(host: Node3D, p: Vector3, r: float) -> void:
-		var sm := SphereMesh.new()
-		sm.radius = r * scale
-		sm.height = r * 2.0 * scale
-		sm.radial_segments = 8
-		sm.rings = 5
+	# un labbro: un fuso continuo spazzato lungo i campioni, pieno al
+	# centro e affilato agli angoli ([param agli] = spessore residuo agli
+	# estremi, in frazione dello spessore pieno)
+	var lip := func(host: Node3D, pts: Array, r: float, agli := 0.35) -> void:
+		var centers: Array[Vector3] = []
+		var rads: Array[float] = []
+		var n := pts.size()
+		for i in n:
+			var f := float(i) / float(n - 1)
+			centers.append((pts[i] as Vector3) * scale)
+			rads.append(r * spess * scale * lerpf(agli, 1.0, sin(PI * f)))
 		var mi := MeshInstance3D.new()
-		mi.mesh = sm
+		mi.mesh = _sweep_mesh(centers, rads, 0.6)
 		mi.material_override = mat
-		mi.position = p * scale
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		host.add_child(mi)
 
-	# neutral: la "w" da micio (due archetti)
+	# neutral: la "w" da micio — due archetti-fuso che si toccano nel
+	# mezzo. Due spazzate, non una: al cuspide i tangenti si ribaltano e
+	# una spazzata unica vi si attorciglierebbe; così invece resta netto.
 	var wnode: Node3D = mk.call("neutral")
 	for s: float in [-1.0, 1.0]:
-		for i in 7:
-			var a := PI + (float(i) / 6.0) * PI
-			dot.call(wnode, Vector3(s * 0.024 + cos(a) * 0.024, sin(a) * 0.024, mz), 0.0085)
+		var arc := []
+		for i in 11:
+			var f := float(i) / 10.0
+			var a := PI + f * PI
+			arc.append(Vector3((s * 0.024 + cos(a) * 0.024) * larg,
+					sin(a) * 0.024 * curva, mz))
+		lip.call(wnode, arc, 0.0085, 0.55)
 
 	# smile: un arco dolce all'INSÙ (una ∪): gli angoli si alzano, il centro
 	# scende — quindi y = base - sin(a)*amp (con +sin avremmo un broncio!)
 	var sm_node: Node3D = mk.call("smile")
-	for i in 11:
-		var f := float(i) / 10.0
+	var sm_pts := []
+	for i in 15:
+		var f := float(i) / 14.0
 		var a := PI * (1.0 - f)                # da PI a 0
-		dot.call(sm_node, Vector3(cos(a) * 0.05, 0.012 - sin(a) * 0.036, mz), 0.009)
+		sm_pts.append(Vector3(cos(a) * 0.05 * larg,
+				0.012 - sin(a) * 0.036 * curva, mz))
+	lip.call(sm_node, sm_pts, 0.009)
 
 	# grin: sorriso più largo e aperto (la cavità la aggiunge mouth_open)
 	var gr_node: Node3D = mk.call("grin")
-	for i in 13:
-		var f := float(i) / 12.0
+	var gr_pts := []
+	for i in 15:
+		var f := float(i) / 14.0
 		var a := PI * (1.0 - f)
-		dot.call(gr_node, Vector3(cos(a) * 0.062, 0.01 - sin(a) * 0.032, mz), 0.0092)
+		gr_pts.append(Vector3(cos(a) * 0.062 * larg,
+				0.01 - sin(a) * 0.032 * curva, mz))
+	lip.call(gr_node, gr_pts, 0.0092)
 
 	# frown: arco all'ingiù (concavo in basso)
 	var fr_node: Node3D = mk.call("frown")
-	for i in 11:
-		var f := float(i) / 10.0
+	var fr_pts := []
+	for i in 13:
+		var f := float(i) / 12.0
 		var a := PI * f                        # da 0 a PI
-		dot.call(fr_node, Vector3(cos(a) * 0.05 * -1.0, -0.03 + sin(a) * 0.03, mz), 0.009)
+		fr_pts.append(Vector3(cos(a) * 0.05 * -1.0 * larg,
+				-0.03 + sin(a) * 0.03 * curva, mz))
+	lip.call(fr_node, fr_pts, 0.009)
 
 	# sad: come frown ma più stretto e cadente ai lati
 	var sad_node: Node3D = mk.call("sad")
-	for i in 9:
-		var f := float(i) / 8.0
+	var sad_pts := []
+	for i in 13:
+		var f := float(i) / 12.0
 		var a := PI * f
-		dot.call(sad_node, Vector3(cos(a) * -0.04, -0.028 + sin(a) * 0.026, mz), 0.0088)
+		sad_pts.append(Vector3(cos(a) * -0.04 * larg,
+				-0.028 + sin(a) * 0.026 * curva, mz))
+	lip.call(sad_node, sad_pts, 0.0088)
 
 	# line: una bocca seria, quasi dritta
 	var ln_node: Node3D = mk.call("line")
-	for i in 7:
-		var f := float(i) / 6.0
-		dot.call(ln_node, Vector3((f - 0.5) * 0.075, 0.0, mz), 0.008)
+	var ln_pts := []
+	for i in 9:
+		var f := float(i) / 8.0
+		ln_pts.append(Vector3((f - 0.5) * 0.075 * larg, 0.0, mz))
+	lip.call(ln_node, ln_pts, 0.008, 0.5)
 
-	# o e O: due anellini di stupore
+	# o e O: due anellini di stupore (già lisci: tori, non palline —
+	# solo con più segmenti, da vicino l'anello non deve sfaccettare)
 	for pair: Array in [["o", 0.013, 0.026], ["O", 0.02, 0.04]]:
 		var node: Node3D = mk.call(str(pair[0]))
 		var tm := TorusMesh.new()
 		tm.inner_radius = float(pair[1]) * scale
 		tm.outer_radius = float(pair[2]) * scale
-		tm.rings = 12
-		tm.ring_segments = 10
+		tm.rings = 24
+		tm.ring_segments = 16
 		var o := MeshInstance3D.new()
 		o.mesh = tm
 		o.material_override = mat
@@ -898,23 +957,46 @@ static func build_mouth_set(parent: Node3D, mat: Material, center: Vector3,
 	return out
 
 
-## La cavità scura della bocca aperta (parlare/ridere/stupore): un piccolo
-## ellissoide dietro le labbra, che il controller scala con mouth_open.
+## La bocca aperta (parlare/ridere/stupore): non più la sola palla scura —
+## la cavità morbida E la linguetta rosa adagiata sul fondo, che si scopre
+## quando la bocca si spalanca. Il controller scala il NODO con mouth_open,
+## quindi cavità e linguetta si aprono insieme. Ritorna il nodo.
 static func build_mouth_open(parent: Node3D, mat: Material, center: Vector3,
 		scale := 1.0) -> Node3D:
+	var node := Node3D.new()
+	node.position = center + Vector3(0, -0.006, 0.004) * scale
+	node.visible = false
+	parent.add_child(node)
+
 	var sm := SphereMesh.new()
 	sm.radius = 0.03 * scale
 	sm.height = 0.06 * scale
-	sm.radial_segments = 14
-	sm.rings = 8
-	var mi := MeshInstance3D.new()
-	mi.mesh = sm
-	mi.material_override = mat
-	mi.position = center + Vector3(0, -0.006, 0.004) * scale
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	mi.visible = false
-	parent.add_child(mi)
-	return mi
+	sm.radial_segments = 20
+	sm.rings = 12
+	var cav := MeshInstance3D.new()
+	cav.mesh = sm
+	cav.material_override = mat
+	cav.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	node.add_child(cav)
+
+	var tm := SphereMesh.new()
+	tm.radius = 0.017 * scale
+	tm.height = 0.034 * scale
+	tm.radial_segments = 14
+	tm.rings = 8
+	var tongue_mat := StandardMaterial3D.new()
+	tongue_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	tongue_mat.albedo_color = Color("e07a8c")
+	var tongue := MeshInstance3D.new()
+	tongue.mesh = tm
+	tongue.material_override = tongue_mat
+	# spinta in avanti quanto basta a spuntare dalla superficie della
+	# cavità (raggio 0.03): sepolta anche di poco, sparirebbe del tutto
+	tongue.position = Vector3(0, -0.013, -0.019) * scale
+	tongue.scale = Vector3(1.15, 0.5, 0.8)
+	tongue.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	node.add_child(tongue)
+	return node
 
 
 ## Gli occhi ad arco "^^" della felicità piena: un archetto all'insù per lato,

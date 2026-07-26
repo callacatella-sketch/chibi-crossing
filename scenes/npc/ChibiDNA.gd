@@ -41,6 +41,17 @@ const BROW_DECKS := {
 	"topolino": ["sottili", "sottili", "dritte", "morbide"],
 }
 
+# Come sopra, per la bocca: i nomi puntano a FaceController.MOUTH_STYLES.
+# NON confondere col gene storico "mouth" (w/smile/o), che è la FORMA di
+# riposo e resta com'è nei salvataggi.
+const MOUTH_DECKS := {
+	"gatto": ["morbida", "minuta", "minuta", "larga"],
+	"coniglio": ["minuta", "minuta", "morbida", "piena"],
+	"orsetto": ["piena", "piena", "morbida", "larga"],
+	"volpina": ["larga", "larga", "morbida", "minuta"],
+	"topolino": ["minuta", "minuta", "morbida"],
+}
+
 const FURS := ["f7e6d0", "e8d5b8", "d9c4a8", "cfc4bd", "f2d8c8", "e8e4dc", "c9a889", "b89f8a"]
 const DRESSES := ["f2a9bc", "9fd8cf", "b7c6ff", "ffd76e", "c9a8f0", "8fc0c8", "f4c48f", "b8e0a0"]
 
@@ -190,4 +201,10 @@ static func generate(seed_v := -1) -> Dictionary:
 	dna["brow_folto"] = rng.randf_range(0.82, 1.22)
 	dna["brow_arco"] = rng.randf_range(0.8, 1.25)
 	dna["brow_len"] = rng.randf_range(0.9, 1.15)
+
+	# la bocca, con la stessa regola (e SEMPRE in coda: mai tiri in mezzo)
+	var mdeck: Array = MOUTH_DECKS[arche]
+	dna["bocca"] = mdeck[rng.randi() % mdeck.size()]
+	dna["bocca_larg"] = rng.randf_range(0.92, 1.1)
+	dna["bocca_spess"] = rng.randf_range(0.85, 1.2)
 	return dna
