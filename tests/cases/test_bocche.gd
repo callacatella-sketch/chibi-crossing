@@ -42,6 +42,7 @@ func run(t) -> void:
 	_test_bocca_aperta(t, fc, head, mat)
 	_test_geni(t, fc, dna)
 	_test_builder(t, fc, dna, builder)
+	_test_musetti(t, dna, builder)
 
 
 func _verts(node: Node3D, child := 0) -> PackedVector3Array:
@@ -231,6 +232,49 @@ func _test_geni(t, fc: GDScript, dna: GDScript) -> void:
 	var b: Dictionary = dna.generate(4242)
 	for k in ["bocca", "bocca_larg", "bocca_spess"]:
 		t.eq(a[k], b[k], "gene '%s' deterministico a parità di seed" % k)
+
+
+# dove il naso di ciascun archetipo vive (y in unità di head_scale):
+# la bocca deve stargli SOTTO con aria in mezzo, e appoggiata sul musetto
+const NASO_Y := {"gatto": -0.052, "coniglio": -0.052, "orsetto": -0.045,
+		"topolino": -0.062, "volpina": -0.088}
+
+
+# REGRESSIONE BOCCA SUL NASO / SEPOLTA: la quota unica -0.105·hs metteva la
+# bocca sopra i cuscinetti (gatto/coniglio) o DENTRO il muso sporgente
+# (volpina/orsetto/topolino), dove restava invisibile: si leggeva solo il
+# punto nero del naso. Ora la quota la decide il musetto, e dove il musetto
+# è piatto c'è il filtrino naso→labbro.
+func _test_musetti(t, dna: GDScript, builder: GDScript) -> void:
+	var visti := {}
+	var giro := 0
+	while visti.size() < dna.ARCHETYPES.size() and giro < 400:
+		var g: Dictionary = dna.generate(giro * 7 + 1)
+		giro += 1
+		var arche: String = g["archetype"]
+		if visti.has(arche):
+			continue
+		visti[arche] = true
+		var hs: float = g["head_scale"]
+		var front := -0.34 * hs
+		var parts: Dictionary = builder.build(g)
+		t.stage(parts["root"])
+		var rig: Dictionary = parts["face"]
+		var neutro: Node3D = rig["mouths"]["neutral"]
+		t.ok(neutro.position.y <= (float(NASO_Y[arche]) - 0.055) * hs,
+				"%s: la bocca sta sotto il naso, con aria (y=%.3f)"
+				% [arche, neutro.position.y])
+		t.ok(neutro.position.z <= front - 0.03 and neutro.position.z >= front - 0.08,
+				"%s: la bocca è appoggiata sul musetto, non sepolta (z=%.3f)"
+				% [arche, neutro.position.z])
+		if arche == "volpina":
+			t.ok(rig.get("philtrum") == null,
+					"volpina: niente filtrino (il naso sta in punta al muso)")
+		else:
+			t.ok(rig.get("philtrum") != null,
+					"%s: il filtrino naso→labbro c'è" % arche)
+	t.eq(visti.size(), dna.ARCHETYPES.size(),
+			"il musetto di ogni archetipo è stato verificato")
 
 
 func _test_builder(t, fc: GDScript, dna: GDScript, builder: GDScript) -> void:

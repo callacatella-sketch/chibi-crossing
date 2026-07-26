@@ -111,6 +111,17 @@ func _test_forma_stili(t, fc: GDScript, head: Node3D, mat: Material) -> void:
 				"%s: coda affilata (%.4f) più sottile della radice (%.4f)"
 				% [stile, coda, radice])
 
+		# GENTILEZZA (regressione "gabbiano"): su musetti teneri il colmo non
+		# deve svettare né la coda precipitare — l'aria arrabbiata nasce lì
+		t.ok(hi_y < LEN * 0.45,
+				"%s: il colmo resta dolce (%.4f)" % [stile, hi_y])
+		var coda_min := INF
+		for v in vs:
+			if v.x >= LEN * 0.85:
+				coda_min = minf(coda_min, v.y)
+		t.ok(coda_min > -LEN * 0.35,
+				"%s: la coda non precipita (%.4f)" % [stile, coda_min])
+
 		max_y[stile] = hi_y
 		span_z[stile] = hi_z - lo_z
 

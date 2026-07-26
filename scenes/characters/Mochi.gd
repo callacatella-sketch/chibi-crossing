@@ -533,6 +533,12 @@ func _build_head() -> void:
 				Vector3(side * 0.048, -0.115, -0.352), Vector3(1, 0.72, 0.5))
 	_add_mesh(_head, _sphere(0.021, 12), _flat_mat(Color("ff8fa3")),
 			Vector3(0, -0.052, -0.418), Vector3(1.3, 0.85, 0.7), false)
+	# il "filtrino": il trattino naso→labbro dei pupazzi, che cuce il
+	# nasino rosa alla bocca (stesso tono scuro delle labbra)
+	var philtrum := BUILDER.tube(_head,
+			[Vector3(0, -0.066, -0.414), Vector3(0, -0.094, -0.410)],
+			[0.005, 0.0038], _toon_mat(MOUTH), 6, 8)
+	philtrum.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 	# ciuffi di pelo sulle guance e la frangetta sulla fronte
 	for side: float in [-1.0, 1.0]:

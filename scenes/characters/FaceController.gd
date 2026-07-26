@@ -660,19 +660,21 @@ func _apply_blush() -> void:
 ##   spess  moltiplicatore dello spessore di base
 ##   punta  spessore residuo in punta (0.08 = affilata, 0.34 = mozza)
 ##   testa  pienezza della radice interna (frazione dello spessore pieno)
+## Valori DOLCI, mai ripidi: colmi alti e code a picco facevano
+## sopracciglia "a gabbiano" dall'aria arrabbiata su musetti teneri.
 const BROW_STYLES := {
-	"morbide": {"arco": 0.30, "picco": 0.60, "coda": 0.10,
-			"spess": 1.00, "punta": 0.16, "testa": 0.72},
-	"arcuate": {"arco": 0.52, "picco": 0.55, "coda": 0.24,
-			"spess": 0.85, "punta": 0.10, "testa": 0.66},
-	"dritte": {"arco": 0.10, "picco": 0.50, "coda": 0.02,
-			"spess": 1.00, "punta": 0.22, "testa": 0.80},
-	"decise": {"arco": 0.34, "picco": 0.70, "coda": 0.30,
-			"spess": 1.18, "punta": 0.12, "testa": 0.62},
-	"folte": {"arco": 0.22, "picco": 0.55, "coda": 0.08,
+	"morbide": {"arco": 0.17, "picco": 0.60, "coda": 0.05,
+			"spess": 1.00, "punta": 0.22, "testa": 0.72},
+	"arcuate": {"arco": 0.30, "picco": 0.55, "coda": 0.10,
+			"spess": 0.85, "punta": 0.16, "testa": 0.66},
+	"dritte": {"arco": 0.07, "picco": 0.50, "coda": 0.01,
+			"spess": 1.00, "punta": 0.26, "testa": 0.80},
+	"decise": {"arco": 0.22, "picco": 0.66, "coda": 0.13,
+			"spess": 1.18, "punta": 0.18, "testa": 0.62},
+	"folte": {"arco": 0.13, "picco": 0.55, "coda": 0.04,
 			"spess": 1.45, "punta": 0.34, "testa": 0.85},
-	"sottili": {"arco": 0.36, "picco": 0.60, "coda": 0.16,
-			"spess": 0.66, "punta": 0.08, "testa": 0.60},
+	"sottili": {"arco": 0.22, "picco": 0.60, "coda": 0.07,
+			"spess": 0.66, "punta": 0.12, "testa": 0.60},
 }
 
 
@@ -689,7 +691,8 @@ static func build_brow(parent: Node3D, mat: Material, side: float,
 	var pivot := Node3D.new()
 	pivot.position = pos
 	# un filo di inclinazione a riposo, verso l'esterno: sguardo dolce
-	pivot.rotation.z = side * 0.06
+	# (poca: sommata alla coda dello stile diventava un'aria severa)
+	pivot.rotation.z = side * 0.04
 	parent.add_child(pivot)
 
 	var ricetta: Dictionary = BROW_STYLES.get(style, BROW_STYLES["morbide"]).duplicate()

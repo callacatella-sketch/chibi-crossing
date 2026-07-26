@@ -416,7 +416,6 @@ static func _build_face(head: Node3D, dna: Dictionary, fur: ShaderMaterial,
 	# il musetto: un tono appena più chiaro del pelo, mai bianco — deve
 	# dare struttura al viso senza staccare come una macchia
 	var muso := _mat(Color(dna["fur"]).lightened(0.07), 0.35)
-	var mz := front - 0.075
 	match arche:
 		"volpina":
 			# musetto a goccia morbida col nasino scuro in punta
@@ -493,6 +492,14 @@ static func _build_face(head: Node3D, dna: Dictionary, fur: ShaderMaterial,
 	# triste, seria) + la cavità che si apre per parlare/ridere/stupirsi.
 	# Labbra-fuso dal DNA (mazzo dell'archetipo + micro-variazioni), in toon
 	# come le sopracciglia: il rilievo del labbro si deve leggere.
+	#
+	# DOVE sta la bocca lo decide il MUSETTO, non una quota unica: prima
+	# stava a -0.105·hs per tutti — sui musetti sporgenti (volpina, orsetto,
+	# topolino) restava SEPOLTA nella geometria e si leggeva solo il naso,
+	# su gatto/coniglio finiva sopra i cuscinetti, attaccata al naso.
+	# Con la bocca arriva il "filtrino": il trattino verticale naso→labbro
+	# dei pupazzi, che cuce il musetto alla bocca (non per la volpina: il
+	# suo naso sta in punta al muso a goccia, la bocca sotto la base).
 	var mouth_mat := _mat(Color("5a3434"))
 	var bocca_stile := str(dna.get("bocca", "morbida"))
 	var bocca_ricetta: Dictionary = FACE.MOUTH_STYLES.get(
@@ -501,11 +508,46 @@ static func _build_face(head: Node3D, dna: Dictionary, fur: ShaderMaterial,
 		"larg": float(bocca_ricetta["larg"]) * float(dna.get("bocca_larg", 1.0)),
 		"spess": float(bocca_ricetta["spess"]) * float(dna.get("bocca_spess", 1.0)),
 	}
-	var my := -0.105 * hs
-	var mouths := FACE.build_mouth_set(head, mouth_mat, Vector3(0, my, mz), hs,
-			bocca_stile, bocca_vari)
+	var my: float
+	var mouth_z: float
+	var mscale := hs
+	var philtrum: MeshInstance3D = null
+	match arche:
+		"volpina":
+			# sotto la BASE del muso a goccia, sul viso: piccola e raccolta
+			my = -0.19 * hs
+			mouth_z = front - 0.038
+			mscale = hs * 0.88
+		"orsetto":
+			# sul musetto largo, subito sotto il nasone
+			my = -0.142 * hs
+			mouth_z = front - 0.064
+			philtrum = tube(head,
+					[Vector3(0, -0.078 * hs, front - 0.072),
+					Vector3(0, -0.136 * hs, front - 0.066)],
+					[0.005 * hs, 0.0038 * hs], mouth_mat, 6, 8)
+		"topolino":
+			my = -0.132 * hs
+			mouth_z = front - 0.058
+			philtrum = tube(head,
+					[Vector3(0, -0.082 * hs, front - 0.070),
+					Vector3(0, -0.126 * hs, front - 0.060)],
+					[0.0045 * hs, 0.0035 * hs], mouth_mat, 6, 8)
+		_:
+			# gatto e coniglietta: sull'orlo basso dei cuscinetti, col
+			# filtrino che percorre la loro giuntura dal nasino rosa
+			my = -0.175 * hs
+			mouth_z = front - 0.055
+			philtrum = tube(head,
+					[Vector3(0, -0.068 * hs, front - 0.062),
+					Vector3(0, -0.168 * hs, front - 0.058)],
+					[0.0048 * hs, 0.0036 * hs], mouth_mat, 8, 8)
+	if philtrum != null:
+		philtrum.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var mouths := FACE.build_mouth_set(head, mouth_mat, Vector3(0, my, mouth_z),
+			mscale, bocca_stile, bocca_vari)
 	var mouth_open := FACE.build_mouth_open(head, _flat(Color("3a1f1f")),
-			Vector3(0, my, mz), hs)
+			Vector3(0, my, mouth_z), mscale)
 
 	# ciuffi sulle guance: quanti e quanto folti dipende dal pelo del DNA
 	var fluff: float = dna.get("fluff", 0.6)
@@ -532,7 +574,7 @@ static func _build_face(head: Node3D, dna: Dictionary, fur: ShaderMaterial,
 	return {
 		"eyes": eyes, "eyeballs": eyeballs, "irises": irises,
 		"happy": happy, "brows": brows, "blush": blush_nodes,
-		"mouths": mouths, "mouth_open": mouth_open,
+		"mouths": mouths, "mouth_open": mouth_open, "philtrum": philtrum,
 		"eye_base_scale": Vector3(1, 1.18, 0.55),
 		"face_side": maxf(gap * hs, 0.12),
 	}
