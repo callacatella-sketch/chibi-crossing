@@ -2554,7 +2554,12 @@ func set_season(season: int, snow: float, transition: bool) -> void:
 	_season = season
 	_season_snow = snow
 	_apply_season(transition)
-	# le particelle della stagione
+	# le particelle della stagione. Le voci morte si scartano prima: un
+	# ciliegio abbattuto dal taglialegna porta via il suo emettitore di
+	# petali, e la lista non deve puntare a un nodo liberato
+	for i in range(_petal_fx.size() - 1, -1, -1):
+		if not is_instance_valid(_petal_fx[i]):
+			_petal_fx.remove_at(i)
 	for p in _petal_fx:
 		p.emitting = season == 0                      # petali: solo primavera
 	if _forest_leaf_fx:

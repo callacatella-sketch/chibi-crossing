@@ -40,6 +40,8 @@ const SHOP_PIECES := [
 		"desc": "Una fontanella tonda con lo zampillo che canta."},
 	{"name": "Gazebo", "cost": 240, "cur": "nut", "cat": 0,
 		"desc": "Un gazebo esagonale col tetto a pagoda: il salotto all'aperto."},
+	{"name": "Stendino", "cost": 85, "cur": "nut", "cat": 2,
+		"desc": "Due pali, una corda e le mollette: il bucato che\nondeggia al sole è il respiro del villaggio."},
 	{"name": "Giostrina", "cost": 6, "cur": "star", "cat": 2,
 		"desc": "Una piccola giostra a cavallucci. Gira piano, come un carillon."},
 	{"name": "Braciere stellato", "cost": 4, "cur": "star", "cat": 1,

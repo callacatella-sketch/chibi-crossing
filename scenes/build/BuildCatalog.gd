@@ -115,6 +115,9 @@ static func items() -> Array[Dictionary]:
 			"cols": [[Vector3(0.5, 1.6, 0.5), Vector3(0, 0.8, 0)]]},
 		{"name": "Braciere stellato", "cat": 1, "type": "cell", "layer": 2, "builder": _brazier,
 			"cols": [[Vector3(0.5, 0.8, 0.5), Vector3(0, 0.4, 0)]]},
+		{"name": "Stendino", "cat": 2, "type": "cell", "layer": 2, "builder": _clothesline,
+			"cols": [[Vector3(0.12, 1.15, 0.12), Vector3(-0.55, 0.57, 0)],
+					[Vector3(0.12, 1.15, 0.12), Vector3(0.55, 0.57, 0)]]},
 		{"name": "Carillon", "cat": 1, "type": "cell", "layer": 2, "builder": _musicbox,
 			"cols": [[Vector3(0.45, 0.75, 0.4), Vector3(0, 0.37, 0)]]},
 		{"name": "Serra", "cat": 2, "type": "cell", "layer": 2, "builder": _greenhouse,
@@ -440,6 +443,16 @@ static func _fireplace() -> Node3D:
 	light.omni_range = 3.2
 	light.position = Vector3(0, 0.4, 0.3)
 	n.add_child(light)
+
+	# il COMIGNOLO: la canna che sale sopra la mensola e il vaso in
+	# terracotta col cappello. È da qui che la sera esce il filo di fumo
+	# (l'emettitore lo aggancia VitaSecondaria, in cima alla canna)
+	_box(n, Vector3(0.34, 0.52, 0.3), stone, Vector3(0, 1.26, 0))
+	_box(n, Vector3(0.42, 0.06, 0.38), _mat(TERRACOTTA, Color("c47a58"), 3.0, 0.5),
+			Vector3(0, 1.55, 0))
+	_cyl(n, 0.085, 0.105, 0.18, _mat(TERRACOTTA, Color("c47a58"), 3.0, 0.5),
+			Vector3(0, 1.65, 0))
+	_box(n, Vector3(0.26, 0.035, 0.26), stone, Vector3(0, 1.78, 0))
 	return n
 
 
@@ -819,6 +832,35 @@ static func _bench() -> Node3D:
 # ================================================================ NEGOZIO
 # I pezzi che si comprano dal mercante (con le noccioline o le stelline).
 # Stessa mano pastello del resto del catalogo.
+
+# lo stendino: due pali a T, la corda che fa la pancia in mezzo e il
+# cestello di vimini alla base. Nasce VUOTO: i teli ce li mettono Mochi
+# (E — stendi il bucato) o i residenti, ed è VitaSecondaria a gestirli.
+static func _clothesline() -> Node3D:
+	var n := Node3D.new()
+	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	for sx: float in [-0.55, 0.55]:
+		_box(n, Vector3(0.07, 1.15, 0.07), wood, Vector3(sx, 0.57, 0))
+		_box(n, Vector3(0.24, 0.05, 0.06), wood, Vector3(sx, 1.12, 0))
+		# il picchetto di sbieco che tiene il palo
+		var picchetto := _box(n, Vector3(0.05, 0.4, 0.05), wood, Vector3(sx * 0.82, 0.2, 0.12))
+		picchetto.rotation.x = -0.5
+		picchetto.rotation.z = -sx * 0.35
+	# la corda, in tre segmenti con la pancia al centro
+	var corda := _mat(Color("d9c08a"), Color("c0a878"), 10.0, 0.4)
+	var seg1 := _cyl(n, 0.012, 0.012, 0.4, corda, Vector3(-0.35, 1.09, 0))
+	seg1.rotation.z = PI * 0.5 - 0.1
+	var seg2 := _cyl(n, 0.012, 0.012, 0.34, corda, Vector3(0, 1.055, 0))
+	seg2.rotation.z = PI * 0.5
+	var seg3 := _cyl(n, 0.012, 0.012, 0.4, corda, Vector3(0.35, 1.09, 0))
+	seg3.rotation.z = PI * 0.5 + 0.1
+	# il cestello del bucato, di vimini, appoggiato a un palo
+	var vimini := _mat(Color("c9a86a"), Color("a8874c"), 5.0, 0.5)
+	_box(n, Vector3(0.24, 0.15, 0.17), vimini, Vector3(0.36, 0.08, 0.16))
+	_box(n, Vector3(0.26, 0.03, 0.19), _mat(Color("b8935a"), Color("97783f"), 5.0, 0.5),
+			Vector3(0.36, 0.16, 0.16))
+	return n
+
 
 # il carillon: cassa di ciliegio, rullo d'ottone e la manovella sul fianco.
 # La musica vera la mette Interactions (E per caricarlo): qui solo il corpo.
