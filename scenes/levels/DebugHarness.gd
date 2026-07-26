@@ -289,8 +289,9 @@ func _debug_filo(dir: String) -> void:
 	print("FILO: la posta pesca dai fili vivi e dal Grande Prato = %s"
 			% (not dal_prato.is_empty()))
 
-	# --- l'empatia della fame (Fase 6), su richiesta diretta ---
-	print("FILO: conforto per fame = %s" % vis.conforta_mochi("fame"))
+	# --- l'empatia della pioggia (Fase 6), su richiesta diretta ---
+	# (la fame è affare della Premura, che ha la sua verifica nei test)
+	print("FILO: conforto per pioggia = %s" % vis.conforta_mochi("pioggia"))
 	print("FILO: fine. residenti=%d, MAX=%d"
 			% [(vis.get("_residents") as Array).size(), vis.MAX_RESIDENTS])
 	get_tree().quit()

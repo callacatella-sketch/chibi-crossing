@@ -88,7 +88,6 @@ var _toast_label: Label
 
 func _ready() -> void:
 	add_to_group("persistable")
-	add_to_group("empatia")   # MainLevel ci racconta i bisogni di Mochi (Fase 6)
 	_player = get_node("%Player")
 	_build = get_node("../BuildSystem")
 	_daynight = get_node_or_null("../DayNight")
@@ -758,21 +757,14 @@ func parte_per_il_grande_prato(label: String) -> void:
 # (Fase 6) Il colpo di scena del Filo Rosso: quando Mochi ha bisogno,
 # sono i VICINI ad accorgersene. Ogni gentilezza al più una volta al
 # giorno, mai due insieme: l'empatia vera è discreta.
+# NB: la FAME è affare della Premura (scenes/npc/Premura.gd): il languore,
+# il passo piccolo e il boccone diviso vivono là — qui restano il ritorno,
+# la pioggia e il lutto, così nessun bisogno riceve due premure doppie.
 
-var _fame_critica := false      # lo dice MainLevel (bisogno "hunger" critico)
-var _fame_acc := 0.0
 var _pioggia_acc := 0.0
 var _pioggia_fatta := false     # una premura per acquazzone, non una al secondo
 var _ritorno_visto := false
 var _empatia_giorno := {}       # motivo -> giorno in cui è già successa
-
-
-## MainLevel ci racconta i bisogni di Mochi (gruppo "empatia").
-func mochi_bisogno(kind: String, level: int) -> void:
-	if kind == "hunger":
-		_fame_critica = level >= 2
-		if not _fame_critica:
-			_fame_acc = 0.0
 
 
 func _tick_empatia(delta: float, raining: bool) -> void:
@@ -804,14 +796,6 @@ func _tick_empatia(delta: float, raining: bool) -> void:
 					break
 			if quanti > 0:
 				_show_toast("Bentornata! Ti hanno aspettata, giorno dopo giorno.")
-
-	# la fame che dura: un amico porta da mangiare senza che nessuno chieda
-	if _fame_critica and int(_empatia_giorno.get("fame", -1)) != oggi:
-		_fame_acc += delta
-		if _fame_acc >= 20.0:
-			_fame_acc = 0.0
-			if conforta_mochi("fame"):
-				_empatia_giorno["fame"] = oggi
 
 	# la pioggia con Mochi fuori: qualcuno la raggiunge sotto l'acqua
 	if raining:
@@ -874,11 +858,6 @@ func conforta_mochi(motivo: String) -> bool:
 			umore = "triste"
 			cuore = false
 			_show_toast("%s viene a sederti accanto. Non dice niente." % label)
-		"fame":
-			parole = ["cibo", "amico"]
-			if _cooking and _cooking.has_method("add_ingredient"):
-				_cooking.call("add_ingredient", "bacca", 2)
-			_show_toast("%s ti ha portato qualcosa da mangiare, senza che nessuno chiedesse niente." % label)
 		"pioggia":
 			parole = ["pioggia", "amico"]
 			umore = "neutro"
@@ -1111,6 +1090,14 @@ func animo_di(label: String) -> String:
 	if not _animi.has(label):
 		return ""
 	return (_animi[label] as RefCounted).stato()
+
+
+## Il sogno di un residente ("boscaiolo", "cuoco"…). Serve al registro dei
+## lavori per la resa: chi fa il lavoro che sognava produce di più.
+func sogno_di(label: String) -> String:
+	if not _animi.has(label):
+		return ""
+	return str((_animi[label] as RefCounted).sogno)
 
 
 ## La cronaca della rivolta, se ce n'è una: chi ha cominciato e perché.
@@ -1397,6 +1384,12 @@ func _bump_friend(r: Dictionary, amount: int) -> void:
 			"text": "Mi trovo così bene nel villaggio.\nGrazie di essermi amic%s." % ("a" if randf() < 0.5 else "o"),
 			"gift": true,
 		})
+	# l'amicizia PIENA lascia un ricordo indossabile: la soglia e il capo
+	# per archetipo li decide il guardaroba, qui si passa solo il conto
+	if is_inside_tree():
+		var arch := str(r.get("dna", {}).get("archetype", ""))
+		if arch != "":
+			get_tree().call_group("guardaroba", "unlock_amicizia", arch, int(r["friend"]))
 
 
 # il regalo della zuppetta: i gusti vengono dal DNA

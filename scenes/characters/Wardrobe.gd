@@ -22,8 +22,52 @@ const CAPI := {
 		"sblocco": "un regalino del passerotto", "icona": "~"},
 	"impermeabilino": {"nome": "l'impermeabilino giallo", "slot": "corpo",
 		"sblocco": "la prima pioggerella vissuta", "icona": "☂"},
+	# le stagioni vissute: ogni alba in una stagione nuova lascia un capo
+	"fiocco_ciliegio": {"nome": "il fiocco di ciliegio", "slot": "testa",
+		"sblocco": "vivere un'alba di primavera", "icona": "❀"},
+	"occhialini_sole": {"nome": "gli occhialini da sole", "slot": "testa",
+		"sblocco": "vivere un'alba d'estate", "icona": "◐"},
+	"mantellina_foglie": {"nome": "la mantellina di foglie", "slot": "corpo",
+		"sblocco": "vivere un'alba d'autunno", "icona": "❦"},
+	"cuffietta_neve": {"nome": "la cuffietta di neve", "slot": "testa",
+		"sblocco": "vivere un'alba d'inverno", "icona": "❄"},
+	# i momenti grandi
+	"cerchietto_stelle": {"nome": "il cerchietto di stelle", "slot": "testa",
+		"sblocco": "battezzare la prima costellazione", "icona": "✦"},
+	"cappellino_festa": {"nome": "il cappellino di festa", "slot": "testa",
+		"sblocco": "la prima festa a sorpresa", "icona": "▲"},
+	# le amicizie piene, una per ogni archetipo del villaggio
+	"campanellino_gatto": {"nome": "il campanellino d'argento", "slot": "collo",
+		"sblocco": "l'amicizia piena con un gattino", "icona": "○"},
+	"portafortuna_carota": {"nome": "la carotina portafortuna", "slot": "polso",
+		"sblocco": "l'amicizia piena con una coniglietta", "icona": "▼"},
+	"vasetto_miele": {"nome": "il vasetto di miele", "slot": "corpo",
+		"sblocco": "l'amicizia piena con un orsetto", "icona": "◆"},
+	"coda_sciarpa": {"nome": "la coda-sciarpa fulva", "slot": "collo",
+		"sblocco": "l'amicizia piena con una volpina", "icona": "∿"},
+	"berretto_orecchie": {"nome": "il berretto con le orecchie", "slot": "testa",
+		"sblocco": "l'amicizia piena con un topolino", "icona": "◉"},
 }
-const ORDER := ["cappello_petali", "lanterna_lucciola", "sciarpina_lana", "impermeabilino"]
+const ORDER := ["cappello_petali", "lanterna_lucciola", "sciarpina_lana",
+	"impermeabilino", "fiocco_ciliegio", "occhialini_sole", "mantellina_foglie",
+	"cuffietta_neve", "cerchietto_stelle", "cappellino_festa",
+	"campanellino_gatto", "portafortuna_carota", "vasetto_miele",
+	"coda_sciarpa", "berretto_orecchie"]
+
+## Il capo di ogni stagione (indice = stagione di DayNight, 0..3).
+const STAGIONE_CAPO := ["fiocco_ciliegio", "occhialini_sole",
+	"mantellina_foglie", "cuffietta_neve"]
+
+## Il capo di ogni archetipo di residente (le chiavi COMBACIANO con
+## ChibiDNA.ARCHETYPES: un test fa la guardia).
+const ARCHETIPO_CAPO := {
+	"gatto": "campanellino_gatto", "coniglio": "portafortuna_carota",
+	"orsetto": "vasetto_miele", "volpina": "coda_sciarpa",
+	"topolino": "berretto_orecchie",
+}
+
+## Da quanti cuoricini l'amicizia è "piena" (la soglia del ricordo).
+const AMICIZIA_MASSIMA := 5
 
 var _player: Node3D
 var _mochi: Node3D
@@ -58,7 +102,23 @@ func _ready() -> void:
 		_mochi = _player.get_node_or_null("Mochi") if _player else null
 		_weather = get_node_or_null("../../Weather")
 		_daynight = get_node_or_null("../../DayNight")
-		_build = get_tree().get_first_node_in_group("build_system")).call_deferred()
+		_build = get_tree().get_first_node_in_group("build_system")
+		# ogni alba in una stagione nuova lascia il suo capo nel baule
+		if _daynight and _daynight.has_signal("day_changed"):
+			_daynight.day_changed.connect(_on_alba)).call_deferred()
+
+
+## L'alba: vivere una stagione (esserci al suo mattino) è già il ricordo.
+func _on_alba(_giorno: int) -> void:
+	if _daynight and _daynight.has_method("get_season"):
+		unlock(str(STAGIONE_CAPO[clampi(int(_daynight.get_season()), 0, 3)]))
+
+
+## L'amicizia piena con un residente: il suo archetipo lascia il ricordo.
+## La chiama Visitors a ogni cuoricino: la soglia la decide il guardaroba.
+func unlock_amicizia(archetipo: String, cuoricini: int) -> void:
+	if cuoricini >= AMICIZIA_MASSIMA and ARCHETIPO_CAPO.has(archetipo):
+		unlock(str(ARCHETIPO_CAPO[archetipo]))
 
 
 ## La scheda di un capo: dal catalogo fisso o dai ricordini dinamici.
@@ -218,6 +278,21 @@ func _ball(parent: Node3D, r: float, mat: Material, pos: Vector3, scl := Vector3
 	return mi
 
 
+func _cyl(parent: Node3D, top: float, bottom: float, h: float, mat: Material, pos: Vector3) -> MeshInstance3D:
+	var cm := CylinderMesh.new()
+	cm.top_radius = top
+	cm.bottom_radius = bottom
+	cm.height = h
+	cm.radial_segments = 14
+	var mi := MeshInstance3D.new()
+	mi.mesh = cm
+	mi.material_override = mat
+	mi.position = pos
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(mi)
+	return mi
+
+
 func _build_capo(id: String) -> Node3D:
 	var n := Node3D.new()
 	match id:
@@ -302,10 +377,149 @@ func _build_capo(id: String) -> Node3D:
 			var btn := _pm(Color("fff3e0"), Color("efe2cc"), 5.0, 0.3)
 			for i in 3:
 				_ball(n, 0.024, btn, Vector3(0, 0.58 - i * 0.12, -0.31 + i * 0.05))
+		"fiocco_ciliegio":
+			# il fiocco rosa di lato, con le due asole e i nastrini che ricadono
+			n.position = Vector3(0.24, 0.3, -0.05)
+			n.rotation.z = -0.25
+			var rosa := _pm(Color("f7a8c4"), Color("e88aae"), 5.0, 0.45)
+			_ball(n, 0.085, rosa, Vector3(-0.07, 0.04, 0), Vector3(1.35, 0.75, 0.55))
+			_ball(n, 0.085, rosa, Vector3(0.07, 0.04, 0), Vector3(1.35, 0.75, 0.55))
+			_ball(n, 0.045, _pm(Color("ffd6e6"), Color("f2b8ce")), Vector3(0, 0.04, 0))
+			for lato: float in [-1.0, 1.0]:
+				var nastro := _ball(n, 0.03, rosa, Vector3(lato * 0.05, -0.09, 0),
+						Vector3(0.7, 2.2, 0.5))
+				nastro.rotation.z = lato * 0.35
+		"occhialini_sole":
+			# due lenti tonde scure sul musetto, con la stanghetta dorata
+			n.position = Vector3(0, 0.12, -0.3)
+			var lente := StandardMaterial3D.new()
+			lente.albedo_color = Color(0.16, 0.13, 0.2, 0.82)
+			lente.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			lente.roughness = 0.15
+			var oro := _pm(Color("e8c46a"), Color("c49c48"), 4.0, 0.35)
+			for lato: float in [-1.0, 1.0]:
+				_ball(n, 0.075, lente, Vector3(lato * 0.11, 0, 0), Vector3(1, 1, 0.3))
+			_ball(n, 0.02, oro, Vector3(0, 0.015, 0), Vector3(1.6, 0.5, 0.5))
+		"mantellina_foglie":
+			# foglie d'autunno cucite a mantellina, dal rame all'oro
+			var toni := [_pm(Color("e0885a"), Color("c96a42"), 5.0, 0.5),
+					_pm(Color("e8b04a"), Color("cf9438"), 5.0, 0.5),
+					_pm(Color("c9603a"), Color("a84e30"), 5.0, 0.5)]
+			for i in 9:
+				var a := -PI * 0.78 + float(i) / 8.0 * PI * 1.56
+				var foglia = _ball(n, 0.11, toni[i % 3],
+						Vector3(sin(a) * 0.3, 0.5 - absf(sin(a * 0.5)) * 0.06, -cos(a) * 0.3),
+						Vector3(0.85, 1.5, 0.4))
+				foglia.rotation.y = -a
+				foglia.rotation.x = 0.35
+			_ball(n, 0.035, _pm(Color("8a5a3a"), Color("6f4830")), Vector3(0, 0.62, -0.3))
+		"cuffietta_neve":
+			# cuffietta bianca calcata sulla testolina, col ponpon che dondola
+			n.position = Vector3(0, 0.3, 0)
+			var lana := _pm(Color("f7f4ee"), Color("e6e0d4"), 7.0, 0.55)
+			_ball(n, 0.3, lana, Vector3(0, 0.05, 0), Vector3(1.05, 0.75, 1.05))
+			var bordo := _cyl(n, 0.305, 0.305, 0.07, _pm(Color("efe8dc"), Color("ddd4c4"), 8.0, 0.6),
+					Vector3(0, -0.09, 0))
+			bordo.scale = Vector3(1, 1, 1)
+			_ball(n, 0.07, lana, Vector3(0, 0.3, 0.06))
+		"cerchietto_stelle":
+			# un cerchietto sottile con tre stelline che brillano di sera
+			n.position = Vector3(0, 0.3, 0)
+			var oro := _pm(Color("e8c46a"), Color("c49c48"), 4.0, 0.35)
+			var fascia := MeshInstance3D.new()
+			var tm := TorusMesh.new()
+			tm.inner_radius = 0.29
+			tm.outer_radius = 0.315
+			fascia.mesh = tm
+			fascia.material_override = oro
+			fascia.rotation.x = 0.12
+			fascia.scale = Vector3(1, 0.5, 1)
+			n.add_child(fascia)
+			var stella := StandardMaterial3D.new()
+			stella.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			stella.albedo_color = Color("fff2b8")
+			stella.emission_enabled = true
+			stella.emission = Color(1.0, 0.9, 0.55)
+			stella.emission_energy_multiplier = 1.1
+			for i in 3:
+				var a := PI * 0.5 + (float(i) - 1.0) * 0.55
+				_ball(n, 0.035 if i == 1 else 0.026, stella,
+						Vector3(cos(a) * 0.3, 0.1 + (0.04 if i == 1 else 0.0), -sin(a) * 0.3))
+		"cappellino_festa":
+			# il cono di festa a strisce, in equilibrio allegro di sbieco
+			n.position = Vector3(0.12, 0.4, 0)
+			n.rotation.z = -0.3
+			var cono := _cyl(n, 0.01, 0.16, 0.3, _pm(Color("9fd8cf"), Color("86c2b8"), 5.0, 0.45),
+					Vector3(0, 0.08, 0))
+			cono.scale = Vector3.ONE
+			_cyl(n, 0.125, 0.145, 0.055, _pm(Color("f4b8c8"), Color("eba4b8"), 5.0, 0.45),
+					Vector3(0, -0.015, 0))
+			_ball(n, 0.045, _pm(Color("ffd76e"), Color("eec254")), Vector3(0, 0.25, 0))
+		"campanellino_gatto":
+			# il collarino sottile col campanellino d'argento che tintinna
+			n.position = Vector3(0, 0.56, 0)
+			var nastro := _pm(Color("c25a7a"), Color("a84a66"), 5.0, 0.45)
+			var giro := MeshInstance3D.new()
+			var gm := TorusMesh.new()
+			gm.inner_radius = 0.21
+			gm.outer_radius = 0.25
+			giro.mesh = gm
+			giro.material_override = nastro
+			giro.scale = Vector3(1, 0.6, 1)
+			n.add_child(giro)
+			var argento := _pm(Color("d8d8e0"), Color("b0b0bc"), 4.0, 0.3)
+			_ball(n, 0.05, argento, Vector3(0, -0.06, -0.24))
+			_ball(n, 0.018, _pm(Color("8a8a94"), Color("6f6f78")), Vector3(0, -0.09, -0.26))
+		"portafortuna_carota":
+			# la carotina di stoffa appesa al polso, col ciuffetto verde
+			n.position = Vector3(0, -0.3, -0.05)
+			var arancio := _pm(Color("f0913c"), Color("d67a2e"), 5.0, 0.5)
+			var carota := _cyl(n, 0.012, 0.045, 0.14, arancio, Vector3(0, -0.1, 0))
+			carota.rotation.z = 0.15
+			for i in 3:
+				var ciuffo := _ball(n, 0.02, _pm(Color("7fbc62"), Color("5f9c48")),
+						Vector3(-0.01 + i * 0.012, -0.02, 0), Vector3(0.5, 1.6, 0.5))
+				ciuffo.rotation.z = -0.3 + i * 0.3
+			_cyl(n, 0.006, 0.006, 0.08, _pm(Color("d9c4a8"), Color("c4ae90")), Vector3(0, 0.0, 0))
+		"vasetto_miele":
+			# il vasetto di miele legato in vita, con l'etichetta e il coperchio
+			n.position = Vector3(0.26, 0.42, 0.12)
+			n.rotation.z = -0.1
+			var vetro := _pm(Color("e8b04a"), Color("cf9438"), 4.0, 0.4)
+			_cyl(n, 0.07, 0.08, 0.13, vetro, Vector3(0, 0, 0))
+			_cyl(n, 0.075, 0.075, 0.03, _pm(Color("a87c50"), Color("8a6440")), Vector3(0, 0.08, 0))
+			_ball(n, 0.035, _pm(Color("fff3e0"), Color("f0e2cc")), Vector3(0, 0, -0.075),
+					Vector3(1.2, 1.2, 0.3))
+		"coda_sciarpa":
+			# la coda-sciarpa fulva con la punta bianca, morbida sul collo
+			n.position = Vector3(0, 0.6, 0)
+			var fulvo := _pm(Color("e0885a"), Color("c96a42"), 6.0, 0.55)
+			var giro2 := MeshInstance3D.new()
+			var g2 := TorusMesh.new()
+			g2.inner_radius = 0.19
+			g2.outer_radius = 0.3
+			giro2.mesh = g2
+			giro2.material_override = fulvo
+			giro2.scale = Vector3(1, 0.75, 1)
+			n.add_child(giro2)
+			var coda := _ball(n, 0.09, fulvo, Vector3(0.14, -0.16, -0.24), Vector3(0.9, 1.9, 0.55))
+			coda.rotation.z = 0.2
+			_ball(n, 0.055, _pm(Color("fff6ee"), Color("efe4d6")), Vector3(0.19, -0.32, -0.24),
+					Vector3(0.8, 1.0, 0.5))
+		"berretto_orecchie":
+			# il berrettino grigio con le orecchie tonde da topolino
+			n.position = Vector3(0, 0.3, 0)
+			var grigio := _pm(Color("b8b2c0"), Color("948e9e"), 5.0, 0.5)
+			_ball(n, 0.3, grigio, Vector3(0, 0.04, 0), Vector3(1.04, 0.7, 1.04))
+			for lato: float in [-1.0, 1.0]:
+				_ball(n, 0.1, grigio, Vector3(lato * 0.24, 0.2, 0), Vector3(1, 1, 0.45))
+				_ball(n, 0.055, _pm(Color("f2c8d4"), Color("e0aebc")),
+						Vector3(lato * 0.24, 0.2, -0.02), Vector3(1, 1, 0.3))
 		_:
 			if id.begins_with("ricordo_") and _ricordi.has(id):
-				# il ricordino: un fiocchetto col campanellino, al collo,
-				# tinto col colore del vestitino di chi è partito
+				# il ricordino di chi è partito per il Grande Prato: un
+				# fiocchetto col campanellino, al collo, tinto col colore
+				# del SUO vestitino (Fase 5 del Filo Rosso)
 				n.position = Vector3(0, 0.58, -0.26)
 				var c := Color(str((_ricordi[id] as Dictionary)["colore"]))
 				var nastro := _pm(c, c.darkened(0.2), 6.0, 0.45)
@@ -342,6 +556,9 @@ func _process(delta: float) -> void:
 				gtree.call("_sparkle", _player.global_position + Vector3(0, 0.3, 0), 8)
 
 
+var _sel := 0
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("guardaroba"):
 		_open = not _open
@@ -358,10 +575,28 @@ func _unhandled_input(event: InputEvent) -> void:
 			else:
 				_sfx.build_close()
 		get_viewport().set_input_as_handled()
-	elif _open and event is InputEventKey and event.pressed and not event.is_echo():
+		return
+	if not _open:
+		return
+	# il baule è cresciuto oltre i tasti numerici: si sfoglia con ↑↓ e si
+	# indossa con E (1-9 restano scorciatoie per i primi capi). L'ordine
+	# comprende anche i ricordini di chi è partito (_ordine, Filo Rosso).
+	if event.is_action_pressed("ui_down") or event.is_action_pressed("ui_up"):
+		var passo := 1 if event.is_action_pressed("ui_down") else -1
+		_sel = posmod(_sel + passo, _ordine().size())
+		if _sfx:
+			_sfx.ui_select()
+		_refresh_panel()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("interact"):
+		_toggle_wear(str(_ordine()[_sel]))
+		get_viewport().set_input_as_handled()
+	elif event is InputEventKey and event.pressed and not event.is_echo():
 		var idx: int = (event as InputEventKey).keycode - KEY_1
+		# 1-9 sulle prime righe (compresi i ricordini, se il baule è corto)
 		var ordine := _ordine()
-		if idx >= 0 and idx < ordine.size():
+		if idx >= 0 and idx < mini(9, ordine.size()):
+			_sel = idx
 			_toggle_wear(str(ordine[idx]))
 			get_viewport().set_input_as_handled()
 
@@ -370,18 +605,21 @@ func _refresh_panel() -> void:
 	for c in _rows.get_children():
 		c.queue_free()
 	var ordine := _ordine()
+	_sel = clampi(_sel, 0, ordine.size() - 1)
 	for i in ordine.size():
 		var id := str(ordine[i])
 		var capo := _capo_info(id)
 		var row := Label.new()
 		row.add_theme_font_size_override("font_size", 13)
+		var freccia := "▸ " if i == _sel else "   "
 		if _unlocked.has(id):
 			var stato := "indossato ♥" if _worn.has(id) else "nel baule"
-			row.text = "%d.  %s  %s   —   %s" % [i + 1, capo["icona"], capo["nome"], stato]
+			row.text = "%s%s  %s   —   %s" % [freccia, capo["icona"], capo["nome"], stato]
 			row.add_theme_color_override("font_color",
-					Color("a83a5c") if _worn.has(id) else UI_BROWN)
+					Color("a83a5c") if _worn.has(id) else
+					(UI_BROWN if i == _sel else Color(UI_BROWN, 0.75)))
 		else:
-			row.text = "%d.  ?  un ricordo da vivere: %s" % [i + 1, capo["sblocco"]]
+			row.text = "%s?  un ricordo da vivere: %s" % [freccia, capo["sblocco"]]
 			row.add_theme_color_override("font_color", Color(UI_BROWN, 0.4))
 		_rows.add_child(row)
 
@@ -435,7 +673,7 @@ func _build_ui() -> void:
 	_rows.add_theme_constant_override("separation", 4)
 	vbox.add_child(_rows)
 	var hint := Label.new()
-	hint.text = "1-4 — indossa/togli  ·  G — chiudi"
+	hint.text = "↑↓ — scegli  ·  E — indossa/togli  ·  G — chiudi"
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.add_theme_font_size_override("font_size", 11)
 	hint.add_theme_color_override("font_color", Color(UI_BROWN, 0.55))

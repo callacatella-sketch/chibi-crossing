@@ -44,9 +44,13 @@ var _daynight: Node3D
 var _sfx
 
 var _counts := {}
+var _seen := {}          # specie incontrate almeno una volta (per l'enciclopedia:
+                         # vendere l'ultimo esemplare non ti ri-nasconde la scheda)
 var _busy := false
 var _fireflies: Array[Dictionary] = []
 var _ff_respawn := 0.0
+var _bestiole: Array[Dictionary] = []   # cicale, scarabei, lumachine, rane
+var _bst_respawn := 0.0
 var _t := 0.0
 var _libreria_count := -1
 
@@ -81,6 +85,7 @@ var _displays_dirty := false
 func _process(delta: float) -> void:
 	_t += delta
 	_update_fireflies(delta)
+	_update_bestiole(delta)
 	_update_prompt()
 	# librerie piazzate/rimosse -> barattoli aggiornati (via segnale,
 	# niente scansione completa a ogni frame)
@@ -118,24 +123,43 @@ func _update_fireflies(delta: float) -> void:
 
 
 func _spawn_firefly() -> void:
+	# quale lucciola si accende lo dice il bestiario: quella di sempre, o —
+	# nelle notti d'estate — la RARA lucciola regale: più grande, luce d'oro
+	# caldo, mai più di una per volta (il suo `max` sta in Critters)
+	var kind := "lucciola"
+	if _cozy and _cozy.has_method("contesto_critter"):
+		var vivi := {}
+		for f in _fireflies:
+			var k := str(f.get("kind", "lucciola"))
+			vivi[k] = int(vivi.get(k, 0)) + 1
+		var pool := []
+		for id in CRIT.disponibili("lucciola", _cozy.call("contesto_critter")):
+			if int(vivi.get(str(id), 0)) < CRIT.max_vivi(str(id)):
+				pool.append(id)
+		kind = CRIT.estrai(pool, randf())
+		if kind == "":
+			return
+	var regale := kind == "regale"
+	var glow_col := Color(1.0, 0.87, 0.45) if regale else Color(0.9, 1.0, 0.6)
+
 	var node := Node3D.new()
 	var core := MeshInstance3D.new()
 	var sm := SphereMesh.new()
-	sm.radius = 0.028
-	sm.height = 0.056
+	sm.radius = 0.046 if regale else 0.028
+	sm.height = sm.radius * 2.0
 	core.mesh = sm
 	var cm := StandardMaterial3D.new()
-	cm.albedo_color = Color("e8ffa8")
+	cm.albedo_color = Color("ffe98a") if regale else Color("e8ffa8")
 	cm.emission_enabled = true
-	cm.emission = Color(0.85, 1.0, 0.5)
-	cm.emission_energy_multiplier = 2.2
+	cm.emission = Color(1.0, 0.82, 0.4) if regale else Color(0.85, 1.0, 0.5)
+	cm.emission_energy_multiplier = 2.6 if regale else 2.2
 	core.material_override = cm
 	core.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	node.add_child(core)
 
 	var halo := MeshInstance3D.new()
 	var quad := QuadMesh.new()
-	quad.size = Vector2(0.32, 0.32)
+	quad.size = Vector2(0.5, 0.5) if regale else Vector2(0.32, 0.32)
 	var tex := GradientTexture2D.new()
 	tex.width = 64
 	tex.height = 64
@@ -145,7 +169,7 @@ func _spawn_firefly() -> void:
 	var grad := Gradient.new()
 	grad.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
 	grad.colors = PackedColorArray([
-		Color(0.9, 1.0, 0.6, 0.8), Color(0.9, 1.0, 0.6, 0.3), Color(0.9, 1.0, 0.6, 0.0)])
+		Color(glow_col, 0.8), Color(glow_col, 0.3), Color(glow_col, 0.0)])
 	tex.gradient = grad
 	var hm := StandardMaterial3D.new()
 	hm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -163,19 +187,297 @@ func _spawn_firefly() -> void:
 	var base: Vector3 = _player.global_position + Vector3(cos(a), 0, sin(a)) * randf_range(3.0, 7.0)
 	base.y = 0.0
 	add_child(node)
-	_fireflies.append({"node": node, "seed": randf() * 100.0, "base": base, "halo_mat": hm})
+	_fireflies.append({"node": node, "seed": randf() * 100.0, "base": base,
+			"halo_mat": hm, "kind": kind})
+
+
+# ---------------------------------------------------------------- bestiole
+
+# Le bestiole: chi si acchiappa col retino ma non vola nel prato — la cicala
+# sugli alberi del bosco d'estate, lo scarabeo dorato nelle notti estive, la
+# lumachina e la rana blu che escono solo con la pioggia. Chi c'è lo decide
+# il bestiario (Critters.disponibile); qui si decide solo DOVE metterle e
+# come si muovono. Massimo due per volta, come le lucciole.
+
+var _bst_ctx_t := 0.0
+
+func _update_bestiole(delta: float) -> void:
+	if _cozy == null or not _cozy.has_method("contesto_critter"):
+		return
+	_bst_respawn -= delta
+	# il contesto si ricalcola una volta al secondo (non a ogni frame): chi
+	# non è più di stagione/ora/meteo se ne va — la pioggia che smette si
+	# porta via la lumachina, l'alba spegne lo scarabeo
+	_bst_ctx_t -= delta
+	if _bst_ctx_t <= 0.0:
+		_bst_ctx_t = 1.0
+		var ctx: Dictionary = _cozy.call("contesto_critter")
+		for i in range(_bestiole.size() - 1, -1, -1):
+			if not CRIT.disponibile(str(_bestiole[i]["kind"]), ctx):
+				(_bestiole[i]["node"] as Node3D).queue_free()
+				_bestiole.remove_at(i)
+		if _bestiole.size() < 2 and _bst_respawn <= 0.0:
+			_bst_respawn = randf_range(6.0, 14.0)
+			_spawn_bestiola(ctx)
+	for b in _bestiole:
+		_anima_bestiola(b, delta)
+
+
+func _spawn_bestiola(ctx: Dictionary) -> void:
+	var vivi := {}
+	for b in _bestiole:
+		var k := str(b["kind"])
+		vivi[k] = int(vivi.get(k, 0)) + 1
+	var pool := []
+	for id in CRIT.disponibili("bestiola", ctx):
+		if int(vivi.get(str(id), 0)) < CRIT.max_vivi(str(id)):
+			pool.append(id)
+	if pool.is_empty():
+		return
+	var kind := CRIT.estrai(pool, randf())
+	# il posto giusto deve esistere: la cicala vuole un tronco del bosco
+	# vicino, la rana la riva dello stagno — se qui non c'è, sarà per dopo
+	var pp: Vector3 = _player.global_position
+	var base := Vector3.ZERO
+	var trunk := Vector3.ZERO
+	match CRIT.luogo(kind):
+		"bosco":
+			var tree: Dictionary = _cozy.call("nearest_forest_tree", pp, 11.0)
+			if tree.is_empty():
+				return
+			trunk = tree["pos"]
+			var to_me := ((pp - trunk) * Vector3(1, 0, 1)).normalized()
+			base = trunk + to_me * 0.22 + Vector3(0, 0.9 * float(tree["scale"]), 0)
+		"stagno":
+			var centro: Vector3 = _cozy.POND_CENTER
+			if pp.distance_to(centro) > 10.0:
+				return
+			var dir := ((pp - centro) * Vector3(1, 0, 1)).normalized()
+			if dir.length() < 0.5:
+				dir = Vector3(1, 0, 0)
+			base = centro + dir * (_cozy.POND_R + 0.5)
+			base.y = 0.0
+		_:
+			var a := randf() * TAU
+			base = pp + Vector3(cos(a), 0, sin(a)) * randf_range(2.5, 5.0)
+			base.y = 0.0
+	var node := _make_bestiola(kind)
+	node.position = base
+	node.scale = Vector3.ONE * 0.05
+	add_child(node)
+	var tw := create_tween()
+	tw.tween_property(node, "scale", Vector3.ONE, 0.4) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_bestiole.append({"node": node, "kind": kind, "seed": randf() * 100.0,
+			"base": base, "trunk": trunk, "hop": randf_range(1.5, 3.5),
+			"heading": randf() * TAU})
+
+
+func _make_bestiola(kind: String) -> Node3D:
+	var node := Node3D.new()
+	var col: Color = CRIT.colore(kind)
+	var body_mat := StandardMaterial3D.new()
+	body_mat.albedo_color = col
+	match kind:
+		"lumachina":
+			# il corpicino morbido e il guscio a spirale
+			var body := MeshInstance3D.new()
+			var bm := CapsuleMesh.new()
+			bm.radius = 0.03
+			bm.height = 0.13
+			body.mesh = bm
+			var soft := StandardMaterial3D.new()
+			soft.albedo_color = Color("e8ddc8")
+			body.material_override = soft
+			body.rotation.x = PI * 0.5
+			body.position = Vector3(0, 0.03, 0)
+			node.add_child(body)
+			var shell := MeshInstance3D.new()
+			var tm := TorusMesh.new()
+			tm.inner_radius = 0.018
+			tm.outer_radius = 0.05
+			shell.mesh = tm
+			shell.material_override = body_mat
+			shell.rotation.x = PI * 0.5
+			shell.rotation.z = PI * 0.5
+			shell.position = Vector3(0, 0.075, 0.02)
+			node.add_child(shell)
+			var spira := MeshInstance3D.new()
+			var sm2 := TorusMesh.new()
+			sm2.inner_radius = 0.006
+			sm2.outer_radius = 0.026
+			spira.mesh = sm2
+			var dark := StandardMaterial3D.new()
+			dark.albedo_color = col.darkened(0.35)
+			spira.material_override = dark
+			spira.rotation.x = PI * 0.5
+			spira.rotation.z = PI * 0.5
+			spira.position = Vector3(0.001, 0.075, 0.02)
+			node.add_child(spira)
+			for side: float in [-1.0, 1.0]:
+				var eye := MeshInstance3D.new()
+				var em := SphereMesh.new()
+				em.radius = 0.008
+				em.height = 0.016
+				eye.mesh = em
+				var ed := StandardMaterial3D.new()
+				ed.albedo_color = Color("4a3e33")
+				eye.material_override = ed
+				eye.position = Vector3(side * 0.014, 0.085, -0.065)
+				node.add_child(eye)
+		"rana":
+			var body := MeshInstance3D.new()
+			var bm := SphereMesh.new()
+			bm.radius = 0.065
+			bm.height = 0.13
+			body.mesh = bm
+			body.material_override = body_mat
+			body.scale = Vector3(1.0, 0.72, 1.1)
+			body.position = Vector3(0, 0.05, 0)
+			node.add_child(body)
+			var belly := MeshInstance3D.new()
+			var lm := SphereMesh.new()
+			lm.radius = 0.045
+			lm.height = 0.09
+			belly.mesh = lm
+			var light := StandardMaterial3D.new()
+			light.albedo_color = col.lightened(0.4)
+			belly.material_override = light
+			belly.position = Vector3(0, 0.035, -0.02)
+			belly.scale = Vector3(0.9, 0.6, 0.9)
+			node.add_child(belly)
+			for side: float in [-1.0, 1.0]:
+				var eye := MeshInstance3D.new()
+				var em := SphereMesh.new()
+				em.radius = 0.018
+				em.height = 0.036
+				eye.mesh = em
+				var white := StandardMaterial3D.new()
+				white.albedo_color = Color("fff6e6")
+				eye.material_override = white
+				eye.position = Vector3(side * 0.032, 0.105, -0.03)
+				node.add_child(eye)
+				var pup := MeshInstance3D.new()
+				var pm := SphereMesh.new()
+				pm.radius = 0.008
+				pm.height = 0.016
+				pup.mesh = pm
+				var dk := StandardMaterial3D.new()
+				dk.albedo_color = Color("2a1d1d")
+				pup.material_override = dk
+				pup.position = Vector3(side * 0.032, 0.108, -0.045)
+				node.add_child(pup)
+		"scarabeo":
+			var body := MeshInstance3D.new()
+			var bm := SphereMesh.new()
+			bm.radius = 0.035
+			bm.height = 0.07
+			body.mesh = bm
+			body_mat.metallic = 0.6
+			body_mat.roughness = 0.25
+			body_mat.emission_enabled = true
+			body_mat.emission = Color(col.r, col.g * 0.85, col.b * 0.3)
+			body_mat.emission_energy_multiplier = 0.5
+			body.material_override = body_mat
+			body.scale = Vector3(0.8, 0.55, 1.25)
+			body.position = Vector3(0, 0.028, 0)
+			node.add_child(body)
+			var head := MeshInstance3D.new()
+			var hm := SphereMesh.new()
+			hm.radius = 0.016
+			hm.height = 0.032
+			head.mesh = hm
+			var dk := StandardMaterial3D.new()
+			dk.albedo_color = Color("6a5a2a")
+			head.material_override = dk
+			head.position = Vector3(0, 0.024, -0.045)
+			node.add_child(head)
+		_:  # cicala del bosco, appoggiata al tronco
+			var body := MeshInstance3D.new()
+			var bm := CapsuleMesh.new()
+			bm.radius = 0.022
+			bm.height = 0.09
+			body.mesh = bm
+			body.material_override = body_mat
+			body.rotation.x = PI * 0.5
+			node.add_child(body)
+			for side: float in [-1.0, 1.0]:
+				var wing := MeshInstance3D.new()
+				var qm := QuadMesh.new()
+				qm.size = Vector2(0.035, 0.1)
+				var wm := StandardMaterial3D.new()
+				wm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+				wm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+				wm.albedo_color = Color(0.95, 0.97, 0.9, 0.55)
+				wm.cull_mode = BaseMaterial3D.CULL_DISABLED
+				qm.material = wm
+				wing.mesh = qm
+				wing.rotation.x = -PI * 0.45
+				wing.rotation.z = side * 0.25
+				wing.position = Vector3(side * 0.014, 0.012, 0.03)
+				node.add_child(wing)
+	return node
+
+
+func _anima_bestiola(b: Dictionary, delta: float) -> void:
+	var node := b["node"] as Node3D
+	var s: float = b["seed"]
+	var kind := str(b["kind"])
+	match kind:
+		"lumachina":
+			# striscia piano piano, con l'ondina del guscio
+			var dir := Vector3(cos(b["heading"]), 0, sin(b["heading"]))
+			b["base"] = (b["base"] as Vector3) + dir * 0.028 * delta
+			node.position = b["base"]
+			node.rotation.y = -b["heading"] + PI * 0.5
+			node.rotation.z = sin(_t * 2.0 + s) * 0.05
+		"rana":
+			# ferma che respira, poi il balzetto con lo splash morbido
+			b["hop"] = float(b["hop"]) - delta
+			if float(b["hop"]) <= 0.0:
+				b["hop"] = randf_range(2.2, 4.5)
+				var a := randf() * TAU
+				var dest: Vector3 = (b["base"] as Vector3) + Vector3(cos(a), 0, sin(a)) * 0.35
+				b["base"] = dest
+				node.rotation.y = -a + PI * 0.5
+				var tw := create_tween()
+				tw.tween_property(node, "position",
+						dest + Vector3(0, 0.22, 0), 0.16) \
+						.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+				tw.tween_property(node, "position", dest, 0.14) \
+						.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+			elif float(b["hop"]) > 0.5:
+				node.scale.y = 1.0 + sin(_t * 3.0 + s) * 0.05
+		"scarabeo":
+			# corre a scatti brevi, col luccichio che pulsa
+			b["hop"] = float(b["hop"]) - delta
+			if float(b["hop"]) <= 0.0:
+				b["hop"] = randf_range(1.2, 2.8)
+				b["heading"] = randf() * TAU
+			var dir := Vector3(cos(b["heading"]), 0, sin(b["heading"]))
+			b["base"] = (b["base"] as Vector3) + dir * 0.32 * delta
+			node.position = b["base"] + Vector3(0, absf(sin(_t * 14.0 + s)) * 0.006, 0)
+			node.rotation.y = -b["heading"] + PI * 0.5
+		_:  # cicala: sta sul tronco e fa frusciare le ali
+			node.position = b["base"]
+			node.rotation.y = sin(_t * 0.6 + s) * 0.2
+			node.scale = Vector3.ONE * (1.0 + sin(_t * 22.0 + s) * 0.02)
 
 
 # ---------------------------------------------------------------- cattura
 
 func _nearest_catch() -> Dictionary:
 	var pp: Vector3 = _player.global_position
-	if _is_night():
-		for i in _fireflies.size():
-			var node := _fireflies[i]["node"] as Node3D
-			if pp.distance_to(node.global_position) < 1.5:
-				return {"type": "lucciola", "index": i}
-	elif _cozy:
+	for i in _bestiole.size():
+		var node := _bestiole[i]["node"] as Node3D
+		if pp.distance_to(node.global_position) < 1.6:
+			return {"type": "bestiola", "index": i}
+	for i in _fireflies.size():
+		var node := _fireflies[i]["node"] as Node3D
+		if pp.distance_to(node.global_position) < 1.5:
+			return {"type": "lucciola", "index": i}
+	# le farfalle (e la falena, di notte: chi vola adesso lo sa il prato)
+	if _cozy:
 		var i: int = _cozy.call("nearest_butterfly", pp, 1.5)
 		if i >= 0:
 			return {"type": "farfalla", "index": i}
@@ -200,9 +502,14 @@ func _catch(target: Dictionary) -> void:
 	var kind := ""
 	var bug: Node3D = null
 	if target["type"] == "lucciola":
-		kind = "lucciola"
 		var f: Dictionary = _fireflies[target["index"]]
+		kind = str(f.get("kind", "lucciola"))
 		_fireflies.remove_at(target["index"])
+		bug = f["node"]
+	elif target["type"] == "bestiola":
+		var f: Dictionary = _bestiole[target["index"]]
+		kind = str(f["kind"])
+		_bestiole.remove_at(target["index"])
 		bug = f["node"]
 	else:
 		var got: Dictionary = _cozy.call("catch_butterfly", target["index"])
@@ -303,10 +610,17 @@ func counts() -> Dictionary:
 	return _counts.duplicate()
 
 
+## Una specie è già stata incontrata? (Per l'enciclopedia delle Tasche: la
+## scheda resta anche dopo aver venduto l'ultimo esemplare.)
+func has_seen(kind: String) -> bool:
+	return _seen.has(kind) or int(_counts.get(kind, 0)) > 0
+
+
 ## Aggiunge una cattura alla collezione: contatore, toast, vetrine, salvataggio.
 ## Usata anche dalla pesca.
 func add_catch(kind: String) -> void:
 	_counts[kind] = int(_counts.get(kind, 0)) + 1
+	_seen[kind] = true
 	get_tree().call_group("regista", "note", "pesca" if is_fish(kind) else "retino")
 	# economia gentile: le catture rare regalano una stellina
 	var eco := get_tree().get_first_node_in_group("economy")
@@ -320,8 +634,8 @@ func add_catch(kind: String) -> void:
 		var gtree := get_tree().get_first_node_in_group("grande_albero")
 		if gtree:
 			gtree.engrave("♦", "in collezione: %s" % CRIT.con_articolo(kind))
-		# la prima lucciola accende la lanterna da polso
-		if kind == "lucciola":
+		# la prima lucciola (regale compresa) accende la lanterna da polso
+		if CRIT.classe(kind) == "lucciola":
 			var wr := get_tree().get_first_node_in_group("guardaroba")
 			if wr:
 				wr.unlock("lanterna_lucciola")
@@ -375,8 +689,11 @@ func _refresh_displays() -> void:
 			if int(_counts.get(kind, 0)) <= 0:
 				continue
 			var jar := _make_jar(kind, int(_counts[kind]))
-			jar.position = Vector3(-0.36 + xi * 0.12, 1.55, 0.0)
-			jar.scale = Vector3.ONE * 0.92
+			# due file da dieci: il bestiario è cresciuto (20 specie) e una
+			# fila sola sborderebbe dal piano della Libreria
+			jar.position = Vector3(-0.36 + (xi % 10) * 0.08, 1.55,
+					0.07 - float(int(xi / 10.0)) * 0.14)
+			jar.scale = Vector3.ONE * 0.8
 			jars.add_child(jar)
 			xi += 1
 
@@ -445,20 +762,45 @@ func _make_jar(kind: String, count: int) -> Node3D:
 		fish_tail.position = Vector3(-0.036, 0.055, 0)
 		fish_tail.rotation.z = -PI * 0.5
 		jar.add_child(fish_tail)
-	elif kind == "lucciola":
+	elif CRIT.classe(kind) == "lucciola":
 		var glow := MeshInstance3D.new()
 		var sm := SphereMesh.new()
-		sm.radius = 0.02
-		sm.height = 0.04
+		sm.radius = 0.026 if kind == "regale" else 0.02
+		sm.height = sm.radius * 2.0
 		glow.mesh = sm
 		var gmat := StandardMaterial3D.new()
 		gmat.albedo_color = col
 		gmat.emission_enabled = true
-		gmat.emission = Color(0.85, 1.0, 0.5)
+		gmat.emission = Color(1.0, 0.82, 0.4) if kind == "regale" else Color(0.85, 1.0, 0.5)
 		gmat.emission_energy_multiplier = 1.6
 		glow.material_override = gmat
 		glow.position = Vector3(0, 0.06, 0)
 		jar.add_child(glow)
+	elif CRIT.classe(kind) == "bestiola":
+		# la bestiola nel barattolo: un corpicino tondo col capino
+		var bmat := StandardMaterial3D.new()
+		bmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		bmat.albedo_color = col
+		var corpo := MeshInstance3D.new()
+		var bm := SphereMesh.new()
+		bm.radius = 0.024
+		bm.height = 0.048
+		corpo.mesh = bm
+		corpo.material_override = bmat
+		corpo.position = Vector3(0, 0.05, 0)
+		corpo.scale = Vector3(1.0, 0.8, 1.25)
+		jar.add_child(corpo)
+		var capo := MeshInstance3D.new()
+		var km2 := SphereMesh.new()
+		km2.radius = 0.013
+		km2.height = 0.026
+		capo.mesh = km2
+		var kmat := StandardMaterial3D.new()
+		kmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		kmat.albedo_color = col.darkened(0.3)
+		capo.material_override = kmat
+		capo.position = Vector3(0, 0.055, -0.03)
+		jar.add_child(capo)
 	else:
 		for side: float in [-1.0, 1.0]:
 			var wing := MeshInstance3D.new()
@@ -550,15 +892,23 @@ func _update_prompt() -> void:
 	if target.is_empty():
 		_prompt.visible = false
 		return
+	# il prompt dice CHI stai per acchiappare: "una falena della luna" invita
+	# più di un generico "la farfalla" (ed è il nome del bestiario, non un altro)
 	var pos: Vector3
-	var text: String
+	var kind := ""
 	if target["type"] == "lucciola":
-		pos = (_fireflies[target["index"]]["node"] as Node3D).global_position
-		text = "E — acchiappa la lucciola!"
+		var f: Dictionary = _fireflies[target["index"]]
+		pos = (f["node"] as Node3D).global_position
+		kind = str(f.get("kind", "lucciola"))
+	elif target["type"] == "bestiola":
+		var f: Dictionary = _bestiole[target["index"]]
+		pos = (f["node"] as Node3D).global_position
+		kind = str(f["kind"])
 	else:
 		var b: Dictionary = _cozy.get("_butterflies")[target["index"]]
 		pos = (b["node"] as Node3D).global_position
-		text = "E — acchiappa la farfalla!"
+		kind = str(b["kind"])
+	var text := "E — acchiappa %s!" % CRIT.con_articolo(kind)
 	var wp := pos + Vector3(0, 0.4, 0)
 	if cam.is_position_behind(wp):
 		_prompt.visible = false
@@ -627,11 +977,17 @@ func _build_ui() -> void:
 # ---------------------------------------------------------------- persistenza
 
 func save_extra() -> Dictionary:
-	return {"collection": _counts}
+	return {"collection": _counts, "collection_seen": _seen.keys()}
 
 
 func load_extra(data: Dictionary) -> void:
 	_counts = data.get("collection", {})
+	# migrazione gentile: chi ha esemplari li ha per forza già visti
+	_seen = {}
+	for k in data.get("collection_seen", []):
+		_seen[str(k)] = true
+	for k in _counts:
+		_seen[str(k)] = true
 	_refresh_displays()
 
 

@@ -80,8 +80,113 @@ func _on_nuovo_giorno(_giorno: int) -> void:
 		if lavoro == "":
 			continue
 		_visitors.assegna_compito(label, lavoro)
+	_produzione_del_giorno()
 	if _aperto:
 		_riempi()
+
+
+# ------------------------------------------------------- la produzione
+
+## La resa di una giornata di lavoro, da 0 (niente) a oltre 1 (il bonus di
+## chi fa il lavoro che SOGNAVA: x1.5). È la faccia economica della scala
+## della ribellione: il rancore non è più solo un costo morale, è
+## produzione che cala — svogliato lavora a metà, chi "perde gli attrezzi"
+## combina un terzo, dal rifiuto in poi non si produce nulla. PURA e
+## statica: la scala si interroga per NOME (mai indici a mano).
+static func resa(gradino: String, sogno := "", lavoro := "") -> float:
+	if ANIMO.almeno(ANIMO.indice(gradino), "rifiuto"):
+		return 0.0
+	var base := 1.0
+	match gradino:
+		"svogliato":
+			base = 0.55
+		"attrezzi":
+			base = 0.35
+	var serve := str((ANIMO.COMPITI.get(lavoro, {}) as Dictionary).get("serve", ""))
+	if serve != "" and serve == sogno:
+		base *= 1.5
+	return base
+
+
+## Quanti pezzi escono da una giornata a resa `r`, su una base piena di
+## `n_pieno` (es. 2 legna): 3 col sogno giusto, 2 sereno, 1 svogliato o
+## distratto, 0 in rivolta.
+static func quanti(n_pieno: int, r: float) -> int:
+	return roundi(float(n_pieno) * r)
+
+
+## I lavori PRODUCONO: legna in catasta, aiuole annaffiate, un piatto in
+## tavola, ogni tanto un tesoro dal bosco. Senza questo, dare ordini era
+## solo un rubinetto di rancore senza guadagno — la scala più bella del
+## gioco puniva un comportamento privo di incentivo. Ora sfruttare i
+## residenti RENDE, ed è proprio per questo che costa: «lo faccio lavorare
+## o lo lascio sognare?» è un conto che si fa guardando il registro.
+func _produzione_del_giorno() -> void:
+	var woodcutting := get_node_or_null("../Woodcutting")
+	var garden := get_node_or_null("../Garden")
+	var cooking := get_node_or_null("../Cooking")
+	var inventory := get_node_or_null("../Inventory")
+	var legna := 0
+	var annaffiate := 0
+	var piatti: Array[String] = []
+	var tesori := 0
+	for label in _incarichi:
+		var lavoro := str(_incarichi[label])
+		var gradino := str(_visitors.animo_di(label))
+		if lavoro == "" or gradino == "":
+			continue   # assente, o già andato via: non produce
+		var r := resa(gradino, str(_visitors.sogno_di(label)), lavoro)
+		if r <= 0.0:
+			continue
+		match lavoro:
+			"taglia_legna":
+				if woodcutting:
+					var n := quanti(2, r)
+					woodcutting.add_wood(n)
+					legna += n
+			"coltiva":
+				if garden:
+					for i in quanti(2, r):
+						var bed = garden.bed_needing_water(Vector3.ZERO, 999.0)
+						if bed == null:
+							break
+						garden.villager_water(bed)
+						annaffiate += 1
+			"cucina":
+				# sotto mezza resa il mestolo resta appeso (niente piatto)
+				if cooking and r >= 0.5:
+					var piatto := str(cooking.cook_by_villager())
+					if piatto != "":
+						piatti.append(piatto)
+			"esplora":
+				if inventory and randf() < 0.45 * r:
+					var ids: Array = inventory.TREASURES.keys()
+					var scheda: Dictionary = inventory.add_treasure(str(ids[randi() % ids.size()]))
+					if not scheda.is_empty():
+						tesori += 1
+	_racconta_produzione(legna, annaffiate, piatti, tesori)
+
+
+# Una riga sola al mattino, e solo se c'è davvero qualcosa da dire: il
+# guadagno deve essere VISIBILE, o il dilemma non esiste.
+func _racconta_produzione(legna: int, annaffiate: int, piatti: Array[String], tesori: int) -> void:
+	var parti: Array[String] = []
+	if legna > 0:
+		parti.append("+%d legna in catasta" % legna)
+	if annaffiate > 0:
+		parti.append("%d aiuole annaffiate" % annaffiate if annaffiate > 1 \
+				else "un'aiuola annaffiata")
+	for p in piatti:
+		parti.append("in tavola: %s" % p.to_lower())
+	if tesori > 0:
+		parti.append("%d tesori dal bosco" % tesori if tesori > 1 else "un tesoro dal bosco")
+	if parti.is_empty():
+		return
+	if _visitors and _visitors.has_method("_show_toast"):
+		_visitors.call("_show_toast", "Il lavoro del mattino: " + " · ".join(parti))
+	var bs := get_tree().get_first_node_in_group("build_system")
+	if bs and bs.has_method("request_save"):
+		bs.request_save()
 
 
 ## Assegna (o toglie) un lavoro. Chiamabile anche dai test e dalla CLI.

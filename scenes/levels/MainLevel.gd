@@ -84,8 +84,6 @@ func _on_need_state_changed(kind: String, level: int):
 	var was_crit: bool = _need_crit.get(kind, false)
 	var now_crit := level >= 2
 	_need_crit[kind] = now_crit
-	# i vicini leggono Mochi (empatia bidirezionale, Fase 6 del Filo Rosso)
-	get_tree().call_group("empatia", "mochi_bisogno", kind, level)
 	# nell'istante in cui scivola nel critico, Mochi se ne accorge: una
 	# bollicina del colore del bisogno sale dal musetto
 	if now_crit and not was_crit and _mochi and _mochi.has_method("emote_need"):

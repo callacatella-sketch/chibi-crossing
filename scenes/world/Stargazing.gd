@@ -245,6 +245,8 @@ func _confirm_name() -> void:
 		cname = _name_edit.placeholder_text
 	_constellations.append({"name": cname, "stars": _chain.duplicate()})
 	get_tree().call_group("regista", "note", "stelle")
+	# la prima costellazione battezzata è un ricordo indossabile
+	get_tree().call_group("guardaroba", "unlock", "cerchietto_stelle")
 	_rebuild_lines()
 	var gtree := get_tree().get_first_node_in_group("grande_albero")
 	if gtree:

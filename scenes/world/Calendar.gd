@@ -212,6 +212,8 @@ func throw_party(res_name: String, label: String, node: Node3D) -> void:
 		return
 	_party_done[key] = true
 	_toast("FESTA A SORPRESA per %s! Tutto il villaggio accorre!" % label)
+	# la prima festa lascia un ricordo indossabile nel guardaroba
+	get_tree().call_group("guardaroba", "unlock", "cappellino_festa")
 	_confetti(node.global_position + Vector3(0, 1.0, 0))
 	if _sfx:
 		_sfx.build_open()
@@ -412,6 +414,11 @@ func _spawn_merchant() -> void:
 		var tw := create_tween()
 		tw.tween_property(node, "scale", Vector3.ONE, 0.5) \
 				.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	# ogni visita rifà il banco (idempotente nel giorno: la ricarica di un
+	# salvataggio con il mercante in piazza ritrova lo stesso stock)
+	var eco := get_tree().get_first_node_in_group("economy")
+	if eco and eco.has_method("rotate_stock"):
+		eco.rotate_stock(_day())
 	_toast("Il mercante ha aperto il carretto in piazza!")
 
 

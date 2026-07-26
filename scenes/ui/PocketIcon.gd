@@ -75,9 +75,12 @@ func _draw() -> void:
 		"piuma": _piuma()
 		"semino": _semino()
 		"fiocco": _fiocco()
+		"porcino": _porcino()
 		"farfalla": _jar_farfalla()
 		"lucciola": _jar_lucciola()
 		"pesce": _jar_pesce()
+		"bestiola": _jar_bestiola()
+		"sagoma": _jar_sagoma()
 		_: _bacca()
 
 
@@ -148,6 +151,28 @@ func _fungo() -> void:
 	_circle(0.38, 0.4, 0.05, Color("ffeede"))
 	_circle(0.6, 0.36, 0.06, Color("ffeede"))
 	_circle(0.52, 0.52, 0.04, Color("ffeede"))
+
+
+func _porcino() -> void:
+	# il porcino d'autunno: gambo panciuto e cappella bruna, senza puntini
+	var stem := Color("efe0c4")
+	var stem_o := Color("c8ab7e")
+	var cap := Color("b0794a")
+	var cap_o := Color("8a5c34")
+	var pts := PackedVector2Array([_p(0.34, 0.56), _p(0.66, 0.56), _p(0.7, 0.66),
+			_p(0.64, 0.86), _p(0.5, 0.9), _p(0.36, 0.86), _p(0.3, 0.66)])
+	draw_colored_polygon(pts, stem)
+	pts.append(pts[0])
+	draw_polyline(pts, stem_o, 0.028 * _U, true)
+	var cp := PackedVector2Array()
+	for i in 20:
+		var a := PI * float(i) / 19.0
+		cp.append(_p(0.5 - cos(a) * 0.36, 0.58 - sin(a) * 0.3))
+	cp.append(_p(0.86, 0.58))
+	cp.append(_p(0.14, 0.58))
+	draw_colored_polygon(cp, cap)
+	draw_polyline(cp, cap_o, 0.028 * _U, true)
+	_ell(0.42, 0.4, 0.08, 0.05, Color("c99a6a"))
 
 
 # ---------------------------------------------------------------- cucina
@@ -320,3 +345,27 @@ func _jar_pesce() -> void:
 	draw_colored_polygon(PackedVector2Array([_p(0.41, 0.62), _p(0.33, 0.56),
 			_p(0.33, 0.68)]), tint)
 	_circle(0.58, 0.6, 0.018, Color("2a1d1d"))
+
+
+func _jar_bestiola() -> void:
+	# la bestiola nel barattolo: corpicino tondo, capino e antennine
+	_jar_glass()
+	_ell(0.5, 0.66, 0.11, 0.085, tint)
+	_circle(0.5, 0.55, 0.05, Color(tint.darkened(0.25), 1.0))
+	var feeler := Color(tint.darkened(0.4), 0.9)
+	_stroke([Vector2(0.47, 0.52), Vector2(0.43, 0.45)], feeler, 0.018)
+	_stroke([Vector2(0.53, 0.52), Vector2(0.57, 0.45)], feeler, 0.018)
+
+
+func _jar_sagoma() -> void:
+	# la specie MAI vista: una sagoma grigia dietro il vetro e un punto di
+	# domanda — l'indizio nel dettaglio dice dove e quando cercarla
+	_jar_glass()
+	var grigio := Color(0.62, 0.6, 0.57, 0.85)
+	_ell(0.5, 0.64, 0.12, 0.1, grigio)
+	_circle(0.5, 0.52, 0.055, grigio)
+	var font := ThemeDB.fallback_font
+	var fsize := int(0.24 * _U)
+	var qs := font.get_string_size("?", HORIZONTAL_ALIGNMENT_CENTER, -1, fsize)
+	draw_string(font, _p(0.5, 0.68) - Vector2(qs.x * 0.5, 0), "?",
+			HORIZONTAL_ALIGNMENT_LEFT, -1, fsize, Color(1, 0.98, 0.93, 0.95))

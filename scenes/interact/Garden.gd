@@ -518,14 +518,18 @@ func _pick_mushroom(i: int) -> void:
 	tw.parallel().tween_property(node, "global_position:y",
 			_player.global_position.y + 1.85, 0.24)
 	tw.tween_callback(func():
+		# fungo comune o PORCINO d'autunno: lo dice il cartellino del bosco
+		var specie := str(node.get_meta("specie", "fungo"))
 		node.queue_free()
 		mochi.call("hold_reach", false)
 		var cooking := get_node_or_null("../Cooking")
 		if cooking:
-			cooking.add_ingredient("fungo", 1)
+			cooking.add_ingredient(specie, 1)
 		var visitors := get_node_or_null("../Visitors")
 		if visitors:
-			visitors.call("_show_toast", "+1 fungo nella dispensa!")
+			visitors.call("_show_toast",
+					"+1 fungo porcino nella dispensa! Che profumo raro."
+					if specie == "porcino" else "+1 fungo nella dispensa!")
 		_busy = false)
 
 
@@ -551,8 +555,10 @@ func set_season(season: int, _snow: float, _transition: bool) -> void:
 
 func _on_new_day(_day: int) -> void:
 	# d'inverno il giardino riposa sotto la neve: i semi aspettano la
-	# primavera. Mai punitivo — niente muore, la crescita si mette in pausa
-	if _season == 3:
+	# primavera. Mai punitivo — niente muore, la crescita si mette in pausa.
+	# A meno che il villaggio non abbia una Serra (il sogno del mercante):
+	# col suo tepore si cresce anche a gennaio. Una volta al giorno: niente cache
+	if _season == 3 and _build.get_placed_by_name("Serra").is_empty():
 		return
 	for bed in _beds:
 		var b: Dictionary = _beds[bed]
@@ -936,7 +942,9 @@ func _update_prompt() -> void:
 		if cam.is_position_behind(sp):
 			_prompt.visible = false
 			return
-		_prompt_label.text = "E — raccogli il fungo"
+		_prompt_label.text = "E — raccogli il porcino!" \
+				if str(_world.call("pickup_kind", _near_shroom)) == "porcino" \
+				else "E — raccogli il fungo"
 		_prompt.reset_size()
 		var spp := cam.unproject_position(sp)
 		_prompt.position = spp - Vector2(_prompt.size.x * 0.5, _prompt.size.y)
