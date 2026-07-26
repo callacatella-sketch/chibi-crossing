@@ -103,8 +103,14 @@ func momento(nome: String, tipo: String, extra := "") -> void:
 	momenti.append({"d": oggi, "t": tipo, "x": extra})
 	if momenti.size() > MAX_MOMENTI:
 		momenti.pop_front()
-	if primo and nome != "__prova":
-		_toast("❀ Il filo con %s si colora: %s" % [nome, str(TIPI[tipo][0])])
+	if nome != "__prova":
+		if primo:
+			_toast("❀ Il filo con %s si colora: %s" % [nome, str(TIPI[tipo][0])])
+			# il momento che si annoda SI VEDE: il filo rosso tra le zampe
+			mostra_filo(nome, tipo == "oro")
+		elif tipo == "oro":
+			# ogni desiderio d'oro della settimana del congedo merita il filo
+			mostra_filo(nome, true)
 	_salva()
 
 
@@ -127,6 +133,38 @@ func ricorda(nome: String, node: Node3D) -> void:
 		var parole: Array = TIPI[tipo][1]
 		node.call("speak", parole, "felice")
 		node.call("_spawn_heart")
+	# il ricordo fa brillare il filo, ma piano: appena accennato
+	mostra_filo(nome, false, 0.55)
+
+
+## IL FILO ROSSO LETTERALE — l'API del simbolo. Nei momenti che si
+## annodano, il nastro luminoso appare tra la zampa di Mochi e quella del
+## vicino (nome O label): le perline lungo il filo sono i momenti già
+## vissuti insieme. `oro` per il desiderio d'oro, `intensita` < 1 per il
+## filo appena accennato di un ricordo. Il disegno vive in FiloRosso.gd.
+func mostra_filo(nome: String, oro := false, intensita := 1.0) -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+	var filo_rosso := tree.get_first_node_in_group("filo_rosso")
+	if _visitors == null:
+		_visitors = get_node_or_null("../../Visitors")
+	var player := tree.get_first_node_in_group("player_controller")
+	if filo_rosso == null or _visitors == null or player == null:
+		return
+	var mochi := player.get_node_or_null("Mochi")
+	if mochi == null:
+		return
+	for r in (_visitors.get("_residents") as Array):
+		var dna: Dictionary = r.get("dna", {})
+		var vero_nome := str(dna.get("name", ""))
+		if vero_nome != nome and str(r.get("label", "")) != nome:
+			continue
+		var node := r.get("node") as Node3D
+		if node and is_instance_valid(node) and not bool(node.call("is_hidden")):
+			filo_rosso.call("annoda", mochi, node,
+					momenti_di(vero_nome).size(), oro, intensita)
+		return
 
 
 # ------------------------------------------------- le stagioni della vita

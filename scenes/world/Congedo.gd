@@ -464,6 +464,8 @@ func consolato(label: String, _nome_salutato: String) -> void:
 		if _visitors:
 			_visitors.call("lutto_di", label, nome, "giocatore")
 		_toast("♥ Hai consolato %s: il ricordo di %s adesso pesa meno." % [label, nome])
+		# la consolazione È un momento che si annoda: il filo appare
+		_legami.call("mostra_filo", label)
 
 
 # --------------------------------------------------------- la finestra accesa

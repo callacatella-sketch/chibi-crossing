@@ -1513,6 +1513,14 @@ func is_hidden() -> bool:
 	return _hidden
 
 
+## La zampina destra nel mondo: è il capo del Filo Rosso quando un
+## momento si annoda (stessa firma di Mochi.paw_world).
+func paw_world() -> Vector3:
+	if _c_arms.size() == 2 and is_instance_valid(_c_arms[1]):
+		return _c_arms[1].to_global(Vector3(0, -0.28, -0.05))
+	return global_position + Vector3(0, 0.42, 0)
+
+
 # ---------------------------------------------------------------- emotes
 
 func _emote(txt: String, color: Color) -> void:
