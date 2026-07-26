@@ -207,12 +207,19 @@ divergere in silenzio**. Ora ognuno ha UNA casa. Non reintrodurre copie: un test
 in [`tests/cases/test_fonti_uniche.gd`](tests/cases/test_fonti_uniche.gd) fa la
 guardia.
 
-- **Le specie** (farfalle, lucciole, pesci, raccolti) →
+- **Le specie** (farfalle, lucciole, pesci, bestiole, raccolti) →
   [`scenes/world/Critters.gd`](scenes/world/Critters.gd), `const SPECIE`: una
   riga per specie con `nome/articolo/classe/colore/vendita/rara`. Prima le
   tabelle stavano in `Economy` (negozio), `Collection` (barattoli) **e**
   `CozyWorld` (chi vola): la stessa farfalla era "Farfalla dorata" sul bancone e
   "una farfalla gialla" in vetrina, con due rosa diversi.
+  Le specie **stagionali** dichiarano QUANDO esistono col campo facoltativo
+  `cond` (`stagioni`/`ora`/`meteo`) più `peso/max/luogo/indizio`: la verità la
+  dice SOLO `Critters.disponibile(id, ctx)` col contesto costruito da
+  `CozyWorld.contesto_critter()` — nessun altro file deve chiedersi "è
+  inverno?" a mano. Logica pura, testata headless in
+  [`tests/cases/test_critters_stagioni.gd`](tests/cases/test_critters_stagioni.gd)
+  (lo stagno non deve MAI restare senza pesci).
   I due registri del nome si **derivano** da un unico nome minuscolo:
   `etichetta()` → "Farfalla dorata" (titolo), `con_articolo()` → "una farfalla
   dorata" (dentro una frase). Il pallino del negozio è

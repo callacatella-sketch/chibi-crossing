@@ -338,6 +338,25 @@ C++ via GDExtension. Tutta l'arte è procedurale: zero asset esterni.
   fronte aperto e i libri a vista): barattoli col sughero, farfalle
   dietro il vetro, la lucciola che brilla, e i contatori. Persistita
   nel JSON.
+- **Il calendario delle specie** (`scenes/world/Critters.gd`) — il
+  bestiario è cresciuto a **20 specie collezionabili** e ognuna sa
+  QUANDO esiste (`cond`: stagione, ora, meteo): la **farfalla di
+  ciliegio** vola in primavera tra i petali del ciliegio, il **girino**
+  nuota solo in primavera, d'estate la **cicala** canta sugli alberi del
+  bosco, lo **scarabeo dorato** luccica nell'erba di notte e la
+  **lucciola regale** (grande, d'oro caldo) appare tra le lucciole;
+  d'autunno la **falena della luna** vola di notte, la **carpa foglia
+  d'oro** abbocca e nel bosco spunta il **porcino** (che il mercante
+  paga bene); d'inverno c'è il **pesce ghiaccio** e — rarissima, solo
+  mentre la neve scende fitta — la **farfalla di neve**. La **libellula
+  ambrata** e il **pesce dell'alba** escono solo al crepuscolo, e con
+  la pioggia arrivano la **lumachina** e la **rana blu** sulla riva
+  dello stagno. Nelle Tasche il segnalibro Collezione è diventato
+  un'**enciclopedia**: le specie mai viste sono **sagome grigie** con
+  un indizio ("solo quando piove", "nelle notti d'autunno") — è la
+  scheda vuota a farti uscire col retino. E d'inverno la pioggerella
+  diventa una **nevicata fitta**: fiocchi lenti, silenzio, niente
+  erba zuppa.
 - **Lo stagno e la pesca** (`scenes/interact/Fishing.gd` + CozyWorld) —
   un piccolo specchio d'acqua tra prato e foresta: shader acqua con i
   **riflessi veri del cielo**, luccichii di sole, fresnel e piccole
