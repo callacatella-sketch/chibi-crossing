@@ -343,10 +343,19 @@ func _refresh_boards() -> void:
 		if _daynight and _daynight.has_method("season_name"):
 			var s := int(_daynight.get_season())
 			lines.append(["~ %s ~" % _daynight.season_name(), SEASON_CHALK[s]])
+		# coi 28 posti del villaggio la lavagna non basta per tutti: col
+		# gessetto si segnano i PROSSIMI sei compleanni, gli altri aspettano
+		# il loro turno (il pannello con E li elenca comunque)
+		var prossimi: Array = []
 		for res_name in _birthdays:
-			var b: Dictionary = _birthdays[res_name]
-			lines.append(["%s · G%d" % [str(res_name), next_birthday(str(res_name))],
+			prossimi.append([next_birthday(str(res_name)), str(res_name)])
+		prossimi.sort_custom(func(a, b): return a[0] < b[0])
+		for i in mini(prossimi.size(), 6):
+			lines.append(["%s · G%d" % [str(prossimi[i][1]), int(prossimi[i][0])],
 					Color(0.98, 0.85, 0.9, 0.9)])
+		if prossimi.size() > 6:
+			lines.append(["…e altri %d" % (prossimi.size() - 6),
+					Color(0.98, 0.85, 0.9, 0.6)])
 		lines.append(["mercante · G%d" % _merchant_day, Color(0.85, 0.93, 1.0, 0.9)])
 		# la prossima festa stagionale, col gessetto verde tenue
 		var pf := prossima_festa(_day())
@@ -797,7 +806,10 @@ func _refresh_panel() -> void:
 		hdr.add_theme_font_size_override("font_size", 13)
 		hdr.add_theme_color_override("font_color", Color("8a5a3a"))
 		_rows.add_child(hdr)
-	for ev in events:
+	# con 28 vicini gli eventi si affollano: il pannello mostra i primi
+	# dodici in ordine di arrivo, e conta il resto
+	for i in mini(events.size(), 12):
+		var ev: Array = events[i]
 		var row := Label.new()
 		var giorni := int(ev[0]) - today
 		var quando := "OGGI!" if giorni == 0 else ("domani" if giorni == 1 else "tra %d giorni" % giorni)
@@ -805,6 +817,12 @@ func _refresh_panel() -> void:
 		row.add_theme_font_size_override("font_size", 13)
 		row.add_theme_color_override("font_color", UI_BROWN)
 		_rows.add_child(row)
+	if events.size() > 12:
+		var resto := Label.new()
+		resto.text = "…e altri %d eventi più in là" % (events.size() - 12)
+		resto.add_theme_font_size_override("font_size", 12)
+		resto.add_theme_color_override("font_color", Color(UI_BROWN, 0.55))
+		_rows.add_child(resto)
 
 
 func _update_prompt() -> void:

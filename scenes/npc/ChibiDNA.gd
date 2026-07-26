@@ -19,10 +19,15 @@ const DESCR := {
 	"volpina": "la volpina", "topolino": "il topolino",
 }
 
+# Ventotto nomi per ventotto posti (Visitors.MAX_RESIDENTS): con 5 archetipi
+# fanno 140 etichette possibili — l'unicità delle label resta facile anche
+# a villaggio pieno (vedi Visitors._spawn_candidate).
 const NAMES := [
 	"Nocciola", "Miele", "Cannella", "Nuvola", "Fragolina", "Biscotto",
 	"Mirtillo", "Vaniglia", "Zenzero", "Pepita", "Ciliegia", "Castagna",
-	"Brioche", "Sesamo", "Loto", "Camomilla",
+	"Brioche", "Sesamo", "Loto", "Camomilla", "Pistacchio", "Mandorla",
+	"Liquirizia", "Caramella", "Timo", "Malva", "Papavero", "Ginepro",
+	"Amaretto", "Farina", "Cacao", "Prugna",
 ]
 
 const FURS := ["f7e6d0", "e8d5b8", "d9c4a8", "cfc4bd", "f2d8c8", "e8e4dc", "c9a889", "b89f8a"]

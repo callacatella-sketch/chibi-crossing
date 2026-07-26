@@ -154,9 +154,24 @@ func _test_lettere_dai_momenti(t) -> void:
 			"un filo ricco conta i suoi momenti")
 
 
-## La densita' e la varieta': otto posti, cinque archetipi garantiti.
+## La densita' e la varieta': ventotto posti, cinque archetipi garantiti.
 func _test_densita_e_varieta(t) -> void:
-	t.eq(VISITORS.MAX_RESIDENTS, 8, "otto residenti: il villaggio brulica")
+	t.eq(VISITORS.MAX_RESIDENTS, 28, "ventotto residenti: il villaggio brulica")
+	t.ok(DNA.NAMES.size() >= VISITORS.MAX_RESIDENTS,
+			"un nome per ogni posto: le etichette restano uniche (%d nomi)"
+			% DNA.NAMES.size())
+	# i posti al falo' non si pestano: ognuno il suo, anche in ventotto
+	var v = VISITORS.new()
+	var visti := {}
+	var vicini := 0
+	for i in VISITORS.MAX_RESIDENTS:
+		var p: Vector3 = v._posto_al_falo(i)
+		for altro in visti:
+			if p.distance_to(visti[altro]) < 0.55:
+				vicini += 1
+		visti[i] = p
+	t.eq(vicini, 0, "al falo' nessuno siede in braccio a un altro (28 posti)")
+	v.free()
 	t.eq(VISITORS.archetipi_mancanti([]).size(), DNA.ARCHETYPES.size(),
 			"villaggio vuoto: mancano tutti e cinque")
 	var m = VISITORS.archetipi_mancanti(["gatto", "gatto", "coniglio"])

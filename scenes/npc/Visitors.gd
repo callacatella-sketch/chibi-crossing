@@ -11,10 +11,12 @@ const BRAIN := preload("res://scenes/npc/VillagerBrain.gd")
 const ANIMO := preload("res://scenes/npc/Animo.gd")
 const VILLAGGIO := preload("res://scenes/npc/Villaggio.gd")
 const UI_BROWN := Color("6a4a3a")
-# Otto vicini: il passaparola del Villaggio, le chiacchiere, le indoli e le
-# stravaganze rendono per densità — con otto il villaggio brulica e la scala
-# dell'Animo produce storie corali (era 4: mezzo coro).
-const MAX_RESIDENTS := 8
+# Fino a ventotto vicini: il passaparola del Villaggio, le chiacchiere, le
+# indoli e le stravaganze rendono per densità — la scala dell'Animo produce
+# storie corali (era 4, poi 8: mezzo coro). Il tetto NON è un rubinetto: un
+# candidato arriva solo se il giocatore ha costruito un letto libero sotto
+# un tetto (_free_house) — 28 abitanti = 28 case volute, una per una.
+const MAX_RESIDENTS := 28
 
 const SPECIES := ["riccio", "passerotto"]
 const SPECIES_LABEL := {"riccio": "Il Riccio", "passerotto": "Il Passerotto"}
@@ -361,9 +363,7 @@ func _routine(delta: float) -> void:
 			"fire":
 				# la sera ci si ritrova tutti attorno al fuoco
 				r["next_act"] = 9999.0
-				var ang := 0.9 + float(i) * 0.55
-				var spot := CLEARING + Vector3(cos(ang), 0, sin(ang)) * 1.7
-				node.call("do_routine", "fire", spot, CLEARING)
+				node.call("do_routine", "fire", _posto_al_falo(i), CLEARING)
 				_ensure_brain(r).satisfy("falo")
 			"morning", "day":
 				r["next_act"] = randf_range(9.0, 15.0)
@@ -705,6 +705,16 @@ func manda(label: String, pos: Vector3) -> void:
 		return
 
 
+## Il posto di ognuno attorno al fuoco: cerchi concentrici — undici per
+## anello, poi si allarga — così anche in ventotto nessuno finisce seduto
+## in braccio a un altro.
+func _posto_al_falo(i: int) -> Vector3:
+	@warning_ignore("integer_division")
+	var anello := i / 11
+	var ang := 0.9 + float(i) * 0.55 + float(anello) * 0.27
+	return CLEARING + Vector3(cos(ang), 0, sin(ang)) * (1.7 + 0.85 * float(anello))
+
+
 ## Il raduno al falò: tutti attorno al fuoco (l'ultima sera del congedo
 ## la chiama il Congedo; la CLI la usa da sempre via debug_gather_fire).
 func gather_fire() -> void:
@@ -714,9 +724,7 @@ func gather_fire() -> void:
 		if node == null or not is_instance_valid(node) or node.call("is_hidden"):
 			continue
 		r["next_act"] = 9999.0
-		var ang := 0.9 + float(i) * 0.55
-		var spot := CLEARING + Vector3(cos(ang), 0, sin(ang)) * 1.7
-		node.call("do_routine", "fire", spot, CLEARING)
+		node.call("do_routine", "fire", _posto_al_falo(i), CLEARING)
 
 
 ## La partenza per il Grande Prato: GENTILE. Niente lettera di rancore
@@ -2229,8 +2237,7 @@ func debug_gather_fire() -> void:
 		var node := _residents[i].get("node") as Node3D
 		if node == null or not is_instance_valid(node):
 			continue
-		var ang := 0.9 + float(i) * 0.5
-		var spot := CLEARING + Vector3(cos(ang), 0, sin(ang)) * 1.55
+		var spot := _posto_al_falo(i)
 		node.position = spot + Vector3(0.04, 0, 0.04)
 		node.call("do_routine", "fire", spot, CLEARING)
 		_residents[i]["phase"] = "fire"
