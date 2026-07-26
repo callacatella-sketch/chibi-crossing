@@ -457,7 +457,15 @@ static func _build_face(head: Node3D, dna: Dictionary, fur: ShaderMaterial,
 	var irises: Array[Node3D] = []
 	var happy: Array[Node3D] = []
 	var brows: Array[Node3D] = []
-	var brow_mat := _flat(Color(dna["fur"]).darkened(0.62))
+	# sopracciglia vere dal DNA: lo stile viene dal mazzo dell'archetipo, le
+	# micro-variazioni (folte/arcuate/lunghe) dal genoma. Toon e non unshaded:
+	# il fuso ha un rilievo, piatto tornerebbe una macchia.
+	var brow_mat := _mat(Color(dna["fur"]).darkened(0.62))
+	var brow_stile := str(dna.get("brow", "morbide"))
+	var brow_ricetta: Dictionary = FACE.BROW_STYLES.get(
+			brow_stile, FACE.BROW_STYLES["morbide"])
+	var brow_vari := {"arco": float(brow_ricetta["arco"]) \
+			* float(dna.get("brow_arco", 1.0))}
 	for side: float in [-1.0, 1.0]:
 		var eye := Node3D.new()
 		eye.position = Vector3(side * gap * hs, ey, front)
@@ -477,7 +485,9 @@ static func _build_face(head: Node3D, dna: Dictionary, fur: ShaderMaterial,
 				Vector3(side * gap * hs, ey + 0.006, front - 0.006), side, eye_r * 0.92))
 		brows.append(FACE.build_brow(head, brow_mat, side,
 				Vector3(side * gap * hs * 0.92, ey + eye_r * 1.7, front + 0.002),
-				eye_r * 1.05, 0.015))
+				eye_r * 1.05 * float(dna.get("brow_len", 1.0)),
+				0.015 * float(dna.get("brow_folto", 1.0)),
+				brow_stile, brow_vari))
 
 	# il set completo di bocche morbide (neutra, sorriso, ghigno, o/O, broncio,
 	# triste, seria) + la cavità scura che si apre per parlare/ridere/stupirsi

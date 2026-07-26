@@ -30,6 +30,17 @@ const NAMES := [
 	"Amaretto", "Farina", "Cacao", "Prugna",
 ]
 
+# Il mazzo di sopracciglia di ogni archetipo (i doppioni pesano la pesca).
+# I nomi puntano a FaceController.BROW_STYLES — la fonte unica della FORMA;
+# qui vive solo la tendenza di famiglia. Un test tiene allineati i due file.
+const BROW_DECKS := {
+	"gatto": ["arcuate", "arcuate", "morbide", "decise", "sottili"],
+	"coniglio": ["morbide", "morbide", "sottili", "arcuate", "dritte"],
+	"orsetto": ["folte", "folte", "morbide", "dritte"],
+	"volpina": ["decise", "decise", "arcuate", "folte", "dritte"],
+	"topolino": ["sottili", "sottili", "dritte", "morbide"],
+}
+
 const FURS := ["f7e6d0", "e8d5b8", "d9c4a8", "cfc4bd", "f2d8c8", "e8e4dc", "c9a889", "b89f8a"]
 const DRESSES := ["f2a9bc", "9fd8cf", "b7c6ff", "ffd76e", "c9a8f0", "8fc0c8", "f4c48f", "b8e0a0"]
 
@@ -138,7 +149,7 @@ static func generate(seed_v := -1) -> Dictionary:
 		"coniglio":
 			tratti["lealta"] = clampf(float(tratti["lealta"]) + 0.16, 0.0, 1.0)
 
-	return {
+	var dna := {
 		"name": name,
 		"seed": seed_v if seed_v >= 0 else int(rng.seed),
 		"sogno": sogno,
@@ -169,3 +180,14 @@ static func generate(seed_v := -1) -> Dictionary:
 		"indole": indole,
 		"quirk": quirk,
 	}
+
+	# le sopracciglia: lo stile dal mazzo dell'archetipo, poi il singolo
+	# individuo le porta più folte o più sottili, più arcuate o più piatte.
+	# Tiri IN CODA a tutti gli altri: a parità di seed i geni storici non si
+	# spostano (un residente salvato prima delle sopracciglia rinasce uguale).
+	var deck: Array = BROW_DECKS[arche]
+	dna["brow"] = deck[rng.randi() % deck.size()]
+	dna["brow_folto"] = rng.randf_range(0.82, 1.22)
+	dna["brow_arco"] = rng.randf_range(0.8, 1.25)
+	dna["brow_len"] = rng.randf_range(0.9, 1.15)
+	return dna

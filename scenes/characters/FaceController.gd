@@ -651,35 +651,158 @@ func _apply_blush() -> void:
 # Helper statici condivisi: Mochi e ChibiBuilder li usano per costruire le
 # stesse parti facciali, così il rig è identico per il giocatore e i vicini.
 
-## Un sopracciglio: una barretta morbida leggermente arcuata, appesa a un
-## pivot alla sua radice interna (così alzarlo/inclinarlo ruota bene).
+## Gli stili di sopracciglio — la fonte unica di verità delle varianti che
+## il DNA può pescare: ChibiDNA tira a sorte il NOME, ChibiBuilder e Mochi
+## costruiscono la forma da qui. Ogni stile è una ricetta:
+##   arco   quanto s'inarca il corpo (frazione della lunghezza)
+##   picco  dove sta il colmo dell'arco (0..1 dalla radice alla coda)
+##   coda   quanto la coda ricade a fine corsa (frazione della lunghezza)
+##   spess  moltiplicatore dello spessore di base
+##   punta  spessore residuo in punta (0.08 = affilata, 0.34 = mozza)
+##   testa  pienezza della radice interna (frazione dello spessore pieno)
+const BROW_STYLES := {
+	"morbide": {"arco": 0.30, "picco": 0.60, "coda": 0.10,
+			"spess": 1.00, "punta": 0.16, "testa": 0.72},
+	"arcuate": {"arco": 0.52, "picco": 0.55, "coda": 0.24,
+			"spess": 0.85, "punta": 0.10, "testa": 0.66},
+	"dritte": {"arco": 0.10, "picco": 0.50, "coda": 0.02,
+			"spess": 1.00, "punta": 0.22, "testa": 0.80},
+	"decise": {"arco": 0.34, "picco": 0.70, "coda": 0.30,
+			"spess": 1.18, "punta": 0.12, "testa": 0.62},
+	"folte": {"arco": 0.22, "picco": 0.55, "coda": 0.08,
+			"spess": 1.45, "punta": 0.34, "testa": 0.85},
+	"sottili": {"arco": 0.36, "picco": 0.60, "coda": 0.16,
+			"spess": 0.66, "punta": 0.08, "testa": 0.60},
+}
+
+
+## Un sopracciglio VERO: non più una fila di palline ma una ciglia unica —
+## un fuso a sezione ellittica spazzato lungo la curva radice→colmo→coda,
+## pieno e tondo alla radice, affilato in punta. Appeso a un pivot alla
+## radice interna (così il FaceController lo alza/inclina/corruga ruotando
+## bene). [param style] è un nome di BROW_STYLES; [param vari] sovrascrive
+## singole voci della ricetta (le micro-variazioni del DNA).
 ## Ritorna il pivot. [param side] -1 = sinistro, +1 = destro.
 static func build_brow(parent: Node3D, mat: Material, side: float,
-		pos: Vector3, length := 0.12, thick := 0.016) -> Node3D:
+		pos: Vector3, length := 0.12, thick := 0.016,
+		style := "morbide", vari := {}) -> Node3D:
 	var pivot := Node3D.new()
 	pivot.position = pos
 	# un filo di inclinazione a riposo, verso l'esterno: sguardo dolce
 	pivot.rotation.z = side * 0.06
 	parent.add_child(pivot)
-	# tre perline che digradano verso l'esterno danno l'arco morbido
-	var n := 4
-	for i in n:
-		var f := float(i) / float(n - 1)          # 0 = interno, 1 = esterno
-		var r := thick * (1.0 - f * 0.45)
-		var sm := SphereMesh.new()
-		sm.radius = r
-		sm.height = r * 2.0
-		sm.radial_segments = 10
-		sm.rings = 6
-		var mi := MeshInstance3D.new()
-		mi.mesh = sm
-		mi.material_override = mat
-		# cresce verso l'esterno (side) e si incurva appena in su a metà
-		mi.position = Vector3(side * f * length, sin(f * PI) * 0.012, 0.0)
-		mi.scale = Vector3(1.25, 0.7, 0.6)
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		pivot.add_child(mi)
+
+	var ricetta: Dictionary = BROW_STYLES.get(style, BROW_STYLES["morbide"]).duplicate()
+	for k in vari:
+		ricetta[k] = vari[k]
+
+	var mi := MeshInstance3D.new()
+	mi.mesh = _brow_mesh(side, length, thick, ricetta)
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	pivot.add_child(mi)
 	return pivot
+
+
+## La mesh del sopracciglio: la stessa spazzata a frame paralleli dei tubi
+## di ChibiBuilder (winding e tappi identici), ma a sezione ellittica —
+## schiacciata verso il viso — e con lo spessore che segue la ricetta.
+static func _brow_mesh(side: float, length: float, thick: float,
+		ricetta: Dictionary) -> ArrayMesh:
+	var arco := float(ricetta.get("arco", 0.3))
+	var picco := clampf(float(ricetta.get("picco", 0.6)), 0.2, 0.85)
+	var coda := float(ricetta.get("coda", 0.1))
+	var spess := float(ricetta.get("spess", 1.0))
+	var punta := clampf(float(ricetta.get("punta", 0.16)), 0.02, 0.9)
+	var testa := float(ricetta.get("testa", 0.72))
+
+	# l'esponente che porta il colmo di sin(PI·f^p) esattamente su "picco"
+	var p := log(0.5) / log(picco)
+	var rings := 14
+	var sides_n := 10
+	var centers: Array[Vector3] = []
+	var rads: Array[float] = []
+	for i in rings + 1:
+		var f := float(i) / float(rings)
+		# il corpo sale fino al colmo, poi la coda ricade; la lieve bombatura
+		# in avanti al centro fa abbracciare la fronte al fuso
+		var y := (arco * sin(PI * pow(f, p)) - coda * f) * length
+		var z := -0.25 * thick * sin(PI * f)
+		centers.append(Vector3(side * f * length, y, z))
+		# radice piena e tonda, corpo pieno, coda che si affila in punta
+		var base := lerpf(testa, 1.0, smoothstep(0.0, 0.3, f))
+		var fine := lerpf(1.0, punta, smoothstep(0.3, 1.0, f))
+		rads.append(thick * spess * base * fine)
+
+	var count := centers.size()
+	var tans: Array[Vector3] = []
+	for i in count:
+		tans.append((centers[mini(i + 1, count - 1)] \
+				- centers[maxi(i - 1, 0)]).normalized())
+	var nrm := Vector3.RIGHT
+	if absf(tans[0].dot(nrm)) > 0.9:
+		nrm = Vector3.UP
+	nrm = (nrm - tans[0] * nrm.dot(tans[0])).normalized()
+
+	var squash := 0.62      # sezione ellittica: il fuso è schiacciato sul viso
+	var verts := []
+	var norms := []
+	for i in count:
+		if i > 0:
+			var axis := tans[i - 1].cross(tans[i])
+			var l := axis.length()
+			if l > 0.0001:
+				nrm = nrm.rotated(axis / l, tans[i - 1].angle_to(tans[i]))
+		var bin := tans[i].cross(nrm).normalized()
+		var prev_i := maxi(i - 1, 0)
+		var next_i := mini(i + 1, count - 1)
+		var ds := centers[next_i].distance_to(centers[prev_i])
+		var slope := 0.0 if ds < 0.0001 else (rads[next_i] - rads[prev_i]) / ds
+		var ring_v: Array[Vector3] = []
+		var ring_n: Array[Vector3] = []
+		for j in sides_n:
+			var a := float(j) / float(sides_n) * TAU
+			ring_v.append(centers[i] + nrm * (cos(a) * rads[i]) \
+					+ bin * (sin(a) * rads[i] * squash))
+			# normale dell'ellisse (il gradiente), piegata dalla rastremazione
+			var dirn := (nrm * cos(a) + bin * (sin(a) / squash)).normalized()
+			ring_n.append((dirn - tans[i] * slope).normalized())
+		verts.append(ring_v)
+		norms.append(ring_n)
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in count - 1:
+		for j in sides_n:
+			var j2 := (j + 1) % sides_n
+			st.set_normal(norms[i][j])
+			st.add_vertex(verts[i][j])
+			st.set_normal(norms[i + 1][j])
+			st.add_vertex(verts[i + 1][j])
+			st.set_normal(norms[i + 1][j2])
+			st.add_vertex(verts[i + 1][j2])
+			st.set_normal(norms[i][j])
+			st.add_vertex(verts[i][j])
+			st.set_normal(norms[i + 1][j2])
+			st.add_vertex(verts[i + 1][j2])
+			st.set_normal(norms[i][j2])
+			st.add_vertex(verts[i][j2])
+	# tappi
+	for j in sides_n:
+		var j2 := (j + 1) % sides_n
+		st.set_normal(-tans[0])
+		st.add_vertex(centers[0])
+		st.set_normal(-tans[0])
+		st.add_vertex(verts[0][j])
+		st.set_normal(-tans[0])
+		st.add_vertex(verts[0][j2])
+		st.set_normal(tans[count - 1])
+		st.add_vertex(centers[count - 1])
+		st.set_normal(tans[count - 1])
+		st.add_vertex(verts[count - 1][j2])
+		st.set_normal(tans[count - 1])
+		st.add_vertex(verts[count - 1][j])
+	return st.commit()
 
 
 ## Il set completo di bocche morbide, tutte figlie di un nodo al centro

@@ -595,10 +595,11 @@ func _build_head() -> void:
 		# l'arco "^^" della felicità piena (nascosto a riposo)
 		_happy.append(FACE.build_happy_arc(_head, _eye_mat,
 				Vector3(side * 0.155, 0.04, -0.362), side, 0.078))
-		# il sopracciglio: una barretta morbida sopra l'occhio — dove vive
-		# gran parte dell'emozione. Tono caldo del musetto, non nero duro.
-		_brows.append(FACE.build_brow(_head, _flat_mat(Color("6b4636")), side,
-				Vector3(side * 0.108, 0.185, -0.352), 0.088, 0.017))
+		# il sopracciglio: una ciglia vera, arcuata e affilata in punta — dove
+		# vive gran parte dell'emozione. Tono caldo del musetto, non nero
+		# duro; toon e non unshaded, così il fuso mostra il suo rilievo.
+		_brows.append(FACE.build_brow(_head, _toon_mat(Color("6b4636")), side,
+				Vector3(side * 0.108, 0.185, -0.352), 0.088, 0.017, "morbide"))
 
 	# occhi ">.<" per la corsa: due chevron di capsule, nascosti a riposo
 	for side: float in [-1.0, 1.0]:
