@@ -19,6 +19,7 @@ func run(t) -> void:
 	_test_contratto_chiavi_save_load(t)
 	_test_fili_attaccati(t)
 	_test_nessuno_chiama_il_writer_privato(t)
+	_test_harness_non_riscrive_il_salvataggio(t)
 
 
 ## Il percorso VERO del ripristino: un animo con rancore viene salvato, rimesso
@@ -107,6 +108,30 @@ func _test_nessuno_chiama_il_writer_privato(t) -> void:
 	t.eq(colpevoli.size(), 0,
 			"nessuno fuori dal BuildSystem chiama _save_village (colpevoli: %s)"
 			% ", ".join(colpevoli))
+
+
+## L'harness da riga di comando NON deve riscrivere il villaggio del giocatore.
+## CHIBI_LAVORI e CHIBI_LEGNA fabbricano residenti finti, danno incarichi e
+## simulano novanta giorni di lavoro forzato fino alla diserzione: girando con
+## le scritture accese (solo CHIBI_SHOT le spegneva) quella roba finiva in
+## user://village.json e i disertori se ne andavano per davvero. Ora MainLevel
+## le spegne prima di far partire l'harness — tranne per CHIBI_LEGNA_SAVE, dove
+## salvare È la prova.
+func _test_harness_non_riscrive_il_salvataggio(t) -> void:
+	var avvio := _body("res://scenes/levels/MainLevel.gd", "_start_debug_harness")
+	t.ok(avvio.contains("set_persist_for_debug(false)"),
+			"_start_debug_harness spegne le scritture del BuildSystem")
+	t.ok(avvio.contains("\"lavori\""),
+			"…nella modalità lavori (residenti finti e giorni forzati)")
+	t.ok(avvio.contains("\"legna\"") and avvio.contains("CHIBI_LEGNA_SAVE"),
+			"…e nella legna, salvo l'opt-in CHIBI_LEGNA_SAVE")
+	t.ok(_body("res://scenes/build/BuildSystem.gd", "set_persist_for_debug") != "",
+			"BuildSystem espone set_persist_for_debug (niente _persist a mano)")
+	# il caricamento deve restare acceso: la fase 2 della prova sulla legna
+	# riavvia SENZA la variabile e controlla che il ceppo sia ancora lì
+	t.ok(not _body("res://scenes/build/BuildSystem.gd", "_load_village")
+			.contains("_persist"),
+			"_load_village non guarda _persist: si carica anche a scritture spente")
 
 
 func _tutti_gli_script(dir_path: String) -> Array[String]:

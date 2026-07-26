@@ -61,10 +61,17 @@ func _debug_lavori(dir: String) -> void:
 		dna["sogno"] = sogni[i]
 		residenti.append({"species": "chibi", "cell": Vector2i(i, 0), "node": null,
 				"dna": dna, "label": str(dna["name"]), "friend": 2, "wish": {}})
-	for r in residenti:
+	# `residenti` è l'array VIVO dei Visitors: se c'è un salvataggio, dentro ci
+	# sono già i residenti veri del giocatore. Da qui in poi si lavora SOLO sui
+	# tre appena aggiunti (gli ultimi tre della lista): incarichi, giorni di
+	# lavoro forzato e partenze non devono toccare gente che non c'entra, né
+	# mescolarsi ai risultati stampati.
+	var cavie: Array = residenti.slice(residenti.size() - 3)
+	for r in cavie:
 		vis.call("_ensure_brain", r)
 		lav.assegna(str(r["label"]), "coltiva")
-	print("LAVORI: %d residenti, tutti mandati all orto" % residenti.size())
+	print("LAVORI: %d residenti di prova (su %d nel villaggio), tutti all orto"
+			% [cavie.size(), residenti.size()])
 
 	# novanta giorni identici, nello STESSO ordine del gioco vero: Visitors
 	# connette day_changed diretto (valuta i ricordi di ieri), Lavori connette
@@ -76,13 +83,13 @@ func _debug_lavori(dir: String) -> void:
 		vis.call("_giorno_di_animo")
 		lav._on_nuovo_giorno(g)
 		if g == 30:
-			for r in residenti:
+			for r in cavie:
 				vis.lutto_di(str(r["label"]), "Pepe")   # e nessuno li consola
-	for r in residenti:
+	for r in cavie:
 		print("LAVORI: %-22s -> %s" % [r["label"], vis.perche(str(r["label"]))])
 
 	# --- i marchi sui LUOGHI: si è formata l'avversione? ---
-	for r in residenti:
+	for r in cavie:
 		var lb2 := str(r["label"])
 		var ev: Array = vis.luoghi_evitati(lb2)
 		var lim2 = vis.get("_animi")[lb2].limbico
@@ -91,15 +98,17 @@ func _debug_lavori(dir: String) -> void:
 				vis.call("_filtra_luogo", lb2, "cura_giardino")])
 
 	# --- la catena finale: confronto, sfogo, partenza ---
-	print("LAVORI: gradini = %s" % [residenti.map(func(r): return vis.animo_di(str(r["label"])))])
-	for r in residenti:
+	print("LAVORI: gradini = %s" % [cavie.map(func(r): return vis.animo_di(str(r["label"])))])
+	for r in cavie:
 		var lb := str(r["label"])
 		var an = vis.get("_animi")[lb]
 		if ANIMO.almeno(int(an.gradino), "confronto"):
 			print("LAVORI: SFOGO di %s -> %s" % [lb, an.sfogo()])
 	# chi è alla diserzione se ne va: si accorcia l'attesa e si fa scattare
+	# (solo per le cavie: un residente vero, anche se arrivasse in fondo alla
+	#  scala, resterebbe in attesa i suoi novanta secondi come nel gioco)
 	var quanti_prima_p: int = residenti.size()
-	for r in residenti:
+	for r in cavie:
 		r["parte_fra"] = 0.05
 	vis.call("_tick_partenze", 1.0)
 	await _frames(3)

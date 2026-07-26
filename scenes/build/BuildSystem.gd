@@ -991,6 +991,16 @@ func save_now() -> void:
 	_save_village()
 
 
+## Spegne (o riaccende) le SCRITTURE per l'harness di verifica da riga di
+## comando. Il caricamento non passa di qui: `_load_village` è già stato messo
+## in coda da `_ready` e non guarda `_persist`, quindi il villaggio del
+## giocatore si carica ancora — si blocca solo la riscrittura del file.
+func set_persist_for_debug(on: bool) -> void:
+	_persist = on
+	if not on:
+		_save_pending = false
+
+
 func _flush_save() -> void:
 	if not _save_pending:
 		return
