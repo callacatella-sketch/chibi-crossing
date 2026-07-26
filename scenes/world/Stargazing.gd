@@ -556,12 +556,10 @@ func load_extra(data: Dictionary) -> void:
 	(func(): _rebuild_lines()).call_deferred()
 
 
-# ---------------------------------------------------------------- debug CLI
-
-## Traccia una costellazione d'ufficio: una catena di stelle vicine.
-func debug_add(cname: String) -> void:
-	var chain: Array[int] = [40]
-	var used := {40: true}
+# una catena di stelle vicine, a partire da una stella data
+func _catena_da(start: int) -> Array[int]:
+	var chain: Array[int] = [start]
+	var used := {start: true}
 	for step in 5:
 		var last := _star_pos(chain[-1])
 		var best := -1
@@ -577,7 +575,32 @@ func debug_add(cname: String) -> void:
 			break
 		chain.append(best)
 		used[best] = true
-	_constellations.append({"name": cname, "stars": chain})
+	return chain
+
+
+## La costellazione di chi è partito per il Grande Prato (Fase 5 del Filo
+## Rosso): le stelle le sceglie il SUO DNA (seed), il nome resta in cielo
+## per sempre, persistito con le costellazioni di Mochi.
+func memorial(cname: String, seed_v: int) -> void:
+	for c: Dictionary in _constellations:
+		if str(c["name"]) == cname:
+			return  # è già lassù
+	var start := absi(seed_v) % maxi(1, _daynight.star_dirs.size())
+	_constellations.append({"name": cname, "stars": _catena_da(start)})
+	_rebuild_lines()
+	_toast("✨ %s adesso abita lassù: guarda il cielo, stanotte." % cname)
+	var gtree := get_tree().get_first_node_in_group("grande_albero")
+	if gtree:
+		gtree.engrave("★", "la costellazione di %s è apparsa in cielo" % cname)
+	if _build:
+		_build.request_save()
+
+
+# ---------------------------------------------------------------- debug CLI
+
+## Traccia una costellazione d'ufficio: una catena di stelle vicine.
+func debug_add(cname: String) -> void:
+	_constellations.append({"name": cname, "stars": _catena_da(40)})
 	_rebuild_lines()
 
 

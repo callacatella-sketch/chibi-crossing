@@ -11,7 +11,10 @@ const BRAIN := preload("res://scenes/npc/VillagerBrain.gd")
 const ANIMO := preload("res://scenes/npc/Animo.gd")
 const VILLAGGIO := preload("res://scenes/npc/Villaggio.gd")
 const UI_BROWN := Color("6a4a3a")
-const MAX_RESIDENTS := 4
+# Otto vicini: il passaparola del Villaggio, le chiacchiere, le indoli e le
+# stravaganze rendono per densità — con otto il villaggio brulica e la scala
+# dell'Animo produce storie corali (era 4: mezzo coro).
+const MAX_RESIDENTS := 8
 
 const SPECIES := ["riccio", "passerotto"]
 const SPECIES_LABEL := {"riccio": "Il Riccio", "passerotto": "Il Passerotto"}
@@ -83,6 +86,7 @@ var _toast_label: Label
 
 func _ready() -> void:
 	add_to_group("persistable")
+	add_to_group("empatia")   # MainLevel ci racconta i bisogni di Mochi (Fase 6)
 	_player = get_node("%Player")
 	_build = get_node("../BuildSystem")
 	_daynight = get_node_or_null("../DayNight")
@@ -209,6 +213,9 @@ func _process(delta: float) -> void:
 		if speaker:
 			speaker.call("speak", ["pioggia", "casa"], "domanda")
 	_was_raining = raining
+
+	# (Fase 6) i vicini leggono Mochi: l'empatia bidirezionale
+	_tick_empatia(delta, raining)
 
 	# se Mochi è salita sulla casa sull'albero, ogni tanto un residente
 	# si arrampica a trovarla: la verticalità è anche compagnia
@@ -655,6 +662,231 @@ func _label_in_use(label: String) -> bool:
 		if str(r.get("label", "")) == label:
 			return true
 	return false
+
+
+# ================================================= API per il Filo Rosso
+# (Congedo.gd orchestra il congedo, il lutto e l'empatia: queste sono le
+#  mani che gli servono per muovere i residenti senza frugare nell'agenda)
+
+func node_di(label: String) -> Node3D:
+	for r in _residents:
+		if str(r.get("label", "")) == label:
+			return r.get("node") as Node3D
+	return null
+
+
+func dna_di(label: String) -> Dictionary:
+	for r in _residents:
+		if str(r.get("label", "")) == label:
+			return r.get("dna", {})
+	return {}
+
+
+func cella_di(label: String) -> Vector2i:
+	for r in _residents:
+		if str(r.get("label", "")) == label:
+			return r["cell"]
+	return Vector2i(999, 999)
+
+
+## Manda un residente in un punto (il giro delle ultime cose): l'agenda
+## si mette da parte e lui va, si guarda intorno, resta un po'.
+func manda(label: String, pos: Vector3) -> void:
+	for r in _residents:
+		if str(r.get("label", "")) != label:
+			continue
+		var node := r.get("node") as Node3D
+		if node == null or not is_instance_valid(node):
+			return
+		if node.call("is_hidden"):
+			node.call("resident_wake")
+		r["next_act"] = 45.0
+		node.call("do_task", "wonder", pos)
+		return
+
+
+## Il raduno al falò: tutti attorno al fuoco (l'ultima sera del congedo
+## la chiama il Congedo; la CLI la usa da sempre via debug_gather_fire).
+func gather_fire() -> void:
+	for i in _residents.size():
+		var r := _residents[i]
+		var node := r.get("node") as Node3D
+		if node == null or not is_instance_valid(node) or node.call("is_hidden"):
+			continue
+		r["next_act"] = 9999.0
+		var ang := 0.9 + float(i) * 0.55
+		var spot := CLEARING + Vector3(cos(ang), 0, sin(ang)) * 1.7
+		node.call("do_routine", "fire", spot, CLEARING)
+
+
+## La partenza per il Grande Prato: GENTILE. Niente lettera di rancore
+## (quella è della diserzione): la storia l'ha già raccontata il congedo.
+## La pulizia è la stessa di _congeda: letto libero, grafo, incarichi.
+func parte_per_il_grande_prato(label: String) -> void:
+	for i in _residents.size():
+		var r := _residents[i]
+		if str(r.get("label", "")) != label:
+			continue
+		var node := r.get("node") as Node3D
+		if node != null and is_instance_valid(node):
+			var tw := create_tween()
+			tw.tween_property(node, "scale", Vector3.ONE * 0.01, 1.6) \
+					.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+			tw.tween_callback(node.queue_free)
+		_residents.remove_at(i)
+		_animi.erase(label)
+		_brains.erase(label)
+		if _villaggio != null:
+			_villaggio.rimuovi(label)
+		_in_confronto.erase(label)
+		_sussulto_cd.erase(label)
+		_sussulto_cd.erase("morso_" + label)
+		get_tree().call_group("lavori", "assegna", label, "")
+		_build.request_save()
+		return
+
+
+# ------------------------------------------- l'empatia bidirezionale
+# (Fase 6) Il colpo di scena del Filo Rosso: quando Mochi ha bisogno,
+# sono i VICINI ad accorgersene. Ogni gentilezza al più una volta al
+# giorno, mai due insieme: l'empatia vera è discreta.
+
+var _fame_critica := false      # lo dice MainLevel (bisogno "hunger" critico)
+var _fame_acc := 0.0
+var _pioggia_acc := 0.0
+var _pioggia_fatta := false     # una premura per acquazzone, non una al secondo
+var _ritorno_visto := false
+var _empatia_giorno := {}       # motivo -> giorno in cui è già successa
+
+
+## MainLevel ci racconta i bisogni di Mochi (gruppo "empatia").
+func mochi_bisogno(kind: String, level: int) -> void:
+	if kind == "hunger":
+		_fame_critica = level >= 2
+		if not _fame_critica:
+			_fame_acc = 0.0
+
+
+func _tick_empatia(delta: float, raining: bool) -> void:
+	if _residents.is_empty() or _player == null:
+		return
+	var oggi: int = int(_daynight.get("day")) if _daynight else 1
+
+	# il ritorno dopo un'assenza REALE: ti sono mancati, e te lo dicono
+	# venendoti incontro tutti insieme (una volta sola, poco dopo il load)
+	if not _ritorno_visto:
+		_ritorno_visto = true
+		var legami: Node = get_tree().get_first_node_in_group("legami")
+		if legami and float(legami.call("assenza_reale_giorni")) >= 2.0 \
+				and _residents.size() >= 2:
+			var pp: Vector3 = _player.global_position
+			var quanti := 0
+			for r in _residents:
+				var node := r.get("node") as Node3D
+				if node == null or not is_instance_valid(node) or node.call("is_hidden"):
+					continue
+				r["next_act"] = 30.0
+				var ang := TAU * float(quanti) / 4.0
+				node.call("do_routine", "sniff",
+						pp + Vector3(cos(ang), 0, sin(ang)) * 1.3, pp)
+				node.call("speak", ["ciao", "felice"], "felice")
+				node.call("_spawn_heart")
+				quanti += 1
+				if quanti >= 4:
+					break
+			if quanti > 0:
+				_show_toast("Bentornata! Ti hanno aspettata, giorno dopo giorno.")
+
+	# la fame che dura: un amico porta da mangiare senza che nessuno chieda
+	if _fame_critica and int(_empatia_giorno.get("fame", -1)) != oggi:
+		_fame_acc += delta
+		if _fame_acc >= 20.0:
+			_fame_acc = 0.0
+			if conforta_mochi("fame"):
+				_empatia_giorno["fame"] = oggi
+
+	# la pioggia con Mochi fuori: qualcuno la raggiunge sotto l'acqua
+	if raining:
+		var cell := Vector2i(roundi(_player.global_position.x),
+				roundi(_player.global_position.z))
+		var al_coperto: bool = _build != null and bool(_build.call("has_cover", cell))
+		if not al_coperto and not _pioggia_fatta \
+				and int(_empatia_giorno.get("pioggia", -1)) != oggi:
+			_pioggia_acc += delta
+			if _pioggia_acc >= 25.0:
+				_pioggia_fatta = conforta_mochi("pioggia")
+				if _pioggia_fatta:
+					_empatia_giorno["pioggia"] = oggi
+		elif al_coperto:
+			_pioggia_acc = 0.0
+	else:
+		_pioggia_acc = 0.0
+		_pioggia_fatta = false
+
+
+## Un amico si accorge di Mochi e viene a starle vicino (Fasi 4 e 6:
+## lutto, fame, pioggia, ritorno). Ritorna false se nessuno può.
+func conforta_mochi(motivo: String) -> bool:
+	var vicino: Node3D = null
+	var vicino_r := {}
+	var best_d := INF   # 999 non basta: un amico viene anche da lontano
+	var dorme: Node3D = null      # un amico vero si alza anche dal letto
+	var dorme_r := {}
+	for r in _residents:
+		var node := r.get("node") as Node3D
+		if node == null or not is_instance_valid(node):
+			continue
+		if node.call("is_hidden"):
+			dorme = node
+			dorme_r = r
+			continue
+		var d: float = _player.global_position.distance_to(node.global_position)
+		if d < best_d:
+			best_d = d
+			vicino = node
+			vicino_r = r
+	if vicino == null and dorme != null:
+		dorme.call("resident_wake")
+		vicino = dorme
+		vicino_r = dorme_r
+	if vicino == null:
+		return false
+	var label := str(vicino_r.get("label", ""))
+	vicino_r["next_act"] = 30.0
+	var fianco: Vector3 = _player.global_position + Vector3(randf_range(-0.8, 0.8), 0, 0.9)
+	vicino.call("do_routine", "sniff", fianco, _player.global_position)
+	# le parole giuste per ogni premura (nel lutto: quasi niente — si siede
+	# accanto e basta, è il capolavoro dell'empatia)
+	var parole: Array = ["felice", "amico"]
+	var umore := "felice"
+	var cuore := true
+	match motivo:
+		"lutto":
+			parole = ["amico", "~"]
+			umore = "triste"
+			cuore = false
+			_show_toast("%s viene a sederti accanto. Non dice niente." % label)
+		"fame":
+			parole = ["cibo", "amico"]
+			if _cooking and _cooking.has_method("add_ingredient"):
+				_cooking.call("add_ingredient", "bacca", 2)
+			_show_toast("%s ti ha portato qualcosa da mangiare, senza che nessuno chiedesse niente." % label)
+		"pioggia":
+			parole = ["pioggia", "amico"]
+			umore = "neutro"
+			_show_toast("%s ti ha raggiunta sotto la pioggia, per non lasciarti sola." % label)
+	# e le dice sottovoce, quando è arrivato accanto a lei
+	var conforto := vicino
+	get_tree().create_timer(2.6).timeout.connect(func():
+		if not is_instance_valid(conforto):
+			return
+		conforto.call("face_towards", _player.global_position)
+		conforto.call("speak", parole, umore)
+		if cuore:
+			conforto.call("_spawn_heart")
+		else:
+			conforto.call("chat_bubble", "…"))
+	return true
 
 
 # ============================================ il confronto e il morso
@@ -1465,13 +1697,36 @@ func _house_features(house: Dictionary) -> Dictionary:
 	return f
 
 
+## Gli archetipi non ancora rappresentati tra i residenti dati. PURA e
+## statica (la testa il test): è la garanzia di varietà — con otto posti
+## devono arrivare tutti e cinque, non un villaggio di soli gattini.
+static func archetipi_mancanti(presenti: Array) -> Array:
+	var visti := {}
+	for a in presenti:
+		visti[str(a)] = true
+	var out := []
+	for a in DNA.ARCHETYPES:
+		if not visti.has(str(a)):
+			out.append(str(a))
+	return out
+
+
 func _spawn_candidate(dna: Dictionary, house: Dictionary) -> void:
 	# etichette UNICHE: animo, cervello, incarichi e salvataggio sono tutti
 	# keyed sulla label (solo ~80 combinazioni possibili) — due omonimi
 	# condividerebbero la stessa vita interiore. Se il caso la ripesca,
-	# si rigenera il DNA finché la label non è nuova.
-	for _tent in 12:
-		if not _label_in_use(str(dna["label"])):
+	# si rigenera il DNA finché la label non è nuova. E la VARIETÀ: finché
+	# un archetipo manca all'appello, il prossimo candidato tende a essere
+	# uno di quelli (tentativi limitati: se il caso si impunta, va bene
+	# comunque chiunque — mai bloccare l'arrivo).
+	var presenti := []
+	for r in _residents:
+		presenti.append(str((r.get("dna", {}) as Dictionary).get("archetype", "")))
+	var mancanti := archetipi_mancanti(presenti)
+	for _tent in 24:
+		var label_ok := not _label_in_use(str(dna["label"]))
+		var arche_ok: bool = mancanti.is_empty() or str(dna["archetype"]) in mancanti
+		if label_ok and arche_ok:
 			break
 		dna = DNA.generate()
 	_timer = randf_range(80.0, 160.0)
@@ -1731,7 +1986,11 @@ func _saluta() -> void:
 				# la prima zampina alzata si annoda al Filo Rosso;
 				# e a volte, salutandosi, un ricordo riaffiora
 				get_tree().call_group("legami", "momento", nome, "primo_saluto", "")
-				get_tree().call_group("legami", "ricorda", nome, best))
+				get_tree().call_group("legami", "ricorda", nome, best)
+				# durante un lutto, la zampina alzata È la consolazione:
+				# il Congedo sa chi sta aspettando un pensiero
+				get_tree().call_group("congedo", "consolato",
+						str(best_r.get("label", "")), nome))
 
 
 func _collect_gift() -> void:

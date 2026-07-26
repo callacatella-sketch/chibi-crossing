@@ -29,7 +29,7 @@ func _ready() -> void:
 	# il gioco parte dal titolo, un menù che aspetta un clic bloccherebbe
 	# CHIBI_SHOT (gli screenshot documentati nel README), CHIBI_LEGNA e
 	# CHIBI_MAKESAVE — che girano senza nessuno alla tastiera.
-	for v in ["CHIBI_SHOT", "CHIBI_LEGNA", "CHIBI_LAVORI", "CHIBI_FESTA", "CHIBI_MAKESAVE"]:
+	for v in ["CHIBI_SHOT", "CHIBI_LEGNA", "CHIBI_LAVORI", "CHIBI_FESTA", "CHIBI_FILO", "CHIBI_MAKESAVE"]:
 		if OS.get_environment(v) != "":
 			_enter.call_deferred()
 			return

@@ -144,6 +144,9 @@ func _ready() -> void:
 	add_child(preload("res://scenes/npc/Director.gd").new())
 	# il Filo Rosso: la memoria dei momenti condivisi coi vicini
 	add_child(preload("res://scenes/world/Legami.gd").new())
+	# …e il suo compimento: il congedo, il lutto, i ricordi che restano
+	# (dopo Legami: al _ready differito deve trovarlo già nel gruppo)
+	add_child(preload("res://scenes/world/Congedo.gd").new())
 	await get_tree().process_frame
 	_build_stones()
 	_build_clouds()

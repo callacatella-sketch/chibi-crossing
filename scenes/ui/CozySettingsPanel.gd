@@ -38,6 +38,10 @@ func _build() -> void:
 			func(on): _settings.set_fullscreen(on)))
 	col.add_child(_toggle_row("Riduci animazioni", "reduce_motion",
 			func(on): _settings.set_reduce_motion(on)))
+	# «Prato Eterno»: nessun vicino parte mai per il Grande Prato — il
+	# gioco resta intero anche senza (regola cozy del Filo Rosso)
+	col.add_child(_toggle_row("Prato Eterno (nessuna partenza)", "prato_eterno",
+			func(on): _settings.set_prato_eterno(on)))
 	if _settings and _settings.quality_available():
 		col.add_child(_quality_row())
 

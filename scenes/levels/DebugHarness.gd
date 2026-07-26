@@ -32,6 +32,8 @@ func run(level: Node3D, mode: String, arg: String = "") -> void:
 			await _debug_lavori(arg)
 		"festa":
 			await _debug_feste(arg)
+		"filo":
+			await _debug_filo(arg)
 
 func _frames(n: int):
 	for i in n:
@@ -147,6 +149,150 @@ func _debug_lavori(dir: String) -> void:
 	await get_tree().create_timer(0.6).timeout
 	await _shot(dir, "lavori_registro")
 	print("LAVORI: cronaca = %s" % [vis.cronaca_villaggio()])
+	get_tree().quit()
+
+
+# ---------------------------------------------------------------- filo
+# Verifica del Filo Rosso fino in fondo (Fasi 3-6): la settimana del
+# congedo con gli ultimi desideri, la partenza per il Grande Prato, il
+# fiore-ricordo, la costellazione, il capo nel guardaroba, il lutto con
+# le consolazioni, e la posta che racconta i momenti veri.
+func _debug_filo(dir: String) -> void:
+	var vis = _level.get_node_or_null("Visitors")
+	var dn = _level.get_node_or_null("DayNight")
+	var mail = _level.get_node_or_null("Mail")
+	# Legami e Congedo nascono dentro CozyWorld (costruzione differita)
+	var congedo = null
+	for attesa in 300:
+		congedo = get_tree().get_first_node_in_group("congedo")
+		if congedo != null:
+			break
+		await get_tree().process_frame
+	var legami = get_tree().get_first_node_in_group("legami")
+	if vis == null or dn == null or congedo == null or legami == null:
+		printerr("FILO: Visitors, DayNight, Congedo o Legami non trovati")
+		get_tree().quit()
+		return
+	await _frames(30)
+
+	# due vicini di lunga data: si annodano fili ricchi di momenti
+	vis.debug_add_resident(555, player.global_position + Vector3(2.0, 0, 2.0))
+	vis.debug_add_resident(777, player.global_position + Vector3(-2.0, 0, 2.0))
+	await _frames(10)
+	var residenti: Array = vis.get("_residents")
+	var anziana: Dictionary = residenti[residenti.size() - 2]
+	# una casa vera nel prato: i residenti finti nascono con cella (999,999)
+	# e il fiore-ricordo (e i desideri "casa") devono cadere DENTRO il mondo
+	anziana["cell"] = Vector2i(3, 2)
+	var nome := str((anziana.get("dna", {}) as Dictionary).get("name", ""))
+	var label := str(anziana.get("label", ""))
+	for tipo in ["benvenuto", "trasloco", "onsen", "festa", "piatto"]:
+		legami.momento(nome, str(tipo))
+	print("FILO: %s ha %d momenti sul filo" % [label, (legami.momenti_di(nome) as Array).size()])
+
+	# --- Fase 3: la settimana delle ultime cose ---
+	congedo.debug_forza_congedo(label)
+	var stato: Dictionary = congedo.debug_stato()
+	print("FILO: congedo di %s iniziato -> oggi vuole: %s"
+			% [label, (stato["congedo"] as Dictionary).get("oggi", {}).get("testo", "?")])
+	# Mochi la raggiunge al posto del ricordo: il desiderio si esaudisce
+	var oggi: Dictionary = (stato["congedo"] as Dictionary).get("oggi", {})
+	var dove_a: Array = oggi.get("dove", [0, 0, 0])
+	var dove := Vector3(float(dove_a[0]), float(dove_a[1]), float(dove_a[2]))
+	var anz_node := anziana.get("node") as Node3D
+	anz_node.global_position = dove + Vector3(0.4, 0, 0.2)
+	player.global_position = dove + Vector3(-0.8, 0, 0.9)
+	for attesa2 in 300:
+		await get_tree().process_frame
+		if bool(((congedo.debug_stato()["congedo"] as Dictionary).get("oggi", {})).get("fatto", false)):
+			break
+	var esauditi: int = int((congedo.debug_stato()["congedo"] as Dictionary).get("esauditi", 0))
+	print("FILO: desiderio esaudito = %s (momenti d'oro: %d)" % [esauditi > 0, esauditi])
+	var filocam := Camera3D.new()
+	add_child(filocam)
+	filocam.position = dove + Vector3(2.6, 1.7, 2.9)
+	filocam.fov = 44.0
+	filocam.current = true
+	filocam.look_at(dove + Vector3(0, 0.55, 0))
+	await get_tree().create_timer(0.8).timeout
+	await _shot(dir, "filo_1_ultimo_desiderio")
+
+	# --- Fasi 4-5: la partenza, il fiore, la costellazione, il capo ---
+	congedo.debug_salta_a_partenza()
+	await _frames(5)
+	var dopo: Dictionary = congedo.debug_stato()
+	print("FILO: partenza fatta. fiori=%s lutto=%s ultima_partenza=%s"
+			% [dopo["fiori"], (dopo["lutto"] as Dictionary).get("nome", "-"),
+			dopo["ultima_partenza"]])
+	print("FILO: %s e' partito? %s | residenti ora: %d"
+			% [nome, legami.e_partito(nome), (vis.get("_residents") as Array).size()])
+	var wr = get_tree().get_first_node_in_group("guardaroba")
+	print("FILO: ricordino nel guardaroba = %s"
+			% (wr.get("_unlocked") as Dictionary).has("ricordo_" + nome))
+	var stelle = get_tree().get_first_node_in_group("stelle")
+	var costellazioni: Array = stelle.get("_constellations")
+	var in_cielo := false
+	for c in costellazioni:
+		if str(c.get("name", "")) == nome:
+			in_cielo = true
+	print("FILO: la costellazione di %s e' in cielo = %s" % [nome, in_cielo])
+	print("FILO: lettera d'addio in coda = %s" % ((mail.get("_letter_queue") as Array).size() > 0))
+
+	# il fiore-ricordo da vicino, con la finestra accesa nel crepuscolo
+	dn.set_time(0.74)
+	var fiori: Dictionary = congedo.get("_fiori")
+	var fiore := fiori.get(nome) as Node3D
+	if fiore:
+		player.global_position = fiore.global_position + Vector3(-0.9, 0, 0.8)
+		var fcam := Camera3D.new()
+		add_child(fcam)
+		fcam.position = fiore.global_position + Vector3(1.3, 1.0, 1.6)
+		fcam.fov = 40.0
+		fcam.current = true
+		fcam.look_at(fiore.global_position + Vector3(0, 0.35, 0))
+		await get_tree().create_timer(0.8).timeout
+		await _shot(dir, "filo_2_fiore_ricordo")
+		# i momenti riaffiorano accanto al fiore
+		congedo.call("_riaffiora", nome)
+		await get_tree().create_timer(2.0).timeout
+		await _shot(dir, "filo_3_riaffiora")
+
+	# --- Fase 4: la consolazione (saluto) e il conforto a Mochi ---
+	var altro: Dictionary = (vis.get("_residents") as Array).back()
+	var altro_label := str(altro.get("label", ""))
+	var prima_cons: Array = ((legami.lutto() as Dictionary).get("da_consolare", []) as Array).duplicate()
+	congedo.consolato(altro_label, "chiunque")
+	var dopo_cons: Array = (legami.lutto() as Dictionary).get("da_consolare", [])
+	print("FILO: consolazione: da_consolare %d -> %d" % [prima_cons.size(), dopo_cons.size()])
+	# Mochi si mette a portata dell'amico rimasto, e lui viene a starle vicino
+	var altro_node := altro.get("node") as Node3D
+	if altro_node and is_instance_valid(altro_node):
+		player.global_position = altro_node.global_position + Vector3(1.2, 0, 1.4)
+	var confortata: bool = vis.conforta_mochi("lutto")
+	print("FILO: un amico viene a sedersi accanto a Mochi = %s" % confortata)
+	await get_tree().create_timer(3.2).timeout
+	var ccam := Camera3D.new()
+	add_child(ccam)
+	ccam.position = player.global_position + Vector3(2.0, 1.4, 2.4)
+	ccam.fov = 42.0
+	ccam.current = true
+	ccam.look_at(player.global_position + Vector3(0, 0.5, 0))
+	await get_tree().create_timer(0.5).timeout
+	await _shot(dir, "filo_4_conforto")
+
+	# --- la posta dei momenti (e del Grande Prato) ---
+	var GEN_MAIL = load("res://scenes/interact/Mail.gd")
+	var lettera: Dictionary = GEN_MAIL.componi_lettera(label, legami.momenti_di(nome), 2)
+	print("FILO: lettera dai momenti -> da %s: «%s»"
+			% [lettera.get("from", "?"), str(lettera.get("text", "")).replace("\n", " / ")])
+	var dal_prato: Dictionary = mail.call("_lettera_dai_momenti")
+	print("FILO: la posta pesca dai fili vivi e dal Grande Prato = %s"
+			% (not dal_prato.is_empty()))
+
+	# --- l'empatia della fame (Fase 6), su richiesta diretta ---
+	print("FILO: conforto per fame = %s" % vis.conforta_mochi("fame"))
+	print("FILO: fine. residenti=%d, MAX=%d"
+			% [(vis.get("_residents") as Array).size(), vis.MAX_RESIDENTS])
 	get_tree().quit()
 
 

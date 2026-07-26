@@ -33,6 +33,10 @@ var _sfx
 
 var _unlocked := {}
 var _worn := {}          # id -> nodo indossato
+# i RICORDINI di chi è partito per il Grande Prato (Fase 5 del Filo
+# Rosso): capi dinamici, uno per partenza, tinti col SUO colore.
+# id "ricordo_<nome>" -> {"nome": testo, "colore": html}
+var _ricordi := {}
 var _was_raining := false
 var _rain_joy := 0.0
 var _lantern_light: OmniLight3D
@@ -55,6 +59,43 @@ func _ready() -> void:
 		_weather = get_node_or_null("../../Weather")
 		_daynight = get_node_or_null("../../DayNight")
 		_build = get_tree().get_first_node_in_group("build_system")).call_deferred()
+
+
+## La scheda di un capo: dal catalogo fisso o dai ricordini dinamici.
+func _capo_info(id: String) -> Dictionary:
+	if CAPI.has(id):
+		return CAPI[id]
+	if _ricordi.has(id):
+		var r: Dictionary = _ricordi[id]
+		return {"nome": str(r["nome"]), "slot": "collo", "icona": "❀",
+				"sblocco": ""}
+	return {}
+
+
+## Tutti i capi nell'ordine del pannello: prima il catalogo, poi i
+## ricordini (in ordine stabile).
+func _ordine() -> Array:
+	var out: Array = ORDER.duplicate()
+	var ricordi: Array = _ricordi.keys()
+	ricordi.sort()
+	out.append_array(ricordi)
+	return out
+
+
+## Il ricordino di chi è partito: entra nel guardaroba già sbloccato,
+## col suo colore. Quando Mochi lo indossa, i vicini si fermano: «mi-ka…».
+func unlock_ricordo(nome: String, colore: Color) -> void:
+	var id := "ricordo_" + nome
+	if _unlocked.has(id):
+		return
+	_ricordi[id] = {"nome": "il ricordino di %s" % nome,
+			"colore": colore.to_html(false)}
+	_unlocked[id] = true
+	_toast("Nel guardaroba c'è il ricordino di %s, piegato con cura. (G)" % nome)
+	if _sfx:
+		_sfx.build_open()
+	if _build:
+		_build.request_save()
 
 
 ## Sblocca un capo (se è nuovo): toast, scintille, campanellino.
@@ -82,10 +123,13 @@ func _toggle_wear(id: String) -> void:
 	else:
 		# un capo per slot: il nuovo scalza il vecchio
 		for other in _worn.keys():
-			if CAPI[other]["slot"] == CAPI[id]["slot"]:
+			if _capo_info(other)["slot"] == _capo_info(id)["slot"]:
 				_unwear(other)
 		_wear(id)
-		_compliments()
+		if id.begins_with("ricordo_"):
+			_compliments_ricordo()
+		else:
+			_compliments()
 	if _sfx:
 		_sfx.ui_select()
 	if _build:
@@ -94,10 +138,10 @@ func _toggle_wear(id: String) -> void:
 
 
 func _wear(id: String) -> void:
-	if _mochi == null or _worn.has(id) or not CAPI.has(id):
+	if _mochi == null or _worn.has(id) or _capo_info(id).is_empty():
 		return
 	var node := _build_capo(id)
-	var mount: Node3D = _mochi.call("get_attach_point", CAPI[id]["slot"])
+	var mount: Node3D = _mochi.call("get_attach_point", _capo_info(id)["slot"])
 	mount.add_child(node)
 	_worn[id] = node
 	node.scale = Vector3.ONE * 0.05
@@ -113,6 +157,20 @@ func _unwear(id: String) -> void:
 	_worn.erase(id)
 	if id == "lanterna_lucciola":
 		_lantern_light = null
+
+
+# il ricordino addosso: i vicini si fermano, sottovoce — «mi-ka…» (amico)
+func _compliments_ricordo() -> void:
+	var visitors := get_node_or_null("../../Visitors")
+	if visitors == null or _player == null:
+		return
+	for r in visitors.get("_residents"):
+		var node := r.get("node") as Node3D
+		if node and is_instance_valid(node) and not node.call("is_hidden") \
+				and node.global_position.distance_to(_player.global_position) < 6.0:
+			node.call("face_towards", _player.global_position)
+			node.call("speak", ["amico"], "triste")
+			node.call("chat_bubble", "…")
 
 
 # i residenti vicini si voltano e commentano: «wa-wi!»
@@ -244,6 +302,20 @@ func _build_capo(id: String) -> Node3D:
 			var btn := _pm(Color("fff3e0"), Color("efe2cc"), 5.0, 0.3)
 			for i in 3:
 				_ball(n, 0.024, btn, Vector3(0, 0.58 - i * 0.12, -0.31 + i * 0.05))
+		_:
+			if id.begins_with("ricordo_") and _ricordi.has(id):
+				# il ricordino: un fiocchetto col campanellino, al collo,
+				# tinto col colore del vestitino di chi è partito
+				n.position = Vector3(0, 0.58, -0.26)
+				var c := Color(str((_ricordi[id] as Dictionary)["colore"]))
+				var nastro := _pm(c, c.darkened(0.2), 6.0, 0.45)
+				for lato: float in [-1.0, 1.0]:
+					var ala := _ball(n, 0.055, nastro,
+							Vector3(lato * 0.055, 0.01, 0), Vector3(1.5, 0.75, 0.5))
+					ala.rotation.z = lato * 0.35
+				_ball(n, 0.028, nastro, Vector3.ZERO, Vector3(0.9, 0.9, 0.7))
+				var oro := _pm(Color("ffd76e"), Color("eec254"), 4.0, 0.35)
+				_ball(n, 0.022, oro, Vector3(0, -0.055, 0))
 	return n
 
 
@@ -288,17 +360,19 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif _open and event is InputEventKey and event.pressed and not event.is_echo():
 		var idx: int = (event as InputEventKey).keycode - KEY_1
-		if idx >= 0 and idx < ORDER.size():
-			_toggle_wear(ORDER[idx])
+		var ordine := _ordine()
+		if idx >= 0 and idx < ordine.size():
+			_toggle_wear(str(ordine[idx]))
 			get_viewport().set_input_as_handled()
 
 
 func _refresh_panel() -> void:
 	for c in _rows.get_children():
 		c.queue_free()
-	for i in ORDER.size():
-		var id: String = ORDER[i]
-		var capo: Dictionary = CAPI[id]
+	var ordine := _ordine()
+	for i in ordine.size():
+		var id := str(ordine[i])
+		var capo := _capo_info(id)
 		var row := Label.new()
 		row.add_theme_font_size_override("font_size", 13)
 		if _unlocked.has(id):
@@ -371,21 +445,27 @@ func _build_ui() -> void:
 # ---------------------------------------------------------------- persistenza
 
 func save_extra() -> Dictionary:
-	return {"wardrobe": {"unlocked": _unlocked.keys(), "worn": _worn.keys()}}
+	return {"wardrobe": {"unlocked": _unlocked.keys(), "worn": _worn.keys(),
+			"ricordi": _ricordi}}
 
 
 func load_extra(data: Dictionary) -> void:
 	var w: Dictionary = data.get("wardrobe", {})
 	if w.is_empty():
 		return
-	# solo id che esistono nel catalogo: un salvataggio di un'altra
-	# versione non fa saltare il ripristino (né perde i capi al risalvataggio)
+	# i ricordini PRIMA degli sblocchi: gli id "ricordo_*" esistono solo
+	# se la loro scheda (nome, colore) è tornata dal salvataggio
+	var ric: Variant = w.get("ricordi")
+	if ric is Dictionary:
+		_ricordi = ric
+	# solo id che esistono nel catalogo (o tra i ricordini): un salvataggio
+	# di un'altra versione non fa saltare il ripristino
 	for id in w.get("unlocked", []):
-		if CAPI.has(str(id)):
+		if CAPI.has(str(id)) or _ricordi.has(str(id)):
 			_unlocked[str(id)] = true
 	(func():
 		for id in w.get("worn", []):
-			if _unlocked.has(str(id)) and CAPI.has(str(id)):
+			if _unlocked.has(str(id)) and not _capo_info(str(id)).is_empty():
 				_wear(str(id))).call_deferred()
 
 

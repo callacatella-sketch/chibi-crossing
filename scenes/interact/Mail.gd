@@ -6,6 +6,11 @@ extends Node
 ## con uno scampanellio d'ali, e avvicinandosi lo sportello si apre da
 ## solo mostrando la busta col sigillo a cuoricino. E per leggerla, e
 ## qualche volta dentro c'è anche un regalino.
+##
+## E da quando il Filo Rosso annoda i momenti, metà delle lettere non
+## escono più dal cassetto delle otto frasi fisse: le scrivono i VICINI,
+## ripensando a un momento vero vissuto con te — la posta racconta la
+## TUA storia, non una qualsiasi.
 
 const MORNING_T := 0.27
 const UI_BROWN := Color("6a4a3a")
@@ -20,6 +25,40 @@ const LETTERS := [
 	{"from": "Talpa", "text": "Scavando sono sbucata nel tuo giardino, scusa il buchetto.\nTi lascio un sassolino brillante per farmi perdonare.", "gift": true},
 	{"from": "Merlo", "text": "La tua musichetta si sente fino al ciliegio.\nAscolta bene domattina: la fischietto anch'io.", "gift": false},
 ]
+
+## Le lettere nate dai momenti: un template per OGNI tipo del Filo Rosso
+## (Legami.TIPI — un test tiene le due tabelle allineate). Il %d è il
+## giorno del momento: la data rende il ricordo vero.
+const MOMENTI_TESTO := {
+	"benvenuto": "Ripenso spesso al giorno %d:\nil tuo benvenuto sulla soglia.\nNessuno mi aveva mai aspettato così.",
+	"trasloco": "La valigia è ancora sotto il letto.\nOgni tanto la guardo e sorrido:\ndal giorno %d questa è casa mia.",
+	"primo_saluto": "Ti ricordi il giorno %d?\nLa prima zampina alzata, da lontano.\nIo l'ho contata come un inizio.",
+	"piatto": "Ho ancora in mente il profumo\ndi quel piatto del giorno %d.\nUn giorno cucino io, promesso.",
+	"regalo": "Il regalo del giorno %d\nce l'ho sulla mensola, al posto d'onore.\nGrazie di avermi pensato.",
+	"festa": "La festa del giorno %d!\nHo ritrovato un coriandolo nel pelo\ne mi è tornata tutta l'allegria.",
+	"onsen": "L'acqua calda del giorno %d,\nfianco a fianco, senza dire niente.\nEra tutto quello che serviva.",
+	"desiderio": "Non ho dimenticato il giorno %d,\nquando hai esaudito il mio desiderio.\nIl filo tra noi da lì si è colorato.",
+	"oro": "Quel desiderio del giorno %d,\nl'ultimo, vissuto insieme:\nlo tengo tra i momenti d'oro.",
+	"addio": "Del giorno %d non parlo volentieri,\nma il filo non si è spezzato:\nha solo cambiato forma.",
+	"partenza": "Dal Grande Prato si vede il villaggio.\nIl giorno %d avevo la valigia piccola\ne il cuore pieno. Grazie di tutto.",
+}
+
+
+## Compone una lettera dal filo di un residente: PURA e deterministica
+## dato `pick` (il caso lo mette il chiamante). {} se il filo è vuoto.
+static func componi_lettera(label: String, momenti: Array, pick: int) -> Dictionary:
+	if momenti.is_empty():
+		return {}
+	var m: Dictionary = momenti[absi(pick) % momenti.size()]
+	var tipo := str(m.get("t", ""))
+	var template := str(MOMENTI_TESTO.get(tipo, ""))
+	if template == "":
+		return {}
+	var testo := template % int(m.get("d", 1))
+	# una lettera lunga una storia: se il filo è ricco, lo dice
+	if momenti.size() >= 6:
+		testo += "\n(E ho contato: i nostri momenti sono già %d!)" % momenti.size()
+	return {"from": label, "text": testo, "gift": absi(pick) % 6 == 0}
 
 var _player: Node3D
 var _build: Node3D
@@ -135,12 +174,45 @@ func _deliver() -> void:
 			# (col regalo!) a ogni riavvio
 			_build.request_save()
 	else:
-		_current = LETTERS[_rng.randi() % LETTERS.size()]
+		# metà delle volte scrive un vicino, ripensando a un momento vero
+		var dai_momenti := _lettera_dai_momenti()
+		if not dai_momenti.is_empty() and _rng.randf() < 0.55:
+			_current = dai_momenti
+		else:
+			_current = LETTERS[_rng.randi() % LETTERS.size()]
 	for node in _boxes:
 		_raise_flag(_boxes[node], true)
 		_sparkle((node as Node3D).global_position + Vector3(0, 1.25, 0), Color(1.0, 0.9, 0.55))
 	if _sfx:
 		_sfx.play("chirp" + str(1 + _rng.randi() % 3), -14.0, 1.05)
+
+
+# Un vicino a caso, un momento a caso dal suo filo: la lettera racconta
+# la storia di QUESTO villaggio. {} se non c'è ancora materiale.
+func _lettera_dai_momenti() -> Dictionary:
+	var legami := get_tree().get_first_node_in_group("legami")
+	var visitors := get_node_or_null("../Visitors")
+	if legami == null or visitors == null:
+		return {}
+	var mittenti := []
+	for r in visitors.get("_residents"):
+		var nome := str((r.get("dna", {}) as Dictionary).get("name", ""))
+		var label := str(r.get("label", ""))
+		if nome == "" or label == "":
+			continue
+		var momenti: Array = legami.call("momenti_di", nome)
+		if not momenti.is_empty():
+			mittenti.append([label, momenti])
+	# e anche chi è partito, ogni tanto, scrive dal Grande Prato
+	for riga in legami.call("partiti"):
+		var filo: Dictionary = riga[1]
+		var momenti_p: Array = filo.get("momenti", [])
+		if not momenti_p.is_empty():
+			mittenti.append([str(riga[0]), momenti_p])
+	if mittenti.is_empty():
+		return {}
+	var scelto: Array = mittenti[_rng.randi() % mittenti.size()]
+	return componi_lettera(str(scelto[0]), scelto[1], _rng.randi())
 
 
 func _raise_flag(b: Dictionary, up: bool) -> void:

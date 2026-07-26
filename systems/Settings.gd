@@ -25,6 +25,9 @@ var fullscreen := true
 var reduce_motion := false
 ## Moltiplicatore velocità Mochi (0.7 tranquilla · 1.0 normale · 1.4 svelta).
 var move_speed := 1.0
+## «Prato Eterno»: nessun vicino parte mai per il Grande Prato (il congedo
+## del Filo Rosso resta spento). Il gioco resta intero anche senza partenze.
+var prato_eterno := false
 
 
 func _ready() -> void:
@@ -124,6 +127,11 @@ func set_move_speed(v: float) -> void:
 	_save(); changed.emit()
 
 
+func set_prato_eterno(on: bool) -> void:
+	prato_eterno = on
+	_save(); changed.emit()
+
+
 # ---------------------------------------------------------------- qualità
 ## Delega all'autoload Quality (preset grafico Basso/Alto).
 func get_quality() -> int:
@@ -153,6 +161,7 @@ func _load() -> void:
 	fullscreen = bool(cfg.get_value("display", "fullscreen", fullscreen))
 	reduce_motion = bool(cfg.get_value("gameplay", "reduce_motion", reduce_motion))
 	move_speed = float(cfg.get_value("gameplay", "move_speed", move_speed))
+	prato_eterno = bool(cfg.get_value("gameplay", "prato_eterno", prato_eterno))
 
 
 func _save() -> void:
@@ -164,4 +173,5 @@ func _save() -> void:
 	cfg.set_value("display", "fullscreen", fullscreen)
 	cfg.set_value("gameplay", "reduce_motion", reduce_motion)
 	cfg.set_value("gameplay", "move_speed", move_speed)
+	cfg.set_value("gameplay", "prato_eterno", prato_eterno)
 	cfg.save(PATH)

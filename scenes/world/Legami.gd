@@ -27,13 +27,28 @@ const TIPI := {
 	"festa": ["la festa a sorpresa coi coriandoli", ["felice", "regalo"]],
 	"onsen": ["il bagno caldo alle terme, fianco a fianco", ["felice", "amico"]],
 	"desiderio": ["il desiderio esaudito vicino a casa", ["grazie", "casa"]],
+	# gli ultimi desideri della settimana del congedo: i momenti d'ORO,
+	# quelli che valgono il doppio quando riaffiorano
+	"oro": ["quell'ultimo desiderio, vissuto insieme", ["grazie", "amico"]],
 	# il congedo: chi se n'è andato non si cancella dal Filo Rosso. È
 	# l'ultimo momento che si può incidere, e vale quanto il primo.
 	"addio": ["il giorno in cui ha fatto il fagotto", ["addio", "triste"]],
+	# la partenza gentile per il Grande Prato (tono Spiritfarer, mai Grim
+	# Reaper): la valigia piccola e il cappello in zampa
+	"partenza": ["il giorno della piccola valigia e del cappello in zampa", ["addio", "amico"]],
 }
 
 # nome residente -> {"momenti": [{d, t, x}], "giorno_arrivo": int}
+# (e per chi è partito: "partito", "giorno_partenza", "fiore")
 var _fili := {}
+# il lutto del villaggio (Fase 4), uno alla volta: chi lo orchestra è il
+# Congedo, ma i DATI vivono qui col resto del filo —
+# {nome, giorno_inizio, giorni, da_consolare: [label…]}
+var _lutto := {}
+# l'ultima volta che il gioco è stato acceso (ora reale): al ritorno dopo
+# un'assenza vera, i vicini se ne accorgono (Fase 6)
+var _ultimo_gioco := 0
+var _assenza_reale := 0.0
 var _daynight: Node3D
 var _visitors: Node
 var _ricordo_cd := 0.0
@@ -149,6 +164,8 @@ func eta_di(nome: String) -> String:
 func _nuovo_giorno(_d: int) -> void:
 	for nome in _fili:
 		var filo: Dictionary = _fili[nome]
+		if bool(filo.get("partito", false)):
+			continue  # chi è partito non invecchia più: resta com'era
 		var prima := str(filo.get("s", "giovane"))
 		var adesso := eta_di(str(nome))
 		if adesso == prima:
@@ -171,7 +188,6 @@ func _nuovo_giorno(_d: int) -> void:
 
 
 # ---------------------------------------------------------------- letture
-# (le fasi future — congedo, lutto — leggeranno da qui)
 
 func momenti_di(nome: String) -> Array:
 	return _fili.get(nome, {}).get("momenti", [])
@@ -181,6 +197,79 @@ func giorni_di_amicizia(nome: String) -> int:
 	if not _fili.has(nome):
 		return 0
 	return maxi(0, _day() - int(_fili[nome]["giorno_arrivo"]))
+
+
+# ------------------------------------------- la partenza e il lutto (dati)
+# La perdita trasforma, non cancella: il filo di chi parte resta, cambia
+# solo forma. L'orchestrazione (settimana del congedo, echi, consolazioni)
+# sta in Congedo.gd; qui vivono e si persistono i FATTI.
+
+## Segna la partenza per il Grande Prato. `fiore` è la scheda del
+## fiore-ricordo ({x, z, dress, fur, petali}): coi colori salvati qui, il
+## fiore rinasce identico anche quando il DNA del residente non c'è più.
+func segna_partito(nome: String, fiore: Dictionary) -> void:
+	var filo := _filo(nome)
+	filo["partito"] = true
+	filo["giorno_partenza"] = _day()
+	filo["fiore"] = fiore
+	_salva()
+
+
+func e_partito(nome: String) -> bool:
+	return bool(_fili.get(nome, {}).get("partito", false))
+
+
+## [[nome, filo], …] di chi è partito: il Congedo ci ricostruisce i fiori.
+func partiti() -> Array:
+	var out := []
+	for nome in _fili:
+		if bool((_fili[nome] as Dictionary).get("partito", false)):
+			out.append([str(nome), _fili[nome]])
+	return out
+
+
+## Apre il lutto del villaggio. `giorni` è proporzionale al filo: una
+## storia lunga lascia un vuoto lungo (3..8 giorni).
+func inizia_lutto(nome: String, da_consolare: Array) -> void:
+	var n := momenti_di(nome).size()
+	_lutto = {"nome": nome, "giorno_inizio": _day(),
+			"giorni": clampi(3 + n / 6, 3, 8), "da_consolare": da_consolare}
+	_salva()
+
+
+func lutto() -> Dictionary:
+	return _lutto
+
+
+func lutto_attivo() -> bool:
+	return not _lutto.is_empty()
+
+
+## Mochi ha consolato qualcuno (la zampina alzata durante il lutto):
+## true se era tra chi aspettava un pensiero.
+func consola(label: String) -> bool:
+	if _lutto.is_empty():
+		return false
+	var resto: Array = _lutto.get("da_consolare", [])
+	if label in resto:
+		resto.erase(label)
+		_salva()
+		return true
+	return false
+
+
+## Chiude il lutto e ritorna chi NON è mai stato consolato (è
+## l'indifferenza a ferire, non la perdita: vedi Animo.lutto).
+func fine_lutto() -> Array:
+	var resto: Array = _lutto.get("da_consolare", [])
+	_lutto = {}
+	_salva()
+	return resto
+
+
+## Giorni REALI passati dall'ultima sessione di gioco (Fase 6: il ritorno).
+func assenza_reale_giorni() -> float:
+	return _assenza_reale
 
 
 # ---------------------------------------------------------------- servizi
@@ -193,7 +282,10 @@ func _toast(text: String) -> void:
 
 
 func _salva() -> void:
-	var bs: Node = get_tree().get_first_node_in_group("build_system")
+	var tree := get_tree()
+	if tree == null:
+		return  # fuori dall'albero (test): niente da salvare
+	var bs: Node = tree.get_first_node_in_group("build_system")
 	if bs:
 		bs.request_save()
 
@@ -201,10 +293,18 @@ func _salva() -> void:
 # ---------------------------------------------------------------- persistenza
 
 func save_extra() -> Dictionary:
-	return {"legami": _fili}
+	return {"legami": _fili, "lutto": _lutto,
+			"ultimo_gioco": int(Time.get_unix_time_from_system())}
 
 
 func load_extra(data: Dictionary) -> void:
 	var d: Variant = data.get("legami")
 	if d is Dictionary:
 		_fili = d
+	var l: Variant = data.get("lutto")
+	if l is Dictionary:
+		_lutto = l
+	_ultimo_gioco = int(data.get("ultimo_gioco", 0))
+	if _ultimo_gioco > 0:
+		_assenza_reale = maxf(0.0,
+				(Time.get_unix_time_from_system() - _ultimo_gioco) / 86400.0)
