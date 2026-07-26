@@ -71,7 +71,7 @@ func unlock(id: String) -> void:
 	if _sfx:
 		_sfx.build_open()
 	if _build:
-		_build._save_village()
+		_build.request_save()
 
 
 func _toggle_wear(id: String) -> void:
@@ -89,7 +89,7 @@ func _toggle_wear(id: String) -> void:
 	if _sfx:
 		_sfx.ui_select()
 	if _build:
-		_build._save_village()
+		_build.request_save()
 	_refresh_panel()
 
 

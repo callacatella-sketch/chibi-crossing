@@ -112,7 +112,7 @@ func register_resident(res_name: String, label: String, node: Node3D) -> void:
 	var toast_day := next_birthday(res_name)
 	_toast("%s segna il suo compleanno sulla lavagna: Giorno %d!" % [label, toast_day])
 	if _build:
-		_build._save_village()
+		_build.request_save()
 
 
 ## Il prossimo compleanno (giorno assoluto) di un residente.
@@ -203,7 +203,7 @@ func _on_new_day(day: int) -> void:
 			_despawn_merchant()
 		_merchant_day = day + MERCHANT_EVERY + randi() % 3 - 1
 		if _build:
-			_build._save_village()
+			_build.request_save()
 
 
 # ---------------------------------------------------------------- lavagna

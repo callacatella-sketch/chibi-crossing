@@ -7,6 +7,7 @@ extends Node
 ## salta fuori tra gli spruzzi, dritto nella collezione. Se non tiri in
 ## tempo, il pesce ribussa: qui nessuno scappa mai. Allontanarsi riavvolge.
 
+const CRIT := preload("res://scenes/world/Critters.gd")
 const UI_BROWN := Color("6a4a3a")
 
 var _player: Node3D
@@ -262,9 +263,7 @@ func _weighted_fish() -> String:
 
 func _catch() -> void:
 	var kind := _weighted_fish()
-	var col := Color("ffd76e")
-	if _collection:
-		col = _collection.JAR_COLORS[kind]
+	var col := CRIT.colore(kind)
 
 	# lo STRATTONE: la canna scatta all'indietro col braccio, poi si
 	# assesta con un molleggio — è il colpo che strappa il pesce all'acqua

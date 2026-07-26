@@ -810,7 +810,7 @@ func place_cell(cell: Vector2i, piece: String, rot := 0, animate := true, lvl :=
 		_pop_in(node)
 	if not _loading:
 		placed_changed.emit()
-	_save_village()
+	request_save()
 
 
 ## Piazza un pezzo "edge" sul bordo con chiave raddoppiata data.
@@ -839,7 +839,7 @@ func place_edge(key: Vector2i, piece: String, flip := false, animate := true, lv
 		_pop_in(node)
 	if not _loading:
 		placed_changed.emit()
-	_save_village()
+	request_save()
 
 
 # visual del catalogo + StaticBody3D con le collisioni del pezzo
@@ -921,15 +921,58 @@ func _remove_at(layer, key, lvl := 0) -> void:
 		if not (_placed[0] as Dictionary).has(key) and not (_placed[1] as Dictionary).has(key):
 			get_tree().call_group("cozy_world", "unflatten_cell", key)
 	placed_changed.emit()
-	_save_village()
+	request_save()
 
 
 # ------------------------------------------------------- salvataggio
 
 # Il villaggio vive in user://village.json: una riga per pezzo, celle come
 # [layer, x, z, nome, rot] e bordi come [kx, ky, nome, flip]. Il file è
-# minuscolo, quindi si riscrive per intero a ogni modifica: niente timer,
-# niente "vuoi salvare?", il villaggio c'è e basta.
+# minuscolo, quindi si riscrive per intero: niente "vuoi salvare?", il
+# villaggio c'è e basta.
+
+# --- API PUBBLICA: chiedere un salvataggio --------------------------------
+# Chi cambia stato persistente (economia, collezione, giardino, Ordini…)
+# chiama `request_save()`. NON chiamare `_save_village()` da fuori: è il
+# writer interno, e usarlo da mezzo progetto è ciò che aveva reso il
+# salvataggio un dettaglio implementativo pubblico — con l'effetto che ogni
+# singola nocciolina scriveva il file INTERO due volte (una l'economia, una
+# chi l'aveva fatta guadagnare).
+#
+# `request_save()` è idempotente dentro il frame: quante che siano le
+# richieste, il file si scrive UNA volta sola, a fine frame. Chi sta per
+# uscire (pausa → titolo, quit, CLI) usa `save_now()`, che scrive subito:
+# un salvataggio differito, a scena morta, non verrebbe mai eseguito.
+var _save_pending := false
+
+
+## Chiede un salvataggio: si scrive una volta sola a fine frame.
+func request_save() -> void:
+	if not _persist or _loading or _save_pending:
+		return
+	_save_pending = true
+	_flush_save.call_deferred()
+
+
+## Scrive SUBITO, in modo sincrono (uscita dal gioco, CLI, cambio scena).
+func save_now() -> void:
+	_save_pending = false
+	_save_village()
+
+
+func _flush_save() -> void:
+	if not _save_pending:
+		return
+	_save_pending = false
+	_save_village()
+
+
+# la finestra si chiude col salvataggio ancora in coda: scrivilo adesso o
+# il differito muore con la scena
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST and _save_pending:
+		save_now()
+
 
 func _save_village() -> void:
 	if not _persist or _loading:
@@ -1095,7 +1138,7 @@ func _rotate_placed() -> void:
 			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	_bounce(node)
 	if _sfx: _sfx.rotate_tick()
-	_save_village()
+	request_save()
 
 
 func _spawn_poof(pos: Vector3, color: Color) -> void:
@@ -1340,17 +1383,40 @@ func _rebuild_item_row() -> void:
 	var cat_items := _cat_item_indices(_cat)
 	for j in cat_items.size():
 		var i := cat_items[j]
-		var locked := not is_unlocked(str(_items[i]["name"]))
-		# i pezzi ancora da guadagnare restano visibili ma muti: un "?" grigio,
-		# come i ricordi non ancora vissuti del Guardaroba. Sbloccarli è una
-		# piccola rivelazione.
-		var label: String = "?" if locked else (str(j + 1) + " " + str(_items[i]["name"]))
+		var piece := str(_items[i]["name"])
+		var locked := not is_unlocked(piece)
+		# Due lucchetti diversi meritano due promesse diverse.
+		#   · Ordini del Gufo: restano un "?" grigio, come i ricordi non ancora
+		#     vissuti del Guardaroba — lì la rivelazione È il premio.
+		#   · Mercante: sono MERCE IN VETRINA, non un segreto. Si mostrano col
+		#     nome e col prezzo, così sai per cosa stai risparmiando. (Prima
+		#     erano "?" con la didascalia del Gufo: un Ordine che per loro non
+		#     sarebbe mai arrivato, perché si comprano e basta.)
+		var offer := _shop_offer(piece) if locked else {}
+		var in_vetrina := not offer.is_empty()
+		var label: String
+		if in_vetrina:
+			label = "%s · %d" % [piece, int(offer.get("cost", 0))]
+		elif locked:
+			label = "?"
+		else:
+			label = str(j + 1) + " " + piece
 		var btn := _make_button(label, group, 13)
 		btn.custom_minimum_size = Vector2(0, 38)
 		if locked:
 			btn.disabled = true
-			btn.modulate = Color(1, 1, 1, 0.5)
-			btn.tooltip_text = "Un Ordine del Gufo lo porterà"
+			if in_vetrina:
+				# leggibile, non spenta: si vede cosa ti aspetta al carretto.
+				# Il prezzo prende il colore della sua valuta, come nel negozio.
+				btn.modulate = Color(1, 1, 1, 0.88)
+				btn.add_theme_color_override("font_disabled_color",
+						CozyUI.NUT if str(offer.get("cur", "nut")) == "nut" \
+						else CozyUI.HONEY.darkened(0.1))
+				btn.set_meta("shop_offer", offer)
+				btn.tooltip_text = _shop_tooltip(offer)
+			else:
+				btn.modulate = Color(1, 1, 1, 0.5)
+				btn.tooltip_text = "Un Ordine del Gufo lo porterà"
 		else:
 			btn.pressed.connect(_select.bind(i))
 		_items_row.add_child(btn)
@@ -1369,13 +1435,52 @@ func _economy() -> Node:
 	return _eco
 
 
+## L'offerta del mercante per un pezzo, o {} se non è merce da negozio.
+## Serve al catalogo per distinguere «lo porterà il Gufo» da «si compra».
+func _shop_offer(piece: String) -> Dictionary:
+	var eco := _economy()
+	if eco == null or not eco.has_method("piece_offer"):
+		return {}
+	return eco.piece_offer(piece)
+
+
+## La didascalia della vetrina: dove si compra, quanto costa, cos'è — e se
+## oggi te lo puoi permettere (il borsellino lo sa già).
+func _shop_tooltip(offer: Dictionary) -> String:
+	var cur := str(offer.get("cur", "nut"))
+	var soldi := "noccioline" if cur == "nut" else "stelline"
+	var cost := int(offer.get("cost", 0))
+	var txt := "Dal carretto del mercante · %d %s" % [cost, soldi]
+	var desc := str(offer.get("desc", ""))
+	if desc != "":
+		txt += "\n%s" % desc
+	var eco := _economy()
+	if eco and eco.has_method("can_afford"):
+		txt += "\n%s" % ("Puoi permettertelo!" if eco.can_afford(cost, cur) \
+				else "Mettine da parte ancora un po'.")
+	return txt
+
+
 func _hook_economy() -> void:
 	var eco := _economy()
 	if eco and eco.has_signal("shop_changed") and not eco.shop_changed.is_connected(_on_shop_changed):
 		eco.shop_changed.connect(_on_shop_changed)
+	# il borsellino cambia -> le didascalie della vetrina si riallineano:
+	# «puoi permettertelo» non deve mai restare a mentire
+	if eco:
+		for sig in ["nuts_changed", "stars_changed"]:
+			if eco.has_signal(sig) and not eco.is_connected(sig, _on_wallet_changed):
+				eco.connect(sig, _on_wallet_changed)
 	# recupera lo stato caricato dopo _load_village: i pezzi già comprati
 	# devono comparire nel catalogo (la riga era stata costruita con eco vuota)
 	_on_shop_changed()
+
+
+# il gruzzolo è cambiato: solo le didascalie, niente ricostruzioni
+func _on_wallet_changed(_total: int) -> void:
+	for btn in _item_buttons:
+		if is_instance_valid(btn) and btn.has_meta("shop_offer"):
+			btn.tooltip_text = _shop_tooltip(btn.get_meta("shop_offer"))
 
 
 # comprato qualcosa: rinfresca la fila dei pezzi (nuovi sblocchi) e i colori

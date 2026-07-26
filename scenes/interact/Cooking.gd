@@ -90,7 +90,7 @@ func take_dish() -> Dictionary:
 ## La dispensa cresce (orto, funghi del bosco…). Ritorna il totale.
 func add_ingredient(kind: String, n: int) -> int:
 	pantry[kind] = int(pantry.get(kind, 0)) + n
-	_build._save_village()
+	_build.request_save()
 	return int(pantry[kind])
 
 
@@ -297,7 +297,7 @@ func _ritual(camino: Node3D, recipe: Dictionary) -> void:
 	var visitors := get_node_or_null("../Visitors")
 	if visitors:
 		visitors.call("_show_toast", "Una porzione è finita nelle tasche (Tab): regalala a un amico!")
-	_build._save_village()
+	_build.request_save()
 
 
 # le briciole del morso, giù dalla ciotola

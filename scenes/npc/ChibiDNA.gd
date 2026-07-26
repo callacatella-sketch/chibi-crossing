@@ -106,8 +106,35 @@ static func generate(seed_v := -1) -> Dictionary:
 		"topolino":
 			fluff = maxf(fluff - 0.2, 0.25)
 
+	# --- l'ANIMA (vedi scenes/npc/Animo.gd) ---------------------------------
+	# Il sogno e i cinque tratti nascono qui, col resto del genoma: due chibi
+	# non reagiscono mai allo stesso torto nello stesso modo, ma ciascuno
+	# reagisce sempre in modo coerente con chi è. I tratti NON sono uniformi:
+	# si tira due volte e si fa la media, così i caratteri estremi restano
+	# rari e il villaggio non diventa un carnevale di orgogliosi e codardi.
+	var sogni := ["boscaiolo", "giardiniere", "cuoco", "guerriero", "artista", "esploratore"]
+	var sogno: String = sogni[rng.randi() % sogni.size()]
+	var tratti := {}
+	for tr in ["orgoglio", "lealta", "grinta", "codardia", "ambizione"]:
+		tratti[tr] = clampf((rng.randf() + rng.randf()) * 0.5, 0.0, 1.0)
+	# l'archetipo inclina il carattere, senza determinarlo
+	match arche:
+		"orsetto":
+			tratti["grinta"] = clampf(float(tratti["grinta"]) + 0.18, 0.0, 1.0)
+		"topolino":
+			tratti["codardia"] = clampf(float(tratti["codardia"]) + 0.20, 0.0, 1.0)
+		"volpina":
+			tratti["ambizione"] = clampf(float(tratti["ambizione"]) + 0.18, 0.0, 1.0)
+		"gatto":
+			tratti["orgoglio"] = clampf(float(tratti["orgoglio"]) + 0.16, 0.0, 1.0)
+		"coniglio":
+			tratti["lealta"] = clampf(float(tratti["lealta"]) + 0.16, 0.0, 1.0)
+
 	return {
 		"name": name,
+		"seed": seed_v if seed_v >= 0 else int(rng.seed),
+		"sogno": sogno,
+		"tratti": tratti,
 		"label": "%s %s" % [DESCR[arche], name],
 		"archetype": arche,
 		"fur": fur.to_html(false),

@@ -18,34 +18,12 @@ signal nuts_changed(total: int)
 signal stars_changed(total: int)
 signal shop_changed          # sblocchi cambiati: la UI di costruzione si rinfresca
 
-# valore di vendita in noccioline (per unità)
-const SELL := {
-	"rosa": 3, "azzurra": 6, "gialla": 14, "lucciola": 22,
-	"carpetta": 4, "azzurrino": 9, "rosina": 18,
-	"carota": 3, "zucca": 5, "bacca": 4, "fungo": 4,
-}
+# Nomi, colori, valore di vendita e rarità di ogni specie vivono in UN posto
+# solo: il bestiario. Qui restano soltanto le regole dell'economia.
+const CRIT := preload("res://scenes/world/Critters.gd")
 
-# le specie rare: acchiapparle regala una stellina
-const RARE := {"gialla": true, "lucciola": true, "rosina": true}
+# quante stelline vale una cattura rara
 const STAR_PER_RARE := 1
-
-# nomi leggibili per il negozio
-const LABELS := {
-	"rosa": "Farfalla rosa", "azzurra": "Farfalla azzurra",
-	"gialla": "Farfalla dorata", "lucciola": "Lucciola",
-	"carpetta": "Carpa dorata", "azzurrino": "Pesciolino azzurro",
-	"rosina": "Carpa rosina",
-	"carota": "Carota", "zucca": "Zucca", "bacca": "Bacca", "fungo": "Fungo",
-}
-
-# colori-spia (per i pallini nel negozio)
-const KIND_COLOR := {
-	"rosa": Color("ffb0c8"), "azzurra": Color("bcd8ff"), "gialla": Color("ffe08a"),
-	"lucciola": Color("dcffa0"), "carpetta": Color("ffcf6e"),
-	"azzurrino": Color("8fc0e8"), "rosina": Color("f4a0b8"),
-	"carota": Color("f0964a"), "zucca": Color("e88a3c"),
-	"bacca": Color("b0466e"), "fungo": Color("e9d3a8"),
-}
 
 ## Pezzi NUOVI del catalogo, in vendita (partono bloccati). I nomi combaciano
 ## con i builder aggiunti in BuildCatalog.gd, marcati "shop": true.
@@ -130,21 +108,28 @@ func spend(cost: int, cur: String) -> bool:
 
 # ---------------------------------------------------------------- catture
 func sell_value(kind: String) -> int:
-	return int(SELL.get(kind, 1))
+	return CRIT.vendita(kind)
 
 
+## Il nome col maiuscolo, per il bancone ("Farfalla dorata").
 func label_for(kind: String) -> String:
-	return str(LABELS.get(kind, kind.capitalize()))
+	return CRIT.etichetta(kind)
+
+
+## Il colore-spia del pallino nel negozio: è IL colore della creatura, solo
+## reso più leggibile su carta crema (vedi Critters.colore_pallino).
+func kind_color(kind: String) -> Color:
+	return CRIT.colore_pallino(kind)
 
 
 func is_rare(kind: String) -> bool:
-	return RARE.has(kind)
+	return CRIT.rara(kind)
 
 
 ## Chiamata da Collection.add_catch: premia le stelline sulle catture rare.
 ## Ritorna quante stelline ha assegnato (0 = cattura comune).
 func award_catch(kind: String) -> int:
-	if not RARE.has(kind):
+	if not CRIT.rara(kind):
 		return 0
 	add_stars(STAR_PER_RARE)
 	return STAR_PER_RARE
@@ -255,5 +240,5 @@ func _save() -> void:
 	if tree == null:
 		return
 	var bs := tree.get_first_node_in_group("build_system")
-	if bs and bs.has_method("_save_village"):
-		bs._save_village()
+	if bs and bs.has_method("request_save"):
+		bs.request_save()

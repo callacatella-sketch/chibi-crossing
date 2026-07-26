@@ -70,7 +70,7 @@ func _ready() -> void:
 func queue_letter(letter: Dictionary) -> void:
 	_letter_queue.append(letter)
 	if _build:
-		_build._save_village()  # la coda su disco riflette sempre lo stato reale
+		_build.request_save()  # la coda su disco riflette sempre lo stato reale
 
 
 func save_extra() -> Dictionary:
@@ -133,7 +133,7 @@ func _deliver() -> void:
 		if _build:
 			# senza salvare, la lettera su misura verrebbe riconsegnata
 			# (col regalo!) a ogni riavvio
-			_build._save_village()
+			_build.request_save()
 	else:
 		_current = LETTERS[_rng.randi() % LETTERS.size()]
 	for node in _boxes:

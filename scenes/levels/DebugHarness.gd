@@ -27,6 +27,8 @@ func run(level: Node3D, mode: String, arg: String = "") -> void:
 			await _make_save()
 		"legna":
 			await _debug_woodcutting(arg)
+		"lavori":
+			await _debug_lavori(arg)
 
 func _frames(n: int):
 	for i in n:
@@ -35,6 +37,104 @@ func _frames(n: int):
 func _shot(dir: String, file: String):
 	await _frames(2)
 	get_viewport().get_texture().get_image().save_png(dir.path_join(file + ".png"))
+
+# ---------------------------------------------------------------- lavori
+# Verifica del registro: si popola il villaggio, si danno ordini, si fanno
+# passare i giorni e si guarda la schermata che il giocatore userebbe per
+# capire perché qualcuno si sta ribellando.
+func _debug_lavori(dir: String) -> void:
+	var vis = _level.get_node_or_null("Visitors")
+	var lav = _level.get_node_or_null("Lavori")
+	if vis == null or lav == null:
+		printerr("LAVORI: Visitors o Lavori non trovati")
+		get_tree().quit()
+		return
+	await _frames(30)
+
+	# tre abitanti con sogni diversi: uno ama la legna, due no
+	var DNA = load("res://scenes/npc/ChibiDNA.gd")
+	var sogni := ["guerriero", "artista", "boscaiolo"]
+	var residenti: Array = vis.get("_residents")
+	for i in 3:
+		var dna: Dictionary = DNA.generate(500 + i * 91)
+		dna["sogno"] = sogni[i]
+		residenti.append({"species": "chibi", "cell": Vector2i(i, 0), "node": null,
+				"dna": dna, "label": str(dna["name"]), "friend": 2, "wish": {}})
+	for r in residenti:
+		vis.call("_ensure_brain", r)
+		lav.assegna(str(r["label"]), "coltiva")
+	print("LAVORI: %d residenti, tutti mandati all orto" % residenti.size())
+
+	# quaranta giorni identici. Nel gioco vero Lavori e Visitors sono agganciati
+	# ENTRAMBI a day_changed; qui li si chiama a mano, nello stesso ordine.
+	# novanta giorni: abbastanza per arrivare in fondo alla scala e vedere se
+	# la diserzione avviene DAVVERO (in quaranta si arriva solo al rifiuto)
+	for g in 90:
+		lav._on_nuovo_giorno(g)
+		vis.call("_giorno_di_animo")
+		if g == 30:
+			for r in residenti:
+				vis.lutto_di(str(r["label"]), "Pepe")   # e nessuno li consola
+	for r in residenti:
+		print("LAVORI: %-22s -> %s" % [r["label"], vis.perche(str(r["label"]))])
+
+	# --- i marchi sui LUOGHI: si è formata l'avversione? ---
+	for r in residenti:
+		var lb2 := str(r["label"])
+		var ev: Array = vis.luoghi_evitati(lb2)
+		var lim2 = vis.get("_animi")[lb2].limbico
+		print("LAVORI: %-10s orto %.2f | evita: %s | cura_giardino -> %s" %
+				[lb2, lim2.carica_di("orto"), ev,
+				vis.call("_filtra_luogo", lb2, "cura_giardino")])
+
+	# --- la catena finale: confronto, sfogo, partenza ---
+	print("LAVORI: gradini = %s" % [residenti.map(func(r): return vis.animo_di(str(r["label"])))])
+	for r in residenti:
+		var lb := str(r["label"])
+		var an = vis.get("_animi")[lb]
+		if int(an.gradino) >= 5:
+			print("LAVORI: SFOGO di %s -> %s" % [lb, an.sfogo()])
+	# chi è alla diserzione se ne va: si accorcia l'attesa e si fa scattare
+	var quanti_prima_p: int = residenti.size()
+	for r in residenti:
+		r["parte_fra"] = 0.05
+	vis.call("_tick_partenze", 1.0)
+	await _frames(3)
+	print("LAVORI: residenti %d -> %d (chi ha detto 'me ne vado' se n'è andato)"
+			% [quanti_prima_p, (vis.get("_residents") as Array).size()])
+
+	# --- r_confronto IN CARNE E OSSA: la prova che non resta più bloccato ---
+	# (il vecchio bug: riusava r_bench, si sedeva nell'erba e l'uscita
+	#  pretendeva un _routine_aux che qui è sempre null -> fermo per sempre)
+	vis.debug_add_resident(777, player.global_position + Vector3(3.0, 0, 0))
+	var vero: Dictionary = (vis.get("_residents") as Array).back()
+	var vnode := vero.get("node") as Node3D
+	vero["next_act"] = 99999.0    # l'agenda non deve scippargli il confronto
+	await _frames(5)
+	vnode.call("do_routine", "confronto",
+			player.global_position + Vector3(1.5, 0, 0), player.global_position)
+	vero["next_act"] = 99999.0
+	var visto_conf := false
+	for attesa in 600:            # ~10 s: il tempo di camminare fin lì
+		await get_tree().process_frame
+		if str(vnode.get("_state")) == "r_confronto":
+			visto_conf = true
+			break
+	print("LAVORI: confronto raggiunto = %s (stato: %s)" % [visto_conf, vnode.get("_state")])
+	var liberato := false
+	for attesa2 in 800:           # ~13 s: il timer del confronto e' 7-10
+		await get_tree().process_frame
+		if visto_conf and str(vnode.get("_state")) != "r_confronto":
+			liberato = true
+			break
+	print("LAVORI: e poi si e' liberato da solo = %s (stato: %s)" % [liberato, vnode.get("_state")])
+
+	lav._toggle()
+	await get_tree().create_timer(0.6).timeout
+	await _shot(dir, "lavori_registro")
+	print("LAVORI: cronaca = %s" % [vis.cronaca_villaggio()])
+	get_tree().quit()
+
 
 # ---------------------------------------------------------------- legna
 # Verifica del taglio: l'albero in piedi, i tre colpi con la tacca che si
@@ -194,8 +294,8 @@ func _debug_woodcutting(dir: String) -> void:
 	if OS.get_environment("CHIBI_LEGNA_SAVE") != "":
 		wc.debug_fell(1)
 		await get_tree().create_timer(1.6).timeout
-		if build_system and build_system.has_method("_save_village"):
-			build_system._save_village()
+		if build_system and build_system.has_method("save_now"):
+			build_system.save_now()
 		print("LEGNA: salvato. alberi=%d" % wc.tree_count())
 
 	print("LEGNA: fine. legna=%d alberi=%d debito=%d"
@@ -1135,7 +1235,7 @@ func _debug_screenshots(dir: String):
 	var before: int = build_system.piece_count()
 	build_system.save_path = dir.path_join("village_test.json")
 	build_system._persist = true
-	build_system._save_village()
+	build_system.save_now()
 	build_system._persist = false
 	build_system.debug_clear()
 	build_system._load_village()
@@ -1179,7 +1279,7 @@ func _make_save() -> void:
 	vis.debug_settle(707, Vector2i(-5, 0))
 	await _frames(3)
 
-	build_system._save_village()
+	build_system.save_now()
 	print("MAKESAVE: villaggio regalo salvato — %d pezzi, %d residenti" \
 			% [build_system.piece_count(), (vis.get("_residents") as Array).size()])
 

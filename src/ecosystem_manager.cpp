@@ -275,7 +275,7 @@ void EcosystemManager::sim_step() {
     // di notte le lucciole depongono vicino all'acqua
     if (night && fireflies.size() >= 2 && (int)eggs.size() < EGG_MAX &&
             UtilityFunctions::randf() < 0.25) {
-        float a = UtilityFunctions::randf() * Math_TAU;
+        float a = UtilityFunctions::randf() * Math::TAU;
         Egg e;
         e.pos = pond_center + Vector3(Math::cos(a), 0.0, Math::sin(a)) * (pond_radius + 0.9f);
         eggs.push_back(e);
@@ -344,7 +344,7 @@ void EcosystemManager::update_butterflies(double delta) {
                 if (b.timer <= 0.0f) {
                     // ...e impollina: può nascere un fiore selvatico
                     if ((int)wildflowers.size() < WF_MAX && UtilityFunctions::randf() < 0.3) {
-                        float a = UtilityFunctions::randf() * Math_TAU;
+                        float a = UtilityFunctions::randf() * Math::TAU;
                         Vector3 p = b.target + Vector3(Math::cos(a), 0.0, Math::sin(a)) *
                                 UtilityFunctions::randf_range(0.9, 2.8);
                         if (ground_ok(p)) {
@@ -557,31 +557,46 @@ void EcosystemManager::load_state(const Dictionary &state) {
     eggs.clear();
     seeds.clear();
     sparrows.clear(); // i seed_idx salvati in volo non hanno più senso
+    // Igiene sui VALORI, non solo sulla struttura: il salvataggio è JSON
+    // modificabile a mano. Una maturity infinita/negativa resterebbe tale per
+    // sempre (la crescita clampa solo verso l'alto) e corromperebbe le
+    // trasformazioni spinte al RenderingServer; uova con days assurdi non si
+    // schiuderebbero mai saturando EGG_MAX.
     Array wf = state.get("wf", Array());
     for (int i = 0; i < wf.size() && i < WF_MAX; i++) {
         Array row = wf[i];
         if (row.size() < 4) continue;
+        float px = (float)row[0];
+        float pz = (float)row[1];
+        float m = (float)row[2];
+        if (!Math::is_finite(px) || !Math::is_finite(pz) || !Math::is_finite(m)) continue;
         Wildflower w;
-        w.pos = Vector3((float)row[0], 0.0, (float)row[1]);
-        w.maturity = (float)row[2];
-        w.kind = (int)row[3];
+        w.pos = Vector3(CLAMP(px, -200.0f, 200.0f), 0.0, CLAMP(pz, -200.0f, 200.0f));
+        w.maturity = CLAMP(m, 0.0f, 1.0f);
+        w.kind = CLAMP((int)row[3], 0, 3);
         wildflowers.push_back(w);
     }
     Array eg = state.get("eggs", Array());
     for (int i = 0; i < eg.size() && i < EGG_MAX; i++) {
         Array row = eg[i];
         if (row.size() < 3) continue;
+        float px = (float)row[0];
+        float pz = (float)row[1];
+        if (!Math::is_finite(px) || !Math::is_finite(pz)) continue;
         Egg e;
-        e.pos = Vector3((float)row[0], 0.0, (float)row[1]);
-        e.days = (int)row[2];
+        e.pos = Vector3(CLAMP(px, -200.0f, 200.0f), 0.0, CLAMP(pz, -200.0f, 200.0f));
+        e.days = CLAMP((int)row[2], 0, 2);
         eggs.push_back(e);
     }
     Array sd = state.get("seeds", Array());
     for (int i = 0; i < sd.size() && i < SEED_MAX; i++) {
         Array row = sd[i];
         if (row.size() < 2) continue;
+        float px = (float)row[0];
+        float pz = (float)row[1];
+        if (!Math::is_finite(px) || !Math::is_finite(pz)) continue;
         Seed s;
-        s.pos = Vector3((float)row[0], 0.0, (float)row[1]);
+        s.pos = Vector3(CLAMP(px, -200.0f, 200.0f), 0.0, CLAMP(pz, -200.0f, 200.0f));
         seeds.push_back(s);
     }
     // le popolazioni volanti rinascono sul posto, vicino ai fiori
@@ -594,7 +609,7 @@ void EcosystemManager::load_state(const Dictionary &state) {
     fireflies.clear();
     for (int i = 0; i < ff_n; i++) {
         Firefly f;
-        float a = UtilityFunctions::randf() * Math_TAU;
+        float a = UtilityFunctions::randf() * Math::TAU;
         f.home = pond_center + Vector3(Math::cos(a), 0.0, Math::sin(a)) *
                 UtilityFunctions::randf_range(1.0, pond_radius + 1.5f);
         f.pos = f.home + Vector3(0, 0.7, 0);
@@ -611,7 +626,7 @@ void EcosystemManager::debug_burst() {
     // maturi attorno alle fonti, farfalle, semi coi passerotti già a tavola
     for (int i = 0; i < 60 && (int)wildflowers.size() < WF_MAX; i++) {
         Vector3 base = random_flower_point();
-        float a = UtilityFunctions::randf() * Math_TAU;
+        float a = UtilityFunctions::randf() * Math::TAU;
         Vector3 p = base + Vector3(Math::cos(a), 0.0, Math::sin(a)) *
                 UtilityFunctions::randf_range(0.8, 3.2);
         if (ground_ok(p)) {

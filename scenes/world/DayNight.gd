@@ -149,7 +149,7 @@ func _check_new_day(prev: float, t: float) -> void:
 		day_changed.emit(day)
 		var bs: Node = get_tree().get_first_node_in_group("build_system")
 		if bs:
-			bs._save_village()
+			bs.request_save()
 
 
 func save_extra() -> Dictionary:

@@ -126,7 +126,7 @@ func _mode_input(event: InputEvent) -> void:
 		# non si perde per un'uscita dal gioco)
 		_wish_day = _day() + 2 + randi() % 2
 		if _build:
-			_build._save_village()
+			_build.request_save()
 		_toast("Hai espresso un desiderio… la stella l'ha sentito.")
 		_sparkle_at(_player.global_position + Vector3(0, 1.2, 0))
 		if _sfx:
@@ -251,7 +251,7 @@ func _confirm_name() -> void:
 		gtree.engrave("★", "nasce la costellazione «%s»" % cname)
 	_toast("«%s» brilla nel cielo, da stanotte e per sempre." % cname)
 	if _build:
-		_build._save_village()
+		_build.request_save()
 	if _sfx:
 		_sfx.place_ok()
 	_exit_mode()
@@ -419,7 +419,7 @@ func _on_new_day(day: int) -> void:
 		})
 		_wish_day = -1
 		if _build:
-			_build._save_village()
+			_build.request_save()
 
 
 # ---------------------------------------------------------------- UI

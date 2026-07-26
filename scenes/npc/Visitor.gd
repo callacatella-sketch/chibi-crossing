@@ -447,6 +447,15 @@ func _enter_state(s: String) -> void:
 				tw.tween_property(self, "position", seat, 0.4) \
 						.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 			_timer = randf_range(14.0, 22.0)
+		"r_confronto":
+			# arrivato: si volta verso di te e resta IN PIEDI. Niente sedia,
+			# niente sorriso — è venuto a dirti una cosa, e la posa lo dice
+			# prima della battuta. L'uscita dipende SOLO dal timer: nessun
+			# nodo ausiliario da aspettare, nessun modo di restare bloccati.
+			var to_conf := _fire_look - position
+			if to_conf.length() > 0.01:
+				_yaw = atan2(-to_conf.x, -to_conf.z)
+			_timer = randf_range(7.0, 10.0)
 		"r_fire":
 			# si accomoda e guarda il fuoco: la serata è questa
 			var to_fire := _fire_look - position
@@ -641,6 +650,11 @@ func _process(delta: float) -> void:
 						.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 				tw.tween_callback(func(): _enter_state("r_idle"))
 				_state = "dismount"
+		"r_confronto":
+			_timer -= delta
+			_anim_idle()
+			if _timer <= 0.0:
+				_enter_state("r_idle")
 		"r_fire":
 			_anim_sit()
 			_resident_greet(delta)
@@ -1082,6 +1096,13 @@ func do_routine(kind: String, pos: Vector3, look := Vector3.ZERO, aux: Node3D = 
 			_walk_to(pos, "r_fire")
 		"wander":
 			_enter_state("r_wander")
+		"confronto":
+			# ti raggiunge per dirtelo in faccia. Stato SUO, non r_bench:
+			# riusando la panchina si accovacciava nell'erba e — peggio —
+			# l'uscita pretendeva _routine_aux (che qui è sempre null),
+			# quindi restava seduto lì per sempre. Il punto da guardare
+			# viaggia in _fire_look, già valorizzato qui sopra.
+			_walk_to(pos, "r_confronto")
 
 
 func face_towards(p: Vector3) -> void:

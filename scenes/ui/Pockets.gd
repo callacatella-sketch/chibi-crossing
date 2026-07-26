@@ -12,6 +12,7 @@ extends Node
 ## il player, si chiude con Tab/Esc, e non si apre se un altro menu ha già la
 ## scena (guardia is_physics_processing).
 
+const CRIT := preload("res://scenes/world/Critters.gd")
 const ICON := preload("res://scenes/ui/PocketIcon.gd")
 const INV := preload("res://scenes/ui/Inventory.gd")
 
@@ -239,10 +240,7 @@ func _gather_collection() -> Array[Dictionary]:
 	if _collection == null:
 		return out
 	var counts: Dictionary = _collection.counts() if _collection.has_method("counts") else {}
-	var order: Array = _collection.JAR_ORDER
-	var labels: Dictionary = _collection.KIND_LABEL
-	var cols: Dictionary = _collection.JAR_COLORS
-	var fish: Array = _collection.FISH_KINDS
+	var order: Array = _collection.jar_order()
 	for kind in order:
 		var n := int(counts.get(kind, 0))
 		if n <= 0:
@@ -250,10 +248,10 @@ func _gather_collection() -> Array[Dictionary]:
 		var icon := "farfalla"
 		if kind == "lucciola":
 			icon = "lucciola"
-		elif kind in fish:
+		elif _collection.is_fish(kind):
 			icon = "pesce"
-		out.append({"id": kind, "name": str(labels.get(kind, kind)).capitalize(),
-			"count": n, "icon": icon, "tint": cols.get(kind, Color.WHITE),
+		out.append({"id": kind, "name": CRIT.etichetta(kind),
+			"count": n, "icon": icon, "tint": CRIT.colore(kind),
 			"src": "nella Libreria", "kind": "collection", "giftable": false,
 			"tags": [], "desc": "In un barattolo sullo scaffale. Nessuna fretta."})
 	return out

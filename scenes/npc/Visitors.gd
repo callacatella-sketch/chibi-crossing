@@ -576,7 +576,7 @@ func _tick_partenze(delta: float) -> void:
 		if label == "" or not _animi.has(label):
 			continue
 		var animo: RefCounted = _animi[label]
-		if int(animo.gradino) < GRADINO_DISERZIONE:
+		if not ANIMO.almeno(int(animo.gradino), "diserzione"):
 			r["parte_fra"] = 0.0        # ha cambiato idea: si rimette a posto
 			continue
 		var resta: float = float(r.get("parte_fra", 0.0))
@@ -645,10 +645,9 @@ func _congeda(i: int, r: Dictionary, animo: RefCounted) -> void:
 
 
 # ============================================ il confronto e il morso
-## Da che gradino in su un residente smette di subire e ti viene a cercare.
-const GRADINO_CONFRONTO := 5
-## Da che gradino in su prepara il fagotto.
-const GRADINO_DISERZIONE := 6
+# Le soglie si interrogano PER NOME (ANIMO.almeno): prima erano due indici
+# scritti a mano, 5 e 6, e bastava inserire un gradino in mezzo alla scala
+# perché puntassero al gradino sbagliato senza un errore.
 
 # CHI HA QUALCOSA DA DIRTI TE LO VIENE A DIRE.
 #
@@ -672,7 +671,7 @@ func _tick_confronti(delta: float) -> void:
 		var animo: RefCounted = _animi[label]
 		var d: float = pp.distance_to(node.global_position)
 
-		if int(animo.gradino) >= GRADINO_CONFRONTO:
+		if ANIMO.almeno(int(animo.gradino), "confronto"):
 			# ti viene incontro: si ferma poco distante, non addosso
 			var attesa: float = float(_in_confronto.get(label, 0.0)) - delta
 			if d > 2.2:
@@ -1086,7 +1085,7 @@ func _wishes(delta: float) -> void:
 		if wish.is_empty():
 			r["wish"] = _gen_wish(r.get("dna", {}))
 			_show_toast("%s sogna %s vicino a casa…" % [r["label"], WISH_ART[r["wish"]["item"]]])
-			_build._save_village()
+			_build.request_save()
 			continue
 		if bool(wish.get("done", false)):
 			continue
@@ -1109,7 +1108,7 @@ func _wishes(delta: float) -> void:
 					})
 				if _sfx:
 					_sfx.place_ok()
-				_build._save_village()
+				_build.request_save()
 				break
 
 
@@ -1177,7 +1176,7 @@ func _give_dish(r: Dictionary) -> void:
 		_bump_friend(r, 3)
 		get_tree().call_group("legami", "momento",
 				str(dish_dna.get("name", "")), "festa", "")
-		_build._save_village()
+		_build.request_save()
 		return
 	# --- l'OFFERTA: zampine protese, inchino, il piatto che fluttua ---
 	var mochi := _player.get_node_or_null("Mochi")
@@ -1229,7 +1228,7 @@ func _give_dish(r: Dictionary) -> void:
 		via.tween_property(bowl, "scale", Vector3.ONE * 0.03, 0.28) \
 				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 		via.tween_callback(bowl.queue_free))
-	_build._save_village()
+	_build.request_save()
 
 
 ## Il gesto del regalo generalizzato: una porzione (ciotola) o un tesoro
@@ -1257,7 +1256,7 @@ func offer_item(r: Dictionary, item: Dictionary) -> void:
 		# la festa è il gesto gentile più grande: scioglie il rancore
 		gesto_gentile(str(r.get("label", "")), "festa", 1.0)
 		get_tree().call_group("legami", "momento", str(dna.get("name", "")), "festa", "")
-		_build._save_village()
+		_build.request_save()
 		return
 	# --- l'OFFERTA: zampine protese, inchino, il dono che fluttua ---
 	var mochi := _player.get_node_or_null("Mochi")
@@ -1312,7 +1311,7 @@ func offer_item(r: Dictionary, item: Dictionary) -> void:
 		via.tween_property(prop, "scale", Vector3.ONE * 0.03, 0.28) \
 				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 		via.tween_callback(prop.queue_free))
-	_build._save_village()
+	_build.request_save()
 
 
 # lo adorerebbe? l'affinità del modello, o il vecchio caldo-vs-giardino
@@ -1538,7 +1537,7 @@ func _decide() -> void:
 		_show_toast("«Ci devo pensare… %s» E %s riparte col trolley." % [miss, _cand_label])
 		_active.call("candidate_result", false, Vector3.ZERO)
 	_mind = null
-	_build._save_village()
+	_build.request_save()
 
 
 func _spawn_suitcase_prop(cell: Vector2i) -> void:
@@ -1705,7 +1704,7 @@ func _collect_gift() -> void:
 		var scheda: Dictionary = _inventory.add_random_gift(_gift_species, randi())
 		if not scheda.is_empty():
 			what = "%s %s" % [scheda.get("art", ""), scheda.get("name", "")]
-			_build._save_village()
+			_build.request_save()
 	if what == "":
 		var gifts: Array = GIFTS[_gift_species]
 		what = gifts[randi() % gifts.size()]

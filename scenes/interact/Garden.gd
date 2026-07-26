@@ -991,7 +991,7 @@ func _build_ui() -> void:
 # ---------------------------------------------------------------- persistenza
 
 func _save() -> void:
-	_build._save_village()
+	_build.request_save()
 
 
 func save_extra() -> Dictionary:

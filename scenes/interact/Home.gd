@@ -62,7 +62,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	_show_toast("Casa impostata: è qui che ti sveglierai!")
 	if _sfx:
 		_sfx.place_ok()
-	_build._save_village()
+	_build.request_save()
 	get_viewport().set_input_as_handled()
 
 

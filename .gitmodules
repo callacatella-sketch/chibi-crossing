@@ -1,4 +1,6 @@
 [submodule "godot-cpp"]
 	path = godot-cpp
 	url = https://github.com/godotengine/godot-cpp.git
-	branch = 4.2
+	# master = linea API 4.7 (nessun branch 4.7 dedicato a monte, ancora):
+	# DEVE combaciare con la versione di Godot del progetto (project.godot 4.7)
+	branch = master

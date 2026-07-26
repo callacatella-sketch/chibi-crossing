@@ -3,6 +3,7 @@
 
 #include <godot_cpp/classes/character_body3d.hpp>
 #include <godot_cpp/classes/input.hpp>
+#include <godot_cpp/core/object_id.hpp>
 #include "survival_component.h"
 
 namespace godot {
@@ -15,7 +16,9 @@ private:
     float run_speed = 6.0;
     float run_stamina_cost = 15.0; // Per second
 
-    SurvivalComponent *survival_comp = nullptr;
+    // ObjectID e non puntatore raw: se il figlio venisse mai liberato, il
+    // lookup per-tick restituisce null invece di un dangling pointer (UAF).
+    ObjectID survival_comp_id;
 
 protected:
     static void _bind_methods();

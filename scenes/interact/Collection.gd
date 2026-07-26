@@ -9,19 +9,32 @@ extends Node
 
 const UI_BROWN := Color("6a4a3a")
 
-const KIND_LABEL := {
-	"rosa": "una farfalla rosa", "azzurra": "una farfalla azzurra",
-	"gialla": "una farfalla gialla", "lucciola": "una lucciola",
-	"carpetta": "una carpetta dorata", "azzurrino": "un pesciolino azzurro",
-	"rosina": "una carpa rosina",
-}
-const JAR_ORDER := ["rosa", "azzurra", "gialla", "lucciola", "carpetta", "azzurrino", "rosina"]
-const JAR_COLORS := {
-	"rosa": Color("ffd1e0"), "azzurra": Color("cfe6ff"),
-	"gialla": Color("fff3c9"), "lucciola": Color("d8ffa0"),
-	"carpetta": Color("ffd76e"), "azzurrino": Color("8fc0e8"), "rosina": Color("f4a0b8"),
-}
-const FISH_KINDS := ["carpetta", "azzurrino", "rosina"]
+# Nomi, colori e classi delle specie vengono dal BESTIARIO: una riga per
+# specie, un posto solo (prima erano duplicati qui, in Economy e in CozyWorld,
+# e avevano già cominciato a divergere). Qui restano i metodi che il resto del
+# gioco chiedeva a questo nodo, ora sottili deleghe.
+const CRIT := preload("res://scenes/world/Critters.gd")
+var _jar_order: Array = CRIT.collezionabili()
+
+## L'ordine delle vetrine dei barattoli (letto anche da Pockets).
+func jar_order() -> Array:
+	return _jar_order
+
+
+## Il colore del barattolo di una specie (letto anche da Fishing).
+func jar_color(kind: String) -> Color:
+	return CRIT.colore(kind)
+
+
+## "una farfalla dorata" — il nome dentro una frase.
+func kind_label(kind: String) -> String:
+	return CRIT.con_articolo(kind)
+
+
+## Questa specie si prende con la canna (e non col retino)?
+func is_fish(kind: String) -> bool:
+	return CRIT.classe(kind) == "pesce"
+
 
 var _player: Node3D
 var _mochi: Node3D
@@ -227,7 +240,7 @@ func _catch(target: Dictionary) -> void:
 		bt.tween_property(bug, "scale", Vector3.ONE * 0.15, 0.24)
 		bt.chain().tween_callback(func():
 			_sparkle(net.to_global(Vector3(0, 0.58, 0)),
-					JAR_COLORS.get(kind, Color(1, 1, 0.8)))
+					CRIT.colore(kind))
 			bug.queue_free()))
 
 	get_tree().create_timer(0.95).timeout.connect(func():
@@ -291,26 +304,26 @@ func counts() -> Dictionary:
 ## Usata anche dalla pesca.
 func add_catch(kind: String) -> void:
 	_counts[kind] = int(_counts.get(kind, 0)) + 1
-	get_tree().call_group("regista", "note", "pesca" if kind in FISH_KINDS else "retino")
+	get_tree().call_group("regista", "note", "pesca" if is_fish(kind) else "retino")
 	# economia gentile: le catture rare regalano una stellina
 	var eco := get_tree().get_first_node_in_group("economy")
 	var got_star := (int(eco.award_catch(kind)) if eco and eco.has_method("award_catch") else 0)
 	if got_star > 0:
-		_show_toast("%s — che rarità! Una stellina per te." % KIND_LABEL[kind])
+		_show_toast("%s — che rarità! Una stellina per te." % CRIT.con_articolo(kind))
 	else:
-		_show_toast("Hai preso %s! (n. %d)" % [KIND_LABEL[kind], _counts[kind]])
+		_show_toast("Hai preso %s! (n. %d)" % [CRIT.con_articolo(kind), _counts[kind]])
 	# la prima di ogni specie finisce negli anelli del Grande Albero
 	if int(_counts[kind]) == 1:
 		var gtree := get_tree().get_first_node_in_group("grande_albero")
 		if gtree:
-			gtree.engrave("♦", "in collezione: %s" % KIND_LABEL[kind])
+			gtree.engrave("♦", "in collezione: %s" % CRIT.con_articolo(kind))
 		# la prima lucciola accende la lanterna da polso
 		if kind == "lucciola":
 			var wr := get_tree().get_first_node_in_group("guardaroba")
 			if wr:
 				wr.unlock("lanterna_lucciola")
 	_refresh_displays()
-	_build._save_village()
+	_build.request_save()
 
 
 ## Toglie n esemplari di una specie dalla collezione (usato dal negozio per la
@@ -322,7 +335,7 @@ func remove_catch(kind: String, n := 1) -> int:
 	else:
 		_counts[kind] = cur
 	_refresh_displays()
-	_build._save_village()
+	_build.request_save()
 	return cur
 
 
@@ -334,7 +347,7 @@ func count_of(kind: String) -> int:
 ## Tutte le specie possedute con conteggio > 0 (per il negozio).
 func owned_kinds() -> Array:
 	var out := []
-	for k in JAR_ORDER:
+	for k in _jar_order:
 		if int(_counts.get(k, 0)) > 0:
 			out.append(k)
 	return out
@@ -355,7 +368,7 @@ func _refresh_displays() -> void:
 		jars.name = "Jars"
 		lib.add_child(jars)
 		var xi := 0
-		for kind in JAR_ORDER:
+		for kind in _jar_order:
 			if int(_counts.get(kind, 0)) <= 0:
 				continue
 			var jar := _make_jar(kind, int(_counts[kind]))
@@ -392,8 +405,8 @@ func _make_jar(kind: String, count: int) -> Node3D:
 	cork.position = Vector3(0, 0.12, 0)
 	jar.add_child(cork)
 
-	var col: Color = JAR_COLORS[kind]
-	if kind in FISH_KINDS:
+	var col: Color = CRIT.colore(kind)
+	if is_fish(kind):
 		# barattolo-acquario: acqua azzurrina e il pesciolino dentro
 		var water := MeshInstance3D.new()
 		var wm := CylinderMesh.new()
@@ -635,6 +648,6 @@ func debug_demo_catch() -> void:
 
 
 func debug_fill() -> void:
-	for kind in JAR_ORDER:
+	for kind in _jar_order:
 		_counts[kind] = 1 + randi() % 4
 	_refresh_displays()

@@ -112,7 +112,7 @@ func _join() -> void:
 	_toast("%s si siede accanto a te! (IJKL muove · U aiuta in giardino · F2 saluta)" % _dna["label"])
 	var build := get_tree().get_first_node_in_group("build_system")
 	if build:
-		build._save_village()
+		build.request_save()
 
 
 func _leave() -> void:

@@ -1,7 +1,15 @@
 [configuration]
 
 entry_symbol = "chibi_crossing_library_init"
-compatibility_minimum = 4.1
+; Compilato contro godot-cpp master (API 4.7): gli entry point del
+; gdextension_interface 4.7 non esistono nei runtime piu' vecchi.
+;
+; ATTENZIONE: in questo file i commenti vanno con ';', NON con '#'. Il parser
+; ConfigFile di Godot non conosce '#': una riga cosi' rompe la lettura della
+; sezione e le chiavi che seguono (compatibility_minimum!) diventano invisibili
+; -> "configuration file must contain a compatibility_minimum key", l'estensione
+; non si carica e il cuore C++ sparisce (schermo grigio con la sola musica).
+compatibility_minimum = "4.7"
 
 [libraries]
 

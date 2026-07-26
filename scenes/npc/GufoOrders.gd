@@ -296,7 +296,7 @@ func _reveal_current() -> void:
 
 func _save() -> void:
     if _build:
-        _build.call("_save_village")
+        _build.call("request_save")
 
 
 # ---------------------------------------------------------------- persistenza

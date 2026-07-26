@@ -604,13 +604,14 @@ func _build_clouds() -> void:
 
 # ---------------------------------------------------------------- farfalle
 
-const BUTTERFLY_KINDS := [
-	["rosa", Color("ffd1e0")], ["azzurra", Color("cfe6ff")], ["gialla", Color("fff3c9")],
-]
+# Chi vola nel prato e di che colore: dal BESTIARIO (scenes/world/Critters.gd),
+# la stessa riga che il negozio usa per il prezzo e la vetrina per il barattolo.
+const CRIT := preload("res://scenes/world/Critters.gd")
+var _bf_kinds: Array = CRIT.farfalle()
 
 func _build_butterflies() -> void:
 	for i in 5:
-		_make_butterfly(i % 3)
+		_make_butterfly(i % _bf_kinds.size())
 
 
 func _make_butterfly(kind_i: int) -> void:
@@ -626,7 +627,7 @@ func _make_butterfly(kind_i: int) -> void:
 	body.material_override = GEO.paint_mat(Color("6a5a4a"), Color("4a3e33"), 8.0, 0.4)
 	b.add_child(body)
 
-	var wing_col: Color = BUTTERFLY_KINDS[kind_i][1]
+	var wing_col: Color = CRIT.colore(str(_bf_kinds[kind_i]))
 	var wings: Array[Node3D] = []
 	for side: float in [-1.0, 1.0]:
 		var pivot := Node3D.new()
@@ -654,7 +655,7 @@ func _make_butterfly(kind_i: int) -> void:
 		"wing_r": wings[1],
 		"seed": randf() * 100.0,
 		"prev": Vector3.ZERO,
-		"kind": str(BUTTERFLY_KINDS[kind_i][0]),
+		"kind": str(_bf_kinds[kind_i]),
 	})
 
 
@@ -2581,7 +2582,7 @@ func _process(delta: float) -> void:
 		_bf_respawn -= delta
 		if _bf_respawn <= 0.0:
 			_bf_respawn = randf_range(45.0, 90.0)
-			_make_butterfly(randi() % 3)
+			_make_butterfly(randi() % _bf_kinds.size())
 
 	# e il bosco di funghi da raccogliere
 	if _pickups.size() < 5:

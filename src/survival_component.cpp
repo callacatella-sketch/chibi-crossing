@@ -73,8 +73,16 @@ void SurvivalComponent::set_stamina(double p_stamina) {
 }
 double SurvivalComponent::get_max_stamina() const { return max_stamina; }
 void SurvivalComponent::set_max_stamina(double p_max) {
+    // il segnale parte anche quando cambia SOLO il massimo: la HUD mostra un
+    // rapporto valore/massimo e deve rinormalizzare la barra (es. upgrade
+    // "borraccia piu' grande" con valore corrente invariato).
+    double old_max = max_stamina;
     max_stamina = MAX(p_max, 0.0);
-    set_stamina(stamina); // ri-clampa il corrente ed emette il segnale se cambia
+    double old_val = stamina;
+    stamina = UtilityFunctions::clamp(stamina, 0.0, max_stamina);
+    if (max_stamina != old_max || stamina != old_val) {
+        emit_signal("stamina_changed", stamina, max_stamina);
+    }
 }
 void SurvivalComponent::drain_stamina(double amount) {
     set_stamina(stamina - amount);
@@ -91,8 +99,13 @@ void SurvivalComponent::set_hunger(double p_hunger) {
 }
 double SurvivalComponent::get_max_hunger() const { return max_hunger; }
 void SurvivalComponent::set_max_hunger(double p_max) {
+    double old_max = max_hunger;
     max_hunger = MAX(p_max, 0.0);
-    set_hunger(hunger);
+    double old_val = hunger;
+    hunger = UtilityFunctions::clamp(hunger, 0.0, max_hunger);
+    if (max_hunger != old_max || hunger != old_val) {
+        emit_signal("hunger_changed", hunger, max_hunger);
+    }
 }
 
 // Water Implementation
@@ -106,6 +119,11 @@ void SurvivalComponent::set_water(double p_water) {
 }
 double SurvivalComponent::get_max_water() const { return max_water; }
 void SurvivalComponent::set_max_water(double p_max) {
+    double old_max = max_water;
     max_water = MAX(p_max, 0.0);
-    set_water(water);
+    double old_val = water;
+    water = UtilityFunctions::clamp(water, 0.0, max_water);
+    if (max_water != old_max || water != old_val) {
+        emit_signal("water_changed", water, max_water);
+    }
 }

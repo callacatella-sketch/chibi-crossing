@@ -1,5 +1,6 @@
 #include "player_controller.h"
 #include <godot_cpp/core/class_db.hpp>
+#include <godot_cpp/core/object.hpp>
 #include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 
@@ -24,9 +25,11 @@ void PlayerController::_ready() {
 
     set_physics_process(true); // Fondamentale in GDExtension per attivare il loop
 
-    // Cerca il SurvivalComponent come nodo figlio
-    survival_comp = get_node<SurvivalComponent>("SurvivalComponent");
-    if (!survival_comp) {
+    // Cerca il SurvivalComponent come nodo figlio (tenuto per ObjectID)
+    SurvivalComponent *sc = get_node<SurvivalComponent>("SurvivalComponent");
+    if (sc) {
+        survival_comp_id = sc->get_instance_id();
+    } else {
         UtilityFunctions::printerr("PlayerController: SurvivalComponent mancante!");
     }
 }
@@ -47,7 +50,15 @@ void PlayerController::_physics_process(double delta) {
     // camera diventasse rotabile (allora: ruotare l'input per lo yaw della camera).
     Vector3 direction = Vector3(input_dir.x, 0, input_dir.y).normalized();
 
-    bool is_running = input->is_action_pressed("ui_accept"); // Es. Spazio o Shift per correre
+    // il componente si risolve a ogni tick: null se il nodo non esiste piu'
+    SurvivalComponent *survival_comp =
+            Object::cast_to<SurvivalComponent>(ObjectDB::get_instance(survival_comp_id));
+
+    // Correre = tasto premuto E movimento effettivo: da fermi il tasto di
+    // corsa (ui_accept, che e' anche il "conferma" globale) non deve bruciare
+    // stamina. A stamina zero col tasto premuto IN MOVIMENTO la ricarica resta
+    // bloccata (come prima): evita lo sfarfallio corsa/camminata sullo zero.
+    bool is_running = input->is_action_pressed("ui_accept") && direction.length() > 0.0;
     float current_speed = walk_speed;
 
     if (is_running && survival_comp && survival_comp->get_stamina() > 0) {

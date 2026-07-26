@@ -20,6 +20,7 @@ extends Node
 ## Si apre col tasto L. Niente scelte a scomparsa: tutto quello che serve per
 ## capire una ribellione è su una schermata sola.
 
+const ANIMO := preload("res://scenes/npc/Animo.gd")
 const UI_BROWN := Color("6a4a3a")
 const CREMA := Color(1, 0.98, 0.94, 0.96)
 
@@ -91,11 +92,14 @@ func assegna(label: String, lavoro: String) -> void:
 		_incarichi.erase(label)
 	else:
 		_incarichi[label] = lavoro
-	# l'incarico va su disco SUBITO: da qui scende il risentimento di Animo,
-	# e prima sopravviveva solo se si arrivava all'alba (salvataggio di DayNight)
-	var b := get_node_or_null(^"../BuildSystem")
-	if b:
-		b._save_village()
+	# l'incarico va su disco appena dato: lo stato su disco riflette sempre
+	# quello reale. request_save() e' l'API pubblica (accorpa a una scrittura
+	# per frame); la guardia serve ai test puri, dove il registro vive fuori
+	# dall'albero di scena.
+	if is_inside_tree():
+		var bs := get_tree().get_first_node_in_group("build_system")
+		if bs and bs.has_method("request_save"):
+			bs.request_save()
 
 
 func incarico(label: String) -> String:
@@ -292,12 +296,12 @@ func _stato_umano(gradino: String) -> String:
 
 
 func _colore_stato(gradino: String) -> Color:
-	var i: int = ["lavoro", "svogliato", "attrezzi", "rifiuto",
-			"sabotaggio", "confronto", "diserzione", "ammutinamento"].find(gradino)
+	# l'indice del gradino lo dice Animo: qui non si riscrive la scala
+	var i := ANIMO.indice(gradino)
 	if i <= 0:
 		return UI_BROWN
 	# dal marrone al corallo man mano che si scende la scala
-	return UI_BROWN.lerp(Color("c2452f"), float(i) / 7.0)
+	return UI_BROWN.lerp(Color("c2452f"), ANIMO.frazione(i))
 
 
 # ---------------------------------------------------------------- salvataggio

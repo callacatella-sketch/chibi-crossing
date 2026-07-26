@@ -229,7 +229,7 @@ func _sell_row(r: Dictionary) -> Control:
 	h.add_theme_constant_override("separation", 12)
 	card.add_child(h)
 
-	h.add_child(_dot(_economy.KIND_COLOR.get(r["kind"], CozyUI.PINK)))
+	h.add_child(_dot(_economy.kind_color(r["kind"])))
 	var lbl := CozyUI.body_label("%s  ×%d" % [_economy.label_for(r["kind"]), r["count"]], 17)
 	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER

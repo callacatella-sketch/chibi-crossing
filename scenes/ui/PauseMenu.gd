@@ -97,16 +97,16 @@ func _show_settings(on: bool) -> void:
 func _to_title() -> void:
 	# salva il villaggio prima di uscire (rete di sicurezza in più al backup)
 	var bs := get_tree().get_first_node_in_group("build_system")
-	if bs and bs.has_method("_save_village"):
-		bs._save_village()
+	if bs and bs.has_method("save_now"):
+		bs.save_now()
 	get_tree().paused = false
 	get_tree().change_scene_to_file(TITLE_SCENE)
 
 
 func _quit() -> void:
 	var bs := get_tree().get_first_node_in_group("build_system")
-	if bs and bs.has_method("_save_village"):
-		bs._save_village()
+	if bs and bs.has_method("save_now"):
+		bs.save_now()
 	get_tree().quit()
 
 

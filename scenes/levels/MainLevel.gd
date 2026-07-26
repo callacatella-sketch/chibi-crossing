@@ -50,6 +50,8 @@ func _ready():
 	add_child(_spawn_system("res://scenes/ui/PauseMenu.gd", "PauseMenu"))
 	# il boschetto da legna: l'ascia, il taglio e la ricrescita
 	add_child(_spawn_system("res://scenes/interact/Woodcutting.gd", "Woodcutting"))
+	# il registro dei lavori: dare ordini ai residenti e leggerne l'animo
+	add_child(_spawn_system("res://scenes/npc/Lavori.gd", "Lavori"))
 	var settings := get_node_or_null(^"/root/Settings")
 	if settings:
 		settings.apply_to_player(player)
@@ -58,6 +60,8 @@ func _ready():
 		_start_debug_harness("shot", OS.get_environment("CHIBI_SHOT"))
 	elif OS.get_environment("CHIBI_LEGNA") != "":
 		_start_debug_harness("legna", OS.get_environment("CHIBI_LEGNA"))
+	elif OS.get_environment("CHIBI_LAVORI") != "":
+		_start_debug_harness("lavori", OS.get_environment("CHIBI_LAVORI"))
 	elif OS.get_environment("CHIBI_MAKESAVE") != "":
 		_start_debug_harness("makesave")
 

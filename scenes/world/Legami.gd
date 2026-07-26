@@ -27,6 +27,9 @@ const TIPI := {
 	"festa": ["la festa a sorpresa coi coriandoli", ["felice", "regalo"]],
 	"onsen": ["il bagno caldo alle terme, fianco a fianco", ["felice", "amico"]],
 	"desiderio": ["il desiderio esaudito vicino a casa", ["grazie", "casa"]],
+	# il congedo: chi se n'è andato non si cancella dal Filo Rosso. È
+	# l'ultimo momento che si può incidere, e vale quanto il primo.
+	"addio": ["il giorno in cui ha fatto il fagotto", ["addio", "triste"]],
 }
 
 # nome residente -> {"momenti": [{d, t, x}], "giorno_arrivo": int}
@@ -192,7 +195,7 @@ func _toast(text: String) -> void:
 func _salva() -> void:
 	var bs: Node = get_tree().get_first_node_in_group("build_system")
 	if bs:
-		bs._save_village()
+		bs.request_save()
 
 
 # ---------------------------------------------------------------- persistenza

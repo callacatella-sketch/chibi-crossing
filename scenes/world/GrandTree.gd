@@ -95,7 +95,7 @@ func engrave(icon: String, text: String) -> void:
 		_sfx.rotate_tick()
 	var build := get_tree().get_first_node_in_group("build_system")
 	if build:
-		build._save_village()
+		build.request_save()
 
 
 ## Come engrave, ma al massimo una volta al giorno per etichetta

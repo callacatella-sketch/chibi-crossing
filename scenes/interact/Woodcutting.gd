@@ -873,15 +873,16 @@ func _give_wood(t: Dictionary) -> void:
 			if _sfx:
 				_sfx.play("select", -13.0, 0.9 + 0.06 * float(k))
 			# l'ultimo ceppetto mette al sicuro TUTTO l'abbattimento: legna,
-			# albero rimosso e debito di ricrescita. Prima si salvava solo
-			# all'alba: chiudere il gioco buttava via il lavoro d'ascia.
-			# (Salvare qui e non al taglio è a favore del giocatore: se
-			# chiude a metà animazione ritrova l'albero intero, non un buco
-			# senza legna.)
+			# albero rimosso e debito di ricrescita — via request_save(),
+			# l'API pubblica che accorpa a una scrittura per frame. Salvare
+			# QUI e non al taglio è a favore del giocatore: se chiude a metà
+			# animazione ritrova l'albero intero (non un buco senza legna, che
+			# è ciò che scriverebbe il flush di chiusura a legna non ancora
+			# accreditata).
 			if k == WOOD_PER_TREE - 1:
-				var b := get_node_or_null(^"../BuildSystem")
-				if b:
-					b._save_village())
+				var saver := get_tree().get_first_node_in_group("build_system")
+				if saver and saver.has_method("request_save"):
+					saver.request_save())
 
 	# IL TERRENO TORNA LIBERO. Il ceppo saluta e sprofonda, il nodo se ne va
 	# con le sue collisioni: da domani ci si può costruire sopra. Il bosco non
