@@ -1048,22 +1048,43 @@ func _save_village() -> void:
 		if not _loaded_extra.is_empty() and not _served_extra.has(node.get_instance_id()):
 			_serve_late(node)
 		payload.merge(node.save_extra())
-	var f := FileAccess.open(save_path, FileAccess.WRITE)
+	# SCRITTURA BLINDATA: prima su un file temporaneo, poi la versione
+	# precedente diventa .bak e il temporaneo prende il suo posto. Un crash
+	# a metà scrittura (o il disco pieno) non può mai lasciare mezzo
+	# villaggio su disco, e c'è sempre la copia di un attimo fa da cui
+	# rialzarsi (_load_village la usa da solo se il .json è rotto).
+	var tmp := save_path + ".tmp"
+	var f := FileAccess.open(tmp, FileAccess.WRITE)
 	if f == null:
 		printerr("BuildSystem: salvataggio fallito (%s)" % error_string(FileAccess.get_open_error()))
 		return
 	f.store_string(JSON.stringify(payload))
+	f.close()
+	if FileAccess.file_exists(save_path):
+		DirAccess.rename_absolute(save_path, save_path + ".bak")
+	DirAccess.rename_absolute(tmp, save_path)
+
+
+## Legge e interpreta un salvataggio: null se manca o non è JSON valido.
+func _leggi_salvataggio(path: String) -> Variant:
+	if not FileAccess.file_exists(path):
+		return null
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		return null
+	return JSON.parse_string(f.get_as_text())
 
 
 func _load_village() -> void:
-	if not FileAccess.file_exists(save_path):
-		return
-	var f := FileAccess.open(save_path, FileAccess.READ)
-	if f == null:
-		return
-	var data: Variant = JSON.parse_string(f.get_as_text())
+	var data: Variant = _leggi_salvataggio(save_path)
 	if data is not Dictionary:
-		return
+		# il file manca o è rotto: prima di arrendersi si prova la copia
+		# di sicurezza (la scrittura atomica la tiene sempre a un passo)
+		data = _leggi_salvataggio(save_path + ".bak")
+		if data is Dictionary:
+			printerr("BuildSystem: village.json illeggibile — ripristinato dalla copia .bak")
+		else:
+			return
 	_loading = true
 	var vmap: Dictionary = data.get("variants", {})
 	for c in data.get("cells", []):

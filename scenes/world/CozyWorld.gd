@@ -633,6 +633,9 @@ func contesto_critter() -> Dictionary:
 	if w and bool(w.call("is_raining")):
 		# d'inverno la precipitazione è una nevicata fitta, non pioggia
 		meteo = "neve" if _season == 3 else "pioggia"
+	elif w and bool(w.call("is_misty")):
+		# la nebbiolina delle mattine d'autunno: ha le sue specie
+		meteo = "nebbia"
 	return CRIT.contesto(_season, tempo, _night, meteo)
 
 

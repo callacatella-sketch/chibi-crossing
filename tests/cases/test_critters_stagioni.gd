@@ -102,6 +102,17 @@ func _test_stagioni_e_meteo(t) -> void:
             "porcino: autunno")
     t.ok(not CRIT.disponibile("porcino", CRIT.contesto(0, 0.5, false, "sereno")),
             "porcino: in primavera no")
+    # le specie della nebbia: solo quando la mattina d'autunno fuma
+    t.ok(CRIT.disponibile("bruma", CRIT.contesto(2, 0.3, false, "nebbia")),
+            "farfalla di bruma: nella nebbiolina c'e'")
+    t.ok(not CRIT.disponibile("bruma", CRIT.contesto(2, 0.3, false, "sereno")),
+            "farfalla di bruma: col sereno no")
+    t.ok(CRIT.disponibile("damigella", CRIT.contesto(2, 0.3, false, "nebbia")),
+            "damigella di velo: nella nebbia, allo stagno")
+    t.ok(not CRIT.disponibile("damigella", CRIT.contesto(2, 0.3, false, "pioggia")),
+            "damigella di velo: la pioggia non e' nebbia")
+    t.eq(str(CRIT.voce("damigella").get("luogo", "")), "stagno",
+            "la damigella nasce allo stagno")
     # una specie senza cond c'e' sempre; una sconosciuta mai
     t.ok(CRIT.disponibile("carpetta", CRIT.contesto(3, 0.05, true, "neve")),
             "carpetta: sempre, anche nelle notti d'inverno")
@@ -116,7 +127,7 @@ func _test_pool_mai_vuote(t) -> void:
     # ora e meteo la canna deve avere qualcuno da far abboccare
     for stagione in 4:
         for tempo in [0.05, 0.25, 0.5, 0.75]:
-            for meteo in ["sereno", "pioggia", "neve"]:
+            for meteo in ["sereno", "pioggia", "neve", "nebbia"]:
                 var ctx: Dictionary = CRIT.contesto(stagione, float(tempo),
                         float(tempo) < 0.2, str(meteo))
                 var pool: Array = CRIT.disponibili("pesce", ctx)

@@ -339,7 +339,7 @@ C++ via GDExtension. Tutta l'arte è procedurale: zero asset esterni.
   dietro il vetro, la lucciola che brilla, e i contatori. Persistita
   nel JSON.
 - **Il calendario delle specie** (`scenes/world/Critters.gd`) — il
-  bestiario è cresciuto a **20 specie collezionabili** e ognuna sa
+  bestiario è cresciuto a **22 specie collezionabili** e ognuna sa
   QUANDO esiste (`cond`: stagione, ora, meteo): la **farfalla di
   ciliegio** vola in primavera tra i petali del ciliegio, il **girino**
   nuota solo in primavera, d'estate la **cicala** canta sugli alberi del
@@ -351,7 +351,9 @@ C++ via GDExtension. Tutta l'arte è procedurale: zero asset esterni.
   mentre la neve scende fitta — la **farfalla di neve**. La **libellula
   ambrata** e il **pesce dell'alba** escono solo al crepuscolo, e con
   la pioggia arrivano la **lumachina** e la **rana blu** sulla riva
-  dello stagno. Nelle Tasche il segnalibro Collezione è diventato
+  dello stagno. E quando la mattina d'autunno fuma di nebbiolina
+  (`Weather.is_misty`), aleggia la **farfalla di bruma** e — rara,
+  solo sullo stagno velato — la **damigella di velo** cuce l'aria. Nelle Tasche il segnalibro Collezione è diventato
   un'**enciclopedia**: le specie mai viste sono **sagome grigie** con
   un indizio ("solo quando piove", "nelle notti d'autunno") — è la
   scheda vuota a farti uscire col retino. E d'inverno la pioggerella

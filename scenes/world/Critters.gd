@@ -31,7 +31,7 @@ extends RefCounted
 ##   cond      QUANDO la specie esiste nel mondo: un dizionario con
 ##               "stagioni": [0..3]  (0 primavera · 1 estate · 2 autunno · 3 inverno)
 ##               "ora":      "giorno" | "notte" | "crepuscolo"
-##               "meteo":    "pioggia" | "neve"
+##               "meteo":    "pioggia" | "neve" | "nebbia"
 ##             Le chiavi presenti vanno soddisfatte TUTTE (AND). Per l'ora:
 ##             "giorno" vale anche al crepuscolo, "notte" pure — solo chi
 ##             chiede "crepuscolo" ha una finestra esclusiva (alba/tramonto).
@@ -78,6 +78,13 @@ const SPECIE := {
 		"colore": Color("eaf6ff"), "vendita": 40, "rara": true,
 		"cond": {"stagioni": [3], "meteo": "neve"}, "peso": 1.0, "max": 2,
 		"indizio": "Rarissima: appare solo d'inverno, mentre la neve scende."},
+	# le specie della nebbiolina (Weather.nebbia_del_mattino: mattine
+	# d'autunno serene) — il meteo le gòverna da solo, niente doppie
+	# condizioni di stagione da tenere allineate a mano
+	"bruma": {"nome": "farfalla di bruma", "articolo": "una", "classe": "farfalla",
+		"colore": Color("d9d4e6"), "vendita": 16, "rara": false,
+		"cond": {"meteo": "nebbia"}, "peso": 2.4, "max": 2,
+		"indizio": "Aleggia nella nebbiolina del mattino, come un pensiero."},
 	# --- le lucciole della notte ---
 	"lucciola": {"nome": "lucciola", "articolo": "una", "classe": "lucciola",
 		"colore": Color("d8ffa0"), "vendita": 22, "rara": true,
@@ -131,6 +138,10 @@ const SPECIE := {
 		"colore": Color("6fa8dc"), "vendita": 15, "rara": false,
 		"cond": {"meteo": "pioggia"}, "peso": 2.0, "max": 1, "luogo": "stagno",
 		"indizio": "Saltella sulla riva dello stagno, sotto la pioggia."},
+	"damigella": {"nome": "damigella di velo", "articolo": "una", "classe": "bestiola",
+		"colore": Color("bfe3da"), "vendita": 26, "rara": true,
+		"cond": {"meteo": "nebbia"}, "peso": 1.2, "max": 1, "luogo": "stagno",
+		"indizio": "Quando lo stagno fuma di nebbia, all'alba, lei cuce l'aria."},
 	# --- l'orto e il bosco (si vendono, non si collezionano) ---
 	"carota": {"nome": "carota", "articolo": "una", "classe": "raccolto",
 		"colore": Color("f0964a"), "vendita": 3, "rara": false},
@@ -283,7 +294,7 @@ const TRAMONTO_A := 0.80
 ##   stagione  0..3 (da DayNight.get_season())
 ##   tempo     l'orologio 0..1 di DayNight.time
 ##   notte     DayNight.is_night() (la soglia vera è la sua, non la nostra)
-##   meteo     "sereno" | "pioggia" | "neve"
+##   meteo     "sereno" | "pioggia" | "neve" | "nebbia"
 static func contesto(stagione: int, tempo: float, notte: bool, meteo: String) -> Dictionary:
 	var ora := "notte" if notte else "giorno"
 	if (tempo >= ALBA_DA and tempo <= ALBA_A) \

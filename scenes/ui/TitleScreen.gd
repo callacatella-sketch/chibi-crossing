@@ -305,8 +305,14 @@ func _continue() -> void:
 
 
 func _start_new() -> void:
+	# il vecchio villaggio NON si cancella: si archivia con data e ora.
+	# Con l'investimento emotivo del Filo Rosso, un "Nuovo villaggio" per
+	# sbaglio non deve costare una storia intera — per tornare indietro
+	# basta rinominare l'archivio in village.json. (La copia .bak resta al
+	# suo posto: fa da rete finché il villaggio nuovo non salva.)
 	if FileAccess.file_exists(SAVE_PATH):
-		DirAccess.remove_absolute(SAVE_PATH)
+		var stamp := Time.get_datetime_string_from_system().replace(":", "-")
+		DirAccess.rename_absolute(SAVE_PATH, "user://village_%s.json" % stamp)
 	# anche il rullino del timelapse riparte: senza, il "film" del villaggio
 	# nuovo proietterebbe le foto del vecchio (e capture() salta i giorni
 	# i cui PNG esistono già). L'album personale user://photos resta.
