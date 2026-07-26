@@ -143,6 +143,14 @@ func _nuovo_giorno(day: int) -> void:
 		return
 	# 2) il congedo in corso avanza: un desiderio al giorno, poi l'alba
 	if not _congedo.is_empty():
+		# conflitto fra sistemi: la scala dell'Animo corre per conto suo, e
+		# se nel frattempo l'anziana ha DISERTATO (Visitors._congeda l'ha già
+		# rimossa, con la lettera di rancore) il congedo si annulla — niente
+		# memoriale dorato per chi ha sbattuto la porta
+		if _visitors and (_visitors.call("dna_di", str(_congedo["label"])) as Dictionary).is_empty():
+			_congedo = {}
+			_salva()
+			return
 		var idx: int = day - int(_congedo["giorno_inizio"])
 		if idx >= GIORNI_CONGEDO:
 			_partenza()

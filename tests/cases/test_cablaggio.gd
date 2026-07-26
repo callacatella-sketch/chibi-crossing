@@ -20,6 +20,8 @@ func run(t) -> void:
 	_test_fili_attaccati(t)
 	_test_nessuno_chiama_il_writer_privato(t)
 	_test_harness_non_riscrive_il_salvataggio(t)
+	_test_un_solo_padrone_della_velocita(t)
+	_test_chiavi_di_salvataggio_uniche(t)
 
 
 ## Il percorso VERO del ripristino: un animo con rancore viene salvato, rimesso
@@ -136,6 +138,94 @@ func _test_harness_non_riscrive_il_salvataggio(t) -> void:
 	t.ok(not _body("res://scenes/build/BuildSystem.gd", "_load_village")
 			.contains("_persist"),
 			"_load_village non guarda _persist: si carica anche a scritture spente")
+
+
+## La velocità di Mochi ha UN padrone: MainLevel._refresh_speeds, che
+## compone slider + stanchezza + languore. Il bug era da manuale dei
+## sistemi concorrenti: tre scrittori indipendenti (MainLevel, Settings,
+## Premura) — la Premura fotografava la velocità all'avvio e la riscriveva
+## assoluta, così Mochi sfinita E languida CORREVA più che sfinita e basta,
+## e lo slider cambiato in corsa veniva scavalcato. Qui si tiene la porta:
+## nessuno fuori da MainLevel scrive walk/run del player.
+func _test_un_solo_padrone_della_velocita(t) -> void:
+	var colpevoli: Array[String] = []
+	var firme := ["set_walk_speed(", "set_run_speed(", ".walk_speed =",
+			".run_speed =", "set(\"walk_speed\"", "set(\"run_speed\""]
+	for path in _tutti_gli_script("res://scenes") + _tutti_gli_script("res://systems"):
+		if path.ends_with("/MainLevel.gd"):
+			continue  # il padrone: lì dentro può scrivere
+		var f := FileAccess.open(path, FileAccess.READ)
+		if f == null:
+			continue
+		for riga in f.get_as_text().split("\n"):
+			var r := str(riga).strip_edges()
+			if r.begins_with("#"):
+				continue
+			for firma in firme:
+				if r.contains(str(firma)):
+					colpevoli.append(path.get_file())
+					break
+			if not colpevoli.is_empty() and colpevoli.back() == path.get_file():
+				break
+	t.eq(colpevoli.size(), 0,
+			"solo MainLevel scrive la velocità del player (colpevoli: %s)"
+			% ", ".join(colpevoli))
+
+
+## I save_extra di tutti i "persistable" si fondono in UN json piatto: due
+## sistemi con la stessa chiave di primo livello si sovrascriverebbero in
+## silenzio (la classe di bug delle sessioni concorrenti). Qui si estrae la
+## chiave-radice di ogni save_extra e si pretende che sia unica.
+func _test_chiavi_di_salvataggio_uniche(t) -> void:
+	var radici := {}   # chiave -> file
+	var doppie: Array[String] = []
+	for path in _tutti_gli_script("res://scenes") + _tutti_gli_script("res://systems"):
+		var corpo := _body(path, "save_extra")
+		if corpo == "":
+			continue
+		for k in _chiavi_radice(corpo):
+			if radici.has(k) and str(radici[k]) != path.get_file():
+				doppie.append("%s (in %s e %s)" % [k, radici[k], path.get_file()])
+			radici[k] = path.get_file()
+	t.eq(doppie.size(), 0,
+			"nessuna chiave di salvataggio scritta da due sistemi (%s)"
+			% ", ".join(doppie))
+	t.ok(radici.size() >= 20, "l'analisi ha visto davvero le chiavi (%d)" % radici.size())
+
+
+# Le chiavi di PRIMO livello dei dizionari `return {...}` di un save_extra:
+# si cammina il testo tenendo il conto delle graffe, così "unlocked" dentro
+# {"wardrobe": {"unlocked": …}} non viene scambiata per una radice.
+func _chiavi_radice(corpo: String) -> Array:
+	var out := []
+	var pos := corpo.find("return {")
+	while pos >= 0:
+		var depth := 0
+		var i := pos + "return ".length()
+		var in_str := false
+		var chiave := ""
+		while i < corpo.length():
+			var c := corpo[i]
+			if in_str:
+				if c == "\"":
+					in_str = false
+				else:
+					chiave += c
+			elif c == "\"":
+				in_str = true
+				chiave = ""
+			elif c == "{" or c == "[" or c == "(":
+				depth += 1
+			elif c == "}" or c == "]" or c == ")":
+				depth -= 1
+				if depth <= 0:
+					break
+			elif c == ":" and depth == 1 and chiave != "":
+				out.append(chiave)
+				chiave = ""
+			i += 1
+		pos = corpo.find("return {", i)
+	return out
 
 
 func _tutti_gli_script(dir_path: String) -> Array[String]:

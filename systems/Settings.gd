@@ -82,9 +82,8 @@ func _apply_fullscreen() -> void:
 func apply_to_player(player: Node) -> void:
 	if player == null or not is_instance_valid(player):
 		return
-	if player.has_method("set_walk_speed"):
-		player.set("walk_speed", 3.0 * move_speed)
-	# la run_speed la governa MainLevel (stanchezza): gli passiamo il fattore
+	# walk E run le governa MainLevel._refresh_speeds (un padrone solo, che
+	# compone slider + stanchezza + languore): qui si passa solo il fattore
 	if player.get_parent() and player.get_parent().has_method("set_speed_scale"):
 		player.get_parent().set_speed_scale(move_speed)
 

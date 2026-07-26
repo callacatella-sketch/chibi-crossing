@@ -15,10 +15,13 @@ const DEBUG_HARNESS := preload("res://scenes/levels/DebugHarness.gd")
 var _exhausted := false
 const EXHAUSTED_RUN_SPEED := 1.7
 const NORMAL_RUN_SPEED := 6.0
+const WALK_SPEED := 3.0
 const RECOVERY_FRACTION := 0.35
 
 # moltiplicatore velocità dalle Impostazioni ("Velocità di Mochi")
 var _speed_scale := 1.0
+# il fattore del languore (lo segnala la Premura: pancia vuota, passo piccolo)
+var _languore_scale := 1.0
 
 var _mochi: Node
 # quali bisogni sono nel critico adesso: se anche solo uno lo è (o Mochi è
@@ -72,11 +75,11 @@ func _ready():
 func _on_stamina_changed(value: float, max_value: float):
 	if value <= 0.5 and not _exhausted:
 		_exhausted = true
-		player.run_speed = EXHAUSTED_RUN_SPEED * _speed_scale
+		_refresh_speeds()
 		_refresh_tired()
 	elif _exhausted and value >= max_value * RECOVERY_FRACTION:
 		_exhausted = false
-		player.run_speed = NORMAL_RUN_SPEED * _speed_scale
+		_refresh_speeds()
 		_refresh_tired()
 
 # la HUD ci dice quando un bisogno cambia fascia (0 sereno · 1 basso · 2 critico)
@@ -98,10 +101,31 @@ func _refresh_tired():
 	_mochi.set_tired(tired)
 
 
+# LA velocità di Mochi ha UN padrone: questa funzione. Tre voci in
+# capitolo — lo slider delle Impostazioni (_speed_scale), la stanchezza
+# (_exhausted) e il languore della Premura (_languore_scale) — e nessuno
+# scrive più walk/run_speed per conto suo. Prima erano tre scrittori
+# indipendenti: la Premura fotografava la velocità all'avvio e la
+# riscriveva assoluta, cancellando lo sfinimento (Mochi sfinita E languida
+# CORREVA più che sfinita e basta) e lo slider cambiato in corsa.
+# Un test in test_cablaggio tiene chiusa la porta.
+func _refresh_speeds() -> void:
+	player.walk_speed = WALK_SPEED * _speed_scale * _languore_scale
+	player.run_speed = (EXHAUSTED_RUN_SPEED if _exhausted else NORMAL_RUN_SPEED) \
+			* _speed_scale * _languore_scale
+
+
 ## Le Impostazioni cambiano la velocità di Mochi: riscala la corsa corrente.
 func set_speed_scale(s: float) -> void:
 	_speed_scale = maxf(0.1, s)
-	player.run_speed = (EXHAUSTED_RUN_SPEED if _exhausted else NORMAL_RUN_SPEED) * _speed_scale
+	_refresh_speeds()
+
+
+## La Premura segnala il languore: il passo si accorcia del fattore dato
+## (1.0 = pancia piena). Si COMPONE con slider e stanchezza, non li scavalca.
+func set_languore(scale: float) -> void:
+	_languore_scale = clampf(scale, 0.5, 1.0)
+	_refresh_speeds()
 
 
 func _spawn_system(path: String, node_name: String) -> Node:

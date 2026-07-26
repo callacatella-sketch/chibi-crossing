@@ -19,8 +19,6 @@ var _visitors: Node
 var _daynight: Node3D
 var _sfx
 
-var _walk_base := -1.0
-var _run_base := -1.0
 var _languida := false
 var _attesa := 0.0
 var _premura_giorno := -1     # il giorno dell'ultimo soccorso: uno al giorno
@@ -35,11 +33,6 @@ func _ready() -> void:
 		_sfx = get_node_or_null(^"/root/Sfx")
 		if _player:
 			_survival = _player.get_node_or_null("SurvivalComponent")
-			# il passo "di fabbrica" si legge UNA volta: da qui in poi la
-			# velocità vera è sempre base * (1 o LENTA), mai un accumulo
-			if _player.has_method("get_walk_speed"):
-				_walk_base = float(_player.get_walk_speed())
-				_run_base = float(_player.get_run_speed())
 	).call_deferred()
 
 
@@ -68,13 +61,14 @@ func _process(delta: float) -> void:
 		_porta_un_boccone()
 
 
-# il passo si accorcia (o torna suo) — mai sommando: sempre dalla base
+# il passo si accorcia (o torna suo). La velocità ha UN padrone —
+# MainLevel._refresh_speeds — e qui si passa solo il fattore del languore:
+# prima si fotografava la velocità all'avvio e la si riscriveva assoluta,
+# cancellando lo sfinimento e lo slider delle Impostazioni cambiato in corsa.
 func _applica_passo() -> void:
-	if _walk_base < 0.0 or not _player.has_method("set_walk_speed"):
-		return
-	var k := LENTA if _languida else 1.0
-	_player.set_walk_speed(_walk_base * k)
-	_player.set_run_speed(_run_base * k)
+	var level := _player.get_parent()
+	if level and level.has_method("set_languore"):
+		level.set_languore(LENTA if _languida else 1.0)
 
 
 ## Il soccorso: il vicino più vicino accorre e divide il suo pranzo.

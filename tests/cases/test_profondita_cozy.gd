@@ -147,9 +147,16 @@ func _test_fili_attaccati(t) -> void:
 	var tscn := _sorgente("res://scenes/levels/MainLevel.tscn")
 	t.ok(tscn.contains("Premura.gd") and tscn.contains("name=\"Premura\""),
 			"la Premura è un nodo della scena principale")
+	# il languore arriva al PADRONE della velocità (MainLevel._refresh_speeds
+	# compone slider + stanchezza + languore): la Premura non scrive più
+	# walk/run per conto suo — riscrivendoli assoluti cancellava lo
+	# sfinimento e lo slider (vedi test_cablaggio, un solo padrone)
 	var passo := _body("res://scenes/npc/Premura.gd", "_applica_passo")
-	t.ok(passo.contains("set_walk_speed") and passo.contains("set_run_speed"),
-			"il languore tocca il passo (e lo restituisce: base * k)")
+	t.ok(passo.contains("set_languore"),
+			"il languore passa dal padrone della velocità (set_languore)")
+	t.ok(_body("res://scenes/levels/MainLevel.gd", "_refresh_speeds")
+			.contains("_languore_scale"),
+			"e il padrone lo compone con gli altri fattori")
 	var soccorso := _body("res://scenes/npc/Premura.gd", "_porta_un_boccone")
 	for filo in ["do_routine", "set_hunger", "set_water"]:
 		t.ok(soccorso.contains(filo), "il soccorso arriva fino a '%s'" % filo)

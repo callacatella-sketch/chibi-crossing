@@ -26,6 +26,19 @@ func _m(tipo: String, giorno := 1) -> Dictionary:
 	return {"d": giorno, "t": tipo, "x": ""}
 
 
+## Il corpo di una funzione: dal suo `func nome(` alla `func` successiva.
+func _corpo(path: String, fn: String) -> String:
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		return ""
+	var src := f.get_as_text()
+	var start := src.find("func %s(" % fn)
+	if start < 0:
+		return ""
+	var end := src.find("\nfunc ", start + 1)
+	return src.substr(start, (end - start) if end > start else -1)
+
+
 ## Le regole cozy della mortalità, una per una.
 func _test_regole_del_congedo(t) -> void:
 	# il caso buono: anziano da tanto, mai partenze, villaggio popolato
@@ -89,6 +102,11 @@ func _test_contratti_tabelle(t) -> void:
 				"il tipo '%s' ha il template della lettera" % tipo)
 		t.ok(str(MAIL.MOMENTI_TESTO.get(str(tipo), "")).contains("%d"),
 				"il template di '%s' cita il giorno del momento" % tipo)
+	# il congedo convive con la scala dell'Animo: se l'anziana DISERTA a
+	# meta' settimana, niente memoriale dorato (il filo del sorgente)
+	var giorno := _corpo("res://scenes/world/Congedo.gd", "_nuovo_giorno")
+	t.ok(giorno.contains("dna_di"),
+			"il congedo si accorge della diserzione e si annulla")
 
 
 ## Il lutto sui DATI (Legami): apre, consola, chiude — e chi non ha mai
