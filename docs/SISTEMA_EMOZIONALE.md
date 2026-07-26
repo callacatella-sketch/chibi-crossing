@@ -94,7 +94,7 @@ e respiro su, cadenza lenta). L'ingresso nell'autunno è un evento:
 toast, anello 🍂 sul Grande Albero, lettera del Gufo. Gli anziani
 raccontano: i ricordi del filo riaffiorano più spesso.
 
-### FASE 3 — Il Congedo (la settimana delle ultime cose)
+### ✅ FASE 3 — Il Congedo (la settimana delle ultime cose)
 Quando è tempo, il Gufo scrive a Mochi: «Nocciola vuole salutare
 il mondo, accompagnala tu». Sette giorni di ULTIMI DESIDERI, uno
 al giorno, generati dai momenti del filo (rivedere le stelle
@@ -103,7 +103,7 @@ Ogni desiderio esaudito = un momento d'oro sul filo. L'ultima
 sera: il falò con tutti i vicini, il Chibiese sottovoce.
 All'alba, sul letto: l'accessorio piegato e una lettera.
 
-### FASE 4 — Il Lutto
+### ✅ FASE 4 — Il Lutto
 Il lutto è GIOCATO, non raccontato: per giorni (proporzionali al
 filo) Mochi cambia — orecchie basse, coda ferma, passo lento, e
 ogni tanto si ferma da sola dove i momenti sono accaduti (un
@@ -115,7 +115,7 @@ le si siedono accanto senza dire niente, le portano un piatto
 caldo, la accompagnano a casa la sera. Non c'è un bottone per
 "superare il lutto": passa coi giorni e coi riti, come quello vero.
 
-### FASE 5 — I Ricordi che Restano
+### ✅ FASE 5 — I Ricordi che Restano
 La trasformazione: davanti alla casa nasce IL FIORE — unico,
 generato dal DNA di chi è partito (i suoi colori, la sua forma,
 da nessun'altra parte nel mondo). Annaffiarlo non serve: non
@@ -125,7 +125,7 @@ dal suo DNA) — «Nocciola adesso abita lassù». Il Grande Albero
 incide l'anello d'oro. L'accessorio entra nel guardaroba: quando
 Mochi lo indossa, i vicini si fermano — «mi-ka…» (amico).
 
-### FASE 6 — L'Empatia Bidirezionale
+### ✅ FASE 6 — L'Empatia Bidirezionale
 I vicini leggono Mochi: se il giocatore manca da giorni (data
 reale), al ritorno si radunano — ti sono mancati e glielo dici
 sentendolo. Se Mochi è sfinita spesso, un amico le porta da
