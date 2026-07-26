@@ -1,4 +1,4 @@
-[gd_scene load_steps=32 format=3 uid="uid://mainlevel_uid"]
+[gd_scene load_steps=34 format=3 uid="uid://mainlevel_uid"]
 
 [ext_resource type="Script" path="res://scenes/levels/MainLevel.gd" id="1_xxyz1"]
 [ext_resource type="PackedScene" uid="uid://d3u2b9x8y8v" path="res://scenes/characters/Player.tscn" id="2_yyzx2"]
@@ -23,6 +23,8 @@
 [ext_resource type="Script" path="res://scenes/ui/Inventory.gd" id="21_inv1"]
 [ext_resource type="Script" path="res://scenes/ui/Pockets.gd" id="22_pock1"]
 [ext_resource type="Script" path="res://scenes/npc/Premura.gd" id="23_prem1"]
+[ext_resource type="Script" path="res://scenes/interact/Bottiglie.gd" id="24_bott1"]
+[ext_resource type="Script" path="res://scenes/interact/Scavi.gd" id="25_scav1"]
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_1a2b3"]
 size = Vector2(240, 240)
@@ -150,6 +152,12 @@ script = ExtResource("16_coll1")
 
 [node name="Fishing" type="Node" parent="."]
 script = ExtResource("18_fish1")
+
+[node name="Bottiglie" type="Node" parent="."]
+script = ExtResource("24_bott1")
+
+[node name="Scavi" type="Node" parent="."]
+script = ExtResource("25_scav1")
 
 [node name="PhotoMode" type="Node" parent="."]
 script = ExtResource("17_phot1")

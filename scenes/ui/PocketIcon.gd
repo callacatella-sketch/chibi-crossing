@@ -75,6 +75,8 @@ func _draw() -> void:
 		"piuma": _piuma()
 		"semino": _semino()
 		"fiocco": _fiocco()
+		"conchiglia": _conchiglia()
+		"campanella": _campanella()
 		"porcino": _porcino()
 		"farfalla": _jar_farfalla()
 		"lucciola": _jar_lucciola()
@@ -308,6 +310,36 @@ func _fiocco() -> void:
 	draw_arc(_p(0.5, 0.55), 0.26 * _U, 0, TAU, 30, Color("e6d4b0"), 0.026 * _U, true)
 	for yy in [0.48, 0.56, 0.66]:
 		draw_arc(_p(0.5, yy - 0.1), 0.2 * _U, 0.3, PI - 0.3, 14, Color("efe0c0"), 0.024 * _U, true)
+
+
+func _conchiglia() -> void:
+	# la spirale di fiume: un guscio chiaro con le volute in penombra
+	var guscio := Color("efe3d2")
+	var ombra := Color("c9ab8a")
+	_ell(0.5, 0.58, 0.3, 0.26, guscio, ombra, 0.03)
+	for r in [0.22, 0.15, 0.08]:
+		draw_arc(_p(0.54, 0.56), r * _U, -0.6, PI * 1.4, 18, ombra, 0.024 * _U, true)
+	_circle(0.56, 0.55, 0.035, ombra)
+	# il riflesso freddo dell'acqua
+	_ell(0.38, 0.47, 0.07, 0.045, Color(0.85, 0.93, 0.95, 0.8))
+
+
+func _campanella() -> void:
+	# la campanella di coccio: la sagoma a campana e il batacchio
+	var coccio := Color("c08a5a")
+	var bordo := Color("94643a")
+	var pts := PackedVector2Array()
+	for i in 16:
+		var a := PI * float(i) / 15.0
+		pts.append(_p(0.5 - cos(a) * 0.24, 0.62 - sin(a) * 0.34))
+	pts.append(_p(0.78, 0.66))
+	pts.append(_p(0.22, 0.66))
+	draw_colored_polygon(pts, coccio)
+	draw_polyline(pts, bordo, 0.028 * _U, true)
+	# la sbeccatura (è vissuta) e il batacchio
+	_ell(0.66, 0.36, 0.045, 0.03, Color(0.99, 0.96, 0.89))
+	_circle(0.5, 0.72, 0.05, bordo)
+	_stroke([Vector2(0.5, 0.24), Vector2(0.5, 0.16)], bordo, 0.045)
 
 
 # ---------------------------------------------------------------- collezione (barattoli)

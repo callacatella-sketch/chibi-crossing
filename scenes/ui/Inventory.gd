@@ -43,6 +43,16 @@ const TREASURES := {
 		"name": "fiocco di lana", "art": "il", "tags": ["caldo", "morbido"],
 		"src": "dono del passerotto", "icon": "fiocco",
 		"desc": "Soffice e caldo. Chi ama il focolare lo adora."},
+	# i tesori dei sistemi del mondo (non stanno nei pool dei visitatori:
+	# la conchiglia arriva solo in bottiglia, la campanella solo scavando)
+	"conchiglia_fiume": {
+		"name": "conchiglia di fiume", "art": "la", "tags": ["fresco"],
+		"src": "da oltre la cascata", "icon": "conchiglia",
+		"desc": "Accostala all'orecchio: dentro c'è ancora la cascata."},
+	"campanella_coccio": {
+		"name": "campanella di coccio", "art": "la", "tags": ["terroso"],
+		"src": "dissotterrata nel prato", "icon": "campanella",
+		"desc": "Chissà chi la perse. Suona ancora, un po' stonata."},
 }
 
 ## Cosa lascia ciascuna specie di visitatore (era testo, ora è un oggetto).

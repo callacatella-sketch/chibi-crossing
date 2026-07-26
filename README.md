@@ -371,6 +371,26 @@ C++ via GDExtension. Tutta l'arte è procedurale: zero asset esterni.
   rosina) salta fuori roteando tra gli spruzzi. Se non tiri, ribussa.
   I pesci finiscono nei **barattoli-acquario** sulla Libreria, accanto
   alle farfalle. Allontanarsi riavvolge, il tutto persiste nel JSON.
+- **I messaggi in bottiglia** (`scenes/interact/Bottiglie.gd`) — ogni
+  tanto (mai più di una ogni due giorni) la cascata porta giù una
+  **bottiglia col sughero**: scivola a valle con la corrente, dondolando
+  tra le ninfee, con un luccichio che si nota dalla riva. Se nessuno la
+  ripesca prima della fine del fiume se ne va — un'urgenza gentile:
+  un'altra arriverà. Con **E** Mochi si sporge e la ripesca: dentro c'è
+  sempre una **lettera da oltre la cascata** (otto mittenti — la lontra
+  viaggiatrice, il capitano Gabbiano, nonna Castoro… — mai due volte la
+  stessa finché il giro non si chiude) e un dono: noccioline, ingredienti,
+  una stellina o la **conchiglia di fiume** per i Tesori. La prima
+  bottiglia si incide negli anelli del Grande Albero. Persistito nel JSON.
+- **I luccichii del mattino** (`scenes/interact/Scavi.gd`) — ogni giorno
+  due o tre punti del prato **scintillano d'oro**: lì sotto c'è qualcosa.
+  Con **E** Mochi si accuccia e **scava con le zampine** (tre zampate,
+  sbuffi di terra) e il trovamento salta fuori in un arco: un sacchettino
+  di noccioline, un ingrediente, la **campanella di coccio** che qualcuno
+  perse tanto tempo fa, o — di rado — una stellina. I punti sono
+  deterministici nel giorno e rinascono altrove ogni mattina: insieme
+  alla posta e alla foto dei ricordi, un motivo in più per cui ogni
+  mattina conta.
 - **Modalità foto** (`scenes/interact/PhotoMode.gd`) — **P** nasconde
   tutta la UI e libera la camera: WASD per volare, mouse per guardare,
   Q/E giù/su, rotella per lo zoom, e **clic per scattare**: flash,
