@@ -15,17 +15,20 @@ extends Node
 const LUA := preload("res://scenes/npc/LuaRoutines.gd")
 
 # contatori del modello del giocatore -> assi del profilo
+# Ogni evento emesso con note() DEVE stare in un asse, o non pesa mai sul
+# profilo (test_regista fa la guardia). "legna" sta col costruttore (è il
+# legname dei cantieri), "cucina" col socievole (le zuppette si offrono).
 const ASSI := {
-	"costruttore": ["costruzione"],
+	"costruttore": ["costruzione", "legna"],
 	"botanico": ["giardino"],
 	"collezionista": ["retino", "pesca"],
-	"socievole": ["socievole", "onsen"],
+	"socievole": ["socievole", "onsen", "cucina"],
 	"contemplativo": ["foto", "stelle", "dormita", "bosco"],
 }
 
 # le lettere del Gufo: la voce in-fiction del Regista (%d = il contatore)
 const LETTERE_GUFO := {
-	"costruttore": "Dal ramo alto conto i tetti nuovi: %d pezzi\nposati! Il villaggio cresce sotto le tue zampe.",
+	"costruttore": "Dal ramo alto conto colpi d'ascia e tetti nuovi:\n%d opere! Il villaggio cresce sotto le tue zampe.",
 	"botanico": "Ti guardo annaffiare ogni mattina: %d gesti\ngentili. Anche le farfalle se ne sono accorte.",
 	"collezionista": "Ho contato %d creaturine nei tuoi barattoli.\nLo stagno sussurra che gli piaci.",
 	"socievole": "Che via vai di benvenuti e zuppette: %d gentilezze!\nNel bosco non si parla d'altro.",
