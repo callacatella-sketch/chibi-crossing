@@ -245,12 +245,27 @@ func giorni_di_amicizia(nome: String) -> int:
 ## Segna la partenza per il Grande Prato. `fiore` è la scheda del
 ## fiore-ricordo ({x, z, dress, fur, petali}): coi colori salvati qui, il
 ## fiore rinasce identico anche quando il DNA del residente non c'è più.
-func segna_partito(nome: String, fiore: Dictionary) -> void:
+## `dna` è il CORPO com'era: serve agli echi del lutto per far sedere la
+## sua presenza dove i momenti accaddero (Congedo._eco_presenza).
+func segna_partito(nome: String, fiore: Dictionary, dna := {}) -> void:
 	var filo := _filo(nome)
 	filo["partito"] = true
 	filo["giorno_partenza"] = _day()
 	filo["fiore"] = fiore
+	if not dna.is_empty():
+		filo["dna_ricordo"] = dna
 	_salva()
+
+
+## Il corpo del ricordo: il DNA di chi è partito ({} per i salvataggi
+## precedenti agli echi-presenza — il fantasma si rigenera dal nome).
+func dna_ricordo(nome: String) -> Dictionary:
+	return _fili.get(nome, {}).get("dna_ricordo", {})
+
+
+## La scheda del fiore di chi è partito (i colori del ricordo).
+func fiore_di(nome: String) -> Dictionary:
+	return _fili.get(nome, {}).get("fiore", {})
 
 
 func e_partito(nome: String) -> bool:

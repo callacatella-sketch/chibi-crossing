@@ -19,6 +19,9 @@ const HANDPAINT := preload("res://shaders/handpaint.gdshader")
 const UI_BROWN := Color("6a4a3a")
 # i racconti dei momenti vivono in Legami.TIPI: una fonte sola
 const TIPI := preload("res://scenes/world/Legami.gd").TIPI
+# il corpo degli echi-presenza: lo stesso builder dei chibi vivi
+const BUILDER := preload("res://scenes/npc/ChibiBuilder.gd")
+const DNA_GEN := preload("res://scenes/npc/ChibiDNA.gd")
 
 # quando è tempo: ben oltre l'autunno del Filo (Legami.GIORNI_ANZIANO=40)
 const ETA_PARTENZA := 55
@@ -332,7 +335,8 @@ func _partenza() -> void:
 			"petali": 5 + absi(int(dna.get("seed", 0))) % 4}
 	if _legami:
 		_legami.call("momento", nome, "partenza", "")
-		_legami.call("segna_partito", nome, fiore)
+		# il DNA parte col filo: gli echi del lutto rivestiranno il suo corpo
+		_legami.call("segna_partito", nome, fiore, dna)
 	_spawn_fiore(nome, fiore)
 	_accendi_finestra(Vector3(float(cell[0]), 0, float(cell[1])))
 
@@ -417,11 +421,81 @@ func _tick_lutto() -> void:
 		var pos: Vector3 = luogo[1]
 		if player.global_position.distance_to(pos) < 2.2:
 			_echi[chiave] = true
-			_sparkle(pos + Vector3(0, 0.6, 0), Color(1.0, 0.88, 0.62))
-			_toast("💭 Un luccichio: l'eco di %s — %s." % [nome, str(luogo[2])])
+			# non un luccichio: una PRESENZA — la sagoma di chi è partito,
+			# seduta un attimo dove il momento accadde, rivolta a Mochi
+			_eco_presenza(nome, pos, player.global_position)
+			_toast("❀ Per un attimo, %s è lì di nuovo — %s." % [nome, str(luogo[2])])
 			if _sfx:
-				_sfx.ui_select()
+				_sfx.play("select", -18.0, 0.85)
 			return
+
+
+## Il corpo per l'eco: il DNA salvato alla partenza, oppure — per i
+## salvataggi di prima degli echi-presenza — un corpo rigenerato dal nome
+## e tinto coi colori del fiore-ricordo. PURA e deterministica: la stessa
+## partenza rimette in scena SEMPRE la stessa presenza.
+static func dna_fantasma(nome: String, fiore: Dictionary, salvato: Dictionary) -> Dictionary:
+	if not salvato.is_empty():
+		return salvato
+	var dna: Dictionary = DNA_GEN.generate(nome.hash())
+	dna["name"] = nome
+	if fiore.has("dress"):
+		dna["dress"] = str(fiore["dress"])
+		dna["dress2"] = Color(str(fiore["dress"])).lightened(0.25).to_html(false)
+	if fiore.has("fur"):
+		dna["fur"] = str(fiore["fur"])
+	return dna
+
+
+## L'ECO COME PRESENZA. La mesh vera del chibi partito (stesso builder
+## dei vivi), vestita di un materiale-fantasma additivo: traslucida e
+## morbida, si abbassa seduta con le gambette raccolte e il capo appena
+## chino, rivolta verso Mochi. Respira per due secondi, poi si scioglie
+## nel luccichio di sempre — che ora è un congedo, non l'evento.
+func _eco_presenza(nome: String, pos: Vector3, verso: Vector3) -> void:
+	var dna := dna_fantasma(nome, _legami.call("fiore_di", nome),
+			_legami.call("dna_ricordo", nome))
+	var parts: Dictionary = BUILDER.build(dna)
+	var root := parts["root"] as Node3D
+	var eco := Node3D.new()
+	add_child(eco)
+	eco.global_position = pos
+	eco.add_child(root)
+	# rivolta a Mochi: è a lei che appare (il rig nudo del builder guarda
+	# +z: verificato a schermo — con la convenzione di Mochi dava le spalle)
+	var dir := (verso - pos) * Vector3(1, 0, 1)
+	if dir.length() > 0.01:
+		dir = dir.normalized()
+		eco.rotation.y = atan2(dir.x, dir.z)
+	# seduta: il corpo si posa, le gambette si raccolgono, il capo si china
+	root.position.y -= 0.16
+	for gamba in (parts.get("legs", []) as Array):
+		(gamba as Node3D).scale.y = 0.45
+	if parts.has("head"):
+		(parts["head"] as Node3D).rotation.x = 0.1
+	# il materiale-fantasma: UNO per tutte le mesh, così la dissolvenza è
+	# una sola (additivo: la presenza è fatta di luce, non di corpo)
+	var ghost := StandardMaterial3D.new()
+	ghost.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	ghost.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	ghost.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	ghost.albedo_color = Color(0.98, 0.9, 0.72, 0.0)
+	for mi in root.find_children("*", "MeshInstance3D", true, false):
+		(mi as MeshInstance3D).material_override = ghost
+		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# entra piano, resta seduta sollevandosi di un soffio, si scioglie
+	var tw := create_tween()
+	tw.tween_property(ghost, "albedo_color:a", 0.17, 0.55) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(eco, "position:y", pos.y + 0.035, 2.1) \
+			.set_trans(Tween.TRANS_SINE)
+	tw.tween_interval(0.9)
+	tw.tween_property(ghost, "albedo_color:a", 0.0, 0.75) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tw.tween_callback(func() -> void:
+		if is_instance_valid(eco):
+			_sparkle(eco.global_position + Vector3(0, 0.6, 0), Color(1.0, 0.88, 0.62))
+			eco.queue_free())
 
 
 ## I luoghi dove i momenti col partito sono accaduti: [chiave, pos, racconto].
