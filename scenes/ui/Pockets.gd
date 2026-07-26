@@ -32,8 +32,10 @@ const INGREDIENTS := {
 		"desc": "Violacee e succose. Dolci da crumble."},
 	"fungo": {"name": "Funghi", "icon": "fungo", "src": "dal bosco",
 		"desc": "Profumo di sottobosco. Perfetti nel risotto."},
+	"porcino": {"name": "Porcini", "icon": "porcino", "src": "dal bosco, d'autunno",
+		"desc": "Il tesoro del sottobosco d'autunno. Il mercante lo paga bene."},
 }
-const ING_ORDER := ["carota", "zucca", "bacca", "fungo"]
+const ING_ORDER := ["carota", "zucca", "bacca", "fungo", "porcino"]
 
 # nome leggibile delle etichette di gusto (per i chip nel dettaglio)
 const TAG_LABEL := {"caldo": "Caldo", "fresco": "Fresco", "dolce": "Dolce",
@@ -237,6 +239,10 @@ func _gather() -> Array[Dictionary]:
 
 
 func _gather_collection() -> Array[Dictionary]:
+	# L'ENCICLOPEDIA del prato: tutte le specie del bestiario, sempre. Chi è
+	# già stato acchiappato ha nome e colore; chi non si è mai visto è una
+	# SAGOMA grigia con un indizio ("solo quando piove", "nelle notti
+	# d'autunno"): è la scheda vuota a far venire voglia di uscire col retino.
 	var out: Array[Dictionary] = []
 	if _collection == null:
 		return out
@@ -244,17 +250,25 @@ func _gather_collection() -> Array[Dictionary]:
 	var order: Array = _collection.jar_order()
 	for kind in order:
 		var n := int(counts.get(kind, 0))
-		if n <= 0:
+		var vista: bool = n > 0 \
+				or (_collection.has_method("has_seen") and bool(_collection.has_seen(kind)))
+		if not vista:
+			out.append({"id": kind, "name": "???",
+				"count": 0, "icon": "sagoma", "tint": Color(0, 0, 0, 0),
+				"src": "mai vista", "kind": "collection", "giftable": false,
+				"tags": [], "desc": CRIT.indizio(kind)})
 			continue
 		var icon := "farfalla"
-		if kind == "lucciola":
-			icon = "lucciola"
-		elif _collection.is_fish(kind):
-			icon = "pesce"
+		match CRIT.classe(kind):
+			"lucciola": icon = "lucciola"
+			"pesce": icon = "pesce"
+			"bestiola": icon = "bestiola"
 		out.append({"id": kind, "name": CRIT.etichetta(kind),
 			"count": n, "icon": icon, "tint": CRIT.colore(kind),
-			"src": "nella Libreria", "kind": "collection", "giftable": false,
-			"tags": [], "desc": "In un barattolo sullo scaffale. Nessuna fretta."})
+			"src": "nella Libreria" if n > 0 else "già incontrata",
+			"kind": "collection", "giftable": false, "tags": [],
+			"desc": "In un barattolo sullo scaffale. Nessuna fretta." if n > 0
+					else CRIT.indizio(kind)})
 	return out
 
 
@@ -478,7 +492,8 @@ func _cta_text(e: Dictionary) -> String:
 		"dish", "treasure":
 			return "Avvicìnati a un amico per regalarlo"
 		"collection":
-			return "In mostra sugli scaffali"
+			return "In mostra sugli scaffali" if int(e.get("count", 0)) > 0 \
+					else "Là fuori, da qualche parte…"
 	return ""
 
 
@@ -510,7 +525,9 @@ func _confirm() -> void:
 		"dish", "treasure":
 			_show_toast("Avvicìnati a un amico e riapri le tasche per regalarlo.")
 		"collection":
-			_show_toast("È già in mostra sugli scaffali della Libreria.")
+			_show_toast("È già in mostra sugli scaffali della Libreria."
+					if int(e.get("count", 0)) > 0
+					else str(e.get("desc", "Là fuori, da qualche parte…")))
 	if _sfx:
 		_sfx.ui_select()
 

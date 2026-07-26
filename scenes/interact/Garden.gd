@@ -518,14 +518,18 @@ func _pick_mushroom(i: int) -> void:
 	tw.parallel().tween_property(node, "global_position:y",
 			_player.global_position.y + 1.85, 0.24)
 	tw.tween_callback(func():
+		# fungo comune o PORCINO d'autunno: lo dice il cartellino del bosco
+		var specie := str(node.get_meta("specie", "fungo"))
 		node.queue_free()
 		mochi.call("hold_reach", false)
 		var cooking := get_node_or_null("../Cooking")
 		if cooking:
-			cooking.add_ingredient("fungo", 1)
+			cooking.add_ingredient(specie, 1)
 		var visitors := get_node_or_null("../Visitors")
 		if visitors:
-			visitors.call("_show_toast", "+1 fungo nella dispensa!")
+			visitors.call("_show_toast",
+					"+1 fungo porcino nella dispensa! Che profumo raro."
+					if specie == "porcino" else "+1 fungo nella dispensa!")
 		_busy = false)
 
 
@@ -938,7 +942,9 @@ func _update_prompt() -> void:
 		if cam.is_position_behind(sp):
 			_prompt.visible = false
 			return
-		_prompt_label.text = "E — raccogli il fungo"
+		_prompt_label.text = "E — raccogli il porcino!" \
+				if str(_world.call("pickup_kind", _near_shroom)) == "porcino" \
+				else "E — raccogli il fungo"
 		_prompt.reset_size()
 		var spp := cam.unproject_position(sp)
 		_prompt.position = spp - Vector2(_prompt.size.x * 0.5, _prompt.size.y)

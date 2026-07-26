@@ -25,6 +25,12 @@ var _cast_from := Vector3.ZERO
 var _timer := 0.0
 var _t := 0.0
 
+# la preda di QUESTO lancio: decisa all'ammaraggio (non allo strattone),
+# così sotto l'acqua può nuotare la sua ombra — grande se la specie è rara
+var _kind := ""
+var _shadow: Node3D
+var _bussate := 0        # il raro bussa due volte prima di abboccare davvero
+
 var _prompt: PanelContainer
 var _prompt_label: Label
 
@@ -58,6 +64,7 @@ func _process(delta: float) -> void:
 			_timer -= delta
 			if _bobber:
 				_bobber.position.y = 0.09 + sin(_t * 2.4) * 0.015
+			_drift_shadow(delta)
 			if _timer <= 0.0:
 				_start_bite()
 			_check_walked_away()
@@ -209,7 +216,8 @@ func _launch_bobber(dir: Vector3) -> void:
 		if _cozy:
 			_cozy.water_ripple(_bob_home, 0.8)
 		if _sfx:
-			_sfx.plop())
+			_sfx.plop()
+		_spawn_preda())
 
 
 func _update_line() -> void:
@@ -232,11 +240,109 @@ func _update_line() -> void:
 	_line.scale = Vector3(1, maxf(dist, 0.01), 1)
 
 
+# ---------------------------------------------------------------- la preda
+
+## Quanto è larga l'ombra sotto l'acqua: la taglia È l'informazione. Il
+## giocatore impara a leggerla — grande = specie rara — prima ancora che
+## il galleggiante si muova. Pura: la verifica il test.
+static func taglia_ombra(rara: bool) -> float:
+	return 1.6 if rara else 0.9
+
+
+## Il pesce si decide all'ammaraggio: da qui in poi l'acqua RACCONTA.
+## L'ombra della preda scivola verso il galleggiante, e se la specie è
+## rara busserà due volte prima di abboccare. Nessun fallimento, come
+## sempre: solo lettura e attesa.
+func _spawn_preda() -> void:
+	_kind = _weighted_fish()
+	_bussate = 2 if CRIT.rara(_kind) else 0
+	_shadow = Node3D.new()
+	var mi := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.5
+	sm.height = 1.0
+	sm.radial_segments = 20
+	sm.rings = 8
+	mi.mesh = sm
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(0.12, 0.18, 0.22, 0.34)
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.scale = Vector3(0.36, 0.045, 0.22)
+	_shadow.add_child(mi)
+	add_child(_shadow)
+	var lato := randf_range(0.0, TAU)
+	_shadow.scale = Vector3.ONE * taglia_ombra(CRIT.rara(_kind))
+	_shadow.global_position = _bob_home \
+			+ Vector3(cos(lato), 0, sin(lato)) * randf_range(1.2, 1.7)
+	_shadow.global_position.y = 0.03
+	_shadow.rotation.y = lato
+
+
+# l'ombra ondeggia e si avvicina piano al galleggiante durante l'attesa
+func _drift_shadow(delta: float) -> void:
+	if _shadow == null:
+		return
+	var target := _bob_home + Vector3(sin(_t * 0.7) * 0.35, 0, cos(_t * 0.9) * 0.3)
+	target.y = 0.03
+	var prima := _shadow.global_position
+	_shadow.global_position = prima.lerp(target, 1.0 - exp(-0.55 * delta))
+	var passo := _shadow.global_position - prima
+	if passo.length() > 0.0005:
+		_shadow.rotation.y = atan2(-passo.z, passo.x)
+
+
+func _free_shadow() -> void:
+	if _shadow and is_instance_valid(_shadow):
+		_shadow.queue_free()
+	_shadow = null
+
+
 # ---------------------------------------------------------------- abbocco
 
+## La bussata del raro: il galleggiante trema appena, l'ombra guizza sotto
+## e si ritrae. NON è l'abbocco — il prompt non appare: chi conosce lo
+## stagno riconosce il saluto del pesce grosso e aspetta.
+func _bussa() -> void:
+	_timer = randf_range(1.4, 2.4)
+	if _cozy:
+		_cozy.water_ripple(_bob_home, 0.35)
+	if _sfx:
+		_sfx.play("plop", -17.0, 1.35)   # un tocco, non l'abbocco
+	if _bobber:
+		if _bob_tw and _bob_tw.is_valid():
+			_bob_tw.kill()
+		_bob_tw = create_tween()
+		_bob_tw.tween_property(_bobber, "position:y", 0.045, 0.1) \
+				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+		_bob_tw.tween_property(_bobber, "position:y", 0.09, 0.25) \
+				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	if _shadow:
+		var qui := _shadow.global_position
+		var sotto := Vector3(_bob_home.x, 0.03, _bob_home.z)
+		var tw := create_tween()
+		tw.tween_property(_shadow, "global_position", sotto, 0.22) \
+				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		tw.tween_property(_shadow, "global_position", qui, 0.5) \
+				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+
 func _start_bite() -> void:
+	# il pesce raro prima BUSSA (due volte): lo stato resta "wait" e il
+	# prompt non compare — è il momento della lettura, non dello strattone
+	if _bussate > 0:
+		_bussate -= 1
+		_bussa()
+		return
 	_state = "bite"
 	_timer = 2.0
+	if _shadow:
+		var tw := create_tween()
+		tw.tween_property(_shadow, "global_position",
+				Vector3(_bob_home.x, 0.03, _bob_home.z), 0.15) \
+				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	if _cozy:
 		_cozy.water_ripple(_bob_home, 0.55)
 		get_tree().create_timer(0.35).timeout.connect(func():
@@ -256,17 +362,24 @@ func _start_bite() -> void:
 
 
 func _weighted_fish() -> String:
-	# carpetta comune · azzurrino meno · rosina rara (la stellina è preziosa)
-	var r := randf()
-	if r < 0.58:
-		return "carpetta"
-	elif r < 0.88:
-		return "azzurrino"
-	return "rosina"
+	# chi abbocca lo decide il bestiario: le tre carpe di sempre più le specie
+	# di stagione (il girino in primavera, il pesce ghiaccio d'inverno, la
+	# carpa foglia d'oro d'autunno, il pesce dell'alba al crepuscolo). I pesi
+	# stanno in Critters, accanto al prezzo: carpetta comune, rare preziose.
+	if _cozy and _cozy.has_method("contesto_critter"):
+		var pool: Array = CRIT.disponibili("pesce", _cozy.call("contesto_critter"))
+		var kind := CRIT.estrai(pool, randf())
+		if kind != "":
+			return kind
+	return "carpetta"
 
 
 func _catch() -> void:
-	var kind := _weighted_fish()
+	# la preda è quella annunciata dall'ombra (il ripiego serve solo ai
+	# vecchi salvataggi di debug in cui l'ombra non è mai nata)
+	var kind := _kind if _kind != "" else _weighted_fish()
+	_kind = ""
+	_free_shadow()
 	var col := CRIT.colore(kind)
 
 	# lo STRATTONE: la canna scatta all'indietro col braccio, poi si
@@ -361,6 +474,9 @@ func _cleanup() -> void:
 	_rod = null
 	_line = null
 	_bobber = null
+	_free_shadow()
+	_kind = ""
+	_bussate = 0
 
 
 # ---------------------------------------------------------------- UI
@@ -423,5 +539,6 @@ func debug_start() -> void:
 func debug_force_bite() -> void:
 	_timer = 0.0
 	if _state == "wait":
+		_bussate = 0   # la CLI vuole l'abbocco vero, senza il rito delle bussate
 		_start_bite()
 		_timer = 30.0

@@ -19,7 +19,8 @@ const DISH_ICON := {
 	"Crumble di bacche": "crumble", "Tè alle bacche": "te",
 }
 
-const ING_PLURAL := {"carota": "carote", "zucca": "zucche", "bacca": "bacche", "fungo": "funghi"}
+const ING_PLURAL := {"carota": "carote", "zucca": "zucche", "bacca": "bacche",
+		"fungo": "funghi", "porcino": "porcini"}
 
 const RECIPES := [
 	{"name": "Tè del prato", "need": {}, "warm": false, "art": "il",

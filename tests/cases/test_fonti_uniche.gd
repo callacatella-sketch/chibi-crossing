@@ -26,20 +26,49 @@ func run(t) -> void:
 # ------------------------------------------------------------- bestiario
 
 func _test_bestiario_coerente(t) -> void:
-    t.ok(CRIT.SPECIE.size() >= 11, "il bestiario ha tutte le specie")
-    var classi_valide := ["farfalla", "lucciola", "pesce", "raccolto"]
+    t.ok(CRIT.SPECIE.size() >= 25, "il bestiario ha tutte le specie")
+    var classi_valide := ["farfalla", "lucciola", "pesce", "bestiola", "raccolto"]
+    var ore_valide := ["giorno", "notte", "crepuscolo"]
+    var meteo_validi := ["pioggia", "neve"]
+    var luoghi_validi := ["prato", "bosco", "stagno"]
     for id in CRIT.SPECIE:
         var v: Dictionary = CRIT.SPECIE[id]
         # ogni voce è COMPLETA: un campo mancante è un dato che diverge
         for campo in ["nome", "articolo", "classe", "colore", "vendita", "rara"]:
             t.ok(v.has(campo), "%s ha il campo %s" % [id, campo])
         t.ok(str(v.get("classe", "")) in classi_valide, "%s ha una classe valida" % id)
-        t.ok(str(v.get("articolo", "")) in ["un", "una"], "%s ha un articolo valido" % id)
+        t.ok(str(v.get("articolo", "")) in ["un", "una", "uno"], "%s ha un articolo valido" % id)
         t.ok(int(v.get("vendita", 0)) > 0, "%s ha un valore di vendita > 0" % id)
         # il nome è minuscolo e senza articolo: le due forme si derivano
         var nome := str(v.get("nome", ""))
         t.ok(nome != "" and nome == nome.to_lower(), "%s: nome minuscolo e non vuoto" % id)
         t.ok(not nome.begins_with("un "), "%s: il nome non include l'articolo" % id)
+        # i campi FACOLTATIVI, se ci sono, usano i vocabolari giusti: una
+        # stagione 4 o un'ora "sera" non darebbero errore, solo una specie
+        # che non nasce mai (o nasce sempre) — in silenzio
+        if v.has("cond"):
+            var cond: Dictionary = v["cond"]
+            t.ok(not cond.is_empty(), "%s: cond presente ma vuota" % id)
+            for chiave in cond:
+                t.ok(str(chiave) in ["stagioni", "ora", "meteo"],
+                        "%s: chiave cond '%s' conosciuta" % [id, chiave])
+            if cond.has("stagioni"):
+                for s in cond["stagioni"]:
+                    t.ok(int(s) >= 0 and int(s) <= 3, "%s: stagione %s valida" % [id, s])
+            if cond.has("ora"):
+                t.ok(str(cond["ora"]) in ore_valide, "%s: ora valida" % id)
+            if cond.has("meteo"):
+                t.ok(str(cond["meteo"]) in meteo_validi, "%s: meteo valido" % id)
+        if v.has("luogo"):
+            t.ok(str(v["luogo"]) in luoghi_validi, "%s: luogo valido" % id)
+        if v.has("peso"):
+            t.ok(float(v["peso"]) > 0.0, "%s: peso positivo" % id)
+        if v.has("max"):
+            t.ok(int(v["max"]) >= 1, "%s: max almeno 1" % id)
+        # ogni specie della collezione ha il suo indizio: la sagoma grigia
+        # dell'enciclopedia deve sempre saper dire dove cercare
+        if str(v.get("classe", "")) in CRIT.CLASSI_COLLEZIONE:
+            t.ok(str(v.get("indizio", "")) != "", "%s ha l'indizio per l'enciclopedia" % id)
 
 
 func _test_nomi_derivati(t) -> void:
@@ -64,10 +93,15 @@ func _test_elenchi(t) -> void:
     var coll: Array = CRIT.collezionabili()
     var pesci: Array = CRIT.pesci()
     var farfalle: Array = CRIT.farfalle()
-    t.eq(farfalle.size(), 3, "tre farfalle nel prato")
-    t.eq(pesci.size(), 3, "tre pesci nello stagno")
-    # i barattoli raccolgono farfalle, lucciole e pesci — non i raccolti
-    t.eq(coll.size(), farfalle.size() + pesci.size() + 1, "collezionabili = farfalle + pesci + lucciola")
+    var lucciole: Array = CRIT.lucciole()
+    var bestiole: Array = CRIT.bestiole()
+    t.eq(farfalle.size(), 7, "sette farfalle nel prato (tre di sempre + quattro stagionali)")
+    t.eq(pesci.size(), 7, "sette pesci nello stagno (tre di sempre + quattro stagionali)")
+    t.eq(lucciole.size(), 2, "due lucciole (quella di sempre e la regale)")
+    t.eq(bestiole.size(), 4, "quattro bestiole (cicala, scarabeo, lumachina, rana)")
+    # i barattoli raccolgono farfalle, lucciole, pesci e bestiole — non i raccolti
+    t.eq(coll.size(), farfalle.size() + pesci.size() + lucciole.size() + bestiole.size(),
+            "collezionabili = farfalle + pesci + lucciole + bestiole")
     for id in coll:
         t.ok(CRIT.classe(id) != "raccolto", "%s in collezione non è un raccolto" % id)
     for id in pesci:
@@ -76,7 +110,7 @@ func _test_elenchi(t) -> void:
     var rare: Array = CRIT.rare()
     for id in rare:
         t.ok(CRIT.rara(id), "%s risulta rara" % id)
-    t.eq(rare.size(), 3, "tre specie rare (una stellina ciascuna)")
+    t.eq(rare.size(), 9, "nove specie rare (una stellina ciascuna)")
     # il pallino del negozio è LO STESSO colore, solo più carico
     for id in CRIT.SPECIE:
         var c: Color = CRIT.colore(id)

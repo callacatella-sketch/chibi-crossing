@@ -100,14 +100,14 @@ func set_night(night: bool) -> void:
 		_shaft_tw.tween_property(_shaft_mat, "albedo_color:a", target, 1.5)
 
 
-# pollini e farfalle riposano di notte E d'inverno (il prato gelato non ha
-# né polline né farfalle): il crocevia dei due stati vive qui
+# il polline riposa di notte e d'inverno; le farfalle invece le decide il
+# bestiario specie per specie (la falena vola proprio di notte, la farfalla
+# di neve proprio d'inverno): al cambio di luce si sfoltisce chi non c'è più
 func _refresh_critters() -> void:
 	var awake := not _night and _season != 3
 	if _pollen:
 		_pollen.emitting = awake
-	for b in _butterflies:
-		(b["node"] as Node3D).visible = awake
+	_cull_butterflies()
 
 
 ## Emesso quando tutta la geometria differita è stata costruita.
@@ -148,7 +148,6 @@ func _ready() -> void:
 	_build_stones()
 	_build_clouds()
 	await get_tree().process_frame
-	_build_butterflies()
 	_build_pollen()
 	await get_tree().process_frame
 	_build_forest()
@@ -163,6 +162,9 @@ func _ready() -> void:
 	_build_season_fx()
 	world_built.emit()
 	_init_season()
+	# le farfalle nascono DOPO la prima veste stagionale: il bestiario decide
+	# chi vola in base a stagione, ora e meteo, quindi serve la stagione vera
+	_build_butterflies()
 
 
 
@@ -465,6 +467,8 @@ func _build_trees() -> void:
 	# primavera, rinverdisce d'estate, si accende d'oro-rosa in autunno)
 	var cherry := _make_tree(Vector3(-6.0, 0, -5.0), 1.25, Color("ffd4e2"), Color("f5a8c0"), 1, "cherry")
 	_add_petals(cherry)
+	# la farfalla di ciliegio vola qui, tra i petali che cadono
+	_cherry_home = cherry.position + Vector3(0, 0.45, 0)
 
 	_make_tree(Vector3(7.5, 0, -6.0), 1.1, Color("86c46c"), Color("64a854"), 2)
 	_make_tree(Vector3(-9.0, 0, 4.5), 0.9, Color("97cc74"), Color("74b05c"), 3)
@@ -606,34 +610,111 @@ func _build_clouds() -> void:
 
 # Chi vola nel prato e di che colore: dal BESTIARIO (scenes/world/Critters.gd),
 # la stessa riga che il negozio usa per il prezzo e la vetrina per il barattolo.
+# Il bestiario dice anche QUANDO ognuna esiste (stagione, ora, meteo): il prato
+# non chiede mai "è inverno?" — chiede "chi è disponibile adesso?".
 const CRIT := preload("res://scenes/world/Critters.gd")
 var _bf_kinds: Array = CRIT.farfalle()
+var _bf_ctx_check := 0.0
+# la chioma del ciliegio del prato: la casa di volo della farfalla di ciliegio
+var _cherry_home := Vector3(-6.0, 0.45, -5.0)
+
+
+## Il contesto (stagione, ora, meteo) con cui il bestiario decide chi c'è.
+## Lo chiedono il prato (farfalle), il retino (lucciole e bestiole), la canna
+## (pesci) e il bosco (porcini): un solo posto, una sola verità.
+func contesto_critter() -> Dictionary:
+	var dn := get_node_or_null("../DayNight")
+	var tempo := float(dn.get("time")) if dn else 0.5
+	var meteo := "sereno"
+	var w := get_tree().get_first_node_in_group("weather")
+	if w and bool(w.call("is_raining")):
+		# d'inverno la precipitazione è una nevicata fitta, non pioggia
+		meteo = "neve" if _season == 3 else "pioggia"
+	return CRIT.contesto(_season, tempo, _night, meteo)
+
 
 func _build_butterflies() -> void:
 	for i in 5:
-		_make_butterfly(i % _bf_kinds.size())
+		_spawn_butterfly_available()
+
+
+## Chi non è più di stagione (o d'ora, o di meteo) se ne va: si libera il
+## posto, e il refill in _process lo ridà a chi è disponibile adesso.
+func _cull_butterflies() -> void:
+	var ctx := contesto_critter()
+	for i in range(_butterflies.size() - 1, -1, -1):
+		if not CRIT.disponibile(str(_butterflies[i]["kind"]), ctx):
+			(_butterflies[i]["node"] as Node3D).queue_free()
+			_butterflies.remove_at(i)
+
+
+## Fa nascere una farfalla scelta tra quelle disponibili ADESSO (estrazione
+## pesata dal bestiario, col tetto per specie: mai tre falene insieme).
+func _spawn_butterfly_available() -> void:
+	var ctx := contesto_critter()
+	var vivi := {}
+	for b in _butterflies:
+		var k := str(b["kind"])
+		vivi[k] = int(vivi.get(k, 0)) + 1
+	var pool := []
+	for id in CRIT.disponibili("farfalla", ctx):
+		if int(vivi.get(str(id), 0)) < CRIT.max_vivi(str(id)):
+			pool.append(id)
+	if pool.is_empty():
+		return
+	var kind := CRIT.estrai(pool, randf())
+	var kind_i := _bf_kinds.find(kind)
+	if kind_i >= 0:
+		_make_butterfly(kind_i)
 
 
 func _make_butterfly(kind_i: int) -> void:
+	var kind := str(_bf_kinds[kind_i])
 	var b := Node3D.new()
 	add_child(b)
+
+	# la casa di volo: il prato per quasi tutte, la chioma del ciliegio per
+	# chi vive tra i petali; la libellula rasenta l'erba, la falena sale
+	var home := Vector3.ZERO
+	var girata := 8.0
+	var alt := 0.9
+	var flap := 17.0
+	var wing_size := Vector2(0.15, 0.12)
+	var body_len := 0.07
+	match kind:
+		"ciliegio":
+			home = _cherry_home
+			girata = 2.2
+			alt = 1.15
+		"libellula":
+			alt = 0.62
+			flap = 30.0
+			wing_size = Vector2(0.21, 0.055)
+			body_len = 0.1
+		"falena":
+			alt = 1.15
+			flap = 9.0
+			wing_size = Vector2(0.19, 0.15)
+		"neve":
+			flap = 12.0
+			wing_size = Vector2(0.12, 0.1)
 
 	var body := MeshInstance3D.new()
 	var cap := CapsuleMesh.new()
 	cap.radius = 0.012
-	cap.height = 0.07
+	cap.height = body_len
 	body.mesh = cap
 	body.rotation.x = PI * 0.5
 	body.material_override = GEO.paint_mat(Color("6a5a4a"), Color("4a3e33"), 8.0, 0.4)
 	b.add_child(body)
 
-	var wing_col: Color = CRIT.colore(str(_bf_kinds[kind_i]))
+	var wing_col: Color = CRIT.colore(kind)
 	var wings: Array[Node3D] = []
 	for side: float in [-1.0, 1.0]:
 		var pivot := Node3D.new()
 		b.add_child(pivot)
 		var quad := QuadMesh.new()
-		quad.size = Vector2(0.15, 0.12)
+		quad.size = wing_size
 		var mat := StandardMaterial3D.new()
 		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
@@ -644,7 +725,7 @@ func _make_butterfly(kind_i: int) -> void:
 		var mi := MeshInstance3D.new()
 		mi.mesh = quad
 		mi.rotation.x = -PI * 0.5
-		mi.position = Vector3(side * 0.085, 0, 0)
+		mi.position = Vector3(side * (wing_size.x * 0.57), 0, 0)
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		pivot.add_child(mi)
 		wings.append(pivot)
@@ -655,7 +736,11 @@ func _make_butterfly(kind_i: int) -> void:
 		"wing_r": wings[1],
 		"seed": randf() * 100.0,
 		"prev": Vector3.ZERO,
-		"kind": str(_bf_kinds[kind_i]),
+		"kind": kind,
+		"home": home,
+		"girata": girata,
+		"alt": alt,
+		"flap": flap,
 	})
 
 
@@ -1272,36 +1357,45 @@ func _build_campfire() -> void:
 func _spawn_pickup_mushroom() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
+	# d'autunno, ogni tanto, il bosco regala un PORCINO: più grande, cappella
+	# bruna senza puntini, e al carretto vale molto di più (vedi Critters)
+	var specie := "fungo"
+	if CRIT.disponibile("porcino", contesto_critter()) and rng.randf() < 0.28:
+		specie = "porcino"
+	var porcino := specie == "porcino"
 	var node := Node3D.new()
+	node.set_meta("specie", specie)
 	var stem := MeshInstance3D.new()
 	var sm := CylinderMesh.new()
-	sm.top_radius = 0.06
-	sm.bottom_radius = 0.08
-	sm.height = 0.17
+	sm.top_radius = 0.08 if porcino else 0.06
+	sm.bottom_radius = 0.11 if porcino else 0.08
+	sm.height = 0.2 if porcino else 0.17
 	stem.mesh = sm
 	stem.material_override = GEO.paint_mat(Color("f3e6d5"), Color("e2d2ba"), 5.0, 0.4)
-	stem.position = Vector3(0, 0.085, 0)
+	stem.position = Vector3(0, sm.height * 0.5, 0)
 	node.add_child(stem)
 	var cap := MeshInstance3D.new()
 	var cm := SphereMesh.new()
-	cm.radius = 0.17
-	cm.height = 0.34
+	cm.radius = 0.21 if porcino else 0.17
+	cm.height = cm.radius * 2.0
 	cap.mesh = cm
-	cap.material_override = GEO.paint_mat(Color("d96a6a"), Color("c25454"), 4.0, 0.5)
-	cap.position = Vector3(0, 0.19, 0)
-	cap.scale = Vector3(1, 0.6, 1)
+	cap.material_override = GEO.paint_mat(Color("b98a5a"), Color("9a6f42"), 4.0, 0.5) \
+			if porcino else GEO.paint_mat(Color("d96a6a"), Color("c25454"), 4.0, 0.5)
+	cap.position = Vector3(0, (0.22 if porcino else 0.19), 0)
+	cap.scale = Vector3(1, 0.55 if porcino else 0.6, 1)
 	node.add_child(cap)
-	var dot_mat := GEO.paint_mat(Color.WHITE, Color("f0e2cc"), 4.0, 0.2)
-	for i in 3:
-		var a := rng.randf() * TAU
-		var dot := MeshInstance3D.new()
-		var dm := SphereMesh.new()
-		dm.radius = 0.032
-		dm.height = 0.064
-		dot.mesh = dm
-		dot.material_override = dot_mat
-		dot.position = Vector3(cos(a) * 0.09, 0.25, sin(a) * 0.09)
-		node.add_child(dot)
+	if not porcino:
+		var dot_mat := GEO.paint_mat(Color.WHITE, Color("f0e2cc"), 4.0, 0.2)
+		for i in 3:
+			var a := rng.randf() * TAU
+			var dot := MeshInstance3D.new()
+			var dm := SphereMesh.new()
+			dm.radius = 0.032
+			dm.height = 0.064
+			dot.mesh = dm
+			dot.material_override = dot_mat
+			dot.position = Vector3(cos(a) * 0.09, 0.25, sin(a) * 0.09)
+			node.add_child(dot)
 	node.position = _forest_spot(rng, 1.2)
 	node.rotation.y = rng.randf() * TAU
 	node.scale = Vector3.ONE * 0.05
@@ -1310,6 +1404,13 @@ func _spawn_pickup_mushroom() -> void:
 	tw.tween_property(node, "scale", Vector3.ONE, 0.5) \
 			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	_pickups.append(node)
+
+
+## Che specie è il fungo raccoglibile i-esimo ("fungo" o "porcino").
+func pickup_kind(i: int) -> String:
+	if i < 0 or i >= _pickups.size():
+		return "fungo"
+	return str(_pickups[i].get_meta("specie", "fungo"))
 
 
 # ================================================ il bosco e il terreno libero
@@ -2576,13 +2677,23 @@ func _process(delta: float) -> void:
 	_update_frogs(delta)
 	_update_river(delta)
 
-	# il prato si ripopola di farfalle dopo una cattura (mai di notte né
-	# d'inverno: le nuove nascerebbero visibili violando set_night/stagione)
-	if _butterflies.size() < 5 and not _night and _season != 3:
+	# ogni due secondi il bestiario ripassa l'appello: chi non è più di
+	# stagione/ora/meteo se ne va (la pioggia che inizia, il crepuscolo che
+	# finisce — cambi che set_night e set_season non vedono)
+	_bf_ctx_check -= delta
+	if _bf_ctx_check <= 0.0:
+		_bf_ctx_check = 2.0
+		_cull_butterflies()
+
+	# e il prato si ripopola con chi è disponibile ADESSO (dopo una cattura
+	# l'attesa lunga la imposta catch_butterfly; i refill di transizione —
+	# l'alba, la nevicata — sono rapidi, o il prato resterebbe vuoto mezzo
+	# giorno di gioco)
+	if _butterflies.size() < 5:
 		_bf_respawn -= delta
 		if _bf_respawn <= 0.0:
-			_bf_respawn = randf_range(45.0, 90.0)
-			_make_butterfly(randi() % _bf_kinds.size())
+			_bf_respawn = randf_range(4.0, 9.0)
+			_spawn_butterfly_available()
 
 	# e il bosco di funghi da raccogliere
 	if _pickups.size() < 5:
@@ -2594,10 +2705,13 @@ func _process(delta: float) -> void:
 	for b in _butterflies:
 		var s: float = b["seed"]
 		var t := _t * 0.55 + s
-		var pos := Vector3(
-			sin(t * 0.8 + s) * 8.0 + cos(t * 0.29) * 4.0,
-			0.9 + sin(t * 1.6) * 0.35 + sin(t * 5.0) * 0.06,
-			cos(t * 0.62 + s * 2.0) * 8.0
+		var home: Vector3 = b.get("home", Vector3.ZERO)
+		var girata: float = b.get("girata", 8.0)
+		var alt: float = b.get("alt", 0.9)
+		var pos := home + Vector3(
+			sin(t * 0.8 + s) * girata + cos(t * 0.29) * girata * 0.5,
+			alt + sin(t * 1.6) * 0.35 + sin(t * 5.0) * 0.06,
+			cos(t * 0.62 + s * 2.0) * girata
 		)
 		var node: Node3D = b["node"]
 		var vel: Vector3 = pos - b["prev"]
@@ -2606,6 +2720,6 @@ func _process(delta: float) -> void:
 		if vel.length() > 0.0001:
 			var target := atan2(-vel.x, -vel.z)
 			node.rotation.y = lerp_angle(node.rotation.y, target, 1.0 - exp(-6.0 * delta))
-		var flap := sin(_t * 17.0 + s) * 0.85
+		var flap := sin(_t * float(b.get("flap", 17.0)) + s) * 0.85
 		(b["wing_l"] as Node3D).rotation.z = flap
 		(b["wing_r"] as Node3D).rotation.z = -flap

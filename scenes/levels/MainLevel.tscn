@@ -1,4 +1,4 @@
-[gd_scene load_steps=31 format=3 uid="uid://mainlevel_uid"]
+[gd_scene load_steps=32 format=3 uid="uid://mainlevel_uid"]
 
 [ext_resource type="Script" path="res://scenes/levels/MainLevel.gd" id="1_xxyz1"]
 [ext_resource type="PackedScene" uid="uid://d3u2b9x8y8v" path="res://scenes/characters/Player.tscn" id="2_yyzx2"]
@@ -22,6 +22,7 @@
 [ext_resource type="Script" path="res://scenes/npc/GufoOrders.gd" id="20_gufo1"]
 [ext_resource type="Script" path="res://scenes/ui/Inventory.gd" id="21_inv1"]
 [ext_resource type="Script" path="res://scenes/ui/Pockets.gd" id="22_pock1"]
+[ext_resource type="Script" path="res://scenes/npc/Premura.gd" id="23_prem1"]
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_1a2b3"]
 size = Vector2(240, 240)
@@ -131,6 +132,9 @@ script = ExtResource("15_home1")
 
 [node name="Visitors" type="Node" parent="."]
 script = ExtResource("14_visi1")
+
+[node name="Premura" type="Node" parent="."]
+script = ExtResource("23_prem1")
 
 [node name="GufoOrders" type="Node" parent="."]
 script = ExtResource("20_gufo1")

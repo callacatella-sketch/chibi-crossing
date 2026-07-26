@@ -139,6 +139,8 @@ func throw_party(res_name: String, label: String, node: Node3D) -> void:
 		return
 	_party_done[key] = true
 	_toast("FESTA A SORPRESA per %s! Tutto il villaggio accorre!" % label)
+	# la prima festa lascia un ricordo indossabile nel guardaroba
+	get_tree().call_group("guardaroba", "unlock", "cappellino_festa")
 	_confetti(node.global_position + Vector3(0, 1.0, 0))
 	if _sfx:
 		_sfx.build_open()

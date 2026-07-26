@@ -1165,6 +1165,12 @@ func _bump_friend(r: Dictionary, amount: int) -> void:
 			"text": "Mi trovo così bene nel villaggio.\nGrazie di essermi amic%s." % ("a" if randf() < 0.5 else "o"),
 			"gift": true,
 		})
+	# l'amicizia PIENA lascia un ricordo indossabile: la soglia e il capo
+	# per archetipo li decide il guardaroba, qui si passa solo il conto
+	if is_inside_tree():
+		var arch := str(r.get("dna", {}).get("archetype", ""))
+		if arch != "":
+			get_tree().call_group("guardaroba", "unlock_amicizia", arch, int(r["friend"]))
 
 
 # il regalo della zuppetta: i gusti vengono dal DNA
