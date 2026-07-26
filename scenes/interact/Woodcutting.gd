@@ -13,8 +13,10 @@ extends Node
 ##      vede il legno chiaro appena esposto
 ##   3. al terzo colpo l'albero scricchiola e si abbatte con la fisica vera,
 ##      la chioma che frusta in ritardo
-##   4. il tronco caduto si dissolve in ceppetti di legna; resta il ceppo,
-##      tagliato di netto alla quota esatta della tacca
+##   4. il tronco caduto si dissolve in ceppetti di legna; resta il CEPPO,
+##      tagliato di netto alla quota esatta della tacca — e RESTA davvero,
+##      finché il giocatore non decide di estirparlo (E sul ceppo) per
+##      liberare il posto e costruirci sopra
 ##   5. dal taglio, giorno dopo giorno: germoglio → alberello → albero
 ##
 ## LA TACCA NON È UN OGGETTO APPICCICATO AL TRONCO: è geometria sottratta.
@@ -101,6 +103,12 @@ var _debt: Array = []
 ## dove ne sono nati di nuovi (per ritrovarli).
 var _felled: Array = []           # Vector2
 var _planted: Array = []          # Vector2
+## I ceppi rimasti nel prato dopo l'abbattimento. Il ceppo NON sprofonda da
+## solo: il posto resta suo finché il GIOCATORE non decide di estirparlo
+## (E sul ceppo) per liberare il terreno. Ogni voce: {root, stump, spec, pos}.
+var _stumps: Array[Dictionary] = []
+var _ceppi: Array = []            # Vector2, persistiti (i ceppi ancora a terra)
+var _near_stump := -1
 
 
 func _ready() -> void:
@@ -195,7 +203,8 @@ func _adopt(root: Node3D) -> Dictionary:
 		"leaf": root.get_meta("leaf_color", Color("8cc873")),
 		"hp": HITS_TO_FELL,
 		"shake_a": 0.0, "shake_v": 0.0, "can_a": 0.0, "can_v": 0.0,
-		"falling": false, "fall_a": 0.0, "fall_v": 0.0, "fall_dir": 1.0,
+		"falling": false, "down": false,
+		"fall_a": 0.0, "fall_v": 0.0, "fall_dir": 1.0,
 		"carved": false, "pivot_yaw": 0.0, "notch_dir": PI,
 	}
 
@@ -350,8 +359,15 @@ func _grid_normals(grid: Array) -> Array:
 	return out
 
 
+# L'ORDINE DEI VERTICI NON È UN DETTAGLIO: Godot culla le facce antiorarie,
+# e questo avvolgimento DEVE combaciare con WorldGeo.grid_commit (il tronco
+# originale, provato a schermo): (i,j) -> (i+1,j) -> (i+1,j2), poi
+# (i,j) -> (i+1,j2) -> (i,j2). Con l'ordine invertito l'intera mesh
+# rigenerata nasceva dentro-fuori: dal primo colpo il tronco diventava
+# TRASPARENTE dal lato della camera (facce frontali cullate) e si vedeva
+# l'interno della parete opposta. Un test confronta triangolo per triangolo.
 func _add_quad_smooth(st: SurfaceTool, grid: Array, normals: Array, quad: Array) -> void:
-	for tri in [[0, 1, 2], [0, 2, 3]]:
+	for tri in [[0, 3, 2], [0, 2, 1]]:
 		for k in tri:
 			var q: Array = quad[k]
 			st.set_normal(normals[q[0]][q[1]])
@@ -475,7 +491,10 @@ func _process(delta: float) -> void:
 func _update_springs(delta: float) -> void:
 	var d: float = minf(delta, 0.05)   # niente esplosioni se un frame va lungo
 	for t in _trees:
-		if t["falling"]:
+		# un albero a terra NON è più della molla: senza il flag "down",
+		# appena la caduta finiva le molle riprendevano _set_tilt e il
+		# tronco abbattuto SCATTAVA di nuovo in piedi per un momento
+		if t["falling"] or bool(t.get("down", false)):
 			continue
 		if absf(t["shake_a"]) < 0.0002 and absf(t["shake_v"]) < 0.0002 \
 				and absf(t["can_a"]) < 0.0002 and absf(t["can_v"]) < 0.0002:
@@ -516,6 +535,7 @@ func _update_falls(delta: float) -> void:
 		if landed:
 			a = 1.47
 			t["falling"] = false
+			t["down"] = true    # a terra per sempre: le molle non lo rialzano
 			_on_tree_landed(t)
 		t["fall_a"] = a
 		t["fall_v"] = v
@@ -611,22 +631,37 @@ func _update_prompt() -> void:
 		_prompt.visible = false
 		return
 	_near = nearest_tree(_player.global_position, CHOP_RANGE)
+	_near_stump = -1
 	var cam := get_viewport().get_camera_3d()
-	if _near < 0 or cam == null:
+	if cam == null:
 		_prompt.visible = false
 		return
-	var t: Dictionary = _trees[_near]
-	# mentre sta cadendo (o ha già dato tutto) non si invita a colpire ancora
-	if bool(t["falling"]) or int(t["hp"]) <= 0:
-		_prompt.visible = false
-		return
-	var left: int = int(t["hp"])
-	# la scorta è scritta qui: è l'unico momento in cui interessa
-	var text := "E — taglia la legna (%d colp%s)   ·   hai %d legna" \
-			% [left, "o" if left == 1 else "i", wood]
+	var text := ""
+	var world := Vector3.ZERO
+	if _near >= 0:
+		var t: Dictionary = _trees[_near]
+		# mentre sta cadendo (o ha già dato tutto) non si invita a colpire
+		if bool(t["falling"]) or int(t["hp"]) <= 0:
+			_prompt.visible = false
+			return
+		var left: int = int(t["hp"])
+		# la scorta è scritta qui: è l'unico momento in cui interessa
+		text = "E — taglia la legna (%d colp%s)   ·   hai %d legna" \
+				% [left, "o" if left == 1 else "i", wood]
+		world = (t["root"] as Node3D).global_position + Vector3(0, 1.7, 0)
+	else:
+		# nessun albero a tiro: magari c'è un ceppo da estirpare. La scelta
+		# è del giocatore — il ceppo può restare lì per sempre, o liberare
+		# il posto per una costruzione
+		_near_stump = nearest_stump(_player.global_position, CHOP_RANGE * 0.8)
+		if _near_stump < 0:
+			_prompt.visible = false
+			return
+		text = "E — estirpa il ceppo (libera il posto)"
+		world = (_stumps[_near_stump]["root"] as Node3D).global_position \
+				+ Vector3(0, 1.0, 0)
 	_prompt_label.text = text
 	_prompt.reset_size()
-	var world: Vector3 = (t["root"] as Node3D).global_position + Vector3(0, 1.7, 0)
 	if cam.is_position_behind(world):
 		_prompt.visible = false
 		return
@@ -647,6 +682,21 @@ func nearest_tree(pos: Vector3, max_d: float) -> int:
 	return best
 
 
+## Il ceppo più vicino entro max_d (indice in _stumps, o -1).
+func nearest_stump(pos: Vector3, max_d: float) -> int:
+	var best := -1
+	var best_d := max_d
+	for i in _stumps.size():
+		var root: Node3D = _stumps[i]["root"]
+		if not is_instance_valid(root):
+			continue
+		var d: float = pos.distance_to(root.global_position)
+		if d < best_d:
+			best_d = d
+			best = i
+	return best
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed("interact") or _busy or _player == null:
 		return
@@ -655,10 +705,14 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not _player.is_physics_processing():
 		return
 	var i := nearest_tree(_player.global_position, CHOP_RANGE)
-	if i < 0:
+	if i >= 0:
+		chop(i)
+		get_viewport().set_input_as_handled()
 		return
-	chop(i)
-	get_viewport().set_input_as_handled()
+	var s := nearest_stump(_player.global_position, CHOP_RANGE * 0.8)
+	if s >= 0:
+		_pull_stump(s)
+		get_viewport().set_input_as_handled()
 
 
 # ================================================================ il colpo
@@ -841,9 +895,13 @@ func _give_wood(t: Dictionary) -> void:
 	var pivot: Node3D = t["pivot"]
 	var root: Node3D = t["root"]
 
-	# il tronco caduto sfuma e si ritira nella terra
+	# il tronco caduto si RITIRA verso il ceppo (la scala del perno collassa
+	# lungo la lunghezza del tronco a terra) mentre le schegge coprono il
+	# congedo: è la legna che si sbriciola nei ceppetti, non un affondamento
+	var mid: Vector3 = pivot.to_global(Vector3(0, float(t["spec"][0]) * 0.5, 0))
+	_spawn_chips(mid + Vector3(0, 0.12, 0), 10, root.scale.x)
 	var ft := create_tween()
-	ft.tween_property(pivot, "scale", Vector3(0.85, 0.05, 0.85), 0.45) \
+	ft.tween_property(pivot, "scale", Vector3(0.7, 0.04, 0.7), 0.4) \
 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	ft.tween_callback(func() -> void: pivot.visible = false)
 
@@ -888,25 +946,101 @@ func _give_wood(t: Dictionary) -> void:
 				if saver and saver.has_method("request_save"):
 					saver.request_save())
 
-	# IL TERRENO TORNA LIBERO. Il ceppo saluta e sprofonda, il nodo se ne va
-	# con le sue collisioni: da domani ci si può costruire sopra. Il bosco non
-	# ricresce qui — si rimargina altrove (vedi _pay_debt).
+	# IL CEPPO RESTA. Niente sprofondamenti d'ufficio: il posto è ancora del
+	# ceppo, e la scelta di liberarlo (per costruirci sopra) spetta al
+	# GIOCATORE — con la E sul ceppo, quando vorrà. Il nodo conserva le sue
+	# collisioni. Il bosco intanto non ricresce qui: si rimargina altrove
+	# (vedi _pay_debt) — quel terreno resta una storia del giocatore.
 	var pos: Vector3 = root.global_position
 	_debt.append([_today() + REGROW_DAYS, pos.x, pos.z])
-	_felled.append(Vector2(pos.x, pos.z))
+	_ceppi.append(Vector2(pos.x, pos.z))
 	_trees.erase(t)
-	var stump: Node3D = t["stump"]
-	var qt := create_tween()
-	qt.tween_interval(1.6)
-	qt.tween_property(stump, "scale", Vector3(0.9, 0.02, 0.9), 0.7) \
-			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	qt.tween_callback(func() -> void:
-		if is_instance_valid(root):
-			root.queue_free())
+	_stumps.append({"root": root, "stump": t["stump"], "spec": t["spec"],
+			"pos": Vector2(pos.x, pos.z)})
 	get_tree().call_group("regista", "note", "legna")
 	get_tree().create_timer(1.1).timeout.connect(func() -> void:
 		_toast(root.global_position + Vector3(0, 1.0, 0),
 				"+%d legna" % WOOD_PER_TREE))
+
+
+# ================================================================ il ceppo a terra
+
+## L'ESTIRPO — la scelta del giocatore di liberare il posto. Mochi si china
+## sul ceppo e tira: tre strattoni che lo scollano un po' di più ogni volta,
+## poi il ceppo CEDE e salta fuori con uno sbuffo di terra. In cambio, un
+## ultimo ceppetto di legna: anche le radici scaldano.
+func _pull_stump(i: int) -> void:
+	if _busy or i < 0 or i >= _stumps.size():
+		return
+	var s: Dictionary = _stumps[i]
+	var root: Node3D = s["root"]
+	var stump: Node3D = s["stump"]
+	if not is_instance_valid(root) or not is_instance_valid(stump):
+		_stumps.remove_at(i)
+		return
+	_busy = true
+
+	# Mochi si volta e si china sul ceppo, come sul sacchetto dei semi
+	if _mochi:
+		var to := (root.global_position - _player.global_position) * Vector3(1, 0, 1)
+		if to.length() > 0.01:
+			_mochi.set("_yaw", atan2(-to.x, -to.z))
+		var ct := create_tween()
+		ct.tween_property(_mochi, "crouch", 0.85, 0.22) \
+				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+
+	# tre strattoni: il ceppo si inclina e torna, ogni volta un po' più su
+	var tw := create_tween()
+	for k in 3:
+		var tilt := 0.07 + 0.05 * float(k)
+		tw.tween_property(stump, "rotation:z", tilt, 0.14) \
+				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		tw.parallel().tween_property(stump, "position:y", 0.02 * float(k + 1), 0.14)
+		tw.tween_callback(func() -> void:
+			if _sfx:
+				_sfx.play("creak", -14.0, 1.25)
+			_kick_camera(0.12))
+		tw.tween_property(stump, "rotation:z", -tilt * 0.4, 0.12) \
+				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	# il CEDIMENTO: salta fuori ruotando, la terra sbuffa, e svanisce in aria
+	tw.tween_callback(func() -> void:
+		_spawn_chips(root.global_position + Vector3(0, 0.15, 0), 14, 1.0)
+		if _sfx:
+			_sfx.remove_item()
+		_kick_camera(0.3))
+	tw.tween_property(stump, "position:y", 0.85, 0.24) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(stump, "rotation:z", 0.6, 0.24)
+	tw.tween_property(stump, "scale", Vector3.ONE * 0.03, 0.22) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tw.parallel().tween_property(stump, "position:y", 0.55, 0.22)
+	tw.tween_callback(func() -> void:
+		_finish_pull(s))
+
+
+func _finish_pull(s: Dictionary) -> void:
+	var root: Node3D = s["root"]
+	var pos: Vector2 = s["pos"]
+	# il posto è DAVVERO libero solo adesso: la memoria passa dai ceppi
+	# ai tagliati, e il nodo se ne va con le sue collisioni
+	_ceppi.erase(pos)
+	_felled.append(pos)
+	_stumps.erase(s)
+	if is_instance_valid(root):
+		_toast(root.global_position + Vector3(0, 0.9, 0), "+1 legna · il posto è libero")
+		_sparkle(root.global_position + Vector3(0, 0.4, 0), Color("e8cfa8"), 8)
+		root.queue_free()
+	add_wood(1)
+	if _mochi:
+		var ct := create_tween()
+		ct.tween_property(_mochi, "crouch", 0.0, 0.25) \
+				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	if _sfx:
+		_sfx.place_ok()
+	var saver := get_tree().get_first_node_in_group("build_system")
+	if saver and saver.has_method("request_save"):
+		saver.request_save()
+	_busy = false
 
 
 # ================================================================ ricrescita
@@ -1001,6 +1135,12 @@ func _build_spots():
 	for t in _trees:
 		var tp: Vector3 = (t["root"] as Node3D).global_position
 		s.trees.append(Vector2(tp.x, tp.z))
+	# e i ceppi ancora a terra: finché il giocatore non li estirpa, il
+	# posto è loro — il bosco nuovo non ci nasce sopra
+	for c in _stumps:
+		if is_instance_valid(c["root"]):
+			var cp: Vector3 = (c["root"] as Node3D).global_position
+			s.trees.append(Vector2(cp.x, cp.z))
 	# e quelli del bosco ancora in piedi
 	if _cozy and _cozy.has_method("forest_positions"):
 		for fp in _cozy.forest_positions():
@@ -1284,8 +1424,11 @@ func save_extra() -> Dictionary:
 	var piantati := []
 	for p in _planted:
 		piantati.append([snappedf(p.x, 0.01), snappedf(p.y, 0.01)])
+	var ceppi := []
+	for p in _ceppi:
+		ceppi.append([snappedf(p.x, 0.01), snappedf(p.y, 0.01)])
 	return {"legna": wood, "tagliati": tagliati, "debito": _debt.duplicate(true),
-			"piantati": piantati}
+			"piantati": piantati, "ceppi": ceppi}
 
 
 func load_extra(data: Dictionary) -> void:
@@ -1297,7 +1440,8 @@ func load_extra(data: Dictionary) -> void:
 	# _ready, mentre gli alberi si adottano più tardi (il mondo si costruisce
 	# differito su più frame). Senza questa custodia gli alberi abbattuti
 	# tornerebbero in piedi a ogni riavvio.
-	_pending_rows = [data.get("tagliati", []), data.get("piantati", [])]
+	_pending_rows = [data.get("tagliati", []), data.get("piantati", []),
+			data.get("ceppi", [])]
 	if not _trees.is_empty():
 		_apply_rows(_pending_rows)
 		_pending_rows = []
@@ -1324,6 +1468,27 @@ func _apply_rows(rows: Array) -> void:
 			var p := Vector2(float(riga[0]), float(riga[1]))
 			if _tree_at(p) < 0:
 				_sprout_tree(p, false)
+	# 3) i ceppi ancora a terra: l'albero in quel punto torna com'era
+	# rimasto — un ceppo che aspetta la decisione del giocatore
+	var ceppi: Array = rows[2] if rows.size() >= 3 else []
+	for riga in ceppi:
+		if riga is Array and riga.size() >= 2:
+			var p := Vector2(float(riga[0]), float(riga[1]))
+			_ceppi.append(p)
+			var i := _tree_at(p)
+			if i >= 0:
+				_tree_to_stump(i, p)
+
+
+# Converte (senza coreografia: è un caricamento) l'albero i nel suo ceppo.
+func _tree_to_stump(i: int, pos: Vector2) -> void:
+	var t: Dictionary = _trees[i]
+	_trees.remove_at(i)
+	(t["pivot"] as Node3D).visible = false
+	var stump: Node3D = t["stump"]
+	stump.visible = true
+	_stumps.append({"root": t["root"], "stump": stump, "spec": t["spec"],
+			"pos": pos})
 
 
 # l'indice dell'albero che sta (quasi) in quel punto, o -1
@@ -1398,6 +1563,17 @@ func debt_count() -> int:
 	return _debt.size()
 
 
+## Quanti ceppi aspettano a terra la decisione del giocatore.
+func stump_count() -> int:
+	return _stumps.size()
+
+
+## Per la verifica CLI: estirpa subito il primo ceppo, senza coreografia.
+func debug_pull_first_stump() -> void:
+	if not _stumps.is_empty():
+		_finish_pull(_stumps[0])
+
+
 ## Per i test: paga subito il debito arretrato, senza aspettare i giorni.
 func debug_regrow_now() -> void:
 	for i in _debt.size():
@@ -1428,8 +1604,10 @@ func debug_fell(i: int) -> void:
 	var t: Dictionary = _trees[i]
 	t["hp"] = 0
 	t["falling"] = false
+	t["down"] = true
 	_aim_fall(t)
 	_set_tilt(t, 1.47)
+	(t["stump"] as Node3D).visible = true
 	_give_wood(t)
 
 

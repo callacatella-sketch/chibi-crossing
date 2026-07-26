@@ -9,12 +9,16 @@
 extends RefCounted
 
 const WOOD := preload("res://scenes/interact/Woodcutting.gd")
+const GEO := preload("res://scenes/world/WorldGeo.gd")
 
 
 func run(t) -> void:
 	_test_parse_gate(t)
 	_test_notch_shape(t)
 	_test_carved_mesh(t)
+	_test_winding_come_l_originale(t)
+	_test_ceppo_persistito(t)
+	_test_fili_del_ceppo(t)
 	_test_costs(t)
 	_test_wallet(t)
 	_test_afford(t)
@@ -75,6 +79,101 @@ func _test_carved_mesh(t) -> void:
 	t.ok(a_inciso.size.x <= a_intatto.size.x + 0.001,
 			"la tacca non fa CRESCERE il tronco: lo scava")
 	wc.free()
+
+
+# L'AVVOLGIMENTO dei triangoli deve combaciare con WorldGeo.grid_commit (il
+# tronco originale, provato a schermo): con l'ordine invertito la mesh
+# rigenerata nasceva dentro-fuori e il tronco intagliato diventava
+# TRASPARENTE dal lato della camera (facce frontali cullate). Qui si
+# confronta triangolo per triangolo il tronco "inciso a profondità zero"
+# con il tronco vero di WorldGeo: stessa forma E stesso verso.
+func _test_winding_come_l_originale(t) -> void:
+	var wc = WOOD.new()
+	var spec = [1.35, 0.19, 0.115, 12345]
+	var nostro: ArrayMesh = wc._carved_trunk_mesh(spec, PI, 0.0)
+	var originale: ArrayMesh = GEO.trunk_mesh(1.35, 0.19, 0.115, 12345,
+			0.07, WOOD.TRUNK_SEGS)
+	var tri_n := _triangoli(nostro, 0)
+	var tri_o := _triangoli(originale, 0)
+	t.eq(tri_n.size(), tri_o.size(), "stessi triangoli del tronco originale")
+	var uguali := true
+	for i in mini(tri_n.size(), tri_o.size()):
+		if (tri_n[i] as Vector3).distance_to(tri_o[i]) > 0.001:
+			uguali = false
+			break
+	t.ok(uguali, "stesso ORDINE dei vertici (winding): niente tronco dentro-fuori")
+	wc.free()
+
+
+# i triangoli di una superficie, espansi dagli indici, come lista di vertici
+# (una mesh non indicizzata ha ARRAY_INDEX nullo: si prendono i vertici così)
+func _triangoli(mesh: ArrayMesh, surf: int) -> Array:
+	var arrays: Array = mesh.surface_get_arrays(surf)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var idx = arrays[Mesh.ARRAY_INDEX]
+	var out: Array = []
+	if idx == null or (idx as PackedInt32Array).is_empty():
+		for v in verts:
+			out.append(v)
+	else:
+		for i in (idx as PackedInt32Array):
+			out.append(verts[i])
+	return out
+
+
+# Il ceppo che resta è MEMORIA: va e torna dal salvataggio, separato dai
+# posti già liberati (tagliati) — se finisse lì, al riavvio sparirebbe.
+func _test_ceppo_persistito(t) -> void:
+	var wc = WOOD.new()
+	wc._ceppi = [Vector2(3.0, -2.0)]
+	var data = wc.save_extra()
+	t.ok(data.has("ceppi"), "il salvataggio porta con sé i ceppi a terra")
+	t.eq((data["ceppi"] as Array).size(), 1, "il ceppo è nella riga giusta")
+	var wc2 = WOOD.new()
+	wc2.load_extra(data)
+	t.eq((wc2._pending_rows as Array).size(), 3,
+			"il caricamento consegna anche la riga dei ceppi")
+	t.eq(((wc2._pending_rows as Array)[2] as Array).size(), 1,
+			"e il ceppo è lì dentro, in attesa dell'adozione degli alberi")
+	# un salvataggio vecchio (senza ceppi) non esplode
+	var wc3 = WOOD.new()
+	wc3.load_extra({"legna": 5})
+	t.eq(((wc3._pending_rows as Array)[2] as Array).size(), 0,
+			"salvataggio senza ceppi: riga vuota, nessun errore")
+	wc.free()
+	wc2.free()
+	wc3.free()
+
+
+# I fili nei sorgenti: l'abbattimento REGISTRA il ceppo (non lo sprofonda),
+# le molle rispettano l'albero a terra, e solo l'estirpo libera il posto.
+func _test_fili_del_ceppo(t) -> void:
+	var give := _body("_give_wood")
+	t.ok(give.contains("_stumps.append"), "l'abbattimento registra il ceppo")
+	t.ok(not give.contains("root.queue_free"),
+			"il nodo NON se ne va più da solo: il ceppo resta col suo posto")
+	t.ok(_body("_update_springs").contains("down"),
+			"le molle lasciano in pace l'albero a terra (niente resurrezioni)")
+	var fine := _body("_finish_pull")
+	t.ok(fine.contains("queue_free") and fine.contains("_felled.append"),
+			"solo l'estirpo libera davvero il posto")
+	t.ok(_body("_update_prompt").contains("estirpa"),
+			"il prompt offre l'estirpo al giocatore")
+	t.ok(_body("_build_spots").contains("_stumps"),
+			"il bosco nuovo non rinasce sopra un ceppo")
+
+
+# il corpo di una funzione di Woodcutting.gd (dal func alla func successiva)
+func _body(fn: String) -> String:
+	var f := FileAccess.open("res://scenes/interact/Woodcutting.gd", FileAccess.READ)
+	if f == null:
+		return ""
+	var src := f.get_as_text()
+	var start := src.find("func %s(" % fn)
+	if start < 0:
+		return ""
+	var end := src.find("\nfunc ", start + 1)
+	return src.substr(start, (end - start) if end > start else -1)
 
 
 func _test_costs(t) -> void:
