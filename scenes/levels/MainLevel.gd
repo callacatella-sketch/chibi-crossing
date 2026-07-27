@@ -59,6 +59,8 @@ func _ready():
 	add_child(_spawn_system("res://scenes/interact/Frutteto.gd", "Frutteto"))
 	# le commissioni della lavagna: i vicini chiedono, la stagione risponde
 	add_child(_spawn_system("res://scenes/npc/Commissioni.gd", "Commissioni"))
+	# il nido della Casetta uccellini: in primavera arriva Briciola
+	add_child(_spawn_system("res://scenes/interact/Nido.gd", "Nido"))
 	var settings := get_node_or_null(^"/root/Settings")
 	if settings:
 		settings.apply_to_player(player)
@@ -77,6 +79,8 @@ func _ready():
 		_start_debug_harness("frutteto", OS.get_environment("CHIBI_FRUTTETO"))
 	elif OS.get_environment("CHIBI_COMMISSIONI") != "":
 		_start_debug_harness("commissioni", OS.get_environment("CHIBI_COMMISSIONI"))
+	elif OS.get_environment("CHIBI_NIDO") != "":
+		_start_debug_harness("nido", OS.get_environment("CHIBI_NIDO"))
 	elif OS.get_environment("CHIBI_MAKESAVE") != "":
 		_start_debug_harness("makesave")
 
@@ -157,7 +161,7 @@ func _spawn_system(path: String, node_name: String) -> Node:
 # prova: abbatte, salva ed esce) e "makesave", che il salvataggio lo crea
 # apposta. "shot" si spegne da sé in BuildSystem._ready.
 func _start_debug_harness(mode: String, arg: String = "") -> void:
-	if mode in ["lavori", "festa", "filo", "frutteto", "commissioni"] \
+	if mode in ["lavori", "festa", "filo", "frutteto", "commissioni", "nido"] \
 			or (mode == "legna" and OS.get_environment("CHIBI_LEGNA_SAVE") == ""):
 		build_system.set_persist_for_debug(false)
 	var h = DEBUG_HARNESS.new()

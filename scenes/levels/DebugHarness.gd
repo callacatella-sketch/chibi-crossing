@@ -38,6 +38,8 @@ func run(level: Node3D, mode: String, arg: String = "") -> void:
 			await _debug_frutteto(arg)
 		"commissioni":
 			await _debug_commissioni(arg)
+		"nido":
+			await _debug_nido(arg)
 
 func _frames(n: int):
 	for i in n:
@@ -403,6 +405,97 @@ func _debug_filo(dir: String) -> void:
 
 	print("FILO: fine. residenti=%d, MAX=%d"
 			% [(vis.get("_residents") as Array).size(), vis.MAX_RESIDENTS])
+	get_tree().quit()
+
+
+# ---------------------------------------------------------------- nido
+# Verifica del nido: la casetta piazzata, la covata di primavera, la
+# schiusa, il pulcino che segue saltellando, la paura della pioggia (e il
+# riparo premuroso), la crescita fino all'adulta e il saluto del mattino
+# col semino nel becco.
+func _debug_nido(dir: String) -> void:
+	var nido = get_tree().get_first_node_in_group("nido")
+	var dn = _level.get_node_or_null("DayNight")
+	var weather = _level.get_node_or_null("Weather")
+	var inv = _level.get_node_or_null("Inventory")
+	if nido == null or dn == null or weather == null:
+		printerr("NIDO: nodi non trovati")
+		get_tree().quit()
+		return
+	await _frames(40)
+	dn.set_time(0.45)
+
+	# la casetta piazzata, e la primavera che arriva
+	build_system.place_cell(Vector2i(-3, 8), "Casetta uccellini")
+	dn.debug_set_day(142)   # giorno 2 di primavera
+	await _frames(5)
+	print("NIDO: %s" % nido.debug_stato())
+
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.fov = 40.0
+	var casa := Vector3(-3, 0, 8)
+	cam.position = casa + Vector3(1.6, 2.1, 2.0)
+	cam.current = true
+	cam.look_at(casa + Vector3(0, 1.35, 0))
+	await get_tree().create_timer(0.8).timeout
+	await _shot(dir, "nido_1_uova")
+
+	# la schiusa (due giorni di covata)
+	dn.debug_set_day(144)
+	await _frames(10)
+	print("NIDO: %s" % nido.debug_stato())
+	player.global_position = casa + Vector3(1.2, 0, 1.0)
+	cam.position = casa + Vector3(2.0, 1.1, 2.4)
+	cam.look_at(casa + Vector3(0.6, 0.25, 0.6))
+	await get_tree().create_timer(1.5).timeout
+	await _shot(dir, "nido_2_pulcino")
+
+	# l'imprinting: Mochi si sposta, il pulcino la segue saltellando
+	player.global_position = casa + Vector3(4.0, 0, 2.5)
+	var d_prima: float = (nido.debug_posizione() as Vector3).distance_to(player.global_position)
+	await get_tree().create_timer(4.0).timeout
+	var d_dopo: float = (nido.debug_posizione() as Vector3).distance_to(player.global_position)
+	print("NIDO: il pulcino segue = %s (distanza %.1f -> %.1f)"
+			% [d_dopo < d_prima - 0.5, d_prima, d_dopo])
+
+	# la PIOGGIA: la paura, e il riparo premuroso vicino alla casetta
+	weather.debug_rain(true)
+	await get_tree().create_timer(1.5).timeout
+	print("NIDO: sotto la pioggia -> %s" % nido.debug_stato())
+	cam.position = (nido.debug_posizione() as Vector3) + Vector3(1.2, 0.8, 1.5)
+	cam.look_at((nido.debug_posizione() as Vector3) + Vector3(0, 0.2, 0))
+	await get_tree().create_timer(0.4).timeout
+	await _shot(dir, "nido_3_paura")
+	# Mochi la raggiunge e la ACCOMPAGNA alla casetta, passo passo: il
+	# pulcino spaventato segue solo chi gli resta accanto (com'è giusto)
+	for passo in 16:
+		var bpos: Vector3 = nido.debug_posizione()
+		var verso: Vector3 = (casa * Vector3(1, 0, 1) - bpos)
+		if verso.length() > 0.3:
+			verso = verso.normalized()
+		player.global_position = bpos + verso * 1.25
+		await get_tree().create_timer(0.5).timeout
+		if not bool(nido.get("_spaventata")):
+			break
+	print("NIDO: riparata = %s | %s" % [bool(nido.get("_riparata")), nido.debug_stato()])
+	weather.debug_rain(false)
+
+	# la crescita fino all'ADULTA, e il saluto del mattino col semino
+	dn.debug_set_day(151)
+	await _frames(10)
+	print("NIDO: %s" % nido.debug_stato())
+	var semini_prima: int = (inv.get("treasures") as Dictionary).get("semino", 0)
+	player.global_position = Vector3(0, 0, 6)
+	nido.debug_saluto(true)
+	await get_tree().create_timer(2.2).timeout
+	cam.position = player.global_position + Vector3(1.6, 1.0, 2.0)
+	cam.look_at(player.global_position + Vector3(0.6, 0.25, 0.4))
+	await get_tree().create_timer(0.4).timeout
+	await _shot(dir, "nido_4_saluto")
+	print("NIDO: semini %d -> %d (il regalo del mattino)"
+			% [semini_prima, (inv.get("treasures") as Dictionary).get("semino", 0)])
+	print("NIDO: fine. %s" % nido.debug_stato())
 	get_tree().quit()
 
 
