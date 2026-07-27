@@ -494,6 +494,11 @@ func _partenza() -> void:
 	_spegni_lanterne()   # l'alba: le lucine della sera si congedano anche loro
 	var nome := str(_congedo["nome"])
 	var label := str(_congedo["label"])
+	# l'ultima parola, detta DAVVERO: «ba-yo, mi-ka, ta-ki» — l'addio
+	# nella lingua che il giocatore ha imparato, prima del Grande Prato
+	var chi_parte: Node3D = _visitors.call("node_di", label) if _visitors else null
+	if chi_parte != null and chi_parte.has_method("speak"):
+		chi_parte.call("speak", ["addio", "amico", "grazie"], "triste")
 	var cell: Array = _congedo.get("cell", [0, 0])
 	var dna: Dictionary = _visitors.call("dna_di", label) if _visitors else {}
 	var momenti: Array = _legami.call("momenti_di", nome) if _legami else []

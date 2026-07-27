@@ -484,10 +484,11 @@ func _enter_state(s: String) -> void:
 			chat_bubble("?")
 			speak(["~", "~"], "domanda")
 		"tk_sing":
-			# la serenata alla luna, ognuno con la sua voce
+			# la serenata alla luna, ognuno con la sua voce — e con le
+			# parole VERE: «nu-la, ki-li, la-lo» (luna, stelle, cantare)
 			_timer = 5.5
 			_emote("♪", Color(0.75, 0.65, 0.95))
-			speak(["~", "~", "~", "felice"], "felice")
+			speak(["luna", "stelle", "cantare", "~"], "felice")
 		"tk_twirl":
 			_timer = 1.1
 			var tw := create_tween()
@@ -496,9 +497,10 @@ func _enter_state(s: String) -> void:
 			tw.tween_callback(func(): _vis.rotation.y = 0.0)
 		"tk_startle":
 			# lo spavento buffo: saltello all'indietro, "!" sopra la testa
+			# — e la parola giusta: «hu-du!» (paura)
 			_timer = 1.3
 			_emote("!", Color(0.95, 0.6, 0.4))
-			speak(["no"], "domanda")
+			speak(["paura"], "domanda")
 			var back := global_transform.basis.z.normalized()
 			var tw2 := create_tween()
 			tw2.tween_property(self, "position", position + back * 0.7, 0.35) \

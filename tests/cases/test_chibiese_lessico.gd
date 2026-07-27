@@ -25,10 +25,13 @@ func run(t) -> void:
 	_test_contorni(t)
 	_test_copertura(t)
 	_test_suono(t)
+	_test_inventario_usato(t)
+	_test_suoni_nuovi(t)
 
 
 func _test_fonetica(t) -> void:
-	t.ok(CHB.VOCAB.size() >= 35, "il lessico è cresciuto (%d parole)" % CHB.VOCAB.size())
+	t.ok(CHB.VOCAB.size() >= 90,
+			"il lessico è un quasi-centinaio (%d parole)" % CHB.VOCAB.size())
 	for parola in CHB.VOCAB:
 		var sillabe: Array = CHB.VOCAB[parola]
 		t.ok(sillabe.size() >= 1 and sillabe.size() <= 3,
@@ -110,6 +113,49 @@ func _test_suono(t) -> void:
 	# (confronto indiretto: 'addio' ha contorno, la sua onda esiste e non
 	# è vuota — la discesa la sente l'orecchio, il test ne garantisce i dati)
 	t.ok(c.data.size() > 1000, "l'addio ha una voce, non un silenzio")
+
+
+# L'inventario non è decorativo: OGNI consonante e OGNI vocale della
+# lingua vivono in almeno una parola. Una consonante aggiunta all'elenco
+# ma mai usata sarebbe un suono fantasma (e un synth non testato).
+func _test_inventario_usato(t) -> void:
+	var cons_usate := {}
+	var voc_usate := {}
+	for parola in CHB.VOCAB:
+		for s in CHB.VOCAB[parola]:
+			var syl := str(s)
+			voc_usate[syl[syl.length() - 1]] = true
+			var c := syl.substr(0, syl.length() - 1)
+			if c != "":
+				cons_usate[c] = true
+	for c in CHB.CONS:
+		t.ok(cons_usate.has(c),
+				"la consonante '%s' vive in almeno una parola" % c)
+	for v in ["a", "e", "i", "o", "u"]:
+		t.ok(voc_usate.has(v), "la vocale '%s' vive in almeno una parola" % v)
+
+
+# I SEI SUONI NUOVI (r, d, g, z, sh, ch): ciascuno rende un'onda vera e
+# distinta — la erre arrotata dell'albero non è il ronzio dell'ape.
+func _test_suoni_nuovi(t) -> void:
+	var voce: Dictionary = CHB.voice(DNA.generate(21))
+	var campioni := {
+		"r": "albero", "d": "nido", "g": "gufo",
+		"z": "ape", "sh": "piano", "ch": "te",
+	}
+	var onde := {}
+	for c in campioni:
+		CHB._cache.clear()
+		var wav: AudioStreamWAV = CHB.say(voce, [campioni[c]], "neutro")
+		t.ok(wav.data.size() > 1000,
+				"'%s' («%s») ha una voce, non un silenzio"
+				% [campioni[c], "-".join(PackedStringArray(CHB.VOCAB[campioni[c]]))])
+		onde[c] = wav.data
+	for a in onde:
+		for b in onde:
+			if str(a) < str(b):
+				t.ok(onde[a] != onde[b],
+						"i suoni '%s' e '%s' si distinguono a orecchio" % [a, b])
 
 
 func _tutti_gli_script(dir_path: String) -> Array[String]:

@@ -312,7 +312,8 @@ func _trovato(n: Dictionary) -> void:
 	if nodo.has_method("celebrate"):
 		nodo.call("celebrate")
 	if nodo.has_method("speak"):
-		nodo.call("speak", ["risata", "felice"], "felice")
+		# «ta-DAA!» — la parola del gioco, poi la risatina
+		nodo.call("speak", ["trovato", "risata"], "felice")
 	if nodo.has_method("_spawn_heart"):
 		nodo.call("_spawn_heart")
 	match str(n["indole"]):
