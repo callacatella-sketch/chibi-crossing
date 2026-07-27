@@ -18,8 +18,11 @@ const FACE := "res://scenes/characters/FaceController.gd"
 const DNA := "res://scenes/npc/ChibiDNA.gd"
 const BUILDER := "res://scenes/npc/ChibiBuilder.gd"
 
-# le forme curve costruite come UN labbro-fuso solo
-const FUSI_SINGOLI := ["smile", "grin", "frown", "sad", "line"]
+# le forme curve costruite come UN labbro-fuso solo (il grin non c'è più:
+# è diventato una bocca INTERA a due labbra, con cavo, dentino e linguetta)
+const FUSI_SINGOLI := ["smile", "frown", "sad", "line"]
+# le bocche intere: cavo scuro e linguetta già incorporati nel nodo "apertura"
+const BOCCHE_INTERE := ["grin", "o", "O"]
 
 
 func run(t) -> void:
@@ -72,9 +75,13 @@ func _test_niente_palline(t, fc: GDScript, head: Node3D, mat: Material) -> void:
 	for shape in mouths:
 		var node: Node3D = mouths[shape]
 		for c in node.get_children():
+			# cavo/linguetta ("apertura") e dentino sono anatomia legittima
+			# fatta di sfere: la regressione riguarda le LABBRA a palline
+			if str(c.name) in ["apertura", "dentino"]:
+				continue
 			var mi := c as MeshInstance3D
 			t.ok(mi != null and not (mi.mesh is SphereMesh),
-					"%s: niente palline (mesh %s)" % [shape,
+					"%s: niente labbra a palline (mesh %s)" % [shape,
 					"nulla" if mi == null else mi.mesh.get_class()])
 	for shape in FUSI_SINGOLI:
 		var node: Node3D = mouths.get(shape)
@@ -88,10 +95,31 @@ func _test_niente_palline(t, fc: GDScript, head: Node3D, mat: Material) -> void:
 	t.ok(wnode.visible, "la bocca neutra parte visibile")
 	t.ok(not (mouths["smile"] as Node3D).visible, "le altre partono nascoste")
 
+	# le bocche INTERE: cavo+linguetta nel nodo "apertura" — è la fine delle
+	# "due bocche" sovrapposte (il grin di gioia con la palla scura sopra,
+	# l'anellino di curioso/soffio con la cavità esterna dietro)
+	for shape in BOCCHE_INTERE:
+		var node: Node3D = mouths.get(shape)
+		var ap: Node3D = node.get_node_or_null("apertura") if node else null
+		t.ok(ap != null and ap.get_child_count() >= 2,
+				"%s: bocca intera (cavo e linguetta in 'apertura')" % shape)
+	# il grin: due labbra-fuso, il dentino, e l'apertura
+	var gr: Node3D = mouths.get("grin")
+	var fusi := 0
+	for c in gr.get_children():
+		var mi := c as MeshInstance3D
+		if mi != null and mi.mesh is ArrayMesh:
+			fusi += 1
+	t.eq(fusi, 2, "grin: DUE labbra-fuso (superiore e inferiore)")
+	t.ok(gr.get_node_or_null("dentino") != null, "grin: il dentino c'è")
+
 
 # la curvatura dai vertici: angoli (|x| alto) meno centro (|x| basso)
 func _curvatura(node: Node3D) -> float:
-	var vs := _verts_tutti(node)
+	return _curv_verts(_verts_tutti(node))
+
+
+func _curv_verts(vs: PackedVector3Array) -> float:
 	var hw := 0.0
 	for v in vs:
 		hw = maxf(hw, absf(v.x))
@@ -105,10 +133,32 @@ func _curvatura(node: Node3D) -> float:
 	return corner - center
 
 
+# il labbro-fuso più in basso di una bocca a più labbra (quello del sorriso)
+func _labbro_basso(node: Node3D) -> PackedVector3Array:
+	var scelto := PackedVector3Array()
+	var basso := INF
+	for c in node.get_children():
+		var mi := c as MeshInstance3D
+		if mi == null or not (mi.mesh is ArrayMesh):
+			continue
+		var vs: PackedVector3Array = \
+				(mi.mesh as ArrayMesh).surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+		var lo := INF
+		for v in vs:
+			lo = minf(lo, v.y)
+		if lo < basso:
+			basso = lo
+			scelto = vs
+	return scelto
+
+
 func _test_curvature(t, fc: GDScript, head: Node3D, mat: Material) -> void:
 	var mouths: Dictionary = fc.build_mouth_set(head, mat, Vector3.ZERO)
 	t.ok(_curvatura(mouths["smile"]) > 0.0, "smile curva a ∪ (sorriso)")
-	t.ok(_curvatura(mouths["grin"]) > 0.0, "grin curva a ∪")
+	# del grin si misura il labbro INFERIORE (quello del sorriso): il
+	# superiore chiude la bocca quasi dritto e la media direbbe poco
+	t.ok(_curv_verts(_labbro_basso(mouths["grin"])) > 0.0,
+			"grin: il labbro inferiore curva a ∪")
 	t.ok(_curvatura(mouths["frown"]) < 0.0, "frown curva a ∩ (broncio)")
 	t.ok(_curvatura(mouths["sad"]) < 0.0, "sad curva a ∩")
 	# la "w": nel mezzo di ciascun archetto si affonda sotto lo zero
@@ -193,6 +243,15 @@ func _test_winding(t, fc: GDScript, head: Node3D, mat: Material) -> void:
 		var vol := _signed_volume(mi.mesh)
 		t.ok(absf(vol) > 0.0 and signf(vol) == signf(rif),
 				"%s: winding concorde alle mesh di Godot" % shape)
+	# anche le due labbra del grin (i suoi fusi non sono più il figlio 0)
+	var gi := 0
+	for c in (mouths["grin"] as Node3D).get_children():
+		var mi2 := c as MeshInstance3D
+		if mi2 != null and mi2.mesh is ArrayMesh:
+			var vol2 := _signed_volume(mi2.mesh)
+			t.ok(absf(vol2) > 0.0 and signf(vol2) == signf(rif),
+					"grin, labbro %d: winding concorde" % gi)
+			gi += 1
 
 
 func _test_bocca_aperta(t, fc: GDScript, head: Node3D, mat: Material) -> void:
@@ -316,6 +375,11 @@ func _test_builder(t, fc: GDScript, dna: GDScript, builder: GDScript) -> void:
 			var node: Node3D = mouths.get(shape)
 			if node == null or node.get_child_count() != 1 \
 					or not ((node.get_child(0) as MeshInstance3D).mesh is ArrayMesh):
+				ok_stile = false
+		# e le bocche intere montano con cavo e linguetta anche sul chibi
+		for shape in BOCCHE_INTERE:
+			var nodo_i: Node3D = mouths.get(shape)
+			if nodo_i == null or nodo_i.get_node_or_null("apertura") == null:
 				ok_stile = false
 		if ok_stile:
 			montati += 1

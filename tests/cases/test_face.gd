@@ -20,6 +20,8 @@ func run(t) -> void:
 		return
 	_test_curvatura_bocca(t, rig)
 	_test_giro_espressioni(t, fc, rig)
+	_test_recita_sopracciglia(t, fc)
+	_test_bocche_intere(t, fc, rig)
 
 
 # un rig sintetico: testa, due occhi con bulbo e iride, archi felici,
@@ -141,3 +143,84 @@ func _test_giro_espressioni(t, fc: GDScript, rig: Dictionary) -> void:
 	for f in 40:
 		face.update(0.016)
 	t.ok(true, "impulso transitorio e freeze dell'ammicco girano")
+
+
+# La RECITA delle sopracciglia: la molla sottosmorzata deve SUPERARE il
+# bersaglio (overshoot: è ciò che l'occhio legge come muscolo, non
+# interruttore) e poi assestarsi; il flick del curioso deve rompere la
+# simmetria (un sopracciglio su, l'altro giù). Un rig fresco per ciascuna
+# prova: le molle partono da riposo.
+func _test_recita_sopracciglia(t, fc: GDScript) -> void:
+	# la tabella: ogni voce punta a un'espressione vera e a uno stile noto
+	var stili_noti := ["scatto", "tremito", "flick", "rimbalzo", "fremito",
+			"morsa", "sciolto", "pesante", "quiete"]
+	for nome in fc.BROW_PLAY:
+		t.ok(fc.EXPRESSIONS.has(nome),
+				"BROW_PLAY['%s'] è un'espressione vera" % nome)
+		t.ok(str(fc.BROW_PLAY[nome].get("stile", "")) in stili_noti,
+				"BROW_PLAY['%s']: stile conosciuto" % nome)
+
+	# overshoot e assestamento sulla sorpresa
+	var rig := _build_rig(t, fc)
+	var face = fc.new()
+	face.setup(rig)
+	face.freeze_blink(60.0)
+	var base_y: float = (rig["brows"][0] as Node3D).position.y
+	face.set_expression("sorpresa", 1.0)
+	var massimo := -INF
+	for f in 60:
+		face.update(1.0 / 60.0)
+		massimo = maxf(massimo, (rig["brows"][0] as Node3D).position.y - base_y)
+	var bersaglio: float = fc.EXPRESSIONS["sorpresa"]["brow_h"]
+	t.ok(massimo > bersaglio * 1.08,
+			"sorpresa: il sopracciglio SUPERA il bersaglio (%.3f > %.3f)"
+			% [massimo, bersaglio])
+	for f in 150:
+		face.update(1.0 / 60.0)
+	var fermo: float = (rig["brows"][0] as Node3D).position.y - base_y
+	t.ok(absf(fermo - bersaglio) < 0.02,
+			"sorpresa: e poi si assesta sul bersaglio (%.3f ~ %.3f)"
+			% [fermo, bersaglio])
+
+	# l'asimmetria del flick: sul curioso i due lati devono divergere
+	var rig2 := _build_rig(t, fc)
+	var face2 = fc.new()
+	face2.setup(rig2)
+	face2.freeze_blink(60.0)
+	face2.set_expression("curioso", 1.0)
+	var scarto := 0.0
+	for f in 150:
+		face2.update(1.0 / 60.0)
+		scarto = maxf(scarto, absf(
+				(rig2["brows"][0] as Node3D).position.y \
+				- (rig2["brows"][1] as Node3D).position.y))
+	t.ok(scarto > 0.008,
+			"curioso: il flick rompe la simmetria dei sopraccigli (%.4f)" % scarto)
+
+
+# Le bocche INTERE: niente più cavità esterna sovrapposta — su grin/o/O la
+# palla scura di mouth_open resta spenta e respira la loro "apertura"
+func _test_bocche_intere(t, fc: GDScript, rig: Dictionary) -> void:
+	for shape in ["grin", "o", "O"]:
+		var node: Node3D = rig["mouths"][shape]
+		t.ok(node.get_node_or_null("apertura") != null,
+				"%s: la bocca porta con sé cavo e linguetta" % shape)
+	var face = fc.new()
+	face.setup(rig)
+	face.set_expression("gioia", 1.0)   # grin + mouth_open 0.45
+	for f in 40:
+		face.update(0.016)
+	t.ok(not (rig["mouth_open"] as Node3D).visible,
+			"gioia: la cavità esterna resta SPENTA (era la seconda bocca)")
+	face.set_expression("sorpresa", 1.0)   # "O" + mouth_open 0.6
+	for f in 40:
+		face.update(0.016)
+	t.ok(not (rig["mouth_open"] as Node3D).visible,
+			"sorpresa: idem sull'anellone 'O'")
+	face.set_expression("neutro", 1.0)
+	face.set_talking(true)
+	for f in 40:
+		face.update(0.016)
+	t.ok((rig["mouth_open"] as Node3D).visible,
+			"parlato su bocca neutra: la cavità esterna serve ancora")
+	face.set_talking(false)

@@ -117,6 +117,37 @@ const MOOD_TO_EXPR := {
 	"domanda": "curioso", "triste": "triste",
 }
 
+## La RECITA delle sopracciglia: ogni espressione ha la sua coreografia nel
+## tempo, non solo una posa. Gli stili sono i verbi del mestiere d'animazione:
+##   scatto    su di colpo e restano alte, calando piano (sorpresa)
+##   tremito   vibrazione fine che si spegne (paura)
+##   flick     un sopracciglio su e l'altro giù, e piano si scambiano (dubbio)
+##   rimbalzo  saltelli felici che si acquietano (gioia)
+##   fremito   l'interno alzato che trema a folate (tristezza)
+##   morsa     la stretta che pulsa col fiato (sforzo, concentrazione)
+##   sciolto   onda pigra, tutto si ammorbidisce (amore, beatitudine)
+##   pesante   cadono piano, con risalite di lotta contro il sonno
+##   quiete    quasi ferme (dorme)
+## `amp` scala l'ampiezza dello stile per quella espressione.
+const BROW_PLAY := {
+	"sorpresa": {"stile": "scatto", "amp": 1.0},
+	"meraviglia": {"stile": "scatto", "amp": 0.7},
+	"spavento": {"stile": "tremito", "amp": 1.0},
+	"curioso": {"stile": "flick", "amp": 1.0},
+	"gioia": {"stile": "rimbalzo", "amp": 1.0},
+	"felice": {"stile": "rimbalzo", "amp": 0.45},
+	"raggiante": {"stile": "sciolto", "amp": 0.8},
+	"triste": {"stile": "fremito", "amp": 1.0},
+	"concentrato": {"stile": "morsa", "amp": 0.8},
+	"sforzo": {"stile": "morsa", "amp": 1.3},
+	"imbronciato": {"stile": "morsa", "amp": 1.0},
+	"amore": {"stile": "sciolto", "amp": 1.0},
+	"beato": {"stile": "sciolto", "amp": 0.7},
+	"assonnato": {"stile": "pesante", "amp": 1.0},
+	"dorme": {"stile": "quiete", "amp": 1.0},
+	"soffio": {"stile": "quiete", "amp": 1.0},
+}
+
 # ---------------------------------------------------------------- il rig
 var _head: Node3D
 var _eyes: Array[Node3D] = []            # i pivot occhio (uno per lato)
@@ -217,6 +248,17 @@ var _blush_boost := 0.0
 var _talking := false
 var _mouth_talk := 0.0
 
+# la dinamica della recita: una MOLLA sottosmorzata per sopracciglio (overshoot
+# e assestamento veri), un lato che parte prima dell'altro (i volti veri non
+# sono mai simmetrici), e l'età dell'espressione per far decadere gli attacchi
+var _brow_h_cur: Array[float] = [0.0, 0.0]
+var _brow_h_vel: Array[float] = [0.0, 0.0]
+var _brow_ang_cur: Array[float] = [0.0, 0.0]
+var _brow_ang_vel: Array[float] = [0.0, 0.0]
+var _expr_age := 10.0     # da quanto l'espressione corrente è in scena
+var _brow_lead := 0       # quale sopracciglio attacca per primo
+var _blink_close_cur := 0.0   # chiusura d'ammicco corrente (le sopracciglia si tuffano con lui)
+
 # impulso transitorio (un'espressione che rimbalza e poi rientra)
 var _pulse_t := -1.0
 var _pulse_dur := 0.0
@@ -258,6 +300,12 @@ func setup(rig: Dictionary) -> void:
 	for b in _brows:
 		_brow_base_pos.append(b.position)
 		_brow_base_rot.append(b.rotation)
+	# una molla per sopracciglio, quante che siano
+	while _brow_h_cur.size() < _brows.size():
+		_brow_h_cur.append(0.0)
+		_brow_h_vel.append(0.0)
+		_brow_ang_cur.append(0.0)
+		_brow_ang_vel.append(0.0)
 	for bl in _blush:
 		_blush_base_scale.append(bl.scale)
 		var a := 1.0
@@ -383,6 +431,7 @@ func update(delta: float) -> void:
 	if _eyes.is_empty() and _brows.is_empty() and _mouths.is_empty():
 		return
 	_t += delta
+	_expr_age += delta
 	if _blink_frozen > 0.0:
 		_blink_frozen -= delta
 
@@ -481,6 +530,10 @@ func _blend_channels(delta: float) -> void:
 
 func _load_targets(name: String, intensity: float) -> void:
 	var e: Dictionary = EXPRESSIONS[name]
+	# una nuova scena per le sopracciglia: l'attacco riparte, e il lato che
+	# si muove per primo viene ritirato a sorte (mai la stessa faccia due volte)
+	_expr_age = 0.0
+	_brow_lead = _rng.randi_range(0, 1)
 	_t_brow_h = float(e.get("brow_h", 0.0)) * intensity
 	_t_brow_ang = float(e.get("brow_ang", 0.0)) * intensity
 	_t_brow_sq = float(e.get("brow_sq", 0.0)) * intensity
@@ -518,23 +571,92 @@ func _has_shape(shape: String) -> bool:
 
 
 # ------------------------------------------------------------ sopracciglia
+# Tre strati, come si anima un volto vero:
+#   1. la MOLLA per lato verso il bersaglio dell'espressione — sottosmorzata,
+#      quindi supera il segno e si assesta (l'overshoot è ciò che l'occhio
+#      legge come "muscolo", non "interruttore"); il lato in ritardo parte
+#      più morbido per il primo terzo di secondo
+#   2. la COREOGRAFIA dell'espressione (BROW_PLAY): il tremito, il flick,
+#      la morsa che pulsa col fiato...
+#   3. la VITA di fondo: respiro lento, guizzo dei saluti, e il tuffo
+#      insieme all'ammicco (le sopracciglia veri seguono la palpebra)
 func _apply_brows(delta: float) -> void:
 	if _brows.is_empty():
 		return
-	# riposo vivo: un respiro lentissimo del sopracciglio + il guizzo
+	var gioco: Dictionary = BROW_PLAY.get(_expr, {})
+	var stile := str(gioco.get("stile", ""))
+	var amp := float(gioco.get("amp", 1.0)) * clampf(_intensity, 0.0, 1.2)
 	var idle := sin(_t * 0.9) * 0.004
 	var flash := _brow_flash * 0.05
+	var tuffo := _blink_close_cur * 0.006
+	var dt := minf(delta, 0.05)
+
 	for i in _brows.size():
 		var b := _brows[i]
 		var side := -1.0 if i == 0 else 1.0
 		var base_p: Vector3 = _brow_base_pos[i]
 		var base_r: Vector3 = _brow_base_rot[i]
-		# alzata (+y), corrugamento verso il centro (x), inclinazione interna (z)
-		b.position.y = base_p.y + _c_brow_h + idle + flash
-		b.position.x = base_p.x - side * _c_brow_sq
+
+		# 1 · la molla (semi-implicita: stabile anche a 20 fps)
+		var ritardo := i != _brow_lead and _expr_age < 0.3
+		var k_h := 90.0 if ritardo else 170.0
+		var c_h := 8.0 if ritardo else 10.0
+		_brow_h_vel[i] += (k_h * (_t_brow_h - _brow_h_cur[i]) - c_h * _brow_h_vel[i]) * dt
+		_brow_h_cur[i] += _brow_h_vel[i] * dt
+		_brow_ang_vel[i] += (150.0 * (_t_brow_ang - _brow_ang_cur[i]) \
+				- 14.0 * _brow_ang_vel[i]) * dt
+		_brow_ang_cur[i] += _brow_ang_vel[i] * dt
+
+		# 2 · la coreografia (offset nel tempo, per lato)
+		var fase := float(i) * 0.9
+		var h_rec := 0.0
+		var ang_rec := 0.0
+		var sq_rec := 0.0
+		match stile:
+			"scatto":
+				# restano alte sull'attimo, poi calano piano (l'overshoot
+				# vero lo ha già fatto la molla)
+				h_rec = amp * 0.012 * exp(-_expr_age * 0.8)
+			"tremito":
+				var spegni := exp(-_expr_age * 2.0)
+				h_rec = amp * 0.009 * sin(_t * 26.0 + fase * 4.0) * spegni
+				ang_rec = amp * 0.022 * sin(_t * 31.0 + fase * 3.0) * spegni
+			"flick":
+				# il sopracciglio del dubbio: uno su, l'altro giù, e si
+				# scambiano con calma — la domanda che si ripensa
+				var chi := 1.0 if i == _brow_lead else -1.0
+				var alt := sin(_t * 1.7)
+				h_rec = amp * 0.013 * alt * chi
+				ang_rec = amp * -0.045 * alt * chi
+			"rimbalzo":
+				h_rec = amp * (0.010 * absf(sin(_t * 6.4 + fase)) * exp(-_expr_age * 1.1) \
+						+ 0.003 * sin(_t * 2.6 + fase))
+			"fremito":
+				# folate: quasi fermo, poi l'interno freme — il pianto trattenuto
+				var folata := maxf(0.0, sin(_t * 0.9 + fase) - 0.82) / 0.18
+				ang_rec = amp * -0.028 * folata * sin(_t * 9.0)
+				h_rec = amp * 0.004 * sin(_t * 1.2 + fase * 2.0)
+			"morsa":
+				var fiato := 0.5 + 0.5 * sin(_t * 2.6 + fase * 0.4)
+				sq_rec = amp * 0.010 * fiato
+				h_rec = amp * -0.004 * fiato
+			"sciolto":
+				h_rec = amp * 0.006 * sin(_t * 1.1 + fase)
+				ang_rec = amp * -0.01 * (0.5 + 0.5 * sin(_t * 0.8 + fase))
+			"pesante":
+				var lotta := maxf(0.0, sin(_t * 0.42 + fase * 0.3) - 0.86) / 0.14
+				h_rec = amp * (-0.006 + 0.018 * lotta)
+			"quiete":
+				h_rec = amp * 0.002 * sin(_t * 0.7 + fase)
+			_:
+				pass
+
+		# 3 · tutto insieme: alzata (+y), corrugamento (x), angolo interno (z)
+		b.position.y = base_p.y + _brow_h_cur[i] + h_rec + idle + flash - tuffo
+		b.position.x = base_p.x - side * (_c_brow_sq + sq_rec)
 		# l'angolo interno: arrabbiato abbassa l'interno, triste lo alza.
 		# lo z locale ruota il sopracciglio; il segno dipende dal lato.
-		b.rotation.z = base_r.z + side * _c_brow_ang
+		b.rotation.z = base_r.z + side * (_brow_ang_cur[i] + ang_rec)
 
 
 # ------------------------------------------------------------ occhi + sguardo
@@ -548,6 +670,7 @@ func _apply_eyes(delta: float) -> void:
 	var blink_close := 0.0
 	if _blink_t >= 0.0:
 		blink_close = sin(clampf(_blink_t / _blink_dur, 0.0, 1.0) * PI)
+	_blink_close_cur = blink_close   # le sopracciglia si tuffano col battito
 	# respiro: un filo di apertura che pulsa
 	var breath := 1.0 + sin(_t * 2.1) * 0.015
 	var aperture := clampf(_c_eye_open * breath * (1.0 - blink_close * 0.94), 0.02, 1.6)
@@ -702,6 +825,10 @@ func _update_gaze(delta: float) -> void:
 
 
 # ------------------------------------------------------------ bocca
+# le forme che portano già con sé cavo scuro e linguetta (bocche intere)
+const BOCCHE_INTERE := ["grin", "o", "O"]
+
+
 func _apply_mouth(delta: float) -> void:
 	if _mouths.is_empty():
 		return
@@ -727,10 +854,18 @@ func _apply_mouth(delta: float) -> void:
 	else:
 		_mouth_talk = lerpf(_mouth_talk, 0.0, 1.0 - exp(-12.0 * delta))
 	var open := clampf(maxf(_c_mouth_open, _mouth_talk * 0.6), 0.0, 1.0)
+	# le bocche INTERE (grin, o, O) hanno già cavo e linguetta incorporati:
+	# la cavità esterna resta spenta (sovrapposta sembrava una seconda bocca)
+	# e a respirare con l'apertura è il loro nodo "apertura"
+	var intera := show in BOCCHE_INTERE
 	if _mouth_open_node != null:
-		_mouth_open_node.visible = open > 0.02
+		_mouth_open_node.visible = (not intera) and open > 0.02
 		var s := 0.2 + open
 		_mouth_open_node.scale = Vector3(s, open * 1.1 + 0.1, 1.0)
+	if intera:
+		var ap := (_mouths[show] as Node3D).get_node_or_null("apertura")
+		if ap != null:
+			ap.scale = Vector3(0.82 + 0.3 * open, 0.72 + 0.45 * open, 1.0)
 
 
 # ------------------------------------------------------------ guanciotte
@@ -1001,15 +1136,46 @@ static func build_mouth_set(parent: Node3D, mat: Material, center: Vector3,
 				0.012 - sin(a) * 0.036 * curva, mz))
 	lip.call(sm_node, sm_pts, 0.009)
 
-	# grin: sorriso più largo e aperto (la cavità la aggiunge mouth_open)
+	# grin: il sorriso APERTO della gioia — una bocca INTERA, non due grafiche:
+	# labbro superiore quasi dritto, labbro inferiore a ∪ profonda, il cavo
+	# scuro che li riempie, il dentino sotto il labbro e la linguetta sul
+	# fondo. (Prima il grin era un arco chiuso e la cavità esterna di
+	# mouth_open gli fluttuava sopra: da vicino sembravano due bocche.)
 	var gr_node: Node3D = mk.call("grin")
-	var gr_pts := []
+	var gr_giu := []
+	var gr_su := []
 	for i in 15:
 		var f := float(i) / 14.0
 		var a := PI * (1.0 - f)
-		gr_pts.append(Vector3(cos(a) * 0.062 * larg,
-				0.01 - sin(a) * 0.032 * curva, mz))
-	lip.call(gr_node, gr_pts, 0.0092)
+		gr_giu.append(Vector3(cos(a) * 0.058 * larg,
+				0.008 - sin(a) * 0.034 * curva, mz))
+		gr_su.append(Vector3(cos(a) * 0.058 * larg,
+				0.008 + sin(a) * 0.005 * curva, mz))
+	_apertura_bocca(gr_node, Vector3(0, -0.005, mz + 0.004) * scale,
+			0.030 * scale, Vector3(1.75 * larg, 0.62 * curva, 0.4),
+			0.015 * scale, Vector3(0, -0.019 * curva, -0.012) * scale)
+	# il dentino: il tocco chibi sotto il labbro superiore (fisso, non
+	# respira con l'apertura — i denti non si gonfiano)
+	var dent := MeshInstance3D.new()
+	dent.name = "dentino"
+	var dent_m := SphereMesh.new()
+	dent_m.radius = 0.0095 * scale
+	dent_m.height = 0.019 * scale
+	dent_m.radial_segments = 12
+	dent_m.rings = 6
+	dent.mesh = dent_m
+	var dent_mat := StandardMaterial3D.new()
+	dent_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	dent_mat.albedo_color = Color("fff6ee")
+	dent.material_override = dent_mat
+	dent.position = Vector3(0.017 * larg, 0.004, mz + 0.002) * scale
+	dent.scale = Vector3(1.25, 0.62, 0.45)
+	dent.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	gr_node.add_child(dent)
+	# le labbra stanno un soffio più AVANTI (z minore) di cavo e dentino:
+	# è la profondità a tenerle davanti, il contorno resta netto
+	lip.call(gr_node, gr_giu, 0.0092)
+	lip.call(gr_node, gr_su, 0.0072, 0.5)
 
 	# frown: arco all'ingiù (concavo in basso)
 	var fr_node: Node3D = mk.call("frown")
@@ -1039,13 +1205,16 @@ static func build_mouth_set(parent: Node3D, mat: Material, center: Vector3,
 		ln_pts.append(Vector3((f - 0.5) * 0.075 * larg, 0.0, mz))
 	lip.call(ln_node, ln_pts, 0.008, 0.5)
 
-	# o e O: due anellini di stupore (già lisci: tori, non palline —
-	# solo con più segmenti, da vicino l'anello non deve sfaccettare)
-	for pair: Array in [["o", 0.013, 0.026], ["O", 0.02, 0.04]]:
-		var node: Node3D = mk.call(str(pair[0]))
+	# o e O: gli anellini di stupore — bocche INTERE: dentro l'anello vive
+	# già il cavo scuro con la linguetta adagiata sul fondo. Prima il cavo
+	# era il nodo esterno di mouth_open e si sovrapponeva all'anello: da
+	# vicino sembravano due bocche (curioso, soffio).
+	for tri: Array in [["o", 0.013, 0.026, 0.009], ["O", 0.02, 0.04, 0.014]]:
+		var node: Node3D = mk.call(str(tri[0]))
+		var r_buco := float(tri[1])
 		var tm := TorusMesh.new()
-		tm.inner_radius = float(pair[1]) * scale
-		tm.outer_radius = float(pair[2]) * scale
+		tm.inner_radius = r_buco * scale
+		tm.outer_radius = float(tri[2]) * scale
 		tm.rings = 24
 		tm.ring_segments = 16
 		var o := MeshInstance3D.new()
@@ -1055,9 +1224,56 @@ static func build_mouth_set(parent: Node3D, mat: Material, center: Vector3,
 		o.rotation.x = PI * 0.5
 		o.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		node.add_child(o)
+		# il cavo riempie il buco dell'anello (fino a metà labbro), la
+		# linguetta spunta dal bordo basso interno
+		_apertura_bocca(node, Vector3(0, -0.004, mz + 0.004) * scale,
+				(r_buco + float(tri[2])) * 0.5 * scale, Vector3(1.0, 1.0, 0.4),
+				float(tri[3]) * scale,
+				Vector3(0, -r_buco * 0.6, -r_buco * 0.45) * scale)
 
 	out["neutral"].visible = true
 	return out
+
+
+# Il cuore scuro di una bocca aperta: il cavo (sfera schiacciata contro il
+# viso) e la linguetta rosa sul fondo, raccolti in un nodo chiamato
+# "apertura" che _apply_mouth fa respirare con mouth_open/il parlato.
+static func _apertura_bocca(host: Node3D, pos: Vector3, r_cavo: float,
+		forma: Vector3, r_lingua: float, pos_lingua: Vector3) -> Node3D:
+	var ap := Node3D.new()
+	ap.name = "apertura"
+	ap.position = pos
+	host.add_child(ap)
+	var cavo_m := SphereMesh.new()
+	cavo_m.radius = r_cavo
+	cavo_m.height = r_cavo * 2.0
+	cavo_m.radial_segments = 20
+	cavo_m.rings = 12
+	var cavo := MeshInstance3D.new()
+	cavo.mesh = cavo_m
+	var cavo_mat := StandardMaterial3D.new()
+	cavo_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	cavo_mat.albedo_color = Color("3a1f1f")
+	cavo.material_override = cavo_mat
+	cavo.scale = forma
+	cavo.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	ap.add_child(cavo)
+	var lin_m := SphereMesh.new()
+	lin_m.radius = r_lingua
+	lin_m.height = r_lingua * 2.0
+	lin_m.radial_segments = 14
+	lin_m.rings = 8
+	var lingua := MeshInstance3D.new()
+	lingua.mesh = lin_m
+	var lingua_mat := StandardMaterial3D.new()
+	lingua_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	lingua_mat.albedo_color = Color("e07a8c")
+	lingua.material_override = lingua_mat
+	lingua.position = pos_lingua
+	lingua.scale = Vector3(1.2, 0.55, 0.75)
+	lingua.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	ap.add_child(lingua)
+	return ap
 
 
 ## La bocca aperta (parlare/ridere/stupore): non più la sola palla scura —

@@ -447,6 +447,23 @@ func _debug_facce(dir: String) -> void:
 		await get_tree().create_timer(0.9).timeout
 		await _shot(dir, "faccia_%02d_%s" % [n, nome])
 		print("FACCE: %02d %s" % [n, nome])
+
+	# la RECITA delle sopracciglia: tre istanti dell'attacco (l'overshoot
+	# della molla, la coreografia in corsa, l'assestamento) — la prova che
+	# le sopracciglia si muovono NEL tempo, non solo tra due pose
+	for nome in ["sorpresa", "curioso", "sforzo", "triste"]:
+		mochi.forza_espressione("neutro", 1.0)
+		await get_tree().create_timer(0.8).timeout
+		mochi.forza_espressione(str(nome), 1.0)
+		var prima := 0.0
+		var passo := 1
+		for attesa: float in [0.12, 0.5, 1.6]:
+			await get_tree().create_timer(attesa - prima).timeout
+			prima = attesa
+			await _shot(dir, "recita_%s_%d" % [nome, passo])
+			passo += 1
+		print("FACCE: recita %s (3 istanti)" % nome)
+
 	mochi.forza_espressione("")
 	print("FACCE: fine, %d espressioni fotografate" % n)
 	get_tree().quit()
