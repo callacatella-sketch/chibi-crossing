@@ -144,6 +144,9 @@ func _ready() -> void:
 	# rettangoli caldi sull'erba (e la finestra del lutto illumina il
 	# sentiero vuoto di chi è partito)
 	add_child(preload("res://scenes/world/PozzeDiLuce.gd").new())
+	# le richieste fotografiche: i residenti sognano foto, la Modalità
+	# Foto le esaudisce e la foto vera finisce appesa in casa loro
+	add_child(preload("res://scenes/interact/RichiesteFoto.gd").new())
 	# il guardaroba di Mochi: ricordi indossabili
 	add_child(preload("res://scenes/characters/Wardrobe.gd").new())
 	# l'onsen del bosco, oltre la radura del falò
