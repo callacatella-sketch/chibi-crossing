@@ -154,12 +154,21 @@ func _restore_ui() -> void:
 
 
 func _snap() -> void:
-	# prima la foto (pulita), poi il flash
+	# la foto dev'essere DAVVERO pulita: via le etichette (le nostre e
+	# quelle delle richieste foto), un frame di render senza UI, e solo
+	# allora si cattura — niente scritte cotte dentro i ricordi
+	_layer.visible = false
+	get_tree().call_group("richieste_foto", "nascondi_hud")
+	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()
+	_layer.visible = true
 	DirAccess.make_dir_recursive_absolute("user://photos")
 	var stamp := Time.get_datetime_string_from_system().replace(":", "-").replace("T", "_")
 	img.save_png("user://photos/foto_%s.png" % stamp)
 	get_tree().call_group("regista", "note", "foto")
+	# le richieste fotografiche: se lo scatto esaudisce il sogno di un
+	# residente, la foto finisce incorniciata in casa sua
+	get_tree().call_group("richieste_foto", "scatto", img)
 	if _sfx:
 		_sfx.camera_click()
 	_flash.modulate.a = 0.85
