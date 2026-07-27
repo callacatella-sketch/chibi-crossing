@@ -115,6 +115,8 @@ static func items() -> Array[Dictionary]:
 			"cols": [[Vector3(0.5, 1.6, 0.5), Vector3(0, 0.8, 0)]]},
 		{"name": "Braciere stellato", "cat": 1, "type": "cell", "layer": 2, "builder": _brazier,
 			"cols": [[Vector3(0.5, 0.8, 0.5), Vector3(0, 0.4, 0)]]},
+		{"name": "Bancarella", "cat": 2, "type": "cell", "layer": 2, "builder": _player_stall,
+			"cols": [[Vector3(1.3, 1.0, 0.7), Vector3(0, 0.5, 0)]]},
 		{"name": "Stendino", "cat": 2, "type": "cell", "layer": 2, "builder": _clothesline,
 			"cols": [[Vector3(0.12, 1.15, 0.12), Vector3(-0.55, 0.57, 0)],
 					[Vector3(0.12, 1.15, 0.12), Vector3(0.55, 0.57, 0)]]},
@@ -832,6 +834,42 @@ static func _bench() -> Node3D:
 # ================================================================ NEGOZIO
 # I pezzi che si comprano dal mercante (con le noccioline o le stelline).
 # Stessa mano pastello del resto del catalogo.
+
+# la bancarella di Mochi: il banco di legno chiaro col tendone menta e
+# crema (MAI rosa: quello è il carretto del mercante), tre piedistalli
+# per la merce esposta e il cartellino di legno sul fianco. La merce vera
+# e i prezzi li mette il sistema Bancarella.gd: qui solo il banco.
+static func _player_stall() -> Node3D:
+	var n := Node3D.new()
+	var pale := _mat(WOOD_PALE, WOOD, 3.0, 0.45)
+	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	# il banco: cassa piena, piano sporgente, zoccolo
+	_box(n, Vector3(1.16, 0.08, 0.62), wood, Vector3(0, 0.04, 0))
+	_box(n, Vector3(1.08, 0.72, 0.5), pale, Vector3(0, 0.44, 0))
+	_box(n, Vector3(1.26, 0.07, 0.62), wood, Vector3(0, 0.83, 0))
+	# la fascia frontale coi listelli
+	for i in 5:
+		_box(n, Vector3(0.16, 0.5, 0.03), wood, Vector3(-0.44 + float(i) * 0.22, 0.5, 0.26))
+	# i montanti e il tendone a strisce menta e crema
+	for sx: float in [-0.56, 0.56]:
+		_box(n, Vector3(0.06, 1.5, 0.06), wood, Vector3(sx, 0.78, -0.18))
+	for i in 6:
+		var stripe := _box(n, Vector3(0.22, 0.045, 0.78),
+				_mat(Color("9fd8cf"), Color("86c2b8"), 4.0, 0.4) if i % 2 == 0 \
+				else _mat(CREAM, Color("f0e2cc"), 4.0, 0.4),
+				Vector3(-0.55 + float(i) * 0.22, 1.56, -0.02))
+		stripe.rotation.z = 0.07
+		stripe.rotation.x = -0.12
+	# i tre piedistalli della merce (gli stessi offset che usa Bancarella.gd)
+	for sx: float in [-0.38, 0.0, 0.38]:
+		_cyl(n, 0.1, 0.11, 0.05, wood, Vector3(sx, 0.89, 0.02))
+	# il cartellino di legno appeso sul fianco, con lo spago
+	var targa := _box(n, Vector3(0.26, 0.18, 0.03), pale, Vector3(0.66, 0.62, 0.12))
+	targa.rotation.z = -0.08
+	_cyl(n, 0.008, 0.008, 0.14, _mat(Color("d9c08a"), Color("c0a878"), 10.0, 0.4),
+			Vector3(0.64, 0.76, 0.12))
+	return n
+
 
 # lo stendino: due pali a T, la corda che fa la pancia in mezzo e il
 # cestello di vimini alla base. Nasce VUOTO: i teli ce li mettono Mochi
