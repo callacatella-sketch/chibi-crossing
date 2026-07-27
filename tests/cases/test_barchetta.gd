@@ -16,10 +16,40 @@ const MATH := preload("res://scenes/world/WorldMath.gd")
 
 func run(t) -> void:
 	_test_fisica_pura(t)
+	_test_colpo_di_remo(t)
 	_test_sponde(t)
 	_test_le_due_acque(t)
 	_test_asset(t)
 	_test_fili_attaccati(t)
+
+
+## La vogata vera, fase per fase: nella PASSATA la pala sta in acqua e
+## morde (è lì che nasce la spinta), nell'ESTRAZIONE esce e si piuma,
+## nel RECUPERO torna a prua fuori dall'acqua, di taglio. E il giro si
+## CUCE: fine e inizio del ciclo combaciano, o la voga scatterebbe.
+func _test_colpo_di_remo(t) -> void:
+	var passata: Dictionary = BAR.colpo_di_remo(0.2)
+	t.ok(float(passata["alza"]) < 0.1, "nella passata la pala è in acqua")
+	t.ok(float(passata["piuma"]) < 0.1, "e lavora piatta, mai di taglio")
+	t.ok(float(passata["spinta"]) > 0.5, "è la passata a spingere la barca")
+	var recupero: Dictionary = BAR.colpo_di_remo(0.7)
+	t.ok(float(recupero["alza"]) > 0.3, "nel recupero la pala è fuori dall'acqua")
+	t.ok(float(recupero["piuma"]) > 1.0, "e viaggia PIUMATA, come i vogatori veri")
+	t.almost(float(recupero["spinta"]), 0.0, "fuori dall'acqua non si spinge", 0.001)
+	t.ok(float(BAR.colpo_di_remo(0.05)["sweep"]) > float(BAR.colpo_di_remo(0.4)["sweep"]),
+			"la passata spazza da prua verso poppa")
+	t.ok(float(recupero["sweep"]) > float(BAR.colpo_di_remo(0.55)["sweep"]),
+			"e il recupero riporta il remo a prua")
+	# la cucitura del giro: p=1 e p=0 sono lo stesso istante
+	var fine: Dictionary = BAR.colpo_di_remo(0.999)
+	var inizio: Dictionary = BAR.colpo_di_remo(0.0)
+	for campo in ["sweep", "alza", "piuma", "braccia", "corpo"]:
+		t.ok(absf(float(fine[campo]) - float(inizio[campo])) < 0.06,
+				"il giro si cuce su '%s'" % campo)
+	# le braccia restano in presa per tutto il giro
+	for i in 20:
+		var b: float = float(BAR.colpo_di_remo(float(i) / 20.0)["braccia"])
+		t.ok(b >= 0.0 and b <= 1.0, "braccia in presa (p=%.2f)" % (float(i) / 20.0))
 
 
 func _test_fisica_pura(t) -> void:
@@ -91,6 +121,22 @@ func _test_asset(t) -> void:
 	var barca: Node3D = bar._make_barca()
 	t.ok(barca.get_child_count() >= 8,
 			"la barchetta ha scafo, panchetta e remi (%d)" % barca.get_child_count())
+	# LA GUARDIA DEI REMI (nati montati al contrario, mai più): l'asta
+	# piega con lo STESSO segno del suo lato — la cima (manico) in dentro
+	# verso Mochi, la pala in fuori verso l'acqua — e la pala è FIGLIA
+	# dell'asta: dovunque vada il remo, la pala va con lui.
+	var remi: Array = bar.get("_remi")
+	var aste: Array = bar.get("_aste")
+	var pale: Array = bar.get("_pale")
+	t.eq(remi.size(), 2, "due remi, uno per scalmo")
+	for i in remi.size():
+		var lato: float = signf((remi[i] as Node3D).position.x)
+		t.eq(signf((aste[i] as Node3D).rotation.z), lato,
+				"l'asta del remo %d piega col suo lato (manico in dentro)" % i)
+		t.ok((pale[i] as Node3D).get_parent() == aste[i],
+				"la pala del remo %d è figlia dell'asta: mai più orfana" % i)
+		t.ok((pale[i] as Node3D).position.y < -0.3,
+				"e sta in fondo all'asta, verso l'acqua")
 	barca.free()
 	bar.free()
 

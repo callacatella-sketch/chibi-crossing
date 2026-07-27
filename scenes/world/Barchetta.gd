@@ -38,6 +38,7 @@ const REMATA := 1.9            # i remi, in avanti
 const RETRO := 0.9             # la sciabordata all'indietro
 const ATTRITO := 0.85
 const GIRO := 1.6              # virata, in radianti al secondo
+const CADENZA := 0.85          # colpi di remo al secondo
 
 var _cozy: Node3D
 var _player: Node3D
@@ -47,13 +48,19 @@ var _sfx
 var _molo: Node3D
 var _barca: Node3D
 var _remi: Array[Node3D] = []
+var _aste: Array[Node3D] = []
+var _pale: Array[Node3D] = []
+var _gocce_remi: Array[GPUParticles3D] = []
 var _naviga := false
 var _vel := Vector3.ZERO
 var _yaw := PI                 # in avanti = verso monte (-z), come si salpa
-var _rem_t := 0.0
+var _rem_t := 0.0              # la fase della vogata (giri interi = colpi)
 var _t := 0.0
 var _primo_imbarco := true
 var _costruita := false
+# i valori di voga APPLICATI, ammorbiditi verso il bersaglio: partire e
+# fermarsi non scatta mai (il remo si posa, non si teletrasporta)
+var _voga := {"sweep": 0.0, "alza": 0.5, "piuma": 1.2, "braccia": 0.3, "corpo": 0.0}
 
 var _prompt: PanelContainer
 var _prompt_label: Label
@@ -90,6 +97,61 @@ static func passo_navigazione(vel: Vector3, avanti: Vector3, spinta: float,
 ## corso vero del fiume. PURA (la usa anche il test coi valori di MATH).
 static func dentro_l_alveo(x: float, rx: float) -> float:
 	return clampf(x, rx - SPONDA, rx + SPONDA)
+
+
+## UN COLPO DI REMO VERO, in quattro fasi su un giro di fase p (0..1):
+##   ATTACCO   (p≈0.92→1): la pala scende e morde l'acqua;
+##   PASSATA   (0→0.42):  la pala IN ACQUA spazza da prua a poppa — è
+##                        qui che nasce la spinta (il picco a metà);
+##   ESTRAZIONE(0.42→0.52): la pala esce e si PIUMA (di taglio all'aria,
+##                        come i vogatori veri: meno vento, meno spruzzi);
+##   RECUPERO  (0.52→0.92): torna verso prua FUORI dall'acqua, piumata,
+##                        mentre il corpo si riporta avanti.
+## Ritorna sweep (prua↔poppa), alza (pala su/giù), piuma (di taglio),
+## braccia (il tirare di Mochi), corpo (il peso avanti/indietro) e
+## spinta (quanto morde l'acqua ADESSO). PURA e continua sul giro:
+## la verifica il test, fase per fase e sul punto di cucitura.
+static func colpo_di_remo(p: float) -> Dictionary:
+	p = fposmod(p, 1.0)
+	var sweep: float
+	var alza: float
+	var piuma: float
+	var braccia: float
+	var corpo: float
+	var spinta := 0.0
+	if p < 0.42:
+		var k := p / 0.42
+		var e := k * k * (3.0 - 2.0 * k)
+		sweep = lerpf(0.55, -0.5, e)
+		alza = 0.02
+		piuma = 0.0
+		braccia = lerpf(0.78, 0.22, e)
+		corpo = lerpf(-0.05, 0.06, e)
+		spinta = sin(PI * k)
+	elif p < 0.52:
+		var k2 := (p - 0.42) / 0.10
+		sweep = -0.5
+		alza = lerpf(0.02, 0.42, k2)
+		piuma = lerpf(0.0, 1.25, k2)
+		braccia = 0.22
+		corpo = 0.06
+	elif p < 0.92:
+		var k3 := (p - 0.52) / 0.40
+		var e3 := k3 * k3 * (3.0 - 2.0 * k3)
+		sweep = lerpf(-0.5, 0.55, e3)
+		alza = 0.42
+		piuma = 1.25
+		braccia = lerpf(0.22, 0.78, e3)
+		corpo = lerpf(0.06, -0.05, e3)
+	else:
+		var k4 := (p - 0.92) / 0.08
+		sweep = 0.55
+		alza = lerpf(0.42, 0.02, k4)
+		piuma = lerpf(1.25, 0.0, k4)
+		braccia = 0.78
+		corpo = -0.05
+	return {"sweep": sweep, "alza": alza, "piuma": piuma,
+			"braccia": braccia, "corpo": corpo, "spinta": spinta}
 
 
 ## Vero mentre Mochi è a bordo (lo chiede la canna da pesca).
@@ -202,32 +264,103 @@ func _make_barca() -> Node3D:
 	panca.material_override = chiaro
 	panca.position = Vector3(0, 0.2, 0.08)
 	n.add_child(panca)
-	# i remi sugli scalmi, pala in acqua
+	# I REMI, com'è fatto un remo vero: il PERNO è lo scalmo sul falchetto;
+	# l'asta è UN pezzo solo che lo attraversa — il MANICO in dentro e in
+	# alto (nelle zampe di Mochi), la PALA in fuori e in acqua, FIGLIA
+	# dell'asta (così non si stacca mai, qualunque cosa faccia la voga).
+	# La prima stesura aveva il segno dell'asta invertito: cima in fuori
+	# e pala orfana — i remi sembravano montati al contrario. Un test ora
+	# fa la guardia all'orientamento.
 	_remi.clear()
+	_aste.clear()
+	_pale.clear()
 	for sx: float in [-1.0, 1.0]:
 		var remo := Node3D.new()
-		remo.position = Vector3(sx * 0.31, 0.24, 0.0)
-		var asta := MeshInstance3D.new()
-		var am := CylinderMesh.new()
-		am.top_radius = 0.018
-		am.bottom_radius = 0.018
-		am.height = 0.85
-		asta.mesh = am
-		asta.material_override = chiaro
-		asta.position = Vector3(sx * 0.3, -0.12, 0)
-		asta.rotation.z = -sx * 0.9
+		remo.name = "RemoDestro" if sx > 0.0 else "RemoSinistro"
+		remo.position = Vector3(sx * 0.3, 0.26, 0.02)
+		# lo scalmo: l'anellino di ferro in cui il remo lavora
+		var scalmo := MeshInstance3D.new()
+		var sm := TorusMesh.new()
+		sm.inner_radius = 0.02
+		sm.outer_radius = 0.036
+		scalmo.mesh = sm
+		scalmo.material_override = CATALOG._mat(Color("8a7f72"), Color("6f665b"), 5.0, 0.4)
+		scalmo.rotation.x = PI * 0.5
+		scalmo.rotation.z = sx * 0.85
+		remo.add_child(scalmo)
+		# l'asta: la cima (manico) piega IN DENTRO verso Mochi, il fondo
+		# (pala) IN FUORI verso l'acqua
+		var asta := Node3D.new()
+		asta.rotation.z = sx * 0.85
 		remo.add_child(asta)
+		var legno := MeshInstance3D.new()
+		var am := CylinderMesh.new()
+		am.top_radius = 0.016
+		am.bottom_radius = 0.02
+		am.height = 1.05
+		legno.mesh = am
+		legno.material_override = chiaro
+		asta.add_child(legno)
+		# il pomello del manico (dove stringono le zampine)
+		var manico := MeshInstance3D.new()
+		var mm := SphereMesh.new()
+		mm.radius = 0.028
+		mm.height = 0.056
+		manico.mesh = mm
+		manico.material_override = chiaro
+		manico.position = Vector3(0, 0.54, 0)
+		asta.add_child(manico)
+		# la pala, figlia dell'asta: piatta contro l'acqua nella passata,
+		# di taglio (piumata) nel recupero
 		var pala := MeshInstance3D.new()
 		var lm := BoxMesh.new()
-		lm.size = Vector3(0.05, 0.2, 0.1)
+		lm.size = Vector3(0.025, 0.26, 0.12)
 		pala.mesh = lm
 		pala.material_override = scafo_mat
-		pala.position = Vector3(sx * 0.62, -0.38, 0)
-		pala.rotation.z = -sx * 0.9
-		remo.add_child(pala)
+		pala.position = Vector3(0, -0.56, 0)
+		asta.add_child(pala)
+		# le goccioline dell'attacco: uno sbuffo d'acqua a ogni entrata
+		var gocce := _make_gocce_remo()
+		pala.add_child(gocce)
 		n.add_child(remo)
 		_remi.append(remo)
+		_aste.append(asta)
+		_pale.append(pala)
+		_gocce_remi.append(gocce)
 	return n
+
+
+# lo sbuffo di goccioline quando la pala entra in acqua (one-shot)
+func _make_gocce_remo() -> GPUParticles3D:
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.03, 0.045)
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(0.78, 0.88, 0.95, 0.75)
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	quad.material = mat
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	pm.emission_sphere_radius = 0.05
+	pm.direction = Vector3(0, 1, 0)
+	pm.spread = 55.0
+	pm.initial_velocity_min = 0.4
+	pm.initial_velocity_max = 0.9
+	pm.gravity = Vector3(0, -3.4, 0)
+	pm.scale_min = 0.6
+	pm.scale_max = 1.1
+	var g := GPUParticles3D.new()
+	g.amount = 9
+	g.lifetime = 0.45
+	g.one_shot = true
+	g.explosiveness = 1.0
+	g.local_coords = false
+	g.emitting = false
+	g.process_material = pm
+	g.draw_pass_1 = quad
+	g.position = Vector3(0, -0.13, 0)   # la punta della pala
+	return g
 
 
 # ------------------------------------------------------------ navigare
@@ -245,7 +378,38 @@ func _physics_process(delta: float) -> void:
 		spinta = REMATA
 	elif input.y > 0.1:
 		spinta = -RETRO
-	_vel = passo_navigazione(_vel, avanti, spinta, delta)
+
+	# --- LA VOGA: lo stesso ciclo muove remi, barca e corpo ---
+	var voga := absf(spinta) > 0.01
+	var p_prima := fposmod(_rem_t, 1.0)
+	if voga:
+		_rem_t += delta * CADENZA
+	var p := fposmod(_rem_t, 1.0)
+	var colpo := colpo_di_remo(p)
+	# la spinta MORDE solo nella passata: la barca avanza a colpi, come
+	# una barca a remi vera (la media resta quella delle velocità pure)
+	var spinta_viva := spinta * (0.3 + 1.4 * float(colpo["spinta"])) if voga else 0.0
+	_vel = passo_navigazione(_vel, avanti, spinta_viva, delta)
+
+	# l'attacco: la pala morde l'acqua — sbuffo di gocce e il tuffo
+	if voga and p < p_prima:
+		for i in _gocce_remi.size():
+			if is_instance_valid(_gocce_remi[i]):
+				_gocce_remi[i].restart()
+		if _sfx:
+			_sfx.play("step_wet1", -18.0, randf_range(1.15, 1.35))
+
+	# i bersagli della voga (a riposo i remi si posano piumati, fuori)
+	var indietro := spinta < 0.0
+	var bersaglio := {
+		"sweep": (-float(colpo["sweep"]) if indietro else float(colpo["sweep"])) if voga else 0.0,
+		"alza": float(colpo["alza"]) if voga else 0.5,
+		"piuma": float(colpo["piuma"]) if voga else 1.2,
+		"braccia": float(colpo["braccia"]) if voga else 0.3,
+		"corpo": float(colpo["corpo"]) if voga else 0.0,
+	}
+	for k in _voga:
+		_voga[k] = lerpf(float(_voga[k]), float(bersaglio[k]), 1.0 - exp(-10.0 * delta))
 
 	var pos := _barca.position + _vel * delta
 	# le sponde: la barca ci si appoggia e scivola, mai incastrata
@@ -267,20 +431,27 @@ func _physics_process(delta: float) -> void:
 			_yaw,
 			clampf(-input.x * 0.09, -0.09, 0.09) + sin(_t * 1.7) * 0.012)
 
-	# i remi vogano solo quando si rema (e si sente il tuffo della pala)
-	if spinta != 0.0:
-		var prima := int(_rem_t * 1.4)
-		_rem_t += delta
-		if int(_rem_t * 1.4) != prima and _sfx:
-			_sfx.play("step_wet1", -20.0, 1.3)
-	for remo in _remi:
-		var fase := sin(_rem_t * TAU * 1.4)
-		remo.rotation.x = fase * 0.5 if spinta != 0.0 else 0.0
+	# i remi leggono la voga: lo scalmo spazza prua↔poppa (sweep, specchiato
+	# per lato), alza la pala fuori dall'acqua (alza, specchiato) e la pala
+	# si PIUMA nel recupero (di taglio, come i vogatori veri)
+	for i in _remi.size():
+		var sx := -1.0 if i == 0 else 1.0
+		_remi[i].rotation = Vector3(0.0, float(_voga["sweep"]) * sx,
+				sx * float(_voga["alza"]))
+		if i < _pale.size() and is_instance_valid(_pale[i]):
+			_pale[i].rotation.y = float(_voga["piuma"]) * sx
 
-	# Mochi resta seduta a bordo (e la camera, figlia sua, viene con lei)
-	_player.global_position = _barca.position + Vector3(0, 0.34, 0)
+	# Mochi REMA col corpo: le braccia tirano nella passata e si distendono
+	# nel recupero (pour), il busto si china sul colpo (crouch), e il peso
+	# si sposta avanti/indietro sulla panchetta (l'offset lungo la prua).
+	# seduta SULLA panchetta (che sta un passetto verso poppa), mai a
+	# mezz'aria: il peso della voga scivola avanti e indietro da lì
+	_player.global_position = _barca.position + Vector3(0, 0.27, 0) \
+			- avanti * 0.08 + avanti * float(_voga["corpo"])
 	if _mochi:
 		_mochi.set("_yaw", atan2(-avanti.x, -avanti.z))
+		_mochi.set("pour", float(_voga["braccia"]))
+		_mochi.set("crouch", 0.05 + (0.42 - float(_voga["alza"])) * 0.28)
 
 
 func _imbarca() -> void:
@@ -292,6 +463,7 @@ func _imbarca() -> void:
 		_player.set("velocity", Vector3.ZERO)
 	if _mochi:
 		_mochi.call("set_pose", "sit")
+		_mochi.call("hold_rod", true)   # la presa a due zampe: i manici dei remi
 	if _sfx:
 		_sfx.play("step_wet2", -12.0, 0.9)
 	if _primo_imbarco:
@@ -303,6 +475,9 @@ func _sbarca() -> void:
 	_naviga = false
 	if _mochi:
 		_mochi.call("set_pose", "stand")
+		_mochi.call("hold_rod", false)
+		_mochi.set("pour", 0.0)
+		_mochi.set("crouch", 0.0)
 	if _player:
 		# a riva dalla sponda più vicina, coi piedi sull'erba
 		var pos: Vector3 = _barca.position
