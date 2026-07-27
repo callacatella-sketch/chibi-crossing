@@ -149,6 +149,12 @@ const SPECIE := {
 		"colore": Color("e88a3c"), "vendita": 5, "rara": false},
 	"bacca": {"nome": "bacca", "articolo": "una", "classe": "raccolto",
 		"colore": Color("b0466e"), "vendita": 4, "rara": false},
+	# i frutti del frutteto (il semino raro del passerotto, piantato e
+	# cresciuto in una stagione: vedi scenes/interact/Frutteto.gd)
+	"mela": {"nome": "mela", "articolo": "una", "classe": "raccolto",
+		"colore": Color("d94f4f"), "vendita": 6, "rara": false},
+	"pera": {"nome": "pera", "articolo": "una", "classe": "raccolto",
+		"colore": Color("c9cf6a"), "vendita": 7, "rara": false},
 	"fungo": {"nome": "fungo", "articolo": "un", "classe": "raccolto",
 		"colore": Color("e9d3a8"), "vendita": 4, "rara": false},
 	"porcino": {"nome": "fungo porcino", "articolo": "un", "classe": "raccolto",

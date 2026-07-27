@@ -34,6 +34,8 @@ func run(level: Node3D, mode: String, arg: String = "") -> void:
 			await _debug_feste(arg)
 		"filo":
 			await _debug_filo(arg)
+		"frutteto":
+			await _debug_frutteto(arg)
 
 func _frames(n: int):
 	for i in n:
@@ -399,6 +401,86 @@ func _debug_filo(dir: String) -> void:
 
 	print("FILO: fine. residenti=%d, MAX=%d"
 			% [(vis.get("_residents") as Array).size(), vis.MAX_RESIDENTS])
+	get_tree().quit()
+
+
+# ---------------------------------------------------------------- frutteto
+# Verifica del frutteto: il semino raro del passerotto piantato, la
+# stagione di crescita a salti di giorno (germoglio → alberello → giovane
+# → FIORITURA → maturo), i frutti ogni due giorni, il raccolto in
+# dispensa, il valore al mercante e le ricette nuove.
+func _debug_frutteto(dir: String) -> void:
+	var frutteto = get_tree().get_first_node_in_group("frutteto")
+	var inv = _level.get_node_or_null("Inventory")
+	var cooking = _level.get_node_or_null("Cooking")
+	var dn = _level.get_node_or_null("DayNight")
+	if frutteto == null or inv == null or cooking == null or dn == null:
+		printerr("FRUTTETO: Frutteto, Inventory, Cooking o DayNight non trovati")
+		get_tree().quit()
+		return
+	await _frames(40)
+	dn.set_time(0.45)
+
+	# il semino del passerotto entra nelle Tasche, Mochi lo pianta DAVVERO
+	# (pianta() consuma il tesoro e controlla il posto)
+	inv.add_treasure("semino", 1)
+	player.global_position = Vector3(-2.5, 0, 8.5)
+	var piantato: bool = frutteto.pianta(player.global_position + Vector3(0.0, 0, -0.6))
+	print("FRUTTETO: piantato col semino vero = %s | semini rimasti = %d"
+			% [piantato, (inv.get("treasures") as Dictionary).get("semino", 0)])
+	# e accanto, l'ALTRA specie d'ufficio: nelle foto si vedono entrambe
+	var prima_specie := "melo"
+	var alberi_h: Array = frutteto.get("_alberi")
+	if not alberi_h.is_empty():
+		prima_specie = str((alberi_h[0] as Dictionary)["specie"])
+	frutteto.debug_pianta(player.global_position + Vector3(2.0, 0, -0.6),
+			"pero" if prima_specie == "melo" else "melo")
+	var giorno0: int = dn.get("day")
+
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.fov = 44.0
+	var centro: Vector3 = player.global_position + Vector3(1.0, 0, -0.6)
+	var tappe := [[0, "1_germogli"], [2, "2_alberelli"], [4, "3_giovani"],
+			[6, "4_fioritura"], [7, "5_frutti"]]
+	for tappa in tappe:
+		if int(tappa[0]) > 0:
+			dn.debug_set_day(giorno0 + int(tappa[0]))
+		for r in frutteto.debug_stato():
+			print("FRUTTETO: giorno +%d · %s" % [int(tappa[0]), r])
+		var quota := 0.9 + 0.35 * float(tappa[0])
+		cam.position = centro + Vector3(0.2, quota, 3.4 + 0.28 * float(tappa[0]))
+		cam.current = true
+		cam.look_at(centro + Vector3(0, quota * 0.45, 0))
+		await get_tree().create_timer(1.0).timeout
+		await _shot(dir, "frutteto_%s" % tappa[1])
+
+	# il RACCOLTO: i frutti si staccano, rimbalzano e vanno in dispensa
+	frutteto.raccogli(0)
+	frutteto.raccogli(1)
+	await get_tree().create_timer(0.9).timeout
+	await _shot(dir, "frutteto_6_raccolta")
+	var pantry: Dictionary = cooking.get("pantry")
+	print("FRUTTETO: dispensa -> mele=%d, pere=%d"
+			% [int(pantry.get("mela", 0)), int(pantry.get("pera", 0))])
+	# la cadenza: il giorno dopo niente, due giorni dopo di nuovo
+	dn.debug_set_day(giorno0 + 8)
+	print("FRUTTETO: +1 giorno, pronti = %s" % [frutteto.debug_stato()])
+	dn.debug_set_day(giorno0 + 9)
+	print("FRUTTETO: +2 giorni, pronti = %s" % [frutteto.debug_stato()])
+
+	# il mercante li paga, il ricettario li cucina
+	var CRIT = load("res://scenes/world/Critters.gd")
+	print("FRUTTETO: il mercante paga %d🌰 la mela, %d🌰 la pera"
+			% [CRIT.vendita("mela"), CRIT.vendita("pera")])
+	cooking.debug_fill_pantry()
+	cooking.add_ingredient("mela", 3)
+	cooking.add_ingredient("pera", 3)
+	cooking.debug_open_menu()
+	await get_tree().create_timer(0.6).timeout
+	await _shot(dir, "frutteto_7_ricettario")
+	cooking.debug_close_menu()
+	print("FRUTTETO: fine. ricette nel ricettario = %d" % (cooking.RECIPES as Array).size())
 	get_tree().quit()
 
 

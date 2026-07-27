@@ -37,6 +37,11 @@ const RECIPES := [
 		"fill": ["hunger"], "col": Color("a8386a")},
 	{"name": "Tè alle bacche", "need": {"bacca": 1}, "warm": false, "art": "il",
 		"fill": ["water", "stamina"], "col": Color("b04a6a")},
+	# i frutti del frutteto (mele e pere dagli alberi del semino raro)
+	{"name": "Torta di mele", "need": {"mela": 2, "bacca": 1}, "warm": true, "art": "la",
+		"fill": ["hunger", "stamina"], "col": Color("d98a4a")},
+	{"name": "Pere al miele", "need": {"pera": 2}, "warm": true, "art": "le",
+		"fill": ["hunger", "water"], "col": Color("d8c86a")},
 ]
 
 var _build: Node3D
@@ -162,7 +167,7 @@ func _update_near() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	# col ricettario aperto, i tasti 1-7 scelgono il piatto
+	# col ricettario aperto, i tasti 1-9 scelgono il piatto
 	if _menu_open and event is InputEventKey and event.pressed and not event.is_echo():
 		var idx: int = (event as InputEventKey).keycode - KEY_1
 		if idx >= 0 and idx < RECIPES.size():

@@ -38,7 +38,7 @@ const TREASURES := {
 	"semino": {
 		"name": "semino raro", "art": "il", "tags": ["orto"],
 		"src": "dono del passerotto", "icon": "semino",
-		"desc": "Chissà cosa nasconde. Un regalo di speranza."},
+		"desc": "Piantalo su un prato libero (E): in una stagione\ndiventa un melo o un pero."},
 	"fiocco_lana": {
 		"name": "fiocco di lana", "art": "il", "tags": ["caldo", "morbido"],
 		"src": "dono del passerotto", "icon": "fiocco",
