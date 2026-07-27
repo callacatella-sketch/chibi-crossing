@@ -1104,25 +1104,68 @@ static func build_mouth_open(parent: Node3D, mat: Material, center: Vector3,
 
 ## Gli occhi ad arco "^^" della felicità piena: un archetto all'insù per lato,
 ## nascosto a riposo. [param side] -1/-+1, [param center] posizione locale.
+## Una PENNELLATA: un tubo liscio e rastremato lungo una linea di punti
+## (coordinate locali di [param parent]). Un solo mesh, punte affilate come un
+## tratto d'inchiostro: niente più perline staccate che si vedono da vicino.
+static func build_stroke(parent: Node3D, mat: Material, punti: Array,
+		r_mid: float) -> MeshInstance3D:
+	var n := punti.size()
+	var lati := 8
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	# cornice trasportata lungo la linea (niente torsioni fra un anello e l'altro)
+	var t := ((punti[1] as Vector3) - (punti[0] as Vector3)).normalized()
+	var su_ := Vector3.FORWARD if absf(t.dot(Vector3.FORWARD)) < 0.9 else Vector3.UP
+	var bx := su_.cross(t).normalized()
+	var anelli: Array = []   # per punto: [centro, base_x, base_y, raggio]
+	for i in n:
+		var seg := (punti[mini(i + 1, n - 1)] as Vector3) \
+				- (punti[maxi(i - 1, 0)] as Vector3)
+		if seg.length() > 0.0001:
+			t = seg.normalized()
+		bx = (bx - t * bx.dot(t)).normalized()
+		var by := t.cross(bx).normalized()
+		var f := float(i) / float(n - 1)
+		# rastrematura calligrafica: piena al centro, punte sottili
+		var r := r_mid * (0.2 + 0.8 * pow(sin(PI * f), 0.6))
+		anelli.append([punti[i], bx, by, r])
+	var vert := func(i: int, j: int) -> void:
+		var an: Array = anelli[i]
+		var ang := TAU * float(j % lati) / float(lati)
+		var nrm: Vector3 = (an[1] as Vector3) * cos(ang) + (an[2] as Vector3) * sin(ang)
+		st.set_normal(nrm)
+		st.add_vertex((an[0] as Vector3) + nrm * float(an[3]))
+	for i in n - 1:
+		for j in lati:
+			vert.call(i, j); vert.call(i + 1, j); vert.call(i + 1, j + 1)
+			vert.call(i, j); vert.call(i + 1, j + 1); vert.call(i, j + 1)
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(mi)
+	return mi
+
+
+## L'arco "^^" della felicità piena: una pennellata continua. Se [param su]
+## è valida (punto della testa -> punto sulla superficie), l'arco viene
+## APPOGGIATO sulla testa vera: senza, resta sul piano di ripiego storico —
+## che da vicino e di profilo mostrava le estremità galleggiare.
 static func build_happy_arc(parent: Node3D, mat: Material, center: Vector3,
-		side: float, r := 0.085) -> Node3D:
+		side: float, r := 0.085, su := Callable()) -> Node3D:
 	var node := Node3D.new()
-	node.position = center
+	node.position = (su.call(center) as Vector3) if su.is_valid() else center
 	node.visible = false
 	parent.add_child(node)
-	var n := 7
+	var n := 17
+	var punti: Array = []
 	for i in n:
 		var f := float(i) / float(n - 1)
 		var a := PI * (1.0 - f)                # arco all'insù
-		var sm := SphereMesh.new()
-		sm.radius = 0.011
-		sm.height = 0.022
-		sm.radial_segments = 8
-		sm.rings = 5
-		var mi := MeshInstance3D.new()
-		mi.mesh = sm
-		mi.material_override = mat
-		mi.position = Vector3(cos(a) * r, sin(a) * r * 0.5, -r * 0.5)
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		node.add_child(mi)
+		if su.is_valid():
+			var q := center + Vector3(cos(a) * r, sin(a) * r * 0.5, 0.0)
+			punti.append((su.call(q) as Vector3) - node.position)
+		else:
+			punti.append(Vector3(cos(a) * r, sin(a) * r * 0.5, -r * 0.5))
+	build_stroke(node, mat, punti, maxf(0.012, r * 0.15))
 	return node

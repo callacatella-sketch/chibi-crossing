@@ -538,8 +538,12 @@ static func _build_face(head: Node3D, dna: Dictionary, fur: ShaderMaterial,
 		eyeballs.append(ball)
 		irises.append(iris)
 		glints.append(glint)
+		# la pennellata "^^" poggia sulla fronte vera (stesso ellissoide dei
+		# sopraccigli): la quota z la dà _testa_z, non un piano fisso
 		happy.append(FACE.build_happy_arc(head, dark,
-				Vector3(side * gap * hs, ey + 0.006, front - 0.006), side, eye_r * 0.92))
+				Vector3(side * gap * hs, ey + 0.006, front - 0.006), side, eye_r * 0.92,
+				func(q: Vector3) -> Vector3:
+					return Vector3(q.x, q.y, _testa_z(q.x, q.y, hs) - 0.006)))
 		# il sopracciglio POGGIA sulla fronte vera (quota dall'ellissoide
 		# della testa) ed e' TANGENTE alla superficie: di profilo la segue
 		# invece di galleggiarle davanti. La piega a riposo di build_brow

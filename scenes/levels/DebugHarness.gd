@@ -40,6 +40,8 @@ func run(level: Node3D, mode: String, arg: String = "") -> void:
 			await _debug_commissioni(arg)
 		"nido":
 			await _debug_nido(arg)
+		"facce":
+			await _debug_facce(arg)
 
 func _frames(n: int):
 	for i in n:
@@ -405,6 +407,48 @@ func _debug_filo(dir: String) -> void:
 
 	print("FILO: fine. residenti=%d, MAX=%d"
 			% [(vis.get("_residents") as Array).size(), vis.MAX_RESIDENTS])
+	get_tree().quit()
+
+
+# ---------------------------------------------------------------- facce
+# Il provino delle espressioni: un primo piano di Mochi per OGNI voce di
+# FaceController.EXPRESSIONS — il controllo qualita' del volto vivo.
+func _debug_facce(dir: String) -> void:
+	var dn = _level.get_node_or_null("DayNight")
+	var mochi = player.get_node_or_null("Mochi")
+	if mochi == null or dn == null:
+		printerr("FACCE: Mochi o DayNight non trovati")
+		get_tree().quit()
+		return
+	await _frames(30)
+	dn.set_time(0.45)
+	player.global_position = Vector3(-2.0, 0, 7.5)
+	mochi.set("_yaw", PI)
+	await _frames(4)
+
+	var face = mochi.get("_face")
+	face.freeze_blink(600.0)   # niente ammicchi a meta' scatto
+	var FACE = load("res://scenes/characters/FaceController.gd")
+	var fwd: Vector3 = -(mochi.global_transform.basis.z as Vector3)
+	var focus: Vector3 = player.global_position + Vector3(0, 0.78, 0)
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.position = focus + fwd * 1.55 + Vector3(0, 0.2, 0)
+	cam.fov = 33.0
+	cam.current = true
+	cam.look_at(focus)
+
+	var n := 0
+	for nome in (FACE.EXPRESSIONS as Dictionary):
+		n += 1
+		# tramite Mochi, non direttamente sul volto: il suo pilota interno
+		# (_update_face) risceglie l'espressione ogni frame e vincerebbe lui
+		mochi.forza_espressione(str(nome), 1.0)
+		await get_tree().create_timer(0.9).timeout
+		await _shot(dir, "faccia_%02d_%s" % [n, nome])
+		print("FACCE: %02d %s" % [n, nome])
+	mochi.forza_espressione("")
+	print("FACCE: fine, %d espressioni fotografate" % n)
 	get_tree().quit()
 
 

@@ -81,6 +81,8 @@ func _ready():
 		_start_debug_harness("commissioni", OS.get_environment("CHIBI_COMMISSIONI"))
 	elif OS.get_environment("CHIBI_NIDO") != "":
 		_start_debug_harness("nido", OS.get_environment("CHIBI_NIDO"))
+	elif OS.get_environment("CHIBI_FACCE") != "":
+		_start_debug_harness("facce", OS.get_environment("CHIBI_FACCE"))
 	elif OS.get_environment("CHIBI_MAKESAVE") != "":
 		_start_debug_harness("makesave")
 
@@ -161,7 +163,7 @@ func _spawn_system(path: String, node_name: String) -> Node:
 # prova: abbatte, salva ed esce) e "makesave", che il salvataggio lo crea
 # apposta. "shot" si spegne da sé in BuildSystem._ready.
 func _start_debug_harness(mode: String, arg: String = "") -> void:
-	if mode in ["lavori", "festa", "filo", "frutteto", "commissioni", "nido"] \
+	if mode in ["lavori", "festa", "filo", "frutteto", "commissioni", "nido", "facce"] \
 			or (mode == "legna" and OS.get_environment("CHIBI_LEGNA_SAVE") == ""):
 		build_system.set_persist_for_debug(false)
 	var h = DEBUG_HARNESS.new()

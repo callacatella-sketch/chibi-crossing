@@ -94,6 +94,10 @@ var pour := 0.0
 var crouch := 0.0
 ## Saltello di gioia (0..1): un tween 0->1 produce UN salto pulito.
 var joy := 0.0
+# Espressione bloccata dall'esterno (harness CHIBI_FACCE): il pilota interno
+# la sovrascriverebbe al frame dopo, quindi qui si mette in pausa. "" = spenta.
+var _expr_forzata := ""
+var _int_forzata := 1.0
 # l'arrampicata mano-sopra-mano: peso, fase e memoria del suono presa
 var _climb := 0.0
 var _climb_step := 0.0
@@ -524,6 +528,8 @@ func _build_head() -> void:
 	add_child(_head)
 
 	# testolina più larga che alta, da pupazzetto, con la grana del pelo
+	# (i semiassi dell'ellissoide vivono in _TESTA_SEMI: _su_testa appoggia
+	# i tratti del viso su QUESTA superficie — tenerli allineati)
 	var fur_mat := _toon_mat(FUR, 0.45)
 	_add_mesh(_head, _sphere(0.42, 48), fur_mat, Vector3.ZERO, Vector3(1.04, 0.92, 0.98))
 
@@ -597,29 +603,38 @@ func _build_head() -> void:
 		_highlights.append(shine)
 		_highlights.append(sparkle)
 		_glints.append(shine)
-		# l'arco "^^" della felicità piena (nascosto a riposo)
+		# l'arco "^^" della felicità piena (nascosto a riposo), appoggiato
+		# sulla guancia vera: una pennellata, non una fila di perline
 		_happy.append(FACE.build_happy_arc(_head, _eye_mat,
-				Vector3(side * 0.155, 0.04, -0.362), side, 0.078))
+				Vector3(side * 0.155, 0.04, -0.362), side, 0.078, _su_testa))
 		# il sopracciglio: una ciglia vera, arcuata e affilata in punta — dove
 		# vive gran parte dell'emozione. Tono caldo del musetto, non nero
 		# duro; toon e non unshaded, così il fuso mostra il suo rilievo.
 		_brows.append(FACE.build_brow(_head, _toon_mat(Color("6b4636")), side,
 				Vector3(side * 0.108, 0.185, -0.352), 0.088, 0.017, "morbide"))
 
-	# occhi ">.<" per la corsa: due chevron di capsule, nascosti a riposo
+	# occhi ">.<" per la corsa: due pennellate a chevron che SEGUONO la
+	# guancia. Le vecchie capsule dritte tagliavano la curva della testa:
+	# una punta affondava e l'altra galleggiava, e da vicino restavano
+	# due trattini spezzati invece del ">.<"
 	for side: float in [-1.0, 1.0]:
 		var sq := Node3D.new()
-		sq.position = Vector3(side * 0.155, 0.03, -0.36)
-		sq.scale.x = 1.0 if side < 0.0 else -1.0
+		sq.position = _su_testa(Vector3(side * 0.155, 0.03, -0.36))
 		sq.visible = false
 		_head.add_child(sq)
 		var sq_mat := _flat_mat(EYE)
-		var upper := _add_mesh(sq, _capsule(0.014, 0.095), sq_mat,
-				Vector3(-0.009, 0.033, 0), Vector3.ONE, false)
-		upper.rotation.z = 0.85
-		var lower := _add_mesh(sq, _capsule(0.014, 0.095), sq_mat,
-				Vector3(-0.009, -0.033, 0), Vector3.ONE, false)
-		lower.rotation.z = PI - 0.85
+		# la z frontale è ESSENZIALE: la proiezione segue la direzione del
+		# punto, e con z=0 finirebbe sul fianco della testa, non sul viso
+		var centro := Vector3(side * 0.155, 0.03, -0.36)
+		for verso: float in [1.0, -1.0]:
+			# dal vertice verso l'orecchio, aprendo: il vertice del chevron
+			# guarda il nasino (">" a sinistra, "<" a destra)
+			var da := centro + Vector3(-side * 0.0266, 0.0017 * verso, 0.0)
+			var a_ := centro + Vector3(side * 0.0446, 0.0643 * verso, 0.0)
+			var punti: Array = []
+			for i in 9:
+				punti.append(_su_testa(da.lerp(a_, float(i) / 8.0)) - sq.position)
+			FACE.build_stroke(sq, sq_mat, punti, 0.014)
 		_squints.append(sq)
 
 	# goccia di sudore per quando è sfinita (nascosta a riposo)
@@ -1159,6 +1174,31 @@ func _process(delta: float) -> void:
 	_update_face(delta)
 
 
+# I semiassi della testona: sfera 0.42 scalata (1.04, 0.92, 0.98). Se cambia
+# la mesh della testa, questi numeri cambiano CON lei.
+const _TESTA_SEMI := Vector3(0.4368, 0.3864, 0.4116)
+
+
+# Appoggia un punto del viso sulla superficie vera della testa (più un soffio
+# d'aria lungo la normale): è quello che tiene archi "^^" e chevron ">.<"
+# ADERENTI alla guancia anche di profilo, invece che su un piano che da un
+# lato affonda e dall'altro galleggia.
+func _su_testa(p: Vector3) -> Vector3:
+	var d := Vector3(p.x / _TESTA_SEMI.x, p.y / _TESTA_SEMI.y,
+			p.z / _TESTA_SEMI.z).normalized()
+	var s := Vector3(d.x * _TESTA_SEMI.x, d.y * _TESTA_SEMI.y, d.z * _TESTA_SEMI.z)
+	var nrm := Vector3(s.x / (_TESTA_SEMI.x * _TESTA_SEMI.x),
+			s.y / (_TESTA_SEMI.y * _TESTA_SEMI.y),
+			s.z / (_TESTA_SEMI.z * _TESTA_SEMI.z)).normalized()
+	return s + nrm * 0.006
+
+
+## Blocca il volto su un'espressione (harness delle facce): "" per liberarlo.
+func forza_espressione(nome: String, inten := 1.0) -> void:
+	_expr_forzata = nome
+	_int_forzata = inten
+
+
 # Sceglie l'espressione facciale dallo stato corrente e la passa al motore
 # del volto, che la fonde dolcemente e ci mette la vita (ammicco, sguardo,
 # micro-movimenti). Un solo punto di verità: niente più pokate sparse.
@@ -1167,6 +1207,17 @@ func _update_face(delta: float) -> void:
 		return
 	if is_anomalous():
 		return   # durante l'anomalia il viso lo pilota _update_anomaly
+
+	if _expr_forzata != "":
+		# ritratto in posa: espressione bloccata, sguardo in camera
+		_face.set_expression(_expr_forzata, _int_forzata, 99.0)
+		var vp_f := get_viewport()
+		var cam_f := vp_f.get_camera_3d() if vp_f else null
+		if cam_f:
+			_face.look_at_node(cam_f)
+		_head.rotation.z += _face.head_tilt()
+		_face.update(delta)
+		return
 
 	var expr := "neutro"
 	var inten := 1.0
