@@ -17,12 +17,13 @@ const LUA := preload("res://scenes/npc/LuaRoutines.gd")
 # contatori del modello del giocatore -> assi del profilo
 # Ogni evento emesso con note() DEVE stare in un asse, o non pesa mai sul
 # profilo (test_regista fa la guardia). "legna" sta col costruttore (è il
-# legname dei cantieri), "cucina" col socievole (le zuppette si offrono).
+# legname dei cantieri), "cucina" col socievole (le zuppette si offrono),
+# "concertino" pure (si radunano i vicini a cantare attorno al carillon).
 const ASSI := {
 	"costruttore": ["costruzione", "legna"],
 	"botanico": ["giardino"],
 	"collezionista": ["retino", "pesca"],
-	"socievole": ["socievole", "onsen", "cucina"],
+	"socievole": ["socievole", "onsen", "cucina", "concertino"],
 	"contemplativo": ["foto", "stelle", "dormita", "bosco"],
 }
 

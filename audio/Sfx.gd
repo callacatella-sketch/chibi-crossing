@@ -917,6 +917,14 @@ var _tema_thread: Thread
 var _tema_in_forno := ""   # il tema in cottura nel thread ("" = nessuno)
 
 
+## Il concertino chiede il palco: la musica di fondo si inchina piano
+## (giu = true) e a fine coro risale. Mai un taglio secco.
+func duck_music(giu: bool) -> void:
+	var tw := create_tween()
+	tw.tween_property(_music, "volume_db", -34.0 if giu else -16.0, 1.4) \
+			.set_trans(Tween.TRANS_SINE)
+
+
 ## Cambia il tema musicale del villaggio (lo chiama il Carillon piazzato).
 ## Un tema già renderizzato parte subito; gli altri cuociono in un thread
 ## e partono appena pronti, sempre con una dissolvenza gentile.

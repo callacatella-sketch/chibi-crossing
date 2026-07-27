@@ -226,6 +226,9 @@ func _gira_carillon() -> void:
 	var bs := get_tree().get_first_node_in_group("build_system")
 	if bs and bs.has_method("request_save"):
 		bs.request_save()
+	# il concertino: se qualche vicino è a portata d'orecchio, il giro
+	# di manovella diventa un coro in Chibiese attorno alla cassettina
+	get_tree().call_group("concertino", "avvia", _carillon)
 
 
 # ------------------------------------------------------- persistenza
