@@ -30,7 +30,7 @@ func _test_bestiario_coerente(t) -> void:
     var classi_valide := ["farfalla", "lucciola", "pesce", "bestiola", "raccolto"]
     var ore_valide := ["giorno", "notte", "crepuscolo"]
     var meteo_validi := ["pioggia", "neve", "nebbia"]
-    var luoghi_validi := ["prato", "bosco", "stagno"]
+    var luoghi_validi := ["prato", "bosco", "stagno", "fiume"]
     for id in CRIT.SPECIE:
         var v: Dictionary = CRIT.SPECIE[id]
         # ogni voce è COMPLETA: un campo mancante è un dato che diverge
@@ -96,7 +96,7 @@ func _test_elenchi(t) -> void:
     var lucciole: Array = CRIT.lucciole()
     var bestiole: Array = CRIT.bestiole()
     t.eq(farfalle.size(), 8, "otto farfalle nel prato (tre di sempre + cinque stagionali, bruma compresa)")
-    t.eq(pesci.size(), 7, "sette pesci nello stagno (tre di sempre + quattro stagionali)")
+    t.eq(pesci.size(), 9, "nove pesci (sette dello stagno + trota e anguilla del fiume)")
     t.eq(lucciole.size(), 2, "due lucciole (quella di sempre e la regale)")
     t.eq(bestiole.size(), 5, "cinque bestiole (cicala, scarabeo, lumachina, rana, damigella)")
     # i barattoli raccolgono farfalle, lucciole, pesci e bestiole — non i raccolti
@@ -110,7 +110,7 @@ func _test_elenchi(t) -> void:
     var rare: Array = CRIT.rare()
     for id in rare:
         t.ok(CRIT.rara(id), "%s risulta rara" % id)
-    t.eq(rare.size(), 10, "dieci specie rare (una stellina ciascuna)")
+    t.eq(rare.size(), 11, "undici specie rare (l'anguilla della notte compresa)")
     # il pallino del negozio è LO STESSO colore, solo più carico
     for id in CRIT.SPECIE:
         var c: Color = CRIT.colore(id)
