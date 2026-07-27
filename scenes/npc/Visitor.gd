@@ -31,6 +31,46 @@ var _c_arms: Array[Node3D] = []
 var _c_ears: Array[Node3D] = []
 var _c_legs: Array[Node3D] = []
 
+# ---------------------------------------------------- LA RECITA DEL CORPO
+# Le posture della ribellione, finalmente ADDOSSO al chibi. Visitors le
+# scrive da sempre in set_meta("postura", …) — telegrafo della scala,
+# sussulti, esitazioni — ma nessuno le leggeva: il sistema più bello del
+# gioco era invisibile a occhio nudo. Questo blocco le legge e le recita:
+# offset di posa (braccia, orecchie, testa, schiena) fusi coi muscoli e
+# stesi SOPRA l'animazione dello stato, mai al suo posto.
+#
+# Ogni canale: ax braccia (x, ax_dx per il destro da solo) · az braccia
+# incrociate (specchiato sui lati) · ear orecchie (+ giù, − su) · hx mento
+# (+ giù, − su) · hy_amp sguardo che vaga · vx schiena (+ curva, − in
+# fuori) · fagotto: il sacchetto del trasloco sulla spalla.
+const RECITA := {
+	"sereno": {},
+	"spalle_basse": {"ax": 0.35, "ear": 0.8, "hx": 0.2, "vx": 0.15},
+	"distratto": {"hy_amp": 0.45, "ear": 0.18, "hx": 0.04},
+	"braccia_conserte": {"ax": 1.15, "az": 1.0, "hx": -0.07, "ear": 0.25,
+			"vx": -0.03},
+	"sguardo_sfuggente": {"hy_amp": 0.55, "hy_scatti": 1.0, "ear": 0.32,
+			"hx": 0.1, "ax": 0.15, "vx": 0.05},
+	"petto_in_fuori": {"ax": -0.25, "az": -0.3, "ear": -0.3, "hx": -0.15,
+			"vx": -0.14},
+	"fagotto_in_spalla": {"ax": 0.3, "ax_dx": -2.3, "ear": 0.45, "hx": 0.1,
+			"vx": 0.1, "fagotto": true},
+	"testa_alta": {"ax": 0.1, "ear": -0.35, "hx": -0.3, "vx": -0.1},
+}
+# i transitori: reazioni del corpo che si consumano da sole
+const RECITA_TRANS := {
+	"esita": {"dur": 2.4, "vx": 0.1, "hx": 0.14, "hy_amp": 0.3},
+	"trasalisce": {"dur": 1.3, "ear": -0.75, "ax": -0.6, "hx": -0.12},
+	"si_illumina": {"dur": 1.8, "ear": -0.6, "ax": -0.35, "hx": -0.08},
+}
+
+var _rc_stabile := "sereno"
+var _rc_trans := ""
+var _rc_trans_t := 0.0
+var _rc_cur := {}    # canale -> valore corrente (fuso coi muscoli)
+var _rc_appl := {}   # ciò che è stato sommato al rig l'ultimo frame
+var _fagotto: Node3D
+
 # la voce Chibiese: nasce dal DNA, parla dal proprio corpo (audio 3D)
 var _voice := {}
 var _voice_player: AudioStreamPlayer3D
@@ -547,6 +587,10 @@ func _drop_gift() -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
+	# via la recita del frame scorso: gli stati ripartono da un rig pulito
+	# (chi scrive in assoluto sovrascrive comunque; chi non scrive — idle —
+	# ritrova il valore base, senza accumuli)
+	_recita_togli()
 	rotation.y = _yaw
 	_emote_cd -= delta
 	_speak_cd -= delta
@@ -829,6 +873,10 @@ func _process(delta: float) -> void:
 		else:
 			_face.clear_gaze()
 		_face.update(delta)
+
+	# --- LA RECITA DEL CORPO, ultimissima: le posture della ribellione si
+	# stendono SOPRA ciò che stati e volto hanno già posato ---
+	_recita_applica(delta)
 
 
 # passo del corpo: il passerotto avanza a scatti (solo mentre è in aria)
@@ -1570,3 +1618,191 @@ func debug_goto_sit() -> void:
 func debug_goto_gift() -> void:
 	# azzera il riposo: il ramo "sit" gestirà discesa e regalino
 	_timer = 0.0
+
+
+# ================================================== la recita del corpo
+
+## I bersagli di posa per una postura stabile + un transitorio in corso.
+## PURA e statica: il test la ascolta senza costruire un villager.
+## Canali d'uscita: ax0/ax1 (braccia x), az0/az1 (incrocio, specchiato),
+## ear (orecchie), hx/hy (testa), vx (schiena), vy (saltello).
+static func recita_bersagli(stabile: String, trans: String, trans_t: float,
+		t: float) -> Dictionary:
+	var out := {"ax0": 0.0, "ax1": 0.0, "az0": 0.0, "az1": 0.0, "ear": 0.0,
+			"hx": 0.0, "hy": 0.0, "vx": 0.0, "vy": 0.0}
+	_recita_somma(out, RECITA.get(stabile, {}), 1.0, t)
+	if trans != "" and RECITA_TRANS.has(trans):
+		var tp: Dictionary = RECITA_TRANS[trans]
+		var x := clampf(trans_t / float(tp["dur"]), 0.0, 1.0)
+		var env: float
+		if trans == "trasalisce":
+			env = exp(-3.2 * trans_t)      # attacco ISTANTANEO, poi si spegne
+		else:
+			env = smoothstep(0.0, 0.22, x) * (1.0 - smoothstep(0.68, 1.0, x))
+		_recita_somma(out, tp, env, t)
+		if trans == "trasalisce":
+			# il sobbalzo: due colpetti che muoiono in fretta
+			out["vy"] += 0.14 * exp(-4.0 * trans_t) * absf(sin(trans_t * 10.0))
+		elif trans == "si_illumina":
+			# il saltello di gioia: rimbalza morbido finché dura la luce
+			out["vy"] += 0.09 * env * absf(sin(trans_t * 8.5))
+	return out
+
+
+static func _recita_somma(out: Dictionary, p: Dictionary, peso: float,
+		t: float) -> void:
+	out["ax0"] += float(p.get("ax", 0.0)) * peso
+	out["ax1"] += float(p.get("ax_dx", p.get("ax", 0.0))) * peso
+	out["az0"] += float(p.get("az", 0.0)) * peso     # sinistro verso il petto
+	out["az1"] += -float(p.get("az", 0.0)) * peso    # destro, specchiato
+	out["ear"] += float(p.get("ear", 0.0)) * peso
+	out["hx"] += float(p.get("hx", 0.0)) * peso
+	out["vx"] += float(p.get("vx", 0.0)) * peso
+	var amp := float(p.get("hy_amp", 0.0))
+	if amp > 0.0:
+		var onda := sin(t * 0.75)
+		if p.has("hy_scatti"):
+			# lo sguardo sfuggente non vaga: SALTA via e torna
+			onda = sin(t * 0.9) * 0.7 + sin(t * 5.3) * 0.3
+		out["hy"] += amp * onda * peso
+
+
+## Toglie dal rig gli offset del frame scorso (chiamata a INIZIO _process).
+func _recita_togli() -> void:
+	if _rc_appl.is_empty():
+		return
+	if _c_arms.size() == 2:
+		_c_arms[0].rotation.x -= _rc_appl["ax0"]
+		_c_arms[0].rotation.z -= _rc_appl["az0"]
+		_c_arms[1].rotation.x -= _rc_appl["ax1"]
+		_c_arms[1].rotation.z -= _rc_appl["az1"]
+	for ear in _c_ears:
+		ear.rotation.x -= _rc_appl["ear"]
+	if _head:
+		_head.rotation.x -= _rc_appl["hx"]
+		_head.rotation.y -= _rc_appl["hy"]
+	if _vis:
+		_vis.rotation.x -= _rc_appl["vx"]
+		_vis.position.y -= _rc_appl["vy"]
+	_rc_appl = {}
+
+
+## Legge il meta "postura", fonde coi muscoli, applica (FINE _process).
+func _recita_applica(delta: float) -> void:
+	var meta := str(get_meta("postura", ""))
+	if meta != "":
+		if RECITA_TRANS.has(meta):
+			# un transitorio si CONSUMA: lo recitiamo ora, e il meta torna
+			# alla postura stabile sottostante
+			_rc_trans = meta
+			_rc_trans_t = 0.0
+			set_meta("postura", _rc_stabile)
+		elif RECITA.has(meta) and meta != _rc_stabile:
+			_rc_stabile = meta
+	if _rc_trans != "":
+		_rc_trans_t += delta
+		if _rc_trans_t >= float(RECITA_TRANS[_rc_trans]["dur"]):
+			_rc_trans = ""
+
+	# solo i corpi chibi hanno il rig completo (non passerotti né ricci)
+	if dna.is_empty() or _vis == null:
+		return
+	var bersagli := recita_bersagli(_rc_stabile, _rc_trans, _rc_trans_t, _t)
+	# fusione coi muscoli: il corpo cambia idea in mezzo secondo, mai a scatto
+	var k := 1.0 - exp(-6.0 * delta)
+	for c in bersagli:
+		_rc_cur[c] = lerpf(float(_rc_cur.get(c, 0.0)), float(bersagli[c]), k)
+
+	_mostra_fagotto(bool((RECITA.get(_rc_stabile, {}) as Dictionary) \
+			.get("fagotto", false)))
+
+	if _c_arms.size() == 2:
+		_c_arms[0].rotation.x += _rc_cur["ax0"]
+		_c_arms[0].rotation.z += _rc_cur["az0"]
+		_c_arms[1].rotation.x += _rc_cur["ax1"]
+		_c_arms[1].rotation.z += _rc_cur["az1"]
+	for ear in _c_ears:
+		ear.rotation.x += _rc_cur["ear"]
+	if _head:
+		_head.rotation.x += _rc_cur["hx"]
+		_head.rotation.y += _rc_cur["hy"]
+	_vis.rotation.x += _rc_cur["vx"]
+	_vis.position.y += _rc_cur["vy"]
+	_rc_appl = _rc_cur.duplicate()
+
+
+## Il fagottino del trasloco: bastone sulla spalla, sacchetto annodato.
+## È il segno della diserzione che si vede da lontano — e per questo è
+## un oggetto VERO, non un'icona.
+static func fai_fagotto() -> Node3D:
+	var n := Node3D.new()
+	var legno := BUILDER._mat(Color("8a6444"))
+	var stoffa := BUILDER._mat(Color("d9b3c2"))
+	var nodo_m := BUILDER._mat(Color("b98499"))
+
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.022
+	cm.bottom_radius = 0.022
+	cm.height = 0.62
+	var bastone := MeshInstance3D.new()
+	bastone.mesh = cm
+	bastone.material_override = legno
+	bastone.position = Vector3(0.27, 0.66, 0.14)
+	bastone.rotation.x = -0.95
+	bastone.rotation.z = -0.22
+	n.add_child(bastone)
+
+	var sm := SphereMesh.new()
+	sm.radius = 0.115
+	sm.height = 0.23
+	sm.radial_segments = 14
+	sm.rings = 8
+	var sacco := MeshInstance3D.new()
+	sacco.mesh = sm
+	sacco.material_override = stoffa
+	sacco.position = Vector3(0.33, 0.8, 0.46)
+	sacco.scale = Vector3(1.0, 0.92, 1.0)
+	n.add_child(sacco)
+
+	var nm := SphereMesh.new()
+	nm.radius = 0.038
+	nm.height = 0.076
+	nm.radial_segments = 10
+	nm.rings = 6
+	var nodo := MeshInstance3D.new()
+	nodo.mesh = nm
+	nodo.material_override = nodo_m
+	nodo.position = Vector3(0.33, 0.9, 0.41)
+	n.add_child(nodo)
+	# le due orecchiette del fiocco, sopra il nodo
+	for lato: float in [-1.0, 1.0]:
+		var om := SphereMesh.new()
+		om.radius = 0.032
+		om.height = 0.064
+		om.radial_segments = 8
+		om.rings = 5
+		var orecchia := MeshInstance3D.new()
+		orecchia.mesh = om
+		orecchia.material_override = stoffa
+		orecchia.position = Vector3(0.33 + lato * 0.045, 0.94, 0.39)
+		orecchia.scale = Vector3(0.8, 1.3, 0.5)
+		orecchia.rotation.z = lato * -0.5
+		n.add_child(orecchia)
+	return n
+
+
+func _mostra_fagotto(serve: bool) -> void:
+	if serve and (_fagotto == null or not is_instance_valid(_fagotto)):
+		if _vis.get_child_count() == 0:
+			return
+		_fagotto = fai_fagotto()
+		_vis.get_child(0).add_child(_fagotto)
+		_fagotto.scale = Vector3.ONE * 0.05
+		create_tween().tween_property(_fagotto, "scale", Vector3.ONE, 0.45) \
+				.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	elif not serve and _fagotto != null and is_instance_valid(_fagotto):
+		var f := _fagotto
+		_fagotto = null
+		var tw := create_tween()
+		tw.tween_property(f, "scale", Vector3.ONE * 0.05, 0.3)
+		tw.tween_callback(f.queue_free)
