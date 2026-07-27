@@ -10,16 +10,24 @@ extends RefCounted
 ## impulso glottale che fa risuonare F1/F2 a ogni periodo del pitch),
 ## con vibrato, respiro e prosodia per stato d'animo.
 ##
-## E il vocabolario: quindici parole FISSE, le stesse sillabe per
-## tutti i villager. "grazie" è sempre «ta-ki», la pioggia è sempre
+## E il vocabolario: una QUARANTINA di parole FISSE, le stesse sillabe
+## per tutti i villager. "grazie" è sempre «ta-ki», la pioggia è sempre
 ## «ni-nu»: cambia solo la voce che le pronuncia. Col tempo, il
 ## giocatore impara davvero a capirli — senza una riga di testo.
+## Ogni parola ha il suo SUONO-SENSO (il fonosimbolismo delle lingue
+## vere): le cose piccole e brillanti stanno sulle vocali acute (i),
+## le grandi e tristi su quelle scure (o, u); la legna fa due colpi
+## secchi, l'acqua scorre sulle liquide. E alcune parole portano il
+## loro CONTORNO di intonazione (vedi CONTORNO): l'addio scende,
+## l'aiuto squilla, la musica canticchia da sola.
 
 const RATE := 22050
 
-## Il dizionario Chibiese-italiano. Parole brevi, suoni distintivi:
+## Il dizionario Chibiese-italiano. Parole brevi, suoni distintivi,
+## OGNI SEQUENZA UNICA (mai due parole omofone: un test fa la guardia):
 ## impararle deve essere un piacere, non un compito.
 const VOCAB := {
+	# --- le sedici parole di sempre (MAI cambiarle: chi gioca le sa già) ---
 	"ciao": ["ya", "ho"],
 	"casa": ["po", "mo"],
 	"pioggia": ["ni", "nu"],
@@ -38,6 +46,56 @@ const VOCAB := {
 	# la risatina: tre sillabe soffiate e acute — col mood "felice" sale
 	# di tono ed è A TUTTI GLI EFFETTI una risata (il nascondino ci vive)
 	"risata": ["hi", "hi", "hi"],
+	# --- il congedo e i sentimenti (erano BUCHI: i ricordi dell'addio
+	# cadevano nel balbettio casuale, proprio nei momenti più cari) ---
+	"addio": ["ba", "yo"],
+	"triste": ["lo", "mu"],
+	"scusa": ["pe", "no"],
+	"aiuto": ["ye", "ye"],
+	# --- il cielo e le stagioni ---
+	"stelle": ["ki", "li"],
+	"luna": ["nu", "la"],
+	"neve": ["fu", "wa"],
+	"vento": ["so", "fu"],
+	"freddo": ["bu", "fu"],
+	"caldo": ["mo", "ho"],
+	# --- l'acqua e il fiume ---
+	"acqua": ["lu", "la"],
+	"barca": ["bo", "ta"],
+	# --- il fare di ogni giorno ---
+	"legna": ["to", "ko"],
+	"lavoro": ["ko", "po"],
+	"aspetta": ["ta", "ta"],
+	"andiamo": ["ho", "pa"],
+	"guarda": ["ki", "yo"],
+	"buono": ["me", "na"],
+	# --- la festa e la musica ---
+	"musica": ["la", "li", "la"],
+	"festa": ["pi", "pa"],
+	# --- le misure del mondo ---
+	"piccolo": ["pi", "ni"],
+	"grande": ["bo", "ba"],
+	"nanna": ["mu", "nu"],
+}
+
+## Il CONTORNO di intonazione di una parola: un moltiplicatore di pitch
+## per sillaba (stessa lunghezza della parola, un test lo garantisce).
+## È la melodia DENTRO la parola, prima ancora dell'umore della frase:
+## l'addio cade, le stelle stanno in punta, la musica canticchia.
+const CONTORNO := {
+	"addio": [1.04, 0.82],
+	"triste": [0.95, 0.85],
+	"scusa": [0.98, 0.9],
+	"aiuto": [1.2, 1.28],
+	"stelle": [1.15, 1.25],
+	"musica": [1.0, 1.12, 1.22],
+	"risata": [1.1, 1.18, 1.26],
+	"andiamo": [0.95, 1.15],
+	"guarda": [1.12, 1.2],
+	"nanna": [1.0, 0.88],
+	"grande": [0.92, 0.85],
+	"piccolo": [1.18, 1.24],
+	"ciao": [1.06, 1.14],
 }
 
 # formanti delle vocali [F1, F2]
@@ -116,18 +174,23 @@ static func say(v: Dictionary, concepts: Array, mood := "neutro") -> AudioStream
 	if _cache.has(key):
 		return _cache[key]
 
-	# la frase come lista di sillabe, con i confini di parola
+	# la frase come lista di sillabe, con i confini di parola e il
+	# CONTORNO di intonazione di ciascuna (1.0 dove la parola non ne ha)
 	var syls: Array[String] = []
 	var word_end: Array[bool] = []
+	var contour: Array[float] = []
 	var rng := RandomNumberGenerator.new()
 	rng.seed = int(v["key"]) + hash(key)
 	for c in concepts:
 		var w: Array = VOCAB.get(str(c), [])
+		var melodia: Array = CONTORNO.get(str(c), [])
 		if w.is_empty():
 			w = [v["fav"][rng.randi() % 3]]
+			melodia = []
 		for i in w.size():
 			syls.append(str(w[i]))
 			word_end.append(i == w.size() - 1)
+			contour.append(float(melodia[i]) if i < melodia.size() else 1.0)
 
 	# prosodia: un moltiplicatore di pitch e durata per sillaba
 	var n := syls.size()
@@ -147,6 +210,8 @@ static func say(v: Dictionary, concepts: Array, mood := "neutro") -> AudioStream
 				dm = 1.25
 			_:
 				pm = 1.05 - 0.09 * u
+		# la melodia della parola si somma a quella dell'umore
+		pm *= contour[k]
 		buf.append_array(_syllable(v, syls[k], pm, dm))
 		# micro-pausa tra sillabe, respiro tra parole
 		var gap := 0.075 if word_end[k] else 0.012
