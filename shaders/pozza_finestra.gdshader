@@ -55,8 +55,12 @@ void fragment() {
 	// la corsa della luce: piena sotto il davanzale, svanisce in fondo
 	float corsa = pow(clamp(1.0 - lungo, 0.0, 1.0), 1.35);
 	corsa *= 0.75 + 0.25 * smoothstep(0.22, 0.0, lungo);   // il cuore al muro
-	// e l'attacco alla parete non parte mai a filo zero
-	corsa *= smoothstep(0.0, 0.03, lungo) * 0.2 + 0.8;
+	// l'attacco: sotto una finestra parte pieno (il muro copre il taglio),
+	// la candela del lutto è LIBERA sul prato — deve sbocciare morbida,
+	// o il bordo del quad si vede come un rettangolo tagliato
+	float attacco_muro = smoothstep(0.0, 0.03, lungo) * 0.2 + 0.8;
+	float attacco_libero = smoothstep(0.0, 0.30, lungo);
+	corsa *= mix(attacco_muro, attacco_libero, lutto);
 
 	// la croce del telaio: il montante e la traversa in ombra, con la
 	// penombra che CRESCE con la distanza dalla finestra
@@ -82,7 +86,8 @@ void fragment() {
 	// il lutto è una candela, non un focolare: più fioca
 	float forza = energia * mix(1.0, 0.72, lutto);
 
-	ALBEDO = vec3(0.0);
-	EMISSION = tinta * luce * forza;
+	// unshaded IGNORA l'EMISSION: la luce va scritta nell'ALBEDO — col
+	// blend additivo il nero non aggiunge nulla, la maschera è il colore
+	ALBEDO = tinta * luce * forza;
 	ALPHA = clamp(luce, 0.0, 1.0);
 }
