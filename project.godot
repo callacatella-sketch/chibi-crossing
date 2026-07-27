@@ -190,3 +190,11 @@ snow_amount={
 "type": "float",
 "value": 0.0
 }
+cielo_alto={
+"type": "color",
+"value": Color(0.42, 0.63, 0.88, 1)
+}
+cielo_orizzonte={
+"type": "color",
+"value": Color(0.92, 0.86, 0.74, 1)
+}
