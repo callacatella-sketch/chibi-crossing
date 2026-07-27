@@ -120,6 +120,16 @@ const SPECIE := {
 		"colore": Color("cfeaf2"), "vendita": 12, "rara": false,
 		"cond": {"stagioni": [3]}, "peso": 2.6,
 		"indizio": "Sotto l'acqua fredda d'inverno, quasi trasparente."},
+	# --- i pesci del FIUME (canna dalla barchetta: le due acque non si
+	# mescolano — vedi disponibili_in, luogo "fiume") ---
+	"trota": {"nome": "trota del salto", "articolo": "una", "classe": "pesce",
+		"colore": Color("d8a8b8"), "vendita": 14, "rara": false, "peso": 4.0,
+		"luogo": "fiume",
+		"indizio": "Risale la corrente e salta dove la cascata spumeggia."},
+	"anguilla": {"nome": "anguilla della notte", "articolo": "una", "classe": "pesce",
+		"colore": Color("6a7d4a"), "vendita": 30, "rara": true,
+		"cond": {"ora": "notte"}, "peso": 1.2, "luogo": "fiume",
+		"indizio": "Un nastro d'ombra nella corrente, solo col buio fitto."},
 	# --- le bestiole (a terra e sugli alberi, col retino) ---
 	"cicala": {"nome": "cicala del bosco", "articolo": "una", "classe": "bestiola",
 		"colore": Color("b6a86a"), "vendita": 8, "rara": false,
@@ -340,6 +350,17 @@ static func disponibili(cl: String, ctx: Dictionary) -> Array:
 	var out := []
 	for id in della_classe(cl):
 		if disponibile(id, ctx):
+			out.append(id)
+	return out
+
+
+## Le due ACQUE non si mescolano: lo stagno ha i suoi pesci e il fiume i
+## suoi (luogo "fiume"). La canna chiama qui dicendo da che acqua pesca —
+## `fiume` true dalla barchetta, false dalla sponda dello stagno. PURA.
+static func disponibili_in(cl: String, ctx: Dictionary, fiume: bool) -> Array:
+	var out := []
+	for id in disponibili(cl, ctx):
+		if (str(voce(id).get("luogo", "")) == "fiume") == fiume:
 			out.append(id)
 	return out
 

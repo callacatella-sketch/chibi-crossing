@@ -31,6 +31,13 @@ var _kind := ""
 var _shadow: Node3D
 var _bussate := 0        # il raro bussa due volte prima di abboccare davvero
 
+# DA CHE ACQUA si pesca: lo stagno (dalla sponda) o il FIUME (dalla
+# barchetta). _wl è la quota della superficie: tutto il rito — galleggiante,
+# tuffi, bussate, ombra — è espresso come scarto da _wl, così lo stesso
+# rituale vale per le due acque (lo stagno a 0.06, il fiume a -0.45).
+var _fiume := false
+var _wl := 0.06
+
 var _prompt: PanelContainer
 var _prompt_label: Label
 
@@ -55,6 +62,16 @@ func _near_shore() -> bool:
 	return d > _cozy.POND_R - 0.4 and d < _cozy.POND_R + 2.2
 
 
+# la barchetta sul fiume: se Mochi è a bordo, la canna pesca dal FIUME
+func _barchetta() -> Node:
+	return get_tree().get_first_node_in_group("barchetta")
+
+
+func _in_barca() -> bool:
+	var b := _barchetta()
+	return b != null and bool(b.call("naviga_attiva"))
+
+
 # ---------------------------------------------------------------- ciclo
 
 func _process(delta: float) -> void:
@@ -63,7 +80,7 @@ func _process(delta: float) -> void:
 		"wait":
 			_timer -= delta
 			if _bobber:
-				_bobber.position.y = 0.09 + sin(_t * 2.4) * 0.015
+				_bobber.position.y = _wl + 0.03 + sin(_t * 2.4) * 0.015
 			_drift_shadow(delta)
 			if _timer <= 0.0:
 				_start_bite()
@@ -80,6 +97,11 @@ func _process(delta: float) -> void:
 
 
 func _check_walked_away() -> void:
+	# dalla barca si pesca anche ALLA DERIVA: la corrente porta Mochi e la
+	# lenza si distende — il punto di lancio la segue, mai un riavvolgimento
+	if _in_barca():
+		_cast_from = _player.global_position
+		return
 	if _player.global_position.distance_to(_cast_from) > 1.2:
 		_cleanup()
 
@@ -98,7 +120,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			if _collection and not (_collection.call("_nearest_catch") as Dictionary).is_empty():
 				return
 			if _near_shore():
-				_cast()
+				_cast(false)
+				get_viewport().set_input_as_handled()
+			elif _in_barca():
+				_cast(true)
 				get_viewport().set_input_as_handled()
 		"bite":
 			_catch()
@@ -109,12 +134,19 @@ func _unhandled_input(event: InputEvent) -> void:
 
 # ---------------------------------------------------------------- lancio
 
-func _cast() -> void:
+func _cast(fiume := false) -> void:
 	_state = "cast"
 	_cast_from = _player.global_position
+	_fiume = fiume
+	_wl = -0.45 if fiume else 0.06   # la superficie: fiume o stagno
 
-	# Mochi guarda l'acqua
-	var dir := ((_pond_center() - _player.global_position) * Vector3(1, 0, 1)).normalized()
+	# Mochi guarda l'acqua: lo stagno dalla sponda, il corso dalla barca
+	var bersaglio := _pond_center()
+	if fiume:
+		var barca := _barchetta()
+		if barca:
+			bersaglio = barca.call("punto_di_pesca", _player.global_position)
+	var dir := ((bersaglio - _player.global_position) * Vector3(1, 0, 1)).normalized()
 	_mochi.set("_yaw", atan2(-dir.x, -dir.z))
 
 	# la canna NELLA zampa: eredita ogni movimento del braccio
@@ -200,8 +232,11 @@ func _launch_bobber(dir: Vector3) -> void:
 	_timer = randf_range(2.5, 5.0)
 	_bobber.visible = true
 	var start: Vector3 = _rod.to_global(Vector3(0, 0.72, 0))
-	var target: Vector3 = _player.global_position + dir * randf_range(2.2, 3.2)
-	target.y = 0.09
+	# dal fiume il lancio è più corto: l'alveo è stretto, la lenza si
+	# distende con la corrente
+	var gittata := randf_range(1.3, 1.9) if _fiume else randf_range(2.2, 3.2)
+	var target: Vector3 = _player.global_position + dir * gittata
+	target.y = _wl + 0.03
 	_bob_home = target
 	_bobber.global_position = start
 	_bob_tw = create_tween().set_parallel(true)
@@ -210,10 +245,10 @@ func _launch_bobber(dir: Vector3) -> void:
 	tw.tween_property(_bobber, "global_position:z", target.z, 0.55).set_trans(Tween.TRANS_SINE)
 	tw.tween_property(_bobber, "global_position:y", start.y + 0.7, 0.26) \
 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	tw.chain().tween_property(_bobber, "global_position:y", 0.09, 0.3) \
+	tw.chain().tween_property(_bobber, "global_position:y", _wl + 0.03, 0.3) \
 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	tw.chain().tween_callback(func():
-		if _cozy:
+		if _cozy and not _fiume:
 			_cozy.water_ripple(_bob_home, 0.8)
 		if _sfx:
 			_sfx.plop()
@@ -277,7 +312,7 @@ func _spawn_preda() -> void:
 	_shadow.scale = Vector3.ONE * taglia_ombra(CRIT.rara(_kind))
 	_shadow.global_position = _bob_home \
 			+ Vector3(cos(lato), 0, sin(lato)) * randf_range(1.2, 1.7)
-	_shadow.global_position.y = 0.03
+	_shadow.global_position.y = _wl - 0.03
 	_shadow.rotation.y = lato
 
 
@@ -286,7 +321,7 @@ func _drift_shadow(delta: float) -> void:
 	if _shadow == null:
 		return
 	var target := _bob_home + Vector3(sin(_t * 0.7) * 0.35, 0, cos(_t * 0.9) * 0.3)
-	target.y = 0.03
+	target.y = _wl - 0.03
 	var prima := _shadow.global_position
 	_shadow.global_position = prima.lerp(target, 1.0 - exp(-0.55 * delta))
 	var passo := _shadow.global_position - prima
@@ -307,7 +342,7 @@ func _free_shadow() -> void:
 ## stagno riconosce il saluto del pesce grosso e aspetta.
 func _bussa() -> void:
 	_timer = randf_range(1.4, 2.4)
-	if _cozy:
+	if _cozy and not _fiume:
 		_cozy.water_ripple(_bob_home, 0.35)
 	if _sfx:
 		_sfx.play("plop", -17.0, 1.35)   # un tocco, non l'abbocco
@@ -315,13 +350,13 @@ func _bussa() -> void:
 		if _bob_tw and _bob_tw.is_valid():
 			_bob_tw.kill()
 		_bob_tw = create_tween()
-		_bob_tw.tween_property(_bobber, "position:y", 0.045, 0.1) \
+		_bob_tw.tween_property(_bobber, "position:y", _wl - 0.015, 0.1) \
 				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-		_bob_tw.tween_property(_bobber, "position:y", 0.09, 0.25) \
+		_bob_tw.tween_property(_bobber, "position:y", _wl + 0.03, 0.25) \
 				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	if _shadow:
 		var qui := _shadow.global_position
-		var sotto := Vector3(_bob_home.x, 0.03, _bob_home.z)
+		var sotto := Vector3(_bob_home.x, _wl - 0.03, _bob_home.z)
 		var tw := create_tween()
 		tw.tween_property(_shadow, "global_position", sotto, 0.22) \
 				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
@@ -341,9 +376,9 @@ func _start_bite() -> void:
 	if _shadow:
 		var tw := create_tween()
 		tw.tween_property(_shadow, "global_position",
-				Vector3(_bob_home.x, 0.03, _bob_home.z), 0.15) \
+				Vector3(_bob_home.x, _wl - 0.03, _bob_home.z), 0.15) \
 				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	if _cozy:
+	if _cozy and not _fiume:
 		_cozy.water_ripple(_bob_home, 0.55)
 		get_tree().create_timer(0.35).timeout.connect(func():
 			if _cozy and _state == "bite":
@@ -355,9 +390,9 @@ func _start_bite() -> void:
 			_bob_tw.kill()
 		_bob_tw = create_tween()
 		var tw := _bob_tw
-		tw.tween_property(_bobber, "position:y", -0.02, 0.12) \
+		tw.tween_property(_bobber, "position:y", _wl - 0.08, 0.12) \
 				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-		tw.tween_property(_bobber, "position:y", 0.09, 0.3) \
+		tw.tween_property(_bobber, "position:y", _wl + 0.03, 0.3) \
 				.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
@@ -366,12 +401,16 @@ func _weighted_fish() -> String:
 	# di stagione (il girino in primavera, il pesce ghiaccio d'inverno, la
 	# carpa foglia d'oro d'autunno, il pesce dell'alba al crepuscolo). I pesi
 	# stanno in Critters, accanto al prezzo: carpetta comune, rare preziose.
+	# Le due ACQUE non si mescolano: dalla barchetta abboccano solo le specie
+	# del fiume (la trota del salto, l'anguilla della notte), dallo stagno
+	# solo le sue — disponibili_in fa la dogana.
 	if _cozy and _cozy.has_method("contesto_critter"):
-		var pool: Array = CRIT.disponibili("pesce", _cozy.call("contesto_critter"))
+		var pool: Array = CRIT.disponibili_in("pesce",
+				_cozy.call("contesto_critter"), _fiume)
 		var kind := CRIT.estrai(pool, randf())
 		if kind != "":
 			return kind
-	return "carpetta"
+	return "trota" if _fiume else "carpetta"
 
 
 func _catch() -> void:
@@ -477,6 +516,8 @@ func _cleanup() -> void:
 	_free_shadow()
 	_kind = ""
 	_bussate = 0
+	_fiume = false
+	_wl = 0.06
 
 
 # ---------------------------------------------------------------- UI
@@ -493,6 +534,9 @@ func _update_prompt() -> void:
 			if _near_shore():
 				text = "E — pesca"
 				wp = _player.global_position + Vector3(0, 1.3, 0)
+			elif _in_barca():
+				text = "E — pesca dal fiume"
+				wp = _player.global_position + Vector3(0, 1.35, 0)
 		"bite":
 			text = "E — tira!"
 			wp = _bob_home + Vector3(0, 0.5, 0)

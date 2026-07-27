@@ -57,6 +57,8 @@ var _forest_chunks := {}          # chiave -> {"mmi": MultiMeshInstance3D, "tf":
 var _forest_colliders: Node3D     # lo StaticBody3D con un guscio per albero
 var _forest_shape_at := {}        # "chiave:indice" -> CollisionShape3D
 var _rock_spots: PackedVector3Array = []   # dove stanno i massi del bosco
+var _log_spots: PackedVector3Array = []    # i tronchi caduti (nascondigli)
+var _stump_spots: PackedVector3Array = []  # i ceppi del bosco (nascondigli)
 var _pickup_respawn := 0.0
 
 
@@ -150,6 +152,9 @@ func _ready() -> void:
 	# il concertino del carillon: un giro di manovella e i vicini
 	# accorrono a cantare in Chibiese, armonizzati dal loro DNA
 	add_child(preload("res://scenes/interact/Concertino.gd").new())
+	# nascondino nel bosco: il verbo "giocare" coi vicini — il timido si
+	# nasconde benissimo, il chiacchierone ridacchia e si tradisce
+	add_child(preload("res://scenes/interact/Nascondino.gd").new())
 	# il guardaroba di Mochi: ricordi indossabili
 	add_child(preload("res://scenes/characters/Wardrobe.gd").new())
 	# l'onsen del bosco, oltre la radura del falò
@@ -1069,6 +1074,23 @@ func _build_forest_trees(rng: RandomNumberGenerator) -> void:
 			_forest_chunks[key] = {"mmi": mmi, "tf": chunks[key], "kind": spec[2]}
 
 
+## I nascondigli del bosco: dietro i tronchi caduti, i ceppi e i massi.
+## La fonte è la GEOMETRIA vera (le stesse posizioni degli oggetti): il
+## nascondino si gioca dietro cose che esistono, mai dietro il nulla.
+## Ogni voce: {"pos": Vector3 (a terra), "tipo": "tronco"|"ceppo"|"masso"}.
+func nascondigli() -> Array:
+	var out: Array = []
+	for p in _log_spots:
+		out.append({"pos": p, "tipo": "tronco"})
+	for p in _stump_spots:
+		out.append({"pos": p, "tipo": "ceppo"})
+	for r in _rock_spots:
+		# y era il raggio del masso: i sassolini non nascondono nessuno
+		if r.y >= 0.55:
+			out.append({"pos": Vector3(r.x, 0, r.z), "tipo": "masso"})
+	return out
+
+
 func _forest_spot(rng: RandomNumberGenerator, min_path := 1.5) -> Vector3:
 	# un punto libero nel bosco (non sul sentiero, non nella radura,
 	# di qua dal fiume: il sottobosco non cresce sott'acqua)
@@ -1170,7 +1192,9 @@ func _build_forest_undergrowth(rng: RandomNumberGenerator) -> void:
 	])
 	var log_tf: Array[Transform3D] = []
 	for i in 12:
-		log_tf.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU), _forest_spot(rng, 1.6)))
+		var lp := _forest_spot(rng, 1.6)
+		log_tf.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU), lp))
+		_log_spots.append(lp)      # il nascondino sa dove sono i tronchi
 	_scatter_exact(log_mesh, log_tf)
 
 	var stump := GEO.merge([
@@ -1179,8 +1203,11 @@ func _build_forest_undergrowth(rng: RandomNumberGenerator) -> void:
 	])
 	var stump_tf: Array[Transform3D] = []
 	for i in 8:
-		stump_tf.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU), _forest_spot(rng, 1.4)))
-	# tre ceppi attorno al falò, per sedersi col pensiero
+		var sp := _forest_spot(rng, 1.4)
+		stump_tf.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU), sp))
+		_stump_spots.append(sp)    # anche i ceppi sono nascondigli
+	# tre ceppi attorno al falò, per sedersi col pensiero (troppo in vista
+	# per nascondersi: NON vanno tra i nascondigli)
 	for i in 3:
 		var a := float(i) / 3.0 * TAU + 0.5
 		stump_tf.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU), CLEARING_CENTER + Vector3(cos(a), 0, sin(a)) * 1.7))

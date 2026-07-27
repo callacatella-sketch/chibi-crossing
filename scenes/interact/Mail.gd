@@ -38,6 +38,7 @@ const MOMENTI_TESTO := {
 	"festa": "La festa del giorno %d!\nHo ritrovato un coriandolo nel pelo\ne mi è tornata tutta l'allegria.",
 	"onsen": "L'acqua calda del giorno %d,\nfianco a fianco, senza dire niente.\nEra tutto quello che serviva.",
 	"desiderio": "Non ho dimenticato il giorno %d,\nquando hai esaudito il mio desiderio.\nIl filo tra noi da lì si è colorato.",
+	"nascondino": "Il giorno %d, dietro quel tronco,\nmi scappava da ridere e tu lo sapevi.\nGiochiamo ancora, promesso?",
 	"oro": "Quel desiderio del giorno %d,\nl'ultimo, vissuto insieme:\nlo tengo tra i momenti d'oro.",
 	"addio": "Del giorno %d non parlo volentieri,\nma il filo non si è spezzato:\nha solo cambiato forma.",
 	"partenza": "Dal Grande Prato si vede il villaggio.\nIl giorno %d avevo la valigia piccola\ne il cuore pieno. Grazie di tutto.",
