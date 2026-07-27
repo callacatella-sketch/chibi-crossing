@@ -372,6 +372,31 @@ func _debug_filo(dir: String) -> void:
 		await get_tree().create_timer(0.5).timeout
 		await _shot(dir, "filo_7_catchlight_lanterna")
 
+	# --- i PROFILI: bocca, naso e sopracciglia devono POGGIARE sulla
+	# testona (era il trucco del piano fisso: di lato tutto galleggiava) ---
+	dn.set_time(0.45)
+	var cast_profili: Array[Node3D] = []
+	var archi := ["topolino", "orsetto", "gatto"]
+	for k in archi.size():
+		var pdna: Dictionary = load("res://scenes/npc/ChibiDNA.gd").generate(300 + k * 11)
+		pdna["archetype"] = archi[k]
+		var proot: Node3D = CHIBI_BUILDER.build(pdna)["root"]
+		proot.position = player.global_position + Vector3(6.0, 0, -1.2 + float(k) * 1.2)
+		add_child(proot)
+		cast_profili.append(proot)
+	var profcam := Camera3D.new()
+	add_child(profcam)
+	# la camera guarda i musetti ESATTAMENTE di lato (i visi puntano -Z),
+	# col set a sei metri da Mochi che altrimenti riempirebbe il quadro
+	profcam.position = player.global_position + Vector3(3.6, 0.9, 0.0)
+	profcam.fov = 44.0
+	profcam.current = true
+	profcam.look_at(player.global_position + Vector3(6.0, 0.82, 0.0))
+	await get_tree().create_timer(0.8).timeout
+	await _shot(dir, "filo_8_profili")
+	for c in cast_profili:
+		c.queue_free()
+
 	print("FILO: fine. residenti=%d, MAX=%d"
 			% [(vis.get("_residents") as Array).size(), vis.MAX_RESIDENTS])
 	get_tree().quit()

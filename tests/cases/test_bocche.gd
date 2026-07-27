@@ -264,9 +264,15 @@ func _test_musetti(t, dna: GDScript, builder: GDScript) -> void:
 		t.ok(neutro.position.y <= (float(NASO_Y[arche]) - 0.055) * hs,
 				"%s: la bocca sta sotto il naso, con aria (y=%.3f)"
 				% [arche, neutro.position.y])
-		t.ok(neutro.position.z <= front - 0.03 and neutro.position.z >= front - 0.08,
-				"%s: la bocca è appoggiata sul musetto, non sepolta (z=%.3f)"
-				% [arche, neutro.position.z])
+		# ADERENZA: la bocca poggia sulla superficie VERA (musetto, valle dei
+		# cuscinetti o viso nudo) — prima stava su una quota piana e di
+		# profilo restava APPESA a mezz'aria davanti alla testona
+		var sup: Array = builder._superficie_bocca(arche, neutro.position.y, hs)
+		t.almost(neutro.position.z, float(sup[0]) - 0.006,
+				"%s: la bocca è APPOGGIATA sulla superficie vera (z=%.3f, attesa %.3f)"
+				% [arche, neutro.position.z, float(sup[0]) - 0.006], 0.012)
+		t.ok(neutro.position.z <= front + 0.02,
+				"%s: e non è sepolta dentro la testa" % arche)
 		if arche == "volpina":
 			t.ok(rig.get("philtrum") == null,
 					"volpina: niente filtrino (il naso sta in punta al muso)")

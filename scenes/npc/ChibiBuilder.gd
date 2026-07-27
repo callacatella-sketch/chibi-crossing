@@ -358,6 +358,60 @@ static func build(dna: Dictionary) -> Dictionary:
 			"face": face}
 
 
+# ---------------------------------------------------------- aderenza al viso
+# La testona è un ellissoide (_ball(0.4) scalato hs·(1.04, 0.92, 0.97)):
+# ogni elemento del viso deve POGGIARE su quella superficie — o su quella
+# del musetto sporgente, o dei cuscinetti — non su un piano a quota fissa.
+# Su un piano, di PROFILO, bocca naso e sopracciglia restano appesi a
+# mezz'aria davanti alla fronte: il trucco si vede e il pupazzo muore.
+# I numeri qui sotto sono GLI STESSI ellissoidi costruiti in _build_face:
+# se cambiano là, cambiano qui (test_bocche fa la guardia all'aderenza).
+
+static func _testa_z(x: float, y: float, hs: float) -> float:
+	var a := 0.416 * hs
+	var b := 0.368 * hs
+	var c := 0.388 * hs
+	var q := 1.0 - (x * x) / (a * a) - (y * y) / (b * b)
+	return -c * sqrt(maxf(q, 0.03))
+
+
+static func _testa_normale(x: float, y: float, hs: float) -> Vector3:
+	var a := 0.416 * hs
+	var b := 0.368 * hs
+	var c := 0.388 * hs
+	var z := _testa_z(x, y, hs)
+	return Vector3(x / (a * a), y / (b * b), z / (c * c)).normalized()
+
+
+## La superficie su cui vive il GRUPPO BOCCA, sul piano mediano (x=0),
+## all'altezza y: [z, normale]. Il musetto sporgente per orsetto e
+## topolino, la valle tra i cuscinetti per gatto e coniglietta, il viso
+## nudo per la volpina (la sua bocca sta sotto la base del muso a goccia).
+static func _superficie_bocca(arche: String, y: float, hs: float) -> Array:
+	var front := -0.34 * hs
+	match arche:
+		"topolino", "orsetto":
+			var cy := (-0.10 if arche == "topolino" else -0.105) * hs
+			var cz := front + (0.01 if arche == "topolino" else 0.005)
+			var ry := 0.068 if arche == "topolino" else 0.0924
+			var rz := 0.05 if arche == "topolino" else 0.0588
+			var dy := y - cy
+			if absf(dy) < ry * 0.96:
+				var dz := -rz * sqrt(1.0 - (dy * dy) / (ry * ry))
+				return [cz + dz,
+						Vector3(0.0, dy / (ry * ry), dz / (rz * rz)).normalized()]
+		"gatto", "coniglio":
+			# la valle fra i due cuscinetti: gli ellissoidi stanno a x=±0.046,
+			# qui si legge la LORO superficie sul piano mediano
+			var dy2 := y + 0.115 * hs
+			var q := 1.0 - pow(0.046 / 0.082, 2.0) - pow(dy2 / 0.059, 2.0)
+			if q > 0.0:
+				var dz2 := -0.041 * sqrt(q)
+				return [front - 0.012 + dz2,
+						Vector3(0.0, dy2 / (0.059 * 0.059), dz2 / (0.041 * 0.041)).normalized()]
+	return [_testa_z(0.0, y, hs), _testa_normale(0.0, y, hs)]
+
+
 # ---------------------------------------------------------- orecchie
 
 static func _build_ears(head: Node3D, dna: Dictionary, fur: ShaderMaterial,
@@ -441,7 +495,9 @@ static func _build_face(head: Node3D, dna: Dictionary, fur: ShaderMaterial,
 		_:
 			# gatto e coniglietta: il nasino rosa e basta
 			_ball(head, 0.02, _flat(Color("ff8fa3")),
-					Vector3(0, -0.052 * hs, front - 0.058), Vector3(1.3, 0.85, 0.7), false)
+					Vector3(0, -0.052 * hs,
+					float(_superficie_bocca("gatto", -0.052 * hs, hs)[0]) - 0.008),
+					Vector3(1.3, 0.85, 0.7), false)
 
 	# occhioni con doppia luce, raccolti attorno a un nodo "iride": lo sguardo
 	# lo sposta e la tenerezza lo dilata (vedi FaceController). Sopra ogni
@@ -484,11 +540,20 @@ static func _build_face(head: Node3D, dna: Dictionary, fur: ShaderMaterial,
 		glints.append(glint)
 		happy.append(FACE.build_happy_arc(head, dark,
 				Vector3(side * gap * hs, ey + 0.006, front - 0.006), side, eye_r * 0.92))
-		brows.append(FACE.build_brow(head, brow_mat, side,
-				Vector3(side * gap * hs * 0.92, ey + eye_r * 1.7, front + 0.002),
+		# il sopracciglio POGGIA sulla fronte vera (quota dall'ellissoide
+		# della testa) ed e' TANGENTE alla superficie: di profilo la segue
+		# invece di galleggiarle davanti. La piega a riposo di build_brow
+		# (rotation.z) si ricompone dentro la base tangente.
+		var bx := side * gap * hs * 0.92
+		var by := ey + eye_r * 1.7
+		var brow := FACE.build_brow(head, brow_mat, side,
+				Vector3(bx, by, _testa_z(bx, by, hs) - 0.006),
 				eye_r * 1.05 * float(dna.get("brow_len", 1.0)),
 				0.015 * float(dna.get("brow_folto", 1.0)),
-				brow_stile, brow_vari))
+				brow_stile, brow_vari)
+		brow.basis = Basis.looking_at(_testa_normale(bx, by, hs), Vector3.UP) \
+				* Basis(Vector3(0, 0, 1), side * 0.04)
+		brows.append(brow)
 
 	# il set completo di bocche morbide (neutra, sorriso, ghigno, o/O, broncio,
 	# triste, seria) + la cavità che si apre per parlare/ridere/stupirsi.
@@ -511,46 +576,56 @@ static func _build_face(head: Node3D, dna: Dictionary, fur: ShaderMaterial,
 		"spess": float(bocca_ricetta["spess"]) * float(dna.get("bocca_spess", 1.0)),
 	}
 	var my: float
-	var mouth_z: float
 	var mscale := hs
 	var philtrum: MeshInstance3D = null
 	match arche:
 		"volpina":
 			# sotto la BASE del muso a goccia, sul viso: piccola e raccolta
 			my = -0.19 * hs
-			mouth_z = front - 0.038
 			mscale = hs * 0.88
 		"orsetto":
 			# sul musetto largo, subito sotto il nasone
 			my = -0.142 * hs
-			mouth_z = front - 0.064
 			philtrum = tube(head,
-					[Vector3(0, -0.078 * hs, front - 0.072),
-					Vector3(0, -0.136 * hs, front - 0.066)],
+					[Vector3(0, -0.078 * hs,
+						float(_superficie_bocca(arche, -0.078 * hs, hs)[0]) - 0.004),
+					Vector3(0, -0.136 * hs,
+						float(_superficie_bocca(arche, -0.136 * hs, hs)[0]) - 0.004)],
 					[0.005 * hs, 0.0038 * hs], mouth_mat, 6, 8)
 		"topolino":
 			my = -0.132 * hs
-			mouth_z = front - 0.058
 			philtrum = tube(head,
-					[Vector3(0, -0.082 * hs, front - 0.070),
-					Vector3(0, -0.126 * hs, front - 0.060)],
+					[Vector3(0, -0.082 * hs,
+						float(_superficie_bocca(arche, -0.082 * hs, hs)[0]) - 0.004),
+					Vector3(0, -0.126 * hs,
+						float(_superficie_bocca(arche, -0.126 * hs, hs)[0]) - 0.004)],
 					[0.0045 * hs, 0.0035 * hs], mouth_mat, 6, 8)
 		_:
 			# gatto e coniglietta: sotto il nasino rosa, raccolta (senza
 			# più cuscinetti da scavalcare il gruppo naso-filtrino-bocca
 			# sta stretto, come nei pupazzi)
 			my = -0.158 * hs
-			mouth_z = front - 0.055
 			philtrum = tube(head,
-					[Vector3(0, -0.068 * hs, front - 0.062),
-					Vector3(0, -0.150 * hs, front - 0.058)],
+					[Vector3(0, -0.068 * hs,
+						float(_superficie_bocca(arche, -0.068 * hs, hs)[0]) - 0.004),
+					Vector3(0, -0.150 * hs,
+						float(_superficie_bocca(arche, -0.150 * hs, hs)[0]) - 0.004)],
 					[0.0048 * hs, 0.0036 * hs], mouth_mat, 8, 8)
 	if philtrum != null:
 		philtrum.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	var mouths := FACE.build_mouth_set(head, mouth_mat, Vector3(0, my, mouth_z),
+	# la QUOTA della bocca la decide la superficie vera (musetto, valle dei
+	# cuscinetti o viso nudo), e le labbra le si APPOGGIANO tangenti: di
+	# profilo la bocca segue la testona invece di restarle appesa davanti
+	var sup_bocca := _superficie_bocca(arche, my, hs)
+	var bocca_pos := Vector3(0, my, float(sup_bocca[0]) - 0.006)
+	var bocca_basis := Basis.looking_at(sup_bocca[1] as Vector3, Vector3.UP)
+	var mouths := FACE.build_mouth_set(head, mouth_mat, bocca_pos,
 			mscale, bocca_stile, bocca_vari)
+	for mn in mouths.values():
+		(mn as Node3D).basis = bocca_basis * (mn as Node3D).basis
 	var mouth_open := FACE.build_mouth_open(head, _flat(Color("3a1f1f")),
-			Vector3(0, my, mouth_z), mscale)
+			bocca_pos, mscale)
+	mouth_open.basis = bocca_basis * mouth_open.basis
 
 	# ciuffi sulle guance: quanti e quanto folti dipende dal pelo del DNA
 	var fluff: float = dna.get("fluff", 0.6)
@@ -570,8 +645,10 @@ static func _build_face(head: Node3D, dna: Dictionary, fur: ShaderMaterial,
 		if dna["freckles"]:
 			var fr := _flat(Color(Color(dna["fur2"]), 0.85))
 			for i in 3:
+				var fx := side * (0.2 + 0.035 * i) * hs
+				var fy := -0.02 - 0.02 * (i % 2)
 				_ball(head, 0.008, fr,
-						Vector3(side * (0.2 + 0.035 * i) * hs, -0.02 - 0.02 * (i % 2), front + 0.03),
+						Vector3(fx, fy, _testa_z(fx, fy, hs) - 0.004),
 						Vector3.ONE, false)
 
 	return {
