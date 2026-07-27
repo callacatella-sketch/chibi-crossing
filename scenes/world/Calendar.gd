@@ -359,6 +359,11 @@ func _refresh_boards() -> void:
 			lines.append(["…e altri %d" % (prossimi.size() - 6),
 					Color(0.98, 0.85, 0.9, 0.6)])
 		lines.append(["mercante · G%d" % _merchant_day, Color(0.85, 0.93, 1.0, 0.9)])
+		# le commissioni appese: il conto sta sul gessetto, il dettaglio nel pannello
+		var comm_n := get_tree().get_first_node_in_group("commissioni")
+		if comm_n and int(comm_n.call("quante")) > 0:
+			lines.append(["richieste appese · %d" % int(comm_n.call("quante")),
+					Color(1.0, 0.93, 0.75, 0.92)])
 		# la prossima festa stagionale, col gessetto verde tenue
 		var pf := prossima_festa(_day())
 		if not (pf[1] as Dictionary).is_empty():
@@ -830,6 +835,25 @@ func _refresh_panel() -> void:
 		resto.add_theme_font_size_override("font_size", 12)
 		resto.add_theme_color_override("font_color", Color(UI_BROWN, 0.55))
 		_rows.add_child(resto)
+	# le COMMISSIONI appese dai vicini: la pagina delle richieste
+	var comm := get_tree().get_first_node_in_group("commissioni")
+	if comm and int(comm.call("quante")) > 0:
+		var titolo_c := Label.new()
+		titolo_c.text = "~ le commissioni ~"
+		titolo_c.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		titolo_c.add_theme_font_size_override("font_size", 14)
+		titolo_c.add_theme_color_override("font_color", Color("8a5a3a"))
+		_rows.add_child(titolo_c)
+		for riga in comm.call("per_lavagna"):
+			var rr := Label.new()
+			var pronto := "  ✔ ce l'hai: consegnala!" if bool(riga[3]) else ""
+			rr.text = "%s: «%s»  +%d🌰%s" % [riga[0], riga[1], riga[2], pronto]
+			rr.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			rr.custom_minimum_size = Vector2(370, 0)
+			rr.add_theme_font_size_override("font_size", 12)
+			rr.add_theme_color_override("font_color",
+					Color("2e7d4f") if bool(riga[3]) else UI_BROWN)
+			_rows.add_child(rr)
 
 
 func _update_prompt() -> void:

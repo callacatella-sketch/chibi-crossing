@@ -58,7 +58,7 @@ func _ready() -> void:
 	_sfx = get_node_or_null(^"/root/Sfx")
 	_build_ui()
 	(func():
-		_player = get_node_or_null("%Player")
+		_player = get_node_or_null("../Player")
 		_build = get_node_or_null("../BuildSystem")
 		_daynight = get_node_or_null("../DayNight")
 		_inventory = get_node_or_null("../Inventory")

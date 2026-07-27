@@ -36,6 +36,8 @@ func run(level: Node3D, mode: String, arg: String = "") -> void:
 			await _debug_filo(arg)
 		"frutteto":
 			await _debug_frutteto(arg)
+		"commissioni":
+			await _debug_commissioni(arg)
 
 func _frames(n: int):
 	for i in n:
@@ -401,6 +403,92 @@ func _debug_filo(dir: String) -> void:
 
 	print("FILO: fine. residenti=%d, MAX=%d"
 			% [(vis.get("_residents") as Array).size(), vis.MAX_RESIDENTS])
+	get_tree().quit()
+
+
+# ---------------------------------------------------------------- commissioni
+# Verifica delle commissioni: il vicino appende la richiesta stagionale
+# alla lavagna, Mochi procura la merce e la consegna DI PERSONA — le
+# noccioline, il cuoricino e il momento sul Filo. E il moltiplicatore:
+# d'inverno la lavagna può chiedere la farfalla di neve.
+func _debug_commissioni(dir: String) -> void:
+	var comm = get_tree().get_first_node_in_group("commissioni")
+	var vis = _level.get_node_or_null("Visitors")
+	var dn = _level.get_node_or_null("DayNight")
+	var cooking = _level.get_node_or_null("Cooking")
+	var coll = _level.get_node_or_null("Collection")
+	var calendario = null
+	for attesa in 300:
+		calendario = get_tree().get_first_node_in_group("calendario")
+		if calendario != null:
+			break
+		await get_tree().process_frame
+	if comm == null or vis == null or dn == null or calendario == null:
+		printerr("COMMISSIONI: nodi non trovati")
+		get_tree().quit()
+		return
+	await _frames(30)
+	dn.set_time(0.45)
+
+	# due vicini, e tre richieste appese (seed fissi: si vede la varietà)
+	vis.debug_add_resident(555, player.global_position + Vector3(2.0, 0, 2.0))
+	vis.debug_add_resident(777, player.global_position + Vector3(-2.0, 0, 2.0))
+	await _frames(10)
+	for seed_v in [11, 30, 47]:
+		comm.debug_appendi(seed_v)
+	for r in comm.debug_stato():
+		print("COMMISSIONI: %s" % r)
+
+	# il MOLTIPLICATORE: cosa chiede l'inverno? (statica pura, per stampa)
+	var COMM = load("res://scenes/npc/Commissioni.gd")
+	var CRIT = load("res://scenes/world/Critters.gd")
+	var inverno := []
+	for id in CRIT.collezionabili():
+		if COMM.di_stagione(str(id), 3):
+			inverno.append(str(id))
+	print("COMMISSIONI: d'inverno la lavagna può chiedere: %s" % [inverno])
+	print("COMMISSIONI: la farfalla di neve è chiedibile d'inverno = %s"
+			% ("neve" in inverno))
+
+	# la lavagna in bella copia (pannello con la pagina delle commissioni)
+	calendario.debug_seed_board()
+	calendario.debug_open_panel()
+	await get_tree().create_timer(0.6).timeout
+	await _shot(dir, "commissioni_1_lavagna")
+	calendario.debug_close_panel()
+
+	# la CONSEGNA: si procura la merce della prima commissione e la si
+	# porta di persona al richiedente
+	var attive: Array = comm.get("_attive")
+	if not attive.is_empty():
+		var c: Dictionary = attive[0]
+		var id := str(c["id"])
+		if CRIT.classe(id) == "raccolto":
+			cooking.add_ingredient(id, int(c["n"]))
+		else:
+			for k in int(c["n"]):
+				coll.add_catch(id)
+		var eco = get_tree().get_first_node_in_group("economy")
+		var prima: int = eco.get("nuts")
+		var node := (vis.get("_residents") as Array)[0].get("node") as Node3D
+		player.global_position = node.global_position + Vector3(1.0, 0, 1.0)
+		await _frames(20)
+		var fatto: bool = comm.consegna(0)
+		print("COMMISSIONI: consegnato = %s | noccioline %d -> %d"
+				% [fatto, prima, eco.get("nuts")])
+		var ccam := Camera3D.new()
+		add_child(ccam)
+		ccam.position = node.global_position + Vector3(1.8, 1.3, 2.2)
+		ccam.fov = 42.0
+		ccam.current = true
+		ccam.look_at(node.global_position + Vector3(0, 0.55, 0))
+		await get_tree().create_timer(0.7).timeout
+		await _shot(dir, "commissioni_2_consegna")
+		var legami = get_tree().get_first_node_in_group("legami")
+		var nome := str(c["nome"])
+		print("COMMISSIONI: momenti sul filo di %s = %d"
+				% [nome, (legami.momenti_di(nome) as Array).size()])
+	print("COMMISSIONI: fine. appese = %d" % comm.quante())
 	get_tree().quit()
 
 
