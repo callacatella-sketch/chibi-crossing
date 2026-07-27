@@ -19,6 +19,17 @@ uniform vec4 forest_b : source_color = vec4(0.22, 0.33, 0.20, 1.0);
 uniform vec4 forest_litter : source_color = vec4(0.45, 0.37, 0.24, 1.0);
 // 0..1: quando piove il prato si scurisce e prende un velo lucido
 uniform float wetness : hint_range(0.0, 1.0) = 0.0;
+// 0..1: quanta acqua si è RACCOLTA nelle conche (le pozzanghere-specchio;
+// lo pilota il Weather da wetness: si riempiono piovendo, si ritirano
+// asciugando — la soglia arretra e gli specchi si restringono dagli orli)
+uniform float pozzanghere : hint_range(0.0, 1.0) = 0.0;
+// 1 mentre la pioggia CADE: l'acqua raccolta si increspa ad anelli;
+// appena smette torna specchio calmo
+uniform float pioggia_cade : hint_range(0.0, 1.0) = 0.0;
+// il cielo di adesso, per il riflesso a gradiente (li scrive DayNight
+// ogni frame: le pozzanghere riflettono LO STESSO tramonto del giocatore)
+global uniform vec4 cielo_alto;
+global uniform vec4 cielo_orizzonte;
 // 0..1: l'inverno stende la neve sul manto (globale, pilotato dal regista
 // delle stagioni: lo stesso valore che imbianca chiome e tetti)
 global uniform float snow_amount;
@@ -194,7 +205,54 @@ void fragment() {
 		EMISSION += vec3(0.60, 0.66, 0.80) * sglint * cover * 0.22;
 	}
 
+	// --- LE POZZANGHERE: gli specchi che la pioggia lascia nel prato ---
+	// Una sola verità fisica, imitata bene: l'acqua si raccoglie nelle
+	// CONCHE (un campo fbm stabile in spazio-mondo) e ancora di più sulla
+	// terra battuta dei sentieri, che non beve. Dentro lo specchio: il
+	// cielo VERO del DayNight in gradiente (più cupola col fresnel) sopra
+	// il fondo scurito del manto — e la roughness crolla, così il
+	// radiance della cupola ci si riflette davvero, come nello stagno.
+	// L'orlo bagnato scurisce un anello attorno; mentre piove, anelli di
+	// gocce increspano la superficie; appena smette, specchio calmo.
+	float pozza = 0.0;
+	if (pozzanghere > 0.001 && snow_amount < 0.5) {
+		// la banda della soglia è STRETTA apposta: a specchi pieni l'acqua
+		// copre ~un decimo del prato (conche vere), mai una piana allagata
+		float conca = fbm(rot * wpos.xz * 0.5 + 3.7);
+		float livello = mix(0.12, 0.30, pozzanghere) + 0.05 * battuta;
+		float adatto = (1.0 - smoothstep(0.3, 1.4, v_hill))
+				* (1.0 - smoothstep(0.25, 0.55, v_river))
+				* (1.0 - fmask * 0.65) * (1.0 - snow_amount);
+		pozza = smoothstep(livello, livello - 0.10, conca) * adatto;
+		float orlo = smoothstep(livello + 0.09, livello, conca) * adatto
+				* (1.0 - pozza);
+		col *= 1.0 - 0.16 * orlo;
+		if (pozza > 0.001) {
+			// l'acqua respira: deriva calma sempre (lo stesso passo dello
+			// stagno), anelli di pioggia solo mentre cade
+			float w1 = fbm(wpos.xz * 1.6 + vec2(TIME * 0.10, TIME * 0.07));
+			float w2 = fbm(wpos.xz * 1.6 - vec2(TIME * 0.08, -TIME * 0.11) + 7.0);
+			vec2 rp = wpos.xz * 1.8;
+			vec2 rid = floor(rp);
+			float rh = hash12(rid);
+			float rph = fract(TIME * 0.8 + rh);
+			vec2 roff = (vec2(hash12(rid + 5.0), hash12(rid + 9.0)) - 0.5) * 0.5;
+			float rdst = length(fract(rp) - 0.5 - roff);
+			float anello = smoothstep(0.055, 0.0, abs(rdst - rph * 0.42))
+					* (1.0 - rph) * pioggia_cade;
+			NORMAL = normalize(NORMAL + vec3((w1 - 0.5) * 0.10 + anello * 0.30, 0.0,
+					(w2 - 0.5) * 0.10 - anello * 0.25) * pozza);
+			// il cielo dentro l'acqua: all'incidenza radente lo specchio
+			// vince (fresnel), a piombo si vede il fondo scuro del manto
+			float fresp = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 2.0);
+			vec3 cielo = mix(cielo_orizzonte.rgb, cielo_alto.rgb, 0.25 + 0.5 * fresp);
+			col = mix(col, mix(col * 0.45, cielo, 0.38 + 0.45 * fresp), pozza);
+			// gli anelli si leggono anche come luce, non solo come rilievo
+			EMISSION += cielo * anello * 0.12 * pozza;
+		}
+	}
+
 	ALBEDO = col;
-	ROUGHNESS = 1.0 - 0.4 * wetness;
-	SPECULAR = 0.05 + 0.3 * wetness;
+	ROUGHNESS = mix(1.0 - 0.4 * wetness, 0.045, pozza);
+	SPECULAR = mix(0.05 + 0.3 * wetness, 0.75, pozza);
 }

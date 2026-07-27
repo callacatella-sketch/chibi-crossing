@@ -86,6 +86,13 @@ static func nebbia_del_mattino(stagione: int, ora: float, sereno: bool) -> bool:
 	return stagione == 2 and sereno and ora >= 0.27 and ora <= 0.40
 
 
+## Quante pozzanghere lascia un prato bagnato così (0..1). Sotto un
+## quarto di zuppo non si raccoglie niente; da lì lo specchio cresce.
+## PURA: entra il bagnato, esce l'acqua raccolta (la verifica il test).
+static func pozzanghere_da_bagnato(bagnato: float) -> float:
+	return smoothstep(0.25, 0.9, bagnato)
+
+
 # ---------------------------------------------------------------- ciclo
 
 func _process(delta: float) -> void:
@@ -114,6 +121,12 @@ func _process(delta: float) -> void:
 	_wetness = lerpf(_wetness, wet_target, 1.0 - exp(-wet_k * delta))
 	if _ground_mat:
 		_ground_mat.set_shader_parameter("wetness", _wetness)
+		# le POZZANGHERE si riempiono col prato zuppo e si ritirano con lui
+		# (l'asciugatura lenta di _wetness fa arretrare la soglia: gli
+		# specchi si restringono dagli orli, come quelli veri); mentre
+		# piove l'acqua si increspa ad anelli, appena smette fa da specchio
+		_ground_mat.set_shader_parameter("pozzanghere", pozzanghere_da_bagnato(_wetness))
+		_ground_mat.set_shader_parameter("pioggia_cade", 1.0 if piove else 0.0)
 	# anche i fili d'erba si inzuppano (rugiada che scintilla)
 	RenderingServer.global_shader_parameter_set("erba_bagnata", _wetness)
 

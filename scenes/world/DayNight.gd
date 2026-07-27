@@ -472,6 +472,10 @@ func _apply() -> void:
 	_sky.set_shader_parameter("top_color", top)
 	_sky.set_shader_parameter("horizon_color", hor)
 	_sky.set_shader_parameter("ground_color", NIGHT_GROUND.lerp(DAY_GROUND, day_f))
+	# il cielo di ADESSO per gli specchi del mondo (le pozzanghere): due
+	# globali, così ogni shader riflette lo stesso tramonto del giocatore
+	RenderingServer.global_shader_parameter_set("cielo_alto", top)
+	RenderingServer.global_shader_parameter_set("cielo_orizzonte", hor)
 
 	# --- le nuvole: candide a mezzogiorno, rosa-pesca alla golden hour,
 	# ardesia appena rischiarata dalla luna la notte; la pioggia le

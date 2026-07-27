@@ -140,6 +140,10 @@ func _ready() -> void:
 	# dei residenti) e li trasforma, settimana dopo settimana, in
 	# sentierini d'erba consumata — la memoria dipinta nel prato
 	add_child(preload("res://scenes/world/Sentieri.gd").new())
+	# le pozze di luce dalle finestre: la sera le finestre accese versano
+	# rettangoli caldi sull'erba (e la finestra del lutto illumina il
+	# sentiero vuoto di chi è partito)
+	add_child(preload("res://scenes/world/PozzeDiLuce.gd").new())
 	# il guardaroba di Mochi: ricordi indossabili
 	add_child(preload("res://scenes/characters/Wardrobe.gd").new())
 	# l'onsen del bosco, oltre la radura del falò
