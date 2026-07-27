@@ -147,6 +147,9 @@ func _ready() -> void:
 	# le richieste fotografiche: i residenti sognano foto, la Modalità
 	# Foto le esaudisce e la foto vera finisce appesa in casa loro
 	add_child(preload("res://scenes/interact/RichiesteFoto.gd").new())
+	# il concertino del carillon: un giro di manovella e i vicini
+	# accorrono a cantare in Chibiese, armonizzati dal loro DNA
+	add_child(preload("res://scenes/interact/Concertino.gd").new())
 	# il guardaroba di Mochi: ricordi indossabili
 	add_child(preload("res://scenes/characters/Wardrobe.gd").new())
 	# l'onsen del bosco, oltre la radura del falò

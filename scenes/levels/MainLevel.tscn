@@ -1,4 +1,4 @@
-[gd_scene load_steps=36 format=3 uid="uid://mainlevel_uid"]
+[gd_scene load_steps=37 format=3 uid="uid://mainlevel_uid"]
 
 [ext_resource type="Script" path="res://scenes/levels/MainLevel.gd" id="1_xxyz1"]
 [ext_resource type="PackedScene" uid="uid://d3u2b9x8y8v" path="res://scenes/characters/Player.tscn" id="2_yyzx2"]
@@ -25,6 +25,7 @@
 [ext_resource type="Script" path="res://scenes/npc/Premura.gd" id="23_prem1"]
 [ext_resource type="Script" path="res://scenes/world/VitaSecondaria.gd" id="24_vita1"]
 [ext_resource type="Script" path="res://scenes/world/FiloRosso.gd" id="25_filo1"]
+[ext_resource type="Script" path="res://scenes/world/Bancarella.gd" id="26_banc1"]
 [ext_resource type="Script" path="res://scenes/interact/Bottiglie.gd" id="24_bott1"]
 [ext_resource type="Script" path="res://scenes/interact/Scavi.gd" id="25_scav1"]
 
@@ -127,6 +128,9 @@ script = ExtResource("24_vita1")
 
 [node name="FiloRosso" type="Node3D" parent="."]
 script = ExtResource("25_filo1")
+
+[node name="Bancarella" type="Node" parent="."]
+script = ExtResource("26_banc1")
 
 [node name="Mail" type="Node" parent="."]
 script = ExtResource("10_mail1")

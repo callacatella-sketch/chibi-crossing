@@ -174,6 +174,81 @@ static func babble(v: Dictionary, n := 3, mood := "neutro") -> AudioStreamWAV:
 	return say(v, concepts, mood)
 
 
+# ---------------------------------------------------------------- il canto
+
+## Da nota MIDI a frequenza.
+static func mtof(m: float) -> float:
+	return 440.0 * pow(2.0, (m - 69.0) / 12.0)
+
+
+## Da frequenza a nota MIDI (per scegliere l'ottava comoda di una voce).
+static func ftom(f: float) -> float:
+	return 69.0 + 12.0 * log(f / 440.0) / log(2.0)
+
+
+## UNA LINEA CANTATA — il Chibiese che smette di parlare e canta.
+## [param note]: [{b: beat d'attacco, beats: durata, midi: nota, syl:
+## sillaba}]. La linea è renderizzata per l'INTERA durata [param
+## beats_totali] (silenzi compresi): tutte le linee di un coro durano
+## uguale e partono insieme — il sincrono è garantito dal render, non
+## dal caso. La voce resta LEI (stesse formanti dal DNA: l'orsetto canta
+## da orsetto, la topolina da topolina — il pitch muove solo la glottide,
+## mai il timbro), ma da canto: più vibrato, meno fiato, note legate.
+static func canta_linea(v: Dictionary, note: Array, beats_totali: float,
+		bpm: float) -> AudioStreamWAV:
+	var chiave := "canto|%d|%f|%f" % [int(v["key"]), bpm, beats_totali]
+	for nota in note:
+		chiave += "|%s@%s~%s%s" % [nota.get("midi"), nota.get("b"),
+				nota.get("beats"), nota.get("syl", "la")]
+	if _cache.has(chiave):
+		return _cache[chiave]
+
+	# la voce da canto: vibrato pieno, respiro raccolto
+	var vc := v.duplicate()
+	vc["sing"] = minf(float(v["sing"]) * 2.2 + 0.5, 2.2)
+	vc["breath"] = float(v["breath"]) * 0.6
+
+	var spb := 60.0 / bpm
+	var totale := int(beats_totali * spb * RATE)
+	var buf := PackedFloat32Array()
+	buf.resize(totale)
+	for nota in note:
+		var pm := mtof(float(nota["midi"])) / float(vc["pitch"])
+		# un filo di respiro fra le note, mai un muro di suono
+		var dur := float(nota["beats"]) * spb * 0.9
+		var dm := dur / (0.15 * float(vc["rate"]))
+		var grano := _syllable(vc, str(nota.get("syl", "la")), pm, dm)
+		var da := int(float(nota["b"]) * spb * RATE)
+		for i in grano.size():
+			var j := da + i
+			if j >= totale:
+				break
+			buf[j] += grano[i]
+
+	# normalizza morbido (le linee si sommano nel mondo, non qui)
+	var peak := 0.001
+	for s in buf:
+		peak = maxf(peak, absf(s))
+	var gain := 0.8 / peak
+	for i in buf.size():
+		buf[i] *= gain
+
+	var wav := _wav(buf)
+	if _cache.size() > 96:
+		_cache.clear()
+	_cache[chiave] = wav
+	return wav
+
+
+## L'ottava comoda: quanti +12/-12 servono perché la linea caschi vicino
+## al registro naturale della voce. È QUI che il DNA armonizza il coro:
+## le stesse note, ma ognuno nell'ottava del suo corpo — l'orsetto le
+## prende basse, la topolina cristalline, e l'accordo si impila da solo.
+static func ottava_comoda(v: Dictionary, midi_mediano: float) -> int:
+	var proprio := ftom(float(v["pitch"]))
+	return clampi(roundi((proprio - midi_mediano) / 12.0), -2, 2) * 12
+
+
 # ---------------------------------------------------------------- synth
 
 ## Una sillaba consonante+vocale a grani di formante.
