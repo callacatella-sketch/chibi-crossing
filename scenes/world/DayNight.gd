@@ -109,6 +109,7 @@ var star_dirs: PackedVector3Array = []
 
 func _ready() -> void:
 	add_to_group("persistable")
+	add_to_group("daynight")   # i riflessi negli occhi chiedono a noi la luce
 	_sun = get_node("../Sun")
 	var we: WorldEnvironment = get_node("../WorldEnvironment")
 	_env = we.environment
@@ -178,6 +179,17 @@ func debug_set_day(d: int) -> void:
 ## Vero quando il mondo è in modalità notte (stelle, lucciole, finestre accese).
 func is_night() -> bool:
 	return _night
+
+
+## La direzione VERSO la luce dominante del cielo, in coordinate mondo:
+## il sole di giorno, la luna di notte. La chiedono i riflessi negli occhi
+## (FaceController): una DirectionalLight illumina lungo -Z, quindi la
+## sorgente sta dalla parte di +basis.z.
+func luce_verso() -> Vector3:
+	var luce := _moon if (_night and _moon != null) else _sun
+	if luce == null:
+		return Vector3(0.35, 0.85, -0.4).normalized()
+	return luce.global_transform.basis.z.normalized()
 
 
 # ---------------------------------------------------------------- stagioni

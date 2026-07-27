@@ -109,17 +109,42 @@ func _update_fireflies(delta: float) -> void:
 			(f["node"] as Node3D).queue_free()
 		_fireflies.clear()
 
+	# la fretta di Mochi: di corsa le lucciole si scansano, da ferma tornano
+	var fretta := 0.0
+	if _player:
+		var pv: Variant = _player.get("velocity")
+		if pv is Vector3:
+			fretta = clampf((pv as Vector3).length() / 3.0, 0.0, 1.0)
 	for f in _fireflies:
 		var s: float = f["seed"]
 		var base: Vector3 = f["base"]
 		var node := f["node"] as Node3D
-		node.position = base + Vector3(
+		var pos := base + Vector3(
 			sin(_t * 0.7 + s) * 2.2,
 			0.85 + sin(_t * 1.3 + s) * 0.3 + sin(_t * 5.0 + s) * 0.05,
 			cos(_t * 0.9 + s * 2.0) * 2.2)
-		# il respiro luminoso
+		# la timidezza: se arrivi di fretta la lucciola sale e scivola in
+		# là, e il suo respiro si fa piccolo (si nasconde nella sua luce);
+		# fermati un attimo e torna a danzarti attorno
+		var dodge: Vector3 = f.get("dodge", Vector3.ZERO)
+		var voglia := Vector3.ZERO
+		if _player:
+			var diff: Vector3 = (pos + dodge) - _player.global_position
+			diff.y = 0.0
+			var d := diff.length()
+			if d < 1.8:
+				var via := diff / maxf(d, 0.05)
+				var forza := (1.8 - d) / 1.8
+				var paura := (0.18 + 0.82 * fretta) * forza * forza
+				voglia = via * paura * 1.1 + Vector3(0, 0.6 * paura, 0)
+		dodge = dodge.lerp(voglia, 1.0 - exp(-2.6 * delta))
+		f["dodge"] = dodge
+		node.position = pos + dodge
+		# il respiro luminoso (la paura lo smorza di un terzo, non di più:
+		# una lucciola spaventata si vede ancora — solo più piccina)
 		var blink := maxf(0.0, sin(_t * 2.3 + s))
-		(f["halo_mat"] as StandardMaterial3D).albedo_color.a = 0.15 + blink * blink * 0.6
+		(f["halo_mat"] as StandardMaterial3D).albedo_color.a = \
+				(0.15 + blink * blink * 0.6) * (1.0 - minf(dodge.length() * 0.4, 0.35))
 
 
 func _spawn_firefly() -> void:

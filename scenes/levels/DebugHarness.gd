@@ -292,6 +292,80 @@ func _debug_filo(dir: String) -> void:
 	# --- l'empatia della pioggia (Fase 6), su richiesta diretta ---
 	# (la fame è affare della Premura, che ha la sua verifica nei test)
 	print("FILO: conforto per pioggia = %s" % vis.conforta_mochi("pioggia"))
+
+	# --- i tocchi di luce: catchlight, lanterne, creature timide ---
+	# (si salta a primavera: il giorno 140 del giro-congedo è pieno inverno
+	#  e il prato, giustamente, sarebbe senza farfalle)
+	dn.debug_set_day(142)
+	var mochi = player.get_node_or_null("Mochi")
+	# 1) il catchlight di giorno: il sole negli occhi, primo piano
+	dn.set_time(0.45)
+	mochi.call("freeze_face", 10.0)
+	var fwd: Vector3 = -(mochi.global_transform.basis.z as Vector3)
+	var focus: Vector3 = player.global_position + Vector3(0, 0.78, 0)
+	var ccam2 := Camera3D.new()
+	add_child(ccam2)
+	ccam2.position = focus + fwd * 1.6 + Vector3(0, 0.22, 0)
+	ccam2.fov = 34.0
+	ccam2.current = true
+	ccam2.look_at(focus)
+	await get_tree().create_timer(1.2).timeout
+	await _shot(dir, "filo_5_catchlight_giorno")
+
+	# 2) la timidezza delle farfalle: Mochi si pianta accanto a una e lei
+	# scivola via (il dodge cresce da zero). Il prato primaverile si
+	# ripopola coi suoi tempi: si aspetta il primo battito d'ali
+	var world = _level.get_node_or_null("CozyWorld")
+	var farfalle: Array = world.get("_butterflies")
+	for attesa_bf in 900:
+		if not farfalle.is_empty():
+			break
+		await get_tree().process_frame
+		farfalle = world.get("_butterflies")
+	if not farfalle.is_empty():
+		# Mochi resta incollata alla farfalla per tutta la misura: il suo
+		# giro di volo è largo 8 m, un teletrasporto solo la perderebbe
+		var b0: Dictionary = farfalle[0]
+		for attesa3 in 90:
+			var bnode := b0["node"] as Node3D
+			if bnode and is_instance_valid(bnode):
+				player.global_position = bnode.global_position * Vector3(1, 0, 1)
+			await get_tree().process_frame
+		var scarto: float = (b0.get("dodge", Vector3.ZERO) as Vector3).length()
+		print("FILO: la farfalla si e' scansata di %.2f m (timidezza) = %s"
+				% [scarto, scarto > 0.04])
+	else:
+		print("FILO: nessuna farfalla in volo a quest'ora (ok di notte/inverno)")
+
+	# 3) le lanterne dell'ultima sera: la cascata lungo i sentieri, e il
+	# catchlight che al buio si accende d'ambra vicino alla fiammella
+	dn.set_time(0.78)
+	var accese: int = congedo.debug_lanterne()
+	print("FILO: lanterne accese lungo i sentieri = %d" % accese)
+	await get_tree().create_timer(7.0).timeout
+	var lant: Array = congedo.get("_lanterne")
+	if not lant.is_empty():
+		var lpos: Vector3 = ((lant[0] as Dictionary)["node"] as Node3D).global_position
+		var lcam2 := Camera3D.new()
+		add_child(lcam2)
+		lcam2.position = lpos + Vector3(2.6, 1.5, 3.0)
+		lcam2.fov = 44.0
+		lcam2.current = true
+		lcam2.look_at(lpos + Vector3(0, 0.55, 0))
+		await get_tree().create_timer(0.6).timeout
+		await _shot(dir, "filo_6_lanterne")
+		# Mochi accanto alla lanterna: gli occhi le si accendono d'ambra
+		player.global_position = lpos + Vector3(0.9, 0, 0.7)
+		mochi.call("freeze_face", 10.0)
+		await get_tree().create_timer(1.0).timeout
+		var fwd2: Vector3 = -(mochi.global_transform.basis.z as Vector3)
+		var focus2: Vector3 = player.global_position + Vector3(0, 0.78, 0)
+		ccam2.position = focus2 + fwd2 * 1.5 + Vector3(0, 0.2, 0)
+		ccam2.current = true
+		ccam2.look_at(focus2)
+		await get_tree().create_timer(0.5).timeout
+		await _shot(dir, "filo_7_catchlight_lanterna")
+
 	print("FILO: fine. residenti=%d, MAX=%d"
 			% [(vis.get("_residents") as Array).size(), vis.MAX_RESIDENTS])
 	get_tree().quit()

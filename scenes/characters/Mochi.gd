@@ -50,6 +50,8 @@ var _arms: Array[Node3D] = []
 var _legs: Array[MeshInstance3D] = []
 var _squints: Array[Node3D] = []
 var _highlights: Array[MeshInstance3D] = []
+# i dischi grandi (uno per occhio): il catchlight vivo del FaceController
+var _glints: Array[Node3D] = []
 var _blushes: Array[MeshInstance3D] = []
 var _eye_mat: StandardMaterial3D
 
@@ -594,6 +596,7 @@ func _build_head() -> void:
 		_irises.append(iris)
 		_highlights.append(shine)
 		_highlights.append(sparkle)
+		_glints.append(shine)
 		# l'arco "^^" della felicità piena (nascosto a riposo)
 		_happy.append(FACE.build_happy_arc(_head, _eye_mat,
 				Vector3(side * 0.155, 0.04, -0.362), side, 0.078))
@@ -651,6 +654,7 @@ func _setup_face() -> void:
 		"eyes": _eyes, "eyeballs": _eyeballs, "irises": _irises,
 		"happy": _happy, "squint": _squints, "brows": _brows,
 		"blush": _blushes, "mouths": _mouths, "mouth_open": _mouth_open,
+		"glints": _glints, "glint_r": 0.028,
 		"eye_base_scale": Vector3(1, 1.18, 0.55), "face_side": 0.28,
 	})
 

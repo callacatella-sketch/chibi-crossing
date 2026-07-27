@@ -131,6 +131,21 @@ var _blush: Array[MeshInstance3D] = []   # le guanciotte (opzionali)
 var _mouths := {}                        # nome -> Node3D (tutte le forme)
 var _mouth_open_node: Node3D             # la cavità scura che si apre (parlare/ridere)
 
+# il catchlight VIVO: il disco di luce grande di ogni occhio è un riflesso,
+# e scivola verso la fonte vera — il sole di giorno, la luna di notte, una
+# lanterna calda a due passi — con la pendenza verso la camera dei riflessi
+# veri. È il "quasi niente" che dà l'anima: gli occhi smettono di essere
+# adesivi e cominciano a specchiare il mondo.
+var _glints: Array[Node3D] = []
+var _glint_base: Array[Vector3] = []
+var _glint_base_scale: Array[Vector3] = []
+var _glint_r := 0.02          # quanto il riflesso può correre sull'occhio
+var _glint_cur := Vector2.ZERO
+var _glint_tgt := Vector2.ZERO
+var _glint_gain := 0.0        # quanta luce arriva (0 = sorgente alle spalle)
+var _glint_gain_cur := 0.0
+var _luce_cd := 0.0           # la sorgente si rilegge ogni ~0.3 s, sfasata
+
 # stati di riposo memorizzati al setup, per animare in RELATIVO
 var _eye_base_scale := Vector3(1, 1.18, 0.55)
 var _eye_base_pos: Array[Vector3] = []
@@ -222,8 +237,16 @@ func setup(rig: Dictionary) -> void:
 	_mouth_open_node = rig.get("mouth_open")
 	_eye_base_scale = rig.get("eye_base_scale", _eye_base_scale)
 	_face_side = rig.get("face_side", 0.36)
+	_glints.assign(rig.get("glints", []))
+	_glint_r = float(rig.get("glint_r", 0.02))
+	for g in _glints:
+		_glint_base.append(g.position)
+		_glint_base_scale.append(g.scale)
 
 	_rng.randomize()
+	# ogni volto interroga la luce in un istante suo: mai tutti nello
+	# stesso frame (con 28 vicini si sentirebbe)
+	_luce_cd = _rng.randf_range(0.0, 0.3)
 	for eye in _eyes:
 		_eye_base_pos.append(eye.position)
 	for iris in _irises:
@@ -373,8 +396,72 @@ func update(delta: float) -> void:
 	_blend_channels(delta)
 	_apply_brows(delta)
 	_apply_eyes(delta)
+	_apply_glints(delta)
 	_apply_mouth(delta)
 	_apply_blush()
+
+
+# --------------------------------------------------- il catchlight vivo
+
+func _apply_glints(delta: float) -> void:
+	if _glints.is_empty() or _head == null or not _head.is_inside_tree():
+		return
+	_luce_cd -= delta
+	if _luce_cd <= 0.0:
+		_luce_cd = 0.3
+		_aggiorna_luce()
+	# il riflesso INSEGUE la luce, non ci scatta sopra: la scivolata morbida
+	# è ciò che l'occhio umano legge come "lucido", non "appiccicato"
+	var k := 1.0 - exp(-6.0 * delta)
+	_glint_cur = _glint_cur.lerp(_glint_tgt, k)
+	_glint_gain_cur = lerpf(_glint_gain_cur, _glint_gain, k)
+	var vivo := 0.88 + 0.28 * _glint_gain_cur
+	for i in _glints.size():
+		var g := _glints[i]
+		if g == null or not is_instance_valid(g):
+			continue
+		# lo stesso spostamento su entrambi gli occhi (è così che fanno i
+		# riflessi veri), e il disco si accende un filo quando la luce è piena
+		g.position = _glint_base[i] + Vector3(_glint_cur.x, _glint_cur.y, 0.0)
+		g.scale = _glint_base_scale[i] * Vector3(vivo, vivo, 1.0)
+
+
+# Da dove arriva la luce, ADESSO: una lanterna calda a due passi vince su
+# tutto (gruppo "luce_calda": le lanterne del congedo, la finestra accesa
+# del lutto); altrimenti il cielo (sole o luna, li dà il DayNight). Il
+# risultato pende verso la camera, come ogni riflesso su una superficie
+# curva. Costa una query ogni 0.3 s, sfasata per volto.
+func _aggiorna_luce() -> void:
+	var tree := _head.get_tree()
+	if tree == null:
+		return
+	var pos := _head.global_position
+	var dir := Vector3(0.35, 0.85, -0.4).normalized()   # ripiego: un cielo qualunque
+	var calda: Node3D = null
+	var calda_d := 5.5
+	for n in tree.get_nodes_in_group("luce_calda"):
+		if n is Node3D and is_instance_valid(n):
+			var d: float = pos.distance_to((n as Node3D).global_position)
+			if d < calda_d:
+				calda_d = d
+				calda = n
+	if calda != null:
+		dir = (calda.global_position - pos).normalized()
+	else:
+		var dn := tree.get_first_node_in_group("daynight")
+		if dn and dn.has_method("luce_verso"):
+			dir = dn.call("luce_verso")
+	var cam := _head.get_viewport().get_camera_3d() if _head.get_viewport() else null
+	if cam:
+		dir = (dir * 0.62 + (cam.global_position - pos).normalized() * 0.38).normalized()
+	# nel riferimento della testa (il viso guarda -Z): se la sorgente è alle
+	# spalle il riflesso non esiste — il disco torna a casa, al suo posto
+	var l: Vector3 = _head.global_transform.basis.orthonormalized().inverse() * dir
+	_glint_gain = clampf(-l.z, 0.0, 1.0)
+	var xy := Vector2(l.x, l.y)
+	if xy.length() > 1.0:
+		xy = xy.normalized()
+	_glint_tgt = xy * _glint_r * _glint_gain
 
 
 # fusione esponenziale dei canali continui verso gli obiettivi

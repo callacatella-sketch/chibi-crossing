@@ -2717,6 +2717,13 @@ func _process(delta: float) -> void:
 			_pickup_respawn = randf_range(50.0, 100.0)
 			_spawn_pickup_mushroom()
 
+	# quanto ha fretta Mochi: di corsa le creature si scansano, da ferma
+	# si fidano e tornano — è così che il retino resta un gioco gentile
+	var fretta := 0.0
+	if _player_ref:
+		var pv: Variant = _player_ref.get("velocity")
+		if pv is Vector3:
+			fretta = clampf((pv as Vector3).length() / 3.0, 0.0, 1.0)
 	for b in _butterflies:
 		var s: float = b["seed"]
 		var t := _t * 0.55 + s
@@ -2728,6 +2735,27 @@ func _process(delta: float) -> void:
 			alt + sin(t * 1.6) * 0.35 + sin(t * 5.0) * 0.06,
 			cos(t * 0.62 + s * 2.0) * girata
 		)
+		# la TIMIDEZZA: al passaggio di Mochi la farfalla scivola via con
+		# una virata morbida (di lato e un filo in su) — si SCOSTA, non
+		# fugge. Ognuna vira dal suo verso, e se Mochi si ferma la paura
+		# sfuma: avvicinarsi piano è il segreto del retino.
+		var dodge: Vector3 = b.get("dodge", Vector3.ZERO)
+		var voglia := Vector3.ZERO
+		if _player_ref:
+			var diff: Vector3 = (pos + dodge) - _player_ref.global_position
+			var quota := diff.y
+			diff.y = 0.0
+			var d := diff.length()
+			if d < 2.0 and absf(quota) < 1.7:
+				var via := diff / maxf(d, 0.05)
+				var lato := Vector3(-via.z, 0.0, via.x) * signf(sin(s * 7.0))
+				var forza := (2.0 - d) / 2.0
+				var paura := (0.22 + 0.78 * fretta) * forza * forza
+				voglia = (via + lato * 0.55).normalized() * paura * 1.5 \
+						+ Vector3(0, 0.5 * paura, 0)
+		dodge = dodge.lerp(voglia, 1.0 - exp(-3.0 * delta))
+		b["dodge"] = dodge
+		pos += dodge
 		var node: Node3D = b["node"]
 		var vel: Vector3 = pos - b["prev"]
 		b["prev"] = pos
@@ -2735,6 +2763,8 @@ func _process(delta: float) -> void:
 		if vel.length() > 0.0001:
 			var target := atan2(-vel.x, -vel.z)
 			node.rotation.y = lerp_angle(node.rotation.y, target, 1.0 - exp(-6.0 * delta))
-		var flap := sin(_t * float(b.get("flap", 17.0)) + s) * 0.85
+		# quando schiva, le alette battono più fitte: lo sforzo si vede
+		var flap := sin(_t * float(b.get("flap", 17.0)) + s) \
+				* (0.85 + minf(dodge.length() * 0.5, 0.35))
 		(b["wing_l"] as Node3D).rotation.z = flap
 		(b["wing_r"] as Node3D).rotation.z = -flap

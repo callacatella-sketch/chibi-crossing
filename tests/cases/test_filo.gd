@@ -20,10 +20,50 @@ func run(t) -> void:
 	_test_partito_sui_dati(t)
 	_test_lettere_dai_momenti(t)
 	_test_densita_e_varieta(t)
+	_test_tocchi_di_luce(t)
 
 
 func _m(tipo: String, giorno := 1) -> Dictionary:
 	return {"d": giorno, "t": tipo, "x": ""}
+
+
+## I tocchi di luce della Fascia 3: il catchlight vivo, le lanterne del
+## congedo, la timidezza delle creature — i fili che li tengono cablati.
+func _test_tocchi_di_luce(t) -> void:
+	# il catchlight: il rig passa i dischi, il motore condiviso li anima
+	t.ok(_corpo("res://scenes/characters/FaceController.gd", "_apply_glints")
+			.contains("_glint_base"), "il FaceController anima i catchlight")
+	t.ok(_corpo("res://scenes/characters/FaceController.gd", "_aggiorna_luce")
+			.contains("luce_calda"),
+			"una lanterna calda a due passi vince sul cielo")
+	t.ok(_sorgente("res://scenes/npc/ChibiBuilder.gd").contains("\"glints\": glints"),
+			"i chibi passano i dischi-luce al motore")
+	t.ok(_sorgente("res://scenes/characters/Mochi.gd").contains("\"glints\": _glints"),
+			"Mochi pure")
+	var dn = load("res://scenes/world/DayNight.gd").new()
+	var v: Vector3 = dn.luce_verso()
+	t.almost(v.length(), 1.0, "luce_verso e' un versore anche senza sole", 0.01)
+	dn.free()
+	# le lanterne dell'ultima sera
+	t.ok(_corpo("res://scenes/world/Congedo.gd", "_lanterna")
+			.contains("luce_calda"), "le lanterne entrano tra le luci calde")
+	t.ok(_corpo("res://scenes/world/Congedo.gd", "_tick_congedo")
+			.contains("_accendi_lanterne"), "l'ultima sera si accendono da sole")
+	t.ok(_corpo("res://scenes/world/Congedo.gd", "_partenza")
+			.contains("_spegni_lanterne"), "e all'alba della partenza si spengono")
+	t.ok(_corpo("res://scenes/world/Congedo.gd", "_posti_lanterne")
+			.contains("Sentiero"), "le lanterne seguono i sentieri del giocatore")
+	# la timidezza delle creature
+	t.ok(_sorgente("res://scenes/world/CozyWorld.gd").contains("\"dodge\""),
+			"le farfalle sanno scansarsi al passaggio")
+	t.ok(_corpo("res://scenes/interact/Collection.gd", "_update_fireflies")
+			.contains("dodge"), "le lucciole pure")
+
+
+## L'intero sorgente di uno script.
+func _sorgente(path: String) -> String:
+	var f := FileAccess.open(path, FileAccess.READ)
+	return f.get_as_text() if f else ""
 
 
 ## Il corpo di una funzione: dal suo `func nome(` alla `func` successiva.

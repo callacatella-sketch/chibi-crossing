@@ -452,6 +452,7 @@ static func _build_face(head: Node3D, dna: Dictionary, fur: ShaderMaterial,
 	var eyes: Array[Node3D] = []
 	var eyeballs: Array[MeshInstance3D] = []
 	var irises: Array[Node3D] = []
+	var glints: Array[Node3D] = []
 	var happy: Array[Node3D] = []
 	var brows: Array[Node3D] = []
 	# sopracciglia vere dal DNA: lo stile viene dal mazzo dell'archetipo, le
@@ -470,14 +471,17 @@ static func _build_face(head: Node3D, dna: Dictionary, fur: ShaderMaterial,
 		var ball := _ball(eye, eye_r, dark, Vector3.ZERO, Vector3(1, 1.18, 0.55), false)
 		var iris := Node3D.new()
 		eye.add_child(iris)
-		# luci a disco, appoggiate sulla superficie dell'occhio
-		_ball(iris, eye_r * 0.36, _flat(Color.WHITE),
+		# luci a disco, appoggiate sulla superficie dell'occhio. Il disco
+		# GRANDE è il catchlight vivo: il FaceController lo fa scivolare
+		# verso la fonte di luce vera (sole, luna, lanterne)
+		var glint := _ball(iris, eye_r * 0.36, _flat(Color.WHITE),
 				Vector3(-0.028 * side, eye_r * 0.42, -eye_r * 0.5), Vector3(1, 1, 0.35), false)
 		_ball(iris, eye_r * 0.16, _flat(Color("ffdce4")),
 				Vector3(0.03 * side, -eye_r * 0.32, -eye_r * 0.52), Vector3(1, 1, 0.35), false)
 		eyes.append(eye)
 		eyeballs.append(ball)
 		irises.append(iris)
+		glints.append(glint)
 		happy.append(FACE.build_happy_arc(head, dark,
 				Vector3(side * gap * hs, ey + 0.006, front - 0.006), side, eye_r * 0.92))
 		brows.append(FACE.build_brow(head, brow_mat, side,
@@ -572,6 +576,7 @@ static func _build_face(head: Node3D, dna: Dictionary, fur: ShaderMaterial,
 
 	return {
 		"eyes": eyes, "eyeballs": eyeballs, "irises": irises,
+		"glints": glints, "glint_r": eye_r * 0.34,
 		"happy": happy, "brows": brows, "blush": blush_nodes,
 		"mouths": mouths, "mouth_open": mouth_open, "philtrum": philtrum,
 		"eye_base_scale": Vector3(1, 1.18, 0.55),

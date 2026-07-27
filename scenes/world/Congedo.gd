@@ -152,6 +152,7 @@ func _nuovo_giorno(day: int) -> void:
 		# memoriale dorato per chi ha sbattuto la porta
 		if _visitors and (_visitors.call("dna_di", str(_congedo["label"])) as Dictionary).is_empty():
 			_congedo = {}
+			_spegni_lanterne()
 			_salva()
 			return
 		var idx: int = day - int(_congedo["giorno_inizio"])
@@ -243,6 +244,7 @@ func _process(delta: float) -> void:
 	_echo_cd -= delta
 	_tick_congedo()
 	_tick_lutto()
+	_respira_lanterne(delta)
 	_update_prompt()
 
 
@@ -268,14 +270,17 @@ func _tick_congedo() -> void:
 		if player and node.global_position.distance_to(dove) <= 3.2 \
 				and player.global_position.distance_to(node.global_position) < 2.6:
 			_esaudito(node, oggi)
-	# l'ultima sera: il falò con tutti i vicini, il Chibiese sottovoce
+	# l'ultima sera: il falò con tutti i vicini, il Chibiese sottovoce —
+	# e le lanterne che si accendono una a una lungo i sentieri: il
+	# villaggio che si prepara a salutare
 	var idx: int = _day() - int(_congedo["giorno_inizio"])
 	if idx == GIORNI_CONGEDO - 1 and not bool(_congedo.get("falo_fatto", false)) \
 			and _daynight and float(_daynight.get("time")) >= 0.66 \
 			and float(_daynight.get("time")) < 0.82:
 		_congedo["falo_fatto"] = true
 		_visitors.call("gather_fire")
-		_toast("Stasera, al falò: tutto il villaggio è con %s." % label)
+		_accendi_lanterne()
+		_toast("Stasera, al falò: tutto il villaggio è con %s.\nLungo i sentieri, una a una, si accendono le lanterne." % label)
 		node.call("speak", ["amico", "grazie", "~"], "triste")
 		_salva()
 
@@ -298,9 +303,195 @@ func _esaudito(node: Node3D, oggi: Dictionary) -> void:
 	_salva()
 
 
+# --------------------------------------------------- le lanterne del congedo
+# L'ultima sera, il gioco accende da solo le lanterne di carta lungo i
+# sentieri: una CASCATA di lucine calde che parte dalla piazza e cammina
+# verso il falò — il villaggio che si prepara a salutare. Sono effimere
+# come la sera stessa (niente salvataggio: all'alba della partenza si
+# spengono e svaniscono), ogni fiammella respira per conto suo, e stanno
+# nel gruppo "luce_calda": i riflessi negli occhi (FaceController) le
+# vedono, e gli occhi di chi siede al falò si accendono d'ambra.
+
+var _lanterne: Array[Dictionary] = []   # {node, luce, core, fase, nascita}
+var _lant_t := 0.0
+
+
+func _accendi_lanterne() -> void:
+	if not _lanterne.is_empty():
+		return
+	_lant_t = 0.0
+	var posti := _posti_lanterne()
+	for i in posti.size():
+		var l := _lanterna(posti[i])
+		var node := l["node"] as Node3D
+		# la cascata: ogni lanterna sboccia mezzo passo dopo la precedente
+		l["nascita"] = 0.45 * float(i)
+		node.scale = Vector3.ONE * 0.02
+		var pos_luce: Vector3 = node.position + Vector3(0, 0.62, 0)
+		var tw := create_tween()
+		tw.tween_interval(0.45 * float(i))
+		tw.tween_property(node, "scale", Vector3.ONE * float(l["taglia"]), 0.55) \
+				.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_callback(func():
+			if is_instance_valid(self):
+				_sparkle(pos_luce, Color(1.0, 0.86, 0.55)))
+		_lanterne.append(l)
+
+
+## Dove mettere le lanterne: lungo i Sentieri piazzati dal giocatore,
+## ordinati dalla piazza in fuori (così la cascata CAMMINA), alternando i
+## lati come farebbe una zampa vera. Senza sentieri, un anello attorno al
+## falò: la festa non resta mai al buio.
+func _posti_lanterne() -> Array[Vector3]:
+	var out: Array[Vector3] = []
+	if _build:
+		var nodi: Array[Node3D] = []
+		for s in _build.get_placed_by_name("Sentiero"):
+			if s is Node3D and is_instance_valid(s):
+				nodi.append(s)
+		nodi.sort_custom(func(a, b):
+			return a.global_position.distance_to(PIAZZA) \
+					< b.global_position.distance_to(PIAZZA))
+		@warning_ignore("integer_division")
+		var passo := maxi(1, nodi.size() / 12)
+		var lato := 1.0
+		for i in range(0, nodi.size(), passo):
+			var p := nodi[i].global_position
+			out.append(p + Vector3(0.36 * lato, 0.0, 0.30 * lato))
+			lato = -lato
+			if out.size() >= 12:
+				break
+	if out.size() < 4:
+		var falo: Vector3 = _visitors.CLEARING if _visitors else PIAZZA
+		for i in 8:
+			var a := TAU * float(i) / 8.0
+			out.append(falo + Vector3(cos(a), 0.0, sin(a)) * 3.1)
+	return out
+
+
+## Una lanterna di carta (chōchin): piedino e cappello di legno scuro, il
+## corpo di carta calda che TRASLUCE (il handpaint lascia passare il
+## controluce), le costine sottili, la fiammella dentro e la sua luce.
+func _lanterna(pos: Vector3) -> Dictionary:
+	var node := Node3D.new()
+	node.position = pos
+	node.rotation.y = randf() * TAU
+	var taglia := randf_range(0.92, 1.08)   # fatte a mano: mai due uguali
+	add_child(node)
+	node.add_to_group("luce_calda")
+
+	var legno := _pm(Color("6e5138"), Color("55402c"))
+	var carta := _pm(Color("fff2da"), Color("f4deb4"))
+	carta.set_shader_parameter("translucency", 0.65)
+
+	# piedino e stelo
+	_cilindro(node, 0.055, 0.05, legno, Vector3(0, 0.025, 0))
+	_cilindro(node, 0.014, 0.36, legno, Vector3(0, 0.23, 0))
+	# il corpo di carta, appena schiacciato come i chōchin veri
+	var corpo := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.115
+	sm.height = 0.23
+	sm.radial_segments = 20
+	corpo.mesh = sm
+	corpo.material_override = carta
+	corpo.position = Vector3(0, 0.62, 0)
+	corpo.scale = Vector3(1.0, 1.12, 1.0)
+	node.add_child(corpo)
+	# le costine di carta: tre anelli sottili che danno il ritmo del bambù
+	for h in [-0.055, 0.0, 0.055]:
+		var costina := MeshInstance3D.new()
+		var tm := TorusMesh.new()
+		var r_h := sqrt(maxf(0.0001, 0.115 * 0.115 - float(h) * float(h) * 0.8))
+		tm.inner_radius = r_h - 0.004
+		tm.outer_radius = r_h + 0.004
+		costina.mesh = tm
+		costina.material_override = _pm(Color("e8cf9e"), Color("d6ba84"))
+		costina.position = Vector3(0, 0.62 + float(h) * 1.12, 0)
+		costina.scale = Vector3(1, 0.5, 1)
+		node.add_child(costina)
+	# cappellino e anellino per appenderla
+	_cilindro(node, 0.055, 0.035, legno, Vector3(0, 0.765, 0))
+	# la fiammella: il cuore emissivo che respira (lo anima _respira_lanterne)
+	var core := MeshInstance3D.new()
+	var cm := SphereMesh.new()
+	cm.radius = 0.05
+	cm.height = 0.1
+	core.mesh = cm
+	var core_mat := StandardMaterial3D.new()
+	core_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	core_mat.albedo_color = Color("ffdf9a")
+	core_mat.emission_enabled = true
+	core_mat.emission = Color(1.0, 0.76, 0.4)
+	core_mat.emission_energy_multiplier = 0.0
+	core.material_override = core_mat
+	core.position = Vector3(0, 0.62, 0)
+	node.add_child(core)
+	var luce := OmniLight3D.new()
+	luce.light_color = Color(1.0, 0.78, 0.45)
+	luce.omni_range = 2.8
+	luce.light_energy = 0.0
+	luce.shadow_enabled = false
+	luce.position = Vector3(0, 0.62, 0)
+	node.add_child(luce)
+	return {"node": node, "luce": luce, "core": core_mat,
+			"fase": randf() * TAU, "nascita": 0.0, "taglia": taglia}
+
+
+func _cilindro(parent: Node3D, r: float, h: float, mat: Material, pos: Vector3) -> void:
+	var mi := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = r
+	cm.bottom_radius = r
+	cm.height = h
+	mi.mesh = cm
+	mi.material_override = mat
+	mi.position = pos
+	parent.add_child(mi)
+
+
+# la fiammella respira: due seni sfasati per lanterna — mai due uguali,
+# mai un lampeggio elettrico. L'accensione è una dissolvenza di un secondo
+# e mezzo, nell'ordine della cascata.
+func _respira_lanterne(delta: float) -> void:
+	if _lanterne.is_empty():
+		return
+	_lant_t += delta
+	for l in _lanterne:
+		var node := l["node"] as Node3D
+		if node == null or not is_instance_valid(node):
+			continue
+		var vita: float = _lant_t - float(l["nascita"]) - 0.4
+		if vita < 0.0:
+			continue
+		var accensione := clampf(vita / 1.5, 0.0, 1.0)
+		var f: float = l["fase"]
+		var respiro := 0.86 + 0.14 * sin(_lant_t * 2.1 + f) \
+				+ 0.05 * sin(_lant_t * 5.7 + f * 2.0)
+		(l["luce"] as OmniLight3D).light_energy = 1.05 * accensione * respiro
+		(l["core"] as StandardMaterial3D).emission_energy_multiplier = \
+				2.4 * accensione * respiro
+
+
+# All'alba della partenza le lanterne si spengono e svaniscono, piano:
+# prima muore la fiammella, poi la carta si richiude su sé stessa.
+func _spegni_lanterne() -> void:
+	for l in _lanterne:
+		var node := l["node"] as Node3D
+		if node == null or not is_instance_valid(node):
+			continue
+		var tw := create_tween().set_parallel(true)
+		tw.tween_property(l["luce"], "light_energy", 0.0, 1.6)
+		tw.tween_property(node, "scale", Vector3.ONE * 0.02, 1.8) \
+				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN).set_delay(0.5)
+		tw.chain().tween_callback(node.queue_free)
+	_lanterne.clear()
+
+
 # ------------------------------------------------------------- la partenza
 
 func _partenza() -> void:
+	_spegni_lanterne()   # l'alba: le lucine della sera si congedano anche loro
 	var nome := str(_congedo["nome"])
 	var label := str(_congedo["label"])
 	var cell: Array = _congedo.get("cell", [0, 0])
@@ -790,3 +981,9 @@ func debug_forza_congedo(label: String) -> void:
 func debug_salta_a_partenza() -> void:
 	if not _congedo.is_empty():
 		_partenza()
+
+
+## Accende le lanterne dell'ultima sera SUBITO (per la verifica CLI).
+func debug_lanterne() -> int:
+	_accendi_lanterne()
+	return _lanterne.size()
