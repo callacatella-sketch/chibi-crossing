@@ -293,7 +293,9 @@ func _nudge_sognatore() -> void:
 		return
 	var posto := luogo + Vector3(randf_range(-1.2, 1.2), 0, randf_range(-1.2, 1.2))
 	if node.has_method("do_routine"):
-		node.call("do_routine", "inspect", posto, luogo)
+		# "sniff" e non "inspect": è l'unico verbo di do_routine che
+		# cammina fino al punto e vi resta (inspect non esiste lì)
+		node.call("do_routine", "sniff", posto, luogo)
 
 
 # ------------------------------------------------------------------ lo scatto

@@ -75,7 +75,7 @@ func _process(delta: float) -> void:
 		for c in _cantanti:
 			var nodo = c["nodo"]
 			if is_instance_valid(nodo) and nodo.has_method("do_routine"):
-				nodo.call("do_routine", "inspect", c["posto"], c["verso"])
+				nodo.call("do_routine", "sniff", c["posto"], c["verso"])
 
 
 # ------------------------------------------------------------- l'avvio
@@ -117,7 +117,7 @@ func avvia(carillon: Node3D) -> void:
 				"posto": posto, "verso": carillon.global_position})
 		nomi.append(str(r.get("label", "un vicino")))
 		if node.has_method("do_routine"):
-			node.call("do_routine", "inspect", posto, carillon.global_position)
+			node.call("do_routine", "sniff", posto, carillon.global_position)
 	_toast("Il carillon chiama: %s si stringono attorno alla musica…"
 			% " e ".join(PackedStringArray([", ".join(PackedStringArray(
 			nomi.slice(0, maxi(nomi.size() - 1, 1)))), nomi[-1]] if nomi.size() > 1 else nomi)))

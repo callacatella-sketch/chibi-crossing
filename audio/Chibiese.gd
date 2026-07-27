@@ -35,6 +35,9 @@ const VOCAB := {
 	"no": ["bu"],
 	"fuoco": ["ho", "ka"],
 	"pesce": ["bo", "pu"],
+	# la risatina: tre sillabe soffiate e acute — col mood "felice" sale
+	# di tono ed è A TUTTI GLI EFFETTI una risata (il nascondino ci vive)
+	"risata": ["hi", "hi", "hi"],
 }
 
 # formanti delle vocali [F1, F2]

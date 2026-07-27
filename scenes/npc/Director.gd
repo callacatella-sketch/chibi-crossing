@@ -23,7 +23,7 @@ const ASSI := {
 	"costruttore": ["costruzione", "legna"],
 	"botanico": ["giardino"],
 	"collezionista": ["retino", "pesca"],
-	"socievole": ["socievole", "onsen", "cucina", "concertino"],
+	"socievole": ["socievole", "onsen", "cucina", "concertino", "nascondino"],
 	"contemplativo": ["foto", "stelle", "dormita", "bosco"],
 }
 
