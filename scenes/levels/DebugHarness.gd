@@ -311,6 +311,12 @@ func _debug_filo(dir: String) -> void:
 	ccam2.look_at(focus)
 	await get_tree().create_timer(1.2).timeout
 	await _shot(dir, "filo_5_catchlight_giorno")
+	# le palpebre pesanti: a occhi socchiusi (beato) le luci si schiacciano
+	# con la superficie — il bug delle "palline piene sull'occhio chiuso"
+	(mochi.get("_face") as RefCounted).set_expression("beato", 1.0, 99.0)
+	await get_tree().create_timer(1.0).timeout
+	await _shot(dir, "filo_5b_socchiusi")
+	(mochi.get("_face") as RefCounted).set_expression("neutro", 1.0, 99.0)
 
 	# 2) la timidezza delle farfalle: Mochi si pianta accanto a una e lei
 	# scivola via (il dodge cresce da zero). Il prato primaverile si

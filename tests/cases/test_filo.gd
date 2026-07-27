@@ -21,6 +21,7 @@ func run(t) -> void:
 	_test_lettere_dai_momenti(t)
 	_test_densita_e_varieta(t)
 	_test_tocchi_di_luce(t)
+	_test_luci_e_palpebre(t)
 
 
 func _m(tipo: String, giorno := 1) -> Dictionary:
@@ -58,6 +59,50 @@ func _test_tocchi_di_luce(t) -> void:
 			"le farfalle sanno scansarsi al passaggio")
 	t.ok(_corpo("res://scenes/interact/Collection.gd", "_update_fireflies")
 			.contains("dodge"), "le lucciole pure")
+
+
+## Le luci degli occhi seguono la PALPEBRA (il bug segnalato: Mochi
+## socchiudeva gli occhi e le palline bianche restavano lì, piene): a
+## occhio socchiuso si schiacciano con la superficie, riaperto tornano.
+## Prova COMPORTAMENTALE su un rig minimo, senza SceneTree.
+func _test_luci_e_palpebre(t) -> void:
+	var FC = load("res://scenes/characters/FaceController.gd")
+	var head := Node3D.new()
+	var eyes: Array[Node3D] = []
+	var balls: Array[MeshInstance3D] = []
+	var irises: Array[Node3D] = []
+	for side in 2:
+		var eye := Node3D.new()
+		head.add_child(eye)
+		var ball := MeshInstance3D.new()
+		eye.add_child(ball)
+		var iris := Node3D.new()
+		eye.add_child(iris)
+		eyes.append(eye)
+		balls.append(ball)
+		irises.append(iris)
+	var face = FC.new()
+	face.setup({"head": head, "eyes": eyes, "eyeballs": balls, "irises": irises})
+	face.freeze_blink(99.0)   # niente ammicchi casuali durante la misura
+	var base_y: float = irises[0].scale.y
+	# occhio SOCCHIUSO (beato, apertura 0.42): le luci si schiacciano
+	face.set_expression("beato", 1.0, 999.0)
+	for i in 60:
+		face.update(0.05)
+	t.ok(irises[0].scale.y < base_y * 0.6,
+			"socchiuso: le luci si schiacciano con la palpebra (y=%.2f)"
+			% irises[0].scale.y)
+	t.ok(irises[0].scale.x < base_y * 0.99,
+			"e si stringono un filo anche in larghezza")
+	t.ok(irises[0].visible, "ma a occhio socchiuso si vedono ancora")
+	# occhio RIAPERTO: tornano piene
+	face.set_expression("neutro", 1.0, 999.0)
+	for i in 60:
+		face.update(0.05)
+	t.ok(irises[0].scale.y > base_y * 0.9,
+			"riaperto: le luci tornano piene (y=%.2f)" % irises[0].scale.y)
+	t.ok(irises[0].visible, "e ben visibili")
+	head.free()
 
 
 ## L'intero sorgente di uno script.

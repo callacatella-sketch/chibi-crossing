@@ -572,12 +572,25 @@ func _apply_eyes(delta: float) -> void:
 			ball.scale.x = _eye_base_scale.x * (1.0 + wide * 0.2)
 			ball.scale.z = _eye_base_scale.z
 
-		# iride/luci: dilatazione + inseguimento dello sguardo dentro l'occhio
+		# iride/luci: dilatazione + inseguimento dello sguardo dentro
+		# l'occhio. E la PALPEBRA: le luci vivono SULLA superficie — quando
+		# l'occhio si socchiude si schiacciano con lei (la Y segue
+		# l'apertura, come l'ellissoide scuro) e si stringono un filo;
+		# sotto la soglia del quasi-chiuso si spengono del tutto, perché un
+		# riflesso su un occhio chiuso non esiste. Vale per beato, soffio,
+		# assonnato — e per i fotogrammi centrali di ogni ammicco.
 		if i < _irises.size() and _irises[i] != null:
 			var iris := _irises[i]
-			iris.scale = _iris_base_scales[i] * _c_pupil
+			var luce_viva := smoothstep(0.12, 0.55, aperture)
+			iris.visible = iris.visible and aperture > 0.12
+			iris.scale = Vector3(
+					_iris_base_scales[i].x * _c_pupil * (0.6 + 0.4 * luce_viva),
+					_iris_base_scales[i].y * _c_pupil * minf(aperture, 1.15),
+					_iris_base_scales[i].z * _c_pupil)
 			iris.position.x = _gaze_cur.x * 0.02
-			iris.position.y = _gaze_cur.y * 0.016
+			# lo sguardo verticale si comprime con la palpebra: le luci non
+			# sbucano mai fuori dalla fessura
+			iris.position.y = _gaze_cur.y * 0.016 * minf(aperture, 1.0)
 
 	# vita degli occhi "chiusi" (^^ o >.<): l'occhio-palla è nascosto, quindi
 	# l'ammicco non si vedrebbe — così faccio BATTERE e respirare l'arco, che
