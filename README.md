@@ -407,6 +407,16 @@ C++ via GDExtension. Tutta l'arte è procedurale: zero asset esterni.
   dalla pioggia". Quando smette, se è giorno, un **arcobaleno a 7 bande
   pastello** (mesh procedurale con vertex color, punte che sfumano) si
   distende sul villaggio e svanisce piano.
+- **Italiano e inglese** (`systems/L10n.gd`) — il gioco parla due lingue,
+  e si sceglie in cima alle Impostazioni (o segue quella del sistema).
+  L'italiano è la **lingua sorgente**: nel codice le frasi restano quelle
+  vere (`L10n.t("Buongiorno!")`), così una traduzione mancante mostra
+  l'italiano e mai una sigla. Si traduce **solo ciò che si mostra**: i nomi
+  dei pezzi, gli id delle specie e i gradini della scala restano italiani
+  nel salvataggio — un villaggio salvato in inglese si riapre in italiano.
+  Le tabelle stanno in `locale/en/` (quattro parti: schermate, lettere,
+  mondo, vicini) e un test verifica segnaposto, a capo, grafie britanniche
+  e glossario. Guida e glossario: [`docs/TRADUZIONE.md`](docs/TRADUZIONE.md).
 - **Atmosfera** — cielo procedurale, ACES, SSAO, glow, profondità di
   campo, vignettatura, MSAA 4×, shader "handpaint" con lavaggio
   pittorico per tutti i materiali del mondo.

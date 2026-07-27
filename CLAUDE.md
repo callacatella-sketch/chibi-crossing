@@ -242,6 +242,47 @@ guardia.
   [`tests/cases/test_cablaggio.gd`](tests/cases/test_cablaggio.gd) tiene chiusa
   la porta.
 
+## REGOLA: la lingua (italiano sorgente, inglese sopra)
+
+Il gioco è **bilingue** dal 2026-07-28: italiano (lingua sorgente) e inglese.
+Il motore è [`systems/L10n.gd`](systems/L10n.gd); il glossario vincolante e le
+regole di stile stanno in [`docs/TRADUZIONE.md`](docs/TRADUZIONE.md).
+
+- **La chiave È la frase italiana.** Nel codice le stringhe restano quelle
+  vere e leggibili: `L10n.t("Buongiorno!")`. Niente chiavi opache tipo
+  `MAIL_LETTER_3` sparse nei sorgenti. Una traduzione mancante mostra
+  l'italiano, mai una sigla.
+- **Si traduce SOLO al momento di mostrare, mai il dato.** I nomi dei pezzi
+  (`"Cassetta posta"`), gli id delle specie, i gradini di `Animo.SCALA`, i
+  tipi di momento dei Legami viaggiano nei **salvataggi** e nei predicati:
+  restano italiani per sempre. Un villaggio salvato in inglese si riapre in
+  italiano, e viceversa.
+> ### ⚠️ REGOLA OBBLIGATORIA — testo nuovo = traduzione nuova, SUBITO
+>
+> Ogni volta che aggiungi al gioco **testo che il giocatore vede** — dialoghi,
+> lettere, nomi, prompt, toast, etichette di UI — nella **stessa sessione**:
+> 1. avvolgi la frase dove si mostra: `L10n.t("...")` (con segnaposto:
+>    `L10n.tf("Giorno %d", [n])` — **mai formattare prima di tradurre**, la
+>    frase già riempita non sta in tabella);
+> 2. aggiungi la voce inglese nella parte giusta di `locale/en/`
+>    (`ui` · `lettere` · `mondo` · `npc`), con la chiave copiata
+>    **byte-per-byte** dall'italiano del sorgente;
+> 3. segui [`docs/TRADUZIONE.md`](docs/TRADUZIONE.md): glossario vincolante,
+>    inglese britannico, qualità letteraria (non traduzione tecnica).
+>
+> **Non rimandare a "una passata di localizzazione dopo".** Una frase tradotta
+> mesi dopo, fuori dal suo contesto, esce peggiore; e nel frattempo il gioco è
+> metà in una lingua e metà nell'altra. Il test
+> [`tests/cases/test_localizzazione.gd`](tests/cases/test_localizzazione.gd)
+> diventa **rosso** se una frase avvolta in `L10n.t()` non ha la sua voce in
+> tabella: la suite verde è la prova che hai finito.
+
+Il test controlla anche: segnaposto identici (`%s`/`%d` — uno in meno e il
+gioco crasha al primo format), a capo conservati (sono l'impaginazione delle
+lettere del Gufo), grafie britanniche e parole vietate dal glossario. La
+soglia di copertura sale con la traduzione: **non abbassarla** per far passare
+la suite — aggiungi le voci che mancano.
+
 ## Trappola: i commenti nei file ConfigFile (`;` non `#`)
 
 `*.gdextension`, `export_presets.cfg`, `project.godot` sono in formato

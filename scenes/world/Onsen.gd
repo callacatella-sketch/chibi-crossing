@@ -628,10 +628,10 @@ func _update_prompt() -> void:
 	var text := ""
 	var wp := global_position + Vector3(0, 1.3, 0)
 	if _soaking:
-		text = "E — esci dall'acqua (che pace…)"
+		text = L10n.t("E — esci dall'acqua (che pace…)")
 		wp = global_position + Vector3(0.35, 1.5, 0.15)
 	elif _can_enter():
-		text = "E — immergiti nell'onsen ♨"
+		text = L10n.t("E — immergiti nell'onsen ♨")
 	else:
 		_prompt.visible = false
 		return

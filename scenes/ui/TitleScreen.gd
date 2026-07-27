@@ -271,7 +271,7 @@ func _build_menu() -> Control:
 	box.add_child(title)
 
 	var sub := Label.new()
-	sub.text = "Un villaggio ti aspetta sotto il Grande Albero."
+	sub.text = L10n.t("Un villaggio ti aspetta sotto il Grande Albero.")
 	sub.add_theme_font_size_override("font_size", 18)
 	sub.add_theme_color_override("font_color", Color("fff3e0"))
 	sub.add_theme_color_override("font_shadow_color", Color(0.35, 0.2, 0.15, 0.5))
@@ -283,12 +283,12 @@ func _build_menu() -> Control:
 	box.add_child(gap)
 
 	if FileAccess.file_exists(SAVE_PATH):
-		box.add_child(_title_button("Continua", CozyUI.MINT, _continue))
-		box.add_child(_title_button("Nuovo villaggio", CozyUI.PINK, _ask_new))
+		box.add_child(_title_button(L10n.t("Continua"), CozyUI.MINT, _continue))
+		box.add_child(_title_button(L10n.t("Nuovo villaggio"), CozyUI.PINK, _ask_new))
 	else:
-		box.add_child(_title_button("Nuovo villaggio", CozyUI.MINT, _start_new))
-	box.add_child(_title_button("Impostazioni", CozyUI.SKY, _open_settings))
-	box.add_child(_title_button("Esci", CozyUI.HONEY, func(): get_tree().quit()))
+		box.add_child(_title_button(L10n.t("Nuovo villaggio"), CozyUI.MINT, _start_new))
+	box.add_child(_title_button(L10n.t("Impostazioni"), CozyUI.SKY, _open_settings))
+	box.add_child(_title_button(L10n.t("Esci"), CozyUI.HONEY, func(): get_tree().quit()))
 	return root
 
 
@@ -347,18 +347,18 @@ func _build_confirm() -> Control:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 14)
 	panel.add_child(col)
-	col.add_child(CozyUI.title_label("Ricominciare da capo?", 26))
-	col.add_child(CozyUI.hint_label(
-		"Il villaggio attuale sarà sostituito da uno nuovo.\nQuesta scelta non si può annullare.", 15))
+	col.add_child(CozyUI.title_label(L10n.t("Ricominciare da capo?"), 26))
+	col.add_child(CozyUI.hint_label(L10n.t(
+		"Il villaggio attuale sarà sostituito da uno nuovo.\nQuesta scelta non si può annullare."), 15))
 	var rowc := HBoxContainer.new()
 	rowc.add_theme_constant_override("separation", 12)
 	rowc.alignment = BoxContainer.ALIGNMENT_CENTER
 	col.add_child(rowc)
-	var no := CozyUI.cozy_button("Annulla", CozyUI.MINT, 18)
+	var no := CozyUI.cozy_button(L10n.t("Annulla"), CozyUI.MINT, 18)
 	no.custom_minimum_size = Vector2(180, 52)
 	no.pressed.connect(_close_confirm)
 	rowc.add_child(no)
-	var yes := CozyUI.cozy_button("Nuovo villaggio", CozyUI.DANGER, 18)
+	var yes := CozyUI.cozy_button(L10n.t("Nuovo villaggio"), CozyUI.DANGER, 18)
 	yes.custom_minimum_size = Vector2(200, 52)
 	yes.pressed.connect(_start_new)
 	rowc.add_child(yes)

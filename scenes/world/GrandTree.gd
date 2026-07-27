@@ -439,7 +439,7 @@ func _refresh_panel() -> void:
 		c.queue_free()
 	if _events.is_empty():
 		var row := Label.new()
-		row.text = "Il legno è ancora giovane e liscio.\nGli anelli aspettano la vostra storia."
+		row.text = L10n.t("Il legno è ancora giovane e liscio.\nGli anelli aspettano la vostra storia.")
 		row.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		row.add_theme_font_size_override("font_size", 13)
 		row.add_theme_color_override("font_color", Color(UI_BROWN, 0.7))
@@ -449,7 +449,10 @@ func _refresh_panel() -> void:
 	latest.reverse()
 	for ev: Dictionary in latest:
 		var row := Label.new()
-		row.text = "Giorno %d   %s  %s" % [int(ev["d"]), str(ev["i"]), str(ev["t"])]
+		# il testo dell'incisione è salvato in italiano (viaggia nel villaggio):
+		# si traduce solo qui, quando la riga si disegna
+		row.text = L10n.tf("Giorno %d   %s  %s",
+				[int(ev["d"]), str(ev["i"]), L10n.t(str(ev["t"]))])
 		row.add_theme_font_size_override("font_size", 13)
 		row.add_theme_color_override("font_color", UI_BROWN)
 		_rows.add_child(row)
@@ -490,7 +493,7 @@ func _build_ui() -> void:
 	_prompt.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(_prompt)
 	_prompt_label = Label.new()
-	_prompt_label.text = "E — gli anelli del Grande Albero"
+	_prompt_label.text = L10n.t("E — gli anelli del Grande Albero")
 	_prompt_label.add_theme_font_size_override("font_size", 13)
 	_prompt_label.add_theme_color_override("font_color", UI_BROWN)
 	_prompt.add_child(_prompt_label)
@@ -520,7 +523,7 @@ func _build_ui() -> void:
 	vbox.add_theme_constant_override("separation", 6)
 	_panel.add_child(vbox)
 	var title := Label.new()
-	title.text = "~ Gli anelli del Grande Albero ~"
+	title.text = L10n.t("~ Gli anelli del Grande Albero ~")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 17)
 	title.add_theme_color_override("font_color", Color("8a5a3a"))
@@ -529,7 +532,7 @@ func _build_ui() -> void:
 	_rows.add_theme_constant_override("separation", 4)
 	vbox.add_child(_rows)
 	var hint := Label.new()
-	hint.text = "E — chiudi"
+	hint.text = L10n.t("E — chiudi")
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.add_theme_font_size_override("font_size", 11)
 	hint.add_theme_color_override("font_color", Color(UI_BROWN, 0.55))

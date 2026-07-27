@@ -468,7 +468,7 @@ func _imbarca() -> void:
 		_sfx.play("step_wet2", -12.0, 0.9)
 	if _primo_imbarco:
 		_primo_imbarco = false
-		_toast("I remi in zampa: su per il fiume! (si rema come si cammina, E per scendere)")
+		_toast(L10n.t("I remi in zampa: su per il fiume! (si rema come si cammina, E per scendere)"))
 
 
 func _sbarca() -> void:
@@ -503,11 +503,11 @@ func _process(_delta: float) -> void:
 	var text := ""
 	var wp := Vector3.ZERO
 	if _naviga:
-		text = "E — scendi a riva"
+		text = L10n.t("E — scendi a riva")
 		wp = _barca.global_position + Vector3(0, 1.3, 0)
 	elif _player.is_physics_processing() \
 			and _player.global_position.distance_to(_barca.global_position) < 2.0:
-		text = "E — sali sulla barchetta"
+		text = L10n.t("E — sali sulla barchetta")
 		wp = _barca.global_position + Vector3(0, 1.1, 0)
 	if text == "" or cam.is_position_behind(wp):
 		_prompt.visible = false

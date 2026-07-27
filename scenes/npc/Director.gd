@@ -287,11 +287,11 @@ func _sorpresa_del_giorno() -> void:
 	_ultima_sorpresa = giorno
 	_sorprese += 1
 	var asse := profilo()
-	var testo: String = LETTERE_GUFO[asse]
+	var testo: String = L10n.t(str(LETTERE_GUFO[asse]))
 	if testo.contains("%d"):
 		testo = testo % _asse_val(asse)
 	_mail.call("queue_letter", {
-		"from": "Il Gufo",
+		"from": L10n.t("Il Gufo"),
 		"text": testo,
 		"gift": _sorprese % 3 == 0,
 	})

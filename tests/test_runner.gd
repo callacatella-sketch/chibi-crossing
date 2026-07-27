@@ -13,6 +13,13 @@ var _i := 0
 
 
 func _initialize() -> void:
+	# LA SUITE PARLA ITALIANO. Le asserzioni citano le frasi del gioco nella
+	# lingua SORGENTE («mi hai mandato a spaccare legna…»), quindi la lingua
+	# va fissata qui: senza, su un runner di CI la locale di sistema è `en`,
+	# il gioco risponderebbe in inglese e mezza suite diventerebbe rossa per
+	# il motivo sbagliato. Chi verifica la traduzione (test_localizzazione)
+	# cambia lingua per conto suo e poi rimette a posto.
+	L10n.imposta("it")
 	var util_script := load("res://tests/test_util.gd")
 	_t = util_script.new()
 	_cases = _list_cases()

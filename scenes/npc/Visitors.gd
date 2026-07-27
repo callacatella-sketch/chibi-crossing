@@ -413,7 +413,7 @@ func _recita(r: Dictionary, node: Node3D, brain: RefCounted, act: String, ph: St
 				node.call("do_task", "nibble", pos, func():
 					brain.satisfy("spuntino")
 					brain.remember("cibo", "uno spuntino ai cespugli"))
-				_vita_toast("%s sgranocchia qualcosa tra i cespugli…" % r["label"])
+				_vita_toast(L10n.tf("%s sgranocchia qualcosa tra i cespugli…", [r["label"]]))
 				return
 		"cura_giardino":
 			if _garden:
@@ -425,12 +425,12 @@ func _recita(r: Dictionary, node: Node3D, brain: RefCounted, act: String, ph: St
 							_garden.villager_water(bed)
 						brain.satisfy("cura_giardino")
 						brain.remember("fiore", "un'aiuola annaffiata"))
-					_vita_toast("♥ %s sta annaffiando le tue aiuole!" % r["label"])
+					_vita_toast(L10n.tf("♥ %s sta annaffiando le tue aiuole!", [r["label"]]))
 					return
 		"riposo":
 			if brain.get("quirk") == "pisolini_ovunque" and randf() < 0.5:
 				node.call("do_task", "nap", Vector3.ZERO, func(): brain.satisfy("pisolino"))
-				_vita_toast("%s si è addormentato lì, così." % r["label"])
+				_vita_toast(L10n.tf("%s si è addormentato lì, così.", [r["label"]]))
 				return
 			var bench := _free_bench(home)
 			if bench:
@@ -472,7 +472,7 @@ func _recita(r: Dictionary, node: Node3D, brain: RefCounted, act: String, ph: St
 			node.call("do_task", "stella", Vector3.ZERO, func():
 				brain.satisfy("stella")
 				brain.remember("dormire", "una notte di stelle"))
-			_vita_toast("%s è rimasto fuori a guardare le stelle…" % r["label"])
+			_vita_toast(L10n.tf("%s è rimasto fuori a guardare le stelle…", [r["label"]]))
 			return
 		"regia":
 			var piano := _regia_plan(r, ph)
@@ -609,7 +609,7 @@ func _tick_partenze(delta: float) -> void:
 						node_p.set_meta("postura", "fagotto_in_spalla")
 						if node_p.has_method("chat_bubble"):
 							node_p.call("chat_bubble", "…")
-					_show_toast("%s sta raccogliendo le sue cose." % label)
+					_show_toast(L10n.tf("%s sta raccogliendo le sue cose.", [label]))
 					break
 			continue
 		_congeda(i, r, animo)
@@ -625,7 +625,7 @@ func _congeda(i: int, r: Dictionary, animo: RefCounted) -> void:
 	if mail and mail.has_method("queue_letter"):
 		mail.call("queue_letter", {
 			"from": label,
-			"text": "%s\n\nHo lasciato le mie cose in ordine.\nNon serbo rancore: serbo memoria." % animo.sfogo(),
+			"text": L10n.tf("%s\n\nHo lasciato le mie cose in ordine.\nNon serbo rancore: serbo memoria.", [animo.sfogo()]),
 			"gift": false,
 		})
 	# il Filo Rosso se lo ricorda: chi se n'è andato non si cancella
@@ -633,7 +633,7 @@ func _congeda(i: int, r: Dictionary, animo: RefCounted) -> void:
 		if legami.has_method("momento"):
 			legami.call("momento", label, "addio", animo.racconta())
 			break
-	_show_toast("%s se n'è andato." % label)
+	_show_toast(L10n.tf("%s se n'è andato.", [label]))
 	if node != null and is_instance_valid(node):
 		var tw := create_tween()
 		tw.tween_property(node, "scale", Vector3.ONE * 0.01, 0.8) \
@@ -795,7 +795,7 @@ func _tick_empatia(delta: float, raining: bool) -> void:
 				if quanti >= 4:
 					break
 			if quanti > 0:
-				_show_toast("Bentornata! Ti hanno aspettata, giorno dopo giorno.")
+				_show_toast(L10n.t("Bentornata! Ti hanno aspettata, giorno dopo giorno."))
 
 	# la pioggia con Mochi fuori: qualcuno la raggiunge sotto l'acqua
 	if raining:
@@ -857,11 +857,11 @@ func conforta_mochi(motivo: String) -> bool:
 			parole = ["amico", "~"]
 			umore = "triste"
 			cuore = false
-			_show_toast("%s viene a sederti accanto. Non dice niente." % label)
+			_show_toast(L10n.tf("%s viene a sederti accanto. Non dice niente.", [label]))
 		"pioggia":
 			parole = ["pioggia", "amico"]
 			umore = "neutro"
-			_show_toast("%s ti ha raggiunta sotto la pioggia, per non lasciarti sola." % label)
+			_show_toast(L10n.tf("%s ti ha raggiunta sotto la pioggia, per non lasciarti sola.", [label]))
 	# e le dice sottovoce, quando è arrivato accanto a lei
 	var conforto := vicino
 	get_tree().create_timer(2.6).timeout.connect(func():
@@ -935,7 +935,7 @@ func _tick_confronti(delta: float) -> void:
 			_sussulto_cd["morso_" + label] = 12.0
 			if not animo.limbico.trattieni():
 				# non ce l'ha fatta: qualcosa esce, di sbieco
-				_show_toast("%s: «…niente. Lascia stare.»" % label)
+				_show_toast(L10n.tf("%s: «…niente. Lascia stare.»", [label]))
 				if node.has_method("chat_bubble"):
 					node.call("chat_bubble", "…")
 				node.set_meta("postura", "spalle_basse")
@@ -1125,7 +1125,7 @@ func _giorno_di_animo() -> void:
 		# solo i passaggi che contano finiscono nei toast: se avvisassimo a
 		# ogni mugugno, il giocatore smetterebbe di leggere
 		if ANIMO.almeno(int(animo.gradino), "rifiuto"):
-			_show_toast("%s: «%s»" % [chi, tel[1]])
+			_show_toast("%s: «%s»" % [chi, L10n.t(str(tel[1]))])
 
 
 # La postura e la battuta del gradino, addosso al residente.
@@ -1158,15 +1158,15 @@ func _quirk_tick(r: Dictionary, node: Node3D, brain: RefCounted, delta: float, t
 			if fungo:
 				node.call("do_task", "chat_fungo",
 						fungo.global_position + Vector3(0.5, 0, 0.4), Callable())
-				_vita_toast("%s sta confidando un segreto a un fungo…" % r["label"])
+				_vita_toast(L10n.tf("%s sta confidando un segreto a un fungo…", [r["label"]]))
 		"paura_farfalle":
 			if _cozy and int(_cozy.call("nearest_butterfly", node.global_position, 1.6)) >= 0:
 				node.call("do_task", "startle", Vector3.ZERO, Callable())
-				_vita_toast("Una farfalla ha spaventato %s!" % r["label"])
+				_vita_toast(L10n.tf("Una farfalla ha spaventato %s!", [r["label"]]))
 		"canta_alla_luna":
 			if t_ora >= 0.78 and t_ora < 0.95:
 				node.call("do_task", "sing", Vector3.ZERO, Callable())
-				_vita_toast("♪ %s sta cantando alla luna." % r["label"])
+				_vita_toast(L10n.tf("♪ %s sta cantando alla luna.", [r["label"]]))
 		"colleziona_sassolini":
 			node.call("do_task", "sasso", Vector3.ZERO, Callable())
 		"ballerino":
@@ -1328,7 +1328,8 @@ func _wishes(delta: float) -> void:
 		var wish: Dictionary = r.get("wish", {})
 		if wish.is_empty():
 			r["wish"] = _gen_wish(r.get("dna", {}))
-			_show_toast("%s sogna %s vicino a casa…" % [r["label"], WISH_ART[r["wish"]["item"]]])
+			_show_toast(L10n.tf("%s sogna %s vicino a casa…",
+					[r["label"], L10n.t(str(WISH_ART[r["wish"]["item"]]))]))
 			_build.request_save()
 			continue
 		if bool(wish.get("done", false)):
@@ -1343,11 +1344,13 @@ func _wishes(delta: float) -> void:
 				_bump_friend(r, 2)
 				get_tree().call_group("legami", "momento",
 						str(r.get("dna", {}).get("name", "")), "desiderio", "")
-				_show_toast("%s è al settimo cielo: %s vicino a casa!" % [r["label"], WISH_ART[wish["item"]]])
+				_show_toast(L10n.tf("%s è al settimo cielo: %s vicino a casa!",
+						[r["label"], L10n.t(str(WISH_ART[wish["item"]]))]))
 				if _mail:
 					_mail.call("queue_letter", {
-						"from": str(r.get("dna", {}).get("name", "Un amico")),
-						"text": "Grazie per %s vicino a casa mia!\nOgni mattina gli do il buongiorno." % WISH_ART[wish["item"]],
+						"from": str(r.get("dna", {}).get("name", L10n.t("Un amico"))),
+						"text": L10n.tf("Grazie per %s vicino a casa mia!\nOgni mattina gli do il buongiorno.",
+								[L10n.t(str(WISH_ART[wish["item"]]))]),
 						"gift": true,
 					})
 				if _sfx:
@@ -1379,9 +1382,15 @@ func _bump_friend(r: Dictionary, amount: int) -> void:
 				not brain.has_indole("timido") or int(r["friend"]) >= 3)
 	# al terzo cuoricino, la lettera d'amicizia
 	if before < 3 and before + amount >= 3 and _mail:
+		# due frasi intere invece di una desinenza incollata: il maschile e il
+		# femminile sono DUE frasi da tradurre, non una stringa più una lettera
+		# (in inglese quella lettera non ha dove andare)
+		var grazie := "Mi trovo così bene nel villaggio.\nGrazie di essermi amica." \
+				if randf() < 0.5 \
+				else "Mi trovo così bene nel villaggio.\nGrazie di essermi amico."
 		_mail.call("queue_letter", {
-			"from": str(r.get("dna", {}).get("name", "Un amico")),
-			"text": "Mi trovo così bene nel villaggio.\nGrazie di essermi amic%s." % ("a" if randf() < 0.5 else "o"),
+			"from": str(r.get("dna", {}).get("name", L10n.t("Un amico"))),
+			"text": L10n.t(grazie),
 			"gift": true,
 		})
 	# l'amicizia PIENA lascia un ricordo indossabile: la soglia e il capo
@@ -1460,7 +1469,7 @@ func _give_dish(r: Dictionary) -> void:
 			_bump_friend(r, 2)
 			get_tree().call_group("legami", "momento",
 					str(r.get("dna", {}).get("name", "")), "piatto", kind)
-			_show_toast("%s ADORA %s %s!" % [r["label"], art, kind])
+			_show_toast(L10n.tf("%s ADORA %s %s!", [r["label"], art, kind]))
 			if mochi:
 				var jt := create_tween()
 				jt.tween_property(mochi, "joy", 1.0, 0.42).set_trans(Tween.TRANS_SINE)
@@ -1469,7 +1478,7 @@ func _give_dish(r: Dictionary) -> void:
 			node.call("_spawn_heart")
 			node.call("speak", ["grazie"], "neutro")
 			_bump_friend(r, 1)
-			_show_toast("%s ringrazia sorridendo per %s %s." % [r["label"], art, kind])
+			_show_toast(L10n.tf("%s ringrazia sorridendo per %s %s.", [r["label"], art, kind]))
 		if _sfx:
 			_sfx.place_ok()
 		if mochi:
@@ -1543,7 +1552,7 @@ func offer_item(r: Dictionary, item: Dictionary) -> void:
 			node.call("celebrate")
 			node.call("speak", ["grazie", "felice"], "felice")
 			_bump_friend(r, 2)
-			_show_toast("%s ADORA %s!" % [r["label"], what])
+			_show_toast(L10n.tf("%s ADORA %s!", [r["label"], what]))
 			if mochi:
 				var jt := create_tween()
 				jt.tween_property(mochi, "joy", 1.0, 0.42).set_trans(Tween.TRANS_SINE)
@@ -1552,7 +1561,7 @@ func offer_item(r: Dictionary, item: Dictionary) -> void:
 			node.call("_spawn_heart")
 			node.call("speak", ["grazie"], "neutro")
 			_bump_friend(r, 1)
-			_show_toast("%s ringrazia sorridendo per %s." % [r["label"], what])
+			_show_toast(L10n.tf("%s ringrazia sorridendo per %s.", [r["label"], what]))
 		if _sfx:
 			_sfx.place_ok()
 		if mochi:
@@ -1743,7 +1752,8 @@ func _spawn_candidate(dna: Dictionary, house: Dictionary) -> void:
 	v.finished.connect(func(): if _active == v: _active = null)
 	_active = v
 	var trait_line: String = (dna["traits"] as Array)[0]
-	_show_toast("C'è %s alla porta, valigia in zampa! (%s)" % [_cand_label, trait_line])
+	_show_toast(L10n.tf("C'è %s alla porta, valigia in zampa! (%s)",
+			[_cand_label, L10n.t(trait_line)]))
 
 
 ## Il benvenuto del giocatore: scalda la mente e la fa parlare.
@@ -1761,7 +1771,7 @@ func welcome_candidate() -> void:
 	var line: String = _mind.call("best_liked", f)
 	var miss: String = _mind.call("most_missed", f)
 	if _welcomes == 1 and miss != "":
-		_show_toast("«%s… però %s»" % [line, miss])
+		_show_toast(L10n.tf("«%s… però %s»", [line, miss]))
 	else:
 		_show_toast("«%s»" % line)
 	# risponde al benvenuto nella sua lingua: ciao, casa!
@@ -1778,7 +1788,8 @@ func _decide() -> void:
 	var house: Dictionary = _active.get("_house")
 	# il letto può essere stato demolito durante la visita
 	if not is_instance_valid(house.get("bed")):
-		_show_toast("«Oh… la casetta non c'è più.» E %s riparte col trolley." % _cand_label)
+		_show_toast(L10n.tf("«Oh… la casetta non c'è più.» E %s riparte col trolley.",
+				[_cand_label]))
 		_active.call("candidate_result", false, Vector3.ZERO)
 		_mind = null
 		return
@@ -1797,13 +1808,13 @@ func _decide() -> void:
 		# da qui in poi è un residente: libera lo slot delle visite
 		_active = null
 		_spawn_suitcase_prop(cell)
-		_show_toast("%s ha deciso: si trasferisce nel villaggio!" % _cand_label)
+		_show_toast(L10n.tf("%s ha deciso: si trasferisce nel villaggio!", [_cand_label]))
 		# gli Ordini del Gufo aspettano il primo abitante
 		get_tree().call_group("gufo", "note_arrival")
 		# un arrivo si incide sugli anelli del Grande Albero
 		var gtree := get_tree().get_first_node_in_group("grande_albero")
 		if gtree:
-			gtree.engrave("♥", "%s si è trasferito nel villaggio" % _cand_label)
+			gtree.engrave("♥", L10n.tf("%s si è trasferito nel villaggio", [_cand_label]))
 		# e il nuovo abitante andrà a scrivere il compleanno sulla lavagna
 		var cal := get_tree().get_first_node_in_group("calendario")
 		if cal:
@@ -1816,7 +1827,8 @@ func _decide() -> void:
 	else:
 		_cand_visits[dna["name"]] = int(_cand_visits.get(dna["name"], 0)) + 1
 		var miss: String = _mind.call("most_missed", f)
-		_show_toast("«Ci devo pensare… %s» E %s riparte col trolley." % [miss, _cand_label])
+		_show_toast(L10n.tf("«Ci devo pensare… %s» E %s riparte col trolley.",
+				[miss, _cand_label]))
 		_active.call("candidate_result", false, Vector3.ZERO)
 	_mind = null
 	_build.request_save()
@@ -1847,7 +1859,7 @@ func _update_welcome_prompt() -> void:
 	var wp: Vector3 = _active.global_position + Vector3(0, 0.85, 0)
 	if cam.is_position_behind(wp):
 		return
-	_prompt_label.text = "E — dai il benvenuto"
+	_prompt_label.text = L10n.t("E — dai il benvenuto")
 	_prompt.reset_size()
 	var p := cam.unproject_position(wp)
 	_prompt.position = p - Vector2(_prompt.size.x * 0.5, _prompt.size.y)
@@ -1871,7 +1883,7 @@ func _update_prompts() -> void:
 		var gr := nearest_giftable_resident(_player.global_position, 1.8)
 		if not gr.is_empty():
 			var gnode := gr.get("node") as Node3D
-			_show_prompt_at("E / Tab — regala a %s" % str(gr.get("label", "")),
+			_show_prompt_at(L10n.tf("E / Tab — regala a %s", [str(gr.get("label", ""))]),
 					gnode.global_position + Vector3(0, 1.0, 0), cam)
 			return
 	for r in _residents:
@@ -1886,7 +1898,8 @@ func _update_prompts() -> void:
 			var wish_concepts := {"Aiuola": "fiore", "Fungo": "cibo",
 					"Cespuglio": "fiore", "Lampada": "casa", "Panchina": "casa"}
 			node.call("speak", [wish_concepts.get(str(wish["item"]), "casa"), "~"], "domanda")
-			_show_prompt_at("«sogno %s vicino a casa…»" % WISH_ART[wish["item"]],
+			_show_prompt_at(L10n.tf("«sogno %s vicino a casa…»",
+					[L10n.t(str(WISH_ART[wish["item"]]))]),
 					node.global_position + Vector3(0, 1.0, 0), cam)
 			return
 	_prompt.visible = false
@@ -1917,7 +1930,7 @@ func _update_gift_prompt() -> void:
 	if cam.is_position_behind(wp):
 		_prompt.visible = false
 		return
-	_prompt_label.text = "E — raccogli il regalino"
+	_prompt_label.text = L10n.t("E — raccogli il regalino")
 	_prompt.reset_size()
 	var p := cam.unproject_position(wp)
 	_prompt.position = p - Vector2(_prompt.size.x * 0.5, _prompt.size.y)
@@ -2006,8 +2019,9 @@ func _collect_gift() -> void:
 			_build.request_save()
 	if what == "":
 		var gifts: Array = GIFTS[_gift_species]
-		what = gifts[randi() % gifts.size()]
-	_show_toast("%s ti ha lasciato %s!" % [SPECIES_LABEL[_gift_species], what])
+		what = L10n.t(str(gifts[randi() % gifts.size()]))
+	_show_toast(L10n.tf("%s ti ha lasciato %s!",
+			[L10n.t(str(SPECIES_LABEL[_gift_species])), what]))
 	# dai regali del passerotto nasce la sciarpina di lana
 	if _gift_species == "passerotto":
 		var wr := get_tree().get_first_node_in_group("guardaroba")

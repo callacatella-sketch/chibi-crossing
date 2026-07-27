@@ -111,7 +111,7 @@ func _build_fade() -> void:
 	layer.add_child(_fade)
 
 	_wake_label = Label.new()
-	_wake_label.text = "Buongiorno!"
+	_wake_label.text = L10n.t("Buongiorno!")
 	_wake_label.add_theme_font_size_override("font_size", 30)
 	_wake_label.add_theme_color_override("font_color", Color(1.0, 0.94, 0.8))
 	_wake_label.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -128,7 +128,7 @@ func _process(_delta: float) -> void:
 		return
 
 	if _seated:
-		_show_prompt("E — alzati", _player.global_position + Vector3(0, 1.4, 0), cam)
+		_show_prompt(L10n.t("E — alzati"), _player.global_position + Vector3(0, 1.4, 0), cam)
 		return
 
 	# il pezzo interagibile più vicino, entro un passetto
@@ -143,14 +143,14 @@ func _process(_delta: float) -> void:
 			_target_name = it["name"]
 
 	if _target:
-		var text := "E — siediti"
+		var text := L10n.t("E — siediti")
 		if _target_name == "Letto":
-			text = "E — dormi fino al mattino" if _is_night() else "E — dormi"
+			text = L10n.t("E — dormi fino al mattino") if _is_night() else L10n.t("E — dormi")
 			var home := get_node_or_null("../Home")
 			if home:
 				var cell := Vector2i(roundi(_target.position.x), roundi(_target.position.z))
 				if not home.call("is_home", cell):
-					text += "  ·  H — imposta casa"
+					text += "  ·  " + L10n.t("H — imposta casa")
 		_show_prompt(text, _target.global_position + Vector3(0, 1.25, 0), cam)
 		_carillon = null
 	else:
@@ -170,7 +170,7 @@ func _process(_delta: float) -> void:
 				best_c = d
 				_carillon = node
 		if _carillon:
-			_show_prompt("E — carica il carillon (cambia musica)",
+			_show_prompt(L10n.t("E — carica il carillon (cambia musica)"),
 					_carillon.global_position + Vector3(0, 1.0, 0), cam)
 		else:
 			_prompt.visible = false
@@ -221,8 +221,8 @@ func _gira_carillon() -> void:
 		_sfx.set_music_theme(_tema_scelto)
 	var visitors := get_node_or_null("../Visitors")
 	if visitors:
-		visitors.call("_show_toast",
-				"Il carillon gira piano: %s…" % str(CARILLON_LABEL.get(_tema_scelto, _tema_scelto)))
+		visitors.call("_show_toast", L10n.tf("Il carillon gira piano: %s…",
+				[L10n.t(str(CARILLON_LABEL.get(_tema_scelto, _tema_scelto)))]))
 	var bs := get_tree().get_first_node_in_group("build_system")
 	if bs and bs.has_method("request_save"):
 		bs.request_save()
@@ -302,7 +302,7 @@ func _sleep_until_morning() -> void:
 	var sc: Node = _player.get_node_or_null("SurvivalComponent")
 	if sc:
 		sc.set_stamina(sc.get_max_stamina())
-	_wake_label.text = "Buongiorno!\nGiorno %d" % _daynight.day
+	_wake_label.text = L10n.tf("Buongiorno!\nGiorno %d", [_daynight.day])
 	if _sfx:
 		_sfx.wake_up()
 

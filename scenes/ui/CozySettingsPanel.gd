@@ -22,7 +22,12 @@ func _build() -> void:
 	col.add_theme_constant_override("separation", 14)
 	add_child(col)
 
-	col.add_child(CozyUI.title_label("Impostazioni", 30))
+	col.add_child(CozyUI.title_label(L10n.t("Impostazioni"), 30))
+	col.add_child(_sep())
+
+	# la lingua per prima: chi apre le impostazioni perché il gioco parla
+	# una lingua che non capisce deve trovarla subito, in cima
+	col.add_child(_language_row())
 	col.add_child(_sep())
 
 	col.add_child(_slider_row("Volume generale", "master_volume", 0.0, 1.0, 0.05,
@@ -98,6 +103,43 @@ func _toggle_row(label: String, key: String, setter: Callable) -> Control:
 		if _settings: setter.call(on))
 	row.add_child(cb)
 	return row
+
+
+## La riga della lingua. I nomi delle lingue NON si traducono mai
+## ("Italiano" si scrive così anche in inglese): chi cerca la propria
+## lingua la deve riconoscere anche senza capire il resto della schermata.
+## Scelta la lingua, il pannello si RICOSTRUISCE all'istante: il giocatore
+## vede subito l'effetto, senza dover riaprire nulla.
+func _language_row() -> Control:
+	var row := HBoxContainer.new()
+	var l := CozyUI.body_label(L10n.t("Lingua"), 17)
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(l)
+	var g := ButtonGroup.new()
+	var cur := str(_settings.language_code()) if _settings else L10n.SORGENTE
+	for codice in L10n.LINGUE:
+		var b := CozyUI.tab_button(str(L10n.LINGUE[codice]), g, CozyUI.MINT)
+		b.custom_minimum_size = Vector2(110, 40)
+		if codice == cur:
+			b.set_pressed_no_signal(true)
+		b.pressed.connect(func() -> void:
+			if _settings == null:
+				return
+			_settings.set_language(codice)
+			_ricostruisci())
+		row.add_child(b)
+	return row
+
+
+# rifà il pannello nella lingua nuova (una sola volta, a fine frame: si sta
+# ricostruendo l'albero da dentro il segnale di un bottone che gli appartiene)
+func _ricostruisci() -> void:
+	(func() -> void:
+		for c in get_children():
+			remove_child(c)
+			c.queue_free()
+		_build()).call_deferred()
 
 
 func _quality_row() -> Control:

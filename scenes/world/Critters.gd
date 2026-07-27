@@ -198,19 +198,26 @@ static func voce(id: String) -> Dictionary:
 ## "Farfalla dorata" — il nome col maiuscolo, per titoli e bancone.
 ## (`capitalize()` di Godot spezzerebbe e ri-maiuscolerebbe ogni parola:
 ## qui serve solo la prima lettera, "farfalla dorata" -> "Farfalla dorata".)
+## Si traduce PRIMA e si fa la maiuscola DOPO: la tabella conosce il nome
+## nudo e minuscolo ("farfalla dorata" -> "golden butterfly"), la maiuscola
+## è una scelta di presentazione che vale in ogni lingua.
 static func etichetta(id: String) -> String:
 	var n := nome(id)
 	if n == "":
 		return id
-	return n.substr(0, 1).to_upper() + n.substr(1)
+	var tradotto := L10n.t(n)
+	return tradotto.substr(0, 1).to_upper() + tradotto.substr(1)
 
 
 ## "una farfalla dorata" — con l'articolo, per stare dentro una frase.
+## Si traduce la frase GIÀ COMPOSTA perché l'articolo inglese dipende dal
+## nome che lo segue (a golden butterfly / an amber dragonfly): comporre in
+## inglese due pezzi tradotti a parte darebbe "a amber dragonfly".
 static func con_articolo(id: String) -> String:
 	var v := voce(id)
 	if v.is_empty():
 		return id
-	return "%s %s" % [str(v["articolo"]), str(v["nome"])]
+	return L10n.t("%s %s" % [str(v["articolo"]), str(v["nome"])])
 
 
 static func nome(id: String) -> String:
@@ -392,8 +399,8 @@ static func indizio(id: String) -> String:
 	var v := voce(id)
 	var frase := str(v.get("indizio", ""))
 	if frase != "":
-		return frase
-	return "Qualcuno l'ha vista, da qualche parte..."
+		return L10n.t(frase)
+	return L10n.t("Qualcuno l'ha vista, da qualche parte...")
 
 
 ## Un'estrazione pesata da un elenco di id (con i pesi della tabella).

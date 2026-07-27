@@ -172,18 +172,20 @@ func _produzione_del_giorno() -> void:
 func _racconta_produzione(legna: int, annaffiate: int, piatti: Array[String], tesori: int) -> void:
 	var parti: Array[String] = []
 	if legna > 0:
-		parti.append("+%d legna in catasta" % legna)
+		parti.append(L10n.tf("+%d legna in catasta", [legna]))
 	if annaffiate > 0:
-		parti.append("%d aiuole annaffiate" % annaffiate if annaffiate > 1 \
-				else "un'aiuola annaffiata")
+		parti.append(L10n.tf("%d aiuole annaffiate", [annaffiate]) if annaffiate > 1 \
+				else L10n.t("un'aiuola annaffiata"))
 	for p in piatti:
-		parti.append("in tavola: %s" % p.to_lower())
+		parti.append(L10n.tf("in tavola: %s", [p.to_lower()]))
 	if tesori > 0:
-		parti.append("%d tesori dal bosco" % tesori if tesori > 1 else "un tesoro dal bosco")
+		parti.append(L10n.tf("%d tesori dal bosco", [tesori]) if tesori > 1 \
+				else L10n.t("un tesoro dal bosco"))
 	if parti.is_empty():
 		return
 	if _visitors and _visitors.has_method("_show_toast"):
-		_visitors.call("_show_toast", "Il lavoro del mattino: " + " · ".join(parti))
+		_visitors.call("_show_toast",
+				L10n.tf("Il lavoro del mattino: %s", [" · ".join(parti)]))
 	var bs := get_tree().get_first_node_in_group("build_system")
 	if bs and bs.has_method("request_save"):
 		bs.request_save()
@@ -244,7 +246,7 @@ func _costruisci_ui() -> void:
 	_pannello.add_child(box)
 
 	_titolo = Label.new()
-	_titolo.text = "Il registro dei lavori"
+	_titolo.text = L10n.t("Il registro dei lavori")
 	_titolo.add_theme_font_size_override("font_size", 26)
 	_titolo.add_theme_color_override("font_color", UI_BROWN)
 	box.add_child(_titolo)
@@ -254,7 +256,7 @@ func _costruisci_ui() -> void:
 	box.add_child(_lista)
 
 	var aiuto := Label.new()
-	aiuto.text = "↑↓ scegli il residente   ←→ cambia il suo lavoro   ·   N chiude"
+	aiuto.text = L10n.t("↑↓ scegli il residente   ←→ cambia il suo lavoro   ·   N chiude")
 	aiuto.add_theme_font_size_override("font_size", 14)
 	aiuto.add_theme_color_override("font_color", Color(UI_BROWN, 0.7))
 	box.add_child(aiuto)
@@ -339,7 +341,7 @@ func _riempi() -> void:
 	var righe: Array = _residenti()
 	if righe.is_empty():
 		var vuoto := Label.new()
-		vuoto.text = "Non c'è ancora nessuno in paese."
+		vuoto.text = L10n.t("Non c'è ancora nessuno in paese.")
 		vuoto.add_theme_color_override("font_color", UI_BROWN)
 		_lista.add_child(vuoto)
 		return
@@ -361,10 +363,11 @@ func _riempi() -> void:
 			corpo = str(_visitors.corpo_di(label))
 		# il corpo si scrive solo quando ha qualcosa da dire: «tranquillo» a
 		# fianco di ogni nome sarebbe rumore
-		var coda := "" if corpo == "" or corpo == "tranquillo" else "   ·   %s" % corpo
+		var coda := "" if corpo == "" or corpo == "tranquillo" \
+				else "   ·   %s" % L10n.t(corpo)
 		testa.text = "%s%s   —   %s   ·   %s%s" % [
-				freccia, label, LAVORI.get(incarico(label), "—"),
-				_stato_umano(stato), coda]
+				freccia, label, L10n.t(str(LAVORI.get(incarico(label), "—"))),
+				L10n.t(_stato_umano(stato)), coda]
 		testa.add_theme_font_size_override("font_size", 18)
 		testa.add_theme_color_override("font_color",
 				_colore_stato(stato) if i == _sel else Color(UI_BROWN, 0.75))
@@ -380,7 +383,11 @@ func _riempi() -> void:
 				if not evitati.is_empty():
 					# una deviazione senza spiegazione sembra un difetto di
 					# percorso: qui il giocatore scopre che è una ferita
-					testo_perche += "  ·  gira al largo da: %s" % ", ".join(evitati)
+					var nomi := PackedStringArray()
+					for e in evitati:
+						nomi.append(L10n.t(str(e)))
+					testo_perche += "  ·  " + L10n.tf("gira al largo da: %s",
+							[", ".join(nomi)])
 			perche.text = testo_perche
 			perche.add_theme_font_size_override("font_size", 14)
 			perche.add_theme_color_override("font_color", Color(UI_BROWN, 0.85))

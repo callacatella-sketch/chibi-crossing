@@ -116,7 +116,7 @@ func _riallinea(festeggia := false) -> void:
 				_giorno_covata = _day()
 				_monta_nido()
 				if festeggia:
-					_toast("🪺 Nella Casetta uccellini è comparso un nido, con tre uova!")
+					_toast(L10n.t("🪺 Nella Casetta uccellini è comparso un nido, con tre uova!"))
 					if _sfx:
 						_sfx.play("chirp1", -16.0, 1.3)
 				_salva()
@@ -227,7 +227,7 @@ func _schiusa(festeggia: bool) -> void:
 			tw.tween_property(fratello, "scale", Vector3.ONE * 0.05, 2.6) \
 					.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 			tw.chain().tween_callback(fratello.queue_free)
-		_toast("🐣 Cip! Due passerotti prendono il volo… ma uno resta.\nÈ %s — e la prima cosa che ha visto sei TU." % NOME)
+		_toast(L10n.tf("🐣 Cip! Due passerotti prendono il volo… ma uno resta.\nÈ %s — e la prima cosa che ha visto sei TU.", [NOME]))
 		if _sfx:
 			_sfx.play("chirp2", -13.0, 1.25)
 			get_tree().create_timer(0.4).timeout.connect(func():
@@ -250,9 +250,9 @@ func _aggiorna_stadio(festeggia: bool) -> void:
 		_sparkle(_uccello.position + Vector3(0, 0.3, 0), Color(1.0, 0.9, 0.6))
 		match st:
 			"giovincello":
-				_toast("%s sta crescendo: spuntano le penne della coda!" % NOME)
+				_toast(L10n.tf("%s sta crescendo: spuntano le penne della coda!", [NOME]))
 			"adulto":
-				_toast("🕊 %s è adulta: il cielo è suo. Ma ogni mattina, vedrai, torna." % NOME)
+				_toast(L10n.tf("🕊 %s è adulta: il cielo è suo. Ma ogni mattina, vedrai, torna.", [NOME]))
 
 
 ## Costruisce Briciola per lo stadio di oggi: la palletta di piume gialle
@@ -401,7 +401,7 @@ func _process(delta: float) -> void:
 		if not _spaventata:
 			_spaventata = true
 			_paura_t = 0.0
-			_toast("🌧 %s trema sotto la pioggia: portala al riparo!" % NOME)
+			_toast(L10n.tf("🌧 %s trema sotto la pioggia: portala al riparo!", [NOME]))
 			if _sfx:
 				_sfx.play("chirp3", -14.0, 0.7)
 		_paura_t += delta
@@ -415,7 +415,7 @@ func _process(delta: float) -> void:
 			_riparata = true
 			_spaventata = false
 			_curato += 1
-			_toast("💛 %s si scrolla le piume, al riparo. Ti si strofina contro: grazie." % NOME)
+			_toast(L10n.tf("💛 %s si scrolla le piume, al riparo. Ti si strofina contro: grazie.", [NOME]))
 			_sparkle(_uccello.position + Vector3(0, 0.3, 0), Color(1.0, 0.85, 0.5))
 			if _sfx:
 				_sfx.play("chirp1", -13.0, 1.35)
@@ -430,7 +430,7 @@ func _process(delta: float) -> void:
 				_hop = {"da": _uccello.position,
 						"a": casetta2.global_position * Vector3(1, 0, 1),
 						"t": 0.0, "dur": 0.8}
-			_toast("%s è corsa a ripararsi da sola. (Un ombrello, la prossima volta?)" % NOME)
+			_toast(L10n.tf("%s è corsa a ripararsi da sola. (Un ombrello, la prossima volta?)", [NOME]))
 	elif not piove:
 		_spaventata = false
 		_riparata = false
@@ -570,9 +570,9 @@ func _saluto_mattutino(con_regalo := false) -> void:
 		var regalo := con_regalo or randf() < 0.25
 		if regalo and _inventory:
 			_inventory.call("add_treasure", "semino", 1)
-			_toast("🕊 %s è tornata a salutarti — e nel becco ha un semino raro!" % NOME)
+			_toast(L10n.tf("🕊 %s è tornata a salutarti — e nel becco ha un semino raro!", [NOME]))
 		else:
-			_toast("🕊 %s è tornata a salutarti: due saltelli e un cinguettio, come ogni mattina." % NOME)
+			_toast(L10n.tf("🕊 %s è tornata a salutarti: due saltelli e un cinguettio, come ogni mattina.", [NOME]))
 		_curato += 1
 		_salva())
 

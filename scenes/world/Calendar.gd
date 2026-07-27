@@ -183,7 +183,7 @@ func register_resident(res_name: String, label: String, node: Node3D) -> void:
 	else:
 		_refresh_boards()
 	var toast_day := next_birthday(res_name)
-	_toast("%s segna il suo compleanno sulla lavagna: Giorno %d!" % [label, toast_day])
+	_toast(L10n.tf("%s segna il suo compleanno sulla lavagna: Giorno %d!", [label, toast_day]))
 	if _build:
 		_build.request_save()
 
@@ -211,7 +211,7 @@ func throw_party(res_name: String, label: String, node: Node3D) -> void:
 	if _party_done.has(key):
 		return
 	_party_done[key] = true
-	_toast("FESTA A SORPRESA per %s! Tutto il villaggio accorre!" % label)
+	_toast(L10n.tf("FESTA A SORPRESA per %s! Tutto il villaggio accorre!", [label]))
 	# la prima festa lascia un ricordo indossabile nel guardaroba
 	get_tree().call_group("guardaroba", "unlock", "cappellino_festa")
 	_confetti(node.global_position + Vector3(0, 1.0, 0))
@@ -237,11 +237,11 @@ func throw_party(res_name: String, label: String, node: Node3D) -> void:
 					other.call("celebrate"))
 	var gtree := get_tree().get_first_node_in_group("grande_albero")
 	if gtree:
-		gtree.engrave("★", "la festa a sorpresa di %s" % label)
+		gtree.engrave("★", L10n.tf("la festa a sorpresa di %s", [label]))
 	if _mail:
 		_mail.call("queue_letter", {
 			"from": res_name,
-			"text": "La festa più bella della mia vita!\nCome facevi a saperlo? Ah già…\nla lavagna. Grazie, di cuore.",
+			"text": L10n.t("La festa più bella della mia vita!\nCome facevi a saperlo? Ah già…\nla lavagna. Grazie, di cuore."),
 			"gift": true,
 		})
 
@@ -253,7 +253,7 @@ func _on_new_day(day: int) -> void:
 		var s := int(_daynight.get_season())
 		if s != _last_season:
 			_last_season = s
-			_toast(SEASON_TOAST[s])
+			_toast(L10n.t(SEASON_TOAST[s]))
 	# compleanni di oggi: cappellino a cono e annuncio
 	if _visitors:
 		for r in _visitors.get("_residents"):
@@ -264,13 +264,13 @@ func _on_new_day(day: int) -> void:
 				var festa := is_birthday(res_name)
 				node.call("set_party_hat", festa)
 				if festa:
-					_toast("Oggi è il compleanno di %s! Preparagli una sorpresa…" % r["label"])
+					_toast(L10n.tf("Oggi è il compleanno di %s! Preparagli una sorpresa…", [r["label"]]))
 	# le feste stagionali: annuncio la vigilia, festa il giorno giusto (di
 	# giorno o al buio: decide _tick_festa), e il pupazzo si scioglie quando
 	# l'inverno finisce
 	var domani := festa_del_giorno(day + 1)
 	if not domani.is_empty():
-		_toast(str(domani["annuncio"]))
+		_toast(L10n.t(str(domani["annuncio"])))
 	var oggi := festa_del_giorno(day)
 	if not oggi.is_empty() and not _feste_done.has(_festa_key(oggi, day)):
 		_festa_pending = oggi
@@ -281,7 +281,7 @@ func _on_new_day(day: int) -> void:
 		_melt_snowman()
 	# il mercante: annuncio il giorno prima, carretto il giorno giusto
 	if day == _merchant_day - 1:
-		_toast("Domani arriva il mercante col suo carretto!")
+		_toast(L10n.t("Domani arriva il mercante col suo carretto!"))
 	if day == _merchant_day:
 		if _merchant == null:
 			_spawn_merchant()
@@ -340,11 +340,11 @@ func _refresh_boards() -> void:
 		var chalk := Node3D.new()
 		_chalk[board] = chalk
 		board.add_child(chalk)
-		var lines: Array[Array] = [["· il calendario ·", Color(1, 1, 1, 0.92)]]
+		var lines: Array[Array] = [[L10n.t("· il calendario ·"), Color(1, 1, 1, 0.92)]]
 		# la stagione in cima, col suo gessetto colorato
 		if _daynight and _daynight.has_method("season_name"):
 			var s := int(_daynight.get_season())
-			lines.append(["~ %s ~" % _daynight.season_name(), SEASON_CHALK[s]])
+			lines.append(["~ %s ~" % L10n.t(_daynight.season_name()), SEASON_CHALK[s]])
 		# coi 28 posti del villaggio la lavagna non basta per tutti: col
 		# gessetto si segnano i PROSSIMI sei compleanni, gli altri aspettano
 		# il loro turno (il pannello con E li elenca comunque)
@@ -353,21 +353,21 @@ func _refresh_boards() -> void:
 			prossimi.append([next_birthday(str(res_name)), str(res_name)])
 		prossimi.sort_custom(func(a, b): return a[0] < b[0])
 		for i in mini(prossimi.size(), 6):
-			lines.append(["%s · G%d" % [str(prossimi[i][1]), int(prossimi[i][0])],
+			lines.append([L10n.tf("%s · G%d", [str(prossimi[i][1]), int(prossimi[i][0])]),
 					Color(0.98, 0.85, 0.9, 0.9)])
 		if prossimi.size() > 6:
-			lines.append(["…e altri %d" % (prossimi.size() - 6),
+			lines.append([L10n.tf("…e altri %d", [prossimi.size() - 6]),
 					Color(0.98, 0.85, 0.9, 0.6)])
-		lines.append(["mercante · G%d" % _merchant_day, Color(0.85, 0.93, 1.0, 0.9)])
+		lines.append([L10n.tf("mercante · G%d", [_merchant_day]), Color(0.85, 0.93, 1.0, 0.9)])
 		# le commissioni appese: il conto sta sul gessetto, il dettaglio nel pannello
 		var comm_n := get_tree().get_first_node_in_group("commissioni")
 		if comm_n and int(comm_n.call("quante")) > 0:
-			lines.append(["richieste appese · %d" % int(comm_n.call("quante")),
+			lines.append([L10n.tf("richieste appese · %d", [int(comm_n.call("quante"))]),
 					Color(1.0, 0.93, 0.75, 0.92)])
 		# la prossima festa stagionale, col gessetto verde tenue
 		var pf := prossima_festa(_day())
 		if not (pf[1] as Dictionary).is_empty():
-			lines.append(["%s · G%d" % [str(pf[1]["nome"]), int(pf[0])],
+			lines.append([L10n.tf("%s · G%d", [L10n.t(str(pf[1]["nome"])), int(pf[0])]),
 					Color(0.86, 0.96, 0.84, 0.9)])
 		for i in lines.size():
 			var lbl := Label3D.new()
@@ -424,7 +424,7 @@ func _spawn_merchant() -> void:
 	var eco := get_tree().get_first_node_in_group("economy")
 	if eco and eco.has_method("rotate_stock"):
 		eco.rotate_stock(_day())
-	_toast("Il mercante ha aperto il carretto in piazza!")
+	_toast(L10n.t("Il mercante ha aperto il carretto in piazza!"))
 
 
 func _despawn_merchant() -> void:
@@ -516,13 +516,14 @@ func _merchant_trade() -> void:
 		_merchant_speak(["grazie", "cibo", "felice"], "felice")
 		for kind in ["carota", "zucca", "bacca", "fungo"]:
 			cooking.call("add_ingredient", kind, 1 + randi() % 2)
-		_toast("Il mercante divora %s e ti riempie la dispensa!" % dish.get("name", "il piatto"))
+		_toast(L10n.tf("Il mercante divora %s e ti riempie la dispensa!",
+				[L10n.t(str(dish.get("name", "il piatto")))]))
 		_confetti(_merchant.global_position + Vector3(0, 1.0, 0))
 		if _sfx:
 			_sfx.place_ok()
 	else:
 		_merchant_speak(["cibo", "casa", "~"], "domanda")
-		_toast("«Un piatto caldo del tuo camino, e la dispensa è tua» — cucina qualcosa!")
+		_toast(L10n.t("«Un piatto caldo del tuo camino, e la dispensa è tua» — cucina qualcosa!"))
 
 
 # ---------------------------------------------------------------- feste
@@ -551,7 +552,7 @@ func _throw_festa(f: Dictionary) -> void:
 	var day := _day()
 	_feste_done[_festa_key(f, day)] = true
 	var spot := _festa_spot(f)
-	_toast(str(f["toast"]))
+	_toast(L10n.t(str(f["toast"])))
 	_confetti(spot + Vector3(0, 1.2, 0), _festa_colori(f))
 	if str(f["id"]) == "pupazzo":
 		_spawn_snowman(spot + Vector3(0.9, 0, -0.7))
@@ -573,7 +574,7 @@ func _throw_festa(f: Dictionary) -> void:
 					node.call("celebrate"))
 	var gtree := get_tree().get_first_node_in_group("grande_albero")
 	if gtree and gtree.has_method("engrave_once"):
-		gtree.engrave_once(str(f["id"]), str(f["icona"]), str(f["cronaca"]))
+		gtree.engrave_once(str(f["id"]), str(f["icona"]), L10n.t(str(f["cronaca"])))
 	if _build:
 		_build.request_save()
 
@@ -685,7 +686,7 @@ func _melt_snowman() -> void:
 	tw.tween_property(pupazzo, "scale", Vector3(1.2, 0.02, 1.2), 1.4) \
 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	tw.tween_callback(pupazzo.queue_free)
-	_toast("Il pupazzo di neve si è sciolto. Alla prossima nevicata!")
+	_toast(L10n.t("Il pupazzo di neve si è sciolto. Alla prossima nevicata!"))
 
 
 func _confetti(pos: Vector3, colori: Array = [Color("f4b8c8"), Color("9fd8cf"), Color("ffd76e")]) -> void:
@@ -795,25 +796,26 @@ func _refresh_panel() -> void:
 	var today := _day()
 	for res_name in _birthdays:
 		events.append([next_birthday(str(res_name)),
-				"compleanno %s" % _di(str(_birthdays[res_name]["label"]))])
+				L10n.tf("compleanno %s", [_di(str(_birthdays[res_name]["label"]))])])
 	events.append([_merchant_day if _merchant_day >= today else _merchant_day + MERCHANT_EVERY,
-			"arriva il mercante"])
+			L10n.t("arriva il mercante")])
 	@warning_ignore("integer_division")
-	events.append([(today / 7 + 1) * 7, "compleanno del villaggio"])
+	events.append([(today / 7 + 1) * 7, L10n.t("compleanno del villaggio")])
 	# il prossimo cambio di stagione entra tra gli eventi in arrivo
 	if _daynight and _daynight.has_method("next_season_day"):
-		events.append([int(_daynight.next_season_day()), "una nuova stagione"])
+		events.append([int(_daynight.next_season_day()), L10n.t("una nuova stagione")])
 	# e la prossima festa stagionale, in bella copia
 	var pf := prossima_festa(today)
 	if not (pf[1] as Dictionary).is_empty():
-		events.append([int(pf[0]), str(pf[1]["evento"])])
+		events.append([int(pf[0]), L10n.t(str(pf[1]["evento"]))])
 	events.sort_custom(func(a, b): return a[0] < b[0])
 	# in cima: la stagione di oggi e il giorno del mese (28 giorni = 1 anno)
 	if _daynight and _daynight.has_method("season_name"):
 		var hdr := Label.new()
 		@warning_ignore("integer_division")
 		var into := ((today - 1) % 28) + 1
-		hdr.text = "Stagione: %s   ·   giorno %d di 28" % [_daynight.season_name(), into]
+		hdr.text = L10n.tf("Stagione: %s   ·   giorno %d di 28",
+				[L10n.t(_daynight.season_name()), into])
 		hdr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		hdr.add_theme_font_size_override("font_size", 13)
 		hdr.add_theme_color_override("font_color", Color("8a5a3a"))
@@ -824,14 +826,15 @@ func _refresh_panel() -> void:
 		var ev: Array = events[i]
 		var row := Label.new()
 		var giorni := int(ev[0]) - today
-		var quando := "OGGI!" if giorni == 0 else ("domani" if giorni == 1 else "tra %d giorni" % giorni)
-		row.text = "Giorno %d · %s  (%s)" % [ev[0], ev[1], quando]
+		var quando := L10n.t("OGGI!") if giorni == 0 \
+				else (L10n.t("domani") if giorni == 1 else L10n.tf("tra %d giorni", [giorni]))
+		row.text = L10n.tf("Giorno %d · %s  (%s)", [ev[0], ev[1], quando])
 		row.add_theme_font_size_override("font_size", 13)
 		row.add_theme_color_override("font_color", UI_BROWN)
 		_rows.add_child(row)
 	if events.size() > 12:
 		var resto := Label.new()
-		resto.text = "…e altri %d eventi più in là" % (events.size() - 12)
+		resto.text = L10n.tf("…e altri %d eventi più in là", [events.size() - 12])
 		resto.add_theme_font_size_override("font_size", 12)
 		resto.add_theme_color_override("font_color", Color(UI_BROWN, 0.55))
 		_rows.add_child(resto)
@@ -839,14 +842,14 @@ func _refresh_panel() -> void:
 	var comm := get_tree().get_first_node_in_group("commissioni")
 	if comm and int(comm.call("quante")) > 0:
 		var titolo_c := Label.new()
-		titolo_c.text = "~ le commissioni ~"
+		titolo_c.text = L10n.t("~ le commissioni ~")
 		titolo_c.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		titolo_c.add_theme_font_size_override("font_size", 14)
 		titolo_c.add_theme_color_override("font_color", Color("8a5a3a"))
 		_rows.add_child(titolo_c)
 		for riga in comm.call("per_lavagna"):
 			var rr := Label.new()
-			var pronto := "  ✔ ce l'hai: consegnala!" if bool(riga[3]) else ""
+			var pronto := ("  " + L10n.t("✔ ce l'hai: consegnala!")) if bool(riga[3]) else ""
 			rr.text = "%s: «%s»  +%d🌰%s" % [riga[0], riga[1], riga[2], pronto]
 			rr.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			rr.custom_minimum_size = Vector2(370, 0)
@@ -865,12 +868,12 @@ func _update_prompt() -> void:
 	var text := ""
 	if _merchant and _player.global_position.distance_to(_merchant.global_position) < 1.6:
 		anchor = _merchant
-		text = "E — baratta col mercante"
+		text = L10n.t("E — baratta col mercante")
 	else:
 		var board := _nearest_board(_player.global_position)
 		if board and _player.global_position.distance_to(board.global_position) < 1.6:
 			anchor = board
-			text = "E — il calendario del villaggio"
+			text = L10n.t("E — il calendario del villaggio")
 	if anchor == null:
 		_prompt.visible = false
 		return
@@ -886,14 +889,16 @@ func _update_prompt() -> void:
 
 
 # "la coniglietta X" -> "della coniglietta X", "il topolino Y" -> "del..."
+# In inglese le quattro preposizioni articolate collassano tutte in "of":
+# la tabella se ne occupa, qui resta solo la scelta italiana.
 func _di(label: String) -> String:
 	if label.begins_with("il "):
-		return "del " + label.substr(3)
+		return L10n.tf("del %s", [label.substr(3)])
 	if label.begins_with("la "):
-		return "della " + label.substr(3)
+		return L10n.tf("della %s", [label.substr(3)])
 	if label.begins_with("l'"):
-		return "dell'" + label.substr(2)
-	return "di " + label
+		return L10n.tf("dell'%s", [label.substr(2)])
+	return L10n.tf("di %s", [label])
 
 
 func _toast(text: String) -> void:
@@ -948,7 +953,7 @@ func _build_ui() -> void:
 	vbox.add_theme_constant_override("separation", 6)
 	_panel.add_child(vbox)
 	var title := Label.new()
-	title.text = "~ Il calendario del villaggio ~"
+	title.text = L10n.t("~ Il calendario del villaggio ~")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 17)
 	title.add_theme_color_override("font_color", Color("8a5a3a"))
@@ -957,7 +962,7 @@ func _build_ui() -> void:
 	_rows.add_theme_constant_override("separation", 4)
 	vbox.add_child(_rows)
 	var hint := Label.new()
-	hint.text = "E — chiudi"
+	hint.text = L10n.t("E — chiudi")
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.add_theme_font_size_override("font_size", 11)
 	hint.add_theme_color_override("font_color", Color(UI_BROWN, 0.55))

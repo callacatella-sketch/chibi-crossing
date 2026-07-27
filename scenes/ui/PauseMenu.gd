@@ -136,15 +136,15 @@ func _build_ui() -> void:
 	col.add_theme_constant_override("separation", 12)
 	_menu.add_child(col)
 
-	col.add_child(CozyUI.title_label("In pausa", 34))
-	var sub := CozyUI.hint_label("Il villaggio ti aspetta.", 15)
+	col.add_child(CozyUI.title_label(L10n.t("In pausa"), 34))
+	var sub := CozyUI.hint_label(L10n.t("Il villaggio ti aspetta."), 15)
 	col.add_child(sub)
 	col.add_child(_gap(6))
 
-	_menu_button(col, "Riprendi", CozyUI.MINT, _resume)
-	_menu_button(col, "Impostazioni", CozyUI.SKY, func(): _show_settings(true))
-	_menu_button(col, "Torna al titolo", CozyUI.HONEY, _to_title)
-	_menu_button(col, "Esci dal gioco", CozyUI.DANGER, _quit)
+	_menu_button(col, L10n.t("Riprendi"), CozyUI.MINT, _resume)
+	_menu_button(col, L10n.t("Impostazioni"), CozyUI.SKY, func(): _show_settings(true))
+	_menu_button(col, L10n.t("Torna al titolo"), CozyUI.HONEY, _to_title)
+	_menu_button(col, L10n.t("Esci dal gioco"), CozyUI.DANGER, _quit)
 
 	# --- il pannello impostazioni (nascosto finché non serve) ---
 	_settings = CozySettingsPanel.new()

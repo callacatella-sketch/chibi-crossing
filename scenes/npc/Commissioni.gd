@@ -122,19 +122,42 @@ static func genera(seed_v: int, stagione: int, chi: Dictionary) -> Dictionary:
 		if not pool.is_empty():
 			var id: String = pool[rng.randi() % pool.size()]
 			var voglia := str(VOGLIE.get(sogno, "ci penso da giorni e giorni"))
+			var voce: Dictionary = CRIT.voce(id)
 			return {"chi": str(chi.get("label", "")), "nome": str(chi.get("nome", "")),
-					"id": id, "n": 1,
-					"testo": "Sogno %s: %s." % [CRIT.con_articolo(id), voglia],
+					"id": id, "n": 1, "voglia": voglia,
+					# `testo` è la copia ITALIANA che finisce nel salvataggio: si
+					# compone con la creatura grezza (mai con_articolo, che a
+					# gioco in inglese tradurrebbe e salverebbe una frase mista).
+					# Quello che il giocatore legge lo compone biglietto().
+					"testo": "Sogno %s %s: %s." % [str(voce.get("articolo", "una")),
+							str(voce.get("nome", id)), voglia],
 					"premio": CRIT.vendita(id) * 2 + 8}
 	# il cestino di raccolti: 2-4 pezzi per un piatto che ha senso
 	var raccolti := ["carota", "zucca", "bacca", "fungo", "mela", "pera"]
 	var id2: String = raccolti[rng.randi() % raccolti.size()]
 	var n := 2 + rng.randi() % 3
+	var piatto := str(PIATTI.get(id2, "la mia cena"))
 	return {"chi": str(chi.get("label", "")), "nome": str(chi.get("nome", "")),
-			"id": id2, "n": n,
-			"testo": "%d %s per %s!" % [n,
-					_plurale(id2, n), str(PIATTI.get(id2, "la mia cena"))],
+			"id": id2, "n": n, "piatto": piatto,
+			"testo": "%d %s per %s!" % [n, _plurale(id2, n), piatto],
 			"premio": CRIT.vendita(id2) * n * 2 + 4}
+
+
+## IL BIGLIETTO COME LO LEGGE IL GIOCATORE — composto adesso, nella lingua
+## di adesso. Il dato salvato (`testo`) resta italiano per sempre: un
+## villaggio salvato in inglese si riapre in italiano senza biglietti
+## mezzi tradotti. Se una commissione vecchia non ha i pezzi separati,
+## si ricade sul testo salvato (meglio italiano che vuoto).
+static func biglietto(c: Dictionary) -> String:
+	var id := str(c.get("id", ""))
+	if c.has("voglia"):
+		return L10n.tf("Sogno %s: %s.",
+				[CRIT.con_articolo(id), L10n.t(str(c["voglia"]))])
+	if c.has("piatto"):
+		var n := int(c.get("n", 1))
+		return L10n.tf("%d %s per %s!",
+				[n, L10n.t(_plurale(id, n)), L10n.t(str(c["piatto"]))])
+	return str(c.get("testo", ""))
 
 
 static func _plurale(id: String, n: int) -> String:
@@ -192,8 +215,8 @@ func _appendi_nuova() -> void:
 		return
 	c["giorno"] = _day()
 	_attive.append(c)
-	_toast("📌 %s ha appeso una richiesta alla lavagna:\n«%s» (%d🌰)"
-			% [c["chi"], c["testo"], c["premio"]])
+	_toast(L10n.tf("📌 %s ha appeso una richiesta alla lavagna:\n«%s» (%d🌰)",
+			[c["chi"], biglietto(c), c["premio"]]))
 	if _sfx:
 		_sfx.ui_select()
 	if _build:
@@ -241,8 +264,8 @@ func consegna(i: int) -> bool:
 		node.call("_spawn_heart")
 		if node.has_method("celebrate"):
 			node.call("celebrate")
-	_toast("✔ Consegnato! %s è al settimo cielo: +%d🌰 (e un momento sul filo)"
-			% [c["chi"], c["premio"]])
+	_toast(L10n.tf("✔ Consegnato! %s è al settimo cielo: +%d🌰 (e un momento sul filo)",
+			[c["chi"], c["premio"]]))
 	if _sfx:
 		_sfx.place_ok()
 	_attive.remove_at(i)
@@ -300,7 +323,7 @@ func _update_prompt() -> void:
 	if cam.is_position_behind(wp):
 		_prompt.visible = false
 		return
-	_prompt_label.text = "E — consegna: %s" % _cosa(c)
+	_prompt_label.text = L10n.tf("E — consegna: %s", [_cosa(c)])
 	_prompt.reset_size()
 	var p := cam.unproject_position(wp)
 	_prompt.position = p - Vector2(_prompt.size.x * 0.5, _prompt.size.y)
@@ -310,7 +333,9 @@ func _update_prompt() -> void:
 func _cosa(c: Dictionary) -> String:
 	if int(c["n"]) == 1:
 		return CRIT.con_articolo(str(c["id"]))
-	return "%d %s" % [int(c["n"]), _plurale(str(c["id"]), int(c["n"]))]
+	# il plurale nasce in italiano (è il dato): si traduce qui, che è il
+	# punto in cui la parola va davvero a schermo
+	return "%d %s" % [int(c["n"]), L10n.t(_plurale(str(c["id"]), int(c["n"])))]
 
 
 # --------------------------------------------------- la pagina della lavagna
@@ -320,7 +345,7 @@ func _cosa(c: Dictionary) -> String:
 func per_lavagna() -> Array:
 	var out := []
 	for c in _attive:
-		out.append([str(c["chi"]), str(c["testo"]), int(c["premio"]),
+		out.append([str(c["chi"]), biglietto(c), int(c["premio"]),
 				_ho_la_merce(c)])
 	return out
 
@@ -365,17 +390,29 @@ func _build_ui() -> void:
 func save_extra() -> Dictionary:
 	var rows := []
 	for c in _attive:
+		# in coda i due PEZZI della frase (voglia · piatto): il biglietto si
+		# ricompone nella lingua di chi riapre il villaggio, invece di
+		# restare congelato in quella di chi l'ha appeso
 		rows.append([str(c["chi"]), str(c["nome"]), str(c["id"]), int(c["n"]),
-				str(c["testo"]), int(c["giorno"]), int(c["premio"])])
+				str(c["testo"]), int(c["giorno"]), int(c["premio"]),
+				str(c.get("voglia", "")), str(c.get("piatto", ""))])
 	return {"commissioni": rows}
 
 
 func load_extra(data: Dictionary) -> void:
 	for r in data.get("commissioni", []):
-		if r is Array and r.size() == 7:
-			_attive.append({"chi": str(r[0]), "nome": str(r[1]), "id": str(r[2]),
+		# le righe da 7 sono i salvataggi di prima della traduzione: si
+		# leggono lo stesso, e il loro biglietto resta quello scritto allora
+		if r is Array and r.size() >= 7:
+			var c := {"chi": str(r[0]), "nome": str(r[1]), "id": str(r[2]),
 					"n": int(r[3]), "testo": str(r[4]), "giorno": int(r[5]),
-					"premio": int(r[6])})
+					"premio": int(r[6])}
+			if r.size() >= 9:
+				if str(r[7]) != "":
+					c["voglia"] = str(r[7])
+				if str(r[8]) != "":
+					c["piatto"] = str(r[8])
+			_attive.append(c)
 
 
 # ---------------------------------------------------------------- debug CLI

@@ -417,7 +417,7 @@ func _premia_raccolto(pos: Vector3, crop: String) -> void:
 		cooking.add_ingredient(crop, int(info[0]))
 	var visitors := get_node_or_null("../Visitors")
 	if visitors:
-		visitors.call("_show_toast", "+%s nella dispensa!" % info[1])
+		visitors.call("_show_toast", L10n.tf("+%s nella dispensa!", [L10n.t(str(info[1]))]))
 
 
 # il trofeo del raccolto: l'ortaggio simbolo (o il mazzolino) da
@@ -528,8 +528,8 @@ func _pick_mushroom(i: int) -> void:
 		var visitors := get_node_or_null("../Visitors")
 		if visitors:
 			visitors.call("_show_toast",
-					"+1 fungo porcino nella dispensa! Che profumo raro."
-					if specie == "porcino" else "+1 fungo nella dispensa!")
+					L10n.t("+1 fungo porcino nella dispensa! Che profumo raro.")
+					if specie == "porcino" else L10n.t("+1 fungo nella dispensa!"))
 		_busy = false)
 
 
@@ -574,7 +574,7 @@ func _on_new_day(_day: int) -> void:
 				# e incisa sugli anelli del Grande Albero
 				var gtree := get_tree().get_first_node_in_group("grande_albero")
 				if gtree:
-					gtree.engrave_once("fioritura", "✿", "una fioritura nel giardino")
+					gtree.engrave_once("fioritura", "✿", L10n.t("una fioritura nel giardino"))
 				# la prima fioritura regala il cappello di petali
 				var wr := get_tree().get_first_node_in_group("guardaroba")
 				if wr:
@@ -942,9 +942,9 @@ func _update_prompt() -> void:
 		if cam.is_position_behind(sp):
 			_prompt.visible = false
 			return
-		_prompt_label.text = "E — raccogli il porcino!" \
+		_prompt_label.text = L10n.t("E — raccogli il porcino!") \
 				if str(_world.call("pickup_kind", _near_shroom)) == "porcino" \
-				else "E — raccogli il fungo"
+				else L10n.t("E — raccogli il fungo")
 		_prompt.reset_size()
 		var spp := cam.unproject_position(sp)
 		_prompt.position = spp - Vector2(_prompt.size.x * 0.5, _prompt.size.y)
@@ -952,15 +952,17 @@ func _update_prompt() -> void:
 		return
 	var b: Dictionary = _beds[_near]
 	var crop := String(b["crop"])
-	var plural := String((CROPS[crop] as Array)[1]).substr(2) if not crop.is_empty() else ""
+	var plural := L10n.t(String((CROPS[crop] as Array)[1]).substr(2)) if not crop.is_empty() else ""
 	var text := ""
 	match int(b["stage"]):
 		-1:
-			text = "E — pianta i semi" if crop.is_empty() else "E — semina le %s" % plural
+			text = L10n.t("E — pianta i semi") if crop.is_empty() \
+					else L10n.tf("E — semina le %s", [plural])
 		3:
-			text = "E — raccogli il mazzolino" if crop.is_empty() else "E — raccogli le %s" % plural
+			text = L10n.t("E — raccogli il mazzolino") if crop.is_empty() \
+					else L10n.tf("E — raccogli le %s", [plural])
 		_:
-			text = "cresce stanotte ✿" if b["watered"] else "E — annaffia"
+			text = L10n.t("cresce stanotte ✿") if b["watered"] else L10n.t("E — annaffia")
 	var wp: Vector3 = _near.global_position + Vector3(0, 0.85, 0)
 	if cam.is_position_behind(wp):
 		_prompt.visible = false

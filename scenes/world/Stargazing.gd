@@ -127,7 +127,7 @@ func _mode_input(event: InputEvent) -> void:
 		_wish_day = _day() + 2 + randi() % 2
 		if _build:
 			_build.request_save()
-		_toast("Hai espresso un desiderio… la stella l'ha sentito.")
+		_toast(L10n.t("Hai espresso un desiderio… la stella l'ha sentito."))
 		_sparkle_at(_player.global_position + Vector3(0, 1.2, 0))
 		if _sfx:
 			_sfx.build_open()
@@ -235,7 +235,7 @@ func _draw_overlay() -> void:
 func _open_name_panel() -> void:
 	_name_panel.visible = true
 	_name_edit.text = ""
-	_name_edit.placeholder_text = "Costellazione %d" % (_constellations.size() + 1)
+	_name_edit.placeholder_text = L10n.tf("Costellazione %d", [_constellations.size() + 1])
 	_name_edit.grab_focus()
 
 
@@ -251,7 +251,7 @@ func _confirm_name() -> void:
 	var gtree := get_tree().get_first_node_in_group("grande_albero")
 	if gtree:
 		gtree.engrave("★", "nasce la costellazione «%s»" % cname)
-	_toast("«%s» brilla nel cielo, da stanotte e per sempre." % cname)
+	_toast(L10n.tf("«%s» brilla nel cielo, da stanotte e per sempre.", [cname]))
 	if _build:
 		_build.request_save()
 	if _sfx:
@@ -441,11 +441,11 @@ func _sparkle_at(pos: Vector3) -> void:
 func _update_prompt() -> void:
 	var cam := get_viewport().get_camera_3d()
 	if _mode:
-		_prompt_label.text = "clic — unisci le stelle  ·  destro — annulla  ·  E — dai il nome" \
+		_prompt_label.text = L10n.t("clic — unisci le stelle  ·  destro — annulla  ·  E — dai il nome") \
 				if _chain.size() >= 3 else \
-				("clic — unisci le stelle (%d/3)  ·  E — torna giù" % _chain.size())
+				L10n.tf("clic — unisci le stelle (%d/3)  ·  E — torna giù", [_chain.size()])
 		if _meteor_t >= 0.0 and _wish_day < 0:
-			_prompt_label.text += "  ·  SPAZIO — esprimi un desiderio!"
+			_prompt_label.text += "  ·  " + L10n.t("SPAZIO — esprimi un desiderio!")
 		_prompt.reset_size()
 		_prompt.position = Vector2(get_viewport().get_visible_rect().size.x * 0.5 \
 				- _prompt.size.x * 0.5, 40)
@@ -458,7 +458,7 @@ func _update_prompt() -> void:
 	if cam.is_position_behind(wp):
 		_prompt.visible = false
 		return
-	_prompt_label.text = "E — sdraiati a guardare le stelle"
+	_prompt_label.text = L10n.t("E — sdraiati a guardare le stelle")
 	_prompt.reset_size()
 	var p := cam.unproject_position(wp)
 	_prompt.position = p - Vector2(_prompt.size.x * 0.5, _prompt.size.y)
@@ -518,7 +518,7 @@ func _build_ui() -> void:
 	vbox.add_theme_constant_override("separation", 8)
 	_name_panel.add_child(vbox)
 	var title := Label.new()
-	title.text = "Come si chiama la tua costellazione?"
+	title.text = L10n.t("Come si chiama la tua costellazione?")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 15)
 	title.add_theme_color_override("font_color", Color("8a5a3a"))
@@ -530,7 +530,7 @@ func _build_ui() -> void:
 	_name_edit.text_submitted.connect(func(_t): _confirm_name())
 	vbox.add_child(_name_edit)
 	var hint := Label.new()
-	hint.text = "Invio — battezzala"
+	hint.text = L10n.t("Invio — battezzala")
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.add_theme_font_size_override("font_size", 11)
 	hint.add_theme_color_override("font_color", Color(UI_BROWN, 0.55))
@@ -590,7 +590,7 @@ func memorial(cname: String, seed_v: int) -> void:
 	var start := absi(seed_v) % maxi(1, _daynight.star_dirs.size())
 	_constellations.append({"name": cname, "stars": _catena_da(start)})
 	_rebuild_lines()
-	_toast("✨ %s adesso abita lassù: guarda il cielo, stanotte." % cname)
+	_toast(L10n.tf("✨ %s adesso abita lassù: guarda il cielo, stanotte.", [cname]))
 	var gtree := get_tree().get_first_node_in_group("grande_albero")
 	if gtree:
 		gtree.engrave("★", "la costellazione di %s è apparsa in cielo" % cname)

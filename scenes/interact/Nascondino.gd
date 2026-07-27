@@ -71,7 +71,7 @@ func _process(delta: float) -> void:
 			_t_proposta -= delta
 			var nodo = _proponente.get("nodo")
 			if _t_proposta <= 0.0 or not is_instance_valid(nodo):
-				_toast("%s sorride: «magari domani!»" % _label(_proponente))
+				_toast(L10n.tf("%s sorride: «magari domani!»", [_label(_proponente)]))
 				_riposa()
 				return
 			var player := get_node_or_null("../../Player") as Node3D
@@ -95,9 +95,9 @@ func _process(delta: float) -> void:
 						(n["nodo"] as Node3D).global_position = n["spot"]
 				_stato = "caccia"
 				_hud.visible = true
-				_hud_label.text = "Nascondino nel bosco  ·  trovati 0/%d  ·  prima del tramonto" \
-						% _nascosti.size()
-				_toast("Pronti! Cercali nel bosco prima del tramonto.")
+				_hud_label.text = L10n.tf("Nascondino nel bosco  ·  trovati 0/%d  ·  prima del tramonto",
+						[_nascosti.size()])
+				_toast(L10n.t("Pronti! Cercali nel bosco prima del tramonto."))
 		"caccia":
 			_caccia(delta)
 
@@ -152,8 +152,8 @@ func _prova_a_proporre() -> void:
 		nodo.call("chat_bubble", "?")
 	if nodo.has_method("speak"):
 		nodo.call("speak", ["amico", "felice"], "domanda")
-	_toast("%s ti saltella incontro: nascondino nel bosco! (avvicìnati per dire di sì)"
-			% _label(_proponente))
+	_toast(L10n.tf("%s ti saltella incontro: nascondino nel bosco! (avvicìnati per dire di sì)",
+			[_label(_proponente)]))
 
 
 static func _indole_giocherellona(brain) -> bool:
@@ -182,7 +182,7 @@ func _accettato() -> void:
 	# i nascondigli: nel folto del bosco, ben distanziati
 	var spots: Array = filtra_bosco(cozy.call("nascondigli"))
 	if spots.size() < N_NASCOSTI:
-		_toast("Il bosco è troppo giovane per nascondersi: sarà per un'altra volta.")
+		_toast(L10n.t("Il bosco è troppo giovane per nascondersi: sarà per un'altra volta."))
 		_riposa()
 		return
 	var scelti := scegli_sparsi(spots, N_NASCOSTI,
@@ -241,8 +241,8 @@ func _accettato() -> void:
 	var sfx = get_node_or_null(^"/root/Sfx")
 	if sfx and sfx.has_method("place_ok"):
 		sfx.place_ok()
-	_toast("Conta fino a dieci! %s corrono a nascondersi nel bosco…"
-			% ", ".join(PackedStringArray(_nomi())))
+	_toast(L10n.tf("Conta fino a dieci! %s corrono a nascondersi nel bosco…",
+			[", ".join(PackedStringArray(_nomi()))]))
 
 
 # --------------------------------------------------------------- la caccia
@@ -287,8 +287,8 @@ func _caccia(delta: float) -> void:
 			if nodo.has_method("do_routine"):
 				nodo.call("do_routine", "sniff", n["spot"], n["spot"])
 
-	_hud_label.text = "Nascondino nel bosco  ·  trovati %d/%d  ·  prima del tramonto" \
-			% [trovati, _nascosti.size()]
+	_hud_label.text = L10n.tf("Nascondino nel bosco  ·  trovati %d/%d  ·  prima del tramonto",
+			[trovati, _nascosti.size()])
 
 	if trovati >= _nascosti.size():
 		_vittoria()
@@ -299,7 +299,7 @@ func _caccia(delta: float) -> void:
 		var ora := float(dn.get("time"))
 		if not _preavvisato and ora >= PREAVVISO and ora < TRAMONTO:
 			_preavvisato = true
-			_toast("Il sole tocca gli alberi: ultimi minuti!")
+			_toast(L10n.t("Il sole tocca gli alberi: ultimi minuti!"))
 		if ora >= TRAMONTO or bool(dn.call("is_night")):
 			_tramonto()
 
@@ -318,14 +318,14 @@ func _trovato(n: Dictionary) -> void:
 		nodo.call("_spawn_heart")
 	match str(n["indole"]):
 		"timido":
-			_toast("Trovato! %s sbuca da dietro il %s, rosso rosso ma raggiante."
-					% [_label(n), str(n["tipo"])])
+			_toast(L10n.tf("Trovato! %s sbuca da dietro il %s, rosso rosso ma raggiante.",
+					[_label(n), L10n.t(str(n["tipo"]))]))
 		"chiacchierone":
-			_toast("Trovato! %s non tratteneva più le risatine dietro il %s."
-					% [_label(n), str(n["tipo"])])
+			_toast(L10n.tf("Trovato! %s non tratteneva più le risatine dietro il %s.",
+					[_label(n), L10n.t(str(n["tipo"]))]))
 		_:
-			_toast("Trovato! %s ride di gusto dietro il %s."
-					% [_label(n), str(n["tipo"])])
+			_toast(L10n.tf("Trovato! %s ride di gusto dietro il %s.",
+					[_label(n), L10n.t(str(n["tipo"]))]))
 	# il trovato trotterella alla radura ad aspettare gli altri
 	if nodo.has_method("do_routine"):
 		var radura: Vector3 = COZYW.CLEARING_CENTER
@@ -358,7 +358,7 @@ func _vittoria() -> void:
 	var sfx = get_node_or_null(^"/root/Sfx")
 	if sfx and sfx.has_method("place_ok"):
 		sfx.place_ok()
-	_toast("Trovati tutti prima del tramonto! Il bosco è pieno di risate.")
+	_toast(L10n.t("Trovati tutti prima del tramonto! Il bosco è pieno di risate."))
 	_riposa()
 
 
@@ -375,7 +375,7 @@ func _tramonto() -> void:
 				nodo.call("do_routine", "wander", Vector3.ZERO)
 		elif get_node_or_null("../../Visitors"):
 			get_node_or_null("../../Visitors").call("_bump_friend", n["r"], 1)
-	_toast("Il sole scende: escono dai nascondigli ridendo. Rivincita domani!")
+	_toast(L10n.t("Il sole scende: escono dai nascondigli ridendo. Rivincita domani!"))
 	_riposa()
 
 
@@ -489,7 +489,7 @@ func _indole_breve(visitors: Node, r: Dictionary) -> String:
 
 func _label(voce: Dictionary) -> String:
 	var r: Dictionary = voce.get("r", {})
-	return str(r.get("label", "un vicino"))
+	return str(r.get("label", L10n.t("un vicino")))
 
 
 func _nomi() -> Array:

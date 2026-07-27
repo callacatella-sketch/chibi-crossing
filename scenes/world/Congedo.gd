@@ -198,10 +198,10 @@ func _inizia_congedo(r: Dictionary) -> void:
 			"oggi": {}}
 	# il Gufo scrive a Mochi: è LEI ad accompagnare le ultime cose
 	if _mail:
-		_mail.call("queue_letter", {"from": "Il Gufo",
-			"text": "%s sente che è quasi tempo di partire\nper il Grande Prato. Vuole salutare il mondo:\naccompagnala tu, un desiderio al giorno.\nSarà la settimana più piena di tutte." % label,
+		_mail.call("queue_letter", {"from": L10n.t("Il Gufo"),
+			"text": L10n.tf("%s sente che è quasi tempo di partire\nper il Grande Prato. Vuole salutare il mondo:\naccompagnala tu, un desiderio al giorno.\nSarà la settimana più piena di tutte.", [label]),
 			"gift": false})
-	_toast("🍂 Per %s comincia la settimana delle ultime cose." % label)
+	_toast(L10n.tf("🍂 Per %s comincia la settimana delle ultime cose.", [label]))
 	_prepara_desiderio(0)
 	_salva()
 
@@ -213,8 +213,8 @@ func _prepara_desiderio(idx: int) -> void:
 	var dove := _risolvi_luogo(str(d["luogo"]))
 	_congedo["oggi"] = {"tipo": d["tipo"], "dove": [dove.x, dove.y, dove.z],
 			"fatto": false, "testo": d["testo"]}
-	_toast("Oggi %s vorrebbe: %s. Raggiungila là." %
-			[_congedo["label"], d["testo"]])
+	_toast(L10n.tf("Oggi %s vorrebbe: %s. Raggiungila là.",
+			[_congedo["label"], L10n.t(str(d["testo"]))]))
 	if _visitors:
 		_visitors.call("manda", str(_congedo["label"]), dove)
 	_salva()
@@ -280,7 +280,7 @@ func _tick_congedo() -> void:
 		_congedo["falo_fatto"] = true
 		_visitors.call("gather_fire")
 		_accendi_lanterne()
-		_toast("Stasera, al falò: tutto il villaggio è con %s.\nLungo i sentieri, una a una, si accendono le lanterne." % label)
+		_toast(L10n.tf("Stasera, al falò: tutto il villaggio è con %s.\nLungo i sentieri, una a una, si accendono le lanterne.", [label]))
 		node.call("speak", ["amico", "grazie", "~"], "triste")
 		_salva()
 
@@ -291,8 +291,8 @@ func _esaudito(node: Node3D, oggi: Dictionary) -> void:
 	if _legami:
 		_legami.call("momento", str(_congedo["nome"]), "oro",
 				str(oggi.get("testo", "")))
-	_toast("✨ Desiderio esaudito: %s. Un momento d'oro sul filo." %
-			str(oggi.get("testo", "")))
+	_toast(L10n.tf("✨ Desiderio esaudito: %s. Un momento d'oro sul filo.",
+			[L10n.t(str(oggi.get("testo", "")))]))
 	var player := get_node_or_null("../../Player") as Node3D
 	if player:
 		node.call("face_towards", player.global_position)
@@ -509,10 +509,10 @@ func _partenza() -> void:
 
 	# la lettera sul letto: l'accessorio piegato e le sue parole
 	if _mail:
-		var testo := "Sono partita all'alba, col cappello in zampa.\nPorto con me %d momenti del nostro filo" % momenti.size()
+		var testo := L10n.tf("Sono partita all'alba, col cappello in zampa.\nPorto con me %d momenti del nostro filo", [momenti.size()])
 		if oro > 0:
-			testo += ",\ne i %d d'oro dell'ultima settimana" % oro
-		testo += ".\nTi lascio il mio ricordino: portalo tu.\nNon serbo che gratitudine. — %s" % nome
+			testo += L10n.tf(",\ne i %d d'oro dell'ultima settimana", [oro])
+		testo += L10n.tf(".\nTi lascio il mio ricordino: portalo tu.\nNon serbo che gratitudine. — %s", [nome])
 		_mail.call("queue_letter", {"from": label, "text": testo, "gift": true})
 
 	# la trasformazione (Fase 5): capo, costellazione, anello, fiore
@@ -524,7 +524,8 @@ func _partenza() -> void:
 		stelle.call("memorial", nome, int(dna.get("seed", nome.hash())))
 	var gtree := get_tree().get_first_node_in_group("grande_albero")
 	if gtree:
-		gtree.call("engrave", "❀", "%s è partito per il Grande Prato" % label)
+		gtree.call("engrave", "❀",
+				L10n.tf("%s è partito per il Grande Prato", [label]))
 	var fiore := {"x": float(cell[0]) + 0.7, "z": float(cell[1]) + 0.9,
 			"dress": str(dna.get("dress", "f2a9bc")),
 			"fur": str(dna.get("fur", "e8d5b8")),
@@ -547,7 +548,7 @@ func _partenza() -> void:
 	if _legami:
 		_legami.call("inizia_lutto", nome, da_consolare)
 
-	_toast("🌸 %s è partita per il Grande Prato, con la valigia piccola.\nDavanti a casa sua è sbocciato un fiore mai visto." % label)
+	_toast(L10n.tf("🌸 %s è partita per il Grande Prato, con la valigia piccola.\nDavanti a casa sua è sbocciato un fiore mai visto.", [label]))
 	_ultima_partenza = _day()
 	_congedo = {}
 	_salva()
@@ -570,14 +571,14 @@ func _giorno_di_lutto(day: int) -> void:
 			for label in ignorati:
 				_visitors.call("lutto_di", str(label), nome)
 		_spegni_finestra()
-		_toast("Il villaggio riprende piano il suo respiro. %s è nei fiori, nelle stelle, negli anelli." % nome)
+		_toast(L10n.tf("Il villaggio riprende piano il suo respiro. %s è nei fiori, nelle stelle, negli anelli.", [nome]))
 		_salva()
 		return
 	if trascorsi == 0:
 		# la prima sera: tutti al Grande Albero, in silenzio
-		_toast("Stasera il villaggio si raccoglie al Grande Albero.")
+		_toast(L10n.t("Stasera il villaggio si raccoglie al Grande Albero."))
 	else:
-		_toast("Il villaggio è più silenzioso, senza %s." % nome)
+		_toast(L10n.tf("Il villaggio è più silenzioso, senza %s.", [nome]))
 
 
 func _tick_lutto() -> void:
@@ -620,7 +621,8 @@ func _tick_lutto() -> void:
 			# non un luccichio: una PRESENZA — la sagoma di chi è partito,
 			# seduta un attimo dove il momento accadde, rivolta a Mochi
 			_eco_presenza(nome, pos, player.global_position)
-			_toast("❀ Per un attimo, %s è lì di nuovo — %s." % [nome, str(luogo[2])])
+			_toast(L10n.tf("❀ Per un attimo, %s è lì di nuovo — %s.",
+					[nome, L10n.t(str(luogo[2]))]))
 			if _sfx:
 				_sfx.play("select", -18.0, 0.85)
 			return
@@ -733,7 +735,8 @@ func consolato(label: String, _nome_salutato: String) -> void:
 	if bool(_legami.call("consola", label)):
 		if _visitors:
 			_visitors.call("lutto_di", label, nome, "giocatore")
-		_toast("♥ Hai consolato %s: il ricordo di %s adesso pesa meno." % [label, nome])
+		_toast(L10n.tf("♥ Hai consolato %s: il ricordo di %s adesso pesa meno.",
+				[label, nome]))
 		# la consolazione È un momento che si annoda: il filo appare
 		_legami.call("mostra_filo", label)
 
@@ -839,18 +842,19 @@ func _ricostruisci_ricordi() -> void:
 func _riaffiora(nome: String) -> void:
 	var momenti: Array = _legami.call("momenti_di", nome) if _legami else []
 	if momenti.is_empty():
-		_toast("💭 Il fiore di %s ondeggia piano." % nome)
+		_toast(L10n.tf("💭 Il fiore di %s ondeggia piano.", [nome]))
 		return
 	var quanti := mini(momenti.size(), 5)
-	_toast("💭 Accanto al fiore, i ricordi di %s riaffiorano…" % nome)
+	_toast(L10n.tf("💭 Accanto al fiore, i ricordi di %s riaffiorano…", [nome]))
 	for i in quanti:
 		@warning_ignore("integer_division")
 		var m: Dictionary = momenti[mini(i * momenti.size() / quanti,
 				momenti.size() - 1)]
-		var racconto := str((TIPI.get(str(m.get("t", "")), ["…"]) as Array)[0])
+		var racconto := L10n.t(str((TIPI.get(str(m.get("t", "")), ["…"]) as Array)[0]))
 		get_tree().create_timer(1.6 + 2.0 * i).timeout.connect(func():
 			if is_instance_valid(self):
-				_toast("   giorno %d — %s" % [int(m.get("d", 0)), racconto]))
+				_toast("   " + L10n.tf("giorno %d — %s",
+						[int(m.get("d", 0)), racconto])))
 	var fiore: Node3D = _fiori.get(nome)
 	if fiore and is_instance_valid(fiore):
 		_sparkle(fiore.global_position + Vector3(0, 0.55, 0), Color(1.0, 0.85, 0.9))
@@ -889,7 +893,7 @@ func _update_prompt() -> void:
 	if cam.is_position_behind(wp):
 		_prompt.visible = false
 		return
-	_prompt_label.text = "E — ricorda %s" % _fiore_vicino
+	_prompt_label.text = L10n.tf("E — ricorda %s", [_fiore_vicino])
 	_prompt.reset_size()
 	var p := cam.unproject_position(wp)
 	_prompt.position = p - Vector2(_prompt.size.x * 0.5, _prompt.size.y)

@@ -213,16 +213,18 @@ func _refresh_menu() -> void:
 	for kind in ING_PLURAL:
 		var n := int(pantry.get(kind, 0))
 		if n > 0:
-			parts.append("%d %s" % [n, kind if n == 1 else ING_PLURAL[kind]])
-	_pantry_label.text = "Dispensa: " + (" · ".join(parts) if not parts.is_empty() else "vuota (orto e bosco ti aspettano)")
+			parts.append("%d %s" % [n, L10n.t(str(kind if n == 1 else ING_PLURAL[kind]))])
+	_pantry_label.text = L10n.tf("Dispensa: %s", [" · ".join(parts) if not parts.is_empty() \
+			else L10n.t("vuota (orto e bosco ti aspettano)")])
 	for i in _menu_buttons.size():
 		var recipe: Dictionary = RECIPES[i]
 		var need_parts: Array[String] = []
 		for kind in recipe["need"]:
 			var n := int(recipe["need"][kind])
-			need_parts.append("%d %s" % [n, kind if n == 1 else ING_PLURAL[kind]])
-		var need_txt := " · ".join(need_parts) if not need_parts.is_empty() else "senza ingredienti"
-		_menu_buttons[i].text = "%d.  %s   —   %s" % [i + 1, recipe["name"], need_txt]
+			need_parts.append("%d %s" % [n, L10n.t(str(kind if n == 1 else ING_PLURAL[kind]))])
+		var need_txt := " · ".join(need_parts) if not need_parts.is_empty() \
+				else L10n.t("senza ingredienti")
+		_menu_buttons[i].text = "%d.  %s   —   %s" % [i + 1, L10n.t(str(recipe["name"])), need_txt]
 		_menu_buttons[i].disabled = not _can_cook(recipe)
 
 
@@ -336,7 +338,8 @@ func _ritual(camino: Node3D, recipe: Dictionary) -> void:
 			"icon": DISH_ICON.get(recipe["name"], "zuppa")})
 	var visitors := get_node_or_null("../Visitors")
 	if visitors:
-		visitors.call("_show_toast", "Una porzione è finita nelle tasche (Tab): regalala a un amico!")
+		visitors.call("_show_toast",
+				L10n.t("Una porzione è finita nelle tasche (Tab): regalala a un amico!"))
 	_build.request_save()
 
 
@@ -638,8 +641,9 @@ func _update_prompt() -> void:
 	if cam.is_position_behind(wp):
 		_prompt.visible = false
 		return
-	_prompt_label.text = "E — ricettario del camino" \
-			if not (_weather and _weather.is_raining()) else "E — cucinare al riparo dalla pioggia"
+	_prompt_label.text = L10n.t("E — ricettario del camino") \
+			if not (_weather and _weather.is_raining()) \
+			else L10n.t("E — cucinare al riparo dalla pioggia")
 	_prompt.reset_size()
 	var p := cam.unproject_position(wp)
 	_prompt.position = p - Vector2(_prompt.size.x * 0.5, _prompt.size.y)
@@ -697,7 +701,7 @@ func _build_ui() -> void:
 	_menu.add_child(vbox)
 
 	var title := Label.new()
-	title.text = "~ Ricettario del camino ~"
+	title.text = L10n.t("~ Ricettario del camino ~")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 17)
 	title.add_theme_color_override("font_color", Color("8a5a3a"))
@@ -733,7 +737,7 @@ func _build_ui() -> void:
 		_menu_buttons.append(btn)
 
 	var hint := Label.new()
-	hint.text = "E — chiudi il ricettario"
+	hint.text = L10n.t("E — chiudi il ricettario")
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.add_theme_font_size_override("font_size", 11)
 	hint.add_theme_color_override("font_color", Color(UI_BROWN, 0.55))

@@ -106,7 +106,8 @@ func momento(nome: String, tipo: String, extra := "") -> void:
 		momenti.pop_front()
 	if nome != "__prova":
 		if primo:
-			_toast("❀ Il filo con %s si colora: %s" % [nome, str(TIPI[tipo][0])])
+			_toast(L10n.tf("❀ Il filo con %s si colora: %s",
+					[nome, L10n.t(str(TIPI[tipo][0]))]))
 			# il momento che si annoda SI VEDE: il filo rosso tra le zampe
 			mostra_filo(nome, tipo == "oro")
 		elif tipo == "oro":
@@ -129,7 +130,8 @@ func ricorda(nome: String, node: Node3D) -> void:
 	_ricordo_cd = 30.0 - 14.0 * f
 	var m: Dictionary = momenti[randi() % momenti.size()]
 	var tipo := str(m["t"])
-	_toast("💭 %s ripensa: %s (giorno %d)" % [nome, str(TIPI[tipo][0]), int(m["d"])])
+	_toast(L10n.tf("💭 %s ripensa: %s (giorno %d)",
+			[nome, L10n.t(str(TIPI[tipo][0])), int(m["d"])]))
 	if node and is_instance_valid(node):
 		var parole: Array = TIPI[tipo][1]
 		node.call("speak", parole, "felice")
@@ -211,16 +213,16 @@ func _nuovo_giorno(_d: int) -> void:
 			continue
 		filo["s"] = adesso
 		if adesso == "anziano":
-			_toast("🍂 Sul musetto di %s brillano i primi peli d'argento" % nome)
+			_toast(L10n.tf("🍂 Sul musetto di %s brillano i primi peli d'argento", [nome]))
 			var gtree: Node = get_tree().get_first_node_in_group("grande_albero")
 			if gtree:
 				gtree.call("engrave_once", "argento_" + str(nome), "🍂",
-						"l'autunno di %s è cominciato" % nome)
+						L10n.tf("l'autunno di %s è cominciato", [nome]))
 			var mail: Node = get_node_or_null("../../Mail")
 			if mail:
 				mail.call("queue_letter", {
-					"from": "Il Gufo",
-					"text": "Ho visto i primi peli d'argento\nsul musetto di %s.\nLe stagioni passano anche per noi.\nStagli vicino." % nome,
+					"from": L10n.t("Il Gufo"),
+					"text": L10n.tf("Ho visto i primi peli d'argento\nsul musetto di %s.\nLe stagioni passano anche per noi.\nStagli vicino.", [nome]),
 					"gift": false,
 				})
 	_salva()

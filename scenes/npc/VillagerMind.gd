@@ -91,7 +91,7 @@ func best_liked(f: Dictionary) -> String:
 			if v > best_v:
 				best_v = v
 				best = key
-	return LIKE_LINES.get(best, "Che bel posticino")
+	return L10n.t(str(LIKE_LINES.get(best, "Che bel posticino")))
 
 
 # la feature assente (o scarsa) che pesa di più: il consiglio azionabile
@@ -105,4 +105,4 @@ func most_missed(f: Dictionary) -> String:
 			if lack > worst_v:
 				worst_v = lack
 				worst = key
-	return MISS_LINES.get(worst, "")
+	return L10n.t(str(MISS_LINES.get(worst, "")))

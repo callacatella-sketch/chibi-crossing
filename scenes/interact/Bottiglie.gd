@@ -336,8 +336,8 @@ func _apri() -> void:
 		_lette = [i]
 	var dono := contenuto(randf())
 	var lettera: Dictionary = LETTERE[i]
-	_card_da.text = "~  %s  ~" % str(lettera["da"])
-	_card_testo.text = str(lettera["testo"])
+	_card_da.text = "~  %s  ~" % L10n.t(str(lettera["da"]))
+	_card_testo.text = L10n.t(str(lettera["testo"]))
 	_card_dono.text = _consegna_dono(dono)
 	_card.visible = true
 	_reading = true
@@ -361,7 +361,7 @@ func _consegna_dono(dono: Dictionary) -> String:
 			var n := int(dono["n"])
 			if eco:
 				eco.add_nuts(n)
-			return "Nel fondo: %d noccioline. 🌰" % n
+			return L10n.tf("Nel fondo: %d noccioline. 🌰", [n])
 		"ingredienti":
 			var cucina := get_node_or_null("../Cooking")
 			var scelte := ["carota", "zucca", "bacca", "fungo"]
@@ -370,17 +370,17 @@ func _consegna_dono(dono: Dictionary) -> String:
 				var id: String = scelte[randi() % scelte.size()]
 				if cucina:
 					cucina.add_ingredient(id, 1)
-				presi.append(CRIT.nome(id))
-			return "Nel fondo: %s, per la dispensa." % ", ".join(presi)
+				presi.append(L10n.t(CRIT.nome(id)))
+			return L10n.tf("Nel fondo: %s, per la dispensa.", [", ".join(presi)])
 		"tesoro":
 			var inv := get_node_or_null("../Inventory")
 			if inv:
 				inv.add_treasure(str(dono["id"]), 1)
-			return "E incastrata nel vetro: una conchiglia di fiume."
+			return L10n.t("E incastrata nel vetro: una conchiglia di fiume.")
 		_:
 			if eco:
 				eco.add_stars(1)
-			return "E sul fondo, una stellina. ⭐"
+			return L10n.t("E sul fondo, una stellina. ⭐")
 
 
 func _chiudi_card() -> void:
@@ -405,7 +405,7 @@ func _aggiorna_prompt() -> void:
 	if cam.is_position_behind(wp):
 		_prompt.visible = false
 		return
-	_prompt_label.text = "E — ripesca la bottiglia!"
+	_prompt_label.text = L10n.t("E — ripesca la bottiglia!")
 	_prompt.reset_size()
 	var p := cam.unproject_position(wp)
 	_prompt.position = p - Vector2(_prompt.size.x * 0.5, _prompt.size.y)
@@ -477,7 +477,7 @@ func _build_ui() -> void:
 	_card_dono.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(_card_dono)
 	var chiudi := Label.new()
-	chiudi.text = "E — chiudi"
+	chiudi.text = L10n.t("E — chiudi")
 	chiudi.add_theme_font_size_override("font_size", 11)
 	chiudi.add_theme_color_override("font_color", Color(0.42, 0.29, 0.23))
 	chiudi.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

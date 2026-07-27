@@ -444,7 +444,7 @@ func _show_mist(on: bool) -> void:
 		_mist.emitting = true
 		var visitors := get_node_or_null("../Visitors")
 		if visitors:
-			visitors.call("_show_toast", "La nebbiolina del mattino avvolge il villaggio…")
+			visitors.call("_show_toast", L10n.t("La nebbiolina del mattino avvolge il villaggio…"))
 	var tw := create_tween()
 	tw.tween_property(_mist_mat, "albedo_color:a", 0.55 if on else 0.0, 4.0) \
 			.set_trans(Tween.TRANS_SINE)
