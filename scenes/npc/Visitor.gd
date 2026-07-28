@@ -645,6 +645,10 @@ func _enter_state(s: String) -> void:
 			# (1.6). In sei secondi non ci starebbero.
 			_timer = NAP_DUR
 			_sonno_r_prev = 1.0
+			# la frase gia' in canna va zittita, o ci si addormenta
+			# parlando (il parlato vince sull'espressione "dorme")
+			if _voice_player and _voice_player.playing:
+				_voice_player.stop()
 		"tk_stella":
 			# naso all'insù: le stelle sono uno spettacolo che basta
 			_timer = 8.0
@@ -1079,6 +1083,23 @@ func _gait_misura(delta: float) -> void:
 			1.0 - exp(-7.0 * delta))
 	_wag_t += delta * (1.6 + 2.6 * _walk_f)
 
+	# LA RETE DI SICUREZZA DEL SONNO. La coda arrotolata e le spalle chiuse
+	# le scrive SOLO _anim_dorme: se il pisolino viene troncato — e succede
+	# spesso (resident_sleep parte anche da tk_nap, la routine non ha
+	# guardie di stato, mangia()/_walk_to assegnano _state a mano saltando
+	# _enter_state) — nessuno le rimetterebbe piu' a posto, e il chibi
+	# resterebbe con la coda in avanti per il resto della partita.
+	# Qui, che gira per OGNI stato, tornano a riposo da sole e in dolcezza.
+	if _state != "tk_nap":
+		var kr := 1.0 - exp(-8.0 * delta)
+		if _tail_p:
+			_tail_p.rotation.x = lerpf(_tail_p.rotation.x, 0.0, kr)
+		if _tail_tip:
+			_tail_tip.rotation.x = lerpf(_tail_tip.rotation.x, 0.0, kr)
+		if _c_arms.size() == 2:
+			_c_arms[0].rotation.z = lerpf(_c_arms[0].rotation.z, -0.32, kr)
+			_c_arms[1].rotation.z = lerpf(_c_arms[1].rotation.z, 0.32, kr)
+
 
 ## Il corpo del passo, fuso col blend: la STESSA specie di Mochi.
 ## Chiamato sia in cammino sia da fermo — e' il blend a decidere quanto
@@ -1181,7 +1202,7 @@ const SONNO_T := 5.0
 const SONNO_SETTLE := 1.1
 const SONNO_WAKE := 1.6
 const SONNO_INSPIRO := 0.38   # la frazione di periodo che sale
-const NAP_DUR := 9.0          # il pisolino: settle + sonno vero + stiracchio
+const NAP_DUR := 14.0         # settle + ALMENO DUE respiri pieni + stiracchio
 
 
 ## La fase del respiro 0..1 — 0 = fondo dell'espiro, 1 = colmo
@@ -1692,6 +1713,9 @@ func do_task(kind: String, pos: Vector3, on_done := Callable()) -> void:
 	if kind in ["nibble", "water", "wonder", "chat_fungo"]:
 		_walk_to(pos, "tk_" + kind)
 	else:
+		# chi si corica SUL POSTO lo fa a terra: senza questa riga, un
+		# residente seduto in panchina (y = 0.52) si stendeva a mezz'aria
+		position.y = 0.0
 		_enter_state("tk_" + kind)
 
 
@@ -2398,7 +2422,10 @@ func _recita_applica(delta: float) -> void:
 	# si sospende. (Scrivere "sereno" nel meta agganciava _rc_stabile e il
 	# telegrafo della ribellione restava spento fino al gradino dopo.)
 	var stab := "sereno" if _state == "tk_nap" else _rc_stabile
-	var bersagli := recita_bersagli(stab, _rc_trans, _rc_trans_t, _t)
+	# …e nemmeno i TRANSITORI: chi dorme non trasalisce ne' si illumina
+	# quando ti avvicini (bastavano 3.2 m per far sobbalzare un dormiente)
+	var trans := "" if _state == "tk_nap" else _rc_trans
+	var bersagli := recita_bersagli(stab, trans, _rc_trans_t, _t)
 	# la pioggia si somma a QUALUNQUE postura: chiunque sia — fiero,
 	# imbronciato, in partenza — sotto l'acqua si ripara comunque.
 	# Tranne chi DORME: la zampina a visiera sopra un dormiente sarebbe

@@ -292,10 +292,65 @@ func _test_conflitti(t, vs: GDScript) -> void:
 
 	# il volto, lo sguardo e la voce
 	t.eq(v._expr_for_state("tk_nap"), "dorme", "il volto recita 'dorme'")
-	t.ok(src.contains("_face.clear_gaze()"),
-			"a occhi chiusi lo sguardo non insegue il giocatore")
+	t.ok(src.contains("if _state == \"tk_nap\":\n\t\t\t# a occhi chiusi"),
+			"a occhi chiusi lo sguardo non insegue il giocatore "
+			+ "(il ramo suo, non il clear_gaze generico)")
 	var prima = v._speak_cd
 	v.speak(["ciao"], "felice")
 	t.eq(v._speak_cd, prima, "chi dorme non parla")
 	t.ok(src.contains("riparo_pioggia and _state != \"tk_nap\""),
 			"niente zampina-visiera della pioggia sopra un dormiente")
+
+	# --- le regressioni che una revisione avversariale ha scovato ---
+
+	# 1) un pisolino TRONCATO non lascia il corpo fuori posa per sempre.
+	# Coda arrotolata e spalle chiuse le scrive SOLO il sonno, e troncare
+	# un pisolino e' la norma (resident_sleep parte anche da tk_nap).
+	var w = vs.new()
+	w.dna = dna_s.generate(7)
+	t.stage(w)
+	var coda0: float = (w._tail_p as Node3D).rotation.x
+	var spalla0: float = (w._c_arms[0] as Node3D).rotation.z
+	w._enter_state("tk_nap")
+	for f in 180:                       # 3 s: in pieno sonno
+		w._process(1.0 / 60.0)
+	t.ok(absf((w._tail_p as Node3D).rotation.x - coda0) > 0.2,
+			"dormendo la coda si arrotola davvero")
+	w._state = "r_idle"                 # come fanno _walk_to / mangia / resident_sleep
+	for f in 60:
+		w._process(1.0 / 60.0)
+	t.almost((w._tail_p as Node3D).rotation.x, coda0,
+			"REGRESSIONE: pisolino troncato → la coda torna a posto", 0.02)
+	t.almost((w._c_arms[0] as Node3D).rotation.z, spalla0,
+			"…e le spalle riaprono (mai fuori posa per sempre)", 0.02)
+
+	# 2) chi dorme non recita i TRANSITORI: niente trasalimento addosso
+	# al dormiente solo perche' il giocatore gli passa vicino
+	var s2 = vs.new()
+	s2.dna = dna_s.generate(31)
+	t.stage(s2)
+	s2._enter_state("tk_nap")
+	for f in 120:
+		s2._process(1.0 / 60.0)
+	s2.set_meta("postura", "trasalisce")
+	for f in 30:
+		s2._process(1.0 / 60.0)
+	t.ok(absf(float(s2._rc_cur.get("ax0", 0.0))) < 0.05,
+			"il dormiente non trasalisce se ti avvicini (%.3f)"
+			% s2._rc_cur.get("ax0", 0.0))
+
+	# 3) chi si corica SUL POSTO lo fa a terra, non sopra la panchina
+	var b = vs.new()
+	b.dna = dna_s.generate(55)
+	b.mode = "resident"
+	t.stage(b)
+	b.position.y = 0.52                 # seduto in panchina
+	b.do_task("nap", Vector3.ZERO)
+	t.almost(b.position.y, 0.0,
+			"il pisolino preso dalla panchina si prende A TERRA", 0.01)
+
+	# 4) il respiro deve avere il TEMPO di leggersi: un ritmo, non un sospiro
+	var pieno := (float(vs.NAP_DUR) - float(vs.SONNO_WAKE)
+			- float(vs.SONNO_SETTLE)) / float(vs.SONNO_T)
+	t.ok(pieno >= 2.0,
+			"il sonno pieno dura almeno DUE respiri (%.2f periodi)" % pieno)
