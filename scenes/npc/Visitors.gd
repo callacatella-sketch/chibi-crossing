@@ -1457,7 +1457,8 @@ func _give_dish(r: Dictionary) -> void:
 	if mochi:
 		mochi.set("_yaw", atan2(-dir.x, -dir.z))
 		mochi.call("hold_offer", true)
-	var bowl := _make_bowl(Color("e8944a") if bool(dish.get("warm", true)) else Color("b04a7a"))
+	var dish_col := Color("e8944a") if bool(dish.get("warm", true)) else Color("b04a7a")
+	var bowl := _make_bowl(dish_col)
 	add_child(bowl)
 	bowl.global_position = _player.global_position + dir * 0.34 + Vector3(0, 0.55, 0)
 	bowl.scale = Vector3.ONE * 0.05
@@ -1477,9 +1478,6 @@ func _give_dish(r: Dictionary) -> void:
 	# la reazione arriva COL piatto, non prima
 	tw.tween_callback(func():
 		if loves_it:
-			node.call("celebrate")
-			# «ta-ki! wa-wi!» — grazie, che felicità
-			node.call("speak", ["grazie", "felice"], "felice")
 			_bump_friend(r, 2)
 			get_tree().call_group("legami", "momento",
 					str(r.get("dna", {}).get("name", "")), "piatto", kind)
@@ -1489,18 +1487,24 @@ func _give_dish(r: Dictionary) -> void:
 				jt.tween_property(mochi, "joy", 1.0, 0.42).set_trans(Tween.TRANS_SINE)
 				jt.tween_callback(func(): mochi.set("joy", 0.0))
 		else:
-			node.call("_spawn_heart")
-			node.call("speak", ["grazie"], "neutro")
 			_bump_friend(r, 1)
 			_show_toast(L10n.tf("%s ringrazia sorridendo per %s %s.", [r["label"], art, kind]))
 		if _sfx:
 			_sfx.place_ok()
 		if mochi:
 			mochi.call("hold_offer", false)
-		var via := create_tween()
-		via.tween_property(bowl, "scale", Vector3.ONE * 0.03, 0.28) \
-				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-		via.tween_callback(bowl.queue_free))
+		# IL CERCHIO SI CHIUDE: la ciotola non svanisce più a mezz'aria —
+		# gliela si consegna, e lui la MANGIA davvero (Pasto.gd: annusa,
+		# soffia se scotta, tre morsetti, e solo allora ringrazia).
+		if node.has_method("mangia"):
+			node.call("mangia", bowl, dish_col, bool(dish.get("warm", true)), loves_it)
+		else:
+			node.call("_spawn_heart")
+			node.call("speak", ["grazie"], "neutro")
+			var via := create_tween()
+			via.tween_property(bowl, "scale", Vector3.ONE * 0.03, 0.28) \
+					.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+			via.tween_callback(bowl.queue_free))
 	_build.request_save()
 
 
@@ -1537,8 +1541,8 @@ func offer_item(r: Dictionary, item: Dictionary) -> void:
 	if mochi:
 		mochi.set("_yaw", atan2(-dir.x, -dir.z))
 		mochi.call("hold_offer", true)
-	var prop: Node3D = _make_present() if is_treasure else \
-			_make_bowl(Color("e8944a") if bool(item.get("warm", true)) else Color("b04a7a"))
+	var item_col := Color("e8944a") if bool(item.get("warm", true)) else Color("b04a7a")
+	var prop: Node3D = _make_present() if is_treasure else _make_bowl(item_col)
 	add_child(prop)
 	prop.global_position = _player.global_position + dir * 0.34 + Vector3(0, 0.55, 0)
 	prop.scale = Vector3.ONE * 0.05
@@ -1562,9 +1566,13 @@ func offer_item(r: Dictionary, item: Dictionary) -> void:
 		gesto_gentile(str(r.get("label", "")),
 				"regalo" if is_treasure else "piatto",
 				0.9 if loves_it else 0.55)
+		# una PORZIONE si mangia (il rituale del Pasto la chiude davvero); un
+		# tesoro invece si stringe al petto: le feste del corpo restano quelle
+		var mangiabile: bool = not is_treasure and node.has_method("mangia")
 		if loves_it:
-			node.call("celebrate")
-			node.call("speak", ["grazie", "felice"], "felice")
+			if not mangiabile:
+				node.call("celebrate")
+				node.call("speak", ["grazie", "felice"], "felice")
 			_bump_friend(r, 2)
 			_show_toast(L10n.tf("%s ADORA %s!", [r["label"], what]))
 			if mochi:
@@ -1572,18 +1580,22 @@ func offer_item(r: Dictionary, item: Dictionary) -> void:
 				jt.tween_property(mochi, "joy", 1.0, 0.42).set_trans(Tween.TRANS_SINE)
 				jt.tween_callback(func(): mochi.set("joy", 0.0))
 		else:
-			node.call("_spawn_heart")
-			node.call("speak", ["grazie"], "neutro")
+			if not mangiabile:
+				node.call("_spawn_heart")
+				node.call("speak", ["grazie"], "neutro")
 			_bump_friend(r, 1)
 			_show_toast(L10n.tf("%s ringrazia sorridendo per %s.", [r["label"], what]))
 		if _sfx:
 			_sfx.place_ok()
 		if mochi:
 			mochi.call("hold_offer", false)
-		var via := create_tween()
-		via.tween_property(prop, "scale", Vector3.ONE * 0.03, 0.28) \
-				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-		via.tween_callback(prop.queue_free))
+		if mangiabile:
+			node.call("mangia", prop, item_col, bool(item.get("warm", true)), loves_it)
+		else:
+			var via := create_tween()
+			via.tween_property(prop, "scale", Vector3.ONE * 0.03, 0.28) \
+					.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+			via.tween_callback(prop.queue_free))
 	_build.request_save()
 
 
