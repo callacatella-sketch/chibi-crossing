@@ -407,6 +407,20 @@ C++ via GDExtension. Tutta l'arte è procedurale: zero asset esterni.
   dalla pioggia". Quando smette, se è giorno, un **arcobaleno a 7 bande
   pastello** (mesh procedurale con vertex color, punte che sfumano) si
   distende sul villaggio e svanisce piano.
+- **Una sola aria** (`shaders/vento.gdshaderinc`) — l'erba aveva le sue
+  folate, il bucato la sua oscillazione, e le chiome degli alberi… niente:
+  stavano immobili in mezzo a un mondo che ondeggiava, e si muovevano solo
+  quando il taglialegna le colpiva. Ora la folata è **una sola** e viaggia
+  sul terreno: quando passa si piega prima l'erba di là, poi la chioma
+  dell'albero, poi l'erba di qua — è quel **ritardo** a far sembrare vivo
+  il vento. Le chiome si piegano dall'attaccatura al ramo in su (il tronco
+  resta piantato), i lobi esterni ballano più del cuore, ogni albero ha la
+  sua fase presa dal punto in cui è piantato (due alberi vicini non
+  respirano mai all'unisono) e le foglie hanno un fremito d'alta frequenza
+  che si accende col pieno della folata. Ogni famiglia di fronde ha il suo
+  peso: il ciliegio è una vela, la conifera si piega appena, il cespuglio
+  freme e basta. E il vento **segue il cielo**: raffiche quando si copre,
+  neve che scende piano, e nella nebbiolina del mattino l'aria si ferma.
 - **I vicini mangiano davvero** (`scenes/npc/Pasto.gd`) — il piatto regalato
   non svanisce più a mezz'aria: gliela si **consegna**, e lui la mangia col
   rituale di Mochi visto da fuori. Le zampine salgono ad accogliere la

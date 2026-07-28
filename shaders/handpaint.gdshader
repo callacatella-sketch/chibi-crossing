@@ -13,6 +13,22 @@ uniform float rim_strength : hint_range(0.0, 1.0) = 0.12;
 uniform vec4 rim_color : source_color = vec4(1.0, 0.95, 0.9, 1.0);
 uniform float wind_strength = 0.0;
 uniform float wind_speed = 1.4;
+
+// --- LE CHIOME NEL VENTO ---------------------------------------------
+// `wind_strength` qui sopra è l'ondina locale di erbette e bucato: sale
+// col quadrato dell'altezza e non ha idea di dove sia il mondo. Per una
+// CHIOMA non basta: un albero non oscilla per conto suo, si piega quando
+// la folata arriva fin lì — la stessa folata che un istante prima ha
+// piegato l'erba di là (shaders/vento.gdshaderinc).
+//   chioma       l'ampiezza del piegamento (0 = non è fogliame)
+//   chioma_base  sotto questa quota LOCALE nulla si muove: è l'attaccatura
+//                al ramo, e deve restare inchiodata o le foglie si
+//                staccano dal tronco
+//   chioma_span  in quanta altezza si arriva al piegamento pieno
+uniform float chioma = 0.0;
+uniform float chioma_base = 0.0;
+uniform float chioma_span = 1.0;
+#include "res://shaders/vento.gdshaderinc"
 // 0 = opaco; > 0 = il controluce attraversa la materia (fronde, petali):
 // il sole alle spalle di una chioma la accende di verde-oro
 uniform float translucency : hint_range(0.0, 1.0) = 0.0;
@@ -57,6 +73,40 @@ void vertex() {
 		float sway = sin(TIME * wind_speed + wp.x * 0.9 + wp.z * 0.7) * wind_strength * h * h;
 		VERTEX.x += sway;
 		VERTEX.z += sway * 0.5;
+	}
+
+	// --- la chioma che respira ---
+	if (chioma > 0.0) {
+		// quanto questo vertice appartiene alla FRANGIA: all'attaccatura
+		// del ramo niente, in cima tutto. Lo smoothstep evita lo scalino
+		// (un peso lineare fa "piegare" la chioma da un punto preciso, e
+		// si vede una cerniera)
+		float w = clamp((VERTEX.y - chioma_base) / max(chioma_span, 0.001), 0.0, 1.0);
+		w = w * w * (3.0 - 2.0 * w);
+		// e i lobi esterni ballano più del cuore: una chioma che si sposta
+		// tutta insieme sembra un palloncino, non fogliame
+		w *= 0.55 + 0.45 * clamp(length(VERTEX.xz) * 0.7, 0.0, 1.0);
+
+		vec2 dir = vento_direzione();
+		float folata = vento_folata(wp.xz, TIME);
+		// la brezza personale dell'albero: nessuna chioma è mai ferma del
+		// tutto, e la fase viene da DOVE È PIANTATO — due alberi vicini non
+		// respirano mai all'unisono (è la prima cosa che tradisce
+		// un'animazione fatta a macchina)
+		float fase = vento_fase(MODEL_MATRIX[3].xz);
+		float brezza = sin(TIME * 0.9 + fase) * 0.35 + sin(TIME * 1.37 + fase * 1.7) * 0.15;
+
+		float piega = (folata + brezza * 0.35) * chioma * w;
+		VERTEX.xz += dir * piega;
+		// piegandosi la chioma SCENDE un poco: è una rotazione attorno al
+		// ramo, non una traslazione — senza questo sembra che scivoli via
+		VERTEX.y -= abs(piega) * 0.35;
+
+		// il fremito delle foglie: frequenza alta, ampiezza minuscola, e
+		// vivo soprattutto quando la folata è in pieno
+		float viva = 0.35 + 0.65 * folata;
+		VERTEX.x += sin(TIME * 7.3 + wp.x * 3.1 + wp.z * 2.7 + fase) * chioma * 0.07 * w * viva;
+		VERTEX.z += cos(TIME * 6.1 + wp.z * 2.9 + fase * 1.3) * chioma * 0.06 * w * viva;
 	}
 }
 

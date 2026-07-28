@@ -618,10 +618,15 @@ func _build_head() -> void:
 		_brows.append(FACE.build_brow(_head, _toon_mat(Color("6b4636")), side,
 				Vector3(side * 0.108, 0.185, -0.352), 0.088, 0.017, "morbide"))
 
-	# occhi ">.<" per la corsa: due pennellate a chevron che SEGUONO la
-	# guancia. Le vecchie capsule dritte tagliavano la curva della testa:
-	# una punta affondava e l'altra galleggiava, e da vicino restavano
-	# due trattini spezzati invece del ">.<"
+	# occhi ">.<" per la corsa: UNA pennellata sola per occhio — dall'
+	# estremità alta, giù fino al vertice (che guarda il nasino), e su
+	# fino all'estremità bassa, lungo una bezier che PASSA ESATTAMENTE
+	# per il vertice. Così la rastrematura calligrafica di build_stroke
+	# (piena al centro, punte sottili) lavora PER noi: il vertice è il
+	# punto di massima pressione del pennello, le punte esterne si
+	# affilano. Prima erano DUE tratti che si davano appuntamento al
+	# vertice: lì entrambi rastremavano a zero e il ">.<" restava
+	# spezzato — due petali con un buco in mezzo.
 	for side: float in [-1.0, 1.0]:
 		var sq := Node3D.new()
 		sq.position = _su_testa(Vector3(side * 0.155, 0.03, -0.36))
@@ -631,15 +636,18 @@ func _build_head() -> void:
 		# la z frontale è ESSENZIALE: la proiezione segue la direzione del
 		# punto, e con z=0 finirebbe sul fianco della testa, non sul viso
 		var centro := Vector3(side * 0.155, 0.03, -0.36)
-		for verso: float in [1.0, -1.0]:
-			# dal vertice verso l'orecchio, aprendo: il vertice del chevron
-			# guarda il nasino (">" a sinistra, "<" a destra)
-			var da := centro + Vector3(-side * 0.0266, 0.0017 * verso, 0.0)
-			var a_ := centro + Vector3(side * 0.0446, 0.0643 * verso, 0.0)
-			var punti: Array = []
-			for i in 9:
-				punti.append(_su_testa(da.lerp(a_, float(i) / 8.0)) - sq.position)
-			FACE.build_stroke(sq, sq_mat, punti, 0.014)
+		var vertice := centro + Vector3(-side * 0.0266, 0.0, 0.0)
+		var alto := centro + Vector3(side * 0.0446, 0.0643, 0.0)
+		var basso := centro + Vector3(side * 0.0446, -0.0643, 0.0)
+		# il controllo della bezier sta OLTRE il vertice: l'apice della
+		# curva (Q a metà corsa) atterra proprio su di lui
+		var ctrl := vertice * 2.0 - (alto + basso) * 0.5
+		var punti: Array = []
+		for i in 17:
+			var u := float(i) / 16.0
+			var q := alto.lerp(ctrl, u).lerp(ctrl.lerp(basso, u), u)
+			punti.append(_su_testa(q) - sq.position)
+		FACE.build_stroke(sq, sq_mat, punti, 0.0155)
 		_squints.append(sq)
 
 	# goccia di sudore per quando è sfinita (nascosta a riposo)

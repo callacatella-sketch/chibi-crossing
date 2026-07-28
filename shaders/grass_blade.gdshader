@@ -16,7 +16,11 @@ uniform vec4 grass_b : source_color = vec4(0.36, 0.57, 0.33, 1.0);
 uniform vec4 grass_c : source_color = vec4(0.70, 0.84, 0.47, 1.0);
 uniform vec4 tint_warm : source_color = vec4(0.74, 0.86, 0.42, 1.0);
 uniform vec4 tint_cool : source_color = vec4(0.44, 0.72, 0.52, 1.0);
-uniform vec2 wind_dir = vec2(0.78, 0.45);
+
+// LA FOLATA NON È PIÙ SOLO SUA: la stessa onda che piega questi fili
+// piega anche le chiome degli alberi (shaders/vento.gdshaderinc). Prima
+// il numero della direzione viveva qui e nessun altro lo conosceva.
+#include "res://shaders/vento.gdshaderinc"
 
 global uniform vec3 mochi_pos;
 global uniform float erba_bagnata;
@@ -58,11 +62,11 @@ void vertex() {
 	float bendw = UV.y * UV.y;   // la radice resta piantata, la punta balla
 
 	// la brezza personale del filo + la folata che viaggia sul prato
+	// (quella condivisa: la stessa che, un istante dopo, piega la chioma
+	// dell'albero che sta più in là)
 	float sway = sin(TIME * 1.7 + ph) * 0.5 + sin(TIME * 2.9 + ph * 1.7) * 0.18;
-	vec2 wdir = normalize(wind_dir);
-	float wave = sin(dot(world.xz, wdir) * 0.30 - TIME * 1.25
-			+ vnoise(world.xz * 0.15) * 2.2);
-	float gust = smoothstep(0.10, 0.95, wave);
+	vec2 wdir = vento_direzione();
+	float gust = vento_folata(world.xz, TIME);
 	vec2 off = wdir * (sway * 0.030 + gust * 0.13) * bendw;
 
 	// Mochi passa: i fili si scostano e si accucciano (solo a terra)
