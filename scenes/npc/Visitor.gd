@@ -145,6 +145,7 @@ var _wings: Array[Node3D] = []
 var _tail_p: Node3D
 var _tail_tip: Node3D
 var _step_acc := 0.0
+var _sit_t := 0.0     # da quanto è seduto: l'assestamento vive qui
 var _emote_cd := 0.0
 
 # il piano Lua composto dal Regista: lista di passi da recitare
@@ -460,6 +461,8 @@ func _enter_state(s: String) -> void:
 	if _pasto_occupa(s):
 		return
 	_state = s
+	# ogni seduta ricomincia dall'ASSESTAMENTO (plop, fianchi, sospiro)
+	_sit_t = 0.0
 	match s:
 		"browse":
 			if _poi_i < _pois.size():
@@ -1085,22 +1088,51 @@ func _anim_inspect() -> void:
 		_c_arms[1].rotation.x = 0.5
 
 
+## L'ASSESTAMENTO della seduta, PURO: a [param s] secondi dal sedersi,
+## quanto plop (il tonfo col rimbalzo che muore), quanto sistemarsi dei
+## fianchi, quanto sospiro (il petto che si alza a ~1.3s e le spalle che
+## ricadono), quanto colpo di coda che si accomoda. A s≈3 è tutto zero:
+## resta solo il respiro. Il test lo percorre punto a punto.
+static func assesto_seduta(s: float) -> Dictionary:
+	var calo := exp(-s * 1.6)
+	return {
+		"plop": -0.035 * exp(-s * 3.0) * cos(s * 9.0),
+		"fianchi": sin(s * 7.0) * 0.06 * calo,
+		"sospiro": exp(-pow((s - 1.3) / 0.35, 2.0)),
+		"coda": sin(s * 8.0) * 0.5 * calo,
+		"calo": calo,
+	}
+
+
 func _anim_sit() -> void:
-	# riposo beato: respiro lento, dondolio appena percettibile
+	# riposo beato — ma PRIMA l'assestamento: il plop con un rimbalzo,
+	# i fianchi che si sistemano, il sospiro, la coda che si accomoda
+	# con due colpi. Gli anziani fanno tutto con più calma. Solo dopo
+	# arriva il respiro lento di sempre (e il guardarsi intorno).
 	_relax_legs()
+	_sit_t += get_process_delta_time()
+	var a := assesto_seduta(_sit_t / (1.0 + 0.6 * _eta))
+	var calo: float = a["calo"]
 	_vis.rotation.x = 0.0
-	_vis.position.y = sin(_t * 1.6) * 0.012
-	_vis.rotation.z = sin(_t * 0.8) * 0.04
-	_head.rotation.x = sin(_t * 1.6) * 0.06
-	_head.rotation.y = sin(_t * 0.5) * 0.3
+	_vis.position.y = sin(_t * 1.6) * 0.012 + float(a["plop"]) \
+			+ float(a["sospiro"]) * 0.02
+	_vis.rotation.z = sin(_t * 0.8) * 0.04 + float(a["fianchi"])
+	_head.rotation.x = sin(_t * 1.6) * 0.06 - float(a["sospiro"]) * 0.12
+	# ci si guarda intorno solo DOPO essersi accomodati
+	_head.rotation.y = sin(_t * 0.5) * 0.3 * (1.0 - calo)
 	if not dna.is_empty():
 		if _c_arms.size() == 2:
-			_c_arms[0].rotation.x = 0.2
-			_c_arms[1].rotation.x = 0.2
+			# le spalle: su col sospiro, giù quando si lascia andare
+			var braccio: float = 0.2 - float(a["sospiro"]) * 0.22 + calo * 0.12
+			_c_arms[0].rotation.x = braccio
+			_c_arms[1].rotation.x = braccio
 		if _tail_p:
-			_tail_p.rotation.y = sin(_t * 1.2) * 0.25 * (1.0 - 0.55 * _eta)
+			# la coda si SISTEMA con due colpi, poi ondeggia placida
+			_tail_p.rotation.y = sin(_t * 1.2) * 0.25 * (1.0 - 0.55 * _eta) \
+					* (1.0 - calo) + float(a["coda"])
 		if _tail_tip:
-			_tail_tip.rotation.y = sin(_t * 1.2 - 0.7) * 0.2 * (1.0 - 0.55 * _eta)
+			_tail_tip.rotation.y = sin(_t * 1.2 - 0.7) * 0.2 * (1.0 - 0.55 * _eta) \
+					* (1.0 - calo) + sin(_sit_t * 8.0 - 0.8) * 0.4 * calo
 		return
 	if species == "passerotto":
 		_tail_p.rotation.x = sin(_t * 2.2) * 0.15
