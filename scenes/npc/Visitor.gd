@@ -180,7 +180,12 @@ var _wings: Array[Node3D] = []
 var _tail_p: Node3D
 var _tail_tip: Node3D
 var _step_acc := 0.0
-var _sit_t := 0.0     # da quanto è seduto: l'assestamento vive qui
+var _sit_t := 0.0     # da quanto è seduto/coricato: l'assestamento vive qui
+# il sonno: la fase del respiro (per la zeta) e il fremito del sogno
+var _sonno_r_prev := 1.0
+var _sonno_fremito := 4.0
+var _sonno_fremito_t := 0.0
+var _sonno_fremito_i := 0
 var _emote_cd := 0.0
 
 # il piano Lua composto dal Regista: lista di passi da recitare
@@ -635,7 +640,11 @@ func _enter_state(s: String) -> void:
 			tw2.tween_property(self, "position", position + back * 0.7, 0.35) \
 					.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		"tk_nap":
-			_timer = 6.0
+			# il pisolino dura quanto serve alle sue tre fasi: accovacciarsi
+			# (1.1), dormire davvero (qualche respiro pieno), stiracchiarsi
+			# (1.6). In sei secondi non ci starebbero.
+			_timer = NAP_DUR
+			_sonno_r_prev = 1.0
 		"tk_stella":
 			# naso all'insù: le stelle sono uno spettacolo che basta
 			_timer = 8.0
@@ -701,6 +710,10 @@ func _process(delta: float) -> void:
 	# nessuno stato lo tocca, il musetto continua a recitare intatto)
 	if _collo and _eta > 0.55:
 		var tr := smoothstep(0.55, 1.0, _eta) * 0.012
+		# nel sonno il tremolio si acquieta (non si spegne: un vecchio che
+		# dorme trema ancora un po', ed è giusto così)
+		if _state == "tk_nap":
+			tr *= 0.25
 		_collo.rotation.z = sin(_t * 16.0) * tr
 		_collo.rotation.x = 0.26 * _eta + sin(_t * 12.3) * tr
 
@@ -866,11 +879,10 @@ func _process(delta: float) -> void:
 				_finish_task()
 		"tk_nap":
 			_timer -= delta
-			_anim_sit()
-			_task_acc -= delta
-			if _task_acc <= 0.0:
-				_task_acc = 1.7
-				_emote("z", Color(0.62, 0.5, 0.78))
+			# il sonno vero: si accovaccia, RESPIRA (profondo e asimmetrico),
+			# sogna, e si stiracchia al risveglio. La zeta esce sull'espiro,
+			# dentro _anim_dorme: il suo ritmo è quello del petto
+			_anim_dorme(NAP_DUR, delta)
 			if _timer <= 0.0:
 				_finish_task()
 		"tk_stella":
@@ -964,7 +976,10 @@ func _process(delta: float) -> void:
 		else:
 			_face.set_talking(false)
 			_face.set_expression(_expr_for_state(_state))
-		if LOOK_STATES.has(_state) and _target != Vector3.ZERO:
+		if _state == "tk_nap":
+			# a occhi chiusi non si insegue nessuno: chi dorme, dorme
+			_face.clear_gaze()
+		elif LOOK_STATES.has(_state) and _target != Vector3.ZERO:
 			_face.look_at_world(_target + Vector3(0, 0.35, 0))
 		elif _player_ref and is_instance_valid(_player_ref) \
 				and global_position.distance_to(_player_ref.global_position) < 4.5:
@@ -1137,6 +1152,152 @@ static func assesto_seduta(s: float) -> Dictionary:
 		"coda": sin(s * 8.0) * 0.5 * calo,
 		"calo": calo,
 	}
+
+
+# ------------------------------------------------------------- il sonno
+# Il pisolino era `_anim_sit()` + una "z" a timer: la posa da SEDUTO e un
+# adesivo sopra. Un corpo che dorme però RESPIRA — ed è il respiro (non la
+# posa, non la zetta) la differenza fra dormire ed essere spenti.
+#
+# Il ciclo ha tre tempi, tutti in una curva pura:
+#   SETTLE (0 → 1.1 s)  si accovaccia: le anche scendono, le zampine si
+#                       raccolgono sotto il musetto, il peso trova terra
+#                       con un plop smorzato;
+#   SONNO               il respiro lento e PROFONDO: T = 5 s (12 atti al
+#                       minuto, contro i ~15 da sveglio) e soprattutto
+#                       ASIMMETRICO — inspiro 38%, espiro 62%, come i
+#                       polmoni veri. Un sin() puro si sente subito come
+#                       una macchina; l'asimmetria è ciò che rende il
+#                       petto vivo. Testa china, guancia che cede di
+#                       lato, orecchie mosce, coda arrotolata contro il
+#                       fianco (e MAI scodinzolante: smentirebbe tutto);
+#   WAKE (ultimi 1.6 s) lo stiracchio: le zampine al cielo, il musetto
+#                       in su, e il corpo che si ridistende.
+# La "z" non esce a timer: esce sull'ESPIRO — il ritmo delle zeta È il
+# ritmo del petto.
+
+## Il periodo del respiro nel sonno (secondi) e i tempi delle tre fasi.
+const SONNO_T := 5.0
+const SONNO_SETTLE := 1.1
+const SONNO_WAKE := 1.6
+const SONNO_INSPIRO := 0.38   # la frazione di periodo che sale
+const NAP_DUR := 9.0          # il pisolino: settle + sonno vero + stiracchio
+
+
+## La fase del respiro 0..1 — 0 = fondo dell'espiro, 1 = colmo
+## dell'inspiro. ASIMMETRICA: sale in fretta (38% del ciclo) e scende
+## piano (62%), come un torace vero. PURA.
+static func respiro_fase(t: float) -> float:
+	var p := fposmod(t / SONNO_T, 1.0)
+	if p < SONNO_INSPIRO:
+		# l'inspiro: sale morbido fino al colmo
+		return 0.5 - 0.5 * cos(PI * p / SONNO_INSPIRO)
+	# l'espiro: scende, più lungo e più dolce
+	return 0.5 + 0.5 * cos(PI * (p - SONNO_INSPIRO) / (1.0 - SONNO_INSPIRO))
+
+
+## Il corpo che dorme, PURO: a [param s] secondi dall'essersi coricato,
+## con l'orologio [param t] e una durata totale [param dur], quanto vale
+## ogni canale. Segni: + = giù/curva, − = su/in fuori.
+## Canali: vy (il petto che si alza: il respiro) · vx (busto accasciato) ·
+## hx/hy/hz (testa china, deriva del sogno, guancia appoggiata) ·
+## ax/az (zampine raccolte) · lx/ly (gambe piegate, anche a terra) ·
+## ear (orecchie mosce) · tx (coda arrotolata) · respiro (0..1) ·
+## sveglio (0..1: 1 = fuori dal sonno).
+static func assesto_sonno(s: float, t: float, dur: float) -> Dictionary:
+	var settle := smoothstep(0.0, 1.0, clampf(s / SONNO_SETTLE, 0.0, 1.0))
+	var w := clampf((s - maxf(dur - SONNO_WAKE, SONNO_SETTLE)) / SONNO_WAKE, 0.0, 1.0)
+	var dorme := settle * (1.0 - smoothstep(0.0, 0.45, w))
+	var r := respiro_fase(t)
+	# la campana dello stiracchio: parte, culmina, si scioglie
+	var stira := smoothstep(0.0, 0.28, w) * (1.0 - smoothstep(0.62, 1.0, w))
+	# il peso che trova terra: un plop smorzato, come per la seduta
+	# il peso che trova terra: parte da ZERO (un cos() darebbe -3 cm nel
+	# primo fotogramma: un salto), scende e rimbalza smorzato
+	var plop := -exp(-s * 3.4) * sin(s * 11.0) * 0.05 * (1.0 - w)
+
+	return {
+		# IL RESPIRO: il torace si alza — e il corpo SPROFONDA nel sonno.
+		# Il respiro e' profondo (2x quello da sveglio) e lento, ed e' il
+		# canale che dice "e' vivo, sta dormendo".
+		"vy": plop - dorme * 0.20 + dorme * (0.026 * (r - 0.5) * 2.0)
+				+ stira * 0.05,
+		# il busto si raccoglie in avanti (a occhio: sotto i 0.5 rad il
+		# chibi sembra solo accovacciato, mai addormentato) e il respiro
+		# lo fa oscillare appena — cosi' si legge su DUE canali, non uno
+		"vx": dorme * (0.62 - 0.022 * (r - 0.5) * 2.0) - stira * 0.10,
+		"hx": dorme * (0.50 + 0.03 * r) - stira * 0.42,
+		"hy": dorme * 0.05 * sin(t * 0.28),         # la deriva del sogno
+		"hz": dorme * 0.10,                          # la guancia che cede
+		"ax": dorme * (0.62 + 0.022 * r) - stira * 2.1,
+		"az": dorme * 0.14,
+		"lx": dorme * 1.50 * (1.0 - w),
+		"ly": dorme * -0.07,
+		"ear": dorme * 0.55 - stira * 0.35,
+		"tx": dorme * 0.45,
+		"respiro": r,
+		"sveglio": w,
+	}
+
+
+func _anim_dorme(dur: float, delta: float) -> void:
+	_sit_t += delta
+	var a := assesto_sonno(_sit_t, _t, dur)
+	var dorme: float = 1.0 - float(a["sveglio"])
+
+	# il corpo. Si SOMMA alla gobba dell'età (non la si butta via: un
+	# anziano dorme più curvo, ed è caratterizzazione gratuita)
+	_vis.position.y = float(a["vy"])
+	_vis.rotation.x = float(a["vx"]) - 0.28 * _eta
+	_vis.rotation.z = 0.0
+	_head.rotation.x = float(a["hx"])
+	_head.rotation.y = float(a["hy"])
+	_head.rotation.z = float(a["hz"])
+
+	if not dna.is_empty():
+		if _c_arms.size() == 2:
+			# le zampine raccolte sotto il musetto, mai identiche fra loro
+			_c_arms[0].rotation.x = float(a["ax"])
+			_c_arms[1].rotation.x = float(a["ax"]) + 0.05 * dorme
+			# verso il petto, non in fuori: la base del builder e' +-0.32
+			# di apertura, e il sonno la RICHIUDE (segno opposto)
+			_c_arms[0].rotation.z = -0.32 + float(a["az"])
+			_c_arms[1].rotation.z = 0.32 - float(a["az"])
+		for gamba in _c_legs:
+			gamba.rotation.x = float(a["lx"])
+			gamba.position.y = 0.16 + float(a["ly"])
+		# il fremito del sogno: ogni tanto un orecchio scatta e si riposa
+		_sonno_fremito -= delta
+		if _sonno_fremito <= 0.0:
+			_sonno_fremito = randf_range(3.5, 8.0)
+			_sonno_fremito_t = 0.35
+			_sonno_fremito_i = randi() % maxi(_c_ears.size(), 1)
+		var fr := 0.0
+		if _sonno_fremito_t > 0.0:
+			_sonno_fremito_t -= delta
+			var pf := clampf(1.0 - _sonno_fremito_t / 0.35, 0.0, 1.0)
+			fr = sin(pf * PI * 3.0) * (1.0 - pf) * 0.30 * dorme
+		for i in _c_ears.size():
+			# + l'eta': senza, a un anziano le orecchie SCATTEREBBERO SU
+			# nell'istante in cui si corica (la base sua e' 0.38 * _eta)
+			_c_ears[i].rotation.x = float(a["ear"]) + 0.38 * _eta \
+					+ (fr if i == _sonno_fremito_i else 0.0)
+		if _tail_p:
+			# arrotolata contro il fianco: una coda che scodinzola
+			# smentirebbe il sonno in un istante
+			_tail_p.rotation.x = float(a["tx"])
+			_tail_p.rotation.y = 0.12 * sin(_t * 0.5) * dorme
+		if _tail_tip:
+			_tail_tip.rotation.x = float(a["tx"]) * 0.5
+			_tail_tip.rotation.y = 0.09 * sin(_t * 0.5 - 0.8) * dorme
+
+	# LA ZETA SULL'ESPIRO: non un timer, il respiro stesso. Esce quando
+	# la fase scende sotto il colmo — una ogni 5 s, il ritmo del petto
+	var r: float = a["respiro"]
+	if dorme > 0.9 and _sit_t > SONNO_SETTLE \
+			and r < 0.45 and _sonno_r_prev >= 0.45:
+		_emote("z", Color(0.62, 0.5, 0.78))
+	_sonno_r_prev = r
 
 
 func _anim_sit() -> void:
@@ -1754,6 +1915,10 @@ func speak(concepts: Array, mood := "neutro") -> void:
 	if _voice.is_empty() or _voice_player == null or _speak_cd > 0.0 \
 			or _voice_player.playing or _hidden:
 		return
+	# chi dorme non parla: una frase aprirebbe la bocca e cancellerebbe
+	# l'espressione "dorme" (il volto recita l'umore mentre la voce parla)
+	if _state == "tk_nap":
+		return
 	_speak_cd = 2.5
 	_mood = mood   # il volto recita l'umore mentre la voce parla
 	_voice_player.stream = CHIBIESE.say(_voice, concepts, mood)
@@ -2229,10 +2394,16 @@ func _recita_applica(delta: float) -> void:
 	# solo i corpi chibi hanno il rig completo (non passerotti né ricci)
 	if dna.is_empty() or _vis == null:
 		return
-	var bersagli := recita_bersagli(_rc_stabile, _rc_trans, _rc_trans_t, _t)
+	# chi DORME non recita posture — ma la sua postura non si CANCELLA:
+	# si sospende. (Scrivere "sereno" nel meta agganciava _rc_stabile e il
+	# telegrafo della ribellione restava spento fino al gradino dopo.)
+	var stab := "sereno" if _state == "tk_nap" else _rc_stabile
+	var bersagli := recita_bersagli(stab, _rc_trans, _rc_trans_t, _t)
 	# la pioggia si somma a QUALUNQUE postura: chiunque sia — fiero,
-	# imbronciato, in partenza — sotto l'acqua si ripara comunque
-	_riparo = lerpf(_riparo, 1.0 if riparo_pioggia else 0.0,
+	# imbronciato, in partenza — sotto l'acqua si ripara comunque.
+	# Tranne chi DORME: la zampina a visiera sopra un dormiente sarebbe
+	# la posa di due corpi diversi nello stesso chibi
+	_riparo = lerpf(_riparo, 1.0 if (riparo_pioggia and _state != "tk_nap") else 0.0,
 			1.0 - exp(-4.0 * delta))
 	if _riparo > 0.01:
 		# la destra quasi verticale e un filo VERSO FUORI: davanti alla
@@ -2251,7 +2422,7 @@ func _recita_applica(delta: float) -> void:
 	for c in bersagli:
 		_rc_cur[c] = lerpf(float(_rc_cur.get(c, 0.0)), float(bersagli[c]), k)
 
-	_mostra_fagotto(bool((RECITA.get(_rc_stabile, {}) as Dictionary) \
+	_mostra_fagotto(bool((RECITA.get(stab, {}) as Dictionary) \
 			.get("fagotto", false)))
 
 	if _c_arms.size() == 2:
