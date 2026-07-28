@@ -41,19 +41,24 @@ func _ready() -> void:
 	_music.bus = _bus("Music")
 	add_child(_music)
 
+	# VENTO, UCCELLI E PIOGGIA sono il MONDO, non la colonna sonora: stanno
+	# sul bus degli effetti. Erano sulla musica, e la conseguenza era
+	# assurda in due sensi — chi spegneva la musica per stare in silenzio
+	# si ritrovava il villaggio muto anche sotto il temporale, e chi
+	# calava gli «Effetti» sentiva comunque il vento a tutto volume.
 	_wind = AudioStreamPlayer.new()
 	_wind.volume_db = -60.0
-	_wind.bus = _bus("Music")
+	_wind.bus = _bus("Sfx")
 	add_child(_wind)
 
 	_bird = AudioStreamPlayer.new()
 	_bird.volume_db = -18.0
-	_bird.bus = _bus("Music")
+	_bird.bus = _bus("Sfx")
 	add_child(_bird)
 
 	_rain_p = AudioStreamPlayer.new()
 	_rain_p.volume_db = -60.0
-	_rain_p.bus = _bus("Music")
+	_rain_p.bus = _bus("Sfx")
 	_rain_p.stream = _streams["rain_loop"]
 	add_child(_rain_p)
 
@@ -80,6 +85,26 @@ func _bus(bus_name: String) -> String:
 
 
 # ================================================================ API
+
+## IL BUS DELLE VOCI — la fonte unica per chiunque faccia parlare qualcuno.
+## Le voci del Chibiese non nascono qui: ogni corpo si costruisce il suo
+## AudioStreamPlayer3D (la voce esce DAL personaggio, in audio 3D). Perciò
+## il bus giusto non se lo può ricordare ognuno per conto suo — e infatti
+## per un pezzo NESSUNO lo assegnava: le voci finivano sul Master, sorde a
+## ogni cursore tranne il generale. Adesso lo si chiede QUI.
+## Un test in tests/cases/test_bus_audio.gd tiene chiusa la porta.
+func bus_voci() -> String:
+	return _bus("Voci")
+
+
+## Il bus degli effetti (passi, porte, attrezzi) e quello della musica.
+func bus_sfx() -> String:
+	return _bus("Sfx")
+
+
+func bus_musica() -> String:
+	return _bus("Music")
+
 
 ## Quanti effetti sono stati sintetizzati (usato dalla verifica CLI).
 func sound_count() -> int:

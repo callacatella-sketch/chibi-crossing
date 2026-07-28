@@ -53,8 +53,12 @@ var _cantanti: Array = []        # i node dei coristi
 var _t_ripeti := 0.0
 
 
+var _sfx
+
+
 func _ready() -> void:
 	add_to_group("concertino")
+	_sfx = get_node_or_null(^"/root/Sfx")
 
 
 func _process(delta: float) -> void:
@@ -184,6 +188,10 @@ func _in_scena(canzone: Dictionary, tracce: Array, cassa: AudioStreamWAV,
 		p.stream = tracce[i]
 		p.unit_size = 7.0
 		p.volume_db = -2.0
+		# il coro sono VOCI, per quanto canti: stesso bus del parlato,
+		# così chi cala il chiacchiericcio cala anche il concertino
+		if _sfx:
+			p.bus = _sfx.bus_voci()
 		(nodo as Node3D).add_child(p)
 		p.position = Vector3(0, 0.8, 0)
 		p.play()
@@ -205,6 +213,10 @@ func _in_scena(canzone: Dictionary, tracce: Array, cassa: AudioStreamWAV,
 	pc.stream = cassa
 	pc.unit_size = 8.0
 	pc.volume_db = -4.0
+	# la cassettina invece è uno STRUMENTO: va sulla musica, come il
+	# carillon del mondo — chi tiene bassa la musica tiene bassa anche lei
+	if _sfx:
+		pc.bus = _sfx.bus_musica()
 	carillon.add_child(pc)
 	pc.position = Vector3(0, 0.5, 0)
 	pc.play()

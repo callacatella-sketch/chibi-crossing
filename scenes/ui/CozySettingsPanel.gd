@@ -36,6 +36,11 @@ func _build() -> void:
 			CozyUI.SKY, func(v): _settings.set_music_volume(v)))
 	col.add_child(_slider_row("Effetti", "sfx_volume", 0.0, 1.0, 0.05,
 			CozyUI.MINT, func(v): _settings.set_sfx_volume(v)))
+	# le VOCI stanno sotto «Effetti» (il loro bus è figlio di quello), ma
+	# hanno il cursore loro: il villaggio parla di continuo, e c'è chi
+	# vuole il chiacchiericcio più discreto senza perdere passi e porte
+	col.add_child(_slider_row("Voci", "voci_volume", 0.0, 1.0, 0.05,
+			CozyUI.GOLD, func(v): _settings.set_voci_volume(v)))
 	col.add_child(_sep())
 	col.add_child(_slider_row("Velocità di Mochi", "move_speed", 0.6, 1.5, 0.05,
 			CozyUI.PINK, func(v): _settings.set_move_speed(v)))
@@ -51,7 +56,7 @@ func _build() -> void:
 		col.add_child(_quality_row())
 
 	col.add_child(_sep())
-	var back := CozyUI.cozy_button("Indietro", CozyUI.PINK, 18)
+	var back := CozyUI.cozy_button(L10n.t("Indietro"), CozyUI.PINK, 18)
 	back.custom_minimum_size = Vector2(200, 52)
 	back.pressed.connect(func(): closed.emit())
 	var wrap := CenterContainer.new()
@@ -65,7 +70,10 @@ func _slider_row(label: String, key: String, lo: float, hi: float, step: float,
 	var row := VBoxContainer.new()
 	row.add_theme_constant_override("separation", 2)
 	var head := HBoxContainer.new()
-	var l := CozyUI.body_label(label, 17)
+	# le etichette passano da L10n QUI, in un punto solo: sui sette punti
+	# di chiamata era già successo di dimenticarsene, e il pannello
+	# restava in italiano dentro un gioco che parlava inglese
+	var l := CozyUI.body_label(L10n.t(label), 17)
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(l)
 	var val := CozyUI.body_label("", 15, CozyUI.INK_SOFT)
@@ -91,7 +99,7 @@ func _slider_row(label: String, key: String, lo: float, hi: float, step: float,
 
 func _toggle_row(label: String, key: String, setter: Callable) -> Control:
 	var row := HBoxContainer.new()
-	var l := CozyUI.body_label(label, 17)
+	var l := CozyUI.body_label(L10n.t(label), 17)
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(l)
@@ -144,14 +152,14 @@ func _ricostruisci() -> void:
 
 func _quality_row() -> Control:
 	var row := HBoxContainer.new()
-	var l := CozyUI.body_label("Qualità grafica", 17)
+	var l := CozyUI.body_label(L10n.t("Qualità grafica"), 17)
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(l)
 	var g := ButtonGroup.new()
 	var cur := int(_settings.get_quality()) if _settings else 0
 	for i in 2:
-		var b := CozyUI.tab_button("Basso" if i == 0 else "Alto", g, CozyUI.SKY)
+		var b := CozyUI.tab_button(L10n.t("Basso" if i == 0 else "Alto"), g, CozyUI.SKY)
 		b.custom_minimum_size = Vector2(96, 40)
 		if i == cur:
 			b.set_pressed_no_signal(true)

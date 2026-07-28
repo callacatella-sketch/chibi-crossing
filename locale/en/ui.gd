@@ -25,6 +25,22 @@ const T := {
 	"Esci dal gioco": "Quit the game",
 	"Lingua": "Language",
 
+	# ------------------------------------------------------ le impostazioni
+	# (le etichette dei cursori: prima restavano in italiano dentro il
+	# gioco inglese — le righe del pannello non passavano da L10n)
+	"Volume generale": "Overall volume",
+	"Musica": "Music",
+	"Effetti": "Effects",
+	"Voci": "Voices",
+	"Velocità di Mochi": "Mochi's pace",
+	"Schermo intero": "Full screen",
+	"Riduci animazioni": "Reduce motion",
+	"Prato Eterno (nessuna partenza)": "Eternal Meadow (nobody ever leaves)",
+	"Indietro": "Back",
+	"Qualità grafica": "Graphics quality",
+	"Basso": "Low",
+	"Alto": "High",
+
 	# ---------------------------------------------------------- le Tasche
 	"✿   Le tasche   ✿": "✿   Pockets   ✿",
 	"Dispensa": "Pantry",

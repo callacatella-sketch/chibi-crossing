@@ -276,6 +276,10 @@ func _ready() -> void:
 		_voice_player.position = Vector3(0, 0.8, 0)
 		_voice_player.max_distance = 16.0
 		_voice_player.volume_db = -7.0
+		# il bus lo dice Sfx: senza, la voce finisce sul Master e nessun
+		# cursore la governa tranne il generale
+		if _sfx:
+			_voice_player.bus = _sfx.bus_voci()
 		add_child(_voice_player)
 	elif species == "passerotto":
 		_build_bird()

@@ -4,9 +4,17 @@ extends Node
 ## accessibilità. Tutto persistito in user://settings.cfg (lo stesso file di
 ## Quality, ma in sezioni separate, così i due convivono senza pestarsi).
 ##
-## - Audio: crea a runtime i bus "Music" e "Sfx" (se mancano) e ne pilota il
-##   volume; il Master resta il volume generale. Sfx.gd instrada i suoi player
-##   su questi bus.
+## - Audio: crea a runtime i bus e ne pilota il volume. La catena è ad
+##   ALBERO, non piatta:
+##       Voci ─→ Sfx ─→ Master
+##       Music ───────→ Master
+##   così il cursore «Effetti» governa anche le voci (chi abbassa gli
+##   effetti si aspetta che il villaggio intero abbassi la voce), e chi
+##   vuole può calare solo il Chibiese col suo cursore — che in questo
+##   gioco parla di continuo, con 28 vicini.
+##   Sfx.gd instrada i suoi player; le VOCI chiedono il bus a
+##   `Sfx.bus_voci()`: prima ognuna se lo creava a mano senza `.bus` e
+##   finivano tutte sul Master, sorde a ogni cursore tranne il generale.
 ## - Schermo: schermo intero on/off.
 ## - Movimento: un moltiplicatore alla velocità di Mochi ("sensibilità").
 ## - Riduci animazioni: accessibilità; CozyUI lo rispetta.
@@ -21,6 +29,10 @@ const PATH := "user://settings.cfg"
 var master_volume := 0.9
 var music_volume := 0.8
 var sfx_volume := 0.9
+## Le voci del Chibiese: un bus figlio di "Sfx", perché il villaggio
+## parla di continuo e c'è chi vuole il chiacchiericcio più discreto
+## senza perdere i passi e le porte.
+var voci_volume := 1.0
 var fullscreen := true
 var reduce_motion := false
 ## Moltiplicatore velocità Mochi (0.7 tranquilla · 1.0 normale · 1.4 svelta).
@@ -42,13 +54,25 @@ func _ready() -> void:
 
 
 # ---------------------------------------------------------------- bus audio
+## L'albero dei bus: nome -> dove manda. L'ORDINE conta — un bus non può
+## mandare a un bus che non esiste ancora, quindi "Voci" viene dopo "Sfx".
+const BUS_ALBERO := [["Music", "Master"], ["Sfx", "Master"], ["Voci", "Sfx"]]
+
+
 func _ensure_buses() -> void:
-	for name in ["Music", "Sfx"]:
-		if AudioServer.get_bus_index(name) == -1:
+	for coppia in BUS_ALBERO:
+		var nome := str(coppia[0])
+		var verso := str(coppia[1])
+		if AudioServer.get_bus_index(nome) == -1:
 			var idx := AudioServer.bus_count
 			AudioServer.add_bus(idx)
-			AudioServer.set_bus_name(idx, name)
-			AudioServer.set_bus_send(idx, "Master")
+			AudioServer.set_bus_name(idx, nome)
+		# il send si (ri)assegna sempre: un layout salvato con l'albero
+		# vecchio lascerebbe "Voci" appeso al Master, e il cursore
+		# «Effetti» tornerebbe a non governare le voci — in silenzio
+		var mio := AudioServer.get_bus_index(nome)
+		if mio != -1 and AudioServer.get_bus_index(verso) != -1:
+			AudioServer.set_bus_send(mio, verso)
 
 
 func _boot_fullscreen() -> bool:
@@ -62,6 +86,7 @@ func _apply_all() -> void:
 	_apply_bus("Master", master_volume)
 	_apply_bus("Music", music_volume)
 	_apply_bus("Sfx", sfx_volume)
+	_apply_bus("Voci", voci_volume)
 	_apply_fullscreen()
 	# la lingua PRIMA di tutto il resto: il titolo si costruisce subito dopo
 	L10n.imposta(language)
@@ -112,6 +137,16 @@ func set_sfx_volume(v: float) -> void:
 	_save(); changed.emit()
 	var sfx := get_node_or_null(^"/root/Sfx")
 	if sfx: sfx.call("ui_select")   # anteprima udibile del nuovo volume
+
+
+func set_voci_volume(v: float) -> void:
+	voci_volume = clampf(v, 0.0, 1.0)
+	_apply_bus("Voci", voci_volume)
+	_save(); changed.emit()
+	# l'anteprima udibile: una voce vera del villaggio, non un campanello
+	var vis := get_tree().get_first_node_in_group("visitors")
+	if vis and vis.has_method("assaggio_di_voce"):
+		vis.call("assaggio_di_voce")
 
 
 func set_fullscreen(on: bool) -> void:
@@ -174,6 +209,7 @@ func _load() -> void:
 	master_volume = float(cfg.get_value("audio", "master", master_volume))
 	music_volume = float(cfg.get_value("audio", "music", music_volume))
 	sfx_volume = float(cfg.get_value("audio", "sfx", sfx_volume))
+	voci_volume = float(cfg.get_value("audio", "voci", voci_volume))
 	fullscreen = bool(cfg.get_value("display", "fullscreen", fullscreen))
 	reduce_motion = bool(cfg.get_value("gameplay", "reduce_motion", reduce_motion))
 	move_speed = float(cfg.get_value("gameplay", "move_speed", move_speed))
@@ -187,6 +223,7 @@ func _save() -> void:
 	cfg.set_value("audio", "master", master_volume)
 	cfg.set_value("audio", "music", music_volume)
 	cfg.set_value("audio", "sfx", sfx_volume)
+	cfg.set_value("audio", "voci", voci_volume)
 	cfg.set_value("display", "fullscreen", fullscreen)
 	cfg.set_value("gameplay", "reduce_motion", reduce_motion)
 	cfg.set_value("gameplay", "move_speed", move_speed)

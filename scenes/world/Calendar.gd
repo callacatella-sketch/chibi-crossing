@@ -445,6 +445,10 @@ func _spawn_merchant() -> void:
 	_merchant_vp.position = Vector3(0, 0.8, 0)
 	_merchant_vp.max_distance = 14.0
 	_merchant_vp.volume_db = -8.0
+	# anche il mercante parla Chibiese: stesso bus di tutti (vedi Sfx.bus_voci)
+	var sfx_mer := get_node_or_null(^"/root/Sfx")
+	if sfx_mer:
+		_merchant_vp.bus = sfx_mer.call("bus_voci")
 	_merchant.add_child(_merchant_vp)
 	for node in [_stall, _merchant]:
 		node.scale = Vector3.ONE * 0.05

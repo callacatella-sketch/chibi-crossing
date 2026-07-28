@@ -88,6 +88,7 @@ var _toast_label: Label
 
 func _ready() -> void:
 	add_to_group("persistable")
+	add_to_group("visitors")   # il cursore delle Voci ci chiede un assaggio
 	_player = get_node("%Player")
 	_build = get_node("../BuildSystem")
 	_daynight = get_node_or_null("../DayNight")
@@ -138,6 +139,16 @@ func _random_resident_node() -> Node3D:
 		if node and is_instance_valid(node) and not node.call("is_hidden"):
 			pool.append(node)
 	return pool[randi() % pool.size()] if not pool.is_empty() else null
+
+
+## Un «ya-ho» di prova per il cursore delle Voci: chi muove la manopola
+## deve sentire subito COSA sta regolando — e una voce vera del villaggio
+## dice molto più di un campanello d'interfaccia. Se il villaggio è vuoto
+## (o siamo al titolo) non succede nulla: nessun suono finto.
+func assaggio_di_voce() -> void:
+	var chi := _random_resident_node()
+	if chi and chi.has_method("speak"):
+		chi.call("speak", ["ciao"], "felice")
 
 
 func _on_new_day(_day: int) -> void:

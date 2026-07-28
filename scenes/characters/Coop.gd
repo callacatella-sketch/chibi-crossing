@@ -94,6 +94,10 @@ func _join() -> void:
 	_voice_player.position = Vector3(0, 0.8, 0)
 	_voice_player.max_distance = 16.0
 	_voice_player.volume_db = -7.0
+	# il bus delle voci, dalla fonte unica (vedi Sfx.bus_voci)
+	var sfx_bus := get_node_or_null(^"/root/Sfx")
+	if sfx_bus:
+		_voice_player.bus = sfx_bus.call("bus_voci")
 	_p2.add_child(_voice_player)
 
 	get_parent().add_child(_p2)
