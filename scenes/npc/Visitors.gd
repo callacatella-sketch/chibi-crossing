@@ -659,6 +659,11 @@ func _congeda(i: int, r: Dictionary, animo: RefCounted) -> void:
 			"text": L10n.tf("%s\n\nHo lasciato le mie cose in ordine.\nNon serbo rancore: serbo memoria.", [animo.sfogo()]),
 			"gift": false,
 		})
+	# il toast della partenza va PRIMA: il toast è uno solo, e quello del
+	# filo che si colora («il giorno in cui ha fatto il fagotto») arriva
+	# dopo — se si scrivesse dopo, lo cancellerebbe nello stesso frame e
+	# quella frase non si vedrebbe mai
+	_show_toast(L10n.tf("%s se n'è andato.", [label]))
 	# il Filo Rosso se lo ricorda: chi se n'è andato non si cancella
 	for legami in get_tree().get_nodes_in_group("legami"):
 		if legami.has_method("momento"):
@@ -669,8 +674,18 @@ func _congeda(i: int, r: Dictionary, animo: RefCounted) -> void:
 			legami.call("momento",
 					str((r.get("dna", {}) as Dictionary).get("name", "")),
 					"addio", animo.racconta())
+			# e il suo filo smette di invecchiare: senza, quaranta giorni
+			# dopo il villaggio annuncerebbe i peli d'argento di chi non
+			# c'è più (col nome storpiato) e il Gufo scriverebbe di
+			# stargli vicino. La label si salva col filo: le sue lettere
+			# la vogliono, e il DNA non esisterà più.
+			legami.call("segna_andato_via",
+					str((r.get("dna", {}) as Dictionary).get("name", "")), label)
 			break
-	_show_toast(L10n.tf("%s se n'è andato.", [label]))
+	# e via anche dalla lavagna dei compleanni: una festa a sorpresa per
+	# chi non c'è più sarebbe la cosa più triste del villaggio
+	get_tree().call_group("calendario", "dimentica",
+			str((r.get("dna", {}) as Dictionary).get("name", "")))
 	if node != null and is_instance_valid(node):
 		var tw := create_tween()
 		tw.tween_property(node, "scale", Vector3.ONE * 0.01, 0.8) \
@@ -777,6 +792,10 @@ func parte_per_il_grande_prato(label: String) -> void:
 			tw.tween_property(node, "scale", Vector3.ONE * 0.01, 1.6) \
 					.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 			tw.tween_callback(node.queue_free)
+		# via dalla lavagna dei compleanni PRIMA di perdere il dna: chi
+		# e' partito per il Grande Prato non festeggia piu' qui
+		get_tree().call_group("calendario", "dimentica",
+				str((r.get("dna", {}) as Dictionary).get("name", "")))
 		_residents.remove_at(i)
 		_animi.erase(label)
 		_brains.erase(label)
@@ -1127,6 +1146,41 @@ func animo_di(label: String) -> String:
 	if not _animi.has(label):
 		return ""
 	return (_animi[label] as RefCounted).stato()
+
+
+## ------------------------------------------------- i canali della VEGLIA
+## Tre porte sull'animo di un residente, aperte per la notte vegliata
+## (scenes/npc/Veglia.gd). Stanno qui perché `_animi` è indicizzato per
+## LABEL e nessuno da fuori deve conoscerne la forma.
+
+## Muove un drive di un residente. `pavimento` è il fondo sotto cui non si
+## scende: serve al buio della notte, che deve pesare un poco ma non
+## portare MAI qualcuno alla ribellione da solo.
+func dona_drive(label: String, drive: String, quanto: float,
+		pavimento := 0.0) -> void:
+	if not _animi.has(label):
+		return
+	var animo: RefCounted = _animi[label]
+	var d: Dictionary = animo.get("drive")
+	if not d.has(drive):
+		return
+	d[drive] = clampf(float(d[drive]) + quanto, pavimento, 1.0)
+
+
+## Un ricordo buono (o cattivo) intestato a un ALTRO residente, non al
+## giocatore: in Animo i ricordi buoni scontano i cattivi, e col nome
+## sbagliato una notte di veglia comprerebbe il perdono del villaggio.
+func ricorda_per(label: String, tipo: String, attore: String,
+		valenza: float) -> void:
+	if not _animi.has(label):
+		return
+	(_animi[label] as RefCounted).ricorda(tipo, attore, valenza, 0.6)
+
+
+## Il legame fra due vicini si stringe (grafo del passaparola + Animo).
+func lega_vicini(chi: String, verso: String, forza: float) -> void:
+	if _villaggio and _villaggio.has_method("lega"):
+		_villaggio.call("lega", chi, verso, forza)
 
 
 ## Il sogno di un residente ("boscaiolo", "cuoco"…). Serve al registro dei
@@ -1867,7 +1921,13 @@ func _decide() -> void:
 		# e il nuovo abitante andrà a scrivere il compleanno sulla lavagna
 		var cal := get_tree().get_first_node_in_group("calendario")
 		if cal:
-			cal.call("register_resident", str(dna.get("name", _cand_label)), _cand_label, newcomer)
+			# il nome, MAI la label di ripiego: register_resident indicizza
+			# per nome e is_birthday cerca per nome — un ripiego a label
+			# registrerebbe in una colonna che nessuno legge (festa mai,
+			# e senza un errore)
+			var res_nome := str(dna.get("name", ""))
+			if res_nome != "":
+				cal.call("register_resident", res_nome, _cand_label, newcomer)
 		if _sfx:
 			_sfx.place_ok()
 			get_tree().create_timer(0.4).timeout.connect(func():

@@ -210,6 +210,17 @@ func _lettera_dai_momenti() -> Dictionary:
 		var momenti_p: Array = filo.get("momenti", [])
 		if not momenti_p.is_empty():
 			mittenti.append([str(riga[0]), momenti_p])
+	# …e chi se n'è andato per conto suo scrive lo stesso, ogni tanto:
+	# non ha un fiore né un posto nel memoriale, e questa lettera è
+	# l'unica traccia che gli resta. Senza, il momento "addio" — il più
+	# importante che un filo possa avere — non arriverebbe MAI a schermo:
+	# il disertore non è né un residente né un partito, e il template
+	# MOMENTI_TESTO["addio"] restava codice morto.
+	for riga_v in legami.call("andati_via"):
+		var filo_v: Dictionary = riga_v[1]
+		var momenti_v: Array = filo_v.get("momenti", [])
+		if not momenti_v.is_empty():
+			mittenti.append([str(riga_v[0]), momenti_v])
 	if mittenti.is_empty():
 		return {}
 	var scelto: Array = mittenti[_rng.randi() % mittenti.size()]

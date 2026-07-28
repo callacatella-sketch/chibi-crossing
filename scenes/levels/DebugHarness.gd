@@ -82,7 +82,11 @@ func _debug_lavori(dir: String) -> void:
 		var dna: Dictionary = DNA.generate(500 + i * 91)
 		dna["sogno"] = sogni[i]
 		residenti.append({"species": "chibi", "cell": Vector2i(i, 0), "node": null,
-				"dna": dna, "label": str(dna["name"]), "friend": 2, "wish": {}})
+				# la label VERA ("la volpina Pepita"), non il nome: con
+				# label == nome nessuna prova poteva accorgersi di un
+				# sistema che confonde le due anagrafi — ed e' cosi' che
+				# il filo fantasma dell'addio e' arrivato in produzione
+				"dna": dna, "label": str(dna["label"]), "friend": 2, "wish": {}})
 	# `residenti` è l'array VIVO dei Visitors: se c'è un salvataggio, dentro ci
 	# sono già i residenti veri del giocatore. Da qui in poi si lavora SOLO sui
 	# tre appena aggiunti (gli ultimi tre della lista): incarichi, giorni di
