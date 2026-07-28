@@ -18,6 +18,8 @@ extends Node
 const MAX_MOMENTI := 30
 
 ## tipo -> [racconto, parole Chibiese del ricordo]
+const DNA_GEN := preload("res://scenes/npc/ChibiDNA.gd")
+
 const TIPI := {
 	"benvenuto": ["il primo benvenuto sulla soglia", ["ciao", "amico"]],
 	"trasloco": ["il giorno della valigia sulla soglia", ["casa", "felice"]],
@@ -81,10 +83,31 @@ func _day() -> int:
 
 # ---------------------------------------------------------------- il filo
 
+## Da una LABEL ("la volpina Pepita") al NOME ("Pepita"). PURA.
+## Le chiavi dei fili sono il nome del DNA; ma le label girano per tutto
+## il gioco (toast, lettere, `_animi` di Visitors e' indicizzato COSI'),
+## e un chiamante distratto ne passa una: il momento finiva in un filo
+## separato che nessuno leggeva piu' — ed e' successo davvero all'ADDIO
+## della diserzione, il momento piu' importante che un filo possa avere.
+## Il prefisso si toglie dalla FONTE UNICA (ChibiDNA.DESCR), non da una
+## lista di articoli ricopiata a mano.
+static func nome_da_chiave(chiave: String) -> String:
+	if not chiave.contains(" "):
+		return chiave
+	for descr in DNA_GEN.DESCR.values():
+		var pre := str(descr) + " "
+		if chiave.begins_with(pre):
+			return chiave.substr(pre.length())
+	return chiave
+
+
 func _filo(nome: String) -> Dictionary:
-	if not _fili.has(nome):
-		_fili[nome] = {"momenti": [], "giorno_arrivo": _day()}
-	return _fili[nome]
+	# la chiave e' SEMPRE il nome: se arriva una label la si riporta a
+	# nome, cosi' il filo resta uno solo qualunque cosa passi il chiamante
+	var chiave := nome_da_chiave(nome)
+	if not _fili.has(chiave):
+		_fili[chiave] = {"momenti": [], "giorno_arrivo": _day()}
+	return _fili[chiave]
 
 
 ## Annoda un momento al filo. Un momento per tipo al giorno (una festa
@@ -119,7 +142,8 @@ func momento(nome: String, tipo: String, extra := "") -> void:
 ## Il ricordo che riaffiora: chiamato dal saluto (T). Il vicino ripensa
 ## a un momento del filo — pensierino a schermo e parole in Chibiese.
 ## Con un contegno: non più di uno ogni mezzo minuto.
-func ricorda(nome: String, node: Node3D) -> void:
+func ricorda(nome_o_label: String, node: Node3D) -> void:
+	var nome := nome_da_chiave(nome_o_label)
 	if _ricordo_cd > 0.0 or not _fili.has(nome):
 		return
 	var momenti: Array = _fili[nome]["momenti"]
@@ -180,9 +204,9 @@ const GIORNI_ANZIANO := 40
 
 ## Registra l'arrivo di un residente (idempotente): il filo nasce qui
 ## anche per chi arriva da salvataggi precedenti al Filo Rosso.
-func registra_arrivo(nome: String) -> void:
-	if nome != "":
-		_filo(nome)
+func registra_arrivo(nome_o_label: String) -> void:
+	if nome_o_label != "":
+		_filo(nome_o_label)   # _filo normalizza: mai un filo per la label
 
 
 ## Il fattore d'età continuo: 0 = giovane, 0.5 = soglia dell'autunno,
@@ -230,11 +254,12 @@ func _nuovo_giorno(_d: int) -> void:
 
 # ---------------------------------------------------------------- letture
 
-func momenti_di(nome: String) -> Array:
-	return _fili.get(nome, {}).get("momenti", [])
+func momenti_di(nome_o_label: String) -> Array:
+	return _fili.get(nome_da_chiave(nome_o_label), {}).get("momenti", [])
 
 
-func giorni_di_amicizia(nome: String) -> int:
+func giorni_di_amicizia(nome_o_label: String) -> int:
+	var nome := nome_da_chiave(nome_o_label)
 	if not _fili.has(nome):
 		return 0
 	return maxi(0, _day() - int(_fili[nome]["giorno_arrivo"]))
@@ -262,13 +287,13 @@ func segna_partito(nome: String, fiore: Dictionary, dna := {}) -> void:
 
 ## Il corpo del ricordo: il DNA di chi è partito ({} per i salvataggi
 ## precedenti agli echi-presenza — il fantasma si rigenera dal nome).
-func dna_ricordo(nome: String) -> Dictionary:
-	return _fili.get(nome, {}).get("dna_ricordo", {})
+func dna_ricordo(nome_o_label: String) -> Dictionary:
+	return _fili.get(nome_da_chiave(nome_o_label), {}).get("dna_ricordo", {})
 
 
 ## La scheda del fiore di chi è partito (i colori del ricordo).
-func fiore_di(nome: String) -> Dictionary:
-	return _fili.get(nome, {}).get("fiore", {})
+func fiore_di(nome_o_label: String) -> Dictionary:
+	return _fili.get(nome_da_chiave(nome_o_label), {}).get("fiore", {})
 
 
 func e_partito(nome: String) -> bool:
@@ -353,10 +378,57 @@ func save_extra() -> Dictionary:
 			"ultimo_gioco": int(Time.get_unix_time_from_system())}
 
 
+## I fili salvati PRIMA della correzione: chi ha gia' visto una
+## diserzione ha sul disco un filo fantasma con la chiave-label, e dentro
+## c'e' il suo addio. Non si butta via un ricordo in un gioco che parla di
+## memoria: al caricamento i fantasmi si RIVERSANO nel filo vero — momenti
+## uniti (senza duplicati: stesso giorno + stesso tipo = lo stesso
+## momento), e giorno_arrivo il piu' antico dei due. PURA e testabile.
+static func migra_fili(salvati: Dictionary) -> Dictionary:
+	var out := {}
+	# prima i fili gia' sani, poi i fantasmi vi si fondono dentro (mai il
+	# contrario: un fantasma non deve diventare il filo "principale")
+	var chiavi: Array = []
+	for k in salvati:
+		if nome_da_chiave(str(k)) == str(k):
+			chiavi.append(k)
+	for k in salvati:
+		if nome_da_chiave(str(k)) != str(k):
+			chiavi.append(k)
+	for k in chiavi:
+		var filo: Variant = salvati[k]
+		if filo is not Dictionary:
+			continue
+		var nome := nome_da_chiave(str(k))
+		if not out.has(nome):
+			out[nome] = filo
+			continue
+		# il fantasma si riversa nel filo vero
+		var vero: Dictionary = out[nome]
+		var suoi: Array = vero.get("momenti", [])
+		for m in (filo.get("momenti", []) as Array):
+			var doppio := false
+			for gia in suoi:
+				if str(gia.get("t", "")) == str(m.get("t", "")) \
+						and int(gia.get("d", -1)) == int(m.get("d", -2)):
+					doppio = true
+					break
+			if not doppio:
+				suoi.append(m)
+		suoi.sort_custom(func(a, b): return int(a.get("d", 0)) < int(b.get("d", 0)))
+		vero["momenti"] = suoi
+		vero["giorno_arrivo"] = mini(int(vero.get("giorno_arrivo", 99999)),
+				int(filo.get("giorno_arrivo", 99999)))
+		# il ricordo del DNA (chi e' partito) non si perde
+		if not vero.has("dna_ricordo") and filo.has("dna_ricordo"):
+			vero["dna_ricordo"] = filo["dna_ricordo"]
+	return out
+
+
 func load_extra(data: Dictionary) -> void:
 	var d: Variant = data.get("legami")
 	if d is Dictionary:
-		_fili = d
+		_fili = migra_fili(d)
 	var l: Variant = data.get("lutto")
 	if l is Dictionary:
 		_lutto = l
