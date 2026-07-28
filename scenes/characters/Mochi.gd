@@ -40,6 +40,7 @@ var _tail_tip: Node3D
 var _wag_t := 0.0
 var _shadow_blob: MeshInstance3D
 var _dust: GPUParticles3D
+var _brake_dust: GPUParticles3D
 var _ears: Array[Node3D] = []
 var _eyes: Array[Node3D] = []
 var _eyeballs: Array[MeshInstance3D] = []
@@ -69,6 +70,15 @@ var _sfx
 
 var _body: CharacterBody3D
 var _yaw := 0.0
+# il banking della corsa: quanto sta GIRANDO (velocità di yaw) deciso
+# frame per frame, lisciato, e trasformato in inclinazione dentro la curva
+var _prev_yaw := 0.0
+var _bank := 0.0
+# la frenata: una media lenta della velocità fa da "memoria dello slancio";
+# quando la velocità vera crolla e la memoria è ancora alta → sgommatina
+var _speed_lisciata := 0.0
+var _brake_cd := 0.0
+var _skid := 0.0
 var _walk := 0.0
 var _step := 0.0
 var _prev_step_sin := 0.0
@@ -808,6 +818,65 @@ func _build_dust() -> void:
 	_dust.position = Vector3(0, 0.05, 0)
 	add_child(_dust)
 
+	# --- la nuvoletta della frenata: un unico SBUFFO quando Mochi pianta
+	# i piedini da lanciata. Stessa polvere del passo (stessa texture,
+	# stesso materiale) ma a raffica: esplosiva, più grossa, che sale un
+	# attimo e poi si ferma nell'aria (damping) come nei cartoni ---
+	var quad_f := QuadMesh.new()
+	quad_f.size = Vector2(0.26, 0.26)
+	quad_f.material = draw_mat
+
+	var pm_f := ParticleProcessMaterial.new()
+	pm_f.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	pm_f.emission_sphere_radius = 0.18
+	pm_f.direction = Vector3(0, 1, 0)
+	pm_f.spread = 85.0
+	pm_f.initial_velocity_min = 0.6
+	pm_f.initial_velocity_max = 1.3
+	pm_f.gravity = Vector3(0, 0.55, 0)
+	pm_f.damping_min = 1.1
+	pm_f.damping_max = 1.6
+	pm_f.scale_min = 1.0
+	pm_f.scale_max = 1.9
+	var ramp_f := Gradient.new()
+	ramp_f.offsets = PackedFloat32Array([0.0, 0.12, 1.0])
+	ramp_f.colors = PackedColorArray([
+		Color(1, 1, 1, 0.0),
+		Color(1, 1, 1, 0.9),
+		Color(1, 1, 1, 0.0),
+	])
+	var ramp_f_tex := GradientTexture1D.new()
+	ramp_f_tex.gradient = ramp_f
+	pm_f.color_ramp = ramp_f_tex
+
+	_brake_dust = GPUParticles3D.new()
+	_brake_dust.amount = 20
+	_brake_dust.lifetime = 0.7
+	_brake_dust.one_shot = true
+	_brake_dust.explosiveness = 1.0
+	_brake_dust.local_coords = false
+	_brake_dust.emitting = false
+	_brake_dust.process_material = pm_f
+	_brake_dust.draw_pass_1 = quad_f
+	# un filo davanti ai piedini: lo slancio porta la polvere in avanti
+	_brake_dust.position = Vector3(0, 0.05, -0.14)
+	add_child(_brake_dust)
+
+
+# --- la matematica pura della corsa (statica: testabile headless) ---
+
+# quanto inclinarsi nella curva: il tasso di virata (rad/s) diventa rollio,
+# con un tetto perché anche un dietrofront di scatto resti credibile, e
+# pesato dalla velocità: a passeggio non si banka, in corsa piena sì
+static func inclinazione_in_curva(yaw_rate: float, speed: float) -> float:
+	return clampf(yaw_rate * 0.11, -0.32, 0.32) * clampf(speed / 4.2, 0.0, 1.0)
+
+
+# la frenata secca: la velocità vera è crollata ma la media lenta ricorda
+# ancora lo slancio → i piedini si sono piantati da lanciata
+static func frenata_secca(speed: float, speed_lisciata: float) -> bool:
+	return speed < 1.0 and speed_lisciata > 3.2
+
 
 # easing "back-out": arriva, sfora di un pelo, rientra — il rimbalzino
 # che rende morbido ogni assestamento
@@ -833,6 +902,17 @@ func _process(delta: float) -> void:
 			_yaw = lerp_angle(_yaw, target_yaw, 1.0 - exp(-9.0 * delta))
 	rotation.y = _yaw
 
+	# --- il banking: in curva ci si inclina DENTRO la curva, come una
+	# sciatrice. Il tasso di virata (delta di yaw al secondo) diventa un
+	# rollio, pesato dalla velocità: a passeggio quasi nulla, in corsa
+	# piena si sente. Lisciato, così entra ed esce morbido ---
+	var yaw_rate := 0.0
+	if delta > 0.0001:
+		yaw_rate = wrapf(_yaw - _prev_yaw, -PI, PI) / delta
+	_prev_yaw = _yaw
+	_bank = lerpf(_bank, inclinazione_in_curva(yaw_rate, speed),
+			1.0 - exp(-8.0 * delta))
+
 	# --- sotto la pioggia, senza un tetto: il corpo si ripara ---
 	_riparo_cd -= delta
 	if _riparo_cd <= 0.0:
@@ -848,6 +928,22 @@ func _process(delta: float) -> void:
 		# il passetto svelto della pioggia: passi più fitti e più bassi
 		_step += speed * delta * 3.2 * (1.0 + 0.42 * _riparo)
 	_dust.emitting = speed > 0.6
+
+	# --- la frenata: la media lenta ricorda lo slancio; se la velocità
+	# vera crolla mentre la memoria è ancora alta, Mochi ha piantato i
+	# piedini da lanciata → sbuffo di polvere, corpo in avanti un attimo ---
+	_brake_cd = maxf(0.0, _brake_cd - delta)
+	if frenata_secca(speed, _speed_lisciata) and _brake_cd <= 0.0:
+		_brake_cd = 0.6
+		_skid = 1.0
+		_brake_dust.restart()
+		if _sfx:
+			var suolo := "grass"
+			if _build_sys:
+				suolo = _build_sys.surface_at(global_position)
+			_sfx.footstep(suolo)
+	_speed_lisciata = lerpf(_speed_lisciata, speed, 1.0 - exp(-3.0 * delta))
+	_skid = maxf(0.0, _skid - delta * 3.0)
 
 	# il suono scatta nell'ISTANTE in cui il piedino si pianta a terra
 	# (cos che attraversa lo zero = fine della fase aerea del ciclo),
@@ -878,8 +974,12 @@ func _process(delta: float) -> void:
 			+ hop * 0.05 * (1.0 - 0.38 * _riparo) - crouch * 0.1 \
 			+ sin(clampf(joy, 0.0, 1.0) * PI) * 0.16
 	rotation.z = sin(_t * 1.05) * 0.012 \
-			+ sin(_step) * 0.055 * (1.0 - 0.4 * _riparo) * _walk
-	rotation.x = -0.06 * _walk + _pose_lean + crouch * 0.26 + 0.075 * _riparo
+			+ sin(_step) * 0.055 * (1.0 - 0.4 * _riparo) * _walk \
+			+ _bank
+	rotation.x = -0.06 * _walk + _pose_lean + crouch * 0.26 + 0.075 * _riparo \
+			- _skid * 0.15
+	# la sgommatina: i piedini piantati, il corpo che affonda un soffio
+	position.y -= _skid * 0.035
 	# il brivido: da ferma sotto la pioggia, ogni tanto un «brrr» a folate
 	rotation.z += sin(_t * 24.0) * 0.009 * _riparo * (1.0 - _walk) \
 			* (maxf(0.0, sin(_t * 0.5) - 0.82) / 0.18)
