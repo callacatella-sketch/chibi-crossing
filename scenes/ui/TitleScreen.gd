@@ -308,11 +308,30 @@ func _start_new() -> void:
 	# il vecchio villaggio NON si cancella: si archivia con data e ora.
 	# Con l'investimento emotivo del Filo Rosso, un "Nuovo villaggio" per
 	# sbaglio non deve costare una storia intera — per tornare indietro
-	# basta rinominare l'archivio in village.json. (La copia .bak resta al
-	# suo posto: fa da rete finché il villaggio nuovo non salva.)
+	# basta rinominare l'archivio in village.json.
+	# SI ARCHIVIA ANCHE LA COPIA .bak, e non per pignoleria: lasciata lì,
+	# il villaggio nuovo la ripescava e resuscitava il vecchio (il
+	# caricamento non distingueva "manca" da "è rotto"). Adesso la
+	# distinzione c'è in BuildSystem, e questa è la seconda cintura.
+	var stamp := Time.get_datetime_string_from_system().replace(":", "-")
 	if FileAccess.file_exists(SAVE_PATH):
-		var stamp := Time.get_datetime_string_from_system().replace(":", "-")
 		DirAccess.rename_absolute(SAVE_PATH, "user://village_%s.json" % stamp)
+	if FileAccess.file_exists(SAVE_PATH + ".bak"):
+		DirAccess.rename_absolute(SAVE_PATH + ".bak",
+				"user://village_%s.json.bak" % stamp)
+	# GLI ALTRI DEPOSITI. Il villaggio non vive tutto dentro village.json:
+	# tre cose si salvano per conto loro, e restavano in piedi nel
+	# villaggio nuovo — le cornici sopra letti che non esistono più e i
+	# sentieri consumati dai passi di un'altra storia.
+	# Si ARCHIVIANO con lo stesso timbro del villaggio (mai cancellati:
+	# «una storia non si butta» — e chi rinomina l'archivio indietro se
+	# li ritrova tutti insieme, coerenti fra loro).
+	for deposito: String in ["user://foto_ricordi.json",
+			"user://sentieri_consumati.png"]:
+		if FileAccess.file_exists(deposito):
+			var pezzi := deposito.trim_prefix("user://").split(".")
+			DirAccess.rename_absolute(deposito,
+					"user://%s_%s.%s" % [pezzi[0], stamp, pezzi[1]])
 	# anche il rullino del timelapse riparte: senza, il "film" del villaggio
 	# nuovo proietterebbe le foto del vecchio (e capture() salta i giorni
 	# i cui PNG esistono già). L'album personale user://photos resta.

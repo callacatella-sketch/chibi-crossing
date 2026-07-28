@@ -110,7 +110,12 @@ func _process(delta: float) -> void:
 	if _t_poll >= 2.0:
 		_t_poll = 0.0
 		_riappendi_in_attesa()
-		if not _richiesta.is_empty() and _trova_residente() == null:
+		# `_trova_residente` è tipizzata `-> Dictionary`: quando il
+		# sognatore non c'è più torna `{}`, MAI `null`. Il confronto con
+		# null era quindi sempre falso e il sogno non si chiudeva mai:
+		# restava appeso a un residente partito o disertato, e la
+		# nuvoletta con la macchinetta non spariva più.
+		if not _richiesta.is_empty() and _trova_residente().is_empty():
 			# il sognatore non c'è più: il sogno se ne va con lui
 			_chiudi_richiesta()
 

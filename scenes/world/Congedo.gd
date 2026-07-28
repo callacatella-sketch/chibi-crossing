@@ -146,6 +146,15 @@ func _nuovo_giorno(day: int) -> void:
 		return
 	# 2) il congedo in corso avanza: un desiderio al giorno, poi l'alba
 	if not _congedo.is_empty():
+		# IL PRATO ETERNO VALE ANCHE ADESSO. L'interruttore è lì per chi
+		# non regge di perdere i vicini, e chi lo accende quasi sempre lo
+		# accende PROPRIO quando arriva la lettera del Gufo — cioè a
+		# congedo già cominciato. Consultarlo solo all'inizio significava
+		# rispondere «troppo tardi» esattamente a chi stava chiedendo
+		# aiuto: la vicina partiva lo stesso, sette giorni dopo.
+		if _prato_eterno():
+			_annulla_congedo("il Prato Eterno: la partenza si ferma")
+			return
 		# conflitto fra sistemi: la scala dell'Animo corre per conto suo, e
 		# se nel frattempo l'anziana ha DISERTATO (Visitors._congeda l'ha già
 		# rimossa, con la lettera di rancore) il congedo si annulla — niente
@@ -165,11 +174,26 @@ func _nuovo_giorno(day: int) -> void:
 	_cerca_chi_saluta(day)
 
 
+## L'impostazione «Prato Eterno», in un punto solo.
+func _prato_eterno() -> bool:
+	var s := get_node_or_null(^"/root/Settings")
+	return s != null and bool(s.get("prato_eterno"))
+
+
+## Ferma un congedo in corso e rimette il villaggio come prima: niente
+## partenza, niente memoriale, le lanterne della sera si spengono.
+func _annulla_congedo(motivo: String) -> void:
+	_congedo = {}
+	_spegni_lanterne()
+	_salva()
+	if motivo != "":
+		print("Congedo annullato — %s" % motivo)
+
+
 func _cerca_chi_saluta(day: int) -> void:
 	if _visitors == null or _legami == null:
 		return
-	var settings := get_node_or_null(^"/root/Settings")
-	var eterno: bool = settings != null and bool(settings.get("prato_eterno"))
+	var eterno: bool = _prato_eterno()
 	var residenti: Array = _visitors.get("_residents")
 	var anziano := {}
 	var anziano_giorni := -1

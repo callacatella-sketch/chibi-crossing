@@ -1142,8 +1142,16 @@ func _leggi_salvataggio(path: String) -> Variant:
 func _load_village() -> void:
 	var data: Variant = _leggi_salvataggio(save_path)
 	if data is not Dictionary:
-		# il file manca o è rotto: prima di arrendersi si prova la copia
-		# di sicurezza (la scrittura atomica la tiene sempre a un passo)
+		# ATTENZIONE alla differenza fra "manca" e "è rotto".
+		# Il file che MANCA è un villaggio NUOVO: si comincia da zero.
+		# Il ripiego sulla copia vale SOLO se il file c'è ma è illeggibile.
+		# Prima non distingueva i due casi, e siccome «Nuovo villaggio»
+		# archivia il .json lasciando il .bak, il villaggio nuovo
+		# RESUSCITAVA quello vecchio: case, residenti, noccioline,
+		# collezione, Ordini del Gufo — tutto tornava, con l'unico
+		# avviso in una riga di console che il giocatore non vede mai.
+		if not FileAccess.file_exists(save_path):
+			return
 		data = _leggi_salvataggio(save_path + ".bak")
 		if data is Dictionary:
 			printerr("BuildSystem: village.json illeggibile — ripristinato dalla copia .bak")

@@ -44,9 +44,28 @@ func _test_fili_della_blindatura(t) -> void:
 	var carica := _corpo("res://scenes/build/BuildSystem.gd", "_load_village")
 	t.ok(carica.contains("_leggi_salvataggio") and carica.contains(".bak"),
 			"il caricamento ripiega sul .bak se il .json è rotto")
+	# LA RESURREZIONE. Il ripiego deve distinguere "manca" da "è rotto":
+	# «Nuovo villaggio» archivia il .json e (prima) lasciava il .bak,
+	# quindi il villaggio NUOVO ripescava il VECCHIO — case, residenti,
+	# noccioline, collezione, Ordini del Gufo, tutto — dopo che il
+	# giocatore aveva confermato «questa scelta non si può annullare».
+	t.ok(carica.contains("if not FileAccess.file_exists(save_path):"),
+			"il file che MANCA è un villaggio nuovo: niente ripiego, si parte da zero")
+	var i_guardia := carica.find("file_exists(save_path)")
+	var i_ripiego := carica.find("_leggi_salvataggio(save_path + \".bak\")")
+	t.ok(i_guardia >= 0 and i_ripiego > i_guardia,
+			"…e la guardia viene PRIMA del ripiego, non dopo")
 	var nuovo := _corpo("res://scenes/ui/TitleScreen.gd", "_start_new")
 	t.ok(nuovo.contains("rename_absolute"),
 			"Nuovo villaggio ARCHIVIA il vecchio (village_<data>.json)")
+	t.ok(nuovo.contains(".bak"),
+			"e archivia anche la copia .bak: la seconda cintura contro la resurrezione")
+	# il villaggio non vive tutto in village.json: le cornici delle foto e
+	# i sentieri consumati si salvano per conto loro, e restavano in piedi
+	# nel villaggio nuovo (cornici sopra letti che non esistono più)
+	for deposito in ["foto_ricordi", "sentieri_consumati"]:
+		t.ok(nuovo.contains(deposito),
+				"Nuovo villaggio archivia anche '%s'" % deposito)
 	t.ok(not nuovo.contains("remove_absolute"),
 			"e non cancella più niente: una storia non si butta")
 
