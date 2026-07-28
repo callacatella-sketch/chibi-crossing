@@ -110,6 +110,18 @@ var _gait_ph := 0.0   # la fase del passo chibi (si infittisce con la pioggia)
 # il saluto della SUA indole (saluto_di, lo cabla Visitors col cervello):
 # "" finché il cervello non è nato — allora vale il festoso di default
 var saluto_stile := ""
+
+# ---- IL CICLO DI CAMMINATA CONDIVISO (la stessa specie di Mochi) ----
+# La fase avanza dalla VELOCITA' VERA misurata (mai moonwalk), il blend
+# accende e SPEGNE il passo da solo, le braccia oscillano con la torsione
+# di Mochi, il corpo si PIEGA dentro le curve, e il passo suona
+# nell'istante dell'appoggio.
+var _walk_f := 0.0        # il blend del passo (0 fermo -> 1 cammino)
+var _passo_prev_cos := 1.0
+var _wag_t := 0.0         # l'orologio dello scodinzolio
+var _prev_pos := Vector3.INF
+var _prev_yaw_g := 0.0
+var _banco := 0.0         # l'inclinazione in curva, fusa
 var _fagotto: Node3D
 
 # la voce Chibiese: nasce dal DNA, parla dal proprio corpo (audio 3D)
@@ -168,6 +180,7 @@ var _wings: Array[Node3D] = []
 var _tail_p: Node3D
 var _tail_tip: Node3D
 var _step_acc := 0.0
+var _sit_t := 0.0     # da quanto è seduto: l'assestamento vive qui
 var _emote_cd := 0.0
 
 # il piano Lua composto dal Regista: lista di passi da recitare
@@ -483,6 +496,8 @@ func _enter_state(s: String) -> void:
 	if _pasto_occupa(s):
 		return
 	_state = s
+	# ogni seduta ricomincia dall'ASSESTAMENTO (plop, fianchi, sospiro)
+	_sit_t = 0.0
 	match s:
 		"browse":
 			if _poi_i < _pois.size():
@@ -666,6 +681,8 @@ func _process(delta: float) -> void:
 	# ritrova il valore base, senza accumuli)
 	_recita_togli()
 	rotation.y = _yaw
+	# il metro del passo: velocita' vera, blend, curva (per ogni stato)
+	_gait_misura(delta)
 	_emote_cd -= delta
 	_speak_cd -= delta
 	# mentre parla, la testolina annuisce a tempo con la voce
@@ -979,41 +996,9 @@ func _move_gait(delta: float) -> float:
 
 func _anim_move(delta: float) -> void:
 	if not dna.is_empty():
-		# camminata chibi: saltello, dondolio, braccine e orecchie che
-		# seguono. La fase del passo è un accumulatore: sotto la pioggia
-		# si infittisce (il passetto svelto) senza saltare di fase
-		_gait_ph += delta * 8.0 * (1.0 + 0.42 * _riparo)
-		var hop := absf(sin(_gait_ph))
-		# il saltello si posa con gli anni, e si abbassa sotto la pioggia
-		_vis.position.y = hop * 0.045 * (1.0 - 0.5 * _eta) * (1.0 - 0.35 * _riparo)
-		_vis.rotation.z = sin(_gait_ph) * 0.05 * (1.0 - 0.4 * _riparo)
-		_vis.rotation.x = -0.05 - 0.28 * _eta  # la schiena curva, in cammino
-		var swing := sin(_gait_ph) * 0.45
-		if _c_arms.size() == 2:
-			_c_arms[0].rotation.x = swing
-			_c_arms[1].rotation.x = -swing
-		# il ciclo dei piedini: fase aerea (si alza e avanza) e appoggio
-		# (spinge all'indietro), in controfase perfetta — come Mochi
-		for li in _c_legs.size():
-			var gamba := _c_legs[li]
-			var pp := _gait_ph + (0.0 if li == 0 else PI)
-			gamba.rotation.x = -sin(pp) * 0.6
-			gamba.position.y = 0.16 + maxf(0.0, cos(pp)) * 0.05
-		for ear in _c_ears:
-			ear.rotation.x = -hop * 0.22 + 0.38 * _eta  # orecchie stanche
-		if _tail_p:
-			# la coda ondeggia pigra, con gli anni
-			_tail_p.rotation.y = sin(_t * 4.0) * 0.3 * (1.0 - 0.55 * _eta)
-		if _tail_tip:
-			# la punta segue in ritardo: il colpo di frusta dello scodinzolio
-			_tail_tip.rotation.y = sin(_t * 4.0 - 0.9) * 0.26 * (1.0 - 0.55 * _eta)
-		_head.rotation.x = hop * 0.05
-		_step_acc += delta
-		# i passetti della pioggia suonano più fitti, come i piedini
-		if _step_acc > 0.35 * (1.0 - 0.28 * _riparo):
-			_step_acc = 0.0
-			if _sfx:
-				_sfx.play("step_grass" + str(1 + randi() % 3), -22.0, 1.05)
+		# il ciclo condiviso: la stessa specie di Mochi (fase dalla
+		# velocita' vera, blend, torsione, banco in curva, appoggi sonori)
+		_gait_chibi()
 		return
 	if species == "passerotto":
 		var hop := fposmod(_t * 2.4, 1.0)
@@ -1050,6 +1035,79 @@ func _relax_legs() -> void:
 		gamba.position.y = lerpf(gamba.position.y, 0.16, 0.18)
 
 
+# --------------------------------------------- il passo condiviso chibi
+
+## Misura ogni frame cio' che serve al ciclo: la velocita' VERA (mai
+## moonwalk: la fase avanza coi metri percorsi), il blend che accende e
+## spegne il passo da solo, l'inclinazione in curva e l'orologio della
+## coda. Gira per OGNI stato: fermarsi a meta' passo sfuma, non scatta.
+func _gait_misura(delta: float) -> void:
+	if dna.is_empty() or _vis == null:
+		return
+	if _prev_pos.x == INF:
+		_prev_pos = global_position
+		_prev_yaw_g = _yaw
+	var dxz := global_position - _prev_pos
+	_prev_pos = global_position
+	var v := Vector2(dxz.x, dxz.z).length() / maxf(delta, 0.0001)
+	if v > 2.8:
+		v = 0.0                    # un teletrasporto non e' un passo
+	_walk_f = lerpf(_walk_f, 1.0 if v > 0.12 else 0.0, 1.0 - exp(-8.0 * delta))
+	if v > 0.12:
+		# 5.5 rad per metro: alla velocita' di crociera e' la cadenza di
+		# sempre; sotto la pioggia il passetto si infittisce
+		_gait_ph += v * delta * 5.5 * (1.0 + 0.42 * _riparo)
+	# la piega in curva: chi svolta camminando si INCLINA dentro la curva
+	var rate := wrapf(_yaw - _prev_yaw_g, -PI, PI) / maxf(delta, 0.0001)
+	_prev_yaw_g = _yaw
+	_banco = lerpf(_banco, clampf(-rate * 0.16, -0.13, 0.13) * _walk_f,
+			1.0 - exp(-7.0 * delta))
+	_wag_t += delta * (1.6 + 2.6 * _walk_f)
+
+
+## Il corpo del passo, fuso col blend: la STESSA specie di Mochi.
+## Chiamato sia in cammino sia da fermo — e' il blend a decidere quanto
+## ciclo si vede, mai lo stato.
+func _gait_chibi() -> void:
+	var hop := absf(sin(_gait_ph)) * _walk_f
+	# respiro da fermo, saltello in cammino (che si posa con gli anni e
+	# si abbassa sotto la pioggia), dondolio e banco in curva
+	_vis.position.y = absf(sin(_t * 3.0)) * 0.015 * (1.0 - _walk_f) \
+			+ hop * 0.045 * (1.0 - 0.5 * _eta) * (1.0 - 0.35 * _riparo)
+	_vis.rotation.z = sin(_gait_ph) * 0.05 * (1.0 - 0.4 * _riparo) * _walk_f + _banco
+	_vis.rotation.x = -0.05 * _walk_f - 0.28 * _eta
+	var swing := sin(_gait_ph) * 0.45 * _walk_f
+	if _c_arms.size() == 2:
+		_c_arms[0].rotation.x = swing
+		_c_arms[1].rotation.x = -swing
+		# la torsione di Mochi: il braccio RUOTA mentre oscilla
+		_c_arms[0].rotation.y = -sin(_gait_ph - 0.4) * 0.12 * _walk_f
+		_c_arms[1].rotation.y = sin(_gait_ph - 0.4) * 0.12 * _walk_f
+	# i piedini: fase aerea e appoggio in controfase, fusi col blend —
+	# da fermo il ciclo SI SPEGNE da solo, come le gambe di Mochi
+	for li in _c_legs.size():
+		var gamba := _c_legs[li]
+		var pp := _gait_ph + (0.0 if li == 0 else PI)
+		gamba.rotation.x = -sin(pp) * 0.6 * _walk_f
+		gamba.position.y = 0.16 + maxf(0.0, cos(pp)) * 0.05 * _walk_f
+	for ear in _c_ears:
+		ear.rotation.x = -hop * 0.22 + 0.38 * _eta  # orecchie stanche
+	if _tail_p:
+		# scodinzolio: dolce da fermo, vivace in cammino, la punta in
+		# ritardo di fase — il colpo di frusta che rende viva una coda
+		_tail_p.rotation.y = sin(_wag_t) * (0.22 + 0.12 * _walk_f) * (1.0 - 0.55 * _eta)
+	if _tail_tip:
+		_tail_tip.rotation.y = sin(_wag_t - 0.9) * (0.2 + 0.1 * _walk_f) * (1.0 - 0.55 * _eta)
+	_head.rotation.x = hop * 0.05
+	# da fermo la testolina si guarda intorno; in cammino guarda avanti
+	_head.rotation.y = sin(_t * 0.8) * 0.25 * (1.0 - _walk_f)
+	# il passo suona nell'ISTANTE dell'appoggio, come i piedini di Mochi
+	var c := cos(_gait_ph)
+	if _walk_f > 0.4 and c * _passo_prev_cos < 0.0 and _sfx:
+		_sfx.play("step_grass" + str(1 + randi() % 3), -22.0, 1.05)
+	_passo_prev_cos = c
+
+
 func _anim_inspect() -> void:
 	# si sporge incuriosito verso l'oggetto, la testa fa su e giù
 	_relax_legs()
@@ -1065,22 +1123,51 @@ func _anim_inspect() -> void:
 		_c_arms[1].rotation.x = 0.5
 
 
+## L'ASSESTAMENTO della seduta, PURO: a [param s] secondi dal sedersi,
+## quanto plop (il tonfo col rimbalzo che muore), quanto sistemarsi dei
+## fianchi, quanto sospiro (il petto che si alza a ~1.3s e le spalle che
+## ricadono), quanto colpo di coda che si accomoda. A s≈3 è tutto zero:
+## resta solo il respiro. Il test lo percorre punto a punto.
+static func assesto_seduta(s: float) -> Dictionary:
+	var calo := exp(-s * 1.6)
+	return {
+		"plop": -0.035 * exp(-s * 3.0) * cos(s * 9.0),
+		"fianchi": sin(s * 7.0) * 0.06 * calo,
+		"sospiro": exp(-pow((s - 1.3) / 0.35, 2.0)),
+		"coda": sin(s * 8.0) * 0.5 * calo,
+		"calo": calo,
+	}
+
+
 func _anim_sit() -> void:
-	# riposo beato: respiro lento, dondolio appena percettibile
+	# riposo beato — ma PRIMA l'assestamento: il plop con un rimbalzo,
+	# i fianchi che si sistemano, il sospiro, la coda che si accomoda
+	# con due colpi. Gli anziani fanno tutto con più calma. Solo dopo
+	# arriva il respiro lento di sempre (e il guardarsi intorno).
 	_relax_legs()
+	_sit_t += get_process_delta_time()
+	var a := assesto_seduta(_sit_t / (1.0 + 0.6 * _eta))
+	var calo: float = a["calo"]
 	_vis.rotation.x = 0.0
-	_vis.position.y = sin(_t * 1.6) * 0.012
-	_vis.rotation.z = sin(_t * 0.8) * 0.04
-	_head.rotation.x = sin(_t * 1.6) * 0.06
-	_head.rotation.y = sin(_t * 0.5) * 0.3
+	_vis.position.y = sin(_t * 1.6) * 0.012 + float(a["plop"]) \
+			+ float(a["sospiro"]) * 0.02
+	_vis.rotation.z = sin(_t * 0.8) * 0.04 + float(a["fianchi"])
+	_head.rotation.x = sin(_t * 1.6) * 0.06 - float(a["sospiro"]) * 0.12
+	# ci si guarda intorno solo DOPO essersi accomodati
+	_head.rotation.y = sin(_t * 0.5) * 0.3 * (1.0 - calo)
 	if not dna.is_empty():
 		if _c_arms.size() == 2:
-			_c_arms[0].rotation.x = 0.2
-			_c_arms[1].rotation.x = 0.2
+			# le spalle: su col sospiro, giù quando si lascia andare
+			var braccio: float = 0.2 - float(a["sospiro"]) * 0.22 + calo * 0.12
+			_c_arms[0].rotation.x = braccio
+			_c_arms[1].rotation.x = braccio
 		if _tail_p:
-			_tail_p.rotation.y = sin(_t * 1.2) * 0.25 * (1.0 - 0.55 * _eta)
+			# la coda si SISTEMA con due colpi, poi ondeggia placida
+			_tail_p.rotation.y = sin(_t * 1.2) * 0.25 * (1.0 - 0.55 * _eta) \
+					* (1.0 - calo) + float(a["coda"])
 		if _tail_tip:
-			_tail_tip.rotation.y = sin(_t * 1.2 - 0.7) * 0.2 * (1.0 - 0.55 * _eta)
+			_tail_tip.rotation.y = sin(_t * 1.2 - 0.7) * 0.2 * (1.0 - 0.55 * _eta) \
+					* (1.0 - calo) + sin(_sit_t * 8.0 - 0.8) * 0.4 * calo
 		return
 	if species == "passerotto":
 		_tail_p.rotation.x = sin(_t * 2.2) * 0.15
@@ -1094,6 +1181,11 @@ func _anim_sit() -> void:
 
 
 func _anim_idle() -> void:
+	if not dna.is_empty():
+		# stesso ciclo del cammino: da fermo il blend lo SPEGNE da solo,
+		# senza mai uno scatto tra i due mondi
+		_gait_chibi()
+		return
 	_relax_legs()
 	_vis.position.y = absf(sin(_t * 3.0)) * 0.015
 	_head.rotation.y = sin(_t * 0.8) * 0.25
