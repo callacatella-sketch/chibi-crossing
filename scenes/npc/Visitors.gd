@@ -662,7 +662,13 @@ func _congeda(i: int, r: Dictionary, animo: RefCounted) -> void:
 	# il Filo Rosso se lo ricorda: chi se n'è andato non si cancella
 	for legami in get_tree().get_nodes_in_group("legami"):
 		if legami.has_method("momento"):
-			legami.call("momento", label, "addio", animo.racconta())
+			# il NOME, non la label: le chiavi dei fili sono il nome del
+			# DNA (come negli altri otto punti). Passando la label,
+			# l'addio — il momento piu' importante della diserzione —
+			# finiva in un filo separato che nessuno leggeva mai.
+			legami.call("momento",
+					str((r.get("dna", {}) as Dictionary).get("name", "")),
+					"addio", animo.racconta())
 			break
 	_show_toast(L10n.tf("%s se n'è andato.", [label]))
 	if node != null and is_instance_valid(node):

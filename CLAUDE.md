@@ -6,6 +6,58 @@ le classi native stanno in `src/` (`PlayerController`, `SurvivalComponent`,
 Molta logica di gioco è in GDScript sotto `scenes/`. C'è anche l'addon
 `addons/lua-gdextension`. La scena principale è `scenes/levels/MainLevel.tscn`.
 
+## REGOLA ZERO: qualità da gioco AAA, sempre — è la regola che precede tutte
+
+**Ogni agente che tocca questo progetto è OBBLIGATO a consegnare qualità da
+gioco AAA professionale, degna dell'industria videoludica.** Vale per tutto,
+senza eccezioni: creare effetti grafici, visivi e particellari; animazioni;
+asset e modelli 3D; shader; suoni; e allo stesso modo modificare, aggiungere
+o estendere sistemi, contenuti e implementazioni.
+
+**Prenditi tutto il tempo che serve e consuma tutti i token che vuoi.** Non
+esiste un budget da rispettare: esiste solo il risultato. Meglio un lavoro in
+meno fatto in modo mozzafiato che tre lavori mediocri. Se una scelta è fra
+"veloce" e "bello", si sceglie **bello**; fra "funziona" e "emoziona", si
+sceglie **emoziona**.
+
+Il metro non è «compila» né «il test passa»: è **cosa prova chi guarda lo
+schermo**. Qualcosa che funziona ma non commuove non è finito.
+
+**Cosa significa in pratica, in questo progetto** (le lezioni già pagate):
+
+1. **Guardare con gli occhi, sempre.** Una suite verde non dice NIENTE sulla
+   resa. Prima di considerare finito un lavoro visivo, renderizzalo nel
+   MONDO VERO (`change_scene_to_file("res://scenes/levels/MainLevel.tscn")` in
+   uno script `--script` temporaneo, camera propria, timer forzati) e GUARDA
+   le immagini. Verifica anche **di profilo e di tre quarti**, non solo
+   frontale: è lì che si smascherano i trucchi (la bocca "in volo" davanti al
+   muso viveva così).
+2. **Se non sei sicuro di un valore, fai un PROVINO.** Renderizza cinque
+   varianti affiancate ed etichettate, e scegli con l'occhio. Indovinare un
+   numero e sperare è il contrario di questo mestiere. (La posa del sonno è
+   nata così: a 0.30 rad il chibi sembrava sveglio.)
+3. **Mai "posa + adesivo".** La differenza fra vivo e spento è il
+   micro-movimento: il respiro, l'assestamento, l'overshoot della molla,
+   l'asimmetria (inspiro più corto dell'espiro), gli orologi incommensurabili
+   che non si richiudono mai. Un `sin()` puro si smaschera in due cicli.
+4. **Conserva il carattere già scritto.** Ogni animazione nuova deve
+   rispettare l'età (gobba, orecchie stanche, voce), la pioggia, l'indole,
+   la postura. Riscrivere un canale dimenticando `_eta` fa scattare le
+   orecchie di un anziano.
+5. **Fonti uniche.** Colori, luoghi, tabelle: si leggono da dove già vivono
+   (vedi la REGOLA sulle fonti uniche), mai ricopiati.
+6. **Test COMPORTAMENTALI, non di facciata.** Un `source-check` che matcha un
+   commento resta verde anche cancellando il codice. Entra nello stato vero,
+   fai girare `_process`, e guarda il rig. Le tolleranze si tarano sul
+   residuo MISURATO, non a occhio.
+7. **Fatti smontare il lavoro.** Prima di chiudere una feature importante,
+   passala a una revisione avversariale (lenti indipendenti: correttezza,
+   integrazione, resa, test). Trova sempre difetti veri che chi ha scritto il
+   codice non vede — inclusi quelli che corrompono altri sistemi in silenzio.
+8. **Attenzione ai canali orfani.** Se solo uno stato scrive un canale del
+   rig, un'interruzione lo lascia fuori posa per sempre: serve una rete di
+   sicurezza che giri per OGNI stato.
+
 ## REGOLA: backup Git automatico (sempre attivo)
 
 Questo repository deve avere **sempre una copia di backup aggiornata su GitHub**
