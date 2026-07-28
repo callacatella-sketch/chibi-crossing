@@ -176,6 +176,9 @@ func setup_resident(house: Dictionary) -> void:
 
 
 func _ready() -> void:
+	# le porte del villaggio si aprono anche per loro (BuildSystem
+	# interroga il gruppo): niente più residenti-fantasma attraverso l'anta
+	add_to_group("passanti")
 	_sfx = get_node_or_null(^"/root/Sfx")
 	# nodo runtime: i unique name non risolvono, serve il path relativo
 	(func(): _player_ref = get_node_or_null("../../Player")).call_deferred()

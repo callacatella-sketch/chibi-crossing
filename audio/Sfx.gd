@@ -280,6 +280,7 @@ func _build_sfx() -> void:
 		_streams["chirp" + str(i + 1)] = _gen_chirp(i * 13 + 5)
 	_streams["door_open"] = _gen_door(true)
 	_streams["door_close"] = _gen_door(false)
+	_streams["cigolio"] = _gen_cigolio()
 	_streams["water"] = _gen_water()
 	_streams["boil"] = _gen_boil()
 	_streams["swish"] = _gen_swish()
@@ -575,6 +576,46 @@ func _gen_door(open: bool) -> AudioStreamWAV:
 		_add_thump(buf, 0.17, 90.0, 0.95)
 		_add_click(buf, 0.225, 0.4, 1800.0)
 	_normalize(buf, 0.55)
+	return _wav(buf)
+
+
+# il cigolio del cardine: STICK-SLIP vero — la cerniera si inceppa e
+# scivola a strappi, e ogni strappo è uno squittio che sale di tono
+# mentre il perno scorre. Tre strappi irregolari, con le armoniche del
+# metallo e un mormorio di legno sotto a legarli. (play() lo varia di
+# pitch a ogni porta: nessun cigolio è mai identico al precedente.)
+func _gen_cigolio() -> AudioStreamWAV:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 77
+	var n := int(0.52 * RATE)
+	var buf := PackedFloat32Array()
+	buf.resize(n)
+	# [inizio s, durata s, frequenza di partenza Hz] di ciascuno strappo
+	var strappi := [[0.02, 0.16, 980.0], [0.21, 0.11, 1260.0], [0.35, 0.15, 1100.0]]
+	for s: Array in strappi:
+		var da := int(float(s[0]) * RATE)
+		var dur := float(s[1])
+		var f0 := float(s[2])
+		var ph := 0.0
+		for i in int(dur * RATE):
+			if da + i >= n:
+				break
+			var t := float(i) / RATE
+			var p := t / dur
+			# lo squittio sale mentre il perno scivola, con un tremito fine
+			var f := f0 * (1.0 + 0.24 * p + 0.03 * sin(TAU * 38.0 * t))
+			ph += TAU * f / RATE
+			var env := pow(sin(PI * minf(p, 1.0)), 0.7)
+			buf[da + i] += (sin(ph) * 0.8 + sin(ph * 2.0) * 0.35 \
+					+ sin(ph * 3.0) * 0.12) * env * 0.5
+	# il legno sotto: un mormorio grave che lega gli strappi fra loro
+	var lp := 0.0
+	for i in n:
+		var t := float(i) / RATE
+		var white := rng.randf() * 2.0 - 1.0
+		lp += (white - lp) * 0.04
+		buf[i] += lp * 0.5 * pow(sin(PI * minf(t / 0.52, 1.0)), 1.2)
+	_normalize(buf, 0.5)
 	return _wav(buf)
 
 

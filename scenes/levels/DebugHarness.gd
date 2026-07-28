@@ -42,6 +42,8 @@ func run(level: Node3D, mode: String, arg: String = "") -> void:
 			await _debug_nido(arg)
 		"facce":
 			await _debug_facce(arg)
+		"porte":
+			await _debug_porte(arg)
 
 func _frames(n: int):
 	for i in n:
@@ -466,6 +468,74 @@ func _debug_facce(dir: String) -> void:
 
 	mochi.forza_espressione("")
 	print("FACCE: fine, %d espressioni fotografate" % n)
+	get_tree().quit()
+
+
+# ---------------------------------------------------------------- porte
+# La porta che si apre DAVVERO: si piazza una Porta del catalogo, Mochi
+# le si avvicina (spinta con overshoot, poi assestata), si allontana
+# (ricade e aggancia col chiavistello). Poi la prova dei fantasmi: un
+# nodo nel gruppo "passanti" — come ogni residente — deve aprirla da solo.
+func _debug_porte(dir: String) -> void:
+	var dn = _level.get_node_or_null("DayNight")
+	if dn:
+		dn.set_time(0.42)
+	await _frames(30)
+
+	# la porta: muro-Porta sul bordo (0, 6.5), parete lungo X
+	build_system.place_edge(Vector2i(0, 13), "Porta", false, false)
+	await _frames(4)
+	var porte: Array = build_system.get("_doors")
+	if porte.is_empty():
+		printerr("PORTE: nessuna porta registrata")
+		get_tree().quit()
+		return
+
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.position = Vector3(1.6, 1.5, 9.1)
+	cam.fov = 45.0
+	cam.current = true
+	cam.look_at(Vector3(0, 1.0, 6.5))
+
+	player.global_position = Vector3(0, 0, 10.5)
+	await _frames(20)
+	await _shot(dir, "porta_1_chiusa")
+	# Mochi si avvicina: la spinta (overshoot a ~0.2 s, assestata a ~0.6)
+	player.global_position = Vector3(0, 0, 7.55)
+	await get_tree().create_timer(0.22).timeout
+	await _shot(dir, "porta_2_spinta")
+	await get_tree().create_timer(0.5).timeout
+	await _shot(dir, "porta_3_aperta")
+	print("PORTE: aperta da Mochi -> %s" % ("SI" if porte[0]["open"] else "NO"))
+	# Mochi si allontana: la ricaduta e l'aggancio
+	player.global_position = Vector3(0, 0, 11.5)
+	await get_tree().create_timer(0.3).timeout
+	await _shot(dir, "porta_4_ricade")
+	await get_tree().create_timer(0.6).timeout
+	await _shot(dir, "porta_5_agganciata")
+	print("PORTE: richiusa dopo il passaggio -> %s" % ("SI" if not porte[0]["open"] else "NO"))
+
+	# la prova dei fantasmi: un PASSANTE (come ogni residente) la apre da solo
+	var passante := Node3D.new()
+	passante.add_to_group("passanti")
+	add_child(passante)
+	passante.global_position = Vector3(0, 0, 5.6)   # dall'ALTRO lato dell'anta
+	await get_tree().create_timer(0.7).timeout
+	await _shot(dir, "porta_6_aperta_dal_residente")
+	print("PORTE: aperta dal passante -> %s" % ("SI" if porte[0]["open"] else "NO"))
+	print("PORTE: verso della spinta dal lato nord -> %.2f (atteso -1.95)"
+			% float(porte[0]["hinge"].rotation.y))
+	passante.global_position = Vector3(30, 0, 30)
+	await get_tree().create_timer(0.9).timeout
+	print("PORTE: richiusa dopo il passante -> %s" % ("SI" if not porte[0]["open"] else "NO"))
+
+	# la casa sull'albero registra la SUA anta
+	build_system.place_cell(Vector2i(-8, 1), "Casa albero", 0, false)
+	await _frames(4)
+	print("PORTE: ante registrate col nido sull'albero -> %d (attese 2)"
+			% (build_system.get("_doors") as Array).size())
+	print("PORTE: fine")
 	get_tree().quit()
 
 

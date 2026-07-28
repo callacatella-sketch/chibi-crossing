@@ -681,6 +681,18 @@ static func _treehouse() -> Node3D:
 		_box(n, Vector3(0.1, 1.1, 1.42), plaster, Vector3(sxw * 0.7, hy, -0.37))
 	_box(n, Vector3(1.5, 1.1, 0.1), plaster, Vector3(0, hy, -1.06))
 	_box(n, Vector3(1.5, 0.28, 0.1), plaster, Vector3(0, 3.54, 0.32))
+	# l'anta del varco a sud: cardine sul montante sinistro, la apre il
+	# BuildSystem al passaggio (era un buco: si entrava da fantasmi)
+	var anta_hinge := Node3D.new()
+	anta_hinge.name = "Hinge"
+	anta_hinge.position = Vector3(-0.33, 2.58, 0.32)
+	n.add_child(anta_hinge)
+	var anta_mat := _mat(Color("b3805a"), Color("96683f"), 3.0, 0.55)
+	_box(anta_hinge, Vector3(0.64, 1.0, 0.05), anta_mat, Vector3(0.32, 0.5, 0))
+	var anta_slat := _mat(Color("a2734e"), Color("8a5f3e"), 2.0, 0.4)
+	_box(anta_hinge, Vector3(0.52, 0.03, 0.055), anta_slat, Vector3(0.32, 0.3, 0))
+	_box(anta_hinge, Vector3(0.52, 0.03, 0.055), anta_slat, Vector3(0.32, 0.72, 0))
+	_ball(anta_hinge, 0.028, _mat(CREAM, WOOD_PALE, 4.0, 0.3), Vector3(0.56, 0.52, 0.045))
 	for cx: float in [-0.7, 0.7]:
 		for cz: float in [-1.06, 0.32]:
 			_box(n, Vector3(0.11, 1.16, 0.11), dark, Vector3(cx, hy, cz))

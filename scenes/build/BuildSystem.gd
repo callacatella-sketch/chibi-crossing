@@ -563,20 +563,78 @@ func _edge_key_to_transform(key: Vector2i) -> Array:
 
 # ------------------------------------------------------- porte e tetti
 
-# le porte si aprono da sole quando Mochi si avvicina, e si richiudono
+# Da che parte si apre l'anta: una porta VERA si spinge, quindi ruota
+# VIA da chi la sta attraversando. z_locale è la posizione del passante
+# nello spazio della porta (l'anta chiusa vive sul piano z=0).
+static func verso_porta(z_locale: float) -> float:
+	return 1.95 if z_locale > 0.0 else -1.95
+
+
+# Le porte si aprono da sole al passaggio — di Mochi E dei residenti
+# (gruppo "passanti"): prima gli abitanti le attraversavano da fantasmi.
+# L'anta recita da anta: spinta con un piccolo overshoot che si assesta
+# (il legno ha peso), richiusa più lenta che accelera come per gravità
+# e AGGANCIA col chiavistello sull'ultimo grado. Cigolio in apertura,
+# cigolio corto + tonfo e scatto in chiusura, ogni volta a pitch diverso.
 func _update_doors() -> void:
-	if _player == null:
+	if _doors.is_empty():
 		return
+	var passanti := get_tree().get_nodes_in_group("passanti")
 	for d in _doors:
-		var node := d["node"] as Node3D
-		var open: bool = _player.global_position.distance_to(node.global_position) < 1.3
-		if open != d["open"]:
-			d["open"] = open
-			var tw := create_tween()
-			tw.tween_property(d["hinge"], "rotation:y", -1.95 if open else 0.0, 0.32) \
+		var hinge := d["hinge"] as Node3D
+		if hinge == null or not is_instance_valid(hinge):
+			continue
+		# il più vicino tra Mochi e i passanti (la soglia è sul CARDINE,
+		# non sulla base del nodo: la porta della casa sull'albero sta in quota)
+		var qui := hinge.global_position
+		var vicino: Node3D = null
+		var best := 1.35
+		if _player != null:
+			var dp := _player.global_position.distance_to(qui)
+			if dp < best:
+				best = dp
+				vicino = _player
+		for w in passanti:
+			if w is Node3D and is_instance_valid(w):
+				var dw := (w as Node3D).global_position.distance_to(qui)
+				if dw < best:
+					best = dw
+					vicino = w
+		var open := vicino != null
+		if open == bool(d["open"]):
+			continue
+		d["open"] = open
+		if d.has("tw") and d["tw"] != null and (d["tw"] as Tween).is_valid():
+			(d["tw"] as Tween).kill()
+		var tw := create_tween()
+		d["tw"] = tw
+		if open:
+			# via da chi spinge: il lato lo dice la posizione locale
+			# rispetto al PIANO dell'anta (nella casa sull'albero il
+			# varco non sta sull'origine del nodo)
+			var girata := verso_porta((d["node"] as Node3D).to_local(
+					vicino.global_position).z - float(d.get("piano_z", 0.0)))
+			d["girata"] = girata
+			# la spinta: oltre il segno di un soffio, poi si assesta
+			tw.tween_property(hinge, "rotation:y", girata * 1.07, 0.34) \
 					.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+			tw.tween_property(hinge, "rotation:y", girata, 0.28) \
+					.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 			if _sfx:
-				_sfx.play("door_open" if open else "door_close", -13.0)
+				_sfx.play("cigolio", -12.0, randf_range(0.9, 1.14))
+				_sfx.play("door_open", -20.0)   # il fiato d'aria sotto il cigolio
+		else:
+			var girata := float(d.get("girata", -1.95))
+			# ricade come per gravità fin quasi al telaio...
+			tw.tween_property(hinge, "rotation:y", girata * 0.05, 0.5) \
+					.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+			# ...e il chiavistello la tira dentro con lo scatto
+			if _sfx:
+				tw.tween_callback(_sfx.play.bind("door_close", -14.0))
+			tw.tween_property(hinge, "rotation:y", 0.0, 0.1) \
+					.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+			if _sfx:
+				_sfx.play("cigolio", -19.0, 1.35)   # il lamento corto del rientro
 
 
 # quando Mochi è sotto un tetto (a terra o in quota), i tetti dissolvono
@@ -635,6 +693,12 @@ func _register_special(item_name: String, node: Node3D) -> void:
 		var pivot := node.find_child("LanternaPivot", true, false)
 		if pivot:
 			_lanterns.append(pivot)
+		# anche la casetta lassù ha la sua anta col cardine (il piano
+		# dell'anta sta a z=0.32 nello spazio del nodo, non sull'origine)
+		var anta := node.find_child("Hinge", true, false)
+		if anta:
+			_doors.append({"node": node, "hinge": anta, "open": false,
+					"piano_z": 0.32})
 		# una casa sull'albero nuova di zecca merita gli anelli
 		if not _loading:
 			var gtree := get_tree().get_first_node_in_group("grande_albero")
