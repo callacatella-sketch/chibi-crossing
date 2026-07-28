@@ -215,6 +215,20 @@ func _process(delta: float) -> void:
 			speaker.call("speak", ["pioggia", "casa"], "domanda")
 	_was_raining = raining
 
+	# la pioggia ADDOSSO: chi è fuori senza un tetto si ripara (zampina a
+	# visiera, orecchie basse, passetto svelto — il livello _riparo del
+	# Visitor). Sotto una copertura il corpo si rilassa da solo.
+	for r in _residents:
+		var rn := r.get("node") as Node3D
+		if rn != null and is_instance_valid(rn):
+			var cella := Vector2i(roundi(rn.global_position.x),
+					roundi(rn.global_position.z))
+			rn.set("riparo_pioggia", raining and not _build.has_cover(cella))
+	if _active != null and is_instance_valid(_active):
+		var ca := Vector2i(roundi(_active.global_position.x),
+				roundi(_active.global_position.z))
+		_active.set("riparo_pioggia", raining and not _build.has_cover(ca))
+
 	# (Fase 6) i vicini leggono Mochi: l'empatia bidirezionale
 	_tick_empatia(delta, raining)
 

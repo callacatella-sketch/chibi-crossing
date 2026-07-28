@@ -69,6 +69,13 @@ var _rc_trans := ""
 var _rc_trans_t := 0.0
 var _rc_cur := {}    # canale -> valore corrente (fuso coi muscoli)
 var _rc_appl := {}   # ciò che è stato sommato al rig l'ultimo frame
+
+# LA PIOGGIA ADDOSSO: lo alza Visitors per chi è fuori senza un tetto.
+# Non è una postura (quelle le detta l'animo): è un livello che si SOMMA
+# a qualunque recita — zampina a visiera, orecchie basse, passetto svelto.
+var riparo_pioggia := false
+var _riparo := 0.0
+var _gait_ph := 0.0   # la fase del passo chibi (si infittisce con la pioggia)
 var _fagotto: Node3D
 
 # la voce Chibiese: nasce dal DNA, parla dal proprio corpo (audio 3D)
@@ -900,12 +907,16 @@ func _move_gait(delta: float) -> float:
 
 func _anim_move(delta: float) -> void:
 	if not dna.is_empty():
-		# camminata chibi: saltello, dondolio, braccine e orecchie che seguono
-		var hop := absf(sin(_t * 8.0))
-		_vis.position.y = hop * 0.045 * (1.0 - 0.5 * _eta)  # il saltello si posa
-		_vis.rotation.z = sin(_t * 8.0) * 0.05
+		# camminata chibi: saltello, dondolio, braccine e orecchie che
+		# seguono. La fase del passo è un accumulatore: sotto la pioggia
+		# si infittisce (il passetto svelto) senza saltare di fase
+		_gait_ph += delta * 8.0 * (1.0 + 0.42 * _riparo)
+		var hop := absf(sin(_gait_ph))
+		# il saltello si posa con gli anni, e si abbassa sotto la pioggia
+		_vis.position.y = hop * 0.045 * (1.0 - 0.5 * _eta) * (1.0 - 0.35 * _riparo)
+		_vis.rotation.z = sin(_gait_ph) * 0.05 * (1.0 - 0.4 * _riparo)
 		_vis.rotation.x = -0.05 - 0.28 * _eta  # la schiena curva, in cammino
-		var swing := sin(_t * 8.0) * 0.45
+		var swing := sin(_gait_ph) * 0.45
 		if _c_arms.size() == 2:
 			_c_arms[0].rotation.x = swing
 			_c_arms[1].rotation.x = -swing
@@ -913,7 +924,7 @@ func _anim_move(delta: float) -> void:
 		# (spinge all'indietro), in controfase perfetta — come Mochi
 		for li in _c_legs.size():
 			var gamba := _c_legs[li]
-			var pp := _t * 8.0 + (0.0 if li == 0 else PI)
+			var pp := _gait_ph + (0.0 if li == 0 else PI)
 			gamba.rotation.x = -sin(pp) * 0.6
 			gamba.position.y = 0.16 + maxf(0.0, cos(pp)) * 0.05
 		for ear in _c_ears:
@@ -926,7 +937,8 @@ func _anim_move(delta: float) -> void:
 			_tail_tip.rotation.y = sin(_t * 4.0 - 0.9) * 0.26 * (1.0 - 0.55 * _eta)
 		_head.rotation.x = hop * 0.05
 		_step_acc += delta
-		if _step_acc > 0.35:
+		# i passetti della pioggia suonano più fitti, come i piedini
+		if _step_acc > 0.35 * (1.0 - 0.28 * _riparo):
 			_step_acc = 0.0
 			if _sfx:
 				_sfx.play("step_grass" + str(1 + randi() % 3), -22.0, 1.05)
@@ -1711,6 +1723,22 @@ func _recita_applica(delta: float) -> void:
 	if dna.is_empty() or _vis == null:
 		return
 	var bersagli := recita_bersagli(_rc_stabile, _rc_trans, _rc_trans_t, _t)
+	# la pioggia si somma a QUALUNQUE postura: chiunque sia — fiero,
+	# imbronciato, in partenza — sotto l'acqua si ripara comunque
+	_riparo = lerpf(_riparo, 1.0 if riparo_pioggia else 0.0,
+			1.0 - exp(-4.0 * delta))
+	if _riparo > 0.01:
+		# la destra quasi verticale e un filo VERSO FUORI: davanti alla
+		# testona sparirebbe (lezione del saluto), di fianco si legge
+		bersagli["ax1"] += -2.75 * _riparo   # negativo = su, come il fagotto
+		bersagli["az1"] += 0.45 * _riparo    # fuori dal bordo della testona
+		bersagli["ax0"] += 0.3 * _riparo     # la sinistra stretta al corpo
+		bersagli["ear"] += 0.85 * _riparo    # orecchie appiattite
+		bersagli["hx"] += 0.15 * _riparo     # la testolina nelle spalle
+		bersagli["vx"] += 0.12 * _riparo     # il corpo si raggomitola
+		# se un'altra recita ha già alzato la destra (il fagotto della
+		# partenza), non si gira oltre: la spalla è una spalla, non un mozzo
+		bersagli["ax1"] = maxf(bersagli["ax1"], -2.9)
 	# fusione coi muscoli: il corpo cambia idea in mezzo secondo, mai a scatto
 	var k := 1.0 - exp(-6.0 * delta)
 	for c in bersagli:

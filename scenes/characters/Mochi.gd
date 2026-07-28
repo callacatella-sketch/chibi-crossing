@@ -75,6 +75,11 @@ var _prev_step_sin := 0.0
 var _squinting := false
 var _tired := false
 var _droop := 0.0
+# il riparo dalla pioggia: zampina a visiera, orecchie basse, passetto
+# svelto. 0..1, fuso coi muscoli; il bersaglio si rilegge ogni ~0.35 s
+var _riparo := 0.0
+var _riparo_tgt := false
+var _riparo_cd := 0.0
 var _sweat: MeshInstance3D
 var _blowing := false
 var _disc_tex: Texture2D   # texture morbida della bollicina di bisogno (lazy)
@@ -820,10 +825,20 @@ func _process(delta: float) -> void:
 			_yaw = lerp_angle(_yaw, target_yaw, 1.0 - exp(-9.0 * delta))
 	rotation.y = _yaw
 
+	# --- sotto la pioggia, senza un tetto: il corpo si ripara ---
+	_riparo_cd -= delta
+	if _riparo_cd <= 0.0:
+		_riparo_cd = 0.35
+		var cella := Vector2i(roundi(global_position.x), roundi(global_position.z))
+		_riparo_tgt = _weather != null and _weather.is_raining() \
+				and not (_build_sys != null and _build_sys.has_cover(cella))
+	_riparo = lerpf(_riparo, 1.0 if _riparo_tgt else 0.0, 1.0 - exp(-4.0 * delta))
+
 	var moving := speed > 0.15
 	_walk = lerpf(_walk, 1.0 if moving else 0.0, 1.0 - exp(-8.0 * delta))
 	if moving:
-		_step += speed * delta * 3.2
+		# il passetto svelto della pioggia: passi più fitti e più bassi
+		_step += speed * delta * 3.2 * (1.0 + 0.42 * _riparo)
 	_dust.emitting = speed > 0.6
 
 	# il suono scatta nell'ISTANTE in cui il piedino si pianta a terra
@@ -849,11 +864,17 @@ func _process(delta: float) -> void:
 
 	var hop := absf(sin(_step)) * _walk
 
-	# respiro (fermo) + saltello del passo (in cammino)
-	position.y = sin(_t * 2.1) * 0.018 * (1.0 - _walk) + hop * 0.05 - crouch * 0.1 \
+	# respiro (fermo) + saltello del passo (in cammino); sotto la pioggia
+	# il saltello si abbassa e il dondolio si stringe: si sgattaiola
+	position.y = sin(_t * 2.1) * 0.018 * (1.0 - _walk) \
+			+ hop * 0.05 * (1.0 - 0.38 * _riparo) - crouch * 0.1 \
 			+ sin(clampf(joy, 0.0, 1.0) * PI) * 0.16
-	rotation.z = sin(_t * 1.05) * 0.012 + sin(_step) * 0.055 * _walk
-	rotation.x = -0.06 * _walk + _pose_lean + crouch * 0.26
+	rotation.z = sin(_t * 1.05) * 0.012 \
+			+ sin(_step) * 0.055 * (1.0 - 0.4 * _riparo) * _walk
+	rotation.x = -0.06 * _walk + _pose_lean + crouch * 0.26 + 0.075 * _riparo
+	# il brivido: da ferma sotto la pioggia, ogni tanto un «brrr» a folate
+	rotation.z += sin(_t * 24.0) * 0.009 * _riparo * (1.0 - _walk) \
+			* (maxf(0.0, sin(_t * 0.5) - 0.82) / 0.18)
 	# l'ombra resta incollata al terreno mentre Mochi dondola e saltella
 	_shadow_blob.position.y = 0.02 - position.y
 
@@ -876,6 +897,23 @@ func _process(delta: float) -> void:
 	# da ferma e l'apertura in cammino allargano, mai dentro la stoffa
 	_arms[0].rotation.z = -0.3 - sin(_t * 2.1) * 0.05 * (1.0 - _walk) - 0.2 * _walk
 	_arms[1].rotation.z = 0.3 + sin(_t * 2.1 + 0.4) * 0.05 * (1.0 - _walk) + 0.2 * _walk
+
+	# --- il riparo: la zampina ALZATA sotto la pioggia ---
+	# Anatomia chibi: DAVANTI alla testona il gesto sparisce inghiottito
+	# (stessa lezione del saluto). Quindi si legge in SILHOUETTE: il
+	# braccio destro quasi verticale e un filo VERSO FUORI, così la
+	# zampina spunta accanto al bordo della testona — con le orecchie
+	# appiattite quel bordo è pulito e il gesto si vede da ogni lato.
+	# Solo a zampe libere: oggetti, arrampicata e saluto vincono.
+	var rip := _riparo
+	if _hold > 0.05 or _hold_target > 0.0 or _climb > 0.05 or _wave_t < 1.5:
+		rip = 0.0
+	if rip > 0.02:
+		_arms[1].rotation.x = lerpf(_arms[1].rotation.x,
+				2.9 + sin(_t * 2.4) * 0.05 + hop * 0.1, rip)
+		_arms[1].rotation.z = lerpf(_arms[1].rotation.z, 0.55, rip)
+		_arms[0].rotation.x = lerpf(_arms[0].rotation.x, 0.5, rip)
+		_arms[0].rotation.z = lerpf(_arms[0].rotation.z, -0.08, rip)
 
 	# --- il ciclo di camminata dei piedini ---
 	# Ogni gambetta ha la sua metà del passo: si SOLLEVA mentre avanza
@@ -909,10 +947,14 @@ func _process(delta: float) -> void:
 			)
 
 	_update_ear_twitch(delta)
-	# orecchie: sobbalzo del passo + eventuale twitch + stanchezza
+	# orecchie: sobbalzo del passo + twitch + stanchezza — e sotto la
+	# pioggia si APPIATTISCONO (vince il più forte tra pioggia e sonno)
 	_droop = lerpf(_droop, 0.55 if _tired else 0.0, 1.0 - exp(-6.0 * delta))
 	for ear in _ears:
-		ear.rotation.x = -hop * 0.22 + _droop + (_twitch_value if ear == _twitch_ear else 0.0)
+		ear.rotation.x = -hop * 0.22 + maxf(_droop, 0.92 * _riparo) \
+				+ (_twitch_value if ear == _twitch_ear else 0.0)
+	# la testolina si infila nelle spalle: piove
+	_head.rotation.x += 0.15 * _riparo
 	_update_anomaly(delta)
 
 	# --- pose da seduta / da sonno ---

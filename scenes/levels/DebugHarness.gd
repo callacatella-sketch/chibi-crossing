@@ -44,6 +44,8 @@ func run(level: Node3D, mode: String, arg: String = "") -> void:
 			await _debug_facce(arg)
 		"porte":
 			await _debug_porte(arg)
+		"pioggia":
+			await _debug_pioggia(arg)
 
 func _frames(n: int):
 	for i in n:
@@ -468,6 +470,74 @@ func _debug_facce(dir: String) -> void:
 
 	mochi.forza_espressione("")
 	print("FACCE: fine, %d espressioni fotografate" % n)
+	get_tree().quit()
+
+
+# ---------------------------------------------------------------- pioggia
+# La pioggia ADDOSSO: prima del temporale il corpo è sereno; alla prima
+# goccia Mochi alza la zampina a visiera, appiattisce le orecchie e si
+# raggomitola (e da ferma le scappa il brivido). Un chibi in cammino
+# mostra il passetto svelto con la visiera. Quando spiove, tutto si
+# rilassa da solo. Le stampe dicono i pesi del riparo (0..1).
+func _debug_pioggia(dir: String) -> void:
+	var weather = _level.get_node_or_null("Weather")
+	var dn = _level.get_node_or_null("DayNight")
+	var mochi = player.get_node_or_null("Mochi")
+	if weather == null or mochi == null:
+		printerr("PIOGGIA: Weather o Mochi non trovati")
+		get_tree().quit()
+		return
+	await _frames(30)
+	if dn:
+		dn.set_time(0.4)
+	player.global_position = Vector3(-2.0, 0, 7.5)
+	mochi.set("_yaw", PI)
+	await _frames(4)
+
+	var fwd: Vector3 = -(mochi.global_transform.basis.z as Vector3)
+	var focus: Vector3 = player.global_position + Vector3(0, 0.7, 0)
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.position = focus + fwd * 2.7 + Vector3(0, 0.35, 0)
+	cam.fov = 42.0
+	cam.current = true
+	cam.look_at(focus)
+
+	await _frames(20)
+	await _shot(dir, "pioggia_1_sereno")
+
+	# la prima goccia: il corpo si ripara
+	weather.debug_rain(true)
+	await get_tree().create_timer(1.8).timeout
+	await _shot(dir, "pioggia_2_mochi_riparo")
+	print("PIOGGIA: riparo di Mochi -> %.2f (atteso ~1)" % float(mochi.get("_riparo")))
+
+	# un chibi in cammino sotto l'acqua: visiera e passetto svelto
+	var VIS = load("res://scenes/npc/Visitor.gd")
+	var DNAG = load("res://scenes/npc/ChibiDNA.gd")
+	var v: Node3D = VIS.new()
+	v.set("species", "chibi")
+	v.set("dna", DNAG.generate(4242))
+	add_child(v)
+	v.set("mode", "resident")   # do_routine cammina solo per i residenti
+	v.global_position = Vector3(-3.8, 0, 5.2)
+	v.set("riparo_pioggia", true)
+	# in diagonale VERSO la camera: la zampina alzata si legge in silhouette
+	v.call("do_routine", "sniff", Vector3(0.5, 0, 9.6), Vector3(0.5, 0, 9.6))
+	await get_tree().create_timer(1.5).timeout
+	await _shot(dir, "pioggia_3_chibi_visiera")
+	print("PIOGGIA: riparo del chibi -> %.2f (atteso ~1)" % float(v.get("_riparo")))
+	await get_tree().create_timer(1.1).timeout
+	await _shot(dir, "pioggia_4_chibi_passetto")
+
+	# spiove: i corpi si rilassano da soli
+	weather.debug_rain(false)
+	v.set("riparo_pioggia", false)
+	await get_tree().create_timer(2.2).timeout
+	await _shot(dir, "pioggia_5_spiove")
+	print("PIOGGIA: dopo la pioggia, Mochi -> %.2f (atteso ~0)"
+			% float(mochi.get("_riparo")))
+	print("PIOGGIA: fine")
 	get_tree().quit()
 
 

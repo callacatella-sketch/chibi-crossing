@@ -137,6 +137,8 @@ func _test_harness_non_riscrive_il_salvataggio(t) -> void:
 			"…e nella modalità nido (covate e piogge forzate)")
 	t.ok(avvio.contains("\"porte\""),
 			"…e nella modalità porte (piazza una Porta di prova)")
+	t.ok(avvio.contains("\"pioggia\""),
+			"…e nella modalità pioggia (temporali forzati)")
 	t.ok(avvio.contains("\"legna\"") and avvio.contains("CHIBI_LEGNA_SAVE"),
 			"…e nella legna, salvo l'opt-in CHIBI_LEGNA_SAVE")
 	t.ok(_body("res://scenes/build/BuildSystem.gd", "set_persist_for_debug") != "",
