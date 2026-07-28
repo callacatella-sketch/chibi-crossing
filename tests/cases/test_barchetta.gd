@@ -21,6 +21,77 @@ func run(t) -> void:
 	_test_le_due_acque(t)
 	_test_asset(t)
 	_test_fili_attaccati(t)
+	_test_arco_e_molla(t)
+	_test_imbarco_col_corpo(t)
+
+
+## Il saltello d'imbarco: l'arco tocca ESATTAMENTE i due punti agli
+## estremi (mai un piede a mezz'aria), vola all'apice in mezzo; la molla
+## del peso oscilla e SI SPEGNE (la barca accusa e si acquieta).
+func _test_arco_e_molla(t) -> void:
+	var da := Vector3(1, 0, 2)
+	var a := Vector3(3, 0.27, 4)
+	t.eq(BAR.arco_salto(da, a, 0.42, 0.0), da, "a t=0 il saltello parte dai piedi")
+	t.eq(BAR.arco_salto(da, a, 0.42, 1.0), a, "a t=1 atterra esatto sulla meta")
+	var mezzo: Vector3 = BAR.arco_salto(da, a, 0.42, 0.5)
+	t.almost(mezzo.y, lerpf(da.y, a.y, 0.5) + 0.42, "a metà corsa vola all'apice", 0.001)
+
+	# la molla: un colpo (chi sale), oscilla, e in due secondi è quiete
+	var x := 0.0
+	var v := -0.55
+	var minimo := 0.0
+	var risalita := false
+	for i in 240:
+		var m: Vector2 = BAR.passo_molla(x, v, 90.0, 9.0, 1.0 / 120.0)
+		x = m.x
+		v = m.y
+		minimo = minf(minimo, x)
+		if x > 0.005:
+			risalita = true
+	t.ok(minimo < -0.03, "il peso AFFONDA la barca (%.3f)" % minimo)
+	t.ok(risalita, "…che poi rimbalza oltre il pelo (l'onda di risposta)")
+	t.ok(absf(x) < 0.004, "…e in due secondi si acquieta (%.4f)" % x)
+
+
+## L'imbarco COL CORPO: E avvia il saltello (non un teletrasporto), al
+## volo la barca non è ancora nostra, all'atterraggio _naviga scatta e la
+## barca ACCUSA il peso; lo sbarco riporta a riva coi piedi sull'erba.
+func _test_imbarco_col_corpo(t) -> void:
+	var barca = t.stage(BAR.new())
+	var player := t.stage(CharacterBody3D.new()) as CharacterBody3D
+	barca._player = player
+	# la barca esiste appena il mondo c'è: qui la costruiamo a mano
+	barca._costruisci()
+	player.global_position = barca._barca.global_position + Vector3(-1.2, 0, 0)
+
+	barca._imbarca()
+	t.ok(not barca._salto.is_empty(), "E avvia il SALTELLO, non un teletrasporto")
+	t.ok(not barca._naviga, "a mezz'aria la barca non è ancora nostra")
+	t.eq(str(barca._salto["tipo"]), "imbarco", "…ed è un imbarco")
+	for f in 40:
+		barca._passo_salto(1.0 / 60.0)
+	t.ok(barca._salto.is_empty(), "il volo si conclude da solo")
+	t.ok(barca._naviga, "all'atterraggio si naviga")
+	t.ok(barca._dip_v < -0.1 or barca._dip < -0.005,
+			"e la barca ACCUSA il peso (la molla è carica)")
+	var meta: Vector3 = barca._barca.position + Vector3(0, 0.27, 0)
+	t.ok(player.global_position.distance_to(meta) < 0.05,
+			"Mochi è sulla panchetta, non a mezz'aria")
+
+	# lo sbarco: saltello a riva, fisica restituita solo a terra
+	barca._sbarca()
+	t.ok(not barca._naviga, "la voga si ferma subito")
+	t.ok(not barca._salto.is_empty(), "ma si SCENDE col corpo")
+	t.ok(not player.is_physics_processing(),
+			"in volo la fisica è ancora nostra")
+	for f in 50:
+		barca._passo_salto(1.0 / 60.0)
+	t.ok(barca._salto.is_empty() and player.is_physics_processing(),
+			"a terra la fisica torna a Mochi")
+	var rx: float = MATH.river_x(player.global_position.z)
+	t.ok(absf(player.global_position.x - rx) > 2.3,
+			"…e i piedi sono sull'erba della sponda, fuori dall'acqua")
+	t.almost(player.global_position.y, 0.0, "a quota prato", 0.01)
 
 
 ## La vogata vera, fase per fase: nella PASSATA la pala sta in acqua e

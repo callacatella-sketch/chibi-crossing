@@ -65,6 +65,16 @@ var _voga := {"sweep": 0.0, "alza": 0.5, "piuma": 1.2, "braccia": 0.3, "corpo": 
 var _prompt: PanelContainer
 var _prompt_label: Label
 
+# ---- IMBARCO/SBARCO COL CORPO: niente teletrasporti ----
+# il saltello in corso: {t, dur, da, a, tipo "imbarco"|"sbarco"}
+var _salto := {}
+# la molla del peso: la barca ACCUSA chi sale e si alleggerisce di chi
+# scende — mezzo affondo e un rollio smorzato che si spegne in due onde
+var _dip := 0.0
+var _dip_v := 0.0
+var _rollio := 0.0
+var _rollio_v := 0.0
+
 
 func _ready() -> void:
 	add_to_group("barchetta")
@@ -97,6 +107,23 @@ static func passo_navigazione(vel: Vector3, avanti: Vector3, spinta: float,
 ## corso vero del fiume. PURA (la usa anche il test coi valori di MATH).
 static func dentro_l_alveo(x: float, rx: float) -> float:
 	return clampf(x, rx - SPONDA, rx + SPONDA)
+
+
+## L'arco del saltello d'imbarco: da → a con l'apice a campana in mezzo.
+## PURA: agli estremi tocca ESATTAMENTE i due punti (mai un piede a
+## mezz'aria), a metà corsa vola all'apice.
+static func arco_salto(da: Vector3, a: Vector3, apice: float, t01: float) -> Vector3:
+	var p := da.lerp(a, t01)
+	p.y = lerpf(da.y, a.y, t01) + apice * 4.0 * t01 * (1.0 - t01)
+	return p
+
+
+## Un passo della molla smorzata del peso: (posizione, velocità) →
+## (posizione, velocità). PURA: il test verifica che oscilli e si spenga.
+static func passo_molla(x: float, v: float, k: float, smorzo: float,
+		delta: float) -> Vector2:
+	v += (-k * x - smorzo * v) * delta
+	return Vector2(x + v * delta, v)
 
 
 ## UN COLPO DI REMO VERO, in quattro fasi su un giro di fase p (0..1):
@@ -423,13 +450,14 @@ func _physics_process(delta: float) -> void:
 	if absf(pz - pos.z) > 0.001:
 		pos.z = pz
 		_vel.z *= -0.25
-	pos.y = ACQUA_Y + 0.04 + sin(_t * 2.1) * 0.018
+	pos.y = ACQUA_Y + 0.04 + sin(_t * 2.1) * 0.018 + _dip
 	_barca.position = pos
-	# l'assetto: beccheggio con l'abbrivio, rollio con la virata
+	# l'assetto: beccheggio con l'abbrivio, rollio con la virata — e la
+	# molla del peso (imbarco/sbarco) sommata sopra
 	_barca.rotation = Vector3(
 			clampf(_vel.dot(avanti) * 0.05, -0.08, 0.08),
 			_yaw,
-			clampf(-input.x * 0.09, -0.09, 0.09) + sin(_t * 1.7) * 0.012)
+			clampf(-input.x * 0.09, -0.09, 0.09) + sin(_t * 1.7) * 0.012 + _rollio)
 
 	# i remi leggono la voga: lo scalmo spazza prua↔poppa (sweep, specchiato
 	# per lato), alza la pala fuori dall'acqua (alza, specchiato) e la pala
@@ -454,46 +482,138 @@ func _physics_process(delta: float) -> void:
 		_mochi.set("crouch", 0.05 + (0.42 - float(_voga["alza"])) * 0.28)
 
 
+## L'IMBARCO: non un teletrasporto — Mochi spicca il saltello dall'assito
+## alla panchetta, e all'atterraggio la barca ACCUSA il peso (affonda un
+## soffio, rolla dal lato di salita, l'acqua si increspa allo scafo).
 func _imbarca() -> void:
+	if not _salto.is_empty():
+		return
+	_player.set_physics_process(false)
+	_player.set("velocity", Vector3.ZERO)
+	_salto = {"t": 0.0, "dur": 0.42, "da": _player.global_position,
+			"a": _barca.position + Vector3(0, 0.27, 0), "tipo": "imbarco"}
+	if _sfx:
+		_sfx.play("step_wet2", -16.0, 1.25)   # lo stacco dall'assito umido
+
+
+func _atterra_imbarco(da: Vector3) -> void:
 	_naviga = true
 	_vel = Vector3.ZERO
 	_yaw = _barca.rotation.y
-	if _player:
-		_player.set_physics_process(false)
-		_player.set("velocity", Vector3.ZERO)
 	if _mochi:
 		_mochi.call("set_pose", "sit")
 		_mochi.call("hold_rod", true)   # la presa a due zampe: i manici dei remi
+	# il peso si fa sentire: mezzo affondo e il rollio DAL LATO di salita
+	var locale: Vector3 = _barca.global_transform.basis.inverse() \
+			* (da - _barca.global_position)
+	_scossa(-0.55, -signf(locale.x + 0.001) * 0.7)
+	_spruzzo_scafo(1.0)
 	if _sfx:
 		_sfx.play("step_wet2", -12.0, 0.9)
+		_sfx.plop()
 	if _primo_imbarco:
 		_primo_imbarco = false
 		_toast(L10n.t("I remi in zampa: su per il fiume! (si rema come si cammina, E per scendere)"))
 
 
+## LO SBARCO: la spinta di gamba verso riva — la barca rincula e si
+## alleggerisce, Mochi vola sull'erba della sponda più vicina.
 func _sbarca() -> void:
+	if not _salto.is_empty():
+		return
 	_naviga = false
 	if _mochi:
 		_mochi.call("set_pose", "stand")
 		_mochi.call("hold_rod", false)
 		_mochi.set("pour", 0.0)
 		_mochi.set("crouch", 0.0)
-	if _player:
-		# a riva dalla sponda più vicina, coi piedi sull'erba
-		var pos: Vector3 = _barca.position
-		var rx := MATH.river_x(pos.z)
-		var lato: float = signf(pos.x - rx)
-		if lato == 0.0:
-			lato = -1.0
-		_player.global_position = Vector3(rx + lato * (2.35 + 0.8), 0.0, pos.z)
-		_player.set_physics_process(true)
+	var pos: Vector3 = _barca.position
+	var rx := MATH.river_x(pos.z)
+	var lato: float = signf(pos.x - rx)
+	if lato == 0.0:
+		lato = -1.0
+	_salto = {"t": 0.0, "dur": 0.5, "da": _player.global_position,
+			"a": Vector3(rx + lato * (2.35 + 0.8), 0.0, pos.z), "tipo": "sbarco"}
+	# la spinta di gamba: la barca la sente subito
+	_scossa(0.4, -lato * 0.55)
+	_spruzzo_scafo(0.6)
 	if _sfx:
 		_sfx.play("step_wet2", -12.0, 1.1)
+
+
+func _atterra_sbarco() -> void:
+	if _player:
+		_player.set_physics_process(true)
+	if _sfx:
+		_sfx.play("step_grass1", -18.0, 1.0)   # i piedini sull'erba
+
+
+# ------------------------------------------------ il saltello e il peso
+
+## Il volo del saltello, frame a frame: arco puro, il muso di Mochi verso
+## la meta, e all'ultimo istante l'atterraggio giusto.
+func _passo_salto(delta: float) -> void:
+	if _salto.is_empty() or _player == null:
+		return
+	_salto["t"] = float(_salto["t"]) + delta
+	var t01 := clampf(float(_salto["t"]) / float(_salto["dur"]), 0.0, 1.0)
+	var e := t01 * t01 * (3.0 - 2.0 * t01)   # stacco e atterraggio morbidi
+	if str(_salto["tipo"]) == "imbarco":
+		# la barca dondola sull'acqua: la panchetta va inseguita, o Mochi
+		# atterra dove la barca ERA
+		_salto["a"] = _barca.position + Vector3(0, 0.27, 0)
+	_player.global_position = arco_salto(_salto["da"], _salto["a"], 0.42, e)
+	if _mochi:
+		var dir: Vector3 = (_salto["a"] as Vector3) - (_salto["da"] as Vector3)
+		dir.y = 0.0
+		if dir.length() > 0.01:
+			_mochi.set("_yaw", atan2(-dir.x, -dir.z))
+	if t01 >= 1.0:
+		var tipo := str(_salto["tipo"])
+		var da: Vector3 = _salto["da"]
+		_salto = {}
+		if tipo == "imbarco":
+			_atterra_imbarco(da)
+		else:
+			_atterra_sbarco()
+
+
+## La molla del peso, SEMPRE viva: integra il mezzo affondo e il rollio
+## smorzati; da ferma li applica lei (e fa respirare la barca sull'acqua),
+## in navigazione li somma il _physics_process alle sue formule.
+func _passo_peso(delta: float) -> void:
+	var md := passo_molla(_dip, _dip_v, 90.0, 9.0, delta)
+	_dip = md.x
+	_dip_v = md.y
+	var mr := passo_molla(_rollio, _rollio_v, 70.0, 7.0, delta)
+	_rollio = mr.x
+	_rollio_v = mr.y
+	if not _naviga and _barca:
+		_t += delta
+		_barca.position.y = ACQUA_Y + 0.04 + sin(_t * 1.3) * 0.008 + _dip
+		_barca.rotation.z = _rollio + sin(_t * 1.1) * 0.006
+
+
+## Il colpo che la barca accusa: velocità iniziali della molla (giù per
+## chi sale, su per chi scende) — poi si spegne da sola in due onde.
+func _scossa(dip_v: float, rollio_v: float) -> void:
+	_dip_v += dip_v
+	_rollio_v += rollio_v
+
+
+## L'acqua allo scafo: l'anello d'increspatura vero del fiume.
+func _spruzzo_scafo(forza: float) -> void:
+	if _cozy and _cozy.has_method("water_ripple"):
+		_cozy.call("water_ripple",
+				_barca.global_position + Vector3(randf_range(-0.15, 0.15), 0,
+				randf_range(-0.2, 0.2)), 0.65 * forza, 0.02)
 
 
 # ------------------------------------------------------------ il prompt
 
 func _process(_delta: float) -> void:
+	_passo_salto(_delta)
+	_passo_peso(_delta)
 	if _prompt == null or _player == null or _barca == null:
 		return
 	var cam := get_viewport().get_camera_3d()
@@ -522,6 +642,8 @@ func _process(_delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed("interact") or _barca == null or _player == null:
 		return
+	if not _salto.is_empty():
+		return   # a mezz'aria non si cambia idea
 	if _naviga:
 		# la canna ha la precedenza: se sta pescando, la E è sua
 		var fishing := get_node_or_null("../Fishing")
