@@ -157,7 +157,7 @@ var _pasto_sbuffi := 0
 var _pasto_grazie := false
 var _pasto_ritorno := ""       # lo stato a cui tornare quando ha finito
 var _pasto_in_corso := false   # il recinto: mentre è acceso, il corpo è del pasto
-var _pasto_bocca := 0.0        # la quota della bocca di QUESTO chibi (misurata una volta)
+var _pasto_zampe := 0.0        # la quota delle zampine di QUESTO chibi (misurata una volta)
 
 
 func setup(p_species: String, entry: Vector3, plaza: Vector3, pois: Array[Vector3],
@@ -1106,6 +1106,17 @@ func mangia(ciotola: Node3D, colore: Color, caldo := true, adorato := false) -> 
 	_pasto_in_corso = true
 	_state = "r_pasto"
 	_timer = PASTO.durata(caldo)
+	# LA RETE DI SICUREZZA. Il recinto si apre quando scade `_timer`, che
+	# scorre in _process: se questo vicino smettesse di processare a metà
+	# pasto (una scena messa in pausa, un nodo nascosto), il recinto
+	# resterebbe chiuso PER SEMPRE e lui non camminerebbe mai più. Questo
+	# timer dell'albero non dipende dal suo _process: alla peggio chiude
+	# tutto lui, qualche secondo dopo.
+	get_tree().create_timer(PASTO.durata(caldo) + 4.0).timeout.connect(
+			func() -> void:
+				if is_instance_valid(self) and _pasto_in_corso:
+					_pasto_via(true)
+					_enter_state(_pasto_ritorno if _pasto_ritorno != "" else "r_idle"))
 
 
 ## Dove sta la ciotola al tempo dato: davanti al petto, e su verso il
@@ -1119,27 +1130,31 @@ func _pasto_posa(t: float) -> Vector3:
 	# che alle labbra (è successo alla seconda prova in scena). La bocca la
 	# si chiede al rig facciale vero; se questo chibi non ce l'ha (riccio,
 	# passerotto) si ripiega su una frazione della testa.
-	var bocca := _pasto_bocca_y()
-	var grembo := bocca * 0.62            # la ciotola a riposo, contro il petto
-	var alle_labbra := bocca - 0.035      # e alzata, appena sotto il musetto
+	# I CHIBI NON PORTANO LA CIOTOLA ALLA BOCCA: le braccia sono corte e la
+	# testa è enorme, e alzarla fino al musetto la ficca dentro la faccia
+	# (due prove in scena buttate). Il gesto vero è l'opposto — la ciotola
+	# sta TRA LE ZAMPINE, dove le zampine arrivano davvero, e a ogni morso è
+	# la TESTONA a scendere. Perciò la quota non si stima dalla testa: si
+	# misura sulla zampa di QUESTO chibi (il DNA cambia braccia e statura).
+	var zampe := _pasto_zampe_y()
 	var su := PASTO.alzata(t, _pasto_caldo)
-	return Vector3(0, lerpf(grembo, alle_labbra, su), -0.20 - su * 0.02)
+	return Vector3(0, zampe + lerpf(0.03, 0.12, su), -0.17 - su * 0.02)
 
 
-# la quota (locale a _vis) della bocca di questo chibi
-func _pasto_bocca_y() -> float:
-	if _pasto_bocca > 0.0:
-		return _pasto_bocca
-	_pasto_bocca = (_head.position.y * 0.88) if _head else 0.55
-	if _face:
-		var bocche: Dictionary = _face.get("_mouths")
-		for chiave in bocche:
-			var nodo := bocche[chiave] as Node3D
-			if nodo != null and is_instance_valid(nodo):
-				# la bocca è figlia della testa: la sua quota va sommata
-				_pasto_bocca = _head.position.y + nodo.position.y
-				break
-	return _pasto_bocca
+## La quota delle zampine a riposo, nello spazio del corpo. Si misura una
+## volta sola, all'inizio del pasto: dopo, le braccia si muovono e la
+## misura cambierebbe sotto i piedi al gesto.
+func _pasto_zampe_y() -> float:
+	if _pasto_zampe > 0.0:
+		return _pasto_zampe
+	_pasto_zampe = 0.38
+	if _c_arms.size() == 2 and _vis:
+		var nodo := _c_arms[0] as Node3D
+		while nodo.get_child_count() > 0 and nodo.get_child(0) is Node3D:
+			nodo = nodo.get_child(0)
+		_pasto_zampe = (_vis.global_transform.affine_inverse()
+				* nodo.global_position).y
+	return _pasto_zampe
 
 
 func _pasto_recita(delta: float) -> void:
@@ -1160,8 +1175,11 @@ func _pasto_recita(delta: float) -> void:
 			stretta = 1.0 - ease(avanti, 0.6)   # e tornano giù, a rituale finito
 		for i in 2:
 			var braccio := _c_arms[i] as Node3D
-			braccio.rotation.x = lerpf(0.0, 0.95 + morso * 0.18, stretta)
-			braccio.rotation.z = lerpf(0.0, (-0.22 if i == 0 else 0.22), stretta)
+			# le zampine si chiudono in avanti ATTORNO alla ciotola: su
+			# (rotation.x), e verso il centro (rotation.z) — a braccia
+			# parallele la ciotola sembrerebbe appoggiata al vuoto
+			braccio.rotation.x = lerpf(0.0, 1.15 + morso * 0.12, stretta)
+			braccio.rotation.z = lerpf(0.0, (0.55 if i == 0 else -0.55), stretta)
 
 	# --- la ciotola: la posa la dà Pasto, così non salta mai tra le battute ---
 	if is_instance_valid(_pasto_ciotola) and fase != "" and _pasto_t > 0.34:
@@ -1207,9 +1225,10 @@ func _pasto_recita(delta: float) -> void:
 				_pasto_sbuffi = quanti
 				_pasto_sbuffo()
 		"morsi":
-			# la testa SCENDE a incontrare la ciotola che sale: sono due
-			# movimenti che si vengono incontro, ed è lì che nasce il peso
-			_head.rotation.x = 0.30 + morso * 0.16
+			# LA TESTONA SCENDE nella ciotola che le viene incontro: è il
+			# movimento grande, quello che si legge da lontano. La ciotola
+			# fa il tratto piccolo — insieme danno il peso del gesto
+			_head.rotation.x = 0.30 + morso * 0.46
 			# lo schiacciamento del morso (squash), tenuto piccolo
 			_vis.scale = Vector3(1.0 + morso * 0.035, 1.0 - morso * 0.045,
 					1.0 + morso * 0.035)

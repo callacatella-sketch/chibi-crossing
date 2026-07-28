@@ -407,6 +407,19 @@ C++ via GDExtension. Tutta l'arte è procedurale: zero asset esterni.
   dalla pioggia". Quando smette, se è giorno, un **arcobaleno a 7 bande
   pastello** (mesh procedurale con vertex color, punte che sfumano) si
   distende sul villaggio e svanisce piano.
+- **I vicini mangiano davvero** (`scenes/npc/Pasto.gd`) — il piatto regalato
+  non svanisce più a mezz'aria: gliela si **consegna**, e lui la mangia col
+  rituale di Mochi visto da fuori. Le zampine salgono ad accogliere la
+  ciotola, la testona si sporge sul piatto e le orecchie si drizzano al buon
+  odore, ci **soffia** sopra se scotta (occhi socchiusi e sbuffi), poi **tre
+  morsetti**: la testona scende nella ciotola che le viene incontro, il corpo
+  si schiaccia appena, cadono le **briciole** e il cibo dentro la ciotola
+  **cala di un terzo per morso**. Alla fine il sospiro beato, il cuoricino e
+  solo allora il grazie in Chibiese — è il boccone a parlare, non l'educazione
+  — e la ciotola si inclina per mostrarsi **vuota** prima di sparire. Chi
+  adora quel piatto lo mangia con più foga; sul freddo non ci soffia. I tempi
+  sono una tabella sola, verificata headless (`tests/cases/test_pasto.gd`), e
+  mentre mangia **nessuno lo interrompe**: il corpo è del pasto.
 - **Italiano e inglese** (`systems/L10n.gd`) — il gioco parla due lingue,
   e si sceglie in cima alle Impostazioni (o segue quella del sistema).
   L'italiano è la **lingua sorgente**: nel codice le frasi restano quelle

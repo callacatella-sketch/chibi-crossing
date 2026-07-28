@@ -196,6 +196,21 @@ func _test_il_filo_col_corpo(t) -> void:
     t.ok(fonte.contains("\"r_pasto\""), "e ha lo stato che gli tiene il corpo")
     t.ok(fonte.contains("_pasto_recita"), "con la sua recita")
     t.ok(fonte.contains("Pasto.gd"), "che pesca i tempi dal rituale condiviso")
+    # IL RECINTO. Alla prima prova in scena la routine dei residenti rubava
+    # lo stato dopo un secondo e il vicino se ne andava a spasso con la
+    # ciotola incollata al petto: senza queste due guardie ci ricasca.
+    t.ok(fonte.contains("_pasto_occupa"), "il pasto ha il suo recinto")
+    t.ok(fonte.contains("if _pasto_occupa(s):"),
+            "nessuno gli cambia stato mentre mangia")
+    t.ok(fonte.contains("if _pasto_in_corso:\n\t\treturn"),
+            "e nessuno lo manda a passeggio mentre mangia")
+    # e il recinto deve potersi aprire da solo, o un vicino nascosto a
+    # metà morso non camminerebbe mai più
+    t.ok(fonte.contains("create_timer(PASTO.durata(caldo) + 4.0)"),
+            "il recinto ha la sua rete di sicurezza")
+    # la ciotola sta alle ZAMPINE misurate (non a una quota indovinata:
+    # il DNA cambia statura e la ciotola finirebbe in faccia ai piccoli)
+    t.ok(fonte.contains("_pasto_zampe_y"), "la ciotola si posa sulle zampine vere")
     # e chi regala deve consegnargliela davvero, invece di farla sparire
     var doni := _sorgente("res://scenes/npc/Visitors.gd")
     t.ok(doni.contains("\"mangia\""), "il dono finisce tra le zampe di chi lo riceve")

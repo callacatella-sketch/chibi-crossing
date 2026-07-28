@@ -113,6 +113,25 @@ var _merchant_voice := {}
 var _merchant_vp: AudioStreamPlayer3D
 var _merchant_face   # il volto vivo del mercante (ammicca, ti guarda, sorride)
 var _merchant_mood := "felice"
+
+# ---- IL CORPO VIVO DEL MERCANTE ----
+# Prima era vivo solo dal collo in su: il volto recitava, il corpo era
+# una statua. Ora respira (il peso che ondeggia, le orecchie che
+# fremono), MOSTRA LA MERCE a zampe aperte quando ti avvicini o apri il
+# banco, e quando riparte si INCHINA — il congedo di un mercante vero.
+const DUR_MOSTRA := 1.8
+const DUR_INCHINO := 2.3
+var _merchant_arms: Array = []
+var _merchant_ears: Array = []
+var _merchant_root: Node3D
+var _merchant_head: Node3D
+var _merchant_arm_base: Array = []
+var _gesto := ""              # "" (respiro) | "mostra" | "inchino"
+var _gesto_t := 0.0
+var _mt := 0.0                # l'orologio del corpo
+var _corpo := {}              # canali correnti, fusi coi muscoli
+var _invito_cd := 0.0
+var _partendo := false
 var _stall: Node3D
 
 var _open := false
@@ -408,6 +427,19 @@ func _spawn_merchant() -> void:
 		rig["head"] = parts["head"]
 		_merchant_face = FACE.new()
 		_merchant_face.setup(rig)
+	# il corpo, per i gesti: braccia (con la POSA di riposo del builder,
+	# da preservare), orecchie, radice e testa
+	_merchant_root = parts["root"]
+	_merchant_head = parts["head"]
+	_merchant_arms = parts.get("arms", [])
+	_merchant_ears = parts.get("ears", [])
+	_merchant_arm_base = []
+	for a in _merchant_arms:
+		_merchant_arm_base.append((a as Node3D).rotation)
+	_gesto = ""
+	_corpo = {}
+	_partendo = false
+	_invito_cd = 4.0
 	_merchant_voice = CHIBIESE.voice(dna)
 	_merchant_vp = AudioStreamPlayer3D.new()
 	_merchant_vp.position = Vector3(0, 0.8, 0)
@@ -427,15 +459,128 @@ func _spawn_merchant() -> void:
 	_toast(L10n.t("Il mercante ha aperto il carretto in piazza!"))
 
 
+## La partenza è un CONGEDO: prima l'inchino (il corpo ringrazia), poi
+## il carretto si richiude. Chiamarla due volte non fa danni.
 func _despawn_merchant() -> void:
+	if _merchant and not _partendo:
+		_partendo = true
+		_gesto = "inchino"
+		_gesto_t = 0.0
+		_merchant_speak(["grazie", "ciao"], "felice")
+		get_tree().create_timer(DUR_INCHINO + 0.2).timeout \
+				.connect(_despawn_merchant_ora)
+		return
+	if not _partendo:
+		_despawn_merchant_ora()
+
+
+func _despawn_merchant_ora() -> void:
 	for node in [_stall, _merchant]:
-		if node:
+		if node and is_instance_valid(node):
 			var tw := create_tween()
 			tw.tween_property(node, "scale", Vector3.ONE * 0.03, 0.4)
 			tw.tween_callback(node.queue_free)
 	_merchant = null
 	_merchant_face = null
+	_merchant_root = null
+	_merchant_arms = []
+	_merchant_ears = []
 	_stall = null
+	_partendo = false
+
+
+# ------------------------------------------------ i gesti del mercante
+
+## I bersagli di posa del corpo, PURI: gesto + avanzamento (t01) + tempo
+## del respiro (mt) → canali. "alza" piega le braccia (− = avanti-alto,
+## l'offerta), "apri" le spalanca a ventaglio (specchiato sui lati),
+## "rx" china il busto (l'inchino), "hx" il capo, "dip" il peso,
+## "orecchie" il fremito.
+static func gesto_bersagli(gesto: String, t01: float, mt: float) -> Dictionary:
+	var out := {
+		# il respiro di fondo: un corpo VIVO non è mai fermo
+		"alza": 0.04 * sin(mt * 1.9),
+		"apri": 0.02 + 0.02 * sin(mt * 1.3),
+		"rx": 0.012 * sin(mt * 0.9),
+		"hx": 0.0,
+		"dip": 0.006 * sin(mt * 1.9 + 1.0),
+		"orecchie": 0.05 * sin(mt * 0.7) + 0.03 * sin(mt * 2.3),
+	}
+	match gesto:
+		"mostra":
+			# «ecco la merce!» — le zampe si APRONO in offerta verso il
+			# banco, il busto si porge, il capo accenna. La campana
+			# dell'inviluppo dà lo slancio e il rientro morbido.
+			var e := smoothstep(0.0, 0.2, t01) * (1.0 - smoothstep(0.72, 1.0, t01))
+			out["apri"] += 0.95 * e
+			out["alza"] += -0.55 * e
+			out["rx"] += 0.07 * e
+			out["hx"] += 0.10 * e
+			out["orecchie"] += -0.15 * e   # orecchie su: l'entusiasmo
+		"inchino":
+			# il congedo: raccoglimento, GIÙ profondo, un attimo di
+			# rispetto, e la risalita dolce
+			var raccogli := smoothstep(0.0, 0.13, t01)
+			var giu := smoothstep(0.13, 0.32, t01)
+			var su := smoothstep(0.67, 1.0, t01)
+			var profondo := giu * (1.0 - su)
+			out["alza"] += (0.45 - 0.75 * profondo) * raccogli * (1.0 - su)
+			out["apri"] += -0.15 * profondo
+			out["rx"] += 0.55 * profondo
+			out["hx"] += 0.15 * profondo
+			out["dip"] += -0.02 * profondo
+	return out
+
+
+## Il corpo del mercante, ogni frame: fusione coi muscoli e scrittura
+## sopra la POSA di riposo del builder (mai cancellarla).
+func _merchant_corpo(delta: float) -> void:
+	if _merchant == null or _merchant_root == null \
+			or not is_instance_valid(_merchant_root):
+		return
+	_mt += delta
+	var dur := DUR_MOSTRA if _gesto == "mostra" else DUR_INCHINO
+	if _gesto != "":
+		_gesto_t += delta
+		if _gesto_t >= dur:
+			_gesto = ""
+	var b := gesto_bersagli(_gesto, clampf(_gesto_t / dur, 0.0, 1.0), _mt)
+	var k := 1.0 - exp(-9.0 * delta)
+	for c in b:
+		_corpo[c] = lerpf(float(_corpo.get(c, 0.0)), float(b[c]), k)
+
+	for i in _merchant_arms.size():
+		var braccio := _merchant_arms[i] as Node3D
+		if braccio == null or not is_instance_valid(braccio) \
+				or i >= _merchant_arm_base.size():
+			continue
+		var base: Vector3 = _merchant_arm_base[i]
+		braccio.rotation.x = base.x + float(_corpo["alza"])
+		braccio.rotation.z = base.z \
+				+ (-1.0 if i == 0 else 1.0) * float(_corpo["apri"])
+	for orecchia in _merchant_ears:
+		if is_instance_valid(orecchia):
+			(orecchia as Node3D).rotation.x = float(_corpo["orecchie"])
+	_merchant_root.rotation.x = float(_corpo["rx"])
+	_merchant_root.position.y = float(_corpo["dip"])
+	if _merchant_head and is_instance_valid(_merchant_head):
+		_merchant_head.rotation.x = float(_corpo["hx"])
+
+	# l'invito: se passi vicino al carretto, il mercante ti mostra la
+	# merce a zampe aperte (con la sua calma: mai due volte di fila)
+	_invito_cd -= delta
+	if _invito_cd <= 0.0 and _gesto == "" and not _partendo and _player \
+			and is_instance_valid(_player) and _merchant.global_position \
+			.distance_to(_player.global_position) < 3.2:
+		_invito_cd = 22.0
+		_mostra_la_merce()
+
+
+## «Guarda che meraviglie!» — il gesto dell'offerta.
+func _mostra_la_merce() -> void:
+	if _gesto == "" and not _partendo:
+		_gesto = "mostra"
+		_gesto_t = 0.0
 
 
 func _make_stall() -> Node3D:
@@ -502,6 +647,8 @@ func _merchant_speak(concepts: Array, mood := "neutro") -> void:
 
 # il baratto: un piatto caldo per un sacchetto di ingredienti rari
 func _merchant_trade() -> void:
+	# «ecco la merce!» — il corpo accompagna l'apertura del banco
+	_mostra_la_merce()
 	# il carretto ora è un vero negozio: vendi farfalle/pesci/raccolti e compra
 	var shop := get_tree().get_first_node_in_group("shop")
 	if shop and shop.has_method("open"):
@@ -755,6 +902,8 @@ func _process(delta: float) -> void:
 		else:
 			_merchant_face.clear_gaze()
 		_merchant_face.update(delta)
+	# …e il corpo, che ora recita quanto il volto
+	_merchant_corpo(delta)
 
 
 func _unhandled_input(event: InputEvent) -> void:
