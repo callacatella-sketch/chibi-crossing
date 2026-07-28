@@ -569,7 +569,7 @@ func _update_prompt() -> void:
 		_prompt.visible = false
 		return
 	var steso: bool = _steso.has(_chiave(_vicino))
-	_prompt_label.text = "E — ritira il bucato" if steso else "E — stendi il bucato"
+	_prompt_label.text = L10n.t("E — ritira il bucato") if steso else L10n.t("E — stendi il bucato")
 	_prompt.reset_size()
 	var wp: Vector3 = _vicino.global_position + Vector3(0, 1.6, 0)
 	if cam.is_position_behind(wp):

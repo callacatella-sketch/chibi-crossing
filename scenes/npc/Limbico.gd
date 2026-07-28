@@ -230,9 +230,9 @@ func esausto() -> bool:
 ## Perché è scoppiato adesso: la frase che spiega la sproporzione.
 func perche_scoppio() -> String:
 	if morsi_oggi >= 3:
-		return "si era trattenuto %d volte oggi" % morsi_oggi
+		return L10n.tf("si era trattenuto %d volte oggi", [morsi_oggi])
 	if regolazione <= 0.001:
-		return "non gli restava più pazienza"
+		return L10n.t("non gli restava più pazienza")
 	return ""
 
 

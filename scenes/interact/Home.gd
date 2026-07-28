@@ -52,14 +52,14 @@ func _unhandled_input(event: InputEvent) -> void:
 	# i letti dei villager sono loro
 	var visitors := get_node_or_null("../Visitors")
 	if visitors and visitors.call("is_bed_claimed", cell):
-		_show_toast("Questo lettino è di qualcun altro!")
+		_show_toast(L10n.t("Questo lettino è di qualcun altro!"))
 		return
 	if is_home(cell):
-		_show_toast("È già casa tua!")
+		_show_toast(L10n.t("È già casa tua!"))
 		return
 	home_cell = cell
 	_place_marker(best)
-	_show_toast("Casa impostata: è qui che ti sveglierai!")
+	_show_toast(L10n.t("Casa impostata: è qui che ti sveglierai!"))
 	if _sfx:
 		_sfx.place_ok()
 	_build.request_save()

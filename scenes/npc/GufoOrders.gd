@@ -200,18 +200,21 @@ func _update_banner() -> void:
         return
     var o := _active_order()
     if not o.is_empty():
-        _build.call("set_order_banner", "Il Gufo sussurra:  %s" % _banner_hint(o))
+        _build.call("set_order_banner",
+                L10n.tf("Il Gufo sussurra:  %s", [_banner_hint(o)]))
         return
     # campagna finita (o veterano): se c'e' una lettera-stagione in corso, il
     # banner sogna quella; esaudita, torna il congedo (o il silenzio, per chi
     # non ha mai avuto il carteggio)
     var d := _desiderio_attivo()
     if not d.is_empty():
-        _build.call("set_order_banner", "Il Gufo sogna:  %s" % str(d["hint"]))
+        _build.call("set_order_banner",
+                L10n.tf("Il Gufo sogna:  %s", [L10n.t(str(d["hint"]))]))
     elif _veteran:
         _build.call("set_order_banner", "")
     else:
-        _build.call("set_order_banner", "Il villaggio e' completo — la tela e' tua.")
+        _build.call("set_order_banner",
+                L10n.t("Il villaggio e' completo — la tela e' tua."))
 
 
 # di norma il banner mostra l'hint statico; ma l'Ordine "arriva un ospite"
@@ -222,11 +225,11 @@ func _banner_hint(o: Dictionary) -> String:
     var pred: Dictionary = o.get("predicate", {})
     if str(pred.get("type", "")) == "resident_moved_in":
         if not bool(_build.call("has_bed_under_roof")):
-            return "prepara un letto sotto un tetto per l'ospite in arrivo"
+            return L10n.t("prepara un letto sotto un tetto per l'ospite in arrivo")
         if _visitors != null and not bool(_visitors.call("has_free_house")):
-            return "l'ospite vuole un letto tutto suo (non quello di casa), sotto un tetto"
-        return "col sereno, di giorno, qualcuno arrivera' con la valigia — tieni il letto pronto"
-    return str(o.get("hint", ""))
+            return L10n.t("l'ospite vuole un letto tutto suo (non quello di casa), sotto un tetto")
+        return L10n.t("col sereno, di giorno, qualcuno arrivera' con la valigia — tieni il letto pronto")
+    return L10n.t(str(o.get("hint", "")))
 
 
 # ---------------------------------------------------------------- Ordini
@@ -352,7 +355,7 @@ func _complete(o: Dictionary) -> void:
     for name in o.get("unlocks", []):
         _unlocked[str(name)] = true
     # il Gufo si congratula, subito
-    _owl_toast(str(o["title"]), str(o.get("done_text", "")), true)
+    _owl_toast(L10n.t(str(o["title"])), L10n.t(str(o.get("done_text", ""))), true)
     # e col mattino arriva la letterina di ringraziamento (se c'e' la cassetta)
     var cel := str(o.get("celebrate_letter", ""))
     if cel != "" and _mail:
@@ -384,7 +387,7 @@ func _reveal_current() -> void:
     var id := str(o["id"])
     if not _announced.has(id):
         _announced[id] = true
-        _owl_toast(str(o["title"]), str(o["letter_text"]))
+        _owl_toast(L10n.t(str(o["title"])), L10n.t(str(o["letter_text"])))
 
 
 # ------------------------------------------------------- lettere-stagione
@@ -427,7 +430,7 @@ func _aggiorna_desiderio() -> void:
         _wish_week = w
         var d := desiderio_della_settimana(w)
         if not d.is_empty():
-            _owl_toast(str(d["title"]), str(d["letter_text"]))
+            _owl_toast(L10n.t(str(d["title"])), L10n.t(str(d["letter_text"])))
         _update_banner()
         _update_journal()
         _save()
@@ -452,12 +455,12 @@ func _check_desiderio() -> void:
             else:
                 eco.call("unlock_piece", regalo)
         eco.call("add_stars", stelle)
-    _owl_toast(str(d["title"]), str(d.get("done_text", "")), true)
+    _owl_toast(L10n.t(str(d["title"])), L10n.t(str(d.get("done_text", ""))), true)
     if _mail:
-        var testo := "%s\n\nTi lascio %d stelline sul davanzale." \
-                % [str(d.get("done_text", "")), stelle]
+        var testo := L10n.tf("%s\n\nTi lascio %d stelline sul davanzale.",
+                [L10n.t(str(d.get("done_text", ""))), stelle])
         if regalo != "":
-            testo += "\nE il pacco contiene: %s. E' tuo." % regalo
+            testo += L10n.tf("\nE il pacco contiene: %s. E' tuo.", [L10n.t(regalo)])
         _mail.call("queue_letter", {"from": "Il Gufo", "text": testo, "gift": true})
     _update_banner()
     _update_journal()
@@ -600,31 +603,35 @@ func _update_journal() -> void:
         return
     for c in _journal_box.get_children():
         c.queue_free()
-    _add_journal_label("~  Gli Ordini del Gufo  ~", 17, Color("8a5a3a"), HORIZONTAL_ALIGNMENT_CENTER)
+    _add_journal_label(L10n.t("~  Gli Ordini del Gufo  ~"), 17, Color("8a5a3a"),
+            HORIZONTAL_ALIGNMENT_CENTER)
     if _veteran:
-        _add_journal_label("Il tuo villaggio era gia' cresciuto prima di me.\nLa tela e' tua: costruisci come il cuore ti detta.",
+        _add_journal_label(L10n.t("Il tuo villaggio era gia' cresciuto prima di me.\nLa tela e' tua: costruisci come il cuore ti detta."),
                 13, Color("6a4a3a"))
         _journal_desiderio()
-        _add_journal_label("O — chiudi", 11, Color(0.42, 0.29, 0.23), HORIZONTAL_ALIGNMENT_CENTER)
+        _add_journal_label(L10n.t("O — chiudi"), 11, Color(0.42, 0.29, 0.23),
+                HORIZONTAL_ALIGNMENT_CENTER)
         return
     for i in CHAIN.size():
         var o: Dictionary = CHAIN[i]
         if _done.has(str(o["id"])):
-            _add_journal_label("✿   %s" % str(o["title"]), 13, Color("b98a4a"))
+            _add_journal_label("✿   %s" % L10n.t(str(o["title"])), 13, Color("b98a4a"))
         elif i == _current:
-            _add_journal_label("»   %s" % str(o["title"]), 14, Color("a83a5c"))
-            _add_journal_label("       «%s»" % str(o["letter_text"]).replace("\n", " "),
+            _add_journal_label("»   %s" % L10n.t(str(o["title"])), 14, Color("a83a5c"))
+            _add_journal_label("       «%s»" % L10n.t(str(o["letter_text"])).replace("\n", " "),
                     12, Color("6a4a3a"))
-            _add_journal_label("       obiettivo:  %s" % str(o["hint"]), 12, Color("7a6a54"))
+            _add_journal_label("       " + L10n.tf("obiettivo:  %s", [L10n.t(str(o["hint"]))]),
+                    12, Color("7a6a54"))
             break  # gli Ordini a venire restano un segreto
     if _current < CHAIN.size() - 1 and not _veteran:
-        _add_journal_label("·   gli Ordini a venire restano un segreto del ramo...",
+        _add_journal_label(L10n.t("·   gli Ordini a venire restano un segreto del ramo..."),
                 12, Color(0.5, 0.42, 0.34))
     elif _current >= CHAIN.size():
-        _add_journal_label("Il villaggio e' completo. Grazie, piccolo Regista. — Il Gufo",
+        _add_journal_label(L10n.t("Il villaggio e' completo. Grazie, piccolo Regista. — Il Gufo"),
                 13, Color("b98a4a"), HORIZONTAL_ALIGNMENT_CENTER)
         _journal_desiderio()
-    _add_journal_label("O — chiudi", 11, Color(0.42, 0.29, 0.23), HORIZONTAL_ALIGNMENT_CENTER)
+    _add_journal_label(L10n.t("O — chiudi"), 11, Color(0.42, 0.29, 0.23),
+            HORIZONTAL_ALIGNMENT_CENTER)
 
 
 # La pagina della lettera-stagione in fondo al diario: il desiderio in corso
@@ -635,17 +642,19 @@ func _journal_desiderio() -> void:
     var d := desiderio_della_settimana(_wish_week)
     if d.is_empty():
         return
-    var stagione := str(DN.SEASON_NAMES[int(d["season"])])
+    var stagione := L10n.t(str(DN.SEASON_NAMES[int(d["season"])]))
     if _wish_done_week == _wish_week:
-        _add_journal_label("✿   lettera di %s: «%s» — esaudita!" % [stagione, str(d["title"])],
-                13, Color("b98a4a"))
-        _add_journal_label("       (una nuova lettera arrivera' con la prossima stagione)",
+        _add_journal_label(L10n.tf("✿   lettera di %s: «%s» — esaudita!",
+                [stagione, L10n.t(str(d["title"]))]), 13, Color("b98a4a"))
+        _add_journal_label("       " + L10n.t("(una nuova lettera arrivera' con la prossima stagione)"),
                 11, Color(0.5, 0.42, 0.34))
         return
-    _add_journal_label("»   lettera di %s: %s" % [stagione, str(d["title"])], 14, Color("a83a5c"))
-    _add_journal_label("       «%s»" % str(d["letter_text"]).replace("\n", " "),
+    _add_journal_label(L10n.tf("»   lettera di %s: %s", [stagione, L10n.t(str(d["title"]))]),
+            14, Color("a83a5c"))
+    _add_journal_label("       «%s»" % L10n.t(str(d["letter_text"])).replace("\n", " "),
             12, Color("6a4a3a"))
-    _add_journal_label("       desiderio:  %s" % str(d["hint"]), 12, Color("7a6a54"))
+    _add_journal_label("       " + L10n.tf("desiderio:  %s", [L10n.t(str(d["hint"]))]),
+            12, Color("7a6a54"))
 
 
 func _build_ui() -> void:

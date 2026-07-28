@@ -174,7 +174,7 @@ func _snap() -> void:
 	_flash.modulate.a = 0.85
 	var tw := create_tween()
 	tw.tween_property(_flash, "modulate:a", 0.0, 0.28)
-	_toast.text = "Foto salvata!  (user://photos)"
+	_toast.text = L10n.t("Foto salvata!  (user://photos)")
 	_toast.modulate.a = 1.0
 	var tt := create_tween()
 	tt.tween_interval(1.6)
@@ -194,7 +194,7 @@ func _build_ui() -> void:
 	_layer.add_child(_flash)
 
 	_hint = Label.new()
-	_hint.text = "WASD vola · mouse guarda · Q/E giù/su · rotella zoom · clic scatta · P esci"
+	_hint.text = L10n.t("WASD vola · mouse guarda · Q/E giù/su · rotella zoom · clic scatta · P esci")
 	_hint.add_theme_font_size_override("font_size", 14)
 	_hint.add_theme_color_override("font_color", Color(1, 1, 1, 0.9))
 	_hint.add_theme_color_override("font_shadow_color", Color(0.2, 0.12, 0.1, 0.6))

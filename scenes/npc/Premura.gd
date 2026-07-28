@@ -51,7 +51,7 @@ func _process(delta: float) -> void:
 		_applica_passo()
 		if adesso and _visitors:
 			_visitors.call("_show_toast",
-					"Che languorino… il passo di Mochi si fa piccolo piccolo.")
+					L10n.t("Che languorino… il passo di Mochi si fa piccolo piccolo."))
 	if not _languida or _in_arrivo:
 		_attesa = 0.0
 		return
@@ -94,7 +94,7 @@ func _porta_un_boccone() -> void:
 	_premura_giorno = oggi
 	_in_arrivo = true
 	var node := vicino.get("node") as Node3D
-	var label := str(vicino.get("label", "un vicino"))
+	var label := str(vicino.get("label", L10n.t("un vicino")))
 	# trotterella fin quasi addosso a Mochi, annusa, e offre
 	var accanto: Vector3 = _player.global_position \
 			+ Vector3(randf_range(-0.6, 0.6), 0, randf_range(0.7, 1.1))
@@ -112,8 +112,12 @@ func _porta_un_boccone() -> void:
 		node.call("speak", ["cibo", "amico", "felice"], "felice")
 		node.call("_spawn_heart")
 		if _visitors:
-			_visitors.call("_show_toast",
-					"%s si è accort%s del languorino: un boccone del suo pranzo per te!"
-					% [label, "a" if label.begins_with("la ") else "o"])
+			# due frasi intere, non una desinenza incollata: il maschile e il
+			# femminile sono DUE frasi da tradurre (in inglese quella lettera
+			# non avrebbe dove andare)
+			var frase := "%s si è accorta del languorino: un boccone del suo pranzo per te!" \
+					if label.begins_with("la ") \
+					else "%s si è accorto del languorino: un boccone del suo pranzo per te!"
+			_visitors.call("_show_toast", L10n.tf(frase, [label]))
 		if _sfx:
 			_sfx.munch())

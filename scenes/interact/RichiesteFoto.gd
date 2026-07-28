@@ -149,7 +149,7 @@ func _sogna() -> void:
 	var scelta := pesca_richiesta(randf())
 	_richiesta = {
 		"nome": str((r.get("dna", {}) as Dictionary).get("name", "")),
-		"label": str(r.get("label", "un vicino")),
+		"label": str(r.get("label", L10n.t("un vicino"))),
 		"id": str(scelta["id"]),
 		"testo": str(scelta["testo"]),
 		"cx": float((r["cell"] as Vector2i).x),
@@ -161,8 +161,8 @@ func _sogna() -> void:
 		node.call("speak", ["amico"], "domanda")
 	if node.has_method("chat_bubble"):
 		node.call("chat_bubble", "?")
-	_toast("%s sogna una foto: «%s»  (P per la Modalità Foto)"
-			% [_richiesta["label"], _richiesta["testo"]])
+	_toast(L10n.tf("%s sogna una foto: «%s»  (P per la Modalità Foto)",
+			[_richiesta["label"], L10n.t(str(_richiesta["testo"]))]))
 	_salva()
 
 
@@ -348,11 +348,11 @@ func scatto(img: Image) -> void:
 	if mail:
 		mail.call("queue_letter", {
 			"from": str(_richiesta["nome"]),
-			"text": "La foto che sognavo — %s!\nL'ho appesa sopra il letto: la guardo ogni sera.\nGrazie, con tutto il cuore." % str(_richiesta["testo"]),
+			"text": L10n.tf("La foto che sognavo — %s!\nL'ho appesa sopra il letto: la guardo ogni sera.\nGrazie, con tutto il cuore.", [L10n.t(str(_richiesta["testo"]))]),
 			"gift": true,
 		})
-	_toast("Il sogno di %s si è avverato: la foto è appesa in casa sua!"
-			% str(_richiesta["label"]))
+	_toast(L10n.tf("Il sogno di %s si è avverato: la foto è appesa in casa sua!",
+			[str(_richiesta["label"])]))
 	var sfx = get_node_or_null(^"/root/Sfx")
 	if sfx:
 		sfx.place_ok()
@@ -691,14 +691,14 @@ func _aggiorna_hud() -> void:
 	_hud.visible = attiva
 	if not attiva:
 		return
-	_hud_sogno.text = "Il sogno di %s: «%s»" \
-			% [str(_richiesta["label"]), str(_richiesta["testo"])]
+	_hud_sogno.text = L10n.tf("Il sogno di %s: «%s»",
+			[str(_richiesta["label"]), L10n.t(str(_richiesta["testo"]))])
 	var motivo := _motivo_live()
 	if motivo == "":
-		_hud_stato.text = "Inquadratura perfetta — scatta!"
+		_hud_stato.text = L10n.t("Inquadratura perfetta — scatta!")
 		_hud_stato.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
 	else:
-		_hud_stato.text = "· %s ·" % motivo
+		_hud_stato.text = "· %s ·" % L10n.t(motivo)
 		_hud_stato.add_theme_color_override("font_color", Color(1, 1, 1, 0.7))
 
 

@@ -285,9 +285,11 @@ func _refresh() -> void:
 	# barra regalo
 	_giftbar.visible = not _gift_target.is_empty()
 	if not _gift_target.is_empty():
-		var label := str(_gift_target.get("label", "un amico"))
-		_gift_who.text = "[color=#8a5a3a]Regala a[/color] [color=#c23a60]%s[/color]" % label
-		_gift_taste.text = "♨ ama il calduccio" if _prefers_cozy(_gift_target) else "✿ ama l'orto"
+		var label := str(_gift_target.get("label", L10n.t("un amico")))
+		_gift_who.text = "[color=#8a5a3a]%s[/color] [color=#c23a60]%s[/color]" \
+				% [L10n.t("Regala a"), label]
+		_gift_taste.text = L10n.t("♨ ama il calduccio") if _prefers_cozy(_gift_target) \
+				else L10n.t("✿ ama l'orto")
 	_build_grid()
 	_build_detail()
 	_footer.text = _footer_text()
@@ -385,7 +387,7 @@ func _build_detail() -> void:
 		c.queue_free()
 	if _entries.is_empty():
 		var empty := Label.new()
-		empty.text = "Le tasche sono leggere:\nl'orto e il bosco ti aspettano."
+		empty.text = L10n.t("Le tasche sono leggere:\nl'orto e il bosco ti aspettano.")
 		empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		empty.add_theme_font_size_override("font_size", 13)
@@ -403,15 +405,15 @@ func _build_detail() -> void:
 	_detail.add_child(big)
 
 	var name_l := Label.new()
-	name_l.text = str(e.get("name", "?"))
+	name_l.text = L10n.t(str(e.get("name", "?")))
 	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_l.add_theme_font_size_override("font_size", 16)
 	name_l.add_theme_color_override("font_color", UI_BROWN2)
 	_detail.add_child(name_l)
 
-	var src := str(e.get("src", ""))
+	var src := L10n.t(str(e.get("src", "")))
 	if int(e.get("count", 1)) > 1:
-		src += " · ne hai %d" % int(e["count"])
+		src += " · " + L10n.tf("ne hai %d", [int(e["count"])])
 	var src_l := Label.new()
 	src_l.text = src
 	src_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -420,7 +422,7 @@ func _build_detail() -> void:
 	_detail.add_child(src_l)
 
 	var desc := Label.new()
-	desc.text = str(e.get("desc", ""))
+	desc.text = L10n.t(str(e.get("desc", "")))
 	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	desc.add_theme_font_size_override("font_size", 12)
@@ -437,7 +439,7 @@ func _build_detail() -> void:
 			if not TAG_LABEL.has(tag):
 				continue
 			var chip := Label.new()
-			chip.text = TAG_LABEL[tag]
+			chip.text = L10n.t(TAG_LABEL[tag])
 			chip.add_theme_font_size_override("font_size", 11)
 			chip.add_theme_color_override("font_color", UI_BROWN2)
 			var cs := StyleBoxFlat.new()
@@ -485,15 +487,15 @@ func _build_detail() -> void:
 func _cta_text(e: Dictionary) -> String:
 	var giftable := bool(e.get("giftable", false))
 	if not _gift_target.is_empty() and giftable:
-		return "E — regala (la adorerà! ♥)" if _loves(e) else "E — regala"
+		return L10n.t("E — regala (la adorerà! ♥)") if _loves(e) else L10n.t("E — regala")
 	match str(e.get("kind", "")):
 		"ingredient":
-			return "Cucina al camino per usarla"
+			return L10n.t("Cucina al camino per usarla")
 		"dish", "treasure":
-			return "Avvicìnati a un amico per regalarlo"
+			return L10n.t("Avvicìnati a un amico per regalarlo")
 		"collection":
-			return "In mostra sugli scaffali" if int(e.get("count", 0)) > 0 \
-					else "Là fuori, da qualche parte…"
+			return L10n.t("In mostra sugli scaffali") if int(e.get("count", 0)) > 0 \
+					else L10n.t("Là fuori, da qualche parte…")
 	return ""
 
 
@@ -521,13 +523,13 @@ func _confirm() -> void:
 	# fuori regalo (o oggetto non regalabile): un suggerimento gentile
 	match str(e.get("kind", "")):
 		"ingredient":
-			_show_toast("Portala al camino: E apre il ricettario.")
+			_show_toast(L10n.t("Portala al camino: E apre il ricettario."))
 		"dish", "treasure":
-			_show_toast("Avvicìnati a un amico e riapri le tasche per regalarlo.")
+			_show_toast(L10n.t("Avvicìnati a un amico e riapri le tasche per regalarlo."))
 		"collection":
-			_show_toast("È già in mostra sugli scaffali della Libreria."
+			_show_toast(L10n.t("È già in mostra sugli scaffali della Libreria.")
 					if int(e.get("count", 0)) > 0
-					else str(e.get("desc", "Là fuori, da qualche parte…")))
+					else L10n.t(str(e.get("desc", "Là fuori, da qualche parte…"))))
 	if _sfx:
 		_sfx.ui_select()
 
@@ -543,7 +545,7 @@ func _give(e: Dictionary) -> void:
 	if not target.is_empty():
 		tnode = target.get("node") as Node3D
 	if tnode == null or not is_instance_valid(tnode):
-		_show_toast("Il tuo amico si è allontanato…")
+		_show_toast(L10n.t("Il tuo amico si è allontanato…"))
 		_close()
 		return
 	var item: Dictionary = _inventory.take_gift(e)
@@ -572,9 +574,10 @@ func _loves(e: Dictionary) -> bool:
 # ---------------------------------------------------------------- costruzione UI
 
 func _footer_text() -> String:
-	var act := "regala a %s" % str(_gift_target.get("label", "")) if not _gift_target.is_empty() \
-			else "usa / cucina"
-	return "[center][color=#9a7a52]1–4 pagine   ·   ↑↓←→ scorri   ·   E %s   ·   Tab chiudi[/color][/center]" % act
+	var act := L10n.tf("regala a %s", [str(_gift_target.get("label", ""))]) \
+			if not _gift_target.is_empty() else L10n.t("usa / cucina")
+	return "[center][color=#9a7a52]%s[/color][/center]" \
+			% L10n.tf("1–4 pagine   ·   ↑↓←→ scorri   ·   E %s   ·   Tab chiudi", [act])
 
 
 func _sb(bg: Color, border: Color, radius: int, bw := 2) -> StyleBoxFlat:
@@ -631,7 +634,7 @@ func _build_ui() -> void:
 	_panel.add_child(col)
 
 	_title = Label.new()
-	_title.text = "✿   Le tasche   ✿"
+	_title.text = L10n.t("✿   Le tasche   ✿")
 	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_title.add_theme_font_size_override("font_size", 21)
 	_title.add_theme_color_override("font_color", UI_BROWN2)
@@ -721,14 +724,14 @@ func _build_tabs(col: VBoxContainer) -> void:
 		inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		inner.add_theme_constant_override("separation", 0)
 		var nm := Label.new()
-		nm.text = t["name"]
+		nm.text = L10n.t(t["name"])
 		nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		nm.add_theme_font_size_override("font_size", 14)
 		nm.add_theme_color_override("font_color", UI_BROWN2)
 		nm.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		inner.add_child(nm)
 		var sub := Label.new()
-		sub.text = t["sub"]
+		sub.text = L10n.t(t["sub"])
 		sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		sub.add_theme_font_size_override("font_size", 10)
 		sub.add_theme_color_override("font_color", Color(UI_BROWN2, 0.5))

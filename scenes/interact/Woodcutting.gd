@@ -646,8 +646,8 @@ func _update_prompt() -> void:
 			return
 		var left: int = int(t["hp"])
 		# la scorta è scritta qui: è l'unico momento in cui interessa
-		text = "E — taglia la legna (%d colp%s)   ·   hai %d legna" \
-				% [left, "o" if left == 1 else "i", wood]
+		text = L10n.tf("E — taglia la legna (%d %s)   ·   hai %d legna",
+				[left, L10n.t("colpo") if left == 1 else L10n.t("colpi"), wood])
 		world = (t["root"] as Node3D).global_position + Vector3(0, 1.7, 0)
 	else:
 		# nessun albero a tiro: magari c'è un ceppo da estirpare. La scelta
@@ -657,7 +657,7 @@ func _update_prompt() -> void:
 		if _near_stump < 0:
 			_prompt.visible = false
 			return
-		text = "E — estirpa il ceppo (libera il posto)"
+		text = L10n.t("E — estirpa il ceppo (libera il posto)")
 		world = (_stumps[_near_stump]["root"] as Node3D).global_position \
 				+ Vector3(0, 1.0, 0)
 	_prompt_label.text = text
@@ -960,7 +960,7 @@ func _give_wood(t: Dictionary) -> void:
 	get_tree().call_group("regista", "note", "legna")
 	get_tree().create_timer(1.1).timeout.connect(func() -> void:
 		_toast(root.global_position + Vector3(0, 1.0, 0),
-				"+%d legna" % WOOD_PER_TREE))
+				L10n.tf("+%d legna", [WOOD_PER_TREE])))
 
 
 # ================================================================ il ceppo a terra
@@ -1027,7 +1027,8 @@ func _finish_pull(s: Dictionary) -> void:
 	_felled.append(pos)
 	_stumps.erase(s)
 	if is_instance_valid(root):
-		_toast(root.global_position + Vector3(0, 0.9, 0), "+1 legna · il posto è libero")
+		_toast(root.global_position + Vector3(0, 0.9, 0),
+				L10n.t("+1 legna · il posto è libero"))
 		_sparkle(root.global_position + Vector3(0, 0.4, 0), Color("e8cfa8"), 8)
 		root.queue_free()
 	add_wood(1)
@@ -1187,7 +1188,7 @@ func deny_toast(piece: String) -> void:
 		return
 	var manca: int = maxi(0, cost_for(piece) - wood)
 	_toast(_player.global_position + Vector3(0, 1.9, 0),
-			"serve %d legna in più" % manca)
+			L10n.tf("serve %d legna in più", [manca]))
 
 
 # ================================================================ effetti

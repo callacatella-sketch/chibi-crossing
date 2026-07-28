@@ -24,7 +24,18 @@ func _initialize() -> void:
 ## solo al frame successivo si libera tutto. Liberarli subito lascerebbe quelle
 ## chiamate a puntare nel vuoto.
 func _process(_delta: float) -> bool:
-	# prima cosa: via i nodi del caso precedente (le differite sono già passate)
+	# LA SUITE PARLA ITALIANO, e lo si ribadisce PRIMA DI OGNI CASO.
+	# Le asserzioni citano il gioco nella lingua sorgente («mi hai mandato a
+	# spaccare legna…»): su un runner di CI la locale di sistema è `en`, e il
+	# gioco risponderebbe in inglese facendo diventare rossa mezza suite per
+	# il motivo sbagliato. Non basta fissarla in _initialize(): l'autoload
+	# Settings applica la SUA lingua ("auto") nel proprio _ready, che arriva
+	# dopo — e la scavalcherebbe. Qui invece nessuno può più scavalcarla, e
+	# chi cambia lingua per verificarla (test_localizzazione) la trova
+	# rimessa a posto al caso successivo.
+	if L10n.lingua_corrente() != L10n.SORGENTE:
+		L10n.imposta(L10n.SORGENTE)
+	# poi: via i nodi del caso precedente (le differite sono già passate)
 	_t.cleanup_staged()
 	if _i >= _cases.size():
 		_t.report()

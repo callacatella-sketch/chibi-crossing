@@ -55,10 +55,10 @@ static func componi_lettera(label: String, momenti: Array, pick: int) -> Diction
 	var template := str(MOMENTI_TESTO.get(tipo, ""))
 	if template == "":
 		return {}
-	var testo := template % int(m.get("d", 1))
+	var testo := L10n.t(template) % int(m.get("d", 1))
 	# una lettera lunga una storia: se il filo è ricco, lo dice
 	if momenti.size() >= 6:
-		testo += "\n(E ho contato: i nostri momenti sono già %d!)" % momenti.size()
+		testo += L10n.tf("\n(E ho contato: i nostri momenti sono già %d!)", [momenti.size()])
 	return {"from": label, "text": testo, "gift": absi(pick) % 6 == 0}
 
 var _player: Node3D
@@ -290,8 +290,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _open_letter() -> void:
 	_reading = true
-	_card_from.text = "~ %s ~" % _current["from"]
-	_card_text.text = _current["text"]
+	_card_from.text = "~ %s ~" % L10n.t(str(_current["from"]))
+	_card_text.text = L10n.t(str(_current["text"]))
 	_card_gift.visible = _current["gift"]
 	_card.visible = true
 	_card.reset_size()
@@ -528,7 +528,7 @@ func _update_prompt() -> void:
 	if cam.is_position_behind(wp):
 		_prompt.visible = false
 		return
-	_prompt_label.text = "E — leggi la posta"
+	_prompt_label.text = L10n.t("E — leggi la posta")
 	_prompt.reset_size()
 	var p := cam.unproject_position(wp)
 	_prompt.position = p - Vector2(_prompt.size.x * 0.5, _prompt.size.y)
@@ -598,14 +598,14 @@ func _build_ui() -> void:
 	vbox.add_child(_card_text)
 
 	_card_gift = Label.new()
-	_card_gift.text = "… e c'è anche un regalino!"
+	_card_gift.text = L10n.t("… e c'è anche un regalino!")
 	_card_gift.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_card_gift.add_theme_font_size_override("font_size", 13)
 	_card_gift.add_theme_color_override("font_color", Color("c25a7a"))
 	vbox.add_child(_card_gift)
 
 	var hint := Label.new()
-	hint.text = "E — chiudi"
+	hint.text = L10n.t("E — chiudi")
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.add_theme_font_size_override("font_size", 11)
 	hint.add_theme_color_override("font_color", Color(UI_BROWN, 0.55))

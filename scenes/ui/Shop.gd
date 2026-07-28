@@ -120,7 +120,7 @@ func _build_ui() -> void:
 	header.add_theme_constant_override("separation", 12)
 	col.add_child(header)
 
-	var title := CozyUI.title_label("Il carretto del mercante", 30)
+	var title := CozyUI.title_label(L10n.t("Il carretto del mercante"), 30)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
@@ -138,11 +138,11 @@ func _build_ui() -> void:
 	tabs.alignment = BoxContainer.ALIGNMENT_CENTER
 	col.add_child(tabs)
 	_tab_group = ButtonGroup.new()
-	var vendi := CozyUI.tab_button("Vendi", _tab_group, CozyUI.MINT)
+	var vendi := CozyUI.tab_button(L10n.t("Vendi"), _tab_group, CozyUI.MINT)
 	vendi.set_pressed_no_signal(true)
 	vendi.pressed.connect(func(): _show_tab("vendi"))
 	tabs.add_child(vendi)
-	var compra := CozyUI.tab_button("Compra", _tab_group, CozyUI.PINK)
+	var compra := CozyUI.tab_button(L10n.t("Compra"), _tab_group, CozyUI.PINK)
 	compra.pressed.connect(func(): _show_tab("compra"))
 	tabs.add_child(compra)
 
@@ -156,7 +156,7 @@ func _build_ui() -> void:
 	_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_scroll.add_child(_content)
 
-	col.add_child(CozyUI.hint_label("E o Esc — chiudi il carretto", 13))
+	col.add_child(CozyUI.hint_label(L10n.t("E o Esc — chiudi il carretto"), 13))
 
 
 func _wallet_chip(kind: String) -> CozyIcon:
@@ -194,15 +194,15 @@ func _show_tab(which: String) -> void:
 func _build_sell() -> void:
 	var rows := _sellables()
 	if rows.is_empty():
-		_content.add_child(_empty_note(
-			"La bisaccia è vuota.\nAcchiappa farfalle e pesci, coltiva l'orto,\npoi torna a vendere!"))
+		_content.add_child(_empty_note(L10n.t(
+			"La bisaccia è vuota.\nAcchiappa farfalle e pesci, coltiva l'orto,\npoi torna a vendere!")))
 		return
-	_content.add_child(_section("La tua bisaccia"))
+	_content.add_child(_section(L10n.t("La tua bisaccia")))
 	var total := 0
 	for r in rows:
 		total += int(r["count"]) * int(r["value"])
 		_content.add_child(_sell_row(r))
-	var foot := CozyUI.hint_label("Vendendo tutto: %d noccioline" % total, 14)
+	var foot := CozyUI.hint_label(L10n.tf("Vendendo tutto: %d noccioline", [total]), 14)
 	_content.add_child(foot)
 
 
@@ -235,14 +235,14 @@ func _sell_row(r: Dictionary) -> Control:
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	h.add_child(lbl)
 
-	h.add_child(_price_chip(int(r["value"]), "nut", "cad."))
+	h.add_child(_price_chip(int(r["value"]), "nut", L10n.t("cad.")))
 
-	var one := CozyUI.cozy_button("Vendi 1", CozyUI.MINT, 15)
+	var one := CozyUI.cozy_button(L10n.t("Vendi 1"), CozyUI.MINT, 15)
 	one.custom_minimum_size = Vector2(96, 44)
 	one.pressed.connect(_sell.bind(r["kind"], r["source"], 1))
 	h.add_child(one)
 
-	var all := CozyUI.cozy_button("Tutti", CozyUI.HONEY, 15)
+	var all := CozyUI.cozy_button(L10n.t("Tutti"), CozyUI.HONEY, 15)
 	all.custom_minimum_size = Vector2(88, 44)
 	all.pressed.connect(_sell.bind(r["kind"], r["source"], int(r["count"])))
 	h.add_child(all)
@@ -281,22 +281,22 @@ func _build_buy() -> void:
 			tutto_comprato = false
 			break
 	if tutto_comprato:
-		_content.add_child(_section("Mobili nuovi"))
-		_content.add_child(CozyUI.hint_label("Hai già tutti i mobili del carretto!", 14))
+		_content.add_child(_section(L10n.t("Mobili nuovi")))
+		_content.add_child(CozyUI.hint_label(L10n.t("Hai già tutti i mobili del carretto!"), 14))
 	elif offers.is_empty():
-		_content.add_child(_section("Mobili nuovi"))
-		_content.add_child(CozyUI.hint_label(
-			"Il banco di oggi è già spoglio: alla prossima visita\nil mercante porterà altra merce.", 14))
+		_content.add_child(_section(L10n.t("Mobili nuovi")))
+		_content.add_child(CozyUI.hint_label(L10n.t(
+			"Il banco di oggi è già spoglio: alla prossima visita\nil mercante porterà altra merce."), 14))
 	else:
-		_content.add_child(_section("Il raro del giorno"))
+		_content.add_child(_section(L10n.t("Il raro del giorno")))
 		_content.add_child(_piece_row(offers[0], true))
 		if offers.size() > 1:
-			_content.add_child(_section("Sul carretto oggi"))
+			_content.add_child(_section(L10n.t("Sul carretto oggi")))
 			for i in range(1, offers.size()):
 				_content.add_child(_piece_row(offers[i]))
 
 	# varianti di colore
-	_content.add_child(_section("Colori dei mobili"))
+	_content.add_child(_section(L10n.t("Colori dei mobili")))
 	var any_col := false
 	for v in _economy.VARIANTS:
 		if _economy.is_variant_unlocked(v["id"]):
@@ -304,9 +304,9 @@ func _build_buy() -> void:
 		any_col = true
 		_content.add_child(_variant_row(v))
 	if not any_col:
-		_content.add_child(CozyUI.hint_label("Hai già tutti i colori!", 14))
-	_content.add_child(CozyUI.hint_label(
-		"I colori tingono i mobili: in costruzione scegli la tinta dai campioni.", 13))
+		_content.add_child(CozyUI.hint_label(L10n.t("Hai già tutti i colori!"), 14))
+	_content.add_child(CozyUI.hint_label(L10n.t(
+		"I colori tingono i mobili: in costruzione scegli la tinta dai campioni."), 13))
 
 
 func _piece_row(offer: Dictionary, raro := false) -> Control:
@@ -320,10 +320,11 @@ func _piece_row(offer: Dictionary, raro := false) -> Control:
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col.add_theme_constant_override("separation", 2)
 	h.add_child(col)
-	var nome := str(offer["name"]) + ("   ✦" if raro else "")
+	# il `name` è la chiave del salvataggio: si traduce solo qui, a schermo
+	var nome := L10n.t(str(offer["name"])) + ("   ✦" if raro else "")
 	col.add_child(CozyUI.body_label(nome, 18,
 			CozyUI.HONEY.darkened(0.25) if raro else CozyUI.TITLE))
-	col.add_child(CozyUI.body_label(str(offer.get("desc", "")), 13, CozyUI.INK_SOFT))
+	col.add_child(CozyUI.body_label(L10n.t(str(offer.get("desc", ""))), 13, CozyUI.INK_SOFT))
 
 	var cur := str(offer.get("cur", "nut"))
 	h.add_child(_price_chip(int(offer["cost"]), cur, ""))
@@ -339,7 +340,7 @@ func _variant_row(v: Dictionary) -> Control:
 	card.add_child(h)
 
 	h.add_child(_dot(v.get("tint", CozyUI.PINK), 30))
-	var lbl := CozyUI.body_label(str(v["label"]), 18, CozyUI.TITLE)
+	var lbl := CozyUI.body_label(L10n.t(str(v["label"])), 18, CozyUI.TITLE)
 	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	h.add_child(lbl)
@@ -370,7 +371,7 @@ func _buy_variant(v: Dictionary) -> void:
 
 func _buy_button(cost: int, cur: String, cb: Callable) -> Button:
 	var afford: bool = _economy.can_afford(cost, cur)
-	var b := CozyUI.cozy_button("Compra", CozyUI.PINK if afford else CozyUI.DANGER, 15)
+	var b := CozyUI.cozy_button(L10n.t("Compra"), CozyUI.PINK if afford else CozyUI.DANGER, 15)
 	b.custom_minimum_size = Vector2(110, 44)
 	b.disabled = not afford
 	if afford:

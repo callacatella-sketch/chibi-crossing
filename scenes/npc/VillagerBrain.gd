@@ -79,9 +79,9 @@ func nottambulo() -> bool:
 func descrizione() -> String:
 	var parti: Array[String] = []
 	for id in indole:
-		parti.append(str(INDOLI[id][0]))
+		parti.append(L10n.t(str(INDOLI[id][0])))
 	if quirk != "":
-		parti.append(str(QUIRK_LINES[quirk]))
+		parti.append(L10n.t(str(QUIRK_LINES[quirk])))
 	return " · ".join(parti)
 
 

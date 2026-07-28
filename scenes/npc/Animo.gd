@@ -582,18 +582,18 @@ func cause(verso := "giocatore") -> Array:
 			# il numero di voci non significa nulla per chi gioca: conta che
 			# il villaggio mormori, non quante volte l'abbia sentito dire
 			out.append({"peso": minf(0.45, 0.12 + float(n) / 60.0),
-					"testo": "nel villaggio se ne parla male"})
+					"testo": L10n.t("nel villaggio se ne parla male")})
 			continue
 		var c: Dictionary = COMPITI.get(tipo, {})
 		var extra := ""
 		if sogno in (c.get("tradisce", []) as Array):
-			extra = " (e lui sognava di fare %s)" % sogno
+			extra = " " + L10n.tf("(e lui sognava di fare %s)", [L10n.t(sogno)])
 		# I TORTI CONCRETI VENGONO SEMPRE PRIMA DEI SINTOMI. Un giocatore può
 		# agire su «ti ho mandato a spaccare legna sei volte»; su «stima al
 		# limite» no — quello è l'effetto, non la causa. Perciò anche un
 		# conteggio piccolo parte da 0.35 e scavalca ogni pressione interna.
 		out.append({"peso": minf(1.0, 0.35 + float(n) / 30.0),
-				"testo": "%s × %d%s" % [tipo, n, extra]})
+				"testo": "%s × %d%s" % [L10n.t(str(tipo)), n, extra]})
 	# 2) i colpi singoli che hanno lasciato il segno.
 	#    Solo quelli NON già raccontati dal conteggio qui sopra: elencare
 	#    quaranta volte «taglia_legna» dopo aver detto «taglia_legna × 40» è
@@ -609,13 +609,13 @@ func cause(verso := "giocatore") -> Array:
 		var testo := ""
 		match str(r["tipo"]):
 			"lutto":
-				testo = "ha perso %s" % r["attore"]
+				testo = L10n.tf("ha perso %s", [r["attore"]])
 			"lutto_ignorato":
-				testo = "e nessuno gli è stato vicino"
+				testo = L10n.t("e nessuno gli è stato vicino")
 			"sentito_dire":
-				testo = "gira voce su %s" % r["attore"]
+				testo = L10n.tf("gira voce su %s", [r["attore"]])
 			_:
-				testo = "%s (%s)" % [r["tipo"], r["attore"]]
+				testo = "%s (%s)" % [L10n.t(str(r["tipo"])), r["attore"]]
 		out.append({"peso": clampf(p, 0.0, 1.0), "testo": testo})
 	# 3) le pressioni interne che stanno sopra la soglia del sopportabile
 	for d in DRIVES:
@@ -623,7 +623,7 @@ func cause(verso := "giocatore") -> Array:
 		if m > 0.55:
 			# tetto a 0.33: le pressioni interne raccontano COME sta, non
 			# PERCHÉ — e non devono mai finire in cima alla spiegazione
-			out.append({"peso": m * 0.33, "testo": "%s al limite" % d})
+			out.append({"peso": m * 0.33, "testo": L10n.tf("%s al limite", [L10n.t(str(d))])})
 	out.sort_custom(func(a, b): return float(a["peso"]) > float(b["peso"]))
 	return out
 
@@ -634,13 +634,14 @@ func cause(verso := "giocatore") -> Array:
 func racconta(verso := "giocatore", quante := 3) -> String:
 	var c := cause(verso)
 	if c.is_empty():
-		return "%s non ha nulla da rimproverarti." % nome
+		return L10n.tf("%s non ha nulla da rimproverarti.", [nome])
 	var pezzi := []
 	for i in mini(quante, c.size()):
 		pezzi.append(str(c[i]["testo"]))
 	var corpo: String = limbico.stato_corpo()
-	var coda := "" if corpo == "tranquillo" else " (%s)" % corpo
-	return "%s è a «%s»%s: %s." % [nome, SCALA[gradino], coda, " · ".join(pezzi)]
+	var coda := "" if corpo == "tranquillo" else " (%s)" % L10n.t(corpo)
+	return L10n.tf("%s è a «%s»%s: %s.",
+			[nome, L10n.t(str(SCALA[gradino])), coda, " · ".join(pezzi)])
 
 
 ## LO SFOGO: cosa ti dice in faccia, con i fatti in mano.
@@ -653,23 +654,23 @@ func racconta(verso := "giocatore", quante := 3) -> String:
 func sfogo() -> String:
 	var c := cause()
 	if c.is_empty():
-		return "Non è niente. Lascia stare."
+		return L10n.t("Non è niente. Lascia stare.")
 	var primo := str(c[0]["testo"])
 	# il torto principale, detto come lo direbbe lui
-	var apertura := "Ti rendi conto?"
+	var apertura := L10n.t("Ti rendi conto?")
 	if float(tratti.get("orgoglio", 0.5)) > 0.65:
-		apertura = "Guardami quando ti parlo."
+		apertura = L10n.t("Guardami quando ti parlo.")
 	elif float(tratti.get("codardia", 0.5)) > 0.65:
-		apertura = "Scusa… posso dirti una cosa?"
+		apertura = L10n.t("Scusa… posso dirti una cosa?")
 	var corpo_frase := primo
 	# se c'è un secondo motivo, si aggiunge: sono le catene a fare male
 	if c.size() > 1:
-		corpo_frase += ", e " + str(c[1]["testo"])
-	var chiusa := "Non lo faccio più."
+		corpo_frase = L10n.tf("%s, e %s", [corpo_frase, str(c[1]["testo"])])
+	var chiusa := L10n.t("Non lo faccio più.")
 	if almeno(gradino, "diserzione"):
-		chiusa = "Me ne vado."
+		chiusa = L10n.t("Me ne vado.")
 	elif float(tratti.get("lealta", 0.5)) > 0.6:
-		chiusa = "Io ti sono stato accanto. Tu no."
+		chiusa = L10n.t("Io ti sono stato accanto. Tu no.")
 	var trattenuto: String = limbico.perche_scoppio()
 	if trattenuto != "":
 		chiusa += " (%s)" % trattenuto
@@ -682,8 +683,9 @@ func diario() -> Array:
 	var out := []
 	for s in scatti:
 		var c: Array = s["cause"]
-		var motivo := str(c[0]["testo"]) if not c.is_empty() else "malessere"
-		out.append("giorno %d: %s → %s (%s)" % [s["giorno"], s["da"], s["a"], motivo])
+		var motivo := str(c[0]["testo"]) if not c.is_empty() else L10n.t("malessere")
+		out.append(L10n.tf("giorno %d: %s → %s (%s)",
+				[s["giorno"], L10n.t(str(s["da"])), L10n.t(str(s["a"])), motivo]))
 	return out
 
 

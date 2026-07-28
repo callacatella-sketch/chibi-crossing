@@ -178,6 +178,9 @@ func _ready() -> void:
 	await get_tree().process_frame
 	# il fiume a est, con la scogliera a gradoni, la cascata e i ponti
 	_build_river()
+	# il salto della trota: l'indizio del bestiario mantenuto — un guizzo
+	# argentato dove la cascata spumeggia, ogni 20-40 secondi
+	add_child(preload("res://scenes/world/SaltoTrota.gd").new())
 	_build_boundary()
 	# le particelle stagionali (neve e foglie al vento) e la prima veste:
 	# ora tutta la geometria esiste, i materiali sono raccolti, si può dipingere

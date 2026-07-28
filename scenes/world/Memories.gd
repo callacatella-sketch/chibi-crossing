@@ -125,7 +125,8 @@ func _play_film() -> void:
 	if _film_days.size() < 2:
 		var visitors := get_node_or_null("../../Visitors")
 		if visitors:
-			visitors.call("_show_toast", "Il proiettore aspetta almeno due mattine di ricordi…")
+			visitors.call("_show_toast",
+					L10n.t("Il proiettore aspetta almeno due mattine di ricordi…"))
 		return
 	_playing = true
 	if _player:
@@ -154,7 +155,7 @@ func _run_film(session: int) -> void:
 		if img == null:
 			continue
 		_film_photo.texture = ImageTexture.create_from_image(img)
-		_film_label.text = "Giorno %d" % day
+		_film_label.text = L10n.tf("Giorno %d", [day])
 		_film_photo.modulate.a = 0.0
 		var tw := create_tween()
 		tw.tween_property(_film_photo, "modulate:a", 1.0, 0.3)
@@ -163,7 +164,7 @@ func _run_film(session: int) -> void:
 		await get_tree().create_timer(1.1).timeout
 	if not _playing or session != _film_session:
 		return
-	_film_label.text = "…e la storia continua"
+	_film_label.text = L10n.t("…e la storia continua")
 	await get_tree().create_timer(1.6).timeout
 	if _playing and session == _film_session:
 		_stop_film()
@@ -197,7 +198,7 @@ func _build_film_ui() -> void:
 	center.add_child(vbox)
 
 	_film_title = Label.new()
-	_film_title.text = "~ I ricordi del villaggio ~"
+	_film_title.text = L10n.t("~ I ricordi del villaggio ~")
 	_film_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_film_title.add_theme_font_size_override("font_size", 20)
 	_film_title.add_theme_color_override("font_color", Color("f2e8d5"))
@@ -227,7 +228,7 @@ func _build_film_ui() -> void:
 	vbox.add_child(_film_label)
 
 	var hint := Label.new()
-	hint.text = "E — chiudi il proiettore"
+	hint.text = L10n.t("E — chiudi il proiettore")
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.add_theme_font_size_override("font_size", 11)
 	hint.add_theme_color_override("font_color", Color(0.95, 0.91, 0.84, 0.55))

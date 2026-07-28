@@ -28,6 +28,9 @@ var move_speed := 1.0
 ## «Prato Eterno»: nessun vicino parte mai per il Grande Prato (il congedo
 ## del Filo Rosso resta spento). Il gioco resta intero anche senza partenze.
 var prato_eterno := false
+## La lingua: "auto" (quella del sistema, se la conosciamo) · "it" · "en".
+## L'italiano è la lingua sorgente — vedi systems/L10n.gd e docs/TRADUZIONE.md.
+var language := "auto"
 
 
 func _ready() -> void:
@@ -60,6 +63,8 @@ func _apply_all() -> void:
 	_apply_bus("Music", music_volume)
 	_apply_bus("Sfx", sfx_volume)
 	_apply_fullscreen()
+	# la lingua PRIMA di tutto il resto: il titolo si costruisce subito dopo
+	L10n.imposta(language)
 	apply_to_player(get_tree().get_first_node_in_group("player_controller"))
 
 
@@ -131,6 +136,18 @@ func set_prato_eterno(on: bool) -> void:
 	_save(); changed.emit()
 
 
+# ---------------------------------------------------------------- lingua
+func set_language(codice: String) -> void:
+	language = codice
+	L10n.imposta(language)
+	_save(); changed.emit()
+
+
+## Il codice della lingua VERA di adesso ("it"/"en"), risolvendo "auto".
+func language_code() -> String:
+	return L10n.lingua_corrente()
+
+
 # ---------------------------------------------------------------- qualità
 ## Delega all'autoload Quality (preset grafico Basso/Alto).
 func get_quality() -> int:
@@ -161,6 +178,7 @@ func _load() -> void:
 	reduce_motion = bool(cfg.get_value("gameplay", "reduce_motion", reduce_motion))
 	move_speed = float(cfg.get_value("gameplay", "move_speed", move_speed))
 	prato_eterno = bool(cfg.get_value("gameplay", "prato_eterno", prato_eterno))
+	language = str(cfg.get_value("gameplay", "language", language))
 
 
 func _save() -> void:
@@ -173,4 +191,5 @@ func _save() -> void:
 	cfg.set_value("gameplay", "reduce_motion", reduce_motion)
 	cfg.set_value("gameplay", "move_speed", move_speed)
 	cfg.set_value("gameplay", "prato_eterno", prato_eterno)
+	cfg.set_value("gameplay", "language", language)
 	cfg.save(PATH)

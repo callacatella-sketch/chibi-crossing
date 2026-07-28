@@ -244,7 +244,7 @@ func _prova_una_vendita(banco: Node3D, b: Dictionary) -> void:
 	var davanti: Vector3 = banco.global_position \
 			+ banco.global_transform.basis.z.normalized() * 0.9
 	node.call("do_routine", "sniff", davanti, banco.global_position)
-	var label := str(r.get("label", "un vicino"))
+	var label := str(r.get("label", L10n.t("un vicino")))
 	get_tree().create_timer(2.6).timeout.connect(func() -> void:
 		_finalizza_vendita(banco, scelto, label, node))
 
@@ -270,8 +270,8 @@ func _finalizza_vendita(banco: Node3D, i: int, label: String, node: Node3D) -> v
 	if node and is_instance_valid(node):
 		node.call("speak", ["grazie", "regalo", "felice"], "felice")
 		node.call("_spawn_heart")
-	_toast("%s ha comprato %s: +%d 🌰 alla bancarella!"
-			% [label, CRIT.con_articolo(kind), incasso])
+	_toast(L10n.tf("%s ha comprato %s: +%d 🌰 alla bancarella!",
+			[label, CRIT.con_articolo(kind), incasso]))
 	if _sfx:
 		_sfx.place_ok()
 	var saver := get_tree().get_first_node_in_group("build_system")
@@ -332,8 +332,8 @@ func _update_prompt() -> void:
 	for slot in (_banchi[_vicino] as Dictionary)["slots"]:
 		if slot != null:
 			pieni += 1
-	_prompt_label.text = "E — sistema la bancarella" if pieni == 0 \
-			else "E — sistema la bancarella (%d in vendita)" % pieni
+	_prompt_label.text = L10n.t("E — sistema la bancarella") if pieni == 0 \
+			else L10n.tf("E — sistema la bancarella (%d in vendita)", [pieni])
 	_prompt.reset_size()
 	var wp: Vector3 = _vicino.global_position + Vector3(0, 1.9, 0)
 	if cam.is_position_behind(wp):
@@ -456,7 +456,7 @@ func _riempi_panel() -> void:
 		h.add_child(freccia)
 		var slot = b["slots"][i]
 		if slot == null:
-			var vuoto := CozyUI.body_label("— piedistallo vuoto —", 16, CozyUI.INK_SOFT)
+			var vuoto := CozyUI.body_label(L10n.t("— piedistallo vuoto —"), 16, CozyUI.INK_SOFT)
 			vuoto.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			h.add_child(vuoto)
 		else:
@@ -467,11 +467,11 @@ func _riempi_panel() -> void:
 			h.add_child(nome)
 			var tag := int(slot["tag"])
 			var incasso := prezzo_in_noccioline(CRIT.vendita(kind), tag)
-			h.add_child(CozyUI.body_label("%s · %d" % [CARTELLINI[tag], incasso], 16,
+			h.add_child(CozyUI.body_label("%s · %d" % [L10n.t(CARTELLINI[tag]), incasso], 16,
 					CozyUI.NUT))
 			h.add_child(CozyUI.icon("nut", 20))
 			if not _in_bisaccia(slot):
-				h.add_child(CozyUI.body_label("(finita!)", 13, CozyUI.DANGER))
+				h.add_child(CozyUI.body_label(L10n.t("(finita!)"), 13, CozyUI.DANGER))
 		_righe.add_child(card)
 
 
@@ -521,16 +521,16 @@ func _build_panel() -> void:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 12)
 	_panel.add_child(col)
-	col.add_child(CozyUI.title_label("La bancarella di Mochi", 26))
-	var sotto := CozyUI.body_label("tre tesori in vetrina, al prezzo che dici tu", 13,
+	col.add_child(CozyUI.title_label(L10n.t("La bancarella di Mochi"), 26))
+	var sotto := CozyUI.body_label(L10n.t("tre tesori in vetrina, al prezzo che dici tu"), 13,
 			CozyUI.INK_SOFT)
 	sotto.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(sotto)
 	_righe = VBoxContainer.new()
 	_righe.add_theme_constant_override("separation", 8)
 	col.add_child(_righe)
-	col.add_child(CozyUI.hint_label(
-			"↑↓ piedistallo · ←→ merce · SPAZIO cartellino · E chiudi", 13))
+	col.add_child(CozyUI.hint_label(L10n.t(
+			"↑↓ piedistallo · ←→ merce · SPAZIO cartellino · E chiudi"), 13))
 
 
 # ------------------------------------------------------------ persistenza

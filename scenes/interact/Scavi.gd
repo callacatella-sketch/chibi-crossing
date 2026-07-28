@@ -302,22 +302,22 @@ func _consegna(dono: Dictionary) -> void:
 			var n := int(dono["n"])
 			if eco:
 				eco.add_nuts(n)
-			testo = "Sotto terra: %d noccioline! 🌰" % n
+			testo = L10n.tf("Sotto terra: %d noccioline! 🌰", [n])
 		"ingrediente":
 			var id := str(dono["id"])
 			var cucina := get_node_or_null("../Cooking")
 			if cucina:
 				cucina.add_ingredient(id, 1)
-			testo = "Sotto terra: %s, dritta in dispensa!" % CRIT.con_articolo(id)
+			testo = L10n.tf("Sotto terra: %s, dritta in dispensa!", [CRIT.con_articolo(id)])
 		"tesoro":
 			var inv := get_node_or_null("../Inventory")
 			if inv:
 				inv.add_treasure(str(dono["id"]), 1)
-			testo = "Sotto terra: una campanella di coccio. Suona ancora!"
+			testo = L10n.t("Sotto terra: una campanella di coccio. Suona ancora!")
 		_:
 			if eco:
 				eco.add_stars(1)
-			testo = "Sotto terra… una stellina! ⭐"
+			testo = L10n.t("Sotto terra… una stellina! ⭐")
 	if visitors:
 		visitors.call("_show_toast", testo)
 
@@ -427,7 +427,7 @@ func _aggiorna_prompt() -> void:
 	if cam.is_position_behind(wp):
 		_prompt.visible = false
 		return
-	_prompt_label.text = "E — scava!"
+	_prompt_label.text = L10n.t("E — scava!")
 	_prompt.reset_size()
 	var p := cam.unproject_position(wp)
 	_prompt.position = p - Vector2(_prompt.size.x * 0.5, _prompt.size.y)

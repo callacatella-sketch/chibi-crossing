@@ -109,7 +109,8 @@ func _join() -> void:
 	_speak(["ciao", "amico"], "felice")
 	if _sfx:
 		_sfx.place_ok()
-	_toast("%s si siede accanto a te! (IJKL muove · U aiuta in giardino · F2 saluta)" % _dna["label"])
+	_toast(L10n.tf("%s si siede accanto a te! (IJKL muove · U aiuta in giardino · F2 saluta)",
+			[_dna["label"]]))
 	var build := get_tree().get_first_node_in_group("build_system")
 	if build:
 		build.request_save()
@@ -117,7 +118,7 @@ func _join() -> void:
 
 func _leave() -> void:
 	_speak(["ciao"], "triste")
-	_toast("%s ti saluta con la zampina. A presto!" % _dna["label"])
+	_toast(L10n.tf("%s ti saluta con la zampina. A presto!", [_dna["label"]]))
 	var body := _p2
 	var visual := _vis
 	_p2 = null
@@ -263,7 +264,8 @@ func _update_prompt() -> void:
 	if cam.is_position_behind(wp):
 		_prompt.visible = false
 		return
-	_prompt_label.text = "U — %s aiuta in giardino" % _dna.get("name", "l'amico")
+	_prompt_label.text = L10n.tf("U — %s aiuta in giardino",
+			[_dna.get("name", L10n.t("l'amico"))])
 	_prompt.reset_size()
 	var p := cam.unproject_position(wp)
 	_prompt.position = p - Vector2(_prompt.size.x * 0.5, _prompt.size.y)

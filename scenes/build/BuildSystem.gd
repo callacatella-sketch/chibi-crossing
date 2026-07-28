@@ -1423,13 +1423,13 @@ func _build_ui() -> void:
 	vbox.add_child(cats)
 	var cat_group := ButtonGroup.new()
 	for c in CAT_NAMES.size():
-		var btn := _make_button(CAT_NAMES[c], cat_group, 12)
+		var btn := _make_button(L10n.t(CAT_NAMES[c]), cat_group, 12)
 		btn.pressed.connect(_on_cat_pressed.bind(c))
 		cats.add_child(btn)
 		_cat_buttons.append(btn)
 
 	# lo strumento demolizione: evidenzia in rosso, clic per abbattere
-	_demo_btn = _make_button("✕ Demolisci", null, 12)
+	_demo_btn = _make_button(L10n.t("✕ Demolisci"), null, 12)
 	_demo_btn.add_theme_color_override("font_color", Color("a83a3a"))
 	_demo_btn.add_theme_color_override("font_hover_color", Color("a83a3a"))
 	_demo_btn.add_theme_color_override("font_pressed_color", Color("7a1f1f"))
@@ -1450,7 +1450,7 @@ func _build_ui() -> void:
 	vbox.add_child(_items_row)
 
 	var hint := Label.new()
-	hint.text = "B esci  ·  rotella / 1-9 scegli  ·  R ruota  ·  V piano su/giù  ·  F ruota piazzato  ·  clic piazza  ·  X rimuovi"
+	hint.text = L10n.t("B esci  ·  rotella / 1-9 scegli  ·  R ruota  ·  V piano su/giù  ·  F ruota piazzato  ·  clic piazza  ·  X rimuovi")
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.add_theme_font_size_override("font_size", 12)
 	hint.add_theme_color_override("font_color", Color(UI_BROWN, 0.75))
@@ -1460,7 +1460,7 @@ func _build_ui() -> void:
 	_sync_ui_selection()
 
 	_idle_hint = Label.new()
-	_idle_hint.text = "B — modalità costruzione"
+	_idle_hint.text = L10n.t("B — modalità costruzione")
 	_idle_hint.add_theme_font_size_override("font_size", 13)
 	_idle_hint.add_theme_color_override("font_color", Color(1, 1, 1, 0.8))
 	_idle_hint.add_theme_color_override("font_shadow_color", Color(0.3, 0.2, 0.15, 0.5))
@@ -1539,13 +1539,14 @@ func _rebuild_item_row() -> void:
 		#     sarebbe mai arrivato, perché si comprano e basta.)
 		var offer := _shop_offer(piece) if locked else {}
 		var in_vetrina := not offer.is_empty()
+		# `piece` è la chiave del salvataggio: si traduce solo l'etichetta
 		var label: String
 		if in_vetrina:
-			label = "%s · %d" % [piece, int(offer.get("cost", 0))]
+			label = "%s · %d" % [L10n.t(piece), int(offer.get("cost", 0))]
 		elif locked:
 			label = "?"
 		else:
-			label = str(j + 1) + " " + piece
+			label = str(j + 1) + " " + L10n.t(piece)
 		var btn := _make_button(label, group, 13)
 		btn.custom_minimum_size = Vector2(0, 38)
 		if locked:
@@ -1561,7 +1562,7 @@ func _rebuild_item_row() -> void:
 				btn.tooltip_text = _shop_tooltip(offer)
 			else:
 				btn.modulate = Color(1, 1, 1, 0.5)
-				btn.tooltip_text = "Un Ordine del Gufo lo porterà"
+				btn.tooltip_text = L10n.t("Un Ordine del Gufo lo porterà")
 		else:
 			btn.pressed.connect(_select.bind(i))
 		_items_row.add_child(btn)
@@ -1593,16 +1594,16 @@ func _shop_offer(piece: String) -> Dictionary:
 ## oggi te lo puoi permettere (il borsellino lo sa già).
 func _shop_tooltip(offer: Dictionary) -> String:
 	var cur := str(offer.get("cur", "nut"))
-	var soldi := "noccioline" if cur == "nut" else "stelline"
+	var soldi := L10n.t("noccioline") if cur == "nut" else L10n.t("stelline")
 	var cost := int(offer.get("cost", 0))
-	var txt := "Dal carretto del mercante · %d %s" % [cost, soldi]
+	var txt := L10n.tf("Dal carretto del mercante · %d %s", [cost, soldi])
 	var desc := str(offer.get("desc", ""))
 	if desc != "":
-		txt += "\n%s" % desc
+		txt += "\n%s" % L10n.t(desc)
 	var eco := _economy()
 	if eco and eco.has_method("can_afford"):
-		txt += "\n%s" % ("Puoi permettertelo!" if eco.can_afford(cost, cur) \
-				else "Mettine da parte ancora un po'.")
+		txt += "\n%s" % (L10n.t("Puoi permettertelo!") if eco.can_afford(cost, cur) \
+				else L10n.t("Mettine da parte ancora un po'."))
 	return txt
 
 
@@ -1695,10 +1696,10 @@ func _update_variant_bar() -> void:
 		_variant = ""
 	for c in _variant_row.get_children():
 		c.queue_free()
-	_variant_row.add_child(_variant_swatch("", Color("efe0c6"), "Originale"))
+	_variant_row.add_child(_variant_swatch("", Color("efe0c6"), L10n.t("Originale")))
 	for vid in owned:
 		var def: Dictionary = eco.variant_def(vid)
-		_variant_row.add_child(_variant_swatch(str(vid), def.get("tint", Color.WHITE), str(def.get("label", vid))))
+		_variant_row.add_child(_variant_swatch(str(vid), def.get("tint", Color.WHITE), L10n.t(str(def.get("label", vid)))))
 	_variant_bar.visible = true
 
 

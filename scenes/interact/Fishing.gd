@@ -532,13 +532,13 @@ func _update_prompt() -> void:
 	match _state:
 		"off":
 			if _near_shore():
-				text = "E — pesca"
+				text = L10n.t("E — pesca")
 				wp = _player.global_position + Vector3(0, 1.3, 0)
 			elif _in_barca():
-				text = "E — pesca dal fiume"
+				text = L10n.t("E — pesca dal fiume")
 				wp = _player.global_position + Vector3(0, 1.35, 0)
 		"bite":
-			text = "E — tira!"
+			text = L10n.t("E — tira!")
 			wp = _bob_home + Vector3(0, 0.5, 0)
 	if text == "" or cam.is_position_behind(wp):
 		_prompt.visible = false

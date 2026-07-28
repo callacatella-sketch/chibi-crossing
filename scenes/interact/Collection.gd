@@ -651,14 +651,16 @@ func add_catch(kind: String) -> void:
 	var eco := get_tree().get_first_node_in_group("economy")
 	var got_star := (int(eco.award_catch(kind)) if eco and eco.has_method("award_catch") else 0)
 	if got_star > 0:
-		_show_toast("%s — che rarità! Una stellina per te." % CRIT.con_articolo(kind))
+		_show_toast(L10n.tf("%s — che rarità! Una stellina per te.",
+				[CRIT.con_articolo(kind)]))
 	else:
-		_show_toast("Hai preso %s! (n. %d)" % [CRIT.con_articolo(kind), _counts[kind]])
+		_show_toast(L10n.tf("Hai preso %s! (n. %d)",
+				[CRIT.con_articolo(kind), _counts[kind]]))
 	# la prima di ogni specie finisce negli anelli del Grande Albero
 	if int(_counts[kind]) == 1:
 		var gtree := get_tree().get_first_node_in_group("grande_albero")
 		if gtree:
-			gtree.engrave("♦", "in collezione: %s" % CRIT.con_articolo(kind))
+			gtree.engrave("♦", L10n.tf("in collezione: %s", [CRIT.con_articolo(kind)]))
 		# la prima lucciola (regale compresa) accende la lanterna da polso
 		if CRIT.classe(kind) == "lucciola":
 			var wr := get_tree().get_first_node_in_group("guardaroba")
@@ -933,7 +935,7 @@ func _update_prompt() -> void:
 		var b: Dictionary = _cozy.get("_butterflies")[target["index"]]
 		pos = (b["node"] as Node3D).global_position
 		kind = str(b["kind"])
-	var text := "E — acchiappa %s!" % CRIT.con_articolo(kind)
+	var text := L10n.tf("E — acchiappa %s!", [CRIT.con_articolo(kind)])
 	var wp := pos + Vector3(0, 0.4, 0)
 	if cam.is_position_behind(wp):
 		_prompt.visible = false

@@ -126,9 +126,10 @@ func _capo_info(id: String) -> Dictionary:
 	if CAPI.has(id):
 		return CAPI[id]
 	if _ricordi.has(id):
-		var r: Dictionary = _ricordi[id]
-		return {"nome": str(r["nome"]), "slot": "collo", "icona": "❀",
-				"sblocco": ""}
+		# il `nome` salvato resta italiano (viaggia nel villaggio): a schermo
+		# la frase si ricompone tradotta attorno al nome del vicino
+		return {"nome": L10n.tf("il ricordino di %s", [id.trim_prefix("ricordo_")]),
+				"slot": "collo", "icona": "❀", "sblocco": ""}
 	return {}
 
 
@@ -151,7 +152,7 @@ func unlock_ricordo(nome: String, colore: Color) -> void:
 	_ricordi[id] = {"nome": "il ricordino di %s" % nome,
 			"colore": colore.to_html(false)}
 	_unlocked[id] = true
-	_toast("Nel guardaroba c'è il ricordino di %s, piegato con cura. (G)" % nome)
+	_toast(L10n.tf("Nel guardaroba c'è il ricordino di %s, piegato con cura. (G)", [nome]))
 	if _sfx:
 		_sfx.build_open()
 	if _build:
@@ -164,7 +165,8 @@ func unlock(id: String) -> void:
 		return
 	_unlocked[id] = true
 	var capo: Dictionary = CAPI[id]
-	_toast("Nuovo capo nel guardaroba: %s! (G per indossarlo)" % capo["nome"])
+	_toast(L10n.tf("Nuovo capo nel guardaroba: %s! (G per indossarlo)",
+			[L10n.t(str(capo["nome"]))]))
 	if _mochi:
 		var gtree := get_tree().get_first_node_in_group("grande_albero")
 		if gtree:
@@ -613,13 +615,15 @@ func _refresh_panel() -> void:
 		row.add_theme_font_size_override("font_size", 13)
 		var freccia := "▸ " if i == _sel else "   "
 		if _unlocked.has(id):
-			var stato := "indossato ♥" if _worn.has(id) else "nel baule"
-			row.text = "%s%s  %s   —   %s" % [freccia, capo["icona"], capo["nome"], stato]
+			var stato := L10n.t("indossato ♥") if _worn.has(id) else L10n.t("nel baule")
+			row.text = "%s%s  %s   —   %s" % [freccia, capo["icona"],
+					L10n.t(str(capo["nome"])), stato]
 			row.add_theme_color_override("font_color",
 					Color("a83a5c") if _worn.has(id) else
 					(UI_BROWN if i == _sel else Color(UI_BROWN, 0.75)))
 		else:
-			row.text = "%s?  un ricordo da vivere: %s" % [freccia, capo["sblocco"]]
+			row.text = L10n.tf("%s?  un ricordo da vivere: %s",
+					[freccia, L10n.t(str(capo["sblocco"]))])
 			row.add_theme_color_override("font_color", Color(UI_BROWN, 0.4))
 		_rows.add_child(row)
 
@@ -658,13 +662,13 @@ func _build_ui() -> void:
 	vbox.add_theme_constant_override("separation", 6)
 	_panel.add_child(vbox)
 	var title := Label.new()
-	title.text = "~ Il guardaroba di Mochi ~"
+	title.text = L10n.t("~ Il guardaroba di Mochi ~")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 17)
 	title.add_theme_color_override("font_color", Color("8a5a3a"))
 	vbox.add_child(title)
 	var sub := Label.new()
-	sub.text = "ogni capo è un ricordo indossabile"
+	sub.text = L10n.t("ogni capo è un ricordo indossabile")
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sub.add_theme_font_size_override("font_size", 12)
 	sub.add_theme_color_override("font_color", Color("c25a7a"))
@@ -673,7 +677,7 @@ func _build_ui() -> void:
 	_rows.add_theme_constant_override("separation", 4)
 	vbox.add_child(_rows)
 	var hint := Label.new()
-	hint.text = "↑↓ — scegli  ·  E — indossa/togli  ·  G — chiudi"
+	hint.text = L10n.t("↑↓ — scegli  ·  E — indossa/togli  ·  G — chiudi")
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.add_theme_font_size_override("font_size", 11)
 	hint.add_theme_color_override("font_color", Color(UI_BROWN, 0.55))

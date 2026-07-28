@@ -147,7 +147,7 @@ func pianta(pos: Vector3) -> bool:
 	if nodo:
 		_zolla(nodo)
 		_sparkle(pos + Vector3(0, 0.35, 0), Color(0.8, 1.0, 0.6))
-	_toast("Il semino raro è a dimora. Chissà cosa nasconde…")
+	_toast(L10n.t("Il semino raro è a dimora. Chissà cosa nasconde…"))
 	if _sfx:
 		_sfx.place_ok()
 	if _build:
@@ -188,11 +188,11 @@ func _aggiorna_albero(i: int, festeggia: bool) -> void:
 	_sparkle(nodo.position + Vector3(0, 0.8, 0), Color(0.75, 1.0, 0.55))
 	match st:
 		"fioritura":
-			_toast("🌸 Il piccolo %s è in fiore: domani i primi frutti!"
-					% str(a["specie"]))
+			_toast(L10n.tf("🌸 Il piccolo %s è in fiore: domani i primi frutti!",
+					[L10n.t(str(a["specie"]))]))
 		"maturo":
-			_toast("Il %s è cresciuto: i primi %s pendono dai rami!"
-					% [str(a["specie"]), _nome_frutti(a)])
+			_toast(L10n.tf("Il %s è cresciuto: i primi %s pendono dai rami!",
+					[L10n.t(str(a["specie"])), L10n.t(_nome_frutti(a))]))
 
 
 func _nome_frutto(a: Dictionary) -> String:
@@ -408,8 +408,8 @@ func raccogli(i: int) -> void:
 	_frutti_nodi[i] = []
 	if _cooking and _cooking.has_method("add_ingredient"):
 		_cooking.call("add_ingredient", id, FRUTTI)
-	_toast("+%d %s nella dispensa! (il %s rifrutta tra %d giorni)"
-			% [FRUTTI, _nome_frutti(a), str(a["specie"]), GIORNI_FRUTTA])
+	_toast(L10n.tf("+%d %s nella dispensa! (il %s rifrutta tra %d giorni)",
+			[FRUTTI, L10n.t(_nome_frutti(a)), L10n.t(str(a["specie"])), GIORNI_FRUTTA]))
 	if _sfx:
 		_sfx.place_ok()
 	if _build:
@@ -467,10 +467,10 @@ func _update_prompt() -> void:
 	var anchor := _player.global_position
 	if _vicino >= 0:
 		var a: Dictionary = _alberi[_vicino]
-		testo = "E — raccogli le %s" % _nome_frutti(a)
+		testo = L10n.tf("E — raccogli le %s", [L10n.t(_nome_frutti(a))])
 		anchor = Vector3(float(a["x"]), 0, float(a["z"]))
 	elif _puo_piantare:
-		testo = "E — pianta il semino raro"
+		testo = L10n.t("E — pianta il semino raro")
 	if testo == "":
 		_prompt.visible = false
 		return

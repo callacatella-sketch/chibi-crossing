@@ -115,12 +115,17 @@ func avvia(carillon: Node3D) -> void:
 				+ Vector3(cos(a), 0, sin(a)) * RAGGIO_CERCHIO
 		_cantanti.append({"nodo": node, "dna": r.get("dna", {}),
 				"posto": posto, "verso": carillon.global_position})
-		nomi.append(str(r.get("label", "un vicino")))
+		nomi.append(str(r.get("label", L10n.t("un vicino"))))
 		if node.has_method("do_routine"):
 			node.call("do_routine", "sniff", posto, carillon.global_position)
-	_toast("Il carillon chiama: %s si stringono attorno alla musica…"
-			% " e ".join(PackedStringArray([", ".join(PackedStringArray(
-			nomi.slice(0, maxi(nomi.size() - 1, 1)))), nomi[-1]] if nomi.size() > 1 else nomi)))
+	# "A, B e C": la congiunzione finale è una parola, e come tale si traduce
+	var elenco := ", ".join(PackedStringArray(nomi.slice(0, maxi(nomi.size() - 1, 1))))
+	var tutti := ""
+	if nomi.size() > 1:
+		tutti = L10n.tf("%s e %s", [elenco, nomi[-1]])
+	elif nomi.size() == 1:
+		tutti = str(nomi[0])
+	_toast(L10n.tf("Il carillon chiama: %s si stringono attorno alla musica…", [tutti]))
 
 	# il tempo di accorrere, poi si canta
 	get_tree().create_timer(2.8).timeout.connect(_canta.bind(carillon))
@@ -225,7 +230,7 @@ func _finale() -> void:
 			nodo.call("celebrate")
 		if nodo.has_method("_spawn_heart"):
 			nodo.call("_spawn_heart")
-	_toast("…e l'ultima nota resta sospesa nell'aria. ")
+	_toast(L10n.t("…e l'ultima nota resta sospesa nell'aria. "))
 	get_tree().call_group("regista", "note", "concertino")
 	_fine()
 
