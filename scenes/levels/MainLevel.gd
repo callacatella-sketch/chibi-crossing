@@ -87,6 +87,8 @@ func _ready():
 		_start_debug_harness("porte", OS.get_environment("CHIBI_PORTE"))
 	elif OS.get_environment("CHIBI_PIOGGIA") != "":
 		_start_debug_harness("pioggia", OS.get_environment("CHIBI_PIOGGIA"))
+	elif OS.get_environment("CHIBI_BUCATO") != "":
+		_start_debug_harness("bucato", OS.get_environment("CHIBI_BUCATO"))
 	elif OS.get_environment("CHIBI_MAKESAVE") != "":
 		_start_debug_harness("makesave")
 
@@ -168,7 +170,7 @@ func _spawn_system(path: String, node_name: String) -> Node:
 # apposta. "shot" si spegne da sé in BuildSystem._ready.
 func _start_debug_harness(mode: String, arg: String = "") -> void:
 	if mode in ["lavori", "festa", "filo", "frutteto", "commissioni", "nido", "facce",
-			"porte", "pioggia"] \
+			"porte", "pioggia", "bucato"] \
 			or (mode == "legna" and OS.get_environment("CHIBI_LEGNA_SAVE") == ""):
 		build_system.set_persist_for_debug(false)
 	var h = DEBUG_HARNESS.new()

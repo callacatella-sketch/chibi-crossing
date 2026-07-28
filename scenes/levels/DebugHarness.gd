@@ -46,6 +46,8 @@ func run(level: Node3D, mode: String, arg: String = "") -> void:
 			await _debug_porte(arg)
 		"pioggia":
 			await _debug_pioggia(arg)
+		"bucato":
+			await _debug_bucato(arg)
 
 func _frames(n: int):
 	for i in n:
@@ -470,6 +472,79 @@ func _debug_facce(dir: String) -> void:
 
 	mochi.forza_espressione("")
 	print("FACCE: fine, %d espressioni fotografate" % n)
+	get_tree().quit()
+
+
+# ---------------------------------------------------------------- bucato
+# Il gesto dello stendere: Mochi si volta verso la corda, si china sul
+# cestello e si allunga (hold_reach) — un telo per allungata, che si
+# spiega con le sue mollette. Poi il ritiro: una tirata per telo e la
+# pila nel cestello. Le stampe verificano teli, sblocco del giocatore
+# e pulizia finale.
+func _debug_bucato(dir: String) -> void:
+	var vita = _level.get_node_or_null("VitaSecondaria")
+	var dn = _level.get_node_or_null("DayNight")
+	var mochi = player.get_node_or_null("Mochi")
+	if vita == null or mochi == null:
+		printerr("BUCATO: VitaSecondaria o Mochi non trovati")
+		get_tree().quit()
+		return
+	await _frames(30)
+	if dn:
+		dn.set_time(0.35)
+	build_system.place_cell(Vector2i(-2, 6), "Stendino", 0, false)
+	player.global_position = Vector3(-1.1, 0, 7.2)
+	# lascia che VitaSecondaria lo censisca (respira a 4 Hz)
+	await get_tree().create_timer(0.8).timeout
+
+	var stendino: Node3D = null
+	for nodo in (vita.get("_stendini") as Dictionary):
+		stendino = nodo
+	if stendino == null:
+		printerr("BUCATO: stendino non censito")
+		get_tree().quit()
+		return
+
+	# di profilo rispetto all'asse Mochi->stendino: l'allungata si legge
+	# (Mochi a destra che si allunga verso la corda a sinistra)
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.position = Vector3(-4.1, 1.3, 8.5)
+	cam.fov = 45.0
+	cam.current = true
+	cam.look_at(Vector3(-1.55, 0.85, 6.6))
+
+	await _frames(10)
+	await _shot(dir, "bucato_1_prima")
+
+	# lo stendere, per la stessa via della E
+	var s: Dictionary = (vita.get("_stendini") as Dictionary)[stendino]
+	(vita.get("_steso") as Dictionary)[vita.call("_chiave", stendino)] = true
+	vita.call("_stendi_con_gesto", stendino, s)
+	await get_tree().create_timer(0.62).timeout
+	await _shot(dir, "bucato_2_allungata")
+	await get_tree().create_timer(0.75).timeout
+	await _shot(dir, "bucato_3_secondo_telo")
+	await get_tree().create_timer(1.5).timeout
+	await _shot(dir, "bucato_4_steso")
+	var teli = s.get("teli")
+	print("BUCATO: teli appesi -> %d (attesi 3)"
+			% (teli.get_child_count() if teli != null else 0))
+	print("BUCATO: gesto finito, giocatore libero -> %s"
+			% ("SI" if player.is_physics_processing() else "NO"))
+
+	# il ritiro: una tirata per telo
+	(vita.get("_steso") as Dictionary).erase(vita.call("_chiave", stendino))
+	vita.call("_ritira_con_gesto", stendino, s)
+	await get_tree().create_timer(0.7).timeout
+	await _shot(dir, "bucato_5_tirata")
+	await get_tree().create_timer(1.7).timeout
+	await _shot(dir, "bucato_6_ritirato")
+	print("BUCATO: dopo il ritiro, teli -> %s"
+			% ("puliti" if s.get("teli") == null else "ANCORA LI"))
+	print("BUCATO: giocatore di nuovo libero -> %s"
+			% ("SI" if player.is_physics_processing() else "NO"))
+	print("BUCATO: fine")
 	get_tree().quit()
 
 

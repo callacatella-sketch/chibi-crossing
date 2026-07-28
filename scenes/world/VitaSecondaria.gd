@@ -65,6 +65,8 @@ var _dirty := true
 var _tick := 0.0
 # il bucato di Mochi, persistito: "x|z" della cella -> true
 var _steso := {}
+# il gesto in corso (stendere/ritirare): blocca la E finché non finisce
+var _gesto_in_corso := false
 
 var _prompt: PanelContainer
 var _prompt_label: Label
@@ -278,6 +280,14 @@ func _stendi(stendino: Node3D, colori: Array, silenzioso: bool) -> Node3D:
 		var telo := _telo(colori[i], largo, randf_range(0.34, 0.44))
 		telo.position = Vector3(x, 1.075 - absf(x) * 0.05, 0)
 		teli.add_child(telo)
+		if not silenzioso:
+			# anche i panni dei residenti si spiegano uno alla volta
+			# (mani invisibili, ma mai più un "pop" tutto insieme)
+			telo.scale = Vector3(1, 0.06, 1)
+			var tw := create_tween()
+			tw.tween_interval(0.16 * float(i))
+			tw.tween_property(telo, "scale:y", 1.0, 0.3) \
+					.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	if not silenzioso:
 		_gocce(stendino.global_position + Vector3(0, 0.9, 0))
 	return teli
@@ -585,18 +595,16 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if _player == null or not _player.is_physics_processing():
 		return   # la E è di un altro pannello: idioma di Calendar
-	if not is_instance_valid(_vicino):
+	if not is_instance_valid(_vicino) or _gesto_in_corso:
 		return
 	var k := _chiave(_vicino)
 	var s: Dictionary = _stendini.get(_vicino, {"di": "", "teli": null})
 	if _steso.has(k):
 		_steso.erase(k)
-		_ritira(s)
+		_ritira_con_gesto(_vicino, s)
 	else:
 		_steso[k] = true
-		s["teli"] = _stendi(_vicino, _colori_mochi(), false)
-		if _sfx:
-			_sfx.play("swish", -16.0, 1.15)
+		_stendi_con_gesto(_vicino, s)
 	_stendini[_vicino] = s
 	if _sfx:
 		_sfx.ui_select()
@@ -604,6 +612,136 @@ func _unhandled_input(event: InputEvent) -> void:
 	if saver and saver.has_method("request_save"):
 		saver.request_save()
 	get_viewport().set_input_as_handled()
+
+
+# ------------------------------------------------- il gesto del bucato
+# Niente più teli per magia: Mochi si volta verso la corda, si china sul
+# cestello e si ALLUNGA (hold_reach: pour 0 = giù ad afferrare, pour 1 =
+# su alla corda) — e in cima a ogni allungata un telo si spiega con le
+# sue due mollette (tic, tic). Ritirare è il gesto inverso: una tirata
+# per telo. Il giocatore resta fermo per la durata (~2 s).
+
+# volta Mochi verso lo stendino e la mette in posa; null se manca il corpo
+func _prepara_gesto(nodo: Node3D, tw: Tween) -> Node3D:
+	var mochi: Node3D = _player.get_node_or_null("Mochi")
+	if mochi == null:
+		return null
+	_gesto_in_corso = true
+	_player.set_physics_process(false)
+	var verso: Vector3 = (nodo.global_position - _player.global_position) \
+			* Vector3(1, 0, 1)
+	var yaw_a := atan2(-verso.x, -verso.z)
+	tw.tween_method(func(a: float): mochi.set("_yaw", a),
+			float(mochi.get("_yaw")), yaw_a, 0.18) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	mochi.call("hold_reach", true)
+	return mochi
+
+
+func _congeda_gesto(mochi: Node3D) -> void:
+	if is_instance_valid(mochi):
+		mochi.call("hold_reach", false)
+		mochi.set("crouch", 0.0)
+	if _player:
+		_player.set_physics_process(true)
+	_gesto_in_corso = false
+
+
+func _stendi_con_gesto(nodo: Node3D, s: Dictionary) -> void:
+	var tw := create_tween()
+	var mochi := _prepara_gesto(nodo, tw)
+	if mochi == null:
+		# niente corpo in scena: il vecchio istante, senza gesto
+		s["teli"] = _stendi(nodo, _colori_mochi(), false)
+		tw.kill()
+		return
+	var colori := _colori_mochi()
+	var teli := Node3D.new()
+	nodo.add_child(teli)
+	s["teli"] = teli
+	for i in mini(colori.size(), 3):
+		# giù al cestello ad afferrare il telo...
+		tw.tween_property(mochi, "pour", 0.0, 0.2) \
+				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		tw.parallel().tween_property(mochi, "crouch", 0.32, 0.2) \
+				.set_trans(Tween.TRANS_SINE)
+		# ...e su alla corda, ad appenderlo
+		tw.tween_property(mochi, "pour", 1.0, 0.34) \
+				.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tw.parallel().tween_property(mochi, "crouch", 0.0, 0.3) \
+				.set_trans(Tween.TRANS_SINE)
+		tw.tween_callback(_appendi_telo.bind(teli, colori, i))
+		tw.tween_interval(0.14)
+	tw.tween_property(mochi, "pour", 0.0, 0.22).set_trans(Tween.TRANS_SINE)
+	tw.tween_callback(func():
+		_congeda_gesto(mochi)
+		if is_instance_valid(nodo):
+			_gocce(nodo.global_position + Vector3(0, 0.9, 0)))
+
+
+# un telo alla volta: nasce piegato sulla corda e si SPIEGA — con le due
+# mollette che fanno tic, tic
+func _appendi_telo(teli: Node3D, colori: Array, i: int) -> void:
+	if not is_instance_valid(teli):
+		return
+	var x := -0.3 + 0.3 * float(i) + randf_range(-0.03, 0.03)
+	var telo := _telo(colori[mini(i, colori.size() - 1)],
+			randf_range(0.2, 0.26), randf_range(0.34, 0.44))
+	telo.position = Vector3(x, 1.075 - absf(x) * 0.05, 0)
+	telo.scale = Vector3(1, 0.06, 1)
+	teli.add_child(telo)
+	var tw := create_tween()
+	tw.tween_property(telo, "scale:y", 1.0, 0.3) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	if _sfx:
+		_sfx.play("swish", -19.0, 1.35)
+		_sfx.play("tick", -13.0, 1.2)
+		get_tree().create_timer(0.13).timeout.connect(func():
+			if _sfx:
+				_sfx.play("tick", -13.0, 1.32))
+
+
+func _ritira_con_gesto(nodo: Node3D, s: Dictionary) -> void:
+	var teli: Node3D = s["teli"]
+	s["teli"] = null
+	if teli == null or not is_instance_valid(teli):
+		return
+	var tw := create_tween()
+	var mochi := _prepara_gesto(nodo, tw)
+	if mochi == null:
+		_stendini_fallback_ritira(teli)
+		tw.kill()
+		return
+	# su alla corda, poi una TIRATA per telo: il telo si sfila (tic) e
+	# scende nel cestello; il braccio molleggia a ogni strappo
+	tw.tween_property(mochi, "pour", 1.0, 0.26) \
+			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	for telo in teli.get_children():
+		tw.tween_property(mochi, "pour", 0.62, 0.14) \
+				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		tw.parallel().tween_property(telo, "scale:y", 0.05, 0.16) \
+				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+		tw.tween_callback(func():
+			if _sfx:
+				_sfx.play("tick", -14.0, 1.28))
+		tw.tween_property(mochi, "pour", 1.0, 0.14) \
+				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	# l'ultimo gesto: la pila nel cestello (accovacciata), su, e via
+	tw.tween_property(mochi, "pour", 0.0, 0.24).set_trans(Tween.TRANS_SINE)
+	tw.parallel().tween_property(mochi, "crouch", 0.3, 0.24) \
+			.set_trans(Tween.TRANS_SINE)
+	tw.tween_property(mochi, "crouch", 0.0, 0.2).set_trans(Tween.TRANS_SINE)
+	tw.tween_callback(func():
+		_congeda_gesto(mochi)
+		if is_instance_valid(teli):
+			teli.queue_free())
+
+
+func _stendini_fallback_ritira(teli: Node3D) -> void:
+	var tw := create_tween()
+	tw.tween_property(teli, "scale", Vector3(1.0, 0.04, 1.0), 0.3) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tw.tween_callback(teli.queue_free)
 
 
 func _build_prompt() -> void:
