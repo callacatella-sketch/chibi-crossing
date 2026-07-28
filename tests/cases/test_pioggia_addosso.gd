@@ -35,8 +35,8 @@ func run(t) -> void:
 			"col fagotto gia' in spalla il braccio NON gira oltre (clamp)")
 	t.ok(visitor.contains("bersagli[\"ear\"] += 0.85 * _riparo"),
 			"orecchie basse anche per i residenti")
-	t.ok(visitor.contains("_gait_ph += delta * 8.0 * (1.0 + 0.42 * _riparo)"),
-			"la fase del passo e' un accumulatore: si infittisce senza saltare")
+	t.ok(visitor.contains("_gait_ph += v * delta * 5.5 * (1.0 + 0.42 * _riparo)"),
+			"la fase del passo e' un accumulatore: si infittisce senza saltare (e ora avanza coi METRI, non col tempo)")
 
 	# --- Visitors: il flag per chi e' fuori senza tetto, ospite compreso ---
 	t.ok(visitors.contains("riparo_pioggia\", raining and not _build.has_cover"),
