@@ -407,6 +407,24 @@ C++ via GDExtension. Tutta l'arte è procedurale: zero asset esterni.
   dalla pioggia". Quando smette, se è giorno, un **arcobaleno a 7 bande
   pastello** (mesh procedurale con vertex color, punte che sfumano) si
   distende sul villaggio e svanisce piano.
+- **La veglia della guardia** (`scenes/npc/Veglia.gd`) — «Fare la guardia»
+  era l'unico lavoro che si poteva solo perderci: costava rancore e non
+  produceva niente. Adesso produce **il sonno degli altri**. Al calare
+  della sera chi ha l'incarico esce a fare la **ronda** e accende una
+  lanterna di carta a ogni tappa — prima le case di chi dorme, poi la
+  piazza e il falò. Quante ne accende lo decide la stessa resa che regola
+  legna e piatti: sereno, il villaggio è tutto illuminato; svogliato,
+  metà resta al buio; dal rifiuto in poi non esce proprio — e **la scala
+  della ribellione si legge a colpo d'occhio, di notte, senza aprire un
+  pannello**. All'alba le lanterne si spengono. Chi ha dormito sotto la
+  veglia si sveglia più sereno e con un ricordo buono intestato al
+  guardiano (che così diventa, notte dopo notte, la voce a cui il
+  villaggio crede di più); chi ha dormito al buio si sveglia un po' meno
+  tranquillo — mai abbastanza da ribellarsi, e un Lampione comprato al
+  carretto conta come una lanterna. Chi veglia paga la propria quiete
+  per comprare quella di tutti gli altri: era già scritto in
+  `Animo.COMPITI` (`"guardia": {"sicurezza": -0.05}`), mancava solo il
+  destinatario.
 - **Una sola aria** (`shaders/vento.gdshaderinc`) — l'erba aveva le sue
   folate, il bucato la sua oscillazione, e le chiome degli alberi… niente:
   stavano immobili in mezzo a un mondo che ondeggiava, e si muovevano solo

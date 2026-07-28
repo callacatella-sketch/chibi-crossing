@@ -130,6 +130,12 @@ const T := {
 	"in tavola: %s": "on the table: %s",
 	"%d tesori dal bosco": "%d treasures from the woods",
 	"un tesoro dal bosco": "one treasure from the woods",
+
+	# --- la ronda della guardia: quello che la notte ha lasciato ---
+	"%d lanterne accese sulla ronda": "%d lanterns lit along the round",
+	"una lanterna accesa sulla ronda": "one lantern lit along the round",
+	"che buio, stanotte, dalle parti di %d case": "such a dark night, out by %d of the houses",
+	"che buio, stanotte": "such a dark night",
 	"Il lavoro del mattino: %s": "The morning's work: %s",
 
 	# ------------------------------------------------------ la vita di ogni giorno

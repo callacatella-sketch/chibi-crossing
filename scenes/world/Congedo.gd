@@ -16,6 +16,7 @@ extends Node
 ## - impostazione «Prato Eterno»: chi vuole può spegnere le partenze.
 
 const HANDPAINT := preload("res://shaders/handpaint.gdshader")
+const LANTERNE := preload("res://scenes/world/Lanterne.gd")
 const UI_BROWN := Color("6a4a3a")
 # i racconti dei momenti vivono in Legami.TIPI: una fonte sola
 const TIPI := preload("res://scenes/world/Legami.gd").TIPI
@@ -397,69 +398,14 @@ func _posti_lanterne() -> Array[Vector3]:
 ## corpo di carta calda che TRASLUCE (il handpaint lascia passare il
 ## controluce), le costine sottili, la fiammella dentro e la sua luce.
 func _lanterna(pos: Vector3) -> Dictionary:
-	var node := Node3D.new()
-	node.position = pos
-	node.rotation.y = randf() * TAU
-	var taglia := randf_range(0.92, 1.08)   # fatte a mano: mai due uguali
-	add_child(node)
-	node.add_to_group("luce_calda")
-
-	var legno := _pm(Color("6e5138"), Color("55402c"))
-	var carta := _pm(Color("fff2da"), Color("f4deb4"))
-	carta.set_shader_parameter("translucency", 0.65)
-
-	# piedino e stelo
-	_cilindro(node, 0.055, 0.05, legno, Vector3(0, 0.025, 0))
-	_cilindro(node, 0.014, 0.36, legno, Vector3(0, 0.23, 0))
-	# il corpo di carta, appena schiacciato come i chōchin veri
-	var corpo := MeshInstance3D.new()
-	var sm := SphereMesh.new()
-	sm.radius = 0.115
-	sm.height = 0.23
-	sm.radial_segments = 20
-	corpo.mesh = sm
-	corpo.material_override = carta
-	corpo.position = Vector3(0, 0.62, 0)
-	corpo.scale = Vector3(1.0, 1.12, 1.0)
-	node.add_child(corpo)
-	# le costine di carta: tre anelli sottili che danno il ritmo del bambù
-	for h in [-0.055, 0.0, 0.055]:
-		var costina := MeshInstance3D.new()
-		var tm := TorusMesh.new()
-		var r_h := sqrt(maxf(0.0001, 0.115 * 0.115 - float(h) * float(h) * 0.8))
-		tm.inner_radius = r_h - 0.004
-		tm.outer_radius = r_h + 0.004
-		costina.mesh = tm
-		costina.material_override = _pm(Color("e8cf9e"), Color("d6ba84"))
-		costina.position = Vector3(0, 0.62 + float(h) * 1.12, 0)
-		costina.scale = Vector3(1, 0.5, 1)
-		node.add_child(costina)
-	# cappellino e anellino per appenderla
-	_cilindro(node, 0.055, 0.035, legno, Vector3(0, 0.765, 0))
-	# la fiammella: il cuore emissivo che respira (lo anima _respira_lanterne)
-	var core := MeshInstance3D.new()
-	var cm := SphereMesh.new()
-	cm.radius = 0.05
-	cm.height = 0.1
-	core.mesh = cm
-	var core_mat := StandardMaterial3D.new()
-	core_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	core_mat.albedo_color = Color("ffdf9a")
-	core_mat.emission_enabled = true
-	core_mat.emission = Color(1.0, 0.76, 0.4)
-	core_mat.emission_energy_multiplier = 0.0
-	core.material_override = core_mat
-	core.position = Vector3(0, 0.62, 0)
-	node.add_child(core)
-	var luce := OmniLight3D.new()
-	luce.light_color = Color(1.0, 0.78, 0.45)
-	luce.omni_range = 2.8
-	luce.light_energy = 0.0
-	luce.shadow_enabled = false
-	luce.position = Vector3(0, 0.62, 0)
-	node.add_child(luce)
-	return {"node": node, "luce": luce, "core": core_mat,
-			"fase": randf() * TAU, "nascita": 0.0, "taglia": taglia}
+	# la lanterna e' della FABBRICA CONDIVISA (scenes/world/Lanterne.gd): la
+	# stessa che accende la ronda della guardia ogni sera. Prima viveva solo
+	# qui, e due chochin in due posti diversi col tempo divergono.
+	# Il RESPIRO invece resta nostro (_respira_lanterne): questa scena ha la
+	# sua accensione lenta, tarata sull'ultima sera.
+	var scheda := LANTERNE.accendi(pos)
+	add_child(scheda["node"] as Node3D)
+	return scheda
 
 
 func _cilindro(parent: Node3D, r: float, h: float, mat: Material, pos: Vector3) -> void:
@@ -533,7 +479,13 @@ func _partenza() -> void:
 
 	# la lettera sul letto: l'accessorio piegato e le sue parole
 	if _mail:
-		var testo := L10n.tf("Sono partita all'alba, col cappello in zampa.\nPorto con me %d momenti del nostro filo", [momenti.size()])
+		# il conto VISSUTO, non quello che il filo riesce ancora a portare:
+		# dopo cento giorni il filo ne conserva trenta, ma la vita insieme
+		# è stata più lunga — e dire trenta sarebbe una bugia proprio nella
+		# lettera che chiude la storia (vedi Legami.momenti_vissuti)
+		var quanti_vissuti: int = int(_legami.call("momenti_vissuti", nome)) \
+				if _legami else momenti.size()
+		var testo := L10n.tf("Sono partita all'alba, col cappello in zampa.\nPorto con me %d momenti del nostro filo", [quanti_vissuti])
 		if oro > 0:
 			testo += L10n.tf(",\ne i %d d'oro dell'ultima settimana", [oro])
 		testo += L10n.tf(".\nTi lascio il mio ricordino: portalo tu.\nNon serbo che gratitudine. — %s", [nome])
