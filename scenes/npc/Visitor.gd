@@ -143,6 +143,22 @@ var _task_cb := Callable()
 var _task_acc := 0.0
 var _can: Node3D               # il bricco in zampa mentre annaffia
 
+# --- il pasto (scenes/npc/Pasto.gd): la ciotola regalata, mangiata davvero ---
+const PASTO := preload("res://scenes/npc/Pasto.gd")
+var _pasto_ciotola: Node3D     # la ciotola in mano, mentre dura
+var _pasto_cibo: Node3D        # il disco di cibo dentro: cala a ogni morso
+var _pasto_vapore: GPUParticles3D
+var _pasto_caldo := true
+var _pasto_adorato := false
+var _pasto_col := Color("e8944a")
+var _pasto_t := 0.0            # da quanto dura il rituale
+var _pasto_morsi := 0          # quanti morsi già dati (per i suoni e le briciole)
+var _pasto_sbuffi := 0
+var _pasto_grazie := false
+var _pasto_ritorno := ""       # lo stato a cui tornare quando ha finito
+var _pasto_in_corso := false   # il recinto: mentre è acceso, il corpo è del pasto
+var _pasto_bocca := 0.0        # la quota della bocca di QUESTO chibi (misurata una volta)
+
 
 func setup(p_species: String, entry: Vector3, plaza: Vector3, pois: Array[Vector3],
 		bench: Node3D, exit_a: Vector3, exit_b: Vector3) -> void:
@@ -403,7 +419,19 @@ func _build_suitcase() -> void:
 
 # ---------------------------------------------------------------- stati
 
+## IL RECINTO DEL PASTO. Finché mangia, il corpo è suo: nessuno gli cambia
+## stato e nessuno lo manda a spasso. Senza questo, la routine dei residenti
+## (o il cervello, o un piano del Regista) chiama `_enter_state` a metà
+## morso e il vicino se ne va a passeggio con la ciotola incollata al petto
+## — è successo davvero, alla prima prova in scena. Il pasto dura cinque
+## secondi: aspettare che finisca non toglie niente a nessuno.
+func _pasto_occupa(nuovo: String) -> bool:
+	return _pasto_in_corso and nuovo != "r_pasto"
+
+
 func _walk_to(pos: Vector3, next: String) -> void:
+	if _pasto_in_corso:
+		return
 	position.y = 0.0  # rinormalizza: chi arriva da panchina/onsen/scala torna a terra
 	_target = Vector3(pos.x, 0, pos.z)
 	_next_state = next
@@ -411,6 +439,8 @@ func _walk_to(pos: Vector3, next: String) -> void:
 
 
 func _enter_state(s: String) -> void:
+	if _pasto_occupa(s):
+		return
 	_state = s
 	match s:
 		"browse":
@@ -704,6 +734,14 @@ func _process(delta: float) -> void:
 			_anim_idle()
 			if _timer <= 0.0:
 				_enter_state("r_idle")
+		"r_pasto":
+			# il pasto si prende il corpo per tutta la sua durata: nessun
+			# altro stato ci scrive sopra, o la ciotola resterebbe a mezz'aria
+			_timer -= delta
+			_pasto_recita(delta)
+			if _timer <= 0.0:
+				_pasto_via()
+				_enter_state(_pasto_ritorno if _pasto_ritorno != "" else "r_idle")
 		"r_fire":
 			_anim_sit()
 			_resident_greet(delta)
@@ -1013,6 +1051,266 @@ func _anim_idle() -> void:
 	_relax_legs()
 	_vis.position.y = absf(sin(_t * 3.0)) * 0.015
 	_head.rotation.y = sin(_t * 0.8) * 0.25
+
+
+# ============================================================ IL PASTO
+# Il piatto regalato non svanisce più a mezz'aria: il vicino lo PRENDE, ci
+# si sporge sopra, ci soffia se scotta, lo mangia in tre morsetti e alla
+# fine ringrazia — lo stesso rituale di Mochi al camino, visto da fuori.
+# I tempi stanno tutti in Pasto.gd; qui c'è solo il corpo che li recita.
+
+## Gli si consegna la ciotola: da questo momento è sua. `caldo` decide se
+## ci soffia sopra, `adorato` se è il piatto che il suo DNA sogna (allora
+## il pasto è più esuberante: il saltello, gli occhi che brillano).
+## La ciotola passa di proprietà: la libera lui, a rituale finito.
+func mangia(ciotola: Node3D, colore: Color, caldo := true, adorato := false) -> void:
+	if ciotola == null or not is_instance_valid(ciotola) or _vis == null:
+		return
+	# un pasto alla volta: se ne stava già facendo uno, quello vecchio si
+	# chiude subito invece di lasciare due ciotole appese al petto
+	if _state == "r_pasto":
+		_pasto_via(true)
+	_pasto_ritorno = "r_idle" if mode == "resident" else "browse"
+	_pasto_caldo = caldo
+	_pasto_adorato = adorato
+	_pasto_col = colore
+	_pasto_t = 0.0
+	_pasto_morsi = 0
+	_pasto_sbuffi = 0
+	_pasto_grazie = false
+	_pasto_ciotola = ciotola
+	# la ciotola entra nel corpo (conservando dov'è nel mondo, così non
+	# "salta" nel frame del passaggio di mano) e poi si accomoda al petto
+	if ciotola.get_parent() != null:
+		ciotola.reparent(_vis)
+	else:
+		_vis.add_child(ciotola)
+	# la scala si RIMETTE a uno a mano: `reparent` la calcola per conservare
+	# la dimensione nel mondo, e se il corpo del chibi sta ancora nascendo
+	# (o è mid-tween) quel conto lascia una ciotola gigante o invisibile
+	ciotola.scale = Vector3.ONE
+	ciotola.rotation = Vector3.ZERO
+	var tw := create_tween()
+	tw.tween_property(ciotola, "position", _pasto_posa(0.0), 0.32) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	# il disco di cibo dentro la ciotola: è quello che cala a ogni morso
+	_pasto_cibo = null
+	for c in ciotola.get_children():
+		if c is MeshInstance3D and (c as MeshInstance3D).mesh is CylinderMesh \
+				and (c as MeshInstance3D).position.y > 0.0:
+			_pasto_cibo = c
+	if caldo:
+		_pasto_vapore = PASTO.vapore()
+		ciotola.add_child(_pasto_vapore)
+		_pasto_vapore.position = Vector3(0, 0.08, 0)
+	_pasto_in_corso = true
+	_state = "r_pasto"
+	_timer = PASTO.durata(caldo)
+
+
+## Dove sta la ciotola al tempo dato: davanti al petto, e su verso il
+## musetto per annusare e a ogni morso. La FORMA del gesto la dà
+## Pasto.alzata (0..1); qui si traduce nella statura di QUESTO chibi —
+## il DNA cambia testa e gambe, e una quota fissa lascerebbe i piccoli a
+## mangiare sopra la testa e i grandi a mangiarsi le zampe.
+func _pasto_posa(t: float) -> Vector3:
+	# la quota della BOCCA, non della testa: la testona dei chibi è grande e
+	# mezza spanna di differenza porta la ciotola davanti agli occhi invece
+	# che alle labbra (è successo alla seconda prova in scena). La bocca la
+	# si chiede al rig facciale vero; se questo chibi non ce l'ha (riccio,
+	# passerotto) si ripiega su una frazione della testa.
+	var bocca := _pasto_bocca_y()
+	var grembo := bocca * 0.62            # la ciotola a riposo, contro il petto
+	var alle_labbra := bocca - 0.035      # e alzata, appena sotto il musetto
+	var su := PASTO.alzata(t, _pasto_caldo)
+	return Vector3(0, lerpf(grembo, alle_labbra, su), -0.20 - su * 0.02)
+
+
+# la quota (locale a _vis) della bocca di questo chibi
+func _pasto_bocca_y() -> float:
+	if _pasto_bocca > 0.0:
+		return _pasto_bocca
+	_pasto_bocca = (_head.position.y * 0.88) if _head else 0.55
+	if _face:
+		var bocche: Dictionary = _face.get("_mouths")
+		for chiave in bocche:
+			var nodo := bocche[chiave] as Node3D
+			if nodo != null and is_instance_valid(nodo):
+				# la bocca è figlia della testa: la sua quota va sommata
+				_pasto_bocca = _head.position.y + nodo.position.y
+				break
+	return _pasto_bocca
+
+
+func _pasto_recita(delta: float) -> void:
+	_pasto_t += delta
+	var t := _pasto_t
+	var fase := PASTO.fase(t, _pasto_caldo)
+	var avanti := PASTO.avanzamento(t, _pasto_caldo)
+	var morso := PASTO.scatto_morso(t, _pasto_caldo)
+
+	_relax_legs()
+	# il respiro sotto tutto: il corpo non è mai fermo del tutto
+	_vis.position.y = absf(sin(_t * 3.0)) * 0.012
+
+	# --- le zampine: salgono ad accogliere la ciotola e ci restano ---
+	if _c_arms.size() == 2:
+		var stretta := 1.0 if fase != "prende" else ease(avanti, 0.4)
+		if fase == "posa":
+			stretta = 1.0 - ease(avanti, 0.6)   # e tornano giù, a rituale finito
+		for i in 2:
+			var braccio := _c_arms[i] as Node3D
+			braccio.rotation.x = lerpf(0.0, 0.95 + morso * 0.18, stretta)
+			braccio.rotation.z = lerpf(0.0, (-0.22 if i == 0 else 0.22), stretta)
+
+	# --- la ciotola: la posa la dà Pasto, così non salta mai tra le battute ---
+	if is_instance_valid(_pasto_ciotola) and fase != "" and _pasto_t > 0.34:
+		_pasto_ciotola.position = _pasto_posa(t)
+	if is_instance_valid(_pasto_cibo):
+		# il cibo cala a scatti (un terzo per morso) con un piccolo
+		# assestamento: sembra mangiato, non evaporato
+		var quanto := PASTO.cibo(t, _pasto_caldo)
+		_pasto_cibo.scale = Vector3(1.0, maxf(quanto, 0.02), 1.0)
+		_pasto_cibo.position.y = 0.045 - (1.0 - quanto) * 0.012
+
+	match fase:
+		"prende":
+			# la testa scende a guardare cosa gli hanno messo tra le zampe
+			_head.rotation.x = lerpf(0.0, 0.34, ease(avanti, 0.4))
+			_head.rotation.y = lerpf(_head.rotation.y, 0.0, 0.2)
+			if avanti < 0.06:
+				_faccia("gioia" if _pasto_adorato else "felice")
+				# chi adora quel piatto non riesce a stare fermo
+				if _pasto_adorato:
+					var salto := create_tween()
+					salto.tween_property(_vis, "position:y", 0.16, 0.16) \
+							.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+					salto.tween_property(_vis, "position:y", 0.0, 0.14) \
+							.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+		"annusa":
+			# si sporge sul piatto: il calore si SENTE prima di assaggiarlo
+			_head.rotation.x = 0.34 + sin(avanti * PI) * 0.1
+			_vis.rotation.x = sin(avanti * PI) * 0.07
+			if avanti < 0.06:
+				_faccia("beato")
+			# le orecchie si drizzano piano (il buon odore le sveglia)
+			for orecchio in _c_ears:
+				(orecchio as Node3D).rotation.x = -0.28 * sin(avanti * PI)
+		"soffia":
+			_head.rotation.x = 0.30
+			_vis.rotation.x = 0.04
+			if avanti < 0.06:
+				_faccia("soffio")
+			# due sbuffi, come Mochi: uno all'inizio e uno a metà
+			var quanti := 1 if avanti < 0.5 else 2
+			if quanti > _pasto_sbuffi:
+				_pasto_sbuffi = quanti
+				_pasto_sbuffo()
+		"morsi":
+			# la testa SCENDE a incontrare la ciotola che sale: sono due
+			# movimenti che si vengono incontro, ed è lì che nasce il peso
+			_head.rotation.x = 0.30 + morso * 0.16
+			# lo schiacciamento del morso (squash), tenuto piccolo
+			_vis.scale = Vector3(1.0 + morso * 0.035, 1.0 - morso * 0.045,
+					1.0 + morso * 0.035)
+			if avanti < 0.06:
+				_faccia("gioia" if _pasto_adorato else "felice")
+			# la masticazione tra un morso e l'altro: la testolina lavora
+			if morso <= 0.01:
+				_head.rotation.z = sin(_t * 16.0) * 0.045
+			var dovuti := 0
+			for i in PASTO.MORSI:
+				if t >= PASTO.momento_morso(i, _pasto_caldo):
+					dovuti += 1
+			if dovuti > _pasto_morsi:
+				_pasto_morsi = dovuti
+				_pasto_morso_dato()
+		"sospiro":
+			# la beatitudine: testa che si alza, occhi socchiusi, il grazie
+			_head.rotation.x = lerpf(0.30, -0.16, ease(avanti, 0.4))
+			_head.rotation.z = 0.0
+			_vis.rotation.x = 0.0
+			_vis.scale = Vector3.ONE
+			if not _pasto_grazie:
+				_pasto_grazie = true
+				_faccia("beato")
+				_spawn_heart()
+				# «ta-ki! wa-wi!» — grazie, che felicità. Il ringraziamento
+				# arriva DOPO l'assaggio: è il boccone a parlare, non l'educazione
+				speak(["grazie", "felice"] if _pasto_adorato else ["grazie"],
+						"felice")
+				if _pasto_adorato:
+					get_tree().create_timer(0.45).timeout.connect(func() -> void:
+						if is_instance_valid(self):
+							_spawn_heart())
+		"posa":
+			# la ciotola si inclina: si vede che è VUOTA, e solo allora se ne va
+			_head.rotation.x = lerpf(-0.16, 0.0, avanti)
+			if is_instance_valid(_pasto_ciotola):
+				_pasto_ciotola.rotation.z = ease(avanti, 0.5) * 0.9
+			if avanti > 0.5 and is_instance_valid(_pasto_ciotola) \
+					and _pasto_ciotola.scale.x > 0.9:
+				var via := create_tween()
+				via.tween_property(_pasto_ciotola, "scale", Vector3.ONE * 0.03, 0.22) \
+						.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+
+
+# il morso: briciole, "gnam" e un guizzo di coda
+func _pasto_morso_dato() -> void:
+	if _sfx:
+		_sfx.munch()
+	var briciole := PASTO.briciole(_pasto_col)
+	add_child(briciole)
+	if is_instance_valid(_pasto_ciotola):
+		briciole.global_position = _pasto_ciotola.global_position + Vector3(0, -0.02, 0)
+	briciole.emitting = true
+	get_tree().create_timer(1.2).timeout.connect(func() -> void:
+		if is_instance_valid(briciole):
+			briciole.queue_free())
+
+
+func _pasto_sbuffo() -> void:
+	var sbuffo := PASTO.sbuffo()
+	add_child(sbuffo)
+	# parte dal musetto e va verso la ciotola
+	sbuffo.global_position = _head.global_position + Vector3(0, -0.02, 0)
+	sbuffo.emitting = true
+	get_tree().create_timer(1.2).timeout.connect(func() -> void:
+		if is_instance_valid(sbuffo):
+			sbuffo.queue_free())
+
+
+# fine del rituale (o interruzione): via la ciotola, il corpo si scioglie
+func _pasto_via(subito := false) -> void:
+	_pasto_in_corso = false   # il recinto si apre: il vicino torna alla sua vita
+	if is_instance_valid(_pasto_vapore):
+		_pasto_vapore.emitting = false
+	if is_instance_valid(_pasto_ciotola):
+		var c := _pasto_ciotola
+		if subito:
+			c.queue_free()
+		else:
+			var tw := create_tween()
+			tw.tween_property(c, "scale", Vector3.ONE * 0.02, 0.2) \
+					.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+			tw.tween_callback(c.queue_free)
+	_pasto_ciotola = null
+	_pasto_cibo = null
+	_pasto_vapore = null
+	if _vis:
+		_vis.scale = Vector3.ONE
+		_vis.rotation.x = 0.0
+	if _head:
+		_head.rotation.x = 0.0
+		_head.rotation.z = 0.0
+	_faccia("neutro")
+
+
+# l'espressione, solo se questo chibi ha un volto vivo (i visitatori
+# riccio/passerotto ne sono privi: per loro il pasto resta corpo e voce)
+func _faccia(nome: String) -> void:
+	if _face:
+		_face.set_expression(nome)
 
 
 ## Recita un piano composto dal Regista (lista di passi Lua validati).
