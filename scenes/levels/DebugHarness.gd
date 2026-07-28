@@ -48,6 +48,8 @@ func run(level: Node3D, mode: String, arg: String = "") -> void:
 			await _debug_pioggia(arg)
 		"bucato":
 			await _debug_bucato(arg)
+		"saluti":
+			await _debug_saluti(arg)
 
 func _frames(n: int):
 	for i in n:
@@ -472,6 +474,63 @@ func _debug_facce(dir: String) -> void:
 
 	mochi.forza_espressione("")
 	print("FACCE: fine, %d espressioni fotografate" % n)
+	get_tree().quit()
+
+
+# ---------------------------------------------------------------- saluti
+# Il repertorio del saluto per indole: un chibi in posa recita tutti gli
+# stili uno dopo l'altro (celebrate passa dalla recita del corpo). Gli
+# scatti colgono l'apice dei quattro più caratteriali; le stampe
+# verificano che OGNI stile ingaggi il transitorio giusto.
+func _debug_saluti(dir: String) -> void:
+	var dn = _level.get_node_or_null("DayNight")
+	if dn:
+		dn.set_time(0.4)
+	await _frames(30)
+	player.global_position = Vector3(4.0, 0, 12.0)   # Mochi fuori scena
+
+	var VIS = load("res://scenes/npc/Visitor.gd")
+	var DNAG = load("res://scenes/npc/ChibiDNA.gd")
+	var v: Node3D = VIS.new()
+	v.set("species", "chibi")
+	v.set("dna", DNAG.generate(777))
+	add_child(v)
+	v.set("mode", "resident")
+	v.global_position = Vector3(-2.0, 0, 7.5)
+	v.set("_yaw", PI)
+	await _frames(4)
+
+	var fwd: Vector3 = -(v.global_transform.basis.z as Vector3)
+	var focus: Vector3 = v.global_position + Vector3(0, 0.55, 0)
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.position = focus + fwd * 2.2 + Vector3(0, 0.3, 0)
+	cam.fov = 42.0
+	cam.current = true
+	cam.look_at(focus)
+	await _frames(10)
+
+	var scatti := {"saluto_timido": 0.75, "saluto_brontolone": 0.75,
+			"saluto_festoso": 0.55, "saluto_sognante": 1.0}
+	var ok := 0
+	for stile in VIS.RECITA_TRANS:
+		if not str(stile).begins_with("saluto"):
+			continue
+		v.set("saluto_stile", str(stile))
+		v.call("celebrate")
+		await _frames(3)
+		var preso: bool = str(v.get("_rc_trans")) == str(stile)
+		if preso:
+			ok += 1
+		print("SALUTI: %s ingaggiato -> %s" % [stile, "SI" if preso else "NO"])
+		if scatti.has(stile):
+			await get_tree().create_timer(float(scatti[stile])).timeout
+			await _shot(dir, str(stile))
+			await get_tree().create_timer(1.6).timeout
+		else:
+			await get_tree().create_timer(2.2).timeout
+	print("SALUTI: %d stili su 8 ingaggiati" % ok)
+	print("SALUTI: fine")
 	get_tree().quit()
 
 

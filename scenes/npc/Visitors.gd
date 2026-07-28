@@ -533,6 +533,12 @@ func _ensure_brain(r: Dictionary) -> RefCounted:
 		if node:
 			node.set("greet_enabled",
 					not brain.has_indole("timido") or int(r.get("friend", 0)) >= 3)
+	# il saluto della sua indole arriva al corpo (una volta sola per nodo:
+	# i nodi rinascono a ogni alba, il cervello no)
+	var nodo_s := r.get("node") as Node3D
+	if nodo_s and is_instance_valid(nodo_s) \
+			and str(nodo_s.get("saluto_stile")) == "":
+		nodo_s.set("saluto_stile", VISITOR.saluto_di(_brains[key]))
 	return _brains[key]
 
 

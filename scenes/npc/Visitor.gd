@@ -62,7 +62,37 @@ const RECITA_TRANS := {
 	"esita": {"dur": 2.4, "vx": 0.1, "hx": 0.14, "hy_amp": 0.3},
 	"trasalisce": {"dur": 1.3, "ear": -0.75, "ax": -0.6, "hx": -0.12},
 	"si_illumina": {"dur": 1.8, "ear": -0.6, "ax": -0.35, "hx": -0.08},
+	# --- il REPERTORIO DEL SALUTO: la stessa gioia, filtrata dall'indole.
+	# Qui vivono le pose base; le onde-firma (l'applauso piccolo, il mezzo
+	# saltello riluttante…) stanno in recita_bersagli, caso per caso.
+	"saluto_festoso": {"dur": 1.5, "ax": -1.7, "ear": -0.5, "hx": -0.08},
+	"saluto_timido": {"dur": 1.7, "ax": 0.7, "az": 0.8, "ear": 0.4, "hx": 0.2},
+	"saluto_brontolone": {"dur": 1.9, "ax": 0.1, "ear": 0.25, "hx": 0.06},
+	"saluto_sognante": {"dur": 2.3, "ax_dx": -2.5, "ear": -0.3, "hx": -0.24},
+	"saluto_pancino": {"dur": 1.6, "ax": 0.95, "az": 0.55, "ear": -0.2, "hx": -0.04},
+	"saluto_stiracchio": {"dur": 2.1, "ax": -2.3, "ear": 0.35, "hx": -0.18},
+	"saluto_scattante": {"dur": 1.1, "ax_dx": -2.0, "ear": -0.6, "hx": -0.1},
+	"saluto_inchino": {"dur": 1.6, "ax": 0.3, "vx": 0.34, "hx": 0.3, "ear": 0.12},
 }
+
+## Il saluto di ciascuno, dall'indole del cervello (VillagerBrain): il
+## timido applaude piccolo, il brontolone si concede un mezzo saltello,
+## il sognatore ondeggia lento… Priorità alle indoli più caratteriali.
+static func saluto_di(brain) -> String:
+	if brain == null:
+		return "saluto_festoso"
+	for coppia: Array in [
+			["timido", "saluto_timido"],
+			["brontolone", "saluto_brontolone"],
+			["sognatore", "saluto_sognante"],
+			["goloso", "saluto_pancino"],
+			["dormiglione", "saluto_stiracchio"],
+			["mattiniero", "saluto_scattante"],
+			["ordinato", "saluto_inchino"],
+			["chiacchierone", "saluto_festoso"]]:
+		if brain.has_indole(str(coppia[0])):
+			return str(coppia[1])
+	return "saluto_festoso"
 
 var _rc_stabile := "sereno"
 var _rc_trans := ""
@@ -76,6 +106,10 @@ var _rc_appl := {}   # ciò che è stato sommato al rig l'ultimo frame
 var riparo_pioggia := false
 var _riparo := 0.0
 var _gait_ph := 0.0   # la fase del passo chibi (si infittisce con la pioggia)
+
+# il saluto della SUA indole (saluto_di, lo cabla Visitors col cervello):
+# "" finché il cervello non è nato — allora vale il festoso di default
+var saluto_stile := ""
 var _fagotto: Node3D
 
 # la voce Chibiese: nasce dal DNA, parla dal proprio corpo (audio 3D)
@@ -1822,6 +1856,16 @@ func chat_bubble(sym: String) -> void:
 
 ## Festa grande: doppio salto e cuoricini.
 func celebrate() -> void:
+	# la festa col corpo della SUA indole: il timido applaude piccolo, il
+	# brontolone si concede il mezzo saltello riluttante… La recita si
+	# somma a qualunque stato, quindi funziona anche in cammino.
+	if not dna.is_empty() and saluto_stile != "" \
+			and RECITA_TRANS.has(saluto_stile):
+		set_meta("postura", saluto_stile)
+		for i in 3:
+			get_tree().create_timer(0.2 * i).timeout.connect(_spawn_heart)
+		return
+	# ospiti senza il rig chibi (o senza cervello): il doppio rimbalzo
 	var tw := create_tween()
 	for i in 2:
 		tw.tween_property(_vis, "position:y", 0.24, 0.18) \
@@ -1853,8 +1897,23 @@ func _resident_greet(delta: float) -> void:
 	if _player_ref.global_position.distance_to(global_position) < 1.4:
 		_greet_cd = 8.0
 		_spawn_heart()
-		# «ya-ho!» — il saluto Chibiese, ognuno con la sua voce
-		speak(["ciao"], "felice")
+		# il saluto col CORPO, filtrato dall'indole: l'applauso piccolo
+		# del timido, il mezzo saltello del brontolone, l'onda lenta del
+		# sognatore… (recita: si somma a qualunque stato)
+		if not dna.is_empty():
+			set_meta("postura",
+					saluto_stile if RECITA_TRANS.has(saluto_stile) else "saluto_festoso")
+		# «ya-ho!» — il saluto Chibiese, ognuno con la sua voce e la sua
+		# indole: il timido un filo di voce, il chiacchierone attacca bottone
+		match saluto_stile:
+			"saluto_timido":
+				speak(["ciao"], "neutro")
+			"saluto_festoso":
+				speak(["ciao", "amico", "felice"], "felice")
+			"saluto_brontolone":
+				speak(["ciao", "~"], "neutro")
+			_:
+				speak(["ciao"], "felice")
 		if _sfx and species == "passerotto":
 			_sfx.play("chirp" + str(1 + randi() % 3), -18.0, 1.2)
 		# e Mochi risponde con la zampina, dopo un attimo di reazione
@@ -1978,6 +2037,45 @@ static func recita_bersagli(stabile: String, trans: String, trans_t: float,
 		elif trans == "si_illumina":
 			# il saltello di gioia: rimbalza morbido finché dura la luce
 			out["vy"] += 0.09 * env * absf(sin(trans_t * 8.5))
+		elif trans == "saluto_festoso":
+			# le braccine sventolano insieme e il corpo saltella: la
+			# gioia senza filtri del chiacchierone
+			out["az0"] += 0.3 * sin(t * 11.0) * env
+			out["az1"] += 0.3 * sin(t * 11.0) * env
+			out["vy"] += 0.09 * absf(sin(trans_t * 6.3)) * env
+		elif trans == "saluto_timido":
+			# l'applauso PICCOLO: le zampine giunte si toccano appena,
+			# battiti minuti (mai un plauso pieno: si vergogna un po')
+			var battito := 0.09 * maxf(0.0, sin(trans_t * 14.0))
+			out["az0"] += battito * env
+			out["az1"] -= battito * env
+		elif trans == "saluto_brontolone":
+			# prima un mezzo no della testa che si spegne... poi il
+			# saltello RILUTTANTE, uno solo e trattenuto — e in coda un
+			# secondo, piccolissimo: il cuore di panna vince sempre
+			out["hy"] += 0.14 * sin(trans_t * 8.0) * exp(-trans_t * 2.6)
+			if trans_t > 0.55 and trans_t < 0.97:
+				out["vy"] += 0.07 * maxf(0.0, sin((trans_t - 0.55) * 7.5))
+			if trans_t > 1.25 and trans_t < 1.6:
+				out["vy"] += 0.045 * maxf(0.0, sin((trans_t - 1.25) * 9.0))
+		elif trans == "saluto_sognante":
+			# la zampa alta ondeggia LENTA (la testolina è già al cielo)
+			out["az1"] += 0.3 * sin(t * 2.3) * env
+		elif trans == "saluto_pancino":
+			# le zampine tamburellano contente sul pancino
+			var pat := 0.08 * sin(trans_t * 13.0)
+			out["az0"] += pat * env
+			out["az1"] -= pat * env
+			out["vy"] += 0.02 * absf(sin(trans_t * 6.5)) * env
+		elif trans == "saluto_stiracchio":
+			# lo stiracchiamento-saluto: le braccine su piano piano e il
+			# corpo che si allunga — è ancora mezzo addormentato
+			out["vy"] += 0.05 * smoothstep(0.2, 0.9, trans_t / 2.1) * env
+		elif trans == "saluto_scattante":
+			# lo sventolio SECCO del mattiniero: due colpi rapidi e via
+			out["az1"] += 0.42 * sin(t * 15.0) * env
+			out["vy"] += 0.08 * absf(sin(trans_t * 9.0)) * exp(-trans_t * 1.6)
+		# (saluto_inchino: l'inviluppo fa tutto — giù morbido, su preciso)
 	return out
 
 
