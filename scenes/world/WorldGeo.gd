@@ -440,3 +440,47 @@ static func drift_emitter(tex: Texture2D, count: int, sz: float, box: Vector3,
 	fx.draw_pass_1 = quad
 	fx.visibility_aabb = AABB(Vector3(-16, -12, -16), Vector3(32, 18, 32))
 	return fx
+
+
+## IL DISCO D'ACQUA: una griglia POLARE (anelli × spicchi) invece del
+## cappello a ventaglio del CylinderMesh — che ha un solo vertice al
+## centro e nessuna suddivisione radiale, quindi qualunque onda sui
+## vertici gli faceva fare solo il cono. Qui i vertici ci sono davvero:
+## le onde capillari hanno dove vivere.
+##
+## Gli anelli si INFITTISCONO verso la riva (dove l'occhio guarda di
+## striscio e le increspature contano di più): il raggio va come
+## `t^stretta` con **stretta < 1**, quindi i passi si accorciano verso
+## il bordo. Con un esponente > 1 succederebbe l'esatto contrario.
+##
+## UV: x = raggio normalizzato (0 centro, 1 riva), y = angolo/TAU —
+## così lo shader sa sempre quanto è vicino alla sponda. L'angolo NON
+## è preso modulo: l'ultimo spicchio va da 63/64 a 1.0, che è lo stesso
+## punto di 0.0 per cos/sin ma non fa tornare indietro la UV (sarebbe
+## una cucitura visibile in ogni funzione periodica dell'angolo).
+static func disco_acqua(raggio: float, anelli := 14, spicchi := 64,
+		stretta := 0.75) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var punto := func(ia: int, isp: int) -> void:
+		var fr := pow(float(ia) / float(anelli), stretta)
+		var giro := float(isp) / float(spicchi)
+		var ang := TAU * giro
+		st.set_uv(Vector2(fr, giro))
+		st.set_normal(Vector3.UP)
+		st.add_vertex(Vector3(cos(ang) * fr * raggio, 0.0, sin(ang) * fr * raggio))
+	for ia in anelli:
+		for isp in spicchi:
+			if ia == 0:
+				# il cuore: un ventaglio di triangoli sul centro
+				punto.call(0, 0)
+				punto.call(1, isp)
+				punto.call(1, isp + 1)
+			else:
+				punto.call(ia, isp)
+				punto.call(ia + 1, isp)
+				punto.call(ia + 1, isp + 1)
+				punto.call(ia, isp)
+				punto.call(ia + 1, isp + 1)
+				punto.call(ia, isp + 1)
+	return st.commit()

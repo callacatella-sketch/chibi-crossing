@@ -79,6 +79,10 @@ var _season_snow := 0.0
 var _leaf_mats: Array = []
 var _ground_mat: ShaderMaterial          # il manto del prato (../Floor)
 var _grass_mat: ShaderMaterial           # i fili d'erba veri
+# lo specchio dello stagno: prima il suo materiale era una variabile
+# LOCALE di _build_pond e nessuno poteva più parlargli
+var _pond_mat: ShaderMaterial
+var _pond_mi: MeshInstance3D
 var _petal_fx: Array[GPUParticles3D] = []   # i petali dei ciliegi (solo primavera)
 var _forest_leaf_fx: GPUParticles3D      # le foglie che cadono nel bosco (autunno)
 var _forest_leaf_mat: StandardMaterial3D  # il loro colore, ridipinto per stagione
@@ -1601,21 +1605,22 @@ func _build_pond() -> void:
 	rim_mi.scale = Vector3(1.15, 1, 1)
 	add_child(rim_mi)
 
-	# l'acqua
-	var water := CylinderMesh.new()
-	water.top_radius = POND_R
-	water.bottom_radius = POND_R
-	water.height = 0.02
-	water.radial_segments = 48
+	# l'acqua: un disco TASSELLATO (griglia polare), non il cappello a
+	# ventaglio del CylinderMesh — che ha un solo vertice al centro e
+	# nessuna suddivisione radiale, quindi le onde sui vertici gli
+	# facevano fare il cono invece dell'onda. Gli anelli si infittiscono
+	# verso la riva, dove lo sguardo è radente e le increspature contano.
 	var wmat := ShaderMaterial.new()
 	wmat.shader = WATER_SHADER
 	var wmi := MeshInstance3D.new()
-	wmi.mesh = water
+	wmi.mesh = GEO.disco_acqua(POND_R, 16, 72)
 	wmi.material_override = wmat
 	wmi.position = POND_CENTER + Vector3(0, 0.055, 0)
 	wmi.scale = Vector3(1.15, 1, 1)
 	wmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(wmi)
+	_pond_mat = wmat
+	_pond_mi = wmi
 
 	# ninfee: foglie tonde col taglio, un paio in fiore
 	var pad_mat := GEO.paint_mat(Color("6aa858"), Color("548c46"), 3.0, 0.55)
@@ -1765,6 +1770,88 @@ func water_ripple(pos: Vector3, size := 1.0, surface_y := 0.075) -> void:
 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	tw.tween_property(mat, "albedo_color:a", 0.0, 0.9).set_ease(Tween.EASE_IN)
 	tw.chain().tween_callback(ring.queue_free)
+
+
+# =========================================== la vita di superficie
+# A SERENO lo stagno era una lastra: la pioggia lo increspava, il sereno
+# no. Ma uno stagno vero non sta mai fermo — è pieno di bestie che lo
+# toccano da sotto e da sopra. Qui vive quel «qualcosa si muove»:
+#
+#   • LA BOLLA DEL PESCE. Ogni tanto un pesce sale a prendere un
+#     insetto e lascia un cerchio che si allarga. Sale DOVE mangia:
+#     vicino alle ninfee, dove gli insetti si posano.
+#   • L'ORA GIUSTA. I pesci abboccano all'alba e al tramonto — la
+#     "levata". A mezzogiorno pieno stanno sul fondo, di notte quasi.
+#     È un dettaglio vero, e il giocatore che pesca lo impara.
+#   • IL TOCCO DELLA LIBELLULA. Più raro: due cerchietti minuti e
+#     vicini, la coda che sfiora l'acqua due volte.
+#
+# Costa un contatore e un anello ogni parecchi secondi: gli anelli sono
+# quelli di sempre (water_ripple), gli stessi delle rane e della pesca.
+const STAGNO_BOLLA := Vector2(3.4, 9.5)     # l'attesa fra due bolle, a levata piena
+
+var _stagno_cd := 4.0
+
+## Quanto sale il pesce, a quest'ora (0 fermo sul fondo, 1 levata piena).
+## PURA: alba e tramonto sono i due momenti della levata, mezzogiorno e
+## notte fonda i due di quiete. Testata headless.
+static func levata_dei_pesci(ora: float) -> float:
+	var alba := 1.0 - clampf(absf(ora - 0.26) / 0.13, 0.0, 1.0)
+	var sera := 1.0 - clampf(absf(ora - 0.74) / 0.15, 0.0, 1.0)
+	return clampf(0.16 + 0.84 * maxf(alba, sera), 0.0, 1.0)
+
+
+func _update_stagno(delta: float) -> void:
+	if _lilies.is_empty():
+		return
+	var w := get_tree().get_first_node_in_group("weather")
+	# mentre piove la superficie ha già i suoi anelli, e col ghiaccio
+	# non sale nessuno: la vita di superficie è roba da sereno
+	if w and (bool(w.call("is_raining")) or bool(w.call("is_snowing"))):
+		return
+	var dn := get_tree().get_first_node_in_group("daynight")
+	var ora := float(dn.get("time")) if dn else 0.5
+	var levata := levata_dei_pesci(ora)
+
+	_stagno_cd -= delta * levata
+	if _stagno_cd > 0.0:
+		return
+	_stagno_cd = randf_range(STAGNO_BOLLA.x, STAGNO_BOLLA.y)
+
+	# dove sale: di solito accanto a una ninfea (lì si posano gli
+	# insetti), ogni tanto in mezzo all'acqua aperta
+	var punto: Vector3
+	if randf() < 0.62:
+		var lily: Node3D = _lilies[randi() % _lilies.size()]
+		var a := randf() * TAU
+		var d := randf_range(0.22, 0.62)
+		punto = lily.global_position + Vector3(cos(a) * d, 0, sin(a) * d)
+	else:
+		var a2 := randf() * TAU
+		var r2 := sqrt(randf()) * POND_R * 0.86
+		punto = POND_CENTER + Vector3(cos(a2) * r2 * 1.15, 0, sin(a2) * r2)
+
+	if randf() < 0.22:
+		# la libellula che sfiora: due tocchi minuti, uno accanto all'altro
+		water_ripple(punto, 0.34)
+		var vicino := punto + Vector3(randf_range(-0.3, 0.3), 0, randf_range(-0.3, 0.3))
+		get_tree().create_timer(0.26).timeout.connect(func():
+			if is_inside_tree():
+				water_ripple(vicino, 0.28))
+		return
+
+	# la bolla del pesce: il cerchio, e a volte il colpo di coda che ne
+	# manda un secondo più largo appena dopo
+	water_ripple(punto, randf_range(0.75, 1.15))
+	var sfx = get_node_or_null(^"/root/Sfx")
+	if sfx and _player_ref \
+			and _player_ref.global_position.distance_to(punto) < 11.0:
+		sfx.play("plop", -26.0, randf_range(1.15, 1.45))
+	if randf() < 0.3:
+		get_tree().create_timer(0.18).timeout.connect(func():
+			if is_inside_tree():
+				water_ripple(punto + Vector3(randf_range(-0.2, 0.2), 0,
+						randf_range(-0.2, 0.2)), 1.5))
 
 
 func _update_frogs(delta: float) -> void:
@@ -2730,6 +2817,7 @@ func _process(delta: float) -> void:
 		_lilies[i].rotation.y += delta * 0.03
 
 	_update_frogs(delta)
+	_update_stagno(delta)
 	_update_river(delta)
 
 	# ogni due secondi il bestiario ripassa l'appello: chi non è più di

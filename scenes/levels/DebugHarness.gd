@@ -50,6 +50,8 @@ func run(level: Node3D, mode: String, arg: String = "") -> void:
 			await _debug_bucato(arg)
 		"saluti":
 			await _debug_saluti(arg)
+		"stagno":
+			await _debug_stagno(arg)
 
 func _frames(n: int):
 	for i in n:
@@ -474,6 +476,71 @@ func _debug_facce(dir: String) -> void:
 
 	mochi.forza_espressione("")
 	print("FACCE: fine, %d espressioni fotografate" % n)
+	get_tree().quit()
+
+
+# ---------------------------------------------------------------- stagno
+# La vita di superficie dello stagno, ora per ora: il mattino, il
+# pomeriggio pieno di scintille, il tramonto d'oro, la notte con la
+# luna. Due inquadrature per ciascuna — radente (il luccichio vive
+# nella riflessione speculare, quindi si vede SOLO di striscio) e
+# dall'alto (la trama delle increspature). Piu' la pioggia, per
+# controllare che gli anelli convivano con la superficie viva.
+func _debug_stagno(dir: String) -> void:
+	var dn = _level.get_node_or_null("DayNight")
+	var weather = _level.get_node_or_null("Weather")
+	var cozy = _level.get_node_or_null("CozyWorld")
+	if dn == null or cozy == null:
+		printerr("STAGNO: DayNight o CozyWorld non trovati")
+		get_tree().quit()
+		return
+	await _frames(40)
+	var centro: Vector3 = cozy.POND_CENTER
+	# il giocatore lontano dall'acqua: niente Mochi davanti all'obiettivo
+	player.global_position = centro + Vector3(0, 0, 9.0)
+	await _frames(6)
+
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.fov = 50.0
+	cam.current = true
+
+	# radente: l'occhio quasi a pelo d'acqua, il sole di fronte — e'
+	# QUI che vivono scintille, fresnel e riflesso del cielo
+	var radente := func(verso: float) -> void:
+		cam.position = centro + Vector3(verso * 5.4, 0.62, 5.6)
+		cam.look_at(centro + Vector3(0, 0.06, 0))
+	# dall'alto: la trama delle increspature, senza riflessi a mascherarla
+	var alto := func() -> void:
+		cam.position = centro + Vector3(0.2, 5.2, 2.6)
+		cam.look_at(centro)
+
+	for ora: Array in [[0.28, "mattino"], [0.5, "mezzogiorno"],
+			[0.76, "tramonto"], [0.95, "notte"]]:
+		dn.set_time(float(ora[0]))
+		await get_tree().create_timer(0.7).timeout
+		radente.call(-1.0)
+		await _frames(6)
+		await _shot(dir, "stagno_%s_radente" % str(ora[1]))
+		alto.call()
+		await _frames(6)
+		await _shot(dir, "stagno_%s_alto" % str(ora[1]))
+		print("STAGNO: %s fotografato" % str(ora[1]))
+
+	# la pioggia: gli anelli devono convivere con la superficie viva
+	if weather:
+		dn.set_time(0.45)
+		weather.debug_rain(true)
+		await get_tree().create_timer(2.4).timeout
+		alto.call()
+		await _frames(6)
+		await _shot(dir, "stagno_pioggia_alto")
+		radente.call(-1.0)
+		await _frames(6)
+		await _shot(dir, "stagno_pioggia_radente")
+		weather.debug_rain(false)
+		print("STAGNO: pioggia fotografata")
+	print("STAGNO: fine")
 	get_tree().quit()
 
 
