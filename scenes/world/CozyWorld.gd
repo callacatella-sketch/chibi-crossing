@@ -405,9 +405,9 @@ func _make_tree(pos: Vector3, size: float, leaf_a: Color, leaf_b: Color,
 	var leaf_light := GEO.paint_mat(leaf_a.lightened(0.16), leaf_a, 1.1, 0.55, 0.014, false, 0.55)
 	# le tre maniglie del fogliame: la stagione le tira verso l'oro, il
 	# rame o il gelo (la primavera è già il loro colore di nascita)
-	_register_leaf(leaf_dark, leaf_b.darkened(0.22), leaf_b.darkened(0.34), leaf_klass)
-	_register_leaf(leaf_mid, leaf_a, leaf_b, leaf_klass)
-	_register_leaf(leaf_light, leaf_a.lightened(0.16), leaf_a, leaf_klass)
+	_register_leaf(leaf_dark, leaf_b.darkened(0.22), leaf_b.darkened(0.34), leaf_klass, 0.0, 1.15)
+	_register_leaf(leaf_mid, leaf_a, leaf_b, leaf_klass, 0.0, 1.15)
+	_register_leaf(leaf_light, leaf_a.lightened(0.16), leaf_a, leaf_klass, 0.0, 1.15)
 
 	# Il tronco vive in una mesh SUA, separata da radici/rami e dalla chioma.
 	# Costa due draw call in più per albero (sono una dozzina: nulla), ma è
@@ -510,8 +510,8 @@ func _build_trees() -> void:
 	var bush_light := GEO.paint_mat(Color("8cc873"), Color("6cae5b"), 1.6, 0.6, 0.015, false, 0.45)
 	var berry := GEO.paint_mat(Color("e6607a"), Color("c94a62"), 5.0, 0.35)
 	# i cespugli seguono le stagioni; le bacche restano rosse (rosse sulla neve)
-	_register_leaf(bush_dark, Color("5e9a50"), Color("4b8040"), "bush")
-	_register_leaf(bush_light, Color("8cc873"), Color("6cae5b"), "bush")
+	_register_leaf(bush_dark, Color("5e9a50"), Color("4b8040"), "bush", 0.0, 0.55)
+	_register_leaf(bush_light, Color("8cc873"), Color("6cae5b"), "bush", 0.0, 0.55)
 	for p in [Vector3(-3.5, 0, -7.0), Vector3(4.0, 0, 7.5), Vector3(-8.0, 0, -1.5)]:
 		var parts := []
 		parts.append([GEO.puff_mesh(0.52, rng.randi(), 0.62, 0.12),
@@ -964,12 +964,12 @@ func _build_forest_trees(rng: RandomNumberGenerator) -> void:
 	# sette materiali per TUTTO il bosco (MultiMesh): mutarli ridipinge
 	# centinaia d'alberi in un colpo. Le conifere (needle_*) restano verdi
 	# tutto l'anno, le latifoglie (leaf_*) si accendono e si spogliano.
-	_register_leaf(needle_a, Color("3f7050"), Color("2f5840"), "needle")
-	_register_leaf(needle_b, Color("4a7d58"), Color("365f46"), "needle")
-	_register_leaf(needle_lite, Color("5c8f65"), Color("477455"), "needle")
-	_register_leaf(leaf_dark, Color("3a6b3e"), Color("2d5733"), "green")
-	_register_leaf(leaf, Color("4e8a52"), Color("3d7344"), "green")
-	_register_leaf(leaf_lite, Color("619c5e"), Color("4e8a52"), "green")
+	_register_leaf(needle_a, Color("3f7050"), Color("2f5840"), "needle", 1.4, 2.8)
+	_register_leaf(needle_b, Color("4a7d58"), Color("365f46"), "needle", 1.4, 2.8)
+	_register_leaf(needle_lite, Color("5c8f65"), Color("477455"), "needle", 1.4, 2.8)
+	_register_leaf(leaf_dark, Color("3a6b3e"), Color("2d5733"), "green", 2.7, 1.6)
+	_register_leaf(leaf, Color("4e8a52"), Color("3d7344"), "green", 2.7, 1.6)
+	_register_leaf(leaf_lite, Color("619c5e"), Color("4e8a52"), "green", 2.7, 1.6)
 
 	# il pino: gonne smerlate che ricadono, tono che si schiarisce
 	# salendo verso il germoglio in punta
@@ -2673,8 +2673,30 @@ const GRASS_PAL := [
 ]
 
 
-func _register_leaf(mat: ShaderMaterial, a: Color, b: Color, klass: String) -> void:
+## L'imbuto unico di TUTTO il fogliame del mondo: chiome del prato, cespugli,
+## conifere e latifoglie del bosco passano di qui. Perciò è qui che si dà il
+## vento alle fronde — una riga sola, e l'intero fogliame respira (prima le
+## chiome erano l'unica cosa immobile in un mondo che ondeggiava).
+## `base` è la quota locale dell'attaccatura al ramo (sotto, non si muove) e
+## `span` in quanta altezza si arriva al piegamento pieno: dipendono da come
+## è costruita la mesh, e chi la costruisce li conosce.
+func _register_leaf(mat: ShaderMaterial, a: Color, b: Color, klass: String,
+		base := 0.0, span := 1.0) -> void:
+	mat.set_shader_parameter("chioma", VENTO_CHIOMA.get(klass, 0.05))
+	mat.set_shader_parameter("chioma_base", base)
+	mat.set_shader_parameter("chioma_span", span)
 	_leaf_mats.append({"mat": mat, "a": a, "b": b, "klass": klass})
+
+
+## Quanto si piega ogni famiglia di fronde. Non è un numero solo: una chioma
+## di latifoglia è una vela, un cespuglio è basso e sodo, e una conifera
+## piegata come un salice sembrerebbe di gomma.
+const VENTO_CHIOMA := {
+	"green": 0.085,    # latifoglie: la vela del prato
+	"cherry": 0.095,   # il ciliegio è il più leggero di tutti
+	"needle": 0.045,   # le conifere sono rigide: si piegano appena
+	"bush": 0.03,      # i cespugli fremono, non ondeggiano
+}
 
 
 

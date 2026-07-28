@@ -190,6 +190,10 @@ snow_amount={
 "type": "float",
 "value": 0.0
 }
+vento_forza={
+"type": "float",
+"value": 1.0
+}
 cielo_alto={
 "type": "color",
 "value": Color(0.42, 0.63, 0.88, 1)

@@ -40,6 +40,7 @@ var _rainbow_mat: StandardMaterial3D
 var _mist: GPUParticles3D
 var _mist_mat: StandardMaterial3D
 var _misty := false
+var _vento := 1.0              # la forza del vento di adesso, che insegue il cielo
 
 
 func _ready() -> void:
@@ -71,6 +72,22 @@ func is_snowing() -> bool:
 ## Vero finché l'erba è zuppa (anche un po' dopo che ha smesso).
 func is_wet() -> bool:
 	return _wetness > 0.25
+
+
+## Quanto tira il vento, adesso: 1 = la brezza di un giorno sereno.
+## PURA (entra lo stato del cielo, esce un numero): la prova il test.
+static func forza_del_vento(stato: String, nevica: bool, nebbia: bool) -> float:
+	if nebbia:
+		return 0.45      # nella nebbia l'aria si ferma: è metà del suo effetto
+	if stato == "rain":
+		return 1.15 if nevica else 1.8   # la neve scende piano, la pioggia no
+	if stato == "rainbow":
+		return 0.8       # dopo l'acquazzone il mondo tira il fiato
+	return 1.0
+
+
+func _vento_target() -> float:
+	return forza_del_vento(_state, _snowing, _misty)
 
 
 ## Vero mentre la nebbiolina del mattino d'autunno avvolge il villaggio:
@@ -129,6 +146,14 @@ func _process(delta: float) -> void:
 		_ground_mat.set_shader_parameter("pioggia_cade", 1.0 if piove else 0.0)
 	# anche i fili d'erba si inzuppano (rugiada che scintilla)
 	RenderingServer.global_shader_parameter_set("erba_bagnata", _wetness)
+
+	# IL VENTO DEL MOMENTO. Un solo numero che l'erba, il bucato e le chiome
+	# leggono insieme (shaders/vento.gdshaderinc): quando il cielo si copre
+	# il mondo INTERO comincia a muoversi di più, e nella nebbiolina del
+	# mattino l'aria si ferma — è quella quiete a far sembrare la nebbia
+	# nebbia. Si arriva sempre per gradi: un vento che scatta si vede.
+	_vento = lerpf(_vento, _vento_target(), 1.0 - exp(-0.5 * delta))
+	RenderingServer.global_shader_parameter_set("vento_forza", _vento)
 
 	# la nebbiolina: mattine d'autunno serene; il sole alto la scioglie
 	var ora := float(_daynight.get("time")) if _daynight else 0.5
