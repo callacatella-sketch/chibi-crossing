@@ -1,4 +1,4 @@
-[gd_scene load_steps=39 format=3 uid="uid://mainlevel_uid"]
+[gd_scene load_steps=41 format=3 uid="uid://mainlevel_uid"]
 
 [ext_resource type="Script" path="res://scenes/levels/MainLevel.gd" id="1_xxyz1"]
 [ext_resource type="PackedScene" uid="uid://d3u2b9x8y8v" path="res://scenes/characters/Player.tscn" id="2_yyzx2"]
@@ -22,6 +22,8 @@
 [ext_resource type="Script" path="res://scenes/npc/GufoOrders.gd" id="20_gufo1"]
 [ext_resource type="Script" path="res://scenes/ui/Inventory.gd" id="21_inv1"]
 [ext_resource type="Script" path="res://scenes/ui/Pockets.gd" id="22_pock1"]
+[ext_resource type="Script" path="res://scenes/interact/Rimbalzello.gd" id="29_rimb1"]
+[ext_resource type="Script" path="res://scenes/world/PostoDiSempre.gd" id="30_post1"]
 [ext_resource type="Script" path="res://scenes/npc/Veglia.gd" id="28_vegl1"]
 [ext_resource type="Script" path="res://scenes/npc/Premura.gd" id="23_prem1"]
 [ext_resource type="Script" path="res://scenes/world/VitaSecondaria.gd" id="24_vita1"]
@@ -151,6 +153,12 @@ script = ExtResource("15_home1")
 
 [node name="Visitors" type="Node" parent="."]
 script = ExtResource("14_visi1")
+
+[node name="Rimbalzello" type="Node" parent="."]
+script = ExtResource("29_rimb1")
+
+[node name="PostoDiSempre" type="Node" parent="."]
+script = ExtResource("30_post1")
 
 [node name="Veglia" type="Node3D" parent="."]
 script = ExtResource("28_vegl1")

@@ -49,6 +49,10 @@ const TREASURES := {
 		"name": "conchiglia di fiume", "art": "la", "tags": ["fresco"],
 		"src": "da oltre la cascata", "icon": "conchiglia",
 		"desc": "Accostala all'orecchio: dentro c'è ancora la cascata."},
+	"sasso_piatto": {
+		"name": "sasso piatto", "art": "il", "tags": ["fresco"],
+		"src": "dal vicino che li colleziona", "icon": "sasso",
+		"desc": "Levigato dall'acqua, sottile come una moneta.\nSulla riva dello stagno (E) fa quattro rimbalzi, se l'aria è ferma."},
 	"campanella_coccio": {
 		"name": "campanella di coccio", "art": "la", "tags": ["terroso"],
 		"src": "dissotterrata nel prato", "icon": "campanella",

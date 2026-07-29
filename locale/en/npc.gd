@@ -11,6 +11,11 @@ extends RefCounted
 ## si traduce solo come si leggono. Non toglierle, e non tradurle nei sorgenti.
 
 const T := {
+	# --------------------------------- il sasso del collezionista, e il posto
+	"%s ti ha portato un sasso piatto: perfetto per rimbalzare.":
+		"%s has brought you a flat stone: perfect for skimming.",
+	"quel posto dove ci si trovava senza dirselo":
+		"that place where you met without ever saying so",
 	# ------------------------------------------------------------ l'animo
 	# La catena causale che il registro dei lavori mostra sotto ogni nome.
 	"%s è a «%s»%s: %s.": "%s is %s%s: %s.",

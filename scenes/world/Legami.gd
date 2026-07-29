@@ -62,6 +62,9 @@ const TIPI := {
 	"promessa": ["quella volta che ti ho aspettato, e sei venuto",
 			["aspetta", "insieme"]],
 	"nascondino": ["la partita a nascondino nel bosco", ["risata", "amico"]],
+	# il posto di sempre: l'abitudine che nessuno aveva deciso, e il
+	# giorno che qualcuno era gia' li' — senza dire niente
+	"posto": ["quel posto dove ci si trovava senza dirselo", ["amico", "felice"]],
 	# gli ultimi desideri della settimana del congedo: i momenti d'ORO,
 	# quelli che valgono il doppio quando riaffiorano
 	"oro": ["quell'ultimo desiderio, vissuto insieme", ["grazie", "amico"]],

@@ -407,6 +407,31 @@ C++ via GDExtension. Tutta l'arte è procedurale: zero asset esterni.
   dalla pioggia". Quando smette, se è giorno, un **arcobaleno a 7 bande
   pastello** (mesh procedurale con vertex color, punte che sfumano) si
   distende sul villaggio e svanisce piano.
+- **Il posto di sempre** (`scenes/world/PostoDiSempre.gd`) — non è una
+  meccanica che si sblocca: è una cosa che il gioco **nota**. Se ti fermi
+  sempre nello stesso punto alla stessa ora — l'orlo dello stagno quando
+  cala la luce, il ramo del Grande Albero al mattino — senza averlo
+  deciso, il villaggio se ne accorge prima di te. E un giorno arrivi, e
+  **qualcuno è già lì**: chi ti conosce meglio, cioè chi ha più momenti
+  sul Filo Rosso. Non dice niente. Non se ne va. Non c'è un toast, non
+  c'è un prompt, non c'è un premio: il momento vale esattamente quanto
+  non viene spiegato. L'unica cosa che il gioco si permette è annodare il
+  momento al Filo — così, cento giorni dopo, davanti al fiore, «quel
+  posto dove ci si trovava senza dirselo» riaffiora col resto della
+  storia. E non capita tutti i giorni: l'attesa fa parte del dono.
+- **Il Rimbalzello** (`scenes/interact/Rimbalzello.gd`) — un sasso
+  piatto, la riva giusta, e **nessun punteggio**: il punteggio è il
+  SUONO. Ogni rimbalzo suona un gradino più su della scala pentatonica
+  del villaggio (la stessa del coro, dove non esiste la nota storta), e
+  quando il sasso si stanca resta l'ultimo plop grave e i cerchi che si
+  allargano. Si capisce come sta andando **con l'orecchio**. L'unica
+  bravura è **leggere il cielo**: nella nebbiolina del mattino l'acqua è
+  uno specchio e il sasso corre, con la folata di un temporale in arrivo
+  si pianta al secondo salto (è il vento vero, quello condiviso con
+  l'erba e le chiome). Non si fallisce mai: il minimo è due rimbalzi. E
+  il sasso non si compra — **te lo porta il vicino che colleziona
+  sassolini**: quell'indole esisteva da sempre, faceva una cosa carina e
+  non serviva a niente; adesso è l'inizio di un gioco.
 - **La veglia della guardia** (`scenes/npc/Veglia.gd`) — «Fare la guardia»
   era l'unico lavoro che si poteva solo perderci: costava rancore e non
   produceva niente. Adesso produce **il sonno degli altri**. Al calare

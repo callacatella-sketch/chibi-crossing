@@ -5,6 +5,9 @@ extends RefCounted
 ## glossario vincolante e le regole di stile.
 
 const T := {
+	# la lettera del posto di sempre (Mail.MOMENTI_TESTO)
+	"C'e' un posto dove finivo sempre\nverso quell'ora, senza averlo deciso.\nIl giorno %d ci sei arrivato anche tu,\ne non ci siamo detti niente.":
+		"There is a place I always ended up\nround about that hour, without ever deciding to.\nOn day %d you came there too,\nand neither of us said a word.",
 	# ------------------------------------------------ gli Ordini del Gufo
 	# la campagna: titolo, lettera, obiettivo, congratulazioni, e la
 	# letterina del mattino dopo (GufoOrders.CHAIN)

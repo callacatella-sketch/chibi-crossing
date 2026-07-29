@@ -5,6 +5,11 @@ extends RefCounted
 ## glossario vincolante e le regole di stile.
 
 const T := {
+	# ------------------------------------------------ il sasso da rimbalzello
+	"sasso piatto": "flat stone",
+	"dal vicino che li colleziona": "from the neighbour who collects them",
+	"Levigato dall'acqua, sottile come una moneta.\nSulla riva dello stagno (E) fa quattro rimbalzi, se l'aria è ferma.":
+		"Worn smooth by the water, thin as a coin.\nOn the pond shore (E) it skips four times, if the air is still.",
 	# ---------------------------------------------------------- il titolo
 	"Un villaggio ti aspetta sotto il Grande Albero.":
 			"A village is waiting for you under the Great Tree.",

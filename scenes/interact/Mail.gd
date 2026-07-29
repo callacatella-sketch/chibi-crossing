@@ -40,6 +40,7 @@ const MOMENTI_TESTO := {
 	"desiderio": "Non ho dimenticato il giorno %d,\nquando hai esaudito il mio desiderio.\nIl filo tra noi da lì si è colorato.",
 	"promessa": "Il giorno %d ti ho dato appuntamento\ne tu sei venuto davvero.\nDi tutte le cose che abbiamo visto insieme,\nquella me la ricordo dall'inizio.",
 	"nascondino": "Il giorno %d, dietro quel tronco,\nmi scappava da ridere e tu lo sapevi.\nGiochiamo ancora, promesso?",
+	"posto": "C'e' un posto dove finivo sempre\nverso quell'ora, senza averlo deciso.\nIl giorno %d ci sei arrivato anche tu,\ne non ci siamo detti niente.",
 	"oro": "Quel desiderio del giorno %d,\nl'ultimo, vissuto insieme:\nlo tengo tra i momenti d'oro.",
 	"addio": "Del giorno %d non parlo volentieri,\nma il filo non si è spezzato:\nha solo cambiato forma.",
 	"partenza": "Dal Grande Prato si vede il villaggio.\nIl giorno %d avevo la valigia piccola\ne il cuore pieno. Grazie di tutto.",
