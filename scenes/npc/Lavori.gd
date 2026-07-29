@@ -160,7 +160,10 @@ func _produzione_del_giorno() -> void:
 	var garden := get_node_or_null("../Garden")
 	var cooking := get_node_or_null("../Cooking")
 	var inventory := get_node_or_null("../Inventory")
+	var veglia := get_tree().get_first_node_in_group("veglia")
 	var legna := 0
+	var lanterne := 0
+	var al_buio := 0
 	var annaffiate := 0
 	var piatti: Array[String] = []
 	var tesori := 0
@@ -192,18 +195,30 @@ func _produzione_del_giorno() -> void:
 					var piatto := str(cooking.cook_by_villager())
 					if piatto != "":
 						piatti.append(piatto)
+			"guardia":
+				# LA GUARDIA NON PRODUCE COSE: produce il sonno degli altri.
+				# La ronda della sera ha gia' acceso le sue lanterne (una per
+				# tappa, quante lo decide questa stessa `resa`); qui si
+				# raccoglie cio' che la notte ha lasciato — la sicurezza
+				# donata a chi ha dormito, il credito verso chi ha vegliato.
+				# Il conto lo fa la Veglia, che sa dov'erano le luci.
+				if veglia:
+					var esito: Dictionary = veglia.call("rendiconto_del_mattino")
+					lanterne += int(esito.get("lanterne", 0))
+					al_buio += int(esito.get("al_buio", 0))
 			"esplora":
 				if inventory and randf() < 0.45 * r:
 					var ids: Array = inventory.TREASURES.keys()
 					var scheda: Dictionary = inventory.add_treasure(str(ids[randi() % ids.size()]))
 					if not scheda.is_empty():
 						tesori += 1
-	_racconta_produzione(legna, annaffiate, piatti, tesori)
+	_racconta_produzione(legna, annaffiate, piatti, tesori, lanterne, al_buio)
 
 
 # Una riga sola al mattino, e solo se c'è davvero qualcosa da dire: il
 # guadagno deve essere VISIBILE, o il dilemma non esiste.
-func _racconta_produzione(legna: int, annaffiate: int, piatti: Array[String], tesori: int) -> void:
+func _racconta_produzione(legna: int, annaffiate: int, piatti: Array[String],
+		tesori: int, lanterne := 0, al_buio := 0) -> void:
 	var parti: Array[String] = []
 	if legna > 0:
 		parti.append(L10n.tf("+%d legna in catasta", [legna]))
@@ -215,6 +230,14 @@ func _racconta_produzione(legna: int, annaffiate: int, piatti: Array[String], te
 	if tesori > 0:
 		parti.append(L10n.tf("%d tesori dal bosco", [tesori]) if tesori > 1 \
 				else L10n.t("un tesoro dal bosco"))
+	if lanterne > 0:
+		parti.append(L10n.tf("%d lanterne accese sulla ronda", [lanterne]) if lanterne > 1 \
+				else L10n.t("una lanterna accesa sulla ronda"))
+	# il buio non e' una punizione e non si scrive in rosso: e' una riga
+	# sola, detta come la direbbe un vicino che ha dormito male
+	if al_buio > 0 and lanterne == 0:
+		parti.append(L10n.tf("che buio, stanotte, dalle parti di %d case", [al_buio]) \
+				if al_buio > 1 else L10n.t("che buio, stanotte"))
 	if parti.is_empty():
 		return
 	if _visitors and _visitors.has_method("_show_toast"):
@@ -223,6 +246,15 @@ func _racconta_produzione(legna: int, annaffiate: int, piatti: Array[String], te
 	var bs := get_tree().get_first_node_in_group("build_system")
 	if bs and bs.has_method("request_save"):
 		bs.request_save()
+
+
+## Chi ha oggi questo incarico (la sua LABEL), o "" se nessuno.
+## La usa la Veglia per sapere se stanotte c'è qualcuno che fa la ronda.
+func chi_fa(lavoro: String) -> String:
+	for label in _incarichi:
+		if str(_incarichi[label]) == lavoro:
+			return str(label)
+	return ""
 
 
 ## Assegna (o toglie) un lavoro. Chiamabile anche dai test e dalla CLI.

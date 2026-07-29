@@ -114,26 +114,63 @@ func _test_migrazione(t, lg: GDScript) -> void:
 	var ordinati := giorni.duplicate()
 	ordinati.sort()
 	t.eq(giorni, ordinati, "i momenti restano in ordine di giorno")
-	# un salvataggio già sano non viene toccato
+	# un salvataggio già sano non viene rimescolato: le CHIAVI e i momenti
+	# restano quelli. (Il confronto era `str(dizionario) == str(dizionario)`:
+	# si rompeva appena la migrazione aggiungeva un campo — ed è successo
+	# col conto dei momenti vissuti. Si controlla ciò che conta, non la
+	# rappresentazione testuale dell'intero salvataggio.)
 	var sano := {"Miele": {"giorno_arrivo": 5, "momenti": []}}
-	t.eq(str(lg.migra_fili(sano)), str(sano),
-			"un salvataggio già corretto passa indenne")
+	var intatto: Dictionary = lg.migra_fili(sano)
+	t.eq(intatto.keys(), sano.keys(), "un salvataggio già corretto conserva le chiavi")
+	t.eq((intatto["Miele"] as Dictionary).get("momenti"), [],
+			"…e i suoi momenti, intatti")
+	t.eq(int((intatto["Miele"] as Dictionary).get("giorno_arrivo", -1)), 5,
+			"…e il giorno d'arrivo")
+
+
+## Il sorgente RIPULITO: via i commenti (rispettando le stringhe) e le
+## chiamate multi-riga ricomposte in una. Senza questo, una guardia che
+## legge il codice e' cieca proprio sulla forma dominante nel repo —
+## l'argomento sulla riga DOPO — che e' esattamente com'era scritta la
+## riga malata. PURA.
+static func _sorgente_piatto(src: String) -> String:
+	var out := ""
+	for riga in src.split("\n"):
+		var pulita := ""
+		var in_str := false
+		var i := 0
+		while i < riga.length():
+			var c := riga[i]
+			if c == "\"":
+				in_str = not in_str
+			elif c == "#" and not in_str:
+				break
+			pulita += c
+			i += 1
+		pulita = pulita.strip_edges()
+		if pulita.ends_with("\\"):
+			out += pulita.substr(0, pulita.length() - 1) + " "
+		elif pulita.ends_with(",") or pulita.ends_with("("):
+			out += pulita + " "      # chiamata che continua sotto
+		else:
+			out += pulita + "\n"
+	return out
 
 
 func _test_call_site(t) -> void:
-	# REGRESSIONE DELL'INTERA CLASSE: nessun chiamante scrive un momento
-	# con una LABEL. Copre le due forme in uso nel repo:
-	#   call_group("legami", "momento", <chi>, …) / call("momento", <chi>, …)
-	#   legami.momento(<chi>, …)
-	# <chi> deve venire dal DNA o da una variabile che si chiama nome.
+	# la guardia sa leggere il codice VERO: commenti via, multi-riga
+	# ricomposte. Prima ne vedeva 8 su 16 — e fra le cieche c'era proprio
+	# la riga del bug.
+	var visti := 0
 	var sospetti: Array = []
 	for percorso in ["res://scenes/npc/Visitors.gd", "res://scenes/world/Congedo.gd",
 			"res://scenes/interact/RichiesteFoto.gd", "res://scenes/interact/Nascondino.gd",
 			"res://scenes/npc/Commissioni.gd", "res://scenes/world/Onsen.gd",
 			"res://scenes/levels/DebugHarness.gd"]:
-		var src := FileAccess.get_file_as_string(percorso)
-		if src == "":
+		var grezzo := FileAccess.get_file_as_string(percorso)
+		if grezzo == "":
 			continue
+		var src := _sorgente_piatto(grezzo)
 		for forma in ["\"momento\", ", ".momento("]:
 			var da := 0
 			while true:
@@ -141,25 +178,39 @@ func _test_call_site(t) -> void:
 				if i < 0:
 					break
 				da = i + forma.length()
-				var arg := src.substr(da, 220)
+				var arg := src.substr(da, 260)
 				var virgola := arg.find(",")
 				if virgola < 0:
 					continue
 				var chi := arg.substr(0, virgola).strip_edges()
+				visti += 1
 				if chi.contains("label") and not chi.contains("dna") \
 						and not chi.contains("nome"):
 					sospetti.append("%s → momento(%s, …)"
 							% [percorso.get_file(), chi])
+	t.ok(visti >= 12,
+			"la guardia VEDE i call site del repo (%d): se ne vedesse pochi "
+			% visti + "morirebbe da verde senza sorvegliare niente")
 	t.eq(sospetti.size(), 0,
 			"nessun momento scritto con una LABEL (fili fantasma): %s"
 			% str(sospetti))
-	# e la guardia sa DAVVERO accorgersene (se non sapesse fallire non
-	# varrebbe nulla): la si prova su una riga finta col difetto
-	var finta := "legami.call(\"momento\", label, \"addio\", animo.racconta())"
-	var arg2 := finta.substr(finta.find("\"momento\", ") + 11, 60)
-	var chi2 := arg2.substr(0, arg2.find(",")).strip_edges()
-	t.ok(chi2.contains("label") and not chi2.contains("dna"),
-			"la guardia riconosce una label passata a momento (%s)" % chi2)
+
+	# AUTOCOLLAUDO: le si dà in pasto la riga malata (nella forma
+	# MULTI-RIGA, quella su cui era cieca) e deve ancora riconoscerla
+	var malata := _sorgente_piatto("\tlegami.call(\"momento\",\n"
+			+ "\t\t\tlabel, \"addio\", animo.racconta())")
+	var k := malata.find("\"momento\", ") + 11
+	var pezzo := malata.substr(k, 60)
+	var chi_m := pezzo.substr(0, pezzo.find(",")).strip_edges()
+	t.ok(chi_m.contains("label") and not chi_m.contains("dna"),
+			"AUTOCOLLAUDO: riconosce la label anche multi-riga (%s)" % chi_m)
+	var sana := _sorgente_piatto("\tlegami.call(\"momento\",\n"
+			+ "\t\t\tstr(r.get(\"dna\", {}).get(\"name\", \"\")), \"addio\", \"\")")
+	var k2 := sana.find("\"momento\", ") + 11
+	var pezzo2 := sana.substr(k2, 80)
+	var chi_s := pezzo2.substr(0, pezzo2.find(",")).strip_edges()
+	t.ok(chi_s.contains("dna"),
+			"AUTOCOLLAUDO: e non accusa la riga sana (%s)" % chi_s)
 
 
 ## LA PROVA CHE CONTA: una diserzione VERA, dal congedo al filo.

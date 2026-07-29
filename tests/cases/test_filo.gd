@@ -45,9 +45,30 @@ func _test_tocchi_di_luce(t) -> void:
 	var v: Vector3 = dn.luce_verso()
 	t.almost(v.length(), 1.0, "luce_verso e' un versore anche senza sole", 0.01)
 	dn.free()
-	# le lanterne dell'ultima sera
-	t.ok(_corpo("res://scenes/world/Congedo.gd", "_lanterna")
-			.contains("luce_calda"), "le lanterne entrano tra le luci calde")
+	# le lanterne dell'ultima sera — e della ronda della guardia: una
+	# fabbrica sola (scenes/world/Lanterne.gd). Il controllo è
+	# COMPORTAMENTALE: si accende una lanterna vera e le si guarda addosso.
+	# (Prima si cercava la stringa "luce_calda" dentro il corpo di
+	# Congedo._lanterna: è rimasto verde finché quel corpo aveva la
+	# geometria, ed è diventato rosso il giorno che la geometria si è
+	# spostata nella fabbrica condivisa — pur funzionando tutto.)
+	var lant := load("res://scenes/world/Lanterne.gd")
+	var scheda: Dictionary = lant.accendi(Vector3(1, 0, 2))
+	var luce_node := scheda.get("node") as Node3D
+	t.ok(luce_node != null, "la fabbrica costruisce la lanterna")
+	if luce_node != null:
+		t.ok(luce_node.is_in_group("luce_calda"),
+				"le lanterne entrano tra le luci calde")
+		t.ok(scheda.get("luce") is OmniLight3D, "…e hanno la loro fiammella")
+		# nasce SPENTA: la si accende animandola (l'accensione è lenta)
+		t.almost((scheda["luce"] as OmniLight3D).light_energy, 0.0,
+				"nasce spenta, si accende respirando")
+		lant.respira(scheda, 0.0, 1.0)
+		t.ok((scheda["luce"] as OmniLight3D).light_energy > 0.0,
+				"…e il respiro la accende davvero")
+		luce_node.free()
+	t.ok(_corpo("res://scenes/world/Congedo.gd", "_lanterna").contains("LANTERNE"),
+			"il congedo prende la lanterna dalla fabbrica condivisa")
 	t.ok(_corpo("res://scenes/world/Congedo.gd", "_tick_congedo")
 			.contains("_accendi_lanterne"), "l'ultima sera si accendono da sole")
 	t.ok(_corpo("res://scenes/world/Congedo.gd", "_partenza")

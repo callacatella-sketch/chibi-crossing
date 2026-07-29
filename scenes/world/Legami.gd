@@ -17,6 +17,36 @@ extends Node
 
 const MAX_MOMENTI := 30
 
+# ============================================================ COME SI DIMENTICA
+# Un filo tiene al più MAX_MOMENTI momenti. Prima, quando sforava, faceva
+# `pop_front()`: buttava il PIÙ VECCHIO — cioè, in quest'ordine, "il primo
+# benvenuto sulla soglia" e "il giorno della valigia". Esattamente i due che
+# il congedo vuole citare cento giorni dopo: `Congedo._riaffiora()` campiona
+# i momenti a intervalli lungo TUTTO l'arco della vita, per raccontarla dal
+# principio; con la coda tagliata, il "principio" diventava il trentesimo
+# momento dal fondo, e la storia cominciava a metà.
+#
+# Adesso il filo dimentica come dimentica una persona: non l'inizio — le
+# REPLICHE. Quando sfora si sacrifica il momento che costa meno perderlo, e
+# il costo si misura su due cose:
+#   · il BUCO che lascia: togliere un momento in mezzo a due vicini di
+#     giornata non toglie niente alla forma della storia; toglierne uno
+#     isolato apre un vuoto di settimane;
+#   · la RARITÀ del suo tipo: la quarantesima chiacchierata vale meno
+#     dell'unica festa.
+# E certi momenti non si toccano MAI (INTOCCABILI, sotto).
+
+## I tipi che non si potano mai: i capi della storia. Il primo benvenuto e
+## il giorno della valigia sono l'inizio; l'oro sono gli ultimi desideri
+## della settimana del congedo; addio e partenza sono la fine.
+const INTOCCABILI := ["benvenuto", "trasloco", "oro", "addio", "partenza"]
+
+## Quanti momenti in testa e in coda sono comunque salvi: i capi del filo
+## si tengono anche se il tipo non è fra gli intoccabili (i primi giorni
+## sono i primi giorni, e l'ultima settimana è quella che si sta vivendo).
+const CAPI_TESTA := 3
+const CAPI_CODA := 3
+
 ## tipo -> [racconto, parole Chibiese del ricordo]
 const DNA_GEN := preload("res://scenes/npc/ChibiDNA.gd")
 
@@ -125,8 +155,22 @@ func momento(nome: String, tipo: String, extra := "") -> void:
 			if int(m["d"]) == oggi:
 				return  # già annodato oggi
 	momenti.append({"d": oggi, "t": tipo, "x": extra})
+	# IL CONTO NON SI POTA MAI. I momenti vissuti sono una cosa, quelli che
+	# il filo riesce a portare con sé un'altra: la lettera d'addio dice
+	# «porto con me N momenti del nostro filo», e quel numero deve essere
+	# la vita vera, non la capienza della borsa. Si incrementa QUI, dopo il
+	# `return` del doppione di giornata, o «una festa non vale doppio»
+	# varrebbe per i momenti e non per il conto.
+	filo["n"] = int(filo.get("n", momenti.size() - 1)) + 1
 	if momenti.size() > MAX_MOMENTI:
-		momenti.pop_front()
+		# si muta l'array VIVO: momenti_di() lo restituisce così com'è e i
+		# chiamanti se lo tengono (Congedo, Mail). Sostituirlo con una copia
+		# potata slegherebbe i riferimenti già in giro, in silenzio.
+		var vittima := indice_da_potare(momenti)
+		if vittima >= 0:
+			momenti.remove_at(vittima)
+		# vittima < 0 = è tutto intoccabile: si tiene un momento in più.
+		# Meglio un filo di 31 che un ricordo insostituibile buttato via.
 	if nome != "__prova":
 		if primo:
 			_toast(L10n.tf("❀ Il filo con %s si colora: %s",
@@ -137,6 +181,87 @@ func momento(nome: String, tipo: String, extra := "") -> void:
 			# ogni desiderio d'oro della settimana del congedo merita il filo
 			mostra_filo(nome, true)
 	_salva()
+
+
+# ============================================================ la potatura gentile
+# Tutto quello che segue è PURO: entra una lista di momenti, esce un indice.
+# Nessun nodo, nessun tempo di gioco — così la memoria di una vita intera si
+# prova headless (tests/cases/test_potatura.gd) invece che giocando per
+# quattrocento giorni e sperando.
+
+## Questo momento non si può sacrificare? Lo sono i tipi capo (INTOCCABILI),
+## il PRIMO di ogni tipo (il primo bagno alle terme è un primato, il
+## quindicesimo no) e i momenti ai due capi del filo.
+static func intoccabile(momenti: Array, i: int) -> bool:
+	if i < 0 or i >= momenti.size():
+		return true
+	if i < CAPI_TESTA or i >= momenti.size() - CAPI_CODA:
+		return true
+	var tipo := str((momenti[i] as Dictionary).get("t", ""))
+	if tipo in INTOCCABILI:
+		return true
+	# il primo della sua specie: cerca se ne esiste uno uguale più indietro
+	for j in i:
+		if str((momenti[j] as Dictionary).get("t", "")) == tipo:
+			return false
+	return true
+
+
+## Il BUCO che si aprirebbe togliendo il momento i: la distanza in giorni
+## fra i suoi due vicini. Un momento fra due giornate contigue non lascia
+## traccia; uno isolato porta via settimane di storia.
+static func buco(momenti: Array, i: int) -> int:
+	if i <= 0 or i >= momenti.size() - 1:
+		return 0
+	var prima := int((momenti[i - 1] as Dictionary).get("d", 0))
+	var dopo := int((momenti[i + 1] as Dictionary).get("d", 0))
+	# maxi: un salvataggio con le date in disordine non deve produrre un
+	# costo negativo, che si mangerebbe un intoccabile
+	return maxi(0, dopo - prima)
+
+
+## Quanto costa perdere il momento i. Più basso = più sacrificabile.
+## Due voci: il buco che lascia, e quanto è RARO il suo tipo (l'unica
+## festa vale più della quarantesima chiacchierata).
+static func costo(momenti: Array, i: int) -> float:
+	var tipo := str((momenti[i] as Dictionary).get("t", ""))
+	var quanti := 0
+	for m in momenti:
+		if str((m as Dictionary).get("t", "")) == tipo:
+			quanti += 1
+	# la rarità pesa quanto un buco di quattro giorni per un tipo unico, e
+	# svanisce sulle repliche: 1 volta -> 4.0, 2 -> 2.0, 8 -> 0.5
+	var rarita := 4.0 / float(maxi(quanti, 1))
+	return float(buco(momenti, i)) + rarita
+
+
+## Chi si sacrifica: l'indice del momento che costa meno perdere.
+## -1 se è tutto intoccabile (e allora il filo tiene un momento in più:
+## meglio sforare che buttare un ricordo insostituibile).
+static func indice_da_potare(momenti: Array) -> int:
+	var scelto := -1
+	var minimo := INF
+	for i in momenti.size():
+		if intoccabile(momenti, i):
+			continue
+		var c := costo(momenti, i)
+		if c < minimo:
+			minimo = c
+			scelto = i
+	return scelto
+
+
+## Pota una lista fino alla capienza data. COPIA: non tocca l'originale —
+## la usano la migrazione e i test. Dentro `momento()` invece si muta
+## l'array vivo, perché i chiamanti se lo tengono.
+static func pota(momenti: Array, tetto := MAX_MOMENTI) -> Array:
+	var out := momenti.duplicate()
+	while out.size() > tetto:
+		var vittima := indice_da_potare(out)
+		if vittima < 0:
+			break
+		out.remove_at(vittima)
+	return out
 
 
 ## Il ricordo che riaffiora: chiamato dal saluto (T). Il vicino ripensa
@@ -229,8 +354,8 @@ func eta_di(nome: String) -> String:
 func _nuovo_giorno(_d: int) -> void:
 	for nome in _fili:
 		var filo: Dictionary = _fili[nome]
-		if bool(filo.get("partito", false)):
-			continue  # chi è partito non invecchia più: resta com'era
+		if bool(filo.get("partito", false)) or bool(filo.get("andato_via", false)):
+			continue  # chi non c'è più non invecchia: resta com'era
 		var prima := str(filo.get("s", "giovane"))
 		var adesso := eta_di(str(nome))
 		if adesso == prima:
@@ -256,6 +381,20 @@ func _nuovo_giorno(_d: int) -> void:
 
 func momenti_di(nome_o_label: String) -> Array:
 	return _fili.get(nome_da_chiave(nome_o_label), {}).get("momenti", [])
+
+
+## Quanti momenti si sono VISSUTI in tutto — non quanti il filo ne porta
+## ancora con sé. È il numero della lettera d'addio («porto con me N
+## momenti del nostro filo»): dopo cento giorni il filo ne conserva trenta,
+## ma la vita insieme è stata più lunga, e dire trenta sarebbe una bugia.
+## Per i fili nati prima della potatura gentile il conto riparte da quelli
+## che ci sono: un pavimento onesto, non un passato inventato.
+func momenti_vissuti(nome_o_label: String) -> int:
+	var filo: Dictionary = _fili.get(nome_da_chiave(nome_o_label), {})
+	if filo.is_empty():
+		return 0
+	# int(): il salvataggio passa da JSON e gli interi tornano float
+	return maxi(int(filo.get("n", 0)), (filo.get("momenti", []) as Array).size())
 
 
 func giorni_di_amicizia(nome_o_label: String) -> int:
@@ -296,8 +435,35 @@ func fiore_di(nome_o_label: String) -> Dictionary:
 	return _fili.get(nome_da_chiave(nome_o_label), {}).get("fiore", {})
 
 
-func e_partito(nome: String) -> bool:
-	return bool(_fili.get(nome, {}).get("partito", false))
+## Se n'e' andato DA SE' (la diserzione), che e' un'altra cosa dal
+## partire per il Grande Prato: niente memoriale, niente fiore-ricordo
+## dorato (Congedo li nega apposta a chi se n'e' andato arrabbiato) — ma
+## il suo filo smette di invecchiare, o quaranta giorni dopo aver
+## sbattuto la porta il villaggio annuncerebbe i primi peli d'argento di
+## chi non c'e' piu'. La LABEL si salva qui perche' al caricamento il
+## suo DNA non esiste piu' da nessuna parte, e le lettere la vogliono.
+func segna_andato_via(nome_o_label: String, label := "") -> void:
+	var filo := _filo(nome_o_label)
+	filo["andato_via"] = true
+	filo["giorno_partenza"] = _day()
+	if label != "":
+		filo["label"] = label
+	_salva()
+
+
+## Chi se n'e' andato da se': [[label, filo], …]. Le sue lettere sono
+## l'UNICA traccia che resta di lui (niente fiore, niente memoriale).
+func andati_via() -> Array:
+	var out: Array = []
+	for k in _fili:
+		var filo: Dictionary = _fili[k]
+		if bool(filo.get("andato_via", false)):
+			out.append([str(filo.get("label", k)), filo])
+	return out
+
+
+func e_partito(nome_o_label: String) -> bool:
+	return bool(_fili.get(nome_da_chiave(nome_o_label), {}).get("partito", false))
 
 
 ## [[nome, filo], …] di chi è partito: il Congedo ci ricostruisce i fiori.
@@ -311,7 +477,11 @@ func partiti() -> Array:
 
 ## Apre il lutto del villaggio. `giorni` è proporzionale al filo: una
 ## storia lunga lascia un vuoto lungo (3..8 giorni).
-func inizia_lutto(nome: String, da_consolare: Array) -> void:
+func inizia_lutto(nome_o_label: String, da_consolare: Array) -> void:
+	# la chiave si normalizza; `da_consolare` NO: quella e' una lista di
+	# LABEL per progetto (Congedo la riempie cosi' e consola() la
+	# interroga cosi'). Aggiustarla romperebbe le consolazioni.
+	var nome := nome_da_chiave(nome_o_label)
 	var n := momenti_di(nome).size()
 	_lutto = {"nome": nome, "giorno_inizio": _day(),
 			"giorni": clampi(3 + n / 6, 3, 8), "da_consolare": da_consolare}
@@ -419,9 +589,29 @@ static func migra_fili(salvati: Dictionary) -> Dictionary:
 		vero["momenti"] = suoi
 		vero["giorno_arrivo"] = mini(int(vero.get("giorno_arrivo", 99999)),
 				int(filo.get("giorno_arrivo", 99999)))
+		# i due conti si sommano: il fantasma era la stessa amicizia
+		vero["n"] = int(vero.get("n", 0)) + int(filo.get("n", 0))
 		# il ricordo del DNA (chi e' partito) non si perde
 		if not vero.has("dna_ricordo") and filo.has("dna_ricordo"):
 			vero["dna_ricordo"] = filo["dna_ricordo"]
+	# --- la rifinitura, per TUTTI i fili (non solo per quelli fusi) ---
+	for nome in out:
+		var filo: Dictionary = out[nome]
+		var momenti: Array = filo.get("momenti", [])
+		# 1. l'ordine per giornata è la PRECONDIZIONE di buco(): un
+		#    salvataggio storto darebbe distanze negative
+		momenti.sort_custom(func(a, b): return int(a.get("d", 0)) < int(b.get("d", 0)))
+		# 2. il conto di chi non l'ha mai avuto parte dal pavimento onesto:
+		#    i momenti superstiti. Quello che il vecchio pop_front() ha già
+		#    buttato è perso — e in un gioco che parla di memoria, inventare
+		#    un passato mai vissuto sarebbe peggio che ammettere il vuoto
+		if not filo.has("n"):
+			filo["n"] = momenti.size()
+		# 3. la fusione di un fantasma poteva portare l'array ben oltre il
+		#    tetto e lasciarcelo finché non arrivava un momento nuovo: era
+		#    un difetto già in produzione, si chiude qui
+		if momenti.size() > MAX_MOMENTI:
+			filo["momenti"] = pota(momenti)
 	return out
 
 

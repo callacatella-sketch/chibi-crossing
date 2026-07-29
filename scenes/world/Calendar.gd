@@ -181,6 +181,14 @@ func _day() -> int:
 
 ## Un nuovo abitante: gli si assegna il compleanno e va a scriverlo
 ## sulla lavagna col gessetto (se una lavagna esiste).
+## Chi lascia il villaggio esce anche dalla lavagna: un compleanno senza
+## festeggiato e' solo un nome che il giocatore non sa piu' a chi legare —
+## e la festa a sorpresa potrebbe scattare per un assente.
+func dimentica(res_name: String) -> void:
+	if _birthdays.erase(res_name):
+		_refresh_boards()
+
+
 func register_resident(res_name: String, label: String, node: Node3D) -> void:
 	if _birthdays.has(res_name):
 		return
