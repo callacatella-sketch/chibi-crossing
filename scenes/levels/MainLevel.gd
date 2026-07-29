@@ -69,6 +69,9 @@ func _ready():
 	# il velo di carta imparava a respirare: le sue manopole non le
 	# scriveva mai nessuno (vedi Carta.gd)
 	add_child(_spawn_system("res://scenes/world/Carta.gd", "Carta"))
+	# rispondere: la cassetta si può anche riempire, e per scegliere cosa
+	# dire si sfoglia il Filo Rosso — la pagina che non c'era mai stata
+	add_child(_spawn_system("res://scenes/interact/Rispondere.gd", "Rispondere"))
 	var settings := get_node_or_null(^"/root/Settings")
 	if settings:
 		settings.apply_to_player(player)

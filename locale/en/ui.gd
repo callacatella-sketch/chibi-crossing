@@ -38,6 +38,32 @@ const T := {
 	"Prato Eterno (nessuna partenza)": "Eternal Meadow (nobody ever leaves)",
 	"Indietro": "Back",
 	"Qualità grafica": "Graphics quality",
+
+	# ------------------------------------------------------ rispondere
+	# La cassetta che si può anche riempire: si sceglie un momento vero
+	# della vostra storia e due parole di Chibiese.
+	"E — rispondi": "E — write back",
+	# in inglese non c'è nessuna preposizione da fondere con l'articolo:
+	# `con_di` non trova niente da cambiare e la frase passa intatta
+	"Mi ricordo %s.": "I remember %s.",
+	"A chi vuoi rispondere?": "Who do you want to write to?",
+	"Di cosa ti ricordi, con %s?": "What do you remember, you and %s?",
+	"E due parole.": "And two words.",
+	"Imbuca la lettera": "Post the letter",
+	"↑↓ scegli   ·   E conferma   ·   ESC chiude":
+			"↑↓ choose   ·   E confirms   ·   ESC closes",
+	"è la vostra storia   ·   E sceglie   ·   ESC torna":
+			"this is your story together   ·   E chooses   ·   ESC goes back",
+	"E cambia le parole   ·   INVIO spedisce   ·   ESC torna":
+			"E changes the words   ·   ENTER posts it   ·   ESC goes back",
+	"(al Grande Prato)": "(in the Great Meadow)",
+	"(gli hai già scritto oggi)": "(you've written to them today already)",
+	"Non hai ancora una storia da raccontare a nessuno.":
+			"You haven't a story to tell anyone yet.",
+	"La lettera è nella cassetta: la troverà %s.":
+			"The letter is in the box: %s will find it.",
+	"La lettera è partita per il Grande Prato. Stasera il fiore di %s sarà acceso.":
+			"The letter has gone to the Great Meadow. Tonight %s's flower will be lit.",
 	"Basso": "Low",
 	"Alto": "High",
 

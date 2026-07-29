@@ -101,6 +101,7 @@ const T := {
 	"gira al largo da: %s": "steers clear of: %s",
 	"Con te accanto, %s ci torna — e non succede niente.":
 			"With you beside them, %s goes back — and nothing happens at all.",
+	"%s ha trovato la tua lettera.": "%s has found your letter.",
 
 	# i lavori assegnabili
 	"— riposo —": "— rest —",
@@ -278,6 +279,7 @@ const T := {
 			"the warm soak at the hot spring, side by side",
 	"il desiderio esaudito vicino a casa": "the wish granted close to home",
 	"la partita a nascondino nel bosco": "the game of hide-and-seek in the woods",
+	"quella lettera lasciata nella cassetta": "that letter left in the postbox",
 	"quell'ultimo desiderio, vissuto insieme": "that last wish, lived together",
 	"il giorno in cui ha fatto il fagotto": "the day they packed their bundle",
 	"il giorno della piccola valigia e del cappello in zampa":

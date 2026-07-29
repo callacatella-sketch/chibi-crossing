@@ -42,6 +42,9 @@ const MOMENTI_TESTO := {
 	"oro": "Quel desiderio del giorno %d,\nl'ultimo, vissuto insieme:\nlo tengo tra i momenti d'oro.",
 	"addio": "Del giorno %d non parlo volentieri,\nma il filo non si è spezzato:\nha solo cambiato forma.",
 	"partenza": "Dal Grande Prato si vede il villaggio.\nIl giorno %d avevo la valigia piccola\ne il cuore pieno. Grazie di tutto.",
+	# la lettera che hai scritto TU: quando il momento riaffiora, lui si
+	# ricorda della busta, non del giorno che ci hai messo dentro
+	"risposta": "La tua lettera del giorno %d\nla tengo piegata nella tasca buona.\nLa rileggo quando fuori piove.",
 }
 
 
@@ -249,7 +252,11 @@ func _update_boxes(_delta: float) -> void:
 		if want_open != b["open"]:
 			b["open"] = want_open
 			_animate_lid(b, want_open)
-		if want_open and _has_mail and not _reading:
+		# LA CASSETTA NON È PIÙ SOLO UNA BOCCA CHE DÀ. Prima `_near_box` si
+		# accendeva solo `_has_mail`: senza posta la cassetta era inerte,
+		# e il canale più intimo del gioco restava a senso unico. Adesso
+		# ci si può stare davanti anche per IMBUCARE (vedi Rispondere.gd).
+		if want_open and not _reading:
 			_near_box = node
 
 
@@ -295,7 +302,15 @@ func _unhandled_input(event: InputEvent) -> void:
 		_close_letter()
 		get_viewport().set_input_as_handled()
 	elif _near_box:
-		_open_letter()
+		if _has_mail:
+			_open_letter()
+		else:
+			# niente da leggere: allora si scrive. È l'altro senso del
+			# canale, quello che mancava (scenes/interact/Rispondere.gd)
+			var risp := get_tree().get_first_node_in_group("rispondere")
+			if risp == null:
+				return
+			risp.call("apri")
 		get_viewport().set_input_as_handled()
 
 
@@ -539,7 +554,8 @@ func _update_prompt() -> void:
 	if cam.is_position_behind(wp):
 		_prompt.visible = false
 		return
-	_prompt_label.text = L10n.t("E — leggi la posta")
+	_prompt_label.text = L10n.t("E — leggi la posta") if _has_mail \
+			else L10n.t("E — rispondi")
 	_prompt.reset_size()
 	var p := cam.unproject_position(wp)
 	_prompt.position = p - Vector2(_prompt.size.x * 0.5, _prompt.size.y)

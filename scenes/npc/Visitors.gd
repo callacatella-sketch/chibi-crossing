@@ -1175,6 +1175,28 @@ func animo_di(label: String) -> String:
 	return (_animi[label] as RefCounted).stato()
 
 
+## GLI HAI SCRITTO. La lettera è nella cassetta e lui l'ha letta: se è in
+## giro corre a ringraziarti col corpo (la sua indole decide come), e
+## l'animo se lo ricorda — è un dono, non un ordine.
+func grazie_per_la_lettera(nome: String) -> void:
+	for r in _residents:
+		var dna: Dictionary = r.get("dna", {})
+		if str(dna.get("name", "")) != nome:
+			continue
+		var label := str(r.get("label", ""))
+		_bump_friend(r, 1)
+		if _animi.has(label):
+			(_animi[label] as RefCounted).ricorda("regalo", "giocatore", 0.7, 0.8)
+		var node := r.get("node") as Node3D
+		if node != null and is_instance_valid(node):
+			if node.has_method("celebrate"):
+				node.call("celebrate")
+			if node.has_method("speak"):
+				node.call("speak", ["grazie", "ricordo"], "felice")
+		_show_toast(L10n.tf("%s ha trovato la tua lettera.", [label]))
+		return
+
+
 ## L'ANIMO in persona, non il suo riassunto: serve a chi deve farlo
 ## DECIDERE (le giornate libere del registro dei lavori). Gli altri
 ## chiamanti si accontentino di `animo_di`/`sogno_di`: qui si passa un

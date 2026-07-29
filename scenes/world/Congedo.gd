@@ -141,6 +141,7 @@ static func desiderio_del_giorno(momenti: Array, idx: int) -> Dictionary:
 func _nuovo_giorno(day: int) -> void:
 	_echi.clear()
 	_conforto_oggi = false
+	_spegni_luci_lettera()   # la notte della lettera è passata
 	# 1) il lutto in corso cammina coi giorni
 	if _legami and bool(_legami.call("lutto_attivo")):
 		_giorno_di_lutto(day)
@@ -740,6 +741,45 @@ func _spegni_finestra() -> void:
 # (Fase 5) Unico, generato dai colori di chi è partito, da nessun'altra
 # parte nel mondo. Non appassisce mai. Sedendosi accanto, i momenti del
 # filo riaffiorano uno a uno.
+
+## HAI SCRITTO A CHI È PARTITO. Nessuno risponde — il gioco non finge il
+## contrario — ma la lettera non si perde: il suo fiore-ricordo si
+## ACCENDE, una lucina calda che resta fino all'alba. È lo stesso gruppo
+## delle lanterne del congedo, quindi il riflesso negli occhi di Mochi la
+## trova da solo, se ci passa accanto.
+func accendi_fiore(nome: String) -> void:
+	if not _fiori.has(nome) or not is_instance_valid(_fiori[nome]):
+		return
+	var fiore := _fiori[nome] as Node3D
+	if fiore.get_node_or_null("LuceLettera") != null:
+		return   # già accesa stanotte: una lettera, una luce
+	var luce := OmniLight3D.new()
+	luce.name = "LuceLettera"
+	luce.light_color = Color("ffd9a0")
+	luce.light_energy = 0.0
+	luce.omni_range = 3.2
+	luce.position = Vector3(0, 0.42, 0)
+	luce.add_to_group("luce_calda")
+	fiore.add_child(luce)
+	var tw := create_tween()
+	tw.tween_property(luce, "light_energy", 1.15, 2.4) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+
+
+## All'alba le lucine delle lettere si spengono con le lanterne: la notte
+## in cui hai scritto è passata, e il fiore torna un fiore.
+func _spegni_luci_lettera() -> void:
+	for nome in _fiori:
+		if not is_instance_valid(_fiori[nome]):
+			continue
+		var luce := (_fiori[nome] as Node3D).get_node_or_null("LuceLettera")
+		if luce == null:
+			continue
+		var tw := create_tween()
+		tw.tween_property(luce, "light_energy", 0.0, 1.6) \
+				.set_trans(Tween.TRANS_SINE)
+		tw.tween_callback(luce.queue_free)
+
 
 func _spawn_fiore(nome: String, f: Dictionary) -> void:
 	if _fiori.has(nome) and is_instance_valid(_fiori[nome]):

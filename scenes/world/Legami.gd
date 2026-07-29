@@ -39,7 +39,11 @@ const MAX_MOMENTI := 30
 ## I tipi che non si potano mai: i capi della storia. Il primo benvenuto e
 ## il giorno della valigia sono l'inizio; l'oro sono gli ultimi desideri
 ## della settimana del congedo; addio e partenza sono la fine.
-const INTOCCABILI := ["benvenuto", "trasloco", "oro", "addio", "partenza"]
+## (la "risposta" è dentro perché è l'unico momento che il GIOCATORE ha
+## scelto a mano, uno per volta: potarla sarebbe buttare via l'unica cosa
+## che ha scritto lui)
+const INTOCCABILI := ["benvenuto", "trasloco", "oro", "addio", "partenza",
+		"risposta"]
 
 ## Quanti momenti in testa e in coda sono comunque salvi: i capi del filo
 ## si tengono anche se il tipo non è fra gli intoccabili (i primi giorni
@@ -60,6 +64,15 @@ const TIPI := {
 	"onsen": ["il bagno caldo alle terme, fianco a fianco", ["felice", "amico"]],
 	"desiderio": ["il desiderio esaudito vicino a casa", ["grazie", "casa"]],
 	"nascondino": ["la partita a nascondino nel bosco", ["risata", "amico"]],
+	# LA RISPOSTA: l'unico momento che scrivi TU. Fino a ieri la posta era
+	# a senso unico — loro scrivevano, tu no — e il filo non aveva una
+	# pagina dove guardarlo. Rispondere è la stessa porta per tutte e due
+	# le cose: per scegliere cosa dire devi sfogliare la vostra storia.
+	# il racconto è NEUTRO apposta: questo momento lo rileggono in due —
+	# lui quando gli riaffiora, e Mochi quando sceglie di che cosa
+	# scrivere. «la lettera che gli hai scritto tu» suonava storta in
+	# bocca a chi la stava scrivendo.
+	"risposta": ["quella lettera lasciata nella cassetta", ["ricordo", "insieme"]],
 	# gli ultimi desideri della settimana del congedo: i momenti d'ORO,
 	# quelli che valgono il doppio quando riaffiorano
 	"oro": ["quell'ultimo desiderio, vissuto insieme", ["grazie", "amico"]],
