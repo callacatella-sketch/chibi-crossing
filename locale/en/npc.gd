@@ -99,6 +99,8 @@ const T := {
 			"↑↓ pick a neighbour   ←→ change their work   ·   N closes",
 	"Non c'è ancora nessuno in paese.": "No one has moved in yet.",
 	"gira al largo da: %s": "steers clear of: %s",
+	"Con te accanto, %s ci torna — e non succede niente.":
+			"With you beside them, %s goes back — and nothing happens at all.",
 
 	# i lavori assegnabili
 	"— riposo —": "— rest —",

@@ -571,14 +571,41 @@ func _filtra_luogo(label: String, act: String) -> String:
 	var animo: RefCounted = _animi[label]
 	if not animo.limbico.evita(luogo):
 		return act
-	# ci arriva vicino e si blocca: è la scena che il giocatore vede
+	var nodo: Node3D = null
 	for r in _residents:
 		if str(r.get("label", "")) == label:
-			var node := r.get("node") as Node3D
-			if node != null and is_instance_valid(node) and node.has_method("chat_bubble"):
-				node.call("chat_bubble", "…")
-				node.set_meta("postura", "esita")
+			nodo = r.get("node") as Node3D
 			break
+
+	# SE MOCHI È LÌ, CI VA LO STESSO.
+	#
+	# La trappola della paura appresa è che si autoalimenta: chi evita un
+	# posto non ci torna mai, e non tornandoci non scopre mai che adesso
+	# non succede nulla. Da solo, quel marchio non si sarebbe spento più —
+	# e `Limbico.visita_serena`, la porta per rimediare a un trauma, non
+	# la apriva nessuno.
+	# La chiave è la cosa più semplice e più vera del mondo: con un amico
+	# accanto ci si va. Se il giocatore è a due passi nel momento in cui
+	# il vicino si blocca, il vicino tira su il musetto e ci va — e la
+	# visita, siccome non succede niente, DIMEZZA la paura. Bastano poche
+	# volte perché il posto torni un posto qualunque.
+	if nodo != null and is_instance_valid(nodo) and _player != null \
+			and _player.global_position.distance_to(nodo.global_position) < 3.5:
+		animo.limbico.visita_serena(luogo)
+		if nodo.has_method("celebrate"):
+			nodo.call("celebrate")
+		if nodo.has_method("speak"):
+			nodo.call("speak", ["coraggio", "amico"], "felice")
+		nodo.set_meta("postura", "si_illumina")
+		if not animo.limbico.evita(luogo):
+			_show_toast(L10n.tf("Con te accanto, %s ci torna — e non succede niente.",
+					[label]))
+		return act
+
+	# altrimenti ci arriva vicino e si blocca: è la scena che il giocatore vede
+	if nodo != null and is_instance_valid(nodo) and nodo.has_method("chat_bubble"):
+		nodo.call("chat_bubble", "…")
+		nodo.set_meta("postura", "esita")
 	return RIPIEGO           # cambia idea e va a cercare compagnia
 
 
@@ -1127,6 +1154,14 @@ func animo_di(label: String) -> String:
 	if not _animi.has(label):
 		return ""
 	return (_animi[label] as RefCounted).stato()
+
+
+## L'ANIMO in persona, non il suo riassunto: serve a chi deve farlo
+## DECIDERE (le giornate libere del registro dei lavori). Gli altri
+## chiamanti si accontentino di `animo_di`/`sogno_di`: qui si passa un
+## oggetto vivo, e chi lo tocca ne è responsabile.
+func animo_oggetto_di(label: String) -> RefCounted:
+	return _animi.get(label)
 
 
 ## Il sogno di un residente ("boscaiolo", "cuoco"…). Serve al registro dei
