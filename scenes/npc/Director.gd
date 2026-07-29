@@ -287,12 +287,14 @@ func _sorpresa_del_giorno() -> void:
 	_ultima_sorpresa = giorno
 	_sorprese += 1
 	var asse := profilo()
-	var testo: String = L10n.t(str(LETTERE_GUFO[asse]))
-	if testo.contains("%d"):
-		testo = testo % _asse_val(asse)
+	# la chiave italiana, non la frase tradotta: il conto si mette dentro
+	# quando la busta si apre (e il ritratto del curioso è l'unico senza
+	# numero da mettere — il segnaposto lo si cerca nella CHIAVE)
+	var chiave := str(LETTERE_GUFO[asse])
 	_mail.call("queue_letter", {
-		"from": L10n.t("Il Gufo"),
-		"text": testo,
+		"from_key": "Il Gufo",
+		"text_key": chiave,
+		"args": [_asse_val(asse)] if chiave.contains("%d") else [],
 		"gift": _sorprese % 3 == 0,
 	})
 

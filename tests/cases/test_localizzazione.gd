@@ -59,6 +59,15 @@ func _test_ogni_frase_avvolta_e_tradotta(t) -> void:
 
     var re := RegEx.new()
     re.compile('L10n\\.tf?\\(\\s*"((?:[^"\\\\]|\\\\.)*)"')
+    # LE FRASI RIMANDATE (vedi L10n.rendi). La posta non può tradurre
+    # quando scrive — la coda finisce su disco e si legge domani, magari in
+    # un'altra lingua — quindi mette da parte la CHIAVE: `"text_key": "…"`,
+    # `"from_key": "…"`, `{"k": "…"}`. Sono letterali che il giocatore
+    # vedrà esattamente come quelli avvolti in L10n.t(), e senza questa
+    # seconda rete uscirebbero dal controllo in silenzio: la copertura
+    # scenderebbe da sola, senza che nessun test diventi rosso.
+    var re_rimandate := RegEx.new()
+    re_rimandate.compile('"(?:text_key|from_key|k)"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"')
 
     var mancanti: Array[String] = []
     var trovate := 0
@@ -66,23 +75,32 @@ func _test_ogni_frase_avvolta_e_tradotta(t) -> void:
         for percorso in _script_di(cartella):
             if percorso in ESENTI:
                 continue
-            var testo := FileAccess.get_file_as_string(percorso)
+            var testo := _senza_commenti(FileAccess.get_file_as_string(percorso))
             if testo.is_empty():
                 continue
-            for m in re.search_all(testo):
-                # `L10n.t("%s %s" % [...])`: qui la chiave non è il letterale
-                # ma la frase già COMPOSTA (è il caso legittimo di
-                # Critters.con_articolo, dove l'articolo va incollato al nome
-                # prima di cercare la riga). Il letterale è solo uno stampo:
-                # saltalo, o il controllo chiederebbe di tradurre "%s %s".
-                if _formatta_dopo(testo, m.get_end()):
-                    continue
-                var frase := _spoglia(m.get_string(1))
-                if frase.strip_edges().is_empty():
-                    continue
-                trovate += 1
-                if not tabella.has(frase):
-                    mancanti.append("%s: «%s»" % [percorso.get_file(), _corto(frase)])
+            for re_i in [re, re_rimandate]:
+                for m in (re_i as RegEx).search_all(testo):
+                    # `L10n.t("%s %s" % [...])`: qui la chiave non è il letterale
+                    # ma la frase già COMPOSTA (è il caso legittimo di
+                    # Critters.con_articolo, dove l'articolo va incollato al nome
+                    # prima di cercare la riga). Il letterale è solo uno stampo:
+                    # saltalo, o il controllo chiederebbe di tradurre "%s %s".
+                    if _formatta_dopo(testo, m.get_end()):
+                        continue
+                    var frase := _spoglia(m.get_string(1))
+                    if frase.strip_edges().is_empty():
+                        continue
+                    # una chiave senza NEMMENO UNA LETTERA non è una frase:
+                    # è l'impalcatura che tiene insieme due frasi vere
+                    # ("%s × %d", "%s (%s)"). Non c'è niente da tradurre, e
+                    # metterla in tabella vorrebbe dire scriverci accanto
+                    # una copia identica — cosa che un altro controllo qui
+                    # sotto giustamente vieta.
+                    if not _ha_lettere(frase):
+                        continue
+                    trovate += 1
+                    if not tabella.has(frase):
+                        mancanti.append("%s: «%s»" % [percorso.get_file(), _corto(frase)])
 
     t.ok(trovate > 0, "il controllo trova davvero le frasi avvolte (%d)" % trovate)
     # una riga di errore per frase: il rapporto dice SUBITO cosa tradurre
@@ -93,6 +111,19 @@ func _test_ogni_frase_avvolta_e_tradotta(t) -> void:
             % [trovate - mancanti.size(), trovate])
 
 
+## C'è almeno una PAROLA, o è solo impalcatura? I segnaposto si tolgono
+## prima di guardare: dentro `%s` e `%d` ci sono due lettere che non sono
+## parole di nessuna lingua, e senza toglierle «%s (%s)» passerebbe per
+## una frase da tradurre.
+static func _ha_lettere(s: String) -> bool:
+    var nuda := _RE_SEGNAPOSTO.sub(s, " ", true)
+    return _RE_LETTERA.search(nuda) != null
+
+
+static var _RE_SEGNAPOSTO := RegEx.create_from_string("%[-+ 0-9.*]*[sdfxvc%]")
+static var _RE_LETTERA := RegEx.create_from_string("\\p{L}")
+
+
 ## Dopo la stringa chiusa c'è un `%` (cioè la si sta formattando prima di
 ## tradurla)? Allora il letterale è uno stampo, non una chiave.
 static func _formatta_dopo(testo: String, da: int) -> bool:
@@ -100,6 +131,20 @@ static func _formatta_dopo(testo: String, da: int) -> bool:
     while i < testo.length() and testo[i] in [" ", "\t"]:
         i += 1
     return i < testo.length() and testo[i] == "%"
+
+
+## Il sorgente senza le righe di commento. Una frase d'ESEMPIO scritta in
+## un `##` che spiega come si usa una API (`"text_key": "Ho contato %d
+## stelle su casa tua."`) non è testo che il giocatore vedrà: chiederne la
+## traduzione manderebbe in tabella frasi che nessuno dirà mai. Si tolgono
+## solo le righe che COMINCIANO con `#`, così una stringa vera con dentro
+## un cancelletto resta al suo posto.
+static func _senza_commenti(sorgente: String) -> String:
+    var righe := sorgente.split("\n")
+    for i in righe.size():
+        if righe[i].strip_edges().begins_with("#"):
+            righe[i] = ""
+    return "\n".join(righe)
 
 
 ## Gli script .gd sotto una cartella, ricorsivamente.

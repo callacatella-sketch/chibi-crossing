@@ -326,11 +326,16 @@ func _al_vicino(_testo: String) -> void:
 	if _visitors and _visitors.has_method("grazie_per_la_lettera"):
 		_visitors.call("grazie_per_la_lettera", _a_chi)
 	if _mail and _mail.has_method("queue_letter"):
-		var eco := "Ho letto e riletto la tua lettera.\nMe lo ricordo anch'io, %s.\n\n«%s»\n— %s" % [
-				str(_momento.get("racconto", "quel giorno")),
-				"-".join(PackedStringArray(CHIBIESE.VOCAB.get("grazie", ["ta", "ki"]))),
-				_a_chi]
-		_mail.call("queue_letter", {"from": _a_chi, "text": eco, "gift": false})
+		# il Chibiese resta Chibiese in ogni lingua (è la LORO lingua, non
+		# la nostra); il racconto del momento invece viene da Legami.TIPI
+		# ed è una chiave, quindi si rimanda anche lui
+		var grazie := "-".join(PackedStringArray(CHIBIESE.VOCAB.get("grazie", ["ta", "ki"])))
+		_mail.call("queue_letter", {
+			"from_key": _a_chi,
+			"text_key": "Ho letto e riletto la tua lettera.\nMe lo ricordo anch'io, %s.\n\n«%s»\n— %s",
+			"args": [{"k": str(_momento.get("racconto", "quel giorno"))}, grazie, _a_chi],
+			"gift": false,
+		})
 	_toast(L10n.tf("La lettera è nella cassetta: la troverà %s.", [_a_chi]))
 
 

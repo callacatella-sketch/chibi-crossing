@@ -415,8 +415,8 @@ func _on_new_day(day: int) -> void:
 	# il desiderio maturato arriva con la posta del mattino
 	if _wish_day >= 0 and day >= _wish_day and _mail:
 		_mail.call("queue_letter", {
-			"from": "La stella cadente",
-			"text": "Quella notte ti ho sentito, sai?\nI desideri sussurrati nell'erba\narrivano sempre, prima o poi.",
+			"from_key": "La stella cadente",
+			"text_key": "Quella notte ti ho sentito, sai?\nI desideri sussurrati nell'erba\narrivano sempre, prima o poi.",
 			"gift": true,
 		})
 		_wish_day = -1

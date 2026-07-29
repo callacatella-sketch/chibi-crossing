@@ -118,8 +118,10 @@ func _test_determinismo(t, p: GDScript) -> void:
 
 func _test_testi(t, p: GDScript) -> void:
 	for id in p.FEN:
-		var big: String = p.bigliettino(str(id))
-		var persa: String = p.lettera_persa(str(id))
+		# i due testi sono RIMANDATI (chiavi, non parole): si leggono con
+		# L10n.rendi, che è la stessa porta da cui passa la cassetta
+		var big: String = L10n.rendi(p.bigliettino(str(id)))
+		var persa: String = L10n.rendi(p.lettera_persa(str(id)))
 		t.ok(big.length() > 60, "«%s»: il bigliettino dice qualcosa (%d)"
 				% [id, big.length()])
 		t.ok(persa.length() > 60, "«%s»: la lettera racconta la scena (%d)"

@@ -267,8 +267,8 @@ func throw_party(res_name: String, label: String, node: Node3D) -> void:
 		gtree.engrave("★", L10n.tf("la festa a sorpresa di %s", [label]))
 	if _mail:
 		_mail.call("queue_letter", {
-			"from": res_name,
-			"text": L10n.t("La festa più bella della mia vita!\nCome facevi a saperlo? Ah già…\nla lavagna. Grazie, di cuore."),
+			"from_key": res_name,
+			"text_key": "La festa più bella della mia vita!\nCome facevi a saperlo? Ah già…\nla lavagna. Grazie, di cuore.",
 			"gift": true,
 		})
 

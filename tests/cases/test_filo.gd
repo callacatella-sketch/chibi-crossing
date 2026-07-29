@@ -254,27 +254,28 @@ func _test_partito_sui_dati(t) -> void:
 
 
 ## Le lettere nate dai momenti: deterministiche, datate, firmate.
+## `componi_lettera` restituisce CHIAVI: si legge passando da `rendi()`.
 func _test_lettere_dai_momenti(t) -> void:
 	t.ok((MAIL.componi_lettera("il gattino Miele", [], 0) as Dictionary).is_empty(),
 			"filo vuoto: nessuna lettera")
 	var momenti := [_m("onsen", 12), _m("festa", 20)]
-	var l1: Dictionary = MAIL.componi_lettera("il gattino Miele", momenti, 0)
+	var l1: Dictionary = MAIL.rendi(MAIL.componi_lettera("il gattino Miele", momenti, 0))
 	t.eq(str(l1["from"]), "il gattino Miele", "la lettera e' firmata")
 	t.ok(str(l1["text"]).contains("12"), "e cita il giorno del momento")
-	var l2: Dictionary = MAIL.componi_lettera("il gattino Miele", momenti, 1)
+	var l2: Dictionary = MAIL.rendi(MAIL.componi_lettera("il gattino Miele", momenti, 1))
 	t.ok(str(l2["text"]).contains("20"), "pick diverso, momento diverso")
-	t.eq(str(MAIL.componi_lettera("x", momenti, 0)["text"]),
+	t.eq(str(MAIL.rendi(MAIL.componi_lettera("x", momenti, 0))["text"]),
 			str(l1["text"]), "stesso pick, stessa lettera (deterministica)")
 	# ogni tipo del Filo produce una lettera vera
 	for tipo in LEGAMI.TIPI:
 		var l: Dictionary = MAIL.componi_lettera("qualcuno", [_m(str(tipo), 7)], 1)
-		t.ok(not l.is_empty() and str(l["text"]).length() > 20,
+		t.ok(not l.is_empty() and str(MAIL.rendi(l)["text"]).length() > 20,
 				"il tipo '%s' produce una lettera vera" % tipo)
 	# un filo ricco lo dice
 	var tanti := []
 	for i in 7:
 		tanti.append(_m("piatto", i + 1))
-	t.ok(str(MAIL.componi_lettera("x", tanti, 1)["text"]).contains("7"),
+	t.ok(str(MAIL.rendi(MAIL.componi_lettera("x", tanti, 1))["text"]).contains("7"),
 			"un filo ricco conta i suoi momenti")
 
 

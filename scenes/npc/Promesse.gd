@@ -419,7 +419,7 @@ func _chiudi(esito: String) -> void:
 	var fen := str(_attiva["fen"])
 	var chi := str(_attiva["chi"])
 	if esito == "mancata" and _mail and _mail.has_method("queue_letter"):
-		_mail.call("queue_letter", {"from": chi, "text": lettera_persa(fen),
+		_mail.call("queue_letter", {"from_key": chi, "text_key": lettera_persa(fen),
 				"gift": false})
 	# e il vicino torna alla sua vita: l'attesa non dura oltre la sua sera
 	if _visitors != null:
@@ -439,35 +439,41 @@ func _chiudi(esito: String) -> void:
 func _consegna_bigliettino() -> void:
 	if _mail == null or not _mail.has_method("queue_letter"):
 		return
-	_mail.call("queue_letter", {"from": str(_attiva["chi"]),
-			"text": bigliettino(str(_attiva["fen"])), "gift": false})
+	_mail.call("queue_letter", {"from_key": str(_attiva["chi"]),
+			"text_key": bigliettino(str(_attiva["fen"])), "gift": false})
 
 
 # ------------------------------------------------------------- i testi
 
 ## Il bigliettino nella cassetta: dice QUANDO senza dire un'ora.
-static func bigliettino(fen: String) -> String:
+##
+## Torna una frase RIMANDATA (`{"k": …}`, vedi L10n.rendi), non parole: fra
+## lo scriverlo e il leggerlo passa una notte e un salvataggio su disco, e
+## in mezzo il giocatore può aver cambiato lingua. Chi lo vuole subito in
+## parole lo passa a `L10n.rendi()`.
+static func bigliettino(fen: String) -> Dictionary:
 	match fen:
 		"bruma":
-			return L10n.t("Domattina, quando si alza la bruma,\nallo stagno. Dura il tempo di un tè:\npoi il sole se la beve tutta.\nIo ci sono comunque, nell'acqua bianca.")
+			return {"k": "Domattina, quando si alza la bruma,\nallo stagno. Dura il tempo di un tè:\npoi il sole se la beve tutta.\nIo ci sono comunque, nell'acqua bianca."}
 		"levata":
-			return L10n.t("Domani, quando il sole tocca l'acqua,\nallo stagno: i pesci salgono a respirare.\nSi sentono prima di vederli. Vieni piano.")
+			return {"k": "Domani, quando il sole tocca l'acqua,\nallo stagno: i pesci salgono a respirare.\nSi sentono prima di vederli. Vieni piano."}
 		"neve":
-			return L10n.t("L'autunno finisce e l'aria sa di ferro.\nIl primo fiocco cade prima che uno se l'aspetti:\nquel giorno, appena comincia, vieni al Grande Albero.\nVoglio vederlo insieme a qualcuno.")
-	return ""
+			return {"k": "L'autunno finisce e l'aria sa di ferro.\nIl primo fiocco cade prima che uno se l'aspetti:\nquel giorno, appena comincia, vieni al Grande Albero.\nVoglio vederlo insieme a qualcuno."}
+	return {}
 
 
 ## La lettera del giorno dopo: ti racconta la scena che ti sei perso.
-## Non ti rimprovera mai — ti fa vedere cosa c'era.
-static func lettera_persa(fen: String) -> String:
+## Non ti rimprovera mai — ti fa vedere cosa c'era. Rimandata come il
+## bigliettino, e per la stessa ragione.
+static func lettera_persa(fen: String) -> Dictionary:
 	match fen:
 		"bruma":
-			return L10n.t("La bruma è venuta, alta fino alle orecchie.\nLo stagno non c'era più: c'era il fiato dell'acqua\ne i giunchi che spuntavano come dita.\nHo aspettato finché il sole non l'ha bevuta.\nIl posto accanto a me è rimasto libero e tiepido.")
+			return {"k": "La bruma è venuta, alta fino alle orecchie.\nLo stagno non c'era più: c'era il fiato dell'acqua\ne i giunchi che spuntavano come dita.\nHo aspettato finché il sole non l'ha bevuta.\nIl posto accanto a me è rimasto libero e tiepido."}
 		"levata":
-			return L10n.t("Ne sono saliti sette, forse otto.\nUno ha fatto un anello così largo\nche è arrivato fino alla mia zampa.\nPoi l'acqua si è richiusa e ha fatto buio.")
+			return {"k": "Ne sono saliti sette, forse otto.\nUno ha fatto un anello così largo\nche è arrivato fino alla mia zampa.\nPoi l'acqua si è richiusa e ha fatto buio."}
 		"neve":
-			return L10n.t("È cominciata senza avvisare.\nAl Grande Albero c'ero solo io e i primi fiocchi,\nche a toccarli non erano freddi, erano lenti.\nQuest'inverno ne cadranno milioni.\nQuesto era il primo, e adesso lo so io soltanto.")
-	return ""
+			return {"k": "È cominciata senza avvisare.\nAl Grande Albero c'ero solo io e i primi fiocchi,\nche a toccarli non erano freddi, erano lenti.\nQuest'inverno ne cadranno milioni.\nQuesto era il primo, e adesso lo so io soltanto."}
+	return {}
 
 
 # --------------------------------------------------------- persistenza

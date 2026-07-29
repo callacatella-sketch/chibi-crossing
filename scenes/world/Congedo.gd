@@ -235,9 +235,9 @@ func _inizia_congedo(r: Dictionary) -> void:
 			"oggi": {}}
 	# il Gufo scrive a Mochi: è LEI ad accompagnare le ultime cose
 	if _mail:
-		_mail.call("queue_letter", {"from": L10n.t("Il Gufo"),
-			"text": L10n.tf("%s sente che è quasi tempo di partire\nper il Grande Prato. Vuole salutare il mondo:\naccompagnala tu, un desiderio al giorno.\nSarà la settimana più piena di tutte.", [label]),
-			"gift": false})
+		_mail.call("queue_letter", {"from_key": "Il Gufo",
+			"text_key": "%s sente che è quasi tempo di partire\nper il Grande Prato. Vuole salutare il mondo:\naccompagnala tu, un desiderio al giorno.\nSarà la settimana più piena di tutte.",
+			"args": [label], "gift": false})
 	_toast(L10n.tf("🍂 Per %s comincia la settimana delle ultime cose.", [label]))
 	_prepara_desiderio(0)
 	_salva()
@@ -497,11 +497,21 @@ func _partenza() -> void:
 		# lettera che chiude la storia (vedi Legami.momenti_vissuti)
 		var quanti_vissuti: int = int(_legami.call("momenti_vissuti", nome)) \
 				if _legami else momenti.size()
-		var testo := L10n.tf("Sono partita all'alba, col cappello in zampa.\nPorto con me %d momenti del nostro filo", [quanti_vissuti])
+		# DUE LETTERE INTERE, non tre pezzi da incollare. La riga dell'oro
+		# cade in mezzo a una frase, e una frase spezzata a metà è la cosa
+		# che un traduttore non può rimettere in piedi: in inglese quella
+		# subordinata va in un altro punto. Meglio due stringhe che si
+		# somigliano che una frase che si rompe passando la frontiera.
+		var lettera := {}
 		if oro > 0:
-			testo += L10n.tf(",\ne i %d d'oro dell'ultima settimana", [oro])
-		testo += L10n.tf(".\nTi lascio il mio ricordino: portalo tu.\nNon serbo che gratitudine. — %s", [nome])
-		_mail.call("queue_letter", {"from": label, "text": testo, "gift": true})
+			lettera = {"from_key": label, "gift": true,
+				"text_key": "Sono partita all'alba, col cappello in zampa.\nPorto con me %d momenti del nostro filo,\ne i %d d'oro dell'ultima settimana.\nTi lascio il mio ricordino: portalo tu.\nNon serbo che gratitudine. — %s",
+				"args": [quanti_vissuti, oro, nome]}
+		else:
+			lettera = {"from_key": label, "gift": true,
+				"text_key": "Sono partita all'alba, col cappello in zampa.\nPorto con me %d momenti del nostro filo.\nTi lascio il mio ricordino: portalo tu.\nNon serbo che gratitudine. — %s",
+				"args": [quanti_vissuti, nome]}
+		_mail.call("queue_letter", lettera)
 
 	# la trasformazione (Fase 5): capo, costellazione, anello, fiore
 	var wr := get_tree().get_first_node_in_group("guardaroba")

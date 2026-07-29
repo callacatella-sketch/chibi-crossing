@@ -229,11 +229,19 @@ func esausto() -> bool:
 
 ## Perché è scoppiato adesso: la frase che spiega la sproporzione.
 func perche_scoppio() -> String:
+	return L10n.rendi(perche_scoppio_rimandato())
+
+
+## La stessa cosa un passo prima: la chiave e il suo conto, per chi la
+## deve CONSERVARE invece che dirla subito (la posta la tiene in coda
+## una notte, e la notte può cambiare lingua). {} se non c'è niente
+## da spiegare.
+func perche_scoppio_rimandato() -> Dictionary:
 	if morsi_oggi >= 3:
-		return L10n.tf("si era trattenuto %d volte oggi", [morsi_oggi])
+		return {"k": "si era trattenuto %d volte oggi", "args": [morsi_oggi]}
 	if regolazione <= 0.001:
-		return L10n.t("non gli restava più pazienza")
-	return ""
+		return {"k": "non gli restava più pazienza"}
+	return {}
 
 
 # ============================================================ i marchi

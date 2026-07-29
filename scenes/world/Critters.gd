@@ -214,10 +214,18 @@ static func etichetta(id: String) -> String:
 ## nome che lo segue (a golden butterfly / an amber dragonfly): comporre in
 ## inglese due pezzi tradotti a parte darebbe "a amber dragonfly".
 static func con_articolo(id: String) -> String:
+	return L10n.t(con_articolo_chiave(id))
+
+
+## Come `con_articolo()` ma FERMA UN PASSO PRIMA: la frase italiana, che è
+## anche la sua chiave in tabella. La vuole chi deve conservare il nome
+## della creatura senza ancora mostrarlo — la posta in coda, che finisce su
+## disco e va tradotta solo quando si apre la busta.
+static func con_articolo_chiave(id: String) -> String:
 	var v := voce(id)
 	if v.is_empty():
 		return id
-	return L10n.t("%s %s" % [str(v["articolo"]), str(v["nome"])])
+	return "%s %s" % [str(v["articolo"]), str(v["nome"])]
 
 
 static func nome(id: String) -> String:

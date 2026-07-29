@@ -21,7 +21,10 @@ const T := {
 	"%s è a «%s»%s: %s.": "%s is %s%s: %s.",
 	"%s non ha nulla da rimproverarti.": "%s has nothing to hold against you.",
 	"nel villaggio se ne parla male": "the village talks, and not kindly",
-	"(e lui sognava di fare %s)": "(and they dreamt of being %s)",
+	# il torto contato, e la stessa riga quando quel torto tradiva il sogno
+	# di chi l'ha subito: due righe intere, non una con una parentesi
+	# appiccicata (la parentesi, altrove, vuole un altro posto)
+	"%s × %d (e lui sognava di fare %s)": "%s × %d (and they dreamt of being %s)",
 	"ha perso %s": "lost %s",
 	"e nessuno gli è stato vicino": "and no one stood by them",
 	"gira voce su %s": "there's talk going round about %s",
@@ -339,12 +342,14 @@ const T := {
 			"the place of the granted wish, close to home",
 	"un ultimo giro del villaggio": "one last turn around the village",
 
-	# la partenza per il Grande Prato, e la lettera lasciata sul letto
-	"Sono partita all'alba, col cappello in zampa.\nPorto con me %d momenti del nostro filo":
-			"I left at dawn, hat in paw.\nI take with me %d moments of our thread",
-	",\ne i %d d'oro dell'ultima settimana": ",\nand the %d golden ones of that last week",
-	".\nTi lascio il mio ricordino: portalo tu.\nNon serbo che gratitudine. — %s":
-			".\nI leave you my little keepsake: you carry it now.\nI hold nothing but gratitude. — %s",
+	# la partenza per il Grande Prato, e la lettera lasciata sul letto.
+	# Due lettere INTERE e non tre pezzi da incollare: la riga dei momenti
+	# d'oro cade in mezzo a una frase, e in inglese una subordinata così
+	# non sta per forza nello stesso punto (vedi scenes/world/Congedo.gd).
+	"Sono partita all'alba, col cappello in zampa.\nPorto con me %d momenti del nostro filo.\nTi lascio il mio ricordino: portalo tu.\nNon serbo che gratitudine. — %s":
+			"I left at dawn, hat in paw.\nI take with me %d moments of our thread.\nI leave you my little keepsake: you carry it now.\nI hold nothing but gratitude. — %s",
+	"Sono partita all'alba, col cappello in zampa.\nPorto con me %d momenti del nostro filo,\ne i %d d'oro dell'ultima settimana.\nTi lascio il mio ricordino: portalo tu.\nNon serbo che gratitudine. — %s":
+			"I left at dawn, hat in paw.\nI take with me %d moments of our thread,\nand the %d golden ones of that last week.\nI leave you my little keepsake: you carry it now.\nI hold nothing but gratitude. — %s",
 	"%s è partito per il Grande Prato": "%s left for the Great Meadow",
 	"🌸 %s è partita per il Grande Prato, con la valigia piccola.\nDavanti a casa sua è sbocciato un fiore mai visto.":
 			"🌸 %s has left for the Great Meadow, with the small suitcase.\nOutside their home a flower no one has ever seen has bloomed.",

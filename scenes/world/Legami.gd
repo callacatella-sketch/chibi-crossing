@@ -485,8 +485,9 @@ func _nuovo_giorno(_d: int) -> void:
 			var mail: Node = get_node_or_null("../../Mail")
 			if mail:
 				mail.call("queue_letter", {
-					"from": L10n.t("Il Gufo"),
-					"text": L10n.tf("Ho visto i primi peli d'argento\nsul musetto di %s.\nLe stagioni passano anche per noi.\nStagli vicino.", [nome]),
+					"from_key": "Il Gufo",
+					"text_key": "Ho visto i primi peli d'argento\nsul musetto di %s.\nLe stagioni passano anche per noi.\nStagli vicino.",
+					"args": [nome],
 					"gift": false,
 				})
 	_salva()

@@ -579,9 +579,14 @@ func eco() -> float:
 # La parte che rende il sistema un sistema e non un generatore di rumore.
 
 ## Le cause del suo stato d'animo, dalla più pesante alla più lieve.
-## Ogni voce: {"peso": 0..1, "testo": "…"}. È la materia prima della
-## ricostruzione a posteriori — e ciò che un LLM dovrebbe riscrivere, senza
-## MAI inventarsi cause che qui non ci sono.
+## Ogni voce: {"peso": 0..1, "chiave": …, "testo": "…"}. È la materia prima
+## della ricostruzione a posteriori — e ciò che un LLM dovrebbe riscrivere,
+## senza MAI inventarsi cause che qui non ci sono.
+##
+## `chiave` è la causa RIMANDATA (`L10n.rendi`): la si conserva per dopo,
+## anche su disco. `testo` è la stessa causa detta adesso, nella lingua di
+## adesso — non una seconda stesura da tenere allineata a mano, ma
+## letteralmente `rendi(chiave)`, così le due non possono divergere.
 func cause(verso := "giocatore") -> Array:
 	var out := []
 	# 1) i compiti ripetuti, con il numero in chiaro
@@ -601,18 +606,21 @@ func cause(verso := "giocatore") -> Array:
 			# il numero di voci non significa nulla per chi gioca: conta che
 			# il villaggio mormori, non quante volte l'abbia sentito dire
 			out.append({"peso": minf(0.45, 0.12 + float(n) / 60.0),
-					"testo": L10n.t("nel villaggio se ne parla male")})
+					"chiave": {"k": "nel villaggio se ne parla male"}})
 			continue
 		var c: Dictionary = COMPITI.get(tipo, {})
-		var extra := ""
+		# col sogno tradito la riga è un'altra riga intera, non la stessa
+		# con una parentesi appiccicata in fondo: la parentesi in un'altra
+		# lingua può volere un altro posto nella frase
+		var riga: Dictionary = {"k": "%s × %d", "args": [{"k": tipo}, n]}
 		if sogno in (c.get("tradisce", []) as Array):
-			extra = " " + L10n.tf("(e lui sognava di fare %s)", [L10n.t(sogno)])
+			riga = {"k": "%s × %d (e lui sognava di fare %s)",
+					"args": [{"k": tipo}, n, {"k": sogno}]}
 		# I TORTI CONCRETI VENGONO SEMPRE PRIMA DEI SINTOMI. Un giocatore può
 		# agire su «ti ho mandato a spaccare legna sei volte»; su «stima al
 		# limite» no — quello è l'effetto, non la causa. Perciò anche un
 		# conteggio piccolo parte da 0.35 e scavalca ogni pressione interna.
-		out.append({"peso": minf(1.0, 0.35 + float(n) / 30.0),
-				"testo": "%s × %d%s" % [L10n.t(str(tipo)), n, extra]})
+		out.append({"peso": minf(1.0, 0.35 + float(n) / 30.0), "chiave": riga})
 	# 2) i colpi singoli che hanno lasciato il segno.
 	#    Solo quelli NON già raccontati dal conteggio qui sopra: elencare
 	#    quaranta volte «taglia_legna» dopo aver detto «taglia_legna × 40» è
@@ -625,25 +633,30 @@ func cause(verso := "giocatore") -> Array:
 		var p: float = -float(r["valenza"]) * float(r["intensita"]) * _recenza(int(r["quando"]))
 		if p < 0.12:
 			continue
-		var testo := ""
+		var chiave := {}
 		match str(r["tipo"]):
 			"lutto":
-				testo = L10n.tf("ha perso %s", [r["attore"]])
+				chiave = {"k": "ha perso %s", "args": [r["attore"]]}
 			"lutto_ignorato":
-				testo = L10n.t("e nessuno gli è stato vicino")
+				chiave = {"k": "e nessuno gli è stato vicino"}
 			"sentito_dire":
-				testo = L10n.tf("gira voce su %s", [r["attore"]])
+				chiave = {"k": "gira voce su %s", "args": [r["attore"]]}
 			_:
-				testo = "%s (%s)" % [L10n.t(str(r["tipo"])), r["attore"]]
-		out.append({"peso": clampf(p, 0.0, 1.0), "testo": testo})
+				chiave = {"k": "%s (%s)", "args": [{"k": str(r["tipo"])}, r["attore"]]}
+		out.append({"peso": clampf(p, 0.0, 1.0), "chiave": chiave})
 	# 3) le pressioni interne che stanno sopra la soglia del sopportabile
 	for d in DRIVES:
 		var m := malessere(d)
 		if m > 0.55:
 			# tetto a 0.33: le pressioni interne raccontano COME sta, non
 			# PERCHÉ — e non devono mai finire in cima alla spiegazione
-			out.append({"peso": m * 0.33, "testo": L10n.tf("%s al limite", [L10n.t(str(d))])})
+			out.append({"peso": m * 0.33,
+					"chiave": {"k": "%s al limite", "args": [{"k": str(d)}]}})
 	out.sort_custom(func(a, b): return float(a["peso"]) > float(b["peso"]))
+	# la causa detta ADESSO, accanto a quella rimandata: una sola stesura,
+	# due modi di leggerla (vedi il commento in cima)
+	for voce in out:
+		voce["testo"] = L10n.rendi(voce["chiave"])
 	return out
 
 
@@ -671,29 +684,37 @@ func racconta(verso := "giocatore", quante := 3) -> String:
 ## Se un domani ci metti un modello linguistico sopra, dagli QUESTA roba da
 ## riscrivere: mai lasciargli inventare i fatti.
 func sfogo() -> String:
+	return L10n.rendi(sfogo_rimandato())
+
+
+## LO SFOGO RIMANDATO: lo stesso, ma a chiavi (`L10n.rendi`) invece che a
+## parole. Lo vuole chi lo deve CONSERVARE — la lettera d'addio finisce in
+## coda alla posta e su disco, e la si apre il mattino dopo: se ci finisse
+## già tradotta, l'ultima cosa che ti ha detto resterebbe per sempre nella
+## lingua di ieri. E chi se n'è andato non c'è più per ridirla.
+func sfogo_rimandato() -> Dictionary:
 	var c := cause()
 	if c.is_empty():
-		return L10n.t("Non è niente. Lascia stare.")
-	var primo := str(c[0]["testo"])
+		return {"k": "Non è niente. Lascia stare."}
 	# il torto principale, detto come lo direbbe lui
-	var apertura := L10n.t("Ti rendi conto?")
+	var apertura := {"k": "Ti rendi conto?"}
 	if float(tratti.get("orgoglio", 0.5)) > 0.65:
-		apertura = L10n.t("Guardami quando ti parlo.")
+		apertura = {"k": "Guardami quando ti parlo."}
 	elif float(tratti.get("codardia", 0.5)) > 0.65:
-		apertura = L10n.t("Scusa… posso dirti una cosa?")
-	var corpo_frase := primo
+		apertura = {"k": "Scusa… posso dirti una cosa?"}
+	var corpo_frase: Dictionary = c[0]["chiave"]
 	# se c'è un secondo motivo, si aggiunge: sono le catene a fare male
 	if c.size() > 1:
-		corpo_frase = L10n.tf("%s, e %s", [corpo_frase, str(c[1]["testo"])])
-	var chiusa := L10n.t("Non lo faccio più.")
+		corpo_frase = {"k": "%s, e %s", "args": [corpo_frase, c[1]["chiave"]]}
+	var chiusa := {"k": "Non lo faccio più."}
 	if almeno(gradino, "diserzione"):
-		chiusa = L10n.t("Me ne vado.")
+		chiusa = {"k": "Me ne vado."}
 	elif float(tratti.get("lealta", 0.5)) > 0.6:
-		chiusa = L10n.t("Io ti sono stato accanto. Tu no.")
-	var trattenuto: String = limbico.perche_scoppio()
-	if trattenuto != "":
-		chiusa += " (%s)" % trattenuto
-	return "%s %s. %s" % [apertura, corpo_frase, chiusa]
+		chiusa = {"k": "Io ti sono stato accanto. Tu no."}
+	var trattenuto: Dictionary = limbico.perche_scoppio_rimandato()
+	if not trattenuto.is_empty():
+		chiusa = {"k": "%s (%s)", "args": [chiusa, trattenuto]}
+	return {"k": "%s %s. %s", "args": [apertura, corpo_frase, chiusa]}
 
 
 ## La cronaca degli scatti: quando è salito di gradino e perché, allora.
@@ -702,7 +723,16 @@ func diario() -> Array:
 	var out := []
 	for s in scatti:
 		var c: Array = s["cause"]
-		var motivo := str(c[0]["testo"]) if not c.is_empty() else L10n.t("malessere")
+		# gli scatti SI SALVANO, e un diario riletto sei mesi dopo può
+		# essere riletto in un'altra lingua: si rende la chiave adesso, non
+		# si ricicla il `testo` di allora. (I diari salvati prima di questo
+		# cambio la chiave non ce l'hanno: per loro resta il testo di
+		# allora, che è tutto quello che ci è rimasto.)
+		var motivo := L10n.t("malessere")
+		if not c.is_empty():
+			var prima: Dictionary = c[0]
+			motivo = L10n.rendi(prima["chiave"]) if prima.has("chiave") \
+					else str(prima.get("testo", motivo))
 		out.append(L10n.tf("giorno %d: %s → %s (%s)",
 				[s["giorno"], L10n.t(str(s["da"])), L10n.t(str(s["a"])), motivo]))
 	return out
