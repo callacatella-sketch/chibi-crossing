@@ -138,14 +138,15 @@ static func items() -> Array[Dictionary]:
 			"builder": BuildPalestra.tappetino, "cols": []},
 		{"name": "Panca dei pesi", "cat": 3, "type": "cell", "layer": 2,
 			"builder": BuildPalestra.panca_pesi,
-			"cols": [[Vector3(0.62, 0.62, 0.92), Vector3(0, 0.31, 0)]]},
+			"cols": [[Vector3(0.62, 0.62, 0.92), Vector3(0, 0.31, 0)],
+					[Vector3(0.92, 0.5, 0.14), Vector3(0, 0.8, -0.36)]]},
 		{"name": "Sacco", "cat": 3, "type": "cell", "layer": 2,
 			"builder": BuildPalestra.sacco,
-			"cols": [[Vector3(0.34, 2.0, 0.34), Vector3(0, 1.0, -0.3)],
-					[Vector3(0.36, 0.86, 0.36), Vector3(0, 1.55, 0.06)]]},
+			"cols": [[Vector3(0.44, 2.0, 0.44), Vector3(0, 1.0, 0.32)],
+					[Vector3(0.44, 0.94, 0.44), Vector3(0, 1.52, -0.08)]]},
 		{"name": "Cyclette", "cat": 3, "type": "cell", "layer": 2,
 			"builder": BuildPalestra.cyclette,
-			"cols": [[Vector3(0.5, 1.0, 0.78), Vector3(0, 0.5, 0)]]},
+			"cols": [[Vector3(0.5, 1.1, 0.92), Vector3(0, 0.55, 0)]]},
 		{"name": "Sbarra da trazione", "cat": 3, "type": "cell", "layer": 2,
 			"builder": BuildPalestra.sbarra_trazione,
 			"cols": [[Vector3(0.3, 2.16, 0.3), Vector3(-0.4, 1.08, 0)],
@@ -155,7 +156,7 @@ static func items() -> Array[Dictionary]:
 			"cols": [[Vector3(0.78, 1.7, 0.34), Vector3(0, 0.85, -0.06)]]},
 		{"name": "Fontanella", "cat": 3, "type": "cell", "layer": 2,
 			"builder": BuildPalestra.fontanella,
-			"cols": [[Vector3(0.54, 1.12, 0.5), Vector3(0, 0.56, -0.1)]]},
+			"cols": [[Vector3(0.72, 0.95, 0.62), Vector3(0, 0.48, 0.02)]]},
 		{"name": "Rastrelliera", "cat": 3, "type": "cell", "layer": 2,
 			"builder": BuildPalestra.rastrelliera,
 			"cols": [[Vector3(0.92, 0.78, 0.42), Vector3(0, 0.39, 0)]]},
@@ -271,6 +272,54 @@ static func items() -> Array[Dictionary]:
 		{"name": "Pennone", "cat": 2, "type": "cell", "layer": 2,
 			"builder": _pennone_caserma,
 			"cols": [[Vector3(0.12, 2.0, 0.12), Vector3(0, 1.0, 0)]]},
+
+		# --- Il bar del paese (vedi in fondo al file) ------------------
+		# Il bancone è il pezzo-àncora: comprarlo porta con sé tutto il
+		# resto del bar (Economy.CORREDO), come per la guardiola.
+		{"name": "Bancone bar", "cat": 0, "type": "cell", "layer": 2,
+			"builder": _bancone_bar,
+			"cols": [[Vector3(1.06, 1.06, 0.62), Vector3(0, 0.53, 0)]]},
+		{"name": "Tenda bar", "cat": 0, "type": "edge", "layer": 2,
+			"builder": _tenda_bar, "cols": []},
+		{"name": "Insegna bar", "cat": 0, "type": "edge", "layer": 2,
+			"builder": _insegna_bar,
+			"cols": [[Vector3(0.12, 2.3, 0.12), Vector3(-0.4, 1.15, 0)]]},
+		{"name": "Macchina caffè", "cat": 1, "type": "cell", "layer": 2,
+			"builder": _macchina_caffe,
+			"cols": [[Vector3(0.65, 0.7, 0.4), Vector3(0, 0.35, 0)]]},
+		{"name": "Vetrina dolci", "cat": 1, "type": "cell", "layer": 2,
+			"builder": _vetrina_dolci,
+			"cols": [[Vector3(0.96, 0.96, 0.48), Vector3(0, 0.48, 0)]]},
+		{"name": "Sgabello alto", "cat": 1, "type": "cell", "layer": 2,
+			"builder": _sgabello_alto,
+			"cols": [[Vector3(0.4, 0.8, 0.4), Vector3(0, 0.4, 0)]]},
+		{"name": "Mensola bottiglie", "cat": 1, "type": "edge", "layer": 2,
+			"builder": _mensola_bottiglie,
+			"cols": [[Vector3(0.98, 1.0, 0.24), Vector3(0, 0.9, 0.04)]]},
+		{"name": "Tavolino bar", "cat": 1, "type": "cell", "layer": 2,
+			"builder": _tavolino_bar,
+			"cols": [[Vector3(0.82, 0.78, 0.82), Vector3(0, 0.39, 0)]]},
+		{"name": "Sedia vimini", "cat": 1, "type": "cell", "layer": 2,
+			"builder": _sedia_vimini,
+			"cols": [[Vector3(0.44, 0.9, 0.44), Vector3(0, 0.45, 0)]]},
+		{"name": "Lavagnetta", "cat": 1, "type": "cell", "layer": 2,
+			"builder": _lavagnetta,
+			"cols": [[Vector3(0.56, 0.9, 0.4), Vector3(0, 0.45, 0)]]},
+		{"name": "Biliardino", "cat": 1, "type": "cell", "layer": 2,
+			"builder": _biliardino,
+			"cols": [[Vector3(1.0, 1.0, 0.7), Vector3(0, 0.5, 0)]]},
+		{"name": "Ombrellone", "cat": 2, "type": "cell", "layer": 2,
+			"builder": _ombrellone,
+			"cols": [[Vector3(0.2, 2.0, 0.2), Vector3(0, 1.0, 0)]]},
+		{"name": "Fioriera", "cat": 2, "type": "cell", "layer": 2,
+			"builder": _fioriera,
+			"cols": [[Vector3(1.0, 0.5, 0.4), Vector3(0, 0.25, 0)]]},
+		{"name": "Lucine", "cat": 2, "type": "cell", "layer": 2, "builder": _lucine,
+			"cols": [[Vector3(0.12, 1.9, 0.12), Vector3(-0.46, 0.95, 0)],
+					[Vector3(0.12, 1.9, 0.12), Vector3(0.46, 0.95, 0)]]},
+		{"name": "Frigo gelati", "cat": 2, "type": "cell", "layer": 2,
+			"builder": _frigo_gelati,
+			"cols": [[Vector3(0.96, 0.72, 0.52), Vector3(0, 0.36, 0)]]},
 	]
 
 
@@ -3079,4 +3128,611 @@ static func _gradinata() -> Node3D:
 	_cyl(n, 0.032, 0.028, 0.07, _glow(Color("ffe6b8"), Color("ffc978"), 1.0),
 			Vector3(0.36, 0.40, 0.05))
 
+	return n
+
+
+# ============================================================================
+# IL BAR DEL PAESE
+# ============================================================================
+# «Punto di ritrovo» non è un'etichetta: è un posto con dentro le cose
+# giuste. Il bancone di zinco su cui si appoggia il gomito, la macchina
+# del caffè che sbuffa, i tavolini fuori sotto l'ombrellone, e il
+# biliardino — perché gli amici non si ritrovano per stare in silenzio,
+# si ritrovano per litigare su un gol di stecca.
+#
+# È il pezzo di villaggio che mancava fra la casa e la piazza: un dentro
+# che non è di nessuno e quindi è di tutti.
+#
+# Fronte di tutti i pezzi: verso -Z, come il resto del catalogo.
+
+const ZINCO := Color("b6bbc2")
+const ZINCO_CUPO := Color("969ba3")
+const CROMO := Color("dce0e6")
+const CAFFE := Color("6b4634")
+const BAR_ROSSO := Color("c26057")
+const BAR_ROSSO_CUPO := Color("a44c45")
+const BOTTIGLIA := Color("6f9a76")
+const MARMO := Color("efe9dd")
+
+
+## IL VETRO VERO. `_mat(..., trans)` NON è trasparenza: nell'handpaint
+## `translucency` è la retro-illuminazione (la luce che passa attraverso
+## una foglia), e una vetrina fatta così esce OPACA — coi cornetti dentro
+## che non si vedono, cioè senza il motivo per cui esiste una vetrina.
+## Il vetro del progetto è quello della serra: alpha vero, un filo di
+## emissione azzurra e roughness bassa.
+static func _vetro(alpha := 0.34) -> StandardMaterial3D:
+	var g := StandardMaterial3D.new()
+	g.albedo_color = Color(0.83, 0.92, 0.97, alpha)
+	g.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	g.emission_enabled = true
+	g.emission = Color("bfe0f2")
+	g.emission_energy_multiplier = 0.22
+	g.roughness = 0.14
+	return g
+
+
+## Un cornetto: mezzaluna dorata. Ne serve più d'uno, e tutti diversi.
+static func _cornetto(parent: Node3D, pos: Vector3, giro: float) -> void:
+	var pasta := _mat(Color("e8bd78"), Color("d4a45e"), 7.0, 0.5)
+	var c := Node3D.new()
+	c.position = pos
+	c.rotation.y = giro
+	parent.add_child(c)
+	_ball(c, 0.036, pasta, Vector3(0, 0, 0), Vector3(1.5, 0.62, 0.85))
+	for lato: float in [-1.0, 1.0]:
+		var punta := _ball(c, 0.02, pasta, Vector3(lato * 0.05, -0.004, 0.018),
+				Vector3(1.1, 0.6, 0.9))
+		punta.rotation.y = lato * 0.5
+
+
+## Una bottiglia da mensola: collo, corpo, tappo. L'altezza e il colore
+## cambiano, o la mensola sembra stampata.
+static func _bottiglia(parent: Node3D, pos: Vector3, alt: float, col: Color) -> void:
+	var vetro := _mat(col, col.darkened(0.2), 5.0, 0.4, 0.35)
+	_cyl(parent, 0.035, 0.04, alt, vetro, pos + Vector3(0, alt * 0.5, 0))
+	_cyl(parent, 0.014, 0.03, alt * 0.42, vetro,
+			pos + Vector3(0, alt + alt * 0.2, 0))
+	_cyl(parent, 0.016, 0.016, 0.022, _mat(OTTONE, OTTONE_SCURO, 5.0, 0.3),
+			pos + Vector3(0, alt * 1.44, 0))
+
+
+static func _bancone_bar() -> Node3D:
+	# IL BANCONE: zinco sopra, legno sotto, il poggiapiedi d'ottone
+	# consumato da chi ci sta in piedi a chiacchierare. È l'àncora del bar:
+	# comprarlo porta con sé tutto il resto (Economy.CORREDO).
+	var n := Node3D.new()
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var pannello := _mat(BAR_ROSSO, BAR_ROSSO_CUPO, 4.5, 0.45)
+	var zinco := _mat(ZINCO, ZINCO_CUPO, 6.0, 0.35)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	# il corpo e i pannelli del fronte
+	_box(n, Vector3(1.0, 1.0, 0.5), legno, Vector3(0, 0.5, 0.03))
+	for dx: float in [-0.3, 0.0, 0.3]:
+		_box(n, Vector3(0.24, 0.6, 0.03), pannello, Vector3(dx, 0.52, -0.22))
+	# il piano di zinco, che sporge davanti
+	_box(n, Vector3(1.06, 0.06, 0.62), zinco, Vector3(0, 1.03, -0.02))
+	_box(n, Vector3(1.06, 0.03, 0.04), ottone, Vector3(0, 1.07, -0.31))
+	# il poggiapiedi
+	for dx2: float in [-0.38, 0.38]:
+		_cyl(n, 0.018, 0.018, 0.14, ottone, Vector3(dx2, 0.09, -0.3))
+	var barra := _cyl(n, 0.022, 0.022, 0.92, ottone, Vector3(0, 0.16, -0.3))
+	barra.rotation.z = PI * 0.5
+	# due tazzine col piattino, pronte
+	for dx3: float in [-0.24, 0.1]:
+		var piatt := _cyl(n, 0.05, 0.05, 0.008, _mat(CREAM, Color("efe4d2"), 6.0, 0.2),
+				Vector3(dx3, 1.07, -0.1))
+		_cyl(n, 0.028, 0.024, 0.035, _mat(Color.WHITE, CREAM, 6.0, 0.2),
+				Vector3(dx3, 1.086, -0.1))
+		piatt.name = "Piattino"
+	# il registratore di cassa, d'ottone, sul lato
+	var cassa := Node3D.new()
+	cassa.name = "Cassa"
+	cassa.position = Vector3(0.36, 1.06, 0.02)
+	n.add_child(cassa)
+	_box(cassa, Vector3(0.2, 0.16, 0.16), ottone, Vector3(0, 0.08, 0))
+	_box(cassa, Vector3(0.14, 0.09, 0.02), _mat(CREAM, Color("efe4d2"), 6.0, 0.2),
+			Vector3(0, 0.19, -0.06))
+	for i in 3:
+		_ball(cassa, 0.012, _mat(Color.WHITE, CREAM, 5.0, 0.2),
+				Vector3(-0.05 + 0.05 * float(i), 0.03, -0.085))
+	return n
+
+
+static func _macchina_caffe() -> Node3D:
+	# LA MACCHINA DEL CAFFÈ: quella a leva, cromata, con l'aquila d'ottone
+	# in cima e la lancia del vapore. Il nodo "Vapore" è il punto da cui
+	# un domani esce lo sbuffo.
+	var n := Node3D.new()
+	var cromo := _mat(CROMO, Color("b9bec6"), 7.0, 0.3)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 6.0, 0.35)
+	var rosso := _mat(BAR_ROSSO, BAR_ROSSO_CUPO, 4.5, 0.45)
+	# la base e la vaschetta
+	_box(n, Vector3(0.62, 0.08, 0.34), cromo, Vector3(0, 0.04, 0))
+	_box(n, Vector3(0.5, 0.03, 0.24), _mat(ZINCO_CUPO, Color("7d838b"), 5.0, 0.3),
+			Vector3(0, 0.085, -0.04))
+	# la caldaia orizzontale. I tappi d'ottone vanno PIÙ STRETTI del corpo:
+	# più larghi diventano due dischi pieni visti di faccia, e da tre
+	# quarti la macchina non è più una macchina del caffè — è una botte
+	# d'oro. Qui sono anelli incassati, e il cromo resta il padrone.
+	var caldaia := _cyl(n, 0.2, 0.2, 0.6, cromo, Vector3(0, 0.36, 0.02))
+	caldaia.rotation.z = PI * 0.5
+	for lato: float in [-1.0, 1.0]:
+		# la ghiera cromata resta il bordo esterno, l'ottone è il tondo
+		# in mezzo: così di tre quarti si vede una macchina, non un fondo
+		# d'ottone grande quanto tutta la fiancata
+		var ghiera := _cyl(n, 0.2, 0.2, 0.04, cromo,
+				Vector3(lato * 0.3, 0.36, 0.02))
+		ghiera.rotation.z = PI * 0.5
+		var anello := _cyl(n, 0.14, 0.14, 0.05, ottone,
+				Vector3(lato * 0.305, 0.36, 0.02))
+		anello.rotation.z = PI * 0.5
+		# i bulloncini attorno al coperchio
+		for k in 6:
+			var a := PI * 2.0 / 6.0 * float(k)
+			_ball(n, 0.013, ottone, Vector3(lato * 0.322,
+					0.36 + cos(a) * 0.115, 0.02 + sin(a) * 0.115))
+	# la fascia rossa sul fronte e il manometro
+	_box(n, Vector3(0.6, 0.12, 0.03), rosso, Vector3(0, 0.36, -0.2))
+	_box(n, Vector3(0.6, 0.02, 0.035), ottone, Vector3(0, 0.42, -0.202))
+	_box(n, Vector3(0.6, 0.02, 0.035), ottone, Vector3(0, 0.30, -0.202))
+	_cyl(n, 0.045, 0.045, 0.02, ottone, Vector3(-0.16, 0.42, -0.21)).rotation.x = PI * 0.5
+	_cyl(n, 0.032, 0.032, 0.006, _mat(CREAM, Color("efe4d2"), 6.0, 0.2),
+			Vector3(-0.16, 0.42, -0.223)).rotation.x = PI * 0.5
+	# i due gruppi, sporgenti in avanti, con la coppetta e il manico di
+	# legno che pende: è il dettaglio che dice «macchina del caffè» prima
+	# ancora della forma
+	for i in 2:
+		var dx := -0.14 + 0.28 * float(i)
+		_cyl(n, 0.055, 0.06, 0.14, ottone, Vector3(dx, 0.2, -0.19))
+		var coppetta := _cyl(n, 0.06, 0.052, 0.05, ottone, Vector3(dx, 0.13, -0.19))
+		coppetta.name = "Coppetta%d" % i
+		var manico := _box(n, Vector3(0.16, 0.03, 0.03),
+				_mat(WOOD_DARK, Color("5c4030"), 4.0, 0.4),
+				Vector3(dx + 0.09, 0.115, -0.24))
+		manico.rotation.z = -0.22
+		manico.rotation.y = 0.3
+		# la levetta cromata sopra ogni gruppo
+		var leva := _cyl(n, 0.013, 0.013, 0.17, cromo, Vector3(dx, 0.29, -0.19))
+		leva.rotation.x = -0.9
+		_ball(n, 0.022, _mat(WOOD_DARK, Color("5c4030"), 4.0, 0.4),
+				Vector3(dx, 0.35, -0.255))
+	# la lancia del vapore
+	var lancia := _cyl(n, 0.012, 0.014, 0.2, cromo, Vector3(0.3, 0.2, -0.12))
+	lancia.rotation.x = -0.5
+	var vapore := Node3D.new()
+	vapore.name = "Vapore"
+	vapore.position = Vector3(0.3, 0.12, -0.19)
+	n.add_child(vapore)
+	# l'aquila in cima: nessuna macchina del caffè seria ne è priva
+	_cyl(n, 0.06, 0.09, 0.05, ottone, Vector3(0, 0.59, 0.02))
+	var aquila := _ball(n, 0.055, ottone, Vector3(0, 0.65, 0.02), Vector3(1.0, 0.85, 0.7))
+	aquila.name = "Aquila"
+	for lato: float in [-1.0, 1.0]:
+		var ala := _box(n, Vector3(0.1, 0.02, 0.05), ottone,
+				Vector3(lato * 0.075, 0.66, 0.02))
+		ala.rotation.z = lato * -0.5
+	# le tazzine che si scaldano sopra
+	for i in 3:
+		_cyl(n, 0.026, 0.022, 0.03, _mat(Color.WHITE, CREAM, 6.0, 0.2),
+				Vector3(-0.18 + 0.13 * float(i), 0.585, 0.15))
+	return n
+
+
+static func _vetrina_dolci() -> Node3D:
+	# LA VETRINA DEI DOLCI: due ripiani di cornetti, la fetta di torta, e
+	# il vetro curvo davanti. Si guarda prima di ordinare, sempre.
+	var n := Node3D.new()
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var vetro := _vetro(0.3)
+	var acciaio := _mat(ZINCO, ZINCO_CUPO, 6.0, 0.3)
+	_box(n, Vector3(0.92, 0.42, 0.42), legno, Vector3(0, 0.21, 0))
+	_box(n, Vector3(0.96, 0.04, 0.46), acciaio, Vector3(0, 0.44, 0))
+	# i montanti e il vetro
+	for sx: float in [-0.44, 0.44]:
+		_box(n, Vector3(0.04, 0.5, 0.44), acciaio, Vector3(sx, 0.71, 0))
+	_box(n, Vector3(0.86, 0.48, 0.02), vetro, Vector3(0, 0.7, -0.21))
+	_box(n, Vector3(0.86, 0.02, 0.42), vetro, Vector3(0, 0.94, 0))
+	_box(n, Vector3(0.86, 0.48, 0.02), vetro, Vector3(0, 0.7, 0.21))
+	# i due ripiani e la roba sopra
+	for i in 2:
+		var y := 0.5 + 0.22 * float(i)
+		_box(n, Vector3(0.84, 0.02, 0.38), acciaio, Vector3(0, y, 0))
+		for k in 4:
+			_cornetto(n, Vector3(-0.3 + 0.2 * float(k), y + 0.03,
+					-0.06 + 0.06 * float((k + i) % 2)), 0.3 * float(k) + float(i))
+	# la fetta di torta, sul ripiano basso
+	var torta := _box(n, Vector3(0.16, 0.11, 0.13), _mat(CREAM, Color("f0e2c8"), 6.0, 0.3),
+			Vector3(0.3, 0.56, 0.06))
+	_box(n, Vector3(0.165, 0.03, 0.135), _mat(PINK, PINK_DEEP, 5.0, 0.4),
+			Vector3(0.3, 0.615, 0.06))
+	torta.name = "Torta"
+	return n
+
+
+static func _sgabello_alto() -> Node3D:
+	# LO SGABELLO ALTO: quello da bancone, col poggiapiedi. Ci si sta in
+	# bilico e si parla per ore.
+	var n := Node3D.new()
+	var cromo := _mat(CROMO, Color("b9bec6"), 7.0, 0.3)
+	var cuoio := _mat(BAR_ROSSO, BAR_ROSSO_CUPO, 4.5, 0.5)
+	for i in 3:
+		var a := PI * 2.0 / 3.0 * float(i)
+		var g := _cyl(n, 0.02, 0.026, 0.72, cromo,
+				Vector3(cos(a) * 0.12, 0.36, sin(a) * 0.12))
+		g.rotation.x = cos(a + PI * 0.5) * 0.12
+		g.rotation.z = -sin(a + PI * 0.5) * 0.12
+	var anello := _cyl(n, 0.17, 0.17, 0.018, cromo, Vector3(0, 0.24, 0))
+	anello.name = "Poggiapiedi"
+	_cyl(n, 0.19, 0.19, 0.05, cuoio, Vector3(0, 0.75, 0))
+	_cyl(n, 0.185, 0.185, 0.03, _mat(BAR_ROSSO_CUPO, Color("8f3f39"), 4.0, 0.4),
+			Vector3(0, 0.72, 0))
+	_ball(n, 0.02, cuoio, Vector3(0, 0.775, 0), Vector3(1, 0.4, 1))
+	return n
+
+
+static func _mensola_bottiglie() -> Node3D:
+	# LA MENSOLA DELLE BOTTIGLIE: sciroppi e amari dietro il bancone, di
+	# tutte le altezze e di tutti i colori. Sta sul bordo, come una mensola.
+	var n := Node3D.new()
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	for sx: float in [-0.44, 0.44]:
+		_box(n, Vector3(0.06, 1.0, 0.2), legno, Vector3(sx, 0.9, 0.04))
+	var colori := [Color("8a6fb0"), BOTTIGLIA, Color("c48a4a"), Color("b05a5a"),
+			Color("6f93b8"), Color("d0a860")]
+	for i in 2:
+		var y := 0.62 + 0.42 * float(i)
+		_box(n, Vector3(0.94, 0.05, 0.22), _mat(WOOD_PALE, WOOD, 3.5, 0.5),
+				Vector3(0, y, 0.04))
+		for k in 3:
+			var idx := i * 3 + k
+			_bottiglia(n, Vector3(-0.28 + 0.28 * float(k), y + 0.025, 0.04),
+					0.13 + 0.035 * float((idx * 7) % 3), colori[idx])
+	return n
+
+
+static func _tavolino_bar() -> Node3D:
+	# IL TAVOLINO DEL BAR: piano di marmo tondo su un piede di ghisa. Due
+	# tazzine e il conto sotto il bicchiere.
+	var n := Node3D.new()
+	var ghisa := _mat(Color("4f4a45"), Color("3d3935"), 5.0, 0.4)
+	_cyl(n, 0.2, 0.24, 0.04, ghisa, Vector3(0, 0.02, 0))
+	_cyl(n, 0.05, 0.07, 0.66, ghisa, Vector3(0, 0.36, 0))
+	_cyl(n, 0.12, 0.05, 0.05, ghisa, Vector3(0, 0.7, 0))
+	var piano := _cyl(n, 0.4, 0.4, 0.05, _mat(MARMO, Color("ddd5c6"), 8.0, 0.35),
+			Vector3(0, 0.74, 0))
+	piano.name = "Piano"
+	_cyl(n, 0.405, 0.405, 0.015, ghisa, Vector3(0, 0.715, 0))
+	# due tazzine, una per parte: un tavolino da bar non è mai per uno solo
+	for dx: float in [-0.14, 0.15]:
+		_cyl(n, 0.05, 0.05, 0.008, _mat(CREAM, Color("efe4d2"), 6.0, 0.2),
+				Vector3(dx, 0.77, 0.02))
+		_cyl(n, 0.028, 0.024, 0.035, _mat(Color.WHITE, CREAM, 6.0, 0.2),
+				Vector3(dx, 0.788, 0.02))
+	_box(n, Vector3(0.08, 0.004, 0.06), _mat(CREAM, Color("efe4d2"), 6.0, 0.2),
+			Vector3(0.02, 0.767, -0.16))
+	return n
+
+
+static func _sedia_vimini() -> Node3D:
+	# LA SEDIA DI VIMINI: quella del dehors, con lo schienale intrecciato.
+	var n := Node3D.new()
+	var telaio := _mat(WOOD_PALE, WOOD, 4.0, 0.5)
+	var intreccio := _mat(Color("e0c08c"), Color("c9a670"), 9.0, 0.6)
+	for sx: float in [-0.17, 0.17]:
+		for sz: float in [-0.17, 0.17]:
+			_box(n, Vector3(0.04, 0.44, 0.04), telaio, Vector3(sx, 0.22, sz))
+	_cyl(n, 0.22, 0.22, 0.04, intreccio, Vector3(0, 0.45, 0))
+	# lo schienale a ventaglio
+	for sx2: float in [-0.18, 0.18]:
+		var m := _box(n, Vector3(0.035, 0.46, 0.035), telaio, Vector3(sx2, 0.67, 0.18))
+		m.rotation.x = -0.12
+	for i in 3:
+		var t := _box(n, Vector3(0.4, 0.035, 0.03), intreccio,
+				Vector3(0, 0.56 + 0.14 * float(i), 0.19 - 0.015 * float(i)))
+		t.rotation.x = -0.12
+	for i in 4:
+		var v := _box(n, Vector3(0.028, 0.42, 0.02), intreccio,
+				Vector3(-0.12 + 0.08 * float(i), 0.68, 0.175))
+		v.rotation.x = -0.12
+	return n
+
+
+static func _lavagnetta() -> Node3D:
+	# LA LAVAGNETTA DEI GUSTI: il cavalletto fuori dalla porta, col gesso
+	# di oggi. È la lavagna PICCOLA: quella grande del villaggio è un'altra.
+	var n := Node3D.new()
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var ardesia := _mat(Color("3d4a40"), Color("32403a"), 5.0, 0.35)
+	# le due gambe a cavalletto
+	for lato: float in [-1.0, 1.0]:
+		for sx: float in [-0.24, 0.24]:
+			var g := _box(n, Vector3(0.045, 0.86, 0.045), legno,
+					Vector3(sx, 0.43, lato * 0.11))
+			g.rotation.x = lato * 0.2
+	var pannello := Node3D.new()
+	pannello.name = "Pannello"
+	pannello.position = Vector3(0, 0.62, -0.09)
+	pannello.rotation.x = 0.2
+	n.add_child(pannello)
+	_box(pannello, Vector3(0.58, 0.68, 0.04), legno, Vector3(0, 0, 0))
+	_box(pannello, Vector3(0.48, 0.58, 0.02), ardesia, Vector3(0, 0, -0.025))
+	# tre righe scritte col gesso, di lunghezza diversa
+	var gesso := _mat(Color("fff8ee"), Color("efe6da"), 6.0, 0.25)
+	var righe := [0.32, 0.24, 0.36, 0.2]
+	for i in righe.size():
+		_box(pannello, Vector3(float(righe[i]), 0.022, 0.012), gesso,
+				Vector3(-0.02, 0.19 - 0.12 * float(i), -0.037))
+	return n
+
+
+static func _biliardino() -> Node3D:
+	# IL BILIARDINO: la ragione vera per cui ci si ritrova. Le stecche coi
+	# omini, i contapunti e la pallina in mezzo al campo.
+	var n := Node3D.new()
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var sponda := _mat(BAR_ROSSO, BAR_ROSSO_CUPO, 4.5, 0.45)
+	var campo := _mat(Color("6f9c68"), Color("5c8656"), 6.0, 0.5)
+	var acciaio := _mat(CROMO, Color("b9bec6"), 7.0, 0.3)
+	# le quattro gambe
+	for sx: float in [-0.4, 0.4]:
+		for sz: float in [-0.28, 0.28]:
+			_box(n, Vector3(0.08, 0.72, 0.08), legno, Vector3(sx, 0.36, sz))
+	# la cassa e il campo verde
+	_box(n, Vector3(0.98, 0.16, 0.66), legno, Vector3(0, 0.78, 0))
+	_box(n, Vector3(0.9, 0.02, 0.58), campo, Vector3(0, 0.865, 0))
+	# le sponde
+	for sz2: float in [-0.32, 0.32]:
+		_box(n, Vector3(0.98, 0.09, 0.04), sponda, Vector3(0, 0.9, sz2))
+	for sx2: float in [-0.48, 0.48]:
+		_box(n, Vector3(0.04, 0.09, 0.66), sponda, Vector3(sx2, 0.9, 0))
+	# le righe del campo
+	_box(n, Vector3(0.012, 0.004, 0.56), _mat(Color("e8efe4"), CREAM, 6.0, 0.2),
+			Vector3(0, 0.876, 0))
+	var cerchio := _cyl(n, 0.1, 0.1, 0.004, _mat(Color("e8efe4"), CREAM, 6.0, 0.2),
+			Vector3(0, 0.874, 0))
+	cerchio.scale = Vector3(1, 1, 1)
+	# LE STECCHE: devono SPORGERE dai fianchi, o il biliardino sembra un
+	# banco da lavoro con dei pupazzetti sopra. Sono lunghe una volta e
+	# mezzo il tavolo, e l'impugnatura di legno sta fuori, dove si afferra.
+	var squadre := [BAR_ROSSO, Color("6f93b8")]
+	for i in 4:
+		var x := -0.33 + 0.22 * float(i)
+		var stecca := _cyl(n, 0.016, 0.016, 1.6, acciaio, Vector3(x, 0.95, 0))
+		stecca.rotation.x = PI * 0.5
+		stecca.name = "Stecca%d" % i
+		# l'impugnatura da un lato solo, alternata come nei biliardini veri
+		var lato := -1.0 if i % 2 == 0 else 1.0
+		_cyl(n, 0.034, 0.034, 0.2, _mat(WOOD_DARK, Color("5c4030"), 4.0, 0.4),
+				Vector3(x, 0.95, lato * 0.72)).rotation.x = PI * 0.5
+		_ball(n, 0.038, _mat(WOOD_DARK, Color("5c4030"), 4.0, 0.4),
+				Vector3(x, 0.95, lato * 0.83))
+		# due omini per stecca, appesi SOTTO la stecca, con la testa tonda
+		var col: Color = squadre[i % 2]
+		var panno := _mat(col, col.darkened(0.2), 4.0, 0.4)
+		for k in 2:
+			var z := -0.15 + 0.3 * float(k)
+			_box(n, Vector3(0.055, 0.14, 0.05), panno, Vector3(x, 0.885, z))
+			# le gambette aperte, che è come stanno gli omini veri
+			for lg: float in [-1.0, 1.0]:
+				_box(n, Vector3(0.022, 0.07, 0.022), panno,
+						Vector3(x + lg * 0.028, 0.815, z)).rotation.z = lg * 0.3
+			_ball(n, 0.034, _mat(CREAM, Color("efe4d2"), 5.0, 0.3),
+					Vector3(x, 0.985, z))
+	# la pallina e i contapunti
+	_ball(n, 0.022, _mat(Color("f2ead6"), CREAM, 5.0, 0.25), Vector3(0.06, 0.895, 0.08))
+	for lato2: float in [-1.0, 1.0]:
+		for k2 in 5:
+			_ball(n, 0.016, _mat(OTTONE, OTTONE_SCURO, 5.0, 0.3),
+					Vector3(-0.34 + 0.04 * float(k2), 0.965, lato2 * 0.33))
+		var filo := _cyl(n, 0.004, 0.004, 0.3, acciaio,
+				Vector3(-0.28, 0.965, lato2 * 0.33))
+		filo.rotation.z = PI * 0.5
+	return n
+
+
+static func _ombrellone() -> Node3D:
+	# L'OMBRELLONE: a spicchi, con la frangia e il pomello. Sotto ci stanno
+	# due tavolini e mezzo pomeriggio.
+	var n := Node3D.new()
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	_cyl(n, 0.24, 0.3, 0.07, _mat(STONE, STONE_DARK, 4.0, 0.5), Vector3(0, 0.035, 0))
+	_cyl(n, 0.035, 0.045, 2.05, legno, Vector3(0, 1.02, 0))
+	# la cupola a spicchi alternati
+	var telo_a := _mat(CREAM, Color("f0e4cc"), 5.0, 0.35)
+	var telo_b := _mat(BAR_ROSSO, BAR_ROSSO_CUPO, 4.5, 0.4)
+	var cupola := Node3D.new()
+	cupola.name = "Cupola"
+	cupola.position = Vector3(0, 1.98, 0)
+	n.add_child(cupola)
+	# LA CUPOLA È UN CONO, non otto assi messe in cerchio: quelle, per
+	# quanto le si ruoti, restano una girandola piatta con la frangia che
+	# galleggia staccata sotto. Un cono, e gli spicchi dipinti sopra.
+	# la falda color panna, e la fascia rossa sul bordo. Le costole
+	# radiali erano boxes che uscivano dal cono come lame: la stessa
+	# lettura «ombrellone a due colori» si ottiene con un secondo tronco
+	# di cono, e non può sbucare da nessuna parte.
+	_cyl(cupola, 0.05, 0.48, 0.23, telo_a, Vector3(0, -0.02, 0))
+	_cyl(cupola, 0.48, 0.62, 0.08, telo_b, Vector3(0, -0.175, 0))
+	# il puntale e il pomello
+	_cyl(cupola, 0.02, 0.1, 0.14, telo_a, Vector3(0, 0.14, 0))
+	_ball(cupola, 0.042, legno, Vector3(0, 0.23, 0))
+	# la frangia: ATTACCATA al bordo del cono (raggio 0.62, quota -0.21),
+	# non a mezz'aria più in fuori
+	for i in 20:
+		var a2 := PI * 2.0 / 20.0 * float(i)
+		var dente := _ball(cupola, 0.055,
+				telo_b if i % 2 == 0 else telo_a,
+				Vector3(cos(a2) * 0.6, -0.225, sin(a2) * 0.6),
+				Vector3(1.0, 0.5, 0.6))
+		dente.rotation.y = -a2
+	return n
+
+
+static func _fioriera() -> Node3D:
+	# LA FIORIERA DEL DEHORS: la cassetta di legno che delimita i tavolini
+	# dalla strada. Fiori dentro, e un filo d'edera che scende.
+	var n := Node3D.new()
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var doghe := _mat(WOOD_PALE, WOOD, 3.5, 0.5)
+	_box(n, Vector3(0.96, 0.42, 0.36), legno, Vector3(0, 0.21, 0))
+	for i in 3:
+		_box(n, Vector3(0.94, 0.1, 0.38), doghe, Vector3(0, 0.1 + 0.13 * float(i), 0))
+	_box(n, Vector3(1.0, 0.05, 0.4), doghe, Vector3(0, 0.44, 0))
+	# la terra e i fiori
+	_box(n, Vector3(0.88, 0.06, 0.3), _mat(Color("6b5340"), Color("57432f"), 5.0, 0.5),
+			Vector3(0, 0.44, 0))
+	var verde := _mat(LEAF, LEAF_DARK, 6.0, 0.55)
+	var petali := [PINK, Color("ffd76e"), Color("cdbff0"), Color("f6c39c")]
+	for i in 6:
+		var x := -0.36 + 0.145 * float(i)
+		var z := -0.06 + 0.09 * float(i % 3)
+		_cyl(n, 0.012, 0.016, 0.2, verde, Vector3(x, 0.56, z))
+		_ball(n, 0.05, verde, Vector3(x + 0.03, 0.52, z), Vector3(1.2, 0.5, 1.0))
+		var c: Color = petali[i % petali.size()]
+		for k in 5:
+			var a := PI * 2.0 / 5.0 * float(k)
+			_ball(n, 0.026, _mat(c, c.darkened(0.15), 5.0, 0.4),
+					Vector3(x + cos(a) * 0.03, 0.66, z + sin(a) * 0.03),
+					Vector3(1.0, 0.6, 1.0))
+		_ball(n, 0.018, _mat(Color("ffd76e"), Color("eec254"), 5.0, 0.3),
+				Vector3(x, 0.668, z))
+	return n
+
+
+static func _lucine() -> Node3D:
+	# LE LUCINE: il filo di lampadine fra due paletti, quello che accende
+	# il dehors la sera e fa sembrare festa una sera qualunque.
+	var n := Node3D.new()
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	for sx: float in [-0.46, 0.46]:
+		_cyl(n, 0.03, 0.04, 1.9, legno, Vector3(sx, 0.95, 0))
+		_ball(n, 0.04, legno, Vector3(sx, 1.9, 0))
+	# il filo: una catenaria fatta di segmenti, con le lampadine appese
+	var filo := _mat(Color("4f4a45"), Color("3d3935"), 4.0, 0.3)
+	var colori := [Color("ffd08a"), Color("ffb0a0"), Color("bfe0ff"),
+			Color("ffe6a8"), Color("d8c0f0")]
+	var passi := 9
+	for i in passi:
+		var t0 := float(i) / float(passi - 1)
+		var t1 := float(i + 1) / float(passi - 1)
+		if i < passi - 1:
+			var x0 := lerpf(-0.46, 0.46, t0)
+			var x1 := lerpf(-0.46, 0.46, t1)
+			var y0 := 1.88 - 0.26 * sin(t0 * PI)
+			var y1 := 1.88 - 0.26 * sin(t1 * PI)
+			var seg := _box(n, Vector3(absf(x1 - x0) + 0.012, 0.012, 0.012), filo,
+					Vector3((x0 + x1) * 0.5, (y0 + y1) * 0.5, 0))
+			seg.rotation.z = atan2(y1 - y0, x1 - x0)
+		var xl := lerpf(-0.46, 0.46, t0)
+		var yl := 1.88 - 0.26 * sin(t0 * PI)
+		var c: Color = colori[i % colori.size()]
+		_cyl(n, 0.012, 0.016, 0.02, _mat(OTTONE, OTTONE_SCURO, 5.0, 0.3),
+				Vector3(xl, yl - 0.025, 0))
+		var bulbo := _ball(n, 0.032, _glow(c, c, 1.1), Vector3(xl, yl - 0.062, 0),
+				Vector3(1.0, 1.25, 1.0))
+		bulbo.name = "Bulbo%d" % i
+	var luce := OmniLight3D.new()
+	luce.light_color = Color(1.0, 0.88, 0.72)
+	luce.light_energy = 0.9
+	luce.omni_range = 4.2
+	luce.position = Vector3(0, 1.7, 0)
+	n.add_child(luce)
+	return n
+
+
+static func _frigo_gelati() -> Node3D:
+	# IL FRIGO DEI GELATI: il pozzetto col coperchio a strisce e il cartello
+	# col cono. D'estate ci si appoggiano i gomiti aspettando il proprio.
+	var n := Node3D.new()
+	var bianco := _mat(SEGNALE_BIANCO, Color("e6dfd0"), 5.0, 0.3)
+	var rosso := _mat(BAR_ROSSO, BAR_ROSSO_CUPO, 4.5, 0.45)
+	var cromo := _mat(CROMO, Color("b9bec6"), 7.0, 0.3)
+	_box(n, Vector3(0.94, 0.62, 0.5), bianco, Vector3(0, 0.34, 0))
+	_box(n, Vector3(0.96, 0.06, 0.52), cromo, Vector3(0, 0.05, 0))
+	# la fascia a strisce
+	for i in 5:
+		_box(n, Vector3(0.16, 0.16, 0.03), rosso if i % 2 == 0 else bianco,
+				Vector3(-0.34 + 0.17 * float(i), 0.5, -0.26))
+	# i due coperchi scorrevoli, uno socchiuso
+	for lato: float in [-1.0, 1.0]:
+		var cop := _box(n, Vector3(0.44, 0.05, 0.46), cromo,
+				Vector3(lato * 0.24, 0.67, lato * 0.02))
+		cop.name = "Coperchio%d" % int(lato)
+		_box(n, Vector3(0.16, 0.03, 0.03), _mat(ZINCO_CUPO, Color("7d838b"), 5.0, 0.3),
+				Vector3(lato * 0.24, 0.7, lato * 0.02 - 0.2))
+	# il cartello col cono
+	var palo := _cyl(n, 0.014, 0.014, 0.34, cromo, Vector3(0.36, 0.82, 0.12))
+	var cartello := _box(n, Vector3(0.26, 0.3, 0.02), bianco, Vector3(0.36, 1.05, 0.12))
+	cartello.name = "Cartello"
+	var cialda := _cyl(n, 0.075, 0.012, 0.16, _mat(Color("e8bd78"), Color("d4a45e"), 6.0, 0.45),
+			Vector3(0.36, 1.0, 0.105))
+	_ball(n, 0.045, _mat(PINK, PINK_DEEP, 5.0, 0.4), Vector3(0.335, 1.1, 0.105))
+	_ball(n, 0.042, _mat(CREAM, Color("f0e4cc"), 5.0, 0.35), Vector3(0.385, 1.13, 0.105))
+	return n
+
+
+static func _tenda_bar() -> Node3D:
+	# LA TENDA: la falda a strisce sopra la porta, con la frangia ondulata.
+	# Sta sul bordo di una cella, come un muro.
+	var n := Node3D.new()
+	var metallo := _mat(METAL, Color("6f665b"), 5.0, 0.4)
+	# i due bracci
+	for sx: float in [-0.44, 0.44]:
+		var braccio := _box(n, Vector3(0.04, 0.04, 0.56), metallo, Vector3(sx, 2.02, -0.2))
+		braccio.rotation.x = -0.42
+		_box(n, Vector3(0.05, 0.3, 0.05), metallo, Vector3(sx, 2.16, 0.02)).rotation.x = 0.5
+	_box(n, Vector3(0.96, 0.05, 0.05), metallo, Vector3(0, 2.3, 0.02))
+	# la falda a strisce, inclinata
+	var falda := Node3D.new()
+	falda.name = "Falda"
+	falda.position = Vector3(0, 2.06, -0.26)
+	falda.rotation.x = -0.42
+	n.add_child(falda)
+	var bianco := _mat(CREAM, Color("f0e4cc"), 5.0, 0.3)
+	var rosso := _mat(BAR_ROSSO, BAR_ROSSO_CUPO, 4.5, 0.4)
+	for i in 6:
+		_box(falda, Vector3(0.163, 0.03, 0.62), rosso if i % 2 == 0 else bianco,
+				Vector3(-0.41 + 0.163 * float(i), 0, 0))
+	# la frangia a onde sul bordo davanti
+	for i in 6:
+		var dente := _ball(falda, 0.075, rosso if i % 2 == 0 else bianco,
+				Vector3(-0.41 + 0.163 * float(i), -0.03, -0.32),
+				Vector3(1.0, 0.55, 0.5))
+		dente.name = "Dente%d" % i
+	return n
+
+
+static func _insegna_bar() -> Node3D:
+	# L'INSEGNA DEL BAR: la tazzina d'ottone su fondo crema, appesa al
+	# braccio di ferro battuto. Si vede da tutta la piazza.
+	var n := Node3D.new()
+	var ferro := _mat(Color("4f4a45"), Color("3d3935"), 5.0, 0.4)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	_box(n, Vector3(0.07, 0.28, 0.07), ferro, Vector3(-0.4, 2.0, 0))
+	_box(n, Vector3(0.62, 0.05, 0.05), ferro, Vector3(-0.1, 2.12, 0))
+	# il ricciolo di ferro battuto
+	for i in 3:
+		var a := PI * 0.5 * float(i)
+		_ball(n, 0.028, ferro, Vector3(-0.3 + cos(a) * 0.06, 2.06 + sin(a) * 0.06, 0),
+				Vector3(1, 1, 0.5))
+	var appesa := Node3D.new()
+	appesa.name = "Insegna"
+	appesa.position = Vector3(0.1, 2.1, 0)
+	n.add_child(appesa)
+	for dx: float in [-0.18, 0.18]:
+		_cyl(appesa, 0.007, 0.007, 0.14, ottone, Vector3(dx, -0.07, 0))
+	_box(appesa, Vector3(0.54, 0.36, 0.045), _mat(CREAM, Color("f0e4cc"), 5.0, 0.3),
+			Vector3(0, -0.32, 0))
+	_box(appesa, Vector3(0.56, 0.04, 0.05), ottone, Vector3(0, -0.15, 0))
+	_box(appesa, Vector3(0.56, 0.04, 0.05), ottone, Vector3(0, -0.49, 0))
+	# la tazzina dipinta, col manico e il vapore
+	_cyl(appesa, 0.085, 0.07, 0.1, ottone, Vector3(-0.02, -0.33, -0.03))
+	_cyl(appesa, 0.1, 0.1, 0.012, ottone, Vector3(-0.02, -0.39, -0.03))
+	var manico := _cyl(appesa, 0.032, 0.032, 0.015, ottone, Vector3(0.08, -0.32, -0.03))
+	manico.rotation.x = PI * 0.5
+	for i in 3:
+		_ball(appesa, 0.014, ottone,
+				Vector3(-0.02 + sin(float(i) * 1.5) * 0.03, -0.24 + 0.045 * float(i), -0.03),
+				Vector3(1, 1, 0.4))
 	return n

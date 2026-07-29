@@ -159,46 +159,48 @@ static func sacco() -> Node3D:
 	var toppa := CAT._mat(SALVIA, SALVIA_DARK, 6.0, 0.45)
 	var corda := CAT._mat(CORDA, CUOIO, 7.0, 0.4)
 
-	# il palo e la base che lo tiene su
-	CAT._box(n, Vector3(0.34, 0.07, 0.34), legno, Vector3(0, 0.035, -0.3))
-	CAT._box(n, Vector3(0.1, 2.0, 0.1), legno, Vector3(0, 1.0, -0.3))
+	# IL PALO STA DIETRO. Il fronte dei pezzi è -Z: col palo davanti, dal
+	# lato da cui si guarda (e da cui si tira il pugno) il sacco spariva
+	# dietro un pezzo di legno.
+	CAT._box(n, Vector3(0.44, 0.07, 0.44), legno, Vector3(0, 0.035, 0.32))
+	CAT._box(n, Vector3(0.11, 2.0, 0.11), legno, Vector3(0, 1.0, 0.32))
 	# la mensola diagonale: un palo dritto sarebbe una sbarra, questa è
 	# una spalla
-	var puntone := CAT._box(n, Vector3(0.07, 0.5, 0.07), legno, Vector3(0, 1.5, -0.19))
-	puntone.rotation.x = -0.8
+	var puntone := CAT._box(n, Vector3(0.07, 0.52, 0.07), legno, Vector3(0, 1.5, 0.21))
+	puntone.rotation.x = 0.8
 	# il braccio curvo che porta il sacco (tubo su tre punti, non un box)
-	BUILDER.tube(n, [Vector3(0, 1.94, -0.28), Vector3(0, 2.06, -0.14),
-			Vector3(0, 2.04, 0.06)], [0.05, 0.045, 0.038], legno, 14, 10)
+	BUILDER.tube(n, [Vector3(0, 1.94, 0.3), Vector3(0, 2.08, 0.14),
+			Vector3(0, 2.06, -0.08)], [0.05, 0.045, 0.038], legno, 14, 10)
 
 	# IL SACCO, appeso: pivot in alto, così dondola dal punto giusto
 	var sacco := Node3D.new()
 	sacco.name = "sacco"
-	sacco.position = Vector3(0, 2.02, 0.06)
+	sacco.position = Vector3(0, 2.04, -0.08)
 	n.add_child(sacco)
 	# il cordino
 	CAT._cyl(sacco, 0.012, 0.012, 0.2, corda, Vector3(0, -0.1, 0))
 	# il corpo: una superficie di rivoluzione a sacco — spalla stretta,
 	# pancia piena, fondo tondo
 	BUILDER.lathe(sacco, [
-		Vector2(0.05, -0.2), Vector2(0.14, -0.3), Vector2(0.175, -0.4),
-		Vector2(0.178, -0.6), Vector2(0.172, -0.8), Vector2(0.15, -0.92),
-		Vector2(0.08, -1.0), Vector2(0.0, -1.02),
+		Vector2(0.06, -0.18), Vector2(0.16, -0.28), Vector2(0.205, -0.4),
+		Vector2(0.21, -0.62), Vector2(0.2, -0.84), Vector2(0.17, -0.97),
+		Vector2(0.09, -1.06), Vector2(0.0, -1.08),
 	], tela, Vector3.ZERO, 22)
 	# le tre cuciture verticali del sacco, sui bordi dei teli
 	for i in 3:
 		var giro := Node3D.new()
 		giro.rotation.y = float(i) / 3.0 * TAU + 0.4
 		sacco.add_child(giro)
-		var seam := CAT._box(giro, Vector3(0.012, 0.5, 0.008),
-				CAT._mat(CANVAS_DARK, CANVAS_DARK, 1.0, 0.0), Vector3(0, -0.58, 0.174))
+		var seam := CAT._box(giro, Vector3(0.01, 0.56, 0.006),
+				CAT._mat(CANVAS_DARK, CANVAS, 4.0, 0.3), Vector3(0, -0.6, 0.206))
 		seam.rotation.x = 0.02
 	# la legatura in cima (dove il sacco è strozzato) e due toppe cucite
-	CAT._cyl(sacco, 0.062, 0.062, 0.03, corda, Vector3(0, -0.26, 0))
+	CAT._cyl(sacco, 0.072, 0.072, 0.035, corda, Vector3(0, -0.25, 0))
 	# LE TOPPE. Non adesivi quadrati appiccicati sopra: cuscinetti schiacciati
 	# che si appoggiano ALLA CURVA del sacco, ognuno sul suo raggio.
-	_toppa(sacco, 0.7, -0.52, 0.068, toppa)
-	_toppa(sacco, -2.3, -0.76, 0.052, CAT._mat(CUOIO, CUOIO_DARK, 6.0, 0.45))
-	_posto(n, Vector3(0, 0.0, 0.62), Vector3.FORWARD)
+	_toppa(sacco, 0.5, -0.54, 0.078, toppa)
+	_toppa(sacco, -2.1, -0.8, 0.06, CAT._mat(CUOIO, CUOIO_DARK, 6.0, 0.45))
+	_posto(n, Vector3(0, 0.0, -0.62), Vector3.BACK)
 	return n
 
 
@@ -210,9 +212,9 @@ static func _toppa(sacco: Node3D, angolo: float, y: float, raggio: float,
 	var giro := Node3D.new()
 	giro.rotation.y = angolo
 	sacco.add_child(giro)
-	var r := 0.176 if y > -0.85 else 0.15
-	CAT._ball(giro, raggio, mat, Vector3(0, y, r - raggio * 0.55),
-			Vector3(1.0, 1.15, 0.22))
+	var r := 0.208 if y > -0.85 else 0.18
+	CAT._ball(giro, raggio, mat, Vector3(0, y, r - raggio * 0.62),
+			Vector3(1.0, 1.2, 0.42))
 
 
 # ----------------------------------------------------------- la cyclette
@@ -270,10 +272,12 @@ static func cyclette() -> Node3D:
 	var sella := Node3D.new()
 	sella.position = Vector3(0, 0.92, 0.22)
 	n.add_child(sella)
-	CAT._ball(sella, 0.115, cuoio, Vector3(0, 0, 0.03), Vector3(0.85, 0.3, 1.0))
-	var punta := CAT._ball(sella, 0.075, cuoio, Vector3(0, -0.004, -0.14),
-			Vector3(0.5, 0.3, 1.7))
-	punta.rotation.x = -0.08
+	# larga dietro, a punta davanti: una sella è un triangolo smussato,
+	# non un cuscino tondo (che da sopra sembra un berretto)
+	CAT._ball(sella, 0.105, cuoio, Vector3(0, 0, 0.05), Vector3(0.78, 0.34, 0.95))
+	var punta := CAT._ball(sella, 0.085, cuoio, Vector3(0, -0.008, -0.11),
+			Vector3(0.42, 0.3, 2.0))
+	punta.rotation.x = -0.1
 	CAT._cyl(sella, 0.02, 0.02, 0.06, ferro, Vector3(0, -0.05, 0.02))
 
 	# IL MANUBRIO: un tubo curvo con le due impugnature di cuoio
@@ -315,6 +319,13 @@ static func sbarra_trazione() -> Node3D:
 		var punt := CAT._box(n, Vector3(0.05, 0.44, 0.05), legno,
 				Vector3(sx * 0.4, 0.34, 0.15))
 		punt.rotation.x = 0.55
+	# la traversa bassa che chiude il telaio: senza, due pali e una barra
+	# in cima sono una forca, non un attrezzo
+	CAT._box(n, Vector3(0.86, 0.05, 0.05), legno, Vector3(0, 0.52, 0))
+	for sx3: float in [-1.0, 1.0]:
+		var sost := CAT._box(n, Vector3(0.045, 0.3, 0.045), legno,
+				Vector3(sx3 * 0.28, 0.66, 0))
+		sost.rotation.z = sx3 * 0.42
 	# la sbarra, un filo più chiara: è la parte che si tocca
 	var barra := CAT._cyl(n, 0.032, 0.032, 0.94, chiaro, Vector3(0, 2.12, 0))
 	barra.rotation.z = PI * 0.5
@@ -377,9 +388,9 @@ static func specchio() -> Node3D:
 	lama.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	# (corte: una lama lunga quanto il vetro, inclinata, esce dalla cornice
 	# — e un riflesso che sborda dallo specchio non è un riflesso)
-	var l1 := CAT._box(quadro, Vector3(0.09, 1.05, 0.006), lama, Vector3(-0.09, 0.1, 0.028))
+	var l1 := CAT._box(quadro, Vector3(0.085, 0.95, 0.006), lama, Vector3(-0.1, 0.14, 0.028))
 	l1.rotation.z = 0.42
-	var l2 := CAT._box(quadro, Vector3(0.035, 0.62, 0.006), lama, Vector3(0.09, -0.3, 0.028))
+	var l2 := CAT._box(quadro, Vector3(0.035, 0.5, 0.006), lama, Vector3(0.1, -0.34, 0.028))
 	l2.rotation.z = 0.42
 	_posto(n, Vector3(0, 0.0, 0.75), Vector3.BACK)
 	return n

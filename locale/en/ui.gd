@@ -283,6 +283,24 @@ const T := {
 	# italiani, sono le chiavi di village.json e del corredo ---
 	"Il posto di guardia: una casina col lume azzurro sempre\nacceso, e l'armadio dove le cose perse aspettano\nchi le ha perse. Arriva con tutto il suo corredo.":
 		"The guard post: a little house with a blue lantern always\nlit, and the cabinet where lost things wait for\nwhoever lost them. It comes with all its furnishings.",
+	# --- il bar del paese: SOLO il nome mostrato ---
+	"Il bar del paese, tutto intero: il bancone di zinco, la\nmacchina del caffè che sbuffa, i tavolini sotto\nl'ombrellone e il biliardino. Il posto dove ci si trova.":
+		"The village café, all of it: the zinc counter, the\ncoffee machine huffing away, the little tables under\nthe parasol and the table football. The place where you meet.",
+	"Bancone bar": "Café counter",
+	"Tenda bar": "Awning",
+	"Insegna bar": "Café sign",
+	"Macchina caffè": "Coffee machine",
+	"Vetrina dolci": "Pastry case",
+	"Sgabello alto": "Bar stool",
+	"Mensola bottiglie": "Bottle shelf",
+	"Tavolino bar": "Café table",
+	"Sedia vimini": "Wicker chair",
+	"Lavagnetta": "Little chalkboard",
+	"Biliardino": "Table football",
+	"Ombrellone": "Parasol",
+	"Fioriera": "Planter",
+	"Lucine": "String lights",
+	"Frigo gelati": "Ice-cream freezer",
 	"Guardiola": "Guard post",
 	"Insegna guardia": "Guard post sign",
 	"Sbarra": "Barrier",
