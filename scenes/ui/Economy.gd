@@ -66,6 +66,8 @@ const SHOP_PIECES := [
 		"desc": "Un sacco da farina rattoppato, appeso a un braccio di legno.\nCol sacco arriva tutta la palestra del villaggio: il\ntappetino, la panca, la sbarra, e la botte dell'acqua."},
 	{"name": "Autopompa", "cost": 460, "cur": "nut", "cat": 0,
 		"desc": "La caserma dei pompieri, tutta intera: l'autopompa\nlucidata, la campana che chiama in piazza e gli\nstivali in fila. Qui non brucia niente: si tiene pronto."},
+	{"name": "Bancone bar", "cost": 380, "cur": "nut", "cat": 0,
+		"desc": "Il bar del paese, tutto intero: il bancone di zinco, la\nmacchina del caffè che sbuffa, i tavolini sotto\nl'ombrellone e il biliardino. Il posto dove ci si trova."},
 	{"name": "Serra", "cost": 520, "cur": "nut", "cat": 2,
 		"desc": "Un giardino di vetro: col suo tepore, orto e fiori\ncrescono anche sotto la neve."},
 	{"name": "Mongolfiera", "cost": 650, "cur": "nut", "cat": 2,
@@ -186,6 +188,13 @@ const CORREDO := {
 			"Armadio smarriti", "Bacheca avvisi", "Attaccapanni", "Brandina",
 			"Lanterna blu", "Cono", "Transenna", "Bicicletta",
 			"Cassetta smarriti"],
+	# IL BAR: si compra il bancone e arriva il bar intero — la macchina del
+	# caffè, i tavolini, l'ombrellone, il biliardino. Un punto di ritrovo
+	# non si mette su un pezzo alla volta: o c'è, o è una stanza vuota.
+	"Bancone bar": ["Tenda bar", "Insegna bar", "Macchina caffè",
+			"Vetrina dolci", "Sgabello alto", "Mensola bottiglie",
+			"Tavolino bar", "Sedia vimini", "Lavagnetta", "Biliardino",
+			"Ombrellone", "Fioriera", "Lucine", "Frigo gelati"],
 	# LA PALESTRA: si compra il sacco e arrivano gli attrezzi tutti insieme.
 	# Otto voci quasi uguali sul banco del mercante sarebbero un catalogo,
 	# non un negozio — e una palestra si mette su tutta in una volta.
