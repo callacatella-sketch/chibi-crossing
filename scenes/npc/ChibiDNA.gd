@@ -276,6 +276,12 @@ static func incrocia(a: Dictionary, b: Dictionary, seed_v: int,
 	figlio["bocca"] = _stile_ereditato(a, b, "bocca", MOUTH_DECKS[arche], rng)
 	figlio["bocca_larg"] = clampf(_media(a, b, "bocca_larg", 1.0, rng, 0.04), 0.92, 1.1)
 	figlio["bocca_spess"] = clampf(_media(a, b, "bocca_spess", 1.0, rng, 0.05), 0.85, 1.2)
+	# LA VOCE È SUA E DI NESSUN ALTRO. Non si eredita e non si media: due
+	# fratelli hanno gli stessi occhi e due timbri diversi, come si deve.
+	# Senza questa riga il figlio resterebbe senza `voce_seed` e Chibiese
+	# ripiegherebbe sul vecchio hash di pelo e taglia — cioè la voce
+	# tornerebbe a dipendere da che colore ha.
+	figlio["voce_seed"] = int(rng.randi())
 
 	# --- e infine il gene che torna: qualcosa di chi è partito ricompare
 	# addosso a chi arriva. È tutta la meccanica in una riga. ---
