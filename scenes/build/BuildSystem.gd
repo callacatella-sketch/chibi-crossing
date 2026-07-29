@@ -29,7 +29,7 @@ const GRID_SHADER := preload("res://shaders/grid.gdshader")
 const VALID_TINT := Color(0.45, 0.9, 0.5, 0.38)
 const INVALID_TINT := Color(0.95, 0.35, 0.3, 0.42)
 const UI_BROWN := Color("6a4a3a")
-const CAT_NAMES := ["Struttura", "Arredo", "Giardino"]
+const CAT_NAMES := ["Struttura", "Arredo", "Giardino", "Palestra"]
 
 var _grid: GridManager
 var _items: Array[Dictionary] = []
