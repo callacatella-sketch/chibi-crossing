@@ -48,6 +48,11 @@ func _ready():
 
 	# --- economia gentile + menu (istanziati da codice: non tocco la scena) ---
 	player.add_to_group("player_controller")
+	# L'ARBITRO DELLA E, per PRIMO: intercetta il tasto in `_input` (che
+	# arriva prima di ogni `_unhandled_input`) e lo assegna a un solo
+	# vincitore. Chi non si è ancora iscritto continua a funzionare
+	# esattamente come prima — la migrazione va a ondate.
+	add_child(_spawn_system("res://systems/ArbitroE.gd", "ArbitroE"))
 	add_child(_spawn_system("res://scenes/ui/Economy.gd", "Economy"))
 	add_child(_spawn_system("res://scenes/ui/Shop.gd", "Shop"))
 	add_child(_spawn_system("res://scenes/ui/PauseMenu.gd", "PauseMenu"))
@@ -64,6 +69,9 @@ func _ready():
 	# le promesse: un vicino ti da' appuntamento a un fenomeno del mondo
 	# (la bruma, la levata dei pesci, la prima neve) e quel giorno c'e'
 	add_child(_spawn_system("res://scenes/npc/Promesse.gd", "Promesse"))
+	# il velo di carta imparava a respirare: le sue manopole non le
+	# scriveva mai nessuno (vedi Carta.gd)
+	add_child(_spawn_system("res://scenes/world/Carta.gd", "Carta"))
 	var settings := get_node_or_null(^"/root/Settings")
 	if settings:
 		settings.apply_to_player(player)
@@ -96,6 +104,8 @@ func _ready():
 		_start_debug_harness("saluti", OS.get_environment("CHIBI_SALUTI"))
 	elif OS.get_environment("CHIBI_STAGNO") != "":
 		_start_debug_harness("stagno", OS.get_environment("CHIBI_STAGNO"))
+	elif OS.get_environment("CHIBI_CARTA") != "":
+		_start_debug_harness("carta", OS.get_environment("CHIBI_CARTA"))
 	elif OS.get_environment("CHIBI_MAKESAVE") != "":
 		_start_debug_harness("makesave")
 
@@ -177,7 +187,7 @@ func _spawn_system(path: String, node_name: String) -> Node:
 # apposta. "shot" si spegne da sé in BuildSystem._ready.
 func _start_debug_harness(mode: String, arg: String = "") -> void:
 	if mode in ["lavori", "festa", "filo", "frutteto", "commissioni", "nido", "facce",
-			"porte", "pioggia", "bucato", "saluti", "stagno"] \
+			"porte", "pioggia", "bucato", "saluti", "stagno", "carta"] \
 			or (mode == "legna" and OS.get_environment("CHIBI_LEGNA_SAVE") == ""):
 		build_system.set_persist_for_debug(false)
 	var h = DEBUG_HARNESS.new()

@@ -52,6 +52,8 @@ func run(level: Node3D, mode: String, arg: String = "") -> void:
 			await _debug_saluti(arg)
 		"stagno":
 			await _debug_stagno(arg)
+		"carta":
+			await _debug_carta(arg)
 
 func _frames(n: int):
 	for i in n:
@@ -480,6 +482,60 @@ func _debug_facce(dir: String) -> void:
 
 	mochi.forza_espressione("")
 	print("FACCE: fine, %d espressioni fotografate" % n)
+	get_tree().quit()
+
+
+# ---------------------------------------------------------------- carta
+# Il velo di carta che respira: mezzogiorno, l'oro del tramonto, la
+# notte, la pioggia e il LUTTO — dove l'inquadratura si chiude senza
+# annunciarsi. Le stampe dicono le manopole vere lette dal materiale.
+func _debug_carta(dir: String) -> void:
+	var dn = _level.get_node_or_null("DayNight")
+	var weather = _level.get_node_or_null("Weather")
+	var carta = _level.get_node_or_null("Carta")
+	if dn == null or carta == null:
+		printerr("CARTA: DayNight o Carta non trovati")
+		get_tree().quit()
+		return
+	await _frames(40)
+	# una veduta larga del villaggio: la vignetta si legge sui bordi
+	player.global_position = Vector3(2.0, 0, 10.0)
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.position = Vector3(2.0, 3.4, 16.0)
+	cam.fov = 58.0
+	cam.current = true
+	cam.look_at(Vector3(2.0, 1.0, 2.0))
+	await _frames(10)
+
+	var mat: ShaderMaterial = carta.get("_mat")
+	var scatta := func(nome: String) -> void:
+		# la carta fonde piano: le si lascia il tempo di arrivare
+		await get_tree().create_timer(4.0).timeout
+		await _shot(dir, "carta_" + nome)
+		print("CARTA: %-10s strength=%.3f calore=%.3f grana=%.3f" % [nome,
+				mat.get_shader_parameter("strength"),
+				mat.get_shader_parameter("calore"),
+				mat.get_shader_parameter("grana")])
+
+	dn.set_time(0.5)
+	await scatta.call("mezzogiorno")
+	dn.set_time(0.75)
+	await scatta.call("tramonto")
+	dn.set_time(0.95)
+	await scatta.call("notte")
+	dn.set_time(0.5)
+	if weather:
+		weather.debug_rain(true)
+		await scatta.call("pioggia")
+		weather.debug_rain(false)
+	# IL LUTTO: si forza il filo a dichiararlo e si guarda l'inquadratura
+	var legami = get_tree().get_first_node_in_group("legami")
+	if legami:
+		legami.call("inizia_lutto", "Prova", ["Prova"])
+		await scatta.call("lutto")
+		legami.call("fine_lutto")
+	print("CARTA: fine")
 	get_tree().quit()
 
 

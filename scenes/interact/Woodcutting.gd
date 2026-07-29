@@ -117,6 +117,7 @@ func _ready() -> void:
 	_sfx = get_node_or_null(^"/root/Sfx")
 	_cut_mat = CATALOG._mat(CUT, CUT_DARK, 9.0, 0.5)
 	_build_prompt()
+	_iscrivi_alla_e.call_deferred()
 	# %Player non si risolve dai nodi creati a runtime (owner null): gruppo,
 	# e a fine frame, quando tutto il livello è in piedi
 	(func() -> void:
@@ -695,6 +696,42 @@ func nearest_stump(pos: Vector3, max_d: float) -> int:
 			best_d = d
 			best = i
 	return best
+
+
+# ---------------------------------------------------- l'arbitro della E
+# L'ascia era quinta nella catena e batteva la canna, il retino e la
+# vanga: premevi E per lanciare la lenza sullo stagno e calava un'asciata
+# sull'albero della sponda. È un GESTO come gli altri — e l'albero, a
+# differenza di una farfalla, domani è ancora lì.
+
+## La distanza dall'albero (o dal ceppo) a portata d'ascia, o -1.
+func distanza_e() -> float:
+	if _busy or _player == null or not _player.is_physics_processing():
+		return -1.0
+	var pp: Vector3 = _player.global_position
+	if nearest_tree(pp, CHOP_RANGE) >= 0:
+		return 1.0
+	if nearest_stump(pp, CHOP_RANGE * 0.8) >= 0:
+		return 1.2
+	return -1.0
+
+
+func agisci_e() -> void:
+	var pp: Vector3 = _player.global_position
+	var i := nearest_tree(pp, CHOP_RANGE)
+	if i >= 0:
+		chop(i)
+		return
+	var s := nearest_stump(pp, CHOP_RANGE * 0.8)
+	if s >= 0:
+		_pull_stump(s)
+
+
+func _iscrivi_alla_e() -> void:
+	var arb := get_tree().get_first_node_in_group("arbitro_e")
+	if arb:
+		arb.iscrivi(self, "ascia", arb.GESTO,
+				Callable(self, "distanza_e"), Callable(self, "agisci_e"))
 
 
 func _unhandled_input(event: InputEvent) -> void:

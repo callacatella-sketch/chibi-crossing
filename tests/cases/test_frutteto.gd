@@ -63,6 +63,13 @@ func _test_ricette(t) -> void:
 			t.ok(CRIT.SPECIE.has(str(ing)) and CRIT.classe(str(ing)) == "raccolto",
 					"«%s»: l'ingrediente '%s' e' un raccolto del bestiario"
 					% [r["name"], ing])
+			# IL PLURALE MANCANTE. _refresh_menu indicizza ING_PLURAL per
+			# scrivere «2 mele»: una chiave assente non degradava, mandava
+			# in errore il RICETTARIO INTERO — ed e' successo davvero con
+			# mela e pera, arrivate col frutteto.
+			t.ok(COOKING.ING_PLURAL.has(str(ing)),
+					"«%s»: l'ingrediente '%s' ha il suo plurale (o il ricettario si rompe)"
+					% [r["name"], ing])
 	t.ok("Torta di mele" in nomi, "la torta di mele e' nel ricettario")
 	t.ok("Pere al miele" in nomi, "le pere al miele pure")
 	t.ok(COOKING.RECIPES.size() <= 9,

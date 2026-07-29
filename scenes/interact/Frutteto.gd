@@ -58,6 +58,7 @@ func _ready() -> void:
 	_sfx = get_node_or_null(^"/root/Sfx")
 	_build_ui()
 	(func():
+		_iscrivi_alla_e()
 		_player = get_node_or_null("../Player")
 		_build = get_node_or_null("../BuildSystem")
 		_daynight = get_node_or_null("../DayNight")
@@ -440,6 +441,42 @@ func _ricontrolla() -> void:
 			return
 	if _semini() > 0 and pp.y < 0.5 and _posto_libero(pp):
 		_puo_piantare = true
+
+
+# ---------------------------------------------------- l'arbitro della E
+# Il frutteto era il ladro peggiore: con un semino in tasca `_puo_piantare`
+# vale su qualunque prato libero, e siccome era terzo nella catena degli
+# ascoltatori vinceva su TUTTO — panchina, posta, aiuola, ricettario. Ogni
+# E dentro il villaggio piantava un albero. Ora dichiara il suo gradino e
+# la sua distanza, e l'arbitro decide (vedi systems/ArbitroE.gd).
+
+func _iscrivi_alla_e() -> void:
+	var arb := get_tree().get_first_node_in_group("arbitro_e")
+	if arb:
+		arb.iscrivi(self, "frutteto", arb.GESTO,
+				Callable(self, "distanza_e"), Callable(self, "agisci_e"))
+
+
+## Quanto è lontano il gesto del frutteto, o -1 se adesso non è in gioco.
+## RACCOGLIERE un frutto maturo è un gesto vicino e preciso; PIANTARE
+## invece è disponibile su mezzo prato, quindi si dichiara «lontano»: a
+## parità di gradino perde contro qualunque cosa più a portata di zampa.
+func distanza_e() -> float:
+	if _player == null or not _player.is_physics_processing():
+		return -1.0
+	if _vicino >= 0:
+		return 0.6
+	if _puo_piantare:
+		return 3.0
+	return -1.0
+
+
+func agisci_e() -> void:
+	if _vicino >= 0:
+		raccogli(_vicino)
+	elif _puo_piantare:
+		pianta(_player.global_position)
+	_ricontrolla()
 
 
 func _unhandled_input(event: InputEvent) -> void:

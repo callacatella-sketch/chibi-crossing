@@ -51,6 +51,10 @@ var _aperto := false
 var _sel := 0
 ## label del residente -> lavoro assegnato
 var _incarichi := {}
+## Le giornate SCELTE: label -> compito che il residente si è dato da sé,
+## il mattino, perché nessuno gliene aveva dato uno. Non si salvano: sono
+## la giornata di oggi, e domani decide di nuovo.
+var _scelte := {}
 
 
 func _ready() -> void:
@@ -80,9 +84,39 @@ func _on_nuovo_giorno(_giorno: int) -> void:
 		if lavoro == "":
 			continue
 		_visitors.assegna_compito(label, lavoro)
+	_scelte_di_giornata()
 	_produzione_del_giorno()
 	if _aperto:
 		_riempi()
+
+
+## LE GIORNATE LIBERE. Chi non ha un incarico non sta con le zampe in
+## mano: sceglie da sé cosa fare, e lo sceglie col suo animo —
+## `Animo.decide` pesa quanto un compito allevia ciò che gli sta
+## pesando ADESSO, quanto lo avvicina al sogno che ha, quante volte
+## quella cosa lo ha già stancato. (Il motore c'era da sempre, con la
+## sua scelta pesata e il suo test; non lo chiamava nessuno, e i vicini
+## senza incarico non facevano nulla di loro iniziativa.)
+##
+## La differenza che conta: una giornata SCELTA non fa scendere il
+## rancore. Non ci si ribella al proprio lavoro — ci si ribella a
+## quello che ti hanno imposto.
+func _scelte_di_giornata() -> void:
+	_scelte.clear()
+	for r in (_visitors.get("_residents") as Array):
+		var label := str(r.get("label", ""))
+		if label == "" or _incarichi.has(label):
+			continue
+		var animo: RefCounted = _visitors.call("animo_oggetto_di", label)
+		if animo == null:
+			continue
+		# "se_stesso" e non "giocatore": è una scelta sua, e nel ricordo
+		# resterà così — non gliel'ha chiesta nessuno
+		var scelta := str(animo.decide(ANIMO.COMPITI.keys(), "se_stesso"))
+		if scelta == "":
+			continue
+		_scelte[label] = scelta
+		_visitors.assegna_compito(label, scelta)
 
 
 # ------------------------------------------------------- la produzione
