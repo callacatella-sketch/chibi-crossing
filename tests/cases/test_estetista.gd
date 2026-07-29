@@ -48,16 +48,11 @@ func _test_il_sogno(t) -> void:
 			serviti[s] = true
 	# IL BUCO CHE QUESTO TEST HA TROVATO, e che non si nasconde: «artista»
 	# e' un sogno che il DNA distribuisce da sempre e che NESSUN compito
-	# realizza. Chi lo sogna non prende mai il bonus del mestiere giusto
-	# (Animo.punteggio) ne' il x1.5 della resa: sogna una cosa che nel
-	# villaggio non si puo' fare. Aspetta il suo mestiere — e finche' non
-	# ce l'ha, sta scritto QUI, con un nome, non in un silenzio.
-	const SENZA_MESTIERE := ["artista"]
+	# realizza: chi lo sogna prende il bonus del mestiere giusto
+	# (Animo.punteggio) e il x1.5 della resa. NON deve restare un sogno
+	# senza sbocco — l'artista e' stato l'ultimo buco, e l'anfiteatro
+	# l'ha chiuso: se ne apri uno nuovo, apri anche il suo compito.
 	for sogno in ANIMO.SOGNI:
-		if str(sogno) in SENZA_MESTIERE:
-			t.ok(not serviti.has(str(sogno)),
-					"'%s' e' il buco noto: nessun compito lo realizza ancora" % sogno)
-			continue
 		t.ok(serviti.has(str(sogno)),
 				"il sogno '%s' ha un compito che lo realizza" % sogno)
 	# e il vicino sa dire perché vuole una cosa (le commissioni)

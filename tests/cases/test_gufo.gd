@@ -147,9 +147,9 @@ func _test_desideri_di_stagione(t) -> void:
         for pezzo in G.referenced_pieces(d["predicate"]):
             t.ok(catalog.has(str(pezzo)),
                     "%s: il pezzo richiesto '%s' esiste nel catalogo" % [id, pezzo])
-        var regalo := str(d.get("gift_piece", ""))
-        if regalo != "":
-            t.ok(catalog.has(regalo),
+        # un desiderio puo' regalare PIU' pezzi, separati da "|"
+        for regalo in str(d.get("gift_piece", "")).split("|", false):
+            t.ok(catalog.has(str(regalo)),
                     "%s: il pezzo in regalo '%s' esiste nel catalogo" % [id, regalo])
     for s in 4:
         t.ok(int(per_stagione[s]) >= 1, "la stagione %d ha almeno un desiderio" % s)

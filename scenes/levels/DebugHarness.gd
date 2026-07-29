@@ -60,6 +60,8 @@ func run(level: Node3D, mode: String, arg: String = "") -> void:
 			await _debug_salone(arg)
 		"estetista":
 			await _debug_estetista(arg)
+		"anfiteatro":
+			await _debug_anfiteatro(arg)
 
 func _frames(n: int):
 	for i in n:
@@ -488,6 +490,72 @@ func _debug_facce(dir: String) -> void:
 
 	mochi.forza_espressione("")
 	print("FACCE: fine, %d espressioni fotografate" % n)
+	get_tree().quit()
+
+
+# ----------------------------------------------------------- anfiteatro
+# I tre pezzi dell'anfiteatro, guardati come si guarda un modellino:
+# l'insieme montato (palco al centro, gradinate in curva, pianoforte in
+# scena), poi il pianoforte da vicino — la sagoma a coda, il coperchio
+# aperto, i tasti — e il fondale a conchiglia.
+func _debug_anfiteatro(dir: String) -> void:
+	var dn = _level.get_node_or_null("DayNight")
+	if dn:
+		dn.set_time(0.80)          # l'ora del concerto: le lanterne accese
+	await _frames(30)
+	player.global_position = Vector3(9.0, 0, 14.0)
+
+	# IL MONTAGGIO. Un anfiteatro GRANDE si fa affiancando pezzi: e' per
+	# questo che il tavolato e' un pavimento (strato 0) e la conchiglia un
+	# mobile (strato 2) — cosi' il pianoforte puo' stare SOPRA le assi, e
+	# il palco puo' essere largo quanto si vuole.
+	for px in range(-2, 3):
+		for pz in [3, 4, 5]:
+			build_system.place_cell(Vector2i(px, pz), "Palco", 0, false)
+	# la conchiglia in fondo, tre campate affiancate
+	for px2 in [-1, 0, 1]:
+		build_system.place_cell(Vector2i(px2, 3), "Fondale", 0, false)
+	build_system.place_cell(Vector2i(0, 5), "Pianoforte", 0, false)
+	# LA PLATEA: tre file che si allargano allontanandosi dal palco
+	for g: Array in [[-1, 7, 0], [0, 7, 0], [1, 7, 0],
+			[-2, 8, 1], [-1, 8, 0], [0, 8, 0], [1, 8, 0], [2, 8, 3],
+			[-2, 9, 1], [-1, 9, 0], [0, 9, 0], [1, 9, 0], [2, 9, 3]]:
+		build_system.place_cell(Vector2i(int(g[0]), int(g[1])), "Gradinata",
+				int(g[2]), false)
+	await _frames(8)
+	var palco: Node3D = null
+	for nodo in build_system.get_placed_by_name("Fondale"):
+		palco = nodo
+	var piano: Node3D = null
+	for nodo in build_system.get_placed_by_name("Pianoforte"):
+		piano = nodo
+	var c: Vector3 = palco.global_position
+
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.current = true
+	var guarda := func(da: Vector3, verso: Vector3, fov: float) -> void:
+		cam.fov = fov
+		cam.position = da
+		cam.look_at(verso)
+		await _frames(6)
+
+	await guarda.call(c + Vector3(0.4, 4.2, 10.5), c + Vector3(0, 0.5, 2.6), 46.0)
+	await _shot(dir, "anfi_1_insieme")
+	await guarda.call(c + Vector3(-2.6, 1.4, 3.2), c + Vector3(0, 0.5, 0.6), 44.0)
+	await _shot(dir, "anfi_2_di_lato")
+	var p: Vector3 = piano.global_position
+	await guarda.call(p + Vector3(0.85, 0.72, 0.95), p + Vector3(0, 0.30, -0.05), 36.0)
+	await _shot(dir, "anfi_3_pianoforte")
+	await guarda.call(p + Vector3(0.05, 0.62, 0.62), p + Vector3(0, 0.31, 0.05), 30.0)
+	await _shot(dir, "anfi_4_tastiera")
+	await guarda.call(c + Vector3(0.0, 1.0, 1.9), c + Vector3(0, 0.75, -0.4), 40.0)
+	await _shot(dir, "anfi_5_conchiglia")
+	print("ANFITEATRO: ribalta -> %s"
+			% ("c'e'" if palco.find_child("Ribalta", true, false) else "MANCA"))
+	print("ANFITEATRO: panchetta -> %s"
+			% ("c'e'" if piano.find_child("Panchetta", true, false) else "MANCA"))
+	print("ANFITEATRO: fine")
 	get_tree().quit()
 
 

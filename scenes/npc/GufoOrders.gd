@@ -66,6 +66,7 @@ const DESIDERI := [
     # ---- primavera
     {"id": "fiori-in-fiore", "season": 0, "title": "Un prato che applaude", "letter_text": "Dalla casa sull'albero vedo i prati sbadigliare.\nVorrei contare dieci fiori aperti tutti insieme:\nun applauso colorato per la primavera.", "hint": "dieci fiori in fiore nello stesso giorno", "done_text": "Dieci corolle aperte! Stamattina il prato applaudiva da solo.", "predicate": {"type": "stat", "key": "fiori", "n": 10}, "stars": 2, "gift_piece": ""},
     {"id": "il-salone-di-chi-lo-sogna", "season": 0, "title": "Il salone di chi lo sogna", "letter_text": "C'e' una cosa che ho notato dal ramo alto.\nQualcuno, in paese, guarda gli altri e pensa\n«come starebbe bene, con un altro colore».\nNon glielo ha mai detto a nessuno.\nTi mando il progetto di un salone: lo specchio,\nla poltrona, il carrello dei colori. Costruiscilo,\ne poi dagli l'incarico: vedrai cosa sa fare.", "hint": "accogli qualcuno che sogna di fare l'estetista", "done_text": "Ecco il progetto. Ora il villaggio ha un posto dove ci si guarda allo specchio insieme.", "predicate": {"type": "sogno", "sogno": "estetista", "n": 1}, "stars": 3, "gift_piece": "Salone"},
+    {"id": "l-anfiteatro-di-chi-lo-sogna", "season": 0, "title": "Il posto dove si ascolta", "letter_text": "Ce n'e' uno, in paese, che tamburella sempre.\nSul tavolo, sul recinto, sul manico della zappa.\nNon ha un posto dove farlo sul serio.\nTi mando il progetto di un anfiteatro: il tavolato,\nla conchiglia che rimanda la voce, le gradinate\ne un pianoforte a coda. Costruiscilo grande.\nPoi dagli l'incarico, e siediti anche tu.", "hint": "accogli qualcuno che sogna di fare l\'artista", "done_text": "Ecco il progetto. Da stasera il villaggio ha un posto dove ci si siede tutti insieme al buio.", "predicate": {"type": "sogno", "sogno": "artista", "n": 1}, "stars": 4, "gift_piece": "Palco|Fondale|Gradinata|Pianoforte"},
     {"id": "panchine-coi-petali", "season": 0, "title": "Posti in prima fila", "letter_text": "I petali cadono meglio se qualcuno li guarda.\nMetti due panchine rivolte al vento:\nvoglio vedere chi si siede sotto la neve rosa.", "hint": "due panchine per guardare i petali", "done_text": "Due panchine, e gia' qualcuno ci sonnecchia sotto i petali.", "predicate": {"type": "count", "name": "Panchina", "n": 2}, "stars": 2, "gift_piece": ""},
     # ---- estate
     {"id": "lampioni-sul-fiume", "season": 1, "title": "Le stelle basse", "letter_text": "Le sere d'estate meritano una riva accesa.\nPianta tre lampioni lungo il fiume:\nvoglio specchiarli nell'acqua, dalla mia finestra.", "hint": "tre lampioni accesi lungo il fiume", "done_text": "Tre lucine sull'acqua: il fiume adesso ha le sue stelle basse.", "predicate": {"type": "count", "name": "Lampione", "n": 3}, "stars": 3, "gift_piece": ""},
@@ -463,21 +464,30 @@ func _check_desiderio() -> void:
     var eco: Node = get_tree().get_first_node_in_group("economy")
     # il pezzo esclusivo: lo sblocco arriva in regalo UNA volta (se il
     # giocatore l'ha gia' comprato, il Gufo lo sa e aggiunge una stellina)
-    var regalo := str(d.get("gift_piece", ""))
+    # un desiderio puo' regalare PIU' pezzi (separati da "|"): un
+    # anfiteatro fatto di un pezzo solo non e' un anfiteatro. Se il
+    # giocatore li ha gia' tutti, il pacco diventa una stellina.
+    var pezzi := str(d.get("gift_piece", "")).split("|", false)
+    var regalati: Array[String] = []
     if eco:
-        if regalo != "":
-            if bool(eco.call("is_piece_unlocked", regalo)):
-                stelle += 1
-                regalo = ""
-            else:
-                eco.call("unlock_piece", regalo)
+        for pezzo in pezzi:
+            if bool(eco.call("is_piece_unlocked", pezzo)):
+                continue
+            eco.call("unlock_piece", pezzo)
+            regalati.append(pezzo)
+        if pezzi.size() > 0 and regalati.is_empty():
+            stelle += 1
         eco.call("add_stars", stelle)
+    var nomi: Array[String] = []
+    for pezzo in regalati:
+        nomi.append(L10n.t(pezzo))
+    var regalo := " · ".join(nomi)
     _owl_toast(L10n.t(str(d["title"])), L10n.t(str(d.get("done_text", ""))), true)
     if _mail:
         var testo := L10n.tf("%s\n\nTi lascio %d stelline sul davanzale.",
                 [L10n.t(str(d.get("done_text", ""))), stelle])
         if regalo != "":
-            testo += L10n.tf("\nE il pacco contiene: %s. E' tuo.", [L10n.t(regalo)])
+            testo += L10n.tf("\nE il pacco contiene: %s. E' tuo.", [regalo])
         _mail.call("queue_letter", {"from": "Il Gufo", "text": testo, "gift": true})
     _update_banner()
     _update_journal()

@@ -37,9 +37,10 @@ const LAVORI := {
 	"guardia": "Fare la guardia",
 	"esplora": "Esplorare il bosco",
 	"abbellisce": "Tenere il salone",
+	"suona": "Suonare all'anfiteatro",
 }
 const ORDINE := ["", "taglia_legna", "coltiva", "cucina", "guardia", "esplora",
-		"abbellisce"]
+		"abbellisce", "suona"]
 
 var _visitors: Node
 var _player: Node3D
@@ -168,6 +169,7 @@ func _produzione_del_giorno() -> void:
 	var inventory := get_node_or_null("../Inventory")
 	var veglia := get_tree().get_first_node_in_group("veglia")
 	var salone := get_tree().get_first_node_in_group("salone")
+	var concerto := get_tree().get_first_node_in_group("concerto")
 	var legna := 0
 	var lanterne := 0
 	var al_buio := 0
@@ -175,6 +177,8 @@ func _produzione_del_giorno() -> void:
 	var piatti: Array[String] = []
 	var tesori := 0
 	var abbelliti: Array[String] = []
+	var applausi := 0
+	var brano := ""
 	for label in _incarichi:
 		var lavoro := str(_incarichi[label])
 		var gradino := str(_visitors.animo_di(label))
@@ -225,6 +229,17 @@ func _produzione_del_giorno() -> void:
 					var chi := str(salone.call("servito_oggi"))
 					if chi != "":
 						abbelliti.append(chi)
+			"suona":
+				# IL PALCO NON PRODUCE COSE: produce una sera che il
+				# villaggio ha passato insieme. La resa dice solo se il
+				# concerto c'e' stato — chi si e' seduto, che brano era e
+				# quanto e' durato lo sa Concerto.gd, che e' la scena.
+				# Sotto mezza resa non si sale sul palco: si prova e basta.
+				if concerto and r >= 0.5:
+					var quanti := int(concerto.call("ascoltatori_di_oggi"))
+					if quanti > applausi:
+						applausi = quanti
+						brano = str(concerto.call("titolo_di_oggi"))
 			"esplora":
 				if inventory and randf() < 0.45 * r:
 					var ids: Array = inventory.TREASURES.keys()
@@ -232,14 +247,14 @@ func _produzione_del_giorno() -> void:
 					if not scheda.is_empty():
 						tesori += 1
 	_racconta_produzione(legna, annaffiate, piatti, tesori, lanterne, al_buio,
-			abbelliti)
+			abbelliti, applausi, brano)
 
 
 # Una riga sola al mattino, e solo se c'è davvero qualcosa da dire: il
 # guadagno deve essere VISIBILE, o il dilemma non esiste.
 func _racconta_produzione(legna: int, annaffiate: int, piatti: Array[String],
 		tesori: int, lanterne := 0, al_buio := 0,
-		abbelliti: Array[String] = []) -> void:
+		abbelliti: Array[String] = [], applausi := 0, brano := "") -> void:
 	var parti: Array[String] = []
 	if legna > 0:
 		parti.append(L10n.tf("+%d legna in catasta", [legna]))
@@ -255,6 +270,14 @@ func _racconta_produzione(legna: int, annaffiate: int, piatti: Array[String],
 	# guadagno del villaggio che si vede addosso a qualcuno
 	for chi in abbelliti:
 		parti.append(L10n.tf("%s esce dal salone tutto nuovo", [chi]))
+	# la resa del palco si dice col TITOLO: un concerto senza nome sarebbe
+	# stato solo rumore
+	if applausi > 0:
+		if brano != "":
+			parti.append(L10n.tf("ieri sera «%s», e %d ad applaudire",
+					[brano, applausi]))
+		else:
+			parti.append(L10n.tf("%d vicini hanno ascoltato il concerto", [applausi]))
 	if lanterne > 0:
 		parti.append(L10n.tf("%d lanterne accese sulla ronda", [lanterne]) if lanterne > 1 \
 				else L10n.t("una lanterna accesa sulla ronda"))

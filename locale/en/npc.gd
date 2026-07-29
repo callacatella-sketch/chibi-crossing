@@ -138,10 +138,18 @@ const T := {
 	"in tavola: %s": "on the table: %s",
 	"%d tesori dal bosco": "%d treasures from the woods",
 	"%s esce dal salone tutto nuovo": "%s walks out of the salon brand new",
+	"ieri sera «%s», e %d ad applaudire": "last night \"%s\", and %d clapping",
+	"%d vicini hanno ascoltato il concerto": "%d neighbours listened to the concert",
 	"%s corre a farsi vedere: il villaggio se ne accorge.":
 			"%s runs off to be seen: the village takes notice.",
 	"%s non fa che girarsi a guardare il suo riflesso.":
 			"%s can't stop turning to look at their own reflection.",
+	# l'anfiteatro: la sera del mestiere dell'artista
+	"%s si siede al pianoforte. Le lanterne del palco si accendono.":
+			"%s sits down at the piano. The stage lanterns come on.",
+	"«%s»": "\"%s\"",
+	"%d vicini applaudono nel buio.": "%d neighbours clap in the dark.",
+	"Un solo applauso, ma sincero.": "One pair of hands only, but it means it.",
 	"Tenere il salone": "Keep the salon",
 	"un tesoro dal bosco": "one treasure from the woods",
 

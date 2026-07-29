@@ -80,6 +80,7 @@ func _ready():
 	add_child(_spawn_system("res://scenes/interact/Rispondere.gd", "Rispondere"))
 	# il salone dell'estetista: apre, e un vicino alla volta si siede
 	add_child(_spawn_system("res://scenes/interact/Salone.gd", "Salone"))
+	add_child(_spawn_system("res://scenes/interact/Concerto.gd", "Concerto"))
 	var settings := get_node_or_null(^"/root/Settings")
 	if settings:
 		settings.apply_to_player(player)
@@ -120,6 +121,8 @@ func _ready():
 		_start_debug_harness("salone", OS.get_environment("CHIBI_SALONE"))
 	elif OS.get_environment("CHIBI_ESTETISTA") != "":
 		_start_debug_harness("estetista", OS.get_environment("CHIBI_ESTETISTA"))
+	elif OS.get_environment("CHIBI_ANFITEATRO") != "":
+		_start_debug_harness("anfiteatro", OS.get_environment("CHIBI_ANFITEATRO"))
 	elif OS.get_environment("CHIBI_MAKESAVE") != "":
 		_start_debug_harness("makesave")
 
@@ -201,7 +204,7 @@ func _spawn_system(path: String, node_name: String) -> Node:
 # apposta. "shot" si spegne da sé in BuildSystem._ready.
 func _start_debug_harness(mode: String, arg: String = "") -> void:
 	if mode in ["lavori", "festa", "filo", "frutteto", "commissioni", "nido", "facce",
-			"porte", "pioggia", "bucato", "saluti", "stagno", "carta", "estetica", "salone", "estetista"] \
+			"porte", "pioggia", "bucato", "saluti", "stagno", "carta", "estetica", "salone", "estetista", "anfiteatro"] \
 			or (mode == "legna" and OS.get_environment("CHIBI_LEGNA_SAVE") == ""):
 		build_system.set_persist_for_debug(false)
 	var h = DEBUG_HARNESS.new()

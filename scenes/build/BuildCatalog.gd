@@ -100,6 +100,19 @@ static func items() -> Array[Dictionary]:
 					[Vector3(0.36, 0.66, 0.34), Vector3(0, 0.33, 0.07)],
 					[Vector3(0.24, 0.44, 0.20), Vector3(0.40, 0.22, 0.13)]]},
 
+		# l'ANFITEATRO: tre pezzi che si mettono insieme — il palco col
+		# fondale, le gradinate da disporre in curva, e il pianoforte.
+		# E' grande perche' l'hai fatto grande tu.
+		{"name": "Palco", "cat": 0, "type": "cell", "layer": 0, "builder": _palco,
+			"cols": []},
+		{"name": "Fondale", "cat": 0, "type": "cell", "layer": 2, "builder": _fondale,
+			"cols": [[Vector3(1.02, 0.95, 0.30), Vector3(0, 0.50, -0.30)]]},
+		{"name": "Gradinata", "cat": 0, "type": "cell", "layer": 2, "builder": _gradinata,
+			"cols": [[Vector3(1.04, 0.42, 0.34), Vector3(0, 0.21, -0.10)],
+					[Vector3(1.04, 0.68, 0.34), Vector3(0, 0.34, -0.40)]]},
+		{"name": "Pianoforte", "cat": 1, "type": "cell", "layer": 2, "builder": _pianoforte,
+			"cols": [[Vector3(0.66, 0.34, 0.92), Vector3(0, 0.17, -0.22)]]},
+
 		# --- Giardino ---
 		{"name": "Pianta", "cat": 2, "type": "cell", "layer": 2, "builder": _plant,
 			"cols": [[Vector3(0.32, 0.55, 0.32), Vector3(0, 0.27, 0)]]},
@@ -2678,4 +2691,392 @@ static func _pennone_caserma() -> Node3D:
 	for y: float in [1.58, 1.86]:
 		var anello := _cyl(n, 0.055, 0.055, 0.014, ottone, Vector3(0, y, 0))
 		anello.rotation.x = PI * 0.5
+	return n
+
+
+# ============================================================ L'ANFITEATRO
+# Il posto dove l'ARTISTA finalmente lavora.
+#
+# Il sogno «artista» esisteva da sempre nel genoma e non aveva NESSUN
+# mestiere che lo realizzasse: chi lo sognava non prendeva mai il bonus
+# del lavoro giusto ne' il x1.5 della resa — sognava una cosa che nel
+# villaggio non si poteva fare. L'anfiteatro e' la sua bottega.
+#
+# Non e' UN pezzo: sono TRE, e si costruisce mettendoli insieme —
+# il PALCO col suo fondale a conchiglia, le GRADINATE da disporre in
+# curva davanti, e il PIANOFORTE. Un anfiteatro grande e' grande perche'
+# l'hai fatto grande tu, non perche' un builder ha deciso quanto.
+
+
+## L'ESTRUSIONE DI UN PROFILO: il pezzo mancante del catalogo. Con soli
+## box e cilindri un pianoforte a coda non si puo' fare — la sua sagoma
+## e' una curva, ed e' quella a renderlo riconoscibile in una silhouette.
+## `punti` e' il contorno chiuso sul piano XZ, in senso antiorario.
+static func _prisma(parent: Node3D, punti: Array, y: float, altezza: float,
+		mat: Material) -> MeshInstance3D:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var n := punti.size()
+	# il coperchio e il fondo, a ventaglio dal baricentro
+	var centro := Vector2.ZERO
+	for p in punti:
+		centro += p as Vector2
+	centro /= float(n)
+	for lato in 2:
+		var yy := y + altezza if lato == 0 else y
+		var su := 1.0 if lato == 0 else -1.0
+		for i in n:
+			var a: Vector2 = punti[i]
+			var b: Vector2 = punti[(i + 1) % n]
+			var terna := [Vector3(centro.x, yy, centro.y),
+					Vector3(a.x, yy, a.y), Vector3(b.x, yy, b.y)]
+			if lato == 1:
+				terna = [terna[0], terna[2], terna[1]]
+			for v in terna:
+				st.set_normal(Vector3(0, su, 0))
+				st.add_vertex(v)
+	# la parete laterale
+	for i in n:
+		var a2: Vector2 = punti[i]
+		var b2: Vector2 = punti[(i + 1) % n]
+		var nrm := Vector3(b2.y - a2.y, 0, a2.x - b2.x).normalized()
+		var quad := [Vector3(a2.x, y, a2.y), Vector3(b2.x, y, b2.y),
+				Vector3(b2.x, y + altezza, b2.y), Vector3(a2.x, y + altezza, a2.y)]
+		for k in [0, 1, 2, 0, 2, 3]:
+			st.set_normal(nrm)
+			st.add_vertex(quad[k])
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = mat
+	parent.add_child(mi)
+	return mi
+
+
+## Il contorno di un pianoforte a CODA, in senso antiorario. Il lato
+## dritto e' la tastiera; il fianco destro e' la curva. Le proporzioni
+## sono quelle vere, rimpicciolite su un chibi (0.70 di altezza).
+static func _profilo_coda(lung: float, larg: float) -> Array:
+	var out: Array = []
+	out.append(Vector2(-larg * 0.5, 0.0))          # spigolo tastiera sinistro
+	out.append(Vector2(larg * 0.5, 0.0))           # spigolo tastiera destro
+	# il fianco destro e' quasi dritto, poi rientra
+	out.append(Vector2(larg * 0.5, -lung * 0.42))
+	# LA CURVA: la coda, in sette campioni
+	for i in range(1, 8):
+		var t := float(i) / 7.0
+		var ang := t * PI * 0.62
+		out.append(Vector2(larg * 0.5 - sin(ang) * larg * 0.62,
+				-lung * 0.42 - cos(ang * 0.62) * lung * 0.30 - t * lung * 0.24))
+	out.append(Vector2(-larg * 0.5, -lung * 0.72))  # il fianco sinistro, dritto
+	return out
+
+
+# IL PIANOFORTE A CODA. Il pezzo forte dell'anfiteatro, e il piu' difficile:
+# un pianoforte si riconosce da tre cose, e mancandone una diventa un mobile.
+#   1. LA SAGOMA a coda — una curva, non una scatola: la fa `_prisma` su un
+#      profilo vero;
+#   2. IL COPERCHIO APERTO col suo asta di sostegno, che e' cio' che dice
+#      «sta suonando» anche da lontano e in silhouette;
+#   3. I TASTI VERI — bianchi e neri, nel loro ordine (2 e 3 alternati).
+#      Una tastiera a righe uniformi si legge come una tastiera di computer.
+# Piu' la cordiera dorata che si vede sotto il coperchio, le tre gambe
+# tornite, la lira dei pedali e il leggio.
+static func _pianoforte() -> Node3D:
+	var n := Node3D.new()
+	var lacca := _mat(Color("2f2a2e"), Color("1d1a1d"), 12.0, 0.22)
+	var lacca_int := _mat(Color("4a3f45"), Color("332b30"), 10.0, 0.25)
+	var oro := _mat(Color("d9b978"), Color("b8965a"), 8.0, 0.32)
+	var avorio := _mat(Color("fdf6e8"), Color("ece2cf"), 14.0, 0.2)
+	var ebano := _mat(Color("241f22"), Color("151214"), 14.0, 0.2)
+	var feltro := _mat(Color("b4485e"), Color("943a4d"), 6.0, 0.5)
+
+	var lung := 0.92
+	var larg := 0.62
+	var h := 0.20          # spessore della cassa
+	var y := 0.30          # quota del piano della tastiera
+	var prof := _profilo_coda(lung, larg)
+
+	# LA CASSA e il suo fondo piu' scuro
+	_prisma(n, prof, y - h, h, lacca)
+	var interno: Array = []
+	for p in prof:
+		interno.append((p as Vector2) * 0.90)
+	_prisma(n, interno, y - h + 0.012, h - 0.03, lacca_int)
+
+	# LA CORDIERA: la piastra dorata e le corde, che si vedono dentro
+	_prisma(n, interno, y - 0.035, 0.012, oro)
+	for i in 14:
+		var t := float(i) / 13.0
+		var x := -larg * 0.42 + t * larg * 0.84
+		var l := 0.62 - absf(t - 0.15) * 0.34
+		var corda := _box(n, Vector3(0.005, 0.004, l), oro,
+				Vector3(x, y - 0.028, -0.10 - l * 0.5 + 0.10))
+		corda.rotation.y = t * 0.10
+	# i due ponticelli
+	for sz: float in [-0.22, -0.46]:
+		_box(n, Vector3(larg * 0.80, 0.016, 0.022), oro, Vector3(0, y - 0.022, sz))
+
+	# LA TASTIERA. Sette ottave non ci stanno su un chibi: undici tasti
+	# bianchi bastano a leggerla, purche' i neri stiano al loro posto —
+	# a coppie e a terne, come nella realta'.
+	var nb := 11
+	var passo := (larg * 0.86) / float(nb)
+	var x0 := -larg * 0.43 + passo * 0.5
+	for i in nb:
+		var bianco := _box(n, Vector3(passo * 0.88, 0.018, 0.115), avorio,
+				Vector3(x0 + float(i) * passo, y + 0.009, 0.062))
+		bianco.name = "Tasto%d" % i
+	# i neri: nel giro di 7 tasti bianchi stanno dopo il 1°,2° e 4°,5°,6°
+	var neri := [0, 1, 3, 4, 5, 7, 8, 10]
+	for i in neri:
+		if i >= nb - 1:
+			continue
+		var nero := _box(n, Vector3(passo * 0.52, 0.022, 0.072), ebano,
+				Vector3(x0 + (float(i) + 0.5) * passo, y + 0.020, 0.038))
+		nero.name = "TastoNero%d" % i
+	# il frontalino e il feltro rosso che orla la tastiera
+	_box(n, Vector3(larg, 0.05, 0.022), lacca, Vector3(0, y - 0.012, 0.125))
+	_box(n, Vector3(larg * 0.88, 0.006, 0.010), feltro, Vector3(0, y + 0.020, 0.004))
+
+	# IL COPERCHIO, APERTO, e la sua asta: e' questo che dice «suona»
+	var cop := Node3D.new()
+	cop.position = Vector3(-larg * 0.5, y, 0.0)
+	cop.rotation.z = 0.62
+	n.add_child(cop)
+	var sopra: Array = []
+	for p in prof:
+		sopra.append((p as Vector2) - Vector2(-larg * 0.5, 0.0))
+	_prisma(cop, sopra, 0.0, 0.022, lacca)
+	_prisma(cop, sopra, -0.006, 0.006, lacca_int)
+	# l'asta di sostegno, in diagonale
+	var asta := _cyl(n, 0.010, 0.012, 0.40, lacca,
+			Vector3(-larg * 0.10, y + 0.20, -lung * 0.30))
+	asta.rotation.z = -0.42
+
+	# LE TRE GAMBE tornite, con la loro rotella
+	for p3: Vector2 in [Vector2(-larg * 0.40, 0.02), Vector2(larg * 0.40, 0.02),
+			Vector2(0.0, -lung * 0.60)]:
+		_cyl(n, 0.030, 0.040, y - h, lacca, Vector3(p3.x, (y - h) * 0.5, p3.y))
+		_cyl(n, 0.044, 0.044, 0.022, oro, Vector3(p3.x, 0.011, p3.y))
+
+	# LA LIRA DEI PEDALI
+	_box(n, Vector3(0.05, 0.11, 0.035), lacca, Vector3(0, 0.075, -0.02))
+	_box(n, Vector3(0.16, 0.016, 0.09), lacca, Vector3(0, 0.030, -0.04))
+	for sx: float in [-0.045, 0.0, 0.045]:
+		var ped := _box(n, Vector3(0.026, 0.008, 0.075), oro, Vector3(sx, 0.036, -0.055))
+		ped.rotation.x = -0.12
+
+	# IL LEGGIO, appena inclinato
+	var leg := _box(n, Vector3(larg * 0.62, 0.10, 0.010), lacca,
+			Vector3(0, y + 0.10, -0.055))
+	leg.rotation.x = -0.28
+	for sx2: float in [-1.0, 1.0]:
+		_cyl(n, 0.006, 0.006, 0.07, lacca, Vector3(sx2 * larg * 0.24, y + 0.05, -0.04))
+
+	# LA PANCHETTA, davanti: senza, il pianoforte sembra un oggetto da
+	# guardare e non uno da suonare
+	var panca := Node3D.new()
+	panca.name = "Panchetta"
+	panca.position = Vector3(0, 0, 0.42)
+	n.add_child(panca)
+	_box(panca, Vector3(0.38, 0.035, 0.17), lacca, Vector3(0, 0.28, 0))
+	_box(panca, Vector3(0.34, 0.030, 0.14), feltro, Vector3(0, 0.30, 0))
+	for px: float in [-0.15, 0.15]:
+		for pz: float in [-0.06, 0.06]:
+			_cyl(panca, 0.014, 0.017, 0.28, lacca, Vector3(px, 0.14, pz))
+	return n
+
+
+# IL TAVOLATO DEL PALCO. È un PAVIMENTO (livello 0), non un mobile, e
+# questa non è pignoleria: sul livello degli oggetti ci sta una cosa sola
+# per cella, quindi un palco-mobile non avrebbe mai potuto avere sopra il
+# pianoforte. Da pavimento, invece, se ne posano quanti se ne vuole — e
+# l'anfiteatro diventa GRANDE perché l'hai fatto grande tu.
+#
+# Assi alternate con la fuga vera e le teste dei chiodi: un tavolato si
+# riconosce dal verso delle assi, e se sono tutte uguali sembra linoleum.
+static func _palco() -> Node3D:
+	var n := Node3D.new()
+	var asse := _mat(WOOD, WOOD_DARK, 3.0, 0.5)
+	var asse2 := _mat(Color("bb8f62"), Color("9c7448"), 3.5, 0.5)
+	var asse3 := _mat(Color("cba274"), Color("a9834f"), 3.2, 0.5)
+	var trave := _mat(WOOD_DARK, Color("8a6440"), 4.0, 0.5)
+	var mats := [asse, asse2, asse, asse3, asse2]
+	for i in 9:
+		var z := -0.444 + float(i) * 0.111
+		_box(n, Vector3(1.0, 0.05, 0.104), mats[i % mats.size()],
+				Vector3(0, 0.025, z))
+		for cx: float in [-0.40, 0.0, 0.40]:
+			_cyl(n, 0.006, 0.006, 0.004, trave, Vector3(cx, 0.051, z))
+	# i due travetti sotto, che si vedono solo sul bordo del palco
+	for tz: float in [-0.36, 0.36]:
+		_box(n, Vector3(1.0, 0.022, 0.06), trave, Vector3(0, 0.011, tz))
+	return n
+
+
+# IL FONDALE A CONCHIGLIA: la volta che in un anfiteatro vero spinge il
+# suono verso le gradinate, e che qui serve a dire «si sta guardando
+# qualcosa» anche quando il palco è vuoto. Si posa DIETRO al tavolato.
+static func _fondale() -> Node3D:
+	var n := Node3D.new()
+	var trave := _mat(WOOD_DARK, Color("8a6440"), 4.0, 0.5)
+	var intonaco := _mat(Color("efe3cd"), Color("dccdb2"), 2.5, 0.45)
+	var oro := _mat(Color("d9b978"), Color("b8965a"), 8.0, 0.32)
+	var h := 0.05          # poggia sul tavolato, che è alto 5 cm
+
+	# LA CONCHIGLIA. E' un QUARTO DI CUPOLA, e va parametrizzata come tale:
+	# ogni concio sta in (angolo attorno, salita lungo l'arco) e il raggio
+	# orizzontale si stringe salendo — se non si stringe, la volta non
+	# chiude e si legge come una scala a chiocciola (e' successo).
+	#
+	# La rotazione non e' decorativa: il +Z locale del concio deve puntare
+	# DENTRO la volta. Con l'ordine YXZ di Godot esce y = -angolo, x = +salita.
+	# Col segno sbagliato i conci si aprono a ventaglio e la superficie
+	# scompare.
+	var raggio := 0.452       # quasi tutta la cella: il fondale DOMINA il palco
+	var centro_z := 0.10
+	var alto := 1.86          # la volta e' piu' alta che profonda: e' un guscio
+	var apertura := 1.72      # mezzo cono d'abbraccio, in radianti
+	var cima := 1.30          # ci si ferma prima del polo: li' si strozza
+	var nang := 11
+	var narc := 7
+	var d_ang := 2.0 * apertura / float(nang - 1)
+	for a in nang:
+		var ang := -apertura + d_ang * float(a)
+		for k in narc:
+			var salita := cima * float(k) / float(narc - 1)
+			var rr := raggio * cos(salita)
+			var largh := rr * d_ang + 0.022
+			var mat_c: Material = intonaco
+			if (a + k) % 3 == 0:
+				mat_c = _mat(Color("e8dcc4"), Color("d2c3a6"), 2.5, 0.45)
+			var concio := _box(n, Vector3(largh, 0.20, 0.040), mat_c,
+					Vector3(sin(ang) * rr, h + 0.03 + raggio * sin(salita) * alto,
+					centro_z - cos(ang) * rr))
+			concio.rotation.y = -ang
+			concio.rotation.x = salita
+	# LE COSTE: i nervi di legno che salgono lungo l'arco, uno ogni due
+	for a2 in range(0, nang, 2):
+		var ang2 := -apertura + d_ang * float(a2)
+		for k2 in narc:
+			var sal2 := cima * float(k2) / float(narc - 1)
+			var rr2 := raggio * cos(sal2)
+			var costa := _box(n, Vector3(0.038, 0.21, 0.030), trave,
+					Vector3(sin(ang2) * (rr2 + 0.030),
+					h + 0.03 + raggio * sin(sal2) * alto,
+					centro_z - cos(ang2) * (rr2 + 0.030)))
+			costa.rotation.y = -ang2
+			costa.rotation.x = sal2
+	# la cimasa dorata che orla la bocca della conchiglia, a terra
+	for a3 in nang:
+		var ang3 := -apertura + d_ang * float(a3)
+		var cim := _box(n, Vector3(raggio * d_ang + 0.03, 0.032, 0.055), oro,
+				Vector3(sin(ang3) * (raggio + 0.012), h + 0.016,
+				centro_z - cos(ang3) * (raggio + 0.012)))
+		cim.rotation.y = -ang3
+	# la chiave di volta: il fiore d'oro che chiude in cima
+	_ball(n, 0.048, oro, Vector3(0, h + 0.03 + raggio * sin(cima) * alto + 0.10,
+			centro_z - raggio * cos(cima) * 0.5), Vector3(1.0, 0.62, 1.0))
+
+	# le due lanterne d'angolo: un palco si accende
+	for sx3: float in [-0.418, 0.418]:
+		_cyl(n, 0.016, 0.020, 0.34, trave, Vector3(sx3, h + 0.17, 0.20))
+		_cyl(n, 0.055, 0.048, 0.10, _glow(Color("ffe6b8"), Color("ffc978"), 1.4),
+				Vector3(sx3, h + 0.39, 0.20))
+		_cyl(n, 0.020, 0.052, 0.05, trave, Vector3(sx3, h + 0.46, 0.20))
+	var luce := OmniLight3D.new()
+	luce.light_color = Color(1.0, 0.86, 0.62)
+	# PIANO con l'energia: le conchiglie si AFFIANCANO, e tre luci da 1.6
+	# che si sommano dentro l'intonaco chiaro bruciano il fondale in tre
+	# macchie bianche. Una luce per campata, tenue, e insieme fanno la
+	# ribalta.
+	luce.light_energy = 0.85
+	luce.omni_range = 4.2
+	luce.position = Vector3(0, h + 0.55, 0.10)
+	n.add_child(luce)
+
+	# l'ancoraggio di chi si esibisce: sotto la volta, un passo avanti
+	var posto := Node3D.new()
+	posto.name = "Ribalta"
+	posto.position = Vector3(0, h, 0.26)
+	n.add_child(posto)
+	return n
+
+
+
+# LA GRADINATA. Due file di sedute in pietra col fronte a conci, il
+# corrimano di legno e i cuscini spaiati che i vicini si portano da casa.
+# Se ne piazzano quante se ne vuole, in curva davanti al palco: e' cosi'
+# che l'anfiteatro diventa GRANDE — perche' l'hai fatto grande tu.
+static func _gradinata() -> Node3D:
+	var n := Node3D.new()
+	# la pietra e' PIU' SCURA di STONE: al sole del prato il grigio chiaro
+	# si sbianca e la gradinata leggeva come una lastra di gesso
+	var pietra := _mat(Color("b3aa9a"), Color("948b7c"), 2.2, 0.5)
+	var pietra_alz := _mat(Color("9a917f"), Color("7d7565"), 2.6, 0.5)
+	var fuga := _mat(Color("7d7565"), Color("655e51"), 3.0, 0.45)
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var muschio := _mat(Color("8aa870"), Color("6f8d58"), 5.0, 0.5)
+
+	# DUE FILE. Ogni scalino e' ALZATA (scura, verticale) + PEDATA
+	# (chiara, orizzontale, che sporge): e' quello sbalzo a farlo leggere
+	# come uno scalino invece che come un muretto.
+	for i in 2:
+		var y := 0.22 + float(i) * 0.28
+		var z := -0.06 - float(i) * 0.32
+		# l'alzata, coi conci e le loro fughe
+		_box(n, Vector3(1.02, 0.28, 0.26), pietra_alz, Vector3(0, y - 0.14, z))
+		for k in 5:
+			_box(n, Vector3(0.014, 0.26, 0.27), fuga,
+					Vector3(-0.44 + float(k) * 0.22, y - 0.14, z))
+		# la pedata, che SPORGE di 4 cm sull'alzata
+		_box(n, Vector3(1.04, 0.055, 0.34), pietra, Vector3(0, y + 0.012, z + 0.04))
+		var naso := _cyl(n, 0.030, 0.030, 1.04, pietra,
+				Vector3(0, y + 0.006, z + 0.208))
+		naso.rotation.z = PI * 0.5
+
+	# IL MUSCHIO negli angoli: e' una gradinata all'aperto, e la pietra
+	# vecchia si veste da sola
+	for i2 in 3:
+		var mx := -0.42 + float(i2) * 0.42
+		_ball(n, 0.055, muschio, Vector3(mx, 0.235, -0.20 + float(i2 % 2) * 0.03),
+				Vector3(1.5, 0.24, 0.8))
+
+	# I CUSCINI, spaiati: se li portano da casa, e non sono mai uguali.
+	# Sulla PEDATA, non sospesi.
+	var stoffe := [Color("e9a3b8"), Color("9ec9e8"), Color("bfe6c8"), Color("ffe6a8")]
+	for i3 in 3:
+		var cx := -0.30 + float(i3) * 0.30
+		var col: Color = stoffe[i3 % stoffe.size()]
+		var cz := 0.02 + float(i3 % 2) * 0.02
+		# la cassa del cuscino, e sopra la GOBBA tonda: un cuscino si
+		# riconosce dal bordo bombato — piatto e' un cartoncino
+		var cu := _box(n, Vector3(0.20, 0.030, 0.19),
+				_mat(col.darkened(0.14), col.darkened(0.28), 5.0, 0.5),
+				Vector3(cx, 0.250, cz))
+		cu.rotation.y = (float(i3) - 1.0) * 0.16
+		var gobba := _ball(n, 0.105, _mat(col, col.darkened(0.16), 5.0, 0.5),
+				Vector3(cx, 0.268, cz), Vector3(0.98, 0.30, 0.92))
+		gobba.rotation.y = (float(i3) - 1.0) * 0.16
+		_ball(n, 0.013, _mat(CREAM, WOOD_PALE, 8.0, 0.35),
+				Vector3(cx, 0.292, cz), Vector3(1, 0.5, 1))
+		# l'ancoraggio del posto: e' qui che si siede chi ascolta. Un
+		# cuscino senza un nodo con un nome e' solo una macchia di colore.
+		var posto := Node3D.new()
+		posto.name = "Posto%d" % i3
+		posto.position = Vector3(cx, 0.29, cz)
+		n.add_child(posto)
+
+	# NIENTE CORRIMANO. Ce n'era uno per fianco, ma le gradinate si posano
+	# UNA ACCANTO ALL'ALTRA: tassellate, quei montanti diventavano una
+	# selva di bastoni in mezzo alla fila. Al loro posto due paracarri
+	# bassi di pietra sull'orlo, che si affiancano senza darsi noia.
+	for sx: float in [-0.485, 0.485]:
+		_box(n, Vector3(0.055, 0.14, 0.30), pietra_alz, Vector3(sx, 0.30, 0.02))
+		_ball(n, 0.035, pietra, Vector3(sx, 0.375, 0.02), Vector3(1, 0.7, 1.6))
+	# e una lanterna bassa ogni tanto, per la sera
+	_cyl(n, 0.030, 0.036, 0.09, legno, Vector3(0.36, 0.32, 0.05))
+	_cyl(n, 0.032, 0.028, 0.07, _glow(Color("ffe6b8"), Color("ffc978"), 1.0),
+			Vector3(0.36, 0.40, 0.05))
+
 	return n

@@ -151,6 +151,13 @@ const COMPITI := {
 	"abbellisce": {"serve": "estetista", "tradisce": ["guerriero", "boscaiolo"],
 			"fatica": 0.09, "noia": -0.06, "appartenenza": 0.14,
 			"autonomia": -0.08, "stima": 0.06},
+	# SUONARE non stanca quasi e annoia zero: e' la cosa che l'artista
+	# farebbe comunque. Ma paga in STIMA piu' di ogni altro mestiere —
+	# gli applausi sono l'unica retribuzione del palco — e costa in
+	# autonomia, perche' un concerto ha un'ora e un pubblico che aspetta.
+	"suona": {"serve": "artista", "tradisce": ["guerriero", "boscaiolo"],
+			"fatica": 0.07, "noia": -0.14, "appartenenza": 0.16,
+			"autonomia": -0.10, "stima": 0.13},
 }
 
 ## I sogni che un chibi puo' avere. In coda i nuovi, MAI in mezzo: la
