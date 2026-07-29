@@ -54,6 +54,8 @@ func run(level: Node3D, mode: String, arg: String = "") -> void:
 			await _debug_stagno(arg)
 		"carta":
 			await _debug_carta(arg)
+		"estetica":
+			await _debug_estetica(arg)
 
 func _frames(n: int):
 	for i in n:
@@ -482,6 +484,71 @@ func _debug_facce(dir: String) -> void:
 
 	mochi.forza_espressione("")
 	print("FACCE: fine, %d espressioni fotografate" % n)
+	get_tree().quit()
+
+
+# ------------------------------------------------------------- estetica
+# LA PRIMA PIETRA DELL'ESTETISTA: un corpo già nato che si rifà davvero.
+# Tre sedute su uno stesso vicino — la tinta, le sopracciglia, il
+# vestitino — e a ogni scatto si controlla che la VOCE non si sia mossa
+# di un hertz: cambiare aspetto non deve cambiare chi sei.
+func _debug_estetica(dir: String) -> void:
+	var dn = _level.get_node_or_null("DayNight")
+	if dn:
+		dn.set_time(0.42)
+	await _frames(30)
+	player.global_position = Vector3(4.0, 0, 12.0)   # Mochi fuori campo
+
+	var VIS = load("res://scenes/npc/Visitor.gd")
+	var DNAG = load("res://scenes/npc/ChibiDNA.gd")
+	var CHB = load("res://audio/Chibiese.gd")
+	var v: Node3D = VIS.new()
+	v.set("species", "chibi")
+	v.set("dna", DNAG.generate(2024))
+	add_child(v)
+	v.set("mode", "resident")
+	v.global_position = Vector3(-2.0, 0, 7.5)
+	v.set("_yaw", PI)
+	await _frames(8)
+
+	var fwd: Vector3 = -(v.global_transform.basis.z as Vector3)
+	var cam := Camera3D.new()
+	add_child(cam)
+	var focus: Vector3 = v.global_position + Vector3(0, 0.5, 0)
+	cam.position = focus + fwd * 1.9 + Vector3(0, 0.22, 0)
+	cam.fov = 40.0
+	cam.current = true
+	cam.look_at(focus)
+	await _frames(10)
+
+	var voce0: float = float((v.get("_voice") as Dictionary)["pitch"])
+	var scatta := func(nome: String) -> void:
+		await get_tree().create_timer(0.6).timeout
+		await _shot(dir, "estetica_" + nome)
+		var d: Dictionary = v.get("dna")
+		var vc: float = float((CHB.voice(d) as Dictionary)["pitch"])
+		print("ESTETICA: %-12s pelo=%s vestito=%s sopracc=%s  ·  voce %.1f Hz (%s)"
+				% [nome, d["fur"], d["dress"], d["brow"], vc,
+				"la stessa" if is_equal_approx(vc, voce0) else "CAMBIATA!"])
+
+	await scatta.call("prima")
+	v.call("rifai_il_look", {"fur": "e8b4a0", "belly": "f6d8cc", "fur2": "c68f79"})
+	await _frames(4)
+	await scatta.call("tinta")
+	v.call("rifai_il_look", {"brow": "decise", "brow_folto": 1.2, "blush": 0.9})
+	await _frames(4)
+	await scatta.call("sopracciglia")
+	v.call("rifai_il_look", {"dress": "9ec9e8", "dress2": "c9e4f5", "acc": "fiocco"})
+	await _frames(4)
+	await scatta.call("vestitino")
+	# e i geni che NON si toccano restano dove sono, anche se glieli passi
+	var prima: Dictionary = (v.get("dna") as Dictionary).duplicate()
+	v.call("rifai_il_look", {"sogno": "guerriero", "name": "Impostore", "size": 2.0})
+	var dopo: Dictionary = v.get("dna")
+	print("ESTETICA: identita' intatta -> nome %s · sogno %s · taglia %s"
+			% [dopo["name"] == prima["name"], dopo["sogno"] == prima["sogno"],
+			is_equal_approx(float(dopo["size"]), float(prima["size"]))])
+	print("ESTETICA: fine")
 	get_tree().quit()
 
 

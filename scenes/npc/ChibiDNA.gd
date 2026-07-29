@@ -207,4 +207,56 @@ static func generate(seed_v := -1) -> Dictionary:
 	dna["bocca"] = mdeck[rng.randi() % mdeck.size()]
 	dna["bocca_larg"] = rng.randf_range(0.92, 1.1)
 	dna["bocca_spess"] = rng.randf_range(0.85, 1.2)
+
+	# IL SEME DELLA VOCE — che non si tocca mai più.
+	# La voce del Chibiese nasceva da nome+PELO+archetipo+taglia, e finché
+	# il pelo era per sempre andava bene. Dal momento in cui un aspetto si
+	# può CAMBIARE, quella formula diventa un difetto grave: una tinta ti
+	# cambierebbe il timbro, cioè chi sei a orecchio. La voce si pianta qui,
+	# alla nascita, e da qui non si muove più. (In coda a tutti gli altri
+	# tiri, come vuole la regola: a parità di seed i geni storici non si
+	# spostano di una virgola.)
+	dna["voce_seed"] = int(rng.randi())
 	return dna
+
+
+## I GENI ESTETICI — la fonte unica di ciò che si può cambiare in un corpo
+## già nato. È il vocabolario su cui poggerà l'estetista: quello che NON è
+## in questa lista non si tocca, e non è pignoleria — è la differenza fra
+## cambiare pettinatura e cambiare persona.
+##
+## Restano fuori, apposta:
+##   · `archetype`, `size`, `head_scale`, gli occhi, le orecchie, la coda —
+##     il corpo con cui sei nato;
+##   · `name`, `sogno`, `tratti`, `indole`, `quirk`, `weights` — chi sei;
+##   · `seed` e `voce_seed` — la tua identità e la tua voce.
+const ESTETICI := [
+	"fur", "fur2", "belly", "inner_ear",   # il manto e la sua tinta
+	"dress", "dress2",                      # il vestitino
+	"blush", "freckles", "fluff",           # guanciotte, lentiggini, spettinatura
+	"brow", "brow_folto", "brow_arco", "brow_len",   # le sopracciglia
+	"bocca", "bocca_larg", "bocca_spess",   # la bocca
+	"acc",                                  # l'accessorio
+]
+
+
+## Applica dei geni estetici a un genoma, IGNORANDO tutto ciò che non è
+## estetico. È la guardia contro l'errore che rovinerebbe tutto: passare
+## per sbaglio un `sogno` o un `voce_seed` dentro un cambio di look.
+## PURA: torna un genoma nuovo, non tocca quello dato.
+static func con_estetica(dna: Dictionary, nuovi: Dictionary) -> Dictionary:
+	var out := dna.duplicate(true)
+	for g in nuovi:
+		if str(g) in ESTETICI:
+			out[str(g)] = nuovi[g]
+	return out
+
+
+## I soli geni estetici di un genoma: quello che l'estetista ha davanti
+## quando ti guarda, e quello che si salva quando cambi.
+static func estetica_di(dna: Dictionary) -> Dictionary:
+	var out := {}
+	for g in ESTETICI:
+		if dna.has(g):
+			out[g] = dna[g]
+	return out

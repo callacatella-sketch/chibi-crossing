@@ -109,6 +109,8 @@ func _ready():
 		_start_debug_harness("stagno", OS.get_environment("CHIBI_STAGNO"))
 	elif OS.get_environment("CHIBI_CARTA") != "":
 		_start_debug_harness("carta", OS.get_environment("CHIBI_CARTA"))
+	elif OS.get_environment("CHIBI_ESTETICA") != "":
+		_start_debug_harness("estetica", OS.get_environment("CHIBI_ESTETICA"))
 	elif OS.get_environment("CHIBI_MAKESAVE") != "":
 		_start_debug_harness("makesave")
 
@@ -190,7 +192,7 @@ func _spawn_system(path: String, node_name: String) -> Node:
 # apposta. "shot" si spegne da sé in BuildSystem._ready.
 func _start_debug_harness(mode: String, arg: String = "") -> void:
 	if mode in ["lavori", "festa", "filo", "frutteto", "commissioni", "nido", "facce",
-			"porte", "pioggia", "bucato", "saluti", "stagno", "carta"] \
+			"porte", "pioggia", "bucato", "saluti", "stagno", "carta", "estetica"] \
 			or (mode == "legna" and OS.get_environment("CHIBI_LEGNA_SAVE") == ""):
 		build_system.set_persist_for_debug(false)
 	var h = DEBUG_HARNESS.new()
