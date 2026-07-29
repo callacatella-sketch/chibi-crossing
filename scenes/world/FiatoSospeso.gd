@@ -60,7 +60,11 @@ const VICINO := Vector3(0.0, 1.15, 1.95)
 var quiete := 0.0        # 0 = fai paura a tutti · 1 = il prato ti ha dimenticato
 var giu := 0.0           # quanto sei accovacciato (0..1)
 var fermo_da := 0.0      # secondi di immobilità VERA, senza interruzioni
-var record := 0.0        # il fiato più lungo che tu abbia mai tenuto
+## Il fiato più lungo che tu abbia mai tenuto. Oggi non lo legge nessuno,
+## ed è voluto: è un dato che il giocatore si guadagna adesso, così il
+## giorno che il Gufo avrà qualcosa da dirgli sopra lo troverà già lì —
+## e non ricomincerà da zero per tutti quelli che hanno già giocato.
+var record := 0.0
 var fidati := {}         # specie -> quante volte si è posata su di te
 
 var _player: Node3D
