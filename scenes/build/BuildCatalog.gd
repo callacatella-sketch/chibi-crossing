@@ -7,7 +7,7 @@ extends RefCounted
 ##
 ## Campi di ogni voce:
 ##   name     nome mostrato in UI
-##   cat      0 Struttura · 1 Arredo · 2 Giardino
+##   cat      0 Struttura · 1 Arredo · 2 Giardino · 3 Palestra
 ##   type     "cell" (occupa una cella) | "edge" (sta sul bordo tra due celle)
 ##   layer    per le celle: 0 pavimenti · 1 tappeti/decori · 2 oggetti
 ##   builder  Callable che costruisce il visual
@@ -16,6 +16,11 @@ extends RefCounted
 ##   up       true = il pezzo vive al piano di sopra (Solaio, Ponticello)
 
 const HANDPAINT := preload("res://shaders/handpaint.gdshader")
+## Le forme che non sono scatole: tubi spazzati lungo una curva e
+## superfici di rivoluzione. Vivono in ChibiBuilder perché lì sono nate
+## (code, orecchie, musetti): un attrezzo di legno curvo è lo stesso
+## problema di geometria, e si risolve con lo stesso strumento.
+const BUILDER := preload("res://scenes/npc/ChibiBuilder.gd")
 
 const WOOD := Color("c89a6b")
 const WOOD_DARK := Color("a87c50")
@@ -31,6 +36,16 @@ const CREAM := Color("fff3e0")
 const STONE := Color("c9c2b4")
 const STONE_DARK := Color("a89f92")
 const METAL := Color("8a7f72")
+
+# --- la caserma dei pompieri: il rosso lacca e gli ottoni lucidati ---
+# Un rosso CALDO, mai da allarme: qui non si spegne niente, si tiene tutto
+# pronto — e il pronto, in un villaggio cozy, è una forma di affetto.
+const POMPA_ROSSO := Color("d1594e")
+const POMPA_ROSSO_SCURO := Color("a8443c")
+const OTTONE := Color("d9a441")
+const OTTONE_SCURO := Color("b0812c")
+const GOMMA := Color("4a4640")
+const VETRO := Color("cfe6ee")
 
 
 static func items() -> Array[Dictionary]:
@@ -102,6 +117,36 @@ static func items() -> Array[Dictionary]:
 		{"name": "Lavagna", "cat": 2, "type": "cell", "layer": 2, "builder": _blackboard,
 			"cols": [[Vector3(1.05, 1.6, 0.16), Vector3(0, 0.8, 0.05)]]},
 
+		# --- PALESTRA (le forme stanno in BuildPalestra.gd) ---
+		# Una categoria sua: «Arredo» e «Giardino» sono già righe lunghissime,
+		# e questi otto pezzi si scelgono insieme — chi tira su una palestra
+		# non vuole scorrere venti sedie per trovare il sacco.
+		{"name": "Tappetino", "cat": 3, "type": "cell", "layer": 1,
+			"builder": BuildPalestra.tappetino, "cols": []},
+		{"name": "Panca dei pesi", "cat": 3, "type": "cell", "layer": 2,
+			"builder": BuildPalestra.panca_pesi,
+			"cols": [[Vector3(0.62, 0.62, 0.92), Vector3(0, 0.31, 0)]]},
+		{"name": "Sacco", "cat": 3, "type": "cell", "layer": 2,
+			"builder": BuildPalestra.sacco,
+			"cols": [[Vector3(0.34, 2.0, 0.34), Vector3(0, 1.0, -0.3)],
+					[Vector3(0.36, 0.86, 0.36), Vector3(0, 1.55, 0.06)]]},
+		{"name": "Cyclette", "cat": 3, "type": "cell", "layer": 2,
+			"builder": BuildPalestra.cyclette,
+			"cols": [[Vector3(0.5, 1.0, 0.78), Vector3(0, 0.5, 0)]]},
+		{"name": "Sbarra da trazione", "cat": 3, "type": "cell", "layer": 2,
+			"builder": BuildPalestra.sbarra_trazione,
+			"cols": [[Vector3(0.3, 2.16, 0.3), Vector3(-0.4, 1.08, 0)],
+					[Vector3(0.3, 2.16, 0.3), Vector3(0.4, 1.08, 0)]]},
+		{"name": "Specchio", "cat": 3, "type": "cell", "layer": 2,
+			"builder": BuildPalestra.specchio,
+			"cols": [[Vector3(0.78, 1.7, 0.34), Vector3(0, 0.85, -0.06)]]},
+		{"name": "Fontanella", "cat": 3, "type": "cell", "layer": 2,
+			"builder": BuildPalestra.fontanella,
+			"cols": [[Vector3(0.54, 1.12, 0.5), Vector3(0, 0.56, -0.1)]]},
+		{"name": "Rastrelliera", "cat": 3, "type": "cell", "layer": 2,
+			"builder": BuildPalestra.rastrelliera,
+			"cols": [[Vector3(0.92, 0.78, 0.42), Vector3(0, 0.39, 0)]]},
+
 		# --- pezzi del NEGOZIO (si comprano dal mercante · vedi Economy.gd) ---
 		{"name": "Casetta uccellini", "cat": 2, "type": "cell", "layer": 2, "builder": _birdhouse,
 			"cols": [[Vector3(0.28, 1.5, 0.28), Vector3(0, 0.75, 0)]]},
@@ -134,6 +179,85 @@ static func items() -> Array[Dictionary]:
 		{"name": "Mongolfiera", "cat": 2, "type": "cell", "layer": 2, "builder": _balloon,
 			"cols": [[Vector3(0.6, 0.7, 0.6), Vector3(0, 0.35, 0)],
 					[Vector3(1.05, 1.3, 1.05), Vector3(0, 2.05, 0)]]},
+
+		# --- Il posto di guardia (vedi in fondo al file) ---------------
+		# La guardiola è il pezzo-àncora: comprarla porta con sé tutto il
+		# corredo (Economy.CORREDO), perché un posto arriva con le sue cose.
+		{"name": "Guardiola", "cat": 0, "type": "cell", "layer": 2, "builder": _guardiola,
+			"cols": [[Vector3(0.98, 1.8, 0.98), Vector3(0, 0.9, 0)]]},
+		{"name": "Insegna guardia", "cat": 0, "type": "edge", "layer": 2,
+			"builder": _insegna_guardia,
+			"cols": [[Vector3(0.14, 2.0, 0.14), Vector3(-0.36, 1.0, 0)]]},
+		{"name": "Sbarra", "cat": 0, "type": "edge", "layer": 2, "builder": _sbarra,
+			"cols": [[Vector3(0.2, 0.9, 0.2), Vector3(-0.42, 0.45, 0)]]},
+		{"name": "Bancone guardia", "cat": 1, "type": "cell", "layer": 2,
+			"builder": _bancone_piantone,
+			"cols": [[Vector3(1.0, 0.8, 0.5), Vector3(0, 0.4, 0)]]},
+		{"name": "Armadio smarriti", "cat": 1, "type": "cell", "layer": 2,
+			"builder": _armadio_smarriti,
+			"cols": [[Vector3(0.92, 1.55, 0.45), Vector3(0, 0.77, 0.03)]]},
+		{"name": "Bacheca avvisi", "cat": 1, "type": "edge", "layer": 2,
+			"builder": _bacheca_avvisi,
+			"cols": [[Vector3(1.0, 1.4, 0.12), Vector3(0, 0.7, 0.04)]]},
+		{"name": "Attaccapanni", "cat": 1, "type": "cell", "layer": 2,
+			"builder": _attaccapanni_berretto,
+			"cols": [[Vector3(0.3, 1.55, 0.3), Vector3(0, 0.77, 0)]]},
+		{"name": "Brandina", "cat": 1, "type": "cell", "layer": 2, "builder": _brandina_turno,
+			"cols": [[Vector3(0.95, 0.5, 0.68), Vector3(0, 0.25, 0)]]},
+		{"name": "Lanterna blu", "cat": 2, "type": "cell", "layer": 2,
+			"builder": _lanterna_blu,
+			"cols": [[Vector3(0.2, 1.8, 0.2), Vector3(0, 0.9, 0)]]},
+		{"name": "Cono", "cat": 2, "type": "cell", "layer": 2, "builder": _cono_segnaletico,
+			"cols": []},
+		{"name": "Transenna", "cat": 2, "type": "edge", "layer": 2, "builder": _transenna,
+			"cols": [[Vector3(0.98, 0.75, 0.3), Vector3(0, 0.37, 0)]]},
+		{"name": "Bicicletta", "cat": 2, "type": "cell", "layer": 2,
+			"builder": _bicicletta_servizio,
+			"cols": [[Vector3(0.45, 0.8, 0.9), Vector3(0, 0.4, 0)]]},
+		{"name": "Cassetta smarriti", "cat": 2, "type": "cell", "layer": 2,
+			"builder": _cassetta_smarriti,
+			"cols": [[Vector3(0.45, 1.2, 0.35), Vector3(0, 0.6, 0)]]},
+
+		# --- La caserma dei pompieri (vedi in fondo al file) -----------
+		# Stessa regola del posto di guardia: l'Autopompa è l'àncora, e
+		# comprarla porta con sé tutto il corredo (Economy.CORREDO).
+		{"name": "Autopompa", "cat": 0, "type": "cell", "layer": 2, "builder": _autopompa,
+			"cols": [[Vector3(1.5, 0.95, 0.7), Vector3(0, 0.48, 0)]]},
+		{"name": "Portone rimessa", "cat": 0, "type": "edge", "layer": 2,
+			"builder": _portone_rimessa,
+			"cols": [[Vector3(1.0, 2.1, 0.14), Vector3(0, 1.05, 0)]]},
+		{"name": "Torretta", "cat": 0, "type": "cell", "layer": 2, "builder": _torretta,
+			"cols": [[Vector3(0.78, 1.97, 0.78), Vector3(0, 0.98, 0)]]},
+		{"name": "Palo pompieri", "cat": 0, "type": "cell", "layer": 2,
+			"builder": _palo_pompieri,
+			"cols": [[Vector3(0.16, 2.15, 0.16), Vector3(0, 1.07, 0)]]},
+		{"name": "Scala a pioli", "cat": 0, "type": "cell", "layer": 2,
+			"builder": _scala_pioli,
+			"cols": [[Vector3(0.38, 1.9, 0.34), Vector3(0, 0.95, -0.16)]]},
+		{"name": "Insegna caserma", "cat": 0, "type": "edge", "layer": 2,
+			"builder": _insegna_caserma,
+			"cols": [[Vector3(0.86, 1.3, 0.14), Vector3(0, 0.65, -0.02)]]},
+		{"name": "Campana caserma", "cat": 1, "type": "cell", "layer": 2,
+			"builder": _campana_caserma,
+			"cols": [[Vector3(0.62, 1.15, 0.2), Vector3(-0.1, 0.57, 0)]]},
+		{"name": "Casco appeso", "cat": 1, "type": "edge", "layer": 2,
+			"builder": _casco_appeso, "cols": []},
+		{"name": "Stivali", "cat": 1, "type": "cell", "layer": 2, "builder": _stivali,
+			"cols": []},
+		{"name": "Secchi", "cat": 1, "type": "cell", "layer": 2, "builder": _secchi,
+			"cols": [[Vector3(0.6, 0.45, 0.36), Vector3(0.02, 0.22, -0.04)]]},
+		{"name": "Idrante", "cat": 2, "type": "cell", "layer": 2, "builder": _idrante,
+			"cols": [[Vector3(0.3, 0.7, 0.3), Vector3(0, 0.35, 0)]]},
+		{"name": "Manichetta", "cat": 2, "type": "cell", "layer": 2, "builder": _manichetta,
+			"cols": [[Vector3(0.56, 0.58, 0.34), Vector3(0, 0.29, 0)]]},
+		{"name": "Faro caserma", "cat": 2, "type": "cell", "layer": 2,
+			"builder": _faro_caserma,
+			"cols": [[Vector3(0.2, 1.25, 0.2), Vector3(0, 0.62, 0)]]},
+		{"name": "Cuccia", "cat": 2, "type": "cell", "layer": 2, "builder": _cuccia_caserma,
+			"cols": [[Vector3(0.62, 0.5, 0.56), Vector3(0, 0.25, 0)]]},
+		{"name": "Pennone", "cat": 2, "type": "cell", "layer": 2,
+			"builder": _pennone_caserma,
+			"cols": [[Vector3(0.12, 2.0, 0.12), Vector3(0, 1.0, 0)]]},
 	]
 
 
@@ -1574,3 +1698,984 @@ static func _salone_insegna(n: Node3D, legno_chiaro: Material, ottone: Material)
 		var nastro := _box(pivot, Vector3(0.016, 0.036, 0.003),
 				_mat(PINK, PINK_DEEP, 6.0, 0.45), Vector3(lato2 * 0.040, -0.024, 0.005))
 		nastro.rotation.z = lato2 * 0.5
+
+
+# ============================================================================
+# IL POSTO DI GUARDIA
+# ============================================================================
+# La stazione di questo villaggio non è autorità: è il posto dove si va a
+# CHIEDERE, non dove si viene portati. In un gioco che non punisce nessuno,
+# una caserma con le celle sarebbe una nota stonata; una guardiola col
+# lume azzurro acceso tutta la notte, la bacheca degli avvisi e soprattutto
+# l'armadio degli OGGETTI SMARRITI è invece la cosa più cozy che ci sia —
+# il posto dove le cose perse tornano da chi le ha perse.
+#
+# È anche la casa che mancava al lavoro «guardia» (Lavori.LAVORI): finora
+# si poteva assegnare, costava rancore al residente e non produceva NIENTE,
+# perché non c'era un posto dove farlo.
+#
+# Fronte di tutti i pezzi: verso -Z, come il resto del catalogo.
+
+const BLU := Color("7d9bd8")
+const BLU_CUPO := Color("5f7cba")
+const SEGNALE_ROSSO := Color("dd8474")
+const SEGNALE_BIANCO := Color("f7f2e6")
+# l'ottone lo dichiara già la tavolozza in cima al file: qui si riusa il suo,
+# o due tonalità diverse dello stesso metallo convivrebbero nel villaggio
+const SUGHERO := Color("d8b487")
+
+
+## Il lume azzurro: il segnale che di notte dice «qui c'è qualcuno sveglio».
+## Ritorna il nodo della lanterna, così i pezzi che la montano possono
+## chiamarlo "Lume" e accenderlo o spegnerlo.
+static func _lume_azzurro(parent: Node3D, pos: Vector3, scala := 1.0) -> Node3D:
+	var lume := Node3D.new()
+	lume.name = "Lume"
+	lume.position = pos
+	lume.scale = Vector3.ONE * scala
+	parent.add_child(lume)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	# la montatura: cappellino sopra, coppa sotto, quattro montanti
+	_cyl(lume, 0.02, 0.085, 0.06, ottone, Vector3(0, 0.135, 0))
+	_cyl(lume, 0.07, 0.055, 0.03, ottone, Vector3(0, -0.09, 0))
+	for i in 4:
+		var a := PI * 0.5 * float(i) + PI * 0.25
+		_box(lume, Vector3(0.012, 0.19, 0.012), ottone,
+				Vector3(cos(a) * 0.055, 0.015, sin(a) * 0.055))
+	# il vetro. Il blu va SATURO e l'emissione tenuta bassa: con l'energia
+	# alta il vetro si sbianca e la lanterna «blu» esce color miele come
+	# tutte le altre — il segnale del posto di guardia non si riconosce più.
+	var vetro := _ball(lume, 0.072, _glow(Color("4f78d4"), Color("5f8ce8"), 0.9),
+			Vector3(0, 0.015, 0), Vector3(1.0, 1.25, 1.0))
+	vetro.name = "Vetro"
+	var luce := OmniLight3D.new()
+	luce.light_color = Color(0.72, 0.82, 1.0)
+	luce.light_energy = 1.15
+	luce.omni_range = 4.6
+	luce.position = Vector3(0, 0.015, 0)
+	lume.add_child(luce)
+	return lume
+
+
+## Le fasce oblique bianche e rosse di una sbarra o di una transenna.
+static func _fasce(parent: Node3D, lung: float, spess: float, alt: float,
+		y: float, quante: int) -> void:
+	var bianco := _mat(SEGNALE_BIANCO, Color("e9e2d2"), 4.0, 0.35)
+	var rosso := _mat(SEGNALE_ROSSO, Color("c96f60"), 4.0, 0.4)
+	_box(parent, Vector3(lung, alt, spess), bianco, Vector3(0, y, 0))
+	var passo := lung / float(quante)
+	for i in quante:
+		if i % 2 == 1:
+			continue
+		_box(parent, Vector3(passo * 0.98, alt * 1.02, spess * 1.05), rosso,
+				Vector3(-lung * 0.5 + passo * (float(i) + 0.5), y, 0))
+
+
+static func _guardiola() -> Node3D:
+	# LA GUARDIOLA: una casina di legno e intonaco larga quanto una cella,
+	# con la finestrella ad arco da cui si sporge chi è di turno e il lume
+	# azzurro sopra la porta. Il pezzo attorno a cui gira tutto il posto.
+	var n := Node3D.new()
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var legno_chiaro := _mat(WOOD_PALE, WOOD, 3.5, 0.5)
+	var muro := _mat(PLASTER, PLASTER_SHADE, 3.0, 0.45)
+	# lo zoccolo di pietra: nessuna casina appoggia sull'erba nuda
+	_box(n, Vector3(0.96, 0.1, 0.96), _mat(STONE, STONE_DARK, 4.0, 0.5),
+			Vector3(0, 0.05, 0))
+	# il corpo, e i quattro montanti d'angolo
+	_box(n, Vector3(0.84, 1.62, 0.84), muro, Vector3(0, 0.91, 0))
+	for sx: float in [-0.43, 0.43]:
+		for sz: float in [-0.43, 0.43]:
+			_box(n, Vector3(0.1, 1.66, 0.1), legno, Vector3(sx, 0.9, sz))
+	# la finestrella: incavo scuro + davanzale + arco
+	_box(n, Vector3(0.56, 0.46, 0.06), _mat(Color("3f4a58"), Color("333d49"), 4.0, 0.4),
+			Vector3(0, 1.16, -0.42))
+	_box(n, Vector3(0.66, 0.06, 0.14), legno_chiaro, Vector3(0, 0.92, -0.44))
+	# l'architrave SOPRA il vetro, non davanti: un disco pieno messo lì
+	# tappava la finestra con un ovale beige invece di incorniciarla
+	_box(n, Vector3(0.66, 0.07, 0.12), legno_chiaro, Vector3(0, 1.43, -0.44))
+	for sx: float in [-0.31, 0.31]:
+		_box(n, Vector3(0.06, 0.56, 0.1), legno_chiaro, Vector3(sx, 1.16, -0.44))
+	# la crocetta della finestra
+	_box(n, Vector3(0.03, 0.46, 0.04), legno_chiaro, Vector3(0, 1.16, -0.45))
+	_box(n, Vector3(0.56, 0.03, 0.04), legno_chiaro, Vector3(0, 1.16, -0.45))
+	# il tetto a padiglione, con la falda che sporge sulla finestra
+	var tetto := _mat(TERRACOTTA, Color("c07a58"), 3.5, 0.5)
+	_box(n, Vector3(1.0, 0.07, 1.0), legno, Vector3(0, 1.75, 0))
+	# la falda sporge quel poco che ripara la finestra e non invade la
+	# cella accanto: raggio 0.58 su una cella da un metro
+	var falda := _cyl(n, 0.02, 0.58, 0.34, tetto, Vector3(0, 1.94, 0))
+	# il comignolo: dentro si sta al caldo
+	_box(n, Vector3(0.14, 0.26, 0.14), _mat(TERRACOTTA, Color("b06a4e"), 4.0, 0.5),
+			Vector3(0.26, 2.14, 0.22))
+	# il lume sopra la finestra, e la targhetta
+	_lume_azzurro(n, Vector3(0, 1.72, -0.5), 0.85)
+	var targa := _box(n, Vector3(0.44, 0.13, 0.03), _mat(BLU, BLU_CUPO, 5.0, 0.4),
+			Vector3(0, 0.74, -0.45))
+	targa.name = "Targa"
+	_box(n, Vector3(0.3, 0.03, 0.012), _mat(SEGNALE_BIANCO, CREAM, 6.0, 0.2),
+			Vector3(0, 0.755, -0.47))
+	return n
+
+
+static func _insegna_guardia() -> Node3D:
+	# L'INSEGNA: un'asse appesa a due catenelle che dondola nel vento, con
+	# lo scudetto dipinto. Si monta sul bordo di una cella, come un muro.
+	var n := Node3D.new()
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	_cyl(n, 0.045, 0.06, 2.0, legno, Vector3(-0.36, 1.0, 0))
+	_box(n, Vector3(0.62, 0.07, 0.07), legno, Vector3(-0.06, 1.94, 0))
+	# il braccio di sostegno in diagonale
+	var puntone := _box(n, Vector3(0.04, 0.36, 0.04), legno, Vector3(-0.22, 1.78, 0))
+	puntone.rotation.z = -0.72
+	# la tavola appesa: nodo a parte, così può dondolare
+	var appesa := Node3D.new()
+	appesa.name = "Insegna"
+	appesa.position = Vector3(0.06, 1.9, 0)
+	n.add_child(appesa)
+	for dx: float in [-0.22, 0.22]:
+		_cyl(appesa, 0.008, 0.008, 0.16, ottone, Vector3(dx, -0.08, 0))
+	var tavola := _box(appesa, Vector3(0.62, 0.4, 0.05),
+			_mat(WOOD_PALE, WOOD, 3.5, 0.5), Vector3(0, -0.36, 0))
+	tavola.name = "Tavola"
+	# lo scudetto azzurro con la stellina d'ottone
+	var scudo := _box(appesa, Vector3(0.24, 0.28, 0.02), _mat(BLU, BLU_CUPO, 5.0, 0.4),
+			Vector3(0, -0.34, -0.035))
+	_cyl(appesa, 0.13, 0.02, 0.02, _mat(BLU_CUPO, BLU_CUPO, 4.0, 0.3),
+			Vector3(0, -0.5, -0.035)).rotation.x = -PI * 0.5
+	for i in 5:
+		var a := PI * 2.0 / 5.0 * float(i) - PI * 0.5
+		_box(appesa, Vector3(0.035, 0.075, 0.014), ottone,
+				Vector3(cos(a) * 0.05, -0.32 + sin(a) * 0.05, -0.05)).rotation.z = -a - PI * 0.5
+	scudo.name = "Scudo"
+	return n
+
+
+static func _sbarra() -> Node3D:
+	# LA SBARRA: si alza davvero. L'asta vive in un pivot chiamato "Asta"
+	# incernierato sul montante, così chi vuole può farla sollevare con un
+	# tween di 90 gradi (e il contrappeso scende dall'altra parte).
+	var n := Node3D.new()
+	var metallo := _mat(METAL, Color("6f665b"), 5.0, 0.4)
+	_cyl(n, 0.16, 0.2, 0.09, _mat(STONE, STONE_DARK, 4.0, 0.5), Vector3(-0.42, 0.045, 0))
+	_box(n, Vector3(0.14, 0.86, 0.14), metallo, Vector3(-0.42, 0.48, 0))
+	_cyl(n, 0.075, 0.075, 0.14, metallo, Vector3(-0.42, 0.86, 0)).rotation.x = PI * 0.5
+	var asta := Node3D.new()
+	asta.name = "Asta"
+	asta.position = Vector3(-0.42, 0.86, 0)
+	n.add_child(asta)
+	# il braccio a fasce, che parte dal perno e va a destra
+	var braccio := Node3D.new()
+	braccio.position = Vector3(0.62, 0, 0)
+	asta.add_child(braccio)
+	_fasce(braccio, 1.2, 0.07, 0.07, 0, 6)
+	# il contrappeso, dalla parte corta
+	_ball(asta, 0.075, metallo, Vector3(-0.17, 0, 0), Vector3(1, 0.85, 1))
+	# il piedino d'appoggio all'altro capo
+	_cyl(n, 0.05, 0.07, 0.5, metallo, Vector3(0.86, 0.25, 0))
+	return n
+
+
+static func _bancone_piantone() -> Node3D:
+	# IL BANCONE: il piano dove si consegna e si chiede. Il registro aperto,
+	# il timbro, e il campanello che si suona quando non c'è nessuno —
+	# nodo "Campanello", così un domani può fare tin.
+	var n := Node3D.new()
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var piano := _mat(WOOD_PALE, WOOD, 3.5, 0.5)
+	_box(n, Vector3(0.94, 0.72, 0.42), legno, Vector3(0, 0.36, 0.02))
+	# la modanatura del fronte e il piano che sporge
+	_box(n, Vector3(0.9, 0.1, 0.03), piano, Vector3(0, 0.62, -0.2))
+	_box(n, Vector3(1.02, 0.07, 0.52), piano, Vector3(0, 0.76, 0))
+	# il registro aperto: due pagine appena inclinate
+	for lato: float in [-1.0, 1.0]:
+		var pag := _box(n, Vector3(0.15, 0.012, 0.2),
+				_mat(CREAM, Color("f0e4cc"), 6.0, 0.25),
+				Vector3(lato * 0.08, 0.8, 0.02))
+		pag.rotation.z = lato * 0.06
+	_box(n, Vector3(0.03, 0.02, 0.2), _mat(WOOD_DARK, WOOD_DARK, 3.0, 0.2),
+			Vector3(0, 0.805, 0.02))
+	# il timbro col manico
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	_cyl(n, 0.045, 0.045, 0.05, _mat(WOOD_DARK, WOOD_DARK, 4.0, 0.4), Vector3(0.33, 0.82, -0.06))
+	_cyl(n, 0.018, 0.026, 0.07, ottone, Vector3(0.33, 0.87, -0.06))
+	_ball(n, 0.028, _mat(WOOD, WOOD_DARK, 4.0, 0.4), Vector3(0.33, 0.92, -0.06))
+	# il campanello da banco
+	var campanello := Node3D.new()
+	campanello.name = "Campanello"
+	campanello.position = Vector3(-0.34, 0.8, -0.05)
+	n.add_child(campanello)
+	_cyl(campanello, 0.06, 0.062, 0.012, ottone, Vector3(0, 0, 0))
+	_ball(campanello, 0.055, ottone, Vector3(0, 0.035, 0), Vector3(1, 0.72, 1))
+	_ball(campanello, 0.014, ottone, Vector3(0, 0.075, 0))
+	return n
+
+
+static func _armadio_smarriti() -> Node3D:
+	# L'ARMADIO DEGLI OGGETTI SMARRITI: il cuore del posto. Tanti cassettini
+	# con la maniglia d'ottone e il cartellino; due sono socchiusi, e da uno
+	# spunta una sciarpa che qualcuno prima o poi verrà a riprendersi.
+	var n := Node3D.new()
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var fronte := _mat(WOOD_PALE, WOOD, 3.5, 0.45)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	_box(n, Vector3(0.9, 1.5, 0.42), legno, Vector3(0, 0.75, 0.03))
+	# la cornice del tetto e il piedino
+	_box(n, Vector3(0.98, 0.07, 0.48), fronte, Vector3(0, 1.53, 0.03))
+	_box(n, Vector3(0.94, 0.09, 0.45), legno, Vector3(0, 0.045, 0.03))
+	# quattro file da tre cassettini
+	for riga in 4:
+		for col in 3:
+			var y := 0.28 + 0.33 * float(riga)
+			var x := -0.28 + 0.28 * float(col)
+			# due cassetti socchiusi: la vita è storta, gli armadi anche
+			var fuori := 0.0
+			if (riga == 2 and col == 0) or (riga == 0 and col == 2):
+				fuori = 0.07
+			var cass := _box(n, Vector3(0.25, 0.28, 0.38), fronte,
+					Vector3(x, y, -0.03 - fuori))
+			cass.name = "Cassetto%d%d" % [riga, col]
+			_cyl(n, 0.022, 0.022, 0.03, ottone,
+					Vector3(x, y, -0.22 - fuori)).rotation.x = PI * 0.5
+			# il cartellino col numero
+			_box(n, Vector3(0.09, 0.045, 0.008), _mat(CREAM, Color("efe2ca"), 6.0, 0.2),
+					Vector3(x, y + 0.085, -0.225 - fuori))
+	# la sciarpa che sporge dal cassetto socchiuso in alto
+	var sciarpa := _box(n, Vector3(0.16, 0.035, 0.1), _mat(PINK, PINK_DEEP, 5.0, 0.45),
+			Vector3(0.0, 0.255, -0.28))
+	sciarpa.rotation.x = 0.35
+	sciarpa.name = "Sciarpa"
+	return n
+
+
+static func _bacheca_avvisi() -> Node3D:
+	# LA BACHECA: sughero, cornice di legno e i bigliettini appuntati di
+	# sghembo — nessuno appende un avviso dritto.
+	var n := Node3D.new()
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	for sx: float in [-0.46, 0.46]:
+		_box(n, Vector3(0.08, 1.35, 0.08), legno, Vector3(sx, 0.68, 0.04))
+	_box(n, Vector3(1.0, 0.09, 0.09), legno, Vector3(0, 1.36, 0.04))
+	_box(n, Vector3(0.94, 0.72, 0.05), _mat(SUGHERO, Color("c39a6c"), 6.0, 0.5),
+			Vector3(0, 1.0, 0.04))
+	# la cornicetta interna
+	for dy: float in [-0.38, 0.38]:
+		_box(n, Vector3(0.96, 0.04, 0.07), legno, Vector3(0, 1.0 + dy, 0.04))
+	# i bigliettini, ognuno storto a modo suo
+	var carte := [[-0.28, 1.14, -0.13, Color("fff6e2")], [0.02, 1.18, 0.09, Color("e8f2e0")],
+			[0.3, 1.1, -0.06, Color("fde8e4")], [-0.14, 0.88, 0.14, Color("fff6e2")],
+			[0.22, 0.85, -0.11, Color("e4eef8")]]
+	for c in carte:
+		var carta := _box(n, Vector3(0.2, 0.16, 0.008),
+				_mat(Color(c[3]), Color(c[3]).darkened(0.08), 6.0, 0.2),
+				Vector3(float(c[0]), float(c[1]), 0.015))
+		carta.rotation.z = float(c[2])
+		# la puntina
+		_ball(n, 0.014, _mat(SEGNALE_ROSSO, Color("c96f60"), 4.0, 0.3),
+				Vector3(float(c[0]), float(c[1]) + 0.06, 0.005))
+	return n
+
+
+static func _attaccapanni_berretto() -> Node3D:
+	# L'ATTACCAPANNI COL BERRETTO: il turno finisce, il berretto resta lì.
+	var n := Node3D.new()
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	_cyl(n, 0.09, 0.14, 0.06, legno, Vector3(0, 0.03, 0))
+	_cyl(n, 0.035, 0.045, 1.5, legno, Vector3(0, 0.75, 0))
+	# i tre bracci
+	for i in 3:
+		var a := PI * 2.0 / 3.0 * float(i)
+		var braccio := _cyl(n, 0.018, 0.022, 0.17, legno,
+				Vector3(cos(a) * 0.07, 1.44, sin(a) * 0.07))
+		braccio.rotation.x = cos(a) * 0.0 + 0.6
+		braccio.rotation.y = -a
+		braccio.rotation.z = 0.7
+		_ball(n, 0.026, legno, Vector3(cos(a) * 0.14, 1.5, sin(a) * 0.14))
+	# il berretto d'ordinanza appeso al braccio davanti
+	var berretto := Node3D.new()
+	berretto.name = "Berretto"
+	berretto.position = Vector3(0.0, 1.44, -0.15)
+	n.add_child(berretto)
+	var panno := _mat(BLU, BLU_CUPO, 5.0, 0.45)
+	_cyl(berretto, 0.11, 0.105, 0.09, panno, Vector3(0, 0, 0))
+	_cyl(berretto, 0.125, 0.125, 0.02, _mat(BLU_CUPO, Color("4c6699"), 4.0, 0.4),
+			Vector3(0, -0.05, 0))
+	# la visiera
+	var visiera := _cyl(berretto, 0.13, 0.13, 0.015,
+			_mat(Color("3f4a5c"), Color("323b4a"), 4.0, 0.35), Vector3(0, -0.055, -0.09))
+	visiera.scale = Vector3(1.0, 1.0, 0.55)
+	visiera.rotation.x = 0.22
+	# lo stemmino d'ottone
+	_box(berretto, Vector3(0.05, 0.05, 0.01), _mat(OTTONE, OTTONE_SCURO, 5.0, 0.35),
+			Vector3(0, 0.005, -0.105))
+	return n
+
+
+static func _brandina_turno() -> Node3D:
+	# LA BRANDINA DEL TURNO DI NOTTE: una branda da campo, la coperta
+	# piegata in fondo e il cuscino ammaccato da chi ci ha dormito.
+	var n := Node3D.new()
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var telo := _mat(Color("cfd8c8"), Color("b8c2b0"), 5.0, 0.45)
+	# le due X delle gambe
+	for sz: float in [-0.3, 0.3]:
+		for lato: float in [-1.0, 1.0]:
+			var g := _box(n, Vector3(0.045, 0.42, 0.045), legno,
+					Vector3(lato * 0.3, 0.2, sz))
+			g.rotation.z = lato * 0.34
+	_box(n, Vector3(0.9, 0.05, 0.05), legno, Vector3(0, 0.2, -0.3))
+	_box(n, Vector3(0.9, 0.05, 0.05), legno, Vector3(0, 0.2, 0.3))
+	# il telo teso, che cede appena al centro
+	_box(n, Vector3(0.88, 0.05, 0.62), telo, Vector3(0, 0.4, 0))
+	_box(n, Vector3(0.8, 0.03, 0.5), telo, Vector3(0, 0.385, 0))
+	# il cuscino e la coperta piegata
+	var cuscino := _ball(n, 0.13, _mat(CREAM, Color("f0e4cc"), 5.0, 0.35),
+			Vector3(-0.28, 0.45, 0), Vector3(1.0, 0.52, 1.3))
+	cuscino.name = "Cuscino"
+	_box(n, Vector3(0.34, 0.09, 0.6), _mat(BLU, BLU_CUPO, 5.0, 0.5),
+			Vector3(0.24, 0.46, 0))
+	_box(n, Vector3(0.34, 0.03, 0.6), _mat(BLU_CUPO, Color("4c6699"), 5.0, 0.4),
+			Vector3(0.24, 0.51, 0))
+	return n
+
+
+static func _lanterna_blu() -> Node3D:
+	# LA LANTERNA BLU su un palo: il faro del posto di guardia. Di notte si
+	# vede da lontano, e vuol dire che c'è qualcuno sveglio per te.
+	var n := Node3D.new()
+	var metallo := _mat(METAL, Color("6f665b"), 5.0, 0.4)
+	_cyl(n, 0.13, 0.17, 0.09, _mat(STONE, STONE_DARK, 4.0, 0.5), Vector3(0, 0.045, 0))
+	_cyl(n, 0.035, 0.05, 1.72, metallo, Vector3(0, 0.86, 0))
+	_cyl(n, 0.07, 0.05, 0.05, metallo, Vector3(0, 1.72, 0))
+	_lume_azzurro(n, Vector3(0, 1.86, 0), 1.15)
+	return n
+
+
+static func _cono_segnaletico() -> Node3D:
+	# IL CONO: piccolo, storto, con la fascia riflettente. Ne bastano due
+	# per dire «qui stanno facendo qualcosa».
+	var n := Node3D.new()
+	var arancio := _mat(Color("e8956a"), Color("d07a52"), 4.0, 0.45)
+	_box(n, Vector3(0.3, 0.035, 0.3), _mat(Color("d07a52"), Color("b8663f"), 4.0, 0.4),
+			Vector3(0, 0.018, 0))
+	var cono := _cyl(n, 0.03, 0.115, 0.38, arancio, Vector3(0, 0.22, 0))
+	cono.name = "Cono"
+	cono.rotation.z = 0.05    # nessun cono è mai perfettamente dritto
+	_cyl(n, 0.078, 0.09, 0.06, _mat(SEGNALE_BIANCO, Color("e9e2d2"), 5.0, 0.3),
+			Vector3(0.006, 0.25, 0))
+	return n
+
+
+static func _transenna() -> Node3D:
+	# LA TRANSENNA: due cavalletti e l'asse a fasce. Sta sul bordo, come una
+	# staccionata, ma si sposta — è provvisoria per definizione.
+	var n := Node3D.new()
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	for sx: float in [-0.36, 0.36]:
+		for lato: float in [-1.0, 1.0]:
+			var g := _box(n, Vector3(0.05, 0.72, 0.05), legno,
+					Vector3(sx, 0.34, lato * 0.12))
+			g.rotation.x = lato * 0.26
+	var asse := Node3D.new()
+	asse.position = Vector3(0, 0.56, 0)
+	n.add_child(asse)
+	_fasce(asse, 0.96, 0.06, 0.17, 0, 5)
+	_box(n, Vector3(0.96, 0.06, 0.05), legno, Vector3(0, 0.34, 0))
+	return n
+
+
+static func _bicicletta_servizio() -> Node3D:
+	# LA BICICLETTA DI SERVIZIO: appoggiata sul cavalletto, col cestino
+	# davanti. Nessuno insegue nessuno, in questo villaggio: si fa il giro.
+	var n := Node3D.new()
+	var telaio := _mat(BLU, BLU_CUPO, 5.0, 0.45)
+	var gomma := _mat(Color("4a4640"), Color("3a3733"), 4.0, 0.35)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	# appoggiata: tutta la bici pende di un soffio sul cavalletto
+	var bici := Node3D.new()
+	bici.name = "Bici"
+	bici.rotation.z = 0.09
+	n.add_child(bici)
+	for dz: float in [-0.34, 0.34]:
+		var ruota := _cyl(bici, 0.27, 0.27, 0.05, gomma, Vector3(0, 0.28, dz))
+		ruota.rotation.x = PI * 0.5
+		var cerchio := _cyl(bici, 0.21, 0.21, 0.055, _mat(SEGNALE_BIANCO, CREAM, 5.0, 0.25),
+				Vector3(0, 0.28, dz))
+		cerchio.rotation.x = PI * 0.5
+		var mozzo := _cyl(bici, 0.035, 0.035, 0.07, ottone, Vector3(0, 0.28, dz))
+		mozzo.rotation.x = PI * 0.5
+	# il telaio: tubi GROSSI, o da lontano la bici sparisce e restano due
+	# ruote per aria. Il triangolo posteriore è quello che la fa leggere
+	# come una bicicletta e non come un monociclo.
+	_box(bici, Vector3(0.075, 0.075, 0.66), telaio, Vector3(0, 0.52, 0))
+	var t2 := _box(bici, Vector3(0.075, 0.46, 0.075), telaio, Vector3(0, 0.44, 0.28))
+	t2.rotation.x = -0.3
+	var t3 := _box(bici, Vector3(0.075, 0.5, 0.075), telaio, Vector3(0, 0.42, -0.3))
+	t3.rotation.x = 0.36
+	# i foderi: dal movimento centrale alla ruota dietro
+	for dy: float in [0.0, 0.26]:
+		var fodero := _box(bici, Vector3(0.05, 0.05, 0.4), telaio,
+				Vector3(0, 0.3 + dy * 0.6, 0.18))
+		fodero.rotation.x = -0.32 - dy * 0.5
+	# la corona e il pedale: il dettaglio che dice «ci si va davvero»
+	var corona := _cyl(bici, 0.075, 0.075, 0.02, ottone, Vector3(0, 0.3, 0.02))
+	corona.rotation.x = PI * 0.5
+	_box(bici, Vector3(0.05, 0.02, 0.09), gomma, Vector3(0.09, 0.24, 0.02))
+	# sella e manubrio
+	var sella := _box(bici, Vector3(0.09, 0.05, 0.22), _mat(WOOD_DARK, Color("6b4a33"), 4.0, 0.4),
+			Vector3(0, 0.68, 0.28))
+	sella.name = "Sella"
+	var manubrio := _box(bici, Vector3(0.36, 0.045, 0.045), telaio, Vector3(0, 0.72, -0.3))
+	manubrio.name = "Manubrio"
+	for sx: float in [-0.16, 0.16]:
+		_cyl(bici, 0.028, 0.028, 0.09, gomma, Vector3(sx, 0.72, -0.3)).rotation.z = PI * 0.5
+	# il cestino di vimini davanti
+	var cesto := _cyl(bici, 0.14, 0.11, 0.19, _mat(WOOD_PALE, WOOD, 7.0, 0.6),
+			Vector3(0, 0.63, -0.34))
+	cesto.name = "Cestino"
+	# il campanello e il cavalletto
+	_cyl(bici, 0.032, 0.032, 0.035, ottone, Vector3(-0.12, 0.76, -0.3))
+	var cavalletto := _cyl(n, 0.018, 0.018, 0.34, gomma, Vector3(-0.13, 0.17, 0.16))
+	cavalletto.rotation.z = 0.32
+	return n
+
+
+static func _cassetta_smarriti() -> Node3D:
+	# LA CASSETTA DEGLI SMARRITI: quella fuori, con la fessura e il tettuccio,
+	# per quando trovi qualcosa e il posto è chiuso. Si lascia lì e domani
+	# torna a chi l'ha perso. Sportello "Sportello", come la cassetta posta.
+	var n := Node3D.new()
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var corpo := _mat(BLU, BLU_CUPO, 4.5, 0.45)
+	_cyl(n, 0.05, 0.07, 0.72, legno, Vector3(0, 0.36, 0))
+	_box(n, Vector3(0.42, 0.44, 0.3), corpo, Vector3(0, 0.94, 0))
+	# il tettuccio spiovente
+	var tetto := _box(n, Vector3(0.5, 0.05, 0.38), legno, Vector3(0, 1.19, -0.02))
+	tetto.rotation.x = -0.16
+	# la fessura, con la sua ombra
+	_box(n, Vector3(0.26, 0.045, 0.02), _mat(Color("2f3742"), Color("262d36"), 3.0, 0.3),
+			Vector3(0, 1.05, -0.152))
+	_box(n, Vector3(0.3, 0.02, 0.03), _mat(OTTONE, OTTONE_SCURO, 5.0, 0.35),
+			Vector3(0, 1.085, -0.155))
+	# lo sportello di ritiro, incernierato in basso
+	var sportello := Node3D.new()
+	sportello.name = "Sportello"
+	sportello.position = Vector3(0, 0.76, -0.15)
+	n.add_child(sportello)
+	_box(sportello, Vector3(0.34, 0.24, 0.02), _mat(BLU_CUPO, Color("4c6699"), 4.0, 0.4),
+			Vector3(0, 0.12, 0))
+	_cyl(sportello, 0.02, 0.02, 0.02, _mat(OTTONE, OTTONE_SCURO, 5.0, 0.35),
+			Vector3(0, 0.2, -0.018)).rotation.x = PI * 0.5
+	# il cartellino
+	_box(n, Vector3(0.2, 0.07, 0.012), _mat(CREAM, Color("efe2ca"), 6.0, 0.25),
+			Vector3(0, 0.66, -0.152))
+	return n
+
+
+# ============================================================================
+# LA CASERMA DEI POMPIERI
+# ============================================================================
+# Qui non brucia niente, e non brucerà mai: la regola cozy non si tocca.
+# Questa caserma non serve a SPEGNERE, serve a TENERE PRONTO — che in un
+# villaggio dove nessuno è in pericolo è un'altra forma di affetto. La
+# manichetta annaffia gli orti, la campana chiama tutti in piazza, il palo
+# d'ottone porta giù dal solaio in un fiato, e l'autopompa sta lì lucidata
+# da qualcuno che ci tiene, anche se non la chiamerà mai nessuno.
+#
+# Come il posto di guardia, l'àncora è un pezzo solo (l'Autopompa) e il
+# resto arriva col corredo (Economy.CORREDO): un posto arriva con le sue
+# cose. Fronte di tutti i pezzi: verso -Z, come il resto del catalogo.
+#
+# La tavolozza (POMPA_ROSSO, GOMMA, VETRO) è in cima al file; l'ottone è
+# quello condiviso di tutto il villaggio.
+
+
+## L'AUTOPOMPA. Il pezzo grosso: cabina tonda col parabrezza, cassone coi
+## portelli, la scala d'ottone sul tetto, la campana sul muso e i fanali
+## rotondi. Paffuta e corta come un giocattolo di legno laccato — se fosse
+## in scala sembrerebbe un mezzo di lavoro, e questo è un villaggio.
+static func _autopompa() -> Node3D:
+	var n := Node3D.new()
+	var rosso := _mat(POMPA_ROSSO, POMPA_ROSSO_SCURO, 3.0, 0.45)
+	var scuro := _mat(POMPA_ROSSO_SCURO, POMPA_ROSSO_SCURO.darkened(0.2), 4.0, 0.5)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	var gomma := _mat(GOMMA, GOMMA.darkened(0.25), 6.0, 0.35)
+	var vetro := _mat(VETRO, VETRO.darkened(0.12), 3.0, 0.3, 0.5)
+	var crema := _mat(CREAM, PLASTER_SHADE, 4.0, 0.4)
+	# telaio e sovrastrutture: due volumi, come i camion di legno
+	_box(n, Vector3(1.5, 0.34, 0.66), rosso, Vector3(0, 0.42, 0))
+	_box(n, Vector3(0.66, 0.42, 0.62), rosso, Vector3(-0.42, 0.74, 0))
+	_box(n, Vector3(0.74, 0.3, 0.6), scuro, Vector3(0.36, 0.72, 0))
+	# il muso arrotondato: un cilindro coricato lungo Z
+	var muso := _cyl(n, 0.17, 0.17, 0.62, rosso, Vector3(-0.74, 0.5, 0))
+	muso.rotation.x = PI * 0.5
+	# parabrezza e finestrini
+	_box(n, Vector3(0.03, 0.26, 0.5), vetro, Vector3(-0.74, 0.8, 0))
+	for z: float in [-0.31, 0.31]:
+		_box(n, Vector3(0.42, 0.22, 0.03), vetro, Vector3(-0.44, 0.8, z))
+	# i portelli del cassone, con le maniglie d'ottone
+	for i in 3:
+		var x := 0.08 + float(i) * 0.26
+		for z: float in [-0.31, 0.31]:
+			_box(n, Vector3(0.22, 0.24, 0.02), crema, Vector3(x, 0.72, z))
+			var mn := _cyl(n, 0.014, 0.014, 0.1, ottone, Vector3(x, 0.72, z * 1.07))
+			mn.rotation.z = PI * 0.5
+	# la fascia chiara che gira attorno: è quella che dice «pompieri»
+	_box(n, Vector3(1.52, 0.07, 0.68), crema, Vector3(0, 0.31, 0))
+	# la scala sul tetto: due correnti e i pioli
+	for z: float in [-0.14, 0.14]:
+		_box(n, Vector3(0.9, 0.03, 0.03), ottone, Vector3(0.3, 0.9, z))
+	for i in 6:
+		_box(n, Vector3(0.025, 0.02, 0.31), ottone,
+				Vector3(-0.08 + float(i) * 0.15, 0.9, 0))
+	# la campana d'ottone sul muso: piccola, e vera (suona il Bancone? no,
+	# suona chi passa) — svasata verso il basso come quella della caserma
+	_cyl(n, 0.012, 0.012, 0.06, ottone, Vector3(-0.58, 1.02, 0))
+	_cyl(n, 0.05, 0.075, 0.1, ottone, Vector3(-0.58, 0.94, 0))
+	# i fanali tondi
+	for z: float in [-0.2, 0.2]:
+		_ball(n, 0.07, _glow(Color("fff0cf"), Color("ffd98f"), 0.8),
+				Vector3(-0.8, 0.56, z), Vector3(0.5, 1, 1))
+	# le ruote, con il mozzo chiaro
+	for x: float in [-0.45, 0.45]:
+		for z: float in [-0.34, 0.34]:
+			var r := _cyl(n, 0.2, 0.2, 0.12, gomma, Vector3(x, 0.2, z))
+			r.rotation.x = PI * 0.5
+			var m := _cyl(n, 0.09, 0.09, 0.14, crema, Vector3(x, 0.2, z))
+			m.rotation.x = PI * 0.5
+	# la manichetta arrotolata sul fianco, pronta
+	var rullo := _cyl(n, 0.13, 0.13, 0.06, crema, Vector3(0.36, 0.72, 0.33))
+	rullo.rotation.x = PI * 0.5
+	return n
+
+
+## IL PORTONE DELLA RIMESSA. Pezzo edge come la porta: il grande portone
+## rosso a serranda, l'architrave chiaro e i due oblò da cui, di sera, si
+## vede il muso dell'autopompa.
+static func _portone_rimessa() -> Node3D:
+	var n := Node3D.new()
+	var rosso := _mat(POMPA_ROSSO, POMPA_ROSSO_SCURO, 3.0, 0.45)
+	var crema := _mat(CREAM, PLASTER_SHADE, 4.0, 0.4)
+	var vetro := _mat(VETRO, VETRO.darkened(0.12), 3.0, 0.3, 0.5)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	_box(n, Vector3(0.96, 1.9, 0.1), rosso, Vector3(0, 0.95, 0))
+	for i in 5:
+		_box(n, Vector3(0.98, 0.03, 0.12), crema, Vector3(0, 0.3 + float(i) * 0.33, 0))
+	_box(n, Vector3(1.02, 0.16, 0.16), crema, Vector3(0, 2.0, 0))
+	for x: float in [-0.24, 0.24]:
+		var o := _cyl(n, 0.11, 0.11, 0.13, crema, Vector3(x, 1.5, 0))
+		o.rotation.x = PI * 0.5
+		var v := _cyl(n, 0.085, 0.085, 0.15, vetro, Vector3(x, 1.5, 0))
+		v.rotation.x = PI * 0.5
+	for x: float in [-0.18, 0.18]:
+		var mn := _cyl(n, 0.02, 0.02, 0.16, ottone, Vector3(x, 0.62, 0.07))
+		mn.rotation.z = PI * 0.5
+	return n
+
+
+## LA TORRETTA DI VEDETTA. Quattro gambe che si stringono salendo, la
+## piattaforma con la ringhiera, il tetto rosso a punta e la lanterna
+## appesa sotto: di sera è un punto caldo in mezzo al villaggio.
+static func _torretta() -> Node3D:
+	var n := Node3D.new()
+	var pale := _mat(WOOD_PALE, WOOD, 3.0, 0.45)
+	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var rosso := _mat(POMPA_ROSSO, POMPA_ROSSO_SCURO, 3.0, 0.45)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	for sx: float in [-1.0, 1.0]:
+		for sz: float in [-1.0, 1.0]:
+			var g := _box(n, Vector3(0.09, 1.95, 0.09), wood,
+					Vector3(sx * 0.3, 0.97, sz * 0.3))
+			g.rotation.z = -sx * 0.05
+			g.rotation.x = sz * 0.05
+	# le croci di controvento sui quattro lati
+	for lato in 4:
+		var a := float(lato) * PI * 0.5
+		for verso: float in [-1.0, 1.0]:
+			var c := _box(n, Vector3(0.8, 0.04, 0.04), wood,
+					Vector3(sin(a) * 0.3, 0.9, cos(a) * 0.3))
+			c.rotation.y = a
+			c.rotation.z = verso * 0.62
+	# la piattaforma e la ringhiera
+	_box(n, Vector3(0.88, 0.07, 0.88), pale, Vector3(0, 1.97, 0))
+	for lato in 4:
+		var a := float(lato) * PI * 0.5
+		var r := _box(n, Vector3(0.88, 0.05, 0.05), pale,
+				Vector3(sin(a) * 0.42, 2.24, cos(a) * 0.42))
+		r.rotation.y = a
+		var m := _cyl(n, 0.03, 0.03, 0.3, pale,
+				Vector3(sin(a) * 0.42, 2.12, cos(a) * 0.42))
+		m.rotation.y = a
+	# il tetto a punta
+	var t := _cyl(n, 0.0, 0.66, 0.44, rosso, Vector3(0, 2.66, 0))
+	t.rotation.y = PI * 0.25
+	# la lanterna appesa sotto il tetto
+	_cyl(n, 0.012, 0.012, 0.14, ottone, Vector3(0, 2.4, 0))
+	_ball(n, 0.08, _glow(Color("ffe6b0"), Color("ffcf86"), 1.4), Vector3(0, 2.28, 0))
+	var luce := OmniLight3D.new()
+	luce.light_color = Color(1.0, 0.85, 0.62)
+	luce.light_energy = 1.1
+	luce.omni_range = 4.5
+	luce.position = Vector3(0, 2.28, 0)
+	n.add_child(luce)
+	return n
+
+
+## IL PALO DEI POMPIERI. Ottone lucido dal solaio al pavimento, le due
+## ghiere e la pedana di gomma alla base: chi lo prende scende in un fiato.
+## Alto quanto un piano, così sta sotto un Solaio senza tagliarlo.
+static func _palo_pompieri() -> Node3D:
+	var n := Node3D.new()
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 6.0, 0.35)
+	var scuro := _mat(OTTONE_SCURO, OTTONE_SCURO.darkened(0.25), 5.0, 0.4)
+	var gomma := _mat(GOMMA, GOMMA.darkened(0.2), 6.0, 0.3)
+	_cyl(n, 0.055, 0.055, 2.15, ottone, Vector3(0, 1.07, 0))
+	for y: float in [0.25, 1.9]:
+		_cyl(n, 0.075, 0.075, 0.06, scuro, Vector3(0, y, 0))
+	_cyl(n, 0.34, 0.36, 0.06, gomma, Vector3(0, 0.03, 0))
+	_cyl(n, 0.3, 0.3, 0.02, _mat(POMPA_ROSSO, POMPA_ROSSO_SCURO, 4.0, 0.4),
+			Vector3(0, 0.07, 0))
+	return n
+
+
+## LA CAMPANA DELLA CASERMA. Sul suo montante di legno, col cordino che
+## pende fino a mezz'aria: è quella che chiama tutti in piazza — l'unico
+## allarme di questo villaggio è «venite a vedere».
+static func _campana_caserma() -> Node3D:
+	var n := Node3D.new()
+	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	var corda := _mat(WOOD_PALE, WOOD, 6.0, 0.4)
+	_box(n, Vector3(0.12, 1.15, 0.12), wood, Vector3(-0.28, 0.57, 0))
+	_box(n, Vector3(0.58, 0.09, 0.09), wood, Vector3(-0.02, 1.1, 0))
+	var puntone := _box(n, Vector3(0.42, 0.06, 0.06), wood, Vector3(-0.15, 0.87, 0))
+	puntone.rotation.z = -0.7
+	# tutto quello che dondola sta sotto questo nodo
+	var giogo := Node3D.new()
+	giogo.name = "Campana"
+	giogo.position = Vector3(0.16, 1.06, 0)
+	n.add_child(giogo)
+	_ball(giogo, 0.035, ottone, Vector3.ZERO)
+	_cyl(giogo, 0.09, 0.155, 0.24, ottone, Vector3(0, -0.14, 0))
+	_cyl(giogo, 0.17, 0.155, 0.04, ottone, Vector3(0, -0.27, 0))
+	_ball(giogo, 0.03, _mat(OTTONE_SCURO, OTTONE_SCURO.darkened(0.3), 5.0, 0.4),
+			Vector3(0, -0.28, 0))
+	_cyl(giogo, 0.008, 0.008, 0.5, corda, Vector3(0, -0.52, 0))
+	_ball(giogo, 0.028, corda, Vector3(0, -0.77, 0))
+	# il respiro della corda: appena appena, come una campana ferma da poco
+	var anim := Animation.new()
+	anim.length = 5.0
+	anim.loop_mode = Animation.LOOP_LINEAR
+	var tr := anim.add_track(Animation.TYPE_VALUE)
+	anim.track_set_path(tr, NodePath("Campana:rotation:z"))
+	anim.track_insert_key(tr, 0.0, -0.02)
+	anim.track_insert_key(tr, 2.5, 0.02)
+	anim.track_insert_key(tr, 5.0, -0.02)
+	anim.track_set_interpolation_type(tr, Animation.INTERPOLATION_CUBIC)
+	var lib := AnimationLibrary.new()
+	lib.add_animation("dondola", anim)
+	var player := AnimationPlayer.new()
+	n.add_child(player)
+	player.add_animation_library("", lib)
+	player.autoplay = "dondola"
+	return n
+
+
+## L'IDRANTE. Tozzo, rosso, col cappellino e le due bocche laterali dalla
+## ghiera d'ottone. Da qui parte l'acqua per gli orti: l'unica cosa che
+## questa caserma bagna davvero.
+static func _idrante() -> Node3D:
+	var n := Node3D.new()
+	var rosso := _mat(POMPA_ROSSO, POMPA_ROSSO_SCURO, 3.5, 0.45)
+	var scuro := _mat(POMPA_ROSSO_SCURO, POMPA_ROSSO_SCURO.darkened(0.2), 4.0, 0.5)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	_cyl(n, 0.15, 0.19, 0.1, scuro, Vector3(0, 0.05, 0))
+	_cyl(n, 0.11, 0.13, 0.42, rosso, Vector3(0, 0.31, 0))
+	_cyl(n, 0.14, 0.14, 0.05, scuro, Vector3(0, 0.54, 0))
+	_ball(n, 0.12, rosso, Vector3(0, 0.58, 0), Vector3(1, 0.75, 1))
+	_cyl(n, 0.03, 0.03, 0.06, ottone, Vector3(0, 0.69, 0))
+	for z: float in [-1.0, 1.0]:
+		var b := _cyl(n, 0.055, 0.06, 0.12, scuro, Vector3(0, 0.38, z * 0.14))
+		b.rotation.x = PI * 0.5
+		var g := _cyl(n, 0.065, 0.065, 0.03, ottone, Vector3(0, 0.38, z * 0.2))
+		g.rotation.x = PI * 0.5
+	return n
+
+
+## LA MANICHETTA ARROTOLATA. Il cavalletto di legno, le spire avvolte
+## strette e la lancia d'ottone appoggiata davanti.
+static func _manichetta() -> Node3D:
+	var n := Node3D.new()
+	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var tubo := _mat(CREAM.darkened(0.08), WOOD_PALE.darkened(0.15), 7.0, 0.45)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	# il cavalletto: le due fiancate stanno DI TAGLIO al fronte, così la
+	# bobina si vede in faccia da davanti (girata di 90° si vedrebbe solo
+	# lo spessore del tubo, ed era la cosa che non si capiva)
+	for z: float in [-0.18, 0.18]:
+		for x: float in [-0.19, 0.19]:
+			var gamba := _box(n, Vector3(0.05, 0.34, 0.05), wood,
+					Vector3(x, 0.17, z))
+			gamba.rotation.z = -signf(x) * 0.13
+		_box(n, Vector3(0.44, 0.05, 0.05), wood, Vector3(0, 0.02, z))
+	var perno := _cyl(n, 0.035, 0.035, 0.44, wood, Vector3(0, 0.3, 0))
+	perno.rotation.x = PI * 0.5
+	# le spire: anelli concentrici che si stringono verso il perno
+	for i in 4:
+		var r := 0.28 - float(i) * 0.055
+		var spira := TorusMesh.new()
+		spira.inner_radius = r - 0.026
+		spira.outer_radius = r
+		var mi := MeshInstance3D.new()
+		mi.mesh = spira
+		mi.material_override = tubo
+		mi.position = Vector3(0, 0.3, 0.0)
+		mi.rotation.x = PI * 0.5
+		n.add_child(mi)
+	# il capo del tubo che scende, e la lancia d'ottone appoggiata
+	_cyl(n, 0.026, 0.026, 0.24, tubo, Vector3(0.28, 0.16, 0))
+	var lancia := _cyl(n, 0.028, 0.045, 0.2, ottone, Vector3(0.29, 0.045, -0.1))
+	lancia.rotation.x = PI * 0.5
+	lancia.rotation.y = 0.4
+	return n
+
+
+## IL CASCO E IL GIUBBETTO APPESI. Pezzo da muro: l'asse coi ganci, il
+## casco d'ottone con la cresta e il giubbetto scuro dalle bande chiare —
+## appesi come li lascia chi torna a casa e sa che domani li ritrova lì.
+static func _casco_appeso() -> Node3D:
+	var n := Node3D.new()
+	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	var giubbe := _mat(GOMMA.lightened(0.3), GOMMA.lightened(0.1), 5.0, 0.4)
+	var crema := _mat(CREAM, PLASTER_SHADE, 4.0, 0.4)
+	_box(n, Vector3(0.8, 0.1, 0.05), wood, Vector3(0, 1.5, -0.03))
+	for x: float in [-0.26, 0.22]:
+		var gancio := _cyl(n, 0.014, 0.014, 0.1, ottone, Vector3(x, 1.45, -0.08))
+		gancio.rotation.x = PI * 0.5
+	# il casco: la tesa larga (è lei che lo fa leggere come un casco da
+	# pompiere e non come una palla d'ottone), la calotta sopra, la cresta
+	# e lo scudetto rosso davanti
+	var casco := Node3D.new()
+	casco.position = Vector3(-0.26, 1.28, -0.12)
+	casco.rotation.x = -0.42       # appeso di sghembo: si vede la calotta
+	n.add_child(casco)
+	_cyl(casco, 0.155, 0.165, 0.022, ottone, Vector3(0, -0.03, 0))
+	_ball(casco, 0.115, ottone, Vector3(0, 0.0, 0), Vector3(1, 0.95, 1.05))
+	_box(casco, Vector3(0.04, 0.1, 0.22), ottone, Vector3(0, 0.07, 0))
+	# lo scudetto rosso sul frontino
+	_box(casco, Vector3(0.11, 0.1, 0.02),
+			_mat(POMPA_ROSSO, POMPA_ROSSO_SCURO, 4.0, 0.4), Vector3(0, 0.0, -0.12))
+	# il giubbetto: le spalle larghe, il busto che si stringe, le maniche
+	# staccate e DUE bande della larghezza del busto (più larghe leggevano
+	# come un codice a barre appeso al muro)
+	_box(n, Vector3(0.34, 0.08, 0.1), giubbe, Vector3(0.22, 1.4, -0.08))
+	_box(n, Vector3(0.28, 0.4, 0.1), giubbe, Vector3(0.22, 1.18, -0.08))
+	# la falda in fondo, che si allarga: senza, il giubbetto è una lastra
+	_box(n, Vector3(0.32, 0.08, 0.11), giubbe, Vector3(0.22, 1.0, -0.08))
+	# la chiusura davanti, con i due bottoni d'ottone
+	_box(n, Vector3(0.04, 0.42, 0.02), crema, Vector3(0.22, 1.19, -0.14))
+	for y: float in [1.24, 1.06]:
+		_ball(n, 0.016, ottone, Vector3(0.22, y, -0.15))
+	for x: float in [0.06, 0.38]:
+		var manica := _box(n, Vector3(0.08, 0.32, 0.09), giubbe,
+				Vector3(x, 1.22, -0.08))
+		manica.rotation.z = (0.12 if x < 0.22 else -0.12)
+	for y: float in [1.12, 1.3]:
+		_box(n, Vector3(0.29, 0.035, 0.11), crema, Vector3(0.22, y, -0.08))
+	# il colletto chiaro
+	_box(n, Vector3(0.16, 0.05, 0.11), crema, Vector3(0.22, 1.44, -0.08))
+	return n
+
+
+## GLI STIVALI IN FILA. Tre paia col risvolto rosso, allineati sulla
+## soglia: il pezzo più piccolo della caserma e quello che la racconta
+## meglio — nessuno li sta indossando, e va benissimo così.
+static func _stivali() -> Node3D:
+	var n := Node3D.new()
+	var gomma := _mat(GOMMA, GOMMA.darkened(0.25), 6.0, 0.35)
+	var rosso := _mat(POMPA_ROSSO, POMPA_ROSSO_SCURO, 4.0, 0.45)
+	for i in 3:
+		var x := -0.3 + float(i) * 0.3
+		for z: float in [-0.07, 0.07]:
+			_cyl(n, 0.055, 0.06, 0.2, gomma, Vector3(x, 0.1, z))
+			_cyl(n, 0.062, 0.062, 0.035, rosso, Vector3(x, 0.2, z))
+			_box(n, Vector3(0.1, 0.05, 0.17), gomma, Vector3(x, 0.025, z - 0.06))
+	return n
+
+
+## LA SCALA A PIOLI. Appoggiata al muro con la sua inclinazione, correnti
+## di legno e pioli d'ottone.
+static func _scala_pioli() -> Node3D:
+	var n := Node3D.new()
+	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	var scala := Node3D.new()
+	scala.rotation.x = 0.22
+	scala.position = Vector3(0, 0, -0.16)
+	n.add_child(scala)
+	for x: float in [-0.16, 0.16]:
+		_box(scala, Vector3(0.05, 1.9, 0.05), wood, Vector3(x, 0.95, 0))
+	for i in 7:
+		_box(scala, Vector3(0.37, 0.035, 0.035), ottone,
+				Vector3(0, 0.25 + float(i) * 0.24, 0))
+	return n
+
+
+## L'INSEGNA DELLA CASERMA. La targa incorniciata con l'emblema dipinto a
+## mano: lo scudo rosso, l'elmetto d'ottone e le due manichette incrociate.
+static func _insegna_caserma() -> Node3D:
+	var n := Node3D.new()
+	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var crema := _mat(CREAM, PLASTER_SHADE, 4.0, 0.4)
+	var rosso := _mat(POMPA_ROSSO, POMPA_ROSSO_SCURO, 3.5, 0.45)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	_box(n, Vector3(0.92, 0.44, 0.06), wood, Vector3(0, 1.52, -0.02))
+	_box(n, Vector3(0.82, 0.34, 0.04), crema, Vector3(0, 1.52, -0.06))
+	# le due manichette incrociate, dietro allo scudo
+	for s: float in [-1.0, 1.0]:
+		var m := _cyl(n, 0.018, 0.018, 0.42, ottone, Vector3(0, 1.52, -0.07))
+		m.rotation.z = s * 0.9
+	# lo scudo e l'elmetto
+	_box(n, Vector3(0.2, 0.24, 0.02), rosso, Vector3(0, 1.55, -0.08))
+	_ball(n, 0.11, rosso, Vector3(0, 1.44, -0.08), Vector3(1, 0.7, 0.2))
+	_ball(n, 0.06, ottone, Vector3(0, 1.56, -0.1), Vector3(1, 0.7, 0.6))
+	# i due montanti
+	for x: float in [-0.36, 0.36]:
+		_cyl(n, 0.05, 0.06, 1.3, wood, Vector3(x, 0.65, -0.02))
+	return n
+
+
+## I SECCHI ROSSI. Tre impilati e uno di fianco col manico d'ottone in
+## vista: la cosa più semplice della caserma, e la più vera.
+static func _secchi() -> Node3D:
+	var n := Node3D.new()
+	var rosso := _mat(POMPA_ROSSO, POMPA_ROSSO_SCURO, 4.0, 0.45)
+	var scuro := _mat(POMPA_ROSSO_SCURO, POMPA_ROSSO_SCURO.darkened(0.2), 5.0, 0.5)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	for i in 3:
+		var y := 0.1 + float(i) * 0.13
+		_cyl(n, 0.135, 0.1, 0.2, rosso, Vector3(-0.14, y, 0))
+		_cyl(n, 0.14, 0.14, 0.02, scuro, Vector3(-0.14, y + 0.1, 0))
+	_cyl(n, 0.135, 0.1, 0.2, rosso, Vector3(0.2, 0.1, -0.08))
+	_cyl(n, 0.14, 0.14, 0.02, scuro, Vector3(0.2, 0.2, -0.08))
+	var manico := TorusMesh.new()
+	manico.inner_radius = 0.125
+	manico.outer_radius = 0.14
+	var mi := MeshInstance3D.new()
+	mi.mesh = manico
+	mi.material_override = ottone
+	mi.position = Vector3(0.2, 0.24, -0.08)
+	mi.rotation.x = PI * 0.5
+	mi.scale = Vector3(1, 1, 0.55)
+	n.add_child(mi)
+	return n
+
+
+## IL FARO DELLA CASERMA. Non una sirena che urla: una lanterna che GIRA
+## piano sul suo palo, e la sera fa il giro del cortile come un piccolo
+## faro di terra. Il giro glielo dà un AnimationPlayer in loop — i pezzi
+## piazzati sono nodi nudi, come la mongolfiera.
+static func _faro_caserma() -> Node3D:
+	var n := Node3D.new()
+	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var scuro := _mat(POMPA_ROSSO_SCURO, POMPA_ROSSO_SCURO.darkened(0.25), 5.0, 0.45)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	_cyl(n, 0.06, 0.09, 1.2, wood, Vector3(0, 0.6, 0))
+	_cyl(n, 0.16, 0.16, 0.04, scuro, Vector3(0, 1.22, 0))
+	# la testa che gira
+	var testa := Node3D.new()
+	testa.name = "Girella"
+	testa.position = Vector3(0, 1.38, 0)
+	n.add_child(testa)
+	# il vetro rosso: acceso ma non slavato — con l'emissione alta il rosso
+	# sbianca e il faro sembra una lampadina qualunque
+	_cyl(testa, 0.13, 0.13, 0.22, _glow(POMPA_ROSSO, POMPA_ROSSO_SCURO, 0.45),
+			Vector3.ZERO)
+	for y: float in [-0.12, 0.12]:
+		_cyl(testa, 0.15, 0.15, 0.035, ottone, Vector3(0, y, 0))
+	# la gabbia d'ottone attorno al vetro
+	for i in 4:
+		var a := float(i) * PI * 0.5 + PI * 0.25
+		_cyl(testa, 0.016, 0.016, 0.24, ottone,
+				Vector3(sin(a) * 0.13, 0, cos(a) * 0.13))
+	# la lente: la fetta chiara che passando accende il cortile
+	_box(testa, Vector3(0.05, 0.15, 0.2), _glow(CREAM, Color("ffd9a8"), 1.6),
+			Vector3(0.11, 0, 0))
+	var fascio := SpotLight3D.new()
+	fascio.light_color = Color(1.0, 0.74, 0.58)
+	fascio.light_energy = 1.6
+	fascio.spot_range = 6.5
+	fascio.spot_angle = 26.0
+	fascio.shadow_enabled = false
+	fascio.position = Vector3(0.14, 0, 0)
+	fascio.rotation = Vector3(0, -PI * 0.5, 0)
+	testa.add_child(fascio)
+	# il giro: lento, continuo, senza scatti al riavvolgimento
+	var anim := Animation.new()
+	anim.length = 9.0
+	anim.loop_mode = Animation.LOOP_LINEAR
+	var tr := anim.add_track(Animation.TYPE_VALUE)
+	anim.track_set_path(tr, NodePath("Girella:rotation:y"))
+	anim.track_insert_key(tr, 0.0, 0.0)
+	anim.track_insert_key(tr, 4.5, PI)
+	anim.track_insert_key(tr, 9.0, TAU)
+	anim.track_set_interpolation_type(tr, Animation.INTERPOLATION_LINEAR)
+	var lib := AnimationLibrary.new()
+	lib.add_animation("gira", anim)
+	var player := AnimationPlayer.new()
+	n.add_child(player)
+	player.add_animation_library("", lib)
+	player.autoplay = "gira"
+	return n
+
+
+## LA CUCCIA DELLA CASERMA. Nessun cane, per ora: la cuccia rossa col
+## tetto a falde e la ciotola d'ottone davanti — chi passa ci mette il
+## naso dentro, e un giorno magari ci resta qualcuno.
+static func _cuccia_caserma() -> Node3D:
+	var n := Node3D.new()
+	var rosso := _mat(POMPA_ROSSO, POMPA_ROSSO_SCURO, 3.5, 0.45)
+	var crema := _mat(CREAM, PLASTER_SHADE, 4.0, 0.4)
+	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	_box(n, Vector3(0.6, 0.42, 0.54), crema, Vector3(0, 0.21, 0))
+	# l'ingresso: un arco, non un buco quadrato
+	var buio := _mat(GOMMA.lightened(0.05), GOMMA, 5.0, 0.3)
+	_box(n, Vector3(0.24, 0.22, 0.06), buio, Vector3(0, 0.11, -0.27))
+	var arco := _cyl(n, 0.12, 0.12, 0.06, buio, Vector3(0, 0.22, -0.27))
+	arco.rotation.x = PI * 0.5
+	# il tetto a due falde: la falda di sinistra scende verso sinistra e
+	# quella di destra verso destra, o invece di una punta viene una V
+	for s: float in [-1.0, 1.0]:
+		var f := _box(n, Vector3(0.48, 0.05, 0.6), rosso, Vector3(s * 0.18, 0.5, 0))
+		f.rotation.z = -s * 0.51
+	_box(n, Vector3(0.09, 0.06, 0.62), wood, Vector3(0, 0.6, 0))
+	_cyl(n, 0.09, 0.07, 0.05, ottone, Vector3(0.3, 0.025, -0.3))
+	return n
+
+
+## IL PENNONE COL GAGLIARDETTO. Il palo chiaro e la bandierina rossa
+## della caserma, che ondeggia con lo stesso vento del bucato steso.
+static func _pennone_caserma() -> Node3D:
+	var n := Node3D.new()
+	var crema := _mat(CREAM, PLASTER_SHADE, 4.0, 0.4)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	var stoffa := _mat(POMPA_ROSSO, POMPA_ROSSO_SCURO, 2.5, 0.4)
+	stoffa.set_shader_parameter("wind_strength", 0.02)
+	stoffa.set_shader_parameter("wind_speed", 2.4)
+	_cyl(n, 0.035, 0.05, 2.0, crema, Vector3(0, 1.0, 0))
+	_ball(n, 0.05, ottone, Vector3(0, 2.02, 0))
+	# il gagliardetto attaccato al palo, con la coda a due punte
+	var f := _box(n, Vector3(0.02, 0.32, 0.4), stoffa, Vector3(0.02, 1.72, -0.24))
+	f.rotation.y = -0.1
+	for y: float in [1.6, 1.84]:
+		var punta := _box(n, Vector3(0.02, 0.1, 0.14), stoffa,
+				Vector3(0.03, y, -0.49))
+		punta.rotation.y = -0.1
+	# i due anelli d'ottone che la tengono su
+	for y: float in [1.58, 1.86]:
+		var anello := _cyl(n, 0.055, 0.055, 0.014, ottone, Vector3(0, y, 0))
+		anello.rotation.x = PI * 0.5
+	return n

@@ -60,6 +60,10 @@ const SHOP_PIECES := [
 	# desiderabili anche quando il carretto di tutti i giorni è già tuo
 	{"name": "Carillon", "cost": 500, "cur": "nut", "cat": 1,
 		"desc": "Una scatola di ciliegio con la manovella: caricala\ne cambia la musica di tutto il villaggio."},
+	{"name": "Guardiola", "cost": 300, "cur": "nut", "cat": 0,
+		"desc": "Il posto di guardia: una casina col lume azzurro sempre\nacceso, e l'armadio dove le cose perse aspettano\nchi le ha perse. Arriva con tutto il suo corredo."},
+	{"name": "Autopompa", "cost": 460, "cur": "nut", "cat": 0,
+		"desc": "La caserma dei pompieri, tutta intera: l'autopompa\nlucidata, la campana che chiama in piazza e gli\nstivali in fila. Qui non brucia niente: si tiene pronto."},
 	{"name": "Serra", "cost": 520, "cur": "nut", "cat": 2,
 		"desc": "Un giardino di vetro: col suo tepore, orto e fiori\ncrescono anche sotto la neve."},
 	{"name": "Mongolfiera", "cost": 650, "cur": "nut", "cat": 2,
@@ -169,8 +173,28 @@ func is_piece_unlocked(name: String) -> bool:
 	return _unlocked_pieces.has(name)
 
 
+## I pezzi che arrivano INSIEME a un altro. Un posto di guardia non si
+## compra a pezzi come si compra una panchina: la guardiola arriva col suo
+## corredo — il bancone, l'armadio degli smarriti, la bacheca, il berretto
+## appeso — perché è così che arrivano i posti. E il banco del mercante
+## resta leggibile invece di riempirsi di tredici voci quasi uguali.
+## Le chiavi sono NOMI DI PEZZO: id del catalogo, mai tradurli.
+const CORREDO := {
+	"Guardiola": ["Insegna guardia", "Sbarra", "Bancone guardia",
+			"Armadio smarriti", "Bacheca avvisi", "Attaccapanni", "Brandina",
+			"Lanterna blu", "Cono", "Transenna", "Bicicletta",
+			"Cassetta smarriti"],
+	"Autopompa": ["Portone rimessa", "Torretta", "Palo pompieri",
+			"Scala a pioli", "Insegna caserma", "Campana caserma",
+			"Casco appeso", "Stivali", "Secchi", "Idrante", "Manichetta",
+			"Faro caserma", "Cuccia", "Pennone"],
+}
+
+
 func unlock_piece(name: String) -> void:
 	_unlocked_pieces[name] = true
+	for compagno in CORREDO.get(name, []):
+		_unlocked_pieces[str(compagno)] = true
 	shop_changed.emit()
 	_save()
 
