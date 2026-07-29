@@ -29,6 +29,8 @@ func run(t) -> void:
 	_test_il_ritocco(t)
 	_test_la_giornata(t)
 	_test_lo_sblocco(t)
+	_test_il_vanto(t)
+	_test_mochi_allo_specchio(t)
 
 
 ## IL SOGNO, e le quattro tabelle che devono restare allineate.
@@ -185,6 +187,74 @@ func _test_lo_sblocco(t) -> void:
 	t.ok(nel_negozio, "il Salone parte bloccato (è un pezzo del negozio)")
 	t.ok(not "Salone" in GUFO.STARTER,
 			"…e di sicuro non è fra i pezzi del primo minuto")
+
+
+## IL VANTO. Uscire cambiati e non dirlo a nessuno non e' un
+## cambiamento: e' un dettaglio grafico che il giocatore non vedra' mai,
+## perche' stava guardando da un'altra parte.
+func _test_il_vanto(t) -> void:
+	var src := _sorgente("res://scenes/interact/Salone.gd")
+	t.ok(src.contains("func _vai_a_vantarsi"),
+			"chi esce dal salone va a farsi vedere")
+	var v := _corpo(src, "_vai_a_vantarsi")
+	t.ok(v.contains("_il_piu_vicino"),
+			"…cerca il vicino piu' vicino, non uno a caso dall'altra parte del prato")
+	t.ok(v.contains("do_routine"), "…e ci va camminando")
+	t.ok(v.contains("si_illumina"),
+			"…e quello si ILLUMINA: la reazione e' meta' della scena")
+	t.ok(v.contains("riflesso"),
+			"se non c'e' nessuno a cui mostrarlo, si guarda allo specchio "
+			+ "— e va bene lo stesso")
+	# il piu' vicino non e' mai se stesso, ne' uno dall'altro capo del mondo
+	var vv := _corpo(src, "_il_piu_vicino")
+	t.ok(vv.contains("label == tranne"), "non ci si vanta con se stessi")
+	t.ok(vv.contains("best_d := 14.0"),
+			"…e nemmeno con qualcuno che non ti vede nemmeno")
+
+
+## MOCHI ALLO SPECCHIO: la stessa linea di confine, addosso a lei.
+##
+## Mochi non nasce da un genoma — il suo corpo e' scritto a mano — quindi
+## qui la strada e' un'altra: si RITINGE invece di rifare. Rifarla da capo
+## avrebbe voluto dire buttare via il volto vivo, i capi indossati e i
+## punti d'aggancio: molto rischio per un cambio di colore.
+func _test_mochi_allo_specchio(t) -> void:
+	var src := _sorgente("res://scenes/characters/Mochi.gd")
+	t.ok(src.contains("func rifai_il_look"),
+			"Mochi ha il suo cambio di look, come i vicini")
+	t.ok(src.contains("const RITINGIBILI"),
+			"…con la sua linea di confine dichiarata")
+	for ruolo in ["manto", "vestito", "guance", "zampe"]:
+		t.ok(src.contains("\"%s\"" % ruolo),
+				"il ruolo '%s' e' fra quelli che il salone sa cambiare" % ruolo)
+	# NON si rifa' il corpo: si ritinge. E' la scelta che tiene in vita
+	# volto, capi e agganci.
+	var r := _corpo(src, "rifai_il_look")
+	t.ok(r.contains("_tinge("), "si RITINGE sul posto")
+	t.ok(not r.contains("_build_body") and not r.contains("_build_head"),
+			"…e non si rifa' il corpo: volto, capi e agganci restano vivi")
+	t.ok(_corpo(src, "_tinge").contains("tween_method"),
+			"il colore cambia con una FUSIONE: il cambio si vede avvenire")
+	# le sopracciglia sono geometria, non colore: quelle si rifanno — ma
+	# solo quelle, e il volto ne riprende il possesso
+	t.ok(src.contains("func _rifai_sopracciglia"),
+			"le sopracciglia sono geometria: quelle si rifanno")
+	t.ok(_corpo(src, "_rifai_sopracciglia").contains("aggiorna_sopracciglia"),
+			"…e il volto vivo ne riprende il possesso (o muoverebbe nodi morti)")
+	t.ok(_sorgente("res://scenes/characters/FaceController.gd")
+			.contains("func aggiorna_sopracciglia"),
+			"il volto sa farsi ridare le sopracciglia")
+	# la stessa promessa dei vicini: qui non si cambia CHI SI E'
+	t.ok(not r.contains("\"name\"") and not r.contains("\"size\""),
+			"nome e taglia non compaiono nemmeno: non si cambia chi si e'")
+
+
+func _corpo(src: String, nome: String) -> String:
+	var da := src.find("func " + nome)
+	if da < 0:
+		return ""
+	var fine := src.find("\nfunc ", da + 1)
+	return src.substr(da, (fine - da) if fine > da else -1)
 
 
 func _sorgente(path: String) -> String:

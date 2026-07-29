@@ -269,7 +269,75 @@ func _finisci_seduta() -> void:
 			# il filo si annoda anche fra vicini: e' un momento vissuto
 			if _legami and _estetista != "":
 				_legami.call("momento", _nome_di(_cliente), "regalo", "")
+			_vai_a_vantarsi(_cliente)
+			_congeda_cliente()
+			return
 	_congeda_cliente()
+
+
+## IL VANTO. Uscire cambiati e non dirlo a nessuno non e' un cambiamento:
+## e' un dettaglio grafico. Chi esce dal salone va a cercare il vicino
+## piu' vicino e glielo fa vedere — e quello si illumina.
+##
+## E' la parte che fa esistere la meccanica agli occhi del giocatore: se
+## non ci fosse, un vicino cambierebbe colore mentre lui guarda da
+## un'altra parte, e non se ne accorgerebbe mai.
+func _vai_a_vantarsi(chi: String) -> void:
+	var nodo := _nodo_di(chi)
+	if nodo == null:
+		return
+	var pubblico := _il_piu_vicino(chi, nodo.global_position)
+	if pubblico == null:
+		# nessuno a cui farlo vedere: allora si guarda allo specchio,
+		# e va bene lo stesso
+		if nodo.has_method("speak"):
+			nodo.call("speak", ["bello", "felice"], "felice")
+		_toast(L10n.tf("%s non fa che girarsi a guardare il suo riflesso.", [chi]))
+		return
+	# ci va, glielo mostra, e l'altro si illumina
+	var verso: Vector3 = pubblico.global_position
+	if nodo.has_method("do_routine"):
+		nodo.call("do_routine", "sniff",
+				verso + (nodo.global_position - verso).normalized() * 1.1, verso)
+	if nodo.has_method("speak"):
+		nodo.call("speak", ["guarda", "bello"], "felice")
+	get_tree().create_timer(2.2).timeout.connect(func() -> void:
+		if not is_instance_valid(pubblico):
+			return
+		pubblico.set_meta("postura", "si_illumina")
+		if pubblico.has_method("speak"):
+			pubblico.call("speak", ["bello", "amico"], "felice")
+		if pubblico.has_method("_spawn_heart"):
+			pubblico.call("_spawn_heart"))
+	_toast(L10n.tf("%s corre a farsi vedere: il villaggio se ne accorge.", [chi]))
+
+
+## Il residente piu' vicino a un punto, escluso `tranne` e chi ci lavora.
+func _il_piu_vicino(tranne: String, da: Vector3) -> Node3D:
+	var best: Node3D = null
+	var best_d := 14.0
+	for r in (_visitors.get("_residents") as Array):
+		var label := str(r.get("label", ""))
+		if label == tranne:
+			continue
+		var n := r.get("node") as Node3D
+		if n == null or not is_instance_valid(n):
+			continue
+		if n.has_method("is_hidden") and bool(n.call("is_hidden")):
+			continue
+		var d := da.distance_to(n.global_position)
+		if d < best_d:
+			best_d = d
+			best = n
+	return best
+
+
+func _toast(testo: String) -> void:
+	var hud := get_tree().get_first_node_in_group("toast")
+	if hud and hud.has_method("show_toast"):
+		hud.call("show_toast", testo)
+	elif _visitors and _visitors.has_method("_show_toast"):
+		_visitors.call("_show_toast", testo)
 
 
 func _congeda_cliente() -> void:

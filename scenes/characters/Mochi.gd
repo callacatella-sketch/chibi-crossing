@@ -85,6 +85,8 @@ var _prev_step_sin := 0.0
 var _squinting := false
 var _tired := false
 var _droop := 0.0
+## Lo stile delle sopracciglia di Mochi: il salone lo può cambiare.
+var _brow_stile := "morbide"
 # il riparo dalla pioggia: zampina a visiera, orecchie basse, passetto
 # svelto. 0..1, fuso coi muscoli; il bersaglio si rilegge ogni ~0.35 s
 var _riparo := 0.0
@@ -452,13 +454,42 @@ func _spawn_zzz() -> void:
 
 # ---------------------------------------------------------------- materiali
 
+## I RUOLI DELLE TINTE. Ogni materiale che nasce con uno di questi colori
+## si iscrive al suo ruolo, e da quel momento il salone lo sa ritingere.
+## Senza, cambiare il manto di Mochi avrebbe voluto dire rifarle il corpo
+## intero — e con lui il volto vivo, i capi indossati e i punti di
+## aggancio: molto rischio per un cambio di colore.
+const RUOLO_TINTA := {
+	Color("f7e6d0"): "manto",       # FUR
+	Color("e9cfae"): "manto_scuro", # FUR_DARK (il ciuffo)
+	Color("f2a9bc"): "vestito",     # DRESS
+	Color("fff3e6"): "zampe",       # PAW
+}
+## ruolo -> [materiali] e ruolo -> colore corrente
+var _tinte := {}
+var _tinta_di := {}
+
+
 func _toon_mat(color: Color, fur := 0.0) -> ShaderMaterial:
 	var mat := ShaderMaterial.new()
 	mat.shader = TOON_SHADER
 	mat.set_shader_parameter("albedo_color", color)
 	if fur > 0.0:
 		mat.set_shader_parameter("fur_noise", fur)
+	_iscrivi_tinta(color, mat)
 	return mat
+
+
+func _iscrivi_tinta(color: Color, mat: Material) -> void:
+	for base in RUOLO_TINTA:
+		if not (base as Color).is_equal_approx(color):
+			continue
+		var ruolo := str(RUOLO_TINTA[base])
+		if not _tinte.has(ruolo):
+			_tinte[ruolo] = []
+			_tinta_di[ruolo] = base
+		(_tinte[ruolo] as Array).append(mat)
+		return
 
 
 func _flat_mat(color: Color) -> StandardMaterial3D:
@@ -664,7 +695,7 @@ func _build_head() -> void:
 		# vive gran parte dell'emozione. Tono caldo del musetto, non nero
 		# duro; toon e non unshaded, così il fuso mostra il suo rilievo.
 		_brows.append(FACE.build_brow(_head, _toon_mat(Color("6b4636")), side,
-				Vector3(side * 0.108, 0.185, -0.352), 0.088, 0.017, "morbide"))
+				Vector3(side * 0.108, 0.185, -0.352), 0.088, 0.017, _brow_stile))
 
 	# occhi ">.<" per la corsa: UNA pennellata sola per occhio — dall'
 	# estremità alta, giù fino al vertice (che guarda il nasino), e su
@@ -716,7 +747,12 @@ func _build_head() -> void:
 
 	# guanciotte
 	for side: float in [-1.0, 1.0]:
-		var blush := _add_mesh(_head, _sphere(0.055, 16), _flat_mat(Color(BLUSH, 0.6)),
+		var blush_mat := _flat_mat(Color(_tinta_di.get("guance", BLUSH), 0.6))
+		if not _tinte.has("guance"):
+			_tinte["guance"] = []
+			_tinta_di["guance"] = BLUSH
+		(_tinte["guance"] as Array).append(blush_mat)
+		var blush := _add_mesh(_head, _sphere(0.055, 16), blush_mat,
 				Vector3(side * 0.265, -0.055, -0.3), Vector3(1, 0.62, 0.3), false)
 		blush.rotation.y = side * -0.55
 		_blushes.append(blush)
@@ -1541,6 +1577,97 @@ func _su_testa(p: Vector3) -> Vector3:
 			s.y / (_TESTA_SEMI.y * _TESTA_SEMI.y),
 			s.z / (_TESTA_SEMI.z * _TESTA_SEMI.z)).normalized()
 	return s + nrm * 0.006
+
+
+# ================================================== MOCHI ALLO SPECCHIO
+#
+# La stessa linea di confine dei vicini, addosso a lei: si cambia
+# l'ASPETTO, non chi si è. Ma Mochi non nasce da un genoma — il suo corpo
+# è scritto a mano, e rifarlo da capo avrebbe voluto dire buttare via il
+# volto vivo, i capi indossati e i punti d'aggancio: molto rischio per un
+# cambio di colore.
+#
+# Perciò qui si RITINGE: ogni materiale sa a che ruolo appartiene (manto,
+# vestito, guanciotte, zampe) e cambia colore sul posto, con una fusione
+# morbida — il cambio si VEDE avvenire, non appare fra due frame. Le
+# sopracciglia sono l'unica cosa che è geometria e non colore: quelle si
+# rifanno, ma sono due nodi soli.
+const RITINGIBILI := ["manto", "manto_scuro", "vestito", "zampe", "guance"]
+
+
+## Le tinte di adesso: ruolo -> Color. È quello che il salone mostra
+## quando ti siedi, e quello che si salva.
+func estetica() -> Dictionary:
+	var out := {}
+	for ruolo in RITINGIBILI:
+		if _tinta_di.has(ruolo):
+			out[ruolo] = _tinta_di[ruolo]
+	out["sopracciglia"] = _brow_stile
+	return out
+
+
+## IL CAMBIO DI LOOK DI MOCHI. `nuovi` accetta le chiavi di RITINGIBILI
+## (Color o stringa esadecimale) e "sopracciglia" (uno stile del volto).
+## Tutto il resto viene IGNORATO in silenzio, come per i vicini: qui non
+## si cambia chi si è.
+## Torna false se non c'era niente da cambiare.
+func rifai_il_look(nuovi: Dictionary) -> bool:
+	var fatto := false
+	for ruolo in RITINGIBILI:
+		if not nuovi.has(ruolo):
+			continue
+		var col: Color = nuovi[ruolo] if nuovi[ruolo] is Color \
+				else Color(str(nuovi[ruolo]))
+		if _tinta_di.has(ruolo) and (_tinta_di[ruolo] as Color).is_equal_approx(col):
+			continue
+		_tinge(ruolo, col)
+		fatto = true
+	# il manto scuro (il ciuffo) segue il manto, se non è stato chiesto
+	if nuovi.has("manto") and not nuovi.has("manto_scuro"):
+		_tinge("manto_scuro", (_tinta_di["manto"] as Color).darkened(0.16))
+	if nuovi.has("sopracciglia"):
+		var stile := str(nuovi["sopracciglia"])
+		if stile != _brow_stile and FACE.BROW_STYLES.has(stile):
+			_brow_stile = stile
+			_rifai_sopracciglia()
+			fatto = true
+	return fatto
+
+
+## Ritinge tutti i materiali di un ruolo, con una fusione morbida.
+func _tinge(ruolo: String, col: Color) -> void:
+	if not _tinte.has(ruolo):
+		return
+	var da: Color = _tinta_di.get(ruolo, col)
+	_tinta_di[ruolo] = col
+	var mats: Array = _tinte[ruolo]
+	var passo := func(k: float) -> void:
+		var c := da.lerp(col, k)
+		for m in mats:
+			if not is_instance_valid(m):
+				continue
+			if m is ShaderMaterial:
+				(m as ShaderMaterial).set_shader_parameter("albedo_color", c)
+			elif m is StandardMaterial3D:
+				var sm := m as StandardMaterial3D
+				sm.albedo_color = Color(c, sm.albedo_color.a)
+	var tw := create_tween()
+	tw.tween_method(passo, 0.0, 1.0, 0.55).set_trans(Tween.TRANS_SINE)
+
+
+## Le sopracciglia sono geometria: si rifanno. Sono due nodi soli, e il
+## FaceController le ritrova perché gli si ripassa il rig.
+func _rifai_sopracciglia() -> void:
+	if _face == null or _brows.is_empty():
+		return
+	for b in _brows:
+		if is_instance_valid(b):
+			b.queue_free()
+	_brows.clear()
+	for side: float in [-1.0, 1.0]:
+		_brows.append(FACE.build_brow(_head, _toon_mat(Color("6b4636")), side,
+				Vector3(side * 0.108, 0.185, -0.352), 0.088, 0.017, _brow_stile))
+	_face.aggiorna_sopracciglia(_brows)
 
 
 ## Blocca il volto su un'espressione (harness delle facce): "" per liberarlo.

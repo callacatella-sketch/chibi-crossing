@@ -585,6 +585,29 @@ func _debug_estetista(dir: String) -> void:
 	print("ESTETISTA: cambiato -> %s" % str(cambiati))
 	print("ESTETISTA: identita' intatta -> nome %s · sogno %s"
 			% [prima["name"] == dopo["name"], prima["sogno"] == dopo["sogno"]])
+	# MOCHI ALLO SPECCHIO: la stessa linea di confine, addosso a lei
+	var mochi = player.get_node_or_null("Mochi")
+	if mochi:
+		player.global_position = c + Vector3(0.1, 0, 1.25)
+		mochi.set("_yaw", PI)
+		cam.position = c + Vector3(0.35, 0.72, 2.35)
+		cam.look_at(c + Vector3(0.1, 0.42, 1.25))
+		await _frames(10)
+		await _shot(dir, "estetista_5_mochi_prima")
+		var e0: Dictionary = mochi.call("estetica")
+		print("MOCHI: prima -> manto %s · vestito %s · sopracciglia %s"
+				% [str(e0["manto"]), str(e0["vestito"]), str(e0["sopracciglia"])])
+		var ok: bool = mochi.call("rifai_il_look", {
+				"manto": "e8c4a8", "vestito": "9ec9e8", "guance": "ff8fb0",
+				"sopracciglia": "decise",
+				"nome": "Impostore", "size": 3.0})   # scartati
+		await get_tree().create_timer(1.2).timeout
+		await _shot(dir, "estetista_6_mochi_dopo")
+		var e1: Dictionary = mochi.call("estetica")
+		print("MOCHI: dopo  -> manto %s · vestito %s · sopracciglia %s  (cambiato: %s)"
+				% [str(e1["manto"]), str(e1["vestito"]), str(e1["sopracciglia"]), ok])
+		print("MOCHI: una seduta identica non fa nulla -> %s"
+				% ("giusto" if not mochi.call("rifai_il_look", {"manto": "e8c4a8"}) else "SBAGLIATO"))
 	print("ESTETISTA: fine")
 	get_tree().quit()
 

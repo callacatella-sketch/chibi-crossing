@@ -563,6 +563,23 @@ func _load_targets(name: String, intensity: float) -> void:
 		_mouth_mix = 0.0
 
 
+## LE SOPRACCIGLIA SI RIFANNO (il salone cambia lo stile a Mochi): il
+## volto ne riprende il possesso e rimisura le pose di riposo. Senza,
+## la recita continuerebbe a muovere due nodi liberati.
+func aggiorna_sopracciglia(nuove: Array) -> void:
+	_brows.assign(nuove)
+	_brow_base_pos.clear()
+	_brow_base_rot.clear()
+	for b in _brows:
+		_brow_base_pos.append(b.position)
+		_brow_base_rot.append(b.rotation)
+	while _brow_h_cur.size() < _brows.size():
+		_brow_h_cur.append(0.0)
+		_brow_h_vel.append(0.0)
+		_brow_ang_cur.append(0.0)
+		_brow_ang_vel.append(0.0)
+
+
 func _has_shape(shape: String) -> bool:
 	match shape:
 		"happy": return not _happy.is_empty()
