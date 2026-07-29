@@ -77,6 +77,7 @@ func _draw() -> void:
 		"fiocco": _fiocco()
 		"conchiglia": _conchiglia()
 		"campanella": _campanella()
+		"sasso": _sasso()
 		"porcino": _porcino()
 		"farfalla": _jar_farfalla()
 		"lucciola": _jar_lucciola()
@@ -322,6 +323,21 @@ func _conchiglia() -> void:
 	_circle(0.56, 0.55, 0.035, ombra)
 	# il riflesso freddo dell'acqua
 	_ell(0.38, 0.47, 0.07, 0.045, Color(0.85, 0.93, 0.95, 0.8))
+
+
+func _sasso() -> void:
+	# il sasso da rimbalzello: un disco appena ovale, visto di tre quarti,
+	# con la faccia levigata piu' chiara e i cerchi dell'acqua sotto
+	var pietra := Color("8e9299")
+	var scuro := Color("6d7278")
+	var chiaro := Color("b4b9bf")
+	_ell(0.5, 0.56, 0.34, 0.19, pietra, scuro, 0.03)
+	_ell(0.46, 0.51, 0.2, 0.09, chiaro)
+	# i cerchi sull'acqua, sotto: dicono a cosa serve
+	var acqua := Color(0.62, 0.78, 0.86, 0.75)
+	draw_arc(_p(0.5, 0.8), 0.2 * _U, 0.15, PI - 0.15, 18, acqua, 0.024 * _U, true)
+	draw_arc(_p(0.5, 0.8), 0.31 * _U, 0.35, PI - 0.35, 18,
+			Color(acqua, 0.45), 0.02 * _U, true)
 
 
 func _campanella() -> void:

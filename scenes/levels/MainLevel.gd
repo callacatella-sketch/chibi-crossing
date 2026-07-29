@@ -66,6 +66,9 @@ func _ready():
 	add_child(_spawn_system("res://scenes/npc/Commissioni.gd", "Commissioni"))
 	# il nido della Casetta uccellini: in primavera arriva Briciola
 	add_child(_spawn_system("res://scenes/interact/Nido.gd", "Nido"))
+	# le promesse: un vicino ti da' appuntamento a un fenomeno del mondo
+	# (la bruma, la levata dei pesci, la prima neve) e quel giorno c'e'
+	add_child(_spawn_system("res://scenes/npc/Promesse.gd", "Promesse"))
 	# il velo di carta imparava a respirare: le sue manopole non le
 	# scriveva mai nessuno (vedi Carta.gd)
 	add_child(_spawn_system("res://scenes/world/Carta.gd", "Carta"))

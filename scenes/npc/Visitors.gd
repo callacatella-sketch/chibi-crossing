@@ -1316,7 +1316,13 @@ func _quirk_tick(r: Dictionary, node: Node3D, brain: RefCounted, delta: float, t
 				node.call("do_task", "sing", Vector3.ZERO, Callable())
 				_vita_toast(L10n.tf("♪ %s sta cantando alla luna.", [r["label"]]))
 		"colleziona_sassolini":
-			node.call("do_task", "sasso", Vector3.ZERO, Callable())
+			# la mania che diventa un dono: chi colleziona sassolini, quando
+			# ne trova uno DAVVERO piatto e tu sei lì vicino, te lo porta —
+			# ed e' la munizione del Rimbalzello sulla riva dello stagno.
+			# L'indole esisteva da sempre e faceva una cosa carina che non
+			# serviva a niente: adesso e' l'inizio di un gioco.
+			node.call("do_task", "sasso", Vector3.ZERO,
+					func() -> void: _dona_sasso(r, node))
 		"ballerino":
 			node.call("do_task", "twirl", Vector3.ZERO, Callable())
 		"pisolini_ovunque":
@@ -2056,6 +2062,10 @@ func _update_prompts() -> void:
 		var node := r.get("node") as Node3D
 		if node == null or not is_instance_valid(node) or node.call("is_hidden"):
 			continue
+		# se sta vivendo una scena (un appuntamento mantenuto) il desiderio
+		# aspetta: è lui che ha chiamato, non la panchina
+		if node.has_method("in_scena") and bool(node.call("in_scena")):
+			continue
 		var wish: Dictionary = r.get("wish", {})
 		if wish.is_empty() or bool(wish.get("done", false)):
 			continue
@@ -2171,6 +2181,28 @@ func _saluta() -> void:
 				# il Congedo sa chi sta aspettando un pensiero
 				get_tree().call_group("congedo", "consolato",
 						str(best_r.get("label", "")), nome))
+
+
+## Il sasso piatto del collezionista: glielo si vede raccogliere (tk_sasso)
+## e se sei a due passi te lo mette in tasca. Non ogni volta: un sasso
+## DAVVERO piatto e' raro, e il regalo vale quanto l'attesa.
+func _dona_sasso(r: Dictionary, node: Node3D) -> void:
+	if _inventory == null or _player == null or node == null \
+			or not is_instance_valid(node):
+		return
+	if _player.global_position.distance_to(node.global_position) > 7.0:
+		return   # se non c'eri, il sasso resta nella sua collezione
+	if randf() > 0.45:
+		return
+	var scheda: Dictionary = _inventory.add_treasure("sasso_piatto")
+	if scheda.is_empty():
+		return
+	node.call("_spawn_heart")
+	node.call("speak", ["regalo"], "felice")
+	_show_toast(L10n.tf("%s ti ha portato un sasso piatto: perfetto per rimbalzare.",
+			[r.get("label", "")]))
+	if _build:
+		_build.request_save()
 
 
 func _collect_gift() -> void:

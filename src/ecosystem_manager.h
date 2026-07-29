@@ -28,8 +28,12 @@ class EcosystemManager : public Node3D {
         Vector3 target;
         float phase = 0.0f;
         float timer = 0.0f;
+        float spavento = 0.0f; // quanto le hai fatto paura adesso (0..1)
+        float yaw = 0.0f;      // tenuto: da posata la velocità non dice più dove guarda
         int kind = 0;
-        int state = 0; // 0 vaga · 1 punta un fiore · 2 sorseggia · 3 se ne va
+        // 0 vaga · 1 punta un fiore · 2 sorseggia · 3 se ne va
+        // 4 si fida e si avvicina · 5 posata su di te (il Fiato Sospeso)
+        int state = 0;
     };
 
     struct Firefly {
@@ -87,6 +91,24 @@ class EcosystemManager : public Node3D {
     bool night = false;
     Callable ground_validator;
 
+    // --- IL FIATO SOSPESO ---
+    // Il prato ha paura di te finché ti muovi: le farfalle ti scansano, i
+    // passerotti scappano dai loro semi. È quella paura che si scioglie
+    // quando trattieni il fiato — e senza di lei «il prato smette di avere
+    // paura di te» non vorrebbe dire niente.
+    Vector3 osservatore;         // dove stai
+    float quiete = -1.0f;        // <0 nessun osservatore · 0 ti muovi · 1 sei un sasso
+    Vector3 posatoio;            // il tuo naso: dove si posa chi si fida
+    bool posatoio_valido = false;
+    float fiducia_cd = 0.0f;     // fra un tentativo e l'altro passa un respiro
+    int fiducia_kind = -1;       // la specie posata adesso (-1 nessuna)
+
+    static constexpr float PAURA_R = 3.4f;       // il raggio della paura, da fermo-che-si-muove
+    static constexpr float PAURA_SPINTA = 5.5f;  // quanto forte ti scansano
+    static constexpr float FIDUCIA_SOGLIA = 0.62f; // da qui in su una si avvicina
+    static constexpr float FIDUCIA_ROTTA = 0.34f;  // sotto qui vola via
+    static constexpr float FIDUCIA_R = 7.0f;     // da quanto lontano può venire
+
     double sim_acc = 0.0;
     double flower_acc = 0.0;
     double sparrow_acc = 0.0;
@@ -110,6 +132,8 @@ class EcosystemManager : public Node3D {
     void update_butterflies(double delta);
     void update_fireflies(double delta);
     void update_sparrows(double delta);
+    void applica_paura(Butterfly &b, double delta);
+    void aggiorna_fiducia(double delta);
     void push_transforms();
     void push_flowers();
 
@@ -131,6 +155,14 @@ public:
     void set_night(bool p_night);
     void set_flower_sources(const PackedVector3Array &sources);
     void set_ground_validator(const Callable &validator);
+
+    // --- il Fiato Sospeso: chi guarda, e dove può posarsi la fiducia ---
+    void set_osservatore(const Vector3 &pos, float p_quiete);
+    void togli_osservatore();
+    void set_posatoio(const Vector3 &pos);
+    void togli_posatoio();
+    // {"stato": 0 nessuna / 1 in arrivo / 2 posata, "kind": int, "pos": Vector3}
+    Dictionary fiducia() const;
 
     // --- eventi di gioco ---
     void drop_seeds(const Vector3 &pos, int n);

@@ -135,6 +135,10 @@ var mode := "visit"
 var _house := {}
 var _suitcase: Node3D
 var _greet_cd := 0.0
+# Quanto dura ancora la SCENA in corso. Mentre c'è, il chiacchiericcio
+# ordinario tace: un appuntamento mantenuto non va coperto dal desiderio
+# della panchina, che può aspettare dieci secondi.
+var _scena_t := 0.0
 var _hidden := false
 var _player_ref: Node3D
 
@@ -585,6 +589,16 @@ func _enter_state(s: String) -> void:
 				tw.tween_property(self, "position", seat, 0.4) \
 						.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 			_timer = randf_range(14.0, 22.0)
+		"r_attesa":
+			# arrivato al posto dell'appuntamento: si volta verso il
+			# fenomeno e aspetta. Il timer e' lunghissimo di proposito —
+			# a decidere quando finisce e' chi ha fissato l'appuntamento
+			# (le Promesse), non un cronometro qui dentro.
+			_timer = 9999.0
+			var to_att := _fire_look - position
+			to_att.y = 0.0
+			if to_att.length() > 0.05:
+				_yaw = atan2(-to_att.x, -to_att.z)
 		"r_confronto":
 			# arrivato: si volta verso di te e resta IN PIEDI. Niente sedia,
 			# niente sorriso — è venuto a dirti una cosa, e la posa lo dice
@@ -702,6 +716,7 @@ func _process(delta: float) -> void:
 	_gait_misura(delta)
 	_emote_cd -= delta
 	_speak_cd -= delta
+	_scena_t = maxf(0.0, _scena_t - delta)
 	# mentre parla, la testolina annuisce a tempo con la voce
 	# (scalato su delta e clampato: niente derive a framerate alti)
 	if _voice_player and _voice_player.playing and _head:
@@ -808,6 +823,11 @@ func _process(delta: float) -> void:
 						.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 				tw.tween_callback(func(): _enter_state("r_idle"))
 				_state = "dismount"
+		"r_attesa":
+			# in piedi, che respira, rivolto al fenomeno — e se arrivi ti
+			# saluta come sa fare lui (il saluto della sua indole)
+			_anim_idle()
+			_resident_greet(delta)
 		"r_confronto":
 			_timer -= delta
 			_anim_idle()
@@ -1793,6 +1813,12 @@ func do_routine(kind: String, pos: Vector3, look := Vector3.ZERO, aux: Node3D = 
 			_walk_to(pos, "r_fire")
 		"wander":
 			_enter_state("r_wander")
+		"attesa":
+			# l'ATTESA di un appuntamento: ci va e ci RESTA, in piedi,
+			# rivolto alla cosa per cui vi siete dati appuntamento.
+			# Diverso da "wonder", che dura quattro secondi e finisce:
+			# qui si aspetta una persona, e si aspetta finche' serve.
+			_walk_to(pos, "r_attesa")
 		"confronto":
 			# ti raggiunge per dirtelo in faccia. Stato SUO, non r_bench:
 			# riusando la panchina si accovacciava nell'erba e — peggio —
@@ -1924,7 +1950,7 @@ func _expr_for_state(s: String) -> String:
 			return "curioso"
 		"gift", "cuoricino", "tk_twirl", "tk_sing":
 			return "gioia"
-		"sole", "tk_stella", "tk_wonder", "th_perch":
+		"sole", "tk_stella", "tk_wonder", "th_perch", "r_attesa":
 			return "meraviglia"
 		"tk_startle":
 			return "spavento"
@@ -2129,6 +2155,12 @@ func chat_bubble(sym: String) -> void:
 	bubble.add_child(lbl)
 	bubble.position = Vector3(0.12, 0.78, 0)
 	add_child(bubble)
+	# sopra la TESTA, non dentro: i residenti chibi hanno il testone alto
+	# e l'altezza fissa finiva sepolta nella nuca (la nuvoletta c'era, ma
+	# non la vedeva nessuno). Con la testa vera funziona per tutti — chibi,
+	# passerotto, riccio — perché la misura viene dal corpo, non da un numero.
+	if _head and is_instance_valid(_head):
+		bubble.global_position = _head.global_position + Vector3(0.12, 0.34, 0)
 	bubble.scale = Vector3.ONE * 0.05
 	var tw := create_tween()
 	tw.tween_property(bubble, "scale", Vector3.ONE, 0.22) \
@@ -2172,6 +2204,19 @@ func candidate_result(ok: bool, bed_pos: Vector3) -> void:
 		_emote("…", Color(0.55, 0.5, 0.6))
 		speak(["no"], "triste")
 		_enter_state("leave")
+
+
+## Vero mentre una scena rara è in corso: chi lo chiede (il pannello dei
+## desideri, il saluto) si fa da parte e la lascia finire.
+func in_scena() -> bool:
+	return _scena_t > 0.0
+
+
+## Apre una scena lunga «dur»: per quel tempo il vicino non saluta e non
+## chiede nulla — sta al suo appuntamento.
+func apri_scena(dur: float) -> void:
+	_scena_t = maxf(_scena_t, dur)
+	_greet_cd = maxf(_greet_cd, dur)
 
 
 # i residenti salutano chi passa a trovarli

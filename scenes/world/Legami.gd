@@ -63,12 +63,17 @@ const TIPI := {
 	"festa": ["la festa a sorpresa coi coriandoli", ["felice", "regalo"]],
 	"onsen": ["il bagno caldo alle terme, fianco a fianco", ["felice", "amico"]],
 	"desiderio": ["il desiderio esaudito vicino a casa", ["grazie", "casa"]],
+	"promessa": ["quella volta che ti ho aspettato, e sei venuto",
+			["aspetta", "insieme"]],
 	"nascondino": ["la partita a nascondino nel bosco", ["risata", "amico"]],
+	# il posto di sempre: l'abitudine che nessuno aveva deciso, e il
+	# giorno che qualcuno era gia' li' — senza dire niente
+	"posto": ["quel posto dove ci si trovava senza dirselo", ["amico", "felice"]],
 	# LA RISPOSTA: l'unico momento che scrivi TU. Fino a ieri la posta era
 	# a senso unico — loro scrivevano, tu no — e il filo non aveva una
 	# pagina dove guardarlo. Rispondere è la stessa porta per tutte e due
 	# le cose: per scegliere cosa dire devi sfogliare la vostra storia.
-	# il racconto è NEUTRO apposta: questo momento lo rileggono in due —
+	# Il racconto è NEUTRO apposta: questo momento lo rileggono in due —
 	# lui quando gli riaffiora, e Mochi quando sceglie di che cosa
 	# scrivere. «la lettera che gli hai scritto tu» suonava storta in
 	# bocca a chi la stava scrivendo.

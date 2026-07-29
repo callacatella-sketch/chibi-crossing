@@ -422,8 +422,23 @@ const T := {
 		"WASD fly · mouse look · Q/E down/up · wheel zoom · click to shoot · P to leave",
 	"Foto salvata!  (user://photos)": "Photo saved!  (user://photos)",
 
+	# ---------------------------------------------------- il rimbalzello
+	"E — fai rimbalzare il sasso  (%d)": "E — skim the stone  (%d)",
+	"%d rimbalzi: non era mai andata così lontano.":
+		"%d skips: it has never gone that far before.",
+	"Il sasso ha attraversato tutto lo stagno.":
+		"The stone crossed the whole pond.",
+
 	# ---------------------------------------- ciò che si incide sugli anelli
 	"una fioritura nel giardino": "a blooming in the garden",
+
+	# le Promesse: la riga di gessetto sulla lavagna e la voce del pannello
+	"%s ti aspetta: %s": "%s is waiting for you: %s",
+	"la bruma": "the mist",
+	"la levata": "the rising",
+	"la prima neve": "the first snow",
+	"quella volta che ti ho aspettato, e sei venuto":
+		"that time I waited for you, and you came",
 }
 
 

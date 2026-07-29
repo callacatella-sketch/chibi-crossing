@@ -358,6 +358,53 @@ func _nearest_board(pos: Vector3) -> Node3D:
 # le righe di gessetto sulla lavagna: compleanni e mercante
 var _chalk := {}
 
+# L'ARDESIA — quanto spazio ha davvero il gessetto. I numeri vengono
+# dalla geometria della Lavagna (BuildCatalog._blackboard): il quadro è
+# 0.94 x 1.02 centrato a y=0.97, quindi va da 0.46 a 1.48. Il gessetto
+# resta dentro con un margine: una riga scritta sull'erba, o mezza fuori
+# dal legno, non è una lavagna — è un errore che si vede da lontano.
+const ARDESIA_CENTRO := Vector3(0, 0.97, 0.06)   # il centro della lastra
+const ARDESIA_PEND := 0.05    # di quanto la lastra pende all'indietro
+const ARDESIA_FUORI := -0.045 # quanto sta avanti il gessetto (fronte -Z)
+const ARDESIA_L := 0.86       # larghezza utile fra i due montanti
+const ARDESIA_ALTA := 1.38    # dove sta la prima riga
+const ARDESIA_BASSA := 0.56   # dove può arrivare l'ultima
+const PASSO_MAX := 0.135      # il passo comodo, quando le righe sono poche
+const GESSO_PX := 0.0023      # il corpo del gessetto a passo comodo
+const GESSO_MIN := 0.55       # quanto al massimo si stringe una riga lunga
+
+
+## L'impaginazione del gessetto: da quante righe ci sono esce dove parte
+## la prima (x) e di quanto si scende ogni volta (y). Le righe si
+## stringono fra loro, MAI sotto il bordo dell'ardesia. PURA.
+static func impaginazione(n: int) -> Vector2:
+	if n <= 1:
+		return Vector2(ARDESIA_ALTA, PASSO_MAX)
+	return Vector2(ARDESIA_ALTA,
+			minf(PASSO_MAX, (ARDESIA_ALTA - ARDESIA_BASSA) / float(n - 1)))
+
+
+## Il corpo del gessetto segue il passo: quando le righe si stringono si
+## rimpicciolisce anche la scrittura, altrimenti una riga finisce
+## sull'altra. PURA.
+static func corpo(passo: float) -> float:
+	return GESSO_PX * minf(1.0, passo / PASSO_MAX)
+
+
+## Di quanto rimpicciolire una riga larga «largh» metri perché stia
+## nell'ardesia: 1.0 se ci sta già. Sotto GESSO_MIN non si scende — una
+## riga microscopica è illeggibile quanto una che sborda. PURA.
+static func stretta(largh: float) -> float:
+	if largh <= ARDESIA_L or largh <= 0.0:
+		return 1.0
+	return maxf(GESSO_MIN, ARDESIA_L / largh)
+
+
+## Riscrive le righe di gessetto: la chiamano i sistemi che hanno
+## qualcosa da appendere (le promesse, le commissioni).
+func aggiorna_lavagna() -> void:
+	_refresh_boards()
+
 
 func _refresh_boards() -> void:
 	for board in _boards():
@@ -366,24 +413,44 @@ func _refresh_boards() -> void:
 			(old as Node3D).queue_free()
 		var chalk := Node3D.new()
 		_chalk[board] = chalk
+		# il gessetto vive nel piano dell'ARDESIA, non in quello del
+		# telaio: la lastra è inclinata all'indietro di 0.05 rad e le
+		# righe in basso, restando dritte, ci finivano DENTRO — tagliate
+		# a metà dal legno. Qui il quaderno si inclina con la lavagna.
+		chalk.position = ARDESIA_CENTRO
+		chalk.rotation.x = ARDESIA_PEND
 		board.add_child(chalk)
 		var lines: Array[Array] = [[L10n.t("· il calendario ·"), Color(1, 1, 1, 0.92)]]
 		# la stagione in cima, col suo gessetto colorato
 		if _daynight and _daynight.has_method("season_name"):
 			var s := int(_daynight.get_season())
 			lines.append(["~ %s ~" % L10n.t(_daynight.season_name()), SEASON_CHALK[s]])
+		# LA PROMESSA, subito sotto la stagione e col suo gessetto rosa:
+		# e' l'unica riga della lavagna che parla di OGGI, e per questo
+		# sta in cima. E' uno dei due posti fisici dove vive un
+		# appuntamento (l'altro e' il bigliettino nella cassetta): non
+		# esiste nessun HUD che te lo ricordi.
+		var promesse_n := get_tree().get_first_node_in_group("promesse")
+		var righe_promessa: Array = []
+		if promesse_n and promesse_n.has_method("per_lavagna"):
+			righe_promessa = promesse_n.call("per_lavagna")
+		for riga in righe_promessa:
+			lines.append([str(riga[0]), Color(0.96, 0.78, 0.85, 0.92)])
 		# coi 28 posti del villaggio la lavagna non basta per tutti: col
-		# gessetto si segnano i PROSSIMI sei compleanni, gli altri aspettano
-		# il loro turno (il pannello con E li elenca comunque)
+		# gessetto si segnano i PROSSIMI compleanni, gli altri aspettano
+		# il loro turno (il pannello con E li elenca comunque). Quando c'e'
+		# una promessa se ne segnano meno: l'ardesia e' piccola e l'oggi
+		# vale piu' di un compleanno fra otto giorni.
+		var quanti_compleanni := 4 if not righe_promessa.is_empty() else 6
 		var prossimi: Array = []
 		for res_name in _birthdays:
 			prossimi.append([next_birthday(str(res_name)), str(res_name)])
 		prossimi.sort_custom(func(a, b): return a[0] < b[0])
-		for i in mini(prossimi.size(), 6):
+		for i in mini(prossimi.size(), quanti_compleanni):
 			lines.append([L10n.tf("%s · G%d", [str(prossimi[i][1]), int(prossimi[i][0])]),
 					Color(0.98, 0.85, 0.9, 0.9)])
-		if prossimi.size() > 6:
-			lines.append([L10n.tf("…e altri %d", [prossimi.size() - 6]),
+		if prossimi.size() > quanti_compleanni:
+			lines.append([L10n.tf("…e altri %d", [prossimi.size() - quanti_compleanni]),
 					Color(0.98, 0.85, 0.9, 0.6)])
 		lines.append([L10n.tf("mercante · G%d", [_merchant_day]), Color(0.85, 0.93, 1.0, 0.9)])
 		# le commissioni appese: il conto sta sul gessetto, il dettaglio nel pannello
@@ -396,16 +463,25 @@ func _refresh_boards() -> void:
 		if not (pf[1] as Dictionary).is_empty():
 			lines.append([L10n.tf("%s · G%d", [L10n.t(str(pf[1]["nome"])), int(pf[0])]),
 					Color(0.86, 0.96, 0.84, 0.9)])
+		var imp := impaginazione(lines.size())
+		var gesso := ThemeDB.fallback_font
 		for i in lines.size():
 			var lbl := Label3D.new()
 			lbl.text = str(lines[i][0])
 			lbl.font_size = 40
-			lbl.pixel_size = 0.0042
+			var px := corpo(imp.y)
+			# ogni riga si misura PRIMA di essere scritta: i nomi dei
+			# vicini sono lunghi quanto vogliono, l'ardesia no
+			if gesso:
+				var largh: float = gesso.get_string_size(lbl.text,
+						HORIZONTAL_ALIGNMENT_LEFT, -1, lbl.font_size).x * px
+				px *= stretta(largh)
+			lbl.pixel_size = px
 			lbl.modulate = lines[i][1]
 			lbl.outline_size = 0
 			lbl.double_sided = false
-			lbl.position = Vector3(0, 1.36 - float(i) * 0.17, 0.02)
-			lbl.rotation.x = 0.05
+			lbl.position = Vector3(0,
+					imp.x - float(i) * imp.y - ARDESIA_CENTRO.y, ARDESIA_FUORI)
 			lbl.rotation.y = PI
 			chalk.add_child(lbl)
 
