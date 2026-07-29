@@ -239,6 +239,12 @@ const T := {
 		"I have not forgotten day %d,\nwhen you granted my wish.\nThe thread between us took its colour from there.",
 	"Il giorno %d, dietro quel tronco,\nmi scappava da ridere e tu lo sapevi.\nGiochiamo ancora, promesso?":
 		"On day %d, behind that tree trunk,\nI was bursting to laugh and you knew it.\nShall we play again, promise?",
+	# la lettera che hai scritto TU, che gli riaffiora: mancava, e in
+	# inglese quel momento tornava indietro in italiano (Mail.MOMENTI_TESTO
+	# è una tabella, quindi il controllo dei sorgenti non poteva vederla:
+	# è saltata fuori rendendo tutte le lettere e guardandole)
+	"La tua lettera del giorno %d\nla tengo piegata nella tasca buona.\nLa rileggo quando fuori piove.":
+		"Your letter from day %d\nI keep folded in my good pocket.\nI read it again when it rains outside.",
 	"Quel desiderio del giorno %d,\nl'ultimo, vissuto insieme:\nlo tengo tra i momenti d'oro.":
 		"That wish on day %d,\nthe last one, lived together:\nI keep it among the golden moments.",
 	"Del giorno %d non parlo volentieri,\nma il filo non si è spezzato:\nha solo cambiato forma.":

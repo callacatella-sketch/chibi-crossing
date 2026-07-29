@@ -51,6 +51,12 @@ const T := {
 	# in inglese non c'è nessuna preposizione da fondere con l'articolo:
 	# `con_di` non trova niente da cambiare e la frase passa intatta
 	"Mi ricordo %s.": "I remember %s.",
+	# e la SUA risposta, che arriva nella cassetta il mattino dopo: il
+	# primo %s è il racconto del momento, il secondo il Chibiese del
+	# grazie (che non si traduce: è la loro lingua), il terzo la firma
+	"Ho letto e riletto la tua lettera.\nMe lo ricordo anch'io, %s.\n\n«%s»\n— %s":
+			"I have read your letter over and over.\nI remember it too — %s.\n\n«%s»\n— %s",
+	"quel giorno": "that day",
 	"A chi vuoi rispondere?": "Who do you want to write to?",
 	"Di cosa ti ricordi, con %s?": "What do you remember, you and %s?",
 	"E due parole.": "And two words.",

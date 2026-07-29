@@ -377,7 +377,7 @@ func _complete(o: Dictionary) -> void:
     # e col mattino arriva la letterina di ringraziamento (se c'e' la cassetta)
     var cel := str(o.get("celebrate_letter", ""))
     if cel != "" and _mail:
-        _mail.call("queue_letter", {"from": "Il Gufo", "text": cel, "gift": true})
+        _mail.call("queue_letter", {"from_key": "Il Gufo", "text_key": cel, "gift": true})
     _advance()
     _reveal_current()  # applica il recinto, aggiorna il diario, annuncia il nuovo Ordine
     _save()
@@ -478,17 +478,20 @@ func _check_desiderio() -> void:
         if pezzi.size() > 0 and regalati.is_empty():
             stelle += 1
         eco.call("add_stars", stelle)
-    var nomi: Array[String] = []
-    for pezzo in regalati:
-        nomi.append(L10n.t(pezzo))
-    var regalo := " · ".join(nomi)
     _owl_toast(L10n.t(str(d["title"])), L10n.t(str(d.get("done_text", ""))), true)
     if _mail:
-        var testo := L10n.tf("%s\n\nTi lascio %d stelline sul davanzale.",
-                [L10n.t(str(d.get("done_text", ""))), stelle])
-        if regalo != "":
-            testo += L10n.tf("\nE il pacco contiene: %s. E' tuo.", [regalo])
-        _mail.call("queue_letter", {"from": "Il Gufo", "text": testo, "gift": true})
+        # due capoversi accostati, ognuno con la sua chiave: il taglio cade
+        # a fine frase, dove una traduzione puo' reggerlo. I nomi dei pezzi
+        # sono DATI del catalogo — si conservano cosi' e si traducono uno
+        # per uno quando la busta si apre (unirli prima darebbe una riga
+        # sola, che in tabella non c'e').
+        var parti: Array = [{"k": "%s\n\nTi lascio %d stelline sul davanzale.",
+                "args": [{"k": str(d.get("done_text", ""))}, stelle]}]
+        if not regalati.is_empty():
+            parti.append({"k": "\nE il pacco contiene: %s. E' tuo.",
+                    "args": [{"k": regalati, "sep": " · "}]})
+        _mail.call("queue_letter",
+                {"from_key": "Il Gufo", "text_key": parti, "gift": true})
     _update_banner()
     _update_journal()
     _save()

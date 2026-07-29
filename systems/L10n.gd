@@ -80,6 +80,66 @@ static func tf(frase: String, argomenti: Array) -> String:
 	return t(frase) % argomenti
 
 
+## UNA FRASE RIMANDATA: la chiave italiana e i suoi argomenti tenuti da
+## parte, e resi in parole solo al momento di mostrarli.
+##
+## Serve a tutto ciò che viene SALVATO su disco prima di essere letto. La
+## posta, per esempio: una lettera messa in coda stanotte la si apre
+## domattina, e fra le due cose il giocatore può aver cambiato lingua. Se
+## nella coda finisce il testo già tradotto, quella lettera resta per
+## sempre nella lingua in cui è nata; se ci finisce la CHIAVE, parla la
+## lingua di chi la apre.
+##
+## Le forme che accetta:
+##     rendi("Buongiorno!")                       -> "Good morning!"
+##     rendi({"k": "Giorno %d", "args": [7]})     -> "Day 7"
+##     rendi({"k": ["Panchina", "Fungo"]})        -> "Bench · Mushroom"
+##     rendi([{"k": "Ciao."}, {"k": " A domani."}]) -> "Hello. See you tomorrow."
+##
+## Gli ARGOMENTI nudi sono dati e passano come sono — un nome proprio, un
+## numero, una data: è il caso normale, ed è anche la garanzia che un nome
+## non finisca mai per sbaglio in tabella. Un argomento da tradurre si
+## scrive `{"k": …}` come una frase qualsiasi, e può avere a sua volta i
+## suoi argomenti: così le frasi a incastro si compongono senza mai
+## incollare pezzi già tradotti.
+static func rendi(frase: Variant) -> String:
+	# più pezzi in fila: si rendono uno per uno e si accostano. Il taglio
+	# fra un pezzo e l'altro va SEMPRE a fine frase (o a capo), mai in
+	# mezzo: spezzare una frase a metà toglie al traduttore l'unica cosa
+	# che gli serve, cioè l'ordine delle parole.
+	if frase is Array:
+		var pezzi := PackedStringArray()
+		for p in frase:
+			pezzi.append(rendi(p))
+		return "".join(pezzi)
+	if frase is Dictionary:
+		var d: Dictionary = frase
+		var chiave: Variant = d.get("k", "")
+		# un elenco di chiavi: tradotte una per una e unite (i nomi dei
+		# pezzi di un pacco regalo). Unire prima e tradurre dopo darebbe
+		# una riga sola che in tabella non c'è.
+		if chiave is Array:
+			var voci := PackedStringArray()
+			for c in chiave:
+				voci.append(t(str(c)))
+			return str(d.get("sep", " · ")).join(voci)
+		var testo := t(str(chiave))
+		var args: Variant = d.get("args", [])
+		if args is Array and not (args as Array).is_empty():
+			return testo % _argomenti(args)
+		return testo
+	return t(str(frase))
+
+
+## Gli argomenti pronti per il `%`: i dati passano intatti, le frasi
+## annidate (`{"k": …}`) si rendono adesso, nella lingua di adesso.
+static func _argomenti(args: Array) -> Array:
+	var out := []
+	for a in args:
+		out.append(rendi(a) if (a is Dictionary or a is Array) else a)
+	return out
+
+
 ## Ricarica la tabella se la lingua è cambiata (o alla prima chiamata).
 static func _assicura() -> void:
 	var ora := lingua_corrente()

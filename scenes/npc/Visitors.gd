@@ -686,8 +686,12 @@ func _congeda(i: int, r: Dictionary, animo: RefCounted) -> void:
 	var mail := get_node_or_null("../Mail")
 	if mail and mail.has_method("queue_letter"):
 		mail.call("queue_letter", {
-			"from": label,
-			"text": L10n.tf("%s\n\nHo lasciato le mie cose in ordine.\nNon serbo rancore: serbo memoria.", [animo.sfogo()]),
+			"from_key": label,
+			"text_key": "%s\n\nHo lasciato le mie cose in ordine.\nNon serbo rancore: serbo memoria.",
+			# lo sfogo si mette in coda a PEZZI, non già detto: l'animo che
+			# l'ha prodotto sparisce con lui, ma le sue chiavi restano e la
+			# lettera parlerà la lingua di chi la apre domattina
+			"args": [animo.sfogo_rimandato()],
 			"gift": false,
 		})
 	# il toast della partenza va PRIMA: il toast è uno solo, e quello del
@@ -1517,9 +1521,9 @@ func _wishes(delta: float) -> void:
 						[r["label"], L10n.t(str(WISH_ART[wish["item"]]))]))
 				if _mail:
 					_mail.call("queue_letter", {
-						"from": str(r.get("dna", {}).get("name", L10n.t("Un amico"))),
-						"text": L10n.tf("Grazie per %s vicino a casa mia!\nOgni mattina gli do il buongiorno.",
-								[L10n.t(str(WISH_ART[wish["item"]]))]),
+						"from_key": str(r.get("dna", {}).get("name", "Un amico")),
+						"text_key": "Grazie per %s vicino a casa mia!\nOgni mattina gli do il buongiorno.",
+						"args": [{"k": str(WISH_ART[wish["item"]])}],
 						"gift": true,
 					})
 				if _sfx:
@@ -1558,8 +1562,8 @@ func _bump_friend(r: Dictionary, amount: int) -> void:
 				if randf() < 0.5 \
 				else "Mi trovo così bene nel villaggio.\nGrazie di essermi amico."
 		_mail.call("queue_letter", {
-			"from": str(r.get("dna", {}).get("name", L10n.t("Un amico"))),
-			"text": L10n.t(grazie),
+			"from_key": str(r.get("dna", {}).get("name", "Un amico")),
+			"text_key": grazie,
 			"gift": true,
 		})
 	# l'amicizia PIENA lascia un ricordo indossabile: la soglia e il capo

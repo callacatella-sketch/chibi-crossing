@@ -319,6 +319,17 @@ regole di stile stanno in [`docs/TRADUZIONE.md`](docs/TRADUZIONE.md).
   tipi di momento dei Legami viaggiano nei **salvataggi** e nei predicati:
   restano italiani per sempre. Un villaggio salvato in inglese si riapre in
   italiano, e viceversa.
+- **Vale anche per il TESTO che passa dal disco prima di arrivare a
+  schermo.** La **posta** è il caso di scuola: si mette in coda stanotte e
+  si apre domattina, e in mezzo il giocatore può cambiare lingua. Perciò in
+  coda va la **chiave**, mai la frase tradotta — `queue_letter({"from_key":
+  …, "text_key": …, "args": […]})`, e la traduzione la fa `Mail.rendi()`
+  quando la busta si apre. Il meccanismo generale è `L10n.rendi()` (la
+  «frase rimandata»); chi produce testo destinato alla coda ha la sua
+  versione a chiavi (`Animo.sfogo_rimandato()`,
+  `Promesse.bigliettino()`, `Critters.con_articolo_chiave()`…). Dettagli e
+  regole di taglio in [`docs/TRADUZIONE.md`](docs/TRADUZIONE.md); la
+  guardia è [`tests/cases/test_posta_lingua.gd`](tests/cases/test_posta_lingua.gd).
 > ### ⚠️ REGOLA OBBLIGATORIA — testo nuovo = traduzione nuova, SUBITO
 >
 > Ogni volta che aggiungi al gioco **testo che il giocatore vede** — dialoghi,

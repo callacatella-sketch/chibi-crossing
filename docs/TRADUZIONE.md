@@ -36,6 +36,40 @@ villaggi salvati (e il gioco, in silenzio).
 Regola pratica: se la stringa sta a sinistra di un `:` in una tabella, o
 dentro un `save_extra()`, **non si tocca**. Si traduce il `nome`, mai l'`id`.
 
+### E il corollario: nemmeno il TESTO, se prima passa dal disco
+
+La stessa regola vale per una frase vera, quando fra lo scriverla e il
+mostrarla ci sta un salvataggio. La **posta** è il caso di scuola: una
+lettera si mette in coda stanotte e si apre domattina, e in mezzo il
+giocatore può cambiare lingua. Una lettera messa in coda già tradotta
+resta per sempre nella lingua in cui è nata — e chi l'ha scritta (un
+vicino che è partito) non c'è più per ridirla.
+
+Per questo esiste la **frase rimandata**, [`L10n.rendi()`](../systems/L10n.gd):
+si conserva la chiave italiana coi suoi argomenti, e si rende in parole
+solo al momento di mostrarla.
+
+```gdscript
+mail.queue_letter({"from_key": "Il Gufo",
+        "text_key": "Ho contato %d stelle su casa tua.", "args": [12]})
+```
+
+- `text_key`/`from_key`: una stringa, oppure `{"k": …, "args": […]}`, oppure
+  un Array di pezzi in fila (capoversi).
+- gli **argomenti nudi sono dati** (un nome, un giorno, un conto) e passano
+  intatti; quelli **da tradurre** si scrivono `{"k": …}` e possono avere a
+  loro volta i propri argomenti.
+- si taglia una frase in pezzi **solo a fine frase o a capo**, mai in
+  mezzo: in un'altra lingua le parole vanno in un altro ordine.
+- traduce **un punto solo**: `Mail.rendi()`, quando la busta si apre.
+
+Lo stesso vale per chi produce frasi che finiranno in coda:
+`Animo.sfogo_rimandato()`, `Limbico.perche_scoppio_rimandato()`,
+`Promesse.bigliettino()`, `Critters.con_articolo_chiave()`.
+[`tests/cases/test_posta_lingua.gd`](../tests/cases/test_posta_lingua.gd)
+tiene chiusa la porta: mette in coda in italiano, cambia lingua, e pretende
+inglese.
+
 ## La voce: che inglese scriviamo
 
 Non «inglese neutro da manuale». L'italiano di Chibi Crossing è **caldo,

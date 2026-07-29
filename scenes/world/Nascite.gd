@@ -265,9 +265,9 @@ func _annuncia() -> void:
 		mail = get_tree().get_first_node_in_group("mail")
 	if mail and mail.has_method("queue_letter"):
 		mail.call("queue_letter", {
-			"from": L10n.t("il Gufo"),
-			"text": L10n.tf("Stanotte non ho chiuso occhio, e per una buona ragione.\nIn casa di %s e %s è arrivato qualcuno\npiù piccolo delle mie due ali messe insieme.\n\nVai a conoscerlo, quando puoi.\nUn nome non ce l'ha: hanno detto che lo sceglierai tu.",
-					[padre, madre]),
+			"from_key": "il Gufo",
+			"text_key": "Stanotte non ho chiuso occhio, e per una buona ragione.\nIn casa di %s e %s è arrivato qualcuno\npiù piccolo delle mie due ali messe insieme.\n\nVai a conoscerlo, quando puoi.\nUn nome non ce l'ha: hanno detto che lo sceglierai tu.",
+			"args": [padre, madre],
 			"gift": false,
 		})
 	var sfx := get_node_or_null(^"/root/Sfx")

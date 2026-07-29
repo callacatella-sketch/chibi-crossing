@@ -352,8 +352,9 @@ func scatto(img: Image) -> void:
 	var mail := get_node_or_null("../../Mail")
 	if mail:
 		mail.call("queue_letter", {
-			"from": str(_richiesta["nome"]),
-			"text": L10n.tf("La foto che sognavo — %s!\nL'ho appesa sopra il letto: la guardo ogni sera.\nGrazie, con tutto il cuore.", [L10n.t(str(_richiesta["testo"]))]),
+			"from_key": str(_richiesta["nome"]),
+			"text_key": "La foto che sognavo — %s!\nL'ho appesa sopra il letto: la guardo ogni sera.\nGrazie, con tutto il cuore.",
+			"args": [{"k": str(_richiesta["testo"])}],
 			"gift": true,
 		})
 	_toast(L10n.tf("Il sogno di %s si è avverato: la foto è appesa in casa sua!",

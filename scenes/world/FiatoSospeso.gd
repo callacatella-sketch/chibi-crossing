@@ -340,9 +340,12 @@ func _si_e_fidata(specie: String) -> void:
 	if prima:
 		if _mail and _mail.has_method("queue_letter"):
 			_mail.call("queue_letter", {
-				"from": L10n.t("Gufo"),
-				"text": L10n.tf("Mi dicono che %s\nsi è posata su di te e non è scappata.\nNon si insegna: si aspetta e basta.\nHai imparato il verbo più difficile.",
-						[CRIT.con_articolo(specie)]),
+				"from_key": "Gufo",
+				"text_key": "Mi dicono che %s\nsi è posata su di te e non è scappata.\nNon si insegna: si aspetta e basta.\nHai imparato il verbo più difficile.",
+				# il nome della creatura è un argomento DA TRADURRE, non un
+				# dato: si conserva la sua chiave italiana e si traduce
+				# quando la busta si apre
+				"args": [{"k": CRIT.con_articolo_chiave(specie)}],
 				"gift": false,
 			})
 	var build := get_tree().get_first_node_in_group("build_system")

@@ -315,8 +315,11 @@ func _debug_filo(dir: String) -> void:
 	# --- la posta dei momenti (e del Grande Prato) ---
 	var GEN_MAIL = load("res://scenes/interact/Mail.gd")
 	var lettera: Dictionary = GEN_MAIL.componi_lettera(label, legami.momenti_di(nome), 2)
+	# la lettera in coda è fatta di chiavi: per leggerla si passa da rendi()
+	var letta: Dictionary = GEN_MAIL.rendi(lettera) if not lettera.is_empty() \
+			else {"from": "?", "text": ""}
 	print("FILO: lettera dai momenti -> da %s: «%s»"
-			% [lettera.get("from", "?"), str(lettera.get("text", "")).replace("\n", " / ")])
+			% [letta["from"], str(letta["text"]).replace("\n", " / ")])
 	var dal_prato: Dictionary = mail.call("_lettera_dai_momenti")
 	print("FILO: la posta pesca dai fili vivi e dal Grande Prato = %s"
 			% (not dal_prato.is_empty()))

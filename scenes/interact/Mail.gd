@@ -15,18 +15,22 @@ extends Node
 const MORNING_T := 0.27
 const UI_BROWN := Color("6a4a3a")
 
+## La larghezza del foglio: la dicono le ancore della card E il testo che
+## ci va a capo dentro. Un numero solo, o le due cose divergono.
+const CARD_LARGHEZZA := 380.0
+
 const LETTERS := [
-	{"from": "Passerotto", "text": "Ho visto il tuo giardino dall'alto:\nle aiuole sono le più belle del prato!", "gift": true},
-	{"from": "Riccio", "text": "Stanotte ho dormito sotto la tua panchina.\nGrazie per l'erba alta: era morbidissima.", "gift": false},
-	{"from": "Volpe del bosco", "text": "Il sentiero profuma di funghi nuovi.\nSe vedi una coda rossa tra le felci, ti sto salutando.", "gift": false},
-	{"from": "Gufo", "text": "Le tue lucciole tengono compagnia alle mie veglie.\nStanotte ho contato dodici stelle cadenti su casa tua.", "gift": false},
-	{"from": "Scoiattolo", "text": "Ho nascosto una ghianda vicino al falò...\nanzi no: tienila tu, è il mio regalo!", "gift": true},
-	{"from": "Farfalla", "text": "I tuoi fiori sono i più dolci che conosca.\nDomani torno con le mie sorelle: prepara il tè!", "gift": false},
+	{"from_key": "Passerotto", "text_key": "Ho visto il tuo giardino dall'alto:\nle aiuole sono le più belle del prato!", "gift": true},
+	{"from_key": "Riccio", "text_key": "Stanotte ho dormito sotto la tua panchina.\nGrazie per l'erba alta: era morbidissima.", "gift": false},
+	{"from_key": "Volpe del bosco", "text_key": "Il sentiero profuma di funghi nuovi.\nSe vedi una coda rossa tra le felci, ti sto salutando.", "gift": false},
+	{"from_key": "Gufo", "text_key": "Le tue lucciole tengono compagnia alle mie veglie.\nStanotte ho contato dodici stelle cadenti su casa tua.", "gift": false},
+	{"from_key": "Scoiattolo", "text_key": "Ho nascosto una ghianda vicino al falò...\nanzi no: tienila tu, è il mio regalo!", "gift": true},
+	{"from_key": "Farfalla", "text_key": "I tuoi fiori sono i più dolci che conosca.\nDomani torno con le mie sorelle: prepara il tè!", "gift": false},
 	# …e la lettera che INSEGNA il Fiato Sospeso, senza un tutorial e senza
 	# una freccia lampeggiante: te lo racconta chi ha paura di te.
-	{"from": "Farfalla", "text": "Oggi ti ho vista arrivare di corsa e mi sono spostata.\nNon te la prendere: sei molto grande.\nSe però ti abbassi nell'erba e stai ferma (tieni premuto C),\ndopo un po' mi dimentico di te. E allora vengo a vedere chi sei.", "gift": false},
-	{"from": "Talpa", "text": "Scavando sono sbucata nel tuo giardino, scusa il buchetto.\nTi lascio un sassolino brillante per farmi perdonare.", "gift": true},
-	{"from": "Merlo", "text": "La tua musichetta si sente fino al ciliegio.\nAscolta bene domattina: la fischietto anch'io.", "gift": false},
+	{"from_key": "Farfalla", "text_key": "Oggi ti ho vista arrivare di corsa e mi sono spostata.\nNon te la prendere: sei molto grande.\nSe però ti abbassi nell'erba e stai ferma (tieni premuto C),\ndopo un po' mi dimentico di te. E allora vengo a vedere chi sei.", "gift": false},
+	{"from_key": "Talpa", "text_key": "Scavando sono sbucata nel tuo giardino, scusa il buchetto.\nTi lascio un sassolino brillante per farmi perdonare.", "gift": true},
+	{"from_key": "Merlo", "text_key": "La tua musichetta si sente fino al ciliegio.\nAscolta bene domattina: la fischietto anch'io.", "gift": false},
 ]
 
 ## Le lettere nate dai momenti: un template per OGNI tipo del Filo Rosso
@@ -60,6 +64,7 @@ const MOMENTI_TESTO := {
 
 ## Compone una lettera dal filo di un residente: PURA e deterministica
 ## dato `pick` (il caso lo mette il chiamante). {} se il filo è vuoto.
+## Restituisce CHIAVI, non parole: vedi `rendi()` qui sotto.
 static func componi_lettera(label: String, momenti: Array, pick: int) -> Dictionary:
 	if momenti.is_empty():
 		return {}
@@ -68,11 +73,49 @@ static func componi_lettera(label: String, momenti: Array, pick: int) -> Diction
 	var template := str(MOMENTI_TESTO.get(tipo, ""))
 	if template == "":
 		return {}
-	var testo := L10n.t(template) % int(m.get("d", 1))
-	# una lettera lunga una storia: se il filo è ricco, lo dice
+	var testo: Array = [{"k": template, "args": [int(m.get("d", 1))]}]
+	# una lettera lunga una storia: se il filo è ricco, lo dice. È un
+	# capoverso a sé — si accosta al primo, non lo interrompe.
 	if momenti.size() >= 6:
-		testo += L10n.tf("\n(E ho contato: i nostri momenti sono già %d!)", [momenti.size()])
-	return {"from": label, "text": testo, "gift": absi(pick) % 6 == 0}
+		testo.append({"k": "\n(E ho contato: i nostri momenti sono già %d!)",
+				"args": [momenti.size()]})
+	return {"from_key": label, "text_key": testo, "gift": absi(pick) % 6 == 0}
+
+
+## IL PUNTO UNICO IN CUI UNA LETTERA DIVENTA PAROLE.
+##
+## Prende la lettera com'è in coda — chiavi italiane e argomenti — e la
+## restituisce nella lingua di ADESSO: `{"from": …, "text": …, "gift": …}`.
+## Pura, così la si prova headless (tests/cases/test_posta_lingua.gd).
+##
+## Il mittente passa anch'esso per la tabella, ma di norma è un DATO (il
+## nome di un vicino) e la tabella non lo conosce: esce tale e quale. In
+## tabella ci stanno solo i mittenti che sono un ruolo e non un nome
+## proprio — «Il Gufo», «Volpe del bosco».
+static func rendi(letter: Dictionary) -> Dictionary:
+	return {
+		"from": L10n.rendi(letter.get("from_key", letter.get("from", ""))),
+		"text": _testo_di(letter),
+		"gift": bool(letter.get("gift", false)),
+	}
+
+
+static func _testo_di(letter: Dictionary) -> String:
+	if letter.has("text_key"):
+		var chiave: Variant = letter["text_key"]
+		# la scorciatoia del caso normale: una frase sola e i suoi
+		# argomenti in cima alla lettera, senza incartarli in un `{"k": …}`
+		if chiave is String and letter.has("args"):
+			return L10n.rendi({"k": chiave, "args": letter["args"]})
+		return L10n.rendi(chiave)
+	# LE LETTERE VECCHIE. Nei salvataggi fatti prima di questo cambio la
+	# coda contiene il testo GIÀ COMPOSTO: la sua chiave non esiste più da
+	# nessuna parte e non c'è modo di ricostruirla. Si mostra com'è —
+	# `t()` non la trova e la lascia passare intatta, tranne le poche che
+	# erano finite in coda ancora in italiano puro, che così vengono
+	# salvate. È l'unico pezzo di passato che questo file si porta dietro:
+	# nuove lettere di questa forma non se ne scrivono più.
+	return L10n.t(str(letter.get("text", "")))
 
 var _player: Node3D
 var _build: Node3D
@@ -120,6 +163,21 @@ func _ready() -> void:
 
 ## Una letterina su misura (ringraziamenti dei residenti…): salta la fila
 ## e arriva col prossimo mattino.
+##
+## SI METTE IN CODA LA CHIAVE, MAI IL TESTO TRADOTTO. Questa coda finisce
+## su disco e ci resta anche giorni: chi cambia lingua nel frattempo si
+## ritroverebbe per sempre le lettere di ieri nella lingua di ieri. La
+## traduzione è UNA SOLA e sta in `rendi()`, al momento di aprire la busta.
+##
+##     queue_letter({"from_key": "Il Gufo",
+##             "text_key": "Ho contato %d stelle su casa tua.",
+##             "args": [dodici], "gift": false})
+##
+## `from_key`/`text_key` sono frasi rimandate (vedi `L10n.rendi`): una
+## stringa per il caso normale, `{"k": …, "args": […]}` per una frase con
+## i suoi argomenti, un Array per più capoversi in fila. Gli argomenti
+## nudi sono dati e passano intatti (un nome, un giorno, un conto); quelli
+## da tradurre si scrivono `{"k": …}`.
 func queue_letter(letter: Dictionary) -> void:
 	_letter_queue.append(letter)
 	if _build:
@@ -326,9 +384,11 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _open_letter() -> void:
 	_reading = true
-	_card_from.text = "~ %s ~" % L10n.t(str(_current["from"]))
-	_card_text.text = L10n.t(str(_current["text"]))
-	_card_gift.visible = _current["gift"]
+	# è QUI che la lettera diventa parole, e in nessun altro posto
+	var vista := rendi(_current)
+	_card_from.text = "~ %s ~" % vista["from"]
+	_card_text.text = vista["text"]
+	_card_gift.visible = vista["gift"]
 	_card.visible = true
 	_card.reset_size()
 	_card.pivot_offset = _card.size * 0.5
@@ -343,7 +403,7 @@ func _open_letter() -> void:
 	if _sfx:
 		_sfx.build_open()
 	_mochi_read(true)
-	if _current["gift"] and _near_box:
+	if vista["gift"] and _near_box:
 		_spawn_gift(_near_box)
 
 
@@ -614,8 +674,8 @@ func _build_ui() -> void:
 	_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(_card)
 	_card.set_anchors_preset(Control.PRESET_CENTER)
-	_card.offset_left = -190.0
-	_card.offset_right = 190.0
+	_card.offset_left = -CARD_LARGHEZZA * 0.5
+	_card.offset_right = CARD_LARGHEZZA * 0.5
 	_card.offset_top = -110.0
 
 	var vbox := VBoxContainer.new()
@@ -632,6 +692,17 @@ func _build_ui() -> void:
 	_card_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_card_text.add_theme_font_size_override("font_size", 14)
 	_card_text.add_theme_color_override("font_color", UI_BROWN)
+	# IL FOGLIO HA UNA LARGHEZZA, e le righe ci vanno a capo dentro. Quasi
+	# tutte le lettere sono scritte con gli a capo a mano — sono la loro
+	# impaginazione, e vanno rispettati — ma una riga arriva lunga: lo
+	# sfogo di chi se ne va, che si compone a runtime coi torti contati e
+	# non sa quanto verrà. Senza questo, `reset_size()` allargava il foglio
+	# fino a 1100 pixel e la lettera d'addio — la più importante che il
+	# gioco scriva — usciva dal bordo destro dello schermo come uno
+	# striscione. La larghezza è quella che il pannello dichiara da sempre
+	# nelle sue ancore (380), meno i due margini.
+	_card_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_card_text.custom_minimum_size.x = CARD_LARGHEZZA - 52.0
 	vbox.add_child(_card_text)
 
 	_card_gift = Label.new()
