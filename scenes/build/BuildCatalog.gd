@@ -3438,31 +3438,143 @@ static func _sedia_vimini() -> Node3D:
 	return n
 
 
+## UNA RIGA SCRITTA COL GESSO. Il segreto perché sembri scrittura e non
+## una barra di caricamento è tutto qui: PAROLE separate da spazi, di
+## lunghezze diverse, spessori diversi, appena storte e appena disallineate
+## in verticale, e il margine destro SFRANGIATO. Allineate a sinistra:
+## nessuno scrive centrando le righe su una lavagnetta.
+## `x0` è il margine da cui si comincia a scrivere COME SI VEDE, e le
+## parole marciano verso la x locale NEGATIVA: la faccia scritta guarda
+## verso -Z (convenzione del catalogo), e chi la guarda ha la x locale
+## positiva alla propria destra. Impaginare verso +x metteva le righe
+## specchiate — col prezzo a sinistra e il margine sfrangiato a destra.
+## Ritorna la x dove la riga è finita, così chi vuole ci mette il prezzo.
+static func _riga_gesso(parent: Node3D, mat: Material, x0: float, y: float,
+		parole: Array, z: float, alt: float, rng: RandomNumberGenerator) -> float:
+	var x := x0
+	for w in parole:
+		var lung := float(w)
+		var s := _box(parent, Vector3(lung, alt * rng.randf_range(0.85, 1.15), 0.008),
+				mat, Vector3(x - lung * 0.5, y + rng.randf_range(-0.006, 0.006), z))
+		s.rotation.z = rng.randf_range(-0.035, 0.035)
+		x -= lung + 0.022    # lo spazio fra le parole
+	return x + 0.022
+
+
 static func _lavagnetta() -> Node3D:
-	# LA LAVAGNETTA DEI GUSTI: il cavalletto fuori dalla porta, col gesso
-	# di oggi. È la lavagna PICCOLA: quella grande del villaggio è un'altra.
+	# LA LAVAGNETTA DEI GUSTI: il cavalletto A LIBRO fuori dalla porta, col
+	# gesso di oggi. È la lavagna PICCOLA: quella grande del villaggio è
+	# un'altra cosa (_blackboard).
+	#
+	# Rifatta da zero: prima era una tavola su quattro gambe diritte con
+	# QUATTRO BARRE BIANCHE identiche, centrate e perfettamente parallele —
+	# sembravano barre di caricamento, non una scritta. Una lavagnetta da
+	# bar deve dire tre cose a colpo d'occhio: che è un cavalletto a libro
+	# (due pannelli incernierati in cima, con la catenella fra le gambe),
+	# che qualcuno ci ha SCRITTO a mano (parole di lunghezze diverse,
+	# storte, con gli spazi), e che è USATA (l'alone di gesso mezzo
+	# cancellato, il gessetto nella bacinella, il cancellino di feltro).
 	var n := Node3D.new()
 	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
-	var ardesia := _mat(Color("3d4a40"), Color("32403a"), 5.0, 0.35)
-	# le due gambe a cavalletto
+	var legno_chiaro := _mat(WOOD_PALE, WOOD, 3.5, 0.5)
+	var ardesia := _mat(Color("2f3a33"), Color("26302a"), 5.5, 0.3)
+	var gesso := _mat(Color("fdf6e8"), Color("ece2cf"), 6.0, 0.22)
+	# l'alone di ieri è appena più chiaro dell'ardesia, non bianco: un
+	# grigio chiaro pieno non è «cancellato», è una toppa
+	var gesso_tenue := _mat(Color("55605a"), Color("48524d"), 7.0, 0.35)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 20260729    # sempre la stessa: due lavagnette non si scrivono da sole in modo diverso
+
+	# --- la cerniera in cima, e i due pannelli che si aprono a libro ---
+	var cerniera := Vector3(0, 0.94, 0)
+	_cyl(n, 0.02, 0.02, 0.5, legno, cerniera).rotation.z = PI * 0.5
 	for lato: float in [-1.0, 1.0]:
-		for sx: float in [-0.24, 0.24]:
-			var g := _box(n, Vector3(0.045, 0.86, 0.045), legno,
-					Vector3(sx, 0.43, lato * 0.11))
-			g.rotation.x = lato * 0.2
-	var pannello := Node3D.new()
-	pannello.name = "Pannello"
-	pannello.position = Vector3(0, 0.62, -0.09)
-	pannello.rotation.x = 0.2
-	n.add_child(pannello)
-	_box(pannello, Vector3(0.58, 0.68, 0.04), legno, Vector3(0, 0, 0))
-	_box(pannello, Vector3(0.48, 0.58, 0.02), ardesia, Vector3(0, 0, -0.025))
-	# tre righe scritte col gesso, di lunghezza diversa
-	var gesso := _mat(Color("fff8ee"), Color("efe6da"), 6.0, 0.25)
-	var righe := [0.32, 0.24, 0.36, 0.2]
+		var perno := Node3D.new()
+		# l'ANTA è il pannello che si legge: quello che col rotation.x
+		# POSITIVO porta il proprio bordo basso verso -Z, cioè verso chi
+		# guarda. Chiamare «Anta» l'altro metteva la scritta sul pannello
+		# di dietro — perfetta, e invisibile.
+		perno.name = "Anta" if lato > 0.0 else "Retro"
+		perno.position = cerniera
+		perno.rotation.x = lato * 0.24
+		n.add_child(perno)
+		# il telaio del pannello: quattro liste, non una tavola piena
+		_box(perno, Vector3(0.56, 0.05, 0.045), legno, Vector3(0, -0.02, 0))
+		_box(perno, Vector3(0.56, 0.05, 0.045), legno, Vector3(0, -0.86, 0))
+		for sx: float in [-0.255, 0.255]:
+			_box(perno, Vector3(0.05, 0.86, 0.045), legno, Vector3(sx, -0.44, 0))
+		# le gambe che continuano il telaio sotto, appena svasate
+		for sx2: float in [-0.245, 0.245]:
+			var g := _box(perno, Vector3(0.05, 0.1, 0.045), legno,
+					Vector3(sx2, -0.9, 0))
+			g.rotation.z = -sx2 * 0.3
+		# l'ardesia incassata, un filo più indietro del telaio
+		_box(perno, Vector3(0.47, 0.8, 0.02), ardesia,
+				Vector3(0, -0.44, lato * -0.02))
+	# la catenella fra le due gambe (quella che impedisce l'apertura a spago)
+	for i in 3:
+		_ball(n, 0.014, _mat(METAL, Color("6f665b"), 5.0, 0.35),
+				Vector3(-0.06 + 0.06 * float(i), 0.18, 0.0),
+				Vector3(1.0, 0.7, 1.0))
+
+	# --- il fronte scritto. Tutto dentro l'anta, così segue la sua
+	# inclinazione: una scritta appesa in verticale davanti a un pannello
+	# inclinato «galleggia» e si vede subito ---
+	var anta: Node3D = n.get_node(^"Anta")
+	var zs := -0.036          # il gesso sta DAVANTI all'ardesia
+	# il titolo, più grosso, e la sottolineatura tirata di fretta
+	_riga_gesso(anta, gesso, 0.16, -0.13, [0.075, 0.055, 0.05], zs, 0.03, rng)
+	var sotto := _box(anta, Vector3(0.215, 0.012, 0.008), gesso,
+			Vector3(0.055, -0.175, zs))
+	sotto.rotation.z = -0.02
+	# tre righe di menù: parole vere, margine destro sfrangiato, e su due
+	# righe il prezzo staccato in fondo
+	var righe := [[0.062, 0.038, 0.052], [0.045, 0.07], [0.058, 0.034, 0.046]]
 	for i in righe.size():
-		_box(pannello, Vector3(float(righe[i]), 0.022, 0.012), gesso,
-				Vector3(-0.02, 0.19 - 0.12 * float(i), -0.037))
+		var y := -0.27 - 0.115 * float(i)
+		var fine := _riga_gesso(anta, gesso, 0.2, y, righe[i], zs, 0.019, rng)
+		if i != 1:
+			# il prezzo, staccato in fondo alla riga
+			_riga_gesso(anta, gesso, minf(fine - 0.05, -0.1), y,
+					[0.024, 0.02], zs, 0.019, rng)
+	# l'ALONE di quello che c'era scritto ieri, mezzo cancellato: è il
+	# dettaglio che rende la lavagna usata invece che nuova. Tre macchie
+	# sovrapposte e appena storte — una sola era un rettangolo incollato.
+	for m in [[0.22, 0.05, -0.02, 0.02], [0.14, 0.038, 0.09, -0.035],
+			[0.1, 0.03, -0.11, 0.015]]:
+		var macchia := _box(anta, Vector3(float(m[0]), float(m[1]), 0.005),
+				gesso_tenue, Vector3(float(m[2]), -0.635, zs + 0.003))
+		macchia.rotation.z = float(m[3])
+	# il cuore col gesso nell'angolo (a destra di chi guarda = x locale
+	# negativa), due palline e una punta
+	_ball(anta, 0.018, gesso, Vector3(-0.155, -0.7, zs), Vector3(1, 1, 0.35))
+	_ball(anta, 0.018, gesso, Vector3(-0.12, -0.7, zs), Vector3(1, 1, 0.35))
+	var punta := _box(anta, Vector3(0.031, 0.031, 0.006), gesso,
+			Vector3(-0.1375, -0.727, zs))
+	punta.rotation.z = PI * 0.25
+
+	# --- la bacinella dei gessetti, col gessetto e il cancellino ---
+	# il fondo va SCURO: su legno chiaro un gessetto bianco non si vede,
+	# ed era l'unica cosa che in quella bacinella si deve vedere
+	_box(anta, Vector3(0.44, 0.022, 0.055), _mat(WOOD_DARK, Color("5c4030"), 4.0, 0.45),
+			Vector3(0, -0.815, -0.045))
+	_box(anta, Vector3(0.44, 0.03, 0.012), legno_chiaro, Vector3(0, -0.8, -0.07))
+	var gessetto := _cyl(anta, 0.013, 0.013, 0.085, gesso, Vector3(-0.11, -0.793, -0.05))
+	gessetto.rotation.z = PI * 0.5
+	gessetto.rotation.y = 0.2
+	gessetto.name = "Gessetto"
+	# un mozzicone rosa, di quelli che restano sempre
+	var mozzicone := _cyl(anta, 0.01, 0.01, 0.035, _mat(PINK, PINK_DEEP, 6.0, 0.35),
+			Vector3(0.02, -0.795, -0.05))
+	mozzicone.rotation.z = PI * 0.5
+	var cancellino := _box(anta, Vector3(0.075, 0.028, 0.04),
+			_mat(Color("6f665b"), Color("585047"), 5.0, 0.4),
+			Vector3(0.145, -0.79, -0.05))
+	cancellino.name = "Cancellino"
+	_box(anta, Vector3(0.075, 0.014, 0.042), _mat(Color("cfd4c8"), Color("b8bdb0"), 7.0, 0.4),
+			Vector3(0.145, -0.803, -0.05))
+	# e la lavagnetta non sta mai perfettamente dritta
+	n.rotation.y = 0.04
 	return n
 
 
