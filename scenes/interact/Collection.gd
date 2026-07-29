@@ -60,8 +60,19 @@ var _toast: PanelContainer
 var _toast_label: Label
 
 
+## La calma del giocatore (0..1): la scrive il Fiato Sospeso, ed è la
+## stessa che moltiplicano tutte le altre paure del mondo.
+var _calma := 0.0
+
+
+## Il Fiato Sospeso pubblica quanto il prato si fida di te adesso.
+func set_calma(q: float, _pos: Vector3) -> void:
+	_calma = clampf(q, 0.0, 1.0)
+
+
 func _ready() -> void:
 	add_to_group("persistable")
+	add_to_group("calma_listener")
 	_iscrivi_alla_e.call_deferred()
 	_player = get_node("%Player")
 	_mochi = _player.get_node("Mochi")
@@ -136,7 +147,9 @@ func _update_fireflies(delta: float) -> void:
 			if d < 1.8:
 				var via := diff / maxf(d, 0.05)
 				var forza := (1.8 - d) / 1.8
-				var paura := (0.18 + 0.82 * fretta) * forza * forza
+				# la CALMA (fonte unica: FiatoSospeso) spegne anche il
+				# pavimento della paura: da immobile le lucciole vengono
+				var paura := (0.18 + 0.82 * fretta) * forza * forza * (1.0 - _calma)
 				voglia = via * paura * 1.1 + Vector3(0, 0.6 * paura, 0)
 		dodge = dodge.lerp(voglia, 1.0 - exp(-2.6 * delta))
 		f["dodge"] = dodge

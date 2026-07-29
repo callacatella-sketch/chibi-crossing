@@ -31,6 +31,7 @@ var _season := 0
 func _ready() -> void:
 	add_to_group("persistable")
 	add_to_group("ecosystem")
+	add_to_group("calma_listener")
 	add_to_group("season_listener")
 	eco = EcosystemManager.new()
 	add_child(eco)
@@ -100,6 +101,14 @@ func set_season(season: int, _snow: float, _transition: bool) -> void:
 		_wildflower_mat.set_shader_parameter("tint_d", wf[3])
 	if _firefly_mat:
 		_firefly_mat.set_shader_parameter("glow_color", FF_SEASON[_season])
+
+
+## Il Fiato Sospeso pubblica la calma: di qui passa al C++, che la usa
+## per le novanta farfalle del prato fitto e per i passerotti — che prima
+## non sapevano nemmeno che il giocatore esistesse.
+func set_calma(q: float, pos: Vector3) -> void:
+	if eco:
+		eco.set_osservatore(pos, q)
 
 
 func _process(delta: float) -> void:

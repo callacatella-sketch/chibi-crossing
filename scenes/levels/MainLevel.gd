@@ -72,6 +72,9 @@ func _ready():
 	# il velo di carta imparava a respirare: le sue manopole non le
 	# scriveva mai nessuno (vedi Carta.gd)
 	add_child(_spawn_system("res://scenes/world/Carta.gd", "Carta"))
+	# il Fiato Sospeso: tieni premuto C e il prato smette di avere paura
+	# di te. Pubblica anche la CALMA, che tutte le paure del mondo leggono
+	add_child(_spawn_system("res://scenes/world/FiatoSospeso.gd", "FiatoSospeso"))
 	# rispondere: la cassetta si può anche riempire, e per scegliere cosa
 	# dire si sfoglia il Filo Rosso — la pagina che non c'era mai stata
 	add_child(_spawn_system("res://scenes/interact/Rispondere.gd", "Rispondere"))

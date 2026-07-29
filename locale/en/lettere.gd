@@ -99,6 +99,12 @@ const T := {
 	"Stanotte mi trasferisco nella casa sull'albero che hai immaginato per me. Dal ramo più alto conto i tetti nuovi, le luci, gli orti, l'ospite che ora ha un nome: hai costruito un mondo intero, e io ho avuto il posto in prima fila. Grazie, piccolo Regista. — Il Gufo":
 		"Tonight I move into the treehouse you dreamed up for me. From the highest branch I count the new roofs, the lights, the vegetable patches, the guest who has a name now: you have built a whole world, and I have had the best seat in the house. Thank you, little Director. — The Owl",
 
+	# --------------------------------------- il Fiato Sospeso (FiatoSospeso)
+	"Oggi ti ho vista arrivare di corsa e mi sono spostata.\nNon te la prendere: sei molto grande.\nSe però ti abbassi nell'erba e stai ferma (tieni premuto C),\ndopo un po' mi dimentico di te. E allora vengo a vedere chi sei.":
+		"Today I saw you coming at a run, and I moved aside.\nDon't take it to heart: you are very large.\nBut if you crouch down in the grass and keep still (hold C),\nafter a while I forget about you. And then I come to see who you are.",
+	"Mi dicono che %s\nsi è posata su di te e non è scappata.\nNon si insegna: si aspetta e basta.\nHai imparato il verbo più difficile.":
+		"They tell me that %s\nsettled on you and did not take fright.\nIt cannot be taught: one simply waits.\nYou have learnt the hardest verb of all.",
+
 	# ------------------------------------- le lettere-stagione (GufoOrders.DESIDERI)
 	"Un prato che applaude": "A meadow that applauds",
 	"Dalla casa sull'albero vedo i prati sbadigliare.\nVorrei contare dieci fiori aperti tutti insieme:\nun applauso colorato per la primavera.":
