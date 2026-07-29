@@ -147,6 +147,8 @@ func _test_harness_non_riscrive_il_salvataggio(t) -> void:
 			"…e nella modalità stagno (ore e piogge forzate)")
 	t.ok(avvio.contains("\"carta\""),
 			"…e nella modalità carta (ore, piogge e lutto forzati)")
+	t.ok(avvio.contains("\"salone\""),
+			"…e nella modalità salone (piazza un Salone di prova)")
 	t.ok(avvio.contains("\"estetica\""),
 			"…e nella modalità estetica (cambi di look forzati)")
 	t.ok(avvio.contains("\"legna\"") and avvio.contains("CHIBI_LEGNA_SAVE"),

@@ -56,6 +56,8 @@ func run(level: Node3D, mode: String, arg: String = "") -> void:
 			await _debug_carta(arg)
 		"estetica":
 			await _debug_estetica(arg)
+		"salone":
+			await _debug_salone(arg)
 
 func _frames(n: int):
 	for i in n:
@@ -484,6 +486,70 @@ func _debug_facce(dir: String) -> void:
 
 	mochi.forza_espressione("")
 	print("FACCE: fine, %d espressioni fotografate" % n)
+	get_tree().quit()
+
+
+# --------------------------------------------------------------- salone
+# Il Salone visto da fuori e da vicino: la posa d'insieme, lo specchio
+# (dove vive la lama di luce), il carrello dei colori e la poltrona coi
+# suoi dettagli. Piu' un vicino seduto sull'ancoraggio "Seggiola", per
+# controllare la SCALA — un salone bello ma grande come una casa non
+# servirebbe a niente.
+func _debug_salone(dir: String) -> void:
+	var dn = _level.get_node_or_null("DayNight")
+	if dn:
+		dn.set_time(0.42)
+	await _frames(30)
+	player.global_position = Vector3(6.0, 0, 12.0)   # Mochi fuori campo
+	build_system.place_cell(Vector2i(0, 6), "Salone", 0, false)
+	await _frames(6)
+	var salone: Node3D = null
+	for nodo in build_system.get_placed_by_name("Salone"):
+		salone = nodo
+	if salone == null:
+		printerr("SALONE: non piazzato")
+		get_tree().quit()
+		return
+	var c: Vector3 = salone.global_position
+
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.current = true
+	var guarda := func(da: Vector3, verso: Vector3, fov: float) -> void:
+		cam.fov = fov
+		cam.position = c + da
+		cam.look_at(c + verso)
+		await _frames(6)
+
+	await guarda.call(Vector3(0.92, 0.72, 1.20), Vector3(0, 0.42, -0.05), 40.0)
+	await _shot(dir, "salone_1_insieme")
+	await guarda.call(Vector3(0.10, 0.99, 0.42), Vector3(0, 0.92, -0.33), 32.0)
+	await _shot(dir, "salone_2_specchio")
+	await guarda.call(Vector3(0.78, 0.56, 0.52), Vector3(0.42, 0.31, 0.16), 30.0)
+	await _shot(dir, "salone_3_carrello")
+	await guarda.call(Vector3(-0.62, 0.42, 0.66), Vector3(0, 0.30, 0.05), 34.0)
+	await _shot(dir, "salone_4_poltrona")
+
+	# LA SCALA: un vicino vero seduto sull'ancoraggio
+	var seggiola := salone.find_child("Seggiola", true, false) as Node3D
+	print("SALONE: ancoraggio Seggiola -> %s" % ("c'e'" if seggiola else "MANCA"))
+	var VIS = load("res://scenes/npc/Visitor.gd")
+	var DNAG = load("res://scenes/npc/ChibiDNA.gd")
+	var v: Node3D = VIS.new()
+	v.set("species", "chibi")
+	v.set("dna", DNAG.generate(2024))
+	add_child(v)
+	v.set("mode", "resident")
+	await _frames(4)
+	if seggiola:
+		v.global_position = seggiola.global_position - Vector3(0, 0.18, 0)
+	v.set("_yaw", 0.0)
+	if v.has_method("do_routine"):
+		v.call("do_routine", "bench", v.global_position, c + Vector3(0, 0.5, -1))
+	await get_tree().create_timer(0.8).timeout
+	await guarda.call(Vector3(1.05, 0.80, 1.45), Vector3(0, 0.40, -0.05), 42.0)
+	await _shot(dir, "salone_5_con_un_vicino")
+	print("SALONE: fine")
 	get_tree().quit()
 
 

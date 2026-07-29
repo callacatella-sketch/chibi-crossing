@@ -77,6 +77,13 @@ static func items() -> Array[Dictionary]:
 			"cols": [[Vector3(0.92, 1.1, 0.42), Vector3(0, 0.55, 0)]]},
 		{"name": "Lampada", "cat": 1, "type": "cell", "layer": 2, "builder": _lamp,
 			"cols": [[Vector3(0.2, 1.75, 0.2), Vector3(0, 0.87, 0)]]},
+		# il salone dell'estetista: ci si siede e se ne esce diversi.
+		# Le collisioni lasciano libero il DAVANTI (da lì ci si entra):
+		# fermano la console dello specchio, la poltrona e il carrello.
+		{"name": "Salone", "cat": 1, "type": "cell", "layer": 2, "builder": _salone,
+			"cols": [[Vector3(0.82, 1.15, 0.24), Vector3(0, 0.57, -0.33)],
+					[Vector3(0.36, 0.66, 0.34), Vector3(0, 0.33, 0.07)],
+					[Vector3(0.24, 0.44, 0.20), Vector3(0.40, 0.22, 0.13)]]},
 
 		# --- Giardino ---
 		{"name": "Pianta", "cat": 2, "type": "cell", "layer": 2, "builder": _plant,
@@ -1216,3 +1223,354 @@ static func _brazier() -> Node3D:
 	light.position = Vector3(0, 0.72, 0)
 	n.add_child(light)
 	return n
+
+
+# ================================================================ IL SALONE
+# L'ESTETISTA — la poltrona, lo specchio e il carrello dei colori.
+#
+# È il posto dove un vicino (e un giorno Mochi) si siede e ne esce
+# diverso: manto, sopracciglia, guanciotte, vestitino. Il genoma
+# estetico esiste già (ChibiDNA.ESTETICI) e un corpo si sa rifare da
+# solo (Visitor.rifai_il_look); questo è il LUOGO, e viene prima del
+# resto perché una meccanica senza un posto dove accade è un menù.
+#
+# Il pezzo sta in una cella ma la riempie tutta, come la casa
+# sull'albero: specchio in fondo, poltrona al centro rivolta a chi
+# entra, carrello dei colori sul fianco, tappeto a terra.
+#
+# COSA LO FA SEMBRARE VERO, in ordine di quanto si nota:
+#   · LO SPECCHIO non è una lastra grigia. Il vetro ha un gradiente
+#     verticale (il cielo in alto, la stanza in basso), una LAMA di
+#     luce in diagonale — il riflesso che l'occhio legge come vetro
+#     prima di qualunque altra cosa — e un bordo smussato che raccoglie
+#     un filo di luce. La cornice è ovale con due volute.
+#   · LA POLTRONA ha il pistone e la ghiera zigrinata, il poggiapiedi
+#     ad anello e la base a cinque razze coi piedini: sono i dettagli
+#     che dicono «poltrona da salone» e non «sedia».
+#   · I BARATTOLI dei colori sono davvero di colori diversi, col tappo
+#     di sughero e il livello che non arriva mai all'orlo.
+#   · GLI ATTREZZI: forbici aperte a X con gli anelli, il pettine coi
+#     denti veri, il pennello nel bicchiere.
+#
+# Il nodo "Seggiola" marca dove ci si siede: lo cercherà il sistema del
+# salone quando arriverà (un ancoraggio nominato, non una costante
+# copiata in due file).
+static func _salone() -> Node3D:
+	var n := Node3D.new()
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var legno_chiaro := _mat(WOOD_PALE, WOOD, 3.0, 0.45)
+	var ottone := _mat(Color("d9b978"), Color("b8965a"), 7.0, 0.35)
+	var acciaio := _mat(Color("cfc9c0"), Color("a8a29a"), 8.0, 0.3)
+	var velluto := _mat(Color("f0b3c4"), Color("dd9aae"), 5.0, 0.55)
+	var velluto_scuro := _mat(Color("dd9aae"), Color("c48196"), 5.0, 0.5)
+
+	_salone_tappeto(n)
+	_salone_specchio(n, legno_chiaro, ottone)
+	_salone_poltrona(n, velluto, velluto_scuro, acciaio, ottone)
+	_salone_carrello(n, legno, legno_chiaro, acciaio, ottone)
+	_salone_insegna(n, legno_chiaro, ottone)
+
+	# l'ancoraggio della seduta: ci si siede QUI (lo cerchera' il salone)
+	var seggiola := Node3D.new()
+	seggiola.name = "Seggiola"
+	seggiola.position = Vector3(0.0, SAL_SEDUTA + 0.02, 0.07)
+	n.add_child(seggiola)
+	return n
+
+
+# LA SCALA. Un chibi e' alto ~0.70 e si siede a ~0.28 da terra: TUTTO
+# qui dentro e' tarato su di lui. Alla prima stesura la poltrona gli
+# arrivava alla testa e lo specchio pareva un portale — bello e inutile:
+# un salone deve sembrare a misura di chi ci si siede.
+const SAL_SEDUTA := 0.29     # quota del cuscino
+const SAL_SPECCHIO := 0.92   # centro della cornice
+const SAL_CONSOLE := 0.46    # piano della console
+
+
+# il tappetino: due ovali sovrapposti, quello sopra piu' chiaro — il
+# bordo che si vede e' quello che lo fa sembrare un tappeto e non una
+# macchia di colore
+static func _salone_tappeto(n: Node3D) -> void:
+	var fondo := _mat(Color("c9b6d8"), Color("b09cc4"), 3.0, 0.5)
+	var sopra := _mat(Color("e0d2ea"), Color("cbb9da"), 3.5, 0.45)
+	_cyl(n, 0.46, 0.46, 0.012, fondo, Vector3(0, 0.006, 0.02)).scale = Vector3(1.3, 1, 1)
+	_cyl(n, 0.39, 0.39, 0.014, sopra, Vector3(0, 0.014, 0.02)).scale = Vector3(1.3, 1, 1)
+
+
+# LO SPECCHIO. La console col cassetto, i due montanti, la cornice
+# ovale, e dentro il vetro vero: gradiente, lama di luce, bordo.
+static func _salone_specchio(n: Node3D, legno_chiaro: Material, ottone: Material) -> void:
+	var z := -0.33
+	# la console: piano, fascia, due gambe tornite col piedino
+	_box(n, Vector3(0.78, 0.035, 0.20), legno_chiaro, Vector3(0, SAL_CONSOLE, z))
+	_box(n, Vector3(0.70, 0.09, 0.16), legno_chiaro, Vector3(0, SAL_CONSOLE - 0.06, z))
+	# il cassetto, con la maniglia d'ottone
+	_box(n, Vector3(0.40, 0.065, 0.015), _mat(WOOD, WOOD_DARK, 5.0, 0.4),
+			Vector3(0, SAL_CONSOLE - 0.06, z + 0.085))
+	_cyl(n, 0.014, 0.014, 0.024, ottone,
+			Vector3(0, SAL_CONSOLE - 0.06, z + 0.10)).rotation.x = PI * 0.5
+	for sx: float in [-0.32, 0.32]:
+		_cyl(n, 0.020, 0.026, 0.36, legno_chiaro, Vector3(sx, 0.19, z))
+		_cyl(n, 0.034, 0.034, 0.022, legno_chiaro, Vector3(sx, 0.011, z))
+		_ball(n, 0.032, legno_chiaro, Vector3(sx, 0.34, z), Vector3(1, 0.6, 1))
+
+	# i montanti dello specchio, leggermente aperti a V
+	for sx2: float in [-0.215, 0.215]:
+		var m := _cyl(n, 0.016, 0.019, 0.30, legno_chiaro, Vector3(sx2, 0.63, z))
+		m.rotation.z = -sx2 * 0.14
+
+	# LA CORNICE OVALE: un toro schiacciato, che e' la forma giusta —
+	# un rettangolo qui sembrerebbe una finestra, non uno specchio
+	var cornice := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = 0.195
+	tm.outer_radius = 0.225
+	tm.rings = 40
+	tm.ring_segments = 10
+	cornice.mesh = tm
+	cornice.material_override = legno_chiaro
+	cornice.position = Vector3(0, SAL_SPECCHIO, z)
+	cornice.rotation.x = PI * 0.5
+	cornice.scale = Vector3(1.0, 1.0, 1.20)   # ovale: piu' alto che largo
+	n.add_child(cornice)
+
+	# IL VETRO. Non una lastra grigia: un gradiente verticale (il cielo
+	# in alto, la stanza in basso) piu' una LAMA di luce in diagonale.
+	# E' quella lama che l'occhio legge come "vetro" prima di tutto.
+	var vetro := StandardMaterial3D.new()
+	vetro.albedo_color = Color(0.80, 0.87, 0.93)
+	vetro.roughness = 0.06
+	vetro.metallic = 0.35
+	vetro.emission_enabled = true
+	vetro.emission = Color(0.62, 0.74, 0.86)
+	vetro.emission_energy_multiplier = 0.22
+	var lastra := _cyl(n, 0.198, 0.198, 0.010, vetro, Vector3(0, SAL_SPECCHIO, z + 0.005))
+	lastra.rotation.x = PI * 0.5
+	lastra.scale = Vector3(1.0, 1.0, 1.20)
+
+	# il fondo del vetro, piu' caldo: la stanza che ci si specchia
+	var basso := StandardMaterial3D.new()
+	basso.albedo_color = Color(0.74, 0.71, 0.71)
+	basso.roughness = 0.12
+	basso.metallic = 0.2
+	var giu := _cyl(n, 0.193, 0.193, 0.005, basso, Vector3(0, SAL_SPECCHIO - 0.075, z + 0.008))
+	giu.rotation.x = PI * 0.5
+	giu.scale = Vector3(1.0, 1.0, 0.60)
+
+	# LA LAMA DI LUCE: un nastro sottile in diagonale, unshaded e
+	# additivo — non "colora" il vetro, ci si somma sopra come un
+	# riflesso vero
+	var lama_mat := StandardMaterial3D.new()
+	lama_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	lama_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	lama_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	lama_mat.albedo_color = Color(1, 1, 1, 0.26)
+	var lama := _box(n, Vector3(0.048, 0.34, 0.003), lama_mat,
+			Vector3(-0.055, SAL_SPECCHIO + 0.02, z + 0.011))
+	lama.rotation.z = -0.62
+	var lama2 := _box(n, Vector3(0.020, 0.19, 0.003), lama_mat,
+			Vector3(0.045, SAL_SPECCHIO - 0.055, z + 0.011))
+	lama2.rotation.z = -0.62
+
+
+# LA POLTRONA, a misura di chibi: si siede a 0.29 e lo schienale gli
+# arriva alle spalle, non sopra la testa.
+#
+# LO SCHIENALE E' UN PANNELLO, non una sfera schiacciata: alla prima
+# stesura era un ellissoide e leggeva come un palloncino rosa: la forma
+# di un imbottito e' squadrata con gli spigoli tondi, e il tondo lo
+# fanno il tubolare in cima e ai fianchi — non la sagoma intera.
+static func _salone_poltrona(n: Node3D, velluto: Material, velluto_scuro: Material,
+		acciaio: Material, ottone: Material) -> void:
+	var z := 0.07
+	# la base: cinque razze coi piedini, come le poltrone vere
+	for i in 5:
+		var a := float(i) / 5.0 * TAU + 0.3
+		var razza := _box(n, Vector3(0.04, 0.026, 0.17), acciaio,
+				Vector3(cos(a) * 0.085, 0.026, z + sin(a) * 0.085))
+		razza.rotation.y = -a
+		_cyl(n, 0.024, 0.021, 0.022, acciaio,
+				Vector3(cos(a) * 0.165, 0.011, z + sin(a) * 0.165))
+	_cyl(n, 0.05, 0.065, 0.035, acciaio, Vector3(0, 0.045, z))
+
+	# il pistone e la GHIERA ZIGRINATA: e' questo dettaglio che dice
+	# «poltrona da salone» invece di «sgabello»
+	_cyl(n, 0.030, 0.030, 0.20, acciaio, Vector3(0, 0.155, z))
+	for i in 12:
+		var a2 := float(i) / 12.0 * TAU
+		_box(n, Vector3(0.009, 0.032, 0.009), ottone,
+				Vector3(cos(a2) * 0.037, 0.135, z + sin(a2) * 0.037)).rotation.y = -a2
+	_cyl(n, 0.039, 0.039, 0.036, ottone, Vector3(0, 0.135, z))
+	# la leva dell'altezza
+	var leva := _cyl(n, 0.009, 0.009, 0.11, ottone, Vector3(0.075, 0.145, z + 0.03))
+	leva.rotation.z = PI * 0.5
+	leva.rotation.y = 0.4
+	_ball(n, 0.016, ottone, Vector3(0.128, 0.145, z + 0.052))
+
+	# LA SEDUTA: cassa bassa col cuscino sopra e il bordo tondo davanti
+	# (il tubolare sul filo anteriore e' cio' che la fa "imbottita")
+	_box(n, Vector3(0.30, 0.045, 0.29), velluto_scuro, Vector3(0, SAL_SEDUTA - 0.028, z))
+	_box(n, Vector3(0.29, 0.035, 0.275), velluto, Vector3(0, SAL_SEDUTA + 0.002, z))
+	var orlo := _cyl(n, 0.021, 0.021, 0.29, velluto,
+			Vector3(0, SAL_SEDUTA - 0.002, z + 0.137))
+	orlo.rotation.z = PI * 0.5
+	_box(n, Vector3(0.007, 0.008, 0.20), velluto_scuro, Vector3(0, SAL_SEDUTA + 0.021, z))
+
+	# LO SCHIENALE: pannello imbottito appena reclinato, col tubolare
+	# tondo in cima e sui due fianchi
+	var sch := Node3D.new()
+	sch.position = Vector3(0, SAL_SEDUTA + 0.015, z - 0.128)
+	sch.rotation.x = -0.17
+	n.add_child(sch)
+	_box(sch, Vector3(0.275, 0.235, 0.055), velluto, Vector3(0, 0.118, 0))
+	_box(sch, Vector3(0.255, 0.215, 0.012), velluto_scuro, Vector3(0, 0.118, -0.030))
+	var cima := _cyl(sch, 0.028, 0.028, 0.275, velluto, Vector3(0, 0.236, 0))
+	cima.rotation.z = PI * 0.5
+	for sx0: float in [-1.0, 1.0]:
+		_cyl(sch, 0.024, 0.024, 0.235, velluto, Vector3(sx0 * 0.137, 0.118, 0))
+	# la cucitura verticale al centro
+	_box(sch, Vector3(0.008, 0.20, 0.008), velluto_scuro, Vector3(0, 0.115, 0.028))
+	# il poggiatesta: un cuscinetto staccato, sospeso su due astine
+	for sx1: float in [-1.0, 1.0]:
+		_cyl(sch, 0.006, 0.006, 0.05, acciaio, Vector3(sx1 * 0.045, 0.275, 0.0))
+	_box(sch, Vector3(0.15, 0.062, 0.052), velluto, Vector3(0, 0.325, 0.0))
+	var cima2 := _cyl(sch, 0.026, 0.026, 0.15, velluto, Vector3(0, 0.352, 0.0))
+	cima2.rotation.z = PI * 0.5
+
+	# I BRACCIOLI: il cuscinetto poggia su DUE montanti che scendono
+	# alla seduta — prima galleggiava, e si vedeva
+	for sx: float in [-1.0, 1.0]:
+		var bx := sx * 0.172
+		_cyl(n, 0.010, 0.010, 0.10, acciaio, Vector3(bx, SAL_SEDUTA + 0.045, z - 0.085))
+		_cyl(n, 0.010, 0.010, 0.075, acciaio, Vector3(bx, SAL_SEDUTA + 0.032, z + 0.075))
+		_box(n, Vector3(0.045, 0.030, 0.20), velluto,
+				Vector3(bx, SAL_SEDUTA + 0.100, z - 0.008))
+		var tondo := _cyl(n, 0.019, 0.019, 0.045, velluto,
+				Vector3(bx, SAL_SEDUTA + 0.100, z + 0.092))
+		tondo.rotation.x = PI * 0.5
+
+	# IL POGGIAPIEDI ad anello: un toro d'ottone davanti al pistone
+	var anello := MeshInstance3D.new()
+	var am := TorusMesh.new()
+	am.inner_radius = 0.078
+	am.outer_radius = 0.092
+	am.rings = 24
+	am.ring_segments = 8
+	anello.mesh = am
+	anello.material_override = ottone
+	anello.position = Vector3(0, 0.135, z + 0.015)
+	anello.rotation.x = PI * 0.5
+	n.add_child(anello)
+
+
+# IL CARRELLO DEI COLORI: tre ripiani, due ruote, i barattoli delle
+# tinte, il bicchiere coi pennelli, le forbici e il pettine.
+static func _salone_carrello(n: Node3D, legno: Material, legno_chiaro: Material,
+		acciaio: Material, ottone: Material) -> void:
+	var x := 0.40
+	var z := 0.13
+	# i montanti e i tre ripiani
+	for sx: float in [-0.075, 0.075]:
+		for sz: float in [-0.058, 0.058]:
+			_cyl(n, 0.007, 0.009, 0.40, acciaio, Vector3(x + sx, 0.21, z + sz))
+	for y: float in [0.13, 0.265, 0.40]:
+		_box(n, Vector3(0.205, 0.015, 0.165), legno_chiaro, Vector3(x, y, z))
+	# le due ruote piroettanti
+	for sx2: float in [-0.068, 0.068]:
+		var ruota := _cyl(n, 0.022, 0.022, 0.013,
+				_mat(Color("6a625a"), Color("4e4841"), 8.0, 0.3),
+				Vector3(x + sx2, 0.022, z + 0.050))
+		ruota.rotation.z = PI * 0.5
+
+	# I BARATTOLI DELLE TINTE: colori veri e diversi, tappo di sughero,
+	# e il livello che non arriva mai all'orlo (un barattolo pieno raso
+	# sembra un cilindro colorato, non un barattolo)
+	var tinte := [Color("d98d9c"), Color("9ec9e8"), Color("cbb2e0"),
+			Color("f0c98a"), Color("a8d6b8")]
+	var vetro_b := StandardMaterial3D.new()
+	vetro_b.albedo_color = Color(0.92, 0.95, 0.97, 0.42)
+	vetro_b.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	vetro_b.roughness = 0.1
+	var sughero := _mat(Color("d9b98a"), Color("bd9c6c"), 9.0, 0.4)
+	var posti := [Vector3(-0.065, 0.408, -0.040), Vector3(0.0, 0.408, -0.040),
+			Vector3(0.065, 0.408, -0.040), Vector3(-0.045, 0.408, 0.040),
+			Vector3(0.045, 0.408, 0.040)]
+	for i in tinte.size():
+		var p: Vector3 = posti[i]
+		var bx := x + p.x
+		var by := p.y
+		var bz := z + p.z
+		_cyl(n, 0.019, 0.019, 0.055, vetro_b, Vector3(bx, by + 0.028, bz))
+		_cyl(n, 0.016, 0.016, 0.032, _mat(tinte[i], Color(tinte[i]).darkened(0.18), 6.0, 0.4),
+				Vector3(bx, by + 0.018, bz))
+		_cyl(n, 0.015, 0.017, 0.013, sughero, Vector3(bx, by + 0.061, bz))
+
+	# il bicchiere coi pennelli
+	_cyl(n, 0.022, 0.019, 0.056, vetro_b, Vector3(x + 0.062, 0.158, z - 0.040))
+	for i in 3:
+		var px := x + 0.062 + (float(i) - 1.0) * 0.009
+		var pz := z - 0.040 + float(i) * 0.006
+		var pennello := _cyl(n, 0.004, 0.005, 0.13, legno, Vector3(px, 0.202, pz))
+		pennello.rotation.z = (float(i) - 1.0) * 0.13
+		_cyl(n, 0.007, 0.005, 0.032,
+				_mat(Color("6a5a4a"), Color("50432f"), 10.0, 0.4),
+				Vector3(px + (float(i) - 1.0) * 0.009, 0.263, pz))
+
+	# LE FORBICI, aperte a X, con gli anelli
+	var scuro := _mat(Color("4e4237"), Color("362d25"), 9.0, 0.35)
+	for lato: float in [-1.0, 1.0]:
+		var lama := _box(n, Vector3(0.009, 0.003, 0.085), acciaio,
+				Vector3(x - 0.058, 0.278, z + 0.040))
+		lama.rotation.y = lato * 0.20
+		var occhiello := MeshInstance3D.new()
+		var om := TorusMesh.new()
+		om.inner_radius = 0.010
+		om.outer_radius = 0.015
+		om.rings = 14
+		om.ring_segments = 6
+		occhiello.mesh = om
+		occhiello.material_override = ottone
+		occhiello.position = Vector3(x - 0.058 + lato * 0.013, 0.279, z + 0.089)
+		n.add_child(occhiello)
+	_cyl(n, 0.005, 0.005, 0.010, ottone, Vector3(x - 0.058, 0.279, z + 0.020))
+
+	# IL PETTINE: il dorso e i denti, allineati sullo stesso asse
+	var ang := -0.25
+	var base := Vector3(x + 0.042, 0.276, z + 0.048)
+	var lungo := Vector3(cos(ang), 0, -sin(ang))
+	var trasv := Vector3(sin(ang), 0, cos(ang))
+	var dorso := _box(n, Vector3(0.085, 0.006, 0.012), scuro, base)
+	dorso.rotation.y = ang
+	for i in 9:
+		var d := _box(n, Vector3(0.0035, 0.005, 0.020), scuro,
+				base + lungo * ((float(i) - 4.0) * 0.0098) + trasv * 0.015)
+		d.rotation.y = ang
+
+
+# L'INSEGNA appesa: una tavoletta ovale con le forbici incise e due
+# nastri. Sta in alto sul montante, dove si vede da fuori.
+static func _salone_insegna(n: Node3D, legno_chiaro: Material, ottone: Material) -> void:
+	var pivot := Node3D.new()
+	pivot.name = "InsegnaPivot"
+	pivot.position = Vector3(-0.36, 0.88, -0.29)
+	n.add_child(pivot)
+	# il braccetto e la catenella
+	var braccio := _cyl(n, 0.009, 0.009, 0.12, ottone, Vector3(-0.31, 0.94, -0.30))
+	braccio.rotation.z = PI * 0.5
+	_cyl(pivot, 0.004, 0.004, 0.075, ottone, Vector3(0, 0.034, 0))
+	# la tavoletta ovale
+	var tavola := _cyl(pivot, 0.072, 0.072, 0.013, legno_chiaro, Vector3(0, -0.068, 0))
+	tavola.rotation.x = PI * 0.5
+	tavola.scale = Vector3(1.0, 1.0, 0.72)
+	# le forbici incise: due lamette a X piu' due anellini
+	for lato: float in [-1.0, 1.0]:
+		var l := _box(pivot, Vector3(0.006, 0.040, 0.003), ottone,
+				Vector3(lato * 0.009, -0.058, 0.009))
+		l.rotation.z = lato * 0.30
+		_cyl(pivot, 0.008, 0.008, 0.003, ottone,
+				Vector3(lato * 0.020, -0.087, 0.009)).rotation.x = PI * 0.5
+	# i due nastri
+	for lato2: float in [-1.0, 1.0]:
+		var nastro := _box(pivot, Vector3(0.016, 0.036, 0.003),
+				_mat(PINK, PINK_DEEP, 6.0, 0.45), Vector3(lato2 * 0.040, -0.024, 0.005))
+		nastro.rotation.z = lato2 * 0.5
