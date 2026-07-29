@@ -48,6 +48,11 @@ func _ready():
 
 	# --- economia gentile + menu (istanziati da codice: non tocco la scena) ---
 	player.add_to_group("player_controller")
+	# L'ARBITRO DELLA E, per PRIMO: intercetta il tasto in `_input` (che
+	# arriva prima di ogni `_unhandled_input`) e lo assegna a un solo
+	# vincitore. Chi non si è ancora iscritto continua a funzionare
+	# esattamente come prima — la migrazione va a ondate.
+	add_child(_spawn_system("res://systems/ArbitroE.gd", "ArbitroE"))
 	add_child(_spawn_system("res://scenes/ui/Economy.gd", "Economy"))
 	add_child(_spawn_system("res://scenes/ui/Shop.gd", "Shop"))
 	add_child(_spawn_system("res://scenes/ui/PauseMenu.gd", "PauseMenu"))

@@ -62,6 +62,7 @@ var _toast_label: Label
 
 func _ready() -> void:
 	add_to_group("persistable")
+	_iscrivi_alla_e.call_deferred()
 	_player = get_node("%Player")
 	_mochi = _player.get_node("Mochi")
 	_cozy = get_node_or_null("../CozyWorld")
@@ -507,6 +508,34 @@ func _nearest_catch() -> Dictionary:
 		if i >= 0:
 			return {"type": "farfalla", "index": i}
 	return {}
+
+
+# ---------------------------------------------------- l'arbitro della E
+# Una farfalla che passa non ripassa: la retinata sta sul gradino FUGACE
+# e batte semina, asciata e scavo — che saranno lì anche domani. Prima
+# perdeva contro tutti e tre (era tredicesima nella catena).
+
+## La distanza dalla creatura a portata di retino, o -1 se non ce n'è.
+func distanza_e() -> float:
+	if _busy or _player == null or not _player.is_physics_processing():
+		return -1.0
+	var t := _nearest_catch()
+	if t.is_empty():
+		return -1.0
+	return 0.5
+
+
+func agisci_e() -> void:
+	var t := _nearest_catch()
+	if not t.is_empty():
+		_catch(t)
+
+
+func _iscrivi_alla_e() -> void:
+	var arb := get_tree().get_first_node_in_group("arbitro_e")
+	if arb:
+		arb.iscrivi(self, "retino", arb.FUGACE,
+				Callable(self, "distanza_e"), Callable(self, "agisci_e"))
 
 
 func _unhandled_input(event: InputEvent) -> void:

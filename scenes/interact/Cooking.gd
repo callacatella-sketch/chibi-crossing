@@ -19,8 +19,14 @@ const DISH_ICON := {
 	"Crumble di bacche": "crumble", "Tè alle bacche": "te",
 }
 
+## Il plurale di ogni ingrediente che una ricetta può chiedere. NON è
+## decorazione: `_refresh_menu` lo indicizza per scrivere «2 mele», e una
+## chiave mancante non degradava — mandava in errore il ricettario intero
+## (è successo con mela e pera, arrivate col frutteto). Un test verifica
+## che ogni ingrediente di ogni RECIPES abbia il suo plurale qui.
 const ING_PLURAL := {"carota": "carote", "zucca": "zucche", "bacca": "bacche",
-		"fungo": "funghi", "porcino": "porcini"}
+		"fungo": "funghi", "porcino": "porcini",
+		"mela": "mele", "pera": "pere"}
 
 const RECIPES := [
 	{"name": "Tè del prato", "need": {}, "warm": false, "art": "il",
@@ -221,7 +227,10 @@ func _refresh_menu() -> void:
 		var need_parts: Array[String] = []
 		for kind in recipe["need"]:
 			var n := int(recipe["need"][kind])
-			need_parts.append("%d %s" % [n, L10n.t(str(kind if n == 1 else ING_PLURAL[kind]))])
+			# `get` e non `[]`: un ingrediente senza plurale deve degradare
+			# sul singolare, non buttare giù tutto il ricettario
+			var nome := str(kind) if n == 1 else str(ING_PLURAL.get(kind, kind))
+			need_parts.append("%d %s" % [n, L10n.t(nome)])
 		var need_txt := " · ".join(need_parts) if not need_parts.is_empty() \
 				else L10n.t("senza ingredienti")
 		_menu_buttons[i].text = "%d.  %s   —   %s" % [i + 1, L10n.t(str(recipe["name"])), need_txt]

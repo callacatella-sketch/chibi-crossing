@@ -102,6 +102,7 @@ func _ready() -> void:
 	_sfx = get_node_or_null(^"/root/Sfx")
 	_build_ui()
 	(func() -> void:
+		_iscrivi_alla_e()
 		_player = get_node_or_null("%Player")
 		_mochi = _player.get_node("Mochi") if _player else null
 		_cozy = get_node_or_null("../CozyWorld")
@@ -221,6 +222,34 @@ func _spot_vicino() -> int:
 		if pp.distance_to(_spots[k]["pos"]) < RAGGIO_SCAVO:
 			return k
 	return -1
+
+
+# ---------------------------------------------------- l'arbitro della E
+# Il luccichio del giorno è FUGACE: sono due o tre in tutto il prato e
+# quando li scavi finiscono. Prima l'asciata e la semina glielo rubavano
+# — e piantavano un albero proprio sopra il punto da scavare.
+
+## La distanza dal luccichio a portata, o -1 se non ce n'è nessuno.
+func distanza_e() -> float:
+	if _busy or _player == null or not _player.is_physics_processing():
+		return -1.0
+	var k := _spot_vicino()
+	if k < 0:
+		return -1.0
+	return float(_player.global_position.distance_to(_spots[k]["pos"]))
+
+
+func agisci_e() -> void:
+	var k := _spot_vicino()
+	if k >= 0:
+		_scava(k)
+
+
+func _iscrivi_alla_e() -> void:
+	var arb := get_tree().get_first_node_in_group("arbitro_e")
+	if arb:
+		arb.iscrivi(self, "scavo", arb.FUGACE,
+				Callable(self, "distanza_e"), Callable(self, "agisci_e"))
 
 
 func _unhandled_input(event: InputEvent) -> void:
