@@ -81,6 +81,7 @@ func _ready():
 	# il salone dell'estetista: apre, e un vicino alla volta si siede
 	add_child(_spawn_system("res://scenes/interact/Salone.gd", "Salone"))
 	add_child(_spawn_system("res://scenes/interact/Concerto.gd", "Concerto"))
+	add_child(_spawn_system("res://scenes/npc/Taccuino.gd", "Taccuino"))
 	var settings := get_node_or_null(^"/root/Settings")
 	if settings:
 		settings.apply_to_player(player)
@@ -123,6 +124,8 @@ func _ready():
 		_start_debug_harness("estetista", OS.get_environment("CHIBI_ESTETISTA"))
 	elif OS.get_environment("CHIBI_ANFITEATRO") != "":
 		_start_debug_harness("anfiteatro", OS.get_environment("CHIBI_ANFITEATRO"))
+	elif OS.get_environment("CHIBI_TACCUINO") != "":
+		_start_debug_harness("taccuino", OS.get_environment("CHIBI_TACCUINO"))
 	elif OS.get_environment("CHIBI_MAKESAVE") != "":
 		_start_debug_harness("makesave")
 

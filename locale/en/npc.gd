@@ -389,6 +389,42 @@ const T := {
 	"Ti osservo da un po': annusi il mondo come un\nriccio al primo giorno. Mi piace chi curiosa.":
 			"I have been watching you a while: you sniff at the world like a\nhedgehog on its first day. I do like a curious soul.",
 
+	# IL TACCUINO. Le lettere che citano un micro-gesto: qui la traduzione
+	# non e' un servizio, e' la meccanica. La prima meta' di ogni frase
+	# afferma solo cio' che si e' visto, la seconda dice cosa ha pensato il
+	# Gufo — e va conservato quell'ordine, o la lettera comincia a
+	# sostenere di sapere cosa avevi in testa.
+	# E niente pronomi sulla cosa citata: in italiano si sfascia sul genere,
+	# in inglese si sfascia sul numero. «tutto e' rimasto dov'era» / «all of
+	# it stayed where it was» non ha ne' l'uno ne' l'altro.
+	"stamattina": "this morning",
+	"ieri": "yesterday",
+	"l'altro giorno": "the other day",
+	"la pioggia": "the rain",
+	"le stelle": "the stars",
+	"l'acqua": "the water",
+	"la luce che si alzava": "the light coming up",
+	"le ombre che si allungavano": "the shadows growing long",
+	"il prato": "the meadow",
+	"quella creaturina": "that little creature",
+	"quell'ombra nell'acqua": "that shadow in the water",
+	"quell'albero": "that tree",
+	"quel ramo carico": "that heavy branch",
+	"quella terra smossa": "that turned earth",
+	"quel sasso piatto": "that flat stone",
+	"una mela": "an apple",
+	"una pera": "a pear",
+	"Ti ho vista fermarti, %s,\ndavanti a %s.\nHai allungato la zampina, e poi sei ripartita:\ntutto è rimasto dov'era.\nCi ho pensato tutto il pomeriggio, sul mio ramo.":
+			"I saw you stop, %s,\nin front of %s.\nYou reached out a paw, and then you walked on:\nall of it stayed where it was.\nI thought about that all afternoon, on my branch.",
+	"È la seconda volta che ti fermi davanti a qualcosa\ne poi tiri indietro la zampina.\nHo smesso di pensare che sia distrazione:\ncredo sia una regola tua. Non te la chiedo. La rispetto.":
+			"That is the second time you have stopped in front of something\nand then drawn your paw back again.\nI have stopped believing it is absent-mindedness:\nI think it is a rule of yours. I shan't ask. I shall keep it.",
+	"Cammini sul sentiero. Sempre, anche quando tagliare\nsarebbe più corto e nessuno ti vedrebbe.\nAnche io faccio così, sui rami. Non so perché.":
+			"You walk on the path. Always, even when cutting across\nwould be shorter and nobody would see you.\nI do the same, along the branches. I don't know why.",
+	"Hai posato un sentiero e cammini accanto.\nNon è un rimprovero: l'ho guardato dall'alto, stamattina,\ne ho pensato che certe cose si fanno perché siano belle da vedere.":
+			"You laid a path and you walk beside it.\nThis is not a reproach: I looked down on it this morning,\nand thought that some things are made simply to be looked at.",
+	"Sei rimasta ferma tanto, %s.\nA guardare %s.\nNon ho mosso una piuma, per non disturbarti.":
+			"You stood still a long while, %s.\nWatching %s.\nI did not move a feather, so as not to disturb you.",
+
 	# ------------------------------------------------ le nuove leve (Nascite)
 	# «cucciolo» -> "little one": i chibi sono gatti, conigli, orsetti,
 	# volpine e topolini insieme, e *pup*/*kitten* ne sceglierebbe uno solo.

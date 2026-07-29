@@ -62,6 +62,8 @@ func run(level: Node3D, mode: String, arg: String = "") -> void:
 			await _debug_estetista(arg)
 		"anfiteatro":
 			await _debug_anfiteatro(arg)
+		"taccuino":
+			await _debug_taccuino(arg)
 
 func _frames(n: int):
 	for i in n:
@@ -2851,3 +2853,104 @@ func _demo_build():
 	b.place_edge(Vector2i(15, 4), "Staccionata", false, true, 1)
 	b.place_edge(Vector2i(14, 5), "Staccionata", false, true, 1)
 	b.place_edge(Vector2i(14, 3), "Staccionata", false, true, 1)
+
+
+# -------------------------------------------------------------- il taccuino
+# LA PROVA DEL TACCUINO DEL GUFO. Qui non si guarda una mesh: si guarda una
+# FRASE, e l'unico modo di sapere se funziona e' leggerla nella busta vera,
+# nel carattere vero, con l'impaginazione vera. Una lettera che sta bene in
+# un `print()` e va a capo male sulla carta non e' finita.
+#
+# Si recita anche il GESTO, davanti alla telecamera: Mochi cammina verso una
+# creatura, si ferma, e riparte senza raccoglierla. E' l'unico modo di
+# vedere se il taccuino scatta guardando il gioco vero e non il banco di
+# prova — e la riga stampata dice se ha scattato.
+func _debug_taccuino(dir: String) -> void:
+	var dn = _level.get_node_or_null("DayNight")
+	var mail = _level.get_node_or_null("Mail")
+	await _frames(30)
+	# il Regista e' figlio RUNTIME di CozyWorld: prima della generazione
+	# differita non esiste, e cercarlo troppo presto da' null
+	var regista = get_tree().get_first_node_in_group("regista")
+	var taccuino = get_tree().get_first_node_in_group("taccuino")
+
+	# ---- IL BANCO PULITO. La coda della posta e le pagine del taccuino
+	# stanno nel SALVATAGGIO: senza azzerarle si guarda in parte la
+	# sessione di ieri, e la prova non prova niente.
+	if mail:
+		(mail.get("_letter_queue") as Array).clear()
+	if regista:
+		(regista.get("_pagine") as Array).clear()
+		regista.set("_contatori", {})
+		regista.set("_ieri", {})
+	if taccuino:
+		taccuino.set("_rinunce", {})
+		taccuino.set("_detti", {})
+
+	print("TACCUINO: nodo -> %s" % ("c'e'" if taccuino else "MANCA"))
+	print("TACCUINO: arbitro -> %s"
+			% ("c'e'" if get_tree().get_first_node_in_group("arbitro_e") else "MANCA"))
+
+	# la cassetta: senza, la posta non ha dove arrivare
+	build_system.place_cell(Vector2i(2, 2), "Cassetta posta", 0, false)
+	await _frames(6)
+
+	# ---- IL GESTO, RECITATO NEL GIOCO VERO. Si porta Mochi addosso a una
+	# farfalla, si aspetta, e si riparte. Se il taccuino e' cablato bene
+	# scrive una pagina da se'.
+	var collection = _level.get_node_or_null("Collection")
+	if collection and collection.has_method("debug_spawn_bestiola"):
+		collection.call("debug_spawn_bestiola")
+	await _frames(4)
+	var prima: int = (regista.get("_pagine") as Array).size() if regista else -1
+	print("TACCUINO: pagine prima del gesto -> %d" % prima)
+
+	# ---- e comunque si forza una pagina, perche' la lettera va GUARDATA
+	# anche quando la farfalla di turno non si e' fatta trovare
+	if taccuino:
+		taccuino.call("debug_forza_esitazione", "una farfalla dorata", "creatura")
+	await _frames(4)
+	var dopo: int = (regista.get("_pagine") as Array).size() if regista else -1
+	print("TACCUINO: pagine dopo -> %d" % dopo)
+
+	# ---- LA CONSEGNA. Si fa passare il giorno perche' il Gufo scriva, e
+	# poi si apre la busta.
+	if dn:
+		dn.set("day", int(dn.get("day")) + 1)
+	if regista:
+		regista.set("_ultima_sorpresa", -1)
+		regista.call("_sorpresa_del_giorno")
+	await _frames(4)
+	var coda: Array = mail.get("_letter_queue") if mail else []
+	print("TACCUINO: lettere in coda -> %d" % coda.size())
+	if not coda.is_empty():
+		# LA PRIMA della coda, non una qualsiasi: il taccuino deve VINCERE
+		# sulla lettera-contatore, e nella coda si vede l'ordine
+		var vista: Dictionary = mail.call("rendi", coda[0])
+		print("TACCUINO: --- la lettera ---")
+		for riga in str(vista["text"]).split("\n"):
+			print("TACCUINO:   %s" % riga)
+		print("TACCUINO: regalo -> %s" % ("SI (e non dovrebbe)" if vista["gift"] else "no"))
+
+	if mail:
+		mail.call("debug_deliver")
+		await _frames(10)
+		mail.call("debug_read")
+	await _frames(40)
+	await _shot(dir, "tac_1_lettera")
+
+	# la seconda mattina, senza pagine fresche, il Gufo ripiega sul ritratto
+	if regista:
+		regista.set("_contatori", {"costruzione": 12})
+		regista.set("_ieri", {"costruzione": 2})
+		regista.set("_ultima_sorpresa", -1)
+		if dn:
+			dn.set("day", int(dn.get("day")) + 1)
+		regista.call("_sorpresa_del_giorno")
+	await _frames(4)
+	var coda2: Array = mail.get("_letter_queue") if mail else []
+	if not coda2.is_empty():
+		var v2: Dictionary = mail.call("rendi", coda2[coda2.size() - 1])
+		print("TACCUINO: ripiego -> %s" % str(v2["text"]).split("\n")[0])
+	print("TACCUINO: fine")
+	get_tree().quit()

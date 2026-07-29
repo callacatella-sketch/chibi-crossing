@@ -544,6 +544,31 @@ func agisci_e() -> void:
 		_catch(t)
 
 
+## COME SI CHIAMA cio' che hai davanti — «una farfalla dorata», non «una
+## creaturina». Lo chiede il taccuino del Gufo quando ti fermi e non
+## prendi: una lettera che cita la SPECIE e' impossibile da liquidare come
+## generica, e la specie ce l'ha solo chi tiene in mano la bestiola.
+##
+## Il nome viene da Critters (fonte unica) e si ferma UN PASSO PRIMA della
+## traduzione: la posta va su disco in italiano e si traduce all'apertura.
+func bersaglio_umano() -> String:
+	var t := _nearest_catch()
+	if t.is_empty():
+		return ""
+	var kind := ""
+	match str(t["type"]):
+		"bestiola":
+			kind = str(_bestiole[int(t["index"])].get("kind", ""))
+		"lucciola":
+			kind = str(_fireflies[int(t["index"])].get("kind", ""))
+		"farfalla":
+			if _cozy and _cozy.has_method("butterfly_kind"):
+				kind = str(_cozy.call("butterfly_kind", int(t["index"])))
+	if kind == "" or not CRIT.esiste(kind):
+		return ""
+	return CRIT.con_articolo_chiave(kind)
+
+
 func _iscrivi_alla_e() -> void:
 	var arb := get_tree().get_first_node_in_group("arbitro_e")
 	if arb:

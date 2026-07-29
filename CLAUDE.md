@@ -304,6 +304,59 @@ guardia.
   avere paura di te» non poteva avverarsi. **Non ritoccare le tre costanti:
   si tara `calma()`.**
 
+## REGOLA: il taccuino del Gufo — si afferma solo ciò che si è VISTO
+
+Il Regista ha due canali. Il primo conta i gesti grossi e il Gufo te li
+rimanda come totale («%d opere!»). Il secondo è
+[`scenes/npc/Taccuino.gd`](scenes/npc/Taccuino.gd): i **micro-gesti** che
+nessuno ti ha chiesto di fare — l'esitazione davanti a una creatura, il
+sentiero che percorri sempre (o che hai posato e non usi), la sosta lunga
+all'aperto, la rinuncia che si ripete e diventa una regola tua. Il taccuino
+scrive pagine, il Regista le cita, e **la pagina batte sempre il
+contatore**: un istante citato è l'unica delle due lettere che il giocatore
+non può liquidare con «era scriptato».
+
+**Questa meccanica ha una sola modalità di guasto, ed è catastrofica.** Una
+frase citata a vuoto non attenua l'effetto: **lo inverte**. «Ti ho vista
+fermarti davanti a una farfalla» detto a chi stava cercando il menu insegna
+al giocatore che le lettere sono generiche, e da quel momento non crede più
+a nessuna. Il danno è permanente. Perciò, chi tocca questa roba:
+
+1. **Il Gufo non dice mai cosa hai PENSATO.** Dice cosa è ACCADUTO (ti sei
+   fermata, sei ripartita, tutto è rimasto dov'era) e poi cosa ha pensato
+   LUI («ci ho pensato tutto il pomeriggio»). La prima metà è verificabile,
+   la seconda è sempre vera perché è sua. Mai scrivere «hai esitato»: è
+   un'inferenza, e un'inferenza si può smentire.
+2. **Il silenzio è il comportamento normale.** Ogni giudizio ha una fascia
+   grigia in cui NON scatta. Meglio nessuna lettera che una a vuoto.
+3. **Le valvole non sono decorative.** La fisica spenta del player (=
+   pannello, seduta, onsen, foto, costellazioni), il salto di posizione,
+   il tetto massimo della sosta, il tasto premuto: toglierne una apre un
+   modo preciso di scattare a caso. Il test
+   [`tests/cases/test_taccuino.gd`](tests/cases/test_taccuino.gd) prende
+   una finestra buona e **guasta una cosa sola per volta** pretendendo
+   silenzio: se una valvola diventa inutile, quel test lo dice.
+4. **Non duplicare `PostoDiSempre`.** Il posto in cui torni sempre lo nota
+   già lui, e lo dice **senza parole** (un vicino è già lì). Metterci sopra
+   una lettera rovinerebbe il suo silenzio.
+5. **L'oracolo dell'esitazione è `ArbitroE.candidato()`** — non `scegli()`:
+   chiedere «cosa farebbe se premesse E» cinque volte al secondo non è una
+   contesa e non deve finire in `ultimo_verdetto()`.
+6. **Le lettere stanno sotto la chiave `text_key`** in
+   `Director.TACCUINO_LETTERE`, e il nome del campo è voluto: il guardiano
+   della localizzazione cerca i letterali `"text_key": "…"`. Con un nome
+   qualunque quelle lettere gli sfuggono e uscirebbero **in italiano dentro
+   la versione inglese, con la suite verde**.
+7. **La citazione va su una riga sua.** La cosa citata ha lunghezza
+   variabile («una farfalla dorata», «quell'ombra nell'acqua»): in mezzo a
+   una riga lunga la busta la spezza a metà parola. Si verifica **guardando
+   la lettera** (`CHIBI_TACCUINO=<dir>`), non leggendo un `print()`.
+
+Trappola già pagata: il taccuino cercava il Regista in un `call_deferred`
+del `_ready` e lo trovava `null` **per sempre**, perché il Regista è un
+figlio RUNTIME di CozyWorld creato a generazione differita. Il cablaggio si
+**riprova** a ogni campionamento finché non ha trovato tutto.
+
 ## REGOLA: la lingua (italiano sorgente, inglese sopra)
 
 Il gioco è **bilingue** dal 2026-07-28: italiano (lingua sorgente) e inglese.

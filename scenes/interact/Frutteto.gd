@@ -479,6 +479,21 @@ func agisci_e() -> void:
 	_ricontrolla()
 
 
+
+## Il frutto che stavi per cogliere, col suo nome. Lo chiede il taccuino del
+## Gufo: «ti sei fermata davanti a una mela» e' un'altra cosa rispetto a
+## «davanti a un ramo carico».
+func bersaglio_umano() -> String:
+	if _vicino < 0 or _vicino >= _alberi.size():
+		return ""
+	var specie := str(_alberi[_vicino].get("specie", ""))
+	if specie == "melo":
+		return "una mela"
+	if specie == "pero":
+		return "una pera"
+	return ""
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed("interact") or _player == null:
 		return
