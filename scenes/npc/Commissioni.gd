@@ -197,6 +197,10 @@ func _appendi_nuova() -> void:
 		var label := str(r.get("label", ""))
 		if label == "" or str(r.get("species", "")) != "chibi":
 			continue
+		# un cucciolo non appende richieste alla lavagna: non sa ancora
+		# scrivere, e soprattutto non sa ancora volere niente da te
+		if bool(_visitors.call("e_cucciolo", label)):
+			continue
 		var occupato := false
 		for c in _attive:
 			if str(c["chi"]) == label:

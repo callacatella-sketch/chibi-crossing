@@ -49,6 +49,7 @@ func _ready() -> void:
 	_collection = get_node_or_null("../Collection")
 	_sfx = get_node_or_null(^"/root/Sfx")
 	_build_ui()
+	(func() -> void: _iscrivi_alla_e()).call_deferred()
 
 
 func _pond_center() -> Vector3:
@@ -104,6 +105,49 @@ func _check_walked_away() -> void:
 		return
 	if _player.global_position.distance_to(_cast_from) > 1.2:
 		_cleanup()
+
+
+# --- l'arbitro della E (systems/ArbitroE.gd) --------------------------
+# Sulla riva la canna e il rimbalzello si contendono la stessa E. Senza
+# arbitro vinceva la canna per un motivo che il giocatore non puo'
+# indovinare: l'ordine dei nodi nella scena. Adesso vince chi e' piu'
+# vicino al suo gesto — e il sasso, che si tira dall'orlo, batte la canna
+# solo quando sei proprio sull'orlo.
+
+func distanza_e() -> float:
+	if _player == null or not _player.is_physics_processing():
+		return -1.0
+	if _state == "bite":
+		return 0.0        # il pesce sta tirando: la E e' sua, senza discussioni
+	if _state != "off":
+		return -1.0
+	if not _near_shore() and not _in_barca():
+		return -1.0
+	if _collection and not (_collection.call("_nearest_catch") as Dictionary).is_empty():
+		return -1.0
+	if _in_barca():
+		return 0.2
+	# la canna e' un gesto "da un passo indietro": un piccolo scarto che la
+	# fa perdere contro il sasso quando si e' proprio sull'orlo dell'acqua
+	return absf(_player.global_position.distance_to(_pond_center()) - _cozy.POND_R) + 0.5
+
+
+func agisci_e() -> void:
+	match _state:
+		"off":
+			if _near_shore():
+				_cast(false)
+			elif _in_barca():
+				_cast(true)
+		"bite":
+			_catch()
+
+
+func _iscrivi_alla_e() -> void:
+	var arb := get_tree().get_first_node_in_group("arbitro_e")
+	if arb:
+		arb.iscrivi(self, "pesca", arb.GESTO,
+				Callable(self, "distanza_e"), Callable(self, "agisci_e"))
 
 
 func _unhandled_input(event: InputEvent) -> void:

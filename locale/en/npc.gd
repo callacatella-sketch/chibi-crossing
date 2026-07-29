@@ -369,6 +369,38 @@ const T := {
 			"I have watched you watch the stars, and walk slowly.\n%d quiet moments: you are one of us now.",
 	"Ti osservo da un po': annusi il mondo come un\nriccio al primo giorno. Mi piace chi curiosa.":
 			"I have been watching you a while: you sniff at the world like a\nhedgehog on its first day. I do like a curious soul.",
+
+	# ------------------------------------------------ le nuove leve (Nascite)
+	# «cucciolo» -> "little one": i chibi sono gatti, conigli, orsetti,
+	# volpine e topolini insieme, e *pup*/*kitten* ne sceglierebbe uno solo.
+	# Il sesso lo dice la frase, mai un pronome: in inglese «they» per un
+	# neonato è naturale e non costringe a scegliere prima del nome.
+	"il Gufo": "the Owl",
+	"In casa di %s e %s, stanotte, è arrivata una vocina nuova.":
+			"In %s and %s's house, last night, a new little voice arrived.",
+	"E — conosci il cucciolo": "E — meet the little one",
+	"%s e %s aspettano te.\nCome si chiama?":
+			"%s and %s are waiting for you.\nWhat shall we call them?",
+	"Invio — e da quel momento è il suo nome":
+			"Enter — and from that moment it is their name",
+	"Non c'è un lettino libero dove metterlo. Aspettano.":
+			"There is no little bed free to lay them in. They are waiting.",
+	"È un maschietto.": "It's a little boy.",
+	"È una femminuccia.": "It's a little girl.",
+	"%s Si chiama %s. E da oggi c'è.":
+			"%s Their name is %s. And from today, they are here.",
+	"è nato %s": "%s was born",
+	"%s ha detto la sua prima parola. Storta, ma sua.":
+			"%s said their first word. Crooked, but theirs.",
+	# il gene che torna da chi è partito: la frase che il villaggio dice
+	# quando riconosce, addosso a un cucciolo, qualcosa di chi non c'è più
+	"Poi te ne accorgi, e ti si stringe qualcosa: %s.":
+			"Then you notice, and something in you tightens: %s.",
+	"ha gli occhi di %s": "has %s's eyes",
+	"ha lo stesso pelo di %s": "has the very same coat as %s",
+	"ha le orecchie di %s": "has %s's ears",
+	"quando guarda storto, è %s tale e quale":
+			"when they scowl, they are %s all over again",
 }
 
 

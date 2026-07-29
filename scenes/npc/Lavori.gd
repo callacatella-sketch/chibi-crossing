@@ -107,6 +107,10 @@ func _scelte_di_giornata() -> void:
 		var label := str(r.get("label", ""))
 		if label == "" or _incarichi.has(label):
 			continue
+		# chi sta ancora crescendo non sceglie un mestiere: non è un
+		# lavoratore svogliato, è un bambino (vedi Nascite.gd)
+		if bool(_visitors.call("e_cucciolo", label)):
+			continue
 		var animo: RefCounted = _visitors.call("animo_oggetto_di", label)
 		if animo == null:
 			continue
@@ -393,8 +397,13 @@ func _residenti() -> Array:
 		return []
 	var out: Array = []
 	for r in (_visitors.get("_residents") as Array):
-		if r is Dictionary and str(r.get("label", "")) != "":
-			out.append(r)
+		if r is not Dictionary or str(r.get("label", "")) == "":
+			continue
+		# nel registro dei lavori i cuccioli non compaiono affatto:
+		# nessuno deve poter assegnare la catasta a un bambino
+		if bool(_visitors.call("e_cucciolo", str(r.get("label", "")))):
+			continue
+		out.append(r)
 	return out
 
 

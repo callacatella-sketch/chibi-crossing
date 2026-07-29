@@ -50,6 +50,11 @@ const MOMENTI_TESTO := {
 	# la lettera che hai scritto TU: quando il momento riaffiora, lui si
 	# ricorda della busta, non del giorno che ci hai messo dentro
 	"risposta": "La tua lettera del giorno %d\nla tengo piegata nella tasca buona.\nLa rileggo quando fuori piove.",
+	# LE NUOVE LEVE: la nascita la ricorda il genitore, il nome e la
+	# prima parola le ricorda chi è nato — da grande, guardandosi indietro
+	"nascita": "Il giorno %d è la mattina più lunga\nche io ricordi, e la più corta.\nSei venuto a vederlo che era ancora\npiù piccolo delle mie due zampe.",
+	"battesimo": "Il nome che porto me l'hai dato tu,\nil giorno %d, quando ero grande così.\nNon me lo ricordo. Me l'hanno raccontato\nabbastanza volte da ricordarmelo lo stesso.",
+	"prima_parola": "Dicono che la prima parola\nl'ho detta il giorno %d, tutta storta,\ne che tu eri lì e hai riso.\nPoi l'ho imparata bene, ma quella era mia.",
 }
 
 

@@ -121,8 +121,12 @@ func _apply_eta() -> void:
 			continue
 		var node := r.get("node") as Node3D
 		if node and is_instance_valid(node):
-			node.call("set_eta", float(legami.call("eta_f",
-					str(r.get("dna", {}).get("name", "")))))
+			var nome := str(r.get("dna", {}).get("name", ""))
+			# i due capi della vita, nello stesso posto: quanto deve
+			# ancora crescere (1 per chi è arrivato già grande) e quanti
+			# anni ha. Il corpo li fonde da sé.
+			node.call("set_cucciolo", float(legami.call("crescita", nome)))
+			node.call("set_eta", float(legami.call("eta_f", nome)))
 
 
 func debug_eta(f: float) -> void:
@@ -765,6 +769,17 @@ func cella_di(label: String) -> Vector2i:
 		if str(r.get("label", "")) == label:
 			return r["cell"]
 	return Vector2i(999, 999)
+
+
+## La label a partire dal NOME. I sistemi che ragionano di persone (il
+## Filo Rosso, le nascite, il calendario) sono chiavati per nome; quelli
+## che ragionano di corpi lo sono per label. Questa è la porta fra i due
+## mondi, e prima ognuno se la riapriva per conto suo con un ciclo.
+func label_di_nome(nome: String) -> String:
+	for r in _residents:
+		if str(r.get("dna", {}).get("name", "")) == nome:
+			return str(r.get("label", ""))
+	return ""
 
 
 ## Manda un residente in un punto (il giro delle ultime cose): l'agenda
@@ -1788,6 +1803,91 @@ func _make_bowl(col: Color) -> Node3D:
 	food.position = Vector3(0, 0.045, 0)
 	bowl.add_child(food)
 	return bowl
+
+
+# ---------------------------------------------------------- le nuove leve
+# Chi nasce nel villaggio entra da qui. È l'unica porta: nessun altro
+# file deve toccare `_residents`, o la riga finisce senza cervello, senza
+# animo o senza compleanno — e non se ne accorge nessuno per giorni.
+
+## Accoglie un cucciolo appena nato. Ritorna la label vera (o "" se non
+## c'è posto). Il lettino DEVE essere libero: è la stessa regola del
+## trasloco — in questo villaggio si entra solo se c'è un posto dove
+## dormire — e qui diventa la cosa più tenera del gioco: perché nasca
+## qualcuno, qualcuno deve avergli preparato il letto.
+func accogli_nato(dna_figlio: Dictionary) -> String:
+	if _residents.size() >= MAX_RESIDENTS:
+		return ""
+	var casa := _free_house()
+	if casa.is_empty():
+		return ""
+	var cell: Vector2i = casa["cell"]
+	var v: Node3D = VISITOR.new()
+	v.species = "chibi"
+	v.dna = dna_figlio
+	add_child(v)
+	v.setup_resident(casa)
+	var label := str(dna_figlio.get("label", ""))
+	_residents.append({"species": "chibi", "cell": cell, "node": v,
+			"dna": dna_figlio, "label": label, "friend": 0, "wish": {}})
+	# il compleanno sulla lavagna vale anche per chi non ha traslocato:
+	# è il primo posto in cui il villaggio scrive che esisti
+	var cal := get_tree().get_first_node_in_group("calendario")
+	if cal:
+		var nome := str(dna_figlio.get("name", ""))
+		if nome != "":
+			cal.call("register_resident", nome, label, v)
+	# nasce già col suo corpo piccolo: senza questa riga comparirebbe
+	# grande quanto i genitori per un frame, e si vedrebbe
+	v.call("set_cucciolo", 0.0)
+	_apply_eta.call_deferred()
+	return label
+
+
+## È un cucciolo che sta ancora crescendo? Lo chiedono i sistemi che
+## trattano i residenti da adulti: il registro dei lavori (nessuno manda
+## un bambino alla catasta), il congedo (non si parte da piccoli), le
+## commissioni della lavagna.
+func e_cucciolo(label: String) -> bool:
+	var legami := get_tree().get_first_node_in_group("legami")
+	if legami == null:
+		return false
+	for r in _residents:
+		if str(r.get("label", "")) != label:
+			continue
+		var nome := str(r.get("dna", {}).get("name", ""))
+		return float(legami.call("crescita", nome)) < 1.0
+	return false
+
+
+## Quanto si frequentano quei due, per label: è il contatore che sale a
+## ogni chiacchierata (VillagerBrain.affinita). Le nascite ci leggono
+## l'affetto senza dover conoscere i cervelli.
+func affinita_fra(label_a: String, label_b: String) -> int:
+	for r in _residents:
+		if str(r.get("label", "")) != label_a:
+			continue
+		var brain := _ensure_brain(r)
+		return int(brain.affinita.get(label_b, 0))
+	return 0
+
+
+## Tutti i residenti adulti, come [[nome, label, dna]]: la lista da cui
+## le nascite pescano le coppie possibili.
+func adulti_del_villaggio() -> Array:
+	var legami := get_tree().get_first_node_in_group("legami")
+	var out: Array = []
+	for r in _residents:
+		if str(r.get("species", "")) != "chibi":
+			continue
+		var dna: Dictionary = r.get("dna", {})
+		var nome := str(dna.get("name", ""))
+		if nome == "":
+			continue
+		if legami and float(legami.call("crescita", nome)) < 1.0:
+			continue
+		out.append([nome, str(r.get("label", "")), dna])
+	return out
 
 
 # ---------------------------------------------------------------- trasloco

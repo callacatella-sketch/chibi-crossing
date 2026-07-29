@@ -334,6 +334,21 @@ const T := {
 		"It began without warning.\nAt the Great Tree it was only me and the first flakes,\nwhich weren't cold to touch, only slow.\nMillions will fall this winter.\nThis was the first, and now only I know it.",
 	"Il giorno %d ti ho dato appuntamento\ne tu sei venuto davvero.\nDi tutte le cose che abbiamo visto insieme,\nquella me la ricordo dall'inizio.":
 		"On day %d I asked you to meet me\nand you actually came.\nOf all the things we've seen together,\nthat one I remember from the very start.",
+
+	# ------------------------------------------------ le nuove leve (Nascite)
+	# la lettera con cui il Gufo annuncia che è nato qualcuno
+	"Stanotte non ho chiuso occhio, e per una buona ragione.\nIn casa di %s e %s è arrivato qualcuno\npiù piccolo delle mie due ali messe insieme.\n\nVai a conoscerlo, quando puoi.\nUn nome non ce l'ha: hanno detto che lo sceglierai tu.":
+		"I did not close an eye last night, and for a good reason.\nIn %s and %s's house someone has arrived\nsmaller than both my wings put together.\n\nGo and meet them, when you can.\nA name they have not got: they said you would choose it.",
+	# i tre momenti nuovi del Filo Rosso (Mail.MOMENTI_TESTO)
+	"Il giorno %d è la mattina più lunga\nche io ricordi, e la più corta.\nSei venuto a vederlo che era ancora\npiù piccolo delle mie due zampe.":
+		"Day %d is the longest morning\nI can remember, and the shortest.\nYou came to see them when they were still\nsmaller than my two paws.",
+	"Il nome che porto me l'hai dato tu,\nil giorno %d, quando ero grande così.\nNon me lo ricordo. Me l'hanno raccontato\nabbastanza volte da ricordarmelo lo stesso.":
+		"The name I carry, you gave me,\non day %d, when I was only this big.\nI don't remember it. They have told me about it\noften enough that I remember it anyway.",
+	"Dicono che la prima parola\nl'ho detta il giorno %d, tutta storta,\ne che tu eri lì e hai riso.\nPoi l'ho imparata bene, ma quella era mia.":
+		"They say my first word\ncame out on day %d, all crooked,\nand that you were there, and laughed.\nI learned to say it properly later, but that one was mine.",
+	# l'ultimo desiderio di chi lascia dei figli (Congedo.DESIDERI_TESTO)
+	"tornare sulla soglia dove l'ha visto per la prima volta":
+		"to stand again on the doorstep where they first saw them",
 }
 
 

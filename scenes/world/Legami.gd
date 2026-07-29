@@ -43,7 +43,10 @@ const MAX_MOMENTI := 30
 ## scelto a mano, uno per volta: potarla sarebbe buttare via l'unica cosa
 ## che ha scritto lui)
 const INTOCCABILI := ["benvenuto", "trasloco", "oro", "addio", "partenza",
-		"risposta"]
+		"risposta",
+		# nascere, ricevere un nome e dire la prima parola capitano una
+		# volta sola in una vita: non si potano MAI, nemmeno a filo pieno
+		"nascita", "battesimo", "prima_parola"]
 
 ## Quanti momenti in testa e in coda sono comunque salvi: i capi del filo
 ## si tengono anche se il tipo non è fra gli intoccabili (i primi giorni
@@ -87,6 +90,15 @@ const TIPI := {
 	# la partenza gentile per il Grande Prato (tono Spiritfarer, mai Grim
 	# Reaper): la valigia piccola e il cappello in zampa
 	"partenza": ["il giorno della piccola valigia e del cappello in zampa", ["addio", "amico"]],
+	# LE NUOVE LEVE (scenes/world/Nascite.gd). Il villaggio invecchiava e
+	# salutava senza mai rinnovarsi: adesso il cerchio si chiude.
+	# Sul filo dei GENITORI: il mattino in cui è arrivato il cucciolo.
+	"nascita": ["il mattino in cui è arrivato il cucciolo", ["felice", "casa"]],
+	# Sul filo del CUCCIOLO: il nome gliel'hai dato tu. È il suo
+	# "trasloco" — il primo nodo di una vita che comincia qui.
+	"battesimo": ["il nome che gli hai scelto tu", ["ciao", "cuore"]],
+	# E la prima parola, detta tutta storta, con te lì davanti.
+	"prima_parola": ["la prima parola, detta tutta storta", ["risata", "insieme"]],
 }
 
 # nome residente -> {"momenti": [{d, t, x}], "giorno_arrivo": int}
@@ -350,6 +362,91 @@ const GIORNI_ANZIANO := 40
 func registra_arrivo(nome_o_label: String) -> void:
 	if nome_o_label != "":
 		_filo(nome_o_label)   # _filo normalizza: mai un filo per la label
+
+
+# ============================================================ le nuove leve
+# Chi NASCE qui è diverso da chi arriva col trolley: arriva grande zero e
+# ci mette GIORNI_ADULTO giorni a diventare adulto. Il fatto di essere
+# nato vive sul filo — e il filo si salva intero (save_extra restituisce
+# `_fili` così com'è), quindi non c'è una riga di formato in più da
+# mantenere: si aggiungono tre chiavi e sono già persistite.
+
+## Registra una nascita sul filo del cucciolo. `eredita` è l'eventuale
+## gene tornato da chi è partito ({"da": nome, "cosa": chiave}).
+func nascita(nome: String, padre: String, madre: String, eredita := {}) -> void:
+	if nome == "":
+		return
+	var filo := _filo(nome)
+	filo["nato"] = true
+	filo["giorno_arrivo"] = _day()   # la sua vita comincia oggi, non prima
+	filo["padre"] = padre
+	filo["madre"] = madre
+	if not eredita.is_empty():
+		filo["eredita"] = eredita
+	_salva()
+
+
+## È nato in questo villaggio? (Chi è arrivato dal bosco, no: arriva già
+## grande, e non deve MAI ritrovarsi il corpo da cucciolo addosso.)
+func e_nato(nome: String) -> bool:
+	return bool(_fili.get(nome_da_chiave(nome), {}).get("nato", false))
+
+
+## Quanto è cresciuto: 0 = appena nato, 1 = ha finito di crescere.
+## Per chiunque non sia nato qui vale 1 — l'unica risposta sensata a
+## «quanto deve ancora crescere?» per un adulto che ha bussato alla porta.
+## La rampa è la stessa soglia che il resto del gioco già usa per dire
+## «adulto» (GIORNI_ADULTO): una sola verità sull'età, non due.
+func crescita(nome: String) -> float:
+	if not e_nato(nome):
+		return 1.0
+	return clampf(float(giorni_di_amicizia(nome)) / float(GIORNI_ADULTO), 0.0, 1.0)
+
+
+## Chi sono i suoi genitori ([] se non è nato qui). Restano nel filo per
+## sempre, anche dopo che se ne sono andati: è esattamente il punto.
+func genitori_di(nome: String) -> Array:
+	var f: Dictionary = _fili.get(nome_da_chiave(nome), {})
+	if not bool(f.get("nato", false)):
+		return []
+	return [str(f.get("padre", "")), str(f.get("madre", ""))]
+
+
+## I figli di qualcuno, in ordine di nascita.
+func figli_di(nome: String) -> Array:
+	var chiave := nome_da_chiave(nome)
+	var out: Array = []
+	for k in _fili:
+		var f: Dictionary = _fili[k]
+		if not bool(f.get("nato", false)):
+			continue
+		if str(f.get("padre", "")) == chiave or str(f.get("madre", "")) == chiave:
+			out.append(str(k))
+	out.sort_custom(func(a, b):
+		return int(_fili[a].get("giorno_arrivo", 0)) < int(_fili[b].get("giorno_arrivo", 0)))
+	return out
+
+
+## Il gene tornato da chi è partito ({} se non ce n'è).
+func eredita_di(nome: String) -> Dictionary:
+	return _fili.get(nome_da_chiave(nome), {}).get("eredita", {})
+
+
+## Quante volte quei due hanno già avuto un cucciolo. Serve alla regola
+## cozy che tiene le famiglie piccole: nessuno fa dodici figli.
+func figli_della_coppia(a: String, b: String) -> int:
+	var ka := nome_da_chiave(a)
+	var kb := nome_da_chiave(b)
+	var n := 0
+	for k in _fili:
+		var f: Dictionary = _fili[k]
+		if not bool(f.get("nato", false)):
+			continue
+		var p := str(f.get("padre", ""))
+		var m := str(f.get("madre", ""))
+		if (p == ka and m == kb) or (p == kb and m == ka):
+			n += 1
+	return n
 
 
 ## Il fattore d'età continuo: 0 = giovane, 0.5 = soglia dell'autunno,

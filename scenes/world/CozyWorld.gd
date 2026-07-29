@@ -830,6 +830,22 @@ func set_calma(q: float, _pos: Vector3) -> void:
 	_calma = clampf(q, 0.0, 1.0)
 
 
+## Dove starebbe la farfalla se stesse facendo il suo giro, adesso. La
+## posizione VERA è questa più lo «scarto» (dodge): tenerle separate è
+## quello che permette a una farfalla congedata di rientrare volando
+## invece di teletrasportarsi sulla sua orbita.
+func _giro_farfalla(b: Dictionary, t: float) -> Vector3:
+	var home: Vector3 = b.get("home", Vector3.ZERO)
+	var girata: float = b.get("girata", 8.0)
+	var alt: float = b.get("alt", 0.9)
+	var s: float = b.get("seed", 0.0)
+	return home + Vector3(
+		sin(t * 0.8 + s) * girata + cos(t * 0.29) * girata * 0.5,
+		alt + sin(t * 1.6) * 0.35 + sin(t * 5.0) * 0.06,
+		cos(t * 0.62 + s * 2.0) * girata
+	)
+
+
 func _indice_fidata() -> int:
 	for i in _butterflies.size():
 		if str(_butterflies[i].get("fiducia", "")) != "":
@@ -882,15 +898,26 @@ func congeda_farfalla(spaventata: bool) -> void:
 	var i := _indice_fidata()
 	if i < 0:
 		return
-	_butterflies[i]["fiducia"] = ""
-	(_butterflies[i]["node"] as Node3D).rotation.x = 0.0
-	# riparte da dove si trova: il suo giro è calcolato dalla «home», quindi
-	# senza uno scarto iniziale scatterebbe indietro in un frame
-	var node := _butterflies[i]["node"] as Node3D
-	_butterflies[i]["prev"] = node.position
+	var b: Dictionary = _butterflies[i]
+	b["fiducia"] = ""
+	var node := b["node"] as Node3D
+	node.rotation.x = 0.0
+	# IL RIENTRO. Il giro è calcolato dalla «home»: senza uno scarto
+	# iniziale la farfalla sparirebbe dal naso e ricomparirebbe in cielo
+	# nello stesso frame. Lo scarto parte da dov'è davvero (così non si
+	# muove di un millimetro) e si riassorbe da sé in un paio di secondi:
+	# la si vede staccarsi e tornare al suo giro, volando.
+	var giro := _giro_farfalla(b, _t * 0.55 + float(b.get("seed", 0.0)))
+	var scarto := node.position - giro
 	if spaventata:
-		_butterflies[i]["dodge"] = (node.position - to_local(_posatoio)).normalized() * 1.2 \
-				+ Vector3(0, 0.7, 0)
+		# via di scatto, di lato e in su: si vede che l'hai spaventata
+		var via := (node.position - to_local(_posatoio))
+		via.y = 0.0
+		if via.length() < 0.01:
+			via = Vector3(0.6, 0, 0.6)
+		scarto += via.normalized() * 1.1 + Vector3(0, 0.6, 0)
+	b["dodge"] = scarto
+	b["prev"] = node.position
 
 
 # La farfalla prestata: viene, si posa, e resta. Nessuna orbita, nessuna
@@ -3045,14 +3072,7 @@ func _process(delta: float) -> void:
 				meta.y = 0.0
 			var passo: float = (1.1 * (_calma - 0.5) * 2.0) if _calma > 0.5 else 0.5
 			b["home"] = home_ora.move_toward(meta, passo * delta)
-		var home: Vector3 = b.get("home", Vector3.ZERO)
-		var girata: float = b.get("girata", 8.0)
-		var alt: float = b.get("alt", 0.9)
-		var pos := home + Vector3(
-			sin(t * 0.8 + s) * girata + cos(t * 0.29) * girata * 0.5,
-			alt + sin(t * 1.6) * 0.35 + sin(t * 5.0) * 0.06,
-			cos(t * 0.62 + s * 2.0) * girata
-		)
+		var pos := _giro_farfalla(b, t)
 		# la TIMIDEZZA: al passaggio di Mochi la farfalla scivola via con
 		# una virata morbida (di lato e un filo in su) — si SCOSTA, non
 		# fugge. Ognuna vira dal suo verso, e se Mochi si ferma la paura

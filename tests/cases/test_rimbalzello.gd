@@ -20,6 +20,8 @@ func run(t) -> void:
     _test_il_volo(t)
     _test_il_sasso_e_un_tesoro(t)
     _test_i_fili(t)
+    _test_la_e_contesa(t)
+    _test_dentro_lo_stagno(t)
 
 
 # ------------------------------------------------------ non si fallisce mai
@@ -126,3 +128,67 @@ func _test_i_fili(t) -> void:
             "…e il cielo è quello del Weather, non un numero suo")
     var scena := FileAccess.get_file_as_string("res://scenes/levels/MainLevel.tscn")
     t.ok(scena.contains("Rimbalzello.gd"), "il Rimbalzello è in scena")
+
+
+# ------------------------------------------------------- la E della riva
+# Il difetto che la revisione ha trovato: sulla riva la E era gia' della
+# canna, e a decidere era l'ORDINE DEI NODI nel .tscn — il sasso partiva
+# in 19 cm su 279 di riva. Adesso decide una regola scritta: il sasso si
+# tira dall'ORLO dell'acqua, la canna da un passo indietro.
+
+func _test_la_e_contesa(t) -> void:
+    var fonte := FileAccess.get_file_as_string("res://scenes/interact/Rimbalzello.gd")
+    var pesca := FileAccess.get_file_as_string("res://scenes/interact/Fishing.gd")
+    # tutti e due iscritti all'arbitro: senza, vince l'ordine dell'albero
+    t.ok(fonte.contains("arb.iscrivi(self, \"rimbalzello\""),
+            "il rimbalzello si iscrive all'arbitro della E")
+    t.ok(pesca.contains("arb.iscrivi(self, \"pesca\""),
+            "e la canna pure: a decidere e' una regola, non il .tscn")
+    # una condizione SOLA per tasto, cartiglio e arbitro (prima erano due
+    # copie che divergevano: il cartiglio prometteva un tiro e la E pescava)
+    t.ok(fonte.contains("func _posso_tirare("), "una sola condizione per tutti")
+    # le quattro strade che DEVONO passare di lì (la quinta occorrenza è
+    # la definizione stessa): tasto, cartiglio, arbitro e la sua azione
+    for chiamante in ["func distanza_e", "func agisci_e",
+            "func _unhandled_input", "func _aggiorna_prompt"]:
+        var da := fonte.find(chiamante)
+        t.ok(da >= 0 and fonte.substr(da, 420).contains("_posso_tirare()"),
+                "%s chiede il permesso alla stessa condizione" % chiamante)
+    # LA REGOLA FISICA: la fascia del sasso e' molto piu' stretta di quella
+    # della canna (Fishing: 0.4 dentro, 2.2 fuori). Un passo avanti tiri,
+    # un passo indietro peschi.
+    t.ok(RIMB.RIVA_FUORI < 2.2, "il sasso si tira solo dall'orlo dell'acqua")
+    t.ok(RIMB.RIVA_FUORI > 0.4, "…ma la fascia esiste, non e' un pixel")
+    # e il sasso NON deve partire dalla spalla: l'offset lo mette attach_to_paw
+    t.ok(not fonte.contains("sasso.position = Vector3(0, 0, 0)"),
+            "il sasso parte dalla zampa, non dalla spalla")
+
+
+func _test_dentro_lo_stagno(t) -> void:
+    # un tiro fortunato correva PIU' dello stagno: gli ultimi rimbalzi
+    # cadevano sull'erba dall'altra parte, coi cerchi sul prato
+    var fonte := FileAccess.get_file_as_string("res://scenes/interact/Rimbalzello.gd")
+    t.ok(fonte.contains("func _acqua_davanti("),
+            "il tiro sa quanta acqua ha davanti")
+    t.ok(fonte.contains("passo(i, quanti) * fattore"),
+            "…e ci riscala dentro i salti, invece di uscire dallo stagno")
+    # la corsa piena di un tiro massimo, contro il diametro dello stagno
+    var corsa := 0.0
+    for i in RIMB.RIMBALZI_MASSIMO:
+        corsa += RIMB.passo(i, RIMB.RIMBALZI_MASSIMO)
+    t.ok(corsa > 3.6, "un tiro pieno correrebbe piu' del raggio dello stagno")
+
+    # IL TETTO DEVE ESSERE RAGGIUNGIBILE, o la sua frase e' codice morto
+    var massimo := 0
+    for k in 400:
+        massimo = maxi(massimo, RIMB.rimbalzi(float(k) / 399.0, 0.45))
+    t.eq(massimo, RIMB.RIMBALZI_MASSIMO,
+            "col tiro d'oro i nove rimbalzi si toccano davvero (%d)" % massimo)
+    # …ma solo di rado, e solo con l'aria ferma
+    var oro := 0
+    for k in 400:
+        if RIMB.rimbalzi(float(k) / 399.0, 0.45) >= RIMB.RIMBALZI_MASSIMO:
+            oro += 1
+    t.ok(oro <= 20, "il tiro d'oro resta raro (%d su 400)" % oro)
+    t.ok(RIMB.rimbalzi(0.99, 1.8) < RIMB.RIMBALZI_MASSIMO,
+            "e col vento non arriva, per quanto tu sia fortunato")
