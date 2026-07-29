@@ -306,6 +306,25 @@ const T := {
 	"la mia composta": "my compote", "la mia zuppa": "my soup",
 	"la mia vellutata": "my velvet soup", "il mio risotto": "my risotto",
 	"la mia cena": "my supper",
+
+	# ------------------------------------------------------ le Promesse
+	# I bigliettini dell'appuntamento e le lettere della scena persa.
+	# Tono: quieto, concreto, mai un rimprovero — chi scrive racconta
+	# quello che ha visto, non quello che ti sei perso.
+	"Domattina, quando si alza la bruma,\nallo stagno. Dura il tempo di un tè:\npoi il sole se la beve tutta.\nIo ci sono comunque, nell'acqua bianca.":
+		"Tomorrow morning, when the mist comes up,\nat the pond. It lasts about as long as a cup of tea:\nthen the sun drinks it all.\nI'll be there either way, in the white water.",
+	"Domani, quando il sole tocca l'acqua,\nallo stagno: i pesci salgono a respirare.\nSi sentono prima di vederli. Vieni piano.":
+		"Tomorrow, when the sun touches the water,\nat the pond: the fish come up to breathe.\nYou hear them before you see them. Come quietly.",
+	"L'autunno finisce e l'aria sa di ferro.\nIl primo fiocco cade prima che uno se l'aspetti:\nquel giorno, appena comincia, vieni al Grande Albero.\nVoglio vederlo insieme a qualcuno.":
+		"Autumn is ending and the air tastes of iron.\nThe first flake falls before you expect it:\nthat day, as soon as it starts, come to the Great Tree.\nI want to watch it with someone.",
+	"La bruma è venuta, alta fino alle orecchie.\nLo stagno non c'era più: c'era il fiato dell'acqua\ne i giunchi che spuntavano come dita.\nHo aspettato finché il sole non l'ha bevuta.\nIl posto accanto a me è rimasto libero e tiepido.":
+		"The mist came, up to my ears.\nThe pond was gone: there was the water's breath\nand the reeds poking through like fingers.\nI waited until the sun drank it away.\nThe place beside me stayed empty, and warm.",
+	"Ne sono saliti sette, forse otto.\nUno ha fatto un anello così largo\nche è arrivato fino alla mia zampa.\nPoi l'acqua si è richiusa e ha fatto buio.":
+		"Seven came up, maybe eight.\nOne made a ring so wide\nit reached all the way to my paw.\nThen the water closed over and it got dark.",
+	"È cominciata senza avvisare.\nAl Grande Albero c'ero solo io e i primi fiocchi,\nche a toccarli non erano freddi, erano lenti.\nQuest'inverno ne cadranno milioni.\nQuesto era il primo, e adesso lo so io soltanto.":
+		"It began without warning.\nAt the Great Tree it was only me and the first flakes,\nwhich weren't cold to touch, only slow.\nMillions will fall this winter.\nThis was the first, and now only I know it.",
+	"Il giorno %d ti ho dato appuntamento\ne tu sei venuto davvero.\nDi tutte le cose che abbiamo visto insieme,\nquella me la ricordo dall'inizio.":
+		"On day %d I asked you to meet me\nand you actually came.\nOf all the things we've seen together,\nthat one I remember from the very start.",
 }
 
 

@@ -59,6 +59,8 @@ const TIPI := {
 	"festa": ["la festa a sorpresa coi coriandoli", ["felice", "regalo"]],
 	"onsen": ["il bagno caldo alle terme, fianco a fianco", ["felice", "amico"]],
 	"desiderio": ["il desiderio esaudito vicino a casa", ["grazie", "casa"]],
+	"promessa": ["quella volta che ti ho aspettato, e sei venuto",
+			["aspetta", "insieme"]],
 	"nascondino": ["la partita a nascondino nel bosco", ["risata", "amico"]],
 	# gli ultimi desideri della settimana del congedo: i momenti d'ORO,
 	# quelli che valgono il doppio quando riaffiorano

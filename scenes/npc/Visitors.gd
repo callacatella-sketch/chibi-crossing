@@ -1999,6 +1999,10 @@ func _update_prompts() -> void:
 		var node := r.get("node") as Node3D
 		if node == null or not is_instance_valid(node) or node.call("is_hidden"):
 			continue
+		# se sta vivendo una scena (un appuntamento mantenuto) il desiderio
+		# aspetta: è lui che ha chiamato, non la panchina
+		if node.has_method("in_scena") and bool(node.call("in_scena")):
+			continue
 		var wish: Dictionary = r.get("wish", {})
 		if wish.is_empty() or bool(wish.get("done", false)):
 			continue

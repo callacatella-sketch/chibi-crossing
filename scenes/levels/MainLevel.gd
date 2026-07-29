@@ -61,6 +61,9 @@ func _ready():
 	add_child(_spawn_system("res://scenes/npc/Commissioni.gd", "Commissioni"))
 	# il nido della Casetta uccellini: in primavera arriva Briciola
 	add_child(_spawn_system("res://scenes/interact/Nido.gd", "Nido"))
+	# le promesse: un vicino ti da' appuntamento a un fenomeno del mondo
+	# (la bruma, la levata dei pesci, la prima neve) e quel giorno c'e'
+	add_child(_spawn_system("res://scenes/npc/Promesse.gd", "Promesse"))
 	var settings := get_node_or_null(^"/root/Settings")
 	if settings:
 		settings.apply_to_player(player)

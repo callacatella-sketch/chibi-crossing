@@ -424,6 +424,14 @@ const T := {
 
 	# ---------------------------------------- ciò che si incide sugli anelli
 	"una fioritura nel giardino": "a blooming in the garden",
+
+	# le Promesse: la riga di gessetto sulla lavagna e la voce del pannello
+	"%s ti aspetta: %s": "%s is waiting for you: %s",
+	"la bruma": "the mist",
+	"la levata": "the rising",
+	"la prima neve": "the first snow",
+	"quella volta che ti ho aspettato, e sei venuto":
+		"that time I waited for you, and you came",
 }
 
 
