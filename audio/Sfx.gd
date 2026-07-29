@@ -18,6 +18,10 @@ var _bird: AudioStreamPlayer
 var _rain_p: AudioStreamPlayer
 var _bird_timer: Timer
 var _thread: Thread
+var _quiete_giu := 0.0
+# i volumi di riposo di musica e vento: la quiete del prato ci torna
+var _music_base_db := -16.0
+var _wind_base_db := -27.0
 var _rain_on := false
 var _rain_muffled := false
 # un solo tween alla volta su pioggia e vento: quello vecchio si uccide,
@@ -316,6 +320,9 @@ func _build_sfx() -> void:
 	_streams["chop"] = _gen_chop()
 	_streams["creak"] = _gen_creak()
 	_streams["crash"] = _gen_crash()
+	_streams["respiro_in"] = _gen_respiro(true)
+	_streams["respiro_out"] = _gen_respiro(false)
+	_streams["frullo"] = _gen_frullo()
 
 
 # passo sull'erba: fruscio filtrato + piccolo tonfo
@@ -1175,3 +1182,98 @@ func _render_wind() -> AudioStreamWAV:
 		buf[i] = v
 	_normalize(buf, 0.5)
 	return _wav(buf, RATE, true)
+
+
+# ================================================== il Fiato Sospeso
+
+## Il RESPIRO di chi si è appena accovacciato nell'erba: aria che passa
+## dal naso, non una nota. Rumore filtrato con due formanti bassissime e
+## un inviluppo asimmetrico — inspiro corto e chiaro, espiro lungo e
+## scuro — perché è l'asimmetria a farlo sembrare un respiro e non un
+## soffio di vento.
+func _gen_respiro(inspiro: bool) -> AudioStreamWAV:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4711 if inspiro else 8123
+	var dur := 0.85 if inspiro else 1.45
+	var n := int(dur * RATE)
+	var buf := PackedFloat32Array()
+	buf.resize(n)
+	var lp1 := 0.0
+	var lp2 := 0.0
+	var hp := 0.0
+	var prev := 0.0
+	for i in n:
+		var u := float(i) / float(n)
+		# l'inviluppo: l'inspiro sale svelto e si chiude, l'espiro cede piano
+		var env: float
+		if inspiro:
+			env = sin(pow(u, 0.62) * PI)
+		else:
+			env = sin(pow(u, 1.45) * PI) * (1.0 - 0.25 * u)
+		var white := rng.randf() * 2.0 - 1.0
+		# passa-basso doppio: il taglio scende lungo l'espiro (l'aria si
+		# scalda e si scurisce), sale appena sull'inspiro
+		var taglio := (0.16 + 0.1 * u) if inspiro else (0.2 - 0.09 * u)
+		lp1 += (white - lp1) * taglio
+		lp2 += (lp1 - lp2) * taglio
+		# e un passa-alto gentile: senza, resta un tuono invece di un fiato
+		hp = 0.985 * (hp + lp2 - prev)
+		prev = lp2
+		buf[i] = hp * env
+	_normalize(buf, 0.42)
+	return _wav(buf)
+
+
+## Il FRULLO d'ali: sette battiti che si diradano, ognuno uno sbuffo
+## d'aria di venti millesimi. È il suono che senti quando qualcosa si
+## posa su di te — o quando vola via perché ti sei mosso.
+func _gen_frullo() -> AudioStreamWAV:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 2029
+	var n := int(0.5 * RATE)
+	var buf := PackedFloat32Array()
+	buf.resize(n)
+	var t_batt := 0.0
+	var passo := 0.045
+	for _b in 7:
+		var start := int(t_batt * RATE)
+		var lp := 0.0
+		for i in int(0.022 * RATE):
+			if start + i >= n:
+				break
+			var t := float(i) / RATE
+			var white := rng.randf() * 2.0 - 1.0
+			lp += (white - lp) * 0.35
+			buf[start + i] += lp * sin(minf(t / 0.022, 1.0) * PI) \
+					* (1.0 - t_batt / 0.5) * 0.9
+		t_batt += passo
+		passo *= 1.16       # il battito si dirada: si allontana, o si posa
+	_normalize(buf, 0.5)
+	return _wav(buf)
+
+
+## Il battito d'ali, per chi si posa e per chi scappa.
+func frullo(vol_db := -16.0) -> void:
+	play("frullo", vol_db, randf_range(0.94, 1.08))
+
+
+## LA QUIETE DEL PRATO. Mentre trattieni il fiato il mondo si abbassa la
+## voce: la musica scende, il vento si assottiglia, e soprattutto gli
+## uccellini smettono di cinguettare — un cinguettio a piena voce nel
+## silenzio più fragile del gioco lo spaccherebbe in due.
+## Entra 0..1 (quanto sei giù), e va chiamata ogni frame: è un fader, non
+## un interruttore, così due sistemi che duckano non si rubano la musica.
+func quiete_del_prato(giu: float) -> void:
+	var g := clampf(giu, 0.0, 1.0)
+	if absf(g - _quiete_giu) < 0.002:
+		return
+	_quiete_giu = g
+	# la MUSICA non si tocca: duck_music() non è rientrante (non conta le
+	# richieste) e il primo dei due che rilascia la riporterebbe su per
+	# entrambi. Qui si abbassa il MONDO — che è poi la cosa giusta: non è
+	# la colonna sonora che tace quando smetti di fare rumore, è il prato.
+	if _wind:
+		_wind.volume_db = lerpf(_wind_base_db, _wind_base_db - 7.0, g)
+	# gli uccellini tacciono del tutto: tornano quando ti rialzi
+	if _bird:
+		_bird.volume_db = lerpf(-18.0, -60.0, g)

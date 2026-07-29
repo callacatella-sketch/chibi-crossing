@@ -293,6 +293,16 @@ guardia.
   INTERO due volte. Un test in
   [`tests/cases/test_cablaggio.gd`](tests/cases/test_cablaggio.gd) tiene chiusa
   la porta.
+- **La calma del giocatore** (quanta paura fai al prato adesso) →
+  [`scenes/world/FiatoSospeso.gd`](scenes/world/FiatoSospeso.gd), `calma()`:
+  pura, testata, pubblicata ogni frame al gruppo **`calma_listener`**. La
+  moltiplicano TUTTE le paure del mondo — farfalle e rane (`CozyWorld`),
+  lucciole (`Collection`), e per il ponte `Ecosystem.set_calma()` anche le
+  farfalle del MultiMesh e i passerotti del C++. Erano tre formule scritte a
+  mano in tre file, ognuna col suo pavimento che non si spegneva mai: a
+  giocatore immobile la farfalla si scostava lo stesso, e «il prato smette di
+  avere paura di te» non poteva avverarsi. **Non ritoccare le tre costanti:
+  si tara `calma()`.**
 
 ## REGOLA: la lingua (italiano sorgente, inglese sopra)
 

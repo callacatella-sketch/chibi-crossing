@@ -37,6 +37,9 @@ const LUOGHI := {
 	"benvenuto": "casa", "trasloco": "casa", "primo_saluto": "piazza",
 	"piatto": "casa", "regalo": "piazza", "festa": "piazza",
 	"onsen": "onsen", "desiderio": "casa",
+	# chi lascia dei figli chiede, per ultima cosa, di rivederli: è il
+	# desiderio che chiude il cerchio fra chi parte e chi è arrivato
+	"nascita": "casa",
 }
 
 ## L'ultimo desiderio, raccontato: la riga del toast e della lettera.
@@ -49,9 +52,17 @@ const DESIDERI_TESTO := {
 	"festa": "la piazza delle feste, un'ultima volta",
 	"onsen": "un ultimo bagno alle terme, fianco a fianco",
 	"desiderio": "il posto del desiderio esaudito, vicino a casa",
+	"nascita": "tornare sulla soglia dove l'ha visto per la prima volta",
 }
 
 const PIAZZA := Vector3(2.5, 0, 5.5)
+
+
+## C'è un congedo in corso? Lo chiedono le nascite: il villaggio fa una
+## cosa per volta, e una settimana di ultimi desideri non si divide con
+## l'arrivo di un cucciolo.
+func in_corso() -> bool:
+	return not _congedo.is_empty()
 
 # il congedo in corso: {nome, label, cell: [x,z], giorno_inizio,
 #   esauditi: int, falo_fatto: bool, oggi: {tipo, dove: [x,y,z], fatto}}

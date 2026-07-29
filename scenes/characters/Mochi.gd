@@ -109,6 +109,18 @@ var pour := 0.0
 var crouch := 0.0
 ## Saltello di gioia (0..1): un tween 0->1 produce UN salto pulito.
 var joy := 0.0
+## IL FIATO SOSPESO (0..1): quanto sei giù nell'erba, immobile. Lo scrive
+## il sistema del Fiato; qui dentro governa il respiro (che rallenta e
+## diventa asimmetrico), le orecchie (che si voltano in avanti) e la
+## postura. È un CANALE: chi lo alza deve anche riabbassarlo, ma la rete
+## di sicurezza in _process lo riporta a zero se nessuno lo scrive più.
+var fiato := 0.0
+## Quando qualcosa si è posato su di te: il respiro si ferma davvero.
+var fiato_ospite := false
+var _fiato_scritto := false   # qualcuno ha scritto «fiato» in questo frame?
+var _fiato_t := 0.0           # l'orologio del respiro lento, suo e continuo
+var _naso: Node3D             # il posatoio: la punta del musetto
+var _cocuzzolo: Node3D        # …e quello fra le orecchie, quando il muso non si vede
 # Espressione bloccata dall'esterno (harness CHIBI_FACCE): il pilota interno
 # la sovrascriverebbe al frame dopo, quindi qui si mette in pausa. "" = spenta.
 var _expr_forzata := ""
@@ -373,6 +385,10 @@ func get_attach_point(slot: String) -> Node3D:
 	match slot:
 		"testa":
 			return _head
+		"naso":
+			return _naso if _naso else _head
+		"cocuzzolo":
+			return _cocuzzolo if _cocuzzolo else _head
 		"polso":
 			return _arms[1]
 		_:
@@ -552,6 +568,21 @@ func _build_head() -> void:
 	# stata tolta su richiesta): solo il nasino rosa sul viso nudo
 	_add_mesh(_head, _sphere(0.021, 12), _flat_mat(Color("ff8fa3")),
 			Vector3(0, -0.052, -0.418), Vector3(1.3, 0.85, 0.7), false)
+	# il POSATOIO: un segnaposto un soffio davanti alla punta del nasino.
+	# Ci si posa chi si fida di te durante il Fiato Sospeso — e siccome è
+	# figlio della testa, segue il muso ovunque guardi, anche di profilo.
+	_naso = Node3D.new()
+	_naso.position = Vector3(0, -0.012, -0.532)
+	_head.add_child(_naso)
+
+	# …e il COCUZZOLO, fra le orecchie: il posatoio di riserva. Se Mochi
+	# guarda dall'altra parte, un naso è dietro una sfera di quaranta
+	# centimetri e la scena non la vedrebbe nessuno — allora chi si fida si
+	# posa qui, che dalla camera di gioco si vede sempre.
+	_cocuzzolo = Node3D.new()
+	_cocuzzolo.position = Vector3(0, 0.372, -0.06)
+	_head.add_child(_cocuzzolo)
+
 	# il "filtrino": il trattino naso→labbro dei pupazzi, che cuce il
 	# nasino rosa alla bocca (stesso tono scuro delle labbra)
 	var philtrum := BUILDER.tube(_head,
@@ -1319,6 +1350,10 @@ func _process(delta: float) -> void:
 		position.y = -0.4 + sin(_t * 1.1) * 0.022
 		_head.rotation = Vector3(-0.08 + sin(_t * 0.7) * 0.03, sin(_t * 0.4) * 0.1, 0)
 
+	# il Fiato Sospeso si posa SOPRA tutto il resto (e la sua rete di
+	# sicurezza gira comunque, anche quando il canale è a zero)
+	_anim_fiato(delta)
+
 	# il volto vivo: scelgo l'espressione dallo stato e aggiorno il motore
 	# DOPO aver posato testa e corpo (così lo sguardo legge la testa finale)
 	_update_face(delta)
@@ -1333,6 +1368,141 @@ const _TESTA_SEMI := Vector3(0.4368, 0.3864, 0.4116)
 # d'aria lungo la normale): è quello che tiene archi "^^" e chevron ">.<"
 # ADERENTI alla guancia anche di profilo, invece che su un piano che da un
 # lato affonda e dall'altro galleggia.
+## IL RESPIRO DEL FIATO SOSPESO. Un ciclo lento e ASIMMETRICO — inspiro
+## corto, espiro lungo, con un cedimento in fondo — che con l'ospite
+## addosso quasi si ferma. Entra la fase in secondi e quanto sei giù
+## (0..1); esce lo scostamento del torace in metri.
+## PURA: un sin() puro si smaschera in due cicli, questa no. La prova
+## (asimmetria, periodo, ampiezza) la fa il test, non l'occhio.
+static func respiro_fiato(t: float, quanto: float, trattenuto := false) -> float:
+	var periodo := lerpf(3.1, 5.6, clampf(quanto, 0.0, 1.0))
+	if trattenuto:
+		periodo = 9.5      # con qualcuno addosso non si respira: si aspetta
+	var u := fposmod(t, periodo) / periodo
+	var v: float
+	if u < 0.36:
+		v = sin(u / 0.36 * PI * 0.5)                 # inspiro: sale svelto
+	else:
+		var w := (u - 0.36) / 0.64
+		v = cos(w * PI * 0.5) * (1.0 - 0.10 * w)     # espiro: scende lungo e cede
+	var amp := lerpf(0.017, 0.0085, clampf(quanto, 0.0, 1.0))
+	if trattenuto:
+		amp *= 0.3
+	return v * amp
+
+
+## Il posatoio: la punta del musetto, dove si posa chi si fida di te.
+## Un soffio più avanti del nasino, o la farfalla ci finisce dentro.
+func punto_naso() -> Vector3:
+	if _naso and is_instance_valid(_naso):
+		return _naso.global_position
+	return global_position + Vector3(0, 0.62, -0.42)
+
+
+## Il posatoio di riserva: fra le orecchie. Vale quando il muso guarda
+## dall'altra parte — la scena deve potersi vedere, sempre.
+func punto_cocuzzolo() -> Vector3:
+	if _cocuzzolo and is_instance_valid(_cocuzzolo):
+		return _cocuzzolo.global_position
+	return global_position + Vector3(0, 1.05, 0)
+
+
+## Dove guarda il musetto, nel mondo. Si ricava dai nodi veri (naso meno
+## testa) e non da un asse locale: il nodo di Mochi ha scala 0.75 e mezzo
+## giro su Y, e un offset scritto a mano uscirebbe col segno sbagliato.
+func direzione_muso() -> Vector3:
+	if _naso and is_instance_valid(_naso) and _head:
+		var d := _naso.global_position - _head.global_position
+		d.y = 0.0
+		if d.length() > 0.001:
+			return d.normalized()
+	return -global_transform.basis.z
+
+
+## Scrive il canale del Fiato (0..1). Va chiamato OGNI FRAME finché dura:
+## se smette, la rete di sicurezza in _process riporta su il corpo da sola
+## — un canale scritto da un solo stato, dimenticato, resta fuori posa.
+func set_fiato(v: float, ospite := false) -> void:
+	fiato = clampf(v, 0.0, 1.0)
+	fiato_ospite = ospite
+	_fiato_scritto = true
+
+
+# --- IL FIATO SOSPESO: giù nell'erba, immobile, mentre il prato torna ---
+# Si posa SOPRA tutte le altre animazioni (ultimo prima del volto), come
+# la recita dei vicini: così non deve riscrivere il ciclo di camminata né
+# le pose sedute, e quando il canale torna a zero il corpo si ritrova
+# esattamente dov'era.
+func _anim_fiato(delta: float) -> void:
+	if not _fiato_scritto:
+		# nessuno lo scrive più: si torna su da soli, senza scatti
+		fiato = maxf(0.0, fiato - delta * 1.7)
+		if fiato <= 0.0:
+			fiato_ospite = false
+	_fiato_scritto = false
+	if fiato <= 0.001:
+		return
+	var f: float = smoothstep(0.0, 1.0, fiato)
+	_fiato_t += delta * (0.25 if fiato_ospite else 1.0)
+
+	# il corpo scende nell'erba e si raccoglie in avanti; il respiro lento
+	# prende il posto di quello da ferma (che è tre volte più svelto)
+	var y_fiato := respiro_fiato(_fiato_t, fiato, fiato_ospite) - 0.20
+	position.y = lerpf(position.y, y_fiato, f)
+	rotation.x = lerpf(rotation.x, rotation.x + 0.34, f)
+	# il dondolio laterale si spegne: chi trattiene il fiato non ciondola
+	rotation.z *= 1.0 - 0.85 * f
+	# …ma non è una statua: il tremito di chi sta fermo apposta, e col
+	# naso occupato diventa un fremito trattenuto, più veloce e più fine
+	if fiato_ospite:
+		rotation.z += sin(_t * 17.0) * 0.0016 * f
+		position.y += sin(_t * 21.3) * 0.0011 * f
+	else:
+		rotation.z += sin(_t * 1.31 + 0.7) * 0.004 * f
+	_shadow_blob.position.y = 0.02 - position.y
+
+	# le zampine si raccolgono sotto: accosciata, non in ginocchio. Se il
+	# tween di una posa sta correndo lo si lascia lavorare (poi arriva qui)
+	if _pose_tw == null or not _pose_tw.is_running():
+		for i in _legs.size():
+			var leg := _legs[i]
+			var lato := -1.0 if i == 0 else 1.0
+			leg.rotation.x = lerpf(leg.rotation.x, -0.5, f)
+			leg.rotation.z = lerpf(leg.rotation.z, lato * -0.2, f)
+			leg.position.y = lerpf(leg.position.y, 0.28, f)
+			leg.position.z = lerpf(leg.position.z, -0.055, f)
+	# le braccine si appoggiano avanti, come le zampe di una gatta in agguato
+	_arms[0].rotation.x = lerpf(_arms[0].rotation.x, 1.02, f)
+	_arms[1].rotation.x = lerpf(_arms[1].rotation.x, 1.06, f)
+	_arms[0].rotation.z = lerpf(_arms[0].rotation.z, 0.13, f)
+	_arms[1].rotation.z = lerpf(_arms[1].rotation.z, -0.13, f)
+
+	# la testolina si abbassa MENO del corpo: il muso sfiora l'erba ma gli
+	# occhi restano puntati avanti — è lo sguardo che racconta l'attesa
+	_head.rotation.x = lerpf(_head.rotation.x, _head.rotation.x - 0.26, f)
+	_head.rotation.y *= 1.0 - 0.8 * f
+	_head.rotation.z *= 1.0 - 0.8 * f
+
+	# LE ORECCHIE IN AVANTI: si voltano verso quello che ascolti. Ognuna
+	# col suo orologio (periodi incommensurabili: non si richiudono mai
+	# insieme), e ferme del tutto quando qualcuno si è posato.
+	for i in _ears.size():
+		var ear := _ears[i]
+		var lato := -1.0 if i == 0 else 1.0
+		var ruota := 0.0
+		if not fiato_ospite:
+			ruota = sin(_fiato_t * (0.83 if i == 0 else 0.61) + lato) * 0.055
+		ear.rotation.x = lerpf(ear.rotation.x, -0.62 + ruota, f)
+		ear.rotation.z = lerpf(lato * -0.32, lato * -0.12, f)
+		ear.rotation.y = lerpf(lato * -0.15, lato * -0.5, f)
+
+	# la coda si posa nell'erba e smette di scodinzolare: è il segnale più
+	# onesto che un animale manda quando ha deciso di non farsi notare
+	_tail.rotation.y *= 1.0 - 0.9 * f
+	_tail.rotation.x = lerpf(_tail.rotation.x, 0.62, f)
+	_tail_tip.rotation.y *= 1.0 - 0.9 * f
+
+
 func _su_testa(p: Vector3) -> Vector3:
 	var d := Vector3(p.x / _TESTA_SEMI.x, p.y / _TESTA_SEMI.y,
 			p.z / _TESTA_SEMI.z).normalized()
@@ -1387,6 +1557,15 @@ func _update_face(delta: float) -> void:
 		expr = "felice" if smoothstep(0.9, 1.0, pour) > 0.5 else "concentrato"
 	elif _hold > 0.5 and (_hold_pose == "offer" or _hold_pose == "reach"):
 		expr = "felice"
+	elif fiato > 0.2:
+		# giù nell'erba si guarda, e basta: concentrata mentre aspetta,
+		# gli occhioni spalancati appena qualcosa si è fidato di te.
+		# Sta PRIMA di _tired e di _squinting: dopo una corsa l'isteresi
+		# degli occhi ">.<" resterebbe accesa e ti accovacceresti sotto
+		# sforzo, che è l'opposto di quello che sta succedendo
+		expr = "meraviglia" if fiato_ospite else "concentrato"
+		inten = clampf(fiato, 0.4, 1.0)
+		_squinting = false
 	elif _tired:
 		expr = "assonnato"
 	elif _squinting:

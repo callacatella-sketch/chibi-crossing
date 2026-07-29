@@ -123,6 +123,8 @@ signal world_built
 func _ready() -> void:
 	add_to_group("cozy_world")
 	add_to_group("season_listener")
+	# la calma del giocatore arriva da una casa sola: il Fiato Sospeso
+	add_to_group("calma_listener")
 	# Generazione DIFFERITA su più frame: toglie l'hitch d'avvio (prima tutta la
 	# geometria — erba, fiori, alberi, bosco, stagno, fiume — nasceva in un solo
 	# frame). L'ordine è identico a prima e il mondo "compare" in una frazione di
@@ -170,6 +172,10 @@ func _ready() -> void:
 	# …e il suo compimento: il congedo, il lutto, i ricordi che restano
 	# (dopo Legami: al _ready differito deve trovarlo già nel gruppo)
 	add_child(preload("res://scenes/world/Congedo.gd").new())
+	# LE NUOVE LEVE: e l'altro capo della vita — in primavera, da due
+	# vicini che si vogliono bene, nasce un cucciolo. Va DOPO Legami e
+	# Congedo: al _ready li cerca entrambi nei gruppi.
+	add_child(preload("res://scenes/world/Nascite.gd").new())
 	await get_tree().process_frame
 	_build_stones()
 	_build_clouds()
@@ -675,6 +681,10 @@ func _build_butterflies() -> void:
 func _cull_butterflies() -> void:
 	var ctx := contesto_critter()
 	for i in range(_butterflies.size() - 1, -1, -1):
+		# chi si è posata su di te resta: non si fa evaporare fra le zampe
+		# di Mochi una farfalla perché nel frattempo ha cominciato a piovere
+		if str(_butterflies[i].get("fiducia", "")) != "":
+			continue
 		if not CRIT.disponibile(str(_butterflies[i]["kind"]), ctx):
 			(_butterflies[i]["node"] as Node3D).queue_free()
 			_butterflies.remove_at(i)
@@ -770,6 +780,8 @@ func _make_butterfly(kind_i: int) -> void:
 		"prev": Vector3.ZERO,
 		"kind": kind,
 		"home": home,
+		# la casa VERA, dove torna quando ti rialzi: «home» migra col Fiato
+		"casa": home,
 		"girata": girata,
 		"alt": alt,
 		"flap": flap,
@@ -784,11 +796,171 @@ func nearest_butterfly(pos: Vector3, max_d: float) -> int:
 		var node := _butterflies[i]["node"] as Node3D
 		if not node.visible:
 			continue
+		# CHI SI FIDA NON SI CATTURA: la farfalla posata sul naso sparisce
+		# dai bersagli del retino. Prendere chi si è fidato di te sarebbe
+		# il gesto sbagliato, e il gioco non deve nemmeno offrirtelo.
+		if str(_butterflies[i].get("fiducia", "")) != "":
+			continue
 		var d: float = pos.distance_to(node.global_position)
 		if d < best_d:
 			best_d = d
 			best = i
 	return best
+
+
+# ------------------------------------------------- la farfalla che si fida
+#
+# IL PRESTITO. Durante il Fiato Sospeso una farfalla può staccarsi dal suo
+# giro e venire a posarsi sul naso di Mochi. Finché sta lì è PRESTATA:
+# non orbita più (il suo blocco in _process viene saltato per intero —
+# posizione, rotazione e battito d'ali, o il frame dopo tornerebbe in
+# cielo), non la si può retinare, e l'appello del bestiario non se la
+# porta via se cambia il tempo. Non si conserva mai un INDICE: cull,
+# cattura e refill li invalidano, e un prestito dura secondi.
+
+var _posatoio := Vector3.ZERO
+var _posatoio_dir := Vector3.FORWARD
+## La calma del giocatore (0..1), scritta dal Fiato Sospeso: è la fonte
+## unica che TUTTE le paure di questo file moltiplicano.
+var _calma := 0.0
+
+
+## Il Fiato Sospeso pubblica quanto il prato si fida di te adesso.
+func set_calma(q: float, _pos: Vector3) -> void:
+	_calma = clampf(q, 0.0, 1.0)
+
+
+## Dove starebbe la farfalla se stesse facendo il suo giro, adesso. La
+## posizione VERA è questa più lo «scarto» (dodge): tenerle separate è
+## quello che permette a una farfalla congedata di rientrare volando
+## invece di teletrasportarsi sulla sua orbita.
+func _giro_farfalla(b: Dictionary, t: float) -> Vector3:
+	var home: Vector3 = b.get("home", Vector3.ZERO)
+	var girata: float = b.get("girata", 8.0)
+	var alt: float = b.get("alt", 0.9)
+	var s: float = b.get("seed", 0.0)
+	return home + Vector3(
+		sin(t * 0.8 + s) * girata + cos(t * 0.29) * girata * 0.5,
+		alt + sin(t * 1.6) * 0.35 + sin(t * 5.0) * 0.06,
+		cos(t * 0.62 + s * 2.0) * girata
+	)
+
+
+func _indice_fidata() -> int:
+	for i in _butterflies.size():
+		if str(_butterflies[i].get("fiducia", "")) != "":
+			return i
+	return -1
+
+
+## C'è qualcuno abbastanza vicino da venire a posarsi qui? Restituisce la
+## specie che si è mossa, o "" se nessuna era a tiro.
+func chiama_farfalla(posatoio: Vector3, raggio: float) -> String:
+	if _indice_fidata() >= 0:
+		return ""
+	var best := -1
+	var best_d := raggio
+	for i in _butterflies.size():
+		var node := _butterflies[i]["node"] as Node3D
+		if not node.visible:
+			continue
+		var d := node.global_position.distance_to(posatoio)
+		if d < best_d:
+			best_d = d
+			best = i
+	if best < 0:
+		return ""
+	_butterflies[best]["fiducia"] = "arriva"
+	_butterflies[best]["posa_t"] = 0.0
+	_posatoio = posatoio
+	return str(_butterflies[best]["kind"])
+
+
+## Il naso si muove col respiro: il posatoio va rinfrescato ogni frame.
+func aggiorna_posatoio(p: Vector3, dir := Vector3.ZERO) -> void:
+	_posatoio = p
+	if dir.length() > 0.001:
+		_posatoio_dir = dir
+
+
+## {} se non c'è nessuno, altrimenti {"specie": id, "stato": "arriva"|"posata"}.
+func farfalla_posata() -> Dictionary:
+	var i := _indice_fidata()
+	if i < 0:
+		return {}
+	return {"specie": str(_butterflies[i]["kind"]),
+			"stato": str(_butterflies[i]["fiducia"])}
+
+
+## La lascia andare. Se l'hai spaventata parte di scatto e la si vede;
+## se il momento è finito da sé, riprende il suo giro come se niente fosse.
+func congeda_farfalla(spaventata: bool) -> void:
+	var i := _indice_fidata()
+	if i < 0:
+		return
+	var b: Dictionary = _butterflies[i]
+	b["fiducia"] = ""
+	var node := b["node"] as Node3D
+	node.rotation.x = 0.0
+	# IL RIENTRO. Il giro è calcolato dalla «home»: senza uno scarto
+	# iniziale la farfalla sparirebbe dal naso e ricomparirebbe in cielo
+	# nello stesso frame. Lo scarto parte da dov'è davvero (così non si
+	# muove di un millimetro) e si riassorbe da sé in un paio di secondi:
+	# la si vede staccarsi e tornare al suo giro, volando.
+	var giro := _giro_farfalla(b, _t * 0.55 + float(b.get("seed", 0.0)))
+	var scarto := node.position - giro
+	if spaventata:
+		# via di scatto, di lato e in su: si vede che l'hai spaventata
+		var via := (node.position - to_local(_posatoio))
+		via.y = 0.0
+		if via.length() < 0.01:
+			via = Vector3(0.6, 0, 0.6)
+		scarto += via.normalized() * 1.1 + Vector3(0, 0.6, 0)
+	b["dodge"] = scarto
+	b["prev"] = node.position
+
+
+# La farfalla prestata: viene, si posa, e resta. Nessuna orbita, nessuna
+# timidezza — è qui apposta.
+func _farfalla_fidata(b: Dictionary, delta: float) -> void:
+	var node := b["node"] as Node3D
+	var meta := to_local(_posatoio)
+	var s: float = b["seed"]
+	var flap: float
+	if str(b["fiducia"]) == "arriva":
+		var to := meta - node.position
+		var d := to.length()
+		if d < 0.07:
+			b["fiducia"] = "posata"
+			b["posa_t"] = 0.0
+		else:
+			# rallenta arrivando (l'ultimo palmo è quasi un dubbio) e non
+			# viene mai in linea retta: una farfalla ondeggia sempre
+			var passo: float = clampf(d * 1.7, 0.3, 1.25) * delta
+			var lato := Vector3(-to.z, 0.0, to.x).normalized() \
+					* sin(_t * 5.3 + s) * 0.4
+			node.position += (to / maxf(d, 0.001) + lato) * passo
+			var vel := to
+			node.rotation.y = lerp_angle(node.rotation.y,
+					atan2(-vel.x, -vel.z), 1.0 - exp(-5.0 * delta))
+		flap = sin(_t * float(b.get("flap", 17.0)) + s) * 1.05
+		node.rotation.x = lerpf(node.rotation.x, 0.0, 1.0 - exp(-6.0 * delta))
+	else:
+		b["posa_t"] = float(b.get("posa_t", 0.0)) + delta
+		# incollata al naso, con l'assestamento di chi sta in equilibrio
+		node.position = meta + Vector3(0, sin(_t * 1.7 + s) * 0.004, 0)
+		node.rotation.y = lerp_angle(node.rotation.y,
+				atan2(-_posatoio_dir.x, -_posatoio_dir.z), 1.0 - exp(-4.0 * delta))
+		# e ALZA LE ALI. Piatta com'è in volo, posata sul muso sembrava un
+		# paio di baffi bianchi: una farfalla ferma tiene le ali su, ed è
+		# anche l'unico modo di vederle da una camera che sta dietro
+		node.rotation.x = lerpf(node.rotation.x, -0.95, 1.0 - exp(-4.0 * delta))
+		# le ali non battono più: si aprono e si chiudono piano, come un
+		# respiro — ed è quello che dice, senza scriverlo, che si fida
+		flap = 0.62 + 0.38 * sin(_t * 0.85 + s)
+	b["prev"] = node.position
+	(b["wing_l"] as Node3D).rotation.z = flap
+	(b["wing_r"] as Node3D).rotation.z = -flap
 
 
 ## Toglie la farfalla dal cielo e la consegna al retino: {kind, node}.
@@ -1861,7 +2033,10 @@ func _update_frogs(delta: float) -> void:
 			"sit":
 				var node := f["node"] as Node3D
 				node.position.y = 0.03 + absf(sin(_t * 2.0 + f["seed"])) * 0.012
-				if player and player.global_position.distance_to(node.global_position) < 2.3:
+				# anche la rana ti misura: se stai fermo nell'erba non
+				# scappa più, e ci si può stare seduti accanto
+				if player and player.global_position.distance_to(node.global_position) \
+						< 2.3 * (1.0 - _calma):
 					f["state"] = "jump"
 					var splash: Vector3 = POND_CENTER + (node.global_position - POND_CENTER) * Vector3(0.55, 0, 0.55)
 					var tw := create_tween()
@@ -2875,16 +3050,29 @@ func _process(delta: float) -> void:
 		if pv is Vector3:
 			fretta = clampf((pv as Vector3).length() / 3.0, 0.0, 1.0)
 	for b in _butterflies:
+		# chi si è fidata di te non orbita più: salta TUTTO il blocco (posa,
+		# rotazione e battito), o il frame dopo si ritroverebbe in cielo
+		if str(b.get("fiducia", "")) != "":
+			_farfalla_fidata(b, delta)
+			continue
 		var s: float = b["seed"]
 		var t := _t * 0.55 + s
-		var home: Vector3 = b.get("home", Vector3.ZERO)
-		var girata: float = b.get("girata", 8.0)
-		var alt: float = b.get("alt", 0.9)
-		var pos := home + Vector3(
-			sin(t * 0.8 + s) * girata + cos(t * 0.29) * girata * 0.5,
-			alt + sin(t * 1.6) * 0.35 + sin(t * 5.0) * 0.06,
-			cos(t * 0.62 + s * 2.0) * girata
-		)
+		# IL PRATO CHE TI VIENE ADDOSSO. Le farfalle girano attorno alla loro
+		# casa, e la casa quasi sempre è il centro del mondo: accovacciarsi
+		# in fondo al prato non ne avrebbe portata nessuna, mai, e la
+		# promessa del Fiato Sospeso non si sarebbe avverata lontano da lì.
+		# Quando la calma è alta la casa MIGRA verso di te — piano, che si
+		# veda — e quando ti rialzi torna dov'era.
+		if _player_ref and _butterflies.size() > 0:
+			var casa: Vector3 = b.get("casa", b.get("home", Vector3.ZERO))
+			var home_ora: Vector3 = b.get("home", Vector3.ZERO)
+			var meta := casa
+			if _calma > 0.5:
+				meta = _player_ref.global_position
+				meta.y = 0.0
+			var passo: float = (1.1 * (_calma - 0.5) * 2.0) if _calma > 0.5 else 0.5
+			b["home"] = home_ora.move_toward(meta, passo * delta)
+		var pos := _giro_farfalla(b, t)
 		# la TIMIDEZZA: al passaggio di Mochi la farfalla scivola via con
 		# una virata morbida (di lato e un filo in su) — si SCOSTA, non
 		# fugge. Ognuna vira dal suo verso, e se Mochi si ferma la paura
@@ -2900,7 +3088,11 @@ func _process(delta: float) -> void:
 				var via := diff / maxf(d, 0.05)
 				var lato := Vector3(-via.z, 0.0, via.x) * signf(sin(s * 7.0))
 				var forza := (2.0 - d) / 2.0
-				var paura := (0.22 + 0.78 * fretta) * forza * forza
+				# la CALMA (fonte unica: FiatoSospeso) spegne la paura fin
+				# sotto il suo pavimento: senza, a giocatore immobile la
+				# farfalla si scostava lo stesso e «ti viene addosso» non
+				# poteva avverarsi mai
+				var paura := (0.22 + 0.78 * fretta) * forza * forza * (1.0 - _calma)
 				voglia = (via + lato * 0.55).normalized() * paura * 1.5 \
 						+ Vector3(0, 0.5 * paura, 0)
 		dodge = dodge.lerp(voglia, 1.0 - exp(-3.0 * delta))

@@ -279,6 +279,75 @@ static func invecchia(v: Dictionary, eta_f: float) -> Dictionary:
 	return out
 
 
+## La voce di chi è appena nato. Speculare a invecchia(): l'età va in
+## una direzione, l'infanzia nell'altra — più acuta, più cantata, più
+## veloce a scatti, e senza una traccia di raucedine.
+## `quanto`: 1 = appena nato, 0 = ha finito di crescere.
+## Mette anche il grado di storpiatura DENTRO la voce (chiave "bimbo"),
+## così say() lo trova da sé e la cache resta corretta senza che nessun
+## chiamante debba sapere che esiste un cucciolo.
+static func bimbo(v: Dictionary, quanto: float) -> Dictionary:
+	var q := clampf(quanto, 0.0, 1.0)
+	if q <= 0.01:
+		return v
+	var out := v.duplicate()
+	out["pitch"] = float(v["pitch"]) * (1.0 + 0.42 * q)
+	out["rate"] = float(v["rate"]) * (1.0 + 0.18 * q)
+	out["rough"] = maxf(float(v["rough"]) * (1.0 - 0.8 * q), 0.0)
+	out["sing"] = float(v["sing"]) * (1.0 + 0.5 * q)
+	out["breath"] = minf(float(v["breath"]) + 0.3 * q, 1.2)
+	out["bimbo"] = q
+	# la cache è chiavata sulla voce: senza spostare la chiave, un
+	# cucciolo si riascolterebbe la propria frase di ieri per sempre
+	out["key"] = int(v["key"]) + 7000000 * int(round(q * 4.0))
+	return out
+
+
+## Come un bambino piccolo dice una parola che non sa ancora dire.
+## Non è rumore a caso: sono le due tappe vere di ogni lingua umana.
+##  1. RADDOPPIO — la prima sillaba si ripete e mangia la seconda:
+##     «ta-ki» (grazie) esce «ta-ta». È il primo passo, sempre.
+##  2. ARMONIA CONSONANTICA — la seconda sillaba torna, ma con la
+##     consonante della prima: «ta-ki» diventa «ta-ti». La bocca sa già
+##     fare due vocali, non ancora due consonanti diverse.
+##  3. poi la parola è giusta, e resta solo la voce da cucciolo.
+## Le parole di UNA sillaba si raddoppiano: è il «pa-pa» di tutti.
+## PURA: entra una lista di sillabe, esce una lista di sillabe.
+static func storpia(sillabe: Array, quanto: float) -> Array:
+	var q := clampf(quanto, 0.0, 1.0)
+	if q <= 0.12 or sillabe.is_empty():
+		return sillabe.duplicate()
+	if sillabe.size() == 1:
+		# una sillaba sola: da piccolissimi si dice due volte
+		return [str(sillabe[0]), str(sillabe[0])] if q > 0.5 \
+				else sillabe.duplicate()
+	var out: Array = sillabe.duplicate()
+	if q > 0.62:
+		for i in range(1, out.size()):
+			out[i] = str(out[0])
+	elif q > 0.3:
+		for i in range(1, out.size()):
+			out[i] = _consonante(str(out[0])) + _vocale(str(out[i]))
+	return out
+
+
+## L'attacco di una sillaba ("sha" -> "sh", "o" -> ""). Le sillabe del
+## Chibiese sono tutte consonante+vocale, digrammi compresi.
+static func _consonante(s: String) -> String:
+	for i in s.length():
+		if s[i] in "aeiou":
+			return s.substr(0, i)
+	return s
+
+
+## La coda vocalica ("sha" -> "a", "o" -> "o").
+static func _vocale(s: String) -> String:
+	for i in s.length():
+		if s[i] in "aeiou":
+			return s.substr(i)
+	return s
+
+
 ## Una frase: lista di concetti del VOCAB (o "~" per una sillaba di
 ## chiacchiericcio nello stile della voce). Mood: neutro | felice |
 ## domanda | triste. Ritorna l'audio pronto da suonare.
@@ -294,12 +363,18 @@ static func say(v: Dictionary, concepts: Array, mood := "neutro") -> AudioStream
 	var contour: Array[float] = []
 	var rng := RandomNumberGenerator.new()
 	rng.seed = int(v["key"]) + hash(key)
+	var quanto_bimbo := float(v.get("bimbo", 0.0))
 	for c in concepts:
 		var w: Array = VOCAB.get(str(c), [])
 		var melodia: Array = CONTORNO.get(str(c), [])
 		if w.is_empty():
 			w = [v["fav"][rng.randi() % 3]]
 			melodia = []
+		# in bocca a un cucciolo la parola esce ancora storta (il
+		# contorno d'intonazione no: la musica della frase i bambini
+		# la prendono per prima, molto prima dei suoni)
+		if quanto_bimbo > 0.0:
+			w = storpia(w, quanto_bimbo)
 		for i in w.size():
 			syls.append(str(w[i]))
 			word_end.append(i == w.size() - 1)

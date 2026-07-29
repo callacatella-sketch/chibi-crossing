@@ -34,9 +34,16 @@ const UI_BROWN := Color("6a4a3a")
 ## L'id del tesoro-munizione (Inventory.TREASURES).
 const SASSO := "sasso_piatto"
 
-## Da quanto lontano dalla riva si può tirare.
-const RIVA_DENTRO := 0.4
-const RIVA_FUORI := 2.4
+## IL SASSO SI TIRA DAL BORDO. La canna si lancia da tutta la fascia di
+## riva (Fishing: da 0.4 dentro a 2.2 fuori); il rimbalzello no — per far
+## strisciare un sasso bisogna stare PROPRIO sull'orlo dell'acqua. È una
+## regola fisica, che si impara in un gesto e si legge nel cartiglio: fai
+## un passo avanti e tiri il sasso, fai un passo indietro e peschi.
+## (Senza, i due gesti si contendevano la stessa E su tutta la riva e
+## vinceva la canna per l'ordine dei nodi nel .tscn: il sasso partiva in
+## 19 cm su 279.)
+const RIVA_DENTRO := 0.35
+const RIVA_FUORI := 0.75
 
 # --- i numeri del tiro ---
 ## I rimbalzi di un tiro qualunque, ad aria ferma.
@@ -74,6 +81,7 @@ func _ready() -> void:
 		_cozy = get_node_or_null("../CozyWorld")
 		_inventory = get_node_or_null("../Inventory")
 		_visitors = get_node_or_null("../Visitors")
+		_iscrivi_alla_e()
 	).call_deferred()
 
 
@@ -89,7 +97,13 @@ static func rimbalzi(caso: float, vento: float) -> int:
 	var calma := (1.0 - clampf(vento, 0.0, 2.0)) * PESO_VENTO
 	# e un pizzico di fortuna, che tiene vivo il gesto anche al centesimo tiro
 	var fortuna := (clampf(caso, 0.0, 1.0) - 0.35) * 4.0
-	var n := roundi(float(RIMBALZI_BASE) + calma + fortuna)
+	# IL TIRO D'ORO. Senza questo, il tetto era irraggiungibile: col vento
+	# più fermo possibile e la fortuna massima si arrivava a otto, e i nove
+	# rimbalzi (con la loro frase) erano codice morto. Una volta ogni tanto,
+	# e solo quando l'aria è già ferma, il sasso non si stanca: è la cosa
+	# che fa raccontare la partita a chi c'era.
+	var oro := 1.0 if (caso > 0.97 and vento < 0.8) else 0.0
+	var n := roundi(float(RIMBALZI_BASE) + calma + fortuna + oro)
 	return clampi(n, RIMBALZI_MINIMO, RIMBALZI_MASSIMO)
 
 
@@ -136,20 +150,58 @@ func _vento() -> float:
 	return 1.0
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	if not event.is_action_pressed("interact") or _busy:
-		return
-	if _player == null or not _player.is_physics_processing():
-		return
+## SI PUÒ TIRARE, QUI E ORA? Una condizione sola, letta da tutti e tre
+## quelli che devono saperlo: il tasto, il cartiglio e l'arbitro della E.
+## Prima erano due copie che divergevano — e il cartiglio prometteva un
+## tiro mentre la E faceva un'altra cosa.
+func _posso_tirare() -> bool:
+	if _busy or _player == null or not _player.is_physics_processing():
+		return false
 	if not _sulla_riva() or _sassi() <= 0:
-		return
-	# la canna e il retino hanno la precedenza: se c'è una creatura a
-	# portata o una lenza in acqua, la E è loro
+		return false
+	# una creatura a portata di retino ha la precedenza: passa e non ripassa
 	var coll := get_node_or_null("../Collection")
 	if coll and not (coll.call("_nearest_catch") as Dictionary).is_empty():
-		return
+		return false
+	# e una lenza già in acqua pure: prima si ritira la canna
 	var pesca := get_node_or_null("../Fishing")
 	if pesca and str(pesca.get("_state")) != "off":
+		return false
+	return true
+
+
+# --- l'arbitro della E (systems/ArbitroE.gd) --------------------------
+# Sulla riva la E è contesa con la canna, e senza arbitro vinceva la canna
+# per un motivo che il giocatore non può nemmeno immaginare: l'ordine dei
+# nodi nel .tscn. Su tutta la fascia di riva il sasso partiva in 19 cm su
+# 279. Adesso a decidere è una regola scritta.
+
+func distanza_e() -> float:
+	if not _posso_tirare():
+		return -1.0
+	# quanto sei vicino all'acqua: sulla riva vera il gesto del sasso è più
+	# "a portata" della canna, che si lancia anche da un passo indietro
+	return absf(_player.global_position.distance_to(_cozy.POND_CENTER) - _cozy.POND_R)
+
+
+func agisci_e() -> void:
+	if _posso_tirare():
+		_tira()
+
+
+func _iscrivi_alla_e() -> void:
+	var arb := get_tree().get_first_node_in_group("arbitro_e")
+	if arb:
+		arb.iscrivi(self, "rimbalzello", arb.GESTO,
+				Callable(self, "distanza_e"), Callable(self, "agisci_e"))
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	# rete di riserva per quando l'arbitro non c'è (test, harness): la
+	# regola vera la applica l'arbitro, che intercetta la E prima di qui
+	if not event.is_action_pressed("interact"):
+		return
+	if not _posso_tirare():
 		return
 	_tira()
 	get_viewport().set_input_as_handled()
@@ -167,7 +219,8 @@ func _tira() -> void:
 	_mochi.set("_yaw", atan2(-dir.x, -dir.z))
 	var sasso := _fai_sasso()
 	_mochi.call("attach_to_paw", sasso)
-	sasso.position = Vector3(0, 0, 0)
+	# NIENTE position qui: l'offset della zampa lo mette attach_to_paw, e
+	# azzerarlo faceva partire il sasso dalla SPALLA
 	sasso.scale = Vector3.ONE * 0.05
 	_mochi.call("hold_swing", true)
 
@@ -195,9 +248,19 @@ func _vola(sasso: Node3D, dir: Vector3, quanti: int) -> void:
 
 	var acqua := 0.06
 	var pos := partenza
+	# QUANTA ACQUA C'È DAVANTI. Un tiro fortunato correva più dello stagno
+	# (i passi sommano fino a ~6 m, il diametro è 7.2 m ma si tira dalla
+	# riva): gli ultimi rimbalzi cadevano sull'erba dall'altra parte, coi
+	# cerchi che si allargavano sul prato. I salti si riscalano per stare
+	# nell'acqua — il ritmo che si stringe resta identico, cambia il passo.
+	var corsa := 0.0
+	for i in quanti:
+		corsa += passo(i, quanti)
+	var disponibile := _acqua_davanti(partenza, dir)
+	var fattore := 1.0 if corsa <= disponibile else (disponibile / maxf(corsa, 0.01))
 	var tw := create_tween()
 	for i in quanti:
-		var salto := passo(i, quanti)
+		var salto := passo(i, quanti) * fattore
 		var meta := pos + dir * salto
 		meta.y = acqua
 		var alto := altezza(i, quanti)
@@ -213,7 +276,7 @@ func _vola(sasso: Node3D, dir: Vector3, quanti: int) -> void:
 		tw.tween_callback(func() -> void: _tocco(qui, n))
 		pos = meta
 	# l'ultimo tuffo: il sasso si stanca e affonda, con un plop grave
-	tw.tween_property(sasso, "global_position", pos + dir * 0.25 - Vector3(0, 0.25, 0),
+	tw.tween_property(sasso, "global_position", pos + dir * 0.25 * fattore - Vector3(0, 0.25, 0),
 			0.22).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	tw.tween_callback(func() -> void:
 		if _cozy:
@@ -222,6 +285,26 @@ func _vola(sasso: Node3D, dir: Vector3, quanti: int) -> void:
 			_sfx.play("plop", -9.0, 0.62)   # il grave della fine
 		sasso.queue_free()
 		_finito(quanti))
+
+
+## Quanta acqua c'è davanti, lungo la direzione del tiro: dal punto di
+## partenza fino alla riva opposta, meno un margine perché l'ultimo
+## rimbalzo non finisca sulla sabbia. Geometria di un cerchio, niente
+## raycast: lo stagno È un cerchio (POND_CENTER, POND_R).
+func _acqua_davanti(da: Vector3, dir: Vector3) -> float:
+	if _cozy == null:
+		return 5.0
+	var c: Vector3 = _cozy.POND_CENTER
+	var r: float = _cozy.POND_R
+	# la retta da->dir contro il cerchio, sul piano
+	var o := Vector2(da.x - c.x, da.z - c.z)
+	var d := Vector2(dir.x, dir.z).normalized()
+	var b := o.dot(d)
+	var disc := b * b - (o.length_squared() - r * r)
+	if disc <= 0.0:
+		return 1.2          # non punta all'acqua: un tiro cortissimo
+	# la seconda intersezione è la riva opposta
+	return maxf(0.8, (-b + sqrt(disc)) - 0.55)
 
 
 # un tocco sull'acqua: il cerchio che si allarga e la nota che sale
@@ -278,18 +361,10 @@ func _process(_delta: float) -> void:
 
 func _aggiorna_prompt() -> void:
 	var cam := get_viewport().get_camera_3d()
-	if cam == null or _busy or _player == null or not _sulla_riva():
+	if cam == null or not _posso_tirare():
 		_prompt.visible = false
 		return
 	var quanti := _sassi()
-	if quanti <= 0:
-		_prompt.visible = false
-		return
-	# la canna ha la precedenza: niente due prompt sulla stessa riva
-	var pesca := get_node_or_null("../Fishing")
-	if pesca and str(pesca.get("_state")) != "off":
-		_prompt.visible = false
-		return
 	var wp: Vector3 = _player.global_position + Vector3(0, 1.35, 0)
 	if cam.is_position_behind(wp):
 		_prompt.visible = false

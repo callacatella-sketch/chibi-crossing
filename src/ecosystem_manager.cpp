@@ -17,9 +17,6 @@ void EcosystemManager::_bind_methods() {
     ClassDB::bind_method(D_METHOD("set_ground_validator", "validator"), &EcosystemManager::set_ground_validator);
     ClassDB::bind_method(D_METHOD("set_osservatore", "pos", "quiete"), &EcosystemManager::set_osservatore);
     ClassDB::bind_method(D_METHOD("togli_osservatore"), &EcosystemManager::togli_osservatore);
-    ClassDB::bind_method(D_METHOD("set_posatoio", "pos"), &EcosystemManager::set_posatoio);
-    ClassDB::bind_method(D_METHOD("togli_posatoio"), &EcosystemManager::togli_posatoio);
-    ClassDB::bind_method(D_METHOD("fiducia"), &EcosystemManager::fiducia);
     ClassDB::bind_method(D_METHOD("drop_seeds", "pos", "n"), &EcosystemManager::drop_seeds);
     ClassDB::bind_method(D_METHOD("on_new_day"), &EcosystemManager::on_new_day);
     ClassDB::bind_method(D_METHOD("sparrow_count"), &EcosystemManager::sparrow_count);
@@ -119,40 +116,6 @@ void EcosystemManager::set_osservatore(const Vector3 &pos, float p_quiete) {
 
 void EcosystemManager::togli_osservatore() {
     quiete = -1.0f;
-}
-
-void EcosystemManager::set_posatoio(const Vector3 &pos) {
-    posatoio = pos;
-    posatoio_valido = true;
-}
-
-void EcosystemManager::togli_posatoio() {
-    posatoio_valido = false;
-}
-
-Dictionary EcosystemManager::fiducia() const {
-    Dictionary d;
-    int stato = 0;
-    Vector3 dove;
-    int kind = -1;
-    for (const Butterfly &b : butterflies) {
-        if (b.state == 5) {
-            stato = 2;
-            dove = b.pos;
-            kind = b.kind;
-            break;
-        }
-        if (b.state == 4 && stato == 0) {
-            stato = 1;
-            dove = b.pos;
-            kind = b.kind;
-            // niente break: una posata batte una in arrivo
-        }
-    }
-    d["stato"] = stato;
-    d["kind"] = kind;
-    d["pos"] = dove;
-    return d;
 }
 
 void EcosystemManager::set_ground_validator(const Callable &validator) {
@@ -372,55 +335,7 @@ void EcosystemManager::applica_paura(Butterfly &b, double delta) {
     b.spavento = MAX(b.spavento, f);
 }
 
-// LA FIDUCIA. Quando stai fermo abbastanza a lungo, una si stacca dal
-// prato e viene a vedere chi sei; se ti muovi mentre è addosso, vola via
-// — e quella è tutta la punizione che il gioco ti dà.
-void EcosystemManager::aggiorna_fiducia(double delta) {
-    fiducia_cd -= (float)delta;
-    bool regge = quiete >= FIDUCIA_ROTTA && posatoio_valido;
-    bool occupato = false;
-    for (Butterfly &b : butterflies) {
-        if (b.state != 4 && b.state != 5) continue;
-        if (!regge) {
-            // il patto si è rotto: via, e in fretta
-            b.state = 3;
-            Vector3 via = b.pos - osservatore;
-            via.y = 0.0f;
-            if (via.length() < 0.01f) via = Vector3(0.4f, 0.0f, 0.4f);
-            b.vel = via.normalized() * 1.9f;
-            b.spavento = 1.0f;
-            continue;
-        }
-        occupato = true;
-    }
-    fiducia_kind = -1;
-    for (const Butterfly &b : butterflies) {
-        if (b.state == 5) { fiducia_kind = b.kind; break; }
-    }
-    if (occupato || !regge || quiete < FIDUCIA_SOGLIA || fiducia_cd > 0.0f) return;
-
-    // sceglie la più vicina fra quelle che stanno vivendo la loro vita:
-    // è la farfalla che avevi lì da un pezzo, non una nata per l'occasione
-    int scelta = -1;
-    float meglio = FIDUCIA_R;
-    for (int i = 0; i < (int)butterflies.size(); i++) {
-        const Butterfly &b = butterflies[i];
-        if (b.state > 2) continue;
-        float d = b.pos.distance_to(posatoio);
-        if (d < meglio) {
-            meglio = d;
-            scelta = i;
-        }
-    }
-    fiducia_cd = 1.4f;
-    if (scelta < 0) return;
-    butterflies[scelta].state = 4;
-    butterflies[scelta].timer = 0.0f;
-    butterflies[scelta].spavento = 0.0f;
-}
-
 void EcosystemManager::update_butterflies(double delta) {
-    aggiorna_fiducia(delta);
     for (int i = (int)butterflies.size() - 1; i >= 0; i--) {
         Butterfly &b = butterflies[i];
         b.phase += delta;
@@ -479,35 +394,6 @@ void EcosystemManager::update_butterflies(double delta) {
                         }
                     }
                     b.state = 0;
-                }
-            } break;
-            case 4: { // SI FIDA: si avvicina al posatoio (il tuo naso)
-                b.timer += (float)delta;
-                Vector3 to = posatoio - b.pos;
-                float d = to.length();
-                if (d < 0.09f) {
-                    b.state = 5;
-                    b.timer = 0.0f;
-                } else {
-                    // rallenta arrivando: l'ultimo palmo è quasi un dubbio
-                    float v = CLAMP(d * 1.5f, 0.22f, 1.05f);
-                    b.vel = b.vel.lerp(to / d * v, MIN(1.0, delta * 2.2));
-                    // il volo di una farfalla non è una retta: ondeggia
-                    Vector3 lato = Vector3(-b.vel.z, 0.0f, b.vel.x).normalized();
-                    b.pos += (b.vel + lato * Math::sin(b.phase * 5.3f) * 0.22f) * delta;
-                    // …e se ci mette troppo, ci ripensa
-                    if (b.timer > 14.0f) b.state = 0;
-                }
-            } break;
-            case 5: { // POSATA su di te: sta lì, e respira con le ali
-                b.timer += (float)delta;
-                // incollata al posatoio, con un assestamento appena percepibile
-                b.pos = posatoio + Vector3(0.0f, Math::sin(b.phase * 0.9f) * 0.004f, 0.0f);
-                b.vel = Vector3();
-                // dopo un po' se ne va da sola, com'è giusto
-                if (b.timer > 22.0f) {
-                    b.state = 3;
-                    b.vel = Vector3(0.5f, 0.4f, 0.5f);
                 }
             } break;
             case 3: { // se ne va oltre il bordo del prato
@@ -625,8 +511,6 @@ void EcosystemManager::push_transforms() {
         // aprono e si chiudono piano, come un respiro), concitato in fuga
         float battito = 1.0f;
         if (b.state == 2) battito = 0.35f;
-        else if (b.state == 5) battito = 0.13f;
-        else if (b.state == 4) battito = 1.25f;
         else if (b.state == 3 || b.spavento > 0.05f) battito = 1.0f + b.spavento * 0.9f;
         bf_mm->set_instance_custom_data(i, Color(b.phase, (float)b.kind, battito, 0.0));
     }

@@ -99,6 +99,12 @@ const T := {
 	"Stanotte mi trasferisco nella casa sull'albero che hai immaginato per me. Dal ramo più alto conto i tetti nuovi, le luci, gli orti, l'ospite che ora ha un nome: hai costruito un mondo intero, e io ho avuto il posto in prima fila. Grazie, piccolo Regista. — Il Gufo":
 		"Tonight I move into the treehouse you dreamed up for me. From the highest branch I count the new roofs, the lights, the vegetable patches, the guest who has a name now: you have built a whole world, and I have had the best seat in the house. Thank you, little Director. — The Owl",
 
+	# --------------------------------------- il Fiato Sospeso (FiatoSospeso)
+	"Oggi ti ho vista arrivare di corsa e mi sono spostata.\nNon te la prendere: sei molto grande.\nSe però ti abbassi nell'erba e stai ferma (tieni premuto C),\ndopo un po' mi dimentico di te. E allora vengo a vedere chi sei.":
+		"Today I saw you coming at a run, and I moved aside.\nDon't take it to heart: you are very large.\nBut if you crouch down in the grass and keep still (hold C),\nafter a while I forget about you. And then I come to see who you are.",
+	"Mi dicono che %s\nsi è posata su di te e non è scappata.\nNon si insegna: si aspetta e basta.\nHai imparato il verbo più difficile.":
+		"They tell me that %s\nsettled on you and did not take fright.\nIt cannot be taught: one simply waits.\nYou have learnt the hardest verb of all.",
+
 	# ------------------------------------- le lettere-stagione (GufoOrders.DESIDERI)
 	"Un prato che applaude": "A meadow that applauds",
 	"Dalla casa sull'albero vedo i prati sbadigliare.\nVorrei contare dieci fiori aperti tutti insieme:\nun applauso colorato per la primavera.":
@@ -328,6 +334,21 @@ const T := {
 		"It began without warning.\nAt the Great Tree it was only me and the first flakes,\nwhich weren't cold to touch, only slow.\nMillions will fall this winter.\nThis was the first, and now only I know it.",
 	"Il giorno %d ti ho dato appuntamento\ne tu sei venuto davvero.\nDi tutte le cose che abbiamo visto insieme,\nquella me la ricordo dall'inizio.":
 		"On day %d I asked you to meet me\nand you actually came.\nOf all the things we've seen together,\nthat one I remember from the very start.",
+
+	# ------------------------------------------------ le nuove leve (Nascite)
+	# la lettera con cui il Gufo annuncia che è nato qualcuno
+	"Stanotte non ho chiuso occhio, e per una buona ragione.\nIn casa di %s e %s è arrivato qualcuno\npiù piccolo delle mie due ali messe insieme.\n\nVai a conoscerlo, quando puoi.\nUn nome non ce l'ha: hanno detto che lo sceglierai tu.":
+		"I did not close an eye last night, and for a good reason.\nIn %s and %s's house someone has arrived\nsmaller than both my wings put together.\n\nGo and meet them, when you can.\nA name they have not got: they said you would choose it.",
+	# i tre momenti nuovi del Filo Rosso (Mail.MOMENTI_TESTO)
+	"Il giorno %d è la mattina più lunga\nche io ricordi, e la più corta.\nSei venuto a vederlo che era ancora\npiù piccolo delle mie due zampe.":
+		"Day %d is the longest morning\nI can remember, and the shortest.\nYou came to see them when they were still\nsmaller than my two paws.",
+	"Il nome che porto me l'hai dato tu,\nil giorno %d, quando ero grande così.\nNon me lo ricordo. Me l'hanno raccontato\nabbastanza volte da ricordarmelo lo stesso.":
+		"The name I carry, you gave me,\non day %d, when I was only this big.\nI don't remember it. They have told me about it\noften enough that I remember it anyway.",
+	"Dicono che la prima parola\nl'ho detta il giorno %d, tutta storta,\ne che tu eri lì e hai riso.\nPoi l'ho imparata bene, ma quella era mia.":
+		"They say my first word\ncame out on day %d, all crooked,\nand that you were there, and laughed.\nI learned to say it properly later, but that one was mine.",
+	# l'ultimo desiderio di chi lascia dei figli (Congedo.DESIDERI_TESTO)
+	"tornare sulla soglia dove l'ha visto per la prima volta":
+		"to stand again on the doorstep where they first saw them",
 }
 
 

@@ -22,6 +22,9 @@ const LETTERS := [
 	{"from": "Gufo", "text": "Le tue lucciole tengono compagnia alle mie veglie.\nStanotte ho contato dodici stelle cadenti su casa tua.", "gift": false},
 	{"from": "Scoiattolo", "text": "Ho nascosto una ghianda vicino al falò...\nanzi no: tienila tu, è il mio regalo!", "gift": true},
 	{"from": "Farfalla", "text": "I tuoi fiori sono i più dolci che conosca.\nDomani torno con le mie sorelle: prepara il tè!", "gift": false},
+	# …e la lettera che INSEGNA il Fiato Sospeso, senza un tutorial e senza
+	# una freccia lampeggiante: te lo racconta chi ha paura di te.
+	{"from": "Farfalla", "text": "Oggi ti ho vista arrivare di corsa e mi sono spostata.\nNon te la prendere: sei molto grande.\nSe però ti abbassi nell'erba e stai ferma (tieni premuto C),\ndopo un po' mi dimentico di te. E allora vengo a vedere chi sei.", "gift": false},
 	{"from": "Talpa", "text": "Scavando sono sbucata nel tuo giardino, scusa il buchetto.\nTi lascio un sassolino brillante per farmi perdonare.", "gift": true},
 	{"from": "Merlo", "text": "La tua musichetta si sente fino al ciliegio.\nAscolta bene domattina: la fischietto anch'io.", "gift": false},
 ]
@@ -47,6 +50,11 @@ const MOMENTI_TESTO := {
 	# la lettera che hai scritto TU: quando il momento riaffiora, lui si
 	# ricorda della busta, non del giorno che ci hai messo dentro
 	"risposta": "La tua lettera del giorno %d\nla tengo piegata nella tasca buona.\nLa rileggo quando fuori piove.",
+	# LE NUOVE LEVE: la nascita la ricorda il genitore, il nome e la
+	# prima parola le ricorda chi è nato — da grande, guardandosi indietro
+	"nascita": "Il giorno %d è la mattina più lunga\nche io ricordi, e la più corta.\nSei venuto a vederlo che era ancora\npiù piccolo delle mie due zampe.",
+	"battesimo": "Il nome che porto me l'hai dato tu,\nil giorno %d, quando ero grande così.\nNon me lo ricordo. Me l'hanno raccontato\nabbastanza volte da ricordarmelo lo stesso.",
+	"prima_parola": "Dicono che la prima parola\nl'ho detta il giorno %d, tutta storta,\ne che tu eri lì e hai riso.\nPoi l'ho imparata bene, ma quella era mia.",
 }
 
 
