@@ -229,9 +229,15 @@ static var _cache := {}
 
 ## La voce di un villager, deterministica dal DNA.
 static func voice(dna: Dictionary) -> Dictionary:
-	# tutti gli input voce-determinanti nel seed: due omonimi con pelo
-	# uguale ma specie o taglia diverse non si rubano il timbro in cache
-	var seed_v := hash(str(dna.get("name", "?")) + str(dna.get("fur", ""))
+	# IL SEME DELLA VOCE è nel genoma e NON SI TOCCA (ChibiDNA: `voce_seed`).
+	# Prima si ricavava da nome+PELO+archetipo+taglia, e finché il pelo era
+	# per sempre reggeva. Ma dal momento in cui l'aspetto si può cambiare —
+	# l'estetista, una tinta — quella formula diventa un difetto grave:
+	# cambiare colore ti cambierebbe il TIMBRO, cioè chi sei a orecchio.
+	# Il ripiego sulla vecchia formula serve ai genomi nati prima (i
+	# salvataggi vecchi): la loro voce resta esattamente quella di ieri.
+	var seed_v := int(dna["voce_seed"]) if dna.has("voce_seed") \
+			else hash(str(dna.get("name", "?")) + str(dna.get("fur", ""))
 			+ str(dna.get("archetype", "")) + str(dna.get("size", "")))
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_v

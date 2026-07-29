@@ -14,6 +14,7 @@ signal finished
 
 const TOON := preload("res://shaders/toon.gdshader")
 const BUILDER := preload("res://scenes/npc/ChibiBuilder.gd")
+const DNA_GEN := preload("res://scenes/npc/ChibiDNA.gd")
 const CHIBIESE := preload("res://audio/Chibiese.gd")
 const FACE := preload("res://scenes/characters/FaceController.gd")
 
@@ -265,21 +266,8 @@ func _ready() -> void:
 	add_child(_vis)
 	if not dna.is_empty():
 		# villager generato: il corpo nasce dal DNA, e con lui la voce
-		var parts: Dictionary = BUILDER.build(dna)
-		_vis.add_child(parts["root"])
-		_head = parts["head"]
-		_c_arms = parts["arms"]
-		_c_ears = parts["ears"]
-		_c_legs = parts.get("legs", [] as Array[Node3D])
-		_tail_p = parts["tail"]
-		_tail_tip = parts.get("tail_tip")
+		_monta_corpo()
 		_speed = 1.45
-		# monta il volto vivo sul rig facciale costruito dal DNA
-		if parts.has("face"):
-			var rig: Dictionary = parts["face"]
-			rig["head"] = _head
-			_face = FACE.new()
-			_face.setup(rig)
 		_voice = CHIBIESE.voice(dna)
 		_voice_player = AudioStreamPlayer3D.new()
 		_voice_player.position = Vector3(0, 0.8, 0)
@@ -1794,6 +1782,65 @@ func _clear_can() -> void:
 
 ## La regia delle giornate: il Visitors smista i residenti tra aiuole,
 ## panchine e il falò della sera.
+## ====================================================== IL CORPO SI RIFÀ
+##
+## Il corpo nasceva dal DNA una volta sola e restava. Perché un aspetto si
+## possa CAMBIARE — l'estetista, un giorno — il montaggio deve essere una
+## funzione richiamabile, non venti righe dentro `_ready`.
+##
+## Monta (o rimonta) il corpo dal genoma corrente. Chi lo richiama deve
+## aver già smontato il vecchio: ci pensa `rifai_il_look`.
+func _monta_corpo() -> void:
+	var parts: Dictionary = BUILDER.build(dna)
+	_vis.add_child(parts["root"])
+	_head = parts["head"]
+	_c_arms = parts["arms"]
+	_c_ears = parts["ears"]
+	_c_legs = parts.get("legs", [] as Array[Node3D])
+	_tail_p = parts["tail"]
+	_tail_tip = parts.get("tail_tip")
+	if parts.has("face"):
+		var rig: Dictionary = parts["face"]
+		rig["head"] = _head
+		_face = FACE.new()
+		_face.setup(rig)
+
+
+## IL CAMBIO DI LOOK. Applica dei geni ESTETICI e rifà il corpo sul posto.
+##
+## Cosa NON deve cambiare, ed è tutto il punto:
+##   · la VOCE — nasce da `voce_seed`, che non è un gene estetico. Una
+##     tinta non ti cambia il timbro (prima sì: la voce si ricavava dal
+##     colore del pelo, e cambiare colore cambiava chi eri a orecchio);
+##   · CHI SEI — nome, sogno, tratti, indole: `ChibiDNA.con_estetica`
+##     scarta in silenzio qualunque gene non estetico gli si passi;
+##   · DOVE SEI e COSA STAI FACENDO — posizione, stato, piano, amicizia,
+##     il filo dei momenti: vivono tutti fuori dal corpo.
+##
+## Torna false se non c'era niente da cambiare, così chi chiama non
+## racconta una trasformazione che non è successa.
+func rifai_il_look(nuovi: Dictionary) -> bool:
+	if dna.is_empty() or _vis == null:
+		return false
+	var prima: Dictionary = DNA_GEN.estetica_di(dna)
+	var candidato: Dictionary = DNA_GEN.con_estetica(dna, nuovi)
+	if prima == DNA_GEN.estetica_di(candidato):
+		return false
+	dna = candidato
+
+	# via ciò che pendeva dal corpo vecchio: il bricco dell'acqua
+	# resterebbe appeso a un braccio che non esiste più
+	_clear_can()
+	for c in _vis.get_children():
+		_vis.remove_child(c)
+		c.queue_free()
+	_face = null
+	_monta_corpo()
+	# la VOCE non si ricalcola: `_voice` è già quella giusta, e rifarla
+	# sarebbe l'occasione buona per sbagliare
+	return true
+
+
 func do_routine(kind: String, pos: Vector3, look := Vector3.ZERO, aux: Node3D = null) -> void:
 	if _hidden or mode != "resident" or _state.begins_with("th") or _state.begins_with("on_"):
 		return
