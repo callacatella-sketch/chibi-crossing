@@ -36,7 +36,8 @@ class EcosystemManager : public Node3D {
 
     struct Firefly {
         Vector3 pos;
-        Vector3 home;
+        Vector3 home; // il giro di adesso: col Fiato Sospeso migra verso di te
+        Vector3 casa; // …e questa è dove torna quando ti rialzi
         float phase = 0.0f;
     };
 

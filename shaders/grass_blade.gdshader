@@ -23,6 +23,8 @@ uniform vec4 tint_cool : source_color = vec4(0.44, 0.72, 0.52, 1.0);
 #include "res://shaders/vento.gdshaderinc"
 
 global uniform vec3 mochi_pos;
+// quanto Mochi è giù nell'erba (Fiato Sospeso): 0 in piedi, 1 accosciata
+global uniform float mochi_giu;
 global uniform float erba_bagnata;
 // l'inverno: gli stessi fili corti spariscono sotto la coltre, le punte
 // spuntano imbiancate (stesso globale che imbianca manto e chiome)
@@ -69,14 +71,19 @@ void vertex() {
 	float gust = vento_folata(world.xz, TIME);
 	vec2 off = wdir * (sway * 0.030 + gust * 0.13) * bendw;
 
-	// Mochi passa: i fili si scostano e si accucciano (solo a terra)
+	// Mochi passa: i fili si scostano e si accucciano (solo a terra).
+	// Ma se si ACCOVACCIA non sta passando: sta entrando nell'erba, e
+	// l'erba le si richiude attorno invece di scansarsi — il segno dello
+	// scostamento si inverte e i fili si raddrizzano. È la differenza fra
+	// attraversare un prato e nascondercisi dentro.
 	float a_terra = 1.0 - step(1.2, mochi_pos.y);
 	vec2 away = world.xz - mochi_pos.xz;
 	float d = max(length(away), 0.001);
 	float push = smoothstep(1.05, 0.15, d) * a_terra;
-	off += (away / d) * push * 0.30 * bendw;
+	float verso = mix(1.0, -0.45, mochi_giu);
+	off += (away / d) * push * 0.30 * verso * bendw;
 
-	vec3 disp = vec3(off.x, -(gust * 0.035 + push * 0.14) * bendw, off.y);
+	vec3 disp = vec3(off.x, -(gust * 0.035 + push * 0.14 * (1.0 - mochi_giu)) * bendw, off.y);
 	VERTEX += inverse(mat3(MODEL_MATRIX)) * disp;
 	wpos = world;
 

@@ -86,38 +86,69 @@ func _test_respiro(t) -> void:
 	# ASIMMETRIA: il massimo del ciclo cade PRIMA della metà (inspiro corto,
 	# espiro lungo). Un sin() puro avrebbe il massimo esatto a un quarto e
 	# tornerebbe a zero a metà: si smaschera in due cicli.
-	var periodo := 5.6
-	var top := 0.0
+	# la fase è normalizzata (0..1): il periodo vero lo dà periodo_fiato()
+	var top := -9.0
 	var t_top := 0.0
-	var passo := periodo / 400.0
+	var passo := 1.0 / 800.0
 	var x := 0.0
-	while x < periodo:
+	while x < 1.0:
 		var v: float = ms.respiro_fiato(x, 1.0)
 		if v > top:
 			top = v
 			t_top = x
 		x += passo
-	t.ok(t_top / periodo > 0.2 and t_top / periodo < 0.42,
+	t.ok(t_top > 0.2 and t_top < 0.42,
 			"il respiro è asimmetrico: il colmo cade al %.0f%% del ciclo"
-			% (t_top / periodo * 100.0))
+			% (t_top * 100.0))
+	# …e la prova che lo distingue DAVVERO da un sin(): il rapporto fra
+	# discesa e salita. Un seno puro sta a 1.0 (simmetrico) e passa per lo
+	# zero a metà; qui l'espiro dura quasi il doppio dell'inspiro.
+	var rapporto := (1.0 - t_top) / maxf(t_top, 0.001)
+	t.ok(rapporto > 1.4,
+			"l'espiro dura molto più dell'inspiro (%.2f× — un sin() sta a 1.0)"
+			% rapporto)
+	t.ok(float(ms.respiro_fiato(0.5, 1.0)) > top * 0.55,
+			"a metà ciclo il torace è ancora alto: sta ancora espirando")
+	var minimo := 9.0
+	x = 0.0
+	while x < 1.0:
+		minimo = minf(minimo, float(ms.respiro_fiato(x, 1.0)))
+		x += passo
+	t.ok(minimo >= -0.0001,
+			"il respiro non va mai sotto lo zero: è un torace, non un'onda")
+	# LA FORMA NON DIPENDE DAL PERIODO — solo l'ampiezza. È quello che
+	# permette alla fase di essere INTEGRATA fuori: se il disegno del
+	# respiro cambiasse con «quanto», rallentare mentre scendi
+	# deformerebbe il respiro invece di allungarlo. (E a periodo variabile
+	# un fposmod(t, periodo) farebbe SALTARE la fase a metà ciclo: è il
+	# difetto che l'integrazione chiude.)
+	var r1: float = ms.respiro_fiato(0.2, 0.0) / maxf(ms.respiro_fiato(0.2, 1.0), 1e-6)
+	var r2: float = ms.respiro_fiato(0.6, 0.0) / maxf(ms.respiro_fiato(0.6, 1.0), 1e-6)
+	t.almost(r1, r2, "la forma del respiro è la stessa a ogni profondità "
+			+ "(cambia solo l'ampiezza: %.3f vs %.3f)" % [r1, r2], 0.001)
+	# e i tre numeri del periodo vivono in UNA casa sola
+	t.ok(float(ms.periodo_fiato(1.0, false)) > float(ms.periodo_fiato(0.0, false)),
+			"più sei giù, più il respiro è lungo")
+	t.ok(float(ms.periodo_fiato(1.0, true)) > float(ms.periodo_fiato(1.0, false)) * 1.5,
+			"e con l'ospite addosso il fiato si sospende")
 	# il periodo si ALLUNGA scendendo (si respira più piano)
 	var v_su: float = 0.0
 	var v_giu: float = 0.0
 	x = 0.0
-	while x < 3.1:
+	while x < 1.0:
 		v_su = maxf(v_su, absf(ms.respiro_fiato(x, 0.0)))
 		v_giu = maxf(v_giu, absf(ms.respiro_fiato(x, 1.0)))
-		x += 0.01
+		x += 0.005
 	t.ok(v_giu < v_su, "giù nell'erba il torace si muove meno (%.4f < %.4f)"
 			% [v_giu, v_su])
 	# e con qualcuno addosso il respiro si TRATTIENE davvero
 	var trattenuto := 0.0
 	var libero := 0.0
 	x = 0.0
-	while x < 9.5:
+	while x < 1.0:
 		trattenuto = maxf(trattenuto, absf(ms.respiro_fiato(x, 1.0, true)))
 		libero = maxf(libero, absf(ms.respiro_fiato(x, 1.0, false)))
-		x += 0.01
+		x += 0.005
 	t.ok(trattenuto < libero * 0.5,
 			"con l'ospite sul naso il fiato si sospende (%.4f << %.4f)"
 			% [trattenuto, libero])
@@ -189,14 +220,18 @@ func _test_prestito(t) -> void:
 	if cs == null or not cs.can_instantiate():
 		return
 	var cozy = cs.new()
-	# nessun _ready: si esercitano SOLO le porte del prestito, con un prato
-	# finto di due farfalle (costruire il mondo vero qui non serve a niente)
+	# nessun _ready su CozyWorld (costruirebbe mezzo mondo), ma le farfalle
+	# finte vanno messe in scena DAVVERO: fuori dall'albero global_position
+	# vale il locale, e un test che misura distanze misurerebbe una
+	# finzione. cozy resta fuori: nessuna delle due porte usa la sua
+	# trasformata.
+	var casa := t.stage(Node3D.new()) as Node3D
 	var a := Node3D.new()
 	var b := Node3D.new()
 	a.position = Vector3(0.4, 0.6, 0)
 	b.position = Vector3(3.0, 0.6, 0)
-	cozy.add_child(a)
-	cozy.add_child(b)
+	casa.add_child(a)
+	casa.add_child(b)
 	var lista: Array = cozy.get("_butterflies")
 	lista.append({"node": a, "kind": "gialla", "seed": 1.0, "prev": a.position,
 			"wing_l": Node3D.new(), "wing_r": Node3D.new()})
@@ -280,6 +315,35 @@ func _test_niente_ansia(t, _fs: GDScript) -> void:
 	var cpp := FileAccess.get_file_as_string("res://src/ecosystem_manager.cpp")
 	t.ok(cpp.contains("set_osservatore") and cpp.contains("applica_paura"),
 			"anche il prato fitto del C++ ha imparato ad avere paura di te")
+	# LA VISITA FINISCE DA SÉ: un momento che non finisce mai smette di
+	# essere un momento
+	t.ok(src.contains("_durata_visita"),
+			"la farfalla se ne va da sola, prima o poi")
+	# lasciare il tasto NON è fuggire: sono due scene diverse
+	t.ok(src.contains("_rompi(si_muove)") and src.contains("spaventata := true"),
+			"chi lascia il tasto stando fermo non spaventa nessuno")
+	# il respiro che si SENTE e quello che si VEDE hanno un periodo solo
+	t.ok(src.contains("MOCHI.periodo_fiato"),
+			"il periodo del respiro viene dalla fonte unica, non ricopiato")
+	# e l'erba sa che ti sei accovacciato
+	t.ok(src.contains("mochi_giu"),
+			"il canale dell'erba lo scrive chi possiede il fiato")
+	var pg := FileAccess.get_file_as_string("res://project.godot")
+	t.ok(pg.contains("mochi_giu={"), "…e il globale dello shader esiste")
+	var gs := FileAccess.get_file_as_string("res://shaders/grass_blade.gdshader")
+	t.ok(gs.contains("global uniform float mochi_giu"),
+			"…e l'erba lo legge: accovacciata, si richiude invece di scansarsi")
+	# il volume del mondo lo decide UN posto solo
+	var sfx := FileAccess.get_file_as_string("res://audio/Sfx.gd")
+	t.ok(sfx.contains("func _riallinea_ambiente"),
+			"base e ducking del mondo si ricompongono in un posto solo")
+	t.ok(sfx.contains("_wind_base_db = -22.0 if on else -27.0"),
+			"…e il meteo aggiorna la base, o alzarsi sotto la pioggia zittiva il vento")
+	# le lucciole hanno una casa dove tornare
+	var cpp2 := FileAccess.get_file_as_string("res://src/ecosystem_manager.cpp")
+	t.ok(cpp2.contains("f.casa = f.home") and cpp2.contains("verso_casa"),
+			"le lucciole attirate dal Fiato sanno tornare a casa")
+
 	# il montaggio nel gioco
 	var lvl := FileAccess.get_file_as_string("res://scenes/levels/MainLevel.gd")
 	t.ok(lvl.contains("FiatoSospeso.gd"), "il sistema è montato in MainLevel")

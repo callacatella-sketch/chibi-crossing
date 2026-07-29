@@ -118,7 +118,9 @@ var fiato := 0.0
 ## Quando qualcosa si è posato su di te: il respiro si ferma davvero.
 var fiato_ospite := false
 var _fiato_scritto := false   # qualcuno ha scritto «fiato» in questo frame?
-var _fiato_t := 0.0           # l'orologio del respiro lento, suo e continuo
+var _fiato_t := 0.0           # l'orologio del corpo (orecchie, assestamenti)
+var _fiato_fase := 0.0        # la FASE del respiro (0..1), integrata: vedi respiro_fiato
+var _fiato_dove := Vector3.ZERO  # dove sta l'ospite: lo sguardo lo cerca
 var _naso: Node3D             # il posatoio: la punta del musetto
 var _cocuzzolo: Node3D        # …e quello fra le orecchie, quando il muso non si vede
 # Espressione bloccata dall'esterno (harness CHIBI_FACCE): il pilota interno
@@ -1368,17 +1370,29 @@ const _TESTA_SEMI := Vector3(0.4368, 0.3864, 0.4116)
 # d'aria lungo la normale): è quello che tiene archi "^^" e chevron ">.<"
 # ADERENTI alla guancia anche di profilo, invece che su un piano che da un
 # lato affonda e dall'altro galleggia.
-## IL RESPIRO DEL FIATO SOSPESO. Un ciclo lento e ASIMMETRICO — inspiro
-## corto, espiro lungo, con un cedimento in fondo — che con l'ospite
-## addosso quasi si ferma. Entra la fase in secondi e quanto sei giù
-## (0..1); esce lo scostamento del torace in metri.
-## PURA: un sin() puro si smaschera in due cicli, questa no. La prova
-## (asimmetria, periodo, ampiezza) la fa il test, non l'occhio.
-static func respiro_fiato(t: float, quanto: float, trattenuto := false) -> float:
-	var periodo := lerpf(3.1, 5.6, clampf(quanto, 0.0, 1.0))
+## QUANTO DURA UN RESPIRO, in secondi. Fonte unica dei tre numeri: li
+## legge la posa del corpo e li legge il respiro che si SENTE, o i due
+## andrebbero fuori sincrono senza che nessuno se ne accorga.
+static func periodo_fiato(quanto: float, trattenuto := false) -> float:
 	if trattenuto:
-		periodo = 9.5      # con qualcuno addosso non si respira: si aspetta
-	var u := fposmod(t, periodo) / periodo
+		return 9.5         # con qualcuno addosso non si respira: si aspetta
+	return lerpf(3.1, 5.6, clampf(quanto, 0.0, 1.0))
+
+
+## IL RESPIRO DEL FIATO SOSPESO. Un ciclo lento e ASIMMETRICO — inspiro
+## corto, espiro lungo, con un cedimento in fondo. Entra la FASE (0..1
+## dentro il ciclo) e quanto sei giù; esce lo scostamento del torace in
+## metri.
+##
+## La fase entra già fatta, e non si ricava qui da un orologio assoluto:
+## il periodo CAMBIA mentre scendi (e di colpo quando qualcosa si posa),
+## e `fposmod(t, periodo)` a periodo variabile fa SALTARE la fase — il
+## torace scatterebbe a metà respiro. Una fase integrata non salta mai.
+##
+## PURA: un sin() puro si smaschera in due cicli, questa no. La prova
+## (asimmetria, rapporto salita/discesa, ampiezza) la fa il test.
+static func respiro_fiato(fase: float, quanto: float, trattenuto := false) -> float:
+	var u := fposmod(fase, 1.0)
 	var v: float
 	if u < 0.36:
 		v = sin(u / 0.36 * PI * 0.5)                 # inspiro: sale svelto
@@ -1422,9 +1436,10 @@ func direzione_muso() -> Vector3:
 ## Scrive il canale del Fiato (0..1). Va chiamato OGNI FRAME finché dura:
 ## se smette, la rete di sicurezza in _process riporta su il corpo da sola
 ## — un canale scritto da un solo stato, dimenticato, resta fuori posa.
-func set_fiato(v: float, ospite := false) -> void:
+func set_fiato(v: float, ospite := false, dove := Vector3.ZERO) -> void:
 	fiato = clampf(v, 0.0, 1.0)
 	fiato_ospite = ospite
+	_fiato_dove = dove
 	_fiato_scritto = true
 
 
@@ -1443,11 +1458,16 @@ func _anim_fiato(delta: float) -> void:
 	if fiato <= 0.001:
 		return
 	var f: float = smoothstep(0.0, 1.0, fiato)
-	_fiato_t += delta * (0.25 if fiato_ospite else 1.0)
+	# LA FASE SI INTEGRA: avanza di delta/periodo, così quando il periodo
+	# cambia (scendendo, o di colpo all'arrivo dell'ospite) il respiro
+	# rallenta senza saltare
+	_fiato_t += delta
+	_fiato_fase = fposmod(_fiato_fase
+			+ delta / maxf(0.05, periodo_fiato(fiato, fiato_ospite)), 1.0)
 
 	# il corpo scende nell'erba e si raccoglie in avanti; il respiro lento
 	# prende il posto di quello da ferma (che è tre volte più svelto)
-	var y_fiato := respiro_fiato(_fiato_t, fiato, fiato_ospite) - 0.20
+	var y_fiato := respiro_fiato(_fiato_fase, fiato, fiato_ospite) - 0.20
 	position.y = lerpf(position.y, y_fiato, f)
 	rotation.x = lerpf(rotation.x, rotation.x + 0.34, f)
 	# il dondolio laterale si spegne: chi trattiene il fiato non ciondola
@@ -1558,6 +1578,14 @@ func _update_face(delta: float) -> void:
 	elif _hold > 0.5 and (_hold_pose == "offer" or _hold_pose == "reach"):
 		expr = "felice"
 	elif fiato > 0.2:
+		# e lo GUARDA: se qualcosa ti si è posato sul muso, gli occhi ci
+		# vanno da soli. Senza, la scena più bella del gioco succedeva e
+		# Mochi restava a fissare l'orizzonte come se niente fosse
+		if _face:
+			if fiato_ospite and _fiato_dove != Vector3.ZERO:
+				_face.look_at_world(_fiato_dove)
+			else:
+				_face.clear_gaze()
 		# giù nell'erba si guarda, e basta: concentrata mentre aspetta,
 		# gli occhioni spalancati appena qualcosa si è fidato di te.
 		# Sta PRIMA di _tired e di _squinting: dopo una corsa l'isteresi

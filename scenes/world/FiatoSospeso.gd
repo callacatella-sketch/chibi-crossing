@@ -39,6 +39,7 @@ extends Node
 
 const POSTO := preload("res://scenes/world/PostoDiSempre.gd")
 const CRIT := preload("res://scenes/world/Critters.gd")
+const MOCHI := preload("res://scenes/characters/Mochi.gd")
 
 ## Quanta quiete emani stando semplicemente fermo in piedi. Non è uno:
 ## sei comunque un animale grosso che sta lì. Il resto lo dà il fiato.
@@ -73,6 +74,7 @@ var _rotto_cd := 0.0     # dopo una rottura il fiato non riparte nello stesso is
 var _ospite := ""        # la specie posata adesso ("" = nessuna)
 var _dove := "naso"      # dove si posa: "naso" o "cocuzzolo"
 var _ospite_t := 0.0
+var _durata_visita := 20.0
 var _in_arrivo := false
 var _resp_fase := -1.0   # la fase del respiro udibile (-1 = da capo)
 var _fov_base := 0.0
@@ -165,8 +167,12 @@ func _process(delta: float) -> void:
 	giu = lerpf(giu, 1.0 if (vuole and not si_muove) else 0.0, 1.0 - exp(-k * delta))
 
 	if si_muove or not vuole:
+		# LASCIARE IL TASTO NON È FUGGIRE. Se ti sei mosso, quello che era
+		# arrivato si spaventa e scatta via; se hai solo tolto il dito
+		# stando fermo, si stacca e riprende il suo giro senza drammi —
+		# sono due scene diverse, e il giocatore le distingue.
 		if fermo_da > 0.5 and giu > 0.25:
-			_rompi()
+			_rompi(si_muove)
 		fermo_da = 0.0
 	elif giu > 0.55:
 		fermo_da += delta
@@ -189,7 +195,9 @@ func _respira(delta: float) -> void:
 	if giu < 0.25 or _ospite != "":
 		_resp_fase = -1.0     # da capo: il prossimo abbassarsi è un sospiro
 		return
-	var periodo := lerpf(3.1, 5.6, giu)
+	# il periodo viene dalla fonte unica: il respiro che si sente e quello
+	# che si vede devono essere lo STESSO respiro
+	var periodo: float = MOCHI.periodo_fiato(giu, false)
 	if _resp_fase < 0.0:
 		_resp_fase = 0.0
 		_sfx.play("respiro_in", -21.0, randf_range(0.96, 1.04))
@@ -226,14 +234,16 @@ func _tasti_di_movimento() -> bool:
 ## LA ROTTURA. Ti sei mosso: quello che era arrivato vola via. Non perdi
 ## niente — solo la scena. Ed è per questo che la prossima volta starai
 ## più attento a dove ti metti.
-func _rompi() -> void:
+func _rompi(spaventata := true) -> void:
 	fermo_da = 0.0
-	_rotto_cd = 0.35
+	_rotto_cd = 0.35 if spaventata else 0.0
 	if _ospite != "" or _in_arrivo:
 		if _cozy and _cozy.has_method("congeda_farfalla"):
-			_cozy.call("congeda_farfalla", true)
+			_cozy.call("congeda_farfalla", spaventata)
 		if _sfx:
-			_sfx.call("frullo", -12.0)
+			# uno scatto secco se l'hai spaventata, un frullo piano se se
+			# n'è andata per conto suo
+			_sfx.call("frullo", -12.0 if spaventata else -22.0)
 	_ospite = ""
 	_in_arrivo = false
 
@@ -265,8 +275,14 @@ func _aggiorna_ospite(delta: float) -> void:
 		if _ospite == "":
 			_ospite = str(posato.get("specie", ""))
 			_ospite_t = 0.0
+			_durata_visita = 17.0 + float(hash(_ospite) % 900) / 100.0
 			_si_e_fidata(_ospite)
 		_ospite_t += delta
+		# e prima o poi se ne va da sola, com'è giusto: un momento che non
+		# finisce mai smette di essere un momento. Quanto dura dipende da
+		# CHI è: due visite non si somigliano mai del tutto.
+		if _ospite_t > _durata_visita:
+			_rompi(false)
 
 
 ## Il posatoio. Lo dà Mochi, perché è lei che sa dove ha il naso — a mano
@@ -334,7 +350,13 @@ func _si_e_fidata(specie: String) -> void:
 
 func _scrivi_mochi() -> void:
 	if _mochi and is_instance_valid(_mochi) and _mochi.has_method("set_fiato"):
-		_mochi.call("set_fiato", giu, _ospite != "")
+		# …e dove sta l'ospite, così gli occhi lo cercano davvero
+		var dove := Vector3.ZERO
+		if _ospite != "" and _cozy and _cozy.has_method("farfalla_posata"):
+			var po: Dictionary = _cozy.call("farfalla_posata")
+			if not po.is_empty():
+				dove = _posatoio()
+		_mochi.call("set_fiato", giu, _ospite != "", dove)
 
 
 ## La calma va a TUTTI quelli che hanno paura di te: il prato di CozyWorld
@@ -342,6 +364,10 @@ func _scrivi_mochi() -> void:
 ## (passerotti e le novanta farfalle del prato fitto, che prima non
 ## sapevano nemmeno che tu esistessi).
 func _pubblica_calma() -> void:
+	# …e all'ERBA, che quando ti accovacci si richiude attorno a te invece
+	# di scansarsi (grass_blade.gdshader). Il canale è di questo sistema:
+	# CozyWorld non sa niente del fiato, e non deve saperlo.
+	RenderingServer.global_shader_parameter_set("mochi_giu", giu)
 	get_tree().call_group("calma_listener", "set_calma", quiete,
 			_player.global_position if _player else Vector3.ZERO)
 
