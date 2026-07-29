@@ -72,6 +72,9 @@ const PIECE_COST := {
 	"Solaio": 3, "Scala": 3, "Ponticello": 4, "Casa albero": 8, "Tetto": 2,
 	"Tavolino": 2, "Sedia": 2, "Sgabello": 1, "Letto": 4, "Libreria": 3,
 	"Comodino": 2,
+	# la palestra: il tappetino è stoffa, il resto è legname vero
+	"Panca dei pesi": 3, "Sacco": 3, "Cyclette": 4, "Sbarra da trazione": 4,
+	"Specchio": 2, "Fontanella": 3, "Rastrelliera": 3,
 }
 
 ## La legna in tasca.

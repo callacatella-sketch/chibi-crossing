@@ -62,6 +62,8 @@ const SHOP_PIECES := [
 		"desc": "Una scatola di ciliegio con la manovella: caricala\ne cambia la musica di tutto il villaggio."},
 	{"name": "Guardiola", "cost": 300, "cur": "nut", "cat": 0,
 		"desc": "Il posto di guardia: una casina col lume azzurro sempre\nacceso, e l'armadio dove le cose perse aspettano\nchi le ha perse. Arriva con tutto il suo corredo."},
+	{"name": "Sacco", "cost": 240, "cur": "nut", "cat": 3,
+		"desc": "Un sacco da farina rattoppato, appeso a un braccio di legno.\nCol sacco arriva tutta la palestra del villaggio: il\ntappetino, la panca, la sbarra, e la botte dell'acqua."},
 	{"name": "Autopompa", "cost": 460, "cur": "nut", "cat": 0,
 		"desc": "La caserma dei pompieri, tutta intera: l'autopompa\nlucidata, la campana che chiama in piazza e gli\nstivali in fila. Qui non brucia niente: si tiene pronto."},
 	{"name": "Serra", "cost": 520, "cur": "nut", "cat": 2,
@@ -184,6 +186,11 @@ const CORREDO := {
 			"Armadio smarriti", "Bacheca avvisi", "Attaccapanni", "Brandina",
 			"Lanterna blu", "Cono", "Transenna", "Bicicletta",
 			"Cassetta smarriti"],
+	# LA PALESTRA: si compra il sacco e arrivano gli attrezzi tutti insieme.
+	# Otto voci quasi uguali sul banco del mercante sarebbero un catalogo,
+	# non un negozio — e una palestra si mette su tutta in una volta.
+	"Sacco": ["Tappetino", "Panca dei pesi", "Cyclette", "Sbarra da trazione",
+			"Specchio", "Fontanella", "Rastrelliera"],
 	"Autopompa": ["Portone rimessa", "Torretta", "Palo pompieri",
 			"Scala a pioli", "Insegna caserma", "Campana caserma",
 			"Casco appeso", "Stivali", "Secchi", "Idrante", "Manichetta",
