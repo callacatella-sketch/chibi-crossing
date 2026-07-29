@@ -129,6 +129,20 @@ func _test_il_corpo_si_rifa(t) -> void:
 	t.ok(not v.rifai_il_look({"sogno": "cuoco"}),
 			"e una che tocca solo l'identità non cambia niente: torna false")
 
+	# IL GENOMA SALVATO CAMBIA CON IL CORPO. `dna` è LO STESSO dizionario
+	# della riga del residente in Visitors, ed è quella riga che finisce
+	# nel salvataggio: se `rifai_il_look` riassegnasse la variabile invece
+	# di scriverci dentro, il corpo cambierebbe e il salvataggio no — al
+	# riavvio il vicino tornerebbe com'era e la seduta dall'estetista non
+	# sarebbe mai successa. (È successo davvero, alla prima stesura.)
+	var riga := {"dna": v.get("dna")}          # come la tiene Visitors
+	var condiviso: Dictionary = riga["dna"]
+	v.rifai_il_look({"blush": 0.123})
+	t.almost(float(condiviso.get("blush", -1.0)), 0.123,
+			"chi teneva il genoma vede il cambio: il look si SALVA")
+	t.ok(v.get("dna") == condiviso,
+			"…perché è sempre lo stesso dizionario, non una copia nuova")
+
 	# il cablaggio: il montaggio è una funzione richiamabile, non venti
 	# righe dentro `_ready` (era il motivo per cui un corpo non si poteva
 	# rifare)
@@ -139,6 +153,8 @@ func _test_il_corpo_si_rifa(t) -> void:
 			"il bricco in zampa si stacca: resterebbe appeso a un braccio morto")
 	t.ok(not _corpo(src, "rifai_il_look").contains("CHIBIESE.voice"),
 			"la voce NON si ricalcola: sarebbe l'occasione buona per sbagliare")
+	t.ok(not _corpo(src, "rifai_il_look").contains("\tdna = "),
+			"il genoma si SCRIVE, non si sostituisce (o il salvataggio non lo vede)")
 
 
 func _corpo(src: String, nome: String) -> String:

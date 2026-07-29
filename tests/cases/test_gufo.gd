@@ -124,7 +124,9 @@ func _test_primo_e_finale(t) -> void:
 ## ha il suo pool, ogni riga ha testi pieni e un predicato di tipo noto, i
 ## pezzi nominati (anche i regali) esistono nel catalogo.
 func _test_desideri_di_stagione(t) -> void:
-    const TIPI_NOTI := ["has", "count", "any_count", "bed_under_roof",
+    # "sogno" e' l'unico predicato che parla di PERSONE e non di mobili:
+    # il salone dell'estetista esiste perche' qualcuno lo sogna
+    const TIPI_NOTI := ["has", "count", "any_count", "bed_under_roof", "sogno",
             "table_with_chairs", "has_room", "has_upper_floor",
             "resident_moved_in", "stat"]
     var catalog := {}

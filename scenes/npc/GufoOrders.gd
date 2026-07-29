@@ -65,6 +65,7 @@ const DN := preload("res://scenes/world/DayNight.gd")
 const DESIDERI := [
     # ---- primavera
     {"id": "fiori-in-fiore", "season": 0, "title": "Un prato che applaude", "letter_text": "Dalla casa sull'albero vedo i prati sbadigliare.\nVorrei contare dieci fiori aperti tutti insieme:\nun applauso colorato per la primavera.", "hint": "dieci fiori in fiore nello stesso giorno", "done_text": "Dieci corolle aperte! Stamattina il prato applaudiva da solo.", "predicate": {"type": "stat", "key": "fiori", "n": 10}, "stars": 2, "gift_piece": ""},
+    {"id": "il-salone-di-chi-lo-sogna", "season": 0, "title": "Il salone di chi lo sogna", "letter_text": "C'e' una cosa che ho notato dal ramo alto.\nQualcuno, in paese, guarda gli altri e pensa\n«come starebbe bene, con un altro colore».\nNon glielo ha mai detto a nessuno.\nTi mando il progetto di un salone: lo specchio,\nla poltrona, il carrello dei colori. Costruiscilo,\ne poi dagli l'incarico: vedrai cosa sa fare.", "hint": "accogli qualcuno che sogna di fare l'estetista", "done_text": "Ecco il progetto. Ora il villaggio ha un posto dove ci si guarda allo specchio insieme.", "predicate": {"type": "sogno", "sogno": "estetista", "n": 1}, "stars": 3, "gift_piece": "Salone"},
     {"id": "panchine-coi-petali", "season": 0, "title": "Posti in prima fila", "letter_text": "I petali cadono meglio se qualcuno li guarda.\nMetti due panchine rivolte al vento:\nvoglio vedere chi si siede sotto la neve rosa.", "hint": "due panchine per guardare i petali", "done_text": "Due panchine, e gia' qualcuno ci sonnecchia sotto i petali.", "predicate": {"type": "count", "name": "Panchina", "n": 2}, "stars": 2, "gift_piece": ""},
     # ---- estate
     {"id": "lampioni-sul-fiume", "season": 1, "title": "Le stelle basse", "letter_text": "Le sere d'estate meritano una riva accesa.\nPianta tre lampioni lungo il fiume:\nvoglio specchiarli nell'acqua, dalla mia finestra.", "hint": "tre lampioni accesi lungo il fiume", "done_text": "Tre lucine sull'acqua: il fiume adesso ha le sue stelle basse.", "predicate": {"type": "count", "name": "Lampione", "n": 3}, "stars": 3, "gift_piece": ""},
@@ -257,8 +258,19 @@ func world_snapshot() -> Dictionary:
     var wood: Node = get_tree().get_first_node_in_group("woodcutting")
     if wood and wood.has_method("tree_count"):
         stats["alberi"] = int(wood.tree_count())
+    # I SOGNI CHE ABITANO IL VILLAGGIO. Certi Ordini non chiedono di
+    # costruire: chiedono che sia arrivato QUALCUNO. Il salone
+    # dell'estetista esiste perche' una vicina lo sogna — non perche'
+    # hai messo insieme abbastanza noccioline.
+    var sogni := {}
+    var vis := get_node_or_null("../Visitors")
+    if vis:
+        for r in (vis.get("_residents") as Array):
+            var sg := str((r.get("dna", {}) as Dictionary).get("sogno", ""))
+            if sg != "":
+                sogni[sg] = int(sogni.get(sg, 0)) + 1
     return {"counts": counts, "bed_under_roof": bed, "residents": _arrivals,
-            "stats": stats}
+            "stats": stats, "sogni": sogni}
 
 
 ## Un Ordine e' esaudito? Funzione PURA sull'istantanea: nessuno stato, nessun
@@ -288,6 +300,11 @@ static func satisfied(pred: Dictionary, snap: Dictionary) -> bool:
         return int(counts.get("Solaio", 0)) >= 1
     elif t == "resident_moved_in":
         return int(snap.get("residents", 0)) >= int(pred.get("n", 1))
+    elif t == "sogno":
+        # qualcuno che SOGNA quel mestiere abita il villaggio. Non e' un
+        # conteggio di mobili: e' l'unico predicato che parla di persone.
+        var sogni: Dictionary = snap.get("sogni", {})
+        return int(sogni.get(str(pred.get("sogno", "")), 0)) >= int(pred.get("n", 1))
     elif t == "stat":
         # i numeri vivi del mondo (fiori in fiore, alberi del boschetto):
         # entrano nell'istantanea da world_snapshot, chiave per chiave

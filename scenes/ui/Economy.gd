@@ -42,6 +42,14 @@ const SHOP_PIECES := [
 		"desc": "Un gazebo esagonale col tetto a pagoda: il salotto all'aperto."},
 	{"name": "Bancarella", "cost": 120, "cur": "nut", "cat": 2,
 		"desc": "Il banchetto di Mochi: esponi tre tesori col tuo\nprezzo, e chi passa compra ciò che il cuore gli dice."},
+	# IL SALONE non si compra e basta: la sua RICETTA la manda il Gufo
+	# quando in paese arriva qualcuno che sogna di fare l'estetista
+	# (vedi GufoOrders, desiderio "il-salone-di-chi-lo-sogna"). Sta qui
+	# perche' i pezzi del negozio nascono BLOCCATI: senza, il salone
+	# sarebbe nel catalogo dal primo minuto, prima ancora che esista
+	# qualcuno capace di tenerlo.
+	{"name": "Salone", "cost": 280, "cur": "nut", "cat": 1,
+		"desc": "Specchio ovale, poltrona col pistone e carrello dei\ncolori: chi ci si siede se ne va diverso."},
 	{"name": "Stendino", "cost": 85, "cur": "nut", "cat": 2,
 		"desc": "Due pali, una corda e le mollette: il bucato che\nondeggia al sole è il respiro del villaggio."},
 	{"name": "Giostrina", "cost": 6, "cur": "star", "cat": 2,

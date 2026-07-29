@@ -35,6 +35,7 @@ const VOGLIE := {
 	"giardiniere": "dicono porti fortuna ai giardini",
 	"boscaiolo": "mi ricorda il bosco dov'era la mia tana",
 	"guerriero": "solo il tuo retino può riuscirci",
+	"estetista": "quel colore è esattamente quello che cercavo",
 }
 
 ## Il piatto che giustifica i raccolti richiesti, per ingrediente.

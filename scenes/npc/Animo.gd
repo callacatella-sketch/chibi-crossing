@@ -143,9 +143,21 @@ const COMPITI := {
 			"fatica": -0.45, "noia": 0.06},
 	"festa": {"serve": "", "tradisce": [],
 			"noia": -0.30, "appartenenza": 0.18, "fatica": 0.05},
+	# IL SALONE. Chi ha in mano l'aspetto degli altri fa un mestiere
+	# leggero di corpo e pesante di testa: stanca poco, annoia
+	# pochissimo (ogni testa e' diversa) e riempie di APPARTENENZA —
+	# passi la giornata a parlare con tutti. Ma chiede autonomia: e'
+	# l'estetista a decidere il taglio, non chi glielo ordina.
+	"abbellisce": {"serve": "estetista", "tradisce": ["guerriero", "boscaiolo"],
+			"fatica": 0.09, "noia": -0.06, "appartenenza": 0.14,
+			"autonomia": -0.08, "stima": 0.06},
 }
 
-const SOGNI := ["boscaiolo", "giardiniere", "cuoco", "guerriero", "artista", "esploratore"]
+## I sogni che un chibi puo' avere. In coda i nuovi, MAI in mezzo: la
+## generazione del DNA pesca per indice e infilarne uno a meta' cambierebbe
+## il sogno di ogni residente gia' nato (a parita' di seed).
+const SOGNI := ["boscaiolo", "giardiniere", "cuoco", "guerriero", "artista",
+		"esploratore", "estetista"]
 
 # ============================================================ stato
 

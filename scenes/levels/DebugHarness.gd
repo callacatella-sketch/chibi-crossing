@@ -58,6 +58,8 @@ func run(level: Node3D, mode: String, arg: String = "") -> void:
 			await _debug_estetica(arg)
 		"salone":
 			await _debug_salone(arg)
+		"estetista":
+			await _debug_estetista(arg)
 
 func _frames(n: int):
 	for i in n:
@@ -486,6 +488,104 @@ func _debug_facce(dir: String) -> void:
 
 	mochi.forza_espressione("")
 	print("FACCE: fine, %d espressioni fotografate" % n)
+	get_tree().quit()
+
+
+# --------------------------------------------------- il salone al lavoro
+# LA SCENA CHE SI GUARDA: l'estetista prende l'incarico, il salone apre
+# all'ora giusta, un vicino viene chiamato, si siede in poltrona e se ne
+# va DIVERSO. Le stampe seguono la giornata; gli scatti la mostrano.
+func _debug_estetista(dir: String) -> void:
+	var dn = _level.get_node_or_null("DayNight")
+	var vis = _level.get_node_or_null("Visitors")
+	var lav = _level.get_node_or_null("Lavori")
+	var sal = _level.get_node_or_null("Salone")
+	if dn == null or vis == null or lav == null or sal == null:
+		printerr("ESTETISTA: sistemi non trovati")
+		get_tree().quit()
+		return
+	await _frames(30)
+	dn.set_time(0.45)
+	player.global_position = Vector3(6.0, 0, 12.0)
+	build_system.place_cell(Vector2i(0, 6), "Salone", 0, false)
+	await _frames(6)
+	var mobile: Node3D = null
+	for nodo in build_system.get_placed_by_name("Salone"):
+		mobile = nodo
+	var c: Vector3 = mobile.global_position
+
+	# due vicini: l'estetista (che lo SOGNA) e una cliente
+	var DNAG = load("res://scenes/npc/ChibiDNA.gd")
+	var residenti: Array = vis.get("_residents")
+	var etichette: Array = []
+	for i in 2:
+		var d: Dictionary = DNAG.generate(700 + i * 37)
+		if i == 0:
+			d["sogno"] = "estetista"
+		residenti.append({"species": "chibi", "cell": Vector2i(i, 0), "node": null,
+				"dna": d, "label": str(d["label"]), "friend": 3, "wish": {}})
+		etichette.append(str(d["label"]))
+	# i corpi veri, accanto al salone
+	var VIS = load("res://scenes/npc/Visitor.gd")
+	for i in residenti.size():
+		var r: Dictionary = residenti[i]
+		if r["node"] != null:
+			continue
+		var v: Node3D = VIS.new()
+		v.set("species", "chibi")
+		v.set("dna", r["dna"])
+		add_child(v)
+		v.set("mode", "resident")
+		v.global_position = c + Vector3(-1.4 + float(i) * 0.9, 0, 1.9)
+		r["node"] = v
+		vis.call("_ensure_brain", r)
+	await _frames(10)
+
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.fov = 44.0
+	cam.current = true
+	cam.position = c + Vector3(1.5, 1.15, 2.0)
+	cam.look_at(c + Vector3(0, 0.45, 0.2))
+
+	# l'incarico: tenere il salone
+	lav.assegna(etichette[0], "abbellisce")
+	print("ESTETISTA: %s tiene il salone (sogna: %s)"
+			% [etichette[0], str(residenti[0]["dna"]["sogno"])])
+	var prima: Dictionary = (residenti[1]["dna"] as Dictionary).duplicate()
+	await _shot(dir, "estetista_1_prima")
+
+	# il salone apre da se' quando e' l'ora e c'e' chi ci lavora
+	await get_tree().create_timer(1.2).timeout
+	print("ESTETISTA: salone aperto -> %s" % ("SI" if sal.aperto() else "NO"))
+	await _shot(dir, "estetista_2_apre")
+
+	# si aspetta che una cliente venga chiamata e si sieda
+	var atteso := 0.0
+	while str(sal.get("_cliente")) == "" and atteso < 40.0:
+		await get_tree().create_timer(0.5).timeout
+		atteso += 0.5
+	print("ESTETISTA: cliente in poltrona -> %s" % str(sal.get("_cliente")))
+	await get_tree().create_timer(1.0).timeout
+	await _shot(dir, "estetista_3_in_poltrona")
+
+	# e la seduta finisce
+	var atteso2 := 0.0
+	while str(sal.call("servito_oggi")) == "" and atteso2 < 40.0:
+		await get_tree().create_timer(0.5).timeout
+		atteso2 += 0.5
+	await get_tree().create_timer(1.0).timeout
+	await _shot(dir, "estetista_4_dopo")
+	var dopo: Dictionary = residenti[1]["dna"]
+	var cambiati: Array = []
+	for g in DNAG.ESTETICI:
+		if str(prima.get(g, "")) != str(dopo.get(g, "")):
+			cambiati.append(str(g))
+	print("ESTETISTA: servito -> %s" % str(sal.call("servito_oggi")))
+	print("ESTETISTA: cambiato -> %s" % str(cambiati))
+	print("ESTETISTA: identita' intatta -> nome %s · sogno %s"
+			% [prima["name"] == dopo["name"], prima["sogno"] == dopo["sogno"]])
+	print("ESTETISTA: fine")
 	get_tree().quit()
 
 

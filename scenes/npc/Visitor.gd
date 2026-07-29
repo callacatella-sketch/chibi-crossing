@@ -1822,11 +1822,22 @@ func _monta_corpo() -> void:
 func rifai_il_look(nuovi: Dictionary) -> bool:
 	if dna.is_empty() or _vis == null:
 		return false
-	var prima: Dictionary = DNA_GEN.estetica_di(dna)
-	var candidato: Dictionary = DNA_GEN.con_estetica(dna, nuovi)
-	if prima == DNA_GEN.estetica_di(candidato):
+	# SI SCRIVE DENTRO IL GENOMA, non se ne mette uno nuovo al suo posto.
+	# `dna` e' LO STESSO dizionario della riga del residente in Visitors,
+	# ed e' quella riga che finisce nel salvataggio: riassegnando la
+	# variabile il corpo cambiava e il genoma salvato no — al riavvio il
+	# vicino tornava com'era, e la seduta dall'estetista non era mai
+	# successa. (Trovato facendo girare la giornata vera del salone.)
+	var puliti := {}
+	for g in nuovi:
+		if not str(g) in DNA_GEN.ESTETICI:
+			continue          # l'identita' non si tocca: la scarta qui
+		if str(dna.get(g, "")) != str(nuovi[g]):
+			puliti[str(g)] = nuovi[g]
+	if puliti.is_empty():
 		return false
-	dna = candidato
+	for g in puliti:
+		dna[g] = puliti[g]
 
 	# via ciò che pendeva dal corpo vecchio: il bricco dell'acqua
 	# resterebbe appeso a un braccio che non esiste più

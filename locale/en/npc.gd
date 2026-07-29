@@ -137,6 +137,8 @@ const T := {
 	"un'aiuola annaffiata": "one flower bed watered",
 	"in tavola: %s": "on the table: %s",
 	"%d tesori dal bosco": "%d treasures from the woods",
+	"%s esce dal salone tutto nuovo": "%s walks out of the salon brand new",
+	"Tenere il salone": "Keep the salon",
 	"un tesoro dal bosco": "one treasure from the woods",
 
 	# --- la ronda della guardia: quello che la notte ha lasciato ---

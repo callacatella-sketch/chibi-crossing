@@ -36,8 +36,10 @@ const LAVORI := {
 	"cucina": "Cucinare",
 	"guardia": "Fare la guardia",
 	"esplora": "Esplorare il bosco",
+	"abbellisce": "Tenere il salone",
 }
-const ORDINE := ["", "taglia_legna", "coltiva", "cucina", "guardia", "esplora"]
+const ORDINE := ["", "taglia_legna", "coltiva", "cucina", "guardia", "esplora",
+		"abbellisce"]
 
 var _visitors: Node
 var _player: Node3D
@@ -165,12 +167,14 @@ func _produzione_del_giorno() -> void:
 	var cooking := get_node_or_null("../Cooking")
 	var inventory := get_node_or_null("../Inventory")
 	var veglia := get_tree().get_first_node_in_group("veglia")
+	var salone := get_tree().get_first_node_in_group("salone")
 	var legna := 0
 	var lanterne := 0
 	var al_buio := 0
 	var annaffiate := 0
 	var piatti: Array[String] = []
 	var tesori := 0
+	var abbelliti: Array[String] = []
 	for label in _incarichi:
 		var lavoro := str(_incarichi[label])
 		var gradino := str(_visitors.animo_di(label))
@@ -210,19 +214,32 @@ func _produzione_del_giorno() -> void:
 					var esito: Dictionary = veglia.call("rendiconto_del_mattino")
 					lanterne += int(esito.get("lanterne", 0))
 					al_buio += int(esito.get("al_buio", 0))
+			"abbellisce":
+				# IL SALONE NON PRODUCE COSE: produce FACCE NUOVE. Chi lo
+				# tiene passa la giornata a cambiare l'aspetto dei vicini,
+				# uno al giorno, e la resa dice solo se ci e' riuscito —
+				# il lavoro vero (la seduta, la poltrona, lo specchio) lo
+				# recita Salone.gd, che e' anche l'unico a sapere COSA e'
+				# cambiato. Sotto mezza resa il salone resta chiuso.
+				if salone and r >= 0.5:
+					var chi := str(salone.call("servito_oggi"))
+					if chi != "":
+						abbelliti.append(chi)
 			"esplora":
 				if inventory and randf() < 0.45 * r:
 					var ids: Array = inventory.TREASURES.keys()
 					var scheda: Dictionary = inventory.add_treasure(str(ids[randi() % ids.size()]))
 					if not scheda.is_empty():
 						tesori += 1
-	_racconta_produzione(legna, annaffiate, piatti, tesori, lanterne, al_buio)
+	_racconta_produzione(legna, annaffiate, piatti, tesori, lanterne, al_buio,
+			abbelliti)
 
 
 # Una riga sola al mattino, e solo se c'è davvero qualcosa da dire: il
 # guadagno deve essere VISIBILE, o il dilemma non esiste.
 func _racconta_produzione(legna: int, annaffiate: int, piatti: Array[String],
-		tesori: int, lanterne := 0, al_buio := 0) -> void:
+		tesori: int, lanterne := 0, al_buio := 0,
+		abbelliti: Array[String] = []) -> void:
 	var parti: Array[String] = []
 	if legna > 0:
 		parti.append(L10n.tf("+%d legna in catasta", [legna]))
@@ -234,6 +251,10 @@ func _racconta_produzione(legna: int, annaffiate: int, piatti: Array[String],
 	if tesori > 0:
 		parti.append(L10n.tf("%d tesori dal bosco", [tesori]) if tesori > 1 \
 				else L10n.t("un tesoro dal bosco"))
+	# la resa del salone si dice col NOME di chi e' cambiato: e' l'unico
+	# guadagno del villaggio che si vede addosso a qualcuno
+	for chi in abbelliti:
+		parti.append(L10n.tf("%s esce dal salone tutto nuovo", [chi]))
 	if lanterne > 0:
 		parti.append(L10n.tf("%d lanterne accese sulla ronda", [lanterne]) if lanterne > 1 \
 				else L10n.t("una lanterna accesa sulla ronda"))
