@@ -22,6 +22,7 @@ var _quiete_giu := 0.0
 # i volumi di riposo di musica e vento: la quiete del prato ci torna
 var _music_base_db := -16.0
 var _wind_base_db := -27.0
+var _bird_base_db := -18.0
 var _rain_on := false
 var _rain_muffled := false
 # un solo tween alla volta su pioggia e vento: quello vecchio si uccide,
@@ -197,11 +198,17 @@ func set_rain(on: bool) -> void:
 	if on and not _rain_p.playing:
 		_rain_p.play()
 	_retune_rain()
+	# il volume «di riposo» del vento cambia con la pioggia: se restasse il
+	# valore di partenza, alzarsi dopo un Fiato Sospeso sotto il temporale
+	# riporterebbe il vento a -27 invece che a -22, e il mondo si abbasserebbe
+	# la voce per sempre senza che nessuno abbia chiesto niente
+	_wind_base_db = -22.0 if on else -27.0
 	if _wind.playing:
 		if _wind_tw and _wind_tw.is_valid():
 			_wind_tw.kill()
 		_wind_tw = create_tween()
-		_wind_tw.tween_property(_wind, "volume_db", -22.0 if on else -27.0, 2.5)
+		_wind_tw.tween_property(_wind, "volume_db",
+				_wind_base_db - 7.0 * _quiete_giu, 2.5)
 
 
 ## Sotto un tetto la pioggia suona ovattata: coccola pura.
@@ -1268,12 +1275,21 @@ func quiete_del_prato(giu: float) -> void:
 	if absf(g - _quiete_giu) < 0.002:
 		return
 	_quiete_giu = g
-	# la MUSICA non si tocca: duck_music() non è rientrante (non conta le
-	# richieste) e il primo dei due che rilascia la riporterebbe su per
-	# entrambi. Qui si abbassa il MONDO — che è poi la cosa giusta: non è
-	# la colonna sonora che tace quando smetti di fare rumore, è il prato.
-	if _wind:
-		_wind.volume_db = lerpf(_wind_base_db, _wind_base_db - 7.0, g)
-	# gli uccellini tacciono del tutto: tornano quando ti rialzi
+	_riallinea_ambiente()
+
+
+## L'unico posto che decide il volume del MONDO: base (che il meteo
+## cambia) più il ducking del Fiato, ricomposti insieme. Due scritture
+## indipendenti sulla stessa proprietà si cancellano a vicenda, e chi
+## perde resta zitto per sempre senza un errore.
+##
+## La MUSICA non si tocca: `duck_music()` non conta le richieste, e il
+## primo dei due che rilascia la riporterebbe su per entrambi. Del resto
+## quando smetti di fare rumore non tace la colonna sonora: tace il prato.
+func _riallinea_ambiente() -> void:
+	if _wind and not (_wind_tw and _wind_tw.is_valid()):
+		_wind.volume_db = _wind_base_db - 7.0 * _quiete_giu
+	# gli uccellini tacciono del tutto: un cinguettio a piena voce nel
+	# silenzio più fragile del gioco lo spaccherebbe in due
 	if _bird:
-		_bird.volume_db = lerpf(-18.0, -60.0, g)
+		_bird.volume_db = _bird_base_db - 42.0 * _quiete_giu

@@ -1792,6 +1792,13 @@ func _clear_can() -> void:
 ## aver già smontato il vecchio: ci pensa `rifai_il_look`.
 func _monta_corpo() -> void:
 	var parts: Dictionary = BUILDER.build(dna)
+	_corpo = parts["root"]
+	# la taglia del genoma è già dentro root.scale (ChibiBuilder): la si
+	# ricorda qui perché la crescita di un cucciolo la MOLTIPLICA invece
+	# di sostituirla — scriverci sopra farebbe crescere tutti fino alla
+	# stessa statura, cancellando il gene della corporatura
+	_corpo_base = _corpo.scale
+	_testa_base = Vector3.ZERO
 	_vis.add_child(parts["root"])
 	_head = parts["head"]
 	_c_arms = parts["arms"]
@@ -1804,6 +1811,13 @@ func _monta_corpo() -> void:
 		rig["head"] = _head
 		_face = FACE.new()
 		_face.setup(rig)
+	# un corpo appena rimontato torna della taglia da adulto: se chi lo
+	# porta è ancora un cucciolo, la crescita va riapplicata subito o
+	# ricomparirebbe grande (l'estetista non fa crescere nessuno)
+	if _cresc < 1.0:
+		var c := _cresc
+		_cresc = -1.0     # forza il ricalcolo: set_cucciolo ignora i no-op
+		set_cucciolo(c)
 
 
 ## IL CAMBIO DI LOOK. Applica dei geni ESTETICI e rifà il corpo sul posto.
@@ -2045,6 +2059,22 @@ var _eta_dressed := false
 var _autunno: Array[Node3D] = []
 var _orig_cols := {}
 
+# --- l'altro capo della vita: chi è NATO qui (vedi Nascite.gd) ---
+# Il corpo costruito dal DNA, tenuto a parte: la crescita agisce su
+# QUESTO nodo e non su `_vis`, che è già la tela su cui recitano il
+# saltello del passo, lo schiacciamento del morso e la fioritura
+# d'ingresso. Due scale sullo stesso nodo si sovrascrivono a vicenda, e
+# vince l'ultima ad aver parlato.
+var _corpo: Node3D
+var _corpo_base := Vector3.ONE
+var _testa_base := Vector3.ZERO
+var _cresc := 1.0            # 0 = appena nato, 1 = cresciuto
+
+## Quanto è piccolo appena nato, e quanto gli resta grande la testa.
+## Fuori dalle funzioni perché li leggono anche i test.
+const TAGLIA_CUCCIOLO := 0.44
+const TESTA_CUCCIOLO := 1.34
+
 
 ## f: 0 = giovane, 1 = pieno autunno. Il passo rallenta, la schiena
 ## si china un filo, la coda ondeggia pigra, la voce si abbassa e si
@@ -2055,8 +2085,8 @@ func set_eta(f: float) -> void:
 	if species != "chibi" or absf(f - _eta) < 0.005:
 		return
 	_eta = f
-	_speed = 1.45 * (1.0 - 0.38 * f)
-	_voice = CHIBIESE.invecchia(CHIBIESE.voice(dna), f)
+	_speed = 1.45 * (1.0 - 0.38 * f) * _passo_da_cucciolo()
+	_aggiorna_voce()
 	_gobba(f)
 	_rughe_viso(f)
 	_silver(f)
@@ -2066,6 +2096,55 @@ func set_eta(f: float) -> void:
 		_vesti_autunno()
 	elif f < 0.5 and _eta_dressed:
 		_spoglia_autunno()
+
+
+## La crescita di chi è nato qui. c: 0 = appena nato, 1 = cresciuto.
+##
+## Un cucciolo chibi non è un adulto rimpicciolito: è un adulto con le
+## proporzioni sbagliate, ed è lì che sta tutta la tenerezza. Il corpo si
+## riduce quasi a metà, ma la testa MOLTO meno — resta una testona su un
+## corpicino, come nei cuccioli veri (e come in ogni personaggio che
+## qualcuno abbia mai voluto prendere in braccio).
+##
+## Chi NON è nato qui non passa mai di qui: arriva col trolley e con la
+## sua statura, e non deve mai ritrovarsi bambino per sbaglio.
+func set_cucciolo(c: float) -> void:
+	c = clampf(c, 0.0, 1.0)
+	if species != "chibi" or _corpo == null or absf(c - _cresc) < 0.004:
+		return
+	_cresc = c
+	# i primi giorni restano piccolissimi più a lungo, poi la crescita
+	# accelera: è la forma vera di una crescita, non una retta
+	var e := c * c * (3.0 - 2.0 * c)
+	_corpo.scale = _corpo_base * lerpf(TAGLIA_CUCCIOLO, 1.0, e)
+	if _head:
+		if _testa_base == Vector3.ZERO:
+			_testa_base = _head.position
+		var k := lerpf(TESTA_CUCCIOLO, 1.0, e)
+		_head.scale = Vector3.ONE * k
+		# e si alza di quel tanto che serve a non affondare nel corpo: la
+		# palla della testa cresce attorno al proprio centro, quindi senza
+		# questa riga il collo se la mangia
+		_head.position = _testa_base + Vector3(0, 0.30 * (k - 1.0), 0)
+	_speed = 1.45 * (1.0 - 0.38 * _eta) * _passo_da_cucciolo()
+	_aggiorna_voce()
+
+
+## Il passo corto del cucciolo: copre meno strada e per questo, a parità
+## di ciclo, sembra svelto e trotterellante.
+func _passo_da_cucciolo() -> float:
+	return lerpf(0.52, 1.0, _cresc * _cresc * (3.0 - 2.0 * _cresc))
+
+
+## La voce è UNA e nasce da due cose insieme: quanti anni ha e quanto
+## deve ancora crescere. Tenerle in due assegnazioni separate faceva
+## vincere l'ultima che parlava — e chi cresceva perdeva la vocina al
+## primo ricalcolo dell'età.
+func _aggiorna_voce() -> void:
+	if dna.is_empty():
+		return
+	_voice = CHIBIESE.bimbo(
+			CHIBIESE.invecchia(CHIBIESE.voice(dna), _eta), 1.0 - _cresc)
 
 
 # La gobba VERA, non un'inclinazione: la schiena si curva in avanti,

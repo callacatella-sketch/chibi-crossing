@@ -29,14 +29,15 @@ class EcosystemManager : public Node3D {
         float phase = 0.0f;
         float timer = 0.0f;
         float spavento = 0.0f; // quanto le hai fatto paura adesso (0..1)
-        float yaw = 0.0f;      // tenuto: da posata la velocità non dice più dove guarda
+        float yaw = 0.0f;      // tenuto: ferma sul fiore la velocità non dice più dove guarda
         int kind = 0;
         int state = 0; // 0 vaga · 1 punta un fiore · 2 sorseggia · 3 se ne va
     };
 
     struct Firefly {
         Vector3 pos;
-        Vector3 home;
+        Vector3 home; // il giro di adesso: col Fiato Sospeso migra verso di te
+        Vector3 casa; // …e questa è dove torna quando ti rialzi
         float phase = 0.0f;
     };
 

@@ -907,15 +907,23 @@ func congeda_farfalla(spaventata: bool) -> void:
 	# nello stesso frame. Lo scarto parte da dov'è davvero (così non si
 	# muove di un millimetro) e si riassorbe da sé in un paio di secondi:
 	# la si vede staccarsi e tornare al suo giro, volando.
-	var giro := _giro_farfalla(b, _t * 0.55 + float(b.get("seed", 0.0)))
+	var s: float = float(b.get("seed", 0.0))
+	var giro := _giro_farfalla(b, _t * 0.55 + s)
 	var scarto := node.position - giro
 	if spaventata:
-		# via di scatto, di lato e in su: si vede che l'hai spaventata
-		var via := (node.position - to_local(_posatoio))
-		via.y = 0.0
-		if via.length() < 0.01:
-			via = Vector3(0.6, 0, 0.6)
-		scarto += via.normalized() * 1.1 + Vector3(0, 0.6, 0)
+		# via di scatto, di lato e in su. La direzione NON si ricava dalla
+		# differenza col posatoio: da posata la farfalla è incollata lì, e
+		# quella differenza è il suo assestamento — quattro millimetri
+		# verticali. Normalizzarla dava (0, ±1, 0): metà delle volte la
+		# farfalla si tuffava DENTRO il muso. Qui la direzione è voluta:
+		# davanti al muso, scartando dal lato che le è proprio.
+		var avanti := _posatoio_dir
+		avanti.y = 0.0
+		if avanti.length() < 0.01:
+			avanti = Vector3.FORWARD
+		avanti = avanti.normalized()
+		var lato := Vector3(-avanti.z, 0.0, avanti.x) * signf(sin(s * 7.0))
+		scarto += (avanti * 0.75 + lato * 0.8).normalized() * 1.1 + Vector3(0, 0.6, 0)
 	b["dodge"] = scarto
 	b["prev"] = node.position
 
@@ -935,14 +943,22 @@ func _farfalla_fidata(b: Dictionary, delta: float) -> void:
 			b["posa_t"] = 0.0
 		else:
 			# rallenta arrivando (l'ultimo palmo è quasi un dubbio) e non
-			# viene mai in linea retta: una farfalla ondeggia sempre
+			# viene MAI in linea retta: la rotta ondeggia su due assi con
+			# tre orologi che non si richiudono mai insieme, e ogni tanto
+			# ci ripensa — una farfalla che punta dritta non è una farfalla
 			var passo: float = clampf(d * 1.7, 0.3, 1.25) * delta
-			var lato := Vector3(-to.z, 0.0, to.x).normalized() \
-					* sin(_t * 5.3 + s) * 0.4
-			node.position += (to / maxf(d, 0.001) + lato) * passo
-			var vel := to
-			node.rotation.y = lerp_angle(node.rotation.y,
-					atan2(-vel.x, -vel.z), 1.0 - exp(-5.0 * delta))
+			var w: float = float(b.get("flap", 17.0)) * 0.31
+			var avanti := to / maxf(d, 0.001)
+			var lato := Vector3(-avanti.z, 0.0, avanti.x)
+			var esita := 0.72 + 0.28 * sin(_t * (w * 0.23) + s * 1.7)
+			var scarto := lato * sin(_t * w + s) * 0.42 \
+					+ Vector3.UP * sin(_t * (w * 0.61) + s * 2.3) * 0.3
+			var moto := (avanti * esita + scarto)
+			node.position += moto * passo
+			# e guarda DOVE VA, non dove sta andando il bersaglio
+			if moto.length() > 0.001:
+				node.rotation.y = lerp_angle(node.rotation.y,
+						atan2(-moto.x, -moto.z), 1.0 - exp(-5.0 * delta))
 		flap = sin(_t * float(b.get("flap", 17.0)) + s) * 1.05
 		node.rotation.x = lerpf(node.rotation.x, 0.0, 1.0 - exp(-6.0 * delta))
 	else:

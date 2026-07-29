@@ -83,6 +83,7 @@ void EcosystemManager::configure(const Ref<Mesh> &butterfly_mesh, const Ref<Mesh
         Firefly f;
         f.home = pond_center + Vector3(UtilityFunctions::randf_range(-2.5, 2.5), 0.0,
                 UtilityFunctions::randf_range(-2.5, 2.5));
+        f.casa = f.home;
         f.pos = f.home + Vector3(0, UtilityFunctions::randf_range(0.4, 1.1), 0);
         f.phase = UtilityFunctions::randf();
         fireflies.push_back(f);
@@ -141,6 +142,7 @@ void EcosystemManager::on_new_day() {
             if ((int)fireflies.size() < FF_MAX) {
                 Firefly f;
                 f.home = eggs[i].pos;
+                f.casa = f.home;
                 f.pos = f.home + Vector3(0, 0.6, 0);
                 f.phase = UtilityFunctions::randf();
                 fireflies.push_back(f);
@@ -426,8 +428,18 @@ void EcosystemManager::update_fireflies(double delta) {
             float d = verso.length();
             if (attira && d > 1.2f && d < 9.0f) {
                 f.home += verso / d * (float)delta * (quiete - 0.5f) * 1.6f;
-            } else if (!attira && d < 2.4f && d > 0.001f) {
-                f.home -= verso / d * (float)delta * 0.5f;
+            } else {
+                // e quando ti rialzi TORNA A CASA. Senza un'ancora, ogni
+                // Fiato Sospeso spostava le lucciole un po' più in là e
+                // non le riportava mai indietro: dopo qualche notte lo
+                // stagno sarebbe rimasto al buio, e nessuno avrebbe
+                // saputo perché.
+                Vector3 verso_casa = f.casa - f.home;
+                verso_casa.y = 0.0f;
+                float dc = verso_casa.length();
+                if (dc > 0.02f) {
+                    f.home += verso_casa / dc * MIN(dc, (float)delta * 0.6f);
+                }
             }
         }
         f.pos.x = f.home.x + Math::cos(f.phase * 1.3f) * 1.1f;
@@ -682,6 +694,7 @@ void EcosystemManager::load_state(const Dictionary &state) {
         float a = UtilityFunctions::randf() * Math::TAU;
         f.home = pond_center + Vector3(Math::cos(a), 0.0, Math::sin(a)) *
                 UtilityFunctions::randf_range(1.0, pond_radius + 1.5f);
+        f.casa = f.home;
         f.pos = f.home + Vector3(0, 0.7, 0);
         f.phase = UtilityFunctions::randf();
         fireflies.push_back(f);
