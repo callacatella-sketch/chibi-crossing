@@ -574,7 +574,12 @@ func _build_head() -> void:
 	# Ci si posa chi si fida di te durante il Fiato Sospeso — e siccome è
 	# figlio della testa, segue il muso ovunque guardi, anche di profilo.
 	_naso = Node3D.new()
-	_naso.position = Vector3(0, -0.012, -0.532)
+	# la punta VERA del nasino (sfera r=0.021 scalata 0.7 in z, centro a
+	# z=-0.418) più il minimo d'aria: chi si posa deve TOCCARE il muso.
+	# Scritto a mano stava dieci centimetri più avanti, e la farfalla si
+	# posava nel vuoto davanti alla faccia — è la stessa classe di difetto
+	# della «bocca in volo» già pagata una volta.
+	_naso.position = NASO_PUNTA + Vector3(0, 0.022, -0.026)
 	_head.add_child(_naso)
 
 	# …e il COCUZZOLO, fra le orecchie: il posatoio di riserva. Se Mochi
@@ -1364,6 +1369,11 @@ func _process(delta: float) -> void:
 # I semiassi della testona: sfera 0.42 scalata (1.04, 0.92, 0.98). Se cambia
 # la mesh della testa, questi numeri cambiano CON lei.
 const _TESTA_SEMI := Vector3(0.4368, 0.3864, 0.4116)
+
+## La punta del nasino nello spazio della testa: centro della sferetta
+## (0, -0.052, -0.418) più il suo mezzo asse z (0.021 × 0.7). Se il muso
+## cambia, il posatoio lo segue da solo.
+const NASO_PUNTA := Vector3(0, -0.052, -0.4327)
 
 
 # Appoggia un punto del viso sulla superficie vera della testa (più un soffio

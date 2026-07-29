@@ -907,15 +907,23 @@ func congeda_farfalla(spaventata: bool) -> void:
 	# nello stesso frame. Lo scarto parte da dov'è davvero (così non si
 	# muove di un millimetro) e si riassorbe da sé in un paio di secondi:
 	# la si vede staccarsi e tornare al suo giro, volando.
-	var giro := _giro_farfalla(b, _t * 0.55 + float(b.get("seed", 0.0)))
+	var s: float = float(b.get("seed", 0.0))
+	var giro := _giro_farfalla(b, _t * 0.55 + s)
 	var scarto := node.position - giro
 	if spaventata:
-		# via di scatto, di lato e in su: si vede che l'hai spaventata
-		var via := (node.position - to_local(_posatoio))
-		via.y = 0.0
-		if via.length() < 0.01:
-			via = Vector3(0.6, 0, 0.6)
-		scarto += via.normalized() * 1.1 + Vector3(0, 0.6, 0)
+		# via di scatto, di lato e in su. La direzione NON si ricava dalla
+		# differenza col posatoio: da posata la farfalla è incollata lì, e
+		# quella differenza è il suo assestamento — quattro millimetri
+		# verticali. Normalizzarla dava (0, ±1, 0): metà delle volte la
+		# farfalla si tuffava DENTRO il muso. Qui la direzione è voluta:
+		# davanti al muso, scartando dal lato che le è proprio.
+		var avanti := _posatoio_dir
+		avanti.y = 0.0
+		if avanti.length() < 0.01:
+			avanti = Vector3.FORWARD
+		avanti = avanti.normalized()
+		var lato := Vector3(-avanti.z, 0.0, avanti.x) * signf(sin(s * 7.0))
+		scarto += (avanti * 0.75 + lato * 0.8).normalized() * 1.1 + Vector3(0, 0.6, 0)
 	b["dodge"] = scarto
 	b["prev"] = node.position
 

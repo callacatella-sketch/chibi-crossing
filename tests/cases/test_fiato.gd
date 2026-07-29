@@ -166,6 +166,13 @@ func _test_corpo(t) -> void:
 	if mochi._ears.size() < 2:
 		t.ok(false, "Mochi senza orecchie: il resto del test non ha senso")
 		return
+	# Il tic dell'orecchio è un DADO: scatta ogni 3-8 s e vale fino a 0.35
+	# rad — sei volte la tolleranza con cui qui si misura il ritorno a
+	# riposo. Qui si misura il canale del FIATO, non il tic: lo si
+	# addormenta, e il residuo torna a essere quello vero (zero).
+	mochi._next_twitch = 1.0e9
+	mochi._twitch_t = -1.0
+	mochi._twitch_value = 0.0
 
 	# in piedi, per avere il metro
 	for _i in 30:
@@ -200,7 +207,7 @@ func _test_corpo(t) -> void:
 	t.ok(mochi.position.y > y_piedi - 0.05,
 			"il corpo è tornato su (%.3f)" % mochi.position.y)
 	t.almost((mochi._ears[0] as Node3D).rotation.x, orecchio_piedi,
-			"…e le orecchie sono tornate al loro posto", 0.06)
+			"…e le orecchie sono tornate ESATTAMENTE al loro posto", 0.001)
 
 	# i due posatoi esistono e non sono lo stesso punto
 	var naso: Vector3 = mochi.punto_naso()
@@ -219,8 +226,12 @@ func _test_prestito(t) -> void:
 	var cs: GDScript = load(COZY)
 	if cs == null or not cs.can_instantiate():
 		return
-	var cozy = cs.new()
-	# nessun _ready su CozyWorld (costruirebbe mezzo mondo), ma le farfalle
+	# CozyWorld va MESSO IN SCENA (senza _ready, che costruirebbe mezzo
+	# mondo): `_cull_butterflies` chiama `contesto_critter()`, che fa
+	# `get_tree()` — fuori dall'albero abortisce con un errore di script e
+	# il test verrebbe vinto dall'errore, non dalla guardia.
+	var cozy = t.stage(cs.new())
+	# le farfalle
 	# finte vanno messe in scena DAVVERO: fuori dall'albero global_position
 	# vale il locale, e un test che misura distanze misurerebbe una
 	# finzione. cozy resta fuori: nessuna delle due porte usa la sua
@@ -251,8 +262,13 @@ func _test_prestito(t) -> void:
 	t.eq(str(cozy.chiama_farfalla(Vector3(0.5, 0.6, 0), 9.0)), "",
 			"una alla volta: non si convoca uno sciame")
 	# né evapora all'appello del bestiario
+	# inverno: né la farfalla gialla né la rosa sono di stagione, quindi
+	# SOLO la guardia del prestito può salvare quella posata
+	cozy.set("_season", 3)
 	cozy.call("_cull_butterflies")
-	t.eq(lista.size(), 2, "l'appello non porta via chi si è posato su di te")
+	t.eq(lista.size(), 1, "l'appello porta via chi non è più di stagione…")
+	t.eq(str(cozy.farfalla_posata().get("specie", "")), "gialla",
+			"…ma NON chi si è posato su di te")
 	cozy.congeda_farfalla(false)
 	t.eq(cozy.farfalla_posata(), {}, "congedata, il prato se la riprende")
 	t.eq(cozy.nearest_butterfly(Vector3.ZERO, 9.0), 0,
@@ -311,10 +327,18 @@ func _test_niente_ansia(t, _fs: GDScript) -> void:
 		var s := FileAccess.get_file_as_string("res://" + casa)
 		t.ok(s.contains("func set_calma("),
 				"%s ascolta la calma dalla fonte unica" % casa)
-	# e in C++ la paura esiste davvero (farfalle del MultiMesh e passerotti)
-	var cpp := FileAccess.get_file_as_string("res://src/ecosystem_manager.cpp")
-	t.ok(cpp.contains("set_osservatore") and cpp.contains("applica_paura"),
-			"anche il prato fitto del C++ ha imparato ad avere paura di te")
+	# e in C++ la paura esiste davvero — chiesto al BINARIO CARICATO, non
+	# al sorgente: un contains() resta verde anche svuotando la funzione,
+	# e il gioco obbedisce alla .dylib, non al .cpp
+	if ClassDB.class_exists("EcosystemManager"):
+		var eco = EcosystemManager.new()
+		t.ok(eco.has_method("set_osservatore") and eco.has_method("togli_osservatore"),
+				"il prato fitto del C++ espone le porte della paura")
+		eco.set_osservatore(Vector3.ZERO, 1.0)   # firma giusta: non deve esplodere
+		eco.togli_osservatore()
+		eco.free()
+	else:
+		t.ok(false, "GDExtension non caricata: la paura del C++ non è verificabile")
 	# LA VISITA FINISCE DA SÉ: un momento che non finisce mai smette di
 	# essere un momento
 	t.ok(src.contains("_durata_visita"),
