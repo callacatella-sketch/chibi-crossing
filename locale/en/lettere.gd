@@ -355,6 +355,34 @@ const T := {
 	# l'ultimo desiderio di chi lascia dei figli (Congedo.DESIDERI_TESTO)
 	"tornare sulla soglia dove l'ha visto per la prima volta":
 		"to stand again on the doorstep where they first saw them",
+
+	# ---------------------------------------------- la lettera del Prologo
+	# Il Gufo recita i tre minuti sotto il temporale (Taccuino.righe()).
+	# NON approva e NON commenta: dice cosa ha visto, e basta. In inglese
+	# vale doppio — «you were right to» è già al limite: oltre, diventa un
+	# voto, e un voto dice al giocatore che c'era una prova da superare.
+	"Ti ho vista arrivare, l'altra notte.\nEri piccola e pioveva come non piove mai.\nNon ti ho aiutata: volevo vedere cosa facevi.\n\n":
+		"I saw you arrive, the other night.\nYou were small, and it rained as it never rains.\nI did not help you: I wanted to see what you would do.\n\n",
+	"Ti sei infilata sotto la foglia grande\ne ci sei rimasta finché non è passata.":
+		"You squeezed under the big leaf\nand stayed there until it had passed.",
+	"C'era una foglia grande, a due passi.\nNon ci sei andata. Sei rimasta sotto l'acqua\ntutto il tempo, e l'acqua ti è passata addosso.":
+		"There was a big leaf, two steps away.\nYou did not go to it. You stayed out in the water\nthe whole time, and the water went right through you.",
+	"Sei entrata e uscita da sotto la foglia\ncome se non ti decidessi. Anch'io facevo così.":
+		"You went under the big leaf and out again\nas though you could not make up your mind. I used to do that too.",
+	"\n\nPoi l'erba si è mossa, e tu ci sei andata VICINO.\nDi tutte le cose che potevi fare, quella notte,\nquella lì non me l'aspettavo.":
+		"\n\nThen the grass moved, and you went CLOSER to it.\nOf all the things you might have done that night,\nthat one I did not expect.",
+	"\n\nPoi l'erba si è mossa, e tu hai fatto un passo indietro.\nHai fatto bene. Non sapevi cosa c'era.":
+		"\n\nThen the grass moved, and you took a step back.\nYou were right to. You did not know what was there.",
+	"\n\nPoi l'erba si è mossa. Ti sei fermata a metà strada\ne sei rimasta lì, a decidere.":
+		"\n\nThen the grass moved. You stopped halfway there\nand stood still, deciding.",
+	"\n\nE per un pezzo sei stata ferma, sotto l'acqua,\nsenza fare niente. Tienitelo da parte, quel niente:\nda queste parti serve più di quanto sembri.":
+		"\n\nAnd for a good while you stood still, out in the water,\ndoing nothing at all. Keep hold of that nothing:\nround here it is worth more than it looks.",
+	"\n\nNon te l'ho chiesto io, di fare così.\nL'hai fatto e basta. — Il Gufo":
+		"\n\nI never asked you to do any of it.\nYou simply did. — The Owl",
+	# e la lettera che arriva mesi dopo, il giorno in cui la paura del
+	# temporale si è spenta (CuoreDiMochi)
+	"Oggi pioveva e tu non hai fatto quella cosa\nche facevi sempre, quel mezzo passo indietro.\nCredo che tu non te ne sia neanche accorta.\n\nCi hai messo dei mesi. Nessuno ti aveva chiesto niente.":
+		"It rained today and you did not do that thing\nyou always used to do, that half step back.\nI do not think you even noticed.\n\nIt took you months. Nobody had asked you for anything.",
 }
 
 

@@ -252,6 +252,50 @@ quindi un confronto esatto dell'albero dà falsi allarmi. Usare
 l'**istogramma per classe** (quello sì stabile) e, per le funzioni pure, scrivere
 una prova di equivalenza vecchia-vs-nuova implementazione.
 
+## Il Prologo: il tutorial che ha avuto conseguenze
+
+Un villaggio nuovo comincia da [`scenes/prologo/`](scenes/prologo/): tre
+minuti sotto un temporale, da cucciola. Ci si ripara sotto una foglia o si
+resta sotto l'acqua; ci si avvicina al rigonfiamento nell'erba o si fa un
+passo indietro. **Nessuna scelta è annunciata**: niente bivi, niente
+prompt, niente evidenziato — perché una scelta annunciata fa rispondere il
+personaggio-di-facciata del giocatore invece del giocatore.
+
+Il gioco intanto prende appunti ([`Taccuino.gd`](scenes/prologo/Taccuino.gd),
+logica pura) e da quei tre minuti escono **tre conseguenze vere**:
+
+1. i **contatori del Regista** partono inclinati — mai decisi;
+2. Mochi si porta dietro un **marchio Limbico** vero sul temporale
+   ([`CuoreDiMochi.gd`](scenes/world/CuoreDiMochi.gd)): trasalisce alle
+   prime gocce, e mesi dopo lo si spegne con l'estinzione (starci sotto
+   senza che succeda niente);
+3. la **prima lettera** del Gufo glieli recita.
+
+**Le trappole già pagate** (le tiene chiuse
+[`tests/cases/test_prologo.gd`](tests/cases/test_prologo.gd)):
+
+- **Il tetto dei semi va per ASSE, non per contatore.** `Director.ASSI`
+  somma più contatori in un asse solo: `bosco 2 + stelle 1` fa tre, e tre
+  è la soglia di `profilo()` — il Prologo decideva il carattere prima che
+  il giocatore entrasse nel villaggio. Gli assi si leggono da `Director`,
+  mai ricopiati.
+- **I semi devono ASPETTARE il Regista.** Nasce figlio runtime di
+  CozyWorld (mondo costruito su più frame): al risveglio di
+  `CuoreDiMochi` il gruppo `regista` è vuoto, e consegnare lì per lì
+  buttava i semi nel niente in silenzio — marchio e lettera arrivavano, i
+  contatori restavano a zero.
+- **Il marchio del temporale non sbiadisce da solo.** Lo sbiadimento
+  normale dei marchi (0.12 al giorno) lo cancellava in una settimana:
+  `Limbico.passa_giorno(riposato, sbiadisci_marchi)` con `false` è per lui
+  e per nessun altro (le paure dei vicini devono continuare a consumarsi).
+- **Le misure sono secondi, le soglie sono frazioni.** Confrontarle
+  direttamente dichiarava «si è riparata» a chi era passata sotto la
+  foglia un secondo e mezzo — e la lettera raccontava una notte mai
+  successa.
+- **Nel villaggio non c'è MAI un temporale** (regola di `Weather.gd`): il
+  Prologo è l'unico, ed è per questo che marchia. Nel villaggio è la
+  PIOGGIA a ricordarglielo.
+
 ## REGOLA: le fonti uniche di verità (una tabella, un posto)
 
 Tre dati del gioco vivevano duplicati in più file e avevano **già cominciato a

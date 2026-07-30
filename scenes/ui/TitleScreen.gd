@@ -10,7 +10,13 @@ extends Node3D
 ## dal mondo di gioco, così carica sempre pulito.
 
 const MAIN_SCENE := "res://scenes/levels/MainLevel.tscn"
+## Un villaggio nuovo non comincia dal villaggio: comincia dalla notte in
+## cui sei arrivata (scenes/prologo/Prologo.gd). Tre minuti, poi si entra
+## nel villaggio da soli. «Continua» ci passa sopra: il temporale è già
+## successo, e non si rivive.
+const PROLOGO_SCENE := "res://scenes/prologo/Prologo.tscn"
 const SAVE_PATH := "user://village.json"
+const PROLOGO_APPUNTI := "user://prologo.json"
 
 var _cam: Camera3D
 var _cam_base := Vector3(1.4, 1.9, 4.6)
@@ -339,7 +345,11 @@ func _start_new() -> void:
 	if dir:
 		for f in dir.get_files():
 			dir.remove(f)
-	_enter()
+	# gli appunti del vecchio Prologo se ne vanno con lui: il villaggio
+	# nuovo avrà la SUA notte, e non deve ereditare le lettere di un'altra
+	if FileAccess.file_exists(PROLOGO_APPUNTI):
+		DirAccess.rename_absolute(PROLOGO_APPUNTI, "user://prologo_%s.json" % stamp)
+	get_tree().change_scene_to_file(PROLOGO_SCENE)
 
 
 func _enter() -> void:

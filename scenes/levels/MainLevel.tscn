@@ -1,4 +1,4 @@
-[gd_scene load_steps=41 format=3 uid="uid://mainlevel_uid"]
+[gd_scene load_steps=42 format=3 uid="uid://mainlevel_uid"]
 
 [ext_resource type="Script" path="res://scenes/levels/MainLevel.gd" id="1_xxyz1"]
 [ext_resource type="PackedScene" uid="uid://d3u2b9x8y8v" path="res://scenes/characters/Player.tscn" id="2_yyzx2"]
@@ -13,6 +13,7 @@
 [ext_resource type="Script" path="res://scenes/interact/Garden.gd" id="11_gard1"]
 [ext_resource type="Script" path="res://scenes/interact/Cooking.gd" id="12_cook1"]
 [ext_resource type="Script" path="res://scenes/world/Weather.gd" id="13_weat1"]
+[ext_resource type="Script" path="res://scenes/world/CuoreDiMochi.gd" id="31_cuor1"]
 [ext_resource type="Script" path="res://scenes/npc/Visitors.gd" id="14_visi1"]
 [ext_resource type="Script" path="res://scenes/interact/Home.gd" id="15_home1"]
 [ext_resource type="Script" path="res://scenes/interact/Collection.gd" id="16_coll1"]
@@ -126,6 +127,9 @@ script = ExtResource("9_dayn1")
 
 [node name="Weather" type="Node3D" parent="."]
 script = ExtResource("13_weat1")
+
+[node name="CuoreDiMochi" type="Node" parent="."]
+script = ExtResource("31_cuor1")
 
 [node name="VitaSecondaria" type="Node3D" parent="."]
 script = ExtResource("24_vita1")
