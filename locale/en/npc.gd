@@ -454,6 +454,30 @@ const T := {
 	"ha gli occhi di %s": "has %s's eyes",
 	"ha lo stesso pelo di %s": "has the very same coat as %s",
 	"ha le orecchie di %s": "has %s's ears",
+	# --------------------------------------------- le due strade (Limbico)
+	# il sussulto del corpo, e un istante dopo la testa che riconosce
+	"%s ha fatto un salto, poi ti ha riconosciuto: «ah… sei tu».":
+			"%s gave a start, then knew you: «oh… it's you».",
+	# --- ACCOMPAGNARE: il verbo che spegne una paura appresa ---
+	"E — accompagna %s (%s)": "E — go with %s (%s)",
+	"state andando %s…": "you're heading to %s…",
+	"si è fermato. Restagli accanto.": "they've stopped. Stay beside them.",
+	"non succede niente. È esattamente il punto.":
+			"nothing is happening. That is exactly the point.",
+	"Siete stati lì, e non è successo niente. %s respira.":
+			"You stood there, and nothing happened. %s breathes.",
+	"%s non gira più al largo. Ci siete tornati insieme, e tanto è bastato.":
+			"%s doesn't give it a wide berth any more. You went back together, and that was enough.",
+	# i nomi dei posti che il Limbico marchia sono GIÀ tradotti più su (riga
+	# 130 e seguenti, «i posti che si sono caricati di brutti ricordi»):
+	# riscriverli qui rompeva il file — chiave doppia in un dizionario
+	# costante è un errore di parse, e con la tabella rotta il gioco
+	# inglese tornava tutto italiano senza dire niente.
+	# la frase del perché arriva come TEMPLATE da Limbico.perche_evita_dati:
+	# la chiave è dinamica, quindi il test di copertura non la vede — se
+	# sparisce da qui, in inglese ricompare in italiano senza un errore
+	"gli è successo qualcosa di brutto lì (%d volte)":
+			"something bad happened to them there (%d times)",
 	"quando guarda storto, è %s tale e quale":
 			"when they scowl, they are %s all over again",
 }
