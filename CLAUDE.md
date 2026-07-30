@@ -296,6 +296,43 @@ logica pura) e da quei tre minuti escono **tre conseguenze vere**:
   Prologo è l'unico, ed è per questo che marchia. Nel villaggio è la
   PIOGGIA a ricordarglielo.
 
+## Il menù principale è vivo (e sente)
+
+Il titolo ([`scenes/ui/TitleScreen.gd`](scenes/ui/TitleScreen.gd)) non è una
+cartolina: legge `village.json` — senza caricare la partita, bastano poche
+righe ([`RiassuntoSalvataggio.gd`](scenes/ui/RiassuntoSalvataggio.gd)) — e
+mostra il villaggio VERO. Il Grande Albero alla taglia raggiunta, i vicini
+veri che nel diorama FANNO qualcosa
+([`AttoreTitolo.gd`](scenes/ui/AttoreTitolo.gd): si rincorrono, dondolano
+sull'altalena, dormono, annusano un fiore, salutano te), e un **CLIMA**
+emotivo — `attesa · serena · allegria · armonia · malinconia · commiato ·
+lutto` — che comanda cielo, luce, saturazione, petali, fiori, posa e faccia
+di Mochi, e perfino quanto in fretta respira la camera.
+
+**Le regole che lo tengono in piedi** (guardia:
+[`tests/cases/test_menu_vivo.gd`](tests/cases/test_menu_vivo.gd)):
+
+- **Il lutto sta sopra tutto.** Un villaggio pieno di amici che ha perso
+  qualcuno ieri deve avere il menù grigio: se la statistica dell'allegria
+  coprisse il lutto sarebbe la cosa più fredda che il gioco possa fare.
+  Passati i giorni, il menù torna a colori — non dimentica, ricomincia a
+  respirare.
+- **Il lutto si dice TOGLIENDO, non spegnendo.** Si abbassa la
+  *saturazione*, non la luce (un menù al buio è rotto, non triste), e i
+  mestieri allegri spariscono: nel lutto nessuno si rincorre.
+- **Il menù non si rompe MAI.** È l'unica schermata da cui si può ancora
+  rimediare a un salvataggio andato storto: `da_salvataggio()` accetta
+  qualunque schifezza e torna comunque un villaggio al giorno uno.
+- **Fonti uniche.** L'albero è quello del villaggio
+  ([`AlberoGeo.gd`](scenes/world/AlberoGeo.gd), estratto da GrandTree) e
+  l'andatura è quella dei vicini ([`Andatura.gd`](scenes/npc/Andatura.gd),
+  estratta da Visitor): camminano identici nel menù e nel gioco perché c'è
+  UNA implementazione. Mai ricopiarne le formule.
+- **Attenzione al `:=` sul riassunto.** `_save` non è tipizzato:
+  `var x := _save.qualcosa()` non compila (vedi la convenzione dei test).
+- **Mochi guarda a −Z, i chibi di ChibiBuilder a +Z.** Girarla come loro
+  la lascia di spalle — ed è la protagonista del menù.
+
 ## REGOLA: le fonti uniche di verità (una tabella, un posto)
 
 Tre dati del gioco vivevano duplicati in più file e avevano **già cominciato a
