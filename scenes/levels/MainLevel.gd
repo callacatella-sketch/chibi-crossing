@@ -82,6 +82,7 @@ func _ready():
 	add_child(_spawn_system("res://scenes/interact/Salone.gd", "Salone"))
 	add_child(_spawn_system("res://scenes/interact/Concerto.gd", "Concerto"))
 	add_child(_spawn_system("res://scenes/npc/Taccuino.gd", "Taccuino"))
+	add_child(_spawn_system("res://scenes/interact/Sogni.gd", "Sogni"))
 	var settings := get_node_or_null(^"/root/Settings")
 	if settings:
 		settings.apply_to_player(player)
@@ -126,6 +127,12 @@ func _ready():
 		_start_debug_harness("anfiteatro", OS.get_environment("CHIBI_ANFITEATRO"))
 	elif OS.get_environment("CHIBI_TACCUINO") != "":
 		_start_debug_harness("taccuino", OS.get_environment("CHIBI_TACCUINO"))
+	elif OS.get_environment("CHIBI_SOGNI") != "":
+		_start_debug_harness("sogni", OS.get_environment("CHIBI_SOGNI"))
+	elif OS.get_environment("CHIBI_PROVINO") != "":
+		_start_debug_harness("provino", OS.get_environment("CHIBI_PROVINO"))
+	elif OS.get_environment("CHIBI_PROVLUCE") != "":
+		_start_debug_harness("provluce", OS.get_environment("CHIBI_PROVLUCE"))
 	elif OS.get_environment("CHIBI_MAKESAVE") != "":
 		_start_debug_harness("makesave")
 

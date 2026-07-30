@@ -303,6 +303,15 @@ func _aggiorna_prompt() -> void:
 	if _prompt == null:
 		return
 	var cam := get_viewport().get_camera_3d()
+	# IL CARTELLINO STA AL LIVELLO 12, cioè SOPRA il velo nero del sonno
+	# (livello 10): con un letto vicino alla soglia giusta, «E — conosci il
+	# cucciolo» compariva sullo schermo nero — e in un sogno, che ha come
+	# regola prima di non avere parole, sarebbe una didascalia in mezzo
+	# alla scena. E seguirebbe pure la camera del sogno.
+	var inter := get_node_or_null("../Interactions")
+	if inter and inter.has_method("is_sleeping") and bool(inter.call("is_sleeping")):
+		_prompt.visible = false
+		return
 	if cam == null or not _a_portata():
 		_prompt.visible = false
 		return

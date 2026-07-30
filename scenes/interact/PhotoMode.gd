@@ -36,6 +36,14 @@ func _unhandled_input(event: InputEvent) -> void:
 	# qui vive solo l'ACCENSIONE (così rispetta i modali che consumano prima);
 	# da attiva, la modalità foto ascolta in _input e vince su tutti
 	if event.is_action_pressed("photo_mode") and not _active:
+		# NON MENTRE SI DORME. `_hide_ui()` spegne ogni CanvasLayer tranne
+		# il proprio — compreso il velo nero del sonno, che sta al livello
+		# 10: premendo P nel buio la tenda spariva e la camera si liberava
+		# dentro il villaggio notturno. Da quando esiste il sogno, sarebbe
+		# lo spoiler totale.
+		var inter := get_node_or_null("../Interactions")
+		if inter and inter.has_method("is_sleeping") and bool(inter.call("is_sleeping")):
+			return
 		_set_active(true)
 		get_viewport().set_input_as_handled()
 

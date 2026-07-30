@@ -64,6 +64,12 @@ func run(level: Node3D, mode: String, arg: String = "") -> void:
 			await _debug_anfiteatro(arg)
 		"taccuino":
 			await _debug_taccuino(arg)
+		"sogni":
+			await _debug_sogni(arg)
+		"provino":
+			await _debug_provino(arg)
+		"provluce":
+			await _debug_provluce(arg)
 
 func _frames(n: int):
 	for i in n:
@@ -2953,4 +2959,167 @@ func _debug_taccuino(dir: String) -> void:
 		var v2: Dictionary = mail.call("rendi", coda2[coda2.size() - 1])
 		print("TACCUINO: ripiego -> %s" % str(v2["text"]).split("\n")[0])
 	print("TACCUINO: fine")
+	get_tree().quit()
+
+
+# ------------------------------------------------------------------ i sogni
+# UN SOGNO NON SI GIUDICA LEGGENDO IL CODICE. Qui si fabbrica un partito con
+# un filo vero, si forza il sogno, e si scattano sei fotogrammi lungo i sette
+# secondi: l'accensione, il riconoscimento, il gesto, il contatto e i due
+# istanti in cui la luce se ne va e il corpo le sopravvive.
+func _debug_sogni(dir: String) -> void:
+	await _frames(30)
+	var legami = get_tree().get_first_node_in_group("legami")
+	var sogni = get_tree().get_first_node_in_group("sogni")
+	var inter = _level.get_node_or_null("Interactions")
+	print("SOGNI: nodo -> %s" % ("c'e'" if sogni else "MANCA"))
+	print("SOGNI: legami -> %s" % ("c'e'" if legami else "MANCA"))
+	if sogni == null or legami == null:
+		print("SOGNI: fine")
+		get_tree().quit()
+		return
+
+	# ---- UN PARTITO CON UNA STORIA. Si annodano momenti veri, poi lo si
+	# manda via: e' esattamente la situazione che il sogno esiste per
+	# raccontare.
+	var chi := "Nocciola"
+	for tipo in ["benvenuto", "piatto", "onsen", "nascondino", "promessa",
+			"regalo", "posto", "festa"]:
+		legami.call("momento", chi, str(tipo))
+	# ---- IL BANCO PULITO. I contrassegni «sognato» stanno nel SALVATAGGIO:
+	# a ogni corsa dell'harness se ne aggiungeva uno, e alla nona TUTTI i
+	# momenti erano già stati sognati — `scegli()` non trovava più niente e
+	# lo schermo restava nero. Tre rese di fila le ho lette come un errore
+	# di illuminazione: erano un banco sporco.
+	for m in (legami.call("momenti_di", chi) as Array):
+		(m as Dictionary).erase("sognato")
+	var sogni_p = get_tree().get_first_node_in_group("sogni")
+	if sogni_p:
+		sogni_p.set("_ultima_notte", -99)
+		sogni_p.set("_ultimo_chi", "")
+	legami.call("segna_partito", chi, {}, {"name": chi, "fur": "d9a86c",
+			"fur2": "b8834c", "belly": "f0dcc0", "size": 1.0,
+			"archetype": "orsetto", "seed": 7})
+	await _frames(4)
+	var momenti: Array = legami.call("momenti_di", chi)
+	print("SOGNI: filo di %s -> %d momenti" % [chi, momenti.size()])
+	print("SOGNI: fili sognabili -> %d"
+			% int((sogni.call("debug_stato") as Dictionary).get("fili", -1)))
+
+	# quale ricordo andrebbe perso per primo: e' quello che il sogno prende
+	var SG := load("res://scenes/interact/Sogni.gd")
+	var i_pot: int = legami.indice_da_potare(momenti)
+	var i_sog: int = SG.indice_da_sognare(momenti)
+	print("SOGNI: la potatura sacrificherebbe l'indice %d, il sogno prende il %d"
+			% [i_pot, i_sog])
+
+	# ---- IL SOGNO, GUARDATO. Si scatta lungo i sette secondi.
+	var fade: ColorRect = inter.get("_fade") if inter else null
+	if fade:
+		fade.color.a = 1.0
+	var scatti := [1.5, 2.6, 3.6, 4.8, 6.6, 7.9]
+	var t := 0.0
+	sogni.call("debug_sogna_ora", fade)
+	for k in scatti.size():
+		var bersaglio: float = float(scatti[k])
+		while t < bersaglio:
+			await get_tree().process_frame
+			t += get_process_delta_time()
+		await _shot(dir, "sogno_%d_%.1fs" % [k + 1, bersaglio])
+	await _frames(60)
+
+	var dopo: Array = legami.call("momenti_di", chi)
+	var salvati := 0
+	for m in dopo:
+		if (m as Dictionary).has("sognato"):
+			salvati += 1
+	print("SOGNI: momenti ora intoccabili perche' sognati -> %d" % salvati)
+	# la prova che conta: quel ricordo non si pota piu'
+	if i_sog >= 0 and i_sog < dopo.size():
+		print("SOGNI: l'indice %d e' intoccabile -> %s"
+				% [i_sog, str(legami.intoccabile(dopo, i_sog))])
+	print("SOGNI: fine")
+	get_tree().quit()
+
+
+# ------------------------------------------------------------------ provino
+# QUATTRO ROTAZIONI AFFIANCATE. Indovinare un numero e sperare e' il
+# contrario di questo mestiere: si rende, si guarda, si scieglie. Da
+# sinistra a destra: 0, PI/2, PI, 3*PI/2 attorno a Y.
+func _debug_provino(dir: String) -> void:
+	await _frames(30)
+	var DNA := load("res://scenes/npc/ChibiDNA.gd")
+	var BUILDER := load("res://scenes/npc/ChibiBuilder.gd")
+	var base: Vector3 = player.global_position + Vector3(0, 0, -4.0)
+	var root := Node3D.new()
+	add_child(root)
+	for k in 4:
+		var dna: Dictionary = DNA.generate(11)
+		var parts: Dictionary = BUILDER.build(dna)
+		var n := Node3D.new()
+		n.add_child(parts["root"])
+		root.add_child(n)
+		n.global_position = base + Vector3(float(k) * 0.9 - 1.35, 0, 0)
+		n.rotation.y = float(k) * PI * 0.5
+	var luce := OmniLight3D.new()
+	luce.light_energy = 3.0
+	luce.omni_range = 9.0
+	root.add_child(luce)
+	luce.global_position = base + Vector3(0, 1.4, 1.6)
+	var cam := Camera3D.new()
+	root.add_child(cam)
+	cam.fov = 42.0
+	cam.global_position = base + Vector3(0, 0.55, 2.6)
+	cam.look_at(base + Vector3(0, 0.5, 0))
+	cam.current = true
+	await _frames(10)
+	await _shot(dir, "provino_rotazioni")
+	print("PROVINO: da sinistra a destra rotation.y = 0, PI/2, PI, 3PI/2")
+	print("PROVINO: fine")
+	get_tree().quit()
+
+
+# --------------------------------------------------------- provino: la luce
+# SEI TARATURE DELLA LANTERNA, una per scatto, tutte allo stesso istante del
+# sogno. Indovinare due numeri alla volta e rifare la scena ogni volta e' il
+# modo lento: si spazzola, si guarda la fila, si scieglie.
+func _debug_provluce(dir: String) -> void:
+	await _frames(30)
+	var legami = get_tree().get_first_node_in_group("legami")
+	var sogni = get_tree().get_first_node_in_group("sogni")
+	var inter = _level.get_node_or_null("Interactions")
+	if sogni == null or legami == null:
+		print("PROVLUCE: manca qualcosa")
+		get_tree().quit()
+		return
+	var chi := "Nocciola"
+	for tipo in ["benvenuto", "piatto", "onsen", "promessa"]:
+		legami.call("momento", chi, str(tipo))
+	legami.call("segna_partito", chi, {}, {"name": chi, "fur": "d9a86c",
+			"fur2": "b8834c", "belly": "f0dcc0", "size": 1.0,
+			"archetype": "orsetto", "seed": 7})
+	await _frames(4)
+	var fade: ColorRect = inter.get("_fade") if inter else null
+	# [energia, avanti]
+	var tarature := [[0.9, 0.8], [0.9, 1.3], [1.3, 0.8], [1.3, 1.3],
+			[1.8, 1.0], [2.4, 1.0]]
+	for k in tarature.size():
+		var tar: Array = tarature[k]
+		sogni.set("prov_energia", float(tar[0]))
+		sogni.set("prov_avanti", float(tar[1]))
+		if fade:
+			fade.color.a = 1.0
+		sogni.call("debug_sogna_ora", fade)
+		# lo stesso istante per tutte: 3.6 s dentro il sogno
+		var t := 0.0
+		while t < 3.6:
+			await get_tree().process_frame
+			t += get_process_delta_time()
+		await _shot(dir, "luce_%d_e%.1f_a%.1f" % [k + 1, float(tar[0]), float(tar[1])])
+		# si aspetta la fine del sogno prima del prossimo
+		while t < 10.5:
+			await get_tree().process_frame
+			t += get_process_delta_time()
+		print("PROVLUCE: energia %.1f avanti %.1f -> scattata" % [float(tar[0]), float(tar[1])])
+	print("PROVLUCE: fine")
 	get_tree().quit()

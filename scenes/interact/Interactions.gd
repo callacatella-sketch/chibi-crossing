@@ -67,6 +67,25 @@ func _ready() -> void:
 	_build_fade()
 
 
+## Mochi sta dormendo? Lo chiedono i sistemi che hanno un pannello sopra
+## la tenda del sonno (la modalità foto, il prompt del cucciolo): senza
+## questa domanda, una scritta italiana comparirebbe in mezzo a un sogno
+## che ha come regola prima di non avere parole.
+func is_sleeping() -> bool:
+	return _sleeping
+
+
+## Il letto che si sta usando è casa propria? È la porta del sogno.
+func _e_il_mio_letto() -> bool:
+	if _target == null or not is_instance_valid(_target) or _target_name != "Letto":
+		return false
+	var home := get_node_or_null("../Home")
+	if home == null:
+		return false
+	return bool(home.call("is_home",
+			Vector2i(roundi(_target.position.x), roundi(_target.position.z))))
+
+
 func is_seated() -> bool:
 	return _seated
 
@@ -145,11 +164,16 @@ func _process(_delta: float) -> void:
 	if _target:
 		var text := L10n.t("E — siediti")
 		if _target_name == "Letto":
+			# IL VERBO CAMBIA SE IL LETTO È IL TUO. «Dormi» è una funzione;
+			# «vai a dormire» è una cosa che si fa la sera, a casa propria —
+			# ed è l'unico letto in cui si sogna.
 			text = L10n.t("E — dormi fino al mattino") if _is_night() else L10n.t("E — dormi")
 			var home := get_node_or_null("../Home")
 			if home:
 				var cell := Vector2i(roundi(_target.position.x), roundi(_target.position.z))
-				if not home.call("is_home", cell):
+				if home.call("is_home", cell):
+					text = L10n.t("E — vai a dormire")
+				else:
 					text += "  ·  " + L10n.t("H — imposta casa")
 		_show_prompt(text, _target.global_position + Vector3(0, 1.25, 0), cam)
 		_carillon = null
@@ -297,6 +321,17 @@ func _sleep_until_morning() -> void:
 	var tw := create_tween()
 	tw.tween_property(_fade, "color:a", 1.0, 1.5).set_trans(Tween.TRANS_SINE)
 	await tw.finished
+
+	# ---- IL SOGNO. Sta QUI: nel nero, fra la tenda che si è chiusa e il
+	# «Buongiorno». Non c'è nessuno stacco perché non serve — lo schermo è
+	# già nero, e il sogno è il nero che si apre appena.
+	#
+	# Si sogna SOLO nel proprio letto. Un pisolino su un letto qualunque
+	# resta un pisolino: è la differenza fra dormire e andare a dormire.
+	if _e_il_mio_letto():
+		var sogni := get_tree().get_first_node_in_group("sogni")
+		if sogni and sogni.has_method("sogna"):
+			await sogni.call("sogna", _fade)
 
 	_daynight.set_time(_daynight.MORNING)
 	var sc: Node = _player.get_node_or_null("SurvivalComponent")
