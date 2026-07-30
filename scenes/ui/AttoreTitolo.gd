@@ -43,6 +43,15 @@ var scarto_sguardo := 0.0
 ## Da 0 (giovane) a 1 (anziano): gobba, orecchie stanche, passo posato.
 var eta := 0.0
 
+## Quanto dura ancora il mestiere di adesso. A zero se ne cerca un altro:
+## è questo che fa evolvere la scena mentre la guardi, invece di lasciarla
+## in loop. Chi resta sul menù un minuto vede finire una rincorsa, uno che
+## si sveglia, uno che si alza e va all'altalena.
+var _resta := 12.0
+## Mentre una scenetta è in corso il mestiere non cambia: le interruzioni
+## a metà gesto sono la cosa che fa sembrare finto un diorama.
+var _in_scena := false
+
 var _parti := {}
 var _vis: Node3D
 var _andatura: RefCounted
@@ -84,9 +93,159 @@ func usa_altalena(nodo: Node3D) -> void:
 	_altalena = nodo
 
 
+## Cambia mestiere adesso, e decide da solo quanto durerà.
+##
+## Le durate non sono uguali per tutti né tonde: una rincorsa dura poco e
+## finisce col fiato corto, un pisolino dura parecchio, una seduta sta in
+## mezzo. E ognuno ha il suo scarto — se due vicini cambiassero mestiere
+## nello stesso istante si vedrebbe la macchina dietro.
+func cambia_mestiere(nuovo: String) -> void:
+	mestiere = nuovo
+	_fase = _rng.randf() * TAU
+	_sosta = _rng.randf_range(0.0, 1.2)
+	match nuovo:
+		"rincorre", "scappa":
+			_resta = _rng.randf_range(11.0, 22.0)
+		"dorme":
+			_resta = _rng.randf_range(26.0, 55.0)
+		"altalena":
+			_resta = _rng.randf_range(18.0, 40.0)
+		"annusa", "gioca":
+			_resta = _rng.randf_range(12.0, 26.0)
+		"saluta":
+			_resta = _rng.randf_range(6.0, 11.0)
+		_:
+			_resta = _rng.randf_range(14.0, 30.0)
+
+
+## È ora di cambiare? (Lo chiede la regia del diorama, che sa quali
+## mestieri sono ancora liberi e chi può accoppiarsi con chi.)
+func vuole_cambiare() -> bool:
+	return _resta <= 0.0 and not _in_scena
+
+
+# ============================================================== le scenette
+
+## Entra in una scenetta: da qui il mestiere non cambia più finché non
+## finisce, e chi la dirige comanda dove andare e cosa guardare.
+func entra_in_scena() -> void:
+	_in_scena = true
+
+
+func esci_di_scena() -> void:
+	_in_scena = false
+	_resta = _rng.randf_range(6.0, 14.0)
+
+
+## Va incontro a qualcuno e gli si ferma davanti, a distanza di saluto.
+## Torna true quando è arrivato.
+func raggiungi(altro: Node3D, distanza := 0.95, delta := 0.0) -> bool:
+	if altro == null or not is_instance_valid(altro):
+		return true
+	var d := altro.global_position - global_position
+	d.y = 0.0
+	if d.length() <= distanza:
+		_guarda(altro.global_position, delta)
+		return true
+	_vai_verso(altro.global_position - d.normalized() * distanza, 1.15, delta)
+	return false
+
+
+## Si gira verso qualcuno e resta lì a guardarlo.
+func rivolgiti(altro: Node3D, delta: float) -> void:
+	if altro and is_instance_valid(altro):
+		_guarda(altro.global_position, delta)
+	_fa_seduta_in_piedi(delta)
+
+
+## IL SALTELLO. Il gesto più corto del diorama e quello che fa più
+## effetto: due decimi di secondo di contentezza, con l'overshoot della
+## molla in salita e la discesa più lenta della salita.
+func saltella(forza := 1.0) -> void:
+	if _vis == null:
+		return
+	var tw := create_tween()
+	tw.tween_property(_vis, "position:y", 0.16 * forza, 0.16) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(_vis, "position:y", 0.0, 0.30) \
+			.set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+	if _faccia:
+		_faccia.set_expression("gioia", 1.0)
+
+
+## Dice qualcosa: una nuvoletta con dentro un glifo. Nel diorama il
+## Chibiese non si SENTE (il menù ha la sua musica) — si vede.
+func nuvoletta(glifo := "♪") -> void:
+	if _parti.get("head") == null:
+		return
+	var bolla := Node3D.new()
+	var sfondo := MeshInstance3D.new()
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.34, 0.26)
+	sfondo.mesh = quad
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(1.0, 0.98, 0.93, 0.94)
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	sfondo.material_override = mat
+	bolla.add_child(sfondo)
+	var lbl := Label3D.new()
+	lbl.text = glifo
+	lbl.font_size = 96
+	lbl.pixel_size = 0.0022
+	lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	lbl.modulate = Color(0.45, 0.32, 0.28)
+	lbl.render_priority = 2
+	lbl.position = Vector3(0, 0, 0.01)
+	bolla.add_child(lbl)
+	add_child(bolla)
+	bolla.global_position = (_parti["head"] as Node3D).global_position \
+			+ Vector3(0.10, 0.30, 0)
+	bolla.scale = Vector3.ONE * 0.05
+	var tw := create_tween()
+	tw.tween_property(bolla, "scale", Vector3.ONE, 0.22) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(1.4)
+	tw.tween_property(bolla, "scale", Vector3.ONE * 0.05, 0.18) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tw.tween_callback(bolla.queue_free)
+
+
+## Segue con gli OCCHI qualcosa che passa (una farfalla, una stella): la
+## testa si gira, il corpo no. È il gesto che dice «sono vivo» col minimo
+## sforzo, ed è quello che il giocatore nota senza accorgersene.
+func segui_con_lo_sguardo(punto: Vector3, delta: float) -> void:
+	if _parti.get("head") == null:
+		return
+	var testa: Node3D = _parti["head"]
+	var d := punto - testa.global_position
+	if d.length() < 0.05:
+		return
+	var locale := global_transform.basis.inverse() * d
+	var voluto_y := clampf(atan2(locale.x, locale.z), -1.1, 1.1)
+	var voluto_x := clampf(-atan2(locale.y, Vector2(locale.x, locale.z).length()),
+			-0.55, 0.35)
+	testa.rotation.y = lerp_angle(testa.rotation.y, voluto_y, clampf(delta * 3.5, 0.0, 1.0))
+	testa.rotation.x = lerpf(testa.rotation.x, voluto_x, clampf(delta * 3.5, 0.0, 1.0))
+	if _faccia:
+		_faccia.set_expression("curioso", 0.6)
+
+
+## Come la seduta, ma in piedi: si posa senza piegare le gambe (serve
+## nelle scenette, dove ci si parla stando su).
+func _fa_seduta_in_piedi(delta: float) -> void:
+	_seduto_t = maxf(0.0, _seduto_t - delta * 2.0)
+	for gamba: Node3D in _parti.get("legs", []):
+		gamba.rotation.x = lerpf(gamba.rotation.x, 0.0, delta * 5.0)
+	_vis.rotation.x = lerpf(_vis.rotation.x, 0.0, delta * 5.0)
+
+
 func _process(delta: float) -> void:
 	_t += delta
 	_fase += delta
+	if not _in_scena:
+		_resta -= delta
 	match mestiere:
 		"rincorre", "scappa":
 			_fa_rincorsa(delta)

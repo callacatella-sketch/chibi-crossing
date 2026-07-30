@@ -309,6 +309,30 @@ emotivo — `attesa · serena · allegria · armonia · malinconia · commiato �
 lutto` — che comanda cielo, luce, saturazione, petali, fiori, posa e faccia
 di Mochi, e perfino quanto in fretta respira la camera.
 
+**E non si ripete mai.** Tre leve, nessuna delle quali produce contenuto
+nuovo da disegnare (guardia:
+[`tests/cases/test_menu_imprevedibile.gd`](tests/cases/test_menu_imprevedibile.gd)):
+
+1. **L'ORA VERA di chi gioca** ([`OraDelGiorno.gd`](scenes/ui/OraDelGiorno.gd)):
+   sei momenti (notte · alba · mattina · pomeriggio · tramonto · sera). Chi
+   apre a mezzanotte trova il prato blu con le lucciole; alle sette,
+   un'alba rosa. Il clima ci si posa SOPRA come modificatore — sei per
+   sette fanno quarantadue mattine, nessuna disegnata a mano. Per i
+   provini: `CHIBI_ORA=23`.
+2. **I mestieri SCADONO** e la regia ne assegna altri
+   ([`RegiaDiorama.gd`](scenes/ui/RegiaDiorama.gd)): chi resta un minuto
+   sul menù vede finire una rincorsa, uno che si sveglia, uno che va
+   all'altalena. Mai due volte di fila lo stesso mestiere.
+3. **Le SCENETTE a due**, rare apposta: incontro · fiore · risata ·
+   consolazione · girotondo. Quello che le rende speciali è non averle
+   mai viste, e questo menù si apre centinaia di volte. Più gli OSPITI:
+   una farfalla che passa di giorno (e tutti la seguono con gli occhi),
+   una stella cadente di notte.
+
+La semina viene dal tempo vero: chi fa cosa, e dove, cambia a ogni
+apertura. **L'albero no** — quello ha semina fissa: è *il* tuo albero, non
+deve rifarsi la chioma ogni volta.
+
 **Le regole che lo tengono in piedi** (guardia:
 [`tests/cases/test_menu_vivo.gd`](tests/cases/test_menu_vivo.gd)):
 
@@ -319,7 +343,11 @@ di Mochi, e perfino quanto in fretta respira la camera.
   respirare.
 - **Il lutto si dice TOGLIENDO, non spegnendo.** Si abbassa la
   *saturazione*, non la luce (un menù al buio è rotto, non triste), e i
-  mestieri allegri spariscono: nel lutto nessuno si rincorre.
+  mestieri allegri spariscono: nel lutto nessuno si rincorre, non parte
+  nessuna scenetta tranne la consolazione, e non passa nessun ospite.
+  Vale **a qualunque ora**: se all'alba (che è rosa e allegra) il lutto
+  non riuscisse a scolorire, chi apre il gioco la mattina dopo una
+  perdita si vedrebbe accogliere da una cartolina.
 - **Il menù non si rompe MAI.** È l'unica schermata da cui si può ancora
   rimediare a un salvataggio andato storto: `da_salvataggio()` accetta
   qualunque schifezza e torna comunque un villaggio al giorno uno.

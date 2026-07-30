@@ -36,6 +36,8 @@ const PROLOGO_APPUNTI := "user://prologo.json"
 const RIASSUNTO := preload("res://scenes/ui/RiassuntoSalvataggio.gd")
 const ALBERO := preload("res://scenes/world/AlberoGeo.gd")
 const ATTORE := preload("res://scenes/ui/AttoreTitolo.gd")
+const ORA := preload("res://scenes/ui/OraDelGiorno.gd")
+const REGIA := preload("res://scenes/ui/RegiaDiorama.gd")
 
 ## Dove sta l'albero nel diorama. Tutto il resto gli gira intorno.
 const ALBERO_POS := Vector3(-1.3, 0.0, -1.6)
@@ -58,6 +60,12 @@ var _albero_h := 3.0
 var _albero_cr := 1.5
 var _sole: DirectionalLight3D
 var _env: Environment
+var _palette := {}
+var _rng := RandomNumberGenerator.new()
+var _prossima_prova := REGIA.PROVA_OGNI
+var _scena := {}                 # la scenetta in corso, se c'è
+var _ospite: Node3D              # la farfalla / la stella di passaggio
+var _ospite_t := 0.0
 
 var _ui: CanvasLayer
 var _menu: Control
@@ -101,12 +109,312 @@ func _process(delta: float) -> void:
 	for a in _attori:
 		if is_instance_valid(a) and a.global_position.x < ALBERO_POS.x - 1.2:
 			a.global_position.x = ALBERO_POS.x - 1.2
+	_regia(delta)
+
+
+# ======================================================== la regia continua
+
+## La scena non è un loop: EVOLVE. Ogni tanto la regia guarda chi ha
+## finito quello che stava facendo, gli dà altro da fare, e ogni tanto
+## mette in scena qualcosa a due.
+func _regia(delta: float) -> void:
+	if _attori.is_empty():
+		return
+	_avanza_scena(delta)
+	_avanza_ospite(delta)
+	# i mestieri scaduti: uno alla volta, così non cambiano tutti insieme
+	for a in _attori:
+		if not is_instance_valid(a) or not a.vuole_cambiare():
+			continue
+		var liberi := 0
+		for b in _attori:
+			if b != a and is_instance_valid(b) and not b._in_scena:
+				liberi += 1
+		var nuovo: String = REGIA.mestiere_nuovo(_clima, str(a.mestiere), liberi, _rng)
+		a.cambia_mestiere(nuovo)
+		if nuovo == "rincorre":
+			_accoppia_rincorsa(a)
+		if nuovo == "altalena" and _altalena:
+			a.usa_altalena(_altalena)
+		break
+
+	_prossima_prova -= delta
+	if _prossima_prova <= 0.0:
+		_prossima_prova = REGIA.PROVA_OGNI
+		if _scena.is_empty():
+			_prova_scenetta()
+		if _ospite == null:
+			var chi: String = REGIA.ospite(ORA.e_notte(_palette), _clima, _rng)
+			if chi != "":
+				_fai_entrare(chi)
+
+
+## LE LUCCIOLE. Solo di notte, e solo se il villaggio non è in lutto: la
+## notte del menù, senza, è un prato blu e basta. Con loro è il posto in
+## cui uno vorrebbe tornare — ed è lo stesso prato.
+func _lucciole() -> void:
+	var notte := float(ORA.e_notte(_palette))
+	if notte < 0.45 or _clima == "lutto":
+		return
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.075, 0.075)
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.albedo_color = Color(1.0, 0.94, 0.55, 0.9)
+	mat.albedo_texture = _alone()
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	quad.material = mat
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	pm.emission_box_extents = Vector3(7.0, 0.7, 5.0)
+	pm.direction = Vector3(0, 1, 0)
+	pm.spread = 180.0
+	pm.initial_velocity_min = 0.05
+	pm.initial_velocity_max = 0.22
+	pm.gravity = Vector3.ZERO
+	pm.damping_min = 0.1
+	pm.damping_max = 0.4
+	pm.scale_min = 0.5
+	pm.scale_max = 1.2
+	# l'ALONE che si accende e si spegne: una lucciola sempre accesa è una
+	# lampadina. La curva sale in fretta e cala piano, e ognuna ha la sua
+	# fase perché la vita non è la stessa per tutte.
+	var g := Gradient.new()
+	g.offsets = PackedFloat32Array([0.0, 0.12, 0.45, 1.0])
+	g.colors = PackedColorArray([Color(1, 1, 1, 0.0), Color(1, 1, 1, 1.0),
+			Color(1, 1, 1, 0.35), Color(1, 1, 1, 0.0)])
+	var gt := GradientTexture1D.new()
+	gt.gradient = g
+	pm.color_ramp = gt
+	var p := GPUParticles3D.new()
+	p.amount = int(lerpf(14.0, 44.0, float(_save.vivacita())) * notte)
+	p.lifetime = 4.5
+	p.randomness = 1.0
+	p.preprocess = 3.0
+	p.process_material = pm
+	p.draw_pass_1 = quad
+	p.position = ALBERO_POS + Vector3(0.8, 0.85, 1.4)
+	add_child(p)
+
+
+func _alone() -> GradientTexture2D:
+	var g := Gradient.new()
+	g.offsets = PackedFloat32Array([0.0, 0.35, 1.0])
+	g.colors = PackedColorArray([Color(1, 1, 1, 1), Color(1, 1, 1, 0.45),
+			Color(1, 1, 1, 0)])
+	var t := GradientTexture2D.new()
+	t.width = 48
+	t.height = 48
+	t.fill = GradientTexture2D.FILL_RADIAL
+	t.fill_from = Vector2(0.5, 0.5)
+	t.fill_to = Vector2(0.5, 0.0)
+	t.gradient = g
+	return t
+
+
+# -------------------------------------------------------- le scenette
+
+## Prova a mettere in scena qualcosa fra due (o tre) vicini liberi.
+func _prova_scenetta() -> void:
+	var liberi: Array = []
+	for a in _attori:
+		if is_instance_valid(a) and not a._in_scena \
+				and str(a.mestiere) not in ["altalena", "dorme"]:
+			liberi.append(a)
+	if liberi.size() < 2:
+		return
+	var quale: String = REGIA.scenetta(_clima, liberi.size(), _rng)
+	if quale == "":
+		return
+	liberi.shuffle()
+	var quanti: int = int(REGIA.SCENETTE[quale]["attori"])
+	var cast: Array = liberi.slice(0, quanti)
+	for a in cast:
+		a.entra_in_scena()
+	_scena = {"nome": quale, "cast": cast, "t": 0.0, "battuta": 0}
+
+
+## LA SCENETTA, battuta per battuta. Ognuna ha lo stesso scheletro —
+## avvicinarsi, il gesto, il congedo — e cambia in mezzo. Il tempo non è
+## uguale per tutte: la consolazione è lenta, la risata è veloce.
+func _avanza_scena(delta: float) -> void:
+	if _scena.is_empty():
+		return
+	var cast: Array = _scena["cast"]
+	for a in cast:
+		if not is_instance_valid(a):
+			_chiudi_scena()
+			return
+	_scena["t"] = float(_scena["t"]) + delta
+	var t: float = _scena["t"]
+	var a0: Node3D = cast[0]
+	var a1: Node3D = cast[1]
+
+	match str(_scena["nome"]):
+		"incontro":
+			# si vanno incontro, si guardano, si salutano e ognuno per sé
+			if t < 4.5:
+				a0.raggiungi(a1, 1.0, delta)
+				a1.rivolgiti(a0, delta)
+			elif _battuta(0):
+				a0.nuvoletta("♪")
+				a1.saltella(0.7)
+			elif t > 6.6:
+				_chiudi_scena()
+		"fiore":
+			# uno raccoglie qualcosa e lo porge; l'altro fa un saltello
+			if t < 4.2:
+				a0.raggiungi(a1, 0.9, delta)
+				a1.rivolgiti(a0, delta)
+			elif _battuta(0):
+				a0.nuvoletta("✿")
+			elif t > 5.6 and _battuta(1):
+				a1.nuvoletta("♥")
+				a1.saltella(1.0)
+			elif t > 7.4:
+				_chiudi_scena()
+		"risata":
+			if t < 3.4:
+				a0.raggiungi(a1, 1.05, delta)
+				a1.rivolgiti(a0, delta)
+			elif _battuta(0):
+				a0.nuvoletta("!")
+			elif t > 4.4 and _battuta(1):
+				a0.saltella(0.9)
+				a1.saltella(1.1)
+				a1.nuvoletta("♪")
+			elif t > 6.2:
+				_chiudi_scena()
+		"consolazione":
+			# LA SCENETTA DEI GIORNI STORTI. Nessuna nuvoletta, nessun
+			# saltello: uno arriva, si siede accanto all'altro, e restano
+			# lì. È il gesto che il gioco ha imparato dal lutto — accanto,
+			# e basta.
+			if t < 6.0:
+				a0.raggiungi(a1, 0.72, delta)
+			else:
+				a0.rivolgiti(a1, delta)
+				a1.rivolgiti(a0, delta)
+			if t > 11.0:
+				_chiudi_scena()
+		"girotondo":
+			# tre che girano piano attorno all'albero, vicini
+			var centro: Vector3 = ALBERO_POS
+			for i in cast.size():
+				var ang := t * 0.75 + TAU * float(i) / float(cast.size())
+				var d := _albero_cr * 0.55 + 1.15
+				var attore: Node3D = cast[i]
+				attore._vai_verso(centro + Vector3(cos(ang) * d, 0, sin(ang) * d),
+						1.35, delta)
+			if _battuta(0):
+				for a in cast:
+					a.nuvoletta("♪")
+			if t > 12.0:
+				_chiudi_scena()
+		_:
+			_chiudi_scena()
+
+
+## Una battuta scatta UNA volta sola: `_scena["battuta"]` è il contatore.
+func _battuta(indice: int) -> bool:
+	if int(_scena.get("battuta", 0)) != indice:
+		return false
+	_scena["battuta"] = indice + 1
+	return true
+
+
+func _chiudi_scena() -> void:
+	for a in (_scena.get("cast", []) as Array):
+		if is_instance_valid(a):
+			a.esci_di_scena()
+	_scena = {}
+
+
+# --------------------------------------------------------- gli ospiti
+
+## Qualcosa attraversa la scena, e tutti la seguono con gli occhi.
+func _fai_entrare(chi: String) -> void:
+	_ospite_t = 0.0
+	_ospite = Node3D.new()
+	add_child(_ospite)
+	var corpo := MeshInstance3D.new()
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	if chi == "stella":
+		var q := QuadMesh.new()
+		q.size = Vector2(0.5, 0.06)
+		corpo.mesh = q
+		mat.albedo_color = Color(1.0, 0.97, 0.86, 0.95)
+		mat.emission_enabled = true
+		mat.emission = Color(1.0, 0.95, 0.8)
+		mat.emission_energy_multiplier = 3.0
+	else:
+		var q2 := QuadMesh.new()
+		q2.size = Vector2(0.16, 0.13)
+		corpo.mesh = q2
+		mat.albedo_color = Color(1.0, 0.85, 0.35, 0.95)
+	corpo.material_override = mat
+	_ospite.add_child(corpo)
+	_ospite.set_meta("chi", chi)
+
+
+func _avanza_ospite(delta: float) -> void:
+	if _ospite == null or not is_instance_valid(_ospite):
+		return
+	_ospite_t += delta
+	var chi := str(_ospite.get_meta("chi", "farfalla"))
+	var durata := 3.2 if chi == "stella" else 11.0
+	var q: float = _ospite_t / durata
+	if q >= 1.0:
+		_ospite.queue_free()
+		_ospite = null
+		return
+	if chi == "stella":
+		# una cadente: entra alta a destra ed esce bassa a sinistra
+		_ospite.global_position = ALBERO_POS + Vector3(9.0, 11.0, -6.0).lerp(
+				Vector3(-7.0, 4.5, -3.0), q)
+		_ospite.look_at(_cam_base, Vector3.UP)
+		_ospite.rotate_object_local(Vector3.FORWARD, -0.5)
+	else:
+		# una farfalla: attraversa a zig-zag, all'altezza degli occhi
+		var x := lerpf(6.5, -4.5, q)
+		_ospite.global_position = ALBERO_POS + Vector3(x,
+				1.05 + sin(_ospite_t * 2.3) * 0.35 + sin(_ospite_t * 0.7) * 0.2,
+				1.2 + cos(_ospite_t * 1.1) * 0.9)
+	# E TUTTI LA GUARDANO. È il gesto che fa più «vivo» per meno lavoro:
+	# la testa segue, il corpo no.
+	for a in _attori:
+		if is_instance_valid(a) and str(a.mestiere) != "dorme":
+			a.segui_con_lo_sguardo(_ospite.global_position, delta)
+
+
+## A chi si mette a rincorrere serve qualcuno che scappi.
+func _accoppia_rincorsa(chi: Node3D) -> void:
+	for b in _attori:
+		if b == chi or not is_instance_valid(b) or b._in_scena:
+			continue
+		if str(b.mestiere) in ["rincorre", "scappa"]:
+			continue
+		b.cambia_mestiere("scappa")
+		b.compagno = chi
+		chi.compagno = b
+		return
+	chi.cambia_mestiere("gioca")   # nessuno disponibile: si gioca da soli
 
 
 # ================================================================ diorama
 func _build_world() -> void:
 	# --- cielo e luce da golden hour ---
-	var c := clima_cielo(_clima)
+	# LA LUCE VIENE DALL'ORA VERA di chi gioca, e il clima ci si posa
+	# sopra: sei momenti per sette climi fanno quarantadue mattine
+	# diverse, e nessuna è stata disegnata a mano.
+	_rng.seed = REGIA.semina()
+	var c := ORA.con_clima(ORA.palette(ORA.momento_ora()), _clima)
+	_palette = c
 	var sky_mat := ProceduralSkyMaterial.new()
 	sky_mat.sky_top_color = c["top"]
 	sky_mat.sky_horizon_color = c["orizz"]
@@ -139,7 +447,7 @@ func _build_world() -> void:
 	add_child(we)
 
 	_sole = DirectionalLight3D.new()
-	_sole.rotation = Vector3(deg_to_rad(-16.0), deg_to_rad(-52.0), 0.0)
+	_sole.rotation = Vector3(deg_to_rad(float(c["angolo"])), deg_to_rad(float(c["yaw"])), 0.0)
 	_sole.light_color = c["sole"]
 	_sole.light_energy = c["energia"]
 	_sole.light_angular_distance = 1.5
@@ -208,6 +516,9 @@ func _build_world() -> void:
 		add_child(_mochi)
 		_posa_mochi.call_deferred()
 
+	# --- di notte, le lucciole ---
+	_lucciole()
+
 	# --- e i vicini: quelli VERI del salvataggio ---
 	_popola_diorama()
 
@@ -244,8 +555,14 @@ func _popola_diorama() -> void:
 	if scelti.is_empty():
 		return
 	var mestieri := _mestieri_per(_clima, scelti.size())
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 4242
+	# …e poi si mescola quel che si può: la regia garantisce la coppia
+	# della rincorsa, ma CHI la fa cambia a ogni avvio
+	mestieri = _rimescola(mestieri, _rng)
+	# OGNI AVVIO E' DIVERSO: la semina viene dal tempo vero, quindi chi
+	# fa cosa e dove cambia a ogni apertura. (L'ALBERO no: quello ha la
+	# sua semina fissa — e' IL tuo albero, non deve rifarsi la chioma
+	# ogni volta che apri il gioco.)
+	var rng := _rng
 	var rincorsa: Array[Node3D] = []
 	for i in scelti.size():
 		var riga: Dictionary = scelti[i]
@@ -266,6 +583,8 @@ func _popola_diorama() -> void:
 			a.usa_altalena(_altalena)
 		if str(mestieri[i]) in ["rincorre", "scappa"]:
 			rincorsa.append(a)
+		# ognuno parte col suo orologio: i mestieri non scadono in coro
+		a.cambia_mestiere(str(mestieri[i]))
 		_attori.append(a)
 	# la coppia si guarda: chi insegue ha bisogno di sapere chi scappa
 	if rincorsa.size() == 2:
@@ -325,6 +644,19 @@ static func _mestieri_per(clima: String, quanti: int) -> Array:
 		for i in out.size():
 			if out[i] in ["rincorre", "scappa"]:
 				out[i] = "gioca"
+	return out
+
+
+## Rimescola l'assegnazione tenendo insieme la coppia della rincorsa: chi
+## insegue e chi scappa devono restare due, ma non devono essere sempre
+## gli stessi due (né sempre i primi della lista).
+static func _rimescola(mestieri: Array, rng: RandomNumberGenerator) -> Array:
+	var out: Array = mestieri.duplicate()
+	for i in range(out.size() - 1, 0, -1):
+		var j := rng.randi() % (i + 1)
+		var tmp: Variant = out[i]
+		out[i] = out[j]
+		out[j] = tmp
 	return out
 
 
@@ -515,7 +847,7 @@ func _build_ui() -> void:
 	_ui.layer = 10
 	add_child(_ui)
 	# i petali contano il clima: quaranta nei giorni pieni, zero nel lutto
-	var quanti := int(clima_cielo(_clima)["petali"])
+	var quanti := int(_palette.get("petali", 26))
 	if quanti > 0:
 		_ui.add_child(CozyUI.petals(quanti, false))
 
