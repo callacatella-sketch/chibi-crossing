@@ -176,6 +176,9 @@ func _ready() -> void:
 	# vicini che si vogliono bene, nasce un cucciolo. Va DOPO Legami e
 	# Congedo: al _ready li cerca entrambi nei gruppi.
 	add_child(preload("res://scenes/world/Nascite.gd").new())
+	# ACCOMPAGNARE: il verbo che spegne una paura appresa. Va dopo Legami
+	# (il momento del coraggio si annoda sul filo).
+	add_child(preload("res://scenes/npc/Accompagna.gd").new())
 	await get_tree().process_frame
 	_build_stones()
 	_build_clouds()

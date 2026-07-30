@@ -59,6 +59,7 @@ const MOMENTI_TESTO := {
 	"nascita": "Il giorno %d è la mattina più lunga\nche io ricordi, e la più corta.\nSei venuto a vederlo che era ancora\npiù piccolo delle mie due zampe.",
 	"battesimo": "Il nome che porto me l'hai dato tu,\nil giorno %d, quando ero grande così.\nNon me lo ricordo. Me l'hanno raccontato\nabbastanza volte da ricordarmelo lo stesso.",
 	"prima_parola": "Dicono che la prima parola\nl'ho detta il giorno %d, tutta storta,\ne che tu eri lì e hai riso.\nPoi l'ho imparata bene, ma quella era mia.",
+	"coraggio": "Di quel posto avevo paura, e non lo dicevo.\nIl giorno %d ci siamo andati insieme\ne non è successo niente — proprio niente.\nAdesso ci passo anche da solo, e non ci penso.",
 }
 
 

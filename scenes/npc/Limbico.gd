@@ -95,7 +95,14 @@ func setup(tratti: Dictionary) -> void:
 ## Guarda solo due cose: com'è marchiato il posto (o chi ha davanti) e quanto
 ## è già attivato. Non sa nulla del significato dell'evento: può benissimo
 ## sbagliarsi, ed è proprio quello a renderla vera.
-func percepisci(attore := "", luogo := "") -> Dictionary:
+## [param indizio] 0..1 è quanto è GREZZO il segnale che arriva adesso:
+## qualcosa di grosso che si muove veloce, nel buio, addosso. La strada
+## veloce non sa CHE COSA sia — sa solo che è brusco — e per questo può
+## spaventarsi di un amico. È il caso in cui sbaglia, ed è esattamente
+## quello che la rende vera: un attimo dopo la strada lenta la corregge
+## («ah… sei tu»). Senza questo parametro il corpo poteva allarmarsi solo
+## per chi già temeva, e la doppia strada non si vedeva mai.
+func percepisci(attore := "", luogo := "", indizio := 0.0) -> Dictionary:
 	var carica := 0.0
 	var fonte := ""
 	for chiave in [("chi|" + attore) if attore != "" else "", ("luogo|" + luogo) if luogo != "" else ""]:
@@ -107,13 +114,19 @@ func percepisci(attore := "", luogo := "") -> Dictionary:
 			fonte = chiave
 	# il corpo già attivato reagisce più forte a tutto: è l'allerta che si
 	# autoalimenta, ed è il motivo per cui dopo uno spavento tutto spaventa
-	var forza: float = clampf(absf(carica) * reattivita * (1.0 + arousal * 0.6), 0.0, 1.0)
+	var grezzo := clampf(indizio, 0.0, 1.0)
+	var forza: float = clampf((absf(carica) + grezzo) * reattivita
+			* (1.0 + arousal * 0.6), 0.0, 1.0)
 	var reazione := "nulla"
 	if forza > 0.22:
-		reazione = "trasalisce" if carica < 0.0 else "si_illumina"
+		# un segnale brusco fa trasalire ANCHE se chi arriva è caro: il
+		# corpo non ha ancora idea di chi sia. Se invece non c'è niente di
+		# brusco, resta la lettura del marchio — chi ti vuole bene si
+		# illumina, chi ti teme trasalisce.
+		reazione = "trasalisce" if (carica < 0.0 or grezzo > 0.25) else "si_illumina"
 		arousal = clampf(arousal + forza * 0.55, 0.0, 1.0)
 	ultimo_sussulto = {"reazione": reazione, "forza": forza, "fonte": fonte,
-			"carica": carica}
+			"carica": carica, "grezzo": grezzo}
 	return ultimo_sussulto
 
 
@@ -263,16 +276,29 @@ func carica_di(luogo := "", attore := "") -> float:
 	return c
 
 
-## Il perché di un evitamento, in italiano. Senza questa frase il giocatore
-## vedrebbe solo un residente che fa un giro strano e penserebbe a un bug.
-func perche_evita(luogo: String) -> String:
+## Il perché di un evitamento. Senza questa frase il giocatore vedrebbe
+## solo un residente che fa un giro strano e penserebbe a un bug.
+##
+## Ritorna il TEMPLATE, col segnaposto ancora dentro, e il numero a parte:
+## una frase già riempita non sta in nessuna tabella di traduzione (vedi
+## CLAUDE.md, «mai formattare prima di tradurre»). Chi la mostra fa
+## `L10n.tf(esito["testo"], [esito["n"]])`.
+func perche_evita_dati(luogo: String) -> Dictionary:
 	var k := "luogo|" + luogo
 	if not marchi.has(k):
-		return ""
+		return {}
 	var v: Dictionary = marchi[k]
 	if float(v["carica"]) > -SOGLIA_EVITAMENTO:
-		return ""
-	return "gli è successo qualcosa di brutto lì (%d volte)" % int(v["conferme"])
+		return {}
+	return {"testo": "gli è successo qualcosa di brutto lì (%d volte)",
+			"n": int(v["conferme"])}
+
+
+## La stessa cosa già in italiano, per il registro e per i test: comoda
+## dove non c'è nulla da tradurre.
+func perche_evita(luogo: String) -> String:
+	var d := perche_evita_dati(luogo)
+	return "" if d.is_empty() else str(d["testo"]) % int(d["n"])
 
 
 ## Tornarci senza che accada nulla SPEGNE la paura: è l'estinzione, ed è la

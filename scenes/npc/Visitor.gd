@@ -2486,8 +2486,13 @@ func debug_goto_gift() -> void:
 ## ear (orecchie), hx/hy (testa), vx (schiena), vy (saltello).
 static func recita_bersagli(stabile: String, trans: String, trans_t: float,
 		t: float) -> Dictionary:
+	# `vz` e `tail` sono i due canali che mancavano al sussulto. `vx` è
+	# un'INCLINAZIONE del busto, non uno spostamento: con quello solo, un
+	# chibi che trasalisce si piega indietro restando inchiodato dov'è —
+	# e mezzo passo indietro è metà dello spavento. `tail` irrigidisce la
+	# coda, che è la prima cosa che si muove in un animale che si allarma.
 	var out := {"ax0": 0.0, "ax1": 0.0, "az0": 0.0, "az1": 0.0, "ear": 0.0,
-			"hx": 0.0, "hy": 0.0, "vx": 0.0, "vy": 0.0}
+			"hx": 0.0, "hy": 0.0, "vx": 0.0, "vy": 0.0, "vz": 0.0, "tail": 0.0}
 	_recita_somma(out, RECITA.get(stabile, {}), 1.0, t)
 	if trans != "" and RECITA_TRANS.has(trans):
 		var tp: Dictionary = RECITA_TRANS[trans]
@@ -2501,6 +2506,12 @@ static func recita_bersagli(stabile: String, trans: String, trans_t: float,
 		if trans == "trasalisce":
 			# il sobbalzo: due colpetti che muoiono in fretta
 			out["vy"] += 0.14 * exp(-4.0 * trans_t) * absf(sin(trans_t * 10.0))
+			# IL MEZZO PASSO INDIETRO. Scatta con lo spavento e rientra
+			# piano, come si rientra da uno spavento: il corpo torna dove
+			# era un attimo dopo che la testa ha capito.
+			out["vz"] += 0.16 * exp(-2.1 * trans_t)
+			# e la coda si irrigidisce di colpo, poi si riabbassa
+			out["tail"] += -0.9 * exp(-2.6 * trans_t)
 		elif trans == "si_illumina":
 			# il saltello di gioia: rimbalza morbido finché dura la luce
 			out["vy"] += 0.09 * env * absf(sin(trans_t * 8.5))
@@ -2555,6 +2566,8 @@ static func _recita_somma(out: Dictionary, p: Dictionary, peso: float,
 	out["ear"] += float(p.get("ear", 0.0)) * peso
 	out["hx"] += float(p.get("hx", 0.0)) * peso
 	out["vx"] += float(p.get("vx", 0.0)) * peso
+	out["vz"] += float(p.get("vz", 0.0)) * peso
+	out["tail"] += float(p.get("tail", 0.0)) * peso
 	var amp := float(p.get("hy_amp", 0.0))
 	if amp > 0.0:
 		var onda := sin(t * 0.75)
@@ -2581,6 +2594,9 @@ func _recita_togli() -> void:
 	if _vis:
 		_vis.rotation.x -= _rc_appl["vx"]
 		_vis.position.y -= _rc_appl["vy"]
+		_vis.position.z -= _rc_appl.get("vz", 0.0)
+	if _tail_p:
+		_tail_p.rotation.x -= _rc_appl.get("tail", 0.0)
 	_rc_appl = {}
 
 
@@ -2650,6 +2666,10 @@ func _recita_applica(delta: float) -> void:
 		_head.rotation.y += _rc_cur["hy"]
 	_vis.rotation.x += _rc_cur["vx"]
 	_vis.position.y += _rc_cur["vy"]
+	# il mezzo passo indietro: uno spostamento VERO, non un'inclinazione
+	_vis.position.z += _rc_cur["vz"]
+	if _tail_p:
+		_tail_p.rotation.x += _rc_cur["tail"]
 	_rc_appl = _rc_cur.duplicate()
 
 

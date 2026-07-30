@@ -99,6 +99,9 @@ const TIPI := {
 	"battesimo": ["il nome che gli hai scelto tu", ["ciao", "cuore"]],
 	# E la prima parola, detta tutta storta, con te lì davanti.
 	"prima_parola": ["la prima parola, detta tutta storta", ["risata", "insieme"]],
+	# ACCOMPAGNARE (scenes/npc/Accompagna.gd): il giorno in cui siete
+	# tornati insieme nel posto che temeva, e non è successo niente.
+	"coraggio": ["quel posto che non fa più paura", ["coraggio", "insieme"]],
 }
 
 # nome residente -> {"momenti": [{d, t, x}], "giorno_arrivo": int}

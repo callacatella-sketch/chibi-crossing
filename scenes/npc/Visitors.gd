@@ -76,6 +76,14 @@ var _partiti_salvati := {}
 ## Il raffreddamento del sussulto: uno per residente, così la reazione
 ## istintiva scatta all'AVVICINARSI e non a ogni fotogramma.
 var _sussulto_cd := {}
+# LA STRADA LENTA in attesa: label -> secondi che restano prima che la
+# testa capisca chi è arrivato. Senza questa coda il sussulto restava una
+# reazione senza risoluzione — il vicino trasaliva e poi, semplicemente,
+# non succedeva più niente.
+var _riconoscimenti := {}
+# la posizione del giocatore al tick precedente, per sapere quanto corre
+var _pp_prec := Vector3.ZERO
+var _spiegato_le_strade := false
 ## Chi ti sta venendo a cercare, e da quanto: {label -> secondi di attesa}.
 var _in_confronto := {}
 var _vita_cd := 0.0     # un solo toast di vita quotidiana ogni tanto
@@ -1047,10 +1055,36 @@ func _tick_confronti(delta: float) -> void:
 # residente reagisce PRIMA che la testa abbia valutato qualcosa: chi ti teme
 # trasalisce, chi ti vuole bene si illumina. È il segnale più onesto che il
 # giocatore riceve — e arriva senza che nessuno debba parlargli.
+## Quanto \u00e8 GREZZO il modo in cui il giocatore sta arrivando, 0..1.
+##
+## La strada veloce non guarda chi arriva: guarda COME. Una cosa che si
+## muove svelta, nel buio, addosso \u2014 e il corpo parte prima della testa.
+## PURA e statica: si prova headless invece che correndo nel buio a
+## sperare (tests/cases/test_due_strade.gd).
+##  velocita: m/s del giocatore \u00b7 buio: 0 giorno pieno, 1 notte piena
+##  vicino: 0..1, quanto \u00e8 gi\u00e0 addosso (1 = a un passo)
+static func indizio_grezzo(velocita: float, buio: float, vicino: float) -> float:
+	# sotto la camminata tranquilla non c'\u00e8 nulla di brusco, di giorno
+	var svelto := clampf((velocita - 1.6) / 3.4, 0.0, 1.0)
+	# il buio non spaventa da solo: RADDOPPIA quello che non si vede bene
+	return clampf(svelto * (0.45 + 0.75 * buio) * (0.55 + 0.45 * vicino), 0.0, 1.0)
+
+
 func _tick_sussulti(delta: float) -> void:
 	if _player == null:
 		return
 	var pp: Vector3 = _player.global_position
+	# la velocit\u00e0 vera del giocatore, dal suo spostamento fra due tick
+	var vel := 0.0
+	if _pp_prec != Vector3.ZERO and delta > 0.0001:
+		vel = (pp - _pp_prec).length() / delta
+	_pp_prec = pp
+	# il buio lo dice DayNight, che ha gi\u00e0 la sua nozione di notte: una
+	# soglia sull'ora scritta qui sarebbe una seconda verit\u00e0 da mantenere
+	var buio := 0.0
+	if _daynight != null and _daynight.is_night():
+		buio = 1.0
+	_tick_riconoscimenti(delta)
 	for r in _residents:
 		var label := str(r.get("label", ""))
 		if label == "" or not _animi.has(label):
@@ -1060,20 +1094,86 @@ func _tick_sussulti(delta: float) -> void:
 			_sussulto_cd[label] = cd
 			continue
 		var node := r.get("node") as Node3D
-		if node == null or pp.distance_to(node.global_position) > 3.2:
+		if node == null:
+			continue
+		var d: float = pp.distance_to(node.global_position)
+		if d > 3.2:
 			continue
 		var animo: RefCounted = _animi[label]
-		var s: Dictionary = animo.limbico.percepisci("giocatore")
+		var grezzo := indizio_grezzo(vel, buio, clampf(1.0 - d / 3.2, 0.0, 1.0))
+		var s: Dictionary = animo.limbico.percepisci("giocatore", "", grezzo)
 		_sussulto_cd[label] = 9.0
 		match str(s.get("reazione", "nulla")):
 			"trasalisce":
 				node.set_meta("postura", "trasalisce")
 				if node.has_method("chat_bubble"):
 					node.call("chat_bubble", "!")
+				# \u2026e QUI comincia la strada lenta: fra poco la testa capir\u00e0
+				_riconoscimenti[label] = ATTESA_RICONOSCIMENTO
 			"si_illumina":
 				node.set_meta("postura", "si_illumina")
 				if node.has_method("chat_bubble"):
 					node.call("chat_bubble", "\u2665")
+
+
+## Quanto passa fra il sussulto del corpo e il capire della testa. Non \u00e8 un
+## numero arbitrario: \u00e8 l'ordine di grandezza vero fra la via sottocorticale
+## e quella corticale, e sullo schermo \u00e8 il tempo minimo perch\u00e9 l'occhio
+## legga DUE cose invece di una.
+const ATTESA_RICONOSCIMENTO := 0.4
+
+
+## LA STRADA LENTA. Un istante dopo il sussulto la testa valuta davvero chi
+## \u00e8 arrivato \u2014 e se \u00e8 qualcuno di caro, il corpo si scioglie: \u00abah\u2026 sei tu\u00bb.
+## \u00c8 la seconda met\u00e0 della meccanica pi\u00f9 bella del progetto, e prima non
+## c'era: il vicino trasaliva e restava cos\u00ec.
+func _tick_riconoscimenti(delta: float) -> void:
+	if _riconoscimenti.is_empty():
+		return
+	for label in _riconoscimenti.keys():
+		var t: float = float(_riconoscimenti[label]) - delta
+		if t > 0.0:
+			_riconoscimenti[label] = t
+			continue
+		_riconoscimenti.erase(label)
+		if not _animi.has(label):
+			continue
+		var node := node_di(label)
+		if node == null or not is_instance_valid(node):
+			continue
+		var animo: RefCounted = _animi[label]
+		# quanto vale, per lui, che sia proprio TU: l'amicizia vera
+		var amicizia := 0
+		for r in _residents:
+			if str(r.get("label", "")) == label:
+				amicizia = int(r.get("friend", 0))
+				break
+		var valenza := 0.55 if amicizia >= 3 else (0.3 if amicizia > 0 else 0.05)
+		var esito: Dictionary = animo.limbico.rivaluta("incontro", "giocatore", valenza)
+		if float(esito.get("sentito", 0.0)) > 0.0:
+			# il sollievo: il corpo si scioglie e lo dice
+			node.set_meta("postura", "si_illumina")
+			if node.has_method("speak"):
+				node.call("speak", ["ciao", "amico"], "felice")
+			if node.has_method("chat_bubble"):
+				node.call("chat_bubble", "\u2665")
+			_spiega_le_strade(label)
+		else:
+			# non si scioglie: di te, per ora, non \u00e8 ancora convinto
+			node.set_meta("postura", "esita")
+			if node.has_method("chat_bubble"):
+				node.call("chat_bubble", "\u2026")
+
+
+## La prima volta che succede \u2014 e SOLO la prima \u2014 il gioco dice al giocatore
+## cosa ha appena visto. Una volta: se lo ripetesse a ogni sussulto
+## diventerebbe una lezione, e la scena si spiega gi\u00e0 da s\u00e9.
+func _spiega_le_strade(label: String) -> void:
+	if _spiegato_le_strade:
+		return
+	_spiegato_le_strade = true
+	_show_toast(L10n.tf("%s ha fatto un salto, poi ti ha riconosciuto: «ah… sei tu».",
+			[label]))
 
 
 # ============================================ l'animo e il villaggio
