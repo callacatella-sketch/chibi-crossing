@@ -657,12 +657,18 @@ func _eco_presenza(nome: String, pos: Vector3, verso: Vector3) -> void:
 	add_child(eco)
 	eco.global_position = pos
 	eco.add_child(root)
-	# rivolta a Mochi: è a lei che appare (il rig nudo del builder guarda
-	# +z: verificato a schermo — con la convenzione di Mochi dava le spalle)
+	# RIVOLTA A MOCHI: è a lei che appare. Il rig del builder guarda −Z
+	# (ChibiBuilder.gd:11, «la faccia guarda verso -Z»), e con `atan2(dir.x,
+	# dir.z)` l'asse −Z locale finisce esattamente su −dir: il fantasma
+	# dava le SPALLE. Il commento di prima giurava il contrario e ha retto
+	# perché due secondi fra le lucine non lo mostrano — in un sogno
+	# inquadrato da vicino è la cosa che si vede per prima. La convenzione
+	# giusta è quella di tutto il resto del gioco (Visitor, Mochi):
+	# atan2(-dir.x, -dir.z).
 	var dir := (verso - pos) * Vector3(1, 0, 1)
 	if dir.length() > 0.01:
 		dir = dir.normalized()
-		eco.rotation.y = atan2(dir.x, dir.z)
+		eco.rotation.y = atan2(-dir.x, -dir.z)
 	# seduta: il corpo si posa, le gambette si raccolgono, il capo si china
 	root.position.y -= 0.16
 	for gamba in (parts.get("legs", []) as Array):

@@ -37,6 +37,41 @@ const LETTERE_GUFO := {
 	"curioso": "Ti osservo da un po': annusi il mondo come un\nriccio al primo giorno. Mi piace chi curiosa.",
 }
 
+## ============================================================
+## IL TACCUINO: le lettere che citano un micro-gesto
+## ============================================================
+## Le lettere di sopra dicono un TOTALE. Queste dicono un ISTANTE, e non
+## si possono liquidare con «era scriptato» perche' quel gesto non era
+## richiesto da niente e non dava punti.
+##
+## Sono scritte con una regola precisa: la prima meta' afferma solo cio'
+## che si e' VISTO (ti sei fermata, sei ripartita, tutto e' rimasto dov'era),
+## la seconda dice cosa ha pensato IL GUFO — che e' sempre vero, perche' e'
+## suo. Cosi' nemmeno nel caso peggiore la lettera mente.
+##
+## E niente pronomi sulla cosa citata: «l'hai lasciata» va in pezzi se la
+## cosa e' un fungo, e in inglese ogni concordanza si perde comunque. Si
+## dice «tutto e' rimasto dov'era», che non ha genere.
+##
+## `cita`: la lettera vuole [quando, cosa] — e sono CHIAVI ANNIDATE, non
+## testo, cosi' si traducono all'apertura della busta e non al momento in
+## cui finiscono su disco.
+##
+## E il campo si chiama `text_key` DI PROPOSITO, non "testo": il guardiano
+## della localizzazione cerca i letterali `"text_key": "…"` nei sorgenti.
+## Con un nome qualunque queste lettere gli sarebbero sfuggite, e sarebbero
+## uscite in italiano dentro la versione inglese con la suite verde.
+const TACCUINO_LETTERE := {
+	"esitazione": {"cita": true, "text_key": "Ti ho vista fermarti, %s,\ndavanti a %s.\nHai allungato la zampina, e poi sei ripartita:\ntutto è rimasto dov'era.\nCi ho pensato tutto il pomeriggio, sul mio ramo."},
+	"regola_tua": {"cita": false, "text_key": "È la seconda volta che ti fermi davanti a qualcosa\ne poi tiri indietro la zampina.\nHo smesso di pensare che sia distrazione:\ncredo sia una regola tua. Non te la chiedo. La rispetto."},
+	"sentiero_fedele": {"cita": false, "text_key": "Cammini sul sentiero. Sempre, anche quando tagliare\nsarebbe più corto e nessuno ti vedrebbe.\nAnche io faccio così, sui rami. Non so perché."},
+	"sentiero_ignorato": {"cita": false, "text_key": "Hai posato un sentiero e cammini accanto.\nNon è un rimprovero: l'ho guardato dall'alto, stamattina,\ne ho pensato che certe cose si fanno perché siano belle da vedere."},
+	"sosta": {"cita": true, "text_key": "Sei rimasta ferma tanto, %s.\nA guardare %s.\nNon ho mosso una piuma, per non disturbarti."},
+}
+## Quante pagine si tengono, e per quanti giorni una pagina resta citabile.
+const TACCUINO_MAX := 12
+const TACCUINO_GIORNI := 4
+
 var _lua: RefCounted
 var _daynight: Node3D
 var _visitors: Node
@@ -52,6 +87,10 @@ var _sources := {}              # chiave residente -> sorgente Lua corrente
 var _ultima_sorpresa := -1
 var _sorprese := 0
 var _bosco_acc := 0.0
+## LE PAGINE DEL TACCUINO. Le scrive Taccuino.gd, le cita il Gufo. Stanno
+## qui e non li' perche' il Gufo deve avere UNA voce: se il taccuino
+## spedisse da se', due lettere potrebbero arrivare la stessa mattina.
+var _pagine: Array = []
 
 
 func _ready() -> void:
@@ -75,6 +114,47 @@ func _ready() -> void:
 ## Chiamata via call_group("regista", "note", evento): zero accoppiamento.
 func note(evento: String) -> void:
 	_contatori[evento] = int(_contatori.get(evento, 0)) + 1
+
+
+## IL SECONDO CANALE: una pagina del taccuino. Non e' un contatore e non
+## entra negli ASSI del profilo — un micro-gesto non dice che GIOCATORE
+## sei, dice che e' stato visto. Chiamata da Taccuino.gd.
+##
+## Le pagine sono a scadenza: il Gufo non cita come «ieri» una cosa di sei
+## giorni fa, ed e' proprio quel dettaglio che smaschererebbe tutto.
+func annota(pagina: Dictionary) -> void:
+	if not TACCUINO_LETTERE.has(str(pagina.get("oss", ""))):
+		return
+	_pagine.append(pagina)
+	while _pagine.size() > TACCUINO_MAX:
+		_pagine.pop_front()
+
+
+## La pagina da citare stamattina, o {} se non ce n'e'. PURA: si prova
+## headless fabbricando le pagine a mano, che e' l'unico modo di mettere
+## alla prova la scadenza.
+##
+## Si prende la piu' RECENTE, non la piu' vecchia: un gesto di stamattina
+## e' piu' vivo di uno di tre giorni fa, e la pila cresce in coda.
+static func pagina_da_citare(pagine: Array, oggi: int) -> Dictionary:
+	for i in range(pagine.size() - 1, -1, -1):
+		var p: Dictionary = pagine[i]
+		if bool(p.get("usata", false)):
+			continue
+		var eta := oggi - int(p.get("giorno", -99))
+		if eta < 0 or eta > TACCUINO_GIORNI:
+			continue
+		return p
+	return {}
+
+
+## Da quanti giorni, detto come lo dice il Gufo. PURA.
+static func quando(giorni: int) -> String:
+	if giorni <= 0:
+		return "stamattina"
+	if giorni == 1:
+		return "ieri"
+	return "l'altro giorno"
 
 
 func _process(delta: float) -> void:
@@ -270,12 +350,25 @@ func _posto_vicino(item_name: String, casa: Vector3) -> Vector3:
 
 # ------------------------------------------------------------ la sorpresa
 
-# una sola al giorno, e solo se ieri è successo qualcosa: il Gufo scrive
+# una sola al giorno: il Gufo scrive. Se ha una pagina del taccuino la cita,
+# altrimenti ripiega sul ritratto del profilo — e solo se ieri e' successo
+# qualcosa.
 func _sorpresa_del_giorno() -> void:
 	if _mail == null or _daynight == null:
 		return
 	var giorno := int(_daynight.get("day"))
 	if giorno <= 1 or giorno == _ultima_sorpresa:
+		return
+	# ---- IL TACCUINO HA LA PRECEDENZA. Un istante citato batte un totale,
+	# sempre: e' l'unica delle due lettere che il giocatore non puo'
+	# spiegarsi. La lettera-contatore diventa il ripiego di quando non
+	# c'e' stato nessun micro-gesto da guardare.
+	var pagina := pagina_da_citare(_pagine, giorno)
+	if not pagina.is_empty():
+		_ultima_sorpresa = giorno
+		_sorprese += 1
+		pagina["usata"] = true
+		_mail.call("queue_letter", _lettera_dal_taccuino(pagina, giorno))
 		return
 	var mossi := false
 	for k in _contatori:
@@ -299,6 +392,26 @@ func _sorpresa_del_giorno() -> void:
 	})
 
 
+## La busta di una pagina del taccuino. Il «quando» e la cosa citata sono
+## CHIAVI ANNIDATE (`{"k": ...}`): la posta finisce su disco in italiano e
+## si traduce solo all'apertura, nella lingua di quel momento.
+##
+## E il taccuino non porta regali: un pacco trasformerebbe l'osservazione
+## in una ricompensa, e il momento vale esattamente quanto NON viene pagato.
+func _lettera_dal_taccuino(pagina: Dictionary, oggi: int) -> Dictionary:
+	var voce: Dictionary = TACCUINO_LETTERE[str(pagina["oss"])]
+	var args: Array = []
+	if bool(voce["cita"]):
+		args = [{"k": quando(oggi - int(pagina.get("giorno", oggi)))},
+				{"k": str(pagina.get("cosa", ""))}]
+	return {
+		"from_key": "Il Gufo",
+		"text_key": str(voce["text_key"]),
+		"args": args,
+		"gift": false,
+	}
+
+
 # ------------------------------------------------------------ persistenza
 
 func save_extra() -> Dictionary:
@@ -308,6 +421,7 @@ func save_extra() -> Dictionary:
 		"routine": _sources,
 		"ultima_sorpresa": _ultima_sorpresa,
 		"sorprese": _sorprese,
+		"pagine": _pagine,
 	}}
 
 
@@ -321,6 +435,10 @@ func load_extra(data: Dictionary) -> void:
 	_ieri = d.get("ieri", _contatori.duplicate())
 	_ultima_sorpresa = int(d.get("ultima_sorpresa", -1))
 	_sorprese = int(d.get("sorprese", 0))
+	# le pagine del taccuino tornano com'erano: un salvataggio fatto prima
+	# che il taccuino esistesse non ha la chiave, e riparte da vuoto senza
+	# rompere niente
+	_pagine = d.get("pagine", [])
 	# le routine di oggi tornano in servizio così com'erano
 	var routine: Dictionary = d.get("routine", {})
 	for key in routine:

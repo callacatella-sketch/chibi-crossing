@@ -99,6 +99,9 @@ const TIPI := {
 	"battesimo": ["il nome che gli hai scelto tu", ["ciao", "cuore"]],
 	# E la prima parola, detta tutta storta, con te lì davanti.
 	"prima_parola": ["la prima parola, detta tutta storta", ["risata", "insieme"]],
+	# ACCOMPAGNARE (scenes/npc/Accompagna.gd): il giorno in cui siete
+	# tornati insieme nel posto che temeva, e non è successo niente.
+	"coraggio": ["quel posto che non fa più paura", ["coraggio", "insieme"]],
 }
 
 # nome residente -> {"momenti": [{d, t, x}], "giorno_arrivo": int}
@@ -226,6 +229,16 @@ static func intoccabile(momenti: Array, i: int) -> bool:
 	if i < 0 or i >= momenti.size():
 		return true
 	if i < CAPI_TESTA or i >= momenti.size() - CAPI_CODA:
+		return true
+	# IL MOMENTO CHE HAI SOGNATO NON SI PERDE PIÙ. È l'unica conseguenza
+	# del sogno, e sta qui e in nessun altro posto: nessun segno a schermo,
+	# nessun fiore acceso, nessuna riga in grassetto. Si scopre cento
+	# giorni dopo, rileggendo il filo, accorgendosi che quel ricordo c'è
+	# ancora — e non si sa perché.
+	# La chiave è SORELLA di "x", non dentro: "x" è una String (tutti i
+	# chiamanti di momento() passano stringhe) e `x["sognato"]` esploderebbe
+	# proprio dentro la potatura, al trentunesimo momento annodato.
+	if (momenti[i] as Dictionary).has("sognato"):
 		return true
 	var tipo := str((momenti[i] as Dictionary).get("t", ""))
 	if tipo in INTOCCABILI:
@@ -494,6 +507,20 @@ func _nuovo_giorno(_d: int) -> void:
 
 
 # ---------------------------------------------------------------- letture
+
+## Il momento `i` del filo di `nome` è stato SOGNATO: da adesso la
+## potatura gentile non lo tocca più. Il salvataggio è JSON, quindi al
+## ritorno da disco il valore è un float: si legge sempre con int().
+func segna_sognato(nome_o_label: String, i: int) -> bool:
+	var momenti := momenti_di(nome_o_label)
+	if i < 0 or i >= momenti.size():
+		return false
+	if (momenti[i] as Dictionary).has("sognato"):
+		return false          # già sognato: non si consuma due volte
+	(momenti[i] as Dictionary)["sognato"] = _day()
+	_salva()
+	return true
+
 
 func momenti_di(nome_o_label: String) -> Array:
 	return _fili.get(nome_da_chiave(nome_o_label), {}).get("momenti", [])

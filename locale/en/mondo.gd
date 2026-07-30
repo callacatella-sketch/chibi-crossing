@@ -408,6 +408,7 @@ const T := {
 	"E — alzati": "E — get up",
 	"E — dormi": "E — sleep",
 	"E — dormi fino al mattino": "E — sleep until morning",
+	"E — vai a dormire": "E — turn in for the night",
 	"H — imposta casa": "H — make this home",
 	"Buongiorno!": "Good morning!",
 	"Buongiorno!\nGiorno %d": "Good morning!\nDay %d",

@@ -113,6 +113,24 @@ func _input(event: InputEvent) -> void:
 ## Interroga gli iscritti, scarta i morti e i non-in-gioco, e ordina per
 ## (gradino, distanza). Ritorna {} se non c'è nessuno in gioco.
 func scegli() -> Dictionary:
+	var c := candidato()
+	if c.is_empty():
+		_ultimo = {}
+		return {}
+	_ultimo = {"nome": str(c["nome"]), "gradino": int(c["gradino"]),
+			"d": float(c["distanza"]), "contesi": int(c["contesi"])}
+	return c["iscritto"]
+
+
+## CHI VINCEREBBE ADESSO, senza toccare niente. È `scegli()` meno l'atto di
+## registrare il verdetto — e la differenza conta: il taccuino del Gufo
+## chiede «cosa farebbe il giocatore se premesse E?» cinque volte al
+## secondo, e se quelle domande finissero in `ultimo_verdetto()` il
+## registro delle contese diventerebbe il registro dei sondaggi.
+##
+## Ritorna {} se nessuno è in gioco, altrimenti
+## {iscritto, nome, gradino, distanza, chi, contesi}.
+func candidato() -> Dictionary:
 	var candidati: Array = []
 	var vivi: Array = []
 	for i in _iscritti:
@@ -128,7 +146,6 @@ func scegli() -> Dictionary:
 		candidati.append({"i": i, "d": d})
 	_iscritti = vivi
 	if candidati.is_empty():
-		_ultimo = {}
 		return {}
 	candidati.sort_custom(func(a, b):
 		var ga: int = int(a["i"]["gradino"])
@@ -142,10 +159,9 @@ func scegli() -> Dictionary:
 		# ordinato l'array — sarebbe l'ordine dell'albero da capo
 		return str(a["i"]["nome"]) < str(b["i"]["nome"]))
 	var vinto: Dictionary = candidati[0]["i"]
-	_ultimo = {"nome": str(vinto["nome"]),
-			"gradino": int(vinto["gradino"]), "d": float(candidati[0]["d"]),
-			"contesi": candidati.size()}
-	return vinto
+	return {"iscritto": vinto, "nome": str(vinto["nome"]),
+			"gradino": int(vinto["gradino"]), "distanza": float(candidati[0]["d"]),
+			"chi": vinto["chi"], "contesi": candidati.size()}
 
 
 ## Chi ha vinto l'ultima contesa (per il registro e per le prove).

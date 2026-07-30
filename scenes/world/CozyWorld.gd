@@ -176,6 +176,9 @@ func _ready() -> void:
 	# vicini che si vogliono bene, nasce un cucciolo. Va DOPO Legami e
 	# Congedo: al _ready li cerca entrambi nei gruppi.
 	add_child(preload("res://scenes/world/Nascite.gd").new())
+	# ACCOMPAGNARE: il verbo che spegne una paura appresa. Va dopo Legami
+	# (il momento del coraggio si annoda sul filo).
+	add_child(preload("res://scenes/npc/Accompagna.gd").new())
 	await get_tree().process_frame
 	_build_stones()
 	_build_clouds()
@@ -789,6 +792,15 @@ func _make_butterfly(kind_i: int) -> void:
 
 
 ## La farfalla più vicina entro max_d (indice, o -1).
+## La specie della farfalla di quell'indice ("" se l'indice non c'e' piu').
+## La chiede chi deve NOMINARLA — il taccuino del Gufo, per una lettera che
+## cita la specie e non un generico «una farfalla».
+func butterfly_kind(i: int) -> String:
+	if i < 0 or i >= _butterflies.size():
+		return ""
+	return str(_butterflies[i].get("kind", ""))
+
+
 func nearest_butterfly(pos: Vector3, max_d: float) -> int:
 	var best := -1
 	var best_d := max_d

@@ -348,6 +348,140 @@ guardia.
   avere paura di te» non poteva avverarsi. **Non ritoccare le tre costanti:
   si tara `calma()`.**
 
+## REGOLA: i sogni — sognare è ciò che salva un ricordo
+
+Nel proprio letto, «E — vai a dormire»: lo schermo si chiude e **prima del
+mattino arriva un sogno**, in [`scenes/interact/Sogni.gd`](scenes/interact/Sogni.gd).
+Non è un riepilogo: è una scena breve e **muta**, sette secondi di lanterna
+sopra un ricordo. Ogni tanto è un vicino che è **partito**, che fa una cosa
+che facevate insieme.
+
+**La meccanica sotto la scena, che è la ragione per cui questo sistema
+esiste.** `Legami` ha una potatura gentile: oltre `MAX_MOMENTI` il filo
+comincia a lasciar andare, e `indice_da_potare()` sa quale ricordo
+sacrificherebbe per primo. **Il sogno va a prendere proprio quello**, e al
+risveglio `Legami.segna_sognato()` lo rende intoccabile. Su una partita
+lunga, i momenti che sopravvivono sono quelli che hai sognato — e nessuno
+te lo dice mai. Chi è partito pesa quattro volte tanto nella scelta: il suo
+filo può solo accorciarsi.
+
+**Le regole della messa in scena.** «Se il sogno diventa una schermata con
+i numeri della giornata, è morto» — e non basta togliere i numeri, perché un
+riepilogo può essere muto e restare un referto:
+
+1. **Niente parole, mai.** Nessun nome, nessuna data, nessuna icona. Chi è
+   si riconosce dal corpo.
+2. **Niente prop-pittogramma.** Una stellina per «desiderio», una busta per
+   «risposta» non sono oggetti di scena: sono icone di UI in 3D. Un oggetto
+   entra solo se il giocatore l'ha tenuto in zampa da sveglio.
+3. **I gesti non si compiono.** Un gesto interrotto è strutturalmente
+   incapace di informare.
+4. **Niente segno al risveglio.** Niente filo dorato verso il Prato Eterno
+   (waypoint), niente fiore acceso (marcatore su una tomba), niente riga in
+   grassetto nella pagina del filo. L'unica conseguenza è invisibile.
+5. **Il sogno SBAGLIA.** Un ricordo riprodotto senza errori è un *replay*,
+   cioè la forma emotiva del riepilogo. `dna_sognato()` mette **una** cosa
+   fuori posto — mai due, e mai tanto da rendere irriconoscibile chi hai
+   sognato: schiarire il pelo verso il bianco spegneva l'unico canale che
+   dice CHI era.
+6. **Quattro grammatiche, non venti scene.** Il corpo conosce quattro modi
+   di stare con qualcuno: `accanto`, `porgere`, `cercarsi`, `contatto`.
+
+**Le trappole del motore, tutte pagate:**
+
+- **`DayNight._apply()` gira ogni frame** e riscrive sole, ambiente, nebbia,
+  glow e saturazione: abbassare le luci non spegne il mondo. Si **sostituisce
+  la risorsa** sul `WorldEnvironment` (DayNight continua a scrivere su quella
+  vera, a vuoto) e si usa `_sun.visible = false`, che `_apply()` non tocca.
+- **Il rig guarda −Z** ([ChibiBuilder.gd:11](scenes/npc/ChibiBuilder.gd:11)).
+  `Congedo._eco_presenza` aveva `atan2(dir.x, dir.z)` con un commento che
+  giurava il contrario: **il fantasma del congedo dava le spalle a Mochi da
+  sempre**. Due secondi fra le lucine non lo mostrano; un sogno in primo
+  piano sì.
+- **`Legami.mostra_filo()` è un no-op per chi è partito** (cicla su
+  `Visitors._residents`, da cui i partiti sono stati tolti). Dentro il sogno
+  il filo si annoda a mano con `FiloRosso.annoda(a, b, …)`.
+- **`_fade` sta al livello 10, ma Nascite e PhotoMode stanno sopra.** Il
+  cartellino «E — conosci il cucciolo» compariva sul nero, e **P** in pieno
+  sonno spegneva la tenda stessa (`PhotoMode._hide_ui()`): ora entrambi
+  chiedono `Interactions.is_sleeping()`.
+- **Il contrassegno `sognato` è SORELLA di `x`, non dentro:** `x` è una
+  `String`, e `x["sognato"]` esploderebbe dentro la potatura al
+  trentunesimo momento annodato. Il salvataggio è JSON: il giorno torna
+  `float`, quindi si legge con `int()`, mai con `is int`.
+- **`ChibiBuilder.build()` vuole un genoma INTERO.** Quello conservato nel
+  filo è parziale, e senza i campi mancanti il corpo non si costruisce
+  affatto: si parte da `ChibiDNA.generate(hash(nome))` e ci si scrive sopra
+  quel che il filo ricorda. (Ed è anche giusto: ciò che non ricordi, il
+  sogno se lo inventa.)
+- **Il banco di prova va PULITO.** I contrassegni `sognato` vivono nel
+  salvataggio: dopo qualche corsa dell'harness erano tutti sognati,
+  `scegli()` non trovava più niente e lo schermo restava nero. Tre rese di
+  fila le ho lette come un errore di illuminazione: era un banco sporco.
+  `CHIBI_SOGNI` adesso azzera i contrassegni prima di partire.
+
+**Lo stato della resa, onestamente:** il sistema è completo e provato
+headless ([test_sogni.gd](tests/cases/test_sogni.gd)), e la scena si
+costruisce, si illumina e si legge. Ma **non è ancora al livello del resto
+del progetto**: la testona chiara riempie il quadro e gli occhi non hanno il
+contrasto che hanno di giorno. Chi ci torna: la manopola è il rapporto fra
+`PIENA`/`AVANTI` della lanterna e il `glow_intensity` dell'Environment del
+sogno, e la strada giusta è un provino affiancato che funzioni (quello in
+`CHIBI_PROVLUCE` accavalla i sogni e va sistemato prima di fidarsene).
+
+## REGOLA: il taccuino del Gufo — si afferma solo ciò che si è VISTO
+
+Il Regista ha due canali. Il primo conta i gesti grossi e il Gufo te li
+rimanda come totale («%d opere!»). Il secondo è
+[`scenes/npc/Taccuino.gd`](scenes/npc/Taccuino.gd): i **micro-gesti** che
+nessuno ti ha chiesto di fare — l'esitazione davanti a una creatura, il
+sentiero che percorri sempre (o che hai posato e non usi), la sosta lunga
+all'aperto, la rinuncia che si ripete e diventa una regola tua. Il taccuino
+scrive pagine, il Regista le cita, e **la pagina batte sempre il
+contatore**: un istante citato è l'unica delle due lettere che il giocatore
+non può liquidare con «era scriptato».
+
+**Questa meccanica ha una sola modalità di guasto, ed è catastrofica.** Una
+frase citata a vuoto non attenua l'effetto: **lo inverte**. «Ti ho vista
+fermarti davanti a una farfalla» detto a chi stava cercando il menu insegna
+al giocatore che le lettere sono generiche, e da quel momento non crede più
+a nessuna. Il danno è permanente. Perciò, chi tocca questa roba:
+
+1. **Il Gufo non dice mai cosa hai PENSATO.** Dice cosa è ACCADUTO (ti sei
+   fermata, sei ripartita, tutto è rimasto dov'era) e poi cosa ha pensato
+   LUI («ci ho pensato tutto il pomeriggio»). La prima metà è verificabile,
+   la seconda è sempre vera perché è sua. Mai scrivere «hai esitato»: è
+   un'inferenza, e un'inferenza si può smentire.
+2. **Il silenzio è il comportamento normale.** Ogni giudizio ha una fascia
+   grigia in cui NON scatta. Meglio nessuna lettera che una a vuoto.
+3. **Le valvole non sono decorative.** La fisica spenta del player (=
+   pannello, seduta, onsen, foto, costellazioni), il salto di posizione,
+   il tetto massimo della sosta, il tasto premuto: toglierne una apre un
+   modo preciso di scattare a caso. Il test
+   [`tests/cases/test_taccuino.gd`](tests/cases/test_taccuino.gd) prende
+   una finestra buona e **guasta una cosa sola per volta** pretendendo
+   silenzio: se una valvola diventa inutile, quel test lo dice.
+4. **Non duplicare `PostoDiSempre`.** Il posto in cui torni sempre lo nota
+   già lui, e lo dice **senza parole** (un vicino è già lì). Metterci sopra
+   una lettera rovinerebbe il suo silenzio.
+5. **L'oracolo dell'esitazione è `ArbitroE.candidato()`** — non `scegli()`:
+   chiedere «cosa farebbe se premesse E» cinque volte al secondo non è una
+   contesa e non deve finire in `ultimo_verdetto()`.
+6. **Le lettere stanno sotto la chiave `text_key`** in
+   `Director.TACCUINO_LETTERE`, e il nome del campo è voluto: il guardiano
+   della localizzazione cerca i letterali `"text_key": "…"`. Con un nome
+   qualunque quelle lettere gli sfuggono e uscirebbero **in italiano dentro
+   la versione inglese, con la suite verde**.
+7. **La citazione va su una riga sua.** La cosa citata ha lunghezza
+   variabile («una farfalla dorata», «quell'ombra nell'acqua»): in mezzo a
+   una riga lunga la busta la spezza a metà parola. Si verifica **guardando
+   la lettera** (`CHIBI_TACCUINO=<dir>`), non leggendo un `print()`.
+
+Trappola già pagata: il taccuino cercava il Regista in un `call_deferred`
+del `_ready` e lo trovava `null` **per sempre**, perché il Regista è un
+figlio RUNTIME di CozyWorld creato a generazione differita. Il cablaggio si
+**riprova** a ogni campionamento finché non ha trovato tutto.
+
 ## REGOLA: la lingua (italiano sorgente, inglese sopra)
 
 Il gioco è **bilingue** dal 2026-07-28: italiano (lingua sorgente) e inglese.
