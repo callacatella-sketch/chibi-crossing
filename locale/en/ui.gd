@@ -355,6 +355,34 @@ const T := {
 	"Faro caserma": "Beacon",
 	"Cuccia": "Dog kennel",
 	"Pennone": "Flagpole",
+	# --- la chiesa del paese. «Chapel», non «Church»: e la chiesa di un paese
+	# di due strade, non una cattedrale. Gli id restano italiani ---
+	"Chiesa": "Chapel",
+	"La chiesa del paese, tutta intera: la torre che si vede\nda ogni prato, le vetrate che accendono il pavimento, e\nil lume che si accende per chi è partito.":
+		"The village chapel, all of it: the tower you can see\nfrom every meadow, the windows that light up the floor,\nand the lamp lit for whoever has gone.",
+	"Campanile": "Bell tower",
+	"Muro di pietra": "Stone wall",
+	"Lastricato": "Flagstones",
+	"Vetrata": "Stained glass",
+	"Banco": "Pew",
+	"Volta": "Ribbed vault",
+	"Sagrato": "Church steps",
+	"Arcata": "Stone arch",
+	"Portale": "Church door",
+	"Frontone": "Rose gable",
+	"Abside": "Apse",
+	"Altare": "Altar",
+	"Candeliere": "Candle stand",
+	"Fonte dei nomi": "Naming font",
+	# --- IL PROLOGO. Sono le prime parole del gioco e le piu importanti:
+	# tradotte con la stessa cura dell'italiano, non dopo. I puntini di
+	# sospensione sono recitazione: si conservano tutti e tre. ---
+	"dov'è mamma?... dov'è papà?...": "where's mummy?... where's daddy?...",
+	"ho paura... mi sento sola...": "i'm scared... i feel so alone...",
+	"cosa? mi vuoi aiutare? perché?": "what? you want to help me? why?",
+	"forse con te... Mochi non si sentirà mai più sola?":
+		"maybe with you... Mochi will never feel alone again?",
+	"Armonium": "Harmonium",
 	"Serra": "Greenhouse",
 
 	# ------------------------------------------------------------ la palestra

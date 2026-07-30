@@ -7,7 +7,7 @@ extends RefCounted
 ##
 ## Campi di ogni voce:
 ##   name     nome mostrato in UI
-##   cat      0 Struttura · 1 Arredo · 2 Giardino · 3 Palestra
+##   cat      0 Struttura · 1 Arredo · 2 Giardino · 3 Palestra · 4 Chiesa
 ##   type     "cell" (occupa una cella) | "edge" (sta sul bordo tra due celle)
 ##   layer    per le celle: 0 pavimenti · 1 tappeti/decori · 2 oggetti
 ##   builder  Callable che costruisce il visual
@@ -160,6 +160,60 @@ static func items() -> Array[Dictionary]:
 		{"name": "Rastrelliera", "cat": 3, "type": "cell", "layer": 2,
 			"builder": BuildPalestra.rastrelliera,
 			"cols": [[Vector3(0.92, 0.78, 0.42), Vector3(0, 0.39, 0)]]},
+
+		# --- CHIESA (le forme stanno in BuildChiesa.gd) ---
+		# Categoria sua per lo stesso motivo della palestra: le tre righe
+		# storiche sono gia lunghissime, e le scorciatoie 1-9 indicizzano i
+		# PRIMI NOVE pezzi della categoria — un pezzo appeso in fondo a
+		# «Struttura» non avrebbe mai un tasto. I primi nove qui sono quelli
+		# che si piazzano a decine; gli arredi vengono dopo.
+		# L'ancora e il Campanile: comprarlo porta tutta la chiesa (Economy.CORREDO).
+		{"name": "Muro di pietra", "cat": 4, "type": "edge", "layer": 2,
+			"builder": BuildChiesa.muro_pietra,
+			"cols": [[Vector3(1.0, 2.1, 0.16), Vector3(0, 1.05, 0)]]},
+		{"name": "Lastricato", "cat": 4, "type": "cell", "layer": 0,
+			"builder": BuildChiesa.lastricato, "cols": []},
+		{"name": "Vetrata", "cat": 4, "type": "edge", "layer": 2,
+			"builder": BuildChiesa.vetrata,
+			"cols": [[Vector3(1.0, 2.1, 0.16), Vector3(0, 1.05, 0)]]},
+		{"name": "Banco", "cat": 4, "type": "cell", "layer": 2,
+			"builder": BuildChiesa.banco,
+			"cols": [[Vector3(0.95, 0.9, 0.46), Vector3(0, 0.45, -0.06)]]},
+		{"name": "Volta", "cat": 4, "type": "cell", "layer": 3,
+			"builder": BuildChiesa.volta, "cols": []},
+		{"name": "Sagrato", "cat": 4, "type": "cell", "layer": 0,
+			"builder": BuildChiesa.sagrato, "cols": []},
+		{"name": "Arcata", "cat": 4, "type": "cell", "layer": 2,
+			"builder": BuildChiesa.arcata,
+			"cols": [[Vector3(0.26, 2.6, 0.26), Vector3(-0.4, 1.3, 0)],
+					[Vector3(0.26, 2.6, 0.26), Vector3(0.4, 1.3, 0)]]},
+		{"name": "Portale", "cat": 4, "type": "edge", "layer": 2,
+			"builder": BuildChiesa.portale,
+			"cols": [[Vector3(0.18, 2.1, 0.16), Vector3(-0.41, 1.05, 0)],
+					[Vector3(0.18, 2.1, 0.16), Vector3(0.41, 1.05, 0)]]},
+		{"name": "Frontone", "cat": 4, "type": "edge", "layer": 2,
+			"builder": BuildChiesa.frontone,
+			"cols": [[Vector3(1.0, 2.1, 0.16), Vector3(0, 1.05, 0)]]},
+		{"name": "Abside", "cat": 4, "type": "cell", "layer": 2,
+			"builder": BuildChiesa.abside,
+			"cols": [[Vector3(1.0, 2.3, 0.18), Vector3(0, 1.15, -0.41)],
+					[Vector3(0.18, 2.3, 0.62), Vector3(-0.41, 1.15, -0.05)],
+					[Vector3(0.18, 2.3, 0.62), Vector3(0.41, 1.15, -0.05)]]},
+		{"name": "Altare", "cat": 4, "type": "cell", "layer": 2,
+			"builder": BuildChiesa.altare,
+			"cols": [[Vector3(0.78, 0.95, 0.52), Vector3(0, 0.47, 0)]]},
+		{"name": "Candeliere", "cat": 4, "type": "cell", "layer": 2,
+			"builder": BuildChiesa.candeliere,
+			"cols": [[Vector3(0.6, 0.85, 0.34), Vector3(0, 0.42, 0)]]},
+		{"name": "Fonte dei nomi", "cat": 4, "type": "cell", "layer": 2,
+			"builder": BuildChiesa.fonte_dei_nomi,
+			"cols": [[Vector3(0.52, 0.95, 0.52), Vector3(0, 0.47, 0)]]},
+		{"name": "Armonium", "cat": 4, "type": "cell", "layer": 2,
+			"builder": BuildChiesa.armonium,
+			"cols": [[Vector3(0.8, 0.95, 0.46), Vector3(0, 0.47, -0.02)]]},
+		{"name": "Campanile", "cat": 4, "type": "cell", "layer": 2,
+			"builder": BuildChiesa.campanile,
+			"cols": [[Vector3(0.84, 2.6, 0.84), Vector3(0, 1.3, 0)]]},
 
 		# --- pezzi del NEGOZIO (si comprano dal mercante · vedi Economy.gd) ---
 		{"name": "Casetta uccellini", "cat": 2, "type": "cell", "layer": 2, "builder": _birdhouse,

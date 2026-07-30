@@ -614,6 +614,58 @@ di commento con la successiva in una chiave spazzatura, e la chiave che segue
 I valori vanno anche **fra virgolette** dove sono stringhe: senza, un
 `compatibility_minimum = 4.10` viene letto come il float `4.1`.
 
+## Come deve COMINCIARE il gioco (il prologo)
+
+L'apertura del gioco è già decisa dall'autore e sta in
+[`docs/PROLOGO.md`](docs/PROLOGO.md): dal tasto «nuova avventura» si parte con una
+**piccola Mochi cucciola sotto una tempesta**, sola e spaventata, che si gira
+verso la camera e **parla al giocatore** rompendo la quarta parete; il cielo si
+apre, e il tutorial la fa **crescere** fino alla Mochi adulta di adesso.
+
+**Non è una proposta: è la direzione.** Prima di toccare la schermata del titolo,
+il primo avvio o il tutorial, leggi quel documento. Si realizza un passo alla
+volta insieme all'autore, e il gancio tecnico è già in casa: la crescita
+cucciolo→adulto è `Visitor.set_cucciolo(t)`, con `t` da 0.0 a 1.0.
+
+## Il salvataggio di prova (molte case, nessun abitante)
+
+Per provare i sistemi senza giocare venti ore c'è un villaggio generabile in
+`tools/`: **dieci case complete e vuote**, campagna del Gufo finita, catalogo e
+negozio sbloccati, dispensa piena.
+
+```
+tools/installa_salvataggio_prova.sh            # copia di sicurezza + installa
+tools/installa_salvataggio_prova.sh --vero     # senza la leva: qualcuno rifiuta
+tools/installa_salvataggio_prova.sh --ripristina
+```
+
+- [`genera_salvataggio_prova.py`](tools/genera_salvataggio_prova.py) scrive il
+  `village.json`. Le liste (nomi dei pezzi, nomi dei chibi, listino, tinte) le
+  **legge dai sorgenti**, non le ricopia: se qualcuno aggiunge un pezzo, il
+  generatore se ne accorge da solo.
+- [`verifica_salvataggio_prova.py`](tools/verifica_salvataggio_prova.py)
+  controlla il file **prima** di darlo al gioco, perché il caricamento scarta in
+  silenzio: una riga che non ha esattamente 5 elementi (4 per i bordi) sparisce
+  senza un messaggio, un nome fuori catalogo dà solo un `push_warning`, e una
+  cella nel letto del fiume non lascia traccia. Ricalcola anche le otto feature
+  della casa e la soglia della mente del candidato.
+- [`prova_arrivi.gd`](tools/prova_arrivi.gd) è la verifica **viva**: carica il
+  MainLevel vero, spegne la persistenza e fa arrivare quattro candidati.
+  `Godot --headless --path . --script res://tools/prova_arrivi.gd`
+
+**Due cose da sapere prima di dire «non funziona»:**
+
+1. **Una casa non è un letto.** Il gioco chiama casa libera un `Letto` che abbia
+   una **copertura sulla sua stessa cella** (`Visitors._free_house` +
+   `BuildSystem.has_cover`). Ma «libera» non è «accettata»: il candidato riduce
+   la casa a otto feature e serve `p > 0.72`. Una casa `Letto+Tetto` nuda vale
+   p ≈ 0.016 — arriva, guarda e riparte col trolley. Per questo le case generate
+   hanno muri, porta, finestra, comodità, giardino e camino.
+2. **Gli arrivi sono seriali**: uno alla volta (`if _active == null`), solo di
+   giorno e col sereno, con 45 s il primo e poi 80–160 s fra uno e l'altro.
+   Dieci case non si riempiono in un minuto. Per riempirle subito ci sono
+   `Visitors.debug_candidate/debug_goto_wait/debug_force_decide`.
+
 ## Test
 
 Test-suite **dependency-free** (nessun addon, nessuna rete) in `tests/`:

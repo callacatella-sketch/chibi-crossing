@@ -429,12 +429,22 @@ static func _build_ears(head: Node3D, dna: Dictionary, fur: ShaderMaterial,
 		match arche:
 			"gatto", "volpina":
 				# cono morbido a punta arrotondata, interno inserito
-				ear.position = Vector3(side * 0.21 * hs, top, -0.01)
+				# il perno sta DENTRO la testa e il profilo comincia sotto
+				# lo zero: l'orecchio nasce dalla testa invece di appoggiarsi.
+				# `lathe` chiude il fondo con un tappo piatto, e col perno
+				# sulla superficie quel piattino si vedeva in ogni posa —
+				# le orecchie sembravano incollate. (Stessa correzione in
+				# Mochi._build_head, dove è misurata riga per riga.)
+				ear.position = Vector3(side * 0.195 * hs, top - 0.015 * hs, -0.01)
 				var emat := fur2 if arche == "volpina" else fur
 				var esc := 1.15 if arche == "volpina" else 1.0
-				lathe(ear, [Vector2(0.105, 0.0), Vector2(0.10, 0.09),
+				lathe(ear, [Vector2(0.082, -0.125), Vector2(0.103, -0.03),
+						Vector2(0.105, 0.0), Vector2(0.10, 0.09),
 						Vector2(0.075, 0.16), Vector2(0.04, 0.215), Vector2(0.0, 0.245)],
 						emat, Vector3.ZERO, 18, esc, elen * esc)
+				# il raccordo che ammorbidisce la linea di taglio
+				_ball(ear, 0.094 * esc, emat, Vector3(0, -0.032, 0),
+						Vector3(1.06, 0.72, 1.0), false)
 				var inr := lathe(ear, [Vector2(0.062, 0.0), Vector2(0.055, 0.07),
 						Vector2(0.032, 0.13), Vector2(0.0, 0.16)],
 						inner, Vector3(0, 0.035 * elen, -0.045), 14, esc, elen * esc)
