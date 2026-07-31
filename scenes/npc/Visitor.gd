@@ -576,7 +576,7 @@ func _enter_state(s: String) -> void:
 			# La forma giusta era già scritta più sotto (riga ~1692):
 			# `.get("front", position)`, cioè «se non hai una casa, gira
 			# intorno a dove sei».
-			var front: Vector3 = _house["front"]
+			var front: Vector3 = _house.get("front", position)
 			var a := randf() * TAU
 			_walk_to(front + Vector3(cos(a), 0, sin(a)) * randf_range(1.0, 3.2), "r_idle")
 		"r_sniff":
@@ -2423,7 +2423,7 @@ func resident_wake() -> void:
 	_hidden = false
 	# stessa ragione: chi non ha più una casa si sveglia dov'è, non
 	# scompare in un errore
-	position = _house["front"]
+	position = _house.get("front", position)
 	var tw := create_tween()
 	tw.tween_property(_vis, "scale", Vector3.ONE, 0.5) \
 			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
