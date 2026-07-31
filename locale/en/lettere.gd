@@ -245,6 +245,8 @@ const T := {
 	# è saltata fuori rendendo tutte le lettere e guardandole)
 	"La tua lettera del giorno %d\nla tengo piegata nella tasca buona.\nLa rileggo quando fuori piove.":
 		"Your letter from day %d\nI keep folded in my good pocket.\nI read it again when it rains outside.",
+	"La sera del giorno %d eravamo tutti seduti al buio,\ne nessuno diceva niente.\nNon me ne intendo di musica.\nMi è rimasta lo stesso.":
+			"On the evening of day %d we were all sitting in the dark,\nand nobody said a word.\nI know nothing about music.\nIt stayed with me all the same.",
 	"Quel desiderio del giorno %d,\nl'ultimo, vissuto insieme:\nlo tengo tra i momenti d'oro.":
 		"That wish on day %d,\nthe last one, lived together:\nI keep it among the golden moments.",
 	"Del giorno %d non parlo volentieri,\nma il filo non si è spezzato:\nha solo cambiato forma.":

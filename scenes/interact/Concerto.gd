@@ -88,6 +88,20 @@ func _ready() -> void:
 			_daynight.day_changed.connect(_nuovo_giorno)).call_deferred()
 
 
+## IL FILO ROSSO, CHIESTO PIGRAMENTE. `Legami` NON sta nella scena: lo crea
+## `CozyWorld._ready()` dopo tre `await get_tree().process_frame`, e un
+## `call_deferred` del nostro `_ready` si svuota a fine frame 0 — quindi lo
+## trova `null` PER SEMPRE. Il consumatore e' protetto da un `if _legami:`
+## e il fallimento e' MUTO: nessun errore, suite verde, e il momento non si
+## annoda mai. E' lo stesso idioma gia' scritto in
+## `PostoDiSempre._filo_rosso()`, col suo commento che racconta la stessa
+## lezione: qui si riprova finche' non c'e'.
+func _i_legami() -> Node:
+	if _legami == null or not is_instance_valid(_legami):
+		_legami = get_tree().get_first_node_in_group("legami")
+	return _legami
+
+
 func _nuovo_giorno(_g: int) -> void:
 	_ascoltatori = 0
 	_ultimo_titolo = ""
@@ -330,8 +344,9 @@ func _applausi() -> void:
 		if n.has_method("speak"):
 			n.call("speak", ["bello", "grazie"], "felice")
 		# il filo si annoda: aver ascoltato insieme è un momento vissuto
-		if _legami:
-			_legami.call("momento", _nome_di(chi), "musica", _ultimo_titolo)
+		var leg := _i_legami()
+		if leg:
+			leg.call("momento", _nome_di(chi), "musica", _ultimo_titolo)
 	_ascoltatori = maxi(_ascoltatori, quanti)
 	if quanti > 0:
 		_toast(L10n.tf("%d vicini applaudono nel buio.", [quanti]) if quanti > 1 \

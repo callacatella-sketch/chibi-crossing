@@ -81,6 +81,11 @@ const TIPI := {
 	# scrivere. «la lettera che gli hai scritto tu» suonava storta in
 	# bocca a chi la stava scrivendo.
 	"risposta": ["quella lettera lasciata nella cassetta", ["ricordo", "insieme"]],
+	# LA SERA DEL CONCERTO. Il tipo mancava, e `momento()` esce alla prima
+	# riga per un tipo che non conosce: la serata all'anfiteatro non entrava
+	# in nessun filo, in nessuna lettera, in nessun sogno — e non contava
+	# nemmeno in `filo["n"]`, il numero della lettera d'addio.
+	"musica": ["quella sera seduti al buio ad ascoltare", ["insieme", "felice"]],
 	# gli ultimi desideri della settimana del congedo: i momenti d'ORO,
 	# quelli che valgono il doppio quando riaffiorano
 	"oro": ["quell'ultimo desiderio, vissuto insieme", ["grazie", "amico"]],

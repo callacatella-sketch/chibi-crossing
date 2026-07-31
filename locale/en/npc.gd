@@ -302,6 +302,7 @@ const T := {
 	"il desiderio esaudito vicino a casa": "the wish granted close to home",
 	"la partita a nascondino nel bosco": "the game of hide-and-seek in the woods",
 	"quella lettera lasciata nella cassetta": "that letter left in the postbox",
+	"quella sera seduti al buio ad ascoltare": "that evening sitting in the dark, listening",
 	"quell'ultimo desiderio, vissuto insieme": "that last wish, lived together",
 	"il giorno in cui ha fatto il fagotto": "the day they packed their bundle",
 	"il giorno della piccola valigia e del cappello in zampa":

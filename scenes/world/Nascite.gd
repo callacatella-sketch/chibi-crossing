@@ -260,9 +260,13 @@ func _annuncia() -> void:
 	var madre := str(_in_arrivo.get("madre", ""))
 	_toast(L10n.tf("In casa di %s e %s, stanotte, è arrivata una vocina nuova.",
 			[padre, madre]))
-	var mail := get_node_or_null("../Mail")
-	if mail == null:
-		mail = get_tree().get_first_node_in_group("mail")
+	# `../Mail` da qui vuol dire `CozyWorld/Mail`, che non esiste: Nascite e'
+	# una figlia RUNTIME di CozyWorld, e i suoi fratelli veri stanno DUE
+	# livelli sopra — lo stesso file lo sa gia' (usa `../../Player`). Il
+	# ripiego sul gruppo era morto: nessuno popola il gruppo "mail".
+	# Risultato: la lettera del Gufo per la nascita non e' mai partita, ed
+	# e' scritta e gia' tradotta.
+	var mail := get_node_or_null("../../Mail")
 	if mail and mail.has_method("queue_letter"):
 		mail.call("queue_letter", {
 			"from_key": "il Gufo",
@@ -308,7 +312,11 @@ func _aggiorna_prompt() -> void:
 	# cucciolo» compariva sullo schermo nero — e in un sogno, che ha come
 	# regola prima di non avere parole, sarebbe una didascalia in mezzo
 	# alla scena. E seguirebbe pure la camera del sogno.
-	var inter := get_node_or_null("../Interactions")
+	# stesso motivo: due livelli sopra. Con `../` la guardia non si eseguiva
+	# MAI (`has_method()` su null non solleva), e il cartellino restava
+	# acceso sopra il velo nero del sonno — e dentro il sogno, che ha come
+	# regola prima di non avere parole.
+	var inter := get_node_or_null("../../Interactions")
 	if inter and inter.has_method("is_sleeping") and bool(inter.call("is_sleeping")):
 		_prompt.visible = false
 		return

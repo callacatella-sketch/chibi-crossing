@@ -84,6 +84,20 @@ func _ready() -> void:
 		_player = get_node_or_null("../Player")).call_deferred()
 
 
+## IL FILO ROSSO, CHIESTO PIGRAMENTE. `Legami` NON sta nella scena: lo crea
+## `CozyWorld._ready()` dopo tre `await get_tree().process_frame`, e un
+## `call_deferred` del nostro `_ready` si svuota a fine frame 0 — quindi lo
+## trova `null` PER SEMPRE. Il consumatore e' protetto da un `if _legami:`
+## e il fallimento e' MUTO: nessun errore, suite verde, e il momento non si
+## annoda mai. E' lo stesso idioma gia' scritto in
+## `PostoDiSempre._filo_rosso()`, col suo commento che racconta la stessa
+## lezione: qui si riprova finche' non c'e'.
+func _i_legami() -> Node:
+	if _legami == null or not is_instance_valid(_legami):
+		_legami = get_tree().get_first_node_in_group("legami")
+	return _legami
+
+
 func _giorno() -> int:
 	return int(_daynight.get("day")) if _daynight else 1
 
@@ -192,7 +206,7 @@ func puo_scrivere(nome: String) -> bool:
 
 ## La chiama la cassetta quando non c'è posta da leggere.
 func apri() -> void:
-	if _aperto or _legami == null:
+	if _aperto or _i_legami() == null:
 		return
 	var lista := destinatari(_legami.get("_fili"))
 	if lista.is_empty():
@@ -322,7 +336,7 @@ func spedisci() -> void:
 ## cassetta. È il senso opposto del canale, quello che mancava.
 func _al_vicino(_testo: String) -> void:
 	if _legami:
-		_legami.call("momento", _a_chi, "risposta", str(_momento.get("t", "")))
+		_i_legami().call("momento", _a_chi, "risposta", str(_momento.get("t", "")))
 	if _visitors and _visitors.has_method("grazie_per_la_lettera"):
 		_visitors.call("grazie_per_la_lettera", _a_chi)
 	if _mail and _mail.has_method("queue_letter"):
@@ -368,9 +382,9 @@ func _toast(testo: String) -> void:
 func _voci_del_passo() -> Array:
 	match _passo:
 		0:
-			return destinatari(_legami.get("_fili")) if _legami else []
+			return destinatari(_i_legami().get("_fili")) if _i_legami() else []
 		1:
-			return pagina_del_filo(_legami.call("momenti_di", _a_chi)) if _legami else []
+			return pagina_del_filo(_i_legami().call("momenti_di", _a_chi)) if _i_legami() else []
 		2:
 			var out: Array = []
 			for p in PAROLE:

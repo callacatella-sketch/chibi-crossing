@@ -99,6 +99,9 @@ const AVANTI := 0.95
 ## Le manopole che il provino spazzola (CHIBI_PROVLUCE): la messa in scena
 ## legge queste, non le costanti, così una taratura non chiede di
 ## ricompilare la scena a mano.
+## Lo yaw di partenza del corpo del sogno: i gesti ci si appoggiano sopra
+## in ASSOLUTO, o la posa deriva col framerate.
+var _yaw_base := 0.0
 var prov_energia := -1.0
 var prov_avanti := -1.0
 
@@ -212,6 +215,13 @@ static func scegli(fili: Array, ultimo_chi: String, tiro: float) -> Dictionary:
 	for f in fili:
 		var momenti: Array = (f as Dictionary).get("momenti", [])
 		if momenti.is_empty():
+			continue
+		# E NEMMENO UN FILO GIA' TUTTO SOGNATO. Prima si estraeva comunque, e
+		# se `indice_da_sognare` tornava -1 la notte era buttata: chi e'
+		# partito pesa 4 contro 1 e il suo filo e' CONGELATO, quindi appena
+		# esaurito quella quota di peso diventava silenzio — mentre i vivi
+		# avevano ricordi freschi da salvare. Peggiorava con la partita.
+		if indice_da_sognare(momenti) < 0:
 			continue
 		var nome := str((f as Dictionary).get("nome", ""))
 		if nome == "":
@@ -632,6 +642,7 @@ func _corpo_del_sogno(s: Dictionary, centro: Vector3) -> Dictionary:
 	# rivolta a chi guarda: il rig del builder guarda −Z, e la camera sta
 	# indietro di 0.38 rad attorno a Y
 	nodo.rotation.y = 0.38 + PI
+	_yaw_base = nodo.rotation.y
 	return {"nodo": nodo, "parts": parts}
 
 
@@ -679,7 +690,12 @@ func _anima(corpo: Dictionary, s: Dictionary, t: float) -> void:
 				testa.rotation.x += a * 0.14
 		"cercarsi":
 			# si sporge, e non esce mai del tutto
-			corpo["nodo"].rotation.y += sin(u * PI) * 0.004
+			# ASSOLUTO, non `+=`: era l'unico incremento su un canale la
+			# cui base non viene riscritta, dentro una funzione chiamata una
+			# volta per FRAME. La deriva misurata andava da 9,6° a 30 fps a
+			# 46° a 144 — e in un primo piano dove le parole sono vietate il
+			# corpo e' l'unico canale che dice CHI hai sognato.
+			(corpo["nodo"] as Node3D).rotation.y = _yaw_base + sin(u * PI) * 0.06
 			if testa:
 				testa.rotation.y = sin(u * PI) * 0.28
 		"contatto":

@@ -13,6 +13,8 @@ const L := preload("res://systems/L10n.gd")
 const CRIT := preload("res://scenes/world/Critters.gd")
 const CAT := preload("res://scenes/build/BuildCatalog.gd")
 const ANIMO := preload("res://scenes/npc/Animo.gd")
+const GUFO := preload("res://scenes/npc/GufoOrders.gd")
+const ECO := preload("res://scenes/ui/Economy.gd")
 
 # le grafie americane che nel villaggio non si usano (inglese britannico)
 const AMERICANISMI := ["color", "colors", "colored", "colorful", "neighbor",
@@ -36,6 +38,7 @@ func run(t) -> void:
     _test_i_dati_non_si_traducono(t)
     _test_ogni_frase_avvolta_e_tradotta(t)
     _test_copertura(t)
+    _test_le_tabelle_dati(t)
 
 
 # ------------------------------------------ la guardia della REGOLA
@@ -367,3 +370,61 @@ func _test_copertura(t) -> void:
     for frase in ["Nuovo villaggio", "Continua", "Impostazioni", "Esci", "Lingua"]:
         t.ok(L.t(frase) != frase, "la schermata del titolo è tradotta: '%s'" % frase)
     L.imposta(prima)
+
+
+# ---------------------------------------- il buco delle TABELLE DATI
+## IL GUARDIANO DI SOPRA CERCA I LETTERALI dentro `L10n.t("…")` e le chiavi
+## rimandate. Tutto il testo che arriva da una TABELLA DATI gli è invisibile:
+## `L10n.t(str(d["title"]))` non ha nessun letterale da trovare, e la suite
+## resta verde per costruzione.
+##
+## È già costato due lettere-stagione intere del Gufo (il Salone e
+## l'Anfiteatro) e undici voci del negozio uscite in ITALIANO dentro la
+## versione inglese — fra cui le descrizioni dei pezzi da 60 a 420
+## noccioline, cioè le righe su cui un giocatore decide la spesa di mezza
+## stagione. Qui le tabelle si spulciano una per una, per nome.
+## Le parole che in inglese si scrivono UGUALI. Non vanno in tabella: la
+## guardia di `_test_forma_delle_tabelle` considera «chiave = valore» un
+## segno di traduzione finta, e ha ragione — una voce ricopiata nasconde
+## una dimenticanza. L'eccezione sta scritta qui, dove si vede, invece che
+## dentro la tabella dove si confonderebbe con le altre.
+const UGUALI_IN_INGLESE := ["Gazebo"]
+
+
+func _test_le_tabelle_dati(t) -> void:
+    var tabella := {}
+    for parte in L.TABELLE.get("en", []):
+        for chiave in parte.tabella():
+            tabella[chiave] = true
+
+    var mancanti: Array[String] = []
+    var quante := 0
+    # i desideri del Gufo: tutto ciò che finisce in un toast, in un banner,
+    # nel diario o dentro una busta
+    for elenco in [GUFO.CHAIN, GUFO.DESIDERI]:
+        for d in elenco:
+            for campo in ["title", "letter_text", "hint", "done_text", "celebrate_letter"]:
+                var v := str((d as Dictionary).get(campo, ""))
+                if v == "":
+                    continue
+                quante += 1
+                if not tabella.has(v):
+                    mancanti.append("GufoOrders[%s].%s" % [str(d.get("id", "?")), campo])
+    # il negozio: il NOME si vede sul bancone e nel pannello di costruzione,
+    # la DESCRIZIONE è quella che convince a spendere
+    for pezzo in ECO.SHOP_PIECES:
+        for campo2 in ["name", "desc"]:
+            var v2 := str((pezzo as Dictionary).get(campo2, ""))
+            if v2 == "":
+                continue
+            if str(v2) in UGUALI_IN_INGLESE:
+                continue
+            quante += 1
+            if not tabella.has(v2):
+                mancanti.append("Economy.SHOP_PIECES[%s].%s" % [str(pezzo.get("name", "?")), campo2])
+
+    for m in mancanti:
+        t.ok(false, "tabella dati senza traduzione inglese -> %s" % m)
+    t.eq(mancanti.size(), 0,
+            "ogni voce delle tabelle dati ha la sua traduzione (%d/%d)"
+            % [quante - mancanti.size(), quante])

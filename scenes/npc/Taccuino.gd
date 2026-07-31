@@ -432,7 +432,14 @@ func _chiudi_esitazione() -> void:
 	# giorno conta una volta sola: dieci funghi lasciati nello stesso
 	# pomeriggio sono un pomeriggio, non un'abitudine.
 	var g := _giorno()
-	var giorni: Array = _rinunce.get(classe, [])
+	# I GIORNI TORNANO DAL JSON COME FLOAT, e `7 in [7.0]` e' FALSO: dopo un
+	# riavvio il giorno gia' timbrato si riaggiungeva, `giorni.size()`
+	# arrivava a REGOLA_VOLTE e il Gufo scriveva «e' la seconda volta…»
+	# NELLO STESSO POMERIGGIO — cioe' l'affermazione non guadagnata che
+	# questa meccanica dichiara di non fare mai. Si normalizza a int.
+	var giorni: Array = []
+	for v in (_rinunce.get(classe, []) as Array):
+		giorni.append(int(v))
 	if not g in giorni:
 		giorni.append(g)
 		_rinunce[classe] = giorni

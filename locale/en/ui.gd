@@ -500,6 +500,48 @@ const T := {
 			"The photo I dreamed of — %s!\nI've hung it over my bed: I look at it every evening.\nThank you, with all my heart.",
 	"Il sogno di %s si è avverato: la foto è appesa in casa sua!":
 			"%s's dream has come true: the photo is hanging in their house!",
+
+	# ---- Le tabelle DATI (i desideri del Gufo, il negozio). Il guardiano
+	# della localizzazione cerca i letterali dentro L10n.t(): questo testo
+	# arriva da una tabella e gli sfuggiva, uscendo INTERO in italiano.
+	"Il salone di chi lo sogna":
+			"The salon of the one who dreams it",
+	"C'è una cosa che ho notato dal ramo alto.\nQualcuno, in paese, guarda gli altri e pensa\n«come starebbe bene, con un altro colore».\nNon glielo ha mai detto a nessuno.\nTi mando il progetto di un salone: lo specchio,\nla poltrona, il carrello dei colori. Costruiscilo,\ne poi dagli l'incarico: vedrai cosa sa fare.":
+			"There is something I have noticed from the high branch.\nSomeone in the village looks at the others and thinks\n\"how well they would suit another colour\".\nThey have never said so to a soul.\nI am sending you the plans for a salon: the mirror,\nthe chair, the trolley of colours. Build it,\nand then give them the post: you will see what they can do.",
+	"accogli qualcuno che sogna di fare l'estetista":
+			"take in someone who dreams of being a stylist",
+	"Ecco il progetto. Ora il villaggio ha un posto dove ci si guarda allo specchio insieme.":
+			"Here are the plans. Now the village has a place where we look in the mirror together.",
+	"Il posto dove si ascolta":
+			"The place where one listens",
+	"Ce n'è uno, in paese, che tamburella sempre.\nSul tavolo, sul recinto, sul manico della zappa.\nNon ha un posto dove farlo sul serio.\nTi mando il progetto di un anfiteatro: il tavolato,\nla conchiglia che rimanda la voce, le gradinate\ne un pianoforte a coda. Costruiscilo grande.\nPoi dagli l'incarico, e siediti anche tu.":
+			"There is one, in the village, who is always drumming.\nOn the table, on the fence, on the handle of the hoe.\nThey have nowhere to do it properly.\nI am sending you the plans for an amphitheatre: the boards,\nthe shell that carries the voice, the stone tiers\nand a grand piano. Build it big.\nThen give them the post, and sit down yourself.",
+	"accogli qualcuno che sogna di fare l'artista":
+			"take in someone who dreams of being an artist",
+	"Ecco il progetto. Da stasera il villaggio ha un posto dove ci si siede tutti insieme al buio.":
+			"Here are the plans. From tonight the village has a place where we all sit together in the dark.",
+	"Salone":
+			"Salon",
+	"Palco":
+			"Stage",
+	"Fondale":
+			"Shell",
+	"Gradinata":
+			"Tier",
+	"Pianoforte":
+			"Piano",
+	"Un sacco da farina rattoppato, appeso a un braccio di legno.\nCol sacco arriva tutta la palestra del villaggio: il\ntappetino, la panca, la sbarra, e la botte dell'acqua.":
+			"A patched flour sack, hung from a wooden arm.\nWith the sack comes the whole village gym: the\nmat, the bench, the bar, and the water barrel.",
+	"Specchio ovale, poltrona col pistone e carrello dei\ncolori: chi ci si siede se ne va diverso.":
+			"An oval mirror, a chair on a piston and a trolley of\ncolours: whoever sits down leaves looking different.",
+	"Un tavolato d'assi chiare. Posane quanti ne vuoi:\nil palco e' grande quanto lo fai tu.":
+			"A deck of pale boards. Lay down as many as you like:\nthe stage is as big as you make it.",
+	"La conchiglia acustica: rimanda la voce a chi\nascolta, e di sera si accende ai due lati.":
+			"The acoustic shell: it carries the voice out to the\nlisteners, and at dusk it lights up on both sides.",
+	"Tre gradini di pietra con i cuscini gia' messi.\nAffiancane quante ne servono: e' la platea.":
+			"Three stone steps with the cushions already out.\nSet as many side by side as you need: that is the audience.",
+	"A coda, col coperchio aperto. Chi sogna di fare\nl'artista non aspetta altro.":
+			"A grand, with the lid up. Whoever dreams of being\nan artist wants nothing else.",
 }
 
 
