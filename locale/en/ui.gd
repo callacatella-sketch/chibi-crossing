@@ -11,8 +11,24 @@ const T := {
 	"Levigato dall'acqua, sottile come una moneta.\nSulla riva dello stagno (E) fa quattro rimbalzi, se l'aria è ferma.":
 		"Worn smooth by the water, thin as a coin.\nOn the pond shore (E) it skips four times, if the air is still.",
 	# ---------------------------------------------------------- il titolo
+	# La riga sotto il titolo cambia col CLIMA del villaggio salvato
+	# (RiassuntoSalvataggio.sottotitolo): è l'unica cosa che il menù dice,
+	# e dice pochissimo — il resto lo fa vedere. In inglese vale doppio:
+	# niente di più esplicito dell'italiano, o diventa una notifica.
 	"Un villaggio ti aspetta sotto il Grande Albero.":
 			"A village is waiting for you under the Great Tree.",
+	"Il villaggio è più silenzioso, in questi giorni.":
+			"The village is quieter, these days.",
+	"Qualcuno sta salutando il mondo, sotto il Grande Albero.":
+			"Someone is saying goodbye to the world, under the Great Tree.",
+	"Il Grande Albero ti aspetta. C'è un posto vuoto, all'ombra.":
+			"The Great Tree is waiting for you. There is an empty place, in the shade.",
+	"Sono tutti qui, sotto il Grande Albero. Ti stavano aspettando.":
+			"They are all here, under the Great Tree. They were waiting for you.",
+	"Sotto il Grande Albero non si sta mai fermi.":
+			"Nobody stays still for long under the Great Tree.",
+	"Il Grande Albero ti aspetta, e i tuoi vicini anche.":
+			"The Great Tree is waiting for you, and so are your neighbours.",
 	"Continua": "Continue",
 	"Nuovo villaggio": "New village",
 	"Impostazioni": "Settings",
@@ -339,6 +355,34 @@ const T := {
 	"Faro caserma": "Beacon",
 	"Cuccia": "Dog kennel",
 	"Pennone": "Flagpole",
+	# --- la chiesa del paese. «Chapel», non «Church»: e la chiesa di un paese
+	# di due strade, non una cattedrale. Gli id restano italiani ---
+	"Chiesa": "Chapel",
+	"La chiesa del paese, tutta intera: la torre che si vede\nda ogni prato, le vetrate che accendono il pavimento, e\nil lume che si accende per chi è partito.":
+		"The village chapel, all of it: the tower you can see\nfrom every meadow, the windows that light up the floor,\nand the lamp lit for whoever has gone.",
+	"Campanile": "Bell tower",
+	"Muro di pietra": "Stone wall",
+	"Lastricato": "Flagstones",
+	"Vetrata": "Stained glass",
+	"Banco": "Pew",
+	"Volta": "Ribbed vault",
+	"Sagrato": "Church steps",
+	"Arcata": "Stone arch",
+	"Portale": "Church door",
+	"Frontone": "Rose gable",
+	"Abside": "Apse",
+	"Altare": "Altar",
+	"Candeliere": "Candle stand",
+	"Fonte dei nomi": "Naming font",
+	# --- IL PROLOGO. Sono le prime parole del gioco e le piu importanti:
+	# tradotte con la stessa cura dell'italiano, non dopo. I puntini di
+	# sospensione sono recitazione: si conservano tutti e tre. ---
+	"dov'è mamma?... dov'è papà?...": "where's mummy?... where's daddy?...",
+	"ho paura... mi sento sola...": "i'm scared... i feel so alone...",
+	"cosa? mi vuoi aiutare? perché?": "what? you want to help me? why?",
+	"forse con te... Mochi non si sentirà mai più sola?":
+		"maybe with you... Mochi will never feel alone again?",
+	"Armonium": "Harmonium",
 	"Serra": "Greenhouse",
 
 	# ------------------------------------------------------------ la palestra

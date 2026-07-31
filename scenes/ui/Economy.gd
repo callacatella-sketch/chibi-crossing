@@ -74,6 +74,8 @@ const SHOP_PIECES := [
 		"desc": "Un sacco da farina rattoppato, appeso a un braccio di legno.\nCol sacco arriva tutta la palestra del villaggio: il\ntappetino, la panca, la sbarra, e la botte dell'acqua."},
 	{"name": "Autopompa", "cost": 460, "cur": "nut", "cat": 0,
 		"desc": "La caserma dei pompieri, tutta intera: l'autopompa\nlucidata, la campana che chiama in piazza e gli\nstivali in fila. Qui non brucia niente: si tiene pronto."},
+	{"name": "Campanile", "cost": 700, "cur": "nut", "cat": 4,
+		"desc": "La chiesa del paese, tutta intera: la torre che si vede\nda ogni prato, le vetrate che accendono il pavimento, e\nil lume che si accende per chi è partito."},
 	{"name": "Bancone bar", "cost": 380, "cur": "nut", "cat": 0,
 		"desc": "Il bar del paese, tutto intero: il bancone di zinco, la\nmacchina del caffè che sbuffa, i tavolini sotto\nl'ombrellone e il biliardino. Il posto dove ci si trova."},
 	{"name": "Serra", "cost": 520, "cur": "nut", "cat": 2,
@@ -212,6 +214,9 @@ const CORREDO := {
 			"Scala a pioli", "Insegna caserma", "Campana caserma",
 			"Casco appeso", "Stivali", "Secchi", "Idrante", "Manichetta",
 			"Faro caserma", "Cuccia", "Pennone"],
+	"Campanile": ["Muro di pietra", "Lastricato", "Vetrata", "Banco", "Volta",
+			"Sagrato", "Arcata", "Portale", "Frontone", "Abside", "Altare",
+			"Candeliere", "Fonte dei nomi", "Armonium"],
 }
 
 

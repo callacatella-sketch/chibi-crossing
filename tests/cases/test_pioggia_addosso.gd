@@ -35,8 +35,28 @@ func run(t) -> void:
 			"col fagotto gia' in spalla il braccio NON gira oltre (clamp)")
 	t.ok(visitor.contains("bersagli[\"ear\"] += 0.85 * _riparo"),
 			"orecchie basse anche per i residenti")
-	t.ok(visitor.contains("_gait_ph += v * delta * 5.5 * (1.0 + 0.42 * _riparo)"),
-			"la fase del passo e' un accumulatore: si infittisce senza saltare (e ora avanza coi METRI, non col tempo)")
+	# IL PASSETTO SOTTO LA PIOGGIA. Era un `contains` sulla riga esatta del
+	# sorgente (e la riga adesso vive in Andatura.gd, condivisa col menù).
+	# Qui si guarda il COMPORTAMENTO: due andature che percorrono gli
+	# stessi metri, una al riparo e una sotto l'acqua — chi si sta
+	# bagnando deve aver fatto più passi, senza saltare la fase.
+	var and_s: GDScript = load("res://scenes/npc/Andatura.gd")
+	var fasi := []
+	for bagnata in [false, true]:
+		var a = and_s.new()
+		var corpo := Node3D.new()
+		a.parti({"arms": [], "legs": [], "ears": []}, corpo)
+		a.riparo = 1.0 if bagnata else 0.0
+		for f in 120:
+			corpo.position.x += 0.022
+			a.misura(1.0 / 60.0, corpo.position, 0.0)
+		fasi.append(a.fase)
+		corpo.free()
+	t.ok(float(fasi[1]) > float(fasi[0]) * 1.25,
+			"sotto la pioggia il passetto si infittisce (%.2f contro %.2f)"
+			% [fasi[1], fasi[0]])
+	t.ok(float(fasi[0]) > 1.0,
+			"e la fase è un accumulatore: cresce coi metri, non a scatti")
 
 	# --- Visitors: il flag per chi e' fuori senza tetto, ospite compreso ---
 	t.ok(visitors.contains("riparo_pioggia\", raining and not _build.has_cover"),

@@ -316,16 +316,26 @@ func visita_serena(luogo: String) -> void:
 
 ## La notte rimette a posto il corpo, non la memoria: l'attivazione cala in
 ## fretta, l'umore molto più piano, la pazienza torna piena.
-func passa_giorno(riposato := true) -> void:
+##
+## Con [param sbiadisci_marchi] false i marchi NON si spengono da soli:
+## restano finché qualcosa non li spegne davvero (`visita_serena`). Serve
+## a una paura sola in tutto il gioco — quella che Mochi si porta dal
+## Prologo. Un marchio da -0.85 con lo sbiadimento normale sparisce in
+## sette giorni: la paura del temporale se ne sarebbe andata da sé prima
+## che il giocatore avesse il tempo di accorgersi che c'era, e «tornarci
+## sotto finché non fa più paura» non sarebbe stato niente. Per i vicini
+## resta com'è sempre stato: le loro paure si consumano col tempo.
+func passa_giorno(riposato := true, sbiadisci_marchi := true) -> void:
 	arousal = clampf(arousal * (1.0 - CALMA), 0.0, 1.0)
 	umore = move_toward(umore, 0.0, RIENTRO_UMORE)
 	regolazione = clampf(regolazione + (0.85 if riposato else 0.35), 0.0, 1.0)
 	morsi_oggi = 0
 	# i marchi non confermati si spengono piano
-	for k in marchi:
-		var v: Dictionary = marchi[k]
-		v["carica"] = move_toward(float(v["carica"]), 0.0, ESTINZIONE)
-		marchi[k] = v
+	if sbiadisci_marchi:
+		for k in marchi:
+			var v: Dictionary = marchi[k]
+			v["carica"] = move_toward(float(v["carica"]), 0.0, ESTINZIONE)
+			marchi[k] = v
 	# le attese sbiadiscono verso il neutro: si può ricominciare a stupire
 	for k in attese:
 		attese[k] = move_toward(float(attese[k]), 0.0, 0.04)

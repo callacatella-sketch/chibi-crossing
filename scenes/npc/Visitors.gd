@@ -1280,6 +1280,57 @@ func corpo_di(label: String) -> String:
 	return str((_animi[label] as RefCounted).limbico.stato_corpo())
 
 
+## IL PERCHÉ, SU RICHIESTA — la seconda metà delle due strade. Il registro
+## (tasto N) mostra già `corpo_di`/`perche` per chi apri a tavolino; qui è
+## lo stesso perché ma chiesto NEL MONDO, salutando (T) chi è ancora scosso.
+##
+## Le due funzioni sotto sono PURE apposta: la decisione (c'è qualcosa da
+## dire?) e la composizione (corpo + il posto preciso, se c'è) si provano
+## headless senza toccare un Visitors vero — `_show_toast` presuppone la UI
+## costruita da `_build_ui()`, e chiamarla su un nodo appena creato con
+## `.new()` (senza `_ready`) manderebbe in crash qualunque test.
+
+## Il corpo ha qualcosa da dire, salutando? [param corpo] è la stringa RAW
+## di `stato_corpo()` — MAI tradotta qui: si traduce solo al momento di
+## mostrare, come ovunque in questo progetto. "tranquillo" (e tutto il
+## resto) non merita una nuvoletta: solo chi ha ancora il corpo scosso.
+static func corpo_ha_da_dire(corpo: String) -> bool:
+	return corpo == "col cuore in gola" or corpo == "ancora guardingo"
+
+
+## Compone corpo + il posto preciso in UNA frase — «gli è successo
+## qualcosa di brutto lì (3 volte)» — o lascia il corpo da solo se lo
+## spavento non ha un indirizzo (un sussulto addosso a Mochi, non un
+## marchio su un luogo). Entrambi gli argomenti arrivano GIÀ tradotti.
+static func spiegazione_del_corpo(corpo: String, perche: String) -> String:
+	return corpo if perche == "" else "%s — %s" % [corpo, perche]
+
+
+## Se il vicino è ancora scosso, glielo si vede in faccia PRIMA di dirlo:
+## niente cuoricino festoso finto, una nuvoletta di puntini e poi la
+## spiegazione vera. Ritorna true se ha parlato (così _saluta() sa di non
+## dover fare anche il saluto felice sopra).
+func _spiega_come_sta(label: String, node: Node3D) -> bool:
+	if not _animi.has(label) or node == null or not is_instance_valid(node):
+		return false
+	var animo: RefCounted = _animi[label]
+	var corpo := str(animo.limbico.stato_corpo())
+	if not corpo_ha_da_dire(corpo):
+		return false
+	var perche := ""
+	for l in luoghi_evitati(label):
+		var d: Dictionary = animo.limbico.perche_evita_dati(str(l))
+		if not d.is_empty():
+			perche = L10n.tf(str(d["testo"]), [int(d["n"])])
+			break
+	if node.has_method("chat_bubble"):
+		node.call("chat_bubble", "…")
+	if node.has_method("speak"):
+		node.call("speak", ["aspetta"], "neutro")
+	_show_toast("%s: %s." % [label, spiegazione_del_corpo(L10n.t(corpo), perche)])
+	return true
+
+
 ## Il diario di un residente: la STORIA dei suoi scatti, giorno per giorno.
 func diario_di(label: String) -> Array:
 	if not _animi.has(label):
@@ -2372,19 +2423,26 @@ func _saluta() -> void:
 			best_r = r
 	if best:
 		var nome := str((best_r.get("dna", {}) as Dictionary).get("name", ""))
+		var label := str(best_r.get("label", ""))
 		get_tree().create_timer(0.4).timeout.connect(func():
 			if is_instance_valid(best):
 				best.call("face_towards", _player.global_position)
-				best.call("_spawn_heart")
-				best.call("speak", ["ciao", "felice"], "felice")
+				# IL SALUTO È ANCHE UNA DOMANDA. Se il corpo ha ancora
+				# qualcosa da dire — un cuore in gola, un residuo di
+				# allerta — la festa forzata suonerebbe finta: il corpo
+				# del Limbico non mente, e la zampina alzata diventa il
+				# «richiedilo» di cui parlava la meccanica delle due
+				# strade. Altrimenti resta il saluto felice di sempre.
+				if not _spiega_come_sta(label, best):
+					best.call("_spawn_heart")
+					best.call("speak", ["ciao", "felice"], "felice")
 				# la prima zampina alzata si annoda al Filo Rosso;
 				# e a volte, salutandosi, un ricordo riaffiora
 				get_tree().call_group("legami", "momento", nome, "primo_saluto", "")
 				get_tree().call_group("legami", "ricorda", nome, best)
 				# durante un lutto, la zampina alzata È la consolazione:
 				# il Congedo sa chi sta aspettando un pensiero
-				get_tree().call_group("congedo", "consolato",
-						str(best_r.get("label", "")), nome))
+				get_tree().call_group("congedo", "consolato", label, nome))
 
 
 ## Il sasso piatto del collezionista: glielo si vede raccogliere (tk_sasso)

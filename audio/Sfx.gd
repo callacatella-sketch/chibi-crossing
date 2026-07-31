@@ -330,6 +330,8 @@ func _build_sfx() -> void:
 	_streams["respiro_in"] = _gen_respiro(true)
 	_streams["respiro_out"] = _gen_respiro(false)
 	_streams["frullo"] = _gen_frullo()
+	_streams["tuono_vicino"] = _gen_tuono(true)
+	_streams["tuono_lontano"] = _gen_tuono(false)
 
 
 # passo sull'erba: fruscio filtrato + piccolo tonfo
@@ -820,6 +822,78 @@ func _gen_crash() -> AudioStreamWAV:
 			buf[start + i] += sin(TAU * f * t) * exp(-t * 46.0) * rng.randf_range(0.12, 0.26)
 	_normalize(buf, 0.8)
 	return _wav(buf)
+
+
+## IL TUONO (solo il Prologo: nel villaggio non c'è mai un temporale, ed è
+## una regola — vedi Weather.gd). Due tuoni e non uno, perché la distanza
+## non è un volume: è un SUONO diverso.
+##
+## Vicino: l'aria si spacca. C'è il colpo secco in testa — la parte acuta,
+## quella che ti fa saltare — e sotto il rimbombo che se ne va in fretta.
+## Lontano: niente colpo. I chilometri hanno già mangiato tutti gli acuti,
+## e arriva solo un rotolio cupo che monta piano e ci mette un pezzo a
+## finire. È quello che dice al giocatore «sta passando» senza dirglielo.
+func _gen_tuono(vicino: bool) -> AudioStreamWAV:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 331 if vicino else 337
+	var dur := 2.6 if vicino else 4.6
+	var n := int(dur * RATE)
+	var buf := PackedFloat32Array()
+	buf.resize(n)
+	# tre poli in cascata: più ne attraversa, più il rumore diventa cupo —
+	# è quello che fanno davvero i chilometri d'aria
+	var lp1 := 0.0
+	var lp2 := 0.0
+	var lp3 := 0.0
+	var k1 := 0.34 if vicino else 0.09
+	var sub := 0.0
+	for i in n:
+		var t := float(i) / RATE
+		var white := rng.randf() * 2.0 - 1.0
+		lp1 += (white - lp1) * k1
+		lp2 += (lp1 - lp2) * k1
+		lp3 += (lp2 - lp3) * (k1 * 0.8)
+		# l'inviluppo: lo schianto attacca in un istante, il rotolio monta
+		var att: float = minf(t / (0.006 if vicino else 0.45), 1.0)
+		var dec := exp(-t * (2.1 if vicino else 0.72))
+		# il rimbombo non è liscio: rotola, e il rotolio sono due lentissime
+		# ondulazioni incommensurabili che non si richiudono mai uguali
+		var rotolio := 0.72 + 0.28 * sin(TAU * 0.43 * t) * cos(TAU * 0.29 * t + 1.1)
+		buf[i] = lp3 * att * dec * rotolio * (2.6 if vicino else 4.2)
+		# il sub: la pancia del tuono, quella che si sente nel petto
+		sub += (lp2 - sub) * 0.012
+		buf[i] += sub * att * dec * (1.8 if vicino else 2.6)
+	if vicino:
+		# LO SCHIOCCO. Solo il tuono vicino ce l'ha: è la parte acuta che
+		# non sopravvive alla distanza, ed è tutta la differenza fra
+		# «spaventoso» e «lontano».
+		var hp := 0.0
+		var prev := 0.0
+		for i in int(0.20 * RATE):
+			var t := float(i) / RATE
+			var white := rng.randf() * 2.0 - 1.0
+			hp = white - prev + hp * 0.86     # passa-alto: solo la frusta
+			prev = white
+			buf[i] += hp * exp(-t * 26.0) * 0.55
+		# e la coda che si spezza in due o tre riprese, come fa davvero
+		for k in 3:
+			var at := 0.35 + rng.randf_range(0.0, 1.1)
+			var start := int(at * RATE)
+			var l2 := 0.0
+			for i in int(0.5 * RATE):
+				if start + i >= n:
+					break
+				var t := float(i) / RATE
+				l2 += ((rng.randf() * 2.0 - 1.0) - l2) * 0.16
+				buf[start + i] += l2 * exp(-t * 5.0) * rng.randf_range(0.18, 0.36)
+	_normalize(buf, 0.86)
+	return _wav(buf)
+
+
+## Un tuono. [param vicino] true = lo schianto sopra la testa.
+func tuono(vicino := false, vol_db := -4.0) -> void:
+	play("tuono_vicino" if vicino else "tuono_lontano", vol_db,
+			randf_range(0.92, 1.06))
 
 
 # il "bloop" del galleggiante che tocca l'acqua

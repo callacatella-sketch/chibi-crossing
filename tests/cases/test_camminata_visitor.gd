@@ -30,6 +30,13 @@ func run(t) -> void:
 	_test_contratti(t)
 
 
+## Lo stato del passo (blend, fase, banco) vive nell'ANDATURA, che i
+## vicini condividono col diorama del menù (scenes/npc/Andatura.gd). Il
+## Visitor la tiene in `_andatura` e la costruisce al primo frame.
+func _and(v) -> RefCounted:
+	return v._andatura
+
+
 func _nuovo(t, vs: GDScript):
 	var dna_s: GDScript = load(DNA)
 	var v = vs.new()
@@ -59,13 +66,13 @@ func _test_cammino_e_spegnimento(t, vs: GDScript) -> void:
 		lo = minf(lo, (v._c_legs[0] as Node3D).rotation.x)
 		hi = maxf(hi, (v._c_legs[0] as Node3D).rotation.x)
 		torsione = maxf(torsione, absf((v._c_arms[0] as Node3D).rotation.y))
-	t.ok(v._walk_f > 0.85, "in cammino il blend è acceso (%.2f)" % v._walk_f)
+	t.ok(_and(v).blend > 0.85, "in cammino il blend è acceso (%.2f)" % _and(v).blend)
 	t.ok(hi - lo > 0.5, "le gambe fanno il ciclo VERO (escursione %.2f)" % (hi - lo))
 	t.ok(torsione > 0.04, "le braccia hanno la torsione di Mochi (%.3f)" % torsione)
 
 	# ci si ferma: il ciclo si SPEGNE da solo, senza scatti
 	_cammina(v, 90, Vector3.ZERO)
-	t.ok(v._walk_f < 0.06, "da fermo il blend si spegne da solo (%.3f)" % v._walk_f)
+	t.ok(_and(v).blend < 0.06, "da fermo il blend si spegne da solo (%.3f)" % _and(v).blend)
 	t.ok(absf((v._c_legs[0] as Node3D).rotation.x) < 0.05,
 			"…e le gambe si posano, mai congelate a mezz'aria")
 	t.almost((v._c_legs[0] as Node3D).position.y, 0.16,
@@ -75,32 +82,32 @@ func _test_cammino_e_spegnimento(t, vs: GDScript) -> void:
 func _test_cadenza_dai_metri(t, vs: GDScript) -> void:
 	var v = _nuovo(t, vs)
 	_cammina(v, 30, Vector3(0.022, 0, 0))     # a regime
-	var da: float = v._gait_ph
+	var da: float = _and(v).fase
 	_cammina(v, 60, Vector3(0.022, 0, 0))
-	var avanza_pieno: float = v._gait_ph - da
+	var avanza_pieno: float = _and(v).fase - da
 
 	var v2 = _nuovo(t, vs)
 	_cammina(v2, 30, Vector3(0.011, 0, 0))
-	var da2: float = v2._gait_ph
+	var da2: float = _and(v2).fase
 	_cammina(v2, 60, Vector3(0.011, 0, 0))
-	var avanza_mezzo: float = v2._gait_ph - da2
+	var avanza_mezzo: float = _and(v2).fase - da2
 	t.ok(avanza_pieno > avanza_mezzo * 1.6,
 			"la fase avanza COI METRI: velocità doppia ≈ passi doppi (%.2f vs %.2f)"
 			% [avanza_pieno, avanza_mezzo])
 
-	var fermo: float = v._gait_ph
+	var fermo: float = _and(v).fase
 	_cammina(v, 30, Vector3.ZERO)
-	t.almost(v._gait_ph, fermo, "da fermo la fase NON avanza (niente moonwalk)", 0.001)
+	t.almost(_and(v).fase, fermo, "da fermo la fase NON avanza (niente moonwalk)", 0.001)
 
 
 func _test_curva(t, vs: GDScript) -> void:
 	var v = _nuovo(t, vs)
 	_cammina(v, 80, Vector3(0.02, 0, 0), 1.4)    # svolta decisa
-	t.ok(v._banco < -0.02,
-			"in curva il corpo si PIEGA dentro (banco %.3f)" % v._banco)
+	t.ok(_and(v).banco < -0.02,
+			"in curva il corpo si PIEGA dentro (banco %.3f)" % _and(v).banco)
 	_cammina(v, 80, Vector3(0.02, 0, 0), 0.0)    # rettilineo
-	t.ok(absf(v._banco) < 0.012,
-			"in rettilineo il banco si raddrizza (%.3f)" % v._banco)
+	t.ok(absf(_and(v).banco) < 0.012,
+			"in rettilineo il banco si raddrizza (%.3f)" % _and(v).banco)
 
 
 func _test_teletrasporto(t, vs: GDScript) -> void:
@@ -109,7 +116,7 @@ func _test_teletrasporto(t, vs: GDScript) -> void:
 	v._process(1.0 / 60.0)
 	for f in 5:
 		v._process(1.0 / 60.0)
-	t.ok(v._walk_f < 0.1, "un teletrasporto non è un passo: il blend resta spento")
+	t.ok(_and(v).blend < 0.1, "un teletrasporto non è un passo: il blend resta spento")
 
 
 func _test_contratti(t) -> void:
@@ -124,5 +131,52 @@ func _test_contratti(t) -> void:
 	idle = idle.substr(0, idle.find("func run_plan"))
 	t.ok(idle.contains("_gait_chibi()"),
 			"anche l'idle chibi passa dal ciclo (lo spegnimento è SUO)")
-	t.ok(src.contains("_passo_prev_cos"),
-			"il passo suona all'appoggio, non a timer")
+	_test_passo_all_appoggio(t)
+
+
+## IL PASSO SUONA ALL'APPOGGIO, non a timer. Era un `contains` sul
+## sorgente — un controllo che resta verde anche cancellando la riga che
+## conta. Adesso si fa camminare un'andatura vera con un finto Sfx in
+## ascolto e si guarda QUANDO suona: i colpi devono cadere a distanza
+## regolare in FASE (uno ogni mezzo ciclo), non a distanza regolare nel
+## tempo — che è ciò che li rende passi invece che un metronomo.
+func _test_passo_all_appoggio(t) -> void:
+	var and_s: GDScript = load("res://scenes/npc/Andatura.gd")
+	var a = and_s.new()
+	var corpo := Node3D.new()
+	a.parti({"arms": [], "legs": [], "ears": []}, corpo)
+	var orecchio := _OrecchioSfx.new()
+	a.sfx = orecchio
+	# si cammina a velocità che CAMBIA: se il passo fosse a timer, i colpi
+	# resterebbero equidistanti nel tempo mentre la falcata si allunga
+	for f in 600:
+		var v := 0.75 + 0.45 * sin(float(f) * 0.02)
+		corpo.position.x += v / 60.0
+		a.misura(1.0 / 60.0, corpo.position, 0.0)
+		a.applica()
+		orecchio.fasi_viste.append([a.fase, orecchio.colpi])
+	t.ok(orecchio.colpi >= 8, "camminando, il passo suona (%d colpi)" % orecchio.colpi)
+	# fra un colpo e l'altro deve passare mezzo ciclo di fase, sempre
+	var fasi_colpo: Array = []
+	var ultimo := -1
+	for riga in orecchio.fasi_viste:
+		if int(riga[1]) != ultimo:
+			ultimo = int(riga[1])
+			fasi_colpo.append(float(riga[0]))
+	var peggior_scarto := 0.0
+	for i in range(2, fasi_colpo.size()):
+		peggior_scarto = maxf(peggior_scarto,
+				absf((float(fasi_colpo[i]) - float(fasi_colpo[i - 1])) - PI))
+	t.ok(peggior_scarto < 0.35,
+			"i colpi cadono ogni mezzo ciclo di FASE, non a tempo (scarto %.3f)"
+			% peggior_scarto)
+	corpo.free()
+
+
+## Un orecchio finto al posto di Sfx: conta i passi invece di suonarli.
+class _OrecchioSfx:
+	extends RefCounted
+	var colpi := 0
+	var fasi_viste: Array = []
+	func play(_suono: String, _db := 0.0, _pitch := 1.0) -> void:
+		colpi += 1

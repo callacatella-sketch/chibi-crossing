@@ -252,6 +252,115 @@ quindi un confronto esatto dell'albero dà falsi allarmi. Usare
 l'**istogramma per classe** (quello sì stabile) e, per le funzioni pure, scrivere
 una prova di equivalenza vecchia-vs-nuova implementazione.
 
+## Il Prologo: il tutorial che ha avuto conseguenze
+
+Un villaggio nuovo comincia da [`scenes/prologo/`](scenes/prologo/): tre
+minuti sotto un temporale, da cucciola. Ci si ripara sotto una foglia o si
+resta sotto l'acqua; ci si avvicina al rigonfiamento nell'erba o si fa un
+passo indietro. **Nessuna scelta è annunciata**: niente bivi, niente
+prompt, niente evidenziato — perché una scelta annunciata fa rispondere il
+personaggio-di-facciata del giocatore invece del giocatore.
+
+Il gioco intanto prende appunti ([`Taccuino.gd`](scenes/prologo/Taccuino.gd),
+logica pura) e da quei tre minuti escono **tre conseguenze vere**:
+
+1. i **contatori del Regista** partono inclinati — mai decisi;
+2. Mochi si porta dietro un **marchio Limbico** vero sul temporale
+   ([`CuoreDiMochi.gd`](scenes/world/CuoreDiMochi.gd)): trasalisce alle
+   prime gocce, e mesi dopo lo si spegne con l'estinzione (starci sotto
+   senza che succeda niente);
+3. la **prima lettera** del Gufo glieli recita.
+
+**Le trappole già pagate** (le tiene chiuse
+[`tests/cases/test_prologo.gd`](tests/cases/test_prologo.gd)):
+
+- **Il tetto dei semi va per ASSE, non per contatore.** `Director.ASSI`
+  somma più contatori in un asse solo: `bosco 2 + stelle 1` fa tre, e tre
+  è la soglia di `profilo()` — il Prologo decideva il carattere prima che
+  il giocatore entrasse nel villaggio. Gli assi si leggono da `Director`,
+  mai ricopiati.
+- **I semi devono ASPETTARE il Regista.** Nasce figlio runtime di
+  CozyWorld (mondo costruito su più frame): al risveglio di
+  `CuoreDiMochi` il gruppo `regista` è vuoto, e consegnare lì per lì
+  buttava i semi nel niente in silenzio — marchio e lettera arrivavano, i
+  contatori restavano a zero.
+- **Il marchio del temporale non sbiadisce da solo.** Lo sbiadimento
+  normale dei marchi (0.12 al giorno) lo cancellava in una settimana:
+  `Limbico.passa_giorno(riposato, sbiadisci_marchi)` con `false` è per lui
+  e per nessun altro (le paure dei vicini devono continuare a consumarsi).
+- **Le misure sono secondi, le soglie sono frazioni.** Confrontarle
+  direttamente dichiarava «si è riparata» a chi era passata sotto la
+  foglia un secondo e mezzo — e la lettera raccontava una notte mai
+  successa.
+- **Nel villaggio non c'è MAI un temporale** (regola di `Weather.gd`): il
+  Prologo è l'unico, ed è per questo che marchia. Nel villaggio è la
+  PIOGGIA a ricordarglielo.
+
+## Il menù principale è vivo (e sente)
+
+Il titolo ([`scenes/ui/TitleScreen.gd`](scenes/ui/TitleScreen.gd)) non è una
+cartolina: legge `village.json` — senza caricare la partita, bastano poche
+righe ([`RiassuntoSalvataggio.gd`](scenes/ui/RiassuntoSalvataggio.gd)) — e
+mostra il villaggio VERO. Il Grande Albero alla taglia raggiunta, i vicini
+veri che nel diorama FANNO qualcosa
+([`AttoreTitolo.gd`](scenes/ui/AttoreTitolo.gd): si rincorrono, dondolano
+sull'altalena, dormono, annusano un fiore, salutano te), e un **CLIMA**
+emotivo — `attesa · serena · allegria · armonia · malinconia · commiato ·
+lutto` — che comanda cielo, luce, saturazione, petali, fiori, posa e faccia
+di Mochi, e perfino quanto in fretta respira la camera.
+
+**E non si ripete mai.** Tre leve, nessuna delle quali produce contenuto
+nuovo da disegnare (guardia:
+[`tests/cases/test_menu_imprevedibile.gd`](tests/cases/test_menu_imprevedibile.gd)):
+
+1. **L'ORA VERA di chi gioca** ([`OraDelGiorno.gd`](scenes/ui/OraDelGiorno.gd)):
+   sei momenti (notte · alba · mattina · pomeriggio · tramonto · sera). Chi
+   apre a mezzanotte trova il prato blu con le lucciole; alle sette,
+   un'alba rosa. Il clima ci si posa SOPRA come modificatore — sei per
+   sette fanno quarantadue mattine, nessuna disegnata a mano. Per i
+   provini: `CHIBI_ORA=23`.
+2. **I mestieri SCADONO** e la regia ne assegna altri
+   ([`RegiaDiorama.gd`](scenes/ui/RegiaDiorama.gd)): chi resta un minuto
+   sul menù vede finire una rincorsa, uno che si sveglia, uno che va
+   all'altalena. Mai due volte di fila lo stesso mestiere.
+3. **Le SCENETTE a due**, rare apposta: incontro · fiore · risata ·
+   consolazione · girotondo. Quello che le rende speciali è non averle
+   mai viste, e questo menù si apre centinaia di volte. Più gli OSPITI:
+   una farfalla che passa di giorno (e tutti la seguono con gli occhi),
+   una stella cadente di notte.
+
+La semina viene dal tempo vero: chi fa cosa, e dove, cambia a ogni
+apertura. **L'albero no** — quello ha semina fissa: è *il* tuo albero, non
+deve rifarsi la chioma ogni volta.
+
+**Le regole che lo tengono in piedi** (guardia:
+[`tests/cases/test_menu_vivo.gd`](tests/cases/test_menu_vivo.gd)):
+
+- **Il lutto sta sopra tutto.** Un villaggio pieno di amici che ha perso
+  qualcuno ieri deve avere il menù grigio: se la statistica dell'allegria
+  coprisse il lutto sarebbe la cosa più fredda che il gioco possa fare.
+  Passati i giorni, il menù torna a colori — non dimentica, ricomincia a
+  respirare.
+- **Il lutto si dice TOGLIENDO, non spegnendo.** Si abbassa la
+  *saturazione*, non la luce (un menù al buio è rotto, non triste), e i
+  mestieri allegri spariscono: nel lutto nessuno si rincorre, non parte
+  nessuna scenetta tranne la consolazione, e non passa nessun ospite.
+  Vale **a qualunque ora**: se all'alba (che è rosa e allegra) il lutto
+  non riuscisse a scolorire, chi apre il gioco la mattina dopo una
+  perdita si vedrebbe accogliere da una cartolina.
+- **Il menù non si rompe MAI.** È l'unica schermata da cui si può ancora
+  rimediare a un salvataggio andato storto: `da_salvataggio()` accetta
+  qualunque schifezza e torna comunque un villaggio al giorno uno.
+- **Fonti uniche.** L'albero è quello del villaggio
+  ([`AlberoGeo.gd`](scenes/world/AlberoGeo.gd), estratto da GrandTree) e
+  l'andatura è quella dei vicini ([`Andatura.gd`](scenes/npc/Andatura.gd),
+  estratta da Visitor): camminano identici nel menù e nel gioco perché c'è
+  UNA implementazione. Mai ricopiarne le formule.
+- **Attenzione al `:=` sul riassunto.** `_save` non è tipizzato:
+  `var x := _save.qualcosa()` non compila (vedi la convenzione dei test).
+- **Mochi guarda a −Z, i chibi di ChibiBuilder a +Z.** Girarla come loro
+  la lascia di spalle — ed è la protagonista del menù.
+
 ## REGOLA: le fonti uniche di verità (una tabella, un posto)
 
 Tre dati del gioco vivevano duplicati in più file e avevano **già cominciato a
@@ -504,6 +613,58 @@ di commento con la successiva in una chiave spazzatura, e la chiave che segue
 
 I valori vanno anche **fra virgolette** dove sono stringhe: senza, un
 `compatibility_minimum = 4.10` viene letto come il float `4.1`.
+
+## Come deve COMINCIARE il gioco (il prologo)
+
+L'apertura del gioco è già decisa dall'autore e sta in
+[`docs/PROLOGO.md`](docs/PROLOGO.md): dal tasto «nuova avventura» si parte con una
+**piccola Mochi cucciola sotto una tempesta**, sola e spaventata, che si gira
+verso la camera e **parla al giocatore** rompendo la quarta parete; il cielo si
+apre, e il tutorial la fa **crescere** fino alla Mochi adulta di adesso.
+
+**Non è una proposta: è la direzione.** Prima di toccare la schermata del titolo,
+il primo avvio o il tutorial, leggi quel documento. Si realizza un passo alla
+volta insieme all'autore, e il gancio tecnico è già in casa: la crescita
+cucciolo→adulto è `Visitor.set_cucciolo(t)`, con `t` da 0.0 a 1.0.
+
+## Il salvataggio di prova (molte case, nessun abitante)
+
+Per provare i sistemi senza giocare venti ore c'è un villaggio generabile in
+`tools/`: **dieci case complete e vuote**, campagna del Gufo finita, catalogo e
+negozio sbloccati, dispensa piena.
+
+```
+tools/installa_salvataggio_prova.sh            # copia di sicurezza + installa
+tools/installa_salvataggio_prova.sh --vero     # senza la leva: qualcuno rifiuta
+tools/installa_salvataggio_prova.sh --ripristina
+```
+
+- [`genera_salvataggio_prova.py`](tools/genera_salvataggio_prova.py) scrive il
+  `village.json`. Le liste (nomi dei pezzi, nomi dei chibi, listino, tinte) le
+  **legge dai sorgenti**, non le ricopia: se qualcuno aggiunge un pezzo, il
+  generatore se ne accorge da solo.
+- [`verifica_salvataggio_prova.py`](tools/verifica_salvataggio_prova.py)
+  controlla il file **prima** di darlo al gioco, perché il caricamento scarta in
+  silenzio: una riga che non ha esattamente 5 elementi (4 per i bordi) sparisce
+  senza un messaggio, un nome fuori catalogo dà solo un `push_warning`, e una
+  cella nel letto del fiume non lascia traccia. Ricalcola anche le otto feature
+  della casa e la soglia della mente del candidato.
+- [`prova_arrivi.gd`](tools/prova_arrivi.gd) è la verifica **viva**: carica il
+  MainLevel vero, spegne la persistenza e fa arrivare quattro candidati.
+  `Godot --headless --path . --script res://tools/prova_arrivi.gd`
+
+**Due cose da sapere prima di dire «non funziona»:**
+
+1. **Una casa non è un letto.** Il gioco chiama casa libera un `Letto` che abbia
+   una **copertura sulla sua stessa cella** (`Visitors._free_house` +
+   `BuildSystem.has_cover`). Ma «libera» non è «accettata»: il candidato riduce
+   la casa a otto feature e serve `p > 0.72`. Una casa `Letto+Tetto` nuda vale
+   p ≈ 0.016 — arriva, guarda e riparte col trolley. Per questo le case generate
+   hanno muri, porta, finestra, comodità, giardino e camino.
+2. **Gli arrivi sono seriali**: uno alla volta (`if _active == null`), solo di
+   giorno e col sereno, con 45 s il primo e poi 80–160 s fra uno e l'altro.
+   Dieci case non si riempiono in un minuto. Per riempirle subito ci sono
+   `Visitors.debug_candidate/debug_goto_wait/debug_force_decide`.
 
 ## Test
 

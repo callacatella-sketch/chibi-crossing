@@ -108,6 +108,15 @@ const EXPRESSIONS := {
 		"brow_ang": 0.09, "brow_sq": 0.06, "eye_open": 0.82,
 		"pupil": 0.92, "mouth": "frown", "tilt": -0.03,
 	},
+	"piange": {  # IL PIANTO. Non un urlo: il singhiozzo di chi si trattiene.
+		# Gli occhi restano GRANDI e tondi — «occhi tristi mentre piange» —
+		# solo con le palpebre pesanti e le pupille dilatate dal pianto: un
+		# occhio stretto a fessura fa una smorfia, e la smorfia fa ridere.
+		# Le guance accese non sono allegria: si piange rossi.
+		"brow_ang": -0.24, "brow_h": 0.035, "eye_open": 0.62,
+		"pupil": 1.3, "mouth": "sad", "mouth_open": 0.2,
+		"blush": 0.34, "tilt": -0.15,
+	},
 }
 
 # gli umori del Chibiese (neutro | felice | domanda | triste) mappati sul
@@ -138,6 +147,7 @@ const BROW_PLAY := {
 	"felice": {"stile": "rimbalzo", "amp": 0.45},
 	"raggiante": {"stile": "sciolto", "amp": 0.8},
 	"triste": {"stile": "fremito", "amp": 1.0},
+	"piange": {"stile": "fremito", "amp": 1.5},
 	"concentrato": {"stile": "morsa", "amp": 0.8},
 	"sforzo": {"stile": "morsa", "amp": 1.3},
 	"imbronciato": {"stile": "morsa", "amp": 1.0},
@@ -281,6 +291,7 @@ func setup(rig: Dictionary) -> void:
 	_face_side = rig.get("face_side", 0.36)
 	_glints.assign(rig.get("glints", []))
 	_glint_r = float(rig.get("glint_r", 0.02))
+	_costruisci_lacrime(Vector3(rig.get("tear_off", Vector3(0, -0.105, -0.05))))
 	for g in _glints:
 		_glint_base.append(g.position)
 		_glint_base_scale.append(g.scale)
@@ -427,6 +438,85 @@ func head_tilt() -> float:
 
 # ------------------------------------------------------------ il motore
 
+# ------------------------------------------------------------- le lacrime
+#
+# Fanno parte del VOLTO, non della scena che le chiede: così piange chiunque
+# abbia una faccia — Mochi nel prologo, un vicino il giorno di un congedo — e
+# non c'è una seconda implementazione del pianto da tenere allineata.
+#
+# Due gocce, una per occhio, ognuna col SUO orologio. I periodi non sono
+# multipli l'uno dell'altro: due lacrime che cadono in coppia sono un
+# rubinetto, sfasate sono un pianto. Nascono ferme e gonfie sulla palpebra,
+# poi scivolano ACCELERANDO lungo la guancia e si staccano.
+
+const LACRIMA_PERIODI := [2.9, 3.7]
+
+var _lacrime: Array[Node3D] = []
+var _lacrima_base: Array[Vector3] = []
+var _pianto := 0.0
+
+
+func _costruisci_lacrime(giu: Vector3) -> void:
+	if _head == null or _eyes.is_empty():
+		return
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.80, 0.92, 1.0, 0.85)
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	for i in _eyes.size():
+		var nodo := Node3D.new()
+		nodo.name = "Lacrima%d" % i
+		nodo.position = (_eyes[i] as Node3D).position + giu
+		nodo.scale = Vector3.ZERO
+		_head.add_child(nodo)
+		var m := MeshInstance3D.new()
+		var sf := SphereMesh.new()
+		sf.radius = 0.022
+		sf.height = 0.044
+		sf.radial_segments = 12
+		sf.rings = 7
+		m.mesh = sf
+		m.material_override = mat
+		# una lacrima non è una biglia: allungata in giù e schiacciata
+		# contro la guancia, o sembra una perlina appiccicata
+		m.scale = Vector3(0.85, 1.35, 0.55)
+		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		nodo.add_child(m)
+		_lacrime.append(nodo)
+		_lacrima_base.append(nodo.position)
+
+
+func _apply_lacrime(delta: float) -> void:
+	if _lacrime.is_empty():
+		return
+	# si piange solo quando l'espressione è quella, e il pianto ARRIVA e VA
+	# via piano: comparire di colpo è la differenza fra un pianto e uno
+	# sticker
+	var voglio := _c_pianto()
+	_pianto = lerpf(_pianto, voglio, 1.0 - exp(-3.2 * delta))
+	for i in _lacrime.size():
+		if _pianto < 0.02:
+			_lacrime[i].scale = Vector3.ZERO
+			continue
+		var periodo: float = LACRIMA_PERIODI[i % LACRIMA_PERIODI.size()]
+		var fase := fposmod((_t + float(i) * 1.3) / periodo, 1.0)
+		var gonfia := smoothstep(0.0, 0.34, fase)
+		var scende := smoothstep(0.34, 1.0, fase)
+		var corsa := scende * scende      # parte piano e poi corre
+		var base: Vector3 = _lacrima_base[i]
+		_lacrime[i].position = base + Vector3(0, -corsa * 0.26, corsa * 0.05)
+		var viva := gonfia * (1.0 - smoothstep(0.86, 1.0, fase)) * _pianto
+		_lacrime[i].scale = Vector3.ONE * maxf(0.0, viva)
+
+
+## Quanto sta piangendo adesso: 1 quando l'espressione corrente è «piange»,
+## scalata dalla sua intensità.
+func _c_pianto() -> float:
+	if _expr == "piange":
+		return clampf(_intensity, 0.0, 1.0)
+	return 0.0
+
+
 func update(delta: float) -> void:
 	if _eyes.is_empty() and _brows.is_empty() and _mouths.is_empty():
 		return
@@ -448,6 +538,7 @@ func update(delta: float) -> void:
 	_apply_glints(delta)
 	_apply_mouth(delta)
 	_apply_blush()
+	_apply_lacrime(delta)
 
 
 # --------------------------------------------------- il catchlight vivo

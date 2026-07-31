@@ -6,14 +6,17 @@ extends RefCounted
 ## capisce), marchi sui luoghi, e l'estinzione che li spegne. Quello che
 ## mancava era che si VEDESSE, e un verbo per il giocatore.
 ##
-## Questi test difendono le tre cose che si romperebbero in silenzio:
+## Questi test difendono le quattro cose che si romperebbero in silenzio:
 ##  1. che la strada veloce possa SBAGLIARSI (spaventarsi di un amico che
 ##     arriva di corsa nel buio): è l'unico modo in cui la strada lenta ha
 ##     qualcosa da correggere, e senza quello la meccanica non si vede;
 ##  2. che la frase del perché non venga formattata PRIMA di essere
 ##     tradotta — in inglese sparirebbe senza un errore;
 ##  3. che le regole di Accompagnare restino quelle: si guarisce stando
-##     ACCANTO, e allontanarsi non è un fallimento ma un annullamento.
+##     ACCANTO, e allontanarsi non è un fallimento ma un annullamento;
+##  4. che il PERCHÉ SU RICHIESTA (salutare un vicino ancora scosso) parli
+##     solo quando il corpo ha davvero qualcosa da dire, e mai al posto
+##     del saluto felice quando non c'è niente da spiegare.
 
 const LIMBICO = preload("res://scenes/npc/Limbico.gd")
 const VISITORS = preload("res://scenes/npc/Visitors.gd")
@@ -31,6 +34,8 @@ func run(t) -> void:
 	_test_le_regole_di_accompagnare(t)
 	_test_estinzione_vera(t)
 	_test_momento_del_coraggio(t)
+	_test_il_perche_su_richiesta(t)
+	_test_wiring_perche_su_richiesta(t)
 	_test_fili_attaccati(t)
 
 
@@ -202,6 +207,55 @@ func _test_momento_del_coraggio(t) -> void:
 			"che cita il giorno")
 	t.eq(str(ACCOMPAGNA.LEGAMI_TIPO), "coraggio",
 			"e Accompagna annoda proprio quel tipo")
+
+
+## IL PERCHÉ SU RICHIESTA: salutare (T) un vicino ancora scosso lo fa
+## parlare invece di fare la festa finta. Le due metà sono PURE apposta
+## (vedi il commento sopra `corpo_ha_da_dire` in Visitors.gd): `_show_toast`
+## presuppone la UI costruita da `_build_ui()`, e chiamarla su un Visitors
+## appena creato con `.new()` manderebbe in crash qualunque test — quindi
+## la decisione e la composizione si provano senza toccare un nodo vivo,
+## e l'orchestrazione (chi chiama chi) si verifica leggendo il sorgente.
+func _test_il_perche_su_richiesta(t) -> void:
+	# la SOGLIA: solo due stati meritano una nuvoletta, mai "tranquillo"
+	t.ok(VISITORS.corpo_ha_da_dire("col cuore in gola"),
+			"un cuore in gola ha qualcosa da dire")
+	t.ok(VISITORS.corpo_ha_da_dire("ancora guardingo"),
+			"e anche il residuo dell'allerta")
+	t.ok(not VISITORS.corpo_ha_da_dire("tranquillo"),
+			"«tranquillo» a fianco di ogni saluto sarebbe un bollettino medico")
+	t.ok(not VISITORS.corpo_ha_da_dire("di buonumore"),
+			"e nemmeno un buonumore merita una spiegazione")
+	t.ok(not VISITORS.corpo_ha_da_dire(""),
+			"un corpo senza dati non deve far esplodere niente")
+	# la COMPOSIZIONE: un posto preciso se c'è, il corpo da solo altrimenti
+	t.eq(VISITORS.spiegazione_del_corpo("ancora guardingo", ""),
+			"ancora guardingo",
+			"senza un posto preciso, resta la sensazione pura del corpo")
+	t.eq(VISITORS.spiegazione_del_corpo("col cuore in gola",
+			"gli è successo qualcosa di brutto lì (3 volte)"),
+			"col cuore in gola — gli è successo qualcosa di brutto lì (3 volte)",
+			"col posto preciso, le due frasi si compongono in una")
+
+
+## L'orchestrazione di _spiega_come_sta: legge il corpo, cerca il perché
+## SOLO fra i posti che quel residente evita davvero (non una lista fissa
+## slegata), e non parla mai a vuoto.
+func _test_wiring_perche_su_richiesta(t) -> void:
+	var corpo := _body("res://scenes/npc/Visitors.gd", "_spiega_come_sta")
+	t.ok(corpo.contains("corpo_ha_da_dire("),
+			"la soglia passa dalla funzione pura, non da un if duplicato")
+	t.ok(corpo.contains("luoghi_evitati(label)"),
+			"il perché si cerca solo fra i posti che QUEL residente evita")
+	t.ok(corpo.contains("perche_evita_dati("),
+			"mai la versione preformattata: si traduce il template, non la frase")
+	t.ok(corpo.contains("chat_bubble") and corpo.contains("speak"),
+			"il corpo si vede prima di essere spiegato a parole")
+	var saluta := _body("res://scenes/npc/Visitors.gd", "_saluta")
+	t.ok(saluta.contains("_spiega_come_sta("),
+			"il saluto (T) è la richiesta: senza questo filo il verbo non esiste")
+	t.ok(saluta.contains("if not _spiega_come_sta"),
+			"e la festa finta scatta SOLO se il corpo non aveva niente da dire")
 
 
 ## I fili nei sorgenti: la strada lenta deve restare cablata, o si torna al

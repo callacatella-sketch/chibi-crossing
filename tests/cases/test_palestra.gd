@@ -185,8 +185,12 @@ func _test_lingua(t, attrezzi: Array) -> void:
 		var nome := str(v["name"])
 		t.ok(ui.contains('"%s":' % nome), "«%s» ha il suo nome inglese" % nome)
 	t.ok(ui.contains('"Palestra":'), "e la categoria pure")
-	var bs := FileAccess.get_file_as_string("res://scenes/build/BuildSystem.gd")
-	t.ok(bs.contains('"Palestra"]'),
+	# la categoria si chiede alla costante, non al sorgente: cercare
+	# '"Palestra"]' voleva dire pretendere che fosse l'ULTIMA riga, e il
+	# giorno che qualcuno aggiunge una categoria dopo (la Chiesa) questo
+	# test diventa rosso senza che la palestra abbia niente di rotto
+	var bs := preload("res://scenes/build/BuildSystem.gd")
+	t.ok(bs.CAT_NAMES.has("Palestra"),
 			"la palestra è una categoria sua nel builder")
 	# il catalogo non deve avere due pezzi con lo stesso nome: la chiave
 	# del salvataggio è quella, e il secondo vincerebbe in silenzio

@@ -639,13 +639,32 @@ func _build_head() -> void:
 	# alla base per il twitch e l'interno rosa inserito
 	for side: float in [-1.0, 1.0]:
 		var ear := Node3D.new()
-		ear.position = Vector3(side * 0.215, 0.315, -0.01)
+		# IL PERNO STA DENTRO LA TESTA, non sulla sua superficie. Con
+		# (0.215, 0.315) il primo anello del profilo cadeva FUORI
+		# dall'ellissoide in OGNI posa dell'animazione — da 1.06 a riposo a
+		# 1.41 con le orecchie appiattite dalla pioggia — e siccome `lathe`
+		# chiude il fondo con un tappo piatto, quel piattino rivolto in giù
+		# si vedeva sempre: le orecchie sembravano incollate sulla testona
+		# invece di uscirne. Misurato, non stimato (vedi il commento sotto).
+		ear.position = Vector3(side * 0.20, 0.30, -0.01)
 		ear.rotation.z = side * -0.32
 		ear.rotation.y = side * -0.15
 		_head.add_child(ear)
-		BUILDER.lathe(ear, [Vector2(0.11, 0.0), Vector2(0.105, 0.09),
+		# ...e il profilo COMINCIA SOTTO LO ZERO: l'orecchio ha un gambo che
+		# nasce dentro la testa e ne esce. Col tappo a y=-0.13 la metrica
+		# dell'ellissoide resta a 0.94 nel caso peggiore (rotation.x da -0.62
+		# del fiato sospeso a +0.92 della pioggia): sepolto sempre.
+		BUILDER.lathe(ear, [Vector2(0.085, -0.13), Vector2(0.108, -0.03),
+				Vector2(0.11, 0.0), Vector2(0.105, 0.09),
 				Vector2(0.078, 0.165), Vector2(0.042, 0.22), Vector2(0.0, 0.25)],
 				fur_mat, Vector3.ZERO, 18)
+		# il raccordo: una pallina di pelo a cavallo della giuntura. Anche
+		# col gambo sepolto resta una LINEA dove le due superfici si
+		# tagliano, e una linea netta legge come "due pezzi". Questa la
+		# ammorbidisce — è lo stesso mestiere dei ciuffi sulle guance.
+		var raccordo := _add_mesh(ear, _sphere(0.098, 16), fur_mat,
+				Vector3(0, -0.035, 0), Vector3(1.06, 0.72, 1.0))
+		raccordo.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		var inr: MeshInstance3D = BUILDER.lathe(ear, [Vector2(0.065, 0.0),
 				Vector2(0.058, 0.07), Vector2(0.033, 0.135), Vector2(0.0, 0.165)],
 				_toon_mat(INNER_EAR), Vector3(0, 0.04, -0.048), 14)
