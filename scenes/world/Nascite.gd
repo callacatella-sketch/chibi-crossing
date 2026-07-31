@@ -410,7 +410,7 @@ func _festeggia(figlio: Dictionary, nome: String) -> void:
 							[frase])))
 	var gtree := get_tree().get_first_node_in_group("grande_albero")
 	if gtree:
-		gtree.call("engrave", "❀", L10n.tf("è nato %s", [nome]))
+		gtree.call("engrave", "❀", "è nato %s", [nome])
 	get_tree().call_group("regista", "note", "socievole")
 	var sfx := get_node_or_null(^"/root/Sfx")
 	if sfx:

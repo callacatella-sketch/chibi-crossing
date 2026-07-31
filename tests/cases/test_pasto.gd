@@ -176,10 +176,17 @@ func _test_fabbriche(t) -> void:
     var vapore = PASTO.vapore()
     t.ok(vapore is GPUParticles3D, "il vapore è particelle")
     t.ok(not vapore.one_shot, "il vapore sale finché il piatto è caldo")
+    # SI LEGGE PRIMA DI LIBERARE. La riga di confronto piu' sotto usava
+    # `vapore.lifetime` DOPO `vapore.free()`: l'errore risaliva fino a
+    # `run()` e portava via l'INTERA funzione seguente — undici asserzioni,
+    # fra cui il recinto che impedisce alla routine di rubare lo stato a
+    # meta' pasto. La suite restava verde: un errore a runtime non fa
+    # fallire niente.
+    var vita_vapore: float = vapore.lifetime
     vapore.free()
     var sbuffo = PASTO.sbuffo()
     t.ok(sbuffo.one_shot, "lo sbuffo del soffio è un colpo solo")
-    t.ok(sbuffo.lifetime < vapore.lifetime + 1.0, "e si perde subito")
+    t.ok(sbuffo.lifetime < vita_vapore + 1.0, "e si perde subito")
     sbuffo.free()
 
 

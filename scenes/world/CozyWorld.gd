@@ -1288,13 +1288,18 @@ func _build_forest_trees(rng: RandomNumberGenerator) -> void:
 func nascondigli() -> Array:
 	var out: Array = []
 	for p in _log_spots:
-		out.append({"pos": p, "tipo": "tronco"})
+		out.append({"pos": p, "tipo": "tronco", "raggio": 0.45})
 	for p in _stump_spots:
-		out.append({"pos": p, "tipo": "ceppo"})
+		out.append({"pos": p, "tipo": "ceppo", "raggio": 0.38})
 	for r in _rock_spots:
-		# y era il raggio del masso: i sassolini non nascondono nessuno
+		# y era il raggio del masso: i sassolini non nascondono nessuno.
+		# E IL RAGGIO SI ESPORTA: senza, chi si nasconde arrivava al CENTRO
+		# della prop — dentro il masso, col collo che spuntava — mentre il
+		# toast diceva «sbuca da dietro il masso». Con il raggio ci si mette
+		# DIETRO, che e' tutto il gioco.
 		if r.y >= 0.55:
-			out.append({"pos": Vector3(r.x, 0, r.z), "tipo": "masso"})
+			out.append({"pos": Vector3(r.x, 0, r.z), "tipo": "masso",
+					"raggio": r.y})
 	return out
 
 
@@ -2582,20 +2587,51 @@ func _build_bridges() -> void:
 
 # ------------------------------------------------- sponde invalicabili
 
+## Mezza larghezza dei due guadi, piu' un margine per le zampe: e' da QUI
+## che si ricavano le aperture nel muro delle sponde. Il ponte e' largo
+## 1,62 m, il tronco 0,80.
+const PASSAGGIO_PONTE := 0.95
+const PASSAGGIO_TRONCO := 0.55
+
+
 func _build_river_barriers() -> void:
-	# come in AC: sul bordo dell'acqua ci si ferma, si passa sui ponti
+	# come in AC: sul bordo dell'acqua ci si ferma, si passa sui ponti.
+	#
+	# LE APERTURE SI RICAVANO DAL CAMMINATOIO VERO. Prima si saltava il
+	# CAMPIONE intero quando cadeva entro 1,8 m da un guado: col passo di
+	# 2,4 m questo toglieva fino a due scatole da 2,55, cioe' 4,65 m di
+	# muro mancante contro un ponte largo 1,62 e un tronco largo 0,80.
+	# Risultato misurato spazzando la capsula del giocatore: QUATTRO
+	# corridoi completi da sponda a sponda, e il fiume si attraversava a
+	# piedi asciutti — sospesi 45 cm sopra il pelo dell'acqua, perche' il
+	# suolo di collisione e' piatto a y=0 mentre lo shader scava.
+	#
+	# Adesso si costruiscono i TRATTI PIENI: la sponda meno le due
+	# aperture, larghe esattamente quanto ci si passa.
+	var tratti: Array = MATH.tratti_sponda(RIVER_Z_MIN, RIVER_Z_MAX,
+			[[BRIDGE_Z - PASSAGGIO_PONTE, BRIDGE_Z + PASSAGGIO_PONTE],
+			[LOG_Z - PASSAGGIO_TRONCO, LOG_Z + PASSAGGIO_TRONCO]])
+
 	var body := StaticBody3D.new()
-	var z := RIVER_Z_MIN
-	while z <= RIVER_Z_MAX:
-		if absf(z - BRIDGE_Z) > 1.8 and absf(z - LOG_Z) > 1.8:
+	for tr2: Array in tratti:
+		var z0 := float(tr2[0])
+		var z1 := float(tr2[1])
+		var z := z0
+		while z < z1 - 0.01:
+			var fine := minf(z + 2.4, z1)
+			var mezzo := (z + fine) * 0.5
+			var prof := fine - z
 			for side: float in [-1.0, 1.0]:
 				var shape := CollisionShape3D.new()
 				var box := BoxShape3D.new()
-				box.size = Vector3(0.35, 1.7, 2.55)
+				# +0.12 di sovrapposizione: fra due scatole contigue non
+				# deve restare una fessura da cui infilarsi
+				box.size = Vector3(0.35, 1.7, prof + 0.12)
 				shape.shape = box
-				shape.position = Vector3(MATH.river_x(z) + side * 2.8, 0.55, z)
+				shape.position = Vector3(MATH.river_x(mezzo) + side * 2.8,
+						0.55, mezzo)
 				body.add_child(shape)
-		z += 2.4
+			z = fine
 	add_child(body)
 
 

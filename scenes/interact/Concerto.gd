@@ -199,8 +199,13 @@ func _apri(piano: Node3D) -> void:
 	var dove: Vector3 = panca.global_position if panca \
 			else piano.global_position + piano.global_transform.basis * Vector3(0, 0, 0.55)
 	if nodo.has_method("do_routine"):
-		nodo.call("do_routine", "bench", dove - Vector3(0, dove.y, 0),
-				piano.global_position + Vector3(0, 0.5, 0))
+		# la panchetta come mobile: senza, il pianista si accovacciava
+		# sull'erba con la tavola che gli passava attraverso — e senza
+		# `aux` non riusciva nemmeno ad ALZARSI, restando seduto fino alla
+		# routine del mattino.
+		nodo.call("do_routine", "bench",
+				dove - Vector3(0, dove.y, 0) + Vector3(0, 0, 0.35),
+				piano.global_position + Vector3(0, 0.5, 0), panca)
 	_chiama_il_pubblico(piano)
 	_toast(L10n.tf("%s si siede al pianoforte. Le lanterne del palco si accendono.",
 			[_artista]))
@@ -269,7 +274,14 @@ func _chiama_il_pubblico(piano: Node3D) -> void:
 		var p: Vector3 = posto.global_position
 		var nodo2: Node3D = c["nodo"]
 		if nodo2.has_method("do_routine"):
-			nodo2.call("do_routine", "bench", p - Vector3(0, p.y, 0), qui)
+			# IL QUARTO ARGOMENTO E' IL POSTO. Senza, `r_bench` non solleva
+			# nessuno: il vicino si accovacciava a terra, conficcato
+			# nell'alzata di pietra del primo scalino, tagliato ai fianchi
+			# col cuscino all'altezza della vita. E il terzo argomento e' il
+			# palco: adesso `r_bench` lo legge, e chi ascolta guarda avanti.
+			nodo2.call("do_routine", "bench",
+					p - Vector3(0, p.y, 0) + (qui - p).normalized() * 0.5,
+					qui, posto)
 		_pubblico.append(str(c["label"]))
 
 

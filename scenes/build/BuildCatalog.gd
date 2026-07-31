@@ -1514,6 +1514,8 @@ static func _salone() -> Node3D:
 	var seggiola := Node3D.new()
 	seggiola.name = "Seggiola"
 	seggiola.position = Vector3(0.0, SAL_SEDUTA + 0.02, 0.07)
+	# l'ancoraggio E' gia' il posto: nessun sollevamento
+	seggiola.set_meta("seduta", Vector3.ZERO)
 	n.add_child(seggiola)
 	return n
 
@@ -2981,6 +2983,9 @@ static func _pianoforte() -> Node3D:
 	var panca := Node3D.new()
 	panca.name = "Panchetta"
 	panca.position = Vector3(0, 0, 0.42)
+	# ci si siede SULLA TAVOLA, non 52 cm sopra l'origine del pezzo (che e'
+	# la misura della Panchina, l'unico mobile per cui `r_bench` era nato)
+	panca.set_meta("seduta", Vector3(0, 0.30, 0))
 	n.add_child(panca)
 	_box(panca, Vector3(0.38, 0.035, 0.17), lacca, Vector3(0, 0.28, 0))
 	_box(panca, Vector3(0.34, 0.030, 0.14), feltro, Vector3(0, 0.30, 0))
@@ -3168,6 +3173,8 @@ static func _gradinata() -> Node3D:
 		var posto := Node3D.new()
 		posto.name = "Posto%d" % i3
 		posto.position = Vector3(cx, 0.29, cz)
+		# il cuscino E' il posto: appena sopra la sua gobba
+		posto.set_meta("seduta", Vector3(0, 0.03, 0))
 		n.add_child(posto)
 
 	# NIENTE CORRIMANO. Ce n'era uno per fianco, ma le gradinate si posano

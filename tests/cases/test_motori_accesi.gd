@@ -80,7 +80,12 @@ func _test_guarigione_raggiungibile(t) -> void:
 	var LIMB := load("res://scenes/npc/Limbico.gd")
 	var l = LIMB.new()
 	for i in 6:
-		l.senti("morso", "", "orto", -0.9)
+		# `senti()` NON ESISTE in Limbico: il metodo vero è `rivaluta`. La
+		# chiamata sbagliata sollevava un errore che INTERROMPEVA il resto
+		# di questa funzione — cioè proprio la prova che la guarigione di un
+		# trauma è raggiungibile — e la suite restava verde, perché un
+		# errore a runtime non fa fallire niente.
+		l.rivaluta("morso", "", -0.9, "orto")
 	var evitava: bool = l.evita("orto")
 	t.ok(evitava, "sei brutte esperienze e il posto diventa insopportabile")
 	var giri := 0

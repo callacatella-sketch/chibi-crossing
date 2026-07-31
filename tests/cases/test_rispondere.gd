@@ -119,9 +119,18 @@ func _test_grammatica(t) -> void:
 		for storpio in ["di il ", "di la ", "di i ", "di le ", "di lo ", "di gli ", "di l'"]:
 			t.ok(not frase.begins_with(storpio),
 					"'%s' -> «Mi ricordo %s»: nessuna preposizione storpia" % [tipo, frase])
-	# una lingua senza quegli articoli (l'inglese tradotto) passa intatta
-	t.eq(R.con_di("the game of hide-and-seek"), "di the game of hide-and-seek",
-			"su una frase che non ha articoli italiani non fonde nulla")
+	# FUORI DALL'ITALIANO NON SI TOCCA NIENTE. Questo test certificava il
+	# difetto: pretendeva «di the game of hide-and-seek» e lo chiamava
+	# «intatta». La fusione «di»+articolo e' una regola della lingua
+	# italiana; applicarla a una frase inglese produce una riga che nessun
+	# madrelingua scriverebbe, ed era visibile nell'anteprima della lettera.
+	var lingua_prima := L10n.lingua_corrente()
+	L10n.imposta("en")
+	t.eq(R.con_di("the game of hide-and-seek"), "the game of hide-and-seek",
+			"in inglese la frase passa DAVVERO intatta, senza «di» davanti")
+	L10n.imposta(lingua_prima)
+	t.eq(R.con_di("la partita a nascondino"), "della partita a nascondino",
+			"…e in italiano la preposizione si fonde come deve")
 
 
 func _test_cablaggio(t) -> void:

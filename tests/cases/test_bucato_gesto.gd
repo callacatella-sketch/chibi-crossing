@@ -39,9 +39,21 @@ func run(t) -> void:
 	t.ok(vita.contains("or _gesto_in_corso"),
 			"la E non si accavalla a un gesto in corso")
 
-	# il fallback senza corpo in scena (harness/headless): il vecchio istante
-	t.ok(vita.contains("il vecchio istante, senza gesto"),
-			"senza Mochi in scena il bucato funziona comunque")
+	# IL RIPIEGO SENZA CORPO IN SCENA (harness/headless). La prova cercava
+	# «il vecchio istante, senza gesto», che in VitaSecondaria vive SOLO
+	# dentro un commento: restava verde cancellando il codice e diventava
+	# rossa riformulando una frase. Si guarda il CODICE: il ramo «niente
+	# Mochi» dentro `_stendi_con_gesto`, e la funzione di ritiro — che era
+	# del tutto scoperta.
+	var con_gesto := _corpo(vita, "_stendi_con_gesto")
+	t.ok(con_gesto.contains("mochi == null"),
+			"senza Mochi in scena il bucato ha il suo ramo di ripiego")
+	t.ok(con_gesto.contains("_stendi(nodo"),
+			"…e quel ramo stende i panni lo stesso, senza il gesto")
+	t.ok(vita.contains("func _stendini_fallback_ritira"),
+			"e il ritiro ha il suo ripiego, che nessuno provava")
+	t.ok(_corpo(vita, "_ritira_con_gesto").contains("_stendini_fallback_ritira("),
+			"…ed è davvero chiamato dal ritiro col gesto")
 
 	# anche i panni dei residenti si spiegano uno alla volta
 	var stendi := _corpo(vita, "_stendi")

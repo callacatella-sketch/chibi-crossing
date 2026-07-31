@@ -523,7 +523,7 @@ func _partenza() -> void:
 	var gtree := get_tree().get_first_node_in_group("grande_albero")
 	if gtree:
 		gtree.call("engrave", "❀",
-				L10n.tf("%s è partito per il Grande Prato", [label]))
+				"%s è partito per il Grande Prato", [label])
 	var fiore := {"x": float(cell[0]) + 0.7, "z": float(cell[1]) + 0.9,
 			"dress": str(dna.get("dress", "f2a9bc")),
 			"fur": str(dna.get("fur", "e8d5b8")),

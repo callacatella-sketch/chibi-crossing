@@ -187,13 +187,31 @@ func queue_letter(letter: Dictionary) -> void:
 
 
 func save_extra() -> Dictionary:
-	if _letter_queue.is_empty():
-		return {}
-	return {"mail_queue": _letter_queue}
+	var d := {}
+	if not _letter_queue.is_empty():
+		d["mail_queue"] = _letter_queue
+	# LA BUSTA GIA' CONSEGNATA E NON ANCORA APERTA. `_deliver()` la toglie
+	# dalla coda con un `pop_front()` e SUBITO DOPO chiede il salvataggio:
+	# senza questa riga la lettera usciva dal disco e non entrava da nessuna
+	# parte. Al riavvio era sparita — e con lei il REGALO, che si materializza
+	# solo aprendo la busta. Colpiva l'addio di chi e' partito, le
+	# lettere-stagione del Gufo, il taccuino, le Promesse. E la finestra non
+	# e' esotica: la consegna scatta anche al risveglio, e «dormo e poi
+	# chiudo» e' il modo normale di finire una sessione.
+	if _has_mail and not _current.is_empty():
+		d["mail_current"] = _current
+	return d
 
 
 func load_extra(data: Dictionary) -> void:
 	_letter_queue = data.get("mail_queue", [])
+	var busta: Variant = data.get("mail_current")
+	if busta is Dictionary and not (busta as Dictionary).is_empty():
+		_current = busta
+		_has_mail = true
+		# la bandierina si rialza da sola: `_refresh_boxes` gira nel
+		# `_process` e legge `_has_mail`, ma le cassette non sono ancora
+		# in scena adesso — se ne occupa lui al primo giro utile
 
 
 # ---------------------------------------------------------------- ciclo

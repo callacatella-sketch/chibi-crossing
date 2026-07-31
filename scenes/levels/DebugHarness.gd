@@ -655,14 +655,45 @@ func _debug_estetista(dir: String) -> void:
 		await get_tree().create_timer(0.5).timeout
 		atteso += 0.5
 	print("ESTETISTA: cliente in poltrona -> %s" % str(sal.get("_cliente")))
+	# LA PROVA CHE CONTA: e' davvero SULLA seduta, o accovacciato a terra
+	# dentro il mobile? Si misura, non si guarda a occhio.
+	var segg := mobile.find_child("Seggiola", true, false) as Node3D
+	for rr in residenti:
+		if str((rr as Dictionary).get("label", "")) == str(sal.get("_cliente")):
+			var nn := (rr as Dictionary)["node"] as Node3D
+			if nn and segg:
+				print("ESTETISTA: seduta y=%.3f · cliente y=%.3f · scarto orizz=%.2f m"
+						% [segg.global_position.y, nn.global_position.y,
+						Vector2(nn.global_position.x - segg.global_position.x,
+						nn.global_position.z - segg.global_position.z).length()])
 	await get_tree().create_timer(1.0).timeout
 	await _shot(dir, "estetista_3_in_poltrona")
 
 	# e la seduta finisce
 	var atteso2 := 0.0
+	var miglior_scarto := 999.0
+	var y_al_meglio := -1.0
 	while str(sal.call("servito_oggi")) == "" and atteso2 < 40.0:
 		await get_tree().create_timer(0.5).timeout
 		atteso2 += 0.5
+		# SI CAMPIONA DURANTE LA SEDUTA: al momento della chiamata il
+		# cliente e' ancora dall'altra parte del prato, e misurare li'
+		# non dice niente.
+		for rr2 in residenti:
+			if str((rr2 as Dictionary).get("label", "")) != str(sal.get("_cliente")):
+				continue
+			var n2 := (rr2 as Dictionary)["node"] as Node3D
+			var sg2 := mobile.find_child("Seggiola", true, false) as Node3D
+			if n2 == null or sg2 == null:
+				continue
+			var d2 := Vector2(n2.global_position.x - sg2.global_position.x,
+					n2.global_position.z - sg2.global_position.z).length()
+			if d2 < miglior_scarto:
+				miglior_scarto = d2
+				y_al_meglio = n2.global_position.y
+	print("ESTETISTA: piu' vicino alla seduta -> scarto %.2f m, y=%.3f (la seduta e' a y=%.3f)"
+			% [miglior_scarto, y_al_meglio,
+			(mobile.find_child("Seggiola", true, false) as Node3D).global_position.y])
 	await get_tree().create_timer(1.0).timeout
 	await _shot(dir, "estetista_4_dopo")
 	# e si guarda CHI E' STATO SERVITO davvero, non un indice a caso: se il

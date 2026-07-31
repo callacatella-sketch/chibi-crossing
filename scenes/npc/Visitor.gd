@@ -58,6 +58,12 @@ const RECITA := {
 	"fagotto_in_spalla": {"ax": 0.3, "ax_dx": -2.3, "ear": 0.45, "hx": 0.1,
 			"vx": 0.1, "fagotto": true},
 	"testa_alta": {"ax": 0.1, "ear": -0.35, "hx": -0.3, "vx": -0.1},
+	# CHI ASCOLTA. Il pubblico del concerto la chiedeva gia' (Concerto.gd)
+	# e non esisteva in nessuna delle due tabelle: `_recita_applica` cadeva
+	# fuori da entrambi i rami e non consumava nemmeno il meta. Orecchie
+	# avanti, mento appena su, spalle ferme: e' il corpo di chi sta stando
+	# attento, non di chi finge.
+	"attento": {"ear": -0.42, "hx": -0.12, "ax": 0.08, "vx": -0.04},
 }
 # i transitori: reazioni del corpo che si consumano da sole
 const RECITA_TRANS := {
@@ -570,7 +576,7 @@ func _enter_state(s: String) -> void:
 			# La forma giusta era già scritta più sotto (riga ~1692):
 			# `.get("front", position)`, cioè «se non hai una casa, gira
 			# intorno a dove sei».
-			var front: Vector3 = _house.get("front", position)
+			var front: Vector3 = _house["front"]
 			var a := randf() * TAU
 			_walk_to(front + Vector3(cos(a), 0, sin(a)) * randf_range(1.0, 3.2), "r_idle")
 		"r_sniff":
@@ -578,8 +584,31 @@ func _enter_state(s: String) -> void:
 			_emote("?", Color(0.55, 0.45, 0.75))
 		"r_bench":
 			if _routine_aux and is_instance_valid(_routine_aux):
-				_yaw = _routine_aux.rotation.y + PI
-				var seat: Vector3 = _routine_aux.global_transform * Vector3(0, 0.52, 0.02)
+				# DOVE CI SI SIEDE. Di norma 52 cm sopra l'origine del
+				# mobile — la misura della Panchina, l'unico pezzo per cui
+				# questo stato era stato scritto. Ma un pezzo puo'
+				# dichiarare il SUO punto col meta "seduta": le gradinate,
+				# la poltrona del salone e la panchetta del pianoforte
+				# hanno ancoraggi che SONO gia' il posto, e sollevarli di
+				# mezzo metro metterebbe il vicino a mezz'aria.
+				# (Chi chiamava questo stato senza `aux` non sollevava
+				# niente: il corpo si accovacciava a terra DENTRO il
+				# mobile — il cliente del salone dentro la poltrona, il
+				# pubblico conficcato nell'alzata di pietra.)
+				var off: Vector3 = _routine_aux.get_meta("seduta",
+						Vector3(0, 0.52, 0.02))
+				var seat: Vector3 = _routine_aux.global_transform * off
+				# E SI GUARDA QUELLO CHE SI E' VENUTI A GUARDARE. `_fire_look`
+				# e' il terzo argomento di `do_routine` e questo stato non lo
+				# leggeva: il pubblico del concerto restava girato come
+				# l'aveva lasciato l'ultimo passo, e il cliente del salone
+				# non guardava lo specchio.
+				if _fire_look != Vector3.ZERO:
+					var verso := (_fire_look - seat) * Vector3(1, 0, 1)
+					if verso.length() > 0.01:
+						_yaw = atan2(-verso.x, -verso.z)
+				else:
+					_yaw = _routine_aux.rotation.y + PI
 				var tw := create_tween()
 				tw.tween_property(self, "position", seat, 0.4) \
 						.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -811,8 +840,15 @@ func _process(delta: float) -> void:
 		"r_bench":
 			_timer -= delta
 			_anim_sit()
-			if _timer <= 0.0 and _routine_aux and is_instance_valid(_routine_aux):
-				var down: Vector3 = _routine_aux.global_transform * Vector3(0, 0, 0.8)
+			if _timer <= 0.0:
+				# SENZA `aux` NON SI SCENDEVA. Il ramo pretendeva il mobile
+				# per calcolare dove rimettere i piedi, e chi era stato
+				# fatto sedere senza (il pianista del concerto) restava
+				# seduto FINO ALLA ROUTINE DEL MATTINO. Adesso, se il
+				# mobile non c'e' o e' sparito, ci si alza dov'e'.
+				var down := position
+				if _routine_aux and is_instance_valid(_routine_aux):
+					down = _routine_aux.global_transform * Vector3(0, 0, 0.8)
 				var tw := create_tween()
 				tw.tween_property(self, "position", Vector3(down.x, 0, down.z), 0.4) \
 						.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
@@ -897,6 +933,12 @@ func _process(delta: float) -> void:
 			if _timer <= 0.0:
 				_finish_task()
 		"tk_twirl", "tk_startle":
+			# IL RESPIRO PRIMA DI TUTTO. Senza, il corpo resta esattamente
+			# come l'ha lasciato l'ultimo passo — gamba in avanti, sollevata,
+			# nessun assestamento — e la posa GIRA SU SE' STESSA o scivola
+			# indietro col tween. Un corpo fermo a meta' falcata non e' una
+			# posa: e' un fermo immagine.
+			_anim_idle()
 			_timer -= delta
 			if _timer <= 0.0:
 				_finish_task()
@@ -916,7 +958,13 @@ func _process(delta: float) -> void:
 				_spawn_heart()
 				_finish_task()
 		"write":
-			# scrive il compleanno: zampina che scarabocchia, testa che segue
+			# scrive il compleanno: zampina che scarabocchia, testa che segue.
+			# `_anim_idle()` PRIMA: senza, gambe e corpo restavano inchiodati
+			# a meta' passo per tutti i 3,4 secondi — mentre il toast del
+			# compleanno invita a guardare. (Misurato eseguendo: dopo il
+			# cammino e dopo tre secondi di «write», i canali erano identici
+			# al terzo decimale.)
+			_anim_idle()
 			var to_board := _write_look - position
 			_yaw = lerp_angle(_yaw, atan2(-to_board.x, -to_board.z), 1.0 - exp(-7.0 * delta))
 			if _c_arms.size() == 2:
@@ -1499,9 +1547,16 @@ func _pasto_recita(delta: float) -> void:
 			_vis.rotation.x = sin(avanti * PI) * 0.07
 			if avanti < 0.06:
 				_faccia("beato")
-			# le orecchie si drizzano piano (il buon odore le sveglia)
+			# le orecchie si drizzano piano (il buon odore le sveglia) — MA
+			# SOPRA LA LORO BASE. Scritta in assoluto, questa riga faceva
+			# SCATTARE SU di 22 gradi le orecchie di un anziano (la sua base
+			# e' 0.38 * _eta) al primo frame di «annusa», e ce le teneva per
+			# tutto il pasto piu' i quattro-otto secondi di r_idle: tornavano
+			# giu' solo al primo passo. E' l'esempio scritto in CLAUDE.md,
+			# nel gesto piu' tenero del gioco. Stesso rimedio di _anim_dorme.
 			for orecchio in _c_ears:
-				(orecchio as Node3D).rotation.x = -0.28 * sin(avanti * PI)
+				(orecchio as Node3D).rotation.x = 0.38 * _eta \
+						- 0.28 * sin(avanti * PI) * (1.0 - 0.5 * _eta)
 		"soffia":
 			_head.rotation.x = 0.30
 			_vis.rotation.x = 0.04
@@ -2368,7 +2423,7 @@ func resident_wake() -> void:
 	_hidden = false
 	# stessa ragione: chi non ha più una casa si sveglia dov'è, non
 	# scompare in un errore
-	position = _house.get("front", position)
+	position = _house["front"]
 	var tw := create_tween()
 	tw.tween_property(_vis, "scale", Vector3.ONE, 0.5) \
 			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)

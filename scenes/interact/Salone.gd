@@ -261,8 +261,15 @@ func _chiama_il_prossimo(mobile: Node3D) -> void:
 			else mobile.global_position
 	if nodo2.has_method("do_routine"):
 		# "bench": ci arriva camminando e si SIEDE, guardando lo specchio
-		nodo2.call("do_routine", "bench", dove - Vector3(0, dove.y, 0),
-				mobile.global_position + Vector3(0, 0.9, -0.34))
+		# la SEGGIOLA come mobile: senza il quarto argomento il cliente si
+		# accovacciava SOTTO la poltrona — il pistone nella pancia, la
+		# seduta nel petto — e dentro la scatola di collisione del pezzo,
+		# quindi il giocatore non poteva nemmeno avvicinarsi a guardare la
+		# scena per cui il salone esiste. E lo specchio, che è il terzo
+		# argomento, adesso lo guarda davvero.
+		nodo2.call("do_routine", "bench",
+				dove - Vector3(0, dove.y, 0) + Vector3(0, 0, 0.55),
+				mobile.global_position + Vector3(0, 0.9, -0.34), seggiola)
 
 
 ## La seduta finisce: il ritocco addosso, il cliente si specchia contento

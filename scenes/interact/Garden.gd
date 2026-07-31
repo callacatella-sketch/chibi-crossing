@@ -574,7 +574,7 @@ func _on_new_day(_day: int) -> void:
 				# e incisa sugli anelli del Grande Albero
 				var gtree := get_tree().get_first_node_in_group("grande_albero")
 				if gtree:
-					gtree.engrave_once("fioritura", "✿", L10n.t("una fioritura nel giardino"))
+					gtree.engrave_once("fioritura", "✿", "una fioritura nel giardino")
 				# la prima fioritura regala il cappello di petali
 				var wr := get_tree().get_first_node_in_group("guardaroba")
 				if wr:

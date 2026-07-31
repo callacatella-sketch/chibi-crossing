@@ -33,13 +33,26 @@ const PROB_DOPPIO := 0.28         # l'ostinata che riprova subito
 var _cd := 8.0                    # il primo salto non si fa attendere troppo
 var _salto := {}                  # {t, dur, start, vel, doppio}
 var _pesce: Node3D
+## Quanto si rientra verso monte rispetto al piede della cascata: sul bordo
+## esatto il guizzo finirebbe dentro il velo d'acqua e non si vedrebbe.
+const RIENTRO_POZZA := 1.1
+
 var _coda: Node3D
 var _corpo_mat: StandardMaterial3D
 
 
 func _ready() -> void:
-	# la pozza dove la cascata spumeggia: stessa matematica del mondo
-	position = Vector3(MATH.river_x(MATH.FALL_Z) - 0.55, ACQUA_Y, MATH.FALL_Z)
+	# LA POZZA DOVE LA CASCATA SPUMEGGIA — e la cascata la posa `cliff_x`,
+	# non `river_x`. Erano due fonti diverse per lo stesso posto, e per
+	# definizione `cliff_x(FALL_Z) = river_x(FALL_Z) + 2.9`: il guizzo
+	# usciva 2,90 m piu' in la', in acqua liscia, fuori dalla foschia
+	# (raggio utile 0,8 m) e lontano dalle rocce, con un secondo grappolo
+	# di increspature scollegato dal primo. E l'indizio del bestiario
+	# («salta dove la cascata spumeggia») insegnava il posto sbagliato.
+	# Il rientro di RIENTRO_POZZA porta il salto DENTRO la pozza invece che
+	# sul bordo, dove finirebbe dietro il velo d'acqua.
+	position = Vector3(MATH.cliff_x(MATH.FALL_Z) - 0.55 - RIENTRO_POZZA,
+			ACQUA_Y, MATH.FALL_Z)
 	_pesce = _fai_trota()
 	# un guizzo che si VEDE dalla riva: il pesciolino è di taglia onesta
 	_pesce.scale = Vector3.ONE * 1.25

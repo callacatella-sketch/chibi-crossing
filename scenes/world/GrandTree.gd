@@ -86,8 +86,14 @@ func _stage_for(day: int) -> float:
 
 ## Incide un evento sugli anelli: un segno sul tronco, una riga nella
 ## cronaca. La linfa fa una piccola festa di scintille dorate.
-func engrave(icon: String, text: String) -> void:
-	_events.append({"d": _day(), "i": icon, "t": text})
+## `text` È LA CHIAVE ITALIANA, e `args` i suoi pezzi: la cronaca vive nel
+## SALVATAGGIO e si legge anni dopo, magari in un'altra lingua. Chi
+## formattava prima (`"nasce la costellazione «%s»" % nome`) incideva una
+## riga che in tabella non c'è, e restava italiana per sempre; chi traduceva
+## prima incideva la lingua di quel momento, per sempre. Si traduce solo
+## dove si MOSTRA, ed è scritto anche là.
+func engrave(icon: String, text: String, args: Array = []) -> void:
+	_events.append({"d": _day(), "i": icon, "t": text, "a": args})
 	if _events.size() > 40:
 		_events = _events.slice(_events.size() - 40)
 	_refresh_marks()
@@ -101,7 +107,7 @@ func engrave(icon: String, text: String) -> void:
 
 ## Come engrave, ma al massimo una volta al giorno per etichetta
 ## (le fioriture non riempiono il tronco).
-func engrave_once(tag: String, icon: String, text: String) -> void:
+func engrave_once(tag: String, icon: String, text: String, args: Array = []) -> void:
 	var key := "%s|%d" % [tag, _day()]
 	if _today_tags.has(key):
 		return
@@ -357,7 +363,8 @@ func _refresh_panel() -> void:
 		# il testo dell'incisione è salvato in italiano (viaggia nel villaggio):
 		# si traduce solo qui, quando la riga si disegna
 		row.text = L10n.tf("Giorno %d   %s  %s",
-				[int(ev["d"]), str(ev["i"]), L10n.t(str(ev["t"]))])
+				[int(ev["d"]), str(ev["i"]),
+				L10n.rendi({"k": str(ev["t"]), "args": ev.get("a", [])})])
 		row.add_theme_font_size_override("font_size", 13)
 		row.add_theme_color_override("font_color", UI_BROWN)
 		_rows.add_child(row)
@@ -449,7 +456,7 @@ func _build_ui() -> void:
 func save_extra() -> Dictionary:
 	var rows := []
 	for ev: Dictionary in _events:
-		rows.append([int(ev["d"]), str(ev["i"]), str(ev["t"])])
+		rows.append([int(ev["d"]), str(ev["i"]), str(ev["t"]), ev.get("a", [])])
 	return {"tree_events": rows}
 
 
@@ -459,8 +466,11 @@ func load_extra(data: Dictionary) -> void:
 		return
 	_events.clear()
 	for r in rows:
-		if r is Array and r.size() == 3:
-			_events.append({"d": int(r[0]), "i": str(r[1]), "t": str(r[2])})
+		if r is Array and r.size() >= 3:
+			# le cronache incise prima degli argomenti hanno tre colonne:
+			# si riaprono senza rompersi, con la lista vuota
+			_events.append({"d": int(r[0]), "i": str(r[1]), "t": str(r[2]),
+					"a": (r[3] as Array) if r.size() > 3 and r[3] is Array else []})
 	_refresh_marks()
 
 

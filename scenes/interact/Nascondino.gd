@@ -226,13 +226,28 @@ func _accettato() -> void:
 			"spot": (ordinati[i]["pos"] as Vector3),
 			"tipo": str(ordinati[i]["tipo"]),
 			"indole": _indole_breve(visitors, r),
+			"raggio": float((ordinati[i] as Dictionary).get("raggio", 0.5)),
 			"trovato": false,
 			"t_risata": randf_range(4.0, 8.0),
 			"t_resta": randf_range(4.0, 7.0),
 		}
 		_nascosti.append(voce)
 		if nodo.has_method("do_routine"):
-			nodo.call("do_routine", "sniff", voce["spot"], voce["spot"])
+			# DIETRO LA PROP, NON DENTRO. `spot` e' la posizione ESATTA del
+			# masso: mandarci il corpo lo infilava nella pietra — su un
+			# masso grande spuntava il collo, su uno piccolo il vicino era
+			# in piena vista, mentre il toast diceva «sbuca da dietro il
+			# masso». Ora si scosta del raggio della prop, dal lato
+			# OPPOSTO a chi conta: e' quello il gesto.
+			var centro: Vector3 = voce["spot"]
+			var raggio := float(voce.get("raggio", 0.5))
+			var via := (centro - _dove_si_conta()) * Vector3(1, 0, 1)
+			if via.length() < 0.01:
+				via = Vector3(1, 0, 0)
+			var dietro: Vector3 = centro + via.normalized() * (raggio + 0.45)
+			voce["dietro"] = dietro
+			# e si guarda la prop, cioe' si sta rannicchiati dalla sua parte
+			nodo.call("do_routine", "sniff", dietro, centro)
 		if nodo.has_method("speak"):
 			nodo.call("speak", ["risata"], "felice")
 	_stato = "conteggio"
@@ -473,6 +488,13 @@ func _indoli_di(visitors: Node, squadra: Array) -> Array:
 	for r in squadra:
 		out.append(_indole_breve(visitors, r))
 	return out
+
+
+## Da dove si conta: è rispetto a QUESTO punto che ci si mette dietro una
+## prop — chi conta è il giocatore, ed è da lui che ci si nasconde.
+func _dove_si_conta() -> Vector3:
+	var pl := get_tree().get_first_node_in_group("player_controller")
+	return (pl as Node3D).global_position if pl else Vector3.ZERO
 
 
 ## L'indole che conta per il nascondino ("timido" | "chiacchierone" | "").

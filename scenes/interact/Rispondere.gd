@@ -166,8 +166,13 @@ static func parole_suggerite(momento: Dictionary) -> Array:
 ## partita» non esiste: si dice «della». Le preposizioni articolate sono
 ## la stessa cura che il gioco mette nei plurali delle commissioni — senza,
 ## la lettera più intima del gioco sembra scritta da una macchina.
-## Su una lingua che non ha questi articoli (l'inglese tradotto) non
-## trova nulla da fondere e restituisce la frase intatta.
+## E VALE SOLO IN ITALIANO. Il commento di prima diceva che su una lingua
+## senza questi articoli «non trova nulla da fondere e restituisce la frase
+## intatta»: era falso, perche' il ripiego finale anteponeva comunque
+## «di ». In inglese usciva «I remember di the game of hide-and-seek»,
+## visibile nell'anteprima della lettera a ogni partita non italiana. La
+## fusione e' una regola della LINGUA, non del testo: fuori dall'italiano
+## non si tocca niente.
 const ARTICOLI := {"il ": "del ", "lo ": "dello ", "la ": "della ",
 		"i ": "dei ", "gli ": "degli ", "le ": "delle ",
 		"l'": "dell'", "un ": "di un ", "una ": "di una ",
@@ -175,6 +180,8 @@ const ARTICOLI := {"il ": "del ", "lo ": "dello ", "la ": "della ",
 
 
 static func con_di(racconto: String) -> String:
+	if L10n.lingua_corrente() != L10n.SORGENTE:
+		return racconto
 	for art in ARTICOLI:
 		if racconto.begins_with(str(art)):
 			return str(ARTICOLI[art]) + racconto.substr(str(art).length())
@@ -364,7 +371,7 @@ func _al_grande_prato(_testo: String) -> void:
 		congedo.call("accendi_fiore", _a_chi)
 	var albero := get_tree().get_first_node_in_group("grande_albero")
 	if albero and albero.has_method("engrave"):
-		albero.call("engrave", "✉", "una lettera per %s, al Grande Prato" % _a_chi)
+		albero.call("engrave", "✉", "una lettera per %s, al Grande Prato", [_a_chi])
 	_toast(L10n.tf("La lettera è partita per il Grande Prato. Stasera il fiore di %s sarà acceso.",
 			[_a_chi]))
 

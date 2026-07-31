@@ -499,7 +499,7 @@ func _nuovo_giorno(_d: int) -> void:
 			var gtree: Node = get_tree().get_first_node_in_group("grande_albero")
 			if gtree:
 				gtree.call("engrave_once", "argento_" + str(nome), "🍂",
-						L10n.tf("l'autunno di %s è cominciato", [nome]))
+						"l'autunno di %s è cominciato", [nome])
 			var mail: Node = get_node_or_null("../../Mail")
 			if mail:
 				mail.call("queue_letter", {

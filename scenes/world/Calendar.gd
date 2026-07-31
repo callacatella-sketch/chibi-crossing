@@ -264,7 +264,7 @@ func throw_party(res_name: String, label: String, node: Node3D) -> void:
 					other.call("celebrate"))
 	var gtree := get_tree().get_first_node_in_group("grande_albero")
 	if gtree:
-		gtree.engrave("★", L10n.tf("la festa a sorpresa di %s", [label]))
+		gtree.engrave("★", "la festa a sorpresa di %s", [label])
 	if _mail:
 		_mail.call("queue_letter", {
 			"from_key": res_name,
@@ -809,7 +809,7 @@ func _throw_festa(f: Dictionary) -> void:
 					node.call("celebrate"))
 	var gtree := get_tree().get_first_node_in_group("grande_albero")
 	if gtree and gtree.has_method("engrave_once"):
-		gtree.engrave_once(str(f["id"]), str(f["icona"]), L10n.t(str(f["cronaca"])))
+		gtree.engrave_once(str(f["id"]), str(f["icona"]), str(f["cronaca"]))
 	if _build:
 		_build.request_save()
 

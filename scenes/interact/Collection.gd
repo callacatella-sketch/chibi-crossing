@@ -727,7 +727,7 @@ func add_catch(kind: String) -> void:
 	if int(_counts[kind]) == 1:
 		var gtree := get_tree().get_first_node_in_group("grande_albero")
 		if gtree:
-			gtree.engrave("♦", L10n.tf("in collezione: %s", [CRIT.con_articolo(kind)]))
+			gtree.engrave("♦", "in collezione: %s", [{"k": CRIT.con_articolo_chiave(kind)}])
 		# la prima lucciola (regale compresa) accende la lanterna da polso
 		if CRIT.classe(kind) == "lucciola":
 			var wr := get_tree().get_first_node_in_group("guardaroba")

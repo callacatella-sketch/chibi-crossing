@@ -61,8 +61,16 @@ func _test_posa_e_livrea(t, s: GDScript) -> void:
 	var trota = t.stage(s.new())
 	t.almost(trota.position.z, float(math.FALL_Z),
 			"la pozza sta alla Z della cascata (fonte unica)", 0.001)
-	t.almost(trota.position.x, float(math.river_x(math.FALL_Z)) - 0.55,
-			"…e alla X del fiume in quel punto", 0.001)
+	# LA FONTE E' `cliff_x`, NON `river_x`. Questo test certificava il
+	# valore sbagliato: la cascata la posa CozyWorld con `cliff_x - 0.55`, e
+	# per definizione `cliff_x(FALL_Z) = river_x(FALL_Z) + 2.9` — la trota
+	# saltava quasi tre metri lontano dalla schiuma che l'indizio del
+	# bestiario le attribuisce.
+	t.almost(trota.position.x,
+			float(math.cliff_x(math.FALL_Z)) - 0.55 - float(s.RIENTRO_POZZA),
+			"…e alla X della CASCATA, rientrata dentro la pozza", 0.001)
+	t.ok(absf(trota.position.x - (float(math.cliff_x(math.FALL_Z)) - 0.55)) < 2.0,
+			"il guizzo sta dentro la pozza, non a mezzo fiume di distanza")
 	t.ok(not trota._pesce.visible, "tra un salto e l'altro il pesce non c'è")
 
 	var critters: GDScript = load(CRITTERS)

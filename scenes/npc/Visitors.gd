@@ -2235,7 +2235,7 @@ func _decide() -> void:
 		# un arrivo si incide sugli anelli del Grande Albero
 		var gtree := get_tree().get_first_node_in_group("grande_albero")
 		if gtree:
-			gtree.engrave("♥", L10n.tf("%s si è trasferito nel villaggio", [_cand_label]))
+			gtree.engrave("♥", "%s si è trasferito nel villaggio", [_cand_label])
 		# e il nuovo abitante andrà a scrivere il compleanno sulla lavagna
 		var cal := get_tree().get_first_node_in_group("calendario")
 		if cal:

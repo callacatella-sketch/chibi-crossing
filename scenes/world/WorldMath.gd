@@ -64,3 +64,27 @@ static func tuft_vnoise(x: float, z: float) -> float:
 static func tuft_field(x: float, z: float) -> float:
 	return tuft_vnoise(x * 0.30, z * 0.30) * 0.65 \
 			+ tuft_vnoise(x * 0.85 + 37.0, z * 0.85 + 11.0) * 0.35
+
+
+## I TRATTI PIENI di una sponda: l'intervallo [z0, z1] meno le aperture dei
+## guadi. PURA — il muro del fiume si prova senza costruire il mondo.
+##
+## Serve perche' il difetto vero non era la costruzione ma la MISURA: si
+## saltava un campione intero (fino a 4,65 m di muro) per lasciar passare
+## un ponte largo 1,62, e restavano quattro corridoi da sponda a sponda.
+static func tratti_sponda(z0: float, z1: float, aperture: Array) -> Array:
+	var tratti: Array = [[z0, z1]]
+	for ap: Array in aperture:
+		var resto: Array = []
+		for tr: Array in tratti:
+			var a0 := float(tr[0])
+			var a1 := float(tr[1])
+			if float(ap[1]) <= a0 or float(ap[0]) >= a1:
+				resto.append(tr)
+				continue
+			if float(ap[0]) > a0:
+				resto.append([a0, float(ap[0])])
+			if float(ap[1]) < a1:
+				resto.append([float(ap[1]), a1])
+		tratti = resto
+	return tratti

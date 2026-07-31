@@ -250,7 +250,7 @@ func _confirm_name() -> void:
 	_rebuild_lines()
 	var gtree := get_tree().get_first_node_in_group("grande_albero")
 	if gtree:
-		gtree.engrave("★", "nasce la costellazione «%s»" % cname)
+		gtree.engrave("★", "nasce la costellazione «%s»", [cname])
 	_toast(L10n.tf("«%s» brilla nel cielo, da stanotte e per sempre.", [cname]))
 	if _build:
 		_build.request_save()
@@ -593,7 +593,7 @@ func memorial(cname: String, seed_v: int) -> void:
 	_toast(L10n.tf("✨ %s adesso abita lassù: guarda il cielo, stanotte.", [cname]))
 	var gtree := get_tree().get_first_node_in_group("grande_albero")
 	if gtree:
-		gtree.engrave("★", "la costellazione di %s è apparsa in cielo" % cname)
+		gtree.engrave("★", "la costellazione di %s è apparsa in cielo", [cname])
 	if _build:
 		_build.request_save()
 
