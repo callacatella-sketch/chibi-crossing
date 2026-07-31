@@ -74,8 +74,8 @@ func _test_le_palette_sono_complete_e_diverse(t) -> void:
 func _test_la_notte_e_notte(t) -> void:
 	t.ok(ORA.e_notte(ORA.palette("notte")) > 0.9, "la notte è notte piena")
 	t.ok(ORA.e_notte(ORA.palette("sera")) > 0.4, "la sera è già mezza notte")
-	t.almost(ORA.e_notte(ORA.palette("mattina")), 0.0, 0.01, "la mattina no")
-	t.almost(ORA.e_notte(ORA.palette("pomeriggio")), 0.0, 0.01, "il pomeriggio no")
+	t.almost(ORA.e_notte(ORA.palette("mattina")), 0.0, "la mattina no", 0.01)
+	t.almost(ORA.e_notte(ORA.palette("pomeriggio")), 0.0, "il pomeriggio no", 0.01)
 	# e di notte il sole è più debole di quello di mezzogiorno, sempre
 	t.ok(float(ORA.palette("notte")["energia"])
 			< float(ORA.palette("pomeriggio")["energia"]) * 0.5,

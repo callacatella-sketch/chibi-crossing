@@ -2985,7 +2985,9 @@ static func _pianoforte() -> Node3D:
 	panca.position = Vector3(0, 0, 0.42)
 	# ci si siede SULLA TAVOLA, non 52 cm sopra l'origine del pezzo (che e'
 	# la misura della Panchina, l'unico mobile per cui `r_bench` era nato)
-	panca.set_meta("seduta", Vector3(0, 0.30, 0))
+	# 0.315 e non 0.30: 0.30 e' il CENTRO della scatola del feltro, e il
+	# mezzo spessore (0.015) fa la differenza fra sedersi sopra e affondarci
+	panca.set_meta("seduta", Vector3(0, 0.315, 0))
 	n.add_child(panca)
 	_box(panca, Vector3(0.38, 0.035, 0.17), lacca, Vector3(0, 0.28, 0))
 	_box(panca, Vector3(0.34, 0.030, 0.14), feltro, Vector3(0, 0.30, 0))

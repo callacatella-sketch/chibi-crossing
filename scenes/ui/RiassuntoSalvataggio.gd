@@ -58,7 +58,13 @@ static func da_salvataggio(dati: Dictionary) -> RefCounted:
 
 	var fili_grezzi: Variant = dati.get("legami", {})
 	var per_nome: Dictionary = fili_grezzi if fili_grezzi is Dictionary else {}
-	for riga in (dati.get("residents", []) as Array):
+	# UN SALVATAGGIO STORTO NON DEVE FAR ABORTIRE IL RIASSUNTO. Il cast
+	# secco esplodeva su `{"residents": "nemmeno questo"}` — e l'errore e'
+	# MUTO: la funzione si interrompeva, tornava null, e il menu restava
+	# senza clima. `test_menu_vivo` era scritto apposta per prenderlo e non
+	# poteva, perche' un errore a runtime non fa fallire un test.
+	var grezzi: Variant = dati.get("residents", [])
+	for riga in (grezzi if grezzi is Array else []):
 		if riga is not Dictionary:
 			continue
 		var dna: Variant = riga.get("dna", {})

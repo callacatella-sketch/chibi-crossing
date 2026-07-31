@@ -440,6 +440,13 @@ const T := {
 	"la prima neve": "the first snow",
 	"quella volta che ti ho aspettato, e sei venuto":
 		"that time I waited for you, and you came",
+	# la cronaca del Grande Albero: chiavi passate a `engrave`, che il
+	# guardiano dei letterali non vedeva (ora c'è la sua passata dedicata)
+	"nasce la costellazione «%s»": "the constellation \"%s\" is born",
+	"la costellazione di %s è apparsa in cielo":
+			"%s's constellation has appeared in the sky",
+	"una lettera per %s, al Grande Prato": "a letter for %s, at the Great Meadow",
+	"il villaggio compie %d settimane": "the village turns %d weeks old",
 }
 
 

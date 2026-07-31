@@ -266,13 +266,27 @@ func _spegni() -> void:
 	# residente può sparire.
 	while not _coda.is_empty():
 		var r: Array = _coda.pop_front()
-		var da: Variant = r[0]
-		var a: Variant = r[1]
-		if da == null or a == null or not is_instance_valid(da) or not is_instance_valid(a):
+		if r[0] == null or r[1] == null \
+				or not is_instance_valid(r[0]) or not is_instance_valid(r[1]):
 			continue          # chi doveva reggere il filo se n'è andato
+		# LA LAMBDA CATTURA `r`, NON I DUE NODI. Catturarli direttamente
+		# sposta soltanto la soglia dell'errore: il motore valida le
+		# CATTURE prima di entrare nel corpo, e con un nodo liberato stampa
+		# «Lambda capture at index 1 was freed». Un Array invece non lo
+		# ispeziona dentro. (Prima stesura di questa correzione: l'errore
+		# cambiava firma e restava.)
+		#
+		# E se il nodo muore in QUESTO frame — la finestra per cui la
+		# seconda guardia esiste — non basta uscire in silenzio: `_attivo`
+		# è già `false` e `_process` esce subito, quindi nessuno
+		# ridrenerebbe la coda e la richiesta VIVA rimasta dietro
+		# resterebbe appesa per sempre. Si richiama `_spegni()`, che
+		# ricomincia da capo col prossimo vivo.
 		(func() -> void:
-			if is_instance_valid(da) and is_instance_valid(a):
-				annoda(da, a, int(r[2]), bool(r[3]), float(r[4]))).call_deferred()
+			if is_instance_valid(r[0]) and is_instance_valid(r[1]):
+				annoda(r[0], r[1], int(r[2]), bool(r[3]), float(r[4]))
+			elif not _attivo:
+				_spegni()).call_deferred()
 		break
 
 

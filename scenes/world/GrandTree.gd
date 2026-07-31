@@ -114,11 +114,15 @@ func engrave_once(tag: String, icon: String, text: String, args: Array = []) -> 
 	# _today_tags non è persistito: dopo un reload il dedup si ricostruisce
 	# dalla cronaca stessa (stesso giorno + stesso testo = già inciso)
 	for ev in _events:
-		if int(ev.get("d", -1)) == _day() and str(ev.get("t", "")) == text:
+		# `t` E `a` INSIEME: con la chiave al posto della frase formattata,
+		# due eventi diversi hanno lo stesso `t` — due vicini che entrano
+		# nell'autunno lo stesso giorno diventavano un evento solo.
+		if int(ev.get("d", -1)) == _day() and str(ev.get("t", "")) == text \
+				and str(ev.get("a", [])) == str(args):
 			_today_tags[key] = true
 			return
 	_today_tags[key] = true
-	engrave(icon, text)
+	engrave(icon, text, args)
 
 
 func _on_new_day(day: int) -> void:
@@ -126,7 +130,7 @@ func _on_new_day(day: int) -> void:
 	# il compleanno del villaggio, una candelina a settimana
 	if day > 0 and day % 7 == 0:
 		@warning_ignore("integer_division")
-		engrave("★", "il villaggio compie %d settimane" % (day / 7))
+		engrave("★", "il villaggio compie %d settimane", [day / 7])
 	_rebuild(true)
 
 

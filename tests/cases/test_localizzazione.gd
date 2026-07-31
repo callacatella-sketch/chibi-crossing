@@ -71,6 +71,12 @@ func _test_ogni_frase_avvolta_e_tradotta(t) -> void:
     # scenderebbe da sola, senza che nessun test diventi rosso.
     var re_rimandate := RegEx.new()
     re_rimandate.compile('"(?:text_key|from_key|k)"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"')
+    # LA CRONACA DEL GRANDE ALBERO. `engrave("★", "…")` conserva la CHIAVE
+    # italiana e la traduce solo dove si mostra: sono letterali che il
+    # giocatore vede, e senza questa terza rete uscivano dal controllo —
+    # quattro erano gia' scivolate fuori.
+    var re_cronaca := RegEx.new()
+    re_cronaca.compile('engrave(?:_once)?\\((?:[^,]+,\\s*)?[^,]+,\\s*"((?:[^"\\\\]|\\\\.)*)"')
 
     var mancanti: Array[String] = []
     var trovate := 0

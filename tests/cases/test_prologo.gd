@@ -67,8 +67,8 @@ func _test_le_misure_sono_frazioni(t) -> void:
 	var sfiorato := _giocato(1.5, 0.0, 0.0, 120.0)
 	t.eq(sfiorato.scelta_riparo(), "acqua",
 			"un secondo e mezzo sotto la foglia su due minuti NON è ripararsi")
-	t.almost(sfiorato.frazione_al_riparo(), 0.0125, 0.001,
-			"la frazione al riparo è secondi/durata")
+	t.almost(sfiorato.frazione_al_riparo(), 0.0125,
+			"la frazione al riparo è secondi/durata", 0.001)
 	var dentro := _giocato(60.0, 0.0, 0.0, 120.0)
 	t.eq(dentro.scelta_riparo(), "riparo", "mezza tempesta al coperto sì")
 	# e la stessa mezz'ora dentro una tempesta lunga il triplo non basta
@@ -172,8 +172,8 @@ func _test_la_paura_non_sbiadisce_da_sola(t) -> void:
 	var prima: float = absf(lim.carica_di(CUORE.MARCHIO))
 	for giorno in 60:
 		lim.passa_giorno(true, false)
-	t.almost(absf(lim.carica_di(CUORE.MARCHIO)), prima, 0.001,
-			"dopo due mesi senza pioggia la paura è ancora tutta lì")
+	t.almost(absf(lim.carica_di(CUORE.MARCHIO)), prima,
+			"dopo due mesi senza pioggia la paura è ancora tutta lì", 0.001)
 	t.ok(absf(lim.carica_di(CUORE.MARCHIO)) > CUORE.GUARITA,
 			"e trasalisce ancora")
 
@@ -206,8 +206,8 @@ func _test_i_vicini_invece_dimenticano(t) -> void:
 	lim.marchi["luogo|catasta"] = {"carica": -0.85, "conferme": 2}
 	for giorno in 10:
 		lim.passa_giorno()
-	t.almost(lim.carica_di("catasta"), 0.0, 0.001,
-			"il vicino spaventato dalla catasta, in dieci giorni, se ne dimentica")
+	t.almost(lim.carica_di("catasta"), 0.0,
+			"il vicino spaventato dalla catasta, in dieci giorni, se ne dimentica", 0.001)
 
 
 # -------------------------------------------------------------- la lettera
@@ -316,7 +316,7 @@ func _test_i_semi_aspettano_il_regista(t) -> void:
 	t.ok(dopo._consegnato,
 			"riaprendo il villaggio il Prologo non si riapplica da capo")
 	t.almost(absf(dopo.limbico.carica_di(CUORE.MARCHIO)),
-			absf(cuore.limbico.carica_di(CUORE.MARCHIO)), 0.001,
-			"e la paura è quella di ieri, non una nuova")
+			absf(cuore.limbico.carica_di(CUORE.MARCHIO)),
+			"e la paura è quella di ieri, non una nuova", 0.001)
 	cuore.free()
 	dopo.free()

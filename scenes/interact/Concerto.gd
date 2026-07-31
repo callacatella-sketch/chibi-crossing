@@ -203,12 +203,30 @@ func _apri(piano: Node3D) -> void:
 		# sull'erba con la tavola che gli passava attraverso — e senza
 		# `aux` non riusciva nemmeno ad ALZARSI, restando seduto fino alla
 		# routine del mattino.
-		nodo.call("do_routine", "bench",
-				dove - Vector3(0, dove.y, 0) + Vector3(0, 0, 0.35),
-				piano.global_position + Vector3(0, 0.5, 0), panca)
+		# IL PUNTO D'ARRIVO NON PUO' ESSERE UN OFFSET IN COORDINATE MONDO:
+		# `place_cell` ruota i pezzi, e `+Z mondo` a rotazione 2 finiva
+		# DENTRO la cassa del pianoforte. Si prende la direzione OPPOSTA
+		# allo strumento, che è il lato aperto qualunque sia l'orientamento.
+		var verso_piano := piano.global_position - dove
+		var largo: Vector3 = (dove - verso_piano.normalized() * 0.35) \
+				if verso_piano.length() > 0.01 else dove
+		nodo.call("do_routine", "bench", largo - Vector3(0, largo.y, 0),
+				piano.global_position + Vector3(0, 0.5, 0), panca, _quanto_resta())
 	_chiama_il_pubblico(piano)
 	_toast(L10n.tf("%s si siede al pianoforte. Le lanterne del palco si accendono.",
 			[_artista]))
+
+
+## Quanti secondi reali mancano alla fine della serata: è per tanto che si
+## resta seduti. Senza, il timer di `r_bench` (14-22 s) scadeva a metà
+## concerto e il palco si svuotava mentre la musica andava avanti da sola.
+func _quanto_resta() -> float:
+	if _daynight == null:
+		return 40.0
+	var ora := float(_daynight.get("time"))
+	var cicli := float(_daynight.get("cycle_seconds")) if \
+			_daynight.get("cycle_seconds") != null else 240.0
+	return maxf(6.0, (CHIUDE - ora) * cicli)
 
 
 func _chiudi() -> void:
@@ -220,6 +238,12 @@ func _chiudi() -> void:
 		if n != null and n.has_method("do_routine"):
 			n.call("do_routine", "wander", n.global_position)
 	_pubblico.clear()
+	# ANCHE L'ARTISTA. Questo ramo liberava il pubblico e non toccava mai
+	# chi suonava: era LUI a restare incollato alla panchetta fino alla
+	# routine del mattino, ed è qui che andava sciolto.
+	var suonatore := _nodo_di(_artista)
+	if suonatore != null and suonatore.has_method("do_routine"):
+		suonatore.call("do_routine", "wander", suonatore.global_position)
 	_artista = ""
 	_t_brano = 0.0
 
@@ -281,7 +305,7 @@ func _chiama_il_pubblico(piano: Node3D) -> void:
 			# palco: adesso `r_bench` lo legge, e chi ascolta guarda avanti.
 			nodo2.call("do_routine", "bench",
 					p - Vector3(0, p.y, 0) + (qui - p).normalized() * 0.5,
-					qui, posto)
+					qui, posto, _quanto_resta())
 		_pubblico.append(str(c["label"]))
 
 

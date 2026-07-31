@@ -464,8 +464,10 @@ riepilogo può essere muto e restare un referto:
   sempre**. Due secondi fra le lucine non lo mostrano; un sogno in primo
   piano sì.
 - **`Legami.mostra_filo()` è un no-op per chi è partito** (cicla su
-  `Visitors._residents`, da cui i partiti sono stati tolti). Dentro il sogno
-  il filo si annoda a mano con `FiloRosso.annoda(a, b, …)`.
+  `Visitors._residents`, da cui i partiti sono stati tolti). Il sogno
+  perciò NON mostra il filo: sarebbe un segno, e la regola 4 lo vieta.
+  (Una prima stesura di questa nota diceva che il filo «si annoda a mano»
+  dentro il sogno: non era vero, non c'era nessuna chiamata.)
 - **`_fade` sta al livello 10, ma Nascite e PhotoMode stanno sopra.** Il
   cartellino «E — conosci il cucciolo» compariva sul nero, e **P** in pieno
   sonno spegneva la tenda stessa (`PhotoMode._hide_ui()`): ora entrambi

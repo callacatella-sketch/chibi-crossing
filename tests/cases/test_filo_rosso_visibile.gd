@@ -153,5 +153,7 @@ func _test_la_coda_non_regge_un_morto(t) -> void:
 	# resterebbe verde anche col difetto: il pop avviene comunque.)
 	t.eq((filo.get("_coda") as Array).size(), 0,
 			"la morta si butta E la viva si ripesca: una sola non blocca l'altra")
-	t.ok(not filo.get("_attivo"),
-			"e non si accende un filo verso un nodo morto")
+	# (Un'asserzione su `_attivo` qui sarebbe VACUA: `annoda` si richiama
+	# `call_deferred`, quindi subito dopo `_spegni()` sincrono `_attivo` è
+	# `false` in ogni caso — corretto o no. Discrimina solo la riga sopra.)
+	t.ok(is_instance_valid(b), "e il nodo vivo della richiesta rimasta c'è ancora")
