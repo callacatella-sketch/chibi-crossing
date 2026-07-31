@@ -22,6 +22,7 @@ func run(t) -> void:
 	_test_shader(t)
 	_test_un_filo_alla_volta(t)
 	_test_fili_attaccati(t)
+	_test_la_coda_non_regge_un_morto(t)
 
 
 func _test_curva_pura(t) -> void:
@@ -108,3 +109,49 @@ func _body(path: String, fn: String) -> String:
 		return ""
 	var end := src.find("\nfunc ", start + 1)
 	return src.substr(start, (end - start) if end > start else -1)
+
+## LA CODA NON PUÒ REGGERE UN NODO MORTO.
+##
+## Difetto trovato ESEGUENDO il gioco (CHIBI_FILO), non leggendolo: la suite
+## era verde perché un errore a runtime non fa fallire un test — interrompe
+## la funzione in silenzio.
+##
+## `annoda()` ha la sua guardia `is_instance_valid`, ma NON PUÒ salvare una
+## chiamata con un nodo liberato: i parametri sono tipizzati `Node3D` e il
+## motore controlla il tipo PRIMA di entrare nella funzione. La chiamata
+## esplode sulla soglia e il corpo — con la guardia dentro — non viene mai
+## eseguito. Perciò il controllo deve stare in chi CHIAMA.
+##
+## Come succede davvero: la coda tiene riferimenti grezzi, e fra il momento
+## in cui una richiesta ci entra e quello in cui esce può passare un
+## congedo — il vicino se n'è andato e il suo nodo non c'è più.
+func _test_la_coda_non_regge_un_morto(t) -> void:
+	var filo: Node3D = t.stage(FILO.new())
+	var a := Node3D.new()
+	var b := Node3D.new()
+	var c := Node3D.new()
+	var morto := Node3D.new()
+	for n in [a, b, c, morto]:
+		filo.add_child(n)
+
+	filo.annoda(a, b, 3)
+	t.ok(filo.get("_attivo"), "il primo filo si annoda")
+	# in coda ci finiscono DUE richieste: prima una che morirà, poi una viva
+	filo.annoda(c, morto, 2)
+	filo.annoda(a, c, 1)
+	t.eq((filo.get("_coda") as Array).size(), 2, "due richieste in attesa")
+
+	# il vicino se ne va MENTRE la sua richiesta aspetta in coda
+	morto.free()
+	filo.call("_spegni")
+
+	# QUESTA È L'ASSERZIONE CHE DISCRIMINA. Senza la correzione, `_spegni`
+	# tira fuori UNA sola richiesta — quella morta — la passa a `annoda`,
+	# la chiamata esplode sulla soglia per il tipo, e la richiesta VIVA
+	# resta in coda per sempre: il filo di chi c'è ancora non si annoda
+	# mai più. (Un test che guardasse solo «la coda si è svuotata di uno»
+	# resterebbe verde anche col difetto: il pop avviene comunque.)
+	t.eq((filo.get("_coda") as Array).size(), 0,
+			"la morta si butta E la viva si ripesca: una sola non blocca l'altra")
+	t.ok(not filo.get("_attivo"),
+			"e non si accende un filo verso un nodo morto")

@@ -563,7 +563,17 @@ func _enter_state(s: String) -> void:
 		"r_idle":
 			_timer = randf_range(4.0, 8.0)
 		"r_wander":
-			var front: Vector3 = _house["front"]
+			# `_house` PUÒ ESSERE VUOTO, e questo stato è il ripiego
+			# universale: `Visitors._recita()` ci manda chiunque non abbia
+			# una scena da recitare («nessuna scena disponibile: due passi
+			# intorno a casa»). Con `_house["front"]` la funzione di stato
+			# si INTERROMPE a metà, `_walk_to` non viene mai chiamato, e
+			# quel vicino resta piantato lì per sempre — senza un errore
+			# che qualcuno guardi. Si vede facendo girare CHIBI_ESTETISTA.
+			# La forma giusta era già scritta più sotto (riga ~1692):
+			# `.get("front", position)`, cioè «se non hai una casa, gira
+			# intorno a dove sei».
+			var front: Vector3 = _house.get("front", position)
 			var a := randf() * TAU
 			_walk_to(front + Vector3(cos(a), 0, sin(a)) * randf_range(1.0, 3.2), "r_idle")
 		"r_sniff":
@@ -2410,7 +2420,9 @@ func resident_wake() -> void:
 	if not _hidden:
 		return
 	_hidden = false
-	position = _house["front"]
+	# stessa ragione: chi non ha più una casa si sveglia dov'è, non
+	# scompare in un errore
+	position = _house.get("front", position)
 	var tw := create_tween()
 	tw.tween_property(_vis, "scale", Vector3.ONE, 0.5) \
 			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)

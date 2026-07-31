@@ -246,11 +246,34 @@ func _spegni() -> void:
 		p.visible = false
 	_da = null
 	_a = null
-	# la prossima richiesta in coda, se c'è
-	if not _coda.is_empty():
+	# ---- LA PROSSIMA RICHIESTA IN CODA, SE CHI DOVEVA REGGERLA C'È ANCORA.
+	#
+	# `annoda()` ha la sua guardia `is_instance_valid`, ma NON PUÒ SALVARE
+	# questa chiamata: i parametri sono tipizzati `Node3D`, e il motore
+	# controlla il tipo PRIMA di entrare nella funzione. Con un nodo già
+	# liberato la chiamata esplode sulla soglia —
+	#   «Invalid type in function 'annoda': l'argomento 2 (previously freed)»
+	# — e il corpo, con la sua guardia, non viene mai eseguito.
+	#
+	# Succede davvero: la coda tiene riferimenti GREZZI, e fra il momento in
+	# cui una richiesta ci entra e quello in cui esce può passare un
+	# congedo — il vicino se n'è andato e il suo nodo non c'è più. Si vede
+	# facendo girare CHIBI_FILO, e nessun test lo prende perché un errore a
+	# runtime non fa fallire niente.
+	#
+	# Perciò si controlla QUI, prima di chiamare, e di nuovo DENTRO il
+	# differito: fra l'uno e l'altro passa un frame, e in un frame un
+	# residente può sparire.
+	while not _coda.is_empty():
 		var r: Array = _coda.pop_front()
+		var da: Variant = r[0]
+		var a: Variant = r[1]
+		if da == null or a == null or not is_instance_valid(da) or not is_instance_valid(a):
+			continue          # chi doveva reggere il filo se n'è andato
 		(func() -> void:
-			annoda(r[0], r[1], int(r[2]), bool(r[3]), float(r[4]))).call_deferred()
+			if is_instance_valid(da) and is_instance_valid(a):
+				annoda(da, a, int(r[2]), bool(r[3]), float(r[4]))).call_deferred()
+		break
 
 
 # --------------------------------------------------------------- scintille

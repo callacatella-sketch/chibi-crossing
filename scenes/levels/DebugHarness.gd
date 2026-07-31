@@ -597,6 +597,12 @@ func _debug_estetista(dir: String) -> void:
 	var DNAG = load("res://scenes/npc/ChibiDNA.gd")
 	var residenti: Array = vis.get("_residents")
 	var etichette: Array = []
+	# GLI INDICI VERI. `_residents` puo' gia' contenere gli abitanti del
+	# villaggio caricato: `residenti[0]` e `residenti[1]` NON sono i due che
+	# aggiungiamo qui. Fotografare quelli sbagliati faceva stampare sempre
+	# «cambiato -> []», e quella riga ha gia' mandato fuori strada una volta.
+	var i_estetista := residenti.size()
+	var i_cliente := residenti.size() + 1
 	for i in 2:
 		var d: Dictionary = DNAG.generate(700 + i * 37)
 		if i == 0:
@@ -631,7 +637,11 @@ func _debug_estetista(dir: String) -> void:
 	lav.assegna(etichette[0], "abbellisce")
 	print("ESTETISTA: %s tiene il salone (sogna: %s)"
 			% [etichette[0], str(residenti[0]["dna"]["sogno"])])
-	var prima: Dictionary = (residenti[1]["dna"] as Dictionary).duplicate()
+	var prima_di: Dictionary = {}
+	for k in residenti.size():
+		prima_di[str((residenti[k] as Dictionary).get("label", ""))] = \
+				((residenti[k] as Dictionary)["dna"] as Dictionary).duplicate()
+	var prima: Dictionary = prima_di.get(str(residenti[i_cliente].get("label", "")), {})
 	await _shot(dir, "estetista_1_prima")
 
 	# il salone apre da se' quando e' l'ora e c'e' chi ci lavora
@@ -655,7 +665,15 @@ func _debug_estetista(dir: String) -> void:
 		atteso2 += 0.5
 	await get_tree().create_timer(1.0).timeout
 	await _shot(dir, "estetista_4_dopo")
-	var dopo: Dictionary = residenti[1]["dna"]
+	# e si guarda CHI E' STATO SERVITO davvero, non un indice a caso: se il
+	# salone ha chiamato l'altro, la fotografia va fatta su quello
+	var servito := str(sal.call("servito_oggi"))
+	var i_vero := i_cliente
+	for k in residenti.size():
+		if str((residenti[k] as Dictionary).get("label", "")) == servito:
+			i_vero = k
+	var dopo: Dictionary = residenti[i_vero]["dna"]
+	prima = prima_di.get(servito, prima)
 	var cambiati: Array = []
 	for g in DNAG.ESTETICI:
 		if str(prima.get(g, "")) != str(dopo.get(g, "")):
