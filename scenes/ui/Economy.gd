@@ -78,6 +78,8 @@ const SHOP_PIECES := [
 		"desc": "La chiesa del paese, tutta intera: la torre che si vede\nda ogni prato, le vetrate che accendono il pavimento, e\nil lume che si accende per chi è partito."},
 	{"name": "Bancone bar", "cost": 380, "cur": "nut", "cat": 0,
 		"desc": "Il bar del paese, tutto intero: il bancone di zinco, la\nmacchina del caffè che sbuffa, i tavolini sotto\nl'ombrellone e il biliardino. Il posto dove ci si trova."},
+	{"name": "Vetrina moda", "cost": 540, "cur": "nut", "cat": 5,
+		"desc": "La boutique del paese, tutta intera: la vetrina che di\nsera illumina la strada, gli stender, i camerini con la\ntenda pesante e lo specchio a tre ante."},
 	{"name": "Serra", "cost": 520, "cur": "nut", "cat": 2,
 		"desc": "Un giardino di vetro: col suo tepore, orto e fiori\ncrescono anche sotto la neve."},
 	{"name": "Mongolfiera", "cost": 650, "cur": "nut", "cat": 2,
@@ -217,6 +219,13 @@ const CORREDO := {
 	"Campanile": ["Muro di pietra", "Lastricato", "Vetrata", "Banco", "Volta",
 			"Sagrato", "Arcata", "Portale", "Frontone", "Abside", "Altare",
 			"Candeliere", "Fonte dei nomi", "Armonium"],
+	# LA BOUTIQUE: si compra la vetrina e arriva il negozio intero. Un
+	# negozio di vestiti con lo stender e senza camerino non è mezzo
+	# negozio: è un magazzino.
+	"Vetrina moda": ["Insegna boutique", "Manichino", "Busto sartoriale",
+			"Stender", "Tavolo piegati", "Scaffale a giorno", "Camerino",
+			"Specchiera", "Cassa boutique", "Poltroncina", "Cesto saldi",
+			"Faretti", "Passatoia", "Sacchetti"],
 }
 
 

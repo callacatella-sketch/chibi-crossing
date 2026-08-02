@@ -385,6 +385,34 @@ const T := {
 	"Armonium": "Harmonium",
 	"Serra": "Greenhouse",
 
+	# ----------------------------------------------------------- la boutique
+	# Inglese BRITANNICO, e qui si sente: «fitting room» (non *dressing
+	# room*), «clothes rail» (non *rack*), «tailor's dummy» (non *dress
+	# form*). Gli id restano italiani: sono le chiavi di village.json e
+	# del corredo. E «Stender» in italiano e un anglicismo da negozio —
+	# in inglese torna semplicemente la cosa che e.
+	# la scheda della categoria: «Clothes shop», non «Boutique» — copiare
+	# la parola italiana lascerebbe una voce che finge di essere tradotta
+	# (e il guardiano della localizzazione la becca, giustamente)
+	"Boutique": "Clothes shop",
+	"La boutique del paese, tutta intera: la vetrina che di\nsera illumina la strada, gli stender, i camerini con la\ntenda pesante e lo specchio a tre ante.":
+		"The village boutique, all of it: the window that lights\nthe street at dusk, the clothes rails, the fitting rooms\nwith their heavy curtains and the triple mirror.",
+	"Vetrina moda": "Shop window",
+	"Insegna boutique": "Boutique sign",
+	"Manichino": "Mannequin",
+	"Busto sartoriale": "Tailor's dummy",
+	"Stender": "Clothes rail",
+	"Tavolo piegati": "Folding table",
+	"Scaffale a giorno": "Open shelving",
+	"Camerino": "Fitting room",
+	"Specchiera": "Triple mirror",
+	"Cassa boutique": "Shop counter",
+	"Poltroncina": "Little armchair",
+	"Cesto saldi": "Sale basket",
+	"Faretti": "Spotlights",
+	"Passatoia": "Runner",
+	"Sacchetti": "Paper bags",
+
 	# ------------------------------------------------------------ la palestra
 	"Palestra": "Gym",
 	"Tappetino": "Exercise mat",
