@@ -1100,7 +1100,9 @@ static func _treehouse() -> Node3D:
 	# porta come un braccio). Lassù il tronco sparisce nella chioma, e
 	# alla chioma bastano le sfere.
 	_cyl(n, 0.26, 0.38, 2.7, bark, Vector3(0, 1.35, 0))
-	_cyl(n, 0.15, 0.22, 1.4, bark, Vector3(0, 3.3, 0))
+	# il tronco alto si ferma SOTTO la falda sud (a 4.0 la sfiorava e
+	# faceva capolino dal tetto)
+	_cyl(n, 0.15, 0.22, 1.25, bark, Vector3(0, 3.22, 0))
 	for i in 5:
 		var a := float(i) / 5.0 * TAU + 0.4
 		var root := _cyl(n, 0.08, 0.15, 0.5, bark, Vector3(cos(a) * 0.36, 0.16, sin(a) * 0.36))
@@ -1109,14 +1111,16 @@ static func _treehouse() -> Node3D:
 	_ball(n, 0.055, _mat(Color("6e4a35"), Color("59391f"), 4.0, 0.5),
 			Vector3(0.2, 1.7, 0.24), Vector3(0.8, 1.0, 0.5))
 
-	# la chioma abbraccia la casetta DA DIETRO e da sopra: arretrata a
-	# nord, così la facciata, la terrazza e la falda sud restano in vista
-	# — una chioma che copre tutto è un cespuglio col mutuo
-	_ball(n, 1.05, leaf, Vector3(0, 4.7, -0.3))
-	_ball(n, 0.75, leaf, Vector3(1.0, 4.3, -0.1))
-	_ball(n, 0.8, leaf, Vector3(-0.9, 4.35, -0.55))
-	_ball(n, 0.8, leaf, Vector3(0.15, 4.35, -1.05))
-	_ball(n, 0.7, leaf, Vector3(0.25, 5.05, 0.2))
+	# la chioma SI POSA sul tetto, non lo inghiotte: le sfere sono
+	# tangenti al colmo (prima la centrale aveva la trave DENTRO e la
+	# falda rossa affiorava in mezzo al verde), arretrate a nord così la
+	# facciata resta in vista — una chioma che copre tutto è un cespuglio
+	# col mutuo. Il grappolo resta fitto: da sopra niente buchi di cielo.
+	_ball(n, 0.95, leaf, Vector3(0, 5.2, -0.37))
+	_ball(n, 0.72, leaf, Vector3(0.9, 4.98, -0.37))
+	_ball(n, 0.72, leaf, Vector3(-0.9, 4.98, -0.45))
+	_ball(n, 0.72, leaf, Vector3(0.1, 4.95, -0.95))
+	_ball(n, 0.62, leaf, Vector3(0.25, 5.55, 0.1))
 
 	# LA PIATTAFORMA GRANDE: tre metri di assito — la terrazza a sud è
 	# profonda più di un metro, ci si cammina davvero. Fascia perimetrale,
@@ -1230,17 +1234,27 @@ static func _treehouse() -> Node3D:
 		_ball(n, 0.035, _mat(fc, fc.darkened(0.15), 5.0, 0.4),
 				Vector3(0.46 + 0.08 * float(fx), 3.2, 0.4), Vector3(1, 0.75, 1))
 
-	# tetto a falde larghe, con le FILE DI TEGOLE, il colmo tondo, la
-	# gronda che sporge e il camino di terracotta col suo comignolo
+	# tetto a falde INTERE e larghe, coi frontoni CHIUSI a triangolo e il
+	# colmo coi pomelli. ATTENZIONE AL SEGNO della rotazione: con
+	# -half*0.62 le falde salivano VERSO FUORI — un tetto a V di
+	# farfalla, non a capanna — e nessuno l'aveva mai visto perché la
+	# chioma di prima ci stava seduta sopra. È il segno POSITIVO a far
+	# scendere ogni falda dal colmo verso la gronda.
 	for half: float in [-1.0, 1.0]:
-		var slope := _box(n, Vector3(1.9, 0.07, 1.06), tile, Vector3(0, 3.95, -0.37 + half * 0.4))
-		slope.rotation.x = -half * 0.62
-		for fila in 3:
-			var riga := _box(n, Vector3(1.92, 0.02, 0.045),
-					_mat(Color("c47a58"), Color("a86048"), 3.0, 0.4),
-					Vector3(0, 3.72 + 0.23 * float(fila),
-					-0.37 + half * (0.79 - 0.29 * float(fila))))
-			riga.rotation.x = -half * 0.62
+		var slope := _box(n, Vector3(1.9, 0.07, 1.1), tile,
+				Vector3(0, 3.965, -0.37 + half * 0.415))
+		slope.rotation.x = half * 0.62
+	for lato_g: float in [-1.0, 1.0]:
+		var perno_g := Node3D.new()
+		perno_g.position = Vector3(lato_g * 0.64, 0, 0)
+		perno_g.rotation.z = -lato_g * PI * 0.5
+		n.add_child(perno_g)
+		if lato_g > 0.0:
+			_prisma(perno_g, [Vector2(-4.24, -0.37), Vector2(-3.64, 0.41),
+					Vector2(-3.64, -1.15)], 0.0, 0.08, plaster)
+		else:
+			_prisma(perno_g, [Vector2(4.24, -0.37), Vector2(3.64, -1.15),
+					Vector2(3.64, 0.41)], 0.0, 0.08, plaster)
 	var colmo := _cyl(n, 0.06, 0.06, 1.94, dark, Vector3(0, 4.26, -0.37))
 	colmo.rotation.z = PI * 0.5
 	for lato_c: float in [-1.0, 1.0]:
@@ -1333,10 +1347,10 @@ static func _treehouse() -> Node3D:
 	punta_c.rotation.z = PI * 0.25
 
 	# la lanterna sul braccio della gronda: il pivot dondola nel vento
-	_box(n, Vector3(0.42, 0.055, 0.055), dark, Vector3(0.78, 3.68, 0.5))
+	_box(n, Vector3(0.42, 0.055, 0.055), dark, Vector3(0.78, 3.585, 0.5))
 	var pivot := Node3D.new()
 	pivot.name = "LanternaPivot"
-	pivot.position = Vector3(0.97, 3.66, 0.5)
+	pivot.position = Vector3(0.97, 3.57, 0.5)
 	n.add_child(pivot)
 	var chain := _cyl(pivot, 0.012, 0.012, 0.26, dark, Vector3(0, -0.13, 0))
 	chain.rotation.z = 0.0

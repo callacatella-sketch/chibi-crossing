@@ -7,7 +7,10 @@ extends SceneTree
 ##   CHIBI_PEZZO="Bancone bar" CHIBI_PROVINO=/dove/salvare \
 ##       Godot --path . --script res://tools/provino_pezzo.gd
 ##
-## Facoltativo: CHIBI_LATO (lato immagine, default 900).
+## Facoltativi: CHIBI_LATO (lato immagine, default 900) e CHIBI_ELE
+## (elevazione unica per tutte le viste, es. 0.12 = occhio di gioco:
+## certi dubbi — un tetto è piatto o a falde? — si sciolgono solo
+## guardando da dove guarda il giocatore).
 
 const CAT = preload("res://scenes/build/BuildCatalog.gd")
 
@@ -138,8 +141,10 @@ func _go() -> void:
 	var ing: AABB = tutti[0]
 	for i in range(1, tutti.size()):
 		ing = ing.merge(tutti[i])
+	var ele_env := OS.get_environment("CHIBI_ELE")
 	for v in VISTE:
-		await _scatta(ing, float(v["az"]), float(v["ele"]),
+		var ele := float(ele_env) if ele_env != "" else float(v["ele"])
+		await _scatta(ing, float(v["az"]), ele,
 				dove.rstrip("/") + "/" + str(v["file"]))
 	print("PROVINO ", nome, " -> ", dove, " (", VISTE.size(), " viste)")
 	quit()
