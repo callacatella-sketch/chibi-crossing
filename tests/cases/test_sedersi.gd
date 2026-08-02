@@ -28,6 +28,7 @@ const POSTI := {
 	"Salone": "Seggiola",
 	"Pianoforte": "Panchetta",
 	"Gradinata": "Posto0",
+	"Gazebo": "Posto0",
 }
 
 
