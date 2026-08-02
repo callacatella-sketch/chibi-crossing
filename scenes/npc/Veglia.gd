@@ -61,6 +61,18 @@ const ORA_ALBA := 0.29
 ## Quanto passa fra una tappa e l'altra del giro.
 const PASSO_RONDA := 9.0
 
+# --- il TURNO DI GIORNO: la garitta -----------------------------------
+## Se il villaggio ha una Guardiola, chi è di guardia non aspetta la sera
+## girando a vuoto: passa la giornata al suo posto, DENTRO la garitta
+## (il nodo "PostoGuardia" che la guardiola porta con sé). La finestra
+## dell'orario lascia fuori il risveglio e la sera del falò; il passo è
+## più lungo della presa di `manda` (45 s), così fra un richiamo e
+## l'altro la guardia ha qualche boccata d'aria — sta di posto, non in
+## castigo.
+const ORA_TURNO_DA := 0.34
+const ORA_TURNO_A := 0.72
+const PASSO_TURNO := 75.0
+
 # le lanterne accese stanotte: EFFIMERE — mai salvate, mai in
 # un gruppo persistable, liberate all'alba (il volto vivo scandaglia il
 # gruppo "luce_calda" a ogni frame: una lanterna che sopravvive alla notte
@@ -74,6 +86,7 @@ var _resa := 0.0
 var _tappe: Array = []
 var _tappa_i := 0
 var _passo_cd := 0.0
+var _turno_cd := 0.0        # il prossimo richiamo alla garitta
 
 var _daynight: Node3D
 var _visitors: Node
@@ -125,6 +138,12 @@ static func dono_di_sicurezza(resa: float) -> float:
 	return VEGLIA_SICUREZZA * clampf(resa, 0.0, 1.5)
 
 
+## È l'ora di stare in garitta? PURA: entra l'ora del giorno, esce un
+## sì o un no — la finestra evita il risveglio e la sera del falò.
+static func in_orario_di_turno(ora: float) -> bool:
+	return ora >= ORA_TURNO_DA and ora < ORA_TURNO_A
+
+
 # ============================================================ la sera
 
 func _process(delta: float) -> void:
@@ -142,6 +161,13 @@ func _process(delta: float) -> void:
 		_ronda_fatta_oggi = true
 		_comincia_ronda()
 
+	# il giorno: il turno in garitta, un richiamo ogni tanto
+	if in_orario_di_turno(ora):
+		_turno_cd -= delta
+		if _turno_cd <= 0.0:
+			_turno_cd = PASSO_TURNO
+			_manda_in_garitta()
+
 	# il giro, una tappa alla volta
 	if _tappa_i < _tappe.size():
 		_passo_cd -= delta
@@ -151,6 +177,41 @@ func _process(delta: float) -> void:
 			_tappa_i += 1
 
 	_respira(delta)
+
+
+# ============================================================ il giorno
+
+## Il turno in garitta: chi è di guardia viene mandato al suo posto,
+## DENTRO la guardiola. Vale solo se una Guardiola esiste (senza, il
+## lavoro resta com'era: la sola ronda della sera) e se la resa non è
+## a zero — chi ha smesso di obbedire non ci va, e la garitta vuota di
+## giorno racconta la ribellione come il buio la racconta di notte.
+func _manda_in_garitta() -> void:
+	if _visitors == null or _lavori == null or _build == null:
+		return
+	var chi := str(_lavori.call("chi_fa", "guardia"))
+	if chi == "":
+		return
+	var gradino := str(_visitors.call("animo_di", chi))
+	if gradino == "":
+		return
+	var r := float(_lavori.call("resa", gradino, str(_visitors.call("sogno_di", chi)),
+			"guardia"))
+	if r <= 0.0:
+		return
+	if not _build.has_method("get_placed_by_name"):
+		return
+	var garitte: Array = _build.call("get_placed_by_name", "Guardiola")
+	if garitte.is_empty():
+		return
+	var garitta := garitte[0] as Node3D
+	if garitta == null or not is_instance_valid(garitta):
+		return
+	var posto := garitta.find_child("PostoGuardia", true, false) as Node3D
+	if posto == null:
+		return
+	if _visitors.has_method("manda"):
+		_visitors.call("manda", chi, posto.global_position)
 
 
 func _comincia_ronda() -> void:

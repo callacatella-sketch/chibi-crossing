@@ -2632,53 +2632,64 @@ static func _guardiola() -> Node3D:
 	var alto_legno := 0.58        # la zoccalatura: da 0.14 a 0.72
 	var alto_muro := 1.20         # l'intonaco: da 0.72 a 1.92
 
-	# fronte (-Z): zoccalatura piena, e sopra l'intonaco APERTO attorno
-	# alla finestra ad arco (due spalle + le spallette dell'arco + il
-	# frontoncino sopra la chiave)
+	# fronte (-Z): zoccalatura piena, il PARAPETTO sotto il bancone (senza,
+	# dal retro si vedeva il rovescio della targa attraverso il buco), e
+	# sopra l'intonaco aperto attorno alla finestra ad arco
 	_box(n, Vector3(0.52, alto_legno, 0.09), legno, Vector3(0, 0.43, -0.44))
+	_box(n, Vector3(0.4, 0.18, 0.09), muro, Vector3(0, 0.81, -0.44))
 	for sx: float in [-1.0, 1.0]:
 		_box(n, Vector3(0.06, alto_muro, 0.09), muro, Vector3(sx * 0.23, 1.32, -0.44))
-	_box(n, Vector3(0.52, 0.17, 0.09), muro, Vector3(0, 1.835, -0.44))
-	# le spalle dell'arco: due tasselli d'intonaco inclinati che chiudono
-	# gli angoli fra il vano rettangolare e la curva
+	# il fondale sopra il vano: un pannello PIENO da 1.45 alla gronda,
+	# arretrato di un soffio (il rientro fa da battuta d'ombra). È quello
+	# che rende impossibile il taglio di cielo della prima stesura ad
+	# arco: cinque conci su una curva non chiudevano mai del tutto
+	_box(n, Vector3(0.52, 0.47, 0.05), muro, Vector3(0, 1.685, -0.42))
+	# il TIMPANO a capanna sopra la finestra: due faldine di legno chiaro
+	# col concio di chiave in colmo — l'angolo sta bene a una garitta
+	# fatta di facce, molto meglio di una curva finta a segmenti
 	for sx2: float in [-1.0, 1.0]:
-		var spalla := _box(n, Vector3(0.1, 0.14, 0.09), muro,
-				Vector3(sx2 * 0.17, 1.62, -0.44))
-		spalla.rotation.z = sx2 * 0.6
-	# l'ARCO: cinque conci di legno chiaro che seguono la semicirconferenza
-	# sopra la finestra (raggio 0.23 dal centro del vano, a 1.5 di quota)
-	for i in 5:
-		var a := PI * (float(i) + 0.5) / 5.0
-		var concio := _box(n, Vector3(0.14, 0.06, 0.11), legno_chiaro,
-				Vector3(cos(a) * 0.225, 1.5 + sin(a) * 0.205, -0.44))
-		concio.rotation.z = a - PI * 0.5
+		var falda_t := _box(n, Vector3(0.27, 0.055, 0.11), legno_chiaro,
+				Vector3(sx2 * 0.115, 1.51, -0.44))
+		falda_t.rotation.z = sx2 * -0.32
+	_box(n, Vector3(0.07, 0.1, 0.115), legno_scuro, Vector3(0, 1.56, -0.44))
+	# lo scudetto sul fondale, sopra il timpano: la stessa araldica
+	# dell'insegna (scudo blu, borchia d'ottone) — riempie il campo alto
+	# e dice da lontano CHI abita la garitta
+	_box(n, Vector3(0.15, 0.18, 0.025), _mat(BLU, BLU_CUPO, 5.0, 0.4),
+			Vector3(0, 1.75, -0.45))
+	var punta_scudo := _box(n, Vector3(0.105, 0.105, 0.025), _mat(BLU, BLU_CUPO, 5.0, 0.4),
+			Vector3(0, 1.655, -0.45))
+	punta_scudo.rotation.z = PI * 0.25
+	_ball(n, 0.026, ottone, Vector3(0, 1.74, -0.465), Vector3(1.0, 1.0, 0.5))
 	# il BANCONE della finestra: la mensola da cui ci si sporge, coi due
 	# modiglioni sotto — è il gesto della garitta, «chiedi pure»
-	_box(n, Vector3(0.56, 0.05, 0.2), legno_chiaro, Vector3(0, 0.955, -0.47))
+	_box(n, Vector3(0.56, 0.05, 0.2), legno_chiaro, Vector3(0, 0.9, -0.47))
 	for sx3: float in [-1.0, 1.0]:
 		var modiglione := _box(n, Vector3(0.045, 0.1, 0.1), legno,
-				Vector3(sx3 * 0.2, 0.885, -0.5))
+				Vector3(sx3 * 0.2, 0.83, -0.5))
 		modiglione.rotation.x = 0.5
 	# e il piano interno del bancone, visibile attraverso il vano
-	_box(n, Vector3(0.44, 0.04, 0.14), legno_chiaro, Vector3(0, 0.94, -0.34))
+	_box(n, Vector3(0.44, 0.04, 0.14), legno_chiaro, Vector3(0, 0.885, -0.34))
 
 	# i fianchi (±X): due registri pieni, con l'oblò tondo in alto
 	for lx: float in [-1.0, 1.0]:
 		_box(n, Vector3(0.09, alto_legno, 0.52), legno, Vector3(lx * 0.44, 0.43, 0))
 		_box(n, Vector3(0.09, alto_muro, 0.52), muro, Vector3(lx * 0.44, 1.32, 0))
-		# l'oblò: vetro scuro in una cornice a otto lati — la nave di terra
-		var oblo := _cyl(n, 0.085, 0.085, 0.02, _mat(Color("3f4a58"), Color("333d49"), 4.0, 0.4),
-				Vector3(lx * 0.485, 1.32, 0))
+		# l'oblò: vetro scuro in una GHIERA vera — un toro, non un cilindro:
+		# il cilindro ha i tappi, e la prima stesura era un piatto di legno
+		# appeso al muro col vetro sepolto dietro
+		var oblo := _cyl(n, 0.08, 0.08, 0.02, _mat(Color("3f4a58"), Color("333d49"), 4.0, 0.4),
+				Vector3(lx * 0.49, 1.32, 0))
 		oblo.rotation.z = PI * 0.5
-		var ghiera := CylinderMesh.new()
-		ghiera.top_radius = 0.115
-		ghiera.bottom_radius = 0.115
-		ghiera.height = 0.05
-		ghiera.radial_segments = 8
+		var ghiera := TorusMesh.new()
+		ghiera.inner_radius = 0.075
+		ghiera.outer_radius = 0.115
+		ghiera.rings = 24
+		ghiera.ring_segments = 8
 		var gmi := MeshInstance3D.new()
 		gmi.mesh = ghiera
 		gmi.material_override = legno_chiaro
-		gmi.position = Vector3(lx * 0.475, 1.32, 0)
+		gmi.position = Vector3(lx * 0.49, 1.32, 0)
 		gmi.rotation.z = PI * 0.5
 		n.add_child(gmi)
 
@@ -2706,9 +2717,11 @@ static func _guardiola() -> Node3D:
 		# le due righe di doga che danno il verso verticale
 		for dx: float in [-0.075, 0.075]:
 			_box(giro, Vector3(0.016, 1.7, 0.012), legno_scuro, Vector3(dx, 1.03, -0.512))
-		# il montante d'angolo su ciascun bordo dello smusso
+		# il montante d'angolo su ciascun bordo dello smusso: sta IN FUORI
+		# rispetto a entrambe le facce che copre, o la giunzione fra parete
+		# e smusso resta una fessura di luce
 		for bx: float in [-1.0, 1.0]:
-			_box(giro, Vector3(0.07, 1.84, 0.07), legno_scuro, Vector3(bx * 0.175, 1.06, -0.45))
+			_box(giro, Vector3(0.07, 1.84, 0.07), legno_scuro, Vector3(bx * 0.175, 1.06, -0.49))
 
 	# IL TETTO: cono a OTTO SPICCHI, ruotato per allineare gli spigoli
 	# ai vertici dell'ottagono, con la fascia di gronda sotto e il
@@ -2756,17 +2769,19 @@ static func _guardiola() -> Node3D:
 	for pv: float in [-1.0, 1.0]:
 		_box(freccia, Vector3(0.05, 0.035, 0.014), ottone, Vector3(0.14, pv * 0.02, 0))
 
-	# il lume azzurro sotto la gronda, sulla mensolina: il segnale che di
-	# notte dice «qui c'è qualcuno sveglio»
-	_box(n, Vector3(0.05, 0.04, 0.16), legno_scuro, Vector3(0, 1.9, -0.52))
-	_lume_azzurro(n, Vector3(0, 1.73, -0.56), 0.75)
+	# il lume azzurro su un braccio al montante, DI LATO: appeso al centro
+	# pendeva esattamente sulla chiave dell'arco, e lanterna e arco si
+	# mangiavano a vicenda — da un braccio, come fuori da un'osteria,
+	# resta il segnale di notte senza coprire niente
+	_box(n, Vector3(0.05, 0.035, 0.18), legno_scuro, Vector3(-0.3, 1.82, -0.53))
+	_lume_azzurro(n, Vector3(-0.3, 1.67, -0.6), 0.7)
 
-	# la targa blu col fregio, sotto il bancone
-	var targa := _box(n, Vector3(0.4, 0.12, 0.03), _mat(BLU, BLU_CUPO, 5.0, 0.4),
-			Vector3(0, 0.78, -0.475))
+	# la targa blu col fregio, sul parapetto sotto il bancone
+	var targa := _box(n, Vector3(0.34, 0.11, 0.03), _mat(BLU, BLU_CUPO, 5.0, 0.4),
+			Vector3(0, 0.8, -0.5))
 	targa.name = "Targa"
-	_box(n, Vector3(0.28, 0.028, 0.012), _mat(SEGNALE_BIANCO, CREAM, 6.0, 0.2),
-			Vector3(0, 0.79, -0.495))
+	_box(n, Vector3(0.24, 0.026, 0.012), _mat(SEGNALE_BIANCO, CREAM, 6.0, 0.2),
+			Vector3(0, 0.81, -0.518))
 
 	# la CAMPANELLA d'ottone accanto alla porta: si suona per chiamare la
 	# guardia quando è in giro di ronda

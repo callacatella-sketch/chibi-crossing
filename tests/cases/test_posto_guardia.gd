@@ -10,6 +10,7 @@ extends RefCounted
 
 const CAT = preload("res://scenes/build/BuildCatalog.gd")
 const ECONOMY = preload("res://scenes/ui/Economy.gd")
+const VEGLIA = preload("res://scenes/npc/Veglia.gd")
 
 const PEZZI := ["Guardiola", "Insegna guardia", "Sbarra", "Bancone guardia",
 		"Armadio smarriti", "Bacheca avvisi", "Attaccapanni", "Brandina",
@@ -21,6 +22,8 @@ func run(t) -> void:
 	_test_si_costruiscono_davvero(t)
 	_test_il_corredo(t)
 	_test_nomi_e_collisioni(t)
+	_test_la_garitta_si_abita(t)
+	_test_il_turno_di_giorno(t)
 
 
 func _test_i_pezzi_esistono(t) -> void:
@@ -94,6 +97,64 @@ func _test_nomi_e_collisioni(t) -> void:
 	for n in PEZZI:
 		t.ok(n == n.strip_edges() and not n.contains("  "),
 				"«%s» è un id pulito" % n)
+
+
+## LA GARITTA SI ABITA. La guardiola non è un soprammobile: chi fa la
+## guardia ci ENTRA (il varco sul retro dev'essere libero dalle
+## collisioni) e ci sta di turno (il nodo "PostoGuardia" è dove la
+## Veglia lo manda). Questi controlli si rompono se qualcuno richiude
+## la garitta in una scatola piena — e se ne accorgerebbe solo chi
+## vede la guardia sbattere il muso contro il proprio posto di lavoro.
+func _test_la_garitta_si_abita(t) -> void:
+	var per_nome := _catalogo()
+	var voce: Dictionary = per_nome.get("Guardiola", {})
+	if voce.is_empty():
+		return
+	var nodo = (voce["builder"] as Callable).call()
+	var posto = nodo.find_child("PostoGuardia", true, false)
+	t.ok(posto != null, "la guardiola ha il suo PostoGuardia")
+	if posto != null:
+		var p: Vector3 = (posto as Node3D).position
+		t.ok(absf(p.x) < 0.3 and absf(p.z) < 0.3,
+				"il posto sta DENTRO la garitta (%.2f, %.2f)" % [p.x, p.z])
+		t.ok(p.y >= 0.0 and p.y < 0.4, "…e a terra, non per aria (y=%.2f)" % p.y)
+	# i nomi che altri sistemi cercano devono sopravvivere ai restyling
+	t.ok(nodo.find_child("Lume", true, false) != null, "il lume azzurro c'è ancora")
+	t.ok(nodo.find_child("Targa", true, false) != null, "la targa c'è ancora")
+	nodo.free()
+	# le collisioni: cave. Il varco sul retro LIBERO (tre punti lungo la
+	# strada d'ingresso), il fronte e i fianchi solidi.
+	var cols: Array = voce.get("cols", [])
+	t.ok(cols.size() >= 4, "la garitta cava ha più scatole di collisione (%d)" % cols.size())
+	for punto in [Vector3(0, 0.5, 0.6), Vector3(0, 0.5, 0.3), Vector3(0, 0.5, 0.0)]:
+		t.ok(not _dentro_una_scatola(punto, cols),
+				"la strada d'ingresso è libera a z=%.1f" % punto.z)
+	t.ok(_dentro_una_scatola(Vector3(0, 0.9, -0.44), cols), "il fronte è solido")
+	t.ok(_dentro_una_scatola(Vector3(-0.44, 0.9, 0), cols), "i fianchi sono solidi")
+
+
+## IL TURNO DI GIORNO. La finestra oraria è una funzione pura della
+## Veglia: dentro l'orario la guardia sta in garitta, fuori no — e il
+## turno deve FINIRE prima che cominci la ronda, o i due richiami se
+## la strattonano a vicenda.
+func _test_il_turno_di_giorno(t) -> void:
+	t.ok(not VEGLIA.in_orario_di_turno(0.2), "all'alba non si è ancora di turno")
+	t.ok(VEGLIA.in_orario_di_turno(0.5), "a metà giornata sì")
+	t.ok(not VEGLIA.in_orario_di_turno(0.8),
+			"alla sera il turno ha già lasciato il posto alla ronda")
+	t.ok(VEGLIA.ORA_TURNO_A <= VEGLIA.ORA_RONDA,
+			"il turno finisce prima che la ronda cominci")
+
+
+func _dentro_una_scatola(p: Vector3, cols: Array) -> bool:
+	for c in cols:
+		var size: Vector3 = c[0]
+		var centro: Vector3 = c[1]
+		var d := p - centro
+		if absf(d.x) <= size.x * 0.5 and absf(d.y) <= size.y * 0.5 \
+				and absf(d.z) <= size.z * 0.5:
+			return true
+	return false
 
 
 func _catalogo() -> Dictionary:
