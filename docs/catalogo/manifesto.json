@@ -117,7 +117,7 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.48,
+    "alto": 0.47,
     "cartella": "docs/catalogo/0-struttura/tenda-bar/",
     "cat": 0.0,
     "largo": 0.98,
@@ -189,10 +189,10 @@
     "tipo": "edge"
   },
   {
-    "alto": 0.56,
+    "alto": 0.58,
     "cartella": "docs/catalogo/0-struttura/insegna-bar/",
     "cat": 0.0,
-    "largo": 0.81,
+    "largo": 0.85,
     "nome": "Insegna bar",
     "slug": "insegna-bar",
     "tipo": "edge"
@@ -380,7 +380,7 @@
   {
     "alto": 1.02,
     "cartella": "docs/catalogo/1-arredo/biliardino/",
-    "cat": 1.0,
+    "cat": 1,
     "largo": 1.0,
     "nome": "Biliardino",
     "slug": "biliardino",
@@ -389,7 +389,7 @@
   {
     "alto": 0.95,
     "cartella": "docs/catalogo/1-arredo/lavagnetta/",
-    "cat": 1.0,
+    "cat": 1,
     "largo": 0.56,
     "nome": "Lavagnetta",
     "slug": "lavagnetta",
@@ -407,17 +407,17 @@
   {
     "alto": 0.81,
     "cartella": "docs/catalogo/1-arredo/tavolino-bar/",
-    "cat": 1.0,
-    "largo": 0.81,
+    "cat": 1,
+    "largo": 0.82,
     "nome": "Tavolino bar",
     "slug": "tavolino-bar",
     "tipo": "cell"
   },
   {
-    "alto": 0.9,
+    "alto": 0.97,
     "cartella": "docs/catalogo/1-arredo/sedia-vimini/",
-    "cat": 1.0,
-    "largo": 0.44,
+    "cat": 1,
+    "largo": 0.45,
     "nome": "Sedia vimini",
     "slug": "sedia-vimini",
     "tipo": "cell"
@@ -443,16 +443,16 @@
   {
     "alto": 0.92,
     "cartella": "docs/catalogo/1-arredo/vetrina-dolci/",
-    "cat": 1,
+    "cat": 1.0,
     "largo": 0.98,
     "nome": "Vetrina dolci",
     "slug": "vetrina-dolci",
     "tipo": "cell"
   },
   {
-    "alto": 0.78,
+    "alto": 0.83,
     "cartella": "docs/catalogo/1-arredo/sgabello-alto/",
-    "cat": 1.0,
+    "cat": 1,
     "largo": 0.38,
     "nome": "Sgabello alto",
     "slug": "sgabello-alto",
@@ -461,7 +461,7 @@
   {
     "alto": 0.76,
     "cartella": "docs/catalogo/1-arredo/macchina-caffe/",
-    "cat": 1,
+    "cat": 1.0,
     "largo": 0.67,
     "nome": "Macchina caffè",
     "slug": "macchina-caffe",
@@ -513,10 +513,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.0,
+    "alto": 1.04,
     "cartella": "docs/catalogo/1-arredo/mensola-bottiglie/",
-    "cat": 1.0,
-    "largo": 0.94,
+    "cat": 1,
+    "largo": 0.97,
     "nome": "Mensola bottiglie",
     "slug": "mensola-bottiglie",
     "tipo": "edge"
@@ -569,7 +569,7 @@
   {
     "alto": 1.94,
     "cartella": "docs/catalogo/2-giardino/lucine/",
-    "cat": 2.0,
+    "cat": 2,
     "largo": 1.0,
     "nome": "Lucine",
     "slug": "lucine",
@@ -632,8 +632,8 @@
   {
     "alto": 0.69,
     "cartella": "docs/catalogo/2-giardino/fioriera/",
-    "cat": 2.0,
-    "largo": 1.0,
+    "cat": 2,
+    "largo": 0.98,
     "nome": "Fioriera",
     "slug": "fioriera",
     "tipo": "cell"
@@ -711,9 +711,9 @@
     "tipo": "cell"
   },
   {
-    "alto": 2.26,
+    "alto": 2.28,
     "cartella": "docs/catalogo/2-giardino/ombrellone/",
-    "cat": 2.0,
+    "cat": 2,
     "largo": 1.31,
     "nome": "Ombrellone",
     "slug": "ombrellone",
@@ -774,10 +774,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.18,
+    "alto": 1.2,
     "cartella": "docs/catalogo/2-giardino/frigo-gelati/",
-    "cat": 2.0,
-    "largo": 0.97,
+    "cat": 2,
+    "largo": 1.0,
     "nome": "Frigo gelati",
     "slug": "frigo-gelati",
     "tipo": "cell"

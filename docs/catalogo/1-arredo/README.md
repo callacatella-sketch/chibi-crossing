@@ -22,17 +22,17 @@
 | **Letto**<br><sub>0.92 × 0.60 m</sub> | <img src="letto/1-fronte.jpg" width="200"> | <img src="letto/2-tre-quarti.jpg" width="200"> | <img src="letto/3-profilo.jpg" width="200"> |
 | **Libreria**<br><sub>0.93 × 1.55 m</sub> | <img src="libreria/1-fronte.jpg" width="200"> | <img src="libreria/2-tre-quarti.jpg" width="200"> | <img src="libreria/3-profilo.jpg" width="200"> |
 | **Macchina caffè**<br><sub>0.67 × 0.76 m</sub> | <img src="macchina-caffe/1-fronte.jpg" width="200"> | <img src="macchina-caffe/2-tre-quarti.jpg" width="200"> | <img src="macchina-caffe/3-profilo.jpg" width="200"> |
-| **Mensola bottiglie**<br><sub>0.94 × 1.00 m</sub> | <img src="mensola-bottiglie/1-fronte.jpg" width="200"> | <img src="mensola-bottiglie/2-tre-quarti.jpg" width="200"> | <img src="mensola-bottiglie/3-profilo.jpg" width="200"> |
+| **Mensola bottiglie**<br><sub>0.97 × 1.04 m</sub> | <img src="mensola-bottiglie/1-fronte.jpg" width="200"> | <img src="mensola-bottiglie/2-tre-quarti.jpg" width="200"> | <img src="mensola-bottiglie/3-profilo.jpg" width="200"> |
 | **Pianoforte**<br><sub>0.63 × 0.69 m</sub> | <img src="pianoforte/1-fronte.jpg" width="200"> | <img src="pianoforte/2-tre-quarti.jpg" width="200"> | <img src="pianoforte/3-profilo.jpg" width="200"> |
 | **Salone**<br><sub>1.20 × 1.19 m</sub> | <img src="salone/1-fronte.jpg" width="200"> | <img src="salone/2-tre-quarti.jpg" width="200"> | <img src="salone/3-profilo.jpg" width="200"> |
 | **Secchi**<br><sub>0.62 × 0.47 m</sub> | <img src="secchi/1-fronte.jpg" width="200"> | <img src="secchi/2-tre-quarti.jpg" width="200"> | <img src="secchi/3-profilo.jpg" width="200"> |
 | **Sedia**<br><sub>0.42 × 1.03 m</sub> | <img src="sedia/1-fronte.jpg" width="200"> | <img src="sedia/2-tre-quarti.jpg" width="200"> | <img src="sedia/3-profilo.jpg" width="200"> |
-| **Sedia vimini**<br><sub>0.44 × 0.90 m</sub> | <img src="sedia-vimini/1-fronte.jpg" width="200"> | <img src="sedia-vimini/2-tre-quarti.jpg" width="200"> | <img src="sedia-vimini/3-profilo.jpg" width="200"> |
+| **Sedia vimini**<br><sub>0.45 × 0.97 m</sub> | <img src="sedia-vimini/1-fronte.jpg" width="200"> | <img src="sedia-vimini/2-tre-quarti.jpg" width="200"> | <img src="sedia-vimini/3-profilo.jpg" width="200"> |
 | **Sgabello**<br><sub>0.42 × 0.48 m</sub> | <img src="sgabello/1-fronte.jpg" width="200"> | <img src="sgabello/2-tre-quarti.jpg" width="200"> | <img src="sgabello/3-profilo.jpg" width="200"> |
-| **Sgabello alto**<br><sub>0.38 × 0.78 m</sub> | <img src="sgabello-alto/1-fronte.jpg" width="200"> | <img src="sgabello-alto/2-tre-quarti.jpg" width="200"> | <img src="sgabello-alto/3-profilo.jpg" width="200"> |
+| **Sgabello alto**<br><sub>0.38 × 0.83 m</sub> | <img src="sgabello-alto/1-fronte.jpg" width="200"> | <img src="sgabello-alto/2-tre-quarti.jpg" width="200"> | <img src="sgabello-alto/3-profilo.jpg" width="200"> |
 | **Stivali**<br><sub>0.72 × 0.22 m</sub> | <img src="stivali/1-fronte.jpg" width="200"> | <img src="stivali/2-tre-quarti.jpg" width="200"> | <img src="stivali/3-profilo.jpg" width="200"> |
 | **Tavolino**<br><sub>0.84 × 0.66 m</sub> | <img src="tavolino/1-fronte.jpg" width="200"> | <img src="tavolino/2-tre-quarti.jpg" width="200"> | <img src="tavolino/3-profilo.jpg" width="200"> |
-| **Tavolino bar**<br><sub>0.81 × 0.81 m</sub> | <img src="tavolino-bar/1-fronte.jpg" width="200"> | <img src="tavolino-bar/2-tre-quarti.jpg" width="200"> | <img src="tavolino-bar/3-profilo.jpg" width="200"> |
+| **Tavolino bar**<br><sub>0.82 × 0.81 m</sub> | <img src="tavolino-bar/1-fronte.jpg" width="200"> | <img src="tavolino-bar/2-tre-quarti.jpg" width="200"> | <img src="tavolino-bar/3-profilo.jpg" width="200"> |
 | **Vetrina dolci**<br><sub>0.98 × 0.92 m</sub> | <img src="vetrina-dolci/1-fronte.jpg" width="200"> | <img src="vetrina-dolci/2-tre-quarti.jpg" width="200"> | <img src="vetrina-dolci/3-profilo.jpg" width="200"> |
 
 [« torna all'indice](../README.md)

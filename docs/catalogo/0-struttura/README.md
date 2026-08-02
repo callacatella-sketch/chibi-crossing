@@ -12,7 +12,7 @@
 | **Gazebo**<br><sub>1.99 × 2.88 m</sub> | <img src="gazebo/1-fronte.jpg" width="200"> | <img src="gazebo/2-tre-quarti.jpg" width="200"> | <img src="gazebo/3-profilo.jpg" width="200"> |
 | **Gradinata**<br><sub>1.04 × 0.60 m</sub> | <img src="gradinata/1-fronte.jpg" width="200"> | <img src="gradinata/2-tre-quarti.jpg" width="200"> | <img src="gradinata/3-profilo.jpg" width="200"> |
 | **Guardiola**<br><sub>1.16 × 2.27 m</sub> | <img src="guardiola/1-fronte.jpg" width="200"> | <img src="guardiola/2-tre-quarti.jpg" width="200"> | <img src="guardiola/3-profilo.jpg" width="200"> |
-| **Insegna bar**<br><sub>0.81 × 0.56 m</sub> | <img src="insegna-bar/1-fronte.jpg" width="200"> | <img src="insegna-bar/2-tre-quarti.jpg" width="200"> | <img src="insegna-bar/3-profilo.jpg" width="200"> |
+| **Insegna bar**<br><sub>0.85 × 0.58 m</sub> | <img src="insegna-bar/1-fronte.jpg" width="200"> | <img src="insegna-bar/2-tre-quarti.jpg" width="200"> | <img src="insegna-bar/3-profilo.jpg" width="200"> |
 | **Insegna caserma**<br><sub>0.92 × 1.74 m</sub> | <img src="insegna-caserma/1-fronte.jpg" width="200"> | <img src="insegna-caserma/2-tre-quarti.jpg" width="200"> | <img src="insegna-caserma/3-profilo.jpg" width="200"> |
 | **Insegna guardia**<br><sub>0.79 × 2.00 m</sub> | <img src="insegna-guardia/1-fronte.jpg" width="200"> | <img src="insegna-guardia/2-tre-quarti.jpg" width="200"> | <img src="insegna-guardia/3-profilo.jpg" width="200"> |
 | **Muro**<br><sub>1.00 × 2.08 m</sub> | <img src="muro/1-fronte.jpg" width="200"> | <img src="muro/2-tre-quarti.jpg" width="200"> | <img src="muro/3-profilo.jpg" width="200"> |
@@ -29,7 +29,7 @@
 | **Solaio**<br><sub>1.00 × 0.18 m</sub> | <img src="solaio/1-fronte.jpg" width="200"> | <img src="solaio/2-tre-quarti.jpg" width="200"> | <img src="solaio/3-profilo.jpg" width="200"> |
 | **Staccionata**<br><sub>0.95 × 0.92 m</sub> | <img src="staccionata/1-fronte.jpg" width="200"> | <img src="staccionata/2-tre-quarti.jpg" width="200"> | <img src="staccionata/3-profilo.jpg" width="200"> |
 | **Tappeto**<br><sub>0.92 × 0.04 m</sub> | <img src="tappeto/1-fronte.jpg" width="200"> | <img src="tappeto/2-tre-quarti.jpg" width="200"> | <img src="tappeto/3-profilo.jpg" width="200"> |
-| **Tenda bar**<br><sub>0.98 × 0.48 m</sub> | <img src="tenda-bar/1-fronte.jpg" width="200"> | <img src="tenda-bar/2-tre-quarti.jpg" width="200"> | <img src="tenda-bar/3-profilo.jpg" width="200"> |
+| **Tenda bar**<br><sub>0.98 × 0.47 m</sub> | <img src="tenda-bar/1-fronte.jpg" width="200"> | <img src="tenda-bar/2-tre-quarti.jpg" width="200"> | <img src="tenda-bar/3-profilo.jpg" width="200"> |
 | **Tetto**<br><sub>1.02 × 0.12 m</sub> | <img src="tetto/1-fronte.jpg" width="200"> | <img src="tetto/2-tre-quarti.jpg" width="200"> | <img src="tetto/3-profilo.jpg" width="200"> |
 | **Torretta**<br><sub>1.87 × 2.89 m</sub> | <img src="torretta/1-fronte.jpg" width="200"> | <img src="torretta/2-tre-quarti.jpg" width="200"> | <img src="torretta/3-profilo.jpg" width="200"> |
 
