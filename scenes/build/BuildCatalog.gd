@@ -518,6 +518,16 @@ static func _rug() -> Node3D:
 ## della Porta: una stanza con porte e finestre ha un'unica linea che
 ## le lega tutte.
 static func _wall() -> Node3D:
+	return _ossatura_muro(false)
+
+
+## L'ossatura condivisa di Muro e Finestra: zoccolo, battiscopa, graticcio
+## e trave di colmo sono identici — cambia solo l'INTONACO, che per la
+## finestra lascia un'apertura vera (x ±0.29, y 0.89–1.61) invece di
+## correre pieno dietro al vetro. La prima stesura riusava il muro pieno
+## e ci appoggiava sopra il telaio: da fuori la finestra era un riquadro
+## color intonaco — il vetro, incassato, restava sepolto DENTRO il muro.
+static func _ossatura_muro(con_apertura: bool) -> Node3D:
 	var n := Node3D.new()
 	var plaster := _mat(PLASTER, PLASTER_SHADE, 2.5, 0.5)
 	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
@@ -531,7 +541,14 @@ static func _wall() -> Node3D:
 	_box(n, Vector3(1.0, 0.07, 0.19), wood, Vector3(0, 0.125, 0))
 	# l'intonaco: un filo più sottile dei legni (0.13 contro 0.17), così
 	# il graticcio sta in rilievo e si porta dietro la sua ombra
-	_box(n, Vector3(1.0, 1.84, 0.13), plaster, Vector3(0, 1.08, 0))
+	if con_apertura:
+		# quattro campi attorno all'apertura della finestra
+		for sx0: float in [-1.0, 1.0]:
+			_box(n, Vector3(0.21, 1.84, 0.13), plaster, Vector3(sx0 * 0.395, 1.08, 0))
+		_box(n, Vector3(0.58, 0.75, 0.13), plaster, Vector3(0, 0.535, 0))
+		_box(n, Vector3(0.58, 0.41, 0.13), plaster, Vector3(0, 1.795, 0))
+	else:
+		_box(n, Vector3(1.0, 1.84, 0.13), plaster, Vector3(0, 1.08, 0))
 	# i due montanti del graticcio
 	for sx: float in [-1.0, 1.0]:
 		_box(n, Vector3(0.09, 1.84, 0.17), wood, Vector3(sx * 0.435, 1.08, 0))
@@ -567,7 +584,7 @@ static func _wall() -> Node3D:
 ## scalda. Le lame di riflesso qui sotto sono additive SENZA emissione
 ## proprio per non fargli ombra.
 static func _window_wall() -> Node3D:
-	var n := _wall()
+	var n := _ossatura_muro(true)
 	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
 	var wood_scuro := _mat(WOOD_DARK, Color("8a6540"), 3.5, 0.5)
 
@@ -595,8 +612,10 @@ static func _window_wall() -> Node3D:
 	_box(n, Vector3(0.03, 0.58, 0.08), bar, Vector3(0, 1.25, 0))
 
 	# il davanzale, sporgente su entrambe le facce: dentro casa è la
-	# mensola del gatto, fuori è il cappello della fioriera
-	_box(n, Vector3(0.7, 0.05, 0.26), wood, Vector3(0, 0.885, 0))
+	# mensola del gatto, fuori è il cappello della fioriera. Sale di un
+	# soffio DENTRO la traversa bassa del telaio (0.915 contro 0.91):
+	# due facce esattamente a filo si tagliano con una cucitura chiara
+	_box(n, Vector3(0.7, 0.055, 0.26), wood, Vector3(0, 0.8875, 0))
 
 	# due lame di riflesso oblique, una per faccia: additive e SENZA
 	# emissione (vedi il contratto con PozzeDiLuce qui sopra) — è il
@@ -610,22 +629,32 @@ static func _window_wall() -> Node3D:
 		var l := _box(n, Vector3(0.05, 0.4, 0.004), lama, Vector3(-0.04, 1.27, sz * 0.028))
 		l.rotation.z = 0.45
 
-	# LA FIORIERA, sul fronte: la cassetta di legno appesa sotto il
-	# davanzale, il verde che trabocca appena, e quattro fiori nei rosa
-	# del villaggio. È il dettaglio che trasforma "un'apertura nel muro"
-	# in "qualcuno abita qui".
+	# LA FIORIERA, sul fronte: la cassetta di legno con l'orlo chiaro e le
+	# staffe che la reggono al muro (una cassetta senza staffe fluttua),
+	# il verde che TRABOCCA oltre il bordo — è la fogliolina che ricade
+	# davanti a rompere la linea dritta della cassetta — e quattro fiori
+	# nei rosa del villaggio, ad altezze diverse: una fila di fiori tutti
+	# alla stessa quota è un pettine, non un'aiuola. È il dettaglio che
+	# trasforma "un'apertura nel muro" in "qualcuno abita qui".
 	_box(n, Vector3(0.52, 0.09, 0.08), wood_scuro, Vector3(0, 0.81, -0.17))
+	# l'orlo chiaro della cassetta, e le due staffe fino al muro
+	_box(n, Vector3(0.54, 0.022, 0.095), wood, Vector3(0, 0.851, -0.17))
+	for sxf: float in [-1.0, 1.0]:
+		_box(n, Vector3(0.035, 0.055, 0.14), wood_scuro, Vector3(sxf * 0.19, 0.75, -0.135))
 	var verde := _mat(LEAF, LEAF_DARK, 5.0, 0.5)
-	_ball(n, 0.05, verde, Vector3(-0.15, 0.865, -0.175), Vector3(1.2, 0.7, 0.85))
-	_ball(n, 0.05, verde, Vector3(0.02, 0.872, -0.17), Vector3(1.25, 0.75, 0.8))
-	_ball(n, 0.05, verde, Vector3(0.17, 0.862, -0.175), Vector3(1.1, 0.68, 0.85))
+	_ball(n, 0.055, verde, Vector3(-0.15, 0.872, -0.175), Vector3(1.2, 0.75, 0.85))
+	_ball(n, 0.058, verde, Vector3(0.02, 0.878, -0.17), Vector3(1.25, 0.8, 0.8))
+	_ball(n, 0.055, verde, Vector3(0.17, 0.87, -0.175), Vector3(1.1, 0.72, 0.85))
+	# le foglie che ricadono oltre l'orlo, davanti alla cassetta
+	_ball(n, 0.04, verde, Vector3(-0.08, 0.815, -0.212), Vector3(0.9, 1.3, 0.55))
+	_ball(n, 0.036, verde, Vector3(0.12, 0.8, -0.21), Vector3(0.85, 1.2, 0.5))
 	var rosa := _mat(PINK, PINK_DEEP, 4.0, 0.4)
 	var crema := _mat(CREAM, Color("f3dfc8"), 4.0, 0.4)
 	var rosa_fondo := _mat(PINK_DEEP, PINK, 4.0, 0.4)
-	_ball(n, 0.024, rosa, Vector3(-0.19, 0.905, -0.185))
-	_ball(n, 0.022, crema, Vector3(-0.05, 0.917, -0.19))
-	_ball(n, 0.024, rosa_fondo, Vector3(0.08, 0.9, -0.185))
-	_ball(n, 0.021, rosa, Vector3(0.21, 0.91, -0.19))
+	_ball(n, 0.026, rosa, Vector3(-0.19, 0.9, -0.2))
+	_ball(n, 0.022, crema, Vector3(-0.05, 0.932, -0.198))
+	_ball(n, 0.025, rosa_fondo, Vector3(0.08, 0.888, -0.202))
+	_ball(n, 0.021, rosa, Vector3(0.2, 0.915, -0.198))
 	return n
 
 
@@ -638,6 +667,10 @@ static func _door_wall() -> Node3D:
 		_box(n, Vector3(0.16, 2.0, 0.14), plaster, Vector3(side * 0.42, 1.0, 0))
 	_box(n, Vector3(1.0, 0.44, 0.14), plaster, Vector3(0, 1.78, 0))
 	_box(n, Vector3(1.0, 0.08, 0.18), wood, Vector3(0, 2.04, 0))
+	# il coprigiunto scuro sul colmo: la stessa linea del Muro e della
+	# Finestra, così la corona corre ininterrotta lungo tutta la casa
+	_box(n, Vector3(1.0, 0.03, 0.22), _mat(WOOD_DARK, Color("8a6540"), 3.5, 0.5),
+			Vector3(0, 2.095, 0))
 	_box(n, Vector3(0.76, 0.1, 0.16), wood, Vector3(0, 1.61, 0))
 	for side: float in [-1.0, 1.0]:
 		_box(n, Vector3(0.08, 1.56, 0.16), wood, Vector3(side * 0.38, 0.78, 0))
