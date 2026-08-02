@@ -227,14 +227,14 @@ static func items() -> Array[Dictionary]:
 		{"name": "Fontana", "cat": 2, "type": "cell", "layer": 2, "builder": _fountain,
 			"cols": [[Vector3(0.98, 0.6, 0.98), Vector3(0, 0.3, 0)]]},
 		{"name": "Gazebo", "cat": 0, "type": "cell", "layer": 2, "builder": _gazebo,
-			# sei colonnine ai vertici dell'esagono VERO (prima erano i
-			# quattro angoli di un quadrato che non esisteva più)
-			"cols": [[Vector3(0.13, 1.5, 0.13), Vector3(0.500, 0.75, 0.000)],
-					[Vector3(0.13, 1.5, 0.13), Vector3(0.250, 0.75, 0.433)],
-					[Vector3(0.13, 1.5, 0.13), Vector3(-0.250, 0.75, 0.433)],
-					[Vector3(0.13, 1.5, 0.13), Vector3(-0.500, 0.75, 0.000)],
-					[Vector3(0.13, 1.5, 0.13), Vector3(-0.250, 0.75, -0.433)],
-					[Vector3(0.13, 1.5, 0.13), Vector3(0.250, 0.75, -0.433)]]},
+			# sei colonnine ai vertici dell'esagono, piu' il tavolino del te'
+			"cols": [[Vector3(0.13, 1.5, 0.13), Vector3(0.660, 0.75, 0.000)],
+					[Vector3(0.13, 1.5, 0.13), Vector3(0.330, 0.75, 0.572)],
+					[Vector3(0.13, 1.5, 0.13), Vector3(-0.330, 0.75, 0.572)],
+					[Vector3(0.13, 1.5, 0.13), Vector3(-0.660, 0.75, 0.000)],
+					[Vector3(0.13, 1.5, 0.13), Vector3(-0.330, 0.75, -0.572)],
+					[Vector3(0.13, 1.5, 0.13), Vector3(0.330, 0.75, -0.572)],
+					[Vector3(0.42, 0.5, 0.42), Vector3(0.0, 0.25, 0.10)]]},
 		{"name": "Giostrina", "cat": 2, "type": "cell", "layer": 2, "builder": _carousel,
 			"cols": [[Vector3(0.5, 1.6, 0.5), Vector3(0, 0.8, 0)]]},
 		{"name": "Braciere stellato", "cat": 1, "type": "cell", "layer": 2, "builder": _brazier,
@@ -1910,28 +1910,28 @@ static func _gazebo() -> Node3D:
 	var esa_legno: Array = []
 	for k in 6:
 		var a := float(k) * TAU / 6.0
-		esa_pietra.append(Vector2(cos(a) * 0.60, sin(a) * 0.60))
-		esa_legno.append(Vector2(cos(a) * 0.55, sin(a) * 0.55))
+		esa_pietra.append(Vector2(cos(a) * 0.78, sin(a) * 0.78))
+		esa_legno.append(Vector2(cos(a) * 0.72, sin(a) * 0.72))
 	_prisma(n, esa_pietra, 0.0, 0.06, pietra)
 	_prisma(n, esa_legno, 0.06, 0.06, chiaro)
 	# le fughe delle assi: righe sottili e scure sul piano di calpestio
-	for fx: float in [-0.36, -0.18, 0.0, 0.18, 0.36]:
-		var mezza: float = 0.55 * (1.0 - absf(fx) / 0.66)
+	for fx: float in [-0.47, -0.235, 0.0, 0.235, 0.47]:
+		var mezza: float = 0.72 * (1.0 - absf(fx) / 0.86)
 		_box(n, Vector3(0.012, 0.004, mezza * 1.7), _mat(WOOD, WOOD_DARK, 3.0, 0.4),
 				Vector3(fx, 0.121, 0))
-	_box(n, Vector3(0.34, 0.05, 0.16), pietra, Vector3(0, 0.025, -0.62))
+	_box(n, Vector3(0.40, 0.05, 0.16), pietra, Vector3(0, 0.025, -0.80))
 
 	# ---- LE SEI COLONNINE TORNITE: base, fusto che si assottiglia,
 	# capitello. Ai vertici dell'esagono, col fronte libero per entrare.
-	var r_col := 0.50
+	var r_col := 0.66
 	for k2 in 6:
 		var a2 := float(k2) * TAU / 6.0
 		var cx := cos(a2) * r_col
 		var cz := sin(a2) * r_col
 		_box(n, Vector3(0.11, 0.07, 0.11), legno, Vector3(cx, 0.155, cz))
-		_cyl(n, 0.032, 0.042, 1.06, legno, Vector3(cx, 0.72, cz))
-		_cyl(n, 0.05, 0.036, 0.05, legno, Vector3(cx, 1.275, cz))
-		_box(n, Vector3(0.10, 0.045, 0.10), crema, Vector3(cx, 1.323, cz))
+		_cyl(n, 0.034, 0.044, 1.14, legno, Vector3(cx, 0.76, cz))
+		_cyl(n, 0.05, 0.036, 0.05, legno, Vector3(cx, 1.355, cz))
+		_box(n, Vector3(0.10, 0.045, 0.10), crema, Vector3(cx, 1.403, cz))
 
 	# ---- L'ARCHITRAVE: sei travi fra i capitelli, e sotto una mantovana
 	# smerlata di crema coi suoi pendenti — il ricamo che fa «gazebo da
@@ -1943,17 +1943,17 @@ static func _gazebo() -> Node3D:
 		var mz := sin(a3) * ap_col
 		var giro := PI * 0.5 - a3
 		var trave := _box(n, Vector3(r_col, 0.075, 0.06), legno,
-				Vector3(mx, 1.385, mz))
+				Vector3(mx, 1.465, mz))
 		trave.rotation.y = giro
 		var mantova := _box(n, Vector3(r_col * 0.92, 0.035, 0.02), crema,
-				Vector3(mx * 0.985, 1.33, mz * 0.985))
+				Vector3(mx * 0.985, 1.41, mz * 0.985))
 		mantova.rotation.y = giro
 		# tre pendenti a goccia sotto la mantovana
 		for q in 3:
 			var t := (float(q) - 1.0) * 0.30
 			var px := mx * 0.985 - sin(a3) * t
 			var pz := mz * 0.985 + cos(a3) * t
-			_ball(n, 0.016, crema, Vector3(px, 1.305, pz), Vector3(1, 1.5, 1))
+			_ball(n, 0.016, crema, Vector3(px, 1.385, pz), Vector3(1, 1.5, 1))
 
 	# ---- LA BALAUSTRA su quattro lati (fronte e retro aperti): corrimano,
 	# zoccolo, e tre colonnini torniti per campata. È il parapetto su cui
@@ -1983,10 +1983,10 @@ static func _gazebo() -> Node3D:
 	# Ordine basso: un tronco di piramide (falde a trapezio), largo e
 	# gentile, con la gronda che sborda. Ordine alto: la piramide vera
 	# (falde a triangolo), più ripida. In mezzo, il tamburo.
-	var re1 := 0.74          # gronda bassa (sborda oltre le colonne: è un tetto)
-	var rm := 0.34           # dove l'ordine basso si ferma
-	var y1 := 1.44
-	var h1 := 0.30
+	var re1 := 0.95          # gronda bassa (sborda oltre le colonne: è un tetto)
+	var rm := 0.44           # dove l'ordine basso si ferma
+	var y1 := 1.52
+	var h1 := 0.34
 	var ap1 := re1 * cos(TAU / 12.0)
 	var apm := rm * cos(TAU / 12.0)
 	var corsa1 := ap1 - apm
@@ -2025,9 +2025,9 @@ static func _gazebo() -> Node3D:
 		esa_tamburo.append(Vector2(cos(a7) * (rm - 0.02), sin(a7) * (rm - 0.02)))
 	_prisma(n, esa_tamburo, y1 + h1 - 0.01, 0.10, crema)
 	# ordine alto: la piramide, più ripida
-	var re2 := 0.44
+	var re2 := 0.56
 	var y2 := y1 + h1 + 0.08
-	var h2 := 0.34
+	var h2 := 0.38
 	var ap2 := re2 * cos(TAU / 12.0)
 	var l2 := sqrt(ap2 * ap2 + h2 * h2)
 	var pende2 := atan2(h2, ap2)
@@ -2055,7 +2055,7 @@ static func _gazebo() -> Node3D:
 
 	# ---- LA LANTERNA APPESA nel mezzo: il cuore caldo del salotto. Di
 	# sera è lei a dire «venite a sedervi».
-	_cyl(n, 0.006, 0.006, 0.34, legno, Vector3(0, 1.30, 0))
+	_cyl(n, 0.006, 0.006, 0.46, legno, Vector3(0, 1.36, 0))
 	_cyl(n, 0.058, 0.066, 0.032, legno, Vector3(0, 1.115, 0))
 	_cyl(n, 0.06, 0.052, 0.125, _glow(Color("ffe6b8"), Color("ffc978"), 1.2),
 			Vector3(0, 1.038, 0))
@@ -2084,7 +2084,7 @@ static func _gazebo() -> Node3D:
 			var bandiera := _falda(n,
 					[Vector2(-0.035, 0.0), Vector2(0.035, 0.0), Vector2(0.0, 0.075)],
 					_mat(col_f, col_f.darkened(0.18), 3.0, 0.4),
-					Vector3(bx2, 1.26 - giu, bz2), PI * 0.5 - af, PI * 0.5, 0.006)
+					Vector3(bx2, 1.34 - giu, bz2), PI * 0.5 - af, PI * 0.5, 0.006)
 			bandiera.rotation.z = 0.06 if q3 % 2 == 0 else -0.06
 
 	# ---- IL RAMPICANTE su una colonna del retro: foglie che salgono a
@@ -2093,7 +2093,7 @@ static func _gazebo() -> Node3D:
 	var vx2 := cos(ar) * r_col
 	var vz2 := sin(ar) * r_col
 	for q4 in 7:
-		var sal := 0.22 + float(q4) * 0.14
+		var sal := 0.24 + float(q4) * 0.15
 		var att := float(q4) * 1.1
 		_ball(n, 0.045, verde,
 				Vector3(vx2 + cos(att) * 0.055, sal, vz2 + sin(att) * 0.055),
@@ -2108,18 +2108,50 @@ static func _gazebo() -> Node3D:
 
 	# ---- IL SALOTTO: il tavolino tondo con la teiera, e due cuscini a
 	# terra. È il motivo per cui si entra.
-	_cyl(n, 0.17, 0.17, 0.03, chiaro, Vector3(0.02, 0.42, 0.06))
-	_cyl(n, 0.025, 0.035, 0.28, legno, Vector3(0.02, 0.265, 0.06))
-	_cyl(n, 0.09, 0.10, 0.025, legno, Vector3(0.02, 0.135, 0.06))
-	_ball(n, 0.055, crema, Vector3(-0.04, 0.475, 0.02), Vector3(1, 0.85, 1))
-	_cyl(n, 0.008, 0.012, 0.045, crema, Vector3(-0.04, 0.52, 0.02))
-	_ball(n, 0.014, oro, Vector3(-0.04, 0.545, 0.02))
-	var becco := _cyl(n, 0.008, 0.012, 0.06, crema, Vector3(0.015, 0.49, 0.02))
+	_cyl(n, 0.21, 0.21, 0.03, chiaro, Vector3(0.0, 0.42, 0.10))
+	_cyl(n, 0.028, 0.038, 0.28, legno, Vector3(0.0, 0.265, 0.10))
+	_cyl(n, 0.10, 0.11, 0.025, legno, Vector3(0.0, 0.135, 0.10))
+	_ball(n, 0.055, crema, Vector3(-0.06, 0.475, 0.06), Vector3(1, 0.85, 1))
+	_cyl(n, 0.008, 0.012, 0.045, crema, Vector3(-0.06, 0.52, 0.06))
+	_ball(n, 0.014, oro, Vector3(-0.06, 0.545, 0.06))
+	var becco := _cyl(n, 0.008, 0.012, 0.06, crema, Vector3(-0.005, 0.49, 0.06))
 	becco.rotation.z = -0.9
-	_ball(n, 0.026, _mat(PINK, PINK_DEEP, 4.0, 0.4), Vector3(0.09, 0.455, 0.10),
+	_ball(n, 0.026, _mat(PINK, PINK_DEEP, 4.0, 0.4), Vector3(0.10, 0.455, 0.14),
 			Vector3(1, 0.5, 1))
-	for cusc: Array in [[Vector3(-0.28, 0.145, 0.30), PINK, PINK_DEEP],
-			[Vector3(0.32, 0.145, -0.22), Color("9ec9e8"), Color("7fb2d8")]]:
+	# ---- LE TRE SEDUTE. Sgabelli torniti col cuscino, attorno al tavolino,
+	# col fronte lasciato libero per entrare. E sono sedute VERE: ogni
+	# sgabello ha il suo ancoraggio «Posto» col meta `seduta` (il punto
+	# esatto del cuscino) e col meta `tavolo` (dove guardare da seduti) —
+	# è il contratto di `r_bench`, lo stesso della poltrona del salone.
+	# L'ancoraggio guarda VIA dal tavolo (+Z locale verso l'esterno), così
+	# ci si avvicina e ci si rialza dal lato giusto, mai attraverso il tè.
+	var tavolo_locale := Vector3(0.0, 0.45, 0.10)
+	var cuscini_sg: Array = [PINK, Color("9ec9e8"), Color("d8d0a8")]
+	var posti_sg: Array = [Vector3(0.40, 0, 0.34), Vector3(-0.40, 0, 0.34),
+			Vector3(0.06, 0, -0.34)]
+	for q6 in 3:
+		var ps: Vector3 = posti_sg[q6]
+		_cyl(n, 0.030, 0.040, 0.21, legno, Vector3(ps.x, 0.135, ps.z))
+		_cyl(n, 0.115, 0.115, 0.035, chiaro, Vector3(ps.x, 0.255, ps.z))
+		var col_c: Color = cuscini_sg[q6]
+		_ball(n, 0.10, _mat(col_c, col_c.darkened(0.18), 4.0, 0.45),
+				Vector3(ps.x, 0.28, ps.z), Vector3(1.0, 0.42, 1.0))
+		var posto := Node3D.new()
+		posto.name = "Posto%d" % q6
+		posto.position = Vector3(ps.x, 0.318, ps.z)
+		var via := Vector2(ps.x - tavolo_locale.x, ps.z - tavolo_locale.z)
+		posto.rotation.y = atan2(via.x, via.y)
+		posto.set_meta("seduta", Vector3.ZERO)
+		posto.set_meta("tavolo", tavolo_locale)
+		n.add_child(posto)
+	# le tazze degli ospiti: il tè è per tre
+	for q7 in 2:
+		var pt: Vector3 = posti_sg[q7]
+		var vt := Vector2(tavolo_locale.x - pt.x, tavolo_locale.z - pt.z).normalized()
+		_cyl(n, 0.022, 0.018, 0.028, crema,
+				Vector3(tavolo_locale.x - vt.x * 0.13, 0.45, tavolo_locale.z - vt.y * 0.13))
+	for cusc: Array in [[Vector3(-0.50, 0.145, 0.14), PINK, PINK_DEEP],
+			[Vector3(0.50, 0.145, -0.18), Color("9ec9e8"), Color("7fb2d8")]]:
 		_ball(n, 0.10, _mat(cusc[1], cusc[2], 4.0, 0.45), cusc[0],
 				Vector3(1.0, 0.42, 1.0))
 	return n

@@ -479,8 +479,19 @@ func _recita(r: Dictionary, node: Node3D, brain: RefCounted, act: String, ph: St
 				return
 			var bench := _free_bench(home)
 			if bench:
+				# per gli sgabelli del gazebo si arriva SUL posto (il +0.8
+				# della Panchina attraverserebbe il tavolino) e si guarda
+				# il tè: il meta `tavolo` dice dove, in coordinate del
+				# pezzo, e `r_bench` orienta chi si siede
+				var arrivo: Vector3 = bench.global_transform * Vector3(0, 0, 0.8)
+				var sguardo := Vector3.ZERO
+				if bench.has_meta("seduta"):
+					arrivo = bench.global_position
+				if bench.has_meta("tavolo"):
+					sguardo = (bench.get_parent() as Node3D).global_transform \
+							* (bench.get_meta("tavolo") as Vector3)
 				node.call("do_routine", "bench",
-						bench.global_transform * Vector3(0, 0, 0.8), Vector3.ZERO, bench)
+						Vector3(arrivo.x, 0, arrivo.z), sguardo, bench)
 				brain.satisfy("riposo")
 				return
 			node.call("do_task", "nap", Vector3.ZERO, func(): brain.satisfy("pisolino"))
@@ -1567,20 +1578,37 @@ func _nearest_named(names: Array, from: Vector3, max_d: float) -> Node3D:
 	return best
 
 
+## Un posto libero dove sedersi: una Panchina, oppure uno dei tre sgabelli
+## del Gazebo — che hanno il loro ancoraggio «Posto» col meta `seduta`,
+## come la poltrona del salone. È così che il gazebo smette di essere una
+## scenografia e diventa il posto dove i vicini vanno a prendere il tè.
+## L'occupazione si controlla sul NODO (ogni sgabello è un nodo suo):
+## tre vicini, tre sgabelli, nessuno in braccio a nessuno.
 func _free_bench(from: Vector3) -> Node3D:
+	var candidati: Array = []
 	for bench in _build.get_placed_by_name("Panchina"):
-		if (bench as Node3D).global_position.distance_to(from) > 16.0:
+		candidati.append(bench)
+	for gaz in _build.get_placed_by_name("Gazebo"):
+		for posto in (gaz as Node3D).find_children("Posto*", "Node3D", true, false):
+			candidati.append(posto)
+	var migliore: Node3D = null
+	var d_migliore := 16.0
+	for c in candidati:
+		var seat := c as Node3D
+		var d := seat.global_position.distance_to(from)
+		if d > d_migliore:
 			continue
 		var taken := false
 		for r in _residents:
 			var node := r.get("node") as Node3D
-			if node and is_instance_valid(node) and node.get("_routine_aux") == bench \
+			if node and is_instance_valid(node) and node.get("_routine_aux") == seat \
 					and str(node.get("_state")) in ["walk", "r_bench"]:
 				taken = true
 				break
 		if not taken:
-			return bench
-	return null
+			migliore = seat
+			d_migliore = d
+	return migliore
 
 
 # due vicini si scambiano nuvolette: zero testo, tanta vita
