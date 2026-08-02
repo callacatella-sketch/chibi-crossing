@@ -146,8 +146,8 @@
   {
     "alto": 0.62,
     "cartella": "docs/catalogo/0-struttura/gradinata/",
-    "cat": 0.0,
-    "largo": 1.07,
+    "cat": 0,
+    "largo": 1.06,
     "nome": "Gradinata",
     "slug": "gradinata",
     "tipo": "cell"
@@ -236,7 +236,7 @@
   {
     "alto": 1.92,
     "cartella": "docs/catalogo/0-struttura/insegna-caserma/",
-    "cat": 0,
+    "cat": 0.0,
     "largo": 1.08,
     "nome": "Insegna caserma",
     "slug": "insegna-caserma",
