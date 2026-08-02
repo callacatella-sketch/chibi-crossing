@@ -131,6 +131,20 @@ func _regia(delta: float) -> void:
 			if b != a and is_instance_valid(b) and not b._in_scena:
 				liberi += 1
 		var nuovo: String = REGIA.mestiere_nuovo(_clima, str(a.mestiere), liberi, _rng)
+		# L'ALTALENA HA UN POSTO SOLO. `mestiere_nuovo` non lo sa (non
+		# conosce gli altri attori), quindi tocca controllarlo qui: senza
+		# questo, due vicini potevano finire assegnati allo stesso mestiere
+		# nello stesso momento e sedersi ESATTAMENTE nello stesso punto —
+		# _fa_altalena calcola il posto a sedere dal nodo dell'altalena, non
+		# da chi lo chiede, quindi due chibi vi si sovrapponevano del tutto.
+		if nuovo == "altalena":
+			var occupata := false
+			for b in _attori:
+				if b != a and is_instance_valid(b) and str(b.mestiere) == "altalena":
+					occupata = true
+					break
+			if occupata:
+				nuovo = "seduto"
 		a.cambia_mestiere(nuovo)
 		if nuovo == "rincorre":
 			_accoppia_rincorsa(a)

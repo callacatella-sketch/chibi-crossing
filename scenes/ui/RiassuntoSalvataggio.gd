@@ -58,7 +58,14 @@ static func da_salvataggio(dati: Dictionary) -> RefCounted:
 
 	var fili_grezzi: Variant = dati.get("legami", {})
 	var per_nome: Dictionary = fili_grezzi if fili_grezzi is Dictionary else {}
-	for riga in (dati.get("residents", []) as Array):
+	# `as Array` su un dato che arriva da un JSON e' una scommessa: se il
+	# salvataggio e' storto e `residents` non e' una lista, il cast fallisce,
+	# tutta la funzione si interrompe e il menu resta senza riassunto — cioe'
+	# proprio nella schermata da cui il giocatore dovrebbe poter rimediare a
+	# un salvataggio andato storto. Si guarda il tipo, come si fa gia' due
+	# righe piu' su per i legami.
+	var abitanti: Variant = dati.get("residents", [])
+	for riga in (abitanti if abitanti is Array else []):
 		if riga is not Dictionary:
 			continue
 		var dna: Variant = riga.get("dna", {})
@@ -84,7 +91,9 @@ static func da_salvataggio(dati: Dictionary) -> RefCounted:
 			var f: Dictionary = filo
 			# `n` è il conto VISSUTO (il filo ne conserva solo gli ultimi):
 			# è quello giusto per dire quanta storia c'è stata
-			r.momenti += maxi(int(f.get("n", 0)), (f.get("momenti", []) as Array).size())
+			var momenti: Variant = f.get("momenti", [])
+			r.momenti += maxi(int(f.get("n", 0)),
+					(momenti as Array).size() if momenti is Array else 0)
 			# chi non c'è più: partito per il Grande Prato o andato via da
 			# sé. Il filo resta comunque — è quello il punto del Filo Rosso
 			if bool(f.get("partito", false)) or bool(f.get("andato_via", false)):

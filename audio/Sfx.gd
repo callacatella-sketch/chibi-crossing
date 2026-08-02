@@ -19,7 +19,11 @@ var _rain_p: AudioStreamPlayer
 var _bird_timer: Timer
 var _thread: Thread
 var _quiete_giu := 0.0
-# i volumi di riposo di musica e vento: la quiete del prato ci torna
+# I VOLUMI DI RIPOSO. Vento e uccellini ci tornano dopo la quiete del prato;
+# la musica no (vedi _riallinea_ambiente: la colonna sonora non si tocca), ma
+# il suo volume di riposo vive qui lo stesso perche' e' UNO e lo chiedono in
+# quattro punti diversi — scritto a mano quattro volte, il giorno che lo si
+# ritocca se ne dimentica sempre uno.
 var _music_base_db := -16.0
 var _wind_base_db := -27.0
 var _bird_base_db := -18.0
@@ -1052,7 +1056,7 @@ func _apply_slow_audio(music: AudioStreamWAV, wind: AudioStreamWAV) -> void:
 		_music.stream = music
 		_music.play()
 		var mt := create_tween()
-		mt.tween_property(_music, "volume_db", -16.0, 3.0)
+		mt.tween_property(_music, "volume_db", _music_base_db, 3.0)
 	else:
 		_serve_tema()
 
@@ -1129,7 +1133,7 @@ func _swap_music(wav: AudioStreamWAV) -> void:
 	tw.tween_callback(func():
 		_music.stream = wav
 		_music.play())
-	tw.tween_property(_music, "volume_db", -16.0, 1.4)
+	tw.tween_property(_music, "volume_db", _music_base_db, 1.4)
 
 
 func _on_bird_timer() -> void:

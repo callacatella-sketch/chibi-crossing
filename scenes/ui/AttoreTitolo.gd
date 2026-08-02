@@ -223,7 +223,9 @@ func segui_con_lo_sguardo(punto: Vector3, delta: float) -> void:
 	if d.length() < 0.05:
 		return
 	var locale := global_transform.basis.inverse() * d
-	var voluto_y := clampf(atan2(locale.x, locale.z), -1.1, 1.1)
+	# anche qui il muso guarda -Z: col segno positivo la testa si girava
+	# DALLA PARTE OPPOSTA a quello che doveva seguire
+	var voluto_y := clampf(atan2(-locale.x, -locale.z), -1.1, 1.1)
 	var voluto_x := clampf(-atan2(locale.y, Vector2(locale.x, locale.z).length()),
 			-0.55, 0.35)
 	testa.rotation.y = lerp_angle(testa.rotation.y, voluto_y, clampf(delta * 3.5, 0.0, 1.0))
@@ -266,8 +268,34 @@ func _process(delta: float) -> void:
 		_:
 			_fa_seduta(delta)
 	_andatura.eta = eta
-	_andatura.misura(delta, global_position, _yaw)
-	_andatura.applica()
+	# LA POSIZIONE DA MISURARE, non sempre `global_position`. Sull'altalena
+	# il personaggio insegue il sedile che oscilla (vedi _fa_altalena), e
+	# quel movimento in XZ è vero movimento del nodo: Andatura.misura() lo
+	# leggeva come un cammino, alzava `blend`, e applica() — chiamato SEMPRE,
+	# qui sotto — ci sovrascriveva sopra gambe, braccia e corpo con la posa
+	# da cammino, cancellando la posa da seduto un istante dopo che
+	# _fa_altalena l'aveva scritta. Il perno dell'altalena invece è fermo
+	# (è la sua ROTAZIONE a dondolare, non la sua posizione): misurando
+	# quello, `blend` scende a zero e resta seduto per davvero.
+	var da_misurare := _altalena.global_position \
+			if mestiere == "altalena" and is_instance_valid(_altalena) \
+			else global_position
+	_andatura.misura(delta, da_misurare, _yaw)
+	# SULL'ALTALENA NON SI CHIAMA applica(). È lo stesso patto che rispetta
+	# Visitor.gd: la sua `_gait_chibi()` (l'equivalente di applica()) la
+	# chiamano SOLO `_anim_move` e `_anim_idle`, mai `_anim_sit` o
+	# `_anim_dorme` — le pose dedicate si scrivono l'intera posa e basta.
+	# Qui applica() da sola non basta a far scendere `blend` a zero: anche a
+	# blend quasi zero SOVRASCRIVE incondizionatamente `_vis.rotation.x` e le
+	# gambe con "-0.05*blend - 0.28*eta" e "0" — cancellando l'inclinazione
+	# col dondolio e le ginocchia piegate che `_fa_altalena` ha appena
+	# scritto due righe più su. `rilassa()` invece tocca solo coda e
+	# braccia (che `_fa_altalena` non usa), portandole alla posa di riposo
+	# senza toccare il resto: il corpo e le gambe restano quelli veri.
+	if mestiere == "altalena":
+		_andatura.rilassa(delta)
+	else:
+		_andatura.applica()
 	if _faccia:
 		_faccia.update(delta)
 
@@ -330,17 +358,59 @@ func _fa_altalena(delta: float) -> void:
 	var drop: float = 0.0
 	for c in _altalena.get_children():
 		drop = maxf(drop, absf((c as Node3D).position.y))
-	var seduta: Vector3 = _altalena.global_position \
-			+ Vector3(0, -cos(ang) * drop, sin(ang) * drop)
-	global_position = seduta + Vector3(0, 0.16, 0)
-	_yaw = _altalena.global_rotation.y
+	# DOVE STA IL SEDILE lo sa l'altalena: glielo si chiede con to_global,
+	# invece di rifare i conti con sin e cos. Rifatti a mano avevano il segno
+	# di z sbagliato — chi era seduto oscillava CONTRO l'altalena, in
+	# controfase — e per giunta ignoravano la rotazione Y del gioco, quindi
+	# su un'altalena non allineata agli assi il passeggero se ne andava per
+	# conto suo. Con la trasformata vera non si possono più scollare.
+	var seduta: Vector3 = _altalena.to_global(Vector3(0, -drop, 0))
+	# L'ALTEZZA VERA. `global_position` per questi corpi è il livello del
+	# TERRENO quando stanno in piedi (ChibiBuilder.build: l'anca sta a
+	# y=0.16*taglia SOPRA quel punto, e le gambe scendono da lì fino quasi
+	# a y=0). Il vecchio codice aggiungeva +0.16 SOPRA il sedile — cioè
+	# metteva il "terreno" del personaggio 16 cm più in alto del legno, e
+	# quindi i FIANCHI altri 16 cm più in alto ancora: tutto il corpo
+	# fluttuava con le gambe a mezz'aria sopra l'asse, mai appoggiato.
+	# L'anca deve stare ALLA quota del sedile: il terreno-personaggio va
+	# quindi SOTTO l'asse, di quanto l'anca sta sopra il terreno.
+	var taglia := 1.0
+	if _parti.has("root"):
+		taglia = (_parti["root"] as Node3D).scale.y
+	global_position = seduta - Vector3(0, 0.16 * taglia, 0)
+	# DA CHE PARTE SI GUARDA, seduti. Ereditare lo yaw dell'altalena non
+	# basta: quella del Grande Albero non e' ruotata affatto (AlberoGeo la
+	# appende e basta), quindi chi ci saliva si ritrovava a guardare -Z —
+	# cioe' dentro il tronco, di spalle a chi apre il menu. Si dondola lungo
+	# l'asse Z dell'altalena: dei due versi possibili si prende quello
+	# rivolto a chi guarda.
+	var asse := _altalena.global_transform.basis.z
+	asse.y = 0.0
+	if asse.length() < 0.001:
+		asse = Vector3.BACK
+	asse = asse.normalized()
+	var verso := verso_camera - _altalena.global_position
+	verso.y = 0.0
+	var avanti := asse if asse.dot(verso) > 0.0 else -asse
+	_yaw = atan2(-avanti.x, -avanti.z)
 	rotation.y = _yaw
 	# il corpo segue l'oscillazione, la testa resta più indietro (inerzia)
 	_vis.rotation.x = -ang * 0.55
 	if _parti.has("head"):
 		(_parti["head"] as Node3D).rotation.x = ang * 0.30
+	# Le gambe PENDONO, non si piegano a raccolta: quel -1.1 rad era tarato
+	# per un'anca che galleggiava a mezz'aria (il difetto qui sopra) — con
+	# l'anca già alla quota giusta, lo stesso angolo scaraventa le gambe in
+	# avanti come un calcio. Sedute su un'asse le gambe restano quasi
+	# verticali e oscillano un poco, in fase con l'altalena stessa (chi
+	# dondola le lascia andare, non le tiene ferme).
 	for gamba: Node3D in _parti.get("legs", []):
-		gamba.rotation.x = -1.1 + sin(_t * 1.35 + 0.7) * 0.25
+		gamba.rotation.x = ang * 0.5 + sin(_t * 1.35 + 0.7) * 0.1
+	# le orecchie, ferme e un po' rilassate: senza questa riga tengono
+	# qualunque posa avesse il mestiere precedente (mezzo scatto di un
+	# annusata, un fremito lasciato a metà)
+	for ear: Node3D in _parti.get("ears", []):
+		ear.rotation.x = lerpf(ear.rotation.x, 0.15, clampf(delta * 3.0, 0.0, 1.0))
 
 
 ## IL PISOLINO. Rannicchiato, con il respiro asimmetrico (l'inspiro più
@@ -488,7 +558,11 @@ func _verso_chi_guarda(delta: float) -> void:
 	d.y = 0.0
 	if d.length() < 0.01:
 		return
-	var voluto := atan2(d.x, d.z) + scarto_sguardo + sin(_t * 0.17 + _fase) * 0.12
+	# atan2(-x, -z), non atan2(x, z): questi personaggi guardano verso -Z
+	# (la convenzione di tutto il progetto), quindi col segno positivo si
+	# voltavano di 180 gradi esatti — camminavano e guardavano AL CONTRARIO.
+	# È la stessa formula che usa Visitor.gd nel gioco vero.
+	var voluto := atan2(-d.x, -d.z) + scarto_sguardo + sin(_t * 0.17 + _fase) * 0.12
 	_yaw = lerp_angle(_yaw, voluto, clampf(delta * 1.6, 0.0, 1.0))
 	rotation.y = _yaw
 
@@ -498,6 +572,6 @@ func _guarda(dove: Vector3, delta: float) -> void:
 	d.y = 0.0
 	if d.length() < 0.01:
 		return
-	var voluto := atan2(d.x, d.z)
+	var voluto := atan2(-d.x, -d.z)   # il muso guarda -Z (vedi _verso_chi_guarda)
 	_yaw = lerp_angle(_yaw, voluto, clampf(delta * 6.0, 0.0, 1.0))
 	rotation.y = _yaw

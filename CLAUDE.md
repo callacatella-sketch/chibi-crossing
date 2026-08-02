@@ -690,6 +690,24 @@ e la logica pura GDScript (`ChibiDNA`, funzioni matematiche di `CozyWorld`).
   **macOS** (non Linux: i binari dell'addon lua sono committati solo per
   macOS/Windows), compila il cuore C++, fa `--import` e poi esegue la suite. I
   trigger sono ristretti (i runner macOS costano 10×).
+> ### ⚠️ La suite verde NON vuol dire che le asserzioni siano girate
+>
+> Il runner **non fa fallire** un test che va in errore a runtime: l'errore
+> interrompe la funzione a metà, le asserzioni successive non vengono eseguite,
+> e la suite resta **verde**. Dopo ogni run, quindi, si contano anche gli errori:
+>
+> ```
+> Godot --headless --path . --script res://tests/test_runner.gd 2>&1 | grep -c "SCRIPT ERROR"
+> ```
+>
+> Deve dare **0**. Ogni riga `at: res://tests/cases/...` è una funzione di test
+> che si è fermata lì. Il 2026-07-31 ce n'erano dieci: nove test scritti male
+> (sette con gli argomenti di `t.almost` invertiti — la firma è
+> `almost(a, b, messaggio, tolleranza)`, **il numero va in fondo**) e **un bug di
+> produzione vero** che il test copriva davvero e che nessuno vedeva.
+> Utile anche guardare il NUMERO di asserzioni: se dopo una correzione sale,
+> quelle erano asserzioni che non giravano.
+
 - Convenzioni per nuovi test: file `tests/cases/test_<area>.gd`, `extends
   RefCounted`, niente `add_child` all'albero (le classi C++ si creano con
   `.new()` e si liberano con `.free()`); usa `var x = ...` (non `:=`) quando il

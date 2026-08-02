@@ -106,8 +106,8 @@ func _test_il_lutto_batte_tutto(t) -> void:
 func _test_albero_alla_taglia_vera(t) -> void:
 	for giorno in [1, 5, 12, 30, 60, 200]:
 		var r = RIASSUNTO.da_salvataggio({"day": giorno})
-		t.almost(r.stage_albero(), ALBERO.stage_per_giorno(giorno), 0.0001,
-				"al giorno %d il menù mostra l'albero del villaggio" % giorno)
+		t.almost(r.stage_albero(), ALBERO.stage_per_giorno(giorno),
+				"al giorno %d il menù mostra l'albero del villaggio" % giorno, 0.0001)
 	# e cresce davvero: il giorno 40 non è il giorno 2
 	t.ok(RIASSUNTO.da_salvataggio({"day": 40}).stage_albero()
 			> RIASSUNTO.da_salvataggio({"day": 2}).stage_albero() * 2.0,
@@ -156,7 +156,7 @@ func _test_la_vivacita_segue_il_clima(t) -> void:
 			"allegria", "armonia"]:
 		# ogni clima si ottiene dal villaggio che lo produce davvero
 		scala[clima] = _vivacita_di(clima)
-	t.almost(float(scala["lutto"]), 0.0, 0.001, "nel lutto il diorama si ferma")
+	t.almost(float(scala["lutto"]), 0.0, "nel lutto il diorama si ferma", 0.001)
 	t.ok(float(scala["armonia"]) > float(scala["allegria"]),
 			"e l'armonia è la più viva di tutte")
 	var prima := -1.0

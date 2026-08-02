@@ -59,9 +59,11 @@ func _build() -> void:
 	var back := CozyUI.cozy_button(L10n.t("Indietro"), CozyUI.PINK, 18)
 	back.custom_minimum_size = Vector2(200, 52)
 	back.pressed.connect(func(): closed.emit())
-	var wrap := CenterContainer.new()
-	wrap.add_child(back)
-	col.add_child(wrap)
+	# «wrap» e' una funzione del linguaggio: chiamarci una variabile la
+	# nasconde dentro tutto il blocco
+	var centro := CenterContainer.new()
+	centro.add_child(back)
+	col.add_child(centro)
 
 
 # ---------------------------------------------------------------- righe

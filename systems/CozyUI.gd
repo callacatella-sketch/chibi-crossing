@@ -185,7 +185,10 @@ static func _pad(sb: StyleBoxFlat, h: float, v: float) -> void:
 # un solo tween di scala per bottone alla volta: quello vecchio si uccide, così
 # hover ed exit ravvicinati non lasciano il bottone incastrato a 1.05
 static func _btween(b: Button) -> Tween:
-	var old = b.get_meta("_hovtw", null)
+	# has_meta PRIMA di get_meta: il valore di default di get_meta e' gia'
+	# `null`, quindi passargli `null` non lo distingue da «nessun default» e
+	# Godot urla la prima volta, quando il meta non c'e' ancora.
+	var old: Variant = b.get_meta("_hovtw") if b.has_meta("_hovtw") else null
 	if old is Tween and (old as Tween).is_valid():
 		(old as Tween).kill()
 	var t := b.create_tween()
