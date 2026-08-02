@@ -146,7 +146,7 @@ static func items() -> Array[Dictionary]:
 					[Vector3(0.44, 0.94, 0.44), Vector3(0, 1.52, -0.08)]]},
 		{"name": "Cyclette", "cat": 3, "type": "cell", "layer": 2,
 			"builder": BuildPalestra.cyclette,
-			"cols": [[Vector3(0.5, 1.1, 0.92), Vector3(0, 0.55, 0)]]},
+			"cols": [[Vector3(0.5, 1.1, 1.14), Vector3(0, 0.55, -0.11)]]},
 		{"name": "Sbarra da trazione", "cat": 3, "type": "cell", "layer": 2,
 			"builder": BuildPalestra.sbarra_trazione,
 			"cols": [[Vector3(0.3, 2.16, 0.3), Vector3(-0.4, 1.08, 0)],
