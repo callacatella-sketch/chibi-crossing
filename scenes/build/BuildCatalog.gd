@@ -4404,9 +4404,11 @@ static func _fondale() -> Node3D:
 
 
 
-# LA GRADINATA. Due file di sedute in pietra e una coperta dimenticata.
-# Se ne piazzano quante se ne vuole, in curva davanti al palco: e' cosi'
-# che l'anfiteatro diventa GRANDE — perche' l'hai fatto grande tu.
+# LA GRADINATA. Due file di sedute in pietra coi braccioli alle
+# estremita'. Affiancarne piu' d'una nella stessa direzione fa UNA
+# platea: BuildSystem spegne i braccioli sui fianchi condivisi
+# (rinfresca_braccioli) e la seduta corre continua da un capo all'altro
+# — e' cosi' che l'anfiteatro diventa GRANDE, perche' l'hai fatto tu.
 #
 # LE LEZIONI DELLA PRIMA VERSIONE (bocciata guardando il catalogo):
 #  · era fatta di _box e leggeva come un cassonetto, perche' una
@@ -4539,32 +4541,28 @@ static func _gradinata() -> Node3D:
 		posto.set_meta("seduta", Vector3.ZERO)
 		n.add_child(posto)
 
-	# LA COPERTA piegata sull'orlo della fila alta: qualcuno la lascia
-	# qui per il prossimo che avra' freddo. E' il dettaglio che dice
-	# «posto vissuto» piu' di qualunque concio.
-	var lana := _mat(Color("e8d5b8"), Color("d4bd9a"), 5.0, 0.5)
-	var riga := _mat(Color("c26057"), Color("a44c45"), 5.0, 0.45)
-	var cop1 := _prisma(n, _rrect_xz(0.26, 0.19, 0.045), 0.54, 0.034, lana)
-	cop1.position = Vector3(-0.38, 0.0, -0.35)
-	cop1.rotation.y = 0.10
-	var cop2 := _prisma(n, _rrect_xz(0.22, 0.155, 0.04), 0.574, 0.030, lana)
-	cop2.position = Vector3(-0.375, 0.0, -0.345)
-	cop2.rotation.y = -0.06
-	var cop_riga := _box(n, Vector3(0.22, 0.010, 0.032), riga,
-			Vector3(-0.375, 0.592, -0.29))
-	cop_riga.rotation.y = -0.06
-	# il lembo che pende dall'orlo, con la sua piega
-	var lembo := _lastra(n, 0.10, 0.16, 0.03, 0.016, lana,
-			Vector3(-0.38, 0.47, -0.180), Vector3(0, PI * 0.5, 0.06))
-	lembo.rotation.x = 0.10
-
-	# UN paracarro solo, sul fianco sinistro: affiancando le gradinate
-	# ne spunta uno a ogni giuntura. Con due (uno per fianco) a ogni
-	# giuntura se ne incontravano DUE a tre centimetri: un doppio pomello
-	# che si vedeva anche a platea piena.
-	var para := _prisma(n, _rrect_xz(0.075, 0.26, 0.03), 0.26, 0.10, concio_a)
-	para.position.x = -0.485
-	_ball(n, 0.038, pietra, Vector3(-0.485, 0.375, 0.0), Vector3(1, 0.68, 1.5))
+	# I BRACCIOLI: la spalletta di pietra che segue le due file, una per
+	# fianco, come nei teatri di pietra. Coi NOMI, perche' non sono solo
+	# decorazione: quando un'altra gradinata continua la fila (stessa
+	# rotazione, cella accanto), BuildSystem.rinfresca_braccioli spegne
+	# quello sul fianco condiviso — la seduta resta continua e le
+	# spallette vivono solo alle due estremita' della platea.
+	for lato in [["BraccioloSx", -1.0], ["BraccioloDx", 1.0]]:
+		var br := Node3D.new()
+		br.name = str(lato[0])
+		br.position.x = float(lato[1]) * 0.462
+		n.add_child(br)
+		for f in 2:
+			var quota := 0.26 + float(f) * 0.28
+			var zf := -0.03 - float(f) * 0.32
+			var corpo := _prisma(br, _rrect_xz(0.070, 0.33, 0.028), quota,
+					0.085, concio_b)
+			corpo.position.z = zf
+			# il coperchio bombato, piu' largo di un filo: lo stesso
+			# sbalzo della pedata, in piccolo
+			var capp := _prisma(br, _rrect_xz(0.084, 0.35, 0.034),
+					quota + 0.085, 0.032, pietra)
+			capp.position.z = zf
 	return n
 
 

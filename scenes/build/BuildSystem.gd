@@ -847,6 +847,52 @@ func _try_place() -> void:
 	get_tree().call_group("regista", "note", "costruzione")
 
 
+## LA FILA CONTINUA. Piu' gradinate affiancate nella stessa direzione
+## sono UNA platea: il bracciolo di pietra vive solo sui fianchi liberi.
+## Qui, a ogni piazzamento o rimozione, la cella toccata e le sue vicine
+## si guardano intorno: chi ha una gradinata di pari rotazione sul fianco
+## spegne il bracciolo da quel lato, chi resta capofila lo tiene.
+## Statica e senza stato (lavora sul dizionario cella->nodo di un layer):
+## i test la fanno girare su un dizionario finto, senza scena.
+static func rinfresca_braccioli(dict: Dictionary, cell: Vector2i) -> void:
+	for d in [Vector2i.ZERO, Vector2i(1, 0), Vector2i(-1, 0),
+			Vector2i(0, 1), Vector2i(0, -1)]:
+		var nodo := dict.get(cell + d) as Node3D
+		if nodo == null or str(nodo.get_meta("item_name", "")) != "Gradinata":
+			continue
+		var rot := posmod(int(nodo.get_meta("rot", 0)), 4)
+		var passo := passo_fila(rot)
+		_bracciolo_acceso(nodo, "BraccioloDx",
+				not _fila_continua(dict, cell + d + passo, rot))
+		_bracciolo_acceso(nodo, "BraccioloSx",
+				not _fila_continua(dict, cell + d - passo, rot))
+
+
+## Il passo di una cella lungo la fila: l'asse X locale del pezzo,
+## ruotato come lo ruota place_cell (rotation.y = -rot * PI/2).
+static func passo_fila(rot: int) -> Vector2i:
+	match posmod(rot, 4):
+		0: return Vector2i(1, 0)
+		1: return Vector2i(0, 1)
+		2: return Vector2i(-1, 0)
+		_: return Vector2i(0, -1)
+
+
+static func _fila_continua(dict: Dictionary, c: Vector2i, rot: int) -> bool:
+	var nodo := dict.get(c) as Node3D
+	if nodo == null or str(nodo.get_meta("item_name", "")) != "Gradinata":
+		return false
+	# stessa rotazione o niente: due file che si voltano le spalle
+	# (o si incrociano) non sono una platea
+	return posmod(int(nodo.get_meta("rot", 0)), 4) == rot
+
+
+static func _bracciolo_acceso(nodo: Node3D, nome: String, on: bool) -> void:
+	var br := nodo.find_child(nome, true, false) as Node3D
+	if br:
+		br.visible = on
+
+
 ## Piazza un pezzo "cell" nella cella data (lvl 1 = piano di sopra).
 ## Usato anche dalla demo CLI.
 func place_cell(cell: Vector2i, piece: String, rot := 0, animate := true, lvl := 0, variant := "") -> void:
@@ -871,6 +917,9 @@ func place_cell(cell: Vector2i, piece: String, rot := 0, animate := true, lvl :=
 	_register_special(piece, node)
 	node.set_meta("rot", rot)
 	node.set_meta("variant", variant)
+	# la fila continua: la gradinata nuova e le sue vicine si accordano
+	# su chi tiene il bracciolo (vedi rinfresca_braccioli)
+	rinfresca_braccioli(dict, cell)
 	# pavimenti, sentieri e tappeti a terra schiacciano l'erba sotto di sé
 	if lvl == 0 and int(item["layer"]) <= 1:
 		get_tree().call_group("cozy_world", "flatten_cell", cell)
@@ -974,6 +1023,10 @@ func _remove_at(layer, key, lvl := 0) -> void:
 		return
 	var node := dict[key] as Node3D
 	dict.erase(key)
+	# se in mezzo alla fila c'era una gradinata, i vicini si riprendono
+	# il bracciolo sul fianco tornato libero
+	if key is Vector2i:
+		rinfresca_braccioli(dict, key)
 	_unregister_special(node)
 	if node == _demo_target:
 		_demo_target = null
