@@ -23,6 +23,10 @@ func run(t) -> void:
 	_test_la_prossimita_non_e_affetto(t)
 	_test_una_coppia_alla_volta(t)
 	_test_il_carattere_decide(t)
+	_test_la_rottura_costa_quanto_il_legame(t)
+	_test_la_risposta_esce_dal_carattere(t)
+	_test_ogni_ferita_ha_una_porta(t)
+	_test_la_porta_e_chiusa_a_uno_solo(t)
 
 
 func _riga(a: String, b: String, tipo: String, giorno: int) -> Dictionary:
@@ -206,3 +210,127 @@ func _ha_parametro(path: String, funzione: String, par: String) -> bool:
 	if i < 0:
 		return false
 	return src.substr(i, src.find(")", i) - i).contains(par)
+
+
+# ============================================================ la rottura
+
+## LA ROTTURA NON È UN EVENTO: è il predicato che smette di essere vero.
+##
+## È la risposta alla critica più dura ricevuta in fase di progetto —
+## «formare è limitato dal mondo, rompere non è limitato da niente». Qui le
+## due cose costano la stessa moneta, perché sono la stessa cosa letta in
+## due giorni diversi: non esiste nessuna tassa giornaliera, nessuna
+## pazienza che scende da sola, nessuna macchina del divorzio.
+func _test_la_rottura_costa_quanto_il_legame(t) -> void:
+	var tutti := ["Anna", "Bruno", "Carla"]
+	var righe: Array = []
+	for i in 6:
+		righe.append(_riga("Anna", "Bruno", "consolazione", i))
+		righe.append(_riga("Bruno", "Anna", "consolazione", i))
+	t.ok(AFF.coppia(righe, "Anna", "Bruno", tutti, 6), "prima sono una coppia")
+
+	# IL TEMPO DA SOLO NON ROMPE NIENTE. Passano cento giorni in cui non
+	# succede assolutamente nulla: sono ancora una coppia.
+	t.ok(AFF.coppia(righe, "Anna", "Bruno", tutti, 100),
+			"cento giorni di niente non li separano: il tempo non è una tassa")
+
+	# SERVONO GESTI VERI ALTROVE, la stessa moneta con cui si erano messi
+	# insieme. Carla si fa scegliere da Bruno, e viceversa, per giorni.
+	var dopo: Array = righe.duplicate(true)
+	for i in range(100, 112):
+		dopo.append(_riga("Carla", "Bruno", "consolazione", i))
+		dopo.append(_riga("Bruno", "Carla", "coraggio", i))
+	t.ok(not AFF.coppia(dopo, "Anna", "Bruno", tutti, 112),
+			"con abbastanza gesti veri altrove, la coppia non c'è più")
+	t.ok(AFF.coppia(dopo, "Bruno", "Carla", tutti, 112),
+			"…ed è diventata un'altra, per gli stessi fatti")
+
+
+## LA RISPOSTA ESCE DAL CARATTERE. È la prova che separa il libero arbitrio
+## da un dado travestito: davanti alla STESSA rottura, due persone diverse
+## fanno cose diverse — e la differenza si può risalire.
+func _test_la_risposta_esce_dal_carattere(t) -> void:
+	var orgogliosa: RefCounted = ANIMO.new()
+	orgogliosa.setup({"name": "Fiera", "seed": 3, "tratti":
+			{"orgoglio": 0.95, "lealta": 0.5, "grinta": 0.6,
+			"codardia": 0.05, "ambizione": 0.5}})
+	var timida: RefCounted = ANIMO.new()
+	timida.setup({"name": "Timida", "seed": 3, "tratti":
+			{"orgoglio": 0.05, "lealta": 0.5, "grinta": 0.3,
+			"codardia": 0.95, "ambizione": 0.5}})
+	# stessi bisogni, esattamente: cambia solo chi sono
+	for a in [orgogliosa, timida]:
+		for d in ANIMO.DRIVES:
+			a.drive[d] = 0.65
+
+	var possibili: Array = ANIMO.REAZIONI.keys()
+	var p_org: float = orgogliosa.punteggio("chiudo_la_porta", "ex")
+	var p_tim: float = timida.punteggio("chiudo_la_porta", "ex")
+	t.ok(p_org > p_tim,
+			"chiudere la porta pesa di più su chi è orgogliosa (%.3f contro %.3f)"
+			% [p_org, p_tim])
+	t.ok(float(timida.punteggio("mi_ritiro", "ex")) > float(orgogliosa.punteggio("mi_ritiro", "ex")),
+			"e ritirarsi pesa di più su chi ha paura")
+
+	# e la differenza ARRIVA nella scelta, non resta nei punteggi
+	var scelte_org := {}
+	var scelte_tim := {}
+	for i in 40:
+		scelte_org[orgogliosa.decide(possibili, "ex", ANIMO.NITIDEZZA_VITA)] = true
+		scelte_tim[timida.decide(possibili, "ex", ANIMO.NITIDEZZA_VITA)] = true
+	t.ok(scelte_org.keys() != scelte_tim.keys() or scelte_org.size() != scelte_tim.size(),
+			"quaranta rotture: le due donne non fanno lo stesso ventaglio di cose")
+	# NON è un dado a sette facce: la nitidezza alta tiene la scelta stretta
+	t.ok(scelte_org.size() <= 3,
+			"e nessuna delle due sceglie a caso fra tutte e sette (%d risposte)"
+			% scelte_org.size())
+
+
+## OGNI FERITA HA UNA CHIAVE A FORMA DI GIOCATORE. È la regola che il
+## progetto si è dato per non creare stati permanenti la cui unica chiave
+## sia in mano a un altro NPC: la porta è sempre il giocatore, come in
+## `Visitors._filtra_luogo`.
+func _test_ogni_ferita_ha_una_porta(t) -> void:
+	for r in ANIMO.REAZIONI:
+		t.ok(AFF.MOMENTI_CHIAVE.has(str(r)),
+				"la risposta '%s' ha la sua chiave: quanti momenti col"
+				% r + " giocatore servono per richiuderla")
+		t.ok(int(AFF.MOMENTI_CHIAVE.get(str(r), 0)) > 0,
+				"…e la chiave non è zero (una ferita che si chiude da sola"
+				+ " non è una ferita) né infinita (sarebbe uno stato permanente)")
+		t.ok(int(AFF.MOMENTI_CHIAVE.get(str(r), 99)) <= 5,
+				"…né così cara da essere irraggiungibile ('%s')" % r)
+	# e nessuna risposta è priva del suo peso sui bisogni: senza, il
+	# punteggio varrebbe zero e `decide` diventerebbe un dado
+	for r2 in ANIMO.REAZIONI:
+		var v: Dictionary = ANIMO.REAZIONI[r2]
+		t.ok(not v.is_empty(),
+				"'%s' pesa su qualche bisogno, o non si potrebbe sceglierla" % r2)
+		var tocca := 0
+		for d in ANIMO.DRIVES:
+			if v.has(d):
+				tocca += 1
+		t.ok(tocca >= 2,
+				"'%s' tocca almeno due bisogni: una risposta a una cosa così"
+				% r2 + " non muove una leva sola")
+
+
+## LA PORTA CHIUSA È CHIUSA A UNO SOLO. Una ferita non rende scontrosi con
+## tutto il villaggio: il giocatore deve vedere una persona ferita, non una
+## persona cattiva.
+func _test_la_porta_e_chiusa_a_uno_solo(t) -> void:
+	var aff: Node = t.stage(AFF.new())
+	aff.set("_ferite", {"Anna": {"reazione": "chiudo_la_porta", "ex": "Bruno",
+			"dal": 3, "momenti": 0}})
+	t.ok(not aff.call("apre_a", "Anna", "Bruno"),
+			"ad Anna la porta di casa non si apre più per Bruno")
+	t.ok(aff.call("apre_a", "Anna", "Carla"),
+			"…ma per Carla sì: non è diventata scontrosa, è ferita")
+	t.ok(aff.call("apre_a", "Bruno", "Anna"),
+			"e Bruno non ha chiuso niente a nessuno")
+	# la chiave: dopo abbastanza momenti col giocatore, la ferita si richiude
+	for i in int(AFF.MOMENTI_CHIAVE["chiudo_la_porta"]):
+		aff.call("momento_del_giocatore", "Anna")
+	aff.call("_le_ferite_si_richiudono", 10)
+	t.ok(aff.call("apre_a", "Anna", "Bruno"),
+			"e quando il giocatore le è stato vicino abbastanza, la porta si riapre")

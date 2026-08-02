@@ -160,6 +160,42 @@ const COMPITI := {
 			"autonomia": -0.10, "stima": 0.13},
 }
 
+## COSA SI FA QUANDO CI SI RITROVA SOLI. Non e' una tabella di eventi: e'
+## una tabella di BISOGNI, letta dallo stesso `punteggio()` che sceglie il
+## mestiere del giorno — quindi la risposta esce dal carattere di chi
+## risponde, e due persone diverse rispondono in modo diverso senza che
+## nessuno scriva «se orgoglioso allora».
+##
+## Nessuna di queste e' una punizione e nessuna e' un fallimento. Il gioco
+## non prende posizione su quale sia quella giusta: le pesa soltanto sui
+## bisogni di chi le sceglie.
+##
+## E OGNUNA HA UNA CHIAVE A FORMA DI GIOCATORE (`Affetti.MOMENTI_CHIAVE`):
+## nessuna ferita che questi sistemi creano puo' restare senza una porta —
+## e' la stessa regola per cui `_filtra_luogo` esiste.
+const REAZIONI := {
+	# la porta che non si apre piu': chi ha molto orgoglio la sente come
+	# l'unico modo di riprendersi qualcosa di suo
+	"chiudo_la_porta": {"autonomia": 0.30, "stima": 0.22, "appartenenza": -0.25},
+	# ritirarsi: chi ha paura sceglie il posto dove non succede niente
+	"mi_ritiro": {"sicurezza": 0.35, "appartenenza": -0.30, "noia": 0.10},
+	# stare col piccolo — possibile solo se un piccolo c'e'
+	"sto_col_piccolo": {"appartenenza": 0.35, "sicurezza": 0.20, "autonomia": -0.10},
+	# andarsene: serve tanto bisogno di autonomia e poche radici
+	"me_ne_vado": {"autonomia": 0.45, "appartenenza": -0.45, "stima": 0.10},
+	# dirlo a tutti: il villaggio si schiera, e a qualcuno serve
+	"lo_dico_a_tutti": {"stima": 0.25, "appartenenza": 0.15, "sicurezza": -0.10},
+	# fare finta di niente, che e' una risposta come le altre
+	"faccio_finta": {"sicurezza": 0.15, "stima": -0.10, "noia": -0.05},
+	# restare, e aspettare. La piu' rara, e l'unica che puo' finire bene
+	"resto_e_aspetto": {"appartenenza": 0.12, "autonomia": -0.15, "sicurezza": 0.08},
+}
+
+## Quanto e' DECISA una risposta come queste. Alta: una scelta che cambia
+## una vita non puo' essere una moneta appena sbilanciata, o chi guarda
+## vede un dado invece di una persona.
+const NITIDEZZA_VITA := 4.5
+
 ## I sogni che un chibi puo' avere. In coda i nuovi, MAI in mezzo: la
 ## generazione del DNA pesca per indice e infilarne uno a meta' cambierebbe
 ## il sogno di ogni residente gia' nato (a parita' di seed).
@@ -516,7 +552,10 @@ func stato() -> String:
 ## Il punteggio di un'azione: pressioni interne pesate dal carattere, più il
 ## peso dei ricordi e l'opinione sociale su chi la chiede.
 func punteggio(azione: String, chiede := "giocatore") -> float:
-	var c: Dictionary = COMPITI.get(azione, {})
+	# le REAZIONI si pesano con la stessa macchina dei mestieri: e' l'unico
+	# modo perche' la risposta esca dal carattere invece che da un ramo
+	# scritto a mano
+	var c: Dictionary = COMPITI.get(azione, REAZIONI.get(azione, {}))
 	var s := 0.0
 	# quanto quell'azione allevia ciò che sta pesando ORA
 	for d in DRIVES:
@@ -583,7 +622,17 @@ func senti_dire(da: String, su: String, valenza: float, forza := 1.0) -> float:
 	var credito: float = clampf(float(legami.get(da, 0.25)), -1.0, 1.0)
 	if credito <= 0.0:
 		return 0.0          # da chi non stimi, le voci non attecchiscono
-	var resistenza: float = float(tratti.get("lealta", 0.5)) if su == "giocatore" else 0.0
+	# LA LEALTA' RESISTE ANCHE ALLE VOCI SUI VICINI. Prima resisteva SOLO a
+	# quelle sul giocatore, e una voce su una PERSONA attecchiva piu' di una
+	# sul re del villaggio — su tutto il grafo, due passaggi al giorno. E'
+	# la via piu' corta perche' una storia triste diventi una gogna: un
+	# villaggio dove basta dirlo a due perche' lo sappiano tutti, e nessuno
+	# che sospenda il giudizio. Verso un vicino la resistenza e' piu'
+	# morbida che verso il giocatore (si difende chi si conosce meglio), ma
+	# non e' zero.
+	var resistenza: float = float(tratti.get("lealta", 0.5))
+	if su != "giocatore":
+		resistenza *= 0.6
 	var peso: float = credito * forza * (1.0 - resistenza * 0.75)
 	if peso <= 0.001:
 		return 0.0

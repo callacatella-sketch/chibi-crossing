@@ -224,7 +224,15 @@ func _process(delta: float) -> void:
 		brain.tick(delta, nascosto)
 		if _sleep_window(brain, t_ora) and not nascosto \
 				and str(node.get("_state")) in ["r_idle", "r_wander", "r_fire", "r_bench", "r_sniff", "tk_stella", "tk_sing", "tk_nap"]:
-			node.call("resident_sleep")
+			# LA PORTA PUÒ NON APRIRSI. Se qualcuno con cui divideva quella
+			# casa gliel'ha chiusa, non sparisce dentro: resta fuori. Non
+			# c'è nessun toast e nessuna spiegazione — c'è uno che alla sera
+			# non entra, e il giocatore lo vede. È l'unico modo in cui
+			# questo gioco racconta una cosa del genere.
+			if _puo_entrare(r):
+				node.call("resident_sleep")
+			elif node.has_meta("postura") == false:
+				node.set_meta("postura", "spalle_basse")
 		elif not _sleep_window(brain, t_ora) and nascosto:
 			node.call("resident_wake")
 		elif not nascosto:
@@ -521,6 +529,28 @@ func _recita(r: Dictionary, node: Node3D, brain: RefCounted, act: String, ph: St
 
 
 # la finestra di sonno personale: [inizio sera, fine all'alba]
+## Può entrare in casa sua stanotte? Falso solo se chi divide quella soglia
+## con lui gliel'ha chiusa. Una ferita non rende scontrosi con tutti: la
+## porta è chiusa a UNA persona, e a nessun altro.
+func _puo_entrare(r: Dictionary) -> bool:
+	var aff := get_tree().get_first_node_in_group("affetti")
+	if aff == null:
+		return true
+	var mio := str((r.get("dna", {}) as Dictionary).get("name", ""))
+	if mio == "":
+		return true
+	var cella: Vector2i = r.get("cell", Vector2i.ZERO)
+	for altro in _residents:
+		if altro == r:
+			continue
+		if (altro.get("cell", Vector2i.ZERO) as Vector2i) != cella:
+			continue
+		var suo := str((altro.get("dna", {}) as Dictionary).get("name", ""))
+		if suo != "" and not bool(aff.call("apre_a", suo, mio)):
+			return false
+	return true
+
+
 func _sleep_window(brain: RefCounted, t: float) -> bool:
 	var inizio := 0.80
 	var fine := 0.295
@@ -653,6 +683,14 @@ func _tick_partenze(delta: float) -> void:
 		var r: Dictionary = _residents[i]
 		var label := str(r.get("label", ""))
 		if label == "" or not _animi.has(label):
+			continue
+		# UN CUCCIOLO NON SE NE VA DA SOLO. Questo ramo non controllava
+		# l'eta', e `e_cucciolo` lo chiamavano soltanto Lavori e
+		# Commissioni: un piccolo il cui animo arrivava a «diserzione»
+		# faceva il fagotto e usciva dal villaggio. Un bambino puo' essere
+		# infelice — e deve poterlo essere — ma non traslocare.
+		if e_cucciolo(label):
+			r["parte_fra"] = 0.0
 			continue
 		var animo: RefCounted = _animi[label]
 		if not ANIMO.almeno(int(animo.gradino), "diserzione"):

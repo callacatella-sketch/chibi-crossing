@@ -40,6 +40,8 @@ extends Node
 ## appeso a metà, e nessun salvataggio vecchio da migrare: il legame si
 ## ricalcola dai fatti, sempre.
 
+const ANIMO := preload("res://scenes/npc/Animo.gd")
+
 const RECENZA_BASE := 36.0    # mezza vita del ricordo, in giorni, per un tipo poco leale
 const RECENZA_LEALE := 72.0   # …e per uno che non dimentica
 ## Essere cercati vale quasi il doppio che cercare.
@@ -71,7 +73,32 @@ const GESTI := {
 	"mancanza": -0.50,          # aveva promesso, e non è venuto
 }
 
+## Quanti momenti col GIOCATORE servono per richiudere ogni ferita. È la
+## chiave a forma di giocatore, e non è un ornamento: nessuna ferita che
+## questo sistema apre può restare senza una porta. (È la stessa regola per
+## cui `Visitors._filtra_luogo` esiste: la porta è sempre il giocatore.)
+const MOMENTI_CHIAVE := {
+	"chiudo_la_porta": 3,
+	"mi_ritiro": 2,
+	"sto_col_piccolo": 2,
+	"me_ne_vado": 4,          # la più cara, e si spende nella settimana del congedo
+	"lo_dico_a_tutti": 2,
+	"faccio_finta": 1,
+	"resto_e_aspetto": 1,
+}
+
+## Sotto questo margine la coppia è ancora coppia, ma il corpo lo dice già.
+## Il telegrafo comincia PRIMA che succeda qualcosa — come gli otto gradini
+## della scala della ribellione, che esistono proprio perché il giocatore
+## possa vedere che sta perdendo qualcuno.
+const MARGINE_FRAGILE := 1.25
+
 var _righe: Array = []        # {a, b, t, d}: da A verso B, tipo, giorno
+## le coppie di ieri, per accorgersi quando una non c'è più
+var _coppie_ieri: Array = []
+## le ferite aperte: nome -> {reazione, ex, dal, momenti}
+var _ferite := {}
+var _ultimo_giorno := -1
 var _visitors: Node
 var _daynight: Node3D
 var _cablato := false
@@ -284,19 +311,194 @@ func _giorno() -> int:
 	return int(_daynight.get("day")) if _daynight else 1
 
 
+# ============================================================ la rottura
+# LA ROTTURA NON È UN EVENTO: è il predicato che smette di essere vero.
+#
+# Non esiste nessuna macchina del divorzio, nessuna tassa giornaliera per
+# essersi visti poco, nessuna soglia di pazienza che scende da sola. Due
+# smettono di essere una coppia soltanto quando qualcun altro è diventato il
+# massimo di uno dei due — e per diventarlo servono GESTI VERI, cioè la
+# stessa moneta con cui la coppia si era formata.
+#
+# È la risposta alla critica più dura che questo sistema abbia ricevuto:
+# «formare è limitato dal mondo, rompere non è limitato da niente». Qui le
+# due cose costano uguale, perché sono la stessa cosa letta in due momenti.
+
+## Il giro del giorno: si guarda chi non è più una coppia, e chi lo è ancora
+## ma per poco. Da chiamare una volta al giorno.
+func giro_del_giorno(oggi: int) -> void:
+	if oggi == _ultimo_giorno:
+		return
+	_ultimo_giorno = oggi
+	var adesso := le_coppie()
+	# chi c'era ieri e oggi non c'è più
+	for c in _coppie_ieri:
+		var a := str((c as Array)[0])
+		var b := str((c as Array)[1])
+		if _ancora_insieme(adesso, a, b):
+			continue
+		_si_sono_lasciati(a, b, oggi)
+	_coppie_ieri = adesso
+	# e il telegrafo, su chi è ancora insieme
+	for c2 in adesso:
+		_forse_fragile(str((c2 as Array)[0]), str((c2 as Array)[1]))
+	_le_ferite_si_richiudono(oggi)
+
+
+static func _ancora_insieme(coppie: Array, a: String, b: String) -> bool:
+	for c in coppie:
+		var x := str((c as Array)[0])
+		var y := str((c as Array)[1])
+		if (x == a and y == b) or (x == b and y == a):
+			return true
+	return false
+
+
+## SI SONO LASCIATI. Ognuno dei due sceglie cosa fare — e sceglie DA SÉ,
+## con la stessa macchina che gli fa scegliere il mestiere del giorno, letta
+## sui suoi bisogni e sul suo carattere. Il gioco non decide chi ha ragione
+## e non chiama nessuno dei due «quello che ha tradito»: nel libro mastro
+## non esiste una riga «tradimento», esistono solo gesti.
+func _si_sono_lasciati(a: String, b: String, oggi: int) -> void:
+	for chi in [a, b]:
+		var altro: String = b if chi == a else a
+		var animo: Variant = _animo_di(str(chi))
+		if animo == null:
+			continue
+		var possibili: Array = []
+		for r in ANIMO.REAZIONI:
+			# «stare col piccolo» esiste solo se un piccolo c'è
+			if str(r) == "sto_col_piccolo" and not _hanno_un_figlio(str(chi), altro):
+				continue
+			possibili.append(str(r))
+		var scelta := str(animo.call("decide", possibili, altro, ANIMO.NITIDEZZA_VITA))
+		if scelta == "":
+			continue
+		_ferite[str(chi)] = {"reazione": scelta, "ex": altro, "dal": oggi,
+				"momenti": 0}
+		# il corpo lo dice subito, dal primo giorno: non si aspetta che
+		# succeda qualcosa per farlo vedere
+		var n := _nodo_di(str(chi))
+		if n != null:
+			n.set_meta("postura", "spalle_basse")
+
+
+## Il telegrafo: la coppia c'è ancora, ma il margine si è assottigliato. Il
+## corpo lo dice — e NON si mostra nessuna classifica: chi guarda vede una
+## persona con le spalle basse, non un numero che scende.
+func _forse_fragile(a: String, b: String) -> void:
+	for chi in [a, b]:
+		var altro: String = b if chi == a else a
+		var mio := quanto(str(chi), altro)
+		var secondo := 0.0
+		for terzo in _tutti():
+			if str(terzo) == str(chi) or str(terzo) == altro:
+				continue
+			secondo = maxf(secondo, quanto(str(chi), str(terzo)))
+		if secondo <= 0.0 or mio <= 0.0:
+			continue
+		if mio / maxf(secondo, 0.001) < MARGINE_FRAGILE:
+			var n := _nodo_di(str(chi))
+			if n != null:
+				n.set_meta("postura", "distratto")
+
+
+## LE FERITE SI RICHIUDONO, e la chiave è il giocatore. Ogni momento che lui
+## annoda con chi è rimasto solo conta: dopo abbastanza, la risposta finisce
+## e la persona torna nel villaggio. Nessuna ferita di questo sistema è
+## permanente — sarebbe uno stato assegnato dalla simulazione la cui unica
+## chiave è in mano a un altro NPC, e questo gioco non lo fa.
+func _le_ferite_si_richiudono(oggi: int) -> void:
+	for chi in _ferite.keys():
+		var f: Dictionary = _ferite[chi]
+		var serve: int = int(MOMENTI_CHIAVE.get(str(f.get("reazione", "")), 2))
+		if int(f.get("momenti", 0)) >= serve:
+			_ferite.erase(chi)
+			continue
+		# e comunque il tempo, da solo, non basta: passa e non guarisce.
+		# (Ma dopo molto tempo la posa smette: restare curvi per sempre non
+		# è dolore, è una statua.)
+		if oggi - int(f.get("dal", oggi)) > 40:
+			var n := _nodo_di(str(chi))
+			if n != null and n.has_meta("postura"):
+				n.remove_meta("postura")
+
+
+## Il giocatore ha annodato un momento con `nome`: se ha una ferita aperta,
+## questo è un passo verso la porta. Lo chiama Legami quando annoda.
+func momento_del_giocatore(nome: String) -> void:
+	if not _ferite.has(nome):
+		return
+	var f: Dictionary = _ferite[nome]
+	f["momenti"] = int(f.get("momenti", 0)) + 1
+
+
+## La ferita aperta di `nome`, o {} se sta bene. La leggono i sistemi che
+## devono onorarla (la porta di casa, le routine).
+func ferita_di(nome: String) -> Dictionary:
+	return (_ferite.get(nome, {}) as Dictionary).duplicate()
+
+
+## `chi` fa entrare `altro` in casa sua? Falso solo se ha chiuso la porta
+## PROPRIO a lui: una ferita non rende scontrosi con tutti.
+func apre_a(chi: String, altro: String) -> bool:
+	var f: Dictionary = _ferite.get(chi, {})
+	if str(f.get("reazione", "")) != "chiudo_la_porta":
+		return true
+	return str(f.get("ex", "")) != altro
+
+
+func _hanno_un_figlio(a: String, b: String) -> bool:
+	var leg := get_tree().get_first_node_in_group("legami")
+	if leg == null or not leg.has_method("figli_della_coppia"):
+		return false
+	return int(leg.call("figli_della_coppia", a, b)) > 0
+
+
+func _animo_di(nome: String) -> Variant:
+	_cabla()
+	if _visitors == null:
+		return null
+	var animi: Dictionary = _visitors.get("_animi")
+	for r in (_visitors.get("_residents") as Array):
+		if str((r.get("dna", {}) as Dictionary).get("name", "")) != nome:
+			continue
+		var key := str(r.get("label", ""))
+		return animi.get(key)
+	return null
+
+
+func _nodo_di(nome: String) -> Node3D:
+	_cabla()
+	if _visitors == null:
+		return null
+	for r in (_visitors.get("_residents") as Array):
+		if str((r.get("dna", {}) as Dictionary).get("name", "")) != nome:
+			continue
+		var n := r.get("node") as Node3D
+		return n if (n != null and is_instance_valid(n)) else null
+	return null
+
+
 # ============================================================ persistenza
 
 func save_extra() -> Dictionary:
-	return {"affetti": _righe}
+	return {"affetti": _righe, "coppie_ieri": _coppie_ieri, "ferite": _ferite}
 
 
 func load_extra(data: Dictionary) -> void:
 	var r: Variant = data.get("affetti")
 	if r is Array:
 		_righe = r
+	var c: Variant = data.get("coppie_ieri")
+	if c is Array:
+		_coppie_ieri = c
+	var f: Variant = data.get("ferite")
+	if f is Dictionary:
+		_ferite = f
 
 
 # ============================================================ debug CLI
 
 func debug_stato() -> Dictionary:
-	return {"righe": _righe.size(), "coppie": le_coppie()}
+	return {"righe": _righe.size(), "coppie": le_coppie(), "ferite": _ferite}
