@@ -68,9 +68,12 @@ extends Node
 ##    gioco usa `atan2(-dir.x, -dir.z)`.
 ##  · `Legami.mostra_filo()` NON FUNZIONA per chi è partito: cicla su
 ##    `Visitors._residents`, da cui i partiti sono stati tolti, ed esce in
-##    silenzio. Dentro il sogno il filo si annoda a mano, con
+##    silenzio. Perciò il sogno NON mostra il filo rosso — e va bene così:
+##    un nastro luminoso fra le zampe sarebbe un segno, e la regola 4 dice
+##    che il sogno non ne lascia. Se un giorno lo si volesse, la strada è
 ##    `FiloRosso.annoda(mochi, <il corpo del sogno>, …)`, che chiede solo
-##    due Node3D.
+##    due Node3D — ma oggi non è cablato, e questo commento diceva il
+##    contrario.
 
 const BUILDER := preload("res://scenes/npc/ChibiBuilder.gd")
 const LEGAMI := preload("res://scenes/world/Legami.gd")

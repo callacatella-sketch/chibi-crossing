@@ -267,9 +267,17 @@ func _chiama_il_prossimo(mobile: Node3D) -> void:
 		# quindi il giocatore non poteva nemmeno avvicinarsi a guardare la
 		# scena per cui il salone esiste. E lo specchio, che è il terzo
 		# argomento, adesso lo guarda davvero.
-		nodo2.call("do_routine", "bench",
-				dove - Vector3(0, dove.y, 0) + Vector3(0, 0, 0.55),
-				mobile.global_position + Vector3(0, 0.9, -0.34), seggiola)
+		# IL PUNTO D'ARRIVO INDIPENDENTE DALLA ROTAZIONE: `place_cell` ruota
+		# i pezzi, e un offset in coordinate mondo faceva sedere il cliente
+		# di spalle allo specchio a rotazione 2 — proprio il difetto che
+		# questa correzione doveva chiudere. Ci si avvicina dal lato
+		# OPPOSTO allo specchio, che è quello aperto.
+		var specchio: Vector3 = mobile.global_position + Vector3(0, 0.9, -0.34)
+		var via := (dove - specchio) * Vector3(1, 0, 1)
+		var arrivo: Vector3 = dove + (via.normalized() * 0.55 if via.length() > 0.01 \
+				else Vector3(0, 0, 0.55))
+		nodo2.call("do_routine", "bench", arrivo - Vector3(0, arrivo.y, 0),
+				specchio, seggiola, DURATA_SEDUTA + 2.0)
 
 
 ## La seduta finisce: il ritocco addosso, il cliente si specchia contento
@@ -291,6 +299,10 @@ func _finisci_seduta() -> void:
 			var leg := _i_legami()
 			if leg and _estetista != "":
 				leg.call("momento", _nome_di(_cliente), "regalo", "")
+				# e fra LORO due: gli ha messo le zampe addosso e l'ha
+				# fatto uscire diverso — è un gesto, non un servizio
+				get_tree().call_group("affetti", "gesto",
+						_nome_di(_estetista), _nome_di(_cliente), "salone")
 			_vai_a_vantarsi(_cliente)
 			_congeda_cliente()
 			return

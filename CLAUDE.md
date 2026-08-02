@@ -413,6 +413,92 @@ guardia.
   avere paura di te» non poteva avverarsi. **Non ritoccare le tre costanti:
   si tara `calma()`.**
 
+## REGOLA: gli affetti fra vicini, e il libero arbitrio
+
+Due vicini si affezionano, mettono su famiglia, e possono lasciarsi. Il
+sistema vive in [`scenes/npc/Affetti.gd`](scenes/npc/Affetti.gd) e in
+`Animo.REAZIONI`, e ha cinque regole che NON si negoziano — vengono da una
+revisione avversariale che ha smontato tre progetti prima che ne scrivessi
+uno.
+
+1. **Ogni ferita ha una chiave a forma di GIOCATORE.** `MOMENTI_CHIAVE` dice
+   quanti momenti del Filo Rosso servono per richiudere ogni risposta.
+   Nessuno stato permanente la cui unica chiave sia in mano a un altro NPC:
+   è la stessa regola per cui esiste `Visitors._filtra_luogo`.
+2. **Niente classifica visibile.** Il posto al falò ordinato per affetto *è*
+   la classifica resa leggibile, e questo gioco non prende posizione su
+   quanto vale una persona rispetto a un'altra. Il telegrafo è il CORPO
+   (`spalle_basse`, `distratto`), mai un numero.
+3. **Niente penale per stare in coppia.** Il mondo non garantisce gli
+   incontri (`_chats` fa UNA chiacchierata per volta in tutto il villaggio):
+   una tassa giornaliera per non essersi visti sarebbe una macchina del
+   divorzio. **La rottura non è un evento: è il predicato `coppia()` che
+   smette di essere vero**, e per smettere servono gesti veri altrove —
+   la stessa moneta con cui la coppia si era formata.
+4. **Il bambino non è uno strumento.** Non si congela mai la sua crescita
+   (`GIORNI_ADULTO := 14`): un bambino tenuto piccolo dalla separazione dei
+   genitori è ricatto emotivo. E `_tick_partenze` ora controlla
+   `e_cucciolo`: un piccolo non fa il fagotto da solo.
+5. **Il gioco non dice chi ha sbagliato.** Nel libro mastro non esiste una
+   riga «tradimento»: esistono solo gesti, e la stessa colonna letta da due
+   persone diverse dà due numeri diversi.
+
+**Come si legge il libro mastro** (`conto()`, pura): chi è LEALE ha un
+passato che non sbiadisce (mezza vita del ricordo da 36 a 72 giorni) — ed è
+questo, non un'eccezione scritta apposta, a rendere certe coppie
+inespugnabili. ESSERE CERCATI conta quasi il doppio che cercare. E una
+chiacchiera vale un ventesimo di un atto di coraggio: senza quella
+proporzione il sistema sposerebbe i due che lavorano accanto.
+
+**La coppia non è un campo:** `coppia()` è un predicato derivato (minimo
+reciproco + soglia + gesti veri). Niente da tenere sincronizzato, niente
+che resti appeso a metà, nessun salvataggio da migrare.
+
+**Trappole già pagate (tutte MISURATE da una revisione avversariale, non
+immaginate):**
+- **Le REAZIONI valevano zero.** `punteggio()` ha due termini vivi per i
+  mestieri (il sollievo sui drive E il tiro del sogno); per le reazioni ne
+  viveva uno solo, moltiplicato per `malessere()` — che `passa_giorno()`
+  porta a zero. Per un vicino che sta bene, cioè NEL CASO COMUNE, i sette
+  punteggi valevano esattamente `0.000000`: il softmax su tre pareggi dava
+  un **dado uniforme sulle prime tre chiavi nell'ordine in cui la tabella è
+  scritta**, identico per un orgoglioso e per un codardo. Serviva un termine
+  che NON passasse dal malessere: `AMPIEZZA_TRATTO`, il tiro del carattere.
+  Misurato dopo: sette risposte fra il 10 e il 19% su 400 caratteri veri, e
+  lo stesso carattere che in 30 rotture ne dà tre diverse nel 98% dei casi.
+- **Nessuna coppia poteva formarsi, MAI.** Dei tredici tipi di gesto il
+  gioco ne emetteva TRE, tutti sotto `PESO_VERO`: `coppia()` era falsa per
+  costruzione e tutto il sistema era codice morto in partita — con la suite
+  verde su un villaggio che non esiste. Ora i gesti pesanti arrivano dal
+  LAVORO che il giocatore assegna (chi fa la guardia veglia su chi dorme,
+  chi cucina divide quello che ha) e dalle nascite.
+- **Il tempo rompeva le coppie.** `coppia()` chiede il valore assoluto sopra
+  soglia e il conto decade: una coppia nata sul filo si scioglieva in
+  quattro giorni di niente — sedici minuti reali. Il decadimento ERA il tick
+  giornaliero che la regola 3 vieta. Ora `ancora_coppia()` è l'isteresi:
+  formarsi costa, restare no.
+- **Il cucciolo spariva al ricaricamento.** Dargli la cella della madre per
+  farli uscire dalla stessa porta lo cancellava: `load_extra` scarta le
+  righe la cui cella è già presa, e la madre è sempre prima nell'array. La
+  convivenza per CELLA è sbagliata — la cella è la chiave di unicità del
+  letto. **Un bambino cancellato dal salvataggio è la cosa peggiore che
+  questo sistema potesse fare**, ed era una regressione mia.
+- **`_rng.state` non sopravviveva al JSON:** salvato come intero perdeva
+  undici bit. Si salva come stringa.
+- `Animo.punteggio()` era CIECO ai tratti: i pesi di carattere vivevano in
+  `disagio()` e non venivano mai chiamati, quindi due vicini con gli stessi
+  bisogni ricevevano punteggi identici. Finché era così, «libero arbitrio»
+  non poteva essere altro che un dado. Ora `peso_drive()` è fonte unica.
+- `decide()` usava il softmax a 1.6 per tutto: una moneta appena sbilanciata
+  (62/38 con 0.3 di scarto). Va bene per «che mestiere faccio oggi», non per
+  «me ne vado dal villaggio»: la nitidezza è un parametro per decisione, e
+  le scelte di vita usano `NITIDEZZA_VITA`.
+- `Animo.save()` non serializzava `_rng`: due save-scumming e il giocatore
+  scopriva il dado. Ora lo stato del dado sopravvive.
+- `senti_dire()` resisteva alle voci solo se erano sul GIOCATORE: una voce
+  su una persona attecchiva più di una sul re del villaggio. È la via più
+  corta perché una storia triste diventi una gogna.
+
 ## REGOLA: i sogni — sognare è ciò che salva un ricordo
 
 Nel proprio letto, «E — vai a dormire»: lo schermo si chiude e **prima del
@@ -464,8 +550,10 @@ riepilogo può essere muto e restare un referto:
   sempre**. Due secondi fra le lucine non lo mostrano; un sogno in primo
   piano sì.
 - **`Legami.mostra_filo()` è un no-op per chi è partito** (cicla su
-  `Visitors._residents`, da cui i partiti sono stati tolti). Dentro il sogno
-  il filo si annoda a mano con `FiloRosso.annoda(a, b, …)`.
+  `Visitors._residents`, da cui i partiti sono stati tolti). Il sogno
+  perciò NON mostra il filo: sarebbe un segno, e la regola 4 lo vieta.
+  (Una prima stesura di questa nota diceva che il filo «si annoda a mano»
+  dentro il sogno: non era vero, non c'era nessuna chiamata.)
 - **`_fade` sta al livello 10, ma Nascite e PhotoMode stanno sopra.** Il
   cartellino «E — conosci il cucciolo» compariva sul nero, e **P** in pieno
   sonno spegneva la tenda stessa (`PhotoMode._hide_ui()`): ora entrambi

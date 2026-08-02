@@ -148,6 +148,12 @@ var _player_ref: Node3D
 
 # routine da residente: annusare aiuole, panchine, il falò della sera
 var _routine_aux: Node3D
+## quanto si resta seduti, se chi ci manda lo sa meglio di noi (0 = a caso)
+var _routine_durata := 0.0
+## Dove ci si siede quando il mobile non lo dichiara: è la misura della
+## PANCHINA, il pezzo per cui `r_bench` è stato scritto. Vive qui e in
+## nessun altro posto.
+const SEDUTA_PREDEFINITA := Vector3(0, 0.52, 0.02)
 var _fire_look := Vector3.ZERO
 
 # la gita alla casa sull'albero: base scala, cima, trespolo
@@ -576,7 +582,7 @@ func _enter_state(s: String) -> void:
 			# La forma giusta era già scritta più sotto (riga ~1692):
 			# `.get("front", position)`, cioè «se non hai una casa, gira
 			# intorno a dove sei».
-			var front: Vector3 = _house["front"]
+			var front: Vector3 = _house.get("front", position)
 			var a := randf() * TAU
 			_walk_to(front + Vector3(cos(a), 0, sin(a)) * randf_range(1.0, 3.2), "r_idle")
 		"r_sniff":
@@ -595,8 +601,7 @@ func _enter_state(s: String) -> void:
 				# niente: il corpo si accovacciava a terra DENTRO il
 				# mobile — il cliente del salone dentro la poltrona, il
 				# pubblico conficcato nell'alzata di pietra.)
-				var off: Vector3 = _routine_aux.get_meta("seduta",
-						Vector3(0, 0.52, 0.02))
+				var off: Vector3 = _routine_aux.get_meta("seduta", SEDUTA_PREDEFINITA)
 				var seat: Vector3 = _routine_aux.global_transform * off
 				# E SI GUARDA QUELLO CHE SI E' VENUTI A GUARDARE. `_fire_look`
 				# e' il terzo argomento di `do_routine` e questo stato non lo
@@ -612,7 +617,7 @@ func _enter_state(s: String) -> void:
 				var tw := create_tween()
 				tw.tween_property(self, "position", seat, 0.4) \
 						.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-			_timer = randf_range(14.0, 22.0)
+			_timer = _routine_durata if _routine_durata > 0.0 else randf_range(14.0, 22.0)
 		"r_attesa":
 			# arrivato al posto dell'appuntamento: si volta verso il
 			# fenomeno e aspetta. Il timer e' lunghissimo di proposito —
@@ -712,7 +717,11 @@ func _mount_bench() -> void:
 		_walk_to(_gift_pos, "gift")  # panchina demolita mentre ci camminava verso
 		return
 	# il riccio si accoccola sul sedile, il passerotto si appollaia in cima
-	var offset := Vector3(0, 0.86, -0.18) if species == "passerotto" else Vector3(0, 0.52, 0.02)
+	# LA SECONDA COPIA DELLA COSTANTE, che il meta doveva abolire: qui si
+	# chiede al mobile come si fa lo stesso, e il numero resta scritto in un
+	# posto solo (lo stato `r_bench`).
+	var offset: Vector3 = Vector3(0, 0.86, -0.18) if species == "passerotto" \
+			else _bench.get_meta("seduta", SEDUTA_PREDEFINITA)
 	var dest: Vector3 = _bench.global_transform * offset
 	_yaw = _bench.rotation.y + PI
 	var tw := create_tween()
@@ -1877,7 +1886,12 @@ func rifai_il_look(nuovi: Dictionary) -> bool:
 	return true
 
 
-func do_routine(kind: String, pos: Vector3, look := Vector3.ZERO, aux: Node3D = null) -> void:
+## `durata` > 0 fissa quanto si resta seduti. Senza, `r_bench` sceglie da sé
+## fra 14 e 22 secondi — che va bene per una panchina, e NON va bene per chi
+## sta suonando: il concerto dura 48 secondi reali, e il pianista si alzava a
+## metà del suo stesso pezzo con la musica che andava avanti da sola.
+func do_routine(kind: String, pos: Vector3, look := Vector3.ZERO,
+		aux: Node3D = null, durata := 0.0) -> void:
 	if _hidden or mode != "resident" or _state.begins_with("th") or _state.begins_with("on_"):
 		return
 	if _robe != null:
@@ -1886,6 +1900,7 @@ func do_routine(kind: String, pos: Vector3, look := Vector3.ZERO, aux: Node3D = 
 	_task_cb = Callable()
 	_clear_can()
 	_routine_aux = aux
+	_routine_durata = durata
 	_fire_look = look
 	match kind:
 		"sniff":
@@ -2423,7 +2438,7 @@ func resident_wake() -> void:
 	_hidden = false
 	# stessa ragione: chi non ha più una casa si sveglia dov'è, non
 	# scompare in un errore
-	position = _house["front"]
+	position = _house.get("front", position)
 	var tw := create_tween()
 	tw.tween_property(_vis, "scale", Vector3.ONE, 0.5) \
 			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)

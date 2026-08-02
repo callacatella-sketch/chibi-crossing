@@ -243,7 +243,9 @@ func _prova_una_nascita() -> void:
 	if adulti.size() < 2:
 		return
 	var coppia := coppia_migliore(adulti,
-			func(a, b): return int(_visitors.call("affinita_fra", a, b)),
+			# IL LIBRO MASTRO, non il contatore delle chiacchiere: una nascita
+			# viene da gesti veri, e adesso si può dire quali
+			func(a, b): return _visitors.call("affetto_fra", a, b),
 			func(a, b): return int(_legami.call("figli_della_coppia", a, b)))
 	if coppia.is_empty():
 		return
@@ -371,11 +373,22 @@ func _conferma_nome() -> void:
 	if dna_p.is_empty() or dna_m.is_empty():
 		_in_arrivo = {}       # un genitore è partito nel frattempo
 		return
+	var padre_n := str(_in_arrivo.get("padre", ""))
+	var madre_n := str(_in_arrivo.get("madre", ""))
+	# HANNO FATTO UNA VITA: il gesto più grande del libro mastro, nei due versi
+	if get_tree() != null:
+		get_tree().call_group("affetti", "gesto", padre_n, madre_n, "nascita")
+		get_tree().call_group("affetti", "gesto", madre_n, padre_n, "nascita")
 	var eredita := {}
 	if eredita_stavolta(seme):
 		eredita = eredita_possibile(_legami.call("partiti"), seme)
 	var figlio := DNA.incrocia(dna_p, dna_m, seme, nome, eredita)
-	var label: String = _visitors.call("accogli_nato", figlio)
+	# NASCE IN CASA DELLA MADRE, non in una casa sua: è così che al mattino
+	# escono dalla stessa porta in tre. Se quella soglia non c'è più (la
+	# casa demolita fra l'annuncio e adesso), `accogli_nato` ripiega su un
+	# lettino libero e il cucciolo non sparisce.
+	var label: String = _visitors.call("accogli_nato", figlio,
+			str(_in_arrivo.get("madre", "")))
 	if label == "":
 		# il lettino è stato smontato fra l'annuncio e adesso: il
 		# cucciolo aspetta ancora, non sparisce
@@ -569,7 +582,9 @@ func debug_forza_nascita() -> void:
 		print("[nascite] servono almeno due adulti")
 		return
 	var coppia := coppia_migliore(adulti,
-			func(a, b): return int(_visitors.call("affinita_fra", a, b)),
+			# IL LIBRO MASTRO, non il contatore delle chiacchiere: una nascita
+			# viene da gesti veri, e adesso si può dire quali
+			func(a, b): return _visitors.call("affetto_fra", a, b),
 			func(a, b): return int(_legami.call("figli_della_coppia", a, b)))
 	if coppia.is_empty():
 		# in debug si forza la prima coppia mista che si trova
