@@ -55,7 +55,7 @@ const SHOP_PIECES := [
 	{"name": "Fondale", "cost": 260, "cur": "nut", "cat": 0,
 		"desc": "La conchiglia acustica: rimanda la voce a chi\nascolta, e di sera si accende ai due lati."},
 	{"name": "Gradinata", "cost": 90, "cur": "nut", "cat": 0,
-		"desc": "Tre gradini di pietra con i cuscini gia' messi.\nAffiancane quante ne servono: e' la platea."},
+		"desc": "Due file di pietra per sedersi davanti al palco.\nAffiancane quante ne servono: e' la platea."},
 	{"name": "Pianoforte", "cost": 420, "cur": "nut", "cat": 1,
 		"desc": "A coda, col coperchio aperto. Chi sogna di fare\nl'artista non aspetta altro."},
 	{"name": "Stendino", "cost": 85, "cur": "nut", "cat": 2,

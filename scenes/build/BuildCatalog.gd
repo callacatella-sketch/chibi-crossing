@@ -3794,27 +3794,126 @@ static func _scala_pioli() -> Node3D:
 	return n
 
 
-## L'INSEGNA DELLA CASERMA. La targa incorniciata con l'emblema dipinto a
-## mano: lo scudo rosso, l'elmetto d'ottone e le due manichette incrociate.
+## L'INSEGNA DELLA CASERMA. Non più un cartello inchiodato a due pali: un
+## portale coi montanti torniti su basette di pietra, la traversa coi
+## puntoni, il TETTINO di terracotta che ripara la tavola (lo stesso rosso
+## del tetto della caserma: da lontano si capisce di che famiglia è), e la
+## tavola APPESA alle astine d'ottone, che ondeggia appena nel vento come
+## le insegne del bar e della guardia. Sopra, l'araldica dei pompieri
+## rifatta perché si LEGGA: scudo rosso con la punta e il bordo d'ottone,
+## l'elmetto con falda e crestina, le manichette incrociate con gli UGELLI
+## alle punte — prima erano due bastoni su una macchia rossa. E al
+## montante, il secchiello appeso: il gesto della caserma.
 static func _insegna_caserma() -> Node3D:
 	var n := Node3D.new()
 	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var wood_scuro := _mat(WOOD_DARK, Color("8a6540"), 3.5, 0.5)
 	var crema := _mat(CREAM, PLASTER_SHADE, 4.0, 0.4)
 	var rosso := _mat(POMPA_ROSSO, POMPA_ROSSO_SCURO, 3.5, 0.45)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
-	_box(n, Vector3(0.92, 0.44, 0.06), wood, Vector3(0, 1.52, -0.02))
-	_box(n, Vector3(0.82, 0.34, 0.04), crema, Vector3(0, 1.52, -0.06))
-	# le due manichette incrociate, dietro allo scudo
+	var pietra := _mat(STONE, STONE_DARK, 4.0, 0.5)
+	var tetto := _mat(TERRACOTTA, Color("c07a58"), 3.5, 0.5)
+
+	# I MONTANTI torniti: basetta di pietra, fusto rastremato, collarino
+	for x: float in [-0.38, 0.38]:
+		_cyl(n, 0.075, 0.09, 0.07, pietra, Vector3(x, 0.035, -0.02))
+		_cyl(n, 0.042, 0.052, 1.62, wood, Vector3(x, 0.88, -0.02))
+		_cyl(n, 0.058, 0.058, 0.035, wood_scuro, Vector3(x, 1.7, -0.02))
+	# LA TRAVERSA coi due puntoni diagonali: il telaio si vede lavorare
+	_box(n, Vector3(0.98, 0.07, 0.07), wood, Vector3(0, 1.76, -0.02))
+	for px: float in [-1.0, 1.0]:
+		var puntone := _box(n, Vector3(0.05, 0.28, 0.05), wood,
+				Vector3(px * 0.28, 1.65, -0.02))
+		puntone.rotation.z = px * 0.7
+	# IL TETTINO a due falde di terracotta col colmo: ripara la tavola
+	# e dice da lontano che questa è roba della caserma
+	for fz: float in [-1.0, 1.0]:
+		var falda := _box(n, Vector3(1.06, 0.035, 0.17), tetto,
+				Vector3(0, 1.85, -0.02 + fz * 0.065))
+		falda.rotation.x = fz * -0.5
+	_box(n, Vector3(1.08, 0.035, 0.06), wood_scuro, Vector3(0, 1.9, -0.02))
+
+	# LA TAVOLA APPESA: un nodo a sé col pivot sulla traversa, come le
+	# insegne del bar e della guardia — e ondeggia appena (vedi in fondo)
+	var appesa := Node3D.new()
+	appesa.name = "Insegna"
+	appesa.position = Vector3(0, 1.76, -0.02)
+	n.add_child(appesa)
+	for ax: float in [-0.3, 0.3]:
+		_cyl(appesa, 0.008, 0.008, 0.15, ottone, Vector3(ax, -0.1, 0))
+	# la cornice con la battuta: due piani, non un box solo
+	_box(appesa, Vector3(0.84, 0.5, 0.05), wood_scuro, Vector3(0, -0.42, 0))
+	_box(appesa, Vector3(0.76, 0.42, 0.026), crema, Vector3(0, -0.42, -0.02))
+	# le borchie d'ottone agli angoli della cornice
+	for bx: float in [-1.0, 1.0]:
+		for by: float in [-1.0, 1.0]:
+			_ball(appesa, 0.014, ottone,
+					Vector3(bx * 0.36, -0.42 + by * 0.19, -0.028), Vector3(1, 1, 0.5))
+
+	# L'ARALDICA (tutta sulla tavola appesa, così dondola con lei).
+	# Le manichette incrociate, con l'ugello rastremato alle quattro punte
 	for s: float in [-1.0, 1.0]:
-		var m := _cyl(n, 0.018, 0.018, 0.42, ottone, Vector3(0, 1.52, -0.07))
-		m.rotation.z = s * 0.9
-	# lo scudo e l'elmetto
-	_box(n, Vector3(0.2, 0.24, 0.02), rosso, Vector3(0, 1.55, -0.08))
-	_ball(n, 0.11, rosso, Vector3(0, 1.44, -0.08), Vector3(1, 0.7, 0.2))
-	_ball(n, 0.06, ottone, Vector3(0, 1.56, -0.1), Vector3(1, 0.7, 0.6))
-	# i due montanti
-	for x: float in [-0.36, 0.36]:
-		_cyl(n, 0.05, 0.06, 1.3, wood, Vector3(x, 0.65, -0.02))
+		var manica := _cyl(appesa, 0.015, 0.015, 0.36, _mat(OTTONE_SCURO, Color("8a6520"), 4.0, 0.4),
+				Vector3(0, -0.42, -0.036))
+		manica.rotation.z = s * 0.75
+		for e: float in [-1.0, 1.0]:
+			# la punta sta sull'ASSE della sua manichetta (x = −s·e·sin θ),
+			# e il cono si capovolge sull'estremità bassa — o l'ugello
+			# finisce sulla manichetta sbagliata, storto di novanta gradi
+			var ugello := _cyl(appesa, 0.008, 0.021, 0.07, ottone,
+					Vector3(-s * e * sin(0.75) * 0.21, -0.42 + e * cos(0.75) * 0.21, -0.036))
+			ugello.rotation.z = s * 0.75 + (0.0 if e > 0.0 else PI)
+	# lo scudo rosso con la punta, bordato d'ottone. Ogni lastra sul SUO
+	# piano (quadrato e rombo sfalsati di qualche millimetro): due facce
+	# complanari si tagliano in z-fighting, e dentro il campo rosso
+	# affiorava un triangolo fantasma
+	_box(appesa, Vector3(0.22, 0.21, 0.012), ottone, Vector3(0, -0.4, -0.039))
+	var bordo_punta := _box(appesa, Vector3(0.156, 0.156, 0.012), ottone,
+			Vector3(0, -0.5, -0.037))
+	bordo_punta.rotation.z = PI * 0.25
+	_box(appesa, Vector3(0.19, 0.19, 0.014), rosso, Vector3(0, -0.405, -0.048))
+	var punta_scudo := _box(appesa, Vector3(0.134, 0.134, 0.014), rosso,
+			Vector3(0, -0.49, -0.0455))
+	punta_scudo.rotation.z = PI * 0.25
+	# l'elmetto d'ottone sopra lo scudo: falda, calotta e crestina
+	_ball(appesa, 0.09, ottone, Vector3(0, -0.295, -0.05), Vector3(1, 0.22, 0.5))
+	_ball(appesa, 0.065, ottone, Vector3(0, -0.275, -0.05), Vector3(1, 0.8, 0.5))
+	_box(appesa, Vector3(0.014, 0.075, 0.024), ottone, Vector3(0, -0.235, -0.05))
+
+	# IL SECCHIELLO appeso al montante: gancio, secchio rosso col bordo
+	# scuro e il manico d'ottone — l'eco dei secchi della caserma
+	_box(n, Vector3(0.028, 0.02, 0.09), wood_scuro, Vector3(0.38, 0.98, -0.06))
+	_cyl(n, 0.052, 0.04, 0.085, rosso, Vector3(0.38, 0.885, -0.1))
+	_cyl(n, 0.054, 0.054, 0.012, _mat(POMPA_ROSSO_SCURO, POMPA_ROSSO_SCURO.darkened(0.2), 5.0, 0.5),
+			Vector3(0.38, 0.93, -0.1))
+	var manico_s := TorusMesh.new()
+	manico_s.inner_radius = 0.042
+	manico_s.outer_radius = 0.052
+	var msi := MeshInstance3D.new()
+	msi.mesh = manico_s
+	msi.material_override = ottone
+	msi.position = Vector3(0.38, 0.955, -0.085)
+	msi.rotation.y = PI * 0.5
+	msi.scale = Vector3(1, 1, 0.6)
+	n.add_child(msi)
+
+	# l'ondeggio: piccolo, lento, cubico — un'insegna appesa e immobile
+	# per sempre è un'insegna incollata
+	var oscilla := Animation.new()
+	oscilla.length = 6.3
+	oscilla.loop_mode = Animation.LOOP_LINEAR
+	var tr := oscilla.add_track(Animation.TYPE_VALUE)
+	oscilla.track_set_path(tr, NodePath("Insegna:rotation:x"))
+	oscilla.track_insert_key(tr, 0.0, -0.015)
+	oscilla.track_insert_key(tr, 3.15, 0.02)
+	oscilla.track_insert_key(tr, 6.3, -0.015)
+	oscilla.track_set_interpolation_type(tr, Animation.INTERPOLATION_CUBIC)
+	var lib := AnimationLibrary.new()
+	lib.add_animation("dondola", oscilla)
+	var player := AnimationPlayer.new()
+	n.add_child(player)
+	player.add_animation_library("", lib)
+	player.autoplay = "dondola"
 	return n
 
 
@@ -4291,10 +4390,9 @@ static func _fondale() -> Node3D:
 
 
 
-# LA GRADINATA. Due file di sedute in pietra, i cuscini spaiati che i
-# vicini si portano da casa, una coperta dimenticata e il lume per la
-# sera. Se ne piazzano quante se ne vuole, in curva davanti al palco:
-# e' cosi' che l'anfiteatro diventa GRANDE — perche' l'hai fatto grande tu.
+# LA GRADINATA. Due file di sedute in pietra e una coperta dimenticata.
+# Se ne piazzano quante se ne vuole, in curva davanti al palco: e' cosi'
+# che l'anfiteatro diventa GRANDE — perche' l'hai fatto grande tu.
 #
 # LE LEZIONI DELLA PRIMA VERSIONE (bocciata guardando il catalogo):
 #  · era fatta di _box e leggeva come un cassonetto, perche' una
@@ -4337,7 +4435,6 @@ static func _gradinata() -> Node3D:
 	var concio_a := _mat(Color("9a917f"), Color("7d7565"), 2.6, 0.5)
 	var concio_b := _mat(Color("a49a88"), Color("867d6c"), 2.4, 0.5)
 	var malta := _mat(Color("6b644f"), Color("564f3e"), 3.0, 0.4)
-	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
 	var muschio := _mat(Color("8aa870"), Color("6f8d58"), 5.0, 0.5)
 
 	# DUE FILE. Ogni gradino e' un'ALZATA di conci pieni con sopra la
@@ -4374,13 +4471,23 @@ static func _gradinata() -> Node3D:
 				blocco.position = Vector3(xs + wb * 0.5, 0.0, zr)
 				xs += wb + 0.012
 
-		# la PEDATA: una lastra di pietra ad angoli tondi che sporge di
-		# 4-5 cm su tre lati, col naso bombato davanti
-		var ped := _prisma(n, _rrect_xz(1.02, 0.38, 0.065), cima - 0.06, 0.06, pietra)
-		ped.position.z = zc
-		var naso := _cyl(n, 0.032, 0.032, 0.98, pietra,
-				Vector3(0, cima - 0.030, zc + 0.185))
-		naso.rotation.z = PI * 0.5
+		# la PEDATA: TRE lastroni ad angoli tondi che sporgono di 4-5 cm
+		# su tre lati, ognuno col suo naso bombato. Tre e non uno: i
+		# giunti in quota riprendono il running bond dei conci sotto —
+		# una lastra unica da un metro leggeva come cemento colato, non
+		# come pietra posata a mano. (Ed e' anche il contratto di
+		# test_sedersi: sotto ogni Posto ci dev'essere la SUA lastra.)
+		var lastre: Array = [[0.34, 0.30, 0.34], [0.30, 0.34, 0.34]][i]
+		var xl := -0.498
+		for l in lastre.size():
+			var wl := float(lastre[l])
+			var ped := _prisma(n, _rrect_xz(wl, 0.38, 0.05), cima - 0.06,
+					0.06, pietra)
+			ped.position = Vector3(xl + wl * 0.5, 0.0, zc)
+			var naso := _cyl(n, 0.032, 0.032, wl - 0.05, pietra,
+					Vector3(xl + wl * 0.5, cima - 0.030, zc + 0.185))
+			naso.rotation.z = PI * 0.5
+			xl += wl + 0.008
 
 	# IL MUSCHIO: incassato a meta' nella pietra, si arrampica sul primo
 	# corso — davanti, DIETRO (e' il lato che si vede dal prato), su un
@@ -4395,35 +4502,27 @@ static func _gradinata() -> Node3D:
 	_ball(n, 0.095, muschio, Vector3(0.470, 0.06, -0.30), Vector3(0.5, 0.50, 1.15))
 	_ball(n, 0.075, muschio, Vector3(-0.47, 0.545, -0.30), Vector3(1.0, 0.26, 1.3))
 
-	# I CUSCINI, spaiati e su TUTTE E DUE le file (prima stavano solo
-	# sotto, e da dietro la fila alta sembrava disabitata). Uno dei posti
-	# resta nudo: quel cuscino stasera qualcuno se l'e' riportato a casa.
-	var stoffe := [Color("e9a3b8"), Color("9ec9e8"), Color("bfe6c8"), Color("ffe6a8")]
+	# I POSTI, sulla pietra nuda. C'erano i cuscini e il lume, ed erano
+	# belli NEL CATALOGO: in gioco gli spettatori ci si siedono SOPRA (i
+	# corpi li coprono o li attraversano), e affiancando le gradinate la
+	# stessa fila di cuscini identici si ripeteva a ogni cella — il
+	# contrario di una platea viva. Gli oggetti che uno spettatore seduto
+	# nasconderebbe non vanno modellati: vanno lasciati al pubblico vero.
 	var posti := [[-0.31, 0], [0.06, 0], [-0.08, 1], [0.33, 1]]
 	for i3 in posti.size():
 		var cx := float(posti[i3][0])
 		var fila := int(posti[i3][1])
 		var cy := 0.26 + float(fila) * 0.28
 		var cz := -0.01 - float(fila) * 0.32 + 0.02 * float(i3 % 2)
-		var col: Color = stoffe[i3 % stoffe.size()]
-		var giro := (float(i3) - 1.5) * 0.14
-		# la federa: un panetto ad angoli tondi, NON un cartoncino
-		var federa := _prisma(n, _rrect_xz(0.21, 0.20, 0.07), cy, 0.040,
-				_mat(col.darkened(0.12), col.darkened(0.26), 5.0, 0.5))
-		federa.position = Vector3(cx, 0.0, cz)
-		federa.rotation.y = giro
-		# la gobba morbida, e il bottone che la tiene
-		var gobba := _ball(n, 0.104, _mat(col, col.darkened(0.16), 5.0, 0.5),
-				Vector3(cx, cy + 0.030, cz), Vector3(0.96, 0.34, 0.90))
-		gobba.rotation.y = giro
-		_ball(n, 0.014, _mat(CREAM, WOOD_PALE, 8.0, 0.35),
-				Vector3(cx, cy + 0.062, cz), Vector3(1, 0.5, 1))
 		# l'ancoraggio del posto: e' qui che si siede chi ascolta
-		# (Concerto cerca "Posto*" e ordina per distanza dal pianoforte)
+		# (Concerto cerca "Posto*" e ordina per distanza dal pianoforte).
+		# Sta ESATTAMENTE sulla pietra: il punto dichiarato e' dove il
+		# corpo viene posato, e 3 cm di "morbidezza" avevano senso sul
+		# cuscino — sulla pietra nuda erano un posto a mezz'aria.
 		var posto := Node3D.new()
 		posto.name = "Posto%d" % i3
-		posto.position = Vector3(cx, cy + 0.06, cz)
-		posto.set_meta("seduta", Vector3(0, 0.03, 0))
+		posto.position = Vector3(cx, cy, cz)
+		posto.set_meta("seduta", Vector3.ZERO)
 		n.add_child(posto)
 
 	# LA COPERTA piegata sull'orlo della fila alta: qualcuno la lascia
@@ -4445,19 +4544,13 @@ static func _gradinata() -> Node3D:
 			Vector3(-0.38, 0.47, -0.180), Vector3(0, PI * 0.5, 0.06))
 	lembo.rotation.x = 0.10
 
-	# i due PARACARRI bassi sull'orlo: le gradinate si affiancano, e
-	# questi si fanno compagnia senza diventare una selva di bastoni
-	for sx: float in [-0.485, 0.485]:
-		_prisma(n, _rrect_xz(0.075, 0.26, 0.03), 0.26, 0.10, concio_a) 				.position.x = sx
-		_ball(n, 0.038, pietra, Vector3(sx, 0.375, 0.0), Vector3(1, 0.68, 1.5))
-
-	# e il LUME per la sera: zoccolo di legno, vetro caldo, cappello
-	_cyl(n, 0.034, 0.040, 0.045, legno, Vector3(0.40, 0.283, 0.10))
-	_cyl(n, 0.031, 0.027, 0.075, _glow(Color("ffe6b8"), Color("ffc978"), 1.0),
-			Vector3(0.40, 0.343, 0.10))
-	_cyl(n, 0.012, 0.038, 0.030, legno, Vector3(0.40, 0.394, 0.10))
-	_ball(n, 0.011, legno, Vector3(0.40, 0.412, 0.10))
-
+	# UN paracarro solo, sul fianco sinistro: affiancando le gradinate
+	# ne spunta uno a ogni giuntura. Con due (uno per fianco) a ogni
+	# giuntura se ne incontravano DUE a tre centimetri: un doppio pomello
+	# che si vedeva anche a platea piena.
+	var para := _prisma(n, _rrect_xz(0.075, 0.26, 0.03), 0.26, 0.10, concio_a)
+	para.position.x = -0.485
+	_ball(n, 0.038, pietra, Vector3(-0.485, 0.375, 0.0), Vector3(1, 0.68, 1.5))
 	return n
 
 
