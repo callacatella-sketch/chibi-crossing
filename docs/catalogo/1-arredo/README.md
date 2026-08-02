@@ -21,7 +21,7 @@
 | **Lavagnetta**<br><sub>0.56 × 0.95 m</sub> | <img src="lavagnetta/1-fronte.jpg" width="200"> | <img src="lavagnetta/2-tre-quarti.jpg" width="200"> | <img src="lavagnetta/3-profilo.jpg" width="200"> |
 | **Letto**<br><sub>0.92 × 0.60 m</sub> | <img src="letto/1-fronte.jpg" width="200"> | <img src="letto/2-tre-quarti.jpg" width="200"> | <img src="letto/3-profilo.jpg" width="200"> |
 | **Libreria**<br><sub>0.93 × 1.55 m</sub> | <img src="libreria/1-fronte.jpg" width="200"> | <img src="libreria/2-tre-quarti.jpg" width="200"> | <img src="libreria/3-profilo.jpg" width="200"> |
-| **Macchina caffè**<br><sub>0.67 × 0.70 m</sub> | <img src="macchina-caffe/1-fronte.jpg" width="200"> | <img src="macchina-caffe/2-tre-quarti.jpg" width="200"> | <img src="macchina-caffe/3-profilo.jpg" width="200"> |
+| **Macchina caffè**<br><sub>0.67 × 0.76 m</sub> | <img src="macchina-caffe/1-fronte.jpg" width="200"> | <img src="macchina-caffe/2-tre-quarti.jpg" width="200"> | <img src="macchina-caffe/3-profilo.jpg" width="200"> |
 | **Mensola bottiglie**<br><sub>0.94 × 1.00 m</sub> | <img src="mensola-bottiglie/1-fronte.jpg" width="200"> | <img src="mensola-bottiglie/2-tre-quarti.jpg" width="200"> | <img src="mensola-bottiglie/3-profilo.jpg" width="200"> |
 | **Pianoforte**<br><sub>0.63 × 0.69 m</sub> | <img src="pianoforte/1-fronte.jpg" width="200"> | <img src="pianoforte/2-tre-quarti.jpg" width="200"> | <img src="pianoforte/3-profilo.jpg" width="200"> |
 | **Salone**<br><sub>1.20 × 1.19 m</sub> | <img src="salone/1-fronte.jpg" width="200"> | <img src="salone/2-tre-quarti.jpg" width="200"> | <img src="salone/3-profilo.jpg" width="200"> |
@@ -33,6 +33,6 @@
 | **Stivali**<br><sub>0.72 × 0.22 m</sub> | <img src="stivali/1-fronte.jpg" width="200"> | <img src="stivali/2-tre-quarti.jpg" width="200"> | <img src="stivali/3-profilo.jpg" width="200"> |
 | **Tavolino**<br><sub>0.84 × 0.66 m</sub> | <img src="tavolino/1-fronte.jpg" width="200"> | <img src="tavolino/2-tre-quarti.jpg" width="200"> | <img src="tavolino/3-profilo.jpg" width="200"> |
 | **Tavolino bar**<br><sub>0.81 × 0.81 m</sub> | <img src="tavolino-bar/1-fronte.jpg" width="200"> | <img src="tavolino-bar/2-tre-quarti.jpg" width="200"> | <img src="tavolino-bar/3-profilo.jpg" width="200"> |
-| **Vetrina dolci**<br><sub>0.96 × 0.96 m</sub> | <img src="vetrina-dolci/1-fronte.jpg" width="200"> | <img src="vetrina-dolci/2-tre-quarti.jpg" width="200"> | <img src="vetrina-dolci/3-profilo.jpg" width="200"> |
+| **Vetrina dolci**<br><sub>0.98 × 0.92 m</sub> | <img src="vetrina-dolci/1-fronte.jpg" width="200"> | <img src="vetrina-dolci/2-tre-quarti.jpg" width="200"> | <img src="vetrina-dolci/3-profilo.jpg" width="200"> |
 
 [« torna all'indice](../README.md)
