@@ -304,11 +304,21 @@ static func panca_pesi() -> Node3D:
 		_cucitura(n, Vector3(sxc, 0.545, 0.0), Vector3(sxc, 0.573, 0.28), 6, filo)
 
 	# --- i due montanti col bilanciere in appoggio ---------------------------
+	# I montanti erano due scatole SOSPESE: cominciavano a y=0.52 con mezzo
+	# metro di NIENTE sotto. Nulla poteva reggerli — le zampe del cavalletto
+	# convergono verso l'interno (in cima stanno a x≈0.07) e arrivano a
+	# z=-0.328, la traversa si ferma a x=0.21, il cuscino a questa z è largo
+	# 0.097 — così il bilanciere coi sassi restava appeso al vuoto. Ora il
+	# montante parte DA TERRA, e la sua altezza non è più un numero per conto
+	# suo: è la quota della forcella. Se un giorno il bilanciere si alza, il
+	# palo si allunga da solo e non può tornare a galleggiare.
+	var forcella_y := 0.96
 	for sx4: float in [-1.0, 1.0]:
-		CAT._box(n, Vector3(0.06, 0.42, 0.06), chiaro, Vector3(sx4 * 0.26, 0.73, -0.36))
+		CAT._box(n, Vector3(0.06, forcella_y, 0.06), chiaro,
+				Vector3(sx4 * 0.26, forcella_y * 0.5, -0.36))
 		# la forcella dove si appoggia il bastone
 		var forc := CAT._box(n, Vector3(0.05, 0.1, 0.12), chiaro,
-				Vector3(sx4 * 0.26, 0.96, -0.36))
+				Vector3(sx4 * 0.26, forcella_y, -0.36))
 		forc.rotation.x = 0.25
 		# un cuscinetto di cuoio nella forcella: protegge il legno dal
 		# bastone di pietra, e fa il paio col cuoio del cuscino sopra
@@ -366,8 +376,14 @@ static func sacco() -> Node3D:
 	CAT._box(n, Vector3(0.11, 2.0, 0.11), legno, Vector3(0, 1.0, 0.32))
 	# la mensola diagonale: un palo dritto sarebbe una sbarra, questa è
 	# una spalla
-	var puntone := CAT._box(n, Vector3(0.07, 0.52, 0.07), legno, Vector3(0, 1.5, 0.21))
-	puntone.rotation.x = 0.8
+	# IL PUNTONE RESTA DIETRO AL SACCO. Lungo 0.52 e inclinato di 0.8, il suo
+	# piede finiva a z 0.02: dentro il sacco, che a quell'altezza occupa da
+	# −0.28 a +0.12. La traversa lo trapassava da parte a parte e riemergeva
+	# davanti alla toppa verde, come un blocchetto sospeso. Adesso va dal
+	# palo (z 0.32, y 1.40) su fino a 1.70 fermandosi a z 0.20, che è oltre
+	# il fianco del sacco a quella quota.
+	var puntone := CAT._box(n, Vector3(0.07, 0.33, 0.07), legno, Vector3(0, 1.55, 0.26))
+	puntone.rotation.x = -0.38
 	# il braccio curvo che porta il sacco (tubo su tre punti, non un box)
 	BUILDER.tube(n, [Vector3(0, 1.94, 0.3), Vector3(0, 2.08, 0.14),
 			Vector3(0, 2.06, -0.08)], [0.05, 0.045, 0.038], legno, 14, 10)
@@ -514,7 +530,12 @@ static func _toppa(sacco: Node3D, angolo: float, y: float, raggio: float,
 	sacco.add_child(giro)
 	var r: float = raggio_a_altezza.call(y)
 	var mezzo_z: float = raggio * scl.z
-	var palla := CAT._ball(giro, raggio, mat, Vector3(0, y, r + mezzo_z * 0.55), scl)
+	# LA TOPPA È CUCITA SUL SACCO, quindi sta MEZZA DENTRO. Spinta fuori di
+	# oltre metà del proprio spessore (0.55) diventava una bolla appoggiata
+	# sopra il tessuto, e dove la superficie curva via — di tre quarti — si
+	# staccava del tutto dalla sagoma. Un decimo basta a evitare lo
+	# z-fighting senza farla galleggiare.
+	var palla := CAT._ball(giro, raggio, mat, Vector3(0, y, r + mezzo_z * 0.10), scl)
 	palla.rotation.z = rot_extra
 	var cs := cos(rot_extra)
 	var sn := sin(rot_extra)
@@ -903,7 +924,10 @@ static func specchio() -> Node3D:
 
 	# la cornice, inclinata come uno specchio appoggiato al muro
 	var quadro := Node3D.new()
-	quadro.position = Vector3(0, 0.86, -0.06)
+	# IL PANNELLO STA DAVANTI ALLE ZAMPE. A z −0.06 il suo piede finiva
+	# dentro le due zampe del cavalletto (che scendono fino a z −0.05), e di
+	# profilo si vedeva il legno tagliare la tavola poco sopra il basamento.
+	quadro.position = Vector3(0, 0.86, 0.02)
 	quadro.rotation.x = 0.08
 	n.add_child(quadro)
 

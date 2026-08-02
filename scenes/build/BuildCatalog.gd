@@ -484,6 +484,19 @@ static func _ball(parent: Node3D, radius: float, mat: Material, pos: Vector3, sc
 	return mi
 
 
+## Un tratto di fune teso fra DUE PUNTI: lunghezza e inclinazione le danno i
+## capi, così non restano numeri scelti a mano da riallineare a occhio quando
+## l'ancoraggio si sposta. (Gli angoli sono nell'ordine YXZ di Godot: rz porta
+## l'asse del cilindro sul piano XY, rx lo inclina in profondità.)
+static func _fune(parent: Node3D, da: Vector3, a: Vector3, raggio: float,
+		mat: Material) -> MeshInstance3D:
+	var d := a - da
+	var seg := _cyl(parent, raggio, raggio, d.length(), mat, da + d * 0.5)
+	var u := d.normalized()
+	seg.rotation = Vector3(atan2(u.z, u.y), 0.0, asin(clampf(-u.x, -1.0, 1.0)))
+	return seg
+
+
 # ---------------------------------------------------------------- struttura
 
 static func _floor_tile() -> Node3D:
@@ -1002,9 +1015,19 @@ static func _stairs() -> Node3D:
 		stringer.rotation.x = 1.135
 		var rail := _box(n, Vector3(0.05, 0.07, 2.5), step_mat, Vector3(sx, 1.85, 0))
 		rail.rotation.x = 1.135
+		# I PILASTRINI SI RICAVANO DALLE DUE RETTE, non si mettono a occhio.
+		# Cosciale e corrimano sono paralleli (stessa rotazione, 1.135 rad:
+		# 0.906 di salita ogni 0.423 di corsa, cioè 2.142 di pendenza), e a
+		# una data z passano per 1.07 − 2.142·z e 1.85 − 2.142·z. Messi a
+		# mano erano lunghi uguali a tutte le quote: in basso pendevano sotto
+		# il cosciale nel vuoto, in alto si fermavano mezzo metro prima del
+		# corrimano. Un parapetto senza un punto d'attacco visibile.
 		for t: float in [0.12, 0.88]:
-			_box(n, Vector3(0.06, 0.8, 0.06), dark,
-					Vector3(sx, 0.269 * 8.0 * t - 1.05 * t + 0.55, 0.4 - t * 0.8))
+			var pz := 0.4 - t * 0.8
+			var y_rampa := 1.07 - 2.142 * pz + 0.06     # dentro il cosciale
+			var y_mano := 1.85 - 2.142 * pz - 0.03      # dentro il corrimano
+			_box(n, Vector3(0.06, y_mano - y_rampa, 0.06), dark,
+					Vector3(sx, (y_rampa + y_mano) * 0.5, pz))
 	return n
 
 
@@ -1404,11 +1427,35 @@ static func _bench() -> Node3D:
 	for x in [-0.36, 0.36]:
 		_box(n, Vector3(0.08, 0.42, 0.34), dark, Vector3(x, 0.21, 0))
 	_box(n, Vector3(0.95, 0.05, 0.17), wood, Vector3(0, 0.44, 0.09))
-	_box(n, Vector3(0.95, 0.05, 0.17), wood, Vector3(0, 0.44, -0.1))
+	var seduta := _box(n, Vector3(0.95, 0.05, 0.17), wood, Vector3(0, 0.44, -0.1))
+	var incl := 0.15
 	var back_a := _box(n, Vector3(0.95, 0.14, 0.04), wood, Vector3(0, 0.62, -0.19))
 	var back_b := _box(n, Vector3(0.95, 0.14, 0.04), wood, Vector3(0, 0.8, -0.22))
-	back_a.rotation.x = 0.15
-	back_b.rotation.x = 0.15
+	back_a.rotation.x = incl
+	back_b.rotation.x = incl
+	# I MONTANTI: senza, lo schienale era un'isola sospesa — 8,3 cm d'aria fra
+	# la cima della seduta (0.465) e il bordo basso della doga bassa (0.548), e
+	# altri 3,6 cm fra le due doghe. Salgono dalla seduta, che attraversano per
+	# tutto lo spessore, fino a filo della doga alta. Pendenza, lunghezza e
+	# arretramento sono RICAVATI da doghe e seduta — non scelti a occhio: chi
+	# domani alza una doga o la porta più indietro se li ritrova ancora dietro.
+	var doga: Vector3 = (back_b.mesh as BoxMesh).size
+	var salita := back_b.position - back_a.position
+	var pendenza := atan2(salita.z, salita.y)
+	var spessore := 0.05
+	var cima := back_b.position.y + (doga.y * cos(incl) + doga.z * sin(incl)) * 0.5
+	var piede: float = seduta.position.y - (seduta.mesh as BoxMesh).size.y * 0.5
+	var mezzo := (cima + piede) * 0.5
+	var lungo := (cima - piede) / cos(pendenza)
+	# arretrati di mezzo spessore loro più mezzo di doga, meno un centimetro di
+	# morso: le doghe si appoggiano DAVANTI al montante invece di sbucargli
+	# fuori dalla faccia, che è quella su cui uno appoggia la schiena
+	var mont_z := back_a.position.z + (mezzo - back_a.position.y) * tan(pendenza) \
+			- (spessore + doga.z - 0.02) * 0.5 / cos(pendenza)
+	for mx: float in [-0.36, 0.36]:  # in asse con le gambe, che continuano
+		var montante := _box(n, Vector3(0.07, lungo, spessore), dark,
+				Vector3(mx, mezzo, mont_z))
+		montante.rotation.x = pendenza
 	return n
 
 
@@ -1529,7 +1576,14 @@ static func _greenhouse() -> Node3D:
 	for lato: float in [-1.0, 1.0]:
 		var falda := _box(n, Vector3(1.02, 0.03, 0.62), glass, Vector3(0, 1.17, lato * 0.26))
 		falda.rotation.x = lato * 0.56
-		var trave := _box(n, Vector3(1.04, 0.05, 0.06), telaio, Vector3(0, 1.17, lato * 0.5))
+		# LA TRAVE STA SUL BORDO BASSO DELLA FALDA, e quel bordo si CALCOLA:
+		# messa alla quota del colmo ma più in fuori restava sospesa quindici
+		# centimetri sopra il vetro, in aria, e da tre quarti la si vedeva
+		# volare. La gronda è il centro della falda più mezza falda lungo la
+		# pendenza: sempre in giù di sin(0.56), in fuori di cos(0.56).
+		var gronda := Vector3(0, -sin(0.56), lato * cos(0.56)) * 0.30
+		var trave := _box(n, Vector3(1.04, 0.05, 0.06), telaio,
+				Vector3(0, 1.15, lato * 0.26) + gronda)
 		trave.rotation.x = lato * 0.56
 	_box(n, Vector3(1.06, 0.06, 0.06), telaio, Vector3(0, 1.32, 0))
 	# dentro: due vasi col verde che non teme l'inverno
@@ -1554,17 +1608,47 @@ static func _balloon() -> Node3D:
 	var su := Node3D.new()
 	su.name = "Pallone"
 	n.add_child(su)
+	# il pallone: centro, raggio e schiacciamento in chiaro, perché lassù ci
+	# si attaccano le corde e un numero ricopiato è un numero che diverge
+	var cuore := Vector3(0, 2.05, 0)
+	var r_pal := 0.5
+	var sagoma := Vector3(0.42, 1.0, 0.95)
 	for i in 8:
 		var a := float(i) * TAU / 8.0
 		var mat := _mat(PINK, PINK_DEEP, 4.0, 0.4) if i % 2 == 0 else _mat(CREAM, Color("f3dfc8"), 4.0, 0.4)
-		var spicchio := _ball(su, 0.5, mat, Vector3(0, 2.05, 0), Vector3(0.42, 1.0, 0.95))
+		var spicchio := _ball(su, r_pal, mat, cuore, sagoma)
 		spicchio.rotation.y = a
 	_ball(su, 0.5, _mat(Color("f2cf7e"), Color("d9a84a"), 3.0, 0.4), Vector3(0, 1.38, 0), Vector3(0.36, 0.36, 0.36))
-	for sx: float in [-0.2, 0.2]:
-		for sz: float in [-0.2, 0.2]:
-			var corda := _cyl(su, 0.012, 0.012, 0.75, vimini, Vector3(sx, 0.95, sz))
-			corda.rotation.z = -sx * 0.35
-			corda.rotation.x = sz * 0.35
+	# quanto sale il pallone col respiro: lo usano il piede delle corde e la
+	# traccia dell'animazione, e devono essere lo STESSO numero
+	var respiro := 0.12
+	# LE QUATTRO CORDE. Erano un cilindro di 0.75 messo a mano e finivano a
+	# mezz'aria: la punta usciva a 0.3199 dall'asse alla quota 1.3232, dove la
+	# sfera del bruciatore misura 0.1708 e il pallone non comincia nemmeno (la
+	# sua pancia parte a 1.55). Quindici centimetri di vuoto: il pallone non
+	# era appeso a niente. Adesso i capi sono due PUNTI — il legno del cesto e
+	# la stoffa del pallone — e lunghezza e inclinazione si RICAVANO da loro:
+	# se il pallone cambia, le corde lo seguono.
+	var q45 := cos(PI * 0.25)      # seno e coseno di 45° sono lo stesso numero
+	for sx: float in [-1.0, 1.0]:
+		for sz: float in [-1.0, 1.0]:
+			var diag := Vector3(sx, 0.0, sz).normalized()
+			# in alto: sullo spicchio in diagonale — ce n'è uno per ogni corda,
+			# ed è il suo meridiano largo — a 45° sotto l'equatore
+			var attacco := cuore + diag * (r_pal * sagoma.z * q45) \
+					- Vector3(0, r_pal * sagoma.y * q45, 0)
+			# in basso: DENTRO al cesto, più a fondo di quanto il pallone salga
+			# col respiro (l'orlo di legno ha la faccia di sopra a 0.575), o a
+			# ogni dondolio la corda uscirebbe dal cesto e tornerebbe a penzolare
+			var piede := Vector3(sx * 0.174, 0.575 - respiro - 0.025, sz * 0.174)
+			var verso := (attacco - piede).normalized()
+			# cinque centimetri dentro la stoffa: a filo, il capo tondo
+			# lascerebbe vedere lo sfondo appena il pallone si inclina
+			var lunga := piede.distance_to(attacco) + 0.05
+			var corda := _cyl(su, 0.012, 0.012, lunga, vimini, piede + verso * (lunga * 0.5))
+			# l'asse del cilindro è +Y: prima l'inclinazione attorno a X, poi il
+			# giro attorno a Y — l'ordine YXZ di Godot è già questo
+			corda.rotation = Vector3(acos(clampf(verso.y, -1.0, 1.0)), atan2(verso.x, verso.z), 0.0)
 	# il respiro: su e giù di sei dita, con una punta di rollio
 	var anim := Animation.new()
 	anim.length = 6.0
@@ -1572,7 +1656,7 @@ static func _balloon() -> Node3D:
 	var tr_pos := anim.add_track(Animation.TYPE_VALUE)
 	anim.track_set_path(tr_pos, NodePath("Pallone:position:y"))
 	anim.track_insert_key(tr_pos, 0.0, 0.0)
-	anim.track_insert_key(tr_pos, 3.0, 0.12)
+	anim.track_insert_key(tr_pos, 3.0, respiro)
 	anim.track_insert_key(tr_pos, 6.0, 0.0)
 	var tr_rot := anim.add_track(Animation.TYPE_VALUE)
 	anim.track_set_path(tr_rot, NodePath("Pallone:rotation:z"))
@@ -1683,16 +1767,63 @@ static func _streetlamp() -> Node3D:
 static func _hammock() -> Node3D:
 	var n := Node3D.new()
 	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
-	for x: float in [-0.42, 0.42]:
-		var post := _cyl(n, 0.04, 0.06, 0.9, wood, Vector3(x, 0.45, 0))
-		post.rotation.z = -signf(x) * 0.12
+	# i numeri dei pali servono anche al letto e alle funi (dove finisce una
+	# doga, dove si annoda una corda): stanno scritti una volta sola
+	var palo_x := 0.42
+	var palo_y := 0.45
+	var palo_h := 0.9
+	var incl := 0.12
+	for x: float in [-palo_x, palo_x]:
+		var post := _cyl(n, 0.04, 0.06, palo_h, wood, Vector3(x, palo_y, 0))
+		post.rotation.z = -signf(x) * incl
+	# l'asse del palo DESTRO alla quota y e la sua faccia interna: il palo è
+	# inclinato e rastremato, quindi tutti e due si spostano salendo (il palo
+	# sinistro è speculare)
+	var asse := func(y: float) -> float:
+		return palo_x + sin(incl) * (y - palo_y) / cos(incl)
+	var faccia := func(y: float) -> float:
+		var h: float = (y - palo_y) / cos(incl)
+		return float(asse.call(y)) \
+				- lerpf(0.06, 0.04, h / palo_h + 0.5) / cos(incl)
 	var a := _mat(PINK, PINK_DEEP, 5.0, 0.4)
 	var b := _mat(CREAM, Color("f3dfc8"), 5.0, 0.4)
+	var corda := _mat(Color("c9b088"), Color("ab9066"), 5.0, 0.5)
+	# Le nove doghe erano nove isole: niente le infilava, e le due terminali
+	# finivano DENTRO i pali (bordo esterno a 0.40 contro la faccia interna a
+	# 0.368: 3,2 cm di legno attraversato, e di tre quarti sbucavano dall'altra
+	# parte). Ora la campata si RICAVA dal palo e sono le due funi a reggere il
+	# letto: seguono la stessa catenaria, infilano tutte le doghe e vanno ad
+	# annodarsi al legno — in un'amaca vera al palo ci arriva la corda, non il
+	# letto.
+	var quota := 0.44                        # la quota dei due capi del letto
+	# mezza campata: l'ultima doga ci deve stare TUTTA dentro, e la doga è a sua
+	# volta ricavata dal passo → mezza + doga/2 = limite; con doga = 2·mezza/9
+	# viene mezza = limite · 0.9, e il vuoto fra le doghe resta 1/9 del passo
+	var limite := float(faccia.call(quota)) - 0.008
+	var mezza := limite * 0.9
+	var passo := mezza / 4.0                 # otto intervalli fra nove doghe
+	var doga := passo * 8.0 / 9.0
+	var punti: Array[Vector3] = []
 	for i in 9:
 		var t := float(i) / 8.0
-		var x := -0.36 + t * 0.72
-		var dip := 0.44 - 0.16 * sin(PI * t)
-		_box(n, Vector3(0.08, 0.02, 0.34), a if i % 2 == 0 else b, Vector3(x, dip, 0))
+		var x := -mezza + t * mezza * 2.0
+		var dip := quota - 0.16 * sin(PI * t)
+		_box(n, Vector3(doga, 0.02, 0.34), a if i % 2 == 0 else b, Vector3(x, dip, 0))
+		punti.append(Vector3(x, dip, 0))
+	var nodo_y := 0.56                       # dove la fune abbraccia il palo
+	for lato: float in [-1.0, 1.0]:
+		var fianco := Vector3(0, 0, lato * 0.175)     # sul filo delle doghe
+		for i in 8:
+			_fune(n, punti[i] + fianco, punti[i + 1] + fianco, 0.016, corda)
+		for capo: float in [-1.0, 1.0]:
+			_fune(n, punti[0 if capo < 0.0 else 8] + fianco,
+					Vector3(capo * float(faccia.call(nodo_y)), nodo_y, 0), 0.014, corda)
+	# la fasciatura di corda attorno al palo: chiude i quattro capi e nasconde
+	# gli attacchi, come le legature degli attrezzi della palestra
+	for capo: float in [-1.0, 1.0]:
+		var fascia := _cyl(n, 0.058, 0.058, 0.05, corda,
+				Vector3(capo * float(asse.call(nodo_y)), nodo_y, 0))
+		fascia.rotation.z = -capo * incl
 	return n
 
 
@@ -1998,7 +2129,11 @@ static func _carousel() -> Node3D:
 		var a := float(i) * TAU / 3.0
 		var hx := cos(a) * 0.3
 		var hz := sin(a) * 0.3
-		_cyl(n, 0.008, 0.008, 0.62, pole, Vector3(hx, 0.6, hz))
+		# L'ASTINA PARTE DAL BALDACCHINO. Lunga 0.62 e centrata a 0.60,
+		# cominciava a 0.91 — mezzo metro sotto la copertura (che sta a
+		# 1.48): i seggiolini pendevano da niente, e una giostra si regge
+		# tutta lì. Adesso va da sotto la falda fino alla testa del cavalluccio.
+		_cyl(n, 0.008, 0.008, 1.02, pole, Vector3(hx, 0.91, hz))
 		_ball(n, 0.075, _mat(CREAM, PINK, 4.0, 0.4), Vector3(hx, 0.42, hz), Vector3(1.5, 0.95, 0.7))
 	return n
 
@@ -2508,7 +2643,9 @@ static func _insegna_guardia() -> Node3D:
 	# la tavola appesa: nodo a parte, così può dondolare
 	var appesa := Node3D.new()
 	appesa.name = "Insegna"
-	appesa.position = Vector3(0.06, 1.9, 0)
+	# stessa regola dell'insegna del bar: le astine stanno DENTRO la
+	# campata della traversa (da −0.37 a +0.25), o restano appese all'aria
+	appesa.position = Vector3(0.0, 1.9, 0)
 	n.add_child(appesa)
 	for dx: float in [-0.22, 0.22]:
 		_cyl(appesa, 0.008, 0.008, 0.16, ottone, Vector3(dx, -0.08, 0))
@@ -3528,9 +3665,12 @@ static func _faro_caserma() -> Node3D:
 		var a := float(i) * PI * 0.5 + PI * 0.25
 		_cyl(testa, 0.016, 0.016, 0.24, ottone,
 				Vector3(sin(a) * 0.13, 0, cos(a) * 0.13))
-	# la lente: la fetta chiara che passando accende il cortile
-	_box(testa, Vector3(0.05, 0.15, 0.2), _glow(CREAM, Color("ffd9a8"), 1.6),
-			Vector3(0.11, 0, 0))
+	# LA LENTE STA DENTRO IL TAMBURO. Larga 0.20 in z e messa a x 0.11, in un
+	# cilindro di raggio 0.13, sporgeva da tutte e due le parti: un
+	# rettangolo bianco che usciva dalla lanterna invece di accendersi
+	# dentro. A x 0.10 il vetro è largo 2·√(0.13²−0.10²) = 0.166.
+	_box(testa, Vector3(0.05, 0.15, 0.15), _glow(CREAM, Color("ffd9a8"), 1.6),
+			Vector3(0.10, 0, 0))
 	var fascio := SpotLight3D.new()
 	fascio.light_color = Color(1.0, 0.74, 0.58)
 	fascio.light_energy = 1.6
@@ -3568,7 +3708,9 @@ static func _cuccia_caserma() -> Node3D:
 	var crema := _mat(CREAM, PLASTER_SHADE, 4.0, 0.4)
 	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
-	_box(n, Vector3(0.6, 0.42, 0.54), crema, Vector3(0, 0.21, 0))
+	# le misure del corpo in chiaro: da qui si ricava dove sta la ciotola
+	var corpo := Vector3(0.6, 0.42, 0.54)
+	_box(n, corpo, crema, Vector3(0, corpo.y * 0.5, 0))
 	# l'ingresso: un arco, non un buco quadrato
 	var buio := _mat(GOMMA.lightened(0.05), GOMMA, 5.0, 0.3)
 	_box(n, Vector3(0.24, 0.22, 0.06), buio, Vector3(0, 0.11, -0.27))
@@ -3580,7 +3722,14 @@ static func _cuccia_caserma() -> Node3D:
 		var f := _box(n, Vector3(0.48, 0.05, 0.6), rosso, Vector3(s * 0.18, 0.5, 0))
 		f.rotation.z = -s * 0.51
 	_box(n, Vector3(0.09, 0.06, 0.62), wood, Vector3(0, 0.6, 0))
-	_cyl(n, 0.09, 0.07, 0.05, ottone, Vector3(0.3, 0.025, -0.3))
+	# LA CIOTOLA STA DAVANTI, NON DENTRO. Era piantata nello spigolo del corpo
+	# (centro x=0.3, z=-0.3, bordo di raggio 0.09) contro un muro che arriva a
+	# x=0.30 e z=-0.27: un morso di 8,5 cm dentro l'intonaco — l'angolo retto
+	# che di profilo si vedeva in una ciotola tonda. Ora la posa si RICAVA dal
+	# corpo: davanti alla facciata, staccata del proprio raggio più un dito
+	# d'aria, così non ci rientra più nemmeno se la cuccia cambia misura.
+	var bordo := 0.09
+	_cyl(n, bordo, 0.07, 0.05, ottone, Vector3(0.3, 0.025, -corpo.z * 0.5 - bordo - 0.02))
 	return n
 
 
@@ -3763,9 +3912,17 @@ static func _pianoforte() -> Node3D:
 		sopra.append((p as Vector2) - Vector2(-larg * 0.5, 0.0))
 	_prisma(cop, sopra, 0.0, 0.022, lacca)
 	_prisma(cop, sopra, -0.006, 0.006, lacca_int)
-	# l'asta di sostegno, in diagonale
-	var asta := _cyl(n, 0.010, 0.012, 0.40, lacca,
-			Vector3(-larg * 0.10, y + 0.20, -lung * 0.30))
+	# L'ASTA DI SOSTEGNO SI FERMA SOTTO IL COPERCHIO, e il punto si CALCOLA.
+	# Lunga 0.40 a occhio lo BUCAVA: la punta usciva quindici centimetri
+	# sopra la laccatura, in tutte e tre le viste, come un chiodo piantato
+	# al contrario. Il coperchio è il piano che parte dalla cerniera
+	# (−larg/2, y) inclinato di 0.62; l'asta parte dalla cassa, sale a 0.42,
+	# e finisce esattamente dove incontra quel piano.
+	var a_piede := Vector3(-larg * 0.10, y + 0.012, -lung * 0.30)
+	var a_dir := Vector3(sin(0.42), cos(0.42), 0.0)
+	var t_cop: float = ((a_piede.x + larg * 0.5) * sin(0.62) - 0.012 * cos(0.62)) \
+			/ (a_dir.y * cos(0.62) - a_dir.x * sin(0.62))
+	var asta := _cyl(n, 0.010, 0.012, t_cop, lacca, a_piede + a_dir * (t_cop * 0.5))
 	asta.rotation.z = -0.42
 
 	# LE TRE GAMBE tornite, con la loro rotella
@@ -3894,9 +4051,13 @@ static func _fondale() -> Node3D:
 				Vector3(sin(ang3) * (raggio + 0.012), h + 0.016,
 				centro_z - cos(ang3) * (raggio + 0.012)))
 		cim.rotation.y = -ang3
-	# la chiave di volta: il fiore d'oro che chiude in cima
-	_ball(n, 0.048, oro, Vector3(0, h + 0.03 + raggio * sin(cima) * alto + 0.10,
-			centro_z - raggio * cos(cima) * 0.5), Vector3(1.0, 0.62, 1.0))
+	# LA CHIAVE DI VOLTA CHIUDE L'ARCO, quindi sta DOVE FINISCE L'ARCO. Era
+	# alzata di 0.10 e tirata indietro a metà raggio (`* 0.5`): due errori
+	# nella stessa riga, e il fiore d'oro galleggiava staccato sopra la
+	# conchiglia. Il concio in cima sta a `centro_z − raggio·cos(cima)`,
+	# come tutti gli altri: la chiave si posa lì sopra e basta.
+	_ball(n, 0.048, oro, Vector3(0, h + 0.03 + raggio * sin(cima) * alto + 0.035,
+			centro_z - raggio * cos(cima) * 0.98), Vector3(1.0, 0.62, 1.0))
 
 	# le due lanterne d'angolo: un palco si accende
 	for sx3: float in [-0.418, 0.418]:
@@ -4730,11 +4891,17 @@ static func _lavagnetta() -> Node3D:
 		# l'ardesia incassata, un filo più indietro del telaio
 		_box(perno, Vector3(0.47, 0.8, 0.02), ardesia,
 				Vector3(0, -0.44, lato * -0.02))
-	# la catenella fra le due gambe (quella che impedisce l'apertura a spago)
-	for i in 3:
-		_ball(n, 0.014, _mat(METAL, Color("6f665b"), 5.0, 0.35),
-				Vector3(-0.06 + 0.06 * float(i), 0.18, 0.0),
-				Vector3(1.0, 0.7, 1.0))
+	# LA CATENELLA VA DA UN'ANTA ALL'ALTRA, cioè lungo Z: un cavalletto a
+	# libro si apre avanti-indietro, non a destra e a sinistra. Tre pallini
+	# in fila sull'asse X restavano appesi in mezzo al vano senza toccare
+	# nessuna delle due gambe — tre sassolini a mezz'aria, e di profilo si
+	# vedeva solo quello. Alla quota 0.25 le ante stanno a ±0.169 (0.710 di
+	# anta per sin 0.24): la catena parte da lì, ci arriva, e si affloscia.
+	for i in 7:
+		var u := float(i) / 6.0
+		_ball(n, 0.013, _mat(METAL, Color("6f665b"), 5.0, 0.35),
+				Vector3(0.0, 0.25 - sin(u * PI) * 0.035, lerpf(-0.169, 0.169, u)),
+				Vector3(1.0, 0.75, 1.0))
 
 	# --- il fronte scritto. Tutto dentro l'anta, così segue la sua
 	# inclinazione: una scritta appesa in verticale davanti a un pannello
@@ -5185,7 +5352,11 @@ static func _insegna_bar() -> Node3D:
 			[0.011, 0.010, 0.009, 0.008, 0.007], ferro)
 	var appesa := Node3D.new()
 	appesa.name = "Insegna"
-	appesa.position = Vector3(0.1, 2.1, 0)
+	# LE ASTINE DEVONO STARE DENTRO LA CAMPATA DEL BRACCIO, che va da −0.41
+	# a +0.21: appese a ±0.18 attorno a x 0.10, la destra usciva a 0.28 e
+	# restava agganciata al niente. Un tirante che non tira è la cosa più
+	# facile da non vedere e la più impossibile da spiegare.
+	appesa.position = Vector3(-0.06, 2.1, 0)
 	n.add_child(appesa)
 	# gli anelli AVVOLGONO il braccio (asse lungo il braccio, centro sul
 	# suo asse: un anello posato sotto è un'insegna che levita), e i

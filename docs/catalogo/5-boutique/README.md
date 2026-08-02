@@ -7,7 +7,7 @@
 | **Busto sartoriale**<br><sub>0.43 × 1.12 m</sub> | <img src="busto-sartoriale/1-fronte.jpg" width="200"> | <img src="busto-sartoriale/2-tre-quarti.jpg" width="200"> | <img src="busto-sartoriale/3-profilo.jpg" width="200"> |
 | **Camerino**<br><sub>0.98 × 2.02 m</sub> | <img src="camerino/1-fronte.jpg" width="200"> | <img src="camerino/2-tre-quarti.jpg" width="200"> | <img src="camerino/3-profilo.jpg" width="200"> |
 | **Cassa boutique**<br><sub>1.06 × 1.05 m</sub> | <img src="cassa-boutique/1-fronte.jpg" width="200"> | <img src="cassa-boutique/2-tre-quarti.jpg" width="200"> | <img src="cassa-boutique/3-profilo.jpg" width="200"> |
-| **Cesto saldi**<br><sub>0.77 × 0.82 m</sub> | <img src="cesto-saldi/1-fronte.jpg" width="200"> | <img src="cesto-saldi/2-tre-quarti.jpg" width="200"> | <img src="cesto-saldi/3-profilo.jpg" width="200"> |
+| **Cesto saldi**<br><sub>0.81 × 0.82 m</sub> | <img src="cesto-saldi/1-fronte.jpg" width="200"> | <img src="cesto-saldi/2-tre-quarti.jpg" width="200"> | <img src="cesto-saldi/3-profilo.jpg" width="200"> |
 | **Faretti**<br><sub>0.64 × 1.80 m</sub> | <img src="faretti/1-fronte.jpg" width="200"> | <img src="faretti/2-tre-quarti.jpg" width="200"> | <img src="faretti/3-profilo.jpg" width="200"> |
 | **Insegna boutique**<br><sub>1.00 × 0.56 m</sub> | <img src="insegna-boutique/1-fronte.jpg" width="200"> | <img src="insegna-boutique/2-tre-quarti.jpg" width="200"> | <img src="insegna-boutique/3-profilo.jpg" width="200"> |
 | **Manichino**<br><sub>0.41 × 1.09 m</sub> | <img src="manichino/1-fronte.jpg" width="200"> | <img src="manichino/2-tre-quarti.jpg" width="200"> | <img src="manichino/3-profilo.jpg" width="200"> |
