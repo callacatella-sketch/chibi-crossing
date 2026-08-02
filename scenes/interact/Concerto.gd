@@ -127,8 +127,16 @@ static func programma(seme: int) -> Dictionary:
 
 ## Quanti posti a sedere offre una fila di N gradinate: tre cuscini
 ## ciascuna, e mai più di quanti se ne possono guardare. PURA.
+## Quanti posti offre UNA gradinata: e' il contratto col builder
+## (BuildCatalog._gradinata crea altrettanti nodi "Posto*"), e il test
+## dell'anfiteatro tiene allineate le due cose. A runtime fanno fede i
+## nodi veri (posti.size() qui sotto): questa stima serve alla platea
+## prevista prima che la serata cominci.
+const POSTI_PER_GRADINATA := 4
+
+
 static func posti_per(gradinate: int) -> int:
-	return mini(maxi(gradinate, 0) * 3, MAX_PUBBLICO)
+	return mini(maxi(gradinate, 0) * POSTI_PER_GRADINATA, MAX_PUBBLICO)
 
 
 # ============================================================ la serata

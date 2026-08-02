@@ -127,15 +127,28 @@ func _test_il_pianoforte(t) -> void:
 func _test_i_posti(t) -> void:
 	var g: Node3D = CAT._gradinata()
 	var posti := g.find_children("Posto*", "Node3D", true, false)
-	t.eq(posti.size(), 3, "ogni gradinata offre tre posti a sedere")
+	# il numero e' il CONTRATTO con Concerto (fonte unica): non un numero
+	# scritto due volte che diverge alla prima modifica del builder
+	t.eq(posti.size(), CONC.POSTI_PER_GRADINATA,
+			"ogni gradinata offre i posti che Concerto si aspetta")
+	var bassi := 0
+	var alti := 0
 	for p in posti:
 		var y: float = (p as Node3D).position.y
-		t.ok(y > 0.15 and y < 0.45,
-				"il posto e' sulla pedata (y=%.2f), non per aria ne' sottoterra" % y)
+		t.ok(y > 0.15 and y < 0.75,
+				"il posto e' su una pedata (y=%.2f), non per aria ne' sottoterra" % y)
+		if y < 0.45:
+			bassi += 1
+		else:
+			alti += 1
+	t.ok(bassi > 0 and alti > 0,
+			"i posti stanno su TUTTE E DUE le file (%d bassi, %d alti): da dietro
+			la fila alta non deve sembrare disabitata" % [bassi, alti])
 	g.free()
 	# e la platea cresce affiancando gradinate, ma non oltre il buonsenso
 	t.eq(CONC.posti_per(0), 0, "senza gradinate non c'e' platea")
-	t.eq(CONC.posti_per(2), 6, "due gradinate: sei posti")
+	t.eq(CONC.posti_per(2), mini(2 * CONC.POSTI_PER_GRADINATA, CONC.MAX_PUBBLICO),
+			"due gradinate: il doppio dei posti, entro il tetto")
 	t.eq(CONC.posti_per(99), CONC.MAX_PUBBLICO,
 			"e non si accalca piu' gente di quanta se ne possa guardare")
 
