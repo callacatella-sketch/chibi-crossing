@@ -3758,27 +3758,126 @@ static func _scala_pioli() -> Node3D:
 	return n
 
 
-## L'INSEGNA DELLA CASERMA. La targa incorniciata con l'emblema dipinto a
-## mano: lo scudo rosso, l'elmetto d'ottone e le due manichette incrociate.
+## L'INSEGNA DELLA CASERMA. Non più un cartello inchiodato a due pali: un
+## portale coi montanti torniti su basette di pietra, la traversa coi
+## puntoni, il TETTINO di terracotta che ripara la tavola (lo stesso rosso
+## del tetto della caserma: da lontano si capisce di che famiglia è), e la
+## tavola APPESA alle astine d'ottone, che ondeggia appena nel vento come
+## le insegne del bar e della guardia. Sopra, l'araldica dei pompieri
+## rifatta perché si LEGGA: scudo rosso con la punta e il bordo d'ottone,
+## l'elmetto con falda e crestina, le manichette incrociate con gli UGELLI
+## alle punte — prima erano due bastoni su una macchia rossa. E al
+## montante, il secchiello appeso: il gesto della caserma.
 static func _insegna_caserma() -> Node3D:
 	var n := Node3D.new()
 	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var wood_scuro := _mat(WOOD_DARK, Color("8a6540"), 3.5, 0.5)
 	var crema := _mat(CREAM, PLASTER_SHADE, 4.0, 0.4)
 	var rosso := _mat(POMPA_ROSSO, POMPA_ROSSO_SCURO, 3.5, 0.45)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
-	_box(n, Vector3(0.92, 0.44, 0.06), wood, Vector3(0, 1.52, -0.02))
-	_box(n, Vector3(0.82, 0.34, 0.04), crema, Vector3(0, 1.52, -0.06))
-	# le due manichette incrociate, dietro allo scudo
+	var pietra := _mat(STONE, STONE_DARK, 4.0, 0.5)
+	var tetto := _mat(TERRACOTTA, Color("c07a58"), 3.5, 0.5)
+
+	# I MONTANTI torniti: basetta di pietra, fusto rastremato, collarino
+	for x: float in [-0.38, 0.38]:
+		_cyl(n, 0.075, 0.09, 0.07, pietra, Vector3(x, 0.035, -0.02))
+		_cyl(n, 0.042, 0.052, 1.62, wood, Vector3(x, 0.88, -0.02))
+		_cyl(n, 0.058, 0.058, 0.035, wood_scuro, Vector3(x, 1.7, -0.02))
+	# LA TRAVERSA coi due puntoni diagonali: il telaio si vede lavorare
+	_box(n, Vector3(0.98, 0.07, 0.07), wood, Vector3(0, 1.76, -0.02))
+	for px: float in [-1.0, 1.0]:
+		var puntone := _box(n, Vector3(0.05, 0.28, 0.05), wood,
+				Vector3(px * 0.28, 1.65, -0.02))
+		puntone.rotation.z = px * 0.7
+	# IL TETTINO a due falde di terracotta col colmo: ripara la tavola
+	# e dice da lontano che questa è roba della caserma
+	for fz: float in [-1.0, 1.0]:
+		var falda := _box(n, Vector3(1.06, 0.035, 0.17), tetto,
+				Vector3(0, 1.85, -0.02 + fz * 0.065))
+		falda.rotation.x = fz * -0.5
+	_box(n, Vector3(1.08, 0.035, 0.06), wood_scuro, Vector3(0, 1.9, -0.02))
+
+	# LA TAVOLA APPESA: un nodo a sé col pivot sulla traversa, come le
+	# insegne del bar e della guardia — e ondeggia appena (vedi in fondo)
+	var appesa := Node3D.new()
+	appesa.name = "Insegna"
+	appesa.position = Vector3(0, 1.76, -0.02)
+	n.add_child(appesa)
+	for ax: float in [-0.3, 0.3]:
+		_cyl(appesa, 0.008, 0.008, 0.15, ottone, Vector3(ax, -0.1, 0))
+	# la cornice con la battuta: due piani, non un box solo
+	_box(appesa, Vector3(0.84, 0.5, 0.05), wood_scuro, Vector3(0, -0.42, 0))
+	_box(appesa, Vector3(0.76, 0.42, 0.026), crema, Vector3(0, -0.42, -0.02))
+	# le borchie d'ottone agli angoli della cornice
+	for bx: float in [-1.0, 1.0]:
+		for by: float in [-1.0, 1.0]:
+			_ball(appesa, 0.014, ottone,
+					Vector3(bx * 0.36, -0.42 + by * 0.19, -0.028), Vector3(1, 1, 0.5))
+
+	# L'ARALDICA (tutta sulla tavola appesa, così dondola con lei).
+	# Le manichette incrociate, con l'ugello rastremato alle quattro punte
 	for s: float in [-1.0, 1.0]:
-		var m := _cyl(n, 0.018, 0.018, 0.42, ottone, Vector3(0, 1.52, -0.07))
-		m.rotation.z = s * 0.9
-	# lo scudo e l'elmetto
-	_box(n, Vector3(0.2, 0.24, 0.02), rosso, Vector3(0, 1.55, -0.08))
-	_ball(n, 0.11, rosso, Vector3(0, 1.44, -0.08), Vector3(1, 0.7, 0.2))
-	_ball(n, 0.06, ottone, Vector3(0, 1.56, -0.1), Vector3(1, 0.7, 0.6))
-	# i due montanti
-	for x: float in [-0.36, 0.36]:
-		_cyl(n, 0.05, 0.06, 1.3, wood, Vector3(x, 0.65, -0.02))
+		var manica := _cyl(appesa, 0.015, 0.015, 0.36, _mat(OTTONE_SCURO, Color("8a6520"), 4.0, 0.4),
+				Vector3(0, -0.42, -0.036))
+		manica.rotation.z = s * 0.75
+		for e: float in [-1.0, 1.0]:
+			# la punta sta sull'ASSE della sua manichetta (x = −s·e·sin θ),
+			# e il cono si capovolge sull'estremità bassa — o l'ugello
+			# finisce sulla manichetta sbagliata, storto di novanta gradi
+			var ugello := _cyl(appesa, 0.008, 0.021, 0.07, ottone,
+					Vector3(-s * e * sin(0.75) * 0.21, -0.42 + e * cos(0.75) * 0.21, -0.036))
+			ugello.rotation.z = s * 0.75 + (0.0 if e > 0.0 else PI)
+	# lo scudo rosso con la punta, bordato d'ottone. Ogni lastra sul SUO
+	# piano (quadrato e rombo sfalsati di qualche millimetro): due facce
+	# complanari si tagliano in z-fighting, e dentro il campo rosso
+	# affiorava un triangolo fantasma
+	_box(appesa, Vector3(0.22, 0.21, 0.012), ottone, Vector3(0, -0.4, -0.039))
+	var bordo_punta := _box(appesa, Vector3(0.156, 0.156, 0.012), ottone,
+			Vector3(0, -0.5, -0.037))
+	bordo_punta.rotation.z = PI * 0.25
+	_box(appesa, Vector3(0.19, 0.19, 0.014), rosso, Vector3(0, -0.405, -0.048))
+	var punta_scudo := _box(appesa, Vector3(0.134, 0.134, 0.014), rosso,
+			Vector3(0, -0.49, -0.0455))
+	punta_scudo.rotation.z = PI * 0.25
+	# l'elmetto d'ottone sopra lo scudo: falda, calotta e crestina
+	_ball(appesa, 0.09, ottone, Vector3(0, -0.295, -0.05), Vector3(1, 0.22, 0.5))
+	_ball(appesa, 0.065, ottone, Vector3(0, -0.275, -0.05), Vector3(1, 0.8, 0.5))
+	_box(appesa, Vector3(0.014, 0.075, 0.024), ottone, Vector3(0, -0.235, -0.05))
+
+	# IL SECCHIELLO appeso al montante: gancio, secchio rosso col bordo
+	# scuro e il manico d'ottone — l'eco dei secchi della caserma
+	_box(n, Vector3(0.028, 0.02, 0.09), wood_scuro, Vector3(0.38, 0.98, -0.06))
+	_cyl(n, 0.052, 0.04, 0.085, rosso, Vector3(0.38, 0.885, -0.1))
+	_cyl(n, 0.054, 0.054, 0.012, _mat(POMPA_ROSSO_SCURO, POMPA_ROSSO_SCURO.darkened(0.2), 5.0, 0.5),
+			Vector3(0.38, 0.93, -0.1))
+	var manico_s := TorusMesh.new()
+	manico_s.inner_radius = 0.042
+	manico_s.outer_radius = 0.052
+	var msi := MeshInstance3D.new()
+	msi.mesh = manico_s
+	msi.material_override = ottone
+	msi.position = Vector3(0.38, 0.955, -0.085)
+	msi.rotation.y = PI * 0.5
+	msi.scale = Vector3(1, 1, 0.6)
+	n.add_child(msi)
+
+	# l'ondeggio: piccolo, lento, cubico — un'insegna appesa e immobile
+	# per sempre è un'insegna incollata
+	var oscilla := Animation.new()
+	oscilla.length = 6.3
+	oscilla.loop_mode = Animation.LOOP_LINEAR
+	var tr := oscilla.add_track(Animation.TYPE_VALUE)
+	oscilla.track_set_path(tr, NodePath("Insegna:rotation:x"))
+	oscilla.track_insert_key(tr, 0.0, -0.015)
+	oscilla.track_insert_key(tr, 3.15, 0.02)
+	oscilla.track_insert_key(tr, 6.3, -0.015)
+	oscilla.track_set_interpolation_type(tr, Animation.INTERPOLATION_CUBIC)
+	var lib := AnimationLibrary.new()
+	lib.add_animation("dondola", oscilla)
+	var player := AnimationPlayer.new()
+	n.add_child(player)
+	player.add_animation_library("", lib)
+	player.autoplay = "dondola"
 	return n
 
 
