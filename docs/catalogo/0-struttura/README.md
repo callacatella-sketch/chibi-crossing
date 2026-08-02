@@ -5,7 +5,7 @@
 | | fronte | tre quarti | profilo |
 |---|---|---|---|
 | **Autopompa**<br><sub>1.84 × 1.08 m</sub> | <img src="autopompa/1-fronte.jpg" width="200"> | <img src="autopompa/2-tre-quarti.jpg" width="200"> | <img src="autopompa/3-profilo.jpg" width="200"> |
-| **Bancone bar**<br><sub>1.06 × 1.29 m</sub> | <img src="bancone-bar/1-fronte.jpg" width="200"> | <img src="bancone-bar/2-tre-quarti.jpg" width="200"> | <img src="bancone-bar/3-profilo.jpg" width="200"> |
+| **Bancone bar**<br><sub>1.15 × 1.31 m</sub> | <img src="bancone-bar/1-fronte.jpg" width="200"> | <img src="bancone-bar/2-tre-quarti.jpg" width="200"> | <img src="bancone-bar/3-profilo.jpg" width="200"> |
 | **Casa albero**<br><sub>3.65 × 5.85 m</sub> | <img src="casa-albero/1-fronte.jpg" width="200"> | <img src="casa-albero/2-tre-quarti.jpg" width="200"> | <img src="casa-albero/3-profilo.jpg" width="200"> |
 | **Finestra**<br><sub>1.00 × 2.08 m</sub> | <img src="finestra/1-fronte.jpg" width="200"> | <img src="finestra/2-tre-quarti.jpg" width="200"> | <img src="finestra/3-profilo.jpg" width="200"> |
 | **Fondale**<br><sub>1.01 × 1.04 m</sub> | <img src="fondale/1-fronte.jpg" width="200"> | <img src="fondale/2-tre-quarti.jpg" width="200"> | <img src="fondale/3-profilo.jpg" width="200"> |

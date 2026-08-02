@@ -3568,41 +3568,134 @@ static func _bancone_bar() -> Node3D:
 	# IL BANCONE: zinco sopra, legno sotto, il poggiapiedi d'ottone
 	# consumato da chi ci sta in piedi a chiacchierare. È l'àncora del bar:
 	# comprarlo porta con sé tutto il resto (Economy.CORREDO).
+	# Belle époque, non compensato: corpo coi fianchi tondi, zoccolo,
+	# pannelli in cornice con le lesene tornite, il piano a becco tondo
+	# col profilo d'ottone che gira sugli angoli — e sul piano la vita
+	# vera del banco: tazzine, piattini, zuccheriera, campanella, cassa.
 	var n := Node3D.new()
 	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var noce := _mat(WOOD_DARK, WOOD_DARK.darkened(0.22), 4.0, 0.45)
 	var pannello := _mat(BAR_ROSSO, BAR_ROSSO_CUPO, 4.5, 0.45)
 	var zinco := _mat(ZINCO, ZINCO_CUPO, 6.0, 0.35)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
-	# il corpo e i pannelli del fronte
-	_box(n, Vector3(1.0, 1.0, 0.5), legno, Vector3(0, 0.5, 0.03))
-	for dx: float in [-0.3, 0.0, 0.3]:
-		_box(n, Vector3(0.24, 0.6, 0.03), pannello, Vector3(dx, 0.52, -0.22))
-	# il piano di zinco, che sporge davanti
-	_box(n, Vector3(1.06, 0.06, 0.62), zinco, Vector3(0, 1.03, -0.02))
-	_box(n, Vector3(1.06, 0.03, 0.04), ottone, Vector3(0, 1.07, -0.31))
-	# il poggiapiedi
-	for dx2: float in [-0.38, 0.38]:
-		_cyl(n, 0.018, 0.018, 0.14, ottone, Vector3(dx2, 0.09, -0.3))
-	var barra := _cyl(n, 0.022, 0.022, 0.92, ottone, Vector3(0, 0.16, -0.3))
-	barra.rotation.z = PI * 0.5
-	# due tazzine col piattino, pronte
-	for dx3: float in [-0.24, 0.1]:
-		var piatt := _cyl(n, 0.05, 0.05, 0.008, _mat(CREAM, Color("efe4d2"), 6.0, 0.2),
-				Vector3(dx3, 1.07, -0.1))
-		_cyl(n, 0.028, 0.024, 0.035, _mat(Color.WHITE, CREAM, 6.0, 0.2),
-				Vector3(dx3, 1.086, -0.1))
+	var porcellana := _mat(Color.WHITE, CREAM, 6.0, 0.2)
+	var piatto := _mat(CREAM, Color("efe4d2"), 6.0, 0.2)
+
+	# il corpo, coi fianchi che si arrotondano, e lo zoccolo scuro sotto
+	_loft(n, [[-0.50, 0.21, 0.06, 0.97, 0.10],
+			[-0.46, 0.24, 0.06, 0.97, 0.04],
+			[0.46, 0.24, 0.06, 0.97, 0.04],
+			[0.50, 0.21, 0.06, 0.97, 0.10]], legno, Vector3(0, 0, 0.03))
+	_loft(n, [[-0.52, 0.23, 0.015, 0.14, 0.05],
+			[-0.48, 0.26, 0.015, 0.14, 0.03],
+			[0.48, 0.26, 0.015, 0.14, 0.03],
+			[0.52, 0.23, 0.015, 0.14, 0.05]], noce, Vector3(0, 0, 0.03))
+
+	# il piano di zinco a becco tondo, che sporge davanti, e il profilo
+	# d'ottone che ne veste il bordo girando sugli angoli
+	_loft(n, [[-0.545, 0.28, 0.97, 1.05, 0.038],
+			[-0.51, 0.31, 0.97, 1.05, 0.025],
+			[0.51, 0.31, 0.97, 1.05, 0.025],
+			[0.545, 0.28, 0.97, 1.05, 0.038]], zinco, Vector3(0, 0, -0.02))
+	BUILDER.tube(n, [Vector3(-0.495, 1.028, -0.19), Vector3(-0.535, 1.042, -0.315),
+			Vector3(-0.46, 1.042, -0.345), Vector3(0.46, 1.042, -0.345),
+			Vector3(0.535, 1.042, -0.315), Vector3(0.495, 1.028, -0.19)],
+			[0.014, 0.016, 0.016, 0.016, 0.016, 0.014], ottone)
+
+	# il fronte: le due modanature, i tre pannelli rossi DENTRO le loro
+	# cornici di noce (una borchia d'ottone al centro), e le lesene
+	# tornite agli angoli con base e capitello
+	for y: float in [0.225, 0.845]:
+		BUILDER.tube(n, [Vector3(-0.43, y, -0.235), Vector3(0.0, y, -0.243),
+				Vector3(0.43, y, -0.235)], [0.011, 0.012, 0.011], noce)
+	for dx: float in [-0.32, 0.0, 0.32]:
+		_lastra(n, 0.125, 0.54, 0.032, 0.022, noce,
+				Vector3(dx, 0.535, -0.243), Vector3(0, PI * 0.5, 0))
+		_lastra(n, 0.102, 0.49, 0.026, 0.018, pannello,
+				Vector3(dx, 0.535, -0.251), Vector3(0, PI * 0.5, 0))
+		_ball(n, 0.011, ottone, Vector3(dx, 0.535, -0.262))
+	for sx: float in [-1.0, 1.0]:
+		_cyl(n, 0.026, 0.03, 0.72, legno, Vector3(sx * 0.45, 0.52, -0.235))
+		_cyl(n, 0.035, 0.04, 0.05, noce, Vector3(sx * 0.45, 0.175, -0.235))
+		_cyl(n, 0.04, 0.033, 0.045, noce, Vector3(sx * 0.45, 0.895, -0.235))
+		_ball(n, 0.024, ottone, Vector3(sx * 0.45, 0.935, -0.235))
+		# e il fianco non resta nudo: un pannello in cornice anche lì,
+		# perché il bancone si guarda anche di profilo
+		_lastra(n, 0.14, 0.54, 0.032, 0.022, noce,
+				Vector3(sx * 0.505, 0.535, 0.03))
+		_lastra(n, 0.115, 0.49, 0.026, 0.018, pannello,
+				Vector3(sx * 0.513, 0.535, 0.03))
+		_ball(n, 0.011, ottone, Vector3(sx * 0.524, 0.535, 0.03))
+
+	# il poggiapiedi d'ottone: la barra rientra nel corpo alle estremità
+	# invece di finire a mezz'aria, e due zampette la reggono
+	BUILDER.tube(n, [Vector3(-0.47, 0.155, -0.18), Vector3(-0.44, 0.16, -0.30),
+			Vector3(0.0, 0.16, -0.305), Vector3(0.44, 0.16, -0.30),
+			Vector3(0.47, 0.155, -0.18)],
+			[0.02, 0.022, 0.022, 0.022, 0.02], ottone)
+	for dx2: float in [-0.30, 0.30]:
+		_cyl(n, 0.014, 0.017, 0.13, ottone, Vector3(dx2, 0.085, -0.30))
+
+	# il lato del barista: due cassetti col pomello e lo sportello basso
+	for dx3: float in [-0.20, 0.20]:
+		_lastra(n, 0.155, 0.115, 0.025, 0.016, noce,
+				Vector3(dx3, 0.855, 0.276), Vector3(0, PI * 0.5, 0))
+		_ball(n, 0.013, ottone, Vector3(dx3, 0.855, 0.29))
+	_lastra(n, 0.16, 0.44, 0.035, 0.016, noce,
+			Vector3(0, 0.43, 0.276), Vector3(0, PI * 0.5, 0))
+	_ball(n, 0.013, ottone, Vector3(0.10, 0.43, 0.29))
+
+	# due tazzine col piattino, pronte — e stavolta col manico
+	for dx4: float in [-0.24, 0.08]:
+		var piatt := _cyl(n, 0.05, 0.038, 0.012, piatto, Vector3(dx4, 1.056, -0.12))
 		piatt.name = "Piattino"
-	# il registratore di cassa, d'ottone, sul lato
+		_cyl(n, 0.028, 0.022, 0.038, porcellana, Vector3(dx4, 1.08, -0.12))
+		_cyl(n, 0.021, 0.021, 0.006, _mat(CAFFE, Color("52351f"), 5.0, 0.4),
+				Vector3(dx4, 1.096, -0.12))
+		var manico := MeshInstance3D.new()
+		var tm := TorusMesh.new()
+		tm.inner_radius = 0.008
+		tm.outer_radius = 0.017
+		manico.mesh = tm
+		manico.material_override = porcellana
+		manico.position = Vector3(dx4 + 0.028, 1.082, -0.12)
+		manico.rotation.x = PI * 0.5
+		n.add_child(manico)
+	# la pila di piattini di scorta e la zuccheriera col coperchio
+	for i in 3:
+		_cyl(n, 0.05, 0.038, 0.012, piatto,
+				Vector3(-0.06, 1.056 + float(i) * 0.013, 0.10))
+	_ball(n, 0.036, porcellana, Vector3(0.18, 1.078, 0.08), Vector3(1, 0.82, 1))
+	_cyl(n, 0.026, 0.03, 0.012, porcellana, Vector3(0.18, 1.105, 0.08))
+	_ball(n, 0.008, ottone, Vector3(0.18, 1.117, 0.08))
+	# la campanella da banco: si suona per chiamare, e per salutare
+	_ball(n, 0.032, ottone, Vector3(-0.40, 1.048, -0.14), Vector3(1, 0.62, 1))
+	_cyl(n, 0.004, 0.004, 0.014, ottone, Vector3(-0.40, 1.072, -0.14))
+	_ball(n, 0.006, ottone, Vector3(-0.40, 1.082, -0.14))
+
+	# il registratore di cassa d'ottone, di quelli d'epoca: il corpo, il
+	# rullo con lo scontrino che spunta, i tasti su due file e la
+	# manovella sul fianco
 	var cassa := Node3D.new()
 	cassa.name = "Cassa"
-	cassa.position = Vector3(0.36, 1.06, 0.02)
+	cassa.position = Vector3(0.36, 1.05, 0.04)
 	n.add_child(cassa)
-	_box(cassa, Vector3(0.2, 0.16, 0.16), ottone, Vector3(0, 0.08, 0))
-	_box(cassa, Vector3(0.14, 0.09, 0.02), _mat(CREAM, Color("efe4d2"), 6.0, 0.2),
-			Vector3(0, 0.19, -0.06))
-	for i in 3:
-		_ball(cassa, 0.012, _mat(Color.WHITE, CREAM, 5.0, 0.2),
-				Vector3(-0.05 + 0.05 * float(i), 0.03, -0.085))
+	_loft(cassa, [[-0.095, 0.083, 0.0, 0.16, 0.02],
+			[0.095, 0.083, 0.0, 0.16, 0.02]], ottone)
+	var rullo := _cyl(cassa, 0.052, 0.052, 0.185, ottone, Vector3(0, 0.165, 0.028))
+	rullo.rotation.z = PI * 0.5
+	var carta := _cyl(cassa, 0.02, 0.02, 0.11, porcellana, Vector3(0, 0.185, -0.035))
+	carta.rotation.z = PI * 0.5
+	_lastra(cassa, 0.045, 0.075, 0.012, 0.006, porcellana,
+			Vector3(0, 0.225, -0.038), Vector3(0.22, 0, 0))
+	for fila in 2:
+		for i in 3:
+			_ball(cassa, 0.011, porcellana,
+					Vector3(-0.04 + 0.04 * float(i), 0.065 + float(fila) * 0.045,
+					-0.088 - float(fila) * 0.012))
+	var braccio := _cyl(cassa, 0.007, 0.007, 0.05, ottone, Vector3(0.115, 0.09, 0))
+	braccio.rotation.z = PI * 0.5
+	_cyl(cassa, 0.009, 0.009, 0.04, noce, Vector3(0.138, 0.07, 0))
 	return n
 
 
