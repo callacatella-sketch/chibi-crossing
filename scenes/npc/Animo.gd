@@ -160,6 +160,42 @@ const COMPITI := {
 			"autonomia": -0.10, "stima": 0.13},
 }
 
+## COSA SI FA QUANDO CI SI RITROVA SOLI. Non e' una tabella di eventi: e'
+## una tabella di BISOGNI, letta dallo stesso `punteggio()` che sceglie il
+## mestiere del giorno — quindi la risposta esce dal carattere di chi
+## risponde, e due persone diverse rispondono in modo diverso senza che
+## nessuno scriva «se orgoglioso allora».
+##
+## Nessuna di queste e' una punizione e nessuna e' un fallimento. Il gioco
+## non prende posizione su quale sia quella giusta: le pesa soltanto sui
+## bisogni di chi le sceglie.
+##
+## E OGNUNA HA UNA CHIAVE A FORMA DI GIOCATORE (`Affetti.MOMENTI_CHIAVE`):
+## nessuna ferita che questi sistemi creano puo' restare senza una porta —
+## e' la stessa regola per cui `_filtra_luogo` esiste.
+const REAZIONI := {
+	# la porta che non si apre piu': chi ha molto orgoglio la sente come
+	# l'unico modo di riprendersi qualcosa di suo
+	"chiudo_la_porta": {"autonomia": 0.30, "stima": 0.22, "appartenenza": -0.25},
+	# ritirarsi: chi ha paura sceglie il posto dove non succede niente
+	"mi_ritiro": {"sicurezza": 0.35, "appartenenza": -0.30, "noia": 0.10},
+	# stare col piccolo — possibile solo se un piccolo c'e'
+	"sto_col_piccolo": {"appartenenza": 0.35, "sicurezza": 0.20, "autonomia": -0.10},
+	# andarsene: serve tanto bisogno di autonomia e poche radici
+	"me_ne_vado": {"autonomia": 0.45, "appartenenza": -0.45, "stima": 0.10},
+	# dirlo a tutti: il villaggio si schiera, e a qualcuno serve
+	"lo_dico_a_tutti": {"stima": 0.25, "appartenenza": 0.15, "sicurezza": -0.10},
+	# fare finta di niente, che e' una risposta come le altre
+	"faccio_finta": {"sicurezza": 0.15, "stima": -0.10, "noia": -0.05},
+	# restare, e aspettare. La piu' rara, e l'unica che puo' finire bene
+	"resto_e_aspetto": {"appartenenza": 0.12, "autonomia": -0.15, "sicurezza": 0.08},
+}
+
+## Quanto e' DECISA una risposta come queste. Alta: una scelta che cambia
+## una vita non puo' essere una moneta appena sbilanciata, o chi guarda
+## vede un dado invece di una persona.
+const NITIDEZZA_VITA := 4.5
+
 ## I sogni che un chibi puo' avere. In coda i nuovi, MAI in mezzo: la
 ## generazione del DNA pesca per indice e infilarne uno a meta' cambierebbe
 ## il sogno di ogni residente gia' nato (a parita' di seed).
@@ -239,15 +275,36 @@ func malessere(d: String) -> float:
 
 ## Il malessere complessivo: la media pesata dai tratti. Un ambizioso soffre
 ## la noia molto più di un altro; un orgoglioso, la stima calpestata.
+## QUANTO PESA UN BISOGNO PER QUESTA PERSONA. È il carattere fatto numero:
+## l'ambizioso soffre la noia, il codardo l'insicurezza, l'orgoglioso la
+## stima negata, il leale la solitudine.
+##
+## Viveva dentro `disagio()`, e `punteggio()` NON LO CHIAMAVA: due vicini con
+## gli stessi bisogni ricevevano punteggi identici su ogni azione, qualunque
+## fosse il loro carattere. Il motore delle scelte era cieco proprio alla
+## cosa che doveva renderle diverse — e finché lo era, «libero arbitrio»
+## non poteva essere altro che un dado.
+func peso_drive(d: String) -> float:
+	match d:
+		"fatica":
+			return 1.0
+		"noia":
+			return 0.6 + 0.9 * float(tratti.get("ambizione", 0.5))
+		"sicurezza":
+			return 0.7 + 1.0 * float(tratti.get("codardia", 0.5))
+		"autonomia":
+			return 0.7 + 0.9 * float(tratti.get("orgoglio", 0.5))
+		"appartenenza":
+			return 0.7 + 0.7 * float(tratti.get("lealta", 0.5))
+		"stima":
+			return 0.6 + 1.1 * float(tratti.get("orgoglio", 0.5))
+	return 1.0
+
+
 func disagio() -> float:
-	var pesi := {
-		"fatica": 1.0,
-		"noia": 0.6 + 0.9 * float(tratti.get("ambizione", 0.5)),
-		"sicurezza": 0.7 + 1.0 * float(tratti.get("codardia", 0.5)),
-		"autonomia": 0.7 + 0.9 * float(tratti.get("orgoglio", 0.5)),
-		"appartenenza": 0.7 + 0.7 * float(tratti.get("lealta", 0.5)),
-		"stima": 0.6 + 1.1 * float(tratti.get("orgoglio", 0.5)),
-	}
+	var pesi := {}
+	for d in DRIVES:
+		pesi[d] = peso_drive(d)
 	var somma := 0.0
 	var tot := 0.0
 	for d in DRIVES:
@@ -495,7 +552,10 @@ func stato() -> String:
 ## Il punteggio di un'azione: pressioni interne pesate dal carattere, più il
 ## peso dei ricordi e l'opinione sociale su chi la chiede.
 func punteggio(azione: String, chiede := "giocatore") -> float:
-	var c: Dictionary = COMPITI.get(azione, {})
+	# le REAZIONI si pesano con la stessa macchina dei mestieri: e' l'unico
+	# modo perche' la risposta esca dal carattere invece che da un ramo
+	# scritto a mano
+	var c: Dictionary = COMPITI.get(azione, REAZIONI.get(azione, {}))
 	var s := 0.0
 	# quanto quell'azione allevia ciò che sta pesando ORA
 	for d in DRIVES:
@@ -503,7 +563,10 @@ func punteggio(azione: String, chiede := "giocatore") -> float:
 			continue
 		var delta: float = float(c[d])
 		var sollievo: float = (-delta if d in MALESSERI else delta)
-		s += sollievo * malessere(d) * 2.2
+		# 2.2 era una costante uguale per tutti: adesso la scala il
+		# carattere, ed è da qui che due vicini davanti alla stessa scelta
+		# arrivano a due risposte diverse
+		s += sollievo * malessere(d) * 2.2 * peso_drive(d)
 	# il sogno tira: si fa volentieri ciò che ci avvicina a chi vogliamo essere
 	if str(c.get("serve", "")) == sogno:
 		s += 0.45 * (0.5 + float(tratti.get("ambizione", 0.5)))
@@ -521,7 +584,14 @@ func punteggio(azione: String, chiede := "giocatore") -> float:
 ## fra le prime tre. Prendere sempre il massimo rende gli NPC prevedibili e
 ## meccanici; campiare fra le migliori li rende vivi restando sensati — non
 ## faranno mai la cosa assurda, ma nemmeno sempre la stessa.
-func decide(azioni: Array, chiede := "giocatore") -> String:
+## `nitidezza` è quanto la scelta è DECISA. 1.6 è una moneta appena
+## sbilanciata (a 0.3 di scarto dà 62/38): giusta per «che mestiere faccio
+## oggi», dove sbagliare costa una giornata. Per le scelte che cambiano una
+## vita — chiudere la porta, andarsene dal villaggio — quella stessa moneta
+## renderebbe il carattere irrilevante: chi ci guarda vedrebbe un dado.
+## Alzandola, la persona fa quello che farebbe LEI, e il caso resta solo per
+## i pareggi veri.
+func decide(azioni: Array, chiede := "giocatore", nitidezza := 1.6) -> String:
 	if azioni.is_empty():
 		return ""
 	var voti := []
@@ -533,10 +603,10 @@ func decide(azioni: Array, chiede := "giocatore") -> String:
 	var base: float = float(top[top.size() - 1]["s"])
 	var tot := 0.0
 	for v in top:
-		tot += exp((float(v["s"]) - base) * 1.6)
+		tot += exp((float(v["s"]) - base) * nitidezza)
 	var tiro := _rng.randf() * tot
 	for v in top:
-		tiro -= exp((float(v["s"]) - base) * 1.6)
+		tiro -= exp((float(v["s"]) - base) * nitidezza)
 		if tiro <= 0.0:
 			return str(v["a"])
 	return str(top[0]["a"])
@@ -552,7 +622,17 @@ func senti_dire(da: String, su: String, valenza: float, forza := 1.0) -> float:
 	var credito: float = clampf(float(legami.get(da, 0.25)), -1.0, 1.0)
 	if credito <= 0.0:
 		return 0.0          # da chi non stimi, le voci non attecchiscono
-	var resistenza: float = float(tratti.get("lealta", 0.5)) if su == "giocatore" else 0.0
+	# LA LEALTA' RESISTE ANCHE ALLE VOCI SUI VICINI. Prima resisteva SOLO a
+	# quelle sul giocatore, e una voce su una PERSONA attecchiva piu' di una
+	# sul re del villaggio — su tutto il grafo, due passaggi al giorno. E'
+	# la via piu' corta perche' una storia triste diventi una gogna: un
+	# villaggio dove basta dirlo a due perche' lo sappiano tutti, e nessuno
+	# che sospenda il giudizio. Verso un vicino la resistenza e' piu'
+	# morbida che verso il giocatore (si difende chi si conosce meglio), ma
+	# non e' zero.
+	var resistenza: float = float(tratti.get("lealta", 0.5))
+	if su != "giocatore":
+		resistenza *= 0.6
 	var peso: float = credito * forza * (1.0 - resistenza * 0.75)
 	if peso <= 0.001:
 		return 0.0
@@ -741,7 +821,12 @@ func diario() -> Array:
 # ---------------------------------------------------------------- salvataggio
 
 func save() -> Dictionary:
+	# LO STATO DEL DADO. Senza, ricaricare fa ripartire lo stream dal seme,
+	# e due tentativi di save-scumming smascherano che «libero arbitrio»
+	# era `randf()`: stessa partita ricaricata, stessa situazione, risposta
+	# diversa. Salvandolo, la persona resta quella che era.
 	return {
+		"rng": _rng.state,
 		"nome": nome, "sogno": sogno, "tratti": tratti.duplicate(),
 		"drive": drive.duplicate(), "ricordi": ricordi.duplicate(true),
 		"sommario": sommario.duplicate(true), "opinione": opinione.duplicate(),
@@ -766,3 +851,5 @@ func load(d: Dictionary) -> void:
 	_ultimo_scatto = int(d.get("ultimo_scatto", -99))
 	if d.has("limbico"):
 		limbico.load(d["limbico"])
+	if d.has("rng"):
+		_rng.state = int(d["rng"])

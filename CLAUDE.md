@@ -413,6 +413,62 @@ guardia.
   avere paura di te» non poteva avverarsi. **Non ritoccare le tre costanti:
   si tara `calma()`.**
 
+## REGOLA: gli affetti fra vicini, e il libero arbitrio
+
+Due vicini si affezionano, mettono su famiglia, e possono lasciarsi. Il
+sistema vive in [`scenes/npc/Affetti.gd`](scenes/npc/Affetti.gd) e in
+`Animo.REAZIONI`, e ha cinque regole che NON si negoziano — vengono da una
+revisione avversariale che ha smontato tre progetti prima che ne scrivessi
+uno.
+
+1. **Ogni ferita ha una chiave a forma di GIOCATORE.** `MOMENTI_CHIAVE` dice
+   quanti momenti del Filo Rosso servono per richiudere ogni risposta.
+   Nessuno stato permanente la cui unica chiave sia in mano a un altro NPC:
+   è la stessa regola per cui esiste `Visitors._filtra_luogo`.
+2. **Niente classifica visibile.** Il posto al falò ordinato per affetto *è*
+   la classifica resa leggibile, e questo gioco non prende posizione su
+   quanto vale una persona rispetto a un'altra. Il telegrafo è il CORPO
+   (`spalle_basse`, `distratto`), mai un numero.
+3. **Niente penale per stare in coppia.** Il mondo non garantisce gli
+   incontri (`_chats` fa UNA chiacchierata per volta in tutto il villaggio):
+   una tassa giornaliera per non essersi visti sarebbe una macchina del
+   divorzio. **La rottura non è un evento: è il predicato `coppia()` che
+   smette di essere vero**, e per smettere servono gesti veri altrove —
+   la stessa moneta con cui la coppia si era formata.
+4. **Il bambino non è uno strumento.** Non si congela mai la sua crescita
+   (`GIORNI_ADULTO := 14`): un bambino tenuto piccolo dalla separazione dei
+   genitori è ricatto emotivo. E `_tick_partenze` ora controlla
+   `e_cucciolo`: un piccolo non fa il fagotto da solo.
+5. **Il gioco non dice chi ha sbagliato.** Nel libro mastro non esiste una
+   riga «tradimento»: esistono solo gesti, e la stessa colonna letta da due
+   persone diverse dà due numeri diversi.
+
+**Come si legge il libro mastro** (`conto()`, pura): chi è LEALE ha un
+passato che non sbiadisce (mezza vita del ricordo da 36 a 72 giorni) — ed è
+questo, non un'eccezione scritta apposta, a rendere certe coppie
+inespugnabili. ESSERE CERCATI conta quasi il doppio che cercare. E una
+chiacchiera vale un ventesimo di un atto di coraggio: senza quella
+proporzione il sistema sposerebbe i due che lavorano accanto.
+
+**La coppia non è un campo:** `coppia()` è un predicato derivato (minimo
+reciproco + soglia + gesti veri). Niente da tenere sincronizzato, niente
+che resti appeso a metà, nessun salvataggio da migrare.
+
+**Trappole già pagate:**
+- `Animo.punteggio()` era CIECO ai tratti: i pesi di carattere vivevano in
+  `disagio()` e non venivano mai chiamati, quindi due vicini con gli stessi
+  bisogni ricevevano punteggi identici. Finché era così, «libero arbitrio»
+  non poteva essere altro che un dado. Ora `peso_drive()` è fonte unica.
+- `decide()` usava il softmax a 1.6 per tutto: una moneta appena sbilanciata
+  (62/38 con 0.3 di scarto). Va bene per «che mestiere faccio oggi», non per
+  «me ne vado dal villaggio»: la nitidezza è un parametro per decisione, e
+  le scelte di vita usano `NITIDEZZA_VITA`.
+- `Animo.save()` non serializzava `_rng`: due save-scumming e il giocatore
+  scopriva il dado. Ora lo stato del dado sopravvive.
+- `senti_dire()` resisteva alle voci solo se erano sul GIOCATORE: una voce
+  su una persona attecchiva più di una sul re del villaggio. È la via più
+  corta perché una storia triste diventi una gogna.
+
 ## REGOLA: i sogni — sognare è ciò che salva un ricordo
 
 Nel proprio letto, «E — vai a dormire»: lo schermo si chiude e **prima del

@@ -209,6 +209,16 @@ func momento(nome: String, tipo: String, extra := "") -> void:
 			momenti.remove_at(vittima)
 		# vittima < 0 = è tutto intoccabile: si tiene un momento in più.
 		# Meglio un filo di 31 che un ricordo insostituibile buttato via.
+	# UN MOMENTO COL GIOCATORE È LA CHIAVE DELLE FERITE. Se quel vicino sta
+	# passando un momento difficile per una cosa successa fra vicini, questo
+	# è un passo verso la porta — e non gliene parla nessuno: si annoda un
+	# momento come sempre, e dopo abbastanza lui torna nel villaggio.
+	# `get_tree()` è null quando Legami vive fuori dall'albero (i test lo
+	# istanziano così): senza questa guardia l'errore interrompeva `momento`
+	# a metà, e la suite restava verde perché un errore a runtime non fa
+	# fallire niente.
+	if nome != "__prova" and get_tree() != null:
+		get_tree().call_group("affetti", "momento_del_giocatore", nome)
 	if nome != "__prova":
 		if primo:
 			_toast(L10n.tf("❀ Il filo con %s si colora: %s",
@@ -485,6 +495,10 @@ func eta_di(nome: String) -> String:
 # ogni mattina le stagioni avanzano: quando qualcuno entra nell'autunno
 # il villaggio lo sa — il toast, l'anello del Grande Albero, il Gufo
 func _nuovo_giorno(_d: int) -> void:
+	# il giro degli affetti: chi non è più una coppia, chi lo è ancora per
+	# poco, e le ferite che il giocatore sta richiudendo
+	if get_tree() != null:
+		get_tree().call_group("affetti", "giro_del_giorno", _day())
 	for nome in _fili:
 		var filo: Dictionary = _fili[nome]
 		if bool(filo.get("partito", false)) or bool(filo.get("andato_via", false)):

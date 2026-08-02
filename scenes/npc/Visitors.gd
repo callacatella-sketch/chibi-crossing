@@ -224,7 +224,15 @@ func _process(delta: float) -> void:
 		brain.tick(delta, nascosto)
 		if _sleep_window(brain, t_ora) and not nascosto \
 				and str(node.get("_state")) in ["r_idle", "r_wander", "r_fire", "r_bench", "r_sniff", "tk_stella", "tk_sing", "tk_nap"]:
-			node.call("resident_sleep")
+			# LA PORTA PUÒ NON APRIRSI. Se qualcuno con cui divideva quella
+			# casa gliel'ha chiusa, non sparisce dentro: resta fuori. Non
+			# c'è nessun toast e nessuna spiegazione — c'è uno che alla sera
+			# non entra, e il giocatore lo vede. È l'unico modo in cui
+			# questo gioco racconta una cosa del genere.
+			if _puo_entrare(r):
+				node.call("resident_sleep")
+			elif node.has_meta("postura") == false:
+				node.set_meta("postura", "spalle_basse")
 		elif not _sleep_window(brain, t_ora) and nascosto:
 			node.call("resident_wake")
 		elif not nascosto:
@@ -521,6 +529,28 @@ func _recita(r: Dictionary, node: Node3D, brain: RefCounted, act: String, ph: St
 
 
 # la finestra di sonno personale: [inizio sera, fine all'alba]
+## Può entrare in casa sua stanotte? Falso solo se chi divide quella soglia
+## con lui gliel'ha chiusa. Una ferita non rende scontrosi con tutti: la
+## porta è chiusa a UNA persona, e a nessun altro.
+func _puo_entrare(r: Dictionary) -> bool:
+	var aff := get_tree().get_first_node_in_group("affetti")
+	if aff == null:
+		return true
+	var mio := str((r.get("dna", {}) as Dictionary).get("name", ""))
+	if mio == "":
+		return true
+	var cella: Vector2i = r.get("cell", Vector2i.ZERO)
+	for altro in _residents:
+		if altro == r:
+			continue
+		if (altro.get("cell", Vector2i.ZERO) as Vector2i) != cella:
+			continue
+		var suo := str((altro.get("dna", {}) as Dictionary).get("name", ""))
+		if suo != "" and not bool(aff.call("apre_a", suo, mio)):
+			return false
+	return true
+
+
 func _sleep_window(brain: RefCounted, t: float) -> bool:
 	var inizio := 0.80
 	var fine := 0.295
@@ -653,6 +683,14 @@ func _tick_partenze(delta: float) -> void:
 		var r: Dictionary = _residents[i]
 		var label := str(r.get("label", ""))
 		if label == "" or not _animi.has(label):
+			continue
+		# UN CUCCIOLO NON SE NE VA DA SOLO. Questo ramo non controllava
+		# l'eta', e `e_cucciolo` lo chiamavano soltanto Lavori e
+		# Commissioni: un piccolo il cui animo arrivava a «diserzione»
+		# faceva il fagotto e usciva dal villaggio. Un bambino puo' essere
+		# infelice — e deve poterlo essere — ma non traslocare.
+		if e_cucciolo(label):
+			r["parte_fra"] = 0.0
 			continue
 		var animo: RefCounted = _animi[label]
 		if not ANIMO.almeno(int(animo.gradino), "diserzione"):
@@ -1617,6 +1655,15 @@ func _run_chat(a: Node3D, b: Node3D) -> void:
 	if brain_b and not ra.is_empty():
 		brain_b.bump_affinita(str(ra["label"]))
 		brain_b.satisfy("quattro_chiacchiere")
+	# …e finiscono anche sul LIBRO MASTRO degli affetti, con il loro peso
+	# vero: una chiacchiera vale un ventesimo di un atto di coraggio. La
+	# vicinanza non è affetto, e senza questa proporzione il libro mastro
+	# diventerebbe una mappa di chi passa più tempo vicino a chi.
+	var nome_a := str((ra.get("dna", {}) as Dictionary).get("name", ""))
+	var nome_b := str((rb.get("dna", {}) as Dictionary).get("name", ""))
+	if nome_a != "" and nome_b != "":
+		get_tree().call_group("affetti", "gesto", nome_a, nome_b, "chiacchiera")
+		get_tree().call_group("affetti", "gesto", nome_b, nome_a, "chiacchiera")
 
 	a.call("chat_bubble", CHAT_TOPICS[topic])
 	a.call("speak", [topic, "~"], "neutro")
@@ -1970,10 +2017,16 @@ func _make_bowl(col: Color) -> Node3D:
 ## trasloco — in questo villaggio si entra solo se c'è un posto dove
 ## dormire — e qui diventa la cosa più tenera del gioco: perché nasca
 ## qualcuno, qualcuno deve avergli preparato il letto.
-func accogli_nato(dna_figlio: Dictionary) -> String:
+## `casa_di` è la soglia dei genitori: un cucciolo nasce IN CASA LORO, non
+## in una casa sua. Sembra un dettaglio ed è la differenza fra una famiglia e
+## tre coinquilini: al mattino escono dalla stessa porta, e quando quella
+## porta un giorno si chiuderà, si vedrà.
+func accogli_nato(dna_figlio: Dictionary, casa_di := "") -> String:
 	if _residents.size() >= MAX_RESIDENTS:
 		return ""
-	var casa := _free_house()
+	var casa := _casa_del_nome(casa_di) if casa_di != "" else {}
+	if casa.is_empty():
+		casa = _free_house()
 	if casa.is_empty():
 		return ""
 	var cell: Vector2i = casa["cell"]
@@ -2018,6 +2071,41 @@ func e_cucciolo(label: String) -> bool:
 ## Quanto si frequentano quei due, per label: è il contatore che sale a
 ## ogni chiacchierata (VillagerBrain.affinita). Le nascite ci leggono
 ## l'affetto senza dover conoscere i cervelli.
+## La casa di un vicino, per NOME (non per label): serve a far nascere il
+## cucciolo sulla soglia dei suoi. {} se quel vicino non c'è o non ha casa.
+func _casa_del_nome(nome: String) -> Dictionary:
+	if nome == "":
+		return {}
+	for r in _residents:
+		if str((r.get("dna", {}) as Dictionary).get("name", "")) != nome:
+			continue
+		var n := r.get("node") as Node3D
+		if n == null or not is_instance_valid(n):
+			return {}
+		var casa: Dictionary = n.get("_house")
+		return casa.duplicate(true) if casa is Dictionary else {}
+	return {}
+
+
+## Quanto contano l'uno per l'altro, per LABEL. Non è più il contatore
+## grezzo delle chiacchiere: legge il LIBRO MASTRO degli affetti, dove una
+## chiacchiera vale un ventesimo di un gesto vero. Le nascite ci leggono
+## l'affetto senza dover conoscere i cervelli.
+func affetto_fra(label_a: String, label_b: String) -> float:
+	var aff := get_tree().get_first_node_in_group("affetti")
+	if aff == null:
+		return float(affinita_fra(label_a, label_b))
+	return float(aff.call("quanto", _nome_da_label(label_a),
+			_nome_da_label(label_b)))
+
+
+func _nome_da_label(label: String) -> String:
+	for r in _residents:
+		if str(r.get("label", "")) == label:
+			return str((r.get("dna", {}) as Dictionary).get("name", ""))
+	return label
+
+
 func affinita_fra(label_a: String, label_b: String) -> int:
 	for r in _residents:
 		if str(r.get("label", "")) != label_a:

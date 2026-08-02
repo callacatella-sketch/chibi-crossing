@@ -83,6 +83,7 @@ func _ready():
 	add_child(_spawn_system("res://scenes/interact/Concerto.gd", "Concerto"))
 	add_child(_spawn_system("res://scenes/npc/Taccuino.gd", "Taccuino"))
 	add_child(_spawn_system("res://scenes/interact/Sogni.gd", "Sogni"))
+	add_child(_spawn_system("res://scenes/npc/Affetti.gd", "Affetti"))
 	var settings := get_node_or_null(^"/root/Settings")
 	if settings:
 		settings.apply_to_player(player)
