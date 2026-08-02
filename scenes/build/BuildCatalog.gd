@@ -374,6 +374,58 @@ static func items() -> Array[Dictionary]:
 		{"name": "Frigo gelati", "cat": 2, "type": "cell", "layer": 2,
 			"builder": _frigo_gelati,
 			"cols": [[Vector3(0.96, 0.72, 0.52), Vector3(0, 0.36, 0)]]},
+
+		# --- LA BOUTIQUE (le forme stanno in BuildBoutique.gd) ----------
+		# Categoria sua, come la palestra e la chiesa: chi allestisce un
+		# negozio sceglie questi quindici pezzi insieme, e non vuole
+		# scorrere trenta sedie per trovare lo stender.
+		# La Vetrina è l'àncora: comprarla porta con sé tutto il resto
+		# (Economy.CORREDO).
+		{"name": "Vetrina moda", "cat": 5, "type": "edge", "layer": 2,
+			"builder": BuildBoutique.vetrina,
+			"cols": [[Vector3(1.0, 2.1, 0.16), Vector3(0, 1.05, 0)],
+					[Vector3(0.86, 0.15, 0.38), Vector3(0, 0.07, 0.22)]]},
+		{"name": "Insegna boutique", "cat": 5, "type": "edge", "layer": 2,
+			"builder": BuildBoutique.insegna, "cols": []},
+		{"name": "Manichino", "cat": 5, "type": "cell", "layer": 2,
+			"builder": BuildBoutique.manichino,
+			"cols": [[Vector3(0.38, 1.15, 0.38), Vector3(0, 0.57, 0)]]},
+		{"name": "Busto sartoriale", "cat": 5, "type": "cell", "layer": 2,
+			"builder": BuildBoutique.busto,
+			"cols": [[Vector3(0.34, 1.12, 0.34), Vector3(0, 0.56, 0)]]},
+		{"name": "Stender", "cat": 5, "type": "cell", "layer": 2,
+			"builder": BuildBoutique.stender,
+			"cols": [[Vector3(0.94, 1.18, 0.44), Vector3(0, 0.59, 0)]]},
+		{"name": "Tavolo piegati", "cat": 5, "type": "cell", "layer": 2,
+			"builder": BuildBoutique.tavolo_piegati,
+			"cols": [[Vector3(0.94, 0.78, 0.64), Vector3(0, 0.39, 0)]]},
+		{"name": "Scaffale a giorno", "cat": 5, "type": "edge", "layer": 2,
+			"builder": BuildBoutique.scaffale,
+			"cols": [[Vector3(1.0, 2.0, 0.34), Vector3(0, 1.0, 0.04)]]},
+		{"name": "Camerino", "cat": 5, "type": "cell", "layer": 2,
+			"builder": BuildBoutique.camerino,
+			"cols": [[Vector3(0.06, 2.0, 0.74), Vector3(-0.45, 1.0, 0.10)],
+					[Vector3(0.06, 2.0, 0.74), Vector3(0.45, 1.0, 0.10)],
+					[Vector3(0.92, 2.0, 0.08), Vector3(0, 1.0, 0.44)]]},
+		{"name": "Specchiera", "cat": 5, "type": "cell", "layer": 2,
+			"builder": BuildBoutique.specchiera,
+			"cols": [[Vector3(0.88, 1.72, 0.40), Vector3(0, 0.86, 0.10)]]},
+		{"name": "Cassa boutique", "cat": 5, "type": "cell", "layer": 2,
+			"builder": BuildBoutique.cassa,
+			"cols": [[Vector3(1.02, 1.0, 0.56), Vector3(0, 0.5, 0)]]},
+		{"name": "Poltroncina", "cat": 5, "type": "cell", "layer": 2,
+			"builder": BuildBoutique.poltroncina,
+			"cols": [[Vector3(0.56, 0.8, 0.52), Vector3(0, 0.4, 0.05)]]},
+		{"name": "Cesto saldi", "cat": 5, "type": "cell", "layer": 2,
+			"builder": BuildBoutique.cesto_saldi,
+			"cols": [[Vector3(0.7, 0.5, 0.7), Vector3(0, 0.25, 0)]]},
+		{"name": "Faretti", "cat": 5, "type": "cell", "layer": 2,
+			"builder": BuildBoutique.faretti,
+			"cols": [[Vector3(0.34, 1.78, 0.34), Vector3(0, 0.89, 0)]]},
+		{"name": "Passatoia", "cat": 5, "type": "cell", "layer": 1,
+			"builder": BuildBoutique.passatoia, "cols": []},
+		{"name": "Sacchetti", "cat": 5, "type": "cell", "layer": 2,
+			"builder": BuildBoutique.sacchetti, "cols": []},
 	]
 
 
