@@ -227,10 +227,14 @@ static func items() -> Array[Dictionary]:
 		{"name": "Fontana", "cat": 2, "type": "cell", "layer": 2, "builder": _fountain,
 			"cols": [[Vector3(0.98, 0.6, 0.98), Vector3(0, 0.3, 0)]]},
 		{"name": "Gazebo", "cat": 0, "type": "cell", "layer": 2, "builder": _gazebo,
-			"cols": [[Vector3(0.16, 2.2, 0.16), Vector3(0.5, 1.1, 0.5)],
-					[Vector3(0.16, 2.2, 0.16), Vector3(-0.5, 1.1, 0.5)],
-					[Vector3(0.16, 2.2, 0.16), Vector3(0.5, 1.1, -0.5)],
-					[Vector3(0.16, 2.2, 0.16), Vector3(-0.5, 1.1, -0.5)]]},
+			# sei colonnine ai vertici dell'esagono VERO (prima erano i
+			# quattro angoli di un quadrato che non esisteva più)
+			"cols": [[Vector3(0.13, 1.5, 0.13), Vector3(0.500, 0.75, 0.000)],
+					[Vector3(0.13, 1.5, 0.13), Vector3(0.250, 0.75, 0.433)],
+					[Vector3(0.13, 1.5, 0.13), Vector3(-0.250, 0.75, 0.433)],
+					[Vector3(0.13, 1.5, 0.13), Vector3(-0.500, 0.75, 0.000)],
+					[Vector3(0.13, 1.5, 0.13), Vector3(-0.250, 0.75, -0.433)],
+					[Vector3(0.13, 1.5, 0.13), Vector3(0.250, 0.75, -0.433)]]},
 		{"name": "Giostrina", "cat": 2, "type": "cell", "layer": 2, "builder": _carousel,
 			"cols": [[Vector3(0.5, 1.6, 0.5), Vector3(0, 0.8, 0)]]},
 		{"name": "Braciere stellato", "cat": 1, "type": "cell", "layer": 2, "builder": _brazier,
@@ -1457,22 +1461,258 @@ static func _fountain() -> Node3D:
 	return n
 
 
+# «Un gazebo esagonale col tetto a pagoda: il salotto all'aperto» — così
+# promette il negozio, e la prima stesura consegnava un'altra cosa: quattro
+# stecchi quadrati e un tetto fatto di QUATTRO SCATOLE RUOTATE che si
+# trapassavano a caso (le punte spigolose che si vedevano in foto erano le
+# scatole che si intersecano). La lezione: una falda di tetto NON è una
+# scatola — è un triangolo, e i triangoli si fanno con `_prisma`, che
+# estrude il profilo vero. Le falde si chiudono in punta perché SONO
+# triangoli, non perché una scatola copre l'altra.
+
+## Una falda del tetto: il profilo (triangolo o trapezio) steso in piano e
+## poi ruotato in opera — prima attorno a Y per il suo spicchio, poi
+## attorno a X per la pendenza. L'ordine YXZ di Godot fa esattamente
+## questo: l'inclinazione avviene attorno alla gronda già orientata.
+static func _falda(n: Node3D, punti: Array, mat: Material, pos: Vector3,
+		giro: float, pendenza: float, spessore := 0.035) -> MeshInstance3D:
+	var f := _prisma(n, punti, 0.0, spessore, mat)
+	f.position = pos
+	f.rotation.y = giro
+	f.rotation.x = pendenza
+	return f
+
+
 static func _gazebo() -> Node3D:
 	var n := Node3D.new()
-	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
-	var pale := _mat(WOOD_PALE, WOOD, 3.0, 0.45)
-	_box(n, Vector3(1.12, 0.08, 1.12), pale, Vector3(0, 0.04, 0))
-	for sx: float in [-0.5, 0.5]:
-		for sz: float in [-0.5, 0.5]:
-			_box(n, Vector3(0.09, 2.1, 0.09), wood, Vector3(sx, 1.05, sz))
-	_box(n, Vector3(1.18, 0.08, 1.18), wood, Vector3(0, 2.12, 0))
-	var tile := _mat(TERRACOTTA, Color("c47a58"), 3.0, 0.5)
-	for i in 4:
-		var a := float(i) * PI * 0.5
-		var slope := _box(n, Vector3(1.35, 0.06, 0.72), tile, Vector3(cos(a) * 0.32, 2.4, sin(a) * 0.32))
-		slope.rotation.y = a
-		slope.rotation.x = -0.72
-	_ball(n, 0.1, _mat(Color("f2cf7e"), Color("d9a84a"), 3.0, 0.4), Vector3(0, 2.78, 0))
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var chiaro := _mat(WOOD_PALE, WOOD, 3.0, 0.45)
+	var pietra := _mat(STONE, STONE_DARK, 3.0, 0.5)
+	var crema := _mat(CREAM, Color("ecdcc4"), 3.5, 0.4)
+	var tegola := _mat(TERRACOTTA, Color("c47a58"), 3.0, 0.5)
+	var tegola_scura := _mat(Color("c47a58"), Color("a86348"), 3.5, 0.45)
+	var oro := _mat(Color("f2cf7e"), Color("d9a84a"), 6.0, 0.35)
+	var verde := _mat(LEAF, LEAF_DARK, 3.0, 0.5)
+
+	# ---- IL BASAMENTO: uno zoccolo di pietra esagonale, il pavimento di
+	# assi chiare, e il gradino d'invito sul fronte (-Z, come tutto il
+	# catalogo). L'esagono è VERO, non una scatola: _prisma.
+	var esa_pietra: Array = []
+	var esa_legno: Array = []
+	for k in 6:
+		var a := float(k) * TAU / 6.0
+		esa_pietra.append(Vector2(cos(a) * 0.60, sin(a) * 0.60))
+		esa_legno.append(Vector2(cos(a) * 0.55, sin(a) * 0.55))
+	_prisma(n, esa_pietra, 0.0, 0.06, pietra)
+	_prisma(n, esa_legno, 0.06, 0.06, chiaro)
+	# le fughe delle assi: righe sottili e scure sul piano di calpestio
+	for fx: float in [-0.36, -0.18, 0.0, 0.18, 0.36]:
+		var mezza: float = 0.55 * (1.0 - absf(fx) / 0.66)
+		_box(n, Vector3(0.012, 0.004, mezza * 1.7), _mat(WOOD, WOOD_DARK, 3.0, 0.4),
+				Vector3(fx, 0.121, 0))
+	_box(n, Vector3(0.34, 0.05, 0.16), pietra, Vector3(0, 0.025, -0.62))
+
+	# ---- LE SEI COLONNINE TORNITE: base, fusto che si assottiglia,
+	# capitello. Ai vertici dell'esagono, col fronte libero per entrare.
+	var r_col := 0.50
+	for k2 in 6:
+		var a2 := float(k2) * TAU / 6.0
+		var cx := cos(a2) * r_col
+		var cz := sin(a2) * r_col
+		_box(n, Vector3(0.11, 0.07, 0.11), legno, Vector3(cx, 0.155, cz))
+		_cyl(n, 0.032, 0.042, 1.06, legno, Vector3(cx, 0.72, cz))
+		_cyl(n, 0.05, 0.036, 0.05, legno, Vector3(cx, 1.275, cz))
+		_box(n, Vector3(0.10, 0.045, 0.10), crema, Vector3(cx, 1.323, cz))
+
+	# ---- L'ARCHITRAVE: sei travi fra i capitelli, e sotto una mantovana
+	# smerlata di crema coi suoi pendenti — il ricamo che fa «gazebo da
+	# giardino» invece di «tettoia».
+	var ap_col := r_col * cos(TAU / 12.0)
+	for k3 in 6:
+		var a3 := float(k3) * TAU / 6.0 + TAU / 12.0
+		var mx := cos(a3) * ap_col
+		var mz := sin(a3) * ap_col
+		var giro := PI * 0.5 - a3
+		var trave := _box(n, Vector3(r_col, 0.075, 0.06), legno,
+				Vector3(mx, 1.385, mz))
+		trave.rotation.y = giro
+		var mantova := _box(n, Vector3(r_col * 0.92, 0.035, 0.02), crema,
+				Vector3(mx * 0.985, 1.33, mz * 0.985))
+		mantova.rotation.y = giro
+		# tre pendenti a goccia sotto la mantovana
+		for q in 3:
+			var t := (float(q) - 1.0) * 0.30
+			var px := mx * 0.985 - sin(a3) * t
+			var pz := mz * 0.985 + cos(a3) * t
+			_ball(n, 0.016, crema, Vector3(px, 1.305, pz), Vector3(1, 1.5, 1))
+
+	# ---- LA BALAUSTRA su quattro lati (fronte e retro aperti): corrimano,
+	# zoccolo, e tre colonnini torniti per campata. È il parapetto su cui
+	# ci si appoggia a guardare il prato.
+	for k4 in [0, 2, 3, 5]:
+		var a4 := float(k4) * TAU / 6.0 + TAU / 12.0
+		var bx := cos(a4) * ap_col
+		var bz := sin(a4) * ap_col
+		var giro2 := PI * 0.5 - a4
+		var cima := _box(n, Vector3(r_col * 0.86, 0.05, 0.055), legno,
+				Vector3(bx * 0.99, 0.50, bz * 0.99))
+		cima.rotation.y = giro2
+		var piede := _box(n, Vector3(r_col * 0.86, 0.04, 0.05), legno,
+				Vector3(bx * 0.99, 0.17, bz * 0.99))
+		piede.rotation.y = giro2
+		for q2 in 3:
+			var t2 := (float(q2) - 1.0) * 0.145
+			var vx := bx * 0.99 - sin(a4) * t2
+			var vz := bz * 0.99 + cos(a4) * t2
+			_cyl(n, 0.016, 0.02, 0.29, chiaro, Vector3(vx, 0.335, vz))
+
+	# ---- IL TETTO A PAGODA, DUE ORDINI. Ogni falda è un profilo VERO
+	# estruso con _prisma e ruotato in opera: si chiudono in punta perché
+	# sono triangoli, non scatole. I colmi di legno sui displuvi coprono le
+	# cuciture e disegnano la pagoda.
+	#
+	# Ordine basso: un tronco di piramide (falde a trapezio), largo e
+	# gentile, con la gronda che sborda. Ordine alto: la piramide vera
+	# (falde a triangolo), più ripida. In mezzo, il tamburo.
+	var re1 := 0.74          # gronda bassa (sborda oltre le colonne: è un tetto)
+	var rm := 0.34           # dove l'ordine basso si ferma
+	var y1 := 1.44
+	var h1 := 0.30
+	var ap1 := re1 * cos(TAU / 12.0)
+	var apm := rm * cos(TAU / 12.0)
+	var corsa1 := ap1 - apm
+	var l1 := sqrt(corsa1 * corsa1 + h1 * h1)
+	var pende1 := atan2(h1, corsa1)
+	for k5 in 6:
+		var a5 := float(k5) * TAU / 6.0 + TAU / 12.0
+		var gx := cos(a5) * ap1
+		var gz := sin(a5) * ap1
+		var trapezio: Array = [Vector2(-re1 * 0.5, 0.0), Vector2(re1 * 0.5, 0.0),
+				Vector2(rm * 0.5, -l1), Vector2(-rm * 0.5, -l1)]
+		_falda(n, trapezio, tegola, Vector3(gx, y1, gz), PI * 0.5 - a5, pende1)
+		# la fascia di gronda color crema, sotto il filo della falda
+		var fascia := _box(n, Vector3(re1, 0.045, 0.03), crema,
+				Vector3(gx * 1.0, y1 - 0.02, gz * 1.0))
+		fascia.rotation.y = PI * 0.5 - a5
+	# i colmi dell'ordine basso, dai vertici di gronda al tamburo — e il
+	# CORNO rialzato in punta di gronda, il ricciolo che fa pagoda
+	for k6 in 6:
+		var a6 := float(k6) * TAU / 6.0
+		var da := Vector3(cos(a6) * re1, y1, sin(a6) * re1)
+		var fino := Vector3(cos(a6) * rm, y1 + h1, sin(a6) * rm)
+		var mezzo := (da + fino) * 0.5
+		var colmo := _box(n, Vector3(0.05, 0.035, da.distance_to(fino) + 0.06),
+				tegola_scura, mezzo)
+		colmo.rotation.y = PI * 0.5 - a6
+		colmo.rotation.x = atan2(h1, re1 - rm)
+		var corno := _box(n, Vector3(0.055, 0.03, 0.10), tegola_scura,
+				da + Vector3(cos(a6) * 0.02, 0.025, sin(a6) * 0.02))
+		corno.rotation.y = PI * 0.5 - a6
+		corno.rotation.x = -0.5
+	# il tamburo fra i due ordini
+	var esa_tamburo: Array = []
+	for k7 in 6:
+		var a7 := float(k7) * TAU / 6.0
+		esa_tamburo.append(Vector2(cos(a7) * (rm - 0.02), sin(a7) * (rm - 0.02)))
+	_prisma(n, esa_tamburo, y1 + h1 - 0.01, 0.10, crema)
+	# ordine alto: la piramide, più ripida
+	var re2 := 0.44
+	var y2 := y1 + h1 + 0.08
+	var h2 := 0.34
+	var ap2 := re2 * cos(TAU / 12.0)
+	var l2 := sqrt(ap2 * ap2 + h2 * h2)
+	var pende2 := atan2(h2, ap2)
+	for k8 in 6:
+		var a8 := float(k8) * TAU / 6.0 + TAU / 12.0
+		var gx2 := cos(a8) * ap2
+		var gz2 := sin(a8) * ap2
+		var triangolo: Array = [Vector2(-re2 * 0.5, 0.0), Vector2(re2 * 0.5, 0.0),
+				Vector2(0.0, -l2)]
+		_falda(n, triangolo, tegola, Vector3(gx2, y2, gz2), PI * 0.5 - a8, pende2)
+	for k9 in 6:
+		var a9 := float(k9) * TAU / 6.0
+		var da2 := Vector3(cos(a9) * re2, y2, sin(a9) * re2)
+		var fino2 := Vector3(0.0, y2 + h2, 0.0)
+		var mezzo2 := (da2 + fino2) * 0.5
+		var colmo2 := _box(n, Vector3(0.045, 0.032, da2.distance_to(fino2) + 0.04),
+				tegola_scura, mezzo2)
+		colmo2.rotation.y = PI * 0.5 - a9
+		colmo2.rotation.x = atan2(h2, re2)
+
+	# ---- IL PUNTALE dorato: sfera, guglia, perlina. È la firma in cima.
+	_ball(n, 0.075, oro, Vector3(0, y2 + h2 + 0.05, 0))
+	_cyl(n, 0.008, 0.02, 0.14, oro, Vector3(0, y2 + h2 + 0.15, 0))
+	_ball(n, 0.028, oro, Vector3(0, y2 + h2 + 0.23, 0))
+
+	# ---- LA LANTERNA APPESA nel mezzo: il cuore caldo del salotto. Di
+	# sera è lei a dire «venite a sedervi».
+	_cyl(n, 0.006, 0.006, 0.34, legno, Vector3(0, 1.30, 0))
+	_cyl(n, 0.058, 0.066, 0.032, legno, Vector3(0, 1.115, 0))
+	_cyl(n, 0.06, 0.052, 0.125, _glow(Color("ffe6b8"), Color("ffc978"), 1.2),
+			Vector3(0, 1.038, 0))
+	_cyl(n, 0.066, 0.056, 0.028, legno, Vector3(0, 0.962, 0))
+	var luce := OmniLight3D.new()
+	luce.light_color = Color(1.0, 0.86, 0.62)
+	luce.light_energy = 0.9
+	luce.omni_range = 3.4
+	luce.position = Vector3(0, 0.95, 0)
+	n.add_child(luce)
+
+	# ---- IL FESTONE: bandierine di carta fra le colonne del fronte, i due
+	# lati aperti. Triangolini VERI (_prisma), appesi con un filo che
+	# scende appena al centro — la festa che non finisce mai.
+	var colori_festa: Array = [PINK, Color("9ec9e8"), CREAM, LEAF]
+	for lato_f: int in [1, 4]:
+		var af := float(lato_f) * TAU / 6.0 + TAU / 12.0
+		var fx2 := cos(af) * ap_col
+		var fz2 := sin(af) * ap_col
+		for q3 in 4:
+			var t3 := (float(q3) - 1.5) * 0.20
+			var bx2 := fx2 * 0.97 - sin(af) * t3
+			var bz2 := fz2 * 0.97 + cos(af) * t3
+			var giu := 0.03 + 0.025 * (1.0 - absf(float(q3) - 1.5) / 1.5)
+			var col_f: Color = colori_festa[q3 % colori_festa.size()]
+			var bandiera := _falda(n,
+					[Vector2(-0.035, 0.0), Vector2(0.035, 0.0), Vector2(0.0, 0.075)],
+					_mat(col_f, col_f.darkened(0.18), 3.0, 0.4),
+					Vector3(bx2, 1.26 - giu, bz2), PI * 0.5 - af, PI * 0.5, 0.006)
+			bandiera.rotation.z = 0.06 if q3 % 2 == 0 else -0.06
+
+	# ---- IL RAMPICANTE su una colonna del retro: foglie che salgono a
+	# spirale e tre fiorellini rosa. Il giardino che si riprende il legno.
+	var ar := TAU / 6.0
+	var vx2 := cos(ar) * r_col
+	var vz2 := sin(ar) * r_col
+	for q4 in 7:
+		var sal := 0.22 + float(q4) * 0.14
+		var att := float(q4) * 1.1
+		_ball(n, 0.045, verde,
+				Vector3(vx2 + cos(att) * 0.055, sal, vz2 + sin(att) * 0.055),
+				Vector3(1.3, 0.75, 1.0))
+	for q5 in 3:
+		var sal2 := 0.42 + float(q5) * 0.30
+		var att2 := float(q5) * 1.9 + 0.8
+		_ball(n, 0.028, _mat(PINK, PINK_DEEP, 4.0, 0.4),
+				Vector3(vx2 + cos(att2) * 0.075, sal2, vz2 + sin(att2) * 0.075))
+		_ball(n, 0.012, crema,
+				Vector3(vx2 + cos(att2) * 0.085, sal2 + 0.012, vz2 + sin(att2) * 0.085))
+
+	# ---- IL SALOTTO: il tavolino tondo con la teiera, e due cuscini a
+	# terra. È il motivo per cui si entra.
+	_cyl(n, 0.17, 0.17, 0.03, chiaro, Vector3(0.02, 0.42, 0.06))
+	_cyl(n, 0.025, 0.035, 0.28, legno, Vector3(0.02, 0.265, 0.06))
+	_cyl(n, 0.09, 0.10, 0.025, legno, Vector3(0.02, 0.135, 0.06))
+	_ball(n, 0.055, crema, Vector3(-0.04, 0.475, 0.02), Vector3(1, 0.85, 1))
+	_cyl(n, 0.008, 0.012, 0.045, crema, Vector3(-0.04, 0.52, 0.02))
+	_ball(n, 0.014, oro, Vector3(-0.04, 0.545, 0.02))
+	var becco := _cyl(n, 0.008, 0.012, 0.06, crema, Vector3(0.015, 0.49, 0.02))
+	becco.rotation.z = -0.9
+	_ball(n, 0.026, _mat(PINK, PINK_DEEP, 4.0, 0.4), Vector3(0.09, 0.455, 0.10),
+			Vector3(1, 0.5, 1))
+	for cusc: Array in [[Vector3(-0.28, 0.145, 0.30), PINK, PINK_DEEP],
+			[Vector3(0.32, 0.145, -0.22), Color("9ec9e8"), Color("7fb2d8")]]:
+		_ball(n, 0.10, _mat(cusc[1], cusc[2], 4.0, 0.45), cusc[0],
+				Vector3(1.0, 0.42, 1.0))
 	return n
 
 
