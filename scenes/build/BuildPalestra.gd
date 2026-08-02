@@ -152,12 +152,30 @@ static func panca_pesi() -> Node3D:
 ## Il sacco: un sacco da farina rattoppato, appeso col cordino a un braccio
 ## di legno curvo. Il sacco è un nodo a sé, col pivot in alto: così il
 ## giorno che qualcuno lo colpisce, dondola davvero.
+##
+## Il corpo non è un cilindro rivestito: è UNA superficie di rivoluzione
+## a profilo organico (collo stretto dove stringe la corda, pancia BASSA
+## e piena — il peso vero sta in fondo, non al centro — e un fondo
+## arrotondato a calotta: un sacco pesante non fa cono) più una lieve
+## ellitticità, perché un sacco vero non è un cerchio perfetto. Le
+## cuciture seguono il raggio VERO del profilo a ogni altezza — un raggio
+## fisso galleggerebbe vicino al collo e affonderebbe nella pancia — e
+## sopra la striscia corre il punto a zig-zag di `_cucitura` (lo stesso
+## della panca pesi): è il "cucito a mano" che si legge da vicino. Le
+## toppe sono ritagli rettangolari appena storti, cuciti sul bordo, non
+## ellissi lisce appiccicate sopra.
 static func sacco() -> Node3D:
 	var n := Node3D.new()
 	var legno := CAT._mat(CAT.WOOD, CAT.WOOD_DARK, 4.0, 0.5)
 	var tela := CAT._mat(CANVAS, CANVAS_DARK, 5.0, 0.5)
-	var toppa := CAT._mat(SALVIA, SALVIA_DARK, 6.0, 0.45)
+	var tela_cucitura := CAT._mat(CANVAS_DARK.darkened(0.2), CANVAS_DARK.darkened(0.4), 4.0, 0.3)
+	var toppa_verde := CAT._mat(SALVIA, SALVIA_DARK, 6.0, 0.45)
+	var toppa_cuoio := CAT._mat(CUOIO, CUOIO_DARK, 6.0, 0.45)
+	var indaco := Color("7c8bab")
+	var indaco_scuro := Color("5c6a86")
+	var toppa_indaco := CAT._mat(indaco, indaco_scuro, 6.0, 0.45)
 	var corda := CAT._mat(CORDA, CUOIO, 7.0, 0.4)
+	var filo := CAT._mat(CANVAS_DARK.darkened(0.35), CANVAS.darkened(0.15), 4.0, 0.3)
 
 	# IL PALO STA DIETRO. Il fronte dei pezzi è -Z: col palo davanti, dal
 	# lato da cui si guarda (e da cui si tira il pugno) il sacco spariva
@@ -177,44 +195,145 @@ static func sacco() -> Node3D:
 	sacco.name = "sacco"
 	sacco.position = Vector3(0, 2.04, -0.08)
 	n.add_child(sacco)
-	# il cordino
-	CAT._cyl(sacco, 0.012, 0.012, 0.2, corda, Vector3(0, -0.1, 0))
-	# il corpo: una superficie di rivoluzione a sacco — spalla stretta,
-	# pancia piena, fondo tondo
-	BUILDER.lathe(sacco, [
-		Vector2(0.06, -0.18), Vector2(0.16, -0.28), Vector2(0.205, -0.4),
-		Vector2(0.21, -0.62), Vector2(0.2, -0.84), Vector2(0.17, -0.97),
-		Vector2(0.09, -1.06), Vector2(0.0, -1.08),
-	], tela, Vector3.ZERO, 22)
-	# le tre cuciture verticali del sacco, sui bordi dei teli
-	for i in 3:
+	# lieve ellitticità: un sacco vero non è un cerchio perfetto — si
+	# gonfia un po' più da un verso che dall'altro
+	sacco.scale = Vector3(1.05, 1.0, 0.91)
+
+	# il profilo del corpo, dal collo (dove stringe la corda) al fondo:
+	# spalla che si apre in fretta, pancia piena e BASSA, e un fondo che
+	# segue un vero arco (gli ultimi quattro punti sono una calotta, non
+	# un cono che si chiude di scatto)
+	var profilo: Array[Vector2] = [
+		Vector2(0.044, -0.15), Vector2(0.098, -0.225), Vector2(0.152, -0.31),
+		Vector2(0.192, -0.415), Vector2(0.213, -0.52), Vector2(0.222, -0.6),
+		Vector2(0.221, -0.68), Vector2(0.207, -0.79), Vector2(0.182, -0.895),
+		Vector2(0.144, -0.985), Vector2(0.097, -1.06), Vector2(0.0896, -1.097),
+		Vector2(0.0686, -1.129), Vector2(0.0371, -1.15), Vector2(0.0, -1.157),
+	]
+	# il raggio VERO del sacco a una data altezza: lo usano le cuciture
+	# (che devono strusciare sulla pancia, non fluttuare a un raggio a
+	# caso) e le toppe (che vi si appoggiano)
+	var raggio_a_altezza := func(y: float) -> float:
+		for i in range(profilo.size() - 1):
+			var pa: Vector2 = profilo[i]
+			var pb: Vector2 = profilo[i + 1]
+			if (y <= pa.y and y >= pb.y) or (y >= pa.y and y <= pb.y):
+				var campata: float = pb.y - pa.y
+				var tt := 0.0 if absf(campata) < 0.0001 else (y - pa.y) / campata
+				return lerpf(pa.x, pb.x, clampf(tt, 0.0, 1.0))
+		return profilo[profilo.size() - 1].x
+
+	# il cordino, appena rastremato, con un piccolo nodo dove si aggancia
+	CAT._cyl(sacco, 0.009, 0.014, 0.2, corda, Vector3(0, -0.1, 0))
+	CAT._ball(sacco, 0.02, corda, Vector3(0, -0.004, 0), Vector3(1.0, 0.65, 1.0))
+
+	# IL CORPO: superficie di rivoluzione, molti più punti dell'originale
+	# perché la curva si legga come un vero sacco, non un poligono
+	BUILDER.lathe(sacco, profilo, tela, Vector3.ZERO, 28)
+
+	# LA LEGATURA IN CIMA: non tre anelli impilati (farebbero una torta a
+	# piani, vista da sopra) ma UNA corda che avvolge il collo a spirale,
+	# un giro dopo l'altro scendendo — così si legge davvero come corda
+	# attorcigliata, e segue il vero raggio del collo (appena più larga,
+	# per stringerlo da fuori e non annegare dentro la tela)
+	var punti_avvolgimento: Array[Vector3] = []
+	var raggi_avvolgimento: Array[float] = []
+	var passi_avvolgimento := 32
+	var giri_avvolgimento := 3.2
+	for i in range(passi_avvolgimento + 1):
+		var t := float(i) / float(passi_avvolgimento)
+		var y_avv := lerpf(-0.157, -0.285, t)
+		var ang_avv := t * TAU * giri_avvolgimento
+		var r_avv := raggio_a_altezza.call(y_avv) * 1.14
+		punti_avvolgimento.append(Vector3(cos(ang_avv) * r_avv, y_avv, sin(ang_avv) * r_avv))
+		raggi_avvolgimento.append(0.0115)
+	BUILDER.tube(sacco, punti_avvolgimento, raggi_avvolgimento, corda, 44, 8)
+	# e il capo della corda che avanza, mollemente, dopo l'ultimo giro
+	var fine_avv: Vector3 = punti_avvolgimento[punti_avvolgimento.size() - 1]
+	BUILDER.tube(sacco, [fine_avv, fine_avv + Vector3(0.04, -0.025, 0.015),
+			fine_avv + Vector3(0.06, -0.085, 0.025)], [0.011, 0.009, 0.006], corda, 10, 7)
+	CAT._ball(sacco, 0.012, corda, fine_avv + Vector3(0.062, -0.095, 0.027))
+
+	# LE CUCITURE VERTICALI: quattro pannelli (gli angoli sono appena
+	# irregolari — un sacco cucito a mano non è un poligono perfetto),
+	# ognuna a TRE fasce di altezza, ogni fascia sul SUO raggio medio
+	# (misurato dal profilo vero): così la striscia segue la pancia
+	# invece di galleggiare vicino al collo o affondare nella pancia.
+	# Sopra la striscia, il punto a zig-zag di `_cucitura`.
+	var angoli_cuciture: Array[float] = [0.3, PI * 0.5 + 0.16, PI + 0.36, PI * 1.5 - 0.22]
+	var fasce := [[-0.15, -0.415], [-0.415, -0.895], [-0.895, -1.157]]
+	for ang in angoli_cuciture:
 		var giro := Node3D.new()
-		giro.rotation.y = float(i) / 3.0 * TAU + 0.4
+		giro.rotation.y = ang
 		sacco.add_child(giro)
-		var seam := CAT._box(giro, Vector3(0.01, 0.56, 0.006),
-				CAT._mat(CANVAS_DARK, CANVAS, 4.0, 0.3), Vector3(0, -0.6, 0.206))
-		seam.rotation.x = 0.02
-	# la legatura in cima (dove il sacco è strozzato) e due toppe cucite
-	CAT._cyl(sacco, 0.072, 0.072, 0.035, corda, Vector3(0, -0.25, 0))
-	# LE TOPPE. Non adesivi quadrati appiccicati sopra: cuscinetti schiacciati
-	# che si appoggiano ALLA CURVA del sacco, ognuno sul suo raggio.
-	_toppa(sacco, 0.5, -0.54, 0.078, toppa)
-	_toppa(sacco, -2.1, -0.8, 0.06, CAT._mat(CUOIO, CUOIO_DARK, 6.0, 0.45))
-	_posto(n, Vector3(0, 0.0, -0.62), Vector3.BACK)
+		for fascia in fasce:
+			var y_alto: float = fascia[0]
+			var y_basso: float = fascia[1]
+			var y_mezzo := (y_alto + y_basso) * 0.5
+			var r: float = raggio_a_altezza.call(y_mezzo)
+			var z := r - 0.0035
+			CAT._box(giro, Vector3(0.011, absf(y_basso - y_alto) * 0.94, 0.006),
+					tela_cucitura, Vector3(0, y_mezzo, z))
+			# il punto a zig-zag, FITTO: pochi punti radi sembrano chiodi
+			# piantati, non filo cucito — qui uno ogni 3-4 cm di striscia
+			var n_punti := maxi(4, int(absf(y_basso - y_alto) / 0.035))
+			_cucitura(giro, Vector3(0, y_alto - 0.015, z + 0.0015),
+					Vector3(0, y_basso + 0.015, z + 0.0015), n_punti, filo, 0.0032)
+
+	# LE TOPPE. Ritagli rettangolari, storti sul proprio asse (un
+	# rattoppo vero non è mai un rettangolo perfetto), col bordo intero
+	# cucito, appoggiati sulla pancia più piatta del sacco — dove un
+	# rattoppo davvero si poserebbe — e uno con l'angolo smussato, come
+	# se fosse stato ritagliato da uno scampolo più grande.
+	_toppa(sacco, 0.9, -0.6, Vector2(0.135, 0.155), 0.26, toppa_verde, filo,
+			raggio_a_altezza, true)
+	_toppa(sacco, -2.35, -0.68, Vector2(0.1, 0.125), -0.34, toppa_cuoio, filo,
+			raggio_a_altezza, false)
+	_toppa(sacco, 3.55, -0.53, Vector2(0.075, 0.09), 0.18, toppa_indaco, filo,
+			raggio_a_altezza, false)
+
+	_posto(n, Vector3(0, 0.0, -0.64), Vector3.BACK)
 	return n
 
 
-## Una toppa cucita sul sacco: si mette a un angolo e a un'altezza, e si
-## appoggia da sé alla pancia del sacco — non è un adesivo quadrato
-## appiccicato sopra, è un cuscinetto che segue la curva.
-static func _toppa(sacco: Node3D, angolo: float, y: float, raggio: float,
-		mat: Material) -> void:
+## Una toppa cucita sul sacco: un ritaglio RETTANGOLARE (non un'ellisse
+## liscia), appena storto sul proprio asse — un rattoppo vero è tagliato
+## a mano da un pezzo di stoffa più grande, mai un rettangolo perfetto —
+## col bordo intero cucito (il punto a zig-zag di `_cucitura`), e si
+## appoggia alla pancia usando il raggio VERO del sacco a quell'altezza
+## (`raggio_a_altezza`), non un numero fisso indovinato a occhio.
+static func _toppa(sacco: Node3D, angolo: float, y: float, misura: Vector2,
+		rot_z: float, mat: Material, filo: Material, raggio_a_altezza: Callable,
+		taglio: bool) -> void:
 	var giro := Node3D.new()
 	giro.rotation.y = angolo
 	sacco.add_child(giro)
-	var r := 0.208 if y > -0.85 else 0.18
-	CAT._ball(giro, raggio, mat, Vector3(0, y, r - raggio * 0.62),
-			Vector3(1.0, 1.2, 0.42))
+	var r: float = raggio_a_altezza.call(y)
+	var spessore := 0.014
+	var telaio := Node3D.new()
+	telaio.position = Vector3(0, y, r - spessore * 0.3)
+	telaio.rotation.z = rot_z
+	giro.add_child(telaio)
+	var w := misura.x
+	var h := misura.y
+	CAT._box(telaio, Vector3(w, h, spessore), mat, Vector3.ZERO)
+	if taglio:
+		# l'angolo smussato: un cuneo dello stesso tessuto del sacco,
+		# sovrapposto — finge il ritaglio mancante
+		var cuneo := CAT._box(telaio, Vector3(w * 0.4, h * 0.4, spessore * 1.3),
+				CAT._mat(CANVAS, CANVAS_DARK, 5.0, 0.5), Vector3(w * 0.42, h * 0.42, 0))
+		cuneo.rotation.z = PI * 0.25
+	# il bordo cucito, sui quattro lati — fitto, un punto ogni 2-3 cm,
+	# altrimenti sembrano quattro chiodi e non un orlo cucito
+	var hw := w * 0.5
+	var hh := h * 0.5
+	var zf := spessore * 0.5 + 0.0015
+	var n_larghi := maxi(3, int(w / 0.025))
+	var n_alti := maxi(3, int(h / 0.025))
+	_cucitura(telaio, Vector3(-hw, hh, zf), Vector3(hw, hh, zf), n_larghi, filo, 0.0032)
+	_cucitura(telaio, Vector3(-hw, -hh, zf), Vector3(hw, -hh, zf), n_larghi, filo, 0.0032)
+	_cucitura(telaio, Vector3(-hw, hh, zf), Vector3(-hw, -hh, zf), n_alti, filo, 0.0032)
+	_cucitura(telaio, Vector3(hw, hh, zf), Vector3(hw, -hh, zf), n_alti, filo, 0.0032)
 
 
 # ----------------------------------------------------------- la cyclette
