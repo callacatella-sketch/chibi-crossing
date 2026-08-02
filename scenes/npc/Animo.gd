@@ -173,22 +173,35 @@ const COMPITI := {
 ## E OGNUNA HA UNA CHIAVE A FORMA DI GIOCATORE (`Affetti.MOMENTI_CHIAVE`):
 ## nessuna ferita che questi sistemi creano puo' restare senza una porta —
 ## e' la stessa regola per cui `_filtra_luogo` esiste.
+## Quanto pesa il CARATTERE su una risposta. Deve essere della stessa scala
+## del tiro del sogno (±0.45..±1.05), perché è l'unico termine che sopravvive
+## quando i bisogni sono tutti a posto — cioè nella vita normale di un
+## vicino, che è il caso COMUNE.
+##
+## Senza, misurato: sette punteggi a 0.000000, il softmax su tre pareggi, e
+## un dado uniforme sulle prime tre chiavi nell'ordine in cui la tabella è
+## scritta — identico per un orgoglioso e per un codardo. Il commento che
+## prometteva «o chi guarda vede un dado» descriveva il comportamento vero.
+const AMPIEZZA_TRATTO := 0.9
+
+## `tratto` è chi sceglie quella risposta, e `verso` da che parte: +1 se la
+## sceglie chi ha molto di quel tratto, −1 se chi ne ha poco.
 const REAZIONI := {
 	# la porta che non si apre piu': chi ha molto orgoglio la sente come
 	# l'unico modo di riprendersi qualcosa di suo
-	"chiudo_la_porta": {"autonomia": 0.30, "stima": 0.22, "appartenenza": -0.25},
+	"chiudo_la_porta": {"tratto": "orgoglio", "verso": 1, "autonomia": 0.30, "stima": 0.22, "appartenenza": -0.25},
 	# ritirarsi: chi ha paura sceglie il posto dove non succede niente
-	"mi_ritiro": {"sicurezza": 0.35, "appartenenza": -0.30, "noia": 0.10},
+	"mi_ritiro": {"tratto": "codardia", "verso": 1, "sicurezza": 0.35, "appartenenza": -0.30, "noia": 0.10},
 	# stare col piccolo — possibile solo se un piccolo c'e'
-	"sto_col_piccolo": {"appartenenza": 0.35, "sicurezza": 0.20, "autonomia": -0.10},
+	"sto_col_piccolo": {"tratto": "lealta", "verso": 1, "appartenenza": 0.26, "sicurezza": 0.12, "autonomia": -0.18},
 	# andarsene: serve tanto bisogno di autonomia e poche radici
-	"me_ne_vado": {"autonomia": 0.45, "appartenenza": -0.45, "stima": 0.10},
+	"me_ne_vado": {"tratto": "ambizione", "verso": 1, "autonomia": 0.45, "appartenenza": -0.45, "stima": 0.10},
 	# dirlo a tutti: il villaggio si schiera, e a qualcuno serve
-	"lo_dico_a_tutti": {"stima": 0.25, "appartenenza": 0.15, "sicurezza": -0.10},
+	"lo_dico_a_tutti": {"tratto": "grinta", "verso": 1, "stima": 0.25, "appartenenza": 0.15, "sicurezza": -0.10},
 	# fare finta di niente, che e' una risposta come le altre
-	"faccio_finta": {"sicurezza": 0.15, "stima": -0.10, "noia": -0.05},
+	"faccio_finta": {"tratto": "grinta", "verso": -1, "sicurezza": 0.15, "stima": -0.10, "noia": -0.05},
 	# restare, e aspettare. La piu' rara, e l'unica che puo' finire bene
-	"resto_e_aspetto": {"appartenenza": 0.12, "autonomia": -0.15, "sicurezza": 0.08},
+	"resto_e_aspetto": {"tratto": "orgoglio", "verso": -1, "appartenenza": 0.12, "autonomia": -0.15, "sicurezza": 0.08},
 }
 
 ## Quanto e' DECISA una risposta come queste. Alta: una scelta che cambia
@@ -567,6 +580,13 @@ func punteggio(azione: String, chiede := "giocatore") -> float:
 		# carattere, ed è da qui che due vicini davanti alla stessa scelta
 		# arrivano a due risposte diverse
 		s += sollievo * malessere(d) * 2.2 * peso_drive(d)
+	# IL CARATTERE TIRA. È l'equivalente, per le risposte, del tiro del
+	# sogno: l'unico termine che non passa da `malessere()` e quindi l'unico
+	# che sopravvive quando un vicino sta bene — che è il caso normale.
+	if c.has("tratto"):
+		var amp: float = float(c.get("ampiezza", AMPIEZZA_TRATTO))
+		s += amp * (float(tratti.get(str(c["tratto"]), 0.5)) - 0.5) \
+				* 2.0 * float(c.get("verso", 1))
 	# il sogno tira: si fa volentieri ciò che ci avvicina a chi vogliamo essere
 	if str(c.get("serve", "")) == sogno:
 		s += 0.45 * (0.5 + float(tratti.get("ambizione", 0.5)))
@@ -826,7 +846,12 @@ func save() -> Dictionary:
 	# era `randf()`: stessa partita ricaricata, stessa situazione, risposta
 	# diversa. Salvandolo, la persona resta quella che era.
 	return {
-		"rng": _rng.state,
+		# COME STRINGA. Il salvataggio passa da JSON, che restituisce ogni
+		# numero come float: misurato, lo stato perdeva undici bit e il dado
+		# ripartiva da un altro punto dello stream. (Il save-scumming
+		# restava bloccato lo stesso, perché la corruzione è deterministica,
+		# ma la proprietà scritta qui sopra non era vera.)
+		"rng": str(_rng.state),
 		"nome": nome, "sogno": sogno, "tratti": tratti.duplicate(),
 		"drive": drive.duplicate(), "ricordi": ricordi.duplicate(true),
 		"sommario": sommario.duplicate(true), "opinione": opinione.duplicate(),
@@ -852,4 +877,4 @@ func load(d: Dictionary) -> void:
 	if d.has("limbico"):
 		limbico.load(d["limbico"])
 	if d.has("rng"):
-		_rng.state = int(d["rng"])
+		_rng.state = int(str(d["rng"]))

@@ -1065,7 +1065,6 @@ static func _brow_mesh(side: float, length: float, thick: float,
 	# l'esponente che porta il colmo di sin(PI·f^p) esattamente su "picco"
 	var p := log(0.5) / log(picco)
 	var rings := 14
-	var sides_n := 10
 	var centers: Array[Vector3] = []
 	var rads: Array[float] = []
 	for i in rings + 1:
@@ -1476,7 +1475,11 @@ static func build_stroke(parent: Node3D, mat: Material, punti: Array,
 ## APPOGGIATO sulla testa vera: senza, resta sul piano di ripiego storico —
 ## che da vicino e di profilo mostrava le estremità galleggiare.
 static func build_happy_arc(parent: Node3D, mat: Material, center: Vector3,
-		side: float, r := 0.085, su := Callable()) -> Node3D:
+		_side: float, r := 0.085, su := Callable()) -> Node3D:
+	# `_side` non serve e resta nella firma di proposito: l'arco «^^» e'
+	# simmetrico, quindi specchiarlo darebbe la stessa identica curva — ma i
+	# chiamanti passano il lato come tutti gli altri costruttori del viso, e
+	# toglierlo dalla firma li spezzerebbe per niente.
 	var node := Node3D.new()
 	node.position = (su.call(center) as Vector3) if su.is_valid() else center
 	node.visible = false

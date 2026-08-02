@@ -2017,16 +2017,23 @@ func _make_bowl(col: Color) -> Node3D:
 ## trasloco — in questo villaggio si entra solo se c'è un posto dove
 ## dormire — e qui diventa la cosa più tenera del gioco: perché nasca
 ## qualcuno, qualcuno deve avergli preparato il letto.
-## `casa_di` è la soglia dei genitori: un cucciolo nasce IN CASA LORO, non
-## in una casa sua. Sembra un dettaglio ed è la differenza fra una famiglia e
-## tre coinquilini: al mattino escono dalla stessa porta, e quando quella
-## porta un giorno si chiuderà, si vedrà.
-func accogli_nato(dna_figlio: Dictionary, casa_di := "") -> String:
+## IL CUCCIOLO HA UN LETTO SUO, e non è una rinuncia: è che in questo
+## villaggio LA CELLA È LA CHIAVE DI UNICITÀ DEL LETTO. `load_extra` scarta
+## ogni riga la cui cella è già presa, e la madre sta sempre prima nell'array:
+## dando al nato la soglia di lei, il piccolo NON TORNAVA PIÙ dopo un
+## ricaricamento — mentre il villaggio continuava a parlare di lui (il
+## compleanno sulla lavagna, il battesimo, i due momenti sul filo dei
+## genitori). Un bambino cancellato dal salvataggio è la cosa peggiore che
+## questo sistema potesse fare.
+##
+## `casa_di` resta nella firma perché è la strada giusta per il giorno in cui
+## la convivenza avrà il suo supporto nel salvataggio (una chiave «con chi
+## divido la soglia», e `load_extra` che la rispetta). Oggi non ce l'ha, e
+## fingere di sì costa un bambino.
+func accogli_nato(dna_figlio: Dictionary, _casa_di := "") -> String:
 	if _residents.size() >= MAX_RESIDENTS:
 		return ""
-	var casa := _casa_del_nome(casa_di) if casa_di != "" else {}
-	if casa.is_empty():
-		casa = _free_house()
+	var casa := _free_house()
 	if casa.is_empty():
 		return ""
 	var cell: Vector2i = casa["cell"]

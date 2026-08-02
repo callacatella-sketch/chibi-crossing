@@ -27,6 +27,9 @@ func run(t) -> void:
 	_test_la_risposta_esce_dal_carattere(t)
 	_test_ogni_ferita_ha_una_porta(t)
 	_test_la_porta_e_chiusa_a_uno_solo(t)
+	_test_nessuna_risposta_e_morta(t)
+	_test_l_isteresi_regge_le_coppie(t)
+	_test_i_gesti_veri_li_emette_qualcuno(t)
 
 
 func _riga(a: String, b: String, tipo: String, giorno: int) -> Dictionary:
@@ -334,3 +337,123 @@ func _test_la_porta_e_chiusa_a_uno_solo(t) -> void:
 	aff.call("_le_ferite_si_richiudono", 10)
 	t.ok(aff.call("apre_a", "Anna", "Bruno"),
 			"e quando il giocatore le è stato vicino abbastanza, la porta si riapre")
+
+
+## NESSUNA RISPOSTA È MORTA, E NESSUNA DOMINA. È la prova che una revisione
+## avversariale ha reso necessaria: prima di questa taratura, MISURATO,
+##  · i sette punteggi valevano esattamente 0.000000 per un vicino che sta
+##    bene (cioè nel caso NORMALE), perché l'unico termine vivo era
+##    moltiplicato per `malessere()`, che `passa_giorno` porta a zero;
+##  · il softmax su tre pareggi dava un dado uniforme sulle prime tre chiavi
+##    NELL'ORDINE IN CUI LA TABELLA È SCRITTA, identico per un orgoglioso e
+##    per un codardo;
+##  · `resto_e_aspetto` — «l'unica che può finire bene» — non era prima per
+##    NESSUN carattere, mai;
+##  · `sto_col_piccolo` vinceva più di tutte le altre sei messe insieme.
+##
+## Serviva un termine che NON passasse dal malessere: il tiro del carattere,
+## della stessa scala del tiro del sogno.
+func _test_nessuna_risposta_e_morta(t) -> void:
+	var DNA := load("res://scenes/npc/ChibiDNA.gd")
+	var reaz: Array = ANIMO.REAZIONI.keys()
+	var vinte := {}
+	var ventagli := {}
+	for i in 240:
+		var a: RefCounted = ANIMO.new()
+		a.setup(DNA.generate(1000 + i))
+		# UN VICINO CHE STA BENE: è il caso comune, ed era quello degenere
+		for d in ANIMO.DRIVES:
+			a.drive[d] = 0.0 if d in ANIMO.MALESSERI else 1.0
+		var c := {}
+		for k in 30:
+			var sc := str(a.decide(reaz, "ex", ANIMO.NITIDEZZA_VITA))
+			c[sc] = int(c.get(sc, 0)) + 1
+		var top := ""
+		var topn := 0
+		for k2 in c:
+			if int(c[k2]) > topn:
+				topn = int(c[k2])
+				top = str(k2)
+		vinte[top] = int(vinte.get(top, 0)) + 1
+		ventagli[c.size()] = int(ventagli.get(c.size(), 0)) + 1
+
+	# NESSUNA MORTA: ogni risposta è la preferita di qualcuno
+	for r in reaz:
+		var q := int(vinte.get(str(r), 0))
+		t.ok(q > 0,
+				"'%s' è la risposta di qualcuno (%d caratteri su 240)" % [r, q])
+	# NESSUNA DOMINANTE: nemmeno la più scelta arriva a un terzo
+	var massimo := 0
+	for v in vinte.values():
+		massimo = maxi(massimo, int(v))
+	t.ok(float(massimo) / 240.0 < 0.34,
+			"e nessuna domina: la più scelta è il %d%% (era il 52%%)"
+			% roundi(float(massimo) / 2.4))
+
+	# E NON È UN DADO: lo STESSO carattere non gira su tutte e sette. Se
+	# `decide` tornasse casuale, quasi tutti darebbero 5+ risposte diverse.
+	var stretti := 0
+	for n in ventagli:
+		if int(n) <= 3:
+			stretti += int(ventagli[n])
+	t.ok(float(stretti) / 240.0 > 0.9,
+			"e resta STRETTA: il %d%% dei caratteri sceglie fra tre risposte,"
+			% roundi(float(stretti) / 2.4)
+			+ " non fra sette — imprevedibile per chi guarda, riconducibile"
+			+ " a chi è")
+
+
+## IL TEMPO NON ROMPE NIENTE. `coppia()` chiede la soglia assoluta per
+## FORMARSI, e il conto decade: senza isteresi una coppia nata sul filo si
+## scioglieva in quattro giorni di niente — sedici minuti reali — cioè il
+## decadimento faceva da solo il lavoro che dovevano fare i gesti.
+func _test_l_isteresi_regge_le_coppie(t) -> void:
+	var tutti := ["Anna", "Bruno"]
+	var righe: Array = []
+	for i in AFF.GESTI_VERI_MIN:
+		righe.append(_riga("Anna", "Bruno", "veglia", 0))
+		righe.append(_riga("Bruno", "Anna", "veglia", 0))
+	t.ok(AFF.coppia(righe, "Anna", "Bruno", tutti, 0), "al giorno zero sono una coppia")
+	# duecento giorni in cui non succede NIENTE: il conto è quasi svanito…
+	t.ok(AFF.conto(righe, "Anna", "Bruno", 200) < AFF.SOGLIA_COPPIA,
+			"dopo duecento giorni il conto è sotto la soglia di formazione")
+	t.ok(not AFF.coppia(righe, "Anna", "Bruno", tutti, 200),
+			"…e non basterebbe più a farli MEttere insieme oggi")
+	# …ma restano insieme, perché nessun altro è diventato il loro massimo
+	t.ok(AFF.ancora_coppia(righe, "Anna", "Bruno", tutti, 200),
+			"E RESTANO INSIEME LO STESSO: formarsi costa, restare no — ci vuole"
+			+ " qualcuno altro per non esserlo più, non il calendario")
+	# e con qualcuno altro, si lasciano
+	var terzo: Array = righe.duplicate(true)
+	for i in range(200, 214):
+		terzo.append(_riga("Carla", "Bruno", "consolazione", i))
+		terzo.append(_riga("Bruno", "Carla", "coraggio", i))
+	t.ok(not AFF.ancora_coppia(terzo, "Anna", "Bruno", ["Anna", "Bruno", "Carla"], 214),
+			"…e con qualcun altro diventato il suo massimo, sì")
+
+
+## I GESTI VERI ESISTONO NEL GIOCO. Senza, `coppia()` non poteva essere vera
+## MAI: dei tredici tipi, il gioco ne emetteva tre e tutti sotto la soglia
+## del «gesto vero» — e le sette risposte alla rottura erano codice morto in
+## partita, con la suite verde su un villaggio che non esiste.
+func _test_i_gesti_veri_li_emette_qualcuno(t) -> void:
+	var sorgenti := {}
+	for f in ["res://scenes/npc/Lavori.gd", "res://scenes/world/Nascite.gd",
+			"res://scenes/npc/Visitors.gd", "res://scenes/interact/Salone.gd",
+			"res://scenes/interact/Concerto.gd"]:
+		var fh := FileAccess.open(f, FileAccess.READ)
+		if fh:
+			sorgenti[f] = fh.get_as_text()
+	var pesanti := 0
+	for tipo in AFF.GESTI:
+		if absf(float(AFF.GESTI[tipo])) < AFF.PESO_VERO:
+			continue
+		for f2 in sorgenti:
+			if str(sorgenti[f2]).contains('"%s"' % tipo):
+				pesanti += 1
+				break
+	t.ok(pesanti >= AFF.GESTI_VERI_MIN,
+			"il gioco emette almeno %d tipi di gesto VERO (%d): senza,"
+			% [AFF.GESTI_VERI_MIN, pesanti]
+			+ " nessuna coppia potrebbe formarsi e tutto il sistema sarebbe"
+			+ " codice morto in partita")

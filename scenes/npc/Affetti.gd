@@ -202,6 +202,26 @@ static func coppia(righe: Array, a: String, b: String, tutti: Array, oggi: int,
 
 
 ## Tutte le coppie del villaggio, oggi. Pura. Ognuno sta in una sola.
+## RESTANO INSIEME? È `coppia()` SENZA la soglia assoluta — l'isteresi che
+## mancava. Formarsi costa (bisogna superare `SOGLIA_COPPIA`); restare no:
+## una volta che siete voi due, ci vuole QUALCUNO ALTRO per non esserlo più,
+## non il calendario.
+##
+## Senza questa distinzione il decadimento del ricordo faceva da solo il
+## lavoro dei gesti: misurato, una coppia appena formata si scioglieva in
+## quattro giorni di niente. Era esattamente la macchina del divorzio che il
+## progetto si era ripromesso di non scrivere.
+static func ancora_coppia(righe: Array, a: String, b: String, tutti: Array,
+		oggi: int, lealta_a := 0.5, lealta_b := 0.5) -> bool:
+	if a == "" or b == "" or a == b:
+		return false
+	if gesti_veri(righe, a, b) < GESTI_VERI_MIN:
+		return false
+	var da_a := il_piu_caro(righe, a, tutti, oggi, lealta_a)
+	var da_b := il_piu_caro(righe, b, tutti, oggi, lealta_b)
+	return str(da_a[0]) == b and str(da_b[0]) == a
+
+
 static func coppie(righe: Array, tutti: Array, oggi: int,
 		lealta := {}) -> Array:
 	var out: Array = []
@@ -336,6 +356,15 @@ func giro_del_giorno(oggi: int) -> void:
 		var a := str((c as Array)[0])
 		var b := str((c as Array)[1])
 		if _ancora_insieme(adesso, a, b):
+			continue
+		# L'ISTERESI: chi c'era ieri non si lascia perché il conto è sceso
+		# sotto la soglia di FORMAZIONE — solo perché qualcun altro è
+		# diventato il massimo. Senza questa riga il tempo faceva il lavoro
+		# dei gesti, e una coppia nata sul filo si scioglieva in quattro
+		# giorni di niente.
+		if ancora_coppia(_righe, a, b, _tutti(), oggi,
+				_lealta_di(a), _lealta_di(b)):
+			adesso.append([a, b])
 			continue
 		_si_sono_lasciati(a, b, oggi)
 	_coppie_ieri = adesso
