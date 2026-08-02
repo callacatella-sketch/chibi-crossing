@@ -364,7 +364,7 @@ static func items() -> Array[Dictionary]:
 			"cols": [[Vector3(1.0, 1.0, 0.7), Vector3(0, 0.5, 0)]]},
 		{"name": "Ombrellone", "cat": 2, "type": "cell", "layer": 2,
 			"builder": _ombrellone,
-			"cols": [[Vector3(0.2, 2.0, 0.2), Vector3(0, 1.0, 0)]]},
+			"cols": [[Vector3(0.2, 2.2, 0.2), Vector3(0, 1.1, 0)]]},
 		{"name": "Fioriera", "cat": 2, "type": "cell", "layer": 2,
 			"builder": _fioriera,
 			"cols": [[Vector3(1.0, 0.5, 0.4), Vector3(0, 0.25, 0)]]},
@@ -3990,21 +3990,17 @@ static func _vetrina_dolci() -> Node3D:
 static func _sgabello_alto() -> Node3D:
 	# LO SGABELLO ALTO: quello da bancone, col poggiapiedi. Ci si sta in
 	# bilico e si parla per ore. Il poggiapiedi è un ANELLO vero (un toro,
-	# non un disco pieno), il cuscino è bombato col bordino cucito, e le
-	# gambe finiscono in un piedino d'ottone.
+	# non un disco pieno) e il cuscino è bombato col bordino cucito.
 	var n := Node3D.new()
 	var cromo := _mat(CROMO, Color("b9bec6"), 7.0, 0.3)
 	var cuoio := _mat(BAR_ROSSO, BAR_ROSSO_CUPO, 4.5, 0.5)
 	var cupo := _mat(BAR_ROSSO_CUPO, Color("8f3f39"), 4.0, 0.4)
-	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
 	for i in 3:
 		var a := PI * 2.0 / 3.0 * float(i)
 		var g := _cyl(n, 0.02, 0.026, 0.72, cromo,
 				Vector3(cos(a) * 0.12, 0.36, sin(a) * 0.12))
 		g.rotation.x = cos(a + PI * 0.5) * 0.12
 		g.rotation.z = -sin(a + PI * 0.5) * 0.12
-		_cyl(n, 0.028, 0.03, 0.03, ottone,
-				Vector3(cos(a) * 0.145, 0.015, sin(a) * 0.145))
 	var anello := MeshInstance3D.new()
 	var am := TorusMesh.new()
 	am.inner_radius = 0.155
@@ -4148,10 +4144,6 @@ static func _sedia_vimini() -> Node3D:
 			Vector3(0, 0.65, 0.212), Vector3(0.10, 0.60, 0.20),
 			Vector3(0.125, 0.44, 0.15)],
 			[0.011, 0.011, 0.011, 0.011, 0.011], telaio)
-	for i in 4:
-		var v := _cyl(n, 0.009, 0.011, 0.30, intreccio,
-				Vector3(-0.10 + 0.066 * float(i), 0.80, 0.224))
-		v.rotation.x = -0.13
 	return n
 
 
@@ -4341,15 +4333,16 @@ static func _biliardino() -> Node3D:
 	var squadre := [BAR_ROSSO, Color("6f93b8")]
 	for i in 4:
 		var x := -0.33 + 0.22 * float(i)
-		var stecca := _cyl(n, 0.016, 0.016, 1.6, acciaio, Vector3(x, 0.95, 0))
+		var stecca := _cyl(n, 0.016, 0.016, 0.95, acciaio, Vector3(x, 0.95, 0))
 		stecca.rotation.x = PI * 0.5
 		stecca.name = "Stecca%d" % i
-		# l'impugnatura da un lato solo, alternata come nei biliardini veri
+		# l'impugnatura da un lato solo, alternata come nei biliardini
+		# veri — la stecca sporge quanto serve alla presa, non il doppio
 		var lato := -1.0 if i % 2 == 0 else 1.0
-		_cyl(n, 0.034, 0.034, 0.2, _mat(WOOD_DARK, Color("5c4030"), 4.0, 0.4),
-				Vector3(x, 0.95, lato * 0.72)).rotation.x = PI * 0.5
+		_cyl(n, 0.034, 0.034, 0.18, _mat(WOOD_DARK, Color("5c4030"), 4.0, 0.4),
+				Vector3(x, 0.95, lato * 0.52)).rotation.x = PI * 0.5
 		_ball(n, 0.038, _mat(WOOD_DARK, Color("5c4030"), 4.0, 0.4),
-				Vector3(x, 0.95, lato * 0.83))
+				Vector3(x, 0.95, lato * 0.63))
 		# due omini per stecca, appesi SOTTO la stecca, con la testa tonda
 		var col: Color = squadre[i % 2]
 		var panno := _mat(col, col.darkened(0.2), 4.0, 0.4)
@@ -4376,45 +4369,101 @@ static func _biliardino() -> Node3D:
 	return n
 
 
+## LA FALDA TORNITA FRA DUE ANGOLI: la stessa superficie di rivoluzione
+## del lathe, ma solo da a0 ad a1 — è ciò che rende possibili gli
+## SPICCHI bicolori veri di un ombrellone: due mesh alternate sullo
+## stesso profilo, senza costole che sbucano e senza fasce dipinte.
+## A due facce: un ombrellone si guarda soprattutto da sotto.
+static func _lathe_spicchio(parent: Node3D, profilo: Array, mat: Material,
+		a0: float, a1: float, passi := 6) -> MeshInstance3D:
+	var np := profilo.size()
+	var n2: Array[Vector2] = []
+	for i in np:
+		var d: Vector2 = ((profilo[mini(i + 1, np - 1)] as Vector2)
+				- (profilo[maxi(i - 1, 0)] as Vector2)).normalized()
+		n2.append(Vector2(d.y, -d.x).normalized())
+	var punto := func(i: int, j: int) -> Vector3:
+		var a := lerpf(a0, a1, float(j) / float(passi))
+		var p: Vector2 = profilo[i]
+		return Vector3(cos(a) * p.x, p.y, -sin(a) * p.x)
+	var norma := func(i: int, j: int) -> Vector3:
+		var a := lerpf(a0, a1, float(j) / float(passi))
+		return Vector3(cos(a) * n2[i].x, n2[i].y, -sin(a) * n2[i].x).normalized()
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in np - 1:
+		for j in passi:
+			var q := [punto.call(i, j), punto.call(i + 1, j),
+					punto.call(i + 1, j + 1), punto.call(i, j + 1)]
+			var qn := [norma.call(i, j), norma.call(i + 1, j),
+					norma.call(i + 1, j + 1), norma.call(i, j + 1)]
+			for k in [0, 1, 2, 0, 2, 3]:
+				st.set_normal(qn[k])
+				st.add_vertex(q[k])
+			for k in [0, 2, 1, 0, 3, 2]:
+				st.set_normal(-(qn[k] as Vector3))
+				st.add_vertex(q[k])
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = mat
+	parent.add_child(mi)
+	return mi
+
+
 static func _ombrellone() -> Node3D:
-	# L'OMBRELLONE: a spicchi, con la frangia e il pomello. Sotto ci stanno
-	# due tavolini e mezzo pomeriggio.
+	# L'OMBRELLONE: GRANDE, che l'ombra deve coprire due tavolini e mezzo
+	# pomeriggio. Dodici spicchi bicolori VERI sulla stessa curva di tela,
+	# le stecche di legno sotto la falda, il colletto che le raccoglie sul
+	# palo, la frangia a onde che segue i colori, e in cima il pomello
+	# tornito con la puntina d'ottone.
 	var n := Node3D.new()
 	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
-	BUILDER.lathe(n, [Vector2(0.275, 0.0), Vector2(0.285, 0.02),
-			Vector2(0.24, 0.05), Vector2(0.14, 0.085), Vector2(0.06, 0.1)],
-			_mat(STONE, STONE_DARK, 4.0, 0.5))
-	_cyl(n, 0.035, 0.045, 2.05, legno, Vector3(0, 1.02, 0))
-	# la cupola a spicchi alternati
 	var telo_a := _mat(CREAM, Color("f0e4cc"), 5.0, 0.35)
 	var telo_b := _mat(BAR_ROSSO, BAR_ROSSO_CUPO, 4.5, 0.4)
+	# la base di pietra tornita, col collare di legno che ferma il palo
+	BUILDER.lathe(n, [Vector2(0.33, 0.0), Vector2(0.34, 0.025),
+			Vector2(0.295, 0.06), Vector2(0.175, 0.10), Vector2(0.07, 0.13)],
+			_mat(STONE, STONE_DARK, 4.0, 0.5))
+	_cyl(n, 0.052, 0.058, 0.05, legno, Vector3(0, 0.15, 0))
+	_cyl(n, 0.035, 0.045, 2.25, legno, Vector3(0, 1.125, 0))
 	var cupola := Node3D.new()
 	cupola.name = "Cupola"
-	cupola.position = Vector3(0, 1.98, 0)
+	cupola.position = Vector3(0, 2.12, 0)
 	n.add_child(cupola)
-	# LA CUPOLA NON È NEMMENO UN CONO: è una falda TORNITA che si
-	# incurva scendendo, come la tela tesa sulle stecche — un cono dritto
-	# è già geometria, non stoffa. La fascia rossa sul bordo segue la
-	# stessa curva (le costole radiali a boxes uscivano dal telo come
-	# lame: la lettura «a due colori» si ottiene con una seconda falda,
-	# che non può sbucare da nessuna parte).
-	BUILDER.lathe(cupola, [Vector2(0.615, -0.205), Vector2(0.60, -0.165),
-			Vector2(0.54, -0.105), Vector2(0.43, -0.035), Vector2(0.29, 0.03),
-			Vector2(0.15, 0.085), Vector2(0.04, 0.125)], telo_a)
-	BUILDER.lathe(cupola, [Vector2(0.635, -0.215), Vector2(0.625, -0.19),
-			Vector2(0.585, -0.135), Vector2(0.525, -0.085)], telo_b)
-	# il puntale e il pomello
-	_cyl(cupola, 0.02, 0.09, 0.13, telo_a, Vector3(0, 0.17, 0))
-	_ball(cupola, 0.042, legno, Vector3(0, 0.25, 0))
-	# la frangia: ATTACCATA al bordo del cono (raggio 0.62, quota -0.21),
-	# non a mezz'aria più in fuori
-	for i in 20:
-		var a2 := PI * 2.0 / 20.0 * float(i)
-		var dente := _ball(cupola, 0.055,
-				telo_b if i % 2 == 0 else telo_a,
-				Vector3(cos(a2) * 0.6, -0.225, sin(a2) * 0.6),
-				Vector3(1.0, 0.5, 0.6))
-		dente.rotation.y = -a2
+	# la tela: un'unica curva che si incurva scendendo, percorsa a
+	# spicchi alternati panna e rosso
+	var tela: Array = [Vector2(1.0, -0.30), Vector2(0.985, -0.268),
+			Vector2(0.92, -0.185), Vector2(0.80, -0.09), Vector2(0.63, 0.0),
+			Vector2(0.44, 0.075), Vector2(0.24, 0.13), Vector2(0.06, 0.165)]
+	for s in 12:
+		var a0 := TAU / 12.0 * float(s)
+		_lathe_spicchio(cupola, tela, telo_a if s % 2 == 0 else telo_b,
+				a0, a0 + TAU / 12.0)
+	# le stecche sotto la tela, una per cucitura, raccolte dal mozzo
+	for s2 in 12:
+		var a := TAU / 12.0 * float(s2)
+		var giro := Basis(Vector3.UP, -a)
+		var punti: Array = []
+		for p in [Vector2(0.10, 0.135), Vector2(0.44, 0.058),
+				Vector2(0.80, -0.107), Vector2(0.975, -0.30)]:
+			punti.append(giro * Vector3((p as Vector2).x, (p as Vector2).y, 0))
+		BUILDER.tube(cupola, punti, [0.013, 0.012, 0.011, 0.009], legno, 14, 8)
+	_cyl(cupola, 0.055, 0.075, 0.075, legno, Vector3(0, 0.115, 0))
+	# il pomello tornito in cima, con la puntina d'ottone
+	BUILDER.lathe(cupola, [Vector2(0.035, 0.16), Vector2(0.052, 0.185),
+			Vector2(0.048, 0.215), Vector2(0.028, 0.245), Vector2(0.012, 0.27),
+			Vector2(0.0, 0.28)], legno)
+	_ball(cupola, 0.014, _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4),
+			Vector3(0, 0.285, 0))
+	# la frangia a onde sul bordo, un dente per mezzo spicchio, del
+	# colore del suo spicchio
+	for i in 24:
+		var a2 := TAU / 24.0 * (float(i) + 0.5)
+		var dente := _ball(cupola, 0.056,
+				telo_a if (i >> 1) % 2 == 0 else telo_b,
+				Vector3(cos(a2) * 0.985, -0.318, -sin(a2) * 0.985),
+				Vector3(1.0, 0.5, 0.42))
+		dente.rotation.y = a2 + PI * 0.5
 	return n
 
 
@@ -4621,9 +4670,9 @@ static func _insegna_bar() -> Node3D:
 	_lastra(n, 0.05, 0.30, 0.02, 0.04, ferro, Vector3(-0.41, 2.0, 0),
 			Vector3(0, PI * 0.5, 0))
 	BUILDER.tube(n, [Vector3(-0.40, 2.02, 0), Vector3(-0.40, 2.10, 0),
-			Vector3(-0.32, 2.13, 0), Vector3(-0.05, 2.135, 0),
-			Vector3(0.16, 2.125, 0), Vector3(0.21, 2.10, 0)],
-			[0.019, 0.019, 0.018, 0.017, 0.016, 0.014], ferro)
+			Vector3(-0.32, 2.13, 0), Vector3(-0.05, 2.138, 0),
+			Vector3(0.34, 2.128, 0)],
+			[0.019, 0.019, 0.018, 0.016, 0.014], ferro)
 	BUILDER.tube(n, [Vector3(-0.33, 2.115, 0), Vector3(-0.24, 2.05, 0),
 			Vector3(-0.285, 2.005, 0), Vector3(-0.33, 2.035, 0),
 			Vector3(-0.305, 2.075, 0)],
@@ -4632,18 +4681,20 @@ static func _insegna_bar() -> Node3D:
 	appesa.name = "Insegna"
 	appesa.position = Vector3(0.1, 2.1, 0)
 	n.add_child(appesa)
-	# gli anelli da cui pende, e la targa in cornice d'ottone stondata
+	# gli anelli AVVOLGONO il braccio (asse lungo il braccio, centro sul
+	# suo asse: un anello posato sotto è un'insegna che levita), e i
+	# tiranti scendono dagli anelli alla targa
 	for dx: float in [-0.16, 0.16]:
 		var anello := MeshInstance3D.new()
 		var am := TorusMesh.new()
-		am.inner_radius = 0.012
-		am.outer_radius = 0.022
+		am.inner_radius = 0.019
+		am.outer_radius = 0.031
 		anello.mesh = am
 		anello.material_override = ottone
-		anello.position = Vector3(dx, 0.005, 0)
-		anello.rotation.x = PI * 0.5
+		anello.position = Vector3(dx, 0.033, 0)
+		anello.rotation.z = PI * 0.5
 		appesa.add_child(anello)
-		_cyl(appesa, 0.006, 0.006, 0.13, ottone, Vector3(dx, -0.075, 0))
+		_cyl(appesa, 0.006, 0.006, 0.13, ottone, Vector3(dx, -0.048, 0))
 	_lastra(appesa, 0.29, 0.42, 0.06, 0.035, ottone, Vector3(0, -0.32, 0),
 			Vector3(0, PI * 0.5, 0))
 	_lastra(appesa, 0.265, 0.375, 0.05, 0.04, _mat(CREAM, Color("f0e4cc"), 5.0, 0.3),

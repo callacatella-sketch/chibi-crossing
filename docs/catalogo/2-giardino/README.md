@@ -28,7 +28,7 @@
 | **Lucine**<br><sub>1.00 × 1.94 m</sub> | <img src="lucine/1-fronte.jpg" width="200"> | <img src="lucine/2-tre-quarti.jpg" width="200"> | <img src="lucine/3-profilo.jpg" width="200"> |
 | **Manichetta**<br><sub>0.65 × 0.59 m</sub> | <img src="manichetta/1-fronte.jpg" width="200"> | <img src="manichetta/2-tre-quarti.jpg" width="200"> | <img src="manichetta/3-profilo.jpg" width="200"> |
 | **Mongolfiera**<br><sub>0.99 × 2.47 m</sub> | <img src="mongolfiera/1-fronte.jpg" width="200"> | <img src="mongolfiera/2-tre-quarti.jpg" width="200"> | <img src="mongolfiera/3-profilo.jpg" width="200"> |
-| **Ombrellone**<br><sub>1.31 × 2.28 m</sub> | <img src="ombrellone/1-fronte.jpg" width="200"> | <img src="ombrellone/2-tre-quarti.jpg" width="200"> | <img src="ombrellone/3-profilo.jpg" width="200"> |
+| **Ombrellone**<br><sub>2.01 × 2.42 m</sub> | <img src="ombrellone/1-fronte.jpg" width="200"> | <img src="ombrellone/2-tre-quarti.jpg" width="200"> | <img src="ombrellone/3-profilo.jpg" width="200"> |
 | **Orto**<br><sub>0.92 × 0.24 m</sub> | <img src="orto/1-fronte.jpg" width="200"> | <img src="orto/2-tre-quarti.jpg" width="200"> | <img src="orto/3-profilo.jpg" width="200"> |
 | **Panchina**<br><sub>0.95 × 0.87 m</sub> | <img src="panchina/1-fronte.jpg" width="200"> | <img src="panchina/2-tre-quarti.jpg" width="200"> | <img src="panchina/3-profilo.jpg" width="200"> |
 | **Pennone**<br><sub>0.11 × 2.07 m</sub> | <img src="pennone/1-fronte.jpg" width="200"> | <img src="pennone/2-tre-quarti.jpg" width="200"> | <img src="pennone/3-profilo.jpg" width="200"> |
