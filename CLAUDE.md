@@ -454,7 +454,37 @@ proporzione il sistema sposerebbe i due che lavorano accanto.
 reciproco + soglia + gesti veri). Niente da tenere sincronizzato, niente
 che resti appeso a metà, nessun salvataggio da migrare.
 
-**Trappole già pagate:**
+**Trappole già pagate (tutte MISURATE da una revisione avversariale, non
+immaginate):**
+- **Le REAZIONI valevano zero.** `punteggio()` ha due termini vivi per i
+  mestieri (il sollievo sui drive E il tiro del sogno); per le reazioni ne
+  viveva uno solo, moltiplicato per `malessere()` — che `passa_giorno()`
+  porta a zero. Per un vicino che sta bene, cioè NEL CASO COMUNE, i sette
+  punteggi valevano esattamente `0.000000`: il softmax su tre pareggi dava
+  un **dado uniforme sulle prime tre chiavi nell'ordine in cui la tabella è
+  scritta**, identico per un orgoglioso e per un codardo. Serviva un termine
+  che NON passasse dal malessere: `AMPIEZZA_TRATTO`, il tiro del carattere.
+  Misurato dopo: sette risposte fra il 10 e il 19% su 400 caratteri veri, e
+  lo stesso carattere che in 30 rotture ne dà tre diverse nel 98% dei casi.
+- **Nessuna coppia poteva formarsi, MAI.** Dei tredici tipi di gesto il
+  gioco ne emetteva TRE, tutti sotto `PESO_VERO`: `coppia()` era falsa per
+  costruzione e tutto il sistema era codice morto in partita — con la suite
+  verde su un villaggio che non esiste. Ora i gesti pesanti arrivano dal
+  LAVORO che il giocatore assegna (chi fa la guardia veglia su chi dorme,
+  chi cucina divide quello che ha) e dalle nascite.
+- **Il tempo rompeva le coppie.** `coppia()` chiede il valore assoluto sopra
+  soglia e il conto decade: una coppia nata sul filo si scioglieva in
+  quattro giorni di niente — sedici minuti reali. Il decadimento ERA il tick
+  giornaliero che la regola 3 vieta. Ora `ancora_coppia()` è l'isteresi:
+  formarsi costa, restare no.
+- **Il cucciolo spariva al ricaricamento.** Dargli la cella della madre per
+  farli uscire dalla stessa porta lo cancellava: `load_extra` scarta le
+  righe la cui cella è già presa, e la madre è sempre prima nell'array. La
+  convivenza per CELLA è sbagliata — la cella è la chiave di unicità del
+  letto. **Un bambino cancellato dal salvataggio è la cosa peggiore che
+  questo sistema potesse fare**, ed era una regressione mia.
+- **`_rng.state` non sopravviveva al JSON:** salvato come intero perdeva
+  undici bit. Si salva come stringa.
 - `Animo.punteggio()` era CIECO ai tratti: i pesi di carattere vivevano in
   `disagio()` e non venivano mai chiamati, quindi due vicini con gli stessi
   bisogni ricevevano punteggi identici. Finché era così, «libero arbitrio»
