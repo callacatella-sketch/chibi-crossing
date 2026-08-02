@@ -1150,12 +1150,17 @@ static func poltroncina() -> Node3D:
 	var n := Node3D.new()
 	var boucle := CAT._mat(Color("efe4d0"), Color("d8c9ad"), 7.0, 0.55)
 	var ottone := _ottone()
+	# LE GAMBE DEVONO ARRIVARE SOTTO LA SEDUTA. La seduta è una sfera
+	# schiacciata: al suo bordo la pancia è ALTA, e quattro gambe piantate
+	# larghe finivano otto centimetri sotto il fondo — di profilo si
+	# vedevano quattro bastoncini d'ottone sospesi sotto una nuvola. Più
+	# strette e più lunghe, così la cima entra nell'imbottitura.
 	for sx: float in [-1.0, 1.0]:
 		for sz: float in [-1.0, 1.0]:
-			var g := CAT._cyl(n, 0.011, 0.014, 0.26, ottone,
-					Vector3(sx * 0.20, 0.13, sz * 0.18))
-			g.rotation.x = sz * 0.10
-			g.rotation.z = -sx * 0.10
+			var g := CAT._cyl(n, 0.011, 0.014, 0.31, ottone,
+					Vector3(sx * 0.155, 0.145, sz * 0.14))
+			g.rotation.x = sz * 0.12
+			g.rotation.z = -sx * 0.12
 	# la seduta: una sfera schiacciata, non una scatola
 	CAT._ball(n, 0.27, boucle, Vector3(0, 0.34, 0), Vector3(1.0, 0.42, 0.86))
 	CAT._ball(n, 0.24, CAT._mat(Color("f5ecdb"), Color("ded0b6"), 7.0, 0.5),
@@ -1230,10 +1235,11 @@ static func cesto_saldi() -> Node3D:
 	# tre maniche che pendono fuori dal bordo: è il segno che dentro c'è ROBA
 	for i in 3:
 		var a2 := 0.7 + float(i) * 2.1
-		# fuori dal bordo (0.362), non dentro il fianco: dentro la manica
-		# attraversava la parete del cesto e spuntava come una toppa nera
+		# APPOGGIATE SUL BORDO (che sta a 0.362): più fuori pendevano nel
+		# vuoto senza toccare niente, più dentro attraversavano la parete
+		# del cesto e spuntavano fuori come una toppa nera
 		var m := CAT._cyl(n, 0.026, 0.031, 0.26, _stoffa(1 + i * 3),
-				Vector3(cos(a2) * 0.385, 0.335, sin(a2) * 0.385))
+				Vector3(cos(a2) * 0.352, 0.345, sin(a2) * 0.352))
 		m.rotation.z = 0.6 - float(i) * 0.7
 		m.rotation.x = 0.35 + float(i) * 0.2
 
