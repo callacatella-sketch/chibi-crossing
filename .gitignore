@@ -37,3 +37,4 @@ addons/lua-gdextension/build/*
 # Il catalogo visivo e in JPEG (tools/scatto_catalogo.gd): i PNG restano
 # solo come file di lavoro locali, non si versionano.
 docs/catalogo/**/*.png
+.DS_Store

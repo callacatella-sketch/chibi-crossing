@@ -72,8 +72,8 @@ static func items() -> Array[Dictionary]:
 			"cols": [[Vector3(1.0, 0.12, 1.0), Vector3(0, -0.1, 0)]]},
 		{"name": "Casa albero", "cat": 0, "type": "cell", "layer": 2, "builder": _treehouse,
 			"cols": [[Vector3(0.62, 2.4, 0.62), Vector3(0, 1.2, 0)],
-					[Vector3(2.3, 0.12, 2.3), Vector3(0, 2.5, 0)],
-					[Vector3(0.7, 0.1, 2.79), Vector3(0, 1.28, 1.6), 1.165]]},
+					[Vector3(3.0, 0.12, 3.0), Vector3(0, 2.5, 0)],
+					[Vector3(0.7, 0.1, 2.85), Vector3(0, 1.28, 1.95), 1.165]]},
 
 		# --- Arredo ---
 		{"name": "Tavolino", "cat": 1, "type": "cell", "layer": 2, "builder": _table,
@@ -364,7 +364,7 @@ static func items() -> Array[Dictionary]:
 			"cols": [[Vector3(1.0, 1.0, 0.7), Vector3(0, 0.5, 0)]]},
 		{"name": "Ombrellone", "cat": 2, "type": "cell", "layer": 2,
 			"builder": _ombrellone,
-			"cols": [[Vector3(0.2, 2.0, 0.2), Vector3(0, 1.0, 0)]]},
+			"cols": [[Vector3(0.2, 2.2, 0.2), Vector3(0, 1.1, 0)]]},
 		{"name": "Fioriera", "cat": 2, "type": "cell", "layer": 2,
 			"builder": _fioriera,
 			"cols": [[Vector3(1.0, 0.5, 0.4), Vector3(0, 0.25, 0)]]},
@@ -520,27 +520,154 @@ static func _rug() -> Node3D:
 	return n
 
 
+## Il muro a graticcio: zoccolo di pietra, intonaco fra i legni a vista,
+## e i legni che sporgono di un soffio dall'intonaco — è quel gradino di
+## profondità (l'ombra che ci si posa dentro) a dire "costruito", non
+## "estruso". I muri si AFFIANCANO: ogni linea orizzontale corre per
+## tutta la larghezza del modulo, così da un muro all'altro prosegue
+## senza cuciture; i montanti stanno DENTRO il modulo (±0.435), mai
+## sulla mezzeria condivisa, o due muri adiacenti li sovrapporrebbero
+## in z-fighting. La traversa a quota 1.61 è la STESSA dell'architrave
+## della Porta: una stanza con porte e finestre ha un'unica linea che
+## le lega tutte.
 static func _wall() -> Node3D:
+	return _ossatura_muro(false)
+
+
+## L'ossatura condivisa di Muro e Finestra: zoccolo, battiscopa, graticcio
+## e trave di colmo sono identici — cambia solo l'INTONACO, che per la
+## finestra lascia un'apertura vera (x ±0.29, y 0.89–1.61) invece di
+## correre pieno dietro al vetro. La prima stesura riusava il muro pieno
+## e ci appoggiava sopra il telaio: da fuori la finestra era un riquadro
+## color intonaco — il vetro, incassato, restava sepolto DENTRO il muro.
+static func _ossatura_muro(con_apertura: bool) -> Node3D:
 	var n := Node3D.new()
-	_box(n, Vector3(1.0, 2.0, 0.14), _mat(PLASTER, PLASTER_SHADE, 2.5, 0.5), Vector3(0, 1.0, 0))
-	_box(n, Vector3(1.0, 0.14, 0.2), _mat(WOOD, WOOD_DARK, 4.0, 0.5), Vector3(0, 0.07, 0))
-	_box(n, Vector3(1.0, 0.08, 0.18), _mat(WOOD, WOOD_DARK, 4.0, 0.5), Vector3(0, 2.04, 0))
+	var plaster := _mat(PLASTER, PLASTER_SHADE, 2.5, 0.5)
+	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var wood_scuro := _mat(WOOD_DARK, Color("8a6540"), 3.5, 0.5)
+	var stone := _mat(STONE, STONE_DARK, 3.0, 0.55)
+
+	# lo zoccolo di pietra: il muro non nasce dall'erba, si appoggia a un
+	# basamento — la stessa pietra di fiume dei sentieri e della palestra
+	_box(n, Vector3(1.0, 0.09, 0.22), stone, Vector3(0, 0.045, 0))
+	# il battiscopa di legno, sopra la pietra
+	_box(n, Vector3(1.0, 0.07, 0.19), wood, Vector3(0, 0.125, 0))
+	# l'intonaco: un filo più sottile dei legni (0.13 contro 0.17), così
+	# il graticcio sta in rilievo e si porta dietro la sua ombra
+	if con_apertura:
+		# quattro campi attorno all'apertura della finestra
+		for sx0: float in [-1.0, 1.0]:
+			_box(n, Vector3(0.21, 1.84, 0.13), plaster, Vector3(sx0 * 0.395, 1.08, 0))
+		_box(n, Vector3(0.58, 0.75, 0.13), plaster, Vector3(0, 0.535, 0))
+		_box(n, Vector3(0.58, 0.41, 0.13), plaster, Vector3(0, 1.795, 0))
+	else:
+		_box(n, Vector3(1.0, 1.84, 0.13), plaster, Vector3(0, 1.08, 0))
+	# i due montanti del graticcio
+	for sx: float in [-1.0, 1.0]:
+		_box(n, Vector3(0.09, 1.84, 0.17), wood, Vector3(sx * 0.435, 1.08, 0))
+	# la traversa: prosegue l'architrave della Porta (quota 1.61) e divide
+	# l'intonaco in due campi, come in un graticcio vero
+	_box(n, Vector3(1.0, 0.08, 0.17), wood, Vector3(0, 1.61, 0))
+	# i cavicchi al giunto montante-traversa: passano da parte a parte,
+	# le testine si vedono su entrambe le facce
+	for sx2: float in [-1.0, 1.0]:
+		var cav := _cyl(n, 0.013, 0.013, 0.19, wood_scuro, Vector3(sx2 * 0.435, 1.61, 0))
+		cav.rotation.x = PI * 0.5
+	# le mensoline sotto la trave di colmo, in asse coi montanti: il
+	# gradino d'ombra che fa da capitello
+	for sx3: float in [-1.0, 1.0]:
+		_box(n, Vector3(0.07, 0.07, 0.2), wood, Vector3(sx3 * 0.435, 1.965, 0))
+	# la trave di colmo col suo coprigiunto scuro: due piani sfalsati
+	# prendono la luce in modo diverso, un box solo no
+	_box(n, Vector3(1.0, 0.08, 0.18), wood, Vector3(0, 2.04, 0))
+	_box(n, Vector3(1.0, 0.03, 0.22), wood_scuro, Vector3(0, 2.095, 0))
 	return n
 
 
+## La finestra: telaio VERO (montanti e traverse che sporgono dal muro,
+## non un box pieno con il vetro appiccicato sopra), vetro INCASSATO fra
+## le due facce — è il rientro a dire "qui il muro si apre" — davanzale
+## sporgente su entrambi i lati e una fioriera coi fiori sul fronte (-Z:
+## il giocatore la gira col flip del pezzo). La traversa del graticcio a
+## 1.61 fa da architrave alla finestra, senza pezzi in più.
+##
+## ATTENZIONE, contratto con PozzeDiLuce._trova_vetro(): il vetro deve
+## restare FIGLIO DIRETTO di questo nodo, ed essere l'unico figlio col
+## StandardMaterial3D a emissione — è così che la sera lo trova e lo
+## scalda. Le lame di riflesso qui sotto sono additive SENZA emissione
+## proprio per non fargli ombra.
 static func _window_wall() -> Node3D:
-	var n := _wall()
-	_box(n, Vector3(0.58, 0.72, 0.18), _mat(WOOD, WOOD_DARK, 4.0, 0.5), Vector3(0, 1.25, 0))
+	var n := _ossatura_muro(true)
+	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var wood_scuro := _mat(WOOD_DARK, Color("8a6540"), 3.5, 0.5)
+
+	# il telaio: due montanti e due traverse, in rilievo sull'intonaco
+	for sx: float in [-1.0, 1.0]:
+		_box(n, Vector3(0.07, 0.68, 0.19), wood, Vector3(sx * 0.255, 1.25, 0))
+	_box(n, Vector3(0.58, 0.06, 0.19), wood, Vector3(0, 0.94, 0))
+	_box(n, Vector3(0.58, 0.05, 0.19), wood, Vector3(0, 1.565, 0))
+
+	# il vetro, sottile e INCASSATO: sta a metà dello spessore del muro,
+	# arretrato rispetto a entrambe le facce (il vecchio vetro sporgeva
+	# fuori dal telaio, e una lastra a filo muro è una vetrofania)
 	var glass := StandardMaterial3D.new()
 	glass.albedo_color = Color("cfe8f5")
 	glass.emission_enabled = true
 	glass.emission = Color("bfe0f2")
 	glass.emission_energy_multiplier = 0.35
 	glass.roughness = 0.2
-	_box(n, Vector3(0.46, 0.6, 0.2), glass, Vector3(0, 1.25, 0))
+	_box(n, Vector3(0.5, 0.6, 0.05), glass, Vector3(0, 1.25, 0))
+
+	# la crociera, più fine del telaio: è la parte che si guarda in
+	# controluce, e due barre grosse fanno una grata
 	var bar := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
-	_box(n, Vector3(0.46, 0.035, 0.21), bar, Vector3(0, 1.25, 0))
-	_box(n, Vector3(0.035, 0.6, 0.21), bar, Vector3(0, 1.25, 0))
+	_box(n, Vector3(0.46, 0.03, 0.08), bar, Vector3(0, 1.25, 0))
+	_box(n, Vector3(0.03, 0.58, 0.08), bar, Vector3(0, 1.25, 0))
+
+	# il davanzale, sporgente su entrambe le facce: dentro casa è la
+	# mensola del gatto, fuori è il cappello della fioriera. Sale di un
+	# soffio DENTRO la traversa bassa del telaio (0.915 contro 0.91):
+	# due facce esattamente a filo si tagliano con una cucitura chiara
+	_box(n, Vector3(0.7, 0.055, 0.26), wood, Vector3(0, 0.8875, 0))
+
+	# due lame di riflesso oblique, una per faccia: additive e SENZA
+	# emissione (vedi il contratto con PozzeDiLuce qui sopra) — è il
+	# trucco già collaudato dallo specchio della palestra
+	var lama := StandardMaterial3D.new()
+	lama.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	lama.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	lama.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	lama.albedo_color = Color(1, 1, 1, 0.3)
+	for sz: float in [-1.0, 1.0]:
+		var l := _box(n, Vector3(0.05, 0.4, 0.004), lama, Vector3(-0.04, 1.27, sz * 0.028))
+		l.rotation.z = 0.45
+
+	# LA FIORIERA, sul fronte: la cassetta di legno con l'orlo chiaro e le
+	# staffe che la reggono al muro (una cassetta senza staffe fluttua),
+	# il verde che TRABOCCA oltre il bordo — è la fogliolina che ricade
+	# davanti a rompere la linea dritta della cassetta — e quattro fiori
+	# nei rosa del villaggio, ad altezze diverse: una fila di fiori tutti
+	# alla stessa quota è un pettine, non un'aiuola. È il dettaglio che
+	# trasforma "un'apertura nel muro" in "qualcuno abita qui".
+	_box(n, Vector3(0.52, 0.09, 0.08), wood_scuro, Vector3(0, 0.81, -0.17))
+	# l'orlo chiaro della cassetta, e le due staffe fino al muro
+	_box(n, Vector3(0.54, 0.022, 0.095), wood, Vector3(0, 0.851, -0.17))
+	for sxf: float in [-1.0, 1.0]:
+		_box(n, Vector3(0.035, 0.055, 0.14), wood_scuro, Vector3(sxf * 0.19, 0.75, -0.135))
+	var verde := _mat(LEAF, LEAF_DARK, 5.0, 0.5)
+	_ball(n, 0.055, verde, Vector3(-0.15, 0.872, -0.175), Vector3(1.2, 0.75, 0.85))
+	_ball(n, 0.058, verde, Vector3(0.02, 0.878, -0.17), Vector3(1.25, 0.8, 0.8))
+	_ball(n, 0.055, verde, Vector3(0.17, 0.87, -0.175), Vector3(1.1, 0.72, 0.85))
+	# le foglie che ricadono oltre l'orlo, davanti alla cassetta
+	_ball(n, 0.04, verde, Vector3(-0.08, 0.815, -0.212), Vector3(0.9, 1.3, 0.55))
+	_ball(n, 0.036, verde, Vector3(0.12, 0.8, -0.21), Vector3(0.85, 1.2, 0.5))
+	var rosa := _mat(PINK, PINK_DEEP, 4.0, 0.4)
+	var crema := _mat(CREAM, Color("f3dfc8"), 4.0, 0.4)
+	var rosa_fondo := _mat(PINK_DEEP, PINK, 4.0, 0.4)
+	_ball(n, 0.026, rosa, Vector3(-0.19, 0.9, -0.2))
+	_ball(n, 0.022, crema, Vector3(-0.05, 0.932, -0.198))
+	_ball(n, 0.025, rosa_fondo, Vector3(0.08, 0.888, -0.202))
+	_ball(n, 0.021, rosa, Vector3(0.2, 0.915, -0.198))
 	return n
 
 
@@ -553,6 +680,10 @@ static func _door_wall() -> Node3D:
 		_box(n, Vector3(0.16, 2.0, 0.14), plaster, Vector3(side * 0.42, 1.0, 0))
 	_box(n, Vector3(1.0, 0.44, 0.14), plaster, Vector3(0, 1.78, 0))
 	_box(n, Vector3(1.0, 0.08, 0.18), wood, Vector3(0, 2.04, 0))
+	# il coprigiunto scuro sul colmo: la stessa linea del Muro e della
+	# Finestra, così la corona corre ininterrotta lungo tutta la casa
+	_box(n, Vector3(1.0, 0.03, 0.22), _mat(WOOD_DARK, Color("8a6540"), 3.5, 0.5),
+			Vector3(0, 2.095, 0))
 	_box(n, Vector3(0.76, 0.1, 0.16), wood, Vector3(0, 1.61, 0))
 	for side: float in [-1.0, 1.0]:
 		_box(n, Vector3(0.08, 1.56, 0.16), wood, Vector3(side * 0.38, 0.78, 0))
@@ -947,54 +1078,69 @@ static func _treehouse() -> Node3D:
 	var plaster := _mat(PLASTER, PLASTER_SHADE, 2.5, 0.5)
 	var tile := _mat(TERRACOTTA, Color("c47a58"), 3.0, 0.5)
 
-	# tronco, radici, rami
-	_cyl(n, 0.24, 0.36, 2.7, bark, Vector3(0, 1.35, 0))
-	_cyl(n, 0.15, 0.2, 1.4, bark, Vector3(0, 3.3, 0))
-	for i in 4:
-		var a := float(i) / 4.0 * TAU + 0.4
-		var root := _cyl(n, 0.08, 0.14, 0.5, bark, Vector3(cos(a) * 0.34, 0.16, sin(a) * 0.34))
+	# tronco, radici — e il nodo del legno, che ogni albero vero ha.
+	# NIENTE rami sopra la piattaforma: partirebbero da dentro la casa e
+	# sbucherebbero da muri e tetto (è successo: un ramo usciva sopra la
+	# porta come un braccio). Lassù il tronco sparisce nella chioma, e
+	# alla chioma bastano le sfere.
+	_cyl(n, 0.26, 0.38, 2.7, bark, Vector3(0, 1.35, 0))
+	_cyl(n, 0.15, 0.22, 1.4, bark, Vector3(0, 3.3, 0))
+	for i in 5:
+		var a := float(i) / 5.0 * TAU + 0.4
+		var root := _cyl(n, 0.08, 0.15, 0.5, bark, Vector3(cos(a) * 0.36, 0.16, sin(a) * 0.36))
 		root.rotation.x = cos(a) * 0.5
 		root.rotation.z = sin(a) * 0.5
-	for i in 2:
-		var s := 1.0 if i == 0 else -1.0
-		var branch := _cyl(n, 0.06, 0.1, 0.9, bark, Vector3(s * 0.45, 3.55, -0.1 * s))
-		branch.rotation.z = s * 1.0
+	_ball(n, 0.055, _mat(Color("6e4a35"), Color("59391f"), 4.0, 0.5),
+			Vector3(0.2, 1.7, 0.24), Vector3(0.8, 1.0, 0.5))
 
-	# la chioma abbraccia la casetta
-	_ball(n, 1.25, leaf, Vector3(0, 4.45, 0))
-	_ball(n, 0.9, leaf, Vector3(0.95, 4.05, 0.3))
-	_ball(n, 0.95, leaf, Vector3(-0.85, 4.1, -0.35))
-	_ball(n, 0.85, leaf, Vector3(0.1, 4.15, -0.95))
+	# la chioma abbraccia la casetta DA DIETRO e da sopra: arretrata a
+	# nord, così la facciata, la terrazza e la falda sud restano in vista
+	# — una chioma che copre tutto è un cespuglio col mutuo
+	_ball(n, 1.05, leaf, Vector3(0, 4.7, -0.3))
+	_ball(n, 0.75, leaf, Vector3(1.0, 4.3, -0.1))
+	_ball(n, 0.8, leaf, Vector3(-0.9, 4.35, -0.55))
+	_ball(n, 0.8, leaf, Vector3(0.15, 4.35, -1.05))
+	_ball(n, 0.7, leaf, Vector3(0.25, 5.05, 0.2))
 
-	# piattaforma con fascia, travetti e puntoni di sostegno
-	_box(n, Vector3(2.3, 0.1, 2.3), _mat(WOOD_PALE, WOOD, 5.0, 0.4), Vector3(0, 2.51, 0))
-	for gz: float in [-0.75, -0.25, 0.25, 0.75]:
-		_box(n, Vector3(2.3, 0.006, 0.02), dark, Vector3(0, 2.562, gz))
-	for e: float in [-1.16, 1.16]:
-		_box(n, Vector3(2.36, 0.09, 0.07), dark, Vector3(0, 2.5, e))
-		_box(n, Vector3(0.07, 0.09, 2.36), dark, Vector3(e, 2.5, 0))
+	# LA PIATTAFORMA GRANDE: tre metri di assito — la terrazza a sud è
+	# profonda più di un metro, ci si cammina davvero. Fascia perimetrale,
+	# righe delle assi, e i puntoni che ora reggono un piano più largo.
+	_box(n, Vector3(3.0, 0.1, 3.0), _mat(WOOD_PALE, WOOD, 5.0, 0.4), Vector3(0, 2.51, 0))
+	for gz: float in [-1.0, -0.5, 0.0, 0.5, 1.0]:
+		_box(n, Vector3(3.0, 0.006, 0.02), dark, Vector3(0, 2.562, gz))
+	for e: float in [-1.51, 1.51]:
+		_box(n, Vector3(3.08, 0.1, 0.08), dark, Vector3(0, 2.5, e))
+		_box(n, Vector3(0.08, 0.1, 3.08), dark, Vector3(e, 2.5, 0))
 	for sx: float in [-1.0, 1.0]:
 		for sz: float in [-1.0, 1.0]:
-			var strut := _cyl(n, 0.05, 0.05, 1.45, bark, Vector3(sx * 0.5, 1.95, sz * 0.5))
-			strut.rotation.x = -sz * 0.55
-			strut.rotation.z = sx * 0.55
+			var strut := _cyl(n, 0.055, 0.055, 1.75, bark, Vector3(sx * 0.6, 1.85, sz * 0.6))
+			strut.rotation.x = -sz * 0.62
+			strut.rotation.z = sx * 0.62
 
-	# ringhiera (varco a sud per la scala)
+	# la ringhiera: paletti col pomello tondo, corrimano CILINDRICO e
+	# mezza traversa — il varco a sud è per la scala
 	var posts: Array[Vector3] = []
-	for x: float in [-1.1, -0.55, 0.0, 0.55, 1.1]:
-		posts.append(Vector3(x, 0, -1.1))
-	for x: float in [-1.1, -0.55, 0.55, 1.1]:
-		posts.append(Vector3(x, 0, 1.1))
-	for z: float in [-0.55, 0.0, 0.55]:
-		posts.append(Vector3(-1.1, 0, z))
-		posts.append(Vector3(1.1, 0, z))
+	for x: float in [-1.44, -0.96, -0.48, 0.0, 0.48, 0.96, 1.44]:
+		posts.append(Vector3(x, 0, -1.44))
+	for x: float in [-1.44, -0.96, -0.48, 0.48, 0.96, 1.44]:
+		posts.append(Vector3(x, 0, 1.44))
+	for z: float in [-0.96, -0.48, 0.0, 0.48, 0.96]:
+		posts.append(Vector3(-1.44, 0, z))
+		posts.append(Vector3(1.44, 0, z))
 	for p in posts:
-		_box(n, Vector3(0.07, 0.52, 0.07), plank, Vector3(p.x, 2.82, p.z))
-	_box(n, Vector3(2.27, 0.06, 0.05), plank, Vector3(0, 3.08, -1.1))
-	_box(n, Vector3(0.05, 0.06, 2.27), plank, Vector3(-1.1, 3.08, 0))
-	_box(n, Vector3(0.05, 0.06, 2.27), plank, Vector3(1.1, 3.08, 0))
-	for sx: float in [-1.0, 1.0]:
-		_box(n, Vector3(0.72, 0.06, 0.05), plank, Vector3(sx * 0.74, 3.08, 1.1))
+		_box(n, Vector3(0.065, 0.5, 0.065), plank, Vector3(p.x, 2.81, p.z))
+		_ball(n, 0.05, plank, Vector3(p.x, 3.09, p.z))
+	for quota: Array in [[3.08, 0.032], [2.84, 0.02]]:
+		var y_c := float(quota[0])
+		var r_c := float(quota[1])
+		for lato_r: float in [-1.44, 1.44]:
+			var fianco := _cyl(n, r_c, r_c, 2.94, plank, Vector3(lato_r, y_c, 0))
+			fianco.rotation.x = PI * 0.5
+		var nord := _cyl(n, r_c, r_c, 2.94, plank, Vector3(0, y_c, -1.44))
+		nord.rotation.z = PI * 0.5
+		for sx: float in [-1.0, 1.0]:
+			var sud := _cyl(n, r_c, r_c, 1.06, plank, Vector3(sx * 0.92, y_c, 1.44))
+			sud.rotation.z = PI * 0.5
 
 	# la casetta: pareti intonacate, montanti, porta a sud, finestrella accesa
 	var hy := 3.13
@@ -1023,6 +1169,8 @@ static func _treehouse() -> Node3D:
 	glow.emission_enabled = true
 	glow.emission = Color("ffc978")
 	glow.emission_energy_multiplier = 1.1
+	# l'oblò acceso sul fianco est, stavolta con la sua cornice scura e
+	# la crocera — una finestra, non un faro appiccicato
 	var win := MeshInstance3D.new()
 	var wm := CylinderMesh.new()
 	wm.top_radius = 0.14
@@ -1033,22 +1181,140 @@ static func _treehouse() -> Node3D:
 	win.position = Vector3(0.76, 3.24, -0.37)
 	win.rotation.z = PI * 0.5
 	n.add_child(win)
+	var oblo := MeshInstance3D.new()
+	var om := TorusMesh.new()
+	om.inner_radius = 0.13
+	om.outer_radius = 0.175
+	oblo.mesh = om
+	oblo.material_override = dark
+	oblo.position = Vector3(0.762, 3.24, -0.37)
+	oblo.rotation.z = PI * 0.5
+	n.add_child(oblo)
+	var cr_v := _cyl(n, 0.012, 0.012, 0.27, dark, Vector3(0.775, 3.24, -0.37))
+	cr_v.rotation.x = 0.0
+	var cr_o := _cyl(n, 0.012, 0.012, 0.27, dark, Vector3(0.775, 3.24, -0.37))
+	cr_o.rotation.x = PI * 0.5
+	# la finestra QUADRATA che guarda la terrazza, con la fioriera sotto:
+	# da dentro si controlla chi sale dalla scala, come in ogni casa vera
+	_lastra(n, 0.14, 0.26, 0.03, 0.04, dark, Vector3(0.54, 3.32, 0.33),
+			Vector3(0, PI * 0.5, 0))
+	var pane := MeshInstance3D.new()
+	var pm2 := BoxMesh.new()
+	pm2.size = Vector3(0.22, 0.2, 0.03)
+	pane.mesh = pm2
+	pane.material_override = glow
+	pane.position = Vector3(0.54, 3.32, 0.345)
+	n.add_child(pane)
+	_box(n, Vector3(0.24, 0.018, 0.018), dark, Vector3(0.54, 3.32, 0.36))
+	_box(n, Vector3(0.018, 0.21, 0.018), dark, Vector3(0.54, 3.32, 0.36))
+	_box(n, Vector3(0.3, 0.07, 0.1), _mat(Color("6e4a35"), Color("59391f"), 4.0, 0.5),
+			Vector3(0.54, 3.14, 0.4))
+	for fx in 3:
+		var fc: Color = [PINK, Color("ffd76e"), Color("cdbff0")][fx]
+		_ball(n, 0.035, _mat(fc, fc.darkened(0.15), 5.0, 0.4),
+				Vector3(0.46 + 0.08 * float(fx), 3.2, 0.4), Vector3(1, 0.75, 1))
 
-	# tetto a falde col colmo
+	# tetto a falde larghe, con le FILE DI TEGOLE, il colmo tondo, la
+	# gronda che sporge e il camino di terracotta col suo comignolo
 	for half: float in [-1.0, 1.0]:
-		var slope := _box(n, Vector3(1.78, 0.07, 0.98), tile, Vector3(0, 3.94, -0.37 + half * 0.38))
+		var slope := _box(n, Vector3(1.9, 0.07, 1.06), tile, Vector3(0, 3.95, -0.37 + half * 0.4))
 		slope.rotation.x = -half * 0.62
-	_box(n, Vector3(1.82, 0.09, 0.12), dark, Vector3(0, 4.22, -0.37))
+		for fila in 3:
+			var riga := _box(n, Vector3(1.92, 0.02, 0.045),
+					_mat(Color("c47a58"), Color("a86048"), 3.0, 0.4),
+					Vector3(0, 3.72 + 0.23 * float(fila),
+					-0.37 + half * (0.79 - 0.29 * float(fila))))
+			riga.rotation.x = -half * 0.62
+	var colmo := _cyl(n, 0.06, 0.06, 1.94, dark, Vector3(0, 4.26, -0.37))
+	colmo.rotation.z = PI * 0.5
+	for lato_c: float in [-1.0, 1.0]:
+		_ball(n, 0.075, dark, Vector3(lato_c * 0.97, 4.26, -0.37))
 
-	# scala a pioli (sale da sud): montanti inclinati e pioli tondi
+	# scala a pioli (sale da sud, fino al bordo NUOVO della terrazza):
+	# montanti tondi inclinati e pioli tondi. ATTENZIONE all'asse: il box
+	# di prima era lungo in Z, un cilindro è lungo in Y — stessa rotazione,
+	# scala sdraiata a mezz'aria (pagato col provino)
 	for sx: float in [-0.3, 0.3]:
-		var stringer := _box(n, Vector3(0.06, 0.11, 2.85), dark, Vector3(sx, 1.28, 1.6))
-		stringer.rotation.x = 1.165
-	for i in 7:
-		var t := (float(i) + 0.7) / 8.0
-		var rung := _cyl(n, 0.032, 0.032, 0.62, plank,
-				Vector3(0, 0.25 + t * 2.25, 2.18 - t * 1.15))
+		var stringer := _cyl(n, 0.042, 0.048, 2.85, dark, Vector3(sx, 1.28, 1.95))
+		stringer.rotation.x = 1.165 - PI * 0.5
+	for i in 8:
+		var t := (float(i) + 0.7) / 9.0
+		var rung := _cyl(n, 0.03, 0.03, 0.62, plank,
+				Vector3(0, 0.25 + t * 2.25, 2.39 - t * 0.96))
 		rung.rotation.z = PI * 0.5
+
+	# LA VITA SULLA TERRAZZA: lo sgabellino, il vaso di coccio con la
+	# piantina, e il secchiello di legno vicino alla porta — le cose di
+	# chi ci ABITA, non un belvedere vuoto
+	_cyl(n, 0.13, 0.11, 0.045, plank, Vector3(-0.95, 2.71, 0.85))
+	for g3 in 3:
+		var ag := TAU / 3.0 * float(g3)
+		var gambetta := _cyl(n, 0.022, 0.026, 0.15, dark,
+				Vector3(-0.95 + cos(ag) * 0.08, 2.63, 0.85 + sin(ag) * 0.08))
+		gambetta.rotation.x = sin(ag) * 0.15
+		gambetta.rotation.z = -cos(ag) * 0.15
+	BUILDER.lathe(n, [Vector2(0.075, 0.0), Vector2(0.09, 0.05),
+			Vector2(0.1, 0.13), Vector2(0.115, 0.16), Vector2(0.1, 0.175)],
+			tile, Vector3(1.05, 2.56, 0.9), 16)
+	_ball(n, 0.12, leaf, Vector3(1.05, 2.82, 0.9))
+	_ball(n, 0.08, leaf, Vector3(1.12, 2.92, 0.85))
+	_cyl(n, 0.075, 0.06, 0.1, plank, Vector3(0.62, 2.62, 0.6))
+	var manico_s := MeshInstance3D.new()
+	var msm := TorusMesh.new()
+	msm.inner_radius = 0.055
+	msm.outer_radius = 0.072
+	manico_s.mesh = msm
+	manico_s.material_override = dark
+	manico_s.position = Vector3(0.62, 2.67, 0.6)
+	manico_s.rotation.x = PI * 0.5
+	n.add_child(manico_s)
+
+	# LA CARRUCOLA sul fianco est: il braccio, la puleggia, la fune e il
+	# cestino che sale e scende — è così che in una casa sull'albero
+	# arriva la merenda
+	var braccio_c := _box(n, Vector3(0.5, 0.06, 0.06), dark, Vector3(1.62, 3.06, -0.85))
+	braccio_c.rotation.z = 0.12
+	var puleggia := MeshInstance3D.new()
+	var pum := TorusMesh.new()
+	pum.inner_radius = 0.03
+	pum.outer_radius = 0.062
+	puleggia.mesh = pum
+	puleggia.material_override = plank
+	puleggia.position = Vector3(1.84, 3.02, -0.85)
+	puleggia.rotation.x = PI * 0.5
+	puleggia.rotation.z = PI * 0.5
+	n.add_child(puleggia)
+	_cyl(n, 0.008, 0.008, 0.62, dark, Vector3(1.84, 2.68, -0.85))
+	_cyl(n, 0.1, 0.085, 0.16, plank, Vector3(1.84, 2.32, -0.85))
+	_cyl(n, 0.085, 0.085, 0.02, dark, Vector3(1.84, 2.41, -0.85))
+
+	# I FESTONI: la corda di bandierine dal colmo del tetto al pomello
+	# della ringhiera a sud-est — una casa dei giochi lo dice da lontano
+	var corda_f: Array = [Vector3(0.93, 3.60, 0.2), Vector3(1.15, 3.42, 0.65),
+			Vector3(1.32, 3.25, 1.05), Vector3(1.44, 3.11, 1.44)]
+	BUILDER.tube(n, corda_f, [0.008, 0.008, 0.008, 0.008], dark, 18, 6)
+	var colori_f := [PINK, Color("ffd76e"), LEAF, Color("cdbff0"), CREAM]
+	for bf in 5:
+		var tb := (float(bf) + 0.75) / 6.0
+		var seg := int(tb * 3.0)
+		var pf: Vector3 = corda_f[seg].lerp(corda_f[mini(seg + 1, 3)],
+				tb * 3.0 - float(seg))
+		var fc2: Color = colori_f[bf]
+		var bandierina := _prisma(n, [Vector2(-0.05, 0.0), Vector2(0.0, 0.13),
+				Vector2(0.05, 0.0)], 0.0, 0.014,
+				_mat(fc2, fc2.darkened(0.15), 5.0, 0.35))
+		bandierina.position = pf + Vector3(0, -0.01, 0)
+		bandierina.rotation.x = PI * 0.5
+		bandierina.rotation.z = PI
+		bandierina.rotation.y = 0.7 - tb * 0.9
+
+	# il cuore intagliato sulla parete nord: anche il retro di una casa
+	# vera dice qualcosa di chi ci abita
+	for cx_c: float in [-0.035, 0.035]:
+		_ball(n, 0.055, dark, Vector3(cx_c, 3.42, -1.12), Vector3(1, 1, 0.35))
+	var punta_c := _box(n, Vector3(0.095, 0.095, 0.035), dark,
+			Vector3(0, 3.36, -1.12))
+	punta_c.rotation.z = PI * 0.25
 
 	# la lanterna sul braccio della gronda: il pivot dondola nel vento
 	_box(n, Vector3(0.42, 0.055, 0.055), dark, Vector3(0.78, 3.68, 0.5))
@@ -2498,62 +2764,314 @@ static func _cassetta_smarriti() -> Node3D:
 # quello condiviso di tutto il villaggio.
 
 
-## L'AUTOPOMPA. Il pezzo grosso: cabina tonda col parabrezza, cassone coi
-## portelli, la scala d'ottone sul tetto, la campana sul muso e i fanali
-## rotondi. Paffuta e corta come un giocattolo di legno laccato — se fosse
-## in scala sembrerebbe un mezzo di lavoro, e questo è un villaggio.
+## La sezione del loft: un rettangolo ad angoli tondi nel piano YZ,
+## percorso in senso antiorario (visto con +Z a destra e +Y in su).
+## w = mezza larghezza, y0/y1 = base e cima, r = raggio degli angoli,
+## k = campioni per arco. Ritorna coppie (z, y).
+static func _anello_tondo(w: float, y0: float, y1: float, r: float, k: int) -> PackedVector2Array:
+	var rr := clampf(r, 0.0, minf(w, (y1 - y0) * 0.5))
+	var cz := w - rr
+	var centri := [Vector2(cz, y0 + rr), Vector2(cz, y1 - rr),
+			Vector2(-cz, y1 - rr), Vector2(-cz, y0 + rr)]
+	var partenze := [-PI * 0.5, 0.0, PI * 0.5, PI]
+	var out := PackedVector2Array()
+	for c in 4:
+		for i in k + 1:
+			var a := float(partenze[c]) + float(i) / float(k) * PI * 0.5
+			out.append((centri[c] as Vector2) + Vector2(cos(a), sin(a)) * rr)
+	return out
+
+
+## IL LOFT lungo X a sezione stondata: ogni stazione è [x, w, y0, y1, r]
+## e la sezione cambia da una all'altra con le normali che restano
+## morbide. È l'attrezzo che toglie la squadratura ai volumi grossi —
+## cofani bombati, tetti a botte, spalle tonde, code arrotondate — dove
+## una scatola resterebbe una scatola. Tappi piatti alle estremità
+## (vertici doppi: il bordo resta un bordo, non si «fonde» col fianco).
+static func _loft(parent: Node3D, stazioni: Array, mat: Material,
+		pos := Vector3.ZERO, k := 5) -> MeshInstance3D:
+	var ns := stazioni.size()
+	var anelli: Array[PackedVector2Array] = []
+	for s in stazioni:
+		anelli.append(_anello_tondo(float(s[1]), float(s[2]), float(s[3]),
+				float(s[4]), k))
+	var giro := anelli[0].size()
+	var vg: Array = []
+	for si in ns:
+		var riga: Array[Vector3] = []
+		for i in giro:
+			riga.append(Vector3(float(stazioni[si][0]),
+					anelli[si][i].y, anelli[si][i].x))
+		vg.append(riga)
+	# normali per vertice: tangente lungo X per tangente lungo il giro
+	var ng: Array = []
+	for si in ns:
+		var riga_n: Array[Vector3] = []
+		for i in giro:
+			var t_giro: Vector3 = vg[si][(i + 1) % giro] - vg[si][(i - 1 + giro) % giro]
+			var t_x: Vector3 = vg[mini(si + 1, ns - 1)][i] - vg[maxi(si - 1, 0)][i]
+			riga_n.append(t_x.cross(t_giro).normalized())
+		ng.append(riga_n)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for si in ns - 1:
+		for i in giro:
+			var i2 := (i + 1) % giro
+			st.set_normal(ng[si][i]);      st.add_vertex(vg[si][i])
+			st.set_normal(ng[si + 1][i2]); st.add_vertex(vg[si + 1][i2])
+			st.set_normal(ng[si + 1][i]);  st.add_vertex(vg[si + 1][i])
+			st.set_normal(ng[si][i]);      st.add_vertex(vg[si][i])
+			st.set_normal(ng[si][i2]);     st.add_vertex(vg[si][i2])
+			st.set_normal(ng[si + 1][i2]); st.add_vertex(vg[si + 1][i2])
+	# i tappi
+	var c0 := Vector3(float(stazioni[0][0]),
+			(float(stazioni[0][2]) + float(stazioni[0][3])) * 0.5, 0)
+	var c1 := Vector3(float(stazioni[ns - 1][0]),
+			(float(stazioni[ns - 1][2]) + float(stazioni[ns - 1][3])) * 0.5, 0)
+	for i in giro:
+		var i2 := (i + 1) % giro
+		st.set_normal(Vector3(-1, 0, 0)); st.add_vertex(c0)
+		st.set_normal(Vector3(-1, 0, 0)); st.add_vertex(vg[0][i2])
+		st.set_normal(Vector3(-1, 0, 0)); st.add_vertex(vg[0][i])
+		st.set_normal(Vector3(1, 0, 0));  st.add_vertex(c1)
+		st.set_normal(Vector3(1, 0, 0));  st.add_vertex(vg[ns - 1][i])
+		st.set_normal(Vector3(1, 0, 0));  st.add_vertex(vg[ns - 1][i2])
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = mat
+	mi.position = pos
+	parent.add_child(mi)
+	return mi
+
+
+## LA LASTRA: un pannello ad angoli tondi, centrato sull'origine, spesso
+## `sp` lungo X (le facce guardano ±X: per un fianco si ruota di PI/2).
+## Portelli, vetri, cornici: tutto ciò che era un _box con gli spigoli
+## a coltello e adesso ha gli angoli di un giocattolo laccato.
+static func _lastra(parent: Node3D, w: float, h: float, r: float, sp: float,
+		mat: Material, pos: Vector3, rot := Vector3.ZERO) -> MeshInstance3D:
+	var mi := _loft(parent, [[-sp * 0.5, w, -h * 0.5, h * 0.5, r],
+			[sp * 0.5, w, -h * 0.5, h * 0.5, r]], mat, pos)
+	mi.rotation = rot
+	return mi
+
+
+## L'AUTOPOMPA. Il pezzo grosso della caserma, e nemmeno una squadra:
+## cofano bombato che scende sul muso fino alla griglia d'ottone,
+## parafanghi ad arco sulle ruote, gomme a toro col coprimozzo lucidato,
+## cabina col tetto a botte e il parabrezza inclinato di vetro vero,
+## spalle tonde, coda arrotondata col mulinello della manichetta, la
+## campana davanti e la scala d'ottone sul tetto. Un'autopompa
+## d'anteguerra in lacca da giocattolo: paffuta, corta, e tonda ovunque —
+## se fosse in scala sembrerebbe un mezzo di lavoro, e questo è un villaggio.
 static func _autopompa() -> Node3D:
 	var n := Node3D.new()
 	var rosso := _mat(POMPA_ROSSO, POMPA_ROSSO_SCURO, 3.0, 0.45)
 	var scuro := _mat(POMPA_ROSSO_SCURO, POMPA_ROSSO_SCURO.darkened(0.2), 4.0, 0.5)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
 	var gomma := _mat(GOMMA, GOMMA.darkened(0.25), 6.0, 0.35)
-	var vetro := _mat(VETRO, VETRO.darkened(0.12), 3.0, 0.3, 0.5)
 	var crema := _mat(CREAM, PLASTER_SHADE, 4.0, 0.4)
-	# telaio e sovrastrutture: due volumi, come i camion di legno
-	_box(n, Vector3(1.5, 0.34, 0.66), rosso, Vector3(0, 0.42, 0))
-	_box(n, Vector3(0.66, 0.42, 0.62), rosso, Vector3(-0.42, 0.74, 0))
-	_box(n, Vector3(0.74, 0.3, 0.6), scuro, Vector3(0.36, 0.72, 0))
-	# il muso arrotondato: un cilindro coricato lungo Z
-	var muso := _cyl(n, 0.17, 0.17, 0.62, rosso, Vector3(-0.74, 0.5, 0))
-	muso.rotation.x = PI * 0.5
-	# parabrezza e finestrini
-	_box(n, Vector3(0.03, 0.26, 0.5), vetro, Vector3(-0.74, 0.8, 0))
-	for z: float in [-0.31, 0.31]:
-		_box(n, Vector3(0.42, 0.22, 0.03), vetro, Vector3(-0.44, 0.8, z))
-	# i portelli del cassone, con le maniglie d'ottone
+	var vetro := _vetro(0.4)
+
+	# il telaio basso, ed è lui la fascia chiara che dice «pompieri»:
+	# gira intera da paraurti a coda, sotto tutto il rosso, e finisce
+	# tondo davanti e dietro come il resto
+	_loft(n, [[-0.70, 0.26, 0.275, 0.385, 0.05],
+			[-0.64, 0.29, 0.275, 0.385, 0.03],
+			[0.70, 0.29, 0.275, 0.385, 0.03],
+			[0.76, 0.26, 0.275, 0.385, 0.05]], crema)
+
+	# IL COFANO: si bomba in alto e scende sul muso, restringendosi fino
+	# a un naso tondo — la sagoma che nessuna scatola sa fare. Finisce
+	# DENTRO il torpedo della cabina, un filo più basso: il giunto è suo.
+	_loft(n, [[-0.88, 0.11, 0.52, 0.62, 0.054],
+			[-0.86, 0.16, 0.47, 0.68, 0.078],
+			[-0.82, 0.20, 0.43, 0.72, 0.088],
+			[-0.74, 0.22, 0.40, 0.74, 0.09],
+			[-0.62, 0.235, 0.375, 0.76, 0.09],
+			[-0.50, 0.245, 0.365, 0.775, 0.085]], rosso)
+	# la gonna che raccorda il fianco del cofano alla cima del parafango:
+	# senza, fra i due resta una fessura d'ombra passante
+	for z: float in [-0.245, 0.245]:
+		_loft(n, [[-0.78, 0.055, 0.35, 0.44, 0.02],
+				[-0.48, 0.055, 0.35, 0.46, 0.02]], rosso, Vector3(0, 0, z))
+
+	# LA CABINA: il torpedo davanti (appena più alto del cofano), il
+	# parabrezza è la salita ripida, il tetto una botte tonda anche dietro
+	_loft(n, [[-0.56, 0.305, 0.36, 0.79, 0.075],
+			[-0.50, 0.305, 0.36, 0.80, 0.075],
+			[-0.42, 0.305, 0.36, 1.00, 0.09],
+			[-0.34, 0.305, 0.36, 1.03, 0.11],
+			[-0.22, 0.305, 0.36, 1.03, 0.11],
+			[-0.14, 0.30, 0.36, 1.00, 0.10],
+			[-0.06, 0.295, 0.36, 0.92, 0.08]], rosso)
+
+	# IL CASSONE: spalle tonde, e la coda che si chiude arrotondata
+	_loft(n, [[-0.10, 0.30, 0.365, 0.88, 0.07],
+			[0.50, 0.30, 0.365, 0.88, 0.07],
+			[0.62, 0.295, 0.37, 0.875, 0.09],
+			[0.70, 0.27, 0.38, 0.85, 0.12],
+			[0.74, 0.22, 0.42, 0.80, 0.16]], rosso)
+
+	# LA GRIGLIA del radiatore: cornice d'ottone, cuore scuro proud della
+	# cornice (chi guarda da davanti vede l'anello d'ottone attorno), e le
+	# canne verticali. Sopra, il tappo del radiatore.
+	_lastra(n, 0.145, 0.23, 0.07, 0.035, ottone, Vector3(-0.885, 0.60, 0))
+	_lastra(n, 0.115, 0.18, 0.05, 0.02, scuro, Vector3(-0.90, 0.60, 0))
+	for z: float in [-0.08, -0.04, 0.0, 0.04, 0.08]:
+		_cyl(n, 0.0055, 0.0055, 0.155, ottone, Vector3(-0.912, 0.60, z))
+	_cyl(n, 0.012, 0.016, 0.02, ottone, Vector3(-0.86, 0.735, 0))
+	_ball(n, 0.011, ottone, Vector3(-0.86, 0.75, 0))
+
+	# IL PARAURTI: una barra d'ottone che curva indietro alle estremità e
+	# si rincalza DENTRO i parafanghi — un tubo tagliato a mezz'aria
+	# mostra il tappo, e un paraurti non finisce nel vuoto
+	BUILDER.tube(n, [Vector3(-0.83, 0.315, -0.33), Vector3(-0.905, 0.325, -0.26),
+			Vector3(-0.925, 0.325, -0.12), Vector3(-0.925, 0.325, 0.12),
+			Vector3(-0.905, 0.325, 0.26), Vector3(-0.83, 0.315, 0.33)],
+			[0.026, 0.026, 0.026, 0.026, 0.026, 0.026], ottone)
+
+	# I PARAFANGHI: archi spazzati sopra le ruote — il gesto che più di
+	# ogni altro toglie la squadratura a un camion. Toccano la fascia del
+	# telaio (un parafango che galleggia è un croissant, non un parafango)
+	# e fra i due corrono le pedane.
+	for z: float in [-0.345, 0.345]:
+		BUILDER.tube(n, [Vector3(-0.84, 0.30, z), Vector3(-0.77, 0.41, z),
+				Vector3(-0.69, 0.48, z), Vector3(-0.60, 0.48, z),
+				Vector3(-0.50, 0.40, z), Vector3(-0.44, 0.30, z)],
+				[0.03, 0.048, 0.055, 0.055, 0.048, 0.03], rosso)
+		BUILDER.tube(n, [Vector3(0.26, 0.30, z), Vector3(0.33, 0.40, z),
+				Vector3(0.41, 0.47, z), Vector3(0.51, 0.475, z),
+				Vector3(0.62, 0.42, z), Vector3(0.70, 0.30, z)],
+				[0.03, 0.048, 0.055, 0.055, 0.048, 0.03], rosso)
+		_loft(n, [[-0.42, 0.05, 0.345, 0.375, 0.012],
+				[0.27, 0.05, 0.345, 0.375, 0.012]], crema,
+				Vector3(0, 0, z))
+
+	# LE RUOTE: la gomma è un toro vero, il mozzo chiaro col coprimozzo
+	# d'ottone a cupola; sotto il telaio corrono gli assali
+	for x: float in [-0.62, 0.50]:
+		var assale := _cyl(n, 0.024, 0.024, 0.72, scuro, Vector3(x, 0.19, 0))
+		assale.rotation.x = PI * 0.5
+		for sz: float in [-1.0, 1.0]:
+			var gz := sz * 0.335
+			var t := MeshInstance3D.new()
+			var tm := TorusMesh.new()
+			tm.inner_radius = 0.08
+			tm.outer_radius = 0.19
+			t.mesh = tm
+			t.material_override = gomma
+			t.position = Vector3(x, 0.19, gz)
+			t.rotation.x = PI * 0.5
+			n.add_child(t)
+			var mozzo := _cyl(n, 0.088, 0.088, 0.115, crema, Vector3(x, 0.19, gz))
+			mozzo.rotation.x = PI * 0.5
+			_ball(n, 0.032, ottone, Vector3(x, 0.19, sz * 0.395),
+					Vector3(1, 1, 0.55))
+
+	# IL PARABREZZA, inclinato come la salita del tetto: cornice d'ottone,
+	# interno in penombra e vetro vero davanti (l'ordine dei tre strati fa
+	# vedere l'anello d'ottone attorno al vetro)
+	var pb := Node3D.new()
+	pb.position = Vector3(-0.465, 0.895, 0)
+	pb.rotation.z = -0.35
+	n.add_child(pb)
+	_lastra(pb, 0.26, 0.23, 0.05, 0.016, ottone, Vector3.ZERO)
+	_lastra(pb, 0.235, 0.18, 0.042, 0.016, scuro, Vector3(-0.005, 0, 0))
+	_lastra(pb, 0.24, 0.19, 0.045, 0.012, vetro, Vector3(-0.012, 0, 0))
+
+	# I FINESTRINI delle portiere (stessi tre strati), le portiere
+	# profilate d'oro come le carrozze, e le maniglie
+	for sz: float in [-1.0, 1.0]:
+		var giro_y := sz * PI * 0.5
+		_lastra(n, 0.112, 0.194, 0.048, 0.014, ottone,
+				Vector3(-0.30, 0.885, sz * 0.306), Vector3(0, giro_y, 0))
+		_lastra(n, 0.094, 0.166, 0.04, 0.014, scuro,
+				Vector3(-0.30, 0.885, sz * 0.310), Vector3(0, giro_y, 0))
+		_lastra(n, 0.098, 0.17, 0.042, 0.01, vetro,
+				Vector3(-0.30, 0.885, sz * 0.316), Vector3(0, giro_y, 0))
+		_lastra(n, 0.105, 0.26, 0.05, 0.008, ottone,
+				Vector3(-0.30, 0.60, sz * 0.307), Vector3(0, giro_y, 0))
+		_lastra(n, 0.09, 0.23, 0.045, 0.008, rosso,
+				Vector3(-0.30, 0.60, sz * 0.310), Vector3(0, giro_y, 0))
+		_cyl(n, 0.008, 0.008, 0.055, ottone, Vector3(-0.20, 0.66, sz * 0.318))
+
+	# I PORTELLI del cassone: lastre chiare ad angoli tondi, maniglie
+	# d'ottone coricate — tre per fianco, come sui camion veri
 	for i in 3:
-		var x := 0.08 + float(i) * 0.26
-		for z: float in [-0.31, 0.31]:
-			_box(n, Vector3(0.22, 0.24, 0.02), crema, Vector3(x, 0.72, z))
-			var mn := _cyl(n, 0.014, 0.014, 0.1, ottone, Vector3(x, 0.72, z * 1.07))
+		var x := 0.10 + float(i) * 0.26
+		for sz: float in [-1.0, 1.0]:
+			_lastra(n, 0.105, 0.30, 0.04, 0.016, crema,
+					Vector3(x, 0.65, sz * 0.306), Vector3(0, sz * PI * 0.5, 0))
+			var mn := _cyl(n, 0.007, 0.007, 0.05, ottone,
+					Vector3(x, 0.55, sz * 0.318))
 			mn.rotation.z = PI * 0.5
-	# la fascia chiara che gira attorno: è quella che dice «pompieri»
-	_box(n, Vector3(1.52, 0.07, 0.68), crema, Vector3(0, 0.31, 0))
-	# la scala sul tetto: due correnti e i pioli
-	for z: float in [-0.14, 0.14]:
-		_box(n, Vector3(0.9, 0.03, 0.03), ottone, Vector3(0.3, 0.9, z))
+
+	# LA SCALA sul tetto del cassone: correnti cilindrici, pioli tondi,
+	# staffe che la tengono staccata dalle spalle. Comincia DOPO la
+	# cabina: una scala che taglia la nuca del tetto non è una scala.
+	for sz: float in [-1.0, 1.0]:
+		var corrente := _cyl(n, 0.016, 0.016, 0.72, ottone,
+				Vector3(0.38, 0.965, sz * 0.115))
+		corrente.rotation.z = PI * 0.5
 	for i in 6:
-		_box(n, Vector3(0.025, 0.02, 0.31), ottone,
-				Vector3(-0.08 + float(i) * 0.15, 0.9, 0))
-	# la campana d'ottone sul muso: piccola, e vera (suona il Bancone? no,
-	# suona chi passa) — svasata verso il basso come quella della caserma
-	_cyl(n, 0.012, 0.012, 0.06, ottone, Vector3(-0.58, 1.02, 0))
-	_cyl(n, 0.05, 0.075, 0.1, ottone, Vector3(-0.58, 0.94, 0))
-	# i fanali tondi
-	for z: float in [-0.2, 0.2]:
-		_ball(n, 0.07, _glow(Color("fff0cf"), Color("ffd98f"), 0.8),
-				Vector3(-0.8, 0.56, z), Vector3(0.5, 1, 1))
-	# le ruote, con il mozzo chiaro
-	for x: float in [-0.45, 0.45]:
-		for z: float in [-0.34, 0.34]:
-			var r := _cyl(n, 0.2, 0.2, 0.12, gomma, Vector3(x, 0.2, z))
-			r.rotation.x = PI * 0.5
-			var m := _cyl(n, 0.09, 0.09, 0.14, crema, Vector3(x, 0.2, z))
-			m.rotation.x = PI * 0.5
-	# la manichetta arrotolata sul fianco, pronta
-	var rullo := _cyl(n, 0.13, 0.13, 0.06, crema, Vector3(0.36, 0.72, 0.33))
-	rullo.rotation.x = PI * 0.5
+		var piolo := _cyl(n, 0.011, 0.011, 0.21, ottone,
+				Vector3(0.06 + float(i) * 0.12, 0.965, 0))
+		piolo.rotation.x = PI * 0.5
+	for x: float in [0.10, 0.62]:
+		for sz: float in [-1.0, 1.0]:
+			_cyl(n, 0.013, 0.013, 0.09, ottone, Vector3(x, 0.92, sz * 0.115))
+
+	# LA CAMPANA d'ottone davanti, appesa al suo archetto sul cofano:
+	# tornita col profilo vero di una campana, col battaglio sotto
+	for sz: float in [-1.0, 1.0]:
+		_cyl(n, 0.009, 0.009, 0.10, ottone, Vector3(-0.80, 0.78, sz * 0.055))
+	var traversa := _cyl(n, 0.008, 0.008, 0.13, ottone, Vector3(-0.80, 0.828, 0))
+	traversa.rotation.x = PI * 0.5
+	BUILDER.lathe(n, [Vector2(0.052, 0.0), Vector2(0.056, 0.008),
+			Vector2(0.05, 0.022), Vector2(0.04, 0.042), Vector2(0.03, 0.058),
+			Vector2(0.018, 0.07), Vector2(0.006, 0.078), Vector2(0.0, 0.08)],
+			ottone, Vector3(-0.80, 0.742, 0))
+	_ball(n, 0.011, ottone, Vector3(-0.80, 0.742, 0))
+
+	# I FANALI sui parafanghi: coppa d'ottone su un gambo corto, lente
+	# che fa luce — dove stavano sulle autopompe d'anteguerra
+	for sz: float in [-1.0, 1.0]:
+		_cyl(n, 0.011, 0.011, 0.045, ottone, Vector3(-0.78, 0.44, sz * 0.345))
+		_ball(n, 0.044, ottone, Vector3(-0.78, 0.49, sz * 0.345),
+				Vector3(0.85, 1, 1))
+		_ball(n, 0.034, _glow(Color("fff0cf"), Color("ffd98f"), 0.8),
+				Vector3(-0.805, 0.49, sz * 0.345), Vector3(0.45, 0.9, 0.9))
+
+	# IL LAMPEGGIANTE piccolo sul tetto, di quelli a cupola: acceso appena
+	_cyl(n, 0.022, 0.026, 0.014, ottone, Vector3(-0.36, 1.036, 0))
+	_ball(n, 0.03, _glow(POMPA_ROSSO, Color("ff6a5a"), 0.6),
+			Vector3(-0.36, 1.05, 0), Vector3(1, 0.9, 1))
+
+	# IL MULINELLO della manichetta, a poppa: due guance rosse, la canapa
+	# avvolta in mezzo, il bocchello d'ottone pronto. Sta FUORI dalla
+	# coda tonda, sul suo asse — mezzo sepolto sarebbe un adesivo.
+	var asse := _cyl(n, 0.014, 0.014, 0.16, ottone, Vector3(0.81, 0.62, 0))
+	asse.rotation.z = PI * 0.5
+	for x: float in [0.77, 0.85]:
+		var guancia := _cyl(n, 0.115, 0.115, 0.016, scuro, Vector3(x, 0.62, 0))
+		guancia.rotation.z = PI * 0.5
+	for x: float in [0.794, 0.826]:
+		var spira := MeshInstance3D.new()
+		var sm := TorusMesh.new()
+		sm.inner_radius = 0.05
+		sm.outer_radius = 0.11
+		spira.mesh = sm
+		spira.material_override = crema
+		spira.position = Vector3(x, 0.62, 0)
+		spira.rotation.z = PI * 0.5
+		n.add_child(spira)
+	_ball(n, 0.02, ottone, Vector3(0.865, 0.62, 0), Vector3(0.6, 1, 1))
+	_cyl(n, 0.009, 0.017, 0.05, ottone, Vector3(0.81, 0.545, 0.06))
+	# i fanalini di coda, mezzi affondati nel tappo della coda
+	for sz: float in [-1.0, 1.0]:
+		_ball(n, 0.02, _glow(Color("ff8878"), Color("ff5040"), 0.5),
+				Vector3(0.75, 0.47, sz * 0.16), Vector3(0.6, 1, 1))
 	return n
 
 
@@ -3462,13 +3980,15 @@ static func _cornetto(parent: Node3D, pos: Vector3, giro: float) -> void:
 		punta.rotation.y = lato * 0.5
 
 
-## Una bottiglia da mensola: collo, corpo, tappo. L'altezza e il colore
-## cambiano, o la mensola sembra stampata.
+## Una bottiglia da mensola, TORNITA: il corpo che sale, la spalla che
+## curva, il collo, il tappo. L'altezza e il colore cambiano, o la
+## mensola sembra stampata.
 static func _bottiglia(parent: Node3D, pos: Vector3, alt: float, col: Color) -> void:
 	var vetro := _mat(col, col.darkened(0.2), 5.0, 0.4, 0.35)
-	_cyl(parent, 0.035, 0.04, alt, vetro, pos + Vector3(0, alt * 0.5, 0))
-	_cyl(parent, 0.014, 0.03, alt * 0.42, vetro,
-			pos + Vector3(0, alt + alt * 0.2, 0))
+	BUILDER.lathe(parent, [Vector2(0.038, 0.0), Vector2(0.04, alt * 0.1),
+			Vector2(0.038, alt * 0.72), Vector2(0.032, alt * 0.92),
+			Vector2(0.02, alt * 1.08), Vector2(0.014, alt * 1.22),
+			Vector2(0.013, alt * 1.42)], vetro, pos, 16)
 	_cyl(parent, 0.016, 0.016, 0.022, _mat(OTTONE, OTTONE_SCURO, 5.0, 0.3),
 			pos + Vector3(0, alt * 1.44, 0))
 
@@ -3477,56 +3997,160 @@ static func _bancone_bar() -> Node3D:
 	# IL BANCONE: zinco sopra, legno sotto, il poggiapiedi d'ottone
 	# consumato da chi ci sta in piedi a chiacchierare. È l'àncora del bar:
 	# comprarlo porta con sé tutto il resto (Economy.CORREDO).
+	# Belle époque, non compensato: corpo coi fianchi tondi, zoccolo,
+	# pannelli in cornice con le lesene tornite, il piano a becco tondo
+	# col profilo d'ottone che gira sugli angoli — e sul piano la vita
+	# vera del banco: tazzine, piattini, zuccheriera, campanella, cassa.
 	var n := Node3D.new()
 	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var noce := _mat(WOOD_DARK, WOOD_DARK.darkened(0.22), 4.0, 0.45)
 	var pannello := _mat(BAR_ROSSO, BAR_ROSSO_CUPO, 4.5, 0.45)
 	var zinco := _mat(ZINCO, ZINCO_CUPO, 6.0, 0.35)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
-	# il corpo e i pannelli del fronte
-	_box(n, Vector3(1.0, 1.0, 0.5), legno, Vector3(0, 0.5, 0.03))
-	for dx: float in [-0.3, 0.0, 0.3]:
-		_box(n, Vector3(0.24, 0.6, 0.03), pannello, Vector3(dx, 0.52, -0.22))
-	# il piano di zinco, che sporge davanti
-	_box(n, Vector3(1.06, 0.06, 0.62), zinco, Vector3(0, 1.03, -0.02))
-	_box(n, Vector3(1.06, 0.03, 0.04), ottone, Vector3(0, 1.07, -0.31))
-	# il poggiapiedi
-	for dx2: float in [-0.38, 0.38]:
-		_cyl(n, 0.018, 0.018, 0.14, ottone, Vector3(dx2, 0.09, -0.3))
-	var barra := _cyl(n, 0.022, 0.022, 0.92, ottone, Vector3(0, 0.16, -0.3))
-	barra.rotation.z = PI * 0.5
-	# due tazzine col piattino, pronte
-	for dx3: float in [-0.24, 0.1]:
-		var piatt := _cyl(n, 0.05, 0.05, 0.008, _mat(CREAM, Color("efe4d2"), 6.0, 0.2),
-				Vector3(dx3, 1.07, -0.1))
-		_cyl(n, 0.028, 0.024, 0.035, _mat(Color.WHITE, CREAM, 6.0, 0.2),
-				Vector3(dx3, 1.086, -0.1))
+	var porcellana := _mat(Color.WHITE, CREAM, 6.0, 0.2)
+	var piatto := _mat(CREAM, Color("efe4d2"), 6.0, 0.2)
+
+	# il corpo, coi fianchi che si arrotondano, e lo zoccolo scuro sotto
+	_loft(n, [[-0.50, 0.21, 0.06, 0.97, 0.10],
+			[-0.46, 0.24, 0.06, 0.97, 0.04],
+			[0.46, 0.24, 0.06, 0.97, 0.04],
+			[0.50, 0.21, 0.06, 0.97, 0.10]], legno, Vector3(0, 0, 0.03))
+	_loft(n, [[-0.52, 0.23, 0.015, 0.14, 0.05],
+			[-0.48, 0.26, 0.015, 0.14, 0.03],
+			[0.48, 0.26, 0.015, 0.14, 0.03],
+			[0.52, 0.23, 0.015, 0.14, 0.05]], noce, Vector3(0, 0, 0.03))
+
+	# il piano di zinco a becco tondo, che sporge davanti, e il profilo
+	# d'ottone che ne veste il bordo girando sugli angoli
+	_loft(n, [[-0.545, 0.28, 0.97, 1.05, 0.038],
+			[-0.51, 0.31, 0.97, 1.05, 0.025],
+			[0.51, 0.31, 0.97, 1.05, 0.025],
+			[0.545, 0.28, 0.97, 1.05, 0.038]], zinco, Vector3(0, 0, -0.02))
+	BUILDER.tube(n, [Vector3(-0.495, 1.028, -0.19), Vector3(-0.535, 1.042, -0.315),
+			Vector3(-0.46, 1.042, -0.345), Vector3(0.46, 1.042, -0.345),
+			Vector3(0.535, 1.042, -0.315), Vector3(0.495, 1.028, -0.19)],
+			[0.014, 0.016, 0.016, 0.016, 0.016, 0.014], ottone)
+
+	# il fronte: le due modanature, i tre pannelli rossi DENTRO le loro
+	# cornici di noce (una borchia d'ottone al centro), e le lesene
+	# tornite agli angoli con base e capitello
+	for y: float in [0.225, 0.845]:
+		BUILDER.tube(n, [Vector3(-0.43, y, -0.235), Vector3(0.0, y, -0.243),
+				Vector3(0.43, y, -0.235)], [0.011, 0.012, 0.011], noce)
+	for dx: float in [-0.32, 0.0, 0.32]:
+		_lastra(n, 0.125, 0.54, 0.032, 0.022, noce,
+				Vector3(dx, 0.535, -0.243), Vector3(0, PI * 0.5, 0))
+		_lastra(n, 0.102, 0.49, 0.026, 0.018, pannello,
+				Vector3(dx, 0.535, -0.251), Vector3(0, PI * 0.5, 0))
+		_ball(n, 0.011, ottone, Vector3(dx, 0.535, -0.262))
+	for sx: float in [-1.0, 1.0]:
+		_cyl(n, 0.026, 0.03, 0.72, legno, Vector3(sx * 0.45, 0.52, -0.235))
+		_cyl(n, 0.035, 0.04, 0.05, noce, Vector3(sx * 0.45, 0.175, -0.235))
+		_cyl(n, 0.04, 0.033, 0.045, noce, Vector3(sx * 0.45, 0.895, -0.235))
+		_ball(n, 0.024, ottone, Vector3(sx * 0.45, 0.935, -0.235))
+		# e il fianco non resta nudo: un pannello in cornice anche lì,
+		# perché il bancone si guarda anche di profilo
+		_lastra(n, 0.14, 0.54, 0.032, 0.022, noce,
+				Vector3(sx * 0.505, 0.535, 0.03))
+		_lastra(n, 0.115, 0.49, 0.026, 0.018, pannello,
+				Vector3(sx * 0.513, 0.535, 0.03))
+		_ball(n, 0.011, ottone, Vector3(sx * 0.524, 0.535, 0.03))
+
+	# il poggiapiedi d'ottone: la barra rientra nel corpo alle estremità
+	# invece di finire a mezz'aria, e due zampette la reggono
+	BUILDER.tube(n, [Vector3(-0.47, 0.155, -0.18), Vector3(-0.44, 0.16, -0.30),
+			Vector3(0.0, 0.16, -0.305), Vector3(0.44, 0.16, -0.30),
+			Vector3(0.47, 0.155, -0.18)],
+			[0.02, 0.022, 0.022, 0.022, 0.02], ottone)
+	for dx2: float in [-0.30, 0.30]:
+		_cyl(n, 0.014, 0.017, 0.13, ottone, Vector3(dx2, 0.085, -0.30))
+
+	# il lato del barista: due cassetti col pomello e lo sportello basso
+	for dx3: float in [-0.20, 0.20]:
+		_lastra(n, 0.155, 0.115, 0.025, 0.016, noce,
+				Vector3(dx3, 0.855, 0.276), Vector3(0, PI * 0.5, 0))
+		_ball(n, 0.013, ottone, Vector3(dx3, 0.855, 0.29))
+	_lastra(n, 0.16, 0.44, 0.035, 0.016, noce,
+			Vector3(0, 0.43, 0.276), Vector3(0, PI * 0.5, 0))
+	_ball(n, 0.013, ottone, Vector3(0.10, 0.43, 0.29))
+
+	# due tazzine col piattino, pronte — e stavolta col manico
+	for dx4: float in [-0.24, 0.08]:
+		var piatt := _cyl(n, 0.05, 0.038, 0.012, piatto, Vector3(dx4, 1.056, -0.12))
 		piatt.name = "Piattino"
-	# il registratore di cassa, d'ottone, sul lato
+		_cyl(n, 0.028, 0.022, 0.038, porcellana, Vector3(dx4, 1.08, -0.12))
+		_cyl(n, 0.021, 0.021, 0.006, _mat(CAFFE, Color("52351f"), 5.0, 0.4),
+				Vector3(dx4, 1.096, -0.12))
+		var manico := MeshInstance3D.new()
+		var tm := TorusMesh.new()
+		tm.inner_radius = 0.008
+		tm.outer_radius = 0.017
+		manico.mesh = tm
+		manico.material_override = porcellana
+		manico.position = Vector3(dx4 + 0.028, 1.082, -0.12)
+		manico.rotation.x = PI * 0.5
+		n.add_child(manico)
+	# la pila di piattini di scorta e la zuccheriera col coperchio
+	for i in 3:
+		_cyl(n, 0.05, 0.038, 0.012, piatto,
+				Vector3(-0.06, 1.056 + float(i) * 0.013, 0.10))
+	_ball(n, 0.036, porcellana, Vector3(0.18, 1.078, 0.08), Vector3(1, 0.82, 1))
+	_cyl(n, 0.026, 0.03, 0.012, porcellana, Vector3(0.18, 1.105, 0.08))
+	_ball(n, 0.008, ottone, Vector3(0.18, 1.117, 0.08))
+	# la campanella da banco: si suona per chiamare, e per salutare
+	_ball(n, 0.032, ottone, Vector3(-0.40, 1.048, -0.14), Vector3(1, 0.62, 1))
+	_cyl(n, 0.004, 0.004, 0.014, ottone, Vector3(-0.40, 1.072, -0.14))
+	_ball(n, 0.006, ottone, Vector3(-0.40, 1.082, -0.14))
+
+	# il registratore di cassa d'ottone, di quelli d'epoca: il corpo, il
+	# rullo con lo scontrino che spunta, i tasti su due file e la
+	# manovella sul fianco
 	var cassa := Node3D.new()
 	cassa.name = "Cassa"
-	cassa.position = Vector3(0.36, 1.06, 0.02)
+	cassa.position = Vector3(0.36, 1.05, 0.04)
 	n.add_child(cassa)
-	_box(cassa, Vector3(0.2, 0.16, 0.16), ottone, Vector3(0, 0.08, 0))
-	_box(cassa, Vector3(0.14, 0.09, 0.02), _mat(CREAM, Color("efe4d2"), 6.0, 0.2),
-			Vector3(0, 0.19, -0.06))
-	for i in 3:
-		_ball(cassa, 0.012, _mat(Color.WHITE, CREAM, 5.0, 0.2),
-				Vector3(-0.05 + 0.05 * float(i), 0.03, -0.085))
+	_loft(cassa, [[-0.095, 0.083, 0.0, 0.16, 0.02],
+			[0.095, 0.083, 0.0, 0.16, 0.02]], ottone)
+	var rullo := _cyl(cassa, 0.052, 0.052, 0.185, ottone, Vector3(0, 0.165, 0.028))
+	rullo.rotation.z = PI * 0.5
+	var carta := _cyl(cassa, 0.02, 0.02, 0.11, porcellana, Vector3(0, 0.185, -0.035))
+	carta.rotation.z = PI * 0.5
+	_lastra(cassa, 0.045, 0.075, 0.012, 0.006, porcellana,
+			Vector3(0, 0.225, -0.038), Vector3(0.22, 0, 0))
+	for fila in 2:
+		for i in 3:
+			_ball(cassa, 0.011, porcellana,
+					Vector3(-0.04 + 0.04 * float(i), 0.065 + float(fila) * 0.045,
+					-0.088 - float(fila) * 0.012))
+	var braccio := _cyl(cassa, 0.007, 0.007, 0.05, ottone, Vector3(0.115, 0.09, 0))
+	braccio.rotation.z = PI * 0.5
+	_cyl(cassa, 0.009, 0.009, 0.04, noce, Vector3(0.138, 0.07, 0))
 	return n
 
 
 static func _macchina_caffe() -> Node3D:
 	# LA MACCHINA DEL CAFFÈ: quella a leva, cromata, con l'aquila d'ottone
 	# in cima e la lancia del vapore. Il nodo "Vapore" è il punto da cui
-	# un domani esce lo sbuffo.
+	# un domani esce lo sbuffo. Base stondata con la griglia
+	# raccogligocce, targa bombata col manometro ad ago, manici torniti,
+	# vassoio scaldatazze con la ringhierina: da bar vero, non da dado.
 	var n := Node3D.new()
 	var cromo := _mat(CROMO, Color("b9bec6"), 7.0, 0.3)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 6.0, 0.35)
 	var rosso := _mat(BAR_ROSSO, BAR_ROSSO_CUPO, 4.5, 0.45)
-	# la base e la vaschetta
-	_box(n, Vector3(0.62, 0.08, 0.34), cromo, Vector3(0, 0.04, 0))
-	_box(n, Vector3(0.5, 0.03, 0.24), _mat(ZINCO_CUPO, Color("7d838b"), 5.0, 0.3),
-			Vector3(0, 0.085, -0.04))
+	var manico_legno := _mat(WOOD_DARK, Color("5c4030"), 4.0, 0.4)
+	var porcellana := _mat(Color.WHITE, CREAM, 6.0, 0.2)
+	# la base stondata, la vaschetta incassata e la griglia raccogligocce
+	_loft(n, [[-0.31, 0.14, 0.0, 0.085, 0.05],
+			[-0.27, 0.17, 0.0, 0.085, 0.025],
+			[0.27, 0.17, 0.0, 0.085, 0.025],
+			[0.31, 0.14, 0.0, 0.085, 0.05]], cromo)
+	_box(n, Vector3(0.5, 0.024, 0.24), _mat(ZINCO_CUPO, Color("7d838b"), 5.0, 0.3),
+			Vector3(0, 0.078, -0.04))
+	for i in 7:
+		var stecca := _cyl(n, 0.005, 0.005, 0.22, cromo,
+				Vector3(-0.15 + float(i) * 0.05, 0.091, -0.05))
+		stecca.rotation.x = PI * 0.5
 	# la caldaia orizzontale. I tappi d'ottone vanno PIÙ STRETTI del corpo:
 	# più larghi diventano due dischi pieni visti di faccia, e da tre
 	# quarti la macchina non è più una macchina del caffè — è una botte
@@ -3548,175 +4172,405 @@ static func _macchina_caffe() -> Node3D:
 			var a := PI * 2.0 / 6.0 * float(k)
 			_ball(n, 0.013, ottone, Vector3(lato * 0.322,
 					0.36 + cos(a) * 0.115, 0.02 + sin(a) * 0.115))
-	# la fascia rossa sul fronte e il manometro
-	_box(n, Vector3(0.6, 0.12, 0.03), rosso, Vector3(0, 0.36, -0.2))
-	_box(n, Vector3(0.6, 0.02, 0.035), ottone, Vector3(0, 0.42, -0.202))
-	_box(n, Vector3(0.6, 0.02, 0.035), ottone, Vector3(0, 0.30, -0.202))
-	_cyl(n, 0.045, 0.045, 0.02, ottone, Vector3(-0.16, 0.42, -0.21)).rotation.x = PI * 0.5
-	_cyl(n, 0.032, 0.032, 0.006, _mat(CREAM, Color("efe4d2"), 6.0, 0.2),
-			Vector3(-0.16, 0.42, -0.223)).rotation.x = PI * 0.5
-	# i due gruppi, sporgenti in avanti, con la coppetta e il manico di
-	# legno che pende: è il dettaglio che dice «macchina del caffè» prima
-	# ancora della forma
+	# la targa rossa bombata sul fronte, in cornice d'ottone, e il
+	# manometro con l'ago: un quadrante senza ago è un adesivo
+	_lastra(n, 0.30, 0.15, 0.055, 0.016, ottone, Vector3(0, 0.37, -0.196),
+			Vector3(0, PI * 0.5, 0))
+	_lastra(n, 0.28, 0.125, 0.048, 0.018, rosso, Vector3(0, 0.37, -0.203),
+			Vector3(0, PI * 0.5, 0))
+	var ghiera_mano := _cyl(n, 0.046, 0.046, 0.018, ottone, Vector3(-0.16, 0.42, -0.212))
+	ghiera_mano.rotation.x = PI * 0.5
+	var quadrante := _cyl(n, 0.034, 0.034, 0.008, porcellana, Vector3(-0.16, 0.42, -0.221))
+	quadrante.rotation.x = PI * 0.5
+	var ago := _box(n, Vector3(0.026, 0.004, 0.004), manico_legno,
+			Vector3(-0.152, 0.428, -0.227))
+	ago.rotation.z = 0.65
+	# i due gruppi, sporgenti in avanti, con la coppetta e il manico
+	# TORNITO che pende: è il dettaglio che dice «macchina del caffè»
+	# prima ancora della forma
 	for i in 2:
 		var dx := -0.14 + 0.28 * float(i)
-		_cyl(n, 0.055, 0.06, 0.14, ottone, Vector3(dx, 0.2, -0.19))
-		var coppetta := _cyl(n, 0.06, 0.052, 0.05, ottone, Vector3(dx, 0.13, -0.19))
+		_cyl(n, 0.042, 0.047, 0.11, ottone, Vector3(dx, 0.235, -0.19))
+		var coppetta := _cyl(n, 0.047, 0.04, 0.042, ottone, Vector3(dx, 0.16, -0.19))
 		coppetta.name = "Coppetta%d" % i
-		var manico := _box(n, Vector3(0.16, 0.03, 0.03),
-				_mat(WOOD_DARK, Color("5c4030"), 4.0, 0.4),
-				Vector3(dx + 0.09, 0.115, -0.24))
-		manico.rotation.z = -0.22
-		manico.rotation.y = 0.3
+		var giro := 0.28 - 0.5 * float(i)
+		var manico := _cyl(n, 0.009, 0.012, 0.11, manico_legno,
+				Vector3(dx + sin(giro) * 0.045, 0.153, -0.235 - cos(giro) * 0.035))
+		manico.rotation.x = -1.62
+		manico.rotation.y = giro
+		_ball(n, 0.014, manico_legno,
+				Vector3(dx + sin(giro) * 0.085, 0.148, -0.288 - cos(giro) * 0.03))
 		# la levetta cromata sopra ogni gruppo
 		var leva := _cyl(n, 0.013, 0.013, 0.17, cromo, Vector3(dx, 0.29, -0.19))
 		leva.rotation.x = -0.9
-		_ball(n, 0.022, _mat(WOOD_DARK, Color("5c4030"), 4.0, 0.4),
-				Vector3(dx, 0.35, -0.255))
-	# la lancia del vapore
-	var lancia := _cyl(n, 0.012, 0.014, 0.2, cromo, Vector3(0.3, 0.2, -0.12))
-	lancia.rotation.x = -0.5
+		_ball(n, 0.022, manico_legno, Vector3(dx, 0.35, -0.255))
+	# la lancia del vapore: un gomito vero, col rubinetto d'ottone alla
+	# radice e l'ugello in punta — e di là, il rubinetto dell'acqua calda
+	BUILDER.tube(n, [Vector3(0.26, 0.33, -0.10), Vector3(0.30, 0.26, -0.16),
+			Vector3(0.31, 0.17, -0.185), Vector3(0.315, 0.115, -0.20)],
+			[0.013, 0.011, 0.009, 0.008], cromo)
+	_ball(n, 0.016, ottone, Vector3(0.27, 0.335, -0.115))
+	_cyl(n, 0.005, 0.009, 0.02, cromo, Vector3(0.315, 0.10, -0.20))
 	var vapore := Node3D.new()
 	vapore.name = "Vapore"
-	vapore.position = Vector3(0.3, 0.12, -0.19)
+	vapore.position = Vector3(0.315, 0.09, -0.20)
 	n.add_child(vapore)
-	# l'aquila in cima: nessuna macchina del caffè seria ne è priva
-	_cyl(n, 0.06, 0.09, 0.05, ottone, Vector3(0, 0.59, 0.02))
-	var aquila := _ball(n, 0.055, ottone, Vector3(0, 0.65, 0.02), Vector3(1.0, 0.85, 0.7))
+	_ball(n, 0.016, ottone, Vector3(-0.27, 0.335, -0.115))
+	_cyl(n, 0.009, 0.011, 0.055, cromo, Vector3(-0.30, 0.28, -0.14))
+	# il vassoio scaldatazze sopra la caldaia (le tazzine ci si APPOGGIANO:
+	# prima galleggiavano a mezz'aria sopra il tondo), con la ringhierina
+	# d'ottone tutt'attorno che le tiene
+	_lastra(n, 0.16, 0.54, 0.03, 0.014, cromo, Vector3(0, 0.575, 0.06),
+			Vector3(0, 0, PI * 0.5))
+	for sz: float in [-0.10, 0.22]:
+		var asta := _cyl(n, 0.007, 0.007, 0.5, ottone, Vector3(0, 0.615, sz))
+		asta.rotation.z = PI * 0.5
+	for sx: float in [-0.25, 0.25]:
+		var asta2 := _cyl(n, 0.007, 0.007, 0.32, ottone, Vector3(sx, 0.615, 0.06))
+		asta2.rotation.x = PI * 0.5
+		for sz2: float in [-0.10, 0.22]:
+			_cyl(n, 0.005, 0.005, 0.035, ottone, Vector3(sx, 0.596, sz2))
+			_ball(n, 0.009, ottone, Vector3(sx, 0.615, sz2))
+	# l'aquila in cima: nessuna macchina del caffè seria ne è priva.
+	# Colonnina, cupola, e l'uccello INTERO: petto, testa, becco, ali
+	# aperte e coda — non una palla con due stecche
+	_cyl(n, 0.055, 0.08, 0.05, ottone, Vector3(0, 0.615, 0.06))
+	_ball(n, 0.05, ottone, Vector3(0, 0.652, 0.06), Vector3(1, 0.5, 1))
+	# l'aquila sta APPOLLAIATA, ali chiuse sul petto: a questa scala un
+	# uccello raccolto si riconosce, un'aquila spiegata diventa un'elica
+	var aquila := _ball(n, 0.036, ottone, Vector3(0, 0.695, 0.062),
+			Vector3(0.75, 1.0, 0.65))
 	aquila.name = "Aquila"
+	aquila.rotation.x = -0.1
 	for lato: float in [-1.0, 1.0]:
-		var ala := _box(n, Vector3(0.1, 0.02, 0.05), ottone,
-				Vector3(lato * 0.075, 0.66, 0.02))
-		ala.rotation.z = lato * -0.5
-	# LE TAZZINE SI POSANO SULLA CALDAIA, e la quota si CALCOLA: la caldaia
-	# è un cilindro sdraiato di raggio 0.2 col centro in (y 0.36, z 0.02),
-	# quindi a una data z il suo dorso sta a 0.36 + √(0.04 − (z−0.02)²).
-	# Messe a occhio a 0.585 restavano sei centimetri sopra il metallo:
-	# tre tazzine sospese in aria sopra una macchina del caffè.
-	var tz := 0.12
-	var ty := 0.36 + sqrt(0.04 - pow(tz - 0.02, 2.0)) + 0.014
+		var ala := _ball(n, 0.034, ottone, Vector3(lato * 0.028, 0.693, 0.068),
+				Vector3(0.4, 0.9, 0.55))
+		ala.rotation.z = lato * -0.12
+	_ball(n, 0.018, ottone, Vector3(0, 0.738, 0.05))
+	var becco := _cyl(n, 0.002, 0.008, 0.022, ottone, Vector3(0, 0.734, 0.03))
+	becco.rotation.x = -1.3
+	var coda_aq := _ball(n, 0.026, ottone, Vector3(0, 0.672, 0.096), Vector3(0.42, 0.22, 0.85))
+	coda_aq.rotation.x = 0.55
+	# le tazzine che si scaldano sopra, col manico, appoggiate davvero
 	for i in 3:
-		_cyl(n, 0.026, 0.022, 0.03, _mat(Color.WHITE, CREAM, 6.0, 0.2),
-				Vector3(-0.18 + 0.13 * float(i), ty, tz))
+		var cx := -0.18 + 0.18 * float(i)
+		_cyl(n, 0.026, 0.022, 0.032, porcellana, Vector3(cx, 0.605, 0.06))
+		var manico_t := MeshInstance3D.new()
+		var tm := TorusMesh.new()
+		tm.inner_radius = 0.007
+		tm.outer_radius = 0.015
+		manico_t.mesh = tm
+		manico_t.material_override = porcellana
+		manico_t.position = Vector3(cx + 0.026, 0.607, 0.06 + 0.01 * float(i - 1))
+		manico_t.rotation.x = PI * 0.5
+		manico_t.rotation.z = 0.4 * float(i - 1)
+		n.add_child(manico_t)
 	return n
 
 
+## LA FALDA DI VETRO CURVO: un profilo (z, y) spazzato lungo X, a due
+## facce (il vetro si guarda da fuori E da dentro), coi fianchi chiusi
+## a ventaglio dal punto in basso dietro. Il vetro curvo è ciò che fa
+## «vetrina da bar»: un box di vetro è una teca da museo.
+static func _vetro_curvo(parent: Node3D, x0: float, x1: float,
+		profilo: Array, mat: Material) -> MeshInstance3D:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var np := profilo.size()
+	for i in np - 1:
+		var a: Vector2 = profilo[i]
+		var b: Vector2 = profilo[i + 1]
+		var d := (b - a).normalized()
+		var nn := Vector3(0, d.x, -d.y)   # (z,y): fuori = (-dy, dz)
+		var q := [Vector3(x0, a.y, a.x), Vector3(x1, a.y, a.x),
+				Vector3(x1, b.y, b.x), Vector3(x0, b.y, b.x)]
+		for k in [0, 1, 2, 0, 2, 3]:
+			st.set_normal(nn)
+			st.add_vertex(q[k])
+		for k in [0, 2, 1, 0, 3, 2]:
+			st.set_normal(-nn)
+			st.add_vertex(q[k])
+	# i fianchi: ventaglio dall'angolo in basso dietro
+	var c := Vector2((profilo[np - 1] as Vector2).x, (profilo[0] as Vector2).y)
+	for lato in 2:
+		var xx := x0 if lato == 0 else x1
+		var fuori := -1.0 if lato == 0 else 1.0
+		for i in np - 1:
+			var a2: Vector2 = profilo[i]
+			var b2: Vector2 = profilo[i + 1]
+			var terna := [Vector3(xx, c.y, c.x), Vector3(xx, a2.y, a2.x),
+					Vector3(xx, b2.y, b2.x)]
+			if lato == 0:
+				terna = [terna[0], terna[2], terna[1]]
+			for v in terna:
+				st.set_normal(Vector3(fuori, 0, 0))
+				st.add_vertex(v)
+			for v_idx in [0, 2, 1]:
+				st.set_normal(Vector3(-fuori, 0, 0))
+				st.add_vertex(terna[v_idx])
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = mat
+	parent.add_child(mi)
+	return mi
+
+
 static func _vetrina_dolci() -> Node3D:
-	# LA VETRINA DEI DOLCI: due ripiani di cornetti, la fetta di torta, e
-	# il vetro curvo davanti. Si guarda prima di ordinare, sempre.
+	# LA VETRINA DEI DOLCI: il vetro curvo DAVVERO curvo (con le centine
+	# cromate che lo incorniciano), il corpo in tinta col bancone —
+	# pannelli rossi in cornice e zoccolo di noce — e dentro i cornetti,
+	# le ciambelle glassate e la torta a spicchio. Si guarda prima di
+	# ordinare, sempre; il retro è aperto, come al banco vero.
 	var n := Node3D.new()
 	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
-	var vetro := _vetro(0.3)
-	var acciaio := _mat(ZINCO, ZINCO_CUPO, 6.0, 0.3)
-	_box(n, Vector3(0.92, 0.42, 0.42), legno, Vector3(0, 0.21, 0))
-	_box(n, Vector3(0.96, 0.04, 0.46), acciaio, Vector3(0, 0.44, 0))
-	# i montanti e il vetro
-	for sx: float in [-0.44, 0.44]:
-		_box(n, Vector3(0.04, 0.5, 0.44), acciaio, Vector3(sx, 0.71, 0))
-	_box(n, Vector3(0.86, 0.48, 0.02), vetro, Vector3(0, 0.7, -0.21))
-	_box(n, Vector3(0.86, 0.02, 0.42), vetro, Vector3(0, 0.94, 0))
-	_box(n, Vector3(0.86, 0.48, 0.02), vetro, Vector3(0, 0.7, 0.21))
-	# i due ripiani e la roba sopra
-	for i in 2:
-		var y := 0.5 + 0.22 * float(i)
-		_box(n, Vector3(0.84, 0.02, 0.38), acciaio, Vector3(0, y, 0))
-		for k in 4:
-			_cornetto(n, Vector3(-0.3 + 0.2 * float(k), y + 0.03,
-					-0.06 + 0.06 * float((k + i) % 2)), 0.3 * float(k) + float(i))
-	# la fetta di torta, sul ripiano basso
-	var torta := _box(n, Vector3(0.16, 0.11, 0.13), _mat(CREAM, Color("f0e2c8"), 6.0, 0.3),
-			Vector3(0.3, 0.56, 0.06))
-	_box(n, Vector3(0.165, 0.03, 0.135), _mat(PINK, PINK_DEEP, 5.0, 0.4),
-			Vector3(0.3, 0.615, 0.06))
+	var noce := _mat(WOOD_DARK, WOOD_DARK.darkened(0.22), 4.0, 0.45)
+	var pannello := _mat(BAR_ROSSO, BAR_ROSSO_CUPO, 4.5, 0.45)
+	var vetro := _vetro(0.26)
+	var zinco := _mat(ZINCO, ZINCO_CUPO, 6.0, 0.35)
+	var cromo := _mat(CROMO, Color("b9bec6"), 7.0, 0.3)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+
+	# il corpo coi fianchi tondi, lo zoccolo, e i pannelli in cornice
+	_loft(n, [[-0.46, 0.19, 0.03, 0.42, 0.07],
+			[-0.42, 0.21, 0.03, 0.42, 0.03],
+			[0.42, 0.21, 0.03, 0.42, 0.03],
+			[0.46, 0.19, 0.03, 0.42, 0.07]], legno)
+	_loft(n, [[-0.475, 0.20, 0.012, 0.10, 0.04],
+			[-0.44, 0.225, 0.012, 0.10, 0.025],
+			[0.44, 0.225, 0.012, 0.10, 0.025],
+			[0.475, 0.20, 0.012, 0.10, 0.04]], noce)
+	for dx: float in [-0.24, 0.24]:
+		_lastra(n, 0.14, 0.20, 0.03, 0.02, noce,
+				Vector3(dx, 0.265, -0.207), Vector3(0, PI * 0.5, 0))
+		_lastra(n, 0.115, 0.16, 0.024, 0.016, pannello,
+				Vector3(dx, 0.265, -0.214), Vector3(0, PI * 0.5, 0))
+		_ball(n, 0.010, ottone, Vector3(dx, 0.265, -0.224))
+
+	# il piano di zinco a becco tondo su cui stanno i dolci
+	_loft(n, [[-0.49, 0.215, 0.42, 0.47, 0.04],
+			[-0.46, 0.235, 0.42, 0.47, 0.02],
+			[0.46, 0.235, 0.42, 0.47, 0.02],
+			[0.49, 0.215, 0.42, 0.47, 0.04]], zinco)
+
+	# LA CAMPANA DI VETRO CURVO, con le centine cromate ai fianchi e i
+	# correnti lungo gli spigoli: la curva è un quarto d'ellisse
+	var arco: Array = []
+	for i in 9:
+		var th := float(i) / 8.0 * PI * 0.5
+		arco.append(Vector2(-0.205 + (1.0 - cos(th)) * 0.255,
+				0.475 + sin(th) * 0.44))
+	arco.append(Vector2(0.19, 0.915))
+	_vetro_curvo(n, -0.42, 0.42, arco, vetro)
+	for sx: float in [-0.42, 0.42]:
+		var centina: Array = []
+		for p in arco:
+			centina.append(Vector3(sx, (p as Vector2).y, (p as Vector2).x))
+		BUILDER.tube(n, centina, [0.012, 0.012, 0.012, 0.012, 0.012,
+				0.012, 0.012, 0.012, 0.012, 0.012], cromo, 24, 8)
+	for spigolo: float in [-0.205, 0.19]:
+		var y_sp := 0.475 if spigolo < 0.0 else 0.915
+		var corrente := _cyl(n, 0.011, 0.011, 0.86, cromo,
+				Vector3(0, y_sp, spigolo))
+		corrente.rotation.z = PI * 0.5
+
+	# il ripiano sospeso sulle colonnine cromate
+	_lastra(n, 0.145, 0.76, 0.02, 0.012, zinco, Vector3(0, 0.70, 0.02),
+			Vector3(0, 0, PI * 0.5))
+	for sx2: float in [-0.34, 0.34]:
+		for sz: float in [-0.08, 0.12]:
+			_cyl(n, 0.008, 0.008, 0.23, cromo, Vector3(sx2, 0.585, sz))
+
+	# i dolci: cornetti sotto e sopra, le ciambelle glassate, e la torta
+	# a SPICCHIO (un prisma, non un mattone) con la fragolina in cima
+	for k in 4:
+		_cornetto(n, Vector3(-0.34 + 0.16 * float(k), 0.505,
+				-0.05 + 0.06 * float(k % 2)), 0.4 * float(k))
+	for k2 in 3:
+		_cornetto(n, Vector3(-0.30 + 0.19 * float(k2), 0.735,
+				-0.03 + 0.05 * float(k2 % 2)), 0.5 * float(k2) + 0.8)
+	for cd in 2:
+		var ciambella := MeshInstance3D.new()
+		var cm := TorusMesh.new()
+		cm.inner_radius = 0.018
+		cm.outer_radius = 0.052
+		ciambella.mesh = cm
+		ciambella.material_override = _mat(PINK, PINK_DEEP, 5.0, 0.4)
+		ciambella.position = Vector3(0.30 + 0.02 * float(cd), 0.727,
+				-0.06 + 0.13 * float(cd))
+		ciambella.rotation.x = 0.12 * float(cd)
+		n.add_child(ciambella)
+	var torta := _prisma(n, [Vector2(-0.07, 0.0), Vector2(0.10, 0.06),
+			Vector2(0.10, -0.06)], 0.475, 0.085,
+			_mat(CREAM, Color("f0e2c8"), 6.0, 0.3))
 	torta.name = "Torta"
+	torta.position = Vector3(0.27, 0.0, 0.04)
+	torta.rotation.y = -0.5
+	var glassa := _prisma(n, [Vector2(-0.07, 0.0), Vector2(0.105, 0.063),
+			Vector2(0.105, -0.063)], 0.56, 0.022, _mat(PINK, PINK_DEEP, 5.0, 0.4))
+	glassa.position = Vector3(0.27, 0.0, 0.04)
+	glassa.rotation.y = -0.5
+	_ball(n, 0.016, _mat(BAR_ROSSO, BAR_ROSSO_CUPO, 5.0, 0.35),
+			Vector3(0.29, 0.59, 0.055))
 	return n
 
 
 static func _sgabello_alto() -> Node3D:
 	# LO SGABELLO ALTO: quello da bancone, col poggiapiedi. Ci si sta in
-	# bilico e si parla per ore.
+	# bilico e si parla per ore. Il poggiapiedi è un ANELLO vero (un toro,
+	# non un disco pieno) e il cuscino è bombato col bordino cucito.
 	var n := Node3D.new()
 	var cromo := _mat(CROMO, Color("b9bec6"), 7.0, 0.3)
 	var cuoio := _mat(BAR_ROSSO, BAR_ROSSO_CUPO, 4.5, 0.5)
+	var cupo := _mat(BAR_ROSSO_CUPO, Color("8f3f39"), 4.0, 0.4)
 	for i in 3:
 		var a := PI * 2.0 / 3.0 * float(i)
 		var g := _cyl(n, 0.02, 0.026, 0.72, cromo,
 				Vector3(cos(a) * 0.12, 0.36, sin(a) * 0.12))
 		g.rotation.x = cos(a + PI * 0.5) * 0.12
 		g.rotation.z = -sin(a + PI * 0.5) * 0.12
-	var anello := _cyl(n, 0.17, 0.17, 0.018, cromo, Vector3(0, 0.24, 0))
+	var anello := MeshInstance3D.new()
+	var am := TorusMesh.new()
+	am.inner_radius = 0.155
+	am.outer_radius = 0.183
+	anello.mesh = am
+	anello.material_override = cromo
+	anello.position = Vector3(0, 0.24, 0)
 	anello.name = "Poggiapiedi"
-	_cyl(n, 0.19, 0.19, 0.05, cuoio, Vector3(0, 0.75, 0))
-	_cyl(n, 0.185, 0.185, 0.03, _mat(BAR_ROSSO_CUPO, Color("8f3f39"), 4.0, 0.4),
-			Vector3(0, 0.72, 0))
-	_ball(n, 0.02, cuoio, Vector3(0, 0.775, 0), Vector3(1, 0.4, 1))
+	n.add_child(anello)
+	# la seduta: base, cuscino bombato, bordino cucito e il bottone
+	_cyl(n, 0.185, 0.185, 0.035, cupo, Vector3(0, 0.715, 0))
+	_ball(n, 0.19, cuoio, Vector3(0, 0.748, 0), Vector3(1, 0.42, 1))
+	var bordino := MeshInstance3D.new()
+	var bm := TorusMesh.new()
+	bm.inner_radius = 0.176
+	bm.outer_radius = 0.192
+	bordino.mesh = bm
+	bordino.material_override = cupo
+	bordino.position = Vector3(0, 0.737, 0)
+	n.add_child(bordino)
+	_ball(n, 0.02, cuoio, Vector3(0, 0.788, 0), Vector3(1, 0.4, 1))
 	return n
 
 
 static func _mensola_bottiglie() -> Node3D:
 	# LA MENSOLA DELLE BOTTIGLIE: sciroppi e amari dietro il bancone, di
-	# tutte le altezze e di tutti i colori. Sta sul bordo, come una mensola.
+	# tutte le altezze e di tutti i colori. Sta sul bordo, come una
+	# mensola. Da retrobanco vero: fianchi ad angoli tondi, la cimasa che
+	# li lega in alto, e su ogni ripiano la ringhierina d'ottone che
+	# impedisce alle bottiglie il volo.
 	var n := Node3D.new()
 	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var noce := _mat(WOOD_DARK, WOOD_DARK.darkened(0.22), 4.0, 0.45)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
 	for sx: float in [-0.44, 0.44]:
-		_box(n, Vector3(0.06, 1.0, 0.2), legno, Vector3(sx, 0.9, 0.04))
+		_lastra(n, 0.10, 1.0, 0.045, 0.055, legno, Vector3(sx, 0.9, 0.04))
+	_loft(n, [[-0.485, 0.115, 1.38, 1.44, 0.022],
+			[0.485, 0.115, 1.38, 1.44, 0.022]], noce, Vector3(0, 0, 0.04))
 	var colori := [Color("8a6fb0"), BOTTIGLIA, Color("c48a4a"), Color("b05a5a"),
 			Color("6f93b8"), Color("d0a860")]
 	for i in 2:
 		var y := 0.62 + 0.42 * float(i)
-		_box(n, Vector3(0.94, 0.05, 0.22), _mat(WOOD_PALE, WOOD, 3.5, 0.5),
-				Vector3(0, y, 0.04))
+		_lastra(n, 0.11, 0.92, 0.025, 0.05, _mat(WOOD_PALE, WOOD, 3.5, 0.5),
+				Vector3(0, y, 0.04), Vector3(0, 0, PI * 0.5))
+		BUILDER.tube(n, [Vector3(-0.42, y + 0.035, -0.04),
+				Vector3(-0.42, y + 0.075, -0.06), Vector3(0, y + 0.075, -0.065),
+				Vector3(0.42, y + 0.075, -0.06), Vector3(0.42, y + 0.035, -0.04)],
+				[0.007, 0.008, 0.008, 0.008, 0.007], ottone)
 		for k in 3:
 			var idx := i * 3 + k
-			_bottiglia(n, Vector3(-0.28 + 0.28 * float(k), y + 0.025, 0.04),
+			_bottiglia(n, Vector3(-0.28 + 0.28 * float(k),
+					y + 0.025, 0.05 + 0.02 * float((idx * 5) % 2)),
 					0.13 + 0.035 * float((idx * 7) % 3), colori[idx])
 	return n
 
 
 static func _tavolino_bar() -> Node3D:
-	# IL TAVOLINO DEL BAR: piano di marmo tondo su un piede di ghisa. Due
-	# tazzine e il conto sotto il bicchiere.
+	# IL TAVOLINO DEL BAR: piano di marmo tondo su un piede di ghisa
+	# TORNITO — la curva a campana dei bistrot, non tre cilindri
+	# impilati — col bordo d'ottone attorno al marmo. Due tazzine col
+	# manico e il conto sotto la moneta.
 	var n := Node3D.new()
 	var ghisa := _mat(Color("4f4a45"), Color("3d3935"), 5.0, 0.4)
-	_cyl(n, 0.2, 0.24, 0.04, ghisa, Vector3(0, 0.02, 0))
-	_cyl(n, 0.05, 0.07, 0.66, ghisa, Vector3(0, 0.36, 0))
-	_cyl(n, 0.12, 0.05, 0.05, ghisa, Vector3(0, 0.7, 0))
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	var porcellana := _mat(Color.WHITE, CREAM, 6.0, 0.2)
+	var piatto := _mat(CREAM, Color("efe4d2"), 6.0, 0.2)
+	BUILDER.lathe(n, [Vector2(0.225, 0.0), Vector2(0.235, 0.018),
+			Vector2(0.185, 0.045), Vector2(0.105, 0.085), Vector2(0.06, 0.14),
+			Vector2(0.042, 0.24), Vector2(0.038, 0.42), Vector2(0.045, 0.56),
+			Vector2(0.065, 0.64), Vector2(0.105, 0.695), Vector2(0.115, 0.715)],
+			ghisa)
 	var piano := _cyl(n, 0.4, 0.4, 0.05, _mat(MARMO, Color("ddd5c6"), 8.0, 0.35),
 			Vector3(0, 0.74, 0))
 	piano.name = "Piano"
-	_cyl(n, 0.405, 0.405, 0.015, ghisa, Vector3(0, 0.715, 0))
-	# due tazzine, una per parte: un tavolino da bar non è mai per uno solo
+	var bordo := MeshInstance3D.new()
+	var bm := TorusMesh.new()
+	bm.inner_radius = 0.385
+	bm.outer_radius = 0.412
+	bordo.mesh = bm
+	bordo.material_override = ottone
+	bordo.position = Vector3(0, 0.737, 0)
+	n.add_child(bordo)
+	# due tazzine col piattino e il manico: un tavolino da bar non è mai
+	# per uno solo
 	for dx: float in [-0.14, 0.15]:
-		_cyl(n, 0.05, 0.05, 0.008, _mat(CREAM, Color("efe4d2"), 6.0, 0.2),
-				Vector3(dx, 0.77, 0.02))
-		_cyl(n, 0.028, 0.024, 0.035, _mat(Color.WHITE, CREAM, 6.0, 0.2),
-				Vector3(dx, 0.788, 0.02))
-	_box(n, Vector3(0.08, 0.004, 0.06), _mat(CREAM, Color("efe4d2"), 6.0, 0.2),
+		_cyl(n, 0.05, 0.038, 0.012, piatto, Vector3(dx, 0.771, 0.02))
+		_cyl(n, 0.028, 0.022, 0.038, porcellana, Vector3(dx, 0.795, 0.02))
+		_cyl(n, 0.021, 0.021, 0.006, _mat(CAFFE, Color("52351f"), 5.0, 0.4),
+				Vector3(dx, 0.811, 0.02))
+		var manico := MeshInstance3D.new()
+		var tm := TorusMesh.new()
+		tm.inner_radius = 0.008
+		tm.outer_radius = 0.017
+		manico.mesh = tm
+		manico.material_override = porcellana
+		manico.position = Vector3(dx + 0.028 * signf(dx), 0.797, 0.02)
+		manico.rotation.x = PI * 0.5
+		n.add_child(manico)
+	# il conto, fermato da una moneta
+	var conto := _box(n, Vector3(0.08, 0.004, 0.06), piatto,
 			Vector3(0.02, 0.767, -0.16))
+	conto.rotation.y = 0.18
+	_cyl(n, 0.016, 0.016, 0.006, ottone, Vector3(0.03, 0.772, -0.17))
 	return n
 
 
 static func _sedia_vimini() -> Node3D:
-	# LA SEDIA DI VIMINI: quella del dehors, con lo schienale intrecciato.
+	# LA SEDIA DI VIMINI: quella del dehors, alla maniera delle Thonet —
+	# gambe tornite un filo svasate, la seduta intrecciata col bordo a
+	# giunco, e lo schienale AD ARCO: un tubo piegato a vapore, non due
+	# paletti con le assi.
 	var n := Node3D.new()
 	var telaio := _mat(WOOD_PALE, WOOD, 4.0, 0.5)
 	var intreccio := _mat(Color("e0c08c"), Color("c9a670"), 9.0, 0.6)
-	for sx: float in [-0.17, 0.17]:
-		for sz: float in [-0.17, 0.17]:
-			_box(n, Vector3(0.04, 0.44, 0.04), telaio, Vector3(sx, 0.22, sz))
-	_cyl(n, 0.22, 0.22, 0.04, intreccio, Vector3(0, 0.45, 0))
-	# lo schienale a ventaglio
-	for sx2: float in [-0.18, 0.18]:
-		var m := _box(n, Vector3(0.035, 0.46, 0.035), telaio, Vector3(sx2, 0.67, 0.18))
-		m.rotation.x = -0.12
-	for i in 3:
-		var t := _box(n, Vector3(0.4, 0.035, 0.03), intreccio,
-				Vector3(0, 0.56 + 0.14 * float(i), 0.19 - 0.015 * float(i)))
-		t.rotation.x = -0.12
-	for i in 4:
-		var v := _box(n, Vector3(0.028, 0.42, 0.02), intreccio,
-				Vector3(-0.12 + 0.08 * float(i), 0.68, 0.175))
-		v.rotation.x = -0.12
+	for sx: float in [-1.0, 1.0]:
+		for sz: float in [-1.0, 1.0]:
+			# la CIMA della gamba rientra sotto la seduta, il piede si
+			# allarga: è la svasatura giusta — al contrario, le cime
+			# sbucavano oltre il bordo e la sedia era smontata a mezz'aria
+			var g := _cyl(n, 0.016, 0.022, 0.45, telaio,
+					Vector3(sx * 0.15, 0.22, sz * 0.15))
+			g.rotation.x = -sz * 0.09
+			g.rotation.z = sx * 0.09
+	_cyl(n, 0.21, 0.21, 0.035, intreccio, Vector3(0, 0.45, 0))
+	var giunco := MeshInstance3D.new()
+	var gm := TorusMesh.new()
+	gm.inner_radius = 0.195
+	gm.outer_radius = 0.225
+	giunco.mesh = gm
+	giunco.material_override = telaio
+	giunco.position = Vector3(0, 0.455, 0)
+	n.add_child(giunco)
+	# lo schienale: l'arco piegato a vapore ANCORATO dentro la seduta,
+	# l'archetto interno idem, e le canne che li congiungono davvero
+	BUILDER.tube(n, [Vector3(-0.15, 0.43, 0.14), Vector3(-0.17, 0.72, 0.20),
+			Vector3(-0.115, 0.90, 0.235), Vector3(0, 0.945, 0.245),
+			Vector3(0.115, 0.90, 0.235), Vector3(0.17, 0.72, 0.20),
+			Vector3(0.15, 0.43, 0.14)],
+			[0.018, 0.017, 0.016, 0.016, 0.016, 0.017, 0.018], telaio)
+	BUILDER.tube(n, [Vector3(-0.125, 0.44, 0.15), Vector3(-0.10, 0.60, 0.20),
+			Vector3(0, 0.65, 0.212), Vector3(0.10, 0.60, 0.20),
+			Vector3(0.125, 0.44, 0.15)],
+			[0.011, 0.011, 0.011, 0.011, 0.011], telaio)
 	return n
 
 
@@ -3780,11 +4634,15 @@ static func _lavagnetta() -> Node3D:
 		perno.position = cerniera
 		perno.rotation.x = lato * 0.24
 		n.add_child(perno)
-		# il telaio del pannello: quattro liste, non una tavola piena
-		_box(perno, Vector3(0.56, 0.05, 0.045), legno, Vector3(0, -0.02, 0))
-		_box(perno, Vector3(0.56, 0.05, 0.045), legno, Vector3(0, -0.86, 0))
+		# il telaio del pannello: quattro liste ad angoli tondi, non una
+		# tavola piena
+		_lastra(perno, 0.28, 0.05, 0.018, 0.045, legno, Vector3(0, -0.02, 0),
+				Vector3(0, PI * 0.5, 0))
+		_lastra(perno, 0.28, 0.05, 0.018, 0.045, legno, Vector3(0, -0.86, 0),
+				Vector3(0, PI * 0.5, 0))
 		for sx: float in [-0.255, 0.255]:
-			_box(perno, Vector3(0.05, 0.86, 0.045), legno, Vector3(sx, -0.44, 0))
+			_lastra(perno, 0.025, 0.86, 0.012, 0.045, legno, Vector3(sx, -0.44, 0),
+					Vector3(0, PI * 0.5, 0))
 		# le gambe che continuano il telaio sotto, appena svasate
 		for sx2: float in [-0.245, 0.245]:
 			var g := _box(perno, Vector3(0.05, 0.1, 0.045), legno,
@@ -3874,18 +4732,28 @@ static func _biliardino() -> Node3D:
 	var sponda := _mat(BAR_ROSSO, BAR_ROSSO_CUPO, 4.5, 0.45)
 	var campo := _mat(Color("6f9c68"), Color("5c8656"), 6.0, 0.5)
 	var acciaio := _mat(CROMO, Color("b9bec6"), 7.0, 0.3)
-	# le quattro gambe
-	for sx: float in [-0.4, 0.4]:
-		for sz: float in [-0.28, 0.28]:
-			_box(n, Vector3(0.08, 0.72, 0.08), legno, Vector3(sx, 0.36, sz))
-	# la cassa e il campo verde
-	_box(n, Vector3(0.98, 0.16, 0.66), legno, Vector3(0, 0.78, 0))
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.3)
+	# le quattro gambe tornite, un filo svasate, col piedino d'ottone
+	for sx: float in [-1.0, 1.0]:
+		for sz: float in [-1.0, 1.0]:
+			var g := _cyl(n, 0.032, 0.045, 0.72, legno,
+					Vector3(sx * 0.4, 0.36, sz * 0.28))
+			g.rotation.x = sz * 0.045
+			g.rotation.z = -sx * 0.045
+			_cyl(n, 0.045, 0.048, 0.035, ottone,
+					Vector3(sx * 0.415, 0.018, sz * 0.295))
+	# la cassa coi fianchi tondi e il campo verde
+	_loft(n, [[-0.49, 0.30, 0.70, 0.86, 0.05],
+			[-0.45, 0.33, 0.70, 0.86, 0.03],
+			[0.45, 0.33, 0.70, 0.86, 0.03],
+			[0.49, 0.30, 0.70, 0.86, 0.05]], legno)
 	_box(n, Vector3(0.9, 0.02, 0.58), campo, Vector3(0, 0.865, 0))
-	# le sponde
+	# le sponde: pannelli ad angoli tondi, non assi a coltello
 	for sz2: float in [-0.32, 0.32]:
-		_box(n, Vector3(0.98, 0.09, 0.04), sponda, Vector3(0, 0.9, sz2))
+		_lastra(n, 0.49, 0.10, 0.03, 0.04, sponda, Vector3(0, 0.9, sz2),
+				Vector3(0, PI * 0.5, 0))
 	for sx2: float in [-0.48, 0.48]:
-		_box(n, Vector3(0.04, 0.09, 0.66), sponda, Vector3(sx2, 0.9, 0))
+		_lastra(n, 0.34, 0.10, 0.03, 0.04, sponda, Vector3(sx2, 0.9, 0))
 	# le righe del campo
 	_box(n, Vector3(0.012, 0.004, 0.56), _mat(Color("e8efe4"), CREAM, 6.0, 0.2),
 			Vector3(0, 0.876, 0))
@@ -3898,25 +4766,28 @@ static func _biliardino() -> Node3D:
 	var squadre := [BAR_ROSSO, Color("6f93b8")]
 	for i in 4:
 		var x := -0.33 + 0.22 * float(i)
-		var stecca := _cyl(n, 0.016, 0.016, 1.6, acciaio, Vector3(x, 0.95, 0))
+		var stecca := _cyl(n, 0.016, 0.016, 0.95, acciaio, Vector3(x, 0.95, 0))
 		stecca.rotation.x = PI * 0.5
 		stecca.name = "Stecca%d" % i
-		# l'impugnatura da un lato solo, alternata come nei biliardini veri
+		# l'impugnatura da un lato solo, alternata come nei biliardini
+		# veri — la stecca sporge quanto serve alla presa, non il doppio
 		var lato := -1.0 if i % 2 == 0 else 1.0
-		_cyl(n, 0.034, 0.034, 0.2, _mat(WOOD_DARK, Color("5c4030"), 4.0, 0.4),
-				Vector3(x, 0.95, lato * 0.72)).rotation.x = PI * 0.5
+		_cyl(n, 0.034, 0.034, 0.18, _mat(WOOD_DARK, Color("5c4030"), 4.0, 0.4),
+				Vector3(x, 0.95, lato * 0.52)).rotation.x = PI * 0.5
 		_ball(n, 0.038, _mat(WOOD_DARK, Color("5c4030"), 4.0, 0.4),
-				Vector3(x, 0.95, lato * 0.83))
+				Vector3(x, 0.95, lato * 0.63))
 		# due omini per stecca, appesi SOTTO la stecca, con la testa tonda
 		var col: Color = squadre[i % 2]
 		var panno := _mat(col, col.darkened(0.2), 4.0, 0.4)
 		for k in 2:
 			var z := -0.15 + 0.3 * float(k)
-			_box(n, Vector3(0.055, 0.14, 0.05), panno, Vector3(x, 0.885, z))
+			# il corpo è un torace bombato, non un mattoncino
+			_ball(n, 0.046, panno, Vector3(x, 0.895, z), Vector3(0.7, 1.35, 0.6))
 			# le gambette aperte, che è come stanno gli omini veri
 			for lg: float in [-1.0, 1.0]:
-				_box(n, Vector3(0.022, 0.07, 0.022), panno,
-						Vector3(x + lg * 0.028, 0.815, z)).rotation.z = lg * 0.3
+				var gamba := _cyl(n, 0.011, 0.013, 0.075, panno,
+						Vector3(x + lg * 0.028, 0.815, z))
+				gamba.rotation.z = lg * 0.3
 			_ball(n, 0.034, _mat(CREAM, Color("efe4d2"), 5.0, 0.3),
 					Vector3(x, 0.985, z))
 	# la pallina e i contapunti
@@ -3931,41 +4802,101 @@ static func _biliardino() -> Node3D:
 	return n
 
 
+## LA FALDA TORNITA FRA DUE ANGOLI: la stessa superficie di rivoluzione
+## del lathe, ma solo da a0 ad a1 — è ciò che rende possibili gli
+## SPICCHI bicolori veri di un ombrellone: due mesh alternate sullo
+## stesso profilo, senza costole che sbucano e senza fasce dipinte.
+## A due facce: un ombrellone si guarda soprattutto da sotto.
+static func _lathe_spicchio(parent: Node3D, profilo: Array, mat: Material,
+		a0: float, a1: float, passi := 6) -> MeshInstance3D:
+	var np := profilo.size()
+	var n2: Array[Vector2] = []
+	for i in np:
+		var d: Vector2 = ((profilo[mini(i + 1, np - 1)] as Vector2)
+				- (profilo[maxi(i - 1, 0)] as Vector2)).normalized()
+		n2.append(Vector2(d.y, -d.x).normalized())
+	var punto := func(i: int, j: int) -> Vector3:
+		var a := lerpf(a0, a1, float(j) / float(passi))
+		var p: Vector2 = profilo[i]
+		return Vector3(cos(a) * p.x, p.y, -sin(a) * p.x)
+	var norma := func(i: int, j: int) -> Vector3:
+		var a := lerpf(a0, a1, float(j) / float(passi))
+		return Vector3(cos(a) * n2[i].x, n2[i].y, -sin(a) * n2[i].x).normalized()
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in np - 1:
+		for j in passi:
+			var q := [punto.call(i, j), punto.call(i + 1, j),
+					punto.call(i + 1, j + 1), punto.call(i, j + 1)]
+			var qn := [norma.call(i, j), norma.call(i + 1, j),
+					norma.call(i + 1, j + 1), norma.call(i, j + 1)]
+			for k in [0, 1, 2, 0, 2, 3]:
+				st.set_normal(qn[k])
+				st.add_vertex(q[k])
+			for k in [0, 2, 1, 0, 3, 2]:
+				st.set_normal(-(qn[k] as Vector3))
+				st.add_vertex(q[k])
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = mat
+	parent.add_child(mi)
+	return mi
+
+
 static func _ombrellone() -> Node3D:
-	# L'OMBRELLONE: a spicchi, con la frangia e il pomello. Sotto ci stanno
-	# due tavolini e mezzo pomeriggio.
+	# L'OMBRELLONE: GRANDE, che l'ombra deve coprire due tavolini e mezzo
+	# pomeriggio. Dodici spicchi bicolori VERI sulla stessa curva di tela,
+	# le stecche di legno sotto la falda, il colletto che le raccoglie sul
+	# palo, la frangia a onde che segue i colori, e in cima il pomello
+	# tornito con la puntina d'ottone.
 	var n := Node3D.new()
 	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
-	_cyl(n, 0.24, 0.3, 0.07, _mat(STONE, STONE_DARK, 4.0, 0.5), Vector3(0, 0.035, 0))
-	_cyl(n, 0.035, 0.045, 2.05, legno, Vector3(0, 1.02, 0))
-	# la cupola a spicchi alternati
 	var telo_a := _mat(CREAM, Color("f0e4cc"), 5.0, 0.35)
 	var telo_b := _mat(BAR_ROSSO, BAR_ROSSO_CUPO, 4.5, 0.4)
+	# la base di pietra tornita, col collare di legno che ferma il palo
+	BUILDER.lathe(n, [Vector2(0.33, 0.0), Vector2(0.34, 0.025),
+			Vector2(0.295, 0.06), Vector2(0.175, 0.10), Vector2(0.07, 0.13)],
+			_mat(STONE, STONE_DARK, 4.0, 0.5))
+	_cyl(n, 0.052, 0.058, 0.05, legno, Vector3(0, 0.15, 0))
+	_cyl(n, 0.035, 0.045, 2.25, legno, Vector3(0, 1.125, 0))
 	var cupola := Node3D.new()
 	cupola.name = "Cupola"
-	cupola.position = Vector3(0, 1.98, 0)
+	cupola.position = Vector3(0, 2.12, 0)
 	n.add_child(cupola)
-	# LA CUPOLA È UN CONO, non otto assi messe in cerchio: quelle, per
-	# quanto le si ruoti, restano una girandola piatta con la frangia che
-	# galleggia staccata sotto. Un cono, e gli spicchi dipinti sopra.
-	# la falda color panna, e la fascia rossa sul bordo. Le costole
-	# radiali erano boxes che uscivano dal cono come lame: la stessa
-	# lettura «ombrellone a due colori» si ottiene con un secondo tronco
-	# di cono, e non può sbucare da nessuna parte.
-	_cyl(cupola, 0.05, 0.48, 0.23, telo_a, Vector3(0, -0.02, 0))
-	_cyl(cupola, 0.48, 0.62, 0.08, telo_b, Vector3(0, -0.175, 0))
-	# il puntale e il pomello
-	_cyl(cupola, 0.02, 0.1, 0.14, telo_a, Vector3(0, 0.14, 0))
-	_ball(cupola, 0.042, legno, Vector3(0, 0.23, 0))
-	# la frangia: ATTACCATA al bordo del cono (raggio 0.62, quota -0.21),
-	# non a mezz'aria più in fuori
-	for i in 20:
-		var a2 := PI * 2.0 / 20.0 * float(i)
-		var dente := _ball(cupola, 0.055,
-				telo_b if i % 2 == 0 else telo_a,
-				Vector3(cos(a2) * 0.6, -0.225, sin(a2) * 0.6),
-				Vector3(1.0, 0.5, 0.6))
-		dente.rotation.y = -a2
+	# la tela: un'unica curva che si incurva scendendo, percorsa a
+	# spicchi alternati panna e rosso
+	var tela: Array = [Vector2(1.0, -0.30), Vector2(0.985, -0.268),
+			Vector2(0.92, -0.185), Vector2(0.80, -0.09), Vector2(0.63, 0.0),
+			Vector2(0.44, 0.075), Vector2(0.24, 0.13), Vector2(0.06, 0.165)]
+	for s in 12:
+		var a0 := TAU / 12.0 * float(s)
+		_lathe_spicchio(cupola, tela, telo_a if s % 2 == 0 else telo_b,
+				a0, a0 + TAU / 12.0)
+	# le stecche sotto la tela, una per cucitura, raccolte dal mozzo
+	for s2 in 12:
+		var a := TAU / 12.0 * float(s2)
+		var giro := Basis(Vector3.UP, -a)
+		var punti: Array = []
+		for p in [Vector2(0.10, 0.135), Vector2(0.44, 0.058),
+				Vector2(0.80, -0.107), Vector2(0.975, -0.30)]:
+			punti.append(giro * Vector3((p as Vector2).x, (p as Vector2).y, 0))
+		BUILDER.tube(cupola, punti, [0.013, 0.012, 0.011, 0.009], legno, 14, 8)
+	_cyl(cupola, 0.055, 0.075, 0.075, legno, Vector3(0, 0.115, 0))
+	# il pomello tornito in cima, con la puntina d'ottone
+	BUILDER.lathe(cupola, [Vector2(0.035, 0.16), Vector2(0.052, 0.185),
+			Vector2(0.048, 0.215), Vector2(0.028, 0.245), Vector2(0.012, 0.27),
+			Vector2(0.0, 0.28)], legno)
+	_ball(cupola, 0.014, _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4),
+			Vector3(0, 0.285, 0))
+	# la frangia a onde sul bordo, un dente per mezzo spicchio, del
+	# colore del suo spicchio
+	for i in 24:
+		var a2 := TAU / 24.0 * (float(i) + 0.5)
+		var dente := _ball(cupola, 0.056,
+				telo_a if (i >> 1) % 2 == 0 else telo_b,
+				Vector3(cos(a2) * 0.985, -0.318, -sin(a2) * 0.985),
+				Vector3(1.0, 0.5, 0.42))
+		dente.rotation.y = a2 + PI * 0.5
 	return n
 
 
@@ -3975,12 +4906,27 @@ static func _fioriera() -> Node3D:
 	var n := Node3D.new()
 	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
 	var doghe := _mat(WOOD_PALE, WOOD, 3.5, 0.5)
-	_box(n, Vector3(0.96, 0.42, 0.36), legno, Vector3(0, 0.21, 0))
+	# la cassa: quattro montanti torniti con il pomello, le doghe ad
+	# angoli tondi COI VUOTI in mezzo (una cassetta di doghe senza
+	# fessure è un blocco dipinto), e la vasca scura dentro
+	_box(n, Vector3(0.88, 0.38, 0.28), legno, Vector3(0, 0.21, 0))
+	for sx: float in [-1.0, 1.0]:
+		for sz: float in [-1.0, 1.0]:
+			_cyl(n, 0.032, 0.036, 0.46, legno,
+					Vector3(sx * 0.455, 0.23, sz * 0.155))
+			_ball(n, 0.036, legno, Vector3(sx * 0.455, 0.47, sz * 0.155))
 	for i in 3:
-		_box(n, Vector3(0.94, 0.1, 0.38), doghe, Vector3(0, 0.1 + 0.13 * float(i), 0))
-	_box(n, Vector3(1.0, 0.05, 0.4), doghe, Vector3(0, 0.44, 0))
+		var y := 0.10 + 0.13 * float(i)
+		for sz2: float in [-1.0, 1.0]:
+			_lastra(n, 0.42, 0.095, 0.022, 0.032, doghe,
+					Vector3(0, y, sz2 * 0.175), Vector3(0, PI * 0.5, 0))
+		for sx2: float in [-1.0, 1.0]:
+			_lastra(n, 0.145, 0.095, 0.022, 0.032, doghe,
+					Vector3(sx2 * 0.46, y, 0))
+	_loft(n, [[-0.46, 0.185, 0.415, 0.455, 0.015],
+			[0.46, 0.185, 0.415, 0.455, 0.015]], doghe)
 	# la terra e i fiori
-	_box(n, Vector3(0.88, 0.06, 0.3), _mat(Color("6b5340"), Color("57432f"), 5.0, 0.5),
+	_box(n, Vector3(0.84, 0.06, 0.28), _mat(Color("6b5340"), Color("57432f"), 5.0, 0.5),
 			Vector3(0, 0.44, 0))
 	var verde := _mat(LEAF, LEAF_DARK, 6.0, 0.55)
 	var petali := [PINK, Color("ffd76e"), Color("cdbff0"), Color("f6c39c")]
@@ -3997,6 +4943,19 @@ static func _fioriera() -> Node3D:
 					Vector3(1.0, 0.6, 1.0))
 		_ball(n, 0.018, _mat(Color("ffd76e"), Color("eec254"), 5.0, 0.3),
 				Vector3(x, 0.668, z))
+	# il filo d'edera che scende dal bordo (il commento lo prometteva da
+	# sempre, ma nessuno l'aveva mai piantato)
+	BUILDER.tube(n, [Vector3(0.30, 0.46, -0.14), Vector3(0.37, 0.40, -0.19),
+			Vector3(0.42, 0.30, -0.21), Vector3(0.43, 0.19, -0.19),
+			Vector3(0.41, 0.10, -0.16)],
+			[0.012, 0.011, 0.009, 0.008, 0.006], verde)
+	for f in 5:
+		var t := float(f) / 4.0
+		var fp := Vector3(lerpf(0.31, 0.42, t), lerpf(0.45, 0.11, t),
+				lerpf(-0.15, -0.17, t) - sin(t * PI) * 0.045)
+		var foglia := _ball(n, 0.032, verde, fp, Vector3(1.0, 0.35, 0.75))
+		foglia.rotation.y = t * 2.2
+		foglia.rotation.z = 0.3 - t * 0.5
 	return n
 
 
@@ -4008,22 +4967,25 @@ static func _lucine() -> Node3D:
 	for sx: float in [-0.46, 0.46]:
 		_cyl(n, 0.03, 0.04, 1.9, legno, Vector3(sx, 0.95, 0))
 		_ball(n, 0.04, legno, Vector3(sx, 1.9, 0))
-	# il filo: una catenaria fatta di segmenti, con le lampadine appese
+	# il filo: una catenaria VERA, un tubo continuo che pende — non una
+	# spezzata di bastoncini — con le lampadine appese
 	var filo := _mat(Color("4f4a45"), Color("3d3935"), 4.0, 0.3)
 	var colori := [Color("ffd08a"), Color("ffb0a0"), Color("bfe0ff"),
 			Color("ffe6a8"), Color("d8c0f0")]
+	var corda: Array = []
+	var raggi: Array = []
+	for i in 7:
+		var t := float(i) / 6.0
+		corda.append(Vector3(lerpf(-0.46, 0.46, t), 1.88 - 0.26 * sin(t * PI), 0))
+		raggi.append(0.006)
+	BUILDER.tube(n, corda, raggi, filo, 30, 8)
 	var passi := 9
 	for i in passi:
+		# le due lampadine d'estremità finivano DENTRO i paletti: restano
+		# gli attacchi sul filo, le lampadine vivono fra i pali, non nei pali
+		if i == 0 or i == passi - 1:
+			continue
 		var t0 := float(i) / float(passi - 1)
-		var t1 := float(i + 1) / float(passi - 1)
-		if i < passi - 1:
-			var x0 := lerpf(-0.46, 0.46, t0)
-			var x1 := lerpf(-0.46, 0.46, t1)
-			var y0 := 1.88 - 0.26 * sin(t0 * PI)
-			var y1 := 1.88 - 0.26 * sin(t1 * PI)
-			var seg := _box(n, Vector3(absf(x1 - x0) + 0.012, 0.012, 0.012), filo,
-					Vector3((x0 + x1) * 0.5, (y0 + y1) * 0.5, 0))
-			seg.rotation.z = atan2(y1 - y0, x1 - x0)
 		var xl := lerpf(-0.46, 0.46, t0)
 		var yl := 1.88 - 0.26 * sin(t0 * PI)
 		var c: Color = colori[i % colori.size()]
@@ -4048,27 +5010,43 @@ static func _frigo_gelati() -> Node3D:
 	var bianco := _mat(SEGNALE_BIANCO, Color("e6dfd0"), 5.0, 0.3)
 	var rosso := _mat(BAR_ROSSO, BAR_ROSSO_CUPO, 4.5, 0.45)
 	var cromo := _mat(CROMO, Color("b9bec6"), 7.0, 0.3)
-	_box(n, Vector3(0.94, 0.62, 0.5), bianco, Vector3(0, 0.34, 0))
-	_box(n, Vector3(0.96, 0.06, 0.52), cromo, Vector3(0, 0.05, 0))
-	# la fascia a strisce
+	# il pozzetto bombato sugli angoli, sul basamento cromato stondato
+	_loft(n, [[-0.47, 0.22, 0.08, 0.65, 0.09],
+			[-0.43, 0.25, 0.08, 0.65, 0.045],
+			[0.43, 0.25, 0.08, 0.65, 0.045],
+			[0.47, 0.22, 0.08, 0.65, 0.09]], bianco)
+	_loft(n, [[-0.48, 0.235, 0.015, 0.09, 0.035],
+			[-0.44, 0.26, 0.015, 0.09, 0.02],
+			[0.44, 0.26, 0.015, 0.09, 0.02],
+			[0.48, 0.235, 0.015, 0.09, 0.035]], cromo)
+	# la fascia a strisce, pannellini ad angoli tondi
 	for i in 5:
-		_box(n, Vector3(0.16, 0.16, 0.03), rosso if i % 2 == 0 else bianco,
-				Vector3(-0.34 + 0.17 * float(i), 0.5, -0.26))
-	# i due coperchi scorrevoli, uno socchiuso
+		_lastra(n, 0.075, 0.16, 0.025, 0.025, rosso if i % 2 == 0 else bianco,
+				Vector3(-0.34 + 0.17 * float(i), 0.5, -0.253), Vector3(0, PI * 0.5, 0))
+	# i due coperchi scorrevoli a bordo tondo, col maniglione ad arco
 	for lato: float in [-1.0, 1.0]:
-		var cop := _box(n, Vector3(0.44, 0.05, 0.46), cromo,
-				Vector3(lato * 0.24, 0.67, lato * 0.02))
+		var cop := _lastra(n, 0.23, 0.44, 0.03, 0.05, cromo,
+				Vector3(lato * 0.24, 0.675, lato * 0.02), Vector3(0, 0, PI * 0.5))
 		cop.name = "Coperchio%d" % int(lato)
-		_box(n, Vector3(0.16, 0.03, 0.03), _mat(ZINCO_CUPO, Color("7d838b"), 5.0, 0.3),
-				Vector3(lato * 0.24, 0.7, lato * 0.02 - 0.2))
-	# il cartello col cono
+		BUILDER.tube(n, [Vector3(lato * 0.24 - 0.08, 0.70, lato * 0.02 - 0.19),
+				Vector3(lato * 0.24, 0.735, lato * 0.02 - 0.20),
+				Vector3(lato * 0.24 + 0.08, 0.70, lato * 0.02 - 0.19)],
+				[0.011, 0.012, 0.011], _mat(ZINCO_CUPO, Color("7d838b"), 5.0, 0.3))
+	# il cartello col cono: targa tonda in cornice rossa, sul palo
 	var palo := _cyl(n, 0.014, 0.014, 0.34, cromo, Vector3(0.36, 0.82, 0.12))
-	var cartello := _box(n, Vector3(0.26, 0.3, 0.02), bianco, Vector3(0.36, 1.05, 0.12))
+	palo.rotation.z = 0.06
+	var cartello := _lastra(n, 0.145, 0.32, 0.06, 0.02, rosso,
+			Vector3(0.37, 1.06, 0.12), Vector3(0, PI * 0.5, 0))
 	cartello.name = "Cartello"
-	var cialda := _cyl(n, 0.075, 0.012, 0.16, _mat(Color("e8bd78"), Color("d4a45e"), 6.0, 0.45),
-			Vector3(0.36, 1.0, 0.105))
-	_ball(n, 0.045, _mat(PINK, PINK_DEEP, 5.0, 0.4), Vector3(0.335, 1.1, 0.105))
-	_ball(n, 0.042, _mat(CREAM, Color("f0e4cc"), 5.0, 0.35), Vector3(0.385, 1.13, 0.105))
+	_lastra(n, 0.125, 0.28, 0.05, 0.02, bianco,
+			Vector3(0.37, 1.06, 0.114), Vector3(0, PI * 0.5, 0))
+	var cialda := _cyl(n, 0.07, 0.012, 0.15, _mat(Color("e8bd78"), Color("d4a45e"), 6.0, 0.45),
+			Vector3(0.37, 1.0, 0.098))
+	cialda.rotation.z = 0.1
+	_ball(n, 0.044, _mat(PINK, PINK_DEEP, 5.0, 0.4), Vector3(0.35, 1.10, 0.095))
+	_ball(n, 0.041, _mat(CREAM, Color("f0e4cc"), 5.0, 0.35), Vector3(0.395, 1.125, 0.095))
+	_ball(n, 0.014, _mat(BAR_ROSSO, BAR_ROSSO_CUPO, 5.0, 0.35),
+			Vector3(0.40, 1.16, 0.093))
 	return n
 
 
@@ -4077,13 +5055,20 @@ static func _tenda_bar() -> Node3D:
 	# Sta sul bordo di una cella, come un muro.
 	var n := Node3D.new()
 	var metallo := _mat(METAL, Color("6f665b"), 5.0, 0.4)
-	# i due bracci
+	# i due bracci: ferro battuto che curva, non squadrette
 	for sx: float in [-0.44, 0.44]:
-		var braccio := _box(n, Vector3(0.04, 0.04, 0.56), metallo, Vector3(sx, 2.02, -0.2))
-		braccio.rotation.x = -0.42
-		_box(n, Vector3(0.05, 0.3, 0.05), metallo, Vector3(sx, 2.16, 0.02)).rotation.x = 0.5
-	_box(n, Vector3(0.96, 0.05, 0.05), metallo, Vector3(0, 2.3, 0.02))
-	# la falda a strisce, inclinata
+		BUILDER.tube(n, [Vector3(sx, 2.32, 0.04), Vector3(sx, 2.28, -0.06),
+				Vector3(sx, 2.16, -0.24), Vector3(sx, 2.03, -0.42),
+				Vector3(sx, 1.985, -0.47)],
+				[0.018, 0.017, 0.016, 0.015, 0.014], metallo)
+		BUILDER.tube(n, [Vector3(sx, 2.30, 0.02), Vector3(sx, 2.16, -0.02),
+				Vector3(sx, 2.04, 0.02)],
+				[0.012, 0.012, 0.012], metallo)
+	var barra := _cyl(n, 0.022, 0.022, 0.96, metallo, Vector3(0, 2.3, 0.02))
+	barra.rotation.z = PI * 0.5
+	# la falda a strisce, inclinata, che SI INSACCA fra la barra e il
+	# bordo: ogni striscia è una tela incurvata (la stessa falda del
+	# vetro curvo, con la stoffa al posto del vetro), non un'asse rigida
 	var falda := Node3D.new()
 	falda.name = "Falda"
 	falda.position = Vector3(0, 2.06, -0.26)
@@ -4091,14 +5076,18 @@ static func _tenda_bar() -> Node3D:
 	n.add_child(falda)
 	var bianco := _mat(CREAM, Color("f0e4cc"), 5.0, 0.3)
 	var rosso := _mat(BAR_ROSSO, BAR_ROSSO_CUPO, 4.5, 0.4)
+	var sagoma: Array = [Vector2(0.31, 0.015), Vector2(0.155, -0.012),
+			Vector2(0.0, -0.026), Vector2(-0.155, -0.012), Vector2(-0.31, 0.015)]
 	for i in 6:
-		_box(falda, Vector3(0.163, 0.03, 0.62), rosso if i % 2 == 0 else bianco,
-				Vector3(-0.41 + 0.163 * float(i), 0, 0))
-	# la frangia a onde sul bordo davanti
+		var x0 := -0.4915 + 0.163 * float(i)
+		_vetro_curvo(falda, x0, x0 + 0.163, sagoma,
+				rosso if i % 2 == 0 else bianco)
+	# la frangia a onde sul bordo davanti: scende SOTTO l'orlo — mezza
+	# affondata nel telo sembrava un rotolo di salsicce
 	for i in 6:
-		var dente := _ball(falda, 0.075, rosso if i % 2 == 0 else bianco,
-				Vector3(-0.41 + 0.163 * float(i), -0.03, -0.32),
-				Vector3(1.0, 0.55, 0.5))
+		var dente := _ball(falda, 0.068, rosso if i % 2 == 0 else bianco,
+				Vector3(-0.41 + 0.163 * float(i), -0.028, -0.312),
+				Vector3(1.0, 0.5, 0.4))
 		dente.name = "Dente%d" % i
 	return n
 
@@ -4109,13 +5098,18 @@ static func _insegna_bar() -> Node3D:
 	var n := Node3D.new()
 	var ferro := _mat(Color("4f4a45"), Color("3d3935"), 5.0, 0.4)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
-	_box(n, Vector3(0.07, 0.28, 0.07), ferro, Vector3(-0.4, 2.0, 0))
-	_box(n, Vector3(0.62, 0.05, 0.05), ferro, Vector3(-0.1, 2.12, 0))
-	# il ricciolo di ferro battuto
-	for i in 3:
-		var a := PI * 0.5 * float(i)
-		_ball(n, 0.028, ferro, Vector3(-0.3 + cos(a) * 0.06, 2.06 + sin(a) * 0.06, 0),
-				Vector3(1, 1, 0.5))
+	# la piastra al muro e il braccio di ferro battuto: un tubo che
+	# curva, col RICCIOLO vero avvolto sotto — non tre palline in fila
+	_lastra(n, 0.05, 0.30, 0.02, 0.04, ferro, Vector3(-0.41, 2.0, 0),
+			Vector3(0, PI * 0.5, 0))
+	BUILDER.tube(n, [Vector3(-0.40, 2.02, 0), Vector3(-0.40, 2.10, 0),
+			Vector3(-0.32, 2.13, 0), Vector3(-0.05, 2.138, 0),
+			Vector3(0.34, 2.128, 0)],
+			[0.019, 0.019, 0.018, 0.016, 0.014], ferro)
+	BUILDER.tube(n, [Vector3(-0.33, 2.115, 0), Vector3(-0.24, 2.05, 0),
+			Vector3(-0.285, 2.005, 0), Vector3(-0.33, 2.035, 0),
+			Vector3(-0.305, 2.075, 0)],
+			[0.011, 0.010, 0.009, 0.008, 0.007], ferro)
 	var appesa := Node3D.new()
 	appesa.name = "Insegna"
 	# LE ASTINE DEVONO STARE DENTRO LA CAMPATA DEL BRACCIO, che va da −0.41
@@ -4124,26 +5118,39 @@ static func _insegna_bar() -> Node3D:
 	# facile da non vedere e la più impossibile da spiegare.
 	appesa.position = Vector3(-0.06, 2.1, 0)
 	n.add_child(appesa)
-	for dx: float in [-0.17, 0.17]:
-		_cyl(appesa, 0.007, 0.007, 0.14, ottone, Vector3(dx, -0.07, 0))
-	_box(appesa, Vector3(0.54, 0.36, 0.045), _mat(CREAM, Color("f0e4cc"), 5.0, 0.3),
-			Vector3(0, -0.32, 0))
-	_box(appesa, Vector3(0.56, 0.04, 0.05), ottone, Vector3(0, -0.15, 0))
-	_box(appesa, Vector3(0.56, 0.04, 0.05), ottone, Vector3(0, -0.49, 0))
-	# LA TAZZINA È UN RILIEVO, non una tazza vera appoggiata sopra. A z −0.03
-	# con raggio 0.085 trapassava il cartello (spesso 0.045) e di taglio la
-	# si vedeva sporgere sia davanti sia DIETRO. Sta tutta davanti al
-	# pannello, e schiacciata: è dipinta, non servita.
-	var tazza := Node3D.new()
-	tazza.position = Vector3(0, 0, -0.058)
-	tazza.scale = Vector3(1, 1, 0.5)
-	appesa.add_child(tazza)
-	_cyl(tazza, 0.085, 0.07, 0.1, ottone, Vector3(-0.02, -0.33, 0))
-	_cyl(tazza, 0.1, 0.1, 0.012, ottone, Vector3(-0.02, -0.39, 0))
-	var manico := _cyl(tazza, 0.032, 0.032, 0.015, ottone, Vector3(0.08, -0.32, 0))
+	# gli anelli AVVOLGONO il braccio (asse lungo il braccio, centro sul
+	# suo asse: un anello posato sotto è un'insegna che levita), e i
+	# tiranti scendono dagli anelli alla targa
+	for dx: float in [-0.16, 0.16]:
+		var anello := MeshInstance3D.new()
+		var am := TorusMesh.new()
+		am.inner_radius = 0.019
+		am.outer_radius = 0.031
+		anello.mesh = am
+		anello.material_override = ottone
+		anello.position = Vector3(dx, 0.033, 0)
+		anello.rotation.z = PI * 0.5
+		appesa.add_child(anello)
+		_cyl(appesa, 0.006, 0.006, 0.13, ottone, Vector3(dx, -0.048, 0))
+	_lastra(appesa, 0.29, 0.42, 0.06, 0.035, ottone, Vector3(0, -0.32, 0),
+			Vector3(0, PI * 0.5, 0))
+	_lastra(appesa, 0.265, 0.375, 0.05, 0.04, _mat(CREAM, Color("f0e4cc"), 5.0, 0.3),
+			Vector3(0, -0.32, 0), Vector3(0, PI * 0.5, 0))
+	# la tazzina dipinta — corpo svasato, piattino, manico ad anello — e
+	# il vapore che sale storto come il vapore vero
+	_cyl(appesa, 0.085, 0.062, 0.1, ottone, Vector3(-0.02, -0.33, -0.032))
+	_cyl(appesa, 0.105, 0.085, 0.015, ottone, Vector3(-0.02, -0.395, -0.032))
+	var manico := MeshInstance3D.new()
+	var mm := TorusMesh.new()
+	mm.inner_radius = 0.018
+	mm.outer_radius = 0.036
+	manico.mesh = mm
+	manico.material_override = ottone
+	manico.position = Vector3(0.075, -0.325, -0.032)
 	manico.rotation.x = PI * 0.5
+	appesa.add_child(manico)
 	for i in 3:
-		_ball(tazza, 0.014, ottone,
-				Vector3(-0.02 + sin(float(i) * 1.5) * 0.03, -0.24 + 0.045 * float(i), 0),
+		_ball(appesa, 0.014, ottone,
+				Vector3(-0.02 + sin(float(i) * 1.5) * 0.03, -0.24 + 0.045 * float(i), -0.032),
 				Vector3(1, 1, 0.4))
 	return n
