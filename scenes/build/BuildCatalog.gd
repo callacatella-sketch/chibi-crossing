@@ -1022,7 +1022,11 @@ static func _treehouse() -> Node3D:
 	var plaster := _mat(PLASTER, PLASTER_SHADE, 2.5, 0.5)
 	var tile := _mat(TERRACOTTA, Color("c47a58"), 3.0, 0.5)
 
-	# tronco, radici, rami — e il nodo del legno, che ogni albero vero ha
+	# tronco, radici — e il nodo del legno, che ogni albero vero ha.
+	# NIENTE rami sopra la piattaforma: partirebbero da dentro la casa e
+	# sbucherebbero da muri e tetto (è successo: un ramo usciva sopra la
+	# porta come un braccio). Lassù il tronco sparisce nella chioma, e
+	# alla chioma bastano le sfere.
 	_cyl(n, 0.26, 0.38, 2.7, bark, Vector3(0, 1.35, 0))
 	_cyl(n, 0.15, 0.22, 1.4, bark, Vector3(0, 3.3, 0))
 	for i in 5:
@@ -1030,12 +1034,6 @@ static func _treehouse() -> Node3D:
 		var root := _cyl(n, 0.08, 0.15, 0.5, bark, Vector3(cos(a) * 0.36, 0.16, sin(a) * 0.36))
 		root.rotation.x = cos(a) * 0.5
 		root.rotation.z = sin(a) * 0.5
-	for i in 2:
-		var s := 1.0 if i == 0 else -1.0
-		var branch := _cyl(n, 0.06, 0.1, 0.9, bark, Vector3(s * 0.45, 3.55, -0.1 * s))
-		branch.rotation.z = s * 1.0
-	var ramo_sud := _cyl(n, 0.05, 0.08, 0.7, bark, Vector3(0.15, 3.45, 0.4))
-	ramo_sud.rotation.x = -0.9
 	_ball(n, 0.055, _mat(Color("6e4a35"), Color("59391f"), 4.0, 0.5),
 			Vector3(0.2, 1.7, 0.24), Vector3(0.8, 1.0, 0.5))
 
@@ -1062,11 +1060,6 @@ static func _treehouse() -> Node3D:
 			var strut := _cyl(n, 0.055, 0.055, 1.75, bark, Vector3(sx * 0.6, 1.85, sz * 0.6))
 			strut.rotation.x = -sz * 0.62
 			strut.rotation.z = sx * 0.62
-			# e la mensola corta sotto la fascia, dove il puntone arriva
-			var mensola := _box(n, Vector3(0.09, 0.26, 0.09), dark,
-					Vector3(sx * 1.28, 2.32, sz * 1.28))
-			mensola.rotation.x = sz * 0.2
-			mensola.rotation.z = -sx * 0.2
 
 	# la ringhiera: paletti col pomello tondo, corrimano CILINDRICO e
 	# mezza traversa — il varco a sud è per la scala
