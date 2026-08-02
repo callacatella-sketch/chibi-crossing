@@ -299,6 +299,10 @@ func _finisci_seduta() -> void:
 			var leg := _i_legami()
 			if leg and _estetista != "":
 				leg.call("momento", _nome_di(_cliente), "regalo", "")
+				# e fra LORO due: gli ha messo le zampe addosso e l'ha
+				# fatto uscire diverso — è un gesto, non un servizio
+				get_tree().call_group("affetti", "gesto",
+						_nome_di(_estetista), _nome_di(_cliente), "salone")
 			_vai_a_vantarsi(_cliente)
 			_congeda_cliente()
 			return

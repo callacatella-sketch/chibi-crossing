@@ -379,6 +379,11 @@ func _applausi() -> void:
 			n.call("_spawn_heart")
 		if n.has_method("speak"):
 			n.call("speak", ["bello", "grazie"], "felice")
+		# e fra chi suonava e chi ascoltava: una sera al buio insieme
+		get_tree().call_group("affetti", "gesto",
+				_nome_di(_artista), _nome_di(chi), "musica")
+		get_tree().call_group("affetti", "gesto",
+				_nome_di(chi), _nome_di(_artista), "musica")
 		# il filo si annoda: aver ascoltato insieme è un momento vissuto
 		var leg := _i_legami()
 		if leg:

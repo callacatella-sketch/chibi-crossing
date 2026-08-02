@@ -239,15 +239,36 @@ func malessere(d: String) -> float:
 
 ## Il malessere complessivo: la media pesata dai tratti. Un ambizioso soffre
 ## la noia molto più di un altro; un orgoglioso, la stima calpestata.
+## QUANTO PESA UN BISOGNO PER QUESTA PERSONA. È il carattere fatto numero:
+## l'ambizioso soffre la noia, il codardo l'insicurezza, l'orgoglioso la
+## stima negata, il leale la solitudine.
+##
+## Viveva dentro `disagio()`, e `punteggio()` NON LO CHIAMAVA: due vicini con
+## gli stessi bisogni ricevevano punteggi identici su ogni azione, qualunque
+## fosse il loro carattere. Il motore delle scelte era cieco proprio alla
+## cosa che doveva renderle diverse — e finché lo era, «libero arbitrio»
+## non poteva essere altro che un dado.
+func peso_drive(d: String) -> float:
+	match d:
+		"fatica":
+			return 1.0
+		"noia":
+			return 0.6 + 0.9 * float(tratti.get("ambizione", 0.5))
+		"sicurezza":
+			return 0.7 + 1.0 * float(tratti.get("codardia", 0.5))
+		"autonomia":
+			return 0.7 + 0.9 * float(tratti.get("orgoglio", 0.5))
+		"appartenenza":
+			return 0.7 + 0.7 * float(tratti.get("lealta", 0.5))
+		"stima":
+			return 0.6 + 1.1 * float(tratti.get("orgoglio", 0.5))
+	return 1.0
+
+
 func disagio() -> float:
-	var pesi := {
-		"fatica": 1.0,
-		"noia": 0.6 + 0.9 * float(tratti.get("ambizione", 0.5)),
-		"sicurezza": 0.7 + 1.0 * float(tratti.get("codardia", 0.5)),
-		"autonomia": 0.7 + 0.9 * float(tratti.get("orgoglio", 0.5)),
-		"appartenenza": 0.7 + 0.7 * float(tratti.get("lealta", 0.5)),
-		"stima": 0.6 + 1.1 * float(tratti.get("orgoglio", 0.5)),
-	}
+	var pesi := {}
+	for d in DRIVES:
+		pesi[d] = peso_drive(d)
 	var somma := 0.0
 	var tot := 0.0
 	for d in DRIVES:
@@ -503,7 +524,10 @@ func punteggio(azione: String, chiede := "giocatore") -> float:
 			continue
 		var delta: float = float(c[d])
 		var sollievo: float = (-delta if d in MALESSERI else delta)
-		s += sollievo * malessere(d) * 2.2
+		# 2.2 era una costante uguale per tutti: adesso la scala il
+		# carattere, ed è da qui che due vicini davanti alla stessa scelta
+		# arrivano a due risposte diverse
+		s += sollievo * malessere(d) * 2.2 * peso_drive(d)
 	# il sogno tira: si fa volentieri ciò che ci avvicina a chi vogliamo essere
 	if str(c.get("serve", "")) == sogno:
 		s += 0.45 * (0.5 + float(tratti.get("ambizione", 0.5)))
@@ -521,7 +545,14 @@ func punteggio(azione: String, chiede := "giocatore") -> float:
 ## fra le prime tre. Prendere sempre il massimo rende gli NPC prevedibili e
 ## meccanici; campiare fra le migliori li rende vivi restando sensati — non
 ## faranno mai la cosa assurda, ma nemmeno sempre la stessa.
-func decide(azioni: Array, chiede := "giocatore") -> String:
+## `nitidezza` è quanto la scelta è DECISA. 1.6 è una moneta appena
+## sbilanciata (a 0.3 di scarto dà 62/38): giusta per «che mestiere faccio
+## oggi», dove sbagliare costa una giornata. Per le scelte che cambiano una
+## vita — chiudere la porta, andarsene dal villaggio — quella stessa moneta
+## renderebbe il carattere irrilevante: chi ci guarda vedrebbe un dado.
+## Alzandola, la persona fa quello che farebbe LEI, e il caso resta solo per
+## i pareggi veri.
+func decide(azioni: Array, chiede := "giocatore", nitidezza := 1.6) -> String:
 	if azioni.is_empty():
 		return ""
 	var voti := []
@@ -533,10 +564,10 @@ func decide(azioni: Array, chiede := "giocatore") -> String:
 	var base: float = float(top[top.size() - 1]["s"])
 	var tot := 0.0
 	for v in top:
-		tot += exp((float(v["s"]) - base) * 1.6)
+		tot += exp((float(v["s"]) - base) * nitidezza)
 	var tiro := _rng.randf() * tot
 	for v in top:
-		tiro -= exp((float(v["s"]) - base) * 1.6)
+		tiro -= exp((float(v["s"]) - base) * nitidezza)
 		if tiro <= 0.0:
 			return str(v["a"])
 	return str(top[0]["a"])
@@ -741,7 +772,12 @@ func diario() -> Array:
 # ---------------------------------------------------------------- salvataggio
 
 func save() -> Dictionary:
+	# LO STATO DEL DADO. Senza, ricaricare fa ripartire lo stream dal seme,
+	# e due tentativi di save-scumming smascherano che «libero arbitrio»
+	# era `randf()`: stessa partita ricaricata, stessa situazione, risposta
+	# diversa. Salvandolo, la persona resta quella che era.
 	return {
+		"rng": _rng.state,
 		"nome": nome, "sogno": sogno, "tratti": tratti.duplicate(),
 		"drive": drive.duplicate(), "ricordi": ricordi.duplicate(true),
 		"sommario": sommario.duplicate(true), "opinione": opinione.duplicate(),
@@ -766,3 +802,5 @@ func load(d: Dictionary) -> void:
 	_ultimo_scatto = int(d.get("ultimo_scatto", -99))
 	if d.has("limbico"):
 		limbico.load(d["limbico"])
+	if d.has("rng"):
+		_rng.state = int(d["rng"])
