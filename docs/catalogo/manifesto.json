@@ -117,21 +117,21 @@
     "tipo": "cell"
   },
   {
-    "alto": 2.27,
-    "cartella": "docs/catalogo/0-struttura/guardiola/",
+    "alto": 0.48,
+    "cartella": "docs/catalogo/0-struttura/tenda-bar/",
     "cat": 0.0,
-    "largo": 1.16,
-    "nome": "Guardiola",
-    "slug": "guardiola",
-    "tipo": "cell"
+    "largo": 0.98,
+    "nome": "Tenda bar",
+    "slug": "tenda-bar",
+    "tipo": "edge"
   },
   {
-    "alto": 1.05,
-    "cartella": "docs/catalogo/0-struttura/autopompa/",
+    "alto": 0.6,
+    "cartella": "docs/catalogo/0-struttura/gradinata/",
     "cat": 0.0,
-    "largo": 1.67,
-    "nome": "Autopompa",
-    "slug": "autopompa",
+    "largo": 1.04,
+    "nome": "Gradinata",
+    "slug": "gradinata",
     "tipo": "cell"
   },
   {
@@ -144,22 +144,22 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.6,
-    "cartella": "docs/catalogo/0-struttura/gradinata/",
-    "cat": 0.0,
-    "largo": 1.04,
-    "nome": "Gradinata",
-    "slug": "gradinata",
+    "alto": 1.08,
+    "cartella": "docs/catalogo/0-struttura/autopompa/",
+    "cat": 0,
+    "largo": 1.84,
+    "nome": "Autopompa",
+    "slug": "autopompa",
     "tipo": "cell"
   },
   {
-    "alto": 0.48,
-    "cartella": "docs/catalogo/0-struttura/tenda-bar/",
-    "cat": 0,
-    "largo": 0.98,
-    "nome": "Tenda bar",
-    "slug": "tenda-bar",
-    "tipo": "edge"
+    "alto": 2.27,
+    "cartella": "docs/catalogo/0-struttura/guardiola/",
+    "cat": 0.0,
+    "largo": 1.16,
+    "nome": "Guardiola",
+    "slug": "guardiola",
+    "tipo": "cell"
   },
   {
     "alto": 0.55,
@@ -191,7 +191,7 @@
   {
     "alto": 0.56,
     "cartella": "docs/catalogo/0-struttura/insegna-bar/",
-    "cat": 0,
+    "cat": 0.0,
     "largo": 0.81,
     "nome": "Insegna bar",
     "slug": "insegna-bar",
@@ -200,7 +200,7 @@
   {
     "alto": 1.29,
     "cartella": "docs/catalogo/0-struttura/bancone-bar/",
-    "cat": 0,
+    "cat": 0.0,
     "largo": 1.06,
     "nome": "Bancone bar",
     "slug": "bancone-bar",
@@ -225,12 +225,12 @@
     "tipo": "cell"
   },
   {
-    "alto": 2.08,
-    "cartella": "docs/catalogo/0-struttura/portone-rimessa/",
+    "alto": 2.0,
+    "cartella": "docs/catalogo/0-struttura/insegna-guardia/",
     "cat": 0.0,
-    "largo": 1.02,
-    "nome": "Portone rimessa",
-    "slug": "portone-rimessa",
+    "largo": 0.79,
+    "nome": "Insegna guardia",
+    "slug": "insegna-guardia",
     "tipo": "edge"
   },
   {
@@ -243,12 +243,12 @@
     "tipo": "edge"
   },
   {
-    "alto": 2.0,
-    "cartella": "docs/catalogo/0-struttura/insegna-guardia/",
+    "alto": 2.08,
+    "cartella": "docs/catalogo/0-struttura/portone-rimessa/",
     "cat": 0.0,
-    "largo": 0.79,
-    "nome": "Insegna guardia",
-    "slug": "insegna-guardia",
+    "largo": 1.02,
+    "nome": "Portone rimessa",
+    "slug": "portone-rimessa",
     "tipo": "edge"
   },
   {
@@ -306,21 +306,21 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.79,
-    "cartella": "docs/catalogo/1-arredo/lampada/",
-    "cat": 1.0,
-    "largo": 0.38,
-    "nome": "Lampada",
-    "slug": "lampada",
-    "tipo": "cell"
-  },
-  {
     "alto": 0.22,
     "cartella": "docs/catalogo/1-arredo/stivali/",
     "cat": 1.0,
     "largo": 0.72,
     "nome": "Stivali",
     "slug": "stivali",
+    "tipo": "cell"
+  },
+  {
+    "alto": 1.79,
+    "cartella": "docs/catalogo/1-arredo/lampada/",
+    "cat": 1.0,
+    "largo": 0.38,
+    "nome": "Lampada",
+    "slug": "lampada",
     "tipo": "cell"
   },
   {
@@ -378,6 +378,24 @@
     "tipo": "cell"
   },
   {
+    "alto": 1.02,
+    "cartella": "docs/catalogo/1-arredo/biliardino/",
+    "cat": 1.0,
+    "largo": 1.0,
+    "nome": "Biliardino",
+    "slug": "biliardino",
+    "tipo": "cell"
+  },
+  {
+    "alto": 0.95,
+    "cartella": "docs/catalogo/1-arredo/lavagnetta/",
+    "cat": 1.0,
+    "largo": 0.56,
+    "nome": "Lavagnetta",
+    "slug": "lavagnetta",
+    "tipo": "cell"
+  },
+  {
     "alto": 0.69,
     "cartella": "docs/catalogo/1-arredo/pianoforte/",
     "cat": 1.0,
@@ -387,27 +405,9 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.95,
-    "cartella": "docs/catalogo/1-arredo/lavagnetta/",
-    "cat": 1,
-    "largo": 0.56,
-    "nome": "Lavagnetta",
-    "slug": "lavagnetta",
-    "tipo": "cell"
-  },
-  {
-    "alto": 1.02,
-    "cartella": "docs/catalogo/1-arredo/biliardino/",
-    "cat": 1,
-    "largo": 1.0,
-    "nome": "Biliardino",
-    "slug": "biliardino",
-    "tipo": "cell"
-  },
-  {
     "alto": 0.81,
     "cartella": "docs/catalogo/1-arredo/tavolino-bar/",
-    "cat": 1,
+    "cat": 1.0,
     "largo": 0.81,
     "nome": "Tavolino bar",
     "slug": "tavolino-bar",
@@ -416,7 +416,7 @@
   {
     "alto": 0.9,
     "cartella": "docs/catalogo/1-arredo/sedia-vimini/",
-    "cat": 1,
+    "cat": 1.0,
     "largo": 0.44,
     "nome": "Sedia vimini",
     "slug": "sedia-vimini",
@@ -443,7 +443,7 @@
   {
     "alto": 0.96,
     "cartella": "docs/catalogo/1-arredo/vetrina-dolci/",
-    "cat": 1,
+    "cat": 1.0,
     "largo": 0.96,
     "nome": "Vetrina dolci",
     "slug": "vetrina-dolci",
@@ -452,10 +452,19 @@
   {
     "alto": 0.78,
     "cartella": "docs/catalogo/1-arredo/sgabello-alto/",
-    "cat": 1,
+    "cat": 1.0,
     "largo": 0.38,
     "nome": "Sgabello alto",
     "slug": "sgabello-alto",
+    "tipo": "cell"
+  },
+  {
+    "alto": 0.7,
+    "cartella": "docs/catalogo/1-arredo/macchina-caffe/",
+    "cat": 1.0,
+    "largo": 0.67,
+    "nome": "Macchina caffè",
+    "slug": "macchina-caffe",
     "tipo": "cell"
   },
   {
@@ -466,15 +475,6 @@
     "nome": "Bacheca avvisi",
     "slug": "bacheca-avvisi",
     "tipo": "edge"
-  },
-  {
-    "alto": 0.7,
-    "cartella": "docs/catalogo/1-arredo/macchina-caffe/",
-    "cat": 1,
-    "largo": 0.67,
-    "nome": "Macchina caffè",
-    "slug": "macchina-caffe",
-    "tipo": "cell"
   },
   {
     "alto": 1.15,
@@ -515,7 +515,7 @@
   {
     "alto": 1.0,
     "cartella": "docs/catalogo/1-arredo/mensola-bottiglie/",
-    "cat": 1,
+    "cat": 1.0,
     "largo": 0.94,
     "nome": "Mensola bottiglie",
     "slug": "mensola-bottiglie",
@@ -560,7 +560,7 @@
   {
     "alto": 0.64,
     "cartella": "docs/catalogo/2-giardino/cuccia/",
-    "cat": 2,
+    "cat": 2.0,
     "largo": 0.8,
     "nome": "Cuccia",
     "slug": "cuccia",
@@ -569,7 +569,7 @@
   {
     "alto": 1.94,
     "cartella": "docs/catalogo/2-giardino/lucine/",
-    "cat": 2,
+    "cat": 2.0,
     "largo": 1.0,
     "nome": "Lucine",
     "slug": "lucine",
@@ -594,21 +594,12 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.6,
-    "cartella": "docs/catalogo/2-giardino/lavagna/",
+    "alto": 2.07,
+    "cartella": "docs/catalogo/2-giardino/pennone/",
     "cat": 2.0,
-    "largo": 1.06,
-    "nome": "Lavagna",
-    "slug": "lavagna",
-    "tipo": "cell"
-  },
-  {
-    "alto": 0.54,
-    "cartella": "docs/catalogo/2-giardino/fontana/",
-    "cat": 2.0,
-    "largo": 1.0,
-    "nome": "Fontana",
-    "slug": "fontana",
+    "largo": 0.11,
+    "nome": "Pennone",
+    "slug": "pennone",
     "tipo": "cell"
   },
   {
@@ -621,18 +612,27 @@
     "tipo": "cell"
   },
   {
-    "alto": 2.07,
-    "cartella": "docs/catalogo/2-giardino/pennone/",
-    "cat": 2,
-    "largo": 0.11,
-    "nome": "Pennone",
-    "slug": "pennone",
+    "alto": 0.54,
+    "cartella": "docs/catalogo/2-giardino/fontana/",
+    "cat": 2.0,
+    "largo": 1.0,
+    "nome": "Fontana",
+    "slug": "fontana",
+    "tipo": "cell"
+  },
+  {
+    "alto": 1.6,
+    "cartella": "docs/catalogo/2-giardino/lavagna/",
+    "cat": 2.0,
+    "largo": 1.06,
+    "nome": "Lavagna",
+    "slug": "lavagna",
     "tipo": "cell"
   },
   {
     "alto": 0.69,
     "cartella": "docs/catalogo/2-giardino/fioriera/",
-    "cat": 2,
+    "cat": 2.0,
     "largo": 1.0,
     "nome": "Fioriera",
     "slug": "fioriera",
@@ -675,12 +675,21 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.65,
-    "cartella": "docs/catalogo/2-giardino/giostrina/",
+    "alto": 0.71,
+    "cartella": "docs/catalogo/2-giardino/transenna/",
     "cat": 2.0,
-    "largo": 0.88,
-    "nome": "Giostrina",
-    "slug": "giostrina",
+    "largo": 0.96,
+    "nome": "Transenna",
+    "slug": "transenna",
+    "tipo": "edge"
+  },
+  {
+    "alto": 0.64,
+    "cartella": "docs/catalogo/2-giardino/cespuglio/",
+    "cat": 2.0,
+    "largo": 0.86,
+    "nome": "Cespuglio",
+    "slug": "cespuglio",
     "tipo": "cell"
   },
   {
@@ -693,27 +702,18 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.64,
-    "cartella": "docs/catalogo/2-giardino/cespuglio/",
+    "alto": 1.65,
+    "cartella": "docs/catalogo/2-giardino/giostrina/",
     "cat": 2.0,
-    "largo": 0.86,
-    "nome": "Cespuglio",
-    "slug": "cespuglio",
+    "largo": 0.88,
+    "nome": "Giostrina",
+    "slug": "giostrina",
     "tipo": "cell"
-  },
-  {
-    "alto": 0.71,
-    "cartella": "docs/catalogo/2-giardino/transenna/",
-    "cat": 2.0,
-    "largo": 0.96,
-    "nome": "Transenna",
-    "slug": "transenna",
-    "tipo": "edge"
   },
   {
     "alto": 2.26,
     "cartella": "docs/catalogo/2-giardino/ombrellone/",
-    "cat": 2,
+    "cat": 2.0,
     "largo": 1.31,
     "nome": "Ombrellone",
     "slug": "ombrellone",
@@ -756,12 +756,12 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.18,
-    "cartella": "docs/catalogo/2-giardino/frigo-gelati/",
-    "cat": 2,
-    "largo": 0.97,
-    "nome": "Frigo gelati",
-    "slug": "frigo-gelati",
+    "alto": 1.52,
+    "cartella": "docs/catalogo/2-giardino/faro-caserma/",
+    "cat": 2.0,
+    "largo": 0.32,
+    "nome": "Faro caserma",
+    "slug": "faro-caserma",
     "tipo": "cell"
   },
   {
@@ -774,12 +774,12 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.52,
-    "cartella": "docs/catalogo/2-giardino/faro-caserma/",
+    "alto": 1.18,
+    "cartella": "docs/catalogo/2-giardino/frigo-gelati/",
     "cat": 2.0,
-    "largo": 0.32,
-    "nome": "Faro caserma",
-    "slug": "faro-caserma",
+    "largo": 0.97,
+    "nome": "Frigo gelati",
+    "slug": "frigo-gelati",
     "tipo": "cell"
   },
   {
@@ -900,12 +900,12 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.3,
-    "cartella": "docs/catalogo/4-chiesa/altare/",
+    "alto": 2.6,
+    "cartella": "docs/catalogo/4-chiesa/arcata/",
     "cat": 4.0,
-    "largo": 0.98,
-    "nome": "Altare",
-    "slug": "altare",
+    "largo": 1.18,
+    "nome": "Arcata",
+    "slug": "arcata",
     "tipo": "cell"
   },
   {
@@ -918,12 +918,12 @@
     "tipo": "cell"
   },
   {
-    "alto": 2.6,
-    "cartella": "docs/catalogo/4-chiesa/arcata/",
+    "alto": 1.3,
+    "cartella": "docs/catalogo/4-chiesa/altare/",
     "cat": 4.0,
-    "largo": 1.18,
-    "nome": "Arcata",
-    "slug": "arcata",
+    "largo": 0.98,
+    "nome": "Altare",
+    "slug": "altare",
     "tipo": "cell"
   },
   {
@@ -1019,7 +1019,7 @@
   {
     "alto": 1.8,
     "cartella": "docs/catalogo/5-boutique/faretti/",
-    "cat": 5,
+    "cat": 5.0,
     "largo": 0.64,
     "nome": "Faretti",
     "slug": "faretti",
@@ -1028,7 +1028,7 @@
   {
     "alto": 1.17,
     "cartella": "docs/catalogo/5-boutique/stender/",
-    "cat": 5,
+    "cat": 5.0,
     "largo": 1.01,
     "nome": "Stender",
     "slug": "stender",
@@ -1037,43 +1037,43 @@
   {
     "alto": 2.02,
     "cartella": "docs/catalogo/5-boutique/camerino/",
-    "cat": 5,
+    "cat": 5.0,
     "largo": 0.98,
     "nome": "Camerino",
     "slug": "camerino",
     "tipo": "cell"
   },
   {
-    "alto": 0.24,
-    "cartella": "docs/catalogo/5-boutique/sacchetti/",
-    "cat": 5,
-    "largo": 0.63,
-    "nome": "Sacchetti",
-    "slug": "sacchetti",
-    "tipo": "cell"
-  },
-  {
-    "alto": 0.02,
-    "cartella": "docs/catalogo/5-boutique/passatoia/",
-    "cat": 5,
-    "largo": 0.66,
-    "nome": "Passatoia",
-    "slug": "passatoia",
-    "tipo": "cell"
-  },
-  {
     "alto": 1.09,
     "cartella": "docs/catalogo/5-boutique/manichino/",
-    "cat": 5,
+    "cat": 5.0,
     "largo": 0.41,
     "nome": "Manichino",
     "slug": "manichino",
     "tipo": "cell"
   },
   {
+    "alto": 0.02,
+    "cartella": "docs/catalogo/5-boutique/passatoia/",
+    "cat": 5.0,
+    "largo": 0.66,
+    "nome": "Passatoia",
+    "slug": "passatoia",
+    "tipo": "cell"
+  },
+  {
+    "alto": 0.24,
+    "cartella": "docs/catalogo/5-boutique/sacchetti/",
+    "cat": 5.0,
+    "largo": 0.63,
+    "nome": "Sacchetti",
+    "slug": "sacchetti",
+    "tipo": "cell"
+  },
+  {
     "alto": 1.75,
     "cartella": "docs/catalogo/5-boutique/specchiera/",
-    "cat": 5,
+    "cat": 5.0,
     "largo": 0.96,
     "nome": "Specchiera",
     "slug": "specchiera",
@@ -1082,7 +1082,7 @@
   {
     "alto": 0.78,
     "cartella": "docs/catalogo/5-boutique/poltroncina/",
-    "cat": 5,
+    "cat": 5.0,
     "largo": 0.61,
     "nome": "Poltroncina",
     "slug": "poltroncina",
@@ -1091,7 +1091,7 @@
   {
     "alto": 0.82,
     "cartella": "docs/catalogo/5-boutique/cesto-saldi/",
-    "cat": 5,
+    "cat": 5.0,
     "largo": 0.77,
     "nome": "Cesto saldi",
     "slug": "cesto-saldi",
@@ -1100,7 +1100,7 @@
   {
     "alto": 2.08,
     "cartella": "docs/catalogo/5-boutique/vetrina-moda/",
-    "cat": 5,
+    "cat": 5.0,
     "largo": 1.0,
     "nome": "Vetrina moda",
     "slug": "vetrina-moda",
@@ -1109,7 +1109,7 @@
   {
     "alto": 0.76,
     "cartella": "docs/catalogo/5-boutique/tavolo-piegati/",
-    "cat": 5,
+    "cat": 5.0,
     "largo": 0.94,
     "nome": "Tavolo piegati",
     "slug": "tavolo-piegati",
@@ -1118,7 +1118,7 @@
   {
     "alto": 1.05,
     "cartella": "docs/catalogo/5-boutique/cassa-boutique/",
-    "cat": 5,
+    "cat": 5.0,
     "largo": 1.06,
     "nome": "Cassa boutique",
     "slug": "cassa-boutique",
@@ -1127,7 +1127,7 @@
   {
     "alto": 1.12,
     "cartella": "docs/catalogo/5-boutique/busto-sartoriale/",
-    "cat": 5,
+    "cat": 5.0,
     "largo": 0.43,
     "nome": "Busto sartoriale",
     "slug": "busto-sartoriale",
@@ -1136,7 +1136,7 @@
   {
     "alto": 0.56,
     "cartella": "docs/catalogo/5-boutique/insegna-boutique/",
-    "cat": 5,
+    "cat": 5.0,
     "largo": 1.0,
     "nome": "Insegna boutique",
     "slug": "insegna-boutique",
@@ -1145,7 +1145,7 @@
   {
     "alto": 2.0,
     "cartella": "docs/catalogo/5-boutique/scaffale-a-giorno/",
-    "cat": 5,
+    "cat": 5.0,
     "largo": 1.0,
     "nome": "Scaffale a giorno",
     "slug": "scaffale-a-giorno",
@@ -1154,7 +1154,7 @@
   {
     "alto": 1.51,
     "cartella": "docs/catalogo/6-personaggi/gatto/",
-    "cat": 6,
+    "cat": 6.0,
     "largo": 0.88,
     "nome": "Gatto",
     "slug": "gatto",
@@ -1163,7 +1163,7 @@
   {
     "alto": 1.38,
     "cartella": "docs/catalogo/6-personaggi/orsetto/",
-    "cat": 6,
+    "cat": 6.0,
     "largo": 0.88,
     "nome": "Orsetto",
     "slug": "orsetto",
@@ -1172,7 +1172,7 @@
   {
     "alto": 1.6,
     "cartella": "docs/catalogo/6-personaggi/volpina/",
-    "cat": 6,
+    "cat": 6.0,
     "largo": 0.91,
     "nome": "Volpina",
     "slug": "volpina",
@@ -1181,7 +1181,7 @@
   {
     "alto": 1.59,
     "cartella": "docs/catalogo/6-personaggi/coniglio/",
-    "cat": 6,
+    "cat": 6.0,
     "largo": 0.91,
     "nome": "Coniglio",
     "slug": "coniglio",
@@ -1190,7 +1190,7 @@
   {
     "alto": 1.45,
     "cartella": "docs/catalogo/6-personaggi/topolino/",
-    "cat": 6,
+    "cat": 6.0,
     "largo": 1.02,
     "nome": "Topolino",
     "slug": "topolino",

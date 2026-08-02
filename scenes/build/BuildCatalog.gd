@@ -2361,62 +2361,314 @@ static func _cassetta_smarriti() -> Node3D:
 # quello condiviso di tutto il villaggio.
 
 
-## L'AUTOPOMPA. Il pezzo grosso: cabina tonda col parabrezza, cassone coi
-## portelli, la scala d'ottone sul tetto, la campana sul muso e i fanali
-## rotondi. Paffuta e corta come un giocattolo di legno laccato — se fosse
-## in scala sembrerebbe un mezzo di lavoro, e questo è un villaggio.
+## La sezione del loft: un rettangolo ad angoli tondi nel piano YZ,
+## percorso in senso antiorario (visto con +Z a destra e +Y in su).
+## w = mezza larghezza, y0/y1 = base e cima, r = raggio degli angoli,
+## k = campioni per arco. Ritorna coppie (z, y).
+static func _anello_tondo(w: float, y0: float, y1: float, r: float, k: int) -> PackedVector2Array:
+	var rr := clampf(r, 0.0, minf(w, (y1 - y0) * 0.5))
+	var cz := w - rr
+	var centri := [Vector2(cz, y0 + rr), Vector2(cz, y1 - rr),
+			Vector2(-cz, y1 - rr), Vector2(-cz, y0 + rr)]
+	var partenze := [-PI * 0.5, 0.0, PI * 0.5, PI]
+	var out := PackedVector2Array()
+	for c in 4:
+		for i in k + 1:
+			var a := float(partenze[c]) + float(i) / float(k) * PI * 0.5
+			out.append((centri[c] as Vector2) + Vector2(cos(a), sin(a)) * rr)
+	return out
+
+
+## IL LOFT lungo X a sezione stondata: ogni stazione è [x, w, y0, y1, r]
+## e la sezione cambia da una all'altra con le normali che restano
+## morbide. È l'attrezzo che toglie la squadratura ai volumi grossi —
+## cofani bombati, tetti a botte, spalle tonde, code arrotondate — dove
+## una scatola resterebbe una scatola. Tappi piatti alle estremità
+## (vertici doppi: il bordo resta un bordo, non si «fonde» col fianco).
+static func _loft(parent: Node3D, stazioni: Array, mat: Material,
+		pos := Vector3.ZERO, k := 5) -> MeshInstance3D:
+	var ns := stazioni.size()
+	var anelli: Array[PackedVector2Array] = []
+	for s in stazioni:
+		anelli.append(_anello_tondo(float(s[1]), float(s[2]), float(s[3]),
+				float(s[4]), k))
+	var giro := anelli[0].size()
+	var vg: Array = []
+	for si in ns:
+		var riga: Array[Vector3] = []
+		for i in giro:
+			riga.append(Vector3(float(stazioni[si][0]),
+					anelli[si][i].y, anelli[si][i].x))
+		vg.append(riga)
+	# normali per vertice: tangente lungo X per tangente lungo il giro
+	var ng: Array = []
+	for si in ns:
+		var riga_n: Array[Vector3] = []
+		for i in giro:
+			var t_giro: Vector3 = vg[si][(i + 1) % giro] - vg[si][(i - 1 + giro) % giro]
+			var t_x: Vector3 = vg[mini(si + 1, ns - 1)][i] - vg[maxi(si - 1, 0)][i]
+			riga_n.append(t_x.cross(t_giro).normalized())
+		ng.append(riga_n)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for si in ns - 1:
+		for i in giro:
+			var i2 := (i + 1) % giro
+			st.set_normal(ng[si][i]);      st.add_vertex(vg[si][i])
+			st.set_normal(ng[si + 1][i2]); st.add_vertex(vg[si + 1][i2])
+			st.set_normal(ng[si + 1][i]);  st.add_vertex(vg[si + 1][i])
+			st.set_normal(ng[si][i]);      st.add_vertex(vg[si][i])
+			st.set_normal(ng[si][i2]);     st.add_vertex(vg[si][i2])
+			st.set_normal(ng[si + 1][i2]); st.add_vertex(vg[si + 1][i2])
+	# i tappi
+	var c0 := Vector3(float(stazioni[0][0]),
+			(float(stazioni[0][2]) + float(stazioni[0][3])) * 0.5, 0)
+	var c1 := Vector3(float(stazioni[ns - 1][0]),
+			(float(stazioni[ns - 1][2]) + float(stazioni[ns - 1][3])) * 0.5, 0)
+	for i in giro:
+		var i2 := (i + 1) % giro
+		st.set_normal(Vector3(-1, 0, 0)); st.add_vertex(c0)
+		st.set_normal(Vector3(-1, 0, 0)); st.add_vertex(vg[0][i2])
+		st.set_normal(Vector3(-1, 0, 0)); st.add_vertex(vg[0][i])
+		st.set_normal(Vector3(1, 0, 0));  st.add_vertex(c1)
+		st.set_normal(Vector3(1, 0, 0));  st.add_vertex(vg[ns - 1][i])
+		st.set_normal(Vector3(1, 0, 0));  st.add_vertex(vg[ns - 1][i2])
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = mat
+	mi.position = pos
+	parent.add_child(mi)
+	return mi
+
+
+## LA LASTRA: un pannello ad angoli tondi, centrato sull'origine, spesso
+## `sp` lungo X (le facce guardano ±X: per un fianco si ruota di PI/2).
+## Portelli, vetri, cornici: tutto ciò che era un _box con gli spigoli
+## a coltello e adesso ha gli angoli di un giocattolo laccato.
+static func _lastra(parent: Node3D, w: float, h: float, r: float, sp: float,
+		mat: Material, pos: Vector3, rot := Vector3.ZERO) -> MeshInstance3D:
+	var mi := _loft(parent, [[-sp * 0.5, w, -h * 0.5, h * 0.5, r],
+			[sp * 0.5, w, -h * 0.5, h * 0.5, r]], mat, pos)
+	mi.rotation = rot
+	return mi
+
+
+## L'AUTOPOMPA. Il pezzo grosso della caserma, e nemmeno una squadra:
+## cofano bombato che scende sul muso fino alla griglia d'ottone,
+## parafanghi ad arco sulle ruote, gomme a toro col coprimozzo lucidato,
+## cabina col tetto a botte e il parabrezza inclinato di vetro vero,
+## spalle tonde, coda arrotondata col mulinello della manichetta, la
+## campana davanti e la scala d'ottone sul tetto. Un'autopompa
+## d'anteguerra in lacca da giocattolo: paffuta, corta, e tonda ovunque —
+## se fosse in scala sembrerebbe un mezzo di lavoro, e questo è un villaggio.
 static func _autopompa() -> Node3D:
 	var n := Node3D.new()
 	var rosso := _mat(POMPA_ROSSO, POMPA_ROSSO_SCURO, 3.0, 0.45)
 	var scuro := _mat(POMPA_ROSSO_SCURO, POMPA_ROSSO_SCURO.darkened(0.2), 4.0, 0.5)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
 	var gomma := _mat(GOMMA, GOMMA.darkened(0.25), 6.0, 0.35)
-	var vetro := _mat(VETRO, VETRO.darkened(0.12), 3.0, 0.3, 0.5)
 	var crema := _mat(CREAM, PLASTER_SHADE, 4.0, 0.4)
-	# telaio e sovrastrutture: due volumi, come i camion di legno
-	_box(n, Vector3(1.5, 0.34, 0.66), rosso, Vector3(0, 0.42, 0))
-	_box(n, Vector3(0.66, 0.42, 0.62), rosso, Vector3(-0.42, 0.74, 0))
-	_box(n, Vector3(0.74, 0.3, 0.6), scuro, Vector3(0.36, 0.72, 0))
-	# il muso arrotondato: un cilindro coricato lungo Z
-	var muso := _cyl(n, 0.17, 0.17, 0.62, rosso, Vector3(-0.74, 0.5, 0))
-	muso.rotation.x = PI * 0.5
-	# parabrezza e finestrini
-	_box(n, Vector3(0.03, 0.26, 0.5), vetro, Vector3(-0.74, 0.8, 0))
-	for z: float in [-0.31, 0.31]:
-		_box(n, Vector3(0.42, 0.22, 0.03), vetro, Vector3(-0.44, 0.8, z))
-	# i portelli del cassone, con le maniglie d'ottone
+	var vetro := _vetro(0.4)
+
+	# il telaio basso, ed è lui la fascia chiara che dice «pompieri»:
+	# gira intera da paraurti a coda, sotto tutto il rosso, e finisce
+	# tondo davanti e dietro come il resto
+	_loft(n, [[-0.70, 0.26, 0.275, 0.385, 0.05],
+			[-0.64, 0.29, 0.275, 0.385, 0.03],
+			[0.70, 0.29, 0.275, 0.385, 0.03],
+			[0.76, 0.26, 0.275, 0.385, 0.05]], crema)
+
+	# IL COFANO: si bomba in alto e scende sul muso, restringendosi fino
+	# a un naso tondo — la sagoma che nessuna scatola sa fare. Finisce
+	# DENTRO il torpedo della cabina, un filo più basso: il giunto è suo.
+	_loft(n, [[-0.88, 0.11, 0.52, 0.62, 0.054],
+			[-0.86, 0.16, 0.47, 0.68, 0.078],
+			[-0.82, 0.20, 0.43, 0.72, 0.088],
+			[-0.74, 0.22, 0.40, 0.74, 0.09],
+			[-0.62, 0.235, 0.375, 0.76, 0.09],
+			[-0.50, 0.245, 0.365, 0.775, 0.085]], rosso)
+	# la gonna che raccorda il fianco del cofano alla cima del parafango:
+	# senza, fra i due resta una fessura d'ombra passante
+	for z: float in [-0.245, 0.245]:
+		_loft(n, [[-0.78, 0.055, 0.35, 0.44, 0.02],
+				[-0.48, 0.055, 0.35, 0.46, 0.02]], rosso, Vector3(0, 0, z))
+
+	# LA CABINA: il torpedo davanti (appena più alto del cofano), il
+	# parabrezza è la salita ripida, il tetto una botte tonda anche dietro
+	_loft(n, [[-0.56, 0.305, 0.36, 0.79, 0.075],
+			[-0.50, 0.305, 0.36, 0.80, 0.075],
+			[-0.42, 0.305, 0.36, 1.00, 0.09],
+			[-0.34, 0.305, 0.36, 1.03, 0.11],
+			[-0.22, 0.305, 0.36, 1.03, 0.11],
+			[-0.14, 0.30, 0.36, 1.00, 0.10],
+			[-0.06, 0.295, 0.36, 0.92, 0.08]], rosso)
+
+	# IL CASSONE: spalle tonde, e la coda che si chiude arrotondata
+	_loft(n, [[-0.10, 0.30, 0.365, 0.88, 0.07],
+			[0.50, 0.30, 0.365, 0.88, 0.07],
+			[0.62, 0.295, 0.37, 0.875, 0.09],
+			[0.70, 0.27, 0.38, 0.85, 0.12],
+			[0.74, 0.22, 0.42, 0.80, 0.16]], rosso)
+
+	# LA GRIGLIA del radiatore: cornice d'ottone, cuore scuro proud della
+	# cornice (chi guarda da davanti vede l'anello d'ottone attorno), e le
+	# canne verticali. Sopra, il tappo del radiatore.
+	_lastra(n, 0.145, 0.23, 0.07, 0.035, ottone, Vector3(-0.885, 0.60, 0))
+	_lastra(n, 0.115, 0.18, 0.05, 0.02, scuro, Vector3(-0.90, 0.60, 0))
+	for z: float in [-0.08, -0.04, 0.0, 0.04, 0.08]:
+		_cyl(n, 0.0055, 0.0055, 0.155, ottone, Vector3(-0.912, 0.60, z))
+	_cyl(n, 0.012, 0.016, 0.02, ottone, Vector3(-0.86, 0.735, 0))
+	_ball(n, 0.011, ottone, Vector3(-0.86, 0.75, 0))
+
+	# IL PARAURTI: una barra d'ottone che curva indietro alle estremità e
+	# si rincalza DENTRO i parafanghi — un tubo tagliato a mezz'aria
+	# mostra il tappo, e un paraurti non finisce nel vuoto
+	BUILDER.tube(n, [Vector3(-0.83, 0.315, -0.33), Vector3(-0.905, 0.325, -0.26),
+			Vector3(-0.925, 0.325, -0.12), Vector3(-0.925, 0.325, 0.12),
+			Vector3(-0.905, 0.325, 0.26), Vector3(-0.83, 0.315, 0.33)],
+			[0.026, 0.026, 0.026, 0.026, 0.026, 0.026], ottone)
+
+	# I PARAFANGHI: archi spazzati sopra le ruote — il gesto che più di
+	# ogni altro toglie la squadratura a un camion. Toccano la fascia del
+	# telaio (un parafango che galleggia è un croissant, non un parafango)
+	# e fra i due corrono le pedane.
+	for z: float in [-0.345, 0.345]:
+		BUILDER.tube(n, [Vector3(-0.84, 0.30, z), Vector3(-0.77, 0.41, z),
+				Vector3(-0.69, 0.48, z), Vector3(-0.60, 0.48, z),
+				Vector3(-0.50, 0.40, z), Vector3(-0.44, 0.30, z)],
+				[0.03, 0.048, 0.055, 0.055, 0.048, 0.03], rosso)
+		BUILDER.tube(n, [Vector3(0.26, 0.30, z), Vector3(0.33, 0.40, z),
+				Vector3(0.41, 0.47, z), Vector3(0.51, 0.475, z),
+				Vector3(0.62, 0.42, z), Vector3(0.70, 0.30, z)],
+				[0.03, 0.048, 0.055, 0.055, 0.048, 0.03], rosso)
+		_loft(n, [[-0.42, 0.05, 0.345, 0.375, 0.012],
+				[0.27, 0.05, 0.345, 0.375, 0.012]], crema,
+				Vector3(0, 0, z))
+
+	# LE RUOTE: la gomma è un toro vero, il mozzo chiaro col coprimozzo
+	# d'ottone a cupola; sotto il telaio corrono gli assali
+	for x: float in [-0.62, 0.50]:
+		var assale := _cyl(n, 0.024, 0.024, 0.72, scuro, Vector3(x, 0.19, 0))
+		assale.rotation.x = PI * 0.5
+		for sz: float in [-1.0, 1.0]:
+			var gz := sz * 0.335
+			var t := MeshInstance3D.new()
+			var tm := TorusMesh.new()
+			tm.inner_radius = 0.08
+			tm.outer_radius = 0.19
+			t.mesh = tm
+			t.material_override = gomma
+			t.position = Vector3(x, 0.19, gz)
+			t.rotation.x = PI * 0.5
+			n.add_child(t)
+			var mozzo := _cyl(n, 0.088, 0.088, 0.115, crema, Vector3(x, 0.19, gz))
+			mozzo.rotation.x = PI * 0.5
+			_ball(n, 0.032, ottone, Vector3(x, 0.19, sz * 0.395),
+					Vector3(1, 1, 0.55))
+
+	# IL PARABREZZA, inclinato come la salita del tetto: cornice d'ottone,
+	# interno in penombra e vetro vero davanti (l'ordine dei tre strati fa
+	# vedere l'anello d'ottone attorno al vetro)
+	var pb := Node3D.new()
+	pb.position = Vector3(-0.465, 0.895, 0)
+	pb.rotation.z = -0.35
+	n.add_child(pb)
+	_lastra(pb, 0.26, 0.23, 0.05, 0.016, ottone, Vector3.ZERO)
+	_lastra(pb, 0.235, 0.18, 0.042, 0.016, scuro, Vector3(-0.005, 0, 0))
+	_lastra(pb, 0.24, 0.19, 0.045, 0.012, vetro, Vector3(-0.012, 0, 0))
+
+	# I FINESTRINI delle portiere (stessi tre strati), le portiere
+	# profilate d'oro come le carrozze, e le maniglie
+	for sz: float in [-1.0, 1.0]:
+		var giro_y := sz * PI * 0.5
+		_lastra(n, 0.112, 0.194, 0.048, 0.014, ottone,
+				Vector3(-0.30, 0.885, sz * 0.306), Vector3(0, giro_y, 0))
+		_lastra(n, 0.094, 0.166, 0.04, 0.014, scuro,
+				Vector3(-0.30, 0.885, sz * 0.310), Vector3(0, giro_y, 0))
+		_lastra(n, 0.098, 0.17, 0.042, 0.01, vetro,
+				Vector3(-0.30, 0.885, sz * 0.316), Vector3(0, giro_y, 0))
+		_lastra(n, 0.105, 0.26, 0.05, 0.008, ottone,
+				Vector3(-0.30, 0.60, sz * 0.307), Vector3(0, giro_y, 0))
+		_lastra(n, 0.09, 0.23, 0.045, 0.008, rosso,
+				Vector3(-0.30, 0.60, sz * 0.310), Vector3(0, giro_y, 0))
+		_cyl(n, 0.008, 0.008, 0.055, ottone, Vector3(-0.20, 0.66, sz * 0.318))
+
+	# I PORTELLI del cassone: lastre chiare ad angoli tondi, maniglie
+	# d'ottone coricate — tre per fianco, come sui camion veri
 	for i in 3:
-		var x := 0.08 + float(i) * 0.26
-		for z: float in [-0.31, 0.31]:
-			_box(n, Vector3(0.22, 0.24, 0.02), crema, Vector3(x, 0.72, z))
-			var mn := _cyl(n, 0.014, 0.014, 0.1, ottone, Vector3(x, 0.72, z * 1.07))
+		var x := 0.10 + float(i) * 0.26
+		for sz: float in [-1.0, 1.0]:
+			_lastra(n, 0.105, 0.30, 0.04, 0.016, crema,
+					Vector3(x, 0.65, sz * 0.306), Vector3(0, sz * PI * 0.5, 0))
+			var mn := _cyl(n, 0.007, 0.007, 0.05, ottone,
+					Vector3(x, 0.55, sz * 0.318))
 			mn.rotation.z = PI * 0.5
-	# la fascia chiara che gira attorno: è quella che dice «pompieri»
-	_box(n, Vector3(1.52, 0.07, 0.68), crema, Vector3(0, 0.31, 0))
-	# la scala sul tetto: due correnti e i pioli
-	for z: float in [-0.14, 0.14]:
-		_box(n, Vector3(0.9, 0.03, 0.03), ottone, Vector3(0.3, 0.9, z))
+
+	# LA SCALA sul tetto del cassone: correnti cilindrici, pioli tondi,
+	# staffe che la tengono staccata dalle spalle. Comincia DOPO la
+	# cabina: una scala che taglia la nuca del tetto non è una scala.
+	for sz: float in [-1.0, 1.0]:
+		var corrente := _cyl(n, 0.016, 0.016, 0.72, ottone,
+				Vector3(0.38, 0.965, sz * 0.115))
+		corrente.rotation.z = PI * 0.5
 	for i in 6:
-		_box(n, Vector3(0.025, 0.02, 0.31), ottone,
-				Vector3(-0.08 + float(i) * 0.15, 0.9, 0))
-	# la campana d'ottone sul muso: piccola, e vera (suona il Bancone? no,
-	# suona chi passa) — svasata verso il basso come quella della caserma
-	_cyl(n, 0.012, 0.012, 0.06, ottone, Vector3(-0.58, 1.02, 0))
-	_cyl(n, 0.05, 0.075, 0.1, ottone, Vector3(-0.58, 0.94, 0))
-	# i fanali tondi
-	for z: float in [-0.2, 0.2]:
-		_ball(n, 0.07, _glow(Color("fff0cf"), Color("ffd98f"), 0.8),
-				Vector3(-0.8, 0.56, z), Vector3(0.5, 1, 1))
-	# le ruote, con il mozzo chiaro
-	for x: float in [-0.45, 0.45]:
-		for z: float in [-0.34, 0.34]:
-			var r := _cyl(n, 0.2, 0.2, 0.12, gomma, Vector3(x, 0.2, z))
-			r.rotation.x = PI * 0.5
-			var m := _cyl(n, 0.09, 0.09, 0.14, crema, Vector3(x, 0.2, z))
-			m.rotation.x = PI * 0.5
-	# la manichetta arrotolata sul fianco, pronta
-	var rullo := _cyl(n, 0.13, 0.13, 0.06, crema, Vector3(0.36, 0.72, 0.33))
-	rullo.rotation.x = PI * 0.5
+		var piolo := _cyl(n, 0.011, 0.011, 0.21, ottone,
+				Vector3(0.06 + float(i) * 0.12, 0.965, 0))
+		piolo.rotation.x = PI * 0.5
+	for x: float in [0.10, 0.62]:
+		for sz: float in [-1.0, 1.0]:
+			_cyl(n, 0.013, 0.013, 0.09, ottone, Vector3(x, 0.92, sz * 0.115))
+
+	# LA CAMPANA d'ottone davanti, appesa al suo archetto sul cofano:
+	# tornita col profilo vero di una campana, col battaglio sotto
+	for sz: float in [-1.0, 1.0]:
+		_cyl(n, 0.009, 0.009, 0.10, ottone, Vector3(-0.80, 0.78, sz * 0.055))
+	var traversa := _cyl(n, 0.008, 0.008, 0.13, ottone, Vector3(-0.80, 0.828, 0))
+	traversa.rotation.x = PI * 0.5
+	BUILDER.lathe(n, [Vector2(0.052, 0.0), Vector2(0.056, 0.008),
+			Vector2(0.05, 0.022), Vector2(0.04, 0.042), Vector2(0.03, 0.058),
+			Vector2(0.018, 0.07), Vector2(0.006, 0.078), Vector2(0.0, 0.08)],
+			ottone, Vector3(-0.80, 0.742, 0))
+	_ball(n, 0.011, ottone, Vector3(-0.80, 0.742, 0))
+
+	# I FANALI sui parafanghi: coppa d'ottone su un gambo corto, lente
+	# che fa luce — dove stavano sulle autopompe d'anteguerra
+	for sz: float in [-1.0, 1.0]:
+		_cyl(n, 0.011, 0.011, 0.045, ottone, Vector3(-0.78, 0.44, sz * 0.345))
+		_ball(n, 0.044, ottone, Vector3(-0.78, 0.49, sz * 0.345),
+				Vector3(0.85, 1, 1))
+		_ball(n, 0.034, _glow(Color("fff0cf"), Color("ffd98f"), 0.8),
+				Vector3(-0.805, 0.49, sz * 0.345), Vector3(0.45, 0.9, 0.9))
+
+	# IL LAMPEGGIANTE piccolo sul tetto, di quelli a cupola: acceso appena
+	_cyl(n, 0.022, 0.026, 0.014, ottone, Vector3(-0.36, 1.036, 0))
+	_ball(n, 0.03, _glow(POMPA_ROSSO, Color("ff6a5a"), 0.6),
+			Vector3(-0.36, 1.05, 0), Vector3(1, 0.9, 1))
+
+	# IL MULINELLO della manichetta, a poppa: due guance rosse, la canapa
+	# avvolta in mezzo, il bocchello d'ottone pronto. Sta FUORI dalla
+	# coda tonda, sul suo asse — mezzo sepolto sarebbe un adesivo.
+	var asse := _cyl(n, 0.014, 0.014, 0.16, ottone, Vector3(0.81, 0.62, 0))
+	asse.rotation.z = PI * 0.5
+	for x: float in [0.77, 0.85]:
+		var guancia := _cyl(n, 0.115, 0.115, 0.016, scuro, Vector3(x, 0.62, 0))
+		guancia.rotation.z = PI * 0.5
+	for x: float in [0.794, 0.826]:
+		var spira := MeshInstance3D.new()
+		var sm := TorusMesh.new()
+		sm.inner_radius = 0.05
+		sm.outer_radius = 0.11
+		spira.mesh = sm
+		spira.material_override = crema
+		spira.position = Vector3(x, 0.62, 0)
+		spira.rotation.z = PI * 0.5
+		n.add_child(spira)
+	_ball(n, 0.02, ottone, Vector3(0.865, 0.62, 0), Vector3(0.6, 1, 1))
+	_cyl(n, 0.009, 0.017, 0.05, ottone, Vector3(0.81, 0.545, 0.06))
+	# i fanalini di coda, mezzi affondati nel tappo della coda
+	for sz: float in [-1.0, 1.0]:
+		_ball(n, 0.02, _glow(Color("ff8878"), Color("ff5040"), 0.5),
+				Vector3(0.75, 0.47, sz * 0.16), Vector3(0.6, 1, 1))
 	return n
 
 
