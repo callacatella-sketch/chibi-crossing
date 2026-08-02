@@ -21,7 +21,7 @@
 | **Lavagnetta**<br><sub>0.56 × 0.95 m</sub> | <img src="lavagnetta/1-fronte.jpg" width="200"> | <img src="lavagnetta/2-tre-quarti.jpg" width="200"> | <img src="lavagnetta/3-profilo.jpg" width="200"> |
 | **Letto**<br><sub>0.92 × 0.60 m</sub> | <img src="letto/1-fronte.jpg" width="200"> | <img src="letto/2-tre-quarti.jpg" width="200"> | <img src="letto/3-profilo.jpg" width="200"> |
 | **Libreria**<br><sub>0.93 × 1.55 m</sub> | <img src="libreria/1-fronte.jpg" width="200"> | <img src="libreria/2-tre-quarti.jpg" width="200"> | <img src="libreria/3-profilo.jpg" width="200"> |
-| **Macchina caffè**<br><sub>0.67 × 0.70 m</sub> | <img src="macchina-caffe/1-fronte.jpg" width="200"> | <img src="macchina-caffe/2-tre-quarti.jpg" width="200"> | <img src="macchina-caffe/3-profilo.jpg" width="200"> |
+| **Macchina caffè**<br><sub>0.67 × 0.76 m</sub> | <img src="macchina-caffe/1-fronte.jpg" width="200"> | <img src="macchina-caffe/2-tre-quarti.jpg" width="200"> | <img src="macchina-caffe/3-profilo.jpg" width="200"> |
 | **Mensola bottiglie**<br><sub>0.94 × 1.00 m</sub> | <img src="mensola-bottiglie/1-fronte.jpg" width="200"> | <img src="mensola-bottiglie/2-tre-quarti.jpg" width="200"> | <img src="mensola-bottiglie/3-profilo.jpg" width="200"> |
 | **Pianoforte**<br><sub>0.63 × 0.68 m</sub> | <img src="pianoforte/1-fronte.jpg" width="200"> | <img src="pianoforte/2-tre-quarti.jpg" width="200"> | <img src="pianoforte/3-profilo.jpg" width="200"> |
 | **Salone**<br><sub>1.20 × 1.19 m</sub> | <img src="salone/1-fronte.jpg" width="200"> | <img src="salone/2-tre-quarti.jpg" width="200"> | <img src="salone/3-profilo.jpg" width="200"> |

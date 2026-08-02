@@ -12,7 +12,7 @@
 | **Gazebo**<br><sub>1.99 × 2.88 m</sub> | <img src="gazebo/1-fronte.jpg" width="200"> | <img src="gazebo/2-tre-quarti.jpg" width="200"> | <img src="gazebo/3-profilo.jpg" width="200"> |
 | **Gradinata**<br><sub>1.04 × 0.60 m</sub> | <img src="gradinata/1-fronte.jpg" width="200"> | <img src="gradinata/2-tre-quarti.jpg" width="200"> | <img src="gradinata/3-profilo.jpg" width="200"> |
 | **Guardiola**<br><sub>1.16 × 2.27 m</sub> | <img src="guardiola/1-fronte.jpg" width="200"> | <img src="guardiola/2-tre-quarti.jpg" width="200"> | <img src="guardiola/3-profilo.jpg" width="200"> |
-| **Insegna bar**<br><sub>0.65 × 0.56 m</sub> | <img src="insegna-bar/1-fronte.jpg" width="200"> | <img src="insegna-bar/2-tre-quarti.jpg" width="200"> | <img src="insegna-bar/3-profilo.jpg" width="200"> |
+| **Insegna bar**<br><sub>0.80 × 0.59 m</sub> | <img src="insegna-bar/1-fronte.jpg" width="200"> | <img src="insegna-bar/2-tre-quarti.jpg" width="200"> | <img src="insegna-bar/3-profilo.jpg" width="200"> |
 | **Insegna caserma**<br><sub>0.92 × 1.74 m</sub> | <img src="insegna-caserma/1-fronte.jpg" width="200"> | <img src="insegna-caserma/2-tre-quarti.jpg" width="200"> | <img src="insegna-caserma/3-profilo.jpg" width="200"> |
 | **Insegna guardia**<br><sub>0.73 × 2.00 m</sub> | <img src="insegna-guardia/1-fronte.jpg" width="200"> | <img src="insegna-guardia/2-tre-quarti.jpg" width="200"> | <img src="insegna-guardia/3-profilo.jpg" width="200"> |
 | **Muro**<br><sub>1.00 × 2.08 m</sub> | <img src="muro/1-fronte.jpg" width="200"> | <img src="muro/2-tre-quarti.jpg" width="200"> | <img src="muro/3-profilo.jpg" width="200"> |
