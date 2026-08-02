@@ -360,12 +360,15 @@ static func build(dna: Dictionary) -> Dictionary:
 
 # ---------------------------------------------------------- aderenza al viso
 # La testona è un ellissoide (_ball(0.4) scalato hs·(1.04, 0.92, 0.97)):
-# ogni elemento del viso deve POGGIARE su quella superficie — o su quella
-# del musetto sporgente, o dei cuscinetti — non su un piano a quota fissa.
+# ogni elemento del viso deve POGGIARE su quella superficie — non su un piano
+# a quota fissa, e nemmeno su un rilievo che nel viso non c'è (più).
 # Su un piano, di PROFILO, bocca naso e sopracciglia restano appesi a
 # mezz'aria davanti alla fronte: il trucco si vede e il pupazzo muore.
-# I numeri qui sotto sono GLI STESSI ellissoidi costruiti in _build_face:
-# se cambiano là, cambiano qui (test_bocche fa la guardia all'aderenza).
+# I numeri qui sotto sono GLI STESSI ellissoidi costruiti in _build_face: se
+# cambiano là cambiano qui, e se una forma sparisce di là la sua superficie
+# deve sparire di qua. Attenzione: test_bocche fa la guardia all'aderenza ma
+# interroga QUESTA funzione, quindi è cieco a una superficie fantasma — la
+# prova sono le tre foto del catalogo.
 
 static func _testa_z(x: float, y: float, hs: float) -> float:
 	var a := 0.416 * hs
@@ -384,31 +387,18 @@ static func _testa_normale(x: float, y: float, hs: float) -> Vector3:
 
 
 ## La superficie su cui vive il GRUPPO BOCCA, sul piano mediano (x=0),
-## all'altezza y: [z, normale]. Il musetto sporgente per orsetto e
-## topolino, la valle tra i cuscinetti per gatto e coniglietta, il viso
-## nudo per la volpina (la sua bocca sta sotto la base del muso a goccia).
-static func _superficie_bocca(arche: String, y: float, hs: float) -> Array:
-	var front := -0.34 * hs
-	match arche:
-		"topolino", "orsetto":
-			var cy := (-0.10 if arche == "topolino" else -0.105) * hs
-			var cz := front + (0.01 if arche == "topolino" else 0.005)
-			var ry := 0.068 if arche == "topolino" else 0.0924
-			var rz := 0.05 if arche == "topolino" else 0.0588
-			var dy := y - cy
-			if absf(dy) < ry * 0.96:
-				var dz := -rz * sqrt(1.0 - (dy * dy) / (ry * ry))
-				return [cz + dz,
-						Vector3(0.0, dy / (ry * ry), dz / (rz * rz)).normalized()]
-		"gatto", "coniglio":
-			# la valle fra i due cuscinetti: gli ellissoidi stanno a x=±0.046,
-			# qui si legge la LORO superficie sul piano mediano
-			var dy2 := y + 0.115 * hs
-			var q := 1.0 - pow(0.046 / 0.082, 2.0) - pow(dy2 / 0.059, 2.0)
-			if q > 0.0:
-				var dz2 := -0.041 * sqrt(q)
-				return [front - 0.012 + dz2,
-						Vector3(0.0, dy2 / (0.059 * 0.059), dz2 / (0.041 * 0.041)).normalized()]
+## all'altezza y: [z, normale]. È la TESTONA NUDA, per tutti gli archetipi.
+## Qui c'erano i musetti sporgenti — la palla di orsetto e topolino, i
+## cuscinetti di gatto e coniglietta — ma quella geometria è stata TOLTA dal
+## viso (vedi _build_face): è sopravvissuta solo la loro formula, e bocca e
+## filtrino continuavano ad appoggiarsi a una superficie che non c'è più.
+## Per l'orsetto sono 3,7 cm·hs di vuoto (bocca a z=-0.395 contro il pelo a
+## -0.358): di profilo il gruppo filtrino-bocca esce dalla sagoma e resta in
+## volo davanti al muso, con lo sfondo in mezzo — si vede in
+## docs/catalogo/6-personaggi/orsetto/3-profilo.png. Il muso a goccia della
+## volpina è l'unico rilievo rimasto, ma la sua bocca sta SOTTO la base:
+## anche lei legge la testona.
+static func _superficie_bocca(_arche: String, y: float, hs: float) -> Array:
 	return [_testa_z(0.0, y, hs), _testa_normale(0.0, y, hs)]
 
 

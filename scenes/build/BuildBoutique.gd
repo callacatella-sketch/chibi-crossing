@@ -1205,11 +1205,15 @@ static func cesto_saldi() -> Node3D:
 				Vector3(0, y, 0))
 	# IL BORDO È UN ANELLO, non un disco: un cilindro pieno appoggiato in
 	# cima al cesto è un COPERCHIO, e sotto un coperchio i saldi non si
-	# vedono. Sedici cubetti in cerchio, e resta aperto.
+	# vedono. Sedici cubetti in cerchio, e resta aperto. Le tre quote
+	# dell'orlo stanno QUI e basta: le maniche qui sotto ci si appendono.
+	var r_orlo := 0.362
+	var y_orlo := 0.352
+	var sp_orlo := Vector3(0.05, 0.026, 0.15)
 	for i in 16:
 		var ab := TAU * float(i) / 16.0
-		var b := CAT._box(n, Vector3(0.05, 0.026, 0.15), vimini,
-				Vector3(cos(ab) * 0.362, 0.352, sin(ab) * 0.362))
+		var b := CAT._box(n, sp_orlo, vimini,
+				Vector3(cos(ab) * r_orlo, y_orlo, sin(ab) * r_orlo))
 		b.rotation.y = -ab
 
 	# LA ROBA DEVE TRABOCCARE. Con pochi mucchietti piccoli dentro un
@@ -1237,17 +1241,27 @@ static func cesto_saldi() -> Node3D:
 		CAT._cyl(s, 0.022, 0.022, w, _stoffa(i, -0.05),
 				Vector3(0, 0.004, -d * 0.5)).rotation.z = PI * 0.5
 	# tre maniche che pendono fuori dal bordo: è il segno che dentro c'è ROBA
+	# UNA MANICA DRITTA NON SCAVALCA UN ORLO. Era un cilindro inclinato di
+	# fianco: i suoi due capi si allargavano a 0.344 di raggio e quello basso
+	# finiva a y=0.27, dove la parete è già rientrata a 0.345 — col suo raggio
+	# di 3 cm la manica ne usciva 2,7 cm e spuntava sul vimini come una toppa,
+	# in tutt'e tre le foto. Ora è un TUBO PIEGATO: parte dal mucchio, passa
+	# SOPRA i cubetti dell'orlo (dove una manica si appoggia davvero) e ricade
+	# lungo la parete senza toccarla. Le quote si contano dall'orlo, così
+	# restano appese lì anche se il cesto cambia misura.
+	var orlo_fuori := r_orlo + sp_orlo.x * 0.5
+	var orlo_sopra := y_orlo + sp_orlo.y * 0.5
 	for i in 3:
 		var a2 := 0.7 + float(i) * 2.1
-		# SCAVALCANO IL BORDO (che sta a 0.362) invece di stargli accanto:
-		# la manica parte da dentro il mucchio, passa SOPRA l'orlo e ricade
-		# fuori. Messa di fianco pendeva nel vuoto senza toccare niente, e
-		# messa più dentro bucava la parete del cesto spuntando come una
-		# toppa nera: le due cose che il revisore ha visto.
-		var m := CAT._cyl(n, 0.026, 0.031, 0.30, _stoffa(1 + i * 3),
-				Vector3(cos(a2) * 0.315, 0.335, sin(a2) * 0.315))
-		m.rotation.y = -a2
-		m.rotation.x = 1.15 + float(i) * 0.12
+		var m := Node3D.new()
+		m.rotation.y = -a2                     # la X locale guarda in fuori
+		n.add_child(m)
+		BUILDER.tube(m, [
+				Vector3(0.19, orlo_sopra + 0.037 + 0.015 * float(i), 0.0),
+				Vector3(r_orlo - 0.032, orlo_sopra + 0.027, 0.0),
+				Vector3(orlo_fuori + 0.011, y_orlo, 0.010),
+				Vector3(orlo_fuori + 0.017, 0.250 - 0.025 * float(i), 0.028)],
+				[0.030, 0.031, 0.028, 0.021], _stoffa(1 + i * 3), 22, 12)
 
 	# il cartello d'ardesia sul filo di ferro
 	var ferro := CAT._mat(Color("4f4a45"), Color("3d3935"), 5.0, 0.4)

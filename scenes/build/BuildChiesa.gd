@@ -712,6 +712,54 @@ static func _abside_tetto(n: Node3D) -> void:
 	CAT._ball(n, 0.055, coppi_b, ABSIDE_CENTRO + Vector3(0, 2.7, 0), Vector3(1, 0.8, 1))
 
 
+## IL MEZZO GIRO. Una rivoluzione INTERA dentro un tamburo che è mezzo
+## poligono lascia fuori mezza cupola, appesa sopra il vuoto della navata.
+## Qui il profilo (raggio, altezza) gira solo da +X a -X passando per -Z:
+## esattamente il mezzo giro che il muro copre. Niente tappo sotto — il
+## bordo muore contro la faccia interna del tamburo, e una cupola si guarda
+## da dentro: un fondo piatto la chiuderebbe proprio davanti alle stelle.
+static func _mezza_rivoluzione(parent: Node3D, profilo: Array, mat: Material,
+		pos: Vector3, spicchi: int) -> MeshInstance3D:
+	var pr: Array[Vector2] = []
+	for p in profilo:
+		pr.append(Vector2(p.x, p.y))
+	# la normale di ogni giunto: la tangente del profilo girata di un quarto
+	var nr: Array[Vector2] = []
+	for i in pr.size():
+		var d := (pr[mini(i + 1, pr.size() - 1)] - pr[maxi(i - 1, 0)]).normalized()
+		nr.append(Vector2(d.y, -d.x).normalized())
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var giro := func(i: int, j: int) -> Vector3:
+		var a := PI * float(j) / float(spicchi)
+		return Vector3(cos(a) * pr[i].x, pr[i].y, -sin(a) * pr[i].x)
+	var verso := func(i: int, j: int) -> Vector3:
+		var a := PI * float(j) / float(spicchi)
+		return Vector3(cos(a) * nr[i].x, nr[i].y, -sin(a) * nr[i].x).normalized()
+	# niente `% spicchi` sull'ultimo spicchio: il mezzo giro NON si richiude,
+	# e riportare l'ultimo anello sul primo rifarebbe la cupola intera
+	for i in pr.size() - 1:
+		for j in spicchi:
+			st.set_normal(verso.call(i, j))
+			st.add_vertex(giro.call(i, j))
+			st.set_normal(verso.call(i + 1, j))
+			st.add_vertex(giro.call(i + 1, j))
+			st.set_normal(verso.call(i + 1, j + 1))
+			st.add_vertex(giro.call(i + 1, j + 1))
+			st.set_normal(verso.call(i, j))
+			st.add_vertex(giro.call(i, j))
+			st.set_normal(verso.call(i + 1, j + 1))
+			st.add_vertex(giro.call(i + 1, j + 1))
+			st.set_normal(verso.call(i, j + 1))
+			st.add_vertex(giro.call(i, j + 1))
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = mat
+	mi.position = pos
+	parent.add_child(mi)
+	return mi
+
+
 ## IL CATINO DIPINTO. Un cielo notturno con una manciata di stelle nei
 ## colori delle costellazioni, e in basso — piccolissimi — una valigia e
 ## un cappello posati nell'erba. Niente figure, nessuno di spalle che si
@@ -726,10 +774,18 @@ static func _abside_catino(n: Node3D) -> void:
 	# la condizione perché il catino esista.
 	var cielo := CAT._glow(PIETRA_NOTTE, PIETRA_NOTTE_CUPA, 0.16)
 	cielo.cull_mode = BaseMaterial3D.CULL_DISABLED
-	CAT.BUILDER.lathe(n, [
+	# IL MEZZO GIRO, non il giro intero: il catino era un lathe a 360° dentro
+	# un tamburo che è mezzo poligono, e la metà verso la navata restava
+	# scoperta — raggio 0.335 contro un muro che sul lato aperto finisce a
+	# 0.08, cioè 0.31 di cupola sospesa nel vuoto, che di profilo si vedeva
+	# sporgere blu da dietro l'intonaco. Dieci spicchi sul mezzo giro sono gli
+	# stessi 18° dei venti sul giro intero: la superficie che resta è identica
+	# a prima. E la base (0.335 = ABSIDE_R meno mezzo spessore) muore sulla
+	# faccia interna del muro, fra i due stipiti: la volta parte dall'arco.
+	_mezza_rivoluzione(n, [
 		Vector2(0.335, 0.0), Vector2(0.325, 0.09), Vector2(0.29, 0.175),
 		Vector2(0.225, 0.245), Vector2(0.13, 0.295), Vector2(0.0, 0.315),
-	], cielo, ABSIDE_CENTRO + Vector3(0, 2.02, 0), 20)
+	], cielo, ABSIDE_CENTRO + Vector3(0, 2.02, 0), 10)
 
 	# le stelle: crema calda e appena luminose. Con l'emissione alta il
 	# crema sbianca e il catino diventa un soffitto di lampadine.
@@ -2156,8 +2212,16 @@ static func sagrato() -> Node3D:
 	# uno scalino, è una lastra tagliata. Il naso è un mezzo cilindro
 	# coricato, ed è la parte che si consuma per prima.
 	CAT._box(n, Vector3(1.0, 0.09, 0.09), tinte[1], Vector3(0, 0.045, -0.455))
-	var naso := CAT._cyl(n, 0.032, 0.032, 1.0, tinte[2], Vector3(0, 0.072, -0.474))
+	# IL NASO SI CHIUDE A CALOTTA ALLE DUE ESTREMITÀ. Un cilindro tagliato
+	# netto mostra il TAPPO, e il tappo di un cilindro è un ventaglio di
+	# triangoli che parte dal centro: di tre quarti, all'angolo del sagrato,
+	# si vedeva una raggiera di spicchi appuntiti invece di uno spigolo
+	# consumato. Due mezze sfere dello stesso raggio e il cordolo finisce
+	# come finisce la pietra vera.
+	var naso := CAT._cyl(n, 0.032, 0.032, 0.94, tinte[2], Vector3(0, 0.072, -0.474))
 	naso.rotation.z = PI * 0.5
+	for sx: float in [-0.47, 0.47]:
+		CAT._ball(n, 0.032, tinte[2], Vector3(sx, 0.072, -0.474))
 
 	# l'erba che vince nelle fughe (dove il piede non arriva: agli angoli) e
 	# due sassolini portati dalle scarpe

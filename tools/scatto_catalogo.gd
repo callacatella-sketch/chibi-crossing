@@ -110,6 +110,17 @@ func _ingombro(n: Node3D) -> AABB:
 	return out
 
 
+## Le tre viste ci sono e sono più nuove del sorgente?
+func _fresco(cartella: String, quota: int) -> bool:
+	for v in VISTE:
+		var f := "res://" + cartella + str(v["file"])
+		if not FileAccess.file_exists(f):
+			return false
+		if int(FileAccess.get_modified_time(f)) <= quota:
+			return false
+	return true
+
+
 func _studio() -> void:
 	var lato := int(OS.get_environment("CHIBI_LATO")) if OS.get_environment("CHIBI_LATO") != "" else 900
 	_sv = SubViewport.new()
@@ -197,18 +208,23 @@ func _scatta(a: AABB, az: float, dove: String) -> void:
 	dist = (dist + arretra) * 1.06                 # un filo d'aria intorno
 	_cam.position = centro + dir * dist
 	_cam.look_at(centro, Vector3.UP)
-	# DUE `frame_post_draw`, NON UNO. La texture di un SubViewport è quella
-	# dell'ultimo frame COMPLETATO: con una attesa sola si salva
-	# l'inquadratura PRECEDENTE. Il difetto è vigliacco perché quasi non si
-	# vede — due pose vicine dello stesso pezzo si somigliano — e si
-	# smaschera solo quando due pezzi di seguito sono di taglia diversa: il
-	# Letto, fotografato con la distanza dello Sgabello, era un muro
-	# marrone. Un catalogo di 399 foto sbagliate di un frame è un catalogo
-	# che mente su ogni pagina.
-	for _i in 2:
-		await process_frame
-	await RenderingServer.frame_post_draw
-	await RenderingServer.frame_post_draw
+	# SI DISEGNA A MANO, non si aspetta il frame del sistema.
+	#
+	# `await RenderingServer.frame_post_draw` funziona finché il sistema
+	# operativo continua a chiedere frame — e su macOS smette di chiederli
+	# appena la finestra finisce dietro a un'altra o lo schermo si spegne.
+	# Allora il segnale non arriva PIÙ, e lo script resta lì per sempre:
+	# Godot vivo all'1% di CPU, nessun errore, nessuna immagine. È così che
+	# «i render non finivano più» — non erano lenti, erano fermi.
+	#
+	# `force_draw` disegna subito, di sua iniziativa, e non dipende da
+	# nessuno. Due volte per il doppio buffer: la prima porta il frame
+	# nuovo, la seconda garantisce che la texture letta sia quella e non
+	# quella prima (era il difetto del Letto: fotografato con la distanza
+	# dello Sgabello, usciva un muro marrone).
+	await process_frame
+	RenderingServer.force_draw(false)
+	RenderingServer.force_draw(false)
 	var img := _sv.get_texture().get_image()
 	# JPEG e non PNG: sono FOTOGRAFIE, si aprono con un clic da qualunque
 	# cosa, e pesano un terzo. Un catalogo si sfoglia, non si ricampiona.
@@ -224,7 +240,20 @@ func _go() -> void:
 	var pezzi := CAT.items()
 	var da := int(OS.get_environment("CHIBI_DA")) if OS.get_environment("CHIBI_DA") != "" else 0
 	var a := int(OS.get_environment("CHIBI_A")) if OS.get_environment("CHIBI_A") != "" else pezzi.size()
-	print("CATALOGO ", pezzi.size(), " pezzi, lotto ", da, "..", a)
+	# LA QUOTA DI FRESCHEZZA: una foto vale se è più nuova del sorgente che
+	# l'ha disegnata. Serve perché una sessione lunga di rendering ogni
+	# tanto si chiude da sola a metà strada — e senza questo, rilanciarla
+	# vuol dire rifare da capo anche i cento pezzi già buoni, per poi
+	# morire di nuovo prima della fine. Così ogni rilancio riparte da dove
+	# è caduto e in pochi giri il catalogo si chiude.
+	var quota := 0
+	for src in ["res://scenes/build/BuildCatalog.gd", "res://scenes/build/BuildPalestra.gd",
+			"res://scenes/build/BuildChiesa.gd", "res://scenes/build/BuildBoutique.gd",
+			"res://scenes/npc/ChibiBuilder.gd", "res://tools/scatto_catalogo.gd"]:
+		quota = maxi(quota, int(FileAccess.get_modified_time(src)))
+	var salta := OS.get_environment("CHIBI_SALTA") != "0"
+	print("CATALOGO ", pezzi.size(), " pezzi, lotto ", da, "..", a,
+			("  (salta i freschi)" if salta else "  (rifà tutto)"))
 
 	for i in range(da, mini(a, pezzi.size())):
 		var voce: Dictionary = pezzi[i]
@@ -235,6 +264,8 @@ func _go() -> void:
 				+ "/" + slug(nome) + "/"
 		DirAccess.make_dir_recursive_absolute(
 				ProjectSettings.globalize_path("res://") + cartella)
+		if salta and _fresco(cartella, quota):
+			continue
 		var nodo = (voce["builder"] as Callable).call()
 		if nodo == null:
 			print("VUOTO ", nome)
