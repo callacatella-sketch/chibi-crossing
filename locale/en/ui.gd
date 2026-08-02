@@ -610,8 +610,8 @@ const T := {
 			"A deck of pale boards. Lay down as many as you like:\nthe stage is as big as you make it.",
 	"La conchiglia acustica: rimanda la voce a chi\nascolta, e di sera si accende ai due lati.":
 			"The acoustic shell: it carries the voice out to the\nlisteners, and at dusk it lights up on both sides.",
-	"Tre gradini di pietra con i cuscini gia' messi.\nAffiancane quante ne servono: e' la platea.":
-			"Three stone steps with the cushions already out.\nSet as many side by side as you need: that is the audience.",
+	"Due file di pietra per sedersi davanti al palco.\nAffiancane quante ne servono: e' la platea.":
+			"Two stone rows to sit on, facing the stage.\nSet as many side by side as you need: that is the audience.",
 	"A coda, col coperchio aperto. Chi sogna di fare\nl'artista non aspetta altro.":
 			"A grand, with the lid up. Whoever dreams of being\nan artist wants nothing else.",
 }

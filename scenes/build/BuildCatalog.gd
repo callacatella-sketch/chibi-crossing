@@ -4386,10 +4386,9 @@ static func _fondale() -> Node3D:
 
 
 
-# LA GRADINATA. Due file di sedute in pietra, i cuscini spaiati che i
-# vicini si portano da casa, una coperta dimenticata e il lume per la
-# sera. Se ne piazzano quante se ne vuole, in curva davanti al palco:
-# e' cosi' che l'anfiteatro diventa GRANDE — perche' l'hai fatto grande tu.
+# LA GRADINATA. Due file di sedute in pietra e una coperta dimenticata.
+# Se ne piazzano quante se ne vuole, in curva davanti al palco: e' cosi'
+# che l'anfiteatro diventa GRANDE — perche' l'hai fatto grande tu.
 #
 # LE LEZIONI DELLA PRIMA VERSIONE (bocciata guardando il catalogo):
 #  · era fatta di _box e leggeva come un cassonetto, perche' una
@@ -4432,7 +4431,6 @@ static func _gradinata() -> Node3D:
 	var concio_a := _mat(Color("9a917f"), Color("7d7565"), 2.6, 0.5)
 	var concio_b := _mat(Color("a49a88"), Color("867d6c"), 2.4, 0.5)
 	var malta := _mat(Color("6b644f"), Color("564f3e"), 3.0, 0.4)
-	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
 	var muschio := _mat(Color("8aa870"), Color("6f8d58"), 5.0, 0.5)
 
 	# DUE FILE. Ogni gradino e' un'ALZATA di conci pieni con sopra la
@@ -4469,13 +4467,23 @@ static func _gradinata() -> Node3D:
 				blocco.position = Vector3(xs + wb * 0.5, 0.0, zr)
 				xs += wb + 0.012
 
-		# la PEDATA: una lastra di pietra ad angoli tondi che sporge di
-		# 4-5 cm su tre lati, col naso bombato davanti
-		var ped := _prisma(n, _rrect_xz(1.02, 0.38, 0.065), cima - 0.06, 0.06, pietra)
-		ped.position.z = zc
-		var naso := _cyl(n, 0.032, 0.032, 0.98, pietra,
-				Vector3(0, cima - 0.030, zc + 0.185))
-		naso.rotation.z = PI * 0.5
+		# la PEDATA: TRE lastroni ad angoli tondi che sporgono di 4-5 cm
+		# su tre lati, ognuno col suo naso bombato. Tre e non uno: i
+		# giunti in quota riprendono il running bond dei conci sotto —
+		# una lastra unica da un metro leggeva come cemento colato, non
+		# come pietra posata a mano. (Ed e' anche il contratto di
+		# test_sedersi: sotto ogni Posto ci dev'essere la SUA lastra.)
+		var lastre: Array = [[0.34, 0.30, 0.34], [0.30, 0.34, 0.34]][i]
+		var xl := -0.498
+		for l in lastre.size():
+			var wl := float(lastre[l])
+			var ped := _prisma(n, _rrect_xz(wl, 0.38, 0.05), cima - 0.06,
+					0.06, pietra)
+			ped.position = Vector3(xl + wl * 0.5, 0.0, zc)
+			var naso := _cyl(n, 0.032, 0.032, wl - 0.05, pietra,
+					Vector3(xl + wl * 0.5, cima - 0.030, zc + 0.185))
+			naso.rotation.z = PI * 0.5
+			xl += wl + 0.008
 
 	# IL MUSCHIO: incassato a meta' nella pietra, si arrampica sul primo
 	# corso — davanti, DIETRO (e' il lato che si vede dal prato), su un
@@ -4490,35 +4498,27 @@ static func _gradinata() -> Node3D:
 	_ball(n, 0.095, muschio, Vector3(0.470, 0.06, -0.30), Vector3(0.5, 0.50, 1.15))
 	_ball(n, 0.075, muschio, Vector3(-0.47, 0.545, -0.30), Vector3(1.0, 0.26, 1.3))
 
-	# I CUSCINI, spaiati e su TUTTE E DUE le file (prima stavano solo
-	# sotto, e da dietro la fila alta sembrava disabitata). Uno dei posti
-	# resta nudo: quel cuscino stasera qualcuno se l'e' riportato a casa.
-	var stoffe := [Color("e9a3b8"), Color("9ec9e8"), Color("bfe6c8"), Color("ffe6a8")]
+	# I POSTI, sulla pietra nuda. C'erano i cuscini e il lume, ed erano
+	# belli NEL CATALOGO: in gioco gli spettatori ci si siedono SOPRA (i
+	# corpi li coprono o li attraversano), e affiancando le gradinate la
+	# stessa fila di cuscini identici si ripeteva a ogni cella — il
+	# contrario di una platea viva. Gli oggetti che uno spettatore seduto
+	# nasconderebbe non vanno modellati: vanno lasciati al pubblico vero.
 	var posti := [[-0.31, 0], [0.06, 0], [-0.08, 1], [0.33, 1]]
 	for i3 in posti.size():
 		var cx := float(posti[i3][0])
 		var fila := int(posti[i3][1])
 		var cy := 0.26 + float(fila) * 0.28
 		var cz := -0.01 - float(fila) * 0.32 + 0.02 * float(i3 % 2)
-		var col: Color = stoffe[i3 % stoffe.size()]
-		var giro := (float(i3) - 1.5) * 0.14
-		# la federa: un panetto ad angoli tondi, NON un cartoncino
-		var federa := _prisma(n, _rrect_xz(0.21, 0.20, 0.07), cy, 0.040,
-				_mat(col.darkened(0.12), col.darkened(0.26), 5.0, 0.5))
-		federa.position = Vector3(cx, 0.0, cz)
-		federa.rotation.y = giro
-		# la gobba morbida, e il bottone che la tiene
-		var gobba := _ball(n, 0.104, _mat(col, col.darkened(0.16), 5.0, 0.5),
-				Vector3(cx, cy + 0.030, cz), Vector3(0.96, 0.34, 0.90))
-		gobba.rotation.y = giro
-		_ball(n, 0.014, _mat(CREAM, WOOD_PALE, 8.0, 0.35),
-				Vector3(cx, cy + 0.062, cz), Vector3(1, 0.5, 1))
 		# l'ancoraggio del posto: e' qui che si siede chi ascolta
-		# (Concerto cerca "Posto*" e ordina per distanza dal pianoforte)
+		# (Concerto cerca "Posto*" e ordina per distanza dal pianoforte).
+		# Sta ESATTAMENTE sulla pietra: il punto dichiarato e' dove il
+		# corpo viene posato, e 3 cm di "morbidezza" avevano senso sul
+		# cuscino — sulla pietra nuda erano un posto a mezz'aria.
 		var posto := Node3D.new()
 		posto.name = "Posto%d" % i3
-		posto.position = Vector3(cx, cy + 0.06, cz)
-		posto.set_meta("seduta", Vector3(0, 0.03, 0))
+		posto.position = Vector3(cx, cy, cz)
+		posto.set_meta("seduta", Vector3.ZERO)
 		n.add_child(posto)
 
 	# LA COPERTA piegata sull'orlo della fila alta: qualcuno la lascia
@@ -4540,19 +4540,13 @@ static func _gradinata() -> Node3D:
 			Vector3(-0.38, 0.47, -0.180), Vector3(0, PI * 0.5, 0.06))
 	lembo.rotation.x = 0.10
 
-	# i due PARACARRI bassi sull'orlo: le gradinate si affiancano, e
-	# questi si fanno compagnia senza diventare una selva di bastoni
-	for sx: float in [-0.485, 0.485]:
-		_prisma(n, _rrect_xz(0.075, 0.26, 0.03), 0.26, 0.10, concio_a) 				.position.x = sx
-		_ball(n, 0.038, pietra, Vector3(sx, 0.375, 0.0), Vector3(1, 0.68, 1.5))
-
-	# e il LUME per la sera: zoccolo di legno, vetro caldo, cappello
-	_cyl(n, 0.034, 0.040, 0.045, legno, Vector3(0.40, 0.283, 0.10))
-	_cyl(n, 0.031, 0.027, 0.075, _glow(Color("ffe6b8"), Color("ffc978"), 1.0),
-			Vector3(0.40, 0.343, 0.10))
-	_cyl(n, 0.012, 0.038, 0.030, legno, Vector3(0.40, 0.394, 0.10))
-	_ball(n, 0.011, legno, Vector3(0.40, 0.412, 0.10))
-
+	# UN paracarro solo, sul fianco sinistro: affiancando le gradinate
+	# ne spunta uno a ogni giuntura. Con due (uno per fianco) a ogni
+	# giuntura se ne incontravano DUE a tre centimetri: un doppio pomello
+	# che si vedeva anche a platea piena.
+	var para := _prisma(n, _rrect_xz(0.075, 0.26, 0.03), 0.26, 0.10, concio_a)
+	para.position.x = -0.485
+	_ball(n, 0.038, pietra, Vector3(-0.485, 0.375, 0.0), Vector3(1, 0.68, 1.5))
 	return n
 
 
