@@ -29,8 +29,8 @@ CATEGORIE = {
     6: ("6-personaggi", "Personaggi", "i cinque archetipi dei chibi, generati dal DNA"),
 }
 
-VISTE = [("1-fronte.png", "fronte"), ("2-tre-quarti.png", "tre quarti"),
-         ("3-profilo.png", "profilo")]
+VISTE = [("1-fronte.jpg", "fronte"), ("2-tre-quarti.jpg", "tre quarti"),
+         ("3-profilo.jpg", "profilo")]
 
 
 def main() -> int:

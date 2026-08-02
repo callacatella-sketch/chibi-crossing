@@ -33,3 +33,7 @@ addons/lua-gdextension/build/*
 # impostazioni personali di Claude Code (permessi locali della macchina):
 # restano fuori dal repo. La config condivisa e' in .claude/settings.json.
 .claude/settings.local.json
+
+# Il catalogo visivo e in JPEG (tools/scatto_catalogo.gd): i PNG restano
+# solo come file di lavoro locali, non si versionano.
+docs/catalogo/**/*.png

@@ -2,7 +2,7 @@ extends SceneTree
 ## IL CATALOGO VISIVO: tre foto di ogni singolo pezzo costruibile del gioco.
 ##
 ## Per ogni asset — fronte, tre quarti, profilo — dentro una cartella sua:
-##   docs/catalogo/<n-categoria>/<nome-pezzo>/1-fronte.png ecc.
+##   docs/catalogo/<n-categoria>/<nome-pezzo>/1-fronte.jpg ecc.
 ##
 ##   CHIBI_CATALOGO=docs/catalogo Godot --path . \
 ##       --script res://tools/scatto_catalogo.gd
@@ -31,9 +31,9 @@ const CHIBI = preload("res://scenes/npc/ChibiBuilder.gd")
 ## Le tre viste. L'azimut è misurato da -Z (il FRONTE dei pezzi in questo
 ## catalogo, vedi BuildBoutique) verso +X.
 const VISTE := [
-	{"file": "1-fronte.png", "az": 0.0},
-	{"file": "2-tre-quarti.png", "az": 0.785398},
-	{"file": "3-profilo.png", "az": 1.570796},
+	{"file": "1-fronte.jpg", "az": 0.0},
+	{"file": "2-tre-quarti.jpg", "az": 0.785398},
+	{"file": "3-profilo.jpg", "az": 1.570796},
 ]
 const FOV := 34.0
 ## ~23°. A 17° si vedeva solo la FACCIA di ogni pezzo: e i pezzi bassi e
@@ -210,7 +210,9 @@ func _scatta(a: AABB, az: float, dove: String) -> void:
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
 	var img := _sv.get_texture().get_image()
-	img.save_png(dove)
+	# JPEG e non PNG: sono FOTOGRAFIE, si aprono con un clic da qualunque
+	# cosa, e pesano un terzo. Un catalogo si sfoglia, non si ricampiona.
+	img.save_jpg(dove, 0.92)
 
 
 func _go() -> void:
