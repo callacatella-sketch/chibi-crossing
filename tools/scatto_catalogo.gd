@@ -240,6 +240,16 @@ func _go() -> void:
 		_sv.add_child(nodo)
 		await process_frame
 		var ing := _ingombro(nodo)
+		# I PEZZI CHE STANNO SOTTO ZERO VANNO POSATI SUL PIANO. Il Solaio e
+		# il Ponticello sono pezzi del piano di SOPRA: il loro calpestio è a
+		# quota zero e tutto il resto — assito, travi — pende sotto. Nello
+		# studio finivano dentro il pavimento, e del solaio restavano due
+		# travi e due triangoli di z-fighting: sembrava un asset rotto e non
+		# lo era. Si alza il pezzo finché il suo punto più basso tocca terra.
+		if ing.position.y < -0.001:
+			nodo.position.y = -ing.position.y
+			ing.position.y = 0.0
+			await process_frame
 		for v in VISTE:
 			await _scatta(ing, float(v["az"]),
 					ProjectSettings.globalize_path("res://") + cartella + str(v["file"]))

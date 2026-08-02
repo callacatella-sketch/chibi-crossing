@@ -16,7 +16,7 @@
 | **Sacchetti**<br><sub>0.63 × 0.24 m</sub> | <img src="sacchetti/1-fronte.png" width="200"> | <img src="sacchetti/2-tre-quarti.png" width="200"> | <img src="sacchetti/3-profilo.png" width="200"> |
 | **Scaffale a giorno**<br><sub>1.00 × 2.00 m</sub> | <img src="scaffale-a-giorno/1-fronte.png" width="200"> | <img src="scaffale-a-giorno/2-tre-quarti.png" width="200"> | <img src="scaffale-a-giorno/3-profilo.png" width="200"> |
 | **Specchiera**<br><sub>0.96 × 1.75 m</sub> | <img src="specchiera/1-fronte.png" width="200"> | <img src="specchiera/2-tre-quarti.png" width="200"> | <img src="specchiera/3-profilo.png" width="200"> |
-| **Stender**<br><sub>0.94 × 1.17 m</sub> | <img src="stender/1-fronte.png" width="200"> | <img src="stender/2-tre-quarti.png" width="200"> | <img src="stender/3-profilo.png" width="200"> |
+| **Stender**<br><sub>1.01 × 1.17 m</sub> | <img src="stender/1-fronte.png" width="200"> | <img src="stender/2-tre-quarti.png" width="200"> | <img src="stender/3-profilo.png" width="200"> |
 | **Tavolo piegati**<br><sub>0.94 × 0.76 m</sub> | <img src="tavolo-piegati/1-fronte.png" width="200"> | <img src="tavolo-piegati/2-tre-quarti.png" width="200"> | <img src="tavolo-piegati/3-profilo.png" width="200"> |
 | **Vetrina moda**<br><sub>1.00 × 2.08 m</sub> | <img src="vetrina-moda/1-fronte.png" width="200"> | <img src="vetrina-moda/2-tre-quarti.png" width="200"> | <img src="vetrina-moda/3-profilo.png" width="200"> |
 

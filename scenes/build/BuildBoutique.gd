@@ -850,17 +850,21 @@ static func stender() -> Node3D:
 	# vuoto non dice «negozio pieno di roba», dice «gruccia dimenticata».
 	var y := 1.14
 
-	# i due montanti col piede piatto, e la traversa bassa
+	# I MONTANTI STANNO LARGHI 0,46, NON 0,42. Con l'asta lunga quanto i
+	# montanti, il capo all'estremità ci finiva DENTRO: la manica passava
+	# da parte a parte e riemergeva sul lato esterno del palo, dove
+	# restava una lama di stoffa incollata allo sfondo. La stanghetta
+	# dev'essere più larga della roba che ci sta appesa.
 	for lato: float in [-1.0, 1.0]:
-		CAT._box(n, Vector3(0.05, y, 0.05), telaio, Vector3(lato * 0.42, y * 0.5, 0))
-		CAT._box(n, Vector3(0.09, 0.028, 0.42), telaio, Vector3(lato * 0.42, 0.014, 0))
-		CAT._ball(n, 0.032, ottone, Vector3(lato * 0.42, y + 0.012, 0), Vector3(1, 0.7, 1))
-	CAT._box(n, Vector3(0.80, 0.026, 0.026), telaio, Vector3(0, 0.20, 0))
+		CAT._box(n, Vector3(0.05, y, 0.05), telaio, Vector3(lato * 0.46, y * 0.5, 0))
+		CAT._box(n, Vector3(0.09, 0.028, 0.42), telaio, Vector3(lato * 0.46, 0.014, 0))
+		CAT._ball(n, 0.032, ottone, Vector3(lato * 0.46, y + 0.012, 0), Vector3(1, 0.7, 1))
+	CAT._box(n, Vector3(0.88, 0.026, 0.026), telaio, Vector3(0, 0.20, 0))
 	# L'ASTA CHE CEDE (si chiama così perché il test ci legge la quota
 	# invece di riscriverla a mano: se un domani l'asta si alza, la prova
 	# dei capi appesi si adegua da sola invece di mentire)
-	var asta := BUILDER.tube(n, [Vector3(-0.42, y, 0), Vector3(-0.14, y - 0.012, 0),
-			Vector3(0.14, y - 0.012, 0), Vector3(0.42, y, 0)],
+	var asta := BUILDER.tube(n, [Vector3(-0.46, y, 0), Vector3(-0.15, y - 0.012, 0),
+			Vector3(0.15, y - 0.012, 0), Vector3(0.46, y, 0)],
 			[0.014, 0.013, 0.013, 0.014], ottone, 18, 8)
 	asta.name = "asta"
 
@@ -877,7 +881,7 @@ static func stender() -> Node3D:
 	_capo(n, Vector3(0.245, y - 0.011, 0.0), 0, 0.62, 0.0, 2, 21)
 	_capo(n, Vector3(0.335, y - 0.011, 0.0), 5, 0.55, 0.0, 1, 22)
 	# le due grucce vuote: qualcuno se n'è portato uno in camerino
-	for x: float in [-0.395, 0.395]:
+	for x: float in [-0.385, 0.385]:
 		var vuota := Node3D.new()
 		vuota.position = Vector3(x, y - 0.011, 0)
 		vuota.rotation.y = PI * 0.5 + (0.2 if x < 0.0 else -0.14)
@@ -1235,13 +1239,15 @@ static func cesto_saldi() -> Node3D:
 	# tre maniche che pendono fuori dal bordo: è il segno che dentro c'è ROBA
 	for i in 3:
 		var a2 := 0.7 + float(i) * 2.1
-		# APPOGGIATE SUL BORDO (che sta a 0.362): più fuori pendevano nel
-		# vuoto senza toccare niente, più dentro attraversavano la parete
-		# del cesto e spuntavano fuori come una toppa nera
-		var m := CAT._cyl(n, 0.026, 0.031, 0.26, _stoffa(1 + i * 3),
-				Vector3(cos(a2) * 0.352, 0.345, sin(a2) * 0.352))
-		m.rotation.z = 0.6 - float(i) * 0.7
-		m.rotation.x = 0.35 + float(i) * 0.2
+		# SCAVALCANO IL BORDO (che sta a 0.362) invece di stargli accanto:
+		# la manica parte da dentro il mucchio, passa SOPRA l'orlo e ricade
+		# fuori. Messa di fianco pendeva nel vuoto senza toccare niente, e
+		# messa più dentro bucava la parete del cesto spuntando come una
+		# toppa nera: le due cose che il revisore ha visto.
+		var m := CAT._cyl(n, 0.026, 0.031, 0.30, _stoffa(1 + i * 3),
+				Vector3(cos(a2) * 0.315, 0.335, sin(a2) * 0.315))
+		m.rotation.y = -a2
+		m.rotation.x = 1.15 + float(i) * 0.12
 
 	# il cartello d'ardesia sul filo di ferro
 	var ferro := CAT._mat(Color("4f4a45"), Color("3d3935"), 5.0, 0.4)
