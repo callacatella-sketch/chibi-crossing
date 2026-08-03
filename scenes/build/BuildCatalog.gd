@@ -3059,15 +3059,17 @@ static func _insegna_guardia() -> Node3D:
 	_cyl(n, 0.017, 0.022, 0.036, legno_scuro, Vector3(0.365, 1.892, 0))
 	_ball(n, 0.015, legno_scuro, Vector3(0.365, 1.874, 0))
 
-	# LA VOLUTA di ferro battuto sotto il braccio: parte dal palo, corre
-	# sotto l'asse e si arriccia su se stessa — è il riccio a dire
-	# «fabbro», come la battuta dice «falegname»
+	# LA VOLUTA di ferro battuto sotto il braccio: parte dal palo, ACCOSTA
+	# l'asse da sotto e si arriccia su se stessa fra le due catenelle —
+	# è il riccio a dire «fabbro», come la battuta dice «falegname».
+	# (La prima stesura spaziava alta e larga: sembrava un filo vagante
+	# sopra la tavola, non un sostegno.)
 	var punti_voluta: Array[Vector3] = [
-		Vector3(-0.33, 1.7, 0), Vector3(-0.18, 1.82, 0), Vector3(0.02, 1.895, 0),
-		Vector3(0.14, 1.88, 0), Vector3(0.2, 1.83, 0), Vector3(0.17, 1.78, 0),
-		Vector3(0.12, 1.8, 0), Vector3(0.13, 1.845, 0),
+		Vector3(-0.33, 1.76, 0), Vector3(-0.22, 1.85, 0), Vector3(-0.08, 1.893, 0),
+		Vector3(0.04, 1.884, 0), Vector3(0.1, 1.848, 0), Vector3(0.07, 1.818, 0),
+		Vector3(0.025, 1.836, 0), Vector3(0.05, 1.868, 0),
 	]
-	var raggi_voluta: Array[float] = [0.016, 0.014, 0.012, 0.011, 0.01, 0.009, 0.008, 0.007]
+	var raggi_voluta: Array[float] = [0.015, 0.013, 0.012, 0.011, 0.01, 0.008, 0.007, 0.006]
 	BUILDER.tube(n, punti_voluta, raggi_voluta, ferro, 36, 8)
 
 	# IL TETTUCCIO di rame sopra la tavola: due faldine e il colmo — la
@@ -3133,9 +3135,11 @@ static func _insegna_guardia() -> Node3D:
 	_ball(appesa, 0.01, ottone, Vector3(0.11, -0.5, -0.028), Vector3(1, 1, 0.45))
 
 	# LA LANTERNA VERA, appesa in punta al braccio: il gancetto e il lume
-	# azzurro acceso — l'insegna della guardia FA luce, non la disegna
-	_box(n, Vector3(0.02, 0.045, 0.02), ferro, Vector3(0.365, 1.845, 0))
-	_lume_azzurro(n, Vector3(0.365, 1.7, 0), 0.5)
+	# azzurro acceso — l'insegna della guardia FA luce, non la disegna.
+	# Il cappello tocca il gancio: un vuoto lì in mezzo è una lanterna
+	# che levita, non che pende
+	_box(n, Vector3(0.02, 0.06, 0.02), ferro, Vector3(0.365, 1.835, 0))
+	_lume_azzurro(n, Vector3(0.365, 1.74, 0), 0.5)
 
 	# l'ondeggio, con un periodo diverso dall'insegna della caserma: due
 	# insegne che dondolano all'unisono tradiscono il metronomo
