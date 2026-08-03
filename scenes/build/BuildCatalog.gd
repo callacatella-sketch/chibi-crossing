@@ -2850,38 +2850,104 @@ static func _guardiola() -> Node3D:
 
 
 static func _insegna_guardia() -> Node3D:
-	# L'INSEGNA: un'asse appesa a due catenelle che dondola nel vento, con
-	# lo scudetto dipinto. Si monta sul bordo di una cella, come un muro.
+	# L'INSEGNA DELLA GUARDIA: il palo tornito con la basetta di pietra e
+	# il pomello d'ottone, il braccio con la staffa che lo stringe, e la
+	# tavola APPESA che ondeggia piano — con lo scudetto blu a punta,
+	# bordato d'ottone, e al centro il glifo della LANTERNA col vetrino
+	# caldo: è la guardia quella che tiene il lume acceso per tutti, ed è
+	# giusto che lo dica anche la sua insegna. Si monta sul bordo di una
+	# cella, come un muro.
 	var n := Node3D.new()
 	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var legno_scuro := _mat(WOOD_DARK, Color("8a6540"), 3.5, 0.5)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
-	_cyl(n, 0.045, 0.06, 2.0, legno, Vector3(-0.36, 1.0, 0))
-	_box(n, Vector3(0.62, 0.07, 0.07), legno, Vector3(-0.06, 1.94, 0))
-	# il braccio di sostegno in diagonale
+	var pietra := _mat(STONE, STONE_DARK, 4.0, 0.5)
+
+	# il palo: basetta di pietra, fusto rastremato, collarino e pomello —
+	# un palo piantato nudo nell'erba è un'asta, questo è un ARREDO
+	_cyl(n, 0.075, 0.09, 0.07, pietra, Vector3(-0.36, 0.035, 0))
+	_cyl(n, 0.042, 0.056, 1.95, legno, Vector3(-0.36, 1.045, 0))
+	_cyl(n, 0.058, 0.058, 0.035, legno_scuro, Vector3(-0.36, 2.03, 0))
+	_ball(n, 0.036, ottone, Vector3(-0.36, 2.08, 0))
+	# la traversa col pomellino in punta, il puntone diagonale, e la
+	# staffa d'ottone che stringe il palo dove il braccio si aggancia
+	_box(n, Vector3(0.64, 0.06, 0.06), legno, Vector3(-0.05, 1.94, 0))
+	_cyl(n, 0.02, 0.024, 0.05, legno_scuro, Vector3(0.255, 1.895, 0))
+	_ball(n, 0.02, legno_scuro, Vector3(0.255, 1.865, 0))
 	var puntone := _box(n, Vector3(0.04, 0.36, 0.04), legno, Vector3(-0.22, 1.78, 0))
 	puntone.rotation.z = -0.72
+	var staffa := TorusMesh.new()
+	staffa.inner_radius = 0.048
+	staffa.outer_radius = 0.066
+	staffa.rings = 16
+	staffa.ring_segments = 6
+	var smi := MeshInstance3D.new()
+	smi.mesh = staffa
+	smi.material_override = ottone
+	smi.position = Vector3(-0.36, 1.94, 0)
+	n.add_child(smi)
+
 	# la tavola appesa: nodo a parte, così può dondolare
 	var appesa := Node3D.new()
 	appesa.name = "Insegna"
 	# stessa regola dell'insegna del bar: le astine stanno DENTRO la
 	# campata della traversa (da −0.37 a +0.25), o restano appese all'aria
-	appesa.position = Vector3(0.0, 1.9, 0)
+	appesa.position = Vector3(0.0, 1.91, 0)
 	n.add_child(appesa)
 	for dx: float in [-0.22, 0.22]:
 		_cyl(appesa, 0.008, 0.008, 0.16, ottone, Vector3(dx, -0.08, 0))
-	var tavola := _box(appesa, Vector3(0.62, 0.4, 0.05),
-			_mat(WOOD_PALE, WOOD, 3.5, 0.5), Vector3(0, -0.36, 0))
+	# la cornice con la battuta: due piani sfalsati, non un'asse sola —
+	# è il gradino d'ombra a dire «falegname», non «compensato»
+	var tavola := _box(appesa, Vector3(0.6, 0.44, 0.045), legno_scuro, Vector3(0, -0.38, 0))
 	tavola.name = "Tavola"
-	# lo scudetto azzurro con la stellina d'ottone
-	var scudo := _box(appesa, Vector3(0.24, 0.28, 0.02), _mat(BLU, BLU_CUPO, 5.0, 0.4),
-			Vector3(0, -0.34, -0.035))
-	_cyl(appesa, 0.13, 0.02, 0.02, _mat(BLU_CUPO, BLU_CUPO, 4.0, 0.3),
-			Vector3(0, -0.5, -0.035)).rotation.x = -PI * 0.5
-	for i in 5:
-		var a := PI * 2.0 / 5.0 * float(i) - PI * 0.5
-		_box(appesa, Vector3(0.035, 0.075, 0.014), ottone,
-				Vector3(cos(a) * 0.05, -0.32 + sin(a) * 0.05, -0.05)).rotation.z = -a - PI * 0.5
+	_box(appesa, Vector3(0.54, 0.38, 0.026), _mat(WOOD_PALE, WOOD, 3.5, 0.5),
+			Vector3(0, -0.38, -0.014))
+	# le borchie d'ottone agli angoli
+	for bx: float in [-1.0, 1.0]:
+		for by: float in [-1.0, 1.0]:
+			_ball(appesa, 0.013, ottone,
+					Vector3(bx * 0.25, -0.38 + by * 0.16, -0.024), Vector3(1, 1, 0.5))
+
+	# lo scudetto blu con la punta, bordato d'ottone — ogni lastra sul
+	# SUO piano: due facce complanari si tagliano in z-fighting
+	_box(appesa, Vector3(0.2, 0.2, 0.012), ottone, Vector3(0, -0.322, -0.028))
+	var bordo_punta := _box(appesa, Vector3(0.145, 0.145, 0.012), ottone,
+			Vector3(0, -0.408, -0.026))
+	bordo_punta.rotation.z = PI * 0.25
+	var scudo := _box(appesa, Vector3(0.17, 0.17, 0.014), _mat(BLU, BLU_CUPO, 5.0, 0.4),
+			Vector3(0, -0.325, -0.036))
 	scudo.name = "Scudo"
+	var punta_blu := _box(appesa, Vector3(0.12, 0.12, 0.014), _mat(BLU, BLU_CUPO, 5.0, 0.4),
+			Vector3(0, -0.402, -0.0335))
+	punta_blu.rotation.z = PI * 0.25
+
+	# il glifo della lanterna, d'ottone col vetrino caldo: cappellino,
+	# montanti, vetro appena acceso, coppa e anellino
+	_ball(appesa, 0.009, ottone, Vector3(0, -0.262, -0.048))
+	_cyl(appesa, 0.012, 0.038, 0.032, ottone, Vector3(0, -0.288, -0.048))
+	for mx: float in [-1.0, 1.0]:
+		_box(appesa, Vector3(0.008, 0.052, 0.008), ottone, Vector3(mx * 0.026, -0.331, -0.048))
+	var vetro_lume := _glow(Color("ffe9b8"), Color("ffd27a"), 0.42)
+	_box(appesa, Vector3(0.04, 0.05, 0.014), vetro_lume, Vector3(0, -0.331, -0.048))
+	_cyl(appesa, 0.026, 0.03, 0.014, ottone, Vector3(0, -0.364, -0.048))
+
+	# l'ondeggio, con un periodo diverso dall'insegna della caserma: due
+	# insegne che dondolano all'unisono tradiscono il metronomo
+	var oscilla := Animation.new()
+	oscilla.length = 5.7
+	oscilla.loop_mode = Animation.LOOP_LINEAR
+	var tr := oscilla.add_track(Animation.TYPE_VALUE)
+	oscilla.track_set_path(tr, NodePath("Insegna:rotation:x"))
+	oscilla.track_insert_key(tr, 0.0, -0.017)
+	oscilla.track_insert_key(tr, 2.85, 0.021)
+	oscilla.track_insert_key(tr, 5.7, -0.017)
+	oscilla.track_set_interpolation_type(tr, Animation.INTERPOLATION_CUBIC)
+	var lib := AnimationLibrary.new()
+	lib.add_animation("dondola", oscilla)
+	var player := AnimationPlayer.new()
+	n.add_child(player)
+	player.add_animation_library("", lib)
+	player.autoplay = "dondola"
 	return n
 
 
@@ -4350,24 +4416,80 @@ static func _pianoforte() -> Node3D:
 # pianoforte. Da pavimento, invece, se ne posano quanti se ne vuole — e
 # l'anfiteatro diventa GRANDE perché l'hai fatto grande tu.
 #
-# Assi alternate con la fuga vera e le teste dei chiodi: un tavolato si
-# riconosce dal verso delle assi, e se sono tutte uguali sembra linoleum.
+# Un tavolato si riconosce da quattro cose, e qui ci sono tutte:
+#  - le assi hanno larghezze DIVERSE e giunti di testa sfalsati (un
+#    tavolato di assi tutte intere e identiche sembra linoleum);
+#  - le FUGHE sono vere: passanti, e sotto c'è il buio e i travetti,
+#    non una riga dipinta;
+#  - i chiodi stanno DOVE servono (in coppia sui giunti, alle teste),
+#    non a griglia da foglio a quadretti;
+#  - ogni asse ha il suo micro-ribasso (±2 mm) e ogni tanto un NODO:
+#    il legno vero non è mai in bolla.
 static func _palco() -> Node3D:
 	var n := Node3D.new()
 	var asse := _mat(WOOD, WOOD_DARK, 3.0, 0.5)
 	var asse2 := _mat(Color("bb8f62"), Color("9c7448"), 3.5, 0.5)
 	var asse3 := _mat(Color("cba274"), Color("a9834f"), 3.2, 0.5)
 	var trave := _mat(WOOD_DARK, Color("8a6440"), 4.0, 0.5)
-	var mats := [asse, asse2, asse, asse3, asse2]
-	for i in 9:
-		var z := -0.444 + float(i) * 0.111
-		_box(n, Vector3(1.0, 0.05, 0.104), mats[i % mats.size()],
-				Vector3(0, 0.025, z))
-		for cx: float in [-0.40, 0.0, 0.40]:
-			_cyl(n, 0.006, 0.006, 0.004, trave, Vector3(cx, 0.051, z))
-	# i due travetti sotto, che si vedono solo sul bordo del palco
-	for tz: float in [-0.36, 0.36]:
-		_box(n, Vector3(1.0, 0.022, 0.06), trave, Vector3(0, 0.011, tz))
+	var ferro := _mat(Color("6b625c"), Color("4e4742"), 5.0, 0.3)
+	var mats := [asse, asse2, asse3]
+
+	# sotto: il buio della fuga è VERO — un fondo scuro e tre travetti
+	# lungo Z che portano le assi (spuntano nelle fughe e sul bordo,
+	# e staccano il tavolato da terra di due centimetri)
+	var fondo := _mat(Color("54463a"), Color("3f342b"), 4.0, 0.3)
+	_box(n, Vector3(0.99, 0.006, 0.99), fondo, Vector3(0, 0.009, 0))
+	for tx2: float in [-0.35, 0.0, 0.35]:
+		var trav := _prisma(n, _rrect_xz(0.07, 0.96, 0.02), 0.0, 0.018, trave)
+		trav.position.x = tx2
+
+	# ogni riga: [larghezza, giunto_x (0 = asse intera), ribasso, mat].
+	# La QUOTA DEL PIANO resta 0.05 (i ribassi vanno solo in giù): chi
+	# sta sul palco sta alla quota di sempre.
+	var righe := [
+		[0.113, 0.16, 0.0, 0], [0.096, 0.0, -0.002, 1],
+		[0.108, -0.21, -0.001, 0], [0.121, 0.0, 0.0, 2],
+		[0.099, 0.05, -0.0025, 1], [0.111, -0.30, -0.001, 0],
+		[0.093, 0.0, -0.0015, 2], [0.115, 0.24, 0.0, 0],
+		[0.099, 0.0, -0.002, 1],
+	]
+	var centri: Array = []
+	var zc := -0.5
+	for r in righe.size():
+		var w := float(righe[r][0])
+		var xg := float(righe[r][1])
+		var alto := 0.05 + float(righe[r][2])
+		var mat: Material = mats[int(righe[r][3])]
+		var z := zc + w * 0.5
+		zc += w + 0.0056
+		centri.append([z, alto])
+		var tratti: Array = [[-0.5, 0.5]] if xg == 0.0 else \
+				[[-0.5, xg - 0.003], [xg + 0.003, 0.5]]
+		for tr in tratti:
+			var x0 := float(tr[0])
+			var x1 := float(tr[1])
+			var tavola := _prisma(n, _rrect_xz(x1 - x0, w, 0.012), 0.018,
+					alto - 0.018, mat)
+			tavola.position = Vector3((x0 + x1) * 0.5, 0.0, z)
+		# le teste dei chiodi: in coppia ai due lati del giunto; sulle
+		# assi intere, alle estremità di una fila sì e una no
+		var teste: Array = []
+		if xg != 0.0:
+			teste = [xg - 0.028, xg + 0.028]
+		elif r % 2 == 0:
+			teste = [-0.462, 0.462]
+		for tx in teste:
+			for dz2: float in [-1.0, 1.0]:
+				_cyl(n, 0.0052, 0.0052, 0.003, ferro,
+						Vector3(float(tx), alto + 0.0012,
+						z + dz2 * (w * 0.5 - 0.022)))
+
+	# tre nodi del legno, mai sulla stessa asse e mai in fila
+	for k in [[0.21, 2, 0.0075], [-0.33, 5, 0.007], [0.08, 7, 0.0065]]:
+		var riga: Array = centri[int(k[1])]
+		_ball(n, float(k[2]), trave,
+				Vector3(float(k[0]), float(riga[1]) + 0.0006, float(riga[0])),
+				Vector3(1.0, 0.14, 0.75))
 	return n
 
 
