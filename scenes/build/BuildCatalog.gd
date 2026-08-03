@@ -687,10 +687,106 @@ static func _lastra_sentiero(parent: Node3D, rng: RandomNumberGenerator,
 		_prisma(lastra, punti, da, spess, mat)
 
 
+## IL TAPPETO INTRECCIATO — il tappeto delle case cozy per eccellenza:
+## la spirale di trecce di stoffa cucite in tondo, ovale come vengono
+## davvero (una spirale tirata a mano non chiude mai un cerchio).
+##
+## Prima erano due cilindri concentrici: un piattino, non un tappeto. La
+## differenza la fanno quattro cose, tutte piccole:
+##  · le SPIRE: sei anelli di treccia (tori schiacciati) a colori
+##    alternati, ognuno col suo appoggio — un'inclinazione di qualche
+##    millesimo e una quota sua: la stoffa si adagia, non si stampa;
+##  · i PUNTI DELLA TRECCIA: i nodini obliqui in rilievo sulle spire —
+##    sono loro a dire «intrecciato» invece di «verniciato a righe»;
+##  · il CAPO FINALE: la treccia non sparisce — l'ultimo capo esce dalla
+##    spira più esterna, si adagia sul pavimento e finisce cucito con
+##    due punti. È la firma di ogni tappeto a spirale vero;
+##  · l'OVALE: tutto è scalato 1.06 × 0.94 — il cerchio perfetto è da
+##    negozio, l'ovale è di casa.
+##
+## Le varianti di colore continuano a funzionare: ogni spira ha il suo
+## ShaderMaterial e apply_variant le tinge tutte conservando gli scarti.
 static func _rug() -> Node3D:
 	var n := Node3D.new()
-	_cyl(n, 0.46, 0.46, 0.025, _mat(CREAM, Color("f3dfc8"), 5.0, 0.5), Vector3(0, 0.065, 0))
-	_cyl(n, 0.32, 0.32, 0.02, _mat(PINK, PINK_DEEP, 5.0, 0.45), Vector3(0, 0.085, 0))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 20_260_804
+	# crema e rosa che si alternano, e UN solo accento miele verso il
+	# cuore: con due gialli il tappeto diventava un bersaglio da caramella
+	var tinte: Array = [
+		_mat(CREAM, Color("f3dfc8"), 8.0, 0.35),
+		_mat(PINK, PINK_DEEP, 8.0, 0.35),
+		_mat(CREAM, Color("f3dfc8"), 8.0, 0.35),
+		_mat(Color("f0d29a"), Color("ddb977"), 8.0, 0.35),
+		_mat(PINK, PINK_DEEP, 8.0, 0.35),
+		_mat(CREAM, Color("f3dfc8"), 8.0, 0.35),
+	]
+	var tubo := 0.034
+	var fondo := 0.052          # il tappeto POSA sul pavimento, non ci galleggia
+	for i in 6:
+		var r := 0.435 - float(i) * 0.063
+		# il wrapper porta l'appoggio (tilt e quota); la scala ovale sta
+		# sulla SOLA mesh, o distorcerebbe anche i punti della treccia
+		var spira := Node3D.new()
+		# l'appoggio: millesimi, non centesimi — a ±0.01 rad le spire
+		# esterne si alzavano di 4 mm e fra gli anelli si aprivano
+		# fessure d'ombra, come un giocattolo smontato
+		spira.position = Vector3(0, fondo + tubo * 0.52 + rng.randf_range(0.0, 0.0015), 0)
+		spira.rotation.x = rng.randf_range(-0.005, 0.005)
+		spira.rotation.z = rng.randf_range(-0.005, 0.005)
+		n.add_child(spira)
+		var toro := MeshInstance3D.new()
+		var tm := TorusMesh.new()
+		tm.inner_radius = r - tubo
+		tm.outer_radius = r + tubo
+		toro.mesh = tm
+		toro.material_override = tinte[i]
+		toro.scale = Vector3(1.06, 0.52, 0.94)
+		spira.add_child(toro)
+		# i punti della treccia, obliqui, sulle spire alterne
+		if i % 2 == 0:
+			# tono su tono, APPENA più scuro: il punto della treccia è una
+			# trama, non un forellino — a contrasto pieno le spire crema
+			# sembravano punteggiate dalle tarme
+			var scuro: ShaderMaterial = (tinte[i] as ShaderMaterial).duplicate()
+			scuro.set_shader_parameter("color_a",
+					(scuro.get_shader_parameter("color_a") as Color).darkened(0.06))
+			scuro.set_shader_parameter("color_b",
+					(scuro.get_shader_parameter("color_b") as Color).darkened(0.06))
+			var quanti := int(TAU * r / 0.085)
+			for k in quanti:
+				var a := TAU * float(k) / float(quanti) + rng.randf_range(-0.02, 0.02)
+				var nodo := Node3D.new()
+				nodo.position = Vector3(cos(a) * r * 1.06, tubo * 0.30,
+						sin(a) * r * 0.94)
+				nodo.rotation.y = -a
+				# il giro obliquo attorno alla tangente: è la diagonale
+				# della treccia, sempre nello stesso verso — una treccia
+				# cambia colore, mai verso
+				nodo.rotation.x = 0.6
+				spira.add_child(nodo)
+				_box(nodo, Vector3(0.006, 0.008, tubo * 1.25), scuro, Vector3.ZERO)
+	# il cuore della spirale: quieto, rosa — l'accento resta uno solo
+	_cyl(n, 0.098 * 1.06, 0.098 * 1.06, 0.030, tinte[1],
+			Vector3(0, fondo + 0.015, 0)).scale.z = 0.89
+	# IL CAPO FINALE: l'ultima treccia esce dalla spira esterna, si adagia
+	# e finisce cucita con due punti. La firma del tappeto vero.
+	var a0 := 0.42
+	var fuori: Array = []
+	var raggi_capo: Array = []
+	for k2 in 5:
+		var u := float(k2) / 4.0
+		var rr := (0.435 + u * 0.055)
+		var ang := a0 + u * 0.5
+		fuori.append(Vector3(cos(ang) * rr * 1.06,
+				fondo + tubo * 0.52 * (1.0 - u * 0.75), sin(ang) * rr * 0.94))
+		raggi_capo.append(lerpf(0.030, 0.020, u))
+	BUILDER.tube(n, fuori, raggi_capo, tinte[1], 14, 8)
+	var filo := _mat(Color("b9a781"), Color("9d8b66"), 6.0, 0.3)
+	for k3 in 2:
+		var p: Vector3 = fuori[3 - k3]
+		var punto := _box(n, Vector3(0.005, 0.006, 0.030), filo,
+				p + Vector3(0, 0.012, 0))
+		punto.rotation.y = -(a0 + float(3 - k3) / 4.0 * 0.5) + 0.5
 	return n
 
 
