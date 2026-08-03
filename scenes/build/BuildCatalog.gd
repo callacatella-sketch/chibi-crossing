@@ -68,7 +68,7 @@ static func items() -> Array[Dictionary]:
 			"cols": [[Vector3(0.95, 0.95, 0.1), Vector3(0, 0.47, 0)]]},
 		{"name": "Tetto", "cat": 0, "type": "cell", "layer": 3, "builder": _roof_tile, "cols": []},
 		{"name": "Scala", "cat": 0, "type": "cell", "layer": 2, "builder": _stairs,
-			"cols": [[Vector3(0.9, 0.12, 2.44), Vector3(0, 1.07, 0), 1.135]]},
+			"cols": [[Vector3(0.9, 0.12, 2.95), Vector3(0, 1.08, 0.46), 0.8425]]},
 		{"name": "Solaio", "cat": 0, "type": "cell", "layer": 0, "up": true, "builder": _floor_slab,
 			"cols": [[Vector3(1.0, 0.14, 1.0), Vector3(0, -0.07, 0)]]},
 		{"name": "Ponticello", "cat": 0, "type": "cell", "layer": 0, "up": true, "builder": _rope_bridge,
@@ -1265,33 +1265,68 @@ static func _blackboard() -> Node3D:
 
 # ------------------------------------------------- verticalità
 
+# LA SCALA DEL PIANO DI SOPRA. Prima saliva un piano intero (2.15)
+# dentro UNA cella: 65 gradi, una scala a pioli travestita. Ora la
+# CORSA e' di due celle: la cima resta sul bordo -Z della sua cella
+# (il solaio si posa sulle celle accanto: il vano non cambia) e il
+# PIEDE sconfina nella cella a +Z — pendenza 48 gradi, nove gradini,
+# e finalmente si sale col passo e non con le unghie. I gradini sono
+# PEDATE APERTE senza alzata (l'aria fra i gradini alleggerisce
+# tutto), portate da listelli sui due cosciali; il corrimano e' TONDO
+# e chiaro (lucidato dalle mani), i montanti hanno il pomello tornito,
+# le colonnine si RICAVANO dalle due rette parallele (cosciale
+# y = 1.5916 − 1.1208·z, corrimano +0.78). Sale verso -Z (R per
+# girarla). La collisione-rampa e' allungata con lei.
 static func _stairs() -> Node3D:
-	# scala di legno ripida ma percorribile: sale verso -Z (R per girarla)
 	var n := Node3D.new()
-	var step_mat := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
-	var dark := _mat(WOOD_DARK, Color("8a6440"), 4.0, 0.5)
-	for i in 8:
-		var y := (float(i) + 0.5) * 0.269
-		var z := 0.4375 - float(i) * 0.125
-		_box(n, Vector3(0.86, 0.269, 0.125), step_mat, Vector3(0, y, z))
-	# fiancate e corrimano inclinati
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var chiaro := _mat(WOOD_PALE, WOOD, 4.2, 0.5)
+	var scuro := _mat(WOOD_DARK, Color("8a6440"), 4.0, 0.5)
+
+	# le PEDATE aperte: nove, col naso bombato sul filo davanti
+	for i in 9:
+		var cima := (float(i) + 1.0) * 0.2391
+		var z := 1.42 - (float(i) + 0.5) * 0.2133
+		var ped := _prisma(n, _rrect_xz(0.88, 0.235, 0.02), cima - 0.04,
+				0.04, legno)
+		ped.position.z = z
+		var naso := _cyl(n, 0.017, 0.017, 0.83, legno,
+				Vector3(0, cima - 0.018, z + 0.0995))
+		naso.rotation.z = PI * 0.5
+		for sx0: float in [-0.40, 0.40]:
+			_box(n, Vector3(0.05, 0.030, 0.16), scuro,
+					Vector3(sx0, cima - 0.056, z))
+
 	for sx: float in [-0.45, 0.45]:
-		var stringer := _box(n, Vector3(0.06, 0.16, 2.44), dark, Vector3(sx, 1.07, 0))
-		stringer.rotation.x = 1.135
-		var rail := _box(n, Vector3(0.05, 0.07, 2.5), step_mat, Vector3(sx, 1.85, 0))
-		rail.rotation.x = 1.135
-		# I PILASTRINI SI RICAVANO DALLE DUE RETTE, non si mettono a occhio.
-		# Cosciale e corrimano sono paralleli (stessa rotazione, 1.135 rad:
-		# 0.906 di salita ogni 0.423 di corsa, cioè 2.142 di pendenza), e a
-		# una data z passano per 1.07 − 2.142·z e 1.85 − 2.142·z. Messi a
-		# mano erano lunghi uguali a tutte le quote: in basso pendevano sotto
-		# il cosciale nel vuoto, in alto si fermavano mezzo metro prima del
-		# corrimano. Un parapetto senza un punto d'attacco visibile.
-		for t: float in [0.12, 0.88]:
-			var pz := 0.4 - t * 0.8
-			var y_rampa := 1.07 - 2.142 * pz + 0.06     # dentro il cosciale
-			var y_mano := 1.85 - 2.142 * pz - 0.03      # dentro il corrimano
-			_box(n, Vector3(0.06, y_mano - y_rampa, 0.06), dark,
+		# il COSCIALE lungo la rampa. (Trappola pagata due volte: nella
+		# _lastra la w e' la MEZZA larghezza lungo Z e la h corre lungo
+		# Y — per inclinarla si ruota dell'angolo della rampa MENO PI/2.)
+		_lastra(n, 0.085, 2.95, 0.04, 0.055, scuro,
+				Vector3(sx, 1.076, 0.46), Vector3(0.8425 - PI * 0.5, 0, 0))
+		# i tasselli in fila sulla faccia esterna, uno per gradino
+		for i2 in 9:
+			var tass := _cyl(n, 0.0065, 0.0065, 0.006, legno,
+					Vector3(sx * (0.478 / 0.45), (float(i2) + 1.0) * 0.2391 - 0.06,
+					1.42 - (float(i2) + 0.5) * 0.2133))
+			tass.rotation.z = PI * 0.5
+
+		# il CORRIMANO tondo, chiaro come il legno lucidato dalle mani
+		var mano := _cyl(n, 0.030, 0.030, 2.95, chiaro, Vector3(sx, 1.856, 0.46))
+		mano.rotation.x = 0.8425 - PI * 0.5
+
+		# i MONTANTI col collarino e il pomello tornito, ai due capi
+		_cyl(n, 0.030, 0.036, 0.95, legno, Vector3(sx, 0.475, 1.38))
+		_cyl(n, 0.040, 0.040, 0.022, scuro, Vector3(sx, 0.962, 1.38))
+		_ball(n, 0.044, legno, Vector3(sx, 1.012, 1.38))
+		_cyl(n, 0.030, 0.036, 0.86, legno, Vector3(sx, 2.53, -0.44))
+		_cyl(n, 0.040, 0.040, 0.022, scuro, Vector3(sx, 2.972, -0.44))
+		_ball(n, 0.044, legno, Vector3(sx, 3.022, -0.44))
+
+		# le COLONNINE, dalla retta del cosciale a quella del corrimano
+		for pz: float in [1.20, 0.84, 0.47, 0.10, -0.26]:
+			var y_rampa := 1.5916 - 1.1208 * pz + 0.08
+			var y_mano := 2.3716 - 1.1208 * pz - 0.02
+			_cyl(n, 0.014, 0.017, y_mano - y_rampa, scuro,
 					Vector3(sx, (y_rampa + y_mano) * 0.5, pz))
 	return n
 
@@ -3427,24 +3462,109 @@ static func _sbarra() -> Node3D:
 	# LA SBARRA: si alza davvero. L'asta vive in un pivot chiamato "Asta"
 	# incernierato sul montante, così chi vuole può farla sollevare con un
 	# tween di 90 gradi (e il contrappeso scende dall'altra parte).
+	#
+	# La prima stesura era due box scuri e una riga di fasce: squadrata, e
+	# con DUE difetti che si vedevano solo guardando la foto — l'asta
+	# galleggiava trentasei centimetri sopra il paletto d'appoggio (troppo
+	# corto), e la punta non lo raggiungeva nemmeno. Ora l'asta è TONDA
+	# con gli anelli rossi calzati sopra, la cerniera ha le guance e il
+	# perno passante con le testine d'ottone, il contrappeso ha il collare,
+	# e il paletto arriva dove deve: con la FORCELLA che culla l'asta.
 	var n := Node3D.new()
-	var metallo := _mat(METAL, Color("6f665b"), 5.0, 0.4)
-	_cyl(n, 0.16, 0.2, 0.09, _mat(STONE, STONE_DARK, 4.0, 0.5), Vector3(-0.42, 0.045, 0))
-	_box(n, Vector3(0.14, 0.86, 0.14), metallo, Vector3(-0.42, 0.48, 0))
-	_cyl(n, 0.075, 0.075, 0.14, metallo, Vector3(-0.42, 0.86, 0)).rotation.x = PI * 0.5
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var legno_scuro := _mat(WOOD_DARK, Color("8a6540"), 3.5, 0.5)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	var ferro := _mat(METAL, Color("6d6259"), 5.0, 0.4)
+	var pietra := _mat(STONE, STONE_DARK, 4.0, 0.5)
+	var bianco := _mat(SEGNALE_BIANCO, Color("e9e2d2"), 4.0, 0.35)
+	var rosso := _mat(SEGNALE_ROSSO, Color("c96f60"), 4.0, 0.4)
+
+	# IL MONTANTE: basetta di pietra a due corsi, fusto tondo di legno,
+	# coperchietto e pomello — la famiglia è quella del posto di guardia,
+	# non un paracarro di metallo
+	_cyl(n, 0.15, 0.185, 0.06, pietra, Vector3(-0.42, 0.03, 0))
+	_cyl(n, 0.115, 0.14, 0.05, pietra, Vector3(-0.42, 0.085, 0))
+	_cyl(n, 0.062, 0.078, 0.76, legno, Vector3(-0.42, 0.49, 0))
+	_cyl(n, 0.07, 0.07, 0.03, legno_scuro, Vector3(-0.42, 0.885, 0))
+	_ball(n, 0.032, ottone, Vector3(-0.42, 0.925, 0))
+	# lo scudetto araldico sul fusto (non un quadratino blu qualsiasi: se
+	# si legge «coso», non sta facendo il suo mestiere) — bordo d'ottone,
+	# campo blu con la punta, borchietta al centro
+	_box(n, Vector3(0.088, 0.082, 0.014), ottone, Vector3(-0.42, 0.585, -0.062))
+	var scud_bp := _box(n, Vector3(0.062, 0.062, 0.014), ottone, Vector3(-0.42, 0.548, -0.06))
+	scud_bp.rotation.z = PI * 0.25
+	_box(n, Vector3(0.07, 0.066, 0.016), _mat(BLU, BLU_CUPO, 5.0, 0.4),
+			Vector3(-0.42, 0.585, -0.066))
+	var scud_p := _box(n, Vector3(0.05, 0.05, 0.016), _mat(BLU, BLU_CUPO, 5.0, 0.4),
+			Vector3(-0.42, 0.551, -0.064))
+	scud_p.rotation.z = PI * 0.25
+	_ball(n, 0.011, ottone, Vector3(-0.42, 0.578, -0.075), Vector3(1, 1, 0.5))
+
+	# LA CERNIERA SU STAFFA, di lato al palo: il piano in cui l'asta gira
+	# è STACCATO dal fusto — col perno sull'asse del palo, ad asta alzata
+	# il contrappeso ruotava DENTRO il legno. La staffa la porta in fuori,
+	# e il giro torna pulito in ogni posizione.
+	_box(n, Vector3(0.06, 0.15, 0.06), legno_scuro, Vector3(-0.42, 0.82, -0.075))
+	for gz: float in [-1.0, 1.0]:
+		var guancia := _cyl(n, 0.075, 0.075, 0.02, ferro,
+				Vector3(-0.42, 0.82, -0.115 + gz * 0.032))
+		guancia.rotation.x = PI * 0.5
+	var perno := _cyl(n, 0.02, 0.02, 0.12, ottone, Vector3(-0.42, 0.82, -0.115))
+	perno.rotation.x = PI * 0.5
+	for tz: float in [-1.0, 1.0]:
+		var testina := _cyl(n, 0.03, 0.03, 0.014, ottone,
+				Vector3(-0.42, 0.82, -0.115 + tz * 0.062))
+		testina.rotation.x = PI * 0.5
+
 	var asta := Node3D.new()
 	asta.name = "Asta"
-	asta.position = Vector3(-0.42, 0.86, 0)
+	asta.position = Vector3(-0.42, 0.82, -0.115)
 	n.add_child(asta)
-	# il braccio a fasce, che parte dal perno e va a destra
+	# IL BRACCIO, tondo: il fusto bianco con gli anelli rossi calzati
+	# sopra (non fasce dipinte su un box), il manicotto d'ottone al perno
+	# e il cappuccio rosso in punta
 	var braccio := Node3D.new()
-	braccio.position = Vector3(0.62, 0, 0)
+	braccio.position = Vector3(0.7, 0, 0)
 	asta.add_child(braccio)
-	_fasce(braccio, 1.2, 0.07, 0.07, 0, 6)
-	# il contrappeso, dalla parte corta
-	_ball(asta, 0.075, metallo, Vector3(-0.17, 0, 0), Vector3(1, 0.85, 1))
-	# il piedino d'appoggio all'altro capo
-	_cyl(n, 0.05, 0.07, 0.5, metallo, Vector3(0.86, 0.25, 0))
+	var fusto := _cyl(braccio, 0.03, 0.03, 1.34, bianco, Vector3.ZERO)
+	fusto.rotation.z = PI * 0.5
+	for i in 3:
+		var anello := _cyl(braccio, 0.034, 0.034, 0.14, rosso,
+				Vector3(-0.44 + float(i) * 0.44, 0, 0))
+		anello.rotation.z = PI * 0.5
+	var cappuccio := _cyl(braccio, 0.024, 0.034, 0.06, rosso, Vector3(0.67, 0, 0))
+	cappuccio.rotation.z = -PI * 0.5
+	_ball(braccio, 0.024, rosso, Vector3(0.7, 0, 0))
+	var manicotto := _cyl(braccio, 0.037, 0.037, 0.07, ottone, Vector3(-0.66, 0, 0))
+	manicotto.rotation.z = PI * 0.5
+	# IL CONTRAPPESO, dalla parte corta: il codolo, il collare d'ottone
+	# LIBERO dalla sfera (prima ci affogava dentro per metà) e la sfera
+	# di ferro con l'anellino sotto per tirarla giù a mano
+	var codolo := _cyl(asta, 0.024, 0.024, 0.14, ferro, Vector3(-0.13, 0, 0))
+	codolo.rotation.z = PI * 0.5
+	_cyl(asta, 0.034, 0.034, 0.028, ottone, Vector3(-0.132, 0, 0)).rotation.z = PI * 0.5
+	_ball(asta, 0.075, ferro, Vector3(-0.23, 0, 0), Vector3(1, 0.9, 1))
+	var anellino := TorusMesh.new()
+	anellino.inner_radius = 0.014
+	anellino.outer_radius = 0.026
+	anellino.rings = 12
+	anellino.ring_segments = 6
+	var ami := MeshInstance3D.new()
+	ami.mesh = anellino
+	ami.material_override = ottone
+	ami.position = Vector3(-0.23, -0.085, 0)
+	asta.add_child(ami)
+
+	# IL PALETTO D'APPOGGIO: alto quanto serve (l'asta ci si POSA), sulla
+	# STESSA linea dell'asta (che ora gira sul piano della staffa), con la
+	# sua basetta e la forcella a due corni che la culla
+	_cyl(n, 0.1, 0.13, 0.05, pietra, Vector3(0.88, 0.025, -0.115))
+	_cyl(n, 0.042, 0.055, 0.72, legno, Vector3(0.88, 0.41, -0.115))
+	_cyl(n, 0.05, 0.05, 0.025, legno_scuro, Vector3(0.88, 0.782, -0.115))
+	for fz: float in [-1.0, 1.0]:
+		var corno := _cyl(n, 0.014, 0.018, 0.1, legno_scuro,
+				Vector3(0.88, 0.835, -0.115 + fz * 0.045))
+		corno.rotation.x = fz * -0.3
 	return n
 
 
@@ -4073,27 +4193,103 @@ static func _autopompa() -> Node3D:
 	return n
 
 
-## IL PORTONE DELLA RIMESSA. Pezzo edge come la porta: il grande portone
-## rosso a serranda, l'architrave chiaro e i due oblò da cui, di sera, si
-## vede il muso dell'autopompa.
+## IL PORTONE DELLA RIMESSA. Un portone vero non è una lastra a strisce: è
+## un PORTALE in rilievo — i due pilastri con la base di pietra, l'architrave,
+## la soglia a rampa su cui l'autopompa scende in strada — con la SERRANDA
+## incassata dietro, a pannelli orizzontali bugnati coi giunti in ombra, che
+## corre in guide nascoste dietro i pilastri. È la profondità a togliere il
+## «squadrato», non i dettagli appiccicati. Poi i suoi gioielli: i due oblò
+## con la ghiera d'ottone imbullonata e il vetro vero, centrati sulle bugne
+## alte; il maniglione d'ottone; le strisce diagonali del paraurti in basso;
+## e il lampeggiante rosso sulla mensolina dell'architrave — spento, finché
+## non c'è da correre.
 static func _portone_rimessa() -> Node3D:
 	var n := Node3D.new()
 	var rosso := _mat(POMPA_ROSSO, POMPA_ROSSO_SCURO, 3.0, 0.45)
+	var rosso_cupo := _mat(POMPA_ROSSO_SCURO, POMPA_ROSSO_SCURO.darkened(0.2), 3.0, 0.4)
 	var crema := _mat(CREAM, PLASTER_SHADE, 4.0, 0.4)
-	var vetro := _mat(VETRO, VETRO.darkened(0.12), 3.0, 0.3, 0.5)
-	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
-	_box(n, Vector3(0.96, 1.9, 0.1), rosso, Vector3(0, 0.95, 0))
-	for i in 5:
-		_box(n, Vector3(0.98, 0.03, 0.12), crema, Vector3(0, 0.3 + float(i) * 0.33, 0))
-	_box(n, Vector3(1.02, 0.16, 0.16), crema, Vector3(0, 2.0, 0))
-	for x: float in [-0.24, 0.24]:
-		var o := _cyl(n, 0.11, 0.11, 0.13, crema, Vector3(x, 1.5, 0))
-		o.rotation.x = PI * 0.5
-		var v := _cyl(n, 0.085, 0.085, 0.15, vetro, Vector3(x, 1.5, 0))
+	var pietra := _mat(STONE, STONE_DARK, 3.0, 0.55)
+	var ferro := _mat(Color("4a443c"), Color("332f29"), 5.0, 0.4)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 6.0, 0.35)
+
+	# ---- IL PORTALE: pilastri snelli spinti ai bordi della cella (la LUCE
+	# del portone è quella che conta: ci passa l'autopompa), base di pietra,
+	# capitello, architrave profonda con la cornice in aggetto
+	for sx: float in [-1.0, 1.0]:
+		_box(n, Vector3(0.11, 0.13, 0.24), pietra, Vector3(sx * 0.465, 0.065, 0))
+		_box(n, Vector3(0.09, 1.80, 0.20), crema, Vector3(sx * 0.465, 1.03, 0))
+		_box(n, Vector3(0.12, 0.09, 0.23), crema, Vector3(sx * 0.465, 1.975, 0))
+	_box(n, Vector3(1.02, 0.22, 0.22), crema, Vector3(0, 2.07, 0))
+	_box(n, Vector3(1.04, 0.055, 0.26), _mat(PLASTER_SHADE, Color("cbb89a"), 3.0, 0.45),
+			Vector3(0, 2.21, 0))
+	_box(n, Vector3(0.94, 0.05, 0.20), pietra, Vector3(0, 0.025, 0))
+	var rampa := _box(n, Vector3(0.94, 0.035, 0.20), pietra, Vector3(0, 0.030, -0.16))
+	rampa.rotation.x = -0.20
+
+	# ---- LE GUIDE della serranda: due binari di ferro quasi tutti nascosti
+	# dietro i pilastri — se ne vede solo il filo, com'è giusto
+	for gx: float in [-0.425, 0.425]:
+		_box(n, Vector3(0.03, 1.86, 0.05), ferro, Vector3(gx, 0.98, 0.035))
+
+	# ---- LA SERRANDA, incassata dietro il portale: quattro pannelli larghi
+	# quanto la luce, ognuno con DUE bugne in rilievo più cupe, e fra l'uno
+	# e l'altro un giunto sottile in ombra (niente strisce dipinte: è il
+	# rilievo a disegnarla)
+	for pnl in 4:
+		var py := 0.29 + float(pnl) * 0.482
+		_box(n, Vector3(0.86, 0.48, 0.05), rosso, Vector3(0, py, 0.035))
+		for bx: float in [-0.205, 0.205]:
+			_box(n, Vector3(0.34, 0.30, 0.016), rosso_cupo, Vector3(bx, py, 0.006))
+		if pnl < 3:
+			_box(n, Vector3(0.86, 0.014, 0.036), ferro, Vector3(0, py + 0.241, 0.042))
+
+	# ---- I DUE OBLÒ, centrati sulle bugne del pannello alto: ghiera
+	# d'ottone coi bulloncini e il vetro VERO che affiora dalle due facce
+	# (di sera, il muso dell'autopompa)
+	for x: float in [-0.205, 0.205]:
+		var ghiera := _cyl(n, 0.112, 0.112, 0.035, ottone, Vector3(x, 1.736, -0.005))
+		ghiera.rotation.x = PI * 0.5
+		var v := MeshInstance3D.new()
+		var vm := CylinderMesh.new()
+		vm.top_radius = 0.086
+		vm.bottom_radius = 0.086
+		vm.height = 0.13
+		v.mesh = vm
+		v.material_override = _vetro()
+		v.position = Vector3(x, 1.736, 0.03)
 		v.rotation.x = PI * 0.5
-	for x: float in [-0.18, 0.18]:
-		var mn := _cyl(n, 0.02, 0.02, 0.16, ottone, Vector3(x, 0.62, 0.07))
-		mn.rotation.z = PI * 0.5
+		n.add_child(v)
+		for b in 4:
+			var ab := float(b) * TAU / 4.0 + 0.4
+			_ball(n, 0.010, ottone,
+					Vector3(x + cos(ab) * 0.100, 1.736 + sin(ab) * 0.100, -0.021),
+					Vector3(1, 1, 0.5))
+
+	# ---- IL PARAURTI a strisce diagonali in basso: crema su fondo cupo,
+	# come si dipinge dove entra un mezzo. Le strisce restano DENTRO la
+	# fascia: tagliate su misura, non appoggiate
+	_box(n, Vector3(0.86, 0.15, 0.014), rosso_cupo, Vector3(0, 0.155, -0.0))
+	for st in 6:
+		var stx := -0.315 + float(st) * 0.126
+		var striscia := _box(n, Vector3(0.04, 0.125, 0.010), crema,
+				Vector3(stx, 0.155, -0.006))
+		striscia.rotation.z = -0.55
+
+	# ---- IL MANIGLIONE d'ottone sul secondo pannello: la barra con le
+	# due staffe
+	for mx: float in [-0.15, 0.15]:
+		_box(n, Vector3(0.025, 0.05, 0.05), ottone, Vector3(mx, 0.60, -0.02))
+	var barra := _cyl(n, 0.017, 0.017, 0.36, ottone, Vector3(0, 0.60, -0.045))
+	barra.rotation.z = PI * 0.5
+
+	# ---- IL LAMPEGGIANTE sulla mensolina dell'architrave: la campana
+	# rossa sulla base d'ottone. Spento — in questo villaggio l'unico
+	# allarme è la campana, ma la rimessa ce l'ha, perché una rimessa
+	# vera ce l'ha.
+	_box(n, Vector3(0.13, 0.024, 0.07), crema, Vector3(0, 1.985, -0.135))
+	_cyl(n, 0.045, 0.052, 0.028, ottone, Vector3(0, 2.011, -0.135))
+	_ball(n, 0.046, _mat(Color("e0524a"), Color("b8423c"), 8.0, 0.3),
+			Vector3(0, 2.045, -0.135), Vector3(1.0, 0.85, 1.0))
 	return n
 
 
