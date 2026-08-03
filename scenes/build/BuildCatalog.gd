@@ -312,7 +312,7 @@ static func items() -> Array[Dictionary]:
 			"cols": [[Vector3(1.5, 0.95, 0.7), Vector3(0, 0.48, 0)]]},
 		{"name": "Portone rimessa", "cat": 0, "type": "edge", "layer": 2,
 			"builder": _portone_rimessa,
-			"cols": [[Vector3(1.0, 2.1, 0.14), Vector3(0, 1.05, 0)]]},
+			"cols": [[Vector3(2.0, 2.24, 0.16), Vector3(0, 1.12, 0)]]},
 		{"name": "Torretta", "cat": 0, "type": "cell", "layer": 2, "builder": _torretta,
 			"cols": [[Vector3(0.78, 1.97, 0.78), Vector3(0, 0.98, 0)]]},
 		{"name": "Palo pompieri", "cat": 0, "type": "cell", "layer": 2,
@@ -4087,16 +4087,18 @@ static func _autopompa() -> Node3D:
 	return n
 
 
-## IL PORTONE DELLA RIMESSA. Un portone vero non è una lastra a strisce: è
-## un PORTALE in rilievo — i due pilastri con la base di pietra, l'architrave,
-## la soglia a rampa su cui l'autopompa scende in strada — con la SERRANDA
-## incassata dietro, a pannelli orizzontali bugnati coi giunti in ombra, che
-## corre in guide nascoste dietro i pilastri. È la profondità a togliere il
-## «squadrato», non i dettagli appiccicati. Poi i suoi gioielli: i due oblò
-## con la ghiera d'ottone imbullonata e il vetro vero, centrati sulle bugne
-## alte; il maniglione d'ottone; le strisce diagonali del paraurti in basso;
-## e il lampeggiante rosso sulla mensolina dell'architrave — spento, finché
-## non c'è da correre.
+## IL PORTONE DELLA RIMESSA. Un portone da autorimessa si misura sul suo
+## mezzo: l'Autopompa è larga 0.83 e alta 1.08, e la luce qui è 1.76 × 1.96 —
+## una campata VERA, larga due celle (il pezzo sborda sui bordi vicini come
+## la Sbarra: si piazza lasciando liberi i lati). L'impianto è un PORTALE in
+## rilievo — pilastri con base di pietra e capitello, architrave con la
+## cornice in aggetto, soglia a rampa su cui l'autopompa scende in strada —
+## con la SERRANDA incassata dietro, a pannelli bugnati coi giunti in ombra,
+## nelle sue guide di ferro quasi nascoste. I gioielli: TRE oblò con la
+## ghiera d'ottone imbullonata e il vetro vero in fila sul pannello alto,
+## il maniglione, il paraurti a strisce diagonali tagliate dentro la fascia,
+## e il lampeggiante rosso sulla mensolina — spento, finché non c'è da
+## correre.
 static func _portone_rimessa() -> Node3D:
 	var n := Node3D.new()
 	var rosso := _mat(POMPA_ROSSO, POMPA_ROSSO_SCURO, 3.0, 0.45)
@@ -4106,41 +4108,41 @@ static func _portone_rimessa() -> Node3D:
 	var ferro := _mat(Color("4a443c"), Color("332f29"), 5.0, 0.4)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 6.0, 0.35)
 
-	# ---- IL PORTALE: pilastri snelli spinti ai bordi della cella (la LUCE
-	# del portone è quella che conta: ci passa l'autopompa), base di pietra,
-	# capitello, architrave profonda con la cornice in aggetto
+	# ---- IL PORTALE: pilastri con base di pietra e capitello ai bordi
+	# della campata, architrave che la scavalca tutta, cornice in aggetto
 	for sx: float in [-1.0, 1.0]:
-		_box(n, Vector3(0.11, 0.13, 0.24), pietra, Vector3(sx * 0.465, 0.065, 0))
-		_box(n, Vector3(0.09, 1.80, 0.20), crema, Vector3(sx * 0.465, 1.03, 0))
-		_box(n, Vector3(0.12, 0.09, 0.23), crema, Vector3(sx * 0.465, 1.975, 0))
-	_box(n, Vector3(1.02, 0.22, 0.22), crema, Vector3(0, 2.07, 0))
-	_box(n, Vector3(1.04, 0.055, 0.26), _mat(PLASTER_SHADE, Color("cbb89a"), 3.0, 0.45),
+		_box(n, Vector3(0.14, 0.13, 0.24), pietra, Vector3(sx * 0.94, 0.065, 0))
+		_box(n, Vector3(0.12, 1.80, 0.20), crema, Vector3(sx * 0.94, 1.03, 0))
+		_box(n, Vector3(0.15, 0.09, 0.23), crema, Vector3(sx * 0.94, 1.975, 0))
+	_box(n, Vector3(2.0, 0.22, 0.22), crema, Vector3(0, 2.07, 0))
+	_box(n, Vector3(2.06, 0.055, 0.26), _mat(PLASTER_SHADE, Color("cbb89a"), 3.0, 0.45),
 			Vector3(0, 2.21, 0))
-	_box(n, Vector3(0.94, 0.05, 0.20), pietra, Vector3(0, 0.025, 0))
-	var rampa := _box(n, Vector3(0.94, 0.035, 0.20), pietra, Vector3(0, 0.030, -0.16))
+	_box(n, Vector3(1.86, 0.05, 0.20), pietra, Vector3(0, 0.025, 0))
+	var rampa := _box(n, Vector3(1.86, 0.035, 0.20), pietra, Vector3(0, 0.030, -0.16))
 	rampa.rotation.x = -0.20
 
 	# ---- LE GUIDE della serranda: due binari di ferro quasi tutti nascosti
 	# dietro i pilastri — se ne vede solo il filo, com'è giusto
-	for gx: float in [-0.425, 0.425]:
+	for gx: float in [-0.875, 0.875]:
 		_box(n, Vector3(0.03, 1.86, 0.05), ferro, Vector3(gx, 0.98, 0.035))
 
 	# ---- LA SERRANDA, incassata dietro il portale: quattro pannelli larghi
-	# quanto la luce, ognuno con DUE bugne in rilievo più cupe, e fra l'uno
-	# e l'altro un giunto sottile in ombra (niente strisce dipinte: è il
-	# rilievo a disegnarla)
+	# quanto la campata, ognuno con QUATTRO bugne in rilievo più cupe, e fra
+	# l'uno e l'altro un giunto sottile in ombra (niente strisce dipinte: è
+	# il rilievo a disegnarla)
 	for pnl in 4:
 		var py := 0.29 + float(pnl) * 0.482
-		_box(n, Vector3(0.86, 0.48, 0.05), rosso, Vector3(0, py, 0.035))
-		for bx: float in [-0.205, 0.205]:
-			_box(n, Vector3(0.34, 0.30, 0.016), rosso_cupo, Vector3(bx, py, 0.006))
+		_box(n, Vector3(1.80, 0.48, 0.05), rosso, Vector3(0, py, 0.035))
 		if pnl < 3:
-			_box(n, Vector3(0.86, 0.014, 0.036), ferro, Vector3(0, py + 0.241, 0.042))
+			for bx: float in [-0.648, -0.216, 0.216, 0.648]:
+				_box(n, Vector3(0.36, 0.30, 0.016), rosso_cupo, Vector3(bx, py, 0.006))
+			_box(n, Vector3(1.80, 0.014, 0.036), ferro, Vector3(0, py + 0.241, 0.042))
 
-	# ---- I DUE OBLÒ, centrati sulle bugne del pannello alto: ghiera
-	# d'ottone coi bulloncini e il vetro VERO che affiora dalle due facce
-	# (di sera, il muso dell'autopompa)
-	for x: float in [-0.205, 0.205]:
+	# ---- I TRE OBLÒ in fila sul pannello alto, ognuno sulla sua bugna:
+	# ghiera d'ottone coi bulloncini e il vetro VERO che affiora dalle due
+	# facce (di sera, il muso dell'autopompa)
+	for x: float in [-0.56, 0.0, 0.56]:
+		_box(n, Vector3(0.44, 0.30, 0.016), rosso_cupo, Vector3(x, 1.736, 0.006))
 		var ghiera := _cyl(n, 0.112, 0.112, 0.035, ottone, Vector3(x, 1.736, -0.005))
 		ghiera.rotation.x = PI * 0.5
 		var v := MeshInstance3D.new()
@@ -4162,18 +4164,18 @@ static func _portone_rimessa() -> Node3D:
 	# ---- IL PARAURTI a strisce diagonali in basso: crema su fondo cupo,
 	# come si dipinge dove entra un mezzo. Le strisce restano DENTRO la
 	# fascia: tagliate su misura, non appoggiate
-	_box(n, Vector3(0.86, 0.15, 0.014), rosso_cupo, Vector3(0, 0.155, -0.0))
-	for st in 6:
-		var stx := -0.315 + float(st) * 0.126
+	_box(n, Vector3(1.80, 0.15, 0.014), rosso_cupo, Vector3(0, 0.155, -0.0))
+	for st in 12:
+		var stx := -0.693 + float(st) * 0.126
 		var striscia := _box(n, Vector3(0.04, 0.125, 0.010), crema,
 				Vector3(stx, 0.155, -0.006))
 		striscia.rotation.z = -0.55
 
 	# ---- IL MANIGLIONE d'ottone sul secondo pannello: la barra con le
 	# due staffe
-	for mx: float in [-0.15, 0.15]:
+	for mx: float in [-0.19, 0.19]:
 		_box(n, Vector3(0.025, 0.05, 0.05), ottone, Vector3(mx, 0.60, -0.02))
-	var barra := _cyl(n, 0.017, 0.017, 0.36, ottone, Vector3(0, 0.60, -0.045))
+	var barra := _cyl(n, 0.017, 0.017, 0.44, ottone, Vector3(0, 0.60, -0.045))
 	barra.rotation.z = PI * 0.5
 
 	# ---- IL LAMPEGGIANTE sulla mensolina dell'architrave: la campana
