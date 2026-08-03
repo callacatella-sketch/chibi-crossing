@@ -2997,8 +2997,10 @@ static func _insegna_guardia() -> Node3D:
 	# la traversa col pomellino in punta, il puntone diagonale, e la
 	# staffa d'ottone che stringe il palo dove il braccio si aggancia
 	_box(n, Vector3(0.64, 0.06, 0.06), legno, Vector3(-0.05, 1.94, 0))
-	_cyl(n, 0.02, 0.024, 0.05, legno_scuro, Vector3(0.255, 1.895, 0))
-	_ball(n, 0.02, legno_scuro, Vector3(0.255, 1.865, 0))
+	# il pomellino tornito in punta al braccio: corto e attaccato, non
+	# una goccia che pende
+	_cyl(n, 0.017, 0.022, 0.036, legno_scuro, Vector3(0.255, 1.892, 0))
+	_ball(n, 0.015, legno_scuro, Vector3(0.255, 1.871, 0))
 	var puntone := _box(n, Vector3(0.04, 0.36, 0.04), legno, Vector3(-0.22, 1.78, 0))
 	puntone.rotation.z = -0.72
 	var staffa := TorusMesh.new()
