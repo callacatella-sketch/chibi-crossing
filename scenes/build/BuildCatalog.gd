@@ -3026,15 +3026,16 @@ static func _guardiola() -> Node3D:
 
 static func _insegna_guardia() -> Node3D:
 	# L'INSEGNA DELLA GUARDIA: un'insegna da locanda fatta come si deve.
-	# Il palo tornito con basetta e pomello, il braccio con la VOLUTA di
-	# ferro battuto che gli gira sotto, il tettuccio di rame che ripara la
-	# tavola, e la tavola stessa non è legno nudo: è una BANDIERA dipinta
-	# di blu col fondo tondo, bordata d'ottone, appesa a due catenelle
-	# vere. Sopra, il glifo della lanterna col vetrino caldo e tre stelle
-	# piccole — la notte vegliata. E in punta al braccio pende la lanterna
-	# VERA, accesa: è la guardia quella che tiene il lume per tutti, e la
-	# sua insegna lo fa, non lo dice soltanto. Si monta sul bordo di una
-	# cella, come un muro.
+	# Il palo tornito con basetta e pomello, il braccio col puntone di
+	# legno, il tettuccio di rame che ripara la tavola, e la tavola stessa
+	# non è legno nudo: è una BANDIERA dipinta di blu col fondo tondo,
+	# bordata d'ottone, appesa a due catenelle vere. Sopra, il glifo della
+	# lanterna col vetrino caldo e tre stelle piccole — la notte vegliata.
+	# E in punta al braccio pende la lanterna VERA, accesa: è la guardia
+	# quella che tiene il lume per tutti, e la sua insegna lo fa, non lo
+	# dice soltanto. Si monta sul bordo di una cella, come un muro.
+	# (Ci fu anche una voluta di ferro battuto sotto il braccio: da vicino
+	# era un riccio, da lontano un coso di ferro sopra lo stemma — via.)
 	var n := Node3D.new()
 	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
 	var legno_scuro := _mat(WOOD_DARK, Color("8a6540"), 3.5, 0.5)
@@ -3059,18 +3060,11 @@ static func _insegna_guardia() -> Node3D:
 	_cyl(n, 0.017, 0.022, 0.036, legno_scuro, Vector3(0.365, 1.892, 0))
 	_ball(n, 0.015, legno_scuro, Vector3(0.365, 1.874, 0))
 
-	# LA VOLUTA di ferro battuto sotto il braccio: parte dal palo, ACCOSTA
-	# l'asse da sotto e si arriccia su se stessa fra le due catenelle —
-	# è il riccio a dire «fabbro», come la battuta dice «falegname».
-	# (La prima stesura spaziava alta e larga: sembrava un filo vagante
-	# sopra la tavola, non un sostegno.)
-	var punti_voluta: Array[Vector3] = [
-		Vector3(-0.33, 1.76, 0), Vector3(-0.22, 1.85, 0), Vector3(-0.08, 1.893, 0),
-		Vector3(0.04, 1.884, 0), Vector3(0.1, 1.848, 0), Vector3(0.07, 1.818, 0),
-		Vector3(0.025, 1.836, 0), Vector3(0.05, 1.868, 0),
-	]
-	var raggi_voluta: Array[float] = [0.015, 0.013, 0.012, 0.011, 0.01, 0.008, 0.007, 0.006]
-	BUILDER.tube(n, punti_voluta, raggi_voluta, ferro, 36, 8)
+	# il puntone di legno che regge il braccio: pulito, senza ferri in
+	# vista sopra lo stemma — e RIPIDO, stretto al palo, così non
+	# attraversa la catenella che gli pende accanto
+	var puntone := _box(n, Vector3(0.045, 0.32, 0.045), legno, Vector3(-0.315, 1.82, 0))
+	puntone.rotation.z = -0.35
 
 	# IL TETTUCCIO di rame sopra la tavola: due faldine e il colmo — la
 	# pioggia scivola via, e il rame fa il paio con l'ottone del corredo
