@@ -514,12 +514,61 @@ static func _fune(parent: Node3D, da: Vector3, a: Vector3, raggio: float,
 
 # ---------------------------------------------------------------- struttura
 
+# IL PAVIMENTO DI CASA. Non e' il palco: quello e' un tavolato rustico da
+# esterno (larghezze diverse, fughe larghe, chiodi in vista, travetti);
+# questo e' un pavimento POSATO — assi a larghezza uniforme come le fa
+# la piallatrice, giunti di testa sfalsati in ogni fila (la posa a
+# corrersi dei pavimenti veri), fughe strette col buio dentro, e i
+# TASSELLI di legno al posto dei chiodi: in casa le teste di ferro non
+# si lasciano in vista. Prima era una scatola con due righe scure
+# dipinte sopra: un pavimento senza fughe e' linoleum.
 static func _floor_tile() -> Node3D:
 	var n := Node3D.new()
-	_box(n, Vector3(1.0, 0.05, 1.0), _mat(WOOD_PALE, WOOD, 3.0, 0.55), Vector3(0, 0.025, 0))
-	var groove := _mat(WOOD_DARK, WOOD_DARK, 1.0, 0.0)
-	for i in 2:
-		_box(n, Vector3(1.0, 0.012, 0.015), groove, Vector3(0, 0.052, -0.17 + 0.34 * i))
+	var miele := _mat(WOOD_PALE, WOOD, 4.0, 0.5)
+	var ambra := _mat(Color("d9ae7e"), Color("b98d5c"), 4.5, 0.5)
+	var noce := _mat(Color("c79b6c"), Color("a67c4e"), 4.2, 0.5)
+	var scuro := _mat(Color("6b563f"), Color("52412f"), 4.0, 0.3)
+	var mats := [miele, ambra, miele, noce]
+
+	# il buio sotto le fughe: una lastra magra che si vede SOLO dentro
+	# le righe, mai dal bordo (dal bordo il fianco e' tutto legno)
+	_box(n, Vector3(0.996, 0.012, 0.996), scuro, Vector3(0, 0.006, 0))
+
+	# otto file di assi uguali (larghezza da piallatrice), giunti di
+	# testa sfalsati riga per riga, micro-ribassi da niente (in casa il
+	# pavimento e' in bolla: il piano resta 0.05)
+	var righe := [
+		[[-0.16], 0, 0.0], [[0.21], 1, -0.0008],
+		[[-0.35, 0.30], 2, -0.0004], [[0.06], 3, 0.0],
+		[[-0.24, 0.36], 1, -0.0006], [[0.14], 0, 0.0],
+		[[-0.06], 3, -0.0008], [[0.27, -0.31], 1, -0.0004],
+	]
+	var wa := 0.1225
+	var zc := -0.5
+	for r in righe.size():
+		var giunti: Array = (righe[r][0] as Array).duplicate()
+		giunti.sort()
+		var alto := 0.05 + float(righe[r][2])
+		var z := zc + wa * 0.5
+		zc += wa + 0.0028
+		# i confini delle tavole della fila: bordi cella + giunti
+		var tagli: Array = [-0.5]
+		tagli.append_array(giunti)
+		tagli.append(0.5)
+		for b in tagli.size() - 1:
+			var x0 := float(tagli[b]) + (0.001 if b > 0 else 0.0)
+			var x1 := float(tagli[b + 1]) - (0.001 if b < tagli.size() - 2 else 0.0)
+			var mat: Material = mats[(int(righe[r][1]) + b) % mats.size()]
+			var tavola := _prisma(n, _rrect_xz(x1 - x0, wa, 0.008), 0.0, alto, mat)
+			tavola.position = Vector3((x0 + x1) * 0.5, 0.0, z)
+		# i tasselli: due per giunto, tono piu' scuro, a filo del legno
+		for g in giunti:
+			for dxg: float in [-0.024, 0.024]:
+				_cyl(n, 0.0058, 0.0058, 0.0016, scuro,
+						Vector3(float(g) + dxg, alto + 0.0004, z))
+	# un nodo solo, piccolo: e' un pavimento scelto, non un bancale
+	_ball(n, 0.006, scuro, Vector3(0.185, 0.0502, -0.315),
+			Vector3(1.0, 0.12, 0.7))
 	return n
 
 
@@ -690,35 +739,130 @@ static func _window_wall() -> Node3D:
 	return n
 
 
+## LA PORTA DEL COTTAGE. Parla la stessa lingua del Muro e della Finestra —
+## zoccolo di pietra, battiscopa, graticcio coi cavicchi, trave di colmo col
+## coprigiunto — così la casa corre ininterrotta da un pezzo all'altro. E
+## l'anta è una porta VERA da bottega: doghe verticali coi giunti, due
+## traverse e la CONTROVENTATURA diagonale (è la diagonale che toglie il
+## «squadrato»: una porta a Z si legge costruita, non disegnata), bandelle
+## di ferro coi bulloni sul lato dei cardini, pomello d'ottone con la
+## bocchetta della serratura, e la finestrella a quattro vetri in alto.
+##
+## CONTRATTO CON BuildSystem: l'anta vive nel nodo «Hinge» a (-0.34, 0, 0)
+## e riempie il varco 0.68 × 1.56 — è lui che la apre al passaggio, col
+## cigolio. Non cambiare nome né perno.
 static func _door_wall() -> Node3D:
-	# muro con porta socchiusa: il varco centrale è attraversabile
 	var n := Node3D.new()
 	var plaster := _mat(PLASTER, PLASTER_SHADE, 2.5, 0.5)
 	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var wood_scuro := _mat(WOOD_DARK, Color("8a6540"), 3.5, 0.5)
+	var stone := _mat(STONE, STONE_DARK, 3.0, 0.55)
+	var ferro := _mat(Color("4a443c"), Color("332f29"), 5.0, 0.4)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 6.0, 0.35)
+	var crema := _mat(CREAM, Color("ecdcc4"), 3.5, 0.4)
+
+	# ---- LA SOGLIA: la pietra su cui si entra, consumata al centro, e i
+	# due monconi di zoccolo ai lati (lo zoccolo del Muro si interrompe
+	# dove si passa — è una porta, non un davanzale)
+	_box(n, Vector3(0.78, 0.05, 0.26), stone, Vector3(0, 0.025, 0))
+	for sz0: float in [-1.0, 1.0]:
+		_box(n, Vector3(0.16, 0.09, 0.22), stone, Vector3(sz0 * 0.42, 0.045, 0))
+		_box(n, Vector3(0.16, 0.07, 0.19), wood, Vector3(sz0 * 0.42, 0.125, 0))
+	# lo zerbino di paglia intrecciata sul fronte, col suo bordo
+	_box(n, Vector3(0.36, 0.014, 0.20), _mat(Color("c9a86a"), Color("b08e52"), 2.0, 0.4),
+			Vector3(0, 0.007, -0.24))
+	_box(n, Vector3(0.38, 0.010, 0.22), _mat(Color("a8874c"), Color("8f7040"), 2.0, 0.4),
+			Vector3(0, 0.004, -0.24))
+
+	# ---- I FIANCHI: intonaco sottile (0.13) fra i legni in rilievo, come
+	# nel Muro — e i montanti del graticcio sui bordi del pezzo
 	for side: float in [-1.0, 1.0]:
-		_box(n, Vector3(0.16, 2.0, 0.14), plaster, Vector3(side * 0.42, 1.0, 0))
-	_box(n, Vector3(1.0, 0.44, 0.14), plaster, Vector3(0, 1.78, 0))
+		_box(n, Vector3(0.16, 1.40, 0.13), plaster, Vector3(side * 0.42, 0.86, 0))
+	_box(n, Vector3(1.0, 0.44, 0.13), plaster, Vector3(0, 1.78, 0))
+	for sx: float in [-1.0, 1.0]:
+		_box(n, Vector3(0.09, 1.84, 0.17), wood, Vector3(sx * 0.435, 1.08, 0))
+
+	# ---- GLI STIPITI e la traversa del graticcio che fa da architrave
+	# (quota 1.61, la stessa linea che attraversa Muro e Finestra), coi
+	# cavicchi ai giunti. Sopra la porta, il GOCCIOLATOIO: la mensolina
+	# inclinata che butta fuori la pioggia — è il dettaglio che dice che
+	# questa casa vive sotto un cielo vero.
+	for side2: float in [-1.0, 1.0]:
+		_box(n, Vector3(0.08, 1.56, 0.16), wood, Vector3(side2 * 0.38, 0.78, 0))
+	_box(n, Vector3(1.0, 0.10, 0.17), wood, Vector3(0, 1.61, 0))
+	for sx2: float in [-1.0, 1.0]:
+		var cav := _cyl(n, 0.013, 0.013, 0.19, wood_scuro, Vector3(sx2 * 0.435, 1.61, 0))
+		cav.rotation.x = PI * 0.5
+	# il gocciolatoio POGGIA sul muro e due mensoline lo reggono: la prima
+	# stesura lo lasciava a mezz'aria, una stecca inclinata che galleggiava
+	var goccia := _box(n, Vector3(0.80, 0.028, 0.13), wood_scuro, Vector3(0, 1.70, -0.045))
+	goccia.rotation.x = 0.30
+	for gm: float in [-0.32, 0.32]:
+		_box(n, Vector3(0.05, 0.06, 0.07), wood_scuro, Vector3(gm, 1.655, -0.075))
+
+	# ---- le mensoline e la trave di colmo col coprigiunto: identiche al
+	# Muro, così la corona corre ininterrotta lungo tutta la casa
+	for sx3: float in [-1.0, 1.0]:
+		_box(n, Vector3(0.07, 0.07, 0.2), wood, Vector3(sx3 * 0.435, 1.965, 0))
 	_box(n, Vector3(1.0, 0.08, 0.18), wood, Vector3(0, 2.04, 0))
-	# il coprigiunto scuro sul colmo: la stessa linea del Muro e della
-	# Finestra, così la corona corre ininterrotta lungo tutta la casa
-	_box(n, Vector3(1.0, 0.03, 0.22), _mat(WOOD_DARK, Color("8a6540"), 3.5, 0.5),
-			Vector3(0, 2.095, 0))
-	_box(n, Vector3(0.76, 0.1, 0.16), wood, Vector3(0, 1.61, 0))
-	for side: float in [-1.0, 1.0]:
-		_box(n, Vector3(0.08, 1.56, 0.16), wood, Vector3(side * 0.38, 0.78, 0))
-	# l'anta: riempie tutto il varco (0.68 × 1.56, a filo di stipiti e
-	# architrave). Chiusa di default, il BuildSystem la apre all'avvicinarsi.
+	_box(n, Vector3(1.0, 0.03, 0.22), wood_scuro, Vector3(0, 2.095, 0))
+
+	# ---- L'ANTA. Chiusa di default; il BuildSystem la apre all'avvicinarsi
+	# ruotando il nodo «Hinge» (e Sfx fa il cigolio).
 	var hinge := Node3D.new()
 	hinge.name = "Hinge"
 	hinge.position = Vector3(-0.34, 0, 0)
 	n.add_child(hinge)
-	var door_mat := _mat(Color("b3805a"), Color("96683f"), 3.0, 0.55)
-	_box(hinge, Vector3(0.68, 1.56, 0.05), door_mat, Vector3(0.34, 0.78, 0))
-	# doghe decorative
-	var slat := _mat(Color("a2734e"), Color("8a5f3e"), 2.0, 0.4)
-	_box(hinge, Vector3(0.56, 0.03, 0.055), slat, Vector3(0.34, 0.5, 0))
-	_box(hinge, Vector3(0.56, 0.03, 0.055), slat, Vector3(0.34, 1.06, 0))
-	_ball(hinge, 0.032, _mat(CREAM, WOOD_PALE, 4.0, 0.3), Vector3(0.6, 0.82, 0.05))
+	var doga := _mat(Color("b3805a"), Color("96683f"), 3.0, 0.55)
+	var doga_giunto := _mat(Color("96683f"), Color("7d5634"), 2.5, 0.5)
+	# il corpo di doghe verticali: la tavola piena piu' i tre giunti che si
+	# leggono da vicino
+	_box(hinge, Vector3(0.68, 1.56, 0.045), doga, Vector3(0.34, 0.78, 0))
+	for gx: float in [0.17, 0.34, 0.51]:
+		_box(hinge, Vector3(0.008, 1.50, 0.052), doga_giunto, Vector3(gx, 0.78, 0))
+	# le due traverse e la DIAGONALE: la porta a Z di ogni bottega vera.
+	# La diagonale corre dal cardine in basso al pomello in alto: e' cosi'
+	# che il peso dell'anta scarica sul perno.
+	for ty: float in [0.34, 1.10]:
+		_box(hinge, Vector3(0.58, 0.075, 0.022), doga_giunto, Vector3(0.34, ty, -0.032))
+	var diag := _box(hinge, Vector3(0.075, 0.86, 0.022), doga_giunto,
+			Vector3(0.34, 0.72, -0.032))
+	diag.rotation.z = -0.60
+	# le bandelle di ferro dei cardini, coi bulloni: escono dal perno e
+	# attraversano le doghe
+	for by: float in [0.30, 1.18]:
+		_box(hinge, Vector3(0.30, 0.05, 0.014), ferro, Vector3(0.17, by, -0.036))
+		_box(hinge, Vector3(0.05, 0.09, 0.012), ferro, Vector3(0.035, by, -0.038))
+		for bx: float in [0.10, 0.20, 0.28]:
+			_ball(hinge, 0.011, ferro, Vector3(bx, by, -0.045), Vector3(1, 1, 0.5))
+	# il perno vero e proprio, in vista
+	for py: float in [0.30, 1.18]:
+		_cyl(hinge, 0.016, 0.016, 0.14, ferro, Vector3(0.008, py, 0))
+	# il pomello d'ottone con la rosetta, su TUTTE E DUE le facce, e la
+	# bocchetta della serratura sotto
+	for pz: float in [-0.045, 0.045]:
+		_cyl(hinge, 0.030, 0.030, 0.008, ottone, Vector3(0.60, 0.82, pz))
+		_ball(hinge, 0.026, ottone, Vector3(0.60, 0.82, pz * 1.35))
+	_box(hinge, Vector3(0.026, 0.05, 0.008), ottone, Vector3(0.60, 0.72, -0.028))
+	_ball(hinge, 0.007, ferro, Vector3(0.60, 0.735, -0.034))
+	# la FINESTRELLA a quattro vetri in alto: la cornice crema, il vetro
+	# incassato e la croce del telaio. (Vive dentro l'anta, non e' figlia
+	# del pezzo: la sera delle PozzeDiLuce appartiene alle Finestre.)
+	var wy := 1.38
+	for lato_c: Array in [[Vector3(0.26, 0.030, 0.060), Vector3(0.34, wy + 0.115, 0.0)],
+			[Vector3(0.26, 0.030, 0.060), Vector3(0.34, wy - 0.115, 0.0)],
+			[Vector3(0.030, 0.20, 0.060), Vector3(0.225, wy, 0.0)],
+			[Vector3(0.030, 0.20, 0.060), Vector3(0.455, wy, 0.0)]]:
+		_box(hinge, lato_c[0], crema, lato_c[1])
+	var vetro_p := MeshInstance3D.new()
+	var vm := BoxMesh.new()
+	vm.size = Vector3(0.20, 0.20, 0.056)
+	vetro_p.mesh = vm
+	vetro_p.material_override = _vetro()
+	vetro_p.position = Vector3(0.34, wy, 0.0)
+	hinge.add_child(vetro_p)
+	_box(hinge, Vector3(0.014, 0.20, 0.062), crema, Vector3(0.34, wy, 0.0))
+	_box(hinge, Vector3(0.20, 0.014, 0.062), crema, Vector3(0.34, wy, 0.0))
 	return n
 
 
@@ -2783,6 +2927,7 @@ static func _salone_insegna(n: Node3D, legno_chiaro: Material, ottone: Material)
 
 const BLU := Color("7d9bd8")
 const BLU_CUPO := Color("5f7cba")
+const RAME := Color("c9824f")
 const SEGNALE_ROSSO := Color("dd8474")
 const SEGNALE_BIANCO := Color("f7f2e6")
 # l'ottone lo dichiara già la tavolozza in cima al file: qui si riusa il suo,
@@ -3042,86 +3187,115 @@ static func _guardiola() -> Node3D:
 
 
 static func _insegna_guardia() -> Node3D:
-	# L'INSEGNA DELLA GUARDIA: il palo tornito con la basetta di pietra e
-	# il pomello d'ottone, il braccio con la staffa che lo stringe, e la
-	# tavola APPESA che ondeggia piano — con lo scudetto blu a punta,
-	# bordato d'ottone, e al centro il glifo della LANTERNA col vetrino
-	# caldo: è la guardia quella che tiene il lume acceso per tutti, ed è
-	# giusto che lo dica anche la sua insegna. Si monta sul bordo di una
-	# cella, come un muro.
+	# L'INSEGNA DELLA GUARDIA: un'insegna da locanda fatta come si deve.
+	# Il palo tornito con basetta e pomello, il braccio col puntone di
+	# legno, il tettuccio di rame che ripara la tavola, e la tavola stessa
+	# non è legno nudo: è una BANDIERA dipinta di blu col fondo tondo,
+	# bordata d'ottone, appesa a due catenelle vere. Sopra, il glifo della
+	# lanterna col vetrino caldo e tre stelle piccole — la notte vegliata.
+	# E in punta al braccio pende la lanterna VERA, accesa: è la guardia
+	# quella che tiene il lume per tutti, e la sua insegna lo fa, non lo
+	# dice soltanto. Si monta sul bordo di una cella, come un muro.
+	# (Ci fu anche una voluta di ferro battuto sotto il braccio: da vicino
+	# era un riccio, da lontano un coso di ferro sopra lo stemma — via.)
 	var n := Node3D.new()
 	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
 	var legno_scuro := _mat(WOOD_DARK, Color("8a6540"), 3.5, 0.5)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	var ferro := _mat(METAL, Color("6d6259"), 5.0, 0.4)
 	var pietra := _mat(STONE, STONE_DARK, 4.0, 0.5)
+	var blu := _mat(BLU, BLU_CUPO, 5.0, 0.4)
+	var rame := _mat(RAME, RAME.darkened(0.3), 5.0, 0.4)
 
-	# il palo: basetta di pietra, fusto rastremato, collarino e pomello —
-	# un palo piantato nudo nell'erba è un'asta, questo è un ARREDO
+	# il palo: basetta di pietra, fusto rastremato, anello a mezza
+	# altezza, collarino e pomello d'ottone — un arredo, non un'asta
 	_cyl(n, 0.075, 0.09, 0.07, pietra, Vector3(-0.36, 0.035, 0))
 	_cyl(n, 0.042, 0.056, 1.95, legno, Vector3(-0.36, 1.045, 0))
+	_cyl(n, 0.056, 0.056, 0.025, legno_scuro, Vector3(-0.36, 1.05, 0))
 	_cyl(n, 0.058, 0.058, 0.035, legno_scuro, Vector3(-0.36, 2.03, 0))
 	_ball(n, 0.036, ottone, Vector3(-0.36, 2.08, 0))
-	# la traversa col pomellino in punta, il puntone diagonale, e la
-	# staffa d'ottone che stringe il palo dove il braccio si aggancia
-	_box(n, Vector3(0.64, 0.06, 0.06), legno, Vector3(-0.05, 1.94, 0))
-	_cyl(n, 0.02, 0.024, 0.05, legno_scuro, Vector3(0.255, 1.895, 0))
-	_ball(n, 0.02, legno_scuro, Vector3(0.255, 1.865, 0))
-	var puntone := _box(n, Vector3(0.04, 0.36, 0.04), legno, Vector3(-0.22, 1.78, 0))
-	puntone.rotation.z = -0.72
-	var staffa := TorusMesh.new()
-	staffa.inner_radius = 0.048
-	staffa.outer_radius = 0.066
-	staffa.rings = 16
-	staffa.ring_segments = 6
-	var smi := MeshInstance3D.new()
-	smi.mesh = staffa
-	smi.material_override = ottone
-	smi.position = Vector3(-0.36, 1.94, 0)
-	n.add_child(smi)
+
+	# il braccio, un filo più lungo: in punta ci vive la lanterna. La
+	# rosetta di ferro dove morde il palo, e il pomellino in cima
+	_box(n, Vector3(0.76, 0.06, 0.06), legno, Vector3(0.01, 1.94, 0))
+	_cyl(n, 0.05, 0.05, 0.03, ferro, Vector3(-0.355, 1.94, 0)).rotation.z = PI * 0.5
+	_cyl(n, 0.017, 0.022, 0.036, legno_scuro, Vector3(0.365, 1.892, 0))
+	_ball(n, 0.015, legno_scuro, Vector3(0.365, 1.874, 0))
+
+	# il puntone di legno che regge il braccio: pulito, senza ferri in
+	# vista sopra lo stemma — e RIPIDO, stretto al palo, così non
+	# attraversa la catenella che gli pende accanto
+	var puntone := _box(n, Vector3(0.045, 0.32, 0.045), legno, Vector3(-0.315, 1.82, 0))
+	puntone.rotation.z = -0.35
+
+	# IL TETTUCCIO di rame sopra la tavola: due faldine e il colmo — la
+	# pioggia scivola via, e il rame fa il paio con l'ottone del corredo
+	for fz: float in [-1.0, 1.0]:
+		var faldina := _box(n, Vector3(0.6, 0.02, 0.13), rame,
+				Vector3(-0.03, 1.985, fz * 0.05))
+		faldina.rotation.x = fz * -0.5
+	_box(n, Vector3(0.62, 0.025, 0.05), legno_scuro, Vector3(-0.03, 2.02, 0))
 
 	# la tavola appesa: nodo a parte, così può dondolare
 	var appesa := Node3D.new()
 	appesa.name = "Insegna"
-	# stessa regola dell'insegna del bar: le astine stanno DENTRO la
-	# campata della traversa (da −0.37 a +0.25), o restano appese all'aria
-	appesa.position = Vector3(0.0, 1.91, 0)
+	appesa.position = Vector3(-0.03, 1.91, 0)
 	n.add_child(appesa)
-	for dx: float in [-0.22, 0.22]:
-		_cyl(appesa, 0.008, 0.008, 0.16, ottone, Vector3(dx, -0.08, 0))
-	# la cornice con la battuta: due piani sfalsati, non un'asse sola —
-	# è il gradino d'ombra a dire «falegname», non «compensato»
-	var tavola := _box(appesa, Vector3(0.6, 0.44, 0.045), legno_scuro, Vector3(0, -0.38, 0))
+	# le CATENELLE: anellini d'ottone alternati, non due astine rigide —
+	# è la catena a dire «appeso», e si vede anche da lontano
+	for dx: float in [-0.2, 0.2]:
+		for k in 4:
+			var maglia := TorusMesh.new()
+			maglia.inner_radius = 0.008
+			maglia.outer_radius = 0.016
+			maglia.rings = 12
+			maglia.ring_segments = 6
+			var mmi := MeshInstance3D.new()
+			mmi.mesh = maglia
+			mmi.material_override = ottone
+			mmi.position = Vector3(dx, -0.018 - float(k) * 0.026, 0)
+			mmi.rotation.x = PI * 0.5
+			mmi.rotation.y = PI * 0.5 * float(k % 2)
+			appesa.add_child(mmi)
+
+	# LA BANDIERA: rettangolo + fondo tondo, doppio strato (cornice scura
+	# dietro, campo blu davanti) — una tavola dipinta, non legno grezzo
+	var tavola := _box(appesa, Vector3(0.56, 0.36, 0.04), legno_scuro, Vector3(0, -0.29, 0))
 	tavola.name = "Tavola"
-	_box(appesa, Vector3(0.54, 0.38, 0.026), _mat(WOOD_PALE, WOOD, 3.5, 0.5),
-			Vector3(0, -0.38, -0.014))
-	# le borchie d'ottone agli angoli
-	for bx: float in [-1.0, 1.0]:
-		for by: float in [-1.0, 1.0]:
-			_ball(appesa, 0.013, ottone,
-					Vector3(bx * 0.25, -0.38 + by * 0.16, -0.024), Vector3(1, 1, 0.5))
-
-	# lo scudetto blu con la punta, bordato d'ottone — ogni lastra sul
-	# SUO piano: due facce complanari si tagliano in z-fighting
-	_box(appesa, Vector3(0.2, 0.2, 0.012), ottone, Vector3(0, -0.322, -0.028))
-	var bordo_punta := _box(appesa, Vector3(0.145, 0.145, 0.012), ottone,
-			Vector3(0, -0.408, -0.026))
-	bordo_punta.rotation.z = PI * 0.25
-	var scudo := _box(appesa, Vector3(0.17, 0.17, 0.014), _mat(BLU, BLU_CUPO, 5.0, 0.4),
-			Vector3(0, -0.325, -0.036))
+	var fondo_scuro := _cyl(appesa, 0.28, 0.28, 0.04, legno_scuro, Vector3(0, -0.47, 0))
+	fondo_scuro.rotation.x = PI * 0.5
+	var scudo := _box(appesa, Vector3(0.5, 0.33, 0.032), blu, Vector3(0, -0.285, -0.008))
 	scudo.name = "Scudo"
-	var punta_blu := _box(appesa, Vector3(0.12, 0.12, 0.014), _mat(BLU, BLU_CUPO, 5.0, 0.4),
-			Vector3(0, -0.402, -0.0335))
-	punta_blu.rotation.z = PI * 0.25
+	var fondo_blu := _cyl(appesa, 0.25, 0.25, 0.032, blu, Vector3(0, -0.46, -0.008))
+	fondo_blu.rotation.x = PI * 0.5
+	# il filetto d'ottone che rifinisce il campo: sopra e ai due lati
+	_box(appesa, Vector3(0.46, 0.014, 0.01), ottone, Vector3(0, -0.145, -0.028))
+	for lx: float in [-1.0, 1.0]:
+		_box(appesa, Vector3(0.014, 0.32, 0.01), ottone, Vector3(lx * 0.225, -0.3, -0.028))
+	# le borchie d'ottone ai due angoli alti
+	for bx: float in [-1.0, 1.0]:
+		_ball(appesa, 0.014, ottone, Vector3(bx * 0.245, -0.165, -0.024), Vector3(1, 1, 0.5))
 
-	# il glifo della lanterna, d'ottone col vetrino caldo: cappellino,
-	# montanti, vetro appena acceso, coppa e anellino
-	_ball(appesa, 0.009, ottone, Vector3(0, -0.262, -0.048))
-	_cyl(appesa, 0.012, 0.038, 0.032, ottone, Vector3(0, -0.288, -0.048))
+	# il glifo della lanterna, grande, col vetrino caldo: cappellino,
+	# montanti, vetro acceso, coppa e anellino
+	_ball(appesa, 0.012, ottone, Vector3(0, -0.245, -0.03))
+	_cyl(appesa, 0.016, 0.052, 0.045, ottone, Vector3(0, -0.283, -0.03))
 	for mx: float in [-1.0, 1.0]:
-		_box(appesa, Vector3(0.008, 0.052, 0.008), ottone, Vector3(mx * 0.026, -0.331, -0.048))
+		_box(appesa, Vector3(0.01, 0.075, 0.01), ottone, Vector3(mx * 0.036, -0.345, -0.03))
 	var vetro_lume := _glow(Color("ffe9b8"), Color("ffd27a"), 0.42)
-	_box(appesa, Vector3(0.04, 0.05, 0.014), vetro_lume, Vector3(0, -0.331, -0.048))
-	_cyl(appesa, 0.026, 0.03, 0.014, ottone, Vector3(0, -0.364, -0.048))
+	_box(appesa, Vector3(0.056, 0.072, 0.018), vetro_lume, Vector3(0, -0.345, -0.03))
+	_cyl(appesa, 0.036, 0.042, 0.02, ottone, Vector3(0, -0.393, -0.03))
+	# le tre stelle piccole attorno: la notte vegliata
+	_ball(appesa, 0.011, ottone, Vector3(-0.14, -0.24, -0.028), Vector3(1, 1, 0.45))
+	_ball(appesa, 0.009, ottone, Vector3(0.15, -0.27, -0.028), Vector3(1, 1, 0.45))
+	_ball(appesa, 0.01, ottone, Vector3(0.11, -0.5, -0.028), Vector3(1, 1, 0.45))
+
+	# LA LANTERNA VERA, appesa in punta al braccio: il gancetto e il lume
+	# azzurro acceso — l'insegna della guardia FA luce, non la disegna.
+	# Il cappello tocca il gancio: un vuoto lì in mezzo è una lanterna
+	# che levita, non che pende
+	_box(n, Vector3(0.02, 0.06, 0.02), ferro, Vector3(0.365, 1.835, 0))
+	_lume_azzurro(n, Vector3(0.365, 1.74, 0), 0.5)
 
 	# l'ondeggio, con un periodo diverso dall'insegna della caserma: due
 	# insegne che dondolano all'unisono tradiscono il metronomo
