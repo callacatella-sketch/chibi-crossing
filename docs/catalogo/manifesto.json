@@ -146,7 +146,7 @@
   {
     "alto": 0.67,
     "cartella": "docs/catalogo/0-struttura/gradinata/",
-    "cat": 0,
+    "cat": 0.0,
     "largo": 1.06,
     "nome": "Gradinata",
     "slug": "gradinata",
@@ -162,10 +162,10 @@
     "tipo": "edge"
   },
   {
-    "alto": 0.55,
+    "alto": 0.59,
     "cartella": "docs/catalogo/0-struttura/ponticello/",
-    "cat": 0.0,
-    "largo": 1.0,
+    "cat": 0,
+    "largo": 0.97,
     "nome": "Ponticello",
     "slug": "ponticello",
     "tipo": "cell"

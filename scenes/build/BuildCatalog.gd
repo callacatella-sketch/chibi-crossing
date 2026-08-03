@@ -1057,28 +1057,153 @@ static func _floor_slab() -> Node3D:
 
 
 static func _rope_bridge() -> Node3D:
-	# ponticello di corda: assi che incurvano appena, corde e paletti.
-	# Corre lungo Z (R per orientarlo); il piano resta camminabile.
+	# IL PONTICELLO DI CORDA, rifatto da capo. Il vecchio aveva tre bugie:
+	# si chiamava «di corda» e non aveva UNA corda (pali e corrimano erano
+	# color canapa, ma erano cilindri rigidi in due tratti spezzati); i
+	# paletti verticali erano piantati a quota fissa, quindi trapassavano
+	# le assi e finivano a mezz'aria senza toccare il corrimano; e le assi
+	# erano sospese nel vuoto, senza niente che le reggesse.
+	#
+	# La regola è quella di tutte le correzioni di ieri: NIENTE QUOTE A
+	# OCCHIO. Qui vivono due curve — l'incurvarsi del piano (dip) e la
+	# pancia della corda corrimano (mano) — e OGNI cosa si aggancia
+	# leggendo quelle: le assi seguono la curva E la sua tangente, le due
+	# corde portanti corrono sotto il bordo delle assi, i tiranti vanno
+	# da una curva all'altra con la lunghezza che risulta, e le corde
+	# maestre finiscono sui pali nel punto ESATTO in cui i pali stanno —
+	# che è calcolato dalla loro inclinazione, perché i pali pendono un
+	# po' in fuori come i paletti piantati a mano.
+	#
+	# Corre lungo Z (R per orientarlo); il piano resta camminabile e la
+	# collisione del catalogo non cambia.
 	var n := Node3D.new()
 	var plank := _mat(WOOD, WOOD_DARK, 4.0, 0.55)
+	var palo_mat := _mat(WOOD_DARK, Color("8a6440"), 4.0, 0.5)
 	var rope := _mat(Color("c9b088"), Color("ab9066"), 5.0, 0.5)
-	for i in 6:
-		var t := float(i) / 5.0
-		var z := -0.415 + t * 0.83
-		var dip := -0.05 - 0.045 * sin(PI * t)
-		var p := _box(n, Vector3(0.86, 0.045, 0.145), plank, Vector3(0, dip, z))
-		p.rotation.z = 0.03 if i % 2 == 0 else -0.03
-	for sx: float in [-0.46, 0.46]:
-		# paletti agli angoli e corrimano in due tratti che si abbassano al centro
-		for sz: float in [-0.48, 0.48]:
-			_cyl(n, 0.032, 0.04, 0.52, rope, Vector3(sx, 0.16, sz))
-		for half: float in [-1.0, 1.0]:
-			var seg := _cyl(n, 0.02, 0.02, 0.54, rope, Vector3(sx, 0.33, half * 0.25))
-			seg.rotation.x = PI * 0.5 + half * 0.17
-		# cordine verticali tra corrimano e assi
-		for i in 3:
-			var z := -0.25 + float(i) * 0.25
-			_cyl(n, 0.011, 0.011, 0.36, rope, Vector3(sx, 0.12, z))
+	var rope_dark := _mat(Color("b39a72"), Color("96805c"), 5.0, 0.5)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 20_260_803    # due ponticelli uguali si incurvano uguale
+
+	# --- le due curve, e le loro letture ---
+	var dip := func(z: float) -> float:
+		var t := clampf((z + 0.415) / 0.83, 0.0, 1.0)
+		return -0.05 - 0.045 * sin(PI * t)
+	var dip_slope := func(z: float) -> float:
+		var t := clampf((z + 0.415) / 0.83, 0.0, 1.0)
+		return -0.045 * PI * cos(PI * t) / 0.83
+	# --- i quattro pali: tronchetti rastremati che pendono in fuori.
+	# Ogni palo vive in un PIVOT alla propria base: la testa, la legatura
+	# di corda e il punto d'aggancio delle corde maestre si spostano
+	# INSIEME al palo — attaccare la corda alla posizione teorica di un
+	# palo che nel frattempo si è inclinato è come mettere i pilastrini
+	# della scala a quota fissa. Il pivot restituisce il punto vero.
+	var attacchi := {}
+	for sx: float in [-0.44, 0.44]:
+		for sz: float in [-0.47, 0.47]:
+			var piede := Node3D.new()
+			piede.position = Vector3(sx, -0.145, sz)
+			# pende in fuori, un po' diverso per ogni palo
+			piede.rotation.x = -signf(sz) * rng.randf_range(0.03, 0.06)
+			piede.rotation.z = signf(sx) * rng.randf_range(0.03, 0.06)
+			n.add_child(piede)
+			_cyl(piede, 0.034, 0.046, 0.56, palo_mat, Vector3(0, 0.28, 0))
+			# la testa a cupola, appena schiacciata: un tronchetto tagliato
+			_ball(piede, 0.036, palo_mat, Vector3(0, 0.565, 0), Vector3(1.0, 0.55, 1.0))
+			# LA LEGATURA: tre giri di corda sotto la testa, dove le
+			# corde maestre si annodano. È lei a «spiegare» l'aggancio.
+			for g in 3:
+				_cyl(piede, 0.041, 0.041, 0.014, rope_dark,
+						Vector3(0, 0.475 + 0.017 * float(g), 0))
+			# il punto d'aggancio VERO, nel mondo: centro della legatura
+			var locale := Vector3(0, 0.492, 0)
+			attacchi[Vector2(sx, sz)] = piede.position \
+					+ Basis.from_euler(piede.rotation) * locale
+
+	# --- le corde maestre (i corrimano): una catenaria per lato, tesa fra
+	# le legature dei due pali. Parte ESATTAMENTE dai due attacchi (che
+	# ognuno sta dove il suo palo pende) e in mezzo cede di 7 centimetri.
+	# La stessa formula la rileggono i tiranti: se un domani la pancia
+	# cambia, i nodini restano sulla corda da soli. ---
+	var pancia := 0.072
+	var y_corda := func(sx: float, z: float) -> float:
+		var da2: Vector3 = attacchi[Vector2(sx, -0.47)]
+		var a2: Vector3 = attacchi[Vector2(sx, 0.47)]
+		var u2 := clampf((z - da2.z) / (a2.z - da2.z), 0.0, 1.0)
+		return lerpf(da2.y, a2.y, u2) - pancia * sin(PI * u2)
+	for sx2: float in [-0.44, 0.44]:
+		var da: Vector3 = attacchi[Vector2(sx2, -0.47)]
+		var a: Vector3 = attacchi[Vector2(sx2, 0.47)]
+		var punti: Array = []
+		var raggi: Array = []
+		for k in 7:
+			var u := float(k) / 6.0
+			var p := da.lerp(a, u)
+			p.y = y_corda.call(sx2, p.z)
+			punti.append(p)
+			raggi.append(0.016)
+		BUILDER.tube(n, punti, raggi, rope, 20, 8)
+
+	# --- le due corde portanti: corrono sotto il bordo delle assi,
+	# seguono la STESSA curva del piano, e muoiono alla base dei pali ---
+	for sx3: float in [-0.40, 0.40]:
+		var punti2: Array = []
+		var raggi2: Array = []
+		for k2 in 7:
+			var z2 := lerpf(-0.50, 0.50, float(k2) / 6.0)
+			var y2: float = dip.call(clampf(z2, -0.415, 0.415)) - 0.034
+			if absf(z2) > 0.46:
+				y2 -= 0.02     # scende ad annodarsi al piede del palo
+			punti2.append(Vector3(sx3, y2, z2))
+			raggi2.append(0.014)
+		BUILDER.tube(n, punti2, raggi2, rope, 20, 8)
+		# il nodo alle due estremità
+		for sz3: float in [-0.50, 0.50]:
+			_ball(n, 0.024, rope_dark,
+					Vector3(sx3, dip.call(clampf(sz3, -0.415, 0.415)) - 0.054, sz3),
+					Vector3(1.0, 0.8, 1.0))
+
+	# --- le assi: SULLE corde portanti, seguendo curva e TANGENTE.
+	# Larghezze diverse e imperfezioni piccolissime: un'asse posata a mano
+	# è storta di millimetri, non di centimetri — con gli scarti grossi il
+	# piano diventava una scalinata rotta. E le assi finiscono ALLE corde
+	# portanti (±0.40), non oltre: più larghe, attraversavano i tiranti. ---
+	var z_corr := -0.415
+	while z_corr < 0.395:
+		var largo := rng.randf_range(0.115, 0.150)
+		var zc := minf(z_corr + largo * 0.5, 0.415 - largo * 0.5)
+		var p2 := _box(n, Vector3(rng.randf_range(0.76, 0.80), 0.040, largo),
+				plank, Vector3(rng.randf_range(-0.008, 0.008), dip.call(zc), zc))
+		p2.rotation.x = atan(dip_slope.call(zc))
+		p2.rotation.z = rng.randf_range(-0.013, 0.013)
+		p2.rotation.y = rng.randf_range(-0.015, 0.015)
+		z_corr += largo + rng.randf_range(0.005, 0.013)
+
+	# --- i tiranti: dalla corda maestra alla corda portante, uno ogni
+	# quarto. La lunghezza NON è un numero: è la distanza fra le due
+	# curve in quel punto — la corda si legge con y_corda, il piano con
+	# dip — quindi toccano SEMPRE tutte e due. ---
+	for sx4: float in [-0.44, 0.44]:
+		for k3 in 4:
+			var z3 := lerpf(-0.33, 0.33, float(k3) / 3.0)
+			# il tirante va dalla corda maestra (a ±0.44) alla corda
+			# portante (a ±0.40): NON è verticale, pende in dentro — e
+			# l'angolo esce dai due punti, non da un numero scelto
+			var su := Vector3(sx4, y_corda.call(sx4, z3), z3)
+			var giu := Vector3(signf(sx4) * 0.40, dip.call(z3) - 0.034, z3)
+			var t2 := _cyl(n, 0.008, 0.008, su.distance_to(giu), rope_dark,
+					(su + giu) * 0.5)
+			t2.rotation.z = atan2(giu.x - su.x, su.y - giu.y)
+			# i nodini dove il tirante morde le due corde
+			_ball(n, 0.015, rope_dark, su, Vector3(1.0, 0.75, 1.0))
+			_ball(n, 0.013, rope_dark, giu, Vector3(1.0, 0.8, 1.0))
+
+	# --- il capo di corda avanzato: pende da un palo con il suo nodo,
+	# come l'ha lasciato chi ha teso il ponte ---
+	var capo_da: Vector3 = attacchi[Vector2(0.44, -0.47)]
+	BUILDER.tube(n, [capo_da, capo_da + Vector3(0.035, -0.09, -0.015),
+			capo_da + Vector3(0.02, -0.19, 0.01)],
+			[0.010, 0.009, 0.008], rope_dark, 12, 6)
+	_ball(n, 0.016, rope_dark, capo_da + Vector3(0.02, -0.20, 0.01))
 	return n
 
 
