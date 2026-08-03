@@ -1159,33 +1159,71 @@ static func _blackboard() -> Node3D:
 
 # ------------------------------------------------- verticalità
 
+# LA SCALA DEL PIANO DI SOPRA. Sale un piano intero (2.15) dentro UNA
+# cella del reticolo: la pendenza — 65 gradi — e' il prezzo fisso, e non
+# si tratta. Ma una scala da soppalco ripida e' un oggetto VERO, e si
+# porta bene se e' costruita da falegname invece che estrusa: qui i
+# gradini sono PEDATE APERTE senza alzata (l'aria fra i gradini
+# alleggerisce tutto: la rampa smette di sembrare un muro, ed e' il
+# modo onesto di dire «ripida ma leggera»), portate da listelli sui due
+# cosciali; il corrimano e' TONDO e chiaro (lucidato dalle mani), i
+# montanti hanno il pomello tornito, e le colonnine si RICAVANO dalle
+# due rette (cosciale e corrimano sono paralleli: a una data z passano
+# per 1.07 − 2.142·z e 1.85 − 2.142·z — messe a occhio, in basso
+# pendevano nel vuoto e in alto si fermavano a mezz'aria).
+# Sale verso -Z (R per girarla). La collisione-rampa non cambia.
 static func _stairs() -> Node3D:
-	# scala di legno ripida ma percorribile: sale verso -Z (R per girarla)
 	var n := Node3D.new()
-	var step_mat := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
-	var dark := _mat(WOOD_DARK, Color("8a6440"), 4.0, 0.5)
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var chiaro := _mat(WOOD_PALE, WOOD, 4.2, 0.5)
+	var scuro := _mat(WOOD_DARK, Color("8a6440"), 4.0, 0.5)
+
+	# le PEDATE aperte: lastre col naso bombato, incassate nei cosciali,
+	# ognuna sul suo paio di listelli
 	for i in 8:
-		var y := (float(i) + 0.5) * 0.269
+		var cima := (float(i) + 1.0) * 0.269
 		var z := 0.4375 - float(i) * 0.125
-		_box(n, Vector3(0.86, 0.269, 0.125), step_mat, Vector3(0, y, z))
-	# fiancate e corrimano inclinati
+		var ped := _prisma(n, _rrect_xz(0.88, 0.150, 0.018), cima - 0.034,
+				0.034, legno)
+		ped.position.z = z
+		var naso := _cyl(n, 0.016, 0.016, 0.83, legno,
+				Vector3(0, cima - 0.017, z + 0.073))
+		naso.rotation.z = PI * 0.5
+		for sx0: float in [-0.40, 0.40]:
+			_box(n, Vector3(0.05, 0.030, 0.11), scuro,
+					Vector3(sx0, cima - 0.049, z))
+
+	# i COSCIALI: due tavole piene inclinate, coi tondi della lastra e i
+	# TASSELLI sulla faccia esterna, uno per gradino, che salgono in fila
+	# con la rampa — e' il dettaglio che dice «qui dentro c'e' l'incastro»
 	for sx: float in [-0.45, 0.45]:
-		var stringer := _box(n, Vector3(0.06, 0.16, 2.44), dark, Vector3(sx, 1.07, 0))
-		stringer.rotation.x = 1.135
-		var rail := _box(n, Vector3(0.05, 0.07, 2.5), step_mat, Vector3(sx, 1.85, 0))
-		rail.rotation.x = 1.135
-		# I PILASTRINI SI RICAVANO DALLE DUE RETTE, non si mettono a occhio.
-		# Cosciale e corrimano sono paralleli (stessa rotazione, 1.135 rad:
-		# 0.906 di salita ogni 0.423 di corsa, cioè 2.142 di pendenza), e a
-		# una data z passano per 1.07 − 2.142·z e 1.85 − 2.142·z. Messi a
-		# mano erano lunghi uguali a tutte le quote: in basso pendevano sotto
-		# il cosciale nel vuoto, in alto si fermavano mezzo metro prima del
-		# corrimano. Un parapetto senza un punto d'attacco visibile.
-		for t: float in [0.12, 0.88]:
+		_lastra(n, 0.24, 2.56, 0.05, 0.055, scuro, Vector3(sx, 1.07, 0),
+				Vector3(1.135 - PI * 0.5, 0, 0))
+		for i2 in 8:
+			var tass := _cyl(n, 0.0065, 0.0065, 0.006, legno,
+					Vector3(sx * (0.478 / 0.45), (float(i2) + 1.0) * 0.269 - 0.06,
+					0.4375 - float(i2) * 0.125))
+			tass.rotation.z = PI * 0.5
+
+		# il CORRIMANO tondo, chiaro come il legno lucidato dalle mani
+		var mano := _cyl(n, 0.030, 0.030, 2.56, chiaro, Vector3(sx, 1.85, 0))
+		mano.rotation.x = 1.135 - PI * 0.5
+
+		# i MONTANTI verticali col pomello tornito, in basso e in alto:
+		# il corrimano gli passa dentro, il pomello lo corona
+		_cyl(n, 0.030, 0.036, 1.00, legno, Vector3(sx, 0.50, 0.46))
+		_cyl(n, 0.040, 0.040, 0.022, scuro, Vector3(sx, 1.011, 0.46))
+		_ball(n, 0.044, legno, Vector3(sx, 1.06, 0.46))
+		_cyl(n, 0.030, 0.036, 0.84, legno, Vector3(sx, 2.48, -0.46))
+		_cyl(n, 0.040, 0.040, 0.022, scuro, Vector3(sx, 2.911, -0.46))
+		_ball(n, 0.044, legno, Vector3(sx, 2.96, -0.46))
+
+		# le COLONNINE, dalla retta del cosciale a quella del corrimano
+		for t: float in [0.13, 0.38, 0.62, 0.87]:
 			var pz := 0.4 - t * 0.8
-			var y_rampa := 1.07 - 2.142 * pz + 0.06     # dentro il cosciale
-			var y_mano := 1.85 - 2.142 * pz - 0.03      # dentro il corrimano
-			_box(n, Vector3(0.06, y_mano - y_rampa, 0.06), dark,
+			var y_rampa := 1.07 - 2.142 * pz + 0.08
+			var y_mano := 1.85 - 2.142 * pz - 0.02
+			_cyl(n, 0.014, 0.017, y_mano - y_rampa, scuro,
 					Vector3(sx, (y_rampa + y_mano) * 0.5, pz))
 	return n
 
@@ -3321,24 +3359,92 @@ static func _sbarra() -> Node3D:
 	# LA SBARRA: si alza davvero. L'asta vive in un pivot chiamato "Asta"
 	# incernierato sul montante, così chi vuole può farla sollevare con un
 	# tween di 90 gradi (e il contrappeso scende dall'altra parte).
+	#
+	# La prima stesura era due box scuri e una riga di fasce: squadrata, e
+	# con DUE difetti che si vedevano solo guardando la foto — l'asta
+	# galleggiava trentasei centimetri sopra il paletto d'appoggio (troppo
+	# corto), e la punta non lo raggiungeva nemmeno. Ora l'asta è TONDA
+	# con gli anelli rossi calzati sopra, la cerniera ha le guance e il
+	# perno passante con le testine d'ottone, il contrappeso ha il collare,
+	# e il paletto arriva dove deve: con la FORCELLA che culla l'asta.
 	var n := Node3D.new()
-	var metallo := _mat(METAL, Color("6f665b"), 5.0, 0.4)
-	_cyl(n, 0.16, 0.2, 0.09, _mat(STONE, STONE_DARK, 4.0, 0.5), Vector3(-0.42, 0.045, 0))
-	_box(n, Vector3(0.14, 0.86, 0.14), metallo, Vector3(-0.42, 0.48, 0))
-	_cyl(n, 0.075, 0.075, 0.14, metallo, Vector3(-0.42, 0.86, 0)).rotation.x = PI * 0.5
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var legno_scuro := _mat(WOOD_DARK, Color("8a6540"), 3.5, 0.5)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	var ferro := _mat(METAL, Color("6d6259"), 5.0, 0.4)
+	var pietra := _mat(STONE, STONE_DARK, 4.0, 0.5)
+	var bianco := _mat(SEGNALE_BIANCO, Color("e9e2d2"), 4.0, 0.35)
+	var rosso := _mat(SEGNALE_ROSSO, Color("c96f60"), 4.0, 0.4)
+
+	# IL MONTANTE: basetta di pietra a due corsi, fusto tondo di legno,
+	# coperchietto e pomello — la famiglia è quella del posto di guardia,
+	# non un paracarro di metallo
+	_cyl(n, 0.15, 0.185, 0.06, pietra, Vector3(-0.42, 0.03, 0))
+	_cyl(n, 0.115, 0.14, 0.05, pietra, Vector3(-0.42, 0.085, 0))
+	_cyl(n, 0.062, 0.078, 0.76, legno, Vector3(-0.42, 0.49, 0))
+	_cyl(n, 0.07, 0.07, 0.03, legno_scuro, Vector3(-0.42, 0.885, 0))
+	_ball(n, 0.032, ottone, Vector3(-0.42, 0.925, 0))
+	# la targhetta blu sul fusto: il corredo si riconosce dal colore
+	_box(n, Vector3(0.085, 0.12, 0.022), _mat(BLU, BLU_CUPO, 5.0, 0.4),
+			Vector3(-0.42, 0.56, -0.062))
+
+	# LA CERNIERA: due guance tonde ai lati e il perno passante con le
+	# testine d'ottone — un'articolazione che si vede, non una palla
+	for gz: float in [-1.0, 1.0]:
+		var guancia := _cyl(n, 0.075, 0.075, 0.022, ferro, Vector3(-0.42, 0.82, gz * 0.052))
+		guancia.rotation.x = PI * 0.5
+	var perno := _cyl(n, 0.02, 0.02, 0.15, ottone, Vector3(-0.42, 0.82, 0))
+	perno.rotation.x = PI * 0.5
+	for tz: float in [-1.0, 1.0]:
+		var testina := _cyl(n, 0.03, 0.03, 0.014, ottone, Vector3(-0.42, 0.82, tz * 0.078))
+		testina.rotation.x = PI * 0.5
+
 	var asta := Node3D.new()
 	asta.name = "Asta"
-	asta.position = Vector3(-0.42, 0.86, 0)
+	asta.position = Vector3(-0.42, 0.82, 0)
 	n.add_child(asta)
-	# il braccio a fasce, che parte dal perno e va a destra
+	# IL BRACCIO, tondo: il fusto bianco con gli anelli rossi calzati
+	# sopra (non fasce dipinte su un box), il manicotto d'ottone al perno
+	# e il cappuccio rosso in punta
 	var braccio := Node3D.new()
-	braccio.position = Vector3(0.62, 0, 0)
+	braccio.position = Vector3(0.7, 0, 0)
 	asta.add_child(braccio)
-	_fasce(braccio, 1.2, 0.07, 0.07, 0, 6)
-	# il contrappeso, dalla parte corta
-	_ball(asta, 0.075, metallo, Vector3(-0.17, 0, 0), Vector3(1, 0.85, 1))
-	# il piedino d'appoggio all'altro capo
-	_cyl(n, 0.05, 0.07, 0.5, metallo, Vector3(0.86, 0.25, 0))
+	var fusto := _cyl(braccio, 0.03, 0.03, 1.34, bianco, Vector3.ZERO)
+	fusto.rotation.z = PI * 0.5
+	for i in 3:
+		var anello := _cyl(braccio, 0.034, 0.034, 0.14, rosso,
+				Vector3(-0.44 + float(i) * 0.44, 0, 0))
+		anello.rotation.z = PI * 0.5
+	var cappuccio := _cyl(braccio, 0.024, 0.034, 0.06, rosso, Vector3(0.67, 0, 0))
+	cappuccio.rotation.z = -PI * 0.5
+	_ball(braccio, 0.024, rosso, Vector3(0.7, 0, 0))
+	var manicotto := _cyl(braccio, 0.037, 0.037, 0.07, ottone, Vector3(-0.66, 0, 0))
+	manicotto.rotation.z = PI * 0.5
+	# IL CONTRAPPESO, dalla parte corta: il codolo, il collare d'ottone e
+	# la sfera di ferro con l'anellino sotto per tirarla giù a mano
+	var codolo := _cyl(asta, 0.024, 0.024, 0.14, ferro, Vector3(-0.13, 0, 0))
+	codolo.rotation.z = PI * 0.5
+	_cyl(asta, 0.034, 0.034, 0.03, ottone, Vector3(-0.155, 0, 0)).rotation.z = PI * 0.5
+	_ball(asta, 0.078, ferro, Vector3(-0.23, 0, 0), Vector3(1, 0.9, 1))
+	var anellino := TorusMesh.new()
+	anellino.inner_radius = 0.014
+	anellino.outer_radius = 0.026
+	anellino.rings = 12
+	anellino.ring_segments = 6
+	var ami := MeshInstance3D.new()
+	ami.mesh = anellino
+	ami.material_override = ottone
+	ami.position = Vector3(-0.23, -0.085, 0)
+	asta.add_child(ami)
+
+	# IL PALETTO D'APPOGGIO: alto quanto serve (l'asta ci si POSA), con la
+	# sua basetta e la forcella a due corni che la culla
+	_cyl(n, 0.1, 0.13, 0.05, pietra, Vector3(0.88, 0.025, 0))
+	_cyl(n, 0.042, 0.055, 0.72, legno, Vector3(0.88, 0.41, 0))
+	_cyl(n, 0.05, 0.05, 0.025, legno_scuro, Vector3(0.88, 0.782, 0))
+	for fz: float in [-1.0, 1.0]:
+		var corno := _cyl(n, 0.014, 0.018, 0.1, legno_scuro, Vector3(0.88, 0.835, fz * 0.045))
+		corno.rotation.x = fz * -0.3
 	return n
 
 
