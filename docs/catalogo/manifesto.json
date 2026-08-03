@@ -180,10 +180,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.92,
+    "alto": 0.95,
     "cartella": "docs/catalogo/0-struttura/staccionata/",
-    "cat": 0.0,
-    "largo": 0.95,
+    "cat": 0,
+    "largo": 1.04,
     "nome": "Staccionata",
     "slug": "staccionata",
     "tipo": "edge"
@@ -243,10 +243,10 @@
     "tipo": "edge"
   },
   {
-    "alto": 2.24,
+    "alto": 2.08,
     "cartella": "docs/catalogo/0-struttura/portone-rimessa/",
-    "cat": 0,
-    "largo": 2.06,
+    "cat": 0.0,
+    "largo": 1.02,
     "nome": "Portone rimessa",
     "slug": "portone-rimessa",
     "tipo": "edge"
