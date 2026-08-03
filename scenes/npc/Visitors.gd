@@ -1454,9 +1454,37 @@ func ricorda_per(label: String, tipo: String, attore: String,
 
 
 ## Il legame fra due vicini si stringe (grafo del passaparola + Animo).
-func lega_vicini(chi: String, verso: String, forza: float) -> void:
+## `forza_inversa` negativa = simmetrico (come Villaggio.lega); la Voce la
+## usa per non SCHIACCIARE il lato di chi già amava quando l'altro impara.
+func lega_vicini(chi: String, verso: String, forza: float,
+		forza_inversa := -1.0) -> void:
 	if _villaggio and _villaggio.has_method("lega"):
-		_villaggio.call("lega", chi, verso, forza)
+		_villaggio.call("lega", chi, verso, forza, forza_inversa)
+
+
+## ------------------------------------------------- i canali della VOCE
+## (scenes/npc/Voce.gd): il grafo delle amicizie letto da fuori, senza
+## esporne la forma. Solo lettura: per scrivere c'è `lega_vicini`.
+
+## Le etichette di tutti i residenti vivi, nell'ordine di arrivo.
+func etichette() -> Array:
+	var out: Array = []
+	for r in _residents:
+		var l := str(r.get("label", ""))
+		if l != "":
+			out.append(l)
+	return out
+
+
+## Il lato di `label` nel grafo del passaparola: {altro: quanto ci tiene}.
+## Una COPIA: il grafo vero lo scrive solo il Villaggio.
+func amici_di(label: String) -> Dictionary:
+	if _villaggio == null:
+		return {}
+	var amicizie: Dictionary = _villaggio.get("amicizie")
+	if not amicizie.has(label):
+		return {}
+	return (amicizie[label] as Dictionary).duplicate()
 
 
 ## Il sogno di un residente ("boscaiolo", "cuoco"…). Serve al registro dei
