@@ -1068,14 +1068,15 @@ static func _door_wall() -> Node3D:
 	return n
 
 
-# LA STACCIONATA. Prima era carpenteria da scatola: pali quadrati con
-# un uovo schiacciato in testa e correnti a parallelepipedo. Una
-# staccionata di paese e' TONDA — pali torniti col collarino e il
-# pomello (la stessa lingua dei montanti della Scala), correnti in
-# tondino che si IMBARCANO di due centimetri fra un palo e l'altro
-# (un corrente teso a filo e' un profilato, uno che si siede e' legno),
-# le LEGATURE di corda dove il corrente passa nel palo, e l'erba che
-# rispunta ai piedi dei pali, dove la falciatrice non arriva.
+# LA STACCIONATA. Una staccionata di paese e' TONDA — pali torniti col
+# collarino e il pomello (la stessa lingua dei montanti della Scala),
+# correnti in tondino che si IMBARCANO di due centimetri fra un palo e
+# l'altro, legature di corda, l'erba ai piedi dei pali. E i pali hanno
+# i NOMI (PaloSx/PaloDx), perche' non sono solo decorazione: quando un
+# altro segmento continua la stessa retta, BuildSystem.rinfresca_pali
+# spegne il palo sul capo condiviso — il recinto corre continuo, coi
+# pali solo dove serve, e le punte dei correnti (a filo del bordo) si
+# fondono nel punto della giunta come un nodo di innesto.
 static func _fence() -> Node3D:
 	var n := Node3D.new()
 	var palo_m := _mat(WOOD, WOOD_DARK, 3.8, 0.5)
@@ -1084,32 +1085,36 @@ static func _fence() -> Node3D:
 	var corda := _mat(Color("d9c49a"), Color("bfa87e"), 5.0, 0.45)
 	var erba := _mat(Color("8aa870"), Color("6f8d58"), 5.0, 0.5)
 
-	for x: float in [-0.40, 0.40]:
-		# il palo tornito: fusto rastremato, collarino, collo e pomello
-		_cyl(n, 0.042, 0.055, 0.80, palo_m, Vector3(x, 0.40, 0))
-		_cyl(n, 0.050, 0.050, 0.020, scuro, Vector3(x, 0.815, 0))
-		_cyl(n, 0.024, 0.028, 0.035, palo_m, Vector3(x, 0.843, 0))
-		_ball(n, 0.047, palo_m, Vector3(x, 0.895, 0))
-		# l'erba che rispunta al piede, dove la falce non arriva
-		_ball(n, 0.055, erba, Vector3(x - 0.035, 0.018, 0.035),
+	for lato in [["PaloSx", -0.40], ["PaloDx", 0.40]]:
+		# tutto cio' che appartiene al palo vive DENTRO il suo nodo:
+		# collarino, pomello, legature ed erba spariscono con lui
+		var palo := Node3D.new()
+		palo.name = str(lato[0])
+		palo.position.x = float(lato[1])
+		n.add_child(palo)
+		_cyl(palo, 0.042, 0.055, 0.80, palo_m, Vector3(0, 0.40, 0))
+		_cyl(palo, 0.050, 0.050, 0.020, scuro, Vector3(0, 0.815, 0))
+		_cyl(palo, 0.024, 0.028, 0.035, palo_m, Vector3(0, 0.843, 0))
+		_ball(palo, 0.047, palo_m, Vector3(0, 0.895, 0))
+		for h0: float in [0.585, 0.315]:
+			var giro := _cyl(palo, 0.040, 0.040, 0.055, corda,
+					Vector3(0, h0 - 0.006, 0))
+			giro.rotation.z = PI * 0.5
+		_ball(palo, 0.055, erba, Vector3(-0.035, 0.018, 0.035),
 				Vector3(1.2, 0.45, 0.9))
-		_ball(n, 0.042, erba, Vector3(x + 0.045, 0.014, -0.030),
+		_ball(palo, 0.042, erba, Vector3(0.045, 0.014, -0.030),
 				Vector3(1.0, 0.40, 0.8))
 
-	# i due correnti: tondini con la PANCIA (si siedono di 2 cm a meta'
-	# campata) e le punte tonde; passano DENTRO i pali
+	# i due correnti: tondini con la PANCIA e le punte tonde A FILO DEL
+	# BORDO (±0.5): dove la giunta perde il palo, le punte dei due
+	# segmenti si fondono in un nodo d'innesto
 	for h: float in [0.585, 0.315]:
-		BUILDER.tube(n, [Vector3(-0.49, h, 0.0), Vector3(-0.245, h - 0.016, 0.006),
+		BUILDER.tube(n, [Vector3(-0.5, h, 0.0), Vector3(-0.245, h - 0.016, 0.006),
 				Vector3(0.0, h - 0.022, 0.0), Vector3(0.245, h - 0.016, -0.006),
-				Vector3(0.49, h, 0.0)],
+				Vector3(0.5, h, 0.0)],
 				[0.030, 0.033, 0.034, 0.033, 0.030], tondo)
-		for xt: float in [-0.49, 0.49]:
+		for xt: float in [-0.5, 0.5]:
 			_ball(n, 0.030, tondo, Vector3(xt, h, 0))
-		# le legature di corda, dove il corrente entra nel palo
-		for xl: float in [-0.40, 0.40]:
-			var giro := _cyl(n, 0.040, 0.040, 0.055, corda,
-					Vector3(xl, h - 0.006, 0))
-			giro.rotation.z = PI * 0.5
 	return n
 
 
