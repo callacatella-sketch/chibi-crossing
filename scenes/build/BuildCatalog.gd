@@ -687,35 +687,130 @@ static func _window_wall() -> Node3D:
 	return n
 
 
+## LA PORTA DEL COTTAGE. Parla la stessa lingua del Muro e della Finestra —
+## zoccolo di pietra, battiscopa, graticcio coi cavicchi, trave di colmo col
+## coprigiunto — così la casa corre ininterrotta da un pezzo all'altro. E
+## l'anta è una porta VERA da bottega: doghe verticali coi giunti, due
+## traverse e la CONTROVENTATURA diagonale (è la diagonale che toglie il
+## «squadrato»: una porta a Z si legge costruita, non disegnata), bandelle
+## di ferro coi bulloni sul lato dei cardini, pomello d'ottone con la
+## bocchetta della serratura, e la finestrella a quattro vetri in alto.
+##
+## CONTRATTO CON BuildSystem: l'anta vive nel nodo «Hinge» a (-0.34, 0, 0)
+## e riempie il varco 0.68 × 1.56 — è lui che la apre al passaggio, col
+## cigolio. Non cambiare nome né perno.
 static func _door_wall() -> Node3D:
-	# muro con porta socchiusa: il varco centrale è attraversabile
 	var n := Node3D.new()
 	var plaster := _mat(PLASTER, PLASTER_SHADE, 2.5, 0.5)
 	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var wood_scuro := _mat(WOOD_DARK, Color("8a6540"), 3.5, 0.5)
+	var stone := _mat(STONE, STONE_DARK, 3.0, 0.55)
+	var ferro := _mat(Color("4a443c"), Color("332f29"), 5.0, 0.4)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 6.0, 0.35)
+	var crema := _mat(CREAM, Color("ecdcc4"), 3.5, 0.4)
+
+	# ---- LA SOGLIA: la pietra su cui si entra, consumata al centro, e i
+	# due monconi di zoccolo ai lati (lo zoccolo del Muro si interrompe
+	# dove si passa — è una porta, non un davanzale)
+	_box(n, Vector3(0.78, 0.05, 0.26), stone, Vector3(0, 0.025, 0))
+	for sz0: float in [-1.0, 1.0]:
+		_box(n, Vector3(0.16, 0.09, 0.22), stone, Vector3(sz0 * 0.42, 0.045, 0))
+		_box(n, Vector3(0.16, 0.07, 0.19), wood, Vector3(sz0 * 0.42, 0.125, 0))
+	# lo zerbino di paglia intrecciata sul fronte, col suo bordo
+	_box(n, Vector3(0.36, 0.014, 0.20), _mat(Color("c9a86a"), Color("b08e52"), 2.0, 0.4),
+			Vector3(0, 0.007, -0.24))
+	_box(n, Vector3(0.38, 0.010, 0.22), _mat(Color("a8874c"), Color("8f7040"), 2.0, 0.4),
+			Vector3(0, 0.004, -0.24))
+
+	# ---- I FIANCHI: intonaco sottile (0.13) fra i legni in rilievo, come
+	# nel Muro — e i montanti del graticcio sui bordi del pezzo
 	for side: float in [-1.0, 1.0]:
-		_box(n, Vector3(0.16, 2.0, 0.14), plaster, Vector3(side * 0.42, 1.0, 0))
-	_box(n, Vector3(1.0, 0.44, 0.14), plaster, Vector3(0, 1.78, 0))
+		_box(n, Vector3(0.16, 1.40, 0.13), plaster, Vector3(side * 0.42, 0.86, 0))
+	_box(n, Vector3(1.0, 0.44, 0.13), plaster, Vector3(0, 1.78, 0))
+	for sx: float in [-1.0, 1.0]:
+		_box(n, Vector3(0.09, 1.84, 0.17), wood, Vector3(sx * 0.435, 1.08, 0))
+
+	# ---- GLI STIPITI e la traversa del graticcio che fa da architrave
+	# (quota 1.61, la stessa linea che attraversa Muro e Finestra), coi
+	# cavicchi ai giunti. Sopra la porta, il GOCCIOLATOIO: la mensolina
+	# inclinata che butta fuori la pioggia — è il dettaglio che dice che
+	# questa casa vive sotto un cielo vero.
+	for side2: float in [-1.0, 1.0]:
+		_box(n, Vector3(0.08, 1.56, 0.16), wood, Vector3(side2 * 0.38, 0.78, 0))
+	_box(n, Vector3(1.0, 0.10, 0.17), wood, Vector3(0, 1.61, 0))
+	for sx2: float in [-1.0, 1.0]:
+		var cav := _cyl(n, 0.013, 0.013, 0.19, wood_scuro, Vector3(sx2 * 0.435, 1.61, 0))
+		cav.rotation.x = PI * 0.5
+	# il gocciolatoio POGGIA sul muro e due mensoline lo reggono: la prima
+	# stesura lo lasciava a mezz'aria, una stecca inclinata che galleggiava
+	var goccia := _box(n, Vector3(0.80, 0.028, 0.13), wood_scuro, Vector3(0, 1.70, -0.045))
+	goccia.rotation.x = 0.30
+	for gm: float in [-0.32, 0.32]:
+		_box(n, Vector3(0.05, 0.06, 0.07), wood_scuro, Vector3(gm, 1.655, -0.075))
+
+	# ---- le mensoline e la trave di colmo col coprigiunto: identiche al
+	# Muro, così la corona corre ininterrotta lungo tutta la casa
+	for sx3: float in [-1.0, 1.0]:
+		_box(n, Vector3(0.07, 0.07, 0.2), wood, Vector3(sx3 * 0.435, 1.965, 0))
 	_box(n, Vector3(1.0, 0.08, 0.18), wood, Vector3(0, 2.04, 0))
-	# il coprigiunto scuro sul colmo: la stessa linea del Muro e della
-	# Finestra, così la corona corre ininterrotta lungo tutta la casa
-	_box(n, Vector3(1.0, 0.03, 0.22), _mat(WOOD_DARK, Color("8a6540"), 3.5, 0.5),
-			Vector3(0, 2.095, 0))
-	_box(n, Vector3(0.76, 0.1, 0.16), wood, Vector3(0, 1.61, 0))
-	for side: float in [-1.0, 1.0]:
-		_box(n, Vector3(0.08, 1.56, 0.16), wood, Vector3(side * 0.38, 0.78, 0))
-	# l'anta: riempie tutto il varco (0.68 × 1.56, a filo di stipiti e
-	# architrave). Chiusa di default, il BuildSystem la apre all'avvicinarsi.
+	_box(n, Vector3(1.0, 0.03, 0.22), wood_scuro, Vector3(0, 2.095, 0))
+
+	# ---- L'ANTA. Chiusa di default; il BuildSystem la apre all'avvicinarsi
+	# ruotando il nodo «Hinge» (e Sfx fa il cigolio).
 	var hinge := Node3D.new()
 	hinge.name = "Hinge"
 	hinge.position = Vector3(-0.34, 0, 0)
 	n.add_child(hinge)
-	var door_mat := _mat(Color("b3805a"), Color("96683f"), 3.0, 0.55)
-	_box(hinge, Vector3(0.68, 1.56, 0.05), door_mat, Vector3(0.34, 0.78, 0))
-	# doghe decorative
-	var slat := _mat(Color("a2734e"), Color("8a5f3e"), 2.0, 0.4)
-	_box(hinge, Vector3(0.56, 0.03, 0.055), slat, Vector3(0.34, 0.5, 0))
-	_box(hinge, Vector3(0.56, 0.03, 0.055), slat, Vector3(0.34, 1.06, 0))
-	_ball(hinge, 0.032, _mat(CREAM, WOOD_PALE, 4.0, 0.3), Vector3(0.6, 0.82, 0.05))
+	var doga := _mat(Color("b3805a"), Color("96683f"), 3.0, 0.55)
+	var doga_giunto := _mat(Color("96683f"), Color("7d5634"), 2.5, 0.5)
+	# il corpo di doghe verticali: la tavola piena piu' i tre giunti che si
+	# leggono da vicino
+	_box(hinge, Vector3(0.68, 1.56, 0.045), doga, Vector3(0.34, 0.78, 0))
+	for gx: float in [0.17, 0.34, 0.51]:
+		_box(hinge, Vector3(0.008, 1.50, 0.052), doga_giunto, Vector3(gx, 0.78, 0))
+	# le due traverse e la DIAGONALE: la porta a Z di ogni bottega vera.
+	# La diagonale corre dal cardine in basso al pomello in alto: e' cosi'
+	# che il peso dell'anta scarica sul perno.
+	for ty: float in [0.34, 1.10]:
+		_box(hinge, Vector3(0.58, 0.075, 0.022), doga_giunto, Vector3(0.34, ty, -0.032))
+	var diag := _box(hinge, Vector3(0.075, 0.86, 0.022), doga_giunto,
+			Vector3(0.34, 0.72, -0.032))
+	diag.rotation.z = -0.60
+	# le bandelle di ferro dei cardini, coi bulloni: escono dal perno e
+	# attraversano le doghe
+	for by: float in [0.30, 1.18]:
+		_box(hinge, Vector3(0.30, 0.05, 0.014), ferro, Vector3(0.17, by, -0.036))
+		_box(hinge, Vector3(0.05, 0.09, 0.012), ferro, Vector3(0.035, by, -0.038))
+		for bx: float in [0.10, 0.20, 0.28]:
+			_ball(hinge, 0.011, ferro, Vector3(bx, by, -0.045), Vector3(1, 1, 0.5))
+	# il perno vero e proprio, in vista
+	for py: float in [0.30, 1.18]:
+		_cyl(hinge, 0.016, 0.016, 0.14, ferro, Vector3(0.008, py, 0))
+	# il pomello d'ottone con la rosetta, su TUTTE E DUE le facce, e la
+	# bocchetta della serratura sotto
+	for pz: float in [-0.045, 0.045]:
+		_cyl(hinge, 0.030, 0.030, 0.008, ottone, Vector3(0.60, 0.82, pz))
+		_ball(hinge, 0.026, ottone, Vector3(0.60, 0.82, pz * 1.35))
+	_box(hinge, Vector3(0.026, 0.05, 0.008), ottone, Vector3(0.60, 0.72, -0.028))
+	_ball(hinge, 0.007, ferro, Vector3(0.60, 0.735, -0.034))
+	# la FINESTRELLA a quattro vetri in alto: la cornice crema, il vetro
+	# incassato e la croce del telaio. (Vive dentro l'anta, non e' figlia
+	# del pezzo: la sera delle PozzeDiLuce appartiene alle Finestre.)
+	var wy := 1.38
+	for lato_c: Array in [[Vector3(0.26, 0.030, 0.060), Vector3(0.34, wy + 0.115, 0.0)],
+			[Vector3(0.26, 0.030, 0.060), Vector3(0.34, wy - 0.115, 0.0)],
+			[Vector3(0.030, 0.20, 0.060), Vector3(0.225, wy, 0.0)],
+			[Vector3(0.030, 0.20, 0.060), Vector3(0.455, wy, 0.0)]]:
+		_box(hinge, lato_c[0], crema, lato_c[1])
+	var vetro_p := MeshInstance3D.new()
+	var vm := BoxMesh.new()
+	vm.size = Vector3(0.20, 0.20, 0.056)
+	vetro_p.mesh = vm
+	vetro_p.material_override = _vetro()
+	vetro_p.position = Vector3(0.34, wy, 0.0)
+	hinge.add_child(vetro_p)
+	_box(hinge, Vector3(0.014, 0.20, 0.062), crema, Vector3(0.34, wy, 0.0))
+	_box(hinge, Vector3(0.20, 0.014, 0.062), crema, Vector3(0.34, wy, 0.0))
 	return n
 
 
