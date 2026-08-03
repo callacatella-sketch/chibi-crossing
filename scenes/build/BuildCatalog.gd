@@ -3607,21 +3607,82 @@ static func _torretta() -> Node3D:
 	return n
 
 
-## IL PALO DEI POMPIERI. Ottone lucido dal solaio al pavimento, le due
-## ghiere e la pedana di gomma alla base: chi lo prende scende in un fiato.
-## Alto quanto un piano, così sta sotto un Solaio senza tagliarlo.
+## IL PALO DEI POMPIERI. Un palo vero non spunta dal pavimento: SCENDE da
+## un piano di sopra. Da qui la flangia in cima — la piastra di legno coi
+## quattro tiranti d'ottone, come se fosse imbullonato al solaio che un
+## giorno il giocatore ci costruirà sopra davvero (è alto quanto un piano
+## apposta). E chi scende deve atterrare su qualcosa: la pedana è una
+## piazzola vera — gomma, piatto smaltato rosso con l'anello crema, e i
+## bulloni che la tengono a terra. Sull'ultimo tirante, l'elmetto rosso
+## appeso al gancio: qualcuno è appena sceso.
 static func _palo_pompieri() -> Node3D:
 	var n := Node3D.new()
-	var ottone := _mat(OTTONE, OTTONE_SCURO, 6.0, 0.35)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 8.0, 0.3)
 	var scuro := _mat(OTTONE_SCURO, OTTONE_SCURO.darkened(0.25), 5.0, 0.4)
 	var gomma := _mat(GOMMA, GOMMA.darkened(0.2), 6.0, 0.3)
-	_cyl(n, 0.055, 0.055, 2.15, ottone, Vector3(0, 1.07, 0))
-	for y: float in [0.25, 1.9]:
-		_cyl(n, 0.075, 0.075, 0.06, scuro, Vector3(0, y, 0))
-	_cyl(n, 0.34, 0.36, 0.06, gomma, Vector3(0, 0.03, 0))
-	_cyl(n, 0.3, 0.3, 0.02, _mat(POMPA_ROSSO, POMPA_ROSSO_SCURO, 4.0, 0.4),
-			Vector3(0, 0.07, 0))
+	var rosso := _mat(POMPA_ROSSO, POMPA_ROSSO_SCURO, 4.0, 0.4)
+	var crema := _mat(CREAM, Color("ecdcc4"), 3.5, 0.4)
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+
+	# ---- LA PIAZZOLA D'ATTERRAGGIO: gomma, smalto rosso, anello crema
+	# dipinto, e sei bulloni sul bordo. È il punto in cui si arriva.
+	_cyl(n, 0.40, 0.43, 0.05, gomma, Vector3(0, 0.025, 0))
+	_cyl(n, 0.345, 0.36, 0.035, rosso, Vector3(0, 0.062, 0))
+	_cyl(n, 0.30, 0.30, 0.006, crema, Vector3(0, 0.082, 0))
+	_cyl(n, 0.22, 0.22, 0.006, rosso, Vector3(0, 0.084, 0))
+	for b in 6:
+		var ab := float(b) * TAU / 6.0 + 0.3
+		_ball(n, 0.018, scuro,
+				Vector3(cos(ab) * 0.375, 0.055, sin(ab) * 0.375), Vector3(1, 0.6, 1))
+
+	# ---- IL PALO: ottone lucido, base svasata, e le ghiere di giunzione
+	# doppie (un palo vero è fatto a segmenti, e le giunzioni si vedono)
+	_cyl(n, 0.075, 0.10, 0.10, ottone, Vector3(0, 0.13, 0))
+	_cyl(n, 0.052, 0.058, 2.0, ottone, Vector3(0, 1.08, 0))
+	for gy: float in [0.72, 1.38]:
+		_cyl(n, 0.068, 0.068, 0.035, scuro, Vector3(0, gy, 0))
+		_cyl(n, 0.062, 0.062, 0.018, ottone, Vector3(0, gy + 0.032, 0))
+
+	# ---- LA FLANGIA AL SOFFITTO: la piastra di legno coi quattro tiranti.
+	# È lei che racconta la storia: questo palo scende da un piano di sopra.
+	_box(n, Vector3(0.52, 0.045, 0.52), legno, Vector3(0, 2.13, 0))
+	_box(n, Vector3(0.46, 0.02, 0.46), _mat(WOOD_PALE, WOOD, 3.0, 0.45),
+			Vector3(0, 2.10, 0))
+	_cyl(n, 0.085, 0.085, 0.05, scuro, Vector3(0, 2.06, 0))
+	for t in 4:
+		var at := float(t) * TAU / 4.0 + TAU / 8.0
+		var tx := cos(at) * 0.20
+		var tz := sin(at) * 0.20
+		var tir := _cyl(n, 0.012, 0.012, 0.34, ottone,
+				Vector3(tx * 0.62, 1.93, tz * 0.62))
+		tir.rotation.z = -cos(at) * 0.42
+		tir.rotation.x = sin(at) * 0.42
+		_ball(n, 0.016, scuro, Vector3(tx, 2.085, tz), Vector3(1, 0.7, 1))
+
+	# ---- L'ELMETTO APPESO. Prima stesura: appeso «al tirante» — ma il
+	# gancio stava a sette centimetri dalla traiettoria vera dell'asta, e
+	# l'elmetto galleggiava a mezz'aria. Un gancio si avvita dove c'è
+	# LEGNO: sotto lo spigolo della piastra. Qualcuno è appena sceso, e
+	# l'ha lasciato lì.
+	var hx := 0.215
+	var hz := 0.215
+	_cyl(n, 0.006, 0.006, 0.06, scuro, Vector3(hx, 2.075, hz))
+	var gancio := _cyl(n, 0.005, 0.005, 0.045, scuro, Vector3(hx, 2.042, hz))
+	gancio.rotation.x = 1.1
+	var elmo := Node3D.new()
+	elmo.position = Vector3(hx, 1.965, hz)
+	elmo.rotation.z = 0.18
+	elmo.rotation.y = -0.6
+	n.add_child(elmo)
+	# calotta, falda che la TOCCA, cresta bassa e fregio d'ottone
+	_ball(elmo, 0.082, rosso, Vector3(0, 0.012, 0), Vector3(1.0, 0.70, 1.12))
+	_cyl(elmo, 0.108, 0.114, 0.016, rosso, Vector3(0, -0.030, 0.008))
+	var cresta := _ball(elmo, 0.055, rosso, Vector3(0, 0.045, -0.005),
+			Vector3(0.22, 0.75, 1.25))
+	cresta.rotation.x = -0.1
+	_ball(elmo, 0.020, ottone, Vector3(0, 0.008, -0.088), Vector3(1, 1.25, 0.45))
 	return n
+
 
 
 ## LA CAMPANA DELLA CASERMA. Sul suo montante di legno, col cordino che
