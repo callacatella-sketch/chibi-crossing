@@ -36,9 +36,9 @@
     "tipo": "cell"
   },
   {
-    "alto": 3.21,
+    "alto": 3.09,
     "cartella": "docs/catalogo/0-struttura/scala/",
-    "cat": 0.0,
+    "cat": 0,
     "largo": 0.99,
     "nome": "Scala",
     "slug": "scala",
@@ -65,7 +65,7 @@
   {
     "alto": 0.96,
     "cartella": "docs/catalogo/0-struttura/sbarra/",
-    "cat": 0,
+    "cat": 0.0,
     "largo": 1.74,
     "nome": "Sbarra",
     "slug": "sbarra",

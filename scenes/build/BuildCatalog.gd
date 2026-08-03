@@ -1197,7 +1197,12 @@ static func _stairs() -> Node3D:
 	# TASSELLI sulla faccia esterna, uno per gradino, che salgono in fila
 	# con la rampa — e' il dettaglio che dice «qui dentro c'e' l'incastro»
 	for sx: float in [-0.45, 0.45]:
-		_lastra(n, 0.24, 2.56, 0.05, 0.055, scuro, Vector3(sx, 1.07, 0),
+		# (attenzione alla _lastra: w e' la MEZZA larghezza lungo Z —
+		# _anello_tondo torna z in [-w, +w] — e h corre lungo Y. Per
+		# inclinare una tavola alta in Y sulla rampa si ruota di
+		# 1.135 − PI/2. Sbagliati entrambi, prima di leggere la fonte:
+		# con w 0.24 usciva un tavolone da mezzo metro.)
+		_lastra(n, 0.08, 2.44, 0.04, 0.055, scuro, Vector3(sx, 1.07, 0),
 				Vector3(1.135 - PI * 0.5, 0, 0))
 		for i2 in 8:
 			var tass := _cyl(n, 0.0065, 0.0065, 0.006, legno,
