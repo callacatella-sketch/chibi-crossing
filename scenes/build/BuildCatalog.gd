@@ -573,12 +573,118 @@ static func _floor_tile() -> Node3D:
 
 
 static func _path_tile() -> Node3D:
+	return sentiero_cella({}, 20_260_803)
+
+
+## IL SENTIERO DI PIETRA, cella per cella — e le celle SI PARLANO.
+##
+## Da solo è una posa di lastre irregolari; ma quando il giocatore ne
+## mette due o più vicine, le pietre TENDONO verso i vicini e la fila
+## diventa un sentiero vero: BuildSystem.rinfresca_sentieri richiama
+## questa funzione con la mappa dei vicini a ogni posa e a ogni
+## rimozione (stesso patto della Gradinata coi braccioli).
+##
+## LE PIETRE NON SONO CILINDRI: cerchi perfetti schiacciati leggono
+## «frittelle», non pietra. Ogni lastra è un poligono irregolare a due
+## piani — la base più larga, il coperchio rientrato: lo smusso consumato
+## di una pietra calpestata — con la sua tinta, il suo giro e la sua
+## quota, tutti dal seme della cella (due celle vicine non sono mai la
+## stessa cella, ma la STESSA cella è sempre uguale a sé: le foto e i
+## salvataggi non ballano).
+##
+## IL PATTO DEL CONFINE: la pietra a cavallo del bordo la mette UNA sola
+## delle due celle — chi guarda il vicino in direzione POSITIVA (est,
+## sud). L'altra arriva col suo passo interno fin quasi al bordo e la
+## passata è continua senza che due pietre si contendano lo stesso punto
+## (due prismi sovrapposti alla stessa quota sono z-fighting garantito).
+static func sentiero_cella(vicini: Dictionary, seme: int) -> Node3D:
 	var n := Node3D.new()
-	var mat := _mat(STONE, STONE_DARK, 4.0, 0.55)
-	_cyl(n, 0.4, 0.44, 0.05, mat, Vector3(0.05, 0.025, 0.03))
-	_cyl(n, 0.16, 0.18, 0.045, mat, Vector3(-0.32, 0.022, -0.3))
-	_cyl(n, 0.12, 0.14, 0.04, mat, Vector3(0.35, 0.02, -0.33))
+	var pietre := Node3D.new()
+	pietre.name = "Pietre"
+	n.add_child(pietre)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seme
+	# quattro tinte con un vero SCARTO fra loro: a tinte quasi uguali le
+	# lastre diventavano un'unica colata chiara — è il contrasto fra
+	# pietra e pietra a dire «posate una a una»
+	var tinte: Array = [
+		_mat(STONE, STONE_DARK, 3.0, 0.5),
+		_mat(Color("d8d0c2"), STONE, 3.5, 0.5),
+		_mat(Color("a89f90"), Color("857c6e"), 3.0, 0.5),
+		_mat(Color("c2b2a4"), Color("9c8b7c"), 3.5, 0.5),
+	]
+
+	# la posa di casa: una lastra grande scostata dal centro e due
+	# compagne — mai in fila, mai alla stessa quota
+	_lastra_sentiero(pietre, rng, tinte, Vector2(
+			rng.randf_range(-0.10, 0.10), rng.randf_range(-0.08, 0.08)), 0.21)
+	_lastra_sentiero(pietre, rng, tinte, Vector2(
+			rng.randf_range(0.22, 0.30), rng.randf_range(-0.32, -0.22)), 0.13)
+	_lastra_sentiero(pietre, rng, tinte, Vector2(
+			rng.randf_range(-0.32, -0.24), rng.randf_range(0.20, 0.30)), 0.115)
+
+	# i passi verso i vicini. `dir` è in coordinate MONDO: ci pensa il
+	# rinfresco a compensare la rotazione del pezzo.
+	var direzioni := {"e": Vector2(1, 0), "o": Vector2(-1, 0),
+			"s": Vector2(0, 1), "n": Vector2(0, -1)}
+	for nome in direzioni:
+		if not bool(vicini.get(nome, false)):
+			continue
+		var dir: Vector2 = direzioni[nome]
+		var fianco := Vector2(-dir.y, dir.x)
+		# il passo interno, un filo fuori asse: un sentiero posato a mano
+		# non è mai una retta
+		_lastra_sentiero(pietre, rng, tinte,
+				dir * rng.randf_range(0.26, 0.30)
+				+ fianco * rng.randf_range(-0.07, 0.07), 0.125)
+		# la pietra DEL CONFINE, solo verso est e sud: a cavallo del
+		# bordo, così le due celle la condividono senza doppiarla
+		if nome == "e" or nome == "s":
+			_lastra_sentiero(pietre, rng, tinte,
+					dir * 0.5 + fianco * rng.randf_range(-0.05, 0.05), 0.135)
+
+	# i sassolini nelle fughe, e un ciuffetto d'erba che vince — la firma
+	# del sagrato: sono le fughe a dire che le lastre sono POSATE
+	for _i in 3:
+		var a := rng.randf_range(0.0, TAU)
+		var r := rng.randf_range(0.30, 0.44)
+		_ball(pietre, rng.randf_range(0.014, 0.022), tinte[rng.randi_range(0, 3)],
+				Vector3(cos(a) * r, 0.020, sin(a) * r),
+				Vector3(1.0, rng.randf_range(0.5, 0.65), rng.randf_range(0.8, 1.2)))
+	var erba := _mat(LEAF, LEAF_DARK, 6.0, 0.55)
+	var ae := rng.randf_range(0.0, TAU)
+	var ce := _cyl(pietre, 0.0, 0.026, 0.06, erba,
+			Vector3(cos(ae) * 0.38, 0.045, sin(ae) * 0.38))
+	ce.rotation.z = rng.randf_range(-0.25, 0.25)
 	return n
+
+
+## Una lastra del sentiero: poligono irregolare a DUE piani (base più
+## larga, coperchio rientrato = lo smusso consumato), tinta e quota sue.
+static func _lastra_sentiero(parent: Node3D, rng: RandomNumberGenerator,
+		tinte: Array, centro: Vector2, raggio: float) -> void:
+	var mat: Material = tinte[rng.randi_range(0, tinte.size() - 1)]
+	var giro := rng.randf_range(0.0, TAU)
+	var lati := rng.randi_range(7, 9)
+	var raggi: Array = []
+	for i in lati:
+		raggi.append(raggio * rng.randf_range(0.78, 1.12))
+	var alto := rng.randf_range(0.034, 0.052)
+	var lastra := Node3D.new()
+	lastra.position = Vector3(centro.x, 0, centro.y)
+	# appena storta nel terreno: una lastra in bolla è una piastrella
+	lastra.rotation.x = rng.randf_range(-0.025, 0.025)
+	lastra.rotation.z = rng.randf_range(-0.025, 0.025)
+	parent.add_child(lastra)
+	for piano in 2:
+		var scala := 1.0 if piano == 0 else rng.randf_range(0.80, 0.88)
+		var da := 0.0 if piano == 0 else alto * 0.55
+		var spess := alto * 0.55 if piano == 0 else alto * 0.45
+		var punti: Array = []
+		for i in lati:
+			var a := giro + TAU * float(i) / float(lati)
+			punti.append(Vector2(cos(a), sin(a)) * (float(raggi[i]) * scala))
+		_prisma(lastra, punti, da, spess, mat)
 
 
 static func _rug() -> Node3D:
