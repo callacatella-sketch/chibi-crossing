@@ -173,10 +173,12 @@ func _build_ui() -> void:
 	_velo.visible = false
 	strato.add_child(_velo)
 
-	# il prompt e la battuta stanno ANCORA piu' su: si deve poter
-	# leggere cosa si sta ordinando anche da sbronzi
+	# il prompt e le battute: il velo li ripassa comunque (campiona lo
+	# schermo intero), e va bene COSI' — nel disegno fatto male ci
+	# finisce anche la scritta dell'ordinazione, che da sbronzi si
+	# legge male come tutto il resto. Il tasto E, quello, non trema.
 	var ui := CanvasLayer.new()
-	ui.layer = 8
+	ui.layer = 9
 	add_child(ui)
 	_prompt = PanelContainer.new()
 	var sb := StyleBoxFlat.new()
