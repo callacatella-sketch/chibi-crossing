@@ -243,10 +243,10 @@
     "tipo": "edge"
   },
   {
-    "alto": 2.08,
+    "alto": 2.24,
     "cartella": "docs/catalogo/0-struttura/portone-rimessa/",
-    "cat": 0.0,
-    "largo": 1.02,
+    "cat": 0,
+    "largo": 1.05,
     "nome": "Portone rimessa",
     "slug": "portone-rimessa",
     "tipo": "edge"
