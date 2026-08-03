@@ -972,14 +972,48 @@ static func _door_wall() -> Node3D:
 	return n
 
 
+# LA STACCIONATA. Prima era carpenteria da scatola: pali quadrati con
+# un uovo schiacciato in testa e correnti a parallelepipedo. Una
+# staccionata di paese e' TONDA — pali torniti col collarino e il
+# pomello (la stessa lingua dei montanti della Scala), correnti in
+# tondino che si IMBARCANO di due centimetri fra un palo e l'altro
+# (un corrente teso a filo e' un profilato, uno che si siede e' legno),
+# le LEGATURE di corda dove il corrente passa nel palo, e l'erba che
+# rispunta ai piedi dei pali, dove la falciatrice non arriva.
 static func _fence() -> Node3D:
 	var n := Node3D.new()
-	var mat := _mat(WOOD_PALE, WOOD, 3.5, 0.5)
-	for x in [-0.38, 0.38]:
-		_box(n, Vector3(0.09, 0.85, 0.09), mat, Vector3(x, 0.425, 0))
-		_ball(n, 0.06, mat, Vector3(x, 0.88, 0), Vector3(1, 0.7, 1))
-	_box(n, Vector3(0.95, 0.08, 0.05), mat, Vector3(0, 0.62, 0))
-	_box(n, Vector3(0.95, 0.08, 0.05), mat, Vector3(0, 0.32, 0))
+	var palo_m := _mat(WOOD, WOOD_DARK, 3.8, 0.5)
+	var tondo := _mat(WOOD_PALE, WOOD, 3.5, 0.5)
+	var scuro := _mat(WOOD_DARK, Color("8a6440"), 4.0, 0.5)
+	var corda := _mat(Color("d9c49a"), Color("bfa87e"), 5.0, 0.45)
+	var erba := _mat(Color("8aa870"), Color("6f8d58"), 5.0, 0.5)
+
+	for x: float in [-0.40, 0.40]:
+		# il palo tornito: fusto rastremato, collarino, collo e pomello
+		_cyl(n, 0.042, 0.055, 0.80, palo_m, Vector3(x, 0.40, 0))
+		_cyl(n, 0.050, 0.050, 0.020, scuro, Vector3(x, 0.815, 0))
+		_cyl(n, 0.024, 0.028, 0.035, palo_m, Vector3(x, 0.843, 0))
+		_ball(n, 0.047, palo_m, Vector3(x, 0.895, 0))
+		# l'erba che rispunta al piede, dove la falce non arriva
+		_ball(n, 0.055, erba, Vector3(x - 0.035, 0.018, 0.035),
+				Vector3(1.2, 0.45, 0.9))
+		_ball(n, 0.042, erba, Vector3(x + 0.045, 0.014, -0.030),
+				Vector3(1.0, 0.40, 0.8))
+
+	# i due correnti: tondini con la PANCIA (si siedono di 2 cm a meta'
+	# campata) e le punte tonde; passano DENTRO i pali
+	for h: float in [0.585, 0.315]:
+		BUILDER.tube(n, [Vector3(-0.49, h, 0.0), Vector3(-0.245, h - 0.016, 0.006),
+				Vector3(0.0, h - 0.022, 0.0), Vector3(0.245, h - 0.016, -0.006),
+				Vector3(0.49, h, 0.0)],
+				[0.030, 0.033, 0.034, 0.033, 0.030], tondo)
+		for xt: float in [-0.49, 0.49]:
+			_ball(n, 0.030, tondo, Vector3(xt, h, 0))
+		# le legature di corda, dove il corrente entra nel palo
+		for xl: float in [-0.40, 0.40]:
+			var giro := _cyl(n, 0.040, 0.040, 0.055, corda,
+					Vector3(xl, h - 0.006, 0))
+			giro.rotation.z = PI * 0.5
 	return n
 
 
