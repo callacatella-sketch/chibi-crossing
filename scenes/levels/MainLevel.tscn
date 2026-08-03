@@ -1,4 +1,4 @@
-[gd_scene load_steps=42 format=3 uid="uid://mainlevel_uid"]
+[gd_scene load_steps=43 format=3 uid="uid://mainlevel_uid"]
 
 [ext_resource type="Script" path="res://scenes/levels/MainLevel.gd" id="1_xxyz1"]
 [ext_resource type="PackedScene" uid="uid://d3u2b9x8y8v" path="res://scenes/characters/Player.tscn" id="2_yyzx2"]
@@ -28,6 +28,7 @@
 [ext_resource type="Script" path="res://scenes/npc/Veglia.gd" id="28_vegl1"]
 [ext_resource type="Script" path="res://scenes/npc/Premura.gd" id="23_prem1"]
 [ext_resource type="Script" path="res://scenes/world/VitaSecondaria.gd" id="24_vita1"]
+[ext_resource type="Script" path="res://scenes/world/CordeVive.gd" id="25_corde1"]
 [ext_resource type="Script" path="res://scenes/world/FiloRosso.gd" id="25_filo1"]
 [ext_resource type="Script" path="res://scenes/world/Bancarella.gd" id="26_banc1"]
 [ext_resource type="Script" path="res://scenes/world/Barchetta.gd" id="27_barc1"]
@@ -133,6 +134,9 @@ script = ExtResource("31_cuor1")
 
 [node name="VitaSecondaria" type="Node3D" parent="."]
 script = ExtResource("24_vita1")
+
+[node name="CordeVive" type="Node3D" parent="."]
+script = ExtResource("25_corde1")
 
 [node name="FiloRosso" type="Node3D" parent="."]
 script = ExtResource("25_filo1")

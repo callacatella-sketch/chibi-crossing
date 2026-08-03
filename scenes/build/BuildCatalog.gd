@@ -21,6 +21,9 @@ const HANDPAINT := preload("res://shaders/handpaint.gdshader")
 ## (code, orecchie, musetti): un attrezzo di legno curvo è lo stesso
 ## problema di geometria, e si risolve con lo stesso strumento.
 const BUILDER := preload("res://scenes/npc/ChibiBuilder.gd")
+## La fisica della corda: la posa di riposo dei fili che POI, nel mondo,
+## CordeVive.gd fa muovere davvero (vento, inerzia, la mano che li tocca).
+const FISICA := preload("res://scenes/world/CordaFisica.gd")
 
 const WOOD := Color("c89a6b")
 const WOOD_DARK := Color("a87c50")
@@ -1119,29 +1122,19 @@ static func _rope_bridge() -> Node3D:
 			attacchi[Vector2(sx, sz)] = piede.position \
 					+ Basis.from_euler(piede.rotation) * locale
 
-	# --- le corde maestre (i corrimano): una catenaria per lato, tesa fra
-	# le legature dei due pali. Parte ESATTAMENTE dai due attacchi (che
-	# ognuno sta dove il suo palo pende) e in mezzo cede di 7 centimetri.
-	# La stessa formula la rileggono i tiranti: se un domani la pancia
-	# cambia, i nodini restano sulla corda da soli. ---
-	var pancia := 0.072
-	var y_corda := func(sx: float, z: float) -> float:
-		var da2: Vector3 = attacchi[Vector2(sx, -0.47)]
-		var a2: Vector3 = attacchi[Vector2(sx, 0.47)]
-		var u2 := clampf((z - da2.z) / (a2.z - da2.z), 0.0, 1.0)
-		return lerpf(da2.y, a2.y, u2) - pancia * sin(PI * u2)
+	# --- le corde maestre (i corrimano): CORDE VIVE, tese fra le legature
+	# dei due pali (ognuna parte da dove il suo palo pende davvero). Nel
+	# mondo ondeggiano col vento e si scostano se Mochi le sfiora; i
+	# tiranti le SEGUONO — dichiarati nel meta, il gestore li ritende a
+	# ogni frame fra la corda e il loro punto fisso. molle 0.016 dà la
+	# pancia di sempre (~7 cm su questa campata). ---
+	var maestre := {}
 	for sx2: float in [-0.44, 0.44]:
 		var da: Vector3 = attacchi[Vector2(sx2, -0.47)]
 		var a: Vector3 = attacchi[Vector2(sx2, 0.47)]
-		var punti: Array = []
-		var raggi: Array = []
-		for k in 7:
-			var u := float(k) / 6.0
-			var p := da.lerp(a, u)
-			p.y = y_corda.call(sx2, p.z)
-			punti.append(p)
-			raggi.append(0.016)
-		BUILDER.tube(n, punti, raggi, rope, 20, 8)
+		var viva := _corda_viva(n, da, a, 0.016, 0.016, rope, 0.5, 12, 8)
+		viva.name = "Maestra_sx" if sx2 < 0.0 else "Maestra_dx"
+		maestre[sx2] = viva
 
 	# --- le due corde portanti: corrono sotto il bordo delle assi,
 	# seguono la STESSA curva del piano, e muoiono alla base dei pali ---
@@ -1179,31 +1172,49 @@ static func _rope_bridge() -> Node3D:
 		z_corr += largo + rng.randf_range(0.005, 0.013)
 
 	# --- i tiranti: dalla corda maestra alla corda portante, uno ogni
-	# quarto. La lunghezza NON è un numero: è la distanza fra le due
-	# curve in quel punto — la corda si legge con y_corda, il piano con
-	# dip — quindi toccano SEMPRE tutte e due. ---
+	# quarto. La cima si legge dalla POSA VERA della corda (campiona), il
+	# fondo dal piano — e nel meta della maestra ogni tirante dichiara
+	# path, frazione e punto fisso: così quando la corda si muove, il
+	# gestore lo ritende e il nodino resta sulla corda. ---
 	for sx4: float in [-0.44, 0.44]:
+		var viva2: MeshInstance3D = maestre[sx4]
+		var posa: Array = viva2.get_meta("posa")
+		var da3: Vector3 = attacchi[Vector2(sx4, -0.47)]
+		var a3: Vector3 = attacchi[Vector2(sx4, 0.47)]
+		var elenco: Array = []
 		for k3 in 4:
 			var z3 := lerpf(-0.33, 0.33, float(k3) / 3.0)
-			# il tirante va dalla corda maestra (a ±0.44) alla corda
-			# portante (a ±0.40): NON è verticale, pende in dentro — e
-			# l'angolo esce dai due punti, non da un numero scelto
-			var su := Vector3(sx4, y_corda.call(sx4, z3), z3)
+			var u3 := clampf((z3 - da3.z) / (a3.z - da3.z), 0.0, 1.0)
+			var su: Vector3 = FISICA.campiona(posa, u3)
 			var giu := Vector3(signf(sx4) * 0.40, dip.call(z3) - 0.034, z3)
+			var nome_t := "Tirante_%s_%d" % ["sx" if sx4 < 0.0 else "dx", k3]
 			var t2 := _cyl(n, 0.008, 0.008, su.distance_to(giu), rope_dark,
 					(su + giu) * 0.5)
-			t2.rotation.z = atan2(giu.x - su.x, su.y - giu.y)
+			t2.name = nome_t
+			t2.quaternion = Quaternion(Vector3.UP, (su - giu).normalized())
 			# i nodini dove il tirante morde le due corde
-			_ball(n, 0.015, rope_dark, su, Vector3(1.0, 0.75, 1.0))
+			var palla := _ball(n, 0.015, rope_dark, su, Vector3(1.0, 0.75, 1.0))
+			palla.name = nome_t + "_nodo"
 			_ball(n, 0.013, rope_dark, giu, Vector3(1.0, 0.8, 1.0))
+			elenco.append({"path": NodePath("../" + nome_t), "t": u3,
+					"fondo": giu, "resto": su.distance_to(giu),
+					"nodino": NodePath("../" + nome_t + "_nodo")})
+		var meta2: Dictionary = viva2.get_meta("corda")
+		meta2["tiranti"] = elenco
+		viva2.set_meta("corda", meta2)
 
-	# --- il capo di corda avanzato: pende da un palo con il suo nodo,
-	# come l'ha lasciato chi ha teso il ponte ---
+	# --- il capo di corda avanzato: pende da un palo, LIBERO — è la corda
+	# più viva di tutte, quella che il vento agita per prima. Il nodo in
+	# punta è un appeso: segue la coda dovunque vada. ---
 	var capo_da: Vector3 = attacchi[Vector2(0.44, -0.47)]
-	BUILDER.tube(n, [capo_da, capo_da + Vector3(0.035, -0.09, -0.015),
-			capo_da + Vector3(0.02, -0.19, 0.01)],
-			[0.010, 0.009, 0.008], rope_dark, 12, 6)
-	_ball(n, 0.016, rope_dark, capo_da + Vector3(0.02, -0.20, 0.01))
+	var capo := _corda_viva(n, capo_da, capo_da + Vector3(0, -0.19, 0),
+			0.04, 0.009, rope_dark, 1.4, 8, 6, true)
+	capo.name = "Capo"
+	var nodo_capo := _ball(n, 0.016, rope_dark, capo_da + Vector3(0, -0.198, 0))
+	nodo_capo.name = "NodoCapo"
+	var meta3: Dictionary = capo.get_meta("corda")
+	meta3["appesi"] = [{"path": NodePath("../NodoCapo"), "t": 1.0, "giu": 0.0}]
+	capo.set_meta("corda", meta3)
 	return n
 
 
@@ -1663,14 +1674,12 @@ static func _clothesline() -> Node3D:
 		var picchetto := _box(n, Vector3(0.05, 0.4, 0.05), wood, Vector3(sx * 0.82, 0.2, 0.12))
 		picchetto.rotation.x = -0.5
 		picchetto.rotation.z = -sx * 0.35
-	# la corda, in tre segmenti con la pancia al centro
+	# la corda del bucato: VIVA ma tesa (molle piccolo) e col vento quasi
+	# a zero — i teli di VitaSecondaria le stanno appesi con la loro onda
+	# shader, e una corda che ballasse troppo li lascerebbe a mezz'aria
 	var corda := _mat(Color("d9c08a"), Color("c0a878"), 10.0, 0.4)
-	var seg1 := _cyl(n, 0.012, 0.012, 0.4, corda, Vector3(-0.35, 1.09, 0))
-	seg1.rotation.z = PI * 0.5 - 0.1
-	var seg2 := _cyl(n, 0.012, 0.012, 0.34, corda, Vector3(0, 1.055, 0))
-	seg2.rotation.z = PI * 0.5
-	var seg3 := _cyl(n, 0.012, 0.012, 0.4, corda, Vector3(0.35, 1.09, 0))
-	seg3.rotation.z = PI * 0.5 + 0.1
+	_corda_viva(n, Vector3(-0.55, 1.12, 0), Vector3(0.55, 1.12, 0),
+			0.035, 0.012, corda, 0.15, 9, 6)
 	# il cestello del bucato, di vimini, appoggiato a un palo
 	var vimini := _mat(Color("c9a86a"), Color("a8874c"), 5.0, 0.5)
 	_box(n, Vector3(0.24, 0.15, 0.17), vimini, Vector3(0.36, 0.08, 0.16))
@@ -1834,6 +1843,40 @@ static func _glow(albedo: Color, emission: Color, energy: float) -> StandardMate
 	return m
 
 
+## UNA CORDA VIVA. Il builder scolpisce la posa di riposo (è quella delle
+## foto e dei salvataggi caricati con «Riduci animazioni»); nel mondo,
+## CordeVive.gd la trova col gruppo «corda_viva», legge il meta e la fa
+## muovere con la fisica vera — vento, inerzia, la spinta di chi ci passa
+## contro. I punti vivono nello SPAZIO DEL PEZZO: il nodo sta a
+## trasformata identità sotto la radice, così gli appesi (che sono suoi
+## fratelli) condividono le coordinate senza conversioni.
+##
+## `molle` è l'abbondanza di corda (0.15 = lunga il 115% della distanza):
+## è LEI a decidere quanto pende — la pancia non si disegna, risulta.
+## `libera` = pende dal solo capo `a` (la corda della campana); allora
+## `b` serve solo a dire quanto è lunga.
+static func _corda_viva(parent: Node3D, a: Vector3, b: Vector3, molle: float,
+		raggio: float, mat: Material, vento := 1.0, punti := 10, lati := 6,
+		libera := false) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.name = "CordaViva"
+	mi.material_override = mat
+	var posa: Array
+	if libera:
+		posa = FISICA.riposo_libera(a, FISICA.lunghezza(a, b, molle), punti)
+	else:
+		posa = FISICA.riposo(a, b, molle, punti)
+	var im := ImmediateMesh.new()
+	FISICA.scrivi_tubo(im, posa, raggio, lati)
+	mi.mesh = im
+	mi.set_meta("corda", {"a": a, "b": b, "molle": molle, "raggio": raggio,
+			"punti": punti, "lati": lati, "vento": vento, "libera": libera})
+	mi.set_meta("posa", posa)     # la posa di riposo: i builder ci appoggiano
+	mi.add_to_group("corda_viva", true)
+	parent.add_child(mi)
+	return mi
+
+
 # uno zampillo / scintillio di particelle morbide (fontana, braciere)
 static func _emit_fx(parent: Node3D, pos: Vector3, color: Color, up_vel: float, grav: float, amount: int, life: float, size: float) -> void:
 	var tex := GradientTexture2D.new()
@@ -1985,10 +2028,34 @@ static func _swing() -> Node3D:
 		_cyl(n, 0.035, 0.05, 1.55, wood, Vector3(x, 0.77, 0))
 	var bar := _cyl(n, 0.04, 0.04, 1.05, wood, Vector3(0, 1.53, 0))
 	bar.rotation.z = PI * 0.5
+	# LE DUE CORDE SONO VIVE E GEMELLE: il sedile è appeso a tutte e due
+	# (vincolo fra i loro fondi), quindi spingerlo lo fa DONDOLARE come
+	# un'altalena vera — e il vento lo culla da solo. peso_fondo è la
+	# massa del sedile che tende le corde.
 	var rope := _mat(Color("c9b088"), Color("ab9066"), 5.0, 0.5)
-	for x: float in [-0.16, 0.16]:
-		_cyl(n, 0.01, 0.01, 0.95, rope, Vector3(x, 1.05, 0.05))
-	_box(n, Vector3(0.44, 0.05, 0.22), _mat(WOOD_PALE, WOOD, 3.0, 0.5), Vector3(0, 0.6, 0.05))
+	var corda_a := _corda_viva(n, Vector3(-0.16, 1.51, 0.05),
+			Vector3(-0.16, 0.625, 0.05), 0.015, 0.01, rope, 0.45, 8, 6)
+	corda_a.name = "CordaA"
+	var corda_b := _corda_viva(n, Vector3(0.16, 1.51, 0.05),
+			Vector3(0.16, 0.625, 0.05), 0.015, 0.01, rope, 0.45, 8, 6)
+	corda_b.name = "CordaB"
+	# il sedile vive in un nodo suo, col pivot al punto d'aggancio: è il
+	# gestore a posarlo fra le due corde, comunque stiano
+	var sedile := Node3D.new()
+	sedile.name = "Sedile"
+	sedile.position = Vector3(0, 0.625, 0.05)
+	n.add_child(sedile)
+	_box(sedile, Vector3(0.44, 0.05, 0.22), _mat(WOOD_PALE, WOOD, 3.0, 0.5),
+			Vector3(0, -0.025, 0))
+	var meta_a: Dictionary = corda_a.get_meta("corda")
+	meta_a["gemella"] = NodePath("../CordaB")
+	meta_a["solidale"] = NodePath("../Sedile")
+	meta_a["larghezza"] = 0.32
+	meta_a["peso_fondo"] = 2.5
+	corda_a.set_meta("corda", meta_a)
+	var meta_b: Dictionary = corda_b.get_meta("corda")
+	meta_b["peso_fondo"] = 2.5
+	corda_b.set_meta("corda", meta_b)
 	return n
 
 
@@ -5921,13 +5988,14 @@ static func _lucine() -> Node3D:
 	var filo := _mat(Color("4f4a45"), Color("3d3935"), 4.0, 0.3)
 	var colori := [Color("ffd08a"), Color("ffb0a0"), Color("bfe0ff"),
 			Color("ffe6a8"), Color("d8c0f0")]
-	var corda: Array = []
-	var raggi: Array = []
-	for i in 7:
-		var t := float(i) / 6.0
-		corda.append(Vector3(lerpf(-0.46, 0.46, t), 1.88 - 0.26 * sin(t * PI), 0))
-		raggi.append(0.006)
-	BUILDER.tube(n, corda, raggi, filo, 30, 8)
+	# il filo è una CORDA VIVA: nel mondo ondeggia col vento vero, e le
+	# lampadine — dichiarate come appesi — lo seguono punto per punto.
+	# molle 0.21 dà la stessa pancia di prima (~0.26): la pancia non si
+	# disegna, risulta dalla lunghezza.
+	var vivo := _corda_viva(n, Vector3(-0.46, 1.88, 0), Vector3(0.46, 1.88, 0),
+			0.21, 0.006, filo, 1.0, 12, 6)
+	var posa: Array = vivo.get_meta("posa")
+	var appesi: Array = []
 	var passi := 9
 	for i in passi:
 		# le due lampadine d'estremità finivano DENTRO i paletti: restano
@@ -5935,14 +6003,21 @@ static func _lucine() -> Node3D:
 		if i == 0 or i == passi - 1:
 			continue
 		var t0 := float(i) / float(passi - 1)
-		var xl := lerpf(-0.46, 0.46, t0)
-		var yl := 1.88 - 0.26 * sin(t0 * PI)
+		# si appoggiano alla POSA VERA del filo (campiona), non a una
+		# formula parallela che prima o poi divergerebbe
+		var sul_filo: Vector3 = FISICA.campiona(posa, t0)
 		var c: Color = colori[i % colori.size()]
-		_cyl(n, 0.012, 0.016, 0.02, _mat(OTTONE, OTTONE_SCURO, 5.0, 0.3),
-				Vector3(xl, yl - 0.025, 0))
-		var bulbo := _ball(n, 0.032, _glow(c, c, 1.1), Vector3(xl, yl - 0.062, 0),
+		var att := _cyl(n, 0.012, 0.016, 0.02, _mat(OTTONE, OTTONE_SCURO, 5.0, 0.3),
+				sul_filo + Vector3(0, -0.025, 0))
+		att.name = "Attacco%d" % i
+		var bulbo := _ball(n, 0.032, _glow(c, c, 1.1), sul_filo + Vector3(0, -0.062, 0),
 				Vector3(1.0, 1.25, 1.0))
 		bulbo.name = "Bulbo%d" % i
+		appesi.append({"path": NodePath("../Attacco%d" % i), "t": t0, "giu": 0.025})
+		appesi.append({"path": NodePath("../Bulbo%d" % i), "t": t0, "giu": 0.062})
+	var meta: Dictionary = vivo.get_meta("corda")
+	meta["appesi"] = appesi
+	vivo.set_meta("corda", meta)
 	var luce := OmniLight3D.new()
 	luce.light_color = Color(1.0, 0.88, 0.72)
 	luce.light_energy = 0.9

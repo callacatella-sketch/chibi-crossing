@@ -2621,12 +2621,20 @@ static func campanile() -> Node3D:
 	# legata e non dal pavimento. Sta a -0.47 e non a filo di muro: più
 	# vicina, passerebbe DENTRO la cornice marcapiano a 1.45.
 	CAT._box(n, Vector3(0.05, 0.05, 0.13), ferro, Vector3(0.14, 2.44, -0.40))
-	var corda := Node3D.new()
+	# la corda è VIVA e pende da un capo solo: il vento la fa oscillare
+	# piano, e chi le passa accanto la scosta col fianco — una corda di
+	# campanile ferma come un tubo era la cosa meno chiesa di tutte.
+	# Il pomello in punta la segue come appeso.
+	var da_c := Vector3(0.14, 2.44, -0.472)
+	var corda := CAT._corda_viva(n, da_c, da_c + Vector3(0, -1.89, 0),
+			0.0, 0.008, canapa, 1.2, 12, 6, true)
 	corda.name = "Corda"
-	corda.position = Vector3(0.14, 2.44, -0.472)
-	n.add_child(corda)
-	CAT._cyl(corda, 0.008, 0.008, 1.89, canapa, Vector3(0, -0.945, 0))
-	CAT._ball(corda, 0.024, canapa, Vector3(0, -1.90, 0), Vector3(1, 1.4, 1))
+	var pomello := CAT._ball(n, 0.024, canapa, da_c + Vector3(0, -1.90, 0),
+			Vector3(1, 1.4, 1))
+	pomello.name = "Pomello"
+	var meta_c: Dictionary = corda.get_meta("corda")
+	meta_c["appesi"] = [{"path": NodePath("../Pomello"), "t": 1.0, "giu": 0.01}]
+	corda.set_meta("corda", meta_c)
 
 	# LA CELLA CAMPANARIA. Quattro pilastrini, il buio in mezzo (UN box), e
 	# gli archi: sette conci sul fronte, cinque sugli altri tre lati. Quattro

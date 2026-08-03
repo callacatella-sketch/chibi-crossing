@@ -16,9 +16,9 @@
 | **Cono**<br><sub>0.30 × 0.42 m</sub> | <img src="cono/1-fronte.jpg" width="200"> | <img src="cono/2-tre-quarti.jpg" width="200"> | <img src="cono/3-profilo.jpg" width="200"> |
 | **Cuccia**<br><sub>0.80 × 0.64 m</sub> | <img src="cuccia/1-fronte.jpg" width="200"> | <img src="cuccia/2-tre-quarti.jpg" width="200"> | <img src="cuccia/3-profilo.jpg" width="200"> |
 | **Faro caserma**<br><sub>0.32 × 1.52 m</sub> | <img src="faro-caserma/1-fronte.jpg" width="200"> | <img src="faro-caserma/2-tre-quarti.jpg" width="200"> | <img src="faro-caserma/3-profilo.jpg" width="200"> |
-| **Fioriera**<br><sub>1.00 × 0.69 m</sub> | <img src="fioriera/1-fronte.jpg" width="200"> | <img src="fioriera/2-tre-quarti.jpg" width="200"> | <img src="fioriera/3-profilo.jpg" width="200"> |
+| **Fioriera**<br><sub>0.98 × 0.69 m</sub> | <img src="fioriera/1-fronte.jpg" width="200"> | <img src="fioriera/2-tre-quarti.jpg" width="200"> | <img src="fioriera/3-profilo.jpg" width="200"> |
 | **Fontana**<br><sub>1.00 × 0.54 m</sub> | <img src="fontana/1-fronte.jpg" width="200"> | <img src="fontana/2-tre-quarti.jpg" width="200"> | <img src="fontana/3-profilo.jpg" width="200"> |
-| **Frigo gelati**<br><sub>0.97 × 1.18 m</sub> | <img src="frigo-gelati/1-fronte.jpg" width="200"> | <img src="frigo-gelati/2-tre-quarti.jpg" width="200"> | <img src="frigo-gelati/3-profilo.jpg" width="200"> |
+| **Frigo gelati**<br><sub>1.00 × 1.20 m</sub> | <img src="frigo-gelati/1-fronte.jpg" width="200"> | <img src="frigo-gelati/2-tre-quarti.jpg" width="200"> | <img src="frigo-gelati/3-profilo.jpg" width="200"> |
 | **Fungo**<br><sub>0.28 × 0.25 m</sub> | <img src="fungo/1-fronte.jpg" width="200"> | <img src="fungo/2-tre-quarti.jpg" width="200"> | <img src="fungo/3-profilo.jpg" width="200"> |
 | **Giostrina**<br><sub>0.88 × 1.65 m</sub> | <img src="giostrina/1-fronte.jpg" width="200"> | <img src="giostrina/2-tre-quarti.jpg" width="200"> | <img src="giostrina/3-profilo.jpg" width="200"> |
 | **Idrante**<br><sub>0.38 × 0.72 m</sub> | <img src="idrante/1-fronte.jpg" width="200"> | <img src="idrante/2-tre-quarti.jpg" width="200"> | <img src="idrante/3-profilo.jpg" width="200"> |
@@ -28,7 +28,7 @@
 | **Lucine**<br><sub>1.00 × 1.94 m</sub> | <img src="lucine/1-fronte.jpg" width="200"> | <img src="lucine/2-tre-quarti.jpg" width="200"> | <img src="lucine/3-profilo.jpg" width="200"> |
 | **Manichetta**<br><sub>0.65 × 0.59 m</sub> | <img src="manichetta/1-fronte.jpg" width="200"> | <img src="manichetta/2-tre-quarti.jpg" width="200"> | <img src="manichetta/3-profilo.jpg" width="200"> |
 | **Mongolfiera**<br><sub>0.99 × 2.47 m</sub> | <img src="mongolfiera/1-fronte.jpg" width="200"> | <img src="mongolfiera/2-tre-quarti.jpg" width="200"> | <img src="mongolfiera/3-profilo.jpg" width="200"> |
-| **Ombrellone**<br><sub>1.31 × 2.26 m</sub> | <img src="ombrellone/1-fronte.jpg" width="200"> | <img src="ombrellone/2-tre-quarti.jpg" width="200"> | <img src="ombrellone/3-profilo.jpg" width="200"> |
+| **Ombrellone**<br><sub>2.01 × 2.42 m</sub> | <img src="ombrellone/1-fronte.jpg" width="200"> | <img src="ombrellone/2-tre-quarti.jpg" width="200"> | <img src="ombrellone/3-profilo.jpg" width="200"> |
 | **Orto**<br><sub>0.92 × 0.24 m</sub> | <img src="orto/1-fronte.jpg" width="200"> | <img src="orto/2-tre-quarti.jpg" width="200"> | <img src="orto/3-profilo.jpg" width="200"> |
 | **Panchina**<br><sub>0.95 × 0.88 m</sub> | <img src="panchina/1-fronte.jpg" width="200"> | <img src="panchina/2-tre-quarti.jpg" width="200"> | <img src="panchina/3-profilo.jpg" width="200"> |
 | **Pennone**<br><sub>0.11 × 2.07 m</sub> | <img src="pennone/1-fronte.jpg" width="200"> | <img src="pennone/2-tre-quarti.jpg" width="200"> | <img src="pennone/3-profilo.jpg" width="200"> |
