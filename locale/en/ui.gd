@@ -614,6 +614,16 @@ const T := {
 			"Two stone rows to sit on, facing the stage.\nSet as many side by side as you need: that is the audience.",
 	"A coda, col coperchio aperto. Chi sogna di fare\nl'artista non aspetta altro.":
 			"A grand, with the lid up. Whoever dreams of being\nan artist wants nothing else.",
+	# la sbornia di succo di mela, al bancone del bar
+	"E — un succo di mela (%d 🌰)": "E — an apple juice (%d 🌰)",
+	"Servono %d 🌰 per un succo.": "You need %d 🌰 for a juice.",
+	"Il succo di mela scende che è un piacere.":
+			"The apple juice goes down a treat.",
+	"Il pavimento ondeggia. Colpa del pavimento, sicuro.":
+			"The floor is swaying. Definitely the floor's fault.",
+	"Da quando i banconi sono due?": "Since when are there two counters?",
+	"Il mondo sembra disegnato col mouse.":
+			"The world looks like it was drawn with a mouse.",
 }
 
 
