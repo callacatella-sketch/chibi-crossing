@@ -868,6 +868,47 @@ static func rinfresca_braccioli(dict: Dictionary, cell: Vector2i) -> void:
 				not _fila_continua(dict, cell + d - passo, rot))
 
 
+## IL SENTIERO CHE SI RICONOSCE: quando si posa (o si toglie) un
+## Sentiero, la sua cella e le quattro vicine si RICOSTRUISCONO le pietre
+## chiedendo al catalogo la posa giusta per i vicini che hanno adesso —
+## e due celle affiancate diventano UNA passata continua. Stesso patto
+## della Gradinata coi braccioli: statico e guidato dal dizionario, così
+## si prova a occhi chiusi.
+static func rinfresca_sentieri(dict: Dictionary, cell: Vector2i) -> void:
+	for d: Vector2i in [Vector2i.ZERO, Vector2i(1, 0), Vector2i(-1, 0),
+			Vector2i(0, 1), Vector2i(0, -1)]:
+		var c := cell + d
+		var nodo := dict.get(c) as Node3D
+		if nodo == null or str(nodo.get_meta("item_name", "")) != "Sentiero":
+			continue
+		var vicini := {
+			"e": _e_sentiero(dict, c + Vector2i(1, 0)),
+			"o": _e_sentiero(dict, c + Vector2i(-1, 0)),
+			"s": _e_sentiero(dict, c + Vector2i(0, 1)),
+			"n": _e_sentiero(dict, c + Vector2i(0, -1)),
+		}
+		# il seme è della CELLA: la stessa cella rifà sempre le stesse
+		# pietre, e i salvataggi non ballano da un caricamento all'altro
+		var nuovo: Node3D = BuildCatalog.sentiero_cella(vicini,
+				int(hash(c)) & 0x7fffffff)
+		var vecchie := nodo.get_node_or_null("Pietre")
+		if vecchie:
+			vecchie.name = "PietreVecchie"
+			vecchie.queue_free()
+		var pietre: Node3D = nuovo.get_node("Pietre")
+		nuovo.remove_child(pietre)
+		nodo.add_child(pietre)
+		# i vicini sono in coordinate MONDO, ma il nodo può essere stato
+		# posato ruotato (R): il wrapper annulla la rotazione del pezzo
+		pietre.rotation.y = -nodo.rotation.y
+		nuovo.free()
+
+
+static func _e_sentiero(dict: Dictionary, c: Vector2i) -> bool:
+	var nodo := dict.get(c) as Node3D
+	return nodo != null and str(nodo.get_meta("item_name", "")) == "Sentiero"
+
+
 ## Il passo di una cella lungo la fila: l'asse X locale del pezzo,
 ## ruotato come lo ruota place_cell (rotation.y = -rot * PI/2).
 static func passo_fila(rot: int) -> Vector2i:
@@ -920,6 +961,8 @@ func place_cell(cell: Vector2i, piece: String, rot := 0, animate := true, lvl :=
 	# la fila continua: la gradinata nuova e le sue vicine si accordano
 	# su chi tiene il bracciolo (vedi rinfresca_braccioli)
 	rinfresca_braccioli(dict, cell)
+	# e il sentiero nuovo tende le pietre verso i sentieri vicini
+	rinfresca_sentieri(dict, cell)
 	# pavimenti, sentieri e tappeti a terra schiacciano l'erba sotto di sé
 	if lvl == 0 and int(item["layer"]) <= 1:
 		get_tree().call_group("cozy_world", "flatten_cell", cell)
@@ -1024,9 +1067,11 @@ func _remove_at(layer, key, lvl := 0) -> void:
 	var node := dict[key] as Node3D
 	dict.erase(key)
 	# se in mezzo alla fila c'era una gradinata, i vicini si riprendono
-	# il bracciolo sul fianco tornato libero
+	# il bracciolo sul fianco tornato libero — e i sentieri accanto
+	# ritirano le pietre dal varco
 	if key is Vector2i:
 		rinfresca_braccioli(dict, key)
+		rinfresca_sentieri(dict, key)
 	_unregister_special(node)
 	if node == _demo_target:
 		_demo_target = null

@@ -573,12 +573,118 @@ static func _floor_tile() -> Node3D:
 
 
 static func _path_tile() -> Node3D:
+	return sentiero_cella({}, 20_260_803)
+
+
+## IL SENTIERO DI PIETRA, cella per cella — e le celle SI PARLANO.
+##
+## Da solo è una posa di lastre irregolari; ma quando il giocatore ne
+## mette due o più vicine, le pietre TENDONO verso i vicini e la fila
+## diventa un sentiero vero: BuildSystem.rinfresca_sentieri richiama
+## questa funzione con la mappa dei vicini a ogni posa e a ogni
+## rimozione (stesso patto della Gradinata coi braccioli).
+##
+## LE PIETRE NON SONO CILINDRI: cerchi perfetti schiacciati leggono
+## «frittelle», non pietra. Ogni lastra è un poligono irregolare a due
+## piani — la base più larga, il coperchio rientrato: lo smusso consumato
+## di una pietra calpestata — con la sua tinta, il suo giro e la sua
+## quota, tutti dal seme della cella (due celle vicine non sono mai la
+## stessa cella, ma la STESSA cella è sempre uguale a sé: le foto e i
+## salvataggi non ballano).
+##
+## IL PATTO DEL CONFINE: la pietra a cavallo del bordo la mette UNA sola
+## delle due celle — chi guarda il vicino in direzione POSITIVA (est,
+## sud). L'altra arriva col suo passo interno fin quasi al bordo e la
+## passata è continua senza che due pietre si contendano lo stesso punto
+## (due prismi sovrapposti alla stessa quota sono z-fighting garantito).
+static func sentiero_cella(vicini: Dictionary, seme: int) -> Node3D:
 	var n := Node3D.new()
-	var mat := _mat(STONE, STONE_DARK, 4.0, 0.55)
-	_cyl(n, 0.4, 0.44, 0.05, mat, Vector3(0.05, 0.025, 0.03))
-	_cyl(n, 0.16, 0.18, 0.045, mat, Vector3(-0.32, 0.022, -0.3))
-	_cyl(n, 0.12, 0.14, 0.04, mat, Vector3(0.35, 0.02, -0.33))
+	var pietre := Node3D.new()
+	pietre.name = "Pietre"
+	n.add_child(pietre)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seme
+	# quattro tinte con un vero SCARTO fra loro: a tinte quasi uguali le
+	# lastre diventavano un'unica colata chiara — è il contrasto fra
+	# pietra e pietra a dire «posate una a una»
+	var tinte: Array = [
+		_mat(STONE, STONE_DARK, 3.0, 0.5),
+		_mat(Color("d8d0c2"), STONE, 3.5, 0.5),
+		_mat(Color("a89f90"), Color("857c6e"), 3.0, 0.5),
+		_mat(Color("c2b2a4"), Color("9c8b7c"), 3.5, 0.5),
+	]
+
+	# la posa di casa: una lastra grande scostata dal centro e due
+	# compagne — mai in fila, mai alla stessa quota
+	_lastra_sentiero(pietre, rng, tinte, Vector2(
+			rng.randf_range(-0.10, 0.10), rng.randf_range(-0.08, 0.08)), 0.21)
+	_lastra_sentiero(pietre, rng, tinte, Vector2(
+			rng.randf_range(0.22, 0.30), rng.randf_range(-0.32, -0.22)), 0.13)
+	_lastra_sentiero(pietre, rng, tinte, Vector2(
+			rng.randf_range(-0.32, -0.24), rng.randf_range(0.20, 0.30)), 0.115)
+
+	# i passi verso i vicini. `dir` è in coordinate MONDO: ci pensa il
+	# rinfresco a compensare la rotazione del pezzo.
+	var direzioni := {"e": Vector2(1, 0), "o": Vector2(-1, 0),
+			"s": Vector2(0, 1), "n": Vector2(0, -1)}
+	for nome in direzioni:
+		if not bool(vicini.get(nome, false)):
+			continue
+		var dir: Vector2 = direzioni[nome]
+		var fianco := Vector2(-dir.y, dir.x)
+		# il passo interno, un filo fuori asse: un sentiero posato a mano
+		# non è mai una retta
+		_lastra_sentiero(pietre, rng, tinte,
+				dir * rng.randf_range(0.26, 0.30)
+				+ fianco * rng.randf_range(-0.07, 0.07), 0.125)
+		# la pietra DEL CONFINE, solo verso est e sud: a cavallo del
+		# bordo, così le due celle la condividono senza doppiarla
+		if nome == "e" or nome == "s":
+			_lastra_sentiero(pietre, rng, tinte,
+					dir * 0.5 + fianco * rng.randf_range(-0.05, 0.05), 0.135)
+
+	# i sassolini nelle fughe, e un ciuffetto d'erba che vince — la firma
+	# del sagrato: sono le fughe a dire che le lastre sono POSATE
+	for _i in 3:
+		var a := rng.randf_range(0.0, TAU)
+		var r := rng.randf_range(0.30, 0.44)
+		_ball(pietre, rng.randf_range(0.014, 0.022), tinte[rng.randi_range(0, 3)],
+				Vector3(cos(a) * r, 0.020, sin(a) * r),
+				Vector3(1.0, rng.randf_range(0.5, 0.65), rng.randf_range(0.8, 1.2)))
+	var erba := _mat(LEAF, LEAF_DARK, 6.0, 0.55)
+	var ae := rng.randf_range(0.0, TAU)
+	var ce := _cyl(pietre, 0.0, 0.026, 0.06, erba,
+			Vector3(cos(ae) * 0.38, 0.045, sin(ae) * 0.38))
+	ce.rotation.z = rng.randf_range(-0.25, 0.25)
 	return n
+
+
+## Una lastra del sentiero: poligono irregolare a DUE piani (base più
+## larga, coperchio rientrato = lo smusso consumato), tinta e quota sue.
+static func _lastra_sentiero(parent: Node3D, rng: RandomNumberGenerator,
+		tinte: Array, centro: Vector2, raggio: float) -> void:
+	var mat: Material = tinte[rng.randi_range(0, tinte.size() - 1)]
+	var giro := rng.randf_range(0.0, TAU)
+	var lati := rng.randi_range(7, 9)
+	var raggi: Array = []
+	for i in lati:
+		raggi.append(raggio * rng.randf_range(0.78, 1.12))
+	var alto := rng.randf_range(0.034, 0.052)
+	var lastra := Node3D.new()
+	lastra.position = Vector3(centro.x, 0, centro.y)
+	# appena storta nel terreno: una lastra in bolla è una piastrella
+	lastra.rotation.x = rng.randf_range(-0.025, 0.025)
+	lastra.rotation.z = rng.randf_range(-0.025, 0.025)
+	parent.add_child(lastra)
+	for piano in 2:
+		var scala := 1.0 if piano == 0 else rng.randf_range(0.80, 0.88)
+		var da := 0.0 if piano == 0 else alto * 0.55
+		var spess := alto * 0.55 if piano == 0 else alto * 0.45
+		var punti: Array = []
+		for i in lati:
+			var a := giro + TAU * float(i) / float(lati)
+			punti.append(Vector2(cos(a), sin(a)) * (float(raggi[i]) * scala))
+		_prisma(lastra, punti, da, spess, mat)
 
 
 static func _rug() -> Node3D:
@@ -866,14 +972,48 @@ static func _door_wall() -> Node3D:
 	return n
 
 
+# LA STACCIONATA. Prima era carpenteria da scatola: pali quadrati con
+# un uovo schiacciato in testa e correnti a parallelepipedo. Una
+# staccionata di paese e' TONDA — pali torniti col collarino e il
+# pomello (la stessa lingua dei montanti della Scala), correnti in
+# tondino che si IMBARCANO di due centimetri fra un palo e l'altro
+# (un corrente teso a filo e' un profilato, uno che si siede e' legno),
+# le LEGATURE di corda dove il corrente passa nel palo, e l'erba che
+# rispunta ai piedi dei pali, dove la falciatrice non arriva.
 static func _fence() -> Node3D:
 	var n := Node3D.new()
-	var mat := _mat(WOOD_PALE, WOOD, 3.5, 0.5)
-	for x in [-0.38, 0.38]:
-		_box(n, Vector3(0.09, 0.85, 0.09), mat, Vector3(x, 0.425, 0))
-		_ball(n, 0.06, mat, Vector3(x, 0.88, 0), Vector3(1, 0.7, 1))
-	_box(n, Vector3(0.95, 0.08, 0.05), mat, Vector3(0, 0.62, 0))
-	_box(n, Vector3(0.95, 0.08, 0.05), mat, Vector3(0, 0.32, 0))
+	var palo_m := _mat(WOOD, WOOD_DARK, 3.8, 0.5)
+	var tondo := _mat(WOOD_PALE, WOOD, 3.5, 0.5)
+	var scuro := _mat(WOOD_DARK, Color("8a6440"), 4.0, 0.5)
+	var corda := _mat(Color("d9c49a"), Color("bfa87e"), 5.0, 0.45)
+	var erba := _mat(Color("8aa870"), Color("6f8d58"), 5.0, 0.5)
+
+	for x: float in [-0.40, 0.40]:
+		# il palo tornito: fusto rastremato, collarino, collo e pomello
+		_cyl(n, 0.042, 0.055, 0.80, palo_m, Vector3(x, 0.40, 0))
+		_cyl(n, 0.050, 0.050, 0.020, scuro, Vector3(x, 0.815, 0))
+		_cyl(n, 0.024, 0.028, 0.035, palo_m, Vector3(x, 0.843, 0))
+		_ball(n, 0.047, palo_m, Vector3(x, 0.895, 0))
+		# l'erba che rispunta al piede, dove la falce non arriva
+		_ball(n, 0.055, erba, Vector3(x - 0.035, 0.018, 0.035),
+				Vector3(1.2, 0.45, 0.9))
+		_ball(n, 0.042, erba, Vector3(x + 0.045, 0.014, -0.030),
+				Vector3(1.0, 0.40, 0.8))
+
+	# i due correnti: tondini con la PANCIA (si siedono di 2 cm a meta'
+	# campata) e le punte tonde; passano DENTRO i pali
+	for h: float in [0.585, 0.315]:
+		BUILDER.tube(n, [Vector3(-0.49, h, 0.0), Vector3(-0.245, h - 0.016, 0.006),
+				Vector3(0.0, h - 0.022, 0.0), Vector3(0.245, h - 0.016, -0.006),
+				Vector3(0.49, h, 0.0)],
+				[0.030, 0.033, 0.034, 0.033, 0.030], tondo)
+		for xt: float in [-0.49, 0.49]:
+			_ball(n, 0.030, tondo, Vector3(xt, h, 0))
+		# le legature di corda, dove il corrente entra nel palo
+		for xl: float in [-0.40, 0.40]:
+			var giro := _cyl(n, 0.040, 0.040, 0.055, corda,
+					Vector3(xl, h - 0.006, 0))
+			giro.rotation.z = PI * 0.5
 	return n
 
 
@@ -3384,21 +3524,23 @@ static func _sbarra() -> Node3D:
 	# lo scudetto araldico sul fusto (non un quadratino blu qualsiasi: se
 	# si legge «coso», non sta facendo il suo mestiere) — bordo d'ottone,
 	# campo blu con la punta, borchietta al centro
-	_box(n, Vector3(0.088, 0.082, 0.014), ottone, Vector3(-0.42, 0.585, -0.062))
-	var scud_bp := _box(n, Vector3(0.062, 0.062, 0.014), ottone, Vector3(-0.42, 0.548, -0.06))
+	# (sta BASSO sul fusto: a sbarra alzata il contrappeso spazza proprio
+	# l'altezza dove stava prima, e ci finiva dentro)
+	_box(n, Vector3(0.088, 0.082, 0.014), ottone, Vector3(-0.42, 0.42, -0.066))
+	var scud_bp := _box(n, Vector3(0.062, 0.062, 0.014), ottone, Vector3(-0.42, 0.383, -0.064))
 	scud_bp.rotation.z = PI * 0.25
 	_box(n, Vector3(0.07, 0.066, 0.016), _mat(BLU, BLU_CUPO, 5.0, 0.4),
-			Vector3(-0.42, 0.585, -0.066))
+			Vector3(-0.42, 0.42, -0.07))
 	var scud_p := _box(n, Vector3(0.05, 0.05, 0.016), _mat(BLU, BLU_CUPO, 5.0, 0.4),
-			Vector3(-0.42, 0.551, -0.064))
+			Vector3(-0.42, 0.386, -0.068))
 	scud_p.rotation.z = PI * 0.25
-	_ball(n, 0.011, ottone, Vector3(-0.42, 0.578, -0.075), Vector3(1, 1, 0.5))
+	_ball(n, 0.011, ottone, Vector3(-0.42, 0.413, -0.079), Vector3(1, 1, 0.5))
 
 	# LA CERNIERA SU STAFFA, di lato al palo: il piano in cui l'asta gira
 	# è STACCATO dal fusto — col perno sull'asse del palo, ad asta alzata
 	# il contrappeso ruotava DENTRO il legno. La staffa la porta in fuori,
 	# e il giro torna pulito in ogni posizione.
-	_box(n, Vector3(0.06, 0.15, 0.06), legno_scuro, Vector3(-0.42, 0.82, -0.075))
+	_box(n, Vector3(0.06, 0.12, 0.06), legno_scuro, Vector3(-0.42, 0.835, -0.075))
 	for gz: float in [-1.0, 1.0]:
 		var guancia := _cyl(n, 0.075, 0.075, 0.02, ferro,
 				Vector3(-0.42, 0.82, -0.115 + gz * 0.032))

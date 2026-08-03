@@ -36,10 +36,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 3.15,
+    "alto": 3.07,
     "cartella": "docs/catalogo/0-struttura/scala/",
     "cat": 0.0,
-    "largo": 0.99,
+    "largo": 0.96,
     "nome": "Scala",
     "slug": "scala",
     "tipo": "cell"
@@ -63,10 +63,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.96,
+    "alto": 0.94,
     "cartella": "docs/catalogo/0-struttura/sbarra/",
     "cat": 0.0,
-    "largo": 1.74,
+    "largo": 1.59,
     "nome": "Sbarra",
     "slug": "sbarra",
     "tipo": "edge"
@@ -108,10 +108,10 @@
     "tipo": "edge"
   },
   {
-    "alto": 0.05,
+    "alto": 0.09,
     "cartella": "docs/catalogo/0-struttura/sentiero/",
-    "cat": 0.0,
-    "largo": 0.99,
+    "cat": 0,
+    "largo": 0.81,
     "nome": "Sentiero",
     "slug": "sentiero",
     "tipo": "cell"
@@ -225,10 +225,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 2.24,
+    "alto": 2.08,
     "cartella": "docs/catalogo/0-struttura/portone-rimessa/",
-    "cat": 0,
-    "largo": 2.06,
+    "cat": 0.0,
+    "largo": 1.02,
     "nome": "Portone rimessa",
     "slug": "portone-rimessa",
     "tipo": "edge"
