@@ -3490,21 +3490,23 @@ static func _sbarra() -> Node3D:
 	# lo scudetto araldico sul fusto (non un quadratino blu qualsiasi: se
 	# si legge «coso», non sta facendo il suo mestiere) — bordo d'ottone,
 	# campo blu con la punta, borchietta al centro
-	_box(n, Vector3(0.088, 0.082, 0.014), ottone, Vector3(-0.42, 0.585, -0.062))
-	var scud_bp := _box(n, Vector3(0.062, 0.062, 0.014), ottone, Vector3(-0.42, 0.548, -0.06))
+	# (sta BASSO sul fusto: a sbarra alzata il contrappeso spazza proprio
+	# l'altezza dove stava prima, e ci finiva dentro)
+	_box(n, Vector3(0.088, 0.082, 0.014), ottone, Vector3(-0.42, 0.42, -0.066))
+	var scud_bp := _box(n, Vector3(0.062, 0.062, 0.014), ottone, Vector3(-0.42, 0.383, -0.064))
 	scud_bp.rotation.z = PI * 0.25
 	_box(n, Vector3(0.07, 0.066, 0.016), _mat(BLU, BLU_CUPO, 5.0, 0.4),
-			Vector3(-0.42, 0.585, -0.066))
+			Vector3(-0.42, 0.42, -0.07))
 	var scud_p := _box(n, Vector3(0.05, 0.05, 0.016), _mat(BLU, BLU_CUPO, 5.0, 0.4),
-			Vector3(-0.42, 0.551, -0.064))
+			Vector3(-0.42, 0.386, -0.068))
 	scud_p.rotation.z = PI * 0.25
-	_ball(n, 0.011, ottone, Vector3(-0.42, 0.578, -0.075), Vector3(1, 1, 0.5))
+	_ball(n, 0.011, ottone, Vector3(-0.42, 0.413, -0.079), Vector3(1, 1, 0.5))
 
 	# LA CERNIERA SU STAFFA, di lato al palo: il piano in cui l'asta gira
 	# è STACCATO dal fusto — col perno sull'asse del palo, ad asta alzata
 	# il contrappeso ruotava DENTRO il legno. La staffa la porta in fuori,
 	# e il giro torna pulito in ogni posizione.
-	_box(n, Vector3(0.06, 0.15, 0.06), legno_scuro, Vector3(-0.42, 0.82, -0.075))
+	_box(n, Vector3(0.06, 0.12, 0.06), legno_scuro, Vector3(-0.42, 0.835, -0.075))
 	for gz: float in [-1.0, 1.0]:
 		var guancia := _cyl(n, 0.075, 0.075, 0.02, ferro,
 				Vector3(-0.42, 0.82, -0.115 + gz * 0.032))
