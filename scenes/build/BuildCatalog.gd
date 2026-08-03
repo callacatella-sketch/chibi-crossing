@@ -68,7 +68,7 @@ static func items() -> Array[Dictionary]:
 			"cols": [[Vector3(0.95, 0.95, 0.1), Vector3(0, 0.47, 0)]]},
 		{"name": "Tetto", "cat": 0, "type": "cell", "layer": 3, "builder": _roof_tile, "cols": []},
 		{"name": "Scala", "cat": 0, "type": "cell", "layer": 2, "builder": _stairs,
-			"cols": [[Vector3(0.9, 0.12, 2.44), Vector3(0, 1.07, 0), 1.135]]},
+			"cols": [[Vector3(0.9, 0.12, 2.95), Vector3(0, 1.08, 0.46), 0.8425]]},
 		{"name": "Solaio", "cat": 0, "type": "cell", "layer": 0, "up": true, "builder": _floor_slab,
 			"cols": [[Vector3(1.0, 0.14, 1.0), Vector3(0, -0.07, 0)]]},
 		{"name": "Ponticello", "cat": 0, "type": "cell", "layer": 0, "up": true, "builder": _rope_bridge,
@@ -1159,75 +1159,67 @@ static func _blackboard() -> Node3D:
 
 # ------------------------------------------------- verticalità
 
-# LA SCALA DEL PIANO DI SOPRA. Sale un piano intero (2.15) dentro UNA
-# cella del reticolo: la pendenza — 65 gradi — e' il prezzo fisso, e non
-# si tratta. Ma una scala da soppalco ripida e' un oggetto VERO, e si
-# porta bene se e' costruita da falegname invece che estrusa: qui i
-# gradini sono PEDATE APERTE senza alzata (l'aria fra i gradini
-# alleggerisce tutto: la rampa smette di sembrare un muro, ed e' il
-# modo onesto di dire «ripida ma leggera»), portate da listelli sui due
-# cosciali; il corrimano e' TONDO e chiaro (lucidato dalle mani), i
-# montanti hanno il pomello tornito, e le colonnine si RICAVANO dalle
-# due rette (cosciale e corrimano sono paralleli: a una data z passano
-# per 1.07 − 2.142·z e 1.85 − 2.142·z — messe a occhio, in basso
-# pendevano nel vuoto e in alto si fermavano a mezz'aria).
-# Sale verso -Z (R per girarla). La collisione-rampa non cambia.
+# LA SCALA DEL PIANO DI SOPRA. Prima saliva un piano intero (2.15)
+# dentro UNA cella: 65 gradi, una scala a pioli travestita. Ora la
+# CORSA e' di due celle: la cima resta sul bordo -Z della sua cella
+# (il solaio si posa sulle celle accanto: il vano non cambia) e il
+# PIEDE sconfina nella cella a +Z — pendenza 48 gradi, nove gradini,
+# e finalmente si sale col passo e non con le unghie. I gradini sono
+# PEDATE APERTE senza alzata (l'aria fra i gradini alleggerisce
+# tutto), portate da listelli sui due cosciali; il corrimano e' TONDO
+# e chiaro (lucidato dalle mani), i montanti hanno il pomello tornito,
+# le colonnine si RICAVANO dalle due rette parallele (cosciale
+# y = 1.5916 − 1.1208·z, corrimano +0.78). Sale verso -Z (R per
+# girarla). La collisione-rampa e' allungata con lei.
 static func _stairs() -> Node3D:
 	var n := Node3D.new()
 	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
 	var chiaro := _mat(WOOD_PALE, WOOD, 4.2, 0.5)
 	var scuro := _mat(WOOD_DARK, Color("8a6440"), 4.0, 0.5)
 
-	# le PEDATE aperte: lastre col naso bombato, incassate nei cosciali,
-	# ognuna sul suo paio di listelli
-	for i in 8:
-		var cima := (float(i) + 1.0) * 0.269
-		var z := 0.4375 - float(i) * 0.125
-		var ped := _prisma(n, _rrect_xz(0.88, 0.150, 0.018), cima - 0.034,
-				0.034, legno)
+	# le PEDATE aperte: nove, col naso bombato sul filo davanti
+	for i in 9:
+		var cima := (float(i) + 1.0) * 0.2391
+		var z := 1.42 - (float(i) + 0.5) * 0.2133
+		var ped := _prisma(n, _rrect_xz(0.88, 0.235, 0.02), cima - 0.04,
+				0.04, legno)
 		ped.position.z = z
-		var naso := _cyl(n, 0.016, 0.016, 0.83, legno,
-				Vector3(0, cima - 0.017, z + 0.073))
+		var naso := _cyl(n, 0.017, 0.017, 0.83, legno,
+				Vector3(0, cima - 0.018, z + 0.0995))
 		naso.rotation.z = PI * 0.5
 		for sx0: float in [-0.40, 0.40]:
-			_box(n, Vector3(0.05, 0.030, 0.11), scuro,
-					Vector3(sx0, cima - 0.049, z))
+			_box(n, Vector3(0.05, 0.030, 0.16), scuro,
+					Vector3(sx0, cima - 0.056, z))
 
-	# i COSCIALI: due tavole piene inclinate, coi tondi della lastra e i
-	# TASSELLI sulla faccia esterna, uno per gradino, che salgono in fila
-	# con la rampa — e' il dettaglio che dice «qui dentro c'e' l'incastro»
 	for sx: float in [-0.45, 0.45]:
-		# (attenzione alla _lastra: w e' la MEZZA larghezza lungo Z —
-		# _anello_tondo torna z in [-w, +w] — e h corre lungo Y. Per
-		# inclinare una tavola alta in Y sulla rampa si ruota di
-		# 1.135 − PI/2. Sbagliati entrambi, prima di leggere la fonte:
-		# con w 0.24 usciva un tavolone da mezzo metro.)
-		_lastra(n, 0.08, 2.44, 0.04, 0.055, scuro, Vector3(sx, 1.07, 0),
-				Vector3(1.135 - PI * 0.5, 0, 0))
-		for i2 in 8:
+		# il COSCIALE lungo la rampa. (Trappola pagata due volte: nella
+		# _lastra la w e' la MEZZA larghezza lungo Z e la h corre lungo
+		# Y — per inclinarla si ruota dell'angolo della rampa MENO PI/2.)
+		_lastra(n, 0.085, 2.95, 0.04, 0.055, scuro,
+				Vector3(sx, 1.076, 0.46), Vector3(0.8425 - PI * 0.5, 0, 0))
+		# i tasselli in fila sulla faccia esterna, uno per gradino
+		for i2 in 9:
 			var tass := _cyl(n, 0.0065, 0.0065, 0.006, legno,
-					Vector3(sx * (0.478 / 0.45), (float(i2) + 1.0) * 0.269 - 0.06,
-					0.4375 - float(i2) * 0.125))
+					Vector3(sx * (0.478 / 0.45), (float(i2) + 1.0) * 0.2391 - 0.06,
+					1.42 - (float(i2) + 0.5) * 0.2133))
 			tass.rotation.z = PI * 0.5
 
 		# il CORRIMANO tondo, chiaro come il legno lucidato dalle mani
-		var mano := _cyl(n, 0.030, 0.030, 2.56, chiaro, Vector3(sx, 1.85, 0))
-		mano.rotation.x = 1.135 - PI * 0.5
+		var mano := _cyl(n, 0.030, 0.030, 2.95, chiaro, Vector3(sx, 1.856, 0.46))
+		mano.rotation.x = 0.8425 - PI * 0.5
 
-		# i MONTANTI verticali col pomello tornito, in basso e in alto:
-		# il corrimano gli passa dentro, il pomello lo corona
-		_cyl(n, 0.030, 0.036, 1.00, legno, Vector3(sx, 0.50, 0.46))
-		_cyl(n, 0.040, 0.040, 0.022, scuro, Vector3(sx, 1.011, 0.46))
-		_ball(n, 0.044, legno, Vector3(sx, 1.06, 0.46))
-		_cyl(n, 0.030, 0.036, 0.84, legno, Vector3(sx, 2.48, -0.46))
-		_cyl(n, 0.040, 0.040, 0.022, scuro, Vector3(sx, 2.911, -0.46))
-		_ball(n, 0.044, legno, Vector3(sx, 2.96, -0.46))
+		# i MONTANTI col collarino e il pomello tornito, ai due capi
+		_cyl(n, 0.030, 0.036, 0.95, legno, Vector3(sx, 0.475, 1.38))
+		_cyl(n, 0.040, 0.040, 0.022, scuro, Vector3(sx, 0.962, 1.38))
+		_ball(n, 0.044, legno, Vector3(sx, 1.012, 1.38))
+		_cyl(n, 0.030, 0.036, 0.86, legno, Vector3(sx, 2.53, -0.44))
+		_cyl(n, 0.040, 0.040, 0.022, scuro, Vector3(sx, 2.972, -0.44))
+		_ball(n, 0.044, legno, Vector3(sx, 3.022, -0.44))
 
 		# le COLONNINE, dalla retta del cosciale a quella del corrimano
-		for t: float in [0.13, 0.38, 0.62, 0.87]:
-			var pz := 0.4 - t * 0.8
-			var y_rampa := 1.07 - 2.142 * pz + 0.08
-			var y_mano := 1.85 - 2.142 * pz - 0.02
+		for pz: float in [1.20, 0.84, 0.47, 0.10, -0.26]:
+			var y_rampa := 1.5916 - 1.1208 * pz + 0.08
+			var y_mano := 2.3716 - 1.1208 * pz - 0.02
 			_cyl(n, 0.014, 0.017, y_mano - y_rampa, scuro,
 					Vector3(sx, (y_rampa + y_mano) * 0.5, pz))
 	return n
@@ -3389,24 +3381,38 @@ static func _sbarra() -> Node3D:
 	_cyl(n, 0.062, 0.078, 0.76, legno, Vector3(-0.42, 0.49, 0))
 	_cyl(n, 0.07, 0.07, 0.03, legno_scuro, Vector3(-0.42, 0.885, 0))
 	_ball(n, 0.032, ottone, Vector3(-0.42, 0.925, 0))
-	# la targhetta blu sul fusto: il corredo si riconosce dal colore
-	_box(n, Vector3(0.085, 0.12, 0.022), _mat(BLU, BLU_CUPO, 5.0, 0.4),
-			Vector3(-0.42, 0.56, -0.062))
+	# lo scudetto araldico sul fusto (non un quadratino blu qualsiasi: se
+	# si legge «coso», non sta facendo il suo mestiere) — bordo d'ottone,
+	# campo blu con la punta, borchietta al centro
+	_box(n, Vector3(0.088, 0.082, 0.014), ottone, Vector3(-0.42, 0.585, -0.062))
+	var scud_bp := _box(n, Vector3(0.062, 0.062, 0.014), ottone, Vector3(-0.42, 0.548, -0.06))
+	scud_bp.rotation.z = PI * 0.25
+	_box(n, Vector3(0.07, 0.066, 0.016), _mat(BLU, BLU_CUPO, 5.0, 0.4),
+			Vector3(-0.42, 0.585, -0.066))
+	var scud_p := _box(n, Vector3(0.05, 0.05, 0.016), _mat(BLU, BLU_CUPO, 5.0, 0.4),
+			Vector3(-0.42, 0.551, -0.064))
+	scud_p.rotation.z = PI * 0.25
+	_ball(n, 0.011, ottone, Vector3(-0.42, 0.578, -0.075), Vector3(1, 1, 0.5))
 
-	# LA CERNIERA: due guance tonde ai lati e il perno passante con le
-	# testine d'ottone — un'articolazione che si vede, non una palla
+	# LA CERNIERA SU STAFFA, di lato al palo: il piano in cui l'asta gira
+	# è STACCATO dal fusto — col perno sull'asse del palo, ad asta alzata
+	# il contrappeso ruotava DENTRO il legno. La staffa la porta in fuori,
+	# e il giro torna pulito in ogni posizione.
+	_box(n, Vector3(0.06, 0.15, 0.06), legno_scuro, Vector3(-0.42, 0.82, -0.075))
 	for gz: float in [-1.0, 1.0]:
-		var guancia := _cyl(n, 0.075, 0.075, 0.022, ferro, Vector3(-0.42, 0.82, gz * 0.052))
+		var guancia := _cyl(n, 0.075, 0.075, 0.02, ferro,
+				Vector3(-0.42, 0.82, -0.115 + gz * 0.032))
 		guancia.rotation.x = PI * 0.5
-	var perno := _cyl(n, 0.02, 0.02, 0.15, ottone, Vector3(-0.42, 0.82, 0))
+	var perno := _cyl(n, 0.02, 0.02, 0.12, ottone, Vector3(-0.42, 0.82, -0.115))
 	perno.rotation.x = PI * 0.5
 	for tz: float in [-1.0, 1.0]:
-		var testina := _cyl(n, 0.03, 0.03, 0.014, ottone, Vector3(-0.42, 0.82, tz * 0.078))
+		var testina := _cyl(n, 0.03, 0.03, 0.014, ottone,
+				Vector3(-0.42, 0.82, -0.115 + tz * 0.062))
 		testina.rotation.x = PI * 0.5
 
 	var asta := Node3D.new()
 	asta.name = "Asta"
-	asta.position = Vector3(-0.42, 0.82, 0)
+	asta.position = Vector3(-0.42, 0.82, -0.115)
 	n.add_child(asta)
 	# IL BRACCIO, tondo: il fusto bianco con gli anelli rossi calzati
 	# sopra (non fasce dipinte su un box), il manicotto d'ottone al perno
@@ -3425,12 +3431,13 @@ static func _sbarra() -> Node3D:
 	_ball(braccio, 0.024, rosso, Vector3(0.7, 0, 0))
 	var manicotto := _cyl(braccio, 0.037, 0.037, 0.07, ottone, Vector3(-0.66, 0, 0))
 	manicotto.rotation.z = PI * 0.5
-	# IL CONTRAPPESO, dalla parte corta: il codolo, il collare d'ottone e
-	# la sfera di ferro con l'anellino sotto per tirarla giù a mano
+	# IL CONTRAPPESO, dalla parte corta: il codolo, il collare d'ottone
+	# LIBERO dalla sfera (prima ci affogava dentro per metà) e la sfera
+	# di ferro con l'anellino sotto per tirarla giù a mano
 	var codolo := _cyl(asta, 0.024, 0.024, 0.14, ferro, Vector3(-0.13, 0, 0))
 	codolo.rotation.z = PI * 0.5
-	_cyl(asta, 0.034, 0.034, 0.03, ottone, Vector3(-0.155, 0, 0)).rotation.z = PI * 0.5
-	_ball(asta, 0.078, ferro, Vector3(-0.23, 0, 0), Vector3(1, 0.9, 1))
+	_cyl(asta, 0.034, 0.034, 0.028, ottone, Vector3(-0.132, 0, 0)).rotation.z = PI * 0.5
+	_ball(asta, 0.075, ferro, Vector3(-0.23, 0, 0), Vector3(1, 0.9, 1))
 	var anellino := TorusMesh.new()
 	anellino.inner_radius = 0.014
 	anellino.outer_radius = 0.026
@@ -3442,13 +3449,15 @@ static func _sbarra() -> Node3D:
 	ami.position = Vector3(-0.23, -0.085, 0)
 	asta.add_child(ami)
 
-	# IL PALETTO D'APPOGGIO: alto quanto serve (l'asta ci si POSA), con la
+	# IL PALETTO D'APPOGGIO: alto quanto serve (l'asta ci si POSA), sulla
+	# STESSA linea dell'asta (che ora gira sul piano della staffa), con la
 	# sua basetta e la forcella a due corni che la culla
-	_cyl(n, 0.1, 0.13, 0.05, pietra, Vector3(0.88, 0.025, 0))
-	_cyl(n, 0.042, 0.055, 0.72, legno, Vector3(0.88, 0.41, 0))
-	_cyl(n, 0.05, 0.05, 0.025, legno_scuro, Vector3(0.88, 0.782, 0))
+	_cyl(n, 0.1, 0.13, 0.05, pietra, Vector3(0.88, 0.025, -0.115))
+	_cyl(n, 0.042, 0.055, 0.72, legno, Vector3(0.88, 0.41, -0.115))
+	_cyl(n, 0.05, 0.05, 0.025, legno_scuro, Vector3(0.88, 0.782, -0.115))
 	for fz: float in [-1.0, 1.0]:
-		var corno := _cyl(n, 0.014, 0.018, 0.1, legno_scuro, Vector3(0.88, 0.835, fz * 0.045))
+		var corno := _cyl(n, 0.014, 0.018, 0.1, legno_scuro,
+				Vector3(0.88, 0.835, -0.115 + fz * 0.045))
 		corno.rotation.x = fz * -0.3
 	return n
 
