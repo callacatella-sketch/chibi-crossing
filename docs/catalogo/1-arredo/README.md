@@ -11,9 +11,9 @@
 | **Bancone guardia**<br><sub>1.02 × 0.95 m</sub> | <img src="bancone-guardia/1-fronte.jpg" width="200"> | <img src="bancone-guardia/2-tre-quarti.jpg" width="200"> | <img src="bancone-guardia/3-profilo.jpg" width="200"> |
 | **Biliardino**<br><sub>1.00 × 1.02 m</sub> | <img src="biliardino/1-fronte.jpg" width="200"> | <img src="biliardino/2-tre-quarti.jpg" width="200"> | <img src="biliardino/3-profilo.jpg" width="200"> |
 | **Braciere stellato**<br><sub>0.44 × 0.63 m</sub> | <img src="braciere-stellato/1-fronte.jpg" width="200"> | <img src="braciere-stellato/2-tre-quarti.jpg" width="200"> | <img src="braciere-stellato/3-profilo.jpg" width="200"> |
-| **Brandina**<br><sub>0.90 × 0.53 m</sub> | <img src="brandina/1-fronte.jpg" width="200"> | <img src="brandina/2-tre-quarti.jpg" width="200"> | <img src="brandina/3-profilo.jpg" width="200"> |
-| **Camino**<br><sub>1.00 × 1.80 m</sub> | <img src="camino/1-fronte.jpg" width="200"> | <img src="camino/2-tre-quarti.jpg" width="200"> | <img src="camino/3-profilo.jpg" width="200"> |
-| **Campana caserma**<br><sub>0.66 × 1.15 m</sub> | <img src="campana-caserma/1-fronte.jpg" width="200"> | <img src="campana-caserma/2-tre-quarti.jpg" width="200"> | <img src="campana-caserma/3-profilo.jpg" width="200"> |
+| **Brandina**<br><sub>1.04 × 0.56 m</sub> | <img src="brandina/1-fronte.jpg" width="200"> | <img src="brandina/2-tre-quarti.jpg" width="200"> | <img src="brandina/3-profilo.jpg" width="200"> |
+| **Camino**<br><sub>1.00 × 1.91 m</sub> | <img src="camino/1-fronte.jpg" width="200"> | <img src="camino/2-tre-quarti.jpg" width="200"> | <img src="camino/3-profilo.jpg" width="200"> |
+| **Campana caserma**<br><sub>0.84 × 1.52 m</sub> | <img src="campana-caserma/1-fronte.jpg" width="200"> | <img src="campana-caserma/2-tre-quarti.jpg" width="200"> | <img src="campana-caserma/3-profilo.jpg" width="200"> |
 | **Carillon**<br><sub>0.52 × 0.59 m</sub> | <img src="carillon/1-fronte.jpg" width="200"> | <img src="carillon/2-tre-quarti.jpg" width="200"> | <img src="carillon/3-profilo.jpg" width="200"> |
 | **Casco appeso**<br><sub>0.86 × 0.59 m</sub> | <img src="casco-appeso/1-fronte.jpg" width="200"> | <img src="casco-appeso/2-tre-quarti.jpg" width="200"> | <img src="casco-appeso/3-profilo.jpg" width="200"> |
 | **Comodino**<br><sub>0.45 × 0.59 m</sub> | <img src="comodino/1-fronte.jpg" width="200"> | <img src="comodino/2-tre-quarti.jpg" width="200"> | <img src="comodino/3-profilo.jpg" width="200"> |
