@@ -313,8 +313,14 @@ static func items() -> Array[Dictionary]:
 		{"name": "Portone rimessa", "cat": 0, "type": "edge", "layer": 2,
 			"builder": _portone_rimessa,
 			"cols": [[Vector3(2.0, 2.24, 0.16), Vector3(0, 1.12, 0)]]},
+		# La torretta è VISITABILE come la casa sull'albero: il traliccio
+		# blocca, lo spiazzo è un pavimento calpestabile e la scaletta è
+		# una rampa. Tetto alto: il chibi più alto (la volpina, orecchie
+		# comprese) fa un metro e sessanta, e lassù non deve chinarsi.
 		{"name": "Torretta", "cat": 0, "type": "cell", "layer": 2, "builder": _torretta,
-			"cols": [[Vector3(0.78, 1.97, 0.78), Vector3(0, 0.98, 0)]]},
+			"cols": [[Vector3(0.95, 1.8, 0.95), Vector3(0, 0.9, 0)],
+					[Vector3(1.3, 0.1, 1.3), Vector3(0, 1.87, 0)],
+					[Vector3(0.62, 0.1, 2.1), Vector3(0, 1.0, -0.9), -1.33]]},
 		{"name": "Palo pompieri", "cat": 0, "type": "cell", "layer": 2,
 			"builder": _palo_pompieri,
 			"cols": [[Vector3(0.16, 2.15, 0.16), Vector3(0, 1.07, 0)]]},
@@ -4853,13 +4859,15 @@ static func _portone_rimessa() -> Node3D:
 	return n
 
 
-## LA TORRETTA DI VEDETTA. Gambe tornite sui basamenti di pietra, anelli
-## e croci a tondino coi bulloni d'ottone, la SCALETTA per salire (una
-## vedetta dove non si può salire è un soprammobile), la piattaforma
-## stondata col varco nella ringhiera, il tetto a pagoda svasata sui
-## quattro montanti, il pennone con la bandierina, la campanella
-## d'allarme, il cannocciale d'ottone puntato sull'orizzonte e la
-## lanterna in gabbia: di sera è un punto caldo in mezzo al villaggio.
+## LA TORRETTA DI VEDETTA, e stavolta CI SI SALE: lo spiazzo è largo un
+## metro e trenta ed è un pavimento vero (collisioni da pezzo
+## calpestabile, scaletta-rampa come la casa sull'albero), e la gronda
+## sta a un metro e sessantotto dal piancito — la volpina, che con le
+## orecchie fa un metro e sessanta, lassù non si china. Gambe tornite
+## sui basamenti di pietra, croci a tondino coi bulloni d'ottone, tetto
+## a pagoda svasata, pennone con la bandierina, campanella d'allarme e
+## lanterna appese alla gronda SOPRA IL VUOTO (mai dove si cammina), il
+## cannocciale puntato sull'orizzonte: di sera è un faro gentile.
 static func _torretta() -> Node3D:
 	var n := Node3D.new()
 	var pale := _mat(WOOD_PALE, WOOD, 3.0, 0.45)
@@ -4872,19 +4880,19 @@ static func _torretta() -> Node3D:
 	# pietra (il legno a terra nuda marcisce, e una vedetta lo sa)
 	for sx: float in [-1.0, 1.0]:
 		for sz: float in [-1.0, 1.0]:
-			var g := _cyl(n, 0.038, 0.052, 1.95, wood,
-					Vector3(sx * 0.3, 1.0, sz * 0.3))
+			var g := _cyl(n, 0.042, 0.058, 1.86, wood,
+					Vector3(sx * 0.4, 0.95, sz * 0.4))
 			g.rotation.z = -sx * 0.05
 			g.rotation.x = sz * 0.05
-			_cyl(n, 0.065, 0.078, 0.06, _mat(STONE, STONE_DARK, 4.0, 0.5),
-					Vector3(sx * 0.348, 0.03, sz * 0.348))
+			_cyl(n, 0.068, 0.082, 0.06, _mat(STONE, STONE_DARK, 4.0, 0.5),
+					Vector3(sx * 0.447, 0.03, sz * 0.447))
 	# gli anelli orizzontali che legano le gambe, su due quote
-	for quota: Array in [[0.55, 0.325], [1.5, 0.278]]:
+	for quota: Array in [[0.6, 0.428], [1.5, 0.383]]:
 		var qy := float(quota[0])
 		var qr := float(quota[1])
 		for lato in 4:
 			var a := float(lato) * PI * 0.5
-			var trave := _cyl(n, 0.026, 0.026, qr * 2.0 + 0.06, wood,
+			var trave := _cyl(n, 0.028, 0.028, qr * 2.0 + 0.08, wood,
 					Vector3(sin(a) * qr, qy, cos(a) * qr))
 			trave.rotation.z = PI * 0.5
 			trave.rotation.y = a
@@ -4893,92 +4901,94 @@ static func _torretta() -> Node3D:
 	for lato in 4:
 		var a := float(lato) * PI * 0.5
 		for verso: float in [-1.0, 1.0]:
-			var c := _cyl(n, 0.02, 0.02, 0.95, wood,
-					Vector3(sin(a) * 0.3, 1.02, cos(a) * 0.3))
+			var c := _cyl(n, 0.021, 0.021, 1.22, wood,
+					Vector3(sin(a) * 0.405, 1.05, cos(a) * 0.405))
 			c.rotation.y = a
-			c.rotation.z = PI * 0.5 + verso * 0.96
-		_ball(n, 0.028, ottone, Vector3(sin(a) * 0.305, 1.02, cos(a) * 0.305))
+			c.rotation.z = verso * 0.74
+		_ball(n, 0.03, ottone, Vector3(sin(a) * 0.41, 1.05, cos(a) * 0.41))
 
-	# la SCALETTA sul fronte: montanti tondi appoggiati al bordo del
-	# piancito e pioli tondi — si sale da qui, dal varco della ringhiera
-	for sx2: float in [-0.14, 0.14]:
-		# a filo terra, non DENTRO la terra: la guardia dei tre metri
-		# misura la taglia, e due centimetri sotto lo zero contano
-		var montante := _cyl(n, 0.024, 0.028, 2.12, wood, Vector3(sx2, 1.045, -0.66))
-		montante.rotation.x = 0.22
-	for i in 7:
-		var t := (float(i) + 0.6) / 7.6
-		var piolo := _cyl(n, 0.018, 0.018, 0.31, pale,
-				Vector3(0, 0.14 + t * 1.82, -0.87 + t * 0.41))
+	# la SCALETTA sul fronte: montanti tondi appoggiati al bordo dello
+	# spiazzo e pioli tondi — si sale da qui, dal varco della ringhiera.
+	# A filo terra, non DENTRO la terra: la guardia d'altezza misura la
+	# taglia, e i centimetri sotto lo zero contano.
+	for sx2: float in [-0.15, 0.15]:
+		var montante := _cyl(n, 0.026, 0.03, 2.05, wood, Vector3(sx2, 1.02, -0.9))
+		montante.rotation.x = 0.24
+	for i in 8:
+		var t := (float(i) + 0.6) / 8.6
+		var piolo := _cyl(n, 0.019, 0.019, 0.33, pale,
+				Vector3(0, 0.13 + t * 1.73, -1.12 + t * 0.45))
 		piolo.rotation.z = PI * 0.5
 
-	# la piattaforma stondata, con le righe delle assi
-	_loft(n, [[-0.46, 0.43, 1.93, 2.01, 0.035],
-			[-0.43, 0.46, 1.93, 2.01, 0.022],
-			[0.43, 0.46, 1.93, 2.01, 0.022],
-			[0.46, 0.43, 1.93, 2.01, 0.035]], pale)
-	for gz: float in [-0.22, 0.0, 0.22]:
-		_box(n, Vector3(0.88, 0.005, 0.016), wood, Vector3(0, 2.013, gz))
+	# lo SPIAZZO stondato, largo che ci si sta in tre a guardare il
+	# tramonto, con le righe delle assi
+	_loft(n, [[-0.65, 0.62, 1.84, 1.92, 0.035],
+			[-0.62, 0.65, 1.84, 1.92, 0.022],
+			[0.62, 0.65, 1.84, 1.92, 0.022],
+			[0.65, 0.62, 1.84, 1.92, 0.035]], pale)
+	for gz: float in [-0.44, -0.22, 0.0, 0.22, 0.44]:
+		_box(n, Vector3(1.26, 0.005, 0.016), wood, Vector3(0, 1.923, gz))
 
 	# la ringhiera: paletti col pomello, corrimano cilindrico e mezza
 	# traversa; a sud il VARCO dove arriva la scaletta
-	for p_r: Array in [[-0.44, -0.44], [0.44, -0.44], [-0.44, 0.44],
-			[0.44, 0.44], [-0.44, 0.0], [0.44, 0.0], [0.0, 0.44],
-			[-0.18, -0.44], [0.18, -0.44]]:
+	for p_r: Array in [[-0.62, -0.62], [0.62, -0.62], [-0.62, 0.62],
+			[0.62, 0.62], [-0.62, 0.0], [0.62, 0.0], [0.0, 0.62],
+			[-0.22, -0.62], [0.22, -0.62]]:
 		_cyl(n, 0.022, 0.025, 0.32, pale,
-				Vector3(float(p_r[0]), 2.17, float(p_r[1])))
-		_ball(n, 0.032, pale, Vector3(float(p_r[0]), 2.345, float(p_r[1])))
-	for quota_r: Array in [[2.33, 0.024], [2.18, 0.016]]:
+				Vector3(float(p_r[0]), 2.08, float(p_r[1])))
+		_ball(n, 0.032, pale, Vector3(float(p_r[0]), 2.255, float(p_r[1])))
+	for quota_r: Array in [[2.24, 0.024], [2.09, 0.016]]:
 		var qy2 := float(quota_r[0])
 		var qr2 := float(quota_r[1])
-		var nord_r := _cyl(n, qr2, qr2, 0.92, pale, Vector3(0, qy2, 0.44))
+		var nord_r := _cyl(n, qr2, qr2, 1.28, pale, Vector3(0, qy2, 0.62))
 		nord_r.rotation.z = PI * 0.5
-		for sx3: float in [-0.44, 0.44]:
-			var fianco_r := _cyl(n, qr2, qr2, 0.92, pale, Vector3(sx3, qy2, 0))
+		for sx3: float in [-0.62, 0.62]:
+			var fianco_r := _cyl(n, qr2, qr2, 1.28, pale, Vector3(sx3, qy2, 0))
 			fianco_r.rotation.x = PI * 0.5
-		for sx4: float in [-0.31, 0.31]:
-			var sud_r := _cyl(n, qr2, qr2, 0.28, pale, Vector3(sx4, qy2, -0.44))
+		for sx4: float in [-0.42, 0.42]:
+			var sud_r := _cyl(n, qr2, qr2, 0.4, pale, Vector3(sx4, qy2, -0.62))
 			sud_r.rotation.z = PI * 0.5
 
-	# i quattro montanti che reggono il tetto (prima il cono galleggiava
-	# sopra la ringhiera per fede)
+	# i quattro montanti che reggono il tetto, alti quanto serve perché
+	# lassù nessuno si chini (prima il cono galleggiava per fede)
 	for sx5: float in [-1.0, 1.0]:
 		for sz5: float in [-1.0, 1.0]:
-			_cyl(n, 0.028, 0.032, 0.6, wood, Vector3(sx5 * 0.38, 2.31, sz5 * 0.38))
+			_cyl(n, 0.03, 0.036, 1.68, wood, Vector3(sx5 * 0.55, 2.76, sz5 * 0.55))
 
 	# IL TETTO A PAGODA: una falda tornita che si svasa verso la gronda —
 	# un cono dritto è geometria, non un tetto — col pennone d'ottone e
-	# la bandierina rossa in cima. Tutto sotto i TRE METRI: una cella è
-	# un metro, e la guardia di test_caserma non transige.
-	BUILDER.lathe(n, [Vector2(0.72, -0.06), Vector2(0.70, -0.043),
-			Vector2(0.60, -0.01), Vector2(0.45, 0.05), Vector2(0.30, 0.12),
-			Vector2(0.16, 0.19), Vector2(0.05, 0.245), Vector2(0.0, 0.265)],
-			rosso, Vector3(0, 2.66, 0))
-	_cyl(n, 0.008, 0.008, 0.06, ottone, Vector3(0, 2.935, 0))
-	_ball(n, 0.014, ottone, Vector3(0, 2.97, 0))
+	# la bandierina rossa in cima. La gronda copre tutto lo spiazzo, e
+	# la guardia d'altezza per la torre visitabile concede quattro metri.
+	BUILDER.lathe(n, [Vector2(0.95, -0.06), Vector2(0.92, -0.043),
+			Vector2(0.80, -0.008), Vector2(0.60, 0.062), Vector2(0.40, 0.145),
+			Vector2(0.22, 0.222), Vector2(0.06, 0.262), Vector2(0.0, 0.28)],
+			rosso, Vector3(0, 3.66, 0))
+	_cyl(n, 0.008, 0.008, 0.06, ottone, Vector3(0, 3.955, 0))
+	_ball(n, 0.014, ottone, Vector3(0, 3.978, 0))
 	var bandiera := _prisma(n, [Vector2(0.0, 0.0), Vector2(0.13, 0.04),
 			Vector2(0.13, -0.04)], 0.0, 0.012, rosso)
-	bandiera.position = Vector3(0.01, 2.94, 0)
+	bandiera.position = Vector3(0.015, 3.95, 0)
 	bandiera.rotation.x = PI * 0.5
 	bandiera.rotation.y = -0.4
 
-	# la campanella d'allarme alla gronda, con la cordicella che pende:
-	# si suona per chiamare, e non c'è mai stato bisogno di suonarla
-	var braccio_c := _cyl(n, 0.011, 0.011, 0.14, ottone, Vector3(0.36, 2.575, -0.36))
-	braccio_c.rotation.z = -0.7
+	# la campanella d'allarme appesa alla gronda di sud-ovest, SOPRA IL
+	# VUOTO oltre la ringhiera: si suona per chiamare, e non c'è mai
+	# stato bisogno di suonarla
+	var braccio_c := _cyl(n, 0.011, 0.011, 0.14, ottone, Vector3(-0.48, 3.56, -0.48))
+	braccio_c.rotation.z = 0.7
 	braccio_c.rotation.y = PI * 0.25
 	BUILDER.lathe(n, [Vector2(0.037, 0.0), Vector2(0.04, 0.006),
 			Vector2(0.035, 0.016), Vector2(0.028, 0.03), Vector2(0.02, 0.042),
 			Vector2(0.008, 0.052), Vector2(0.0, 0.056)],
-			ottone, Vector3(0.41, 2.475, -0.41))
-	_ball(n, 0.008, ottone, Vector3(0.41, 2.475, -0.41))
-	_cyl(n, 0.0035, 0.0035, 0.1, canapa, Vector3(0.41, 2.425, -0.41))
+			ottone, Vector3(-0.53, 3.45, -0.53))
+	_ball(n, 0.008, ottone, Vector3(-0.53, 3.45, -0.53))
+	_cyl(n, 0.0035, 0.0035, 0.1, canapa, Vector3(-0.53, 3.4, -0.53))
 
 	# il cannocciale d'ottone sulla ringhiera, puntato fuori: è il
 	# mestiere di questo posto, guardare lontano
-	_cyl(n, 0.009, 0.009, 0.055, ottone, Vector3(0.44, 2.37, 0.12))
-	_ball(n, 0.015, ottone, Vector3(0.44, 2.40, 0.12))
-	var tubo_c := _cyl(n, 0.017, 0.024, 0.17, ottone, Vector3(0.50, 2.425, 0.12))
+	_cyl(n, 0.009, 0.009, 0.055, ottone, Vector3(0.62, 2.28, 0.15))
+	_ball(n, 0.015, ottone, Vector3(0.62, 2.31, 0.15))
+	var tubo_c := _cyl(n, 0.017, 0.024, 0.17, ottone, Vector3(0.68, 2.335, 0.15))
 	tubo_c.rotation.z = 1.35
 	# il rotolo di corda sul piancito, pronto da calare
 	var rotolo := MeshInstance3D.new()
@@ -4987,25 +4997,26 @@ static func _torretta() -> Node3D:
 	rm.outer_radius = 0.072
 	rotolo.mesh = rm
 	rotolo.material_override = canapa
-	rotolo.position = Vector3(0.28, 2.03, 0.28)
+	rotolo.position = Vector3(0.42, 1.94, 0.42)
 	n.add_child(rotolo)
 
-	# la lanterna in GABBIA appesa sotto il tetto: cappello, vetro caldo
-	# e la goccia d'ottone sotto — il punto caldo della sera
-	_cyl(n, 0.01, 0.01, 0.13, ottone, Vector3(0, 2.535, 0))
-	_cyl(n, 0.022, 0.058, 0.05, ottone, Vector3(0, 2.455, 0))
-	_ball(n, 0.075, _glow(Color("ffe6b0"), Color("ffcf86"), 1.4), Vector3(0, 2.39, 0))
+	# la lanterna in GABBIA appesa alla gronda di nord-est, anche lei
+	# sopra il vuoto: cappello, vetro caldo e la goccia d'ottone sotto —
+	# il punto caldo della sera, e nessuna testa da urtare
+	_cyl(n, 0.01, 0.01, 0.13, ottone, Vector3(0.52, 3.53, 0.52))
+	_cyl(n, 0.022, 0.058, 0.05, ottone, Vector3(0.52, 3.44, 0.52))
+	_ball(n, 0.075, _glow(Color("ffe6b0"), Color("ffcf86"), 1.4), Vector3(0.52, 3.375, 0.52))
 	for a_g in 3:
-		var stecca_g := _cyl(n, 0.004, 0.004, 0.13, ottone, Vector3(0, 2.39, 0))
+		var stecca_g := _cyl(n, 0.004, 0.004, 0.13, ottone, Vector3(0.52, 3.375, 0.52))
 		stecca_g.rotation.y = float(a_g) * PI / 3.0
 		stecca_g.position += Vector3(cos(float(a_g) * PI / 3.0) * 0.072, 0,
 				-sin(float(a_g) * PI / 3.0) * 0.072)
-	_ball(n, 0.018, ottone, Vector3(0, 2.315, 0))
+	_ball(n, 0.018, ottone, Vector3(0.52, 3.3, 0.52))
 	var luce := OmniLight3D.new()
 	luce.light_color = Color(1.0, 0.85, 0.62)
 	luce.light_energy = 1.1
 	luce.omni_range = 4.5
-	luce.position = Vector3(0, 2.39, 0)
+	luce.position = Vector3(0.52, 3.375, 0.52)
 	n.add_child(luce)
 	return n
 
