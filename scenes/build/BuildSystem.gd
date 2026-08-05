@@ -934,6 +934,43 @@ static func _bracciolo_acceso(nodo: Node3D, nome: String, on: bool) -> void:
 		br.visible = on
 
 
+## LA STACCIONATA CONTINUA. Stessa regola della gradinata, portata sui
+## BORDI: i segmenti in fila sulla stessa retta fanno UN recinto, e il
+## palo vive solo ai capi. Il verso del pezzo (rotazione + flip) si
+## legge dal nodo: il palo da spegnere e' quello che GUARDA il vicino.
+## Statica e senza stato: i test la fanno girare su un dizionario finto.
+static func rinfresca_pali(dict: Dictionary, key: Vector2i) -> void:
+	var passo := passo_bordo(key)
+	for d in [Vector2i.ZERO, passo, -passo]:
+		var k: Vector2i = key + d
+		var nodo := dict.get(k) as Node3D
+		if nodo == null or str(nodo.get_meta("item_name", "")) != "Staccionata":
+			continue
+		# l'asse X locale del pezzo, nel mondo (il flip e' gia' nel yaw)
+		var avanti := Vector3(cos(nodo.rotation.y), 0, -sin(nodo.rotation.y))
+		var verso := Vector3(float(passo.x), 0, float(passo.y)).normalized()
+		var continua_piu := _stessa_stecca(dict, k + passo)
+		var continua_meno := _stessa_stecca(dict, k - passo)
+		if avanti.dot(verso) > 0.0:
+			_bracciolo_acceso(nodo, "PaloDx", not continua_piu)
+			_bracciolo_acceso(nodo, "PaloSx", not continua_meno)
+		else:
+			_bracciolo_acceso(nodo, "PaloDx", not continua_meno)
+			_bracciolo_acceso(nodo, "PaloSx", not continua_piu)
+
+
+## Il passo fra due bordi COLLINEARI: le chiavi dei bordi sono raddoppiate,
+## e un bordo con la y dispari corre lungo X (sta fra una cella e la sua
+## vicina in z), uno con la x dispari corre lungo Z.
+static func passo_bordo(key: Vector2i) -> Vector2i:
+	return Vector2i(2, 0) if posmod(key.y, 2) == 1 else Vector2i(0, 2)
+
+
+static func _stessa_stecca(dict: Dictionary, k: Vector2i) -> bool:
+	var nodo := dict.get(k) as Node3D
+	return nodo != null and str(nodo.get_meta("item_name", "")) == "Staccionata"
+
+
 ## Piazza un pezzo "cell" nella cella data (lvl 1 = piano di sopra).
 ## Usato anche dalla demo CLI.
 func place_cell(cell: Vector2i, piece: String, rot := 0, animate := true, lvl := 0, variant := "") -> void:
@@ -995,6 +1032,9 @@ func place_edge(key: Vector2i, piece: String, flip := false, animate := true, lv
 	_register_special(piece, node)
 	node.set_meta("flip", flip)
 	node.set_meta("variant", variant)
+	# il recinto continuo: il segmento nuovo e i collineari si accordano
+	# su chi tiene il palo (vedi rinfresca_pali)
+	rinfresca_pali(dict, key)
 	if animate:
 		_pop_in(node)
 	if not _loading:
@@ -1071,6 +1111,7 @@ func _remove_at(layer, key, lvl := 0) -> void:
 	# ritirano le pietre dal varco
 	if key is Vector2i:
 		rinfresca_braccioli(dict, key)
+		rinfresca_pali(dict, key)
 		rinfresca_sentieri(dict, key)
 	_unregister_special(node)
 	if node == _demo_target:

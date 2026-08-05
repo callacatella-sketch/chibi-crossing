@@ -1068,14 +1068,15 @@ static func _door_wall() -> Node3D:
 	return n
 
 
-# LA STACCIONATA. Prima era carpenteria da scatola: pali quadrati con
-# un uovo schiacciato in testa e correnti a parallelepipedo. Una
-# staccionata di paese e' TONDA — pali torniti col collarino e il
-# pomello (la stessa lingua dei montanti della Scala), correnti in
-# tondino che si IMBARCANO di due centimetri fra un palo e l'altro
-# (un corrente teso a filo e' un profilato, uno che si siede e' legno),
-# le LEGATURE di corda dove il corrente passa nel palo, e l'erba che
-# rispunta ai piedi dei pali, dove la falciatrice non arriva.
+# LA STACCIONATA. Una staccionata di paese e' TONDA — pali torniti col
+# collarino e il pomello (la stessa lingua dei montanti della Scala),
+# correnti in tondino che si IMBARCANO di due centimetri fra un palo e
+# l'altro, legature di corda, l'erba ai piedi dei pali. E i pali hanno
+# i NOMI (PaloSx/PaloDx), perche' non sono solo decorazione: quando un
+# altro segmento continua la stessa retta, BuildSystem.rinfresca_pali
+# spegne il palo sul capo condiviso — il recinto corre continuo, coi
+# pali solo dove serve, e le punte dei correnti (a filo del bordo) si
+# fondono nel punto della giunta come un nodo di innesto.
 static func _fence() -> Node3D:
 	var n := Node3D.new()
 	var palo_m := _mat(WOOD, WOOD_DARK, 3.8, 0.5)
@@ -1084,32 +1085,36 @@ static func _fence() -> Node3D:
 	var corda := _mat(Color("d9c49a"), Color("bfa87e"), 5.0, 0.45)
 	var erba := _mat(Color("8aa870"), Color("6f8d58"), 5.0, 0.5)
 
-	for x: float in [-0.40, 0.40]:
-		# il palo tornito: fusto rastremato, collarino, collo e pomello
-		_cyl(n, 0.042, 0.055, 0.80, palo_m, Vector3(x, 0.40, 0))
-		_cyl(n, 0.050, 0.050, 0.020, scuro, Vector3(x, 0.815, 0))
-		_cyl(n, 0.024, 0.028, 0.035, palo_m, Vector3(x, 0.843, 0))
-		_ball(n, 0.047, palo_m, Vector3(x, 0.895, 0))
-		# l'erba che rispunta al piede, dove la falce non arriva
-		_ball(n, 0.055, erba, Vector3(x - 0.035, 0.018, 0.035),
+	for lato in [["PaloSx", -0.40], ["PaloDx", 0.40]]:
+		# tutto cio' che appartiene al palo vive DENTRO il suo nodo:
+		# collarino, pomello, legature ed erba spariscono con lui
+		var palo := Node3D.new()
+		palo.name = str(lato[0])
+		palo.position.x = float(lato[1])
+		n.add_child(palo)
+		_cyl(palo, 0.042, 0.055, 0.80, palo_m, Vector3(0, 0.40, 0))
+		_cyl(palo, 0.050, 0.050, 0.020, scuro, Vector3(0, 0.815, 0))
+		_cyl(palo, 0.024, 0.028, 0.035, palo_m, Vector3(0, 0.843, 0))
+		_ball(palo, 0.047, palo_m, Vector3(0, 0.895, 0))
+		for h0: float in [0.585, 0.315]:
+			var giro := _cyl(palo, 0.040, 0.040, 0.055, corda,
+					Vector3(0, h0 - 0.006, 0))
+			giro.rotation.z = PI * 0.5
+		_ball(palo, 0.055, erba, Vector3(-0.035, 0.018, 0.035),
 				Vector3(1.2, 0.45, 0.9))
-		_ball(n, 0.042, erba, Vector3(x + 0.045, 0.014, -0.030),
+		_ball(palo, 0.042, erba, Vector3(0.045, 0.014, -0.030),
 				Vector3(1.0, 0.40, 0.8))
 
-	# i due correnti: tondini con la PANCIA (si siedono di 2 cm a meta'
-	# campata) e le punte tonde; passano DENTRO i pali
+	# i due correnti: tondini con la PANCIA e le punte tonde A FILO DEL
+	# BORDO (±0.5): dove la giunta perde il palo, le punte dei due
+	# segmenti si fondono in un nodo d'innesto
 	for h: float in [0.585, 0.315]:
-		BUILDER.tube(n, [Vector3(-0.49, h, 0.0), Vector3(-0.245, h - 0.016, 0.006),
+		BUILDER.tube(n, [Vector3(-0.5, h, 0.0), Vector3(-0.245, h - 0.016, 0.006),
 				Vector3(0.0, h - 0.022, 0.0), Vector3(0.245, h - 0.016, -0.006),
-				Vector3(0.49, h, 0.0)],
+				Vector3(0.5, h, 0.0)],
 				[0.030, 0.033, 0.034, 0.033, 0.030], tondo)
-		for xt: float in [-0.49, 0.49]:
+		for xt: float in [-0.5, 0.5]:
 			_ball(n, 0.030, tondo, Vector3(xt, h, 0))
-		# le legature di corda, dove il corrente entra nel palo
-		for xl: float in [-0.40, 0.40]:
-			var giro := _cyl(n, 0.040, 0.040, 0.055, corda,
-					Vector3(xl, h - 0.006, 0))
-			giro.rotation.z = PI * 0.5
 	return n
 
 
@@ -3701,33 +3706,122 @@ static func _sbarra() -> Node3D:
 
 
 static func _bancone_piantone() -> Node3D:
-	# IL BANCONE: il piano dove si consegna e si chiede. Il registro aperto,
-	# il timbro, e il campanello che si suona quando non c'è nessuno —
-	# nodo "Campanello", così un domani può fare tin.
+	# IL BANCONE: il piano dove si consegna e si chiede. Non una cassa di
+	# legno: un mobile VERO — zoccolo scuro, montanti, specchiature chiare
+	# incassate su fronte e fianchi, il piano chiaro che sporge col bordo
+	# tondo (ci si appoggiano i gomiti). Sopra, la vita del posto: il
+	# registro rilegato con la penna e il segnalibro, il calamaio, il
+	# timbro col suo tampone, tre lettere legate con lo spago, un avviso
+	# puntato sul fronte, e il campanello che si suona quando non c'è
+	# nessuno — nodo "Campanello", così un domani può fare tin. Sul retro,
+	# lato guardia, i due cassetti col pomello e il vano aperto.
 	var n := Node3D.new()
 	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
-	var piano := _mat(WOOD_PALE, WOOD, 3.5, 0.5)
-	_box(n, Vector3(0.94, 0.72, 0.42), legno, Vector3(0, 0.36, 0.02))
-	# la modanatura del fronte e il piano che sporge
-	_box(n, Vector3(0.9, 0.1, 0.03), piano, Vector3(0, 0.62, -0.2))
-	_box(n, Vector3(1.02, 0.07, 0.52), piano, Vector3(0, 0.76, 0))
-	# il registro aperto: due pagine appena inclinate
-	for lato: float in [-1.0, 1.0]:
-		var pag := _box(n, Vector3(0.15, 0.012, 0.2),
-				_mat(CREAM, Color("f0e4cc"), 6.0, 0.25),
-				Vector3(lato * 0.08, 0.8, 0.02))
-		pag.rotation.z = lato * 0.06
-	_box(n, Vector3(0.03, 0.02, 0.2), _mat(WOOD_DARK, WOOD_DARK, 3.0, 0.2),
-			Vector3(0, 0.805, 0.02))
-	# il timbro col manico
+	var scuro := _mat(WOOD_DARK, WOOD_DARK.darkened(0.15), 3.5, 0.45)
+	var chiaro := _mat(WOOD_PALE, WOOD, 3.5, 0.5)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
-	_cyl(n, 0.045, 0.045, 0.05, _mat(WOOD_DARK, WOOD_DARK, 4.0, 0.4), Vector3(0.33, 0.82, -0.06))
-	_cyl(n, 0.018, 0.026, 0.07, ottone, Vector3(0.33, 0.87, -0.06))
-	_ball(n, 0.028, _mat(WOOD, WOOD_DARK, 4.0, 0.4), Vector3(0.33, 0.92, -0.06))
-	# il campanello da banco
+	var carta := _mat(CREAM, Color("f0e4cc"), 6.0, 0.25)
+
+	# ---- lo zoccolo e il corpo
+	_box(n, Vector3(0.98, 0.07, 0.46), scuro, Vector3(0, 0.035, 0.02))
+	_box(n, Vector3(0.92, 0.64, 0.40), legno, Vector3(0, 0.39, 0.02))
+
+	# ---- il FRONTE a specchiature: due pannelli chiari dentro la
+	# cornice scura (montanti e traverse in rilievo: è l'ombra a
+	# disegnare il mobile, non una striscia dipinta)
+	for px: float in [-0.19, 0.19]:
+		_box(n, Vector3(0.345, 0.44, 0.016), chiaro, Vector3(px, 0.40, -0.183))
+	for mx: float in [-0.42, 0.0, 0.42]:
+		_box(n, Vector3(0.05, 0.56, 0.024), scuro, Vector3(mx, 0.40, -0.185))
+	_box(n, Vector3(0.89, 0.05, 0.024), scuro, Vector3(0, 0.655, -0.185))
+	_box(n, Vector3(0.89, 0.05, 0.024), scuro, Vector3(0, 0.145, -0.185))
+
+	# ---- i FIANCHI con la loro specchiatura (il catalogo fotografa
+	# anche di profilo, e in gioco ci si gira attorno)
+	for sx: float in [-1.0, 1.0]:
+		_box(n, Vector3(0.016, 0.44, 0.27), chiaro, Vector3(sx * 0.463, 0.40, 0.02))
+		for tz: float in [-0.165, 0.165]:
+			_box(n, Vector3(0.024, 0.56, 0.05), scuro, Vector3(sx * 0.465, 0.40, 0.02 + tz))
+		_box(n, Vector3(0.024, 0.05, 0.36), scuro, Vector3(sx * 0.465, 0.655, 0.02))
+		_box(n, Vector3(0.024, 0.05, 0.36), scuro, Vector3(sx * 0.465, 0.145, 0.02))
+
+	# ---- il PIANO: la fascia scura di raccordo, la lastra chiara che
+	# sporge da tutti i lati, e il bordo tondo davanti — il naso su cui
+	# si appoggiano i gomiti di chi chiede
+	_box(n, Vector3(0.96, 0.05, 0.44), scuro, Vector3(0, 0.715, 0.02))
+	_box(n, Vector3(1.06, 0.05, 0.56), chiaro, Vector3(0, 0.765, 0.02))
+	var naso := _cyl(n, 0.026, 0.026, 1.06, chiaro, Vector3(0, 0.765, -0.262))
+	naso.rotation.z = PI * 0.5
+
+	# ---- il RETRO, lato guardia: due cassetti col pomello d'ottone e
+	# il vano aperto con la coperta piegata
+	for cy: float in [0.60, 0.44]:
+		_box(n, Vector3(0.30, 0.13, 0.016), chiaro, Vector3(0.18, cy, 0.226))
+		_ball(n, 0.016, ottone, Vector3(0.18, cy, 0.239))
+	_box(n, Vector3(0.36, 0.34, 0.012), _mat(WOOD_DARK.darkened(0.35),
+			WOOD_DARK.darkened(0.45), 3.0, 0.3), Vector3(-0.20, 0.35, 0.225))
+	_box(n, Vector3(0.30, 0.055, 0.02), carta, Vector3(-0.20, 0.21, 0.228))
+
+	# ---- IL REGISTRO rilegato, appena storto come lo lascia chi ci
+	# scrive: copertina scura, pagine sventagliate, la penna col
+	# pennino, il segnalibro che scende dalla copertina
+	var libro := Node3D.new()
+	libro.position = Vector3(0.02, 0.0, 0.02)
+	libro.rotation.y = 0.09
+	n.add_child(libro)
+	_box(libro, Vector3(0.36, 0.014, 0.25), scuro, Vector3(0, 0.797, 0))
+	for lato: float in [-1.0, 1.0]:
+		var pag := _box(libro, Vector3(0.155, 0.010, 0.225), carta,
+				Vector3(lato * 0.082, 0.806, 0))
+		pag.rotation.z = lato * 0.05
+		var pag2 := _box(libro, Vector3(0.150, 0.008, 0.218), carta,
+				Vector3(lato * 0.078, 0.8135, 0))
+		pag2.rotation.z = lato * 0.033
+	_box(libro, Vector3(0.024, 0.018, 0.225), scuro, Vector3(0, 0.809, 0))
+	var nastro := _mat(Color("b05c4a"), Color("8e4938"), 4.0, 0.35)
+	_box(libro, Vector3(0.017, 0.005, 0.115), nastro, Vector3(-0.062, 0.8185, -0.045))
+	var coda := _box(libro, Vector3(0.017, 0.005, 0.075), nastro,
+			Vector3(-0.062, 0.789, -0.148))
+	coda.rotation.x = -0.95
+	var penna := _cyl(libro, 0.007, 0.0085, 0.15, _mat(WOOD_DARK, WOOD_DARK, 4.0, 0.35),
+			Vector3(0.07, 0.822, -0.03))
+	penna.rotation.x = PI * 0.5
+	penna.rotation.z = 0.55
+	_ball(libro, 0.0085, ottone, Vector3(0.107, 0.820, 0.028), Vector3(1, 1, 1.6))
+
+	# ---- il calamaio col collo d'ottone, il timbro, e il suo tampone
+	_cyl(n, 0.026, 0.030, 0.045, scuro, Vector3(0.27, 0.8125, 0.16))
+	_cyl(n, 0.030, 0.030, 0.010, ottone, Vector3(0.27, 0.840, 0.16))
+	_cyl(n, 0.045, 0.045, 0.05, _mat(WOOD_DARK, WOOD_DARK, 4.0, 0.4),
+			Vector3(0.33, 0.815, -0.06))
+	_cyl(n, 0.018, 0.026, 0.07, ottone, Vector3(0.33, 0.865, -0.06))
+	_ball(n, 0.028, _mat(WOOD, WOOD_DARK, 4.0, 0.4), Vector3(0.33, 0.912, -0.06))
+	_box(n, Vector3(0.095, 0.018, 0.075), scuro, Vector3(0.33, 0.799, -0.148))
+	_box(n, Vector3(0.078, 0.010, 0.058), _mat(Color("46333a"), Color("2f2229"), 3.0, 0.2),
+			Vector3(0.33, 0.808, -0.148))
+
+	# ---- tre lettere legate con lo spago, in attesa di partire
+	var buste := Node3D.new()
+	buste.position = Vector3(-0.31, 0.0, 0.15)
+	n.add_child(buste)
+	for k in 3:
+		var busta := _box(buste, Vector3(0.15, 0.007, 0.10), carta,
+				Vector3(0, 0.7935 + float(k) * 0.007, 0))
+		busta.rotation.y = [0.14, -0.09, 0.05][k]
+	_box(buste, Vector3(0.014, 0.004, 0.104), _mat(Color("8a7a5c"), Color("6e6148"), 4.0, 0.3),
+			Vector3(0, 0.816, 0))
+	_ball(buste, 0.009, _mat(Color("8a7a5c"), Color("6e6148"), 4.0, 0.3),
+			Vector3(0, 0.819, 0))
+
+	# ---- l'avviso puntato sul pannello di destra, appena storto
+	var avviso := _box(n, Vector3(0.105, 0.14, 0.006), carta, Vector3(0.19, 0.46, -0.194))
+	avviso.rotation.z = 0.06
+	_ball(n, 0.008, ottone, Vector3(0.186, 0.522, -0.199))
+
+	# ---- il campanello da banco (nodo "Campanello": un domani farà tin)
 	var campanello := Node3D.new()
 	campanello.name = "Campanello"
-	campanello.position = Vector3(-0.34, 0.8, -0.05)
+	campanello.position = Vector3(-0.34, 0.79, -0.05)
 	n.add_child(campanello)
 	_cyl(campanello, 0.06, 0.062, 0.012, ottone, Vector3(0, 0, 0))
 	_ball(campanello, 0.055, ottone, Vector3(0, 0.035, 0), Vector3(1, 0.72, 1))

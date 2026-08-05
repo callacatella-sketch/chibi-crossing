@@ -249,12 +249,16 @@ func _test_le_lettere(t) -> void:
 		t.ok(testo.length() > 60,
 				"…e non è una battuta: '%s' ha il respiro di una lettera" % oss)
 	# ogni osservazione che il taccuino sa scrivere ha la sua lettera, e
-	# viceversa: una pagina senza busta resterebbe muta per sempre
+	# viceversa: una pagina senza busta resterebbe muta per sempre. Il
+	# taccuino non e' l'unico a scrivere pagine: anche la Voce
+	# (scenes/npc/Voce.gd) annota il silenzio di chi ha taciuto una
+	# confidenza — chi aggiunge uno scrittore aggiunge la sua voce qui.
 	var scritte := ["esitazione", "regola_tua", "sentiero_fedele",
 			"sentiero_ignorato", "sosta"]
-	for s in scritte:
+	var altre_penne := ["voce_taciuta"]
+	for s in scritte + altre_penne:
 		t.ok(DIR.TACCUINO_LETTERE.has(s), "l'osservazione '%s' ha la sua lettera" % s)
-	t.eq(DIR.TACCUINO_LETTERE.size(), scritte.size(),
+	t.eq(DIR.TACCUINO_LETTERE.size(), scritte.size() + altre_penne.size(),
 			"e non ci sono lettere orfane che nessuno spedirà mai")
 
 

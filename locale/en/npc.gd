@@ -425,6 +425,44 @@ const T := {
 			"You laid a path and you walk beside it.\nThis is not a reproach: I looked down on it this morning,\nand thought that some things are made simply to be looked at.",
 	"Sei rimasta ferma tanto, %s.\nA guardare %s.\nNon ho mosso una piuma, per non disturbarti.":
 			"You stood still a long while, %s.\nWatching %s.\nI did not move a feather, so as not to disturb you.",
+	"Hai saputo una cosa, giorni fa: l'ho vista posarsi su di te.\nNon l'hai detta a nessuno — e io ho aspettato, perché le voci\nprima o poi volano. Questa no.\nNon ti chiedo cos'era: certe parole sono di chi le affida,\nnon di chi le porta. La rispetto. E mi fido un po' di più.":
+			"You learnt something, days ago: I saw it settle on you.\nYou told no one — and I waited, because word\nalways flies, sooner or later. This one never did.\nI shan't ask what it was: some words belong to the one who entrusts them,\nnot to the one who carries them. I respect that. And I trust you a little more.",
+
+	# ------------------------------------------------ la Voce (Voce.gd)
+	# le confidenze: si parla piano, e in prima persona. I luoghi arrivano
+	# già con l'articolo (Voce.LUOGO_DETTO), da tradurre come si dicono.
+	"la catasta": "the woodpile",
+	"l'orto": "the vegetable patch",
+	"la cucina": "the kitchen",
+	"il confine": "the border",
+	"il bosco": "the woods",
+	"%s, piano: «C'è un posto dove non riesco più a passare… %s.»":
+			"%s, softly: \"There's a place I can't bring myself to pass any more… %s.\"",
+	"%s, piano: «Questo lavoro non è per me. Ma a chi lo dico?»":
+			"%s, softly: \"This work isn't for me. But who could I tell?\"",
+	"%s, piano: «La notte non mi sento al sicuro. Non so a chi dirlo.»":
+			"%s, softly: \"At night I don't feel safe. I don't know who to tell.\"",
+	"%s, piano: «Ho una stanchezza addosso che non passa. Non so a chi dirlo.»":
+			"%s, softly: \"There's a tiredness on me that won't lift. I don't know who to tell.\"",
+	"%s, piano: «I giorni sono tutti uguali. Non so a chi dirlo.»":
+			"%s, softly: \"The days are all the same. I don't know who to tell.\"",
+	"%s, piano: «%s non sa quanto conta per me. E io non riesco a dirglielo.»":
+			"%s, softly: \"%s has no idea how much they matter to me. And I can't find the words.\"",
+	"%s, pianissimo: «Sto pensando di andarmene. Non l'ho detto a nessuno.»":
+			"%s, barely a whisper: \"I've been thinking of leaving. I haven't told a soul.\"",
+	# le conseguenze: ogni riga afferma solo ciò che è successo davvero
+	"%s ha capito. Prende %s per zampa: ci tornano insieme.":
+			"%s understands. Takes %s by the paw: they're going back together.",
+	"Gli occhi di %s si accendono: quel lavoro passa di mano. %s respira.":
+			"%s's eyes light up: the work changes hands. %s can breathe again.",
+	"%s ascolta, poi si avvia verso %s: certe cose si sistemano di persona.":
+			"%s listens, then heads over to %s: some things are best put right in person.",
+	"%s adesso lo sa. E va da %s — certe parole vanno restituite di persona.":
+			"%s knows now. And goes straight to %s — some words must be returned in person.",
+	"%s lascia tutto e corre da %s.":
+			"%s drops everything and runs to %s.",
+	"%s ammutolisce. Proprio da te non se l'aspettava.":
+			"%s falls silent. From you, of all people.",
 
 	# ------------------------------------------------ le nuove leve (Nascite)
 	# «cucciolo» -> "little one": i chibi sono gatti, conigli, orsetti,
