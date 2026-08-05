@@ -4133,8 +4133,7 @@ static func _attaccapanni_berretto() -> Node3D:
 	# pomo, collarini, capitello e cimasa in un profilo solo — quattro
 	# bracci piegati a S coi pomelli chiari, quattro pioli bassi per le
 	# cose piccole. E la vita di chi ci passa: il berretto d'ordinanza
-	# appeso storto, una sciarpa che qualcuno riprenderà, il fischietto
-	# d'ottone che aspetta il prossimo turno.
+	# appeso storto, una sciarpa che qualcuno riprenderà.
 	var n := Node3D.new()
 	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
 	var legno_scuro := _mat(WOOD_DARK, WOOD_DARK.darkened(0.22), 4.0, 0.45)
@@ -4266,18 +4265,6 @@ static func _attaccapanni_berretto() -> Node3D:
 		var filo := _cyl(sciarpa, 0.0032, 0.0024, 0.032, lana,
 				Vector3(0.19 + fx, 1.121, 0.0245))
 		filo.rotation.z = 0.12 - 0.08 * float(fi)
-	# ---- il fischietto d'ottone, appeso al piolo davanti a sinistra
-	var fischietto := Node3D.new()
-	fischietto.name = "Fischietto"
-	fischietto.rotation.y = deg_to_rad(135.0)
-	n.add_child(fischietto)
-	BUILDER.tube(fischietto, [
-		Vector3(0.104, 1.272, 0), Vector3(0.118, 1.21, 0.008),
-		Vector3(0.112, 1.15, 0.004),
-	], [0.0045, 0.0045, 0.0045], cuoio, 14, 8)
-	var canna := _cyl(fischietto, 0.011, 0.011, 0.034, ottone, Vector3(0.112, 1.128, 0.004))
-	canna.rotation.z = PI * 0.5
-	_ball(fischietto, 0.0155, ottone, Vector3(0.125, 1.126, 0.004))
 	return n
 
 
