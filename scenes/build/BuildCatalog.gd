@@ -4191,8 +4191,9 @@ static func _attaccapanni_berretto() -> Node3D:
 	# ---- il berretto d'ordinanza, appeso storto sul braccio davanti
 	var berretto := Node3D.new()
 	berretto.name = "Berretto"
-	berretto.position = Vector3(0.0, 1.437, -0.187)
-	berretto.rotation.x = 0.38
+	berretto.position = Vector3(0.0, 1.447, -0.183)
+	berretto.rotation.x = 0.24
+	berretto.rotation.y = 0.18
 	berretto.rotation.z = -0.09    # nessuno lo appende dritto
 	n.add_child(berretto)
 	var panno := _mat(BLU, BLU_CUPO, 5.0, 0.45)
@@ -4233,32 +4234,48 @@ static func _attaccapanni_berretto() -> Node3D:
 	var fregio := _cyl(berretto, 0.021, 0.021, 0.008, ottone, Vector3(0, 0.062, -0.104))
 	fregio.rotation.x = PI * 0.5 - 0.12
 	_ball(berretto, 0.008, ottone, Vector3(0, 0.062, -0.109))
-	# ---- la sciarpa di lana, buttata sul braccio di destra
+	# ---- la sciarpa di lana, buttata sul braccio di destra. TERRACOTTA:
+	# bianca sul pomello chiaro spariva (sembrava un osso), il caldo sul
+	# blu del berretto è il contrasto giusto per un posto di guardia cozy
 	var sciarpa := Node3D.new()
 	sciarpa.name = "Sciarpa"
 	n.add_child(sciarpa)
-	var lana := _mat(CREAM, Color("e8dcc4"), 5.0, 0.4)
-	_ball(sciarpa, 0.037, lana, Vector3(0.172, 1.507, 0), Vector3(1.15, 0.72, 1.25))
+	var lana := _mat(TERRACOTTA, TERRACOTTA.darkened(0.18), 5.0, 0.45)
+	var lana_riga := _mat(CREAM, Color("e8dcc4"), 5.0, 0.4)
+	# il fagotto piegato che ABBRACCIA il pomello (non un fungo sopra)
+	_ball(sciarpa, 0.043, lana, Vector3(0.175, 1.499, 0), Vector3(1.3, 0.55, 1.35))
+	# la coda davanti: l'onda va in LARGHEZZA (x), che è quella che si
+	# vede — in profondità la vede solo il profilo, e da lì sembrava un
+	# serpente incollato al palo. Si allarga in punta, come cade la lana.
 	var davanti := BUILDER.tube(sciarpa, [
-		Vector3(0.168, 1.49, 0.028), Vector3(0.185, 1.4, 0.045),
-		Vector3(0.172, 1.27, 0.058), Vector3(0.181, 1.13, 0.05),
-	], [0.03, 0.028, 0.027, 0.024], lana, 20, 10)
+		Vector3(0.173, 1.49, 0.032), Vector3(0.205, 1.4, 0.045),
+		Vector3(0.163, 1.3, 0.052), Vector3(0.195, 1.21, 0.048),
+		Vector3(0.19, 1.15, 0.045),
+	], [0.028, 0.027, 0.026, 0.027, 0.031], lana, 26, 10)
 	davanti.scale = Vector3(1.0, 1.0, 0.55)
+	# la coda dietro, più corta: STESSA fase dell'onda ma più tenue —
+	# in controfase le due code si intrecciavano come una treccia
 	var dietro := BUILDER.tube(sciarpa, [
-		Vector3(0.168, 1.49, -0.028), Vector3(0.182, 1.41, -0.042),
-		Vector3(0.174, 1.31, -0.05), Vector3(0.18, 1.22, -0.046),
-	], [0.03, 0.028, 0.026, 0.023], lana, 18, 10)
+		Vector3(0.173, 1.49, -0.032), Vector3(0.192, 1.41, -0.046),
+		Vector3(0.168, 1.32, -0.05), Vector3(0.178, 1.26, -0.046),
+	], [0.028, 0.026, 0.025, 0.028], lana, 20, 10)
 	dietro.scale = Vector3(1.0, 1.0, 0.55)
-	# le righe blu tessute vicino alla punta, e la frangia
-	var riga := _cyl(sciarpa, 0.0255, 0.0245, 0.018, panno_cupo, Vector3(0.1805, 1.168, 0.051))
-	riga.rotation.x = 0.1
-	var riga2 := _cyl(sciarpa, 0.026, 0.025, 0.012, panno_cupo, Vector3(0.179, 1.205, 0.053))
-	riga2.rotation.x = 0.1
-	riga.scale = Vector3(1.0, 1.0, 0.55)
-	riga2.scale = Vector3(1.0, 1.0, 0.55)
-	for fx: float in [-0.014, -0.005, 0.005, 0.014]:
-		_cyl(sciarpa, 0.0035, 0.0028, 0.034, lana,
-				Vector3(0.181 + fx, 1.108, 0.05))
+	# le righe crema e la frangia: la scala z del tubo schiaccia anche le
+	# POSIZIONI dei suoi punti (0.045 -> ~0.025), quindi le decorazioni
+	# stanno a quel z, non al z del punto di controllo — o galleggiano
+	var riga := _cyl(sciarpa, 0.0285, 0.028, 0.014, lana_riga, Vector3(0.1925, 1.184, 0.026))
+	riga.rotation.x = 0.06
+	riga.rotation.z = 0.06
+	riga.scale = Vector3(1.0, 1.0, 0.56)
+	var riga2 := _cyl(sciarpa, 0.028, 0.0275, 0.009, lana_riga, Vector3(0.194, 1.214, 0.0265))
+	riga2.rotation.x = 0.06
+	riga2.rotation.z = 0.06
+	riga2.scale = Vector3(1.0, 1.0, 0.56)
+	for fi in 4:
+		var fx := -0.017 + 0.0113 * float(fi)
+		var filo := _cyl(sciarpa, 0.0032, 0.0024, 0.032, lana,
+				Vector3(0.19 + fx, 1.121, 0.0245))
+		filo.rotation.z = 0.12 - 0.08 * float(fi)
 	# ---- il fischietto d'ottone, appeso al piolo davanti a sinistra
 	var fischietto := Node3D.new()
 	fischietto.name = "Fischietto"
