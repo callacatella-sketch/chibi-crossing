@@ -4134,36 +4134,138 @@ static func _puntina(parent: Node3D, pos: Vector3, tinta: Color) -> void:
 
 static func _attaccapanni_berretto() -> Node3D:
 	# L'ATTACCAPANNI COL BERRETTO: il turno finisce, il berretto resta lì.
+	# Un fusto TORNITO come lo farebbe un falegname — piede a campana,
+	# pomo, collarini, capitello e cimasa in un profilo solo — quattro
+	# bracci piegati a S coi pomelli chiari, quattro pioli bassi per le
+	# cose piccole. E la vita di chi ci passa: il berretto d'ordinanza
+	# appeso storto, una sciarpa che qualcuno riprenderà, il fischietto
+	# d'ottone che aspetta il prossimo turno.
 	var n := Node3D.new()
 	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
-	_cyl(n, 0.09, 0.14, 0.06, legno, Vector3(0, 0.03, 0))
-	_cyl(n, 0.035, 0.045, 1.5, legno, Vector3(0, 0.75, 0))
-	# i tre bracci
-	for i in 3:
-		var a := PI * 2.0 / 3.0 * float(i)
-		var braccio := _cyl(n, 0.018, 0.022, 0.17, legno,
-				Vector3(cos(a) * 0.07, 1.44, sin(a) * 0.07))
-		braccio.rotation.x = cos(a) * 0.0 + 0.6
-		braccio.rotation.y = -a
-		braccio.rotation.z = 0.7
-		_ball(n, 0.026, legno, Vector3(cos(a) * 0.14, 1.5, sin(a) * 0.14))
-	# il berretto d'ordinanza appeso al braccio davanti
+	var legno_scuro := _mat(WOOD_DARK, WOOD_DARK.darkened(0.22), 4.0, 0.45)
+	var legno_chiaro := _mat(WOOD_PALE, WOOD, 4.5, 0.4)
+	# ---- il fusto, tutto d'un pezzo di tornio
+	BUILDER.lathe(n, [
+		Vector2(0.0, 0.0), Vector2(0.155, 0.0), Vector2(0.155, 0.022),
+		Vector2(0.125, 0.05),                      # il piede a campana
+		Vector2(0.085, 0.078), Vector2(0.066, 0.112),
+		Vector2(0.075, 0.135), Vector2(0.062, 0.158),   # tondino di base
+		Vector2(0.048, 0.185),
+		Vector2(0.056, 0.235), Vector2(0.063, 0.29),    # il pomo basso
+		Vector2(0.05, 0.35), Vector2(0.036, 0.395),
+		Vector2(0.033, 0.58),
+		Vector2(0.04, 0.605), Vector2(0.04, 0.625), Vector2(0.031, 0.648),
+		Vector2(0.03, 0.9),                        # il collarino a metà
+		Vector2(0.028, 1.15),
+		Vector2(0.037, 1.175), Vector2(0.037, 1.198), Vector2(0.028, 1.22),
+		Vector2(0.026, 1.32),                      # il collo
+		Vector2(0.048, 1.355), Vector2(0.056, 1.4),     # il capitello
+		Vector2(0.042, 1.44), Vector2(0.038, 1.5),
+		Vector2(0.048, 1.525), Vector2(0.022, 1.565),   # la cimasa
+		Vector2(0.03, 1.592), Vector2(0.013, 1.63), Vector2(0.0, 1.652),
+	], legno, Vector3.ZERO, 28)
+	# ---- i quattro bracci a S, ognuno col suo pomello tornito
+	for gradi: float in [90.0, 0.0, 180.0, 270.0]:
+		var braccio := Node3D.new()
+		braccio.rotation.y = deg_to_rad(gradi)
+		n.add_child(braccio)
+		BUILDER.tube(braccio, [
+			Vector3(0.03, 1.40, 0), Vector3(0.11, 1.362, 0),
+			Vector3(0.158, 1.40, 0), Vector3(0.175, 1.468, 0),
+		], [0.017, 0.014, 0.012, 0.011], legno, 22, 10)
+		_cyl(braccio, 0.017, 0.013, 0.014, legno_scuro, Vector3(0.175, 1.478, 0))
+		_ball(braccio, 0.025, legno_chiaro, Vector3(0.175, 1.499, 0))
+	# ---- i pioli bassi, inclinati appena in su
+	for gradi: float in [45.0, 135.0, 225.0, 315.0]:
+		var piolo := Node3D.new()
+		piolo.rotation.y = deg_to_rad(gradi)
+		n.add_child(piolo)
+		var asta := _cyl(piolo, 0.011, 0.013, 0.09, legno, Vector3(0.066, 1.253, 0))
+		asta.rotation.z = -1.24
+		_ball(piolo, 0.017, legno_chiaro, Vector3(0.108, 1.268, 0))
+	# ---- il berretto d'ordinanza, appeso storto sul braccio davanti
 	var berretto := Node3D.new()
 	berretto.name = "Berretto"
-	berretto.position = Vector3(0.0, 1.44, -0.15)
+	berretto.position = Vector3(0.0, 1.437, -0.187)
+	berretto.rotation.x = 0.38
+	berretto.rotation.z = -0.09    # nessuno lo appende dritto
 	n.add_child(berretto)
 	var panno := _mat(BLU, BLU_CUPO, 5.0, 0.45)
-	_cyl(berretto, 0.11, 0.105, 0.09, panno, Vector3(0, 0, 0))
-	_cyl(berretto, 0.125, 0.125, 0.02, _mat(BLU_CUPO, Color("4c6699"), 4.0, 0.4),
-			Vector3(0, -0.05, 0))
-	# la visiera
-	var visiera := _cyl(berretto, 0.13, 0.13, 0.015,
-			_mat(Color("3f4a5c"), Color("323b4a"), 4.0, 0.35), Vector3(0, -0.055, -0.09))
-	visiera.scale = Vector3(1.0, 1.0, 0.55)
-	visiera.rotation.x = 0.22
-	# lo stemmino d'ottone
-	_box(berretto, Vector3(0.05, 0.05, 0.01), _mat(OTTONE, OTTONE_SCURO, 5.0, 0.35),
-			Vector3(0, 0.005, -0.105))
+	var panno_cupo := _mat(BLU_CUPO, Color("4c6699"), 4.0, 0.4)
+	var cuoio := _mat(Color("38302a"), Color("2b241f"), 4.0, 0.35)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.35)
+	# la corona bombata: fascia che rientra, poi il piatto che sboccia
+	BUILDER.lathe(berretto, [
+		Vector2(0.0, 0.0), Vector2(0.102, 0.0),
+		Vector2(0.106, 0.012), Vector2(0.097, 0.045),
+		Vector2(0.105, 0.072), Vector2(0.114, 0.096),
+		Vector2(0.098, 0.116), Vector2(0.052, 0.131), Vector2(0.0, 0.136),
+	], panno, Vector3.ZERO, 24)
+	# la fascia scura, a filo ma più fuori (mai complanare)
+	_cyl(berretto, 0.108, 0.108, 0.036, panno_cupo, Vector3(0, 0.018, 0))
+	# il filetto d'ottone dove la fascia incontra la corona
+	var filetto := MeshInstance3D.new()
+	var fm := TorusMesh.new()
+	fm.inner_radius = 0.101
+	fm.outer_radius = 0.111
+	filetto.mesh = fm
+	filetto.material_override = ottone
+	filetto.position = Vector3(0, 0.038, 0)
+	berretto.add_child(filetto)
+	# il soggolo di cuoio SOLO sul davanti (ad anello pieno diventava una
+	# tesa nera che girava tutt'attorno), coi bottoncini ai suoi capi
+	_lathe_spicchio(berretto, [Vector2(0.1065, 0.003), Vector2(0.1075, 0.011),
+			Vector2(0.1065, 0.019)], cuoio, PI * 0.5 - 0.62, PI * 0.5 + 0.62, 8)
+	_ball(berretto, 0.009, ottone, Vector3(0.062, 0.011, -0.0875))
+	_ball(berretto, 0.009, ottone, Vector3(-0.062, 0.011, -0.0875))
+	# la visiera: una calotta schiacciata color ardesia, curva in giù —
+	# piccola, che spunti da sotto il soggolo invece di fare da piatto
+	var ardesia := _mat(Color("3f4a5c"), Color("313a49"), 4.0, 0.35)
+	var visiera := _ball(berretto, 0.088, ardesia, Vector3(0, -0.002, -0.066),
+			Vector3(0.95, 0.13, 0.66))
+	visiera.rotation.x = 0.32
+	# il fregio: coccarda d'ottone con la borchia, fiera sul davanti
+	var fregio := _cyl(berretto, 0.021, 0.021, 0.008, ottone, Vector3(0, 0.062, -0.104))
+	fregio.rotation.x = PI * 0.5 - 0.12
+	_ball(berretto, 0.008, ottone, Vector3(0, 0.062, -0.109))
+	# ---- la sciarpa di lana, buttata sul braccio di destra
+	var sciarpa := Node3D.new()
+	sciarpa.name = "Sciarpa"
+	n.add_child(sciarpa)
+	var lana := _mat(CREAM, Color("e8dcc4"), 5.0, 0.4)
+	_ball(sciarpa, 0.037, lana, Vector3(0.172, 1.507, 0), Vector3(1.15, 0.72, 1.25))
+	var davanti := BUILDER.tube(sciarpa, [
+		Vector3(0.168, 1.49, 0.028), Vector3(0.185, 1.4, 0.045),
+		Vector3(0.172, 1.27, 0.058), Vector3(0.181, 1.13, 0.05),
+	], [0.03, 0.028, 0.027, 0.024], lana, 20, 10)
+	davanti.scale = Vector3(1.0, 1.0, 0.55)
+	var dietro := BUILDER.tube(sciarpa, [
+		Vector3(0.168, 1.49, -0.028), Vector3(0.182, 1.41, -0.042),
+		Vector3(0.174, 1.31, -0.05), Vector3(0.18, 1.22, -0.046),
+	], [0.03, 0.028, 0.026, 0.023], lana, 18, 10)
+	dietro.scale = Vector3(1.0, 1.0, 0.55)
+	# le righe blu tessute vicino alla punta, e la frangia
+	var riga := _cyl(sciarpa, 0.0255, 0.0245, 0.018, panno_cupo, Vector3(0.1805, 1.168, 0.051))
+	riga.rotation.x = 0.1
+	var riga2 := _cyl(sciarpa, 0.026, 0.025, 0.012, panno_cupo, Vector3(0.179, 1.205, 0.053))
+	riga2.rotation.x = 0.1
+	riga.scale = Vector3(1.0, 1.0, 0.55)
+	riga2.scale = Vector3(1.0, 1.0, 0.55)
+	for fx: float in [-0.014, -0.005, 0.005, 0.014]:
+		_cyl(sciarpa, 0.0035, 0.0028, 0.034, lana,
+				Vector3(0.181 + fx, 1.108, 0.05))
+	# ---- il fischietto d'ottone, appeso al piolo davanti a sinistra
+	var fischietto := Node3D.new()
+	fischietto.name = "Fischietto"
+	fischietto.rotation.y = deg_to_rad(135.0)
+	n.add_child(fischietto)
+	BUILDER.tube(fischietto, [
+		Vector3(0.104, 1.272, 0), Vector3(0.118, 1.21, 0.008),
+		Vector3(0.112, 1.15, 0.004),
+	], [0.0045, 0.0045, 0.0045], cuoio, 14, 8)
+	var canna := _cyl(fischietto, 0.011, 0.011, 0.034, ottone, Vector3(0.112, 1.128, 0.004))
+	canna.rotation.z = PI * 0.5
+	_ball(fischietto, 0.0155, ottone, Vector3(0.125, 1.126, 0.004))
 	return n
 
 
