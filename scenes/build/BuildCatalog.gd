@@ -3857,6 +3857,11 @@ static func _armadio_smarriti() -> Node3D:
 	cim1.position.z = 0.03
 	var cim2 := _prisma(n, _rrect_xz(0.94, 0.46, 0.030), 1.53, 0.032, fronte)
 	cim2.position.z = 0.03
+	# le SPECCHIATURE incassate sui fianchi: un mobile vero non ha i
+	# lati a lastrone nudo
+	for lato_f: float in [-0.465, 0.465]:
+		_lastra(n, 0.155, 1.16, 0.035, 0.012, fronte,
+				Vector3(lato_f, 0.79, 0.03))
 
 	# dodici cassetti a GRUPPO: quattro file da tre
 	for riga in 4:
@@ -3895,10 +3900,10 @@ static func _armadio_smarriti() -> Node3D:
 	# sul labbro, giu' a cascata, e le frange in punta
 	var sciarpa := Node3D.new()
 	sciarpa.name = "Sciarpa"
-	sciarpa.position = Vector3(0.29, 0.3025, -0.275)
+	sciarpa.position = Vector3(0.355, 0.365, -0.262)
 	n.add_child(sciarpa)
 	var s1 := _lastra(sciarpa, 0.055, 0.16, 0.02, 0.018, rosa,
-			Vector3(0, 0.10, 0.06), Vector3(1.25, 0, 0.06))
+			Vector3(-0.02, 0.075, 0.05), Vector3(1.30, 0, 0.10))
 	s1.rotation.y = PI * 0.5
 	var s2 := _lastra(sciarpa, 0.052, 0.22, 0.02, 0.016, rosa,
 			Vector3(0.012, -0.045, -0.012), Vector3(0.12, 0, -0.05))
@@ -3912,8 +3917,8 @@ static func _armadio_smarriti() -> Node3D:
 				Vector3(fx - 0.008, -0.285, -0.022))
 
 	# la pallina rossa smarrita, mezza fuori dall'altro socchiuso
-	_ball(n, 0.042, _mat(Color("c94f43"), Color("a83c33"), 5.0, 0.45),
-			Vector3(-0.34, 0.968, -0.262))
+	_ball(n, 0.040, _mat(Color("c94f43"), Color("a83c33"), 5.0, 0.45),
+			Vector3(-0.235, 1.085, -0.245))
 	return n
 
 

@@ -92,7 +92,7 @@
   {
     "alto": 2.98,
     "cartella": "docs/catalogo/0-struttura/torretta/",
-    "cat": 0,
+    "cat": 0.0,
     "largo": 1.44,
     "nome": "Torretta",
     "slug": "torretta",
@@ -497,8 +497,8 @@
   {
     "alto": 1.56,
     "cartella": "docs/catalogo/1-arredo/armadio-smarriti/",
-    "cat": 1.0,
-    "largo": 0.98,
+    "cat": 1,
+    "largo": 1.0,
     "nome": "Armadio smarriti",
     "slug": "armadio-smarriti",
     "tipo": "cell"
