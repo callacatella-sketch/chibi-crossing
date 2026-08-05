@@ -3950,27 +3950,9 @@ static func _bacheca_avvisi() -> Node3D:
 		cuneo.rotation.z = sx * 0.36
 		_ball(n, 0.040, _mat(STONE, STONE_DARK, 3.0, 0.5),
 				Vector3(sx * 0.97, 0.018, -0.02), Vector3(1.15, 0.5, 0.9))
-	# --- i due puntoni obliqui DIETRO: è per loro che sta in piedi, e un
-	# puntone che non tocca terra non tiene su niente. Lunghi 0.46 e
-	# centrati a 0.36 finivano a SEDICI CENTIMETRI dal suolo: due
-	# stecchini appesi al palo. Adesso la lunghezza e l'angolo li dà la
-	# congiungente fra i due punti — il piede a terra dietro il palo e la
-	# testa contro il montante — quindi il puntone arriva a zero per
-	# costruzione, e ci arriverà anche se un domani si alza la bacheca.
-	var p_piede := Vector3(0.0, 0.0, 0.34)
-	var p_testa := Vector3(0.0, 0.78, 0.05)
-	var p_asse := p_testa - p_piede
-	for sx2: float in [-0.44, 0.44]:
-		var p := _box(n, Vector3(0.038, p_asse.length(), 0.038), legno,
-				Vector3(sx2, 0, 0) + (p_piede + p_testa) * 0.5)
-		p.rotation.x = atan2(-p_asse.z, p_asse.y)
-		# il piede: il cuneo di legno piantato e il sasso di rincalzo —
-		# è il dettaglio che dice «piantato», non «appoggiato»
-		var zeppa := _box(n, Vector3(0.055, 0.09, 0.11), legno_scuro,
-				Vector3(sx2, 0.035, 0.325))
-		zeppa.rotation.x = 0.35
-		_ball(n, 0.042, _mat(STONE, STONE_DARK, 3.0, 0.5),
-				Vector3(sx2 + 0.045, 0.020, 0.30), Vector3(1.2, 0.5, 0.95))
+	# NIENTE PUNTONI OBLIQUI: tolti per scelta dell'autore. La bacheca sta
+	# su due pali piantati e basta — la struttura la spiegano il rincalzo
+	# al piede e le mensoline sotto il tetto, e la sagoma resta pulita.
 
 	# --- la cornice: quattro liste con la battuta interna, e i quattro
 	# tasselli d'angolo che spiegano il giunto (una cornice senza giunto
