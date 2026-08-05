@@ -4564,17 +4564,16 @@ static func _brandina_turno() -> Node3D:
 		perno.rotation.z = PI * 0.5
 		_ball(n, 0.016, ottone, Vector3(px - 0.038, 0.2, 0))
 		_ball(n, 0.016, ottone, Vector3(px + 0.038, 0.2, 0))
-	# la crociera che tiene le due X, coi suoi pomellini
-	var crociera := _cyl(n, 0.015, 0.015, 0.6, legno, Vector3(0, 0.2, 0))
+	# la crociera che tiene le due X: la reggono gli stessi perni
+	var crociera := _cyl(n, 0.015, 0.015, 0.64, legno, Vector3(0, 0.2, 0))
 	crociera.rotation.z = PI * 0.5
-	_ball(n, 0.021, legno_scuro, Vector3(-0.31, 0.2, 0))
-	_ball(n, 0.021, legno_scuro, Vector3(0.31, 0.2, 0))
 	# ---- il telo: cede al centro, come sotto un peso che non c'è più
-	_loft(n, [[-0.46, 0.345, 0.413, 0.45, 0.014],
-			[-0.28, 0.345, 0.401, 0.439, 0.014],
-			[0.0, 0.345, 0.392, 0.431, 0.014],
-			[0.28, 0.345, 0.401, 0.439, 0.014],
-			[0.46, 0.345, 0.413, 0.45, 0.014]], telo)
+	# (mezzo-lato 0.315: il bordo muore DENTRO l'orlo arrotolato, non oltre)
+	_loft(n, [[-0.46, 0.315, 0.413, 0.45, 0.014],
+			[-0.28, 0.315, 0.401, 0.439, 0.014],
+			[0.0, 0.315, 0.392, 0.431, 0.014],
+			[0.28, 0.315, 0.401, 0.439, 0.014],
+			[0.46, 0.315, 0.413, 0.45, 0.014]], telo)
 	# gli orli arrotolati che avvolgono i pali
 	for pz: float in [-0.322, 0.322]:
 		var orlo := _cyl(n, 0.017, 0.017, 0.9, telo, Vector3(0, 0.428, pz))
@@ -4603,9 +4602,12 @@ static func _brandina_turno() -> Node3D:
 	var s_fondo := _cyl(strato, 0.016, 0.016, 0.47, panno_cupo, Vector3(0.125, 0, 0))
 	s_fondo.rotation.x = PI * 0.5
 	# le righe crema tessute vicino alla piega, come sulle coperte di lana
-	_box(strato, Vector3(0.02, 0.005, 0.472), lana_riga, Vector3(-0.07, 0.015, 0))
-	_box(strato, Vector3(0.011, 0.005, 0.472), lana_riga, Vector3(-0.035, 0.015, 0))
-	# ---- il lembo che scende oltre il palo, con l'orlo tondo in fondo
+	_box(strato, Vector3(0.02, 0.005, 0.472), lana_riga, Vector3(-0.07, 0.017, 0))
+	_box(strato, Vector3(0.011, 0.005, 0.472), lana_riga, Vector3(-0.035, 0.017, 0))
+	# ---- il lembo che scende oltre il palo: prima il dorso tondo che
+	# scavalca l'orlo (senza, coperta e lembo restavano staccati a mezz'aria)
+	var dorso := _cyl(n, 0.028, 0.028, 0.28, panno, Vector3(0.28, 0.462, 0.302))
+	dorso.rotation.z = PI * 0.5
 	var lembo := Node3D.new()
 	lembo.position = Vector3(0.28, 0.43, 0.328)
 	lembo.rotation.x = 0.14
@@ -5421,30 +5423,62 @@ static func _palo_pompieri() -> Node3D:
 
 
 
-## LA CAMPANA DELLA CASERMA. Sul suo montante di legno, col cordino che
-## pende fino a mezz'aria: è quella che chiama tutti in piazza — l'unico
-## allarme di questo villaggio è «venite a vedere».
+## LA CAMPANA DELLA CASERMA. Sul suo palo tornito col basamento di
+## pietra, il braccio che curva, il tettuccio rosso a pagodina e la
+## campana TORNITA appesa al perno, col cordino di canapa che scende
+## fino alla maniglietta: è quella che chiama tutti in piazza —
+## l'unico allarme di questo villaggio è «venite a vedere».
 static func _campana_caserma() -> Node3D:
 	var n := Node3D.new()
 	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
-	var corda := _mat(WOOD_PALE, WOOD, 6.0, 0.4)
-	_box(n, Vector3(0.12, 1.15, 0.12), wood, Vector3(-0.28, 0.57, 0))
-	_box(n, Vector3(0.58, 0.09, 0.09), wood, Vector3(-0.02, 1.1, 0))
-	var puntone := _box(n, Vector3(0.42, 0.06, 0.06), wood, Vector3(-0.15, 0.87, 0))
-	puntone.rotation.z = -0.7
-	# tutto quello che dondola sta sotto questo nodo
+	var rosso := _mat(POMPA_ROSSO, POMPA_ROSSO_SCURO, 3.0, 0.45)
+	var canapa := _mat(Color("d9c49a"), Color("c0a978"), 7.0, 0.5)
+	# il palo tornito sul suo sasso, con la fascia d'ottone e il pomello
+	BUILDER.lathe(n, [Vector2(0.11, 0.0), Vector2(0.115, 0.02),
+			Vector2(0.09, 0.045), Vector2(0.07, 0.06)],
+			_mat(STONE, STONE_DARK, 4.0, 0.5), Vector3(-0.28, 0, 0))
+	_cyl(n, 0.045, 0.06, 1.4, wood, Vector3(-0.28, 0.72, 0))
+	_cyl(n, 0.052, 0.052, 0.028, ottone, Vector3(-0.28, 1.05, 0))
+	_cyl(n, 0.05, 0.038, 0.03, wood, Vector3(-0.28, 1.43, 0))
+	_ball(n, 0.055, wood, Vector3(-0.28, 1.47, 0))
+	# il braccio che CURVA verso fuori e la saetta che gli sale incontro,
+	# col bullone d'ottone dove si stringono la mano
+	BUILDER.tube(n, [Vector3(-0.3, 1.30, 0), Vector3(-0.10, 1.315, 0),
+			Vector3(0.10, 1.31, 0), Vector3(0.19, 1.29, 0)],
+			[0.038, 0.034, 0.030, 0.026], wood)
+	BUILDER.tube(n, [Vector3(-0.29, 1.0, 0), Vector3(-0.16, 1.10, 0),
+			Vector3(-0.03, 1.22, 0), Vector3(0.02, 1.285, 0)],
+			[0.024, 0.022, 0.020, 0.017], wood)
+	_ball(n, 0.028, ottone, Vector3(0.02, 1.295, 0))
+	# il tettuccio rosso a pagodina sopra la campana, con la puntina
+	_cyl(n, 0.02, 0.02, 0.08, wood, Vector3(0.18, 1.335, 0))
+	BUILDER.lathe(n, [Vector2(0.26, -0.02), Vector2(0.25, -0.011),
+			Vector2(0.20, 0.013), Vector2(0.13, 0.046), Vector2(0.05, 0.076),
+			Vector2(0.0, 0.09)], rosso, Vector3(0.18, 1.375, 0))
+	_ball(n, 0.012, ottone, Vector3(0.18, 1.47, 0))
+	# tutto quello che dondola sta sotto questo nodo: il perno visibile,
+	# la corona, la campana tornita col labbro, il batacchio e la corda
 	var giogo := Node3D.new()
 	giogo.name = "Campana"
-	giogo.position = Vector3(0.16, 1.06, 0)
+	giogo.position = Vector3(0.18, 1.27, 0)
 	n.add_child(giogo)
-	_ball(giogo, 0.035, ottone, Vector3.ZERO)
-	_cyl(giogo, 0.09, 0.155, 0.24, ottone, Vector3(0, -0.14, 0))
-	_cyl(giogo, 0.17, 0.155, 0.04, ottone, Vector3(0, -0.27, 0))
-	_ball(giogo, 0.03, _mat(OTTONE_SCURO, OTTONE_SCURO.darkened(0.3), 5.0, 0.4),
-			Vector3(0, -0.28, 0))
-	_cyl(giogo, 0.008, 0.008, 0.5, corda, Vector3(0, -0.52, 0))
-	_ball(giogo, 0.028, corda, Vector3(0, -0.77, 0))
+	var perno := _cyl(giogo, 0.012, 0.012, 0.1, ottone, Vector3.ZERO)
+	perno.rotation.x = PI * 0.5
+	_cyl(giogo, 0.02, 0.026, 0.07, ottone, Vector3(0, -0.033, 0))
+	BUILDER.lathe(giogo, [Vector2(0.150, -0.315), Vector2(0.163, -0.30),
+			Vector2(0.155, -0.275), Vector2(0.128, -0.225), Vector2(0.108, -0.16),
+			Vector2(0.098, -0.115), Vector2(0.086, -0.08), Vector2(0.055, -0.062),
+			Vector2(0.02, -0.055)], ottone)
+	_cyl(giogo, 0.008, 0.008, 0.1, _mat(OTTONE_SCURO, OTTONE_SCURO.darkened(0.3), 5.0, 0.4),
+			Vector3(0, -0.29, 0))
+	_ball(giogo, 0.032, _mat(OTTONE_SCURO, OTTONE_SCURO.darkened(0.3), 5.0, 0.4),
+			Vector3(0, -0.345, 0))
+	BUILDER.tube(giogo, [Vector3(0, -0.34, 0), Vector3(0.012, -0.52, 0),
+			Vector3(0.005, -0.72, 0), Vector3(-0.008, -0.90, 0)],
+			[0.008, 0.008, 0.008, 0.008], canapa, 16, 6)
+	_cyl(giogo, 0.016, 0.02, 0.07, wood, Vector3(-0.008, -0.935, 0))
+	_ball(giogo, 0.02, wood, Vector3(-0.008, -0.985, 0))
 	# il respiro della corda: appena appena, come una campana ferma da poco
 	var anim := Animation.new()
 	anim.length = 5.0
