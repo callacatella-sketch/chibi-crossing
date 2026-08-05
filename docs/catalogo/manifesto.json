@@ -90,10 +90,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 2.89,
+    "alto": 2.98,
     "cartella": "docs/catalogo/0-struttura/torretta/",
     "cat": 0.0,
-    "largo": 1.87,
+    "largo": 1.44,
     "nome": "Torretta",
     "slug": "torretta",
     "tipo": "cell"
@@ -423,10 +423,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.53,
+    "alto": 1.65,
     "cartella": "docs/catalogo/1-arredo/attaccapanni/",
-    "cat": 1.0,
-    "largo": 0.31,
+    "cat": 1,
+    "largo": 0.43,
     "nome": "Attaccapanni",
     "slug": "attaccapanni",
     "tipo": "cell"
@@ -488,7 +488,7 @@
   {
     "alto": 0.94,
     "cartella": "docs/catalogo/1-arredo/bancone-guardia/",
-    "cat": 1,
+    "cat": 1.0,
     "largo": 1.06,
     "nome": "Bancone guardia",
     "slug": "bancone-guardia",
@@ -498,7 +498,7 @@
     "alto": 1.56,
     "cartella": "docs/catalogo/1-arredo/armadio-smarriti/",
     "cat": 1.0,
-    "largo": 0.98,
+    "largo": 1.0,
     "nome": "Armadio smarriti",
     "slug": "armadio-smarriti",
     "tipo": "cell"

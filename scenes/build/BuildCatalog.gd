@@ -3824,102 +3824,441 @@ static func _bancone_piantone() -> Node3D:
 
 
 static func _armadio_smarriti() -> Node3D:
-	# L'ARMADIO DEGLI OGGETTI SMARRITI: il cuore del posto. Tanti cassettini
-	# con la maniglia d'ottone e il cartellino; due sono socchiusi, e da uno
-	# spunta una sciarpa che qualcuno prima o poi verrà a riprendersi.
+	# L'ARMADIO DEGLI OGGETTI SMARRITI: il cuore del posto di guardia.
+	# Un mobile da falegname vero: carcassa coi tondi, cimasa a due
+	# gradini, zoccolo scuro, e dodici cassetti che sono GRUPPI (fronte
+	# stondato, pomello tornito d'ottone, portacartellino con la sua
+	# cartolina) — cosi' i socchiusi e quello storto portano con se'
+	# tutto il loro corredo. Dietro le fughe c'e' il buio vero; i
+	# socchiusi hanno la CASSA vera (sponde, fondo, schienalino), e da
+	# uno fa capolino una pallina rossa che nessuno e' ancora venuto a
+	# riprendersi.
 	var n := Node3D.new()
 	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
 	var fronte := _mat(WOOD_PALE, WOOD, 3.5, 0.45)
+	var scuro := _mat(Color("3d332a"), Color("2e2620"), 4.0, 0.3)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
-	_box(n, Vector3(0.9, 1.5, 0.42), legno, Vector3(0, 0.75, 0.03))
-	# la cornice del tetto e il piedino
-	_box(n, Vector3(0.98, 0.07, 0.48), fronte, Vector3(0, 1.53, 0.03))
-	_box(n, Vector3(0.94, 0.09, 0.45), legno, Vector3(0, 0.045, 0.03))
-	# quattro file da tre cassettini
+	var crema := _mat(CREAM, Color("efe2ca"), 6.0, 0.2)
+
+	# la carcassa stondata, il buio dietro le fughe, zoccolo e cimasa
+	var corpo := _prisma(n, _rrect_xz(0.92, 0.44, 0.030), 0.10, 1.38, legno)
+	corpo.position.z = 0.03
+	_box(n, Vector3(0.86, 1.30, 0.012), scuro, Vector3(0, 0.80, -0.182))
+	var zocc := _prisma(n, _rrect_xz(0.98, 0.50, 0.035), 0.0, 0.11, scuro)
+	zocc.position.z = 0.03
+	var cim1 := _prisma(n, _rrect_xz(1.00, 0.52, 0.040), 1.48, 0.05, legno)
+	cim1.position.z = 0.03
+	var cim2 := _prisma(n, _rrect_xz(0.94, 0.46, 0.030), 1.53, 0.032, fronte)
+	cim2.position.z = 0.03
+	# le SPECCHIATURE incassate sui fianchi: un mobile vero non ha i
+	# lati a lastrone nudo
+	for lato_f: float in [-0.465, 0.465]:
+		_lastra(n, 0.155, 1.16, 0.035, 0.012, fronte,
+				Vector3(lato_f, 0.79, 0.03))
+
+	# dodici cassetti a GRUPPO: quattro file da tre
 	for riga in 4:
 		for col in 3:
-			var y := 0.28 + 0.33 * float(riga)
-			var x := -0.28 + 0.28 * float(col)
-			# due cassetti socchiusi: la vita è storta, gli armadi anche
+			var y := 0.3025 + 0.3267 * float(riga)
+			var x := -0.29 + 0.29 * float(col)
+			# due socchiusi (la vita e' storta, gli armadi anche) e uno
+			# appena sghembo, che nessuno raddrizza mai
 			var fuori := 0.0
 			if (riga == 2 and col == 0) or (riga == 0 and col == 2):
-				fuori = 0.07
-			var cass := _box(n, Vector3(0.25, 0.28, 0.38), fronte,
-					Vector3(x, y, -0.03 - fuori))
+				fuori = 0.085
+				# la CAVITA': il buio del cassetto aperto
+				_box(n, Vector3(0.25, 0.28, 0.02), scuro,
+						Vector3(x, y, -0.172))
+			var cass := Node3D.new()
 			cass.name = "Cassetto%d%d" % [riga, col]
-			_cyl(n, 0.022, 0.022, 0.03, ottone,
-					Vector3(x, y, -0.22 - fuori)).rotation.x = PI * 0.5
-			# il cartellino col numero
-			_box(n, Vector3(0.09, 0.045, 0.008), _mat(CREAM, Color("efe2ca"), 6.0, 0.2),
-					Vector3(x, y + 0.085, -0.225 - fuori))
-	# la sciarpa che sporge dal cassetto socchiuso in alto
-	var sciarpa := _box(n, Vector3(0.16, 0.035, 0.1), _mat(PINK, PINK_DEEP, 5.0, 0.45),
-			Vector3(0.0, 0.255, -0.28))
-	sciarpa.rotation.x = 0.35
-	sciarpa.name = "Sciarpa"
+			cass.position = Vector3(x, y, -0.19 - fuori)
+			if riga == 1 and col == 2:
+				cass.rotation.z = 0.022
+			n.add_child(cass)
+			if fuori > 0.0:
+				# la CASSA del cassetto tirato fuori: sponde, fondo e
+				# schienalino — un fronte che galleggia a mezz'aria non
+				# e' un cassetto, e' un francobollo
+				for sponda: float in [-0.122, 0.122]:
+					_box(cass, Vector3(0.016, 0.170, 0.190), legno,
+							Vector3(sponda, -0.017, 0.100))
+				_box(cass, Vector3(0.256, 0.014, 0.190), legno,
+						Vector3(0, -0.098, 0.100))
+				_box(cass, Vector3(0.256, 0.150, 0.014), legno,
+						Vector3(0, -0.02, 0.190))
+			# il fronte stondato (lastra girata a guardare -Z)
+			_lastra(cass, 0.136, 0.305, 0.028, 0.035, fronte,
+					Vector3(0, 0, 0), Vector3(0, PI * 0.5, 0))
+			# il pomello tornito: collarino e palla d'ottone
+			var collo := _cyl(cass, 0.016, 0.020, 0.016, ottone,
+					Vector3(0, -0.048, -0.026))
+			collo.rotation.x = PI * 0.5
+			_ball(cass, 0.023, ottone, Vector3(0, -0.048, -0.040))
+			# il PORTACARTELLINO d'ottone con la sua cartolina
+			_lastra(cass, 0.054, 0.062, 0.010, 0.006, ottone,
+					Vector3(0, 0.075, -0.021), Vector3(0, PI * 0.5, 0))
+			_lastra(cass, 0.045, 0.050, 0.008, 0.005, crema,
+					Vector3(0, 0.075, -0.026), Vector3(0, PI * 0.5, 0))
+
+	# la pallina rossa smarrita, mezza fuori dall'altro socchiuso
+	_ball(n, 0.040, _mat(Color("c94f43"), Color("a83c33"), 5.0, 0.45),
+			Vector3(-0.235, 1.085, -0.245))
 	return n
 
 
+## LA BACHECA DEGLI AVVISI, rifatta. Prima era una tavola su due gambe con
+## cinque rettangoli identici appiccicati sopra: di profilo, un asse.
+##
+## Adesso è il cartellone della piazza, e a farlo sono tre cose:
+##
+##  1. IL TETTUCCIO. Una bacheca all'aperto SENZA tetto è una bacheca che
+##     nessuno ha mai usato: la carta si bagna alla prima pioggia. Le due
+##     falde sporgenti sono anche ciò che, di profilo, trasforma la tavola
+##     in una costruzione — insieme ai due puntoni obliqui dietro, che
+##     sono il motivo per cui il cartellone sta in piedi al vento.
+##  2. IL SUGHERO GRANULOSO. Un pannello liscio è cartone. Le granaglie
+##     sono trenta scaglie piatte di tono appena diverso, sparse: da
+##     lontano fanno la grana, da vicino sono sughero.
+##  3. I BIGLIETTI HANNO UNA STORIA. Non cinque rettangoli uguali: un
+##     avviso ufficiale con le righe scritte, una foto col bordo bianco,
+##     un biglietto tenuto su dal washi al posto della puntina, uno
+##     appeso a UNA puntina sola che è ruotato di sghembo, uno con
+##     l'ANGOLO ARRICCIATO (la firma della carta che sta lì da mesi), e
+##     quello coi tagliandi da strappare — con due tagliandi già presi.
+##     È il disordine a raccontare che il paese lo usa davvero.
+##
+## Più la matita legata allo spago, che è una CORDA VIVA: al vento
+## dondola per conto suo.
 static func _bacheca_avvisi() -> Node3D:
-	# LA BACHECA: sughero, cornice di legno e i bigliettini appuntati di
-	# sghembo — nessuno appende un avviso dritto.
 	var n := Node3D.new()
 	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
-	for sx: float in [-0.46, 0.46]:
-		_box(n, Vector3(0.08, 1.35, 0.08), legno, Vector3(sx, 0.68, 0.04))
-	_box(n, Vector3(1.0, 0.09, 0.09), legno, Vector3(0, 1.36, 0.04))
-	_box(n, Vector3(0.94, 0.72, 0.05), _mat(SUGHERO, Color("c39a6c"), 6.0, 0.5),
-			Vector3(0, 1.0, 0.04))
-	# la cornicetta interna
-	for dy: float in [-0.38, 0.38]:
-		_box(n, Vector3(0.96, 0.04, 0.07), legno, Vector3(0, 1.0 + dy, 0.04))
-	# i bigliettini, ognuno storto a modo suo
-	var carte := [[-0.28, 1.14, -0.13, Color("fff6e2")], [0.02, 1.18, 0.09, Color("e8f2e0")],
-			[0.3, 1.1, -0.06, Color("fde8e4")], [-0.14, 0.88, 0.14, Color("fff6e2")],
-			[0.22, 0.85, -0.11, Color("e4eef8")]]
-	for c in carte:
-		var carta := _box(n, Vector3(0.2, 0.16, 0.008),
-				_mat(Color(c[3]), Color(c[3]).darkened(0.08), 6.0, 0.2),
-				Vector3(float(c[0]), float(c[1]), 0.015))
-		carta.rotation.z = float(c[2])
-		# la puntina
-		_ball(n, 0.014, _mat(SEGNALE_ROSSO, Color("c96f60"), 4.0, 0.3),
-				Vector3(float(c[0]), float(c[1]) + 0.06, 0.005))
+	var legno_chiaro := _mat(WOOD_PALE, WOOD, 3.5, 0.45)
+	var legno_scuro := _mat(Color("8a6440"), Color("6d4f31"), 4.5, 0.45)
+	var legno_medio := _mat(Color("d9b283"), Color("bd9463"), 4.0, 0.45)
+	var sughero := _mat(SUGHERO, Color("c39a6c"), 7.0, 0.45)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 20_260_805
+
+	# --- i due pali: rastremati, appena storti, col cuneo al piede ---
+	for sx: float in [-0.44, 0.44]:
+		var palo := _cyl(n, 0.038, 0.050, 1.30, legno, Vector3(sx, 0.65, 0.045))
+		palo.rotation.z = -sx * 0.012
+		# il cuneo che lo tiene su, e il sasso appoggiato
+		var cuneo := _box(n, Vector3(0.05, 0.16, 0.05), legno_scuro,
+				Vector3(sx * 0.93, 0.08, 0.045))
+		cuneo.rotation.z = sx * 0.30
+		_ball(n, 0.045, _mat(STONE, STONE_DARK, 3.0, 0.5),
+				Vector3(sx * 0.88, 0.022, 0.10), Vector3(1.1, 0.5, 0.9))
+	# --- i due puntoni obliqui DIETRO: è per loro che sta in piedi ---
+	for sx2: float in [-0.44, 0.44]:
+		var p := _box(n, Vector3(0.035, 0.46, 0.035), legno,
+				Vector3(sx2 * 0.92, 0.36, 0.16))
+		p.rotation.x = -0.55
+
+	# --- la cornice: quattro liste con la battuta interna, e i quattro
+	# tasselli d'angolo che spiegano il giunto (una cornice senza giunto
+	# è un rettangolo disegnato) ---
+	var y0 := 0.62
+	var y1 := 1.32
+	var mezzo := (y0 + y1) * 0.5
+	for dy: float in [y0, y1]:
+		_box(n, Vector3(0.98, 0.075, 0.075), legno, Vector3(0, dy, 0.045))
+	for sx3: float in [-0.4525, 0.4525]:
+		_box(n, Vector3(0.075, y1 - y0, 0.075), legno, Vector3(sx3, mezzo, 0.045))
+	for sx4: float in [-0.4525, 0.4525]:
+		for dy2: float in [y0, y1]:
+			_box(n, Vector3(0.09, 0.09, 0.05), legno_chiaro,
+					Vector3(sx4, dy2, 0.012))
+	# la battuta: il listello sottile che tiene il sughero, un filo avanti
+	for dy3: float in [y0 + 0.043, y1 - 0.043]:
+		_box(n, Vector3(0.86, 0.016, 0.03), legno_scuro, Vector3(0, dy3, 0.020))
+
+	# --- il sughero, con la grana ---
+	_box(n, Vector3(0.87, y1 - y0 - 0.075, 0.035), sughero, Vector3(0, mezzo, 0.048))
+	for _i in 34:
+		var gx := rng.randf_range(-0.41, 0.41)
+		var gy := mezzo + rng.randf_range(-0.29, 0.29)
+		var tono := SUGHERO.darkened(rng.randf_range(0.04, 0.16)) \
+				if rng.randf() < 0.6 else SUGHERO.lightened(rng.randf_range(0.04, 0.10))
+		var scaglia := _box(n, Vector3(rng.randf_range(0.016, 0.040), 0.012, 0.004),
+				_mat(tono, tono.darkened(0.06), 7.0, 0.3), Vector3(gx, gy, 0.030))
+		scaglia.rotation.z = rng.randf_range(0.0, PI)
+
+	# --- la targhetta d'ottone sulla lista alta ---
+	_box(n, Vector3(0.20, 0.045, 0.008), _mat(OTTONE, OTTONE_SCURO, 5.0, 0.35),
+			Vector3(-0.02, y1 + 0.002, 0.004))
+	for k in 3:
+		_box(n, Vector3(0.035 - 0.006 * float(k), 0.006, 0.004),
+				_mat(OTTONE_SCURO, OTTONE_SCURO.darkened(0.2), 5.0, 0.3),
+				Vector3(-0.07 + 0.05 * float(k), y1 + 0.002, -0.001))
+
+	# --- I BIGLIETTI ---
+	var zc := 0.028      # il piano della carta, davanti al sughero
+	# 1. l'avviso ufficiale, grande, con le righe scritte e due puntine
+	var avviso := _carta_bacheca(n, Vector3(-0.235, mezzo + 0.115, zc), 0.30, 0.21,
+			Color("fff6e2"), -0.035)
+	for r in 4:
+		_box(avviso, Vector3(0.20 - 0.03 * float(r), 0.008, 0.003),
+				_mat(Color("b9ab92"), Color("9d9078"), 6.0, 0.25),
+				Vector3(-0.03 + 0.012 * float(r), 0.045 - 0.035 * float(r), -0.006))
+	_puntina(n, Vector3(-0.235 - 0.11, mezzo + 0.19, zc), SEGNALE_ROSSO)
+	_puntina(n, Vector3(-0.235 + 0.12, mezzo + 0.20, zc), Color("6f9ad6"))
+	# 2. la foto col bordo bianco, appesa storta a una puntina sola
+	var foto := _carta_bacheca(n, Vector3(0.175, mezzo + 0.145, zc), 0.17, 0.15,
+			Color("fbf8f2"), 0.16)
+	_box(foto, Vector3(0.135, 0.10, 0.004),
+			_mat(Color("9fc4d8"), Color("7ea6bd"), 6.0, 0.3), Vector3(0, 0.012, -0.005))
+	_puntina(n, Vector3(0.175 - 0.055, mezzo + 0.205, zc), Color("e8c46a"))
+	# 3. il biglietto col washi al posto della puntina
+	var washi := _carta_bacheca(n, Vector3(0.30, mezzo - 0.055, zc), 0.17, 0.13,
+			Color("e8f2e0"), -0.09)
+	for lato: float in [-1.0, 1.0]:
+		var nastro := _box(washi, Vector3(0.055, 0.022, 0.004),
+				_mat(Color("f4b8c8"), Color("e39fb2"), 8.0, 0.3),
+				Vector3(lato * 0.068, 0.062, -0.005))
+		nastro.rotation.z = lato * 0.7
+	# 4. il biglietto vecchio, con l'ANGOLO ARRICCIATO
+	var vecchio := _carta_bacheca(n, Vector3(-0.30, mezzo - 0.14, zc), 0.19, 0.14,
+			Color("f2e6cc"), 0.10)
+	var ricciolo := _box(vecchio, Vector3(0.070, 0.055, 0.004),
+			_mat(Color("e6d6b8"), Color("c8b696"), 6.0, 0.25),
+			Vector3(0.062, -0.048, -0.012))
+	ricciolo.rotation.x = -0.9
+	ricciolo.rotation.z = -0.5
+	_puntina(n, Vector3(-0.30, mezzo - 0.075, zc), Color("7fbc62"))
+	# 5. il foglio coi TAGLIANDI da strappare, due già presi
+	# i tagliandi sono TAGLI NEL FOGLIO, non linguette appese sotto: prima
+	# spuntavano oltre il bordo e il biglietto sembrava un animaletto con
+	# le zampe. Sono fessure scure fra una linguetta e l'altra, dentro la
+	# metà bassa — e dove il tagliando manca la fessura è larga.
+	var tagli := _carta_bacheca(n, Vector3(0.06, mezzo - 0.135, zc), 0.22, 0.155,
+			Color("e4eef8"), 0.02)
+	var fessura := _mat(Color("9fb0c4"), Color("8393a6"), 6.0, 0.25)
+	for k2 in 7:
+		var fx := -0.093 + 0.031 * float(k2)
+		var largo_f := 0.026 if (k2 == 2 or k2 == 5) else 0.004
+		_box(tagli, Vector3(largo_f, 0.075, 0.003), fessura,
+				Vector3(fx, -0.038, -0.003))
+	_puntina(n, Vector3(0.06, mezzo - 0.095, zc), SEGNALE_ROSSO)
+
+	# --- il tettuccio. POSA sulla lista alta: sollevato restava un
+	# cappello a mezz'aria. Le falde sono profonde (0.26) e sporgono
+	# DAVANTI al pannello — un tetto che non ripara la carta non ripara
+	# niente — e il colmo copre la giunzione delle due. ---
+	# la pendenza è 0.62 rad (35°), non 0.46: un tetto poco inclinato letto
+	# di fronte è un coperchio, e il tettuccio smette di dire «riparo»
+	var y_colmo := y1 + 0.085
+	for lato2: float in [-1.0, 1.0]:
+		var incl := lato2 * 0.62
+		# il centro della falda: metà pendenza a partire dal colmo
+		var falda := _box(n, Vector3(1.08, 0.028, 0.26), legno_chiaro,
+				Vector3(0, y_colmo - sin(0.62) * 0.13,
+						0.045 + lato2 * cos(0.62) * 0.13))
+		falda.rotation.x = incl
+		# le tegoline: due listelli in rilievo per falda
+		# le tegoline: tono su tono, NON scure — a contrasto sembravano
+		# due maniglie appoggiate sul coperchio
+		for k3 in 2:
+			var u := -0.06 + 0.12 * float(k3)
+			var t := _box(n, Vector3(1.04, 0.010, 0.050), legno_medio,
+					Vector3(0, y_colmo - sin(0.62) * (0.13 + u) + cos(0.62) * 0.016,
+							0.045 + lato2 * (cos(0.62) * (0.13 + u) + sin(0.62) * 0.016)))
+			t.rotation.x = incl
+	# il colmo, a cavallo delle due falde
+	_box(n, Vector3(1.10, 0.040, 0.075), legno, Vector3(0, y_colmo + 0.012, 0.045))
+	# le due mensoline che reggono lo sbalzo davanti
+	for sx5: float in [-0.36, 0.36]:
+		var mens := _box(n, Vector3(0.028, 0.135, 0.028), legno_scuro,
+				Vector3(sx5, y1 + 0.010, -0.030))
+		mens.rotation.x = -0.62
+
+	# --- la matita allo spago: CORDA VIVA, dondola al vento ---
+	var attacco := Vector3(0.400, y0 - 0.005, -0.012)
+	var spago := _corda_viva(n, attacco, attacco + Vector3(0, -0.115, 0),
+			0.0, 0.005, _mat(Color("d8c49a"), Color("b8a077"), 6.0, 0.3),
+			1.3, 8, 5, true)
+	spago.name = "Spago"
+	var matita := Node3D.new()
+	matita.name = "Matita"
+	matita.position = attacco + Vector3(0, -0.115, 0)
+	n.add_child(matita)
+	_cyl(matita, 0.011, 0.011, 0.13, _mat(Color("e0a24a"), Color("c2842f"), 6.0, 0.3),
+			Vector3(0, -0.065, 0))
+	_cyl(matita, 0.0, 0.011, 0.028, _mat(Color("f0dcc0"), Color("d4bd9c"), 6.0, 0.3),
+			Vector3(0, -0.144, 0))
+	_cyl(matita, 0.0035, 0.0035, 0.012, _mat(Color("4a4640"), Color("38352f"), 6.0, 0.3),
+			Vector3(0, -0.162, 0))
+	var meta_s: Dictionary = spago.get_meta("corda")
+	meta_s["appesi"] = [{"path": NodePath("../Matita"), "t": 1.0, "giu": 0.0}]
+	spago.set_meta("corda", meta_s)
 	return n
+
+
+## Un biglietto della bacheca: la carta, la sua ombra portata sul sughero
+## (è l'ombra a staccarla dal fondo) e il nodo che la contiene, già
+## ruotato — così quello che ci si attacca dentro (righe, washi, riccioli)
+## eredita la storta senza doverla ricalcolare.
+static func _carta_bacheca(parent: Node3D, pos: Vector3, largo: float,
+		alto: float, tinta: Color, giro: float) -> Node3D:
+	var carta := Node3D.new()
+	carta.position = pos
+	carta.rotation.z = giro
+	parent.add_child(carta)
+	_box(carta, Vector3(largo, alto, 0.004),
+			_mat(tinta, tinta.darkened(0.09), 6.0, 0.2), Vector3.ZERO)
+	# l'ombra: appena più piccola, appena spostata in basso a destra
+	_box(carta, Vector3(largo * 0.98, alto * 0.98, 0.002),
+			_mat(Color("9c7f5e"), Color("7f6748"), 6.0, 0.25),
+			Vector3(0.008, -0.008, 0.006))
+	return carta
+
+
+## Una puntina da disegno: lo spillo e la testa tonda che sporge.
+static func _puntina(parent: Node3D, pos: Vector3, tinta: Color) -> void:
+	var mat := _mat(tinta, tinta.darkened(0.18), 4.0, 0.3)
+	_cyl(parent, 0.004, 0.004, 0.020, _mat(METAL, Color("6f665b"), 5.0, 0.3),
+			pos + Vector3(0, 0, 0.004))
+	_ball(parent, 0.013, mat, pos + Vector3(0, 0, -0.008), Vector3(1.0, 1.0, 0.7))
 
 
 static func _attaccapanni_berretto() -> Node3D:
 	# L'ATTACCAPANNI COL BERRETTO: il turno finisce, il berretto resta lì.
+	# Un fusto TORNITO come lo farebbe un falegname — piede a campana,
+	# pomo, collarini, capitello e cimasa in un profilo solo — quattro
+	# bracci piegati a S coi pomelli chiari, quattro pioli bassi per le
+	# cose piccole. E la vita di chi ci passa: il berretto d'ordinanza
+	# appeso storto, una sciarpa che qualcuno riprenderà.
 	var n := Node3D.new()
 	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
-	_cyl(n, 0.09, 0.14, 0.06, legno, Vector3(0, 0.03, 0))
-	_cyl(n, 0.035, 0.045, 1.5, legno, Vector3(0, 0.75, 0))
-	# i tre bracci
-	for i in 3:
-		var a := PI * 2.0 / 3.0 * float(i)
-		var braccio := _cyl(n, 0.018, 0.022, 0.17, legno,
-				Vector3(cos(a) * 0.07, 1.44, sin(a) * 0.07))
-		braccio.rotation.x = cos(a) * 0.0 + 0.6
-		braccio.rotation.y = -a
-		braccio.rotation.z = 0.7
-		_ball(n, 0.026, legno, Vector3(cos(a) * 0.14, 1.5, sin(a) * 0.14))
-	# il berretto d'ordinanza appeso al braccio davanti
+	var legno_scuro := _mat(WOOD_DARK, WOOD_DARK.darkened(0.22), 4.0, 0.45)
+	var legno_chiaro := _mat(WOOD_PALE, WOOD, 4.5, 0.4)
+	# ---- il fusto, tutto d'un pezzo di tornio
+	BUILDER.lathe(n, [
+		Vector2(0.0, 0.0), Vector2(0.155, 0.0), Vector2(0.155, 0.022),
+		Vector2(0.125, 0.05),                      # il piede a campana
+		Vector2(0.085, 0.078), Vector2(0.066, 0.112),
+		Vector2(0.075, 0.135), Vector2(0.062, 0.158),   # tondino di base
+		Vector2(0.048, 0.185),
+		Vector2(0.056, 0.235), Vector2(0.063, 0.29),    # il pomo basso
+		Vector2(0.05, 0.35), Vector2(0.036, 0.395),
+		Vector2(0.033, 0.58),
+		Vector2(0.04, 0.605), Vector2(0.04, 0.625), Vector2(0.031, 0.648),
+		Vector2(0.03, 0.9),                        # il collarino a metà
+		Vector2(0.028, 1.15),
+		Vector2(0.037, 1.175), Vector2(0.037, 1.198), Vector2(0.028, 1.22),
+		Vector2(0.026, 1.32),                      # il collo
+		Vector2(0.048, 1.355), Vector2(0.056, 1.4),     # il capitello
+		Vector2(0.042, 1.44), Vector2(0.038, 1.5),
+		Vector2(0.048, 1.525), Vector2(0.022, 1.565),   # la cimasa
+		Vector2(0.03, 1.592), Vector2(0.013, 1.63), Vector2(0.0, 1.652),
+	], legno, Vector3.ZERO, 28)
+	# ---- i quattro bracci a S, ognuno col suo pomello tornito
+	for gradi: float in [90.0, 0.0, 180.0, 270.0]:
+		var braccio := Node3D.new()
+		braccio.rotation.y = deg_to_rad(gradi)
+		n.add_child(braccio)
+		BUILDER.tube(braccio, [
+			Vector3(0.03, 1.40, 0), Vector3(0.11, 1.362, 0),
+			Vector3(0.158, 1.40, 0), Vector3(0.175, 1.468, 0),
+		], [0.017, 0.014, 0.012, 0.011], legno, 22, 10)
+		_cyl(braccio, 0.017, 0.013, 0.014, legno_scuro, Vector3(0.175, 1.478, 0))
+		_ball(braccio, 0.025, legno_chiaro, Vector3(0.175, 1.499, 0))
+	# ---- i pioli bassi, inclinati appena in su
+	for gradi: float in [45.0, 135.0, 225.0, 315.0]:
+		var piolo := Node3D.new()
+		piolo.rotation.y = deg_to_rad(gradi)
+		n.add_child(piolo)
+		var asta := _cyl(piolo, 0.011, 0.013, 0.09, legno, Vector3(0.066, 1.253, 0))
+		asta.rotation.z = -1.24
+		_ball(piolo, 0.017, legno_chiaro, Vector3(0.108, 1.268, 0))
+	# ---- il berretto d'ordinanza, appeso storto sul braccio davanti
 	var berretto := Node3D.new()
 	berretto.name = "Berretto"
-	berretto.position = Vector3(0.0, 1.44, -0.15)
+	berretto.position = Vector3(0.0, 1.447, -0.183)
+	berretto.rotation.x = 0.24
+	berretto.rotation.y = 0.18
+	berretto.rotation.z = -0.09    # nessuno lo appende dritto
 	n.add_child(berretto)
 	var panno := _mat(BLU, BLU_CUPO, 5.0, 0.45)
-	_cyl(berretto, 0.11, 0.105, 0.09, panno, Vector3(0, 0, 0))
-	_cyl(berretto, 0.125, 0.125, 0.02, _mat(BLU_CUPO, Color("4c6699"), 4.0, 0.4),
-			Vector3(0, -0.05, 0))
-	# la visiera
-	var visiera := _cyl(berretto, 0.13, 0.13, 0.015,
-			_mat(Color("3f4a5c"), Color("323b4a"), 4.0, 0.35), Vector3(0, -0.055, -0.09))
-	visiera.scale = Vector3(1.0, 1.0, 0.55)
-	visiera.rotation.x = 0.22
-	# lo stemmino d'ottone
-	_box(berretto, Vector3(0.05, 0.05, 0.01), _mat(OTTONE, OTTONE_SCURO, 5.0, 0.35),
-			Vector3(0, 0.005, -0.105))
+	var panno_cupo := _mat(BLU_CUPO, Color("4c6699"), 4.0, 0.4)
+	var cuoio := _mat(Color("38302a"), Color("2b241f"), 4.0, 0.35)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.35)
+	# la corona bombata: fascia che rientra, poi il piatto che sboccia
+	BUILDER.lathe(berretto, [
+		Vector2(0.0, 0.0), Vector2(0.102, 0.0),
+		Vector2(0.106, 0.012), Vector2(0.097, 0.045),
+		Vector2(0.105, 0.072), Vector2(0.114, 0.096),
+		Vector2(0.098, 0.116), Vector2(0.052, 0.131), Vector2(0.0, 0.136),
+	], panno, Vector3.ZERO, 24)
+	# la fascia scura, a filo ma più fuori (mai complanare)
+	_cyl(berretto, 0.108, 0.108, 0.036, panno_cupo, Vector3(0, 0.018, 0))
+	# il filetto d'ottone dove la fascia incontra la corona
+	var filetto := MeshInstance3D.new()
+	var fm := TorusMesh.new()
+	fm.inner_radius = 0.101
+	fm.outer_radius = 0.111
+	filetto.mesh = fm
+	filetto.material_override = ottone
+	filetto.position = Vector3(0, 0.038, 0)
+	berretto.add_child(filetto)
+	# il soggolo di cuoio SOLO sul davanti (ad anello pieno diventava una
+	# tesa nera che girava tutt'attorno), coi bottoncini ai suoi capi
+	_lathe_spicchio(berretto, [Vector2(0.1065, 0.003), Vector2(0.1075, 0.011),
+			Vector2(0.1065, 0.019)], cuoio, PI * 0.5 - 0.62, PI * 0.5 + 0.62, 8)
+	_ball(berretto, 0.009, ottone, Vector3(0.062, 0.011, -0.0875))
+	_ball(berretto, 0.009, ottone, Vector3(-0.062, 0.011, -0.0875))
+	# la visiera: una calotta schiacciata color ardesia, curva in giù —
+	# piccola, che spunti da sotto il soggolo invece di fare da piatto
+	var ardesia := _mat(Color("3f4a5c"), Color("313a49"), 4.0, 0.35)
+	var visiera := _ball(berretto, 0.088, ardesia, Vector3(0, -0.002, -0.066),
+			Vector3(0.95, 0.13, 0.66))
+	visiera.rotation.x = 0.32
+	# il fregio: coccarda d'ottone con la borchia, fiera sul davanti
+	var fregio := _cyl(berretto, 0.021, 0.021, 0.008, ottone, Vector3(0, 0.062, -0.104))
+	fregio.rotation.x = PI * 0.5 - 0.12
+	_ball(berretto, 0.008, ottone, Vector3(0, 0.062, -0.109))
+	# ---- la sciarpa di lana, buttata sul braccio di destra. TERRACOTTA:
+	# bianca sul pomello chiaro spariva (sembrava un osso), il caldo sul
+	# blu del berretto è il contrasto giusto per un posto di guardia cozy
+	var sciarpa := Node3D.new()
+	sciarpa.name = "Sciarpa"
+	n.add_child(sciarpa)
+	var lana := _mat(TERRACOTTA, TERRACOTTA.darkened(0.18), 5.0, 0.45)
+	var lana_riga := _mat(CREAM, Color("e8dcc4"), 5.0, 0.4)
+	# il fagotto piegato che ABBRACCIA il pomello (non un fungo sopra)
+	_ball(sciarpa, 0.043, lana, Vector3(0.175, 1.499, 0), Vector3(1.3, 0.55, 1.35))
+	# la coda davanti: l'onda va in LARGHEZZA (x), che è quella che si
+	# vede — in profondità la vede solo il profilo, e da lì sembrava un
+	# serpente incollato al palo. Si allarga in punta, come cade la lana.
+	var davanti := BUILDER.tube(sciarpa, [
+		Vector3(0.173, 1.49, 0.032), Vector3(0.205, 1.4, 0.045),
+		Vector3(0.163, 1.3, 0.052), Vector3(0.195, 1.21, 0.048),
+		Vector3(0.19, 1.15, 0.045),
+	], [0.028, 0.027, 0.026, 0.027, 0.031], lana, 26, 10)
+	davanti.scale = Vector3(1.0, 1.0, 0.55)
+	# la coda dietro, più corta: STESSA fase dell'onda ma più tenue —
+	# in controfase le due code si intrecciavano come una treccia
+	var dietro := BUILDER.tube(sciarpa, [
+		Vector3(0.173, 1.49, -0.032), Vector3(0.192, 1.41, -0.046),
+		Vector3(0.168, 1.32, -0.05), Vector3(0.178, 1.26, -0.046),
+	], [0.028, 0.026, 0.025, 0.028], lana, 20, 10)
+	dietro.scale = Vector3(1.0, 1.0, 0.55)
+	# le righe crema e la frangia: la scala z del tubo schiaccia anche le
+	# POSIZIONI dei suoi punti (0.045 -> ~0.025), quindi le decorazioni
+	# stanno a quel z, non al z del punto di controllo — o galleggiano
+	var riga := _cyl(sciarpa, 0.0285, 0.028, 0.014, lana_riga, Vector3(0.1925, 1.184, 0.026))
+	riga.rotation.x = 0.06
+	riga.rotation.z = 0.06
+	riga.scale = Vector3(1.0, 1.0, 0.56)
+	var riga2 := _cyl(sciarpa, 0.028, 0.0275, 0.009, lana_riga, Vector3(0.194, 1.214, 0.0265))
+	riga2.rotation.x = 0.06
+	riga2.rotation.z = 0.06
+	riga2.scale = Vector3(1.0, 1.0, 0.56)
+	for fi in 4:
+		var fx := -0.017 + 0.0113 * float(fi)
+		var filo := _cyl(sciarpa, 0.0032, 0.0024, 0.032, lana,
+				Vector3(0.19 + fx, 1.121, 0.0245))
+		filo.rotation.z = 0.12 - 0.08 * float(fi)
 	return n
 
 
@@ -4515,50 +4854,159 @@ static func _portone_rimessa() -> Node3D:
 	return n
 
 
-## LA TORRETTA DI VEDETTA. Quattro gambe che si stringono salendo, la
-## piattaforma con la ringhiera, il tetto rosso a punta e la lanterna
-## appesa sotto: di sera è un punto caldo in mezzo al villaggio.
+## LA TORRETTA DI VEDETTA. Gambe tornite sui basamenti di pietra, anelli
+## e croci a tondino coi bulloni d'ottone, la SCALETTA per salire (una
+## vedetta dove non si può salire è un soprammobile), la piattaforma
+## stondata col varco nella ringhiera, il tetto a pagoda svasata sui
+## quattro montanti, il pennone con la bandierina, la campanella
+## d'allarme, il cannocciale d'ottone puntato sull'orizzonte e la
+## lanterna in gabbia: di sera è un punto caldo in mezzo al villaggio.
 static func _torretta() -> Node3D:
 	var n := Node3D.new()
 	var pale := _mat(WOOD_PALE, WOOD, 3.0, 0.45)
 	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
 	var rosso := _mat(POMPA_ROSSO, POMPA_ROSSO_SCURO, 3.0, 0.45)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	var canapa := _mat(Color("d9c49a"), Color("c0a978"), 7.0, 0.5)
+
+	# le gambe TORNITE, un filo svasate, ognuna sul suo basamento di
+	# pietra (il legno a terra nuda marcisce, e una vedetta lo sa)
 	for sx: float in [-1.0, 1.0]:
 		for sz: float in [-1.0, 1.0]:
-			var g := _box(n, Vector3(0.09, 1.95, 0.09), wood,
-					Vector3(sx * 0.3, 0.97, sz * 0.3))
+			var g := _cyl(n, 0.038, 0.052, 1.95, wood,
+					Vector3(sx * 0.3, 1.0, sz * 0.3))
 			g.rotation.z = -sx * 0.05
 			g.rotation.x = sz * 0.05
-	# le croci di controvento sui quattro lati
+			_cyl(n, 0.065, 0.078, 0.06, _mat(STONE, STONE_DARK, 4.0, 0.5),
+					Vector3(sx * 0.348, 0.03, sz * 0.348))
+	# gli anelli orizzontali che legano le gambe, su due quote
+	for quota: Array in [[0.55, 0.325], [1.5, 0.278]]:
+		var qy := float(quota[0])
+		var qr := float(quota[1])
+		for lato in 4:
+			var a := float(lato) * PI * 0.5
+			var trave := _cyl(n, 0.026, 0.026, qr * 2.0 + 0.06, wood,
+					Vector3(sin(a) * qr, qy, cos(a) * qr))
+			trave.rotation.z = PI * 0.5
+			trave.rotation.y = a
+	# le croci di controvento a TONDINO fra i due anelli, col bullone
+	# d'ottone nel punto in cui si incrociano
 	for lato in 4:
 		var a := float(lato) * PI * 0.5
 		for verso: float in [-1.0, 1.0]:
-			var c := _box(n, Vector3(0.8, 0.04, 0.04), wood,
-					Vector3(sin(a) * 0.3, 0.9, cos(a) * 0.3))
+			var c := _cyl(n, 0.02, 0.02, 0.95, wood,
+					Vector3(sin(a) * 0.3, 1.02, cos(a) * 0.3))
 			c.rotation.y = a
-			c.rotation.z = verso * 0.62
-	# la piattaforma e la ringhiera
-	_box(n, Vector3(0.88, 0.07, 0.88), pale, Vector3(0, 1.97, 0))
-	for lato in 4:
-		var a := float(lato) * PI * 0.5
-		var r := _box(n, Vector3(0.88, 0.05, 0.05), pale,
-				Vector3(sin(a) * 0.42, 2.24, cos(a) * 0.42))
-		r.rotation.y = a
-		var m := _cyl(n, 0.03, 0.03, 0.3, pale,
-				Vector3(sin(a) * 0.42, 2.12, cos(a) * 0.42))
-		m.rotation.y = a
-	# il tetto a punta
-	var t := _cyl(n, 0.0, 0.66, 0.44, rosso, Vector3(0, 2.66, 0))
-	t.rotation.y = PI * 0.25
-	# la lanterna appesa sotto il tetto
-	_cyl(n, 0.012, 0.012, 0.14, ottone, Vector3(0, 2.4, 0))
-	_ball(n, 0.08, _glow(Color("ffe6b0"), Color("ffcf86"), 1.4), Vector3(0, 2.28, 0))
+			c.rotation.z = PI * 0.5 + verso * 0.96
+		_ball(n, 0.028, ottone, Vector3(sin(a) * 0.305, 1.02, cos(a) * 0.305))
+
+	# la SCALETTA sul fronte: montanti tondi appoggiati al bordo del
+	# piancito e pioli tondi — si sale da qui, dal varco della ringhiera
+	for sx2: float in [-0.14, 0.14]:
+		# a filo terra, non DENTRO la terra: la guardia dei tre metri
+		# misura la taglia, e due centimetri sotto lo zero contano
+		var montante := _cyl(n, 0.024, 0.028, 2.12, wood, Vector3(sx2, 1.045, -0.66))
+		montante.rotation.x = 0.22
+	for i in 7:
+		var t := (float(i) + 0.6) / 7.6
+		var piolo := _cyl(n, 0.018, 0.018, 0.31, pale,
+				Vector3(0, 0.14 + t * 1.82, -0.87 + t * 0.41))
+		piolo.rotation.z = PI * 0.5
+
+	# la piattaforma stondata, con le righe delle assi
+	_loft(n, [[-0.46, 0.43, 1.93, 2.01, 0.035],
+			[-0.43, 0.46, 1.93, 2.01, 0.022],
+			[0.43, 0.46, 1.93, 2.01, 0.022],
+			[0.46, 0.43, 1.93, 2.01, 0.035]], pale)
+	for gz: float in [-0.22, 0.0, 0.22]:
+		_box(n, Vector3(0.88, 0.005, 0.016), wood, Vector3(0, 2.013, gz))
+
+	# la ringhiera: paletti col pomello, corrimano cilindrico e mezza
+	# traversa; a sud il VARCO dove arriva la scaletta
+	for p_r: Array in [[-0.44, -0.44], [0.44, -0.44], [-0.44, 0.44],
+			[0.44, 0.44], [-0.44, 0.0], [0.44, 0.0], [0.0, 0.44],
+			[-0.18, -0.44], [0.18, -0.44]]:
+		_cyl(n, 0.022, 0.025, 0.32, pale,
+				Vector3(float(p_r[0]), 2.17, float(p_r[1])))
+		_ball(n, 0.032, pale, Vector3(float(p_r[0]), 2.345, float(p_r[1])))
+	for quota_r: Array in [[2.33, 0.024], [2.18, 0.016]]:
+		var qy2 := float(quota_r[0])
+		var qr2 := float(quota_r[1])
+		var nord_r := _cyl(n, qr2, qr2, 0.92, pale, Vector3(0, qy2, 0.44))
+		nord_r.rotation.z = PI * 0.5
+		for sx3: float in [-0.44, 0.44]:
+			var fianco_r := _cyl(n, qr2, qr2, 0.92, pale, Vector3(sx3, qy2, 0))
+			fianco_r.rotation.x = PI * 0.5
+		for sx4: float in [-0.31, 0.31]:
+			var sud_r := _cyl(n, qr2, qr2, 0.28, pale, Vector3(sx4, qy2, -0.44))
+			sud_r.rotation.z = PI * 0.5
+
+	# i quattro montanti che reggono il tetto (prima il cono galleggiava
+	# sopra la ringhiera per fede)
+	for sx5: float in [-1.0, 1.0]:
+		for sz5: float in [-1.0, 1.0]:
+			_cyl(n, 0.028, 0.032, 0.6, wood, Vector3(sx5 * 0.38, 2.31, sz5 * 0.38))
+
+	# IL TETTO A PAGODA: una falda tornita che si svasa verso la gronda —
+	# un cono dritto è geometria, non un tetto — col pennone d'ottone e
+	# la bandierina rossa in cima. Tutto sotto i TRE METRI: una cella è
+	# un metro, e la guardia di test_caserma non transige.
+	BUILDER.lathe(n, [Vector2(0.72, -0.06), Vector2(0.70, -0.043),
+			Vector2(0.60, -0.01), Vector2(0.45, 0.05), Vector2(0.30, 0.12),
+			Vector2(0.16, 0.19), Vector2(0.05, 0.245), Vector2(0.0, 0.265)],
+			rosso, Vector3(0, 2.66, 0))
+	_cyl(n, 0.008, 0.008, 0.06, ottone, Vector3(0, 2.935, 0))
+	_ball(n, 0.014, ottone, Vector3(0, 2.97, 0))
+	var bandiera := _prisma(n, [Vector2(0.0, 0.0), Vector2(0.13, 0.04),
+			Vector2(0.13, -0.04)], 0.0, 0.012, rosso)
+	bandiera.position = Vector3(0.01, 2.94, 0)
+	bandiera.rotation.x = PI * 0.5
+	bandiera.rotation.y = -0.4
+
+	# la campanella d'allarme alla gronda, con la cordicella che pende:
+	# si suona per chiamare, e non c'è mai stato bisogno di suonarla
+	var braccio_c := _cyl(n, 0.011, 0.011, 0.14, ottone, Vector3(0.36, 2.575, -0.36))
+	braccio_c.rotation.z = -0.7
+	braccio_c.rotation.y = PI * 0.25
+	BUILDER.lathe(n, [Vector2(0.037, 0.0), Vector2(0.04, 0.006),
+			Vector2(0.035, 0.016), Vector2(0.028, 0.03), Vector2(0.02, 0.042),
+			Vector2(0.008, 0.052), Vector2(0.0, 0.056)],
+			ottone, Vector3(0.41, 2.475, -0.41))
+	_ball(n, 0.008, ottone, Vector3(0.41, 2.475, -0.41))
+	_cyl(n, 0.0035, 0.0035, 0.1, canapa, Vector3(0.41, 2.425, -0.41))
+
+	# il cannocciale d'ottone sulla ringhiera, puntato fuori: è il
+	# mestiere di questo posto, guardare lontano
+	_cyl(n, 0.009, 0.009, 0.055, ottone, Vector3(0.44, 2.37, 0.12))
+	_ball(n, 0.015, ottone, Vector3(0.44, 2.40, 0.12))
+	var tubo_c := _cyl(n, 0.017, 0.024, 0.17, ottone, Vector3(0.50, 2.425, 0.12))
+	tubo_c.rotation.z = 1.35
+	# il rotolo di corda sul piancito, pronto da calare
+	var rotolo := MeshInstance3D.new()
+	var rm := TorusMesh.new()
+	rm.inner_radius = 0.028
+	rm.outer_radius = 0.072
+	rotolo.mesh = rm
+	rotolo.material_override = canapa
+	rotolo.position = Vector3(0.28, 2.03, 0.28)
+	n.add_child(rotolo)
+
+	# la lanterna in GABBIA appesa sotto il tetto: cappello, vetro caldo
+	# e la goccia d'ottone sotto — il punto caldo della sera
+	_cyl(n, 0.01, 0.01, 0.13, ottone, Vector3(0, 2.535, 0))
+	_cyl(n, 0.022, 0.058, 0.05, ottone, Vector3(0, 2.455, 0))
+	_ball(n, 0.075, _glow(Color("ffe6b0"), Color("ffcf86"), 1.4), Vector3(0, 2.39, 0))
+	for a_g in 3:
+		var stecca_g := _cyl(n, 0.004, 0.004, 0.13, ottone, Vector3(0, 2.39, 0))
+		stecca_g.rotation.y = float(a_g) * PI / 3.0
+		stecca_g.position += Vector3(cos(float(a_g) * PI / 3.0) * 0.072, 0,
+				-sin(float(a_g) * PI / 3.0) * 0.072)
+	_ball(n, 0.018, ottone, Vector3(0, 2.315, 0))
 	var luce := OmniLight3D.new()
 	luce.light_color = Color(1.0, 0.85, 0.62)
 	luce.light_energy = 1.1
 	luce.omni_range = 4.5
-	luce.position = Vector3(0, 2.28, 0)
+	luce.position = Vector3(0, 2.39, 0)
 	n.add_child(luce)
 	return n
 
