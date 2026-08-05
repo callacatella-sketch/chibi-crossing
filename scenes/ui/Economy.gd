@@ -101,7 +101,7 @@ const VARIANTS := [
 ## I mobili che accettano una tinta (il resto tiene i suoi colori).
 const VARIANT_PIECES := [
 	"Sedia", "Sgabello", "Tavolino", "Letto", "Panchina", "Comodino",
-	"Libreria", "Lampada", "Tappeto", "Pianta", "Cespuglio", "Amaca",
+	"Libreria", "Lampada", "Lampada semplice", "Tappeto", "Pianta", "Cespuglio", "Amaca",
 ]
 
 ## Da questo prezzo in su (o se costa stelline) un pezzo è "raro": può

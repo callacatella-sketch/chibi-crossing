@@ -95,6 +95,9 @@ static func items() -> Array[Dictionary]:
 			"cols": [[Vector3(0.92, 1.1, 0.42), Vector3(0, 0.55, 0)]]},
 		{"name": "Lampada", "cat": 1, "type": "cell", "layer": 2, "builder": _lamp,
 			"cols": [[Vector3(0.2, 1.75, 0.2), Vector3(0, 0.87, 0)]]},
+		{"name": "Lampada semplice", "cat": 1, "type": "cell", "layer": 2,
+			"builder": _lamp_liscia,
+			"cols": [[Vector3(0.2, 1.75, 0.2), Vector3(0, 0.87, 0)]]},
 		# il salone dell'estetista: ci si siede e se ne esce diversi.
 		# Le collisioni lasciano libero il DAVANTI (da lì ci si entra):
 		# fermano la console dello specchio, la poltrona e il carrello.
@@ -1312,6 +1315,17 @@ static func _fireplace() -> Node3D:
 
 
 static func _lamp() -> Node3D:
+	return _lampada_base(true)
+
+
+## La variante SENZA il cestino dei fiori: stessa lanterna, per chi vuole
+## il viale sobrio. Un builder solo per tutte e due: se un domani cambia
+## il cappello, cambia per entrambe.
+static func _lamp_liscia() -> Node3D:
+	return _lampada_base(false)
+
+
+static func _lampada_base(con_cesto: bool) -> Node3D:
 	# LA LAMPADA DA GIARDINO. Prima era tre primitive in fila: palo liscio,
 	# palla, cono. Ora ha la grammatica di un lampioncino vero — la base a
 	# gradoni col collare, il palo rastremato con le ghiere d'ottone, la
@@ -1332,29 +1346,31 @@ static func _lamp() -> Node3D:
 	for gy: float in [0.38, 1.10]:
 		_cyl(n, 0.034, 0.034, 0.028, ottone, Vector3(0, gy, 0))
 	# il braccetto con la voluta, e il cestino dei fiori appeso
-	var corda := _mat(Color("c9b088"), Color("ab9066"), 5.0, 0.5)
-	var braccio := _cyl(n, 0.011, 0.011, 0.17, metal, Vector3(0.085, 1.22, 0))
-	braccio.rotation.z = PI * 0.5
-	_ball(n, 0.018, metal, Vector3(0.0, 1.22, 0))
-	_ball(n, 0.016, ottone, Vector3(0.17, 1.22, 0))
-	var verde := _mat(Color("7fae6a"), Color("5f8a4e"), 4.0, 0.45)
-	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
-	for ck in 3:
-		var ca := float(ck) * TAU / 3.0 + 0.3
-		var dx := cos(ca) * 0.030
-		var dz := sin(ca) * 0.030
-		var giu := _cyl(n, 0.004, 0.004, 0.118, corda,
-				Vector3(0.17 + dx * 0.5, 1.166, dz * 0.5))
-		giu.rotation.z = asin(dx / 0.118)
-		giu.rotation.x = -asin(dz / 0.118)
-	_cyl(n, 0.052, 0.034, 0.05, legno, Vector3(0.17, 1.085, 0))
-	_ball(n, 0.052, verde, Vector3(0.17, 1.118, 0), Vector3(1.0, 0.62, 1.0))
-	var rosa := _mat(PINK, PINK_DEEP, 5.0, 0.4)
-	for fk in 4:
-		var af := float(fk) * TAU / 4.0 + 0.5
-		_ball(n, 0.018, rosa,
-				Vector3(0.17 + cos(af) * 0.034, 1.149, sin(af) * 0.034))
-	_ball(n, 0.016, _mat(CREAM, Color("f3dfc8"), 5.0, 0.3), Vector3(0.17, 1.156, 0))
+	if con_cesto:
+		var corda := _mat(Color("c9b088"), Color("ab9066"), 5.0, 0.5)
+		var braccio := _cyl(n, 0.011, 0.011, 0.17, metal, Vector3(0.085, 1.22, 0))
+		braccio.rotation.z = PI * 0.5
+		_ball(n, 0.018, metal, Vector3(0.0, 1.22, 0))
+		_ball(n, 0.016, ottone, Vector3(0.17, 1.22, 0))
+		var verde := _mat(Color("7fae6a"), Color("5f8a4e"), 4.0, 0.45)
+		var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+		for ck in 3:
+			var ca := float(ck) * TAU / 3.0 + 0.3
+			var dx := cos(ca) * 0.030
+			var dz := sin(ca) * 0.030
+			var giu := _cyl(n, 0.004, 0.004, 0.118, corda,
+					Vector3(0.17 + dx * 0.5, 1.166, dz * 0.5))
+			giu.rotation.z = asin(dx / 0.118)
+			giu.rotation.x = -asin(dz / 0.118)
+		_cyl(n, 0.052, 0.034, 0.05, legno, Vector3(0.17, 1.085, 0))
+		_ball(n, 0.052, verde, Vector3(0.17, 1.118, 0), Vector3(1.0, 0.62, 1.0))
+		var rosa := _mat(PINK, PINK_DEEP, 5.0, 0.4)
+		for fk in 4:
+			var af := float(fk) * TAU / 4.0 + 0.5
+			_ball(n, 0.018, rosa,
+					Vector3(0.17 + cos(af) * 0.034, 1.149, sin(af) * 0.034))
+		_ball(n, 0.016, _mat(CREAM, Color("f3dfc8"), 5.0, 0.3),
+				Vector3(0.17, 1.156, 0))
 	# la coppa che culla il globo
 	_cyl(n, 0.075, 0.045, 0.06, ottone, Vector3(0, 1.465, 0))
 	_cyl(n, 0.095, 0.075, 0.02, ottone, Vector3(0, 1.503, 0))
