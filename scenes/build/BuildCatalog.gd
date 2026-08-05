@@ -2379,10 +2379,23 @@ static func _streetlamp() -> Node3D:
 
 
 static func _hammock() -> Node3D:
+	# L'AMACA. Prima il letto era nove doghe rigide col vuoto in mezzo: un
+	# ponte tibetano in miniatura, non un'amaca. Un'amaca vera è TELA: qui
+	# la catenaria è fatta di segmenti che si TOCCANO, ruotati ognuno sulla
+	# tangente della curva — le righe rosa e crema sono la stoffa, e l'orlo
+	# di corda corre sui due fili del letto. Ai capi, la grammatica
+	# dell'amaca da giardino: il bilancino di legno che tiene aperta la
+	# tela, il ventaglio di cordini che si raccoglie nell'anello d'ottone,
+	# e la fune che va ad annodarsi al palo sotto la fasciatura. I pali
+	# hanno il pomolo in cima e il manicotto scuro alla base; sul letto,
+	# il cuscino e la copertina piegata — qualcuno si è appena alzato.
 	var n := Node3D.new()
 	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
-	# i numeri dei pali servono anche al letto e alle funi (dove finisce una
-	# doga, dove si annoda una corda): stanno scritti una volta sola
+	var scuro := _mat(WOOD_DARK, WOOD_DARK.darkened(0.15), 3.5, 0.45)
+	var chiaro := _mat(WOOD_PALE, WOOD, 3.5, 0.5)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	# i numeri dei pali servono anche alle funi (dove si annoda una corda):
+	# stanno scritti una volta sola
 	var palo_x := 0.42
 	var palo_y := 0.45
 	var palo_h := 0.9
@@ -2397,47 +2410,85 @@ static func _hammock() -> Node3D:
 		return palo_x + sin(incl) * (y - palo_y) / cos(incl)
 	var faccia := func(y: float) -> float:
 		var h: float = (y - palo_y) / cos(incl)
-		return float(asse.call(y)) \
-				- lerpf(0.06, 0.04, h / palo_h + 0.5) / cos(incl)
+		return float(asse.call(y)) 				- lerpf(0.06, 0.04, h / palo_h + 0.5) / cos(incl)
+	# il pomolo in cima e il manicotto alla base: un palo finito, non un
+	# tubo piantato nel prato
+	var cima_y := palo_y + cos(incl) * palo_h * 0.5
+	for lato: float in [-1.0, 1.0]:
+		_ball(n, 0.055, wood, Vector3(lato * float(asse.call(cima_y)), cima_y + 0.015, 0),
+				Vector3(1, 0.82, 1))
+		var manicotto := _cyl(n, 0.072, 0.085, 0.09, scuro,
+				Vector3(lato * float(asse.call(0.045)), 0.045, 0))
+		manicotto.rotation.z = -lato * incl
+
+	# ---- LA TELA: tredici segmenti che si toccano lungo la catenaria,
+	# ognuno ruotato sulla tangente — da lontano è una curva sola
 	var a := _mat(PINK, PINK_DEEP, 5.0, 0.4)
 	var b := _mat(CREAM, Color("f3dfc8"), 5.0, 0.4)
 	var corda := _mat(Color("c9b088"), Color("ab9066"), 5.0, 0.5)
-	# Le nove doghe erano nove isole: niente le infilava, e le due terminali
-	# finivano DENTRO i pali (bordo esterno a 0.40 contro la faccia interna a
-	# 0.368: 3,2 cm di legno attraversato, e di tre quarti sbucavano dall'altra
-	# parte). Ora la campata si RICAVA dal palo e sono le due funi a reggere il
-	# letto: seguono la stessa catenaria, infilano tutte le doghe e vanno ad
-	# annodarsi al legno — in un'amaca vera al palo ci arriva la corda, non il
-	# letto.
-	var quota := 0.44                        # la quota dei due capi del letto
-	# mezza campata: l'ultima doga ci deve stare TUTTA dentro, e la doga è a sua
-	# volta ricavata dal passo → mezza + doga/2 = limite; con doga = 2·mezza/9
-	# viene mezza = limite · 0.9, e il vuoto fra le doghe resta 1/9 del passo
-	var limite := float(faccia.call(quota)) - 0.008
-	var mezza := limite * 0.9
-	var passo := mezza / 4.0                 # otto intervalli fra nove doghe
-	var doga := passo * 8.0 / 9.0
+	var quota := 0.46
+	var mezza := 0.26
+	var dip := 0.15
 	var punti: Array[Vector3] = []
-	for i in 9:
-		var t := float(i) / 8.0
-		var x := -mezza + t * mezza * 2.0
-		var dip := quota - 0.16 * sin(PI * t)
-		_box(n, Vector3(doga, 0.02, 0.34), a if i % 2 == 0 else b, Vector3(x, dip, 0))
-		punti.append(Vector3(x, dip, 0))
-	var nodo_y := 0.56                       # dove la fune abbraccia il palo
+	for i in 14:
+		var t := float(i) / 13.0
+		punti.append(Vector3(-mezza + t * mezza * 2.0, quota - dip * sin(PI * t), 0))
+	for i in 13:
+		var da := punti[i]
+		var fino := punti[i + 1]
+		var seg := _box(n, Vector3(da.distance_to(fino) * 1.06, 0.016, 0.36),
+				a if i % 2 == 0 else b, (da + fino) * 0.5)
+		seg.rotation.z = atan2(fino.y - da.y, fino.x - da.x)
+	# l'orlo di corda sui due fili del letto
+	for fz: float in [-1.0, 1.0]:
+		for i in 13:
+			_fune(n, punti[i] + Vector3(0, 0.010, fz * 0.175),
+					punti[i + 1] + Vector3(0, 0.010, fz * 0.175), 0.011, corda)
+
+	# ---- I CAPI: bilancino, ventaglio, anello, fune e fasciatura
+	var nodo_y := 0.56
 	for lato: float in [-1.0, 1.0]:
-		var fianco := Vector3(0, 0, lato * 0.175)     # sul filo delle doghe
-		for i in 8:
-			_fune(n, punti[i] + fianco, punti[i + 1] + fianco, 0.016, corda)
-		for capo: float in [-1.0, 1.0]:
-			_fune(n, punti[0 if capo < 0.0 else 8] + fianco,
-					Vector3(capo * float(faccia.call(nodo_y)), nodo_y, 0), 0.014, corda)
-	# la fasciatura di corda attorno al palo: chiude i quattro capi e nasconde
-	# gli attacchi, come le legature degli attrezzi della palestra
-	for capo: float in [-1.0, 1.0]:
-		var fascia := _cyl(n, 0.058, 0.058, 0.05, corda,
-				Vector3(capo * float(asse.call(nodo_y)), nodo_y, 0))
-		fascia.rotation.z = -capo * incl
+		var capo := Vector3(lato * (mezza + 0.012), quota + 0.004, 0)
+		var bar := _cyl(n, 0.016, 0.016, 0.42, chiaro, capo)
+		bar.rotation.x = PI * 0.5
+		var anello_p := Vector3(lato * 0.335, 0.492, 0)
+		for fz: float in [-0.19, -0.095, 0.0, 0.095, 0.19]:
+			_fune(n, capo + Vector3(0, 0, fz), anello_p, 0.007, corda)
+		var anello := TorusMesh.new()
+		anello.inner_radius = 0.012
+		anello.outer_radius = 0.028
+		anello.rings = 12
+		anello.ring_segments = 8
+		var ami := MeshInstance3D.new()
+		ami.mesh = anello
+		ami.material_override = ottone
+		ami.position = anello_p
+		ami.rotation.z = PI * 0.5
+		n.add_child(ami)
+		_fune(n, anello_p, Vector3(lato * float(faccia.call(nodo_y)), nodo_y, 0),
+				0.013, corda)
+		var fascia := _cyl(n, 0.058, 0.058, 0.055, corda,
+				Vector3(lato * float(asse.call(nodo_y)), nodo_y, 0))
+		fascia.rotation.z = -lato * incl
+
+	# ---- il cuscino e la copertina: la vita sopra la tela
+	var quota_su := func(x: float) -> float:
+		var t := (x + mezza) / (mezza * 2.0)
+		return quota - dip * sin(PI * t)
+	var pendenza := func(x: float) -> float:
+		var t := (x + mezza) / (mezza * 2.0)
+		return atan2(-dip * PI * cos(PI * t), mezza * 2.0)
+	var cuscino := _ball(n, 0.085, b,
+			Vector3(-0.12, float(quota_su.call(-0.12)) + 0.042, 0.0),
+			Vector3(1.0, 0.42, 0.75))
+	cuscino.rotation.z = float(pendenza.call(-0.12)) * 0.7
+	var rosa_cupo := _mat(PINK_DEEP, PINK_DEEP.darkened(0.2), 4.0, 0.4)
+	var coperta := _box(n, Vector3(0.18, 0.020, 0.26), rosa_cupo,
+			Vector3(0.11, float(quota_su.call(0.11)) + 0.020, 0.0))
+	coperta.rotation.z = float(pendenza.call(0.11)) * 0.85
+	var piega := _box(n, Vector3(0.18, 0.018, 0.17), rosa_cupo,
+			Vector3(0.115, float(quota_su.call(0.11)) + 0.038, -0.02))
+	piega.rotation.z = float(pendenza.call(0.11)) * 0.85
 	return n
 
 
