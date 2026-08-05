@@ -2337,25 +2337,98 @@ static func _clothesline() -> Node3D:
 	return n
 
 
-# il carillon: cassa di ciliegio, rullo d'ottone e la manovella sul fianco.
-# La musica vera la mette Interactions (E per caricarlo): qui solo il corpo.
+# IL CARILLON: la scatola di ciliegio che cambia la musica del villaggio.
+# Il MECCANISMO sta in vista, ed e' lui il pezzo: il rullo d'ottone con
+# le puntine vere disposte a spirale, il PETTINE coi denti a scalare
+# (i bassi lunghi, gli acuti corti: e' cosi' che un pettine suona), il
+# ruotino dentato che porta il moto, e la manovella a gomito con
+# l'impugnatura tornita di ciliegio. La cassa ha il filetto d'ottone,
+# l'intarsio a rombo sul fronte e la targhetta. La musica vera la mette
+# Interactions (E per caricarlo): qui il corpo — coi nomi (Manovella,
+# Rullo) gia' pronti per chi un giorno vorra' farli girare.
 static func _musicbox() -> Node3D:
 	var n := Node3D.new()
 	var ciliegio := _mat(Color("b06a4a"), Color("8f5238"), 4.0, 0.5)
+	var ciliegio_s := _mat(Color("8a4f36"), Color("6e3d29"), 4.0, 0.5)
 	var ottone := _mat(Color("e8c46a"), Color("c49c48"), 5.0, 0.35)
-	_box(n, Vector3(0.42, 0.1, 0.36), _mat(WOOD_DARK, Color("7a5636"), 4.0, 0.5), Vector3(0, 0.05, 0))
-	_box(n, Vector3(0.38, 0.3, 0.32), ciliegio, Vector3(0, 0.25, 0))
-	_box(n, Vector3(0.4, 0.04, 0.34), ottone, Vector3(0, 0.42, 0))
-	# il rullo a pettine, coi dentini che pizzicano le note
-	var rullo := _cyl(n, 0.07, 0.07, 0.26, ottone, Vector3(0, 0.52, 0))
-	rullo.rotation.z = PI * 0.5
-	for i in 5:
-		_box(n, Vector3(0.015, 0.02, 0.09), ciliegio, Vector3(-0.1 + i * 0.05, 0.44, 0.1))
-	# la manovella sul fianco
-	var perno := _cyl(n, 0.018, 0.018, 0.1, ottone, Vector3(0.23, 0.3, 0))
-	perno.rotation.z = PI * 0.5
-	_box(n, Vector3(0.03, 0.11, 0.03), ottone, Vector3(0.28, 0.25, 0))
-	_ball(n, 0.028, ciliegio, Vector3(0.28, 0.19, 0))
+	var ottone_s := _mat(Color("c9a24a"), Color("a67f33"), 5.0, 0.35)
+	var chiaro := _mat(Color("d9a878"), Color("bf8d5e"), 4.5, 0.45)
+
+	# lo zoccolo scuro coi piedini a panetto
+	var zocc := _prisma(n, _rrect_xz(0.42, 0.36, 0.03), 0.025, 0.075, ciliegio_s)
+	zocc.position.z = 0.0
+	for px: float in [-0.16, 0.16]:
+		for pz: float in [-0.13, 0.13]:
+			_ball(n, 0.026, ciliegio_s, Vector3(px, 0.018, pz),
+					Vector3(1.0, 0.62, 1.0))
+
+	# la cassa di ciliegio col filetto d'ottone e il coperchio
+	var cassa := _prisma(n, _rrect_xz(0.38, 0.32, 0.028), 0.10, 0.28, ciliegio)
+	cassa.position.z = 0.0
+	var filo := _prisma(n, _rrect_xz(0.39, 0.33, 0.028), 0.38, 0.012, ottone_s)
+	filo.position.z = 0.0
+	var coper := _prisma(n, _rrect_xz(0.40, 0.34, 0.030), 0.392, 0.035, ciliegio)
+	coper.position.z = 0.0
+
+	# l'intarsio a rombo sul fronte, con la puntina d'ottone, e la
+	# targhetta sotto il coperchio
+	var rombo := _lastra(n, 0.028, 0.075, 0.012, 0.008, chiaro,
+			Vector3(0, 0.24, -0.158), Vector3(0, PI * 0.5, PI * 0.25))
+	rombo.rotation.x = 0.0
+	_ball(n, 0.0085, ottone, Vector3(0, 0.24, -0.165))
+	_lastra(n, 0.042, 0.028, 0.008, 0.006, ottone_s,
+			Vector3(0, 0.352, -0.162), Vector3(0, PI * 0.5, 0))
+
+	# IL RULLO, coi supporti a staffa e le PUNTINE a spirale
+	var rullo := Node3D.new()
+	rullo.name = "Rullo"
+	rullo.position = Vector3(0, 0.475, 0.03)
+	n.add_child(rullo)
+	var tamburo := _cyl(rullo, 0.062, 0.062, 0.24, ottone, Vector3.ZERO)
+	tamburo.rotation.z = PI * 0.5
+	for i in 18:
+		var a := float(i) * 2.1
+		var lx := -0.10 + 0.2 * fmod(float(i) * 0.37, 1.0)
+		_ball(rullo, 0.006, ottone_s,
+				Vector3(lx, cos(a) * 0.066, sin(a) * 0.066))
+	for sx: float in [-0.135, 0.135]:
+		_box(n, Vector3(0.022, 0.085, 0.05), ottone_s,
+				Vector3(sx, 0.455, 0.03))
+		_ball(n, 0.016, ottone_s, Vector3(sx, 0.50, 0.03))
+
+	# il PETTINE coi denti a scalare: i bassi lunghi, gli acuti corti
+	_box(n, Vector3(0.26, 0.016, 0.045), ottone_s, Vector3(0, 0.43, -0.085))
+	for d in 9:
+		var lung := 0.062 - 0.0028 * float(d)
+		_box(n, Vector3(0.017, 0.008, lung), ottone,
+				Vector3(-0.104 + 0.026 * float(d), 0.436, -0.062 + lung * 0.5 - 0.03))
+
+	# il RUOTINO dentato in punta al rullo, che porta il moto alla manovella
+	var ruota := _cyl(n, 0.036, 0.036, 0.016, ottone_s, Vector3(0.155, 0.475, 0.03))
+	ruota.rotation.z = PI * 0.5
+	for dt in 8:
+		var ad := float(dt) * PI * 0.25
+		var dente := _box(n, Vector3(0.012, 0.014, 0.012), ottone_s,
+				Vector3(0.155, 0.475 + cos(ad) * 0.042, 0.03 + sin(ad) * 0.042))
+		dente.rotation.x = ad
+
+	# LA MANOVELLA a gomito: boccola sul fianco, albero, braccio e
+	# impugnatura tornita che gira folle
+	var mano := Node3D.new()
+	mano.name = "Manovella"
+	mano.position = Vector3(0.19, 0.30, 0)
+	n.add_child(mano)
+	_cyl(mano, 0.030, 0.034, 0.018, ottone_s, Vector3(0.005, 0, 0)).rotation.z = PI * 0.5
+	var albero := _cyl(mano, 0.013, 0.013, 0.075, ottone, Vector3(0.04, 0, 0))
+	albero.rotation.z = PI * 0.5
+	_ball(mano, 0.017, ottone_s, Vector3(0.078, 0, 0))
+	_box(mano, Vector3(0.022, 0.10, 0.022), ottone, Vector3(0.078, -0.05, 0))
+	# l'impugnatura sta LUNGO L'ALBERO (parallela a X, verso fuori):
+	# e' cosi' che una mano la afferra e la fa girare
+	var presa := _cyl(mano, 0.016, 0.018, 0.062, ciliegio, Vector3(0.112, -0.10, 0))
+	presa.rotation.z = PI * 0.5
+	_ball(mano, 0.019, ciliegio_s, Vector3(0.082, -0.10, 0))
+	_ball(mano, 0.017, ciliegio_s, Vector3(0.142, -0.10, 0))
 	return n
 
 
