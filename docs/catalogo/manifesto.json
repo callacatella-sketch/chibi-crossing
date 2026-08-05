@@ -90,10 +90,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 2.89,
+    "alto": 3.85,
     "cartella": "docs/catalogo/0-struttura/torretta/",
-    "cat": 0.0,
-    "largo": 1.87,
+    "cat": 0,
+    "largo": 1.9,
     "nome": "Torretta",
     "slug": "torretta",
     "tipo": "cell"
@@ -252,7 +252,7 @@
     "tipo": "edge"
   },
   {
-    "alto": 0.91,
+    "alto": 0.97,
     "cartella": "docs/catalogo/1-arredo/amaca/",
     "cat": 1.0,
     "largo": 1.07,
@@ -306,10 +306,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.79,
+    "alto": 1.88,
     "cartella": "docs/catalogo/1-arredo/lampada/",
     "cat": 1.0,
-    "largo": 0.38,
+    "largo": 0.44,
     "nome": "Lampada",
     "slug": "lampada",
     "tipo": "cell"

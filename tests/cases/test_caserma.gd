@@ -79,8 +79,15 @@ func _test_geometria(t, voci: Dictionary) -> void:
 		else:
 			t.ok(box.position.y + box.size.y < 2.3,
 					"%s sta dentro l'altezza di un muro" % nome)
-		# in scala col villaggio: una cella è un metro
-		t.ok(box.size.y < 3.0, "%s non è più alto di tre metri" % nome)
+		# in scala col villaggio: una cella è un metro. La TORRETTA è
+		# l'eccezione DICHIARATA: da quando è visitabile, la gronda deve
+		# lasciare in piedi anche la volpina (1.6 con le orecchie) sopra
+		# uno spiazzo a quota due metri — a una torre di vedetta si
+		# concedono quattro metri, essere più alta del resto è il suo
+		# mestiere. Non allargare l'eccezione ad altri pezzi.
+		var tetto_max := 4.0 if nome == "Torretta" else 3.0
+		t.ok(box.size.y < tetto_max,
+				"%s resta nella sua altezza di scala" % nome)
 		t.ok(box.size.x < 2.2 and box.size.z < 2.2,
 				"%s sta nel suo ingombro" % nome)
 		# le collisioni dichiarate hanno misure sensate
