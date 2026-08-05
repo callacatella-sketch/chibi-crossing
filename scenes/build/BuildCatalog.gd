@@ -3835,17 +3835,16 @@ static func _armadio_smarriti() -> Node3D:
 	# gradini, zoccolo scuro, e dodici cassetti che sono GRUPPI (fronte
 	# stondato, pomello tornito d'ottone, portacartellino con la sua
 	# cartolina) — cosi' i socchiusi e quello storto portano con se'
-	# tutto il loro corredo. Dietro le fughe c'e' il buio vero, nei
-	# socchiusi la cavita'. E la vita: la sciarpa rosa che cala a
-	# cascata con le frange, e una pallina rossa che nessuno e' ancora
-	# venuto a riprendersi.
+	# tutto il loro corredo. Dietro le fughe c'e' il buio vero; i
+	# socchiusi hanno la CASSA vera (sponde, fondo, schienalino), e da
+	# uno fa capolino una pallina rossa che nessuno e' ancora venuto a
+	# riprendersi.
 	var n := Node3D.new()
 	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
 	var fronte := _mat(WOOD_PALE, WOOD, 3.5, 0.45)
 	var scuro := _mat(Color("3d332a"), Color("2e2620"), 4.0, 0.3)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
 	var crema := _mat(CREAM, Color("efe2ca"), 6.0, 0.2)
-	var rosa := _mat(PINK, PINK_DEEP, 5.0, 0.45)
 
 	# la carcassa stondata, il buio dietro le fughe, zoccolo e cimasa
 	var corpo := _prisma(n, _rrect_xz(0.92, 0.44, 0.030), 0.10, 1.38, legno)
@@ -3882,6 +3881,17 @@ static func _armadio_smarriti() -> Node3D:
 			if riga == 1 and col == 2:
 				cass.rotation.z = 0.022
 			n.add_child(cass)
+			if fuori > 0.0:
+				# la CASSA del cassetto tirato fuori: sponde, fondo e
+				# schienalino — un fronte che galleggia a mezz'aria non
+				# e' un cassetto, e' un francobollo
+				for sponda: float in [-0.122, 0.122]:
+					_box(cass, Vector3(0.016, 0.170, 0.190), legno,
+							Vector3(sponda, -0.017, 0.100))
+				_box(cass, Vector3(0.256, 0.014, 0.190), legno,
+						Vector3(0, -0.098, 0.100))
+				_box(cass, Vector3(0.256, 0.150, 0.014), legno,
+						Vector3(0, -0.02, 0.190))
 			# il fronte stondato (lastra girata a guardare -Z)
 			_lastra(cass, 0.136, 0.305, 0.028, 0.035, fronte,
 					Vector3(0, 0, 0), Vector3(0, PI * 0.5, 0))
@@ -3895,26 +3905,6 @@ static func _armadio_smarriti() -> Node3D:
 					Vector3(0, 0.075, -0.021), Vector3(0, PI * 0.5, 0))
 			_lastra(cass, 0.045, 0.050, 0.008, 0.005, crema,
 					Vector3(0, 0.075, -0.026), Vector3(0, PI * 0.5, 0))
-
-	# la SCIARPA rosa che cala dal cassetto socchiuso in basso a destra:
-	# sul labbro, giu' a cascata, e le frange in punta
-	var sciarpa := Node3D.new()
-	sciarpa.name = "Sciarpa"
-	sciarpa.position = Vector3(0.355, 0.365, -0.262)
-	n.add_child(sciarpa)
-	var s1 := _lastra(sciarpa, 0.055, 0.16, 0.02, 0.018, rosa,
-			Vector3(-0.02, 0.075, 0.05), Vector3(1.30, 0, 0.10))
-	s1.rotation.y = PI * 0.5
-	var s2 := _lastra(sciarpa, 0.052, 0.22, 0.02, 0.016, rosa,
-			Vector3(0.012, -0.045, -0.012), Vector3(0.12, 0, -0.05))
-	s2.rotation.y = PI * 0.5
-	var s3 := _lastra(sciarpa, 0.050, 0.14, 0.02, 0.015, rosa,
-			Vector3(-0.008, -0.20, -0.020), Vector3(-0.08, 0, 0.04))
-	s3.rotation.y = PI * 0.5
-	for fr in 4:
-		var fx := -0.030 + 0.020 * float(fr)
-		_cyl(sciarpa, 0.0045, 0.0045, 0.035, rosa,
-				Vector3(fx - 0.008, -0.285, -0.022))
 
 	# la pallina rossa smarrita, mezza fuori dall'altro socchiuso
 	_ball(n, 0.040, _mat(Color("c94f43"), Color("a83c33"), 5.0, 0.45),

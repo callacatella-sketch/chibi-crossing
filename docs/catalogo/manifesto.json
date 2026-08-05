@@ -425,7 +425,7 @@
   {
     "alto": 1.65,
     "cartella": "docs/catalogo/1-arredo/attaccapanni/",
-    "cat": 1,
+    "cat": 1.0,
     "largo": 0.43,
     "nome": "Attaccapanni",
     "slug": "attaccapanni",
@@ -497,7 +497,7 @@
   {
     "alto": 1.56,
     "cartella": "docs/catalogo/1-arredo/armadio-smarriti/",
-    "cat": 1.0,
+    "cat": 1,
     "largo": 1.0,
     "nome": "Armadio smarriti",
     "slug": "armadio-smarriti",
