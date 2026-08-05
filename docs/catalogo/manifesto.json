@@ -279,9 +279,9 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.8,
+    "alto": 1.91,
     "cartella": "docs/catalogo/1-arredo/camino/",
-    "cat": 1.0,
+    "cat": 1,
     "largo": 1.0,
     "nome": "Camino",
     "slug": "camino",
@@ -461,7 +461,7 @@
   {
     "alto": 1.45,
     "cartella": "docs/catalogo/1-arredo/bacheca-avvisi/",
-    "cat": 1,
+    "cat": 1.0,
     "largo": 1.1,
     "nome": "Bacheca avvisi",
     "slug": "bacheca-avvisi",
