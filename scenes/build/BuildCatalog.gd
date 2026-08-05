@@ -3711,8 +3711,7 @@ static func _bancone_piantone() -> Node3D:
 	# incassate su fronte e fianchi, il piano chiaro che sporge col bordo
 	# tondo (ci si appoggiano i gomiti). Sopra, la vita del posto: il
 	# registro rilegato con la penna e il segnalibro, il calamaio, il
-	# timbro col suo tampone, tre lettere legate con lo spago, un avviso
-	# puntato sul fronte, e il campanello che si suona quando non c'è
+	# timbro col suo tampone, tre lettere legate con lo spago, il campanello che si suona quando non c'è
 	# nessuno — nodo "Campanello", così un domani può fare tin. Sul retro,
 	# lato guardia, i due cassetti col pomello e il vano aperto.
 	var n := Node3D.new()
@@ -3812,11 +3811,6 @@ static func _bancone_piantone() -> Node3D:
 			Vector3(0, 0.816, 0))
 	_ball(buste, 0.009, _mat(Color("8a7a5c"), Color("6e6148"), 4.0, 0.3),
 			Vector3(0, 0.819, 0))
-
-	# ---- l'avviso puntato sul pannello di destra, appena storto
-	var avviso := _box(n, Vector3(0.105, 0.14, 0.006), carta, Vector3(0.19, 0.46, -0.194))
-	avviso.rotation.z = 0.06
-	_ball(n, 0.008, ottone, Vector3(0.186, 0.522, -0.199))
 
 	# ---- il campanello da banco (nodo "Campanello": un domani farà tin)
 	var campanello := Node3D.new()
