@@ -1312,17 +1312,65 @@ static func _fireplace() -> Node3D:
 
 
 static func _lamp() -> Node3D:
+	# LA LAMPADA DA GIARDINO. Prima era tre primitive in fila: palo liscio,
+	# palla, cono. Ora ha la grammatica di un lampioncino vero — la base a
+	# gradoni col collare, il palo rastremato con le ghiere d'ottone, la
+	# coppa che CULLA il globo (una palla appoggiata a mezz'aria non regge),
+	# il cappello a due spioventi con la gronda e il pomolo d'ottone. E la
+	# firma cozy: il braccetto con la voluta da cui pende il cestino dei
+	# fiori — tre cordini, la ciotola di legno, e il rosa che trabocca.
+	# L'OmniLight non si tocca: è tarata sulle sere del villaggio.
 	var n := Node3D.new()
 	var metal := _mat(METAL, Color("6f665b"), 5.0, 0.4)
-	_cyl(n, 0.11, 0.15, 0.06, metal, Vector3(0, 0.03, 0))
-	_cyl(n, 0.028, 0.035, 1.45, metal, Vector3(0, 0.78, 0))
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	# la base a gradoni
+	_cyl(n, 0.125, 0.16, 0.05, metal, Vector3(0, 0.025, 0))
+	_cyl(n, 0.095, 0.115, 0.035, metal, Vector3(0, 0.0675, 0))
+	_cyl(n, 0.042, 0.062, 0.07, metal, Vector3(0, 0.12, 0))
+	# il palo rastremato, con le due ghiere d'ottone
+	_cyl(n, 0.026, 0.036, 1.30, metal, Vector3(0, 0.80, 0))
+	for gy: float in [0.38, 1.10]:
+		_cyl(n, 0.034, 0.034, 0.028, ottone, Vector3(0, gy, 0))
+	# il braccetto con la voluta, e il cestino dei fiori appeso
+	var corda := _mat(Color("c9b088"), Color("ab9066"), 5.0, 0.5)
+	var braccio := _cyl(n, 0.011, 0.011, 0.17, metal, Vector3(0.085, 1.22, 0))
+	braccio.rotation.z = PI * 0.5
+	_ball(n, 0.018, metal, Vector3(0.0, 1.22, 0))
+	_ball(n, 0.016, ottone, Vector3(0.17, 1.22, 0))
+	var verde := _mat(Color("7fae6a"), Color("5f8a4e"), 4.0, 0.45)
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	for ck in 3:
+		var ca := float(ck) * TAU / 3.0 + 0.3
+		var dx := cos(ca) * 0.030
+		var dz := sin(ca) * 0.030
+		var giu := _cyl(n, 0.004, 0.004, 0.118, corda,
+				Vector3(0.17 + dx * 0.5, 1.166, dz * 0.5))
+		giu.rotation.z = asin(dx / 0.118)
+		giu.rotation.x = -asin(dz / 0.118)
+	_cyl(n, 0.052, 0.034, 0.05, legno, Vector3(0.17, 1.085, 0))
+	_ball(n, 0.052, verde, Vector3(0.17, 1.118, 0), Vector3(1.0, 0.62, 1.0))
+	var rosa := _mat(PINK, PINK_DEEP, 5.0, 0.4)
+	for fk in 4:
+		var af := float(fk) * TAU / 4.0 + 0.5
+		_ball(n, 0.018, rosa,
+				Vector3(0.17 + cos(af) * 0.034, 1.149, sin(af) * 0.034))
+	_ball(n, 0.016, _mat(CREAM, Color("f3dfc8"), 5.0, 0.3), Vector3(0.17, 1.156, 0))
+	# la coppa che culla il globo
+	_cyl(n, 0.075, 0.045, 0.06, ottone, Vector3(0, 1.465, 0))
+	_cyl(n, 0.095, 0.075, 0.02, ottone, Vector3(0, 1.503, 0))
+	# il globo (la stessa luce calda di sempre)
 	var glow := StandardMaterial3D.new()
 	glow.albedo_color = Color("ffe6b0")
 	glow.emission_enabled = true
 	glow.emission = Color("ffd382")
 	glow.emission_energy_multiplier = 2.2
 	_ball(n, 0.16, glow, Vector3(0, 1.6, 0))
-	_cyl(n, 0.05, 0.19, 0.1, metal, Vector3(0, 1.74, 0))
+	# il cappello a due spioventi: la gronda, il cono, la calotta e il
+	# pomolo d'ottone
+	_cyl(n, 0.205, 0.215, 0.014, metal, Vector3(0, 1.723, 0))
+	_cyl(n, 0.06, 0.20, 0.085, metal, Vector3(0, 1.772, 0))
+	_ball(n, 0.058, metal, Vector3(0, 1.812, 0), Vector3(1.0, 0.72, 1.0))
+	_ball(n, 0.020, ottone, Vector3(0, 1.856, 0))
 	var light := OmniLight3D.new()
 	light.light_color = Color(1.0, 0.86, 0.6)
 	light.light_energy = 1.6
