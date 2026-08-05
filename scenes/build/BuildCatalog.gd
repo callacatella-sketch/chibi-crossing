@@ -687,10 +687,106 @@ static func _lastra_sentiero(parent: Node3D, rng: RandomNumberGenerator,
 		_prisma(lastra, punti, da, spess, mat)
 
 
+## IL TAPPETO INTRECCIATO — il tappeto delle case cozy per eccellenza:
+## la spirale di trecce di stoffa cucite in tondo, ovale come vengono
+## davvero (una spirale tirata a mano non chiude mai un cerchio).
+##
+## Prima erano due cilindri concentrici: un piattino, non un tappeto. La
+## differenza la fanno quattro cose, tutte piccole:
+##  · le SPIRE: sei anelli di treccia (tori schiacciati) a colori
+##    alternati, ognuno col suo appoggio — un'inclinazione di qualche
+##    millesimo e una quota sua: la stoffa si adagia, non si stampa;
+##  · i PUNTI DELLA TRECCIA: i nodini obliqui in rilievo sulle spire —
+##    sono loro a dire «intrecciato» invece di «verniciato a righe»;
+##  · il CAPO FINALE: la treccia non sparisce — l'ultimo capo esce dalla
+##    spira più esterna, si adagia sul pavimento e finisce cucito con
+##    due punti. È la firma di ogni tappeto a spirale vero;
+##  · l'OVALE: tutto è scalato 1.06 × 0.94 — il cerchio perfetto è da
+##    negozio, l'ovale è di casa.
+##
+## Le varianti di colore continuano a funzionare: ogni spira ha il suo
+## ShaderMaterial e apply_variant le tinge tutte conservando gli scarti.
 static func _rug() -> Node3D:
 	var n := Node3D.new()
-	_cyl(n, 0.46, 0.46, 0.025, _mat(CREAM, Color("f3dfc8"), 5.0, 0.5), Vector3(0, 0.065, 0))
-	_cyl(n, 0.32, 0.32, 0.02, _mat(PINK, PINK_DEEP, 5.0, 0.45), Vector3(0, 0.085, 0))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 20_260_804
+	# crema e rosa che si alternano, e UN solo accento miele verso il
+	# cuore: con due gialli il tappeto diventava un bersaglio da caramella
+	var tinte: Array = [
+		_mat(CREAM, Color("f3dfc8"), 8.0, 0.35),
+		_mat(PINK, PINK_DEEP, 8.0, 0.35),
+		_mat(CREAM, Color("f3dfc8"), 8.0, 0.35),
+		_mat(Color("f0d29a"), Color("ddb977"), 8.0, 0.35),
+		_mat(PINK, PINK_DEEP, 8.0, 0.35),
+		_mat(CREAM, Color("f3dfc8"), 8.0, 0.35),
+	]
+	var tubo := 0.034
+	var fondo := 0.052          # il tappeto POSA sul pavimento, non ci galleggia
+	for i in 6:
+		var r := 0.435 - float(i) * 0.063
+		# il wrapper porta l'appoggio (tilt e quota); la scala ovale sta
+		# sulla SOLA mesh, o distorcerebbe anche i punti della treccia
+		var spira := Node3D.new()
+		# l'appoggio: millesimi, non centesimi — a ±0.01 rad le spire
+		# esterne si alzavano di 4 mm e fra gli anelli si aprivano
+		# fessure d'ombra, come un giocattolo smontato
+		spira.position = Vector3(0, fondo + tubo * 0.52 + rng.randf_range(0.0, 0.0015), 0)
+		spira.rotation.x = rng.randf_range(-0.005, 0.005)
+		spira.rotation.z = rng.randf_range(-0.005, 0.005)
+		n.add_child(spira)
+		var toro := MeshInstance3D.new()
+		var tm := TorusMesh.new()
+		tm.inner_radius = r - tubo
+		tm.outer_radius = r + tubo
+		toro.mesh = tm
+		toro.material_override = tinte[i]
+		toro.scale = Vector3(1.06, 0.52, 0.94)
+		spira.add_child(toro)
+		# i punti della treccia, obliqui, sulle spire alterne
+		if i % 2 == 0:
+			# tono su tono, APPENA più scuro: il punto della treccia è una
+			# trama, non un forellino — a contrasto pieno le spire crema
+			# sembravano punteggiate dalle tarme
+			var scuro: ShaderMaterial = (tinte[i] as ShaderMaterial).duplicate()
+			scuro.set_shader_parameter("color_a",
+					(scuro.get_shader_parameter("color_a") as Color).darkened(0.06))
+			scuro.set_shader_parameter("color_b",
+					(scuro.get_shader_parameter("color_b") as Color).darkened(0.06))
+			var quanti := int(TAU * r / 0.085)
+			for k in quanti:
+				var a := TAU * float(k) / float(quanti) + rng.randf_range(-0.02, 0.02)
+				var nodo := Node3D.new()
+				nodo.position = Vector3(cos(a) * r * 1.06, tubo * 0.30,
+						sin(a) * r * 0.94)
+				nodo.rotation.y = -a
+				# il giro obliquo attorno alla tangente: è la diagonale
+				# della treccia, sempre nello stesso verso — una treccia
+				# cambia colore, mai verso
+				nodo.rotation.x = 0.6
+				spira.add_child(nodo)
+				_box(nodo, Vector3(0.006, 0.008, tubo * 1.25), scuro, Vector3.ZERO)
+	# il cuore della spirale: quieto, rosa — l'accento resta uno solo
+	_cyl(n, 0.098 * 1.06, 0.098 * 1.06, 0.030, tinte[1],
+			Vector3(0, fondo + 0.015, 0)).scale.z = 0.89
+	# IL CAPO FINALE: l'ultima treccia esce dalla spira esterna, si adagia
+	# e finisce cucita con due punti. La firma del tappeto vero.
+	var a0 := 0.42
+	var fuori: Array = []
+	var raggi_capo: Array = []
+	for k2 in 5:
+		var u := float(k2) / 4.0
+		var rr := (0.435 + u * 0.055)
+		var ang := a0 + u * 0.5
+		fuori.append(Vector3(cos(ang) * rr * 1.06,
+				fondo + tubo * 0.52 * (1.0 - u * 0.75), sin(ang) * rr * 0.94))
+		raggi_capo.append(lerpf(0.030, 0.020, u))
+	BUILDER.tube(n, fuori, raggi_capo, tinte[1], 14, 8)
+	var filo := _mat(Color("b9a781"), Color("9d8b66"), 6.0, 0.3)
+	for k3 in 2:
+		var p: Vector3 = fuori[3 - k3]
+		var punto := _box(n, Vector3(0.005, 0.006, 0.030), filo,
+				p + Vector3(0, 0.012, 0))
+		punto.rotation.y = -(a0 + float(3 - k3) / 4.0 * 0.5) + 0.5
 	return n
 
 
@@ -972,14 +1068,15 @@ static func _door_wall() -> Node3D:
 	return n
 
 
-# LA STACCIONATA. Prima era carpenteria da scatola: pali quadrati con
-# un uovo schiacciato in testa e correnti a parallelepipedo. Una
-# staccionata di paese e' TONDA — pali torniti col collarino e il
-# pomello (la stessa lingua dei montanti della Scala), correnti in
-# tondino che si IMBARCANO di due centimetri fra un palo e l'altro
-# (un corrente teso a filo e' un profilato, uno che si siede e' legno),
-# le LEGATURE di corda dove il corrente passa nel palo, e l'erba che
-# rispunta ai piedi dei pali, dove la falciatrice non arriva.
+# LA STACCIONATA. Una staccionata di paese e' TONDA — pali torniti col
+# collarino e il pomello (la stessa lingua dei montanti della Scala),
+# correnti in tondino che si IMBARCANO di due centimetri fra un palo e
+# l'altro, legature di corda, l'erba ai piedi dei pali. E i pali hanno
+# i NOMI (PaloSx/PaloDx), perche' non sono solo decorazione: quando un
+# altro segmento continua la stessa retta, BuildSystem.rinfresca_pali
+# spegne il palo sul capo condiviso — il recinto corre continuo, coi
+# pali solo dove serve, e le punte dei correnti (a filo del bordo) si
+# fondono nel punto della giunta come un nodo di innesto.
 static func _fence() -> Node3D:
 	var n := Node3D.new()
 	var palo_m := _mat(WOOD, WOOD_DARK, 3.8, 0.5)
@@ -988,32 +1085,36 @@ static func _fence() -> Node3D:
 	var corda := _mat(Color("d9c49a"), Color("bfa87e"), 5.0, 0.45)
 	var erba := _mat(Color("8aa870"), Color("6f8d58"), 5.0, 0.5)
 
-	for x: float in [-0.40, 0.40]:
-		# il palo tornito: fusto rastremato, collarino, collo e pomello
-		_cyl(n, 0.042, 0.055, 0.80, palo_m, Vector3(x, 0.40, 0))
-		_cyl(n, 0.050, 0.050, 0.020, scuro, Vector3(x, 0.815, 0))
-		_cyl(n, 0.024, 0.028, 0.035, palo_m, Vector3(x, 0.843, 0))
-		_ball(n, 0.047, palo_m, Vector3(x, 0.895, 0))
-		# l'erba che rispunta al piede, dove la falce non arriva
-		_ball(n, 0.055, erba, Vector3(x - 0.035, 0.018, 0.035),
+	for lato in [["PaloSx", -0.40], ["PaloDx", 0.40]]:
+		# tutto cio' che appartiene al palo vive DENTRO il suo nodo:
+		# collarino, pomello, legature ed erba spariscono con lui
+		var palo := Node3D.new()
+		palo.name = str(lato[0])
+		palo.position.x = float(lato[1])
+		n.add_child(palo)
+		_cyl(palo, 0.042, 0.055, 0.80, palo_m, Vector3(0, 0.40, 0))
+		_cyl(palo, 0.050, 0.050, 0.020, scuro, Vector3(0, 0.815, 0))
+		_cyl(palo, 0.024, 0.028, 0.035, palo_m, Vector3(0, 0.843, 0))
+		_ball(palo, 0.047, palo_m, Vector3(0, 0.895, 0))
+		for h0: float in [0.585, 0.315]:
+			var giro := _cyl(palo, 0.040, 0.040, 0.055, corda,
+					Vector3(0, h0 - 0.006, 0))
+			giro.rotation.z = PI * 0.5
+		_ball(palo, 0.055, erba, Vector3(-0.035, 0.018, 0.035),
 				Vector3(1.2, 0.45, 0.9))
-		_ball(n, 0.042, erba, Vector3(x + 0.045, 0.014, -0.030),
+		_ball(palo, 0.042, erba, Vector3(0.045, 0.014, -0.030),
 				Vector3(1.0, 0.40, 0.8))
 
-	# i due correnti: tondini con la PANCIA (si siedono di 2 cm a meta'
-	# campata) e le punte tonde; passano DENTRO i pali
+	# i due correnti: tondini con la PANCIA e le punte tonde A FILO DEL
+	# BORDO (±0.5): dove la giunta perde il palo, le punte dei due
+	# segmenti si fondono in un nodo d'innesto
 	for h: float in [0.585, 0.315]:
-		BUILDER.tube(n, [Vector3(-0.49, h, 0.0), Vector3(-0.245, h - 0.016, 0.006),
+		BUILDER.tube(n, [Vector3(-0.5, h, 0.0), Vector3(-0.245, h - 0.016, 0.006),
 				Vector3(0.0, h - 0.022, 0.0), Vector3(0.245, h - 0.016, -0.006),
-				Vector3(0.49, h, 0.0)],
+				Vector3(0.5, h, 0.0)],
 				[0.030, 0.033, 0.034, 0.033, 0.030], tondo)
-		for xt: float in [-0.49, 0.49]:
+		for xt: float in [-0.5, 0.5]:
 			_ball(n, 0.030, tondo, Vector3(xt, h, 0))
-		# le legature di corda, dove il corrente entra nel palo
-		for xl: float in [-0.40, 0.40]:
-			var giro := _cyl(n, 0.040, 0.040, 0.055, corda,
-					Vector3(xl, h - 0.006, 0))
-			giro.rotation.z = PI * 0.5
 	return n
 
 

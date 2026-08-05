@@ -67,6 +67,9 @@ const TACCUINO_LETTERE := {
 	"sentiero_fedele": {"cita": false, "text_key": "Cammini sul sentiero. Sempre, anche quando tagliare\nsarebbe più corto e nessuno ti vedrebbe.\nAnche io faccio così, sui rami. Non so perché."},
 	"sentiero_ignorato": {"cita": false, "text_key": "Hai posato un sentiero e cammini accanto.\nNon è un rimprovero: l'ho guardato dall'alto, stamattina,\ne ho pensato che certe cose si fanno perché siano belle da vedere."},
 	"sosta": {"cita": true, "text_key": "Sei rimasta ferma tanto, %s.\nA guardare %s.\nNon ho mosso una piuma, per non disturbarti."},
+	# la Voce taciuta (scenes/npc/Voce.gd): hai saputo una cosa e l'hai
+	# custodita finché non è scaduta. Il Gufo non chiede cos'era.
+	"voce_taciuta": {"cita": false, "text_key": "Hai saputo una cosa, giorni fa: l'ho vista posarsi su di te.\nNon l'hai detta a nessuno — e io ho aspettato, perché le voci\nprima o poi volano. Questa no.\nNon ti chiedo cos'era: certe parole sono di chi le affida,\nnon di chi le porta. La rispetto. E mi fido un po' di più."},
 }
 ## Quante pagine si tengono, e per quanti giorni una pagina resta citabile.
 const TACCUINO_MAX := 12

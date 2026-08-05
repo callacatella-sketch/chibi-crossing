@@ -72,10 +72,10 @@
     "tipo": "edge"
   },
   {
-    "alto": 0.04,
+    "alto": 0.06,
     "cartella": "docs/catalogo/0-struttura/tappeto/",
     "cat": 0.0,
-    "largo": 0.92,
+    "largo": 0.99,
     "nome": "Tappeto",
     "slug": "tappeto",
     "tipo": "cell"
@@ -182,8 +182,8 @@
   {
     "alto": 0.95,
     "cartella": "docs/catalogo/0-struttura/staccionata/",
-    "cat": 0.0,
-    "largo": 1.04,
+    "cat": 0,
+    "largo": 1.06,
     "nome": "Staccionata",
     "slug": "staccionata",
     "tipo": "edge"
