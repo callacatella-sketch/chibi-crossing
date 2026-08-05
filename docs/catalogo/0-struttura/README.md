@@ -27,7 +27,7 @@
 | **Scala a pioli**<br><sub>0.37 × 1.87 m</sub> | <img src="scala-a-pioli/1-fronte.jpg" width="200"> | <img src="scala-a-pioli/2-tre-quarti.jpg" width="200"> | <img src="scala-a-pioli/3-profilo.jpg" width="200"> |
 | **Sentiero**<br><sub>0.81 × 0.09 m</sub> | <img src="sentiero/1-fronte.jpg" width="200"> | <img src="sentiero/2-tre-quarti.jpg" width="200"> | <img src="sentiero/3-profilo.jpg" width="200"> |
 | **Solaio**<br><sub>1.00 × 0.18 m</sub> | <img src="solaio/1-fronte.jpg" width="200"> | <img src="solaio/2-tre-quarti.jpg" width="200"> | <img src="solaio/3-profilo.jpg" width="200"> |
-| **Staccionata**<br><sub>1.06 × 0.95 m</sub> | <img src="staccionata/1-fronte.jpg" width="200"> | <img src="staccionata/2-tre-quarti.jpg" width="200"> | <img src="staccionata/3-profilo.jpg" width="200"> |
+| **Staccionata**<br><sub>1.04 × 0.95 m</sub> | <img src="staccionata/1-fronte.jpg" width="200"> | <img src="staccionata/2-tre-quarti.jpg" width="200"> | <img src="staccionata/3-profilo.jpg" width="200"> |
 | **Tappeto**<br><sub>0.99 × 0.06 m</sub> | <img src="tappeto/1-fronte.jpg" width="200"> | <img src="tappeto/2-tre-quarti.jpg" width="200"> | <img src="tappeto/3-profilo.jpg" width="200"> |
 | **Tenda bar**<br><sub>0.98 × 0.47 m</sub> | <img src="tenda-bar/1-fronte.jpg" width="200"> | <img src="tenda-bar/2-tre-quarti.jpg" width="200"> | <img src="tenda-bar/3-profilo.jpg" width="200"> |
 | **Tetto**<br><sub>1.02 × 0.12 m</sub> | <img src="tetto/1-fronte.jpg" width="200"> | <img src="tetto/2-tre-quarti.jpg" width="200"> | <img src="tetto/3-profilo.jpg" width="200"> |

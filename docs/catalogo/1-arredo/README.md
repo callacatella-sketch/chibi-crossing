@@ -5,10 +5,10 @@
 | | fronte | tre quarti | profilo |
 |---|---|---|---|
 | **Amaca**<br><sub>1.07 × 0.91 m</sub> | <img src="amaca/1-fronte.jpg" width="200"> | <img src="amaca/2-tre-quarti.jpg" width="200"> | <img src="amaca/3-profilo.jpg" width="200"> |
-| **Armadio smarriti**<br><sub>1.00 × 1.56 m</sub> | <img src="armadio-smarriti/1-fronte.jpg" width="200"> | <img src="armadio-smarriti/2-tre-quarti.jpg" width="200"> | <img src="armadio-smarriti/3-profilo.jpg" width="200"> |
-| **Attaccapanni**<br><sub>0.43 × 1.65 m</sub> | <img src="attaccapanni/1-fronte.jpg" width="200"> | <img src="attaccapanni/2-tre-quarti.jpg" width="200"> | <img src="attaccapanni/3-profilo.jpg" width="200"> |
-| **Bacheca avvisi**<br><sub>1.00 × 1.40 m</sub> | <img src="bacheca-avvisi/1-fronte.jpg" width="200"> | <img src="bacheca-avvisi/2-tre-quarti.jpg" width="200"> | <img src="bacheca-avvisi/3-profilo.jpg" width="200"> |
-| **Bancone guardia**<br><sub>1.06 × 0.94 m</sub> | <img src="bancone-guardia/1-fronte.jpg" width="200"> | <img src="bancone-guardia/2-tre-quarti.jpg" width="200"> | <img src="bancone-guardia/3-profilo.jpg" width="200"> |
+| **Armadio smarriti**<br><sub>0.98 × 1.56 m</sub> | <img src="armadio-smarriti/1-fronte.jpg" width="200"> | <img src="armadio-smarriti/2-tre-quarti.jpg" width="200"> | <img src="armadio-smarriti/3-profilo.jpg" width="200"> |
+| **Attaccapanni**<br><sub>0.31 × 1.53 m</sub> | <img src="attaccapanni/1-fronte.jpg" width="200"> | <img src="attaccapanni/2-tre-quarti.jpg" width="200"> | <img src="attaccapanni/3-profilo.jpg" width="200"> |
+| **Bacheca avvisi**<br><sub>1.10 × 1.45 m</sub> | <img src="bacheca-avvisi/1-fronte.jpg" width="200"> | <img src="bacheca-avvisi/2-tre-quarti.jpg" width="200"> | <img src="bacheca-avvisi/3-profilo.jpg" width="200"> |
+| **Bancone guardia**<br><sub>1.02 × 0.95 m</sub> | <img src="bancone-guardia/1-fronte.jpg" width="200"> | <img src="bancone-guardia/2-tre-quarti.jpg" width="200"> | <img src="bancone-guardia/3-profilo.jpg" width="200"> |
 | **Biliardino**<br><sub>1.00 × 1.02 m</sub> | <img src="biliardino/1-fronte.jpg" width="200"> | <img src="biliardino/2-tre-quarti.jpg" width="200"> | <img src="biliardino/3-profilo.jpg" width="200"> |
 | **Braciere stellato**<br><sub>0.44 × 0.63 m</sub> | <img src="braciere-stellato/1-fronte.jpg" width="200"> | <img src="braciere-stellato/2-tre-quarti.jpg" width="200"> | <img src="braciere-stellato/3-profilo.jpg" width="200"> |
 | **Brandina**<br><sub>0.90 × 0.53 m</sub> | <img src="brandina/1-fronte.jpg" width="200"> | <img src="brandina/2-tre-quarti.jpg" width="200"> | <img src="brandina/3-profilo.jpg" width="200"> |
