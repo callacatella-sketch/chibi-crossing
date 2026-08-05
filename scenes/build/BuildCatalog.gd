@@ -1235,82 +1235,241 @@ static func _nightstand() -> Node3D:
 	return n
 
 
+## IL CAMINO DI PIETRA, rifatto. Prima erano tre scatole lisce impilate e
+## il focolare guardava DALLA PARTE SBAGLIATA: nella vista frontale del
+## catalogo si vedeva un muro cieco, perché l'apertura stava sul lato +Z
+## mentre in questo catalogo il fronte è -Z. Un camino che dà le spalle
+## alla stanza è la definizione di pezzo mai guardato.
+##
+## Adesso: muratura di conci veri, l'architrave sopra la bocca, il
+## focolare con la cenere, gli alari, i ceppi e le braci — e IL FUOCO CHE
+## SI MUOVE. Il fuoco non è una fiamma disegnata: sono due emettitori (la
+## fiamma e le scintille che salgono nella cappa) più la LUCE CHE TREMA,
+## animata a chiavi irregolari. È il tremolio a fare il fuoco: una luce
+## calda ma ferma legge «lampadina», e nessun caminetto è mai stato una
+## lampadina. Le chiavi non sono un seno — un seno si smaschera in due
+## cicli — ma undici valori scritti a mano su una durata che non si
+## richiude con niente.
 static func _fireplace() -> Node3D:
 	var n := Node3D.new()
-	var stone := _mat(STONE, STONE_DARK, 3.0, 0.55)
-	_box(n, Vector3(0.9, 0.9, 0.4), stone, Vector3(0, 0.45, 0))
-	_box(n, Vector3(1.0, 0.1, 0.48), _mat(WOOD, WOOD_DARK, 4.0, 0.5), Vector3(0, 0.95, 0))
-	_box(n, Vector3(0.54, 0.5, 0.42), _mat(Color("3a3230"), Color("2a2422"), 3.0, 0.4), Vector3(0, 0.32, 0.01))
-	# braci
-	var coal := StandardMaterial3D.new()
-	coal.albedo_color = Color("ff9440")
-	coal.emission_enabled = true
-	coal.emission = Color("ff7a26")
-	coal.emission_energy_multiplier = 1.8
-	_ball(n, 0.06, coal, Vector3(-0.08, 0.12, 0.08), Vector3(1, 0.6, 1))
-	_ball(n, 0.05, coal, Vector3(0.09, 0.11, 0.05), Vector3(1, 0.6, 1))
+	# la pietra di un focolare è SCURA e calda: il grigio chiaro del muro
+	# di casa, qui, faceva un camino di gesso — e il fuoco non aveva su
+	# cosa battere. Tre tinte di fiume, brunite dal fumo di anni.
+	var pietra := _mat(Color("8e8578"), Color("6b6459"), 3.0, 0.55)
+	var pietra_ombra := _mat(Color("776f64"), Color("585149"), 3.0, 0.5)
+	var pietra_chiara := _mat(Color("a89c8b"), Color("847a6c"), 3.5, 0.5)
+	var fuligg := _mat(Color("3a3230"), Color("241f1e"), 3.0, 0.4)
+	var ferro := _mat(Color("4a4640"), Color("332f2b"), 5.0, 0.35)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 20_260_806
 
-	# fuoco
-	var tex := GradientTexture2D.new()
-	tex.width = 64
-	tex.height = 64
-	tex.fill = GradientTexture2D.FILL_RADIAL
-	tex.fill_from = Vector2(0.5, 0.5)
-	tex.fill_to = Vector2(0.5, 0.0)
-	var grad := Gradient.new()
-	grad.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
-	grad.colors = PackedColorArray([Color(1.0, 0.85, 0.4, 0.9), Color(1.0, 0.55, 0.2, 0.5), Color(1.0, 0.4, 0.1, 0.0)])
-	tex.gradient = grad
-	var quad := QuadMesh.new()
-	quad.size = Vector2(0.16, 0.16)
-	var fmat := StandardMaterial3D.new()
-	fmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	fmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	fmat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	fmat.albedo_texture = tex
-	fmat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	fmat.vertex_color_use_as_albedo = true
-	quad.material = fmat
-	var pm := ParticleProcessMaterial.new()
-	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
-	pm.emission_box_extents = Vector3(0.16, 0.02, 0.1)
-	pm.direction = Vector3(0, 1, 0)
-	pm.spread = 12.0
-	pm.initial_velocity_min = 0.25
-	pm.initial_velocity_max = 0.5
-	pm.gravity = Vector3(0, 0.6, 0)
-	pm.scale_min = 0.5
-	pm.scale_max = 1.2
-	var ramp := Gradient.new()
-	ramp.offsets = PackedFloat32Array([0.0, 0.3, 1.0])
-	ramp.colors = PackedColorArray([Color(1, 1, 1, 0.0), Color(1, 1, 1, 1.0), Color(1, 1, 1, 0.0)])
-	var ramp_tex := GradientTexture1D.new()
-	ramp_tex.gradient = ramp
-	pm.color_ramp = ramp_tex
-	var fire := GPUParticles3D.new()
-	fire.amount = 16
-	fire.lifetime = 0.7
-	fire.process_material = pm
-	fire.draw_pass_1 = quad
-	fire.position = Vector3(0, 0.16, 0.05)
-	n.add_child(fire)
+	# ---- LA MURATURA: conci veri, non una scatola. Il fronte è a -Z,
+	# quindi la bocca si apre di là: è quella la stanza. ----
+	var z_fronte := -0.20
+	var bocca_l := 0.52
+	var bocca_h := 0.56
+	var y_arch := 0.62               # sotto l'architrave
+	var corsi := [[0.00, 0.16], [0.16, 0.15], [0.31, 0.16], [0.47, 0.15],
+			[0.62, 0.14], [0.76, 0.16]]
+	for c in corsi:
+		var y_c: float = c[0]
+		var h_c: float = c[1]
+		var dentro_bocca: bool = y_c + h_c <= y_arch + 0.001
+		# ogni corso è fatto di conci di larghezza diversa, con lo sfalso
+		var x := -0.45
+		var k := 0
+		while x < 0.449:
+			var largo: float = minf(rng.randf_range(0.13, 0.26), 0.45 - x)
+			var salta: bool = dentro_bocca and absf(x + largo * 0.5) < bocca_l * 0.5 - 0.02
+			if not salta:
+				var mat: Material = [pietra, pietra_chiara, pietra_ombra][
+						rng.randi_range(0, 2)]
+				var prof := 0.40
+				var zc := 0.0
+				if dentro_bocca and absf(x + largo * 0.5) < bocca_l * 0.5 + 0.14:
+					prof = 0.22          # lo stipite: il muro si assottiglia
+					zc = 0.09
+				var concio := _box(n, Vector3(largo - 0.012,
+						h_c - 0.012 + rng.randf_range(-0.004, 0.004), prof),
+						mat, Vector3(x + largo * 0.5,
+						y_c + h_c * 0.5 + rng.randf_range(-0.004, 0.004), zc))
+				concio.rotation.z = rng.randf_range(-0.012, 0.012)
+				concio.rotation.y = rng.randf_range(-0.02, 0.02)
+			x += largo
+			k += 1
+	# l'ARCHITRAVE: un solo blocco lungo che scavalca la bocca e sporge
+	var arch := _box(n, Vector3(0.78, 0.13, 0.44), pietra_chiara,
+			Vector3(0, y_arch + 0.065, -0.008))
+	arch.rotation.z = -0.006
+	_box(n, Vector3(0.80, 0.022, 0.46), pietra_ombra, Vector3(0, y_arch + 0.005, -0.012))
 
-	var light := OmniLight3D.new()
-	light.light_color = Color(1.0, 0.7, 0.4)
-	light.light_energy = 1.1
-	light.omni_range = 3.2
-	light.position = Vector3(0, 0.4, 0.3)
-	n.add_child(light)
+	# ---- IL FOCOLARE: la cavità, la fuliggine, la lastra che sporge ----
+	# LA CAVITÀ È VUOTA, non un blocco nero. Prima era UNA SCATOLA PIENA:
+	# la sua faccia davanti murava ceppi, braci e fiamme: si vedeva il
+	# nero e basta, e tutto il fuoco stava dietro un muro. Adesso sono
+	# quattro pareti sottili — fondo, fianchi e cappa — e il focolare si
+	# guarda dentro.
+	_box(n, Vector3(bocca_l, bocca_h, 0.02), fuligg, Vector3(0, bocca_h * 0.5 + 0.02, 0.175))
+	for sxi: float in [-1.0, 1.0]:
+		_box(n, Vector3(0.02, bocca_h, 0.26), fuligg,
+				Vector3(sxi * (bocca_l * 0.5 - 0.01), bocca_h * 0.5 + 0.02, 0.06))
+	_box(n, Vector3(bocca_l, 0.02, 0.26), fuligg, Vector3(0, bocca_h + 0.02, 0.06))
+	# il fondo annerito, e l'ALONE DI FUMO sopra la bocca: è la prova che
+	# il camino è stato acceso mille volte
+	_box(n, Vector3(bocca_l - 0.04, 0.30, 0.012), _mat(Color("2a2422"), Color("1a1615"), 4.0, 0.3),
+			Vector3(0, 0.36, 0.163))
+	var alone := _box(n, Vector3(0.42, 0.16, 0.012), _mat(Color("6b625c"), Color("4e4744"), 5.0, 0.35),
+			Vector3(0, y_arch + 0.15, z_fronte - 0.008))
+	alone.rotation.z = 0.01
+	# IL BAGLIORE SUL FONDO: il fuoco illumina la parete che ha dietro, e
+	# senza quel riverbero la bocca resta un buco nero anche col fuoco
+	# acceso — nelle foto e nelle stanze buie
+	_box(n, Vector3(bocca_l - 0.08, 0.24, 0.010),
+			_glow(Color("d97a3a"), Color("c2521f"), 0.7), Vector3(0, 0.18, 0.158))
+	_box(n, Vector3(bocca_l - 0.20, 0.13, 0.010),
+			_glow(Color("f0a862"), Color("e07a30"), 1.1), Vector3(0, 0.14, 0.152))
+	# la lastra del focolare, consumata al centro dal passaggio
+	_box(n, Vector3(0.86, 0.055, 0.52), pietra_chiara, Vector3(0, 0.028, -0.06))
+	_box(n, Vector3(0.44, 0.016, 0.30), pietra_ombra, Vector3(0, 0.056, -0.14))
+	# la cenere
+	_ball(n, 0.19, _mat(Color("b8b0a6"), Color("968e85"), 6.0, 0.4),
+			Vector3(0, 0.055, 0.02), Vector3(1.25, 0.16, 0.75))
 
-	# il COMIGNOLO: la canna che sale sopra la mensola e il vaso in
-	# terracotta col cappello. È da qui che la sera esce il filo di fumo
-	# (l'emettitore lo aggancia VitaSecondaria, in cima alla canna)
-	_box(n, Vector3(0.34, 0.52, 0.3), stone, Vector3(0, 1.26, 0))
-	_box(n, Vector3(0.42, 0.06, 0.38), _mat(TERRACOTTA, Color("c47a58"), 3.0, 0.5),
-			Vector3(0, 1.55, 0))
-	_cyl(n, 0.085, 0.105, 0.18, _mat(TERRACOTTA, Color("c47a58"), 3.0, 0.5),
-			Vector3(0, 1.65, 0))
-	_box(n, Vector3(0.26, 0.035, 0.26), stone, Vector3(0, 1.78, 0))
+	# ---- GLI ALARI e i CEPPI ----
+	for sx: float in [-0.16, 0.16]:
+		_cyl(n, 0.012, 0.012, 0.24, ferro, Vector3(sx, 0.105, 0.02)).rotation.x = PI * 0.5
+		_cyl(n, 0.010, 0.010, 0.09, ferro, Vector3(sx, 0.062, -0.08))
+		_ball(n, 0.020, ferro, Vector3(sx, 0.145, -0.09), Vector3(1, 1.3, 1))
+	var scorza := _mat(Color("7d5c40"), Color("5e442f"), 5.0, 0.5)
+	var scorza_bruc := _mat(Color("4a3a30"), Color("2e2420"), 5.0, 0.4)
+	var taglio := _mat(Color("d9bb8e"), Color("bb9c6f"), 6.0, 0.35)
+	# tre ceppi incrociati: due sotto, uno di traverso — mai paralleli
+	var ceppi := [[-0.10, 0.115, 0.02, 0.30, 0.055, -0.10, false],
+			[0.11, 0.115, 0.05, 0.28, 0.050, 0.16, false],
+			[0.0, 0.175, -0.01, 0.26, 0.046, 1.15, true]]
+	for cp in ceppi:
+		var ceppo := Node3D.new()
+		ceppo.position = Vector3(float(cp[0]), float(cp[1]), float(cp[2]))
+		ceppo.rotation.y = float(cp[5])
+		ceppo.rotation.z = rng.randf_range(-0.08, 0.08)
+		n.add_child(ceppo)
+		var lung := float(cp[3])
+		var r := float(cp[4])
+		_cyl(ceppo, r, r, lung, scorza_bruc if bool(cp[6]) else scorza,
+				Vector3.ZERO).rotation.z = PI * 0.5
+		# i due tagli chiari alle estremità: è il legno spaccato di fresco
+		for lato: float in [-1.0, 1.0]:
+			_cyl(ceppo, r * 0.92, r * 0.92, 0.012, taglio,
+					Vector3(lato * lung * 0.5, 0, 0)).rotation.z = PI * 0.5
+	# LE BRACI: tante, piccole, di calore diverso — un fuoco non ha due
+	# braci uguali
+	for i in 9:
+		var a := TAU * float(i) / 9.0 + rng.randf_range(-0.3, 0.3)
+		var rr := rng.randf_range(0.03, 0.17)
+		var caldo := rng.randf_range(0.7, 2.6)
+		var brace := _glow(Color("ff9440").lerp(Color("ffd28a"), caldo * 0.3),
+				Color("ff7a26").lerp(Color("ffc46a"), caldo * 0.25), caldo)
+		_ball(n, rng.randf_range(0.030, 0.055), brace,
+				Vector3(cos(a) * rr, 0.092, 0.02 + sin(a) * rr * 0.55),
+				Vector3(1, rng.randf_range(0.5, 0.75), 1))
+
+	# ---- IL FUOCO CHE SI MUOVE ----
+	# LE FIAMME DEVONO RESTARE NEL FOCOLARE. Con velocità 0.75 e vita 0.85
+	# le particelle salivano quasi un metro: uscivano dalla bocca (alta
+	# 0.56) e le scintille finivano SOPRA IL COMIGNOLO, due puntini bianchi
+	# per aria. Vita corta e spinta bassa: la fiamma nasce e muore dentro
+	# la cappa, che è quello che fa un fuoco.
+	_emit_fx(n, Vector3(0, 0.11, 0.01), Color("ffb43c"), 0.30, 0.22, 30, 0.45, 0.15)
+	_emit_fx(n, Vector3(0, 0.15, 0.02), Color("fff0c8"), 0.44, 0.30, 12, 0.55, 0.045)
+
+	# la luce del fuoco, col suo tremolio (il nodo si chiama Fuoco: lo
+	# cerca l'animazione qui sotto)
+	var luce := OmniLight3D.new()
+	luce.name = "Fuoco"
+	luce.light_color = Color(1.0, 0.72, 0.42)
+	luce.light_energy = 1.15
+	luce.omni_range = 3.6
+	luce.position = Vector3(0, 0.30, -0.16)
+	n.add_child(luce)
+	var anim := Animation.new()
+	anim.length = 3.7          # non si richiude con niente: il fuoco non ha ritmo
+	anim.loop_mode = Animation.LOOP_LINEAR
+	var tr_e := anim.add_track(Animation.TYPE_VALUE)
+	anim.track_set_path(tr_e, NodePath("Fuoco:light_energy"))
+	var chiavi := [[0.0, 1.15], [0.23, 1.34], [0.51, 0.96], [0.78, 1.22],
+			[1.10, 1.05], [1.44, 1.38], [1.90, 0.90], [2.28, 1.18],
+			[2.66, 1.02], [3.10, 1.30], [3.42, 0.98], [3.70, 1.15]]
+	for kk in chiavi:
+		anim.track_insert_key(tr_e, float(kk[0]), float(kk[1]))
+	anim.track_set_interpolation_type(tr_e, Animation.INTERPOLATION_CUBIC)
+	# e la sorgente si sposta di pochi millimetri: le ombre nella stanza
+	# respirano invece di stare inchiodate
+	var tr_x := anim.add_track(Animation.TYPE_VALUE)
+	anim.track_set_path(tr_x, NodePath("Fuoco:position:x"))
+	anim.track_insert_key(tr_x, 0.0, -0.02)
+	anim.track_insert_key(tr_x, 1.3, 0.025)
+	anim.track_insert_key(tr_x, 2.5, -0.015)
+	anim.track_insert_key(tr_x, 3.7, -0.02)
+	anim.track_set_interpolation_type(tr_x, Animation.INTERPOLATION_CUBIC)
+	var lib := AnimationLibrary.new()
+	lib.add_animation("fiamma", anim)
+	var player := AnimationPlayer.new()
+	n.add_child(player)
+	player.add_animation_library("", lib)
+	player.autoplay = "fiamma"
+
+	# ---- LA MENSOLA: trave di rovere, smussata e consumata ----
+	var trave := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	_box(n, Vector3(1.0, 0.085, 0.50), trave, Vector3(0, 0.925, -0.03))
+	_box(n, Vector3(1.0, 0.020, 0.52), _mat(WOOD_PALE, WOOD, 3.5, 0.45),
+			Vector3(0, 0.972, -0.035))
+	for sx2: float in [-1.0, 1.0]:
+		_box(n, Vector3(0.05, 0.05, 0.05), _mat(WOOD_DARK, Color("8a6440"), 4.0, 0.5),
+				Vector3(sx2 * 0.47, 0.90, -0.22))
+
+	# ---- LA CANNA: si restringe salendo, coi suoi corsi ----
+	var canna := [[0.98, 0.17, 0.38, 0.34], [1.15, 0.16, 0.35, 0.32],
+			[1.31, 0.15, 0.33, 0.30], [1.46, 0.13, 0.31, 0.29]]
+	for cn in canna:
+		var blocco := _box(n, Vector3(float(cn[2]), float(cn[1]) - 0.010,
+				float(cn[3])), pietra, Vector3(0, float(cn[0]) + float(cn[1]) * 0.5, 0))
+		blocco.rotation.y = rng.randf_range(-0.01, 0.01)
+		_box(n, Vector3(float(cn[2]) + 0.012, 0.008, float(cn[3]) + 0.012),
+				pietra_ombra, Vector3(0, float(cn[0]) + 0.004, 0))
+	# il cappello di terracotta, il vaso e il coperchio: da qui esce il
+	# fumo della sera (VitaSecondaria lo aggancia a quota 1.82)
+	var terra := _mat(TERRACOTTA, Color("c47a58"), 3.0, 0.5)
+	_box(n, Vector3(0.42, 0.055, 0.40), terra, Vector3(0, 1.62, 0))
+	_cyl(n, 0.082, 0.100, 0.17, terra, Vector3(0, 1.72, 0))
+	_cyl(n, 0.070, 0.070, 0.020, _mat(Color("8a4f3a"), Color("6d3d2c"), 4.0, 0.4),
+			Vector3(0, 1.805, 0))
+	for sx3: float in [-1.0, 1.0]:
+		_cyl(n, 0.010, 0.010, 0.10, ferro, Vector3(sx3 * 0.062, 1.845, 0))
+	_box(n, Vector3(0.24, 0.028, 0.24), pietra_chiara, Vector3(0, 1.90, 0))
+
+	# ---- I DETTAGLI DI CHI CI VIVE ----
+	# l'attizzatoio appoggiato allo stipite
+	var att := Node3D.new()
+	att.position = Vector3(0.40, 0.30, -0.24)
+	att.rotation.z = 0.16
+	att.rotation.x = -0.10
+	n.add_child(att)
+	_cyl(att, 0.008, 0.008, 0.58, ferro, Vector3.ZERO)
+	_cyl(att, 0.016, 0.016, 0.03, ferro, Vector3(0, 0.30, 0))
+	var uncino := _cyl(att, 0.007, 0.007, 0.06, ferro, Vector3(0.02, -0.28, 0))
+	uncino.rotation.z = PI * 0.45
+	# la catasta di legna accanto, sotto la mensola
+	for i2 in 5:
+		var riga := i2 / 3
+		var col := i2 % 3
+		var log := _cyl(n, 0.036, 0.036, 0.20, scorza,
+				Vector3(-0.32 + float(col) * 0.075, 0.075 + float(riga) * 0.072,
+						-0.30 + rng.randf_range(-0.01, 0.01)))
+		log.rotation.x = PI * 0.5
+		log.rotation.z = rng.randf_range(-0.05, 0.05)
+		_cyl(n, 0.033, 0.033, 0.012, taglio,
+				Vector3(-0.32 + float(col) * 0.075, 0.075 + float(riga) * 0.072,
+						-0.40)).rotation.x = PI * 0.5
 	return n
 
 
@@ -2408,6 +2567,11 @@ static func _emit_fx(parent: Node3D, pos: Vector3, color: Color, up_vel: float, 
 	var p := GPUParticles3D.new()
 	p.amount = amount
 	p.lifetime = life
+	# IL PREPROCESS: senza, l'emettitore parte VUOTO e ci mette un ciclo a
+	# riempirsi. Chi accende un camino e guarda subito vede un focolare
+	# spento, e nelle foto del catalogo il fuoco non c'era proprio. Un
+	# ciclo e mezzo simulato in partenza, e la fiamma c'è dal primo frame.
+	p.preprocess = life * 1.5
 	p.process_material = pm
 	p.draw_pass_1 = quad
 	p.position = pos
@@ -4383,30 +4547,91 @@ static func _attaccapanni_berretto() -> Node3D:
 
 
 static func _brandina_turno() -> Node3D:
-	# LA BRANDINA DEL TURNO DI NOTTE: una branda da campo, la coperta
-	# piegata in fondo e il cuscino ammaccato da chi ci ha dormito.
+	# LA BRANDINA DEL TURNO DI NOTTE: una branda da campo VERA. Le X ai
+	# piedi e in testa (prima correvano lungo il fianco e sembrava un
+	# tavolo da picnic), i pali tondi che sporgono coi pomelli, i perni
+	# d'ottone allo snodo, la crociera in mezzo. Il telo CEDE al centro
+	# come un telo, la coperta ha la piega e un lembo che scende oltre il
+	# palo, il cuscino è ammaccato da chi ci ha dormito.
 	var n := Node3D.new()
 	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var legno_scuro := _mat(WOOD_DARK, WOOD_DARK.darkened(0.22), 4.0, 0.45)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.35)
 	var telo := _mat(Color("cfd8c8"), Color("b8c2b0"), 5.0, 0.45)
-	# le due X delle gambe
-	for sz: float in [-0.3, 0.3]:
-		for lato: float in [-1.0, 1.0]:
-			var g := _box(n, Vector3(0.045, 0.42, 0.045), legno,
-					Vector3(lato * 0.3, 0.2, sz))
-			g.rotation.z = lato * 0.34
-	_box(n, Vector3(0.9, 0.05, 0.05), legno, Vector3(0, 0.2, -0.3))
-	_box(n, Vector3(0.9, 0.05, 0.05), legno, Vector3(0, 0.2, 0.3))
-	# il telo teso, che cede appena al centro
-	_box(n, Vector3(0.88, 0.05, 0.62), telo, Vector3(0, 0.4, 0))
-	_box(n, Vector3(0.8, 0.03, 0.5), telo, Vector3(0, 0.385, 0))
-	# il cuscino e la coperta piegata
-	var cuscino := _ball(n, 0.13, _mat(CREAM, Color("f0e4cc"), 5.0, 0.35),
-			Vector3(-0.28, 0.45, 0), Vector3(1.0, 0.52, 1.3))
+	var panno := _mat(BLU, BLU_CUPO, 5.0, 0.5)
+	var panno_cupo := _mat(BLU_CUPO, Color("4c6699"), 5.0, 0.4)
+	var lana_riga := _mat(CREAM, Color("e8dcc4"), 5.0, 0.4)
+	# ---- i due pali lunghi, tondi, che sporgono coi pomelli
+	for pz: float in [-0.3, 0.3]:
+		var palo := _cyl(n, 0.026, 0.026, 0.98, legno, Vector3(0, 0.4, pz))
+		palo.rotation.z = PI * 0.5
+		_ball(n, 0.03, legno_scuro, Vector3(-0.49, 0.4, pz))
+		_ball(n, 0.03, legno_scuro, Vector3(0.49, 0.4, pz))
+	# ---- le X ai due capi (nel piano CORTO), coi piedini e il perno
+	for px: float in [-0.32, 0.32]:
+		for verso: float in [-1.0, 1.0]:
+			var gamba := _cyl(n, 0.02, 0.022, 0.75, legno,
+					Vector3(px, 0.2, -verso * 0.0225))
+			gamba.rotation.x = verso * 1.05
+			_cyl(n, 0.026, 0.028, 0.022, legno_scuro,
+					Vector3(px, 0.011, -verso * 0.345))
+		# il perno d'ottone dove le gambe si incrociano
+		var perno := _cyl(n, 0.011, 0.011, 0.075, ottone, Vector3(px, 0.2, 0))
+		perno.rotation.z = PI * 0.5
+		_ball(n, 0.016, ottone, Vector3(px - 0.038, 0.2, 0))
+		_ball(n, 0.016, ottone, Vector3(px + 0.038, 0.2, 0))
+	# la crociera che tiene le due X: la reggono gli stessi perni
+	var crociera := _cyl(n, 0.015, 0.015, 0.64, legno, Vector3(0, 0.2, 0))
+	crociera.rotation.z = PI * 0.5
+	# ---- il telo: cede al centro, come sotto un peso che non c'è più
+	# (mezzo-lato 0.315: il bordo muore DENTRO l'orlo arrotolato, non oltre)
+	_loft(n, [[-0.46, 0.315, 0.413, 0.45, 0.014],
+			[-0.28, 0.315, 0.401, 0.439, 0.014],
+			[0.0, 0.315, 0.392, 0.431, 0.014],
+			[0.28, 0.315, 0.401, 0.439, 0.014],
+			[0.46, 0.315, 0.413, 0.45, 0.014]], telo)
+	# gli orli arrotolati che avvolgono i pali
+	for pz: float in [-0.322, 0.322]:
+		var orlo := _cyl(n, 0.017, 0.017, 0.9, telo, Vector3(0, 0.428, pz))
+		orlo.rotation.z = PI * 0.5
+	# ---- il cuscino, a due gobbe: nessuno lo sprimaccia dopo il turno
+	var cuscino := _ball(n, 0.135, _mat(CREAM, Color("f0e4cc"), 5.0, 0.35),
+			Vector3(-0.29, 0.485, -0.015), Vector3(1.05, 0.5, 1.3))
 	cuscino.name = "Cuscino"
-	_box(n, Vector3(0.34, 0.09, 0.6), _mat(BLU, BLU_CUPO, 5.0, 0.5),
-			Vector3(0.24, 0.46, 0))
-	_box(n, Vector3(0.34, 0.03, 0.6), _mat(BLU_CUPO, Color("4c6699"), 5.0, 0.4),
-			Vector3(0.24, 0.51, 0))
+	cuscino.rotation.y = 0.1
+	_ball(n, 0.1, _mat(CREAM, Color("f0e4cc"), 5.0, 0.35),
+			Vector3(-0.235, 0.478, 0.055), Vector3(0.92, 0.44, 1.05))
+	# ---- la coperta piegata in fondo, col bordo tondo della piega
+	var piega := _cyl(n, 0.037, 0.037, 0.54, panno, Vector3(0.135, 0.478, 0))
+	piega.rotation.x = PI * 0.5
+	_box(n, Vector3(0.29, 0.074, 0.54), panno, Vector3(0.28, 0.478, 0))
+	var piega_fondo := _cyl(n, 0.037, 0.037, 0.54, panno, Vector3(0.425, 0.478, 0))
+	piega_fondo.rotation.x = PI * 0.5
+	# il secondo strato, appena storto come lo lascia una mano
+	var strato := Node3D.new()
+	strato.position = Vector3(0.28, 0.532, 0.012)
+	strato.rotation.y = 0.055
+	n.add_child(strato)
+	var s_piega := _cyl(strato, 0.016, 0.016, 0.47, panno_cupo, Vector3(-0.125, 0, 0))
+	s_piega.rotation.x = PI * 0.5
+	_box(strato, Vector3(0.25, 0.032, 0.47), panno_cupo, Vector3(0, 0, 0))
+	var s_fondo := _cyl(strato, 0.016, 0.016, 0.47, panno_cupo, Vector3(0.125, 0, 0))
+	s_fondo.rotation.x = PI * 0.5
+	# le righe crema tessute vicino alla piega, come sulle coperte di lana
+	_box(strato, Vector3(0.02, 0.005, 0.472), lana_riga, Vector3(-0.07, 0.017, 0))
+	_box(strato, Vector3(0.011, 0.005, 0.472), lana_riga, Vector3(-0.035, 0.017, 0))
+	# ---- il lembo che scende oltre il palo: prima il dorso tondo che
+	# scavalca l'orlo (senza, coperta e lembo restavano staccati a mezz'aria)
+	var dorso := _cyl(n, 0.028, 0.028, 0.28, panno, Vector3(0.28, 0.462, 0.302))
+	dorso.rotation.z = PI * 0.5
+	var lembo := Node3D.new()
+	lembo.position = Vector3(0.28, 0.43, 0.328)
+	lembo.rotation.x = 0.14
+	n.add_child(lembo)
+	_box(lembo, Vector3(0.28, 0.17, 0.026), panno, Vector3(0, -0.045, 0))
+	var orlo_lembo := _cyl(lembo, 0.015, 0.015, 0.28, panno_cupo, Vector3(0, -0.13, 0))
+	orlo_lembo.rotation.z = PI * 0.5
+	_box(lembo, Vector3(0.28, 0.018, 0.005), lana_riga, Vector3(0, -0.098, 0.0145))
 	return n
 
 
@@ -5068,7 +5293,7 @@ static func _torretta() -> Node3D:
 	# lassù nessuno si chini (prima il cono galleggiava per fede)
 	for sx5: float in [-1.0, 1.0]:
 		for sz5: float in [-1.0, 1.0]:
-			_cyl(n, 0.03, 0.036, 1.68, wood, Vector3(sx5 * 0.55, 2.76, sz5 * 0.55))
+			_cyl(n, 0.03, 0.036, 1.54, wood, Vector3(sx5 * 0.55, 2.69, sz5 * 0.55))
 
 	# IL TETTO A PAGODA: una falda tornita che si svasa verso la gronda —
 	# un cono dritto è geometria, non un tetto — col pennone d'ottone e
@@ -5077,27 +5302,27 @@ static func _torretta() -> Node3D:
 	BUILDER.lathe(n, [Vector2(0.95, -0.06), Vector2(0.92, -0.043),
 			Vector2(0.80, -0.008), Vector2(0.60, 0.062), Vector2(0.40, 0.145),
 			Vector2(0.22, 0.222), Vector2(0.06, 0.262), Vector2(0.0, 0.28)],
-			rosso, Vector3(0, 3.66, 0))
-	_cyl(n, 0.008, 0.008, 0.06, ottone, Vector3(0, 3.955, 0))
-	_ball(n, 0.014, ottone, Vector3(0, 3.978, 0))
+			rosso, Vector3(0, 3.52, 0))
+	_cyl(n, 0.008, 0.008, 0.06, ottone, Vector3(0, 3.815, 0))
+	_ball(n, 0.014, ottone, Vector3(0, 3.838, 0))
 	var bandiera := _prisma(n, [Vector2(0.0, 0.0), Vector2(0.13, 0.04),
 			Vector2(0.13, -0.04)], 0.0, 0.012, rosso)
-	bandiera.position = Vector3(0.015, 3.95, 0)
+	bandiera.position = Vector3(0.015, 3.81, 0)
 	bandiera.rotation.x = PI * 0.5
 	bandiera.rotation.y = -0.4
 
 	# la campanella d'allarme appesa alla gronda di sud-ovest, SOPRA IL
 	# VUOTO oltre la ringhiera: si suona per chiamare, e non c'è mai
 	# stato bisogno di suonarla
-	var braccio_c := _cyl(n, 0.011, 0.011, 0.14, ottone, Vector3(-0.48, 3.56, -0.48))
+	var braccio_c := _cyl(n, 0.011, 0.011, 0.14, ottone, Vector3(-0.48, 3.42, -0.48))
 	braccio_c.rotation.z = 0.7
 	braccio_c.rotation.y = PI * 0.25
 	BUILDER.lathe(n, [Vector2(0.037, 0.0), Vector2(0.04, 0.006),
 			Vector2(0.035, 0.016), Vector2(0.028, 0.03), Vector2(0.02, 0.042),
 			Vector2(0.008, 0.052), Vector2(0.0, 0.056)],
-			ottone, Vector3(-0.53, 3.45, -0.53))
-	_ball(n, 0.008, ottone, Vector3(-0.53, 3.45, -0.53))
-	_cyl(n, 0.0035, 0.0035, 0.1, canapa, Vector3(-0.53, 3.4, -0.53))
+			ottone, Vector3(-0.53, 3.31, -0.53))
+	_ball(n, 0.008, ottone, Vector3(-0.53, 3.31, -0.53))
+	_cyl(n, 0.0035, 0.0035, 0.1, canapa, Vector3(-0.53, 3.26, -0.53))
 
 	# il cannocciale d'ottone sulla ringhiera, puntato fuori: è il
 	# mestiere di questo posto, guardare lontano
@@ -5118,20 +5343,20 @@ static func _torretta() -> Node3D:
 	# la lanterna in GABBIA appesa alla gronda di nord-est, anche lei
 	# sopra il vuoto: cappello, vetro caldo e la goccia d'ottone sotto —
 	# il punto caldo della sera, e nessuna testa da urtare
-	_cyl(n, 0.01, 0.01, 0.13, ottone, Vector3(0.52, 3.53, 0.52))
-	_cyl(n, 0.022, 0.058, 0.05, ottone, Vector3(0.52, 3.44, 0.52))
-	_ball(n, 0.075, _glow(Color("ffe6b0"), Color("ffcf86"), 1.4), Vector3(0.52, 3.375, 0.52))
+	_cyl(n, 0.01, 0.01, 0.13, ottone, Vector3(0.52, 3.39, 0.52))
+	_cyl(n, 0.022, 0.058, 0.05, ottone, Vector3(0.52, 3.30, 0.52))
+	_ball(n, 0.075, _glow(Color("ffe6b0"), Color("ffcf86"), 1.4), Vector3(0.52, 3.235, 0.52))
 	for a_g in 3:
-		var stecca_g := _cyl(n, 0.004, 0.004, 0.13, ottone, Vector3(0.52, 3.375, 0.52))
+		var stecca_g := _cyl(n, 0.004, 0.004, 0.13, ottone, Vector3(0.52, 3.235, 0.52))
 		stecca_g.rotation.y = float(a_g) * PI / 3.0
 		stecca_g.position += Vector3(cos(float(a_g) * PI / 3.0) * 0.072, 0,
 				-sin(float(a_g) * PI / 3.0) * 0.072)
-	_ball(n, 0.018, ottone, Vector3(0.52, 3.3, 0.52))
+	_ball(n, 0.018, ottone, Vector3(0.52, 3.16, 0.52))
 	var luce := OmniLight3D.new()
 	luce.light_color = Color(1.0, 0.85, 0.62)
 	luce.light_energy = 1.1
 	luce.omni_range = 4.5
-	luce.position = Vector3(0.52, 3.375, 0.52)
+	luce.position = Vector3(0.52, 3.235, 0.52)
 	n.add_child(luce)
 	return n
 
@@ -5214,30 +5439,62 @@ static func _palo_pompieri() -> Node3D:
 
 
 
-## LA CAMPANA DELLA CASERMA. Sul suo montante di legno, col cordino che
-## pende fino a mezz'aria: è quella che chiama tutti in piazza — l'unico
-## allarme di questo villaggio è «venite a vedere».
+## LA CAMPANA DELLA CASERMA. Sul suo palo tornito col basamento di
+## pietra, il braccio che curva, il tettuccio rosso a pagodina e la
+## campana TORNITA appesa al perno, col cordino di canapa che scende
+## fino alla maniglietta: è quella che chiama tutti in piazza —
+## l'unico allarme di questo villaggio è «venite a vedere».
 static func _campana_caserma() -> Node3D:
 	var n := Node3D.new()
 	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
-	var corda := _mat(WOOD_PALE, WOOD, 6.0, 0.4)
-	_box(n, Vector3(0.12, 1.15, 0.12), wood, Vector3(-0.28, 0.57, 0))
-	_box(n, Vector3(0.58, 0.09, 0.09), wood, Vector3(-0.02, 1.1, 0))
-	var puntone := _box(n, Vector3(0.42, 0.06, 0.06), wood, Vector3(-0.15, 0.87, 0))
-	puntone.rotation.z = -0.7
-	# tutto quello che dondola sta sotto questo nodo
+	var rosso := _mat(POMPA_ROSSO, POMPA_ROSSO_SCURO, 3.0, 0.45)
+	var canapa := _mat(Color("d9c49a"), Color("c0a978"), 7.0, 0.5)
+	# il palo tornito sul suo sasso, con la fascia d'ottone e il pomello
+	BUILDER.lathe(n, [Vector2(0.11, 0.0), Vector2(0.115, 0.02),
+			Vector2(0.09, 0.045), Vector2(0.07, 0.06)],
+			_mat(STONE, STONE_DARK, 4.0, 0.5), Vector3(-0.28, 0, 0))
+	_cyl(n, 0.045, 0.06, 1.4, wood, Vector3(-0.28, 0.72, 0))
+	_cyl(n, 0.052, 0.052, 0.028, ottone, Vector3(-0.28, 1.05, 0))
+	_cyl(n, 0.05, 0.038, 0.03, wood, Vector3(-0.28, 1.43, 0))
+	_ball(n, 0.055, wood, Vector3(-0.28, 1.47, 0))
+	# il braccio che CURVA verso fuori e la saetta che gli sale incontro,
+	# col bullone d'ottone dove si stringono la mano
+	BUILDER.tube(n, [Vector3(-0.3, 1.30, 0), Vector3(-0.10, 1.315, 0),
+			Vector3(0.10, 1.31, 0), Vector3(0.19, 1.29, 0)],
+			[0.038, 0.034, 0.030, 0.026], wood)
+	BUILDER.tube(n, [Vector3(-0.29, 1.0, 0), Vector3(-0.16, 1.10, 0),
+			Vector3(-0.03, 1.22, 0), Vector3(0.02, 1.285, 0)],
+			[0.024, 0.022, 0.020, 0.017], wood)
+	_ball(n, 0.028, ottone, Vector3(0.02, 1.295, 0))
+	# il tettuccio rosso a pagodina sopra la campana, con la puntina
+	_cyl(n, 0.02, 0.02, 0.08, wood, Vector3(0.18, 1.335, 0))
+	BUILDER.lathe(n, [Vector2(0.26, -0.02), Vector2(0.25, -0.011),
+			Vector2(0.20, 0.013), Vector2(0.13, 0.046), Vector2(0.05, 0.076),
+			Vector2(0.0, 0.09)], rosso, Vector3(0.18, 1.375, 0))
+	_ball(n, 0.012, ottone, Vector3(0.18, 1.47, 0))
+	# tutto quello che dondola sta sotto questo nodo: il perno visibile,
+	# la corona, la campana tornita col labbro, il batacchio e la corda
 	var giogo := Node3D.new()
 	giogo.name = "Campana"
-	giogo.position = Vector3(0.16, 1.06, 0)
+	giogo.position = Vector3(0.18, 1.27, 0)
 	n.add_child(giogo)
-	_ball(giogo, 0.035, ottone, Vector3.ZERO)
-	_cyl(giogo, 0.09, 0.155, 0.24, ottone, Vector3(0, -0.14, 0))
-	_cyl(giogo, 0.17, 0.155, 0.04, ottone, Vector3(0, -0.27, 0))
-	_ball(giogo, 0.03, _mat(OTTONE_SCURO, OTTONE_SCURO.darkened(0.3), 5.0, 0.4),
-			Vector3(0, -0.28, 0))
-	_cyl(giogo, 0.008, 0.008, 0.5, corda, Vector3(0, -0.52, 0))
-	_ball(giogo, 0.028, corda, Vector3(0, -0.77, 0))
+	var perno := _cyl(giogo, 0.012, 0.012, 0.1, ottone, Vector3.ZERO)
+	perno.rotation.x = PI * 0.5
+	_cyl(giogo, 0.02, 0.026, 0.07, ottone, Vector3(0, -0.033, 0))
+	BUILDER.lathe(giogo, [Vector2(0.150, -0.315), Vector2(0.163, -0.30),
+			Vector2(0.155, -0.275), Vector2(0.128, -0.225), Vector2(0.108, -0.16),
+			Vector2(0.098, -0.115), Vector2(0.086, -0.08), Vector2(0.055, -0.062),
+			Vector2(0.02, -0.055)], ottone)
+	_cyl(giogo, 0.008, 0.008, 0.1, _mat(OTTONE_SCURO, OTTONE_SCURO.darkened(0.3), 5.0, 0.4),
+			Vector3(0, -0.29, 0))
+	_ball(giogo, 0.032, _mat(OTTONE_SCURO, OTTONE_SCURO.darkened(0.3), 5.0, 0.4),
+			Vector3(0, -0.345, 0))
+	BUILDER.tube(giogo, [Vector3(0, -0.34, 0), Vector3(0.012, -0.52, 0),
+			Vector3(0.005, -0.72, 0), Vector3(-0.008, -0.90, 0)],
+			[0.008, 0.008, 0.008, 0.008], canapa, 16, 6)
+	_cyl(giogo, 0.016, 0.02, 0.07, wood, Vector3(-0.008, -0.935, 0))
+	_ball(giogo, 0.02, wood, Vector3(-0.008, -0.985, 0))
 	# il respiro della corda: appena appena, come una campana ferma da poco
 	var anim := Animation.new()
 	anim.length = 5.0
