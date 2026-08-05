@@ -3772,32 +3772,219 @@ static func _armadio_smarriti() -> Node3D:
 	return n
 
 
+## LA BACHECA DEGLI AVVISI, rifatta. Prima era una tavola su due gambe con
+## cinque rettangoli identici appiccicati sopra: di profilo, un asse.
+##
+## Adesso è il cartellone della piazza, e a farlo sono tre cose:
+##
+##  1. IL TETTUCCIO. Una bacheca all'aperto SENZA tetto è una bacheca che
+##     nessuno ha mai usato: la carta si bagna alla prima pioggia. Le due
+##     falde sporgenti sono anche ciò che, di profilo, trasforma la tavola
+##     in una costruzione — insieme ai due puntoni obliqui dietro, che
+##     sono il motivo per cui il cartellone sta in piedi al vento.
+##  2. IL SUGHERO GRANULOSO. Un pannello liscio è cartone. Le granaglie
+##     sono trenta scaglie piatte di tono appena diverso, sparse: da
+##     lontano fanno la grana, da vicino sono sughero.
+##  3. I BIGLIETTI HANNO UNA STORIA. Non cinque rettangoli uguali: un
+##     avviso ufficiale con le righe scritte, una foto col bordo bianco,
+##     un biglietto tenuto su dal washi al posto della puntina, uno
+##     appeso a UNA puntina sola che è ruotato di sghembo, uno con
+##     l'ANGOLO ARRICCIATO (la firma della carta che sta lì da mesi), e
+##     quello coi tagliandi da strappare — con due tagliandi già presi.
+##     È il disordine a raccontare che il paese lo usa davvero.
+##
+## Più la matita legata allo spago, che è una CORDA VIVA: al vento
+## dondola per conto suo.
 static func _bacheca_avvisi() -> Node3D:
-	# LA BACHECA: sughero, cornice di legno e i bigliettini appuntati di
-	# sghembo — nessuno appende un avviso dritto.
 	var n := Node3D.new()
 	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
-	for sx: float in [-0.46, 0.46]:
-		_box(n, Vector3(0.08, 1.35, 0.08), legno, Vector3(sx, 0.68, 0.04))
-	_box(n, Vector3(1.0, 0.09, 0.09), legno, Vector3(0, 1.36, 0.04))
-	_box(n, Vector3(0.94, 0.72, 0.05), _mat(SUGHERO, Color("c39a6c"), 6.0, 0.5),
-			Vector3(0, 1.0, 0.04))
-	# la cornicetta interna
-	for dy: float in [-0.38, 0.38]:
-		_box(n, Vector3(0.96, 0.04, 0.07), legno, Vector3(0, 1.0 + dy, 0.04))
-	# i bigliettini, ognuno storto a modo suo
-	var carte := [[-0.28, 1.14, -0.13, Color("fff6e2")], [0.02, 1.18, 0.09, Color("e8f2e0")],
-			[0.3, 1.1, -0.06, Color("fde8e4")], [-0.14, 0.88, 0.14, Color("fff6e2")],
-			[0.22, 0.85, -0.11, Color("e4eef8")]]
-	for c in carte:
-		var carta := _box(n, Vector3(0.2, 0.16, 0.008),
-				_mat(Color(c[3]), Color(c[3]).darkened(0.08), 6.0, 0.2),
-				Vector3(float(c[0]), float(c[1]), 0.015))
-		carta.rotation.z = float(c[2])
-		# la puntina
-		_ball(n, 0.014, _mat(SEGNALE_ROSSO, Color("c96f60"), 4.0, 0.3),
-				Vector3(float(c[0]), float(c[1]) + 0.06, 0.005))
+	var legno_chiaro := _mat(WOOD_PALE, WOOD, 3.5, 0.45)
+	var legno_scuro := _mat(Color("8a6440"), Color("6d4f31"), 4.5, 0.45)
+	var legno_medio := _mat(Color("d9b283"), Color("bd9463"), 4.0, 0.45)
+	var sughero := _mat(SUGHERO, Color("c39a6c"), 7.0, 0.45)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 20_260_805
+
+	# --- i due pali: rastremati, appena storti, col cuneo al piede ---
+	for sx: float in [-0.44, 0.44]:
+		var palo := _cyl(n, 0.038, 0.050, 1.30, legno, Vector3(sx, 0.65, 0.045))
+		palo.rotation.z = -sx * 0.012
+		# il cuneo che lo tiene su, e il sasso appoggiato
+		var cuneo := _box(n, Vector3(0.05, 0.16, 0.05), legno_scuro,
+				Vector3(sx * 0.93, 0.08, 0.045))
+		cuneo.rotation.z = sx * 0.30
+		_ball(n, 0.045, _mat(STONE, STONE_DARK, 3.0, 0.5),
+				Vector3(sx * 0.88, 0.022, 0.10), Vector3(1.1, 0.5, 0.9))
+	# --- i due puntoni obliqui DIETRO: è per loro che sta in piedi ---
+	for sx2: float in [-0.44, 0.44]:
+		var p := _box(n, Vector3(0.035, 0.46, 0.035), legno,
+				Vector3(sx2 * 0.92, 0.36, 0.16))
+		p.rotation.x = -0.55
+
+	# --- la cornice: quattro liste con la battuta interna, e i quattro
+	# tasselli d'angolo che spiegano il giunto (una cornice senza giunto
+	# è un rettangolo disegnato) ---
+	var y0 := 0.62
+	var y1 := 1.32
+	var mezzo := (y0 + y1) * 0.5
+	for dy: float in [y0, y1]:
+		_box(n, Vector3(0.98, 0.075, 0.075), legno, Vector3(0, dy, 0.045))
+	for sx3: float in [-0.4525, 0.4525]:
+		_box(n, Vector3(0.075, y1 - y0, 0.075), legno, Vector3(sx3, mezzo, 0.045))
+	for sx4: float in [-0.4525, 0.4525]:
+		for dy2: float in [y0, y1]:
+			_box(n, Vector3(0.09, 0.09, 0.05), legno_chiaro,
+					Vector3(sx4, dy2, 0.012))
+	# la battuta: il listello sottile che tiene il sughero, un filo avanti
+	for dy3: float in [y0 + 0.043, y1 - 0.043]:
+		_box(n, Vector3(0.86, 0.016, 0.03), legno_scuro, Vector3(0, dy3, 0.020))
+
+	# --- il sughero, con la grana ---
+	_box(n, Vector3(0.87, y1 - y0 - 0.075, 0.035), sughero, Vector3(0, mezzo, 0.048))
+	for _i in 34:
+		var gx := rng.randf_range(-0.41, 0.41)
+		var gy := mezzo + rng.randf_range(-0.29, 0.29)
+		var tono := SUGHERO.darkened(rng.randf_range(0.04, 0.16)) \
+				if rng.randf() < 0.6 else SUGHERO.lightened(rng.randf_range(0.04, 0.10))
+		var scaglia := _box(n, Vector3(rng.randf_range(0.016, 0.040), 0.012, 0.004),
+				_mat(tono, tono.darkened(0.06), 7.0, 0.3), Vector3(gx, gy, 0.030))
+		scaglia.rotation.z = rng.randf_range(0.0, PI)
+
+	# --- la targhetta d'ottone sulla lista alta ---
+	_box(n, Vector3(0.20, 0.045, 0.008), _mat(OTTONE, OTTONE_SCURO, 5.0, 0.35),
+			Vector3(-0.02, y1 + 0.002, 0.004))
+	for k in 3:
+		_box(n, Vector3(0.035 - 0.006 * float(k), 0.006, 0.004),
+				_mat(OTTONE_SCURO, OTTONE_SCURO.darkened(0.2), 5.0, 0.3),
+				Vector3(-0.07 + 0.05 * float(k), y1 + 0.002, -0.001))
+
+	# --- I BIGLIETTI ---
+	var zc := 0.028      # il piano della carta, davanti al sughero
+	# 1. l'avviso ufficiale, grande, con le righe scritte e due puntine
+	var avviso := _carta_bacheca(n, Vector3(-0.235, mezzo + 0.115, zc), 0.30, 0.21,
+			Color("fff6e2"), -0.035)
+	for r in 4:
+		_box(avviso, Vector3(0.20 - 0.03 * float(r), 0.008, 0.003),
+				_mat(Color("b9ab92"), Color("9d9078"), 6.0, 0.25),
+				Vector3(-0.03 + 0.012 * float(r), 0.045 - 0.035 * float(r), -0.006))
+	_puntina(n, Vector3(-0.235 - 0.11, mezzo + 0.19, zc), SEGNALE_ROSSO)
+	_puntina(n, Vector3(-0.235 + 0.12, mezzo + 0.20, zc), Color("6f9ad6"))
+	# 2. la foto col bordo bianco, appesa storta a una puntina sola
+	var foto := _carta_bacheca(n, Vector3(0.175, mezzo + 0.145, zc), 0.17, 0.15,
+			Color("fbf8f2"), 0.16)
+	_box(foto, Vector3(0.135, 0.10, 0.004),
+			_mat(Color("9fc4d8"), Color("7ea6bd"), 6.0, 0.3), Vector3(0, 0.012, -0.005))
+	_puntina(n, Vector3(0.175 - 0.055, mezzo + 0.205, zc), Color("e8c46a"))
+	# 3. il biglietto col washi al posto della puntina
+	var washi := _carta_bacheca(n, Vector3(0.30, mezzo - 0.055, zc), 0.17, 0.13,
+			Color("e8f2e0"), -0.09)
+	for lato: float in [-1.0, 1.0]:
+		var nastro := _box(washi, Vector3(0.055, 0.022, 0.004),
+				_mat(Color("f4b8c8"), Color("e39fb2"), 8.0, 0.3),
+				Vector3(lato * 0.068, 0.062, -0.005))
+		nastro.rotation.z = lato * 0.7
+	# 4. il biglietto vecchio, con l'ANGOLO ARRICCIATO
+	var vecchio := _carta_bacheca(n, Vector3(-0.30, mezzo - 0.14, zc), 0.19, 0.14,
+			Color("f2e6cc"), 0.10)
+	var ricciolo := _box(vecchio, Vector3(0.070, 0.055, 0.004),
+			_mat(Color("e6d6b8"), Color("c8b696"), 6.0, 0.25),
+			Vector3(0.062, -0.048, -0.012))
+	ricciolo.rotation.x = -0.9
+	ricciolo.rotation.z = -0.5
+	_puntina(n, Vector3(-0.30, mezzo - 0.075, zc), Color("7fbc62"))
+	# 5. il foglio coi TAGLIANDI da strappare, due già presi
+	# i tagliandi sono TAGLI NEL FOGLIO, non linguette appese sotto: prima
+	# spuntavano oltre il bordo e il biglietto sembrava un animaletto con
+	# le zampe. Sono fessure scure fra una linguetta e l'altra, dentro la
+	# metà bassa — e dove il tagliando manca la fessura è larga.
+	var tagli := _carta_bacheca(n, Vector3(0.06, mezzo - 0.135, zc), 0.22, 0.155,
+			Color("e4eef8"), 0.02)
+	var fessura := _mat(Color("9fb0c4"), Color("8393a6"), 6.0, 0.25)
+	for k2 in 7:
+		var fx := -0.093 + 0.031 * float(k2)
+		var largo_f := 0.026 if (k2 == 2 or k2 == 5) else 0.004
+		_box(tagli, Vector3(largo_f, 0.075, 0.003), fessura,
+				Vector3(fx, -0.038, -0.003))
+	_puntina(n, Vector3(0.06, mezzo - 0.095, zc), SEGNALE_ROSSO)
+
+	# --- il tettuccio. POSA sulla lista alta: sollevato restava un
+	# cappello a mezz'aria. Le falde sono profonde (0.26) e sporgono
+	# DAVANTI al pannello — un tetto che non ripara la carta non ripara
+	# niente — e il colmo copre la giunzione delle due. ---
+	# la pendenza è 0.62 rad (35°), non 0.46: un tetto poco inclinato letto
+	# di fronte è un coperchio, e il tettuccio smette di dire «riparo»
+	var y_colmo := y1 + 0.085
+	for lato2: float in [-1.0, 1.0]:
+		var incl := lato2 * 0.62
+		# il centro della falda: metà pendenza a partire dal colmo
+		var falda := _box(n, Vector3(1.08, 0.028, 0.26), legno_chiaro,
+				Vector3(0, y_colmo - sin(0.62) * 0.13,
+						0.045 + lato2 * cos(0.62) * 0.13))
+		falda.rotation.x = incl
+		# le tegoline: due listelli in rilievo per falda
+		# le tegoline: tono su tono, NON scure — a contrasto sembravano
+		# due maniglie appoggiate sul coperchio
+		for k3 in 2:
+			var u := -0.06 + 0.12 * float(k3)
+			var t := _box(n, Vector3(1.04, 0.010, 0.050), legno_medio,
+					Vector3(0, y_colmo - sin(0.62) * (0.13 + u) + cos(0.62) * 0.016,
+							0.045 + lato2 * (cos(0.62) * (0.13 + u) + sin(0.62) * 0.016)))
+			t.rotation.x = incl
+	# il colmo, a cavallo delle due falde
+	_box(n, Vector3(1.10, 0.040, 0.075), legno, Vector3(0, y_colmo + 0.012, 0.045))
+	# le due mensoline che reggono lo sbalzo davanti
+	for sx5: float in [-0.36, 0.36]:
+		var mens := _box(n, Vector3(0.028, 0.135, 0.028), legno_scuro,
+				Vector3(sx5, y1 + 0.010, -0.030))
+		mens.rotation.x = -0.62
+
+	# --- la matita allo spago: CORDA VIVA, dondola al vento ---
+	var attacco := Vector3(0.400, y0 - 0.005, -0.012)
+	var spago := _corda_viva(n, attacco, attacco + Vector3(0, -0.115, 0),
+			0.0, 0.005, _mat(Color("d8c49a"), Color("b8a077"), 6.0, 0.3),
+			1.3, 8, 5, true)
+	spago.name = "Spago"
+	var matita := Node3D.new()
+	matita.name = "Matita"
+	matita.position = attacco + Vector3(0, -0.115, 0)
+	n.add_child(matita)
+	_cyl(matita, 0.011, 0.011, 0.13, _mat(Color("e0a24a"), Color("c2842f"), 6.0, 0.3),
+			Vector3(0, -0.065, 0))
+	_cyl(matita, 0.0, 0.011, 0.028, _mat(Color("f0dcc0"), Color("d4bd9c"), 6.0, 0.3),
+			Vector3(0, -0.144, 0))
+	_cyl(matita, 0.0035, 0.0035, 0.012, _mat(Color("4a4640"), Color("38352f"), 6.0, 0.3),
+			Vector3(0, -0.162, 0))
+	var meta_s: Dictionary = spago.get_meta("corda")
+	meta_s["appesi"] = [{"path": NodePath("../Matita"), "t": 1.0, "giu": 0.0}]
+	spago.set_meta("corda", meta_s)
 	return n
+
+
+## Un biglietto della bacheca: la carta, la sua ombra portata sul sughero
+## (è l'ombra a staccarla dal fondo) e il nodo che la contiene, già
+## ruotato — così quello che ci si attacca dentro (righe, washi, riccioli)
+## eredita la storta senza doverla ricalcolare.
+static func _carta_bacheca(parent: Node3D, pos: Vector3, largo: float,
+		alto: float, tinta: Color, giro: float) -> Node3D:
+	var carta := Node3D.new()
+	carta.position = pos
+	carta.rotation.z = giro
+	parent.add_child(carta)
+	_box(carta, Vector3(largo, alto, 0.004),
+			_mat(tinta, tinta.darkened(0.09), 6.0, 0.2), Vector3.ZERO)
+	# l'ombra: appena più piccola, appena spostata in basso a destra
+	_box(carta, Vector3(largo * 0.98, alto * 0.98, 0.002),
+			_mat(Color("9c7f5e"), Color("7f6748"), 6.0, 0.25),
+			Vector3(0.008, -0.008, 0.006))
+	return carta
+
+
+## Una puntina da disegno: lo spillo e la testa tonda che sporge.
+static func _puntina(parent: Node3D, pos: Vector3, tinta: Color) -> void:
+	var mat := _mat(tinta, tinta.darkened(0.18), 4.0, 0.3)
+	_cyl(parent, 0.004, 0.004, 0.020, _mat(METAL, Color("6f665b"), 5.0, 0.3),
+			pos + Vector3(0, 0, 0.004))
+	_ball(parent, 0.013, mat, pos + Vector3(0, 0, -0.008), Vector3(1.0, 1.0, 0.7))
 
 
 static func _attaccapanni_berretto() -> Node3D:
