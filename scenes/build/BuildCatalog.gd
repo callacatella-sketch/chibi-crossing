@@ -352,7 +352,7 @@ static func items() -> Array[Dictionary]:
 			"builder": _faro_caserma,
 			"cols": [[Vector3(0.2, 1.25, 0.2), Vector3(0, 0.62, 0)]]},
 		{"name": "Cuccia", "cat": 2, "type": "cell", "layer": 2, "builder": _cuccia_caserma,
-			"cols": [[Vector3(0.62, 0.5, 0.56), Vector3(0, 0.25, 0)]]},
+			"cols": [[Vector3(0.66, 0.72, 0.60), Vector3(0, 0.36, 0)]]},
 		{"name": "Pennone", "cat": 2, "type": "cell", "layer": 2,
 			"builder": _pennone_caserma,
 			"cols": [[Vector3(0.12, 2.0, 0.12), Vector3(0, 1.0, 0)]]},
@@ -7386,37 +7386,152 @@ static func _faro_caserma() -> Node3D:
 	return n
 
 
-## LA CUCCIA DELLA CASERMA. Nessun cane, per ora: la cuccia rossa col
-## tetto a falde e la ciotola d'ottone davanti — chi passa ci mette il
-## naso dentro, e un giorno magari ci resta qualcuno.
+## LA CUCCIA DELLA CASERMA, rifatta. Prima era una scatola bianca con
+## due lastre a coltello appoggiate sopra e un buco nero: il tetto non
+## aveva frontoni (dai tre quarti si vedeva il TRIANGOLO VUOTO fra le
+## falde), niente spessore, niente gronda. Adesso è una casetta vera:
+## pedana di legno coi piedini, timpani pieni (_prisma), falde con lo
+## spessore, la gronda che sporge e i corsi delle tegole, il colmo
+## tornito coi pomelli d'ottone, l'arco di legno intorno all'ingresso,
+## l'osso dipinto sul timpano, una copertina che sbuca dal buio — e la
+## ciotola d'ottone TORNITA, con le crocchette dentro. Nessun cane, per
+## ora: ma adesso si capisce che qualcuno lo sta aspettando.
 static func _cuccia_caserma() -> Node3D:
 	var n := Node3D.new()
 	var rosso := _mat(POMPA_ROSSO, POMPA_ROSSO_SCURO, 3.5, 0.45)
+	var rosso_scuro := _mat(POMPA_ROSSO_SCURO, POMPA_ROSSO_SCURO.darkened(0.18), 4.0, 0.4)
 	var crema := _mat(CREAM, PLASTER_SHADE, 4.0, 0.4)
 	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var wood_scuro := _mat(WOOD_DARK, Color("6d4f31"), 4.0, 0.45)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
-	# le misure del corpo in chiaro: da qui si ricava dove sta la ciotola
-	var corpo := Vector3(0.6, 0.42, 0.54)
-	_box(n, corpo, crema, Vector3(0, corpo.y * 0.5, 0))
-	# l'ingresso: un arco, non un buco quadrato
 	var buio := _mat(GOMMA.lightened(0.05), GOMMA, 5.0, 0.3)
-	_box(n, Vector3(0.24, 0.22, 0.06), buio, Vector3(0, 0.11, -0.27))
-	var arco := _cyl(n, 0.12, 0.12, 0.06, buio, Vector3(0, 0.22, -0.27))
+
+	# ---- LA PEDANA: rialzata da terra sui piedini, come le cucce vere ----
+	_lastra(n, 0.30, 0.66, 0.045, 0.05, wood, Vector3(0, 0.062, 0),
+			Vector3(0, 0, PI * 0.5))
+	for px: float in [-1.0, 1.0]:
+		for pz: float in [-1.0, 1.0]:
+			_cyl(n, 0.032, 0.036, 0.04, wood_scuro,
+					Vector3(px * 0.27, 0.02, pz * 0.24))
+
+	# ---- IL CORPO: intonaco, montanti d'angolo e battiscopa ----
+	_box(n, Vector3(0.60, 0.415, 0.52), crema, Vector3(0, 0.2925, 0))
+	for cx: float in [-1.0, 1.0]:
+		for cz: float in [-1.0, 1.0]:
+			_box(n, Vector3(0.05, 0.425, 0.05), wood,
+					Vector3(cx * 0.283, 0.297, cz * 0.243))
+	for bz: float in [-1.0, 1.0]:
+		_box(n, Vector3(0.62, 0.035, 0.02), wood_scuro,
+				Vector3(0, 0.105, bz * 0.256))
+	for bx: float in [-1.0, 1.0]:
+		_box(n, Vector3(0.02, 0.035, 0.54), wood_scuro,
+				Vector3(bx * 0.296, 0.105, 0))
+
+	# ---- I TIMPANI: triangoli PIENI, non aria fra le falde ----
+	# (_prisma estrude in Y: punti in (x, -y) e mezzo giro in X)
+	var tri: Array = [Vector2(-0.30, -0.50), Vector2(0, -0.69), Vector2(0.30, -0.50)]
+	for gz: float in [-1.0, 1.0]:
+		var timpano := _prisma(n, tri, 0.0, 0.045, crema)
+		timpano.rotation.x = PI * 0.5
+		timpano.position.z = gz * 0.26 - 0.0225
+	# la trave che il timpano appoggia sul muro
+	_box(n, Vector3(0.64, 0.045, 0.56), wood, Vector3(0, 0.492, 0))
+
+	# ---- LE FALDE: spessore, gronda, corsi di tegole, bordi di legno ----
+	var theta := atan2(0.19, 0.30)
+	var lung := 0.44
+	for sx: float in [-1.0, 1.0]:
+		var perno := Node3D.new()
+		# il centro della falda: a 0.21 di strada dal colmo, LUNGO la falda
+		perno.position = Vector3(sx * 0.21 * cos(theta),
+				0.69 - 0.21 * sin(theta), 0)
+		perno.rotation.z = -sx * (PI * 0.5 + theta)
+		n.add_child(perno)
+		_lastra(perno, 0.33, lung, 0.02, 0.035, rosso, Vector3.ZERO)
+		# i due corsi orizzontali delle tegole, SOLO sulla faccia di fuori:
+		# messi su entrambe le facce si vedevano galleggiare sotto la
+		# gronda. Il lato di fuori dipende dal segno della falda (-sx).
+		for corso: float in [-0.065, 0.085]:
+			_box(perno, Vector3(0.008, 0.016, 0.64), rosso_scuro,
+					Vector3(-sx * 0.0215, corso, 0))
+		# i bordi di legno sul fronte e sul retro della falda
+		for gz2: float in [-1.0, 1.0]:
+			_box(perno, Vector3(0.048, lung - 0.02, 0.026), wood,
+					Vector3(0, 0, gz2 * 0.325))
+
+	# ---- IL COLMO: tornito, coi pomelli d'ottone alle punte ----
+	var colmo := BUILDER.lathe(n, [Vector2(0.001, 0.0), Vector2(0.023, 0.005),
+			Vector2(0.028, 0.28), Vector2(0.023, 0.555),
+			Vector2(0.001, 0.56)], wood, Vector3(0, 0.684, -0.28))
+	colmo.rotation.x = PI * 0.5
+	# il cappello a rombo sull'apice dei timpani: copre la tacca fra le
+	# falde (da cui, di fronte, si vedeva la punta del colmo come una
+	# candela accesa) e porta il pomello d'ottone
+	for fz: float in [-1.0, 1.0]:
+		var rombo := _box(n, Vector3(0.118, 0.118, 0.022), wood,
+				Vector3(0, 0.664, fz * 0.344))
+		rombo.rotation.z = PI * 0.25
+		_ball(n, 0.018, ottone, Vector3(0, 0.682, fz * 0.360))
+	# l'oblò d'ottone sui fianchi: il tondino di buio e l'anello lucido
+	for ox: float in [-1.0, 1.0]:
+		var vetro_blo := _cyl(n, 0.052, 0.052, 0.014, buio,
+				Vector3(ox * 0.298, 0.335, 0.05))
+		vetro_blo.rotation.z = PI * 0.5
+		var anello_blo := _cordolo(n, _super_anello(0.056, 0.056, 1.0, 0.0, 32),
+				0.011, ottone, Vector3(ox * 0.306, 0.335, 0.05))
+		anello_blo.rotation.z = PI * 0.5
+
+	# ---- L'INGRESSO: il buio, l'arco di legno, la soglia ----
+	# Il buio si RICAVA dal telaio, mai il contrario: la corona del tubo
+	# sta a 0.44 col raggio 0.019 (filo interno 0.421), e il primo buio
+	# (raggio 0.13, centro 0.335) arrivava a 0.465 — sbucava SOPRA il
+	# legno. Ora l'arco nero finisce a 0.419, due millimetri sotto il
+	# filo, e i fianchi lasciano un dito di stipite in vista.
+	_box(n, Vector3(0.238, 0.215, 0.014), buio, Vector3(0, 0.1925, -0.262))
+	var arco := _cyl(n, 0.119, 0.119, 0.014, buio, Vector3(0, 0.30, -0.262))
 	arco.rotation.x = PI * 0.5
-	# il tetto a due falde: la falda di sinistra scende verso sinistra e
-	# quella di destra verso destra, o invece di una punta viene una V
-	for s: float in [-1.0, 1.0]:
-		var f := _box(n, Vector3(0.48, 0.05, 0.6), rosso, Vector3(s * 0.18, 0.5, 0))
-		f.rotation.z = -s * 0.51
-	_box(n, Vector3(0.09, 0.06, 0.62), wood, Vector3(0, 0.6, 0))
-	# LA CIOTOLA STA DAVANTI, NON DENTRO. Era piantata nello spigolo del corpo
-	# (centro x=0.3, z=-0.3, bordo di raggio 0.09) contro un muro che arriva a
-	# x=0.30 e z=-0.27: un morso di 8,5 cm dentro l'intonaco — l'angolo retto
-	# che di profilo si vedeva in una ciotola tonda. Ora la posa si RICAVA dal
-	# corpo: davanti alla facciata, staccata del proprio raggio più un dito
-	# d'aria, così non ci rientra più nemmeno se la cuccia cambia misura.
-	var bordo := 0.09
-	_cyl(n, bordo, 0.07, 0.05, ottone, Vector3(0.3, 0.025, -corpo.z * 0.5 - bordo - 0.02))
+	BUILDER.tube(n, [Vector3(-0.148, 0.085, -0.266), Vector3(-0.150, 0.20, -0.266),
+			Vector3(-0.140, 0.30, -0.266), Vector3(-0.092, 0.405, -0.266),
+			Vector3(0, 0.44, -0.266), Vector3(0.092, 0.405, -0.266),
+			Vector3(0.140, 0.30, -0.266), Vector3(0.150, 0.20, -0.266),
+			Vector3(0.148, 0.085, -0.266)],
+			[0.019, 0.019, 0.019, 0.019, 0.019, 0.019, 0.019, 0.019, 0.019],
+			wood, 24, 10)
+	var soglia := _cyl(n, 0.018, 0.018, 0.30, wood_scuro, Vector3(0, 0.088, -0.272))
+	soglia.rotation.z = PI * 0.5
+
+	# ---- L'OSSO dipinto sul timpano ----
+	var osso := Node3D.new()
+	osso.position = Vector3(0, 0.548, -0.286)
+	osso.rotation.z = 0.06
+	n.add_child(osso)
+	var bianco := _mat(SEGNALE_BIANCO, Color("e9e2d2"), 5.0, 0.3)
+	_box(osso, Vector3(0.068, 0.018, 0.012), bianco, Vector3.ZERO)
+	for ox: float in [-1.0, 1.0]:
+		for oy: float in [-1.0, 1.0]:
+			_ball(osso, 0.0145, bianco, Vector3(ox * 0.036, oy * 0.0105, 0))
+
+	# ---- LA CIOTOLA: tornita, col bordo arrotolato e le crocchette ----
+	# Davanti alla pedana, staccata del proprio raggio più un dito d'aria:
+	# la posa si RICAVA (pedana z/2 = 0.30), mai piantata nell'intonaco.
+	var ciotola := Node3D.new()
+	ciotola.position = Vector3(0.20, 0.0, -0.30 - 0.095 - 0.02)
+	n.add_child(ciotola)
+	BUILDER.lathe(ciotola, [Vector2(0.001, 0.0), Vector2(0.052, 0.0),
+			Vector2(0.068, 0.006), Vector2(0.080, 0.020),
+			Vector2(0.089, 0.042), Vector2(0.094, 0.052),
+			Vector2(0.088, 0.058), Vector2(0.079, 0.052),
+			Vector2(0.074, 0.040)], ottone)
+	_cyl(ciotola, 0.070, 0.070, 0.006, _mat(Color("6b4a33"), Color("523823"), 5.0, 0.35),
+			Vector3(0, 0.040, 0))
+	var rngc := RandomNumberGenerator.new()
+	rngc.seed = 20_260_808
+	for k in 6:
+		var ang := TAU * float(k) / 6.0 + rngc.randf_range(-0.3, 0.3)
+		var rad := rngc.randf_range(0.012, 0.048)
+		_ball(ciotola, rngc.randf_range(0.010, 0.0135),
+				_mat(Color("9a6f47"), Color("7d5735"), 5.0, 0.4),
+				Vector3(cos(ang) * rad, 0.047, sin(ang) * rad))
 	return n
 
 
