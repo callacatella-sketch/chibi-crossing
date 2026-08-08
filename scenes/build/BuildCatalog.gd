@@ -2805,42 +2805,87 @@ static func _mushroom() -> Node3D:
 
 
 static func _mailbox() -> Node3D:
-	# cassetta animabile dal sistema posta: "Lid" (sportello incernierato in
-	# basso), "Flag" (bandierina, alzata = c'è posta), "Letter" (la busta
-	# che fa capolino). Il fronte guarda verso -Z.
+	# LA CASSETTA DELLA POSTA. Animabile dal sistema posta, e i suoi tre
+	# nodi sono un CONTRATTO: "Lid" (sportello incernierato in basso),
+	# "Flag" (bandierina: rotation.x 0 = alzata, -1.35 = giu'), "Letter"
+	# (la busta che fa capolino). Il fronte guarda verso -Z. Perni e assi
+	# NON si toccano: Mail.gd li anima con quei numeri.
+	# Il resto e' falegnameria: il palo tornito col collare e la SAETTA
+	# che regge la mensola (una cassetta non sta infilzata su un bastone:
+	# sta APPOGGIATA), il vassoio, il bordo chiaro dell'imboccatura, le
+	# fasce sul barile, le cerniere dello sportello e la boccola d'ottone
+	# della bandierina.
 	var n := Node3D.new()
-	_cyl(n, 0.03, 0.04, 0.85, _mat(WOOD, WOOD_DARK, 4.0, 0.5), Vector3(0, 0.42, 0))
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var chiaro := _mat(WOOD_PALE, WOOD, 3.0, 0.45)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
 	var body := _mat(Color("d97f7f"), Color("c26a6a"), 4.0, 0.45)
-	_box(n, Vector3(0.24, 0.2, 0.34), body, Vector3(0, 0.94, 0.01))
-	_cyl(n, 0.12, 0.12, 0.36, body, Vector3(0, 1.04, 0)).rotation.x = PI * 0.5
-	# fondo scuro dell'imboccatura, svelato dallo sportello aperto
-	_box(n, Vector3(0.2, 0.16, 0.012), _mat(Color("4a3230"), Color("3a2624"), 3.0, 0.4), Vector3(0, 0.94, -0.155))
+	var body_scuro := _mat(Color("c26a6a"), Color("a85858"), 4.0, 0.4)
+	var crema := _mat(CREAM, Color("f0e4cc"), 4.0, 0.35)
 
-	# la busta, nascosta finché non arriva posta
-	var letter := _box(n, Vector3(0.15, 0.105, 0.012), _mat(CREAM, Color("f3e6d0"), 5.0, 0.35), Vector3(0, 0.95, -0.125))
+	# il palo: base svasata, fusto rastremato, collare sotto la mensola
+	_cyl(n, 0.052, 0.068, 0.06, legno, Vector3(0, 0.03, 0))
+	_cyl(n, 0.030, 0.045, 0.76, legno, Vector3(0, 0.44, 0))
+	_cyl(n, 0.047, 0.040, 0.025, legno, Vector3(0, 0.815, 0))
+	# la mensola col vassoio, e la saetta che la regge
+	_box(n, Vector3(0.20, 0.022, 0.30), legno, Vector3(0, 0.836, 0.01))
+	_box(n, Vector3(0.27, 0.018, 0.37), chiaro, Vector3(0, 0.856, 0.01))
+	var saetta := _cyl(n, 0.014, 0.014, 0.26, legno, Vector3(0, 0.75, 0.09))
+	saetta.rotation.x = -0.78
+
+	# il corpo a barile, appoggiato sul vassoio
+	_box(n, Vector3(0.24, 0.2, 0.34), body, Vector3(0, 0.965, 0.01))
+	_cyl(n, 0.12, 0.12, 0.36, body, Vector3(0, 1.065, 0.01)).rotation.x = PI * 0.5
+	# le due fasce piu' cupe che abbracciano il barile
+	for fz: float in [-0.06, 0.09]:
+		var arco := _cyl(n, 0.1225, 0.1225, 0.024, body_scuro, Vector3(0, 1.065, fz))
+		arco.rotation.x = PI * 0.5
+		_box(n, Vector3(0.245, 0.2, 0.024), body_scuro, Vector3(0, 0.965, fz))
+	# il bordo CHIARO dell'imboccatura: la bocca ha una cornice, non un
+	# taglio vivo
+	_box(n, Vector3(0.25, 0.205, 0.018), crema, Vector3(0, 0.9625, -0.156))
+	var bocca := _cyl(n, 0.125, 0.125, 0.018, crema, Vector3(0, 1.065, -0.156))
+	bocca.rotation.x = PI * 0.5
+	# fondo scuro dell'imboccatura, svelato dallo sportello aperto
+	_box(n, Vector3(0.2, 0.16, 0.012), _mat(Color("4a3230"), Color("3a2624"), 3.0, 0.4),
+			Vector3(0, 0.965, -0.150))
+
+	# la busta, nascosta finche' non arriva posta (nodo "Letter")
+	var letter := _box(n, Vector3(0.15, 0.105, 0.012),
+			_mat(CREAM, Color("f3e6d0"), 5.0, 0.35), Vector3(0, 0.975, -0.125))
 	letter.name = "Letter"
 	letter.rotation.x = -0.3
 	letter.visible = false
-	# sigillo a cuoricino
 	_ball(letter, 0.016, _mat(PINK_DEEP, PINK, 4.0, 0.3), Vector3(0, 0.0, -0.01))
 
-	# sportello incernierato sul bordo basso del fronte
+	# lo sportello (nodo "Lid"), incernierato sul bordo basso del fronte:
+	# l'anta bombata col pannello, il pomello, e le due cerniere d'ottone
 	var lid := Node3D.new()
 	lid.name = "Lid"
-	lid.position = Vector3(0, 0.845, -0.175)
+	lid.position = Vector3(0, 0.865, -0.175)
 	n.add_child(lid)
-	_box(lid, Vector3(0.22, 0.19, 0.016), _mat(Color("e89090"), Color("d47a7a"), 4.0, 0.45), Vector3(0, 0.095, 0))
+	_box(lid, Vector3(0.22, 0.19, 0.016), _mat(Color("e89090"), Color("d47a7a"), 4.0, 0.45),
+			Vector3(0, 0.095, 0))
+	_box(lid, Vector3(0.17, 0.14, 0.010), _mat(Color("d47a7a"), Color("c26a6a"), 4.0, 0.4),
+			Vector3(0, 0.10, -0.010))
 	_ball(lid, 0.018, _mat(CREAM, WOOD_PALE, 4.0, 0.3), Vector3(0, 0.155, -0.014))
+	for cx: float in [-0.07, 0.07]:
+		_box(lid, Vector3(0.028, 0.018, 0.020), ottone, Vector3(cx, 0.004, 0.004))
 
-	# bandierina: abbassata di default, si alza quando arriva una lettera
+	# la bandierina (nodo "Flag"): la boccola d'ottone sul fianco e' fissa,
+	# il braccio con la paletta ruota — abbassata di default, si alza
+	# quando arriva una lettera
+	var boccola := _cyl(n, 0.020, 0.020, 0.018, ottone, Vector3(0.132, 1.01, 0.08))
+	boccola.rotation.z = PI * 0.5
 	var flag := Node3D.new()
 	flag.name = "Flag"
-	flag.position = Vector3(0.135, 0.99, 0.08)
+	flag.position = Vector3(0.135, 1.01, 0.08)
 	flag.rotation.x = -1.35
 	n.add_child(flag)
 	var yellow := _mat(Color("ffd76e"), Color("eec254"), 4.0, 0.4)
-	_box(flag, Vector3(0.016, 0.15, 0.03), yellow, Vector3(0, 0.075, 0))
-	_box(flag, Vector3(0.016, 0.05, 0.09), yellow, Vector3(0, 0.13, -0.05))
+	_box(flag, Vector3(0.016, 0.16, 0.030), yellow, Vector3(0, 0.08, 0))
+	_box(flag, Vector3(0.016, 0.055, 0.095), yellow, Vector3(0, 0.145, -0.055))
+	_ball(flag, 0.013, ottone, Vector3(0.0, 0.0, 0.0))
 	return n
 
 
