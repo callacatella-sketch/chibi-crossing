@@ -229,7 +229,9 @@ static func items() -> Array[Dictionary]:
 		{"name": "Amaca", "cat": 1, "type": "cell", "layer": 2, "builder": _hammock,
 			"cols": [[Vector3(0.95, 0.95, 0.4), Vector3(0, 0.45, 0)]]},
 		{"name": "Altalena", "cat": 2, "type": "cell", "layer": 2, "builder": _swing,
-			"cols": [[Vector3(1.1, 1.65, 0.14), Vector3(0, 0.82, 0)]]},
+			"cols": [[Vector3(1.1, 1.65, 0.14), Vector3(0, 0.82, 0)],
+					[Vector3(0.14, 1.6, 0.74), Vector3(-0.48, 0.8, 0)],
+					[Vector3(0.14, 1.6, 0.74), Vector3(0.48, 0.8, 0)]]},
 		{"name": "Fontana", "cat": 2, "type": "cell", "layer": 2, "builder": _fountain,
 			"cols": [[Vector3(0.98, 0.6, 0.98), Vector3(0, 0.3, 0)]]},
 		{"name": "Gazebo", "cat": 0, "type": "cell", "layer": 2, "builder": _gazebo,
@@ -3360,17 +3362,55 @@ static func _hammock() -> Node3D:
 
 
 static func _swing() -> Node3D:
+	# L'ALTALENA. Prima stava su per miracolo: due pali COMPLANARI (di
+	# profilo era UN bastone) e una tavoletta appesa. Un'altalena da
+	# giardino sta su con le CAPRIATE: due gambe ad A per lato col
+	# traversino che le lega e i piedini scuri, la trave con le testate
+	# tornite e le legature di corda sui nodi, e le funi che scendono dai
+	# due ANELLI d'ottone che abbracciano la trave. Il sedile è una tavola
+	# vera: bordi tondi, i correntini sotto, e i nodi delle funi che
+	# spuntano — perché una fune non finisce nel legno: ci si annoda.
 	var n := Node3D.new()
 	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var scuro := _mat(WOOD_DARK, WOOD_DARK.darkened(0.15), 3.5, 0.45)
+	var rope := _mat(Color("c9b088"), Color("ab9066"), 5.0, 0.5)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	# le capriate ad A, col traversino e i piedini
 	for x: float in [-0.48, 0.48]:
-		_cyl(n, 0.035, 0.05, 1.55, wood, Vector3(x, 0.77, 0))
-	var bar := _cyl(n, 0.04, 0.04, 1.05, wood, Vector3(0, 1.53, 0))
+		for vz: float in [-1.0, 1.0]:
+			var gamba := _cyl(n, 0.032, 0.045, 1.62, wood, Vector3(x, 0.755, vz * 0.165))
+			gamba.rotation.x = -vz * 0.21
+			var piede := _cyl(n, 0.048, 0.056, 0.07, scuro, Vector3(x, 0.035, vz * 0.33))
+			piede.rotation.x = -vz * 0.21
+		var tira := _cyl(n, 0.018, 0.018, 0.46, wood, Vector3(x, 0.58, 0))
+		tira.rotation.x = PI * 0.5
+	# la trave: le testate tornite oltre le capriate, e le legature di
+	# corda sui nodi
+	var bar := _cyl(n, 0.042, 0.042, 1.16, wood, Vector3(0, 1.53, 0))
 	bar.rotation.z = PI * 0.5
+	for ex: float in [-1.0, 1.0]:
+		var testata := _cyl(n, 0.052, 0.052, 0.03, scuro, Vector3(ex * 0.585, 1.53, 0))
+		testata.rotation.z = PI * 0.5
+		_ball(n, 0.045, wood, Vector3(ex * 0.612, 1.53, 0), Vector3(0.7, 1, 1))
+		var lega := _cyl(n, 0.050, 0.050, 0.075, rope, Vector3(ex * 0.48, 1.53, 0))
+		lega.rotation.z = PI * 0.5
+	# i due anelli d'ottone da cui scendono le funi
+	for ax: float in [-0.16, 0.16]:
+		var anello := MeshInstance3D.new()
+		var am := TorusMesh.new()
+		am.inner_radius = 0.044
+		am.outer_radius = 0.058
+		am.rings = 20
+		am.ring_segments = 8
+		anello.mesh = am
+		anello.material_override = ottone
+		anello.position = Vector3(ax, 1.53, 0.015)
+		anello.rotation.z = PI * 0.5
+		n.add_child(anello)
 	# LE DUE CORDE SONO VIVE E GEMELLE: il sedile è appeso a tutte e due
 	# (vincolo fra i loro fondi), quindi spingerlo lo fa DONDOLARE come
 	# un'altalena vera — e il vento lo culla da solo. peso_fondo è la
 	# massa del sedile che tende le corde.
-	var rope := _mat(Color("c9b088"), Color("ab9066"), 5.0, 0.5)
 	var corda_a := _corda_viva(n, Vector3(-0.16, 1.51, 0.05),
 			Vector3(-0.16, 0.625, 0.05), 0.015, 0.01, rope, 0.45, 8, 6)
 	corda_a.name = "CordaA"
@@ -3383,8 +3423,17 @@ static func _swing() -> Node3D:
 	sedile.name = "Sedile"
 	sedile.position = Vector3(0, 0.625, 0.05)
 	n.add_child(sedile)
-	_box(sedile, Vector3(0.44, 0.05, 0.22), _mat(WOOD_PALE, WOOD, 3.0, 0.5),
-			Vector3(0, -0.025, 0))
+	var pale := _mat(WOOD_PALE, WOOD, 3.0, 0.5)
+	_box(sedile, Vector3(0.44, 0.045, 0.20), pale, Vector3(0, -0.025, 0))
+	for oz: float in [-1.0, 1.0]:
+		var orlo := _cyl(sedile, 0.0225, 0.0225, 0.44, pale,
+				Vector3(0, -0.025, oz * 0.10))
+		orlo.rotation.z = PI * 0.5
+	# i correntini sotto, e i nodi delle funi che spuntano dalla tavola
+	for kx: float in [-0.16, 0.16]:
+		_box(sedile, Vector3(0.05, 0.018, 0.21), scuro, Vector3(kx, -0.054, 0))
+		_cyl(sedile, 0.012, 0.012, 0.055, rope, Vector3(kx, -0.028, 0))
+		_ball(sedile, 0.019, rope, Vector3(kx, -0.072, 0))
 	var meta_a: Dictionary = corda_a.get_meta("corda")
 	meta_a["gemella"] = NodePath("../CordaB")
 	meta_a["solidale"] = NodePath("../Sedile")
