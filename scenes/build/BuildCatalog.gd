@@ -1194,199 +1194,153 @@ static func _table() -> Node3D:
 	return n
 
 
-## LA SEDIA, rifatta. Prima: quattro pali quadrati, una tavola, un
-## pannello dritto dietro e un disco rosa sopra — e lo schienale a -Z,
-## cioè con la SCHIENA verso la stanza (nella vista frontale del catalogo
-## si vedeva un pannello cieco, come il letto e il camino).
-##
-## Adesso lo schienale sta dietro (+Z) e la sedia è una sedia di paese:
-##
-##  · LE GAMBE SONO TORNITE E DIVARICATE. Una sedia con le gambe dritte e
-##    parallele è uno sgabello di scatole: le gambe vere si aprono verso
-##    il basso (è quello che la tiene in piedi) e hanno il collarino
-##    tornito sotto il sedile.
-##  · CI SONO LE TRAVERSE. Il telaio a H fra le gambe è il pezzo che
-##    nessuno disegna e che tutti riconoscono: senza, le gambe sono
-##    quattro bastoni piantati sotto un'asse.
-##  · IL SEDILE HA LA CONCA. Il piano di una sedia impagliata non è
-##    piatto: è scavato dove ci si siede e arrotondato sul davanti. E il
-##    cuscino è LEGATO ai montanti con due fiocchi — è il modo in cui i
-##    cuscini stanno sulle sedie, da sempre.
-##
-## Più lo schienale a tre stecche con la stecca centrale sagomata e il
-## traforo a goccia, e la traversa alta appena curva.
+## LA SEDIA, terza vita. La seconda era ancora «forme geometriche a
+## caso»: cilindri per gambe, scatole per stecche, palline per fiocchi.
+## Questa è TORNITA e IMBOTTITA per davvero:
+##  · gambe e montanti escono dal tornio (`lathe`): piede, perlina,
+##    collarino e pomello sono UN profilo, non pezzi impilati che
+##    cadevano fuori asse;
+##  · sedile e cuscino sono superellissoidi (`_soffice`): legno smussato
+##    e stoffa gonfia, coi bottoni della trapuntatura SCAVATI nella mesh;
+##  · il cappello dello schienale è bombato (`_loft`), le anse dei
+##    fiocchi sono nastro vero (cordoli schiacciati), e la cucitura del
+##    cuscino è un cordolo continuo.
+## Lo schienale sta DIETRO (+Z) e si reclina di `incl`: ogni quota che
+## gli appartiene si DERIVA da lì (`zs`), mai scritta a mano.
 static func _chair() -> Node3D:
 	var n := Node3D.new()
 	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.55)
 	var legno_chiaro := _mat(WOOD_PALE, WOOD, 3.5, 0.5)
-	var legno_scuro := _mat(WOOD_DARK, Color("6d4f31"), 4.0, 0.5)
 	var y_sed := 0.44
+	var apre := 0.05
 
-	# ---- LE GAMBE: tornite, divaricate, col collarino ----
-	# DUE ERRORI MISURATI, non visti a occhio:
-	#  · la divaricazione era ROVESCIA (le gambe si aprivano in alto e si
-	#    stringevano a terra: una sedia così sembra sul punto di ribaltarsi);
-	#  · il piede e il collarino stavano su moltiplicatori scritti a mano
-	#    (`*1.12`, `*1.02`) e cadevano 2,2 cm e 1,6 cm FUORI dall'asse della
-	#    gamba — nel fronte si vedevano i piedi sbucare di lato.
-	# La quota di un pezzo che sta su una gamba inclinata si DERIVA
-	# dall'inclinazione, sempre: `asse` è quella derivazione.
-	var y_perno_g := y_sed * 0.5
-	var apre := 0.055
-	var asse := func(s: float, y: float) -> float:
-		return s * (0.1749 - (y - y_perno_g) * sin(apre))
+	# ---- LE GAMBE: tornite, divaricate a TERRA ----
 	for sx: float in [-1.0, 1.0]:
 		for sz: float in [-1.0, 1.0]:
-			var gamba := _cyl(n, 0.026, 0.036, y_sed, legno,
-					Vector3(sx * 0.1749, y_perno_g, sz * 0.1749))
+			var gamba := BUILDER.lathe(n, [Vector2(0.001, 0.0),
+					Vector2(0.024, 0.0), Vector2(0.027, 0.010),
+					Vector2(0.0225, 0.024), Vector2(0.0205, 0.062),
+					Vector2(0.0225, 0.115), Vector2(0.0295, 0.145),
+					Vector2(0.0225, 0.175), Vector2(0.020, 0.30),
+					Vector2(0.0245, 0.375), Vector2(0.0265, 0.392),
+					Vector2(0.0230, 0.408), Vector2(0.020, y_sed),
+					Vector2(0.001, y_sed)], legno,
+					Vector3(sx * (0.160 + y_sed * apre), 0.0,
+							sz * (0.150 + y_sed * apre * 0.8)))
 			gamba.rotation.z = sx * apre
-			gamba.rotation.x = -sz * apre * 0.82
-			# il collarino tornito sotto il sedile
-			var y_col := y_sed - 0.055
-			_cyl(n, 0.032, 0.032, 0.024, legno_chiaro,
-					Vector3(asse.call(sx, y_col), y_col, asse.call(sz, y_col)))
-			# il puntale consumato che appoggia a terra
-			_cyl(n, 0.038, 0.034, 0.018, legno_scuro,
-					Vector3(asse.call(sx, 0.009), 0.009, asse.call(sz, 0.009)))
-	# ---- LE TRAVERSE a H: due sui fianchi, una in mezzo ----
+			gamba.rotation.x = -sz * apre * 0.8
+	# ---- LE TRAVERSE a H, tornite con l'entasi ----
 	for sx2: float in [-1.0, 1.0]:
-		var tr := _cyl(n, 0.016, 0.016, 0.36, legno,
-				Vector3(asse.call(sx2, 0.155), 0.155, 0))
+		var tr := BUILDER.lathe(n, [Vector2(0.001, 0.0), Vector2(0.011, 0.004),
+				Vector2(0.0150, 0.16), Vector2(0.011, 0.316),
+				Vector2(0.001, 0.32)], legno,
+				Vector3(sx2 * 0.174, 0.155, -0.16))
 		tr.rotation.x = PI * 0.5
-	var tm := _cyl(n, 0.015, 0.015, 0.36, legno, Vector3(0, 0.145, 0))
-	tm.rotation.z = PI * 0.5
-	# e la traversa davanti, più alta: quella su cui si appoggiano i piedi
-	var td := _cyl(n, 0.014, 0.014, 0.355, legno,
-			Vector3(0, 0.20, asse.call(-1.0, 0.20)))
-	td.rotation.z = PI * 0.5
+	var tm := BUILDER.lathe(n, [Vector2(0.001, 0.0), Vector2(0.010, 0.004),
+			Vector2(0.0140, 0.17), Vector2(0.010, 0.336),
+			Vector2(0.001, 0.34)], legno, Vector3(-0.17, 0.148, 0))
+	tm.rotation.z = -PI * 0.5
+	var td := BUILDER.lathe(n, [Vector2(0.001, 0.0), Vector2(0.010, 0.004),
+			Vector2(0.0135, 0.17), Vector2(0.010, 0.336),
+			Vector2(0.001, 0.34)], legno, Vector3(-0.17, 0.205, -0.160))
+	td.rotation.z = -PI * 0.5
 
-	# ---- IL SEDILE: sagomato, con la conca e il bordo tondo ----
-	_box(n, Vector3(0.40, 0.045, 0.39), legno_chiaro, Vector3(0, y_sed + 0.022, 0))
-	# NIENTE «conca»: una sfera schiacciata sul piano non scava un
-	# incavo, ci mette una GOBBA (di profilo si vedeva il sedile
-	# bombato sotto il cuscino). L'incavo si suggerisce col colore.
-	_box(n, Vector3(0.33, 0.012, 0.32), legno, Vector3(0, y_sed + 0.046, -0.008))
-	# il naso tondo del bordo davanti, e gli spigoli smussati di fianco
-	_cyl(n, 0.024, 0.024, 0.40, legno_chiaro,
-			Vector3(0, y_sed + 0.020, -0.192)).rotation.z = PI * 0.5
-	for sx3: float in [-1.0, 1.0]:
-		_cyl(n, 0.022, 0.022, 0.38, legno_chiaro,
-				Vector3(sx3 * 0.198, y_sed + 0.020, 0)).rotation.x = PI * 0.5
+	# ---- IL SEDILE: una tavola morbida, non una lastra a coltello ----
+	_soffice(n, Vector3(0.46, 0.055, 0.43), legno_chiaro,
+			Vector3(0, y_sed + 0.018, 0.004), 0.15, 0.45)
 
-	# ---- LO SCHIENALE, DIETRO (+Z), RECLINATO ----
-	# LA SVISTA CHE VALE DUE MINUTI DI PIÙ: `rotation.x = -0.10` porta la
-	# CIMA verso -Z, cioè in avanti — lo schienale si sporgeva sopra il
-	# sedile come se volesse spingerti giù. Reclinare all'indietro è +0.10,
-	# e tutte le quote dello schienale si DERIVANO da quell'inclinazione
-	# (`zs`), invece di essere scritte a mano una per una: era così che
-	# i pomelli finivano fuori dai montanti.
-	var y_alto := 0.92
-	var y_perno := (y_alto + y_sed) * 0.5
+	# ---- LO SCHIENALE, DIETRO (+Z), reclinato di `incl` ----
 	var incl := 0.10
-	var zs := func(y: float) -> float: return 0.185 + (y - y_perno) * sin(incl)
-	for sx4: float in [-1.0, 1.0]:
-		var mont := _cyl(n, 0.024, 0.030, y_alto - y_sed, legno,
-				Vector3(sx4 * 0.163, y_perno, 0.185))
+	var z_base := 0.185 - 0.2275 * sin(incl)
+	var zs := func(y: float) -> float: return z_base + (y - y_sed) * sin(incl)
+	for sx3: float in [-1.0, 1.0]:
+		var mont := BUILDER.lathe(n, [Vector2(0.001, 0.0), Vector2(0.023, 0.0),
+				Vector2(0.021, 0.05), Vector2(0.018, 0.28),
+				Vector2(0.021, 0.33), Vector2(0.0235, 0.345),
+				Vector2(0.019, 0.362), Vector2(0.013, 0.378),
+				Vector2(0.024, 0.398), Vector2(0.0265, 0.414),
+				Vector2(0.023, 0.430), Vector2(0.014, 0.448),
+				Vector2(0.001, 0.457)], legno,
+				Vector3(sx3 * 0.163, y_sed, z_base))
 		mont.rotation.x = incl
-		_ball(n, 0.031, legno_chiaro, Vector3(sx4 * 0.163, y_alto + 0.008, zs.call(y_alto)),
-				Vector3(1, 0.86, 1))
-	# la traversa alta (il cappello, appena bombata) e quella bassa
-	var y_cap := y_alto - 0.038
-	var cappello := _box(n, Vector3(0.376, 0.072, 0.038), legno_chiaro,
-			Vector3(0, y_cap, zs.call(y_cap)))
-	cappello.rotation.x = incl
-	var b := _box(n, Vector3(0.34, 0.011, 0.010), _mat(WOOD_DARK, WOOD, 4.0, 0.4),
-			Vector3(0, y_cap - 0.022, zs.call(y_cap) - 0.017))
-	b.rotation.x = incl
-	var y_bas := 0.585
-	var bassa := _box(n, Vector3(0.352, 0.042, 0.032), legno,
-			Vector3(0, y_bas, zs.call(y_bas)))
-	bassa.rotation.x = incl
-	# le stecche: quella di mezzo più larga, col traforo
-	var y_st := (y_cap + y_bas) * 0.5
-	for k in 3:
-		var dx := -0.098 + 0.098 * float(k)
-		var largo := 0.052 if k != 1 else 0.108
-		var st := _box(n, Vector3(largo, y_cap - y_bas - 0.030, 0.024), legno,
-				Vector3(dx, y_st, zs.call(y_st) - 0.004))
-		st.rotation.x = incl
-	# IL TRAFORO: un buco di serratura. Prima erano due ovali sovrapposti
-	# e leggevano come un punto esclamativo — un ornamento deve essere una
-	# FORMA riconoscibile, o l'occhio ci legge quel che vuole.
-	var buio := _mat(Color("5a4028"), Color("42301d"), 4.0, 0.35)
-	var y_occ := y_st + 0.036
-	_ball(n, 0.027, buio, Vector3(0, y_occ, zs.call(y_occ) - 0.018), Vector3(1, 1, 0.30))
-	var y_fes := y_st - 0.004
-	_cyl(n, 0.020, 0.007, 0.062, buio,
-			Vector3(0, y_fes, zs.call(y_fes) - 0.018)).scale.z = 0.30
+	# il cappello: bombato al centro, in un perno che pende con lo schienale
+	var y_cap := 0.820
+	var perno_c := Node3D.new()
+	perno_c.position = Vector3(0, y_cap, zs.call(y_cap))
+	perno_c.rotation.x = incl
+	n.add_child(perno_c)
+	var staz: Array = []
+	for k in 7:
+		var fx := float(k) / 6.0 * 2.0 - 1.0
+		staz.append([fx * 0.142, 0.020,
+				-0.034 - 0.008 * cos(fx * 1.3), 0.032 + 0.026 * cos(fx * 1.3),
+				0.009])
+	_loft(perno_c, staz, legno_chiaro)
+	# la traversa bassa, bombata anche lei ma piatta
+	var y_bas := 0.60
+	var perno_b := Node3D.new()
+	perno_b.position = Vector3(0, y_bas, zs.call(y_bas))
+	perno_b.rotation.x = incl
+	n.add_child(perno_b)
+	var staz2: Array = []
+	for k2 in 5:
+		var fx2 := float(k2) / 4.0 * 2.0 - 1.0
+		staz2.append([fx2 * 0.176, 0.016, -0.020, 0.020, 0.007])
+	_loft(perno_b, staz2, legno)
+	# le tre stecche (quella di mezzo più larga) col cuore della famiglia:
+	# lo stesso intaglio della testiera del letto — è UNA casa
+	var y_st := 0.700
+	for k3 in 3:
+		var dx := -0.105 + 0.105 * float(k3)
+		var perno_s := Node3D.new()
+		perno_s.position = Vector3(dx, y_st, zs.call(y_st) - 0.002)
+		perno_s.rotation.x = incl
+		n.add_child(perno_s)
+		var largo := 0.024 if k3 != 1 else 0.052
+		_lastra(perno_s, largo, 0.210, 0.014, 0.020, legno, Vector3.ZERO,
+				Vector3(0, PI * 0.5, 0))
+		if k3 == 1:
+			var buio := _mat(Color("5a4028"), Color("42301d"), 4.0, 0.35)
+			for lobo: float in [-1.0, 1.0]:
+				_ball(perno_s, 0.0135, buio,
+						Vector3(lobo * 0.010, 0.028, -0.012), Vector3(1, 1, 0.3))
+			var punta := _box(perno_s, Vector3(0.025, 0.025, 0.008), buio,
+					Vector3(0, 0.011, -0.012))
+			punta.rotation.z = PI * 0.25
 
-	# ---- IL CUSCINO: una forma CHIUSA, non una pagnotta sul vassoio ----
-	# Prima era una lente con quattro palle agli angoli (leggeva come un
-	# polpo rosa); poi una cupola più stretta del cordoncino, e faceva lo
-	# scalino. Un cuscino è UNA superficie: la bombatura deve arrivare
-	# FINO al bordo, e il bordo è il cordoncino cucito.
+	# ---- IL CUSCINO: gonfio, trapuntato, cucito — e LEGATO ----
 	var stoffa := _mat(PINK, PINK_DEEP, 5.0, 0.4)
 	var scuro := _mat(PINK_DEEP, PINK_DEEP.darkened(0.22), 5.0, 0.35)
 	var cusc := Node3D.new()
-	cusc.position = Vector3(0, y_sed + 0.045 + 0.026, -0.006)
-	cusc.rotation.y = 0.045                     # posato storto, come nella vita
+	cusc.position = Vector3(0, y_sed + 0.066, -0.004)
+	cusc.rotation.y = 0.04
 	n.add_child(cusc)
-	var mezzo := 0.150
-	var mezzo_z := 0.145
-	var cord := 0.026
-	# LA REGOLA DEL CUSCINO: la bombatura deve arrivare ESATTAMENTE al
-	# cordoncino (raggio = semilato + cordoncino) e appena appena sopra il
-	# piano. Una cupola più stretta del bordo fa lo scalino, e di profilo
-	# la si legge come una conchiglia; una più alta fa la pagnotta.
-	var raggio := mezzo + cord
-	_box(cusc, Vector3(mezzo * 2.0, 0.050, mezzo_z * 2.0), stoffa, Vector3.ZERO)
-	for lato: float in [-1.0, 1.0]:
-		_cyl(cusc, cord, cord, mezzo_z * 2.0, stoffa,
-				Vector3(lato * mezzo, 0, 0)).rotation.x = PI * 0.5
-		_cyl(cusc, cord, cord, mezzo * 2.0, stoffa,
-				Vector3(0, 0, lato * mezzo_z)).rotation.z = PI * 0.5
-	for cx: float in [-1.0, 1.0]:
-		for cz: float in [-1.0, 1.0]:
-			_ball(cusc, cord, stoffa, Vector3(cx * mezzo, 0, cz * mezzo_z))
-	_ball(cusc, raggio, stoffa, Vector3(0, 0.009, 0),
-			Vector3(1.0, 0.16, (mezzo_z + cord) / raggio))
-	_ball(cusc, raggio * 0.98, stoffa, Vector3(0, -0.014, 0),
-			Vector3(1.0, 0.13, (mezzo_z + cord) / raggio))
-	# i quattro punti della trapuntatura: tirano la stoffa, ed è per questo
-	# che un cuscino imbottito non è un cuscino gonfio
-	for bx: float in [-1.0, 1.0]:
-		for bz: float in [-1.0, 1.0]:
-			_ball(cusc, 0.013, scuro, Vector3(bx * 0.068, 0.030, bz * 0.064),
-					Vector3(1, 0.40, 1))
-
-	# I FIOCCHI: annodati ai montanti e APPOGGIATI al legno. Prima erano
-	# palline pallide sospese nel vuoto fra sedile e schienale: un fiocco
-	# che non tocca niente non lega niente.
-	var y_fio := y_sed + 0.088
-	for sx5: float in [-1.0, 1.0]:
-		var laccio := _cyl(n, 0.009, 0.009, 0.075, stoffa,
-				Vector3(sx5 * 0.152, y_fio - 0.012, 0.148))
-		laccio.rotation.x = PI * 0.5
-		laccio.rotation.z = sx5 * 0.30
-		# LA FASCIA CHE GIRA INTORNO AL MONTANTE: è questa a dire «legato».
-		# Col solo fiocco, i due nastri restavano due puntini rosa sospesi
-		# nel vuoto fra il sedile e lo schienale — il nodo si vede, il giro
-		# no, e quel che non si vede non convince.
-		var fascia := _cyl(n, 0.034, 0.034, 0.030, stoffa,
-				Vector3(sx5 * 0.163, y_fio, zs.call(y_fio)))
-		fascia.rotation.x = incl
+	_soffice(cusc, Vector3(0.34, 0.058, 0.31), stoffa, Vector3.ZERO,
+			0.35, 0.55, [[0.0, 0.0, 0.050, 0.012],
+			[0.082, 0.075, 0.036, 0.008], [-0.082, 0.075, 0.036, 0.008],
+			[0.082, -0.075, 0.036, 0.008], [-0.082, -0.075, 0.036, 0.008]])
+	_cordolo(cusc, _super_anello(0.168, 0.153, 0.35, 0.0), 0.0055, stoffa)
+	# i nastri: la fascia che GIRA intorno al montante, il nodo, le due
+	# anse di nastro vero (cordoli schiacciati) e i capi che ricadono
+	var y_fio := y_sed + 0.075
+	for sx4: float in [-1.0, 1.0]:
+		var zf: float = zs.call(y_fio)
+		_cordolo(n, _super_anello(0.029, 0.029, 1.0, 0.0, 24), 0.0065, stoffa,
+				Vector3(sx4 * 0.163, y_fio, zf))
 		var nodo := Node3D.new()
-		nodo.position = Vector3(sx5 * 0.163, y_fio, zs.call(y_fio) - 0.028)
-		nodo.rotation = Vector3(incl, 0, sx5 * 0.30)
+		nodo.position = Vector3(sx4 * 0.168, y_sed + 0.075, zf - 0.030)
+		nodo.rotation = Vector3(incl, 0, sx4 * 0.25)
 		n.add_child(nodo)
-		for orecchio: float in [-1.0, 1.0]:
-			var o := _ball(nodo, 0.028, stoffa,
-					Vector3(orecchio * 0.028, 0.004, 0.002),
-					Vector3(1.0, 0.68, 0.42))
-			o.rotation.z = orecchio * 0.5
-			_ball(nodo, 0.014, stoffa, Vector3(orecchio * 0.020, -0.038, 0.0),
-					Vector3(0.8, 1.4, 0.40)).rotation.z = orecchio * 0.28
-		_ball(nodo, 0.016, scuro, Vector3(0, 0.002, 0.008), Vector3(1, 0.9, 0.65))
+		for ala: float in [-1.0, 1.0]:
+			var ansa := _cordolo(nodo, _super_anello(0.017, 0.013, 0.8, 0.0, 20),
+					0.0055, stoffa, Vector3(ala * 0.020, 0.004, -0.002))
+			ansa.rotation.z = ala * 0.9
+			ansa.scale = Vector3(1.0, 0.55, 0.8)
+		_ball(nodo, 0.0105, scuro, Vector3(0, 0.0, -0.004))
+		for coda: float in [-1.0, 1.0]:
+			var capo := _soffice(nodo, Vector3(0.013, 0.044, 0.005), stoffa,
+					Vector3(coda * 0.011, -0.028, -0.002), 0.5, 0.6)
+			capo.rotation.z = coda * 0.22
 	return n
 
 
@@ -1473,9 +1427,6 @@ static func _bed() -> Node3D:
 	var legno_chiaro := _mat(WOOD_PALE, WOOD, 3.5, 0.5)
 	var lenzuolo := _mat(Color("fbf6ec"), Color("e6dccb"), 6.0, 0.3)
 	var piumone := _mat(PINK, PINK_DEEP, 5.0, 0.45)
-	var piumone_scuro := _mat(PINK_DEEP, PINK_DEEP.darkened(0.12), 5.0, 0.45)
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 20_260_807
 
 	# ---- IL TELAIO: quattro gambe tornite e le sponde a giorno ----
 	var y_rete := 0.20
@@ -1516,91 +1467,68 @@ static func _bed() -> Node3D:
 			_mat(WOOD_DARK, Color("6d4f31"), 4.0, 0.4), Vector3(0, 0.552, 0.424))
 	punta.rotation.z = PI * 0.25
 
-	# ---- IL MATERASSO: con la fascia laterale e il bordo cucito ----
-	_box(n, Vector3(0.83, 0.115, 0.87), lenzuolo, Vector3(0, y_rete + 0.085, 0))
-	_box(n, Vector3(0.845, 0.020, 0.885), _mat(Color("efe7d8"), Color("d6ccb8"), 6.0, 0.3),
-			Vector3(0, y_rete + 0.085, 0))
+	# ---- IL MATERASSO: un superellissoide, non una scatola ----
+	# La forma vera di un materasso — fianchi appena bombati, spigoli
+	# pieni — con la cucitura come UN cordolo continuo lungo il bordo.
+	var y_mat := y_rete + 0.085
+	_soffice(n, Vector3(0.84, 0.14, 0.88), lenzuolo, Vector3(0, y_mat, 0),
+			0.28, 0.42)
+	var cucitura := _mat(Color("efe7d8"), Color("d6ccb8"), 6.0, 0.3)
+	_cordolo(n, _super_anello(0.408, 0.428, 0.28, 0.0), 0.0075, cucitura,
+			Vector3(0, y_mat + 0.052, 0))
+	_cordolo(n, _super_anello(0.408, 0.428, 0.28, 0.0), 0.0075, cucitura,
+			Vector3(0, y_mat - 0.052, 0))
 
-	# ---- IL PIUMONE: imbottito a riquadri, col risvolto e la gonna ----
-	var y_piu := y_rete + 0.155
+	# ---- IL PIUMONE: una tela sola, trapuntata, che CADE ----
+	# Prima era una griglia di palline sopra una scatola, con la gonna a
+	# salsicciotti: adesso i riquadri sono bombature della superficie e i
+	# fianchi girano e cadono con le onde nell'orlo (vedi _trapunta).
+	var y_piu := y_mat + 0.058
 	var z_da := -0.44
-	var z_a := 0.20                     # sotto i cuscini
-	var righe := 4
-	var colonne := 3
-	for r in righe:
-		for c in colonne:
-			var pz := lerpf(z_da, z_a, (float(r) + 0.5) / float(righe))
-			var px := lerpf(-0.36, 0.36, (float(c) + 0.5) / float(colonne))
-			# ogni riquadro è un cuscinetto bombato: la trapunta si vede
-			# perché i quadri sono TONDI e le cuciture sono le valli
-			_ball(n, 0.135, piumone, Vector3(px, y_piu, pz),
-					Vector3(0.98, 0.30, 1.28))
-	# il corpo del piumone sotto i riquadri, che li tiene insieme
-	_box(n, Vector3(0.86, 0.055, z_a - z_da), piumone_scuro,
-			Vector3(0, y_piu - 0.025, (z_da + z_a) * 0.5))
-	# LA GONNA: il piumone cade sui fianchi. Pieghe DISTANZIATE davano una
-	# frangia di salsicciotti staccati: sotto ci vuole il telo continuo, e
-	# le pieghe devono SOVRAPPORSI fra loro — una stoffa che pende è una
-	# superficie sola con delle valli, non una fila di rulli.
-	for sx4: float in [-1.0, 1.0]:
-		_box(n, Vector3(0.030, 0.125, z_a - z_da - 0.02), piumone_scuro,
-				Vector3(sx4 * 0.425, y_piu - 0.070, (z_da + z_a) * 0.5))
-		for f in 9:
-			var fz := lerpf(z_da + 0.03, z_a - 0.03, (float(f) + 0.5) / 9.0)
-			var piega := _cyl(n, 0.048, 0.040, 0.125, piumone,
-					Vector3(sx4 * 0.437, y_piu - 0.070, fz))
-			piega.scale.z = 1.15
-			piega.rotation.z = sx4 * 0.09
-	# ai piedi il piumone si rimbocca sotto il materasso: stesso principio
-	_box(n, Vector3(0.80, 0.105, 0.030), piumone_scuro,
-			Vector3(0, y_piu - 0.058, z_da - 0.008))
-	for f2 in 7:
-		var fx := lerpf(-0.33, 0.33, (float(f2) + 0.5) / 7.0)
-		var roll := _cyl(n, 0.050, 0.042, 0.105, piumone,
-				Vector3(fx, y_piu - 0.058, z_da - 0.016))
-		roll.rotation.x = PI * 0.5
-		roll.scale.z = 1.1
-	# IL RISVOLTO: la piega bianca del lenzuolo sopra il piumone
-	var risv := _box(n, Vector3(0.86, 0.045, 0.16), lenzuolo,
-			Vector3(0, y_piu + 0.028, z_a - 0.02))
-	risv.rotation.x = -0.13
-	_box(n, Vector3(0.86, 0.014, 0.055), _mat(Color("e8dfd0"), Color("cec3b0"), 6.0, 0.3),
-			Vector3(0, y_piu + 0.012, z_a + 0.045))
+	var z_a := 0.20                    # sotto i cuscini
+	_trapunta(n, 0.435, z_da, z_a, y_piu, 0.055, 3, 4, 0.030,
+			0.105, 0.068, piumone, 20_260_808)
 
-	# ---- I CUSCINI: paffuti, storti, con la conca ----
+	# IL RISVOLTO: la piega bianca del lenzuolo, morbida anche lei
+	var risv := _soffice(n, Vector3(0.87, 0.045, 0.17), lenzuolo,
+			Vector3(0, y_piu + 0.055, z_a - 0.02), 0.30, 0.5)
+	risv.rotation.x = -0.13
+
+	# ---- I CUSCINI: in piedi contro la testiera ----
+	# Superellissoidi paffuti con la conca scavata NELLA mesh (`conche`)
+	# e la cucitura della federa come cordolo sull'equatore. Appoggiati
+	# IN PIEDI contro la testiera, come quando si rifà il letto:
+	# sdraiati, visti di profilo, leggevano come asciugamani piegati.
 	for i in 2:
 		var cus := Node3D.new()
-		cus.position = Vector3(-0.18 + 0.36 * float(i), y_rete + 0.20,
-				0.30 + 0.015 * float(i))
-		cus.rotation.y = (0.16 if i == 0 else -0.11)
+		cus.position = Vector3(-0.18 + 0.36 * float(i), y_mat + 0.155,
+				0.335 + 0.012 * float(i))
+		cus.rotation.x = 0.55 + 0.05 * float(i)
+		cus.rotation.y = (0.10 if i == 0 else -0.07)
 		cus.rotation.z = (-0.05 if i == 0 else 0.06)
 		n.add_child(cus)
-		var federa := _mat(Color("fdfaf3"), Color("e9e0d0"), 7.0, 0.28) if i == 0 \
-				else _mat(Color("f7f0e4"), Color("e0d5c2"), 7.0, 0.28)
-		_ball(cus, 0.185, federa, Vector3.ZERO, Vector3(1.0, 0.42, 0.62))
-		# la CONCA di chi ci ha dormito, e i due angoli che sbuffano
-		_ball(cus, 0.075, _mat(Color("ece2d2"), Color("d3c8b4"), 7.0, 0.3),
-				Vector3(0.01, 0.045, -0.01), Vector3(1.5, 0.22, 1.0))
-		for lato2: float in [-1.0, 1.0]:
-			_ball(cus, 0.055, federa, Vector3(lato2 * 0.16, -0.012, 0),
-					Vector3(0.8, 0.55, 0.9))
+		var federa := _mat(Color("fdfaf3"), Color("e9e0d0"), 7.0, 0.28)
+		if i == 1:
+			federa = _mat(Color("f7f0e4"), Color("e0d5c2"), 7.0, 0.28)
+		_soffice(cus, Vector3(0.37, 0.125, 0.26), federa, Vector3.ZERO,
+				0.45, 0.66, [[0.01, -0.005, 0.10, 0.028]])
+		_cordolo(cus, _super_anello(0.182, 0.127, 0.45, 0.0), 0.005, federa)
 
-	# ---- IL PLAID PIEGATO AI PIEDI ----
+	# ---- IL PLAID: una coperta stesa ai piedi, che RICADE ----
+	# Tre falde impilate leggevano come vassoi: un plaid vero è UNA
+	# coperta stesa di traverso che pende dai fianchi più giù del
+	# piumone — due stoffe che cadono una sopra l'altra, ed è la
+	# sovrapposizione a dire «qualcuno l'ha buttata lì».
 	var plaid := _mat(Color("9db894"), Color("7e9a76"), 6.0, 0.45)
-	for k2 in 3:
-		var pl := _box(n, Vector3(0.62 - 0.02 * float(k2), 0.030, 0.20), plaid,
-				Vector3(0.03, y_piu + 0.005 + 0.032 * float(k2), z_da + 0.10))
-		pl.rotation.y = rng.randf_range(-0.04, 0.04)
-		pl.rotation.z = rng.randf_range(-0.02, 0.02)
-		# la piega tonda davanti: è quella a dire «piegato», non «tagliato»
-		_cyl(n, 0.015, 0.015, 0.62 - 0.02 * float(k2), _mat(Color("aac6a0"), plaid.get_shader_parameter("color_b"), 6.0, 0.4),
-				Vector3(0.03, y_piu + 0.005 + 0.032 * float(k2), z_da + 0.005))\
-				.rotation.z = PI * 0.5
+	_trapunta(n, 0.448, -0.442, -0.235, 0.402, 0.026, 1, 1, 0.010,
+			0.135, 0.075, plaid, 20_260_809)
+	var rotolo := _cyl(n, 0.017, 0.017, 0.86, plaid, Vector3(0, 0.425, -0.237))
+	rotolo.rotation.z = PI * 0.5
 
 	# ---- L'ORSETTO che qualcuno ha lasciato lì ----
 	var orso := Node3D.new()
-	orso.position = Vector3(0.30, y_piu + 0.055, 0.08)
-	orso.rotation.y = -0.5
+	orso.position = Vector3(0.28, y_piu + 0.096, -0.04)
+	orso.rotation.y = 2.65
 	orso.rotation.z = 0.22
 	n.add_child(orso)
 	var pelo := _mat(Color("cbab84"), Color("a98a66"), 7.0, 0.5)
@@ -5577,17 +5505,52 @@ static func _lanterna_blu() -> Node3D:
 
 
 static func _cono_segnaletico() -> Node3D:
-	# IL CONO: piccolo, storto, con la fascia riflettente. Ne bastano due
-	# per dire «qui stanno facendo qualcosa».
+	# IL CONO, rifatto al tornio. Prima era tre pezzi impilati — scatola,
+	# tronco di cono, anello che galleggiava davanti al fusto: adesso è
+	# la sagoma VERA di un cono da cantiere. La gonna svasata che si
+	# raccorda alla base, il fusto con un filo di entasi, il labbro
+	# arrotolato in cima e la bocca APERTA (un cono è cavo, e il buio
+	# dentro è quello a dirlo); il collare riflettente AVVOLGE il fusto
+	# seguendone la pendenza, coi bordi arrotolati di chi l'ha cucito.
+	# E resta storto: nessun cono è mai perfettamente dritto.
 	var n := Node3D.new()
 	var arancio := _mat(Color("e8956a"), Color("d07a52"), 4.0, 0.45)
-	_box(n, Vector3(0.3, 0.035, 0.3), _mat(Color("d07a52"), Color("b8663f"), 4.0, 0.4),
-			Vector3(0, 0.018, 0))
-	var cono := _cyl(n, 0.03, 0.115, 0.38, arancio, Vector3(0, 0.22, 0))
-	cono.name = "Cono"
-	cono.rotation.z = 0.05    # nessun cono è mai perfettamente dritto
-	_cyl(n, 0.078, 0.09, 0.06, _mat(SEGNALE_BIANCO, Color("e9e2d2"), 5.0, 0.3),
-			Vector3(0.006, 0.25, 0))
+	var arancio_scuro := _mat(Color("d07a52"), Color("b8663f"), 4.0, 0.4)
+	var bianco := _mat(SEGNALE_BIANCO, Color("e9e2d2"), 5.0, 0.3)
+
+	# LA BASE: lastra ad angoli tondi col gradino smussato sopra, non
+	# una scatola a coltello (la _lastra si sdraia ruotandola di PI/2)
+	_lastra(n, 0.15, 0.30, 0.045, 0.032, arancio_scuro,
+			Vector3(0, 0.016, 0), Vector3(0, 0, PI * 0.5))
+	_lastra(n, 0.122, 0.244, 0.05, 0.020, arancio_scuro,
+			Vector3(0, 0.038, 0), Vector3(0, 0, PI * 0.5))
+
+	var corpo := Node3D.new()
+	corpo.position = Vector3(0, 0.042, 0)
+	corpo.rotation.z = 0.05
+	corpo.name = "Cono"
+	n.add_child(corpo)
+	# il fusto, dalla gonna al labbro: UN profilo tornito
+	BUILDER.lathe(corpo, [Vector2(0.120, 0.0), Vector2(0.116, 0.008),
+			Vector2(0.102, 0.032), Vector2(0.087, 0.065),
+			Vector2(0.0755, 0.100), Vector2(0.0655, 0.145),
+			Vector2(0.056, 0.195), Vector2(0.0475, 0.245),
+			Vector2(0.0405, 0.290), Vector2(0.0375, 0.322),
+			Vector2(0.0390, 0.333), Vector2(0.0398, 0.342),
+			Vector2(0.0372, 0.352), Vector2(0.0295, 0.356),
+			Vector2(0.0235, 0.351), Vector2(0.0225, 0.341)], arancio)
+	# il buio della bocca: è lui a dire «cavo»
+	_cyl(corpo, 0.0225, 0.0225, 0.004,
+			_mat(Color("8a4f33"), Color("6d3d27"), 4.0, 0.3),
+			Vector3(0, 0.344, 0))
+	# UNA nervatura stampata sopra la gonna: due la facevano «michelin»
+	_cordolo(corpo, _super_anello(0.0895, 0.0895, 1.0, 0.0, 40),
+			0.0025, arancio_scuro, Vector3(0, 0.058, 0))
+	# il collare riflettente, un filo fuori asse: si è assestato
+	BUILDER.lathe(corpo, [Vector2(0.0660, 0.138), Vector2(0.0745, 0.146),
+			Vector2(0.0685, 0.185), Vector2(0.0605, 0.222),
+			Vector2(0.0515, 0.230), Vector2(0.0468, 0.222)], bianco,
+			Vector3(0.002, 0, 0))
 	return n
 
 
@@ -5805,6 +5768,246 @@ static func _lastra(parent: Node3D, w: float, h: float, r: float, sp: float,
 			[sp * 0.5, w, -h * 0.5, h * 0.5, r]], mat, pos)
 	mi.rotation = rot
 	return mi
+
+
+## ------------------------------------------------------------------
+## I FERRI PER LE SUPERFICI MORBIDE. Un materasso non è una scatola, un
+## cuscino non è una sfera schiacciata e un piumone non è una griglia di
+## palline: sono SUPERFICI — normali morbide, bordi che girano, pieghe
+## dove la stoffa cade. Questi ferri le costruiscono per davvero.
+
+## Triangola una griglia di vertici (righe di PackedVector3Array) con le
+## normali calcolate PER VERTICE dalle tangenti — è questo a rendere
+## morbida una superficie, non il numero di poligoni. `avvolgi` chiude
+## l'ultima colonna sulla prima (superfici di giro); `doppia` emette
+## anche il rovescio, per i teli sottili che si vedono da sotto (l'orlo
+## di un piumone), che altrimenti sparirebbero nel backface culling.
+static func _mesh_griglia(parent: Node3D, vg: Array, mat: Material,
+		pos := Vector3.ZERO, avvolgi := false, doppia := false) -> MeshInstance3D:
+	var nr := vg.size()
+	var nc := (vg[0] as PackedVector3Array).size()
+	var ng: Array = []
+	for i in nr:
+		var riga := (vg[i] as PackedVector3Array)
+		var su := (vg[mini(i + 1, nr - 1)] as PackedVector3Array)
+		var giu := (vg[maxi(i - 1, 0)] as PackedVector3Array)
+		var riga_n := PackedVector3Array()
+		for j in nc:
+			var jp := (j + 1) % nc if avvolgi else mini(j + 1, nc - 1)
+			var jm := (j - 1 + nc) % nc if avvolgi else maxi(j - 1, 0)
+			var t_col := riga[jp] - riga[jm]
+			var t_riga := su[j] - giu[j]
+			riga_n.append(t_riga.cross(t_col).normalized())
+		ng.append(riga_n)
+	# ai poli (righe degeneri) le tangenti si annullano: si eredita la
+	# normale della riga accanto, che lì converge comunque
+	for i in nr:
+		for j in nc:
+			if (ng[i] as PackedVector3Array)[j].length_squared() < 0.5:
+				var presta := (ng[clampi(i + (1 if i == 0 else -1), 0, nr - 1)] 						as PackedVector3Array)[j]
+				(ng[i] as PackedVector3Array)[j] = presta
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var nq := nc if avvolgi else nc - 1
+	for i in nr - 1:
+		var r0 := (vg[i] as PackedVector3Array)
+		var r1 := (vg[i + 1] as PackedVector3Array)
+		var n0 := (ng[i] as PackedVector3Array)
+		var n1 := (ng[i + 1] as PackedVector3Array)
+		for j in nq:
+			var j2 := (j + 1) % nc
+			if r0[j].distance_squared_to(r0[j2]) < 1e-14 					and r1[j].distance_squared_to(r1[j2]) < 1e-14:
+				continue
+			st.set_normal(n0[j]);  st.add_vertex(r0[j])
+			st.set_normal(n1[j2]); st.add_vertex(r1[j2])
+			st.set_normal(n1[j]);  st.add_vertex(r1[j])
+			st.set_normal(n0[j]);  st.add_vertex(r0[j])
+			st.set_normal(n0[j2]); st.add_vertex(r0[j2])
+			st.set_normal(n1[j2]); st.add_vertex(r1[j2])
+			if doppia:
+				st.set_normal(-n0[j]);  st.add_vertex(r0[j])
+				st.set_normal(-n1[j]);  st.add_vertex(r1[j])
+				st.set_normal(-n1[j2]); st.add_vertex(r1[j2])
+				st.set_normal(-n0[j]);  st.add_vertex(r0[j])
+				st.set_normal(-n1[j2]); st.add_vertex(r1[j2])
+				st.set_normal(-n0[j2]); st.add_vertex(r0[j2])
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = mat
+	mi.position = pos
+	parent.add_child(mi)
+	return mi
+
+
+## IL SUPERELLISSOIDE: la forma vera delle cose imbottite. Fra la scatola
+## (spigoli a coltello) e la sfera (niente facce) c'è tutta la famiglia
+## dei cuscini: `e_o`/`e_v` dicono quanto gli spigoli sono pieni —
+## piccoli = squadrato morbido (materassi), grandi = paffuto (guanciali).
+## `conche` scava avvallamenti VERI nella faccia di sopra (la testa di
+## chi ha dormito, il bottone della trapuntatura): [x, z, raggio, prof].
+static func _soffice(parent: Node3D, dim: Vector3, mat: Material,
+		pos := Vector3.ZERO, e_o := 0.5, e_v := 0.62, conche: Array = [],
+		lati := 28, file := 16) -> MeshInstance3D:
+	var a := dim.x * 0.5
+	var b := dim.y * 0.5
+	var c := dim.z * 0.5
+	var vg: Array = []
+	for i in file + 1:
+		var v := -PI * 0.5 + PI * float(i) / float(file)
+		var rf := pow(absf(cos(v)), e_v)
+		var yf := signf(sin(v)) * pow(absf(sin(v)), e_v) * b
+		var riga := PackedVector3Array()
+		for j in lati:
+			var u := TAU * float(j) / float(lati)
+			var px := signf(cos(u)) * pow(absf(cos(u)), e_o) * rf * a
+			var pz := signf(sin(u)) * pow(absf(sin(u)), e_o) * rf * c
+			var py := yf
+			for k in conche:
+				if v > 0.0:
+					var dq := Vector2(px - float(k[0]), pz - float(k[1])) 							.length() / maxf(float(k[2]), 1e-5)
+					py -= float(k[3]) * exp(-dq * dq) * sin(v)
+			riga.append(Vector3(px, py, pz))
+		vg.append(riga)
+	return _mesh_griglia(parent, vg, mat, pos, true)
+
+
+## Il percorso a superellisse (la pianta di un materasso), per i cordoli.
+static func _super_anello(a: float, c: float, e: float, y: float,
+		np := 48) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	for i in np:
+		var u := TAU * float(i) / float(np)
+		out.append(Vector3(signf(cos(u)) * pow(absf(cos(u)), e) * a, y,
+				signf(sin(u)) * pow(absf(sin(u)), e) * c))
+	return out
+
+
+## IL CORDOLO: la cucitura in rilievo che corre lungo un percorso CHIUSO
+## — il bordo di un materasso, l'orlo di una federa. UN tubo continuo:
+## quattro cilindri più quattro sfere agli angoli non sono una cucitura,
+## sono l'impalcatura di una cucitura.
+static func _cordolo(parent: Node3D, percorso: PackedVector3Array,
+		raggio: float, mat: Material, pos := Vector3.ZERO,
+		lati := 10) -> MeshInstance3D:
+	var np := percorso.size()
+	var vg: Array = []
+	for i in np + 1:
+		var ii := i % np
+		var t := (percorso[(ii + 1) % np] - percorso[(ii - 1 + np) % np]).normalized()
+		var lato := t.cross(Vector3.UP).normalized()
+		if lato.length_squared() < 0.5:
+			lato = Vector3.RIGHT
+		var alza := lato.cross(t).normalized()
+		var riga := PackedVector3Array()
+		for j in lati:
+			var a2 := TAU * float(j) / float(lati)
+			riga.append(percorso[ii] + (lato * cos(a2) + alza * sin(a2)) * raggio)
+		vg.append(riga)
+	return _mesh_griglia(parent, vg, mat, pos, true)
+
+
+## LA TRAPUNTA CHE CADE: il piumone come UNA tela. Sopra, i riquadri
+## dell'imbottitura sono bombature della superficie stessa (le cuciture
+## sono le valli fra loro, non un disegno appoggiato); ai bordi la tela
+## GIRA — un quarto di cerchio, come fa la stoffa su uno spigolo — e poi
+## cade, e l'orlo ondeggia con tre sinusoidi incommensurabili: le pieghe
+## di un telo appeso non sono una fila di rulli, sono onde di UNA
+## superficie. Drappeggia i fianchi (±X) e i piedi (z0); il lato di
+## testa (z1) resta crudo perché lì sopra ci vanno risvolto e cuscini.
+static func _trapunta(parent: Node3D, wx2: float, z0: float, z1: float,
+		y_base: float, gonf: float, nx: int, nz: int, amp: float,
+		drappo_x: float, drappo_z: float, mat: Material, seme: int) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seme
+	var fasi := [rng.randf() * TAU, rng.randf() * TAU, rng.randf() * TAU,
+			rng.randf() * TAU]
+	# --- la faccia di sopra: bombature a riquadri su una griglia ---
+	var gx := 40
+	var gz := 30
+	var lx := wx2 * 2.0
+	var lz := z1 - z0
+	var vg: Array = []
+	for i in gz:
+		var z := z0 + lz * float(i) / float(gz - 1)
+		var riga := PackedVector3Array()
+		for j in gx:
+			var x := -wx2 + lx * float(j) / float(gx - 1)
+			# quanto sei lontano dai tre bordi che drappeggiano
+			var bordo := minf(minf(wx2 - absf(x), z - z0), 0.10)
+			var fat := smoothstep(0.0, 0.10, bordo)
+			var fx := fposmod((x + wx2) / lx * float(nx), 1.0)
+			var fz := fposmod((z - z0) / lz * float(nz), 1.0)
+			# ogni riquadro col suo gonfiore: due gemelli tradiscono il timbro
+			var cel := float(int((x + wx2) / lx * float(nx)) * 7
+					+ int((z - z0) / lz * float(nz)) * 13 + seme % 97)
+			var vita := 0.72 + 0.28 * fposmod(sin(cel * 12.9898) * 43758.55, 1.0)
+			var cuscino := amp * vita * pow(sin(PI * fx) * sin(PI * fz), 1.35)
+			riga.append(Vector3(x,
+					y_base + gonf * 0.25 + (gonf * 0.75 + cuscino) * fat, z))
+		vg.append(riga)
+	_mesh_griglia(parent, vg, mat, Vector3.ZERO, false, true)
+	# --- il drappo: la tela gira sul bordo e cade, l'orlo ondeggia ---
+	var rc := 0.045                    # il raggio con cui la stoffa gira
+	var rc2 := 0.06                    # gli angoli della pianta
+	var y_giro := y_base + gonf * 0.25
+	var passo := 0.02
+	# il percorso dei tre bordi, con gli angoli tondi: (punto, normale)
+	var rotta: Array = []
+	var z_c := z0 + rc2
+	var zq := z1
+	while zq > z_c:
+		rotta.append([Vector3(-wx2, 0, zq), Vector3(-1, 0, 0)])
+		zq -= passo
+	for k in 7:
+		var a3 := PI + PI * 0.5 * float(k) / 6.0
+		var nrm := Vector3(cos(a3), 0, sin(a3))
+		rotta.append([Vector3(-wx2 + rc2, 0, z_c) + nrm * rc2, nrm])
+	var xq := -wx2 + rc2
+	while xq < wx2 - rc2:
+		rotta.append([Vector3(xq, 0, z0), Vector3(0, 0, -1)])
+		xq += passo
+	for k2 in 7:
+		var a4 := PI * 1.5 + PI * 0.5 * float(k2) / 6.0
+		var nrm2 := Vector3(cos(a4), 0, sin(a4))
+		rotta.append([Vector3(wx2 - rc2, 0, z_c) + nrm2 * rc2, nrm2])
+	zq = z_c
+	while zq <= z1:
+		rotta.append([Vector3(wx2, 0, zq), Vector3(1, 0, 0)])
+		zq += passo
+	# la spazzata: righe lungo la rotta, colonne lungo la caduta
+	var vd: Array = []
+	var s_cam := 0.0
+	var prima: Vector3 = (rotta[0] as Array)[0]
+	for passo_r in rotta:
+		var pun: Vector3 = (passo_r as Array)[0]
+		var nrm3: Vector3 = (passo_r as Array)[1]
+		s_cam += pun.distance_to(prima)
+		prima = pun
+		# quanto cade QUI: sui fianchi drappo_x, ai piedi drappo_z, e in
+		# curva la normale li fonde da sola — niente cuciture di casi
+		var cade: float = nrm3.x * nrm3.x * drappo_x + nrm3.z * nrm3.z * drappo_z
+		# l'onda dell'orlo: tre frequenze che non si richiudono mai
+		var onda: float = amp * 0.55 * (sin(s_cam * 21.0 + fasi[0])
+				+ 0.55 * sin(s_cam * 33.7 + fasi[1])
+				+ 0.30 * sin(s_cam * 54.1 + fasi[2]))
+		var riga2 := PackedVector3Array()
+		for k3 in 9:
+			var fr := float(k3) / 8.0
+			var fuori: float
+			var giu: float
+			if k3 <= 4:
+				var th := float(k3) / 4.0 * PI * 0.5
+				fuori = rc * sin(th)
+				giu = rc * (1.0 - cos(th))
+			else:
+				fuori = rc
+				giu = rc + (float(k3) - 4.0) / 4.0 * maxf(cade - rc, 0.0)
+			giu *= 1.0 + 0.12 * sin(s_cam * 13.3 + fasi[3]) * fr
+			var base := pun - nrm3 * 0.006
+			riga2.append(Vector3(base.x + nrm3.x * (fuori + onda * fr * fr),
+					y_giro - giu, base.z + nrm3.z * (fuori + onda * fr * fr)))
+		vd.append(riga2)
+	_mesh_griglia(parent, vd, mat, Vector3.ZERO, false, true)
 
 
 ## L'AUTOPOMPA. Il pezzo grosso della caserma, e nemmeno una squadra:
