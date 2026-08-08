@@ -16,7 +16,12 @@ const SEATS := {
 	"Sedia": Vector3(0, 0.36, 0.08),
 	"Sgabello": Vector3(0, 0.33, 0.0),
 	"Panchina": Vector3(0, 0.35, 0.08),
-	"Letto": Vector3(0, 0.3, 0.26),
+	# il letto ha la testiera a +Z (si appoggia al muro dietro): la radice
+	# va ai PIEDI, cioè a -Z, e la posa «sleep» reclinando all'indietro
+	# porta il capo sul cuscino. Col segno di prima — quando la testiera
+	# stava a -Z — Mochi si sarebbe coricata con la testa oltre la
+	# pediera e i piedi sul guanciale, senza che niente lo segnalasse.
+	"Letto": Vector3(0, 0.3, -0.26),
 }
 
 ## Il Carillon comprato dal mercante: E lo carica e cambia la musica del

@@ -1176,14 +1176,178 @@ static func _stool() -> Node3D:
 	return n
 
 
+## IL LETTO, rifatto. Prima erano quattro scatole impilate — un cassone,
+## una tavola dritta, una lastra crema e una lastra rosa — e la testiera
+## stava a -Z: nella vista frontale del catalogo si vedeva IL RETRO DI UN
+## MURO DI LEGNO. Un letto che dà le spalle alla stanza è, di nuovo, un
+## pezzo che nessuno ha mai guardato.
+##
+## Adesso la testiera sta dietro (+Z), dove si appoggia al muro, e il
+## letto si legge da davanti come si legge un letto. Quello che lo rende
+## vero non è il numero di pezzi ma tre cose:
+##
+##  · IL PIUMONE NON È UNA LASTRA. È imbottito a RIQUADRI (una griglia di
+##    cuscinetti appena bombati con le cuciture in mezzo), ha il RISVOLTO
+##    del lenzuolo in cima — la piega bianca che si vede in ogni letto
+##    fatto — e CADE sui fianchi con la sua gonna morbida. Una lastra
+##    piatta non è una coperta: è un coperchio.
+##  · I CUSCINI HANNO LA CONCA. Due guanciali paffuti, appoggiati storti
+##    l'uno sull'altro, con l'infossatura di chi ci ha dormito. Un
+##    parallelepipedo bianco è un mattone.
+##  · IL TELAIO HA LE GAMBE. Quattro piedi torniti e le sponde a giorno:
+##    il cassone pieno faceva galleggiare il letto sul pavimento senza
+##    un'ombra sotto, e l'ombra sotto un letto è metà del suo peso.
+##
+## Più il plaid piegato ai piedi, la testiera a doghe col cuoricino
+## intagliato, e l'orsetto che qualcuno ha lasciato lì.
 static func _bed() -> Node3D:
 	var n := Node3D.new()
-	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.55)
-	_box(n, Vector3(0.92, 0.22, 0.98), wood, Vector3(0, 0.11, 0))
-	_box(n, Vector3(0.92, 0.5, 0.07), wood, Vector3(0, 0.35, -0.46))
-	_box(n, Vector3(0.86, 0.12, 0.9), _mat(CREAM, Color("f3e6d0"), 4.0, 0.4), Vector3(0, 0.28, 0))
-	_box(n, Vector3(0.5, 0.1, 0.26), _mat(Color.WHITE, Color("f0ecdf"), 5.0, 0.35), Vector3(0, 0.37, -0.3))
-	_box(n, Vector3(0.88, 0.07, 0.55), _mat(PINK, PINK_DEEP, 3.0, 0.5), Vector3(0, 0.35, 0.18))
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.55)
+	var legno_chiaro := _mat(WOOD_PALE, WOOD, 3.5, 0.5)
+	var lenzuolo := _mat(Color("fbf6ec"), Color("e6dccb"), 6.0, 0.3)
+	var piumone := _mat(PINK, PINK_DEEP, 5.0, 0.45)
+	var piumone_scuro := _mat(PINK_DEEP, PINK_DEEP.darkened(0.12), 5.0, 0.45)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 20_260_807
+
+	# ---- IL TELAIO: quattro gambe tornite e le sponde a giorno ----
+	var y_rete := 0.20
+	for sx: float in [-1.0, 1.0]:
+		for sz: float in [-1.0, 1.0]:
+			var gx := sx * 0.415
+			var gz := sz * 0.445
+			_cyl(n, 0.035, 0.045, y_rete, legno, Vector3(gx, y_rete * 0.5, gz))
+			# il pomello tornito sopra la gamba, dove la sponda si innesta
+			_ball(n, 0.042, legno_chiaro, Vector3(gx, y_rete + 0.012, gz),
+					Vector3(1, 0.7, 1))
+	for sx2: float in [-1.0, 1.0]:
+		_box(n, Vector3(0.055, 0.10, 0.90), legno, Vector3(sx2 * 0.415, y_rete - 0.02, 0))
+	for sz2: float in [-1.0, 1.0]:
+		_box(n, Vector3(0.84, 0.10, 0.055), legno, Vector3(0, y_rete - 0.02, sz2 * 0.445))
+	# la pedana ai piedi, più bassa: dà lo scalino che rompe il cassone
+	_box(n, Vector3(0.88, 0.075, 0.075), legno_chiaro, Vector3(0, y_rete + 0.045, -0.445))
+
+	# ---- LA TESTIERA, DIETRO (+Z): montanti, doghe e il cuoricino ----
+	var y_test := 0.72
+	for sx3: float in [-1.0, 1.0]:
+		_cyl(n, 0.038, 0.046, y_test, legno, Vector3(sx3 * 0.415, y_test * 0.5, 0.445))
+		_ball(n, 0.046, legno_chiaro, Vector3(sx3 * 0.415, y_test + 0.012, 0.445),
+				Vector3(1, 0.85, 1))
+	# la traversa alta, appena bombata, e quella bassa
+	_box(n, Vector3(0.84, 0.085, 0.05), legno_chiaro, Vector3(0, y_test - 0.045, 0.445))
+	_box(n, Vector3(0.84, 0.05, 0.05), legno, Vector3(0, 0.40, 0.445))
+	# le doghe verticali, una appena più stretta (nessun falegname le fa
+	# uguali) e il cuore intagliato in quella di mezzo
+	for k in 5:
+		var dx := -0.30 + 0.15 * float(k)
+		var largo := 0.062 if k != 2 else 0.086
+		_box(n, Vector3(largo, 0.28, 0.032), legno, Vector3(dx, 0.545, 0.442))
+	for lobo: float in [-1.0, 1.0]:
+		_ball(n, 0.026, _mat(WOOD_DARK, Color("6d4f31"), 4.0, 0.4),
+				Vector3(lobo * 0.019, 0.585, 0.424), Vector3(1, 1, 0.35))
+	var punta := _box(n, Vector3(0.048, 0.048, 0.018),
+			_mat(WOOD_DARK, Color("6d4f31"), 4.0, 0.4), Vector3(0, 0.552, 0.424))
+	punta.rotation.z = PI * 0.25
+
+	# ---- IL MATERASSO: con la fascia laterale e il bordo cucito ----
+	_box(n, Vector3(0.83, 0.115, 0.87), lenzuolo, Vector3(0, y_rete + 0.085, 0))
+	_box(n, Vector3(0.845, 0.020, 0.885), _mat(Color("efe7d8"), Color("d6ccb8"), 6.0, 0.3),
+			Vector3(0, y_rete + 0.085, 0))
+
+	# ---- IL PIUMONE: imbottito a riquadri, col risvolto e la gonna ----
+	var y_piu := y_rete + 0.155
+	var z_da := -0.44
+	var z_a := 0.20                     # sotto i cuscini
+	var righe := 4
+	var colonne := 3
+	for r in righe:
+		for c in colonne:
+			var pz := lerpf(z_da, z_a, (float(r) + 0.5) / float(righe))
+			var px := lerpf(-0.36, 0.36, (float(c) + 0.5) / float(colonne))
+			# ogni riquadro è un cuscinetto bombato: la trapunta si vede
+			# perché i quadri sono TONDI e le cuciture sono le valli
+			_ball(n, 0.135, piumone, Vector3(px, y_piu, pz),
+					Vector3(0.98, 0.30, 1.28))
+	# il corpo del piumone sotto i riquadri, che li tiene insieme
+	_box(n, Vector3(0.86, 0.055, z_a - z_da), piumone_scuro,
+			Vector3(0, y_piu - 0.025, (z_da + z_a) * 0.5))
+	# LA GONNA: il piumone cade sui fianchi. Pieghe DISTANZIATE davano una
+	# frangia di salsicciotti staccati: sotto ci vuole il telo continuo, e
+	# le pieghe devono SOVRAPPORSI fra loro — una stoffa che pende è una
+	# superficie sola con delle valli, non una fila di rulli.
+	for sx4: float in [-1.0, 1.0]:
+		_box(n, Vector3(0.030, 0.125, z_a - z_da - 0.02), piumone_scuro,
+				Vector3(sx4 * 0.425, y_piu - 0.070, (z_da + z_a) * 0.5))
+		for f in 9:
+			var fz := lerpf(z_da + 0.03, z_a - 0.03, (float(f) + 0.5) / 9.0)
+			var piega := _cyl(n, 0.048, 0.040, 0.125, piumone,
+					Vector3(sx4 * 0.437, y_piu - 0.070, fz))
+			piega.scale.z = 1.15
+			piega.rotation.z = sx4 * 0.09
+	# ai piedi il piumone si rimbocca sotto il materasso: stesso principio
+	_box(n, Vector3(0.80, 0.105, 0.030), piumone_scuro,
+			Vector3(0, y_piu - 0.058, z_da - 0.008))
+	for f2 in 7:
+		var fx := lerpf(-0.33, 0.33, (float(f2) + 0.5) / 7.0)
+		var roll := _cyl(n, 0.050, 0.042, 0.105, piumone,
+				Vector3(fx, y_piu - 0.058, z_da - 0.016))
+		roll.rotation.x = PI * 0.5
+		roll.scale.z = 1.1
+	# IL RISVOLTO: la piega bianca del lenzuolo sopra il piumone
+	var risv := _box(n, Vector3(0.86, 0.045, 0.16), lenzuolo,
+			Vector3(0, y_piu + 0.028, z_a - 0.02))
+	risv.rotation.x = -0.13
+	_box(n, Vector3(0.86, 0.014, 0.055), _mat(Color("e8dfd0"), Color("cec3b0"), 6.0, 0.3),
+			Vector3(0, y_piu + 0.012, z_a + 0.045))
+
+	# ---- I CUSCINI: paffuti, storti, con la conca ----
+	for i in 2:
+		var cus := Node3D.new()
+		cus.position = Vector3(-0.18 + 0.36 * float(i), y_rete + 0.20,
+				0.30 + 0.015 * float(i))
+		cus.rotation.y = (0.16 if i == 0 else -0.11)
+		cus.rotation.z = (-0.05 if i == 0 else 0.06)
+		n.add_child(cus)
+		var federa := _mat(Color("fdfaf3"), Color("e9e0d0"), 7.0, 0.28) if i == 0 \
+				else _mat(Color("f7f0e4"), Color("e0d5c2"), 7.0, 0.28)
+		_ball(cus, 0.185, federa, Vector3.ZERO, Vector3(1.0, 0.42, 0.62))
+		# la CONCA di chi ci ha dormito, e i due angoli che sbuffano
+		_ball(cus, 0.075, _mat(Color("ece2d2"), Color("d3c8b4"), 7.0, 0.3),
+				Vector3(0.01, 0.045, -0.01), Vector3(1.5, 0.22, 1.0))
+		for lato2: float in [-1.0, 1.0]:
+			_ball(cus, 0.055, federa, Vector3(lato2 * 0.16, -0.012, 0),
+					Vector3(0.8, 0.55, 0.9))
+
+	# ---- IL PLAID PIEGATO AI PIEDI ----
+	var plaid := _mat(Color("9db894"), Color("7e9a76"), 6.0, 0.45)
+	for k2 in 3:
+		var pl := _box(n, Vector3(0.62 - 0.02 * float(k2), 0.030, 0.20), plaid,
+				Vector3(0.03, y_piu + 0.005 + 0.032 * float(k2), z_da + 0.10))
+		pl.rotation.y = rng.randf_range(-0.04, 0.04)
+		pl.rotation.z = rng.randf_range(-0.02, 0.02)
+		# la piega tonda davanti: è quella a dire «piegato», non «tagliato»
+		_cyl(n, 0.015, 0.015, 0.62 - 0.02 * float(k2), _mat(Color("aac6a0"), plaid.get_shader_parameter("color_b"), 6.0, 0.4),
+				Vector3(0.03, y_piu + 0.005 + 0.032 * float(k2), z_da + 0.005))\
+				.rotation.z = PI * 0.5
+
+	# ---- L'ORSETTO che qualcuno ha lasciato lì ----
+	var orso := Node3D.new()
+	orso.position = Vector3(0.30, y_piu + 0.055, 0.08)
+	orso.rotation.y = -0.5
+	orso.rotation.z = 0.22
+	n.add_child(orso)
+	var pelo := _mat(Color("cbab84"), Color("a98a66"), 7.0, 0.5)
+	_ball(orso, 0.058, pelo, Vector3.ZERO, Vector3(1.0, 0.85, 0.9))
+	_ball(orso, 0.045, pelo, Vector3(0, 0.072, 0.01), Vector3(1.0, 0.95, 0.95))
+	for lato3: float in [-1.0, 1.0]:
+		_ball(orso, 0.019, pelo, Vector3(lato3 * 0.032, 0.105, 0.005))
+		_ball(orso, 0.022, pelo, Vector3(lato3 * 0.058, -0.010, 0.02),
+				Vector3(1, 0.8, 1))
+	_ball(orso, 0.017, _mat(Color("e8d6bc"), Color("cbb79a"), 7.0, 0.4),
+			Vector3(0, 0.058, 0.038), Vector3(1, 0.8, 1))
+	for occhio: float in [-1.0, 1.0]:
+		_ball(orso, 0.006, _mat(Color("3a2f28"), Color("241d18"), 6.0, 0.3),
+				Vector3(occhio * 0.018, 0.080, 0.040))
 	return n
 
 
