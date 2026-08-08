@@ -7541,7 +7541,7 @@ static func _secchi() -> Node3D:
 ## giardino (quella è stata abbattuta su ordine dell'autore). La forma
 ## viene dai fari d'emergenza industriali: la piastra imbullonata a
 ## terra coi gussets, la colonna d'acciaio verniciata con lo stivale
-## rosso, i pioli di servizio per chi ci deve mettere mano, la scatola
+## rosso, la scatola
 ## di derivazione col TUBO PORTACAVI che sale fino alla testa (è il
 ## dettaglio elettrico a dire «vero»), il bicchiere d'ottone con la
 ## fascetta a tre viti — e sopra la calotta rossa a COSTE FRESNEL,
@@ -7581,17 +7581,6 @@ static func _faro_caserma() -> Node3D:
 			Vector2(0.036, 1.04), Vector2(0.042, 1.06),
 			Vector2(0.042, 1.09), Vector2(0.036, 1.10),
 			Vector2(0.001, 1.105)], crema, Vector3(0, 0.24, 0))
-
-	# ---- I PIOLI di servizio: tre staffe a U su un fianco ----
-	for piolo in 3:
-		var py := 0.62 + 0.22 * float(piolo)
-		for stub: float in [-1.0, 1.0]:
-			var braccio := _cyl(n, 0.009, 0.009, 0.052, metallo,
-					Vector3(-0.055, py, stub * 0.032))
-			braccio.rotation.z = PI * 0.5
-		var gradino := _cyl(n, 0.010, 0.010, 0.082, metallo,
-				Vector3(-0.079, py, 0))
-		gradino.rotation.x = PI * 0.5
 
 	# ---- LA SCATOLA di derivazione e il TUBO PORTACAVI che sale ----
 	# ATTENZIONE all'asse: con rot.x la _lastra resta spessa lungo X e la
