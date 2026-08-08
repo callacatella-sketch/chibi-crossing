@@ -5846,8 +5846,7 @@ static func _transenna() -> Node3D:
 
 
 static func _bicicletta_servizio() -> Node3D:
-	# LA BICICLETTA DI SERVIZIO: appoggiata sul cavalletto, col cestino
-	# davanti. Nessuno insegue nessuno, in questo villaggio: si fa il giro.
+	# LA BICICLETTA DI SERVIZIO: dritta, col cestino davanti. Nessuno insegue nessuno, in questo villaggio: si fa il giro.
 	# Una bicicletta si legge dalle sue VERITÀ: le ruote coi RAGGI, il
 	# telaio a diamante i cui tubi si INCONTRANO nei nodi, la forcella che
 	# scavalca la ruota, la catena, i pedali opposti. E LE CLEARANCE SONO
@@ -5864,7 +5863,6 @@ static func _bicicletta_servizio() -> Node3D:
 	var cuoio := _mat(WOOD_DARK, Color("6b4a33"), 4.0, 0.4)
 	var bici := Node3D.new()
 	bici.name = "Bici"
-	bici.rotation.z = 0.09
 	n.add_child(bici)
 	var tubo := func(a: Vector3, b: Vector3, r: float, mat: Material) -> void:
 		var c := _cyl(bici, r, r, a.distance_to(b), mat, (a + b) * 0.5)
@@ -6009,13 +6007,6 @@ static func _bicicletta_servizio() -> Node3D:
 	for rz: float in [0.305, 0.37, 0.435, 0.495]:
 		_box(bici, Vector3(0.11, 0.006, 0.016), telaio, Vector3(0, 0.535, rz))
 
-	# ---- il cavalletto, montato dietro il movimento centrale (è lì che
-	# si monta), col suo piedino
-	var cavalletto := _cyl(n, 0.013, 0.013, 0.28, gomma, Vector3(-0.10, 0.125, 0.155))
-	cavalletto.rotation.z = 0.42
-	cavalletto.rotation.x = -0.14
-	_ball(n, 0.018, gomma, Vector3(-0.048, 0.245, 0.135))
-	_cyl(n, 0.024, 0.028, 0.014, gomma, Vector3(-0.158, 0.008, 0.175))
 	return n
 
 
