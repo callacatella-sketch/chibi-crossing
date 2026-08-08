@@ -7476,9 +7476,14 @@ static func _cuccia_caserma() -> Node3D:
 				0.011, ottone, Vector3(ox * 0.306, 0.335, 0.05))
 		anello_blo.rotation.z = PI * 0.5
 
-	# ---- L'INGRESSO: il buio, l'arco di legno, la soglia, la copertina ----
-	_box(n, Vector3(0.26, 0.26, 0.014), buio, Vector3(0, 0.215, -0.262))
-	var arco := _cyl(n, 0.13, 0.13, 0.014, buio, Vector3(0, 0.335, -0.262))
+	# ---- L'INGRESSO: il buio, l'arco di legno, la soglia ----
+	# Il buio si RICAVA dal telaio, mai il contrario: la corona del tubo
+	# sta a 0.44 col raggio 0.019 (filo interno 0.421), e il primo buio
+	# (raggio 0.13, centro 0.335) arrivava a 0.465 — sbucava SOPRA il
+	# legno. Ora l'arco nero finisce a 0.419, due millimetri sotto il
+	# filo, e i fianchi lasciano un dito di stipite in vista.
+	_box(n, Vector3(0.238, 0.215, 0.014), buio, Vector3(0, 0.1925, -0.262))
+	var arco := _cyl(n, 0.119, 0.119, 0.014, buio, Vector3(0, 0.30, -0.262))
 	arco.rotation.x = PI * 0.5
 	BUILDER.tube(n, [Vector3(-0.148, 0.085, -0.266), Vector3(-0.150, 0.20, -0.266),
 			Vector3(-0.140, 0.30, -0.266), Vector3(-0.092, 0.405, -0.266),
@@ -7489,9 +7494,6 @@ static func _cuccia_caserma() -> Node3D:
 			wood, 24, 10)
 	var soglia := _cyl(n, 0.018, 0.018, 0.30, wood_scuro, Vector3(0, 0.088, -0.272))
 	soglia.rotation.z = PI * 0.5
-	# la copertina rosa che sbuca dal buio: qualcuno ci dorme già col pensiero
-	_soffice(n, Vector3(0.20, 0.035, 0.075), _mat(PINK, PINK_DEEP, 5.0, 0.4),
-			Vector3(0.015, 0.102, -0.245), 0.4, 0.55)
 
 	# ---- L'OSSO dipinto sul timpano ----
 	var osso := Node3D.new()
