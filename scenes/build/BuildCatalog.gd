@@ -350,7 +350,7 @@ static func items() -> Array[Dictionary]:
 			"cols": [[Vector3(0.56, 0.58, 0.34), Vector3(0, 0.29, 0)]]},
 		{"name": "Faro caserma", "cat": 2, "type": "cell", "layer": 2,
 			"builder": _faro_caserma,
-			"cols": [[Vector3(0.2, 1.25, 0.2), Vector3(0, 0.62, 0)]]},
+			"cols": [[Vector3(0.32, 1.75, 0.32), Vector3(0, 0.87, 0)]]},
 		{"name": "Cuccia", "cat": 2, "type": "cell", "layer": 2, "builder": _cuccia_caserma,
 			"cols": [[Vector3(0.66, 0.72, 0.60), Vector3(0, 0.36, 0)]]},
 		{"name": "Pennone", "cat": 2, "type": "cell", "layer": 2,
@@ -7435,36 +7435,86 @@ static func _secchi() -> Node3D:
 ## IL FARO DELLA CASERMA. Non una sirena che urla: una lanterna che GIRA
 ## piano sul suo palo, e la sera fa il giro del cortile come un piccolo
 ## faro di terra. Il giro glielo dà un AnimationPlayer in loop — i pezzi
-## piazzati sono nodi nudi, come la mongolfiera.
+## piazzati sono nodi nudi, come la mongolfiera. Prima era tre cilindri
+## impilati su un palo dritto: adesso è un faro in miniatura — palo
+## TORNITO con la base modanata e il collarino d'ottone, il ballatoio
+## coi puntoni (la mensola che nei fari veri fa il giro della lanterna),
+## tamburo, gabbia, cornice e CUPOLINO conico col pomello. La testa che
+## gira, la lente e il fascio restano identici: cambia il corpo, non il
+## contratto (test_caserma._test_faro_gira).
 static func _faro_caserma() -> Node3D:
 	var n := Node3D.new()
 	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
 	var scuro := _mat(POMPA_ROSSO_SCURO, POMPA_ROSSO_SCURO.darkened(0.25), 5.0, 0.45)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
-	_cyl(n, 0.06, 0.09, 1.2, wood, Vector3(0, 0.6, 0))
-	_cyl(n, 0.16, 0.16, 0.04, scuro, Vector3(0, 1.22, 0))
-	# la testa che gira
+
+	# ---- IL PALO: tornito, con la base che si allarga a terra ----
+	BUILDER.lathe(n, [Vector2(0.001, 0.0), Vector2(0.105, 0.0),
+			Vector2(0.112, 0.014), Vector2(0.092, 0.034),
+			Vector2(0.070, 0.052), Vector2(0.058, 0.10),
+			Vector2(0.052, 0.35), Vector2(0.046, 0.70),
+			Vector2(0.042, 1.02), Vector2(0.047, 1.12),
+			Vector2(0.052, 1.17), Vector2(0.046, 1.21),
+			Vector2(0.040, 1.235), Vector2(0.001, 1.24)], wood)
+	# il collarino d'ottone a metà palo: il segno di dove lo si impugna
+	_cordolo(n, _super_anello(0.050, 0.050, 1.0, 0.0, 32), 0.007, ottone,
+			Vector3(0, 0.40, 0))
+
+	# ---- IL BALLATOIO: la piattaforma, l'anello e i quattro puntoni ----
+	_cyl(n, 0.150, 0.135, 0.032, scuro, Vector3(0, 1.252, 0))
+	_cordolo(n, _super_anello(0.152, 0.152, 1.0, 0.0, 36), 0.010, ottone,
+			Vector3(0, 1.276, 0))
+	# i puntoni si DERIVANO dai due capi: dal palo (r 0.047 a y 1.115)
+	# fin SOTTO la piattaforma (r 0.128 a y 1.232, che ha la faccia
+	# inferiore a 1.236) — a occhio erano lunghi 0.16 e la trapassavano
+	for i in 4:
+		var ap := float(i) * PI * 0.5 + PI * 0.25
+		var puntone := _cyl(n, 0.009, 0.009, 0.142, ottone,
+				Vector3(sin(ap) * 0.0875, 1.1735, cos(ap) * 0.0875))
+		puntone.rotation.x = -cos(ap) * 0.606
+		puntone.rotation.z = sin(ap) * 0.606
+
+	# ---- LA TESTA CHE GIRA (il contratto: si chiama Girella) ----
 	var testa := Node3D.new()
 	testa.name = "Girella"
-	testa.position = Vector3(0, 1.38, 0)
+	testa.position = Vector3(0, 1.40, 0)
 	n.add_child(testa)
+	# il tamburo d'ottone alla base della lanterna
+	BUILDER.lathe(testa, [Vector2(0.001, 0.0), Vector2(0.100, 0.0),
+			Vector2(0.146, 0.010), Vector2(0.151, 0.030),
+			Vector2(0.136, 0.052), Vector2(0.128, 0.062)], ottone,
+			Vector3(0, -0.162, 0))
 	# il vetro rosso: acceso ma non slavato — con l'emissione alta il rosso
 	# sbianca e il faro sembra una lampadina qualunque
-	_cyl(testa, 0.13, 0.13, 0.22, _glow(POMPA_ROSSO, POMPA_ROSSO_SCURO, 0.45),
+	_cyl(testa, 0.125, 0.125, 0.20, _glow(POMPA_ROSSO, POMPA_ROSSO_SCURO, 0.45),
 			Vector3.ZERO)
-	for y: float in [-0.12, 0.12]:
-		_cyl(testa, 0.15, 0.15, 0.035, ottone, Vector3(0, y, 0))
-	# la gabbia d'ottone attorno al vetro
-	for i in 4:
-		var a := float(i) * PI * 0.5 + PI * 0.25
-		_cyl(testa, 0.016, 0.016, 0.24, ottone,
-				Vector3(sin(a) * 0.13, 0, cos(a) * 0.13))
-	# LA LENTE STA DENTRO IL TAMBURO. Larga 0.20 in z e messa a x 0.11, in un
-	# cilindro di raggio 0.13, sporgeva da tutte e due le parti: un
-	# rettangolo bianco che usciva dalla lanterna invece di accendersi
-	# dentro. A x 0.10 il vetro è largo 2·√(0.13²−0.10²) = 0.166.
-	_box(testa, Vector3(0.05, 0.15, 0.15), _glow(CREAM, Color("ffd9a8"), 1.6),
-			Vector3(0.10, 0, 0))
+	# la gabbia: sei montanti e due cerchiature, come le lanterne vere
+	for i2 in 6:
+		var ag := float(i2) * PI / 3.0 + PI / 6.0
+		_cyl(testa, 0.012, 0.012, 0.21, ottone,
+				Vector3(sin(ag) * 0.128, 0, cos(ag) * 0.128))
+	for fascia: float in [-0.058, 0.058]:
+		_cordolo(testa, _super_anello(0.130, 0.130, 1.0, 0.0, 36), 0.006,
+				ottone, Vector3(0, fascia, 0))
+	# LA LENTE STA DENTRO IL VETRO, e il conto va fatto sugli SPIGOLI:
+	# la vecchia derivazione controllava la corda al centro del box, ma
+	# gli spigoli (x 0.125, z +-0.07) stanno a raggio 0.143 > 0.125 e
+	# sbucavano. Con faccia esterna a 0.107 e mezza-larghezza 0.055 lo
+	# spigolo sta a sqrt(0.107^2 + 0.055^2) = 0.120 < 0.125.
+	_box(testa, Vector3(0.05, 0.13, 0.11), _glow(CREAM, Color("ffd9a8"), 1.6),
+			Vector3(0.082, 0, 0))
+	# la cornice sopra il vetro, e il cupolino conico col pomello
+	BUILDER.lathe(testa, [Vector2(0.001, 0.0), Vector2(0.128, 0.0),
+			Vector2(0.149, 0.012), Vector2(0.154, 0.030),
+			Vector2(0.140, 0.044), Vector2(0.100, 0.050)], ottone,
+			Vector3(0, 0.100, 0))
+	BUILDER.lathe(testa, [Vector2(0.001, 0.0), Vector2(0.146, 0.0),
+			Vector2(0.118, 0.030), Vector2(0.084, 0.062),
+			Vector2(0.051, 0.094), Vector2(0.027, 0.122),
+			Vector2(0.011, 0.145), Vector2(0.001, 0.152)], scuro,
+			Vector3(0, 0.150, 0))
+	_cyl(testa, 0.007, 0.009, 0.024, ottone, Vector3(0, 0.310, 0))
+	_ball(testa, 0.017, ottone, Vector3(0, 0.330, 0))
 	var fascio := SpotLight3D.new()
 	fascio.light_color = Color(1.0, 0.74, 0.58)
 	fascio.light_energy = 1.6
@@ -9442,19 +9492,77 @@ static func _frigo_gelati() -> Node3D:
 			[-0.44, 0.26, 0.015, 0.09, 0.02],
 			[0.44, 0.26, 0.015, 0.09, 0.02],
 			[0.48, 0.235, 0.015, 0.09, 0.035]], cromo)
-	# la fascia a strisce, pannellini ad angoli tondi
+	# la fascia a pannellini tondi — e sui rossi, i GELATI in rilievo:
+	# un frigo dei gelati deve far venire voglia di gelato da lontano
+	var menta_g := _mat(Color("9fd8b4"), Color("7fbf98"), 5.0, 0.4)
+	var stecco := _mat(Color("d4a45e"), Color("b98a48"), 6.0, 0.45)
+	var cialda_m := _mat(Color("e8bd78"), Color("d4a45e"), 6.0, 0.45)
 	for i in 5:
 		_lastra(n, 0.075, 0.16, 0.025, 0.025, rosso if i % 2 == 0 else bianco,
 				Vector3(-0.34 + 0.17 * float(i), 0.5, -0.253), Vector3(0, PI * 0.5, 0))
-	# i due coperchi scorrevoli a bordo tondo, col maniglione ad arco
+	# il ghiacciolo alla menta col suo stecco
+	_lastra(n, 0.030, 0.085, 0.022, 0.020, menta_g,
+			Vector3(-0.34, 0.525, -0.268), Vector3(0, PI * 0.5, 0))
+	_cyl(n, 0.006, 0.006, 0.035, stecco, Vector3(-0.34, 0.452, -0.266))
+	# il mini-cono con la pallina rosa
+	var mcono := _cyl(n, 0.026, 0.004, 0.062, cialda_m, Vector3(0.0, 0.487, -0.268))
+	mcono.rotation.z = PI
+	_ball(n, 0.024, _mat(PINK, PINK_DEEP, 5.0, 0.4), Vector3(0.0, 0.532, -0.268))
+	# lo stecco bigusto crema e fragola
+	_lastra(n, 0.028, 0.048, 0.020, 0.018, _mat(CREAM, Color("f0e4cc"), 5.0, 0.35),
+			Vector3(0.34, 0.548, -0.268), Vector3(0, PI * 0.5, 0))
+	_lastra(n, 0.028, 0.042, 0.020, 0.018, rosso,
+			Vector3(0.34, 0.503, -0.268), Vector3(0, PI * 0.5, 0))
+	_cyl(n, 0.006, 0.006, 0.032, stecco, Vector3(0.34, 0.465, -0.266))
+	# i due coperchi scorrevoli: TELAIO cromato e VETRO vero — e sotto
+	# il vetro si vedono i gelati che aspettano, ch'e' tutto il punto
+	# di un pozzetto da bar
+	# la VASCA d'acciaio scuro, e dentro le VASCHETTE dei gusti che
+	# riempiono il pozzetto: e' il colpo d'occhio dei banchi veri —
+	# sei palline sparse su fondo chiaro non si leggevano dal vetro
+	_box(n, Vector3(0.88, 0.28, 0.40), _mat(Color("8a9097"), Color("6d7378"), 6.0, 0.25),
+			Vector3(0, 0.45, 0))
+	var gusti_v := [Color("f2b6c8"), Color("9fd8b4"), Color("e8c34a"),
+			Color("8a5c3e"), Color("f0e4cc"), Color("9a8ac2")]
+	for vg in 6:
+		var vx := -0.26 + 0.26 * float(vg % 3)
+		var vz := -0.095 + 0.19 * float(vg / 3)
+		var col_v := gusti_v[vg] as Color
+		var vaschetta := _prisma(n, _rrect_xz(0.235, 0.160, 0.02), 0.605,
+				0.050, _mat(col_v, col_v.darkened(0.2), 5.0, 0.4))
+		vaschetta.position = Vector3(vx, 0.0, vz)
+		# il ricciolo del gusto, come lo lascia la spatola
+		_ball(n, 0.030, _mat(col_v.lightened(0.12), col_v.darkened(0.1), 5.0, 0.4),
+				Vector3(vx + 0.04, 0.658, vz), Vector3(1.3, 0.42, 1.0))
 	for lato: float in [-1.0, 1.0]:
-		var cop := _lastra(n, 0.23, 0.44, 0.03, 0.05, cromo,
-				Vector3(lato * 0.24, 0.675, lato * 0.02), Vector3(0, 0, PI * 0.5))
+		var cop := Node3D.new()
 		cop.name = "Coperchio%d" % int(lato)
+		# il coperchio sinistro e' SCORSO mezzo aperto, accavallato
+		# all'indietro: qualcuno sta scegliendo il gusto, e il pozzetto
+		# si vede in vista diretta — senza vetro di mezzo
+		if lato < 0.0:
+			cop.position = Vector3(lato * 0.24, 0.688, 0.10)
+		else:
+			cop.position = Vector3(lato * 0.24, 0.672, lato * 0.02)
+		n.add_child(cop)
+		# la CORNICE (quattro sponde): il vetro nel mezzo, e sotto si
+		# VEDE il pozzetto — un telaio pieno era un coperchio bugiardo
+		for sx3: float in [-0.21, 0.21]:
+			_box(cop, Vector3(0.045, 0.022, 0.44), cromo, Vector3(sx3, 0, 0))
+		for sz3: float in [-0.21, 0.21]:
+			_box(cop, Vector3(0.375, 0.022, 0.045), cromo, Vector3(0, 0, sz3))
+		var lastra_v := MeshInstance3D.new()
+		var vm := BoxMesh.new()
+		vm.size = Vector3(0.375, 0.010, 0.375)
+		lastra_v.mesh = vm
+		lastra_v.material_override = _vetro(0.18)
+		lastra_v.position = Vector3(0, 0.004, 0)
+		cop.add_child(lastra_v)
 		BUILDER.tube(n, [Vector3(lato * 0.24 - 0.08, 0.70, lato * 0.02 - 0.19),
 				Vector3(lato * 0.24, 0.735, lato * 0.02 - 0.20),
 				Vector3(lato * 0.24 + 0.08, 0.70, lato * 0.02 - 0.19)],
 				[0.011, 0.012, 0.011], _mat(ZINCO_CUPO, Color("7d838b"), 5.0, 0.3))
+	# i gelati nel pozzetto, appena sotto il vetro
 	# il cartello col cono: targa tonda in cornice rossa, sul palo
 	var palo := _cyl(n, 0.014, 0.014, 0.34, cromo, Vector3(0.36, 0.82, 0.12))
 	palo.rotation.z = 0.06

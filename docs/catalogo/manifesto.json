@@ -720,10 +720,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.76,
+    "alto": 0.78,
     "cartella": "docs/catalogo/2-giardino/bicicletta/",
-    "cat": 2,
-    "largo": 0.43,
+    "cat": 2.0,
+    "largo": 0.59,
     "nome": "Bicicletta",
     "slug": "bicicletta",
     "tipo": "cell"
@@ -774,10 +774,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.52,
+    "alto": 1.75,
     "cartella": "docs/catalogo/2-giardino/faro-caserma/",
-    "cat": 2.0,
-    "largo": 0.32,
+    "cat": 2,
+    "largo": 0.34,
     "nome": "Faro caserma",
     "slug": "faro-caserma",
     "tipo": "cell"
