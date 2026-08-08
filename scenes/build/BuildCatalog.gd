@@ -3734,19 +3734,101 @@ static func _swing() -> Node3D:
 
 
 static func _fountain() -> Node3D:
+	# LA FONTANA DEL VILLAGGIO, monumentale. Prima era un tamburo PIENO
+	# con un dischetto d'acqua sepolto DENTRO la pietra (la vasca in foto
+	# era asciutta), un fuso e un tappo. Adesso è una fontana a due
+	# ordini: la vasca bassa è un MURO ad anello modanato con l'acqua
+	# vera dentro (e le monetine dei desideri sul fondo), la colonna è
+	# tornita coi collarini, la vasca alta TRABOCCA — quattro rivoli
+	# scendono davvero nell'acqua di sotto, con l'anello increspato dove
+	# toccano — e in cima la pigna spinge lo zampillo. Di notte fa da
+	# luce dolce: la Veglia la conta fra le luci del villaggio.
 	var n := Node3D.new()
-	var stone := _mat(STONE, STONE_DARK, 3.0, 0.5)
-	_cyl(n, 0.46, 0.5, 0.16, stone, Vector3(0, 0.08, 0))
-	_cyl(n, 0.42, 0.42, 0.02, stone, Vector3(0, 0.02, 0))
-	var water := _glow(Color(0.55, 0.82, 0.95, 0.75), Color(0.4, 0.7, 0.9), 0.15)
-	water.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_cyl(n, 0.42, 0.42, 0.02, water, Vector3(0, 0.14, 0))
-	_cyl(n, 0.09, 0.13, 0.36, stone, Vector3(0, 0.32, 0))
-	_cyl(n, 0.17, 0.2, 0.05, stone, Vector3(0, 0.5, 0))
-	var wtop := _glow(Color(0.6, 0.84, 0.95, 0.8), Color(0.45, 0.72, 0.92), 0.2)
-	wtop.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_cyl(n, 0.15, 0.15, 0.02, wtop, Vector3(0, 0.53, 0))
-	_emit_fx(n, Vector3(0, 0.62, 0), Color(0.72, 0.9, 1.0), 1.4, -3.2, 20, 1.0, 0.08)
+	var pietra := _mat(STONE, STONE_DARK, 3.0, 0.5)
+	var pietra_chiara := _mat(Color("d8d0c2"), STONE, 3.5, 0.45)
+	var acqua := _glow(Color(0.55, 0.82, 0.95, 0.75), Color(0.4, 0.7, 0.9), 0.18)
+	acqua.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	var acqua_viva := _glow(Color(0.68, 0.88, 1.0, 0.85), Color(0.5, 0.78, 0.95), 0.3)
+	acqua_viva.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	# ---- la vasca bassa: un muro ad anello col plinto e il bordo a toro
+	# (il profilo sale fuori, scavalca il bordo e SCENDE dentro: la vasca
+	# è cava e l'acqua ci sta dentro davvero)
+	BUILDER.lathe(n, [
+		Vector2(0.0, 0.0), Vector2(0.5, 0.0), Vector2(0.5, 0.05),
+		Vector2(0.465, 0.07),                          # il plinto
+		Vector2(0.45, 0.2), Vector2(0.435, 0.3),
+		Vector2(0.47, 0.325), Vector2(0.475, 0.36),    # il bordo a toro
+		Vector2(0.45, 0.375), Vector2(0.4, 0.36),      # …e il rientro
+		Vector2(0.39, 0.1), Vector2(0.0, 0.08),        # dentro, fino al fondo
+	], pietra, Vector3.ZERO, 30)
+	# l'acqua della vasca, SOTTO il bordo — si vede perché la vasca è cava
+	_cyl(n, 0.395, 0.395, 0.016, acqua, Vector3(0, 0.295, 0))
+	# le monetine dei desideri sul fondo, sotto il velo d'acqua
+	var monete := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.35)
+	for mi in 3:
+		var ma := 0.8 + float(mi) * 2.3
+		_cyl(n, 0.022, 0.022, 0.006, monete,
+				Vector3(cos(ma) * (0.14 + 0.07 * float(mi)), 0.095,
+				sin(ma) * (0.14 + 0.07 * float(mi))))
+	# ---- la colonna tornita: base, entasi, collarino, capitello
+	BUILDER.lathe(n, [
+		Vector2(0.19, 0.08), Vector2(0.185, 0.13), Vector2(0.14, 0.16),
+		Vector2(0.105, 0.2),
+		Vector2(0.092, 0.36), Vector2(0.085, 0.52),    # l'entasi
+		Vector2(0.098, 0.565), Vector2(0.098, 0.585), Vector2(0.088, 0.605),
+		Vector2(0.085, 0.68), Vector2(0.12, 0.72), Vector2(0.15, 0.735),
+	], pietra, Vector3.ZERO, 24)
+	# ---- la vasca alta: una coppa che TRABOCCA
+	BUILDER.lathe(n, [
+		Vector2(0.02, 0.72), Vector2(0.16, 0.75), Vector2(0.24, 0.79),
+		Vector2(0.285, 0.85), Vector2(0.295, 0.9),     # fuori, fino al labbro
+		Vector2(0.27, 0.91), Vector2(0.25, 0.885),     # il labbro rientra
+		Vector2(0.1, 0.855), Vector2(0.0, 0.85),       # dentro
+	], pietra_chiara, Vector3.ZERO, 26)
+	_cyl(n, 0.255, 0.255, 0.014, acqua_viva, Vector3(0, 0.878, 0))
+	# ---- i quattro rivoli che scendono dalla coppa nell'acqua di sotto,
+	# con l'anello increspato dove toccano
+	for i in 4:
+		var a := float(i) * TAU / 4.0 + 0.4
+		var rx := cos(a)
+		var rz := sin(a)
+		var rivolo := _cyl(n, 0.012, 0.017, 0.58, acqua_viva,
+				Vector3(rx * 0.293, 0.6, rz * 0.293))
+		rivolo.rotation.z = rx * 0.06
+		rivolo.rotation.x = -rz * 0.06
+		var cerchio := MeshInstance3D.new()
+		var cm := TorusMesh.new()
+		cm.inner_radius = 0.035
+		cm.outer_radius = 0.055
+		cerchio.mesh = cm
+		cerchio.material_override = acqua_viva
+		cerchio.position = Vector3(rx * 0.31, 0.302, rz * 0.31)
+		n.add_child(cerchio)
+	# ---- la pigna in cima, e lo zampillo che ci ricade sopra
+	BUILDER.lathe(n, [
+		Vector2(0.055, 0.85), Vector2(0.075, 0.9), Vector2(0.078, 0.95),
+		Vector2(0.06, 1.01), Vector2(0.028, 1.06), Vector2(0.0, 1.08),
+	], pietra, Vector3.ZERO, 18)
+	var zampillo := _cyl(n, 0.014, 0.02, 0.24, acqua_viva, Vector3(0, 1.17, 0))
+	zampillo.name = "Zampillo"
+	_ball(n, 0.032, acqua_viva, Vector3(0, 1.285, 0), Vector3(1, 0.7, 1))
+	_emit_fx(n, Vector3(0, 1.3, 0), Color(0.72, 0.9, 1.0), 1.5, -3.4, 26, 1.0, 0.075)
+	_emit_fx(n, Vector3(0, 0.9, 0), Color(0.78, 0.92, 1.0), 0.5, -2.2, 10, 0.8, 0.05)
+	# ---- il muschio ai piedi, dove l'acqua schizza da sempre
+	var muschio := _mat(LEAF, LEAF.darkened(0.2), 4.0, 0.4)
+	for i in 3:
+		var a := 1.1 + float(i) * 2.4
+		_ball(n, 0.05 + 0.015 * float(i % 2), muschio,
+				Vector3(cos(a) * 0.49, 0.045, sin(a) * 0.49), Vector3(1.2, 0.55, 1.0))
+	# di notte è una luce dolce: la Veglia la conta fra le luci del
+	# villaggio, e una fontana che brilla senza fare luce sarebbe bugiarda
+	var luce := OmniLight3D.new()
+	luce.light_color = Color(0.72, 0.86, 1.0)
+	luce.light_energy = 0.65
+	luce.omni_range = 2.6
+	luce.position = Vector3(0, 0.9, 0)
+	luce.shadow_enabled = false
+	n.add_child(luce)
 	return n
 
 
@@ -5766,20 +5848,20 @@ static func _transenna() -> Node3D:
 static func _bicicletta_servizio() -> Node3D:
 	# LA BICICLETTA DI SERVIZIO: appoggiata sul cavalletto, col cestino
 	# davanti. Nessuno insegue nessuno, in questo villaggio: si fa il giro.
-	# Una bicicletta si legge dalle sue VERITÀ: le ruote coi RAGGI (un
-	# disco pieno è una moneta, non una ruota), il telaio a diamante i cui
-	# tubi si INCONTRANO invece di fluttuare, la forcella che tiene la
-	# ruota davanti, la catena che va dalla corona al pignone, i pedali
-	# opposti a metà giro. Poi i suoi gioielli: la sella di cuoio sul
-	# cannotto, le manopole, il campanello, il fanalino d'ottone, il
-	# portapacchi e il cestino di vimini con le sue fascette.
+	# Una bicicletta si legge dalle sue VERITÀ: le ruote coi RAGGI, il
+	# telaio a diamante i cui tubi si INCONTRANO nei nodi, la forcella che
+	# scavalca la ruota, la catena, i pedali opposti. E LE CLEARANCE SONO
+	# MISURATE, non a occhio: la gomma è un toro largo ±0.030, quindi
+	# forcella, foderi e tiranti corrono a x ±0.055 (mai dentro il fianco),
+	# e ogni tubo del piano centrale passa ad almeno 0.24 dai centri ruota
+	# (gomma 0.23 + margine). La prima stesura aveva il tubo obliquo a
+	# 0.17 dal centro: DENTRO il cerchio.
 	var n := Node3D.new()
 	var telaio := _mat(BLU, BLU_CUPO, 5.0, 0.45)
 	var gomma := _mat(Color("4a4640"), Color("3a3733"), 4.0, 0.35)
 	var cerchio_mat := _mat(SEGNALE_BIANCO, CREAM, 5.0, 0.25)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
 	var cuoio := _mat(WOOD_DARK, Color("6b4a33"), 4.0, 0.4)
-	# un tubo fra due punti (nel piano della bici): il telaio si COSTRUISCE
 	var bici := Node3D.new()
 	bici.name = "Bici"
 	bici.rotation.z = 0.09
@@ -5788,99 +5870,102 @@ static func _bicicletta_servizio() -> Node3D:
 		var c := _cyl(bici, r, r, a.distance_to(b), mat, (a + b) * 0.5)
 		c.rotation.x = atan2(b.z - a.z, b.y - a.y)
 
-	# ---- LE RUOTE: gomma a toro, cerchio, mozzo d'ottone e otto raggi
+	# ---- LE RUOTE: gomma a toro, cerchio, mozzo lungo (ci arrivano
+	# forcella e foderi) e otto raggi
 	for dz: float in [-0.34, 0.34]:
 		var pneu := MeshInstance3D.new()
 		var pm := TorusMesh.new()
-		pm.inner_radius = 0.20
-		pm.outer_radius = 0.27
+		pm.inner_radius = 0.17
+		pm.outer_radius = 0.23
 		pm.rings = 32
 		pm.ring_segments = 10
 		pneu.mesh = pm
 		pneu.material_override = gomma
-		pneu.position = Vector3(0, 0.28, dz)
+		pneu.position = Vector3(0, 0.24, dz)
 		pneu.rotation.z = PI * 0.5
 		bici.add_child(pneu)
 		var cerchio := MeshInstance3D.new()
 		var cm := TorusMesh.new()
-		cm.inner_radius = 0.180
-		cm.outer_radius = 0.205
+		cm.inner_radius = 0.152
+		cm.outer_radius = 0.175
 		cm.rings = 32
 		cm.ring_segments = 8
 		cerchio.mesh = cm
 		cerchio.material_override = cerchio_mat
-		cerchio.position = Vector3(0, 0.28, dz)
+		cerchio.position = Vector3(0, 0.24, dz)
 		cerchio.rotation.z = PI * 0.5
 		bici.add_child(cerchio)
-		var mozzo := _cyl(bici, 0.028, 0.028, 0.075, ottone, Vector3(0, 0.28, dz))
+		var mozzo := _cyl(bici, 0.028, 0.028, 0.13, ottone, Vector3(0, 0.24, dz))
 		mozzo.rotation.z = PI * 0.5
 		for k in 8:
 			var ra := float(k) * TAU / 8.0 + (0.2 if dz > 0.0 else 0.0)
-			var raggio := _cyl(bici, 0.0055, 0.0055, 0.17, cerchio_mat,
-					Vector3(0, 0.28 + cos(ra) * 0.10, dz + sin(ra) * 0.10))
+			var raggio := _cyl(bici, 0.0055, 0.0055, 0.14, cerchio_mat,
+					Vector3(0, 0.24 + cos(ra) * 0.09, dz + sin(ra) * 0.09))
 			raggio.rotation.x = ra
 
-	# ---- IL TELAIO a diamante: i tubi si incontrano nei nodi
-	tubo.call(Vector3(0, 0.62, -0.295), Vector3(0, 0.42, -0.315), 0.030, telaio)
-	tubo.call(Vector3(0, 0.45, -0.30), Vector3(0, 0.29, 0.05), 0.028, telaio)
-	tubo.call(Vector3(0, 0.585, -0.285), Vector3(0, 0.615, 0.185), 0.024, telaio)
-	tubo.call(Vector3(0, 0.29, 0.04), Vector3(0, 0.64, 0.21), 0.026, telaio)
-	# il movimento centrale
-	var mc := _cyl(bici, 0.036, 0.036, 0.16, telaio, Vector3(0, 0.295, 0.045))
+	# ---- IL TELAIO: sterzo col rake, obliquo che SCHIVA la ruota (0.24
+	# misurati dal centro), orizzontale, piantone
+	tubo.call(Vector3(0, 0.65, -0.235), Vector3(0, 0.50, -0.26), 0.030, telaio)
+	tubo.call(Vector3(0, 0.50, -0.25), Vector3(0, 0.295, 0.03), 0.028, telaio)
+	tubo.call(Vector3(0, 0.615, -0.225), Vector3(0, 0.635, 0.155), 0.024, telaio)
+	tubo.call(Vector3(0, 0.295, 0.03), Vector3(0, 0.655, 0.185), 0.026, telaio)
+	var mc := _cyl(bici, 0.036, 0.036, 0.19, telaio, Vector3(0, 0.295, 0.03))
 	mc.rotation.z = PI * 0.5
-	# i foderi bassi e alti, a coppie, e la forcella
-	for fx: float in [-0.032, 0.032]:
-		tubo.call(Vector3(fx, 0.29, 0.06), Vector3(fx, 0.28, 0.33), 0.013, telaio)
-		tubo.call(Vector3(fx, 0.60, 0.19), Vector3(fx, 0.29, 0.335), 0.012, telaio)
-		tubo.call(Vector3(fx, 0.43, -0.31), Vector3(fx, 0.28, -0.345), 0.013, telaio)
+	# la testa della forcella, e le due gambe che scavalcano la gomma
+	_box(bici, Vector3(0.13, 0.032, 0.05), telaio, Vector3(0, 0.505, -0.263))
+	for fx: float in [-0.055, 0.055]:
+		tubo.call(Vector3(fx, 0.505, -0.265), Vector3(fx, 0.24, -0.335), 0.013, telaio)
+		tubo.call(Vector3(fx, 0.29, 0.05), Vector3(fx, 0.24, 0.33), 0.013, telaio)
+		tubo.call(Vector3(fx, 0.62, 0.165), Vector3(fx, 0.245, 0.325), 0.012, telaio)
 
 	# ---- LA TRASMISSIONE: corona, pignone, catena, pedivelle opposte
-	var corona := _cyl(bici, 0.075, 0.075, 0.014, ottone, Vector3(0.055, 0.295, 0.045))
+	# che nascono dal perno
+	var corona := _cyl(bici, 0.075, 0.075, 0.014, ottone, Vector3(0.06, 0.295, 0.03))
 	corona.rotation.z = PI * 0.5
-	var pignone := _cyl(bici, 0.042, 0.042, 0.012, ottone, Vector3(0.05, 0.28, 0.33))
+	var pignone := _cyl(bici, 0.040, 0.040, 0.012, ottone, Vector3(0.06, 0.24, 0.33))
 	pignone.rotation.z = PI * 0.5
-	var su := _box(bici, Vector3(0.010, 0.285, 0.014), gomma, Vector3(0.055, 0.343, 0.19))
-	su.rotation.x = atan2(0.285, -0.048)
-	var giu := _box(bici, Vector3(0.010, 0.285, 0.014), gomma, Vector3(0.055, 0.235, 0.19))
-	giu.rotation.x = atan2(0.285, 0.012)
+	var su := _box(bici, Vector3(0.010, 0.298, 0.014), gomma, Vector3(0.06, 0.3215, 0.1825))
+	su.rotation.x = atan2(0.285, -0.087)
+	var giu := _box(bici, Vector3(0.010, 0.286, 0.014), gomma, Vector3(0.06, 0.2135, 0.1825))
+	giu.rotation.x = atan2(0.285, -0.023)
 	var ped_dx := _box(bici, Vector3(0.014, 0.105, 0.026), telaio,
-			Vector3(0.075, 0.2515, 0.0815))
-	ped_dx.rotation.x = -0.70
-	_box(bici, Vector3(0.075, 0.016, 0.05), gomma, Vector3(0.105, 0.208, 0.118))
+			Vector3(0.085, 0.255, 0.0625))
+	ped_dx.rotation.x = -0.68
+	_box(bici, Vector3(0.075, 0.016, 0.05), gomma, Vector3(0.115, 0.21, 0.10))
 	var ped_sx := _box(bici, Vector3(0.014, 0.105, 0.026), telaio,
-			Vector3(-0.075, 0.340, 0.010))
-	ped_sx.rotation.x = -0.70
-	_box(bici, Vector3(0.075, 0.016, 0.05), gomma, Vector3(-0.105, 0.382, -0.026))
+			Vector3(-0.085, 0.335, -0.0025))
+	ped_sx.rotation.x = -0.68
+	_box(bici, Vector3(0.075, 0.016, 0.05), gomma, Vector3(-0.115, 0.38, -0.04))
 
 	# ---- LA SELLA di cuoio sul cannotto (nodo "Sella")
-	tubo.call(Vector3(0, 0.63, 0.205), Vector3(0, 0.71, 0.225), 0.015, telaio)
-	var sella := _ball(bici, 0.062, cuoio, Vector3(0, 0.725, 0.225), Vector3(1.0, 0.42, 1.55))
+	tubo.call(Vector3(0, 0.645, 0.165), Vector3(0, 0.705, 0.18), 0.015, telaio)
+	var sella := _ball(bici, 0.062, cuoio, Vector3(0, 0.72, 0.18), Vector3(1.0, 0.42, 1.55))
 	sella.name = "Sella"
 
 	# ---- MANUBRIO (nodo omonimo): attacco, tubo, manopole e campanello
-	tubo.call(Vector3(0, 0.62, -0.295), Vector3(0, 0.685, -0.305), 0.018, telaio)
-	var manubrio := _cyl(bici, 0.016, 0.016, 0.36, telaio, Vector3(0, 0.69, -0.305))
+	tubo.call(Vector3(0, 0.645, -0.235), Vector3(0, 0.695, -0.25), 0.017, telaio)
+	var manubrio := _cyl(bici, 0.016, 0.016, 0.36, telaio, Vector3(0, 0.70, -0.25))
 	manubrio.name = "Manubrio"
 	manubrio.rotation.z = PI * 0.5
 	for sx: float in [-0.165, 0.165]:
-		var manopola := _cyl(bici, 0.024, 0.024, 0.085, cuoio, Vector3(sx, 0.69, -0.305))
+		var manopola := _cyl(bici, 0.024, 0.024, 0.085, cuoio, Vector3(sx, 0.70, -0.25))
 		manopola.rotation.z = PI * 0.5
-	_cyl(bici, 0.026, 0.026, 0.018, ottone, Vector3(-0.125, 0.715, -0.30))
-	_ball(bici, 0.020, ottone, Vector3(-0.125, 0.728, -0.30), Vector3(1, 0.6, 1))
+	_cyl(bici, 0.026, 0.026, 0.018, ottone, Vector3(-0.125, 0.725, -0.245))
+	_ball(bici, 0.020, ottone, Vector3(-0.125, 0.738, -0.245), Vector3(1, 0.6, 1))
 
-	# ---- IL FANALINO d'ottone sul tubo di sterzo
-	var fanale := _cyl(bici, 0.024, 0.030, 0.045, ottone, Vector3(0, 0.545, -0.365))
+	# ---- IL FANALINO d'ottone sotto il cestino, sul tubo di sterzo
+	var fanale := _cyl(bici, 0.024, 0.030, 0.045, ottone, Vector3(0, 0.50, -0.30))
 	fanale.rotation.x = PI * 0.5
 	var lente := _cyl(bici, 0.020, 0.020, 0.012, _mat(CREAM, Color("ffe6b0"), 6.0, 0.3),
-			Vector3(0, 0.545, -0.392))
+			Vector3(0, 0.50, -0.327))
 	lente.rotation.x = PI * 0.5
 
-	# ---- IL CESTINO di vimini (nodo "Cestino") con le fascette,
-	# appoggiato al manubrio
+	# ---- IL CESTINO di vimini (nodo "Cestino") con le fascette, retto
+	# dai due tiranti d'ottone che vanno alla testa della forcella
 	var cesto := _cyl(bici, 0.145, 0.11, 0.16, _mat(WOOD_PALE, WOOD, 7.0, 0.6),
-			Vector3(0, 0.63, -0.43))
+			Vector3(0, 0.60, -0.40))
 	cesto.name = "Cestino"
-	for banda: Array in [[0.70, 0.138, 0.150], [0.585, 0.118, 0.130]]:
+	for banda: Array in [[0.665, 0.138, 0.150], [0.575, 0.118, 0.130]]:
 		var fascia := MeshInstance3D.new()
 		var fm := TorusMesh.new()
 		fm.inner_radius = banda[1]
@@ -5889,21 +5974,23 @@ static func _bicicletta_servizio() -> Node3D:
 		fm.ring_segments = 6
 		fascia.mesh = fm
 		fascia.material_override = _mat(WOOD, WOOD_DARK, 6.0, 0.5)
-		fascia.position = Vector3(0, banda[0], -0.43)
+		fascia.position = Vector3(0, banda[0], -0.40)
 		bici.add_child(fascia)
+	for cx: float in [-0.05, 0.05]:
+		tubo.call(Vector3(cx, 0.545, -0.37), Vector3(cx, 0.515, -0.26), 0.008, ottone)
 
 	# ---- IL PORTAPACCHI sopra la ruota dietro
-	for rx: float in [-0.045, 0.045]:
-		_box(bici, Vector3(0.012, 0.008, 0.24), telaio, Vector3(rx, 0.578, 0.38))
-		tubo.call(Vector3(rx, 0.574, 0.30), Vector3(rx, 0.30, 0.335), 0.008, telaio)
+	for rx: float in [-0.05, 0.05]:
+		_box(bici, Vector3(0.012, 0.008, 0.24), telaio, Vector3(rx, 0.53, 0.38))
+		tubo.call(Vector3(rx, 0.526, 0.30), Vector3(rx, 0.26, 0.33), 0.008, telaio)
 	for rz: float in [0.30, 0.38, 0.46]:
-		_box(bici, Vector3(0.10, 0.006, 0.016), telaio, Vector3(0, 0.585, rz))
+		_box(bici, Vector3(0.11, 0.006, 0.016), telaio, Vector3(0, 0.537, rz))
 
 	# ---- il cavalletto, col suo piedino
-	var cavalletto := _cyl(n, 0.014, 0.014, 0.34, gomma, Vector3(-0.115, 0.155, 0.28))
-	cavalletto.rotation.z = 0.38
+	var cavalletto := _cyl(n, 0.014, 0.014, 0.30, gomma, Vector3(-0.105, 0.135, 0.27))
+	cavalletto.rotation.z = 0.40
 	cavalletto.rotation.x = 0.12
-	_cyl(n, 0.026, 0.030, 0.014, gomma, Vector3(-0.178, 0.008, 0.30))
+	_cyl(n, 0.026, 0.030, 0.014, gomma, Vector3(-0.165, 0.008, 0.29))
 	return n
 
 
