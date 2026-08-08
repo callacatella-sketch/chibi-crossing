@@ -4055,7 +4055,6 @@ static func _streetlamp() -> Node3D:
 	var ferro := _mat(Color("3f4a42"), Color("55645a"), 5.0, 0.42)
 	var ferro_c := _mat(Color("4d5a50"), Color("64756a"), 5.0, 0.45)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
-	var erba := _mat(Color("8aa870"), Color("6f8d58"), 5.0, 0.5)
 	# la regola del miele: il ROSSO deve saturare (dice «sorgente»), il
 	# BLU deve restare basso (e' quello che tiene il colore)
 	var vetro_a := _glow(Color("ffc65f"), Color("ffa02a"), 1.05)
@@ -4210,13 +4209,6 @@ static func _streetlamp() -> Node3D:
 	alone.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	alone.position = Vector3(0, 2.05, 0)
 	n.add_child(alone)
-
-	# l'erba al piede sta FUORI dalla piastra (raggio 0.210): dentro,
-	# i ciuffi ne bucavano la faccia e leggevano come muffa sul ferro
-	# (e APPOGGIATI all'orlo, non sparpagliati: staccati leggevano come
-	# piselli caduti sul prato invece che come erba cresciuta al piede)
-	_ball(n, 0.075, erba, Vector3(-0.205, 0.012, 0.125), Vector3(1.3, 0.30, 0.95))
-	_ball(n, 0.058, erba, Vector3(0.215, 0.010, -0.115), Vector3(1.15, 0.28, 0.9))
 
 	# la luce di sempre: colore, energia, raggio e posizione INVARIATI
 	var light := OmniLight3D.new()
