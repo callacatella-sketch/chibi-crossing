@@ -326,7 +326,7 @@
   {
     "alto": 0.55,
     "cartella": "docs/catalogo/1-arredo/carillon/",
-    "cat": 1,
+    "cat": 1.0,
     "largo": 0.56,
     "nome": "Carillon",
     "slug": "carillon",
@@ -360,10 +360,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.59,
+    "alto": 0.71,
     "cartella": "docs/catalogo/1-arredo/comodino/",
-    "cat": 1.0,
-    "largo": 0.45,
+    "cat": 1,
+    "largo": 0.46,
     "nome": "Comodino",
     "slug": "comodino",
     "tipo": "cell"
