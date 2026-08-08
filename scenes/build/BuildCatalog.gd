@@ -10085,21 +10085,28 @@ static func _frigo_gelati() -> Node3D:
 			_box(cop, Vector3(0.014, 0.016, 0.40), cromo, Vector3(cx2, 0.004, 0))
 		_box(cop, Vector3(0.030, 0.020, 0.075), cromo, Vector3(0.012, 0.016, 0))
 
-	# l'INSEGNA col cono: palo cromato appena inclinato, targa in
-	# cornice rossa, e il cono in tre dimensioni con la ciliegina
-	var palo := _cyl(n, 0.014, 0.014, 0.36, cromo, Vector3(0.36, 0.83, 0.12))
-	palo.rotation.z = 0.06
+	# l'INSEGNA col cono: il palo NON spunta dal pozzetto (un'asta che
+	# nasce dentro la vasca non ha senso) — e' AVVITATO al fianco con
+	# due staffe cromate, braccio, manicotto e piastrina, come le
+	# insegne dei bar veri, e sale esterno al corpo fino alla targa
+	var palo := _cyl(n, 0.013, 0.016, 0.74, cromo, Vector3(0.55, 0.61, 0.12))
+	for ys: float in [0.32, 0.55]:
+		var braccio := _cyl(n, 0.009, 0.009, 0.10, cromo, Vector3(0.505, ys, 0.12))
+		braccio.rotation.z = PI * 0.5
+		_cyl(n, 0.020, 0.020, 0.016, cromo, Vector3(0.55, ys, 0.12))
+		var piastra := _cyl(n, 0.017, 0.017, 0.010, cromo, Vector3(0.458, ys, 0.12))
+		piastra.rotation.z = PI * 0.5
 	var cartello := _lastra(n, 0.145, 0.32, 0.06, 0.02, rosso,
-			Vector3(0.37, 1.08, 0.12), Vector3(0, PI * 0.5, 0))
+			Vector3(0.55, 1.08, 0.12), Vector3(0, PI * 0.5, 0))
 	cartello.name = "Cartello"
 	_lastra(n, 0.125, 0.28, 0.05, 0.02, crema_s,
-			Vector3(0.37, 1.08, 0.114), Vector3(0, PI * 0.5, 0))
-	var cialda := _cyl(n, 0.075, 0.012, 0.16, cialda_m, Vector3(0.37, 1.015, 0.098))
+			Vector3(0.55, 1.08, 0.114), Vector3(0, PI * 0.5, 0))
+	var cialda := _cyl(n, 0.075, 0.012, 0.16, cialda_m, Vector3(0.55, 1.015, 0.098))
 	cialda.rotation.z = 0.1
-	_ball(n, 0.047, _mat(PINK, PINK_DEEP, 5.0, 0.4), Vector3(0.349, 1.122, 0.095))
-	_ball(n, 0.044, _mat(CREAM, Color("f0e4cc"), 5.0, 0.35), Vector3(0.396, 1.148, 0.095))
+	_ball(n, 0.047, _mat(PINK, PINK_DEEP, 5.0, 0.4), Vector3(0.529, 1.122, 0.095))
+	_ball(n, 0.044, _mat(CREAM, Color("f0e4cc"), 5.0, 0.35), Vector3(0.576, 1.148, 0.095))
 	_ball(n, 0.015, _mat(BAR_ROSSO, BAR_ROSSO_CUPO, 5.0, 0.35),
-			Vector3(0.401, 1.185, 0.093))
+			Vector3(0.581, 1.185, 0.093))
 	return n
 
 
