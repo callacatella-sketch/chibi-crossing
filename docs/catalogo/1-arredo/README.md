@@ -28,10 +28,10 @@
 | **Secchi**<br><sub>0.62 × 0.47 m</sub> | <img src="secchi/1-fronte.jpg" width="200"> | <img src="secchi/2-tre-quarti.jpg" width="200"> | <img src="secchi/3-profilo.jpg" width="200"> |
 | **Sedia**<br><sub>0.42 × 1.03 m</sub> | <img src="sedia/1-fronte.jpg" width="200"> | <img src="sedia/2-tre-quarti.jpg" width="200"> | <img src="sedia/3-profilo.jpg" width="200"> |
 | **Sedia vimini**<br><sub>0.45 × 0.97 m</sub> | <img src="sedia-vimini/1-fronte.jpg" width="200"> | <img src="sedia-vimini/2-tre-quarti.jpg" width="200"> | <img src="sedia-vimini/3-profilo.jpg" width="200"> |
-| **Sgabello**<br><sub>0.42 × 0.48 m</sub> | <img src="sgabello/1-fronte.jpg" width="200"> | <img src="sgabello/2-tre-quarti.jpg" width="200"> | <img src="sgabello/3-profilo.jpg" width="200"> |
+| **Sgabello**<br><sub>0.39 × 0.51 m</sub> | <img src="sgabello/1-fronte.jpg" width="200"> | <img src="sgabello/2-tre-quarti.jpg" width="200"> | <img src="sgabello/3-profilo.jpg" width="200"> |
 | **Sgabello alto**<br><sub>0.38 × 0.83 m</sub> | <img src="sgabello-alto/1-fronte.jpg" width="200"> | <img src="sgabello-alto/2-tre-quarti.jpg" width="200"> | <img src="sgabello-alto/3-profilo.jpg" width="200"> |
-| **Stivali**<br><sub>0.72 × 0.22 m</sub> | <img src="stivali/1-fronte.jpg" width="200"> | <img src="stivali/2-tre-quarti.jpg" width="200"> | <img src="stivali/3-profilo.jpg" width="200"> |
-| **Tavolino**<br><sub>0.84 × 0.66 m</sub> | <img src="tavolino/1-fronte.jpg" width="200"> | <img src="tavolino/2-tre-quarti.jpg" width="200"> | <img src="tavolino/3-profilo.jpg" width="200"> |
+| **Stivali**<br><sub>1.09 × 0.41 m</sub> | <img src="stivali/1-fronte.jpg" width="200"> | <img src="stivali/2-tre-quarti.jpg" width="200"> | <img src="stivali/3-profilo.jpg" width="200"> |
+| **Tavolino**<br><sub>0.86 × 0.67 m</sub> | <img src="tavolino/1-fronte.jpg" width="200"> | <img src="tavolino/2-tre-quarti.jpg" width="200"> | <img src="tavolino/3-profilo.jpg" width="200"> |
 | **Tavolino bar**<br><sub>0.82 × 0.81 m</sub> | <img src="tavolino-bar/1-fronte.jpg" width="200"> | <img src="tavolino-bar/2-tre-quarti.jpg" width="200"> | <img src="tavolino-bar/3-profilo.jpg" width="200"> |
 | **Vetrina dolci**<br><sub>0.98 × 0.92 m</sub> | <img src="vetrina-dolci/1-fronte.jpg" width="200"> | <img src="vetrina-dolci/2-tre-quarti.jpg" width="200"> | <img src="vetrina-dolci/3-profilo.jpg" width="200"> |
 

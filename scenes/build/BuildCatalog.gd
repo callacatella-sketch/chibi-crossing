@@ -1146,12 +1146,58 @@ static func _roof_tile() -> Node3D:
 
 # ---------------------------------------------------------------- arredo
 
+# IL TAVOLINO DI CASA. Prima erano tre cilindri impilati; ora il piede
+# e' UN tornito solo — campana, collarino, pancia a vaso, fusto e collo,
+# come lo farebbe il tornio — coi tre piedini a cipolla che spuntano
+# sotto la campana. Il piano tiene la quota di sempre (0.66) e ha il
+# bordo a toro con il gradino d'ombra sotto; sopra, solo il centrino
+# smerlato: il piano di un tavolino e' della vita che ci si appoggia.
+# (E' un pezzo TINTABILE: tutto legno e stoffa, cosi' la variante menta
+# tinge un mobile, non un soprammobile.)
 static func _table() -> Node3D:
 	var n := Node3D.new()
+	var pale := _mat(WOOD_PALE, WOOD, 3.0, 0.5)
 	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.55)
-	_cyl(n, 0.42, 0.42, 0.06, _mat(WOOD_PALE, WOOD, 3.0, 0.5), Vector3(0, 0.63, 0))
-	_cyl(n, 0.055, 0.07, 0.6, wood, Vector3(0, 0.3, 0))
-	_cyl(n, 0.2, 0.24, 0.05, wood, Vector3(0, 0.025, 0))
+	var scuro := _mat(WOOD_DARK, Color("8a6540"), 4.0, 0.5)
+	var crema := _mat(Color("efe0c4"), Color("ddcba8"), 6.0, 0.3)
+
+	# il piede tornito, dalla campana al collo, in un profilo solo
+	# (le anse si CAMPIONANO come archi: con i soli vertici la lathe
+	# tira dritte le corde e la pancia esce a diamante)
+	BUILDER.lathe(n, [Vector2(0.235, 0.0), Vector2(0.246, 0.018),
+			Vector2(0.215, 0.042), Vector2(0.150, 0.072), Vector2(0.100, 0.102),
+			Vector2(0.080, 0.132), Vector2(0.084, 0.150), Vector2(0.086, 0.160),
+			Vector2(0.084, 0.170), Vector2(0.070, 0.185), Vector2(0.066, 0.205),
+			Vector2(0.076, 0.235), Vector2(0.080, 0.262), Vector2(0.076, 0.290),
+			Vector2(0.062, 0.315), Vector2(0.050, 0.340), Vector2(0.042, 0.400),
+			Vector2(0.038, 0.470), Vector2(0.040, 0.530), Vector2(0.048, 0.575),
+			Vector2(0.058, 0.598), Vector2(0.070, 0.610), Vector2(0.078, 0.615)],
+			wood)
+	# i tre piedini a cipolla, sotto la campana
+	for pi3 in 3:
+		var ap := float(pi3) * TAU / 3.0 + 0.5
+		_ball(n, 0.036, scuro, Vector3(cos(ap) * 0.165, 0.018, sin(ap) * 0.165),
+				Vector3(1.0, 0.55, 1.0))
+
+	# il piano (superficie a 0.66, la quota di sempre), il gradino
+	# d'ombra sotto, e il bordo a toro
+	_cyl(n, 0.30, 0.30, 0.022, scuro, Vector3(0, 0.607, 0))
+	_cyl(n, 0.42, 0.42, 0.045, pale, Vector3(0, 0.6375, 0))
+	var bordo := MeshInstance3D.new()
+	var bm := TorusMesh.new()
+	bm.inner_radius = 0.392
+	bm.outer_radius = 0.432
+	bordo.mesh = bm
+	bordo.material_override = wood
+	bordo.position = Vector3(0, 0.643, 0)
+	n.add_child(bordo)
+
+	# il centrino smerlato al centro: 4 mm di stoffa, non intralcia niente
+	_cyl(n, 0.105, 0.105, 0.004, crema, Vector3(0, 0.662, 0))
+	for sm in 10:
+		var asm := float(sm) * TAU / 10.0
+		_ball(n, 0.015, crema, Vector3(cos(asm) * 0.102, 0.6625, sin(asm) * 0.102),
+				Vector3(1.0, 0.22, 1.0))
 	return n
 
 
@@ -2090,22 +2136,70 @@ static func _plant() -> Node3D:
 
 
 static func _flowerbed() -> Node3D:
-	# aiuola da giardinaggio: terra smossa pronta per i semi. I germogli e
-	# i fiori li fa crescere il sistema Garden, notte dopo notte.
+	# L'AIUOLA: era un disco piatto con tre righe scure e sette palline
+	# uguali. Adesso è un'aiuola di cottage: la corona di mezzi tronchetti
+	# piantati in piedi (col taglio chiaro in cima, ognuno con la sua
+	# altezza), la terra smossa a zolle, i solchi di semina, l'etichetta
+	# segna-semi di legno e qualche sasso rimasto dal lavoro.
+	#
+	# VINCOLO DEL GARDEN: il velo d'acqua (_make_wet_overlay) è un disco
+	# r 0.4 a y 0.076 — dentro quel raggio la terra resta SOTTO 0.074,
+	# o il velo annega. I tronchetti stanno FUORI (r 0.44+).
 	var n := Node3D.new()
-	_cyl(n, 0.44, 0.46, 0.07, _mat(Color("7a5a42"), Color("64483a"), 4.0, 0.5), Vector3(0, 0.035, 0))
-	# solchi di semina
-	var furrow := _mat(Color("5e4534"), Color("50392c"), 3.0, 0.4)
+	var terra := _mat(Color("7a5a42"), Color("64483a"), 4.0, 0.5)
+	var terra_cupa := _mat(Color("5e4534"), Color("50392c"), 3.0, 0.4)
+	# la terra: TRATTENUTA dal bordo, sale fin quasi all'orlo dei
+	# tronchetti e si bomba appena al centro (il profilo SALE — fondo,
+	# fuori, su, centro — o il tornio cuce le facce alla rovescia)
+	BUILDER.lathe(n, [
+		Vector2(0.0, 0.0), Vector2(0.44, 0.0), Vector2(0.43, 0.05),
+		Vector2(0.4, 0.062), Vector2(0.24, 0.07), Vector2(0.0, 0.072),
+	], terra, Vector3.ZERO, 26)
+	# i solchi di semina: più corti della cupola e appena sopra il suo
+	# colmo (0.072) — più bassi si annegavano a tratti e diventavano
+	# trattini — ma sempre sotto il velo d'acqua del Garden (0.076)
 	for i in 3:
-		_box(n, Vector3(0.58, 0.012, 0.055), furrow, Vector3(0, 0.071, -0.2 + 0.2 * i))
-	# sassolini sul bordo
-	var pebble := _mat(Color("c9c2b4"), Color("a89f92"), 5.0, 0.5)
+		var solco := _box(n, Vector3(0.4 - 0.05 * absf(float(i) - 1.0), 0.007, 0.048),
+				terra_cupa, Vector3(0.02 * float(i - 1), 0.07, -0.19 + 0.19 * i))
+		solco.rotation.y = 0.05 * float(i - 1)
+	# le zolle: la terra smossa non è liscia
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 11
-	for i in 7:
-		var a := float(i) / 7.0 * TAU + 0.2
-		_ball(n, rng.randf_range(0.03, 0.045), pebble,
-				Vector3(cos(a) * 0.44, 0.035, sin(a) * 0.44), Vector3(1, 0.7, 1))
+	for i in 6:
+		var az := rng.randf() * TAU
+		var rz := rng.randf_range(0.16, 0.36)
+		_ball(n, rng.randf_range(0.01, 0.014), terra_cupa,
+				Vector3(cos(az) * rz, 0.0655, sin(az) * rz), Vector3(1.2, 0.6, 1.0))
+	# la palizzata di tronchetti: CONTIGUI (si toccano, come un bordo che
+	# trattiene davvero), ognuno con la sua altezza e il taglio chiaro
+	# in cima — il bordo che fa «qualcuno la cura»
+	var corteccia := _mat(Color("8a5f43"), Color("6f4c36"), 4.0, 0.5)
+	var taglio := _mat(WOOD_PALE, WOOD, 4.5, 0.4)
+	var quanti := 30
+	for i in quanti:
+		var a := float(i) / float(quanti) * TAU
+		var h := 0.092 if i % 2 == 0 else 0.072
+		h += rng.randf_range(-0.007, 0.007)
+		var tronco := Node3D.new()
+		tronco.position = Vector3(cos(a) * 0.44, 0, sin(a) * 0.44)
+		tronco.rotation.y = -a
+		tronco.rotation.z = rng.randf_range(-0.04, 0.04)
+		n.add_child(tronco)
+		_cyl(tronco, 0.044, 0.047, h, corteccia, Vector3(0, h * 0.5, 0))
+		_cyl(tronco, 0.037, 0.037, 0.006, taglio, Vector3(0, h + 0.001, 0))
+	# l'etichetta segna-semi, piantata storta vicino al bordo
+	var stecco := _cyl(n, 0.007, 0.009, 0.15, _mat(WOOD, WOOD_DARK, 4.0, 0.5),
+			Vector3(0.3, 0.11, -0.26))
+	stecco.rotation.z = 0.09
+	stecco.rotation.x = -0.06
+	_box(n, Vector3(0.06, 0.042, 0.009), taglio, Vector3(0.307, 0.175, -0.264))
+	# i sassi rimasti dal lavoro, appoggiati fuori dai tronchetti
+	var pebble := _mat(Color("c9c2b4"), Color("a89f92"), 5.0, 0.5)
+	for i in 3:
+		var a := TAU * 0.13 + float(i) * 2.2
+		_ball(n, rng.randf_range(0.024, 0.036), pebble,
+				Vector3(cos(a) * 0.53, 0.016, sin(a) * 0.53),
+				Vector3(1.0, 0.62, rng.randf_range(0.8, 1.1)))
 	return n
 
 
@@ -6421,19 +6515,88 @@ static func _casco_appeso() -> Node3D:
 	return n
 
 
-## GLI STIVALI IN FILA. Tre paia col risvolto rosso, allineati sulla
-## soglia: il pezzo più piccolo della caserma e quello che la racconta
-## meglio — nessuno li sta indossando, e va benissimo così.
+## GLI STIVALI IN FILA, ricreati da zero: il pezzo più piccolo della
+## caserma e quello che la racconta meglio. Ogni stivale è un corpo
+## UNICO che curva nella caviglia fino alla punta tonda, con la suola,
+## il tacco, il risvolto rosso arrotolato e l'interno scuro — sono
+## vuoti, qualcuno se li è tolti. Un paio sta in fila come si deve, da
+## uno spunta una margherita (la manichetta annaffia gli orti, e prima
+## o poi annaffia anche uno stivale), e uno è caduto su un fianco:
+## nessuno li sta indossando, e va benissimo così.
+static func _stivale(parent: Node3D) -> Node3D:
+	var s := Node3D.new()
+	parent.add_child(s)
+	var gomma := _mat(GOMMA, GOMMA.darkened(0.25), 6.0, 0.35)
+	var suola := _mat(GOMMA.darkened(0.3), GOMMA.darkened(0.45), 6.0, 0.3)
+	var rosso := _mat(POMPA_ROSSO, POMPA_ROSSO_SCURO, 4.0, 0.45)
+	var scuro := _mat(GOMMA.darkened(0.45), GOMMA.darkened(0.55), 5.0, 0.3)
+	# il corpo unico: gambale, caviglia che piega, collo del piede, punta
+	BUILDER.tube(s, [Vector3(0, 0.225, 0.008), Vector3(0, 0.13, 0.008),
+			Vector3(0, 0.065, -0.012), Vector3(0, 0.05, -0.075),
+			Vector3(0, 0.046, -0.115), Vector3(0, 0.05, -0.142)],
+			[0.05, 0.05, 0.049, 0.05, 0.046, 0.028], gomma, 22, 12)
+	# la suola stondata che sporge, e il tacco
+	_lastra(s, 0.105, 0.1, 0.028, 0.026, suola, Vector3(0, 0.013, -0.045),
+			Vector3(0, 0, PI * 0.5))
+	_cyl(s, 0.042, 0.045, 0.022, suola, Vector3(0, 0.011, 0.052))
+	# il risvolto rosso arrotolato, e l'interno scuro: lo stivale è VUOTO
+	_cyl(s, 0.054, 0.056, 0.05, rosso, Vector3(0, 0.215, 0.008))
+	var orlo := MeshInstance3D.new()
+	var om := TorusMesh.new()
+	om.inner_radius = 0.041
+	om.outer_radius = 0.066
+	orlo.mesh = om
+	orlo.material_override = rosso
+	orlo.position = Vector3(0, 0.242, 0.008)
+	s.add_child(orlo)
+	_cyl(s, 0.043, 0.043, 0.012, scuro, Vector3(0, 0.243, 0.008))
+	# la linguetta dietro per tirarli su, e la fascia chiara alla caviglia
+	var tab := _lastra(s, 0.013, 0.055, 0.006, 0.01, rosso,
+			Vector3(0, 0.245, 0.066), Vector3(0.18, PI * 0.5, 0))
+	tab.rotation.z = 0.0
+	# la fascia chiara sta sul TRATTO DRITTO del gambale: alla piega
+	# della caviglia tagliava il tubo di sbieco, un calzino sceso
+	_cyl(s, 0.0515, 0.0515, 0.016, _mat(CREAM, PLASTER_SHADE, 5.0, 0.3),
+			Vector3(0, 0.145, 0.008))
+	return s
+
+
 static func _stivali() -> Node3D:
 	var n := Node3D.new()
-	var gomma := _mat(GOMMA, GOMMA.darkened(0.25), 6.0, 0.35)
-	var rosso := _mat(POMPA_ROSSO, POMPA_ROSSO_SCURO, 4.0, 0.45)
-	for i in 3:
-		var x := -0.3 + float(i) * 0.3
-		for z: float in [-0.07, 0.07]:
-			_cyl(n, 0.055, 0.06, 0.2, gomma, Vector3(x, 0.1, z))
-			_cyl(n, 0.062, 0.062, 0.035, rosso, Vector3(x, 0.2, z))
-			_box(n, Vector3(0.1, 0.05, 0.17), gomma, Vector3(x, 0.025, z - 0.06))
+	# il paio in fila come si deve, appena svirgolato
+	var s1a := _stivale(n)
+	s1a.position = Vector3(-0.345, 0, -0.005)
+	s1a.rotation.y = 0.07
+	var s1b := _stivale(n)
+	s1b.position = Vector3(-0.25, 0, 0.01)
+	s1b.rotation.y = -0.05
+	# il paio di mezzo: da uno spunta la margherita
+	var s2a := _stivale(n)
+	s2a.position = Vector3(-0.05, 0, 0.005)
+	s2a.rotation.y = 0.14
+	var s2b := _stivale(n)
+	s2b.position = Vector3(0.05, 0, -0.012)
+	s2b.rotation.y = -0.09
+	var verde := _mat(LEAF, LEAF_DARK, 6.0, 0.55)
+	var stelo := _cyl(s2a, 0.006, 0.008, 0.16, verde, Vector3(0.012, 0.3, 0.01))
+	stelo.rotation.z = -0.12
+	_ball(s2a, 0.02, verde, Vector3(0.05, 0.33, 0.012), Vector3(1.3, 0.4, 0.9))
+	for k in 5:
+		var a := TAU / 5.0 * float(k)
+		_ball(s2a, 0.016, _mat(Color.WHITE, CREAM, 5.0, 0.25),
+				Vector3(0.03 + cos(a) * 0.021, 0.385, 0.008 + sin(a) * 0.021),
+				Vector3(1.0, 0.5, 1.0))
+	_ball(s2a, 0.013, _mat(Color("ffd76e"), Color("eec254"), 5.0, 0.3),
+			Vector3(0.03, 0.392, 0.008))
+	# il terzo paio: uno in piedi, l'altro caduto su un fianco — e
+	# nessuno che si prenda la briga di raddrizzarlo
+	var s3a := _stivale(n)
+	s3a.position = Vector3(0.25, 0, 0.0)
+	s3a.rotation.y = 0.04
+	var s3b := _stivale(n)
+	s3b.position = Vector3(0.4, 0.055, 0.045)
+	s3b.rotation.z = -1.52
+	s3b.rotation.y = 0.4
 	return n
 
 

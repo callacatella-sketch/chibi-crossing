@@ -306,10 +306,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.22,
+    "alto": 0.41,
     "cartella": "docs/catalogo/1-arredo/stivali/",
-    "cat": 1.0,
-    "largo": 0.72,
+    "cat": 1,
+    "largo": 1.09,
     "nome": "Stivali",
     "slug": "stivali",
     "tipo": "cell"
@@ -333,10 +333,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.66,
+    "alto": 0.67,
     "cartella": "docs/catalogo/1-arredo/tavolino/",
     "cat": 1.0,
-    "largo": 0.84,
+    "largo": 0.86,
     "nome": "Tavolino",
     "slug": "tavolino",
     "tipo": "cell"
@@ -641,7 +641,7 @@
   {
     "alto": 1.63,
     "cartella": "docs/catalogo/2-giardino/altalena/",
-    "cat": 2,
+    "cat": 2.0,
     "largo": 1.29,
     "nome": "Altalena",
     "slug": "altalena",
