@@ -585,10 +585,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.66,
+    "alto": 0.58,
     "cartella": "docs/catalogo/2-giardino/pianta/",
-    "cat": 2.0,
-    "largo": 0.43,
+    "cat": 2,
+    "largo": 0.45,
     "nome": "Pianta",
     "slug": "pianta",
     "tipo": "cell"
