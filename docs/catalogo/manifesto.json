@@ -261,19 +261,19 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.77,
+    "alto": 0.6,
     "cartella": "docs/catalogo/1-arredo/letto/",
     "cat": 1.0,
-    "largo": 0.98,
+    "largo": 0.92,
     "nome": "Letto",
     "slug": "letto",
     "tipo": "cell"
   },
   {
-    "alto": 0.96,
+    "alto": 1.03,
     "cartella": "docs/catalogo/1-arredo/sedia/",
     "cat": 1.0,
-    "largo": 0.45,
+    "largo": 0.42,
     "nome": "Sedia",
     "slug": "sedia",
     "tipo": "cell"
@@ -324,10 +324,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.59,
+    "alto": 0.55,
     "cartella": "docs/catalogo/1-arredo/carillon/",
     "cat": 1.0,
-    "largo": 0.52,
+    "largo": 0.56,
     "nome": "Carillon",
     "slug": "carillon",
     "tipo": "cell"
@@ -342,10 +342,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.48,
+    "alto": 0.51,
     "cartella": "docs/catalogo/1-arredo/sgabello/",
     "cat": 1.0,
-    "largo": 0.42,
+    "largo": 0.39,
     "nome": "Sgabello",
     "slug": "sgabello",
     "tipo": "cell"
@@ -354,25 +354,25 @@
     "alto": 1.55,
     "cartella": "docs/catalogo/1-arredo/libreria/",
     "cat": 1.0,
-    "largo": 0.93,
+    "largo": 0.98,
     "nome": "Libreria",
     "slug": "libreria",
     "tipo": "cell"
   },
   {
-    "alto": 0.59,
+    "alto": 0.71,
     "cartella": "docs/catalogo/1-arredo/comodino/",
     "cat": 1.0,
-    "largo": 0.45,
+    "largo": 0.46,
     "nome": "Comodino",
     "slug": "comodino",
     "tipo": "cell"
   },
   {
-    "alto": 0.53,
+    "alto": 0.56,
     "cartella": "docs/catalogo/1-arredo/brandina/",
     "cat": 1.0,
-    "largo": 0.9,
+    "largo": 1.04,
     "nome": "Brandina",
     "slug": "brandina",
     "tipo": "cell"
@@ -387,10 +387,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.95,
+    "alto": 1.06,
     "cartella": "docs/catalogo/1-arredo/lavagnetta/",
     "cat": 1.0,
-    "largo": 0.56,
+    "largo": 0.58,
     "nome": "Lavagnetta",
     "slug": "lavagnetta",
     "tipo": "cell"
@@ -477,10 +477,10 @@
     "tipo": "edge"
   },
   {
-    "alto": 1.15,
+    "alto": 1.52,
     "cartella": "docs/catalogo/1-arredo/campana-caserma/",
     "cat": 1.0,
-    "largo": 0.66,
+    "largo": 0.84,
     "nome": "Campana caserma",
     "slug": "campana-caserma",
     "tipo": "cell"
@@ -639,10 +639,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.63,
+    "alto": 1.57,
     "cartella": "docs/catalogo/2-giardino/altalena/",
-    "cat": 2,
-    "largo": 1.29,
+    "cat": 2.0,
+    "largo": 1.06,
     "nome": "Altalena",
     "slug": "altalena",
     "tipo": "cell"
@@ -738,10 +738,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.64,
+    "alto": 1.61,
     "cartella": "docs/catalogo/2-giardino/bancarella/",
-    "cat": 2.0,
-    "largo": 1.46,
+    "cat": 2,
+    "largo": 1.41,
     "nome": "Bancarella",
     "slug": "bancarella",
     "tipo": "cell"
