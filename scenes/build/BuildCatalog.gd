@@ -2116,7 +2116,7 @@ static func aiuola_cella(vicini: Dictionary, seme: int) -> Node3D:
 	for i in 3:
 		var solco := _box(n, Vector3(0.4 - 0.05 * absf(float(i) - 1.0), 0.007, 0.048),
 				terra_cupa, Vector3(0.02 * float(i - 1), 0.07, -0.19 + 0.19 * i))
-		solco.name = "Solco"
+		solco.name = "Solco%d" % i
 		solco.rotation.y = 0.05 * float(i - 1)
 	for lato2 in ["e", "o"]:
 		if not bool(vicini.get(lato2, false)):
@@ -2125,7 +2125,7 @@ static func aiuola_cella(vicini: Dictionary, seme: int) -> Node3D:
 		for i in 3:
 			var seg := _box(n, Vector3(0.3, 0.007, 0.044), terra_cupa,
 					Vector3(verso * 0.31, 0.0685, -0.19 + 0.19 * i))
-			seg.name = "Solco" + lato2.to_upper()
+			seg.name = "Solco%s%d" % [lato2.to_upper(), i]
 	# le zolle: la terra smossa non è liscia (il seme è della cella)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seme

@@ -909,6 +909,48 @@ static func _e_sentiero(dict: Dictionary, c: Vector2i) -> bool:
 	return nodo != null and str(nodo.get_meta("item_name", "")) == "Sentiero"
 
 
+## L'AIUOLA CHE SI UNISCE: posata (o tolta) un'Aiuola, la sua cella e le
+## quattro vicine si RIFANNO la terra chiedendo al catalogo la forma
+## giusta per i vicini che hanno adesso — e due aiuole affiancate
+## diventano UNA striscia di terra continua. Stesso patto del Sentiero:
+## statico e guidato dal dizionario, si prova a occhi chiusi. Si scambia
+## solo il figlio «Terra»: il velo d'acqua e i germogli del Garden
+## stanno appesi alla radice del pezzo e non si toccano.
+static func rinfresca_aiuole(dict: Dictionary, cell: Vector2i) -> void:
+	for d: Vector2i in [Vector2i.ZERO, Vector2i(1, 0), Vector2i(-1, 0),
+			Vector2i(0, 1), Vector2i(0, -1)]:
+		var c := cell + d
+		var nodo := dict.get(c) as Node3D
+		if nodo == null or str(nodo.get_meta("item_name", "")) != "Aiuola":
+			continue
+		var vicini := {
+			"e": _e_aiuola(dict, c + Vector2i(1, 0)),
+			"o": _e_aiuola(dict, c + Vector2i(-1, 0)),
+			"s": _e_aiuola(dict, c + Vector2i(0, 1)),
+			"n": _e_aiuola(dict, c + Vector2i(0, -1)),
+		}
+		# il seme è della CELLA: la stessa cella rifà sempre le stesse
+		# zolle, e i salvataggi non ballano da un caricamento all'altro
+		var nuovo: Node3D = BuildCatalog.aiuola_cella(vicini,
+				int(hash(c)) & 0x7fffffff)
+		var vecchia := nodo.get_node_or_null("Terra")
+		if vecchia:
+			vecchia.name = "TerraVecchia"
+			vecchia.queue_free()
+		var terra: Node3D = nuovo.get_node("Terra")
+		nuovo.remove_child(terra)
+		nodo.add_child(terra)
+		# i vicini sono in coordinate MONDO, ma il nodo può essere stato
+		# posato ruotato (R): il wrapper annulla la rotazione del pezzo
+		terra.rotation.y = -nodo.rotation.y
+		nuovo.free()
+
+
+static func _e_aiuola(dict: Dictionary, c: Vector2i) -> bool:
+	var nodo := dict.get(c) as Node3D
+	return nodo != null and str(nodo.get_meta("item_name", "")) == "Aiuola"
+
+
 ## Il passo di una cella lungo la fila: l'asse X locale del pezzo,
 ## ruotato come lo ruota place_cell (rotation.y = -rot * PI/2).
 static func passo_fila(rot: int) -> Vector2i:
@@ -1000,6 +1042,8 @@ func place_cell(cell: Vector2i, piece: String, rot := 0, animate := true, lvl :=
 	rinfresca_braccioli(dict, cell)
 	# e il sentiero nuovo tende le pietre verso i sentieri vicini
 	rinfresca_sentieri(dict, cell)
+	# e l'aiuola nuova si unisce alle aiuole accanto in una striscia sola
+	rinfresca_aiuole(dict, cell)
 	# pavimenti, sentieri e tappeti a terra schiacciano l'erba sotto di sé
 	if lvl == 0 and int(item["layer"]) <= 1:
 		get_tree().call_group("cozy_world", "flatten_cell", cell)
@@ -1113,6 +1157,7 @@ func _remove_at(layer, key, lvl := 0) -> void:
 		rinfresca_braccioli(dict, key)
 		rinfresca_pali(dict, key)
 		rinfresca_sentieri(dict, key)
+		rinfresca_aiuole(dict, key)
 	_unregister_special(node)
 	if node == _demo_target:
 		_demo_target = null
