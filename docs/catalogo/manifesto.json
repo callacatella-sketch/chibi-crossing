@@ -333,9 +333,9 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.67,
+    "alto": 0.66,
     "cartella": "docs/catalogo/1-arredo/tavolino/",
-    "cat": 1.0,
+    "cat": 1,
     "largo": 0.86,
     "nome": "Tavolino",
     "slug": "tavolino",
@@ -576,10 +576,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.08,
+    "alto": 0.2,
     "cartella": "docs/catalogo/2-giardino/aiuola/",
     "cat": 2.0,
-    "largo": 0.93,
+    "largo": 1.04,
     "nome": "Aiuola",
     "slug": "aiuola",
     "tipo": "cell"

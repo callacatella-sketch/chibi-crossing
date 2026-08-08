@@ -1150,8 +1150,8 @@ static func _roof_tile() -> Node3D:
 # e' UN tornito solo — campana, collarino, pancia a vaso, fusto e collo,
 # come lo farebbe il tornio — coi tre piedini a cipolla che spuntano
 # sotto la campana. Il piano tiene la quota di sempre (0.66) e ha il
-# bordo a toro con il gradino d'ombra sotto; sopra, solo il centrino
-# smerlato: il piano di un tavolino e' della vita che ci si appoggia.
+# bordo a toro con il gradino d'ombra sotto; sopra NIENTE: il piano di
+# un tavolino e' della vita che ci si appoggia.
 # (E' un pezzo TINTABILE: tutto legno e stoffa, cosi' la variante menta
 # tinge un mobile, non un soprammobile.)
 static func _table() -> Node3D:
@@ -1159,7 +1159,6 @@ static func _table() -> Node3D:
 	var pale := _mat(WOOD_PALE, WOOD, 3.0, 0.5)
 	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.55)
 	var scuro := _mat(WOOD_DARK, Color("8a6540"), 4.0, 0.5)
-	var crema := _mat(Color("efe0c4"), Color("ddcba8"), 6.0, 0.3)
 
 	# il piede tornito, dalla campana al collo, in un profilo solo
 	# (le anse si CAMPIONANO come archi: con i soli vertici la lathe
@@ -1192,12 +1191,6 @@ static func _table() -> Node3D:
 	bordo.position = Vector3(0, 0.643, 0)
 	n.add_child(bordo)
 
-	# il centrino smerlato al centro: 4 mm di stoffa, non intralcia niente
-	_cyl(n, 0.105, 0.105, 0.004, crema, Vector3(0, 0.662, 0))
-	for sm in 10:
-		var asm := float(sm) * TAU / 10.0
-		_ball(n, 0.015, crema, Vector3(cos(asm) * 0.102, 0.6625, sin(asm) * 0.102),
-				Vector3(1.0, 0.22, 1.0))
 	return n
 
 
@@ -2153,7 +2146,7 @@ static func _flowerbed() -> Node3D:
 	# fuori, su, centro — o il tornio cuce le facce alla rovescia)
 	BUILDER.lathe(n, [
 		Vector2(0.0, 0.0), Vector2(0.44, 0.0), Vector2(0.43, 0.05),
-		Vector2(0.4, 0.062), Vector2(0.24, 0.07), Vector2(0.0, 0.072),
+		Vector2(0.4, 0.062), Vector2(0.24, 0.0685), Vector2(0.0, 0.0695),
 	], terra, Vector3.ZERO, 26)
 	# i solchi di semina: più corti della cupola e appena sopra il suo
 	# colmo (0.072) — più bassi si annegavano a tratti e diventavano
