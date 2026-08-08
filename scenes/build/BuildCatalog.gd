@@ -3827,15 +3827,130 @@ static func _birdhouse() -> Node3D:
 	return n
 
 
+# IL LAMPIONE DA GIARDINO. Il pezzo vive di NOTTE, ed e' li' che si
+# giudica: una goccia di miele in mezzo al buio, con la sua pozza di
+# luce sull'erba. Percio' tutto e' costruito attorno a due scelte.
+#
+# 1. IL FERRO E' VERDE-NERO, non grigio caldo. Col vecchio METAL il palo
+#    al sole leggeva SABBIA e il vetro non aveva contro cosa risaltare:
+#    il miele su beige e' miele su miele. Su un verde-nero da fabbro, la
+#    stessa luce diventa preziosa — ed e' gratis.
+# 2. LE PROPORZIONI SONO CICCIOTTE. Prima: fusto lungo 1.7 m per una
+#    testa di 0.45 — un filo con una scatoletta, e in fila sembravano
+#    antenne. Ora il rapporto fusto/testa e' 2.6:1, il fusto e' grosso
+#    12 cm alla base e la campana a terra e' larga 42.
+#
+# Il resto e' la mano del fabbro: base a gradini coi bulloni d'ottone,
+# fusto tornito col collarino, quattro RICCI che reggono il piattino,
+# la lanterna PANCIUTA (tonda e svasata, con la gabbia dei montanti e
+# la cintura d'ottone), il cappello a pagoda con la falda concava e lo
+# sporto largo, il pomello. La OmniLight resta identica — colore,
+# energia, raggio e posizione (0, 2.14, 0), dentro il vetro.
 static func _streetlamp() -> Node3D:
 	var n := Node3D.new()
-	var metal := _mat(METAL, Color("6f665b"), 5.0, 0.4)
-	_cyl(n, 0.14, 0.18, 0.1, metal, Vector3(0, 0.05, 0))
-	_cyl(n, 0.035, 0.05, 2.0, metal, Vector3(0, 1.0, 0))
-	_box(n, Vector3(0.24, 0.06, 0.24), metal, Vector3(0, 2.02, 0))
-	_box(n, Vector3(0.17, 0.2, 0.17), _glow(Color("ffe6b0"), Color("ffd382"), 2.0), Vector3(0, 2.14, 0))
-	var cap := _cyl(n, 0.02, 0.14, 0.12, metal, Vector3(0, 2.3, 0))
-	cap.name = "cap"
+	var ferro := _mat(Color("3f4a42"), Color("2a322c"), 5.0, 0.35)
+	var ferro_c := _mat(Color("4d5a50"), Color("343d37"), 5.0, 0.4)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	var erba := _mat(Color("8aa870"), Color("6f8d58"), 5.0, 0.5)
+	# il miele: ambra VERA, non bianco. L'emissione a 2.0 del vecchio
+	# vetro saturava a bianco e la lanterna sembrava spenta di giorno.
+	var vetro := _glow(Color("ffdc95"), Color("ffb545"), 1.35)
+	var cuore := _glow(Color("fff4dc"), Color("ffcf7a"), 3.0)
+
+	# LA BASE. La piastra a terra e' OTTAGONALE, coi bulloni a testa
+	# esagonale: una campana tonda dentro la propria ombra e' un blob
+	# nero senza un appiglio, mentre gli spigoli dell'ottagono la
+	# silhouette li legge da lontano — ed e' il segno che dice «questo
+	# lampione l'ha piantato qualcuno».
+	var piastra := _cyl(n, 0.222, 0.230, 0.028, ferro, Vector3(0, 0.014, 0))
+	(piastra.mesh as CylinderMesh).radial_segments = 8
+	piastra.rotation.y = PI / 8.0
+	for bl in 4:
+		var ab := float(bl) * TAU / 4.0 + PI * 0.25
+		var bullone := _cyl(n, 0.020, 0.022, 0.020, ottone,
+				Vector3(cos(ab) * 0.176, 0.038, sin(ab) * 0.176))
+		(bullone.mesh as CylinderMesh).radial_segments = 6
+	# sopra la piastra, la campana tornita che raccoglie il fusto
+	BUILDER.lathe(n, [Vector2(0.196, 0.026), Vector2(0.198, 0.044),
+			Vector2(0.172, 0.062), Vector2(0.152, 0.076), Vector2(0.154, 0.092),
+			Vector2(0.128, 0.110), Vector2(0.095, 0.142), Vector2(0.074, 0.174),
+			Vector2(0.066, 0.190)], ferro)
+
+	# IL FUSTO tornito, col collarino d'ottone a meta' e la ripresa
+	BUILDER.lathe(n, [Vector2(0.062, 0.190), Vector2(0.058, 0.30),
+			Vector2(0.052, 0.62), Vector2(0.050, 0.86), Vector2(0.056, 0.885),
+			Vector2(0.056, 0.925), Vector2(0.048, 0.95), Vector2(0.044, 1.20),
+			Vector2(0.041, 1.50), Vector2(0.040, 1.68), Vector2(0.046, 1.72),
+			Vector2(0.052, 1.745), Vector2(0.072, 1.80), Vector2(0.076, 1.825)],
+			ferro)
+	_cyl(n, 0.060, 0.060, 0.042, ottone, Vector3(0, 0.905, 0))
+
+	# I QUATTRO RICCI che reggono il piattino: volute di ferro battuto
+	# che partono dal fusto e si aprono fino all'orlo
+	for rc in 4:
+		var ar := float(rc) * TAU / 4.0 + PI * 0.25
+		var cx := cos(ar)
+		var cz := sin(ar)
+		BUILDER.tube(n, [
+				Vector3(cx * 0.044, 1.615, cz * 0.044),
+				Vector3(cx * 0.112, 1.640, cz * 0.112),
+				Vector3(cx * 0.152, 1.706, cz * 0.152),
+				Vector3(cx * 0.150, 1.782, cz * 0.150),
+				Vector3(cx * 0.126, 1.842, cz * 0.126)],
+				[0.014, 0.013, 0.012, 0.011, 0.009], ferro_c)
+
+	# IL PIATTINO su cui poggia la lanterna
+	BUILDER.lathe(n, [Vector2(0.163, 1.828), Vector2(0.166, 1.848),
+			Vector2(0.148, 1.864), Vector2(0.126, 1.876), Vector2(0.122, 1.888)],
+			ferro)
+
+	# LA LANTERNA: vetro PANCIUTO e svasato (una lanterna tonda si
+	# accende meglio di una scatola: la luce le gira attorno), col
+	# cuore piu' caldo dentro, dove sta la OmniLight
+	BUILDER.lathe(n, [Vector2(0.118, 1.884), Vector2(0.131, 1.925),
+			Vector2(0.134, 1.985), Vector2(0.128, 2.070), Vector2(0.112, 2.150),
+			Vector2(0.094, 2.205)], vetro)
+	_ball(n, 0.062, cuore, Vector3(0, 2.075, 0), Vector3(1.0, 1.35, 1.0))
+
+	# LA GABBIA: sei montanti che seguono la pancia, e la cintura d'ottone
+	for mt in 6:
+		var am := float(mt) * TAU / 6.0
+		var mx := cos(am)
+		var mz := sin(am)
+		BUILDER.tube(n, [
+				Vector3(mx * 0.121, 1.882, mz * 0.121),
+				Vector3(mx * 0.136, 1.945, mz * 0.136),
+				Vector3(mx * 0.131, 2.060, mz * 0.131),
+				Vector3(mx * 0.114, 2.152, mz * 0.114),
+				Vector3(mx * 0.098, 2.212, mz * 0.098)],
+				[0.011, 0.011, 0.010, 0.010, 0.010], ferro)
+	# la cintura e' una FASCIA tornita che abbraccia la pancia, non un
+	# toro: il toro schiacciato leggeva come un elastico molle appeso
+	# di sbieco, ed era la prima cosa che l'occhio prendeva
+	BUILDER.lathe(n, [Vector2(0.134, 2.000), Vector2(0.142, 2.010),
+			Vector2(0.143, 2.034), Vector2(0.135, 2.046)], ottone)
+
+	# LA CORNICE sotto il cappello, il CAPPELLO a pagoda con la falda
+	# concava e lo sporto largo, l'anello e il pomello
+	BUILDER.lathe(n, [Vector2(0.098, 2.198), Vector2(0.118, 2.212),
+			Vector2(0.122, 2.232), Vector2(0.112, 2.244)], ferro)
+	BUILDER.lathe(n, [Vector2(0.208, 2.234), Vector2(0.212, 2.250),
+			Vector2(0.194, 2.266), Vector2(0.156, 2.294), Vector2(0.116, 2.326),
+			Vector2(0.078, 2.360), Vector2(0.048, 2.392), Vector2(0.026, 2.418),
+			Vector2(0.014, 2.432)], ferro)
+	# il pomello e' una GHIANDA tornita — collarino, pancia, punta —
+	# non una pallina con un capezzolo sopra
+	BUILDER.lathe(n, [Vector2(0.020, 2.432), Vector2(0.030, 2.440),
+			Vector2(0.031, 2.452), Vector2(0.024, 2.460), Vector2(0.033, 2.474),
+			Vector2(0.034, 2.492), Vector2(0.026, 2.512), Vector2(0.013, 2.530),
+			Vector2(0.005, 2.542)], ottone)
+
+	# l'erba al piede, dove la falciatrice gira al largo
+	_ball(n, 0.062, erba, Vector3(-0.135, 0.016, 0.085), Vector3(1.2, 0.5, 0.9))
+	_ball(n, 0.048, erba, Vector3(0.145, 0.012, -0.09), Vector3(1.0, 0.45, 0.85))
+	_ball(n, 0.038, erba, Vector3(0.055, 0.010, 0.165), Vector3(1.1, 0.42, 0.8))
+
+	# la luce di sempre: colore, energia, raggio e posizione INVARIATI
 	var light := OmniLight3D.new()
 	light.light_color = Color(1.0, 0.86, 0.6)
 	light.light_energy = 1.6

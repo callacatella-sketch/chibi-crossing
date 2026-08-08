@@ -549,7 +549,7 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.35,
+    "alto": 1.42,
     "cartella": "docs/catalogo/2-giardino/serra/",
     "cat": 2.0,
     "largo": 1.06,
@@ -630,10 +630,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.69,
+    "alto": 0.73,
     "cartella": "docs/catalogo/2-giardino/fioriera/",
     "cat": 2.0,
-    "largo": 0.98,
+    "largo": 1.02,
     "nome": "Fioriera",
     "slug": "fioriera",
     "tipo": "cell"
@@ -648,10 +648,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 2.36,
+    "alto": 2.56,
     "cartella": "docs/catalogo/2-giardino/lampione/",
-    "cat": 2.0,
-    "largo": 0.36,
+    "cat": 2,
+    "largo": 0.6,
     "nome": "Lampione",
     "slug": "lampione",
     "tipo": "cell"
@@ -659,8 +659,8 @@
   {
     "alto": 0.88,
     "cartella": "docs/catalogo/2-giardino/panchina/",
-    "cat": 2,
-    "largo": 0.94,
+    "cat": 2.0,
+    "largo": 0.95,
     "nome": "Panchina",
     "slug": "panchina",
     "tipo": "cell"
@@ -675,10 +675,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.65,
+    "alto": 2.95,
     "cartella": "docs/catalogo/2-giardino/giostrina/",
     "cat": 2.0,
-    "largo": 0.88,
+    "largo": 2.55,
     "nome": "Giostrina",
     "slug": "giostrina",
     "tipo": "cell"
@@ -756,10 +756,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.2,
+    "alto": 1.24,
     "cartella": "docs/catalogo/2-giardino/frigo-gelati/",
     "cat": 2.0,
-    "largo": 1.0,
+    "largo": 1.17,
     "nome": "Frigo gelati",
     "slug": "frigo-gelati",
     "tipo": "cell"
