@@ -9835,10 +9835,13 @@ static func _fioriera() -> Node3D:
 		_ball(n, rng.randf_range(0.012, 0.018), terra_cupa,
 				Vector3(rng.randf_range(-0.36, 0.36), 0.455,
 				rng.randf_range(-0.08, 0.08)), Vector3(1.2, 0.55, 1.0))
-	# ---- i fiori VERI: stelo sottile che si piega, due foglie lungo lo
-	# stelo (non un fungo alla base), corolla a COPPA di sei petali col
-	# bottone, ogni pianta con la sua altezza e la sua inclinazione
+	# ---- i fiori: petali SAGOMATI (un profilo estruso, stretto
+	# all'attacco e largo in punta — un ellissoide schiacciato è un blob,
+	# non un petalo), sepali sotto la corolla, bottone con l'anello di
+	# stami, foglie LANCEOLATE con la nervatura e il picciolo. Ogni
+	# pianta col suo portamento.
 	var verde := _mat(LEAF, LEAF_DARK, 6.0, 0.55)
+	var verde_cupo := _mat(LEAF_DARK, LEAF_DARK.darkened(0.2), 5.0, 0.45)
 	var petali := [PINK, Color("ffd76e"), Color("cdbff0"), Color("f6c39c")]
 	for i in 6:
 		var x := -0.36 + 0.145 * float(i)
@@ -9851,12 +9854,13 @@ static func _fioriera() -> Node3D:
 		var h := rng.randf_range(0.17, 0.25)
 		BUILDER.tube(fiore, [Vector3(0, 0, 0), Vector3(0.014, h * 0.55, 0.008),
 				Vector3(0.005, h, 0)], [0.009, 0.0075, 0.006], verde, 12, 8)
+		# due foglie lanceolate lungo lo stelo, ognuna col suo verso
 		for fj in 2:
-			var foglia := _ball(fiore, 0.04, verde,
-					Vector3(0.018 + 0.02 * float(fj), h * (0.28 + 0.3 * float(fj)),
-					0.012 - 0.024 * float(fj)), Vector3(1.7, 0.22, 0.65))
-			foglia.rotation.y = rng.randf() * TAU
-			foglia.rotation.z = 0.5    # la foglia punta in su, non a terra
+			var attacco := Vector3(0.011 + 0.004 * float(fj),
+					h * (0.3 + 0.28 * float(fj)), 0.005 - 0.01 * float(fj))
+			_foglia_lanceolata(fiore, verde, verde_cupo, attacco,
+					rng.randf() * TAU, rng.randf_range(0.35, 0.6),
+					rng.randf_range(0.85, 1.15))
 		var c: Color = petali[i % petali.size()]
 		var pmat := _mat(c, c.darkened(0.15), 5.0, 0.4)
 		var corolla := Node3D.new()
@@ -9864,16 +9868,43 @@ static func _fioriera() -> Node3D:
 		corolla.rotation.y = rng.randf() * TAU
 		corolla.rotation.x = rng.randf_range(-0.14, 0.14)
 		fiore.add_child(corolla)
+		# i tre sepali verdi che spuntano SOTTO i petali
+		for sk in 3:
+			var sepalo := Node3D.new()
+			sepalo.rotation.y = TAU / 3.0 * float(sk) + 0.5
+			corolla.add_child(sepalo)
+			var sfoglia := _prisma(sepalo, [Vector2(0.004, 0.0),
+					Vector2(0.016, 0.008), Vector2(0.03, 0.004), Vector2(0.034, 0.0),
+					Vector2(0.03, -0.004), Vector2(0.016, -0.008)],
+					0.0, 0.004, verde)
+			sfoglia.position = Vector3(0.004, -0.006, 0)
+			sfoglia.rotation.z = -0.18    # ricadono appena, come i sepali veri
+		# i sei petali sagomati, a coppa, ognuno col suo millimetro di gioco
 		for k in 6:
 			var petalo := Node3D.new()
-			petalo.rotation.y = TAU / 6.0 * float(k)
+			petalo.rotation.y = TAU / 6.0 * float(k) + rng.randf_range(-0.06, 0.06)
 			corolla.add_child(petalo)
-			var lembo := _ball(petalo, 0.03, pmat, Vector3(0.035, 0.005, 0),
-					Vector3(1.5, 0.26, 0.8))
-			lembo.rotation.z = 0.3    # la coppa: il petalo sale verso fuori
-		_ball(corolla, 0.017, _mat(Color("f2b64f"), Color("d99b36"), 5.0, 0.35),
-				Vector3(0, 0.009, 0), Vector3(1, 0.7, 1))
-	# due bocci ancora chiusi: una fioriera vera non fiorisce tutta insieme
+			var lembo := _prisma(petalo, [Vector2(0.004, 0.0),
+					Vector2(0.017, 0.012), Vector2(0.038, 0.016), Vector2(0.051, 0.01),
+					Vector2(0.056, 0.0), Vector2(0.051, -0.01), Vector2(0.038, -0.016),
+					Vector2(0.017, -0.012)], 0.0, 0.005, pmat)
+			lembo.position = Vector3(0.008, 0.004, 0)
+			lembo.rotation.z = 0.3 + rng.randf_range(-0.07, 0.07)   # la coppa
+			var s := rng.randf_range(0.92, 1.06)
+			lembo.scale = Vector3(s, 1, s)
+		# il bottone bombato con l'anello di stami attorno
+		_ball(corolla, 0.015, _mat(Color("f2b64f"), Color("d99b36"), 5.0, 0.35),
+				Vector3(0, 0.012, 0), Vector3(1, 0.7, 1))
+		var stami := MeshInstance3D.new()
+		var sm := TorusMesh.new()
+		sm.inner_radius = 0.012
+		sm.outer_radius = 0.02
+		stami.mesh = sm
+		stami.material_override = _mat(Color("d99b36"), Color("bd8329"), 5.0, 0.35)
+		stami.position = Vector3(0, 0.009, 0)
+		corolla.add_child(stami)
+	# due bocci ancora chiusi coi sepali stretti attorno: una fioriera
+	# vera non fiorisce tutta insieme
 	for bi in 2:
 		var boccio := Node3D.new()
 		boccio.position = Vector3([-0.29, 0.215][bi], 0.445, [0.08, -0.08][bi])
@@ -9882,10 +9913,19 @@ static func _fioriera() -> Node3D:
 		var bh := rng.randf_range(0.09, 0.13)
 		BUILDER.tube(boccio, [Vector3(0, 0, 0), Vector3(0.008, bh, 0)],
 				[0.008, 0.005], verde, 8, 8)
-		_ball(boccio, 0.019, verde, Vector3(0.008, bh + 0.011, 0),
+		_ball(boccio, 0.017, verde, Vector3(0.008, bh + 0.011, 0),
 				Vector3(0.85, 1.25, 0.85))
 		_ball(boccio, 0.009, _mat(PINK, PINK.darkened(0.15), 5.0, 0.4),
-				Vector3(0.008, bh + 0.032, 0), Vector3(0.9, 1.1, 0.9))
+				Vector3(0.008, bh + 0.03, 0), Vector3(0.9, 1.1, 0.9))
+		for sk2 in 3:
+			var sep := Node3D.new()
+			sep.position = Vector3(0.008, bh + 0.004, 0)
+			sep.rotation.y = TAU / 3.0 * float(sk2)
+			boccio.add_child(sep)
+			var sf := _prisma(sep, [Vector2(0.0, 0.0), Vector2(0.012, 0.006),
+					Vector2(0.024, 0.002), Vector2(0.026, 0.0), Vector2(0.024, -0.002),
+					Vector2(0.012, -0.006)], 0.0, 0.0035, verde)
+			sf.rotation.z = 0.9    # i sepali abbracciano il boccio, in su
 	# ---- i ciuffi d'erbetta fra i fiori: la terra nuda fra una pianta e
 	# l'altra è un'aiuola appena seminata, non una fioriera vissuta
 	for ci in 2:
@@ -9911,15 +9951,56 @@ static func _fioriera() -> Node3D:
 				da + Vector3(0.1 - 0.05 * float(ti), -0.38 + 0.09 * float(ti), -0.05)],
 				[0.008, 0.0075, 0.007, 0.006, 0.005, 0.004], verde, 26, 8)
 		tralcio.name = "Edera%d" % ti
+		# foglie a SCUDETTO col picciolo, alternate lungo il tralcio —
+		# le palline schiacciate erano gocce verdi, non foglie
 		for f in 6 - ti:
 			var t := float(f) / 5.0
 			var fp := da + Vector3(lerpf(0.03, 0.11 - 0.05 * float(ti), t),
 					lerpf(-0.04, -0.36 + 0.08 * float(ti), t),
 					lerpf(-0.075, -0.07, t) - sin(t * PI) * 0.025)
-			var foglia := _ball(n, 0.024, verde, fp, Vector3(1.25, 0.28, 0.85))
+			var foglia := Node3D.new()
+			foglia.position = fp
 			foglia.rotation.y = 0.6 + t * 2.6 + float(ti)
 			foglia.rotation.z = 0.35 - t * 0.55
+			# la foglia guarda in FUORI, col piatto in vista — ma ognuna
+			# con la sua inclinazione: tutte allo stesso angolo, di lato
+			# diventavano una fila di spilli visti di taglio
+			foglia.rotation.x = PI * 0.5 - 0.55 + rng.randf_range(-0.35, 0.35)
+			foglia.scale = Vector3.ONE * rng.randf_range(1.15, 1.35)
+			n.add_child(foglia)
+			var picciolo := _cyl(foglia, 0.0016, 0.0016, 0.012, verde_cupo,
+					Vector3(0.005, 0, 0))
+			picciolo.rotation.z = PI * 0.5
+			_prisma(foglia, [Vector2(0.011, 0.0), Vector2(0.016, 0.011),
+					Vector2(0.027, 0.012), Vector2(0.038, 0.005), Vector2(0.042, 0.0),
+					Vector2(0.038, -0.005), Vector2(0.027, -0.012),
+					Vector2(0.016, -0.011)], -0.0015, 0.003, verde)
 	return n
+
+
+## Una foglia LANCEOLATA vera: il profilo estruso (largo a un terzo,
+## punta fine), la nervatura centrale più scura, il picciolo che la
+## attacca allo stelo. `giro` la orienta attorno allo stelo, `alza` è
+## quanto punta in su, `taglia` scala tutta la foglia.
+static func _foglia_lanceolata(parent: Node3D, verde: Material,
+		nervatura: Material, attacco: Vector3, giro: float, alza: float,
+		taglia: float) -> void:
+	var foglia := Node3D.new()
+	foglia.position = attacco
+	foglia.rotation.y = giro
+	foglia.rotation.z = alza
+	foglia.scale = Vector3.ONE * taglia
+	parent.add_child(foglia)
+	var picciolo := _cyl(foglia, 0.0022, 0.0028, 0.014, verde, Vector3(0.006, 0, 0))
+	picciolo.rotation.z = PI * 0.5
+	_prisma(foglia, [Vector2(0.012, 0.0), Vector2(0.028, 0.011),
+			Vector2(0.05, 0.0125), Vector2(0.068, 0.006), Vector2(0.078, 0.0),
+			Vector2(0.068, -0.006), Vector2(0.05, -0.0125), Vector2(0.028, -0.011)],
+			-0.002, 0.004, verde)
+	# la nervatura centrale, un filo più scuro posato sul dorso
+	var nervo := _cyl(foglia, 0.0016, 0.0016, 0.058, nervatura,
+			Vector3(0.042, 0.0025, 0))
+	nervo.rotation.z = PI * 0.5
 
 
 static func _lucine() -> Node3D:
