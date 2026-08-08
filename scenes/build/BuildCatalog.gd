@@ -2667,9 +2667,14 @@ static func _player_stall() -> Node3D:
 		var stripe := _box(n, Vector3(0.215, 0.028, 0.82), mat_t,
 				Vector3(-0.55 + float(i) * 0.22, 1.565, -0.02))
 		stripe.rotation.x = -0.12
-		# lo smerlo: la mezzaluna appesa al filo davanti della striscia
+		# lo smerlo: le mezzelune appese ai DUE fili della striscia —
+		# davanti e dietro, come nelle bancarelle vere (dal retro, una
+		# fila sola spuntava sopra il colmo come palline)
 		_ball(n, 0.056, mat_t,
 				Vector3(-0.55 + float(i) * 0.22, 1.508, 0.372),
+				Vector3(1.85, 0.72, 0.34))
+		_ball(n, 0.056, mat_t,
+				Vector3(-0.55 + float(i) * 0.22, 1.566, -0.425),
 				Vector3(1.85, 0.72, 0.34))
 
 	# il CARTELLINO di legno sul fianco: appeso allo spago, col nodo
