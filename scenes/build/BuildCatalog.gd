@@ -2608,39 +2608,77 @@ static func _bench() -> Node3D:
 # I pezzi che si comprano dal mercante (con le noccioline o le stelline).
 # Stessa mano pastello del resto del catalogo.
 
-# la bancarella di Mochi: il banco di legno chiaro col tendone menta e
-# crema (MAI rosa: quello è il carretto del mercante), tre piedistalli
-# per la merce esposta e il cartellino di legno sul fianco. La merce vera
-# e i prezzi li mette il sistema Bancarella.gd: qui solo il banco.
+# LA BANCARELLA DI MOCHI: il banco di legno chiaro col tendone menta e
+# crema (MAI rosa: quello e' il carretto del mercante). La merce vera e
+# i prezzi li mette Bancarella.gd, e i suoi POSTI sono cablati a
+# (±0.38, 0.94, 0.02): quota e posizioni dei piedistalli NON si toccano.
+# Qui il banco: doghe stondate con le fughe, piano col naso bombato,
+# piedistalli torniti ad alzatina, tendone con lo SMERLO sul bordo come
+# le bancarelle dei mercati veri, montanti torniti e il cartellino di
+# legno appeso allo spago col suo nodo.
 static func _player_stall() -> Node3D:
 	var n := Node3D.new()
 	var pale := _mat(WOOD_PALE, WOOD, 3.0, 0.45)
 	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
-	# il banco: cassa piena, piano sporgente, zoccolo
-	_box(n, Vector3(1.16, 0.08, 0.62), wood, Vector3(0, 0.04, 0))
-	_box(n, Vector3(1.08, 0.72, 0.5), pale, Vector3(0, 0.44, 0))
-	_box(n, Vector3(1.26, 0.07, 0.62), wood, Vector3(0, 0.83, 0))
-	# la fascia frontale coi listelli
-	for i in 5:
-		_box(n, Vector3(0.16, 0.5, 0.03), wood, Vector3(-0.44 + float(i) * 0.22, 0.5, 0.26))
-	# i montanti e il tendone a strisce menta e crema
-	for sx: float in [-0.56, 0.56]:
-		_box(n, Vector3(0.06, 1.5, 0.06), wood, Vector3(sx, 0.78, -0.18))
-	for i in 6:
-		var stripe := _box(n, Vector3(0.22, 0.045, 0.78),
-				_mat(Color("9fd8cf"), Color("86c2b8"), 4.0, 0.4) if i % 2 == 0 \
-				else _mat(CREAM, Color("f0e2cc"), 4.0, 0.4),
-				Vector3(-0.55 + float(i) * 0.22, 1.56, -0.02))
-		stripe.rotation.z = 0.07
-		stripe.rotation.x = -0.12
-	# i tre piedistalli della merce (gli stessi offset che usa Bancarella.gd)
+	var scuro := _mat(WOOD_DARK, Color("8a6540"), 4.0, 0.5)
+	var menta := _mat(Color("9fd8cf"), Color("86c2b8"), 4.0, 0.4)
+	var crema := _mat(CREAM, Color("f0e2cc"), 4.0, 0.4)
+	var spago := _mat(Color("d9c08a"), Color("c0a878"), 10.0, 0.4)
+
+	# lo zoccolo scuro e la cassa stondata
+	var zocc := _prisma(n, _rrect_xz(1.16, 0.60, 0.04), 0.0, 0.09, scuro)
+	zocc.position.z = 0.0
+	var cassa := _prisma(n, _rrect_xz(1.06, 0.48, 0.035), 0.09, 0.70, pale)
+	cassa.position.z = 0.0
+	# le DOGHE verticali sul fronte, con le fughe vere
+	var xd := -0.46
+	for d in 6:
+		var wd: float = [0.155, 0.135, 0.150, 0.140, 0.155, 0.145][d]
+		var doga := _prisma(n, _rrect_xz(wd, 0.045, 0.014), 0.13, 0.62, wood)
+		doga.position = Vector3(xd + wd * 0.5, 0.0, 0.245)
+		xd += wd + 0.012
+	# il PIANO col naso bombato che sporge tutt'attorno
+	var piano := _prisma(n, _rrect_xz(1.24, 0.60, 0.045), 0.79, 0.075, wood)
+	piano.position.z = 0.0
+	var naso := _cyl(n, 0.026, 0.026, 1.18, wood, Vector3(0, 0.845, 0.295))
+	naso.rotation.z = PI * 0.5
+
+	# i TRE PIEDISTALLI torniti ad alzatina (cima a 0.915: la merce di
+	# Bancarella.gd si posa a 0.94, e ci si appoggia giusta)
 	for sx: float in [-0.38, 0.0, 0.38]:
-		_cyl(n, 0.1, 0.11, 0.05, wood, Vector3(sx, 0.89, 0.02))
-	# il cartellino di legno appeso sul fianco, con lo spago
-	var targa := _box(n, Vector3(0.26, 0.18, 0.03), pale, Vector3(0.66, 0.62, 0.12))
-	targa.rotation.z = -0.08
-	_cyl(n, 0.008, 0.008, 0.14, _mat(Color("d9c08a"), Color("c0a878"), 10.0, 0.4),
-			Vector3(0.64, 0.76, 0.12))
+		_cyl(n, 0.052, 0.062, 0.022, wood, Vector3(sx, 0.876, 0.02))
+		_cyl(n, 0.024, 0.030, 0.022, wood, Vector3(sx, 0.895, 0.02))
+		_cyl(n, 0.098, 0.086, 0.016, wood, Vector3(sx, 0.905, 0.02))
+		_cyl(n, 0.102, 0.098, 0.007, scuro, Vector3(sx, 0.9155, 0.02))
+
+	# i MONTANTI torniti col pomello, e la traversa
+	for sx2: float in [-0.56, 0.56]:
+		_cyl(n, 0.026, 0.034, 1.46, wood, Vector3(sx2, 0.80, -0.18))
+		_cyl(n, 0.030, 0.030, 0.016, scuro, Vector3(sx2, 1.538, -0.18))
+		_ball(n, 0.034, wood, Vector3(sx2, 1.576, -0.18))
+	var trave := _cyl(n, 0.018, 0.018, 1.10, wood, Vector3(0, 1.50, -0.18))
+	trave.rotation.z = PI * 0.5
+
+	# il TENDONE a strisce menta e crema, con lo SMERLO sul bordo:
+	# sei doghe inclinate, e sotto il filo davanti le mezzelune che
+	# fanno «mercato» da qualunque distanza
+	for i in 6:
+		var mat_t: Material = menta if i % 2 == 0 else crema
+		var stripe := _box(n, Vector3(0.215, 0.028, 0.82), mat_t,
+				Vector3(-0.55 + float(i) * 0.22, 1.565, -0.02))
+		stripe.rotation.x = -0.12
+		# lo smerlo: la mezzaluna appesa al filo davanti della striscia
+		_ball(n, 0.056, mat_t,
+				Vector3(-0.55 + float(i) * 0.22, 1.508, 0.372),
+				Vector3(1.85, 0.72, 0.34))
+
+	# il CARTELLINO di legno sul fianco: appeso allo spago, col nodo
+	var targa := _lastra(n, 0.115, 0.17, 0.025, 0.022, pale,
+			Vector3(0.645, 0.60, 0.12), Vector3(0, 0, -0.08))
+	targa.rotation.y = PI * 0.5
+	var filo := _cyl(n, 0.007, 0.007, 0.15, spago, Vector3(0.635, 0.755, 0.115))
+	filo.rotation.x = 0.12
+	_ball(n, 0.013, spago, Vector3(0.633, 0.826, 0.112))
 	return n
 
 

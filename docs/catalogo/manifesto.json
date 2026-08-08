@@ -117,21 +117,21 @@
     "tipo": "cell"
   },
   {
-    "alto": 2.85,
-    "cartella": "docs/catalogo/0-struttura/guardiola/",
+    "alto": 0.47,
+    "cartella": "docs/catalogo/0-struttura/tenda-bar/",
     "cat": 0.0,
-    "largo": 1.72,
-    "nome": "Guardiola",
-    "slug": "guardiola",
-    "tipo": "cell"
+    "largo": 0.98,
+    "nome": "Tenda bar",
+    "slug": "tenda-bar",
+    "tipo": "edge"
   },
   {
-    "alto": 1.08,
-    "cartella": "docs/catalogo/0-struttura/autopompa/",
+    "alto": 0.67,
+    "cartella": "docs/catalogo/0-struttura/gradinata/",
     "cat": 0.0,
-    "largo": 1.84,
-    "nome": "Autopompa",
-    "slug": "autopompa",
+    "largo": 1.06,
+    "nome": "Gradinata",
+    "slug": "gradinata",
     "tipo": "cell"
   },
   {
