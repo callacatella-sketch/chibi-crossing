@@ -258,7 +258,14 @@ static func items() -> Array[Dictionary]:
 		{"name": "Carillon", "cat": 1, "type": "cell", "layer": 2, "builder": _musicbox,
 			"cols": [[Vector3(0.45, 0.75, 0.4), Vector3(0, 0.37, 0)]]},
 		{"name": "Serra", "cat": 2, "type": "cell", "layer": 2, "builder": _greenhouse,
-			"cols": [[Vector3(0.98, 1.35, 0.98), Vector3(0, 0.67, 0)]]},
+			"cols": [[Vector3(2.0, 1.9, 0.12), Vector3(0, 0.95, 0.95)],
+					[Vector3(0.12, 1.9, 2.0), Vector3(-0.95, 0.95, 0)],
+					[Vector3(0.12, 1.9, 2.0), Vector3(0.95, 0.95, 0)],
+					[Vector3(0.64, 1.9, 0.12), Vector3(-0.68, 0.95, -0.95)],
+					[Vector3(0.64, 1.9, 0.12), Vector3(0.68, 0.95, -0.95)],
+					[Vector3(0.8, 0.42, 0.12), Vector3(0, 1.76, -0.95)],
+					[Vector3(0.5, 1.0, 1.6), Vector3(0.70, 0.5, 0.1)],
+					[Vector3(0.5, 0.62, 1.6), Vector3(-0.70, 0.31, 0.1)]]},
 		{"name": "Mongolfiera", "cat": 2, "type": "cell", "layer": 2, "builder": _balloon,
 			"cols": [[Vector3(0.6, 0.7, 0.6), Vector3(0, 0.35, 0)],
 					[Vector3(1.05, 1.3, 1.05), Vector3(0, 2.05, 0)]]},
@@ -3283,19 +3290,23 @@ static func _musicbox() -> Node3D:
 # la serra: un giardino di vetro col telaio chiaro e il tetto a capanna.
 # Dentro, due vasi che sognano l'estate anche a gennaio.
 static func _greenhouse() -> Node3D:
-	# LA SERRA: il sogno del mercante, e si vede. La grammatica è quella
-	# della serra vittoriana: il muretto basso di zoccolo su cui POSANO i
-	# vetri (una serra vera non pianta il vetro nella terra), la porta col
-	# suo pomello, i vetri a RIQUADRI — montanti e traversi sopra le
-	# lastre: è la griglia a dire «serra» — i timpani chiusi di vetro, i
-	# correntini sulle falde e il colmo coi pomoli d'ottone. Dentro, il
-	# mestiere: il bancone da rinvaso coi vasetti, l'annaffiatoio, la
-	# pila di vasi di scorta, e il verde che non teme l'inverno.
+	# LA SERRA: il sogno del mercante — e ora è una serra VERA, grande due
+	# celle e VISITABILE: le collisioni (nella voce a catalogo) sono un
+	# guscio CAVO come la Guardiola — pareti e banconi solidi, la porta
+	# libera — e dentro c'è una stanza da attraversare: la corsia di
+	# pietra, il bancone da rinvaso a destra, l'aiuola rialzata a
+	# sinistra, il cesto appeso al colmo. La grammatica resta vittoriana:
+	# muretto di zoccolo col coprimuro, porte alla francese APERTE (le
+	# ante accostate dentro, ai lati), vetri a riquadri, timpani chiusi,
+	# correntini e pomoli d'ottone sul colmo.
 	var n := Node3D.new()
 	var telaio := _mat(Color("e8e2d2"), Color("cfc8b4"), 4.0, 0.4)
 	var chiaro := _mat(WOOD_PALE, WOOD, 3.5, 0.5)
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
 	var cotto := _mat(TERRACOTTA, Color("c47a58"), 3.0, 0.5)
+	var verde := _mat(LEAF, LEAF_DARK, 4.0, 0.5)
+	var pietra := _mat(STONE, STONE_DARK, 4.0, 0.45)
 	var glass := StandardMaterial3D.new()
 	glass.albedo_color = Color(0.81, 0.91, 0.96, 0.42)
 	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -3304,122 +3315,146 @@ static func _greenhouse() -> Node3D:
 	glass.emission_energy_multiplier = 0.25
 	glass.roughness = 0.15
 
-	# ---- lo zoccolo di pietra e il MURETTO basso (interrotto alla porta)
-	_box(n, Vector3(1.0, 0.06, 1.0), _mat(STONE, STONE_DARK, 4.0, 0.45), Vector3(0, 0.03, 0))
-	_box(n, Vector3(0.98, 0.18, 0.06), telaio, Vector3(0, 0.15, 0.46))
+	# ---- la platea, il gradino d'ingresso e la corsia interna
+	_box(n, Vector3(2.0, 0.06, 2.0), pietra, Vector3(0, 0.03, 0))
+	_box(n, Vector3(0.76, 0.04, 0.22), pietra, Vector3(0, 0.02, -1.09))
+	for pz: float in [-0.72, -0.28, 0.16, 0.60]:
+		_box(n, Vector3(0.52, 0.014, 0.38), telaio, Vector3(0, 0.067, pz))
+
+	# ---- il muretto col coprimuro (interrotto alla porta)
+	_box(n, Vector3(1.92, 0.24, 0.07), telaio, Vector3(0, 0.18, 0.955))
 	for sx0: float in [-1.0, 1.0]:
-		_box(n, Vector3(0.06, 0.18, 0.98), telaio, Vector3(sx0 * 0.46, 0.15, 0))
-		_box(n, Vector3(0.32, 0.18, 0.06), telaio, Vector3(sx0 * 0.33, 0.15, -0.46))
-	_box(n, Vector3(1.0, 0.03, 0.075), telaio, Vector3(0, 0.255, 0.462))
+		_box(n, Vector3(0.07, 0.24, 1.92), telaio, Vector3(sx0 * 0.955, 0.18, 0))
+		_box(n, Vector3(0.56, 0.24, 0.07), telaio, Vector3(sx0 * 0.67, 0.18, -0.955))
+	_box(n, Vector3(2.0, 0.035, 0.09), telaio, Vector3(0, 0.317, 0.955))
 	for sx1: float in [-1.0, 1.0]:
-		_box(n, Vector3(0.075, 0.03, 1.0), telaio, Vector3(sx1 * 0.462, 0.255, 0))
-		_box(n, Vector3(0.33, 0.03, 0.075), telaio, Vector3(sx1 * 0.335, 0.255, -0.462))
+		_box(n, Vector3(0.09, 0.035, 2.0), telaio, Vector3(sx1 * 0.955, 0.317, 0))
+		_box(n, Vector3(0.58, 0.035, 0.09), telaio, Vector3(sx1 * 0.68, 0.317, -0.955))
 
-	# ---- i quattro montanti d'angolo
-	for sx: float in [-0.46, 0.46]:
-		for sz: float in [-0.46, 0.46]:
-			_box(n, Vector3(0.07, 0.95, 0.07), telaio, Vector3(sx, 0.51, sz))
+	# ---- i montanti: angoli e intermedi
+	for sx: float in [-0.955, 0.955]:
+		for sz: float in [-0.955, 0.955]:
+			_box(n, Vector3(0.09, 1.60, 0.09), telaio, Vector3(sx, 1.12, sz))
+	for mi: float in [-0.34, 0.34]:
+		_box(n, Vector3(0.07, 1.52, 0.07), telaio, Vector3(mi, 1.09, 0.955))
+		for sx2: float in [-1.0, 1.0]:
+			_box(n, Vector3(0.07, 1.52, 0.07), telaio, Vector3(sx2 * 0.955, 1.09, mi))
 
-	# ---- i VETRI sul muretto, coi montanti intermedi e il traverso:
-	# è la griglia dei riquadri a dire «serra»
-	_box(n, Vector3(0.92, 0.675, 0.03), glass, Vector3(0, 0.6, 0.46))
-	_box(n, Vector3(0.045, 0.675, 0.045), telaio, Vector3(0, 0.6, 0.46))
-	_box(n, Vector3(0.92, 0.04, 0.04), telaio, Vector3(0, 0.62, 0.455))
-	for sx2: float in [-1.0, 1.0]:
-		_box(n, Vector3(0.03, 0.675, 0.92), glass, Vector3(sx2 * 0.46, 0.6, 0))
-		for mz: float in [-0.155, 0.155]:
-			_box(n, Vector3(0.045, 0.675, 0.045), telaio, Vector3(sx2 * 0.46, 0.6, mz))
-		_box(n, Vector3(0.04, 0.04, 0.92), telaio, Vector3(sx2 * 0.455, 0.62, 0))
-		# i due vetri del fronte, ai lati della porta
-		_box(n, Vector3(0.26, 0.675, 0.03), glass, Vector3(sx2 * 0.33, 0.6, -0.46))
-		_box(n, Vector3(0.26, 0.04, 0.04), telaio, Vector3(sx2 * 0.33, 0.62, -0.455))
+	# ---- i VETRI sul muretto, coi traversi affogati (la griglia dei
+	# riquadri è ciò che dice «serra»)
+	_box(n, Vector3(1.86, 1.52, 0.035), glass, Vector3(0, 1.09, 0.95))
+	for ty: float in [0.92, 1.46]:
+		_box(n, Vector3(1.86, 0.045, 0.04), telaio, Vector3(0, ty, 0.945))
+	for sx3: float in [-1.0, 1.0]:
+		_box(n, Vector3(0.035, 1.52, 1.86), glass, Vector3(sx3 * 0.95, 1.09, 0))
+		for ty2: float in [0.92, 1.46]:
+			_box(n, Vector3(0.04, 0.045, 1.86), telaio, Vector3(sx3 * 0.945, ty2, 0))
+		# il fronte, ai lati della porta
+		_box(n, Vector3(0.5, 1.52, 0.035), glass, Vector3(sx3 * 0.68, 1.09, -0.95))
+		for ty3: float in [0.92, 1.46]:
+			_box(n, Vector3(0.5, 0.045, 0.04), telaio, Vector3(sx3 * 0.68, ty3, -0.945))
+	# il sopraluce della porta
+	_box(n, Vector3(0.78, 0.28, 0.035), glass, Vector3(0, 1.73, -0.95))
 
-	# ---- LA PORTA a vetri, col telaio in rilievo e il pomello d'ottone
+	# ---- LA PORTA alla francese, APERTA: telaio, e le due ante a vetri
+	# accostate DENTRO ai lati dell'apertura — si entra
 	for ds: float in [-1.0, 1.0]:
-		_box(n, Vector3(0.05, 0.88, 0.055), telaio, Vector3(ds * 0.155, 0.50, -0.465))
-	_box(n, Vector3(0.36, 0.05, 0.055), telaio, Vector3(0, 0.915, -0.465))
-	_box(n, Vector3(0.26, 0.80, 0.028), glass, Vector3(0, 0.49, -0.462))
-	_box(n, Vector3(0.24, 0.035, 0.04), telaio, Vector3(0, 0.50, -0.458))
-	_ball(n, 0.022, ottone, Vector3(0.115, 0.47, -0.492))
+		_box(n, Vector3(0.07, 1.62, 0.09), telaio, Vector3(ds * 0.42, 1.10, -0.955))
+	_box(n, Vector3(0.92, 0.07, 0.09), telaio, Vector3(0, 1.60, -0.955))
+	for ante: float in [-1.0, 1.0]:
+		var anta := Node3D.new()
+		anta.position = Vector3(ante * 0.565, 0, -0.89)
+		n.add_child(anta)
+		_box(anta, Vector3(0.38, 1.50, 0.028), glass, Vector3(0, 0.815, 0))
+		for ay: float in [0.10, 0.815, 1.53]:
+			_box(anta, Vector3(0.38, 0.045, 0.04), telaio, Vector3(0, ay, 0))
+		for ax: float in [-0.17, 0.17]:
+			_box(anta, Vector3(0.04, 1.48, 0.04), telaio, Vector3(ax, 0.815, 0))
+		_ball(n, 0.020, ottone, Vector3(ante * 0.40, 0.80, -0.865))
 
-	# ---- l'anello di gronda APERTO (niente coperchio: dal vetro delle
-	# falde si vede il verde), le falde coi correntini, i timpani chiusi,
-	# il colmo coi pomoli
+	# ---- gronda aperta, falde coi correntini, timpani, colmo coi pomoli
 	for gz: float in [-1.0, 1.0]:
-		_box(n, Vector3(1.0, 0.05, 0.07), telaio, Vector3(0, 0.96, gz * 0.465))
+		_box(n, Vector3(2.0, 0.06, 0.09), telaio, Vector3(0, 1.92, gz * 0.955))
 	for gx: float in [-1.0, 1.0]:
-		_box(n, Vector3(0.07, 0.05, 0.86), telaio, Vector3(gx * 0.465, 0.96, 0))
+		_box(n, Vector3(0.09, 0.06, 1.82), telaio, Vector3(gx * 0.955, 1.92, 0))
+	var passo := 0.4636
 	for lato: float in [-1.0, 1.0]:
-		var falda := _box(n, Vector3(1.02, 0.03, 0.62), glass, Vector3(0, 1.17, lato * 0.26))
-		falda.rotation.x = lato * 0.56
-		for rx: float in [-0.31, 0.0, 0.31]:
-			var corrente := _box(n, Vector3(0.045, 0.026, 0.60), telaio,
-					Vector3(rx, 1.185, lato * 0.26))
-			corrente.rotation.x = lato * 0.56
-		# LA TRAVE STA SUL BORDO BASSO DELLA FALDA, e quel bordo si CALCOLA
-		# (alla quota del colmo restava sospesa in aria: gronda = centro
-		# della falda più mezza falda lungo la pendenza)
-		var gronda := Vector3(0, -sin(0.56), lato * cos(0.56)) * 0.30
-		var trave := _box(n, Vector3(1.04, 0.05, 0.06), telaio,
-				Vector3(0, 1.15, lato * 0.26) + gronda)
-		trave.rotation.x = lato * 0.56
-	# i timpani: due triangoli di vetro che CHIUDONO i fianchi del tetto
-	# (_prisma disegna in XZ ed estrude in Y: ruotato di 90° sta in piedi)
+		var falda := _box(n, Vector3(2.04, 0.03, 1.14), glass, Vector3(0, 2.17, lato * 0.5))
+		falda.rotation.x = lato * passo
+		for rx: float in [-0.80, -0.28, 0.28, 0.80]:
+			var corrente := _box(n, Vector3(0.05, 0.028, 1.10), telaio,
+					Vector3(rx, 2.185, lato * 0.5))
+			corrente.rotation.x = lato * passo
+		var gronda := Vector3(0, -sin(passo), lato * cos(passo)) * 0.559
+		var trave := _box(n, Vector3(2.06, 0.05, 0.07), telaio,
+				Vector3(0, 2.17, lato * 0.5) + gronda)
+		trave.rotation.x = lato * passo
 	for tx: float in [-1.0, 1.0]:
-		var timpano := _prisma(n, [Vector2(-0.49, 0.0), Vector2(0.49, 0.0),
-				Vector2(0.0, 0.34)], 0.0, 0.026, glass)
-		# la Basis di permutazione mette in piedi il profilo: la larghezza
-		# del triangolo va in Z, l'altezza in Y, lo spessore in X
+		var timpano := _prisma(n, [Vector2(-0.98, 0.0), Vector2(0.98, 0.0),
+				Vector2(0.0, 0.50)], 0.0, 0.028, glass)
 		timpano.basis = Basis(Vector3(0, 0, 1), Vector3(1, 0, 0), Vector3(0, 1, 0))
-		timpano.position = Vector3(tx * 0.46 - 0.013, 0.985, 0)
-	_box(n, Vector3(1.06, 0.06, 0.06), telaio, Vector3(0, 1.32, 0))
+		timpano.position = Vector3(tx * 0.95 - 0.014, 1.95, 0)
+		_box(n, Vector3(0.035, 0.46, 0.05), telaio, Vector3(tx * 0.955, 2.17, 0))
+	_box(n, Vector3(2.14, 0.07, 0.07), telaio, Vector3(0, 2.44, 0))
 	for fx: float in [-1.0, 1.0]:
-		_cyl(n, 0.011, 0.014, 0.028, ottone, Vector3(fx * 0.50, 1.363, 0))
-		_ball(n, 0.024, ottone, Vector3(fx * 0.50, 1.392, 0))
+		_cyl(n, 0.012, 0.016, 0.03, ottone, Vector3(fx * 1.0, 2.49, 0))
+		_ball(n, 0.026, ottone, Vector3(fx * 1.0, 2.52, 0))
 
-	# ---- DENTRO, il mestiere: il bancone da rinvaso coi vasetti (uno
-	# fiorito), l'annaffiatoio col beccuccio e la rosetta, la pila di
-	# vasi di scorta, e i due sempreverdi
-	_box(n, Vector3(0.24, 0.025, 0.64), chiaro, Vector3(0.30, 0.42, 0.06))
-	for lz: float in [-0.20, 0.32]:
-		for lx: float in [0.21, 0.39]:
-			_box(n, Vector3(0.03, 0.40, 0.03), chiaro, Vector3(lx, 0.21, lz))
-	for vk in 2:
-		var vx := 0.26 + float(vk) * 0.11
-		var vz := -0.10 + float(vk) * 0.22
-		_cyl(n, 0.042, 0.05, 0.07, cotto, Vector3(vx, 0.467, vz))
-		_ball(n, 0.05, _mat(LEAF, LEAF_DARK, 4.0, 0.5), Vector3(vx, 0.535, vz),
-				Vector3(1.0, 0.8, 1.0))
+	# ---- DENTRO: il bancone da rinvaso a destra, coi vasetti e
+	# l'annaffiatoio sul ripiano basso
+	_box(n, Vector3(0.36, 0.03, 1.5), chiaro, Vector3(0.70, 0.52, 0.1))
+	_box(n, Vector3(0.32, 0.022, 1.4), chiaro, Vector3(0.70, 0.22, 0.1))
+	for lz: float in [-0.58, 0.78]:
+		for lx: float in [0.56, 0.84]:
+			_box(n, Vector3(0.035, 0.50, 0.035), chiaro, Vector3(lx, 0.26, lz + 0.02))
+	for vk in 3:
+		var vx := 0.62 + float(vk % 2) * 0.16
+		var vz := -0.38 + float(vk) * 0.42
+		_cyl(n, 0.05, 0.06, 0.085, cotto, Vector3(vx, 0.578, vz))
+		_ball(n, 0.06, verde, Vector3(vx, 0.66, vz), Vector3(1.0, 0.8, 1.0))
 	for fk in 3:
 		var fa := float(fk) * TAU / 3.0 + 0.4
-		_ball(n, 0.013, _mat(PINK, PINK_DEEP, 5.0, 0.4),
-				Vector3(0.26 + cos(fa) * 0.032, 0.568, -0.10 + sin(fa) * 0.032))
-	_cyl(n, 0.045, 0.052, 0.055, cotto, Vector3(0.31, 0.095, -0.34))
-	_cyl(n, 0.045, 0.052, 0.055, cotto, Vector3(0.33, 0.15, -0.33))
-	# l'annaffiatoio: corpo, beccuccio con la rosetta, manico
+		_ball(n, 0.015, _mat(PINK, PINK_DEEP, 5.0, 0.4),
+				Vector3(0.62 + cos(fa) * 0.038, 0.70, -0.38 + sin(fa) * 0.038))
 	var latta := _mat(Color("8aa89a"), Color("6f8d80"), 4.0, 0.4)
-	_cyl(n, 0.062, 0.07, 0.13, latta, Vector3(-0.30, 0.125, 0.30))
-	var becco := _cyl(n, 0.011, 0.014, 0.15, latta, Vector3(-0.21, 0.15, 0.25))
-	becco.rotation.z = -1.05
-	becco.rotation.y = 0.5
-	_cyl(n, 0.024, 0.016, 0.02, latta, Vector3(-0.155, 0.185, 0.22))
-	var manico := MeshInstance3D.new()
-	var mm := TorusMesh.new()
-	mm.inner_radius = 0.035
-	mm.outer_radius = 0.052
-	mm.rings = 20
-	mm.ring_segments = 6
-	manico.mesh = mm
-	manico.material_override = latta
-	manico.position = Vector3(-0.345, 0.20, 0.335)
-	manico.rotation.z = PI * 0.5
-	manico.rotation.y = 0.5
-	n.add_child(manico)
-	# i due sempreverdi nei vasi grandi
-	for sx3: float in [-0.24, -0.02]:
-		_cyl(n, 0.09, 0.11, 0.14, cotto, Vector3(sx3, 0.13, sx3 * 0.8 + 0.02))
-		_ball(n, 0.11, _mat(LEAF, LEAF_DARK, 4.0, 0.5),
-				Vector3(sx3, 0.27, sx3 * 0.8 + 0.02), Vector3(1.0, 0.85, 1.0))
+	_cyl(n, 0.062, 0.07, 0.13, latta, Vector3(0.70, 0.296, 0.62))
+	var becco := _cyl(n, 0.011, 0.014, 0.15, latta, Vector3(0.61, 0.32, 0.57))
+	becco.rotation.z = 1.05
+	becco.rotation.y = -0.5
+	_cyl(n, 0.024, 0.016, 0.02, latta, Vector3(0.555, 0.355, 0.54))
+	# la pila di vasi di scorta sotto il bancone
+	_cyl(n, 0.055, 0.065, 0.07, cotto, Vector3(0.70, 0.10, -0.62))
+	_cyl(n, 0.055, 0.065, 0.07, cotto, Vector3(0.72, 0.165, -0.60))
+
+	# ---- l'AIUOLA rialzata a sinistra: la cassa di legno, la terra, e
+	# il verde che non teme l'inverno (coi suoi fiori)
+	_box(n, Vector3(0.44, 0.24, 1.5), legno, Vector3(-0.70, 0.18, 0.1))
+	_box(n, Vector3(0.40, 0.02, 1.46), _mat(Color("5a4636"), Color("46362a"), 3.0, 0.4),
+			Vector3(-0.70, 0.30, 0.1))
+	for ak in 4:
+		var az := -0.5 + float(ak) * 0.40
+		var asc := 0.10 + 0.02 * float(ak % 2)
+		_ball(n, asc, verde, Vector3(-0.70 + 0.06 * float(ak % 2 * 2 - 1),
+				0.33 + asc * 0.6, az + 0.1), Vector3(1.0, 0.8, 1.0))
+	for fk2 in 4:
+		var fb := float(fk2) * TAU / 4.0 + 0.7
+		_ball(n, 0.014, _mat(CREAM, Color("f3dfc8"), 5.0, 0.3),
+				Vector3(-0.70 + cos(fb) * 0.10, 0.44, 0.20 + sin(fb) * 0.10))
+
+	# ---- il cesto APPESO al colmo, alto sopra le teste
+	_cyl(n, 0.006, 0.006, 0.42, _mat(Color("c9b088"), Color("ab9066"), 5.0, 0.5),
+			Vector3(0, 2.20, 0))
+	_cyl(n, 0.07, 0.05, 0.08, cotto, Vector3(0, 1.95, 0))
+	_ball(n, 0.085, verde, Vector3(0, 2.01, 0), Vector3(1.0, 0.65, 1.0))
+	for gk in 3:
+		var ga := float(gk) * TAU / 3.0 + 0.2
+		_ball(n, 0.035, verde, Vector3(cos(ga) * 0.075, 1.93, sin(ga) * 0.075),
+				Vector3(1.0, 1.5, 1.0))
+
+	# ---- i due sempreverdi di sempre, ai lati della porta
+	for sx4: float in [-0.44, 0.44]:
+		_cyl(n, 0.09, 0.11, 0.14, cotto, Vector3(sx4, 0.13, -0.68))
+		_ball(n, 0.11, verde, Vector3(sx4, 0.27, -0.68), Vector3(1.0, 0.85, 1.0))
 	return n
 
 
