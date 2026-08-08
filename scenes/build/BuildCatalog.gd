@@ -1167,15 +1167,55 @@ static func _chair() -> Node3D:
 
 
 static func _stool() -> Node3D:
+	# LO SGABELLO: era un tronco di cono con quattro listelli squadrati
+	# che atterravano di punta (gli spigoli galleggiavano sull'ombra) e
+	# un disco piatto per cuscino. Adesso è tornito come in bottega: il
+	# sedile a bordo tondo, le gambe svasate coi collarini e i piedini,
+	# i pioli incrociati a due altezze, e un cuscino GONFIO col bordino
+	# in cordoncino e il bottone al centro.
 	var n := Node3D.new()
-	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.55)
-	_cyl(n, 0.19, 0.21, 0.06, wood, Vector3(0, 0.4, 0))
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.55)
+	var legno_scuro := _mat(WOOD_DARK, WOOD_DARK.darkened(0.22), 4.0, 0.45)
+	# ---- il sedile, un profilo di tornio a bordo tondo
+	BUILDER.lathe(n, [
+		Vector2(0.0, 0.375), Vector2(0.155, 0.375), Vector2(0.185, 0.385),
+		Vector2(0.196, 0.404), Vector2(0.186, 0.423), Vector2(0.158, 0.432),
+		Vector2(0.0, 0.432),
+	], legno, Vector3.ZERO, 26)
+	# ---- le quattro gambe tornite, svasate, coi collarini e i piedini
 	for i in 4:
-		var a := (float(i) + 0.5) / 4.0 * TAU
-		var leg := _box(n, Vector3(0.05, 0.4, 0.05), wood, Vector3(cos(a) * 0.13, 0.2, sin(a) * 0.13))
-		leg.rotation.z = cos(a) * 0.12
-		leg.rotation.x = -sin(a) * 0.12
-	_cyl(n, 0.16, 0.16, 0.05, _mat(Color("bfe0c8"), Color("a8ccb2"), 5.0, 0.4), Vector3(0, 0.45, 0))
+		var gamba := Node3D.new()
+		gamba.rotation.y = (float(i) + 0.5) / 4.0 * TAU
+		n.add_child(gamba)
+		var fusto := _cyl(gamba, 0.021, 0.024, 0.39, legno, Vector3(0.135, 0.195, 0))
+		fusto.rotation.z = 0.105
+		var collare := _cyl(gamba, 0.029, 0.029, 0.022, legno_scuro, Vector3(0.125, 0.295, 0))
+		collare.rotation.z = 0.105
+		var anello := _cyl(gamba, 0.027, 0.027, 0.014, legno_scuro, Vector3(0.147, 0.085, 0))
+		anello.rotation.z = 0.105
+		_ball(gamba, 0.027, legno_scuro, Vector3(0.155, 0.014, 0), Vector3(1, 0.6, 1))
+	# ---- i pioli incrociati, a due altezze come li fa un falegname
+	for i in 4:
+		var lato := Node3D.new()
+		lato.rotation.y = (float(i) + 1.0) / 4.0 * TAU
+		n.add_child(lato)
+		var alto := i % 2 == 0
+		var piolo := _cyl(lato, 0.011, 0.011, 0.2, legno,
+				Vector3(0.101 if alto else 0.097, 0.175 if alto else 0.13, 0))
+		piolo.rotation.x = PI * 0.5
+	# ---- il cuscino gonfio, col cordoncino e il bottone
+	var stoffa := _mat(Color("bfe0c8"), Color("a8ccb2"), 5.0, 0.4)
+	var stoffa_cupa := _mat(Color("a8ccb2"), Color("93b89e"), 5.0, 0.4)
+	_ball(n, 0.165, stoffa, Vector3(0, 0.455, 0), Vector3(1, 0.31, 1))
+	var cordoncino := MeshInstance3D.new()
+	var cm := TorusMesh.new()
+	cm.inner_radius = 0.148
+	cm.outer_radius = 0.176
+	cordoncino.mesh = cm
+	cordoncino.material_override = stoffa_cupa
+	cordoncino.position = Vector3(0, 0.443, 0)
+	n.add_child(cordoncino)
+	_ball(n, 0.013, stoffa_cupa, Vector3(0, 0.503, 0), Vector3(1, 0.55, 1))
 	return n
 
 
@@ -2568,39 +2608,77 @@ static func _bench() -> Node3D:
 # I pezzi che si comprano dal mercante (con le noccioline o le stelline).
 # Stessa mano pastello del resto del catalogo.
 
-# la bancarella di Mochi: il banco di legno chiaro col tendone menta e
-# crema (MAI rosa: quello è il carretto del mercante), tre piedistalli
-# per la merce esposta e il cartellino di legno sul fianco. La merce vera
-# e i prezzi li mette il sistema Bancarella.gd: qui solo il banco.
+# LA BANCARELLA DI MOCHI: il banco di legno chiaro col tendone menta e
+# crema (MAI rosa: quello e' il carretto del mercante). La merce vera e
+# i prezzi li mette Bancarella.gd, e i suoi POSTI sono cablati a
+# (±0.38, 0.94, 0.02): quota e posizioni dei piedistalli NON si toccano.
+# Qui il banco: doghe stondate con le fughe, piano col naso bombato,
+# piedistalli torniti ad alzatina, tendone con lo SMERLO sul bordo come
+# le bancarelle dei mercati veri, montanti torniti e il cartellino di
+# legno appeso allo spago col suo nodo.
 static func _player_stall() -> Node3D:
 	var n := Node3D.new()
 	var pale := _mat(WOOD_PALE, WOOD, 3.0, 0.45)
 	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
-	# il banco: cassa piena, piano sporgente, zoccolo
-	_box(n, Vector3(1.16, 0.08, 0.62), wood, Vector3(0, 0.04, 0))
-	_box(n, Vector3(1.08, 0.72, 0.5), pale, Vector3(0, 0.44, 0))
-	_box(n, Vector3(1.26, 0.07, 0.62), wood, Vector3(0, 0.83, 0))
-	# la fascia frontale coi listelli
-	for i in 5:
-		_box(n, Vector3(0.16, 0.5, 0.03), wood, Vector3(-0.44 + float(i) * 0.22, 0.5, 0.26))
-	# i montanti e il tendone a strisce menta e crema
-	for sx: float in [-0.56, 0.56]:
-		_box(n, Vector3(0.06, 1.5, 0.06), wood, Vector3(sx, 0.78, -0.18))
-	for i in 6:
-		var stripe := _box(n, Vector3(0.22, 0.045, 0.78),
-				_mat(Color("9fd8cf"), Color("86c2b8"), 4.0, 0.4) if i % 2 == 0 \
-				else _mat(CREAM, Color("f0e2cc"), 4.0, 0.4),
-				Vector3(-0.55 + float(i) * 0.22, 1.56, -0.02))
-		stripe.rotation.z = 0.07
-		stripe.rotation.x = -0.12
-	# i tre piedistalli della merce (gli stessi offset che usa Bancarella.gd)
+	var scuro := _mat(WOOD_DARK, Color("8a6540"), 4.0, 0.5)
+	var menta := _mat(Color("9fd8cf"), Color("86c2b8"), 4.0, 0.4)
+	var crema := _mat(CREAM, Color("f0e2cc"), 4.0, 0.4)
+	var spago := _mat(Color("d9c08a"), Color("c0a878"), 10.0, 0.4)
+
+	# lo zoccolo scuro e la cassa stondata
+	var zocc := _prisma(n, _rrect_xz(1.16, 0.60, 0.04), 0.0, 0.09, scuro)
+	zocc.position.z = 0.0
+	var cassa := _prisma(n, _rrect_xz(1.06, 0.48, 0.035), 0.09, 0.70, pale)
+	cassa.position.z = 0.0
+	# le DOGHE verticali sul fronte, con le fughe vere
+	var xd := -0.46
+	for d in 6:
+		var wd: float = [0.155, 0.135, 0.150, 0.140, 0.155, 0.145][d]
+		var doga := _prisma(n, _rrect_xz(wd, 0.045, 0.014), 0.13, 0.62, wood)
+		doga.position = Vector3(xd + wd * 0.5, 0.0, 0.245)
+		xd += wd + 0.012
+	# il PIANO col naso bombato che sporge tutt'attorno
+	var piano := _prisma(n, _rrect_xz(1.24, 0.60, 0.045), 0.79, 0.075, wood)
+	piano.position.z = 0.0
+	var naso := _cyl(n, 0.026, 0.026, 1.18, wood, Vector3(0, 0.845, 0.295))
+	naso.rotation.z = PI * 0.5
+
+	# i TRE PIEDISTALLI torniti ad alzatina (cima a 0.915: la merce di
+	# Bancarella.gd si posa a 0.94, e ci si appoggia giusta)
 	for sx: float in [-0.38, 0.0, 0.38]:
-		_cyl(n, 0.1, 0.11, 0.05, wood, Vector3(sx, 0.89, 0.02))
-	# il cartellino di legno appeso sul fianco, con lo spago
-	var targa := _box(n, Vector3(0.26, 0.18, 0.03), pale, Vector3(0.66, 0.62, 0.12))
-	targa.rotation.z = -0.08
-	_cyl(n, 0.008, 0.008, 0.14, _mat(Color("d9c08a"), Color("c0a878"), 10.0, 0.4),
-			Vector3(0.64, 0.76, 0.12))
+		_cyl(n, 0.052, 0.062, 0.022, wood, Vector3(sx, 0.876, 0.02))
+		_cyl(n, 0.024, 0.030, 0.022, wood, Vector3(sx, 0.895, 0.02))
+		_cyl(n, 0.098, 0.086, 0.016, wood, Vector3(sx, 0.905, 0.02))
+		_cyl(n, 0.102, 0.098, 0.007, scuro, Vector3(sx, 0.9155, 0.02))
+
+	# i MONTANTI torniti col pomello, e la traversa
+	for sx2: float in [-0.56, 0.56]:
+		_cyl(n, 0.026, 0.034, 1.46, wood, Vector3(sx2, 0.80, -0.18))
+		_cyl(n, 0.030, 0.030, 0.016, scuro, Vector3(sx2, 1.538, -0.18))
+		_ball(n, 0.034, wood, Vector3(sx2, 1.576, -0.18))
+	var trave := _cyl(n, 0.018, 0.018, 1.10, wood, Vector3(0, 1.50, -0.18))
+	trave.rotation.z = PI * 0.5
+
+	# il TENDONE a strisce menta e crema, con lo SMERLO sul bordo:
+	# sei doghe inclinate, e sotto il filo davanti le mezzelune che
+	# fanno «mercato» da qualunque distanza
+	for i in 6:
+		var mat_t: Material = menta if i % 2 == 0 else crema
+		var stripe := _box(n, Vector3(0.215, 0.028, 0.82), mat_t,
+				Vector3(-0.55 + float(i) * 0.22, 1.565, -0.02))
+		stripe.rotation.x = -0.12
+		# lo smerlo: la mezzaluna appesa al filo davanti della striscia
+		_ball(n, 0.056, mat_t,
+				Vector3(-0.55 + float(i) * 0.22, 1.508, 0.372),
+				Vector3(1.85, 0.72, 0.34))
+
+	# il CARTELLINO di legno sul fianco: appeso allo spago, col nodo
+	var targa := _lastra(n, 0.115, 0.17, 0.025, 0.022, pale,
+			Vector3(0.645, 0.60, 0.12), Vector3(0, 0, -0.08))
+	targa.rotation.y = PI * 0.5
+	var filo := _cyl(n, 0.007, 0.007, 0.15, spago, Vector3(0.635, 0.755, 0.115))
+	filo.rotation.x = 0.12
+	_ball(n, 0.013, spago, Vector3(0.633, 0.826, 0.112))
 	return n
 
 
@@ -7602,40 +7680,44 @@ static func _riga_gesso(parent: Node3D, mat: Material, x0: float, y: float,
 
 
 static func _lavagnetta() -> Node3D:
-	# LA LAVAGNETTA DEI GUSTI: il cavalletto A LIBRO fuori dalla porta, col
-	# gesso di oggi. È la lavagna PICCOLA: quella grande del villaggio è
-	# un'altra cosa (_blackboard).
+	# LA LAVAGNETTA DEI GUSTI, ricreata da zero: il cavalletto A LIBRO
+	# fuori dalla porta, e stavolta da falegname — montanti stondati coi
+	# pomelli torniti, la crestina ad ARCO sopra ogni anta, la perlina
+	# chiara che incornicia l'ardesia, le cerniere con le bandelle, la
+	# corda continua che si affloscia, il vassoio con le guance e i gessi
+	# colorati nella polvere. E il gesso non scrive soltanto: DISEGNA —
+	# la cornicetta a mano libera attorno al menù, la tazzina che fuma,
+	# il cuore rosa, e sul retro un sole scarabocchiato da qualcuno che
+	# aspettava. È la lavagna PICCOLA: quella grande è _blackboard.
 	#
-	# Rifatta da zero: prima era una tavola su quattro gambe diritte con
-	# QUATTRO BARRE BIANCHE identiche, centrate e perfettamente parallele —
-	# sembravano barre di caricamento, non una scritta. Una lavagnetta da
-	# bar deve dire tre cose a colpo d'occhio: che è un cavalletto a libro
-	# (due pannelli incernierati in cima, con la catenella fra le gambe),
-	# che qualcuno ci ha SCRITTO a mano (parole di lunghezze diverse,
-	# storte, con gli spazi), e che è USATA (l'alone di gesso mezzo
-	# cancellato, il gessetto nella bacinella, il cancellino di feltro).
+	# La SCRITTURA resta il sistema di sempre (_riga_gesso): parole di
+	# lunghezze diverse, storte, coi prezzi staccati e il margine
+	# sfrangiato — quella era già viva, ed era l'anima del pezzo.
 	var n := Node3D.new()
 	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
 	var legno_chiaro := _mat(WOOD_PALE, WOOD, 3.5, 0.5)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	var canapa := _mat(Color("d9c49a"), Color("c0a978"), 7.0, 0.5)
 	var ardesia := _mat(Color("2f3a33"), Color("26302a"), 5.5, 0.3)
 	var gesso := _mat(Color("fdf6e8"), Color("ece2cf"), 6.0, 0.22)
+	var gesso_rosa := _mat(PINK, PINK_DEEP, 6.0, 0.3)
 	# l'alone di ieri è appena più chiaro dell'ardesia, non bianco: un
 	# grigio chiaro pieno non è «cancellato», è una toppa
 	var gesso_tenue := _mat(Color("55605a"), Color("48524d"), 7.0, 0.35)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 20260729    # sempre la stessa: due lavagnette non si scrivono da sole in modo diverso
 
-	# --- la cerniera in cima, e i due pannelli che si aprono a libro:
-	# il canotto di legno con le due bandelle d'ottone e i pomellini ---
+	# --- la cerniera in cima: canotto di legno, bandelle d'ottone e
+	# pomellini alle estremità ---
 	var cerniera := Vector3(0, 0.94, 0)
 	_cyl(n, 0.018, 0.018, 0.5, legno, cerniera).rotation.z = PI * 0.5
 	for bx: float in [-0.16, 0.16]:
-		var bandella := _cyl(n, 0.024, 0.024, 0.05, _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4),
-				cerniera + Vector3(bx, 0, 0))
+		var bandella := _cyl(n, 0.024, 0.024, 0.05, ottone, cerniera + Vector3(bx, 0, 0))
 		bandella.rotation.z = PI * 0.5
 	for cx: float in [-0.26, 0.26]:
-		_ball(n, 0.026, _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4),
-				cerniera + Vector3(cx, 0, 0), Vector3(0.7, 1, 1))
+		_ball(n, 0.026, ottone, cerniera + Vector3(cx, 0, 0), Vector3(0.7, 1, 1))
+
+	# --- i due pannelli che si aprono a libro ---
 	for lato: float in [-1.0, 1.0]:
 		var perno := Node3D.new()
 		# l'ANTA è il pannello che si legge: quello che col rotation.x
@@ -7646,94 +7728,148 @@ static func _lavagnetta() -> Node3D:
 		perno.position = cerniera
 		perno.rotation.x = lato * 0.24
 		n.add_child(perno)
-		# il telaio del pannello: quattro liste ad angoli tondi, non una
-		# tavola piena
-		_lastra(perno, 0.28, 0.05, 0.018, 0.045, legno, Vector3(0, -0.02, 0),
-				Vector3(0, PI * 0.5, 0))
-		_lastra(perno, 0.28, 0.05, 0.018, 0.045, legno, Vector3(0, -0.86, 0),
-				Vector3(0, PI * 0.5, 0))
+		var fronte := lato * -0.034
+		# i montanti stondati col pomello tornito in cima
 		for sx: float in [-0.255, 0.255]:
-			_lastra(perno, 0.025, 0.86, 0.012, 0.045, legno, Vector3(sx, -0.44, 0),
+			_lastra(perno, 0.026, 0.92, 0.012, 0.05, legno, Vector3(sx, -0.45, 0),
 					Vector3(0, PI * 0.5, 0))
-		# le gambe che continuano il telaio sotto: tornite, appena
-		# svasate, col piedino che tocca terra largo
+			_cyl(perno, 0.014, 0.02, 0.025, legno, Vector3(sx, 0.025, 0))
+			_ball(perno, 0.024, legno, Vector3(sx, 0.05, 0))
+		# le traverse alta e bassa, e la CRESTINA ad arco che corona
+		_lastra(perno, 0.24, 0.05, 0.018, 0.046, legno, Vector3(0, -0.025, 0),
+				Vector3(0, PI * 0.5, 0))
+		_lastra(perno, 0.24, 0.06, 0.018, 0.046, legno, Vector3(0, -0.87, 0),
+				Vector3(0, PI * 0.5, 0))
+		BUILDER.tube(perno, [Vector3(-0.24, 0.005, 0), Vector3(0, 0.055, 0),
+				Vector3(0.24, 0.005, 0)], [0.018, 0.021, 0.018], legno, 14, 8)
+		# l'ardesia incassata, con la PERLINA chiara che la incornicia
+		_box(perno, Vector3(0.47, 0.8, 0.02), ardesia,
+				Vector3(0, -0.45, lato * -0.02))
+		for pl: float in [-0.243, 0.243]:
+			_cyl(perno, 0.008, 0.008, 0.76, legno_chiaro, Vector3(pl, -0.45, fronte))
+		for py: float in [-0.075, -0.825]:
+			var perlina := _cyl(perno, 0.008, 0.008, 0.47, legno_chiaro,
+					Vector3(0, py, fronte))
+			perlina.rotation.z = PI * 0.5
+		# le gambe tornite che continuano i montanti, coi piedini larghi
 		for sx2: float in [-0.245, 0.245]:
-			var g := _cyl(perno, 0.02, 0.026, 0.1, legno, Vector3(sx2, -0.9, 0))
+			var g := _cyl(perno, 0.02, 0.026, 0.1, legno, Vector3(sx2, -0.945, 0))
 			g.rotation.z = -sx2 * 0.3
 			_cyl(perno, 0.028, 0.032, 0.022, legno,
-					Vector3(sx2 - sx2 * 0.062, -0.945, 0))
-		# l'ardesia incassata, un filo più indietro del telaio
-		_box(perno, Vector3(0.47, 0.8, 0.02), ardesia,
-				Vector3(0, -0.44, lato * -0.02))
+					Vector3(sx2 - sx2 * 0.062, -0.99, 0))
+
 	# LA CORDA VA DA UN'ANTA ALL'ALTRA, cioè lungo Z: un cavalletto a
-	# libro si apre avanti-indietro, non a destra e a sinistra. Alla
-	# quota 0.25 le ante stanno a ±0.169 (0.710 di anta per sin 0.24).
-	# Ed è UNA CORDA CONTINUA che si affloscia, con le due maglie
-	# d'ottone agli attacchi — la catenella di palline staccate, di
-	# profilo, era una fila di sassolini a mezz'aria.
+	# libro si apre avanti-indietro. Alla quota 0.25 le ante stanno a
+	# ±0.169 (0.710 di anta per sin 0.24). Ed è UNA CORDA CONTINUA che si
+	# affloscia, con le maglie d'ottone agli attacchi: la catenella di
+	# palline staccate, di profilo, era una fila di sassolini a mezz'aria.
 	BUILDER.tube(n, [Vector3(0, 0.25, -0.169), Vector3(0, 0.217, -0.06),
 			Vector3(0, 0.217, 0.06), Vector3(0, 0.25, 0.169)],
-			[0.0075, 0.0075, 0.0075, 0.0075],
-			_mat(Color("d9c49a"), Color("c0a978"), 7.0, 0.5), 18, 6)
+			[0.0075, 0.0075, 0.0075, 0.0075], canapa, 18, 6)
 	for za: float in [-0.169, 0.169]:
-		_ball(n, 0.013, _mat(OTTONE, OTTONE_SCURO, 5.0, 0.35),
-				Vector3(0, 0.252, za), Vector3(0.7, 1.0, 1.0))
+		_ball(n, 0.013, ottone, Vector3(0, 0.252, za), Vector3(0.7, 1.0, 1.0))
 
 	# --- il fronte scritto. Tutto dentro l'anta, così segue la sua
-	# inclinazione: una scritta appesa in verticale davanti a un pannello
-	# inclinato «galleggia» e si vede subito ---
+	# inclinazione. Prima la CORNICETTA tirata a mano libera (coi vuoti
+	# agli angoli: nessuno chiude i quattro tratti), poi il menù ---
 	var anta: Node3D = n.get_node(^"Anta")
 	var zs := -0.036          # il gesso sta DAVANTI all'ardesia
+	for tr_c: Array in [[0.0, -0.095, 0.37, true], [0.0, -0.755, 0.34, true],
+			[0.207, -0.425, 0.58, false], [-0.207, -0.425, 0.6, false]]:
+		var cornice: MeshInstance3D
+		if bool(tr_c[3]):
+			cornice = _box(anta, Vector3(float(tr_c[2]), 0.009, 0.007), gesso,
+					Vector3(float(tr_c[0]), float(tr_c[1]), zs))
+		else:
+			cornice = _box(anta, Vector3(0.009, float(tr_c[2]), 0.007), gesso,
+					Vector3(float(tr_c[0]), float(tr_c[1]), zs))
+		cornice.rotation.z = rng.randf_range(-0.025, 0.025)
 	# il titolo, più grosso, e la sottolineatura tirata di fretta
-	_riga_gesso(anta, gesso, 0.16, -0.13, [0.075, 0.055, 0.05], zs, 0.03, rng)
+	_riga_gesso(anta, gesso, 0.16, -0.16, [0.075, 0.055, 0.05], zs, 0.03, rng)
 	var sotto := _box(anta, Vector3(0.215, 0.012, 0.008), gesso,
-			Vector3(0.055, -0.175, zs))
+			Vector3(0.055, -0.205, zs))
 	sotto.rotation.z = -0.02
 	# tre righe di menù: parole vere, margine destro sfrangiato, e su due
 	# righe il prezzo staccato in fondo
 	var righe := [[0.062, 0.038, 0.052], [0.045, 0.07], [0.058, 0.034, 0.046]]
 	for i in righe.size():
-		var y := -0.27 - 0.115 * float(i)
-		var fine := _riga_gesso(anta, gesso, 0.2, y, righe[i], zs, 0.019, rng)
+		var y := -0.3 - 0.105 * float(i)
+		var fine_r := _riga_gesso(anta, gesso, 0.19, y, righe[i], zs, 0.019, rng)
 		if i != 1:
-			# il prezzo, staccato in fondo alla riga
-			_riga_gesso(anta, gesso, minf(fine - 0.05, -0.1), y,
+			_riga_gesso(anta, gesso, minf(fine_r - 0.05, -0.1), y,
 					[0.024, 0.02], zs, 0.019, rng)
 	# l'ALONE di quello che c'era scritto ieri, mezzo cancellato: è il
 	# dettaglio che rende la lavagna usata invece che nuova. Tre macchie
 	# sovrapposte e appena storte — una sola era un rettangolo incollato.
-	for m in [[0.22, 0.05, -0.02, 0.02], [0.14, 0.038, 0.09, -0.035],
-			[0.1, 0.03, -0.11, 0.015]]:
+	for m in [[0.2, 0.05, -0.02, 0.02], [0.13, 0.038, 0.08, -0.035],
+			[0.09, 0.03, -0.1, 0.015]]:
 		var macchia := _box(anta, Vector3(float(m[0]), float(m[1]), 0.005),
-				gesso_tenue, Vector3(float(m[2]), -0.635, zs + 0.003))
+				gesso_tenue, Vector3(float(m[2]), -0.605, zs + 0.003))
 		macchia.rotation.z = float(m[3])
-	# il cuore col gesso nell'angolo (a destra di chi guarda = x locale
-	# negativa), due palline e una punta
-	_ball(anta, 0.018, gesso, Vector3(-0.155, -0.7, zs), Vector3(1, 1, 0.35))
-	_ball(anta, 0.018, gesso, Vector3(-0.12, -0.7, zs), Vector3(1, 1, 0.35))
-	var punta := _box(anta, Vector3(0.031, 0.031, 0.006), gesso,
-			Vector3(-0.1375, -0.727, zs))
+	# LA TAZZINA DISEGNATA COL GESSO che fuma, in basso a sinistra di chi
+	# guarda (x positiva): il gesso non sa scrivere soltanto
+	var tazza_g := MeshInstance3D.new()
+	var tz := TorusMesh.new()
+	tz.inner_radius = 0.024
+	tz.outer_radius = 0.034
+	tazza_g.mesh = tz
+	tazza_g.material_override = gesso
+	tazza_g.position = Vector3(0.15, -0.685, zs)
+	tazza_g.rotation.x = PI * 0.5
+	anta.add_child(tazza_g)
+	var manico_g := MeshInstance3D.new()
+	var mz := TorusMesh.new()
+	mz.inner_radius = 0.008
+	mz.outer_radius = 0.015
+	manico_g.mesh = mz
+	manico_g.material_override = gesso
+	manico_g.position = Vector3(0.108, -0.685, zs)
+	manico_g.rotation.x = PI * 0.5
+	anta.add_child(manico_g)
+	var piattino_g := _box(anta, Vector3(0.1, 0.008, 0.006), gesso,
+			Vector3(0.15, -0.725, zs))
+	piattino_g.rotation.z = 0.015
+	# le due volute di fumo salgono PARALLELE e ondulano insieme: due
+	# curve specchiate si incrociavano e sopra la tazzina compariva una X
+	for fv: float in [0.138, 0.164]:
+		BUILDER.tube(anta, [Vector3(fv, -0.645, zs),
+				Vector3(fv + 0.011, -0.622, zs),
+				Vector3(fv - 0.004, -0.598, zs)],
+				[0.0035, 0.0035, 0.0035], gesso, 10, 5)
+	# il cuore col gesso ROSA nell'angolo (a destra di chi guarda =
+	# x locale negativa), due palline e una punta
+	_ball(anta, 0.018, gesso_rosa, Vector3(-0.155, -0.68, zs), Vector3(1, 1, 0.35))
+	_ball(anta, 0.018, gesso_rosa, Vector3(-0.12, -0.68, zs), Vector3(1, 1, 0.35))
+	var punta := _box(anta, Vector3(0.031, 0.031, 0.006), gesso_rosa,
+			Vector3(-0.1375, -0.707, zs))
 	punta.rotation.z = PI * 0.25
 
-	# --- la bacinella dei gessetti, col gessetto e il cancellino ---
-	# il fondo va SCURO: su legno chiaro un gessetto bianco non si vede,
-	# ed era l'unica cosa che in quella bacinella si deve vedere. Il
-	# labbro davanti è un tondino, non uno spigolo a coltello.
+	# --- la bacinella dei gessetti: fondo SCURO (su legno chiaro un
+	# gessetto bianco non si vede), le guance ai lati, il labbro a
+	# tondino, i gessi nella loro polvere e il cancellino stondato ---
 	_box(anta, Vector3(0.44, 0.022, 0.055), _mat(WOOD_DARK, Color("5c4030"), 4.0, 0.45),
 			Vector3(0, -0.815, -0.045))
+	for gs: float in [-0.222, 0.222]:
+		_lastra(anta, 0.026, 0.05, 0.01, 0.018, legno, Vector3(gs, -0.8, -0.046))
 	var labbro := _cyl(anta, 0.013, 0.013, 0.44, legno_chiaro,
 			Vector3(0, -0.798, -0.071))
 	labbro.rotation.z = PI * 0.5
 	for bs: float in [-0.21, 0.21]:
 		_ball(anta, 0.015, legno_chiaro, Vector3(bs, -0.798, -0.071))
+	_ball(anta, 0.03, gesso_tenue, Vector3(-0.04, -0.802, -0.05),
+			Vector3(2.2, 0.14, 0.7))
 	var gessetto := _cyl(anta, 0.013, 0.013, 0.085, gesso, Vector3(-0.11, -0.793, -0.05))
 	gessetto.rotation.z = PI * 0.5
 	gessetto.rotation.y = 0.2
 	gessetto.name = "Gessetto"
-	# un mozzicone rosa, di quelli che restano sempre
-	var mozzicone := _cyl(anta, 0.01, 0.01, 0.035, _mat(PINK, PINK_DEEP, 6.0, 0.35),
+	# il mozzicone rosa di sempre, e uno azzurro nuovo di zecca
+	var mozzicone := _cyl(anta, 0.01, 0.01, 0.035, gesso_rosa,
 			Vector3(0.02, -0.795, -0.05))
 	mozzicone.rotation.z = PI * 0.5
+	var azzurro := _cyl(anta, 0.01, 0.01, 0.05, _mat(Color("bfd8ee"), Color("a5c4de"), 6.0, 0.3),
+			Vector3(0.07, -0.794, -0.044))
+	azzurro.rotation.z = PI * 0.5
+	azzurro.rotation.y = -0.3
 	# il cancellino di feltro, stondato come un sapone consumato
 	var cancellino := _lastra(anta, 0.021, 0.075, 0.012, 0.026,
 			_mat(Color("6f665b"), Color("585047"), 5.0, 0.4),
@@ -7745,10 +7881,20 @@ static func _lavagnetta() -> Node3D:
 	# il gessetto DI SCORTA appeso al montante con lo spago, come nei
 	# bar veri: nessuno si fida che quello nella bacinella resti lì
 	BUILDER.tube(anta, [Vector3(-0.272, -0.53, -0.03), Vector3(-0.288, -0.61, -0.046),
-			Vector3(-0.281, -0.68, -0.04)], [0.0035, 0.0035, 0.0035],
-			_mat(Color("d9c49a"), Color("c0a978"), 7.0, 0.5), 12, 6)
+			Vector3(-0.281, -0.68, -0.04)], [0.0035, 0.0035, 0.0035], canapa, 12, 6)
 	var appeso := _cyl(anta, 0.011, 0.011, 0.07, gesso, Vector3(-0.281, -0.715, -0.04))
 	appeso.rotation.z = 0.14
+
+	# --- e sul RETRO, dove nessuno guarda mai, qualcuno che aspettava
+	# ha scarabocchiato un sole ---
+	var retro: Node3D = n.get_node(^"Retro")
+	var zr := 0.036
+	_ball(retro, 0.032, gesso, Vector3(0.1, -0.3, zr), Vector3(1, 1, 0.2))
+	for raggio in 8:
+		var ar := TAU / 8.0 * float(raggio) + 0.3
+		var r_box := _box(retro, Vector3(0.026, 0.007, 0.006), gesso,
+				Vector3(0.1 + cos(ar) * 0.052, -0.3 + sin(ar) * 0.052, zr))
+		r_box.rotation.z = ar
 	# e la lavagnetta non sta mai perfettamente dritta
 	n.rotation.y = 0.04
 	return n

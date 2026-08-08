@@ -117,21 +117,21 @@
     "tipo": "cell"
   },
   {
-    "alto": 2.85,
-    "cartella": "docs/catalogo/0-struttura/guardiola/",
+    "alto": 0.47,
+    "cartella": "docs/catalogo/0-struttura/tenda-bar/",
     "cat": 0.0,
-    "largo": 1.72,
-    "nome": "Guardiola",
-    "slug": "guardiola",
-    "tipo": "cell"
+    "largo": 0.98,
+    "nome": "Tenda bar",
+    "slug": "tenda-bar",
+    "tipo": "edge"
   },
   {
-    "alto": 1.08,
-    "cartella": "docs/catalogo/0-struttura/autopompa/",
+    "alto": 0.67,
+    "cartella": "docs/catalogo/0-struttura/gradinata/",
     "cat": 0.0,
-    "largo": 1.84,
-    "nome": "Autopompa",
-    "slug": "autopompa",
+    "largo": 1.06,
+    "nome": "Gradinata",
+    "slug": "gradinata",
     "tipo": "cell"
   },
   {
@@ -290,7 +290,7 @@
   {
     "alto": 1.19,
     "cartella": "docs/catalogo/1-arredo/salone/",
-    "cat": 1,
+    "cat": 1.0,
     "largo": 1.2,
     "nome": "Salone",
     "slug": "salone",
@@ -387,9 +387,9 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.96,
+    "alto": 1.06,
     "cartella": "docs/catalogo/1-arredo/lavagnetta/",
-    "cat": 1.0,
+    "cat": 1,
     "largo": 0.58,
     "nome": "Lavagnetta",
     "slug": "lavagnetta",
