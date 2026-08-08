@@ -2791,14 +2791,15 @@ static func _bench() -> Node3D:
 # I pezzi che si comprano dal mercante (con le noccioline o le stelline).
 # Stessa mano pastello del resto del catalogo.
 
-# LA BANCARELLA DI MOCHI: il banco di legno chiaro col tendone menta e
-# crema (MAI rosa: quello e' il carretto del mercante). La merce vera e
-# i prezzi li mette Bancarella.gd, e i suoi POSTI sono cablati a
-# (±0.38, 0.94, 0.02): quota e posizioni dei piedistalli NON si toccano.
-# Qui il banco: doghe stondate con le fughe, piano col naso bombato,
-# piedistalli torniti ad alzatina, tendone con lo SMERLO sul bordo come
-# le bancarelle dei mercati veri, montanti torniti e il cartellino di
-# legno appeso allo spago col suo nodo.
+# LA BANCARELLA DI MOCHI, seconda stesura: la prima aveva un TETTO al
+# posto del tendone. Ora la falda e' TELA che si insacca fra la traversa
+# e il filo davanti (le strisce sono _vetro_curvo con la stoffa al posto
+# del vetro, come la tenda del bar), con la MANTOVANA che pende sul
+# davanti e lo smerlo in punta. Sotto: piano chiaro col runner di stoffa
+# a righe e i lembi che pendono, tre alzatine tornite (i POSTI di
+# Bancarella.gd sono cablati a ±0.38, 0.94, 0.02: quota e posizioni
+# intatte), doghe sia sul fronte sia sul retro, specchiature sui
+# fianchi, e a terra la cassettina con le arance del mattino.
 static func _player_stall() -> Node3D:
 	var n := Node3D.new()
 	var pale := _mat(WOOD_PALE, WOOD, 3.0, 0.45)
@@ -2808,33 +2809,53 @@ static func _player_stall() -> Node3D:
 	var crema := _mat(CREAM, Color("f0e2cc"), 4.0, 0.4)
 	var spago := _mat(Color("d9c08a"), Color("c0a878"), 10.0, 0.4)
 
-	# lo zoccolo scuro e la cassa stondata
+	# zoccolo e cassa stondata
 	var zocc := _prisma(n, _rrect_xz(1.16, 0.60, 0.04), 0.0, 0.09, scuro)
 	zocc.position.z = 0.0
 	var cassa := _prisma(n, _rrect_xz(1.06, 0.48, 0.035), 0.09, 0.70, pale)
 	cassa.position.z = 0.0
-	# le DOGHE verticali sul fronte, con le fughe vere
-	var xd := -0.46
-	for d in 6:
-		var wd: float = [0.155, 0.135, 0.150, 0.140, 0.155, 0.145][d]
-		var doga := _prisma(n, _rrect_xz(wd, 0.045, 0.014), 0.13, 0.62, wood)
-		doga.position = Vector3(xd + wd * 0.5, 0.0, 0.245)
-		xd += wd + 0.012
-	# il PIANO col naso bombato che sporge tutt'attorno
-	var piano := _prisma(n, _rrect_xz(1.24, 0.60, 0.045), 0.79, 0.075, wood)
+	# le DOGHE con le fughe, sul fronte E sul retro (il catalogo guarda
+	# il retro: una cassa liscia era una scatola da scarpe)
+	for lato_z: float in [0.245, -0.245]:
+		var xd := -0.46
+		for d in 6:
+			var wd: float = [0.155, 0.135, 0.150, 0.140, 0.155, 0.145][d]
+			var doga := _prisma(n, _rrect_xz(wd, 0.045, 0.014), 0.13, 0.60, wood)
+			doga.position = Vector3(xd + wd * 0.5, 0.0, lato_z)
+			xd += wd + 0.012
+	# le specchiature incassate sui fianchi
+	for lato_x: float in [-0.535, 0.535]:
+		_lastra(n, 0.145, 0.50, 0.03, 0.012, wood, Vector3(lato_x, 0.44, 0))
+
+	# il PIANO chiaro con la fascia scura e il naso bombato
+	var piano := _prisma(n, _rrect_xz(1.24, 0.60, 0.045), 0.79, 0.06, pale)
 	piano.position.z = 0.0
-	var naso := _cyl(n, 0.026, 0.026, 1.18, wood, Vector3(0, 0.845, 0.295))
+	var fascia := _prisma(n, _rrect_xz(1.25, 0.61, 0.045), 0.782, 0.022, wood)
+	fascia.position.z = 0.0
+	var naso := _cyl(n, 0.024, 0.024, 1.18, wood, Vector3(0, 0.842, 0.295))
 	naso.rotation.z = PI * 0.5
 
-	# i TRE PIEDISTALLI torniti ad alzatina (cima a 0.915: la merce di
-	# Bancarella.gd si posa a 0.94, e ci si appoggia giusta)
+	# il RUNNER di stoffa a righe sotto le alzatine, coi lembi che
+	# pendono dai lati corti
+	var runner := _prisma(n, _rrect_xz(1.30, 0.34, 0.03), 0.851, 0.008, crema)
+	runner.position.z = 0.02
+	for r in 2:
+		_box(n, Vector3(1.30, 0.004, 0.028), menta,
+				Vector3(0, 0.8585, 0.02 - 0.10 + 0.20 * float(r)))
+	for lx: float in [-0.628, 0.628]:
+		var lembo := _lastra(n, 0.155, 0.15, 0.03, 0.010, crema,
+				Vector3(lx, 0.792, 0.02), Vector3(0, 0, 0.05 * signf(lx)))
+		lembo.rotation.y = 0.0
+		_box(lembo, Vector3(0.006, 0.14, 0.026), menta, Vector3(0, 0, 0))
+
+	# le TRE ALZATINE tornite (cima a 0.915: la merce si posa a 0.94)
 	for sx: float in [-0.38, 0.0, 0.38]:
 		_cyl(n, 0.052, 0.062, 0.022, wood, Vector3(sx, 0.876, 0.02))
 		_cyl(n, 0.024, 0.030, 0.022, wood, Vector3(sx, 0.895, 0.02))
 		_cyl(n, 0.098, 0.086, 0.016, wood, Vector3(sx, 0.905, 0.02))
 		_cyl(n, 0.102, 0.098, 0.007, scuro, Vector3(sx, 0.9155, 0.02))
 
-	# i MONTANTI torniti col pomello, e la traversa
+	# i MONTANTI torniti col pomello, e la traversa dietro
 	for sx2: float in [-0.56, 0.56]:
 		_cyl(n, 0.026, 0.034, 1.46, wood, Vector3(sx2, 0.80, -0.18))
 		_cyl(n, 0.030, 0.030, 0.016, scuro, Vector3(sx2, 1.538, -0.18))
@@ -2842,31 +2863,51 @@ static func _player_stall() -> Node3D:
 	var trave := _cyl(n, 0.018, 0.018, 1.10, wood, Vector3(0, 1.50, -0.18))
 	trave.rotation.z = PI * 0.5
 
-	# il TENDONE a strisce menta e crema, con lo SMERLO sul bordo:
-	# sei doghe inclinate, e sotto il filo davanti le mezzelune che
-	# fanno «mercato» da qualunque distanza
+	# LA FALDA DI TELA: sei strisce che SI INSACCANO fra la traversa e
+	# il filo davanti — stoffa, non assi
+	var falda := Node3D.new()
+	falda.name = "Falda"
+	falda.position = Vector3(0, 1.535, -0.02)
+	falda.rotation.x = -0.13
+	n.add_child(falda)
+	var sagoma: Array = [Vector2(0.42, 0.0), Vector2(0.21, -0.030),
+			Vector2(0.0, -0.044), Vector2(-0.21, -0.030), Vector2(-0.42, 0.0)]
 	for i in 6:
+		var x0 := -0.65 + 0.2167 * float(i)
 		var mat_t: Material = menta if i % 2 == 0 else crema
-		var stripe := _box(n, Vector3(0.215, 0.028, 0.82), mat_t,
-				Vector3(-0.55 + float(i) * 0.22, 1.565, -0.02))
-		stripe.rotation.x = -0.12
-		# lo smerlo: le mezzelune appese ai DUE fili della striscia —
-		# davanti e dietro, come nelle bancarelle vere (dal retro, una
-		# fila sola spuntava sopra il colmo come palline)
-		_ball(n, 0.056, mat_t,
-				Vector3(-0.55 + float(i) * 0.22, 1.508, 0.372),
-				Vector3(1.85, 0.72, 0.34))
-		_ball(n, 0.056, mat_t,
-				Vector3(-0.55 + float(i) * 0.22, 1.566, -0.425),
-				Vector3(1.85, 0.72, 0.34))
+		_vetro_curvo(falda, x0, x0 + 0.2167, sagoma, mat_t)
+		# la MANTOVANA: il lembo che pende dal filo davanti, con lo
+		# smerlo di mezza palla in punta
+		_lastra(falda, 0.105, 0.115, 0.028, 0.012, mat_t,
+				Vector3(x0 + 0.108, -0.058, 0.425), Vector3(0, PI * 0.5, 0))
+		_ball(falda, 0.052, mat_t, Vector3(x0 + 0.108, -0.118, 0.425),
+				Vector3(1.75, 0.85, 0.30))
+	# il colmo: il rotolino di tela sulla traversa
+	var colmo := _cyl(falda, 0.026, 0.026, 1.30, crema, Vector3(0, 0.005, -0.42))
+	colmo.rotation.z = PI * 0.5
 
-	# il CARTELLINO di legno sul fianco: appeso allo spago, col nodo
+	# il CARTELLINO di legno sul fianco, appeso allo spago col nodo
 	var targa := _lastra(n, 0.115, 0.17, 0.025, 0.022, pale,
-			Vector3(0.645, 0.60, 0.12), Vector3(0, 0, -0.08))
+			Vector3(0.645, 0.565, 0.30), Vector3(0, 0, -0.08))
 	targa.rotation.y = PI * 0.5
-	var filo := _cyl(n, 0.007, 0.007, 0.15, spago, Vector3(0.635, 0.755, 0.115))
+	var filo := _cyl(n, 0.007, 0.007, 0.15, spago, Vector3(0.635, 0.720, 0.295))
 	filo.rotation.x = 0.12
-	_ball(n, 0.013, spago, Vector3(0.633, 0.826, 0.112))
+	_ball(n, 0.013, spago, Vector3(0.633, 0.790, 0.292))
+
+	# la CASSETTINA delle arance, a terra accanto allo zoccolo
+	var cass := Node3D.new()
+	cass.position = Vector3(0.38, 0.0, 0.40)
+	cass.rotation.y = 0.28
+	n.add_child(cass)
+	for sponda_z: float in [-0.075, 0.075]:
+		_box(cass, Vector3(0.24, 0.085, 0.014), wood, Vector3(0, 0.058, sponda_z))
+	for sponda_x: float in [-0.115, 0.115]:
+		_box(cass, Vector3(0.014, 0.085, 0.16), wood, Vector3(sponda_x, 0.058, 0))
+	_box(cass, Vector3(0.22, 0.012, 0.14), wood, Vector3(0, 0.022, 0))
+	var arancia := _mat(Color("e8934a"), Color("cc7a36"), 5.0, 0.45)
+	_ball(cass, 0.042, arancia, Vector3(-0.05, 0.075, -0.02))
+	_ball(cass, 0.042, arancia, Vector3(0.05, 0.072, 0.025))
+	_ball(cass, 0.040, arancia, Vector3(0.005, 0.115, -0.005))
 	return n
 
 
