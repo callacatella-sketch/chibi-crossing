@@ -350,7 +350,7 @@ static func items() -> Array[Dictionary]:
 			"cols": [[Vector3(0.56, 0.58, 0.34), Vector3(0, 0.29, 0)]]},
 		{"name": "Faro caserma", "cat": 2, "type": "cell", "layer": 2,
 			"builder": _faro_caserma,
-			"cols": [[Vector3(0.32, 1.75, 0.32), Vector3(0, 0.87, 0)]]},
+			"cols": [[Vector3(0.34, 1.62, 0.34), Vector3(0, 0.81, 0)]]},
 		{"name": "Cuccia", "cat": 2, "type": "cell", "layer": 2, "builder": _cuccia_caserma,
 			"cols": [[Vector3(0.66, 0.72, 0.60), Vector3(0, 0.36, 0)]]},
 		{"name": "Pennone", "cat": 2, "type": "cell", "layer": 2,
@@ -7528,96 +7528,120 @@ static func _secchi() -> Node3D:
 	return n
 
 
-## IL FARO DELLA CASERMA. Non una sirena che urla: una lanterna che GIRA
-## piano sul suo palo, e la sera fa il giro del cortile come un piccolo
-## faro di terra. Il giro glielo dà un AnimationPlayer in loop — i pezzi
-## piazzati sono nodi nudi, come la mongolfiera. Prima era tre cilindri
-## impilati su un palo dritto: adesso è un faro in miniatura — palo
-## TORNITO con la base modanata e il collarino d'ottone, il ballatoio
-## coi puntoni (la mensola che nei fari veri fa il giro della lanterna),
-## tamburo, gabbia, cornice e CUPOLINO conico col pomello. La testa che
-## gira, la lente e il fascio restano identici: cambia il corpo, non il
-## contratto (test_caserma._test_faro_gira).
+## IL FARO DELLA CASERMA: un GIROFARO vero, non una lanterna da
+## giardino (quella è stata abbattuta su ordine dell'autore). La forma
+## viene dai fari d'emergenza industriali: la piastra imbullonata a
+## terra coi gussets, la colonna d'acciaio verniciata con lo stivale
+## rosso, i pioli di servizio per chi ci deve mettere mano, la scatola
+## di derivazione col TUBO PORTACAVI che sale fino alla testa (è il
+## dettaglio elettrico a dire «vero»), il bicchiere d'ottone con la
+## fascetta a tre viti — e sopra la calotta rossa a COSTE FRESNEL,
+## tornita con le coste nel profilo, che gira col fascio. Il contratto
+## resta quello di sempre: la testa si chiama Girella, il giro lo dà un
+## AnimationPlayer in loop (test_caserma._test_faro_gira).
 static func _faro_caserma() -> Node3D:
 	var n := Node3D.new()
-	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
-	var scuro := _mat(POMPA_ROSSO_SCURO, POMPA_ROSSO_SCURO.darkened(0.25), 5.0, 0.45)
+	var crema := _mat(CREAM, PLASTER_SHADE, 4.0, 0.4)
+	var rosso := _mat(POMPA_ROSSO, POMPA_ROSSO_SCURO, 4.0, 0.45)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	var metallo := _mat(METAL, METAL.darkened(0.25), 5.0, 0.4)
 
-	# ---- IL PALO: tornito, con la base che si allarga a terra ----
-	BUILDER.lathe(n, [Vector2(0.001, 0.0), Vector2(0.105, 0.0),
-			Vector2(0.112, 0.014), Vector2(0.092, 0.034),
-			Vector2(0.070, 0.052), Vector2(0.058, 0.10),
-			Vector2(0.052, 0.35), Vector2(0.046, 0.70),
-			Vector2(0.042, 1.02), Vector2(0.047, 1.12),
-			Vector2(0.052, 1.17), Vector2(0.046, 1.21),
-			Vector2(0.040, 1.235), Vector2(0.001, 1.24)], wood)
-	# il collarino d'ottone a metà palo: il segno di dove lo si impugna
-	_cordolo(n, _super_anello(0.050, 0.050, 1.0, 0.0, 32), 0.007, ottone,
-			Vector3(0, 0.40, 0))
+	# ---- LA PIASTRA imbullonata, coi quattro bulloni e i gussets ----
+	_lastra(n, 0.165, 0.33, 0.05, 0.028, metallo, Vector3(0, 0.014, 0),
+			Vector3(0, 0, PI * 0.5))
+	for bx: float in [-1.0, 1.0]:
+		for bz: float in [-1.0, 1.0]:
+			_cyl(n, 0.016, 0.016, 0.014, ottone,
+					Vector3(bx * 0.125, 0.033, bz * 0.125))
+			_ball(n, 0.013, ottone, Vector3(bx * 0.125, 0.041, bz * 0.125),
+					Vector3(1, 0.6, 1))
+	for g in 4:
+		var ga := float(g) * PI * 0.5
+		var gus := _box(n, Vector3(0.014, 0.075, 0.048), metallo,
+				Vector3(sin(ga) * 0.107, 0.048, cos(ga) * 0.107))
+		gus.rotation.y = ga
+		gus.rotation.x = 0.55
 
-	# ---- IL BALLATOIO: la piattaforma, l'anello e i quattro puntoni ----
-	_cyl(n, 0.150, 0.135, 0.032, scuro, Vector3(0, 1.252, 0))
-	_cordolo(n, _super_anello(0.152, 0.152, 1.0, 0.0, 36), 0.010, ottone,
-			Vector3(0, 1.276, 0))
-	# i puntoni si DERIVANO dai due capi: dal palo (r 0.047 a y 1.115)
-	# fin SOTTO la piattaforma (r 0.128 a y 1.232, che ha la faccia
-	# inferiore a 1.236) — a occhio erano lunghi 0.16 e la trapassavano
-	for i in 4:
-		var ap := float(i) * PI * 0.5 + PI * 0.25
-		var puntone := _cyl(n, 0.009, 0.009, 0.142, ottone,
-				Vector3(sin(ap) * 0.0875, 1.1735, cos(ap) * 0.0875))
-		puntone.rotation.x = -cos(ap) * 0.606
-		puntone.rotation.z = sin(ap) * 0.606
+	# ---- LA COLONNA: stivale rosso, fusto crema, collare in cima ----
+	BUILDER.lathe(n, [Vector2(0.001, 0.0), Vector2(0.088, 0.008),
+			Vector2(0.078, 0.06), Vector2(0.062, 0.14),
+			Vector2(0.056, 0.20), Vector2(0.058, 0.215),
+			Vector2(0.001, 0.218)], rosso, Vector3(0, 0.028, 0))
+	BUILDER.lathe(n, [Vector2(0.001, 0.0), Vector2(0.050, 0.0),
+			Vector2(0.044, 0.40), Vector2(0.038, 0.90),
+			Vector2(0.036, 1.04), Vector2(0.042, 1.06),
+			Vector2(0.042, 1.09), Vector2(0.036, 1.10),
+			Vector2(0.001, 1.105)], crema, Vector3(0, 0.24, 0))
 
-	# ---- LA TESTA CHE GIRA (il contratto: si chiama Girella) ----
+	# ---- I PIOLI di servizio: tre staffe a U su un fianco ----
+	for piolo in 3:
+		var py := 0.62 + 0.22 * float(piolo)
+		for stub: float in [-1.0, 1.0]:
+			var braccio := _cyl(n, 0.009, 0.009, 0.052, metallo,
+					Vector3(-0.055, py, stub * 0.032))
+			braccio.rotation.z = PI * 0.5
+		var gradino := _cyl(n, 0.010, 0.010, 0.082, metallo,
+				Vector3(-0.079, py, 0))
+		gradino.rotation.x = PI * 0.5
+
+	# ---- LA SCATOLA di derivazione e il TUBO PORTACAVI che sale ----
+	# ATTENZIONE all'asse: con rot.x la _lastra resta spessa lungo X e la
+	# scatola galleggiava piatta a mezz'aria; è rot.y a portare lo
+	# spessore verso il palo
+	_lastra(n, 0.036, 0.095, 0.012, 0.045, metallo, Vector3(0, 0.42, 0.058),
+			Vector3(0, PI * 0.5, 0))
+	_ball(n, 0.011, ottone, Vector3(0, 0.42, 0.083))
+	# il palo si RASTREMA (r 0.050 -> 0.036): un tubo a z fisso se ne
+	# stacca salendo. Si inclina di atan(0.009/0.86) e arriva al bicchiere
+	var tubo := _cyl(n, 0.009, 0.009, 0.86, metallo, Vector3(0, 0.9125, 0.0475))
+	tubo.rotation.x = -0.0105
+	# le due fascette che lo tengono alla colonna
+	for fs in 2:
+		_box(n, Vector3(0.026, 0.014, 0.030), ottone,
+				Vector3(0, 0.62 + 0.42 * float(fs), 0.0405 - 0.004 * float(fs)))
+
+	# ---- IL BICCHIERE: la base d'ottone con la fascetta a tre viti ----
+	BUILDER.lathe(n, [Vector2(0.001, 0.0), Vector2(0.052, 0.0),
+			Vector2(0.088, 0.012), Vector2(0.092, 0.032),
+			Vector2(0.092, 0.070), Vector2(0.084, 0.082)], ottone,
+			Vector3(0, 1.345, 0))
+	_cordolo(n, _super_anello(0.094, 0.094, 1.0, 0.0, 36), 0.008, ottone,
+			Vector3(0, 1.408, 0))
+	for vt in 3:
+		var va := float(vt) * TAU / 3.0
+		_ball(n, 0.010, metallo,
+				Vector3(sin(va) * 0.099, 1.408, cos(va) * 0.099))
+
+	# ---- LA TESTA CHE GIRA: la calotta rossa a coste Fresnel ----
 	var testa := Node3D.new()
 	testa.name = "Girella"
-	testa.position = Vector3(0, 1.40, 0)
+	testa.position = Vector3(0, 1.428, 0)
 	n.add_child(testa)
-	# il tamburo d'ottone alla base della lanterna
-	BUILDER.lathe(testa, [Vector2(0.001, 0.0), Vector2(0.100, 0.0),
-			Vector2(0.146, 0.010), Vector2(0.151, 0.030),
-			Vector2(0.136, 0.052), Vector2(0.128, 0.062)], ottone,
-			Vector3(0, -0.162, 0))
-	# il vetro rosso: acceso ma non slavato — con l'emissione alta il rosso
-	# sbianca e il faro sembra una lampadina qualunque
-	_cyl(testa, 0.125, 0.125, 0.20, _glow(POMPA_ROSSO, POMPA_ROSSO_SCURO, 0.45),
-			Vector3.ZERO)
-	# la gabbia: sei montanti e due cerchiature, come le lanterne vere
-	for i2 in 6:
-		var ag := float(i2) * PI / 3.0 + PI / 6.0
-		_cyl(testa, 0.012, 0.012, 0.21, ottone,
-				Vector3(sin(ag) * 0.128, 0, cos(ag) * 0.128))
-	for fascia: float in [-0.058, 0.058]:
-		_cordolo(testa, _super_anello(0.130, 0.130, 1.0, 0.0, 36), 0.006,
-				ottone, Vector3(0, fascia, 0))
-	# LA LENTE STA DENTRO IL VETRO, e il conto va fatto sugli SPIGOLI:
-	# la vecchia derivazione controllava la corda al centro del box, ma
-	# gli spigoli (x 0.125, z +-0.07) stanno a raggio 0.143 > 0.125 e
-	# sbucavano. Con faccia esterna a 0.107 e mezza-larghezza 0.055 lo
-	# spigolo sta a sqrt(0.107^2 + 0.055^2) = 0.120 < 0.125.
-	_box(testa, Vector3(0.05, 0.13, 0.11), _glow(CREAM, Color("ffd9a8"), 1.6),
-			Vector3(0.082, 0, 0))
-	# la cornice sopra il vetro, e il cupolino conico col pomello
-	BUILDER.lathe(testa, [Vector2(0.001, 0.0), Vector2(0.128, 0.0),
-			Vector2(0.149, 0.012), Vector2(0.154, 0.030),
-			Vector2(0.140, 0.044), Vector2(0.100, 0.050)], ottone,
-			Vector3(0, 0.100, 0))
-	BUILDER.lathe(testa, [Vector2(0.001, 0.0), Vector2(0.146, 0.0),
-			Vector2(0.118, 0.030), Vector2(0.084, 0.062),
-			Vector2(0.051, 0.094), Vector2(0.027, 0.122),
-			Vector2(0.011, 0.145), Vector2(0.001, 0.152)], scuro,
-			Vector3(0, 0.150, 0))
-	_cyl(testa, 0.007, 0.009, 0.024, ottone, Vector3(0, 0.310, 0))
-	_ball(testa, 0.017, ottone, Vector3(0, 0.330, 0))
+	# le coste sono NEL profilo del tornio: quattro gonfiori regolari
+	# lungo la salita — è la rigatura della lente a dire «girofaro»
+	BUILDER.lathe(testa, [Vector2(0.001, 0.0), Vector2(0.078, 0.0),
+			Vector2(0.080, 0.010), Vector2(0.083, 0.020), Vector2(0.080, 0.030),
+			Vector2(0.083, 0.043), Vector2(0.080, 0.056),
+			Vector2(0.083, 0.069), Vector2(0.080, 0.082),
+			Vector2(0.082, 0.095), Vector2(0.078, 0.108),
+			Vector2(0.070, 0.128), Vector2(0.052, 0.148),
+			Vector2(0.029, 0.163), Vector2(0.001, 0.170)],
+			_glow(POMPA_ROSSO, POMPA_ROSSO_SCURO, 0.45))
+	# il riflettore dentro la calotta: gli spigoli del box (il conto si
+	# fa su di LORO) stanno a sqrt(0.060^2 + 0.040^2) = 0.072, sotto il
+	# raggio minimo delle coste (0.076) per tutta l'altezza del box
+	_box(testa, Vector3(0.04, 0.085, 0.08), _glow(CREAM, Color("ffd9a8"), 1.6),
+			Vector3(0.040, 0.062, 0))
+	# il cappellotto d'ottone col pomellino di sfiato
+	_cyl(testa, 0.021, 0.024, 0.010, ottone, Vector3(0, 0.170, 0))
+	_ball(testa, 0.0095, ottone, Vector3(0, 0.180, 0))
 	var fascio := SpotLight3D.new()
 	fascio.light_color = Color(1.0, 0.74, 0.58)
 	fascio.light_energy = 1.6
 	fascio.spot_range = 6.5
 	fascio.spot_angle = 26.0
 	fascio.shadow_enabled = false
-	fascio.position = Vector3(0.14, 0, 0)
+	fascio.position = Vector3(0.06, 0.06, 0)
 	fascio.rotation = Vector3(0, -PI * 0.5, 0)
 	testa.add_child(fascio)
 	# il giro: lento, continuo, senza scatti al riavvolgimento
