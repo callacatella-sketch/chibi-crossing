@@ -618,6 +618,18 @@
     "largo": 1.0,
     "nome": "Fontana",
     "slug": "fontana",
+<<<<<<< Updated upstream
+    "tipo": "cell"
+  },
+  {
+    "alto": 1.6,
+    "cartella": "docs/catalogo/2-giardino/lavagna/",
+    "cat": 2.0,
+    "largo": 1.06,
+    "nome": "Lavagna",
+    "slug": "lavagna",
+=======
+>>>>>>> Stashed changes
     "tipo": "cell"
   },
   {
@@ -630,7 +642,7 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.69,
+    "alto": 0.76,
     "cartella": "docs/catalogo/2-giardino/fioriera/",
     "cat": 2.0,
     "largo": 0.98,
@@ -776,8 +788,13 @@
   {
     "alto": 1.2,
     "cartella": "docs/catalogo/2-giardino/frigo-gelati/",
+<<<<<<< Updated upstream
     "cat": 2.0,
     "largo": 1.0,
+=======
+    "cat": 2,
+    "largo": 1.15,
+>>>>>>> Stashed changes
     "nome": "Frigo gelati",
     "slug": "frigo-gelati",
     "tipo": "cell"

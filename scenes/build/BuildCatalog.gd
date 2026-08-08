@@ -9687,22 +9687,25 @@ static func _frigo_gelati() -> Node3D:
 		var vx := -0.26 + 0.26 * float(vg % 3)
 		var vz := -0.095 + 0.19 * float(vg / 3)
 		var col_v := gusti_v[vg] as Color
-		var vaschetta := _prisma(n, _rrect_xz(0.235, 0.160, 0.02), 0.605,
-				0.050, _mat(col_v, col_v.darkened(0.2), 5.0, 0.4))
+		var vaschetta := _prisma(n, _rrect_xz(0.235, 0.160, 0.02), 0.600,
+				0.042, _mat(col_v, col_v.darkened(0.2), 5.0, 0.4))
 		vaschetta.position = Vector3(vx, 0.0, vz)
 		# il ricciolo del gusto, come lo lascia la spatola
 		_ball(n, 0.030, _mat(col_v.lightened(0.12), col_v.darkened(0.1), 5.0, 0.4),
-				Vector3(vx + 0.04, 0.658, vz), Vector3(1.3, 0.42, 1.0))
+				Vector3(vx + 0.04, 0.648, vz), Vector3(1.3, 0.32, 1.0))
 	for lato: float in [-1.0, 1.0]:
 		var cop := Node3D.new()
 		cop.name = "Coperchio%d" % int(lato)
-		# il coperchio sinistro e' SCORSO mezzo aperto, accavallato
-		# all'indietro: qualcuno sta scegliendo il gusto, e il pozzetto
-		# si vede in vista diretta — senza vetro di mezzo
+		# il destro POGGIA sul bordo del pozzetto (la cornice a battuta:
+		# prima galleggiava due centimetri sopra, con la fessura di luce
+		# a denunciarlo); il sinistro e' TOLTO e appoggiato di taglio
+		# contro il fianco, come fanno i gelatai quando servono — il
+		# pozzetto aperto si vede in vista diretta
 		if lato < 0.0:
-			cop.position = Vector3(lato * 0.24, 0.688, 0.10)
+			cop.position = Vector3(-0.545, 0.245, 0.0)
+			cop.rotation.z = 1.32
 		else:
-			cop.position = Vector3(lato * 0.24, 0.672, lato * 0.02)
+			cop.position = Vector3(lato * 0.24, 0.661, lato * 0.02)
 		n.add_child(cop)
 		# la CORNICE (quattro sponde): il vetro nel mezzo, e sotto si
 		# VEDE il pozzetto — un telaio pieno era un coperchio bugiardo
@@ -9717,9 +9720,8 @@ static func _frigo_gelati() -> Node3D:
 		lastra_v.material_override = _vetro(0.18)
 		lastra_v.position = Vector3(0, 0.004, 0)
 		cop.add_child(lastra_v)
-		BUILDER.tube(n, [Vector3(lato * 0.24 - 0.08, 0.70, lato * 0.02 - 0.19),
-				Vector3(lato * 0.24, 0.735, lato * 0.02 - 0.20),
-				Vector3(lato * 0.24 + 0.08, 0.70, lato * 0.02 - 0.19)],
+		BUILDER.tube(cop, [Vector3(-0.08, 0.028, -0.19),
+				Vector3(0.0, 0.063, -0.20), Vector3(0.08, 0.028, -0.19)],
 				[0.011, 0.012, 0.011], _mat(ZINCO_CUPO, Color("7d838b"), 5.0, 0.3))
 	# i gelati nel pozzetto, appena sotto il vetro
 	# il cartello col cono: targa tonda in cornice rossa, sul palo
