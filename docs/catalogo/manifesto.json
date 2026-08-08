@@ -144,6 +144,24 @@
     "tipo": "cell"
   },
   {
+    "alto": 1.08,
+    "cartella": "docs/catalogo/0-struttura/autopompa/",
+    "cat": 0.0,
+    "largo": 1.84,
+    "nome": "Autopompa",
+    "slug": "autopompa",
+    "tipo": "cell"
+  },
+  {
+    "alto": 2.85,
+    "cartella": "docs/catalogo/0-struttura/guardiola/",
+    "cat": 0.0,
+    "largo": 1.72,
+    "nome": "Guardiola",
+    "slug": "guardiola",
+    "tipo": "cell"
+  },
+  {
     "alto": 0.59,
     "cartella": "docs/catalogo/0-struttura/ponticello/",
     "cat": 0.0,
@@ -207,12 +225,12 @@
     "tipo": "cell"
   },
   {
-    "alto": 2.08,
-    "cartella": "docs/catalogo/0-struttura/portone-rimessa/",
+    "alto": 2.12,
+    "cartella": "docs/catalogo/0-struttura/insegna-guardia/",
     "cat": 0.0,
-    "largo": 1.02,
-    "nome": "Portone rimessa",
-    "slug": "portone-rimessa",
+    "largo": 0.75,
+    "nome": "Insegna guardia",
+    "slug": "insegna-guardia",
     "tipo": "edge"
   },
   {
@@ -225,12 +243,12 @@
     "tipo": "edge"
   },
   {
-    "alto": 2.12,
-    "cartella": "docs/catalogo/0-struttura/insegna-guardia/",
+    "alto": 2.08,
+    "cartella": "docs/catalogo/0-struttura/portone-rimessa/",
     "cat": 0.0,
-    "largo": 0.75,
-    "nome": "Insegna guardia",
-    "slug": "insegna-guardia",
+    "largo": 1.02,
+    "nome": "Portone rimessa",
+    "slug": "portone-rimessa",
     "tipo": "edge"
   },
   {
@@ -243,19 +261,19 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.6,
+    "alto": 0.77,
     "cartella": "docs/catalogo/1-arredo/letto/",
     "cat": 1.0,
-    "largo": 0.92,
+    "largo": 0.98,
     "nome": "Letto",
     "slug": "letto",
     "tipo": "cell"
   },
   {
-    "alto": 1.03,
+    "alto": 0.96,
     "cartella": "docs/catalogo/1-arredo/sedia/",
-    "cat": 1.0,
-    "largo": 0.42,
+    "cat": 1,
+    "largo": 0.45,
     "nome": "Sedia",
     "slug": "sedia",
     "tipo": "cell"
@@ -272,7 +290,7 @@
   {
     "alto": 1.19,
     "cartella": "docs/catalogo/1-arredo/salone/",
-    "cat": 1,
+    "cat": 1.0,
     "largo": 1.2,
     "nome": "Salone",
     "slug": "salone",
@@ -288,15 +306,6 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.88,
-    "cartella": "docs/catalogo/1-arredo/lampada/",
-    "cat": 1.0,
-    "largo": 0.44,
-    "nome": "Lampada",
-    "slug": "lampada",
-    "tipo": "cell"
-  },
-  {
     "alto": 0.22,
     "cartella": "docs/catalogo/1-arredo/stivali/",
     "cat": 1.0,
@@ -306,10 +315,19 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.55,
+    "alto": 1.88,
+    "cartella": "docs/catalogo/1-arredo/lampada/",
+    "cat": 1.0,
+    "largo": 0.44,
+    "nome": "Lampada",
+    "slug": "lampada",
+    "tipo": "cell"
+  },
+  {
+    "alto": 0.59,
     "cartella": "docs/catalogo/1-arredo/carillon/",
     "cat": 1.0,
-    "largo": 0.56,
+    "largo": 0.52,
     "nome": "Carillon",
     "slug": "carillon",
     "tipo": "cell"
@@ -336,45 +354,27 @@
     "alto": 1.55,
     "cartella": "docs/catalogo/1-arredo/libreria/",
     "cat": 1.0,
-    "largo": 0.98,
+    "largo": 0.93,
     "nome": "Libreria",
     "slug": "libreria",
     "tipo": "cell"
   },
   {
-    "alto": 0.71,
+    "alto": 0.59,
     "cartella": "docs/catalogo/1-arredo/comodino/",
     "cat": 1.0,
-    "largo": 0.46,
+    "largo": 0.45,
     "nome": "Comodino",
     "slug": "comodino",
     "tipo": "cell"
   },
   {
-    "alto": 0.56,
+    "alto": 0.53,
     "cartella": "docs/catalogo/1-arredo/brandina/",
     "cat": 1.0,
-    "largo": 1.04,
+    "largo": 0.9,
     "nome": "Brandina",
     "slug": "brandina",
-    "tipo": "cell"
-  },
-  {
-    "alto": 0.68,
-    "cartella": "docs/catalogo/1-arredo/pianoforte/",
-    "cat": 1.0,
-    "largo": 0.63,
-    "nome": "Pianoforte",
-    "slug": "pianoforte",
-    "tipo": "cell"
-  },
-  {
-    "alto": 1.06,
-    "cartella": "docs/catalogo/1-arredo/lavagnetta/",
-    "cat": 1.0,
-    "largo": 0.58,
-    "nome": "Lavagnetta",
-    "slug": "lavagnetta",
     "tipo": "cell"
   },
   {
@@ -384,6 +384,24 @@
     "largo": 1.0,
     "nome": "Biliardino",
     "slug": "biliardino",
+    "tipo": "cell"
+  },
+  {
+    "alto": 0.95,
+    "cartella": "docs/catalogo/1-arredo/lavagnetta/",
+    "cat": 1.0,
+    "largo": 0.56,
+    "nome": "Lavagnetta",
+    "slug": "lavagnetta",
+    "tipo": "cell"
+  },
+  {
+    "alto": 0.68,
+    "cartella": "docs/catalogo/1-arredo/pianoforte/",
+    "cat": 1.0,
+    "largo": 0.63,
+    "nome": "Pianoforte",
+    "slug": "pianoforte",
     "tipo": "cell"
   },
   {
@@ -441,15 +459,6 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.45,
-    "cartella": "docs/catalogo/1-arredo/bacheca-avvisi/",
-    "cat": 1.0,
-    "largo": 1.1,
-    "nome": "Bacheca avvisi",
-    "slug": "bacheca-avvisi",
-    "tipo": "edge"
-  },
-  {
     "alto": 0.76,
     "cartella": "docs/catalogo/1-arredo/macchina-caffe/",
     "cat": 1.0,
@@ -459,10 +468,19 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.52,
+    "alto": 1.45,
+    "cartella": "docs/catalogo/1-arredo/bacheca-avvisi/",
+    "cat": 1.0,
+    "largo": 1.1,
+    "nome": "Bacheca avvisi",
+    "slug": "bacheca-avvisi",
+    "tipo": "edge"
+  },
+  {
+    "alto": 1.15,
     "cartella": "docs/catalogo/1-arredo/campana-caserma/",
     "cat": 1.0,
-    "largo": 0.84,
+    "largo": 0.66,
     "nome": "Campana caserma",
     "slug": "campana-caserma",
     "tipo": "cell"
@@ -576,21 +594,12 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.6,
-    "cartella": "docs/catalogo/2-giardino/lavagna/",
+    "alto": 2.07,
+    "cartella": "docs/catalogo/2-giardino/pennone/",
     "cat": 2.0,
-    "largo": 1.06,
-    "nome": "Lavagna",
-    "slug": "lavagna",
-    "tipo": "cell"
-  },
-  {
-    "alto": 0.54,
-    "cartella": "docs/catalogo/2-giardino/fontana/",
-    "cat": 2.0,
-    "largo": 1.0,
-    "nome": "Fontana",
-    "slug": "fontana",
+    "largo": 0.11,
+    "nome": "Pennone",
+    "slug": "pennone",
     "tipo": "cell"
   },
   {
@@ -603,12 +612,21 @@
     "tipo": "cell"
   },
   {
-    "alto": 2.07,
-    "cartella": "docs/catalogo/2-giardino/pennone/",
+    "alto": 0.54,
+    "cartella": "docs/catalogo/2-giardino/fontana/",
     "cat": 2.0,
-    "largo": 0.11,
-    "nome": "Pennone",
-    "slug": "pennone",
+    "largo": 1.0,
+    "nome": "Fontana",
+    "slug": "fontana",
+    "tipo": "cell"
+  },
+  {
+    "alto": 1.6,
+    "cartella": "docs/catalogo/2-giardino/lavagna/",
+    "cat": 2.0,
+    "largo": 1.06,
+    "nome": "Lavagna",
+    "slug": "lavagna",
     "tipo": "cell"
   },
   {
@@ -657,12 +675,21 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.65,
-    "cartella": "docs/catalogo/2-giardino/giostrina/",
+    "alto": 0.71,
+    "cartella": "docs/catalogo/2-giardino/transenna/",
     "cat": 2.0,
-    "largo": 0.88,
-    "nome": "Giostrina",
-    "slug": "giostrina",
+    "largo": 0.96,
+    "nome": "Transenna",
+    "slug": "transenna",
+    "tipo": "edge"
+  },
+  {
+    "alto": 0.64,
+    "cartella": "docs/catalogo/2-giardino/cespuglio/",
+    "cat": 2.0,
+    "largo": 0.86,
+    "nome": "Cespuglio",
+    "slug": "cespuglio",
     "tipo": "cell"
   },
   {
@@ -675,22 +702,13 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.64,
-    "cartella": "docs/catalogo/2-giardino/cespuglio/",
+    "alto": 1.65,
+    "cartella": "docs/catalogo/2-giardino/giostrina/",
     "cat": 2.0,
-    "largo": 0.86,
-    "nome": "Cespuglio",
-    "slug": "cespuglio",
+    "largo": 0.88,
+    "nome": "Giostrina",
+    "slug": "giostrina",
     "tipo": "cell"
-  },
-  {
-    "alto": 0.71,
-    "cartella": "docs/catalogo/2-giardino/transenna/",
-    "cat": 2.0,
-    "largo": 0.96,
-    "nome": "Transenna",
-    "slug": "transenna",
-    "tipo": "edge"
   },
   {
     "alto": 2.42,
@@ -738,12 +756,12 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.2,
-    "cartella": "docs/catalogo/2-giardino/frigo-gelati/",
+    "alto": 1.52,
+    "cartella": "docs/catalogo/2-giardino/faro-caserma/",
     "cat": 2.0,
-    "largo": 1.0,
-    "nome": "Frigo gelati",
-    "slug": "frigo-gelati",
+    "largo": 0.32,
+    "nome": "Faro caserma",
+    "slug": "faro-caserma",
     "tipo": "cell"
   },
   {
@@ -756,12 +774,12 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.52,
-    "cartella": "docs/catalogo/2-giardino/faro-caserma/",
+    "alto": 1.2,
+    "cartella": "docs/catalogo/2-giardino/frigo-gelati/",
     "cat": 2.0,
-    "largo": 0.32,
-    "nome": "Faro caserma",
-    "slug": "faro-caserma",
+    "largo": 1.0,
+    "nome": "Frigo gelati",
+    "slug": "frigo-gelati",
     "tipo": "cell"
   },
   {
@@ -882,12 +900,12 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.3,
-    "cartella": "docs/catalogo/4-chiesa/altare/",
+    "alto": 2.6,
+    "cartella": "docs/catalogo/4-chiesa/arcata/",
     "cat": 4.0,
-    "largo": 0.98,
-    "nome": "Altare",
-    "slug": "altare",
+    "largo": 1.18,
+    "nome": "Arcata",
+    "slug": "arcata",
     "tipo": "cell"
   },
   {
@@ -900,12 +918,12 @@
     "tipo": "cell"
   },
   {
-    "alto": 2.6,
-    "cartella": "docs/catalogo/4-chiesa/arcata/",
+    "alto": 1.3,
+    "cartella": "docs/catalogo/4-chiesa/altare/",
     "cat": 4.0,
-    "largo": 1.18,
-    "nome": "Arcata",
-    "slug": "arcata",
+    "largo": 0.98,
+    "nome": "Altare",
+    "slug": "altare",
     "tipo": "cell"
   },
   {
@@ -1026,12 +1044,12 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.24,
-    "cartella": "docs/catalogo/5-boutique/sacchetti/",
+    "alto": 1.09,
+    "cartella": "docs/catalogo/5-boutique/manichino/",
     "cat": 5.0,
-    "largo": 0.63,
-    "nome": "Sacchetti",
-    "slug": "sacchetti",
+    "largo": 0.41,
+    "nome": "Manichino",
+    "slug": "manichino",
     "tipo": "cell"
   },
   {
@@ -1044,12 +1062,12 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.09,
-    "cartella": "docs/catalogo/5-boutique/manichino/",
+    "alto": 0.24,
+    "cartella": "docs/catalogo/5-boutique/sacchetti/",
     "cat": 5.0,
-    "largo": 0.41,
-    "nome": "Manichino",
-    "slug": "manichino",
+    "largo": 0.63,
+    "nome": "Sacchetti",
+    "slug": "sacchetti",
     "tipo": "cell"
   },
   {

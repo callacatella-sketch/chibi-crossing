@@ -13,7 +13,9 @@ extends Node
 # Nel letto la radice va verso i piedi del materasso: la posa "sleep" la
 # reclina all'indietro col capo sul cuscino.
 const SEATS := {
-	"Sedia": Vector3(0, 0.36, 0.08),
+	# lo schienale della Sedia sta a +Z (come il letto): chi si siede va
+	# verso il DAVANTI, cioè a -Z, o si ritroverebbe seduto nello schienale
+	"Sedia": Vector3(0, 0.36, -0.08),
 	"Sgabello": Vector3(0, 0.33, 0.0),
 	"Panchina": Vector3(0, 0.35, 0.08),
 	# il letto ha la testiera a +Z (si appoggia al muro dietro): la radice
@@ -89,6 +91,16 @@ func _e_il_mio_letto() -> bool:
 		return false
 	return bool(home.call("is_home",
 			Vector2i(roundi(_target.position.x), roundi(_target.position.z))))
+
+
+## Il verso di chi si siede su un pezzo ruotato di `yaw_pezzo`: si guarda
+## dalla parte OPPOSTA allo schienale. Pura apposta — è la sola cosa che
+## lega la geometria del pezzo alla posa, e va potuta provare senza scena
+## (vedi tests/cases/test_sedute.gd, che misura DOVE sta lo schienale
+## costruendo il pezzo vero).
+static func yaw_seduta(kind: String, yaw_pezzo: float) -> float:
+	var verso: float = (SEATS.get(kind, Vector3.ZERO) as Vector3).z
+	return yaw_pezzo + (0.0 if verso < 0.0 else PI)
 
 
 func is_seated() -> bool:
@@ -290,8 +302,15 @@ func _sit_down(seat: Node3D, kind: String) -> void:
 	_move_tw.tween_property(_player, "global_position", dest, 0.32) \
 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 
-	# Mochi si gira dando le spalle allo schienale e si raccoglie
-	_mochi.set("_yaw", seat.rotation.y + PI)
+	# Mochi si gira dando le spalle allo schienale e si raccoglie.
+	# IL VERSO SI RICAVA DAL POSTO, non è più un `+ PI` fisso: lo
+	# scostamento di SEATS punta sempre dalla parte OPPOSTA allo
+	# schienale (è lì che finisce il corpo di chi si siede), quindi è
+	# anche la direzione dello sguardo. Col mezzo giro sempre uguale, la
+	# Sedia — che ora ha lo schienale dietro, a +Z come il Letto — faceva
+	# sedere Mochi col muso dentro le doghe: il catalogo non lo mostra,
+	# perché nel catalogo non c'è nessuno seduto.
+	_mochi.set("_yaw", yaw_seduta(kind, seat.rotation.y))
 	_mochi.call("set_pose", "sleep" if kind == "Letto" else "sit")
 	if _sfx:
 		_sfx.play("step_wood2", -16.0, 0.7)
