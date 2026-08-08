@@ -1153,16 +1153,199 @@ static func _table() -> Node3D:
 	return n
 
 
+## LA SEDIA, rifatta. Prima: quattro pali quadrati, una tavola, un
+## pannello dritto dietro e un disco rosa sopra — e lo schienale a -Z,
+## cioè con la SCHIENA verso la stanza (nella vista frontale del catalogo
+## si vedeva un pannello cieco, come il letto e il camino).
+##
+## Adesso lo schienale sta dietro (+Z) e la sedia è una sedia di paese:
+##
+##  · LE GAMBE SONO TORNITE E DIVARICATE. Una sedia con le gambe dritte e
+##    parallele è uno sgabello di scatole: le gambe vere si aprono verso
+##    il basso (è quello che la tiene in piedi) e hanno il collarino
+##    tornito sotto il sedile.
+##  · CI SONO LE TRAVERSE. Il telaio a H fra le gambe è il pezzo che
+##    nessuno disegna e che tutti riconoscono: senza, le gambe sono
+##    quattro bastoni piantati sotto un'asse.
+##  · IL SEDILE HA LA CONCA. Il piano di una sedia impagliata non è
+##    piatto: è scavato dove ci si siede e arrotondato sul davanti. E il
+##    cuscino è LEGATO ai montanti con due fiocchi — è il modo in cui i
+##    cuscini stanno sulle sedie, da sempre.
+##
+## Più lo schienale a tre stecche con la stecca centrale sagomata e il
+## traforo a goccia, e la traversa alta appena curva.
 static func _chair() -> Node3D:
 	var n := Node3D.new()
-	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.55)
-	_box(n, Vector3(0.42, 0.06, 0.42), wood, Vector3(0, 0.45, 0))
-	for x in [-0.17, 0.17]:
-		for z in [-0.17, 0.17]:
-			_box(n, Vector3(0.055, 0.45, 0.055), wood, Vector3(x, 0.225, z))
-	var back := _box(n, Vector3(0.42, 0.55, 0.05), wood, Vector3(0, 0.75, -0.19))
-	back.rotation.x = 0.08
-	_cyl(n, 0.17, 0.17, 0.05, _mat(PINK, PINK_DEEP, 5.0, 0.4), Vector3(0, 0.505, 0.01))
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.55)
+	var legno_chiaro := _mat(WOOD_PALE, WOOD, 3.5, 0.5)
+	var legno_scuro := _mat(WOOD_DARK, Color("6d4f31"), 4.0, 0.5)
+	var y_sed := 0.44
+
+	# ---- LE GAMBE: tornite, divaricate, col collarino ----
+	# DUE ERRORI MISURATI, non visti a occhio:
+	#  · la divaricazione era ROVESCIA (le gambe si aprivano in alto e si
+	#    stringevano a terra: una sedia così sembra sul punto di ribaltarsi);
+	#  · il piede e il collarino stavano su moltiplicatori scritti a mano
+	#    (`*1.12`, `*1.02`) e cadevano 2,2 cm e 1,6 cm FUORI dall'asse della
+	#    gamba — nel fronte si vedevano i piedi sbucare di lato.
+	# La quota di un pezzo che sta su una gamba inclinata si DERIVA
+	# dall'inclinazione, sempre: `asse` è quella derivazione.
+	var y_perno_g := y_sed * 0.5
+	var apre := 0.055
+	var asse := func(s: float, y: float) -> float:
+		return s * (0.1749 - (y - y_perno_g) * sin(apre))
+	for sx: float in [-1.0, 1.0]:
+		for sz: float in [-1.0, 1.0]:
+			var gamba := _cyl(n, 0.026, 0.036, y_sed, legno,
+					Vector3(sx * 0.1749, y_perno_g, sz * 0.1749))
+			gamba.rotation.z = sx * apre
+			gamba.rotation.x = -sz * apre * 0.82
+			# il collarino tornito sotto il sedile
+			var y_col := y_sed - 0.055
+			_cyl(n, 0.032, 0.032, 0.024, legno_chiaro,
+					Vector3(asse.call(sx, y_col), y_col, asse.call(sz, y_col)))
+			# il puntale consumato che appoggia a terra
+			_cyl(n, 0.038, 0.034, 0.018, legno_scuro,
+					Vector3(asse.call(sx, 0.009), 0.009, asse.call(sz, 0.009)))
+	# ---- LE TRAVERSE a H: due sui fianchi, una in mezzo ----
+	for sx2: float in [-1.0, 1.0]:
+		var tr := _cyl(n, 0.016, 0.016, 0.36, legno,
+				Vector3(asse.call(sx2, 0.155), 0.155, 0))
+		tr.rotation.x = PI * 0.5
+	var tm := _cyl(n, 0.015, 0.015, 0.36, legno, Vector3(0, 0.145, 0))
+	tm.rotation.z = PI * 0.5
+	# e la traversa davanti, più alta: quella su cui si appoggiano i piedi
+	var td := _cyl(n, 0.014, 0.014, 0.355, legno,
+			Vector3(0, 0.20, asse.call(-1.0, 0.20)))
+	td.rotation.z = PI * 0.5
+
+	# ---- IL SEDILE: sagomato, con la conca e il bordo tondo ----
+	_box(n, Vector3(0.40, 0.045, 0.39), legno_chiaro, Vector3(0, y_sed + 0.022, 0))
+	# NIENTE «conca»: una sfera schiacciata sul piano non scava un
+	# incavo, ci mette una GOBBA (di profilo si vedeva il sedile
+	# bombato sotto il cuscino). L'incavo si suggerisce col colore.
+	_box(n, Vector3(0.33, 0.012, 0.32), legno, Vector3(0, y_sed + 0.046, -0.008))
+	# il naso tondo del bordo davanti, e gli spigoli smussati di fianco
+	_cyl(n, 0.024, 0.024, 0.40, legno_chiaro,
+			Vector3(0, y_sed + 0.020, -0.192)).rotation.z = PI * 0.5
+	for sx3: float in [-1.0, 1.0]:
+		_cyl(n, 0.022, 0.022, 0.38, legno_chiaro,
+				Vector3(sx3 * 0.198, y_sed + 0.020, 0)).rotation.x = PI * 0.5
+
+	# ---- LO SCHIENALE, DIETRO (+Z), RECLINATO ----
+	# LA SVISTA CHE VALE DUE MINUTI DI PIÙ: `rotation.x = -0.10` porta la
+	# CIMA verso -Z, cioè in avanti — lo schienale si sporgeva sopra il
+	# sedile come se volesse spingerti giù. Reclinare all'indietro è +0.10,
+	# e tutte le quote dello schienale si DERIVANO da quell'inclinazione
+	# (`zs`), invece di essere scritte a mano una per una: era così che
+	# i pomelli finivano fuori dai montanti.
+	var y_alto := 0.92
+	var y_perno := (y_alto + y_sed) * 0.5
+	var incl := 0.10
+	var zs := func(y: float) -> float: return 0.185 + (y - y_perno) * sin(incl)
+	for sx4: float in [-1.0, 1.0]:
+		var mont := _cyl(n, 0.024, 0.030, y_alto - y_sed, legno,
+				Vector3(sx4 * 0.163, y_perno, 0.185))
+		mont.rotation.x = incl
+		_ball(n, 0.031, legno_chiaro, Vector3(sx4 * 0.163, y_alto + 0.008, zs.call(y_alto)),
+				Vector3(1, 0.86, 1))
+	# la traversa alta (il cappello, appena bombata) e quella bassa
+	var y_cap := y_alto - 0.038
+	var cappello := _box(n, Vector3(0.376, 0.072, 0.038), legno_chiaro,
+			Vector3(0, y_cap, zs.call(y_cap)))
+	cappello.rotation.x = incl
+	var b := _box(n, Vector3(0.34, 0.011, 0.010), _mat(WOOD_DARK, WOOD, 4.0, 0.4),
+			Vector3(0, y_cap - 0.022, zs.call(y_cap) - 0.017))
+	b.rotation.x = incl
+	var y_bas := 0.585
+	var bassa := _box(n, Vector3(0.352, 0.042, 0.032), legno,
+			Vector3(0, y_bas, zs.call(y_bas)))
+	bassa.rotation.x = incl
+	# le stecche: quella di mezzo più larga, col traforo
+	var y_st := (y_cap + y_bas) * 0.5
+	for k in 3:
+		var dx := -0.098 + 0.098 * float(k)
+		var largo := 0.052 if k != 1 else 0.108
+		var st := _box(n, Vector3(largo, y_cap - y_bas - 0.030, 0.024), legno,
+				Vector3(dx, y_st, zs.call(y_st) - 0.004))
+		st.rotation.x = incl
+	# IL TRAFORO: un buco di serratura. Prima erano due ovali sovrapposti
+	# e leggevano come un punto esclamativo — un ornamento deve essere una
+	# FORMA riconoscibile, o l'occhio ci legge quel che vuole.
+	var buio := _mat(Color("5a4028"), Color("42301d"), 4.0, 0.35)
+	var y_occ := y_st + 0.036
+	_ball(n, 0.027, buio, Vector3(0, y_occ, zs.call(y_occ) - 0.018), Vector3(1, 1, 0.30))
+	var y_fes := y_st - 0.004
+	_cyl(n, 0.020, 0.007, 0.062, buio,
+			Vector3(0, y_fes, zs.call(y_fes) - 0.018)).scale.z = 0.30
+
+	# ---- IL CUSCINO: una forma CHIUSA, non una pagnotta sul vassoio ----
+	# Prima era una lente con quattro palle agli angoli (leggeva come un
+	# polpo rosa); poi una cupola più stretta del cordoncino, e faceva lo
+	# scalino. Un cuscino è UNA superficie: la bombatura deve arrivare
+	# FINO al bordo, e il bordo è il cordoncino cucito.
+	var stoffa := _mat(PINK, PINK_DEEP, 5.0, 0.4)
+	var scuro := _mat(PINK_DEEP, PINK_DEEP.darkened(0.22), 5.0, 0.35)
+	var cusc := Node3D.new()
+	cusc.position = Vector3(0, y_sed + 0.045 + 0.026, -0.006)
+	cusc.rotation.y = 0.045                     # posato storto, come nella vita
+	n.add_child(cusc)
+	var mezzo := 0.150
+	var mezzo_z := 0.145
+	var cord := 0.026
+	# LA REGOLA DEL CUSCINO: la bombatura deve arrivare ESATTAMENTE al
+	# cordoncino (raggio = semilato + cordoncino) e appena appena sopra il
+	# piano. Una cupola più stretta del bordo fa lo scalino, e di profilo
+	# la si legge come una conchiglia; una più alta fa la pagnotta.
+	var raggio := mezzo + cord
+	_box(cusc, Vector3(mezzo * 2.0, 0.050, mezzo_z * 2.0), stoffa, Vector3.ZERO)
+	for lato: float in [-1.0, 1.0]:
+		_cyl(cusc, cord, cord, mezzo_z * 2.0, stoffa,
+				Vector3(lato * mezzo, 0, 0)).rotation.x = PI * 0.5
+		_cyl(cusc, cord, cord, mezzo * 2.0, stoffa,
+				Vector3(0, 0, lato * mezzo_z)).rotation.z = PI * 0.5
+	for cx: float in [-1.0, 1.0]:
+		for cz: float in [-1.0, 1.0]:
+			_ball(cusc, cord, stoffa, Vector3(cx * mezzo, 0, cz * mezzo_z))
+	_ball(cusc, raggio, stoffa, Vector3(0, 0.009, 0),
+			Vector3(1.0, 0.16, (mezzo_z + cord) / raggio))
+	_ball(cusc, raggio * 0.98, stoffa, Vector3(0, -0.014, 0),
+			Vector3(1.0, 0.13, (mezzo_z + cord) / raggio))
+	# i quattro punti della trapuntatura: tirano la stoffa, ed è per questo
+	# che un cuscino imbottito non è un cuscino gonfio
+	for bx: float in [-1.0, 1.0]:
+		for bz: float in [-1.0, 1.0]:
+			_ball(cusc, 0.013, scuro, Vector3(bx * 0.068, 0.030, bz * 0.064),
+					Vector3(1, 0.40, 1))
+
+	# I FIOCCHI: annodati ai montanti e APPOGGIATI al legno. Prima erano
+	# palline pallide sospese nel vuoto fra sedile e schienale: un fiocco
+	# che non tocca niente non lega niente.
+	var y_fio := y_sed + 0.088
+	for sx5: float in [-1.0, 1.0]:
+		var laccio := _cyl(n, 0.009, 0.009, 0.075, stoffa,
+				Vector3(sx5 * 0.152, y_fio - 0.012, 0.148))
+		laccio.rotation.x = PI * 0.5
+		laccio.rotation.z = sx5 * 0.30
+		# LA FASCIA CHE GIRA INTORNO AL MONTANTE: è questa a dire «legato».
+		# Col solo fiocco, i due nastri restavano due puntini rosa sospesi
+		# nel vuoto fra il sedile e lo schienale — il nodo si vede, il giro
+		# no, e quel che non si vede non convince.
+		var fascia := _cyl(n, 0.034, 0.034, 0.030, stoffa,
+				Vector3(sx5 * 0.163, y_fio, zs.call(y_fio)))
+		fascia.rotation.x = incl
+		var nodo := Node3D.new()
+		nodo.position = Vector3(sx5 * 0.163, y_fio, zs.call(y_fio) - 0.028)
+		nodo.rotation = Vector3(incl, 0, sx5 * 0.30)
+		n.add_child(nodo)
+		for orecchio: float in [-1.0, 1.0]:
+			var o := _ball(nodo, 0.028, stoffa,
+					Vector3(orecchio * 0.028, 0.004, 0.002),
+					Vector3(1.0, 0.68, 0.42))
+			o.rotation.z = orecchio * 0.5
+			_ball(nodo, 0.014, stoffa, Vector3(orecchio * 0.020, -0.038, 0.0),
+					Vector3(0.8, 1.4, 0.40)).rotation.z = orecchio * 0.28
+		_ball(nodo, 0.016, scuro, Vector3(0, 0.002, 0.008), Vector3(1, 0.9, 0.65))
 	return n
 
 

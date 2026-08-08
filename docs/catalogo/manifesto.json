@@ -263,17 +263,17 @@
   {
     "alto": 0.77,
     "cartella": "docs/catalogo/1-arredo/letto/",
-    "cat": 1,
+    "cat": 1.0,
     "largo": 0.98,
     "nome": "Letto",
     "slug": "letto",
     "tipo": "cell"
   },
   {
-    "alto": 1.03,
+    "alto": 0.96,
     "cartella": "docs/catalogo/1-arredo/sedia/",
-    "cat": 1.0,
-    "largo": 0.42,
+    "cat": 1,
+    "largo": 0.45,
     "nome": "Sedia",
     "slug": "sedia",
     "tipo": "cell"
