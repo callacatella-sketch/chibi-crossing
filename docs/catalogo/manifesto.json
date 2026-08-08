@@ -333,10 +333,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.66,
+    "alto": 0.67,
     "cartella": "docs/catalogo/1-arredo/tavolino/",
-    "cat": 1.0,
-    "largo": 0.84,
+    "cat": 1,
+    "largo": 0.86,
     "nome": "Tavolino",
     "slug": "tavolino",
     "tipo": "cell"

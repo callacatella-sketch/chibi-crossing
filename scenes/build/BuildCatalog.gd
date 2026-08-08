@@ -1145,13 +1145,58 @@ static func _roof_tile() -> Node3D:
 
 
 # ---------------------------------------------------------------- arredo
-
+# IL TAVOLINO DI CASA. Prima erano tre cilindri impilati; ora il piede
+# e' UN tornito solo — campana, collarino, pancia a vaso, fusto e collo,
+# come lo farebbe il tornio — coi tre piedini a cipolla che spuntano
+# sotto la campana. Il piano tiene la quota di sempre (0.66) e ha il
+# bordo a toro con il gradino d'ombra sotto; sopra, solo il centrino
+# smerlato: il piano di un tavolino e' della vita che ci si appoggia.
+# (E' un pezzo TINTABILE: tutto legno e stoffa, cosi' la variante menta
+# tinge un mobile, non un soprammobile.)
 static func _table() -> Node3D:
 	var n := Node3D.new()
+	var pale := _mat(WOOD_PALE, WOOD, 3.0, 0.5)
 	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.55)
-	_cyl(n, 0.42, 0.42, 0.06, _mat(WOOD_PALE, WOOD, 3.0, 0.5), Vector3(0, 0.63, 0))
-	_cyl(n, 0.055, 0.07, 0.6, wood, Vector3(0, 0.3, 0))
-	_cyl(n, 0.2, 0.24, 0.05, wood, Vector3(0, 0.025, 0))
+	var scuro := _mat(WOOD_DARK, Color("8a6540"), 4.0, 0.5)
+	var crema := _mat(Color("efe0c4"), Color("ddcba8"), 6.0, 0.3)
+
+	# il piede tornito, dalla campana al collo, in un profilo solo
+	# (le anse si CAMPIONANO come archi: con i soli vertici la lathe
+	# tira dritte le corde e la pancia esce a diamante)
+	BUILDER.lathe(n, [Vector2(0.235, 0.0), Vector2(0.246, 0.018),
+			Vector2(0.215, 0.042), Vector2(0.150, 0.072), Vector2(0.100, 0.102),
+			Vector2(0.080, 0.132), Vector2(0.084, 0.150), Vector2(0.086, 0.160),
+			Vector2(0.084, 0.170), Vector2(0.070, 0.185), Vector2(0.066, 0.205),
+			Vector2(0.076, 0.235), Vector2(0.080, 0.262), Vector2(0.076, 0.290),
+			Vector2(0.062, 0.315), Vector2(0.050, 0.340), Vector2(0.042, 0.400),
+			Vector2(0.038, 0.470), Vector2(0.040, 0.530), Vector2(0.048, 0.575),
+			Vector2(0.058, 0.598), Vector2(0.070, 0.610), Vector2(0.078, 0.615)],
+			wood)
+	# i tre piedini a cipolla, sotto la campana
+	for pi3 in 3:
+		var ap := float(pi3) * TAU / 3.0 + 0.5
+		_ball(n, 0.036, scuro, Vector3(cos(ap) * 0.165, 0.018, sin(ap) * 0.165),
+				Vector3(1.0, 0.55, 1.0))
+
+	# il piano (superficie a 0.66, la quota di sempre), il gradino
+	# d'ombra sotto, e il bordo a toro
+	_cyl(n, 0.30, 0.30, 0.022, scuro, Vector3(0, 0.607, 0))
+	_cyl(n, 0.42, 0.42, 0.045, pale, Vector3(0, 0.6375, 0))
+	var bordo := MeshInstance3D.new()
+	var bm := TorusMesh.new()
+	bm.inner_radius = 0.392
+	bm.outer_radius = 0.432
+	bordo.mesh = bm
+	bordo.material_override = wood
+	bordo.position = Vector3(0, 0.643, 0)
+	n.add_child(bordo)
+
+	# il centrino smerlato al centro: 4 mm di stoffa, non intralcia niente
+	_cyl(n, 0.105, 0.105, 0.004, crema, Vector3(0, 0.662, 0))
+	for sm in 10:
+		var asm := float(sm) * TAU / 10.0
+		_ball(n, 0.015, crema, Vector3(cos(asm) * 0.102, 0.6625, sin(asm) * 0.102),
+				Vector3(1.0, 0.22, 1.0))
 	return n
 
 
