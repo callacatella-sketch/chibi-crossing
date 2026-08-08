@@ -14,11 +14,11 @@
 | **Brandina**<br><sub>1.04 × 0.56 m</sub> | <img src="brandina/1-fronte.jpg" width="200"> | <img src="brandina/2-tre-quarti.jpg" width="200"> | <img src="brandina/3-profilo.jpg" width="200"> |
 | **Camino**<br><sub>1.00 × 1.91 m</sub> | <img src="camino/1-fronte.jpg" width="200"> | <img src="camino/2-tre-quarti.jpg" width="200"> | <img src="camino/3-profilo.jpg" width="200"> |
 | **Campana caserma**<br><sub>0.84 × 1.52 m</sub> | <img src="campana-caserma/1-fronte.jpg" width="200"> | <img src="campana-caserma/2-tre-quarti.jpg" width="200"> | <img src="campana-caserma/3-profilo.jpg" width="200"> |
-| **Carillon**<br><sub>0.52 × 0.59 m</sub> | <img src="carillon/1-fronte.jpg" width="200"> | <img src="carillon/2-tre-quarti.jpg" width="200"> | <img src="carillon/3-profilo.jpg" width="200"> |
+| **Carillon**<br><sub>0.56 × 0.55 m</sub> | <img src="carillon/1-fronte.jpg" width="200"> | <img src="carillon/2-tre-quarti.jpg" width="200"> | <img src="carillon/3-profilo.jpg" width="200"> |
 | **Casco appeso**<br><sub>0.86 × 0.59 m</sub> | <img src="casco-appeso/1-fronte.jpg" width="200"> | <img src="casco-appeso/2-tre-quarti.jpg" width="200"> | <img src="casco-appeso/3-profilo.jpg" width="200"> |
-| **Comodino**<br><sub>0.45 × 0.59 m</sub> | <img src="comodino/1-fronte.jpg" width="200"> | <img src="comodino/2-tre-quarti.jpg" width="200"> | <img src="comodino/3-profilo.jpg" width="200"> |
+| **Comodino**<br><sub>0.46 × 0.71 m</sub> | <img src="comodino/1-fronte.jpg" width="200"> | <img src="comodino/2-tre-quarti.jpg" width="200"> | <img src="comodino/3-profilo.jpg" width="200"> |
 | **Lampada**<br><sub>0.44 × 1.88 m</sub> | <img src="lampada/1-fronte.jpg" width="200"> | <img src="lampada/2-tre-quarti.jpg" width="200"> | <img src="lampada/3-profilo.jpg" width="200"> |
-| **Lavagnetta**<br><sub>0.56 × 0.95 m</sub> | <img src="lavagnetta/1-fronte.jpg" width="200"> | <img src="lavagnetta/2-tre-quarti.jpg" width="200"> | <img src="lavagnetta/3-profilo.jpg" width="200"> |
+| **Lavagnetta**<br><sub>0.58 × 0.96 m</sub> | <img src="lavagnetta/1-fronte.jpg" width="200"> | <img src="lavagnetta/2-tre-quarti.jpg" width="200"> | <img src="lavagnetta/3-profilo.jpg" width="200"> |
 | **Letto**<br><sub>0.92 × 0.60 m</sub> | <img src="letto/1-fronte.jpg" width="200"> | <img src="letto/2-tre-quarti.jpg" width="200"> | <img src="letto/3-profilo.jpg" width="200"> |
 | **Libreria**<br><sub>0.93 × 1.55 m</sub> | <img src="libreria/1-fronte.jpg" width="200"> | <img src="libreria/2-tre-quarti.jpg" width="200"> | <img src="libreria/3-profilo.jpg" width="200"> |
 | **Macchina caffè**<br><sub>0.67 × 0.76 m</sub> | <img src="macchina-caffe/1-fronte.jpg" width="200"> | <img src="macchina-caffe/2-tre-quarti.jpg" width="200"> | <img src="macchina-caffe/3-profilo.jpg" width="200"> |
