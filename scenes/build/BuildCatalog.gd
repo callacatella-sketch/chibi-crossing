@@ -3406,7 +3406,7 @@ static func _swing() -> Node3D:
 	# L'ALTALENA. Prima stava su per miracolo: due pali COMPLANARI (di
 	# profilo era UN bastone) e una tavoletta appesa. Un'altalena da
 	# giardino sta su con le CAPRIATE: due gambe ad A per lato col
-	# traversino che le lega e i piedini scuri, la trave con le testate
+	# traversino che le lega, la trave con le testate
 	# tornite e le legature di corda sui nodi, e le funi che scendono dai
 	# due ANELLI d'ottone che abbracciano la trave. Il sedile è una tavola
 	# vera: bordi tondi, i correntini sotto, e i nodi delle funi che
@@ -3421,8 +3421,6 @@ static func _swing() -> Node3D:
 		for vz: float in [-1.0, 1.0]:
 			var gamba := _cyl(n, 0.032, 0.045, 1.62, wood, Vector3(x, 0.755, vz * 0.165))
 			gamba.rotation.x = -vz * 0.21
-			var piede := _cyl(n, 0.048, 0.056, 0.07, scuro, Vector3(x, 0.035, vz * 0.33))
-			piede.rotation.x = -vz * 0.21
 		var tira := _cyl(n, 0.018, 0.018, 0.46, wood, Vector3(x, 0.58, 0))
 		tira.rotation.x = PI * 0.5
 	# la trave: le testate tornite oltre le capriate, e le legature di
