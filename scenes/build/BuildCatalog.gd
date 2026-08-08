@@ -3575,6 +3575,46 @@ static func _salone_specchio(n: Node3D, legno_chiaro: Material, ottone: Material
 		_cyl(n, 0.034, 0.034, 0.022, legno_chiaro, Vector3(sx, 0.011, z))
 		_ball(n, 0.032, legno_chiaro, Vector3(sx, 0.34, z), Vector3(1, 0.6, 1))
 
+	# LA VITA SUL PIANO: a distanza di catalogo la console leggeva come un
+	# tavolo da pranzo vuoto. Un piano da estetista e' un piccolo paesaggio:
+	# le boccette di profumo coi tappi d'ottone, il vasetto con UN fiore,
+	# il vassoio con la spazzola, la pila di asciugamani.
+	var vetro_c := StandardMaterial3D.new()
+	vetro_c.albedo_color = Color(0.9, 0.94, 0.96, 0.45)
+	vetro_c.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	vetro_c.roughness = 0.1
+	var piano_y := SAL_CONSOLE + 0.0175
+	# le due boccette tonde e quella quadrata, coi tappi d'ottone
+	_cyl(n, 0.016, 0.018, 0.05, vetro_c, Vector3(0.245, piano_y + 0.025, z - 0.045))
+	_ball(n, 0.011, ottone, Vector3(0.245, piano_y + 0.058, z - 0.045))
+	_cyl(n, 0.012, 0.014, 0.038, vetro_c, Vector3(0.30, piano_y + 0.019, z - 0.01))
+	_ball(n, 0.009, ottone, Vector3(0.30, piano_y + 0.045, z - 0.01))
+	_box(n, Vector3(0.032, 0.042, 0.032), _mat(Color("f0b3c4"), Color("dd9aae"), 5.0, 0.35),
+			Vector3(0.19, piano_y + 0.021, z + 0.015))
+	_cyl(n, 0.008, 0.008, 0.014, ottone, Vector3(0.19, piano_y + 0.049, z + 0.015))
+	# il vasetto col fiore
+	_cyl(n, 0.011, 0.014, 0.06, vetro_c, Vector3(-0.30, piano_y + 0.03, z - 0.02))
+	_cyl(n, 0.003, 0.003, 0.05, _mat(Color("7fae6a"), Color("5f8a4e"), 4.0, 0.45),
+			Vector3(-0.30, piano_y + 0.075, z - 0.02))
+	_ball(n, 0.014, _mat(PINK, PINK_DEEP, 5.0, 0.4),
+			Vector3(-0.30, piano_y + 0.104, z - 0.02))
+	# il vassoio con la spazzola
+	_box(n, Vector3(0.15, 0.008, 0.095), _mat(WOOD, WOOD_DARK, 5.0, 0.4),
+			Vector3(-0.11, piano_y + 0.004, z + 0.03))
+	var spazzola := _box(n, Vector3(0.085, 0.014, 0.032),
+			_mat(WOOD_DARK, WOOD_DARK.darkened(0.15), 5.0, 0.4),
+			Vector3(-0.12, piano_y + 0.015, z + 0.025))
+	spazzola.rotation.y = 0.35
+	var setole := _box(n, Vector3(0.062, 0.010, 0.024),
+			_mat(Color("f3e6d0"), Color("dfd0b8"), 6.0, 0.35),
+			Vector3(-0.12, piano_y + 0.027, z + 0.025))
+	setole.rotation.y = 0.35
+	# la pila di asciugamani
+	_box(n, Vector3(0.075, 0.016, 0.055), _mat(CREAM, Color("f0e4cc"), 5.0, 0.35),
+			Vector3(0.10, piano_y + 0.008, z - 0.05))
+	_box(n, Vector3(0.07, 0.014, 0.05), _mat(Color("f0b3c4"), Color("dd9aae"), 5.0, 0.35),
+			Vector3(0.10, piano_y + 0.023, z - 0.05))
+
 	# i montanti dello specchio, leggermente aperti a V
 	for sx2: float in [-0.215, 0.215]:
 		var m := _cyl(n, 0.016, 0.019, 0.30, legno_chiaro, Vector3(sx2, 0.63, z))
@@ -3608,15 +3648,30 @@ static func _salone_specchio(n: Node3D, legno_chiaro: Material, ottone: Material
 	var lastra := _cyl(n, 0.198, 0.198, 0.010, vetro, Vector3(0, SAL_SPECCHIO, z + 0.005))
 	lastra.rotation.x = PI * 0.5
 	lastra.scale = Vector3(1.0, 1.0, 1.20)
+	# il filetto d'ottone appena dentro la cornice: il bordo molato che a
+	# distanza di catalogo separa il vetro dal legno (senza, il disco pare
+	# dipinto sulla cornice)
+	var filetto := MeshInstance3D.new()
+	var fm := TorusMesh.new()
+	fm.inner_radius = 0.180
+	fm.outer_radius = 0.192
+	fm.rings = 40
+	fm.ring_segments = 6
+	filetto.mesh = fm
+	filetto.material_override = ottone
+	filetto.position = Vector3(0, SAL_SPECCHIO, z + 0.006)
+	filetto.rotation.x = PI * 0.5
+	filetto.scale = Vector3(1.0, 1.0, 1.20)
+	n.add_child(filetto)
 
 	# il fondo del vetro, piu' caldo: la stanza che ci si specchia
 	var basso := StandardMaterial3D.new()
-	basso.albedo_color = Color(0.74, 0.71, 0.71)
+	basso.albedo_color = Color(0.78, 0.73, 0.70)
 	basso.roughness = 0.12
 	basso.metallic = 0.2
 	var giu := _cyl(n, 0.193, 0.193, 0.005, basso, Vector3(0, SAL_SPECCHIO - 0.075, z + 0.008))
 	giu.rotation.x = PI * 0.5
-	giu.scale = Vector3(1.0, 1.0, 0.60)
+	giu.scale = Vector3(1.0, 1.0, 0.72)
 
 	# LA LAMA DI LUCE: un nastro sottile in diagonale, unshaded e
 	# additivo — non "colora" il vetro, ci si somma sopra come un
@@ -3625,8 +3680,8 @@ static func _salone_specchio(n: Node3D, legno_chiaro: Material, ottone: Material
 	lama_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	lama_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	lama_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	lama_mat.albedo_color = Color(1, 1, 1, 0.26)
-	var lama := _box(n, Vector3(0.048, 0.34, 0.003), lama_mat,
+	lama_mat.albedo_color = Color(1, 1, 1, 0.5)
+	var lama := _box(n, Vector3(0.062, 0.34, 0.003), lama_mat,
 			Vector3(-0.055, SAL_SPECCHIO + 0.02, z + 0.011))
 	lama.rotation.z = -0.62
 	var lama2 := _box(n, Vector3(0.020, 0.19, 0.003), lama_mat,
@@ -3672,7 +3727,7 @@ static func _salone_poltrona(n: Node3D, velluto: Material, velluto_scuro: Materi
 	# (il tubolare sul filo anteriore e' cio' che la fa "imbottita")
 	_box(n, Vector3(0.30, 0.045, 0.29), velluto_scuro, Vector3(0, SAL_SEDUTA - 0.028, z))
 	_box(n, Vector3(0.29, 0.035, 0.275), velluto, Vector3(0, SAL_SEDUTA + 0.002, z))
-	var orlo := _cyl(n, 0.021, 0.021, 0.29, velluto,
+	var orlo := _cyl(n, 0.021, 0.021, 0.29, velluto_scuro,
 			Vector3(0, SAL_SEDUTA - 0.002, z + 0.137))
 	orlo.rotation.z = PI * 0.5
 	_box(n, Vector3(0.007, 0.008, 0.20), velluto_scuro, Vector3(0, SAL_SEDUTA + 0.021, z))
@@ -3685,17 +3740,21 @@ static func _salone_poltrona(n: Node3D, velluto: Material, velluto_scuro: Materi
 	n.add_child(sch)
 	_box(sch, Vector3(0.275, 0.235, 0.055), velluto, Vector3(0, 0.118, 0))
 	_box(sch, Vector3(0.255, 0.215, 0.012), velluto_scuro, Vector3(0, 0.118, -0.030))
-	var cima := _cyl(sch, 0.028, 0.028, 0.275, velluto, Vector3(0, 0.236, 0))
+	var cima := _cyl(sch, 0.028, 0.028, 0.275, velluto_scuro, Vector3(0, 0.236, 0))
 	cima.rotation.z = PI * 0.5
 	for sx0: float in [-1.0, 1.0]:
-		_cyl(sch, 0.024, 0.024, 0.235, velluto, Vector3(sx0 * 0.137, 0.118, 0))
+		_cyl(sch, 0.024, 0.024, 0.235, velluto_scuro, Vector3(sx0 * 0.137, 0.118, 0))
+	# i tre bottoni del capitonne': a distanza di catalogo sono loro a
+	# dire «imbottito»
+	for bp: Vector2 in [Vector2(-0.062, 0.085), Vector2(0.062, 0.085), Vector2(0.0, 0.16)]:
+		_ball(sch, 0.0095, velluto_scuro, Vector3(bp.x, bp.y, 0.030))
 	# la cucitura verticale al centro
 	_box(sch, Vector3(0.008, 0.20, 0.008), velluto_scuro, Vector3(0, 0.115, 0.028))
 	# il poggiatesta: un cuscinetto staccato, sospeso su due astine
 	for sx1: float in [-1.0, 1.0]:
 		_cyl(sch, 0.006, 0.006, 0.05, acciaio, Vector3(sx1 * 0.045, 0.275, 0.0))
 	_box(sch, Vector3(0.15, 0.062, 0.052), velluto, Vector3(0, 0.325, 0.0))
-	var cima2 := _cyl(sch, 0.026, 0.026, 0.15, velluto, Vector3(0, 0.352, 0.0))
+	var cima2 := _cyl(sch, 0.026, 0.026, 0.15, velluto_scuro, Vector3(0, 0.352, 0.0))
 	cima2.rotation.z = PI * 0.5
 
 	# I BRACCIOLI: il cuscinetto poggia su DUE montanti che scendono
