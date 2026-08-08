@@ -321,7 +321,7 @@ func _ritrovi() -> Array:
 func luci_del_villaggio() -> Array:
 	var out: Array = []
 	if _build:
-		for nome in ["Lampione", "Camino", "Lampada", "Braciere stellato", "Fontana"]:
+		for nome in ["Lampione", "Camino", "Lampada", "Lampada semplice", "Braciere stellato", "Fontana"]:
 			for n in (_build.call("get_placed_by_name", nome) as Array):
 				if n != null and is_instance_valid(n):
 					out.append((n as Node3D).global_position)

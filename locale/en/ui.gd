@@ -282,6 +282,7 @@ const T := {
 	"Comodino": "Nightstand",
 	"Camino": "Fireplace",
 	"Lampada": "Lamp",
+	"Lampada semplice": "Plain lamp",
 	"Amaca": "Hammock",
 	"Braciere stellato": "Starlit brazier",
 	"Pianta": "Plant",
