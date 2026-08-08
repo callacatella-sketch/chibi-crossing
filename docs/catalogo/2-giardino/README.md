@@ -4,12 +4,12 @@
 
 | | fronte | tre quarti | profilo |
 |---|---|---|---|
-| **Aiuola**<br><sub>0.93 × 0.08 m</sub> | <img src="aiuola/1-fronte.jpg" width="200"> | <img src="aiuola/2-tre-quarti.jpg" width="200"> | <img src="aiuola/3-profilo.jpg" width="200"> |
+| **Aiuola**<br><sub>1.04 × 0.20 m</sub> | <img src="aiuola/1-fronte.jpg" width="200"> | <img src="aiuola/2-tre-quarti.jpg" width="200"> | <img src="aiuola/3-profilo.jpg" width="200"> |
 | **Alberello**<br><sub>0.73 × 1.17 m</sub> | <img src="alberello/1-fronte.jpg" width="200"> | <img src="alberello/2-tre-quarti.jpg" width="200"> | <img src="alberello/3-profilo.jpg" width="200"> |
 | **Altalena**<br><sub>1.29 × 1.63 m</sub> | <img src="altalena/1-fronte.jpg" width="200"> | <img src="altalena/2-tre-quarti.jpg" width="200"> | <img src="altalena/3-profilo.jpg" width="200"> |
 | **Bancarella**<br><sub>1.41 × 1.61 m</sub> | <img src="bancarella/1-fronte.jpg" width="200"> | <img src="bancarella/2-tre-quarti.jpg" width="200"> | <img src="bancarella/3-profilo.jpg" width="200"> |
 | **Bicicletta**<br><sub>0.59 × 0.78 m</sub> | <img src="bicicletta/1-fronte.jpg" width="200"> | <img src="bicicletta/2-tre-quarti.jpg" width="200"> | <img src="bicicletta/3-profilo.jpg" width="200"> |
-| **Casetta uccellini**<br><sub>0.38 × 1.45 m</sub> | <img src="casetta-uccellini/1-fronte.jpg" width="200"> | <img src="casetta-uccellini/2-tre-quarti.jpg" width="200"> | <img src="casetta-uccellini/3-profilo.jpg" width="200"> |
+| **Casetta uccellini**<br><sub>0.39 × 1.48 m</sub> | <img src="casetta-uccellini/1-fronte.jpg" width="200"> | <img src="casetta-uccellini/2-tre-quarti.jpg" width="200"> | <img src="casetta-uccellini/3-profilo.jpg" width="200"> |
 | **Cassetta posta**<br><sub>0.26 × 1.16 m</sub> | <img src="cassetta-posta/1-fronte.jpg" width="200"> | <img src="cassetta-posta/2-tre-quarti.jpg" width="200"> | <img src="cassetta-posta/3-profilo.jpg" width="200"> |
 | **Cassetta smarriti**<br><sub>0.50 × 1.24 m</sub> | <img src="cassetta-smarriti/1-fronte.jpg" width="200"> | <img src="cassetta-smarriti/2-tre-quarti.jpg" width="200"> | <img src="cassetta-smarriti/3-profilo.jpg" width="200"> |
 | **Cespuglio**<br><sub>0.86 × 0.64 m</sub> | <img src="cespuglio/1-fronte.jpg" width="200"> | <img src="cespuglio/2-tre-quarti.jpg" width="200"> | <img src="cespuglio/3-profilo.jpg" width="200"> |
