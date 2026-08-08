@@ -1191,30 +1191,90 @@ static func _bed() -> Node3D:
 
 
 static func _bookshelf() -> Node3D:
-	# guscio aperto sul fronte (-Z): schiena, fianchi, cima e base, coi
-	# ripiani e i libri BEN visibili — e la cima libera per la collezione
+	# LA LIBRERIA. Guscio aperto sul fronte (-Z) — e la CIMA resta piatta e
+	# LIBERA: è la vetrina dei barattoli della Collection (si posano a
+	# y 1.55, x da -0.36 a 0.36, due file in z). Perciò la cornice sporge
+	# solo verso l'esterno e il basso, mai sopra il piano.
+	# Il resto è falegnameria e vita: zoccolo scuro, cornice a gradoni,
+	# fianchi a specchiatura (la libreria si guarda anche di profilo),
+	# il labbro sotto ogni ripiano; e sugli scaffali libri VERI — dorsi a
+	# profondità irregolare, fascette del titolo, qualcuno che pende
+	# appoggiato al vicino, la pila orizzontale con la piantina sopra.
+	# Semi FISSI: questa libreria è sempre questa libreria.
 	var n := Node3D.new()
 	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.55)
 	var pale := _mat(WOOD_PALE, WOOD, 3.0, 0.45)
+	var scuro := _mat(WOOD_DARK, WOOD_DARK.darkened(0.15), 3.5, 0.45)
 	_box(n, Vector3(0.9, 1.55, 0.06), pale, Vector3(0, 0.775, 0.12))
 	for side in [-0.435, 0.435]:
 		_box(n, Vector3(0.06, 1.55, 0.3), wood, Vector3(side, 0.775, 0))
 	_box(n, Vector3(0.9, 0.06, 0.3), wood, Vector3(0, 1.52, 0))
 	_box(n, Vector3(0.9, 0.06, 0.3), wood, Vector3(0, 0.03, 0))
+	# lo zoccolo, la cornice a gradoni (sotto il piano, mai sopra), e le
+	# specchiature sui fianchi
+	_box(n, Vector3(0.96, 0.10, 0.36), scuro, Vector3(0, 0.05, 0))
+	_box(n, Vector3(0.98, 0.045, 0.37), wood, Vector3(0, 1.4675, 0))
+	_box(n, Vector3(0.94, 0.035, 0.34), scuro, Vector3(0, 1.4275, 0))
+	for side: float in [-1.0, 1.0]:
+		_box(n, Vector3(0.016, 1.16, 0.235), pale, Vector3(side * 0.468, 0.76, 0))
+		for tz: float in [-0.125, 0.125]:
+			_box(n, Vector3(0.022, 1.26, 0.05), scuro, Vector3(side * 0.469, 0.76, tz))
+		_box(n, Vector3(0.022, 0.05, 0.30), scuro, Vector3(side * 0.469, 0.155, 0))
+		_box(n, Vector3(0.022, 0.05, 0.30), scuro, Vector3(side * 0.469, 1.365, 0))
+	var tavolozza: Array[Color] = [Color("d97f7f"), Color("7fa8d9"),
+			Color("d9c27f"), Color("8fbc8a"), Color("b78ac2")]
 	for row in 3:
 		var base_y := 0.06 + row * 0.48
 		if row > 0:
 			_box(n, Vector3(0.78, 0.04, 0.26), wood, Vector3(0, base_y - 0.02, 0))
+			_box(n, Vector3(0.78, 0.055, 0.025), scuro, Vector3(0, base_y - 0.02, -0.138))
 		var rng := RandomNumberGenerator.new()
 		rng.seed = row * 17 + 3
 		var x := -0.36
+		# sul ripiano di mezzo, prima dei libri, la pila orizzontale con
+		# la piantina sopra: la firma di una libreria abitata
+		if row == 1:
+			var py := base_y
+			for pk in 3:
+				var pw: float = [0.155, 0.14, 0.125][pk]
+				var pcol: Color = tavolozza[(pk * 2 + 1) % 5]
+				var piatto := _box(n, Vector3(0.19, 0.027, pw),
+						_mat(pcol, pcol.darkened(0.2), 6.0, 0.4),
+						Vector3(-0.285, py + 0.0135, -0.015))
+				piatto.rotation.y = [0.05, -0.07, 0.03][pk]
+				py += 0.027
+			_cyl(n, 0.030, 0.024, 0.05, _mat(Color("c08d5f"), Color("9c7049"), 4.0, 0.45),
+					Vector3(-0.285, py + 0.025, -0.015))
+			_ball(n, 0.042, _mat(Color("7fae6a"), Color("5f8a4e"), 4.0, 0.45),
+					Vector3(-0.285, py + 0.075, -0.015), Vector3(1.0, 0.78, 1.0))
+			x = -0.155
 		while x < 0.3:
 			var w := rng.randf_range(0.055, 0.09)
 			var h := rng.randf_range(0.24, 0.36)
-			var col: Color = [Color("d97f7f"), Color("7fa8d9"), Color("d9c27f"), Color("8fbc8a"), Color("b78ac2")][rng.randi() % 5]
-			_box(n, Vector3(w, h, 0.2), _mat(col, col.darkened(0.2), 6.0, 0.4),
-					Vector3(x + w * 0.5, base_y + h * 0.5, -0.02))
-			x += w + rng.randf_range(0.005, 0.03)
+			var col: Color = tavolozza[rng.randi() % 5]
+			var mat := _mat(col, col.darkened(0.2), 6.0, 0.4)
+			# dorsi a profondità irregolare: nessuno scaffale vero è a filo
+			var z := -0.02 - rng.randf_range(0.0, 0.02)
+			var pende := rng.randf() < 0.22 and x > -0.28
+			if pende:
+				# il libro che PENDE, appoggiato al vicino di sinistra:
+				# ruotato sul piede, e lo spazio che occupa cresce
+				var tilt := rng.randf_range(0.10, 0.17)
+				var libro := _box(n, Vector3(w, h, 0.2), mat,
+						Vector3(x + w * 0.5 + sin(tilt) * h * 0.28,
+								base_y + h * 0.5 * cos(tilt) - 0.002, z))
+				libro.rotation.z = tilt
+				x += w + sin(tilt) * h * 0.55
+			else:
+				_box(n, Vector3(w, h, 0.2), mat,
+						Vector3(x + w * 0.5, base_y + h * 0.5, z))
+				# la fascetta del titolo, su un dorso sì e uno no
+				if rng.randf() < 0.5:
+					_box(n, Vector3(w * 0.7, 0.014, 0.006),
+							_mat(CREAM, Color("f0e4cc"), 5.0, 0.3),
+							Vector3(x + w * 0.5, base_y + h * 0.82, z - 0.101))
+				x += w
+			x += rng.randf_range(0.005, 0.03)
 	return n
 
 
