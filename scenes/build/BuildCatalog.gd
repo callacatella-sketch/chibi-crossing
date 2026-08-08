@@ -4123,28 +4123,133 @@ static func _gazebo() -> Node3D:
 	return n
 
 
+## LA GIOSTRINA, ricreata da zero: il regalo del Gufo per le due
+## librerie — «anche le storie girano in tondo» — e adesso GIRA
+## DAVVERO, pianissimo, da sola (un AnimationPlayer interno, come il
+## dondolio della campana). Base tornita con la fascia rosa e le
+## stelline d'oro (si paga in stelle), palo con la spirale a caramella
+## e la manovella di carica, baldacchino a SPICCHI veri con la frangia
+## smerlata, e tre cavallucci — corpo, testa, orecchie, zampe, sella e
+## codino — infilzati dalle aste d'ottone, come in ogni giostra vera.
 static func _carousel() -> Node3D:
 	var n := Node3D.new()
-	var pole := _mat(METAL, Color("6f665b"), 5.0, 0.4)
-	_cyl(n, 0.42, 0.44, 0.04, _mat(WOOD_PALE, WOOD, 3.0, 0.4), Vector3(0, 0.03, 0))
-	_cyl(n, 0.03, 0.05, 1.5, pole, Vector3(0, 0.77, 0))
-	for i in 8:
-		var a := float(i) * TAU / 8.0
-		var mat := _mat(PINK, PINK_DEEP, 4.0, 0.4) if i % 2 == 0 else _mat(CREAM, Color("f3dfc8"), 4.0, 0.4)
-		var stripe := _box(n, Vector3(0.34, 0.04, 0.16), mat, Vector3(cos(a) * 0.22, 1.48, sin(a) * 0.22))
-		stripe.rotation.y = a
-		stripe.rotation.x = -0.5
-	_ball(n, 0.06, _mat(Color("f2cf7e"), Color("d9a84a"), 3.0, 0.4), Vector3(0, 1.6, 0))
+	var legno_c := _mat(WOOD_PALE, WOOD, 3.0, 0.4)
+	var rosa := _mat(PINK, PINK_DEEP, 4.0, 0.4)
+	var panna := _mat(CREAM, Color("f3dfc8"), 4.0, 0.4)
+	var oro := _mat(Color("f2cf7e"), Color("d9a84a"), 3.0, 0.4)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	var ferro := _mat(METAL, Color("6f665b"), 5.0, 0.4)
+	# la pedana tornita, la fascia rosa che le gira attorno, e tre
+	# stelline d'oro dipinte sopra
+	BUILDER.lathe(n, [Vector2(0.44, 0.0), Vector2(0.45, 0.022),
+			Vector2(0.42, 0.052), Vector2(0.30, 0.078), Vector2(0.12, 0.092),
+			Vector2(0.05, 0.1)], legno_c)
+	var fascia_b := MeshInstance3D.new()
+	var fb := TorusMesh.new()
+	fb.inner_radius = 0.415
+	fb.outer_radius = 0.443
+	fascia_b.mesh = fb
+	fascia_b.material_override = rosa
+	fascia_b.position = Vector3(0, 0.03, 0)
+	n.add_child(fascia_b)
+	for st in 3:
+		var a_st := TAU / 3.0 * float(st) + 0.5
+		_ball(n, 0.032, oro, Vector3(cos(a_st) * 0.3, 0.085, sin(a_st) * 0.3),
+				Vector3(1.0, 0.22, 1.0))
+	# il palo, la spirale a caramella che gli sale attorno, e la
+	# manovella d'ottone: la giostrina si CARICA, poi gira da sola
+	_cyl(n, 0.03, 0.045, 1.36, ferro, Vector3(0, 0.76, 0))
+	var spirale: Array = []
+	var raggi_s: Array = []
+	for i in 25:
+		var t := float(i) / 24.0
+		var a_s := t * TAU * 3.0
+		# il raggio dell'elica SEGUE la rastremazione del palo: fisso,
+		# affondava alla base e galleggiava in cima
+		var r_e := 0.0495 - 0.014 * t
+		spirale.append(Vector3(cos(a_s) * r_e, 0.14 + t * 1.2, sin(a_s) * r_e))
+		raggi_s.append(0.009)
+	BUILDER.tube(n, spirale, raggi_s, rosa, 72, 6)
+	var braccio_m := _cyl(n, 0.009, 0.009, 0.07, ottone, Vector3(0.065, 0.2, 0))
+	braccio_m.rotation.z = PI * 0.5
+	_cyl(n, 0.014, 0.014, 0.045, _mat(WOOD_DARK, Color("5c4030"), 4.0, 0.4),
+			Vector3(0.1, 0.222, 0))
+	# TUTTO QUELLO CHE GIRA sta sotto questo nodo
+	var giro := Node3D.new()
+	giro.name = "Giro"
+	n.add_child(giro)
+	# il baldacchino a spicchi veri, con la frangia smerlata che alterna
+	# i colori degli spicchi e il puntale d'oro
+	var tenda: Array = [Vector2(0.5, -0.1), Vector2(0.485, -0.078),
+			Vector2(0.41, -0.032), Vector2(0.29, 0.018), Vector2(0.16, 0.06),
+			Vector2(0.05, 0.095), Vector2(0.0, 0.108)]
+	var falda_g := Node3D.new()
+	falda_g.position = Vector3(0, 1.5, 0)
+	giro.add_child(falda_g)
+	for s2 in 10:
+		var a0 := TAU / 10.0 * float(s2)
+		_lathe_spicchio(falda_g, tenda, rosa if s2 % 2 == 0 else panna,
+				a0, a0 + TAU / 10.0)
+	for d_f in 20:
+		var a_d := TAU / 20.0 * (float(d_f) + 0.5)
+		var dente := _ball(giro, 0.036,
+				rosa if (d_f >> 1) % 2 == 0 else panna,
+				Vector3(cos(a_d) * 0.49, 1.394, -sin(a_d) * 0.49),
+				Vector3(1.0, 0.55, 0.45))
+		dente.rotation.y = a_d + PI * 0.5
+	_cyl(giro, 0.012, 0.012, 0.07, oro, Vector3(0, 1.63, 0))
+	_ball(giro, 0.055, oro, Vector3(0, 1.69, 0))
+	# i tre cavallucci, ognuno del suo colore, infilzati dall'asta
+	# d'ottone che scende dal baldacchino — la giostra si regge tutta lì
+	var manti: Array = [[Color("fff3e0"), Color("efe2ca")],
+			[PINK, PINK_DEEP], [Color("9ec9e8"), Color("7fb2d8")]]
 	for i in 3:
 		var a := float(i) * TAU / 3.0
 		var hx := cos(a) * 0.3
 		var hz := sin(a) * 0.3
-		# L'ASTINA PARTE DAL BALDACCHINO. Lunga 0.62 e centrata a 0.60,
-		# cominciava a 0.91 — mezzo metro sotto la copertura (che sta a
-		# 1.48): i seggiolini pendevano da niente, e una giostra si regge
-		# tutta lì. Adesso va da sotto la falda fino alla testa del cavalluccio.
-		_cyl(n, 0.008, 0.008, 1.02, pole, Vector3(hx, 0.91, hz))
-		_ball(n, 0.075, _mat(CREAM, PINK, 4.0, 0.4), Vector3(hx, 0.42, hz), Vector3(1.5, 0.95, 0.7))
+		_cyl(giro, 0.008, 0.008, 0.95, ottone, Vector3(hx, 0.93, hz))
+		var cav := Node3D.new()
+		cav.position = Vector3(hx, 0.6, hz)
+		cav.rotation.y = -(a + PI * 0.5)
+		giro.add_child(cav)
+		var manto := _mat(manti[i][0], manti[i][1], 4.0, 0.45)
+		_ball(cav, 0.062, manto, Vector3.ZERO, Vector3(1.55, 0.85, 0.72))
+		# il collo che sale e la testa china, col musetto e le orecchie
+		_ball(cav, 0.04, manto, Vector3(0.085, 0.055, 0), Vector3(0.85, 1.25, 0.7))
+		_ball(cav, 0.038, manto, Vector3(0.11, 0.105, 0))
+		_ball(cav, 0.024, manto, Vector3(0.145, 0.092, 0), Vector3(1.25, 0.8, 0.8))
+		for or_c: float in [-1.0, 1.0]:
+			var orecchia := _ball(cav, 0.012, manto,
+					Vector3(0.098, 0.135, or_c * 0.018), Vector3(0.7, 1.4, 0.6))
+			orecchia.rotation.z = -0.3
+		# le zampe al galoppo (davanti raccolte, dietro distese), la
+		# sella rosa col bottone d'oro e il codino
+		for z_c: Array in [[0.055, -0.5], [0.028, -0.35], [-0.045, 0.45], [-0.07, 0.6]]:
+			var zampa := _cyl(cav, 0.011, 0.014, 0.07, manto,
+					Vector3(float(z_c[0]), -0.062, 0.0))
+			zampa.rotation.z = float(z_c[1])
+		var sella := _lastra(cav, 0.042, 0.075, 0.018, 0.012,
+				rosa if i != 1 else _mat(CREAM, Color("f3dfc8"), 4.0, 0.4),
+				Vector3(-0.005, 0.052, 0), Vector3(0, 0, PI * 0.5))
+		sella.name = "Sella"
+		_ball(cav, 0.009, oro, Vector3(-0.005, 0.062, 0))
+		_ball(cav, 0.022, manto, Vector3(-0.098, 0.02, 0), Vector3(1.3, 0.5, 0.6))
+	# e il giro LENTO: quaranta secondi per un giro intero, come il
+	# vento che ha appena finito di caricarla
+	var anim := Animation.new()
+	anim.length = 40.0
+	anim.loop_mode = Animation.LOOP_LINEAR
+	var tr := anim.add_track(Animation.TYPE_VALUE)
+	anim.track_set_path(tr, NodePath("Giro:rotation:y"))
+	anim.track_insert_key(tr, 0.0, 0.0)
+	anim.track_insert_key(tr, 40.0, TAU)
+	anim.track_set_interpolation_type(tr, Animation.INTERPOLATION_LINEAR)
+	var lib := AnimationLibrary.new()
+	lib.add_animation("gira", anim)
+	var player := AnimationPlayer.new()
+	n.add_child(player)
+	player.add_animation_library("", lib)
+	player.autoplay = "gira"
 	return n
 
 
