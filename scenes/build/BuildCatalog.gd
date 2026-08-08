@@ -2057,16 +2057,36 @@ static func _plant() -> Node3D:
 
 
 static func _flowerbed() -> Node3D:
-	# L'AIUOLA: era un disco piatto con tre righe scure e sette palline
-	# uguali. Adesso è un'aiuola di cottage: la corona di mezzi tronchetti
-	# piantati in piedi (col taglio chiaro in cima, ognuno con la sua
-	# altezza), la terra smossa a zolle, i solchi di semina, l'etichetta
-	# segna-semi di legno e qualche sasso rimasto dal lavoro.
-	#
-	# VINCOLO DEL GARDEN: il velo d'acqua (_make_wet_overlay) è un disco
-	# r 0.4 a y 0.076 — dentro quel raggio la terra resta SOTTO 0.074,
-	# o il velo annega. I tronchetti stanno FUORI (r 0.44+).
+	# L'AIUOLA del catalogo: quella sola, senza vicine. La forma vera la
+	# decide aiuola_cella, che sa anche UNIRSI alle aiuole accanto.
+	return aiuola_cella({}, 11)
+
+
+## L'AIUOLA CHE SI UNISCE. `vicini` dice in coordinate MONDO da che parti
+## c'è un'altra Aiuola ({"e","o","s","n"}: +X, -X, +Z, -Z): da quelle
+## parti la palizzata si apre, la terra si allunga fino al confine di
+## cella (e quattro millimetri oltre, dentro la terra della vicina: mai
+## tappi complanari sul confine) e i solchi proseguono — due aiuole
+## affiancate diventano UNA striscia di terra. Il rinfresco è di
+## BuildSystem.rinfresca_aiuole, lo stesso patto del Sentiero; il seme è
+## della cella, così la stessa cella rifà sempre le stesse zolle.
+##
+## Tutta la geometria vive nel figlio «Terra»: il Garden appende velo
+## d'acqua e germogli alla RADICE del pezzo, e il rinfresco che scambia
+## «Terra» non li tocca mai.
+##
+## VINCOLO DEL GARDEN: il velo d'acqua (_make_wet_overlay) è un disco
+## r 0.4 a y 0.076 — dentro quel raggio la terra resta SOTTO 0.074,
+## o il velo annega. I tronchetti stanno FUORI (r 0.44+).
+static func aiuola_cella(vicini: Dictionary, seme: int) -> Node3D:
+	var radice := Node3D.new()
 	var n := Node3D.new()
+	n.name = "Terra"
+	radice.add_child(n)
+	var e := bool(vicini.get("e", false))
+	var o := bool(vicini.get("o", false))
+	var s := bool(vicini.get("s", false))
+	var nn := bool(vicini.get("n", false))
 	var terra := _mat(Color("7a5a42"), Color("64483a"), 4.0, 0.5)
 	var terra_cupa := _mat(Color("5e4534"), Color("50392c"), 3.0, 0.4)
 	# la terra: TRATTENUTA dal bordo, sale fin quasi all'orlo dei
@@ -2076,52 +2096,113 @@ static func _flowerbed() -> Node3D:
 		Vector2(0.0, 0.0), Vector2(0.44, 0.0), Vector2(0.43, 0.05),
 		Vector2(0.4, 0.062), Vector2(0.24, 0.0685), Vector2(0.0, 0.0695),
 	], terra, Vector3.ZERO, 26)
-	# i solchi di semina: più corti della cupola e appena sopra il suo
-	# colmo (0.072) — più bassi si annegavano a tratti e diventavano
-	# trattini — ma sempre sotto il velo d'acqua del Garden (0.076)
+	# le lingue di terra verso le vicine: un loft dal centro al confine
+	# (la rotazione porta il suo asse X sull'asse del mondo giusto)
+	var giri := {"e": 0.0, "s": -PI * 0.5, "o": PI, "n": PI * 0.5}
+	for lato in ["e", "o", "s", "n"]:
+		if not bool(vicini.get(lato, false)):
+			continue
+		var lingua := Node3D.new()
+		lingua.name = "Estensione" + lato.to_upper()
+		lingua.rotation.y = giri[lato]
+		n.add_child(lingua)
+		_loft(lingua, [[0.0, 0.43, 0.0, 0.065, 0.03],
+				[0.504, 0.43, 0.0, 0.065, 0.03]], terra)
+	# i solchi di semina: appena sopra il colmo della cupola (0.0695) ma
+	# sempre sotto il velo d'acqua del Garden (0.076). Verso una vicina a
+	# est/ovest PROSEGUONO sulla lingua di terra — si fermano un soffio
+	# prima del confine: il varco di terra nuda fra le righe è il modo
+	# più onesto (e senza z-fighting) di attraversarlo
 	for i in 3:
 		var solco := _box(n, Vector3(0.4 - 0.05 * absf(float(i) - 1.0), 0.007, 0.048),
 				terra_cupa, Vector3(0.02 * float(i - 1), 0.07, -0.19 + 0.19 * i))
+		solco.name = "Solco%d" % i
 		solco.rotation.y = 0.05 * float(i - 1)
-	# le zolle: la terra smossa non è liscia
+	for lato2 in ["e", "o"]:
+		if not bool(vicini.get(lato2, false)):
+			continue
+		var verso := 1.0 if lato2 == "e" else -1.0
+		for i in 3:
+			var seg := _box(n, Vector3(0.3, 0.007, 0.044), terra_cupa,
+					Vector3(verso * 0.31, 0.0685, -0.19 + 0.19 * i))
+			seg.name = "Solco%s%d" % [lato2.to_upper(), i]
+	# le zolle: la terra smossa non è liscia (il seme è della cella)
 	var rng := RandomNumberGenerator.new()
-	rng.seed = 11
+	rng.seed = seme
 	for i in 6:
 		var az := rng.randf() * TAU
 		var rz := rng.randf_range(0.16, 0.36)
 		_ball(n, rng.randf_range(0.01, 0.014), terra_cupa,
 				Vector3(cos(az) * rz, 0.0655, sin(az) * rz), Vector3(1.2, 0.6, 1.0))
-	# la palizzata di tronchetti: CONTIGUI (si toccano, come un bordo che
-	# trattiene davvero), ognuno con la sua altezza e il taglio chiaro
-	# in cima — il bordo che fa «qualcuno la cura»
+	# la palizzata: CONTIGUA (i tronchetti si toccano), col taglio chiaro
+	# in cima. Verso una vicina l'arco SI APRE (via i tronchetti che
+	# guardano di là) e il bordo prosegue DRITTO lungo i fianchi della
+	# lingua — a meno che anche quel fianco non sia terra unita
 	var corteccia := _mat(Color("8a5f43"), Color("6f4c36"), 4.0, 0.5)
 	var taglio := _mat(WOOD_PALE, WOOD, 4.5, 0.4)
+	var palizzata := Node3D.new()
+	palizzata.name = "Palizzata"
+	n.add_child(palizzata)
 	var quanti := 30
 	for i in quanti:
 		var a := float(i) / float(quanti) * TAU
-		var h := 0.092 if i % 2 == 0 else 0.072
-		h += rng.randf_range(-0.007, 0.007)
-		var tronco := Node3D.new()
-		tronco.position = Vector3(cos(a) * 0.44, 0, sin(a) * 0.44)
-		tronco.rotation.y = -a
-		tronco.rotation.z = rng.randf_range(-0.04, 0.04)
-		n.add_child(tronco)
-		_cyl(tronco, 0.044, 0.047, h, corteccia, Vector3(0, h * 0.5, 0))
-		_cyl(tronco, 0.037, 0.037, 0.006, taglio, Vector3(0, h + 0.001, 0))
-	# l'etichetta segna-semi, piantata storta vicino al bordo
-	var stecco := _cyl(n, 0.007, 0.009, 0.15, _mat(WOOD, WOOD_DARK, 4.0, 0.5),
-			Vector3(0.3, 0.11, -0.26))
-	stecco.rotation.z = 0.09
-	stecco.rotation.x = -0.06
-	_box(n, Vector3(0.06, 0.042, 0.009), taglio, Vector3(0.307, 0.175, -0.264))
-	# i sassi rimasti dal lavoro, appoggiati fuori dai tronchetti
-	var pebble := _mat(Color("c9c2b4"), Color("a89f92"), 5.0, 0.5)
-	for i in 3:
-		var a := TAU * 0.13 + float(i) * 2.2
-		_ball(n, rng.randf_range(0.024, 0.036), pebble,
-				Vector3(cos(a) * 0.53, 0.016, sin(a) * 0.53),
-				Vector3(1.0, 0.62, rng.randf_range(0.8, 1.1)))
-	return n
+		var dir := Vector2(cos(a), sin(a))
+		if (e and dir.x > 0.05) or (o and dir.x < -0.05) \
+				or (s and dir.y > 0.05) or (nn and dir.y < -0.05):
+			rng.randf(); rng.randf()   # il dado gira lo stesso: stesse
+			continue                   # altezze per chi resta, sempre
+		_tronchetto_aiuola(palizzata, rng, corteccia, taglio,
+				Vector3(dir.x * 0.44, 0, dir.y * 0.44), -a, i % 2 == 0)
+	# i fianchi dritti delle lingue (5 tronchetti dal tangente al confine)
+	for lato3 in ["e", "o", "s", "n"]:
+		if not bool(vicini.get(lato3, false)):
+			continue
+		var lungo := Vector2(1, 0) if lato3 in ["e", "o"] else Vector2(0, 1)
+		var segno := 1.0 if lato3 in ["e", "s"] else -1.0
+		for fianco: float in [-1.0, 1.0]:
+			# il fianco è interno se anche di là c'è terra unita
+			var di_la := ("s" if fianco > 0 else "n") if lato3 in ["e", "o"] \
+					else ("e" if fianco > 0 else "o")
+			if bool(vicini.get(di_la, false)):
+				continue
+			for k in 5:
+				var t := segno * (0.115 + 0.092 * float(k))
+				var p := Vector3(lungo.x * t + lungo.y * fianco * 0.44, 0,
+						lungo.y * t + lungo.x * fianco * 0.44)
+				_tronchetto_aiuola(palizzata, rng, corteccia, taglio,
+						p, 0.0 if lato3 in ["e", "o"] else PI * 0.5, k % 2 == 0)
+	# l'etichetta segna-semi e i sassi: solo per l'aiuola sola. In una
+	# striscia un'etichetta per cella sarebbe un cimitero di cartellini.
+	if not (e or o or s or nn):
+		var etichetta := Node3D.new()
+		etichetta.name = "Etichetta"
+		n.add_child(etichetta)
+		var stecco := _cyl(etichetta, 0.007, 0.009, 0.15, _mat(WOOD, WOOD_DARK, 4.0, 0.5),
+				Vector3(0.3, 0.11, -0.26))
+		stecco.rotation.z = 0.09
+		stecco.rotation.x = -0.06
+		_box(etichetta, Vector3(0.06, 0.042, 0.009), taglio, Vector3(0.307, 0.175, -0.264))
+		var pebble := _mat(Color("c9c2b4"), Color("a89f92"), 5.0, 0.5)
+		for i in 3:
+			var a := TAU * 0.13 + float(i) * 2.2
+			_ball(n, rng.randf_range(0.024, 0.036), pebble,
+					Vector3(cos(a) * 0.53, 0.016, sin(a) * 0.53),
+					Vector3(1.0, 0.62, rng.randf_range(0.8, 1.1)))
+	return radice
+
+
+static func _tronchetto_aiuola(parent: Node3D, rng: RandomNumberGenerator,
+		corteccia: Material, taglio: Material, pos: Vector3, giro: float,
+		alto: bool) -> void:
+	var h := 0.092 if alto else 0.072
+	h += rng.randf_range(-0.007, 0.007)
+	var tronco := Node3D.new()
+	tronco.position = pos
+	tronco.rotation.y = giro
+	tronco.rotation.z = rng.randf_range(-0.04, 0.04)
+	parent.add_child(tronco)
+	_cyl(tronco, 0.044, 0.047, h, corteccia, Vector3(0, h * 0.5, 0))
+	_cyl(tronco, 0.037, 0.037, 0.006, taglio, Vector3(0, h + 0.001, 0))
 
 
 static func _vegetable_patch() -> Node3D:
@@ -2731,9 +2812,8 @@ static func _mailbox() -> Node3D:
 	# "Flag" (bandierina: rotation.x 0 = alzata, -1.35 = giu'), "Letter"
 	# (la busta che fa capolino). Il fronte guarda verso -Z. Perni e assi
 	# NON si toccano: Mail.gd li anima con quei numeri.
-	# Il resto e' falegnameria: il palo tornito col collare e la SAETTA
-	# che regge la mensola (una cassetta non sta infilzata su un bastone:
-	# sta APPOGGIATA), il vassoio, il bordo chiaro dell'imboccatura, le
+	# Il resto e' falegnameria: il palo tornito col collare e la
+	# mensola col vassoio su cui la cassetta sta APPOGGIATA, il bordo chiaro dell'imboccatura, le
 	# fasce sul barile, le cerniere dello sportello e la boccola d'ottone
 	# della bandierina.
 	var n := Node3D.new()
@@ -2751,8 +2831,6 @@ static func _mailbox() -> Node3D:
 	# la mensola col vassoio, e la saetta che la regge
 	_box(n, Vector3(0.20, 0.022, 0.30), legno, Vector3(0, 0.836, 0.01))
 	_box(n, Vector3(0.27, 0.018, 0.37), chiaro, Vector3(0, 0.856, 0.01))
-	var saetta := _cyl(n, 0.014, 0.014, 0.26, legno, Vector3(0, 0.75, 0.09))
-	saetta.rotation.x = -0.78
 
 	# il corpo a barile, appoggiato sul vassoio
 	_box(n, Vector3(0.24, 0.2, 0.34), body, Vector3(0, 0.965, 0.01))
@@ -3314,19 +3392,129 @@ static func _emit_fx(parent: Node3D, pos: Vector3, color: Color, up_vel: float, 
 	parent.add_child(p)
 
 
+# LA CASETTA DEGLI UCCELLINI, terza stesura — le prime due erano un
+# cartone del latte su uno stecco. Questa e' una CASA: doghe di legno
+# miele, timpani crema che chiudono il sottotetto, tetto cicciotto a
+# scandole con lo sporto largo, il TETTUCCIO sopra il foro, la
+# MANGIATOIA coi semi al posto del trespolo nudo, il camino piccolo su
+# una falda, e il RAMPICANTE fiorito che si avvita sul palo tornito.
+# Vincolo di ferro: il colmo sta a ~1.44 e resta LIBERO al centro —
+# Nido.gd posa la covata a +1.47 dal piede del palo.
 static func _birdhouse() -> Node3D:
 	var n := Node3D.new()
 	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
-	_cyl(n, 0.035, 0.05, 1.05, wood, Vector3(0, 0.52, 0))
-	_box(n, Vector3(0.28, 0.3, 0.26), _mat(PLASTER, PLASTER_SHADE, 3.0, 0.45), Vector3(0, 1.18, 0))
-	var tile := _mat(TERRACOTTA, Color("c47a58"), 3.0, 0.5)
-	for s: float in [-1.0, 1.0]:
-		var r := _box(n, Vector3(0.24, 0.03, 0.32), tile, Vector3(s * 0.08, 1.36, 0))
-		r.rotation.z = -s * 0.6
-	var hole := _cyl(n, 0.05, 0.05, 0.04, _mat(Color("4a3226"), Color("31201a"), 3.0, 0.4), Vector3(0, 1.18, 0.14))
-	hole.rotation.x = PI * 0.5
-	var perch := _cyl(n, 0.012, 0.012, 0.12, wood, Vector3(0, 1.1, 0.17))
-	perch.rotation.x = PI * 0.5
+	var miele := _mat(WOOD_PALE, WOOD, 3.2, 0.5)
+	var scuro := _mat(Color("4a3226"), Color("31201a"), 3.0, 0.4)
+	var crema := _mat(CREAM, Color("efe2ca"), 4.0, 0.35)
+	var tegola := _mat(TERRACOTTA, Color("c47a58"), 3.0, 0.5)
+	var tegola2 := _mat(Color("d98a64"), Color("b96f4e"), 3.2, 0.5)
+	var verde := _mat(Color("7da35e"), Color("5f8544"), 4.5, 0.5)
+	var rosa := _mat(PINK, PINK_DEEP, 5.0, 0.4)
+
+	# il palo tornito, grosso il giusto, con la basetta a campana
+	BUILDER.lathe(n, [Vector2(0.085, 0.0), Vector2(0.090, 0.016),
+			Vector2(0.070, 0.04), Vector2(0.050, 0.08), Vector2(0.042, 0.30),
+			Vector2(0.038, 0.72), Vector2(0.046, 0.86), Vector2(0.056, 0.93),
+			Vector2(0.060, 0.95)], wood)
+	# il RAMPICANTE che si avvita: gambo a elica, foglie e tre fiorellini
+	var giri: Array = []
+	var raggi: Array = []
+	for g in 9:
+		var t := float(g) / 8.0
+		var ag := t * TAU * 1.6 + 0.7
+		var rg := 0.052 - 0.008 * t
+		giri.append(Vector3(cos(ag) * rg, 0.06 + t * 0.74, sin(ag) * rg))
+		raggi.append(0.009 - 0.003 * t)
+	BUILDER.tube(n, giri, raggi, verde)
+	for fg in [1, 3, 5, 7]:
+		var pf: Vector3 = giri[fg]
+		_ball(n, 0.030, verde, pf + pf.normalized() * 0.02 * Vector3(1, 0, 1),
+				Vector3(1.3, 0.35, 0.9))
+	for ff in [2, 5, 8]:
+		var pf2: Vector3 = giri[ff]
+		_ball(n, 0.016, rosa, pf2 + Vector3(0, 0.015, 0))
+
+	# LA CASA: zoccolo, pareti a DOGHE orizzontali, cantonali scuri
+	var zocc := _prisma(n, _rrect_xz(0.38, 0.34, 0.03), 0.93, 0.026, wood)
+	zocc.position.z = 0.0
+	for da in 5:
+		var doga := _prisma(n, _rrect_xz(0.36, 0.32, 0.028), 0.956 + 0.062 * float(da),
+				0.058, miele)
+		doga.position.z = 0.0
+	for cx: float in [-0.165, 0.165]:
+		for cz: float in [-0.145, 0.145]:
+			_cyl(n, 0.016, 0.016, 0.32, wood, Vector3(cx, 1.115, cz))
+
+	# i TIMPANI crema: il box ruotato di 45 gradi chiude il sottotetto
+	# davanti e dietro (la meta' bassa affoga nelle pareti)
+	var timpano := _box(n, Vector3(0.25, 0.25, 0.30), crema, Vector3(0, 1.27, 0))
+	timpano.rotation.z = PI * 0.25
+
+	# il TETTO: falde col cardine al colmo, scandole cicciotte sfalsate,
+	# sporto largo; il listello di colmo a 1.44 (il nido arriva a 1.47)
+	for lato: float in [-1.0, 1.0]:
+		var falda := Node3D.new()
+		falda.position = Vector3(0, 1.438, 0)
+		falda.rotation.z = -lato * 0.62
+		n.add_child(falda)
+		for fila in 3:
+			var lx := 0.018 + 0.085 * float(fila)
+			var nt := 4 if fila % 2 == 0 else 3
+			for t2 in nt:
+				var lz := -0.155 + 0.103 * float(t2) + (0.0515 if fila % 2 == 1 else 0.0)
+				var mat_s: Material = tegola if (fila + t2) % 2 == 0 else tegola2
+				var scand := _prisma(falda, _rrect_xz(0.100, 0.098, 0.024),
+						-0.007 * float(fila), 0.016, mat_s)
+				scand.position = Vector3(lx * lato, 0.0, lz)
+	var colmo := _cyl(n, 0.028, 0.028, 0.40, tegola, Vector3(0, 1.443, 0))
+	colmo.rotation.x = PI * 0.5
+
+	# il CAMINO piccolo, su una falda, fuori dal posto del nido
+	_box(n, Vector3(0.055, 0.10, 0.055), tegola2, Vector3(0.115, 1.37, -0.105))
+	_box(n, Vector3(0.07, 0.022, 0.07), scuro, Vector3(0.115, 1.425, -0.105))
+
+	# il FORO con l'anello, il TETTUCCIO sopra, e la MANGIATOIA coi semi
+	var foro := _cyl(n, 0.048, 0.048, 0.04, scuro, Vector3(0, 1.16, -0.165))
+	foro.rotation.x = PI * 0.5
+	var anello := MeshInstance3D.new()
+	var am := TorusMesh.new()
+	am.inner_radius = 0.046
+	am.outer_radius = 0.064
+	anello.mesh = am
+	anello.material_override = wood
+	anello.position = Vector3(0, 1.16, -0.178)
+	anello.rotation.x = PI * 0.5
+	n.add_child(anello)
+	var tettuccio := _prisma(n, _rrect_xz(0.16, 0.09, 0.02), 0.0, 0.014, tegola)
+	tettuccio.position = Vector3(0, 1.265, -0.20)
+	tettuccio.rotation.x = 0.35
+	# la mangiatoia: il vassoio con le sponde, i semi, e il posatoio
+	var vasso := _prisma(n, _rrect_xz(0.19, 0.095, 0.025), 1.045, 0.020, wood)
+	vasso.position.z = -0.21
+	var vasca := _prisma(n, _rrect_xz(0.16, 0.07, 0.02), 1.062, 0.012, scuro)
+	vasca.position.z = -0.21
+	for sg in 7:
+		var ags := float(sg) * 2.4
+		_ball(n, 0.0095, _mat(Color("e8c34a"), Color("b98a2e"), 5.0, 0.4),
+				Vector3(cos(ags) * 0.055, 1.076, -0.21 + sin(ags) * 0.022),
+				Vector3(1.0, 0.6, 1.3))
+	var posatoio := _cyl(n, 0.009, 0.011, 0.06, wood, Vector3(0, 1.03, -0.27))
+	posatoio.rotation.x = PI * 0.5
+	_ball(n, 0.013, scuro, Vector3(0, 1.03, -0.303))
+
+	# ai piedi: l'erba, la margherita, un sassolino
+	_ball(n, 0.06, verde, Vector3(-0.10, 0.016, 0.06), Vector3(1.2, 0.5, 0.9))
+	_ball(n, 0.045, verde, Vector3(0.115, 0.012, -0.06), Vector3(1.0, 0.45, 0.85))
+	_ball(n, 0.028, _mat(Color("b3aa9a"), Color("948b7c"), 4.0, 0.5),
+			Vector3(0.14, 0.02, 0.10), Vector3(1.2, 0.7, 1.0))
+	_cyl(n, 0.004, 0.004, 0.10, verde, Vector3(-0.135, 0.05, 0.085))
+	for pt in 5:
+		var ap := float(pt) * TAU / 5.0
+		_ball(n, 0.014, _mat(Color.WHITE, CREAM, 6.0, 0.2),
+				Vector3(-0.135 + cos(ap) * 0.020, 0.104, 0.085 + sin(ap) * 0.020),
+				Vector3(1.0, 0.35, 1.0))
+	_ball(n, 0.011, _mat(Color("e8c34a"), Color("cc9c2e"), 5.0, 0.4),
+			Vector3(-0.135, 0.108, 0.085))
 	return n
 
 
@@ -5578,56 +5766,144 @@ static func _transenna() -> Node3D:
 static func _bicicletta_servizio() -> Node3D:
 	# LA BICICLETTA DI SERVIZIO: appoggiata sul cavalletto, col cestino
 	# davanti. Nessuno insegue nessuno, in questo villaggio: si fa il giro.
+	# Una bicicletta si legge dalle sue VERITÀ: le ruote coi RAGGI (un
+	# disco pieno è una moneta, non una ruota), il telaio a diamante i cui
+	# tubi si INCONTRANO invece di fluttuare, la forcella che tiene la
+	# ruota davanti, la catena che va dalla corona al pignone, i pedali
+	# opposti a metà giro. Poi i suoi gioielli: la sella di cuoio sul
+	# cannotto, le manopole, il campanello, il fanalino d'ottone, il
+	# portapacchi e il cestino di vimini con le sue fascette.
 	var n := Node3D.new()
 	var telaio := _mat(BLU, BLU_CUPO, 5.0, 0.45)
 	var gomma := _mat(Color("4a4640"), Color("3a3733"), 4.0, 0.35)
+	var cerchio_mat := _mat(SEGNALE_BIANCO, CREAM, 5.0, 0.25)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
-	# appoggiata: tutta la bici pende di un soffio sul cavalletto
+	var cuoio := _mat(WOOD_DARK, Color("6b4a33"), 4.0, 0.4)
+	# un tubo fra due punti (nel piano della bici): il telaio si COSTRUISCE
 	var bici := Node3D.new()
 	bici.name = "Bici"
 	bici.rotation.z = 0.09
 	n.add_child(bici)
+	var tubo := func(a: Vector3, b: Vector3, r: float, mat: Material) -> void:
+		var c := _cyl(bici, r, r, a.distance_to(b), mat, (a + b) * 0.5)
+		c.rotation.x = atan2(b.z - a.z, b.y - a.y)
+
+	# ---- LE RUOTE: gomma a toro, cerchio, mozzo d'ottone e otto raggi
 	for dz: float in [-0.34, 0.34]:
-		var ruota := _cyl(bici, 0.27, 0.27, 0.05, gomma, Vector3(0, 0.28, dz))
-		ruota.rotation.x = PI * 0.5
-		var cerchio := _cyl(bici, 0.21, 0.21, 0.055, _mat(SEGNALE_BIANCO, CREAM, 5.0, 0.25),
-				Vector3(0, 0.28, dz))
-		cerchio.rotation.x = PI * 0.5
-		var mozzo := _cyl(bici, 0.035, 0.035, 0.07, ottone, Vector3(0, 0.28, dz))
-		mozzo.rotation.x = PI * 0.5
-	# il telaio: tubi GROSSI, o da lontano la bici sparisce e restano due
-	# ruote per aria. Il triangolo posteriore è quello che la fa leggere
-	# come una bicicletta e non come un monociclo.
-	_box(bici, Vector3(0.075, 0.075, 0.66), telaio, Vector3(0, 0.52, 0))
-	var t2 := _box(bici, Vector3(0.075, 0.46, 0.075), telaio, Vector3(0, 0.44, 0.28))
-	t2.rotation.x = -0.3
-	var t3 := _box(bici, Vector3(0.075, 0.5, 0.075), telaio, Vector3(0, 0.42, -0.3))
-	t3.rotation.x = 0.36
-	# i foderi: dal movimento centrale alla ruota dietro
-	for dy: float in [0.0, 0.26]:
-		var fodero := _box(bici, Vector3(0.05, 0.05, 0.4), telaio,
-				Vector3(0, 0.3 + dy * 0.6, 0.18))
-		fodero.rotation.x = -0.32 - dy * 0.5
-	# la corona e il pedale: il dettaglio che dice «ci si va davvero»
-	var corona := _cyl(bici, 0.075, 0.075, 0.02, ottone, Vector3(0, 0.3, 0.02))
-	corona.rotation.x = PI * 0.5
-	_box(bici, Vector3(0.05, 0.02, 0.09), gomma, Vector3(0.09, 0.24, 0.02))
-	# sella e manubrio
-	var sella := _box(bici, Vector3(0.09, 0.05, 0.22), _mat(WOOD_DARK, Color("6b4a33"), 4.0, 0.4),
-			Vector3(0, 0.68, 0.28))
+		var pneu := MeshInstance3D.new()
+		var pm := TorusMesh.new()
+		pm.inner_radius = 0.20
+		pm.outer_radius = 0.27
+		pm.rings = 32
+		pm.ring_segments = 10
+		pneu.mesh = pm
+		pneu.material_override = gomma
+		pneu.position = Vector3(0, 0.28, dz)
+		pneu.rotation.z = PI * 0.5
+		bici.add_child(pneu)
+		var cerchio := MeshInstance3D.new()
+		var cm := TorusMesh.new()
+		cm.inner_radius = 0.180
+		cm.outer_radius = 0.205
+		cm.rings = 32
+		cm.ring_segments = 8
+		cerchio.mesh = cm
+		cerchio.material_override = cerchio_mat
+		cerchio.position = Vector3(0, 0.28, dz)
+		cerchio.rotation.z = PI * 0.5
+		bici.add_child(cerchio)
+		var mozzo := _cyl(bici, 0.028, 0.028, 0.075, ottone, Vector3(0, 0.28, dz))
+		mozzo.rotation.z = PI * 0.5
+		for k in 8:
+			var ra := float(k) * TAU / 8.0 + (0.2 if dz > 0.0 else 0.0)
+			var raggio := _cyl(bici, 0.0055, 0.0055, 0.17, cerchio_mat,
+					Vector3(0, 0.28 + cos(ra) * 0.10, dz + sin(ra) * 0.10))
+			raggio.rotation.x = ra
+
+	# ---- IL TELAIO a diamante: i tubi si incontrano nei nodi
+	tubo.call(Vector3(0, 0.62, -0.295), Vector3(0, 0.42, -0.315), 0.030, telaio)
+	tubo.call(Vector3(0, 0.45, -0.30), Vector3(0, 0.29, 0.05), 0.028, telaio)
+	tubo.call(Vector3(0, 0.585, -0.285), Vector3(0, 0.615, 0.185), 0.024, telaio)
+	tubo.call(Vector3(0, 0.29, 0.04), Vector3(0, 0.64, 0.21), 0.026, telaio)
+	# il movimento centrale
+	var mc := _cyl(bici, 0.036, 0.036, 0.16, telaio, Vector3(0, 0.295, 0.045))
+	mc.rotation.z = PI * 0.5
+	# i foderi bassi e alti, a coppie, e la forcella
+	for fx: float in [-0.032, 0.032]:
+		tubo.call(Vector3(fx, 0.29, 0.06), Vector3(fx, 0.28, 0.33), 0.013, telaio)
+		tubo.call(Vector3(fx, 0.60, 0.19), Vector3(fx, 0.29, 0.335), 0.012, telaio)
+		tubo.call(Vector3(fx, 0.43, -0.31), Vector3(fx, 0.28, -0.345), 0.013, telaio)
+
+	# ---- LA TRASMISSIONE: corona, pignone, catena, pedivelle opposte
+	var corona := _cyl(bici, 0.075, 0.075, 0.014, ottone, Vector3(0.055, 0.295, 0.045))
+	corona.rotation.z = PI * 0.5
+	var pignone := _cyl(bici, 0.042, 0.042, 0.012, ottone, Vector3(0.05, 0.28, 0.33))
+	pignone.rotation.z = PI * 0.5
+	var su := _box(bici, Vector3(0.010, 0.285, 0.014), gomma, Vector3(0.055, 0.343, 0.19))
+	su.rotation.x = atan2(0.285, -0.048)
+	var giu := _box(bici, Vector3(0.010, 0.285, 0.014), gomma, Vector3(0.055, 0.235, 0.19))
+	giu.rotation.x = atan2(0.285, 0.012)
+	var ped_dx := _box(bici, Vector3(0.014, 0.105, 0.026), telaio,
+			Vector3(0.075, 0.2515, 0.0815))
+	ped_dx.rotation.x = -0.70
+	_box(bici, Vector3(0.075, 0.016, 0.05), gomma, Vector3(0.105, 0.208, 0.118))
+	var ped_sx := _box(bici, Vector3(0.014, 0.105, 0.026), telaio,
+			Vector3(-0.075, 0.340, 0.010))
+	ped_sx.rotation.x = -0.70
+	_box(bici, Vector3(0.075, 0.016, 0.05), gomma, Vector3(-0.105, 0.382, -0.026))
+
+	# ---- LA SELLA di cuoio sul cannotto (nodo "Sella")
+	tubo.call(Vector3(0, 0.63, 0.205), Vector3(0, 0.71, 0.225), 0.015, telaio)
+	var sella := _ball(bici, 0.062, cuoio, Vector3(0, 0.725, 0.225), Vector3(1.0, 0.42, 1.55))
 	sella.name = "Sella"
-	var manubrio := _box(bici, Vector3(0.36, 0.045, 0.045), telaio, Vector3(0, 0.72, -0.3))
+
+	# ---- MANUBRIO (nodo omonimo): attacco, tubo, manopole e campanello
+	tubo.call(Vector3(0, 0.62, -0.295), Vector3(0, 0.685, -0.305), 0.018, telaio)
+	var manubrio := _cyl(bici, 0.016, 0.016, 0.36, telaio, Vector3(0, 0.69, -0.305))
 	manubrio.name = "Manubrio"
-	for sx: float in [-0.16, 0.16]:
-		_cyl(bici, 0.028, 0.028, 0.09, gomma, Vector3(sx, 0.72, -0.3)).rotation.z = PI * 0.5
-	# il cestino di vimini davanti
-	var cesto := _cyl(bici, 0.14, 0.11, 0.19, _mat(WOOD_PALE, WOOD, 7.0, 0.6),
-			Vector3(0, 0.63, -0.34))
+	manubrio.rotation.z = PI * 0.5
+	for sx: float in [-0.165, 0.165]:
+		var manopola := _cyl(bici, 0.024, 0.024, 0.085, cuoio, Vector3(sx, 0.69, -0.305))
+		manopola.rotation.z = PI * 0.5
+	_cyl(bici, 0.026, 0.026, 0.018, ottone, Vector3(-0.125, 0.715, -0.30))
+	_ball(bici, 0.020, ottone, Vector3(-0.125, 0.728, -0.30), Vector3(1, 0.6, 1))
+
+	# ---- IL FANALINO d'ottone sul tubo di sterzo
+	var fanale := _cyl(bici, 0.024, 0.030, 0.045, ottone, Vector3(0, 0.545, -0.365))
+	fanale.rotation.x = PI * 0.5
+	var lente := _cyl(bici, 0.020, 0.020, 0.012, _mat(CREAM, Color("ffe6b0"), 6.0, 0.3),
+			Vector3(0, 0.545, -0.392))
+	lente.rotation.x = PI * 0.5
+
+	# ---- IL CESTINO di vimini (nodo "Cestino") con le fascette,
+	# appoggiato al manubrio
+	var cesto := _cyl(bici, 0.145, 0.11, 0.16, _mat(WOOD_PALE, WOOD, 7.0, 0.6),
+			Vector3(0, 0.63, -0.43))
 	cesto.name = "Cestino"
-	# il campanello e il cavalletto
-	_cyl(bici, 0.032, 0.032, 0.035, ottone, Vector3(-0.12, 0.76, -0.3))
-	var cavalletto := _cyl(n, 0.018, 0.018, 0.34, gomma, Vector3(-0.13, 0.17, 0.16))
-	cavalletto.rotation.z = 0.32
+	for banda: Array in [[0.70, 0.138, 0.150], [0.585, 0.118, 0.130]]:
+		var fascia := MeshInstance3D.new()
+		var fm := TorusMesh.new()
+		fm.inner_radius = banda[1]
+		fm.outer_radius = banda[2]
+		fm.rings = 28
+		fm.ring_segments = 6
+		fascia.mesh = fm
+		fascia.material_override = _mat(WOOD, WOOD_DARK, 6.0, 0.5)
+		fascia.position = Vector3(0, banda[0], -0.43)
+		bici.add_child(fascia)
+
+	# ---- IL PORTAPACCHI sopra la ruota dietro
+	for rx: float in [-0.045, 0.045]:
+		_box(bici, Vector3(0.012, 0.008, 0.24), telaio, Vector3(rx, 0.578, 0.38))
+		tubo.call(Vector3(rx, 0.574, 0.30), Vector3(rx, 0.30, 0.335), 0.008, telaio)
+	for rz: float in [0.30, 0.38, 0.46]:
+		_box(bici, Vector3(0.10, 0.006, 0.016), telaio, Vector3(0, 0.585, rz))
+
+	# ---- il cavalletto, col suo piedino
+	var cavalletto := _cyl(n, 0.014, 0.014, 0.34, gomma, Vector3(-0.115, 0.155, 0.28))
+	cavalletto.rotation.z = 0.38
+	cavalletto.rotation.x = 0.12
+	_cyl(n, 0.026, 0.030, 0.014, gomma, Vector3(-0.178, 0.008, 0.30))
 	return n
 
 
@@ -6756,14 +7032,16 @@ static func _casco_appeso() -> Node3D:
 	return n
 
 
-## GLI STIVALI IN FILA, ricreati da zero: il pezzo più piccolo della
-## caserma e quello che la racconta meglio. Ogni stivale è un corpo
-## UNICO che curva nella caviglia fino alla punta tonda, con la suola,
-## il tacco, il risvolto rosso arrotolato e l'interno scuro — sono
-## vuoti, qualcuno se li è tolti. Un paio sta in fila come si deve, da
-## uno spunta una margherita (la manichetta annaffia gli orti, e prima
-## o poi annaffia anche uno stivale), e uno è caduto su un fianco:
-## nessuno li sta indossando, e va benissimo così.
+## GLI STIVALI, ricreati da zero: il pezzo più piccolo della caserma e
+## quello che la racconta meglio. Ogni stivale è un corpo UNICO che
+## curva nella caviglia fino alla punta tonda, con la suola a PIANTA DI
+## PIEDE (tallone tondo, punta più larga, coi tasselli del battistrada
+## sotto: si vedono solo quando uno è rovesciato, ed è lì che servono),
+## il risvolto rosso arrotolato e l'interno scuro — sono vuoti,
+## qualcuno se li è tolti. E OGNI POSA È DIVERSA: cinque disposizioni
+## (la fila della sera, la margherita nel paio in fondo, il caduto, i
+## tolti di corsa, la raggiera ad asciugare) più un soffio di caso su
+## ogni stivale — due soglie non si somigliano mai.
 static func _stivale(parent: Node3D) -> Node3D:
 	var s := Node3D.new()
 	parent.add_child(s)
@@ -6776,10 +7054,22 @@ static func _stivale(parent: Node3D) -> Node3D:
 			Vector3(0, 0.065, -0.012), Vector3(0, 0.05, -0.075),
 			Vector3(0, 0.046, -0.115), Vector3(0, 0.05, -0.142)],
 			[0.05, 0.05, 0.049, 0.05, 0.046, 0.028], gomma, 22, 12)
-	# la suola stondata che sporge, e il tacco
-	_lastra(s, 0.105, 0.1, 0.028, 0.026, suola, Vector3(0, 0.013, -0.045),
-			Vector3(0, 0, PI * 0.5))
-	_cyl(s, 0.042, 0.045, 0.022, suola, Vector3(0, 0.011, 0.052))
+	# LA SUOLA SEGUE LA PIANTA DEL PIEDE: il giro del tallone, i fianchi
+	# appena bombati, il giro largo della punta — un rettangolo stondato
+	# è una ciabatta di legno, non uno stivale
+	var pianta: Array = []
+	for i in 7:
+		var a := PI * float(i) / 6.0
+		pianta.append(Vector2(cos(a) * 0.044, 0.055 + sin(a) * 0.046))
+	for i in 9:
+		var a2 := PI + PI * float(i) / 8.0
+		pianta.append(Vector2(cos(a2) * 0.052, -0.098 + sin(a2) * 0.054))
+	_prisma(s, pianta, 0.0, 0.026, suola)
+	# i tasselli del battistrada, sotto
+	for t_b: Array in [[-0.12, 0.042], [-0.075, 0.049], [-0.03, 0.048],
+			[0.015, 0.045], [0.06, 0.039]]:
+		_box(s, Vector3(float(t_b[1]) * 2.0 - 0.01, 0.007, 0.02), scuro,
+				Vector3(0, -0.001, float(t_b[0])))
 	# il risvolto rosso arrotolato, e l'interno scuro: lo stivale è VUOTO
 	_cyl(s, 0.054, 0.056, 0.05, rosso, Vector3(0, 0.215, 0.008))
 	var orlo := MeshInstance3D.new()
@@ -6791,12 +7081,10 @@ static func _stivale(parent: Node3D) -> Node3D:
 	orlo.position = Vector3(0, 0.242, 0.008)
 	s.add_child(orlo)
 	_cyl(s, 0.043, 0.043, 0.012, scuro, Vector3(0, 0.243, 0.008))
-	# la linguetta dietro per tirarli su, e la fascia chiara alla caviglia
-	var tab := _lastra(s, 0.013, 0.055, 0.006, 0.01, rosso,
+	# la linguetta dietro per tirarli su, e la fascia chiara sul TRATTO
+	# DRITTO del gambale (alla piega tagliava il tubo di sbieco)
+	_lastra(s, 0.013, 0.055, 0.006, 0.01, rosso,
 			Vector3(0, 0.245, 0.066), Vector3(0.18, PI * 0.5, 0))
-	tab.rotation.z = 0.0
-	# la fascia chiara sta sul TRATTO DRITTO del gambale: alla piega
-	# della caviglia tagliava il tubo di sbieco, un calzino sceso
 	_cyl(s, 0.0515, 0.0515, 0.016, _mat(CREAM, PLASTER_SHADE, 5.0, 0.3),
 			Vector3(0, 0.145, 0.008))
 	return s
@@ -6804,40 +7092,64 @@ static func _stivale(parent: Node3D) -> Node3D:
 
 static func _stivali() -> Node3D:
 	var n := Node3D.new()
-	# il paio in fila come si deve, appena svirgolato
-	var s1a := _stivale(n)
-	s1a.position = Vector3(-0.345, 0, -0.005)
-	s1a.rotation.y = 0.07
-	var s1b := _stivale(n)
-	s1b.position = Vector3(-0.25, 0, 0.01)
-	s1b.rotation.y = -0.05
-	# il paio di mezzo: da uno spunta la margherita
-	var s2a := _stivale(n)
-	s2a.position = Vector3(-0.05, 0, 0.005)
-	s2a.rotation.y = 0.14
-	var s2b := _stivale(n)
-	s2b.position = Vector3(0.05, 0, -0.012)
-	s2b.rotation.y = -0.09
-	var verde := _mat(LEAF, LEAF_DARK, 6.0, 0.55)
-	var stelo := _cyl(s2a, 0.006, 0.008, 0.16, verde, Vector3(0.012, 0.3, 0.01))
-	stelo.rotation.z = -0.12
-	_ball(s2a, 0.02, verde, Vector3(0.05, 0.33, 0.012), Vector3(1.3, 0.4, 0.9))
-	for k in 5:
-		var a := TAU / 5.0 * float(k)
-		_ball(s2a, 0.016, _mat(Color.WHITE, CREAM, 5.0, 0.25),
-				Vector3(0.03 + cos(a) * 0.021, 0.385, 0.008 + sin(a) * 0.021),
-				Vector3(1.0, 0.5, 1.0))
-	_ball(s2a, 0.013, _mat(Color("ffd76e"), Color("eec254"), 5.0, 0.3),
-			Vector3(0.03, 0.392, 0.008))
-	# il terzo paio: uno in piedi, l'altro caduto su un fianco — e
-	# nessuno che si prenda la briga di raddrizzarlo
-	var s3a := _stivale(n)
-	s3a.position = Vector3(0.25, 0, 0.0)
-	s3a.rotation.y = 0.04
-	var s3b := _stivale(n)
-	s3b.position = Vector3(0.4, 0.055, 0.045)
-	s3b.rotation.z = -1.52
-	s3b.rotation.y = 0.4
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()    # ogni soglia dispone gli stivali a modo suo
+	# le disposizioni: [x, z, giro] per sei stivali; "fiore" e "caduto"
+	# sono indici (o -1). La margherita NON sta mai in mezzo alla fila:
+	# cresce nel paio in fondo, vicino al muro, dove l'acqua ristagna.
+	var varianti: Array = [
+		# la fila della sera: tutti a posto
+		{"posti": [[-0.34, -0.01, 0.07], [-0.245, 0.01, -0.05],
+				[-0.05, 0.02, 0.1], [0.05, -0.01, -0.07],
+				[0.25, 0.0, 0.05], [0.345, 0.02, -0.04]],
+			"fiore": -1, "caduto": -1},
+		# la margherita nell'ultimo paio
+		{"posti": [[-0.35, 0.0, 0.05], [-0.255, -0.02, -0.08],
+				[-0.05, 0.01, 0.12], [0.045, 0.0, -0.05],
+				[0.24, -0.01, 0.02], [0.35, 0.03, 0.18]],
+			"fiore": 5, "caduto": -1},
+		# uno è caduto, e nessuno si prende la briga di raddrizzarlo
+		{"posti": [[-0.345, -0.005, 0.07], [-0.25, 0.01, -0.05],
+				[-0.05, 0.005, 0.14], [0.05, -0.012, -0.09],
+				[0.25, 0.0, 0.04], [0.4, 0.045, 0.4]],
+			"fiore": -1, "caduto": 5},
+		# tolti DI CORSA: sparsi dove capitava, uno è volato in là
+		{"posti": [[-0.36, 0.06, 0.5], [-0.19, -0.1, -0.45],
+				[0.0, 0.12, 0.85], [0.09, -0.05, -0.2],
+				[0.29, 0.03, 0.3], [0.44, 0.15, -0.7]],
+			"fiore": -1, "caduto": 2},
+		# la raggiera: messi in tondo ad asciugare al sole
+		{"posti": [], "fiore": -1, "caduto": -1, "tondo": true},
+	]
+	var scelta: Dictionary = varianti[rng.randi_range(0, varianti.size() - 1)]
+	var posti: Array = scelta["posti"]
+	if bool(scelta.get("tondo", false)):
+		for k in 6:
+			var a := TAU / 6.0 * float(k) + 0.26
+			posti.append([cos(a) * 0.27, sin(a) * 0.27,
+					atan2(-cos(a), -sin(a))])
+	for i in 6:
+		var s := _stivale(n)
+		var p_s: Array = posti[i]
+		s.position = Vector3(float(p_s[0]) + rng.randf_range(-0.012, 0.012), 0,
+				float(p_s[1]) + rng.randf_range(-0.012, 0.012))
+		s.rotation.y = float(p_s[2]) + rng.randf_range(-0.07, 0.07)
+		if i == int(scelta.get("caduto", -1)):
+			s.position.y = 0.055
+			s.rotation.z = -1.52
+			s.rotation.y += rng.randf_range(-0.3, 0.3)
+		elif i == int(scelta.get("fiore", -1)):
+			var verde := _mat(LEAF, LEAF_DARK, 6.0, 0.55)
+			var stelo := _cyl(s, 0.006, 0.008, 0.16, verde, Vector3(0.012, 0.3, 0.01))
+			stelo.rotation.z = -0.12
+			_ball(s, 0.02, verde, Vector3(0.05, 0.33, 0.012), Vector3(1.3, 0.4, 0.9))
+			for k2 in 5:
+				var a2 := TAU / 5.0 * float(k2)
+				_ball(s, 0.016, _mat(Color.WHITE, CREAM, 5.0, 0.25),
+						Vector3(0.03 + cos(a2) * 0.021, 0.385, 0.008 + sin(a2) * 0.021),
+						Vector3(1.0, 0.5, 1.0))
+			_ball(s, 0.013, _mat(Color("ffd76e"), Color("eec254"), 5.0, 0.3),
+					Vector3(0.03, 0.392, 0.008))
 	return n
 
 
