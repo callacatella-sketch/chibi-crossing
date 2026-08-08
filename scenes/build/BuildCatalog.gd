@@ -134,7 +134,7 @@ static func items() -> Array[Dictionary]:
 		{"name": "Panchina", "cat": 2, "type": "cell", "layer": 2, "builder": _bench,
 			"cols": [[Vector3(0.96, 0.88, 0.46), Vector3(0, 0.44, 0)]]},
 		{"name": "Lavagna", "cat": 2, "type": "cell", "layer": 2, "builder": _blackboard,
-			"cols": [[Vector3(1.05, 1.6, 0.16), Vector3(0, 0.8, 0.05)]]},
+			"cols": [[Vector3(1.07, 1.72, 0.54), Vector3(0, 0.86, 0.05)]]},
 
 		# --- PALESTRA (le forme stanno in BuildPalestra.gd) ---
 		# Una categoria sua: «Arredo» e «Giardino» sono già righe lunghissime,
@@ -2334,25 +2334,217 @@ static func _vegetable_patch() -> Node3D:
 	return n
 
 
+## LA LAVAGNA del villaggio: una bacheca da piazza col TETTUCCIO.
+##
+## IL CONTRATTO, prima di tutto: il quadro resta un BoxMesh figlio
+## DIRETTO — il piu' grande del pezzo — di 0.94x1.02x0.045, centrato a
+## (0, 0.97, 0.06) e inclinato di 0.05 rad. Non sono numeri scelti qui:
+## li ricopia `Calendar.ARDESIA_*` per ancorarci le righe di gesso, e
+## test_lavagna_gessetto li ricava dalla geometria VERA e li confronta.
+## Toccarli senza toccare Calendar scriverebbe i compleanni sul legno.
+## Il telaio, per la stessa ragione, non puo' coprire piu' di 4 cm di
+## lastra per lato (ARDESIA_L = 0.86 su 0.94), o le righe lunghe
+## finirebbero sotto la cornice: il montante interno si DERIVA da li'.
+##
+## Tutto il resto e' nuovo: montanti torniti su PATTINI (e' il piede a
+## dare profondita' — di taglio la vecchia lavagna era una lama), il
+## tettuccio a due falde con le assi, i correnti scuri e il colmo
+## tornito, le mensole curve che lo reggono, cornice stondata che segue
+## l'inclinazione del quadro, vaschetta a canale coi gessetti TONDI e
+## la spugna, e il gessetto di scorta appeso al gancio d'ottone —
+## sul FIANCO del montante, mai davanti al quadro. Fronte verso -Z.
 static func _blackboard() -> Node3D:
-	# la lavagna del villaggio: i nuovi abitanti ci scrivono il loro
-	# compleanno, il Calendario ci appende gli eventi. Fronte verso -Z.
 	var n := Node3D.new()
-	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
-	for sx: float in [-0.48, 0.48]:
-		_box(n, Vector3(0.09, 1.6, 0.09), wood, Vector3(sx, 0.8, 0.06))
-	_box(n, Vector3(1.06, 0.1, 0.1), wood, Vector3(0, 1.52, 0.05))
-	_box(n, Vector3(1.06, 0.08, 0.1), wood, Vector3(0, 0.42, 0.05))
-	# il quadro nero-verde, appena inclinato all'indietro
-	var slate := _box(n, Vector3(0.94, 1.02, 0.05),
-			_mat(Color("3d4a40"), Color("32403a"), 5.0, 0.35), Vector3(0, 0.97, 0.06))
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var chiaro := _mat(WOOD_PALE, WOOD, 3.5, 0.5)
+	var scuro := _mat(WOOD_DARK, Color("6d4f31"), 4.0, 0.45)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+
+	var y_cima := 1.545                       # dove appoggia la gronda
+	var x_mont := 0.492
+	var z_piano := 0.06
+
+	for sx: float in [-1.0, 1.0]:
+		# ---- IL PATTINO: il piede corre in Z, ed e' lui a dare profondita' ----
+		var perno_p := Node3D.new()
+		perno_p.position = Vector3(sx * x_mont, 0.0, 0.055)
+		perno_p.rotation.y = PI * 0.5
+		n.add_child(perno_p)
+		_loft(perno_p, [[-0.255, 0.018, 0.012, 0.030, 0.008],
+				[-0.225, 0.027, 0.004, 0.048, 0.013],
+				[-0.06, 0.032, 0.0, 0.056, 0.015],
+				[0.13, 0.032, 0.0, 0.056, 0.015],
+				[0.235, 0.027, 0.004, 0.048, 0.013],
+				[0.265, 0.018, 0.012, 0.030, 0.008]], legno)
+		# ---- IL MONTANTE: tornito, dal pattino alla gronda ----
+		BUILDER.lathe(n, [Vector2(0.001, 0.0), Vector2(0.036, 0.0),
+				Vector2(0.038, 0.020), Vector2(0.033, 0.052),
+				Vector2(0.031, 0.30), Vector2(0.0325, 0.62),
+				Vector2(0.030, 0.98), Vector2(0.0335, 1.20),
+				Vector2(0.036, 1.26), Vector2(0.030, 1.31),
+				Vector2(0.029, 1.46), Vector2(0.034, 1.50),
+				Vector2(0.032, y_cima), Vector2(0.001, y_cima)], legno,
+				Vector3(sx * x_mont, 0.045, z_piano))
+		# le mensole curve che portano le falde: una davanti e una dietro
+		# (con la sola davanti, la falda posteriore non poggiava su niente)
+		for verso_m: float in [-1.0, 1.0]:
+			BUILDER.tube(n, [Vector3(sx * x_mont, 1.315, z_piano + verso_m * 0.020),
+					Vector3(sx * x_mont, 1.395, z_piano + verso_m * 0.070),
+					Vector3(sx * x_mont, 1.455, z_piano + verso_m * 0.130),
+					Vector3(sx * x_mont, 1.500, z_piano + verso_m * 0.188),
+					Vector3(sx * x_mont, 1.528, z_piano + verso_m * 0.220)],
+					[0.017, 0.016, 0.015, 0.014, 0.012], legno, 20, 8)
+
+	# la traversa tornita fra i due montanti, in basso
+	var trav := BUILDER.lathe(n, [Vector2(0.001, 0.0), Vector2(0.017, 0.006),
+			Vector2(0.023, 0.50), Vector2(0.017, 0.994),
+			Vector2(0.001, 1.0)], legno, Vector3(-x_mont, 0.235, z_piano))
+	trav.scale.y = (x_mont * 2.0) / 1.0
+	trav.rotation.z = -PI * 0.5
+
+	# ---- IL QUADRO (il contratto) ----
+	var slate := _box(n, Vector3(0.94, 1.02, 0.045),
+			_mat(Color("3d4a40"), Color("32403a"), 5.0, 0.35),
+			Vector3(0, 0.97, z_piano))
 	slate.rotation.x = 0.05
-	# la vaschetta dei gessetti, coi gessetti
-	_box(n, Vector3(0.9, 0.05, 0.12), wood, Vector3(0, 0.47, -0.02))
-	_box(n, Vector3(0.12, 0.025, 0.025), _mat(Color("fff8ee"), Color("efe6da"), 6.0, 0.3),
-			Vector3(-0.2, 0.51, -0.02))
-	_box(n, Vector3(0.1, 0.025, 0.025), _mat(Color("f4c2cf"), Color("e8aebe"), 6.0, 0.3),
-			Vector3(0.14, 0.51, -0.02))
+
+	# ---- LA CORNICE: segue l'inclinazione del quadro ----
+	var telaio := Node3D.new()
+	telaio.position = Vector3(0, 0.97, z_piano)
+	telaio.rotation.x = 0.05
+	n.add_child(telaio)
+	# la velatura di gesso: mezzo secolo di parole cancellate male
+	# (la posa e' (x, y, z): la prima stesura metteva -0.0245 sulla X e
+	# lasciava z a zero — la velatura finiva DENTRO la lastra, invisibile)
+	_lastra(telaio, 0.452, 0.955, 0.14, 0.004,
+			_mat(Color("44514a"), Color("3a473f"), 6.0, 0.3),
+			Vector3(0, -0.015, -0.0245), Vector3(0, PI * 0.5, 0))
+	for oriz: float in [-1.0, 1.0]:
+		var st: Array = []
+		for k in 5:
+			var fx := float(k) / 4.0 * 2.0 - 1.0
+			st.append([fx * 0.478, 0.031, -0.0225, 0.0225, 0.010])
+		_loft(telaio, st, chiaro, Vector3(0, oriz * 0.532, 0))
+	for vert: float in [-1.0, 1.0]:
+		var perno_v := Node3D.new()
+		# l'interno del montante si DERIVA dal margine di ARDESIA_L:
+		# 0.4505 - 0.0225 = 0.428, un filo dentro il 0.43 concesso
+		perno_v.position = Vector3(vert * 0.4505, 0, 0)
+		perno_v.rotation.z = PI * 0.5
+		telaio.add_child(perno_v)
+		var st2: Array = []
+		for k2 in 5:
+			var fx2 := float(k2) / 4.0 * 2.0 - 1.0
+			st2.append([fx2 * 0.5545, 0.031, -0.0225, 0.0225, 0.010])
+		_loft(perno_v, st2, chiaro)
+	# ---- IL RETRO: pannello di legno e croce di S. Andrea ----
+	# Di dietro era una lastra verde nuda: una bacheca in mezzo alla
+	# piazza la si gira intorno, e il retro deve essere finito come il
+	# davanti — tavola, due traverse e la diagonale, come una porta di
+	# fienile.
+	_lastra(telaio, 0.470, 1.020, 0.020, 0.010, legno,
+			Vector3(0, 0, 0.0285), Vector3(0, PI * 0.5, 0))
+	for ledger: float in [-1.0, 1.0]:
+		_loft(telaio, [[-0.452, 0.009, -0.030, 0.030, 0.008],
+				[0.452, 0.009, -0.030, 0.030, 0.008]], scuro,
+				Vector3(0, ledger * 0.355, 0.042))
+	var perno_d := Node3D.new()
+	perno_d.position = Vector3(0, 0, 0.042)
+	perno_d.rotation.z = atan2(0.71, 0.90)
+	telaio.add_child(perno_d)
+	var mezzo_d := Vector2(0.90, 0.71).length() * 0.5
+	_loft(perno_d, [[-mezzo_d, 0.009, -0.026, 0.026, 0.008],
+			[mezzo_d, 0.009, -0.026, 0.026, 0.008]], scuro)
+
+	# i bulloni d'ottone agli angoli della cornice
+	for bx: float in [-1.0, 1.0]:
+		for by: float in [-1.0, 1.0]:
+			_ball(telaio, 0.010, ottone,
+					Vector3(bx * 0.4505, by * 0.532, -0.030), Vector3(1, 1, 0.55))
+
+	# ---- IL TETTUCCIO a due falde, con le assi e il colmo ----
+	var y_colmo := 1.672
+	for verso: float in [-1.0, 1.0]:
+		var z_gronda := z_piano + verso * 0.24
+		var perno_f := Node3D.new()
+		perno_f.position = Vector3(0, (y_colmo + y_cima) * 0.5,
+				(z_piano + z_gronda) * 0.5)
+		perno_f.rotation.x = verso * atan2(y_colmo - y_cima, 0.24)
+		n.add_child(perno_f)
+		var mezzo_f := Vector2(0.24, y_colmo - y_cima).length() * 0.5
+		_loft(perno_f, [[-0.508, mezzo_f, -0.014, 0.014, 0.010],
+				[0.508, mezzo_f, -0.014, 0.014, 0.010]], legno)
+		# i due correnti scuri: solo sulla faccia di FUORI
+		for corso: float in [-0.42, 0.28]:
+			_box(perno_f, Vector3(0.99, 0.010, 0.014), scuro,
+					Vector3(0, 0.016, corso * mezzo_f))
+		# la testata della falda, chiara: e' il taglio dell'asse
+		_loft(perno_f, [[-0.516, mezzo_f, -0.015, 0.015, 0.011],
+				[-0.508, mezzo_f, -0.015, 0.015, 0.011]], chiaro)
+		_loft(perno_f, [[0.508, mezzo_f, -0.015, 0.015, 0.011],
+				[0.516, mezzo_f, -0.015, 0.015, 0.011]], chiaro)
+	var colmo := BUILDER.lathe(n, [Vector2(0.001, 0.0), Vector2(0.019, 0.006),
+			Vector2(0.024, 0.51), Vector2(0.019, 1.014),
+			Vector2(0.001, 1.02)], chiaro, Vector3(-0.51, y_colmo + 0.008, z_piano))
+	colmo.rotation.z = -PI * 0.5
+	# i pomelli stanno DENTRO la falda: sporgenti, portavano l'ingombro a
+	# 1.17 m in una cella da 1 (il dump geometrico, non l'occhio)
+	for fx3: float in [-1.0, 1.0]:
+		_ball(n, 0.017, ottone, Vector3(fx3 * 0.508, y_colmo + 0.008, z_piano))
+
+	# ---- LA VASCHETTA: un canale, coi gessetti TONDI e la spugna ----
+	var y_vas := 0.398
+	_loft(n, [[-0.452, 0.078, -0.012, 0.012, 0.009],
+			[0.452, 0.078, -0.012, 0.012, 0.009]], chiaro,
+			Vector3(0, y_vas, z_piano - 0.052))
+	_loft(n, [[-0.452, 0.010, -0.010, 0.032, 0.008],
+			[0.452, 0.010, -0.010, 0.032, 0.008]], chiaro,
+			Vector3(0, y_vas + 0.014, z_piano - 0.122))
+	for lato: float in [-1.0, 1.0]:
+		_loft(n, [[-0.010, 0.078, -0.010, 0.032, 0.009],
+				[0.010, 0.078, -0.010, 0.032, 0.009]], chiaro,
+				Vector3(lato * 0.452, y_vas + 0.014, z_piano - 0.052))
+	# IL CUORE INTAGLIATO, come sulla testiera del letto e sulla stecca
+	# della sedia: e' lo stesso falegname, ed e' la stessa casa. Sta sulla
+	# fronte del canale — sulla traversa alta della cornice finiva
+	# NELL'OMBRA della gronda, e un segno che non si vede non e' un segno.
+	var buio_c := _mat(Color("5a4028"), Color("42301d"), 4.0, 0.35)
+	for lobo: float in [-1.0, 1.0]:
+		_ball(n, 0.0105, buio_c,
+				Vector3(lobo * 0.0076, y_vas + 0.022, z_piano - 0.131),
+				Vector3(1, 1, 0.35))
+	var punta_c := _box(n, Vector3(0.019, 0.019, 0.007), buio_c,
+			Vector3(0, y_vas + 0.008, z_piano - 0.131))
+	punta_c.rotation.z = PI * 0.25
+
+	var gesso_b := _mat(Color("fff8ee"), Color("efe6da"), 6.0, 0.3)
+	var gesso_r := _mat(Color("f4c2cf"), Color("e8aebe"), 6.0, 0.3)
+	var g1 := _cyl(n, 0.011, 0.011, 0.10, gesso_b,
+			Vector3(-0.20, y_vas + 0.023, z_piano - 0.062))
+	g1.rotation.z = PI * 0.5
+	g1.rotation.y = 0.14
+	var g2 := _cyl(n, 0.011, 0.010, 0.068, gesso_r,
+			Vector3(0.10, y_vas + 0.023, z_piano - 0.078))
+	g2.rotation.z = PI * 0.5
+	g2.rotation.y = -0.22
+	# la spugna, col fianco impolverato di gesso
+	_soffice(n, Vector3(0.115, 0.048, 0.078),
+			_mat(Color("c9b78f"), Color("ab9871"), 5.0, 0.4),
+			Vector3(0.30, y_vas + 0.036, z_piano - 0.062), 0.3, 0.5)
+	_soffice(n, Vector3(0.10, 0.012, 0.066), _mat(Color("efe7d6"), Color("d8cfbc"), 6.0, 0.3),
+			Vector3(0.30, y_vas + 0.058, z_piano - 0.062), 0.3, 0.5)
+
+	# ---- IL GESSETTO DI SCORTA: al gancio, sul FIANCO del montante ----
+	_ball(n, 0.011, ottone, Vector3(x_mont + 0.030, 1.155, z_piano),
+			Vector3(1, 0.8, 1))
+	BUILDER.tube(n, [Vector3(x_mont + 0.034, 1.150, z_piano),
+			Vector3(x_mont + 0.048, 1.100, z_piano - 0.012),
+			Vector3(x_mont + 0.046, 1.048, z_piano - 0.020),
+			Vector3(x_mont + 0.038, 1.010, z_piano - 0.024)],
+			[0.0035, 0.0035, 0.0035, 0.0035], scuro, 16, 6)
+	var g3 := _cyl(n, 0.010, 0.010, 0.072, gesso_b,
+			Vector3(x_mont + 0.038, 0.972, z_piano - 0.024))
+	g3.rotation.z = 0.12
 	return n
 
 
