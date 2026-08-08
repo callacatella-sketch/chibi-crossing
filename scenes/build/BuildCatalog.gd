@@ -3734,19 +3734,101 @@ static func _swing() -> Node3D:
 
 
 static func _fountain() -> Node3D:
+	# LA FONTANA DEL VILLAGGIO, monumentale. Prima era un tamburo PIENO
+	# con un dischetto d'acqua sepolto DENTRO la pietra (la vasca in foto
+	# era asciutta), un fuso e un tappo. Adesso è una fontana a due
+	# ordini: la vasca bassa è un MURO ad anello modanato con l'acqua
+	# vera dentro (e le monetine dei desideri sul fondo), la colonna è
+	# tornita coi collarini, la vasca alta TRABOCCA — quattro rivoli
+	# scendono davvero nell'acqua di sotto, con l'anello increspato dove
+	# toccano — e in cima la pigna spinge lo zampillo. Di notte fa da
+	# luce dolce: la Veglia la conta fra le luci del villaggio.
 	var n := Node3D.new()
-	var stone := _mat(STONE, STONE_DARK, 3.0, 0.5)
-	_cyl(n, 0.46, 0.5, 0.16, stone, Vector3(0, 0.08, 0))
-	_cyl(n, 0.42, 0.42, 0.02, stone, Vector3(0, 0.02, 0))
-	var water := _glow(Color(0.55, 0.82, 0.95, 0.75), Color(0.4, 0.7, 0.9), 0.15)
-	water.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_cyl(n, 0.42, 0.42, 0.02, water, Vector3(0, 0.14, 0))
-	_cyl(n, 0.09, 0.13, 0.36, stone, Vector3(0, 0.32, 0))
-	_cyl(n, 0.17, 0.2, 0.05, stone, Vector3(0, 0.5, 0))
-	var wtop := _glow(Color(0.6, 0.84, 0.95, 0.8), Color(0.45, 0.72, 0.92), 0.2)
-	wtop.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_cyl(n, 0.15, 0.15, 0.02, wtop, Vector3(0, 0.53, 0))
-	_emit_fx(n, Vector3(0, 0.62, 0), Color(0.72, 0.9, 1.0), 1.4, -3.2, 20, 1.0, 0.08)
+	var pietra := _mat(STONE, STONE_DARK, 3.0, 0.5)
+	var pietra_chiara := _mat(Color("d8d0c2"), STONE, 3.5, 0.45)
+	var acqua := _glow(Color(0.55, 0.82, 0.95, 0.75), Color(0.4, 0.7, 0.9), 0.18)
+	acqua.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	var acqua_viva := _glow(Color(0.68, 0.88, 1.0, 0.85), Color(0.5, 0.78, 0.95), 0.3)
+	acqua_viva.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	# ---- la vasca bassa: un muro ad anello col plinto e il bordo a toro
+	# (il profilo sale fuori, scavalca il bordo e SCENDE dentro: la vasca
+	# è cava e l'acqua ci sta dentro davvero)
+	BUILDER.lathe(n, [
+		Vector2(0.0, 0.0), Vector2(0.5, 0.0), Vector2(0.5, 0.05),
+		Vector2(0.465, 0.07),                          # il plinto
+		Vector2(0.45, 0.2), Vector2(0.435, 0.3),
+		Vector2(0.47, 0.325), Vector2(0.475, 0.36),    # il bordo a toro
+		Vector2(0.45, 0.375), Vector2(0.4, 0.36),      # …e il rientro
+		Vector2(0.39, 0.1), Vector2(0.0, 0.08),        # dentro, fino al fondo
+	], pietra, Vector3.ZERO, 30)
+	# l'acqua della vasca, SOTTO il bordo — si vede perché la vasca è cava
+	_cyl(n, 0.395, 0.395, 0.016, acqua, Vector3(0, 0.295, 0))
+	# le monetine dei desideri sul fondo, sotto il velo d'acqua
+	var monete := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.35)
+	for mi in 3:
+		var ma := 0.8 + float(mi) * 2.3
+		_cyl(n, 0.022, 0.022, 0.006, monete,
+				Vector3(cos(ma) * (0.14 + 0.07 * float(mi)), 0.095,
+				sin(ma) * (0.14 + 0.07 * float(mi))))
+	# ---- la colonna tornita: base, entasi, collarino, capitello
+	BUILDER.lathe(n, [
+		Vector2(0.19, 0.08), Vector2(0.185, 0.13), Vector2(0.14, 0.16),
+		Vector2(0.105, 0.2),
+		Vector2(0.092, 0.36), Vector2(0.085, 0.52),    # l'entasi
+		Vector2(0.098, 0.565), Vector2(0.098, 0.585), Vector2(0.088, 0.605),
+		Vector2(0.085, 0.68), Vector2(0.12, 0.72), Vector2(0.15, 0.735),
+	], pietra, Vector3.ZERO, 24)
+	# ---- la vasca alta: una coppa che TRABOCCA
+	BUILDER.lathe(n, [
+		Vector2(0.02, 0.72), Vector2(0.16, 0.75), Vector2(0.24, 0.79),
+		Vector2(0.285, 0.85), Vector2(0.295, 0.9),     # fuori, fino al labbro
+		Vector2(0.27, 0.91), Vector2(0.25, 0.885),     # il labbro rientra
+		Vector2(0.1, 0.855), Vector2(0.0, 0.85),       # dentro
+	], pietra_chiara, Vector3.ZERO, 26)
+	_cyl(n, 0.255, 0.255, 0.014, acqua_viva, Vector3(0, 0.878, 0))
+	# ---- i quattro rivoli che scendono dalla coppa nell'acqua di sotto,
+	# con l'anello increspato dove toccano
+	for i in 4:
+		var a := float(i) * TAU / 4.0 + 0.4
+		var rx := cos(a)
+		var rz := sin(a)
+		var rivolo := _cyl(n, 0.012, 0.017, 0.58, acqua_viva,
+				Vector3(rx * 0.293, 0.6, rz * 0.293))
+		rivolo.rotation.z = rx * 0.06
+		rivolo.rotation.x = -rz * 0.06
+		var cerchio := MeshInstance3D.new()
+		var cm := TorusMesh.new()
+		cm.inner_radius = 0.035
+		cm.outer_radius = 0.055
+		cerchio.mesh = cm
+		cerchio.material_override = acqua_viva
+		cerchio.position = Vector3(rx * 0.31, 0.302, rz * 0.31)
+		n.add_child(cerchio)
+	# ---- la pigna in cima, e lo zampillo che ci ricade sopra
+	BUILDER.lathe(n, [
+		Vector2(0.055, 0.85), Vector2(0.075, 0.9), Vector2(0.078, 0.95),
+		Vector2(0.06, 1.01), Vector2(0.028, 1.06), Vector2(0.0, 1.08),
+	], pietra, Vector3.ZERO, 18)
+	var zampillo := _cyl(n, 0.014, 0.02, 0.24, acqua_viva, Vector3(0, 1.17, 0))
+	zampillo.name = "Zampillo"
+	_ball(n, 0.032, acqua_viva, Vector3(0, 1.285, 0), Vector3(1, 0.7, 1))
+	_emit_fx(n, Vector3(0, 1.3, 0), Color(0.72, 0.9, 1.0), 1.5, -3.4, 26, 1.0, 0.075)
+	_emit_fx(n, Vector3(0, 0.9, 0), Color(0.78, 0.92, 1.0), 0.5, -2.2, 10, 0.8, 0.05)
+	# ---- il muschio ai piedi, dove l'acqua schizza da sempre
+	var muschio := _mat(LEAF, LEAF.darkened(0.2), 4.0, 0.4)
+	for i in 3:
+		var a := 1.1 + float(i) * 2.4
+		_ball(n, 0.05 + 0.015 * float(i % 2), muschio,
+				Vector3(cos(a) * 0.49, 0.045, sin(a) * 0.49), Vector3(1.2, 0.55, 1.0))
+	# di notte è una luce dolce: la Veglia la conta fra le luci del
+	# villaggio, e una fontana che brilla senza fare luce sarebbe bugiarda
+	var luce := OmniLight3D.new()
+	luce.light_color = Color(0.72, 0.86, 1.0)
+	luce.light_energy = 0.65
+	luce.omni_range = 2.6
+	luce.position = Vector3(0, 0.9, 0)
+	luce.shadow_enabled = false
+	n.add_child(luce)
 	return n
 
 
