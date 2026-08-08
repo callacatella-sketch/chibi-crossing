@@ -4387,10 +4387,9 @@ static func _carousel() -> Node3D:
 				rosa if i % 2 == 1 else panna,
 				Vector3(-0.01, 0.105, 0), Vector3(0, 0, PI * 0.5))
 		sella.name = "Sella"
-		_ball(cav, 0.016, oro, Vector3(-0.01, 0.125, 0))
-		# il pomo davanti, da stringere quando la giostra prende velocità
-		_cyl(cav, 0.008, 0.01, 0.03, oro, Vector3(0.062, 0.125, 0))
-		_ball(cav, 0.018, oro, Vector3(0.062, 0.145, 0))
+		# la sella resta PIATTA e sgombra: bottone e pomo, a questa
+		# scala, sembravano cose dimenticate sul sedile — ci si tiene
+		# al palo, che per questo sta davanti
 		for st_f: float in [-1.0, 1.0]:
 			_lastra(cav, 0.012, 0.1, 0.005, 0.008, scuro_b,
 					Vector3(-0.01, 0.02, st_f * 0.1), Vector3(0, 0, 0))
@@ -9632,45 +9631,75 @@ static func _ombrellone() -> Node3D:
 
 
 static func _fioriera() -> Node3D:
-	# LA FIORIERA DEL DEHORS: la cassetta di legno che delimita i tavolini
-	# dalla strada. Fiori dentro, e un filo d'edera che scende.
+	# LA FIORIERA DEL DEHORS, ricreata da zero pezzo per pezzo. La cassa
+	# è falegnameria: quattro montanti torniti coi piedini a terra, il
+	# collarino e il pomello; tre doghe per lato con le FESSURE vere e i
+	# tasselli scuri alle teste; la pancia interna scura che si intravede
+	# nelle fessure; e sopra un TELAIO APERTO col mezzotondo sul filo —
+	# non una lastra piena: la terra si vede dentro la cornice, bombata
+	# e a zolle. Poi la vita: sei margherite a coppa ognuna col suo
+	# portamento, due bocci con la punta rosa, i ciuffi d'erbetta fra i
+	# fiori, e l'edera a due tralci che scavalca il bordo e scende.
 	var n := Node3D.new()
 	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var legno_scuro := _mat(WOOD_DARK, WOOD_DARK.darkened(0.22), 4.0, 0.45)
 	var doghe := _mat(WOOD_PALE, WOOD, 3.5, 0.5)
-	# la cassa: quattro montanti torniti con il pomello, le doghe ad
-	# angoli tondi COI VUOTI in mezzo (una cassetta di doghe senza
-	# fessure è un blocco dipinto), e la vasca scura dentro
-	_box(n, Vector3(0.88, 0.38, 0.28), legno, Vector3(0, 0.21, 0))
-	for sx: float in [-1.0, 1.0]:
-		for sz: float in [-1.0, 1.0]:
-			_cyl(n, 0.032, 0.036, 0.46, legno,
-					Vector3(sx * 0.455, 0.23, sz * 0.155))
-			_ball(n, 0.036, legno, Vector3(sx * 0.455, 0.47, sz * 0.155))
-	for i in 3:
-		var y := 0.10 + 0.13 * float(i)
-		for sz2: float in [-1.0, 1.0]:
-			_lastra(n, 0.42, 0.095, 0.022, 0.032, doghe,
-					Vector3(0, y, sz2 * 0.175), Vector3(0, PI * 0.5, 0))
-		for sx2: float in [-1.0, 1.0]:
-			_lastra(n, 0.145, 0.095, 0.022, 0.032, doghe,
-					Vector3(sx2 * 0.46, y, 0))
-	_loft(n, [[-0.46, 0.185, 0.415, 0.455, 0.015],
-			[0.46, 0.185, 0.415, 0.455, 0.015]], doghe)
-	# la terra: DENTRO la vasca, bombata appena e sotto il bordo (la
-	# lastra di prima sbucava dall'orlo con gli spigoli vivi), a zolle
-	var terra := _mat(Color("6b5340"), Color("57432f"), 5.0, 0.5)
-	var terra_cupa := _mat(Color("57432f"), Color("463527"), 4.0, 0.4)
-	# (il coperchio della cassa è una lastra piena a quota 0.455: la
-	# terra deve SUPERARLA, o resta una toppa al centro)
-	_loft(n, [[-0.41, 0.16, 0.41, 0.468, 0.02],
-			[0.0, 0.16, 0.41, 0.478, 0.03],
-			[0.41, 0.16, 0.41, 0.468, 0.02]], terra)
+	var doghe_chiare := _mat(WOOD_PALE.lightened(0.06), WOOD_PALE, 3.5, 0.45)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 23
+	# ---- i quattro montanti torniti AGLI ANGOLI del telaio: piedino,
+	# fusto che passa ATTRAVERSO la cornice, collarino, pomello (messi
+	# più dentro, i pomelli spuntavano dal legno piatto come funghi)
+	for sx: float in [-1.0, 1.0]:
+		for sz: float in [-1.0, 1.0]:
+			var mx := sx * 0.468
+			var mz := sz * 0.165
+			_cyl(n, 0.04, 0.042, 0.03, legno_scuro, Vector3(mx, 0.015, mz))
+			_cyl(n, 0.031, 0.036, 0.44, legno, Vector3(mx, 0.24, mz))
+			_cyl(n, 0.039, 0.039, 0.016, legno_scuro, Vector3(mx, 0.468, mz))
+			_ball(n, 0.033, legno, Vector3(mx, 0.497, mz))
+	# ---- la pancia interna scura: nelle fessure si vede OMBRA, non il
+	# retro delle doghe di là
+	_box(n, Vector3(0.84, 0.36, 0.26), _mat(Color("6e5138"), Color("5a422e"), 3.0, 0.4),
+			Vector3(0, 0.24, 0))
+	# ---- le doghe: tre file coi vuoti in mezzo, ogni doga col suo
+	# millimetro di gioco (una fila perfetta è legno finto), due toni
+	# alternati e i tasselli scuri alle teste
+	for i in 3:
+		var y := 0.115 + 0.125 * float(i)
+		var mat_doga: Material = doghe if i % 2 == 0 else doghe_chiare
+		for sz2: float in [-1.0, 1.0]:
+			_lastra(n, 0.42, 0.105, 0.024, 0.03, mat_doga,
+					Vector3(rng.randf_range(-0.004, 0.004),
+					y + rng.randf_range(-0.003, 0.003), sz2 * 0.172),
+					Vector3(0, PI * 0.5, 0))
+			for tx: float in [-0.4, 0.4]:
+				var tass := _cyl(n, 0.0065, 0.0065, 0.01, legno_scuro,
+						Vector3(tx, y, sz2 * 0.19))
+				tass.rotation.x = PI * 0.5
+		for sx2: float in [-1.0, 1.0]:
+			_lastra(n, 0.13, 0.105, 0.024, 0.03, mat_doga,
+					Vector3(sx2 * 0.465, y + rng.randf_range(-0.003, 0.003), 0))
+	# ---- il telaio superiore APERTO col mezzotondo sul filo: la terra
+	# si vede DENTRO la cornice (la lastra piena la seppelliva)
+	for cz: float in [-1.0, 1.0]:
+		_box(n, Vector3(0.99, 0.032, 0.06), legno, Vector3(0, 0.435, cz * 0.158))
+		var tondo := _cyl(n, 0.015, 0.015, 0.99, legno, Vector3(0, 0.452, cz * 0.158))
+		tondo.rotation.z = PI * 0.5
+	for cx: float in [-1.0, 1.0]:
+		_box(n, Vector3(0.058, 0.032, 0.37), legno, Vector3(cx * 0.466, 0.435, 0))
+		var tondo2 := _cyl(n, 0.015, 0.015, 0.37, legno, Vector3(cx * 0.466, 0.452, 0))
+		tondo2.rotation.x = PI * 0.5
+	# ---- la terra: dentro l'apertura del telaio, bombata, a zolle
+	var terra := _mat(Color("6b5340"), Color("57432f"), 5.0, 0.5)
+	var terra_cupa := _mat(Color("57432f"), Color("463527"), 4.0, 0.4)
+	_loft(n, [[-0.43, 0.124, 0.4, 0.442, 0.02],
+			[0.0, 0.124, 0.4, 0.468, 0.03],
+			[0.43, 0.124, 0.4, 0.442, 0.02]], terra)
 	for zi in 5:
 		_ball(n, rng.randf_range(0.012, 0.018), terra_cupa,
-				Vector3(rng.randf_range(-0.38, 0.38), 0.472,
-				rng.randf_range(-0.1, 0.1)), Vector3(1.2, 0.55, 1.0))
+				Vector3(rng.randf_range(-0.36, 0.36), 0.455,
+				rng.randf_range(-0.08, 0.08)), Vector3(1.2, 0.55, 1.0))
 	# ---- i fiori VERI: stelo sottile che si piega, due foglie lungo lo
 	# stelo (non un fungo alla base), corolla a COPPA di sei petali col
 	# bottone, ogni pianta con la sua altezza e la sua inclinazione
@@ -9680,7 +9709,7 @@ static func _fioriera() -> Node3D:
 		var x := -0.36 + 0.145 * float(i)
 		var z := -0.07 + 0.1 * float(i % 3) - 0.015 * float(i % 2)
 		var fiore := Node3D.new()
-		fiore.position = Vector3(x, 0.465, z)
+		fiore.position = Vector3(x, 0.445, z)
 		fiore.rotation.x = rng.randf_range(-0.1, 0.1)
 		fiore.rotation.z = rng.randf_range(-0.13, 0.13)
 		n.add_child(fiore)
@@ -9712,7 +9741,7 @@ static func _fioriera() -> Node3D:
 	# due bocci ancora chiusi: una fioriera vera non fiorisce tutta insieme
 	for bi in 2:
 		var boccio := Node3D.new()
-		boccio.position = Vector3([-0.29, 0.215][bi], 0.465, [0.1, -0.1][bi])
+		boccio.position = Vector3([-0.29, 0.215][bi], 0.445, [0.08, -0.08][bi])
 		boccio.rotation.z = rng.randf_range(-0.2, 0.2)
 		n.add_child(boccio)
 		var bh := rng.randf_range(0.09, 0.13)
@@ -9722,22 +9751,36 @@ static func _fioriera() -> Node3D:
 				Vector3(0.85, 1.25, 0.85))
 		_ball(boccio, 0.009, _mat(PINK, PINK.darkened(0.15), 5.0, 0.4),
 				Vector3(0.008, bh + 0.032, 0), Vector3(0.9, 1.1, 0.9))
-	# ---- l'edera: due tralci sottili con le foglie alternate, che
-	# scavalcano il bordo e scendono sul fronte
+	# ---- i ciuffi d'erbetta fra i fiori: la terra nuda fra una pianta e
+	# l'altra è un'aiuola appena seminata, non una fioriera vissuta
+	for ci in 2:
+		var ciuffo := Node3D.new()
+		ciuffo.position = Vector3([0.06, -0.14][ci], 0.448, [0.09, -0.09][ci])
+		n.add_child(ciuffo)
+		for fi2 in 5:
+			var filo := _cyl(ciuffo, 0.0022, 0.0038,
+					rng.randf_range(0.055, 0.095), verde,
+					Vector3(rng.randf_range(-0.015, 0.015), 0.03,
+					rng.randf_range(-0.012, 0.012)))
+			filo.rotation.z = rng.randf_range(-0.38, 0.38)
+			filo.rotation.x = rng.randf_range(-0.3, 0.3)
+	# ---- l'edera: due tralci sottili che SCAVALCANO il mezzotondo del
+	# telaio e scendono sul fronte, con le foglie alternate
 	for ti in 2:
-		var da := Vector3(0.3 - 0.52 * float(ti), 0.455, -0.13)
+		var da := Vector3(0.3 - 0.52 * float(ti), 0.452, -0.125)
 		var tralcio := BUILDER.tube(n, [da,
-				da + Vector3(0.05, -0.05, -0.055),
-				da + Vector3(0.1 - 0.03 * float(ti), -0.17, -0.07),
-				da + Vector3(0.12 - 0.06 * float(ti), -0.3 + 0.06 * float(ti), -0.05),
-				da + Vector3(0.1 - 0.05 * float(ti), -0.38 + 0.09 * float(ti), -0.03)],
-				[0.008, 0.007, 0.006, 0.005, 0.004], verde, 22, 8)
+				da + Vector3(0.02, 0.016, -0.04),
+				da + Vector3(0.06, -0.06, -0.08),
+				da + Vector3(0.1 - 0.03 * float(ti), -0.18, -0.09),
+				da + Vector3(0.12 - 0.06 * float(ti), -0.3 + 0.06 * float(ti), -0.07),
+				da + Vector3(0.1 - 0.05 * float(ti), -0.38 + 0.09 * float(ti), -0.05)],
+				[0.008, 0.0075, 0.007, 0.006, 0.005, 0.004], verde, 26, 8)
 		tralcio.name = "Edera%d" % ti
 		for f in 6 - ti:
 			var t := float(f) / 5.0
-			var fp := da + Vector3(lerpf(0.02, 0.11 - 0.05 * float(ti), t),
-					lerpf(-0.02, -0.36 + 0.08 * float(ti), t),
-					lerpf(-0.045, -0.045, t) - sin(t * PI) * 0.03)
+			var fp := da + Vector3(lerpf(0.03, 0.11 - 0.05 * float(ti), t),
+					lerpf(-0.04, -0.36 + 0.08 * float(ti), t),
+					lerpf(-0.075, -0.07, t) - sin(t * PI) * 0.025)
 			var foglia := _ball(n, 0.024, verde, fp, Vector3(1.25, 0.28, 0.85))
 			foglia.rotation.y = 0.6 + t * 2.6 + float(ti)
 			foglia.rotation.z = 0.35 - t * 0.55
@@ -9796,110 +9839,132 @@ static func _lucine() -> Node3D:
 	return n
 
 
+# IL FRIGO DEI GELATI, rifatto da capo come un POZZETTO DA BAR ANNI
+# CINQUANTA: il collare cromato bombato attorno alla bocca (la firma
+# dei pozzetti veri), il corpo smaltato crema sullo zoccolo rientrante
+# con la griglia di ventilazione, la fascia rossa in livrea col
+# filetto — la stessa identita' della tenda del bar — e i VETRI CURVI
+# scorrevoli che si SOVRAPPONGONO sui binari: il sinistro e' scorso
+# sopra il destro, come si fa davvero per servire, e il pozzetto
+# aperto mostra le vaschette dei gusti coi riccioli e la PALETTA
+# piantata nel cioccolato. Sulla fascia, i gelati in rilievo.
 static func _frigo_gelati() -> Node3D:
-	# IL FRIGO DEI GELATI: il pozzetto col coperchio a strisce e il cartello
-	# col cono. D'estate ci si appoggiano i gomiti aspettando il proprio.
 	var n := Node3D.new()
-	var bianco := _mat(SEGNALE_BIANCO, Color("e6dfd0"), 5.0, 0.3)
+	var crema_s := _mat(Color("f4efe4"), Color("e0d9c8"), 5.0, 0.3)
 	var rosso := _mat(BAR_ROSSO, BAR_ROSSO_CUPO, 4.5, 0.45)
 	var cromo := _mat(CROMO, Color("b9bec6"), 7.0, 0.3)
-	# il pozzetto bombato sugli angoli, sul basamento cromato stondato
-	_loft(n, [[-0.47, 0.22, 0.08, 0.65, 0.09],
-			[-0.43, 0.25, 0.08, 0.65, 0.045],
-			[0.43, 0.25, 0.08, 0.65, 0.045],
-			[0.47, 0.22, 0.08, 0.65, 0.09]], bianco)
-	_loft(n, [[-0.48, 0.235, 0.015, 0.09, 0.035],
-			[-0.44, 0.26, 0.015, 0.09, 0.02],
-			[0.44, 0.26, 0.015, 0.09, 0.02],
-			[0.48, 0.235, 0.015, 0.09, 0.035]], cromo)
-	# la fascia a pannellini tondi — e sui rossi, i GELATI in rilievo:
-	# un frigo dei gelati deve far venire voglia di gelato da lontano
+	var zoc_s := _mat(Color("5c5650"), Color("46413c"), 5.0, 0.3)
+	var inox := _mat(Color("8a9097"), Color("6d7378"), 6.0, 0.25)
+
+	# lo ZOCCOLO rientrante (il corpo sembra sospeso: e' il trucco di
+	# tutti gli elettrodomestici belli) e la GRIGLIA di ventilazione
+	var zocc := _prisma(n, _rrect_xz(0.84, 0.42, 0.03), 0.0, 0.06, zoc_s)
+	zocc.position.z = 0.0
+	for gv in 5:
+		_box(n, Vector3(0.10, 0.020, 0.012), cromo,
+				Vector3(-0.26 + 0.13 * float(gv), 0.032, -0.215))
+
+	# il CORPO smaltato con le spalle tonde, e il COLLARE cromato
+	_loft(n, [[-0.46, 0.215, 0.06, 0.60, 0.085],
+			[-0.42, 0.245, 0.06, 0.60, 0.045],
+			[0.42, 0.245, 0.06, 0.60, 0.045],
+			[0.46, 0.215, 0.06, 0.60, 0.085]], crema_s)
+	_loft(n, [[-0.475, 0.225, 0.60, 0.665, 0.06],
+			[-0.44, 0.255, 0.60, 0.665, 0.03],
+			[0.44, 0.255, 0.60, 0.665, 0.03],
+			[0.475, 0.225, 0.60, 0.665, 0.06]], cromo)
+
+	# la FASCIA rossa in livrea coi due filetti crema
+	var fascia := _prisma(n, _rrect_xz(0.945, 0.525, 0.05), 0.30, 0.105, rosso)
+	fascia.position.z = 0.0
+	for fy: float in [0.292, 0.405]:
+		var filo := _prisma(n, _rrect_xz(0.948, 0.528, 0.05), fy, 0.010, crema_s)
+		filo.position.z = 0.0
+
+	# i GELATI in rilievo sulla fascia: ghiacciolo alla menta, mini-cono,
+	# stecco bigusto — un frigo dei gelati si annuncia da solo
 	var menta_g := _mat(Color("9fd8b4"), Color("7fbf98"), 5.0, 0.4)
 	var stecco := _mat(Color("d4a45e"), Color("b98a48"), 6.0, 0.45)
 	var cialda_m := _mat(Color("e8bd78"), Color("d4a45e"), 6.0, 0.45)
-	for i in 5:
-		_lastra(n, 0.075, 0.16, 0.025, 0.025, rosso if i % 2 == 0 else bianco,
-				Vector3(-0.34 + 0.17 * float(i), 0.5, -0.253), Vector3(0, PI * 0.5, 0))
-	# il ghiacciolo alla menta col suo stecco
-	_lastra(n, 0.030, 0.085, 0.022, 0.020, menta_g,
-			Vector3(-0.34, 0.525, -0.268), Vector3(0, PI * 0.5, 0))
-	_cyl(n, 0.006, 0.006, 0.035, stecco, Vector3(-0.34, 0.452, -0.266))
-	# il mini-cono con la pallina rosa
-	var mcono := _cyl(n, 0.026, 0.004, 0.062, cialda_m, Vector3(0.0, 0.487, -0.268))
+	_lastra(n, 0.030, 0.078, 0.022, 0.020, menta_g,
+			Vector3(-0.30, 0.372, -0.272), Vector3(0, PI * 0.5, 0))
+	_cyl(n, 0.006, 0.006, 0.032, stecco, Vector3(-0.30, 0.318, -0.270))
+	var mcono := _cyl(n, 0.024, 0.004, 0.056, cialda_m, Vector3(0.0, 0.336, -0.272))
 	mcono.rotation.z = PI
-	_ball(n, 0.024, _mat(PINK, PINK_DEEP, 5.0, 0.4), Vector3(0.0, 0.532, -0.268))
-	# lo stecco bigusto crema e fragola
-	_lastra(n, 0.028, 0.048, 0.020, 0.018, _mat(CREAM, Color("f0e4cc"), 5.0, 0.35),
-			Vector3(0.34, 0.548, -0.268), Vector3(0, PI * 0.5, 0))
-	_lastra(n, 0.028, 0.042, 0.020, 0.018, rosso,
-			Vector3(0.34, 0.503, -0.268), Vector3(0, PI * 0.5, 0))
-	_cyl(n, 0.006, 0.006, 0.032, stecco, Vector3(0.34, 0.465, -0.266))
-	# i due coperchi scorrevoli: TELAIO cromato e VETRO vero — e sotto
-	# il vetro si vedono i gelati che aspettano, ch'e' tutto il punto
-	# di un pozzetto da bar
-	# la VASCA d'acciaio scuro, e dentro le VASCHETTE dei gusti che
-	# riempiono il pozzetto: e' il colpo d'occhio dei banchi veri —
-	# sei palline sparse su fondo chiaro non si leggevano dal vetro
-	_box(n, Vector3(0.88, 0.28, 0.40), _mat(Color("8a9097"), Color("6d7378"), 6.0, 0.25),
-			Vector3(0, 0.45, 0))
+	_ball(n, 0.022, _mat(PINK, PINK_DEEP, 5.0, 0.4), Vector3(0.0, 0.377, -0.272))
+	_lastra(n, 0.026, 0.044, 0.018, 0.018, crema_s,
+			Vector3(0.30, 0.382, -0.272), Vector3(0, PI * 0.5, 0))
+	_lastra(n, 0.026, 0.038, 0.018, 0.018, rosso,
+			Vector3(0.30, 0.342, -0.272), Vector3(0, PI * 0.5, 0))
+	_cyl(n, 0.006, 0.006, 0.028, stecco, Vector3(0.30, 0.310, -0.270))
+
+	# dentro: la vasca d'acciaio e le VASCHETTE dei sei gusti, coi
+	# riccioli della spatola e la paletta piantata nel cioccolato
+	_box(n, Vector3(0.86, 0.30, 0.40), inox, Vector3(0, 0.48, 0))
 	var gusti_v := [Color("f2b6c8"), Color("9fd8b4"), Color("e8c34a"),
 			Color("8a5c3e"), Color("f0e4cc"), Color("9a8ac2")]
+	# la camera del catalogo sta a 23 gradi: DENTRO un pozzetto non si
+	# vede mai, per geometria. Percio' i gusti MONTANO sopra il filo
+	# della bocca come nei banchi espositivi veri: montagne piene dove
+	# il vetro e' scorso, gia' scavate sotto il vetro chiuso.
 	for vg in 6:
 		var vx := -0.26 + 0.26 * float(vg % 3)
 		var vz := -0.095 + 0.19 * float(vg / 3)
 		var col_v := gusti_v[vg] as Color
+		var mat_g := _mat(col_v, col_v.darkened(0.2), 5.0, 0.4)
+		var mat_c := _mat(col_v.lightened(0.10), col_v.darkened(0.1), 5.0, 0.4)
 		var vaschetta := _prisma(n, _rrect_xz(0.235, 0.160, 0.02), 0.600,
-				0.042, _mat(col_v, col_v.darkened(0.2), 5.0, 0.4))
+				0.060, mat_g)
 		vaschetta.position = Vector3(vx, 0.0, vz)
-		# il ricciolo del gusto, come lo lascia la spatola
-		_ball(n, 0.030, _mat(col_v.lightened(0.12), col_v.darkened(0.1), 5.0, 0.4),
-				Vector3(vx + 0.04, 0.648, vz), Vector3(1.3, 0.32, 1.0))
+		if vg % 3 == 0:
+			# la colonna scoperta: la montagna piena col ricciolo in cima
+			_ball(n, 0.062, mat_c, Vector3(vx, 0.682, vz),
+					Vector3(1.35, 0.85, 1.05))
+			_ball(n, 0.026, mat_g, Vector3(vx + 0.03, 0.728, vz),
+					Vector3(1.2, 0.6, 0.9))
+		else:
+			# sotto il vetro: il gusto gia' scavato, piu' basso
+			_ball(n, 0.050, mat_c, Vector3(vx + 0.02, 0.664, vz),
+					Vector3(1.3, 0.45, 1.0))
+	var manico_p := _cyl(n, 0.008, 0.008, 0.11, cromo, Vector3(-0.235, 0.755, 0.095))
+	manico_p.rotation.z = 0.45
+	_ball(n, 0.021, cromo, Vector3(-0.258, 0.708, 0.095), Vector3(1.0, 0.6, 1.0))
+
+	# i BINARI sul collare, e i due VETRI CURVI scorrevoli: il sinistro
+	# e' scorso SOPRA il destro, come si fa per servire
+	for bz: float in [-0.215, 0.215]:
+		_box(n, Vector3(0.90, 0.012, 0.018), cromo, Vector3(0, 0.685, bz))
+	var bombatura: Array = [Vector2(0.205, 0.0), Vector2(0.10, 0.024),
+			Vector2(0.0, 0.032), Vector2(-0.10, 0.024), Vector2(-0.205, 0.0)]
 	for lato: float in [-1.0, 1.0]:
 		var cop := Node3D.new()
 		cop.name = "Coperchio%d" % int(lato)
-		# il destro POGGIA sul bordo del pozzetto (la cornice a battuta:
-		# prima galleggiava due centimetri sopra, con la fessura di luce
-		# a denunciarlo); il sinistro e' TOLTO e appoggiato di taglio
-		# contro il fianco, come fanno i gelatai quando servono — il
-		# pozzetto aperto si vede in vista diretta
 		if lato < 0.0:
-			cop.position = Vector3(-0.545, 0.245, 0.0)
-			cop.rotation.z = 1.32
+			cop.position = Vector3(0.03, 0.732, 0.0)
 		else:
-			cop.position = Vector3(lato * 0.24, 0.661, lato * 0.02)
+			cop.position = Vector3(0.025, 0.695, 0.0)
 		n.add_child(cop)
-		# la CORNICE (quattro sponde): il vetro nel mezzo, e sotto si
-		# VEDE il pozzetto — un telaio pieno era un coperchio bugiardo
-		for sx3: float in [-0.21, 0.21]:
-			_box(cop, Vector3(0.045, 0.022, 0.44), cromo, Vector3(sx3, 0, 0))
-		for sz3: float in [-0.21, 0.21]:
-			_box(cop, Vector3(0.375, 0.022, 0.045), cromo, Vector3(0, 0, sz3))
-		var lastra_v := MeshInstance3D.new()
-		var vm := BoxMesh.new()
-		vm.size = Vector3(0.375, 0.010, 0.375)
-		lastra_v.mesh = vm
-		lastra_v.material_override = _vetro(0.18)
-		lastra_v.position = Vector3(0, 0.004, 0)
-		cop.add_child(lastra_v)
-		BUILDER.tube(cop, [Vector3(-0.08, 0.028, -0.19),
-				Vector3(0.0, 0.063, -0.20), Vector3(0.08, 0.028, -0.19)],
-				[0.011, 0.012, 0.011], _mat(ZINCO_CUPO, Color("7d838b"), 5.0, 0.3))
-	# i gelati nel pozzetto, appena sotto il vetro
-	# il cartello col cono: targa tonda in cornice rossa, sul palo
-	var palo := _cyl(n, 0.014, 0.014, 0.34, cromo, Vector3(0.36, 0.82, 0.12))
+		_vetro_curvo(cop, 0.0, 0.41, bombatura, _vetro(0.20))
+		# il telaietto cromato ai due capi della lastra, e la maniglietta
+		for cx2: float in [0.006, 0.404]:
+			_box(cop, Vector3(0.014, 0.016, 0.40), cromo, Vector3(cx2, 0.004, 0))
+		_box(cop, Vector3(0.030, 0.020, 0.075), cromo, Vector3(0.012, 0.016, 0))
+
+	# l'INSEGNA col cono: palo cromato appena inclinato, targa in
+	# cornice rossa, e il cono in tre dimensioni con la ciliegina
+	var palo := _cyl(n, 0.014, 0.014, 0.36, cromo, Vector3(0.36, 0.83, 0.12))
 	palo.rotation.z = 0.06
 	var cartello := _lastra(n, 0.145, 0.32, 0.06, 0.02, rosso,
-			Vector3(0.37, 1.06, 0.12), Vector3(0, PI * 0.5, 0))
+			Vector3(0.37, 1.08, 0.12), Vector3(0, PI * 0.5, 0))
 	cartello.name = "Cartello"
-	_lastra(n, 0.125, 0.28, 0.05, 0.02, bianco,
-			Vector3(0.37, 1.06, 0.114), Vector3(0, PI * 0.5, 0))
-	var cialda := _cyl(n, 0.07, 0.012, 0.15, _mat(Color("e8bd78"), Color("d4a45e"), 6.0, 0.45),
-			Vector3(0.37, 1.0, 0.098))
+	_lastra(n, 0.125, 0.28, 0.05, 0.02, crema_s,
+			Vector3(0.37, 1.08, 0.114), Vector3(0, PI * 0.5, 0))
+	var cialda := _cyl(n, 0.075, 0.012, 0.16, cialda_m, Vector3(0.37, 1.015, 0.098))
 	cialda.rotation.z = 0.1
-	_ball(n, 0.044, _mat(PINK, PINK_DEEP, 5.0, 0.4), Vector3(0.35, 1.10, 0.095))
-	_ball(n, 0.041, _mat(CREAM, Color("f0e4cc"), 5.0, 0.35), Vector3(0.395, 1.125, 0.095))
-	_ball(n, 0.014, _mat(BAR_ROSSO, BAR_ROSSO_CUPO, 5.0, 0.35),
-			Vector3(0.40, 1.16, 0.093))
+	_ball(n, 0.047, _mat(PINK, PINK_DEEP, 5.0, 0.4), Vector3(0.349, 1.122, 0.095))
+	_ball(n, 0.044, _mat(CREAM, Color("f0e4cc"), 5.0, 0.35), Vector3(0.396, 1.148, 0.095))
+	_ball(n, 0.015, _mat(BAR_ROSSO, BAR_ROSSO_CUPO, 5.0, 0.35),
+			Vector3(0.401, 1.185, 0.093))
 	return n
 
 
