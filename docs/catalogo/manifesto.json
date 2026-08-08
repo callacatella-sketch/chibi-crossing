@@ -261,10 +261,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.77,
+    "alto": 0.6,
     "cartella": "docs/catalogo/1-arredo/letto/",
     "cat": 1.0,
-    "largo": 0.98,
+    "largo": 0.92,
     "nome": "Letto",
     "slug": "letto",
     "tipo": "cell"
@@ -324,10 +324,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.59,
+    "alto": 0.55,
     "cartella": "docs/catalogo/1-arredo/carillon/",
     "cat": 1.0,
-    "largo": 0.52,
+    "largo": 0.56,
     "nome": "Carillon",
     "slug": "carillon",
     "tipo": "cell"
@@ -353,26 +353,26 @@
   {
     "alto": 1.55,
     "cartella": "docs/catalogo/1-arredo/libreria/",
-    "cat": 1,
-    "largo": 0.98,
+    "cat": 1.0,
+    "largo": 0.93,
     "nome": "Libreria",
     "slug": "libreria",
     "tipo": "cell"
   },
   {
-    "alto": 0.59,
+    "alto": 0.71,
     "cartella": "docs/catalogo/1-arredo/comodino/",
     "cat": 1.0,
-    "largo": 0.45,
+    "largo": 0.46,
     "nome": "Comodino",
     "slug": "comodino",
     "tipo": "cell"
   },
   {
-    "alto": 0.53,
+    "alto": 0.56,
     "cartella": "docs/catalogo/1-arredo/brandina/",
     "cat": 1.0,
-    "largo": 0.9,
+    "largo": 1.04,
     "nome": "Brandina",
     "slug": "brandina",
     "tipo": "cell"
@@ -380,17 +380,17 @@
   {
     "alto": 0.68,
     "cartella": "docs/catalogo/1-arredo/pianoforte/",
-    "cat": 1.0,
+    "cat": 1,
     "largo": 0.63,
     "nome": "Pianoforte",
     "slug": "pianoforte",
     "tipo": "cell"
   },
   {
-    "alto": 0.95,
+    "alto": 0.96,
     "cartella": "docs/catalogo/1-arredo/lavagnetta/",
     "cat": 1.0,
-    "largo": 0.56,
+    "largo": 0.58,
     "nome": "Lavagnetta",
     "slug": "lavagnetta",
     "tipo": "cell"
@@ -477,10 +477,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.15,
+    "alto": 1.52,
     "cartella": "docs/catalogo/1-arredo/campana-caserma/",
     "cat": 1.0,
-    "largo": 0.66,
+    "largo": 0.84,
     "nome": "Campana caserma",
     "slug": "campana-caserma",
     "tipo": "cell"

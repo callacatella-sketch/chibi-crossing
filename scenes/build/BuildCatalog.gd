@@ -6349,22 +6349,27 @@ static func _prisma(parent: Node3D, punti: Array, y: float, altezza: float,
 	return mi
 
 
-## Il contorno di un pianoforte a CODA, in senso antiorario. Il lato
-## dritto e' la tastiera; il fianco destro e' la curva. Le proporzioni
-## sono quelle vere, rimpicciolite su un chibi (0.70 di altezza).
+## Il contorno di un pianoforte a CODA, nello stesso verso del vecchio
+## profilo. Il lato dritto davanti e' la tastiera; la S del fianco destro
+## e la coda sono UNA Bezier cubica campionata fitta (22 punti): le
+## faccette dure del profilo a mano erano il motivo per cui la cassa
+## leggeva come un diamante sbozzato.
 static func _profilo_coda(lung: float, larg: float) -> Array:
 	var out: Array = []
 	out.append(Vector2(-larg * 0.5, 0.0))          # spigolo tastiera sinistro
 	out.append(Vector2(larg * 0.5, 0.0))           # spigolo tastiera destro
-	# il fianco destro e' quasi dritto, poi rientra
-	out.append(Vector2(larg * 0.5, -lung * 0.42))
-	# LA CURVA: la coda, in sette campioni
-	for i in range(1, 8):
-		var t := float(i) / 7.0
-		var ang := t * PI * 0.62
-		out.append(Vector2(larg * 0.5 - sin(ang) * larg * 0.62,
-				-lung * 0.42 - cos(ang * 0.62) * lung * 0.30 - t * lung * 0.24))
-	out.append(Vector2(-larg * 0.5, -lung * 0.72))  # il fianco sinistro, dritto
+	out.append(Vector2(larg * 0.5, -lung * 0.30))  # il fianco destro, dritto
+	# LA CURVA: dal fianco destro, giro largo della coda, fino in fondo
+	# al lato sinistro (la vertebra dritta del coperchio)
+	var p0 := Vector2(larg * 0.5, -lung * 0.30)
+	var p1 := Vector2(larg * 0.5, -lung * 0.82)
+	var p2 := Vector2(larg * 0.10, -lung * 0.84)
+	var p3 := Vector2(-larg * 0.5, -lung * 0.60)
+	for i in range(1, 22):
+		var t := float(i) / 21.0
+		var u := 1.0 - t
+		out.append(p0 * (u * u * u) + p1 * (3.0 * u * u * t)
+				+ p2 * (3.0 * u * t * t) + p3 * (t * t * t))
 	return out
 
 
@@ -6400,18 +6405,29 @@ static func _pianoforte() -> Node3D:
 		interno.append((p as Vector2) * 0.90)
 	_prisma(n, interno, y - h + 0.012, h - 0.03, lacca_int)
 
-	# LA CORDIERA: la piastra dorata e le corde, che si vedono dentro
+	# LA CORDIERA: piastra dorata, il SOMIERE scuro coi piroli, e corde
+	# di bronzo abbastanza spesse da leggersi sotto il coperchio
 	_prisma(n, interno, y - 0.035, 0.012, oro)
-	for i in 14:
-		var t := float(i) / 13.0
-		var x := -larg * 0.42 + t * larg * 0.84
-		var l := 0.62 - absf(t - 0.15) * 0.34
-		var corda := _box(n, Vector3(0.005, 0.004, l), oro,
-				Vector3(x, y - 0.028, -0.10 - l * 0.5 + 0.10))
-		corda.rotation.y = t * 0.10
-	# i due ponticelli
-	for sz: float in [-0.22, -0.46]:
-		_box(n, Vector3(larg * 0.80, 0.016, 0.022), oro, Vector3(0, y - 0.022, sz))
+	var bronzo := _mat(Color("9a7a44"), Color("7c6034"), 8.0, 0.3)
+	var somiere := _mat(Color("3a3136"), Color("282226"), 10.0, 0.25)
+	_box(n, Vector3(larg * 0.80, 0.014, 0.05), somiere, Vector3(0, y - 0.020, -0.075))
+	for i in 12:
+		var t := float(i) / 11.0
+		var x := -larg * 0.38 + t * larg * 0.76
+		_cyl(n, 0.004, 0.004, 0.014, oro, Vector3(x, y - 0.010, -0.075))
+		# le corde CONVERGONO verso la coda, come le vere — ed e' anche
+		# il modo di restare DENTRO la sagoma che si stringe (dritte,
+		# le laterali sforavano il fianco come aghi)
+		var ex := x * 0.22
+		var ez := -lung * (0.68 - 0.26 * pow(absf(t - 0.5) * 2.0, 1.6))
+		var dx := ex - x
+		var dz := ez + 0.10
+		var corda := _box(n, Vector3(0.0068, 0.006, sqrt(dx * dx + dz * dz)),
+				bronzo, Vector3((x + ex) * 0.5, y - 0.026, (-0.10 + ez) * 0.5))
+		corda.rotation.y = atan2(dx, dz)
+	# i due ponticelli, di legno scuro come i veri
+	for sz: float in [-0.24, -0.46]:
+		_box(n, Vector3(larg * 0.72, 0.015, 0.020), somiere, Vector3(0, y - 0.020, sz))
 
 	# LA TASTIERA. Sette ottave non ci stanno su un chibi: undici tasti
 	# bianchi bastano a leggerla, purche' i neri stiano al loro posto —
@@ -6431,7 +6447,9 @@ static func _pianoforte() -> Node3D:
 		var nero := _box(n, Vector3(passo * 0.52, 0.022, 0.072), ebano,
 				Vector3(x0 + (float(i) + 0.5) * passo, y + 0.020, 0.038))
 		nero.name = "TastoNero%d" % i
-	# il frontalino e il feltro rosso che orla la tastiera
+	# i GUANCIALI ai capi della tastiera, il frontalino e il feltro
+	for gx: float in [-larg * 0.465, larg * 0.465]:
+		_box(n, Vector3(larg * 0.055, 0.034, 0.13), lacca, Vector3(gx, y + 0.012, 0.062))
 	_box(n, Vector3(larg, 0.05, 0.022), lacca, Vector3(0, y - 0.012, 0.125))
 	_box(n, Vector3(larg * 0.88, 0.006, 0.010), feltro, Vector3(0, y + 0.020, 0.004))
 
@@ -6442,7 +6460,10 @@ static func _pianoforte() -> Node3D:
 	n.add_child(cop)
 	var sopra: Array = []
 	for p in prof:
-		sopra.append((p as Vector2) - Vector2(-larg * 0.5, 0.0))
+		# il coperchio parte DIETRO la tastiera (un coperchio che copre
+		# i tasti e' un tavolo): il bordo davanti si ferma a -0.05
+		var pv := p as Vector2
+		sopra.append(Vector2(pv.x + larg * 0.5, minf(pv.y, -lung * 0.05) + lung * 0.05))
 	_prisma(cop, sopra, 0.0, 0.022, lacca)
 	_prisma(cop, sopra, -0.006, 0.006, lacca_int)
 	# L'ASTA DI SOSTEGNO SI FERMA SOTTO IL COPERCHIO, e il punto si CALCOLA.
@@ -6458,11 +6479,15 @@ static func _pianoforte() -> Node3D:
 	var asta := _cyl(n, 0.010, 0.012, t_cop, lacca, a_piede + a_dir * (t_cop * 0.5))
 	asta.rotation.z = -0.42
 
-	# LE TRE GAMBE tornite, con la loro rotella
+	# LE TRE GAMBE: capitello, fusto rastremato, collarino d'ottone e
+	# la ROTELLINA mezza affondata — non un tappo d'oro
 	for p3: Vector2 in [Vector2(-larg * 0.40, 0.02), Vector2(larg * 0.40, 0.02),
-			Vector2(0.0, -lung * 0.60)]:
-		_cyl(n, 0.030, 0.040, y - h, lacca, Vector3(p3.x, (y - h) * 0.5, p3.y))
-		_cyl(n, 0.044, 0.044, 0.022, oro, Vector3(p3.x, 0.011, p3.y))
+			Vector2(0.0, -lung * 0.62)]:
+		_box(n, Vector3(0.062, 0.030, 0.062), lacca, Vector3(p3.x, y - h - 0.012, p3.y))
+		_cyl(n, 0.024, 0.036, y - h - 0.05, lacca,
+				Vector3(p3.x, (y - h) * 0.5 - 0.012, p3.y))
+		_cyl(n, 0.028, 0.028, 0.014, oro, Vector3(p3.x, 0.045, p3.y))
+		_ball(n, 0.020, oro, Vector3(p3.x, 0.016, p3.y))
 
 	# LA LIRA DEI PEDALI
 	_box(n, Vector3(0.05, 0.11, 0.035), lacca, Vector3(0, 0.075, -0.02))
@@ -6477,6 +6502,11 @@ static func _pianoforte() -> Node3D:
 	leg.rotation.x = -0.28
 	for sx2: float in [-1.0, 1.0]:
 		_cyl(n, 0.006, 0.006, 0.07, lacca, Vector3(sx2 * larg * 0.24, y + 0.05, -0.04))
+	# lo SPARTITO, appoggiato al leggio con la stessa inclinazione
+	var spart := _lastra(n, 0.052, 0.085, 0.008, 0.004,
+			_mat(CREAM, Color("efe2ca"), 6.0, 0.2),
+			Vector3(0.02, y + 0.105, -0.047), Vector3(0, PI * 0.5, 0))
+	spart.rotation.x = -0.28
 
 	# LA PANCHETTA, davanti: senza, il pianoforte sembra un oggetto da
 	# guardare e non uno da suonare
@@ -6489,11 +6519,15 @@ static func _pianoforte() -> Node3D:
 	# mezzo spessore (0.015) fa la differenza fra sedersi sopra e affondarci
 	panca.set_meta("seduta", Vector3(0, 0.315, 0))
 	n.add_child(panca)
-	_box(panca, Vector3(0.38, 0.035, 0.17), lacca, Vector3(0, 0.28, 0))
-	_box(panca, Vector3(0.34, 0.030, 0.14), feltro, Vector3(0, 0.30, 0))
+	var tavola_p := _prisma(panca, _rrect_xz(0.38, 0.17, 0.030), 0.272, 0.028, lacca)
+	tavola_p.position = Vector3.ZERO
+	var cusc := _prisma(panca, _rrect_xz(0.34, 0.14, 0.035), 0.285, 0.030, feltro)
+	cusc.position = Vector3.ZERO
+	for bx: float in [-0.08, 0.08]:
+		_ball(panca, 0.008, lacca, Vector3(bx, 0.316, 0), Vector3(1, 0.4, 1))
 	for px: float in [-0.15, 0.15]:
-		for pz: float in [-0.06, 0.06]:
-			_cyl(panca, 0.014, 0.017, 0.28, lacca, Vector3(px, 0.14, pz))
+		for pz: float in [-0.055, 0.055]:
+			_cyl(panca, 0.012, 0.017, 0.272, lacca, Vector3(px, 0.136, pz))
 	return n
 
 
