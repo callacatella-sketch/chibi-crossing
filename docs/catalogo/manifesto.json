@@ -264,16 +264,16 @@
     "alto": 0.77,
     "cartella": "docs/catalogo/1-arredo/letto/",
     "cat": 1.0,
-    "largo": 0.98,
+    "largo": 1.0,
     "nome": "Letto",
     "slug": "letto",
     "tipo": "cell"
   },
   {
-    "alto": 0.96,
+    "alto": 0.9,
     "cartella": "docs/catalogo/1-arredo/sedia/",
-    "cat": 1,
-    "largo": 0.45,
+    "cat": 1.0,
+    "largo": 0.46,
     "nome": "Sedia",
     "slug": "sedia",
     "tipo": "cell"
@@ -531,9 +531,9 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.42,
+    "alto": 0.4,
     "cartella": "docs/catalogo/2-giardino/cono/",
-    "cat": 2.0,
+    "cat": 2,
     "largo": 0.3,
     "nome": "Cono",
     "slug": "cono",
