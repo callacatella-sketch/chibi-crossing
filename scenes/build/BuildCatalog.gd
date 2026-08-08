@@ -3314,19 +3314,87 @@ static func _emit_fx(parent: Node3D, pos: Vector3, color: Color, up_vel: float, 
 	parent.add_child(p)
 
 
+# LA CASETTA DEGLI UCCELLINI. Un nido dipinto su un palo — e il palo e'
+# TORNITO, con le staffe che reggono la casetta come le mensole vere.
+# Il tetto e' a SCANDOLE sfalsate col listello di colmo (il colmo resta
+# a ~1.44 e LIBERO: Nido.gd ci posa la covata a +1.47), il foro ha il
+# suo anello di legno scuro e il posatoio e' tornito col pomellino.
+# Alla base, l'erba e una margherita: un palo piantato nel niente e' un
+# cartello, uno coi fiori ai piedi e' di casa.
 static func _birdhouse() -> Node3D:
 	var n := Node3D.new()
 	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
-	_cyl(n, 0.035, 0.05, 1.05, wood, Vector3(0, 0.52, 0))
-	_box(n, Vector3(0.28, 0.3, 0.26), _mat(PLASTER, PLASTER_SHADE, 3.0, 0.45), Vector3(0, 1.18, 0))
-	var tile := _mat(TERRACOTTA, Color("c47a58"), 3.0, 0.5)
-	for s: float in [-1.0, 1.0]:
-		var r := _box(n, Vector3(0.24, 0.03, 0.32), tile, Vector3(s * 0.08, 1.36, 0))
-		r.rotation.z = -s * 0.6
-	var hole := _cyl(n, 0.05, 0.05, 0.04, _mat(Color("4a3226"), Color("31201a"), 3.0, 0.4), Vector3(0, 1.18, 0.14))
-	hole.rotation.x = PI * 0.5
-	var perch := _cyl(n, 0.012, 0.012, 0.12, wood, Vector3(0, 1.1, 0.17))
-	perch.rotation.x = PI * 0.5
+	var scuro := _mat(Color("4a3226"), Color("31201a"), 3.0, 0.4)
+	var muro := _mat(PLASTER, PLASTER_SHADE, 3.0, 0.45)
+	var tegola := _mat(TERRACOTTA, Color("c47a58"), 3.0, 0.5)
+	var tegola2 := _mat(Color("d98a64"), Color("b96f4e"), 3.2, 0.5)
+	var erba := _mat(Color("8aa870"), Color("6f8d58"), 5.0, 0.5)
+
+	# il palo tornito, con la basetta e il collo sotto la casetta
+	BUILDER.lathe(n, [Vector2(0.060, 0.0), Vector2(0.064, 0.014),
+			Vector2(0.048, 0.035), Vector2(0.034, 0.08), Vector2(0.029, 0.45),
+			Vector2(0.026, 0.90), Vector2(0.032, 0.97), Vector2(0.040, 1.01),
+			Vector2(0.044, 1.03)], wood)
+	# le due staffe diagonali che reggono la casetta
+	for lato: float in [-1.0, 1.0]:
+		var staffa := _cyl(n, 0.011, 0.013, 0.145, wood,
+				Vector3(lato * 0.050, 0.968, 0))
+		staffa.rotation.z = lato * 0.72
+
+	# la casetta: zoccolino e pareti stondate
+	var zocc := _prisma(n, _rrect_xz(0.30, 0.28, 0.03), 1.03, 0.026, wood)
+	zocc.position.z = 0.0
+	var pareti := _prisma(n, _rrect_xz(0.28, 0.26, 0.028), 1.056, 0.28, muro)
+	pareti.position.z = 0.0
+
+	# il TETTO a scandole sfalsate, con lo sporto e il listello di colmo
+	for lato2: float in [-1.0, 1.0]:
+		# il CARDINE della falda sta AL COLMO: le file scendono da li'
+		# (coi cardini ai lati il centro restava scoperto e le scandole
+		# piovevano come ali)
+		var falda := Node3D.new()
+		falda.position = Vector3(0, 1.432, 0)
+		falda.rotation.z = -lato2 * 0.58
+		n.add_child(falda)
+		for fila in 3:
+			var lx := 0.015 + 0.075 * float(fila)
+			var nt := 4 if fila % 2 == 0 else 3
+			for t in nt:
+				var lz := -0.135 + 0.09 * float(t) + (0.045 if fila % 2 == 1 else 0.0)
+				var mat_s: Material = tegola if (fila + t) % 2 == 0 else tegola2
+				var scand := _prisma(falda, _rrect_xz(0.088, 0.082, 0.02),
+						-0.006 * float(fila), 0.012, mat_s)
+				scand.position = Vector3(lx * lato2, 0.0, lz)
+	var colmo := _cyl(n, 0.026, 0.026, 0.35, tegola, Vector3(0, 1.437, 0))
+	colmo.rotation.x = PI * 0.5
+
+	# il foro col suo ANELLO di legno scuro, e il posatoio col pomellino
+	var foro := _cyl(n, 0.046, 0.046, 0.04, scuro, Vector3(0, 1.19, 0.135))
+	foro.rotation.x = PI * 0.5
+	var anello := MeshInstance3D.new()
+	var am := TorusMesh.new()
+	am.inner_radius = 0.044
+	am.outer_radius = 0.060
+	anello.mesh = am
+	anello.material_override = wood
+	anello.position = Vector3(0, 1.19, 0.148)
+	anello.rotation.x = PI * 0.5
+	n.add_child(anello)
+	var posatoio := _cyl(n, 0.010, 0.012, 0.10, wood, Vector3(0, 1.10, 0.175))
+	posatoio.rotation.x = PI * 0.5
+	_ball(n, 0.015, scuro, Vector3(0, 1.10, 0.228))
+
+	# l'erba e la margherita al piede del palo
+	_ball(n, 0.055, erba, Vector3(-0.085, 0.014, 0.05), Vector3(1.2, 0.5, 0.9))
+	_ball(n, 0.042, erba, Vector3(0.10, 0.010, -0.055), Vector3(1.0, 0.45, 0.85))
+	_cyl(n, 0.004, 0.004, 0.10, erba, Vector3(0.105, 0.05, 0.065))
+	for pt in 5:
+		var ap := float(pt) * TAU / 5.0
+		_ball(n, 0.014, _mat(Color.WHITE, CREAM, 6.0, 0.2),
+				Vector3(0.105 + cos(ap) * 0.020, 0.104, 0.065 + sin(ap) * 0.020),
+				Vector3(1.0, 0.35, 1.0))
+	_ball(n, 0.011, _mat(Color("e8c34a"), Color("cc9c2e"), 5.0, 0.4),
+			Vector3(0.105, 0.108, 0.065))
 	return n
 
 
