@@ -2146,7 +2146,7 @@ static func _flowerbed() -> Node3D:
 	# fuori, su, centro — o il tornio cuce le facce alla rovescia)
 	BUILDER.lathe(n, [
 		Vector2(0.0, 0.0), Vector2(0.44, 0.0), Vector2(0.43, 0.05),
-		Vector2(0.4, 0.062), Vector2(0.24, 0.07), Vector2(0.0, 0.072),
+		Vector2(0.4, 0.062), Vector2(0.24, 0.0685), Vector2(0.0, 0.0695),
 	], terra, Vector3.ZERO, 26)
 	# i solchi di semina: più corti della cupola e appena sopra il suo
 	# colmo (0.072) — più bassi si annegavano a tratti e diventavano
