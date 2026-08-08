@@ -5897,18 +5897,33 @@ static func _bicicletta_servizio() -> Node3D:
 	for cx: float in [-0.05, 0.05]:
 		tubo.call(Vector3(cx, 0.545, -0.37), Vector3(cx, 0.515, -0.26), 0.008, ottone)
 
-	# ---- IL PORTAPACCHI sopra la ruota dietro
-	for rx: float in [-0.05, 0.05]:
-		_box(bici, Vector3(0.012, 0.008, 0.24), telaio, Vector3(rx, 0.53, 0.38))
-		tubo.call(Vector3(rx, 0.526, 0.30), Vector3(rx, 0.26, 0.33), 0.008, telaio)
-	for rz: float in [0.30, 0.38, 0.46]:
-		_box(bici, Vector3(0.11, 0.006, 0.016), telaio, Vector3(0, 0.537, rz))
+	# ---- IL PARAFANGO sopra la ruota dietro: sette segmenti tangenti
+	# alla curva, come la tela dell'amaca — è lui a separare la ruota dal
+	# portapacchi, e il retro smette di essere un incrocio di stecche
+	for pk in 7:
+		var pa := -0.9 + float(pk) * 0.3
+		var lamiera := _box(bici, Vector3(0.07, 0.013, 0.078), telaio,
+				Vector3(0, 0.24 + cos(pa) * 0.247, 0.34 + sin(pa) * 0.247))
+		lamiera.rotation.x = pa
 
-	# ---- il cavalletto, col suo piedino
-	var cavalletto := _cyl(n, 0.014, 0.014, 0.30, gomma, Vector3(-0.105, 0.135, 0.27))
-	cavalletto.rotation.z = 0.40
-	cavalletto.rotation.x = 0.12
-	_cyl(n, 0.026, 0.030, 0.014, gomma, Vector3(-0.165, 0.008, 0.29))
+	# ---- IL PORTAPACCHI, montato come si monta davvero: DUE punti per
+	# lato — i tiranti al mozzo e i braccetti ai foderi alti — e sopra
+	# la piattaforma coi listelli
+	for rx: float in [-0.05, 0.05]:
+		_box(bici, Vector3(0.014, 0.010, 0.24), telaio, Vector3(rx, 0.527, 0.38))
+		tubo.call(Vector3(rx, 0.523, 0.46), Vector3(rx, 0.26, 0.345), 0.008, telaio)
+		tubo.call(Vector3(rx, 0.523, 0.275), Vector3(rx, 0.565, 0.19), 0.008, telaio)
+	_box(bici, Vector3(0.112, 0.010, 0.016), telaio, Vector3(0, 0.527, 0.265))
+	for rz: float in [0.305, 0.37, 0.435, 0.495]:
+		_box(bici, Vector3(0.11, 0.006, 0.016), telaio, Vector3(0, 0.535, rz))
+
+	# ---- il cavalletto, montato dietro il movimento centrale (è lì che
+	# si monta), col suo piedino
+	var cavalletto := _cyl(n, 0.013, 0.013, 0.28, gomma, Vector3(-0.10, 0.125, 0.155))
+	cavalletto.rotation.z = 0.42
+	cavalletto.rotation.x = -0.14
+	_ball(n, 0.018, gomma, Vector3(-0.048, 0.245, 0.135))
+	_cyl(n, 0.024, 0.028, 0.014, gomma, Vector3(-0.158, 0.008, 0.175))
 	return n
 
 
