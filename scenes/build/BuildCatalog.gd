@@ -121,7 +121,7 @@ static func items() -> Array[Dictionary]:
 
 		# --- Giardino ---
 		{"name": "Pianta", "cat": 2, "type": "cell", "layer": 2, "builder": _plant,
-			"cols": [[Vector3(0.32, 0.55, 0.32), Vector3(0, 0.27, 0)]]},
+			"cols": [[Vector3(0.34, 0.62, 0.34), Vector3(0, 0.31, 0)]]},
 		{"name": "Aiuola", "cat": 2, "type": "cell", "layer": 1, "builder": _flowerbed, "cols": []},
 		{"name": "Orto", "cat": 2, "type": "cell", "layer": 1, "builder": _vegetable_patch, "cols": []},
 		{"name": "Alberello", "cat": 2, "type": "cell", "layer": 2, "builder": _sapling,
@@ -2047,15 +2047,119 @@ static func _lampada_base(con_cesto: bool) -> Node3D:
 
 # ---------------------------------------------------------------- giardino
 
+## Il fusto di un cactus: un barile a COSTE, generato come griglia col
+## raggio modulato attorno all'asse — r(u) = R·(1 + 0.07·cos(coste·u)).
+## Le coste vere le fanno le normali per vertice (_mesh_griglia): con le
+## sfere lisce un cactus è solo una pianta grassa qualunque.
+static func _cacto(parent: Node3D, rag: float, alt: float, coste: int,
+		mat: Material, pos := Vector3.ZERO, incl := Vector3.ZERO) -> MeshInstance3D:
+	var file := 16
+	var lati := coste * 6
+	var vg: Array = []
+	for i in file + 1:
+		var v := PI * float(i) / float(file)
+		var rf := pow(sin(v), 0.82)
+		var y := (1.0 - cos(v)) * 0.5 * alt
+		var riga := PackedVector3Array()
+		for j in lati:
+			var u := TAU * float(j) / float(lati)
+			var r := rag * rf * (1.0 + 0.07 * cos(float(coste) * u))
+			riga.append(Vector3(cos(u) * r, y, sin(u) * r))
+		vg.append(riga)
+	var mi := _mesh_griglia(parent, vg, mat, pos, true)
+	mi.rotation = incl
+	return mi
+
+
+## LA PIANTA: un piccolo cactus in vaso, rifatto. Prima era tre sfere
+## verdi in un tronco di cono: adesso il vaso è TORNITO col labbro e il
+## piede, sta nel suo sottovaso, la terra ha i sassolini, il fusto ha le
+## COSTE con le areole sui crinali, un braccio che spunta di lato — e il
+## fiore in cima è un fiore, non un pallino rosa.
 static func _plant() -> Node3D:
 	var n := Node3D.new()
-	_cyl(n, 0.17, 0.12, 0.22, _mat(TERRACOTTA, Color("bd7455"), 4.0, 0.5), Vector3(0, 0.11, 0))
-	_cyl(n, 0.13, 0.13, 0.03, _mat(Color("6a4a38"), Color("53382a"), 6.0, 0.4), Vector3(0, 0.225, 0))
+	var cotto := _mat(TERRACOTTA, Color("bd7455"), 4.0, 0.5)
+	var terra := _mat(Color("6a4a38"), Color("53382a"), 6.0, 0.4)
 	var leaf := _mat(LEAF, LEAF_DARK, 3.0, 0.6)
-	_ball(n, 0.17, leaf, Vector3(0, 0.42, 0))
-	_ball(n, 0.12, leaf, Vector3(0.1, 0.52, 0.05))
-	_ball(n, 0.11, leaf, Vector3(-0.1, 0.5, -0.04))
-	_ball(n, 0.035, _mat(PINK, Color("ffd7e2"), 6.0, 0.4), Vector3(0.05, 0.62, 0.02))
+
+	# ---- IL SOTTOVASO e il VASO, torniti, col labbro arrotolato ----
+	BUILDER.lathe(n, [Vector2(0.001, 0.0), Vector2(0.130, 0.0),
+			Vector2(0.147, 0.010), Vector2(0.153, 0.030),
+			Vector2(0.143, 0.034), Vector2(0.134, 0.022),
+			Vector2(0.001, 0.018)], cotto)
+	BUILDER.lathe(n, [Vector2(0.001, 0.006), Vector2(0.096, 0.006),
+			Vector2(0.114, 0.018), Vector2(0.111, 0.038),
+			Vector2(0.148, 0.185), Vector2(0.151, 0.198),
+			Vector2(0.169, 0.204), Vector2(0.173, 0.222),
+			Vector2(0.167, 0.240), Vector2(0.149, 0.238),
+			Vector2(0.143, 0.222), Vector2(0.138, 0.212),
+			Vector2(0.001, 0.208)], cotto)
+	# la riga dipinta a mano che gira sul fianco
+	# aderente alla parete (che a y 0.155 ha raggio 0.140): mezza affogata,
+	# o invece di una riga dipinta diventa un elastico che galleggia
+	_cordolo(n, _super_anello(0.1418, 0.1418, 1.0, 0.0, 40), 0.0042,
+			_mat(CREAM, PLASTER_SHADE, 5.0, 0.35), Vector3(0, 0.155, 0))
+
+	# ---- LA TERRA: il tumulo e i sassolini ----
+	_cyl(n, 0.136, 0.136, 0.014, terra, Vector3(0, 0.212, 0))
+	_ball(n, 0.11, terra, Vector3(0, 0.218, 0), Vector3(1.15, 0.28, 1.15))
+	var rngp := RandomNumberGenerator.new()
+	rngp.seed = 20_260_808
+	for sasso in 7:
+		var sa := TAU * float(sasso) / 7.0 + rngp.randf_range(-0.3, 0.3)
+		var sr := rngp.randf_range(0.075, 0.122)
+		_ball(n, rngp.randf_range(0.008, 0.014),
+				_mat(STONE, STONE_DARK, 5.0, 0.4),
+				Vector3(cos(sa) * sr, 0.223, sin(sa) * sr),
+				Vector3(1, 0.7, 1))
+
+	# ---- IL CACTUS: fusto a dieci coste, braccio a otto, areole ----
+	var corpo := Node3D.new()
+	corpo.position = Vector3(0, 0.215, 0)
+	corpo.rotation.z = 0.045          # nessuna pianta cresce a piombo
+	n.add_child(corpo)
+	_cacto(corpo, 0.155, 0.335, 10, leaf)
+	_cacto(corpo, 0.082, 0.185, 8, leaf, Vector3(0.115, 0.085, 0.030),
+			Vector3(0, 0, -0.52))
+	# le areole: i puntini chiari sui crinali delle coste
+	var areola := _mat(Color("f2ecd8"), Color("ddd3b8"), 6.0, 0.3)
+	for lf: float in [0.38, 0.56, 0.74, 0.88]:
+		var v2 := PI * lf
+		var rf2 := pow(sin(v2), 0.82)
+		var y2 := (1.0 - cos(v2)) * 0.5 * 0.335
+		for k in 10:
+			var u2 := TAU * float(k) / 10.0
+			var r2 := 0.155 * rf2 * 1.045
+			_ball(corpo, 0.006, areola,
+					Vector3(cos(u2) * r2, y2, sin(u2) * r2))
+	for lf2: float in [0.50, 0.72]:
+		var v3 := PI * lf2
+		var rf3 := pow(sin(v3), 0.82)
+		var y3 := (1.0 - cos(v3)) * 0.5 * 0.185
+		for k2 in 8:
+			var u3 := TAU * float(k2) / 8.0
+			var r3 := 0.082 * rf3 * 1.045
+			var pa := Vector3(cos(u3) * r3, y3, sin(u3) * r3)
+			# nel riferimento del braccio inclinato
+			var brac := Basis(Vector3(0, 0, 1), -0.52)
+			_ball(corpo, 0.0055, areola,
+					Vector3(0.115, 0.085, 0.030) + brac * pa)
+
+	# ---- IL FIORE in cima: petali veri attorno al cuore giallo ----
+	var fiore := Node3D.new()
+	fiore.position = Vector3(0.025, 0.338, 0.012)
+	fiore.rotation.z = -0.12
+	corpo.add_child(fiore)
+	var petalo := _mat(PINK, Color("ffd7e2"), 6.0, 0.4)
+	for pt in 7:
+		var pu := TAU * float(pt) / 7.0
+		var pet := _ball(fiore, 0.026, petalo,
+				Vector3(cos(pu) * 0.030, 0.006, sin(pu) * 0.030),
+				Vector3(1.0, 0.42, 0.58))
+		pet.rotation.y = -pu
+		pet.rotation.z = 0.28
+	_ball(fiore, 0.0145, _mat(Color("f4c95d"), Color("d9a83f"), 6.0, 0.35),
+			Vector3(0, 0.014, 0))
 	return n
 
 
