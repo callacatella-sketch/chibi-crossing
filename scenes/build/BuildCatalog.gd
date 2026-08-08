@@ -5643,56 +5643,144 @@ static func _transenna() -> Node3D:
 static func _bicicletta_servizio() -> Node3D:
 	# LA BICICLETTA DI SERVIZIO: appoggiata sul cavalletto, col cestino
 	# davanti. Nessuno insegue nessuno, in questo villaggio: si fa il giro.
+	# Una bicicletta si legge dalle sue VERITÀ: le ruote coi RAGGI (un
+	# disco pieno è una moneta, non una ruota), il telaio a diamante i cui
+	# tubi si INCONTRANO invece di fluttuare, la forcella che tiene la
+	# ruota davanti, la catena che va dalla corona al pignone, i pedali
+	# opposti a metà giro. Poi i suoi gioielli: la sella di cuoio sul
+	# cannotto, le manopole, il campanello, il fanalino d'ottone, il
+	# portapacchi e il cestino di vimini con le sue fascette.
 	var n := Node3D.new()
 	var telaio := _mat(BLU, BLU_CUPO, 5.0, 0.45)
 	var gomma := _mat(Color("4a4640"), Color("3a3733"), 4.0, 0.35)
+	var cerchio_mat := _mat(SEGNALE_BIANCO, CREAM, 5.0, 0.25)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
-	# appoggiata: tutta la bici pende di un soffio sul cavalletto
+	var cuoio := _mat(WOOD_DARK, Color("6b4a33"), 4.0, 0.4)
+	# un tubo fra due punti (nel piano della bici): il telaio si COSTRUISCE
 	var bici := Node3D.new()
 	bici.name = "Bici"
 	bici.rotation.z = 0.09
 	n.add_child(bici)
+	var tubo := func(a: Vector3, b: Vector3, r: float, mat: Material) -> void:
+		var c := _cyl(bici, r, r, a.distance_to(b), mat, (a + b) * 0.5)
+		c.rotation.x = atan2(b.z - a.z, b.y - a.y)
+
+	# ---- LE RUOTE: gomma a toro, cerchio, mozzo d'ottone e otto raggi
 	for dz: float in [-0.34, 0.34]:
-		var ruota := _cyl(bici, 0.27, 0.27, 0.05, gomma, Vector3(0, 0.28, dz))
-		ruota.rotation.x = PI * 0.5
-		var cerchio := _cyl(bici, 0.21, 0.21, 0.055, _mat(SEGNALE_BIANCO, CREAM, 5.0, 0.25),
-				Vector3(0, 0.28, dz))
-		cerchio.rotation.x = PI * 0.5
-		var mozzo := _cyl(bici, 0.035, 0.035, 0.07, ottone, Vector3(0, 0.28, dz))
-		mozzo.rotation.x = PI * 0.5
-	# il telaio: tubi GROSSI, o da lontano la bici sparisce e restano due
-	# ruote per aria. Il triangolo posteriore è quello che la fa leggere
-	# come una bicicletta e non come un monociclo.
-	_box(bici, Vector3(0.075, 0.075, 0.66), telaio, Vector3(0, 0.52, 0))
-	var t2 := _box(bici, Vector3(0.075, 0.46, 0.075), telaio, Vector3(0, 0.44, 0.28))
-	t2.rotation.x = -0.3
-	var t3 := _box(bici, Vector3(0.075, 0.5, 0.075), telaio, Vector3(0, 0.42, -0.3))
-	t3.rotation.x = 0.36
-	# i foderi: dal movimento centrale alla ruota dietro
-	for dy: float in [0.0, 0.26]:
-		var fodero := _box(bici, Vector3(0.05, 0.05, 0.4), telaio,
-				Vector3(0, 0.3 + dy * 0.6, 0.18))
-		fodero.rotation.x = -0.32 - dy * 0.5
-	# la corona e il pedale: il dettaglio che dice «ci si va davvero»
-	var corona := _cyl(bici, 0.075, 0.075, 0.02, ottone, Vector3(0, 0.3, 0.02))
-	corona.rotation.x = PI * 0.5
-	_box(bici, Vector3(0.05, 0.02, 0.09), gomma, Vector3(0.09, 0.24, 0.02))
-	# sella e manubrio
-	var sella := _box(bici, Vector3(0.09, 0.05, 0.22), _mat(WOOD_DARK, Color("6b4a33"), 4.0, 0.4),
-			Vector3(0, 0.68, 0.28))
+		var pneu := MeshInstance3D.new()
+		var pm := TorusMesh.new()
+		pm.inner_radius = 0.20
+		pm.outer_radius = 0.27
+		pm.rings = 32
+		pm.ring_segments = 10
+		pneu.mesh = pm
+		pneu.material_override = gomma
+		pneu.position = Vector3(0, 0.28, dz)
+		pneu.rotation.z = PI * 0.5
+		bici.add_child(pneu)
+		var cerchio := MeshInstance3D.new()
+		var cm := TorusMesh.new()
+		cm.inner_radius = 0.180
+		cm.outer_radius = 0.205
+		cm.rings = 32
+		cm.ring_segments = 8
+		cerchio.mesh = cm
+		cerchio.material_override = cerchio_mat
+		cerchio.position = Vector3(0, 0.28, dz)
+		cerchio.rotation.z = PI * 0.5
+		bici.add_child(cerchio)
+		var mozzo := _cyl(bici, 0.028, 0.028, 0.075, ottone, Vector3(0, 0.28, dz))
+		mozzo.rotation.z = PI * 0.5
+		for k in 8:
+			var ra := float(k) * TAU / 8.0 + (0.2 if dz > 0.0 else 0.0)
+			var raggio := _cyl(bici, 0.0055, 0.0055, 0.17, cerchio_mat,
+					Vector3(0, 0.28 + cos(ra) * 0.10, dz + sin(ra) * 0.10))
+			raggio.rotation.x = ra
+
+	# ---- IL TELAIO a diamante: i tubi si incontrano nei nodi
+	tubo.call(Vector3(0, 0.62, -0.295), Vector3(0, 0.42, -0.315), 0.030, telaio)
+	tubo.call(Vector3(0, 0.45, -0.30), Vector3(0, 0.29, 0.05), 0.028, telaio)
+	tubo.call(Vector3(0, 0.585, -0.285), Vector3(0, 0.615, 0.185), 0.024, telaio)
+	tubo.call(Vector3(0, 0.29, 0.04), Vector3(0, 0.64, 0.21), 0.026, telaio)
+	# il movimento centrale
+	var mc := _cyl(bici, 0.036, 0.036, 0.16, telaio, Vector3(0, 0.295, 0.045))
+	mc.rotation.z = PI * 0.5
+	# i foderi bassi e alti, a coppie, e la forcella
+	for fx: float in [-0.032, 0.032]:
+		tubo.call(Vector3(fx, 0.29, 0.06), Vector3(fx, 0.28, 0.33), 0.013, telaio)
+		tubo.call(Vector3(fx, 0.60, 0.19), Vector3(fx, 0.29, 0.335), 0.012, telaio)
+		tubo.call(Vector3(fx, 0.43, -0.31), Vector3(fx, 0.28, -0.345), 0.013, telaio)
+
+	# ---- LA TRASMISSIONE: corona, pignone, catena, pedivelle opposte
+	var corona := _cyl(bici, 0.075, 0.075, 0.014, ottone, Vector3(0.055, 0.295, 0.045))
+	corona.rotation.z = PI * 0.5
+	var pignone := _cyl(bici, 0.042, 0.042, 0.012, ottone, Vector3(0.05, 0.28, 0.33))
+	pignone.rotation.z = PI * 0.5
+	var su := _box(bici, Vector3(0.010, 0.285, 0.014), gomma, Vector3(0.055, 0.343, 0.19))
+	su.rotation.x = atan2(0.285, -0.048)
+	var giu := _box(bici, Vector3(0.010, 0.285, 0.014), gomma, Vector3(0.055, 0.235, 0.19))
+	giu.rotation.x = atan2(0.285, 0.012)
+	var ped_dx := _box(bici, Vector3(0.014, 0.105, 0.026), telaio,
+			Vector3(0.075, 0.2515, 0.0815))
+	ped_dx.rotation.x = -0.70
+	_box(bici, Vector3(0.075, 0.016, 0.05), gomma, Vector3(0.105, 0.208, 0.118))
+	var ped_sx := _box(bici, Vector3(0.014, 0.105, 0.026), telaio,
+			Vector3(-0.075, 0.340, 0.010))
+	ped_sx.rotation.x = -0.70
+	_box(bici, Vector3(0.075, 0.016, 0.05), gomma, Vector3(-0.105, 0.382, -0.026))
+
+	# ---- LA SELLA di cuoio sul cannotto (nodo "Sella")
+	tubo.call(Vector3(0, 0.63, 0.205), Vector3(0, 0.71, 0.225), 0.015, telaio)
+	var sella := _ball(bici, 0.062, cuoio, Vector3(0, 0.725, 0.225), Vector3(1.0, 0.42, 1.55))
 	sella.name = "Sella"
-	var manubrio := _box(bici, Vector3(0.36, 0.045, 0.045), telaio, Vector3(0, 0.72, -0.3))
+
+	# ---- MANUBRIO (nodo omonimo): attacco, tubo, manopole e campanello
+	tubo.call(Vector3(0, 0.62, -0.295), Vector3(0, 0.685, -0.305), 0.018, telaio)
+	var manubrio := _cyl(bici, 0.016, 0.016, 0.36, telaio, Vector3(0, 0.69, -0.305))
 	manubrio.name = "Manubrio"
-	for sx: float in [-0.16, 0.16]:
-		_cyl(bici, 0.028, 0.028, 0.09, gomma, Vector3(sx, 0.72, -0.3)).rotation.z = PI * 0.5
-	# il cestino di vimini davanti
-	var cesto := _cyl(bici, 0.14, 0.11, 0.19, _mat(WOOD_PALE, WOOD, 7.0, 0.6),
-			Vector3(0, 0.63, -0.34))
+	manubrio.rotation.z = PI * 0.5
+	for sx: float in [-0.165, 0.165]:
+		var manopola := _cyl(bici, 0.024, 0.024, 0.085, cuoio, Vector3(sx, 0.69, -0.305))
+		manopola.rotation.z = PI * 0.5
+	_cyl(bici, 0.026, 0.026, 0.018, ottone, Vector3(-0.125, 0.715, -0.30))
+	_ball(bici, 0.020, ottone, Vector3(-0.125, 0.728, -0.30), Vector3(1, 0.6, 1))
+
+	# ---- IL FANALINO d'ottone sul tubo di sterzo
+	var fanale := _cyl(bici, 0.024, 0.030, 0.045, ottone, Vector3(0, 0.545, -0.365))
+	fanale.rotation.x = PI * 0.5
+	var lente := _cyl(bici, 0.020, 0.020, 0.012, _mat(CREAM, Color("ffe6b0"), 6.0, 0.3),
+			Vector3(0, 0.545, -0.392))
+	lente.rotation.x = PI * 0.5
+
+	# ---- IL CESTINO di vimini (nodo "Cestino") con le fascette,
+	# appoggiato al manubrio
+	var cesto := _cyl(bici, 0.145, 0.11, 0.16, _mat(WOOD_PALE, WOOD, 7.0, 0.6),
+			Vector3(0, 0.63, -0.43))
 	cesto.name = "Cestino"
-	# il campanello e il cavalletto
-	_cyl(bici, 0.032, 0.032, 0.035, ottone, Vector3(-0.12, 0.76, -0.3))
-	var cavalletto := _cyl(n, 0.018, 0.018, 0.34, gomma, Vector3(-0.13, 0.17, 0.16))
-	cavalletto.rotation.z = 0.32
+	for banda: Array in [[0.70, 0.138, 0.150], [0.585, 0.118, 0.130]]:
+		var fascia := MeshInstance3D.new()
+		var fm := TorusMesh.new()
+		fm.inner_radius = banda[1]
+		fm.outer_radius = banda[2]
+		fm.rings = 28
+		fm.ring_segments = 6
+		fascia.mesh = fm
+		fascia.material_override = _mat(WOOD, WOOD_DARK, 6.0, 0.5)
+		fascia.position = Vector3(0, banda[0], -0.43)
+		bici.add_child(fascia)
+
+	# ---- IL PORTAPACCHI sopra la ruota dietro
+	for rx: float in [-0.045, 0.045]:
+		_box(bici, Vector3(0.012, 0.008, 0.24), telaio, Vector3(rx, 0.578, 0.38))
+		tubo.call(Vector3(rx, 0.574, 0.30), Vector3(rx, 0.30, 0.335), 0.008, telaio)
+	for rz: float in [0.30, 0.38, 0.46]:
+		_box(bici, Vector3(0.10, 0.006, 0.016), telaio, Vector3(0, 0.585, rz))
+
+	# ---- il cavalletto, col suo piedino
+	var cavalletto := _cyl(n, 0.014, 0.014, 0.34, gomma, Vector3(-0.115, 0.155, 0.28))
+	cavalletto.rotation.z = 0.38
+	cavalletto.rotation.x = 0.12
+	_cyl(n, 0.026, 0.030, 0.014, gomma, Vector3(-0.178, 0.008, 0.30))
 	return n
 
 
