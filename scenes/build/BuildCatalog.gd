@@ -3311,87 +3311,129 @@ static func _emit_fx(parent: Node3D, pos: Vector3, color: Color, up_vel: float, 
 	parent.add_child(p)
 
 
-# LA CASETTA DEGLI UCCELLINI. Un nido dipinto su un palo — e il palo e'
-# TORNITO, con le staffe che reggono la casetta come le mensole vere.
-# Il tetto e' a SCANDOLE sfalsate col listello di colmo (il colmo resta
-# a ~1.44 e LIBERO: Nido.gd ci posa la covata a +1.47), il foro ha il
-# suo anello di legno scuro e il posatoio e' tornito col pomellino.
-# Alla base, l'erba e una margherita: un palo piantato nel niente e' un
-# cartello, uno coi fiori ai piedi e' di casa.
+# LA CASETTA DEGLI UCCELLINI, terza stesura — le prime due erano un
+# cartone del latte su uno stecco. Questa e' una CASA: doghe di legno
+# miele, timpani crema che chiudono il sottotetto, tetto cicciotto a
+# scandole con lo sporto largo, il TETTUCCIO sopra il foro, la
+# MANGIATOIA coi semi al posto del trespolo nudo, il camino piccolo su
+# una falda, e il RAMPICANTE fiorito che si avvita sul palo tornito.
+# Vincolo di ferro: il colmo sta a ~1.44 e resta LIBERO al centro —
+# Nido.gd posa la covata a +1.47 dal piede del palo.
 static func _birdhouse() -> Node3D:
 	var n := Node3D.new()
 	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+	var miele := _mat(WOOD_PALE, WOOD, 3.2, 0.5)
 	var scuro := _mat(Color("4a3226"), Color("31201a"), 3.0, 0.4)
-	var muro := _mat(PLASTER, PLASTER_SHADE, 3.0, 0.45)
+	var crema := _mat(CREAM, Color("efe2ca"), 4.0, 0.35)
 	var tegola := _mat(TERRACOTTA, Color("c47a58"), 3.0, 0.5)
 	var tegola2 := _mat(Color("d98a64"), Color("b96f4e"), 3.2, 0.5)
-	var erba := _mat(Color("8aa870"), Color("6f8d58"), 5.0, 0.5)
+	var verde := _mat(Color("7da35e"), Color("5f8544"), 4.5, 0.5)
+	var rosa := _mat(PINK, PINK_DEEP, 5.0, 0.4)
 
-	# il palo tornito, con la basetta e il collo sotto la casetta
-	BUILDER.lathe(n, [Vector2(0.060, 0.0), Vector2(0.064, 0.014),
-			Vector2(0.048, 0.035), Vector2(0.034, 0.08), Vector2(0.029, 0.45),
-			Vector2(0.026, 0.90), Vector2(0.032, 0.97), Vector2(0.040, 1.01),
-			Vector2(0.044, 1.03)], wood)
-	# le due staffe diagonali che reggono la casetta
-	for lato: float in [-1.0, 1.0]:
-		var staffa := _cyl(n, 0.011, 0.013, 0.145, wood,
-				Vector3(lato * 0.050, 0.968, 0))
-		staffa.rotation.z = lato * 0.72
+	# il palo tornito, grosso il giusto, con la basetta a campana
+	BUILDER.lathe(n, [Vector2(0.085, 0.0), Vector2(0.090, 0.016),
+			Vector2(0.070, 0.04), Vector2(0.050, 0.08), Vector2(0.042, 0.30),
+			Vector2(0.038, 0.72), Vector2(0.046, 0.86), Vector2(0.056, 0.93),
+			Vector2(0.060, 0.95)], wood)
+	# il RAMPICANTE che si avvita: gambo a elica, foglie e tre fiorellini
+	var giri: Array = []
+	var raggi: Array = []
+	for g in 9:
+		var t := float(g) / 8.0
+		var ag := t * TAU * 1.6 + 0.7
+		var rg := 0.052 - 0.008 * t
+		giri.append(Vector3(cos(ag) * rg, 0.06 + t * 0.74, sin(ag) * rg))
+		raggi.append(0.009 - 0.003 * t)
+	BUILDER.tube(n, giri, raggi, verde)
+	for fg in [1, 3, 5, 7]:
+		var pf: Vector3 = giri[fg]
+		_ball(n, 0.030, verde, pf + pf.normalized() * 0.02 * Vector3(1, 0, 1),
+				Vector3(1.3, 0.35, 0.9))
+	for ff in [2, 5, 8]:
+		var pf2: Vector3 = giri[ff]
+		_ball(n, 0.016, rosa, pf2 + Vector3(0, 0.015, 0))
 
-	# la casetta: zoccolino e pareti stondate
-	var zocc := _prisma(n, _rrect_xz(0.30, 0.28, 0.03), 1.03, 0.026, wood)
+	# LA CASA: zoccolo, pareti a DOGHE orizzontali, cantonali scuri
+	var zocc := _prisma(n, _rrect_xz(0.38, 0.34, 0.03), 0.93, 0.026, wood)
 	zocc.position.z = 0.0
-	var pareti := _prisma(n, _rrect_xz(0.28, 0.26, 0.028), 1.056, 0.28, muro)
-	pareti.position.z = 0.0
+	for da in 5:
+		var doga := _prisma(n, _rrect_xz(0.36, 0.32, 0.028), 0.956 + 0.062 * float(da),
+				0.058, miele)
+		doga.position.z = 0.0
+	for cx: float in [-0.165, 0.165]:
+		for cz: float in [-0.145, 0.145]:
+			_cyl(n, 0.016, 0.016, 0.32, wood, Vector3(cx, 1.115, cz))
 
-	# il TETTO a scandole sfalsate, con lo sporto e il listello di colmo
-	for lato2: float in [-1.0, 1.0]:
-		# il CARDINE della falda sta AL COLMO: le file scendono da li'
-		# (coi cardini ai lati il centro restava scoperto e le scandole
-		# piovevano come ali)
+	# i TIMPANI crema: il box ruotato di 45 gradi chiude il sottotetto
+	# davanti e dietro (la meta' bassa affoga nelle pareti)
+	var timpano := _box(n, Vector3(0.25, 0.25, 0.30), crema, Vector3(0, 1.27, 0))
+	timpano.rotation.z = PI * 0.25
+
+	# il TETTO: falde col cardine al colmo, scandole cicciotte sfalsate,
+	# sporto largo; il listello di colmo a 1.44 (il nido arriva a 1.47)
+	for lato: float in [-1.0, 1.0]:
 		var falda := Node3D.new()
-		falda.position = Vector3(0, 1.432, 0)
-		falda.rotation.z = -lato2 * 0.58
+		falda.position = Vector3(0, 1.438, 0)
+		falda.rotation.z = -lato * 0.62
 		n.add_child(falda)
 		for fila in 3:
-			var lx := 0.015 + 0.075 * float(fila)
+			var lx := 0.018 + 0.085 * float(fila)
 			var nt := 4 if fila % 2 == 0 else 3
-			for t in nt:
-				var lz := -0.135 + 0.09 * float(t) + (0.045 if fila % 2 == 1 else 0.0)
-				var mat_s: Material = tegola if (fila + t) % 2 == 0 else tegola2
-				var scand := _prisma(falda, _rrect_xz(0.088, 0.082, 0.02),
-						-0.006 * float(fila), 0.012, mat_s)
-				scand.position = Vector3(lx * lato2, 0.0, lz)
-	var colmo := _cyl(n, 0.026, 0.026, 0.35, tegola, Vector3(0, 1.437, 0))
+			for t2 in nt:
+				var lz := -0.155 + 0.103 * float(t2) + (0.0515 if fila % 2 == 1 else 0.0)
+				var mat_s: Material = tegola if (fila + t2) % 2 == 0 else tegola2
+				var scand := _prisma(falda, _rrect_xz(0.100, 0.098, 0.024),
+						-0.007 * float(fila), 0.016, mat_s)
+				scand.position = Vector3(lx * lato, 0.0, lz)
+	var colmo := _cyl(n, 0.028, 0.028, 0.40, tegola, Vector3(0, 1.443, 0))
 	colmo.rotation.x = PI * 0.5
 
-	# il foro col suo ANELLO di legno scuro, e il posatoio col pomellino
-	var foro := _cyl(n, 0.046, 0.046, 0.04, scuro, Vector3(0, 1.19, 0.135))
+	# il CAMINO piccolo, su una falda, fuori dal posto del nido
+	_box(n, Vector3(0.055, 0.10, 0.055), tegola2, Vector3(0.115, 1.37, -0.105))
+	_box(n, Vector3(0.07, 0.022, 0.07), scuro, Vector3(0.115, 1.425, -0.105))
+
+	# il FORO con l'anello, il TETTUCCIO sopra, e la MANGIATOIA coi semi
+	var foro := _cyl(n, 0.048, 0.048, 0.04, scuro, Vector3(0, 1.16, -0.165))
 	foro.rotation.x = PI * 0.5
 	var anello := MeshInstance3D.new()
 	var am := TorusMesh.new()
-	am.inner_radius = 0.044
-	am.outer_radius = 0.060
+	am.inner_radius = 0.046
+	am.outer_radius = 0.064
 	anello.mesh = am
 	anello.material_override = wood
-	anello.position = Vector3(0, 1.19, 0.148)
+	anello.position = Vector3(0, 1.16, -0.178)
 	anello.rotation.x = PI * 0.5
 	n.add_child(anello)
-	var posatoio := _cyl(n, 0.010, 0.012, 0.10, wood, Vector3(0, 1.10, 0.175))
+	var tettuccio := _prisma(n, _rrect_xz(0.16, 0.09, 0.02), 0.0, 0.014, tegola)
+	tettuccio.position = Vector3(0, 1.265, -0.20)
+	tettuccio.rotation.x = 0.35
+	# la mangiatoia: il vassoio con le sponde, i semi, e il posatoio
+	var vasso := _prisma(n, _rrect_xz(0.19, 0.095, 0.025), 1.045, 0.020, wood)
+	vasso.position.z = -0.21
+	var vasca := _prisma(n, _rrect_xz(0.16, 0.07, 0.02), 1.062, 0.012, scuro)
+	vasca.position.z = -0.21
+	for sg in 7:
+		var ags := float(sg) * 2.4
+		_ball(n, 0.0095, _mat(Color("e8c34a"), Color("b98a2e"), 5.0, 0.4),
+				Vector3(cos(ags) * 0.055, 1.076, -0.21 + sin(ags) * 0.022),
+				Vector3(1.0, 0.6, 1.3))
+	var posatoio := _cyl(n, 0.009, 0.011, 0.06, wood, Vector3(0, 1.03, -0.27))
 	posatoio.rotation.x = PI * 0.5
-	_ball(n, 0.015, scuro, Vector3(0, 1.10, 0.228))
+	_ball(n, 0.013, scuro, Vector3(0, 1.03, -0.303))
 
-	# l'erba e la margherita al piede del palo
-	_ball(n, 0.055, erba, Vector3(-0.085, 0.014, 0.05), Vector3(1.2, 0.5, 0.9))
-	_ball(n, 0.042, erba, Vector3(0.10, 0.010, -0.055), Vector3(1.0, 0.45, 0.85))
-	_cyl(n, 0.004, 0.004, 0.10, erba, Vector3(0.105, 0.05, 0.065))
+	# ai piedi: l'erba, la margherita, un sassolino
+	_ball(n, 0.06, verde, Vector3(-0.10, 0.016, 0.06), Vector3(1.2, 0.5, 0.9))
+	_ball(n, 0.045, verde, Vector3(0.115, 0.012, -0.06), Vector3(1.0, 0.45, 0.85))
+	_ball(n, 0.028, _mat(Color("b3aa9a"), Color("948b7c"), 4.0, 0.5),
+			Vector3(0.14, 0.02, 0.10), Vector3(1.2, 0.7, 1.0))
+	_cyl(n, 0.004, 0.004, 0.10, verde, Vector3(-0.135, 0.05, 0.085))
 	for pt in 5:
 		var ap := float(pt) * TAU / 5.0
 		_ball(n, 0.014, _mat(Color.WHITE, CREAM, 6.0, 0.2),
-				Vector3(0.105 + cos(ap) * 0.020, 0.104, 0.065 + sin(ap) * 0.020),
+				Vector3(-0.135 + cos(ap) * 0.020, 0.104, 0.085 + sin(ap) * 0.020),
 				Vector3(1.0, 0.35, 1.0))
 	_ball(n, 0.011, _mat(Color("e8c34a"), Color("cc9c2e"), 5.0, 0.4),
-			Vector3(0.105, 0.108, 0.065))
+			Vector3(-0.135, 0.108, 0.085))
 	return n
 
 
