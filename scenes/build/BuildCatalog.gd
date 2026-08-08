@@ -3032,12 +3032,18 @@ static func _bench() -> Node3D:
 			return -0.148 - maxf(y - y_sed, 0.0) * sin(incl)
 
 	for sx: float in [-1.0, 1.0]:
-		# la gamba davanti: tornita, col collarino e il piedino
+		# la gamba davanti: UN pezzo tornito dalla terra al capitello —
+		# attraversa il sedile e diventa la colonnina su cui ATTERRA il
+		# bracciolo (prima il ricciolo finiva a mezz'aria: un bracciolo
+		# che non appoggia su niente non e' un bracciolo)
 		BUILDER.lathe(n, [Vector2(0.001, 0.0), Vector2(0.030, 0.0),
 				Vector2(0.034, 0.010), Vector2(0.028, 0.024),
 				Vector2(0.025, 0.20), Vector2(0.028, 0.30),
 				Vector2(0.032, 0.36), Vector2(0.028, 0.40),
-				Vector2(0.024, y_sed), Vector2(0.001, y_sed)], legno,
+				Vector2(0.023, 0.46), Vector2(0.019, 0.50),
+				Vector2(0.0175, 0.525), Vector2(0.022, 0.545),
+				Vector2(0.0255, 0.556), Vector2(0.021, 0.566),
+				Vector2(0.001, 0.570)], legno,
 				Vector3(sx * 0.40, 0.0, 0.155))
 		# la gamba dietro: dritta fino al sedile...
 		BUILDER.lathe(n, [Vector2(0.001, 0.0), Vector2(0.030, 0.0),
@@ -3054,17 +3060,21 @@ static func _bench() -> Node3D:
 				Vector2(0.012, 0.432), Vector2(0.001, 0.438)], legno,
 				Vector3(sx * 0.40, y_sed, -0.148))
 		mont.rotation.x = -incl
-		# IL BRACCIOLO a ricciolo: dal montante, sopra la gamba, e giu'
+		# IL BRACCIOLO a ricciolo: dal montante scende in avanti e CHIUDE
+		# il ricciolo esattamente sul capitello della colonnina (0.155):
+		# la spirale si avvolge sopra il punto d'appoggio, come il legno
+		# piegato delle panchine vere
 		BUILDER.tube(n, [Vector3(sx * 0.40, 0.615, zm.call(0.615) + 0.02),
-				Vector3(sx * 0.40, 0.652, -0.02),
-				Vector3(sx * 0.40, 0.660, 0.075),
-				Vector3(sx * 0.40, 0.650, 0.150),
-				Vector3(sx * 0.40, 0.622, 0.196),
-				Vector3(sx * 0.40, 0.585, 0.203),
-				Vector3(sx * 0.40, 0.568, 0.178),
-				Vector3(sx * 0.40, 0.585, 0.158)],
-				[0.020, 0.021, 0.022, 0.022, 0.023, 0.024, 0.020, 0.016],
-				chiaro, 26, 10)
+				Vector3(sx * 0.40, 0.648, -0.02),
+				Vector3(sx * 0.40, 0.655, 0.065),
+				Vector3(sx * 0.40, 0.642, 0.130),
+				Vector3(sx * 0.40, 0.616, 0.172),
+				Vector3(sx * 0.40, 0.585, 0.180),
+				Vector3(sx * 0.40, 0.566, 0.162),
+				Vector3(sx * 0.40, 0.572, 0.140),
+				Vector3(sx * 0.40, 0.590, 0.132)],
+				[0.020, 0.021, 0.022, 0.022, 0.023, 0.023, 0.019, 0.015, 0.011],
+				chiaro, 30, 10)
 		# i piedini scuri sotto le due gambe
 		_cyl(n, 0.036, 0.032, 0.014, scuro, Vector3(sx * 0.40, 0.007, 0.155))
 		_cyl(n, 0.036, 0.032, 0.014, scuro, Vector3(sx * 0.40, 0.007, -0.150))
