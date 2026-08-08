@@ -7531,10 +7531,9 @@ static func _secchi() -> Node3D:
 ## IL FARO DELLA CASERMA: un GIROFARO vero, non una lanterna da
 ## giardino (quella è stata abbattuta su ordine dell'autore). La forma
 ## viene dai fari d'emergenza industriali: la piastra imbullonata a
-## terra coi gussets, la colonna d'acciaio verniciata con lo stivale
-## rosso, la scatola
-## di derivazione col TUBO PORTACAVI che sale fino alla testa (è il
-## dettaglio elettrico a dire «vero»), il bicchiere d'ottone con la
+## terra, la colonna d'acciaio verniciata con lo stivale rosso e il
+## fusto PULITO (l'autore ha fatto togliere pioli, gussets e tubo
+## portacavi: niente ferraglia sporgente), il bicchiere d'ottone con la
 ## fascetta a tre viti — e sopra la calotta rossa a COSTE FRESNEL,
 ## tornita con le coste nel profilo, che gira col fascio. Il contratto
 ## resta quello di sempre: la testa si chiama Girella, il giro lo dà un
@@ -7555,13 +7554,6 @@ static func _faro_caserma() -> Node3D:
 					Vector3(bx * 0.125, 0.033, bz * 0.125))
 			_ball(n, 0.013, ottone, Vector3(bx * 0.125, 0.041, bz * 0.125),
 					Vector3(1, 0.6, 1))
-	for g in 4:
-		var ga := float(g) * PI * 0.5
-		var gus := _box(n, Vector3(0.014, 0.075, 0.048), metallo,
-				Vector3(sin(ga) * 0.107, 0.048, cos(ga) * 0.107))
-		gus.rotation.y = ga
-		gus.rotation.x = 0.55
-
 	# ---- LA COLONNA: stivale rosso, fusto crema, collare in cima ----
 	BUILDER.lathe(n, [Vector2(0.001, 0.0), Vector2(0.088, 0.008),
 			Vector2(0.078, 0.06), Vector2(0.062, 0.14),
@@ -7572,22 +7564,6 @@ static func _faro_caserma() -> Node3D:
 			Vector2(0.036, 1.04), Vector2(0.042, 1.06),
 			Vector2(0.042, 1.09), Vector2(0.036, 1.10),
 			Vector2(0.001, 1.105)], crema, Vector3(0, 0.24, 0))
-
-	# ---- LA SCATOLA di derivazione e il TUBO PORTACAVI che sale ----
-	# ATTENZIONE all'asse: con rot.x la _lastra resta spessa lungo X e la
-	# scatola galleggiava piatta a mezz'aria; è rot.y a portare lo
-	# spessore verso il palo
-	_lastra(n, 0.036, 0.095, 0.012, 0.045, metallo, Vector3(0, 0.42, 0.058),
-			Vector3(0, PI * 0.5, 0))
-	_ball(n, 0.011, ottone, Vector3(0, 0.42, 0.083))
-	# il palo si RASTREMA (r 0.050 -> 0.036): un tubo a z fisso se ne
-	# stacca salendo. Si inclina di atan(0.009/0.86) e arriva al bicchiere
-	var tubo := _cyl(n, 0.009, 0.009, 0.86, metallo, Vector3(0, 0.9125, 0.0475))
-	tubo.rotation.x = -0.0105
-	# le due fascette che lo tengono alla colonna
-	for fs in 2:
-		_box(n, Vector3(0.026, 0.014, 0.030), ottone,
-				Vector3(0, 0.62 + 0.42 * float(fs), 0.0405 - 0.004 * float(fs)))
 
 	# ---- IL BICCHIERE: la base d'ottone con la fascetta a tre viti ----
 	BUILDER.lathe(n, [Vector2(0.001, 0.0), Vector2(0.052, 0.0),
