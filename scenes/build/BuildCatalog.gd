@@ -3693,10 +3693,30 @@ static func _salone_specchio(n: Node3D, legno_chiaro: Material, ottone: Material
 	_box(n, Vector3(0.07, 0.014, 0.05), _mat(Color("f0b3c4"), Color("dd9aae"), 5.0, 0.35),
 			Vector3(0.10, piano_y + 0.023, z - 0.05))
 
-	# i montanti dello specchio, leggermente aperti a V
-	for sx2: float in [-0.215, 0.215]:
-		var m := _cyl(n, 0.016, 0.019, 0.30, legno_chiaro, Vector3(sx2, 0.63, z))
-		m.rotation.z = -sx2 * 0.14
+	# I MONTANTI: due colonnine tornite che salgono fino alla VITA dello
+	# specchio, dove i PERNI d'ottone con la rosetta lo reggono davvero —
+	# la grammatica dello specchio da toeletta: appeso ai suoi perni, e
+	# proprio lì si inclina. (Prima i pali finivano a mezz'aria: a 0.78 la
+	# cornice ovale è già rientrata a ±0.17, e restavano cinque centimetri
+	# di vuoto.)
+	for sx2: float in [-1.0, 1.0]:
+		var px := sx2 * 0.265
+		# il collarino alla base, il fusto rastremato, la perlina a metà,
+		# il collo e il pomolo in cima
+		_cyl(n, 0.027, 0.032, 0.024, legno_chiaro, Vector3(px, 0.490, z))
+		_cyl(n, 0.016, 0.020, 0.44, legno_chiaro, Vector3(px, 0.72, z))
+		_cyl(n, 0.024, 0.024, 0.016, legno_chiaro, Vector3(px, 0.60, z))
+		_cyl(n, 0.021, 0.016, 0.03, legno_chiaro, Vector3(px, 0.952, z))
+		_ball(n, 0.026, legno_chiaro, Vector3(px, 0.982, z), Vector3(1, 0.8, 1))
+		# il perno che entra nella cornice, la rosetta sul fusto e il
+		# pomellino per stringere
+		var perno := _cyl(n, 0.011, 0.011, 0.06, ottone,
+				Vector3(sx2 * 0.238, SAL_SPECCHIO, z))
+		perno.rotation.z = PI * 0.5
+		var rosetta := _cyl(n, 0.019, 0.019, 0.012, ottone,
+				Vector3(sx2 * 0.288, SAL_SPECCHIO, z))
+		rosetta.rotation.z = PI * 0.5
+		_ball(n, 0.012, ottone, Vector3(sx2 * 0.299, SAL_SPECCHIO, z))
 
 	# LA CORNICE OVALE: un toro schiacciato, che e' la forma giusta —
 	# un rettangolo qui sembrerebbe una finestra, non uno specchio
