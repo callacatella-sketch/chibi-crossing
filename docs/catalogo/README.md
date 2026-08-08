@@ -1,7 +1,7 @@
 # Il catalogo visivo di Chibi Crossing
 
 Tre foto di **ogni singolo asset** del gioco — fronte, tre quarti e
-profilo — una cartella per pezzo. In tutto **2 asset**, **6 immagini**.
+profilo — una cartella per pezzo. In tutto **133 asset**, **399 immagini**.
 
 Le foto NON sono disegni: sono i pezzi veri, costruiti dal loro builder e
 renderizzati in uno studio con la luce e l'ombra del gioco. Se un pezzo
@@ -15,7 +15,13 @@ python3 tools/indice_catalogo.py
 
 | categoria | pezzi | cos'è |
 |---|---|---|
-| [Giardino](2-giardino/README.md) | 2 | quello che sta fuori: verde, luci, giochi, servizi |
+| [Struttura](0-struttura/README.md) | 28 | muri, pavimenti, tetti e i pezzi-guscio dei luoghi |
+| [Arredo](1-arredo/README.md) | 30 | quello che si mette dentro: mobili, banconi, strumenti |
+| [Giardino](2-giardino/README.md) | 32 | quello che sta fuori: verde, luci, giochi, servizi |
+| [Palestra](3-palestra/README.md) | 8 | gli otto attrezzi di legno, tela e sassi di fiume |
+| [Chiesa](4-chiesa/README.md) | 15 | la chiesa del paese, pezzo per pezzo |
+| [Boutique](5-boutique/README.md) | 15 | il negozio di vestiti: vetrina, stender, camerini |
+| [Personaggi](6-personaggi/README.md) | 5 | i cinque archetipi dei chibi, generati dal DNA |
 
 ## Come sono fatte le foto
 
