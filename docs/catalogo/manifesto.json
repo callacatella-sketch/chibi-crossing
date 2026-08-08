@@ -758,7 +758,7 @@
   {
     "alto": 1.62,
     "cartella": "docs/catalogo/2-giardino/faro-caserma/",
-    "cat": 2,
+    "cat": 2.0,
     "largo": 0.33,
     "nome": "Faro caserma",
     "slug": "faro-caserma",
@@ -774,10 +774,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.2,
+    "alto": 1.24,
     "cartella": "docs/catalogo/2-giardino/frigo-gelati/",
-    "cat": 2.0,
-    "largo": 1.0,
+    "cat": 2,
+    "largo": 0.99,
     "nome": "Frigo gelati",
     "slug": "frigo-gelati",
     "tipo": "cell"

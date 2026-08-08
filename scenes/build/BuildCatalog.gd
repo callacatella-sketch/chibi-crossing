@@ -9692,110 +9692,132 @@ static func _lucine() -> Node3D:
 	return n
 
 
+# IL FRIGO DEI GELATI, rifatto da capo come un POZZETTO DA BAR ANNI
+# CINQUANTA: il collare cromato bombato attorno alla bocca (la firma
+# dei pozzetti veri), il corpo smaltato crema sullo zoccolo rientrante
+# con la griglia di ventilazione, la fascia rossa in livrea col
+# filetto — la stessa identita' della tenda del bar — e i VETRI CURVI
+# scorrevoli che si SOVRAPPONGONO sui binari: il sinistro e' scorso
+# sopra il destro, come si fa davvero per servire, e il pozzetto
+# aperto mostra le vaschette dei gusti coi riccioli e la PALETTA
+# piantata nel cioccolato. Sulla fascia, i gelati in rilievo.
 static func _frigo_gelati() -> Node3D:
-	# IL FRIGO DEI GELATI: il pozzetto col coperchio a strisce e il cartello
-	# col cono. D'estate ci si appoggiano i gomiti aspettando il proprio.
 	var n := Node3D.new()
-	var bianco := _mat(SEGNALE_BIANCO, Color("e6dfd0"), 5.0, 0.3)
+	var crema_s := _mat(Color("f4efe4"), Color("e0d9c8"), 5.0, 0.3)
 	var rosso := _mat(BAR_ROSSO, BAR_ROSSO_CUPO, 4.5, 0.45)
 	var cromo := _mat(CROMO, Color("b9bec6"), 7.0, 0.3)
-	# il pozzetto bombato sugli angoli, sul basamento cromato stondato
-	_loft(n, [[-0.47, 0.22, 0.08, 0.65, 0.09],
-			[-0.43, 0.25, 0.08, 0.65, 0.045],
-			[0.43, 0.25, 0.08, 0.65, 0.045],
-			[0.47, 0.22, 0.08, 0.65, 0.09]], bianco)
-	_loft(n, [[-0.48, 0.235, 0.015, 0.09, 0.035],
-			[-0.44, 0.26, 0.015, 0.09, 0.02],
-			[0.44, 0.26, 0.015, 0.09, 0.02],
-			[0.48, 0.235, 0.015, 0.09, 0.035]], cromo)
-	# la fascia a pannellini tondi — e sui rossi, i GELATI in rilievo:
-	# un frigo dei gelati deve far venire voglia di gelato da lontano
+	var zoc_s := _mat(Color("5c5650"), Color("46413c"), 5.0, 0.3)
+	var inox := _mat(Color("8a9097"), Color("6d7378"), 6.0, 0.25)
+
+	# lo ZOCCOLO rientrante (il corpo sembra sospeso: e' il trucco di
+	# tutti gli elettrodomestici belli) e la GRIGLIA di ventilazione
+	var zocc := _prisma(n, _rrect_xz(0.84, 0.42, 0.03), 0.0, 0.06, zoc_s)
+	zocc.position.z = 0.0
+	for gv in 5:
+		_box(n, Vector3(0.10, 0.020, 0.012), cromo,
+				Vector3(-0.26 + 0.13 * float(gv), 0.032, -0.215))
+
+	# il CORPO smaltato con le spalle tonde, e il COLLARE cromato
+	_loft(n, [[-0.46, 0.215, 0.06, 0.60, 0.085],
+			[-0.42, 0.245, 0.06, 0.60, 0.045],
+			[0.42, 0.245, 0.06, 0.60, 0.045],
+			[0.46, 0.215, 0.06, 0.60, 0.085]], crema_s)
+	_loft(n, [[-0.475, 0.225, 0.60, 0.665, 0.06],
+			[-0.44, 0.255, 0.60, 0.665, 0.03],
+			[0.44, 0.255, 0.60, 0.665, 0.03],
+			[0.475, 0.225, 0.60, 0.665, 0.06]], cromo)
+
+	# la FASCIA rossa in livrea coi due filetti crema
+	var fascia := _prisma(n, _rrect_xz(0.945, 0.525, 0.05), 0.30, 0.105, rosso)
+	fascia.position.z = 0.0
+	for fy: float in [0.292, 0.405]:
+		var filo := _prisma(n, _rrect_xz(0.948, 0.528, 0.05), fy, 0.010, crema_s)
+		filo.position.z = 0.0
+
+	# i GELATI in rilievo sulla fascia: ghiacciolo alla menta, mini-cono,
+	# stecco bigusto — un frigo dei gelati si annuncia da solo
 	var menta_g := _mat(Color("9fd8b4"), Color("7fbf98"), 5.0, 0.4)
 	var stecco := _mat(Color("d4a45e"), Color("b98a48"), 6.0, 0.45)
 	var cialda_m := _mat(Color("e8bd78"), Color("d4a45e"), 6.0, 0.45)
-	for i in 5:
-		_lastra(n, 0.075, 0.16, 0.025, 0.025, rosso if i % 2 == 0 else bianco,
-				Vector3(-0.34 + 0.17 * float(i), 0.5, -0.253), Vector3(0, PI * 0.5, 0))
-	# il ghiacciolo alla menta col suo stecco
-	_lastra(n, 0.030, 0.085, 0.022, 0.020, menta_g,
-			Vector3(-0.34, 0.525, -0.268), Vector3(0, PI * 0.5, 0))
-	_cyl(n, 0.006, 0.006, 0.035, stecco, Vector3(-0.34, 0.452, -0.266))
-	# il mini-cono con la pallina rosa
-	var mcono := _cyl(n, 0.026, 0.004, 0.062, cialda_m, Vector3(0.0, 0.487, -0.268))
+	_lastra(n, 0.030, 0.078, 0.022, 0.020, menta_g,
+			Vector3(-0.30, 0.372, -0.272), Vector3(0, PI * 0.5, 0))
+	_cyl(n, 0.006, 0.006, 0.032, stecco, Vector3(-0.30, 0.318, -0.270))
+	var mcono := _cyl(n, 0.024, 0.004, 0.056, cialda_m, Vector3(0.0, 0.336, -0.272))
 	mcono.rotation.z = PI
-	_ball(n, 0.024, _mat(PINK, PINK_DEEP, 5.0, 0.4), Vector3(0.0, 0.532, -0.268))
-	# lo stecco bigusto crema e fragola
-	_lastra(n, 0.028, 0.048, 0.020, 0.018, _mat(CREAM, Color("f0e4cc"), 5.0, 0.35),
-			Vector3(0.34, 0.548, -0.268), Vector3(0, PI * 0.5, 0))
-	_lastra(n, 0.028, 0.042, 0.020, 0.018, rosso,
-			Vector3(0.34, 0.503, -0.268), Vector3(0, PI * 0.5, 0))
-	_cyl(n, 0.006, 0.006, 0.032, stecco, Vector3(0.34, 0.465, -0.266))
-	# i due coperchi scorrevoli: TELAIO cromato e VETRO vero — e sotto
-	# il vetro si vedono i gelati che aspettano, ch'e' tutto il punto
-	# di un pozzetto da bar
-	# la VASCA d'acciaio scuro, e dentro le VASCHETTE dei gusti che
-	# riempiono il pozzetto: e' il colpo d'occhio dei banchi veri —
-	# sei palline sparse su fondo chiaro non si leggevano dal vetro
-	_box(n, Vector3(0.88, 0.28, 0.40), _mat(Color("8a9097"), Color("6d7378"), 6.0, 0.25),
-			Vector3(0, 0.45, 0))
+	_ball(n, 0.022, _mat(PINK, PINK_DEEP, 5.0, 0.4), Vector3(0.0, 0.377, -0.272))
+	_lastra(n, 0.026, 0.044, 0.018, 0.018, crema_s,
+			Vector3(0.30, 0.382, -0.272), Vector3(0, PI * 0.5, 0))
+	_lastra(n, 0.026, 0.038, 0.018, 0.018, rosso,
+			Vector3(0.30, 0.342, -0.272), Vector3(0, PI * 0.5, 0))
+	_cyl(n, 0.006, 0.006, 0.028, stecco, Vector3(0.30, 0.310, -0.270))
+
+	# dentro: la vasca d'acciaio e le VASCHETTE dei sei gusti, coi
+	# riccioli della spatola e la paletta piantata nel cioccolato
+	_box(n, Vector3(0.86, 0.30, 0.40), inox, Vector3(0, 0.48, 0))
 	var gusti_v := [Color("f2b6c8"), Color("9fd8b4"), Color("e8c34a"),
 			Color("8a5c3e"), Color("f0e4cc"), Color("9a8ac2")]
+	# la camera del catalogo sta a 23 gradi: DENTRO un pozzetto non si
+	# vede mai, per geometria. Percio' i gusti MONTANO sopra il filo
+	# della bocca come nei banchi espositivi veri: montagne piene dove
+	# il vetro e' scorso, gia' scavate sotto il vetro chiuso.
 	for vg in 6:
 		var vx := -0.26 + 0.26 * float(vg % 3)
 		var vz := -0.095 + 0.19 * float(vg / 3)
 		var col_v := gusti_v[vg] as Color
+		var mat_g := _mat(col_v, col_v.darkened(0.2), 5.0, 0.4)
+		var mat_c := _mat(col_v.lightened(0.10), col_v.darkened(0.1), 5.0, 0.4)
 		var vaschetta := _prisma(n, _rrect_xz(0.235, 0.160, 0.02), 0.600,
-				0.042, _mat(col_v, col_v.darkened(0.2), 5.0, 0.4))
+				0.060, mat_g)
 		vaschetta.position = Vector3(vx, 0.0, vz)
-		# il ricciolo del gusto, come lo lascia la spatola
-		_ball(n, 0.030, _mat(col_v.lightened(0.12), col_v.darkened(0.1), 5.0, 0.4),
-				Vector3(vx + 0.04, 0.648, vz), Vector3(1.3, 0.32, 1.0))
+		if vg % 3 == 0:
+			# la colonna scoperta: la montagna piena col ricciolo in cima
+			_ball(n, 0.062, mat_c, Vector3(vx, 0.682, vz),
+					Vector3(1.35, 0.85, 1.05))
+			_ball(n, 0.026, mat_g, Vector3(vx + 0.03, 0.728, vz),
+					Vector3(1.2, 0.6, 0.9))
+		else:
+			# sotto il vetro: il gusto gia' scavato, piu' basso
+			_ball(n, 0.050, mat_c, Vector3(vx + 0.02, 0.664, vz),
+					Vector3(1.3, 0.45, 1.0))
+	var manico_p := _cyl(n, 0.008, 0.008, 0.11, cromo, Vector3(-0.235, 0.755, 0.095))
+	manico_p.rotation.z = 0.45
+	_ball(n, 0.021, cromo, Vector3(-0.258, 0.708, 0.095), Vector3(1.0, 0.6, 1.0))
+
+	# i BINARI sul collare, e i due VETRI CURVI scorrevoli: il sinistro
+	# e' scorso SOPRA il destro, come si fa per servire
+	for bz: float in [-0.215, 0.215]:
+		_box(n, Vector3(0.90, 0.012, 0.018), cromo, Vector3(0, 0.685, bz))
+	var bombatura: Array = [Vector2(0.205, 0.0), Vector2(0.10, 0.024),
+			Vector2(0.0, 0.032), Vector2(-0.10, 0.024), Vector2(-0.205, 0.0)]
 	for lato: float in [-1.0, 1.0]:
 		var cop := Node3D.new()
 		cop.name = "Coperchio%d" % int(lato)
-		# il destro POGGIA sul bordo del pozzetto (la cornice a battuta:
-		# prima galleggiava due centimetri sopra, con la fessura di luce
-		# a denunciarlo); il sinistro e' TOLTO e appoggiato di taglio
-		# contro il fianco, come fanno i gelatai quando servono — il
-		# pozzetto aperto si vede in vista diretta
 		if lato < 0.0:
-			cop.position = Vector3(-0.545, 0.245, 0.0)
-			cop.rotation.z = 1.32
+			cop.position = Vector3(0.03, 0.732, 0.0)
 		else:
-			cop.position = Vector3(lato * 0.24, 0.661, lato * 0.02)
+			cop.position = Vector3(0.025, 0.695, 0.0)
 		n.add_child(cop)
-		# la CORNICE (quattro sponde): il vetro nel mezzo, e sotto si
-		# VEDE il pozzetto — un telaio pieno era un coperchio bugiardo
-		for sx3: float in [-0.21, 0.21]:
-			_box(cop, Vector3(0.045, 0.022, 0.44), cromo, Vector3(sx3, 0, 0))
-		for sz3: float in [-0.21, 0.21]:
-			_box(cop, Vector3(0.375, 0.022, 0.045), cromo, Vector3(0, 0, sz3))
-		var lastra_v := MeshInstance3D.new()
-		var vm := BoxMesh.new()
-		vm.size = Vector3(0.375, 0.010, 0.375)
-		lastra_v.mesh = vm
-		lastra_v.material_override = _vetro(0.18)
-		lastra_v.position = Vector3(0, 0.004, 0)
-		cop.add_child(lastra_v)
-		BUILDER.tube(cop, [Vector3(-0.08, 0.028, -0.19),
-				Vector3(0.0, 0.063, -0.20), Vector3(0.08, 0.028, -0.19)],
-				[0.011, 0.012, 0.011], _mat(ZINCO_CUPO, Color("7d838b"), 5.0, 0.3))
-	# i gelati nel pozzetto, appena sotto il vetro
-	# il cartello col cono: targa tonda in cornice rossa, sul palo
-	var palo := _cyl(n, 0.014, 0.014, 0.34, cromo, Vector3(0.36, 0.82, 0.12))
+		_vetro_curvo(cop, 0.0, 0.41, bombatura, _vetro(0.20))
+		# il telaietto cromato ai due capi della lastra, e la maniglietta
+		for cx2: float in [0.006, 0.404]:
+			_box(cop, Vector3(0.014, 0.016, 0.40), cromo, Vector3(cx2, 0.004, 0))
+		_box(cop, Vector3(0.030, 0.020, 0.075), cromo, Vector3(0.012, 0.016, 0))
+
+	# l'INSEGNA col cono: palo cromato appena inclinato, targa in
+	# cornice rossa, e il cono in tre dimensioni con la ciliegina
+	var palo := _cyl(n, 0.014, 0.014, 0.36, cromo, Vector3(0.36, 0.83, 0.12))
 	palo.rotation.z = 0.06
 	var cartello := _lastra(n, 0.145, 0.32, 0.06, 0.02, rosso,
-			Vector3(0.37, 1.06, 0.12), Vector3(0, PI * 0.5, 0))
+			Vector3(0.37, 1.08, 0.12), Vector3(0, PI * 0.5, 0))
 	cartello.name = "Cartello"
-	_lastra(n, 0.125, 0.28, 0.05, 0.02, bianco,
-			Vector3(0.37, 1.06, 0.114), Vector3(0, PI * 0.5, 0))
-	var cialda := _cyl(n, 0.07, 0.012, 0.15, _mat(Color("e8bd78"), Color("d4a45e"), 6.0, 0.45),
-			Vector3(0.37, 1.0, 0.098))
+	_lastra(n, 0.125, 0.28, 0.05, 0.02, crema_s,
+			Vector3(0.37, 1.08, 0.114), Vector3(0, PI * 0.5, 0))
+	var cialda := _cyl(n, 0.075, 0.012, 0.16, cialda_m, Vector3(0.37, 1.015, 0.098))
 	cialda.rotation.z = 0.1
-	_ball(n, 0.044, _mat(PINK, PINK_DEEP, 5.0, 0.4), Vector3(0.35, 1.10, 0.095))
-	_ball(n, 0.041, _mat(CREAM, Color("f0e4cc"), 5.0, 0.35), Vector3(0.395, 1.125, 0.095))
-	_ball(n, 0.014, _mat(BAR_ROSSO, BAR_ROSSO_CUPO, 5.0, 0.35),
-			Vector3(0.40, 1.16, 0.093))
+	_ball(n, 0.047, _mat(PINK, PINK_DEEP, 5.0, 0.4), Vector3(0.349, 1.122, 0.095))
+	_ball(n, 0.044, _mat(CREAM, Color("f0e4cc"), 5.0, 0.35), Vector3(0.396, 1.148, 0.095))
+	_ball(n, 0.015, _mat(BAR_ROSSO, BAR_ROSSO_CUPO, 5.0, 0.35),
+			Vector3(0.401, 1.185, 0.093))
 	return n
 
 
