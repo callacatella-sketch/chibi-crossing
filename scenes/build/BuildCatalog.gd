@@ -5928,14 +5928,24 @@ static func _bicicletta_servizio() -> Node3D:
 	su.rotation.x = atan2(0.285, -0.087)
 	var giu := _box(bici, Vector3(0.010, 0.286, 0.014), gomma, Vector3(0.06, 0.2135, 0.1825))
 	giu.rotation.x = atan2(0.285, -0.023)
+	# le pedivelle: destra avanti in basso (dove il fianco è libero),
+	# sinistra dietro in alto (dentro il triangolo posteriore, non a
+	# mezz'aria sopra l'obliquo); ogni pedale ha il suo PERNO che lo
+	# lega alla pedivella, e l'occhio d'ottone sul filo esterno
 	var ped_dx := _box(bici, Vector3(0.014, 0.105, 0.026), telaio,
-			Vector3(0.085, 0.255, 0.0625))
-	ped_dx.rotation.x = -0.68
-	_box(bici, Vector3(0.075, 0.016, 0.05), gomma, Vector3(0.115, 0.21, 0.10))
+			Vector3(0.085, 0.2525, -0.0025))
+	ped_dx.rotation.x = 0.65
+	var perno_dx := _cyl(bici, 0.008, 0.008, 0.034, telaio, Vector3(0.102, 0.205, -0.05))
+	perno_dx.rotation.z = PI * 0.5
+	_box(bici, Vector3(0.07, 0.018, 0.05), gomma, Vector3(0.128, 0.205, -0.05))
+	_ball(bici, 0.009, ottone, Vector3(0.165, 0.205, -0.05))
 	var ped_sx := _box(bici, Vector3(0.014, 0.105, 0.026), telaio,
-			Vector3(-0.085, 0.335, -0.0025))
-	ped_sx.rotation.x = -0.68
-	_box(bici, Vector3(0.075, 0.016, 0.05), gomma, Vector3(-0.115, 0.38, -0.04))
+			Vector3(-0.085, 0.3375, 0.0625))
+	ped_sx.rotation.x = 0.65
+	var perno_sx := _cyl(bici, 0.008, 0.008, 0.034, telaio, Vector3(-0.102, 0.385, 0.115))
+	perno_sx.rotation.z = PI * 0.5
+	_box(bici, Vector3(0.07, 0.018, 0.05), gomma, Vector3(-0.128, 0.385, 0.115))
+	_ball(bici, 0.009, ottone, Vector3(-0.165, 0.385, 0.115))
 
 	# ---- LA SELLA di cuoio sul cannotto (nodo "Sella")
 	tubo.call(Vector3(0, 0.645, 0.165), Vector3(0, 0.705, 0.18), 0.015, telaio)
