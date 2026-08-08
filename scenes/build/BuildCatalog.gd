@@ -132,7 +132,7 @@ static func items() -> Array[Dictionary]:
 		{"name": "Cassetta posta", "cat": 2, "type": "cell", "layer": 2, "builder": _mailbox,
 			"cols": [[Vector3(0.18, 1.1, 0.3), Vector3(0, 0.55, 0)]]},
 		{"name": "Panchina", "cat": 2, "type": "cell", "layer": 2, "builder": _bench,
-			"cols": [[Vector3(0.95, 0.85, 0.42), Vector3(0, 0.42, 0)]]},
+			"cols": [[Vector3(0.96, 0.88, 0.46), Vector3(0, 0.44, 0)]]},
 		{"name": "Lavagna", "cat": 2, "type": "cell", "layer": 2, "builder": _blackboard,
 			"cols": [[Vector3(1.05, 1.6, 0.16), Vector3(0, 0.8, 0.05)]]},
 
@@ -2995,58 +2995,115 @@ static func _mailbox() -> Node3D:
 	return n
 
 
+## LA PANCHINA da parco, rifatta. Prima era due lastroni per gambe e
+## quattro assi a coltello. Lo schienale RESTA a -Z: e' la convenzione
+## di tutto l'ecosistema NPC (r_bench, il passerotto sullo schienale,
+## l'approccio da +0.7z, SEATS a +0.08) — quindi dev'essere bella da
+## TUTTI i lati, come una panchina vera in mezzo a un prato:
+##  · fianchi torniti (lathe) col pomello, gamba dietro inclinata che
+##    SALE a fare da montante dello schienale — un pezzo solo;
+##  · BRACCIOLI a ricciolo (tube): partono dal montante e si arrotolano
+##    sopra la gamba davanti;
+##  · sedile a tre doghe stondate (_lastra), quella centrale un filo
+##    piu' bassa: la conca di chi ci si siede;
+##  · schienale con la doga alta ARCUATA (_loft) e i bulloncini d'ottone
+##    dove le doghe incontrano i montanti;
+##  · piedini scuri, perche' il legno non tocchi mai la terra bagnata.
+## Ogni quota dello schienale si DERIVA dall'inclinazione dei montanti.
 static func _bench() -> Node3D:
 	var n := Node3D.new()
-	var wood := _mat(WOOD_PALE, WOOD, 3.5, 0.5)
-	var dark := _mat(WOOD, WOOD_DARK, 4.0, 0.55)
-	for x in [-0.36, 0.36]:
-		_box(n, Vector3(0.08, 0.42, 0.34), dark, Vector3(x, 0.21, 0))
-	_box(n, Vector3(0.95, 0.05, 0.17), wood, Vector3(0, 0.44, 0.09))
-	var seduta := _box(n, Vector3(0.95, 0.05, 0.17), wood, Vector3(0, 0.44, -0.1))
-	var incl := 0.15
-	var back_a := _box(n, Vector3(0.95, 0.14, 0.04), wood, Vector3(0, 0.62, -0.19))
-	var back_b := _box(n, Vector3(0.95, 0.14, 0.04), wood, Vector3(0, 0.8, -0.22))
-	back_a.rotation.x = incl
-	back_b.rotation.x = incl
-	# I MONTANTI: senza, lo schienale era un'isola sospesa — 8,3 cm d'aria fra
-	# la cima della seduta (0.465) e il bordo basso della doga bassa (0.548), e
-	# altri 3,6 cm fra le due doghe. Salgono dalla seduta, che attraversano per
-	# tutto lo spessore, fino a filo della doga alta. Pendenza, lunghezza e
-	# arretramento sono RICAVATI da doghe e seduta — non scelti a occhio: chi
-	# domani alza una doga o la porta più indietro se li ritrova ancora dietro.
-	var doga: Vector3 = (back_b.mesh as BoxMesh).size
-	var salita := back_b.position - back_a.position
-	var pendenza := atan2(salita.z, salita.y)
-	var spessore := 0.05
-	var cima := back_b.position.y + (doga.y * cos(incl) + doga.z * sin(incl)) * 0.5
-	var piede: float = seduta.position.y - (seduta.mesh as BoxMesh).size.y * 0.5
-	var mezzo := (cima + piede) * 0.5
-	var lungo := (cima - piede) / cos(pendenza)
-	# arretrati di mezzo spessore loro più mezzo di doga, meno un centimetro di
-	# morso: le doghe si appoggiano DAVANTI al montante invece di sbucargli
-	# fuori dalla faccia, che è quella su cui uno appoggia la schiena
-	var mont_z := back_a.position.z + (mezzo - back_a.position.y) * tan(pendenza) \
-			- (spessore + doga.z - 0.02) * 0.5 / cos(pendenza)
-	for mx: float in [-0.36, 0.36]:  # in asse con le gambe, che continuano
-		var montante := _box(n, Vector3(0.07, lungo, spessore), dark,
-				Vector3(mx, mezzo, mont_z))
-		montante.rotation.x = pendenza
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.55)
+	var chiaro := _mat(WOOD_PALE, WOOD, 3.5, 0.5)
+	var scuro := _mat(WOOD_DARK, Color("6d4f31"), 4.0, 0.45)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	var incl := 0.13
+	var y_sed := 0.44
+	# l'asse dei montanti dietro: VERTICALE fino al sedile, poi si corica.
+	# (Con la pendenza da terra la panchina sembrava cedere all'indietro:
+	# nelle panchine vere il ginocchio sta sotto il sedile.)
+	var zm := func(y: float) -> float: \
+			return -0.148 - maxf(y - y_sed, 0.0) * sin(incl)
+
+	for sx: float in [-1.0, 1.0]:
+		# la gamba davanti: tornita, col collarino e il piedino
+		BUILDER.lathe(n, [Vector2(0.001, 0.0), Vector2(0.030, 0.0),
+				Vector2(0.034, 0.010), Vector2(0.028, 0.024),
+				Vector2(0.025, 0.20), Vector2(0.028, 0.30),
+				Vector2(0.032, 0.36), Vector2(0.028, 0.40),
+				Vector2(0.024, y_sed), Vector2(0.001, y_sed)], legno,
+				Vector3(sx * 0.40, 0.0, 0.155))
+		# la gamba dietro: dritta fino al sedile...
+		BUILDER.lathe(n, [Vector2(0.001, 0.0), Vector2(0.030, 0.0),
+				Vector2(0.034, 0.010), Vector2(0.028, 0.024),
+				Vector2(0.026, 0.30), Vector2(0.025, y_sed + 0.02),
+				Vector2(0.001, y_sed + 0.02)], legno,
+				Vector3(sx * 0.40, 0.0, -0.148))
+		# ...e il montante che si reclina DA LI', col pomello tornito
+		var mont := BUILDER.lathe(n, [Vector2(0.001, 0.0), Vector2(0.025, 0.0),
+				Vector2(0.023, 0.18), Vector2(0.026, 0.26),
+				Vector2(0.028, 0.315), Vector2(0.023, 0.35),
+				Vector2(0.015, 0.372), Vector2(0.024, 0.386),
+				Vector2(0.0265, 0.40), Vector2(0.022, 0.416),
+				Vector2(0.012, 0.432), Vector2(0.001, 0.438)], legno,
+				Vector3(sx * 0.40, y_sed, -0.148))
+		mont.rotation.x = -incl
+		# IL BRACCIOLO a ricciolo: dal montante, sopra la gamba, e giu'
+		BUILDER.tube(n, [Vector3(sx * 0.40, 0.615, zm.call(0.615) + 0.02),
+				Vector3(sx * 0.40, 0.652, -0.02),
+				Vector3(sx * 0.40, 0.660, 0.075),
+				Vector3(sx * 0.40, 0.650, 0.150),
+				Vector3(sx * 0.40, 0.622, 0.196),
+				Vector3(sx * 0.40, 0.585, 0.203),
+				Vector3(sx * 0.40, 0.568, 0.178),
+				Vector3(sx * 0.40, 0.585, 0.158)],
+				[0.020, 0.021, 0.022, 0.022, 0.023, 0.024, 0.020, 0.016],
+				chiaro, 26, 10)
+		# i piedini scuri sotto le due gambe
+		_cyl(n, 0.036, 0.032, 0.014, scuro, Vector3(sx * 0.40, 0.007, 0.155))
+		_cyl(n, 0.036, 0.032, 0.014, scuro, Vector3(sx * 0.40, 0.007, -0.150))
+
+	# la traversa sotto il sedile, fra i due fianchi
+	_box(n, Vector3(0.80, 0.05, 0.045), legno, Vector3(0, 0.375, 0.02))
+
+	# ---- IL SEDILE: tre doghe stondate, la centrale un filo piu' bassa ----
+	for d in 3:
+		var dz := -0.13 + 0.13 * float(d)
+		var giu := 0.006 if d == 1 else 0.0
+		_lastra(n, 0.062, 0.94, 0.018, 0.034, chiaro,
+				Vector3(0, y_sed + 0.017 - giu, dz), Vector3(0, 0, PI * 0.5))
+
+	# ---- LO SCHIENALE: la doga alta arcuata, la bassa dritta, i bulloni ----
+	var y_alta := 0.745
+	var perno_a := Node3D.new()
+	perno_a.position = Vector3(0, y_alta, zm.call(y_alta) + 0.030)
+	perno_a.rotation.x = -incl
+	n.add_child(perno_a)
+	var staz: Array = []
+	for k in 7:
+		var fx := float(k) / 6.0 * 2.0 - 1.0
+		staz.append([fx * 0.435, 0.017,
+				-0.052 - 0.010 * cos(fx * 1.35), 0.052 + 0.026 * cos(fx * 1.35),
+				0.010])
+	_loft(perno_a, staz, chiaro)
+	var y_bassa := 0.585
+	var perno_b := Node3D.new()
+	perno_b.position = Vector3(0, y_bassa, zm.call(y_bassa) + 0.028)
+	perno_b.rotation.x = -incl
+	n.add_child(perno_b)
+	var staz2: Array = []
+	for k2 in 5:
+		var fx2 := float(k2) / 4.0 * 2.0 - 1.0
+		staz2.append([fx2 * 0.435, 0.015, -0.044, 0.044, 0.009])
+	_loft(perno_b, staz2, chiaro)
+	# i bulloncini d'ottone dove le doghe incontrano i montanti
+	for bx: float in [-1.0, 1.0]:
+		for quota: Array in [[y_alta, 0.050], [y_bassa, 0.046]]:
+			_ball(n, 0.0085, ottone, Vector3(bx * 0.40, float(quota[0]),
+					zm.call(float(quota[0])) + float(quota[1])),
+					Vector3(1, 1, 0.6))
 	return n
 
 
-# ================================================================ NEGOZIO
-# I pezzi che si comprano dal mercante (con le noccioline o le stelline).
-# Stessa mano pastello del resto del catalogo.
-
-# LA BANCARELLA DI MOCHI, seconda stesura: la prima aveva un TETTO al
-# posto del tendone. Ora la falda e' TELA che si insacca fra la traversa
-# e il filo davanti (le strisce sono _vetro_curvo con la stoffa al posto
-# del vetro, come la tenda del bar), con la MANTOVANA che pende sul
-# davanti e lo smerlo in punta. Sotto: piano chiaro col runner di stoffa
-# a righe e i lembi che pendono, tre alzatine tornite (i POSTI di
-# Bancarella.gd sono cablati a ±0.38, 0.94, 0.02: quota e posizioni
-# intatte), doghe sia sul fronte sia sul retro, specchiature sui
-# fianchi, e a terra la cassettina con le arance del mattino.
 static func _player_stall() -> Node3D:
 	var n := Node3D.new()
 	var pale := _mat(WOOD_PALE, WOOD, 3.0, 0.45)
