@@ -2803,9 +2803,8 @@ static func _mailbox() -> Node3D:
 	# "Flag" (bandierina: rotation.x 0 = alzata, -1.35 = giu'), "Letter"
 	# (la busta che fa capolino). Il fronte guarda verso -Z. Perni e assi
 	# NON si toccano: Mail.gd li anima con quei numeri.
-	# Il resto e' falegnameria: il palo tornito col collare e la SAETTA
-	# che regge la mensola (una cassetta non sta infilzata su un bastone:
-	# sta APPOGGIATA), il vassoio, il bordo chiaro dell'imboccatura, le
+	# Il resto e' falegnameria: il palo tornito col collare e la
+	# mensola col vassoio su cui la cassetta sta APPOGGIATA, il bordo chiaro dell'imboccatura, le
 	# fasce sul barile, le cerniere dello sportello e la boccola d'ottone
 	# della bandierina.
 	var n := Node3D.new()
@@ -2823,8 +2822,6 @@ static func _mailbox() -> Node3D:
 	# la mensola col vassoio, e la saetta che la regge
 	_box(n, Vector3(0.20, 0.022, 0.30), legno, Vector3(0, 0.836, 0.01))
 	_box(n, Vector3(0.27, 0.018, 0.37), chiaro, Vector3(0, 0.856, 0.01))
-	var saetta := _cyl(n, 0.014, 0.014, 0.26, legno, Vector3(0, 0.75, 0.09))
-	saetta.rotation.x = -0.78
 
 	# il corpo a barile, appoggiato sul vassoio
 	_box(n, Vector3(0.24, 0.2, 0.34), body, Vector3(0, 0.965, 0.01))
