@@ -44,6 +44,97 @@ func run(t) -> void:
 	_test_ancorata(t, cal, lastra)
 	_test_righe_dentro(t, cal, lastra)
 	_test_niente_sbordi(t, cal, lastra)
+	_test_dentro_la_cornice(t, cal, cat, lastra)
+
+
+## E IL GESSETTO STA DENTRO LA CORNICE, non davanti.
+##
+## `_test_ancorata` chiede solo che il piano scritto sia più avanti della
+## SUPERFICIE della lastra: un pavimento, senza soffitto. Con la Lavagna
+## rifatta — che ha una cornice in rilievo — il vecchio -0.045 portava la
+## Label3D 14 mm DAVANTI al legno: il testo si disegnava sopra il telaio
+## (niente lo occludeva più) e, girandoci intorno, l'intero blocco
+## scivolava di 22 mm rispetto all'ardesia a 45 gradi. In una piazza, dove
+## la lavagna la si guarda da ogni parte, si vede.
+##
+## Il soffitto non è un numero scritto qui: si MISURA sul pezzo vero. La
+## fascia di margine fra la larghezza utile e il bordo della lastra è
+## esattamente dove vive il montante della cornice; il punto più avanti
+## di quel che sta lì è il piano del legno.
+##
+## SI GUARDA SOLO CHI VIVE NEL PIANO DELLA LASTRA (i figli del perno che
+## ha la stessa inclinazione del quadro). Prima questa misura girava su
+## TUTTE le mesh del pezzo, e l'AABB dei montanti — che sono alti tutta
+## la lavagna — una volta ruotato di 0.05 rad dava uno z fittizio di
+## -0.072: un soffitto finto, dieci volte più avanti del vero, sotto cui
+## qualunque valore passava. La guardia era verde e non guardava niente.
+func _test_dentro_la_cornice(t, cal: GDScript, cat: GDScript, lastra: Dictionary) -> void:
+	var nodo := _costruisci(cat, "Lavagna")
+	t.ok(nodo != null, "la Lavagna si costruisce per misurarne la cornice")
+	if nodo == null:
+		return
+	var centro: Vector3 = lastra["centro"]
+	var pend: float = lastra["pend"]
+	var meta_l: float = float(cal.ARDESIA_L) * 0.5
+	var meta_lastra: float = float(lastra["l"]) * 0.5
+	var alto: float = float(cal.ARDESIA_ALTA) - centro.y
+	var basso: float = float(cal.ARDESIA_BASSA) - centro.y
+	# il perno del telaio: stesso centro e stessa inclinazione del quadro
+	var telaio: Node3D = null
+	for figlio in nodo.get_children():
+		var nd := figlio as Node3D
+		if nd == null or nd is MeshInstance3D:
+			continue
+		if absf(nd.rotation.x - pend) < 1e-4 and nd.position.distance_to(centro) < 1e-4:
+			telaio = nd
+			break
+	t.ok(telaio != null, "la cornice vive nel piano della lastra (stesso perno)")
+	if telaio == null:
+		nodo.free()
+		return
+	var davanti := 9.0
+	for mi in telaio.find_children("*", "MeshInstance3D", true, false):
+		var t_rel := _relativa(telaio, mi)
+		var ab: AABB = (mi as MeshInstance3D).mesh.get_aabb()
+		var mn := Vector3(9, 9, 9)
+		var mx := Vector3(-9, -9, -9)
+		for k in 8:
+			var q: Vector3 = t_rel * ab.get_endpoint(k)
+			mn = mn.min(q)
+			mx = mx.max(q)
+		# tocca la fascia di margine di fianco alla scrittura?
+		var di_lato: bool = mx.x > meta_l and mn.x < meta_lastra
+		var di_lato2: bool = mn.x < -meta_l and mx.x > -meta_lastra
+		if (di_lato or di_lato2) and mx.y > basso and mn.y < alto:
+			davanti = minf(davanti, mn.z)
+	nodo.free()
+	t.ok(davanti < 9.0, "c'è del legno di fianco alla scrittura da cui misurare")
+	if davanti >= 9.0:
+		return
+	t.ok(float(cal.ARDESIA_FUORI) >= davanti,
+			"il gessetto non passa DAVANTI alla cornice (%.4f ≥ %.4f)"
+			% [float(cal.ARDESIA_FUORI), davanti])
+	t.ok(float(cal.ARDESIA_FUORI) < -float(lastra.get("sp", 0.045)) * 0.5 - 0.002,
+			"…e resta comunque davanti alla lastra e alla sua velatura")
+
+
+## Il pezzo del catalogo, costruito davvero.
+func _costruisci(cat: GDScript, nome: String) -> Node3D:
+	for it in cat.items():
+		if str((it as Dictionary).get("name", "")) == nome:
+			return ((it as Dictionary)["builder"] as Callable).call()
+	return null
+
+
+## La trasformazione di una mesh rispetto alla radice del pezzo, senza
+## bisogno di appenderlo all'albero della scena.
+func _relativa(root: Node, n: Node) -> Transform3D:
+	var t := Transform3D.IDENTITY
+	var c := n
+	while c != null and c != root:
+		t = (c as Node3D).transform * t
+		c = c.get_parent()
+	return t
 
 
 ## Costruisce la Lavagna VERA e ne estrae la lastra: centro, larghezza,

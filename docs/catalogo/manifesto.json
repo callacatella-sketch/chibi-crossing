@@ -560,7 +560,7 @@
   {
     "alto": 0.75,
     "cartella": "docs/catalogo/2-giardino/cuccia/",
-    "cat": 2.0,
+    "cat": 2,
     "largo": 0.75,
     "nome": "Cuccia",
     "slug": "cuccia",
@@ -623,7 +623,7 @@
   {
     "alto": 1.7,
     "cartella": "docs/catalogo/2-giardino/lavagna/",
-    "cat": 2,
+    "cat": 2.0,
     "largo": 1.07,
     "nome": "Lavagna",
     "slug": "lavagna",

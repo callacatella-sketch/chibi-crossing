@@ -86,7 +86,10 @@ static func items() -> Array[Dictionary]:
 		{"name": "Sgabello", "cat": 1, "type": "cell", "layer": 2, "builder": _stool,
 			"cols": [[Vector3(0.4, 0.5, 0.4), Vector3(0, 0.25, 0)]]},
 		{"name": "Letto", "cat": 1, "type": "cell", "layer": 2, "builder": _bed,
-			"cols": [[Vector3(0.92, 0.55, 0.98), Vector3(0, 0.27, 0)]]},
+			# due scatole: il letto, e la TESTIERA — che arriva a 0.77, e
+			# con la sola prima (alta 0.55) la si attraversava a piedi
+			"cols": [[Vector3(0.96, 0.55, 0.98), Vector3(0, 0.27, 0)],
+					[Vector3(0.96, 0.34, 0.10), Vector3(0, 0.55, 0.445)]]},
 		{"name": "Libreria", "cat": 1, "type": "cell", "layer": 2, "builder": _bookshelf,
 			"cols": [[Vector3(0.9, 1.55, 0.32), Vector3(0, 0.77, 0)]]},
 		{"name": "Comodino", "cat": 1, "type": "cell", "layer": 2, "builder": _nightstand,
@@ -362,7 +365,7 @@ static func items() -> Array[Dictionary]:
 			"builder": _faro_caserma,
 			"cols": [[Vector3(0.34, 1.62, 0.34), Vector3(0, 0.81, 0)]]},
 		{"name": "Cuccia", "cat": 2, "type": "cell", "layer": 2, "builder": _cuccia_caserma,
-			"cols": [[Vector3(0.66, 0.72, 0.60), Vector3(0, 0.36, 0)]]},
+			"cols": [[Vector3(0.76, 0.78, 0.74), Vector3(0, 0.39, 0.02)]]},
 		{"name": "Pennone", "cat": 2, "type": "cell", "layer": 2,
 			"builder": _pennone_caserma,
 			"cols": [[Vector3(0.12, 2.0, 0.12), Vector3(0, 1.0, 0)]]},
@@ -1511,8 +1514,11 @@ static func _bed() -> Node3D:
 	# sdraiati, visti di profilo, leggevano come asciugamani piegati.
 	for i in 2:
 		var cus := Node3D.new()
+		# la quota z si RICAVA dalla testiera, che finisce a 0.470: a 0.335
+		# i guanciali arrivavano a 0.5025 e sbucavano 3,2 cm DIETRO il
+		# letto — invisibile di fronte, evidente girandoci intorno
 		cus.position = Vector3(-0.18 + 0.36 * float(i), y_mat + 0.155,
-				0.335 + 0.012 * float(i))
+				0.276 + 0.012 * float(i))
 		cus.rotation.x = 0.55 + 0.05 * float(i)
 		cus.rotation.y = (0.10 if i == 0 else -0.07)
 		cus.rotation.z = (-0.05 if i == 0 else 0.06)
@@ -2360,9 +2366,22 @@ static func _blackboard() -> Node3D:
 	var scuro := _mat(WOOD_DARK, Color("6d4f31"), 4.0, 0.45)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
 
-	var y_cima := 1.545                       # dove appoggia la gronda
+	var y_cima := 1.545                       # dove appoggia la GRONDA
+	var y_colmo := 1.672
 	var x_mont := 0.492
 	var z_piano := 0.06
+	# L'INTRADOSSO DEL TETTO, ricavato: la falda e' spessa 0.014 misurati
+	# perpendicolarmente, che in verticale diventano 0.014/cos(pendenza).
+	var pend_f := (y_colmo - y_cima) / 0.24
+	var sp_vert := 0.014 / cos(atan(pend_f))
+	var y_intra := func(d: float) -> float: return y_colmo - pend_f * d - sp_vert
+	# LA TRAPPOLA CHE HA FATTO GALLEGGIARE IL TETTO: `y_cima` e' una quota
+	# di MONDO (l'altezza della gronda), ma il tornio del montante e'
+	# posato a y=0.045 e il suo profilo e' LOCALE. Chiudendolo a y_cima la
+	# cima usciva a 1.590 mentre sopra di lei — sul filo del colmo, dove
+	# il tetto e' piu' alto — l'intradosso sta a 1.656: 66 mm d'aria, e
+	# nel profilo si vedeva il cielo fra il montante e il tetto.
+	var y_asta: float = y_intra.call(0.0) - 0.045 + 0.004
 
 	for sx: float in [-1.0, 1.0]:
 		# ---- IL PATTINO: il piede corre in Z, ed e' lui a dare profondita' ----
@@ -2382,8 +2401,8 @@ static func _blackboard() -> Node3D:
 				Vector2(0.031, 0.30), Vector2(0.0325, 0.62),
 				Vector2(0.030, 0.98), Vector2(0.0335, 1.20),
 				Vector2(0.036, 1.26), Vector2(0.030, 1.31),
-				Vector2(0.029, 1.46), Vector2(0.034, 1.50),
-				Vector2(0.032, y_cima), Vector2(0.001, y_cima)], legno,
+				Vector2(0.029, y_asta - 0.155), Vector2(0.034, y_asta - 0.115),
+				Vector2(0.032, y_asta), Vector2(0.001, y_asta)], legno,
 				Vector3(sx * x_mont, 0.045, z_piano))
 		# le mensole curve che portano le falde: una davanti e una dietro
 		# (con la sola davanti, la falda posteriore non poggiava su niente)
@@ -2392,7 +2411,8 @@ static func _blackboard() -> Node3D:
 					Vector3(sx * x_mont, 1.395, z_piano + verso_m * 0.070),
 					Vector3(sx * x_mont, 1.455, z_piano + verso_m * 0.130),
 					Vector3(sx * x_mont, 1.500, z_piano + verso_m * 0.188),
-					Vector3(sx * x_mont, 1.528, z_piano + verso_m * 0.220)],
+					Vector3(sx * x_mont, y_intra.call(0.220) + 0.002,
+							z_piano + verso_m * 0.220)],
 					[0.017, 0.016, 0.015, 0.014, 0.012], legno, 20, 8)
 
 	# la traversa tornita fra i due montanti, in basso
@@ -2416,8 +2436,8 @@ static func _blackboard() -> Node3D:
 	# la velatura di gesso: mezzo secolo di parole cancellate male
 	# (la posa e' (x, y, z): la prima stesura metteva -0.0245 sulla X e
 	# lasciava z a zero — la velatura finiva DENTRO la lastra, invisibile)
-	_lastra(telaio, 0.452, 0.955, 0.14, 0.004,
-			_mat(Color("44514a"), Color("3a473f"), 6.0, 0.3),
+	_lastra(telaio, 0.448, 0.945, 0.20, 0.004,
+			_mat(Color("415049"), Color("38463f"), 6.0, 0.3),
 			Vector3(0, -0.015, -0.0245), Vector3(0, PI * 0.5, 0))
 	for oriz: float in [-1.0, 1.0]:
 		var st: Array = []
@@ -2444,6 +2464,14 @@ static func _blackboard() -> Node3D:
 	# fienile.
 	_lastra(telaio, 0.470, 1.020, 0.020, 0.010, legno,
 			Vector3(0, 0, 0.0285), Vector3(0, PI * 0.5, 0))
+	# LE FUGHE fra le tavole: senza, il retro e' un foglio liscio.
+	# (Nel _loft la stazione e' [x, MEZZA-PROFONDITA-IN-Z, y0, y1, r]:
+	# scambiando i due campi la fuga si estendeva 47 cm in Z e portava
+	# l'ingombro del pezzo da 0.52 a 0.94 di profondita'.)
+	for fuga: float in [-1.0, 0.0, 1.0]:
+		_loft(telaio, [[-0.006, 0.004, -0.470, 0.470, 0.003],
+				[0.006, 0.004, -0.470, 0.470, 0.003]], scuro,
+				Vector3(fuga * 0.235, 0, 0.0345))
 	for ledger: float in [-1.0, 1.0]:
 		_loft(telaio, [[-0.452, 0.009, -0.030, 0.030, 0.008],
 				[0.452, 0.009, -0.030, 0.030, 0.008]], scuro,
@@ -2463,7 +2491,6 @@ static func _blackboard() -> Node3D:
 					Vector3(bx * 0.4505, by * 0.532, -0.030), Vector3(1, 1, 0.55))
 
 	# ---- IL TETTUCCIO a due falde, con le assi e il colmo ----
-	var y_colmo := 1.672
 	for verso: float in [-1.0, 1.0]:
 		var z_gronda := z_piano + verso * 0.24
 		var perno_f := Node3D.new()
@@ -2476,7 +2503,7 @@ static func _blackboard() -> Node3D:
 				[0.508, mezzo_f, -0.014, 0.014, 0.010]], legno)
 		# i due correnti scuri: solo sulla faccia di FUORI
 		for corso: float in [-0.42, 0.28]:
-			_box(perno_f, Vector3(0.99, 0.010, 0.014), scuro,
+			_box(perno_f, Vector3(1.016, 0.010, 0.014), scuro,
 					Vector3(0, 0.016, corso * mezzo_f))
 		# la testata della falda, chiara: e' il taglio dell'asse
 		_loft(perno_f, [[-0.516, mezzo_f, -0.015, 0.015, 0.011],
@@ -2497,34 +2524,39 @@ static func _blackboard() -> Node3D:
 	_loft(n, [[-0.452, 0.078, -0.012, 0.012, 0.009],
 			[0.452, 0.078, -0.012, 0.012, 0.009]], chiaro,
 			Vector3(0, y_vas, z_piano - 0.052))
-	_loft(n, [[-0.452, 0.010, -0.010, 0.032, 0.008],
-			[0.452, 0.010, -0.010, 0.032, 0.008]], chiaro,
-			Vector3(0, y_vas + 0.014, z_piano - 0.122))
+	# LA SPONDA sta piu' BASSA dei gessetti, o li nasconde: arrivava a
+	# 0.444 mentre il gesso in mezzo al canale finisce a 0.432, e di
+	# fronte non si vedeva niente di quello che c'e' dentro.
+	_loft(n, [[-0.452, 0.010, -0.014, 0.022, 0.008],
+			[0.452, 0.010, -0.014, 0.022, 0.008]], chiaro,
+			Vector3(0, y_vas + 0.008, z_piano - 0.122))
 	for lato: float in [-1.0, 1.0]:
-		_loft(n, [[-0.010, 0.078, -0.010, 0.032, 0.009],
-				[0.010, 0.078, -0.010, 0.032, 0.009]], chiaro,
-				Vector3(lato * 0.452, y_vas + 0.014, z_piano - 0.052))
+		_loft(n, [[-0.010, 0.078, -0.014, 0.022, 0.009],
+				[0.010, 0.078, -0.014, 0.022, 0.009]], chiaro,
+				Vector3(lato * 0.452, y_vas + 0.008, z_piano - 0.052))
 	# IL CUORE INTAGLIATO, come sulla testiera del letto e sulla stecca
 	# della sedia: e' lo stesso falegname, ed e' la stessa casa. Sta sulla
 	# fronte del canale — sulla traversa alta della cornice finiva
 	# NELL'OMBRA della gronda, e un segno che non si vede non e' un segno.
 	var buio_c := _mat(Color("5a4028"), Color("42301d"), 4.0, 0.35)
+	# (sta DENTRO la fronte della sponda, che va da y_vas-0.006 a
+	# y_vas+0.030: piu' grande, sbucava sotto il legno)
 	for lobo: float in [-1.0, 1.0]:
-		_ball(n, 0.0105, buio_c,
-				Vector3(lobo * 0.0076, y_vas + 0.022, z_piano - 0.131),
+		_ball(n, 0.0088, buio_c,
+				Vector3(lobo * 0.0064, y_vas + 0.0185, z_piano - 0.131),
 				Vector3(1, 1, 0.35))
-	var punta_c := _box(n, Vector3(0.019, 0.019, 0.007), buio_c,
-			Vector3(0, y_vas + 0.008, z_piano - 0.131))
+	var punta_c := _box(n, Vector3(0.0155, 0.0155, 0.007), buio_c,
+			Vector3(0, y_vas + 0.0075, z_piano - 0.131))
 	punta_c.rotation.z = PI * 0.25
 
 	var gesso_b := _mat(Color("fff8ee"), Color("efe6da"), 6.0, 0.3)
 	var gesso_r := _mat(Color("f4c2cf"), Color("e8aebe"), 6.0, 0.3)
 	var g1 := _cyl(n, 0.011, 0.011, 0.10, gesso_b,
-			Vector3(-0.20, y_vas + 0.023, z_piano - 0.062))
+			Vector3(-0.20, y_vas + 0.026, z_piano - 0.062))
 	g1.rotation.z = PI * 0.5
 	g1.rotation.y = 0.14
 	var g2 := _cyl(n, 0.011, 0.010, 0.068, gesso_r,
-			Vector3(0.10, y_vas + 0.023, z_piano - 0.078))
+			Vector3(0.10, y_vas + 0.026, z_piano - 0.078))
 	g2.rotation.z = PI * 0.5
 	g2.rotation.y = -0.22
 	# la spugna, col fianco impolverato di gesso
@@ -2540,7 +2572,7 @@ static func _blackboard() -> Node3D:
 	BUILDER.tube(n, [Vector3(x_mont + 0.034, 1.150, z_piano),
 			Vector3(x_mont + 0.048, 1.100, z_piano - 0.012),
 			Vector3(x_mont + 0.046, 1.048, z_piano - 0.020),
-			Vector3(x_mont + 0.038, 1.010, z_piano - 0.024)],
+			Vector3(x_mont + 0.038, 0.998, z_piano - 0.024)],
 			[0.0035, 0.0035, 0.0035, 0.0035], scuro, 16, 6)
 	var g3 := _cyl(n, 0.010, 0.010, 0.072, gesso_b,
 			Vector3(x_mont + 0.038, 0.972, z_piano - 0.024))
@@ -3310,6 +3342,15 @@ static func _bench() -> Node3D:
 			_ball(n, 0.0085, ottone, Vector3(bx * 0.40, float(quota[0]),
 					zm.call(float(quota[0])) + float(quota[1])),
 					Vector3(1, 1, 0.6))
+	# DOVE SI STA, dichiarato dal MOBILE. Visitor teneva due costanti
+	# scritte a mano — la seduta (0, 0.52, 0.02) e il posatoio del
+	# passerotto (0, 0.86, -0.18) — tarate sulla panchina VECCHIA. Con la
+	# doga alta rifatta, che finisce a 0.8245, il passerotto si sarebbe
+	# appollaiato 3,5 cm sopra il legno e 2 cm dietro: appeso al vento.
+	# Il numero adesso vive dove vive la forma, e chi rifa' la panchina lo
+	# rifa' con lei.
+	n.set_meta("seduta", Vector3(0, y_sed + 0.089, 0.02))
+	n.set_meta("posatoio", Vector3(0, 0.8105, -0.159))
 	return n
 
 
