@@ -180,7 +180,12 @@ static func items() -> Array[Dictionary]:
 			"cols": [[Vector3(0.78, 1.7, 0.34), Vector3(0, 0.85, -0.06)]]},
 		{"name": "Fontanella", "cat": 3, "type": "cell", "layer": 2,
 			"builder": BuildPalestra.fontanella,
-			"cols": [[Vector3(0.72, 0.95, 0.62), Vector3(0, 0.48, 0.02)]]},
+			# due scatole, ricavate dall'ingombro MISURATO (x +-0.35,
+			# y 0..1.024, z -0.562..0.323): la botte sullo zoccolo, e la
+			# conca che sporge sul davanti a 62 cm — dentro cui non si
+			# deve poter camminare
+			"cols": [[Vector3(0.70, 1.04, 0.62), Vector3(0, 0.52, 0.02)],
+					[Vector3(0.40, 0.22, 0.30), Vector3(0, 0.62, -0.42)]]},
 		# LE TRE RASTRELLIERE. Stesso mobile, contenuto diverso — e messe
 		# in fila si UNISCONO in una scaffalatura sola, anche fra varianti
 		# diverse: quello che cambia e' cosa ci si posa sopra.
@@ -254,7 +259,10 @@ static func items() -> Array[Dictionary]:
 		{"name": "Lampione", "cat": 2, "type": "cell", "layer": 2, "builder": _streetlamp,
 			"cols": [[Vector3(0.22, 2.3, 0.22), Vector3(0, 1.15, 0)]]},
 		{"name": "Amaca", "cat": 1, "type": "cell", "layer": 2, "builder": _hammock,
-			"cols": [[Vector3(0.95, 0.95, 0.4), Vector3(0, 0.45, 0)]]},
+			# ricavata dall'ingombro MISURATO (x +-0.541, y 0..0.919,
+			# z +-0.274): la vecchia era 0.4 di profondita' e la tela le
+			# usciva da tutte e due le parti
+			"cols": [[Vector3(1.06, 0.94, 0.58), Vector3(0, 0.47, 0)]]},
 		{"name": "Altalena", "cat": 2, "type": "cell", "layer": 2, "builder": _swing,
 			"cols": [[Vector3(1.1, 1.65, 0.14), Vector3(0, 0.82, 0)],
 					[Vector3(0.14, 1.6, 0.74), Vector3(-0.48, 0.8, 0)],
@@ -1179,17 +1187,102 @@ static func _fence() -> Node3D:
 	return n
 
 
+## IL TETTO. Era una scatola arancione con tre listelli sopra, e il
+## commento diceva «lastra di coppi» — ma di coppi non ce n'era uno: e'
+## il caso di scuola della famiglia «la cosa sbagliata», un codice che
+## dichiara un'intenzione e non la consegna. E' anche il pezzo piu' visto
+## del gioco: sta sopra ogni casa del villaggio.
+##
+## Tre difetti veri, tutti misurati:
+##  1. SI MANGIAVA LA CORONA DEL MURO. La lastra occupava y 2.01-2.11, e
+##     la trave di colmo del Muro (2.00-2.08) col suo coprigiunto scuro
+##     (2.08-2.11) — i due piani sfalsati che sono il coronamento piu'
+##     curato del muro — ci finivano DENTRO. Posavi un tetto e la casa
+##     perdeva la sua cornice. Adesso il tavolato POGGIA a 2.11, sopra la
+##     trave, che torna a vedersi.
+##  2. IL RITMO NON SI AFFIANCAVA. I listelli stavano a z = -0.3 / 0.0 /
+##     +0.3 su un passo di cella di 1.0: attraversando il confine la
+##     sequenza diventava 0.3, 0.3, 0.4, 0.3, 0.3, 0.4 — l'unico ornamento
+##     del pezzo, spaziato male proprio nel pezzo il cui mestiere e'
+##     essere affiancato. Adesso TUTTI i passi dividono 1.0: i coppi
+##     stanno a x = ±0.5, ±0.3, ±0.1 (quelli sul confine si sovrappongono
+##     esatti col vicino e leggono come uno solo) e i corsi a passo 0.25.
+##  3. NON ERANO COPPI. Adesso lo sono: canali concavi e coppi convessi
+##     sopra i giunti, e ogni coppo e' UN loft che si ingrossa all'inizio
+##     di ogni corso e si assottiglia alla fine — e' quello scalino a
+##     fare i corsi, non una riga dipinta.
+##
+## RESTA FUORI la GRONDA vera (20-40 cm di sporto): un tetto e' modulare
+## e non puo' sapere da solo dov'e' il bordo del tetto, quindi lo sporto
+## va solo sui lati APERTI. Si fa come il Sentiero e la Serra —
+## `tetto_cella(vicini)` piu' un `rinfresca_tetti` in BuildSystem — ma
+## quel giro tocca anche la cache `_roofs` (la dissolvenza del tetto
+## tiene le mesh in un dizionario) e va fatto con calma.
 static func _roof_tile() -> Node3D:
-	# lastra di coppi: si affianca cella per cella sopra i muri (h 2.0)
 	var n := Node3D.new()
-	_box(n, Vector3(1.02, 0.1, 1.02), _mat(Color("d97e5f"), Color("c26847"), 3.0, 0.55), Vector3(0, 2.06, 0))
-	var ridge := _mat(Color("b55c3e"), Color("a34f34"), 2.0, 0.4)
-	for i in 3:
-		_box(n, Vector3(1.02, 0.035, 0.07), ridge, Vector3(0, 2.115, -0.3 + 0.3 * i))
+	var cotto := _mat(Color("d97e5f"), Color("c26847"), 3.0, 0.55)
+	var cotto_cupo := _mat(Color("c26847"), Color("a94f34"), 3.0, 0.5)
+	var cotto_vivo := _mat(Color("e08a68"), Color("cb7050"), 3.0, 0.55)
+	var legno_sotto := _mat(WOOD_DARK, Color("5c4028"), 4.0, 0.6)
+
+	# la corona del muro finisce a 2.110: il tavolato POGGIA li' sopra
+	var y_tav := 2.110
+	var y_coppi := y_tav + 0.030
+
+	# ---- IL TAVOLATO: quel che si vede da sotto, e il letto dei coppi ----
+	# 1.005 e non 1.0: due tavolati adiacenti si sovrappongono di 2 mm e
+	# la fuga non si vede. A 1.0 esatti la giuntura sfarfalla.
+	# NIENTE ROTAZIONE: la _lastra e' gia' spessa `sp` lungo X, larga 2w
+	# lungo Z e alta `h` lungo Y — cioe' gia' un pavimento. Ruotandola di
+	# PI/2 su Z lo spessore (1.005) finiva in verticale e il tavolato
+	# diventava un MURO che tagliava il tetto in due.
+	_lastra(n, 0.5025, 0.030, 0.010, 1.005, legno_sotto,
+			Vector3(0, y_tav + 0.015, 0))
+
+	# ---- I CANALI (i concavi) e i COPPI (i convessi sopra i giunti) ----
+	# I passi DIVIDONO la cella: canali a ±0.4, ±0.2, 0 e coppi a ±0.5,
+	# ±0.3, ±0.1. Quelli a ±0.5 stanno sul confine e si sovrappongono
+	# esatti a quelli della cella accanto: da sopra e' un tetto solo.
+	var corsi := 4
+	var passo := 1.0 / float(corsi)
+
+	# le stazioni di UN coppo lungo la falda: si ingrossa all'inizio di
+	# ogni corso e si assottiglia alla fine — e' lo scalino a fare i corsi
+	var stazioni_coppo := func(w: float, alto: float, basso: float,
+			raggio: float) -> Array:
+		var st: Array = []
+		for c in corsi:
+			var z0 := -0.5 + passo * float(c)
+			st.append([z0, w, -0.008, alto, raggio])
+			st.append([z0 + 0.018, w, -0.008, alto * 0.96, raggio])
+			st.append([z0 + passo - 0.002, w, -0.008, basso, raggio * 0.9])
+		return st
+
+	# i canali: bassi e piu' cupi, e' l'ombra in fondo al canale
+	for cx: float in [-0.4, -0.2, 0.0, 0.2, 0.4]:
+		var perno := Node3D.new()
+		perno.position = Vector3(cx, y_coppi, 0)
+		perno.rotation.y = PI * 0.5
+		n.add_child(perno)
+		_loft(perno, stazioni_coppo.call(0.086, 0.020, 0.014, 0.016),
+				cotto_cupo)
+	# i coppi: alti e tondi, uno ogni due, e uno stinto ogni tanto —
+	# nessun tetto ha tutte le tegole dello stesso colore
+	var tinte := [cotto, cotto_vivo, cotto, cotto, cotto_vivo, cotto]
+	var i_coppo := 0
+	for cx2: float in [-0.5, -0.3, -0.1, 0.1, 0.3, 0.5]:
+		var perno2 := Node3D.new()
+		perno2.position = Vector3(cx2, y_coppi, 0)
+		perno2.rotation.y = PI * 0.5
+		n.add_child(perno2)
+		_loft(perno2, stazioni_coppo.call(0.062, 0.058, 0.044, 0.052),
+				tinte[i_coppo])
+		i_coppo += 1
+
 	# la pioggia si ferma sulle tegole: dentro casa non piove
 	var pcol := GPUParticlesCollisionBox3D.new()
-	pcol.size = Vector3(1.04, 0.14, 1.04)
-	pcol.position = Vector3(0, 2.06, 0)
+	pcol.size = Vector3(1.04, 0.13, 1.04)
+	pcol.position = Vector3(0, y_tav + 0.065, 0)
 	n.add_child(pcol)
 	return n
 
@@ -4996,82 +5089,132 @@ static func _streetlamp() -> Node3D:
 	return n
 
 
+## L'AMACA, terza vita. La prima erano nove doghe rigide col vuoto in
+## mezzo (un ponte tibetano in miniatura); la seconda — quella che
+## sostituisce — era TELA, ma tela PIATTA: tredici scatole affiancate
+## lungo una catenaria, larghe uguali da un capo all'altro, tenute aperte
+## da due bilancini di legno. Cioe' una BRANDINA appesa, non un'amaca:
+## una barella da campo tesa fra due pali.
+##
+## Un'amaca vera fa due cose che quella non faceva, e sono le uniche due
+## che contano:
+##  1. SI STRIZZA AI CAPI. La tela non finisce dritta: si raccoglie fino
+##     a quasi niente e da li' parte la ZAMPA DI CORDE che converge
+##     nell'anello. E' quella pinzatura la firma dell'amaca — via i
+##     bilancini, che sono di un'altra cosa (l'amaca da giardino
+##     americana, che infatti sembra una barella).
+##  2. FA LA CULLA. La sezione trasversale non e' piatta: i bordi si
+##     alzano e il centro affonda, e affonda di piu' dove ci sta il peso.
+## Perciò la tela adesso e' una SUPERFICIE parametrica (_mesh_griglia):
+##  · larghezza(u) = W · sin(pi·u)^0.62  → piena in mezzo, zero ai capi;
+##  · quota(u) = catenaria, ma spostata verso il cuscino: chi ci dorme
+##    sta piu' vicino a un capo, e l'amaca lo sa;
+##  · culla(v) = i bordi salgono con v², in proporzione alla larghezza —
+##    dove la tela e' strizzata non c'e' culla, e' un cordone.
+## Le righe restano righe perche' ogni fascia e' la SUA griglia: adiacenti
+## condividono i bordi, quindi da lontano e' una curva sola.
 static func _hammock() -> Node3D:
-	# L'AMACA. Prima il letto era nove doghe rigide col vuoto in mezzo: un
-	# ponte tibetano in miniatura, non un'amaca. Un'amaca vera è TELA: qui
-	# la catenaria è fatta di segmenti che si TOCCANO, ruotati ognuno sulla
-	# tangente della curva — le righe rosa e crema sono la stoffa, e l'orlo
-	# di corda corre sui due fili del letto. Ai capi, la grammatica
-	# dell'amaca da giardino: il bilancino di legno che tiene aperta la
-	# tela, il ventaglio di cordini che si raccoglie nell'anello d'ottone,
-	# e la fune che va ad annodarsi al palo sotto la fasciatura. I pali
-	# hanno il pomolo in cima e il manicotto scuro alla base; sul letto,
-	# il cuscino e la copertina piegata — qualcuno si è appena alzato.
 	var n := Node3D.new()
 	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
 	var scuro := _mat(WOOD_DARK, WOOD_DARK.darkened(0.15), 3.5, 0.45)
-	var chiaro := _mat(WOOD_PALE, WOOD, 3.5, 0.5)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
-	# i numeri dei pali servono anche alle funi (dove si annoda una corda):
-	# stanno scritti una volta sola
+	var corda := _mat(Color("c9b088"), Color("ab9066"), 5.0, 0.5)
+	var a_mat := _mat(PINK, PINK_DEEP, 5.0, 0.4)
+	var b_mat := _mat(CREAM, Color("f3dfc8"), 5.0, 0.4)
+
+	# i numeri dei pali servono anche alle funi: stanno scritti una volta
 	var palo_x := 0.42
 	var palo_y := 0.45
 	var palo_h := 0.9
 	var incl := 0.12
-	for x: float in [-palo_x, palo_x]:
-		var post := _cyl(n, 0.04, 0.06, palo_h, wood, Vector3(x, palo_y, 0))
-		post.rotation.z = -signf(x) * incl
-	# l'asse del palo DESTRO alla quota y e la sua faccia interna: il palo è
-	# inclinato e rastremato, quindi tutti e due si spostano salendo (il palo
-	# sinistro è speculare)
 	var asse := func(y: float) -> float:
 		return palo_x + sin(incl) * (y - palo_y) / cos(incl)
 	var faccia := func(y: float) -> float:
 		var h: float = (y - palo_y) / cos(incl)
-		return float(asse.call(y)) 				- lerpf(0.06, 0.04, h / palo_h + 0.5) / cos(incl)
-	# il pomolo in cima e il manicotto alla base: un palo finito, non un
-	# tubo piantato nel prato
-	var cima_y := palo_y + cos(incl) * palo_h * 0.5
+		return float(asse.call(y)) - lerpf(0.06, 0.04, h / palo_h + 0.5) / cos(incl)
+	# ---- I PALI: torniti, col pomolo e il manicotto alla base ----
 	for lato: float in [-1.0, 1.0]:
-		_ball(n, 0.055, wood, Vector3(lato * float(asse.call(cima_y)), cima_y + 0.015, 0),
-				Vector3(1, 0.82, 1))
-		var manicotto := _cyl(n, 0.072, 0.085, 0.09, scuro,
-				Vector3(lato * float(asse.call(0.045)), 0.045, 0))
+		# LA CIMA E' PIATTA, col capitello che si allarga: il profilo
+		# tornito col bulbo e la punta tonda, a questa scala, non
+		# leggeva affatto come un palo.
+		var post := BUILDER.lathe(n, [Vector2(0.001, 0.0), Vector2(0.062, 0.0),
+				Vector2(0.066, 0.018), Vector2(0.058, 0.050),
+				Vector2(0.051, 0.34), Vector2(0.046, 0.74),
+				Vector2(0.048, 0.83), Vector2(0.058, 0.858),
+				Vector2(0.060, 0.884), Vector2(0.052, 0.906),
+				Vector2(0.044, 0.916), Vector2(0.001, 0.918)], wood,
+				Vector3(lato * (palo_x - sin(incl) * palo_y / cos(incl)), 0.0, 0))
+		post.rotation.z = -lato * incl
+		var manicotto := _cyl(n, 0.074, 0.088, 0.085, scuro,
+				Vector3(lato * float(asse.call(0.042)), 0.042, 0))
 		manicotto.rotation.z = -lato * incl
 
-	# ---- LA TELA: tredici segmenti che si toccano lungo la catenaria,
-	# ognuno ruotato sulla tangente — da lontano è una curva sola
-	var a := _mat(PINK, PINK_DEEP, 5.0, 0.4)
-	var b := _mat(CREAM, Color("f3dfc8"), 5.0, 0.4)
-	var corda := _mat(Color("c9b088"), Color("ab9066"), 5.0, 0.5)
-	var quota := 0.46
-	var mezza := 0.26
-	var dip := 0.15
-	var punti: Array[Vector3] = []
-	for i in 14:
-		var t := float(i) / 13.0
-		punti.append(Vector3(-mezza + t * mezza * 2.0, quota - dip * sin(PI * t), 0))
-	for i in 13:
-		var da := punti[i]
-		var fino := punti[i + 1]
-		var seg := _box(n, Vector3(da.distance_to(fino) * 1.06, 0.016, 0.36),
-				a if i % 2 == 0 else b, (da + fino) * 0.5)
-		seg.rotation.z = atan2(fino.y - da.y, fino.x - da.x)
-	# l'orlo di corda sui due fili del letto
+	# ---- LA TELA: una superficie, non una fila di assi ----
+	var quota := 0.47
+	var mezza := 0.295
+	var dip := 0.128
+	var largh := 0.265           # mezza larghezza in mezzo alla tela
+	var culla := 0.048           # di quanto si alzano i bordi
+	var sbilancio := -0.06       # dove affonda di piu': dalla parte del cuscino
+	# la quota della tela lungo la lunghezza (u da 0 a 1)
+	var y_tela := func(u: float) -> float:
+		var s := sin(PI * u)
+		# la catenaria, piu' un affondo asimmetrico verso il cuscino
+		return quota - dip * s - 0.035 * s * s * cos(PI * (u - 0.5) + sbilancio)
+	var w_tela := func(u: float) -> float:
+		return largh * pow(sin(PI * u), 0.55)
+	# la superficie, a fasce: ognuna la sua griglia, cosi' le righe restano
+	var fasce := 11
+	var nv := 9
+	for f in fasce:
+		var vg: Array = []
+		var passi := 3
+		for i in passi + 1:
+			var u: float = (float(f) + float(i) / float(passi)) / float(fasce)
+			var w: float = w_tela.call(u)
+			var yc: float = y_tela.call(u)
+			var riga := PackedVector3Array()
+			for j in nv:
+				var v := -1.0 + 2.0 * float(j) / float(nv - 1)
+				# la culla e' proporzionale alla larghezza: dove la tela e'
+				# strizzata non c'e' culla, c'e' un cordone
+				var su := culla * v * v * (w / largh)
+				riga.append(Vector3(-mezza + u * mezza * 2.0, yc + su, v * w))
+			vg.append(riga)
+		_mesh_griglia(n, vg, a_mat if f % 2 == 0 else b_mat, Vector3.ZERO, false, true)
+	# l'orlo di corda che corre sui due fili della tela
 	for fz: float in [-1.0, 1.0]:
-		for i in 13:
-			_fune(n, punti[i] + Vector3(0, 0.010, fz * 0.175),
-					punti[i + 1] + Vector3(0, 0.010, fz * 0.175), 0.011, corda)
+		var orlo := PackedVector3Array()
+		for i in 25:
+			var u := float(i) / 24.0
+			var w: float = w_tela.call(u)
+			orlo.append(Vector3(-mezza + u * mezza * 2.0,
+					float(y_tela.call(u)) + culla * (w / largh) + 0.004, fz * w))
+		BUILDER.tube(n, orlo, _raggi_uguali(orlo.size(), 0.009), corda, 26, 6)
 
-	# ---- I CAPI: bilancino, ventaglio, anello, fune e fasciatura
-	var nodo_y := 0.56
+	# ---- I CAPI: la zampa di corde, l'anello, la fune al palo ----
+	var nodo_y := 0.60
 	for lato: float in [-1.0, 1.0]:
-		var capo := Vector3(lato * (mezza + 0.012), quota + 0.004, 0)
-		var bar := _cyl(n, 0.016, 0.016, 0.42, chiaro, capo)
-		bar.rotation.x = PI * 0.5
-		var anello_p := Vector3(lato * 0.335, 0.492, 0)
-		for fz: float in [-0.19, -0.095, 0.0, 0.095, 0.19]:
-			_fune(n, capo + Vector3(0, 0, fz), anello_p, 0.007, corda)
+		# il capo strizzato della tela: la larghezza non e' zero, e' un
+		# cordoncino — si lega proprio li'
+		var u_capo: float = 0.008 if lato < 0.0 else 0.992
+		var x_capo := -mezza + u_capo * mezza * 2.0
+		var y_capo: float = y_tela.call(u_capo)
+		var w_capo: float = w_tela.call(u_capo)
+		# la legatura che raccoglie la tela
+		# la fascetta che raccoglie la tela: STRETTA. Larga quanto la tela
+		# (w_capo + 0.014) faceva due dischi color corda grossi come il
+		# letto, e ai capi dell'amaca c'erano due funghi.
+		var leg := _cyl(n, w_capo * 0.62 + 0.012, w_capo * 0.62 + 0.012, 0.042,
+				corda, Vector3(x_capo - lato * 0.012, y_capo + 0.004, 0))
+		leg.rotation.z = PI * 0.5
+		var anello_p := Vector3(lato * 0.335, 0.520, 0)
+		# il ventaglio: cinque cordini dal capo all'anello, che si aprono
+		# quel tanto che basta a far vedere il ventaglio
+		for fv: float in [-1.0, -0.5, 0.0, 0.5, 1.0]:
+			_fune(n, Vector3(x_capo + lato * 0.012,
+					y_capo + 0.006 + absf(fv) * 0.010, fv * (w_capo + 0.020)),
+					anello_p, 0.007, corda)
 		var anello := TorusMesh.new()
 		anello.inner_radius = 0.012
 		anello.outer_radius = 0.028
@@ -5083,31 +5226,41 @@ static func _hammock() -> Node3D:
 		ami.position = anello_p
 		ami.rotation.z = PI * 0.5
 		n.add_child(ami)
-		_fune(n, anello_p, Vector3(lato * float(faccia.call(nodo_y)), nodo_y, 0),
-				0.013, corda)
-		var fascia := _cyl(n, 0.058, 0.058, 0.055, corda,
+		# LA FUNE AL PALO E' VIVA: in questo gioco tutte le corde lo sono
+		# (vedi CordaFisica/CordeVive). Prima era un cilindro dritto.
+		_corda_viva(n, anello_p,
+				Vector3(lato * float(faccia.call(nodo_y)), nodo_y, 0),
+				1.04, 0.013, corda, 0.7, 8, 6)
+		var fascia := _cyl(n, 0.060, 0.060, 0.055, corda,
 				Vector3(lato * float(asse.call(nodo_y)), nodo_y, 0))
 		fascia.rotation.z = -lato * incl
 
-	# ---- il cuscino e la copertina: la vita sopra la tela
-	var quota_su := func(x: float) -> float:
-		var t := (x + mezza) / (mezza * 2.0)
-		return quota - dip * sin(PI * t)
-	var pendenza := func(x: float) -> float:
-		var t := (x + mezza) / (mezza * 2.0)
-		return atan2(-dip * PI * cos(PI * t), mezza * 2.0)
-	var cuscino := _ball(n, 0.085, b,
-			Vector3(-0.12, float(quota_su.call(-0.12)) + 0.042, 0.0),
-			Vector3(1.0, 0.42, 0.75))
-	cuscino.rotation.z = float(pendenza.call(-0.12)) * 0.7
+	# ---- LA VITA SOPRA LA TELA: il cuscino nella culla, il plaid ----
+	var u_cus := 0.30
+	var x_cus := -mezza + u_cus * mezza * 2.0
+	var cuscino := _soffice(n, Vector3(0.17, 0.062, 0.135), b_mat,
+			Vector3(x_cus, float(y_tela.call(u_cus)) + 0.036, 0.0),
+			0.45, 0.62, [[0.0, 0.0, 0.055, 0.016]])
+	cuscino.rotation.z = 0.10
 	var rosa_cupo := _mat(PINK_DEEP, PINK_DEEP.darkened(0.2), 4.0, 0.4)
-	var coperta := _box(n, Vector3(0.18, 0.020, 0.26), rosa_cupo,
-			Vector3(0.11, float(quota_su.call(0.11)) + 0.020, 0.0))
-	coperta.rotation.z = float(pendenza.call(0.11)) * 0.85
-	var piega := _box(n, Vector3(0.18, 0.018, 0.17), rosa_cupo,
-			Vector3(0.115, float(quota_su.call(0.11)) + 0.038, -0.02))
-	piega.rotation.z = float(pendenza.call(0.11)) * 0.85
+	var u_cop := 0.68
+	var x_cop := -mezza + u_cop * mezza * 2.0
+	var y_cop: float = y_tela.call(u_cop)
+	for k in 2:
+		var falda := _soffice(n, Vector3(0.135 - 0.010 * float(k), 0.024,
+				0.160 - 0.012 * float(k)), rosa_cupo,
+				Vector3(x_cop, y_cop + 0.024 + 0.020 * float(k), 0.004), 0.35, 0.55)
+		falda.rotation.z = -0.08
 	return n
+
+
+## Un array di raggi tutti uguali, per BUILDER.tube (che li vuole punto
+## per punto). Piccolo, ma scritto una volta sola.
+static func _raggi_uguali(quanti: int, r: float) -> Array:
+	var out: Array = []
+	for i in quanti:
+		out.append(r)
+	return out
 
 
 static func _swing() -> Node3D:

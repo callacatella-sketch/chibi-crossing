@@ -30,7 +30,7 @@
 | **Staccionata**<br><sub>1.04 × 0.95 m</sub> | <img src="staccionata/1-fronte.jpg" width="200"> | <img src="staccionata/2-tre-quarti.jpg" width="200"> | <img src="staccionata/3-profilo.jpg" width="200"> |
 | **Tappeto**<br><sub>0.99 × 0.06 m</sub> | <img src="tappeto/1-fronte.jpg" width="200"> | <img src="tappeto/2-tre-quarti.jpg" width="200"> | <img src="tappeto/3-profilo.jpg" width="200"> |
 | **Tenda bar**<br><sub>0.98 × 0.47 m</sub> | <img src="tenda-bar/1-fronte.jpg" width="200"> | <img src="tenda-bar/2-tre-quarti.jpg" width="200"> | <img src="tenda-bar/3-profilo.jpg" width="200"> |
-| **Tetto**<br><sub>1.02 × 0.12 m</sub> | <img src="tetto/1-fronte.jpg" width="200"> | <img src="tetto/2-tre-quarti.jpg" width="200"> | <img src="tetto/3-profilo.jpg" width="200"> |
+| **Tetto**<br><sub>1.12 × 0.09 m</sub> | <img src="tetto/1-fronte.jpg" width="200"> | <img src="tetto/2-tre-quarti.jpg" width="200"> | <img src="tetto/3-profilo.jpg" width="200"> |
 | **Torretta**<br><sub>1.90 × 3.85 m</sub> | <img src="torretta/1-fronte.jpg" width="200"> | <img src="torretta/2-tre-quarti.jpg" width="200"> | <img src="torretta/3-profilo.jpg" width="200"> |
 
 [« torna all'indice](../README.md)

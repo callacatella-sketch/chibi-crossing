@@ -1039,208 +1039,241 @@ static func _zampe_a_cavalletto(n: Node3D, legno: Material) -> void:
 
 
 # ------------------------------------------------------------ la fontanella
-
-## La fontanella: una botte d'acqua su un cavalletto, col rubinetto di rame
-## e il truogolo sotto. In una palestra è il posto dove si sta fermi a
-## riprendere fiato — che in questo gioco vuol dire che è il pezzo più
-## importante di tutti: è la messa in scena del Fiato Sospeso
-## (`scenes/world/FiatoSospeso.gd`), il sistema che decide quanta paura fai
-## al mondo in questo momento. Un attrezzo su cui ci si ferma davvero merita
-## la stessa cura di un volto: non basta la sagoma giusta, deve reggere lo
-## sguardo da fermi, per i secondi in cui ci si sta davvero appoggiati.
+## LA FONTANELLA della palestra: dove ci si ferma a bere fra una serie e
+## l'altra. Terza vita, e le prime due sono lezioni pagate.
 ##
-## (La prima versione era una vasca di pietra chiara su una colonna: da
-## qualunque parte la si guardasse era un LAVANDINO. Una botte no.)
+## La PRIMA era una vasca di pietra su una colonna: da qualunque parte la
+## si guardasse era un LAVANDINO. La SECONDA — una botte coricata su un
+## cavalletto, con un truogolo di tavole per terra — e' finita dall'altra
+## parte del bersaglio: l'autore, guardandola, ha chiesto se ci bevono i
+## cavalli. Aveva ragione, ed e' colpa di UNA misura: il truogolo stava a
+## 6 cm da terra. Qualunque recipiente d'acqua alla caviglia e' un
+## abbeveratoio, per quanto bello sia il legno che gli sta sopra.
 ##
-## Il secondo giro di rifiniture (quello che state leggendo) porta la
-## geometria dalla "botte pulita" a una botte che si crede USATA da anni:
-## doghe vere lungo la pancia (non una rivoluzione liscia), i tre cerchi di
-## ferro spaiati come lo sarebbero davvero (uno più arrugginito, con la sua
-## colatura sotto), un'asse del truogolo più bassa e più scura — consumata —
-## da cui l'acqua trabocca in una pozza vera, il getto che si strozza
-## cadendo (un cilindro dritto NON è un filo d'acqua: un getto vero accelera
-## e si assottiglia, poi si rompe in schizzo) e la tazza che dondola appena,
-## perché è appesa a un gancio e non incollata al legno.
+## Questa e' una fontanella da BERE IN PIEDI, e lo dice la quota: la
+## botte sta DRITTA su uno zoccolo di sassi di fiume (gli stessi della
+## rastrelliera: e' la stessa palestra), e a 66 cm — l'altezza del petto
+## di un chibi — sporge sul davanti una CONCA di pietra scavata, piccola
+## e personale, in cui cade il filo d'acqua dal collo di cigno di rame.
+## Ci si sporge dentro e si beve; oppure si stacca la tazza di latta dal
+## gancio. Ai cavalli non verrebbe in mente.
+##
+## Restano, perche' erano buoni: le doghe VERE lungo la pancia in tre
+## tinte spaiate (lo spiraglio fra l'una e l'altra fa la giuntura da
+## solo, senza dipingerla), i tre cerchi di ferro diversi fra loro con la
+## colatura di ruggine sotto quello mangiato, e la tazza che DONDOLA —
+## un oggetto appeso e fermo per sempre e' un oggetto incollato.
 static func fontanella() -> Node3D:
 	var n := Node3D.new()
 	var legno := CAT._mat(CAT.WOOD, CAT.WOOD_DARK, 4.0, 0.5)
 	var ferro := CAT._mat(CAT.METAL, Color("6d6259"), 5.0, 0.4)
 	var rame := CAT._mat(RAME, RAME.darkened(0.3), 5.0, 0.4)
+	var pietra := CAT._mat(CAT.STONE, CAT.STONE_DARK, 4.0, 0.55)
+	var pietra_cupa := CAT._mat(CAT.STONE_DARK, Color("8d857a"), 4.5, 0.6)
+	var muschio := CAT._mat(SALVIA, SALVIA_DARK, 5.0, 0.6)
 
-	# il cavalletto: due culle a V che tengono la botte per i fianchi
-	for sz: float in [-0.24, 0.24]:
-		for sx: float in [-1.0, 1.0]:
-			var g := CAT._box(n, Vector3(0.06, 0.56, 0.06), legno,
-					Vector3(sx * 0.24, 0.28, sz))
-			g.rotation.z = sx * 0.2
-		CAT._box(n, Vector3(0.5, 0.05, 0.06), legno, Vector3(0, 0.2, sz))
+	# ---- LO ZOCCOLO: sassi di fiume nella malta, come la rastrelliera ----
+	# la malta sta INDIETRO rispetto ai sassi (raggio 0.235 contro 0.27):
+	# a filo con loro li seppelliva, e lo zoccolo diventava un cono di
+	# cemento con dentro dei puntini chiari
+	BUILDER.lathe(n, [Vector2(0.0, 0.0), Vector2(0.250, 0.0),
+			Vector2(0.256, 0.02), Vector2(0.238, 0.14),
+			Vector2(0.228, 0.19), Vector2(0.212, 0.212),
+			Vector2(0.0, 0.212)], pietra_cupa, Vector3.ZERO, 22)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 20_260_809
+	# due corsi sfalsati, come li poserebbe una mano
+	for corso in 2:
+		var quanti := 9 if corso == 0 else 7
+		var alt := 0.055 + 0.098 * float(corso)
+		var rr := 0.252 - alt * 0.13
+		for i in quanti:
+			var ang := TAU * float(i) / float(quanti) \
+					+ (0.35 if corso == 1 else 0.0) + rng.randf_range(-0.10, 0.10)
+			var gr := rng.randf_range(0.058, 0.079) * (1.0 - 0.14 * float(corso))
+			var sasso := CAT._ball(n, gr, pietra,
+					Vector3(cos(ang) * rr, alt, sin(ang) * rr),
+					Vector3(1.0, rng.randf_range(0.62, 0.82), 0.74))
+			sasso.rotation.y = ang
+			sasso.rotation.z = rng.randf_range(-0.25, 0.25)
+			# il secondo lobo: nessun sasso di fiume e' una sfera
+			CAT._ball(n, gr * rng.randf_range(0.55, 0.72), pietra,
+					Vector3(cos(ang + 0.10) * (rr + 0.010),
+							alt + rng.randf_range(-0.022, 0.022),
+							sin(ang + 0.10) * (rr + 0.010)),
+					Vector3(1.0, 0.66, 0.74))
+	# il muschio dalla parte in ombra, dove non batte il sole
+	for m in 3:
+		var am := 2.1 + 0.45 * float(m)
+		CAT._ball(n, 0.045 + 0.012 * float(m), muschio,
+				Vector3(cos(am) * 0.262, 0.03 + 0.02 * float(m), sin(am) * 0.262),
+				Vector3(1.0, 0.35, 0.8))
 
-	# LA BOTTE, coricata: superficie di rivoluzione panciuta, poi girata.
-	# Questa rivoluzione resta la base — la stessa che si vede sui due
-	# tappi piatti in fondo ai fianchi — quindi resta un legno chiaro
-	# normale: scurirla (per farla da "fondo dei solchi") l'aveva provato
-	# la prima stesura, e i due tappi diventavano due buchi neri spalancati.
+	# ---- LA BOTTE, DRITTA: e' il serbatoio, e si legge come tale ----
+	var y_base := 0.19
+	var y_cima := 0.93
 	var doga := CAT._mat(CAT.WOOD_PALE, CAT.WOOD, 2.5, 0.55)
-	var botte := Node3D.new()
-	botte.position = Vector3(0, 0.66, 0)
-	botte.rotation.z = PI * 0.5
-	n.add_child(botte)
-	BUILDER.lathe(botte, [
-		Vector2(0.0, -0.33), Vector2(0.2, -0.33), Vector2(0.235, -0.22),
-		Vector2(0.255, 0.0), Vector2(0.235, 0.22), Vector2(0.2, 0.33),
-		Vector2(0.0, 0.33),
-	], doga, Vector3.ZERO, 26)
-
-	# LE DOGHE. La rivoluzione qui sopra è liscia — una botte vera non lo è
-	# mai, è dieci assi affiancate col loro filo d'ombra in mezzo. Due
-	# stesure già scartate: rialzarle 6 mm nella tinta della base le
-	# rendeva invisibili (normale identica alla base sotto, nessun
-	# contrasto); disegnare poi un solco scuro APPOSTA, come un listello a
-	# sé che segue lo stesso profilo, lo faceva leggere come una fessura
-	# tagliata nel legno — un difetto, non una giuntura. Quello che
-	# funziona è più semplice: le doghe STESSE, larghe quasi quanto la
-	# fetta di circonferenza che gli tocca ma non del tutto, in tre tinte
-	# nettamente diverse; lo spiraglio di base che resta scoperto fra
-	# l'una e l'altra fa la giuntura da solo, senza bisogno di ridipingerla.
+	var profilo := [Vector2(0.0, 0.0), Vector2(0.205, 0.0), Vector2(0.232, 0.13),
+			Vector2(0.248, 0.37), Vector2(0.232, 0.61), Vector2(0.205, 0.74),
+			Vector2(0.0, 0.74)]
+	BUILDER.lathe(n, profilo, doga, Vector3(0, y_base, 0), 26)
+	# LE DOGHE: la rivoluzione e' liscia, una botte vera non lo e' mai.
 	var doga_a := CAT._mat(CAT.WOOD_PALE, CAT.WOOD, 3.0, 0.5)
 	var doga_b := CAT._mat(Color("e0b476"), Color("c2925a"), 3.0, 0.48)
 	var doga_c := CAT._mat(Color("d9cca2"), Color("b9a878"), 3.2, 0.55)
-	var doghe_tinte := [doga_a, doga_b, doga_c]
-	# quale tinta per ognuna delle dieci doghe — scelto a mano, non a
-	# modulo, così non si vede un motivo che si ripete ogni tre
-	var doghe_ordine := [0, 2, 1, 0, 1, 2, 1, 0, 2, 1]
-	# il profilo radiale (raggio, altezza lungo l'asse): due tratti, dal
-	# tappo di un fianco al ventre pieno e giù fino al tappo opposto —
-	# meno punti della lathe vera, perché qui basta suggerire la curva
-	var profilo_doga := [Vector2(0.2, -0.325), Vector2(0.257, 0.0), Vector2(0.2, 0.325)]
-	var n_doghe := 10
-	for i in n_doghe:
-		# la doga: un listello rialzato e colorato, largo quasi quanto la
-		# fetta di circonferenza che gli tocca — ma non del tutto: lo
-		# spiraglio che resta è la giuntura, senza bisogno di un secondo
-		# pezzo scuro sopra
+	var tinte := [doga_a, doga_b, doga_c]
+	var ordine := [0, 2, 1, 0, 1, 2, 1, 0, 2, 1, 2, 0]
+	var prof_doga := [Vector2(0.205, 0.005), Vector2(0.250, 0.37), Vector2(0.205, 0.735)]
+	for i2 in 12:
 		var giro := Node3D.new()
-		giro.rotation.y = (float(i) + 0.5) / float(n_doghe) * TAU
-		botte.add_child(giro)
-		var tinta: Material = doghe_tinte[doghe_ordine[i]]
-		for s in profilo_doga.size() - 1:
-			var p0: Vector2 = profilo_doga[s]
-			var p1: Vector2 = profilo_doga[s + 1]
-			var ym := (p0.y + p1.y) * 0.5
-			var rm := (p0.x + p1.x) * 0.5
+		giro.position = Vector3(0, y_base, 0)
+		giro.rotation.y = (float(i2) + 0.5) / 12.0 * TAU
+		n.add_child(giro)
+		var tinta: Material = tinte[ordine[i2]]
+		for s2 in prof_doga.size() - 1:
+			var p0: Vector2 = prof_doga[s2]
+			var p1: Vector2 = prof_doga[s2 + 1]
 			var lunga := p0.distance_to(p1)
-			var listello := CAT._box(giro, Vector3(0.112, lunga * 1.08, 0.016), tinta,
-					Vector3(0, ym, rm + 0.004))
-			# la doga segue la rastremazione verso i fianchi, non resta
-			# piatta: l'inclinazione viene dalla pendenza vera fra i due
-			# punti del profilo
+			var listello := CAT._box(giro, Vector3(0.108, lunga * 1.04, 0.016), tinta,
+					Vector3(0, (p0.y + p1.y) * 0.5, (p0.x + p1.x) * 0.5 + 0.004))
 			listello.rotation.x = atan2(p1.x - p0.x, p1.y - p0.y)
-
-	# i tre cerchi di ferro che la tengono insieme — spaiati: uno arrugginito
-	var ferro_invecchiato := CAT._mat(CAT.METAL.darkened(0.16), Color("564e46"), 4.5, 0.42)
-	# la prima tinta arrugginita (9c6a44/5c3a26) sotto luce ambiente rendeva
-	# quasi nera — un taglio scuro nella botte, non un cerchio di ferro:
-	# la ruggine deve restare chiaramente più CHIARA del legno scuro, o si
-	# legge come un buco invece che come un cerchio
+	# i tre cerchi, spaiati — uno mangiato dalla ruggine
+	var ferro_vecchio := CAT._mat(CAT.METAL.darkened(0.16), Color("564e46"), 4.5, 0.42)
 	var ferro_rugine := CAT._mat(Color("c08a54"), Color("8f5c38"), 4.0, 0.4)
-	var cerchi_y := [-0.24, 0.0, 0.24]
-	var cerchi_tinte := [ferro, ferro_rugine, ferro_invecchiato]
-	for idx in 3:
-		var y: float = cerchi_y[idx]
-		var r := 0.238 if absf(y) > 0.1 else 0.258
-		var cerchio := TorusMesh.new()
-		cerchio.inner_radius = r
-		cerchio.outer_radius = r + 0.016
-		cerchio.rings = 22
-		cerchio.ring_segments = 6
+	var cerchi := [[0.10, 0.234, ferro], [0.37, 0.252, ferro_rugine],
+			[0.655, 0.230, ferro_vecchio]]
+	for c2: Array in cerchi:
+		var tm := TorusMesh.new()
+		tm.inner_radius = float(c2[1])
+		tm.outer_radius = float(c2[1]) + 0.016
+		tm.rings = 22
+		tm.ring_segments = 6
 		var cm := MeshInstance3D.new()
-		cm.mesh = cerchio
-		cm.material_override = cerchi_tinte[idx]
-		cm.position = Vector3(0, y, 0)
-		botte.add_child(cm)
-	# due colature sotto il cerchio arrugginito (quello di mezzo): è lì che
-	# gli schizzi del truogolo ci arrivano più spesso, ed è lì che il ferro
-	# mangia il legno per primo — quindi in basso, sul fianco del fronte
-	# (-Z), non in cima alla botte. Punto diretto sulla circonferenza
-	# (stesso raggio-altezza della lathe), non un "giro" per doga: qui
-	# basta un solo listello per colatura
+		cm.mesh = tm
+		cm.material_override = c2[2]
+		cm.position = Vector3(0, y_base + float(c2[0]), 0)
+		n.add_child(cm)
+	# la colatura sotto il cerchio arrugginito, sul fronte (-Z)
 	var macchia := CAT._mat(Color("a85a34"), Color("7a3c1e"), 2.0, 0.6)
-	for m: Dictionary in [{"a": 2.0, "l": 0.12}, {"a": 2.4, "l": 0.08}]:
-		var ang: float = m["a"]
-		var lung_m: float = m["l"]
-		var r0 := 0.267
-		var lx := r0 * cos(ang)
-		var lz := -r0 * sin(ang)
-		CAT._box(botte, Vector3(lung_m, 0.02, 0.014), macchia,
-				Vector3(lx - lung_m * 0.5, 0.0, lz))
+	for mm: Array in [[-0.16, 0.09], [0.20, 0.06]]:
+		var am2: float = PI * 1.5 + float(mm[0])
+		var lm: float = float(mm[1])
+		CAT._box(n, Vector3(0.02, lm, 0.014), macchia,
+				Vector3(cos(am2) * 0.256, y_base + 0.37 - 0.02 - lm * 0.5,
+						sin(am2) * 0.256))
 
-	# il rubinetto di rame sul fondo della botte, verso il fronte (-Z)
-	BUILDER.tube(n, [Vector3(0, 0.56, -0.2), Vector3(0, 0.52, -0.27),
-			Vector3(0, 0.46, -0.28)], [0.022, 0.019, 0.016], rame, 12, 8)
-	CAT._cyl(n, 0.028, 0.028, 0.045, rame, Vector3(0, 0.6, -0.19))
-	for a: float in [0.0, PI * 0.5]:
-		CAT._box(n, Vector3(0.085, 0.012, 0.012), rame,
-				Vector3(0, 0.625, -0.19)).rotation.y = a
+	# ---- IL COPERCHIO: tavole, cerchiatura e l'anello di rame ----
+	for t2 in 3:
+		CAT._box(n, Vector3(0.126, 0.026, 0.40 - 0.09 * absf(float(t2) - 1.0)),
+				legno, Vector3((float(t2) - 1.0) * 0.132, y_cima + 0.012, 0))
+	CAT._cordolo(n, CAT._super_anello(0.207, 0.207, 1.0, 0.0, 32), 0.012, ferro_vecchio,
+			Vector3(0, y_cima + 0.014, 0))
+	var anello := TorusMesh.new()
+	anello.inner_radius = 0.034
+	anello.outer_radius = 0.046
+	anello.rings = 18
+	anello.ring_segments = 6
+	var am3 := MeshInstance3D.new()
+	am3.mesh = anello
+	am3.material_override = rame
+	am3.position = Vector3(0, y_cima + 0.048, 0.0)
+	am3.rotation.x = PI * 0.42
+	n.add_child(am3)
 
-	# il truogolo, vissuto: non più quattro tavole a squadra perfetta. Un
-	# labbro smussato sulle tre assi sane, e l'asse destra più bassa e più
-	# scura — consumata dall'acqua che ci passa sopra ogni giorno — da cui
-	# trabocca un filo vero, con la sua pozza sul terreno
-	var legno_usurato := CAT._mat(CAT.WOOD_DARK.darkened(0.15), Color("5c3f28"), 3.0, 0.58)
-	CAT._box(n, Vector3(0.42, 0.04, 0.28), legno, Vector3(0, 0.06, -0.3))
-	for sz2: float in [-1.0, 1.0]:
-		CAT._box(n, Vector3(0.42, 0.14, 0.03), legno, Vector3(0, 0.13, -0.3 + sz2 * 0.13))
-	CAT._box(n, Vector3(0.03, 0.14, 0.28), legno, Vector3(-0.2, 0.13, -0.3))
-	CAT._box(n, Vector3(0.03, 0.105, 0.28), legno_usurato, Vector3(0.2, 0.1125, -0.3))
-	# il labbro: un filo di legno sporgente sopra ogni asse SANA, che
-	# smussa lo spigolo — sull'asse consumata non c'è, ed è per questo che
-	# è lì che l'acqua scavalca
-	CAT._box(n, Vector3(0.46, 0.022, 0.05), legno, Vector3(0, 0.211, -0.43))
-	CAT._box(n, Vector3(0.46, 0.022, 0.05), legno, Vector3(0, 0.211, -0.17))
-	CAT._box(n, Vector3(0.05, 0.022, 0.3), legno, Vector3(-0.2, 0.211, -0.3))
+	# ---- LA CONCA DI PIETRA: piccola, personale, all'altezza del petto ----
+	# 66 cm: e' QUESTA quota a dire che qui beve una persona. Il truogolo
+	# della stesura precedente stava a 6 cm da terra, ed era un
+	# abbeveratoio per quanto bello fosse il legno sopra.
+	var y_conca := 0.60
+	var z_conca := -0.40
+	var conca := Node3D.new()
+	conca.position = Vector3(0, y_conca, z_conca)
+	n.add_child(conca)
+	# il profilo scava DAVVERO la vasca: su per il fianco, sopra il labbro
+	# e giu' dentro fino allo scarico
+	BUILDER.lathe(conca, [Vector2(0.0, 0.0), Vector2(0.115, 0.0),
+			Vector2(0.158, 0.028), Vector2(0.176, 0.062),
+			Vector2(0.180, 0.086), Vector2(0.170, 0.094),
+			Vector2(0.152, 0.070), Vector2(0.120, 0.045),
+			Vector2(0.062, 0.032), Vector2(0.026, 0.030),
+			Vector2(0.0, 0.030)], pietra, Vector3.ZERO, 24)
+	conca.scale = Vector3(1.04, 1.08, 0.90)
+	# le due mensole di pietra che la reggono contro la botte
+	for sx2: float in [-1.0, 1.0]:
+		var mens := CAT._loft(n, [[-0.020, 0.030, -0.075, 0.010, 0.010],
+				[0.020, 0.048, -0.030, 0.010, 0.012]], pietra_cupa,
+				Vector3(sx2 * 0.115, y_conca + 0.010, -0.30))
+		mens.rotation.y = PI * 0.5
+	# l'acqua nella conca, e i due cerchi dell'onda che il getto ci fa
 	var acqua := CAT._glow(Color(0.55, 0.82, 0.95, 0.8), Color(0.4, 0.7, 0.9), 0.14)
 	acqua.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	CAT._box(n, Vector3(0.37, 0.11, 0.23), acqua, Vector3(0, 0.145, -0.3))
-	# il trabocco sull'asse bassa: un velo che scivola giù dal bordo
-	# esterno, e la pozza che si allarga sul terreno sotto
-	var trabocco := CAT._glow(Color(0.62, 0.86, 0.96, 0.6), Color(0.48, 0.78, 0.93), 0.16)
-	trabocco.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	CAT._box(n, Vector3(0.01, 0.165, 0.12), trabocco, Vector3(0.216, 0.0825, -0.3))
-	CAT._ball(n, 0.09, trabocco, Vector3(0.27, 0.006, -0.3), Vector3(1.0, 0.05, 0.85))
-	CAT._emit_fx(n, Vector3(0.22, 0.03, -0.3), Color(0.78, 0.93, 1.0), 0.14, -1.3,
-			5, 0.5, 0.03)
+	CAT._cyl(conca, 0.150, 0.140, 0.030, acqua, Vector3(0, 0.049, 0))
+	var onda := CAT._glow(Color(0.72, 0.9, 0.98, 0.5), Color(0.55, 0.82, 0.95), 0.2)
+	onda.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	for ondina: float in [0.052, 0.094]:
+		CAT._cordolo(conca, CAT._super_anello(ondina, ondina, 1.0, 0.0, 28),
+				0.005, onda, Vector3(0, 0.064, 0))
 
-	# il filo d'acqua che cade dal rubinetto: NON un cilindro dritto — un
-	# getto vero accelera cadendo e si assottiglia (conservazione della
-	# portata), poi si allarga un soffio appena prima di rompersi in
-	# schizzo. Due gocce quasi staccate lo dicono anche a fermo immagine.
+	# ---- IL COLLO DI CIGNO di rame, e il rubinetto ----
+	# esce dalla botte, si curva in avanti e guarda in giu' dentro la conca
+	BUILDER.tube(n, [Vector3(0, 0.775, -0.215), Vector3(0, 0.800, -0.285),
+			Vector3(0, 0.792, -0.352), Vector3(0, 0.752, -0.392),
+			Vector3(0, 0.716, -0.400)],
+			[0.022, 0.020, 0.018, 0.016, 0.017], rame, 22, 10)
+	CAT._cyl(n, 0.030, 0.030, 0.040, rame, Vector3(0, 0.775, -0.222)).rotation.x = PI * 0.5
+	# la manopola a crociera, sopra la bocchetta
+	CAT._cyl(n, 0.016, 0.020, 0.036, rame, Vector3(0, 0.845, -0.222))
+	for a2: float in [0.0, PI * 0.5]:
+		CAT._box(n, Vector3(0.078, 0.011, 0.011), rame,
+				Vector3(0, 0.866, -0.222)).rotation.y = a2
+	CAT._ball(n, 0.013, rame, Vector3(0, 0.874, -0.222), Vector3(1, 0.8, 1))
+
+	# ---- IL FILO D'ACQUA: accelera cadendo, quindi si ASSOTTIGLIA ----
 	var getto := CAT._glow(Color(0.7, 0.88, 0.98, 0.55), Color(0.55, 0.8, 0.95), 0.25)
 	getto.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	BUILDER.tube(n, [
-		Vector3(0, 0.435, -0.281), Vector3(0, 0.36, -0.283),
-		Vector3(0, 0.29, -0.282), Vector3(0, 0.225, -0.283),
-	], [0.013, 0.008, 0.0055, 0.011], getto, 16, 8)
-	CAT._ball(n, 0.011, getto, Vector3(0.007, 0.255, -0.284), Vector3(1.0, 1.25, 1.0))
-	CAT._ball(n, 0.008, getto, Vector3(-0.008, 0.238, -0.278), Vector3(1.0, 1.15, 1.0))
-	# e una goccia che ancora si tiene alla bocchetta, per tensione
-	CAT._ball(n, 0.009, getto, Vector3(0, 0.443, -0.281), Vector3(1.0, 1.3, 1.0))
-	CAT._emit_fx(n, Vector3(0, 0.2, -0.29), Color(0.75, 0.92, 1.0), 0.42, -1.6,
-			12, 0.6, 0.045)
+	BUILDER.tube(n, [Vector3(0, 0.700, -0.400), Vector3(0, 0.686, -0.400),
+			Vector3(0, 0.670, -0.400), Vector3(0, 0.652, -0.400)],
+			[0.013, 0.0085, 0.006, 0.010], getto, 14, 8)
+	CAT._ball(n, 0.010, getto, Vector3(0.006, 0.672, -0.403), Vector3(1.0, 1.25, 1.0))
+	CAT._ball(n, 0.0075, getto, Vector3(-0.007, 0.659, -0.396), Vector3(1.0, 1.15, 1.0))
+	# e la goccia che si tiene ancora alla bocchetta, per tensione
+	CAT._ball(n, 0.0085, getto, Vector3(0, 0.707, -0.400), Vector3(1.0, 1.3, 1.0))
+	CAT._emit_fx(n, Vector3(0, 0.652, -0.400), Color(0.75, 0.92, 1.0), 0.30, -1.4,
+			10, 0.5, 0.032)
 
-	# e la tazza di latta appesa al cavalletto: è il dettaglio che dice
-	# «qui ci si ferma a bere». Un pelo ovale e una toppa saldata sul
-	# fianco (è stata riparata, non comprata nuova), e dondola appena sul
-	# gancio — un oggetto appeso e fermo per sempre è un oggetto incollato
+	# LO SCARICO: solo la bocchetta di rame sotto la conca. La prima
+	# stesura ci attaccava un tubo che scendeva fino allo zoccolo: dal
+	# fronte correva DAVANTI alla botte per tutta l'altezza e la tagliava
+	# in due — un tubo che si vede piu' della fontana non e' un dettaglio,
+	# e' un intralcio.
+	CAT._cyl(n, 0.019, 0.015, 0.032, rame, Vector3(0, 0.586, -0.400))
+	CAT._cordolo(n, CAT._super_anello(0.021, 0.021, 1.0, 0.0, 20), 0.005,
+			ferro_vecchio, Vector3(0, 0.578, -0.400))
+
+	# ---- LA TAZZA DI LATTA, appesa al gancio e mai ferma ----
+	CAT._ball(n, 0.014, ferro_vecchio, Vector3(0.238, 0.700, -0.150),
+			Vector3(1, 0.8, 1))
 	var tazza := Node3D.new()
 	tazza.name = "Tazza"
-	tazza.position = Vector3(0.3, 0.42, -0.16)
+	tazza.position = Vector3(0.262, 0.638, -0.150)
 	tazza.rotation.z = 0.25
 	n.add_child(tazza)
-	var corpo_tazza := CAT._cyl(tazza, 0.052, 0.042, 0.085, ferro, Vector3.ZERO)
-	corpo_tazza.scale = Vector3(1.0, 1.0, 0.9)
-	BUILDER.tube(tazza, [Vector3(0.05, 0.02, 0), Vector3(0.085, 0.0, 0),
-			Vector3(0.05, -0.03, 0)], [0.008, 0.009, 0.008], ferro, 10, 6)
-	CAT._ball(tazza, 0.013, ferro_invecchiato, Vector3(-0.032, 0.012, 0.038))
+	# il corpo tornito col fondo stretto e il labbro arrotolato: il
+	# cilindro nudo col tubo di fianco leggeva come una teiera di latta
+	BUILDER.lathe(tazza, [Vector2(0.0, -0.042), Vector2(0.036, -0.042),
+			Vector2(0.040, -0.034), Vector2(0.045, 0.010),
+			Vector2(0.050, 0.038), Vector2(0.053, 0.043),
+			Vector2(0.048, 0.046), Vector2(0.044, 0.040),
+			Vector2(0.041, 0.010), Vector2(0.036, -0.030),
+			Vector2(0.0, -0.030)], ferro, Vector3.ZERO, 20)
+	# il manico a C, sul FIANCO e attaccato in due punti
+	BUILDER.tube(tazza, [Vector3(0.044, 0.030, 0), Vector3(0.068, 0.018, 0),
+			Vector3(0.072, -0.004, 0), Vector3(0.055, -0.020, 0),
+			Vector3(0.036, -0.022, 0)], [0.006, 0.0065, 0.0065, 0.006, 0.005],
+			ferro, 18, 8)
+	# la toppa saldata: e' stata riparata, non comprata nuova
+	CAT._ball(tazza, 0.013, ferro_vecchio, Vector3(-0.030, 0.006, 0.034),
+			Vector3(1, 1, 0.5))
 	var oscilla := Animation.new()
 	oscilla.length = 4.2
 	oscilla.loop_mode = Animation.LOOP_LINEAR
@@ -1257,8 +1290,18 @@ static func fontanella() -> Node3D:
 	player_tazza.add_animation_library("", lib_tazza)
 	player_tazza.autoplay = "dondola"
 
-	_posto(n, Vector3(0, 0.0, -0.62), Vector3.BACK)
+	# NIENTE ASCIUGAMANO. Ci ho provato tre volte — arrotolato sul piolo,
+	# a due lembi di stoffa morbida, a lastre sottili ad angoli tondi — e
+	# tutte e tre le volte, a questa scala e accanto a una botte larga
+	# mezzo metro, leggeva come un cartone verde appeso al fianco. E' la
+	# stessa lezione della copertina rosa nella cuccia e dei pioli sul
+	# faro: un dettaglio che non si spiega da solo e' PEGGIO di nessun
+	# dettaglio, perche' il giocatore si ferma a chiedersi cosa sia.
+	# Che qui ci si fermi a bere lo dice gia' la tazza di latta.
+
+	_posto(n, Vector3(0, 0.0, -0.68), Vector3.BACK)
 	return n
+
 
 # ---------------------------------------------------- la rastrelliera dei pesi
 

@@ -5,7 +5,7 @@
 | | fronte | tre quarti | profilo |
 |---|---|---|---|
 | **Cyclette**<br><sub>0.58 × 1.07 m</sub> | <img src="cyclette/1-fronte.jpg" width="200"> | <img src="cyclette/2-tre-quarti.jpg" width="200"> | <img src="cyclette/3-profilo.jpg" width="200"> |
-| **Fontanella**<br><sub>0.74 × 0.93 m</sub> | <img src="fontanella/1-fronte.jpg" width="200"> | <img src="fontanella/2-tre-quarti.jpg" width="200"> | <img src="fontanella/3-profilo.jpg" width="200"> |
+| **Fontanella**<br><sub>0.67 × 1.04 m</sub> | <img src="fontanella/1-fronte.jpg" width="200"> | <img src="fontanella/2-tre-quarti.jpg" width="200"> | <img src="fontanella/3-profilo.jpg" width="200"> |
 | **Panca dei pesi**<br><sub>0.96 × 1.13 m</sub> | <img src="panca-dei-pesi/1-fronte.jpg" width="200"> | <img src="panca-dei-pesi/2-tre-quarti.jpg" width="200"> | <img src="panca-dei-pesi/3-profilo.jpg" width="200"> |
 | **Rastrelliera**<br><sub>0.93 × 0.82 m</sub> | <img src="rastrelliera/1-fronte.jpg" width="200"> | <img src="rastrelliera/2-tre-quarti.jpg" width="200"> | <img src="rastrelliera/3-profilo.jpg" width="200"> |
 | **Sacco**<br><sub>0.49 × 2.13 m</sub> | <img src="sacco/1-fronte.jpg" width="200"> | <img src="sacco/2-tre-quarti.jpg" width="200"> | <img src="sacco/3-profilo.jpg" width="200"> |
