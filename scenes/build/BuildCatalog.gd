@@ -430,6 +430,15 @@ static func items() -> Array[Dictionary]:
 		{"name": "Fioriera", "cat": 2, "type": "cell", "layer": 2,
 			"builder": _fioriera,
 			"cols": [[Vector3(1.0, 0.5, 0.4), Vector3(0, 0.25, 0)]]},
+		# LE SORELLE DELLA FIORIERA. Quattro modi di tenere dei fiori, e
+		# quattro caratteri diversi: la cassetta del dehors (sopra), il
+		# cesto di vimini, la cassa laccata da bistrot, la rustica che
+		# nessuno pota. Stessa cella, stesso mestiere, tre silhouette che
+		# non si confondono da lontano — che è l'unico modo perché avere
+		# quattro fioriere valga più che averne una.
+		{"name": "Cesto fiorito", "cat": 2, "type": "cell", "layer": 2,
+			"builder": _cesto_fiorito,
+			"cols": [[Vector3(0.98, 0.46, 0.46), Vector3(0, 0.23, 0)]]},
 		{"name": "Lucine", "cat": 2, "type": "cell", "layer": 2, "builder": _lucine,
 			"cols": [[Vector3(0.12, 1.9, 0.12), Vector3(-0.46, 0.95, 0)],
 					[Vector3(0.12, 1.9, 0.12), Vector3(0.46, 0.95, 0)]]},
@@ -11771,6 +11780,1326 @@ static func _foglia_lanceolata(parent: Node3D, verde: Material,
 	var nervo := _cyl(foglia, 0.0016, 0.0016, 0.058, nervatura,
 			Vector3(0.042, 0.0025, 0))
 	nervo.rotation.z = PI * 0.5
+
+
+static func _cesto_fiorito() -> Node3D:
+	# IL CESTO DEL DEHORS, finito. Non una cassetta: un CESTO, e
+	# l'intreccio è VERO — trentadue montanti piantati a distanza d'arco
+	# costante e dieci file di vimini che passano davanti a un montante e
+	# dietro al successivo, ogni fila in controfase con quella sotto. È
+	# l'ALTERNANZA a leggersi come intreccio: una parete incisa resta una
+	# parete, e delle doghe che non si toccano fanno uno steccato col buio
+	# dietro. In cima il cordolo è una TRECCIA a tre capi, in basso ne gira
+	# una a due che fa da piede, e ai fianchi due manici di fune ritorta
+	# LEGATI al bordo con la fasciatura.
+	# Dentro, fiori di CAMPO — mai un mazzo da fioraio: margherite in tre
+	# tinte (bianche, crema-albicocca, rosa carico: una margherita di campo
+	# vera declina, non è una vernice sola), campanule che pendono a testa
+	# in giù dai peduncoli curvi, achillea e trifoglio a fiorellini minuti
+	# nel sottobosco, spighe candide; e sotto di loro la MASSA che fa la
+	# differenza fra una fioriera vissuta e un'aiuola appena seminata.
+	#
+	# Cosa è cambiato dal primo giro, e perché (i cinque difetti visti
+	# dall'autore con gli occhi, non col compilatore):
+	#  1. LA GONDOLA. Il contorno era una superellisse con esponente 0.66,
+	#     cioè n = 3.0 su un rapporto di 2.8 a 1: dall'alto le due
+	#     estremità finivano a punta e il cesto leggeva come una canoa.
+	#     Ora l'esponente è 0.42 (n = 4.76) e la pancia è più larga: a nove
+	#     decimi della lunghezza il cesto è ancora all'83% della sua
+	#     larghezza (prima al 65%). È un ovale pieno con gli angoli molto
+	#     tondi, che è quello che vuole una fioriera.
+	#  2. I MANICI. Erano un ritorto sottile appeso in aria: di fronte le
+	#     spire si leggevano come i denti di un pettine. Ora la fune è
+	#     grossa il doppio (42 mm), il ritorto è lento (cinque giri su
+	#     tutto l'arco, non otto) e soprattutto ha la FASCIATURA ai piedi —
+	#     sei giri stretti di vimine che la legano al cordolo. È
+	#     l'attacco visibile a dire «manico»: una corda che finisce in aria
+	#     è una maniglia di plastica.
+	#  3. LE CHIAZZE PIATTE. Le foglie del sottobosco erano prismi
+	#     ESTRUSI posati quasi orizzontali: dall'alto sono lastre verdi, e
+	#     una lastra verde legge come vetro o come una toppa. Ora ogni
+	#     lembo è una SUPERFICIE (`_cesto_lembo_mesh`): la carena centrale
+	#     lo piega a tetto lungo il suo asse e la curvatura lo fa cadere
+	#     verso la punta. La luce ci scorre sopra invece di spegnersi tutta
+	#     insieme, ed è quella la differenza fra una foglia e un adesivo.
+	#     (Costa anche MENO: un lembo era tre prismi, adesso è un mesh.)
+	#  4. NON TRABOCCAVA. Il verde restava dentro, usciva solo l'edera.
+	#     Adesso una ghirlanda di lembi scavalca il cordolo e ricade
+	#     sull'intreccio mangiandosene il bordo, i cuscinetti di muschio
+	#     montano più in fuori, due margherite si sporgono oltre le teste
+	#     del cesto e i tralci di edera sono cinque.
+	#  5. FACEVA FREDDO. Bianco + lilla + verde. Il calore non arriva da
+	#     una specie estranea (sarebbe un altro cesto): arriva dalle
+	#     margherite declinate in crema-albicocca e rosa carico, e da una
+	#     manciata di fiorellini caldi nel sottobosco — achillea rosata a
+	#     ombrella piatta e teste di trifoglio.
+	var n := Node3D.new()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 20260809
+
+	# ---- le misure: mezze luci di base, quota del bordo, e la svasatura.
+	# Un cesto si allarga salendo e ha un filo di pancia: senza, è un
+	# secchio. `quadro` è la QUADRATURA del contorno (vedi `_cesto_giro`):
+	# più è piccolo, più il cesto è un rettangolo con gli angoli tondi.
+	var ax := 0.368
+	var az := 0.139
+	var qh := 0.288
+	var quadro := 0.36
+	var svaso := func(y: float) -> float:
+		var t := clampf(y / qh, 0.0, 1.0)
+		return 1.0 + 0.112 * pow(t, 0.92) + 0.020 * sin(t * PI)
+	var s_alto: float = svaso.call(qh)
+	var np := 160
+	var stecche := 32
+	var per_stecca := np / stecche
+	var g := _cesto_giro(np, ax, az, quadro)
+	var giro: Array = g[0]
+	var nor: Array = g[1]
+
+	# ---- la paglia: due toni di vimine che si alternano fila per fila
+	# (un cesto vero non è fatto di un unico bastone), i montanti più
+	# scuri perché stanno sotto, e la fodera che fa da ombra piena
+	var vimine_a := _mat(Color("e0bd8a"), Color("bb9260"), 5.5, 0.5)
+	var vimine_b := _mat(Color("d3ae7a"), Color("ac8452"), 5.0, 0.52)
+	var montanti := _mat(Color("c39a62"), Color("9c7541"), 4.5, 0.5)
+	var fodera := _mat(Color("9d7a4c"), Color("7b5c37"), 3.5, 0.45)
+	var corda := _mat(Color("d8c096"), Color("b09870"), 7.0, 0.5)
+	var legaccio := _mat(Color("c9a874"), Color("a3814e"), 9.0, 0.55)
+
+	# ---- il fondo e la fodera piena: la parete che si intravede fra i
+	# vimini. Doppia faccia, perché dall'alto si guarda dentro il cesto
+	var fondo_pts: Array = []
+	var iq := 0
+	while iq < np:
+		fondo_pts.append((giro[iq] as Vector2) * float(svaso.call(0.02))
+				+ (nor[iq] as Vector2) * -0.006)
+		iq += 4
+	_prisma(n, fondo_pts, 0.006, 0.028, fodera)
+	var fodera_vg: Array = []
+	for j in 5:
+		var y := lerpf(0.014, qh - 0.004, float(j) / 4.0)
+		var sy: float = svaso.call(y)
+		var riga := PackedVector3Array()
+		var ic := 0
+		while ic < np:
+			var p2: Vector2 = (giro[ic] as Vector2) * sy + (nor[ic] as Vector2) * -0.020
+			riga.append(Vector3(p2.x, y, p2.y))
+			ic += 2
+		fodera_vg.append(riga)
+	_mesh_griglia(n, fodera_vg, fodera, Vector3.ZERO, true, true)
+
+	# ---- i montanti: rastremati verso l'alto, e ognuno col suo scarto
+	# di un millimetro e mezzo — trentadue bastoni identici sono tornitura,
+	# non vimini
+	for k in stecche:
+		var i := k * per_stecca
+		var scarto := rng.randf_range(-0.0016, 0.0016)
+		var perc := PackedVector3Array()
+		for j in 6:
+			var t := float(j) / 5.0
+			var y := lerpf(0.008, qh + 0.010, t)
+			var sy: float = svaso.call(y)
+			var p2: Vector2 = ((giro[i] as Vector2) * sy
+					+ (nor[i] as Vector2) * (scarto * sin(t * PI)))
+			perc.append(Vector3(p2.x, y, p2.y))
+		_cesto_vimine(n, perc, 0.0105, 0.0080, montanti, 6, false)
+
+	# ---- L'INTRECCIO: ogni fila è un unico vimine continuo che ONDEGGIA
+	# in fuori e in dentro con periodo di due montanti. Sul montante è
+	# tutto davanti o tutto dietro, a metà gap passa a filo: è la stessa
+	# geometria della randa vera, ed è per questo che si legge.
+	for r in 10:
+		var y := 0.038 + 0.0272 * float(r)
+		var sy: float = svaso.call(y)
+		var fase := PI * float(r)
+		var perc := PackedVector3Array()
+		for i in np:
+			var onda := cos(PI * float(i) / float(per_stecca) + fase)
+			var p2: Vector2 = ((giro[i] as Vector2) * sy
+					+ (nor[i] as Vector2) * (onda * 0.0138))
+			# la fila non è a livella: un vimine piegato a mano respira
+			var dy := 0.0018 * sin(float(i) / float(np) * TAU * 3.0 + float(r) * 1.7)
+			perc.append(Vector3(p2.x, y + dy, p2.y))
+		_cesto_vimine(n, perc, 0.0126, 0.0126,
+				vimine_a if r % 2 == 0 else vimine_b, 6, true)
+
+	# ---- il cordolo in cima: TRE capi che si avvolgono l'uno sull'altro
+	# lungo tutto il bordo. Un toro liscio sarebbe un cerchio di plastica;
+	# la treccia è il gesto finale del cestaio, e chiude le teste dei
+	# montanti
+	var g2 := _cesto_giro(208, ax, az, quadro)
+	var giro2: Array = g2[0]
+	var nor2: Array = g2[1]
+	for capo in 3:
+		var perc := PackedVector3Array()
+		for i in 208:
+			var f := TAU * float(i) / 208.0 * 24.0 + TAU / 3.0 * float(capo)
+			var p2: Vector2 = ((giro2[i] as Vector2) * s_alto
+					+ (nor2[i] as Vector2) * (cos(f) * 0.0082))
+			perc.append(Vector3(p2.x, qh + 0.012 + sin(f) * 0.0082, p2.y))
+		_cesto_vimine(n, perc, 0.0082, 0.0082,
+				vimine_a if capo != 1 else vimine_b, 6, true)
+	# ---- e il piede: due capi ritorti che alzano il cesto da terra
+	for capo2 in 2:
+		var perc2 := PackedVector3Array()
+		for i in 192:
+			var f2 := TAU * float(i) / 192.0 * 18.0 + PI * float(capo2)
+			var gi := int(round(float(i) * 208.0 / 192.0)) % 208
+			var p3: Vector2 = ((giro2[gi] as Vector2) * float(svaso.call(0.022))
+					+ (nor2[gi] as Vector2) * (0.004 + cos(f2) * 0.0068))
+			perc2.append(Vector3(p3.x, 0.024 + sin(f2) * 0.0068, p3.y))
+		_cesto_vimine(n, perc2, 0.0072, 0.0072, montanti, 6, true)
+
+	# ---- i due manici alle teste, con la fasciatura (vedi `_cesto_manico`)
+	var xr := ax * s_alto
+	_cesto_manico(n, -1.0, xr, qh, corda, legaccio)
+	_cesto_manico(n, 1.0, xr, qh, corda, legaccio)
+
+	# ---- LA TERRA. Una sola formula per la sua quota, e la cupola si
+	# COSTRUISCE da quella: `q` è il raggio superellittico (l'inversa
+	# esatta del contorno, quindi con lo STESSO esponente — se i due
+	# divergono si pianta il muschio due centimetri sotto la superficie) e
+	# la quota è una campana su q.
+	var esp := 2.0 / quadro
+	var rx := ax * s_alto - 0.012
+	var rz := az * s_alto - 0.012
+	var colmo := 0.304
+	var caduta := 0.013
+	var terra_h := func(x: float, z: float) -> float:
+		var q := pow(pow(clampf(absf(x) / rx, 0.0, 1.0), esp)
+				+ pow(clampf(absf(z) / rz, 0.0, 1.0), esp), 1.0 / esp)
+		return colmo - caduta * pow(minf(q, 1.0), 1.7)
+	# la terra si vede FRA i cuscinetti di muschio, e allora deve leggersi
+	# come terra bagnata: le zolle più cupe della prima stesura, viste
+	# dall'alto, diventavano buchi neri nel prato — otto crateri
+	var terra := _mat(Color("7a5f42"), Color("614a33"), 5.0, 0.45)
+	var vg_t: Array = []
+	for anello in 7:
+		var q2 := float(anello) / 6.0
+		var riga := PackedVector3Array()
+		for j in 48:
+			var gi := int(round(float(j) * float(np) / 48.0)) % np
+			var bordo: Vector2 = ((giro[gi] as Vector2) * s_alto
+					+ (nor[gi] as Vector2) * -0.012)
+			var p2 := bordo * q2
+			riga.append(Vector3(p2.x, colmo - caduta * pow(q2, 1.7), p2.y))
+		vg_t.append(riga)
+	_mesh_griglia(n, vg_t, terra, Vector3.ZERO, true)
+
+	# ---- la tavolozza. Nessun colore pieno: i fiori di campo sono lavati,
+	# e un rosa saturo su un petalo bombato è una caramella. Il controluce
+	# (translucency) è quello che salva un petalo: sottile, si accende
+	# quando il sole gli sta dietro.
+	# Le tre tinte delle margherite sono il CALORE del pezzo: bianco
+	# panna, crema-albicocca, rosa carico. Non tre specie: la stessa
+	# margherita che in un prato vero non esce mai di un colore solo.
+	var puff := SphereMesh.new()
+	puff.radius = 1.0
+	puff.height = 2.0
+	puff.radial_segments = 9
+	puff.rings = 4
+	var tav := {
+		"verde": _mat(LEAF, LEAF_DARK, 6.0, 0.55),
+		"verde_cupo": _mat(LEAF_DARK, LEAF_DARK.darkened(0.22), 5.0, 0.5),
+		"verde_tenero": _mat(Color("86b25e"), Color("6b9a4c"), 6.5, 0.5),
+		"verde_oliva": _mat(Color("9cb45c"), Color("798f42"), 6.0, 0.5),
+		"petalo": _mat(Color("fdfaf1"), Color("e4d9c2"), 4.0, 0.28, 0.28),
+		"petalo_crema": _mat(Color("fde0ae"), Color("f2c283"), 4.0, 0.30, 0.30),
+		"petalo_rosa": _mat(Color("ee92a8"), Color("cf6d87"), 4.0, 0.30, 0.30),
+		"cuore": _mat(Color("f6c94f"), Color("d9a63a"), 5.0, 0.3),
+		"cuore_cupo": _mat(Color("dda63c"), Color("bd862a"), 5.0, 0.3),
+		"puff": puff,
+	}
+	var verdi: Array = [tav["verde"], tav["verde_tenero"], tav["verde_oliva"]]
+	# la ghirlanda e l'edera hanno un verde in più, il CUPO: sul fianco al
+	# sole il fogliame chiaro finiva alla stessa luminosità della paglia e
+	# il trabocco spariva — di fronte (che è in ombra) si vedeva benissimo.
+	# Un pezzo va guardato dai due lati anche per il CONTRASTO, non solo
+	# per la forma.
+	var verdi_bordo: Array = [tav["verde"], tav["verde_cupo"],
+			tav["verde_tenero"], tav["verde_oliva"]]
+
+	# ---- la biblioteca dei LEMBI. Cinque foglie tonde a lobi e quattro
+	# lanceolate, costruite una volta sola e instanziate ottanta: la
+	# geometria è la stessa, e il conto no.
+	var lobate: Array = []
+	for i in 5:
+		lobate.append(_cesto_lembo_mesh(
+				_cesto_lobi(0.0236 + 0.0033 * float(i), 5 if i % 2 == 0 else 7,
+				0.40, 20), 3.4, 0.24, 2))
+	# l'EDERA dei tralci: più piccola delle altre (una foglia d'edera vera
+	# è quattro centimetri, non sette) e con la carena più marcata — sono
+	# le uniche che si guardano da vicino e in faccia, appese al vimine
+	var edera: Array = []
+	for i in 3:
+		edera.append(_cesto_lembo_mesh(
+				_cesto_lobi(0.0219 + 0.0032 * float(i), 5, 0.46, 20), 4.2, 0.32, 2))
+	# i lembi della ghirlanda sono piu' grandi degli altri: devono
+	# MANGIARSI il cordolo, e una fogliolina da due centimetri e mezzo
+	# appesa a una treccia da otto è una frangia, non un trabocco
+	var ghirlanda: Array = []
+	for i in 4:
+		ghirlanda.append(_cesto_lembo_mesh(
+				_cesto_lobi(0.0260 + 0.0036 * float(i), 5 if i % 2 == 0 else 7,
+				0.40, 20), 3.0, 0.26, 2))
+	var lance: Array = []
+	for i in 4:
+		lance.append(_cesto_lembo_mesh(
+				_cesto_lancia(0.072 + 0.010 * float(i),
+				0.0175 + 0.0022 * float(i), 9), 2.1, 0.16, 2))
+	# le foglioline strette dell'achillea e del trifoglio
+	var lance_min: Array = []
+	for i in 2:
+		lance_min.append(_cesto_lembo_mesh(
+				_cesto_lancia(0.040 + 0.008 * float(i), 0.0072, 8), 3.4, 0.22, 2))
+
+	# ---- IL MUSCHIO: cuscinetti irregolari (una sfera schiacciata è una
+	# bolla verde), tre stampi e tre verdi. Tre taglie sovrapposte —
+	# i mucchi grossi fanno il terreno, i medi lo rompono, i minuti fanno
+	# il pelo: è la sovrapposizione a leggersi come muschio, un cuscinetto
+	# solo si legge come un sasso verde.
+	# Sul bordo monta a CHIAZZE e adesso SCAVALCA: dove monta esce oltre la
+	# treccia, altrove si ritira e lascia vedere il vimine — una frangia
+	# uniforme sarebbe una guarnizione di gomma, e coprirebbe il lavoro del
+	# cestaio.
+	var cuscini: Array = [_cesto_cuscino(11), _cesto_cuscino(29), _cesto_cuscino(47)]
+	var muschi: Array = [_mat(Color("8cae5e"), Color("668a40"), 7.0, 0.6),
+			_mat(Color("a3b768"), Color("7d9750"), 8.0, 0.55),
+			_mat(Color("6d8f49"), Color("4d6b31"), 6.0, 0.6)]
+	var im := 0
+	while im < np:
+		var monta := sin(float(im) / float(np) * TAU * 3.4 + 1.8)
+		var sale := monta > -0.15
+		var fuori := -0.014 + (0.024 if sale else 0.004) * (0.6 + 0.4 * rng.randf())
+		var alza2 := (0.012 if sale else -0.008) + rng.randf_range(-0.006, 0.008)
+		var p2: Vector2 = ((giro[im] as Vector2) * s_alto
+				+ (nor[im] as Vector2) * fuori)
+		var rr := rng.randf_range(0.020, 0.030)
+		_cesto_puff(n, cuscini[im % 3], muschi[(im / 5) % 3],
+				Vector3(p2.x, qh - 0.002 + alza2, p2.y),
+				Vector3(rr, rr * rng.randf_range(0.60, 0.85), rr),
+				rng.randf() * TAU)
+		im += 4
+	# tre CORONE con lo scarto addosso, non una manciata a caso: la
+	# semina puramente casuale lasciava una calvizie di terra grossa come
+	# una moneta sempre in un posto diverso, e per coprirla bisognava
+	# raddoppiare i cuscinetti. Il reticolo disturbato copre tutto con la
+	# metà dei pezzi e non si legge come reticolo.
+	# (i tipi qui vanno DICHIARATI: il pescaggio da un array non tipizzato
+	# non ha tipo statico, e un `:=` fa fallire il parse dell'intero file —
+	# con il pezzo che sparisce dal catalogo senza che nulla lo dica)
+	for corona in 3:
+		var q3: float = [0.30, 0.60, 0.86][corona]
+		var quanti: int = [8, 15, 22][corona]
+		var rmin: float = [0.036, 0.028, 0.022][corona]
+		var rmax: float = [0.056, 0.044, 0.036][corona]
+		for k2 in quanti:
+			var u2 := (float(k2) + rng.randf_range(-0.34, 0.34)) / float(quanti)
+			var gi2 := int(u2 * float(np) + float(np)) % np
+			var qq := clampf(q3 + rng.randf_range(-0.10, 0.10), 0.04, 0.95)
+			var bordo2: Vector2 = ((giro[gi2] as Vector2) * s_alto
+					+ (nor[gi2] as Vector2) * -0.016) * qq
+			var rr2 := rng.randf_range(rmin, rmax)
+			# il centro sta SOPRA la terra, non affondato: schiacciati e
+			# sepolti i cuscinetti diventavano toppe verdi piatte, e il
+			# dentro del cesto leggeva come un piatto dipinto
+			var schiaccia := rng.randf_range(0.52, 0.78)
+			_cesto_puff(n, cuscini[(k2 + corona) % 3], muschi[(k2 + corona * 2) % 3],
+					Vector3(bordo2.x,
+					float(terra_h.call(bordo2.x, bordo2.y)) + rr2 * schiaccia * 0.12,
+					bordo2.y),
+					Vector3(rr2, rr2 * schiaccia, rr2), rng.randf() * TAU)
+	# e sopra le corone il PELO: cuscinetti minuti, questi sì a caso
+	for k4 in 26:
+		var q5 := sqrt(rng.randf()) * 0.92
+		var gi4 := int(rng.randf() * float(np)) % np
+		var b5: Vector2 = ((giro[gi4] as Vector2) * s_alto
+				+ (nor[gi4] as Vector2) * -0.016) * q5
+		var r5 := rng.randf_range(0.012, 0.020)
+		_cesto_puff(n, cuscini[k4 % 3], muschi[(k4 + 1) % 3],
+				Vector3(b5.x, float(terra_h.call(b5.x, b5.y)) + r5 * 0.4, b5.y),
+				Vector3(r5, r5 * 0.9, r5), rng.randf() * TAU)
+
+	# ---- il sottobosco: lembi tondi a lobi POSATI sul muschio. Dall'alto
+	# il muschio da solo resta una macchia — sono le sagome riconoscibili
+	# appoggiate sopra a dirti che lì sotto c'è terra viva. Mai in bolla:
+	# ognuno ha la sua torsione, e uno su tre si alza di taglio (dall'occhio
+	# del giocatore, che è basso, un tappeto di lembi coricati si vede di
+	# fianco e torna a essere una lastra).
+	for k3 in 26:
+		var q4 := sqrt(rng.randf()) * 0.90
+		var gi3 := int(rng.randf() * float(np)) % np
+		var b3: Vector2 = ((giro[gi3] as Vector2) * s_alto
+				+ (nor[gi3] as Vector2) * -0.020) * q4
+		var eretta := k3 % 3 == 1
+		_cesto_lembo(n, lobate[k3 % 5], verdi[k3 % 3],
+				Vector3(b3.x, float(terra_h.call(b3.x, b3.y)) + 0.005, b3.y),
+				Vector3(rng.randf_range(-0.55, 0.55), rng.randf() * TAU,
+				rng.randf_range(0.42, 0.86) if eretta else rng.randf_range(-0.20, 0.26)),
+				rng.randf_range(0.80, 1.14))
+
+	# ---- LA GHIRLANDA CHE TRABOCCA. È il gesto che mancava: il verde
+	# scavalca il cordolo e RICADE sull'intreccio, mangiandosi in parte il
+	# bordo. Un cesto pieno di fiori col bordo nudo è una cesta di frutta.
+	# I lembi si girano quasi lungo la TANGENTE del cesto: puntati in
+	# fuori sporgerebbero di tutto il loro raggio e sfonderebbero la cella
+	# (misurato: sono tre centimetri per lato, su un mezzo metro scarso).
+	# Le teste si saltano, che lì ci passano i manici.
+	for j in 52:
+		var i := int(float(j) * float(np) / 52.0 + 1.0) % np
+		var pc: Vector2 = giro[i] as Vector2
+		if absf(pc.x) > ax * 0.90:
+			continue
+		var nn: Vector2 = nor[i] as Vector2
+		var p2: Vector2 = pc * s_alto + nn * (-0.004 + rng.randf_range(-0.006, 0.006))
+		var fuori2 := atan2(-nn.y, nn.x)
+		# DUE MODI di stare sul bordo, e la scelta non è un vezzo.
+		# Un lembo coricato lungo la TANGENTE è quello che costa meno
+		# profondità — ma di fronte lo si vede di TAGLIO, cioè non lo si
+		# vede: la prima ghirlanda era tutta così, e il cordolo restava
+		# nudo come prima. Un lembo buttato IN FUORI e giù ripido invece
+		# mostra la faccia a chi guarda, e in profondità costa solo il
+		# coseno della sua caduta — tre centimetri, non sette.
+		# Perciò: sui fianchi lunghi (dove si guarda il pezzo, e dove la
+		# cella è stretta) i lembi si buttano in fuori a picco; alle teste,
+		# dove c'è posto, restano coricati sulla treccia.
+		var faccia := absf(nn.y)
+		var giro5: float
+		var cade: float
+		var rollio: float
+		var stampo: int
+		if faccia > 0.42:
+			# a picco: la faccia del lembo guarda chi passa, la larghezza
+			# scende lungo il vimine e in profondità non costa niente
+			giro5 = fuori2 + rng.randf_range(-0.40, 0.40)
+			cade = rng.randf_range(-1.46, -0.98)
+			rollio = rng.randf_range(-0.40, 0.40)
+			stampo = (j + 2) % 4
+		else:
+			giro5 = (fuori2 + (PI * 0.5 if j % 2 == 0 else -PI * 0.5)
+					+ rng.randf_range(-0.42, 0.42))
+			cade = rng.randf_range(-0.96, -0.16)
+			rollio = rng.randf_range(-0.50, 0.50)
+			# alle teste il lembo resta coricato, e un lembo coricato
+			# pesca in profondità tutta la sua LARGHEZZA: lì si tengono i
+			# due stampi minori
+			stampo = j % 2
+		if j % 7 == 0:
+			cade = rng.randf_range(0.12, 0.50)  # qualcuno si alza ancora
+		var quota5 := qh + rng.randf_range(-0.004, 0.018)
+		_cesto_lembo(n, ghirlanda[stampo], verdi_bordo[(j + 1) % 4],
+				Vector3(p2.x, quota5, p2.y),
+				Vector3(rollio, giro5, cade), rng.randf_range(0.86, 1.14))
+		# uno su tre è un CIUFFO e non una foglia sola: il trabocco è una
+		# massa che scavalca, e una massa si legge quando le sagome si
+		# accavallano invece di stare in fila come i denti di un rastrello
+		if j % 3 == 1:
+			_cesto_lembo(n, ghirlanda[(stampo + 1) % 4 if faccia > 0.42 else stampo],
+					verdi_bordo[j % 4],
+					Vector3(p2.x, quota5 + rng.randf_range(0.004, 0.020), p2.y),
+					Vector3(rollio + rng.randf_range(-0.4, 0.4),
+					giro5 + rng.randf_range(-0.42, 0.42),
+					cade + rng.randf_range(0.10, 0.52)),
+					rng.randf_range(0.70, 0.96))
+
+	# ---- IL NIDO AI PIEDI DEI MANICI. Dove la fune entra sotto il
+	# cordolo il cesto restava nudo, e il manico — che di fronte si vede
+	# di taglio — spuntava dal vimine pallido come un osso. In un cesto
+	# piantato davvero è lì che il verde si aggrappa: due o tre lembi e un
+	# cuscinetto di muschio nascondono l'attacco e legano il manico alla
+	# massa invece di lasciarlo lì per conto suo.
+	for sx: float in [-1.0, 1.0]:
+		for zs: float in [-1.0, 1.0]:
+			var fx := sx * xr * 0.94
+			var fz := zs * 0.078
+			for q in 3:
+				_cesto_lembo(n, ghirlanda[(q + 1) % 4], verdi[q % 3],
+						Vector3(fx + sx * rng.randf_range(-0.030, 0.004),
+						qh + rng.randf_range(-0.008, 0.016),
+						fz + zs * rng.randf_range(-0.020, 0.012)),
+						Vector3(rng.randf_range(-0.5, 0.5),
+						atan2(-fz, fx) + rng.randf_range(-1.0, 1.0),
+						rng.randf_range(-1.30, -0.30)),
+						rng.randf_range(0.76, 1.00))
+			var rn := rng.randf_range(0.020, 0.030)
+			_cesto_puff(n, cuscini[int(sx + zs + 2.0) % 3],
+					muschi[int(sx - zs + 2.0) % 3],
+					Vector3(fx - sx * 0.010, qh + rng.randf_range(0.000, 0.010),
+					fz - zs * 0.006),
+					Vector3(rn, rn * 0.66, rn), rng.randf() * TAU)
+
+	# ---- LE MARGHERITE. Tre tinte, e nessuna alla quota o al giro
+	# dell'altra. `[x, z, altezza, tinta, stampo, fuga x, fuga z]`: la
+	# FUGA è quanto la cima dello stelo scappa via dalla base — le due che
+	# scappano sopra le teste del cesto sono quelle che fanno traboccare
+	# anche i fiori, non solo il fogliame. Scappano lungo la LUNGHEZZA e
+	# non lungo la larghezza: una corolla è larga quattro centimetri e
+	# mezzo, e sporta di fianco esce dalla cella.
+	var corolle: Array = [_cesto_corolla_mesh(3, 8), _cesto_corolla_mesh(17, 9),
+			_cesto_corolla_mesh(41, 8), _cesto_corolla_mesh(59, 9)]
+	var tinte_pet: Array = [tav["petalo"], tav["petalo_crema"], tav["petalo_rosa"]]
+	for m in [[-0.318, 0.026, 0.176, 0, 0, 0.0, 0.0],
+			[-0.238, -0.058, 0.128, 2, 1, 0.0, 0.0],
+			[-0.150, 0.068, 0.206, 1, 2, 0.0, 0.0],
+			[-0.056, -0.038, 0.152, 0, 3, 0.0, 0.0],
+			[0.028, 0.074, 0.192, 2, 1, 0.0, 0.0],
+			[0.116, -0.066, 0.140, 1, 0, 0.0, 0.0],
+			[0.204, 0.044, 0.198, 0, 2, 0.0, 0.0],
+			[0.288, -0.034, 0.150, 2, 3, 0.0, 0.0],
+			[-0.344, -0.036, 0.116, 1, 1, -0.062, -0.012],
+			[0.342, 0.040, 0.108, 2, 0, 0.068, 0.008]]:
+		var bx := float(m[0])
+		var bz := float(m[1])
+		_cesto_margherita(n, rng, Vector3(bx, float(terra_h.call(bx, bz)) - 0.010, bz),
+				float(m[2]), tav, lance, corolle[int(m[4])],
+				tinte_pet[int(m[3])], Vector2(float(m[5]), float(m[6])))
+	# quattro bocci ancora chiusi: una fioriera vera non fiorisce tutta
+	# insieme
+	for b in [[-0.264, -0.006, 0.105, 2], [0.072, 0.072, 0.115, 0],
+			[0.256, -0.020, 0.095, 1], [0.164, 0.080, 0.100, 2]]:
+		var bx2 := float(b[0])
+		var bz2 := float(b[1])
+		_cesto_boccio(n, rng, Vector3(bx2, float(terra_h.call(bx2, bz2)) - 0.008, bz2),
+				float(b[2]), tav, lance, tinte_pet[int(b[3])])
+
+	# ---- LE CAMPANULE: l'arco esce dal cesto e le campane pendono dalla
+	# metà alta, più piccole verso la punta — un racemo, non un lampadario.
+	# Sono tre e non quattro: il lilla è il freddo del pezzo, e adesso deve
+	# stare accanto al rosa senza spegnerlo.
+	var campana := _cesto_campanella(5)
+	var lilla := _mat(Color("aca7e0"), Color("8b85c6"), 5.0, 0.32, 0.34)
+	var celeste := _mat(Color("a2b9e4"), Color("7f99c7"), 5.0, 0.32, 0.34)
+	for cp in [[-0.336, 0.044, -0.62, -0.78, 0.165, 0.098, 4, 0],
+			[0.048, 0.078, 0.24, 0.97, 0.195, 0.086, 4, 1],
+			[0.330, -0.044, 0.70, -0.71, 0.140, 0.084, 3, 0]]:
+		var cx4 := float(cp[0])
+		var cz4 := float(cp[1])
+		_cesto_campanule(n, rng,
+				Vector3(cx4, float(terra_h.call(cx4, cz4)) - 0.008, cz4),
+				Vector2(float(cp[2]), float(cp[3])), float(cp[4]), float(cp[5]),
+				int(cp[6]), campana, lilla if int(cp[7]) == 0 else celeste,
+				tav, lance)
+
+	# ---- L'ACHILLEA ROSATA: l'ombrella PIATTA di fiorellini minuti che in
+	# un prato vero sta sempre sotto le margherite. È il calore basso del
+	# cesto — quello che si vede fra uno stelo e l'altro invece del verde
+	# nudo. Ogni testa è un mesh solo (venti fiorellini cuciti insieme:
+	# venti nodi per pianta sarebbero cento nodi per una macchia rosa
+	# grande come un'unghia).
+	var ombrelle: Array = [_cesto_ombrello_mesh(7), _cesto_ombrello_mesh(23),
+			_cesto_ombrello_mesh(53)]
+	var achi: Array = [_mat(Color("eda2a6"), Color("cd8086"), 9.0, 0.34, 0.20),
+			_mat(Color("f2a583"), Color("d18062"), 9.0, 0.34, 0.20),
+			_mat(Color("f8e0c2"), Color("ddbf99"), 9.0, 0.32, 0.22)]
+	for a in [[-0.290, -0.062, 0.118, 0], [-0.108, -0.078, 0.132, 1],
+			[0.016, 0.062, 0.104, 2], [0.166, -0.052, 0.126, 0],
+			[0.276, 0.070, 0.110, 1], [0.372, -0.028, 0.096, 2]]:
+		var axx := float(a[0])
+		var azz := float(a[1])
+		_cesto_achillea(n, rng, Vector3(axx, float(terra_h.call(axx, azz)) - 0.006, azz),
+				float(a[2]), ombrelle[int(a[3])], achi[int(a[3])],
+				tav, lance_min)
+
+	# ---- IL TRIFOGLIO: le teste tonde e pelose, bassissime, appoggiate
+	# sul muschio. Un cuscinetto rosa sotto un cuscinetto pallido: è così
+	# che si legge una testa di trifoglio, e sono gli stessi stampi del
+	# muschio (ogni forma nuova è una forma da mantenere)
+	var trif := _mat(Color("e79ab4"), Color("c47a94"), 10.0, 0.4, 0.18)
+	var trif_pal := _mat(Color("f7d3de"), Color("dcaebe"), 10.0, 0.36, 0.22)
+	for tf in [[-0.246, 0.084, 0.062], [-0.020, -0.086, 0.070],
+			[0.098, 0.088, 0.058], [0.232, -0.078, 0.066],
+			[-0.126, 0.046, 0.054], [0.320, 0.028, 0.060]]:
+		var tx := float(tf[0])
+		var tz := float(tf[1])
+		_cesto_trifoglio(n, rng, Vector3(tx, float(terra_h.call(tx, tz)) - 0.004, tz),
+				float(tf[2]), cuscini, trif, trif_pal, tav, lobate)
+
+	# ---- LE SPIGHE candide: riempiono l'aria fra le corolle senza pesare.
+	# Restano tre — l'aria bianca è quella che tiene il mazzo un PRATO
+	# raccolto e non un bouquet; di più, e il pezzo torna freddo.
+	for sp in [[-0.204, 0.064, 0.212, "f4ecdc"], [0.086, -0.024, 0.226, "faf4e8"],
+			[0.242, 0.074, 0.178, "cdbbe4"]]:
+		var sx2 := float(sp[0])
+		var sz2 := float(sp[1])
+		_cesto_spiga(n, rng, Vector3(sx2, float(terra_h.call(sx2, sz2)) - 0.008, sz2),
+				float(sp[2]), Color(str(sp[3])), tav, lance_min)
+
+	# ---- i ciuffi d'erba: cinque fili per ciuffo, arcuati e mai allo
+	# stesso angolo. Hanno il vento del handpaint addosso (sono mesh
+	# INTERE, con la base a quota zero: l'ondina cresce col quadrato
+	# dell'altezza e non stacca niente da niente — per questo l'erba NON si
+	# può cucire in un mesh solo col resto: il vento leggerebbe la quota
+	# del cesto invece di quella del filo)
+	var erba := _mat(Color("8cb45f"), Color("6b9243"), 7.0, 0.5)
+	erba.set_shader_parameter("wind_strength", 0.9)
+	for c in [[-0.330, -0.068], [-0.244, 0.020], [-0.144, -0.078],
+			[-0.048, 0.018], [0.048, 0.082], [0.158, -0.082],
+			[0.264, 0.070], [0.348, -0.066]]:
+		var cx3 := float(c[0])
+		var cz3 := float(c[1])
+		var ciuffo := Node3D.new()
+		ciuffo.position = Vector3(cx3, float(terra_h.call(cx3, cz3)) - 0.004, cz3)
+		ciuffo.rotation.y = rng.randf() * TAU
+		n.add_child(ciuffo)
+		for f4 in 5:
+			var giro4 := TAU * float(f4) / 5.0 + rng.randf_range(-0.4, 0.4)
+			var alt4 := rng.randf_range(0.050, 0.105)
+			var apre := rng.randf_range(0.028, 0.056)
+			var d4 := Vector3(cos(giro4), 0, sin(giro4))
+			BUILDER.tube(ciuffo, [Vector3.ZERO,
+					d4 * (apre * 0.22) + Vector3(0, alt4 * 0.5, 0),
+					d4 * (apre * 0.72) + Vector3(0, alt4 * 0.92, 0),
+					d4 * apre + Vector3(0, alt4, 0)],
+					[0.0030, 0.0024, 0.0015, 0.0004], erba, 10, 4)
+
+	# ---- LE RICADUTE: cinque tralci d'edera che scavalcano la treccia e
+	# scendono davanti all'intreccio con i lembi appoggiati alla parete.
+	# Rompono la linea del bordo — è la seconda metà del trabocco: la
+	# ghirlanda si mangia il cordolo, l'edera scende fino a metà cesto.
+	# Si agganciano a un PUNTO DEL CONTORNO, non a una z fissa: sui
+	# fianchi la parete rientra, e un ramo appeso alla profondità massima
+	# restava sepolto nel vimine da un lato e sporgeva fuori sagoma
+	# dall'altro.
+	for rc in [[0.680, -1.0], [0.828, 1.0], [0.316, 1.0], [0.185, -1.0],
+			[0.545, 1.0], [0.735, 1.0], [0.258, -1.0]]:
+		var ir := int(float(rc[0]) * float(np)) % np
+		_cesto_ricaduta(n, rng, giro[ir] as Vector2, nor[ir] as Vector2,
+				qh, svaso, float(rc[1]), tav, edera, verdi_bordo)
+	return n
+
+
+## Il contorno del cesto campionato a passo di ARCO COSTANTE, con la
+## normale uscente punto per punto. Che sia costante è il perno di tutto:
+## i montanti si piantano a distanza uguale e l'onda del vimine deve
+## arrivare in fase su OGNUNO — con la parametrizzazione ingenua della
+## superellisse i punti si affollano agli angoli e l'intreccio va fuori
+## passo proprio dove il pezzo si guarda meglio, di tre quarti.
+##
+## `quadro` è la QUADRATURA: il contorno è la superellisse
+## |x/ax|^n + |z/az|^n = 1 con n = 2/quadro. A 0.66 (n = 3) su un
+## rapporto di quasi tre a uno le due teste finiscono a punta e il cesto
+## legge come una gondola; a 0.42 (n = 4.76) è un rettangolo con gli
+## angoli molto tondi — a nove decimi della lunghezza è ancora largo
+## l'83%, contro il 65% di prima. È tutto lì il difetto della canoa.
+static func _cesto_giro(np: int, ax: float, az: float, quadro := 0.36) -> Array:
+	var fitto := 960
+	var grezzo: Array[Vector2] = []
+	for i in fitto:
+		var u := TAU * float(i) / float(fitto)
+		grezzo.append(Vector2(signf(cos(u)) * pow(absf(cos(u)), quadro) * ax,
+				signf(sin(u)) * pow(absf(sin(u)), quadro) * az))
+	var lungo := PackedFloat32Array()
+	var tot := 0.0
+	for i in fitto:
+		lungo.append(tot)
+		tot += grezzo[i].distance_to(grezzo[(i + 1) % fitto])
+	var punti: Array[Vector2] = []
+	var k := 0
+	for i in np:
+		var meta := tot * float(i) / float(np)
+		while k < fitto - 1 and lungo[k + 1] < meta:
+			k += 1
+		var a: Vector2 = grezzo[k]
+		var b: Vector2 = grezzo[(k + 1) % fitto]
+		var d := maxf(a.distance_to(b), 1e-6)
+		punti.append(a.lerp(b, clampf((meta - lungo[k]) / d, 0.0, 1.0)))
+	var nor: Array[Vector2] = []
+	for i in np:
+		var t := (punti[(i + 1) % np] - punti[(i - 1 + np) % np]).normalized()
+		nor.append(Vector2(t.y, -t.x))
+	return [punti, nor]
+
+
+## UN VIMINE: il tondo spazzato lungo un percorso, chiuso ad anello (le
+## file dell'intreccio, i capi della treccia) oppure aperto e rastremato
+## (i montanti, la fune dei manici). Il frame è trasportato dalla
+## tangente, così il tondo non ruota lungo il percorso; le estremità
+## aperte si chiudono a punta, perché un vimine tagliato di netto è un
+## tubo e da vicino si vede il buco.
+static func _cesto_vimine(parent: Node3D, percorso: PackedVector3Array,
+		r0: float, r1: float, mat: Material, lati := 6,
+		chiuso := true) -> MeshInstance3D:
+	var np := percorso.size()
+	var righe := np + 1 if chiuso else np
+	var vg: Array = []
+	for i in righe:
+		var ii := i % np
+		var prima := (ii - 1 + np) % np if chiuso else maxi(ii - 1, 0)
+		var dopo := (ii + 1) % np if chiuso else mini(ii + 1, np - 1)
+		var t := (percorso[dopo] - percorso[prima]).normalized()
+		var lato := t.cross(Vector3.UP)
+		if lato.length_squared() < 1e-8:
+			lato = t.cross(Vector3.RIGHT)
+		lato = lato.normalized()
+		var alza := lato.cross(t).normalized()
+		var r := r0 if chiuso else lerpf(r0, r1, float(ii) / float(maxi(np - 1, 1)))
+		if not chiuso and i == 0:
+			var tappo0 := PackedVector3Array()
+			for j in lati:
+				tappo0.append(percorso[0] - t * (r * 0.7))
+			vg.append(tappo0)
+		var riga := PackedVector3Array()
+		for j in lati:
+			var a := TAU * float(j) / float(lati)
+			riga.append(percorso[ii] + (lato * cos(a) + alza * sin(a)) * r)
+		vg.append(riga)
+		if not chiuso and i == righe - 1:
+			var tappo1 := PackedVector3Array()
+			for j in lati:
+				tappo1.append(percorso[np - 1] + t * (r * 0.7))
+			vg.append(tappo1)
+	return _mesh_griglia(parent, vg, mat, Vector3.ZERO, true)
+
+
+## IL MANICO, e le tre cose che glielo fanno leggere.
+## 1. LA GROSSEZZA. La prima stesura era una funicella da otto millimetri:
+##    di fronte, dove l'arco si vede quasi di taglio, le spire del ritorto
+##    diventavano i denti di un pettine. Un manico si riconosce perché ci
+##    passa la mano — quindi è grosso (qui 42 mm) e il ritorto è LENTO
+##    (cinque giri su tutto l'arco): spire fitte su una fune sottile sono
+##    una filettatura, non una corda.
+## 2. LA FASCIATURA. I due piedi entrano sotto il cordolo e lì sono
+##    LEGATI, con sei giri stretti di vimine attorno alla fune. È l'unico
+##    dettaglio che dice «attaccato»: una corda che finisce in aria è una
+##    maniglia di plastica incollata al bordo.
+## 3. L'ALZATA. L'arco sale di quindici centimetri sopra la treccia e
+##    resta dentro la sagoma del cesto in pianta: un manico che sporge in
+##    fuori ruba il posto ai vicini nella cella.
+static func _cesto_manico(parent: Node3D, sx: float, xr: float, qh: float,
+		fune: Material, legaccio: Material) -> void:
+	# L'APICE STA BASSO. A qh + 0.156 il manico usciva sopra la massa
+	# fiorita e dal FRONTE — dove lo si vede di taglio — restavano due
+	# virgole pallide ai lati della sagoma, senza il buco sotto l'arco che
+	# le avrebbe fatte leggere come manici. Sceso a qh + 0.088 sparisce
+	# dentro il verde di fronte, e di profilo (dove il buco si vede) resta
+	# tutto: e' li' che un manico dice di essere un manico.
+	var zb := 0.078
+	var a0 := Vector3(sx * xr * 0.94, qh - 0.034, -zb)
+	var a1 := Vector3(sx * (xr + 0.010), qh + 0.088, -zb * 0.66)
+	var a2 := Vector3(sx * (xr + 0.010), qh + 0.088, zb * 0.66)
+	var a3 := Vector3(sx * xr * 0.94, qh - 0.034, zb)
+	var arco := func(t: float) -> Vector3:
+		var u := 1.0 - t
+		return (a0 * (u * u * u) + a1 * (3.0 * u * u * t)
+				+ a2 * (3.0 * u * t * t) + a3 * (t * t * t))
+	# il frame lungo l'arco: serve ai capi ritorti e alle fasciature
+	var telaio := func(t: float) -> Array:
+		var p: Vector3 = arco.call(t)
+		var tg: Vector3 = ((arco.call(minf(t + 0.02, 1.0))
+				- arco.call(maxf(t - 0.02, 0.0))) as Vector3).normalized()
+		var lato := tg.cross(Vector3.UP)
+		if lato.length_squared() < 1e-8:
+			lato = tg.cross(Vector3.RIGHT)
+		lato = lato.normalized()
+		return [p, lato, lato.cross(tg).normalized()]
+	for capo in 3:
+		var perc := PackedVector3Array()
+		for i in 56:
+			var t := float(i) / 55.0
+			var tl: Array = telaio.call(t)
+			var f := t * TAU * 3.5 + TAU / 3.0 * float(capo)
+			# la fune si assottiglia dentro la fasciatura: entra sotto il
+			# cordolo, non ci si appoggia sopra
+			var stretta := 1.0 - 0.34 * pow(maxf(absf(t - 0.5) * 2.0 - 0.80, 0.0)
+					/ 0.20, 2.0)
+			perc.append((tl[0] as Vector3)
+					+ ((tl[1] as Vector3) * cos(f) + (tl[2] as Vector3) * sin(f))
+					* (0.0158 * stretta))
+		# I TRE CAPI DEVONO RESTARE TRE. Con tubo 0.0108 su un cerchio di
+		# ritorto 0.0122 i capi si compenetravano in una massa piena
+		# scanalata: una conchiglia, non una corda. Il rapporto giusto e'
+		# raggio del giro ~2x il raggio del capo — cosi' fra un capo e
+		# l'altro resta il solco, che e' l'unica cosa che dice «ritorta».
+		_cesto_vimine(parent, perc, 0.0079, 0.0079, fune, 8, false)
+	# LE FASCIATURE: sei giri stretti attorno alla fune, appena sopra i
+	# piedi. Un'elica vera, non un anello: un toro liscio a mezz'aria
+	# leggerebbe come una ghiera di metallo.
+	for piede in 2:
+		var t0 := 0.045 if piede == 0 else 0.865
+		var perc2 := PackedVector3Array()
+		for i in 46:
+			var u := float(i) / 45.0
+			var t := t0 + u * 0.090
+			var tl2: Array = telaio.call(t)
+			var f2 := u * TAU * 4.0
+			perc2.append((tl2[0] as Vector3)
+					+ ((tl2[1] as Vector3) * cos(f2) + (tl2[2] as Vector3) * sin(f2))
+					* 0.0262)
+		# LA FASCIATURA VA FUORI DALLA FUNE. Stava a 0.0162 + 0.0046 =
+		# 0.0208 dall'asse mentre la fune arrivava a 0.0230: il legaccio
+		# era SEPOLTO dentro la corda che doveva legare, e in sei viste
+		# non se ne vedeva un giro. Ora la fune arriva a 0.0237 e l'elica
+		# gira a 0.0262 + 0.0052: si posa sopra, come una legatura vera.
+		_cesto_vimine(parent, perc2, 0.0052, 0.0052, legaccio, 5, false)
+
+
+## UN LEMBO CURVO — la foglia che non è un adesivo.
+## Il contorno (in millimetri, con l'attacco all'origine e la lamina che
+## cresce verso +X) si riempie a corone concentriche che convergono sul
+## PICCIOLO, e la quota di ogni punto è
+##     y = −curva·ρ²  −  carena·|ρ.y|
+## cioè: la punta CADE (è il peso della foglia) e la mezzeria sta più in
+## alto dei bordi (è la nervatura, fatta di forma e non di colore). Le due
+## leggi insieme danno una superficie a sella dolce su cui la luce SCORRE.
+## Era questo che mancava: i lembi erano prismi estrusi, e dall'alto un
+## prisma verde posato orizzontale è una lastra — leggeva come vetro, o
+## come una toppa cucita sul muschio. Un mesh invece di tre, per giunta.
+static func _cesto_lembo_mesh(contorno: Array, curva: float, carena: float,
+		anelli := 2, doppia := true) -> ArrayMesh:
+	var vg: Array = []
+	for k in anelli + 1:
+		var t := float(k) / float(anelli)
+		var riga := PackedVector3Array()
+		for p in contorno:
+			var rho: Vector2 = (p as Vector2) * t
+			riga.append(Vector3(rho.x,
+					-curva * rho.length_squared() - carena * absf(rho.y), rho.y))
+		vg.append(riga)
+	var scarto := Node3D.new()
+	var mi := _mesh_griglia(scarto, vg, null, Vector3.ZERO, true, doppia)
+	var mesh: ArrayMesh = mi.mesh
+	scarto.free()
+	return mesh
+
+
+## Il contorno DELL'EDERA e delle piante che ricadono dai vasi: lobi veri,
+## seni profondi, il lobo di punta più lungo degli altri e il SENO BASALE
+## a cuore dalla parte del picciolo.
+## `prof` è quanto scende il seno: la prima stesura era a 0.115, cioè una
+## rotellina appena ondulata — e a livello d'occhio del giocatore quelle
+## foglie appese al vimine si leggevano come DISCHI verdi incollati sulla
+## paglia. Un contorno è la firma di una pianta: se lo si smussa per
+## prudenza, resta un bottone. Qui il seno arriva a poco più di metà
+## raggio, e `pow(c, 0.42)` allarga i lobi tenendo i seni stretti — è la
+## differenza fra una foglia e una margherita di cartone.
+## Il centro sta a 0.94·raggio dall'origine, così il seno basale tocca
+## l'attacco del picciolo.
+static func _cesto_lobi(raggio: float, lobi: int, prof: float, passi: int) -> Array:
+	var out: Array = []
+	for i in passi:
+		var a := TAU * float(i) / float(passi)
+		var c := 0.5 + 0.5 * cos(float(lobi) * a)
+		var rr := raggio * (1.0 - prof + prof * pow(c, 0.42))
+		# il lobo di PUNTA è più lungo: una foglia non è un rosone
+		rr *= 1.0 + 0.20 * exp(-(a if a < PI else TAU - a) * (a if a < PI else TAU - a) / 0.36)
+		# e il seno basale rientra dalla parte del picciolo
+		var d := absf(wrapf(a - PI, -PI, PI))
+		rr *= 1.0 - 0.32 * exp(-(d * d) / 0.12)
+		out.append(Vector2(raggio * 0.94 + cos(a) * rr, sin(a) * rr))
+	return out
+
+
+## Il contorno LANCEOLATO: largo a un terzo, punta fine, base all'origine.
+## Si campiona il dorso e poi si torna indietro sul ventre, senza ripetere
+## i due capi (l'anello si chiude da solo in `_mesh_griglia`).
+static func _cesto_lancia(lung: float, larg: float, passi: int) -> Array:
+	var out: Array = []
+	for i in passi:
+		var t := float(i) / float(passi - 1)
+		out.append(Vector2(lung * t, larg * pow(sin(PI * pow(t, 0.70)), 0.80)))
+	for i in range(passi - 2, 0, -1):
+		var t2 := float(i) / float(passi - 1)
+		out.append(Vector2(lung * t2, -larg * pow(sin(PI * pow(t2, 0.70)), 0.80)))
+	return out
+
+
+static func _cesto_lembo(parent: Node3D, mesh: Mesh, mat: Material,
+		pos: Vector3, rot: Vector3, taglia := 1.0) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.material_override = mat
+	mi.position = pos
+	mi.rotation = rot
+	mi.scale = Vector3.ONE * taglia
+	parent.add_child(mi)
+	return mi
+
+
+## LA CAMPANULA: una superficie di rivoluzione MODULATA A LOBI — il raggio
+## del profilo moltiplicato per (1 + amp·cos(lobi·θ)). È questa moltipli-
+## cazione a fare la differenza fra una campanula e un ditale: cinque lobi
+## che nascono all'attacco, si aprono scendendo e si ripiegano sul labbro
+## (le ultime due stazioni RIENTRANO: il bordo di un fiore ha spessore).
+## Il fiore PENDE, quindi il profilo scende da y 0 — il peduncolo — verso
+## il basso. Un mesh solo, instanziato dieci volte con scarti di taglia.
+static func _cesto_campanella(lobi: int, colonne := 18) -> ArrayMesh:
+	var prof: Array[Vector2] = [Vector2(0.0, 0.0), Vector2(0.0032, -0.0035),
+			Vector2(0.0072, -0.0090), Vector2(0.0112, -0.0170),
+			Vector2(0.0143, -0.0250), Vector2(0.0164, -0.0325),
+			Vector2(0.0179, -0.0390), Vector2(0.0176, -0.0437),
+			Vector2(0.0148, -0.0458), Vector2(0.0104, -0.0432)]
+	var amp: Array[float] = [0.0, 0.03, 0.07, 0.11, 0.15, 0.185, 0.21, 0.21,
+			0.18, 0.13]
+	var vg: Array = []
+	for i in prof.size():
+		var p := prof[i]
+		var riga := PackedVector3Array()
+		for j in colonne:
+			var a := TAU * float(j) / float(colonne)
+			var r := p.x * (1.0 + amp[i] * cos(float(lobi) * a))
+			riga.append(Vector3(cos(a) * r, p.y, sin(a) * r))
+		vg.append(riga)
+	# il mesh serve NUDO: si costruisce su un nodo di servizio e si tiene
+	# solo la risorsa (la mesh è un Ref, sopravvive al nodo)
+	var scarto := Node3D.new()
+	var mi := _mesh_griglia(scarto, vg, null, Vector3.ZERO, true, true)
+	var mesh: ArrayMesh = mi.mesh
+	scarto.free()
+	return mesh
+
+
+## UN CUSCINETTO DI MUSCHIO: un ellissoide col raggio gonfiato da due seni
+## incommensurabili, che si spengono ai poli (se non si spengono la
+## calotta esce dentellata). Una sfera schiacciata è una bolla verde; il
+## muschio è irregolare, ed è l'irregolarità a farlo leggere.
+static func _cesto_cuscino(seme: int) -> ArrayMesh:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seme
+	var lati := 10
+	var file := 4
+	var f1 := rng.randf_range(2.0, 3.0)
+	var f2 := rng.randf_range(4.0, 6.0)
+	var p1 := rng.randf() * TAU
+	var p2 := rng.randf() * TAU
+	var vg: Array = []
+	for i in file + 1:
+		var v := PI * float(i) / float(file)
+		var riga := PackedVector3Array()
+		for j in lati:
+			var u := TAU * float(j) / float(lati)
+			var r := 1.0 + sin(v) * (0.12 * sin(u * f1 + p1)
+					+ 0.07 * sin(u * f2 + p2))
+			riga.append(Vector3(sin(v) * cos(u) * r, cos(v) * r, sin(v) * sin(u) * r))
+		vg.append(riga)
+	var scarto := Node3D.new()
+	var mi := _mesh_griglia(scarto, vg, null, Vector3.ZERO, true)
+	var mesh: ArrayMesh = mi.mesh
+	scarto.free()
+	return mesh
+
+
+static func _cesto_puff(parent: Node3D, mesh: Mesh, mat: Material,
+		pos: Vector3, scl: Vector3, giro := 0.0) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.material_override = mat
+	mi.position = pos
+	mi.scale = scl
+	mi.rotation.y = giro
+	parent.add_child(mi)
+	return mi
+
+
+## LA COROLLA DELLA MARGHERITA, cucita in un mesh solo.
+## I petali sono gli stessi di prima — sagome estruse, strette all'attacco
+## e tonde in punta, ognuna col suo giro, la sua piega e la sua taglia, e
+## una su quattro che cade più delle altre (una ruota perfetta di petali
+## identici non è un fiore, è un ingranaggio). La differenza è che invece
+## di nove nodi per corolla se ne costruisce UNO: le sagome si appendono a
+## una `SurfaceTool` con la loro trasformata e si commissionano insieme.
+## Su dieci margherite sono ottanta nodi risparmiati, e la resa è
+## IDENTICA — la stessa geometria, negli stessi posti.
+## Gli stampi si fanno in quattro varianti e si tingono per istanza: la
+## stessa corolla esce bianca, crema o rosa senza costare un mesh in più.
+static func _cesto_corolla_mesh(seme: int, petali: int) -> ArrayMesh:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seme
+	var scarto := Node3D.new()
+	var sagoma := _prisma(scarto, [Vector2(0.005, 0.0), Vector2(0.012, 0.0088),
+			Vector2(0.023, 0.0114), Vector2(0.034, 0.0106),
+			Vector2(0.0425, 0.0058), Vector2(0.0450, 0.0),
+			Vector2(0.0425, -0.0058), Vector2(0.034, -0.0106),
+			Vector2(0.023, -0.0114), Vector2(0.012, -0.0088)],
+			0.0, 0.0032, null)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for k in petali:
+		var tr := Transform3D.IDENTITY
+		tr = tr.rotated_local(Vector3.UP,
+				TAU * float(k) / float(petali) + rng.randf_range(-0.09, 0.09))
+		tr = tr.translated_local(Vector3(0.0085, 0.0008, 0.0))
+		var piega := 0.17 + rng.randf_range(-0.07, 0.11)
+		if k % 4 == 2:
+			piega -= 0.30
+		tr = tr.rotated_local(Vector3(0, 0, 1), piega)
+		tr = tr.scaled_local(Vector3(rng.randf_range(0.90, 1.08), 1.0,
+				rng.randf_range(0.88, 1.10)))
+		st.append_from(sagoma.mesh, 0, tr)
+	var mesh: ArrayMesh = st.commit()
+	scarto.free()
+	return mesh
+
+
+## L'OMBRELLA DELL'ACHILLEA: venti fiorellini minuti su una calotta quasi
+## PIATTA (è il corimbo — i pedicelli di fuori sono più lunghi e arrivano
+## tutti alla stessa quota: per questo l'achillea sembra un piattino).
+## Disposti in fillotassi, non a caso e non in anelli: l'angolo aureo è
+## l'unica semina che non lascia buchi e non fa reticolo.
+## Cuciti in un mesh solo: venti nodi per una macchia grande come
+## un'unghia sarebbero centoventi nodi per il cesto.
+static func _cesto_ombrello_mesh(seme: int) -> ArrayMesh:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seme
+	var globo := _cesto_globo(6, 3)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var quanti := 16
+	for i in quanti:
+		var t := float(i) / float(quanti - 1)
+		var rr := 0.0265 * sqrt(t) * rng.randf_range(0.90, 1.08)
+		var a := float(i) * 2.399963 + rng.randf_range(-0.10, 0.10)
+		var s := 0.0060 * (1.0 - 0.22 * t) * rng.randf_range(0.86, 1.14)
+		var p := Vector3(cos(a) * rr, 0.0062 * (1.0 - t * t)
+				+ rng.randf_range(-0.0012, 0.0012), sin(a) * rr)
+		st.append_from(globo, 0,
+				Transform3D(Basis().scaled(Vector3(s, s * 0.58, s)), p))
+	return st.commit()
+
+
+## Un globo a poche facce fatto con la stessa fabbrica di tutto il resto
+## (`_mesh_griglia`): serve perché le sfere di Godot portano UV e tangenti
+## e non si possono CUCIRE con le sagome fatte a mano — `append_from`
+## vuole lo stesso formato di vertice, altrimenti l'ombrella esce vuota.
+static func _cesto_globo(lati: int, file: int) -> ArrayMesh:
+	var vg: Array = []
+	for i in file + 1:
+		var v := PI * float(i) / float(file)
+		var riga := PackedVector3Array()
+		for j in lati:
+			var u := TAU * float(j) / float(lati)
+			riga.append(Vector3(sin(v) * cos(u), cos(v), sin(v) * sin(u)))
+		vg.append(riga)
+	var scarto := Node3D.new()
+	var mi := _mesh_griglia(scarto, vg, null, Vector3.ZERO, true)
+	var mesh: ArrayMesh = mi.mesh
+	scarto.free()
+	return mesh
+
+
+## UNA MARGHERITA di campo: lo stelo che sale con un filo di S, le foglie
+## lanceolate alla base, e la corolla — un mesh cucito, tinto per istanza
+## (bianco panna, crema-albicocca o rosa carico), col ricettacolo verde
+## sotto e il cuore a due toni sopra.
+## `fuga` è di quanto la CIMA scappa via dalla base in pianta: a zero il
+## fiore sta sopra le sue radici, e con qualche centimetro il gambo si
+## sporge oltre il cordolo. È la leva del trabocco — ma si spende solo
+## lungo la lunghezza del cesto: una corolla è larga quattro centimetri e
+## mezzo e sporta di fianco esce dalla cella.
+static func _cesto_margherita(parent: Node3D, rng: RandomNumberGenerator,
+		base: Vector3, alt: float, tav: Dictionary, lance: Array,
+		corolla_mesh: Mesh, tinta: Material, fuga := Vector2.ZERO) -> void:
+	var verde: Material = tav["verde"]
+	var pianta := Node3D.new()
+	pianta.position = base
+	pianta.rotation.y = rng.randf() * TAU
+	parent.add_child(pianta)
+	# la fuga è in coordinate del MONDO: si toglie il giro della pianta,
+	# altrimenti lo stelo si sporge da una parte a caso
+	var fg := Vector2(fuga.x, fuga.y).rotated(pianta.rotation.y)
+	var pend := Vector2(rng.randf_range(-0.05, 0.05), rng.randf_range(-0.05, 0.05))
+	var cima := Vector3(pend.x * alt + fg.x, alt, pend.y * alt + fg.y)
+	BUILDER.tube(pianta, [Vector3.ZERO,
+			Vector3(cima.x * 0.26 - 0.008, alt * 0.34, cima.z * 0.26 + 0.006),
+			Vector3(cima.x * 0.66, alt * 0.71, cima.z * 0.66), cima],
+			[0.0058, 0.0048, 0.0040, 0.0033], verde, 14, 6)
+	for j in 2:
+		_cesto_lembo(pianta, lance[(j + rng.randi() % 3) % 4],
+				tav["verde"] if j == 0 else tav["verde_tenero"],
+				Vector3(0.004, alt * (0.14 + 0.24 * float(j)), 0.002),
+				Vector3(rng.randf_range(-0.4, 0.4), rng.randf() * TAU,
+				rng.randf_range(-0.12, 0.50)), rng.randf_range(0.80, 1.05))
+	var corolla := Node3D.new()
+	corolla.position = cima + Vector3(0, 0.005, 0)
+	corolla.rotation = Vector3(rng.randf_range(-0.26, 0.10), rng.randf() * TAU,
+			rng.randf_range(-0.20, 0.20))
+	corolla.scale = Vector3.ONE * rng.randf_range(0.88, 1.14)
+	pianta.add_child(corolla)
+	# il ricettacolo verde SOTTO: all'occhio del giocatore (12 cm da terra)
+	# un fiore si guarda anche da sotto, e sotto un fiore non c'è il retro
+	# giallo del cuore
+	_cesto_puff(corolla, tav["puff"], tav["verde_tenero"], Vector3(0, -0.0042, 0),
+			Vector3(0.0150, 0.0080, 0.0150))
+	var pet := MeshInstance3D.new()
+	pet.mesh = corolla_mesh
+	pet.material_override = tinta
+	corolla.add_child(pet)
+	# il cuore: la cupola gialla e una calotta più cupa sopra (i fiorellini
+	# del disco sono più fitti al centro)
+	_cesto_puff(corolla, tav["puff"], tav["cuore"], Vector3(0, 0.0026, 0),
+			Vector3(0.0172, 0.0078, 0.0172))
+	_cesto_puff(corolla, tav["puff"], tav["cuore_cupo"], Vector3(0, 0.0058, 0),
+			Vector3(0.0108, 0.0058, 0.0108))
+
+
+## UN BOCCIO ancora chiuso: l'ovetto verde stretto nei sepali, con appena
+## una punta di petalo che sbuca — della stessa tinta della margherita che
+## diventerà. Serve al ritmo: una fioriera dove tutto è aperto insieme è
+## un centrotavola, non una pianta che vive.
+static func _cesto_boccio(parent: Node3D, rng: RandomNumberGenerator,
+		base: Vector3, alt: float, tav: Dictionary, lance: Array,
+		tinta: Material) -> void:
+	var verde: Material = tav["verde"]
+	var pianta := Node3D.new()
+	pianta.position = base
+	pianta.rotation.y = rng.randf() * TAU
+	parent.add_child(pianta)
+	var china := rng.randf_range(0.02, 0.06)
+	var cima := Vector3(china * alt, alt, 0.004)
+	BUILDER.tube(pianta, [Vector3.ZERO,
+			Vector3(china * alt * 0.4, alt * 0.5, 0.002), cima],
+			[0.0052, 0.0042, 0.0034], verde, 10, 6)
+	_cesto_lembo(pianta, lance[rng.randi() % 4], tav["verde"],
+			Vector3(0.004, alt * 0.3, 0.0),
+			Vector3(rng.randf_range(-0.4, 0.4), rng.randf() * TAU,
+			rng.randf_range(-0.1, 0.4)), rng.randf_range(0.72, 0.92))
+	var testa := Node3D.new()
+	testa.position = cima
+	testa.rotation.z = -rng.randf_range(0.10, 0.34)
+	pianta.add_child(testa)
+	_cesto_puff(testa, tav["puff"], tav["verde_tenero"], Vector3(0, 0.011, 0),
+			Vector3(0.0115, 0.0165, 0.0115))
+	_cesto_puff(testa, tav["puff"], tinta, Vector3(0, 0.0245, 0),
+			Vector3(0.0064, 0.0060, 0.0064))
+	for k in 4:
+		var sep := Node3D.new()
+		sep.position = Vector3(0, 0.006, 0)
+		sep.rotation.y = TAU * float(k) / 4.0 + rng.randf_range(-0.2, 0.2)
+		testa.add_child(sep)
+		var sf := _prisma(sep, [Vector2(0.0, 0.0), Vector2(0.010, 0.0052),
+				Vector2(0.020, 0.0022), Vector2(0.023, 0.0),
+				Vector2(0.020, -0.0022), Vector2(0.010, -0.0052)],
+				0.0, 0.0030, verde)
+		sf.rotation.z = 1.02 + rng.randf_range(-0.12, 0.12)
+
+
+## LE CAMPANULE su un tralcio ARCUATO: sale, si piega in fuori e la punta
+## ricade. Le campane pendono dalla metà alta, una per volta, col
+## peduncolo che si incurva — e rimpiccioliscono verso la punta, come in
+## un racemo vero. Ognuna col suo scarto di taglia e di pendolo: cinque
+## campane identiche appese in fila sono un lampadario.
+static func _cesto_campanule(parent: Node3D, rng: RandomNumberGenerator,
+		base: Vector3, verso: Vector2, alt: float, sporgenza: float,
+		quante: int, campana: Mesh, tinta: Material, tav: Dictionary,
+		lance: Array) -> void:
+	var verde: Material = tav["verde"]
+	var verde_cupo: Material = tav["verde_cupo"]
+	var d3 := Vector3(verso.x, 0.0, verso.y).normalized()
+	var lat := Vector3(-d3.z, 0.0, d3.x)
+	var p0 := Vector3.ZERO
+	var p1 := Vector3(0, alt * 1.00, 0) + d3 * (sporgenza * 0.10)
+	var p2 := Vector3(0, alt * 1.06, 0) + d3 * (sporgenza * 0.56)
+	var p3 := Vector3(0, alt * 0.80, 0) + d3 * sporgenza
+	var arco := func(t: float) -> Vector3:
+		var u := 1.0 - t
+		return (p0 * (u * u * u) + p1 * (3.0 * u * u * t)
+				+ p2 * (3.0 * u * t * t) + p3 * (t * t * t))
+	var pianta := Node3D.new()
+	pianta.position = base
+	parent.add_child(pianta)
+	var ctrl: Array = []
+	var raggi: Array = []
+	for j in 9:
+		ctrl.append(arco.call(float(j) / 8.0))
+		raggi.append(lerpf(0.0062, 0.0022, float(j) / 8.0))
+	BUILDER.tube(pianta, ctrl, raggi, verde, 24, 6)
+	# le foglie basali, lunghe e ricadenti: senza, il tralcio è un filo
+	for j2 in 3:
+		_cesto_lembo(pianta, lance[(j2 + 1) % 4],
+				verde if j2 % 2 == 0 else tav["verde_tenero"],
+				Vector3(0.003, alt * (0.08 + 0.15 * float(j2)), 0.0),
+				Vector3(rng.randf_range(-0.5, 0.5), rng.randf() * TAU,
+				rng.randf_range(-0.20, 0.45)), rng.randf_range(0.86, 1.10))
+	for k in quante:
+		var t := lerpf(0.42, 0.95, float(k) / float(maxi(quante - 1, 1)))
+		var attacco: Vector3 = arco.call(t)
+		var giu := 0.026 + 0.014 * (1.0 - t)
+		var fuori := (d3 * rng.randf_range(0.004, 0.014)
+				+ lat * rng.randf_range(-0.014, 0.014))
+		var fine := attacco + fuori + Vector3(0, -giu, 0)
+		BUILDER.tube(pianta, [attacco,
+				attacco + fuori * 0.65 + Vector3(0, -giu * 0.42, 0), fine],
+				[0.0028, 0.0022, 0.0017], verde_cupo, 10, 5)
+		var fiore := MeshInstance3D.new()
+		fiore.mesh = campana
+		fiore.material_override = tinta
+		fiore.position = fine + Vector3(0, 0.001, 0)
+		fiore.scale = Vector3.ONE * (rng.randf_range(0.90, 1.10) * (1.10 - 0.34 * t))
+		fiore.rotation = Vector3(rng.randf_range(-0.24, 0.24), rng.randf() * TAU,
+				rng.randf_range(-0.24, 0.24))
+		pianta.add_child(fiore)
+
+
+## L'ACHILLEA: lo stelo diritto e nervoso, le foglioline finissime attorno,
+## e in cima l'ombrella piatta (più una seconda, minore, su un rametto).
+## È il fiorellino minuto e CALDO del sottobosco: sta sotto le margherite,
+## si vede fra uno stelo e l'altro, e riempie di rosa quello che prima era
+## verde nudo.
+static func _cesto_achillea(parent: Node3D, rng: RandomNumberGenerator,
+		base: Vector3, alt: float, testa: Mesh, tinta: Material,
+		tav: Dictionary, lance_min: Array) -> void:
+	var verde: Material = tav["verde"]
+	var pianta := Node3D.new()
+	pianta.position = base
+	pianta.rotation.y = rng.randf() * TAU
+	parent.add_child(pianta)
+	var china := Vector2(rng.randf_range(-0.05, 0.05), rng.randf_range(-0.05, 0.05))
+	var cima := Vector3(china.x * alt, alt, china.y * alt)
+	BUILDER.tube(pianta, [Vector3.ZERO,
+			Vector3(cima.x * 0.34, alt * 0.42, cima.z * 0.34),
+			Vector3(cima.x * 0.72, alt * 0.76, cima.z * 0.72), cima],
+			[0.0040, 0.0033, 0.0028, 0.0024], verde, 12, 5)
+	for j in 3:
+		_cesto_lembo(pianta, lance_min[j % 2], tav["verde_oliva"],
+				Vector3(0.002, alt * (0.16 + 0.20 * float(j)), 0.0),
+				Vector3(rng.randf_range(-0.6, 0.6), rng.randf() * TAU,
+				rng.randf_range(0.10, 0.62)), rng.randf_range(0.80, 1.10))
+	var om := MeshInstance3D.new()
+	om.mesh = testa
+	om.material_override = tinta
+	om.position = cima + Vector3(0, 0.004, 0)
+	om.rotation = Vector3(rng.randf_range(-0.22, 0.22), rng.randf() * TAU,
+			rng.randf_range(-0.22, 0.22))
+	om.scale = Vector3.ONE * rng.randf_range(0.90, 1.14)
+	pianta.add_child(om)
+	# la seconda ombrella, più bassa e più piccola: un'achillea vera si
+	# ramifica, e una sola testa in cima a un filo è un chiodo
+	var lato := Vector3(cos(rng.randf() * TAU), 0, sin(rng.randf() * TAU))
+	var giu := alt * rng.randf_range(0.56, 0.72)
+	var pf := lato * rng.randf_range(0.020, 0.032) + Vector3(0, giu + 0.014, 0)
+	BUILDER.tube(pianta, [Vector3(china.x * giu, giu, china.y * giu),
+			pf.lerp(Vector3(china.x * giu, giu, china.y * giu), 0.45), pf],
+			[0.0026, 0.0021, 0.0017], verde, 8, 5)
+	var om2 := MeshInstance3D.new()
+	om2.mesh = testa
+	om2.material_override = tinta
+	om2.position = pf + Vector3(0, 0.003, 0)
+	om2.rotation = Vector3(rng.randf_range(-0.26, 0.26), rng.randf() * TAU,
+			rng.randf_range(-0.26, 0.26))
+	om2.scale = Vector3.ONE * rng.randf_range(0.62, 0.78)
+	pianta.add_child(om2)
+
+
+## UNA TESTA DI TRIFOGLIO: due cuscinetti sovrapposti — quello di sotto
+## rosa carico, quello di sopra pallido e più piccolo — su un gambo
+## sottile, con la fogliolina alla base. Gli stampi sono gli stessi del
+## muschio: una forma nuova è una forma da mantenere, e a un metro e mezzo
+## una testa di trifoglio È un batuffolo irregolare.
+static func _cesto_trifoglio(parent: Node3D, rng: RandomNumberGenerator,
+		base: Vector3, alt: float, cuscini: Array, rosa: Material,
+		pallido: Material, tav: Dictionary, lobate: Array) -> void:
+	var pianta := Node3D.new()
+	pianta.position = base
+	pianta.rotation.y = rng.randf() * TAU
+	parent.add_child(pianta)
+	var china := Vector2(rng.randf_range(-0.10, 0.10), rng.randf_range(-0.10, 0.10))
+	var cima := Vector3(china.x * alt, alt, china.y * alt)
+	BUILDER.tube(pianta, [Vector3.ZERO,
+			Vector3(cima.x * 0.40, alt * 0.50, cima.z * 0.40), cima],
+			[0.0030, 0.0025, 0.0021], tav["verde"], 10, 5)
+	var rr := rng.randf_range(0.0130, 0.0165)
+	_cesto_puff(pianta, cuscini[rng.randi() % 3], rosa,
+			cima + Vector3(0, rr * 0.72, 0),
+			Vector3(rr, rr * 1.06, rr), rng.randf() * TAU)
+	_cesto_puff(pianta, cuscini[rng.randi() % 3], pallido,
+			cima + Vector3(0, rr * 1.32, 0),
+			Vector3(rr * 0.66, rr * 0.58, rr * 0.66), rng.randf() * TAU)
+	_cesto_lembo(pianta, lobate[rng.randi() % 5], tav["verde_tenero"],
+			Vector3(0.002, alt * 0.34, 0.0),
+			Vector3(rng.randf_range(-0.4, 0.4), rng.randf() * TAU,
+			rng.randf_range(-0.05, 0.35)), rng.randf_range(0.42, 0.56))
+
+
+## UNA SPIGA di fiorellini minuti: un'elica di bocciolini attorno alla
+## metà alta dello stelo, che si stringe e rimpicciolisce verso la punta.
+## Il passo dell'elica è incommensurabile col numero dei fiori, così non
+## si richiude mai su sé stessa (una spirale che si richiude si legge come
+## una molla).
+static func _cesto_spiga(parent: Node3D, rng: RandomNumberGenerator,
+		base: Vector3, alt: float, tinta: Color, tav: Dictionary,
+		lance_min: Array) -> void:
+	var verde: Material = tav["verde"]
+	var pianta := Node3D.new()
+	pianta.position = base
+	pianta.rotation.y = rng.randf() * TAU
+	parent.add_child(pianta)
+	var china := Vector2(rng.randf_range(-0.09, 0.09), rng.randf_range(-0.07, 0.07))
+	var cima := Vector3(china.x * alt, alt, china.y * alt)
+	BUILDER.tube(pianta, [Vector3.ZERO,
+			Vector3(cima.x * 0.36, alt * 0.4, cima.z * 0.36),
+			Vector3(cima.x * 0.74, alt * 0.75, cima.z * 0.74), cima],
+			[0.0044, 0.0036, 0.0030, 0.0024], verde, 12, 5)
+	var mat := _mat(tinta, tinta.darkened(0.22), 6.0, 0.32, 0.22)
+	var mat_cupo := _mat(tinta.darkened(0.16), tinta.darkened(0.34), 6.0, 0.3)
+	var quanti := 12
+	for k in quanti:
+		var t := float(k) / float(quanti - 1)
+		var y := lerpf(alt * 0.48, alt + 0.012, t)
+		var f := t * 11.3 + rng.randf_range(-0.12, 0.12)
+		var rr := 0.0165 * (1.0 - t) + 0.0035
+		var q := Vector3(china.x * y + cos(f) * rr, y, china.y * y + sin(f) * rr)
+		var s := 0.0078 * (1.0 - 0.42 * t) * rng.randf_range(0.85, 1.15)
+		_cesto_puff(pianta, tav["puff"], mat if t < 0.82 else mat_cupo, q,
+				Vector3(s, s * rng.randf_range(0.8, 1.1), s), rng.randf() * TAU)
+	for j in 2:
+		_cesto_lembo(pianta, lance_min[j % 2], tav["verde_oliva"],
+				Vector3(0.003, alt * (0.14 + 0.16 * float(j)), 0.0),
+				Vector3(rng.randf_range(-0.5, 0.5), rng.randf() * TAU,
+				rng.randf_range(0.0, 0.5)), rng.randf_range(0.90, 1.20))
+
+
+## LA RICADUTA: un tralcio d'edera che scavalca la treccia e scende davanti
+## all'intreccio, coi lembi tondi APPOGGIATI alla parete — girati lungo la
+## TANGENTE del cesto, non in avanti: una foglia che sporge da una parete
+## verticale è una bandierina, e in più sfonda la sagoma del pezzo. Il
+## ramo scende seguendo la svasatura, sempre a tre centimetri dal
+## contorno: appeso a una profondità fissa restava sepolto nel vimine dove
+## la parete rientra.
+static func _cesto_ricaduta(parent: Node3D, rng: RandomNumberGenerator,
+		base: Vector2, fuori: Vector2, qh: float, svaso: Callable,
+		verso: float, tav: Dictionary, foglie: Array, verdi: Array) -> void:
+	var verde: Material = tav["verde"]
+	var tang := Vector2(-fuori.y, fuori.x) * verso
+	var giu := func(y: float, quanto: float, scorri: float) -> Vector3:
+		var s: float = svaso.call(y)
+		var p: Vector2 = base * s + fuori * quanto + tang * scorri
+		return Vector3(p.x, y, p.y)
+	var punti: Array = [
+			giu.call(qh - 0.006, -0.024, 0.000),
+			giu.call(qh + 0.026, 0.002, 0.008),
+			giu.call(qh - 0.014, 0.018, 0.020),
+			giu.call(qh - 0.082, 0.019, 0.032),
+			giu.call(qh - 0.134, 0.018, 0.028),
+			giu.call(qh - 0.176, 0.015, 0.014)]
+	# il tralcio è SOTTILE e cupo: un filo verde chiaro da quattro
+	# millimetri che scende per venti centimetri con tre foglie sopra si
+	# legge come un cavo elettrico, non come un ramo d'edera
+	BUILDER.tube(parent, punti, [0.0032, 0.0029, 0.0025, 0.0021, 0.0017, 0.0011],
+			tav["verde_cupo"], 24, 5)
+	var lungo_tang := atan2(-tang.y, tang.x)
+	for k in 8:
+		var t := float(k) / 7.0
+		var seg := clampi(int(t * 4.999), 0, 4)
+		var u := t * 4.999 - float(seg)
+		var p: Vector3 = (punti[seg] as Vector3).lerp(punti[seg + 1] as Vector3, u)
+		# il lembo sta a filo di parete: la rotazione su X lo corica sul
+		# vimine invece di lasciarlo sporgere come una bandierina
+		_cesto_lembo(parent, foglie[(k + 1) % 3], verdi[k % 4],
+				p + Vector3(fuori.x * 0.002, 0.001, fuori.y * 0.002),
+				Vector3(-PI * 0.5 + rng.randf_range(-0.24, 0.24),
+				lungo_tang + (0.0 if k % 2 == 0 else PI) + rng.randf_range(-0.20, 0.20),
+				-0.30 + rng.randf_range(-0.35, 0.30)),
+				rng.randf_range(0.82, 1.04))
+		# a nodi alterni la foglia è DOPPIA: l'edera mette due foglie per
+		# nodo, e un tralcio con una foglia ogni tre centimetri di filo
+		# nudo è una lenza da pesca
+		if k % 2 == 1:
+			_cesto_lembo(parent, foglie[k % 3], verdi[(k + 2) % 4],
+					p + Vector3(fuori.x * 0.002, -0.006, fuori.y * 0.002),
+					Vector3(-PI * 0.5 + rng.randf_range(-0.24, 0.24),
+					lungo_tang + (PI if k % 2 == 0 else 0.0)
+					+ rng.randf_range(-0.24, 0.24),
+					-0.62 + rng.randf_range(-0.30, 0.30)),
+					rng.randf_range(0.70, 0.92))
 
 
 static func _lucine() -> Node3D:
