@@ -165,7 +165,12 @@ static func items() -> Array[Dictionary]:
 			"cols": [[Vector3(0.78, 1.7, 0.34), Vector3(0, 0.85, -0.06)]]},
 		{"name": "Fontanella", "cat": 3, "type": "cell", "layer": 2,
 			"builder": BuildPalestra.fontanella,
-			"cols": [[Vector3(0.72, 0.95, 0.62), Vector3(0, 0.48, 0.02)]]},
+			# due scatole, ricavate dall'ingombro MISURATO (x +-0.35,
+			# y 0..1.024, z -0.562..0.323): la botte sullo zoccolo, e la
+			# conca che sporge sul davanti a 62 cm — dentro cui non si
+			# deve poter camminare
+			"cols": [[Vector3(0.70, 1.04, 0.62), Vector3(0, 0.52, 0.02)],
+					[Vector3(0.40, 0.22, 0.30), Vector3(0, 0.62, -0.42)]]},
 		{"name": "Rastrelliera", "cat": 3, "type": "cell", "layer": 2,
 			"builder": BuildPalestra.rastrelliera,
 			"cols": [[Vector3(0.92, 0.78, 0.42), Vector3(0, 0.39, 0)]]},
