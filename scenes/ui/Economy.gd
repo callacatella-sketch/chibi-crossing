@@ -42,6 +42,10 @@ const SHOP_PIECES := [
 	# silhouette diverse valgono piu' di tre copie della stessa.
 	{"name": "Cesto fiorito", "cost": 70, "cur": "nut", "cat": 2,
 		"desc": "Un cesto di vimini intrecciato a mano, colmo di fiori di campo:\nmargherite, campanule che pendono e achillea."},
+	{"name": "Fioriera bistrot", "cost": 85, "cur": "nut", "cat": 2,
+		"desc": "Avorio laccato e verde salvia, coi gerani in mazzo:\nquella dei caffè coi tavolini fuori."},
+	{"name": "Fioriera selvatica", "cost": 60, "cur": "nut", "cat": 2,
+		"desc": "Una cassa rustica che il prato si è ripreso:\nerba alta, fiori misti e l'edera che scende."},
 	{"name": "Fontana", "cost": 150, "cur": "nut", "cat": 2,
 		"desc": "Una fontanella tonda con lo zampillo che canta."},
 	{"name": "Gazebo", "cost": 240, "cur": "nut", "cat": 0,
