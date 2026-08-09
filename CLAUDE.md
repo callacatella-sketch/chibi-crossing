@@ -698,6 +698,32 @@ campate cambia anche il mestiere di dentro: serretta da giardino → galleria
    «cambia radicalmente» e' diventato «piu' vasi» — e
    [`test_serre.gd`](tests/cases/test_serre.gd) lo fa fallire.
 
+**Gli interni si USANO.** Ogni taglia ha almeno un posto dove sedersi — lo
+sgabello al bancone da rinvaso, le sedie del tavolino, la panca ad anello
+sotto l'agrume — dichiarato col nodo **`Posto*`** e il meta `seduta`
+(l'ancoraggio E' il posto) piu' il meta `tavolo` (cosa si guarda da seduti).
+Lo trovano **tutti e due** i consumatori: il giocatore
+(`BuildSystem.get_interactables`, che ora emette anche gli ancoraggi — e
+cosi' funziona pure il Gazebo, dove prima potevi guardare due sgabelli e non
+sederti) e i vicini (`Visitors._free_bench`). In `Interactions.SEATS` la voce
+**`"Posto"`** ha scostamento ZERO e `yaw_seduta` NON la gira di mezzo giro:
+il verso ce l'ha addosso l'ancoraggio, perche' solo chi costruisce il pezzo
+sa dov'e' il tavolo.
+
+**Altre due trappole pagate:**
+
+8. **Gli ANGOLI.** Due fili di muro che si incontrano fanno un angolo, e un
+   angolo senza montante e' una fessura: in controluce — che e' come si
+   guarda una serra — ci si vede passare il cielo. Ce ne sono di due specie:
+   i convessi del perimetro (0.95, 0.95) e i **concavi del pizzico
+   diagonale**, dove i fili si fermano a 0.05 e gli spigoli veri sono DUE.
+9. **Le lambda di GDScript catturano per VALORE.** Un contatore dentro una
+   lambda non avanza: tutti gli ancoraggi nascevano «Posto0», Godot
+   rinominava i doppioni in «@Node3D@78» — che non risponde piu' a
+   `find_children("Posto*")` — e restava UNA seduta su quattro, con la
+   geometria giusta e nessun test in grado di accorgersene. I nomi si danno
+   con l'INDICE del ciclo.
+
 **Come si guarda** (la suite non dice niente sulla resa):
 `CHIBI_SERRE=<dir> Godot --path . --script res://tools/provino_serre.gd`
 rende tutte le forme (fila, traverso, L, quadrato, croce, 3×3, diagonale) su

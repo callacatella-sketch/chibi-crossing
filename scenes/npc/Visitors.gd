@@ -1619,6 +1619,12 @@ func _free_bench(from: Vector3) -> Node3D:
 	for gaz in _build.get_placed_by_name("Gazebo"):
 		for posto in (gaz as Node3D).find_children("Posto*", "Node3D", true, false):
 			candidati.append(posto)
+	# e nella serra: uno sgabello al bancone, le sedie del tavolino, la
+	# panca ad anello sotto l'agrume. D'inverno e' il posto piu' bello
+	# del villaggio in cui stare seduti.
+	for serra in _build.get_placed_by_name("Serra"):
+		for posto in (serra as Node3D).find_children("Posto*", "Node3D", true, false):
+			candidati.append(posto)
 	var migliore: Node3D = null
 	var d_migliore := 16.0
 	for c in candidati:

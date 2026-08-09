@@ -813,6 +813,15 @@ func get_interactables() -> Array[Dictionary]:
 			var n: String = (node as Node3D).get_meta("item_name", "")
 			if n in INTERACTABLE:
 				out.append({"node": node, "name": n})
+				continue
+			# I POSTI DICHIARATI. Un pezzo grande non e' una seduta sola nel
+			# suo centro: il gazebo e la serra dichiarano DOVE ci si siede,
+			# col nodo «Posto*» e il meta «seduta» (l'ancoraggio E' il
+			# posto). Prima li trovavano solo i vicini — il giocatore
+			# poteva guardare due sedie da giardino e non sedersi.
+			for posto in (node as Node3D).find_children("Posto*", "Node3D", true, false):
+				if (posto as Node3D).has_meta("seduta"):
+					out.append({"node": posto, "name": "Posto"})
 	return out
 
 

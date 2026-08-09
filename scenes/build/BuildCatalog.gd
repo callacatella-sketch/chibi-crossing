@@ -3934,6 +3934,31 @@ static func serra_cella(pianta: Dictionary, c: Vector2i) -> Node3D:
 							Vector3(cx3, SERRA_GRONDA - 0.17, fil.z))
 					_cyl(n, 0.060, 0.074, 0.05, telaio, Vector3(cx3, 0.025, fil.z))
 
+	# ---- I MONTANTI D'ANGOLO. Due fili di muro che si incontrano fanno un
+	# angolo, e un angolo senza montante e' una fessura: in controluce, che
+	# e' come si guarda una serra, si vede il cielo passare. Ce ne sono di
+	# due specie: quelli CONVESSI del perimetro (0.95, 0.95) e quelli
+	# CONCAVI del pizzico diagonale, dove i fili si fermano a 0.05 — e
+	# quelli, toccati da due campate, li disegna la minore.
+	for su: float in [-1.0, 1.0]:
+		for sv: float in [-1.0, 1.0]:
+			var au: bool = aperto[Vector2i(int(su), 0)]
+			var av: bool = aperto[Vector2i(0, int(sv))]
+			if not (au and av):
+				continue
+			var gdiag: Vector2i = gu * int(su) + gv * int(sv)
+			if not s.has(c + gdiag):
+				_box(n, Vector3(0.09, SERRA_GRONDA, 0.09), telaio,
+						Vector3(su * SERRA_MURO, SERRA_GRONDA * 0.5, sv * SERRA_MURO))
+				continue
+			var vd := c + gdiag
+			if not ((c.y < vd.y) or (c.y == vd.y and c.x < vd.x)):
+				continue
+			for coppia: Vector2 in [Vector2(SERRA_MURO, SERRA_RIENTRO),
+					Vector2(SERRA_RIENTRO, SERRA_MURO)]:
+				_box(n, Vector3(0.09, SERRA_GRONDA, 0.09), telaio,
+						Vector3(su * coppia.x, SERRA_GRONDA * 0.5, sv * coppia.y))
+
 	# ------------------------------------------------------------- IL TETTO
 	# La tenda: y = COLMO - 0.5*|v|. Il tetto dell'edificio e' l'inviluppo
 	# superiore delle tende, e per ogni zona di u la falda si ferma a 0.50
@@ -4129,6 +4154,9 @@ static func serra_cella(pianta: Dictionary, c: Vector2i) -> Node3D:
 		if aperto[d2] and not (lato_porta and d2 == Vector2i(0, -1)):
 			fasce.append(d2)
 	var e_cuore: bool = (pianta["cuore"] != null and c == pianta["cuore"])
+	# le sedute che gli interni dichiarano strada facendo: si montano in
+	# fondo, quando l'ancoraggio sa gia' cosa deve guardare
+	var _sedute_serra: Array = []
 	var e_fondo: bool = (c == pianta["fondo"] and quante >= 2)
 	# la direzione LOCALE che va via dalla porta: e' li' che sta il fondo
 	# della navata, e quello che si vede dalla soglia guardando dentro
@@ -4323,6 +4351,11 @@ static func serra_cella(pianta: Dictionary, c: Vector2i) -> Node3D:
 				seg.rotation.y = -pa
 				_box(n, Vector3(0.06, 0.36, 0.06), chiaro,
 						Vector3(cos(pa) * 0.72, 0.20, sin(pa) * 0.72))
+				# ci si siede sotto l'albero, dentro una casa di vetro: le
+				# sedute guardano il mastello
+				if pk % 2 == 0:
+					_sedute_serra.append([Vector3(cos(pa) * 0.72, 0.425,
+							sin(pa) * 0.72), Vector3(0, 0.55, 0)])
 			scatole.append([Vector3(0.62, 0.45, 0.62), Vector3(0, 0.22, 0)])
 		elif e_cuore:
 			# quattro vicini ma gruppo piccolo: la VASCA dell'acqua
@@ -4350,6 +4383,8 @@ static func serra_cella(pianta: Dictionary, c: Vector2i) -> Node3D:
 					_box(sedia, Vector3(0.03, 0.28, 0.03), ghisa,
 							Vector3(-0.11 + 0.22 * float(lk % 2), 0.14,
 									-0.10 + 0.20 * float(lk / 2)))
+				_sedute_serra.append([sp3 + Vector3(0, 0.30, 0),
+						Vector3(0.30, 0.44, -0.30)])
 			scatole.append([Vector3(0.60, 0.45, 0.60), Vector3(0.30, 0.22, -0.30)])
 		# la PALMERIA: il pavimento a scacchi e le palme negli angoli
 		if taglia == "palmeria":
@@ -4383,6 +4418,51 @@ static func serra_cella(pianta: Dictionary, c: Vector2i) -> Node3D:
 			var ga := float(gk3) * TAU / 3.0 + 0.2
 			_ball(n, 0.035, verde, Vector3(cos(ga) * 0.075, 1.93, sin(ga) * 0.075),
 					Vector3(1.0, 1.5, 1.0))
+
+	# ---- LE SEDUTE. L'ancoraggio E' il posto (meta «seduta» a zero, come il
+	# Gazebo) e guarda quello che si e' venuti a guardare (meta «tavolo»).
+	# Ogni taglia ne ha almeno una: lo sgabello al bancone da rinvaso, le
+	# sedie del tavolino, la panca ad anello sotto l'agrume. Le trovano sia
+	# il giocatore (BuildSystem.get_interactables) sia i vicini
+	# (Visitors._free_bench): un interno che non si puo' usare e' una
+	# vetrina.
+	#
+	# TRAPPOLA PAGATA: i nomi si danno con l'INDICE del ciclo, non con un
+	# contatore dentro una lambda — le lambda di GDScript catturano per
+	# VALORE, quindi il contatore non avanzava e tutti gli ancoraggi
+	# nascevano «Posto0»; Godot rinominava i doppioni in «@Node3D@78», che
+	# non risponde piu' a find_children("Posto*"). Restava UNA seduta su
+	# quattro, e nessun test se ne sarebbe accorto guardando la geometria.
+	if taglia == "sola" or (not e_cuore and fasce.size() >= 1 and quante <= 3):
+		# lo sgabello al bancone: anche la serra piccola si abita
+		var d5: Vector2i = Vector2i(1, 0) if taglia == "sola" else fasce[0]
+		var vso := Vector3(float(d5.x), 0, float(d5.y))
+		var sg5 := vso * 0.30 - Vector3(0, 0, 0.30)
+		_cyl(n, 0.115, 0.10, 0.03, chiaro, Vector3(sg5.x, 0.315, sg5.z))
+		for gk5 in 3:
+			var ga5 := float(gk5) * TAU / 3.0 + 0.5
+			var gam5 := _cyl(n, 0.016, 0.020, 0.31, chiaro,
+					Vector3(sg5.x + cos(ga5) * 0.06, 0.155, sg5.z + sin(ga5) * 0.06))
+			gam5.rotation.x = sin(ga5) * 0.16
+			gam5.rotation.z = -cos(ga5) * 0.16
+		_sedute_serra.append([Vector3(sg5.x, 0.33, sg5.z),
+				vso * 0.68 + Vector3(0, 0.55, sg5.z * 0.5)])
+		scatole.append([Vector3(0.28, 0.34, 0.28), Vector3(sg5.x, 0.17, sg5.z)])
+
+	for i_sd in _sedute_serra.size():
+		var sd: Array = _sedute_serra[i_sd]
+		var dove: Vector3 = sd[0]
+		var guarda: Vector3 = sd[1]
+		var a := Node3D.new()
+		a.name = "Posto%d" % i_sd
+		a.position = dove
+		var dir := (guarda - dove) * Vector3(1, 0, 1)
+		if dir.length() > 0.02:
+			# il rig guarda -Z: e' la convenzione di ChibiBuilder
+			a.rotation.y = atan2(-dir.x, -dir.z)
+		a.set_meta("seduta", Vector3.ZERO)
+		a.set_meta("tavolo", guarda)
+		n.add_child(a)
 
 	n.set_meta("scatole", scatole)
 	n.set_meta("asse", asse)
