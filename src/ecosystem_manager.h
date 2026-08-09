@@ -26,7 +26,18 @@ class EcosystemManager : public Node3D {
         Vector3 pos;
         Vector3 vel;
         Vector3 target;
+        // due ruoli, due campi: `phase` è l'OROLOGIO interno (accumula, e il
+        // beccheggio/il cerchietto sopra la corolla ci contano), mentre allo
+        // shader serve una COSTANTE 0..1 — lì il valore viene moltiplicato per
+        // 6.283 per sparpagliare le fasi, e mandarci un orologio ne sommava la
+        // derivata alla velocità del battito, accelerandolo.
         float phase = 0.0f;
+        float blink_offset = 0.0f;
+        // l'ULTIMO valore davvero spedito al MultiMesh (vedi debug_farfalla):
+        // in headless il RenderingServer è finto e get_instance_custom_data()
+        // torna sempre zero, quindi è l'unico modo di verificare COSA arriva
+        // allo shader senza fidarsi di una rilettura del sorgente
+        float ultimo_custom = 0.0f;
         float timer = 0.0f;
         float spavento = 0.0f; // quanto le hai fatto paura adesso (0..1)
         float yaw = 0.0f;      // tenuto: ferma sul fiore la velocità non dice più dove guarda
@@ -38,7 +49,9 @@ class EcosystemManager : public Node3D {
         Vector3 pos;
         Vector3 home; // il giro di adesso: col Fiato Sospeso migra verso di te
         Vector3 casa; // …e questa è dove torna quando ti rialzi
-        float phase = 0.0f;
+        float phase = 0.0f;         // l'orologio del giro attorno a casa (accumula)
+        float blink_offset = 0.0f;  // lo sfasamento del lampeggio: COSTANTE 0..1
+        float ultimo_custom = 0.0f; // quel che è finito nel MultiMesh (per i test)
     };
 
     struct Sparrow {
@@ -168,6 +181,13 @@ public:
 
     // --- per la verifica CLI: semina uno stato ricco all'istante ---
     void debug_burst();
+
+    // --- per la verifica headless: cosa arriva DAVVERO allo shader ---
+    // {"pos": Vector3, "shader_x": float} — `shader_x` è il canale .x della
+    // custom data spedita al MultiMesh nell'ultimo push, registrato sul posto
+    // (non ricalcolato): dev'essere uno sfasamento costante, non un orologio.
+    Dictionary debug_farfalla(int i) const;
+    Dictionary debug_lucciola(int i) const;
 };
 
 } // namespace godot

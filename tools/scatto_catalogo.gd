@@ -8,7 +8,9 @@ extends SceneTree
 ##       --script res://tools/scatto_catalogo.gd
 ##
 ## Facoltativi: CHIBI_DA / CHIBI_A (indici, per lavorare a lotti se una
-## sessione lunga si pianta), CHIBI_LATO (lato dell'immagine in pixel).
+## sessione lunga si pianta), CHIBI_LATO (lato dell'immagine in pixel),
+## CHIBI_SOLO (elenco di nomi separati da virgola: rifà le foto SOLO di
+## quei pezzi — vedi la nota sulla quota di freschezza più sotto).
 ##
 ## DUE COSE CHE SEMBRANO DETTAGLI E NON LO SONO:
 ##
@@ -252,12 +254,23 @@ func _go() -> void:
 			"res://scenes/npc/ChibiBuilder.gd", "res://tools/scatto_catalogo.gd"]:
 		quota = maxi(quota, int(FileAccess.get_modified_time(src)))
 	var salta := OS.get_environment("CHIBI_SALTA") != "0"
+	# SOLO QUESTI PEZZI. La quota di freschezza guarda la data dei
+	# sorgenti: basta ritoccare una riga di BuildCatalog.gd e tutte e 399
+	# le foto risultano vecchie, cioè si rifà l'intero catalogo per aver
+	# cambiato una lampadina. Con l'elenco per nome si rifanno solo quelle
+	# dei pezzi che si è davvero toccato.
+	var solo: Array = []
+	if OS.get_environment("CHIBI_SOLO") != "":
+		for s in OS.get_environment("CHIBI_SOLO").split(","):
+			solo.append(s.strip_edges())
 	print("CATALOGO ", pezzi.size(), " pezzi, lotto ", da, "..", a,
 			("  (salta i freschi)" if salta else "  (rifà tutto)"))
 
 	for i in range(da, mini(a, pezzi.size())):
 		var voce: Dictionary = pezzi[i]
 		var nome := str(voce["name"])
+		if not solo.is_empty() and not nome in solo:
+			continue
 		var cat := int(voce.get("cat", 0))
 		var cartella: String = radice \
 				+ str(NOMI_CAT[clampi(cat, 0, NOMI_CAT.size() - 1)]) \

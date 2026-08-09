@@ -93,12 +93,36 @@ const MOMENTI_CHIAVE := {
 ## possa vedere che sta perdendo qualcuno.
 const MARGINE_FRAGILE := 1.25
 
+## IL PAREGGIO NON ELEGGE NESSUNO. Quanto il primo deve staccare il secondo
+## per potersi chiamare «il più caro».
+##
+## I gesti che il villaggio fa VERSO TUTTI (`Lavori._gesto_verso_tutti`: la
+## guardia che veglia sul sonno di tutti, il cuoco che divide il piatto con
+## tutti) scrivono lo stesso tipo di gesto, lo stesso giorno, verso ogni
+## residente: `conto()` restituiva valori identici al centesimo e il `>`
+## stretto eleggeva il PRIMO dell'array `_residents`. La coppia si sarebbe
+## spostata su un'altra persona il giorno in cui qualcuno arriva o parte e
+## l'array si riordina — senza che fosse successo niente.
+##
+## È esattamente la classifica invisibile che questo sistema si è
+## ripromesso di non scrivere: se due contano UGUALE, il gioco non sceglie
+## per il vicino. Nessun eletto, nessuna coppia, nessun telegrafo.
+const MARGINE_ELEZIONE := 1.06
+
 var _righe: Array = []        # {a, b, t, d}: da A verso B, tipo, giorno
 ## le coppie di ieri, per accorgersi quando una non c'è più
 var _coppie_ieri: Array = []
 ## le ferite aperte: nome -> {reazione, ex, dal, momenti}
 var _ferite := {}
 var _ultimo_giorno := -1
+## LE POSE CHE ABBIAMO POSATO NOI: nome -> postura. Il meta "postura" è di
+## tutti (il telegrafo della ribellione, il fagotto della partenza, il
+## concerto), e due sistemi usano gli STESSI nomi — «distratto» è sia il
+## nostro margine che si assottiglia sia lo «ho scordato l'ascia» della
+## scala. Senza sapere chi l'ha posata, toglierla spegnerebbe il telegrafo
+## di un altro sistema, che non ha modo di accorgersene e non la riscriverà
+## fino al gradino dopo. Non va nel salvataggio: i corpi rinascono nudi.
+var _pose_nostre := {}
 var _visitors: Node
 var _daynight: Node3D
 var _cablato := false
@@ -155,19 +179,50 @@ static func conto(righe: Array, io: String, altro: String, oggi: int,
 
 
 ## Chi conta di più per `io`, e quanto. Puro. Ritorna ["", 0.0] se non c'è
-## nessuno.
+## nessuno — e anche quando il primo NON STACCA il secondo di `margine`
+## (vedi `MARGINE_ELEZIONE`): a pari merito il gioco non sceglie al posto
+## suo, perché l'unica cosa che romperebbe il pareggio sarebbe l'ordine
+## dell'array dei residenti.
 static func il_piu_caro(righe: Array, io: String, tutti: Array, oggi: int,
-		lealta := 0.5) -> Array:
+		lealta := 0.5, margine := MARGINE_ELEZIONE) -> Array:
 	var chi := ""
 	var quanto := 0.0
+	var secondo := 0.0
 	for altro in tutti:
 		if str(altro) == io:
 			continue
 		var c := conto(righe, io, str(altro), oggi, lealta)
 		if c > quanto:
+			secondo = quanto
 			quanto = c
 			chi = str(altro)
+		elif c > secondo:
+			secondo = c
+	if chi == "":
+		return ["", 0.0]
+	if secondo > 0.0 and quanto < secondo * margine:
+		return ["", 0.0]
 	return [chi, quanto]
+
+
+## `altro` è ancora in cima per `io`? A PARI MERITO SÌ — ed è voluto: per
+## FORMARSI una coppia serve il margine di `il_piu_caro`, per RESTARE no.
+## È la stessa isteresi per cui `ancora_coppia` non chiede la soglia
+## assoluta: se pretendessimo il margine anche qui, il giorno in cui un
+## terzo pareggia (i gesti «a tutti» pareggiano di continuo) la coppia si
+## scioglierebbe da sola — e il calendario tornerebbe a fare il lavoro che
+## devono fare i gesti. Puro.
+static func resta_il_primo(righe: Array, io: String, altro: String,
+		tutti: Array, oggi: int, lealta := 0.5) -> bool:
+	var mio := conto(righe, io, altro, oggi, lealta)
+	if mio <= 0.0:
+		return false
+	for terzo in tutti:
+		if str(terzo) == io or str(terzo) == altro:
+			continue
+		if conto(righe, io, str(terzo), oggi, lealta) > mio:
+			return false
+	return true
 
 
 ## Quante righe di peso VERO ci sono fra due: è la valvola contro la
@@ -217,9 +272,12 @@ static func ancora_coppia(righe: Array, a: String, b: String, tutti: Array,
 		return false
 	if gesti_veri(righe, a, b) < GESTI_VERI_MIN:
 		return false
-	var da_a := il_piu_caro(righe, a, tutti, oggi, lealta_a)
-	var da_b := il_piu_caro(righe, b, tutti, oggi, lealta_b)
-	return str(da_a[0]) == b and str(da_b[0]) == a
+	# …e qui NON si passa da `il_piu_caro`: il suo margine serve a non
+	# eleggere nessuno a pari merito, ma restare insieme non è un'elezione.
+	# Un terzo che PAREGGIA non basta a separare due che stanno insieme:
+	# per prenderne il posto deve superarli.
+	return resta_il_primo(righe, a, b, tutti, oggi, lealta_a) \
+			and resta_il_primo(righe, b, a, tutti, oggi, lealta_b)
 
 
 static func coppie(righe: Array, tutti: Array, oggi: int,
@@ -407,9 +465,7 @@ func _si_sono_lasciati(a: String, b: String, oggi: int) -> void:
 				"momenti": 0}
 		# il corpo lo dice subito, dal primo giorno: non si aspetta che
 		# succeda qualcosa per farlo vedere
-		var n := _nodo_di(str(chi))
-		if n != null:
-			n.set_meta("postura", "spalle_basse")
+		_posa(str(chi), "spalle_basse")
 
 
 ## Il telegrafo: la coppia c'è ancora, ma il margine si è assottigliato. Il
@@ -427,9 +483,14 @@ func _forse_fragile(a: String, b: String) -> void:
 		if secondo <= 0.0 or mio <= 0.0:
 			continue
 		if mio / maxf(secondo, 0.001) < MARGINE_FRAGILE:
-			var n := _nodo_di(str(chi))
-			if n != null:
-				n.set_meta("postura", "distratto")
+			_posa(str(chi), "distratto")
+		else:
+			# …E IL TELEGRAFO SI SPEGNE. Il margine può tornare largo (sono
+			# bastati due giorni di gesti veri): se la posa restasse, il
+			# corpo continuerebbe a dire «questa coppia sta finendo» per il
+			# resto della partita, e il giocatore imparerebbe a non
+			# crederci più. Solo la NOSTRA posa, mai quella di un altro.
+			_posa_via(str(chi))
 
 
 ## LE FERITE SI RICHIUDONO, e la chiave è il giocatore. Ogni momento che lui
@@ -443,14 +504,43 @@ func _le_ferite_si_richiudono(oggi: int) -> void:
 		var serve: int = int(MOMENTI_CHIAVE.get(str(f.get("reazione", "")), 2))
 		if int(f.get("momenti", 0)) >= serve:
 			_ferite.erase(chi)
+			# E IL CORPO SI RADDRIZZA. La ferita si chiudeva solo nei dati:
+			# la posa restava addosso per il resto della partita, e il gesto
+			# più delicato del gioco — il giocatore che sta accanto a chi è
+			# rimasto solo, per giorni — non aveva NESSUN riscontro nel
+			# corpo di quella persona. Chi guarisce si vede.
+			_posa_via(str(chi))
 			continue
 		# e comunque il tempo, da solo, non basta: passa e non guarisce.
 		# (Ma dopo molto tempo la posa smette: restare curvi per sempre non
 		# è dolore, è una statua.)
 		if oggi - int(f.get("dal", oggi)) > 40:
-			var n := _nodo_di(str(chi))
-			if n != null and n.has_meta("postura"):
-				n.remove_meta("postura")
+			_posa_via(str(chi))
+
+
+## POSA LA NOSTRA POSTURA su `nome`, e si segna che è nostra.
+func _posa(nome: String, postura: String) -> void:
+	var n := _nodo_di(nome)
+	if n == null:
+		return
+	n.set_meta("postura", postura)
+	_pose_nostre[nome] = postura
+
+
+## TOGLIE la posa di `nome`, ma solo se l'avevamo posata noi ED è ancora
+## quella: se nel frattempo un altro sistema ha scritto la sua (il fagotto
+## della partenza, il telegrafo della ribellione), la lasciamo stare — e ci
+## dimentichiamo della nostra, che non è più addosso a nessuno.
+func _posa_via(nome: String) -> void:
+	if not _pose_nostre.has(nome):
+		return
+	var nostra := str(_pose_nostre[nome])
+	_pose_nostre.erase(nome)
+	var n := _nodo_di(nome)
+	if n == null or not n.has_meta("postura"):
+		return
+	if str(n.get_meta("postura")) == nostra:
+		n.remove_meta("postura")
 
 
 ## Il giocatore ha annodato un momento con `nome`: se ha una ferita aperta,

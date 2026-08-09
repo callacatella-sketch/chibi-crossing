@@ -60,8 +60,20 @@ func _test_seduta_viva(t, vs: GDScript) -> void:
 	v.dna = dna_s.generate(4242)
 	t.stage(v)
 
+	# L'ISTANTE va compensato del delta del frame. `_anim_sit()` fa
+	# `_sit_t += get_process_delta_time()` PRIMA di leggere l'assesto:
+	# partendo da 0.0 non si misurava l'attimo del plop ma l'assesto un
+	# delta più tardi — e nel runner il delta di un caso è la DURATA del
+	# caso precedente (un caso per frame), cioè un numero che cambia da
+	# una macchina all'altra e da un giro all'altro. A 0.13 s il plop ha
+	# già quasi finito di rimbalzare (-0.005 invece di -0.035) e
+	# l'asserzione diventava rossa senza che nessuno avesse toccato il
+	# corpo: un falso allarme che costa un'indagine. Partendo da -delta,
+	# l'istante misurato è esattamente quello scritto qui sotto.
+	var dt: float = v.get_process_delta_time()
+
 	# l'attimo del plop
-	v._sit_t = 0.0
+	v._sit_t = 0.0 - dt
 	v._t = 0.0
 	v._anim_sit()
 	t.ok(v._vis.position.y < -0.02,
@@ -70,13 +82,13 @@ func _test_seduta_viva(t, vs: GDScript) -> void:
 			"…e non si guarda ancora intorno: si sta accomodando")
 
 	# il sospiro a metà assestamento: le spalle si alzano
-	v._sit_t = 1.3
+	v._sit_t = 1.3 - dt
 	v._anim_sit()
 	t.ok((v._c_arms[0] as Node3D).rotation.x < 0.05,
 			"il sospiro alza le spalle (%.2f)" % (v._c_arms[0] as Node3D).rotation.x)
 
 	# assestato: solo respiro, e la testolina libera di girarsi
-	v._sit_t = 5.0
+	v._sit_t = 5.0 - dt
 	v._t = 3.0
 	v._anim_sit()
 	t.ok(absf(v._vis.position.y) < 0.02, "assestato: resta il respiro")

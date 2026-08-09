@@ -118,6 +118,10 @@ const T := {
 	"Cucinare": "Cook",
 	"Fare la guardia": "Stand guard",
 	"Esplorare il bosco": "Explore the woods",
+	# «amphitheatre», mai «amphitheater»: il villaggio parla britannico.
+	# Mancava perché Lavori.LAVORI è una tabella dati e nessun letterale
+	# passa da L10n.t(): il registro dei lavori la mostrava in italiano.
+	"Suonare all'anfiteatro": "Play at the amphitheatre",
 
 	# come sta, in parole che si capiscono al volo
 	"sereno": "at ease",
@@ -155,6 +159,30 @@ const T := {
 	"Un solo applauso, ma sincero.": "One pair of hands only, but it means it.",
 	"Tenere il salone": "Keep the salon",
 	"un tesoro dal bosco": "one treasure from the woods",
+	# --- il titolo del brano della sera (Concerto.TITOLO_A + TITOLO_B).
+	# Le due metà si traducono SEPARATE e poi si compongono: perciò ogni
+	# coda deve reggere sotto ognuna delle teste — «Waltz for the slow
+	# rain» come «Lullaby for those who have gone». Le teste sono nomi di
+	# forme musicali, la maiuscola resta; le code cominciano minuscole.
+	# «Berceuse» in inglese si scrive uguale e per questo NON sta qui:
+	# l'eccezione è dichiarata in test_localizzazione.UGUALI_IN_INGLESE. ---
+	"Notturno": "Nocturne",
+	"Ninnananna": "Lullaby",
+	"Valzer": "Waltz",
+	"Preludio": "Prelude",
+	"Canzone": "Song",
+	"Studio": "Study",
+	"Serenata": "Serenade",
+	"delle lucciole": "of the fireflies",
+	"per la pioggia lenta": "for the slow rain",
+	"del ponte di legno": "of the wooden bridge",
+	"per chi non dorme": "for those who cannot sleep",
+	"della prima neve": "of the first snow",
+	"dei tetti bagnati": "of the wet rooftops",
+	"per una finestra accesa": "for a lit window",
+	"del vento fra i panni stesi": "of the wind through the washing",
+	"della luna bassa": "of the low moon",
+	"per chi è partito": "for those who have gone",
 
 	# --- la ronda della guardia: quello che la notte ha lasciato ---
 	"%d lanterne accese sulla ronda": "%d lanterns lit along the round",
@@ -307,6 +335,14 @@ const T := {
 	"il giorno in cui ha fatto il fagotto": "the day they packed their bundle",
 	"il giorno della piccola valigia e del cappello in zampa":
 			"the day of the small suitcase and the hat in paw",
+	# i momenti delle nuove leve e dell'accompagnare (Legami.TIPI). Vengono
+	# da una TABELLA DATI: il guardiano dei letterali non li vedeva, e sul
+	# filo del cucciolo tornavano indietro in italiano dentro il gioco
+	# inglese. Il pronome del vicino è `they`, sempre (docs/TRADUZIONE.md).
+	"il mattino in cui è arrivato il cucciolo": "the morning the little one arrived",
+	"il nome che gli hai scelto tu": "the name you chose for them",
+	"la prima parola, detta tutta storta": "the first word, come out all crooked",
+	"quel posto che non fa più paura": "that place that frightens them no more",
 
 	# l'autunno di un vicino
 	"🍂 Sul musetto di %s brillano i primi peli d'argento":

@@ -213,11 +213,13 @@ func momento(nome: String, tipo: String, extra := "") -> void:
 	# passando un momento difficile per una cosa successa fra vicini, questo
 	# è un passo verso la porta — e non gliene parla nessuno: si annoda un
 	# momento come sempre, e dopo abbastanza lui torna nel villaggio.
-	# `get_tree()` è null quando Legami vive fuori dall'albero (i test lo
-	# istanziano così): senza questa guardia l'errore interrompeva `momento`
-	# a metà, e la suite restava verde perché un errore a runtime non fa
-	# fallire niente.
-	if nome != "__prova" and get_tree() != null:
+	# Legami vive anche FUORI dall'albero (i test lo istanziano con `.new()`):
+	# senza questa guardia l'errore interrompeva `momento` a metà, e la suite
+	# restava verde perché un errore a runtime non fa fallire niente.
+	# Si chiede `is_inside_tree()` e non `get_tree() != null` perché il
+	# secondo, su un nodo staccato, STAMPA comunque l'errore prima di
+	# restituire null: la guardia funzionava, ma sporcava il log.
+	if nome != "__prova" and is_inside_tree():
 		get_tree().call_group("affetti", "momento_del_giocatore", nome)
 	if nome != "__prova":
 		if primo:
@@ -353,9 +355,15 @@ func ricorda(nome_o_label: String, node: Node3D) -> void:
 ## vissuti insieme. `oro` per il desiderio d'oro, `intensita` < 1 per il
 ## filo appena accennato di un ricordo. Il disegno vive in FiloRosso.gd.
 func mostra_filo(nome: String, oro := false, intensita := 1.0) -> void:
-	var tree := get_tree()
-	if tree == null:
+	# `get_tree()` su un nodo STACCATO stampa un errore di motore prima di
+	# restituire null, e il null-check dopo non lo cancella: nei test
+	# `Legami` si costruisce con `.new()` e usciva una raffica di
+	# «Parameter "data.tree" is null» nel log della suite. In un log
+	# sporco gli errori VERI non si vedono — ed e' cosi' che questo
+	# progetto ha gia' perso dei difetti. `is_inside_tree()` non stampa.
+	if not is_inside_tree():
 		return
+	var tree := get_tree()
 	var filo_rosso := tree.get_first_node_in_group("filo_rosso")
 	if _visitors == null:
 		_visitors = get_node_or_null("../../Visitors")
@@ -695,10 +703,11 @@ func _toast(text: String) -> void:
 
 
 func _salva() -> void:
-	var tree := get_tree()
-	if tree == null:
+	# (stessa ragione di `mostra_filo`: si chiede all'albero PRIMA, senza
+	# far stampare al motore un errore che non e' un difetto)
+	if not is_inside_tree():
 		return  # fuori dall'albero (test): niente da salvare
-	var bs: Node = tree.get_first_node_in_group("build_system")
+	var bs: Node = get_tree().get_first_node_in_group("build_system")
 	if bs:
 		bs.request_save()
 

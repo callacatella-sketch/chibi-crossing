@@ -2635,6 +2635,28 @@ func _recita_togli() -> void:
 	_rc_appl = {}
 
 
+## LA POSTURA STABILE DI ADESSO ("sereno" = corpo neutro, nessuno l'ha
+## posata). La chiede chi deve decidere se può posare la sua.
+##
+## Serve perché `has_meta("postura")` NON risponde a quella domanda: quando
+## un transitorio si consuma il meta viene RISCRITTO con la stabile
+## sottostante, quindi dal primo saluto in poi (bastava passare a 1,4 m) il
+## meta esiste per sempre — e ogni ramo che chiedeva `has_meta(...) == false`
+## era morto da quel momento, in silenzio.
+func postura_stabile() -> String:
+	# il meta posato in questo frame vale già: `_recita_applica` lo legge
+	# solo al `_process` successivo, e in mezzo la risposta sarebbe vecchia
+	var m := str(get_meta("postura", ""))
+	if m != "" and RECITA.has(m):
+		return m
+	return _rc_stabile
+
+
+## Vero se il corpo è libero: nessuna posa stabile addosso.
+func postura_libera() -> bool:
+	return postura_stabile() == "sereno"
+
+
 ## Legge il meta "postura", fonde coi muscoli, applica (FINE _process).
 func _recita_applica(delta: float) -> void:
 	var meta := str(get_meta("postura", ""))
@@ -2647,6 +2669,19 @@ func _recita_applica(delta: float) -> void:
 			set_meta("postura", _rc_stabile)
 		elif RECITA.has(meta) and meta != _rc_stabile:
 			_rc_stabile = meta
+	elif _rc_stabile != "sereno":
+		# IL RITORNO. Chi TOGLIE il meta (la ferita degli Affetti che si
+		# richiude, il concerto che finisce, il telegrafo che si spegne) non
+		# entrava in nessun ramo: `_rc_stabile` restava quello di prima PER
+		# SEMPRE. Il vicino che il giocatore ha consolato per giorni
+		# rimaneva curvo con le spalle basse per il resto della partita — il
+		# gesto più delicato del gioco senza nessun riscontro nel corpo — e
+		# il pubblico del concerto restava «attento» a palco vuoto.
+		# «sereno» è la posa neutra e nessuno la scriveva mai: la scriviamo
+		# qui, dove si torna. (I TRANSITORI non passano di qui: quando ne
+		# arriva uno il meta viene riscritto con la stabile sottostante,
+		# quindi non è mai vuoto mentre un sussulto è in corso.)
+		_rc_stabile = "sereno"
 	if _rc_trans != "":
 		_rc_trans_t += delta
 		if _rc_trans_t >= float(RECITA_TRANS[_rc_trans]["dur"]):

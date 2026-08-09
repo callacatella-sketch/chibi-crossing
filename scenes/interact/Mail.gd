@@ -430,6 +430,14 @@ func _open_letter() -> void:
 func _close_letter() -> void:
 	_reading = false
 	_has_mail = false
+	# LETTA È LETTA, ANCHE SE SI ESCE SUBITO DOPO. `save_extra` scrive
+	# `mail_current` solo finché `_has_mail` è vero: chiudere la busta senza
+	# chiedere un salvataggio lasciava su disco la lettera di prima, e al
+	# riavvio tornava nella cassetta col SUO REGALO — la posta di Chibi
+	# Crossing si leggeva una volta e si incassava all'infinito. Si chiede
+	# con l'API pubblica (idempotente nel frame), mai `_save_village()`.
+	if _build:
+		_build.request_save()
 	_mochi_read(false)
 	var tw := create_tween().set_parallel(true)
 	tw.tween_property(_card, "modulate:a", 0.0, 0.2)
