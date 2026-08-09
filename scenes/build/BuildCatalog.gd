@@ -1178,17 +1178,102 @@ static func _fence() -> Node3D:
 	return n
 
 
+## IL TETTO. Era una scatola arancione con tre listelli sopra, e il
+## commento diceva «lastra di coppi» — ma di coppi non ce n'era uno: e'
+## il caso di scuola della famiglia «la cosa sbagliata», un codice che
+## dichiara un'intenzione e non la consegna. E' anche il pezzo piu' visto
+## del gioco: sta sopra ogni casa del villaggio.
+##
+## Tre difetti veri, tutti misurati:
+##  1. SI MANGIAVA LA CORONA DEL MURO. La lastra occupava y 2.01-2.11, e
+##     la trave di colmo del Muro (2.00-2.08) col suo coprigiunto scuro
+##     (2.08-2.11) — i due piani sfalsati che sono il coronamento piu'
+##     curato del muro — ci finivano DENTRO. Posavi un tetto e la casa
+##     perdeva la sua cornice. Adesso il tavolato POGGIA a 2.11, sopra la
+##     trave, che torna a vedersi.
+##  2. IL RITMO NON SI AFFIANCAVA. I listelli stavano a z = -0.3 / 0.0 /
+##     +0.3 su un passo di cella di 1.0: attraversando il confine la
+##     sequenza diventava 0.3, 0.3, 0.4, 0.3, 0.3, 0.4 — l'unico ornamento
+##     del pezzo, spaziato male proprio nel pezzo il cui mestiere e'
+##     essere affiancato. Adesso TUTTI i passi dividono 1.0: i coppi
+##     stanno a x = ±0.5, ±0.3, ±0.1 (quelli sul confine si sovrappongono
+##     esatti col vicino e leggono come uno solo) e i corsi a passo 0.25.
+##  3. NON ERANO COPPI. Adesso lo sono: canali concavi e coppi convessi
+##     sopra i giunti, e ogni coppo e' UN loft che si ingrossa all'inizio
+##     di ogni corso e si assottiglia alla fine — e' quello scalino a
+##     fare i corsi, non una riga dipinta.
+##
+## RESTA FUORI la GRONDA vera (20-40 cm di sporto): un tetto e' modulare
+## e non puo' sapere da solo dov'e' il bordo del tetto, quindi lo sporto
+## va solo sui lati APERTI. Si fa come il Sentiero e la Serra —
+## `tetto_cella(vicini)` piu' un `rinfresca_tetti` in BuildSystem — ma
+## quel giro tocca anche la cache `_roofs` (la dissolvenza del tetto
+## tiene le mesh in un dizionario) e va fatto con calma.
 static func _roof_tile() -> Node3D:
-	# lastra di coppi: si affianca cella per cella sopra i muri (h 2.0)
 	var n := Node3D.new()
-	_box(n, Vector3(1.02, 0.1, 1.02), _mat(Color("d97e5f"), Color("c26847"), 3.0, 0.55), Vector3(0, 2.06, 0))
-	var ridge := _mat(Color("b55c3e"), Color("a34f34"), 2.0, 0.4)
-	for i in 3:
-		_box(n, Vector3(1.02, 0.035, 0.07), ridge, Vector3(0, 2.115, -0.3 + 0.3 * i))
+	var cotto := _mat(Color("d97e5f"), Color("c26847"), 3.0, 0.55)
+	var cotto_cupo := _mat(Color("c26847"), Color("a94f34"), 3.0, 0.5)
+	var cotto_vivo := _mat(Color("e08a68"), Color("cb7050"), 3.0, 0.55)
+	var legno_sotto := _mat(WOOD_DARK, Color("5c4028"), 4.0, 0.6)
+
+	# la corona del muro finisce a 2.110: il tavolato POGGIA li' sopra
+	var y_tav := 2.110
+	var y_coppi := y_tav + 0.030
+
+	# ---- IL TAVOLATO: quel che si vede da sotto, e il letto dei coppi ----
+	# 1.005 e non 1.0: due tavolati adiacenti si sovrappongono di 2 mm e
+	# la fuga non si vede. A 1.0 esatti la giuntura sfarfalla.
+	# NIENTE ROTAZIONE: la _lastra e' gia' spessa `sp` lungo X, larga 2w
+	# lungo Z e alta `h` lungo Y — cioe' gia' un pavimento. Ruotandola di
+	# PI/2 su Z lo spessore (1.005) finiva in verticale e il tavolato
+	# diventava un MURO che tagliava il tetto in due.
+	_lastra(n, 0.5025, 0.030, 0.010, 1.005, legno_sotto,
+			Vector3(0, y_tav + 0.015, 0))
+
+	# ---- I CANALI (i concavi) e i COPPI (i convessi sopra i giunti) ----
+	# I passi DIVIDONO la cella: canali a ±0.4, ±0.2, 0 e coppi a ±0.5,
+	# ±0.3, ±0.1. Quelli a ±0.5 stanno sul confine e si sovrappongono
+	# esatti a quelli della cella accanto: da sopra e' un tetto solo.
+	var corsi := 4
+	var passo := 1.0 / float(corsi)
+
+	# le stazioni di UN coppo lungo la falda: si ingrossa all'inizio di
+	# ogni corso e si assottiglia alla fine — e' lo scalino a fare i corsi
+	var stazioni_coppo := func(w: float, alto: float, basso: float,
+			raggio: float) -> Array:
+		var st: Array = []
+		for c in corsi:
+			var z0 := -0.5 + passo * float(c)
+			st.append([z0, w, -0.008, alto, raggio])
+			st.append([z0 + 0.018, w, -0.008, alto * 0.96, raggio])
+			st.append([z0 + passo - 0.002, w, -0.008, basso, raggio * 0.9])
+		return st
+
+	# i canali: bassi e piu' cupi, e' l'ombra in fondo al canale
+	for cx: float in [-0.4, -0.2, 0.0, 0.2, 0.4]:
+		var perno := Node3D.new()
+		perno.position = Vector3(cx, y_coppi, 0)
+		perno.rotation.y = PI * 0.5
+		n.add_child(perno)
+		_loft(perno, stazioni_coppo.call(0.086, 0.020, 0.014, 0.016),
+				cotto_cupo)
+	# i coppi: alti e tondi, uno ogni due, e uno stinto ogni tanto —
+	# nessun tetto ha tutte le tegole dello stesso colore
+	var tinte := [cotto, cotto_vivo, cotto, cotto, cotto_vivo, cotto]
+	var i_coppo := 0
+	for cx2: float in [-0.5, -0.3, -0.1, 0.1, 0.3, 0.5]:
+		var perno2 := Node3D.new()
+		perno2.position = Vector3(cx2, y_coppi, 0)
+		perno2.rotation.y = PI * 0.5
+		n.add_child(perno2)
+		_loft(perno2, stazioni_coppo.call(0.062, 0.058, 0.044, 0.052),
+				tinte[i_coppo])
+		i_coppo += 1
+
 	# la pioggia si ferma sulle tegole: dentro casa non piove
 	var pcol := GPUParticlesCollisionBox3D.new()
-	pcol.size = Vector3(1.04, 0.14, 1.04)
-	pcol.position = Vector3(0, 2.06, 0)
+	pcol.size = Vector3(1.04, 0.13, 1.04)
+	pcol.position = Vector3(0, y_tav + 0.065, 0)
 	n.add_child(pcol)
 	return n
 
