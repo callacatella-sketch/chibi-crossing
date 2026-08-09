@@ -4,7 +4,7 @@
 
 | | fronte | tre quarti | profilo |
 |---|---|---|---|
-| **Amaca**<br><sub>1.07 × 0.97 m</sub> | <img src="amaca/1-fronte.jpg" width="200"> | <img src="amaca/2-tre-quarti.jpg" width="200"> | <img src="amaca/3-profilo.jpg" width="200"> |
+| **Amaca**<br><sub>1.08 × 0.93 m</sub> | <img src="amaca/1-fronte.jpg" width="200"> | <img src="amaca/2-tre-quarti.jpg" width="200"> | <img src="amaca/3-profilo.jpg" width="200"> |
 | **Armadio smarriti**<br><sub>0.98 × 1.56 m</sub> | <img src="armadio-smarriti/1-fronte.jpg" width="200"> | <img src="armadio-smarriti/2-tre-quarti.jpg" width="200"> | <img src="armadio-smarriti/3-profilo.jpg" width="200"> |
 | **Attaccapanni**<br><sub>0.31 × 1.53 m</sub> | <img src="attaccapanni/1-fronte.jpg" width="200"> | <img src="attaccapanni/2-tre-quarti.jpg" width="200"> | <img src="attaccapanni/3-profilo.jpg" width="200"> |
 | **Bacheca avvisi**<br><sub>1.10 × 1.45 m</sub> | <img src="bacheca-avvisi/1-fronte.jpg" width="200"> | <img src="bacheca-avvisi/2-tre-quarti.jpg" width="200"> | <img src="bacheca-avvisi/3-profilo.jpg" width="200"> |
