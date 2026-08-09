@@ -13,6 +13,10 @@ extends RefCounted
 
 const AFF := preload("res://scenes/npc/Affetti.gd")
 const ANIMO := preload("res://scenes/npc/Animo.gd")
+## Il villaggio finto ma VIVO (case vere, Veglia vera, Affetti vero in
+## scena) sta in un posto solo: due copie dello stesso banco si scollano in
+## silenzio esattamente come due copie di una tabella.
+const GESTI := preload("res://tests/cases/test_gesti_veri.gd")
 
 
 func run(t) -> void:
@@ -30,6 +34,9 @@ func run(t) -> void:
 	_test_nessuna_risposta_e_morta(t)
 	_test_l_isteresi_regge_le_coppie(t)
 	_test_i_gesti_veri_li_emette_qualcuno(t)
+	_test_la_valvola_dell_abitudine(t)
+	_test_la_veglia_non_annega_il_giocatore(t)
+	_test_la_valvola_si_ricorda_dopo_il_salvataggio(t)
 
 
 func _riga(a: String, b: String, tipo: String, giorno: int) -> Dictionary:
@@ -432,28 +439,192 @@ func _test_l_isteresi_regge_le_coppie(t) -> void:
 			"…e con qualcun altro diventato il suo massimo, sì")
 
 
-## I GESTI VERI ESISTONO NEL GIOCO. Senza, `coppia()` non poteva essere vera
-## MAI: dei tredici tipi, il gioco ne emetteva tre e tutti sotto la soglia
-## del «gesto vero» — e le sette risposte alla rottura erano codice morto in
-## partita, con la suite verde su un villaggio che non esiste.
+## I GESTI VERI LI EMETTE QUALCUNO — e qui si guarda EMETTERE, non si cerca
+## una parola nel sorgente.
+##
+## Senza gesti pesanti, `coppia()` non può essere vera MAI: è già successo —
+## dei tredici tipi il gioco ne emetteva tre, tutti sotto `PESO_VERO`, e le
+## sette risposte alla rottura erano codice morto in partita con la suite
+## verde su un villaggio che non esiste.
+##
+## LA VERSIONE PRECEDENTE DI QUESTA PROVA CERCAVA IL LETTERALE `"veglia"`
+## DENTRO `Lavori.gd`. Sarebbe rimasta verde con quel nome scritto in un
+## commento; ed è rimasta verde per tutto il tempo in cui quella riga,
+## emessa VERSO TUTTI in un colpo solo, sterilizzava gli affetti dell'intero
+## villaggio. Un controllo sul sorgente non sa distinguere un gesto da una
+## parola. Adesso il villaggio gira davvero (banco condiviso con
+## `test_gesti_veri`, che è il posto in cui vive tutta la messa in scena) e
+## si legge il libro mastro che ne esce.
 func _test_i_gesti_veri_li_emette_qualcuno(t) -> void:
-	var sorgenti := {}
-	for f in ["res://scenes/npc/Lavori.gd", "res://scenes/world/Nascite.gd",
-			"res://scenes/npc/Visitors.gd", "res://scenes/interact/Salone.gd",
-			"res://scenes/interact/Concerto.gd"]:
-		var fh := FileAccess.open(f, FileAccess.READ)
-		if fh:
-			sorgenti[f] = fh.get_as_text()
+	var b := GESTI.banco(t)
+	# due mesi di notti vere: la ronda parte, arriva in fondo, e al mattino
+	# il rendiconto scrive — nessuna riga messa a mano in questo test
+	for giorno in 60:
+		GESTI.notte(b)
+		GESTI.domani(b)
+	var righe := GESTI.righe_di(b)
+	t.ok(not righe.is_empty(),
+			"facendo girare il gioco, qualcuno EMETTE gesti (%d righe)" % righe.size())
+
 	var pesanti := 0
-	for tipo in AFF.GESTI:
-		if absf(float(AFF.GESTI[tipo])) < AFF.PESO_VERO:
-			continue
-		for f2 in sorgenti:
-			if str(sorgenti[f2]).contains('"%s"' % tipo):
-				pesanti += 1
-				break
+	var tipi := {}
+	for r in righe:
+		var tipo := str((r as Dictionary).get("t", ""))
+		if absf(float(AFF.GESTI.get(tipo, 0.0))) >= AFF.PESO_VERO:
+			pesanti += 1
+			tipi[tipo] = true
 	t.ok(pesanti >= AFF.GESTI_VERI_MIN,
-			"il gioco emette almeno %d tipi di gesto VERO (%d): senza,"
+			"…e ne emette almeno %d di peso VERO (%d): sotto questa soglia"
 			% [AFF.GESTI_VERI_MIN, pesanti]
 			+ " nessuna coppia potrebbe formarsi e tutto il sistema sarebbe"
 			+ " codice morto in partita")
+	t.ok(tipi.has("veglia"),
+			"la veglia arriva nel libro mastro da chi la fa (Veglia.gd), non"
+			+ " più da un giro «verso tutti» nel registro dei lavori")
+
+	# e le righe che sono ARRIVATE bastano davvero a fare una coppia: è la
+	# differenza fra un sistema vivo e sette risposte alla rottura che nessuno
+	# raggiungerà mai
+	var oggi := int((b["dn"] as Node3D).get("day"))
+	var coppie := AFF.coppie(righe, GESTI.NOMI, oggi)
+	t.ok(coppie.size() >= 1,
+			"e da quelle righe — quelle vere, non quelle scritte dal test —"
+			+ " nasce almeno una coppia")
+
+
+# ----------------------------------------------------- la valvola dell'abitudine
+
+## L'ABITUDINE NON È UN GESTO.
+##
+## Tolto il broadcast, restava il secondo modo di annegare il libro mastro:
+## la stessa riga pesante riscritta ogni notte fra le stesse due persone.
+## MISURATO: una riga da 0,80 al giorno va a regime a ~41,9 — diciassette
+## volte `SOGLIA_COPPIA` — e a quel punto qualunque cosa faccia il giocatore
+## (`coraggio` vale 1,20, e succede una volta sola) è rumore di fondo.
+##
+## ⚠️ QUESTA PROVA HA UN MODO SILENZIOSO DI NON PROVARE NIENTE.
+## `Affetti._giorno()` ritorna 1 quando non trova un DayNight: su un banco
+## che non fa avanzare il giorno, la valvola sarebbe chiusa SEMPRE, ogni
+## asserzione «una riga sola» passerebbe per il motivo sbagliato e nessuno
+## si accorgerebbe che `GIORNI_RIPETIZIONE` non è mai stato messo alla
+## prova. Perciò la prima cosa che si verifica è che il calendario giri.
+func _test_la_valvola_dell_abitudine(t) -> void:
+	var b := GESTI.banco(t)
+	var aff = b["aff"]
+	var dn = b["dn"]
+	t.eq(int(aff.call("_giorno")), 1, "il banco parte dal giorno uno")
+	dn.day = 5
+	t.eq(int(aff.call("_giorno")), 5,
+			"IL CALENDARIO GIRA DAVVERO: senza questo, tutto il resto di"
+			+ " questa prova passerebbe per il motivo sbagliato")
+	dn.day = 1
+	(aff.get("_righe") as Array).clear()
+
+	# due volte la stessa notte: una riga sola
+	aff.call("gesto", "Anice", "Basilio", "veglia")
+	aff.call("gesto", "Anice", "Basilio", "veglia")
+	t.eq((aff.get("_righe") as Array).size(), 1,
+			"lo stesso gesto pesante due volte nello stesso giorno: UNA riga")
+
+	# un tipo diverso in mezzo NON è una ripetizione: la chiave è la terna
+	aff.call("gesto", "Anice", "Basilio", "piatto")
+	t.eq((aff.get("_righe") as Array).size(), 2,
+			"un «piatto» fra due «veglia» passa: è un altro gesto, non"
+			+ " un'abitudine")
+
+	# il verso conta: essere cercati non è cercare
+	aff.call("gesto", "Basilio", "Anice", "veglia")
+	t.eq((aff.get("_righe") as Array).size(), 3,
+			"la veglia nel verso opposto passa: la chiave è la TERNA col verso")
+
+	# sei giorni non bastano, sette sì
+	dn.day = 1 + AFF.GIORNI_RIPETIZIONE - 1
+	aff.call("gesto", "Anice", "Basilio", "veglia")
+	t.eq((aff.get("_righe") as Array).size(), 3,
+			"a sei giorni la veglia sulla stessa porta è ancora un'abitudine")
+	dn.day = 1 + AFF.GIORNI_RIPETIZIONE
+	aff.call("gesto", "Anice", "Basilio", "veglia")
+	t.eq((aff.get("_righe") as Array).size(), 4,
+			"a sette giorni esatti torna a essere una notizia")
+
+	# I GESTI LEGGERI NON PASSANO MAI DALLA VALVOLA: cento chiacchiere
+	# devono poter restare cento chiacchiere (valgono 0,05 l'una apposta)
+	var prima := (aff.get("_righe") as Array).size()
+	for i in 5:
+		aff.call("gesto", "Cedro", "Dalia", "chiacchiera")
+	t.eq((aff.get("_righe") as Array).size(), prima + 5,
+			"cinque chiacchiere nello stesso giorno restano cinque righe")
+
+	# e la valvola non è un tetto sul villaggio: la stessa notte, verso
+	# un'altra persona, la riga si scrive
+	prima = (aff.get("_righe") as Array).size()
+	aff.call("gesto", "Anice", "Cedro", "veglia")
+	t.eq((aff.get("_righe") as Array).size(), prima + 1,
+			"…e vegliare su qualcun ALTRO la stessa notte si scrive:"
+			+ " la valvola frena l'abitudine, non la persona")
+
+
+## LA TARATURA, che è il vero motivo per cui la valvola esiste: contare le
+## righe non basta, perché il numero che conta è quanto PESANO.
+##
+## Un mese di luce accesa sulla stessa porta DEVE contare — sarebbe assurdo
+## il contrario. Ma deve contare sulla scala dei gesti del giocatore, non
+## diciassette volte sopra: `coraggio` vale 1,20 e succede una volta sola,
+## e se un'abitudine automatica arrivasse a 40 nessuna cosa fatta dal
+## giocatore sposterebbe più niente. Qui si fanno passare trenta notti VERE
+## e si misura quanto pesano.
+func _test_la_veglia_non_annega_il_giocatore(t) -> void:
+	var b := GESTI.banco(t)
+	for notte in 30:
+		GESTI.notte(b)
+		GESTI.domani(b)
+	var righe := GESTI.righe_di(b)
+	var oggi := int((b["dn"] as Node3D).get("day"))
+	var chi := ""
+	for r in righe:
+		chi = str((r as Dictionary).get("b", ""))
+	var quanto := AFF.conto(righe, chi, GESTI.NOMI[0], oggi)
+	t.ok(quanto > AFF.SOGLIA_COPPIA,
+			"trenta notti di luce accesa contano DAVVERO (%.2f, sopra la"
+			% quanto + " soglia della coppia): la valvola frena, non spegne")
+	t.ok(quanto < AFF.SOGLIA_COPPIA * 3.0,
+			"…ma restano sulla scala dei gesti del giocatore (%.2f contro"
+			% quanto
+			+ " %.2f): senza la valvola una riga al giorno andava a regime"
+			% (AFF.SOGLIA_COPPIA * 3.0)
+			+ " a ~41,9, e tutto quello che fa il giocatore diventava rumore")
+
+
+## LA MEMORIA DELLA VALVOLA STA NELLE RIGHE, non in un campo nuovo — e
+## quindi sopravvive gratis al salvataggio. Ma dal JSON il giorno torna
+## `float`, e il «mai successo» non può essere un giorno sentinella: con
+## `-1` al posto di un booleano, una riga datata a un giorno <= -1 si
+## leggerebbe come inesistente e la valvola si aprirebbe di soppiatto.
+func _test_la_valvola_si_ricorda_dopo_il_salvataggio(t) -> void:
+	var righe := [_riga("Anna", "Bruno", "veglia", 10)]
+	t.eq(AFF.giorni_dall_ultimo(righe, "Anna", "Bruno", "veglia", 10), 0,
+			"scritta oggi: zero giorni fa")
+	t.eq(AFF.giorni_dall_ultimo(righe, "Anna", "Bruno", "veglia", 17), 7,
+			"sette giorni dopo: sette")
+	t.eq(AFF.giorni_dall_ultimo(righe, "Bruno", "Anna", "veglia", 17), -1,
+			"nell'altro verso non è mai successo")
+	t.eq(AFF.giorni_dall_ultimo(righe, "Anna", "Bruno", "piatto", 17), -1,
+			"e di un altro tipo nemmeno")
+	# il giorno che torna dal disco è un float
+	var dal_disco := [{"a": "Anna", "b": "Bruno", "t": "veglia", "d": 23.0}]
+	t.eq(AFF.giorni_dall_ultimo(dal_disco, "Anna", "Bruno", "veglia", 25), 2,
+			"il giorno riletto dal JSON è un float, e la valvola lo legge lo stesso")
+	# il giorno ZERO e i giorni negativi non devono farsi passare per «mai»
+	t.eq(AFF.giorni_dall_ultimo([_riga("Anna", "Bruno", "veglia", 0)],
+			"Anna", "Bruno", "veglia", 3), 3,
+			"il giorno zero è un giorno, non un «mai successo»")
+	t.eq(AFF.giorni_dall_ultimo([_riga("Anna", "Bruno", "veglia", -5)],
+			"Anna", "Bruno", "veglia", 0), 5,
+			"…e nemmeno un giorno negativo (col sentinella -1 la valvola si"
+			+ " apriva di soppiatto)")
+	# fra più righe vince la PIÙ RECENTE
+	var tante := [_riga("Anna", "Bruno", "veglia", 2),
+			_riga("Anna", "Bruno", "veglia", 30),
+			_riga("Anna", "Bruno", "veglia", 11)]
+	t.eq(AFF.giorni_dall_ultimo(tante, "Anna", "Bruno", "veglia", 31), 1,
+			"fra tante righe conta l'ultima, non la prima trovata")

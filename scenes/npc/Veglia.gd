@@ -84,6 +84,11 @@ var _lanterne_accese := 0
 var _guardia := ""          # la LABEL di chi ha vegliato stanotte
 var _resa := 0.0
 var _tappe: Array = []
+# le PORTE della ronda, nello stesso ordine delle prime tappe: l'indice di
+# tappa `i < _porte.size()` mappa esattamente su `_porte[i]`. Serve al
+# mattino per sapere DI CHI era l'ultima porta illuminata — un dato che
+# `_tappe` (sole posizioni) non porta con sé.
+var _porte: Array = []
 var _tappa_i := 0
 var _passo_cd := 0.0
 var _turno_cd := 0.0        # il prossimo richiamo alla garitta
@@ -131,6 +136,37 @@ static func tappe_della_ronda(case: Array, ritrovi: Array, quante: int) -> Array
 			return out
 		out.append(p)
 	return out
+
+
+## SU CHI HA VEGLIATO, stanotte. Cammina ALL'INDIETRO sulle porte
+## effettivamente raggiunte e ritorna il NOME della prima che risulta al
+## buio senza la ronda: l'ultima lanterna della notte, quella per cui la
+## guardia è rimasta alzata — quella che poteva saltare e non ha saltato.
+##
+## PERCHÉ UNA SOLA, E PERCHÉ L'ULTIMA. Il libro mastro degli affetti
+## riceveva una riga identica da chi era di guardia verso OGNI residente:
+## misurato su 240 giorni, il conto verso il cuoco cresceva 2.6 volte più
+## che verso chiunque altro, la prima coppia nasceva al giorno 3 ed era
+## sempre quella, e nessun'altra poteva più formarsi — un solo incarico
+## assegnato sterilizzava gli affetti dell'intero villaggio. Anche
+## scriverla a TUTTI i «salvati» rifà lo stesso pareggio un piano sotto.
+## Una riga sola, e a scegliere il destinatario è dove il giocatore ha
+## (non) messo le luci: chi illumina una casa toglie quella porta dal giro.
+##
+## `luci_costruite` sono SOLO le luci del villaggio costruito: le lanterne
+## della ronda renderebbero ogni porta illuminata e la risposta sarebbe
+## sempre "". Ritorna "" anche quando il villaggio è già tutto illuminato
+## dal giocatore, ed è giusto: non ha vegliato su nessuno che ne avesse
+## bisogno, quindi silenzio.
+## PURA: entrano porte e luci, esce un nome.
+static func chi_ha_vegliato(porte: Array, quante_fatte: int,
+		luci_costruite: Array) -> String:
+	for i in range(mini(quante_fatte, porte.size()) - 1, -1, -1):
+		var p: Dictionary = porte[i]
+		var pos: Vector3 = p.get("pos", Vector3.ZERO)
+		if al_buio(pos, luci_costruite):
+			return str(p.get("nome", ""))
+	return ""
 
 
 ## Quanta sicurezza dona una notte vegliata, a una data resa.
@@ -199,19 +235,29 @@ func _manda_in_garitta() -> void:
 			"guardia"))
 	if r <= 0.0:
 		return
-	if not _build.has_method("get_placed_by_name"):
-		return
-	var garitte: Array = _build.call("get_placed_by_name", "Guardiola")
-	if garitte.is_empty():
-		return
-	var garitta := garitte[0] as Node3D
-	if garitta == null or not is_instance_valid(garitta):
-		return
-	var posto := garitta.find_child("PostoGuardia", true, false) as Node3D
+	var posto = _posto_di_guardia()
 	if posto == null:
 		return
 	if _visitors.has_method("manda"):
-		_visitors.call("manda", chi, posto.global_position)
+		_visitors.call("manda", chi, posto)
+
+
+## Dov'è il posto della guardia, se una Guardiola c'è: `null` altrimenti.
+## Lo usano DUE cose (il turno di giorno e il punto da cui parte il giro
+## della sera): una funzione sola, o le due si scollano in silenzio.
+func _posto_di_guardia():
+	if _build == null or not _build.has_method("get_placed_by_name"):
+		return null
+	var garitte: Array = _build.call("get_placed_by_name", "Guardiola")
+	if garitte.is_empty():
+		return null
+	var garitta := garitte[0] as Node3D
+	if garitta == null or not is_instance_valid(garitta):
+		return null
+	var posto := garitta.find_child("PostoGuardia", true, false) as Node3D
+	if posto == null:
+		return null
+	return posto.global_position
 
 
 func _comincia_ronda() -> void:
@@ -219,6 +265,7 @@ func _comincia_ronda() -> void:
 	_guardia = ""
 	_resa = 0.0
 	_tappe = []
+	_porte = []
 	_tappa_i = 0
 	if _visitors == null or _lavori == null:
 		return
@@ -237,7 +284,11 @@ func _comincia_ronda() -> void:
 		return
 	_guardia = chi
 	_resa = r
-	var case := _case_dei_vicini()
+	# le porte tengono NOME e cella; alle tappe vanno solo le posizioni, così
+	# `tappe_della_ronda` resta la stessa funzione pura di prima e l'indice di
+	# tappa continua a mappare 1:1 sulle porte finché `i < _porte.size()`
+	_porte = _ordina_porte(_porte_dei_vicini())
+	var case: Array = _porte.map(func(p: Dictionary) -> Vector3: return p["pos"])
 	var ritrovi := _ritrovi()
 	var quante: int = int(_lavori.call("quanti", case.size() + ritrovi.size(), r))
 	_tappe = tappe_della_ronda(case, ritrovi, maxi(quante, 1))
@@ -295,15 +346,80 @@ func _spegni() -> void:
 
 # ============================================================ i luoghi
 
-## Le case dei vicini: è per chi ci dorme che si veglia, quindi vengono prima.
-func _case_dei_vicini() -> Array:
+## Le PORTE dei vicini: è per chi ci dorme che si veglia, quindi vengono
+## prima. Ogni voce è {"nome", "label", "pos", "cell"}; `pos` è l'uscio
+## (`_house.front`), non il corpo.
+##
+## TRAPPOLA MISURATA: `ORA_RONDA = 0.76` cade dentro la fase "fire" di
+## `Visitors._phase()` (0.66-0.82), cioè l'ora in cui i corpi sono TUTTI
+## attorno al falò. Leggendo `node.global_position` la ronda illuminava la
+## radura N volte e le case mai — e il mattino dopo non c'era modo di dire
+## su chi si fosse vegliato. La casa la si chiede a `_house` (le chiavi
+## vere sono `bed`/`cell`/`front`, vedi `Visitors._make_house`), e si
+## ripiega sul corpo solo se il letto è stato demolito.
+func _porte_dei_vicini() -> Array:
 	var out: Array = []
 	if _visitors == null:
 		return out
 	for r in (_visitors.get("_residents") as Array):
 		var node := r.get("node") as Node3D
-		if node != null and is_instance_valid(node):
-			out.append(Vector3(node.global_position.x, 0.0, node.global_position.z))
+		if node == null or not is_instance_valid(node):
+			continue
+		var label := str(r.get("label", ""))
+		# i cuccioli non hanno una casa loro e non si vegliano da adulti:
+		# la stessa esclusione del registro dei lavori e del congedo
+		if label != "" and _visitors.has_method("e_cucciolo") \
+				and bool(_visitors.call("e_cucciolo", label)):
+			continue
+		var pos := Vector3(node.global_position.x, 0.0, node.global_position.z)
+		var cell := Vector2i(int(roundf(pos.x)), int(roundf(pos.z)))
+		var casa = node.get("_house")
+		if casa is Dictionary:
+			var front = (casa as Dictionary).get("front", null)
+			if front is Vector3:
+				pos = Vector3(front.x, 0.0, front.z)
+			var c = (casa as Dictionary).get("cell", null)
+			if c is Vector2i:
+				cell = c
+		out.append({
+			"nome": str((r.get("dna", {}) as Dictionary).get("name", "")),
+			"label": label, "pos": pos, "cell": cell,
+		})
+	return out
+
+
+## L'ordine del giro: si parte dal posto di guardia (o, senza Guardiola,
+## dalla porta di chi veglia) e si va per vicinanza.
+##
+## IL PAREGGIO VA ROTTO A MANO. Le case stanno su una griglia a interi: due
+## porte alla stessa distanza dal posto sono la norma, non l'eccezione, e
+## senza un secondo criterio a decidere torna l'ordine di `_residents` —
+## cioè un ordine che dipende da chi è arrivato prima. Qui non è un
+## dettaglio contabile: è il giro che il giocatore VEDE, e il mattino dopo
+## è il nome che finisce nel libro mastro.
+func _ordina_porte(porte: Array) -> Array:
+	var da: Vector3 = Vector3.ZERO
+	var posto = _posto_di_guardia()
+	if posto != null:
+		da = posto
+	else:
+		for p in porte:
+			if str((p as Dictionary).get("label", "")) == _guardia:
+				da = (p as Dictionary)["pos"]
+				break
+	var out: Array = porte.duplicate()
+	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var pa: Vector3 = a["pos"]
+		var pb: Vector3 = b["pos"]
+		var da2 := Vector2(pa.x - da.x, pa.z - da.z).length_squared()
+		var db2 := Vector2(pb.x - da.x, pb.z - da.z).length_squared()
+		if absf(da2 - db2) > 0.0001:
+			return da2 < db2
+		var ca: Vector2i = a["cell"]
+		var cb: Vector2i = b["cell"]
+		if ca.x != cb.x:
+			return ca.x < cb.x
+		return ca.y < cb.y)
 	return out
 
 
@@ -316,19 +432,45 @@ func _ritrovi() -> Array:
 	return out
 
 
-## Tutte le luci del villaggio: quelle costruite (Lampione, Camino, Lampada)
-## più le lanterne di stanotte. Serve per sapere chi dorme al buio.
-func luci_del_villaggio() -> Array:
+## I pezzi che il giocatore può posare e che fanno luce: la strada che non
+## costa rancore a nessuno.
+const PEZZI_CHE_ILLUMINANO := ["Lampione", "Camino", "Lampada",
+		"Lampada semplice", "Braciere stellato", "Fontana"]
+
+
+## Solo le luci COSTRUITE: quelle che ci sarebbero anche senza la ronda.
+## Sono queste, e non le lanterne, a dire quali porte sarebbero rimaste al
+## buio stanotte.
+func luci_costruite() -> Array:
 	var out: Array = []
-	if _build:
-		for nome in ["Lampione", "Camino", "Lampada", "Lampada semplice", "Braciere stellato", "Fontana"]:
-			for n in (_build.call("get_placed_by_name", nome) as Array):
-				if n != null and is_instance_valid(n):
-					out.append((n as Node3D).global_position)
-	for l in _lanterne:
-		var node := l.get("node") as Node3D
-		if node != null and is_instance_valid(node):
-			out.append(node.global_position)
+	if _build == null:
+		return out
+	for nome in PEZZI_CHE_ILLUMINANO:
+		for n in (_build.call("get_placed_by_name", nome) as Array):
+			if n != null and is_instance_valid(n):
+				out.append((n as Node3D).global_position)
+	return out
+
+
+## Le lanterne accese stanotte, come posizioni.
+##
+## SI LEGGE DA `_tappe`, NON DA `_lanterne`. `MORNING = 0.29` (DayNight) e
+## `ORA_ALBA = 0.29` sono lo stesso numero: le lanterne sopravvivono al
+## rendiconto del mattino solo perché DayNight sta PRIMA di Veglia
+## nell'albero e `_spegni()` chiede `ora > ORA_ALBA` stretto. Far dipendere
+## dall'ordine dei nodi un dato che finisce nei drive (e quindi nel
+## salvataggio) è un guasto che aspetta solo di essere spostato di un
+## fratello. `_tappe`/`_tappa_i` sono dati puri e restano fino alla ronda
+## successiva.
+func luci_della_ronda() -> Array:
+	return _tappe.slice(0, _tappa_i)
+
+
+## Tutte le luci del villaggio: quelle costruite più le lanterne di
+## stanotte. Serve per sapere chi dorme al buio.
+func luci_del_villaggio() -> Array:
+	var out := luci_costruite()
+	out.append_array(luci_della_ronda())
 	return out
 
 
@@ -367,7 +509,32 @@ func rendiconto_del_mattino() -> Dictionary:
 			_visitors.call("dona_drive", label, "sicurezza", -BUIO_SICUREZZA,
 					SICUREZZA_MINIMA)
 			esito["al_buio"] = int(esito["al_buio"]) + 1
+	_annota_la_veglia()
 	return esito
+
+
+## La riga del libro mastro degli affetti: UNA per notte, e nasce QUI
+## perché qui vive l'informazione — questo è l'unico posto che sa dov'è
+## andata la luce.
+##
+## Prima la scriveva un giro in `Lavori`, identica da chi vegliava verso
+## OGNI residente: misurato su 240 giorni, il conto fra guardia e cuoco
+## cresceva 2.6 volte più che verso chiunque altro, la prima coppia nasceva
+## al giorno 3 ed era sempre la stessa, e in tutta la partita non se ne
+## formava nessun'altra. Il libro mastro non aveva più nessuna forma se non
+## quella dell'incarico assegnato.
+##
+## IL LIBRO MASTRO È INDICIZZATO PER NOME (`dna.name`), non per label:
+## `_guardia` è una label e va convertita, o la riga resta intestata a
+## qualcuno che nel libro non esiste — e non se ne accorge nessuno.
+func _annota_la_veglia() -> void:
+	if _visitors == null or _guardia == "":
+		return
+	var chi := str(_visitors.call("_nome_da_label", _guardia))
+	var vegliato := chi_ha_vegliato(_porte, _tappa_i, luci_costruite())
+	if chi == "" or vegliato == "" or chi == vegliato:
+		return
+	get_tree().call_group("affetti", "gesto", chi, vegliato, "veglia")
 
 
 # ---------------------------------------------------------------- debug CLI
@@ -379,4 +546,5 @@ func debug_ronda() -> void:
 
 func debug_stato() -> Dictionary:
 	return {"guardia": _guardia, "resa": _resa, "lanterne": _lanterne.size(),
-			"tappe": _tappe.size()}
+			"tappe": _tappe.size(), "porte": _porte.size(),
+			"vegliato": chi_ha_vegliato(_porte, _tappa_i, luci_costruite())}

@@ -204,11 +204,17 @@ func _produzione_del_giorno() -> void:
 			"cucina":
 				# sotto mezza resa il mestolo resta appeso (niente piatto)
 				if cooking and r >= 0.5:
-					var piatto := str(cooking.cook_by_villager())
+					# IL PIATTO SI RICORDA CHI L'HA FATTO, e basta: il gesto
+					# d'affetto nasce dove la ciotola viene MANGIATA, e chi la
+					# riceve lo sceglie il GIOCATORE portandogliela. Prima si
+					# scriveva qui una riga identica verso OGNI residente, e il
+					# cuoco diventava il massimo (non ricambiato) di tutti:
+					# insieme alla guardia formava l'unica coppia possibile, e
+					# il resto del villaggio non si accoppiava con nessuno.
+					var piatto := str(cooking.cook_by_villager(
+							str(_visitors.call("_nome_da_label", label))))
 					if piatto != "":
 						piatti.append(piatto)
-						# ha diviso quello che aveva con tutti
-						_gesto_verso_tutti(label, "piatto")
 			"guardia":
 				# LA GUARDIA NON PRODUCE COSE: produce il sonno degli altri.
 				# La ronda della sera ha gia' acceso le sue lanterne (una per
@@ -220,16 +226,17 @@ func _produzione_del_giorno() -> void:
 					var esito: Dictionary = veglia.call("rendiconto_del_mattino")
 					lanterne += int(esito.get("lanterne", 0))
 					al_buio += int(esito.get("al_buio", 0))
-					# CHI VEGLIA VEGLIA SU QUALCUNO. È il gesto più pesante
-					# che il villaggio produce da solo, e prima non lo
-					# scriveva nessuno: senza gesti veri nessuna coppia
-					# poteva formarsi, MAI, e le sette risposte alla rottura
-					# erano codice morto in partita. Ed è anche la cosa più
-					# giusta del sistema — gli affetti fra vicini nascono dal
-					# lavoro che il GIOCATORE ha assegnato, e lui può
-					# risalire al perché.
-					if lanterne > 0:
-						_gesto_verso_tutti(label, "veglia")
+					# CHI VEGLIA VEGLIA SU QUALCUNO: è il gesto più pesante
+					# che il villaggio produce da solo, ed è anche la cosa
+					# più giusta del sistema — gli affetti fra vicini nascono
+					# dal lavoro che il GIOCATORE ha assegnato, e lui può
+					# risalire al perché. Ma la riga NON si scrive qui: qui
+					# non si sa dov'è andata la luce, e scriverla verso TUTTI
+					# faceva della guardia il massimo (non ricambiato) di
+					# ogni vicino — una sola coppia in tutta la partita e il
+					# resto del villaggio sterilizzato. La scrive la Veglia,
+					# una sola per notte, verso l'ultima porta che senza
+					# quella lanterna sarebbe rimasta al buio.
 			"abbellisce":
 				# IL SALONE NON PRODUCE COSE: produce FACCE NUOVE. Chi lo
 				# tiene passa la giornata a cambiare l'aspetto dei vicini,
@@ -264,21 +271,6 @@ func _produzione_del_giorno() -> void:
 
 # Una riga sola al mattino, e solo se c'è davvero qualcosa da dire: il
 # guadagno deve essere VISIBILE, o il dilemma non esiste.
-## Un gesto pesante da `chi` verso tutti gli altri residenti. È la porta da
-## cui il villaggio si vuole bene.
-func _gesto_verso_tutti(chi_label: String, tipo: String) -> void:
-	if _visitors == null or get_tree() == null:
-		return
-	var mio := str(_visitors.call("_nome_da_label", chi_label))
-	if mio == "":
-		return
-	for r in (_visitors.get("_residents") as Array):
-		var suo := str((r.get("dna", {}) as Dictionary).get("name", ""))
-		if suo == "" or suo == mio:
-			continue
-		get_tree().call_group("affetti", "gesto", mio, suo, tipo)
-
-
 func _racconta_produzione(legna: int, annaffiate: int, piatti: Array[String],
 		tesori: int, lanterne := 0, al_buio := 0,
 		abbelliti: Array[String] = [], applausi := 0, brano := "") -> void:

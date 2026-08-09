@@ -1959,6 +1959,20 @@ func _give_dish(r: Dictionary) -> void:
 			_sfx.place_ok()
 		if mochi:
 			mochi.call("hold_offer", false)
+		# IL PIATTO PORTA IL NOME DI CHI L'HA CUCINATO, e la riga del libro
+		# mastro degli affetti nasce QUI, al morso: il cuoco non divide la sua
+		# zuppa con tutto il villaggio in un colpo solo — la divide con chi il
+		# GIOCATORE ha deciso di servire attraversando la piazza con la ciotola
+		# in zampa. È la stessa moneta della Voce e delle Nascite, e la ragione
+		# è misurata: scrivendo quella riga verso OGNI residente, il conto fra
+		# il cuoco e la guardia cresceva 2,6 volte più in fretta che verso
+		# chiunque altro, e nel villaggio non poteva più formarsi nessun'altra
+		# coppia.
+		var cuoco := str(dish.get("cuoco", ""))
+		var chi_mangia := str((r.get("dna", {}) as Dictionary).get("name", ""))
+		if cuoco != "" and cuoco != chi_mangia \
+				and not e_cucciolo(str(r.get("label", ""))):
+			get_tree().call_group("affetti", "gesto", cuoco, chi_mangia, "piatto")
 		# IL CERCHIO SI CHIUDE: la ciotola non svanisce più a mezz'aria —
 		# gliela si consegna, e lui la MANGIA davvero (Pasto.gd: annusa,
 		# soffia se scotta, tre morsetti, e solo allora ringrazia).
@@ -2055,6 +2069,15 @@ func offer_item(r: Dictionary, item: Dictionary) -> void:
 			_sfx.place_ok()
 		if mochi:
 			mochi.call("hold_offer", false)
+		# come in `_give_dish`: se dentro la porzione viaggia il nome di chi
+		# l'ha cucinata, il libro mastro degli affetti se ne accorge al morso.
+		# Un TESORO no: una conchiglia non si cucina e non lega nessuno — e da
+		# qui, dalle Tasche, passa anche roba che non è cibo (campo `kind`).
+		var cuoco := str(item.get("cuoco", ""))
+		var chi_mangia := str(dna.get("name", ""))
+		if not is_treasure and cuoco != "" and cuoco != chi_mangia \
+				and not e_cucciolo(str(r.get("label", ""))):
+			get_tree().call_group("affetti", "gesto", cuoco, chi_mangia, "piatto")
 		if mangiabile:
 			node.call("mangia", prop, item_col, bool(item.get("warm", true)), loves_it)
 		else:
