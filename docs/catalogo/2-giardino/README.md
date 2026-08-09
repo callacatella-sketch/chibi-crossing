@@ -1,6 +1,6 @@
 # Giardino
 
-*quello che sta fuori: verde, luci, giochi, servizi* — 36 pezzi.
+*quello che sta fuori: verde, luci, giochi, servizi* — 35 pezzi.
 
 | | fronte | tre quarti | profilo |
 |---|---|---|---|
@@ -13,7 +13,6 @@
 | **Cassetta posta**<br><sub>0.26 × 1.16 m</sub> | <img src="cassetta-posta/1-fronte.jpg" width="200"> | <img src="cassetta-posta/2-tre-quarti.jpg" width="200"> | <img src="cassetta-posta/3-profilo.jpg" width="200"> |
 | **Cassetta smarriti**<br><sub>0.50 × 1.24 m</sub> | <img src="cassetta-smarriti/1-fronte.jpg" width="200"> | <img src="cassetta-smarriti/2-tre-quarti.jpg" width="200"> | <img src="cassetta-smarriti/3-profilo.jpg" width="200"> |
 | **Cespuglio**<br><sub>0.86 × 0.64 m</sub> | <img src="cespuglio/1-fronte.jpg" width="200"> | <img src="cespuglio/2-tre-quarti.jpg" width="200"> | <img src="cespuglio/3-profilo.jpg" width="200"> |
-| **Cesto fiorito**<br><sub>0.96 × 0.54 m</sub> | <img src="cesto-fiorito/1-fronte.jpg" width="200"> | <img src="cesto-fiorito/2-tre-quarti.jpg" width="200"> | <img src="cesto-fiorito/3-profilo.jpg" width="200"> |
 | **Cono**<br><sub>0.30 × 0.40 m</sub> | <img src="cono/1-fronte.jpg" width="200"> | <img src="cono/2-tre-quarti.jpg" width="200"> | <img src="cono/3-profilo.jpg" width="200"> |
 | **Cuccia**<br><sub>0.75 × 0.75 m</sub> | <img src="cuccia/1-fronte.jpg" width="200"> | <img src="cuccia/2-tre-quarti.jpg" width="200"> | <img src="cuccia/3-profilo.jpg" width="200"> |
 | **Faro caserma**<br><sub>0.33 × 1.62 m</sub> | <img src="faro-caserma/1-fronte.jpg" width="200"> | <img src="faro-caserma/2-tre-quarti.jpg" width="200"> | <img src="faro-caserma/3-profilo.jpg" width="200"> |

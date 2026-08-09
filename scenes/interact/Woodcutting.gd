@@ -75,6 +75,7 @@ const PIECE_COST := {
 	# la palestra: il tappetino è stoffa, il resto è legname vero
 	"Panca dei pesi": 3, "Sacco": 3, "Cyclette": 4, "Sbarra da trazione": 4,
 	"Specchio": 2, "Fontanella": 3, "Rastrelliera": 3,
+	"Rastrelliera dischi": 3, "Rastrelliera pietre": 3,
 }
 
 ## La legna in tasca.

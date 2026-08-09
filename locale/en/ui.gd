@@ -448,6 +448,8 @@ const T := {
 	"Specchio": "Mirror",
 	"Fontanella": "Drinking fountain",
 	"Rastrelliera": "Weights rack",
+	"Rastrelliera dischi": "Plate rack",
+	"Rastrelliera pietre": "Stone rack",
 	"Mongolfiera": "Hot-air balloon",
 
 	"✕ Demolisci": "✕ Demolish",

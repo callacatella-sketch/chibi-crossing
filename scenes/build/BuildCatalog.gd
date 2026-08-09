@@ -186,9 +186,18 @@ static func items() -> Array[Dictionary]:
 			# deve poter camminare
 			"cols": [[Vector3(0.70, 1.04, 0.62), Vector3(0, 0.52, 0.02)],
 					[Vector3(0.40, 0.22, 0.30), Vector3(0, 0.62, -0.42)]]},
+		# LE TRE RASTRELLIERE. Stesso mobile, contenuto diverso — e messe
+		# in fila si UNISCONO in una scaffalatura sola, anche fra varianti
+		# diverse: quello che cambia e' cosa ci si posa sopra.
 		{"name": "Rastrelliera", "cat": 3, "type": "cell", "layer": 2,
 			"builder": BuildPalestra.rastrelliera,
-			"cols": [[Vector3(0.92, 0.78, 0.42), Vector3(0, 0.39, 0)]]},
+			"cols": [[Vector3(1.0, 0.92, 0.44), Vector3(0, 0.46, 0)]]},
+		{"name": "Rastrelliera dischi", "cat": 3, "type": "cell", "layer": 2,
+			"builder": BuildPalestra.rastrelliera_dischi,
+			"cols": [[Vector3(1.0, 0.92, 0.44), Vector3(0, 0.46, 0)]]},
+		{"name": "Rastrelliera pietre", "cat": 3, "type": "cell", "layer": 2,
+			"builder": BuildPalestra.rastrelliera_pietre,
+			"cols": [[Vector3(1.0, 0.92, 0.44), Vector3(0, 0.46, 0)]]},
 
 		# --- CHIESA (le forme stanno in BuildChiesa.gd) ---
 		# Categoria sua per lo stesso motivo della palestra: le tre righe

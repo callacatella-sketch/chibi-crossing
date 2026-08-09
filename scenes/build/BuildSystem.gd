@@ -1169,6 +1169,67 @@ static func ricostruisci_festoni(dict: Dictionary, c: Vector2i) -> void:
 		casa.add_child(BuildCatalog.festone(cima, b, veste, _seme_festone(c, v)))
 
 
+## LE RASTRELLIERE IN FILA. Una accanto all'altra non sono due mobili: sono
+## una scaffalatura piu' lunga. La fila si riconosce come quella della
+## Gradinata — celle adiacenti lungo l'asse X del pezzo, con la STESSA
+## rotazione — e le tre varianti si uniscono fra loro: cambia il contenuto,
+## non il mobile.
+static func e_rastrelliera(dict: Dictionary, c: Vector2i, rot := -1) -> bool:
+	var nodo := dict.get(c) as Node3D
+	if nodo == null:
+		return false
+	if not (str(nodo.get_meta("item_name", "")) in BuildPalestra.RASTRELLIERE):
+		return false
+	return rot < 0 or int(nodo.get_meta("rot", 0)) == rot
+
+
+## La fila intera che passa per `c`, in ordine da sinistra a destra.
+static func fila_rastrelliera(dict: Dictionary, c: Vector2i, viste := {}) -> Array:
+	if not e_rastrelliera(dict, c) or viste.has(c):
+		return []
+	var rot := int((dict[c] as Node3D).get_meta("rot", 0))
+	var passo := passo_fila(rot)
+	var fuori: Array = [c]
+	viste[c] = true
+	var q := c - passo
+	while e_rastrelliera(dict, q, rot) and not viste.has(q):
+		viste[q] = true
+		fuori.push_front(q)
+		q -= passo
+	q = c + passo
+	while e_rastrelliera(dict, q, rot) and not viste.has(q):
+		viste[q] = true
+		fuori.append(q)
+		q += passo
+	return fuori
+
+
+## Rifa' una fila: ogni campata sa se di fianco continua, e il montante
+## condiviso lo disegna una sola volta (quella di sinistra).
+static func ricostruisci_rastrelliera(dict: Dictionary, celle: Array) -> void:
+	for i in celle.size():
+		var c: Vector2i = celle[i]
+		var nodo := dict.get(c) as Node3D
+		if nodo == null:
+			continue
+		var vecchia := nodo.find_child("Rastrelliera", true, false)
+		var ospite: Node3D = nodo
+		if vecchia != null:
+			ospite = vecchia.get_parent() as Node3D
+			vecchia.name = "RastrellieraVecchia"
+			ospite.remove_child(vecchia)
+			vecchia.queue_free()
+		var variante := BuildPalestra.variante_rastrelliera(
+				str(nodo.get_meta("item_name", "")))
+		var radice: Node3D = BuildPalestra.rastrelliera_cella(
+				{"sx": i > 0, "dx": i < celle.size() - 1}, variante,
+				int(hash(c)) & 0x7fffffff)
+		var campata: Node3D = radice.get_node("Rastrelliera")
+		radice.remove_child(campata)
+		ospite.add_child(campata)
+		radice.free()
+
+
 static func _e_aiuola(dict: Dictionary, c: Vector2i) -> bool:
 	var nodo := dict.get(c) as Node3D
 	return nodo != null and str(nodo.get_meta("item_name", "")) == "Aiuola"
@@ -1555,12 +1616,13 @@ var _serre_pending := false
 
 func _segna_serre(dict: Dictionary, cell: Vector2i) -> void:
 	# GUARDIA OBBLIGATORIA: i rinfresca ricevono il dizionario del LAYER, non
-	# del nome. Senza questa uscita, posare una Sedia accanto a una serra
-	# ricostruirebbe un edificio intero.
+	# del nome. Senza questa uscita, posare una Sedia accanto a una serra (o
+	# a una rastrelliera) ricostruirebbe un edificio intero.
 	var tocca := false
 	for dx in [-1, 0, 1]:
 		for dz in [-1, 0, 1]:
-			if e_serra(dict, cell + Vector2i(dx, dz)):
+			var v := cell + Vector2i(dx, dz)
+			if e_serra(dict, v) or e_rastrelliera(dict, v):
 				tocca = true
 	if not tocca:
 		return
@@ -1576,14 +1638,19 @@ func _flush_serre() -> void:
 	var lavoro := _serre_da_rifare
 	_serre_da_rifare = []
 	var viste := {}
+	var viste_r := {}
 	for voce: Array in lavoro:
 		var dict: Dictionary = voce[0]
 		var cell: Vector2i = voce[1]
 		for dx in [-1, 0, 1]:
 			for dz in [-1, 0, 1]:
-				var gruppo := gruppo_serra(dict, cell + Vector2i(dx, dz), viste)
+				var vic := cell + Vector2i(dx, dz)
+				var gruppo := gruppo_serra(dict, vic, viste)
 				if not gruppo.is_empty():
 					ricostruisci_serra(dict, gruppo)
+				var fila := fila_rastrelliera(dict, vic, viste_r)
+				if not fila.is_empty():
+					ricostruisci_rastrelliera(dict, fila)
 
 
 ## Il flush SINCRONO: per chi costruisce e guarda nello stesso frame
