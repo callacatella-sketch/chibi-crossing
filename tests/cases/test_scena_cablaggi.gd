@@ -36,12 +36,13 @@ const CAL := preload("res://scenes/world/Calendar.gd")
 const SAL := preload("res://scenes/interact/Salone.gd")
 const L := preload("res://systems/L10n.gd")
 
-## L'unico gruppo cercato-e-mai-popolato che si accetta: è un ciclo vuoto
-## rimasto in `Sogni._fai_spazio` (`for l in get_nodes_in_group("__mai__")`
-## seguito da `pass`), codice morto e innocuo. Sta qui in bella vista
-## proprio perché nessuno lo dimentichi: se un giorno sparisce, si toglie
-## anche di qui e la rete torna a maglia stretta.
-const GRUPPI_TOLLERATI := ["__mai__"]
+## LA LISTA DEI TOLLERATI, ora VUOTA — ed e' cosi' che deve restare.
+## Ci stava `__mai__`, un ciclo morto rimasto in `Sogni._fai_spazio`
+## (`for l in get_nodes_in_group("__mai__")` seguito da `pass`): innocuo,
+## ma teneva aperta una maglia. Il ciclo e' stato tolto, e la rete e'
+## tornata stretta. Se un giorno serve aggiungere un nome qui, chiedersi
+## prima se non sia piu' onesto togliere il codice che cerca il gruppo.
+const GRUPPI_TOLLERATI: Array[String] = []
 
 ## Dove vive il gioco (gli `addons` non sono nostri, i `tests` non sono
 ## gioco, i `worktrees` sono copie di lavoro di altri agenti).

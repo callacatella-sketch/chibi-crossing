@@ -366,7 +366,11 @@ func _il_piu_vicino(tranne: String, da: Vector3) -> Node3D:
 	var best_d := 14.0
 	for r in (_visitors.get("_residents") as Array):
 		var label := str(r.get("label", ""))
-		if label == tranne:
+		# CHI CI LAVORA NON PUO' ESSERE IL PUBBLICO. Il commento qui sopra
+		# lo diceva da sempre, il codice no: il cliente correva a farsi
+		# vedere proprio dall'estetista che gli aveva appena fatto la
+		# messa in piega. Il vanto ha senso solo verso chi NON c'era.
+		if label == tranne or (label != "" and label == _estetista):
 			continue
 		var n := r.get("node") as Node3D
 		if n == null or not is_instance_valid(n):
