@@ -3289,173 +3289,766 @@ static func _musicbox() -> Node3D:
 
 # la serra: un giardino di vetro col telaio chiaro e il tetto a capanna.
 # Dentro, due vasi che sognano l'estate anche a gennaio.
+# ============================================================================
+# LA VETRERIA: la serra che smette di essere un pezzo e diventa un EDIFICIO
+# ============================================================================
+# Due serre vicine non sono due serre: sono una serra piu' grande. Il muro in
+# mezzo non sparisce — diventa un'ARCATA — il colmo prosegue attraverso il
+# confine, e fra due campate affiancate di traverso nasce il COMPLUVIO, il
+# canale di rame che ogni serra a piu' navate ha. Con tre, quattro, nove
+# campate cambia anche il mestiere di dentro: la serretta da giardino diventa
+# galleria, poi giardino d'inverno, poi palmeria.
+#
+# COME STA IN PIEDI (e perche' non c'e' niente da salvare):
+#  · la fusione e' DERIVATA dalle celle occupate, come coppia() in Affetti.
+#    Il salvataggio resta una riga per cella: ricaricare ridera' lo stesso
+#    edificio, e nessun villaggio va migrato.
+#  · ogni cella disegna la PROPRIA campata guardandosi intorno (e' il
+#    mestiere di aiuola_cella, portato su un edificio): niente capogruppo,
+#    quindi ogni nodo tiene la sua identita', le sue collisioni e i suoi meta.
+#  · il RETTANGOLO di ogni cella si spinge a 0.95 dove il lato e' aperto e a
+#    0.50 dove di la' c'e' un'altra campata: la serra SOLA resta esattamente
+#    quella di prima, 1.90 x 1.90.
+#  · dove c'e' muro lo decide la COPERTURA (nessun altro rettangolo copre quel
+#    filo); di chi e' il tetto lo decide la TENDA PIU' ALTA. Sono due regole
+#    diverse, ed e' li' che si sbaglia: il tetto di due campate diagonali si
+#    incontra sempre a meta' strada, a 2.19, che e' il compluvio.
+#  · l'elemento condiviso (montante, canale, arcata) appartiene alla cella
+#    LESSICOGRAFICAMENTE MINIMA fra quelle che lo toccano: nessun doppione.
+#  · il dado dei dettagli e' della CELLA (hash della cella): aggiungere una
+#    vicina cambia la forma, non l'arredamento gia' posato.
+
+const SERRA_MURO := 0.95        # filo del muro dal centro cella
+const SERRA_BORDO := 0.50       # confine fra due campate
+const SERRA_RIENTRO := 0.05     # 1.00 - MURO: il rientro nell'angolo concavo
+const SERRA_SPORTO := 1.02      # bordo di gronda sui lati aperti
+const SERRA_GRONDA := 1.92
+const SERRA_COLMO := 2.44
+const SERRA_PENDENZA := 0.4636  # atan(0.5): la falda scende di 0.5 in 1.0
+const SERRA_TELAIO := Color("e8e2d2")
+const SERRA_TELAIO_B := Color("cfc8b4")
+
+
+## LA PIANTA. Pura, deterministica, senza scena: da un insieme di celle
+## escono l'asse del colmo, l'ancora, la porta, il cuore e i ruoli. E' la
+## fonte unica da cui la geometria E le collisioni discendono.
+static func serra_pianta(celle: Array) -> Dictionary:
+	var s := {}
+	for c in celle:
+		s[c] = true
+	if s.is_empty():
+		s[Vector2i.ZERO] = true
+	# L'ASSE DEL COLMO: quello con piu' adiacenze. Una cella sola da' 0 e 0,
+	# cioe' X — il colmo della serra di sempre.
+	var nx := 0
+	var nz := 0
+	for c: Vector2i in s:
+		if s.has(c + Vector2i(1, 0)):
+			nx += 1
+		if s.has(c + Vector2i(0, 1)):
+			nz += 1
+	var asse := 0 if nx >= nz else 1
+	# l'ancora: la cella lessicograficamente minima (mai un contatore, mai la
+	# cella cliccata: al caricamento l'ordine delle righe e' quello del file)
+	var ancora: Vector2i = Vector2i(9999, 9999)
+	for c: Vector2i in s:
+		if c.y < ancora.y or (c.y == ancora.y and c.x < ancora.x):
+			ancora = c
+	# LA PORTA: la campata piu' a nord col fianco -Z libero (il fronte del
+	# catalogo). Con una cella sola e' lei, e la porta e' quella di sempre.
+	var porta: Vector2i = ancora
+	var trovata := false
+	for c: Vector2i in s:
+		if s.has(c + Vector2i(0, -1)):
+			continue
+		if not trovata or c.y < porta.y or (c.y == porta.y and c.x < porta.x):
+			porta = c
+			trovata = true
+	# IL CUORE: una campata con tutti e quattro i vicini non ha nessuna
+	# fascia — e' tutta corsia, e li' ci sta un albero.
+	var cuore = null
+	for c: Vector2i in s:
+		if s.has(c + Vector2i(1, 0)) and s.has(c + Vector2i(-1, 0)) \
+				and s.has(c + Vector2i(0, 1)) and s.has(c + Vector2i(0, -1)):
+			if cuore == null or c.y < (cuore as Vector2i).y \
+					or (c.y == (cuore as Vector2i).y and c.x < (cuore as Vector2i).x):
+				cuore = c
+	var n := s.size()
+	var taglia := "sola"
+	if n >= 7:
+		taglia = "palmeria"
+	elif n >= 4:
+		taglia = "inverno"
+	elif n >= 2:
+		taglia = "galleria"
+	# LA CAMPATA PIU' LONTANA dalla porta: e' li' che vanno i gradoni, ed e'
+	# quello che si vede dalla soglia guardando in fondo.
+	var fondo: Vector2i = porta
+	var lontano := -1
+	for c: Vector2i in s:
+		var d := absi(c.x - porta.x) + absi(c.y - porta.y)
+		if d > lontano or (d == lontano and (c.y < fondo.y
+				or (c.y == fondo.y and c.x < fondo.x))):
+			lontano = d
+			fondo = c
+	return {"celle": s, "asse": asse, "ancora": ancora, "porta": porta,
+			"cuore": cuore, "fondo": fondo, "taglia": taglia, "n": n}
+
+
+## Quanto si spinge il filo del lato `d` della cella `c` andando verso `t`.
+## Tre righe che generano TUTTI i bordi: muretto, coprimuro, vetro, gronda,
+## timpano e scatola di collisione. Il rientro a 0.05 e' l'angolo concavo
+## della L: e' li' che il rettangolo della diagonale entra nel tuo.
+static func serra_estremo(celle: Dictionary, c: Vector2i, d: Vector2i,
+		t: Vector2i) -> float:
+	if celle.has(c + t + d):
+		return SERRA_RIENTRO
+	if celle.has(c + t):
+		return SERRA_BORDO
+	return SERRA_MURO
+
+
+## La voce a catalogo: la serra SOLA. Firma invariata (la chiamano
+## _build_placed, il fantasma, i test e i due fotografi): il caso «sola» e'
+## solo la pianta a una cella, come _flowerbed chiama aiuola_cella.
 static func _greenhouse() -> Node3D:
-	# LA SERRA: il sogno del mercante — e ora è una serra VERA, grande due
-	# celle e VISITABILE: le collisioni (nella voce a catalogo) sono un
-	# guscio CAVO come la Guardiola — pareti e banconi solidi, la porta
-	# libera — e dentro c'è una stanza da attraversare: la corsia di
-	# pietra, il bancone da rinvaso a destra, l'aiuola rialzata a
-	# sinistra, il cesto appeso al colmo. La grammatica resta vittoriana:
-	# muretto di zoccolo col coprimuro, porte alla francese APERTE (le
-	# ante accostate dentro, ai lati), vetri a riquadri, timpani chiusi,
-	# correntini e pomoli d'ottone sul colmo.
+	return serra_cella(serra_pianta([Vector2i.ZERO]), Vector2i.ZERO)
+
+
+## LA CAMPATA: la geometria della cella `c` dentro `pianta`. Torna una radice
+## col solo figlio «Vetreria», che porta il meta «scatole» (le collisioni,
+## generate dalle STESSE variabili della geometria: non possono divergere).
+static func serra_cella(pianta: Dictionary, c: Vector2i) -> Node3D:
+	var radice := Node3D.new()
 	var n := Node3D.new()
-	var telaio := _mat(Color("e8e2d2"), Color("cfc8b4"), 4.0, 0.4)
+	n.name = "Vetreria"
+	radice.add_child(n)
+	var s: Dictionary = pianta["celle"]
+	var asse := int(pianta["asse"])
+	var taglia := str(pianta["taglia"])
+	var quante := int(pianta["n"])
+	# IL TELAIO DI RIFERIMENTO. La campata si disegna sempre con u = X e
+	# v = Z; se il colmo del gruppo corre lungo Z, si gira tutto di -90° e
+	# le domande sui vicini seguono lo stesso giro. Cosi' la geometria e'
+	# scritta UNA volta sola.
+	var gu := Vector2i(1, 0)
+	var gv := Vector2i(0, 1)
+	if asse == 1:
+		n.rotation.y = -PI * 0.5
+		gu = Vector2i(0, 1)
+		gv = Vector2i(-1, 0)
+	var seme := int(hash(c)) & 0x7fffffff
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seme
+
+	var telaio := _mat(SERRA_TELAIO, SERRA_TELAIO_B, 4.0, 0.4)
 	var chiaro := _mat(WOOD_PALE, WOOD, 3.5, 0.5)
 	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
+	var ghisa := _mat(Color("4a4640"), Color("343029"), 6.0, 0.35)
+	var rame := _mat(Color("b98456"), Color("966542"), 6.0, 0.4)
 	var cotto := _mat(TERRACOTTA, Color("c47a58"), 3.0, 0.5)
 	var verde := _mat(LEAF, LEAF_DARK, 4.0, 0.5)
 	var pietra := _mat(STONE, STONE_DARK, 4.0, 0.45)
-	var glass := StandardMaterial3D.new()
-	glass.albedo_color = Color(0.81, 0.91, 0.96, 0.42)
-	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	glass.emission_enabled = true
-	glass.emission = Color("bfe0f2")
-	glass.emission_energy_multiplier = 0.25
-	glass.roughness = 0.15
+	var vetro := _vetro(0.42)
+	var scatole: Array = []
 
-	# ---- la platea, il gradino d'ingresso e la corsia interna
-	_box(n, Vector3(2.0, 0.06, 2.0), pietra, Vector3(0, 0.03, 0))
-	_box(n, Vector3(0.76, 0.04, 0.22), pietra, Vector3(0, 0.02, -1.09))
-	for pz: float in [-0.72, -0.28, 0.16, 0.60]:
-		_box(n, Vector3(0.52, 0.014, 0.38), telaio, Vector3(0, 0.067, pz))
+	# --- le quattro direzioni nel telaio locale: +u, -u, +v, -v
+	var aperto := {}
+	for k in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		var g: Vector2i = gu * k.x + gv * k.y
+		aperto[k] = not s.has(c + g)
+	# gli estremi di ogni lato (quanto si spinge il filo, per verso)
+	var est_p := {}
+	var est_n := {}
+	for d: Vector2i in aperto:
+		var t := Vector2i(1, 0) if d.x == 0 else Vector2i(0, 1)
+		var gd: Vector2i = gu * d.x + gv * d.y
+		var gt: Vector2i = gu * t.x + gv * t.y
+		est_p[d] = serra_estremo(s, c, gd, gt)
+		est_n[d] = serra_estremo(s, c, gd, -gt)
 
-	# ---- il muretto col coprimuro (interrotto alla porta)
-	_box(n, Vector3(1.92, 0.24, 0.07), telaio, Vector3(0, 0.18, 0.955))
-	for sx0: float in [-1.0, 1.0]:
-		_box(n, Vector3(0.07, 0.24, 1.92), telaio, Vector3(sx0 * 0.955, 0.18, 0))
-		_box(n, Vector3(0.56, 0.24, 0.07), telaio, Vector3(sx0 * 0.67, 0.18, -0.955))
-	_box(n, Vector3(2.0, 0.035, 0.09), telaio, Vector3(0, 0.317, 0.955))
-	for sx1: float in [-1.0, 1.0]:
-		_box(n, Vector3(0.09, 0.035, 2.0), telaio, Vector3(sx1 * 0.955, 0.317, 0))
-		_box(n, Vector3(0.58, 0.035, 0.09), telaio, Vector3(sx1 * 0.68, 0.317, -0.955))
+	var lato_porta: bool = (c == pianta["porta"])
+	var varco := 0.77 if quante == 1 else 1.10
 
-	# ---- i montanti: angoli e intermedi
-	for sx: float in [-0.955, 0.955]:
-		for sz: float in [-0.955, 0.955]:
-			_box(n, Vector3(0.09, 1.60, 0.09), telaio, Vector3(sx, 1.12, sz))
-	for mi: float in [-0.34, 0.34]:
-		_box(n, Vector3(0.07, 1.52, 0.07), telaio, Vector3(mi, 1.09, 0.955))
-		for sx2: float in [-1.0, 1.0]:
-			_box(n, Vector3(0.07, 1.52, 0.07), telaio, Vector3(sx2 * 0.955, 1.09, mi))
+	# ---------------------------------------------------------- LA PLATEA
+	var px0 := -(SERRA_MURO if aperto[Vector2i(-1, 0)] else SERRA_BORDO)
+	var px1 := (SERRA_MURO if aperto[Vector2i(1, 0)] else SERRA_BORDO)
+	var pz0 := -(SERRA_MURO if aperto[Vector2i(0, -1)] else SERRA_BORDO)
+	var pz1 := (SERRA_MURO if aperto[Vector2i(0, 1)] else SERRA_BORDO)
+	_box(n, Vector3(px1 - px0, 0.06, pz1 - pz0), pietra,
+			Vector3((px0 + px1) * 0.5, 0.03, (pz0 + pz1) * 0.5))
 
-	# ---- i VETRI sul muretto, coi traversi affogati (la griglia dei
-	# riquadri è ciò che dice «serra»)
-	_box(n, Vector3(1.86, 1.52, 0.035), glass, Vector3(0, 1.09, 0.95))
-	for ty: float in [0.92, 1.46]:
-		_box(n, Vector3(1.86, 0.045, 0.04), telaio, Vector3(0, ty, 0.945))
-	for sx3: float in [-1.0, 1.0]:
-		_box(n, Vector3(0.035, 1.52, 1.86), glass, Vector3(sx3 * 0.95, 1.09, 0))
-		for ty2: float in [0.92, 1.46]:
-			_box(n, Vector3(0.04, 0.045, 1.86), telaio, Vector3(sx3 * 0.945, ty2, 0))
-		# il fronte, ai lati della porta
-		_box(n, Vector3(0.5, 1.52, 0.035), glass, Vector3(sx3 * 0.68, 1.09, -0.95))
-		for ty3: float in [0.92, 1.46]:
-			_box(n, Vector3(0.5, 0.045, 0.04), telaio, Vector3(sx3 * 0.68, ty3, -0.945))
-	# il sopraluce della porta
-	_box(n, Vector3(0.78, 0.28, 0.035), glass, Vector3(0, 1.73, -0.95))
+	# ---- LA CORSIA: lastre lungo le rette che uniscono i centri delle
+	# campate adiacenti. Attraversa i confini e prosegue: e' il primo
+	# dettaglio che dice «un edificio solo».
+	var corsie: Array = []
+	if not aperto[Vector2i(0, -1)] or lato_porta:
+		corsie.append(Vector2i(0, -1))
+	if not aperto[Vector2i(0, 1)]:
+		corsie.append(Vector2i(0, 1))
+	if not aperto[Vector2i(1, 0)]:
+		corsie.append(Vector2i(1, 0))
+	if not aperto[Vector2i(-1, 0)]:
+		corsie.append(Vector2i(-1, 0))
+	if corsie.is_empty():
+		corsie.append(Vector2i(0, -1))
+	for dir: Vector2i in corsie:
+		for k in 2:
+			var t := 0.22 + float(k) * 0.44
+			var pp := Vector3(float(dir.x), 0.0, float(dir.y)) * t
+			_box(n, Vector3(0.52 if dir.x == 0 else 0.38, 0.014,
+					0.38 if dir.x == 0 else 0.52), chiaro,
+					Vector3(pp.x, 0.067, pp.z))
+	_box(n, Vector3(0.52, 0.014, 0.52), chiaro, Vector3(0, 0.067, 0))
 
-	# ---- LA PORTA alla francese, APERTA: telaio, e le due ante a vetri
-	# accostate DENTRO ai lati dell'apertura — si entra
-	for ds: float in [-1.0, 1.0]:
-		_box(n, Vector3(0.07, 1.62, 0.09), telaio, Vector3(ds * 0.42, 1.10, -0.955))
-	_box(n, Vector3(0.92, 0.07, 0.09), telaio, Vector3(0, 1.60, -0.955))
-	for ante: float in [-1.0, 1.0]:
-		var anta := Node3D.new()
-		anta.position = Vector3(ante * 0.565, 0, -0.89)
-		n.add_child(anta)
-		_box(anta, Vector3(0.38, 1.50, 0.028), glass, Vector3(0, 0.815, 0))
-		for ay: float in [0.10, 0.815, 1.53]:
-			_box(anta, Vector3(0.38, 0.045, 0.04), telaio, Vector3(0, ay, 0))
-		for ax: float in [-0.17, 0.17]:
-			_box(anta, Vector3(0.04, 1.48, 0.04), telaio, Vector3(ax, 0.815, 0))
-		_ball(n, 0.020, ottone, Vector3(ante * 0.40, 0.80, -0.865))
+	# ------------------------------------------------- I LATI: muro o arcata
+	for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1),
+			Vector2i(0, -1)]:
+		var e_pos: float = est_p[d]
+		var e_neg: float = est_n[d]
+		if aperto[d]:
+			# ---- LATO CHIUSO: muretto, coprimuro, vetro a riquadri, gronda.
+			# Il filo puo' spezzarsi in due tratti se c'e' la porta.
+			var tratti: Array = []
+			if lato_porta and d == Vector2i(0, -1):
+				tratti.append([-e_neg, -varco * 0.5])
+				tratti.append([varco * 0.5, e_pos])
+			else:
+				tratti.append([-e_neg, e_pos])
+			for tr: Array in tratti:
+				var a: float = tr[0]
+				var b: float = tr[1]
+				var len := b - a
+				if len < 0.02:
+					continue
+				var mid := (a + b) * 0.5
+				# posizione: sul filo del lato, spostata lungo la tangente
+				var fil := Vector3(float(d.x), 0.0, float(d.y)) * SERRA_MURO
+				var tan := Vector3(0, 0, 1) if d.x != 0 else Vector3(1, 0, 0)
+				var base := fil + tan * mid
+				var sz := func(l: float, h: float, sp: float) -> Vector3:
+					return Vector3(sp, h, l) if d.x != 0 else Vector3(l, h, sp)
+				_box(n, sz.call(len, 0.24, 0.07), telaio,
+						Vector3(base.x, 0.18, base.z))
+				_box(n, sz.call(len + 0.05, 0.035, 0.09), telaio,
+						Vector3(base.x, 0.317, base.z))
+				_box(n, sz.call(maxf(len - 0.09, 0.05), 1.52, 0.035), vetro,
+						Vector3(base.x, 1.09, base.z))
+				for ty: float in [0.92, 1.46]:
+					_box(n, sz.call(maxf(len - 0.09, 0.05), 0.045, 0.04), telaio,
+							Vector3(base.x, ty, base.z))
+				# i montanti intermedi: la griglia dei riquadri
+				var quanti := int(len / 0.62)
+				for k in quanti:
+					var q := a + len * (float(k) + 1.0) / float(quanti + 1)
+					var pm := fil + tan * q
+					_box(n, Vector3(0.07, 1.52, 0.07), telaio,
+							Vector3(pm.x, 1.09, pm.z))
+				# la gronda
+				_box(n, sz.call(len, 0.06, 0.09), telaio,
+						Vector3(base.x, SERRA_GRONDA, base.z))
+				# collisione: il tratto di parete
+				scatole.append([sz.call(len, 1.90, 0.12),
+						Vector3(base.x, 0.95, base.z)])
+			if lato_porta and d == Vector2i(0, -1):
+				# il sopraluce sopra la porta
+				scatole.append([Vector3(varco, 0.42, 0.12),
+						Vector3(0, 1.76, -SERRA_MURO)])
+		else:
+			# ---- LATO CONDIVISO: l'ARCATA. Il muro non sparisce: diventa
+			# un arco. Lo disegna la campata lessicograficamente minore.
+			var gd: Vector2i = gu * d.x + gv * d.y
+			var vicina := c + gd
+			var mia: bool = (c.y < vicina.y) or (c.y == vicina.y and c.x < vicina.x)
+			if not mia:
+				continue
+			var fil := Vector3(float(d.x), 0.0, float(d.y)) * SERRA_BORDO
+			var tan := Vector3(0, 0, 1) if d.x != 0 else Vector3(1, 0, 0)
+			for sg: float in [-1.0, 1.0]:
+				var pp := fil + tan * (sg * SERRA_MURO)
+				_box(n, Vector3(0.09, SERRA_GRONDA, 0.09), telaio,
+						Vector3(pp.x, SERRA_GRONDA * 0.5, pp.z))
+			if d.x != 0:
+				# CONFINE SOTTO IL COLMO: l'ARCONE a cuspide, che segue il
+				# profilo della tenda. Chi cammina in navata ne vede una
+				# fila, una per campata: e' il colpo d'occhio del Crystal
+				# Palace, e costa quattro scatole.
+				for sg2: float in [-1.0, 1.0]:
+					var falda := _box(n, Vector3(0.075, 0.07, 1.10), telaio,
+							Vector3(fil.x, 2.14, sg2 * 0.49))
+					falda.rotation.x = -sg2 * SERRA_PENDENZA
+					var tirante := _box(n, Vector3(0.05, 0.045, 0.62), telaio,
+							Vector3(fil.x, 1.99, sg2 * 0.30))
+					tirante.rotation.x = -sg2 * 0.62
+				_box(n, Vector3(0.07, 0.05, 1.86), telaio,
+						Vector3(fil.x, 1.83, 0))
+				_ball(n, 0.05, ottone, Vector3(fil.x, 2.30, 0), Vector3(1, 1.5, 1))
+			else:
+				# CONFINE SOTTO IL COMPLUVIO: architrave dritto e la
+				# COLONNINA di ghisa tornita che lo regge — i canali delle
+				# serre a piu' navate stanno in piedi cosi', e in un
+				# quadrato di quattro se ne vede una sola, al centro.
+				_box(n, Vector3(1.86, 0.09, 0.11), telaio,
+						Vector3(0, SERRA_GRONDA, fil.z))
+				for cx3: float in [-0.62, 0.62]:
+					_cyl(n, 0.040, 0.050, SERRA_GRONDA - 0.14, telaio,
+							Vector3(cx3, (SERRA_GRONDA - 0.14) * 0.5, fil.z))
+					_cyl(n, 0.066, 0.046, 0.06, telaio,
+							Vector3(cx3, SERRA_GRONDA - 0.11, fil.z))
+					_cyl(n, 0.026, 0.026, 0.02, ottone,
+							Vector3(cx3, SERRA_GRONDA - 0.17, fil.z))
+					_cyl(n, 0.060, 0.074, 0.05, telaio, Vector3(cx3, 0.025, fil.z))
 
-	# ---- gronda aperta, falde coi correntini, timpani, colmo coi pomoli
-	for gz: float in [-1.0, 1.0]:
-		_box(n, Vector3(2.0, 0.06, 0.09), telaio, Vector3(0, 1.92, gz * 0.955))
-	for gx: float in [-1.0, 1.0]:
-		_box(n, Vector3(0.09, 0.06, 1.82), telaio, Vector3(gx * 0.955, 1.92, 0))
-	var passo := 0.4636
-	for lato: float in [-1.0, 1.0]:
-		var falda := _box(n, Vector3(2.04, 0.03, 1.14), glass, Vector3(0, 2.17, lato * 0.5))
-		falda.rotation.x = lato * passo
-		for rx: float in [-0.80, -0.28, 0.28, 0.80]:
-			var corrente := _box(n, Vector3(0.05, 0.028, 1.10), telaio,
-					Vector3(rx, 2.185, lato * 0.5))
-			corrente.rotation.x = lato * passo
-		var gronda := Vector3(0, -sin(passo), lato * cos(passo)) * 0.559
-		var trave := _box(n, Vector3(2.06, 0.05, 0.07), telaio,
-				Vector3(0, 2.17, lato * 0.5) + gronda)
-		trave.rotation.x = lato * passo
-	for tx: float in [-1.0, 1.0]:
-		var timpano := _prisma(n, [Vector2(-0.98, 0.0), Vector2(0.98, 0.0),
-				Vector2(0.0, 0.50)], 0.0, 0.028, glass)
+	# ------------------------------------------------------------- IL TETTO
+	# La tenda: y = COLMO - 0.5*|v|. Il tetto dell'edificio e' l'inviluppo
+	# superiore delle tende, e per ogni zona di u la falda si ferma a 0.50
+	# (se di la' c'e' una campata) o a 1.02 (lo sporto di gronda).
+	var u_neg: float = SERRA_SPORTO if aperto[Vector2i(-1, 0)] else SERRA_BORDO
+	var u_pos: float = SERRA_SPORTO if aperto[Vector2i(1, 0)] else SERRA_BORDO
+	var zone: Array = [[-SERRA_BORDO, SERRA_BORDO, Vector2i(0, 0)]]
+	if u_neg > SERRA_BORDO:
+		zone.append([-u_neg, -SERRA_BORDO, Vector2i(-1, 0)])
+	if u_pos > SERRA_BORDO:
+		zone.append([SERRA_BORDO, u_pos, Vector2i(1, 0)])
+	for dv: float in [-1.0, 1.0]:
+		for z: Array in zone:
+			var a: float = z[0]
+			var b: float = z[1]
+			var off: Vector2i = z[2]
+			var g_diag: Vector2i = gu * off.x + gv * int(dv)
+			var chiusa: bool = s.has(c + g_diag)
+			var v_ext: float = SERRA_BORDO if chiusa else SERRA_SPORTO
+			var len_u := b - a
+			if len_u < 0.02:
+				continue
+			var falda := _box(n, Vector3(len_u, 0.03, v_ext * 1.118), vetro,
+					Vector3((a + b) * 0.5, SERRA_COLMO - 0.25 * v_ext,
+							dv * v_ext * 0.5))
+			falda.rotation.x = dv * SERRA_PENDENZA
+			# i correntini: il ritmo della struttura coincide col ritmo
+			# delle campate, ed e' quello che fa leggere la taglia
+			var passi := maxi(1, int(round(len_u / 0.52)))
+			for k in passi + 1:
+				var ux := a + len_u * float(k) / float(passi)
+				var cr := _box(n, Vector3(0.05, 0.028, v_ext * 1.118), telaio,
+						Vector3(ux, SERRA_COLMO - 0.25 * v_ext + 0.015,
+								dv * v_ext * 0.5))
+				cr.rotation.x = dv * SERRA_PENDENZA
+			# la trave di gronda sul bordo basso, solo se il bordo e' vero
+			if not chiusa:
+				var gr := _box(n, Vector3(len_u, 0.05, 0.07), telaio,
+						Vector3((a + b) * 0.5, SERRA_COLMO - 0.5 * v_ext,
+								dv * v_ext))
+				gr.rotation.x = dv * SERRA_PENDENZA
+	# I LUCERNARI: uno per falda, incernierato al colmo e socchiuso di
+	# poco. E' il dettaglio che toglie al tetto l'aria di prisma.
+	for dv3: float in [-1.0, 1.0]:
+		var gvv3: Vector2i = gv * int(dv3)
+		var v_ap: float = SERRA_BORDO if s.has(c + gvv3) else SERRA_SPORTO
+		if v_ap < 0.9:
+			continue
+		var cardine := Node3D.new()
+		cardine.position = Vector3(rng.randf_range(-0.18, 0.18), SERRA_COLMO - 0.035, 0)
+		cardine.rotation.x = dv3 * (SERRA_PENDENZA + rng.randf_range(0.16, 0.30))
+		n.add_child(cardine)
+		var telaietto := Node3D.new()
+		telaietto.position = Vector3(0, 0, dv3 * 0.31)
+		cardine.add_child(telaietto)
+		_box(telaietto, Vector3(0.62, 0.022, 0.44), vetro, Vector3.ZERO)
+		for lx3: float in [-0.31, 0.31]:
+			_box(telaietto, Vector3(0.035, 0.03, 0.44), telaio, Vector3(lx3, 0.008, 0))
+		for lz3: float in [-0.22, 0.22]:
+			_box(telaietto, Vector3(0.62, 0.03, 0.035), telaio, Vector3(0, 0.008, lz3))
+		# l'astina forata che lo tiene aperto
+		var astina := _cyl(cardine, 0.008, 0.008, 0.30, ghisa,
+				Vector3(0.22, -0.10, dv3 * 0.16))
+		astina.rotation.x = dv3 * 0.9
+
+	# il COLMO, un segmento per campata: si toccano sul confine e fanno
+	# una riga continua
+	_box(n, Vector3(u_pos + u_neg, 0.07, 0.07), telaio,
+			Vector3((u_pos - u_neg) * 0.5, SERRA_COLMO, 0))
+	for du: float in [-1.0, 1.0]:
+		var fine: float = u_pos if du > 0.0 else u_neg
+		if fine <= SERRA_BORDO:
+			continue
+		_cyl(n, 0.012, 0.016, 0.03, ottone, Vector3(du * fine, SERRA_COLMO + 0.05, 0))
+		_ball(n, 0.026, ottone, Vector3(du * fine, SERRA_COLMO + 0.08, 0))
+	# la CRESTA di ferro battuto: il segnale vittoriano piu' forte che
+	# esista, e compare solo quando l'edificio e' grande
+	if quante >= 4:
+		var quante_punte: int = int((u_pos + u_neg) / 0.16)
+		for k in quante_punte:
+			var ux := -u_neg + 0.08 + float(k) * 0.16
+			_box(n, Vector3(0.012, 0.07, 0.012), ghisa,
+					Vector3(ux, SERRA_COLMO + 0.075, 0))
+	# IL COMPLUVIO: dove due tende si incontrano, a 2.19, il canale di rame
+	for dv2: float in [-1.0, 1.0]:
+		var gvv: Vector2i = gv * int(dv2)
+		if not s.has(c + gvv):
+			continue
+		var vic := c + gvv
+		var mia2: bool = (c.y < vic.y) or (c.y == vic.y and c.x < vic.x)
+		if not mia2:
+			continue
+		for sg3: float in [-1.0, 1.0]:
+			var sponda := _box(n, Vector3(u_pos + u_neg, 0.02, 0.09), rame,
+					Vector3((u_pos - u_neg) * 0.5, 2.205,
+							dv2 * SERRA_BORDO + sg3 * 0.042))
+			sponda.rotation.x = sg3 * SERRA_PENDENZA * dv2
+		_box(n, Vector3(u_pos + u_neg, 0.018, 0.06), rame,
+				Vector3((u_pos - u_neg) * 0.5, 2.17, dv2 * SERRA_BORDO))
+	# I TIMPANI: la sagoma fra il profilo del proprio tetto e la gronda, sui
+	# lati U chiusi. Due campate di traverso viste di testa danno due timpani
+	# gemelli con la tacca del compluvio in mezzo: la W, l'immagine icona.
+	for du2: float in [-1.0, 1.0]:
+		var gdu: Vector2i = gu * int(du2)
+		if s.has(c + gdu):
+			continue
+		var v_n: float = SERRA_BORDO if s.has(c - gv) else SERRA_MURO
+		var v_p: float = SERRA_BORDO if s.has(c + gv) else SERRA_MURO
+		var y_n := maxf(SERRA_GRONDA, SERRA_COLMO - 0.5 * v_n)
+		var y_p := maxf(SERRA_GRONDA, SERRA_COLMO - 0.5 * v_p)
+		var punti: Array[Vector2] = [
+			Vector2(-v_n, SERRA_GRONDA - 0.02),
+			Vector2(-v_n, y_n),
+			Vector2(0.0, SERRA_COLMO),
+			Vector2(v_p, y_p),
+			Vector2(v_p, SERRA_GRONDA - 0.02)]
+		var timpano := _prisma(n, punti, 0.0, 0.028, vetro)
 		timpano.basis = Basis(Vector3(0, 0, 1), Vector3(1, 0, 0), Vector3(0, 1, 0))
-		timpano.position = Vector3(tx * 0.95 - 0.014, 1.95, 0)
-		_box(n, Vector3(0.035, 0.46, 0.05), telaio, Vector3(tx * 0.955, 2.17, 0))
-	_box(n, Vector3(2.14, 0.07, 0.07), telaio, Vector3(0, 2.44, 0))
-	for fx: float in [-1.0, 1.0]:
-		_cyl(n, 0.012, 0.016, 0.03, ottone, Vector3(fx * 1.0, 2.49, 0))
-		_ball(n, 0.026, ottone, Vector3(fx * 1.0, 2.52, 0))
+		timpano.position = Vector3(du2 * SERRA_MURO - du2 * 0.014, 0, 0)
+		_box(n, Vector3(0.05, 0.46, 0.035), telaio,
+				Vector3(du2 * SERRA_MURO, 2.17, 0))
 
-	# ---- DENTRO: il bancone da rinvaso a destra, coi vasetti e
-	# l'annaffiatoio sul ripiano basso
-	_box(n, Vector3(0.36, 0.03, 1.5), chiaro, Vector3(0.70, 0.52, 0.1))
-	_box(n, Vector3(0.32, 0.022, 1.4), chiaro, Vector3(0.70, 0.22, 0.1))
-	for lz: float in [-0.58, 0.78]:
-		for lx: float in [0.56, 0.84]:
-			_box(n, Vector3(0.035, 0.50, 0.035), chiaro, Vector3(lx, 0.26, lz + 0.02))
-	for vk in 3:
-		var vx := 0.62 + float(vk % 2) * 0.16
-		var vz := -0.38 + float(vk) * 0.42
-		_cyl(n, 0.05, 0.06, 0.085, cotto, Vector3(vx, 0.578, vz))
-		_ball(n, 0.06, verde, Vector3(vx, 0.66, vz), Vector3(1.0, 0.8, 1.0))
-	for fk in 3:
-		var fa := float(fk) * TAU / 3.0 + 0.4
-		_ball(n, 0.015, _mat(PINK, PINK_DEEP, 5.0, 0.4),
-				Vector3(0.62 + cos(fa) * 0.038, 0.70, -0.38 + sin(fa) * 0.038))
-	var latta := _mat(Color("8aa89a"), Color("6f8d80"), 4.0, 0.4)
-	_cyl(n, 0.062, 0.07, 0.13, latta, Vector3(0.70, 0.296, 0.62))
-	var becco := _cyl(n, 0.011, 0.014, 0.15, latta, Vector3(0.61, 0.32, 0.57))
-	becco.rotation.z = 1.05
-	becco.rotation.y = -0.5
-	_cyl(n, 0.024, 0.016, 0.02, latta, Vector3(0.555, 0.355, 0.54))
-	# la pila di vasi di scorta sotto il bancone
-	_cyl(n, 0.055, 0.065, 0.07, cotto, Vector3(0.70, 0.10, -0.62))
-	_cyl(n, 0.055, 0.065, 0.07, cotto, Vector3(0.72, 0.165, -0.60))
+	# -------------------------------------------------------------- LA PORTA
+	if lato_porta:
+		var zf := -SERRA_MURO
+		if quante == 1:
+			for ds: float in [-1.0, 1.0]:
+				_box(n, Vector3(0.07, 1.62, 0.09), telaio,
+						Vector3(ds * 0.42, 1.10, zf))
+			_box(n, Vector3(0.92, 0.07, 0.09), telaio, Vector3(0, 1.60, zf))
+			_box(n, Vector3(0.78, 0.28, 0.035), vetro, Vector3(0, 1.73, zf))
+			for ante: float in [-1.0, 1.0]:
+				var anta := Node3D.new()
+				anta.position = Vector3(ante * 0.565, 0, zf + 0.065)
+				n.add_child(anta)
+				_box(anta, Vector3(0.38, 1.50, 0.028), vetro, Vector3(0, 0.815, 0))
+				for ay: float in [0.10, 0.815, 1.53]:
+					_box(anta, Vector3(0.38, 0.045, 0.04), telaio, Vector3(0, ay, 0))
+				for ax: float in [-0.17, 0.17]:
+					_box(anta, Vector3(0.04, 1.48, 0.04), telaio, Vector3(ax, 0.815, 0))
+				_ball(n, 0.020, ottone, Vector3(ante * 0.40, 0.80, zf + 0.09))
+		else:
+			# IL PORTALE: luce 1.10, lunetta a raggiera e due gradini. Tutto
+			# STA SOTTO LA GRONDA (1.92): un portale che sfonda il tetto non
+			# e' un portale, e' un errore — la prima stesura arrivava a 2.46
+			# e la pensilina volava sopra le falde.
+			for ds2: float in [-1.0, 1.0]:
+				_box(n, Vector3(0.12, 1.50, 0.11), telaio,
+						Vector3(ds2 * 0.61, 0.75, zf))
+			_box(n, Vector3(1.34, 0.09, 0.13), telaio, Vector3(0, 1.55, zf))
+			var raggi := 7
+			for k in raggi:
+				var a0 := PI * float(k) / float(raggi)
+				var a1 := PI * float(k + 1) / float(raggi)
+				var pl: Array[Vector2] = [Vector2(0, 0),
+						Vector2(cos(a0) * 0.28, sin(a0) * 0.28),
+						Vector2(cos(a1) * 0.28, sin(a1) * 0.28)]
+				var spicchio := _prisma(n, pl, 0.0, 0.026, vetro)
+				spicchio.basis = Basis(Vector3(0, 0, 1), Vector3(1, 0, 0),
+						Vector3(0, 1, 0))
+				spicchio.position = Vector3(0, 1.60, zf - 0.013)
+				var mont := _box(n, Vector3(0.03, 0.28, 0.035), telaio,
+						Vector3(cos(a0) * 0.14, 1.60 + sin(a0) * 0.14, zf))
+				mont.rotation.z = a0 - PI * 0.5
+			# la cimasa di rame che chiude l'arco, sul filo del muro
+			var arco := 9
+			for k2 in arco:
+				var aa := PI * (float(k2) + 0.5) / float(arco)
+				var conc := _box(n, Vector3(0.10, 0.032, 0.05), rame,
+						Vector3(cos(aa) * 0.295, 1.60 + sin(aa) * 0.295, zf))
+				conc.rotation.z = aa - PI * 0.5
+			for ante2: float in [-1.0, 1.0]:
+				var anta2 := Node3D.new()
+				anta2.position = Vector3(ante2 * 0.80, 0, zf + 0.07)
+				n.add_child(anta2)
+				_box(anta2, Vector3(0.52, 1.40, 0.03), vetro, Vector3(0, 0.75, 0))
+				for ay2: float in [0.08, 0.75, 1.43]:
+					_box(anta2, Vector3(0.54, 0.05, 0.045), telaio, Vector3(0, ay2, 0))
+				for ax2: float in [-0.24, 0.24]:
+					_box(anta2, Vector3(0.045, 1.38, 0.045), telaio, Vector3(ax2, 0.75, 0))
+				_ball(n, 0.024, ottone, Vector3(ante2 * 0.56, 0.78, zf + 0.10))
+			for k3 in 2:
+				_box(n, Vector3(1.5 - float(k3) * 0.2, 0.05, 0.26 - float(k3) * 0.06),
+						pietra, Vector3(0, 0.025 + float(k3) * 0.05,
+								zf - 0.28 + float(k3) * 0.07))
 
-	# ---- l'AIUOLA rialzata a sinistra: la cassa di legno, la terra, e
-	# il verde che non teme l'inverno (coi suoi fiori)
-	_box(n, Vector3(0.44, 0.24, 1.5), legno, Vector3(-0.70, 0.18, 0.1))
-	_box(n, Vector3(0.40, 0.02, 1.46), _mat(Color("5a4636"), Color("46362a"), 3.0, 0.4),
-			Vector3(-0.70, 0.30, 0.1))
-	for ak in 4:
-		var az := -0.5 + float(ak) * 0.40
-		var asc := 0.10 + 0.02 * float(ak % 2)
-		_ball(n, asc, verde, Vector3(-0.70 + 0.06 * float(ak % 2 * 2 - 1),
-				0.33 + asc * 0.6, az + 0.1), Vector3(1.0, 0.8, 1.0))
-	for fk2 in 4:
-		var fb := float(fk2) * TAU / 4.0 + 0.7
-		_ball(n, 0.014, _mat(CREAM, Color("f3dfc8"), 5.0, 0.3),
-				Vector3(-0.70 + cos(fb) * 0.10, 0.44, 0.20 + sin(fb) * 0.10))
+	# ------------------------------------------------------------ GLI INTERNI
+	# L'arredo non appartiene alla cella: appartiene alla PIANTA. Le FASCE
+	# nascono dai lati chiusi, quindi cambiano da sole quando cambia il
+	# gruppo — il salto e' radicale perche' TOGLIE, non perche' aggiunge.
+	var fasce: Array = []
+	for d2: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1)]:
+		if aperto[d2] and not (lato_porta and d2 == Vector2i(0, -1)):
+			fasce.append(d2)
+	var e_cuore: bool = (pianta["cuore"] != null and c == pianta["cuore"])
+	var e_fondo: bool = (c == pianta["fondo"] and quante >= 2)
+	# la direzione LOCALE che va via dalla porta: e' li' che sta il fondo
+	# della navata, e quello che si vede dalla soglia guardando dentro
+	var via := Vector2i(0, 1)
+	if quante >= 2:
+		var dg: Vector2i = c - (pianta["porta"] as Vector2i)
+		var vu := dg.x * gu.x + dg.y * gu.y
+		var vv := dg.x * gv.x + dg.y * gv.y
+		if absi(vu) >= absi(vv):
+			via = Vector2i(signi(vu), 0) if vu != 0 else Vector2i(0, 1)
+		else:
+			via = Vector2i(0, signi(vv))
 
-	# ---- il cesto APPESO al colmo, alto sopra le teste
-	_cyl(n, 0.006, 0.006, 0.42, _mat(Color("c9b088"), Color("ab9066"), 5.0, 0.5),
-			Vector3(0, 2.20, 0))
-	_cyl(n, 0.07, 0.05, 0.08, cotto, Vector3(0, 1.95, 0))
-	_ball(n, 0.085, verde, Vector3(0, 2.01, 0), Vector3(1.0, 0.65, 1.0))
-	for gk in 3:
-		var ga := float(gk) * TAU / 3.0 + 0.2
-		_ball(n, 0.035, verde, Vector3(cos(ga) * 0.075, 1.93, sin(ga) * 0.075),
-				Vector3(1.0, 1.5, 1.0))
+	if taglia == "sola":
+		# la serretta da giardino: com'era, e come deve restare
+		_box(n, Vector3(0.36, 0.03, 1.5), chiaro, Vector3(0.70, 0.52, 0.1))
+		_box(n, Vector3(0.32, 0.022, 1.4), chiaro, Vector3(0.70, 0.22, 0.1))
+		for lz: float in [-0.58, 0.78]:
+			for lx: float in [0.56, 0.84]:
+				_box(n, Vector3(0.035, 0.50, 0.035), chiaro, Vector3(lx, 0.26, lz + 0.02))
+		scatole.append([Vector3(0.50, 1.00, 1.60), Vector3(0.70, 0.5, 0.1)])
+		for vk in 3:
+			var vx := 0.62 + float(vk % 2) * 0.16
+			var vz := -0.38 + float(vk) * 0.42
+			_cyl(n, 0.05, 0.06, 0.085, cotto, Vector3(vx, 0.578, vz))
+			_ball(n, 0.06, verde, Vector3(vx, 0.66, vz), Vector3(1.0, 0.8, 1.0))
+		for fk in 3:
+			var fa := float(fk) * TAU / 3.0 + 0.4
+			_ball(n, 0.015, _mat(PINK, PINK_DEEP, 5.0, 0.4),
+					Vector3(0.62 + cos(fa) * 0.038, 0.70, -0.38 + sin(fa) * 0.038))
+		var latta := _mat(Color("8aa89a"), Color("6f8d80"), 4.0, 0.4)
+		_cyl(n, 0.062, 0.07, 0.13, latta, Vector3(0.70, 0.296, 0.62))
+		var becco := _cyl(n, 0.011, 0.014, 0.15, latta, Vector3(0.61, 0.32, 0.57))
+		becco.rotation.z = 1.05
+		becco.rotation.y = -0.5
+		_cyl(n, 0.024, 0.016, 0.02, latta, Vector3(0.555, 0.355, 0.54))
+		_cyl(n, 0.055, 0.065, 0.07, cotto, Vector3(0.70, 0.10, -0.62))
+		_cyl(n, 0.055, 0.065, 0.07, cotto, Vector3(0.72, 0.165, -0.60))
+		# l'AIUOLA RIALZATA: c'e' solo qui. Una serra grande coltiva in vaso.
+		_box(n, Vector3(0.44, 0.24, 1.5), legno, Vector3(-0.70, 0.18, 0.1))
+		_box(n, Vector3(0.40, 0.02, 1.46), _mat(Color("5a4636"), Color("46362a"), 3.0, 0.4),
+				Vector3(-0.70, 0.30, 0.1))
+		scatole.append([Vector3(0.50, 0.62, 1.60), Vector3(-0.70, 0.31, 0.1)])
+		for ak in 4:
+			var az := -0.5 + float(ak) * 0.40
+			var asc := 0.10 + 0.02 * float(ak % 2)
+			_ball(n, asc, verde, Vector3(-0.70 + 0.06 * float(ak % 2 * 2 - 1),
+					0.33 + asc * 0.6, az + 0.1), Vector3(1.0, 0.8, 1.0))
+		for fk2 in 4:
+			var fb := float(fk2) * TAU / 4.0 + 0.7
+			_ball(n, 0.014, _mat(CREAM, Color("f3dfc8"), 5.0, 0.3),
+					Vector3(-0.70 + cos(fb) * 0.10, 0.44, 0.20 + sin(fb) * 0.10))
+		for sx4: float in [-0.44, 0.44]:
+			_cyl(n, 0.09, 0.11, 0.14, cotto, Vector3(sx4, 0.13, -0.68))
+			_ball(n, 0.11, verde, Vector3(sx4, 0.27, -0.68), Vector3(1.0, 0.85, 1.0))
+	else:
+		# LA GALLERIA e oltre: banconi CONTINUI sulle fasce, che attraversano
+		# i confini, e i vasi sopra. Niente aiuola: si coltiva in vaso.
+		for d3: Vector2i in fasce:
+			var fil3 := Vector3(float(d3.x), 0.0, float(d3.y)) * 0.68
+			var tan3 := Vector3(0, 0, 1) if d3.x != 0 else Vector3(1, 0, 0)
+			var lung: float = float(est_p[d3]) + float(est_n[d3])
+			var mid3: float = (float(est_p[d3]) - float(est_n[d3])) * 0.5
+			if lung < 0.5:
+				continue
+			var base3: Vector3 = fil3 + tan3 * mid3
+			var szf := func(l: float, h: float, sp: float) -> Vector3:
+				return Vector3(sp, h, l) if d3.x != 0 else Vector3(l, h, sp)
+			if e_fondo and d3 == via:
+				# LA SCALINATA DEI VASI: tre gradoni sulla testata di fondo,
+				# la fila di vasetti che sale. E' quello che si vede dalla
+				# soglia guardando in fondo alla navata.
+				for gk in 3:
+					var gy := 0.30 + float(gk) * 0.22
+					var gz := 0.86 - float(gk) * 0.15
+					var pg3 := fil3 + tan3 * mid3 \
+							- Vector3(float(d3.x), 0, float(d3.y)) * (float(gk) * 0.15)
+					_box(n, szf.call(lung, 0.03, 0.15), chiaro,
+							Vector3(pg3.x, gy, pg3.z))
+					var quanti_v: int = maxi(2, int(lung / 0.30))
+					for vk2 in quanti_v:
+						var vx2: float = -lung * 0.5 + lung * (float(vk2) + 0.5) / float(quanti_v)
+						var pv: Vector3 = pg3 + tan3 * vx2
+						_cyl(n, 0.042, 0.05, 0.07, cotto,
+								Vector3(pv.x, gy + 0.05, pv.z))
+						_ball(n, 0.05, verde, Vector3(pv.x, gy + 0.10, pv.z),
+								Vector3(1.0, 0.8, 1.0))
+				scatole.append([szf.call(lung, 0.80, 0.44),
+						Vector3(base3.x - float(d3.x) * 0.16, 0.40,
+								base3.z - float(d3.y) * 0.16)])
+			else:
+				_box(n, szf.call(lung, 0.03, 0.36), chiaro,
+						Vector3(base3.x, 0.52, base3.z))
+				_box(n, szf.call(lung - 0.06, 0.022, 0.32), chiaro,
+						Vector3(base3.x, 0.22, base3.z))
+				var gambe: int = maxi(2, int(lung / 0.7) + 1)
+				for gk2 in gambe:
+					var gx: float = -lung * 0.5 + lung * float(gk2) / float(gambe - 1)
+					for sp2: float in [-0.14, 0.14]:
+						var pg: Vector3 = base3 + tan3 * gx + Vector3(float(d3.x), 0, float(d3.y)) * sp2
+						_box(n, Vector3(0.035, 0.50, 0.035), chiaro,
+								Vector3(pg.x, 0.26, pg.z))
+				scatole.append([szf.call(lung, 1.00, 0.44),
+						Vector3(base3.x, 0.50, base3.z)])
+				var quanti_v2: int = maxi(2, int(lung / 0.42))
+				for vk3 in quanti_v2:
+					var t3: float = -lung * 0.5 + lung * (float(vk3) + 0.5) / float(quanti_v2)
+					var pv2: Vector3 = base3 + tan3 * t3 \
+							+ Vector3(float(d3.x), 0, float(d3.y)) * (0.06 * float(vk3 % 2))
+					_cyl(n, 0.05, 0.06, 0.085, cotto, Vector3(pv2.x, 0.578, pv2.z))
+					_ball(n, 0.06, verde, Vector3(pv2.x, 0.66, pv2.z),
+							Vector3(1.0, 0.8, 1.0))
+					if vk3 % 3 == 1:
+						for fk3 in 3:
+							var fa3 := float(fk3) * TAU / 3.0 + 0.4
+							_ball(n, 0.015, _mat(PINK, PINK_DEEP, 5.0, 0.4),
+									Vector3(pv2.x + cos(fa3) * 0.038, 0.70,
+											pv2.z + sin(fa3) * 0.038))
+					# i vasi di scorta capovolti sul ripiano basso
+					if vk3 % 2 == 0:
+						_cyl(n, 0.055, 0.045, 0.07, cotto,
+								Vector3(pv2.x, 0.27, pv2.z))
+		# LA STUFA DI GHISA: nella campata piu' lontana dalla porta. Di
+		# notte, da fuori, la serra grande ha una finestra calda.
+		if e_fondo:
+			# in un angolo dove non c'e' bancone, e mai in mezzo alla navata
+			var av := Vector3(float(via.x), 0, float(via.y))
+			var at := Vector3(0, 0, 1) if via.x != 0 else Vector3(1, 0, 0)
+			var ang := av * 0.52 + at * 0.60
+			_cyl(n, 0.15, 0.17, 0.10, ghisa, Vector3(ang.x, 0.05, ang.z))
+			_cyl(n, 0.14, 0.155, 0.46, ghisa, Vector3(ang.x, 0.33, ang.z))
+			_cyl(n, 0.17, 0.15, 0.06, ghisa, Vector3(ang.x, 0.59, ang.z))
+			var brace := _glow(Color("ff9a4a"), Color("ff7a28"), 3.0)
+			_box(n, Vector3(0.13, 0.10, 0.02), brace,
+					Vector3(ang.x, 0.30, ang.z - 0.152))
+			# LA CANNA esce dal vetro: l'altezza del tetto in quel punto si
+			# CALCOLA (colmo meno mezza distanza dall'asse), non si indovina
+			var y_tetto := SERRA_COLMO - 0.5 * absf(ang.z)
+			_cyl(n, 0.042, 0.042, y_tetto - 0.50, ghisa,
+					Vector3(ang.x, 0.59 + (y_tetto - 0.50) * 0.5, ang.z))
+			_cyl(n, 0.085, 0.065, 0.06, rame, Vector3(ang.x, y_tetto, ang.z))
+			_cyl(n, 0.038, 0.030, 0.20, ghisa, Vector3(ang.x, y_tetto + 0.13, ang.z))
+			_cyl(n, 0.052, 0.040, 0.04, ghisa, Vector3(ang.x, y_tetto + 0.25, ang.z))
+			var luce := OmniLight3D.new()
+			luce.light_color = Color(1.0, 0.72, 0.42)
+			luce.light_energy = 0.75
+			luce.omni_range = 2.8
+			luce.position = Vector3(ang.x, 0.34, ang.z - 0.12)
+			n.add_child(luce)
+			scatole.append([Vector3(0.38, 0.62, 0.38), Vector3(ang.x, 0.31, ang.z)])
+		# IL TUBO DI GHISA che gira tutto il perimetro: attraversa le
+		# campate, e nessuno lo nota. Se manca, si pensa «ci sono N pezzi qui».
+		if quante >= 4:
+			for d4: Vector2i in fasce:
+				var fil4 := Vector3(float(d4.x), 0.0, float(d4.y)) * 0.855
+				var tan4 := Vector3(0, 0, 1) if d4.x != 0 else Vector3(1, 0, 0)
+				var lung4: float = float(est_p[d4]) + float(est_n[d4])
+				var mid4: float = (float(est_p[d4]) - float(est_n[d4])) * 0.5
+				var pt := fil4 + tan4 * mid4
+				var tubo := _cyl(n, 0.028, 0.028, lung4, ghisa,
+						Vector3(pt.x, 0.12, pt.z))
+				if d4.x == 0:
+					tubo.rotation.z = PI * 0.5
+				else:
+					tubo.rotation.x = PI * 0.5
+		# IL CUORE: l'agrume in mastello e la panca ad anello. Ci si siede
+		# sotto un albero, dentro una casa di vetro, in inverno.
+		if e_cuore and quante >= 5:
+			_cyl(n, 0.28, 0.24, 0.42, legno, Vector3(0, 0.21, 0))
+			for ck in 2:
+				_cyl(n, 0.285, 0.285, 0.035, ghisa,
+						Vector3(0, 0.10 + float(ck) * 0.22, 0))
+			_cyl(n, 0.055, 0.075, 0.95, _mat(WOOD_DARK, Color("6b4a33"), 4.0, 0.45),
+					Vector3(0, 0.86, 0))
+			for chk in 3:
+				var ca := float(chk) * TAU / 3.0 + 0.5
+				_ball(n, 0.34, verde, Vector3(cos(ca) * 0.16, 1.42 + float(chk) * 0.10,
+						sin(ca) * 0.16), Vector3(1.0, 0.85, 1.0))
+			for fr in 6:
+				var fra := float(fr) * TAU / 6.0 + 0.3
+				_ball(n, 0.045, _mat(Color("f0a83c"), Color("d98a26"), 5.0, 0.4),
+						Vector3(cos(fra) * 0.34, 1.36 + 0.14 * float(fr % 3),
+								sin(fra) * 0.34))
+			for pk in 8:
+				var pa := float(pk) * TAU / 8.0
+				var seg := _box(n, Vector3(0.66, 0.05, 0.24), chiaro,
+						Vector3(cos(pa) * 0.72, 0.40, sin(pa) * 0.72))
+				seg.rotation.y = -pa
+				_box(n, Vector3(0.06, 0.36, 0.06), chiaro,
+						Vector3(cos(pa) * 0.72, 0.20, sin(pa) * 0.72))
+			scatole.append([Vector3(0.62, 0.45, 0.62), Vector3(0, 0.22, 0)])
+		elif e_cuore:
+			# quattro vicini ma gruppo piccolo: la VASCA dell'acqua
+			_box(n, Vector3(0.90, 0.34, 0.60), pietra, Vector3(0, 0.17, 0))
+			_box(n, Vector3(0.80, 0.03, 0.50), _mat(Color("6f97a8"), Color("52788a"), 3.0, 0.2),
+					Vector3(0, 0.325, 0))
+			scatole.append([Vector3(0.95, 0.35, 0.65), Vector3(0, 0.18, 0)])
+		# IL POSTO DOVE STARE: da qui la serra non e' piu' un attrezzo,
+		# e' una stanza. Tavolino di ferro e due sedie in un angolo.
+		if quante >= 4 and fasce.size() >= 2 and not e_cuore and not e_fondo \
+				and not lato_porta:
+			_cyl(n, 0.035, 0.045, 0.42, ghisa, Vector3(0.30, 0.21, -0.30))
+			_cyl(n, 0.26, 0.26, 0.025, chiaro, Vector3(0.30, 0.435, -0.30))
+			_cyl(n, 0.16, 0.20, 0.02, ghisa, Vector3(0.30, 0.02, -0.30))
+			for sk in 2:
+				var sa := 0.9 + float(sk) * 2.4
+				var sp3 := Vector3(0.30 + cos(sa) * 0.44, 0, -0.30 + sin(sa) * 0.44)
+				var sedia := Node3D.new()
+				sedia.position = sp3
+				sedia.rotation.y = -sa + PI * 0.5
+				n.add_child(sedia)
+				_box(sedia, Vector3(0.28, 0.03, 0.26), chiaro, Vector3(0, 0.28, 0))
+				_box(sedia, Vector3(0.28, 0.30, 0.03), chiaro, Vector3(0, 0.44, -0.12))
+				for lk in 4:
+					_box(sedia, Vector3(0.03, 0.28, 0.03), ghisa,
+							Vector3(-0.11 + 0.22 * float(lk % 2), 0.14,
+									-0.10 + 0.20 * float(lk / 2)))
+			scatole.append([Vector3(0.60, 0.45, 0.60), Vector3(0.30, 0.22, -0.30)])
+		# la PALMERIA: il pavimento a scacchi e le palme negli angoli
+		if taglia == "palmeria":
+			for qx in 2:
+				for qz in 2:
+					var pari := (qx + qz + c.x + c.y) % 2 == 0
+					_box(n, Vector3(0.50, 0.008, 0.50),
+							cotto if pari else pietra,
+							Vector3(-0.25 + float(qx) * 0.50, 0.072,
+									-0.25 + float(qz) * 0.50))
+			if fasce.size() >= 2 and not e_cuore:
+				var pmx: float = 0.36 * signf(float(fasce[0].x) + 0.001)
+				var pmz := 0.36
+				_cyl(n, 0.19, 0.16, 0.28, legno, Vector3(pmx, 0.14, pmz))
+				_cyl(n, 0.042, 0.058, 1.42, _mat(Color("b09a72"), Color("8e7a58"), 5.0, 0.45),
+						Vector3(pmx, 0.97, pmz))
+				for fo in 7:
+					var foa := float(fo) * TAU / 7.0 + 0.4
+					var foglia := _box(n, Vector3(0.46, 0.02, 0.17), verde,
+							Vector3(pmx + cos(foa) * 0.22, 1.70, pmz + sin(foa) * 0.22))
+					foglia.rotation.y = -foa
+					foglia.rotation.z = -0.34
+				scatole.append([Vector3(0.40, 0.32, 0.40), Vector3(pmx, 0.16, pmz)])
+	# il CESTO appeso al colmo, uno per campata
+	if not e_cuore:
+		_cyl(n, 0.006, 0.006, 0.42, _mat(Color("c9b088"), Color("ab9066"), 5.0, 0.5),
+				Vector3(0, 2.20, 0))
+		_cyl(n, 0.07, 0.05, 0.08, cotto, Vector3(0, 1.95, 0))
+		_ball(n, 0.085, verde, Vector3(0, 2.01, 0), Vector3(1.0, 0.65, 1.0))
+		for gk3 in 3:
+			var ga := float(gk3) * TAU / 3.0 + 0.2
+			_ball(n, 0.035, verde, Vector3(cos(ga) * 0.075, 1.93, sin(ga) * 0.075),
+					Vector3(1.0, 1.5, 1.0))
 
-	# ---- i due sempreverdi di sempre, ai lati della porta
-	for sx4: float in [-0.44, 0.44]:
-		_cyl(n, 0.09, 0.11, 0.14, cotto, Vector3(sx4, 0.13, -0.68))
-		_ball(n, 0.11, verde, Vector3(sx4, 0.27, -0.68), Vector3(1.0, 0.85, 1.0))
-	return n
+	n.set_meta("scatole", scatole)
+	n.set_meta("asse", asse)
+	return radice
 
 
 # la mongolfiera decorativa: pallone a spicchi rosa e crema, cesto di vimini

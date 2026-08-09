@@ -635,6 +635,76 @@ del `_ready` e lo trovava `null` **per sempre**, perché il Regista è un
 figlio RUNTIME di CozyWorld creato a generazione differita. Il cablaggio si
 **riprova** a ogni campionamento finché non ha trovato tutto.
 
+## Le serre che si fondono (la Vetreria)
+
+Due serre vicine non sono due serre: sono **una serra piu' grande**. Il muro
+in mezzo non sparisce — diventa un'**arcata** — il colmo prosegue attraverso
+il confine, e fra due campate affiancate di traverso nasce il **compluvio**,
+il canale di rame che ogni serra a piu' navate ha. Con tre, quattro, nove
+campate cambia anche il mestiere di dentro: serretta da giardino → galleria
+→ giardino d'inverno → palmeria.
+
+**Come sta in piedi** (`serra_pianta` / `serra_cella` in
+[`BuildCatalog.gd`](scenes/build/BuildCatalog.gd), `rinfresca`/`gruppo_serra`/
+`ricostruisci_serra` in [`BuildSystem.gd`](scenes/build/BuildSystem.gd)):
+
+- **La fusione e' DERIVATA dalle celle occupate**, come `coppia()` in Affetti:
+  il salvataggio resta una riga per cella, niente da migrare, e
+  `get_placed_by_name("Serra")` continua a contare N nodi per N celle (Garden
+  e gli Ordini del Gufo non cambiano comportamento).
+- **Ogni cella disegna la PROPRIA campata** guardandosi intorno (e' il
+  mestiere di `aiuola_cella`, portato su un edificio): niente capogruppo,
+  quindi ogni nodo tiene identita', collisioni e meta.
+- Il gruppo e' **8-connesso**: due serre che si toccano d'angolo sono un
+  edificio solo, perche' i loro gusci si compenetrerebbero comunque.
+- Il **rettangolo** di ogni cella si spinge a `SERRA_MURO` (0.95) sui lati
+  aperti e a `SERRA_BORDO` (0.50) sui lati condivisi: **la serra sola resta
+  identica a prima**.
+- **Dove c'e' muro** lo decide la copertura (`serra_estremo`: 0.05 / 0.50 /
+  0.95); **di chi e' il tetto** lo decide la tenda piu' alta. Sono due regole
+  DIVERSE, ed e' li' che si sbaglia: due campate diagonali si incontrano
+  sempre a meta' strada, a 2.19 — che e' il compluvio, gratis.
+- L'elemento condiviso (montante, canale, arcata) appartiene alla cella
+  **lessicograficamente minima** fra quelle che lo toccano: nessun doppione.
+
+**Le trappole gia' pagate:**
+
+1. **Le collisioni si rifanno SEMPRE a parte.** Le `CollisionShape3D` sono
+   figlie dirette dello `StaticBody3D`, e una shape dentro un contenitore
+   **non viene registrata affatto, senza errori**: il gesto dell'aiuola
+   («scambio il figlio e ho finito») darebbe una vetreria bellissima e
+   completamente ATTRAVERSABILE, con la suite verde. Si tolgono con
+   `remove_child` (immediato), mai `queue_free` (che le lascia attive un
+   frame: il varco della porta tappato proprio mentre la serra si fonde).
+2. **Il rinfresco e' DIFFERITO** (`_segna_serre` + `_flush_serre.call_deferred`,
+   l'idioma di `request_save`): il caricamento piazza le celle una per una, e
+   un rinfresco ingenuo rifarebbe il gruppo 1+2+3+4 volte, le prime tre di
+   forma sbagliata. Chi costruisce e fotografa nello stesso frame usa
+   `aggiorna_serre_ora()`.
+3. **La guardia in `_segna_serre` non e' decorativa**: i rinfresca ricevono il
+   dizionario del LAYER, non del nome — senza di lei, posare una Sedia
+   accanto a una serra ricostruirebbe un edificio intero.
+4. **Il figlio «Vetreria» si RINOMINA prima di liberarlo**: un nodo in coda
+   tiene occupato il nome fino a fine frame e il nuovo diventerebbe
+   «Vetreria2» — al rinfresco dopo non lo trovi piu'.
+5. **Le due arcate erano invertite** e nessun test poteva dirlo: il confine
+   sotto il COLMO vuole l'arcone a cuspide (ci si cammina in navata), quello
+   sotto il COMPLUVIO vuole l'architrave con la colonnina che lo regge. Con
+   l'errore, in mezzo alla navata c'erano dei pali.
+6. **Il portale deve stare SOTTO la gronda** (1.92): la prima stesura
+   arrivava a 2.46 e la pensilina volava sopra le falde.
+7. Gli interni cambiano **TOGLIENDO**: a due celle l'aiuola rialzata
+   SPARISCE (una serra grande coltiva in vaso). Se un salto aggiunge soltanto,
+   «cambia radicalmente» e' diventato «piu' vasi» — e
+   [`test_serre.gd`](tests/cases/test_serre.gd) lo fa fallire.
+
+**Come si guarda** (la suite non dice niente sulla resa):
+`CHIBI_SERRE=<dir> Godot --path . --script res://tools/provino_serre.gd`
+rende tutte le forme (fila, traverso, L, quadrato, croce, 3×3, diagonale) su
+cinque viste; `tools/prova_serre_vive.gd` le posa nel **MainLevel vero** col
+BuildSystem vero e misura i confini interni (devono essere 0 bloccati) e il
+guscio (0 buchi).
+
 ## REGOLA: la lingua (italiano sorgente, inglese sopra)
 
 Il gioco è **bilingue** dal 2026-07-28: italiano (lingua sorgente) e inglese.
