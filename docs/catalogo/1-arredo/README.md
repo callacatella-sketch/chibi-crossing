@@ -1,6 +1,6 @@
 # Arredo
 
-*quello che si mette dentro: mobili, banconi, strumenti* — 31 pezzi.
+*quello che si mette dentro: mobili, banconi, strumenti* — 30 pezzi.
 
 | | fronte | tre quarti | profilo |
 |---|---|---|---|
@@ -18,7 +18,6 @@
 | **Casco appeso**<br><sub>0.86 × 0.59 m</sub> | <img src="casco-appeso/1-fronte.jpg" width="200"> | <img src="casco-appeso/2-tre-quarti.jpg" width="200"> | <img src="casco-appeso/3-profilo.jpg" width="200"> |
 | **Comodino**<br><sub>0.45 × 0.59 m</sub> | <img src="comodino/1-fronte.jpg" width="200"> | <img src="comodino/2-tre-quarti.jpg" width="200"> | <img src="comodino/3-profilo.jpg" width="200"> |
 | **Lampada**<br><sub>0.44 × 1.88 m</sub> | <img src="lampada/1-fronte.jpg" width="200"> | <img src="lampada/2-tre-quarti.jpg" width="200"> | <img src="lampada/3-profilo.jpg" width="200"> |
-| **Lampada semplice**<br><sub>0.43 × 1.88 m</sub> | <img src="lampada-semplice/1-fronte.jpg" width="200"> | <img src="lampada-semplice/2-tre-quarti.jpg" width="200"> | <img src="lampada-semplice/3-profilo.jpg" width="200"> |
 | **Lavagnetta**<br><sub>0.56 × 0.95 m</sub> | <img src="lavagnetta/1-fronte.jpg" width="200"> | <img src="lavagnetta/2-tre-quarti.jpg" width="200"> | <img src="lavagnetta/3-profilo.jpg" width="200"> |
 | **Letto**<br><sub>1.00 × 0.77 m</sub> | <img src="letto/1-fronte.jpg" width="200"> | <img src="letto/2-tre-quarti.jpg" width="200"> | <img src="letto/3-profilo.jpg" width="200"> |
 | **Libreria**<br><sub>0.93 × 1.55 m</sub> | <img src="libreria/1-fronte.jpg" width="200"> | <img src="libreria/2-tre-quarti.jpg" width="200"> | <img src="libreria/3-profilo.jpg" width="200"> |
