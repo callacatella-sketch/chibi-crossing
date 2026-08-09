@@ -1270,8 +1270,55 @@ static func fontanella() -> Node3D:
 ## sasso è scolpito da 2-3 lobi di sfera sovrapposti — mai un pallone da
 ## rugby identico al vicino — e il bastone ha una fascetta di cuoio dove
 ## entra nella pietra, invece di sparire dentro di lei come per magia.
+# ============================================================================
+# LE RASTRELLIERE: una FILA, non un mobile
+# ============================================================================
+# Una rastrelliera accanto a un'altra non sono due rastrelliere: sono una
+# scaffalatura piu' lunga. Il montante in mezzo diventa UNO, i ripiani
+# proseguono attraverso il confine, e solo le due TESTATE hanno il telaio
+# finito — il piede a slitta, la croce di controvento, il cappello smussato.
+#
+# La fila si riconosce come quella della Gradinata: celle adiacenti lungo
+# l'asse X del pezzo, con la STESSA rotazione (una rastrelliera girata di
+# traverso non e' in fila con te). E le tre varianti si uniscono fra loro:
+# quello che cambia e' cosa ci si posa sopra, non il mobile.
+const RASTRELLIERE := ["Rastrelliera", "Rastrelliera dischi", "Rastrelliera pietre"]
+
+## Da nome di pezzo a variante di contenuto (i nomi sono ID: restano italiani).
+static func variante_rastrelliera(nome: String) -> String:
+	match nome:
+		"Rastrelliera dischi": return "dischi"
+		"Rastrelliera pietre": return "pietre"
+		_: return "manubri"
+
+
 static func rastrelliera() -> Node3D:
+	return rastrelliera_cella({}, "manubri", 7)
+
+
+static func rastrelliera_dischi() -> Node3D:
+	return rastrelliera_cella({}, "dischi", 11)
+
+
+static func rastrelliera_pietre() -> Node3D:
+	return rastrelliera_cella({}, "pietre", 23)
+
+
+## UNA CAMPATA di scaffalatura. `vicini` dice se di fianco continua la fila
+## ({"sx": bool, "dx": bool}, nell'asse X del pezzo); `variante` cosa ci si
+## posa sopra; `seme` fa il dado dei dettagli — ed e' della CELLA, cosi'
+## aggiungere una campata non rimescola quella di fianco.
+static func rastrelliera_cella(vicini: Dictionary, variante := "manubri",
+		seme := 7) -> Node3D:
+	var radice := Node3D.new()
 	var n := Node3D.new()
+	n.name = "Rastrelliera"
+	radice.add_child(n)
+	var sx_c := bool(vicini.get("sx", false))
+	var dx_c := bool(vicini.get("dx", false))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seme
+
 	var legno := CAT._mat(CAT.WOOD, CAT.WOOD_DARK, 5.0, 0.5)
 	var legno_scuro := CAT._mat(CAT.WOOD_DARK, CAT.WOOD_DARK.darkened(0.25), 3.0, 0.5)
 	var chiaro := CAT._mat(CAT.WOOD_PALE, CAT.WOOD, 4.5, 0.45)
@@ -1279,140 +1326,322 @@ static func rastrelliera() -> Node3D:
 	var sasso_scuro := CAT._mat(CAT.STONE_DARK, Color("8e857a"), 3.5, 0.5)
 	var corda := CAT._mat(CORDA, CUOIO, 7.0, 0.4)
 	var legatura := CAT._mat(CUOIO, CUOIO_DARK, 6.0, 0.45)
+	var ferro := CAT._mat(Color("6a6157"), Color("4b443c"), 6.0, 0.4)
 
-	# UN SASSO DI FIUME COMPOSITO: 2-3 lobi di sfera leggermente sovrapposti
-	# e ruotati fra loro. `ricetta` è un array di lobi [scarto (frazione di
-	# r), scala, rotazione, raggio (frazione di r)]; il primo lobo è sempre
-	# il corpo principale, gli altri sono le schegge/protuberanze che
-	# rompono la sagoma perfetta di un'unica sfera schiacciata.
-	var scolpisci_sasso := func(parent: Node3D, centro: Vector3, r: float,
-			mat: Material, ricetta: Array) -> void:
-		for lobo in ricetta:
-			var off: Vector3 = lobo[0]
-			var scl: Vector3 = lobo[1]
-			var rot: Vector3 = lobo[2]
-			var rf: float = lobo[3]
-			var palla := CAT._ball(parent, r * rf, mat, centro + off * r, scl)
-			if rot != Vector3.ZERO:
-				palla.rotation = rot
+	# le quote della scaffalatura, scritte una volta sola
+	var y_basso := 0.30
+	var y_alto := 0.68
+	var z_int := 0.155      # i due montanti di ogni cavalletto (davanti/dietro)
+	var y_testa := 0.88     # la cima dei montanti
 
-	# CINQUE SAGOME, una per manubrio: `sz2` è il capo del bastone (-1/+1),
-	# e specchia gli scarti perturbandoli — i due capi di uno stesso
-	# manubrio sono imparentati (stessa famiglia di forma) ma non
-	# identici, come due sassi veri raccolti insieme e infilati sullo
-	# stesso bastone da chi non li ha scelti uguali.
-	var sagoma_a := func(sz2: float) -> Array:
-		return [
-			[Vector3.ZERO, Vector3(0.86, 0.92, 1.0), Vector3.ZERO, 1.0],
-			[Vector3(sz2 * 0.38, 0.5, -0.2), Vector3(0.42, 0.4, 0.48),
-					Vector3(0.15, 0.0, sz2 * 0.3), 0.52],
-		]
-	var sagoma_b := func(sz2: float) -> Array:
-		return [
-			[Vector3.ZERO, Vector3(0.9, 0.85, 1.0), Vector3.ZERO, 1.0],
-			[Vector3(sz2 * -0.5, 0.12, 0.3), Vector3(0.56, 0.5, 0.4),
-					Vector3(0.0, sz2 * 0.4, -0.22), 0.6],
-		]
-	var sagoma_c := func(sz2: float) -> Array:
-		return [
-			[Vector3(sz2 * -0.28, 0.06, -0.05), Vector3(0.62, 0.72, 0.85),
-					Vector3(0.0, 0.0, sz2 * 0.16), 0.74],
-			[Vector3(sz2 * 0.3, -0.06, 0.1), Vector3(0.66, 0.7, 0.9),
-					Vector3(0.0, 0.0, sz2 * -0.12), 0.78],
-		]
-	var sagoma_d := func(sz2: float) -> Array:
-		return [
-			[Vector3.ZERO, Vector3(0.95, 0.8, 1.0), Vector3.ZERO, 1.0],
-			[Vector3(sz2 * 0.42, 0.5, -0.32), Vector3(0.3, 0.28, 0.34),
-					Vector3(0.35, sz2 * 0.2, 0.0), 0.4],
-		]
-	var sagoma_e := func(sz2: float) -> Array:
-		return [
-			[Vector3.ZERO, Vector3(0.82, 0.95, 1.0), Vector3.ZERO, 1.0],
-			[Vector3(sz2 * -0.4, -0.36, 0.22), Vector3(0.5, 0.46, 0.55),
-					Vector3(0.0, sz2 * 0.3, 0.2), 0.58],
-			[Vector3(sz2 * 0.3, 0.58, -0.26), Vector3(0.22, 0.2, 0.24),
-					Vector3.ZERO, 0.3],
-		]
-	var sagome := [sagoma_a, sagoma_b, sagoma_c, sagoma_d, sagoma_e]
-
-	# il telaio: due fianchi a A, uno zoccolo che li tiene posati bene (non
-	# pali nudi piantati a terra) e i cavicchi che fissano i ripiani —
-	# poi i due ripiani stessi
-	for sx: float in [-1.0, 1.0]:
+	# ---- UN CAVALLETTO. Alle testate e' completo (piede a slitta, croce di
+	# controvento, cappello); in mezzo alla fila e' solo la coppia di
+	# montanti che regge i due ripiani — un montante ogni metro, come in una
+	# scaffalatura vera.
+	var cavalletto := func(x: float, testata: bool) -> void:
 		for sz: float in [-1.0, 1.0]:
-			var g := CAT._box(n, Vector3(0.055, 0.78, 0.055), legno,
-					Vector3(sx * 0.4, 0.38, sz * 0.16))
-			g.rotation.x = sz * 0.12
-		CAT._box(n, Vector3(0.06, 0.05, 0.42), legno, Vector3(sx * 0.4, 0.72, 0))
-		CAT._box(n, Vector3(0.12, 0.035, 0.4), legno_scuro, Vector3(sx * 0.4, 0.0175, 0))
-		# i cavicchi che fissano i ripiani ai fianchi: il giunto si VEDE
-		# (un piolo che sporge dalla faccia esterna), non è soltanto una
-		# scatola che ne compenetra un'altra in silenzio
-		for sy2: float in [0.3, 0.68]:
-			for sz4: float in [-1.0, 1.0]:
-				var cav := CAT._cyl(n, 0.013, 0.013, 0.045, legno_scuro,
-						Vector3(sx * 0.44, sy2, sz4 * 0.16))
-				cav.rotation.z = PI * 0.5
-	for sy: float in [0.3, 0.68]:
-		CAT._box(n, Vector3(0.92, 0.045, 0.3), chiaro, Vector3(0, sy, 0))
-		# un piccolo bordo alzato sul filo davanti: senza, un sasso
-		# tondo posato su un'asse liscia rotolerebbe giù
-		CAT._box(n, Vector3(0.9, 0.018, 0.03), chiaro, Vector3(0, sy + 0.0315, -0.155))
+			var largo := 0.075 if testata else 0.06
+			CAT._box(n, Vector3(largo, y_testa, largo), legno,
+					Vector3(x, y_testa * 0.5, sz * z_int))
+			# il cappello smussato: un montante tagliato di netto e' un palo
+			CAT._box(n, Vector3(largo + 0.022, 0.022, largo + 0.022), legno_scuro,
+					Vector3(x, y_testa + 0.011, sz * z_int))
+			if testata:
+				CAT._ball(n, largo * 0.42, legno_scuro,
+						Vector3(x, y_testa + 0.032, sz * z_int), Vector3(1, 0.7, 1))
+		# la traversa in cima, che lega i due montanti
+		CAT._box(n, Vector3(0.06 if testata else 0.05, 0.055, z_int * 2.0 + 0.08),
+				legno, Vector3(x, y_testa - 0.028, 0))
+		if not testata:
+			return
+		# IL PIEDE A SLITTA: una rastrelliera non sta su due pali piantati
+		# nel pavimento, sta su due pattini — e uno ha lo spessore di pietra
+		# sotto, perche' il pavimento non e' mai in bolla
+		var piede := CAT._box(n, Vector3(0.14, 0.05, 0.56), legno_scuro,
+				Vector3(x, 0.025, 0))
+		for sz2: float in [-1.0, 1.0]:
+			var smusso := CAT._box(n, Vector3(0.14, 0.05, 0.09), legno_scuro,
+					Vector3(x, 0.036, sz2 * 0.30))
+			smusso.rotation.x = sz2 * 0.42
+		# la croce di controvento sul fianco: e' lei che tiene in squadra
+		var diag := CAT._box(n, Vector3(0.045, 0.72, 0.035), legno,
+				Vector3(x, 0.44, 0))
+		diag.rotation.x = 0.42
+		var diag2 := CAT._box(n, Vector3(0.045, 0.72, 0.035), legno,
+				Vector3(x, 0.44, 0))
+		diag2.rotation.x = -0.42
+		CAT._cyl(n, 0.016, 0.016, 0.05, ferro, Vector3(x, 0.44, 0)).rotation.z = PI * 0.5
 
-	# i manubri: bastone e due sassi, tre misure. Sul ripiano di sopra i
-	# leggeri, sotto i pesanti — come li metterebbe chiunque
-	# i ripiani stanno a 0.3 e 0.68, spessi 0.045: il piano d'appoggio è
-	# quindi a 0.3225 e 0.7025 — un sasso ci si POSA sopra, tangente, e
-	# affonda di un soffio come fa una cosa pesante su un'asse
-	var misure := [[0.055, 0.7025, -0.3], [0.062, 0.7025, 0.0], [0.07, 0.7025, 0.3],
-			[0.085, 0.3225, -0.26], [0.095, 0.3225, 0.08]]
+	# i montanti: quello di SINISTRA lo disegna sempre questa campata,
+	# quello di destra solo se la fila finisce qui — cosi' il montante
+	# condiviso non viene disegnato due volte
+	cavalletto.call(-0.5, not sx_c)
+	if not dx_c:
+		cavalletto.call(0.5, true)
+
+	# ---- I RIPIANI, larghi quanto la cella: due campate accostate hanno le
+	# tavole che si toccano, e la fila si legge come un mobile solo
+	for sy: float in [y_basso, y_alto]:
+		CAT._box(n, Vector3(1.0, 0.045, 0.36), chiaro, Vector3(0, sy, 0))
+		# il listello che trattiene: senza, un sasso tondo rotola giu'
+		CAT._box(n, Vector3(1.0, 0.028, 0.032), chiaro, Vector3(0, sy + 0.036, -0.176))
+		# le mensoline sotto il ripiano, sui montanti: e' li' che scarica
+		# il peso, e si vedono
+		for mx: float in [-0.5, 0.5]:
+			if (mx < 0.0 and sx_c) or (mx > 0.0 and dx_c):
+				continue
+			for sz3: float in [-1.0, 1.0]:
+				var mens := CAT._box(n, Vector3(0.11, 0.05, 0.05), legno_scuro,
+						Vector3(mx + (0.06 if mx < 0.0 else -0.06), sy - 0.045,
+								sz3 * z_int))
+				mens.rotation.z = 0.0
+		# i cavicchi che fissano la tavola al montante
+		for cx: float in [-0.5, 0.5]:
+			if (cx < 0.0 and sx_c) or (cx > 0.0 and dx_c):
+				continue
+			for sz4: float in [-1.0, 1.0]:
+				var cav := CAT._cyl(n, 0.012, 0.012, 0.045, legno_scuro,
+						Vector3(cx + (0.04 if cx < 0.0 else -0.04), sy, sz4 * z_int))
+				cav.rotation.x = PI * 0.5
+
+	# la corda tesa sul retro, che impedisce alle cose di cadere di la'
+	for sy2: float in [y_basso, y_alto]:
+		var tesa := CAT._cyl(n, 0.009, 0.009, 1.0, corda,
+				Vector3(0, sy2 + 0.075, z_int + 0.012))
+		tesa.rotation.z = PI * 0.5
+
+	# ---- LA VITA ADDOSSO: la fascia di cuoio arrotolata su un montante, lo
+	# straccio appeso, la ciotola del gesso. Non su ogni campata: capitano
+	# dove il dado della CELLA dice di si', cosi' una fila lunga non e'
+	# la stessa cosa ripetuta.
+	if not sx_c or rng.randf() < 0.4:
+		for k in 3:
+			var giro := CAT._cyl(n, 0.052, 0.052, 0.03, legatura,
+					Vector3(-0.5, 0.52 + float(k) * 0.032, -z_int))
+			giro.rotation.x = 0.06 * float(k % 2 * 2 - 1)
+	if rng.randf() < 0.55:
+		# LO STRACCIO, buttato SOPRA la traversa: la piega che la scavalca e
+		# i due lembi che pendono. Senza la piega era un cartoncino appeso
+		# al niente in mezzo alla rastrelliera.
+		var tela := CAT._mat(Color("d9cdb4"), Color("bcae92"), 6.0, 0.35)
+		var px := rng.randf_range(-0.26, 0.26)
+		var piega := CAT._box(n, Vector3(0.17, 0.010, 0.15), tela,
+				Vector3(px, y_testa - 0.032, -0.02))
+		piega.rotation.z = rng.randf_range(-0.05, 0.05)
+		# i due lembi: quello davanti scende lungo, quello dietro corto —
+		# uno straccio buttato su una traversa non cade mai pari
+		for sz5: float in [-1.0, 1.0]:
+			var lungo := 0.26 if sz5 < 0.0 else 0.15
+			var lembo := CAT._box(n, Vector3(0.165, lungo, 0.008), tela,
+					Vector3(px, y_testa - 0.036 - lungo * 0.47, sz5 * 0.072))
+			lembo.rotation.x = -sz5 * 0.13
+			lembo.rotation.z = rng.randf_range(-0.09, 0.09)
+		# la punta che si arriccia in fondo: e' quella che dice «stoffa»
+		var punta := CAT._box(n, Vector3(0.10, 0.05, 0.008), tela,
+				Vector3(px + 0.03, y_testa - 0.30, -0.10))
+		punta.rotation.x = 0.5
+		punta.rotation.z = 0.3
+	if rng.randf() < 0.4:
+		# la ciotola del gesso sulla traversa in cima
+		var bx := rng.randf_range(-0.2, 0.2)
+		CAT._cyl(n, 0.062, 0.05, 0.05, sasso_scuro, Vector3(bx, y_testa + 0.02, 0))
+		CAT._ball(n, 0.042, CAT._mat(CAT.CREAM, Color("efe6d2"), 5.0, 0.3),
+				Vector3(bx, y_testa + 0.045, 0), Vector3(1, 0.5, 1))
+
+	# ---- QUELLO CHE CI SI POSA SOPRA: la variante
+	match variante:
+		"dischi": _rastrelliera_dischi(n, rng, sasso, sasso_scuro, legatura,
+				ferro, y_basso, y_alto)
+		"pietre": _rastrelliera_pietre(n, rng, sasso, sasso_scuro, corda,
+				chiaro, y_basso, y_alto)
+		_: _rastrelliera_manubri(n, rng, sasso, sasso_scuro, chiaro, legatura,
+				y_basso, y_alto)
+
+	# il posto d'uso: DAVANTI alla rastrelliera (il fronte e' -Z, dove sta
+	# il listello che trattiene), e guardando gli attrezzi
+	_posto(n, Vector3(0, 0.0, -0.62), Vector3.BACK)
+	return radice
+
+
+## UN SASSO DI FIUME COMPOSITO: 2-3 lobi di sfera appena sovrapposti e
+## ruotati fra loro. E' quello che rompe la sagoma di palla perfetta.
+static func _scolpisci_sasso(parent: Node3D, centro: Vector3, r: float,
+		mat: Material, ricetta: Array) -> void:
+	for lobo in ricetta:
+		var off: Vector3 = lobo[0]
+		var scl: Vector3 = lobo[1]
+		var rot: Vector3 = lobo[2]
+		var rf: float = lobo[3]
+		var palla := CAT._ball(parent, r * rf, mat, centro + off * r, scl)
+		if rot != Vector3.ZERO:
+			palla.rotation = rot
+
+
+## Le cinque sagome dei capi di manubrio: i due capi di uno stesso manubrio
+## sono imparentati ma non identici, come due sassi raccolti insieme da chi
+## non li ha scelti uguali.
+static func _sagoma_capo(i: int, sz2: float) -> Array:
+	match i % 5:
+		0: return [[Vector3.ZERO, Vector3(0.86, 0.92, 1.0), Vector3.ZERO, 1.0],
+				[Vector3(sz2 * 0.38, 0.5, -0.2), Vector3(0.42, 0.4, 0.48),
+						Vector3(0.15, 0.0, sz2 * 0.3), 0.52]]
+		1: return [[Vector3.ZERO, Vector3(0.9, 0.85, 1.0), Vector3.ZERO, 1.0],
+				[Vector3(sz2 * -0.5, 0.12, 0.3), Vector3(0.56, 0.5, 0.4),
+						Vector3(0.0, sz2 * 0.4, -0.22), 0.6]]
+		2: return [[Vector3(sz2 * -0.28, 0.06, -0.05), Vector3(0.62, 0.72, 0.85),
+						Vector3(0.0, 0.0, sz2 * 0.16), 0.74],
+				[Vector3(sz2 * 0.3, -0.06, 0.1), Vector3(0.66, 0.7, 0.9),
+						Vector3(0.0, 0.0, sz2 * -0.12), 0.78]]
+		3: return [[Vector3.ZERO, Vector3(0.95, 0.8, 1.0), Vector3.ZERO, 1.0],
+				[Vector3(sz2 * 0.42, 0.5, -0.32), Vector3(0.3, 0.28, 0.34),
+						Vector3(0.35, sz2 * 0.2, 0.0), 0.4]]
+		_: return [[Vector3.ZERO, Vector3(0.82, 0.95, 1.0), Vector3.ZERO, 1.0],
+				[Vector3(sz2 * -0.4, -0.36, 0.22), Vector3(0.5, 0.46, 0.55),
+						Vector3(0.0, sz2 * 0.3, 0.2), 0.58],
+				[Vector3(sz2 * 0.3, 0.58, -0.26), Vector3(0.22, 0.2, 0.24),
+						Vector3.ZERO, 0.3]]
+
+
+## I MANUBRI di pietra: bastone e due sassi, i leggeri sopra e i pesanti
+## sotto — come li metterebbe chiunque.
+static func _rastrelliera_manubri(n: Node3D, rng: RandomNumberGenerator,
+		sasso: Material, sasso_scuro: Material, chiaro: Material,
+		legatura: Material, y_basso: float, y_alto: float) -> void:
+	var corda := CAT._mat(CORDA, CUOIO, 7.0, 0.4)
+	var misure := [[0.055, y_alto + 0.0225, -0.32], [0.062, y_alto + 0.0225, -0.02],
+			[0.07, y_alto + 0.0225, 0.30],
+			[0.085, y_basso + 0.0225, -0.28], [0.095, y_basso + 0.0225, 0.10]]
 	for i in misure.size():
-		var m = misure[i]
+		var m: Array = misure[i]
 		var r: float = m[0]
 		var y: float = m[1] + r * 0.92
 		var x: float = m[2]
 		var manubrio := Node3D.new()
 		manubrio.position = Vector3(x, y, 0)
-		manubrio.rotation.y = 0.12 if int(x * 10) % 2 == 0 else -0.16
+		manubrio.rotation.y = 0.12 if i % 2 == 0 else -0.16
 		n.add_child(manubrio)
 		var asta := CAT._cyl(manubrio, 0.014, 0.014, 0.3, chiaro, Vector3.ZERO)
 		asta.rotation.x = PI * 0.5
-		var mat_sasso := sasso if r < 0.08 else sasso_scuro
+		var mat_sasso: Material = sasso if r < 0.08 else sasso_scuro
 		for sz2: float in [-1.0, 1.0]:
-			# la fascetta di cuoio dove il bastone entra nel sasso: senza,
-			# il legno chiaro sparisce dentro la pietra come per magia.
-			# Sta sul tratto di bastone ancora NUDO, appena prima che il
-			# sasso lo avvolga — non sulla punta della sfera (lì la
-			# sezione si annulla e la fascetta galleggerebbe da sola)
 			var fascia := CAT._cyl(manubrio, 0.018, 0.021, 0.02, legatura,
 					Vector3(0, 0, sz2 * (0.12 - r) * 0.72))
 			fascia.rotation.x = PI * 0.5
-			scolpisci_sasso.call(manubrio, Vector3(0, 0, sz2 * 0.12), r, mat_sasso,
-					sagome[i].call(sz2))
+			_scolpisci_sasso(manubrio, Vector3(0, 0, sz2 * 0.12), r, mat_sasso,
+					_sagoma_capo(i, sz2))
+	# e una pietra col manico di corda, a terra davanti
+	var pietra := Node3D.new()
+	pietra.position = Vector3(rng.randf_range(-0.28, 0.28), 0.0, -0.34)
+	pietra.rotation.y = rng.randf_range(-0.6, 0.6)
+	n.add_child(pietra)
+	CAT._ball(pietra, 0.108, sasso_scuro, Vector3(0, 0.052, 0), Vector3(1.05, 0.52, 1.0))
+	var cupola := CAT._ball(pietra, 0.09, sasso_scuro, Vector3(0.012, 0.148, -0.01),
+			Vector3(0.92, 0.82, 0.95))
+	cupola.rotation = Vector3(0.05, 0.2, 0.08)
+	CAT._ball(pietra, 0.045, sasso_scuro, Vector3(-0.09, 0.09, 0.055),
+			Vector3(0.55, 0.42, 0.5))
+	BUILDER.tube(pietra, [Vector3(-0.058, 0.19, 0), Vector3(0, 0.34, 0),
+			Vector3(0.058, 0.19, 0)], [0.014, 0.017, 0.014], corda, 14, 8)
+	for sxk: float in [-1.0, 1.0]:
+		CAT._ball(pietra, 0.022, corda, Vector3(sxk * 0.058, 0.19, 0),
+				Vector3(1.0, 0.9, 1.0))
 
-	# e le due pietre col manico di corda, a terra davanti: base piatta
-	# (poggiano su una faccia smussata, non su un pallone perfetto), una
-	# cupola decentrata sopra, e una scheggiatura mai la stessa sulle due
-	for sx2: float in [-1.0, 1.0]:
-		var pietra := Node3D.new()
-		pietra.position = Vector3(sx2 * 0.26, 0.0, 0.34)
-		pietra.rotation.y = sx2 * 0.5
-		n.add_child(pietra)
-		CAT._ball(pietra, 0.108, sasso_scuro, Vector3(0, 0.052, 0), Vector3(1.05, 0.52, 1.0))
-		var cupola := CAT._ball(pietra, 0.09, sasso_scuro,
-				Vector3(sx2 * 0.012, 0.148, -0.01), Vector3(0.92, 0.82, 0.95))
-		cupola.rotation = Vector3(0.05, sx2 * 0.2, sx2 * 0.08)
-		CAT._ball(pietra, 0.045, sasso_scuro, Vector3(sx2 * -0.09, 0.09, 0.055),
-				Vector3(0.55, 0.42, 0.5))
-		# il manico si prende a due mani: un arco alto, ben sopra la
-		# cupola, non un filo che spunta a malapena dal sasso
-		BUILDER.tube(pietra, [Vector3(-0.058, 0.19, 0), Vector3(0, 0.34, 0),
-				Vector3(0.058, 0.19, 0)], [0.014, 0.017, 0.014], corda, 14, 8)
-		# i due nodi dove il manico di corda entra nella pietra: un tubo
-		# che sparisce a filo della superficie è una corda che non regge
-		for sxk: float in [-1.0, 1.0]:
-			CAT._ball(pietra, 0.022, corda, Vector3(sxk * 0.058, 0.19, 0),
-					Vector3(1.0, 0.9, 1.0))
-	_posto(n, Vector3(0, 0.0, 0.62), Vector3.BACK)
-	return n
+
+## I DISCHI di pietra: quelli grossi IN PIEDI appoggiati al listello (e'
+## cosi' che si posano, di taglio), i piccoli impilati di piatto. La pila
+## non e' mai perfetta: ogni disco e' girato di un po'.
+static func _rastrelliera_dischi(n: Node3D, rng: RandomNumberGenerator,
+		sasso: Material, sasso_scuro: Material, legatura: Material,
+		ferro: Material, y_basso: float, y_alto: float) -> void:
+	# in piedi sul ripiano basso, appoggiati all'indietro
+	var x := -0.40
+	for i in 4:
+		var r: float = [0.155, 0.142, 0.13, 0.118][i]
+		var d := Node3D.new()
+		d.position = Vector3(x + r * 0.55, y_basso + 0.0225 + r * 0.98, 0.02)
+		d.rotation.x = -0.16 - rng.randf_range(0.0, 0.05)
+		d.rotation.y = rng.randf_range(-0.12, 0.12)
+		n.add_child(d)
+		var disco := CAT._cyl(d, r, r, 0.055, sasso if i % 2 == 0 else sasso_scuro,
+				Vector3.ZERO)
+		disco.rotation.z = PI * 0.5
+		# il mozzo e il foro: un disco senza foro e' una ruota di formaggio
+		var mozzo := CAT._cyl(d, r * 0.32, r * 0.32, 0.062, sasso_scuro, Vector3.ZERO)
+		mozzo.rotation.z = PI * 0.5
+		var foro := CAT._cyl(d, r * 0.16, r * 0.16, 0.075,
+				CAT._mat(Color("3b352e"), Color("2a251f"), 3.0, 0.2), Vector3.ZERO)
+		foro.rotation.z = PI * 0.5
+		# la fascetta di cuoio attorno al bordo, dove si prende
+		var cerchio := CAT._cyl(d, r * 1.02, r * 1.02, 0.018, legatura,
+				Vector3(0.024, 0, 0))
+		cerchio.rotation.z = PI * 0.5
+		x += r * 1.25
+	# la pila di piatti sul ripiano alto
+	var py := y_alto + 0.0225
+	for k in 5:
+		var rr := 0.125 - float(k) * 0.008
+		var pd := CAT._cyl(n, rr, rr, 0.045, sasso if k % 2 == 0 else sasso_scuro,
+				Vector3(0.22 + float(k) * 0.004, py + 0.0225, 0.0))
+		pd.rotation.y = rng.randf_range(-0.5, 0.5)
+		CAT._cyl(n, rr * 0.17, rr * 0.17, 0.05,
+				CAT._mat(Color("3b352e"), Color("2a251f"), 3.0, 0.2),
+				Vector3(0.22 + float(k) * 0.004, py + 0.0225, 0.0))
+		py += 0.045
+	# il perno di ferro che tiene la pila in asse
+	CAT._cyl(n, 0.014, 0.016, 0.30, ferro, Vector3(0.23, y_alto + 0.17, 0.0))
+	CAT._ball(n, 0.024, ferro, Vector3(0.23, y_alto + 0.32, 0.0), Vector3(1, 0.7, 1))
+	# e uno appoggiato al montante, a terra
+	var solo := Node3D.new()
+	solo.position = Vector3(-0.40, 0.15, -0.24)
+	solo.rotation.x = -0.30
+	solo.rotation.y = 0.4
+	n.add_child(solo)
+	var dsolo := CAT._cyl(solo, 0.15, 0.15, 0.055, sasso_scuro, Vector3.ZERO)
+	dsolo.rotation.z = PI * 0.5
+	CAT._cyl(solo, 0.024, 0.024, 0.07,
+			CAT._mat(Color("3b352e"), Color("2a251f"), 3.0, 0.2),
+			Vector3.ZERO).rotation.z = PI * 0.5
+
+
+## LE PIETRE tonde, in CULLE di legno: senza culla rotolerebbero, e una
+## pietra che rotola su un'asse e' un oggetto che non sta fermo. Graduate
+## per peso, dalla piu' piccola alla piu' grossa.
+static func _rastrelliera_pietre(n: Node3D, rng: RandomNumberGenerator,
+		sasso: Material, sasso_scuro: Material, corda: Material,
+		chiaro: Material, y_basso: float, y_alto: float) -> void:
+	var file := [[y_alto + 0.0225, [0.085, 0.095, 0.105]],
+			[y_basso + 0.0225, [0.125, 0.14]]]
+	for f in file.size():
+		var riga: Array = file[f]
+		var y: float = riga[0]
+		var raggi: Array = riga[1]
+		var passo := 0.94 / float(raggi.size())
+		for i in raggi.size():
+			var r: float = raggi[i]
+			var x := -0.47 + passo * (float(i) + 0.5)
+			# la culla: due listelli inclinati che abbracciano la pietra
+			for sz: float in [-1.0, 1.0]:
+				var listello := CAT._box(n, Vector3(r * 1.5, 0.025, 0.10), chiaro,
+						Vector3(x, y + 0.022, sz * r * 0.62))
+				listello.rotation.x = -sz * 0.55
+			_scolpisci_sasso(n, Vector3(x, y + r * 0.86, 0.0), r,
+					sasso if i % 2 == 0 else sasso_scuro,
+					_sagoma_capo(f * 2 + i, 1.0))
+			# il numero inciso: una tacca per ogni misura, come sui pesi veri
+			for tk in i + 1:
+				CAT._box(n, Vector3(0.008, 0.03, 0.006),
+						CAT._mat(Color("4a4239"), Color("363029"), 3.0, 0.3),
+						Vector3(x - 0.02 + float(tk) * 0.016, y + 0.006, -0.17))
+	# la pietra col manico di corda, a terra
+	var pietra := Node3D.new()
+	pietra.position = Vector3(rng.randf_range(-0.3, 0.3), 0.0, -0.34)
+	pietra.rotation.y = rng.randf_range(-0.7, 0.7)
+	n.add_child(pietra)
+	CAT._ball(pietra, 0.118, sasso_scuro, Vector3(0, 0.056, 0), Vector3(1.05, 0.55, 1.0))
+	CAT._ball(pietra, 0.096, sasso_scuro, Vector3(0.014, 0.155, -0.01),
+			Vector3(0.92, 0.84, 0.95))
+	BUILDER.tube(pietra, [Vector3(-0.06, 0.20, 0), Vector3(0, 0.35, 0),
+			Vector3(0.06, 0.20, 0)], [0.014, 0.017, 0.014], corda, 14, 8)
+	for sxk: float in [-1.0, 1.0]:
+		CAT._ball(pietra, 0.022, corda, Vector3(sxk * 0.06, 0.20, 0),
+				Vector3(1.0, 0.9, 1.0))

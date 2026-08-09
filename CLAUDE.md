@@ -731,6 +731,40 @@ cinque viste; `tools/prova_serre_vive.gd` le posa nel **MainLevel vero** col
 BuildSystem vero e misura i confini interni (devono essere 0 bloccati) e il
 guscio (0 buchi).
 
+## Le rastrelliere che si uniscono in fila
+
+Seconda famiglia che si fonde, con la stessa idea della Vetreria ma una
+regola di gruppo diversa: **la FILA**, non la macchia. Celle adiacenti lungo
+l'asse X del pezzo **con la stessa rotazione** (come `rinfresca_braccioli`
+della Gradinata) diventano una scaffalatura sola: il montante in mezzo e'
+UNO, i ripiani proseguono attraverso il confine, e il piede a slitta con la
+croce di controvento restano solo alle **due testate**.
+
+- Le **tre varianti** — `Rastrelliera` (manubri di pietra), `Rastrelliera
+  dischi`, `Rastrelliera pietre` — si uniscono **fra loro**: cambia il
+  contenuto, non il mobile. Un unico builder,
+  `BuildPalestra.rastrelliera_cella(vicini, variante, seme)`, e i tre pezzi
+  a catalogo sono solo tre chiamate diverse.
+- Il **montante condiviso lo disegna la campata di sinistra** (ognuna
+  disegna il proprio montante sinistro; l'ultima disegna anche il destro):
+  nessun doppione, verificato contando i pali verticali.
+- Il **seme e' della cella** (`hash(c)`): allungare la fila non rimescola
+  gli straccetti e le ciotole gia' posate.
+- Il rinfresco passa dalla **stessa coda differita** delle serre
+  (`_segna_serre` → `_flush_serre`), che ora rifa' entrambe le famiglie: una
+  sola ricostruzione a fine frame anche quando il caricamento posa venti
+  pezzi di fila.
+- Aggiungere una variante vuol dire **quattro cablaggi, non uno**: la voce a
+  catalogo, `Economy.CORREDO` (o resta irraggiungibile), il costo in legna in
+  `Woodcutting.gd`, e la voce inglese in `locale/en/ui.gd`. Tre test diversi
+  fanno la guardia a queste quattro cose.
+
+Si guarda con `CHIBI_RAST=<dir> Godot --path . --script
+res://tools/provino_rastrelliere.gd` (una, due, tre miste, quattro) e con
+`tools/prova_rastrelliere_vive.gd`, che le posa nel MainLevel vero e conta i
+piedi a slitta: **due** su una fila di tre, **quattro** dopo aver tolto
+quella di mezzo.
+
 ## REGOLA: la lingua (italiano sorgente, inglese sopra)
 
 Il gioco è **bilingue** dal 2026-07-28: italiano (lingua sorgente) e inglese.

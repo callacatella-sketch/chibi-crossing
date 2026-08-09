@@ -211,7 +211,8 @@ const CORREDO := {
 	# Otto voci quasi uguali sul banco del mercante sarebbero un catalogo,
 	# non un negozio — e una palestra si mette su tutta in una volta.
 	"Sacco": ["Tappetino", "Panca dei pesi", "Cyclette", "Sbarra da trazione",
-			"Specchio", "Fontanella", "Rastrelliera"],
+			"Specchio", "Fontanella", "Rastrelliera",
+			"Rastrelliera dischi", "Rastrelliera pietre"],
 	"Autopompa": ["Portone rimessa", "Torretta", "Palo pompieri",
 			"Scala a pioli", "Insegna caserma", "Campana caserma",
 			"Casco appeso", "Stivali", "Secchi", "Idrante", "Manichetta",
