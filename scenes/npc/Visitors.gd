@@ -62,6 +62,12 @@ var _pockets: Node
 var _chat_acc := 0.0
 var _wish_acc := 0.0
 var _pair_cd := {}
+## Chi ha addosso la posa della PORTA CHIUSA (label -> true), messa qui
+## sotto. Serve a sapere che è NOSTRA: il meta "postura" lo usano anche gli
+## Affetti e il telegrafo della ribellione, e con gli stessi nomi —
+## toglierlo alla cieca spegnerebbe la posa di un altro sistema, che non se
+## ne accorgerebbe. Non si salva: i corpi rinascono nudi.
+var _posa_fuori := {}
 
 # la vita interiore: label -> VillagerBrain (bisogni, indole, memoria)
 var _brains := {}
@@ -222,6 +228,15 @@ func _process(delta: float) -> void:
 		var brain: RefCounted = _ensure_brain(r)
 		var nascosto: bool = node.call("is_hidden")
 		brain.tick(delta, nascosto)
+		# LA NOTTE FUORI FINISCE. Se la posa della porta chiusa restasse
+		# addosso, chi una sera non è entrato resterebbe curvo per sempre —
+		# lo stesso guasto per cui «sereno» non lo scriveva mai nessuno. Si
+		# toglie quando la porta si riapre o quando la notte è passata, e
+		# SOLO se è ancora la nostra (un altro sistema può averla coperta).
+		var lab_fuori := str(r.get("label", ""))
+		if _posa_fuori.has(lab_fuori) \
+				and (not _sleep_window(brain, t_ora) or _puo_entrare(r)):
+			_aggiorna_posa_fuori(lab_fuori, node, false)
 		if _sleep_window(brain, t_ora) and not nascosto \
 				and str(node.get("_state")) in ["r_idle", "r_wander", "r_fire", "r_bench", "r_sniff", "tk_stella", "tk_sing", "tk_nap"]:
 			# LA PORTA PUÒ NON APRIRSI. Se qualcuno con cui divideva quella
@@ -231,8 +246,8 @@ func _process(delta: float) -> void:
 			# questo gioco racconta una cosa del genere.
 			if _puo_entrare(r):
 				node.call("resident_sleep")
-			elif node.has_meta("postura") == false:
-				node.set_meta("postura", "spalle_basse")
+			else:
+				_aggiorna_posa_fuori(lab_fuori, node, true)
 		elif not _sleep_window(brain, t_ora) and nascosto:
 			node.call("resident_wake")
 		elif not nascosto:
@@ -537,6 +552,38 @@ func _recita(r: Dictionary, node: Node3D, brain: RefCounted, act: String, ph: St
 				return
 	# nessuna scena disponibile: due passi intorno a casa
 	node.call("do_routine", "wander", Vector3.ZERO)
+
+
+## LA POSA DI CHI RESTA FUORI, messa e tolta. Sta in una funzione sua per
+## due motivi, tutti e due lezioni pagate:
+##
+##  · si CHIEDE LA POSTURA, non il meta. Qui c'era `has_meta("postura") ==
+##    false`: ma il meta non si toglie quasi mai — quando un transitorio si
+##    consuma viene RISCRITTO con la stabile sottostante — quindi bastava
+##    che il giocatore fosse passato UNA volta a 1,4 metri (il saluto)
+##    perché questo ramo fosse morto per sempre, e chi resta fuori la sera
+##    non lo dicesse più col corpo. La domanda vera è «il corpo è libero?»;
+##  · si toglie SOLO LA NOSTRA. Gli Affetti e il telegrafo della ribellione
+##    usano lo stesso meta e gli stessi nomi: cancellarlo alla cieca
+##    spegnerebbe la posa di un altro sistema, che non se ne accorgerebbe.
+##
+## Ed è una funzione a sé anche perché così si può PROVARE: far girare
+## `_process` vorrebbe il villaggio intero (mondo, meteo, costruzioni).
+func _aggiorna_posa_fuori(label: String, node: Node, resta_fuori: bool) -> void:
+	if node == null or not is_instance_valid(node):
+		return
+	if resta_fuori:
+		if _posa_fuori.has(label):
+			return
+		if node.has_method("postura_libera") and node.call("postura_libera"):
+			node.set_meta("postura", "spalle_basse")
+			_posa_fuori[label] = true
+		return
+	if not _posa_fuori.has(label):
+		return
+	_posa_fuori.erase(label)
+	if str(node.get_meta("postura", "")) == "spalle_basse":
+		node.remove_meta("postura")
 
 
 # la finestra di sonno personale: [inizio sera, fine all'alba]

@@ -217,8 +217,11 @@ func apri() -> void:
 		return
 	var lista := destinatari(_legami.get("_fili"))
 	if lista.is_empty():
-		if _mail and _mail.has_method("mostra_toast"):
-			_mail.call("mostra_toast", L10n.t("Non hai ancora una storia da raccontare a nessuno."))
+		# `Mail.mostra_toast` NON ESISTE (mai esistito: le uniche due
+		# occorrenze in tutto il repo erano queste righe). Dietro un
+		# `has_method` il buco non dava errore — la cassetta si apriva, non
+		# diceva niente e si richiudeva, e sembrava un tasto rotto.
+		_toast(L10n.t("Non hai ancora una storia da raccontare a nessuno."))
 		return
 	_aperto = true
 	_passo = 0
@@ -376,12 +379,15 @@ func _al_grande_prato(_testo: String) -> void:
 			[_a_chi]))
 
 
+## IL CARTELLINO. C'era un ramo su `get_first_node_in_group("toast")` +
+## `show_toast` — un gruppo che NESSUN nodo del progetto popola e un metodo
+## che non esiste in tutto il repo — e sotto, come ripiego, un `print()`.
+## Cioè: il giocatore imbucava la lettera più intima del gioco e a schermo
+## non succedeva niente, mentre il messaggio finiva nella console.
+## La strada vera è quella che usano già Salone e Concerto.
 func _toast(testo: String) -> void:
-	var hud := get_tree().get_first_node_in_group("toast")
-	if hud and hud.has_method("show_toast"):
-		hud.call("show_toast", testo)
-	else:
-		print("RISPONDERE: %s" % testo)
+	if _visitors and _visitors.has_method("_show_toast"):
+		_visitors.call("_show_toast", testo)
 
 
 # ============================================================ la schermata

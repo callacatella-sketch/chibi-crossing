@@ -72,18 +72,27 @@ var _tick := 0.0
 var _player: AudioStreamPlayer3D
 ## quanti si sono seduti all'ultimo concerto: lo legge il registro
 var _ascoltatori := 0
-var _ultimo_titolo := ""
+## le due metà ITALIANE del titolo di stasera: sono chiavi, e restano
+## chiavi finché non si mostrano (vedi `programma`)
+var _titolo_a := ""
+var _titolo_b := ""
 
 
 func _ready() -> void:
 	add_to_group("concerto")
+	# SFX SI PRENDE PER PERCORSO, non per gruppo: `Sfx` e' un AUTOLOAD e
+	# NESSUN nodo del progetto entra mai nel gruppo "sfx" — quindi
+	# `get_first_node_in_group("sfx")` tornava null PER SEMPRE, la riga che
+	# assegna il bus non girava mai, e il pianoforte suonava su `Master`:
+	# il cursore «Musica» delle impostazioni non lo governava. E' lo stesso
+	# idioma di tutti gli altri trenta file (Concertino, HUD, Calendar…).
+	_sfx = get_node_or_null(^"/root/Sfx")
 	(func() -> void:
 		_visitors = get_node_or_null("../Visitors")
 		_build = get_tree().get_first_node_in_group("build_system")
 		_daynight = get_node_or_null("../DayNight")
 		_lavori = get_node_or_null("../Lavori")
 		_legami = get_tree().get_first_node_in_group("legami")
-		_sfx = get_tree().get_first_node_in_group("sfx")
 		if _daynight and _daynight.has_signal("day_changed"):
 			_daynight.day_changed.connect(_nuovo_giorno)).call_deferred()
 
@@ -104,7 +113,8 @@ func _i_legami() -> Node:
 
 func _nuovo_giorno(_g: int) -> void:
 	_ascoltatori = 0
-	_ultimo_titolo = ""
+	_titolo_a = ""
+	_titolo_b = ""
 
 
 # ============================================================ la logica pura
@@ -120,9 +130,28 @@ static func ora_di_concerto(ora: float) -> bool:
 static func programma(seme: int) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash("concerto|%d" % seme)
-	var titolo := "%s %s" % [TITOLO_A[rng.randi() % TITOLO_A.size()],
-			TITOLO_B[rng.randi() % TITOLO_B.size()]]
-	return {"titolo": titolo, "canzone": CONCERTINO.componi(seme)}
+	# LE DUE META' ESCONO SEPARATE, e in ITALIANO: sono CHIAVI, non testo.
+	# Comporle qui e tradurre dopo era il difetto — `L10n.tf("«%s»", [x])`
+	# traduce solo le virgolette, e in inglese uscivano ottanta titoli
+	# italiani. Peggio: il titolo si annoda anche sul Filo Rosso, quindi
+	# l'italiano finiva dentro il SALVATAGGIO.
+	# `titolo` resta la composizione italiana perche' e' la chiave di
+	# identita' del brano (deterministica, e ci si appoggia il test
+	# dell'anfiteatro): il testo che il giocatore legge lo compone
+	# `titolo_reso()`, traducendo PRIMA di unire.
+	var a := str(TITOLO_A[rng.randi() % TITOLO_A.size()])
+	var b := str(TITOLO_B[rng.randi() % TITOLO_B.size()])
+	return {"titolo": "%s %s" % [a, b], "a": a, "b": b,
+			"canzone": CONCERTINO.componi(seme)}
+
+
+## Il titolo COME SI LEGGE, nella lingua di chi gioca: si traducono le due
+## metà e solo dopo si uniscono. PURA — non tocca lo stato, e si prova
+## headless cambiando lingua.
+static func titolo_reso(a: String, b: String) -> String:
+	if a == "" and b == "":
+		return ""
+	return "%s %s" % [L10n.t(a), L10n.t(b)]
 
 
 ## Quanti posti a sedere offre una fila di N gradinate: tre cuscini
@@ -341,7 +370,8 @@ func _i_posti() -> Array:
 func _suona(piano: Node3D) -> void:
 	var prog := programma(_giorno() * 31 + int(_t_pausa))
 	var canzone: Dictionary = prog["canzone"]
-	_ultimo_titolo = str(prog["titolo"])
+	_titolo_a = str(prog["a"])
+	_titolo_b = str(prog["b"])
 	var durata := float(canzone["beats"]) * 60.0 / float(canzone["bpm"])
 	_t_brano = durata + 1.2
 
@@ -359,12 +389,14 @@ func _suona(piano: Node3D) -> void:
 	_player.position = Vector3(0, 0.45, 0)
 	_player.play()
 
-	# chi ascolta guarda il palco e sta zitto
+	# chi ascolta guarda il palco e sta zitto — ma solo chi c'è ancora:
+	# scrivere "attento" addosso a chi nel frattempo è andato a dormire
+	# gli sfascia la posa del sonno (stessa lezione degli applausi)
 	for chi in _pubblico:
 		var n := _nodo_di(chi)
-		if n != null:
+		if n != null and not (n.has_method("is_hidden") and bool(n.call("is_hidden"))):
 			n.set_meta("postura", "attento")
-	_toast(L10n.tf("«%s»", [_ultimo_titolo]))
+	_toast(L10n.tf("«%s»", [titolo_reso(_titolo_a, _titolo_b)]))
 
 
 ## GLI APPLAUSI. Il brano finisce e il pubblico esplode: è il pagamento
@@ -377,10 +409,22 @@ func _applausi() -> void:
 		if artista.has_method("speak"):
 			artista.call("speak", ["grazie", "felice"], "felice")
 	var quanti := 0
+	# CHI SE N'E' ANDATO NON APPLAUDE. La finestra del concerto (0.72-0.92)
+	# scavalca quella del sonno, che si apre a 0.80, e `r_bench` e' fra gli
+	# stati interrompibili: a meta' brano meta' platea e' a letto. Il
+	# richiamo del pubblico gia' saltava chi e' `is_hidden()`; qui no, e
+	# cosi' si distribuivano gesti d'affetto e momenti del Filo Rosso a chi
+	# stava dormendo — una sera passata insieme che non e' mai successa.
+	# Si toglie anche da `_pubblico`: restare in lista voleva dire un posto
+	# occupato da un fantasma per tutta la serata.
+	var restano: Array[String] = []
 	for chi in _pubblico:
 		var n := _nodo_di(chi)
 		if n == null:
 			continue
+		if n.has_method("is_hidden") and bool(n.call("is_hidden")):
+			continue
+		restano.append(chi)
 		quanti += 1
 		n.set_meta("postura", "si_illumina")
 		if n.has_method("_spawn_heart"):
@@ -395,7 +439,10 @@ func _applausi() -> void:
 		# il filo si annoda: aver ascoltato insieme è un momento vissuto
 		var leg := _i_legami()
 		if leg:
-			leg.call("momento", _nome_di(chi), "musica", _ultimo_titolo)
+			# sul filo va la CHIAVE, non la frase composta: il momento
+			# finisce nel salvataggio, e un salvataggio non ha una lingua
+			leg.call("momento", _nome_di(chi), "musica", titolo_chiave())
+	_pubblico = restano
 	_ascoltatori = maxi(_ascoltatori, quanti)
 	if quanti > 0:
 		_toast(L10n.tf("%d vicini applaudono nel buio.", [quanti]) if quanti > 1 \
@@ -478,19 +525,29 @@ func ascoltatori_di_oggi() -> int:
 	return _ascoltatori
 
 
+## Il titolo di stasera, GIÀ TRADOTTO: lo legge il registro dei lavori e
+## finisce dritto nella riga del mattino, quindi qui è testo, non chiave.
 func titolo_di_oggi() -> String:
-	return _ultimo_titolo
+	return titolo_reso(_titolo_a, _titolo_b)
+
+
+## Le due metà italiane, per chi deve CONSERVARE il titolo invece di
+## mostrarlo (il Filo Rosso): "" se stasera non si è ancora suonato.
+func titolo_chiave() -> String:
+	return "%s|%s" % [_titolo_a, _titolo_b] if _titolo_a != "" else ""
 
 
 func in_scena() -> bool:
 	return _aperto
 
 
+## IL CARTELLINO. Qui c'era prima un ramo su `get_first_node_in_group("toast")`
+## + `show_toast`: un gruppo che NESSUN nodo del progetto popola e un metodo
+## che non esiste da nessuna parte. Non era un ripiego, era un ramo morto —
+## e teneva in piedi l'illusione che il cartellino avesse due strade.
+## La strada è una sola, ed è quella che il villaggio usa davvero.
 func _toast(testo: String) -> void:
-	var hud := get_tree().get_first_node_in_group("toast")
-	if hud and hud.has_method("show_toast"):
-		hud.call("show_toast", testo)
-	elif _visitors and _visitors.has_method("_show_toast"):
+	if _visitors and _visitors.has_method("_show_toast"):
 		_visitors.call("_show_toast", testo)
 
 

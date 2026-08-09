@@ -15,6 +15,14 @@ const CAT := preload("res://scenes/build/BuildCatalog.gd")
 const ANIMO := preload("res://scenes/npc/Animo.gd")
 const GUFO := preload("res://scenes/npc/GufoOrders.gd")
 const ECO := preload("res://scenes/ui/Economy.gd")
+# le altre tabelle DATI da cui esce testo a schermo: nessuna di queste
+# passa da un letterale dentro L10n.t(), quindi la passata sui sorgenti
+# non le vede e la suite resterebbe verde con la partita mezza italiana
+const LEGAMI := preload("res://scenes/world/Legami.gd")
+const MAIL := preload("res://scenes/interact/Mail.gd")
+const COMM := preload("res://scenes/npc/Commissioni.gd")
+const LAVORI := preload("res://scenes/npc/Lavori.gd")
+const CONCERTO := preload("res://scenes/interact/Concerto.gd")
 
 # le grafie americane che nel villaggio non si usano (inglese britannico)
 const AMERICANISMI := ["color", "colors", "colored", "colorful", "neighbor",
@@ -394,7 +402,9 @@ func _test_copertura(t) -> void:
 ## segno di traduzione finta, e ha ragione — una voce ricopiata nasconde
 ## una dimenticanza. L'eccezione sta scritta qui, dove si vede, invece che
 ## dentro la tabella dove si confonderebbe con le altre.
-const UGUALI_IN_INGLESE := ["Gazebo"]
+## («Berceuse» è un prestito dal francese: in inglese si scrive uguale, e
+## metterlo in tabella vorrebbe dire ricopiarlo.)
+const UGUALI_IN_INGLESE := ["Gazebo", "Berceuse"]
 
 
 func _test_le_tabelle_dati(t) -> void:
@@ -429,8 +439,52 @@ func _test_le_tabelle_dati(t) -> void:
             if not tabella.has(v2):
                 mancanti.append("Economy.SHOP_PIECES[%s].%s" % [str(pezzo.get("name", "?")), campo2])
 
+    # LE ALTRE TABELLE DATI, spulciate per nome. Non esiste un modo generico
+    # di «scoprire» una tabella dati, e fingere che ci sia lascerebbe il
+    # prossimo buco aperto: qui si elencano a mano, e ognuna di queste ha
+    # GIÀ fatto uscire italiano dentro la partita inglese —
+    #   · Legami.TIPI: i quattro momenti delle nuove leve e del coraggio,
+    #     cioè il filo di un cucciolo intero;
+    #   · Mail.MOMENTI_TESTO: la lettera che chiude una paura (`coraggio`);
+    #   · Commissioni.VOGLIE/PIATTI: la voglia dell'estetista, e il
+    #     biglietto della lavagna usciva a metà tradotto;
+    #   · Lavori.LAVORI/STATO_UMANO: un lavoro su sette nel registro;
+    #   · Concerto.TITOLO_A/TITOLO_B: si compongono in ottanta titoli, e
+    #     bastava una metà non tradotta per farli uscire tutti misti.
+    # Chi aggiunge una riga a una di queste tabelle trova rosso qui.
+    var dati := {
+        "Legami.TIPI": _prime_colonne(LEGAMI.TIPI),
+        "Mail.MOMENTI_TESTO": MAIL.MOMENTI_TESTO.values(),
+        "Commissioni.VOGLIE": COMM.VOGLIE.values(),
+        "Commissioni.PIATTI": COMM.PIATTI.values(),
+        "Lavori.LAVORI": LAVORI.LAVORI.values(),
+        "Lavori.STATO_UMANO": LAVORI.STATO_UMANO.values(),
+        "Concerto.TITOLO_A": CONCERTO.TITOLO_A,
+        "Concerto.TITOLO_B": CONCERTO.TITOLO_B,
+    }
+    for nome in dati:
+        for voce in dati[nome]:
+            var v3 := str(voce)
+            if v3 == "" or v3 in UGUALI_IN_INGLESE:
+                continue
+            quante += 1
+            if not tabella.has(v3):
+                mancanti.append("%s -> «%s»" % [nome, _corto(v3)])
+
     for m in mancanti:
         t.ok(false, "tabella dati senza traduzione inglese -> %s" % m)
     t.eq(mancanti.size(), 0,
             "ogni voce delle tabelle dati ha la sua traduzione (%d/%d)"
             % [quante - mancanti.size(), quante])
+
+
+## `Legami.TIPI` non è «id -> frase» ma «id -> [frase, [tag…]]»: la frase
+## da tradurre è la prima colonna, i tag accanto sono dati interni (le
+## parole in Chibiese del ricordo) e non si traducono mai.
+static func _prime_colonne(tabella_dati: Dictionary) -> Array:
+    var out := []
+    for k in tabella_dati:
+        var riga = tabella_dati[k]
+        if riga is Array and not (riga as Array).is_empty():
+            out.append(str(riga[0]))
+    return out

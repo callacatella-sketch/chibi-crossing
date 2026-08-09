@@ -319,6 +319,9 @@ const T := {
 	"mi ricorda il bosco dov'era la mia tana": "it reminds me of the woods where my burrow was",
 	"solo il tuo retino può riuscirci": "only your net could ever manage it",
 	"ci penso da giorni e giorni": "I've been thinking about it for days and days",
+	# la voglia dell'estetista: mancava, ed era l'unica delle sette — il
+	# biglietto della lavagna usciva a metà in italiano. `colour` con la u.
+	"quel colore è esattamente quello che cercavo": "that colour is exactly the one I was after",
 	"la mia marmellata": "my jam", "la mia torta": "my pie",
 	"la mia composta": "my compote", "la mia zuppa": "my soup",
 	"la mia vellutata": "my velvet soup", "il mio risotto": "my risotto",
@@ -354,6 +357,12 @@ const T := {
 		"The name I carry, you gave me,\non day %d, when I was only this big.\nI don't remember it. They have told me about it\noften enough that I remember it anyway.",
 	"Dicono che la prima parola\nl'ho detta il giorno %d, tutta storta,\ne che tu eri lì e hai riso.\nPoi l'ho imparata bene, ma quella era mia.":
 		"They say my first word\ncame out on day %d, all crooked,\nand that you were there, and laughed.\nI learned to say it properly later, but that one was mine.",
+	# ACCOMPAGNARE: la lettera del posto che non fa più paura. Era l'unica
+	# delle venti voci di Mail.MOMENTI_TESTO senza inglese — e proprio
+	# quella che chiude la paura, cioè la busta che si vuole rileggere.
+	# I quattro a capo sono il respiro: si conservano tutti.
+	"Di quel posto avevo paura, e non lo dicevo.\nIl giorno %d ci siamo andati insieme\ne non è successo niente — proprio niente.\nAdesso ci passo anche da solo, e non ci penso.":
+		"I was afraid of that place, and never said so.\nOn day %d we went there together\nand nothing happened — nothing at all.\nNow I walk past on my own, and never think of it.",
 	# l'ultimo desiderio di chi lascia dei figli (Congedo.DESIDERI_TESTO)
 	"tornare sulla soglia dove l'ha visto per la prima volta":
 		"to stand again on the doorstep where they first saw them",
