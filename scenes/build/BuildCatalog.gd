@@ -6135,14 +6135,17 @@ const SUGHERO := Color("d8b487")
 ## PORTATA, NON CON L'ENERGIA. A raggio 9 la luce arrivava dappertutto e
 ## per terra restava una velatura uniforme — cioe' nessuna pozza; spingere
 ## l'energia non cambiava niente, sbiancava solo il vetro. Corta e ripida
-## (portata 4.9, attenuazione 1.9) e il cerchio azzurro sull'erba c'e'.
+## Scelta su CINQUE tarature affiancate e renderizzate al buio: la piu'
+## stretta (3.6/4.9/1.9) fa una pozza intensa ma l'alone si mangia i
+## pannelli della gabbia, la piu' larga (8/9/1.5) torna a velatura.
+## 4.5 / 6.0 / 1.2: pozza ampia e il vetro resta leggibile.
 ## Il colore va SATURO: un bianco appena freddo non e' una lanterna blu.
 static func _luce_blu(parent: Node3D, pos: Vector3, forza := 1.0) -> OmniLight3D:
 	var luce := OmniLight3D.new()
 	luce.light_color = Color(0.42, 0.60, 1.0)
-	luce.light_energy = 3.6 * forza
-	luce.omni_range = 4.9
-	luce.omni_attenuation = 1.9
+	luce.light_energy = 4.5 * forza
+	luce.omni_range = 6.0
+	luce.omni_attenuation = 1.2
 	luce.shadow_enabled = false
 	luce.position = pos
 	parent.add_child(luce)
