@@ -36,6 +36,14 @@ const BATTUTE := {
 }
 
 var _bicchieri := 0.0
+## QUANTI BICCHIERI HA BEVUTO DAVVERO, contati interi. `_bicchieri` non può
+## fare da conto: è la sbronza, e lo smaltimento la LIMA di continuo (mezzo
+## bicchiere al minuto). Dopo k bicchieri bevuti in T secondi vale k − T/120,
+## e `floor()` restituiva k−1: la battuta del primo bicchiere usciva due
+## volte, quelle scritte per il terzo, il quinto e l'ottavo non uscivano MAI,
+## e il gran finale («il mondo sembra disegnato col mouse») arrivava al nono.
+## Si azzera quando si torna sobri: un'altra serata, un'altra prima volta.
+var _bevuti := 0
 var _player: Node3D
 var _build: Node
 var _sfx
@@ -73,6 +81,8 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_bicchieri = smaltisci(_bicchieri, delta)
+	if _bicchieri <= 0.0:
+		_bevuti = 0          # tornati sobri: la serata ricomincia da capo
 	var liv := livello(_bicchieri)
 	if _velo_mat:
 		_velo.visible = liv > 0.003
@@ -110,16 +120,20 @@ func bevi() -> void:
 	if eco:
 		eco.call("add_nuts", -COSTO)
 	_bicchieri += 1.0
-	var n := int(floorf(_bicchieri))
-	if BATTUTE.has(n):
-		_di(L10n.t(str(BATTUTE[n])))
+	# la battuta va al bicchiere BEVUTO, non alla sbronza rimasta addosso
+	_bevuti += 1
+	if BATTUTE.has(_bevuti):
+		_di(L10n.t(str(BATTUTE[_bevuti])))
 	if _sfx and _sfx.has_method("collect_item"):
 		_sfx.collect_item()
 
 
 ## Per i provini e la regia: quanti bicchieri, subito.
 func debug_bicchieri(n: float) -> void:
-	_bicchieri = n
+	_bicchieri = maxf(0.0, n)
+	# anche il conto dei bevuti va portato lì, o la battuta dopo un provino
+	# uscirebbe come se fosse il primo bicchiere della serata
+	_bevuti = int(ceilf(_bicchieri))
 
 
 func _bancone_vicino() -> Node3D:

@@ -24,6 +24,7 @@ func run(t) -> void:
 	_test_la_scala(t)
 	_test_i_pezzi(t)
 	_test_collisioni(t)
+	_test_il_pubblico_del_vanto(t)
 
 
 func _voce() -> Dictionary:
@@ -132,3 +133,52 @@ func _test_collisioni(t) -> void:
 			davanti_libero = false
 	t.ok(davanti_libero,
 			"il davanti resta libero: e' da li' che ci si avvicina alla poltrona")
+
+
+## IL PUBBLICO DEL VANTO. Chi esce dal salone corre a farsi vedere dal
+## vicino piu' vicino — ma l'ESTETISTA non puo' essere quel vicino: gli ha
+## appena fatto la messa in piega, e correre a mostrargliela non e' una
+## scena, e' un cortocircuito. Il commento su `_il_piu_vicino` diceva
+## «escluso `tranne` e chi ci lavora» da sempre; il codice escludeva solo
+## il cliente, e siccome durante la seduta l'estetista e' proprio quella
+## li' accanto, era anche la piu' probabile a vincere.
+##
+## Comportamentale sul serio: si costruisce un finto Visitors con tre
+## residenti veri in scena, si mette l'estetista IN MEZZO (la piu' vicina
+## di tutte) e si guarda chi viene scelto.
+func _test_il_pubblico_del_vanto(t) -> void:
+	var SAL := load("res://scenes/interact/Salone.gd")
+	var salone = t.stage(SAL.new())
+
+	# un Visitors finto: serve solo che esponga `_residents`
+	var src := GDScript.new()
+	src.source_code = "extends Node\nvar _residents: Array = []\n"
+	src.reload()
+	var finto = t.stage(Node.new())
+	finto.set_script(src)
+
+	var posti := {"cliente": Vector3(0, 0, 0), "estetista": Vector3(1.0, 0, 0),
+			"lontana": Vector3(4.0, 0, 0)}
+	var residenti: Array = []
+	for label in posti:
+		var n := Node3D.new()
+		n.name = str(label)
+		t.stage(n)
+		n.global_position = posti[label]
+		residenti.append({"label": str(label), "node": n})
+	finto.set("_residents", residenti)
+	salone.set("_visitors", finto)
+	salone.set("_estetista", "estetista")
+
+	var scelto = salone.call("_il_piu_vicino", "cliente", Vector3.ZERO)
+	t.ok(scelto != null, "qualcuno a cui farlo vedere c'e'")
+	if scelto != null:
+		t.eq(str(scelto.name), "lontana",
+				"il vanto va a chi NON c'era: l'estetista e' piu' vicina (1 m"
+				+ " contro 4) ma e' quella che gli ha appena fatto i capelli")
+
+	# e senza estetista di turno, la piu' vicina torna a essere valida
+	salone.set("_estetista", "")
+	var scelto2 = salone.call("_il_piu_vicino", "cliente", Vector3.ZERO)
+	t.eq(str(scelto2.name) if scelto2 != null else "", "estetista",
+			"a salone chiuso nessuno e' escluso: vince davvero la piu' vicina")

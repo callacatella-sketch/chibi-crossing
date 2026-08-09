@@ -546,8 +546,6 @@ func _ingombro(n: Node3D) -> AABB:
 func _fai_spazio(fade: ColorRect) -> Array:
 	var out: Array = []
 	var tenda: Node = fade.get_parent() if fade else null
-	for l in get_tree().get_nodes_in_group("__mai__"):
-		pass
 	var radice := get_tree().root
 	for n in radice.find_children("*", "CanvasLayer", true, false):
 		if n == tenda or not (n as CanvasLayer).visible:

@@ -27,10 +27,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.12,
+    "alto": 0.09,
     "cartella": "docs/catalogo/0-struttura/tetto/",
     "cat": 0.0,
-    "largo": 1.02,
+    "largo": 1.12,
     "nome": "Tetto",
     "slug": "tetto",
     "tipo": "cell"
@@ -117,30 +117,12 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.47,
-    "cartella": "docs/catalogo/0-struttura/tenda-bar/",
+    "alto": 2.85,
+    "cartella": "docs/catalogo/0-struttura/guardiola/",
     "cat": 0.0,
-    "largo": 0.98,
-    "nome": "Tenda bar",
-    "slug": "tenda-bar",
-    "tipo": "edge"
-  },
-  {
-    "alto": 0.67,
-    "cartella": "docs/catalogo/0-struttura/gradinata/",
-    "cat": 0.0,
-    "largo": 1.06,
-    "nome": "Gradinata",
-    "slug": "gradinata",
-    "tipo": "cell"
-  },
-  {
-    "alto": 0.06,
-    "cartella": "docs/catalogo/0-struttura/pavimento/",
-    "cat": 0.0,
-    "largo": 1.0,
-    "nome": "Pavimento",
-    "slug": "pavimento",
+    "largo": 1.72,
+    "nome": "Guardiola",
+    "slug": "guardiola",
     "tipo": "cell"
   },
   {
@@ -153,13 +135,31 @@
     "tipo": "cell"
   },
   {
-    "alto": 2.85,
-    "cartella": "docs/catalogo/0-struttura/guardiola/",
+    "alto": 0.06,
+    "cartella": "docs/catalogo/0-struttura/pavimento/",
     "cat": 0.0,
-    "largo": 1.72,
-    "nome": "Guardiola",
-    "slug": "guardiola",
+    "largo": 1.0,
+    "nome": "Pavimento",
+    "slug": "pavimento",
     "tipo": "cell"
+  },
+  {
+    "alto": 0.67,
+    "cartella": "docs/catalogo/0-struttura/gradinata/",
+    "cat": 0.0,
+    "largo": 1.06,
+    "nome": "Gradinata",
+    "slug": "gradinata",
+    "tipo": "cell"
+  },
+  {
+    "alto": 0.47,
+    "cartella": "docs/catalogo/0-struttura/tenda-bar/",
+    "cat": 0.0,
+    "largo": 0.98,
+    "nome": "Tenda bar",
+    "slug": "tenda-bar",
+    "tipo": "edge"
   },
   {
     "alto": 0.59,
@@ -252,12 +252,12 @@
     "tipo": "edge"
   },
   {
-    "alto": 0.9,
-    "cartella": "docs/catalogo/1-arredo/sedia/",
+    "alto": 0.93,
+    "cartella": "docs/catalogo/1-arredo/amaca/",
     "cat": 1.0,
-    "largo": 0.46,
-    "nome": "Sedia",
-    "slug": "sedia",
+    "largo": 1.08,
+    "nome": "Amaca",
+    "slug": "amaca",
     "tipo": "cell"
   },
   {
@@ -270,12 +270,12 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.97,
-    "cartella": "docs/catalogo/1-arredo/amaca/",
+    "alto": 0.9,
+    "cartella": "docs/catalogo/1-arredo/sedia/",
     "cat": 1.0,
-    "largo": 1.07,
-    "nome": "Amaca",
-    "slug": "amaca",
+    "largo": 0.46,
+    "nome": "Sedia",
+    "slug": "sedia",
     "tipo": "cell"
   },
   {
@@ -378,12 +378,12 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.02,
-    "cartella": "docs/catalogo/1-arredo/biliardino/",
+    "alto": 0.68,
+    "cartella": "docs/catalogo/1-arredo/pianoforte/",
     "cat": 1.0,
-    "largo": 1.0,
-    "nome": "Biliardino",
-    "slug": "biliardino",
+    "largo": 0.63,
+    "nome": "Pianoforte",
+    "slug": "pianoforte",
     "tipo": "cell"
   },
   {
@@ -396,12 +396,12 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.68,
-    "cartella": "docs/catalogo/1-arredo/pianoforte/",
+    "alto": 1.02,
+    "cartella": "docs/catalogo/1-arredo/biliardino/",
     "cat": 1.0,
-    "largo": 0.63,
-    "nome": "Pianoforte",
-    "slug": "pianoforte",
+    "largo": 1.0,
+    "nome": "Biliardino",
+    "slug": "biliardino",
     "tipo": "cell"
   },
   {
@@ -495,15 +495,6 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.88,
-    "cartella": "docs/catalogo/1-arredo/lampada-semplice/",
-    "cat": 1.0,
-    "largo": 0.43,
-    "nome": "Lampada semplice",
-    "slug": "lampada-semplice",
-    "tipo": "cell"
-  },
-  {
     "alto": 1.56,
     "cartella": "docs/catalogo/1-arredo/armadio-smarriti/",
     "cat": 1.0,
@@ -531,21 +522,21 @@
     "tipo": "edge"
   },
   {
-    "alto": 0.4,
-    "cartella": "docs/catalogo/2-giardino/cono/",
-    "cat": 2.0,
-    "largo": 0.3,
-    "nome": "Cono",
-    "slug": "cono",
-    "tipo": "cell"
-  },
-  {
     "alto": 0.24,
     "cartella": "docs/catalogo/2-giardino/orto/",
     "cat": 2.0,
     "largo": 0.92,
     "nome": "Orto",
     "slug": "orto",
+    "tipo": "cell"
+  },
+  {
+    "alto": 0.4,
+    "cartella": "docs/catalogo/2-giardino/cono/",
+    "cat": 2.0,
+    "largo": 0.3,
+    "nome": "Cono",
+    "slug": "cono",
     "tipo": "cell"
   },
   {
@@ -558,21 +549,12 @@
     "tipo": "cell"
   },
   {
-    "alto": 2.55,
+    "alto": 1.35,
     "cartella": "docs/catalogo/2-giardino/serra/",
     "cat": 2.0,
-    "largo": 2.09,
+    "largo": 1.06,
     "nome": "Serra",
     "slug": "serra",
-    "tipo": "cell"
-  },
-  {
-    "alto": 0.58,
-    "cartella": "docs/catalogo/2-giardino/pianta/",
-    "cat": 2.0,
-    "largo": 0.45,
-    "nome": "Pianta",
-    "slug": "pianta",
     "tipo": "cell"
   },
   {
@@ -585,6 +567,15 @@
     "tipo": "cell"
   },
   {
+    "alto": 2.08,
+    "cartella": "docs/catalogo/2-giardino/lucine/",
+    "cat": 2.0,
+    "largo": 1.23,
+    "nome": "Lucine",
+    "slug": "lucine",
+    "tipo": "cell"
+  },
+  {
     "alto": 0.08,
     "cartella": "docs/catalogo/2-giardino/aiuola/",
     "cat": 2.0,
@@ -594,39 +585,12 @@
     "tipo": "cell"
   },
   {
-    "alto": 2.08,
-    "cartella": "docs/catalogo/2-giardino/lucine/",
-    "cat": 2,
-    "largo": 1.23,
-    "nome": "Lucine",
-    "slug": "lucine",
-    "tipo": "cell"
-  },
-  {
-    "alto": 0.72,
-    "cartella": "docs/catalogo/2-giardino/idrante/",
+    "alto": 0.58,
+    "cartella": "docs/catalogo/2-giardino/pianta/",
     "cat": 2.0,
-    "largo": 0.38,
-    "nome": "Idrante",
-    "slug": "idrante",
-    "tipo": "cell"
-  },
-  {
-    "alto": 1.31,
-    "cartella": "docs/catalogo/2-giardino/fontana/",
-    "cat": 2.0,
-    "largo": 1.05,
-    "nome": "Fontana",
-    "slug": "fontana",
-    "tipo": "cell"
-  },
-  {
-    "alto": 2.07,
-    "cartella": "docs/catalogo/2-giardino/pennone/",
-    "cat": 2.0,
-    "largo": 0.11,
-    "nome": "Pennone",
-    "slug": "pennone",
+    "largo": 0.45,
+    "nome": "Pianta",
+    "slug": "pianta",
     "tipo": "cell"
   },
   {
@@ -639,39 +603,30 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.15,
-    "cartella": "docs/catalogo/2-giardino/stendino/",
+    "alto": 0.54,
+    "cartella": "docs/catalogo/2-giardino/fontana/",
     "cat": 2.0,
-    "largo": 1.34,
-    "nome": "Stendino",
-    "slug": "stendino",
+    "largo": 1.0,
+    "nome": "Fontana",
+    "slug": "fontana",
     "tipo": "cell"
   },
   {
-    "alto": 0.88,
-    "cartella": "docs/catalogo/2-giardino/panchina/",
+    "alto": 0.72,
+    "cartella": "docs/catalogo/2-giardino/idrante/",
     "cat": 2.0,
-    "largo": 0.94,
-    "nome": "Panchina",
-    "slug": "panchina",
+    "largo": 0.38,
+    "nome": "Idrante",
+    "slug": "idrante",
     "tipo": "cell"
   },
   {
-    "alto": 1.57,
-    "cartella": "docs/catalogo/2-giardino/altalena/",
+    "alto": 2.07,
+    "cartella": "docs/catalogo/2-giardino/pennone/",
     "cat": 2.0,
-    "largo": 1.06,
-    "nome": "Altalena",
-    "slug": "altalena",
-    "tipo": "cell"
-  },
-  {
-    "alto": 2.61,
-    "cartella": "docs/catalogo/2-giardino/lampione/",
-    "cat": 2.0,
-    "largo": 0.72,
-    "nome": "Lampione",
-    "slug": "lampione",
+    "largo": 0.11,
+    "nome": "Pennone",
+    "slug": "pennone",
     "tipo": "cell"
   },
   {
@@ -684,6 +639,42 @@
     "tipo": "cell"
   },
   {
+    "alto": 1.57,
+    "cartella": "docs/catalogo/2-giardino/altalena/",
+    "cat": 2.0,
+    "largo": 1.06,
+    "nome": "Altalena",
+    "slug": "altalena",
+    "tipo": "cell"
+  },
+  {
+    "alto": 2.36,
+    "cartella": "docs/catalogo/2-giardino/lampione/",
+    "cat": 2.0,
+    "largo": 0.36,
+    "nome": "Lampione",
+    "slug": "lampione",
+    "tipo": "cell"
+  },
+  {
+    "alto": 0.88,
+    "cartella": "docs/catalogo/2-giardino/panchina/",
+    "cat": 2.0,
+    "largo": 0.94,
+    "nome": "Panchina",
+    "slug": "panchina",
+    "tipo": "cell"
+  },
+  {
+    "alto": 1.15,
+    "cartella": "docs/catalogo/2-giardino/stendino/",
+    "cat": 2.0,
+    "largo": 1.34,
+    "nome": "Stendino",
+    "slug": "stendino",
+    "tipo": "cell"
+  },
+  {
     "alto": 0.71,
     "cartella": "docs/catalogo/2-giardino/transenna/",
     "cat": 2.0,
@@ -691,24 +682,6 @@
     "nome": "Transenna",
     "slug": "transenna",
     "tipo": "edge"
-  },
-  {
-    "alto": 1.17,
-    "cartella": "docs/catalogo/2-giardino/alberello/",
-    "cat": 2.0,
-    "largo": 0.73,
-    "nome": "Alberello",
-    "slug": "alberello",
-    "tipo": "cell"
-  },
-  {
-    "alto": 2.95,
-    "cartella": "docs/catalogo/2-giardino/giostrina/",
-    "cat": 2.0,
-    "largo": 2.55,
-    "nome": "Giostrina",
-    "slug": "giostrina",
-    "tipo": "cell"
   },
   {
     "alto": 0.64,
@@ -720,12 +693,21 @@
     "tipo": "cell"
   },
   {
-    "alto": 2.42,
-    "cartella": "docs/catalogo/2-giardino/ombrellone/",
+    "alto": 1.17,
+    "cartella": "docs/catalogo/2-giardino/alberello/",
     "cat": 2.0,
-    "largo": 2.01,
-    "nome": "Ombrellone",
-    "slug": "ombrellone",
+    "largo": 0.73,
+    "nome": "Alberello",
+    "slug": "alberello",
+    "tipo": "cell"
+  },
+  {
+    "alto": 1.65,
+    "cartella": "docs/catalogo/2-giardino/giostrina/",
+    "cat": 2.0,
+    "largo": 0.88,
+    "nome": "Giostrina",
+    "slug": "giostrina",
     "tipo": "cell"
   },
   {
@@ -756,6 +738,15 @@
     "tipo": "cell"
   },
   {
+    "alto": 2.42,
+    "cartella": "docs/catalogo/2-giardino/ombrellone/",
+    "cat": 2.0,
+    "largo": 2.01,
+    "nome": "Ombrellone",
+    "slug": "ombrellone",
+    "tipo": "cell"
+  },
+  {
     "alto": 2.47,
     "cartella": "docs/catalogo/2-giardino/mongolfiera/",
     "cat": 2.0,
@@ -767,28 +758,10 @@
   {
     "alto": 2.07,
     "cartella": "docs/catalogo/2-giardino/palo-lucine/",
-    "cat": 2,
+    "cat": 2.0,
     "largo": 0.26,
     "nome": "Palo lucine",
     "slug": "palo-lucine",
-    "tipo": "cell"
-  },
-  {
-    "alto": 1.62,
-    "cartella": "docs/catalogo/2-giardino/faro-caserma/",
-    "cat": 2.0,
-    "largo": 0.33,
-    "nome": "Faro caserma",
-    "slug": "faro-caserma",
-    "tipo": "cell"
-  },
-  {
-    "alto": 2.26,
-    "cartella": "docs/catalogo/2-giardino/lanterna-blu/",
-    "cat": 2.0,
-    "largo": 0.88,
-    "nome": "Lanterna blu",
-    "slug": "lanterna-blu",
     "tipo": "cell"
   },
   {
@@ -801,9 +774,36 @@
     "tipo": "cell"
   },
   {
+    "alto": 2.05,
+    "cartella": "docs/catalogo/2-giardino/lanterna-blu/",
+    "cat": 2.0,
+    "largo": 0.34,
+    "nome": "Lanterna blu",
+    "slug": "lanterna-blu",
+    "tipo": "cell"
+  },
+  {
+    "alto": 1.62,
+    "cartella": "docs/catalogo/2-giardino/faro-caserma/",
+    "cat": 2.0,
+    "largo": 0.33,
+    "nome": "Faro caserma",
+    "slug": "faro-caserma",
+    "tipo": "cell"
+  },
+  {
+    "alto": 0.54,
+    "cartella": "docs/catalogo/2-giardino/cesto-fiorito/",
+    "cat": 2,
+    "largo": 0.96,
+    "nome": "Cesto fiorito",
+    "slug": "cesto-fiorito",
+    "tipo": "cell"
+  },
+  {
     "alto": 2.08,
     "cartella": "docs/catalogo/2-giardino/palo-lanterne/",
-    "cat": 2,
+    "cat": 2.0,
     "largo": 0.32,
     "nome": "Palo lanterne",
     "slug": "palo-lanterne",
@@ -821,7 +821,7 @@
   {
     "alto": 2.07,
     "cartella": "docs/catalogo/2-giardino/palo-bandierine/",
-    "cat": 2,
+    "cat": 2.0,
     "largo": 0.33,
     "nome": "Palo bandierine",
     "slug": "palo-bandierine",
@@ -882,10 +882,10 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.93,
+    "alto": 1.04,
     "cartella": "docs/catalogo/3-palestra/fontanella/",
     "cat": 3.0,
-    "largo": 0.74,
+    "largo": 0.67,
     "nome": "Fontanella",
     "slug": "fontanella",
     "tipo": "cell"
@@ -918,15 +918,6 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.84,
-    "cartella": "docs/catalogo/4-chiesa/banco/",
-    "cat": 4.0,
-    "largo": 0.93,
-    "nome": "Banco",
-    "slug": "banco",
-    "tipo": "cell"
-  },
-  {
     "alto": 0.89,
     "cartella": "docs/catalogo/4-chiesa/volta/",
     "cat": 4.0,
@@ -936,12 +927,12 @@
     "tipo": "cell"
   },
   {
-    "alto": 2.6,
-    "cartella": "docs/catalogo/4-chiesa/arcata/",
+    "alto": 0.84,
+    "cartella": "docs/catalogo/4-chiesa/banco/",
     "cat": 4.0,
-    "largo": 1.18,
-    "nome": "Arcata",
-    "slug": "arcata",
+    "largo": 0.93,
+    "nome": "Banco",
+    "slug": "banco",
     "tipo": "cell"
   },
   {
@@ -954,6 +945,15 @@
     "tipo": "cell"
   },
   {
+    "alto": 2.6,
+    "cartella": "docs/catalogo/4-chiesa/arcata/",
+    "cat": 4.0,
+    "largo": 1.18,
+    "nome": "Arcata",
+    "slug": "arcata",
+    "tipo": "cell"
+  },
+  {
     "alto": 1.3,
     "cartella": "docs/catalogo/4-chiesa/altare/",
     "cat": 4.0,
@@ -961,15 +961,6 @@
     "nome": "Altare",
     "slug": "altare",
     "tipo": "cell"
-  },
-  {
-    "alto": 2.08,
-    "cartella": "docs/catalogo/4-chiesa/portale/",
-    "cat": 4.0,
-    "largo": 1.02,
-    "nome": "Portale",
-    "slug": "portale",
-    "tipo": "edge"
   },
   {
     "alto": 2.07,
@@ -988,6 +979,15 @@
     "nome": "Sagrato",
     "slug": "sagrato",
     "tipo": "cell"
+  },
+  {
+    "alto": 2.08,
+    "cartella": "docs/catalogo/4-chiesa/portale/",
+    "cat": 4.0,
+    "largo": 1.02,
+    "nome": "Portale",
+    "slug": "portale",
+    "tipo": "edge"
   },
   {
     "alto": 3.06,
@@ -1080,12 +1080,12 @@
     "tipo": "cell"
   },
   {
-    "alto": 1.09,
-    "cartella": "docs/catalogo/5-boutique/manichino/",
+    "alto": 0.24,
+    "cartella": "docs/catalogo/5-boutique/sacchetti/",
     "cat": 5.0,
-    "largo": 0.41,
-    "nome": "Manichino",
-    "slug": "manichino",
+    "largo": 0.63,
+    "nome": "Sacchetti",
+    "slug": "sacchetti",
     "tipo": "cell"
   },
   {
@@ -1098,12 +1098,12 @@
     "tipo": "cell"
   },
   {
-    "alto": 0.24,
-    "cartella": "docs/catalogo/5-boutique/sacchetti/",
+    "alto": 1.09,
+    "cartella": "docs/catalogo/5-boutique/manichino/",
     "cat": 5.0,
-    "largo": 0.63,
-    "nome": "Sacchetti",
-    "slug": "sacchetti",
+    "largo": 0.41,
+    "nome": "Manichino",
+    "slug": "manichino",
     "tipo": "cell"
   },
   {

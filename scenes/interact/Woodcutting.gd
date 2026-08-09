@@ -1458,18 +1458,46 @@ func _make_axe() -> Node3D:
 
 # ================================================================ salvataggio
 
+## LO STATO CHE ASPETTA. Se il salvataggio è già stato letto ma gli alberi
+## non sono ancora nati (CozyWorld costruisce il mondo differito su più
+## frame), il bosco vive tutto in `_pending_rows` e le liste vive sono
+## VUOTE: scriverle così cancellava dal file ogni taglio e ogni piantagione.
+## Al lancio dopo tutti gli alberi abbattuti erano di nuovo in piedi — anche
+## quelli dentro casa — e i piantati spariti. È lo stesso rimedio dei banchi
+## non ancora adottati di `Bancarella.save_extra`: si ri-emette ciò che
+## aspetta, senza doppioni (dopo l'adozione `_pending_rows` è vuoto e questa
+## funzione torna a scrivere solo le liste vive).
+func _righe_da_salvare(vive: Array, in_attesa: Array) -> Array:
+	var out := []
+	var viste := {}
+	for p in vive:
+		var riga := [snappedf((p as Vector2).x, 0.01), snappedf((p as Vector2).y, 0.01)]
+		viste[str(riga)] = true
+		out.append(riga)
+	for r in in_attesa:
+		if r is Array and (r as Array).size() >= 2:
+			var riga := [snappedf(float(r[0]), 0.01), snappedf(float(r[1]), 0.01)]
+			if not viste.has(str(riga)):
+				viste[str(riga)] = true
+				out.append(riga)
+	return out
+
+
+## Le righe ancora in attesa di adozione, per indice (0 tagliati, 1 piantati,
+## 2 ceppi): [] quando gli alberi sono già stati presi in carico.
+func _in_attesa(i: int) -> Array:
+	if _pending_rows.size() <= i:
+		return []
+	var r: Variant = _pending_rows[i]
+	return r if r is Array else []
+
+
 func save_extra() -> Dictionary:
-	var tagliati := []
-	for p in _felled:
-		tagliati.append([snappedf(p.x, 0.01), snappedf(p.y, 0.01)])
-	var piantati := []
-	for p in _planted:
-		piantati.append([snappedf(p.x, 0.01), snappedf(p.y, 0.01)])
-	var ceppi := []
-	for p in _ceppi:
-		ceppi.append([snappedf(p.x, 0.01), snappedf(p.y, 0.01)])
-	return {"legna": wood, "tagliati": tagliati, "debito": _debt.duplicate(true),
-			"piantati": piantati, "ceppi": ceppi}
+	return {"legna": wood,
+			"tagliati": _righe_da_salvare(_felled, _in_attesa(0)),
+			"debito": _debt.duplicate(true),
+			"piantati": _righe_da_salvare(_planted, _in_attesa(1)),
+			"ceppi": _righe_da_salvare(_ceppi, _in_attesa(2))}
 
 
 func load_extra(data: Dictionary) -> void:

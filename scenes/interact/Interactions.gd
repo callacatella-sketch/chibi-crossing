@@ -348,6 +348,17 @@ func _stand_up() -> void:
 ## mattino con la stamina piena, e Mochi si rialza da sola.
 func _sleep_until_morning() -> void:
 	_sleeping = true
+	# L'OROLOGIO DEL VILLAGGIO SI FERMA PER TUTTA LA DORMITA. Fra la tenda,
+	# il sogno e il «Buongiorno» passano una dozzina di secondi reali: chi
+	# andava a letto negli ultimi istanti di notte li vedeva bastare a far
+	# attraversare l'alba a `time` da solo (+1 giorno), e poi il salto al
+	# mattino qui sotto veniva letto come salto all'indietro (+1 di nuovo).
+	# Ci si addormentava al Giorno 2 e ci si svegliava al Giorno 4. A
+	# orologio fermo il nuovo mattino lo dichiara solo la sveglia.
+	# (Nel commento non si nomina la chiamata della sveglia: test_sogni
+	# cerca QUEL nome nel sorgente per controllare che il sogno stia nel
+	# buio, e lo troverebbe qui — cioè prima della tenda.)
+	_daynight.call("sospendi_tempo", true)
 	get_tree().call_group("regista", "note", "dormita")
 	await get_tree().create_timer(2.1).timeout
 
@@ -366,6 +377,9 @@ func _sleep_until_morning() -> void:
 		if sogni and sogni.has_method("sogna"):
 			await sogni.call("sogna", _fade)
 
+	# l'orologio riparte PRIMA della sveglia: il mattino (uno solo) lo deve
+	# contare il salto qui sotto, non i frame passati sullo schermo nero
+	_daynight.call("sospendi_tempo", false)
 	_daynight.set_time(_daynight.MORNING)
 	var sc: Node = _player.get_node_or_null("SurvivalComponent")
 	if sc:

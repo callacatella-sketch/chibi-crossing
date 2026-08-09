@@ -222,6 +222,15 @@ const T := {
 	# le didascalie della merce
 	"Un nido dipinto su un palo: i passeri ci passano a salutare.":
 			"A painted nest on a pole: the sparrows drop by to say hello.",
+	# le tre fioriere del banco: «harebell» è la campanula britannica,
+	# «yarrow» l'achillea. Gli a capo sono l'impaginazione del cartellino
+	# e vanno conservati.
+	"Un cesto di vimini intrecciato a mano, colmo di fiori di campo:\nmargherite, campanule che pendono e achillea.":
+			"A hand-woven wicker basket brimming with wild flowers:\ndaisies, nodding harebells and yarrow.",
+	"Avorio laccato e verde salvia, coi gerani in mazzo:\nquella dei caffè coi tavolini fuori.":
+			"Lacquered ivory and sage green, with geraniums in clusters:\nthe one from cafés with tables outside.",
+	"Una cassa rustica che il prato si è ripreso:\nerba alta, fiori misti e l'edera che scende.":
+			"A rustic box the meadow has taken back:\nlong grass, mixed blooms and ivy tumbling over.",
 	"Un lampione da giardino: la sera si accende di miele.":
 			"A garden lamppost: come evening it lights up honey-warm.",
 	"Un'amaca a righe tra due paletti. Per i pomeriggi lenti.":
@@ -326,6 +335,11 @@ const T := {
 	"Biliardino": "Table football",
 	"Ombrellone": "Parasol",
 	"Fioriera": "Planter",
+	# le tre sorelle della fioriera: cesto di vimini, cassa da bistrot,
+	# e quella che nessuno pota
+	"Cesto fiorito": "Flower basket",
+	"Fioriera bistrot": "Bistro planter",
+	"Fioriera selvatica": "Wild planter",
 	"Lucine": "String lights",
 	# i tre pali del festone: si piantano e il filo si tende da solo fra
 	# quelli che si vedono. «Post» e non «Pole»: è un paletto piantato in
@@ -441,6 +455,10 @@ const T := {
 			"B leave  ·  wheel / 1-9 choose  ·  R turn  ·  V storey up/down  ·  F turn a placed piece  ·  click to place  ·  X remove",
 	"B — modalità costruzione": "B — build mode",
 	"Un Ordine del Gufo lo porterà": "An Owl's Wish will bring it",
+	# il compagno di corredo NON lo porta un Ordine: arriva insieme al pezzo
+	# capo che si compra al carretto. Il %s è il nome del capo, già tradotto
+	# a parte con L10n.t() — qui dentro non va mai ricomposta la frase.
+	"Arriva col corredo di %s": "It comes with the %s set",
 	"noccioline": "acorns",
 	"stelline": "stars",
 	"Dal carretto del mercante · %d %s": "From the pedlar's cart · %d %s",

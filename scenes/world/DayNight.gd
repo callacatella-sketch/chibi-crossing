@@ -128,6 +128,32 @@ func _ready() -> void:
 	_broadcast_season.call_deferred(false)
 
 
+## LA NOTTE SI DORME A OROLOGIO FERMO. Mentre lo schermo è nero (la tenda,
+## il sogno, il «Buongiorno»: una dozzina di secondi reali) il mondo
+## continuava a girare, e chi andava a letto negli ultimi istanti di notte
+## pagava DUE giorni per una notte sola: `time` attraversava l'alba da solo
+## (+1) e poi la sveglia `set_time(MORNING)` veniva letta come salto
+## all'indietro (+1 di nuovo). Ci si addormentava al Giorno 2 e ci si
+## svegliava al Giorno 4, con un'intera giornata di villaggio — orto,
+## frutteto, posta, commissioni, promesse, i tick di Legami/Congedo/Nascite
+## — consumata in un frame sul nero, e i ricordi che scrivevano due foto
+## dallo stesso fotogramma. Finché l'orologio è sospeso il calendario non si
+## muove: l'unico mattino è quello che dichiara la sveglia.
+var _sospensioni := 0
+
+
+## Ferma (`true`) o riprende (`false`) lo scorrere del tempo. Le chiamate si
+## CONTANO: due sistemi che sospendono insieme non devono sbloccarsi a
+## vicenda (il sogno vive DENTRO la dormita).
+func sospendi_tempo(fermo: bool) -> void:
+	_sospensioni = maxi(0, _sospensioni + (1 if fermo else -1))
+
+
+## L'orologio del villaggio è fermo? (dormita, sogno…)
+func tempo_sospeso() -> bool:
+	return _sospensioni > 0
+
+
 ## Salta a un'ora precisa (0..1). Usato anche dalla verifica CLI.
 func set_time(t: float) -> void:
 	var nt := fposmod(t, 1.0)
@@ -312,9 +338,12 @@ static func passo_velo(attuale: float, vuole: float, delta: float) -> float:
 
 
 func _process(delta: float) -> void:
-	var nt := fposmod(time + delta / cycle_seconds, 1.0)
-	_check_new_day(time, nt)
-	time = nt
+	# a orologio sospeso (dormita) il tempo NON scorre: il quadro si
+	# continua comunque a dipingere, ma il calendario resta fermo
+	if _sospensioni == 0:
+		var nt := fposmod(time + delta / cycle_seconds, 1.0)
+		_check_new_day(time, nt)
+		time = nt
 	_lutto_f = passo_velo(_lutto_f, _lutto_vuole(), delta)
 	_apply()
 

@@ -1,10 +1,10 @@
 # Arredo
 
-*quello che si mette dentro: mobili, banconi, strumenti* — 31 pezzi.
+*quello che si mette dentro: mobili, banconi, strumenti* — 30 pezzi.
 
 | | fronte | tre quarti | profilo |
 |---|---|---|---|
-| **Amaca**<br><sub>1.07 × 0.97 m</sub> | <img src="amaca/1-fronte.jpg" width="200"> | <img src="amaca/2-tre-quarti.jpg" width="200"> | <img src="amaca/3-profilo.jpg" width="200"> |
+| **Amaca**<br><sub>1.08 × 0.93 m</sub> | <img src="amaca/1-fronte.jpg" width="200"> | <img src="amaca/2-tre-quarti.jpg" width="200"> | <img src="amaca/3-profilo.jpg" width="200"> |
 | **Armadio smarriti**<br><sub>0.98 × 1.56 m</sub> | <img src="armadio-smarriti/1-fronte.jpg" width="200"> | <img src="armadio-smarriti/2-tre-quarti.jpg" width="200"> | <img src="armadio-smarriti/3-profilo.jpg" width="200"> |
 | **Attaccapanni**<br><sub>0.31 × 1.53 m</sub> | <img src="attaccapanni/1-fronte.jpg" width="200"> | <img src="attaccapanni/2-tre-quarti.jpg" width="200"> | <img src="attaccapanni/3-profilo.jpg" width="200"> |
 | **Bacheca avvisi**<br><sub>1.10 × 1.45 m</sub> | <img src="bacheca-avvisi/1-fronte.jpg" width="200"> | <img src="bacheca-avvisi/2-tre-quarti.jpg" width="200"> | <img src="bacheca-avvisi/3-profilo.jpg" width="200"> |
@@ -18,7 +18,6 @@
 | **Casco appeso**<br><sub>0.86 × 0.59 m</sub> | <img src="casco-appeso/1-fronte.jpg" width="200"> | <img src="casco-appeso/2-tre-quarti.jpg" width="200"> | <img src="casco-appeso/3-profilo.jpg" width="200"> |
 | **Comodino**<br><sub>0.45 × 0.59 m</sub> | <img src="comodino/1-fronte.jpg" width="200"> | <img src="comodino/2-tre-quarti.jpg" width="200"> | <img src="comodino/3-profilo.jpg" width="200"> |
 | **Lampada**<br><sub>0.44 × 1.88 m</sub> | <img src="lampada/1-fronte.jpg" width="200"> | <img src="lampada/2-tre-quarti.jpg" width="200"> | <img src="lampada/3-profilo.jpg" width="200"> |
-| **Lampada semplice**<br><sub>0.43 × 1.88 m</sub> | <img src="lampada-semplice/1-fronte.jpg" width="200"> | <img src="lampada-semplice/2-tre-quarti.jpg" width="200"> | <img src="lampada-semplice/3-profilo.jpg" width="200"> |
 | **Lavagnetta**<br><sub>0.56 × 0.95 m</sub> | <img src="lavagnetta/1-fronte.jpg" width="200"> | <img src="lavagnetta/2-tre-quarti.jpg" width="200"> | <img src="lavagnetta/3-profilo.jpg" width="200"> |
 | **Letto**<br><sub>1.00 × 0.77 m</sub> | <img src="letto/1-fronte.jpg" width="200"> | <img src="letto/2-tre-quarti.jpg" width="200"> | <img src="letto/3-profilo.jpg" width="200"> |
 | **Libreria**<br><sub>0.93 × 1.55 m</sub> | <img src="libreria/1-fronte.jpg" width="200"> | <img src="libreria/2-tre-quarti.jpg" width="200"> | <img src="libreria/3-profilo.jpg" width="200"> |

@@ -192,7 +192,14 @@ func _test_gestore_headless(t) -> void:
 	var per_nome := {}
 	for v in CAT.items():
 		per_nome[str(v["name"])] = v
-	var lucine = (per_nome["Lucine"]["builder"] as Callable).call()
+	# IN ALBERO, non solo costruite. Il gestore chiede la trasformata
+	# GLOBALE della corda a ogni passo, e un Node3D fuori dall'albero non
+	# ce l'ha: uscivano novanta «Condition "!is_inside_tree()" is true»
+	# (uno per passo) che non facevano fallire niente ma sporcavano il log
+	# della suite — e in un log sporco gli errori VERI non si vedono, che
+	# e' il modo in cui questo progetto ha gia' perso dei difetti.
+	# `t.stage` li libera da solo a fine caso.
+	var lucine = t.stage((per_nome["Lucine"]["builder"] as Callable).call())
 	var corda: MeshInstance3D = _corde_di(lucine)[0]
 	gestore.registra(corda)
 	var prima: Vector3 = FISICA.campiona(corda.get_meta("posa"), 0.5)
@@ -215,7 +222,6 @@ func _test_gestore_headless(t) -> void:
 				+ Vector3(0, -float(ap["giu"]), 0)
 		t.ok(seguace.position.distance_to(atteso) < 0.005,
 				"le lampadine seguono il filo che si muove")
-	lucine.free()
 	gestore.free()
 
 

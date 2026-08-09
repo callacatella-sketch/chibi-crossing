@@ -36,6 +36,12 @@ const SHOP_PIECES := [
 		"desc": "Un'amaca a righe tra due paletti. Per i pomeriggi lenti."},
 	{"name": "Altalena", "cost": 95, "cur": "nut", "cat": 2,
 		"desc": "Un'altalena di corda e legno che dondola nel vento."},
+	# LE TRE SORELLE DELLA FIORIERA. La Fioriera arriva col bar (sta nel
+	# CORREDO del bancone); queste si comprano a parte, perche' un
+	# villaggio si arreda anche fuori dal dehors — e perche' tre
+	# silhouette diverse valgono piu' di tre copie della stessa.
+	{"name": "Cesto fiorito", "cost": 70, "cur": "nut", "cat": 2,
+		"desc": "Un cesto di vimini intrecciato a mano, colmo di fiori di campo:\nmargherite, campanule che pendono e achillea."},
 	{"name": "Fontana", "cost": 150, "cur": "nut", "cat": 2,
 		"desc": "Una fontanella tonda con lo zampillo che canta."},
 	{"name": "Gazebo", "cost": 240, "cur": "nut", "cat": 0,

@@ -1705,6 +1705,37 @@ func river_x_at(z: float) -> float:
 	return MATH.river_x(z)
 
 
+## Quanti metri (sul piano XZ) separano `pos` dall'ACQUA più vicina —
+## il fiume o lo stagno. Zero se ci si è già sopra.
+##
+## Esiste perché il taccuino del Gufo deve sapere DOVE eri per citarlo in
+## una lettera, e quel sistema ha una sola modalità di guasto: la citazione
+## che non combacia. Chiedeva già questo metodo, ma non c'era: ripiegava
+## sulla sola curva del fiume, e chi stava sulla riva dello stagno si
+## sentiva raccontare un pomeriggio «in mezzo al prato».
+func distanza_dall_acqua(pos: Vector3) -> float:
+	# Il fiume: nastro d'acqua largo 2.35 m per lato attorno alla sua curva
+	# (la stessa misura con cui _build_river_water tesse la superficie), ma
+	# solo dentro il tratto che esiste davvero — fuori da lì l'acqua non c'è
+	# e una distanza dalla curva sarebbe una bugia.
+	var d_fiume := INF
+	if pos.z > RIVER_Z_MIN and pos.z < RIVER_Z_MAX:
+		d_fiume = maxf(0.0, absf(pos.x - MATH.river_x(pos.z)) - 2.35)
+	# Lo stagno è un'ELLISSE, non un cerchio: il disco d'acqua è costruito
+	# con scale.x = 1.15 (vedi _build_pond). Misurarlo tondo dichiarava
+	# «prato» a chi stava sulla riva a est, dove l'acqua arriva più in là.
+	var dx := pos.x - POND_CENTER.x
+	var dz := pos.z - POND_CENTER.z
+	var l := sqrt(dx * dx + dz * dz)
+	var d_stagno := 0.0
+	if l > 0.0001:
+		# k = quante volte il raggio del bordo sta nel punto, nella STESSA
+		# direzione dal centro: k <= 1 vuol dire dentro l'acqua.
+		var k := sqrt(pow(dx / (POND_R * 1.15), 2.0) + pow(dz / POND_R, 2.0))
+		d_stagno = l * (1.0 - 1.0 / k) if k > 1.0 else 0.0
+	return minf(d_fiume, d_stagno)
+
+
 ## L'albero del bosco più vicino a pos entro max_d.
 ## Ritorna {"key": String, "index": int, "pos": Vector3, "scale": float,
 ## "kind": String} oppure {} se non ce n'è nessuno.

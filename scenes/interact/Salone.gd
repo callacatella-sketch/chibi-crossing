@@ -303,8 +303,15 @@ func _finisci_seduta() -> void:
 				# fatto uscire diverso — è un gesto, non un servizio
 				get_tree().call_group("affetti", "gesto",
 						_nome_di(_estetista), _nome_di(_cliente), "salone")
-			_vai_a_vantarsi(_cliente)
-			_congeda_cliente()
+			# IL CONGEDO NON DEVE CANCELLARE IL VANTO. `_vai_a_vantarsi`
+			# manda il cliente a cercare un vicino, e la riga successiva
+			# gli dava `do_routine("wander")` NELLO STESSO FRAME: l'ultimo
+			# ordine vince, la destinazione finiva nel cestino, e la scena
+			# «che fa esistere la meccanica agli occhi del giocatore» non
+			# si è mai vista. Se il vanto è partito, il corpo ce l'ha già
+			# un posto dove andare: si libera solo la poltrona.
+			var in_vanto := _vai_a_vantarsi(_cliente)
+			_congeda_cliente(not in_vanto)
 			return
 	_congeda_cliente()
 
@@ -316,10 +323,14 @@ func _finisci_seduta() -> void:
 ## E' la parte che fa esistere la meccanica agli occhi del giocatore: se
 ## non ci fosse, un vicino cambierebbe colore mentre lui guarda da
 ## un'altra parte, e non se ne accorgerebbe mai.
-func _vai_a_vantarsi(chi: String) -> void:
+##
+## TORNA `true` solo se il cliente è DAVVERO partito verso qualcuno: chi
+## congeda deve saperlo, o gli sovrascrive la destinazione (vedi il
+## commento in `_finisci_seduta`).
+func _vai_a_vantarsi(chi: String) -> bool:
 	var nodo := _nodo_di(chi)
 	if nodo == null:
-		return
+		return false
 	var pubblico := _il_piu_vicino(chi, nodo.global_position)
 	if pubblico == null:
 		# nessuno a cui farlo vedere: allora si guarda allo specchio,
@@ -327,12 +338,14 @@ func _vai_a_vantarsi(chi: String) -> void:
 		if nodo.has_method("speak"):
 			nodo.call("speak", ["bello", "felice"], "felice")
 		_toast(L10n.tf("%s non fa che girarsi a guardare il suo riflesso.", [chi]))
-		return
+		return false
 	# ci va, glielo mostra, e l'altro si illumina
 	var verso: Vector3 = pubblico.global_position
+	var partito := false
 	if nodo.has_method("do_routine"):
 		nodo.call("do_routine", "sniff",
 				verso + (nodo.global_position - verso).normalized() * 1.1, verso)
+		partito = true
 	if nodo.has_method("speak"):
 		nodo.call("speak", ["guarda", "bello"], "felice")
 	get_tree().create_timer(2.2).timeout.connect(func() -> void:
@@ -344,6 +357,7 @@ func _vai_a_vantarsi(chi: String) -> void:
 		if pubblico.has_method("_spawn_heart"):
 			pubblico.call("_spawn_heart"))
 	_toast(L10n.tf("%s corre a farsi vedere: il villaggio se ne accorge.", [chi]))
+	return partito
 
 
 ## Il residente piu' vicino a un punto, escluso `tranne` e chi ci lavora.
@@ -352,7 +366,11 @@ func _il_piu_vicino(tranne: String, da: Vector3) -> Node3D:
 	var best_d := 14.0
 	for r in (_visitors.get("_residents") as Array):
 		var label := str(r.get("label", ""))
-		if label == tranne:
+		# CHI CI LAVORA NON PUO' ESSERE IL PUBBLICO. Il commento qui sopra
+		# lo diceva da sempre, il codice no: il cliente correva a farsi
+		# vedere proprio dall'estetista che gli aveva appena fatto la
+		# messa in piega. Il vanto ha senso solo verso chi NON c'era.
+		if label == tranne or (label != "" and label == _estetista):
 			continue
 		var n := r.get("node") as Node3D
 		if n == null or not is_instance_valid(n):
@@ -366,17 +384,21 @@ func _il_piu_vicino(tranne: String, da: Vector3) -> Node3D:
 	return best
 
 
+## IL CARTELLINO. Qui c'era prima un ramo su `get_first_node_in_group("toast")`
+## + `show_toast`: un gruppo che NESSUN nodo del progetto popola e un metodo
+## che non esiste da nessuna parte. Non era un ripiego, era un ramo morto —
+## e teneva in piedi l'illusione che il cartellino avesse due strade.
 func _toast(testo: String) -> void:
-	var hud := get_tree().get_first_node_in_group("toast")
-	if hud and hud.has_method("show_toast"):
-		hud.call("show_toast", testo)
-	elif _visitors and _visitors.has_method("_show_toast"):
+	if _visitors and _visitors.has_method("_show_toast"):
 		_visitors.call("_show_toast", testo)
 
 
-func _congeda_cliente() -> void:
+## Libera la poltrona. `rimanda_a_zonzo` è `false` quando al cliente è già
+## stato dato un posto dove andare (il vanto): in quel caso qui si azzera
+## solo lo stato del salone, senza toccargli il corpo.
+func _congeda_cliente(rimanda_a_zonzo := true) -> void:
 	var nodo := _nodo_di(_cliente)
-	if nodo != null and nodo.has_method("do_routine"):
+	if rimanda_a_zonzo and nodo != null and nodo.has_method("do_routine"):
 		nodo.call("do_routine", "wander", nodo.global_position)
 	_cliente = ""
 	_t_seduta = 0.0

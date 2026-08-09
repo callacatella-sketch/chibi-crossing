@@ -572,6 +572,23 @@ func _despawn_merchant() -> void:
 		_despawn_merchant_ora()
 
 
+## QUANTO E' LONTANO IL CARRETTO da un punto: INF se il mercante oggi non
+## c'è. È l'unica cosa che serve sapere a chi sta fuori (`Visitors` la
+## chiede per dare al carretto la precedenza sul regalo, «altrimenti col
+## taccuino pieno il mercante era irraggiungibile»).
+##
+## PERCHE' ESISTE QUESTO METODO. Il calcolo viveva SOLO inline dentro
+## `_unhandled_input`, e il chiamante lo chiedeva dietro un
+## `if cal.has_method("merchant_distance")` — un metodo che in tutto il
+## repo non esisteva. La guardia difensiva trasformava il cablaggio
+## mancante in silenzio: `md` restava INF, la precedenza non scattava MAI,
+## e il difetto che quel ramo dichiarava di chiudere era ancora lì.
+func merchant_distance(pos: Vector3) -> float:
+	if _merchant == null or not is_instance_valid(_merchant):
+		return INF
+	return pos.distance_to(_merchant.global_position)
+
+
 func _despawn_merchant_ora() -> void:
 	for node in [_stall, _merchant]:
 		if node and is_instance_valid(node):
@@ -1019,8 +1036,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	# niente pannello e soprattutto niente scongelamento altrui
 	if not _player.is_physics_processing():
 		return
-	# il mercante ha la precedenza sulla lavagna
-	if _merchant and _player.global_position.distance_to(_merchant.global_position) < 1.6:
+	# il mercante ha la precedenza sulla lavagna — e la soglia è la STESSA
+	# che legge `Visitors` per dargli la precedenza sul regalo: una sola
+	# misura, o le due porte si contraddicono
+	if merchant_distance(_player.global_position) < 1.6:
 		_merchant_trade()
 		get_viewport().set_input_as_handled()
 		return

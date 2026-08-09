@@ -16,8 +16,8 @@ python3 tools/indice_catalogo.py
 | categoria | pezzi | cos'è |
 |---|---|---|
 | [Struttura](0-struttura/README.md) | 28 | muri, pavimenti, tetti e i pezzi-guscio dei luoghi |
-| [Arredo](1-arredo/README.md) | 31 | quello che si mette dentro: mobili, banconi, strumenti |
-| [Giardino](2-giardino/README.md) | 35 | quello che sta fuori: verde, luci, giochi, servizi |
+| [Arredo](1-arredo/README.md) | 30 | quello che si mette dentro: mobili, banconi, strumenti |
+| [Giardino](2-giardino/README.md) | 36 | quello che sta fuori: verde, luci, giochi, servizi |
 | [Palestra](3-palestra/README.md) | 8 | gli otto attrezzi di legno, tela e sassi di fiume |
 | [Chiesa](4-chiesa/README.md) | 15 | la chiesa del paese, pezzo per pezzo |
 | [Boutique](5-boutique/README.md) | 15 | il negozio di vestiti: vetrina, stender, camerini |
