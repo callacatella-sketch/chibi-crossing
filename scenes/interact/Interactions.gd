@@ -24,6 +24,11 @@ const SEATS := {
 	# stava a -Z — Mochi si sarebbe coricata con la testa oltre la
 	# pediera e i piedi sul guanciale, senza che niente lo segnalasse.
 	"Letto": Vector3(0, 0.3, -0.26),
+	# IL POSTO DICHIARATO: l'ancoraggio «Posto*» sta gia' sulla superficie
+	# della seduta e guarda gia' dalla parte giusta (lo mette chi costruisce
+	# il pezzo, che e' l'unico a sapere dov'e' il tavolo). Scostamento zero,
+	# e il verso NON si gira di mezzo giro: vedi yaw_seduta.
+	"Posto": Vector3.ZERO,
 }
 
 ## Il Carillon comprato dal mercante: E lo carica e cambia la musica del
@@ -99,6 +104,10 @@ func _e_il_mio_letto() -> bool:
 ## (vedi tests/cases/test_sedute.gd, che misura DOVE sta lo schienale
 ## costruendo il pezzo vero).
 static func yaw_seduta(kind: String, yaw_pezzo: float) -> float:
+	# il posto dichiarato porta gia' il suo verso: girarlo di mezzo giro
+	# metterebbe le spalle al tavolo che e' venuto a guardare
+	if kind == "Posto":
+		return yaw_pezzo
 	var verso: float = (SEATS.get(kind, Vector3.ZERO) as Vector3).z
 	return yaw_pezzo + (0.0 if verso < 0.0 else PI)
 

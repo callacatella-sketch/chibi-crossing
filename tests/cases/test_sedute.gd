@@ -46,6 +46,19 @@ func _schienale_z(root: Node3D) -> float:
 
 func run(t) -> void:
 	for kind in INT.SEATS.keys():
+		# DUE FAMIGLIE DI SEDUTE, e si controllano in modo diverso.
+		# «Posto» non è un pezzo: è l'ANCORAGGIO DICHIARATO che i pezzi
+		# grandi (Gazebo, Serra) mettono dove ci si siede davvero — il
+		# punto è già quello giusto e il verso ce l'ha addosso l'ancoraggio,
+		# perché solo chi costruisce il pezzo sa dov'è il tavolo. Cercarlo
+		# nel catalogo non avrebbe senso: qui si controlla il suo patto.
+		if kind == "Posto":
+			t.ok((INT.SEATS[kind] as Vector3).length() < 0.001,
+					"il posto dichiarato non sposta nessuno: l'ancoraggio È il posto")
+			t.almost(INT.yaw_seduta(kind, 1.3), 1.3,
+					"…e il suo verso non si gira di mezzo giro: chi si siede"
+					+ " guarda il tavolo, non gli dà le spalle", 1e-6)
+			continue
 		var root := _costruisci(kind)
 		t.ok(root != null, "il pezzo %s esiste nel catalogo" % kind)
 		if root == null:
