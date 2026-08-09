@@ -242,6 +242,10 @@ const T := {
 			"A brazier that spits golden sparks into the night.",
 	"Una scatola di ciliegio con la manovella: caricala\ne cambia la musica di tutto il villaggio.":
 			"A cherrywood box with a crank: wind it up\nand the whole village changes its tune.",
+	# la vetrina del banco dei pali: è QUI che il gioco spiega la
+	# meccanica, quindi la traduzione deve insegnarla, non solo dirla
+	"Paletti da piantare dove vuoi. Fra due che si vedono\nil filo si tende da solo: più lontani li metti, più\nlampadine ci stanno. Il disegno lo fai tu.":
+		"Little posts to plant wherever you like. Between any two\nthat can see each other the wire strings itself: the\nfurther apart, the more bulbs. The pattern is yours.",
 	"Un giardino di vetro: col suo tepore, orto e fiori\ncrescono anche sotto la neve.":
 			"A garden of glass: in its warmth, patch and flowers\ngrow even under the snow.",
 	"Una mongolfiera a strisce, ormeggiata in giardino.\nDondola nel vento e non parte mai senza di te.":
@@ -323,6 +327,12 @@ const T := {
 	"Ombrellone": "Parasol",
 	"Fioriera": "Planter",
 	"Lucine": "String lights",
+	# i tre pali del festone: si piantano e il filo si tende da solo fra
+	# quelli che si vedono. «Post» e non «Pole»: è un paletto piantato in
+	# giardino, non un palo della luce.
+	"Palo lucine": "Bulb post",
+	"Palo lanterne": "Lantern post",
+	"Palo bandierine": "Bunting post",
 	"Frigo gelati": "Ice-cream freezer",
 	"Guardiola": "Guard post",
 	"Insegna guardia": "Guard post sign",

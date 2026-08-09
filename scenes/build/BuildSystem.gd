@@ -1046,6 +1046,114 @@ static func _riscrivi_scatole(corpo: Node3D, campata: Node3D) -> void:
 		corpo.add_child(shape)
 
 
+# --- I FESTONI: i pali si passano il filo -------------------------------
+# Stessa filosofia delle serre: il collegamento è DERIVATO dalle celle
+# occupate, non salvato. Il salvataggio resta una riga per palo, non c'è
+# niente da migrare, e un filo non può restare appeso a un palo che non
+# c'è più — perché non è mai esistito come dato.
+# Qui si decide solo CHI si vede con CHI: il disegno lo fa BuildCatalog.
+
+## Le otto direzioni in cui un palo cerca un compagno.
+const FESTONE_DIR: Array[Vector2i] = [Vector2i(1, 0), Vector2i(1, 1),
+		Vector2i(0, 1), Vector2i(-1, 1), Vector2i(-1, 0), Vector2i(-1, -1),
+		Vector2i(0, -1), Vector2i(1, -1)]
+
+
+## Che veste porta il palo in `c` — e insieme la domanda «è un palo?»
+## (-1 = no). L'elenco dei nomi sta in BuildCatalog: fonte unica.
+static func veste_palo(dict: Dictionary, c: Vector2i) -> int:
+	var nodo := dict.get(c) as Node3D
+	if nodo == null:
+		return -1
+	return BuildCatalog.FESTONE_PALI.find(str(nodo.get_meta("item_name", "")))
+
+
+## Chi ha in carico il filo fra due pali: il minore in ordine
+## lessicografico. È la stessa regola del montante condiviso fra due
+## serre, e serve alla stessa cosa: che il filo lo disegni UNO solo.
+static func _prima_di(a: Vector2i, b: Vector2i) -> bool:
+	return a.x < b.x or (a.x == b.x and a.y < b.y)
+
+
+## Il seme di una campata: dipende SOLO dalle due celle, quindi lo stesso
+## filo esce identico a ogni ricostruzione e a ogni ricaricamento (le
+## lampadine non si rimescolano sotto gli occhi del giocatore).
+static func _seme_festone(a: Vector2i, b: Vector2i) -> int:
+	return absi(a.x * 73_856_093 + a.y * 19_349_663
+			+ b.x * 83_492_791 + b.y * 2_971_215 + 7)
+
+
+## Il PRIMO palo incontrato in ognuna delle otto direzioni, entro
+## FESTONE_PORTATA celle. Il primo e non tutti: senza questa regola una
+## fila di sei pali diventa un ventaglio di quindici fili sovrapposti
+## invece di una collana.
+static func vicini_festone(dict: Dictionary, c: Vector2i) -> Array:
+	var fuori: Array = []
+	if veste_palo(dict, c) < 0:
+		return fuori
+	for d: Vector2i in FESTONE_DIR:
+		for k in range(1, BuildCatalog.FESTONE_PASSI + 1):
+			var v: Vector2i = c + d * k
+			if veste_palo(dict, v) < 0:
+				continue
+			# il PRIMO palo su quella retta, e poi si smette di guardare:
+			# se è troppo lontano il filo non c'è, ma nemmeno si cerca
+			# oltre — quel palo fa comunque da tappo alla vista
+			if Vector2(v - c).length() <= BuildCatalog.FESTONE_PORTATA:
+				fuori.append(v)
+			break
+	return fuori
+
+
+## I pali che una modifica in `cell` può aver cambiato: quello nella
+## cella e il primo incontrato nelle otto direzioni. Sono esattamente
+## quelli per cui «il primo palo in quella direzione» adesso è un altro —
+## o non c'è più.
+static func pali_toccati(dict: Dictionary, cell: Vector2i) -> Array:
+	var fuori: Array = []
+	if veste_palo(dict, cell) >= 0:
+		fuori.append(cell)
+	for d: Vector2i in FESTONE_DIR:
+		for k in range(1, BuildCatalog.FESTONE_PASSI + 1):
+			var v: Vector2i = cell + d * k
+			if veste_palo(dict, v) >= 0:
+				# QUI non si filtra sulla distanza: un palo appena fuori
+				# portata va rifatto lo stesso, perché quello che gli è
+				# comparso davanti può avergli tolto la vista di un altro
+				fuori.append(v)
+				break
+	return fuori
+
+
+## Rifà i fili che partono dal palo in `c`. Il figlio «Festoni» si
+## RINOMINA prima di liberarlo: un nodo in coda tiene occupato il nome
+## fino a fine frame, e il nuovo diventerebbe «Festoni2» — al rinfresco
+## dopo non lo troveresti più (è la trappola già pagata con la Vetreria).
+static func ricostruisci_festoni(dict: Dictionary, c: Vector2i) -> void:
+	var nodo := dict.get(c) as Node3D
+	var veste := veste_palo(dict, c)
+	if nodo == null or veste < 0:
+		return
+	var vecchio := nodo.find_child("Festoni", false, false)
+	if vecchio != null:
+		vecchio.name = "FestoniVecchi"
+		nodo.remove_child(vecchio)
+		vecchio.queue_free()
+	var casa := Node3D.new()
+	casa.name = "Festoni"
+	# le campate si calcolano in coordinate MONDO: si annulla la
+	# rotazione con cui il giocatore ha posato il palo, come fa l'aiuola
+	casa.rotation.y = -nodo.rotation.y
+	nodo.add_child(casa)
+	var cima := Vector3(0, BuildCatalog.FESTONE_CIMA, 0)
+	for v: Vector2i in vicini_festone(dict, c):
+		if not _prima_di(c, v):
+			continue
+		var b := Vector3(float(v.x - c.x), BuildCatalog.FESTONE_CIMA,
+				float(v.y - c.y))
+		casa.add_child(BuildCatalog.festone(cima, b, veste, _seme_festone(c, v)))
+
+
 static func _e_aiuola(dict: Dictionary, c: Vector2i) -> bool:
 	var nodo := dict.get(c) as Node3D
 	return nodo != null and str(nodo.get_meta("item_name", "")) == "Aiuola"
@@ -1146,6 +1254,8 @@ func place_cell(cell: Vector2i, piece: String, rot := 0, animate := true, lvl :=
 	rinfresca_aiuole(dict, cell)
 	# e le serre vicine diventano UN edificio (a fine frame, una volta sola)
 	_segna_serre(dict, cell)
+	# e i pali del festone si passano il filo (idem: a fine frame)
+	_segna_festoni(dict, cell)
 	# pavimenti, sentieri e tappeti a terra schiacciano l'erba sotto di sé
 	if lvl == 0 and int(item["layer"]) <= 1:
 		get_tree().call_group("cozy_world", "flatten_cell", cell)
@@ -1262,6 +1372,10 @@ func _remove_at(layer, key, lvl := 0) -> void:
 		rinfresca_aiuole(dict, key)
 		# tolta una campata, il gruppo si richiude — o si spezza in due
 		_segna_serre(dict, key)
+		# tolto un palo, i fili che ci arrivavano spariscono da soli: non
+		# erano salvati, erano DERIVATI (ma i vicini vanno rifatti, perché
+		# per loro il primo palo in quella direzione adesso è un altro)
+		_segna_festoni(dict, key)
 	_unregister_special(node)
 	if node == _demo_target:
 		_demo_target = null
@@ -1416,6 +1530,48 @@ func _flush_serre() -> void:
 func aggiorna_serre_ora() -> void:
 	if _serre_pending or not _serre_da_rifare.is_empty():
 		_flush_serre()
+
+
+# --- I FESTONI: stesso idioma differito delle serre ---------------------
+var _festoni_da_rifare: Array = []
+var _festoni_pending := false
+
+
+func _segna_festoni(dict: Dictionary, cell: Vector2i) -> void:
+	# GUARDIA OBBLIGATORIA, come per le serre: i rinfresca ricevono il
+	# dizionario del LAYER, non del nome. Senza questa uscita, posare una
+	# Sedia in mezzo al prato metterebbe in coda un lavoro per niente.
+	if pali_toccati(dict, cell).is_empty():
+		return
+	_festoni_da_rifare.append([dict, cell])
+	if _festoni_pending:
+		return
+	_festoni_pending = true
+	_flush_festoni.call_deferred()
+
+
+func _flush_festoni() -> void:
+	_festoni_pending = false
+	var lavoro := _festoni_da_rifare
+	_festoni_da_rifare = []
+	# il caricamento pianta i pali uno per uno: senza il differito, una
+	# fila di sei pali si rifarebbe 1+2+3+4+5+6 volte, le prime cinque
+	# di forma sbagliata
+	var fatti := {}
+	for voce: Array in lavoro:
+		var dict: Dictionary = voce[0]
+		var cell: Vector2i = voce[1]
+		for c: Vector2i in pali_toccati(dict, cell):
+			if fatti.has(c):
+				continue
+			fatti[c] = true
+			ricostruisci_festoni(dict, c)
+
+
+## Il flush SINCRONO dei festoni (vedi aggiorna_serre_ora).
+func aggiorna_festoni_ora() -> void:
+	if _festoni_pending or not _festoni_da_rifare.is_empty():
+		_flush_festoni()
 
 
 func _save_village() -> void:

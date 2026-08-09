@@ -164,7 +164,12 @@ func _test_appesi_sulla_corda(t) -> void:
 	var posa: Array = corda.get_meta("posa")
 	var m: Dictionary = corda.get_meta("corda")
 	var appesi: Array = m.get("appesi", [])
-	t.ok(appesi.size() >= 10, "le lucine dichiarano lampadine e attacchi appesi")
+	# le Lucine rifatte appendono UN nodo per lampadina (portalampada,
+	# vetro e filamento stanno dentro lo stesso contenitore): prima erano
+	# due nodi per lampadina — l'attacco e il bulbo — e per questo la
+	# soglia era dieci. Il numero segue la LUNGHEZZA del filo, che è la
+	# promessa del sistema (vedi test_festoni).
+	t.ok(appesi.size() >= 5, "le lucine dichiarano le loro lampadine appese")
 	var peggio := 0.0
 	for ap in appesi:
 		var seguace: Node3D = corda.get_node_or_null(str(ap["path"]))

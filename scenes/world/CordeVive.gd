@@ -153,10 +153,20 @@ func passo(delta: float) -> void:
 
 	var vivi: Array = []
 	for c in _corde:
-		var nodo: MeshInstance3D = c["nodo"]
-		if not is_instance_valid(nodo):
+		# SI CONTROLLA PRIMA DI ASSEGNARE. Mettere un'istanza già liberata
+		# in una variabile TIPIZZATA è di per sé un errore di runtime
+		# («Trying to assign invalid previously freed instance»), e un
+		# errore qui interrompe `passo` a metà: da quel frame in poi tutte
+		# le corde del villaggio smettono di respirare, e la voce morta
+		# resta in `_corde` per sempre perché la riga che la dimentica sta
+		# sotto quella che esplode. Con `is_instance_valid(nodo)` DOPO
+		# l'assegnazione la guardia non veniva mai raggiunta.
+		# (Prima non si vedeva quasi mai: le corde si liberano solo
+		# togliendo un pezzo. I festoni si rifanno a ogni palo piantato.)
+		if not is_instance_valid(c["nodo"]):
 			_censite.erase(c["id"])   # il pezzo è stato tolto: si dimentica
 			continue
+		var nodo: MeshInstance3D = c["nodo"]
 		vivi.append(c)
 		var inv: Basis = nodo.global_transform.basis.inverse()
 		var punti: Array = c["punti"]
@@ -219,9 +229,9 @@ func _stato_di(nodo: Node) -> Dictionary:
 ## Il sedile dell'altalena: appeso ai fondi delle due corde, orientato
 ## come le corde lo tengono — non il contrario.
 func _siedi(ca: Dictionary, cb: Dictionary) -> void:
-	var sedile: Node3D = ca["solidale"]
-	if sedile == null or not is_instance_valid(sedile):
+	if not is_instance_valid(ca["solidale"]):
 		return
+	var sedile: Node3D = ca["solidale"]
 	var pa: Array = ca["punti"]
 	var pb: Array = cb["punti"]
 	var fa: Vector3 = pa[pa.size() - 1]
@@ -241,15 +251,16 @@ func _ridisegna(c: Dictionary) -> void:
 	FISICA.scrivi_tubo(nodo.mesh, c["punti"], c["raggio"], c["lati"])
 	var punti: Array = c["punti"]
 	for ap in c["appesi"]:
-		var seguace: Node3D = ap["nodo"]
-		if not is_instance_valid(seguace):
+		# vedi la nota in `passo`: prima si controlla, poi si assegna
+		if not is_instance_valid(ap["nodo"]):
 			continue
+		var seguace: Node3D = ap["nodo"]
 		seguace.position = FISICA.campiona(punti, float(ap["t"])) \
 				+ Vector3(0, -float(ap.get("giu", 0.0)), 0)
 	for ti in c["tiranti"]:
-		var cil: Node3D = ti["nodo"]
-		if not is_instance_valid(cil):
+		if not is_instance_valid(ti["nodo"]):
 			continue
+		var cil: Node3D = ti["nodo"]
 		var cima: Vector3 = FISICA.campiona(punti, float(ti["t"]))
 		var fondo: Vector3 = ti["fondo"]
 		var asse: Vector3 = cima - fondo

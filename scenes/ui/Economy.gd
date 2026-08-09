@@ -82,6 +82,8 @@ const SHOP_PIECES := [
 		"desc": "La boutique del paese, tutta intera: la vetrina che di\nsera illumina la strada, gli stender, i camerini con la\ntenda pesante e lo specchio a tre ante."},
 	{"name": "Serra", "cost": 520, "cur": "nut", "cat": 2,
 		"desc": "Un giardino di vetro: col suo tepore, orto e fiori\ncrescono anche sotto la neve."},
+	{"name": "Palo lucine", "cost": 210, "cur": "nut", "cat": 2,
+		"desc": "Paletti da piantare dove vuoi. Fra due che si vedono\nil filo si tende da solo: più lontani li metti, più\nlampadine ci stanno. Il disegno lo fai tu."},
 	{"name": "Mongolfiera", "cost": 650, "cur": "nut", "cat": 2,
 		"desc": "Una mongolfiera a strisce, ormeggiata in giardino.\nDondola nel vento e non parte mai senza di te."},
 ]
@@ -222,6 +224,10 @@ const CORREDO := {
 	# LA BOUTIQUE: si compra la vetrina e arriva il negozio intero. Un
 	# negozio di vestiti con lo stender e senza camerino non è mezzo
 	# negozio: è un magazzino.
+	# I PALI DEL FESTONE: si compra il palo delle lampadine e arrivano
+	# anche quello dei lampioncini e quello delle bandierine. Con una
+	# veste sola non si comporrebbe niente: il bello è alternarle.
+	"Palo lucine": ["Palo lanterne", "Palo bandierine"],
 	"Vetrina moda": ["Insegna boutique", "Manichino", "Busto sartoriale",
 			"Stender", "Tavolo piegati", "Scaffale a giorno", "Camerino",
 			"Specchiera", "Cassa boutique", "Poltroncina", "Cesto saldi",

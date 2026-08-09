@@ -431,8 +431,22 @@ static func items() -> Array[Dictionary]:
 			"builder": _fioriera,
 			"cols": [[Vector3(1.0, 0.5, 0.4), Vector3(0, 0.25, 0)]]},
 		{"name": "Lucine", "cat": 2, "type": "cell", "layer": 2, "builder": _lucine,
-			"cols": [[Vector3(0.12, 1.9, 0.12), Vector3(-0.46, 0.95, 0)],
-					[Vector3(0.12, 1.9, 0.12), Vector3(0.46, 0.95, 0)]]},
+			"cols": [[Vector3(0.14, 2.0, 0.14), Vector3(-0.46, 1.0, 0)],
+					[Vector3(0.14, 2.0, 0.14), Vector3(0.46, 1.0, 0.06)]]},
+		# I TRE PALI del festone. Da soli non fanno niente: il filo nasce
+		# quando due pali si vedono (vedi la grammatica sopra _palo_festone
+		# e BuildSystem.ricostruisci_festoni). Sono tre pezzi e non uno con
+		# le varianti perché la veste dev'essere VISIBILE sullo scaffale e
+		# nel fantasma: ognuno porta appeso il suo campione.
+		{"name": "Palo lucine", "cat": 2, "type": "cell", "layer": 2,
+			"builder": _palo_lucine,
+			"cols": [[Vector3(0.14, 2.0, 0.14), Vector3(0, 1.0, 0)]]},
+		{"name": "Palo lanterne", "cat": 2, "type": "cell", "layer": 2,
+			"builder": _palo_lanterne,
+			"cols": [[Vector3(0.14, 2.0, 0.14), Vector3(0, 1.0, 0)]]},
+		{"name": "Palo bandierine", "cat": 2, "type": "cell", "layer": 2,
+			"builder": _palo_bandierine,
+			"cols": [[Vector3(0.14, 2.0, 0.14), Vector3(0, 1.0, 0)]]},
 		{"name": "Frigo gelati", "cat": 2, "type": "cell", "layer": 2,
 			"builder": _frigo_gelati,
 			"cols": [[Vector3(0.96, 0.72, 0.52), Vector3(0, 0.36, 0)]]},
@@ -11773,59 +11787,476 @@ static func _foglia_lanceolata(parent: Node3D, verde: Material,
 	nervo.rotation.z = PI * 0.5
 
 
-static func _lucine() -> Node3D:
-	# LE LUCINE: il filo di lampadine fra due paletti, quello che accende
-	# il dehors la sera e fa sembrare festa una sera qualunque.
-	var n := Node3D.new()
+# ==================================================== IL FESTONE DI LUCI
+#
+# Un festone non è un pezzo: è una GRAMMATICA. Il giocatore pianta dei
+# pali e il filo si tende da solo fra quelli che si guardano — in linea,
+# in diagonale, fino a quattro celle — e più lungo è il filo, più
+# lampadine ci stanno. Da tre pali esce un triangolo, da quattro un
+# quadrato, da una griglia una volta di luci che si incrocia sopra la
+# testa. Nessun pattern è scritto qui dentro: ci sono solo i pali.
+#
+# LE REGOLE, e perché sono queste:
+#
+# 1. Il collegamento è DERIVATO dalle celle occupate, come `coppia()` in
+#    Affetti e come la fusione delle serre: il salvataggio resta una riga
+#    per palo, non c'è niente da migrare e niente che possa restare
+#    appeso a metà. Si toglie un palo e i fili che ci arrivavano
+#    spariscono da soli, perché non erano mai stati «salvati».
+# 2. Un palo cerca il PRIMO palo che incontra in ognuna delle otto
+#    direzioni, entro FESTONE_PORTATA celle. Il primo, non tutti: senza
+#    questa regola una fila di sei pali diventa un ventaglio di quindici
+#    fili sovrapposti invece di una collana.
+# 3. Il filo appartiene al palo lessicograficamente MINORE fra i due
+#    (stessa regola del montante condiviso fra due serre): così viene
+#    disegnato una volta sola, e non due mezzi fili che si compenetrano.
+# 4. La VESTE del filo è quella del palo che lo tiene. Tre pali diversi,
+#    tre vesti: alternandoli si alternano i fili, ed è lì che il
+#    giocatore comincia a comporre invece di posare.
+# 5. La pancia non si disegna: RISULTA dalla lunghezza. Il filo è una
+#    corda viva (CordaFisica + CordeVive), quindi nel mondo ondeggia col
+#    vento vero e le lampadine lo seguono punto per punto.
+
+## Le tre vesti. Sono indici, non testo: viaggiano solo dentro il
+## builder — quello che sta nel salvataggio è il NOME del palo.
+const FESTONE_BULBI := 0
+const FESTONE_LANTERNE := 1
+const FESTONE_BANDIERINE := 2
+## Il nome di pezzo di ogni palo, nell'ordine delle vesti. Fonte unica:
+## BuildSystem legge di qui per sapere se una cella è un palo e che veste
+## porta — mai una seconda lista scritta a mano di là.
+const FESTONE_PALI := ["Palo lucine", "Palo lanterne", "Palo bandierine"]
+## QUANTO È LUNGO UN FILO, in metri. Quattro metri con la sua pancia è
+## già una campata generosa; a cinque il filo scende sotto l'altezza
+## della testa di Mochi.
+##
+## È UNA DISTANZA VERA, non un conto di celle, e la differenza è tutto il
+## controllo che ha il giocatore. In celle, quattro pali ai vertici di un
+## quadrato di lato tre si legano anche sulle DIAGONALI (tre passi anche
+## quelle) e il quadrato esce sempre con la X dentro: un disegno che il
+## giocatore non ha chiesto e non può togliere. In metri, la diagonale di
+## quel quadrato misura 4.24 — il filo non ci arriva — e il quadrato
+## resta un quadrato. Metti i pali a due celle e la diagonale scende a
+## 2.83: allora sì che si annoda, ed è l'intreccio.
+## Una regola sola, che si spiega da sé: **il filo è lungo quattro metri**.
+const FESTONE_PORTATA := 4.0
+## Fin dove ci si spinge a CERCARE, in celle (oltre, la distanza vera
+## supera comunque la portata anche in linea retta).
+const FESTONE_PASSI := 4
+## L'altezza dell'occhiello in cima al palo: è lì che si annoda il filo.
+const FESTONE_CIMA := 1.92
+
+
+## L'anello: un toro, che qui serve di continuo (le legature di spago, il
+## golfare d'ottone, la matassa avanzata).
+static func _anello(parent: Node3D, r_int: float, r_est: float, mat: Material,
+		pos: Vector3, ritto := false) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = r_int
+	tm.outer_radius = r_est
+	tm.rings = 18
+	tm.ring_segments = 8
+	mi.mesh = tm
+	mi.material_override = mat
+	mi.position = pos
+	# un toro nasce nel piano XZ (sdraiato): «ritto» lo mette in piedi,
+	# che è come sta un occhiello a cui si lega qualcosa
+	if ritto:
+		mi.rotation.x = PI * 0.5
+	parent.add_child(mi)
+	return mi
+
+
+## IL PALO. Non è un cilindro: è un ramo scortecciato piantato a terra.
+## Il fusto è un tornio con due nodi veri dove sono stati tagliati i
+## rami, la terra attorno è smossa, la cima ha la legatura di spago e il
+## golfare d'ottone in cui passa il filo, e sotto la legatura sta
+## arrotolata la corda che avanza — il dettaglio che dice «l'ha messo su
+## qualcuno», che è tutta la differenza fra un asset e un oggetto.
+##
+## Torna il punto in cui si annoda il filo (in coordinate del pezzo).
+static func _palo_festone(n: Node3D, base: Vector3, seme: int) -> Vector3:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seme
 	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
-	for sx: float in [-0.46, 0.46]:
-		_cyl(n, 0.03, 0.04, 1.9, legno, Vector3(sx, 0.95, 0))
-		_ball(n, 0.04, legno, Vector3(sx, 1.9, 0))
-	# il filo: una catenaria VERA, un tubo continuo che pende — non una
-	# spezzata di bastoncini — con le lampadine appese
+	var legno_cupo := _mat(WOOD_DARK, Color("8a6440"), 4.5, 0.5)
+	var spago := _mat(Color("e0cfa8"), Color("c4ad82"), 6.0, 0.45)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.35)
+	var ferro := _mat(Color("6b6259"), Color("4e463f"), 5.0, 0.4)
+	var terra := _mat(Color("8a6f52"), Color("6b543c"), 3.0, 0.5)
+	var sasso := _mat(STONE, STONE_DARK, 4.0, 0.5)
+
+	# la PIANTATA: un palo piantato smuove la terra attorno, e senza
+	# quella cicatrice sembra infilato in un pavimento. ZOLLE, però, non
+	# un disco: una sfera schiacciata larga diciassette centimetri esce
+	# come un sottovaso di terracotta — visto e corretto.
+	for i in 5:
+		var a := rng.randf() * TAU
+		var d := rng.randf_range(0.050, 0.100)
+		var zolla := _ball(n, rng.randf_range(0.034, 0.060), terra,
+				base + Vector3(cos(a) * d, rng.randf_range(0.008, 0.024),
+						sin(a) * d),
+				Vector3(1.0, rng.randf_range(0.42, 0.68), 1.0))
+		zolla.rotation.y = rng.randf() * TAU
+	for i in 3:
+		var a := rng.randf() * TAU
+		var d := rng.randf_range(0.10, 0.15)
+		_ball(n, rng.randf_range(0.015, 0.025), sasso,
+				base + Vector3(cos(a) * d, 0.009, sin(a) * d),
+				Vector3(1.3, 0.55, 1.0))
+	# la ghiera di ferro che protegge il piede dal marcire: sta SOPRA le
+	# zolle, se no la si seppellisce e tanto valeva non metterla
+	_cyl(n, 0.049, 0.056, 0.072, ferro, base + Vector3(0, 0.078, 0))
+
+	# IL FUSTO: un tornio, non un cono. Rastrema salendo e ha due nodi
+	# (i rami tagliati), perché un palo dritto e liscio per due metri non
+	# esiste in natura e si vede subito.
+	var n1 := rng.randf_range(0.52, 0.68)
+	var n2 := rng.randf_range(1.18, 1.36)
+	var prof: Array = []
+	var y := 0.02
+	while y < 1.96:
+		var r := 0.047 - 0.017 * (y / 1.96)
+		# il rigonfio del nodo: una campana stretta attorno alla quota
+		r += 0.010 * exp(-pow((y - n1) / 0.055, 2.0))
+		r += 0.009 * exp(-pow((y - n2) / 0.050, 2.0))
+		prof.append(Vector2(r, y))
+		y += 0.055
+	prof.push_front(Vector2(0.0, 0.0))
+	prof.append(Vector2(0.0295, 1.98))
+	BUILDER.lathe(n, prof, legno, base, 14)
+
+	# i due MONCONI dei rami tagliati, sui nodi: il taglio è chiaro, il
+	# legno attorno è scuro — è così che si legge una potatura vecchia
+	for k in 2:
+		var yq: float = n1 if k == 0 else n2
+		var aq := rng.randf() * TAU
+		var mon := _cyl(n, 0.011, 0.019, 0.042, legno_cupo,
+				base + Vector3(cos(aq) * 0.050, yq, sin(aq) * 0.050))
+		mon.rotation.z = -cos(aq) * 1.15
+		mon.rotation.x = sin(aq) * 1.15
+		_cyl(n, 0.011, 0.011, 0.004, _mat(WOOD_PALE, WOOD, 4.0, 0.4),
+				base + Vector3(cos(aq) * 0.068, yq + 0.017, sin(aq) * 0.068))
+
+	# LA MATASSA che avanza, arrotolata sotto la legatura. Tre giri
+	# sbilenchi: una matassa perfetta non l'ha fatta nessuno.
+	var filo_mat := _mat(Color("4f4a45"), Color("3d3935"), 4.0, 0.3)
+	for k in 3:
+		var mm := _anello(n, 0.033, 0.040, filo_mat,
+				base + Vector3(0, 1.54 + float(k) * 0.019, 0))
+		mm.rotation.z = rng.randf_range(-0.10, 0.10)
+		mm.rotation.x = rng.randf_range(-0.08, 0.08)
+
+	# LA LEGATURA di spago sotto il golfare: cinque giri, nessuno uguale
+	for k in 5:
+		var g := _anello(n, 0.031, 0.037, spago,
+				base + Vector3(0, 1.71 + float(k) * 0.017, 0))
+		g.rotation.z = rng.randf_range(-0.07, 0.07)
+	# il capo dello spago che pende, il nodo mai tirato del tutto
+	var capo := _cyl(n, 0.0035, 0.0035, 0.055, spago,
+			base + Vector3(0.032, 1.685, 0.010))
+	capo.rotation.z = 0.35
+
+	# LA GHIERA E L'ANELLO d'ottone su cui si posa il filo. Un filo che
+	# tocca il legno e basta è un filo appoggiato, non appeso — è questo
+	# pezzetto a rendere credibile tutto il resto.
+	# L'anello sta ORIZZONTALE, e non è un dettaglio di gusto: da un palo
+	# partono fino a otto fili in otto direzioni diverse, e un occhiello
+	# ritto guarderebbe in una sola. Piatto lo si legge da tutte.
+	_cyl(n, 0.029, 0.034, 0.028, ottone, base + Vector3(0, 1.888, 0))
+	_anello(n, 0.030, 0.043, ottone, base + Vector3(0, FESTONE_CIMA, 0))
+
+	# IL CAPPELLO tornito: una ghianda, con la sua bruniture in punta
+	BUILDER.lathe(n, [Vector2(0.0, 0.0), Vector2(0.030, 0.006),
+			Vector2(0.036, 0.020), Vector2(0.034, 0.040),
+			Vector2(0.026, 0.058), Vector2(0.014, 0.072),
+			Vector2(0.0, 0.078)], legno, base + Vector3(0, 1.965, 0), 14)
+	_ball(n, 0.009, ottone, base + Vector3(0, 2.044, 0))
+	return base + Vector3(0, FESTONE_CIMA, 0)
+
+
+## UNA LAMPADINA da festone: portalampada di bachelite, ghiera d'ottone,
+## vetro a goccia e — dentro — il FILAMENTO. È il filamento a fare la
+## differenza fra una lampadina e una biglia colorata: dà profondità al
+## vetro, esattamente come la fiammella dentro la Lanterna blu.
+static func _lampadina(parent: Node3D, pos: Vector3, c: Color, scala: float,
+		pende: float) -> Node3D:
+	var b := Node3D.new()
+	b.position = pos
+	b.rotation.z = pende
+	b.scale = Vector3.ONE * scala
+	parent.add_child(b)
+	var bachelite := _mat(Color("3a3531"), Color("26221f"), 6.0, 0.35)
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.3)
+	# il codino di filo che scende dal cavo
+	_cyl(b, 0.0035, 0.0035, 0.026, _mat(Color("4f4a45"), Color("3d3935"), 4.0, 0.3),
+			Vector3(0, -0.013, 0))
+	# il portalampada e la ghiera a vite (due filetti suggeriti)
+	_cyl(b, 0.0135, 0.0165, 0.030, bachelite, Vector3(0, -0.041, 0))
+	_cyl(b, 0.0140, 0.0140, 0.012, ottone, Vector3(0, -0.062, 0))
+	_anello(b, 0.0125, 0.0150, ottone, Vector3(0, -0.060, 0))
+	_anello(b, 0.0125, 0.0150, ottone, Vector3(0, -0.066, 0))
+	# IL VETRO: una goccia tornita, costruita in su e rovesciata (il
+	# tornio sale, la lampadina pende)
+	var vetro := BUILDER.lathe(b, [Vector2(0.0125, 0.0), Vector2(0.021, 0.014),
+			Vector2(0.028, 0.032), Vector2(0.0300, 0.052),
+			Vector2(0.0265, 0.072), Vector2(0.017, 0.088),
+			Vector2(0.0, 0.095)],
+			# l'albedo va un filo PIÙ CUPO dell'emissione: con lo stesso
+			# colore, di giorno, sei lampadine di sei colori diversi
+			# escono sei biglie bianche identiche
+			_glow(c.darkened(0.16), c, 0.55), Vector3(0, -0.070, 0), 16)
+	vetro.rotation.x = PI
+	# il filamento: due montantini e l'ansa incandescente in mezzo
+	var acceso := _glow(Color("fff3d0"), Color("ffe9b0"), 3.2)
+	for sx: float in [-1.0, 1.0]:
+		_cyl(b, 0.0015, 0.0015, 0.022, acceso,
+				Vector3(sx * 0.0055, -0.086, 0))
+	_ball(b, 0.0055, acceso, Vector3(0, -0.100, 0), Vector3(1.9, 0.7, 1.0))
+	return b
+
+
+## UN LAMPIONCINO DI CARTA: la carta a soffietto (le costole nel profilo
+## del tornio), i due cerchietti di stecca in cima e in fondo, e la
+## nappina. Dentro sta la sua lucina, se no di notte è un sacchetto.
+static func _lampioncino(parent: Node3D, pos: Vector3, c: Color, scala: float,
+		pende: float) -> Node3D:
+	var b := Node3D.new()
+	b.position = pos
+	b.rotation.z = pende
+	b.scale = Vector3.ONE * scala
+	parent.add_child(b)
+	var stecca := _mat(Color("b89a72"), Color("94794f"), 5.0, 0.4)
+	_cyl(b, 0.003, 0.003, 0.024, _mat(Color("4f4a45"), Color("3d3935"), 4.0, 0.3),
+			Vector3(0, -0.012, 0))
+	# la carta: raggio a campana con le COSTOLE del soffietto sopra
+	var prof: Array = []
+	for i in 13:
+		var t := float(i) / 12.0
+		var r := 0.060 * sin(PI * clampf(t * 0.94 + 0.03, 0.0, 1.0))
+		# LE COSTOLE del soffietto: a 0.0035 non si vedevano affatto e il
+		# lampioncino usciva una palla di carta liscia — cioè una palla
+		r += 0.0065 * sin(t * PI * 7.0)
+		prof.append(Vector2(maxf(r, 0.001), t * 0.115))
+	var carta := BUILDER.lathe(b, prof, _glow(c, c, 0.42),
+			Vector3(0, -0.140, 0), 18)
+	carta.name = "Carta"
+	# i due cerchietti di stecca
+	_anello(b, 0.011, 0.017, stecca, Vector3(0, -0.030, 0))
+	_anello(b, 0.011, 0.017, stecca, Vector3(0, -0.138, 0))
+	# la lucina dentro, e la nappina sotto
+	_ball(b, 0.020, _glow(Color("fff0cc"), Color("ffe4a8"), 2.4),
+			Vector3(0, -0.084, 0))
+	_cyl(b, 0.010, 0.004, 0.020, _mat(Color("d9584e"), Color("ac443c"), 5.0, 0.4),
+			Vector3(0, -0.150, 0))
+	for k in 4:
+		var a := float(k) * TAU / 4.0 + 0.4
+		var fp := _cyl(b, 0.0018, 0.0018, 0.032,
+				_mat(Color("d9584e"), Color("ac443c"), 5.0, 0.4),
+				Vector3(cos(a) * 0.006, -0.176, sin(a) * 0.006))
+		fp.rotation.z = cos(a) * 0.18
+		fp.rotation.x = -sin(a) * 0.18
+	return b
+
+
+## UNA BANDIERINA di stoffa: il triangolo con l'orlo ripiegato in cima e
+## due punti di cucitura. Il festone di bandierine porta ANCHE le sue
+## lucine piccole, alternate: una fila di bandierine e basta, di notte,
+## è un festone spento — e questo resta un pezzo che fa luce.
+static func _bandierina(parent: Node3D, pos: Vector3, c: Color, scala: float,
+		pende: float, giro: float) -> Node3D:
+	var b := Node3D.new()
+	b.position = pos
+	b.rotation.z = pende
+	b.rotation.y = giro
+	b.scale = Vector3.ONE * scala
+	parent.add_child(b)
+	var stoffa := _mat(c, c.darkened(0.20), 3.0, 0.45)
+	var orlo := _mat(c.lightened(0.10), c.darkened(0.08), 3.0, 0.4)
+	# il triangolo: sta nel piano XZ e si mette RITTO con pendenza PI/2,
+	# così la punta cade in giù (vedi _falda)
+	_falda(b, [Vector2(-0.052, 0.0), Vector2(0.052, 0.0), Vector2(0.0, 0.115)],
+			stoffa, Vector3(0, -0.012, 0), 0.0, PI * 0.5, 0.005)
+	# l'orlo ripiegato attorno al cavo, e i due punti di cucitura
+	_box(b, Vector3(0.108, 0.016, 0.010), orlo, Vector3(0, -0.006, 0))
+	for sx: float in [-1.0, 1.0]:
+		_ball(b, 0.0035, orlo, Vector3(sx * 0.036, -0.006, -0.006),
+				Vector3(1.0, 1.0, 0.6))
+	return b
+
+
+## IL FILO: la campata fra due cime. Tutto quello che il giocatore
+## controlla — quanto è lungo, quindi quante luci ci stanno, quindi
+## quanta pancia fa — esce da qui e da nient'altro.
+##
+## Torna il nodo contenitore: dentro c'è la corda viva e i suoi appesi.
+static func festone(a: Vector3, b: Vector3, veste: int, seme: int) -> Node3D:
+	var n := Node3D.new()
+	n.name = "Festone"
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seme
+	var campata := a.distance_to(b)
+	# LA PANCIA. L'abbondanza di corda va giù al crescere della campata,
+	# non su: la freccia è già proporzionale alla campata, e tenendo la
+	# stessa abbondanza un filo da quattro metri scendeva a 83 cm da
+	# terra — sotto la testa di Mochi, che ci passa in mezzo. Così il
+	# filo corto fa la sua pancia allegra (21 cm su 93) e quello lungo
+	# resta a 1.25 m, che è alto abbastanza per passarci sotto.
+	# (0.055 in fondo, non 0.075: a 0.075 la campata da quattro metri
+	# scendeva a 1.16 m e con la lampadina appesa restavano 96 cm liberi,
+	# cioè meno di quanto è alta Mochi. Misurato da test_festoni, non
+	# stimato a occhio.)
+	var molle := clampf(0.26 / (1.0 + campata), 0.055, 0.20)
+	var lung := campata * (1.0 + molle)
+	var punti := clampi(int(round(lung * 7.0)), 10, 26)
 	var filo := _mat(Color("4f4a45"), Color("3d3935"), 4.0, 0.3)
-	var colori := [Color("ffd08a"), Color("ffb0a0"), Color("bfe0ff"),
-			Color("ffe6a8"), Color("d8c0f0")]
-	# il filo è una CORDA VIVA: nel mondo ondeggia col vento vero, e le
-	# lampadine — dichiarate come appesi — lo seguono punto per punto.
-	# molle 0.21 dà la stessa pancia di prima (~0.26): la pancia non si
-	# disegna, risulta dalla lunghezza.
-	var vivo := _corda_viva(n, Vector3(-0.46, 1.88, 0), Vector3(0.46, 1.88, 0),
-			0.21, 0.006, filo, 1.0, 12, 6)
+	var vivo := _corda_viva(n, a, b, molle, 0.0055, filo, 1.0, punti, 6)
 	var posa: Array = vivo.get_meta("posa")
+
+	# QUANTE LUCI: una ogni ~17 cm di filo. È la risposta alla domanda
+	# «allungo la corda per metterne di più»: sì, e non si tocca niente.
+	var quante := clampi(int(round(lung / 0.17)), 4, 16)
+	var colori: Array = [Color("ffd08a"), Color("ffb0a0"), Color("bfe0ff"),
+			Color("ffe6a8"), Color("d8c0f0"), Color("ffc2d4")]
+	var colori_carta: Array = [Color("ffd9a0"), Color("ff9f8c"), Color("ffe8bc"),
+			Color("f2b3c8")]
+	var colori_stoffa: Array = [PINK, Color("9ec9e8"), CREAM, LEAF,
+			Color("ffd08a")]
 	var appesi: Array = []
-	var passi := 9
-	for i in passi:
-		# le due lampadine d'estremità finivano DENTRO i paletti: restano
-		# gli attacchi sul filo, le lampadine vivono fra i pali, non nei pali
-		if i == 0 or i == passi - 1:
-			continue
-		var t0 := float(i) / float(passi - 1)
-		# si appoggiano alla POSA VERA del filo (campiona), non a una
-		# formula parallela che prima o poi divergerebbe
+	for i in quante:
+		# gli estremi finirebbero DENTRO il palo: le luci vivono FRA i
+		# pali, non nei pali (era già la lezione delle vecchie Lucine)
+		var t0 := (float(i) + 1.0) / (float(quante) + 1.0)
 		var sul_filo: Vector3 = FISICA.campiona(posa, t0)
-		var c: Color = colori[i % colori.size()]
-		var att := _cyl(n, 0.012, 0.016, 0.02, _mat(OTTONE, OTTONE_SCURO, 5.0, 0.3),
-				sul_filo + Vector3(0, -0.025, 0))
-		att.name = "Attacco%d" % i
-		var bulbo := _ball(n, 0.032, _glow(c, c, 1.1), sul_filo + Vector3(0, -0.062, 0),
-				Vector3(1.0, 1.25, 1.0))
-		bulbo.name = "Bulbo%d" % i
-		appesi.append({"path": NodePath("../Attacco%d" % i), "t": t0, "giu": 0.025})
-		appesi.append({"path": NodePath("../Bulbo%d" % i), "t": t0, "giu": 0.062})
+		var pende := rng.randf_range(-0.09, 0.09)
+		var scala := rng.randf_range(0.93, 1.07)
+		# `giu` È ZERO, e non per pigrizia: l'origine di ogni appeso sta
+		# SUL filo (il codino parte da lì e il resto pende sotto), quindi
+		# il posto giusto è il punto campionato, senza scarti. Il vecchio
+		# festone aveva due nodi per lampadina — l'attacco e il bulbo, a
+		# quote diverse — e lì un `giu` serviva.
+		# Il numero dichiarato qui e la posizione scolpita dal builder
+		# DEVONO combaciare: nelle foto del catalogo, nei test e con
+		# «Riduci animazioni» CordeVive non gira mai, e resta valida la
+		# posa da fermo. Con giu 0.06 e il nodo posato sul filo, ogni
+		# lampadina restava sei centimetri troppo in alto — a cavallo del
+		# cavo invece che appesa. L'ha trovato test_corde.gd.
+		var nodo: Node3D = null
+		match veste:
+			FESTONE_LANTERNE:
+				nodo = _lampioncino(n, sul_filo,
+						colori_carta[i % colori_carta.size()], scala, pende)
+			FESTONE_BANDIERINE:
+				# bandierina · lucina · bandierina: la fila alternata è
+				# quella che si vede appesa davvero, e resta accesa
+				if i % 2 == 0:
+					nodo = _bandierina(n, sul_filo,
+							colori_stoffa[i % colori_stoffa.size()], scala,
+							pende, rng.randf_range(-0.22, 0.22))
+				else:
+					nodo = _lampadina(n, sul_filo,
+							colori[i % colori.size()], scala * 0.72, pende)
+			_:
+				nodo = _lampadina(n, sul_filo, colori[i % colori.size()],
+						scala, pende)
+		nodo.name = "Appeso%d" % i
+		appesi.append({"path": NodePath("../Appeso%d" % i), "t": t0, "giu": 0.0})
 	var meta: Dictionary = vivo.get_meta("corda")
 	meta["appesi"] = appesi
 	vivo.set_meta("corda", meta)
-	# le lucine devono TINGERE quello che c'è sotto: a 0.9 i bulbi
-	# brillavano e il prato restava grigio, cioè un festone che non fa
-	# festa. Oltre 2.1 il palo di destra, che è il più vicino, sbianca.
-	var luce := OmniLight3D.new()
-	luce.light_color = Color(1.0, 0.88, 0.72)
-	luce.light_energy = 1.5
-	luce.omni_range = 4.2
-	luce.omni_attenuation = 1.1
-	luce.position = Vector3(0, 1.7, 0)
-	n.add_child(luce)
+
+	# LA LUCE, e qui c'è la lezione più cara di tutta la faccenda.
+	#
+	# Un festone SOLO vuole una luce ampia (la taratura scelta al buio era
+	# 1.5 / 4.2). Ma questi fili si MOLTIPLICANO: una griglia di nove pali
+	# a due celle fa venti campate, e venti luci da 1.5 con quattro metri
+	# di portata si sommano in un lenzuolo bianco — il prato sotto il
+	# baldacchino era illeggibile, misurato in foto nel villaggio vero.
+	# Non si può tarare per il caso singolo e sperare: un sistema che il
+	# giocatore moltiplica va tarato sul MUCCHIO.
+	#
+	# La risposta è la stessa della Lanterna blu, letta al contrario: la
+	# pozza si fa con la PORTATA. Corta (2.6) la luce resta sotto il suo
+	# filo, e in una griglia si sovrappone due o tre volte invece di
+	# venti. Il bello lo fanno comunque le lampadine, che sono emissive:
+	# l'Omni serve solo a far cadere qualcosa per terra.
+	var n_luci := clampi(int(round(campata / 1.8)), 1, 3)
+	for k in n_luci:
+		var tl := (float(k) + 1.0) / (float(n_luci) + 1.0)
+		var pl: Vector3 = FISICA.campiona(posa, tl)
+		var luce := OmniLight3D.new()
+		luce.light_color = Color(1.0, 0.88, 0.72)
+		luce.light_energy = 1.3 / sqrt(float(n_luci))
+		luce.omni_range = 2.6
+		luce.omni_attenuation = 1.25
+		luce.shadow_enabled = false
+		luce.position = pl + Vector3(0, -0.06, 0)
+		n.add_child(luce)
+	return n
+
+
+## Il campione appeso al palo: quello che il palo PORTA, ed è come si
+## capisce dallo scaffale che i tre pali non sono lo stesso pezzo in tre
+## colori. Pende da un gancetto sul fianco, sotto la matassa.
+static func _campione_palo(n: Node3D, base: Vector3, veste: int) -> void:
+	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.3)
+	# il braccetto va LUNGO: a cinque centimetri il campione restava
+	# mezzo dentro il fusto — una bandierina tagliata a metà dal palo
+	var p := base + Vector3(0.125, 1.44, 0.0)
+	var braccio := _cyl(n, 0.005, 0.006, 0.115, ottone,
+			base + Vector3(0.068, 1.468, 0))
+	braccio.rotation.z = PI * 0.5
+	_cyl(n, 0.004, 0.004, 0.030, ottone, p + Vector3(0, 0.014, 0))
+	_anello(n, 0.005, 0.010, ottone, p + Vector3(0, 0.030, 0), true)
+	match veste:
+		FESTONE_LANTERNE:
+			_lampioncino(n, p, Color("ffd9a0"), 0.85, 0.06)
+		FESTONE_BANDIERINE:
+			_bandierina(n, p, PINK, 0.9, 0.05, 0.3)
+		_:
+			_lampadina(n, p, Color("ffd08a"), 1.0, 0.05)
+
+
+## Il palo nudo, com'è sullo scaffale e come sta piantato da solo: un
+## palo e il suo campione. Il filo non è suo — nasce quando trova un
+## compagno (vedi BuildSystem.ricostruisci_festoni).
+static func _palo_veste(veste: int) -> Node3D:
+	var n := Node3D.new()
+	var cima := _palo_festone(n, Vector3.ZERO, 41_000 + veste * 977)
+	_campione_palo(n, Vector3.ZERO, veste)
+	# il segnaposto della cima: BuildSystem ci annoda i fili senza doversi
+	# ricordare un numero scritto da un'altra parte
+	var seg := Node3D.new()
+	seg.name = "Cima"
+	seg.position = cima
+	n.add_child(seg)
+	return n
+
+
+static func _palo_lucine() -> Node3D:
+	return _palo_veste(FESTONE_BULBI)
+
+
+static func _palo_lanterne() -> Node3D:
+	return _palo_veste(FESTONE_LANTERNE)
+
+
+static func _palo_bandierine() -> Node3D:
+	return _palo_veste(FESTONE_BANDIERINE)
+
+
+static func _lucine() -> Node3D:
+	# LE LUCINE già montate: due pali e la loro campata, per chi vuole il
+	# festone e basta senza mettersi a comporre. Sono gli STESSI pali e lo
+	# STESSO filo del sistema modulare — una implementazione sola, come
+	# l'andatura dei vicini nel menù: se un domani cambia il golfare,
+	# cambia in tutti e due i posti.
+	var n := Node3D.new()
+	var ca := _palo_festone(n, Vector3(-0.46, 0, 0), 41_101)
+	var cb := _palo_festone(n, Vector3(0.46, 0, 0.06), 41_207)
+	var f := festone(ca, cb, FESTONE_BULBI, 41_303)
+	n.add_child(f)
 	return n
 
 
