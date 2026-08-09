@@ -50,6 +50,21 @@ const OTTONE_SCURO := Color("b0812c")
 const GOMMA := Color("4a4640")
 const VETRO := Color("cfe6ee")
 
+# --- i due fuochi del catalogo ------------------------------------------
+# L'energia di un fuoco vive in UN posto solo, perché ne esistono sempre
+# DUE copie: il valore a riposo e i fotogrammi del tremolio. Scritti a
+# mano, la prima ritaratura ne cambia uno e lascia l'altro — e la fiamma
+# si accende al valore vecchio a ogni giro dell'animazione, senza un
+# errore. I fotogrammi qui sotto sono FRAZIONI di queste due costanti.
+const CAMINO_ENERGIA := 1.9
+## ATTENZIONE, il braciere è il caso che ha smentito lo studio. Al buio
+## del provino (pavimento blu-grigio, albedo bassa) 4.6 sembrava giusta;
+## posato nel villaggio VERO, sulla sabbia chiara, bruciava un cerchio
+## bianco largo sei metri. Una sorgente a 0.72 m sbatte sul terreno da
+## vicino, e un lampione a 2.1 m no: la stessa energia non vuol dire la
+## stessa pozza. Scelta guardando le foto nel mondo, non nello studio.
+const BRACE_ENERGIA := 2.8
+
 
 static func items() -> Array[Dictionary]:
 	return [
@@ -1890,11 +1905,15 @@ static func _fireplace() -> Node3D:
 
 	# la luce del fuoco, col suo tremolio (il nodo si chiama Fuoco: lo
 	# cerca l'animazione qui sotto)
+	# il focolare deve arrivare alla mensola e alla canna sopra di sé: a
+	# 1.15 il fuoco si vedeva ma la pietra attorno restava blu, cioè il
+	# camino era acceso in una stanza fredda
 	var luce := OmniLight3D.new()
 	luce.name = "Fuoco"
 	luce.light_color = Color(1.0, 0.72, 0.42)
-	luce.light_energy = 1.15
-	luce.omni_range = 3.6
+	luce.light_energy = CAMINO_ENERGIA
+	luce.omni_range = 3.8
+	luce.omni_attenuation = 1.15
 	luce.position = Vector3(0, 0.30, -0.16)
 	n.add_child(luce)
 	var anim := Animation.new()
@@ -1902,11 +1921,12 @@ static func _fireplace() -> Node3D:
 	anim.loop_mode = Animation.LOOP_LINEAR
 	var tr_e := anim.add_track(Animation.TYPE_VALUE)
 	anim.track_set_path(tr_e, NodePath("Fuoco:light_energy"))
-	var chiavi := [[0.0, 1.15], [0.23, 1.34], [0.51, 0.96], [0.78, 1.22],
-			[1.10, 1.05], [1.44, 1.38], [1.90, 0.90], [2.28, 1.18],
-			[2.66, 1.02], [3.10, 1.30], [3.42, 0.98], [3.70, 1.15]]
+	# FRAZIONI, non valori: vedi CAMINO_ENERGIA
+	var chiavi := [[0.0, 1.00], [0.23, 1.17], [0.51, 0.83], [0.78, 1.06],
+			[1.10, 0.91], [1.44, 1.20], [1.90, 0.78], [2.28, 1.03],
+			[2.66, 0.89], [3.10, 1.13], [3.42, 0.85], [3.70, 1.00]]
 	for kk in chiavi:
-		anim.track_insert_key(tr_e, float(kk[0]), float(kk[1]))
+		anim.track_insert_key(tr_e, float(kk[0]), CAMINO_ENERGIA * float(kk[1]))
 	anim.track_set_interpolation_type(tr_e, Animation.INTERPOLATION_CUBIC)
 	# e la sorgente si sposta di pochi millimetri: le ombre nella stanza
 	# respirano invece di stare inchiodate
@@ -2052,11 +2072,17 @@ static func _lampada_base(con_cesto: bool) -> Node3D:
 	_cyl(n, 0.06, 0.20, 0.085, metal, Vector3(0, 1.772, 0))
 	_ball(n, 0.058, metal, Vector3(0, 1.812, 0), Vector3(1.0, 0.72, 1.0))
 	_ball(n, 0.020, ottone, Vector3(0, 1.856, 0))
+	# LA POZZA, scelta al buio (provino_taratura, quattro tarature): a
+	# 1.6/4.5/1.4 il globo era bianco e per terra restava una velatura
+	# grigia — la lampada brillava e non illuminava. La pozza si fa con la
+	# PORTATA e con la caduta, non spingendo l'energia dentro il vetro.
+	# Sta un gradino sotto al Lampione (4.0/5.2/1.2): un lampioncino da
+	# giardino fa un cerchio più piccolo di quello della strada.
 	var light := OmniLight3D.new()
 	light.light_color = Color(1.0, 0.86, 0.6)
-	light.light_energy = 1.6
-	light.omni_range = 4.5
-	light.omni_attenuation = 1.4
+	light.light_energy = 3.2
+	light.omni_range = 4.6
+	light.omni_attenuation = 1.15
 	light.position = Vector3(0, 1.58, 0)
 	n.add_child(light)
 	return n
@@ -3106,10 +3132,14 @@ static func _treehouse() -> Node3D:
 	core.position = Vector3(0, -0.36, 0)
 	pivot.add_child(core)
 	_cyl(pivot, 0.02, 0.05, 0.06, dark, Vector3(0, -0.245, 0))
+	# la lanterna del ballatoio: deve accendere il ponte E arrivare al
+	# tronco, se no «c'è qualcuno lassù» non si vede da terra. Più su di
+	# così (2.6) il tavolato va in bianco e perde le venature.
 	var light := OmniLight3D.new()
 	light.light_color = Color("ffc98a")
-	light.light_energy = 1.3
-	light.omni_range = 4.5
+	light.light_energy = 1.9
+	light.omni_range = 4.4
+	light.omni_attenuation = 1.1
 	light.shadow_enabled = false
 	light.position = Vector3(0, -0.42, 0)
 	pivot.add_child(light)
@@ -4242,10 +4272,14 @@ static func serra_cella(pianta: Dictionary, c: Vector2i) -> Node3D:
 			_cyl(n, 0.085, 0.065, 0.06, rame, Vector3(ang.x, y_tetto, ang.z))
 			_cyl(n, 0.038, 0.030, 0.20, ghisa, Vector3(ang.x, y_tetto + 0.13, ang.z))
 			_cyl(n, 0.052, 0.040, 0.04, ghisa, Vector3(ang.x, y_tetto + 0.25, ang.z))
+			# la finestra calda promessa qui sopra ESISTE solo se la stufa
+			# illumina i banconi attraverso il vetro: a 0.75/2.8 da fuori
+			# la serra restava una scatola blu come tutte le altre
 			var luce := OmniLight3D.new()
 			luce.light_color = Color(1.0, 0.72, 0.42)
-			luce.light_energy = 0.75
-			luce.omni_range = 2.8
+			luce.light_energy = 1.2
+			luce.omni_range = 3.4
+			luce.omni_attenuation = 1.1
 			luce.position = Vector3(ang.x, 0.34, ang.z - 0.12)
 			n.add_child(luce)
 			scatole.append([Vector3(0.38, 0.62, 0.38), Vector3(ang.x, 0.31, ang.z)])
@@ -4848,11 +4882,17 @@ static func _streetlamp() -> Node3D:
 	alone.position = Vector3(0, 2.05, 0)
 	n.add_child(alone)
 
-	# la luce di sempre: colore, energia, raggio e posizione INVARIATI
+	# LA POZZA DELLA STRADA. Il vetro era già bello, ma per terra non
+	# succedeva niente: 1.6/5.5/1.0 su un ambiente notturno dà una
+	# velatura uniforme, cioè il contrario di un lampione. Scelta al buio
+	# su cinque tarature: sotto (3.0) il cerchio non si stacca dal fondo,
+	# sopra (5.2/4.8/1.35) il vetro comincia a sbiancare. È la luce più
+	# ampia del catalogo, ed è giusto: è quella della strada.
 	var light := OmniLight3D.new()
 	light.light_color = Color(1.0, 0.86, 0.6)
-	light.light_energy = 1.6
-	light.omni_range = 5.5
+	light.light_energy = 4.0
+	light.omni_range = 5.2
+	light.omni_attenuation = 1.2
 	light.position = Vector3(0, 2.14, 0)
 	n.add_child(light)
 	return n
@@ -5144,10 +5184,15 @@ static func _fountain() -> Node3D:
 				Vector3(cos(a) * 0.49, 0.045, sin(a) * 0.49), Vector3(1.2, 0.55, 1.0))
 	# di notte è una luce dolce: la Veglia la conta fra le luci del
 	# villaggio, e una fontana che brilla senza fare luce sarebbe bugiarda
+	# ...e a 0.65/2.6 era proprio bugiarda: l'acqua brillava da sola e la
+	# pietra restava nera. Adesso la vasca è illuminata DA DENTRO e per
+	# terra resta un alone freddo. Non si sale oltre: a 2.2 lo specchio
+	# d'acqua va in bianco e la fontana diventa una lampada.
 	var luce := OmniLight3D.new()
 	luce.light_color = Color(0.72, 0.86, 1.0)
-	luce.light_energy = 0.65
-	luce.omni_range = 2.6
+	luce.light_energy = 1.1
+	luce.omni_range = 3.0
+	luce.omni_attenuation = 1.1
 	luce.position = Vector3(0, 0.9, 0)
 	luce.shadow_enabled = false
 	n.add_child(luce)
@@ -5344,10 +5389,14 @@ static func _gazebo() -> Node3D:
 	_cyl(n, 0.06, 0.052, 0.125, _glow(Color("ffe6b8"), Color("ffc978"), 1.2),
 			Vector3(0, 1.038, 0))
 	_cyl(n, 0.066, 0.056, 0.028, legno, Vector3(0, 0.962, 0))
+	# «venite a sedervi» lo dice il TAVOLATO acceso, non la lanterna
+	# accesa: a 0.9 il salotto restava al buio con una lucina in mezzo.
+	# Oltre 2.1 il pavimento va in bianco e le assi spariscono.
 	var luce := OmniLight3D.new()
 	luce.light_color = Color(1.0, 0.86, 0.62)
-	luce.light_energy = 0.9
-	luce.omni_range = 3.4
+	luce.light_energy = 1.5
+	luce.omni_range = 3.6
+	luce.omni_attenuation = 1.15
 	luce.position = Vector3(0, 0.95, 0)
 	n.add_child(luce)
 
@@ -5623,11 +5672,15 @@ static func _carousel() -> Node3D:
 		posto.name = "Posto%d" % i
 		posto.position = Vector3(-0.01, 0.16, 0)
 		cav.add_child(posto)
-	# la luce calda sotto la corona: la sera la giostra è una lanterna
+	# la luce calda sotto la corona: la sera la giostra è una lanterna.
+	# Il tetto piano dell'energia lo dà la PEDANA: oltre 2.0 gli spicchi
+	# crema e rosa si fondono in un disco bianco e la ruota di colori —
+	# che è tutta la festa — sparisce.
 	var luce_g := OmniLight3D.new()
 	luce_g.light_color = Color(1.0, 0.86, 0.66)
-	luce_g.light_energy = 0.7
-	luce_g.omni_range = 3.8
+	luce_g.light_energy = 1.4
+	luce_g.omni_range = 4.0
+	luce_g.omni_attenuation = 1.1
 	luce_g.position = Vector3(0, 1.9, 0)
 	n.add_child(luce_g)
 	# e il giro LENTO: un giro intero in quaranta secondi
@@ -5659,12 +5712,52 @@ static func _brazier() -> Node3D:
 		leg.rotation.z = cos(a) * 0.24
 		leg.rotation.x = -sin(a) * 0.24
 	_emit_fx(n, Vector3(0, 0.66, 0), Color("ffd257"), 0.9, 0.5, 22, 1.1, 0.09)
+	# IL CERCHIO CALDO. Un braciere non è una lampada: il suo mestiere è
+	# scaldare il cerchio di chi ci sta intorno, e a 1.7/4.2/1.0 per terra
+	# c'era una foschia uniforme senza centro. Con la caduta a 1.3 il
+	# cerchio ha un cuore e un bordo, e la brace sopra torna incandescente.
 	var light := OmniLight3D.new()
+	light.name = "Brace"
 	light.light_color = Color(1.0, 0.82, 0.5)
-	light.light_energy = 1.7
-	light.omni_range = 4.2
+	light.light_energy = BRACE_ENERGIA
+	light.omni_range = 4.6
+	light.omni_attenuation = 1.2
+	# la sorgente resta dov'era, appena sopra il piatto. (Provata anche a
+	# 0.92, dentro la colonna di fiamma, sospettando che da così vicino
+	# sbiancasse la brace: renduto, non cambia niente di visibile. Il
+	# piatto esce chiaro perché è brace vera, e la brace al culmine è
+	# gialla — non è una bruciatura da correggere.)
 	light.position = Vector3(0, 0.72, 0)
 	n.add_child(light)
+	# ...e RESPIRA. Un fuoco con la luce ferma è un adesivo di fuoco: si
+	# smaschera in due secondi. Il giro è di 4.3 s (il Camino ne fa 3.7:
+	# due fuochi vicini non devono richiudersi mai insieme) e i battiti
+	# non sono a passo regolare — un fuoco non ha ritmo.
+	var fiamma := Animation.new()
+	fiamma.length = 4.3
+	fiamma.loop_mode = Animation.LOOP_LINEAR
+	var tr_b := fiamma.add_track(Animation.TYPE_VALUE)
+	fiamma.track_set_path(tr_b, NodePath("Brace:light_energy"))
+	for kb in [[0.0, 1.00], [0.29, 1.13], [0.62, 0.88], [0.95, 1.06],
+			[1.37, 0.94], [1.78, 1.18], [2.21, 0.85], [2.64, 1.09],
+			[3.05, 0.97], [3.48, 1.15], [3.90, 0.91], [4.30, 1.00]]:
+		fiamma.track_insert_key(tr_b, float(kb[0]), BRACE_ENERGIA * float(kb[1]))
+	fiamma.track_set_interpolation_type(tr_b, Animation.INTERPOLATION_CUBIC)
+	# e la sorgente si sposta di pochi millimetri: le ombre attorno si
+	# assestano invece di restare inchiodate
+	var tr_bx := fiamma.add_track(Animation.TYPE_VALUE)
+	fiamma.track_set_path(tr_bx, NodePath("Brace:position:x"))
+	fiamma.track_insert_key(tr_bx, 0.0, -0.018)
+	fiamma.track_insert_key(tr_bx, 1.6, 0.022)
+	fiamma.track_insert_key(tr_bx, 2.9, -0.012)
+	fiamma.track_insert_key(tr_bx, 4.3, -0.018)
+	fiamma.track_set_interpolation_type(tr_bx, Animation.INTERPOLATION_CUBIC)
+	var lib_b := AnimationLibrary.new()
+	lib_b.add_animation("brace", fiamma)
+	var player_b := AnimationPlayer.new()
+	n.add_child(player_b)
+	player_b.add_animation_library("", lib_b)
+	player_b.autoplay = "brace"
 	return n
 
 
@@ -8835,10 +8928,14 @@ static func _torretta() -> Node3D:
 		stecca_g.position += Vector3(cos(float(a_g) * PI / 3.0) * 0.072, 0,
 				-sin(float(a_g) * PI / 3.0) * 0.072)
 	_ball(n, 0.018, ottone, Vector3(0.52, 3.16, 0.52))
+	# la lanterna sta a 3.2 m: perché faccia la guardia deve arrivare
+	# GIÙ, alle gambe e alla scaletta, se no illumina solo se stessa.
+	# Oltre 2.6 il tavolato del ballatoio va in bianco.
 	var luce := OmniLight3D.new()
 	luce.light_color = Color(1.0, 0.85, 0.62)
-	luce.light_energy = 1.1
-	luce.omni_range = 4.5
+	luce.light_energy = 1.9
+	luce.omni_range = 4.8
+	luce.omni_attenuation = 1.1
 	luce.position = Vector3(0.52, 3.235, 0.52)
 	n.add_child(luce)
 	return n
@@ -9464,15 +9561,39 @@ static func _faro_caserma() -> Node3D:
 	# il cappellotto d'ottone col pomellino di sfiato
 	_cyl(testa, 0.021, 0.024, 0.010, ottone, Vector3(0, 0.170, 0))
 	_ball(testa, 0.0095, ottone, Vector3(0, 0.180, 0))
+	# IL FASCIO. Puntato all'ORIZZONTALE non toccava niente e non si
+	# vedeva affatto: la testa sta a 1.6 m, il cono si apre di 13° per
+	# lato, e il bordo basso avrebbe incontrato il prato a 6.9 m — fuori
+	# dalla portata di 6.5. Un girofaro che gira per nessuno.
+	# Inclinato di 34° in giù il fascio APPOGGIA per terra e girando
+	# disegna la sua fetta di luce sull'erba: è quello che fa capire, da
+	# lontano, che la caserma è sveglia. L'asse tocca a 2.5 m e il cono
+	# spazza da 1.5 a 4.3: comincia VICINO al palo — a 20° partiva a
+	# quattro metri e attorno al faro restava il buio, che è il difetto di
+	# prima con un altro numero. La portata sale a 8 perché la coda del
+	# cono non venga tagliata a metà.
 	var fascio := SpotLight3D.new()
 	fascio.light_color = Color(1.0, 0.74, 0.58)
-	fascio.light_energy = 1.6
-	fascio.spot_range = 6.5
+	fascio.light_energy = 4.5
+	fascio.spot_range = 8.0
 	fascio.spot_angle = 26.0
+	fascio.spot_angle_attenuation = 1.2
+	fascio.spot_attenuation = 1.1
 	fascio.shadow_enabled = false
 	fascio.position = Vector3(0.06, 0.06, 0)
-	fascio.rotation = Vector3(0, -PI * 0.5, 0)
+	fascio.rotation = Vector3(-0.60, -PI * 0.5, 0)
 	testa.add_child(fascio)
+	# e il faro illumina SE STESSO: la calotta rossa buttava luce zero
+	# sull'ottone sotto e sul fusto, e un girofaro con il proprio palo al
+	# buio è una lampadina appesa al niente. Corta, calda, appena rosata.
+	var alone_f := OmniLight3D.new()
+	alone_f.light_color = Color(1.0, 0.66, 0.54)
+	alone_f.light_energy = 1.3
+	alone_f.omni_range = 2.4
+	alone_f.omni_attenuation = 1.25
+	alone_f.shadow_enabled = false
+	alone_f.position = Vector3(0, 0.02, 0)
+	testa.add_child(alone_f)
 	# il giro: lento, continuo, senza scatti al riavvolgimento
 	var anim := Animation.new()
 	anim.length = 9.0
@@ -10069,8 +10190,14 @@ static func _fondale() -> Node3D:
 	# che si sommano dentro l'intonaco chiaro bruciano il fondale in tre
 	# macchie bianche. Una luce per campata, tenue, e insieme fanno la
 	# ribalta.
-	luce.light_energy = 0.85
-	luce.omni_range = 4.2
+	# L'avvertimento è VERO, ed è stato rimisurato rendendo TRE campate
+	# affiancate: a 1.3/4.0 la prima conchiglia va in bianco davvero. Si
+	# alza appena e si ACCORCIA la portata — è la sovrapposizione a
+	# bruciare, non l'energia — così la volta prende il caldo e il
+	# pannello resta leggibile anche in fila.
+	luce.light_energy = 1.1
+	luce.omni_range = 3.6
+	luce.omni_attenuation = 1.15
 	luce.position = Vector3(0, h + 0.55, 0.10)
 	n.add_child(luce)
 
@@ -11609,10 +11736,14 @@ static func _lucine() -> Node3D:
 	var meta: Dictionary = vivo.get_meta("corda")
 	meta["appesi"] = appesi
 	vivo.set_meta("corda", meta)
+	# le lucine devono TINGERE quello che c'è sotto: a 0.9 i bulbi
+	# brillavano e il prato restava grigio, cioè un festone che non fa
+	# festa. Oltre 2.1 il palo di destra, che è il più vicino, sbianca.
 	var luce := OmniLight3D.new()
 	luce.light_color = Color(1.0, 0.88, 0.72)
-	luce.light_energy = 0.9
+	luce.light_energy = 1.5
 	luce.omni_range = 4.2
+	luce.omni_attenuation = 1.1
 	luce.position = Vector3(0, 1.7, 0)
 	n.add_child(luce)
 	return n

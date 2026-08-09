@@ -2505,10 +2505,17 @@ static func candeliere() -> Node3D:
 
 	# L'UNICA LUCE VERA del set. Calda, corta, e una sola: di questi pezzi
 	# il giocatore ne piazza venti, e venti Omni sono venti volte il costo.
+	# CORTA sul serio, però: a 4.0 di portata quattro candeline sbiadivano
+	# il pavimento fino ai muri — la velatura grigia, che è l'esatto
+	# contrario di una candela. Una candela si dice TOGLIENDO: si accorcia
+	# la portata (e con lei il costo), si scalda appena il centro, e a un
+	# passo di distanza c'è di nuovo il buio. Da qui in poi si scende, non
+	# si sale: a 2.2/1.8 non è più una fiamma, è una lampadina in un vaso.
 	var luce := OmniLight3D.new()
 	luce.light_color = Color(1.0, 0.82, 0.55)
-	luce.light_energy = 1.0
-	luce.omni_range = 4.0
+	luce.light_energy = 1.3
+	luce.omni_range = 2.6
+	luce.omni_attenuation = 1.2
 	luce.position = Vector3(0, 0.87, -0.02)
 	n.add_child(luce)
 	# UN SOLO emettitore per tutto il vassoio, non uno per cero

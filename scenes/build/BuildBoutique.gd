@@ -704,10 +704,18 @@ static func vetrina() -> Node3D:
 		dentro.add_child(braccio)
 		CAT._cyl(braccio, 0.028, 0.040, 0.10, _ottone(), Vector3(0, -0.05, 0))
 		CAT._cyl(braccio, 0.036, 0.036, 0.012, lente, Vector3(0, -0.104, 0))
+	# UNA VETRINA È LA COSA CHE BRILLA, di notte, in una strada spenta: se
+	# il manichino resta in ombra la vetrina non sta facendo il suo
+	# mestiere. A 1.45 era così. Adesso il dentro si legge e sul
+	# marciapiede cade la sua pozza. La sorgente resta all'altezza dei due
+	# faretti a collo d'oca (1.55, appena sotto le lenti a 1.85): calarla
+	# sul manichino illuminava meglio e sganciava la luce dai corpi
+	# illuminanti che si vedono — un lume senza lampada.
 	var luce := OmniLight3D.new()
 	luce.light_color = Color(1.0, 0.90, 0.72)
-	luce.light_energy = 1.45
-	luce.omni_range = 3.2
+	luce.light_energy = 2.8
+	luce.omni_range = 3.4
+	luce.omni_attenuation = 1.15
 	luce.position = Vector3(0, 1.55, 0.28)
 	n.add_child(luce)
 	return n
@@ -1038,7 +1046,12 @@ static func camerino() -> Node3D:
 	CAT._box(n, Vector3(0.07, 0.10, 0.012), _ottone(), Vector3(0.45, 1.62, -0.29))
 	CAT._box(n, Vector3(0.012, 0.06, 0.006), _calce(), Vector3(0.455, 1.62, -0.298))
 	# e il lume caldo dentro: è quello che, da fuori, fa capire che il
-	# camerino è un posto e non un ripostiglio
+	# camerino è un posto e non un ripostiglio.
+	# NON SI TOCCA. Nella rassegna notturna di tutte le luci del catalogo
+	# questa è l'unica che era già giusta al primo sguardo, ed è giusta
+	# proprio per la portata CORTA (1.9): la luce resta dentro, la tenda
+	# si accende da dietro, e fuori non cade niente. Allungarla per
+	# «uniformare» la spegnerebbe come stanza.
 	var luce := OmniLight3D.new()
 	luce.light_color = Color(1.0, 0.88, 0.70)
 	luce.light_energy = 0.85
@@ -1328,12 +1341,50 @@ static func faretti() -> Node3D:
 		CAT._cyl(testa, 0.030, 0.052, 0.13, ottone, Vector3(0, -0.075, 0))
 		CAT._cyl(testa, 0.048, 0.048, 0.012, lente, Vector3(0, -0.143, 0))
 		CAT._cyl(testa, 0.020, 0.020, 0.03, telaio, Vector3(0, 0.005, 0))
-	var luce := OmniLight3D.new()
-	luce.light_color = Color(1.0, 0.89, 0.70)
-	luce.light_energy = 1.5
-	luce.omni_range = 4.4
-	luce.position = Vector3(0, 1.60, 0)
-	n.add_child(luce)
+		# IL FASCIO, uno per cono. Qui sopra c'è scritto «la luce di un
+		# negozio non è mai d'ambiente: è puntata addosso alla merce», e
+		# per tre stagioni sotto c'è stato un OmniLight3D solo, in mezzo
+		# al palo: la cosa che il commento dice di non fare. Tre coni
+		# puntati in tre direzioni che illuminano un cerchio uniforme non
+		# sono faretti, sono un lampadario travestito — e al buio si
+		# vedeva: una velatura grigia larga quattro metri.
+		# Uno spot guarda lungo il proprio -Z; la testa versa lungo il suo
+		# -Y (il cono si allarga in giù, la lente è a -0.143): -90° sulla
+		# X è quello che li fa combaciare. Poi ogni testa ha già la SUA
+		# inclinazione, quindi le tre pozze cadono a distanze diverse
+		# (1.0 · 1.2 · 2.4 m) invece di sovrapporsi in una sola.
+		var fascio := SpotLight3D.new()
+		fascio.light_color = Color(1.0, 0.89, 0.70)
+		fascio.light_energy = 3.2
+		# la portata NON è il raggio della pozza: è dove il fascio muore.
+		# A 3.6 il cono più inclinato arriva a terra a 2.9 m, cioè proprio
+		# dove la finestra della caduta lo sta già spegnendo, e la sua
+		# pozza usciva slavata mentre le altre due erano giuste.
+		fascio.spot_range = 5.0
+		# STRETTO: a 25° le tre ellissi si allargavano fino a fondersi in
+		# una macchia sola larga tre metri — cioè daccapo la luce
+		# d'ambiente, solo fatta con tre lampade invece che con una
+		fascio.spot_angle = 15.0
+		# il bordo SFUMATO: un cerchio a bordo netto è un proiettore da
+		# teatro, e questa è una boutique
+		fascio.spot_angle_attenuation = 1.1
+		fascio.spot_attenuation = 1.1
+		fascio.shadow_enabled = false
+		fascio.rotation.x = -PI * 0.5
+		fascio.position = Vector3(0, -0.15, 0)
+		testa.add_child(fascio)
+	# e un filo di luce d'ambiente attorno al corpo illuminante: senza,
+	# il treppiede è una sagoma nera sotto tre fasci che vengono dal
+	# niente. Corta e debole: non deve fare pozza, deve solo dire che la
+	# lampada è accesa (i faretti veri sfiatano un po' dal cono).
+	var alone := OmniLight3D.new()
+	alone.light_color = Color(1.0, 0.89, 0.70)
+	alone.light_energy = 1.1
+	alone.omni_range = 2.6
+	alone.omni_attenuation = 1.2
+	alone.shadow_enabled = false
+	alone.position = Vector3(0, 1.66, 0)
+	n.add_child(alone)
 	return n
 
 
