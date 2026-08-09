@@ -154,6 +154,10 @@ var _routine_durata := 0.0
 ## PANCHINA, il pezzo per cui `r_bench` è stato scritto. Vive qui e in
 ## nessun altro posto.
 const SEDUTA_PREDEFINITA := Vector3(0, 0.52, 0.02)
+## E dove si appollaia chi vola, se il mobile non lo dichiara. Stessa
+## regola della seduta, e per lo stesso motivo: era una costante scritta
+## a mano qui dentro, tarata sulla panchina VECCHIA.
+const POSATOIO_PREDEFINITO := Vector3(0, 0.86, -0.18)
 var _fire_look := Vector3.ZERO
 
 # la gita alla casa sull'albero: base scala, cima, trespolo
@@ -716,12 +720,15 @@ func _mount_bench() -> void:
 	if _bench == null or not is_instance_valid(_bench):
 		_walk_to(_gift_pos, "gift")  # panchina demolita mentre ci camminava verso
 		return
-	# il riccio si accoccola sul sedile, il passerotto si appollaia in cima
-	# LA SECONDA COPIA DELLA COSTANTE, che il meta doveva abolire: qui si
-	# chiede al mobile come si fa lo stesso, e il numero resta scritto in un
-	# posto solo (lo stato `r_bench`).
-	var offset: Vector3 = Vector3(0, 0.86, -0.18) if species == "passerotto" \
-			else _bench.get_meta("seduta", SEDUTA_PREDEFINITA)
+	# il riccio si accoccola sul sedile, il passerotto si appollaia in cima.
+	# ADESSO LO DICHIARA IL MOBILE, tutti e due: la seconda copia della
+	# costante era tarata sulla panchina VECCHIA, e il giorno in cui la
+	# doga alta è scesa a 0.8245 il passerotto è rimasto appollaiato 3,5 cm
+	# sopra il legno e 2 cm dietro — appeso al vento, senza che niente lo
+	# segnalasse (nessun test guarda dove finisce un uccello).
+	var offset: Vector3 = _bench.get_meta("seduta", SEDUTA_PREDEFINITA)
+	if species == "passerotto":
+		offset = _bench.get_meta("posatoio", POSATOIO_PREDEFINITO)
 	var dest: Vector3 = _bench.global_transform * offset
 	_yaw = _bench.rotation.y + PI
 	var tw := create_tween()

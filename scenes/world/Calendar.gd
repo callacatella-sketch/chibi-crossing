@@ -365,7 +365,17 @@ var _chalk := {}
 # dal legno, non è una lavagna — è un errore che si vede da lontano.
 const ARDESIA_CENTRO := Vector3(0, 0.97, 0.06)   # il centro della lastra
 const ARDESIA_PEND := 0.05    # di quanto la lastra pende all'indietro
-const ARDESIA_FUORI := -0.045 # quanto sta avanti il gessetto (fronte -Z)
+# QUANTO STA AVANTI IL GESSETTO, misurato dal CENTRO della lastra (il
+# quaderno e' ancorato ad ARDESIA_CENTRO). Sta in una finestra stretta,
+# e i due bordi sono geometria vera della Lavagna:
+#  · non piu' indietro di 0.0265 = mezzo spessore della lastra (0.0225)
+#    piu' la velatura di gesso (0.002 x 2), o si scriverebbe DENTRO;
+#  · non piu' avanti di 0.031, il rilievo della cornice, o la scrittura
+#    passa DAVANTI al legno e non e' piu' incorniciata da niente.
+# A -0.045 (il valore fino al 2026-08-09) sporgeva 14 mm oltre la
+# cornice: la Label3D si disegnava sopra il telaio, e girandoci intorno
+# il blocco di testo scivolava di 22 mm rispetto all'ardesia a 45 gradi.
+const ARDESIA_FUORI := -0.029
 const ARDESIA_L := 0.86       # larghezza utile fra i due montanti
 const ARDESIA_ALTA := 1.38    # dove sta la prima riga
 const ARDESIA_BASSA := 0.56   # dove può arrivare l'ultima
