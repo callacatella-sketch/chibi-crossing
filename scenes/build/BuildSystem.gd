@@ -946,6 +946,97 @@ static func rinfresca_aiuole(dict: Dictionary, cell: Vector2i) -> void:
 		nuovo.free()
 
 
+## LE SERRE CHE SI FONDONO. Due serre vicine non sono due serre: sono una
+## serra piu' grande. Il gruppo e' 8-CONNESSO (due che si toccano d'angolo
+## sono un edificio solo: i loro gusci si compenetrerebbero comunque), e da
+## quello escono la pianta e la geometria di ogni campata — BuildCatalog fa
+## il disegno, qui si decide solo CHI va rifatto.
+##
+## Non si tocca MAI: la chiave nel dizionario, l'identita' del nodo, i meta
+## item_name/rot/variant/lvl. Percio' il salvataggio non cambia di un byte e
+## get_placed_by_name("Serra") continua a contare N celle per N serre.
+static func e_serra(dict: Dictionary, c: Vector2i) -> bool:
+	var nodo := dict.get(c) as Node3D
+	return nodo != null and str(nodo.get_meta("item_name", "")) == "Serra"
+
+
+## Il gruppo di serre attaccate a `c` (flood fill 8-connesso). `viste` e'
+## condiviso fra piu' chiamate cosi' una cella non finisce in due giri.
+static func gruppo_serra(dict: Dictionary, c: Vector2i, viste := {}) -> Array:
+	if not e_serra(dict, c) or viste.has(c):
+		return []
+	var fuori: Array = []
+	var coda: Array = [c]
+	viste[c] = true
+	while not coda.is_empty():
+		var q: Vector2i = coda.pop_back()
+		fuori.append(q)
+		for dx in [-1, 0, 1]:
+			for dz in [-1, 0, 1]:
+				if dx == 0 and dz == 0:
+					continue
+				var v := q + Vector2i(dx, dz)
+				if not viste.has(v) and e_serra(dict, v):
+					viste[v] = true
+					coda.append(v)
+	return fuori
+
+
+## Rifa' la geometria e le collisioni di un gruppo intero. Il figlio
+## «Vetreria» si RINOMINA prima di liberarlo: un nodo in coda tiene occupato
+## il nome fino a fine frame, e il nuovo diventerebbe «Vetreria2» — al
+## rinfresco dopo non lo troveresti piu'.
+static func ricostruisci_serra(dict: Dictionary, celle: Array) -> void:
+	if celle.is_empty():
+		return
+	var pianta := BuildCatalog.serra_pianta(celle)
+	for c: Vector2i in celle:
+		var nodo := dict.get(c) as Node3D
+		if nodo == null:
+			continue
+		var vecchia := nodo.find_child("Vetreria", true, false)
+		var ospite: Node3D = nodo
+		if vecchia != null:
+			ospite = vecchia.get_parent() as Node3D
+			vecchia.name = "VetreriaVecchia"
+			ospite.remove_child(vecchia)
+			vecchia.queue_free()
+		var radice: Node3D = BuildCatalog.serra_cella(pianta, c)
+		var campata: Node3D = radice.get_node("Vetreria")
+		radice.remove_child(campata)
+		ospite.add_child(campata)
+		# la pianta e' in coordinate MONDO: si annulla la rotazione con cui
+		# il giocatore ha posato il pezzo (F), come fa l'aiuola
+		campata.rotation.y -= nodo.rotation.y
+		radice.free()
+		_riscrivi_scatole(nodo, campata)
+
+
+## Le collisioni si rifanno SEMPRE a parte: le CollisionShape3D sono figlie
+## dirette dello StaticBody3D, e una shape dentro un contenitore non viene
+## registrata affatto (senza errori). Si tolgono con remove_child, che
+## sparisce NEL FRAME: con queue_free resterebbero attive un frame di piu' e
+## il varco della porta sarebbe tappato proprio mentre la serra si fonde.
+static func _riscrivi_scatole(corpo: Node3D, campata: Node3D) -> void:
+	if corpo is not StaticBody3D:
+		return
+	for f in corpo.get_children():
+		if f is CollisionShape3D:
+			corpo.remove_child(f)
+			f.queue_free()
+	var scatole: Array = campata.get_meta("scatole", [])
+	var giro := campata.rotation.y
+	var base := Basis(Vector3.UP, giro)
+	for sc: Array in scatole:
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = sc[0]
+		shape.shape = box
+		shape.position = base * (sc[1] as Vector3)
+		shape.rotation.y = giro
+		corpo.add_child(shape)
+
+
 static func _e_aiuola(dict: Dictionary, c: Vector2i) -> bool:
 	var nodo := dict.get(c) as Node3D
 	return nodo != null and str(nodo.get_meta("item_name", "")) == "Aiuola"
@@ -1044,6 +1135,8 @@ func place_cell(cell: Vector2i, piece: String, rot := 0, animate := true, lvl :=
 	rinfresca_sentieri(dict, cell)
 	# e l'aiuola nuova si unisce alle aiuole accanto in una striscia sola
 	rinfresca_aiuole(dict, cell)
+	# e le serre vicine diventano UN edificio (a fine frame, una volta sola)
+	_segna_serre(dict, cell)
 	# pavimenti, sentieri e tappeti a terra schiacciano l'erba sotto di sé
 	if lvl == 0 and int(item["layer"]) <= 1:
 		get_tree().call_group("cozy_world", "flatten_cell", cell)
@@ -1158,6 +1251,8 @@ func _remove_at(layer, key, lvl := 0) -> void:
 		rinfresca_pali(dict, key)
 		rinfresca_sentieri(dict, key)
 		rinfresca_aiuole(dict, key)
+		# tolta una campata, il gruppo si richiude — o si spezza in due
+		_segna_serre(dict, key)
 	_unregister_special(node)
 	if node == _demo_target:
 		_demo_target = null
@@ -1262,6 +1357,56 @@ func _flush_save() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST and _save_pending:
 		save_now()
+
+
+# --- LE SERRE: una ricostruzione a fine frame, non una per pezzo posato ---
+# Il caricamento piazza le celle una per una: un rinfresco ingenuo rifarebbe
+# il gruppo 1+2+3+4 volte, le prime tre di forma SBAGLIATA e buttate via
+# subito. Si accoda e si rifa' una volta sola, con l'idioma gia' in casa
+# (_save_pending + _flush_save.call_deferred).
+var _serre_da_rifare: Array = []
+var _serre_pending := false
+
+
+func _segna_serre(dict: Dictionary, cell: Vector2i) -> void:
+	# GUARDIA OBBLIGATORIA: i rinfresca ricevono il dizionario del LAYER, non
+	# del nome. Senza questa uscita, posare una Sedia accanto a una serra
+	# ricostruirebbe un edificio intero.
+	var tocca := false
+	for dx in [-1, 0, 1]:
+		for dz in [-1, 0, 1]:
+			if e_serra(dict, cell + Vector2i(dx, dz)):
+				tocca = true
+	if not tocca:
+		return
+	_serre_da_rifare.append([dict, cell])
+	if _serre_pending:
+		return
+	_serre_pending = true
+	_flush_serre.call_deferred()
+
+
+func _flush_serre() -> void:
+	_serre_pending = false
+	var lavoro := _serre_da_rifare
+	_serre_da_rifare = []
+	var viste := {}
+	for voce: Array in lavoro:
+		var dict: Dictionary = voce[0]
+		var cell: Vector2i = voce[1]
+		for dx in [-1, 0, 1]:
+			for dz in [-1, 0, 1]:
+				var gruppo := gruppo_serra(dict, cell + Vector2i(dx, dz), viste)
+				if not gruppo.is_empty():
+					ricostruisci_serra(dict, gruppo)
+
+
+## Il flush SINCRONO: per chi costruisce e guarda nello stesso frame
+## (l'harness, i fotografi del catalogo, la CLI). Un differito, a scena
+## gia' fotografata, non servirebbe a niente.
+func aggiorna_serre_ora() -> void:
+	if _serre_pending or not _serre_da_rifare.is_empty():
+		_flush_serre()
 
 
 func _save_village() -> void:
