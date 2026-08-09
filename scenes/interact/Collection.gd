@@ -431,6 +431,122 @@ func _make_bestiola(kind: String) -> Node3D:
 			head.material_override = dk
 			head.position = Vector3(0, 0.024, -0.045)
 			node.add_child(head)
+		"damigella":
+			# La damigella di velo: l'unica specie RARA che non aveva un
+			# corpo suo e nasceva vestita da cicala — immobile, appoggiata a
+			# un tronco che sulla riva dello stagno non c'è. Qui è quello che
+			# dice il suo indizio: un ago d'acqua che "cuce l'aria", addome
+			# lunghissimo, quattro ali di velo, e il volo fermo.
+			body_mat.metallic = 0.25
+			body_mat.roughness = 0.3
+			body_mat.emission_enabled = true
+			body_mat.emission = col
+			body_mat.emission_energy_multiplier = 0.35
+			var torace := MeshInstance3D.new()
+			var tmx := SphereMesh.new()
+			tmx.radius = 0.017
+			tmx.height = 0.034
+			torace.mesh = tmx
+			torace.material_override = body_mat
+			torace.scale = Vector3(0.85, 0.9, 1.15)
+			torace.position = Vector3(0, 0.3, -0.012)
+			node.add_child(torace)
+			# l'addome: sottilissimo e lungo quanto tutto il resto insieme.
+			# È la proporzione che distingue una damigella da un insetto
+			# qualunque: accorciarla la fa tornare una mosca.
+			var addome := MeshInstance3D.new()
+			var am := CapsuleMesh.new()
+			am.radius = 0.0075
+			am.height = 0.17
+			addome.mesh = am
+			addome.material_override = body_mat
+			addome.rotation.x = PI * 0.5
+			addome.position = Vector3(0, 0.3, 0.082)
+			node.add_child(addome)
+			# gli anelli scuri dell'addome: senza, è un fil di ferro
+			var ring_mat := StandardMaterial3D.new()
+			ring_mat.albedo_color = col.darkened(0.55)
+			for k in 3:
+				var anello := MeshInstance3D.new()
+				var rm := TorusMesh.new()
+				# `rings` sono le fette lungo la circonferenza, non lo spessore
+				# del tubo: a 8 l'anello usciva OTTAGONALE, e da vicino
+				# sembravano tre graffette piantate nell'addome
+				rm.inner_radius = 0.0076
+				rm.outer_radius = 0.0106
+				rm.rings = 24
+				rm.ring_segments = 6
+				anello.mesh = rm
+				anello.material_override = ring_mat
+				anello.rotation.x = PI * 0.5
+				anello.position = Vector3(0, 0.3, 0.04 + float(k) * 0.038)
+				node.add_child(anello)
+			var testa := MeshInstance3D.new()
+			var hm2 := SphereMesh.new()
+			hm2.radius = 0.0115
+			hm2.height = 0.023
+			testa.mesh = hm2
+			testa.material_override = body_mat
+			testa.position = Vector3(0, 0.301, -0.038)
+			node.add_child(testa)
+			# Gli occhi: enormi e soprattutto DISTANTI. È la differenza fra una
+			# damigella e una libellula (a cui gli occhi si toccano), ed è anche
+			# quel che tiene leggibile la testa: appiccicati facevano un unico
+			# blocco nero e la testa spariva dentro.
+			for side: float in [-1.0, 1.0]:
+				var occhio := MeshInstance3D.new()
+				var om := SphereMesh.new()
+				om.radius = 0.0085
+				om.height = 0.017
+				occhio.mesh = om
+				var om_mat := StandardMaterial3D.new()
+				om_mat.albedo_color = Color("2f4a46")
+				om_mat.metallic = 0.5
+				om_mat.roughness = 0.15
+				occhio.material_override = om_mat
+				occhio.position = Vector3(side * 0.0152, 0.303, -0.0435)
+				node.add_child(occhio)
+			# le quattro ali di velo, ognuna sul suo perno: il perno è il
+			# punto d'attacco al torace, così il battito ruota l'ala invece
+			# di farla scivolare di lato (e _anima_bestiola le cerca per nome)
+			var velo := StandardMaterial3D.new()
+			velo.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			velo.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			velo.albedo_color = Color(col.r * 0.35 + 0.65, col.g * 0.35 + 0.65,
+					col.b * 0.35 + 0.65, 0.3)
+			velo.cull_mode = BaseMaterial3D.CULL_DISABLED
+			var stigma_mat := StandardMaterial3D.new()
+			stigma_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			stigma_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			stigma_mat.albedo_color = Color(col.darkened(0.5), 0.8)
+			stigma_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+			# una sola mesh per tutte e quattro: la sagoma è identica, cambia
+			# solo il lato (scala -1) e il perno
+			var velo_mesh := _ala_di_velo(0.115, 0.028)
+			for i in 4:
+				var lato := 1.0 if i % 2 == 0 else -1.0
+				var post := i >= 2
+				var perno := Node3D.new()
+				perno.name = "ala%d" % i
+				perno.position = Vector3(0, 0.303, 0.016 if post else -0.008)
+				node.add_child(perno)
+				var ala := MeshInstance3D.new()
+				ala.mesh = velo_mesh
+				ala.material_override = velo
+				ala.rotation.x = -PI * 0.5 # coricata: dal piano XY al piano XZ
+				ala.scale = Vector3(lato, 1.0, 1.0) # e specchiata per il lato
+				perno.add_child(ala)
+				# il pterostigma: la macchietta scura vicino alla punta, sul
+				# bordo d'attacco. È minuscola e fa metà del lavoro — è lei che
+				# dice «insetto vero» invece di «velo trasparente». Sta appesa
+				# all'ALA, così si specchia e si inclina insieme a lei.
+				var stigma := MeshInstance3D.new()
+				var sq := QuadMesh.new()
+				sq.size = Vector2(0.015, 0.005)
+				sq.material = stigma_mat
+				stigma.mesh = sq
+				stigma.position = Vector3(0.088, 0.0075, 0.0006)
+				ala.add_child(stigma)
 		_:  # cicala del bosco, appoggiata al tronco
 			var body := MeshInstance3D.new()
 			var bm := CapsuleMesh.new()
@@ -456,6 +572,36 @@ func _make_bestiola(kind: String) -> Node3D:
 				wing.position = Vector3(side * 0.014, 0.012, 0.03)
 				node.add_child(wing)
 	return node
+
+
+## L'ala di velo: una foglia affusolata, non un rettangolo. La SAGOMA è
+## metà del riconoscimento di un insetto — con un quad squadrato la
+## damigella sembrava un modellino di aliante — e costa venti triangoli.
+## Nasce con la base nell'origine e cresce lungo +X, nel piano XY (come un
+## QuadMesh): così il perno la fa ruotare dal punto d'attacco al torace.
+func _ala_di_velo(lung: float, largh: float) -> ArrayMesh:
+	var punti: Array[Vector2] = []
+	var passi := 16
+	var picco := 0.0001
+	for i in passi + 1:
+		var u := float(i) / float(passi)
+		# stretta all'attacco, larga a due terzi, arrotondata in punta
+		var w: float = sqrt(u) * pow(maxf(1.0 - u * u * u, 0.0), 0.6)
+		picco = maxf(picco, w)
+		punti.append(Vector2(u * lung, w))
+	for i in punti.size():
+		punti[i] = Vector2(punti[i].x, punti[i].y / picco * largh * 0.5)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in passi:
+		var a: Vector2 = punti[i]
+		var c: Vector2 = punti[i + 1]
+		for p: Vector2 in [Vector2(a.x, a.y), Vector2(c.x, c.y), Vector2(c.x, -c.y),
+				Vector2(a.x, a.y), Vector2(c.x, -c.y), Vector2(a.x, -a.y)]:
+			st.set_normal(Vector3(0, 0, 1))
+			st.set_uv(Vector2(p.x / lung, 0.5 + p.y / largh))
+			st.add_vertex(Vector3(p.x, p.y, 0.0))
+	return st.commit()
 
 
 func _anima_bestiola(b: Dictionary, delta: float) -> void:
@@ -497,6 +643,39 @@ func _anima_bestiola(b: Dictionary, delta: float) -> void:
 			b["base"] = (b["base"] as Vector3) + dir * 0.32 * delta
 			node.position = b["base"] + Vector3(0, absf(sin(_t * 14.0 + s)) * 0.006, 0)
 			node.rotation.y = -b["heading"] + PI * 0.5
+		"damigella":
+			# il volo fermo: sta sospesa, e ogni tanto SCATTA di mezzo palmo
+			# e si rimette ferma. Il punto in cui vorrebbe stare oscilla su
+			# tre orologi incommensurabili (0.73 · 2.9 · 0.51): un `sin` solo
+			# si smaschera in due cicli e diventa un pendolo.
+			b["hop"] = float(b["hop"]) - delta
+			if float(b["hop"]) <= 0.0:
+				b["hop"] = randf_range(1.6, 3.4)
+				var a := randf() * TAU
+				b["base"] = (b["base"] as Vector3) \
+						+ Vector3(cos(a), 0, sin(a)) * randf_range(0.22, 0.6)
+				b["heading"] = a
+			var q: Vector3 = (b["base"] as Vector3) + Vector3(
+					sin(_t * 0.73 + s) * 0.085,
+					0.3 + sin(_t * 2.9 + s * 1.7) * 0.016,
+					cos(_t * 0.51 + s * 1.3) * 0.085)
+			# non ci arriva mai di scatto: lo insegue con uno smorzamento
+			# esponenziale, che è quello che rende lo scatto uno SCATTO (parte
+			# forte e si posa) invece di una traslazione uniforme
+			node.position = node.position.lerp(q, 1.0 - exp(-6.5 * delta))
+			node.rotation.y = lerp_angle(node.rotation.y,
+					-float(b["heading"]) + PI * 0.5, 1.0 - exp(-4.0 * delta))
+			node.rotation.x = sin(_t * 0.9 + s) * 0.05
+			# le ali: le posteriori battono sfasate rispetto alle anteriori —
+			# è così che una damigella sta ferma in aria, e in controfase il
+			# battito si legge anche quando è troppo veloce per l'occhio
+			for i in 4:
+				var perno := node.get_node_or_null("ala%d" % i) as Node3D
+				if perno == null:
+					continue
+				var lato := 1.0 if i % 2 == 0 else -1.0
+				var sfasa := 0.0 if i < 2 else PI * 0.62
+				perno.rotation.z = lato * (0.05 + sin(_t * 30.0 + s + sfasa) * 0.33)
 		_:  # cicala: sta sul tronco e fa frusciare le ali
 			node.position = b["base"]
 			node.rotation.y = sin(_t * 0.6 + s) * 0.2

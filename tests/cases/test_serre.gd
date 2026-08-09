@@ -39,6 +39,8 @@ func run(t) -> void:
 	_test_niente_doppioni_sul_confine(t)
 	_test_il_salto_toglie(t)
 	_test_una_porta_sola(t)
+	_test_dentro_ci_si_siede(t)
+	_test_gli_angoli_sono_chiusi(t)
 
 
 # ------------------------------------------------------------- gli attrezzi
@@ -337,6 +339,95 @@ func _test_una_porta_sola(t) -> void:
 	var porta: Vector2i = pianta["porta"]
 	t.ok(not (porta + Vector2i(0, -1)) in celle,
 			"…e sta su un fianco LIBERO, o si aprirebbe dentro un'altra campata")
+
+
+## DENTRO CI SI SIEDE. Un interno che non si puo' usare e' una vetrina: a
+## OGNI taglia deve esserci un posto, e deve trovarlo sia il giocatore
+## (BuildSystem.get_interactables) sia i vicini (Visitors._free_bench) —
+## che cercano tutti e due i nodi «Posto*» col meta «seduta».
+func _test_dentro_ci_si_siede(t) -> void:
+	var forme := {
+		"sola": [Vector2i.ZERO],
+		"galleria": [Vector2i(0, 0), Vector2i(1, 0)],
+		"cuore": [Vector2i(1, 1), Vector2i(0, 1), Vector2i(2, 1), Vector2i(1, 0),
+				Vector2i(1, 2)],
+	}
+	for nome: String in forme:
+		var celle: Array = forme[nome]
+		var pianta: Dictionary = CAT.serra_pianta(celle)
+		var posti := 0
+		for c: Vector2i in celle:
+			var radice: Node3D = CAT.serra_cella(pianta, c)
+			var campata := radice.get_node("Vetreria") as Node3D
+			for a in campata.find_children("Posto*", "Node3D", true, false):
+				var anc := a as Node3D
+				posti += 1
+				t.ok(anc.has_meta("seduta"),
+						"%s: il posto DICHIARA dov'e' la seduta (senza, chi si"
+						% nome + " siede resta a mezz'aria)")
+				t.ok(anc.has_meta("tavolo"),
+						"%s: …e cosa si guarda da seduti" % nome)
+				t.ok(anc.position.y > 0.2 and anc.position.y < 0.6,
+						"%s: si siede all'altezza di una seduta (%.2f)"
+						% [nome, anc.position.y])
+				# il verso: da seduti si guarda il tavolo, non le spalle
+				var guarda: Vector3 = anc.get_meta("tavolo")
+				var d := (guarda - anc.position) * Vector3(1, 0, 1)
+				if d.length() > 0.05:
+					var avanti := Vector3(-sin(anc.rotation.y), 0.0, -cos(anc.rotation.y))
+					t.ok(avanti.dot(d.normalized()) > 0.9,
+							"%s: seduto, guarda quello che è venuto a guardare"
+							% nome + " (allineamento %.2f)" % avanti.dot(d.normalized()))
+			radice.free()
+		t.ok(posti >= 1, "«%s» ha almeno un posto dove sedersi (%d)" % [nome, posti])
+
+
+## GLI ANGOLI SONO CHIUSI. Due fili di muro che si incontrano fanno un
+## angolo, e un angolo senza montante è una fessura: in controluce — che è
+## come si guarda una serra — si vede il cielo passare. Vale anche per gli
+## angoli CONCAVI del pizzico diagonale, dove i fili si fermano a 0.05.
+func _test_gli_angoli_sono_chiusi(t) -> void:
+	for forma: Array in [
+			[Vector2i.ZERO],
+			[Vector2i(0, 0), Vector2i(1, 0)],
+			[Vector2i(0, 0), Vector2i(1, 0), Vector2i(1, 1)],
+			[Vector2i(0, 0), Vector2i(1, 1)]]:
+		var pianta: Dictionary = CAT.serra_pianta(forma)
+		var montanti: Array = []
+		for c: Vector2i in forma:
+			var radice: Node3D = CAT.serra_cella(pianta, c)
+			var campata := radice.get_node("Vetreria") as Node3D
+			for mi in campata.find_children("*", "MeshInstance3D", true, false):
+				var m := mi as MeshInstance3D
+				if m.mesh is not BoxMesh:
+					continue
+				var bm := m.mesh as BoxMesh
+				if bm.size.y < 1.5 or bm.size.x > 0.12 or bm.size.z > 0.12:
+					continue
+				montanti.append(_posa(m, campata) + Vector3(float(c.x), 0, float(c.y)))
+			radice.free()
+		# ogni angolo del perimetro deve avere il suo montante
+		for c: Vector2i in forma:
+			for su: int in [-1, 1]:
+				for sv: int in [-1, 1]:
+					if (c + Vector2i(su, 0)) in forma or (c + Vector2i(0, sv)) in forma:
+						continue
+					# AL PIZZICO (la diagonale occupata) l'angolo non esiste:
+					# il punto (0.95, 0.95) sta DENTRO il rettangolo della
+					# vicina, e i due fili si fermano prima, a 0.05. Gli
+					# spigoli veri sono due, e sono lì.
+					var attesi: Array = [Vector2(0.95, 0.95)]
+					if (c + Vector2i(su, sv)) in forma:
+						attesi = [Vector2(0.95, 0.05), Vector2(0.05, 0.95)]
+					for att: Vector2 in attesi:
+						var spigolo := Vector3(float(c.x) + float(su) * att.x, 0.0,
+								float(c.y) + float(sv) * att.y)
+						var chiuso := false
+						for m: Vector3 in montanti:
+							if Vector2(m.x - spigolo.x, m.z - spigolo.z).length() < 0.08:
+								chiuso = true
+						t.ok(chiuso, "l'angolo (%d,%d)·%s di %s ha il suo montante"
+								% [su, sv, att, c] + " (gruppo da %d)" % forma.size())
 
 
 # --------------------------------------------------------------- misuratori

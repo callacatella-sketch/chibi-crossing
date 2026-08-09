@@ -22,9 +22,16 @@ extends RefCounted
 
 const ALBERO := preload("res://scenes/world/AlberoGeo.gd")
 
-## Quanti giorni dura una stagione (deve combaciare con DayNight).
-const GIORNI_STAGIONE := 28
-const GIORNI_ANNO := GIORNI_STAGIONE * 4
+## Quanti giorni dura una stagione, e quanti l'anno. NON si ridichiarano:
+## si LEGGONO dal calendario del villaggio (fonte unica). Erano ricopiati a
+## mano — 28 giorni a stagione, cioè l'ANNO INTERO — con sopra il commento
+## «deve combaciare con DayNight»: il menù sbagliava stagione in sei giorni
+## su nove, e al giorno 22, in pieno inverno, il Grande Albero del diorama
+## si apriva con la chioma di primavera. È la prima cosa che il giocatore
+## vede quando riapre il gioco.
+const DN := preload("res://scenes/world/DayNight.gd")
+const GIORNI_STAGIONE := DN.SEASON_DAYS
+const GIORNI_ANNO := DN.YEAR_DAYS
 
 ## Entro quanti giorni dall'inizio un lutto pesa ancora sul menù. Dopo,
 ## il villaggio non ha dimenticato — ha ricominciato a respirare, che è

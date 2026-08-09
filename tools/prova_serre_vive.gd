@@ -93,6 +93,15 @@ func _go() -> void:
 	print("campate ricostruite: %d/%d · scatole di collisione: %d"
 			% [con_vetreria, serre.size(), scatole_tot])
 
+	# LE SEDUTE: il giocatore le trova? (get_interactables) e i vicini?
+	var sedute := 0
+	for it in _build.call("get_interactables"):
+		if str(it["name"]) == "Posto":
+			var nodo := it["node"] as Node3D
+			if nodo.global_position.distance_to(Vector3(10.5, 0.4, 10.5)) < 4.0:
+				sedute += 1
+	print("posti a sedere che il giocatore puo' usare nella serra: %d" % sedute)
+
 	# SI PASSA FRA LE CAMPATE? il punto di mezzo di ogni confine condiviso
 	var passaggi := 0
 	var bloccati := 0

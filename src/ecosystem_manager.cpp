@@ -28,6 +28,8 @@ void EcosystemManager::_bind_methods() {
     ClassDB::bind_method(D_METHOD("save_state"), &EcosystemManager::save_state);
     ClassDB::bind_method(D_METHOD("load_state", "state"), &EcosystemManager::load_state);
     ClassDB::bind_method(D_METHOD("debug_burst"), &EcosystemManager::debug_burst);
+    ClassDB::bind_method(D_METHOD("debug_farfalla", "i"), &EcosystemManager::debug_farfalla);
+    ClassDB::bind_method(D_METHOD("debug_lucciola", "i"), &EcosystemManager::debug_lucciola);
 }
 
 EcosystemManager::EcosystemManager() {}
@@ -86,6 +88,7 @@ void EcosystemManager::configure(const Ref<Mesh> &butterfly_mesh, const Ref<Mesh
         f.casa = f.home;
         f.pos = f.home + Vector3(0, UtilityFunctions::randf_range(0.4, 1.1), 0);
         f.phase = UtilityFunctions::randf();
+        f.blink_offset = UtilityFunctions::randf();
         fireflies.push_back(f);
     }
 }
@@ -145,6 +148,7 @@ void EcosystemManager::on_new_day() {
                 f.casa = f.home;
                 f.pos = f.home + Vector3(0, 0.6, 0);
                 f.phase = UtilityFunctions::randf();
+                f.blink_offset = UtilityFunctions::randf();
                 fireflies.push_back(f);
             }
             // swap-and-pop: O(1) invece di erase O(n). L'ordine delle uova non
@@ -313,6 +317,7 @@ void EcosystemManager::spawn_butterfly(bool at_edge) {
     b.vel = Vector3(UtilityFunctions::randf_range(-0.5, 0.5), 0.0,
             UtilityFunctions::randf_range(-0.5, 0.5));
     b.phase = UtilityFunctions::randf();
+    b.blink_offset = UtilityFunctions::randf();
     b.kind = (int)UtilityFunctions::randi_range(0, 2);
     butterflies.push_back(b);
 }
@@ -524,14 +529,27 @@ void EcosystemManager::push_transforms() {
         float battito = 1.0f;
         if (b.state == 2) battito = 0.35f;
         else if (b.state == 3 || b.spavento > 0.05f) battito = 1.0f + b.spavento * 0.9f;
-        bf_mm->set_instance_custom_data(i, Color(b.phase, (float)b.kind, battito, 0.0));
+        // .x è lo SFASAMENTO (0..1), non l'orologio: lo shader lo moltiplica
+        // per 6.283 per sparpagliare le ali, e con un valore che cresce nel
+        // tempo quella derivata si sommava alla frequenza del battito.
+        // Il valore si registra QUI, dallo stesso Color che parte: così la
+        // verifica headless non può restare verde se un domani questa riga
+        // tornasse a spedire b.phase.
+        Color cd(b.blink_offset, (float)b.kind, battito, 0.0);
+        b.ultimo_custom = cd.r;
+        bf_mm->set_instance_custom_data(i, cd);
     }
     int fn = night ? MIN((int)fireflies.size(), FF_MAX) : 0;
     ff_mm->set_visible_instance_count(fn);
     for (int i = 0; i < fn; i++) {
-        const Firefly &f = fireflies[i];
+        Firefly &f = fireflies[i];
         ff_mm->set_instance_transform(i, Transform3D(Basis(), f.pos));
-        ff_mm->set_instance_custom_data(i, Color(f.phase, 0, 0, 0));
+        // idem per le lucciole: mandare `phase` (che accumula a 0.6/s) faceva
+        // pulsare il lampeggio a 2.4 + 0.6*6.283 = 6.17 rad/s invece di 2.4 —
+        // due volte e mezza troppo in fretta, un tremolio da lampadina rotta
+        Color cd(f.blink_offset, 0, 0, 0);
+        f.ultimo_custom = cd.r;
+        ff_mm->set_instance_custom_data(i, cd);
     }
 }
 
@@ -697,12 +715,34 @@ void EcosystemManager::load_state(const Dictionary &state) {
         f.casa = f.home;
         f.pos = f.home + Vector3(0, 0.7, 0);
         f.phase = UtilityFunctions::randf();
+        f.blink_offset = UtilityFunctions::randf();
         fireflies.push_back(f);
     }
     push_flowers();
 }
 
 // ------------------------------------------------------------ debug CLI
+
+// Quel che è finito nel MultiMesh per l'istanza i. Serve alla verifica
+// headless: là il RenderingServer è finto e MultiMesh::get_instance_*
+// restituisce sempre zero, quindi senza questa finestra l'unico modo di
+// controllare cosa arriva allo shader sarebbe rileggere il sorgente — e un
+// test che legge il sorgente resta verde su un ramo che non gira mai.
+Dictionary EcosystemManager::debug_farfalla(int i) const {
+    Dictionary d;
+    if (i < 0 || i >= (int)butterflies.size()) return d;
+    d["pos"] = butterflies[i].pos;
+    d["shader_x"] = butterflies[i].ultimo_custom;
+    return d;
+}
+
+Dictionary EcosystemManager::debug_lucciola(int i) const {
+    Dictionary d;
+    if (i < 0 || i >= (int)fireflies.size()) return d;
+    d["pos"] = fireflies[i].pos;
+    d["shader_x"] = fireflies[i].ultimo_custom;
+    return d;
+}
 
 void EcosystemManager::debug_burst() {
     // uno stato ricco all'istante, per gli screenshot: fiori selvatici

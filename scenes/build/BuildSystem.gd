@@ -196,6 +196,21 @@ func is_unlocked(piece: String) -> bool:
 	var eco := _economy()
 	if eco and eco.has_method("is_shop_piece") and eco.is_shop_piece(piece):
 		return eco.is_piece_unlocked(piece)
+	# I COMPAGNI DI CORREDO. Un corredo si paga in blocco (240-700
+	# noccioline) e `Economy.unlock_piece` sblocca il capo INSIEME ai suoi
+	# compagni — ma qui l'economia veniva interrogata solo per i 24 nomi di
+	# `SHOP_PIECES`, e i compagni non ci sono. Restavano sotto chiave con la
+	# promessa di un Ordine del Gufo che per loro non arriva MAI
+	# (l'intersezione fra i compagni e i pezzi della campagna è VUOTA):
+	# pagavi la caserma e ricevevi l'autopompa da sola, il bar e ti arrivava
+	# il bancone in una stanza vuota.
+	# Si INTERROGA l'economia, non si sostituisce il recinto: se il corredo
+	# non è stato comprato si ricade sulla regola normale, così a recinto
+	# spento (catalogo pieno: veterani, CLI, provini, catalogo visivo) i
+	# compagni restano liberi esattamente come prima.
+	if eco and eco.has_method("is_piece_unlocked") and _padrone_corredo(piece) != "" \
+			and eco.is_piece_unlocked(piece):
+		return true
 	return not _locks_active or _unlocked.has(piece)
 
 
@@ -813,6 +828,15 @@ func get_interactables() -> Array[Dictionary]:
 			var n: String = (node as Node3D).get_meta("item_name", "")
 			if n in INTERACTABLE:
 				out.append({"node": node, "name": n})
+				continue
+			# I POSTI DICHIARATI. Un pezzo grande non e' una seduta sola nel
+			# suo centro: il gazebo e la serra dichiarano DOVE ci si siede,
+			# col nodo «Posto*» e il meta «seduta» (l'ancoraggio E' il
+			# posto). Prima li trovavano solo i vicini — il giocatore
+			# poteva guardare due sedie da giardino e non sedersi.
+			for posto in (node as Node3D).find_children("Posto*", "Node3D", true, false):
+				if (posto as Node3D).has_meta("seduta"):
+					out.append({"node": posto, "name": "Posto"})
 	return out
 
 
@@ -1297,6 +1321,33 @@ var _save_pending := false
 var _loaded_extra := {}
 var _served_extra := {}
 
+## Le chiavi che il salvataggio SCRIVE DA SÉ (il villaggio costruito): si
+## ricalcolano dalla griglia viva a ogni scrittura e non vanno mai conservate
+## dal file precedente.
+const CHIAVI_PROPRIE := ["cells", "edges", "up_cells", "up_edges", "variants"]
+
+## LE CHIAVI ORFANE: quelle lette dal salvataggio di cui, in questo momento,
+## NESSUN nodo in scena risponde.
+##
+## Perché esistono: il mondo nasce differito (CozyWorld crea GrandTree,
+## Memories, Coop, Stargazing, Legami, Regista… tre frame dopo l'avvio). Il
+## payload si ricostruisce DA ZERO e ci si fondono solo i persistable già
+## nati: la chiave di un sistema non ancora sveglio spariva dal file. In
+## sessione non si vede (la scrittura dopo la rimette), ma se il giocatore
+## chiude subito, quel file mutilato È il salvataggio — e il .bak buono se
+## l'è già mangiato la rotazione. Andavano perduti Filo Rosso, lutto,
+## congedo, contatori del Regista, guardaroba, costellazioni, compleanni,
+## ecosistema.
+##
+## Perché NON si conservano tutte le chiavi vecchie: alcune DEVONO poter
+## sparire, ed è il loro sparire a essere lo stato. `mail_current` quando la
+## busta è stata aperta (e dentro c'è il REGALO: conservarla lo
+## rimaterializzerebbe a ogni avvio), `inv_dishes`/`inv_treasures` quando la
+## dispensa si svuota, `home` quando la casa si disfa. Quelle hanno un
+## proprietario VIVO in scena, e il censimento le toglie da qui: si conserva
+## solo ciò di cui, adesso, nessuno risponde.
+var _chiavi_orfane := {}
+
 
 ## Un persistable entrato in scena DOPO il load (generazione differita del
 ## mondo) reclama qui la sua fetta di salvataggio, una volta sola.
@@ -1319,6 +1370,26 @@ func _serve_late(node: Node) -> void:
 		return
 	_served_extra[node.get_instance_id()] = true
 	node.load_extra(_loaded_extra)
+
+
+## Chi è in scena si prende la RESPONSABILITÀ delle chiavi che emette: da qui
+## in poi quelle possono anche sparire dal file (è il giocatore che le ha
+## svuotate), e non vanno più conservate dal salvataggio precedente.
+func _rivendica(emesse: Dictionary) -> void:
+	for k in emesse:
+		_chiavi_orfane.erase(k)
+
+
+## Il censimento dopo il caricamento: tutti i persistable già svegli
+## dichiarano le loro chiavi, e ciò che resta orfano appartiene a un sistema
+## che deve ancora nascere. Gira su uno stack SUO (call_deferred da
+## _finish_load): un errore dentro un save_extra non deve poter srotolare la
+## fine del caricamento e lasciare `_loading` incastrato a true — cioè il
+## salvataggio spento in silenzio per sempre.
+func _censimento_orfane() -> void:
+	for node in get_tree().get_nodes_in_group("persistable"):
+		if node.has_method("save_extra"):
+			_rivendica(node.save_extra())
 
 
 ## Chiede un salvataggio: si scrive una volta sola a fine frame.
@@ -1431,9 +1502,16 @@ func _save_village() -> void:
 			var node := edict[key] as Node3D
 			rows.append([key.x, key.y,
 					node.get_meta("item_name", ""), bool(node.get_meta("flip", false))])
-	var payload := {"cells": cells, "edges": edges,
-			"up_cells": up_cells, "up_edges": up_edges,
-			"variants": _collect_variants()}
+	# SI PARTE DA CIÒ DI CUI NESSUNO RISPONDE. Le chiavi orfane (vedi
+	# _chiavi_orfane) sono di sistemi che il mondo differito non ha ancora
+	# creato: se non le riportassimo qui, un salvataggio nei primissimi frame
+	# le cancellerebbe dal file. Ordine di precedenza, dal più debole al più
+	# forte: orfane del file < ciò che i persistable vivi dichiarano adesso <
+	# le chiavi del villaggio costruito.
+	var payload := {}
+	for k in _chiavi_orfane:
+		if _loaded_extra.has(k):
+			payload[k] = _loaded_extra[k]
 	# stato extra (giorno del calendario, giardino…) dai nodi "persistable".
 	# Cintura di sicurezza: un ritardatario non ancora servito viene servito
 	# ADESSO, prima del merge — il suo stato vergine non deve mai
@@ -1441,7 +1519,14 @@ func _save_village() -> void:
 	for node in get_tree().get_nodes_in_group("persistable"):
 		if not _loaded_extra.is_empty() and not _served_extra.has(node.get_instance_id()):
 			_serve_late(node)
-		payload.merge(node.save_extra())
+		var extra: Dictionary = node.save_extra()
+		# il proprietario è arrivato: la sua chiave smette di essere orfana
+		_rivendica(extra)
+		# `true`: chi è in scena ADESSO batte sempre la copia vecchia del file
+		payload.merge(extra, true)
+	payload.merge({"cells": cells, "edges": edges,
+			"up_cells": up_cells, "up_edges": up_edges,
+			"variants": _collect_variants()}, true)
 	# SCRITTURA BLINDATA: prima su un file temporaneo, poi la versione
 	# precedente diventa .bak e il temporaneo prende il suo posto. Un crash
 	# a metà scrittura (o il disco pieno) non può mai lasciare mezzo
@@ -1511,6 +1596,15 @@ func _load_village() -> void:
 	# "pull" (vedi _on_node_added) non riceverebbero mai load_extra e il loro
 	# stato vergine cancellerebbe il salvataggio alla prima scrittura.
 	_loaded_extra = data
+	# All'inizio è orfano TUTTO ciò che non è del villaggio costruito: il
+	# censimento (dopo i load_extra) toglie da qui le chiavi di chi è già in
+	# scena. Partire dal massimo è la posizione prudente — fra il
+	# caricamento e il censimento nessuno ha ancora avuto modo di svuotare
+	# niente, quindi conservare tutto è esattamente ciò che serve.
+	_chiavi_orfane.clear()
+	for k in data:
+		if not CHIAVI_PROPRIE.has(k):
+			_chiavi_orfane[str(k)] = true
 	# ogni load_extra su uno stack separato (call_deferred): un errore di
 	# runtime in UN sistema non deve srotolare il load e lasciare _loading
 	# incastrato a true (= salvataggio disattivato in silenzio per sempre)
@@ -1523,6 +1617,8 @@ func _load_village() -> void:
 func _finish_load() -> void:
 	_loading = false
 	placed_changed.emit()
+	# il censimento su uno stack a parte: vedi _censimento_orfane
+	_censimento_orfane.call_deferred()
 
 
 ## Dove il villaggio occupa il terreno: [Vector3(x, raggio, z)] per ogni
@@ -1900,7 +1996,16 @@ func _rebuild_item_row() -> void:
 				btn.tooltip_text = _shop_tooltip(offer)
 			else:
 				btn.modulate = Color(1, 1, 1, 0.5)
-				btn.tooltip_text = L10n.t("Un Ordine del Gufo lo porterà")
+				# Il Gufo non porta i compagni di corredo: quelli arrivano
+				# tutti insieme al pezzo che si compra al carretto. Dirgli
+				# «lo porterà un Ordine» era una promessa falsa — un Ordine
+				# per loro non arriva mai.
+				var padrone := _padrone_corredo(piece)
+				if padrone.is_empty():
+					btn.tooltip_text = L10n.t("Un Ordine del Gufo lo porterà")
+				else:
+					btn.tooltip_text = L10n.tf("Arriva col corredo di %s",
+							[L10n.t(padrone)])
 		else:
 			btn.pressed.connect(_select.bind(i))
 		_items_row.add_child(btn)
@@ -1917,6 +2022,34 @@ func _economy() -> Node:
 	if _eco == null or not is_instance_valid(_eco):
 		_eco = get_tree().get_first_node_in_group("economy")
 	return _eco
+
+
+## Il pezzo da negozio che porta con sé questo compagno di corredo ("" se il
+## pezzo non fa parte di nessun corredo). La tabella è UNA sola —
+## `Economy.CORREDO` — e qui si LEGGE dalla sua fonte, non si ricopia: un
+## corredo nuovo (o un compagno in più) funziona da solo, senza toccare
+## niente qui dentro. Si legge dalla mappa delle costanti dello script
+## perché `_eco` è un `Node` non tipizzato (l'autoload dell'economia si
+## risolve a runtime) e la costante non è raggiungibile per nome.
+var _compagni_corredo := {}
+var _corredo_letto := false
+
+
+func _padrone_corredo(piece: String) -> String:
+	if not _corredo_letto:
+		var eco := _economy()
+		if eco == null:
+			return ""      # economia non ancora in scena: si riproverà
+		var sc := eco.get_script() as GDScript
+		if sc == null:
+			return ""
+		var tabella: Variant = sc.get_script_constant_map().get("CORREDO")
+		if tabella is Dictionary:
+			for capo in (tabella as Dictionary):
+				for compagno in (tabella as Dictionary)[capo]:
+					_compagni_corredo[str(compagno)] = str(capo)
+		_corredo_letto = true
+	return str(_compagni_corredo.get(piece, ""))
 
 
 ## L'offerta del mercante per un pezzo, o {} se non è merce da negozio.
