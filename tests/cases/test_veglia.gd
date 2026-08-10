@@ -18,11 +18,19 @@ extends RefCounted
 const VEGLIA := preload("res://scenes/npc/Veglia.gd")
 const LAVORI := preload("res://scenes/npc/Lavori.gd")
 const ANIMO := preload("res://scenes/npc/Animo.gd")
+## Il villaggio finto ma vivo, in un posto solo (vedi test_gesti_veri.gd).
+const GESTI := preload("res://tests/cases/test_gesti_veri.gd")
+
+# ⚠️ QUESTO FILE È INDENTATO A SPAZI, non a tab: GDScript non tollera le due
+# cose insieme nello stesso file, e chi aggiunge una prova qui deve stare al
+# passo di quelle che ci sono già.
 
 
 func run(t) -> void:
     _test_chi_e_al_buio(t)
     _test_la_ronda(t)
+    _test_su_chi_ha_vegliato(t)
+    _test_le_luci_si_contano_giuste(t)
     _test_il_dono(t)
     _test_il_buio_non_punisce(t)
     _test_il_ramo_che_mancava(t)
@@ -83,6 +91,91 @@ func _test_la_ronda(t) -> void:
     var sognatore: float = LAVORI.resa("lavoro", "guerriero", "guardia")
     t.ok(sognatore > LAVORI.resa("lavoro", "cuoco", "guardia"),
             "chi sognava di fare la guardia rende di più")
+
+
+# -------------------------------------------------------- su chi ha vegliato
+
+## SU CHI HA VEGLIATO STANOTTE: una porta sola, e la sceglie la geografia.
+##
+## Prima, il registro dei lavori scriveva nel libro mastro degli affetti una
+## riga IDENTICA da chi era di guardia verso OGNI residente. Misurato su 240
+## giorni: il conto fra la guardia e il cuoco cresceva 2,6 volte più in
+## fretta che verso chiunque altro, la prima coppia nasceva al giorno 3 ed
+## era sempre quella, e in tutta la partita non se ne formava nessun'altra —
+## un solo incarico assegnato sterilizzava gli affetti dell'INTERO villaggio.
+##
+## Ora la riga è una, e va all'ULTIMA porta raggiunta che senza quella
+## lanterna sarebbe rimasta al buio. Funzione pura: entrano le porte e le
+## luci, esce un nome. (Scriverla a tutti i «salvati» era la scorciatoia
+## ovvia, ed è stata simulata: rifà lo stesso pareggio un piano sotto, e a
+## 28 residenti non si forma nessuna coppia in 5 corse su 6.)
+func _test_su_chi_ha_vegliato(t) -> void:
+    var porte := [
+        {"nome": "Anice", "label": "Anice", "pos": Vector3(0, 0, 0), "cell": Vector2i(0, 0)},
+        {"nome": "Basilio", "label": "Basilio", "pos": Vector3(20, 0, 0), "cell": Vector2i(20, 0)},
+        {"nome": "Cedro", "label": "Cedro", "pos": Vector3(40, 0, 0), "cell": Vector2i(40, 0)},
+    ]
+    t.eq(VEGLIA.chi_ha_vegliato(porte, 3, []), "Cedro",
+            "col villaggio al buio la riga va all'ULTIMA porta del giro")
+    t.eq(VEGLIA.chi_ha_vegliato(porte, 2, []), "Basilio",
+            "una ronda a metà: l'ultima RAGGIUNTA, non l'ultima della lista")
+    t.eq(VEGLIA.chi_ha_vegliato(porte, 0, []), "",
+            "nessuna tappa fatta: nessuno")
+    t.eq(VEGLIA.chi_ha_vegliato([], 5, []), "",
+            "un villaggio senza porte non fa vegliare nessuno (nessun crash)")
+    t.eq(VEGLIA.chi_ha_vegliato(porte, 99, []), "Cedro",
+            "…e più tappe che porte non sfora la lista (i ritrovi vengono dopo)")
+
+    # LA LEVA DEL GIOCATORE: una luce costruita davanti a quella porta
+    var lampione := [Vector3(40, 0, 0)]
+    t.eq(VEGLIA.chi_ha_vegliato(porte, 3, lampione), "Basilio",
+            "un lampione davanti all'ultima porta sposta la riga su quella prima")
+    var tutto_acceso := [Vector3(0, 0, 0), Vector3(20, 0, 0), Vector3(40, 0, 0)]
+    t.eq(VEGLIA.chi_ha_vegliato(porte, 3, tutto_acceso), "",
+            "IL SILENZIO: col villaggio già illuminato dal giocatore la"
+            + " guardia non ha vegliato su nessuno che ne avesse bisogno")
+    # stessa regola di al_buio: conta la distanza sul piano, non la quota
+    t.eq(VEGLIA.chi_ha_vegliato(porte, 3, [Vector3(40, 6, 0)]), "Basilio",
+            "…e la luce sale: la quota non conta")
+
+
+## LE LUCI SI CONTANO GIUSTE — e la ronda NON si legge dalle lanterne.
+##
+## `DayNight.MORNING` e `Veglia.ORA_ALBA` sono lo stesso numero (0.29): le
+## lanterne sopravvivono al rendiconto del mattino solo perché DayNight sta
+## PRIMA di Veglia fra i fratelli e `_spegni()` chiede `ora > ORA_ALBA`
+## stretto. Far dipendere dall'ordine dei nodi un dato che finisce nei drive
+## (e quindi nel salvataggio) è un guasto che aspetta solo che qualcuno
+## trascini un nodo. Perciò le lanterne della ronda si contano da `_tappe`,
+## che è un dato puro — e questa prova lo dimostra spegnendole prima.
+func _test_le_luci_si_contano_giuste(t) -> void:
+    var b := GESTI.banco(t)
+    var veg = b["veg"]
+    var dn = b["dn"]
+    dn.time = VEGLIA.ORA_RONDA
+    for i in 12:
+        veg.call("_process", 10.0)
+    var accese: int = (veg.get("_lanterne") as Array).size()
+    t.ok(accese > 0, "la ronda ha acceso le sue lanterne")
+    t.eq((veg.call("luci_della_ronda") as Array).size(), accese,
+            "le luci della ronda sono le tappe percorse")
+    t.eq((veg.call("luci_costruite") as Array).size(), 0,
+            "e nessuna luce è COSTRUITA: il giocatore non ne ha posate")
+
+    # il giocatore posa un lampione: entra fra le costruite, non fra la ronda
+    GESTI.accendi_lampione(b, Vector3(0, 0, 0))
+    t.eq((veg.call("luci_costruite") as Array).size(), 1,
+            "un Lampione posato conta come luce costruita")
+    t.eq((veg.call("luci_del_villaggio") as Array).size(), accese + 1,
+            "e il totale è la somma delle due: nessuna luce contata due volte")
+
+    # ALL'ALBA le lanterne si congedano — ma il conto della notte resta
+    veg.call("_spegni")
+    t.eq((veg.get("_lanterne") as Array).size(), 0, "all'alba le lanterne si spengono")
+    t.eq((veg.call("luci_della_ronda") as Array).size(), accese,
+            "…e la ronda si racconta lo stesso: si legge da `_tappe`, non"
+            + " dalle lanterne vive — o basterebbe spostare un nodo per"
+            + " cambiare quello che finisce nei drive")
 
 
 func _test_il_dono(t) -> void:
