@@ -993,7 +993,7 @@ func _process(delta: float) -> void:
 					(_c_arms[1] as Node3D).rotation.x = 0.0
 				_spawn_heart()
 				speak(["si", "felice"], "felice")
-				_enter_state("r_idle")
+				_finish_task()
 		"on_dip":
 			# scivola nell'acqua, piano piano
 			_timer += delta / 1.4
@@ -1938,12 +1938,16 @@ func face_towards(p: Vector3) -> void:
 	_yaw = atan2(-to.x, -to.z)
 
 
-## Va alla lavagna a scrivere il suo compleanno col gessetto.
-func go_write(pos: Vector3, look: Vector3) -> void:
+## Va alla lavagna a scrivere col gessetto: il suo compleanno, oppure —
+## dalla Fase 3 — la richiesta che ha deciso di appendere. `on_done` scatta
+## quando il gessetto si ferma, non quando parte: il biglietto compare
+## sulla lavagna nel momento in cui l'ha scritto.
+func go_write(pos: Vector3, look: Vector3, on_done := Callable()) -> void:
 	if _hidden or mode != "resident" or _state.begins_with("th") \
 			or _state.begins_with("on_") or _state == "write":
 		return
 	_write_look = look
+	_task_cb = on_done
 	_walk_to(pos, "write")
 
 

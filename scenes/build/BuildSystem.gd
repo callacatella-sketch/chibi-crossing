@@ -25,6 +25,7 @@ signal placed_changed
 # preload esplicito: non dipende dalla cache globale delle class_name
 const CATALOG := preload("res://scenes/build/BuildCatalog.gd")
 const GRID_SHADER := preload("res://shaders/grid.gdshader")
+const VARCHI := preload("res://scenes/build/Varchi.gd")
 
 const VALID_TINT := Color(0.45, 0.9, 0.5, 0.38)
 const INVALID_TINT := Color(0.95, 0.35, 0.3, 0.42)
@@ -1360,6 +1361,8 @@ func place_edge(key: Vector2i, piece: String, flip := false, animate := true, lv
 	node.rotation.y = tf[1] + (PI if flip else 0.0)
 	_placed_root.add_child(node)
 	dict[key] = node
+	# un bordo nuovo può aver chiuso un recinto: il grafo si rifà pigro
+	_varchi_sporchi = true
 	node.set_meta("lvl", lvl)
 	_register_special(piece, node)
 	node.set_meta("flip", flip)
@@ -1438,6 +1441,8 @@ func _remove_at(layer, key, lvl := 0) -> void:
 		return
 	var node := dict[key] as Node3D
 	dict.erase(key)
+	if layer is String:
+		_varchi_sporchi = true  # tolto un muro, il recinto si riapre
 	# se in mezzo alla fila c'era una gradinata, i vicini si riprendono
 	# il bracciolo sul fianco tornato libero — e i sentieri accanto
 	# ritirano le pietre dal varco
@@ -1701,6 +1706,83 @@ func _flush_festoni() -> void:
 func aggiorna_festoni_ora() -> void:
 	if _festoni_pending or not _festoni_da_rifare.is_empty():
 		_flush_festoni()
+
+
+# --- I VARCHI: dove si passa ------------------------------------------
+#
+# Il villaggio come GRAFO. Non si ricalcola per domanda — si ricalcola
+# quando cambia un bordo, e poi la risposta è un confronto fra due
+# interi (vedi Varchi.componenti). È lo stesso patto delle serre e dei
+# festoni: dato DERIVATO, niente da salvare, niente da migrare.
+var _muri_cache := {}
+var _isole_cache := {}
+var _varchi_sporchi := true
+
+
+## L'insieme dei bordi che sbarrano la strada, a terra. La decisione di
+## cosa sbarri NON è scritta qui: si deriva dalle `cols` del catalogo.
+func muri() -> Dictionary:
+	_aggiorna_varchi()
+	return _muri_cache
+
+
+## Le isole del villaggio: zero è il fuori, ≥ 1 è un posto chiuso.
+func isole() -> Dictionary:
+	_aggiorna_varchi()
+	return _isole_cache
+
+
+## Da questa cella si arriva a quella? La domanda della Fase 3.
+func raggiungibile(da: Vector2i, a: Vector2i) -> bool:
+	return VARCHI.raggiungibile(isole(), da, a)
+
+
+## La strada vera, in metri di mondo, già tirata a filo. Vuota se non c'è
+## strada — e chi la chiede DEVE distinguere «vuota» da «dritto per di
+## là», perché sono la stessa cosa solo quando la partenza è l'arrivo.
+func rotta_mondo(da: Vector3, a: Vector3) -> Array[Vector3]:
+	var c0 := Vector2i(roundi(da.x), roundi(da.z))
+	var c1 := Vector2i(roundi(a.x), roundi(a.z))
+	var celle := VARCHI.rotta(muri(), c0, c1)
+	var fuori: Array[Vector3] = []
+	if celle.is_empty():
+		return fuori
+	for c in VARCHI.tira_filo(muri(), celle):
+		fuori.append(Vector3(c.x, 0.0, c.y))
+	# la meta vera non è il centro della cella: è il punto chiesto
+	if not fuori.is_empty():
+		fuori[fuori.size() - 1] = Vector3(a.x, 0.0, a.z)
+	return fuori
+
+
+func _aggiorna_varchi() -> void:
+	if not _varchi_sporchi:
+		return
+	_varchi_sporchi = false
+	_muri_cache = {}
+	for key: Vector2i in (_placed["edge"] as Dictionary):
+		var nodo := (_placed["edge"] as Dictionary)[key] as Node3D
+		if nodo == null or not is_instance_valid(nodo):
+			continue
+		var idx := item_index(str(nodo.get_meta("item_name", "")))
+		if idx < 0:
+			continue
+		if not VARCHI.e_varco(_items[idx]["cols"] as Array):
+			_muri_cache[key] = true
+	_isole_cache = VARCHI.componenti(_muri_cache)
+
+
+## Toglie un pezzo di bordo (per la verifica CLI: è il gesto con cui il
+## giocatore riapre un recinto).
+func debug_remove_edge(key: Vector2i, lvl := 0) -> void:
+	_remove_at("edge", key, lvl)
+
+
+## Il ricalcolo SINCRONO (vedi aggiorna_serre_ora): serve a chi costruisce
+## e interroga nello stesso frame.
+func aggiorna_varchi_ora() -> void:
+	_varchi_sporchi = true
+	_aggiorna_varchi()
 
 
 func _save_village() -> void:

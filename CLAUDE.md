@@ -765,6 +765,119 @@ res://tools/provino_rastrelliere.gd` (una, due, tre miste, quattro) e con
 piedi a slitta: **due** su una fila di tre, **quattro** dopo aver tolto
 quella di mezzo.
 
+## I VARCHI e i PIANI: il villaggio come grafo, e l'IA che cambia idea
+
+Un vicino che ha fame va al cespuglio. Se il giocatore **chiude il
+cespuglio dentro un recinto**, lo stesso vicino — stessa fame, stesso
+cespuglio — va alla **Lavagna** e appende un biglietto per Mochi. Non è
+uno script: è un pianificatore che ha smesso di trovare una strada e ne ha
+cercata un'altra.
+
+**La tesi, e spiega tutte le scelte.** L'esempio da manuale (`Ha_Mela`,
+`Mela_Su_Albero`) qui non regge: i vicini non hanno un inventario (la
+loro riga salvata non ne ha uno) e il cammino è `position += dir * _speed`
+su un `Node3D`. In questo villaggio la risorsa scarsa **non sono gli
+oggetti, è l'ACCESSO** — l'unico ostacolo che il gioco modella davvero è
+una porta chiusa. Quindi il dominio è «ci arrivo / non ci arrivo», e la
+mela arriva lo stesso: dalla zampa del giocatore, che è l'unica versione
+della storia in cui qualcuno si diverte.
+
+### [`Varchi.gd`](scenes/build/Varchi.gd) — dove si passa
+
+Niente navmesh: **la topologia è già nel salvataggio**, ed è migliore. I
+muri non stanno nelle celle, stanno **sui bordi** con la chiave
+raddoppiata: un bordo *è* un arco del grafo, e piantare una staccionata
+*è* tagliarlo.
+
+- **Cosa blocca NON è una tabella.** Si deriva dalle `cols` del catalogo,
+  cioè da dove il pezzo pianta i piedi: si passa se resta **mezzo metro di
+  luce** fra 0.20 e 0.80 m d'altezza. Le conseguenze le decide la
+  geometria — la Porta ne lascia 0.68 (una casa non è una prigione), la
+  Staccionata zero, l'Insegna guardia è un palo da 14 cm, il Casco appeso
+  non ha `cols` affatto. **Un pezzo di bordo nuovo non richiede di toccare
+  questo file.**
+- **`componenti()` etichetta le isole, e zero è IL FUORI.** Si semina da
+  un anello oltre l'ultimo muro; quel che resta non toccato è chiuso.
+  Nel dizionario finiscono **solo i posti chiusi** — il prato è quasi
+  tutto, e ricordarselo cella per cella vorrebbe dire tenere in memoria un
+  villaggio per descrivere il niente. Poi `raggiungibile()` è un confronto
+  fra due interi.
+- **Il degrado va SEMPRE verso «nessuno è in trappola»**: oltre
+  `MAX_CELLE` si dichiara tutto raggiungibile. Il guasto opposto — un
+  vicino che si crede murato in mezzo al prato — è quello che si vede.
+- **La diagonale**: `_in_vista` la accetta solo se almeno uno dei due giri
+  è aperto. Rifiutarla sempre fa camminare i vicini a scaletta come
+  carrelli elevatori; accettarla sempre li fa sgusciare per lo spigolo fra
+  due staccionate, cioè attraverso il recinto chiuso.
+- Il grafo si rifà **pigro** quando cambia un bordo (`_varchi_sporchi`),
+  non a ogni domanda; `aggiorna_varchi_ora()` per chi costruisce e
+  interroga nello stesso frame.
+
+### [`sistema_piani.{h,cpp}`](src/sistema_piani.h) — il risolutore
+
+A\* in avanti su stati che sono `uint32_t`, dodici operatori con
+precondizioni, **divieti** ed effetti. Puro, senza Godot, senza rng e
+**senza allocazioni** (l'arena sta nello stack: un pianificatore che alloca
+durante il frame ogni tanto fa un singhiozzo).
+
+- L'obiettivo non è «sono sazio», è **«ho fatto qualcosa per la mia
+  fame»**: se chiedere accendesse «sazio» il pianificatore mentirebbe. La
+  sazietà resta di chi la pagava già (`STATO_CHE_SAZIA`, le callback
+  d'arrivo, la consegna vera): la regola della Fase 2 — si paga quando il
+  gesto ACCADE — non si tocca.
+- Il pisolino per terra è **vietato** se c'è una panchina libera, non
+  precondizionato: se fosse un gate, chi non ha panchina non recupererebbe
+  energia mai.
+- **MAI un piano a metà**: a budget esaurito torna vuoto e lo dice.
+  Portare il corpo a metà strada e piantarcelo è il guasto che questa fase
+  esiste per rendere impossibile.
+
+### [`Piani.gd`](scenes/npc/Piani.gd) — l'ufficio, e dove interviene
+
+`OBIETTIVO` lega quattro azioni della Fase 2 ai quattro obiettivi; le
+altre — «quattro_chiacchiere», «gironzola» — non hanno piano **apposta**:
+un piano su una cosa che cammina è sbagliato appena lo consegni.
+
+`Visitors._piano_dirotta()` chiede al risolutore **prima** di recitare, e
+torna `true` **solo** quando il piano comincia con `vai_alla_lavagna`. Nel
+caso comune il piano conferma quello che `_recita` farebbe comunque, e
+allora recita lei: non si ricostruisce la messa in scena di quattro gesti
+che esistono già, tarati, coi loro toast e le loro callback. **Il
+pianificatore non è arrivato per rifare quello che funzionava.**
+
+**Le trappole già pagate:**
+
+1. **`_nearest_named` era cieca ai recinti.** Il posto chiuso dentro una
+   staccionata vinceva lo stesso perché era il più vicino. Adesso il muro
+   si guarda lì, una volta per tutti i sistemi che chiedono «qual è il più
+   vicino» — non solo per il pianificatore.
+2. **La lavagna è «pronta» solo se quel vicino non ha già un biglietto.**
+   Senza, «vai a chiedere» resterebbe il piano più economico per sempre e
+   i vicini passerebbero la giornata alla Lavagna.
+3. **La distanza è in linea d'aria, la raggiungibilità no.** La rotta vera
+   costerebbe una BFS per luogo per vicino (centoquaranta al secondo in un
+   villaggio pieno) e servirebbe solo a scegliere fra due posti quasi
+   uguali. Si può sbagliare di qualche metro quale cespuglio conviene, mai
+   credere di arrivare a un cespuglio murato.
+4. **`debug_force_activity` non rinfrescava i fatti**, quindi la verifica
+   CLI provava sempre e solo il ramo scritto a mano — cioè non provava la
+   Fase 3.
+5. **I vicini attraversano ancora i muri**: si muovono senza collisioni, e
+   lo facevano già prima. Qui il muro non è diventato solido, è diventato
+   **conosciuto**. Chi sa di non arrivarci non ci prova; il vagabondaggio
+   d'ambiente è com'era.
+
+**Come si guarda** (la suite non dice niente sulla scena):
+
+```
+Godot --headless --path . --script res://tools/prova_recinto.gd
+```
+
+Costruisce casa, Lavagna e Cespuglio nel MainLevel vero, ci mette un
+vicino vero, e guarda **dove va il corpo**: al cespuglio prima, alla
+Lavagna dopo aver chiuso il recinto, col biglietto che compare quando il
+gessetto si ferma — non prima.
+
 ## REGOLA: la lingua (italiano sorgente, inglese sopra)
 
 Il gioco è **bilingue** dal 2026-07-28: italiano (lingua sorgente) e inglese.

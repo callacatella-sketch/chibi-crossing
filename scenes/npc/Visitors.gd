@@ -8,6 +8,7 @@ const VISITOR := preload("res://scenes/npc/Visitor.gd")
 const MIND := preload("res://scenes/npc/VillagerMind.gd")
 const DNA := preload("res://scenes/npc/ChibiDNA.gd")
 const BRAIN := preload("res://scenes/npc/VillagerBrain.gd")
+const PIANI := preload("res://scenes/npc/Piani.gd")
 const ANIMO := preload("res://scenes/npc/Animo.gd")
 const VILLAGGIO := preload("res://scenes/npc/Villaggio.gd")
 const UI_BROWN := Color("6a4a3a")
@@ -445,6 +446,12 @@ func _brain_ctx(r: Dictionary, ph: String) -> Dictionary:
 # ogni tanto un toast racconta cosa stanno combinando
 func _recita(r: Dictionary, node: Node3D, brain: RefCounted, act: String, ph: String) -> void:
 	var home := Vector3(r["cell"].x, 0, r["cell"].y)
+	# FASE 3: prima di recitare, si chiede al PIANO. Nel caso comune il
+	# piano conferma la strada che il gesto scritto a mano prenderebbe
+	# comunque, e non succede niente — è quando la strada non c'è più che
+	# il piano dice una cosa che nessun `match` saprebbe dire.
+	if PIANI.ha_obiettivo(act) and _piano_dirotta(r, node, act, home):
+		return
 	match act:
 		"spuntino":
 			var cibo := _nearest_named(["Cespuglio", "Fungo", "Orto"], home, 12.0)
@@ -766,9 +773,96 @@ func _fatti_di(r: Dictionary, node: Node3D) -> int:
 	var home := Vector3(r["cell"].x, 0, r["cell"].y)
 	if _nearest_named(["Stagno", "Grande Albero", "Panchina"], home, 18.0) != null:
 		nomi.append("meraviglia_posto")
+	# FASE 3: i cinque luoghi, e quali si raggiungono davvero. Si calcolano
+	# qui perché `_recita` li ritrovi pronti nello stesso ciclo — chiedere
+	# due volte al mondo dove sono le cose, a mezzo secondo di distanza,
+	# vuol dire pianificare su un mondo e camminare in un altro.
+	var luoghi := _luoghi_del_piano(r, home)
+	r["luoghi"] = luoghi
+	nomi.append_array(PIANI.fatti(luoghi))
 	var m := int(_ecs.maschera_fatti(PackedStringArray(nomi)))
 	r["fatti"] = m
 	return m
+
+
+## I CINQUE LUOGHI del piano, nell'ordine di `chibi::Luogo`.
+##
+## La distanza è in linea d'aria, non sulla rotta, ed è una scelta: la
+## rotta vera costa una BFS per luogo per vicino (centoquaranta al secondo
+## in un villaggio pieno), e servirebbe solo a scegliere fra due posti
+## quasi equivalenti. Quello che NON si approssima è la raggiungibilità,
+## che è un confronto fra due interi ed è esatta: si può sbagliare di
+## qualche metro quale cespuglio conviene, mai credere di arrivare a un
+## cespuglio chiuso in un recinto.
+## IL PIANO CAMBIA LA SCENA? Torna `true` solo quando il risolutore
+## sceglie una catena che comincia con «vai alla lavagna» — cioè quando ha
+## scoperto che al posto giusto non ci si arriva più, e che l'unica strada
+## rimasta passa da Mochi.
+##
+## Nel caso comune il piano dice esattamente quello che `_recita` farebbe
+## da sola, e allora si lascia recitare lei: NON si ricostruisce qui la
+## messa in scena di quattro gesti che esistono già, tarati, con i loro
+## toast e le loro callback. Il pianificatore non è arrivato per rifare
+## quello che funzionava — è arrivato per il giorno in cui non funziona.
+func _piano_dirotta(r: Dictionary, node: Node3D, act: String, home: Vector3) -> bool:
+	if _ecs == null or _build == null:
+		return false
+	var luoghi: Array = r.get("luoghi", [])
+	if luoghi.size() < PIANI.LUOGHI.size():
+		return false
+	var ob: int = int(_ecs.maschera_obiettivo(str(PIANI.OBIETTIVO[act])))
+	if ob == 0:
+		return false
+	var passi: PackedInt32Array = _ecs.pianifica(
+			int(r.get("fatti", 0)), ob, PIANI.cammino(luoghi))
+	if passi.is_empty() or int(passi[0]) != int(_ecs.indice_operatore("vai_alla_lavagna")):
+		return false
+	var lavagna: Dictionary = luoghi[PIANI.LUOGHI.find("lavagna")]
+	var pos: Vector3 = lavagna["pos"]
+	var label := str(r.get("label", ""))
+	var com := get_tree().get_first_node_in_group("commissioni")
+	if com == null or not com.has_method("appendi_per"):
+		return false
+	# la merce la decide il GESTO che non si può più fare: chi non arriva
+	# più al cespuglio chiede da mangiare, chi non arriva più all'aiuola
+	# chiede di che curarla
+	var merce := "mela" if act == "spuntino" else "bacca"
+	node.call("go_write", pos + (home - pos).normalized() * 0.9, pos,
+			func(): com.call("appendi_per", label, merce))
+	# la finestra: mentre scrive, l'agenda non gli cambia idea sotto
+	r["next_act"] = 9.0
+	return true
+
+
+func _luoghi_del_piano(r: Dictionary, home: Vector3) -> Array:
+	var fuori := []
+	var cerca := func(nodo: Node3D) -> Dictionary:
+		if nodo == null:
+			return {"ok": false, "metri": 0.0, "pos": Vector3.ZERO}
+		var p: Vector3 = nodo.global_position
+		return {"ok": true, "metri": p.distance_to(home), "pos": p}
+	fuori.append(cerca.call(_nearest_named(["Cespuglio", "Fungo", "Orto"], home, 12.0)))
+	var aiuola: Node3D = null
+	if _garden:
+		aiuola = _garden.bed_needing_water(home, 14.0)
+		if aiuola != null and not _build.raggiungibile(
+				Vector2i(roundi(home.x), roundi(home.z)),
+				Vector2i(roundi(aiuola.global_position.x), roundi(aiuola.global_position.z))):
+			aiuola = null  # il Garden non sa dei recinti: glielo si dice qui
+	fuori.append(cerca.call(aiuola))
+	fuori.append(cerca.call(_free_bench(home)))
+	fuori.append(cerca.call(_nearest_named(["Stagno", "Grande Albero", "Panchina"], home, 18.0)))
+	# LA LAVAGNA È PRONTA solo se non c'è già un biglietto di questo vicino:
+	# uno che ha già chiesto non va a chiedere di nuovo, va a fare altro.
+	# Senza questa condizione il piano «vai a chiedere» resterebbe il più
+	# economico per sempre, e il vicino passerebbe la giornata alla lavagna.
+	var lavagna: Node3D = null
+	var com := get_tree().get_first_node_in_group("commissioni")
+	if com != null and com.has_method("ha_richiesta_di") \
+			and not bool(com.call("ha_richiesta_di", str(r.get("label", "")))):
+		lavagna = _nearest_named(["Lavagna"], home, 60.0)
+	fuori.append(cerca.call(lavagna))
+	return fuori
 
 
 ## LA MARIONETTA DELL'AGENDA, e la regola è una: si recita SOLO SUL FRONTE.
@@ -1923,12 +2017,23 @@ func _regia_plan(r: Dictionary, fase: String) -> Array:
 func _nearest_named(names: Array, from: Vector3, max_d: float) -> Node3D:
 	var best: Node3D = null
 	var best_d := max_d
+	# IL MURO SI GUARDA QUI, una volta per tutti. Prima di questa fase la
+	# ricerca del posto più vicino non sapeva niente dei recinti: il posto
+	# chiuso dentro una staccionata vinceva lo stesso perché era il più
+	# vicino, e il vicino ci si incamminava dentro. Adesso un posto che non
+	# si raggiunge semplicemente non è un candidato — per TUTTI i sistemi
+	# che chiedono «qual è il più vicino», non solo per il pianificatore.
+	var qui := Vector2i(roundi(from.x), roundi(from.z))
 	for item_name in names:
 		for node in _build.get_placed_by_name(item_name):
-			var d: float = (node as Node3D).global_position.distance_to(from)
-			if d < best_d:
-				best_d = d
-				best = node
+			var pos: Vector3 = (node as Node3D).global_position
+			var d: float = pos.distance_to(from)
+			if d >= best_d:
+				continue
+			if not _build.raggiungibile(qui, Vector2i(roundi(pos.x), roundi(pos.z))):
+				continue
+			best_d = d
+			best = node
 	return best
 
 
@@ -3286,6 +3391,11 @@ func debug_force_activity(i: int, act: String) -> bool:
 		return false
 	r["next_act"] = 9999.0
 	r["phase"] = _phase()
+	# I FATTI PRIMA DELLA SCENA: `_recita` chiede al piano, e il piano legge
+	# `r["luoghi"]`. Senza questo rinfresco la verifica CLI proverebbe
+	# sempre e solo il ramo scritto a mano — cioè non proverebbe la Fase 3.
+	r["fatti_scad"] = -1.0
+	_fatti_di(r, node)
 	_recita(r, node, _ensure_brain(r), act, "day")
 	return true
 
