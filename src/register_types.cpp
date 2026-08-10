@@ -9,6 +9,7 @@
 #include "grid_manager.h"
 #include "player_controller.h"
 #include "ecosystem_manager.h"
+#include "ecs_mondo.h"
 
 using namespace godot;
 
@@ -22,6 +23,7 @@ void initialize_chibi_crossing_module(ModuleInitializationLevel p_level) {
     ClassDB::register_class<GridManager>();
     ClassDB::register_class<PlayerController>();
     ClassDB::register_class<EcosystemManager>();
+    ClassDB::register_class<EcsMondo>();
 }
 
 void uninitialize_chibi_crossing_module(ModuleInitializationLevel p_level) {

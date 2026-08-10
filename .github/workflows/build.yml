@@ -9,7 +9,10 @@ name: Build del cuore C++ (Windows + macOS + Linux)
 
 on:
   push:
-    branches: [main]
+    # anche i rami di lavoro: il ramo Windows del SConstruct non e'
+    # verificabile da un Mac, e scoprire che non compila DOPO il merge su
+    # main vuol dire scoprirlo sul ramo principale. Qui si scopre prima.
+    branches: [main, 'claude/**', 'ecs/**']
     paths:
       - 'src/**'
       - 'SConstruct'
