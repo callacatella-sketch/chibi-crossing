@@ -5,6 +5,7 @@
 
 #include "ecs_componenti.h"
 #include "ecs_entt.h"
+#include "sistema_agenda.h"
 #include "sistema_sonno.h"
 
 using namespace godot;
@@ -13,6 +14,7 @@ using namespace godot;
 // PIMPL dichiarato in ecs_mondo.h.
 struct EcsMondo::Registro {
 	entt::registry reg;
+	chibi::TaraturaAgenda tar;
 };
 
 // --- la traduzione dei nomi -------------------------------------------
@@ -35,6 +37,24 @@ const VoceIndole INDOLI[] = {
 	{ "sognatore", chibi::I_SOGNATORE },
 	{ "ordinato", chibi::I_ORDINATO },
 	{ "brontolone", chibi::I_BRONTOLONE },
+};
+
+// I nomi dei FATTI e delle AZIONI: come per indoli e quirk, la tabella vera
+// vive in GDScript e qui c'è solo la traduzione. Un test li confronta uno a
+// uno, cosi aggiungere un'azione di la senza insegnarla di qua fa diventare
+// la suite ROSSA invece di far divergere due elenchi in silenzio.
+const char *FATTI[] = {
+	"mattina", "sera_stellata", "aiuola_da_annaffiare", "spuntino_vicino",
+	"amico_in_giro", "regia", "meraviglia_posto", "regia_pronta",
+};
+
+const char *AZIONI[] = {
+	"spuntino", "riposo", "quattro_chiacchiere", "cura_giardino",
+	"meraviglia", "stella", "regia", "gironzola",
+};
+
+const char *BISOGNI[] = {
+	"pancino", "energia", "compagnia", "meraviglia", "cura",
 };
 
 const char *QUIRKS[] = {
@@ -84,6 +104,20 @@ void EcsMondo::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("conosce", "id"), &EcsMondo::conosce);
 	ClassDB::bind_method(D_METHOD("quanti"), &EcsMondo::quanti);
 	ClassDB::bind_method(D_METHOD("riferisci", "id", "nascosto", "corpo_libero", "porta_aperta"), &EcsMondo::riferisci);
+	ClassDB::bind_method(D_METHOD("riferisci_bisogni", "id", "bisogni"), &EcsMondo::riferisci_bisogni);
+	ClassDB::bind_method(D_METHOD("riferisci_agenda", "id", "fatti", "corpo_a_riposo", "zittita"), &EcsMondo::riferisci_agenda);
+	ClassDB::bind_method(D_METHOD("semina_agenda", "id", "jitter"), &EcsMondo::semina_agenda);
+	ClassDB::bind_method(D_METHOD("vuole_dado", "id"), &EcsMondo::vuole_dado);
+	ClassDB::bind_method(D_METHOD("azione", "id"), &EcsMondo::azione);
+	ClassDB::bind_method(D_METHOD("azione_cambiata", "id"), &EcsMondo::azione_cambiata);
+	ClassDB::bind_method(D_METHOD("azione_desiderata", "id"), &EcsMondo::azione_desiderata);
+	ClassDB::bind_method(D_METHOD("azione_da", "id"), &EcsMondo::azione_da);
+	ClassDB::bind_method(D_METHOD("maschera_fatti", "nomi"), &EcsMondo::maschera_fatti);
+	ClassDB::bind_method(D_METHOD("indice_azione", "nome"), &EcsMondo::indice_azione);
+	ClassDB::bind_method(D_METHOD("indice_bisogno", "nome"), &EcsMondo::indice_bisogno);
+	ClassDB::bind_method(D_METHOD("debug_punteggi", "bisogni", "fatti", "indole", "quirk"), &EcsMondo::debug_punteggi);
+	ClassDB::bind_method(D_METHOD("debug_agenda", "id"), &EcsMondo::debug_agenda);
+	ClassDB::bind_method(D_METHOD("debug_tara_agenda", "t_min", "bonus", "margine", "tetto"), &EcsMondo::debug_tara_agenda);
 	ClassDB::bind_method(D_METHOD("avanza", "delta", "ora"), &EcsMondo::avanza);
 	ClassDB::bind_method(D_METHOD("stato", "id"), &EcsMondo::stato);
 	ClassDB::bind_method(D_METHOD("da_quanto", "id"), &EcsMondo::da_quanto);
@@ -98,6 +132,15 @@ void EcsMondo::_bind_methods() {
 	BIND_ENUM_CONSTANT(STATO_SVEGLIO);
 	BIND_ENUM_CONSTANT(STATO_DORME);
 	BIND_ENUM_CONSTANT(STATO_FUORI);
+	BIND_ENUM_CONSTANT(AZ_NESSUNA);
+	BIND_ENUM_CONSTANT(AZ_SPUNTINO);
+	BIND_ENUM_CONSTANT(AZ_RIPOSO);
+	BIND_ENUM_CONSTANT(AZ_CHIACCHIERE);
+	BIND_ENUM_CONSTANT(AZ_CURA_GIARDINO);
+	BIND_ENUM_CONSTANT(AZ_MERAVIGLIA);
+	BIND_ENUM_CONSTANT(AZ_STELLA);
+	BIND_ENUM_CONSTANT(AZ_REGIA);
+	BIND_ENUM_CONSTANT(AZ_GIRONZOLA);
 }
 
 int EcsMondo::maschera_indole(const PackedStringArray &p_nomi) const {
@@ -135,6 +178,8 @@ int64_t EcsMondo::registra(const PackedStringArray &p_indole, const String &p_qu
 	_reg->reg.emplace<chibi::DnaComponent>(e, dna);
 	_reg->reg.emplace<chibi::StatoComponent>(e);
 	_reg->reg.emplace<chibi::MondoComponent>(e);
+	_reg->reg.emplace<chibi::BisogniComponent>(e);
+	_reg->reg.emplace<chibi::AgendaComponent>(e);
 	// NIENTE TransformComponent: vedi ecs_componenti.h
 	return a_handle(e);
 }
@@ -207,6 +252,186 @@ void EcsMondo::avanza(double p_delta, double p_ora) {
 			st.da = 0.0;
 		}
 	}
+
+	// LA SECONDA VISTA: l'agenda, e gira DOPO il sonno apposta. Deve vedere
+	// «dorme» gia deciso in questo stesso frame e tacere, se no il corpo
+	// riceverebbe al risveglio un ordine deciso durante la notte.
+	auto vista2 = _reg->reg.view<chibi::DnaComponent, chibi::StatoComponent,
+			chibi::BisogniComponent, chibi::AgendaComponent>();
+	for (const entt::entity e : vista2) {
+		const chibi::DnaComponent &dna = vista2.get<chibi::DnaComponent>(e);
+		const chibi::StatoComponent &st = vista2.get<chibi::StatoComponent>(e);
+		const chibi::BisogniComponent &bi = vista2.get<chibi::BisogniComponent>(e);
+		chibi::AgendaComponent &ag = vista2.get<chibi::AgendaComponent>(e);
+
+		double punti[chibi::N_AZIONI];
+		uint32_t fattibile = 0;
+		chibi::punteggi(bi.v, ag.fatti, dna.indole,
+				chibi::nottambulo(dna.indole, dna.quirk), punti, &fattibile);
+
+		const bool sveglio = (st.stato == chibi::SVEGLIO);
+		const chibi::EsitoAgenda es = chibi::passo_agenda(ag.azione, ag.da,
+				ag.impegno, punti, ag.jitter, fattibile, ag.corpo_a_riposo,
+				ag.zittita, sveglio, _reg->tar);
+
+		ag.desiderata = es.desiderata;
+		ag.punteggio = es.punteggio;
+		ag.cambiata = es.cambiata;
+		if (es.azione == ag.azione) {
+			ag.da += p_delta;
+		} else {
+			ag.azione = es.azione;
+			ag.da = 0.0;
+		}
+		// il tetto di sicurezza: se il corpo resta occupato all'infinito
+		// (un cammino che non arriva, un gesto che non finisce) l'impegno
+		// cresce finche non sblocca la decisione
+		if (ag.corpo_a_riposo) {
+			ag.impegno = 0.0;
+		} else {
+			ag.impegno += p_delta;
+		}
+	}
+}
+
+// --- FASE 2: i fatti, il dado, le letture -------------------------------
+
+void EcsMondo::riferisci_bisogni(int64_t p_id, const PackedFloat64Array &p_bisogni) {
+	ERR_FAIL_NULL(_reg);
+	ERR_FAIL_COND_MSG(!conosce(p_id), "EcsMondo.riferisci_bisogni: handle sconosciuto.");
+	ERR_FAIL_COND_MSG(p_bisogni.size() != chibi::N_BISOGNI,
+			"EcsMondo.riferisci_bisogni: servono esattamente cinque bisogni.");
+	chibi::BisogniComponent &b = _reg->reg.get<chibi::BisogniComponent>(da_handle(p_id));
+	for (int i = 0; i < chibi::N_BISOGNI; i++) {
+		b.v[i] = p_bisogni[i];
+	}
+}
+
+void EcsMondo::riferisci_agenda(int64_t p_id, int p_fatti, bool p_corpo_a_riposo, bool p_zittita) {
+	ERR_FAIL_NULL(_reg);
+	ERR_FAIL_COND_MSG(!conosce(p_id), "EcsMondo.riferisci_agenda: handle sconosciuto.");
+	chibi::AgendaComponent &a = _reg->reg.get<chibi::AgendaComponent>(da_handle(p_id));
+	a.fatti = static_cast<uint32_t>(p_fatti);
+	a.corpo_a_riposo = p_corpo_a_riposo;
+	a.zittita = p_zittita;
+}
+
+void EcsMondo::semina_agenda(int64_t p_id, const PackedFloat64Array &p_jitter) {
+	ERR_FAIL_NULL(_reg);
+	ERR_FAIL_COND_MSG(!conosce(p_id), "EcsMondo.semina_agenda: handle sconosciuto.");
+	ERR_FAIL_COND_MSG(p_jitter.size() != chibi::N_AZIONI,
+			"EcsMondo.semina_agenda: serve un dado per azione.");
+	chibi::AgendaComponent &a = _reg->reg.get<chibi::AgendaComponent>(da_handle(p_id));
+	for (int i = 0; i < chibi::N_AZIONI; i++) {
+		a.jitter[i] = p_jitter[i];
+	}
+}
+
+bool EcsMondo::vuole_dado(int64_t p_id) const {
+	ERR_FAIL_COND_V(!conosce(p_id), false);
+	const chibi::AgendaComponent &a = _reg->reg.get<chibi::AgendaComponent>(da_handle(p_id));
+	// il dado si ritira quando una decisione e finita: appena si cambia
+	// azione, o quando non se ne sta facendo nessuna. Congelarlo dentro la
+	// decisione e una delle tre leve contro il tremolio.
+	return a.cambiata || a.azione == chibi::AZ_NESSUNA;
+}
+
+int EcsMondo::azione(int64_t p_id) const {
+	ERR_FAIL_COND_V(!conosce(p_id), chibi::AZ_NESSUNA);
+	return static_cast<int>(_reg->reg.get<chibi::AgendaComponent>(da_handle(p_id)).azione);
+}
+
+bool EcsMondo::azione_cambiata(int64_t p_id) const {
+	ERR_FAIL_COND_V(!conosce(p_id), false);
+	return _reg->reg.get<chibi::AgendaComponent>(da_handle(p_id)).cambiata;
+}
+
+int EcsMondo::azione_desiderata(int64_t p_id) const {
+	ERR_FAIL_COND_V(!conosce(p_id), chibi::AZ_NESSUNA);
+	return static_cast<int>(_reg->reg.get<chibi::AgendaComponent>(da_handle(p_id)).desiderata);
+}
+
+double EcsMondo::azione_da(int64_t p_id) const {
+	ERR_FAIL_COND_V(!conosce(p_id), -1.0);
+	return _reg->reg.get<chibi::AgendaComponent>(da_handle(p_id)).da;
+}
+
+int EcsMondo::maschera_fatti(const PackedStringArray &p_nomi) const {
+	uint32_t m = 0;
+	const int n = static_cast<int>(sizeof(FATTI) / sizeof(FATTI[0]));
+	for (int i = 0; i < p_nomi.size(); i++) {
+		for (int k = 0; k < n; k++) {
+			if (p_nomi[i] == String(FATTI[k])) {
+				m |= (1u << k);
+				break;
+			}
+		}
+	}
+	return static_cast<int>(m);
+}
+
+int EcsMondo::indice_azione(const String &p_nome) const {
+	const int n = static_cast<int>(sizeof(AZIONI) / sizeof(AZIONI[0]));
+	for (int i = 0; i < n; i++) {
+		if (p_nome == String(AZIONI[i])) {
+			return i;
+		}
+	}
+	return chibi::AZ_NESSUNA;
+}
+
+int EcsMondo::indice_bisogno(const String &p_nome) const {
+	const int n = static_cast<int>(sizeof(BISOGNI) / sizeof(BISOGNI[0]));
+	for (int i = 0; i < n; i++) {
+		if (p_nome == String(BISOGNI[i])) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+PackedFloat64Array EcsMondo::debug_punteggi(const PackedFloat64Array &p_bisogni,
+		int p_fatti, int p_indole, int p_quirk) const {
+	PackedFloat64Array out;
+	ERR_FAIL_COND_V(p_bisogni.size() != chibi::N_BISOGNI, out);
+	double b[chibi::N_BISOGNI];
+	for (int i = 0; i < chibi::N_BISOGNI; i++) {
+		b[i] = p_bisogni[i];
+	}
+	double punti[chibi::N_AZIONI];
+	uint32_t fattibile = 0;
+	const uint32_t ind = static_cast<uint32_t>(p_indole);
+	chibi::punteggi(b, static_cast<uint32_t>(p_fatti), ind,
+			chibi::nottambulo(ind, static_cast<int32_t>(p_quirk)), punti, &fattibile);
+	out.resize(chibi::N_AZIONI);
+	for (int i = 0; i < chibi::N_AZIONI; i++) {
+		out[i] = punti[i];
+	}
+	return out;
+}
+
+Dictionary EcsMondo::debug_agenda(int64_t p_id) const {
+	Dictionary d;
+	ERR_FAIL_COND_V(!conosce(p_id), d);
+	const chibi::AgendaComponent &a = _reg->reg.get<chibi::AgendaComponent>(da_handle(p_id));
+	d["azione"] = static_cast<int>(a.azione);
+	d["desiderata"] = static_cast<int>(a.desiderata);
+	d["da"] = a.da;
+	d["impegno"] = a.impegno;
+	d["punteggio"] = a.punteggio;
+	d["fatti"] = static_cast<int>(a.fatti);
+	d["corpo_a_riposo"] = a.corpo_a_riposo;
+	d["zittita"] = a.zittita;
+	d["cambiata"] = a.cambiata;
+	return d;
+}
+
+void EcsMondo::debug_tara_agenda(double p_t_min, double p_bonus, double p_margine, double p_tetto) {
+	ERR_FAIL_NULL(_reg);
+	_reg->tar.t_min = p_t_min;
+	_reg->tar.bonus = p_bonus;
+	_reg->tar.margine = p_margine;
+	_reg->tar.tetto_impegno = p_tetto;
 }
 
 int EcsMondo::stato(int64_t p_id) const {

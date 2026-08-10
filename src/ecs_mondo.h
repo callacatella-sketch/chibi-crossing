@@ -3,6 +3,7 @@
 
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
+#include <godot_cpp/variant/packed_float64_array.hpp>
 #include <godot_cpp/variant/packed_string_array.hpp>
 #include <godot_cpp/variant/string.hpp>
 
@@ -60,6 +61,20 @@ public:
 		STATO_FUORI = 2,
 	};
 
+	// Le azioni dell'agenda. Il GDScript non scrive un indice a mano da
+	// nessuna parte: legge queste costanti, come già fa per STATO_*.
+	enum Azione {
+		AZ_NESSUNA = -1,
+		AZ_SPUNTINO = 0,
+		AZ_RIPOSO = 1,
+		AZ_CHIACCHIERE = 2,
+		AZ_CURA_GIARDINO = 3,
+		AZ_MERAVIGLIA = 4,
+		AZ_STELLA = 5,
+		AZ_REGIA = 6,
+		AZ_GIRONZOLA = 7,
+	};
+
 	// --- anagrafe -------------------------------------------------------
 	// L'handle porta dentro la VERSIONE dell'entità EnTT: l'handle di un
 	// vicino congedato non risolve mai a un residente nuovo.
@@ -80,10 +95,34 @@ public:
 	// scena e non chiama mai una Callable.
 	void riferisci(int64_t p_id, bool p_nascosto, bool p_corpo_libero, bool p_porta_aperta);
 
+	// --- i fatti della FASE 2 (una chiamata per residente per frame) -----
+	// I bisogni arrivano come SPECCHIO: il proprietario resta VillagerBrain
+	// (sono persistiti), qui se ne tiene una copia di sola lettura per il
+	// frame in corso.
+	void riferisci_bisogni(int64_t p_id, const godot::PackedFloat64Array &p_bisogni);
+	void riferisci_agenda(int64_t p_id, int p_fatti, bool p_corpo_a_riposo, bool p_zittita);
+	// Il dado, tirato in GDScript e spinto di qua già estratto. Va rifornito
+	// solo quando serve (vedi `vuole_dado`): congelarlo per DECISIONE invece
+	// di ritirarlo a ogni frame è una delle tre leve contro il tremolio —
+	// senza, misurato, si passa da 0.2 a 922 cambi d'idea al minuto.
+	void semina_agenda(int64_t p_id, const godot::PackedFloat64Array &p_jitter);
+	bool vuole_dado(int64_t p_id) const;
+
 	// --- il passo -------------------------------------------------------
 	void avanza(double p_delta, double p_ora);
 
 	// --- letture (la marionetta) ----------------------------------------
+	int azione(int64_t p_id) const;
+	// IL FRONTE, ed è l'unico permesso di recitare: `_recita` va chiamata
+	// SOLO quando l'azione cambia. Non è una mitigazione statistica del
+	// tremolio, è l'impossibilità strutturale di rilanciare `do_task` due
+	// frame di fila — che è ciò che impedirebbe al corpo di ARRIVARE.
+	bool azione_cambiata(int64_t p_id) const;
+	// L'argmax anche quando non si commuta: serve alla scena dell'esitazione
+	// (si voleva fare una cosa e se ne sta facendo un'altra).
+	int azione_desiderata(int64_t p_id) const;
+	double azione_da(int64_t p_id) const;
+
 	int stato(int64_t p_id) const;
 	double da_quanto(int64_t p_id) const;
 	bool in_finestra(int64_t p_id) const;
@@ -91,6 +130,9 @@ public:
 	// --- tabelle: i NOMI restano in GDScript, qui solo la traduzione -----
 	int maschera_indole(const godot::PackedStringArray &p_nomi) const;
 	int indice_quirk(const godot::String &p_nome) const;
+	int maschera_fatti(const godot::PackedStringArray &p_nomi) const;
+	int indice_azione(const godot::String &p_nome) const;
+	int indice_bisogno(const godot::String &p_nome) const;
 
 	// --- oracoli per i test (precedente: EcosystemManager::debug_farfalla)
 	godot::Dictionary debug_entita(int64_t p_id) const;
@@ -100,8 +142,16 @@ public:
 	// vuoto. Il giorno in cui arriva il primo lettore vero, questo test si
 	// capovolge di proposito.
 	int debug_quante_pose() const;
+	godot::PackedFloat64Array debug_punteggi(const godot::PackedFloat64Array &p_bisogni,
+			int p_fatti, int p_indole, int p_quirk) const;
+	godot::Dictionary debug_agenda(int64_t p_id) const;
+	// La taratura si può muovere SOLO da un test: in partita i numeri sono
+	// quelli misurati (vedi TaraturaAgenda). Serve alle ablazioni, che
+	// guastano una valvola per volta e pretendono che qualcosa fallisca.
+	void debug_tara_agenda(double p_t_min, double p_bonus, double p_margine, double p_tetto);
 };
 
 VARIANT_ENUM_CAST(EcsMondo::Stato);
+VARIANT_ENUM_CAST(EcsMondo::Azione);
 
 #endif // CHIBI_ECS_MONDO_H

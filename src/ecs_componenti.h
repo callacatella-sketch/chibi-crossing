@@ -52,6 +52,42 @@ struct MondoComponent {
 	bool porta_aperta = true;  // chi divide la casa con lui gliela apre
 };
 
+// LO SPECCHIO DEI BISOGNI. Rinfrescato OGNI FRAME dal proprietario, che
+// resta VillagerBrain in GDScript, e MAI scritto dal C++: `punteggi()` lo
+// riceve come `const double *` e non ha nemmeno la possibilità sintattica
+// di toccarlo.
+//
+// Perché i bisogni NON traslocano, benché la Fase 2 sia «il motore dei
+// bisogni»: sono PERSISTITI dentro residents[].brain in village.json. Una
+// seconda casa qui diventerebbe stale al primo `satisfy()` — con la suite
+// verde — e un salvataggio scritto mentre la GDExtension non è caricata
+// scriverebbe righe senza bisogni. È il cucciolo cancellato dal
+// salvataggio, applicato a ventotto vicini insieme. Si migra solo ciò che
+// si può PROVARE per equivalenza, e uno stato persistito non ha campione.
+struct BisogniComponent {
+	double v[5] = { 0.9, 1.0, 0.7, 0.6, 0.8 };
+};
+
+// L'AGENDA: stato DERIVATO e VOLATILE, come `coppia()` in Affetti e come la
+// fusione delle serre. Niente da migrare, niente che possa restare appeso a
+// metà, nessuna chiave nuova su disco.
+struct AgendaComponent {
+	int32_t azione = -1;     // quel che il registro ha scelto
+	int32_t desiderata = -1; // l'argmax, anche quando non si commuta
+	double da = 0.0;         // secondi nell'azione corrente
+	double impegno = 0.0;    // secondi col corpo occupato (tetto di sicurezza)
+	double punteggio = 0.0;
+	uint32_t fatti = 0;
+	bool corpo_a_riposo = true;
+	bool zittita = false; // un altro sistema ha preso il corpo (r["next_act"])
+	// IL DADO ARRIVA GIÀ TIRATO. In C++ non c'è e non ci sarà un RNG: i dadi
+	// del villaggio si salvano (Animo._rng, come stringa perché da JSON un
+	// intero perde undici bit), e un secondo generatore qui sarebbe una
+	// seconda storia che nessun salvataggio racconta.
+	double jitter[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+	bool cambiata = false; // vero SOLO nel frame del cambio: è il FRONTE
+};
+
 // DICHIARATO, MAI ISTANZIATO IN FASE 1 — e non è una svista.
 //
 // In Fase 1 nessun sistema C++ legge una posizione: sarebbe un componente
