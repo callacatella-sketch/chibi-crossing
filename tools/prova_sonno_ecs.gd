@@ -6,6 +6,15 @@ extends SceneTree
 ## insedia dei vicini, porta l'orologio al tramonto e GUARDA: chi rientra
 ## sparisce dentro casa, e chi non poteva entrare resta fuori.
 ##
+## COME SI LEGGE IL RISULTATO, perché «dormono 2/3» NON è un guasto: chi ha
+## il corpo occupato non lo si strappa a letto (la whitelist degli stati
+## interrompibili è la stessa di prima dell'ECS). Se un vicino resta sveglio
+## alle 0.86, guarda la sonda: `corpo_libero: false` con uno stato tipo
+## `lp_wait`/`walk` vuol dire che il villaggio gli aveva dato da fare — è la
+## risposta giusta. Un guasto sarebbe `corpo_libero: true` e `stato: 0`
+## dentro la finestra, o `in_finestra: false` alle 0.86 per un profilo senza
+## indole.
+##
 ## Serve anche a una cosa che nessun test headless vede: che `EcsMondo`
 ## nasca davvero dentro la scena vera (il nodo «CuoreSonno» sotto Visitors),
 ## che il ponte regga a 60 frame al secondo con la partita intera addosso, e
