@@ -221,37 +221,7 @@ func _process(delta: float) -> void:
 	# E intanto i bisogni scorrono: dormendo si ricarica l'energia.
 	var t_ora: float = float(_daynight.get("time")) if _daynight else 0.5
 	_vita_cd -= delta
-	for r in _residents:
-		var node := r["node"] as Node3D
-		if node == null or not is_instance_valid(node):
-			continue
-		var brain: RefCounted = _ensure_brain(r)
-		var nascosto: bool = node.call("is_hidden")
-		brain.tick(delta, nascosto)
-		# LA NOTTE FUORI FINISCE. Se la posa della porta chiusa restasse
-		# addosso, chi una sera non è entrato resterebbe curvo per sempre —
-		# lo stesso guasto per cui «sereno» non lo scriveva mai nessuno. Si
-		# toglie quando la porta si riapre o quando la notte è passata, e
-		# SOLO se è ancora la nostra (un altro sistema può averla coperta).
-		var lab_fuori := str(r.get("label", ""))
-		if _posa_fuori.has(lab_fuori) \
-				and (not _sleep_window(brain, t_ora) or _puo_entrare(r)):
-			_aggiorna_posa_fuori(lab_fuori, node, false)
-		if _sleep_window(brain, t_ora) and not nascosto \
-				and str(node.get("_state")) in ["r_idle", "r_wander", "r_fire", "r_bench", "r_sniff", "tk_stella", "tk_sing", "tk_nap"]:
-			# LA PORTA PUÒ NON APRIRSI. Se qualcuno con cui divideva quella
-			# casa gliel'ha chiusa, non sparisce dentro: resta fuori. Non
-			# c'è nessun toast e nessuna spiegazione — c'è uno che alla sera
-			# non entra, e il giocatore lo vede. È l'unico modo in cui
-			# questo gioco racconta una cosa del genere.
-			if _puo_entrare(r):
-				node.call("resident_sleep")
-			else:
-				_aggiorna_posa_fuori(lab_fuori, node, true)
-		elif not _sleep_window(brain, t_ora) and nascosto:
-			node.call("resident_wake")
-		elif not nascosto:
-			_quirk_tick(r, node, brain, delta, t_ora)
+	_ciclo_sonno(delta, t_ora)
 
 	# la prima goccia fa alzare il musetto: qualcuno commenta la pioggia
 	var raining: bool = _weather != null and _weather.is_raining()
@@ -591,6 +561,14 @@ func _aggiorna_posa_fuori(label: String, node: Node, resta_fuori: bool) -> void:
 ## con lui gliel'ha chiusa. Una ferita non rende scontrosi con tutti: la
 ## porta è chiusa a UNA persona, e a nessun altro.
 func _puo_entrare(r: Dictionary) -> bool:
+	# fuori dall'albero non c'è nessun Affetti a cui chiedere, e non
+	# esistendo il rancore la porta è aperta. Serve anche a poter PROVARE
+	# il ciclo del sonno senza montare mezzo villaggio.
+	# `is_inside_tree()` e non `get_tree() == null`: il secondo stampa
+	# comunque un ERROR del motore prima di tornare null, e un test pulito
+	# non deve lasciare rumore nel registro.
+	if not is_inside_tree():
+		return true
 	var aff := get_tree().get_first_node_in_group("affetti")
 	if aff == null:
 		return true
@@ -609,16 +587,130 @@ func _puo_entrare(r: Dictionary) -> bool:
 	return true
 
 
-func _sleep_window(brain: RefCounted, t: float) -> bool:
-	var inizio := 0.80
-	var fine := 0.295
-	if brain.has_indole("mattiniero"):
-		fine = 0.262
-	elif brain.has_indole("dormiglione"):
-		fine = 0.36
-	if brain.nottambulo():
-		inizio = 0.92
-	return t >= inizio or t < fine
+# ======================= IL CICLO DEL SONNO, DECISO IN C++ ==============
+#
+# Questo è il primo canale del villaggio in cui la DECISIONE non sta più in
+# GDScript. Qui restano i FATTI (chi è nascosto, chi ha il corpo libero, a
+# chi si apre la porta) e i GESTI (dormi, svegliati, spalle basse); in mezzo
+# c'è `EcsMondo`, che con quei tre fatti decide se uno sta sveglio, dorme o
+# resta fuori — e la finestra del sonno esiste solo là dentro.
+#
+# Perché la marionetta è QUESTO file e non `Visitor.gd`: il Visitor non
+# decide già oggi, RECITA (lo dice VillagerBrain in cima al suo file). Chi
+# decideva era questo ciclo. Ed è per lo stesso motivo che l'autorità è su
+# UN canale solo: undici sistemi (il concerto, il salone, il nascondino, le
+# promesse…) impongono stati a evento, e un C++ che scrivesse «lo stato»
+# ogni frame vincerebbe su di loro senza un errore. Vedi CLAUDE.md.
+
+## Gli stati da cui il corpo si può interrompere per andare a dormire. Era
+## un letterale in mezzo al `_process`. Il C++ non li conosce: gli arriva
+## solo il booleano `corpo_libero`, perché i 43 stati-stringa del Visitor
+## non sono affar suo (e alcuni nascono composti a runtime).
+const STATI_INTERROMPIBILI := ["r_idle", "r_wander", "r_fire", "r_bench",
+		"r_sniff", "tk_stella", "tk_sing", "tk_nap"]
+
+var _ecs: Object = null
+var _ecs_manca_detto := false
+var _ST_DORME := 1
+var _ST_FUORI := 2
+
+
+## MAI `EcsMondo.new()`: nominare la classe fa fallire il PARSE dell'intero
+## file quando la GDExtension non è caricata, e il villaggio resterebbe
+## senza abitanti oltre che senza cuore. Con ClassDB il file compila sempre.
+func _ensure_ecs() -> void:
+	if _ecs != null and is_instance_valid(_ecs):
+		return
+	if not ClassDB.class_exists("EcsMondo"):
+		if not _ecs_manca_detto:
+			_ecs_manca_detto = true
+			push_error("EcsMondo assente: la GDExtension non è caricata, i residenti non dormiranno.")
+		return
+	_ecs = ClassDB.instantiate("EcsMondo")
+	_ecs.name = "CuoreSonno"
+	add_child(_ecs)
+	# le costanti si leggono dall'oggetto: qui dentro non si scrive 0/1/2
+	_ST_DORME = _ecs.STATO_DORME
+	_ST_FUORI = _ecs.STATO_FUORI
+
+
+## L'handle dell'entità. Vive SOLO qui, in RAM, dentro la riga del residente:
+## non finisce in nessun salvataggio e non attraversa nessun altro sistema —
+## il villaggio ha già due anagrafi (nome e label) e questa non deve
+## diventare la terza.
+func _ecs_id(r: Dictionary) -> int:
+	if not r.has("ecs"):
+		var brain: RefCounted = _ensure_brain(r)
+		r["ecs"] = _ecs.registra(PackedStringArray(brain.indole), str(brain.quirk))
+	return int(r["ecs"])
+
+
+## Dove muore il cervello, muore l'entità. È la regola, ed è greppabile:
+## accanto a ogni `_brains.erase` c'è una di queste.
+func _dimentica_ecs(r: Dictionary) -> void:
+	if _ecs != null and is_instance_valid(_ecs) and r.has("ecs"):
+		_ecs.dimentica(int(r["ecs"]))
+	r.erase("ecs")
+
+
+## Fatti → passo → gesti, dentro UN frame e in quest'ordine. È una funzione
+## a sé anche perché così si può PROVARE: far girare `_process` vorrebbe il
+## villaggio intero (mondo, meteo, costruzioni).
+func _ciclo_sonno(delta: float, t_ora: float) -> void:
+	_ensure_ecs()
+	# 1) I FATTI. `brain.tick` sta qui, prima di ogni transizione, esattamente
+	#    dov'era.
+	for r in _residents:
+		var node := r.get("node") as Node3D
+		if node == null or not is_instance_valid(node):
+			continue
+		var brain: RefCounted = _ensure_brain(r)
+		var nascosto: bool = node.call("is_hidden")
+		brain.tick(delta, nascosto)
+		if _ecs != null:
+			_ecs.riferisci(_ecs_id(r), nascosto,
+					str(node.get("_state")) in STATI_INTERROMPIBILI,
+					_puo_entrare(r))
+	if _ecs == null:
+		return
+	# 2) IL PASSO: l'unica decisione che il C++ possiede in tutto il gioco
+	_ecs.avanza(delta, t_ora)
+	# 3) I GESTI. Applicazione IDEMPOTENTE: si guarda com'è il corpo ADESSO e
+	#    lo si porta dov'è giusto. Nessun fronte da perdere, nessun ordine da
+	#    ricordare — e se un altro sistema ha mosso il corpo nel frattempo, al
+	#    giro dopo il registro lo accetta invece di combatterlo.
+	for r in _residents:
+		var node := r.get("node") as Node3D
+		if node == null or not is_instance_valid(node):
+			continue
+		var id: int = _ecs_id(r)
+		var st: int = _ecs.stato(id)
+		var nascosto: bool = node.call("is_hidden")
+		var lab := str(r.get("label", ""))
+		# la posa della porta chiusa la mette e la toglie SEMPRE lo stesso
+		# posto, e solo se è ancora la nostra
+		_aggiorna_posa_fuori(lab, node, st == _ST_FUORI)
+		if st == _ST_DORME:
+			if not nascosto:
+				node.call("resident_sleep")
+		else:
+			if nascosto:
+				node.call("resident_wake")
+			elif not (_ecs.in_finestra(id) \
+					and str(node.get("_state")) in STATI_INTERROMPIBILI):
+				# le stravaganze continuano a girare quando non sta per
+				# andare a letto: la loro whitelist è un sottoinsieme di
+				# STATI_INTERROMPIBILI, quindi la condizione è la stessa di
+				# prima detta al contrario
+				_quirk_tick(r, node, _ensure_brain(r), delta, t_ora)
+
+
+# LA FINESTRA DI SONNO NON ABITA PIÙ QUI. Era `_sleep_window(brain, t)`, ed
+# è stata spostata in C++ (src/sistema_sonno.cpp) insieme alla decisione che
+# la usava — non ne resta una copia, perché una seconda formula è esattamente
+# il modo in cui due verità cominciano a divergere in silenzio.
+# Una copia CONGELATA vive in tests/oracolo_sonno.gd e serve solo alla prova
+# di equivalenza (tests/cases/test_ecs_mondo.gd).
 
 
 func _ensure_brain(r: Dictionary) -> RefCounted:
@@ -833,6 +925,7 @@ func _congeda(i: int, r: Dictionary, animo: RefCounted) -> void:
 	_residents.remove_at(i)          # il letto torna libero
 	_animi.erase(label)
 	_brains.erase(label)
+	_dimentica_ecs(r)
 	# e si congeda anche dal GRAFO del villaggio: senza questa riga il
 	# disertore restava lì come un fantasma — continuava a spettegolare
 	# contro di te a ogni simula_giorno e a tenere alta la tensione di un
@@ -946,6 +1039,7 @@ func parte_per_il_grande_prato(label: String) -> void:
 		# e' partito per il Grande Prato non festeggia piu' qui
 		get_tree().call_group("calendario", "dimentica",
 				str((r.get("dna", {}) as Dictionary).get("name", "")))
+		_dimentica_ecs(r)
 		_residents.remove_at(i)
 		_animi.erase(label)
 		_brains.erase(label)
@@ -2962,6 +3056,8 @@ func debug_reset() -> void:
 	_residents.clear()
 	_brains.clear()
 	_animi.clear()
+	if _ecs != null and is_instance_valid(_ecs):
+		_ecs.dimentica_tutti()
 	_villaggio = null
 
 
