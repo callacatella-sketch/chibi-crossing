@@ -805,10 +805,14 @@ raddoppiata: un bordo *è* un arco del grafo, e piantare una staccionata
 - **Il degrado va SEMPRE verso «nessuno è in trappola»**: oltre
   `MAX_CELLE` si dichiara tutto raggiungibile. Il guasto opposto — un
   vicino che si crede murato in mezzo al prato — è quello che si vede.
-- **La diagonale**: `_in_vista` la accetta solo se almeno uno dei due giri
-  è aperto. Rifiutarla sempre fa camminare i vicini a scaletta come
+- **La diagonale**: `filo_libero` la accetta solo se **tutti e due** i giri
+  sono aperti. Rifiutarla sempre fa camminare i vicini a scaletta come
   carrelli elevatori; accettarla sempre li fa sgusciare per lo spigolo fra
-  due staccionate, cioè attraverso il recinto chiuso.
+  due staccionate, cioè attraverso il recinto chiuso; accettarla con UN
+  giro aperto (la prima stesura) li fa passare sopra il palo dove la
+  staccionata finisce — vero nel grafo, falso addosso a un corpo. E la
+  domanda si fa su PUNTI, non su celle: vedi «il filo giudicato è il filo
+  camminato», più sotto.
 - Il grafo si rifà **pigro** quando cambia un bordo (`_varchi_sporchi`),
   non a ogni domanda; `aggiorna_varchi_ora()` per chi costruisce e
   interroga nello stesso frame.
@@ -862,21 +866,282 @@ pianificatore non è arrivato per rifare quello che funzionava.**
 4. **`debug_force_activity` non rinfrescava i fatti**, quindi la verifica
    CLI provava sempre e solo il ramo scritto a mano — cioè non provava la
    Fase 3.
-5. **I vicini attraversano ancora i muri**: si muovono senza collisioni, e
-   lo facevano già prima. Qui il muro non è diventato solido, è diventato
-   **conosciuto**. Chi sa di non arrivarci non ci prova; il vagabondaggio
-   d'ambiente è com'era.
+5. **Il muro non è solido, è CONOSCIUTO.** I vicini si muovono senza
+   collisioni e continuano a farlo: quello che è cambiato è che sanno
+   dov'è il muro — chi non ci arriva non ci prova, e chi ci va gira
+   attorno (vedi il paragrafo qui sotto).
+6. **Il grafo conosceva i muri, non il MONDO.** Il letto del fiume è
+   permanentemente privo di muri (`place_cell` ci rifiuta ogni pezzo),
+   quindi era il corridoio più economico per aggirare qualunque recinto
+   vicino alla riva — e il vicino ci camminava sopra, sospeso a mezz'aria.
+   Adesso c'è `CozyWorld.terreno_vietato`: il paragrafo «La deviazione
+   conosce il MONDO» dice cosa entra, cosa no, e perché `componenti()`
+   continua a non guardarlo.
+
+### Il corpo segue la ROTTA, non la retta
+
+L'ultimo pezzo, e sta **sotto** l'IA: `Visitor._walk_to` non mette più
+UN punto e ci va dritto — chiede al villaggio la strada
+(`BuildSystem.deviazione`) e la percorre come **coda di tappe**, entrando
+in `_next_state` solo all'ultima. Siccome la coda vive dove il corpo
+cammina, **tutti** i cammini del gioco girano attorno ai muri: la
+routine, il vagabondaggio, i mestieri, i visitatori del bosco. Nessuno
+dei trenta chiamanti di `_walk_to` sa che esiste.
+
+- **Vuoto vuol dire «vai dritto», mai «resta fermo».** `deviazione()`
+  torna vuota quando la retta basta (il caso normale), quando non c'è
+  BuildSystem (bosco, prologo, diorama), quando la meta è murata e
+  quando la meta è nell'acqua. Il degrado va SEMPRE verso «si cammina»:
+  un vicino piantato a metà strada è il guasto che si vede.
+- **Una rotta si paga solo quando serve.** Una ricerca in GDScript costa
+  centinaia di µs, quindi `deviazione` ha quattro cancelli in ordine di
+  prezzo: niente muri → stessa cella → **la retta non ha muri davanti**
+  (`Varchi.filo_libero`, decine di µs, ed è il caso comune) → la meta è
+  nell'acqua. Misurato nel MainLevel vero con dieci residenti: **0.57
+  domande al secondo, 0.068 ms al secondo in tutto**.
+- **`ROTTA_TETTO` è l'UNICO guardiano del costo**, e conta le celle
+  espanse. C'era anche un `ROTTA_RAGGIO := 24` sulla distanza: è stato
+  tolto, perché non proteggeva da niente e **escludeva il falò per
+  costruzione** (vedi il paragrafo sul mondo). Misurato sui ventotto
+  tragitti veri piazza→falò con una staccionata di traverso: da 232 a
+  546 celle espanse, tutti alla stessa distanza. Il prezzo lo fa
+  **quanto si somigliano i due giri**, non quanto è lontana la meta.
+- **IL FILO GIUDICATO È IL FILO CAMMINATO.** È la regola che tiene su
+  tutto il resto, e le prime due stesure l'avevano rotta in due modi
+  diversi. Il villaggio giudicava una spezzata (centro cella → centro
+  cella, con `tira_filo` che la tende fino a rasentare gli spigoli **per
+  costruzione**) e poi il corpo ne camminava un'altra: partiva da dov'era,
+  smussava gli angoli a 25 cm, e finiva sul punto chiesto invece che sul
+  centro dell'ultima cella. Tre scarti sub-cella su una spezzata che
+  rasenta i muri, e la gamba passa dall'altra parte **per tutta la sua
+  lunghezza**. Misurato su mille viaggi in un villaggio con una casa e due
+  staccionate: **36 viaggi attraversavano un muro** (25 nella prima
+  tratta, 7 nell'ultima, 4 negli smussi). Adesso zero. Tre cose lo
+  garantiscono, e nessuna è una costante tarata meglio:
+    1. **`Varchi.filo_libero` lavora su PUNTI, non su celle**: la
+       traversata di griglia si calcola su coordinate continue, quindi la
+       domanda che si fa il villaggio è esattamente il segmento che
+       percorrerà il corpo. (`filo_libero_celle` resta per il grafo, e
+       delega.)
+    2. **`rotta_mondo` costruisce una spina dorsale che comprende gli
+       estremi VERI** — punto di partenza → centro della sua cella →
+       centri della rotta → centro dell'ultima → punto d'arrivo. Ogni
+       coppia consecutiva è libera *per costruzione* (dentro una cella, o
+       fra centri adiacenti col bordo aperto), e il filo tirato può solo
+       togliere tappe verificate. La garanzia si dimostra, non si spera.
+    3. **`Visitor._avanza` non smussa niente**: sulla tappa ci si posa
+       sopra e il resto del passo si spende sulla gamba dopo. Lo smusso
+       sembrava innocuo («25 cm sono meno del mezzo metro fra centro cella
+       e muro») ma quel mezzo metro è **perpendicolare** al bordo, mentre
+       lo smusso avviene lungo la direzione del cammino: taglia l'angolo,
+       e l'angolo è dove c'è il palo.
+- **Per lo spigolo si passa solo se tutti e due i giri sono aperti**,
+  cioè se su quello spigolo non c'è nessun palo. La regola vecchia («ne
+  basta uno») faceva uscire i vicini di casa tagliando per il muro
+  accanto all'anta. E «per lo spigolo» non è solo «esattamente sul
+  punto»: è dentro `Varchi.SPIGOLO_LUCE` (14 cm). Il numero è misurato sul
+  pezzo — la Staccionata chiude i correnti con una pallina di raggio 3 cm
+  **centrata sullo spigolo**, ad altezze 0.315 e 0.585, cioè in mezzo alla
+  fascia in cui cammina un chibi — e serve anche all'aritmetica: un filo
+  teso passa per gli spigoli veri per costruzione, e in virgola mobile
+  «esattamente sullo spigolo» è «di qua o di là a caso». Misurato: i frame
+  passati a meno di 5 cm da una testata scendono da 235 a 93 su mille
+  viaggi.
+- **Gli angoli si girano rallentando, non scivolando.** Camminare la
+  spezzata esatta vuol dire che la direzione cambia in un frame, mentre il
+  muso la insegue con la sua costante di tempo: un corpo che si sposta di
+  qua e guarda di là, col ciclo del passo a cadenza piena, è un carrello
+  elevatore (misurato prima: 837 sbandate su mille viaggi, fino a 122
+  gradi, 28 cm di scivolata di lato col passo acceso). La cura sta in
+  `Visitor._cammina` ed è di corpo, non di numeri: il muso **mira più
+  avanti della tappa** (`GUARDA_AVANTI`, 15 cm — provinati 0/0.15/0.25/
+  0.40/0.70: sopra i 40 cm il corpo si pianta ad avvicinarsi all'angolo,
+  fino a 2.8 s) e la velocità è **moltiplicata per quanto si va dove si
+  guarda**. Il pavimento `PASSO_PIVOT` sta sotto `Andatura.VELOCITA_FERMO`
+  apposta: così il ciclo del passo si spegne da solo mentre il corpo
+  perna, e nessuno deve scrivere un'animazione di svolta. Dopo: scivolata
+  col passo acceso **0.187 → 0.115 m per viaggio**, sbandata peggiore
+  **0.283 → 0.094 m**, deriva media 39 → 25 gradi, al prezzo del 3.7% di
+  tempo di viaggio.
+- **Il cammino DRITTO non è cambiato.** Provato: su mille viaggi in campo
+  aperto, zero sbandate e zero gradi di deriva prima e dopo. Su una retta
+  il punto mirato più avanti sta sulla stessa retta della meta, e
+  l'allineamento vale uno: il conto è quello di sempre. L'unica differenza
+  misurabile è che il corpo cammina gli ultimi 12 cm invece di fermarsi
+  lì — **adesso si posa sul punto chiesto**, non nei paraggi.
+- **`Andatura` NON è stata toccata**, e la tentazione c'era (far avanzare
+  la fase sulla velocità in avanti invece che sul modulo dello
+  spostamento). Provato e misurato: **non cambia niente** (0.115 e 0.094,
+  identici al millimetro), perché la velocità proporzionale
+  all'allineamento ha già tolto la condizione che quella modifica
+  compenserebbe. In cambio avrebbe rotto due fixture e messo a rischio il
+  diorama del titolo. Non si paga un rischio per zero.
+- **`_target` non è più la meta**: è la prossima tappa. Chi vuole sapere
+  dove uno è diretto chiede `Visitor.meta_cammino()`.
+- **La coda `_tappe` NON è un canale orfano.** Si svuota in `_process`,
+  per ogni stato che non sia "walk". Non in `_walk_to` e non nei due o tre
+  posti che vengono in mente: un viaggio si interrompe da undici parti
+  diverse (il pasto, il concerto, il congedo, il nascondino) e nessuna
+  passa da un posto solo. Senza, `meta_cammino()` di un vicino seduto o
+  che dorme raccontava la meta del viaggio PRECEDENTE.
+- **La rotta si calcola alla partenza, non si rinfresca**: una
+  staccionata piantata mentre uno cammina se la trova ancora davanti,
+  fino al viaggio dopo.
+
+### La deviazione conosce il MONDO, non solo i muri costruiti
+
+Il grafo era fatto dei soli **bordi costruiti**, e aveva un buco a forma
+di fiume: `place_cell` **rifiuta** una cella nel letto («il letto del
+fiume resta del fiume»), quindi lì un muro non ci può essere *per
+costruzione* — il letto era il corridoio più sgombro della mappa, e la
+ricerca ci si infilava dentro ogni volta che doveva aggirare un recinto
+vicino alla riva. Misurato nel MainLevel vero: tre metri di strada
+diventavano nove, di cui **2.54 dentro l'acqua**, col corpo sospeso 45 cm
+sopra il pelo per due secondi. Finché si andava dritti non succedeva
+(la retta stava fra due punti che il gioco aveva scelto, sul prato): a
+metterci il corpo era stata **la deviazione**.
+
+- **La fonte è `CozyWorld.terreno_vietato(cella)`**, composta da quelle
+  che esistevano già: `distanza_dall_acqua` (fiume **e** stagno, ellisse
+  compresa), `is_river` (il letto, più largo del pelo dell'acqua — la
+  stessa domanda di `place_cell`) e `cliff_x` col piede della parete
+  (`CLIFF_PROFILO`, ora una costante invece di un array locale di
+  `_build_cliff`). **Le colline no**: la formula del sollevamento vive
+  nel vertex di `ground.gdshader` e non ha una gemella in GDScript;
+  portarcela per coprire un posto dove nessuno può essere mandato sarebbe
+  la copia che questo progetto vieta.
+- **I pezzi bloccano un BORDO, il mondo toglie una CELLA**, e restano due
+  cose diverse. Un bordo è un arco del grafo; una cella senza pavimento è
+  un buco. Chi le fondesse dovrebbe inventarsi quattro muri attorno a
+  ogni cella d'acqua, e si ritroverebbe un recinto chiuso dove c'è solo
+  una riva.
+- **Si guarda la cella in cui si ARRIVA, mai quella da cui si parte**:
+  da un guado si deve poter uscire sempre (il ponte, un salvataggio
+  vecchio, un banco di prova). Il degrado va verso «si cammina».
+- **`componenti()` NON lo guarda, ed è una decisione.** Lei risponde a
+  «mi hanno chiuso dentro?», e la sua risposta fa RINUNCIARE un vicino a
+  un posto (`_nearest_named`, `Piani`). Il fiume non è una porta che
+  qualcuno ha chiuso: ha due ponti, che vivono nella geometria del mondo
+  e non in questo grafo. Metterlo lì dichiarerebbe prigioniera l'intera
+  riva est — il guasto che `MAX_CELLE` esiste per non commettere. Il
+  residuo è dichiarato: un recinto appoggiato alla riva non viene
+  riconosciuto come chiusura, chi ci abita ci si incammina e va dritto
+  attraverso la staccionata (la resa che c'era già).
+- **L'INVARIANTE**: *il corpo o cammina la retta di sempre, oppure una
+  spezzata che non tocca né un muro né l'acqua.* Non c'è una terza
+  risposta — ed è per questo che il cancello della retta guarda **solo i
+  muri**. Chiedere una strada anche per schivare l'acqua sembra più bello
+  e non lo è: le mete di questo gioco sono spesso in riva (il posto da cui
+  si guardano le rane, il ponte), e la ricerca finirebbe per pagare
+  millisecondi e ridare comunque la retta.
+- **Il costo si paga una volta per cella, per sempre.** `Varchi.Suolo` è
+  un quaderno che non scade, perché il terreno non si muove. Misurato: una
+  sera intera di ricerche costa **998 domande al mondo invece di 14.695**.
+  E `terreno_vietato` campiona **dove serve** — una domanda per l'acqua
+  (che risponde con una distanza, quindi è già omnidirezionale), due in x
+  per il letto (il corso si sposta di 0.102 m/m), tre in z per la parete
+  (che alla cascata si sposta di 1.82 m/m): **2.01 µs a cella invece di
+  3.77**.
+
+### Il falò non è più l'eccezione
+
+La radura sta a **cinquantasei celle** dalla piazza, e il raggio ne
+concedeva ventiquattro: ogni sera ventotto vicini attraversavano in fila
+indiana qualunque staccionata avessero davanti, nell'unico evento
+comunitario della giornata. Alzare il raggio non bastava — una ricerca in
+ampiezza, per una meta così lontana, esplora **5.176 celle** e il tetto ne
+concede 2.048.
+
+- **`Varchi.rotta` è guidata dalla distanza che manca** (A\*, coda a
+  secchi alla Dial: i passi costano uno e la stima è intera, quindi `f`
+  cambia di zero o di due e un mucchio binario sarebbe sprecato). Stesso
+  tragitto: **354 celle espanse invece di 5.176**, e la strada è **lunga
+  uguale** — verificato su 200 villaggi a caso contro una BFS scritta nel
+  test. Attenzione: la stima è ammissibile *e consistente*, ma una cella
+  va chiusa quando la si SPENDE, non quando la si scopre. Chiudere alla
+  scoperta accorcia il conto e allunga la strada, e si vede **solo dove i
+  muri sono fitti** (misurato: 4 casi su 200 con muri radi, 15 su 200 con
+  muri fitti — un banco rado sarebbe stato verde su un codice sbagliato).
+- **IL TURNO.** Con una staccionata di traverso una domanda costa ~1.5 ms;
+  ventotto insieme farebbero cinquanta millisecondi. `BuildSystem` ne
+  concede uno scampolo per frame (`BUDGET_ROTTE_US`, misurato in µs veri —
+  così le domande a buon mercato non consumano niente e in un villaggio
+  normale il turno è sempre aperto). Chi lo trova occupato **non perde la
+  sua strada**: cammina dritto per un frame (quattro centimetri) e
+  ripropone la domanda (`Visitor._rotta_attesa`). Misurato col caso
+  peggiore possibile — tutti e ventotto nello stesso identico frame —
+  **28 serviti in 28 frame (0.47 s), il frame peggiore 4.5 ms invece di 50**.
+- **Un banco di prova deve spegnere il turno.** `tools/misura_cammino.gd`
+  e le fixture di `test_rotta_corpo.gd` fanno decine di viaggi dentro UN
+  frame del motore: col turno acceso, dal secondo in poi nessuno avrebbe
+  più una strada e il banco proverebbe un gioco che non esiste. Chi scrive
+  un usciere finto nel gruppo `build_system` deve rispondere a **tutti e
+  due** i metodi (`deviazione` e `turno_rotte_libero`), o `Visitor` non lo
+  riconosce affatto.
 
 **Come si guarda** (la suite non dice niente sulla scena):
 
 ```
 Godot --headless --path . --script res://tools/prova_recinto.gd
+Godot --headless --path . --script res://tools/prova_fiume.gd
+Godot --headless --path . --script res://tools/misura_cammino.gd
+Godot --headless --path . --script res://tools/misura_rotta.gd
 ```
 
-Costruisce casa, Lavagna e Cespuglio nel MainLevel vero, ci mette un
-vicino vero, e guarda **dove va il corpo**: al cespuglio prima, alla
+Il primo costruisce casa, Lavagna e Cespuglio nel MainLevel vero, ci mette
+un vicino vero, e guarda **dove va il corpo**: al cespuglio prima, alla
 Lavagna dopo aver chiuso il recinto, col biglietto che compare quando il
-gessetto si ferma — non prima.
+gessetto si ferma — non prima. Poi pianta una staccionata da undici metri,
+manda un chibi **da un punto sfasato** (mai un centro di cella: è l'unico
+posto in cui le due spezzate coincidono, ed è così che questa prova era
+cieca) e stampa la traiettoria **frame per frame**.
+
+Il secondo pianta una staccionata **fino alla riva**, una **contro la
+parete** e una **di traverso sul tragitto del falò**, e per ognuna stampa
+la traiettoria chiedendo a `CozyWorld.is_river` se quel campione è acqua.
+Poi simula due sere: quella vera (col lease 0.4–1.8 s di
+`Visitors._routine`) e il caso peggiore possibile, e conta i millisecondi
+frame per frame.
+
+Il terzo è il METRO DEL CAMMINO: mille viaggi con estremi a caso, e due
+numeri che nessuna asserzione booleana sa dare — quanti attraversano un
+muro, e quanto scivola di lato il corpo col passo acceso. Il quarto è il
+METRO DELLA RICERCA: celle espanse (contate per **bisezione sul tetto**,
+senza strumentare il codice di produzione), guidata contro ampiezza,
+prezzo di una domanda al mondo, e la controprova che la strada è la più
+corta.
+
+**In tutti l'oracolo è indipendente da `Varchi`**: i muri diventano i
+segmenti veri che occupano sul confine, ogni spostamento di un frame è un
+segmento a sua volta, e la domanda è se i due si tagliano. Chiedere a
+`Varchi` se il corpo ha attraversato un muro vuol dire chiedere al giudice
+se è d'accordo con sé stesso — e la prima stesura di questa verifica faceva
+esattamente quello, per giunta sulla traiettoria ridotta a celle (un corpo
+che entra ed esce da un muro fra due campioni non lasciava traccia).
+
+La guardia headless è
+[`tests/cases/test_rotta_corpo.gd`](tests/cases/test_rotta_corpo.gd), e
+non è un source-check: fa girare il `_process` di un villager vero
+sessanta volte al secondo e guarda **dove passa il corpo**. Ha la
+controprova nello stesso file — senza il muro, lo stesso viaggio ci passa
+in mezzo — perché un test che non sa fallire non dice niente.
+
+**E le sue coordinate sono SFASATE, apposta.** La prima stesura provava un
+viaggio solo, fra due punti interi: l'unico caso in cui la spezzata
+giudicata e quella camminata coincidono, cioè l'unico in cui la garanzia
+valeva. Rifacendo lo stesso scenario spostando la partenza dentro la sua
+cella, **24 viaggi su 81 attraversavano il recinto con la suite verde**.
+Adesso c'è `_la_griglia_degli_sfasamenti`: quarantanove viaggi con
+partenza E arrivo fuori dai centri di cella, e zero attraversamenti — e
+sul codice di prima ne fallisce nove. Un test che sceglie l'unico punto in
+cui il codice è giusto non è un test: è un ritratto.
+
+Ci sono altri tre casi che prima non esistevano, e ognuno è stato
+verificato **rompendo apposta la riga che sorveglia**:
+`_la_politica_della_deviazione` (togliere `tappe.remove_at(0)` lasciava la
+suite completamente verde), `_la_cella_di_un_punto` (sostituire `roundi`
+con `floori` in `Varchi.cella` lasciava verdi sessantunmila asserzioni) e
+`_la_coda_non_e_orfana`.
 
 ## REGOLA: la lingua (italiano sorgente, inglese sopra)
 

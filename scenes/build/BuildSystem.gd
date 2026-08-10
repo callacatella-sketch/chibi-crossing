@@ -1717,6 +1717,7 @@ func aggiorna_festoni_ora() -> void:
 var _muri_cache := {}
 var _isole_cache := {}
 var _varchi_sporchi := true
+var _suolo_cache = null
 
 
 ## L'insieme dei bordi che sbarrano la strada, a terra. La decisione di
@@ -1724,6 +1725,85 @@ var _varchi_sporchi := true
 func muri() -> Dictionary:
 	_aggiorna_varchi()
 	return _muri_cache
+
+
+# --- IL TURNO DELLE ROTTE: chi cerca una strada, e quando ------------
+#
+# LA SERA DEL FALÒ, ventotto vicini si alzano insieme. `Visitors._routine`
+# li sfalsa di un lease casuale fra 0,4 e 1,8 secondi, che a 60 Hz vuol
+# dire ottantaquattro frame per ventotto partenze: quasi sempre uno per
+# frame, ogni tanto tre o quattro nello stesso. Con una staccionata
+# piantata di traverso sul tragitto — l'unico caso in cui una strada
+# serve davvero — ogni domanda costa un millisecondo e mezzo, e quattro
+# insieme fanno **sei millisecondi in un frame solo**: un singhiozzo,
+# nella scena più guardata della giornata.
+#
+# Il turno è la risposta, e ha una regola sola: **nessuno perde la sua
+# strada, la riceve un frame dopo.** Chi trova il turno occupato cammina
+# dritto per un frame (quattro centimetri) e ripropone la domanda al
+# prossimo (`Visitor._rotta_attesa`). Il fuoco è a cinquanta metri: la
+# strada arriva molto prima della staccionata.
+#
+# La spesa si misura in MICROSECONDI VERI, non in numero di domande, e
+# per un motivo che conta: le domande a buon mercato — quelle che escono
+# dai primi cancelli — non consumano niente, quindi in un villaggio
+# normale il turno è sempre aperto e questo codice non esiste. Si accorge
+# di sé stesso solo quando qualcuno sta davvero cercando.
+const BUDGET_ROTTE_US := 1500
+var _turno_frame := -1
+var _turno_speso := 0
+var _turno_attivo := true
+
+
+## C'è ancora tempo, in questo frame, per cercare una strada? Chi la chiede
+## deve domandarlo PRIMA (`Visitor._deviazione`): un «no» non è un rifiuto,
+## è un «fra un frame».
+func turno_rotte_libero() -> bool:
+	if not _turno_attivo:
+		return true
+	_turno_rinfresca()
+	return _turno_speso < BUDGET_ROTTE_US
+
+
+func _turno_rinfresca() -> void:
+	var f := int(Engine.get_process_frames())
+	if f != _turno_frame:
+		_turno_frame = f
+		_turno_speso = 0
+
+
+## Spegne il turno: serve ai banchi di prova che fanno mille viaggi dentro
+## UN frame del motore (`tools/misura_cammino.gd`), dove il contatore dei
+## frame non avanza mai e il turno resterebbe chiuso per sempre. In partita
+## non si tocca.
+func set_turno_rotte_for_debug(on: bool) -> void:
+	_turno_attivo = on
+
+
+## IL SUOLO: dove il mondo non ha messo un pavimento (il fiume, lo stagno,
+## la parete). La verità è di `CozyWorld.terreno_vietato`; questo è solo il
+## quaderno su cui non si riscrive due volte la stessa risposta.
+##
+## Non si invalida MAI, e il motivo è che il terreno non si muove: il fiume
+## di stasera è quello di stamattina — è semmai il giocatore che non ci
+## può costruire. Fuori dal villaggio (il bosco, il prologo, il diorama del
+## menù) `_cozy` non c'è: il suolo resta senza oracolo e non vieta niente,
+## cioè si cammina come si è sempre camminato.
+## Un quaderno SENZA oracolo si rifà, appena il mondo compare: `_cozy` si
+## trova in `_ready`, e chi chiedesse una strada un istante prima si
+## porterebbe dietro per sempre un suolo che non vieta niente — cioè il
+## fiume tornerebbe corridoio, in silenzio e senza un errore. Un quaderno
+## già scritto invece non si butta mai: il terreno non cambia.
+func suolo():
+	if _suolo_cache != null and _suolo_cache.sa_qualcosa():
+		return _suolo_cache
+	var chiedi := Callable()
+	if _cozy != null and is_instance_valid(_cozy) \
+			and _cozy.has_method("terreno_vietato"):
+		chiedi = Callable(_cozy, "terreno_vietato")
+	if _suolo_cache == null or chiedi.is_valid():
+		_suolo_cache = VARCHI.Suolo.new(chiedi)
+	return _suolo_cache
 
 
 ## Le isole del villaggio: zero è il fuori, ≥ 1 è un posto chiuso.
@@ -1737,22 +1817,153 @@ func raggiungibile(da: Vector2i, a: Vector2i) -> bool:
 	return VARCHI.raggiungibile(isole(), da, a)
 
 
+## La cella di un punto del mondo. La REGOLA vive in `Varchi.cella` — la
+## stessa che usa il filo continuo per sapere da che cella parte — e questa
+## è solo la porta in tre dimensioni: se le due divergessero, il corpo e il
+## giudice si racconterebbero due griglie diverse.
+func cella_di(p: Vector3) -> Vector2i:
+	return VARCHI.cella(Vector2(p.x, p.z))
+
+
 ## La strada vera, in metri di mondo, già tirata a filo. Vuota se non c'è
 ## strada — e chi la chiede DEVE distinguere «vuota» da «dritto per di
 ## là», perché sono la stessa cosa solo quando la partenza è l'arrivo.
-func rotta_mondo(da: Vector3, a: Vector3) -> Array[Vector3]:
-	var c0 := Vector2i(roundi(da.x), roundi(da.z))
-	var c1 := Vector2i(roundi(a.x), roundi(a.z))
-	var celle := VARCHI.rotta(muri(), c0, c1)
+##
+## ## Gli estremi sono quelli VERI, ed è tutto il punto
+##
+## La BFS ragiona in celle e restituisce centri; il corpo però parte da
+## dov'è e va dove gli hanno detto, che sono due punti qualunque dentro le
+## loro celle. Finché il filo si tirava sui soli centri, il villaggio
+## giudicava una spezzata e il corpo ne camminava un'altra — e siccome un
+## filo teso rasenta gli spigoli **per costruzione**, mezzo metro di
+## scarto agli estremi bastava a mandare una gamba intera dall'altra parte
+## del muro (misurato: 32 viaggi su mille, 25 nella prima tratta).
+##
+## La SPINA DORSALE qui sotto risolve la cosa alla radice, e si dimostra
+## invece di sperare:
+##
+##   punto vero di partenza → centro della sua cella → centri delle celle
+##   della rotta → centro dell'ultima cella → punto vero d'arrivo
+##
+## Ogni coppia consecutiva è libera **per costruzione**: le prime due (e le
+## ultime due) stanno dentro la stessa cella, quindi non attraversano
+## nessun confine; le altre sono centri di celle adiacenti con il bordo
+## aperto e con il pavimento sotto, perché è la ricerca ad averle scelte
+## (`Varchi.passa` chiede tutt'e due le cose). Il filo tirato può solo
+## togliere tappe, e toglie solo quelle la cui scorciatoia ha superato la
+## stessa domanda che si farà il corpo — **compresa quella sull'acqua**:
+## senza il suolo qui, una scorciatoia poteva rientrare nel fiume che la
+## rotta aveva appena schivato.
+func rotta_mondo(da: Vector3, a: Vector3, tetto := VARCHI.MAX_CELLE) -> Array[Vector3]:
+	var m := muri()
+	var terra = suolo()
+	var celle := VARCHI.rotta(m, cella_di(da), cella_di(a), tetto, terra)
 	var fuori: Array[Vector3] = []
 	if celle.is_empty():
 		return fuori
-	for c in VARCHI.tira_filo(muri(), celle):
-		fuori.append(Vector3(c.x, 0.0, c.y))
-	# la meta vera non è il centro della cella: è il punto chiesto
-	if not fuori.is_empty():
-		fuori[fuori.size() - 1] = Vector3(a.x, 0.0, a.z)
+	var spina: Array[Vector2] = []
+	_accoda(spina, Vector2(da.x, da.z))
+	for c in celle:
+		_accoda(spina, Vector2(c))
+	_accoda(spina, Vector2(a.x, a.z))
+	for p in VARCHI.tira_filo_mondo(m, spina, terra):
+		fuori.append(Vector3(p.x, 0.0, p.y))
 	return fuori
+
+
+## Accoda un punto alla spina, saltandolo se è quello di prima. Serve nei
+## due casi in cui il corpo è già ESATTAMENTE sul centro della sua cella
+## (e capita: le tappe di ieri sono centri di cella): un punto doppio
+## darebbe al filo una gamba lunga zero, cioè una direzione indefinita.
+func _accoda(spina: Array[Vector2], p: Vector2) -> void:
+	if spina.is_empty() or spina[spina.size() - 1].distance_squared_to(p) > 1e-12:
+		spina.append(p)
+
+
+## LA DEVIAZIONE: le tappe da fare per arrivare ad `a` senza attraversare un
+## muro — **vuota quando la retta basta**, che è il caso normale.
+##
+## È la porta da cui passa il corpo dei vicini (`Visitor._walk_to`), e la
+## differenza con `rotta_mondo` non è tecnica, è di contratto: lì «vuota»
+## vuol dire «non c'è strada», qui vuol dire «non c'è niente da fare, vai
+## dritto come hai sempre fatto». Un solo significato, e va sempre verso
+## «si cammina»: nessuna risposta di questa funzione può piantare un vicino.
+##
+## La partenza si TOGLIE, e si toglie perché c'è: `rotta_mondo` comincia
+## dal punto vero da cui si parte, cioè da dove il corpo è già. Toglierla
+## non è una scorciatoia — è la prova che la prima gamba che il corpo
+## cammina è ESATTAMENTE la prima gamba che il villaggio ha giudicato. Con
+## la vecchia stesura, che cominciava dal centro della cella, le due erano
+## quasi la stessa cosa, e «quasi» valeva 25 viaggi su mille attraverso un
+## muro.
+##
+## ## L'INVARIANTE, che è l'unica cosa da non rompere
+##
+## **Il corpo o cammina la retta di sempre, oppure una spezzata che non
+## tocca né un muro né l'acqua.** Non esiste una terza risposta. Ne
+## discende la regola che decide l'ordine dei cancelli qui sotto: *la
+## deviazione non può mettere il corpo in un posto peggiore di quello in
+## cui lo metterebbe la retta.*
+##
+## Per questo il cancello della retta guarda **soltanto i muri**, non il
+## suolo. Se la retta è libera da muri, si va dritti — anche se rasenta lo
+## stagno, esattamente come faceva prima che tutto questo esistesse.
+## Chiedere una strada anche per schivare l'acqua sembra più bello e non lo
+## è: le mete di questo gioco sono spesso in riva (il posto da cui si
+## guardano le rane, la sponda, il ponte), e la ricerca finirebbe per
+## esaurire il tetto senza trovare niente — cioè per pagare millisecondi e
+## ridare comunque la retta. Il fiume è entrato per **togliere dalla rotta
+## una scorciatoia che non c'era mai stata**, non per riscrivere il
+## cammino di tutti.
+##
+## I QUATTRO CANCELLI, in ordine di prezzo crescente — una rotta costa fra
+## il mezzo millisecondo e i due, quindi si paga solo quando serve davvero
+## (i numeri, tutti misurati, stanno in `Varchi`):
+##
+##   1. non ci sono muri nel villaggio     → niente da schivare (O(1))
+##   2. si parte e si arriva nella stessa cella → niente da tirare (O(1))
+##   3. **la retta non ha muri davanti**   → decine di µs, ed è il caso comune
+##   4. **la meta è nell'acqua**           → non c'è strada che ci arrivi
+##
+## e solo dopo, la ricerca col suo tetto. Il terzo cancello interroga il
+## segmento VERO (punto di partenza → punto d'arrivo), non i centri delle
+## due celle: chiedere di una retta diversa da quella che si percorrerà è
+## il modo più economico di dichiarare libero un muro.
+##
+## Il quarto è quello che tiene basso il conto: una meta dentro il letto
+## del fiume (capita — un pezzo sulla riva, un posto arrotondato di
+## mezzo metro) non è raggiungibile per costruzione, e senza questo
+## cancello ogni singolo viaggio verso di lei pagherebbe una ricerca
+## esaurita fino al tetto per sentirsi dire di no.
+##
+## **Ce n'era un quinto, ed è stato tolto**: «più lontano di
+## `ROTTA_RAGGIO`». Escludeva il falò per costruzione (cinquantasei celle
+## contro ventiquattro) e non proteggeva da niente — il prezzo di una
+## ricerca non dipende dalla distanza. La storia intera sta in `Varchi`.
+func deviazione(da: Vector3, a: Vector3) -> Array[Vector3]:
+	var niente: Array[Vector3] = []
+	var m := muri()
+	if m.is_empty():
+		return niente
+	var c0 := cella_di(da)
+	var c1 := cella_di(a)
+	if c0 == c1:
+		return niente   # dentro una cella non si attraversa nessun confine
+	if VARCHI.filo_libero(m, Vector2(da.x, da.z), Vector2(a.x, a.z)):
+		return niente
+	var terra = suolo()
+	if terra.vietata(c1):
+		return niente   # la meta è nell'acqua: nessuna strada ci arriva
+	# da qui in giù si SPENDE: il tempo speso va sul conto del frame, ed è
+	# quello che tiene la sera del falò dentro un frame (vedi il turno)
+	var orologio := Time.get_ticks_usec()
+	var tappe := rotta_mondo(da, a, VARCHI.ROTTA_TETTO)
+	_turno_rinfresca()
+	_turno_speso += Time.get_ticks_usec() - orologio
+	if tappe.size() < 2:
+		return niente   # murato, o troppo caro: si va dritto, come prima
+	tappe.remove_at(0)   # la prima è dove si è già
+	return tappe
 
 
 func _aggiorna_varchi() -> void:

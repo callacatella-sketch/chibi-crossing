@@ -180,6 +180,116 @@ var _yaw := 0.0
 var _speed := 1.3
 var _sfx
 
+# --- LA CODA DELLE TAPPE: il corpo segue la ROTTA, non la retta ------------
+#
+# `_target` è dove si sta andando ADESSO; `_tappe` sono le mete che
+# restano dopo di lui, e solo quando la coda è vuota il viaggio è finito
+# (`_next_state`). Le tappe le chiede `_walk_to` al BuildSystem — che
+# risponde vuoto tutte le volte che la retta basta, cioè quasi sempre —
+# e per questo TUTTI i cammini del gioco girano attorno ai muri, non solo
+# quelli che qualcuno ha pianificato: la coda sta sotto, dove il corpo
+# cammina, e nessuno dei trenta chiamanti di `_walk_to` sa che esiste.
+#
+# Fuori dal villaggio (bosco, prologo, diorama del menù) il BuildSystem
+# non c'è: la coda resta vuota e si cammina dritto, esattamente come
+# prima. Il degrado va SEMPRE verso «si cammina».
+#
+# LA COSA CHE NON SI PUÒ ALLENTARE: il corpo cammina la spezzata
+# ESATTA che il villaggio ha giudicato. Non ci si avvicina a una tappa,
+# non la si smussa: ci si passa SOPRA, e il resto del passo si spende
+# sulla gamba dopo (`_avanza`). Uno smusso di venticinque centimetri
+# sembra innocuo — «tanto è meno del mezzo metro che separa il centro
+# cella dal muro» — ma quel mezzo metro è perpendicolare al bordo,
+# mentre lo smusso avviene nella direzione del cammino: taglia
+# l'angolo, e l'angolo è il punto in cui c'è il palo. Misurato, il
+# taglio d'angolo mandava il corpo dentro un muro in 4 viaggi su
+# mille; sommato agli estremi sbagliati faceva 36.
+#
+# IL CANALE NON È ORFANO. La coda si azzera in `_process`, per OGNI
+# stato che non sia "walk": un viaggio interrotto a metà (il pasto, un
+# concerto, il congedo, il nascondino) la lasciava piena, e
+# `meta_cammino()` di un vicino seduto raccontava la meta del viaggio
+# precedente.
+var _tappe: Array[Vector3] = []
+var _bs_ref: Node = null
+## Il turno era occupato quando si è chiesta la strada: si riprova al
+## frame prossimo (vedi `_deviazione`). Si spegne insieme alla coda.
+var _rotta_attesa := false
+var _attesa_frame := 0
+
+# --- COME SI GIRA UN ANGOLO -------------------------------------------
+#
+# Camminare la spezzata esatta vuol dire che la direzione del movimento
+# cambia in un frame, mentre il muso la insegue con la sua costante di
+# tempo (0.14 s). Un corpo che si sposta in una direzione mentre guarda
+# in un'altra, col ciclo del passo a cadenza piena, è un carrello
+# elevatore — e prima di questa riparazione lo era davvero: misurate 837
+# sbandate su mille viaggi, fino a 122 gradi per tre decimi di secondo,
+# 28 cm di scivolata di lato, con `Andatura.blend` a 1.00.
+#
+# La cura è di corpo, non di numeri: **si guarda più avanti della tappa,
+# e si cammina piano finché non si è girati.**
+#
+#  · IL MUSO MIRA AVANTI. Non alla tappa, ma a un punto un po' più in là
+#    SULLA STRADA (`_punto_avanti`): il muso comincia a girare prima
+#    dell'angolo e ci arriva già quasi allineato. Su un cammino dritto il
+#    punto più avanti sta sulla stessa retta della meta, quindi il muso
+#    fa esattamente quello che faceva prima — bit per bit.
+#  · SI RALLENTA IN CURVA. La velocità è moltiplicata per quanto il corpo
+#    va DOVE GUARDA. È quello che fa un corpo, ed è anche l'unico modo di
+#    girare senza scivolare di lato. Il pavimento (`PASSO_PIVOT`) tiene
+#    il corpo in movimento anche a 180 gradi — niente stalli — ma sotto
+#    la velocità in cui `Andatura` si considera ferma: così il ciclo del
+#    passo si spegne da solo mentre si perna, e si riaccende uscendo
+#    dalla curva. Nessuna riga di animazione da scrivere.
+
+## Quanto più avanti della tappa guarda il muso, in metri.
+##
+## SCELTO COL PROVINO, non a gusto (`tools/misura_cammino.gd`, mille
+## viaggi per taratura, scivolata di lato col passo acceso per viaggio):
+##
+##   0.00 → 0.157 m · **0.15 → 0.144** · 0.25 → 0.147 · 0.40 → 0.162 ·
+##   0.70 → 0.228 m
+##
+## E il numero che ha deciso non è nemmeno quello: è la DURATA peggiore di
+## una sbandata, 0.25 s a 0.15 contro **2.77 s a 0.70**. Guardare troppo
+## avanti crea un cappio — il muso punta oltre l'angolo, l'allineamento
+## crolla, la velocità con lui, e il corpo non arriva mai all'angolo che
+## gli farebbe cambiare mira. Quindici centimetri anticipano la svolta di
+## un decimo di secondo (un passo scarso) senza aprire il cappio.
+## Quanti frame si sta fermi ad aspettare una strada prima di prendersela
+## comunque, scavalcando il turno. Sei frame = un decimo di secondo: non si
+## legge come un'esitazione, e mette un tetto al fermo.
+const ATTESA_MAX := 6
+
+const GUARDA_AVANTI := 0.15
+
+## Il pavimento della velocità in curva: la frazione di passo che resta
+## anche quando si sta guardando esattamente dalla parte opposta. Serve a
+## due cose insieme — che una svolta di 180 gradi non inchiodi il corpo, e
+## che quel filo di movimento resti SOTTO `Andatura.VELOCITA_FERMO`
+## (0.12 m/s), perché il passo si spenga mentre si perna. A 0.02 la
+## scivolata non migliora e la sbandata peggiore si allunga da 0.38 a
+## 0.87 s: il pavimento più basso non è più delicato, è solo più lento.
+const PASSO_PIVOT := 0.05
+
+## Quanto in fretta gira il muso: la costante di sempre (7.0, cioè un
+## settimo di secondo per fondersi) più uno SCATTO proporzionale a quanto
+## manca. Su un cammino dritto lo scarto è zero e lo scatto non esiste,
+## quindi il cammino dritto è quello di sempre; su una svolta secca il
+## muso gira in fretta, come gira una bestiola piccola — ed è quello che
+## accorcia la finestra in cui il corpo va da una parte e guarda
+## dall'altra. Misurato: la scivolata per viaggio scende da 0.144 a 0.123 m.
+const GIRA := 7.0
+const GIRA_SCATTO := 8.0
+
+## Quanto è ripida la frenata in curva: la velocità è moltiplicata per
+## l'allineamento ELEVATO a questo. Lineare (1.0) frena troppo poco a
+## quarantacinque gradi — dove il corpo tiene ancora il 72% del passo e
+## scivola; al quadrato tiene il 50%. Misurato: sbandata peggiore da
+## 0.120 a 0.094 m, al prezzo di due centesimi di secondo per viaggio.
+const PASSO_CURVA := 2.0
+
 var _bench: Node3D
 var _pois: Array[Vector3] = []
 var _poi_i := 0
@@ -501,9 +611,183 @@ func _walk_to(pos: Vector3, next: String) -> void:
 	if _pasto_in_corso:
 		return
 	position.y = 0.0  # rinormalizza: chi arriva da panchina/onsen/scala torna a terra
-	_target = Vector3(pos.x, 0, pos.z)
+	var meta := Vector3(pos.x, 0, pos.z)
 	_next_state = next
+	# la strada, se il villaggio dice che la retta non basta
+	_tappe = _deviazione(meta)
+	_target = meta if _tappe.is_empty() else _prossima_tappa()
 	_state = "walk"
+
+
+## Stacca la prima tappa dalla coda. Due righe invece di `pop_front()`
+## perché il tipo resti Vector3 fino in fondo: `_target` è tipizzato, e
+## un'assegnazione non tipizzata qui sarebbe l'unico punto del cammino in
+## cui il parser smette di controllare.
+func _prossima_tappa() -> Vector3:
+	var t: Vector3 = _tappe[0]
+	_tappe.remove_at(0)
+	return t
+
+
+## DOVE STA ANDANDO, alla fine del viaggio — non la prossima tappa. Da
+## quando il corpo segue la rotta, `_target` è il passo e non più la meta:
+## chi vuole sapere dove uno è diretto (le verifiche, e chiunque legga
+## l'intenzione invece del movimento) deve chiedere qui.
+func meta_cammino() -> Vector3:
+	return _tappe[_tappe.size() - 1] if not _tappe.is_empty() else _target
+
+
+# --------------------------------------------- un frame di cammino
+
+## UN FRAME DI CAMMINO. Torna `true` quando il viaggio è finito.
+##
+## Tre gesti, in quest'ordine, e l'ordine conta: si decide DOVE GUARDARE,
+## poi QUANTO camminare (che dipende da dove si guarda), e solo alla fine
+## si sposta il corpo lungo il filo.
+func _cammina(delta: float) -> bool:
+	# 1) IL MUSO mira più avanti della tappa, così l'angolo comincia a
+	#    girarlo prima di esserci sopra. Su un cammino dritto il punto più
+	#    avanti sta sulla stessa retta della meta: il muso fa esattamente
+	#    quello che ha sempre fatto.
+	var verso := _punto_avanti(GUARDA_AVANTI) - position
+	verso.y = 0.0
+	if verso.length_squared() > 1e-10:
+		var mira := atan2(-verso.x, -verso.z)
+		var manca := absf(wrapf(mira - _yaw, -PI, PI))
+		_yaw = lerp_angle(_yaw, mira,
+				1.0 - exp(-(GIRA + GIRA_SCATTO * manca / PI) * delta))
+	# 2) SI CAMMINA PIANO finché non si è girati dove si va. È il solo modo
+	#    di svoltare senza scivolare di lato — e siccome il pavimento sta
+	#    sotto la velocità in cui `Andatura` si considera ferma, il ciclo
+	#    del passo si spegne da solo mentre il corpo perna.
+	var to := _target - position
+	to.y = 0.0
+	var allineato := 1.0
+	if to.length_squared() > 1e-10:
+		var muso := Vector2(-sin(_yaw), -cos(_yaw))
+		allineato = maxf(0.0, muso.dot(Vector2(to.x, to.z).normalized()))
+	var passo := _speed * _move_gait(delta) \
+			* (PASSO_PIVOT + (1.0 - PASSO_PIVOT) * pow(allineato, PASSO_CURVA))
+	# 3) e si avanza SUL FILO
+	return _avanza(passo)
+
+
+## Avanza di `quanto` metri LUNGO LA SPEZZATA. Sulla tappa ci si posa
+## SOPRA e il resto del passo si spende sulla gamba dopo: né una sosta di
+## un frame a ogni angolo, né — soprattutto — un angolo smussato.
+##
+## Lo smusso era il difetto: consumare la tappa a venticinque centimetri
+## di distanza vuol dire tagliare per la corda dell'angolo, e la corda di
+## un angolo girato attorno a un muro passa **dentro il muro**. Qui la
+## spezzata camminata è, punto per punto, quella che il villaggio ha
+## giudicato libera.
+func _avanza(quanto: float) -> bool:
+	for _giro in 16:
+		var to := _target - position
+		to.y = 0.0
+		var dist := to.length()
+		if dist > quanto:
+			position += to / dist * quanto
+			return false
+		position = Vector3(_target.x, position.y, _target.z)
+		quanto -= dist
+		if _tappe.is_empty():
+			return true
+		_target = _prossima_tappa()
+	return false
+
+
+## Il punto della strada che sta `quanto` metri più avanti del corpo,
+## seguendo la SPEZZATA e non la linea d'aria. È quello che il muso mira:
+## mirare alla tappa vorrebbe dire cominciare a girare solo quando ci si è
+## già sopra, cioè sbandare di lato per tutta la durata della svolta.
+##
+## Quando la strada finisce prima, si mira alla meta — che è il caso di
+## ogni cammino dritto, e per quello il conto torna identico a com'era.
+func _punto_avanti(quanto: float) -> Vector3:
+	var p := Vector3(position.x, 0.0, position.z)
+	var t := Vector3(_target.x, 0.0, _target.z)
+	if quanto <= 0.0:
+		return t   # nessun anticipo: si mira alla tappa
+	for i in range(_tappe.size() + 1):
+		var to := t - p
+		var d := to.length()
+		if d >= quanto:
+			return p + to / maxf(d, 1e-9) * quanto
+		quanto -= d
+		p = t
+		if i < _tappe.size():
+			var w: Vector3 = _tappe[i]
+			t = Vector3(w.x, 0.0, w.z)
+	return t
+
+
+## Le tappe per arrivare a `meta` senza attraversare un muro. Vuota = «vai
+## dritto», ed è la risposta normale: la dà il villaggio senza muri, il
+## bosco (dove il BuildSystem non esiste), la tratta corta, e soprattutto
+## la stragrande maggioranza dei viaggi, in cui davanti non c'è niente.
+##
+## L'unico caso in cui una risposta vuota NON è una risposta è il turno
+## occupato (la sera del falò, quando in ventotto si alzano insieme):
+## allora si segna `_rotta_attesa` e si riprova al frame dopo, avendo
+## camminato quattro centimetri nella direzione giusta. **Nessuno perde la
+## sua strada** — la riceve un attimo più tardi.
+func _deviazione(meta: Vector3, forza := false) -> Array[Vector3]:
+	var vuoto: Array[Vector3] = []
+	var bs := _build_system()
+	if bs == null:
+		return vuoto
+	if not forza and not bs.turno_rotte_libero():
+		_rotta_attesa = true
+		return vuoto
+	_rotta_attesa = false
+	_attesa_frame = 0
+	var tappe: Array[Vector3] = bs.deviazione(global_position, meta)
+	return tappe
+
+
+## LA DOMANDA RIMANDATA. Gira solo per chi il turno l'ha trovato occupato,
+## e si spegne da sola alla prima risposta — anche quando la risposta è
+## «vai dritto», perché quella è una risposta.
+##
+## Si ricalcola da DOVE SI È ADESSO, non da dove si era partiti: sono
+## quattro centimetri, ma la regola per cui il corpo cammina esattamente la
+## spezzata che il villaggio ha giudicato non ammette «quasi» — è già
+## costata 25 viaggi su mille attraverso un muro.
+func _riprova_rotta() -> void:
+	var meta := meta_cammino()
+	_attesa_frame += 1
+	# LA RETE: dopo un decimo di secondo la strada si prende comunque,
+	# saltando il turno. Il turno serve a spalmare una spesa, non a
+	# decidere chi puo' rispettare un muro: se la macchina e' cosi' carica
+	# che il turno non si apre mai, si paga la ricerca — un microsecondo
+	# in piu' non lo vede nessuno, un chibi dentro la staccionata si'.
+	var nuove := _deviazione(meta, _attesa_frame >= ATTESA_MAX)
+	if nuove.is_empty():
+		return
+	_tappe = nuove
+	_target = _prossima_tappa()
+
+
+## Il villaggio, se c'è. Si tiene il riferimento, ma si ricontrolla che sia
+## ancora vivo: un Visitor può sopravvivere a un cambio di scena (il banco
+## di prova ne fa nascere e morire a decine), e un nodo liberato che
+## risponde ancora è il modo più silenzioso di far esplodere un frame.
+func _build_system() -> Node:
+	if _bs_ref != null and is_instance_valid(_bs_ref):
+		return _bs_ref
+	_bs_ref = null
+	if not is_inside_tree():
+		return null
+	var n := get_tree().get_first_node_in_group("build_system")
+	# `has_method` e non la fiducia: il gruppo è una convenzione, e un
+	# giorno potrebbe entrarci un nodo che non sa rispondere. Il cammino
+	# non è il posto dove scoprirlo con un errore a runtime. **Si chiedono
+	# TUTTI E DUE** i metodi: chiedere solo il primo ha già rotto un banco
+	# di prova nel momento in cui è nato il turno.
+	if n != null and n.has_method("deviazione") and n.has_method("turno_rotte_libero"):
+		_bs_ref = n
+	return _bs_ref
 
 
 func _enter_state(s: String) -> void:
@@ -752,6 +1036,20 @@ func _process(delta: float) -> void:
 	# ritrova il valore base, senza accumuli)
 	_recita_togli()
 	rotation.y = _yaw
+	# LA RETE DI SICUREZZA DELLA CODA. Non si svuota in `_walk_to` (che la
+	# riscrive comunque) né nei due o tre posti che vengono in mente: si
+	# svuota QUI, per ogni stato che non sia "walk", perché un viaggio si
+	# interrompe da undici parti diverse — il pasto, il concerto, il
+	# congedo, il nascondino — e nessuna di quelle passa da un posto solo.
+	# Senza, `meta_cammino()` di un vicino seduto o che dorme raccontava
+	# la meta del viaggio PRECEDENTE, e chi legge l'intenzione (il
+	# taccuino, le verifiche, la regia) la prendeva per buona.
+	# (e con la coda si spegne anche la domanda rimandata: un vicino che si
+	# è seduto non ha più nessuna strada da farsi dare)
+	if _state != "walk":
+		if not _tappe.is_empty():
+			_tappe.clear()
+		_rotta_attesa = false
 	# il metro del passo: velocita' vera, blend, curva (per ogni stato)
 	_gait_misura(delta)
 	_emote_cd -= delta
@@ -782,15 +1080,26 @@ func _process(delta: float) -> void:
 
 	match _state:
 		"walk":
-			var to := _target - position
-			to.y = 0.0
-			var dist := to.length()
-			if dist < 0.12:
-				_enter_state(_next_state)
-			else:
-				var dir := to / dist
-				_yaw = lerp_angle(_yaw, atan2(-dir.x, -dir.z), 1.0 - exp(-7.0 * delta))
-				position += dir * _speed * _move_gait(delta)
+			# la strada che il turno non ha potuto dare al frame scorso
+			if _rotta_attesa:
+				_riprova_rotta()
+			# E SE ANCORA NON C'E\', SI ASPETTA FERMI.
+			#
+			# «cammina dritto per un frame, sono quattro centimetri» sembra
+			# innocuo e non lo e\': una risposta vuota vuol dire «vai verso la
+			# META», cioe\' esattamente contro il muro che si doveva aggirare.
+			# MISURATO: venti corpi a tre centimetri da una staccionata che
+			# chiedono la strada nello stesso frame, fino a UNDICI la
+			# attraversavano — e chi la attraversa ci resta, perche\' la
+			# domanda dopo riparte da oltre il muro. Il verso dell\'errore era
+			# pure il peggiore: piu\' la macchina e\' carica, piu\' corpi
+			# venivano rimandati, quindi il guasto peggiorava proprio quando
+			# il giocatore aveva gia\' il gioco che arrancava.
+			# Fermarsi costa al massimo ATTESA_MAX frame (un decimo di
+			# secondo), e dopo quelli la strada si prende comunque.
+			if not _rotta_attesa:
+				if _cammina(delta):
+					_enter_state(_next_state)
 			_anim_move(delta)
 		"inspect":
 			_timer -= delta
