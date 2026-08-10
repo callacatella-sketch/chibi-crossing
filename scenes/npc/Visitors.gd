@@ -386,9 +386,18 @@ func _routine(delta: float) -> void:
 		if str(r.get("phase", "")) != ph:
 			r["phase"] = ph
 			r["next_act"] = randf_range(0.4, 1.8)
-		r["next_act"] = float(r.get("next_act", 1.0)) - delta
+		var prima_lease := float(r.get("next_act", 1.0))
+		r["next_act"] = prima_lease - delta
 		if float(r["next_act"]) > 0.0:
 			continue
+		# la finestra delle chiacchiere è scaduta: se l'incontro vero non è
+		# successo, un po' di compagnia la si è presa lo stesso stando
+		# accanto a qualcuno — se no il bisogno non si sazierebbe MAI e
+		# l'azione tornerebbe a vincere all'infinito
+		if bool(r.get("chiacchiere_in_corso", false)):
+			r["chiacchiere_in_corso"] = false
+			var b_ch: RefCounted = _ensure_brain(r)
+			b_ch.needs["compagnia"] = minf(1.0, float(b_ch.needs["compagnia"]) + 0.2)
 		match ph:
 			"fire":
 				# la sera ci si ritrova tutti attorno al fuoco
@@ -777,6 +786,21 @@ func _gesti_agenda() -> void:
 		# e resta dov'era
 		act = _filtra_luogo(str(r.get("label", "")), act)
 		_recita(r, node, brain, act, ph)
+		# IL POZZO DELLE CHIACCHIERE, e va chiuso qui o il motore ci cade
+		# dentro. Chi sceglie «quattro_chiacchiere» non sazia NIENTE: la
+		# compagnia la ricarica solo l'incontro vero (_run_chat), che scatta
+		# per prossimità, una coppia ogni 3,5 s in tutto il villaggio.
+		# Prima non si vedeva perché si ridecideva ogni 9-15 secondi col
+		# dado; adesso il dado è congelato dentro la decisione, quindi
+		# l'azione continuerebbe a vincere e il vicino trascurerebbe la fame
+		# restando in piedi ad avvicinarsi a qualcuno.
+		# Si dà una FINESTRA (il lease che zittisce l'agenda, lo stesso che
+		# usano gli undici sistemi a evento): dentro quella finestra
+		# `_run_chat` può succedere davvero, e se non succede si esce
+		# comunque con una consolazione.
+		if act == "quattro_chiacchiere":
+			r["next_act"] = 12.0
+			r["chiacchiere_in_corso"] = true
 
 
 ## Fatti → passo → gesti, dentro UN frame e in quest'ordine. È una funzione
