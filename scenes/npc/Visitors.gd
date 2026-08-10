@@ -222,6 +222,7 @@ func _process(delta: float) -> void:
 	var t_ora: float = float(_daynight.get("time")) if _daynight else 0.5
 	_vita_cd -= delta
 	_ciclo_sonno(delta, t_ora)
+	_gesti_agenda()
 
 	# la prima goccia fa alzare il musetto: qualcuno commenta la pioggia
 	var raining: bool = _weather != null and _weather.is_raining()
@@ -395,14 +396,14 @@ func _routine(delta: float) -> void:
 				node.call("do_routine", "fire", _posto_al_falo(i), CLEARING)
 				_ensure_brain(r).satisfy("falo")
 			"morning", "day":
-				r["next_act"] = randf_range(9.0, 15.0)
-				# il cervello decide, la macchina a stati recita: bisogni,
-				# indole e contesto scelgono l'attività della mezz'ora
-				var brain: RefCounted = _ensure_brain(r)
-				var act: String = brain.choose(_brain_ctx(r, ph))
-				# e se quel posto è diventato insopportabile, cambia idea
-				act = _filtra_luogo(str(r.get("label", "")), act)
-				_recita(r, node, brain, act, ph)
+				# QUI NON SI DECIDE PIÙ. La scelta dell'attività è passata al
+				# motore di utilità in C++, che la rivaluta a ogni frame
+				# (_gesti_agenda): questo ramo esisteva per ridecidere ogni
+				# 9-15 secondi, e quella cadenza era il tempo che serviva a un
+				# bisogno per superare il proprio dado.
+				# Resta il LEASE: `next_act` è come gli undici sistemi a
+				# evento zittiscono l'agenda, e il C++ lo riceve come fatto.
+				r["next_act"] = 0.0
 
 
 # ------------------------------------------------------- l'agenda recitata
@@ -606,8 +607,24 @@ func _puo_entrare(r: Dictionary) -> bool:
 ## un letterale in mezzo al `_process`. Il C++ non li conosce: gli arriva
 ## solo il booleano `corpo_libero`, perché i 43 stati-stringa del Visitor
 ## non sono affar suo (e alcuni nascono composti a runtime).
+## Gli stati in cui il CORPO è fermo e disponibile a cambiare mestiere. La
+## differenza con quelli interrompibili qui sotto ha un perché: dal SONNO ci
+## si alza anche da sotto le stelle, dall'AGENDA no — quei tre pagano la
+## loro sazietà quando il gesto finisce, e strapparli a metà vorrebbe dire
+## che il bisogno non si sazia mai.
+const STATI_A_RIPOSO := ["r_idle", "r_wander", "r_fire", "r_bench", "r_sniff"]
+
 const STATI_INTERROMPIBILI := ["r_idle", "r_wander", "r_fire", "r_bench",
 		"r_sniff", "tk_stella", "tk_sing", "tk_nap"]
+
+## Ogni quanti frame si rinfrescano i FATTI del mondo per un residente. Il
+## contesto costa (interroga il Garden, cerca i cespugli, guarda gli altri
+## residenti): calcolarlo a 60 Hz per ventotto vicini vorrebbe dire metà
+## frame, e il costo CRESCEREBBE con quanto il giocatore costruisce — cioè
+## il gioco punirebbe chi costruisce. Sfalsato per residente, così a ogni
+## frame se ne rinfresca circa uno: la spesa è quella di oggi, e i fatti
+## sono freschi ogni mezzo secondo invece che ogni 9-15 secondi.
+const FATTI_OGNI := 30
 
 var _ecs: Object = null
 var _ecs_manca_detto := false
@@ -670,6 +687,98 @@ func _dimentica_ecs(r: Dictionary) -> void:
 	r.erase("ecs_q")
 
 
+## I FATTI DEL MONDO per un residente, come maschera di bit.
+##
+## Si rinfrescano ogni FATTI_OGNI frame, SFALSATI per residente: il
+## contesto costa (il Garden, i cespugli, gli altri vicini) e calcolarlo a
+## sessanta hertz per ventotto persone vorrebbe dire metà frame. Sfalsato,
+## a ogni frame se ne rinfresca circa uno — la stessa spesa di prima, con i
+## fatti freschi ogni mezzo secondo invece che ogni 9-15 secondi.
+##
+## Fra un rinfresco e l'altro il motore continua a valutare: sono i BISOGNI
+## a scorrere di continuo, e sono loro a muovere le decisioni.
+func _fatti_di(r: Dictionary, node: Node3D) -> int:
+	var scad := float(r.get("fatti_scad", -1.0))
+	r["fatti_scad"] = scad - 1.0
+	if scad > 0.0 and r.has("fatti"):
+		return int(r["fatti"])
+	r["fatti_scad"] = float(FATTI_OGNI)
+	# FUORI DAL VILLAGGIO NON CI SONO FATTI. `_brain_ctx` interroga il
+	# BuildSystem, il Garden e i gruppi dell'albero: senza mondo esploderebbe
+	# a ogni rinfresco, e un errore a runtime interrompe la funzione in
+	# silenzio lasciando la suite verde. Con l'agenda che gira dentro
+	# `_ciclo_sonno` questo percorso lo attraversano anche i test dei
+	# residenti, che il villaggio non ce l'hanno.
+	if _ecs == null or _build == null or not is_inside_tree():
+		return int(r.get("fatti", 0))
+	var ph := _phase()
+	var ctx := _brain_ctx(r, ph)
+	var nomi: Array = []
+	if bool(ctx.get("mattina", false)):
+		nomi.append("mattina")
+	if bool(ctx.get("sera_stellata", false)):
+		nomi.append("sera_stellata")
+	if bool(ctx.get("aiuola_da_annaffiare", false)):
+		nomi.append("aiuola_da_annaffiare")
+	if bool(ctx.get("spuntino_vicino", false)):
+		nomi.append("spuntino_vicino")
+	if bool(ctx.get("amico_in_giro", false)):
+		nomi.append("amico_in_giro")
+	if bool(ctx.get("regia", false)):
+		nomi.append("regia")
+		# DIVERGENZA VOLUTA: «regia» valeva 0.75 anche quando il Regista non
+		# aveva ancora un piano per quel residente, e la scena cadeva su
+		# «wander» senza dirlo. Adesso l'azione non è nemmeno fattibile.
+		# si chiede se un piano C'È, non lo si esegue: `plan_for` entrerebbe
+		# in Lua e produrrebbe il piano vero, sessanta volte al minuto e per
+		# niente. `ha_piano` risponde con le stesse due condizioni.
+		var reg := get_tree().get_first_node_in_group("regista")
+		if reg != null and reg.has_method("ha_piano") and bool(reg.call("ha_piano", r)):
+			nomi.append("regia_pronta")
+	# DIVERGENZA VOLUTA: senza un posto da guardare, «meraviglia» non è
+	# fattibile. Prima vinceva lo stesso e poi il corpo gironzolava.
+	var home := Vector3(r["cell"].x, 0, r["cell"].y)
+	if _nearest_named(["Stagno", "Grande Albero", "Panchina"], home, 18.0) != null:
+		nomi.append("meraviglia_posto")
+	var m := int(_ecs.maschera_fatti(PackedStringArray(nomi)))
+	r["fatti"] = m
+	return m
+
+
+## LA MARIONETTA DELL'AGENDA, e la regola è una: si recita SOLO SUL FRONTE.
+##
+## `_recita` chiama `do_task`/`do_routine`, che riscrivono lo stato e
+## rimettono il corpo in cammino. Chiamarla a ogni frame vorrebbe dire
+## rilanciare il cammino sessanta volte al secondo, cioè NON ARRIVARE MAI —
+## e senza arrivare il gesto non si compie, il bisogno non si sazia, e il
+## bisogno insoddisfatto rilancia la scelta. Un livelock che non stampa
+## nessun errore. Per questo il permesso di recitare è `azione_cambiata`,
+## che è vero in un frame solo.
+func _gesti_agenda() -> void:
+	if _ecs == null:
+		return
+	var ph := _phase()
+	for r in _residents:
+		var node := r.get("node") as Node3D
+		if node == null or not is_instance_valid(node):
+			continue
+		if not r.has("ecs"):
+			continue
+		var id: int = int(r["ecs"])
+		if not _ecs.azione_cambiata(id):
+			continue
+		var idx: int = _ecs.azione(id)
+		if idx < 0 or idx >= BRAIN.AZIONI.size():
+			continue
+		var brain: RefCounted = _ensure_brain(r)
+		var act := str(BRAIN.AZIONI[idx])
+		# il Limbico può ancora far cambiare idea su un LUOGO diventato
+		# insopportabile: è una ferita del personaggio, non una preferenza,
+		# e resta dov'era
+		act = _filtra_luogo(str(r.get("label", "")), act)
+		_recita(r, node, brain, act, ph)
+
+
 ## Fatti → passo → gesti, dentro UN frame e in quest'ordine. È una funzione
 ## a sé anche perché così si può PROVARE: far girare `_process` vorrebbe il
 ## villaggio intero (mondo, meteo, costruzioni).
@@ -685,9 +794,18 @@ func _ciclo_sonno(delta: float, t_ora: float) -> void:
 		var nascosto: bool = node.call("is_hidden")
 		brain.tick(delta, nascosto)
 		if _ecs != null:
-			_ecs.riferisci(_ecs_id(r), nascosto,
+			var id_e: int = _ecs_id(r)
+			_ecs.riferisci(id_e, nascosto,
 					str(node.get("_state")) in STATI_INTERROMPIBILI,
 					_puo_entrare(r))
+			# --- FASE 2: i fatti dell'agenda ---
+			_ecs.riferisci_bisogni(id_e, brain.bisogni_packed())
+			_ecs.riferisci_agenda(id_e, _fatti_di(r, node),
+					str(node.get("_state")) in STATI_A_RIPOSO,
+					float(r.get("next_act", 0.0)) > 0.0)
+			# il dado si tira una volta per DECISIONE, non a ogni frame
+			if _ecs.vuole_dado(id_e):
+				_ecs.semina_agenda(id_e, brain.jitter())
 	if _ecs == null:
 		return
 	# 2) IL PASSO: l'unica decisione che il C++ possiede in tutto il gioco

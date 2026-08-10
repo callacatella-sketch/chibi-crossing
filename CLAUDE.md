@@ -944,6 +944,44 @@ regola pura in `src/sistema_sonno.{h,cpp}`. Il cablaggio è tutto in
    guidabile dai test, e i virtuali di una GDExtension non sono chiamabili per
    nome da GDScript. `test_ecs_mondo._motore_spento` fa la guardia.
 
+### FASE 2 — il motore dei bisogni, e il ritmo
+
+Dal 2026-08-10 la SCELTA DELL'ATTIVITÀ è la seconda autorità del C++.
+`src/curve_utilita.{h,cpp}` è una macchina IAUS vera (sei curve di risposta
++ compensation factor); `src/sistema_agenda.{h,cpp}` è la tabella delle otto
+azioni come considerazioni componibili. Il cablaggio sta in
+`Visitors._fatti_di()` e `_gesti_agenda()`.
+
+- **I BISOGNI NON SONO TRASLOCATI.** Restano di `VillagerBrain` perché sono
+  PERSISTITI: due case sullo stesso dato salvato è il guasto che le fonti
+  uniche vietano. Il C++ ne riceve uno SPECCHIO (`const double*`: non ha la
+  possibilità sintattica di scriverli).
+- **Le curve TRASPORTANO le formule di prima, non le rimodellano.** La prova
+  di equivalenza (`test_agenda_equivalenza`) confronta ~63.000 casi contro
+  `tests/oracolo_agenda.gd` e pretende l'uguaglianza ESATTA sui double.
+  Cambiare una curva è un commit suo, con la misura in mano.
+- **SI RECITA SOLO SUL FRONTE** (`azione_cambiata`). `_recita` rimette il
+  corpo in cammino: chiamarla ogni frame vuol dire non ARRIVARE mai, quindi
+  non saziare mai il bisogno, quindi ridecidere — un livelock che non stampa
+  errori.
+- **Le tre leve contro il tremolio**: il lucchetto del corpo, `T_MIN = 2 s`,
+  e il dado CONGELATO per decisione (il dado si tira in GDScript: in C++ non
+  c'è e non ci sarà un RNG). **L'urgenza ABBASSA T_MIN a un quarto, non lo
+  abolisce**: un'azione che sazia il proprio bisogno nel frame in cui viene
+  scelta sembra urgente per sempre, e senza pavimento si cambia idea alla
+  frequenza del frame (misurato).
+- **I FATTI del mondo si rinfrescano ogni 30 frame, sfalsati per residente.**
+  A 60 Hz per 28 vicini il contesto costerebbe metà frame, e il costo
+  crescerebbe con quanto il giocatore costruisce: il gioco punirebbe chi
+  costruisce.
+- **`AzioneVaiAlLetto` non esiste e non deve esistere**: il sonno è l'altra
+  autorità e sta SOPRA l'agenda (`passo_agenda` tace se non sveglio). E il
+  falò resta un COMANDO, non un'azione in gara: è un rito coi posti
+  assegnati, e farlo competere significa che qualcuno non ci va.
+- Le tre divergenze volute («meraviglia» e «regia» diventano infattibili
+  senza il posto/il piano; `gironzola` è il ripiego che diventa una scelta
+  dichiarata) hanno ognuna il suo caso di test nominato.
+
 ### Cosa la Fase 1 NON possiede — leggere prima di allargare
 
 `VillagerBrain.choose()` (pura, ma il contesto è tutto-mondo e l'esecutore può

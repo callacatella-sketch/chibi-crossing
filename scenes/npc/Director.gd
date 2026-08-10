@@ -298,13 +298,23 @@ func _componi_sorgente(r: Dictionary, asse: String) -> String:
 # ------------------------------------------------------------ esecuzione
 
 ## Il piano Lua per un residente, o [] se tocca alla routine di default.
-func plan_for(r: Dictionary, fase: String) -> Array:
+## C'È un piano per questo residente? Risponde SENZA entrare in Lua, e
+## serve al motore di utilità: «regia» non deve poter vincere quando il
+## Regista non ha ancora niente da far fare — prima vinceva a 0.75 e poi la
+## scena cadeva su «wander» in silenzio.
+## `plan_for` la usa come propria guardia: così le due risposte non possono
+## divergere, ed è la stessa ragione per cui la finestra del sonno vive in
+## un posto solo.
+func ha_piano(r: Dictionary) -> bool:
 	if not (_lua as Object).call("attivo"):
+		return false
+	return _sources.has(_key_for(r))
+
+
+func plan_for(r: Dictionary, fase: String) -> Array:
+	if not ha_piano(r):
 		return []
-	var key := _key_for(r)
-	if not _sources.has(key):
-		return []
-	return _lua.plan(key, _ctx_for(r, fase))
+	return _lua.plan(_key_for(r), _ctx_for(r, fase))
 
 
 # il contesto: tutto ciò che una routine può "leggere" del mondo

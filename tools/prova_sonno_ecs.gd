@@ -137,6 +137,15 @@ func _go() -> void:
 		# stavano facendo e tornino interrompibili.
 		for _i in 600:
 			await process_frame
+		# l'AGENDA: cosa stanno facendo, e da quanto
+		var conta := {}
+		for r in residenti:
+			var rr := r as Dictionary
+			if rr.has("ecs") and cuore != null:
+				var a: int = cuore.azione(int(rr["ecs"]))
+				var nome := "-" if a < 0 else str(load("res://scenes/npc/VillagerBrain.gd").AZIONI[a])
+				conta[nome] = int(conta.get(nome, 0)) + 1
+		print("   agenda: ", conta)
 		var dormono := 0
 		for r in residenti:
 			var n := (r as Dictionary).get("node") as Node3D
