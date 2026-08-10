@@ -403,7 +403,8 @@ func _routine(delta: float) -> void:
 				# la sera ci si ritrova tutti attorno al fuoco
 				r["next_act"] = 9999.0
 				node.call("do_routine", "fire", _posto_al_falo(i), CLEARING)
-				_ensure_brain(r).satisfy("falo")
+				# (la compagnia del falò si paga all'arrivo: vedi
+				# STATO_CHE_SAZIA in _gesti_agenda)
 			"morning", "day":
 				# QUI NON SI DECIDE PIÙ. La scelta dell'attività è passata al
 				# motore di utilità in C++, che la rivaluta a ogni frame
@@ -487,7 +488,13 @@ func _recita(r: Dictionary, node: Node3D, brain: RefCounted, act: String, ph: St
 							* (bench.get_meta("tavolo") as Vector3)
 				node.call("do_routine", "bench",
 						Vector3(arrivo.x, 0, arrivo.z), sguardo, bench)
-				brain.satisfy("riposo")
+				# LA SAZIETÀ SI PAGA QUANDO IL GESTO ACCADE, non qui. Con la
+				# valutazione continua, saziare nel frame della DECISIONE
+				# significa che l'azione si azzera il punteggio da sola
+				# mentre il vicino sta ancora camminando verso la panchina:
+				# una macchina per oscillare cablata nel codice, e per giunta
+				# uno che «si riposa» senza essersi seduto. La paga
+				# `_gesti_agenda` leggendo STATO_CHE_SAZIA.
 				return
 			node.call("do_task", "nap", Vector3.ZERO, func(): brain.satisfy("pisolino"))
 			return
@@ -635,6 +642,16 @@ const STATI_INTERROMPIBILI := ["r_idle", "r_wander", "r_fire", "r_bench",
 ## sono freschi ogni mezzo secondo invece che ogni 9-15 secondi.
 const FATTI_OGNI := 30
 
+## QUALE STATO DEL CORPO SAZIA QUALE BISOGNO, e si paga quando il gesto
+## ACCADE — cioè quando il corpo è arrivato e sta facendo la cosa, non
+## quando l'ha decisa. Prima «riposo» e il falò pagavano alla decisione:
+## con la valutazione continua l'azione si azzerava il punteggio da sola
+## mentre il vicino era ancora per strada, e per giunta uno si «riposava»
+## senza essersi mai seduto.
+## Le altre attività pagavano già alla callback d'arrivo: qui si mettono in
+## riga quelle che non ce l'avevano.
+const STATO_CHE_SAZIA := {"r_bench": "riposo", "r_fire": "falo"}
+
 var _ecs: Object = null
 var _ecs_manca_detto := false
 var _ST_DORME := 1
@@ -774,8 +791,17 @@ func _gesti_agenda() -> void:
 		if not r.has("ecs"):
 			continue
 		var id: int = int(r["ecs"])
+		# IL PAGAMENTO ALL'ARRIVO. Il latch serve perché un gesto che dura
+		# dieci secondi non sazi dieci volte al secondo: si paga una volta
+		# per azione, e il latch si azzera quando l'azione cambia.
+		var st_corpo := str(node.get("_state"))
+		if STATO_CHE_SAZIA.has(st_corpo):
+			if not bool(r.get("saziato", false)):
+				r["saziato"] = true
+				_ensure_brain(r).satisfy(str(STATO_CHE_SAZIA[st_corpo]))
 		if not _ecs.azione_cambiata(id):
 			continue
+		r["saziato"] = false
 		var idx: int = _ecs.azione(id)
 		if idx < 0 or idx >= BRAIN.AZIONI.size():
 			continue
