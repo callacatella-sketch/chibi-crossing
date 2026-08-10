@@ -60,6 +60,18 @@ enum Fatto : uint32_t {
 	// i due gate nuovi: divergenze DICHIARATE (vedi CLAUDE.md)
 	F_MERAVIGLIA_POSTO = 1u << 6,
 	F_REGIA_PRONTA = 1u << 7,
+	// --- FASE 3: la RAGGIUNGIBILITÀ. Si appendono in coda perché
+	// l'ordine dei primi otto è un contratto col GDScript (un test li
+	// confronta uno a uno).
+	// La differenza fra F_CIBO e F_CIBO_RAGG è tutta la Fase 3: il primo
+	// dice «un cespuglio c'è», il secondo «e ci si arriva». Finché
+	// coincidono non succede niente di nuovo; il giorno che il giocatore
+	// chiude un recinto si separano, ed è lì che nasce un piano diverso.
+	F_CIBO_RAGG = 1u << 8,
+	F_AIUOLA_RAGG = 1u << 9,
+	F_SEDUTA = 1u << 10,
+	F_BELLO_RAGG = 1u << 11,
+	F_LAVAGNA = 1u << 12,
 };
 // F_NOTTAMBULO non esiste apposta: si deriva dal DnaComponent con
 // chibi::nottambulo(), così quella frase resta scritta in un posto solo.

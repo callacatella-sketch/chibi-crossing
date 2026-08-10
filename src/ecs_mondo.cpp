@@ -6,6 +6,7 @@
 #include "ecs_componenti.h"
 #include "ecs_entt.h"
 #include "sistema_agenda.h"
+#include "sistema_piani.h"
 #include "sistema_sonno.h"
 
 using namespace godot;
@@ -15,6 +16,7 @@ using namespace godot;
 struct EcsMondo::Registro {
 	entt::registry reg;
 	chibi::TaraturaAgenda tar;
+	chibi::TaraturaPiani tar_piani;
 };
 
 // --- la traduzione dei nomi -------------------------------------------
@@ -46,11 +48,27 @@ const VoceIndole INDOLI[] = {
 const char *FATTI[] = {
 	"mattina", "sera_stellata", "aiuola_da_annaffiare", "spuntino_vicino",
 	"amico_in_giro", "regia", "meraviglia_posto", "regia_pronta",
+	// FASE 3, in coda: l'ordine dei primi otto è un contratto
+	"spuntino_raggiungibile", "aiuola_raggiungibile", "seduta_libera_vicina",
+	"meraviglia_raggiungibile", "lavagna_pronta",
 };
 
 const char *AZIONI[] = {
 	"spuntino", "riposo", "quattro_chiacchiere", "cura_giardino",
 	"meraviglia", "stella", "regia", "gironzola",
+};
+
+// I NOMI DEGLI OPERATORI e degli obiettivi: come per tutto il resto, la
+// tabella vera vive in GDScript e qui c'è solo la traduzione. Un test li
+// lega uno a uno.
+const char *OPERATORI[] = {
+	"vai_al_cibo", "sgranocchia", "vai_all_aiuola", "annaffia",
+	"vai_alla_seduta", "siedi", "pisolino", "vai_al_bello", "incantati",
+	"vai_alla_lavagna", "chiedi_cibo", "chiedi_cura",
+};
+
+const char *OBIETTIVI[] = {
+	"provvedi_pancino", "provvedi_cura", "provvedi_energia", "provvedi_meraviglia",
 };
 
 const char *BISOGNI[] = {
@@ -118,6 +136,12 @@ void EcsMondo::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_punteggi", "bisogni", "fatti", "indole", "quirk"), &EcsMondo::debug_punteggi);
 	ClassDB::bind_method(D_METHOD("debug_agenda", "id"), &EcsMondo::debug_agenda);
 	ClassDB::bind_method(D_METHOD("debug_tara_agenda", "t_min", "bonus", "margine", "tetto"), &EcsMondo::debug_tara_agenda);
+	ClassDB::bind_method(D_METHOD("pianifica", "stato", "obiettivo", "cammino"), &EcsMondo::pianifica);
+	ClassDB::bind_method(D_METHOD("indice_operatore", "nome"), &EcsMondo::indice_operatore);
+	ClassDB::bind_method(D_METHOD("maschera_obiettivo", "nome"), &EcsMondo::maschera_obiettivo);
+	ClassDB::bind_method(D_METHOD("debug_piano", "stato", "obiettivo", "cammino"), &EcsMondo::debug_piano);
+	ClassDB::bind_method(D_METHOD("debug_operatore", "id"), &EcsMondo::debug_operatore);
+	ClassDB::bind_method(D_METHOD("debug_tara_piani", "budget", "max_nodi", "max_prof"), &EcsMondo::debug_tara_piani);
 	ClassDB::bind_method(D_METHOD("avanza", "delta", "ora"), &EcsMondo::avanza);
 	ClassDB::bind_method(D_METHOD("stato", "id"), &EcsMondo::stato);
 	ClassDB::bind_method(D_METHOD("da_quanto", "id"), &EcsMondo::da_quanto);
@@ -487,4 +511,90 @@ int EcsMondo::debug_quante_pose() const {
 		n++;
 	}
 	return n;
+}
+
+
+// --- FASE 3: il pianificatore ------------------------------------------
+
+PackedInt32Array EcsMondo::pianifica(int p_stato, int p_obiettivo,
+		const PackedFloat64Array &p_cammino) const {
+	PackedInt32Array out;
+	ERR_FAIL_NULL_V(_reg, out);
+	ERR_FAIL_COND_V_MSG(p_cammino.size() != chibi::N_LUOGHI, out,
+			"EcsMondo.pianifica: servono cinque tempi di cammino.");
+	double c[chibi::N_LUOGHI];
+	for (int i = 0; i < chibi::N_LUOGHI; i++) {
+		c[i] = p_cammino[i];
+	}
+	const chibi::EsitoPiano e = chibi::pianifica(static_cast<uint32_t>(p_stato),
+			static_cast<uint32_t>(p_obiettivo), c, _reg->tar_piani);
+	out.resize(e.n);
+	for (int i = 0; i < e.n; i++) {
+		out[i] = e.passi[i];
+	}
+	return out;
+}
+
+int EcsMondo::indice_operatore(const String &p_nome) const {
+	const int n = static_cast<int>(sizeof(OPERATORI) / sizeof(OPERATORI[0]));
+	for (int i = 0; i < n; i++) {
+		if (p_nome == String(OPERATORI[i])) {
+			return i;
+		}
+	}
+	return chibi::OP_NESSUNO;
+}
+
+int EcsMondo::maschera_obiettivo(const String &p_nome) const {
+	const int n = static_cast<int>(sizeof(OBIETTIVI) / sizeof(OBIETTIVI[0]));
+	for (int i = 0; i < n; i++) {
+		if (p_nome == String(OBIETTIVI[i])) {
+			return static_cast<int>(1u << (24 + i));
+		}
+	}
+	return 0;
+}
+
+Dictionary EcsMondo::debug_piano(int p_stato, int p_obiettivo,
+		const PackedFloat64Array &p_cammino) const {
+	Dictionary d;
+	ERR_FAIL_NULL_V(_reg, d);
+	ERR_FAIL_COND_V_MSG(p_cammino.size() != chibi::N_LUOGHI, d,
+			"EcsMondo.debug_piano: servono cinque tempi di cammino.");
+	double c[chibi::N_LUOGHI];
+	for (int i = 0; i < chibi::N_LUOGHI; i++) {
+		c[i] = p_cammino[i];
+	}
+	const chibi::EsitoPiano e = chibi::pianifica(static_cast<uint32_t>(p_stato),
+			static_cast<uint32_t>(p_obiettivo), c, _reg->tar_piani);
+	PackedInt32Array passi;
+	passi.resize(e.n);
+	for (int i = 0; i < e.n; i++) {
+		passi[i] = e.passi[i];
+	}
+	d["passi"] = passi;
+	d["costo"] = e.costo;
+	d["nodi"] = e.nodi;
+	d["esito"] = e.esito;
+	return d;
+}
+
+Dictionary EcsMondo::debug_operatore(int p_id) const {
+	Dictionary d;
+	ERR_FAIL_COND_V(p_id < 0 || p_id >= chibi::N_OPERATORI, d);
+	const chibi::OperatoreDef &o = chibi::operatori()[p_id];
+	d["luogo"] = o.luogo;
+	d["richiede"] = static_cast<int>(o.richiede);
+	d["vieta"] = static_cast<int>(o.vieta);
+	d["aggiunge"] = static_cast<int>(o.aggiunge);
+	d["toglie"] = static_cast<int>(o.toglie);
+	d["costo"] = o.costo_base;
+	return d;
+}
+
+void EcsMondo::debug_tara_piani(double p_budget, int p_max_nodi, int p_max_prof) {
+	ERR_FAIL_NULL(_reg);
+	_reg->tar_piani.budget_secondi = p_budget;
+	_reg->tar_piani.max_nodi = p_max_nodi;
+	_reg->tar_piani.max_profondita = p_max_prof;
 }

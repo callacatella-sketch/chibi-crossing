@@ -4,6 +4,7 @@
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/packed_float64_array.hpp>
+#include <godot_cpp/variant/packed_int32_array.hpp>
 #include <godot_cpp/variant/packed_string_array.hpp>
 #include <godot_cpp/variant/string.hpp>
 
@@ -131,6 +132,18 @@ public:
 	int maschera_indole(const godot::PackedStringArray &p_nomi) const;
 	int indice_quirk(const godot::String &p_nome) const;
 	int maschera_fatti(const godot::PackedStringArray &p_nomi) const;
+	// --- FASE 3: il pianificatore. Metodi CONST e senza entità: il piano
+	// non entra nell'ECS. Il C++ possiede l'ALGORITMO; la vita del piano
+	// (i corpi, i segnali, l'albero della scena) resta in GDScript, dove
+	// stanno le cose che il piano muove.
+	godot::PackedInt32Array pianifica(int p_stato, int p_obiettivo,
+			const godot::PackedFloat64Array &p_cammino) const;
+	int indice_operatore(const godot::String &p_nome) const;
+	int maschera_obiettivo(const godot::String &p_nome) const;
+	godot::Dictionary debug_piano(int p_stato, int p_obiettivo,
+			const godot::PackedFloat64Array &p_cammino) const;
+	godot::Dictionary debug_operatore(int p_id) const;
+	void debug_tara_piani(double p_budget, int p_max_nodi, int p_max_prof);
 	int indice_azione(const godot::String &p_nome) const;
 	int indice_bisogno(const godot::String &p_nome) const;
 
