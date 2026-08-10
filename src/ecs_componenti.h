@@ -14,9 +14,18 @@ namespace chibi {
 // Dictionary del DNA — che è lo stesso oggetto della riga del salvataggio,
 // condiviso per riferimento. Una copia C++ di un gene estetico diventerebbe
 // quindi stale al primo cambio di look, e la suite resterebbe verde.
-// `indole` e `quirk` non sono estetici: questa proiezione NON PUÒ scadere.
-// Un test lo dimostra passando un chibi dal salone e pretendendo che
-// `debug_entita()` non si muova di un bit.
+// `indole` e `quirk` non sono estetici, quindi il SALONE non li tocca: è per
+// questo che stanno qui e i diciassette geni estetici no.
+//
+// Ma «non estetico» non vuol dire «immutabile»: `Visitors.debug_quirk()`
+// scrive il quirk su un cervello vivo (lo usa DebugHarness per fabbricare un
+// nottambulo). Una fotografia scattata alla registrazione e mai più
+// aggiornata manderebbe a letto alle 0.80 uno che è appena diventato
+// nottambulo — e non se ne accorgerebbe nessuno. Per questo esiste
+// `EcsMondo::riproietta()`, che il cablaggio chiama quando i valori del
+// cervello CAMBIANO davvero (non a ogni frame: si confrontano prima).
+// La prima stesura di questo commento diceva che la proiezione «non PUÒ
+// scadere». Non era vero, e l'ha trovato una revisione avversariale.
 //
 // L'ordine dei bit NON è un contratto verso il salvataggio: la tabella vera
 // resta `VillagerBrain.INDOLI` in GDScript, e la traduzione nome→bit la fa

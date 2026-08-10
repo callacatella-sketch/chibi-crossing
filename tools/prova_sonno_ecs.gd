@@ -119,8 +119,14 @@ func _go() -> void:
 
 	for m in MOMENTI:
 		dn.call("set_time", float(m["ora"]))
-		# un po' di frame veri: il ciclo gira dentro Visitors._process
-		for _i in 90:
+		# LA SERA DEVE PASSARE DAVVERO. Novanta frame sono un secondo e mezzo:
+		# in un villaggio VIVO la routine manda i vicini a fare qualcosa
+		# (`walk`, `lp_sniff`) e il registro — giustamente — non strappa a
+		# letto chi ha il corpo occupato. Con un secondo e mezzo la prova
+		# dipendeva da dove li coglieva, e infatti ha dato 3/3 una volta e
+		# 0/3 la volta dopo. Dieci secondi bastano perché finiscano quel che
+		# stavano facendo e tornino interrompibili.
+		for _i in 600:
 			await process_frame
 		var dormono := 0
 		for r in residenti:
@@ -129,6 +135,14 @@ func _go() -> void:
 				dormono += 1
 		print("%-12s ora %.2f · dormono %d/%d" % [str(m["nome"]),
 				float(m["ora"]), dormono, residenti.size()])
+		for r in residenti:
+			var rr := r as Dictionary
+			var nn := rr.get("node") as Node3D
+			var ecs = vis.get("_ecs")
+			print("   sonda: state=", (nn.get("_state") if nn else "-"),
+					" ecs=", (ecs.stato(int(rr["ecs"])) if (ecs and rr.has("ecs")) else "?"),
+					" finestra=", (ecs.in_finestra(int(rr["ecs"])) if (ecs and rr.has("ecs")) else "?"),
+					" dbg=", (ecs.debug_entita(int(rr["ecs"])) if (ecs and rr.has("ecs")) else "?"))
 		await _scatta(centro, 7.0, dove.rstrip("/") + "/" + str(m["nome"]) + ".jpg")
 
 	print("SONNO ECS -> ", dove)

@@ -639,9 +639,24 @@ func _ensure_ecs() -> void:
 ## il villaggio ha già due anagrafi (nome e label) e questa non deve
 ## diventare la terza.
 func _ecs_id(r: Dictionary) -> int:
+	var brain: RefCounted = _ensure_brain(r)
 	if not r.has("ecs"):
-		var brain: RefCounted = _ensure_brain(r)
 		r["ecs"] = _ecs.registra(PackedStringArray(brain.indole), str(brain.quirk))
+		r["ecs_ind"] = (brain.indole as Array).duplicate()
+		r["ecs_q"] = str(brain.quirk)
+		return int(r["ecs"])
+	# LA FOTOGRAFIA DEL DNA SCADE. Indole e quirk non sono geni estetici (il
+	# salone non li tocca), ma `debug_quirk` li scrive su un cervello vivo —
+	# è così che DebugHarness fabbrica un nottambulo. Senza questo confronto
+	# il registro manderebbe a letto alle 0.80 uno che è appena diventato
+	# nottambulo, e non se ne accorgerebbe nessuno.
+	# Si confronta invece di riproiettare sempre: sono due letture e un
+	# paragone di array corti, mentre `riproietta` alloca una
+	# PackedStringArray a ogni residente a ogni frame.
+	if r.get("ecs_ind") != brain.indole or str(r.get("ecs_q", "")) != str(brain.quirk):
+		r["ecs_ind"] = (brain.indole as Array).duplicate()
+		r["ecs_q"] = str(brain.quirk)
+		_ecs.riproietta(int(r["ecs"]), PackedStringArray(brain.indole), str(brain.quirk))
 	return int(r["ecs"])
 
 
@@ -651,6 +666,8 @@ func _dimentica_ecs(r: Dictionary) -> void:
 	if _ecs != null and is_instance_valid(_ecs) and r.has("ecs"):
 		_ecs.dimentica(int(r["ecs"]))
 	r.erase("ecs")
+	r.erase("ecs_ind")
+	r.erase("ecs_q")
 
 
 ## Fatti → passo → gesti, dentro UN frame e in quest'ordine. È una funzione

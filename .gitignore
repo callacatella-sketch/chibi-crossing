@@ -10,6 +10,10 @@
 # dalla CI build.yml (Windows). Un clone pulito ricompila prima di aprire Godot.
 /bin/*.dll
 /bin/*.dylib
+# i .so di Linux: la CI li produce da quando build.yml compila anche lì, e
+# senza questa riga l'hook di backup (`git add -A`) li committerebbe dentro
+# un «backup automatico» — binari nel repo, che il progetto non vuole
+/bin/*.so
 /bin/*.lib
 
 # cache e artefatti di compilazione (SCons / GDExtension C++)

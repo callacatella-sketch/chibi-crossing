@@ -24,6 +24,15 @@ Addon che porta Lua in Godot (`addons/lua-gdextension/`).
 Licenza: **MIT** — Copyright (C) 2026 Gil Barbosa Reis.
 Testo completo: [`addons/lua-gdextension/LICENSE`](addons/lua-gdextension/LICENSE).
 
+## EnTT
+
+Libreria ECS (Entity Component System) header-only, vendorizzata come singolo
+header in `src/thirdparty/entt/entt.hpp` (versione **3.13.2**, presa da
+`single_include/entt/entt.hpp` del repo a monte). La usa il cuore C++ del gioco
+per il registro delle entità (`src/ecs_mondo.cpp`).
+Licenza: **MIT** — Copyright (c) 2017-2023 Michele Caini, author of EnTT.
+Testo completo: [`src/thirdparty/entt/LICENSE`](src/thirdparty/entt/LICENSE).
+
 ## Godot Engine
 
 Il gioco gira sul motore **Godot Engine** (MIT — Copyright (c) 2014-present

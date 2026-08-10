@@ -36,6 +36,8 @@ func run(t) -> void:
 	_riconciliazione(t, m)
 	_anagrafe(t, m)
 	_niente_pose(t, m)
+	_la_finestra_si_legge(t, m)
+	_nottambulo_e_lo_stesso_in_due_lingue(t, m)
 	m.free()
 	_motore_spento(t)
 
@@ -135,8 +137,24 @@ func _equivalenza(t, m) -> void:
 
 ## Una giornata intera, un residente che può entrare e non ha niente da
 ## fare: deve dormire UNA volta sola, e alle ore giuste.
+##
+## SI PASSA DA `registra()`, e con profili che cambiano DAVVERO la finestra.
+## La prova di equivalenza qui sopra interroga `debug_in_finestra`, che salta
+## il componente: con la sola equivalenza, `registra` avrebbe potuto buttare
+## via i suoi argomenti e la suite sarebbe rimasta verde. Qui l'indole
+## attraversa maschera_indole → DnaComponent → `vista.get<DnaComponent>()`
+## dentro `avanza`, che è la catena che il gioco usa davvero.
 func _giornata(t, m) -> void:
-	var id: int = m.registra(PackedStringArray([]), "")
+	_una_giornata(t, m, [], "", 0.80, 0.295, "profilo base")
+	_una_giornata(t, m, ["sognatore"], "", 0.92, 0.295, "sognatore (nottambulo)")
+	_una_giornata(t, m, [], "canta_alla_luna", 0.92, 0.295, "canta alla luna")
+	_una_giornata(t, m, ["mattiniero"], "", 0.80, 0.262, "mattiniero")
+	_una_giornata(t, m, ["dormiglione"], "", 0.80, 0.36, "dormiglione")
+
+
+func _una_giornata(t, m, ind: Array, q: String, atteso_da: float,
+		atteso_a: float, nome: String) -> void:
+	var id: int = m.registra(PackedStringArray(ind), q)
 	var dorme_da := -1.0
 	var dorme_a := -1.0
 	var passaggi := 0
@@ -157,16 +175,19 @@ func _giornata(t, m) -> void:
 		if ora >= 0.40 and ora <= 0.79 and st != m.STATO_SVEGLIO:
 			mai_strano = false
 		prima = st
-	t.ok(mai_strano, "in pieno giorno non dorme e non resta fuori")
-	t.almost(dorme_da, 0.80, "si addormenta all'ora giusta", 0.003)
-	t.almost(dorme_a, 0.295, "e si sveglia all'ora giusta", 0.003)
+	t.ok(mai_strano, "«%s»: in pieno giorno non dorme e non resta fuori" % nome)
+	t.almost(dorme_da, atteso_da,
+			"«%s»: si addormenta all'ora giusta" % nome, 0.003)
+	t.almost(dorme_a, atteso_a,
+			"«%s»: e si sveglia all'ora giusta" % nome, 0.003)
 	# TRE passaggi, non due, e il motivo è che la finestra ATTRAVERSA la
 	# mezzanotte: una giornata 0.000→0.999 comincia già dentro la notte.
 	# Quindi: dorme subito (coda della notte prima) → si sveglia a 0.295 →
 	# si riaddormenta a 0.80. Se ne contasse di più sarebbe un lampeggio, che
 	# è il difetto vero da cui questa asserzione fa la guardia.
 	t.eq(passaggi, 3,
-			"tre passaggi in una giornata che comincia a mezzanotte, e nessun lampeggio")
+			"«%s»: tre passaggi in una giornata che comincia a mezzanotte, e nessun lampeggio"
+					% nome)
 	m.dimentica(id)
 
 
@@ -287,6 +308,64 @@ func _niente_pose(t, m) -> void:
 	m.dimentica_tutti()
 
 
+## `in_finestra()` regge il gate di TUTTE le stravaganze del villaggio
+## (Visitors._ciclo_sonno), e finora nessuna asserzione la toccava: se
+## regredisse a sempre-vero — per esempio perché `_ultima_ora` smette di
+## essere aggiornata e resta a 0.0, che è DENTRO la finestra base — il ciclo
+## del sonno continuerebbe a funzionare e i quirk non partirebbero più.
+func _la_finestra_si_legge(t, m) -> void:
+	var base: int = m.registra(PackedStringArray([]), "")
+	var notte: int = m.registra(PackedStringArray(["sognatore"]), "")
+	m.riferisci(base, false, true, true)
+	m.riferisci(notte, false, true, true)
+	m.avanza(1.0 / 60.0, 0.50)
+	t.ok(not m.in_finestra(base), "a mezzogiorno la finestra è chiusa")
+	t.ok(not m.in_finestra(notte), "per tutti e due")
+	m.avanza(1.0 / 60.0, 0.85)
+	t.ok(m.in_finestra(base), "alle 0.85 il profilo base è nella sua finestra")
+	t.ok(not m.in_finestra(notte),
+			"ma il nottambulo NO: la sua comincia alle 0.92")
+	m.avanza(1.0 / 60.0, 0.95)
+	t.ok(m.in_finestra(notte), "e alle 0.95 sì")
+	m.dimentica(base)
+	m.dimentica(notte)
+
+
+## NOTTAMBULO VIVE IN DUE LINGUE: `VillagerBrain.nottambulo()` è rimasta in
+## GDScript (la usa l'attività «stella», VillagerBrain.gd:180) e la stessa
+## regola è in C++ (chibi::nottambulo). Due implementazioni della stessa
+## frase sono esattamente il modo in cui questo progetto ha già visto
+## divergere una tabella. Qui si legano: si interroga il cervello VIVO e si
+## pretende che il registro la pensi uguale, su TUTTE le indoli e TUTTI i
+## quirk.
+func _nottambulo_e_lo_stesso_in_due_lingue(t, m) -> void:
+	var casi: Array = [[[], ""]]
+	for k in BRAIN.INDOLI:
+		casi.append([[str(k)], ""])
+	for q in BRAIN.QUIRKS:
+		casi.append([[], str(q)])
+	var divergenze := 0
+	var nottambuli := 0
+	for c in casi:
+		var b: RefCounted = BRAIN.new()
+		b.indole = c[0]
+		b.quirk = str(c[1])
+		var vivo: bool = b.nottambulo()
+		if vivo:
+			nottambuli += 1
+		# un nottambulo va a letto alle 0.92, gli altri alle 0.80: alle 0.85
+		# la finestra li separa, ed è l'unico modo di chiederlo al C++ senza
+		# aggiungergli un metodo che esiste solo per il test
+		var masc: int = m.maschera_indole(PackedStringArray(c[0]))
+		var qi: int = m.indice_quirk(str(c[1]))
+		if m.debug_in_finestra(masc, qi, 0.85) == vivo:
+			divergenze += 1
+	t.eq(divergenze, 0,
+			"GDScript e C++ sono d'accordo su chi è nottambulo, su tutte le indoli e i quirk")
+	t.ok(nottambuli >= 2,
+			"e i nottambuli esistono davvero nel campione (%d)" % nottambuli)
+
+
 ## IL MOTORE NON GIRA DA SOLO. Se un domani qualcuno aggiunge un
 ## _physics_process al C++, la simulazione girerebbe due volte per frame e
 ## nessun altro test se ne accorgerebbe.
@@ -295,9 +374,20 @@ func _motore_spento(t) -> void:
 	t.stage(m)
 	var id: int = m.registra(PackedStringArray([]), "")
 	m.riferisci(id, false, true, true)
-	# venti frame VERI, in scena, senza chiamare mai `avanza`
-	for _i in 20:
-		pass
+	# NIENTE `await`: il runner chiama `run(t)` senza attenderlo
+	# (tests/test_runner.gd), quindi una coroutine finirebbe di girare DOPO
+	# il rapporto e le sue asserzioni non conterebbero. La prima stesura di
+	# questo test faceva `for _i in 20: pass`, che non fa passare un bel
+	# niente e non poteva accorgersi di nulla — l'ha trovato una revisione
+	# avversariale.
+	# Si misura la stessa cosa dal motore: Godot accende il processo di un
+	# nodo SOLO se la sua classe sovrascrive `_process`/`_physics_process`.
+	# Se un domani qualcuno li aggiunge a EcsMondo, il ciclo del sonno
+	# girerebbe due volte per frame e nessun altro test se ne accorgerebbe.
+	t.ok(not m.is_processing(),
+			"EcsMondo NON ha un _process: il passo lo dà Visitors, e uno solo")
+	t.ok(not m.is_physics_processing(),
+			"e nemmeno un _physics_process")
 	t.almost(m.da_quanto(id), 0.0,
 			"in scena e senza `avanza`, il tempo dell'entità non si muove", 0.0001)
 	t.eq(m.stato(id), m.STATO_SVEGLIO, "e lo stato non cambia da solo")

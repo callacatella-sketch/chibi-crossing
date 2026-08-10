@@ -64,6 +64,12 @@ public:
 	// L'handle porta dentro la VERSIONE dell'entità EnTT: l'handle di un
 	// vicino congedato non risolve mai a un residente nuovo.
 	int64_t registra(const godot::PackedStringArray &p_indole, const godot::String &p_quirk);
+	// La proiezione del DNA si può RIFARE. Serve perché indole e quirk sono
+	// scrivibili a runtime (Visitors.debug_quirk → DebugHarness): una
+	// fotografia scattata alla registrazione e mai più aggiornata farebbe
+	// andare a letto alle 0.80 uno che è appena diventato nottambulo, e il
+	// commento che giurava il contrario sarebbe stato una bugia.
+	void riproietta(int64_t p_id, const godot::PackedStringArray &p_indole, const godot::String &p_quirk);
 	void dimentica(int64_t p_id);
 	void dimentica_tutti();
 	bool conosce(int64_t p_id) const;

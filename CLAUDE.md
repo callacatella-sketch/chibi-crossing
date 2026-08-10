@@ -884,6 +884,95 @@ tools/installa_salvataggio_prova.sh --ripristina
    Dieci case non si riempiono in un minuto. Per riempirle subito ci sono
    `Visitors.debug_candidate/debug_goto_wait/debug_force_decide`.
 
+## L'ECS in C++, e la sua UNICA autorità
+
+Dal 2026-08-10 il cuore C++ ha un registro **ECS** (EnTT 3.13.2, header-only,
+MIT) e una prima decisione che **non sta più in GDScript**: il ciclo
+sonno/veglia dei residenti.
+
+**Com'è fatto.** `EcsMondo` (`src/ecs_mondo.{h,cpp}`) è un `Node` che possiede
+un `entt::registry` in PImpl. I componenti stanno in `src/ecs_componenti.h`, la
+regola pura in `src/sistema_sonno.{h,cpp}`. Il cablaggio è tutto in
+`Visitors._ciclo_sonno()`: **fatti → passo → gesti**, dentro un frame.
+
+- Il nostro codice sta **flat in `src/`**; EnTT sta in `src/thirdparty/` col suo
+  `.gdignore` (l'importer scandaglia `src/` sul serio) e la sua voce in
+  [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+- **`src/ecs_entt.h` è l'UNICO posto autorizzato a includere `entt.hpp`.** Lì si
+  pareggiano due asimmetrie fra i rami del build: `-fno-exceptions` su
+  macOS/Linux contro `/EHsc` su Windows, e `NDEBUG` che non è definito nelle
+  stesse quattro combinazioni. Chi includesse EnTT da un altro `.cpp` le
+  riaprirebbe **e nessun test lo vedrebbe**.
+- Il `SConstruct` **non si tocca** (entrambi i rami hanno già `src/` nel
+  CPPPATH) e il `.gdextension` **non si apre** (header-only: nessuna dipendenza).
+
+### Le cinque regole che NON si negoziano
+
+1. **L'autorità è su UN canale solo, ed è il sonno.** Il villaggio ha **undici**
+   sistemi che impongono stati a evento (Concerto, Salone, Nascondino,
+   Concertino, Promesse, Calendar, Congedo, Bancarella, RichiesteFoto, Premura,
+   DebugHarness). Un C++ che scrivesse «lo stato» ogni frame vincerebbe su di
+   loro **senza un errore**. Chi allarga lo `StatoComponent` ai 43 stati del
+   Visitor senza prima convertire quegli undici sistemi in comandi verso l'ECS
+   scioglie il concerto dopo un frame.
+2. **`passo_sonno()` comincia RICONCILIANDO.** Se un altro sistema ha svegliato
+   o nascosto qualcuno, il registro lo **accetta**. Togliere quelle due righe
+   rimette a dormire chiunque il mondo abbia svegliato, un frame dopo — ed è la
+   forma di guasto che non lascia tracce.
+3. **Il `DnaComponent` porta SOLO geni fuori da `ChibiDNA.ESTETICI`** (oggi:
+   `indole` e `quirk`). Il salone di bellezza riscrive i geni estetici **dentro**
+   il Dictionary del DNA, che è lo stesso oggetto della riga del salvataggio: una
+   copia C++ di un gene estetico diventerebbe stale al primo cambio di look, **con
+   la suite verde**.
+   Ma «non estetico» non vuol dire «immutabile»: `debug_quirk()` scrive il quirk
+   su un cervello vivo. Per questo il cablaggio **confronta e riproietta**
+   (`EcsMondo::riproietta`) quando i valori cambiano. Chi aggiunge un campo al
+   `DnaComponent` deve chiedersi **chi lo scrive a runtime**, non solo chi lo
+   genera.
+4. **Dove muore il cervello, muore l'entità.** Accanto a ogni `_brains.erase` c'è
+   un `_dimentica_ecs`. L'handle vive SOLO in `r["ecs"]`, in RAM: non entra in
+   nessun salvataggio e non fa da chiave a nessun altro sistema (il villaggio ha
+   già due anagrafi, nome e label — questa non deve diventare la terza).
+   **Questa regola la tiene una convenzione, non il compilatore:** i due punti
+   veri (`_congeda` e la partenza) non sono coperti da un test, perché
+   chiamarli vuole il villaggio in scena. La rete è l'invariante
+   `quanti() == _brains.size()` in `test_sonno_residenti`. Chi aggiunge un
+   percorso che toglie un residente **deve** aggiungere la riga: un'entità
+   orfana oggi non si vede, alla Fase 2 decide per un corpo che non c'è.
+5. **Il passo è `avanza(delta, ora)`, chiamato a mano.** Niente `_process` né
+   `_physics_process` in `EcsMondo`: l'ordine dev'essere deterministico e
+   guidabile dai test, e i virtuali di una GDExtension non sono chiamabili per
+   nome da GDScript. `test_ecs_mondo._motore_spento` fa la guardia.
+
+### Cosa la Fase 1 NON possiede — leggere prima di allargare
+
+`VillagerBrain.choose()` (pura, ma il contesto è tutto-mondo e l'esecutore può
+disattenderla), `brain.tick()` e i cinque `needs` (sono **persistiti**), il
+canale `postura` (22 scrittori in 6 file), `Animo`/`Affetti`/`Lavori`,
+qualunque RNG (i dadi del villaggio si salvano) e qualunque persistenza.
+`TransformComponent` è **dichiarato e mai istanziato**: entra vivo quando
+arriva il suo primo lettore (il cammino), e fino ad allora
+`debug_quante_pose()` deve tornare 0 — un test lo pretende.
+
+E `VillagerBrain.nottambulo()` **resta in GDScript** (la usa anche l'attività
+«stella», `VillagerBrain.gd:180`): è l'unica formula che vive in due lingue, e
+la prova di equivalenza in `test_ecs_mondo` fa la guardia su entrambe.
+
+### Come si verifica
+
+```bash
+python3 -m SCons platform=macos arch=universal target=template_debug -j8
+Godot --headless --path . --import
+Godot --headless --path . --script res://tests/test_runner.gd
+CHIBI_SONNO=/tmp/sonno Godot --path . --script res://tools/prova_sonno_ecs.gd
+```
+
+L'ultimo apre il **MainLevel vero**, insedia tre vicini, porta l'orologio a
+0.55 → 0.86 → 0.40 e fotografa: alle 0.86 il prato dev'essere **vuoto**. La
+suite non dice niente su questo. E il ramo Windows del `SConstruct` non è
+verificabile da un Mac: la CI (`build.yml`, che ora gira anche sui rami di
+lavoro) è l'unico giudice per Windows e Linux.
+
 ## Test
 
 Test-suite **dependency-free** (nessun addon, nessuna rete) in `tests/`:

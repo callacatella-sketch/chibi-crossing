@@ -78,6 +78,7 @@ EcsMondo::~EcsMondo() {
 
 void EcsMondo::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("registra", "indole", "quirk"), &EcsMondo::registra);
+	ClassDB::bind_method(D_METHOD("riproietta", "id", "indole", "quirk"), &EcsMondo::riproietta);
 	ClassDB::bind_method(D_METHOD("dimentica", "id"), &EcsMondo::dimentica);
 	ClassDB::bind_method(D_METHOD("dimentica_tutti"), &EcsMondo::dimentica_tutti);
 	ClassDB::bind_method(D_METHOD("conosce", "id"), &EcsMondo::conosce);
@@ -136,6 +137,14 @@ int64_t EcsMondo::registra(const PackedStringArray &p_indole, const String &p_qu
 	_reg->reg.emplace<chibi::MondoComponent>(e);
 	// NIENTE TransformComponent: vedi ecs_componenti.h
 	return a_handle(e);
+}
+
+void EcsMondo::riproietta(int64_t p_id, const PackedStringArray &p_indole, const String &p_quirk) {
+	ERR_FAIL_NULL(_reg);
+	ERR_FAIL_COND_MSG(!conosce(p_id), "EcsMondo.riproietta: handle sconosciuto.");
+	chibi::DnaComponent &dna = _reg->reg.get<chibi::DnaComponent>(da_handle(p_id));
+	dna.indole = static_cast<uint32_t>(maschera_indole(p_indole));
+	dna.quirk = indice_quirk(p_quirk);
 }
 
 bool EcsMondo::conosce(int64_t p_id) const {
