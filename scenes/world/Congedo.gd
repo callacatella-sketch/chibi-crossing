@@ -579,6 +579,20 @@ func _giorno_di_lutto(day: int) -> void:
 		_toast(L10n.tf("Il villaggio è più silenzioso, senza %s.", [nome]))
 
 
+## QUANTI SECONDI REALI DURA IL RADUNO: da adesso a notte fonda. È la stessa
+## aritmetica di `Concerto._quanto_resta` — una scena che dura «una sera del
+## villaggio» si misura in ore di villaggio, non in un numero tondo scritto a
+## mano (una giornata dura `cycle_seconds`, quattro minuti di default).
+func _quanto_dura_il_raduno() -> float:
+	if _daynight == null:
+		return 40.0
+	var t := float(_daynight.get("time"))
+	var cicli := 240.0
+	if _daynight.get("cycle_seconds") != null:
+		cicli = float(_daynight.get("cycle_seconds"))
+	return maxf(8.0, (0.95 - t) * cicli)
+
+
 func _tick_lutto() -> void:
 	if _legami == null or not bool(_legami.call("lutto_attivo")):
 		return
@@ -600,6 +614,14 @@ func _tick_lutto() -> void:
 					node.call("do_routine", "sniff", albero.global_position +
 							Vector3(randf_range(-1.8, 1.8), 0, randf_range(0.8, 2.4)),
 							albero.global_position)
+					# IL VILLAGGIO INTERO, FERMO, RIVOLTO ALL'ALBERO. È la
+					# scena più silenziosa del gioco, e un pezzo posato lì
+					# accanto girerebbe tutte quelle teste insieme verso il
+					# cursore: `in_scena()` la protegge (vedi
+					# `Percezione.puo_vedere`). Dura fino a notte, come il
+					# raduno — la stessa aritmetica del concerto.
+					if node.has_method("apri_scena"):
+						node.call("apri_scena", _quanto_dura_il_raduno())
 	# la sera, un amico viene a consolare Mochi (una premura al giorno)
 	if t >= 0.66 and t < 0.9 and not _conforto_oggi and _visitors:
 		_conforto_oggi = bool(_visitors.call("conforta_mochi", "lutto"))

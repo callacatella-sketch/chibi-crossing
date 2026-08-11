@@ -68,6 +68,10 @@ const ORA_ANNUNCIO := 0.30
 
 ## Quanto deve aspettare, un cucciolo, prima di dire la prima parola.
 const GIORNI_PRIMA_PAROLA := 3
+## Quanto dura la scena della prima parola: il tempo di dirla e il respiro
+## dopo. Non di più — è un istante, non un rito, e tenere un cucciolo fuori
+## dal mondo più a lungo lo renderebbe assente invece che concentrato.
+const PRIMA_PAROLA_SCENA := 4.0
 
 var _visitors: Node
 var _legami: Node
@@ -447,6 +451,14 @@ func _prova_prima_parola() -> void:
 		if nodo.global_position.distance_to(_player.global_position) > 5.0:
 			continue
 		_prime_parole.erase(nome)
+		# LA PRIMA PAROLA SI DICE A TE, GUARDANDOTI. Succede una volta sola
+		# nella vita di quel cucciolo, e proprio mentre Mochi è a cinque metri
+		# — cioè esattamente quando può stare costruendo. Senza `apri_scena`,
+		# la testa si gira verso il cursore nell'istante della prima parola
+		# (`Percezione.puo_vedere` → `in_scena()`), e quella scena lì non
+		# torna più.
+		if nodo.has_method("apri_scena"):
+			nodo.call("apri_scena", PRIMA_PAROLA_SCENA)
 		nodo.call("speak", ["ciao", "amico"], "felice")
 		_legami.call("momento", str(nome), "prima_parola", "")
 		_toast(L10n.tf("%s ha detto la sua prima parola. Storta, ma sua.", [nome]))

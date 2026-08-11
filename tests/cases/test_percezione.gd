@@ -55,10 +55,16 @@ class Banco extends RefCounted:
 class Testimone extends "res://scenes/npc/Visitor.gd":
 	var sguardi: Array = []
 	var banco = null
-	func guarda_gesto(pos: Vector3, dur: float) -> void:
-		sguardi.append({"pos": pos, "dur": dur,
+	## OGNI CHIAMATA si segna, anche quella che non alza la testa: è
+	## `_tst_t` a dire se la testa si è alzata davvero, e il conto delle due
+	## cose (chiamate ricevute vs occhiate vere) è proprio quello che serve
+	## a misurare la raffica.
+	func guarda_gesto(pos: Vector3, dur: float, gesto := -1, finestra := 0.0) -> void:
+		var prima_t := _tst_t
+		super(pos, dur, gesto, finestra)
+		sguardi.append({"pos": pos, "dur": dur, "gesto": gesto,
+				"alzata": _tst_t > prima_t,
 				"prima": (banco.conta() if banco != null else -1)})
-		super(pos, dur)
 
 
 ## Il registro dei vicini, VERO, con solo il `_ready` scavalcato: quello di
@@ -83,11 +89,16 @@ func run(t) -> void:
 	_un_gesto_un_ricordo(t)
 	_il_dono_e_su_di_me(t)
 	_le_cose_si_sanno_dire(t)
-	_i_verbi_del_cablaggio(t)
 	_il_nodo_e_nel_mondo(t)
 	_la_testa_si_gira_dalla_parte_giusta(t)
 	_lo_sguardo_batte_gli_altri(t)
 	_la_testa_torna_sempre(t)
+	_una_raffica_e_una_ricevuta(t)
+	_il_tetto_del_collo(t)
+	_la_tenuta_e_viva(t)
+	_la_ricevuta_e_asimmetrica(t)
+	_la_scena_rara_e_intoccabile(t)
+	_le_tre_guardie(t)
 
 
 # --------------------------------------------------------------- il banco
@@ -96,6 +107,11 @@ func run(t) -> void:
 func _corpo(t, seme: int, pos: Vector3, spia := false) -> Node3D:
 	var v = (Testimone.new() if spia else VISITOR.new())
 	v.dna = DNA.generate(seme)
+	# «chibi» come i residenti veri (`Visitors._spawn_resident`), e non è un
+	# dettaglio: `set_eta()` esce SUBITO su qualunque altra specie, quindi un
+	# banco che lascia il default («riccio») non riesce a invecchiare nessuno —
+	# e ogni prova sull'età resterebbe verde misurando due giovani.
+	v.species = "chibi"
 	v.mode = "resident"
 	t.stage(v)
 	v.global_position = pos
@@ -416,41 +432,19 @@ func _le_cose_si_sanno_dire(t) -> void:
 	(cuore as Node).free()
 
 
-# =========================== 6. I VERBI DEL CABLAGGIO ESISTONO DAVVERO
+# =========================== 6. I VERBI DEL CABLAGGIO — TRASLOCATO
 #
-# Gli otto siti di emissione scrivono il verbo come PAROLA, e la parola la
-# traduce il ponte. Una parola sbagliata non diventa un errore rumoroso: il
-# gesto semplicemente non lo vede mai nessuno, per sempre, con la suite
-# verde. Qui il cablaggio È testo, quindi si legge il testo — ed è la stessa
-# eccezione dichiarata di `test_scena_cablaggi._test_nessun_gruppo_fantasma`,
-# per lo stesso motivo: non c'è un altro modo di sapere cosa emettono
-# davvero i siti veri senza istanziare mezzo gioco.
-
-func _i_verbi_del_cablaggio(t) -> void:
-	var re := RegEx.new()
-	re.compile('call_group\\(\\s*"percezione",\\s*"accaduto",\\s*"([a-z_]+)"')
-	var trovati := {}
-	var siti := 0
-	for path in _tutti("res://scenes", ".gd"):
-		var f := FileAccess.open(path, FileAccess.READ)
-		if f == null:
-			continue
-		for m in re.search_all(f.get_as_text()):
-			siti += 1
-			trovati[m.get_string(1)] = true
-
-	var cuore: Object = ClassDB.instantiate("EcsMondo")
-	t.ok(siti >= 8, "il gioco ha almeno otto siti che emettono un gesto (%d)" % siti)
-	for verbo in trovati:
-		t.ok(int(cuore.call("indice_verbo", str(verbo))) >= 0,
-				"il verbo «%s» che il gioco emette esiste nel ponte" % verbo)
-	# E NESSUN VERBO MORTO: se il ponte ne conosce uno che nessun sito
-	# emette, quel verbo è una riga di tabella che non succede mai.
-	for i in int(cuore.get("N_VERBI")):
-		var nome := str(cuore.call("nome_verbo", i))
-		t.ok(trovati.has(nome),
-				"il verbo «%s» lo emette qualcuno: nessuna riga morta nella tabella" % nome)
-	(cuore as Node).free()
+# Il censimento dei siti di emissione vive adesso in
+# `tests/cases/test_siti_gesto.gd`, accanto alle prove COMPORTAMENTALI degli
+# stessi siti (che cosa emettono davvero: il verbo, il posto, il
+# destinatario). Qui era una sola scansione del sorgente con un OTTO scritto
+# a mano — e con nove siti e un verbo emesso due volte, un sito poteva
+# sparire senza far cadere niente. Di là il numero si DERIVA dalla tabella
+# del ponte, e le due porte del dono hanno ciascuna la sua prova viva.
+#
+# Non se ne tiene una seconda copia qui: due censimenti in due file sono
+# esattamente il modo in cui, in questo progetto, due tabelle gemelle hanno
+# già preso strade diverse.
 
 
 # ============================== 6-bis. IL NODO C'È DAVVERO, NEL MONDO VERO
@@ -625,22 +619,653 @@ func _la_testa_torna_sempre(t) -> void:
 			"chi si addormenta smette di guardare (e la testa torna)", 0.02)
 
 
-# ------------------------------------------------------------------ utili
+# ================================ 9. UNA RAFFICA DI GESTI È UNA RICEVUTA
+#
+# La costruzione non ha lucchetto (`_try_place` sta su `is_action_pressed`) ed
+# emette un gesto per PEZZO. Se ogni pezzo riarmasse la ricevuta, stendere un
+# sentiero di quaranta pietre terrebbe i vicini entro nove metri con la testa
+# girata verso il cursore per quaranta secondi filati — e la ricevuta
+# smetterebbe di dire «ti ho vista» per dire «mi stanno fissando», sull'attività
+# più ripetuta del gioco.
+#
+# La cura NON è abbassare `DURATA_SGUARDO` (un gesto solo deve restare
+# leggibile): è che la testa si giri una volta per RICORDO, come il grafo fonde
+# le ripetizioni. Qui si misura la FRAZIONE DI TEMPO a testa girata, che è
+# esattamente quello che il giocatore vede — e si pretende che non dipenda da
+# quanto in fretta si costruisce.
 
-func _tutti(dir_path: String, ext: String) -> Array:
+## Fa passare `sec` secondi di gioco su un corpo, sparando un gesto ogni `ogni`
+## secondi **dal bus vero** (non da `guarda_gesto`: quel che si prova è la
+## catena intera, cablaggio compreso). Torna quanto tempo la testa è stata
+## girata di più di 0,45 rad e quante volte si è alzata.
+func _raffica(perc: Node, corpo: Node3D, verbo: String, pos: Vector3,
+		sec: float, ogni: float) -> Dictionary:
+	var frames := int(sec / DT)
+	var passo := maxi(1, int(round(ogni / DT)))
+	var girata := 0.0
+	var alzate := 0
+	var su := false
+	for i in frames:
+		if i % passo == 0:
+			perc.call("accaduto", verbo, pos)
+		corpo._process(DT)
+		var ora: bool = absf(float(corpo.get("_tst_off"))) > 0.45
+		if ora and not su:
+			alzate += 1
+		su = ora
+		if ora:
+			girata += DT
+	return {"girata": girata, "alzate": alzate, "tot": float(frames) * DT,
+			"quota": girata / maxf(float(frames) * DT, 0.001)}
+
+
+func _una_raffica_e_una_ricevuta(t) -> void:
+	var gesto := Vector3(6.1, 0, 0)     # di traverso: la testa deve girarsi
+	# UN GESTO SOLO resta pieno. È la prova che la cura non è stata «abbassare
+	# la costante»: il gesto singolo — l'annaffiata, la pesca, il dono — è
+	# quello che la ricevuta esiste per far leggere.
+	var solo := _corpo(t, 4901, Vector3.ZERO)
+	solo.set("_yaw", 0.0)
+	var v1 := _villaggio(t, [solo])
+	var m_solo := _raffica(v1["perc"] as Node, solo, "costruisce", gesto, 6.0, 99.0)
+	t.eq(int(m_solo["alzate"]), 1, "un gesto solo alza la testa una volta")
+	t.ok(float(m_solo["girata"]) > 2.5,
+			"…e la tiene su per il gesto intero (%.2f s)" % float(m_solo["girata"]))
+
+	# QUARANTA PEZZI, UNO AL SECONDO: il sentiero in piazza.
+	var lento := _corpo(t, 4902, Vector3.ZERO)
+	lento.set("_yaw", 0.0)
+	var v2 := _villaggio(t, [lento])
+	var m_lento := _raffica(v2["perc"] as Node, lento, "costruisce", gesto, 40.0, 1.0)
+	# la soglia è indipendente dalle costanti che sorveglia: è una FRAZIONE DEL
+	# TEMPO DI GIOCO, cioè la cosa che si vede. Prima della cura era 0.76.
+	t.ok(float(m_lento["quota"]) < 0.35,
+			"quaranta pezzi non fanno quaranta ricevute: testa girata il %.0f%% del tempo"
+					% (float(m_lento["quota"]) * 100.0))
+	# …e nemmeno il guasto opposto: se la seconda occhiata non arrivasse mai
+	# più, costruire per dieci minuti non produrrebbe nessuna ricevuta.
+	t.ok(int(m_lento["alzate"]) >= 2,
+			"…ma la testa si rialza (%d volte in 40 s): la raffica non zittisce il vicino"
+					% int(m_lento["alzate"]))
+
+	# TRE PEZZI AL SECONDO: la stessa scena, costruita in fretta. La ricevuta
+	# non deve dipendere da quanto svelto si tiene premuto — se dipendesse, il
+	# gioco punirebbe chi costruisce di più.
+	var svelto := _corpo(t, 4903, Vector3.ZERO)
+	svelto.set("_yaw", 0.0)
+	var v3 := _villaggio(t, [svelto])
+	var m_svelto := _raffica(v3["perc"] as Node, svelto, "costruisce", gesto, 40.0, 0.33)
+	t.ok(absf(float(m_svelto["quota"]) - float(m_lento["quota"])) < 0.10,
+			"e va uguale a tre pezzi al secondo (%.0f%% contro %.0f%%)"
+					% [float(m_svelto["quota"]) * 100.0, float(m_lento["quota"]) * 100.0])
+
+	# DIECI MINUTI DI CANTIERE: il vicino continua a guardare ogni tanto.
+	var lungo := _corpo(t, 4904, Vector3.ZERO)
+	lungo.set("_yaw", 0.0)
+	var v4 := _villaggio(t, [lungo])
+	var m_lungo := _raffica(v4["perc"] as Node, lungo, "costruisce", gesto, 300.0, 1.0)
+	t.ok(int(m_lungo["alzate"]) >= 10,
+			"cinque minuti di cantiere: alza la testa %d volte, non una sola"
+					% int(m_lungo["alzate"]))
+	t.ok(float(m_lungo["quota"]) < 0.35,
+			"…e resta un'occhiata, non uno sguardo fisso (%.0f%%)"
+					% (float(m_lungo["quota"]) * 100.0))
+
+	# UN GESTO DIVERSO IN MEZZO ALLA RAFFICA È UN GESTO NUOVO — nel grafo fa un
+	# ricordo nuovo (la fusione vuole lo STESSO verbo), e quindi qui fa una
+	# testa girata piena. Senza, chi costruisce potrebbe annaffiare accanto a un
+	# vicino senza che quello se ne accorga mai.
+	var misto := _corpo(t, 4905, Vector3.ZERO)
+	misto.set("_yaw", 0.0)
+	var v5 := _villaggio(t, [misto])
+	_raffica(v5["perc"] as Node, misto, "costruisce", gesto, 20.0, 1.0)
+	(v5["perc"] as Node).call("accaduto", "annaffia", gesto)
+	t.almost(float(misto.get("_tst_t")), PERC.DURATA_SGUARDO,
+			"un gesto DIVERSO in mezzo alla raffica riarma la ricevuta piena", 0.001)
+
+	# E LA FINESTRA È QUELLA DEL GRAFO, non un numero di questo file: si legge
+	# dal ponte e si prova dai due lati. Con una pausa più corta della finestra
+	# il gesto è ancora la stessa cosa (nel grafo: `quante++`); con una più
+	# lunga è una cosa nuova, e la testa si gira di nuovo. Se un domani
+	# qualcuno cambia `FINESTRA_FUSIONE` in C++, questa prova segue da sola.
+	var cost: Dictionary = (v5["cuore"] as Object).call("debug_grafo_costanti")
+	var finestra := float(cost.get("finestra_fusione", 0.0))
+	t.ok(finestra > 0.0, "il ponte dichiara la finestra di fusione (%.1f s)" % finestra)
+	for caso in [[finestra * 0.5, false], [finestra + 2.0, true]]:
+		var pausa := float(caso[0])
+		var corpo := _corpo(t, 4906 + int(pausa * 10.0), Vector3.ZERO)
+		corpo.set("_yaw", 0.0)
+		var vv := _villaggio(t, [corpo])
+		(vv["perc"] as Node).call("accaduto", "costruisce", gesto)
+		# si aspetta che lo sguardo sia SCADUTO, poi la pausa vera
+		for _i in int((PERC.DURATA_SGUARDO + pausa) / DT):
+			corpo._process(DT)
+		(vv["perc"] as Node).call("accaduto", "costruisce", gesto)
+		var pieno: bool = absf(float(corpo.get("_tst_t")) - PERC.DURATA_SGUARDO) < 0.001
+		t.eq(pieno, bool(caso[1]),
+				("dopo una pausa più LUNGA della finestra la testa si rigira piena"
+				if bool(caso[1]) else
+				"dentro la finestra il gesto ripetuto non riarma la ricevuta piena"))
+
+
+# ================================ 10. IL TETTO DEL COLLO (la somma, non i pezzi)
+#
+# Su `_head.rotation.y` scrivono TRE cose che si sommano: lo stato (fino a 0.30
+# nell'idle), la ricevuta (`TESTA_MAX` 0.90) e la recita del corpo (`hy_amp`:
+# «sguardo sfuggente» 0.55). Nessuna delle tre da sola esce dall'anatomia; la
+# loro somma sì — misurata a 1.40 rad, cioè 80°, e a quell'angolo la faccia non
+# c'è più: una palla di pelo con un nasino che sporge dal bordo. È la trappola
+# della «bocca in volo davanti al muso», sullo stesso rig.
+#
+# Il numero si giudica con una soglia che NON è la costante: 1.25 rad viene dal
+# provino (`tools/provino_collo.gd`), dove a 1.20 la faccia si legge ancora e a
+# 1.35 è sparita.
+
+func _il_tetto_del_collo(t) -> void:
+	t.ok(VISITOR.COLLO_MAX >= VISITOR.TESTA_MAX,
+			"il tetto del collo non stringe più della ricevuta stessa")
+	t.ok(VISITOR.COLLO_MAX <= 1.25,
+			"…e resta dentro l'anatomia misurata col provino")
+
+	# IL CASO PEGGIORE, e non è di laboratorio: un vicino col telegrafo del
+	# corpo addosso (`sguardo_sfuggente`, la posa della ribellione) che riceve
+	# una ricevuta di traverso.
+	var v := _corpo(t, 5001, Vector3.ZERO)
+	v.set("_yaw", 0.0)
+	v.set_meta("postura", "sguardo_sfuggente")
+	v.call("guarda_gesto", Vector3(6.0, 0, 0), 40.0)
+	var picco := 0.0
+	var picco_ric := 0.0
+	for _i in 1200:                    # venti secondi: le due onde si allineano
+		v._process(DT)
+		picco = maxf(picco, absf((v.get("_head") as Node3D).rotation.y))
+		picco_ric = maxf(picco_ric, absf(float(v.get("_tst_off"))))
+	t.ok(picco <= 1.25,
+			"col telegrafo addosso il collo resta dentro l'anatomia (%.3f rad, %.0f°)"
+					% [picco, rad_to_deg(picco)])
+	# …E LA PROVA STA MISURANDO IL CASO VERO: senza questa riga il test
+	# resterebbe verde anche con una ricevuta che non gira più la testa.
+	t.ok(picco > 0.9,
+			"…(e la somma ci arriva davvero, al tetto: %.3f rad)" % picco)
+
+	# IL TETTO NON RUBA NIENTE A CHI NON CI ARRIVA. Un vicino sereno, stessa
+	# ricevuta, resta com'era: il tetto è una rete, non una manopola.
+	var sereno := _corpo(t, 5002, Vector3.ZERO)
+	sereno.set("_yaw", 0.0)
+	sereno.call("guarda_gesto", Vector3(6.0, 0, 0), 40.0)
+	_gira(sereno, 60)
+	var y := absf((sereno.get("_head") as Node3D).rotation.y)
+	t.ok(y > 0.5 and y < VISITOR.COLLO_MAX,
+			"chi non ci arriva non lo tocca nessuno (%.3f rad)" % y)
+
+	# E QUANDO LO SGUARDO SCADE IL TETTO NON LASCIA RESIDUI: è una correzione
+	# additiva come le altre due, e si toglie il frame dopo. Se restasse
+	# addosso, il vicino resterebbe con la testa storta per sempre — il guasto
+	# del canale orfano, un piano più in alto.
+	#
+	# SI MISURA SUL BANCO DELLA TENUTA (`r_sniff`), e la prima stesura di
+	# questa prova non lo faceva: nella seduta lo stato riscrive l'imbardata IN
+	# ASSOLUTO a ogni frame, quindi cancella il residuo prima che si possa
+	# vedere. Smontando la riga che toglie il tetto, il test restava verde.
+	var v2 := _banco_tenuta(t, 5003, Vector3.ZERO)
+	v2.set_meta("postura", "sguardo_sfuggente")
+	v2.call("guarda_gesto", Vector3(6.0, 0, 0), 30.0)
+	var tagliato := 0.0
+	for _i in 1800:                    # trenta secondi: le due onde si allineano
+		v2._process(DT)
+		tagliato = maxf(tagliato, absf(float(v2.get("_capp_appl"))))
+	t.ok(tagliato > 0.05,
+			"…(e intanto il tetto ha tagliato davvero: %.3f rad)" % tagliato)
+	v2.set_meta("postura", "sereno")
+	_gira(v2, 2400)                    # quaranta secondi: tutto è rientrato
+	t.almost(float(v2.get("_capp_appl")), 0.0,
+			"scaduto lo sguardo, il tetto non tiene più niente", 0.0001)
+	t.almost((v2.get("_head") as Node3D).rotation.y, 0.0,
+			"…e la testa è tornata a posto DA SOLA, senza residui del tetto", 0.02)
+
+
+# ============================== 11. LA TENUTA È VIVA (nessun adesivo)
+#
+# «Mai posa + adesivo»: la differenza fra vivo e spento è il micro-movimento, e
+# un sin() puro si smaschera in due cicli. Qui si misura la TENUTA — i secondi
+# in cui la testa è ferma sul bersaglio — perché è lì che un'animazione muore.
+#
+# La prima stesura sottraeva per intero la posa dello stato, cioè cancellava
+# esattamente il dondolio di cui il suo stesso commento si vantava: due
+# testimoni affiancati davano lo stesso angolo al quinto decimale.
+
+## IL BANCO DELLA TENUTA: un corpo in `r_sniff`, l'unico stato che NON scrive
+## l'imbardata (`_anim_inspect` posa x e z e lascia stare y).
+##
+## Non è una comodità, è la differenza fra misurare e credere di misurare.
+## Nella seduta il «guardarsi intorno» dell'idle vale ±0,3 rad con un periodo
+## di 12,6 s e riscrive il canale IN ASSOLUTO a ogni frame: ci si legge sopra
+## qualunque cosa. Misurando lì, TRE guasti su cinque restavano verdi — il
+## tetto che non si toglie, l'orologio unico al posto dei due, lo scarto
+## personale spento — perché il test guardava il respiro del corpo credendo di
+## guardare lo sguardo.
+func _banco_tenuta(t, seme: int, pos: Vector3) -> Node3D:
+	var v := _corpo(t, seme, pos)
+	v.set("_yaw", 0.0)
+	v._enter_state("r_sniff")
+	v.set("_timer", 9999.0)
+	return v
+
+
+## Campiona l'imbardata della testa per `quanti` frame, dopo averla lasciata
+## arrivare. Torna la serie.
+func _serie_testa(v: Node3D, quanti: int) -> Array:
 	var out: Array = []
-	var d := DirAccess.open(dir_path)
-	if d == null:
-		return out
-	d.list_dir_begin()
-	var n := d.get_next()
-	while n != "":
-		var p := dir_path.path_join(n)
-		if d.current_is_dir():
-			if not n.begins_with(".") and n != "addons":
-				out.append_array(_tutti(p, ext))
-		elif n.ends_with(ext):
-			out.append(p)
-		n = d.get_next()
-	d.list_dir_end()
+	for _i in quanti:
+		v._process(DT)
+		out.append((v.get("_head") as Node3D).rotation.y)
 	return out
+
+
+func _escursione(s: Array) -> float:
+	var lo := 99.0
+	var hi := -99.0
+	for x in s:
+		lo = minf(lo, float(x))
+		hi = maxf(hi, float(x))
+	return hi - lo
+
+
+## Quante volte la serie CAMBIA VERSO: la misura della velocità che
+## l'escursione non sa dare.
+func _inversioni(s: Array) -> int:
+	var n := 0
+	var segno := 0
+	for i in range(1, s.size()):
+		var d := float(s[i]) - float(s[i - 1])
+		if d == 0.0:
+			continue
+		var sg := 1 if d > 0.0 else -1
+		if segno != 0 and sg != segno:
+			n += 1
+		segno = sg
+	return n
+
+
+func _media(s: Array) -> float:
+	var tot := 0.0
+	for x in s:
+		tot += float(x)
+	return tot / maxf(float(s.size()), 1.0)
+
+
+func _la_tenuta_e_viva(t) -> void:
+	var gesto := Vector3(6.0, 0, 0)
+	# DUE TESTIMONI, stesso posto, stesso verso, stesso bersaglio: tutto uguale
+	# tranne il genoma. **Lo stesso posto è voluto**: scostandoli anche solo di
+	# un metro, una parte della differenza sarebbe geometria — e la prova non
+	# saprebbe più dire se i due sono diversi o se sono solo altrove.
+	var a := _banco_tenuta(t, 5101, Vector3.ZERO)
+	var b := _banco_tenuta(t, 5102, Vector3.ZERO)
+	for c in [a, b]:
+		c.call("guarda_gesto", gesto, 240.0)
+	_gira(a, 60)
+	_gira(b, 60)
+	var sa := _serie_testa(a, 240)      # quattro secondi di TENUTA
+	var sb := _serie_testa(b, 240)
+	var scarto := 0.0
+	for i in sa.size():
+		scarto = maxf(scarto, absf(float(sa[i]) - float(sb[i])))
+	t.ok(scarto > 0.02,
+			"due testimoni non hanno la stessa identica testa (%.3f rad di scarto)"
+					% scarto)
+
+	# …E NON È SOLO QUESTIONE DI FASE. Su un minuto intero il vagare si media
+	# via e resta lo SCARTO DELLA MIRA: chi guarda le zampe, chi la faccia, chi
+	# la cosa. Senza questa misura, `MIRA_PERSONALE` poteva andare a zero senza
+	# che nessuno se ne accorgesse (le fasi diverse coprivano tutto).
+	var la := _serie_testa(a, 3600)
+	var lb := _serie_testa(b, 3600)
+	t.ok(absf(_media(la) - _media(lb)) > 0.01,
+			"…e su un minuto mirano a due punti diversi (%.4f rad)"
+					% absf(_media(la) - _media(lb)))
+
+	# LA TENUTA NON È FERMA. Con un bersaglio fisso e nessun micro-movimento
+	# qui uscirebbe zero: è la firma dell'adesivo.
+	t.ok(_escursione(sa) > 0.03,
+			"la testa si muove mentre guarda (%.3f rad di escursione in 4 s)"
+					% _escursione(sa))
+
+	# E NON SI RICHIUDE MAI. Due orologi incommensurabili: confrontando la
+	# tenuta con sé stessa un periodo dopo (quello dell'onda lenta, 7,57 s) le
+	# due finestre devono essere DIVERSE. Con un sin() solo sarebbero identiche.
+	var c := _banco_tenuta(t, 5103, Vector3.ZERO)
+	c.call("guarda_gesto", gesto, 90.0)
+	_gira(c, 120)
+	var periodo := int((TAU / 0.83) / DT)
+	var f1 := _serie_testa(c, periodo)
+	var f2 := _serie_testa(c, periodo)
+	var diff := 0.0
+	for i in mini(f1.size(), f2.size()):
+		diff = maxf(diff, absf(float(f1[i]) - float(f2[i])))
+	t.ok(diff > 0.01,
+			"l'imbardata non si richiude su sé stessa (%.3f rad fra un periodo e l'altro)"
+					% diff)
+
+	# IL CORPO CONTINUA A RESPIRARE SOTTO LO SGUARDO. Due corpi identici, stessa
+	# ricevuta: uno seduto (dove lo stato si guarda intorno) e uno sul banco
+	# (dove nessuno scrive l'imbardata). Se la posa dello stato venisse
+	# cancellata per intero — com'era, e come il commento giurava di NON fare —
+	# i due si muoverebbero uguali, e la testa sarebbe un adesivo sul collo.
+	#
+	# ⚠️ L'ASSESTAMENTO SI AVANZA A MANO, e non è pignoleria: `_anim_sit`
+	# accumula `_sit_t` con `get_process_delta_time()` — l'orologio VERO del
+	# motore, non il `delta` che il test passa — e finché l'assestamento non è
+	# finito il «guardarsi intorno» vale ZERO (`calo` moltiplica l'ampiezza).
+	# In una suite lenta i frame veri sono lunghi, l'assestamento finisce
+	# comunque e la prova passa; su una macchina svelta (o eseguendo questo
+	# caso da solo) `_sit_t` resta a zero, le due escursioni sono IDENTICHE e
+	# l'asserzione diventa rossa senza che niente si sia rotto. Era un test
+	# che misurava il carico della macchina.
+	var seduto := _corpo(t, 5106, Vector3.ZERO)
+	seduto.set("_yaw", 0.0)
+	seduto.set("_sit_t", 6.0)          # accomodato da un pezzo: `calo` ≈ 0
+	var banco := _banco_tenuta(t, 5106, Vector3.ZERO)
+	for c3 in [seduto, banco]:
+		c3.call("guarda_gesto", gesto, 90.0)
+		_gira(c3, 120)                 # due secondi: la molla è arrivata
+	var e_seduto := _escursione(_serie_testa(seduto, 480))
+	var e_banco := _escursione(_serie_testa(banco, 480))
+	t.ok(e_seduto > e_banco * 1.6,
+			"sotto lo sguardo il corpo continua a respirare (%.3f rad da seduto contro %.3f)"
+					% [e_seduto, e_banco])
+
+	# L'ETÀ SI SENTE, e le ORECCHIE NON SCATTANO. Un anziano guarda più lento e
+	# più corto; e questo canale è solo l'imbardata della testa — se toccasse le
+	# orecchie, a un anziano scatterebbero (la lezione già pagata).
+	#
+	# MEZZO MINUTO, non quattro secondi: su una finestra corta la differenza è
+	# tutta nella VELOCITÀ (l'anziano non fa in tempo a percorrere la sua
+	# escursione) e l'AMPIEZZA può andare a zero senza che il test se ne
+	# accorga. Su trenta secondi tutti e due percorrono tutto, e resta
+	# l'ampiezza — che è la cosa che si voleva provare.
+	var giovane := _banco_tenuta(t, 5104, Vector3.ZERO)
+	var vecchio := _banco_tenuta(t, 5104, Vector3.ZERO)  # STESSO genoma
+	vecchio.call("set_eta", 1.0)
+	for c1 in [giovane, vecchio]:
+		c1.call("guarda_gesto", gesto, 90.0)
+		_gira(c1, 60)
+	var s_g := _serie_testa(giovane, 1800)
+	var s_v := _serie_testa(vecchio, 1800)
+	t.ok(_escursione(s_v) < _escursione(s_g) * 0.85,
+			"chi ha vissuto guarda più CORTO dei giovani (%.4f contro %.4f rad)"
+					% [_escursione(s_v), _escursione(s_g)])
+	# …e più LENTO, che è l'altra metà e ha bisogno di una misura sua: la
+	# lentezza non si vede nell'escursione (su una finestra lunga anche il
+	# lento la percorre tutta), si vede in quante volte la testa CAMBIA VERSO.
+	t.ok(_inversioni(s_v) < _inversioni(s_g),
+			"…e più LENTO: cambia verso %d volte in mezzo minuto, il giovane %d"
+					% [_inversioni(s_v), _inversioni(s_g)])
+
+	# le orecchie: due corpi identici, uno con la ricevuta addosso e uno senza.
+	# Devono avere le stesse orecchie, frame per frame.
+	var con_ric := _corpo(t, 5105, Vector3.ZERO)
+	var senza := _corpo(t, 5105, Vector3.ZERO)
+	for c2 in [con_ric, senza]:
+		c2.set("_yaw", 0.0)
+		c2.call("set_eta", 1.0)
+	con_ric.call("guarda_gesto", gesto, 60.0)
+	var scarto_or := 0.0
+	for _i in 180:
+		con_ric._process(DT)
+		senza._process(DT)
+		var o1: Array = con_ric.get("_c_ears")
+		var o2: Array = senza.get("_c_ears")
+		if o1.size() > 0 and o2.size() > 0:
+			scarto_or = maxf(scarto_or,
+					absf((o1[0] as Node3D).rotation.x - (o2[0] as Node3D).rotation.x))
+	t.almost(scarto_or, 0.0,
+			"la ricevuta non tocca le orecchie: a un anziano non scattano", 0.0001)
+
+
+# ============ 11-bis. LA FORMA NEL TEMPO: scatta e torna via PIANO
+#
+# «Mai posa + adesivo»: la differenza fra vivo e spento è il micro-movimento,
+# e la prima cosa che si vede di uno sguardo non è l'angolo — è la SVEGLIA.
+# Una testa che parte e torna alla stessa velocità è una molla, ed è la cosa
+# che smaschera un'animazione in due cicli.
+#
+# `TESTA_VAI` (9.0) e `TESTA_TORNA` (4.0) sono le due metà di
+# quell'asimmetria, e nessuna delle due era sorvegliata: portarle allo stesso
+# valore — o addirittura invertirle, col ritorno a scatto — lasciava la suite
+# VERDE. Qui si misurano i due tempi VERI sul rig, e il giudizio è sul loro
+# RAPPORTO, che non dipende da nessuna delle due costanti presa da sola.
+#
+# Si misura sul banco della tenuta (`r_sniff`): nella seduta lo stato
+# riscrive l'imbardata in assoluto e ci si legge sopra qualunque cosa.
+
+## Il primo istante in cui la serie soddisfa il predicato, in secondi (o −1).
+func _quando(serie: Array, soglia: float, sotto: bool) -> float:
+	for i in serie.size():
+		var x := float(serie[i])
+		if (x <= soglia) if sotto else (x >= soglia):
+			return float(i + 1) * DT
+	return -1.0
+
+
+func _campiona_off(v: Node3D, quanti: int) -> Array:
+	var out: Array = []
+	for _i in quanti:
+		v._process(DT)
+		out.append(absf(float(v.get("_tst_off"))))
+	return out
+
+
+func _la_ricevuta_e_asimmetrica(t) -> void:
+	var v := _banco_tenuta(t, 5301, Vector3.ZERO)
+	var tenuta := 2.0
+	v.call("guarda_gesto", Vector3(6.0, 0, 0), tenuta)
+	var su := _campiona_off(v, int(tenuta / DT))
+	# IL RIFERIMENTO È LA TENUTA ASSESTATA, non il picco: la mira VAGA
+	# (`_vaga`, due orologi incommensurabili), e il massimo di quattro
+	# secondi capita quando le due onde si allineano — cioè a un istante che
+	# non ha niente a che vedere con la molla che si sta misurando.
+	var meta: Array = su.slice(su.size() / 2)
+	var quota := _media(meta)
+	t.ok(quota > 0.5, "(la testa si è girata davvero: %.3f rad di tenuta)" % quota)
+	# lo sguardo è scaduto esattamente adesso: da qui la molla torna
+	var giu := _campiona_off(v, int(3.0 / DT))
+
+	# I DUE TEMPI SI PRENDONO A 63/37%, cioè al tempo caratteristico della
+	# molla, e non al 90/10 del traguardo. Vicino al traguardo la mira che
+	# vaga fa oscillare il bersaglio attorno allo scostamento già raggiunto,
+	# e la molla continua a cambiare verso: l'ultimo decimo di strada misura
+	# il vagare, non la velocità. (MISURATO: al 90% la salita usciva 0,417 s
+	# contro i 0,256 della molla pura, e il rapporto scendeva a 1,44 — cioè
+	# il test avrebbe raccontato un'asimmetria più tiepida del vero.)
+	var salita := _quando(su, quota * 0.63, false)
+	var discesa := _quando(giu, quota * 0.37, true)
+	t.ok(salita > 0.0 and discesa > 0.0,
+			"i due tempi si misurano (salita %.3f s, ritorno %.3f s)" % [salita, discesa])
+	if salita <= 0.0 or discesa <= 0.0:
+		return
+
+	# LE DUE SOGLIE ASSOLUTE. Vengono dal comportamento, non dalle costanti:
+	# una testa che ci mette più di due decimi a partire non SCATTA più —
+	# sotto quel tempo si legge come una reazione, sopra come uno spostarsi;
+	# e un rientro più svelto di due decimi è uno scatto all'indietro, cioè
+	# due scatti, che è precisamente la molla che questo file esiste per non
+	# avere.
+	t.ok(salita < 0.20,
+			"la testa SCATTA verso il gesto (il tempo della molla è %.3f s)" % salita)
+	t.ok(discesa > 0.20,
+			"…e ci torna via PIANO (%.3f s)" % discesa)
+	# E IL RAPPORTO, che è la misura vera dell'asimmetria: non dipende
+	# dall'ampiezza, non dipende dal bersaglio, e cade sia portando le due
+	# costanti allo stesso valore sia invertendole. Misurato: 2,25.
+	t.ok(discesa / salita > 1.6,
+			"il ritorno è %.2f volte più lungo dell'andata: l'attenzione è asimmetrica"
+					% (discesa / salita))
+	# …e non è una lentezza qualunque: un ritorno dieci volte più lungo
+	# sarebbe una testa che resta appesa, cioè l'adesivo con un'altra faccia.
+	t.ok(discesa / salita < 4.0,
+			"…ma la testa TORNA, non resta appesa (%.2f volte)" % (discesa / salita))
+
+
+# ========================= 12. LA SCENA RARA È INTOCCABILE (dal bus vero)
+#
+# Le scene rare sono la cosa più preziosa del gioco perché sono rare: il
+# concerto, il coro attorno al carillon, il nascondino, il raduno al Grande
+# Albero la sera del lutto, la prima parola di un cucciolo. Basta un pezzo posato
+# a nove metri e tutte quelle teste si girano verso il cursore.
+#
+# `puo_vedere` lo prova sul predicato; qui si prova sulla CATENA INTERA — e
+# soprattutto si prova che la valvola si RIAPRE, cioè che `chiudi_scena` esiste
+# ed è la controparte di `apri_scena` (senza, un concerto finito presto
+# lascerebbe il vicino sordo per tutti i secondi che avanzano).
+
+func _la_scena_rara_e_intoccabile(t) -> void:
+	var gesto := Vector3(6.0, 0, 0)
+	var chi := _corpo(t, 5201, Vector3.ZERO, true)
+	chi.set("_yaw", 0.0)
+	var v := _villaggio(t, [chi])
+	chi.call("apri_scena", 30.0)
+	(v["perc"] as Node).call("accaduto", "costruisce", gesto)
+	_gira(chi, 45)
+	t.eq((chi as Testimone).sguardi.size(), 0,
+			"chi vive una scena rara non riceve nemmeno la chiamata")
+	t.eq(_ricordi(v, 0).size(), 0, "…e il gesto non entra nella sua memoria")
+	t.almost(absf((chi.get("_head") as Node3D).rotation.y), 0.0,
+			"…e la testa resta dov'era: la scena non si rompe", 0.35)
+
+	# LA SCENA FINISCE, E IL MONDO TORNA. È la metà che mancava: senza
+	# `chiudi_scena` una scena aperta «fino a stasera» e sciolta dopo cinque
+	# secondi lascerebbe quel vicino cieco per tutto il resto.
+	chi.call("chiudi_scena")
+	t.ok(not chi.call("in_scena"), "…e a scena chiusa il vicino è di nuovo nel mondo")
+	(v["perc"] as Node).call("accaduto", "costruisce", gesto)
+	_gira(chi, 45)
+	t.eq((chi as Testimone).sguardi.size(), 1,
+			"lo stesso gesto, a scena chiusa, adesso lo vede")
+	t.eq(_ricordi(v, 0).size(), 1, "…e se lo ricorda")
+
+
+# ================= 13. LE TRE GUARDIE: un guasto non ne fa altri cinque
+#
+# Tre righe difensive che nessun test toccava, e tutte e tre hanno la stessa
+# forma: una riga del registro può essere INCOMPLETA — un corpo liberato a
+# metà frame, un residente non ancora censito, un cuore che non c'è ancora
+# perché nessuno è stato censito — e il sistema deve degradare verso il
+# silenzio, mai verso il rumore.
+#
+# Il guasto che chiudono NON è «esplode»: è che dopo l'esplosione **gli
+# altri testimoni della stessa lista non ricevono più niente**. Un errore a
+# runtime in GDScript interrompe la funzione, e il ciclo di `accaduto` si
+# ferma lì. Perciò qui non si guarda l'errore: si guarda CHI VIENE DOPO, e
+# soprattutto CHI NON DEVE MUOVERSI.
+#
+# ⚠️ **UNA DELLE TRE NON È FALSIFICABILE DA UN'ASSERZIONE, ed è dichiarato.**
+# Il caso (c) — `_cabla` che risponde «sì» senza cuore — è MISURATO
+# equivalente: senza la guardia la funzione va in errore alla riga dopo,
+# quindi `accaduto` esce lo stesso e `testimoni` risponde lo stesso una lista
+# vuota. L'unica firma che resta è un `SCRIPT ERROR`, e un errore a runtime
+# non fa fallire un test in questo runner. Quel che il caso (c) fa — ed è la
+# ragione per cui c'è — è **percorrere quella strada**: prima di lui nessun
+# test chiamava mai la percezione su un villaggio senza cuore, quindi la
+# guardia poteva sparire senza produrre nemmeno un errore. Adesso ne produce
+# due, e il conto degli errori (che in questo progetto fa parte della
+# consegna: deve dare ZERO) li vede.
+
+## Un registro che restituisce le righe che gli si mettono in bocca: serve a
+## far arrivare a `_testimonia` una riga guasta, che è precisamente ciò
+## contro cui quella guardia esiste (un corpo liberato fra la costruzione
+## della lista e il ciclo che la consuma).
+class RegistroStorto extends "res://scenes/npc/Visitors.gd":
+	var righe_finte: Array = []
+	func _ready() -> void:
+		set_process(false)
+		set_physics_process(false)
+		add_to_group("visitors")
+	func testimoni(_pos: Vector3, _raggio: float) -> Array:
+		return righe_finte
+
+
+## Un registro senza cuore: è il villaggio appena aperto, prima che qualcuno
+## sia stato censito (`Visitors._ensure_ecs` gira al primo ciclo del sonno).
+class RegistroSenzaCuore extends "res://scenes/npc/Visitors.gd":
+	func _ready() -> void:
+		set_process(false)
+		set_physics_process(false)
+		add_to_group("visitors")
+	func cuore() -> Object:
+		return null
+
+
+func _le_tre_guardie(t) -> void:
+	var gesto := Vector3(0, 0, 0)
+
+	# (a) LA RIGA GUASTA NON ZITTISCE CHI VIENE DOPO. La lista arriva con un
+	# corpo che non c'è più al primo posto e un testimone vero al secondo.
+	for vecchio in t.tree().get_nodes_in_group("visitors"):
+		(vecchio as Node).remove_from_group("visitors")
+	var buono := _corpo(t, 5301, Vector3(2.0, 0, 0), true)
+	var storto = t.stage(RegistroStorto.new())
+	var cuore: Object = ClassDB.instantiate("EcsMondo")
+	(cuore as Node).name = "CuoreSonno"
+	(storto as Node).add_child(cuore)
+	storto.set("_ecs", cuore)
+	var id_buono: int = cuore.call("registra", PackedStringArray([]), "")
+	var id_perso: int = cuore.call("registra", PackedStringArray([]), "")
+	# la riga SENZA MEMORIA: il corpo c'è, l'entità no. È l'altra metà della
+	# stessa guardia, ed è quella che si VEDE — una testa che si gira per un
+	# gesto che nessuno inciderà è la ricevuta senza la conseguenza, cioè
+	# esattamente l'inversione che tutto questo file esiste per impedire.
+	var senza_memoria := _corpo(t, 5305, Vector3(2.5, 0, 0), true)
+	storto.righe_finte = [
+		{"node": null, "ecs": id_perso, "label": "sparito"},
+		{"node": senza_memoria, "ecs": -1, "label": "non censito"},
+		{"node": buono, "ecs": id_buono, "label": "V0"},
+	]
+	var perc = t.stage(PERC.new())
+	perc.call("accaduto", "annaffia", gesto)
+	t.eq((buono as Testimone).sguardi.size(), 1,
+			"una riga guasta in cima alla lista non zittisce il testimone che viene dopo")
+	t.eq((cuore.call("debug_grafo", id_buono) as Dictionary).get("ricordi", []).size(), 1,
+			"…e il suo ricordo si incide lo stesso")
+	t.eq((cuore.call("debug_grafo", id_perso) as Dictionary).get("ricordi", []).size(), 0,
+			"mentre la riga senza corpo non incide niente: si scarta INTERA")
+	t.eq((senza_memoria as Testimone).sguardi.size(), 0,
+			"e chi non ha una memoria NON gira la testa: mai una ricevuta senza il suo ricordo")
+
+	# (b) IL RESIDENTE NON ANCORA CENSITO si salta, e non porta via gli
+	# altri. `testimoni()` è la funzione di PRODUZIONE: la riga senza «ecs»
+	# è quella di chi è appena nato o appena arrivato, nella finestra prima
+	# che il ciclo del sonno gli dia un'entità.
+	for vecchio in t.tree().get_nodes_in_group("visitors"):
+		(vecchio as Node).remove_from_group("visitors")
+	var nuovo := _corpo(t, 5302, Vector3(1.0, 0, 0))
+	var censito := _corpo(t, 5303, Vector3(1.5, 0, 0))
+	var v2 := _villaggio(t, [censito])
+	var righe: Array = (v2["vis"] as Node).get("_residents")
+	# la riga di chi non ha ancora una memoria: NIENTE chiave «ecs», in TESTA
+	righe.insert(0, {"node": nuovo, "label": "V9", "dna": nuovo.dna,
+			"cell": Vector2i(9, 0), "species": "chibi"})
+	var visti: Array = (v2["vis"] as Node).call("testimoni", gesto, PERC.RAGGIO)
+	t.eq(visti.size(), 1,
+			"chi non ha ancora una memoria non è un testimone (e non fa cadere la lista)")
+	if visti.size() == 1:
+		t.eq(str((visti[0] as Dictionary)["label"]), "V0",
+				"…e quello censito c'è, anche stando DOPO la riga incompleta")
+
+	# (c) SENZA CUORE SI TACE, e si RIPROVA. Il villaggio appena aperto non ha
+	# ancora un registro ECS: un gesto lì non deve incidere niente e non deve
+	# far girare nessuna testa — ma appena il cuore arriva, tutto riparte.
+	for vecchio in t.tree().get_nodes_in_group("visitors"):
+		(vecchio as Node).remove_from_group("visitors")
+	var solo := _corpo(t, 5304, Vector3(2.0, 0, 0), true)
+	var senza = t.stage(RegistroSenzaCuore.new())
+	var righe2: Array[Dictionary] = [{"node": solo, "label": "V0", "dna": solo.dna,
+			"cell": Vector2i(0, 0), "species": "chibi", "ecs": 0}]
+	senza.set("_residents", righe2)
+	var perc2 = t.stage(PERC.new())
+	t.eq(perc2.call("testimoni", gesto, PERC.RAGGIO), [],
+			"senza cuore la percezione non sa dire chi c'era, e risponde una lista VUOTA")
+	perc2.call("accaduto", "annaffia", gesto)
+	t.eq((solo as Testimone).sguardi.size(), 0,
+			"…e nessuno gira la testa per un gesto che non si potrà ricordare")
+

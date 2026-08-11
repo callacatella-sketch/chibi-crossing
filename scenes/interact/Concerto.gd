@@ -249,6 +249,12 @@ func _apri(piano: Node3D) -> void:
 				if verso_piano.length() > 0.01 else dove
 		nodo.call("do_routine", "bench", largo - Vector3(0, largo.y, 0),
 				piano.global_position + Vector3(0, 0.5, 0), panca, _quanto_resta())
+	# STASERA HA UN APPUNTAMENTO, E NON È COL GIOCATORE. Senza questa riga
+	# `in_scena()` resta falsa per tutta la serata: chi suona non saluta più
+	# nessuno, ma la testa la gira lo stesso — e un pianista che segue col
+	# collo il cursore della costruzione mentre suona è il concerto rovinato.
+	if nodo.has_method("apri_scena"):
+		nodo.call("apri_scena", _quanto_resta())
 	_chiama_il_pubblico(piano)
 	_toast(L10n.tf("%s si siede al pianoforte. Le lanterne del palco si accendono.",
 			[_artista]))
@@ -274,6 +280,11 @@ func _chiudi() -> void:
 		var n := _nodo_di(chi)
 		if n != null and n.has_method("do_routine"):
 			n.call("do_routine", "wander", n.global_position)
+		# e la serata si CHIUDE anche nel corpo: `apri_scena` era stata aperta
+		# fino a `CHIUDE`, e una serata che finisce prima lascerebbe il vicino
+		# sordo al villaggio per tutti i secondi che avanzano
+		if n != null and n.has_method("chiudi_scena"):
+			n.call("chiudi_scena")
 	_pubblico.clear()
 	# ANCHE L'ARTISTA. Questo ramo liberava il pubblico e non toccava mai
 	# chi suonava: era LUI a restare incollato alla panchetta fino alla
@@ -281,6 +292,8 @@ func _chiudi() -> void:
 	var suonatore := _nodo_di(_artista)
 	if suonatore != null and suonatore.has_method("do_routine"):
 		suonatore.call("do_routine", "wander", suonatore.global_position)
+	if suonatore != null and suonatore.has_method("chiudi_scena"):
+		suonatore.call("chiudi_scena")
 	_artista = ""
 	_t_brano = 0.0
 
@@ -343,6 +356,13 @@ func _chiama_il_pubblico(piano: Node3D) -> void:
 			nodo2.call("do_routine", "bench",
 					p - Vector3(0, p.y, 0) + (qui - p).normalized() * 0.5,
 					qui, posto, _quanto_resta())
+		# CHI ASCOLTA GUARDA IL PALCO, per tutta la serata: `in_scena()` lo
+		# toglie ai gesti del giocatore (vedi `Percezione.puo_vedere`). Una
+		# platea che si volta tutta insieme verso una staccionata appena posata
+		# è la fine dell'unica scena in cui il villaggio sta fermo a guardare
+		# qualcosa che non è Mochi.
+		if nodo2.has_method("apri_scena"):
+			nodo2.call("apri_scena", _quanto_resta())
 		_pubblico.append(str(c["label"]))
 
 

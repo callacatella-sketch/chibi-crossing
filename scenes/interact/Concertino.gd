@@ -32,6 +32,11 @@ const MAX_CANTANTI := 5
 const RAGGIO_CERCHIO := 1.7      # il semicerchio attorno al carillon
 const RIPOSO := 75.0             # secondi fra un concertino e l'altro
 const RATE := 22050
+## Per quanto si tiene aperta la scena a ogni rinnovo (`_process` la rinnova
+## ogni 5 s, e fra l'avvio e la prima nota passano 2,8 s d'attesa): un filo
+## più lunga del passo che la rinnova, o si richiuderebbe fra un rinnovo e
+## l'altro e il coro tornerebbe a girare la testa fra una strofa e l'altra.
+const SCENA_RINNOVO := 8.0
 
 # la scala pentatonica maggiore: gradini (semitoni sulla tonica)
 const SCALA := [0, 2, 4, 7, 9]
@@ -80,6 +85,11 @@ func _process(delta: float) -> void:
 			var nodo = c["nodo"]
 			if is_instance_valid(nodo) and nodo.has_method("do_routine"):
 				nodo.call("do_routine", "sniff", c["posto"], c["verso"])
+			# la scena si rinnova insieme alla posa, e per la stessa ragione:
+			# finché si canta, il coro guarda il carillon e non il cursore
+			# della costruzione (`Percezione.puo_vedere` → `in_scena()`)
+			if is_instance_valid(nodo) and nodo.has_method("apri_scena"):
+				nodo.call("apri_scena", SCENA_RINNOVO)
 
 
 # ------------------------------------------------------------- l'avvio
@@ -122,6 +132,11 @@ func avvia(carillon: Node3D) -> void:
 		nomi.append(str(r.get("label", L10n.t("un vicino"))))
 		if node.has_method("do_routine"):
 			node.call("do_routine", "sniff", posto, carillon.global_position)
+		# la scena si apre GIÀ ADESSO, non alla prima nota: fra il richiamo e
+		# il canto passano 2,8 secondi in cui si accorre, ed è tempo di scena
+		# come il resto
+		if node.has_method("apri_scena"):
+			node.call("apri_scena", SCENA_RINNOVO)
 	# "A, B e C": la congiunzione finale è una parola, e come tale si traduce
 	var elenco := ", ".join(PackedStringArray(nomi.slice(0, maxi(nomi.size() - 1, 1))))
 	var tutti := ""
@@ -255,6 +270,12 @@ func _fine() -> void:
 		if is_instance_valid(p):
 			(p as Node).queue_free()
 	_players = []
+	# l'ultima nota è finita: i coristi tornano al villaggio, e la scena si
+	# chiude nei corpi prima che la lista si svuoti
+	for c in _cantanti:
+		var nodo = c["nodo"]
+		if is_instance_valid(nodo) and nodo.has_method("chiudi_scena"):
+			nodo.call("chiudi_scena")
 	_cantanti = []
 	_spartito_fx = []
 	_t_canto = -1.0

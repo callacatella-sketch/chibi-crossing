@@ -45,6 +45,11 @@ extends RefCounted
 
 const DT := 1.0 / 60.0
 const VILLAGGIO := preload("res://scenes/npc/Villaggio.gd")
+## `racconta(a, b)` è asimmetrica per contratto, e chi sono `a` e `b` NON lo
+## decide questo file: lo decide il villaggio. Perciò il verso, qui dentro,
+## arriva sempre da `Visitors.scegli_chiacchiera` — la stessa funzione che
+## gira in partita.
+const VISITORS := preload("res://scenes/npc/Visitors.gd")
 
 ## Le tre bandiere e il soggetto nullo arrivano dal BINARIO, mai scritti a
 ## mano: un test che scrive «2» per R_SU_DI_ME resta verde il giorno che le
@@ -78,6 +83,8 @@ func run(t) -> void:
 	_la_fusione_vale_anche_dal_vivo(t, m)
 	_una_cosa_fuori_posto(t, m)
 	_lo_smorzamento_si_paga_una_volta(t, m)
+	_la_voce_non_risorge(t, m)
+	_un_eco_spenta_non_tappa_la_notizia_fresca(t, m)
 	_da_chi_l_ha_sentita_non_riparte(t, m)
 	_chi_l_ha_raccontata_non_la_ripete(t, m)
 	_cio_che_sa_gia_non_si_ripassa(t, m)
@@ -87,6 +94,10 @@ func run(t) -> void:
 	_la_novita_si_chiede_da_sola(t, m)
 	_una_notizia_non_e_un_broadcast(t, m)
 	_ma_il_pettegolezzo_e_vivo(t, m)
+	_la_coppia_non_la_sceglie_l_anagrafe(t)
+	_chi_apre_bocca_e_una_monetina(t)
+	_senza_nessuno_a_portata_non_si_chiacchiera(t)
+	_nessuno_resta_muto(t, m)
 	_dove_muore_il_cervello_muore_l_entita(t, m)
 	m.free()
 
@@ -107,6 +118,24 @@ func _ricordo_di(m, id: int, verbo: int) -> Dictionary:
 
 func _sa(m, id: int, verbo: int) -> bool:
 	return not _ricordo_di(m, id, verbo).is_empty()
+
+
+## CHI PARLA E CHI ASCOLTA, chiesto al VILLAGGIO.
+##
+## Il sorteggio della coppia, nei banchi qui sotto, è la GEOMETRIA: chi
+## incontra chi. In un banco senza corpi non c'è altro modo di dirlo, e non
+## è quello il soggetto. Il VERSO invece — l'unica cosa che `racconta`
+## legge, perché A parla e B ascolta — non si sorteggia qui: lo dà
+## `Visitors.scegli_chiacchiera`, la stessa funzione che gira in partita.
+##
+## ⚠️ PRIMA QUESTI BANCHI TIRAVANO `a` E `b` CON DUE `randi_range`
+## INDIPENDENTI, cioè modellavano un canale SIMMETRICO che in partita non
+## esisteva: `_chats` chiamava `_run_chat(a, b)` con sempre i < j. Sessanta-
+## duemila asserzioni restavano verdi su un villaggio in cui l'ultimo
+## dell'anagrafe non raccontava niente a nessuno.
+func _verso(a: int, b: int, rng: RandomNumberGenerator) -> Vector2i:
+	return VISITORS.scegli_chiacchiera(
+			[Vector2i(mini(a, b), maxi(a, b))], rng)
 
 
 # ------------------------------------------------------------------ i casi
@@ -283,6 +312,146 @@ func _lo_smorzamento_si_paga_una_volta(t, m) -> void:
 			"e con uno negativo la voce arriva spenta, non capovolta")
 	for x in [a, b, c, d, e, f]:
 		m.dimentica(x)
+
+
+## E NON RISORGE — cioè la regola di sopra vale ANCHE DOPO, non solo
+## nell'istante del racconto.
+##
+## Il difetto che questo caso esiste per tenere chiuso non si vedeva
+## guardando `racconta` una volta sola: lo smorzamento stava nell'intensità,
+## e l'intensità è giusta. Ma `inserisci` **ritimbra sempre** `quando` ad
+## adesso, e nessuno metteva nell'eco il freddo che il ricordo aveva già
+## preso. Risultato: la voce ripartiva da capo mentre il testimone
+## continuava a dimenticare. MISURATO, con mezza vita 120 s:
+##
+##   raccontata subito     B/A = 0.55    (giusto)
+##   raccontata dopo 104 s B/A = 1.00    PAREGGIO
+##   raccontata dopo 300 s B/A = 3.11
+##   raccontata dopo 1200 s B/A = 562
+##
+## La scena: A ti vede annaffiare; venti minuti dopo A ha dimenticato
+## (sotto soglia, l'ancora è tornata a casa). Proprio allora incrocia B, e
+## B — CHE NON C'ERA — si ritrova sopra soglia con la posizione esatta
+## dell'aiuola, e ci va. Era anche l'unico modo in cui un fatto
+## sopravviveva alla mezza vita che il progetto dichiara.
+##
+## Le due asserzioni: il rapporto non supera MAI lo smorzamento (a nessun
+## ritardo, né subito dopo il racconto né più tardi), e resta COSTANTE nel
+## tempo — che è la forma misurabile di «l'eco decade come l'originale».
+func _la_voce_non_risorge(t, m) -> void:
+	var smorza: float = VILLAGGIO.SMORZAMENTO
+	var v: int = m.indice_verbo("annaffia")
+	var peggio := -1.0
+	var quando_peggio := 0.0
+	var visti: Array = []
+	var rapporti: Array = []
+
+	for ritardo in [0.0, 104.0, 300.0, 1200.0]:
+		var n = ClassDB.instantiate("EcsMondo")
+		n.imposta_ritmo(240.0)
+		var a: int = n.registra(PackedStringArray([]), "")
+		var b: int = n.registra(PackedStringArray([]), "")
+		n.osserva(a, v, Vector3(3.0, 0.0, 4.0), -1)
+		for _k in int(float(ritardo) / 4.0):
+			n.avanza(4.0, 0.5)
+		t.ok(int(n.racconta(a, b, smorza)) >= 0,
+				"PREMESSA: dopo %.0f s A gliela racconta comunque (il silenzio non è la riparazione)"
+						% float(ritardo))
+		visti.append(float(n.ammirazione(a)))
+		# il rapporto SUBITO dopo il racconto, e un minuto dopo: l'eco deve
+		# decadere insieme all'originale, non per conto suo
+		for passo in 2:
+			var pa := float(n.ammirazione(a))
+			var pb := float(n.ammirazione(b))
+			var rap := (pb / pa) if pa > 0.0 else 0.0
+			rapporti.append(rap)
+			if rap > peggio:
+				peggio = rap
+				quando_peggio = float(ritardo)
+			for _k in 15:
+				n.avanza(4.0, 0.5)
+		n.free()
+
+	# LA PREMESSA CHE RENDE NON-VACUA LA SPAZZATA: nell'ultimo caso il
+	# testimone ha davvero quasi dimenticato. Senza questa riga, un banco che
+	# per sbaglio non facesse passare il tempo sarebbe verde su tutto.
+	t.ok(float(visti[3]) < 0.01 * float(visti[0]),
+			"PREMESSA: dopo venti minuti chi ha VISTO pesa %.6f contro %.6f: ha quasi dimenticato"
+					% [float(visti[3]), float(visti[0])])
+
+	# LA REGOLA, presa alla lettera: una voce non può pesare più di un occhio.
+	# È quella che a 1200 s di ritardo valeva 562, e a 104 pareggiava.
+	t.ok(peggio < 1.0,
+			"una voce non pesa MAI più dell'averlo visto, a nessun ritardo (il peggiore è %.3f, a %.0f s dal fatto)"
+					% [peggio, quando_peggio])
+	# …e non pesa nemmeno «un po' meno»: pesa ESATTAMENTE lo smorzamento, a
+	# meno dell'arrotondamento dell'intensità a otto bit (che su un'eco già
+	# fredda vale qualche millesimo, e verso l'alto quanto verso il basso).
+	t.ok(peggio <= smorza + 0.015,
+			"…e resta lo smorzamento del villaggio, non qualcosa che gli somiglia (%.4f contro %.2f)"
+					% [peggio, smorza])
+	t.almost(float(rapporti[0]), smorza,
+			"PREMESSA: raccontata subito, l'eco pesa lo smorzamento (%.4f)" % float(rapporti[0]),
+			0.005)
+	t.ok(float(rapporti[4]) > 0.4,
+			"PREMESSA: e a cinque minuti l'eco arriva ancora, non è spenta per caso (%.4f)"
+					% float(rapporti[4]))
+	t.ok(absf(float(rapporti[0]) - float(rapporti[1])) < 1e-5,
+			"e l'eco decade INSIEME all'originale: il rapporto non si muove col tempo (%.6f poi %.6f)"
+					% [float(rapporti[0]), float(rapporti[1])])
+	t.ok(absf(float(rapporti[4]) - float(rapporti[5])) < 1e-5,
+			"…nemmeno per una notizia vecchia di cinque minuti (%.6f poi %.6f)"
+					% [float(rapporti[4]), float(rapporti[5])])
+
+
+## UN'ECO SPENTA NON TAPPA LA NOTIZIA FRESCA.
+##
+## È la porta che il freddo nell'eco ha aperto, e va chiusa nello stesso
+## commit: una voce arrivata molto tardi entra nel grafo di chi ascolta a
+## intensità ZERO, cioè come una riga che non pesa niente. La maschera
+## `saputi` di `racconta` guardava TUTTI i ricordi di chi ascolta, quindi
+## quella riga morta gli avrebbe tappato quel verbo per sempre: chi la cosa
+## l'aveva vista fresca non poteva più raccontargliela, e la notizia vera
+## restava fuori per colpa di una che non significa più niente.
+##
+## Adesso `saputi` conta solo quello che chi ascolta si RICORDA ancora.
+func _un_eco_spenta_non_tappa_la_notizia_fresca(t, m) -> void:
+	var n = ClassDB.instantiate("EcsMondo")
+	n.imposta_ritmo(240.0)
+	var a: int = n.registra(PackedStringArray([]), "")
+	var b: int = n.registra(PackedStringArray([]), "")
+	var c: int = n.registra(PackedStringArray([]), "")
+	var v: int = n.indice_verbo("pesca")
+
+	n.osserva(a, v, Vector3(1.0, 0.0, 1.0), -1)
+	for _k in 300: # venti minuti di gioco: dieci mezze vite
+		n.avanza(4.0, 0.5)
+	t.ok(int(n.racconta(a, b, 0.55)) >= 0,
+			"PREMESSA: A gliela racconta lo stesso, tardi com'è")
+	var eco := _ricordo_di(n, b, v)
+	t.ok(not eco.is_empty(), "PREMESSA: e a B la riga è arrivata")
+	t.eq(int(eco["intensita"]), 0,
+			"PREMESSA: ma arriva SPENTA — non pesa più niente, ed è giusto così")
+
+	# adesso C, che l'ha vista un attimo fa
+	n.osserva(c, v, Vector3(2.0, 0.0, 2.0), -1)
+	t.ok(int(n.racconta(c, b, 0.55)) >= 0,
+			"e la notizia FRESCA arriva a B lo stesso: una riga morta non gli tappa un verbo per sempre")
+	var forte := 0
+	for r in _righe(n, b):
+		if int(r["verbo"]) == v:
+			forte = maxi(forte, int(r["intensita"]))
+	t.ok(forte > 0,
+			"…e stavolta arriva con qualcosa dentro (intensità %d)" % forte)
+
+	# LA CONTROPROVA, che è ciò che tiene in piedi la regola di sempre: se B
+	# la sa DAVVERO (fresca), non gliela si ripassa. Senza questa riga il
+	# filtro di sopra potrebbe essere diventato «non filtro niente».
+	var d: int = n.registra(PackedStringArray([]), "")
+	n.osserva(d, v, Vector3(3.0, 0.0, 3.0), -1)
+	t.eq(int(n.racconta(d, b, 0.55)), -1,
+			"ma quello che B si ricorda per davvero non gli si ripassa: il tappo giusto c'è ancora")
+	n.free()
 
 
 ## DA CHI L'HA SENTITA NON RIPARTE. È la regola che tiene il pettegolezzo un
@@ -469,6 +638,10 @@ func _una_notizia_non_e_un_broadcast(t, m) -> void:
 ## Un villaggio in cui succedono cose: un gesto al minuto, otto testimoni per
 ## gesto. Serve a sapere che il pettegolezzo VIVE — senza questa misura,
 ## «lo sanno in due» non distinguerebbe «non è un broadcast» da «è spento».
+##
+## E serve anche a sapere che **la voce ce l'hanno TUTTI E VENTOTTO**: è
+## l'unica asserzione che, in mezz'ora di villaggio pieno, guarda chi ha
+## parlato invece di quanto si è parlato.
 func _ma_il_pettegolezzo_e_vivo(t, m) -> void:
 	var n = ClassDB.instantiate("EcsMondo")
 	n.imposta_ritmo(240.0)
@@ -478,6 +651,7 @@ func _ma_il_pettegolezzo_e_vivo(t, m) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 99
 	var cd := {}
+	var detti := {}
 	var con_notizia := 0
 	var mute := 0
 	var scatti := int(1800.0 / 3.5)
@@ -497,8 +671,10 @@ func _ma_il_pettegolezzo_e_vivo(t, m) -> void:
 			if float(k) * 3.5 - float(cd.get(key, -1e9)) < 35.0:
 				continue
 			cd[key] = float(k) * 3.5
-			if n.racconta(ids[a], ids[b], 0.55) >= 0:
+			var verso := _verso(a, b, rng)
+			if n.racconta(ids[verso.x], ids[verso.y], 0.55) >= 0:
 				con_notizia += 1
+				detti[verso.x] = int(detti.get(verso.x, 0)) + 1
 			else:
 				mute += 1
 			break
@@ -514,6 +690,17 @@ func _ma_il_pettegolezzo_e_vivo(t, m) -> void:
 					% [mute, con_notizia])
 	t.ok(sentiti >= 40,
 			"e nei grafi ci sono %d ricordi che nessuno ha visto con i propri occhi" % sentiti)
+	# LA VOCE CE L'HANNO TUTTI. Con il verso deciso dall'anagrafe, il
+	# residente k poteva raccontare solo a k+1…27 e il numero 27 a nessuno:
+	# misurato su questo stesso banco, **il ventisettesimo non raccontava
+	# MAI**. Ed è in coda che finiscono, per costruzione, chi è appena
+	# arrivato e chi è appena nato.
+	var muti: Array = []
+	for i in 28:
+		if int(detti.get(i, 0)) == 0:
+			muti.append(i)
+	t.eq(muti.size(), 0,
+			"e in mezz'ora hanno raccontato tutti e ventotto (muti: %s)" % str(muti))
 	n.free()
 
 
@@ -543,7 +730,8 @@ func _semina_e_chiacchiera(semi: int, seme: int) -> Dictionary:
 			if float(k) * 3.5 - float(cd.get(key, -1e9)) < 35.0:
 				continue
 			cd[key] = float(k) * 3.5
-			n.racconta(ids[a], ids[b], 0.55)
+			var verso := _verso(a, b, rng)
+			n.racconta(ids[verso.x], ids[verso.y], 0.55)
 			chiacchiere += 1
 			break
 	var sanno := 0
@@ -554,6 +742,147 @@ func _semina_e_chiacchiera(semi: int, seme: int) -> Dictionary:
 				break
 	n.free()
 	return {"sanno": sanno, "chiacchiere": chiacchiere}
+
+
+# ================================ IL VERSO E LA COPPIA (Visitors._chats)
+#
+# `racconta(a, b)` è asimmetrica per contratto: A parla, B ascolta. Chi
+# sono A e B lo sceglie `Visitors.scegli_chiacchiera`, e per un anno intero
+# non lo sceglieva nessuno — erano due cicli annidati, sempre i < j.
+# Misurato nel villaggio vero (`tools/prova_chiacchiere.gd`): cinque vicini
+# addosso per 300 s, 86 chiacchierate, e l'ULTIMO non raccontava mai;
+# dodici vicini attorno al falò per 600 s, 181 chiacchierate, e CINQUE su
+# dodici non aprivano bocca nemmeno una volta.
+
+
+## LA COPPIA NON LA SCEGLIE L'ANAGRAFE.
+##
+## Il banco è l'anello VERO del falò (`Visitors._posto_al_falo`): dodici
+## vicini in cerchio, e a portata di voce ognuno ha i due davanti e i due
+## dietro — ventiquattro coppie. Con la scelta lessicografica ne
+## chiacchierava UNA (la prima) e le altre ventitré mai.
+func _la_coppia_non_la_sceglie_l_anagrafe(t) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 20260811
+	var coppie: Array[Vector2i] = []
+	for i in 12:
+		for d in [1, 2]:
+			var j: int = (i + d) % 12
+			coppie.append(Vector2i(mini(i, j), maxi(i, j)))
+	var giri := 24000
+	var quante := {}
+	var apre := {}
+	for _k in giri:
+		var s: Vector2i = VISITORS.scegli_chiacchiera(coppie, rng)
+		var key := Vector2i(mini(s.x, s.y), maxi(s.x, s.y))
+		quante[key] = int(quante.get(key, 0)) + 1
+		apre[s.x] = int(apre.get(s.x, 0)) + 1
+	t.eq(quante.size(), coppie.size(),
+			"tutte e %d le coppie a portata di voce chiacchierano (ne hanno chiacchierato %d)"
+					% [coppie.size(), quante.size()])
+	# uniforme: 24000 / 24 = 1000 attesi per coppia, scarto tipo ≈ 31.
+	# La forbice è ±20%, cioè sei scarti tipo: prende un dado storto, non
+	# il rumore.
+	var meno := giri
+	var piu := 0
+	for k in quante:
+		meno = mini(meno, int(quante[k]))
+		piu = maxi(piu, int(quante[k]))
+	t.ok(meno >= 800 and piu <= 1200,
+			"…e nessuna è privilegiata: fra %d e %d su 1000 attese" % [meno, piu])
+	# e OGNUNO apre bocca: quattro coppie a testa, metà delle volte tocca a
+	# lui → 24000·(4/24)·0.5 = 2000 attesi
+	var muti: Array = []
+	var meno_apre := giri
+	for i in 12:
+		if int(apre.get(i, 0)) == 0:
+			muti.append(i)
+		meno_apre = mini(meno_apre, int(apre.get(i, 0)))
+	t.eq(muti.size(), 0, "e tutti e dodici aprono bocca (muti: %s)" % str(muti))
+	t.ok(meno_apre >= 1600,
+			"…e nessuno per sbaglio: il più zitto apre bocca %d volte su 2000 attese" % meno_apre)
+
+
+## CHI APRE BOCCA È UNA MONETINA, non l'indice più basso. Una coppia sola,
+## quattromila incontri: se il verso venisse dall'anagrafe, uno dei due
+## sarebbe a zero.
+func _chi_apre_bocca_e_una_monetina(t) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4242
+	var coppie: Array[Vector2i] = [Vector2i(3, 7)]
+	var giri := 4000
+	var apre_il_tre := 0
+	for _k in giri:
+		var s: Vector2i = VISITORS.scegli_chiacchiera(coppie, rng)
+		if s.x == 3:
+			apre_il_tre += 1
+	# 4000 lanci, scarto tipo ≈ 32: la forbice è a sei scarti tipo
+	t.ok(absi(apre_il_tre - 2000) <= 190,
+			"su %d incontri della stessa coppia, il primo apre bocca %d volte (metà)"
+					% [giri, apre_il_tre])
+
+
+## Senza nessuno a portata di voce non si chiacchiera — e lo si DICE, invece
+## di tornare una coppia che non esiste.
+func _senza_nessuno_a_portata_non_si_chiacchiera(t) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1
+	t.eq(VISITORS.scegli_chiacchiera([], rng), Vector2i(-1, -1),
+			"nessuna coppia a portata di voce: nessuna chiacchierata")
+
+
+## NESSUNO RESTA MUTO — il capannello, con la scelta VERA e `racconta` vero.
+##
+## È la riproduzione, dentro la suite, della misura fatta nel villaggio:
+## cinque vicini addosso, una notizia DIVERSA a testa (verbi distinti, così
+## la maschera «cosa sa già l'altro» non entra mai in gioco e l'unico limite
+## è che una notizia si racconta una volta sola), 86 chiacchierate come
+## quelle contate in 300 s di MainLevel. Il massimo possibile è cinque
+## racconti, uno a testa.
+##
+## Con l'anagrafe che decideva il verso: quattro racconti su cinque, e
+## **l'indice 4 a zero pur avendo chiacchierato 33 volte**.
+func _nessuno_resta_muto(t, m) -> void:
+	m.dimentica_tutti()
+	var verbi := ["annaffia", "semina", "raccoglie", "costruisce", "taglia"]
+	var ids: Array = []
+	for i in 5:
+		ids.append(m.registra(PackedStringArray([]), ""))
+	for i in 5:
+		m.osserva(ids[i], m.indice_verbo(verbi[i]), Vector3(3.0 + float(i), 0.0, 4.0), -1)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 909
+	var cd := {}
+	var detti := [0, 0, 0, 0, 0]
+	var chiacchiere := [0, 0, 0, 0, 0]
+	for k in 86:
+		var ora := float(k) * 3.5
+		var coppie: Array[Vector2i] = []
+		for i in 5:
+			for j in range(i + 1, 5):
+				if ora - float(cd.get("%d_%d" % [i, j], -1.0e9)) < 35.0:
+					continue
+				coppie.append(Vector2i(i, j))
+		var s: Vector2i = VISITORS.scegli_chiacchiera(coppie, rng)
+		if s.x < 0:
+			continue
+		cd["%d_%d" % [mini(s.x, s.y), maxi(s.x, s.y)]] = ora
+		chiacchiere[s.x] += 1
+		chiacchiere[s.y] += 1
+		if m.racconta(ids[s.x], ids[s.y], 0.55) >= 0:
+			detti[s.x] += 1
+	var muti: Array = []
+	for i in 5:
+		if detti[i] == 0:
+			muti.append(i)
+	t.eq(muti.size(), 0,
+			"tutti e cinque hanno raccontato la loro (racconti %s, chiacchiere %s)"
+					% [str(detti), str(chiacchiere)])
+	for i in 5:
+		t.eq(int(detti[i]), 1,
+				"…e nessuno l'ha raccontata due volte: l'indice %d una sola" % i)
+	for x in ids:
+		m.dimentica(x)
 
 
 ## LA REGOLA DEL CIMITERO: dove muore il cervello muore l'entità, e con

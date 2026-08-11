@@ -65,6 +65,13 @@ struct Gusto {
 //    non discrimina, cioè indistinguibile da un dado (è la lezione delle
 //    REAZIONI di Animo, che valevano 0.000000 per ogni carattere e nessun
 //    test lo diceva).
+//    È **CRUDA, e resta cruda**: la sua unità è l'OCCHIATA (un ricordo
+//    fresco, visto una volta, non fatto a me, a gusto neutro pesa
+//    esattamente 1.0), ed è quella scala che rende leggibili le soglie
+//    dall'altra parte del ponte. Non si satura qui: il suo unico lettore
+//    vivo è un confronto con una soglia, e saturare prima di un confronto
+//    è un cambio di scala e nient'altro (la misura e l'algebra stanno su
+//    `k_satura`, qui sotto).
 //  · `gratitudine` — la parte di sopra che è stata fatta PER ME (R_SU_DI_ME).
 struct Tinte {
 	double ammirazione = 0.0;
@@ -83,8 +90,25 @@ struct TaraturaOcc {
 	// passato dal chiamante e mai ricopiato. Pinzato in [0,1]: una voce non
 	// può MAI pesare più dell'averlo visto con i propri occhi.
 	double peso_sentito = 0.55;
-	// la saturazione x/(x+k): il ventesimo gesto conta meno del secondo,
-	// che è il motivo per cui annaffiare in cerchio non «carica» nessuno.
+	// la ginocchiera della curva x/(x+k) dei MODULATORI, e solo di quelli:
+	// dice a che ammirazione il mod dell'agenda è a metà strada fra 1.0 e
+	// 1 + k_ammirazione.
+	//
+	// ⚠️ NON È QUI CHE «ANNAFFIARE IN CERCHIO NON CARICA NESSUNO», e per
+	// mesi questa riga ha detto il contrario. Due ragioni, tutte e due
+	// misurate:
+	//  1. `modulatori()` è l'UNICO lettore di questa costante. L'altro
+	//     consumatore delle tinte è una SOGLIA (`Visitors.AMMIRA_SOGLIA`
+	//     contro `ammirazione()`), e `valuta()` gli passa la somma CRUDA.
+	//  2. E anche saturandola lì non cambierebbe niente: `x/(x+k)` è
+	//     STRETTAMENTE MONOTONA, quindi «saturato > S» è lo stesso
+	//     predicato di «grezzo > S·k/(1-S)» — un cambio di scala, non di
+	//     comportamento. Misurato: soglia 0.35 grezza ≡ 0.148936 saturata,
+	//     e i due predicati coincidono su tutti i casi provati. Saturare
+	//     dove si legge sarebbe stato teatro.
+	// La moneta si chiude dove NASCE il numero, cioè nelle ripetizioni di
+	// `chibi::peso` (`RIP_TETTO` in grafo_ricordi.h): là il tetto è vero,
+	// e con lui la durata di una conseguenza smette di crescere.
 	double k_satura = 2.0;
 	// il +50% dell'autore, LETTERALE. Il tetto vero sullo scarto lo mette
 	// `punteggi()` (DELTA_MAX): qui c'è l'intenzione, là la rete.

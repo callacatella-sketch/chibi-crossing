@@ -127,6 +127,9 @@ func run(t) -> void:
 	_la_panchina_mette_prima_chi_c_e(t)
 	_la_panchina_dell_opera_non_e_un_guinzaglio(t)
 	_l_ancora_del_ricordo_e_una_sola(t)
+	_l_ancora_del_ricordo_torna_a_casa(t)
+	_insistere_non_compra_una_conseguenza_senza_fine(t)
+	_la_portata_cresce_di_sposta_max(t)
 	_l_aiuola_che_ha_visto(t)
 	_l_aiuola_ripiega_su_casa(t)
 	_la_fattibilita_guarda_la_stessa_aiuola(t)
@@ -138,7 +141,14 @@ func run(t) -> void:
 	_una_promozione_al_giorno(t)
 	_la_notizia_diventa_il_tema(t)
 	_e_poi_non_se_ne_parla_piu(t)
+	_le_chiacchiere_non_seguono_l_anagrafe(t)
 	_le_mezze_vite_vengono_dal_giorno(t)
+	# --- il canale della vita: la retroazione che diventava un feed
+	_il_canale_non_ripete_la_stessa_notizia(t)
+	_la_quiete_del_genere_viene_dal_giorno(t)
+	_le_notizie_rare_non_perdono_piu_la_corsa(t)
+	_il_feed_non_segue_la_voglia(t)
+	_il_diario_dice_la_verita(t)
 
 
 # ============================================== 1. LE TRE LETTURE VIVE
@@ -190,12 +200,12 @@ func _ammirazione_e_la_stessa_lettura(t, m) -> void:
 func _dove_e_il_posto_del_ricordo_piu_forte(t, m) -> void:
 	var casa := Vector3(-2.0, 1.5, 7.0)
 	var id: int = m.registra(PackedStringArray([]), "")
-	t.ok(m.dove(id, m.C_FIORE, casa) == casa,
+	t.ok(m.dove(id, m.C_FIORE, 0.0, casa) == casa,
 			"chi non ricorda niente indica il punto di ripiego, ESATTO")
 
 	# UN solo ricordo: si indica quello.
 	m.osserva(id, m.indice_verbo("annaffia"), Vector3(5.0, 0.0, -3.0), -1)
-	var p1: Vector3 = m.dove(id, m.C_FIORE, casa)
+	var p1: Vector3 = m.dove(id, m.C_FIORE, 0.0, casa)
 	t.almost(p1.x, 5.0, "il posto del ricordo è quello inciso (x)", 1e-5)
 	t.almost(p1.z, -3.0, "…e (z)", 1e-5)
 	t.almost(p1.y, casa.y,
@@ -203,7 +213,7 @@ func _dove_e_il_posto_del_ricordo_piu_forte(t, m) -> void:
 			1e-9)
 
 	# UN'ALTRA COSA non si confonde con questa.
-	t.ok(m.dove(id, m.C_PESCE, casa) == casa,
+	t.ok(m.dove(id, m.C_PESCE, 0.0, casa) == casa,
 			"e un ricordo di fiori non risponde alla domanda sui pesci")
 
 	m.dimentica(id)
@@ -214,7 +224,7 @@ func _dove_e_il_posto_del_ricordo_piu_forte(t, m) -> void:
 	# l'ultima riga darebbe la stessa risposta, e questa asserzione sarebbe
 	# un ritratto invece che un test — l'ho verificato guastando la riga.
 	# «semina» è un altro verbo (quindi non si fonde con «annaffia») ma la
-	# stessa cosa: quattro volte pesa 1.75 contro 1.00.
+	# stessa cosa: quattro volte pesa 1.90 contro 1.00.
 	var id2: int = m.registra(PackedStringArray([]), "")
 	for _k in 4:
 		m.osserva(id2, m.indice_verbo("semina"), Vector3(-9.0, 0.0, 1.0), -1)
@@ -226,7 +236,7 @@ func _dove_e_il_posto_del_ricordo_piu_forte(t, m) -> void:
 				float(m.debug_ritmo()["mezza_vita"])))
 	t.ok(pesi.size() == 2 and float(pesi[0]) > float(pesi[1]),
 			"PREMESSA: il ricordo inciso per PRIMO è il più pesante (%s)" % str(pesi))
-	var p2: Vector3 = m.dove(id2, m.C_FIORE, casa)
+	var p2: Vector3 = m.dove(id2, m.C_FIORE, 0.0, casa)
 	t.almost(p2.x, -9.0,
 			"fra due ricordi della stessa cosa indica il PIÙ PESANTE, non il più recente", 1e-5)
 	m.dimentica(id2)
@@ -243,7 +253,7 @@ func _dove_segue_anche_il_sentito_dire(t, m) -> void:
 	m.osserva(a, m.indice_verbo("annaffia"), Vector3(11.0, 0.0, -4.0), -1)
 	t.eq(int(m.racconta(a, b, VILLAGGIO.SMORZAMENTO)), int(m.C_FIORE),
 			"A racconta a B di un'annaffiatura")
-	var p: Vector3 = m.dove(b, m.C_FIORE, casa)
+	var p: Vector3 = m.dove(b, m.C_FIORE, 0.0, casa)
 	t.almost(p.x, 11.0, "e B, che non c'era, sa comunque DOVE (x)", 1e-5)
 	t.almost(p.z, -4.0, "…e (z)", 1e-5)
 	m.dimentica(a)
@@ -730,6 +740,231 @@ func _l_ancora_del_ricordo_e_una_sola(t) -> void:
 			"una cosa fuori tabella non sposta niente (e si lamenta)")
 
 
+# =================== 3-ter. E POI L'ANCORA TORNA A CASA
+#
+# Tutta la Fase 4 poggia su una frase scritta in quattro file: **l'emozione
+# dura minuti e non lascia traccia.** Non basta non salvare il grafo perché
+# sia vera — una CONSEGUENZA può sopravvivere al ricordo che l'ha prodotta, e
+# per mesi è successo: `dove()` accettava qualunque peso maggiore di zero, e
+# `2^(-dt/mezza_vita)` non arriva a zero prima di ~1074 mezze vite (trentasei
+# ore di gioco). L'ancora spostata non poteva TORNARE: poteva solo essere
+# sostituita.
+#
+# In partita voleva dire questo: posi UN palo di staccionata mentre un vicino
+# ti guarda, e da lì in poi, per tutta la sessione, quel vicino ignora la
+# panchina a tre metri dalla sua porta. Niente lo annuncia, niente lo spiega,
+# e non c'è nessun gesto con cui rimediare. È la «conseguenza senza premessa»
+# — la stessa modalità di guasto del Taccuino del Gufo, dove non attenua
+# l'effetto ma lo INVERTE.
+#
+# I due casi qui sotto sorvegliano le due metà della cosa: che l'ancora
+# TORNI, e che insistere non compri una conseguenza senza fine.
+
+## L'ANCORA TORNA A CASA — e il caso è costruito perché non possa passare
+## per il motivo sbagliato.
+##
+## Le due premesse misurate sono ciò che lo rende non-vacuo: quando l'ancora
+## torna, (a) il ricordo è ANCORA nel grafo e pesa ANCORA più di zero, e
+## (b) senza pavimento — cioè chiedendo a `dove()` con soglia 0.0, che è
+## esattamente la riga di produzione guastata — quello stesso ricordo
+## indicherebbe ancora il posto. Se un domani qualcuno toglie
+## `AMMIRA_SOGLIA` da `_ancora_ricordo`, la penultima asserzione diventa
+## rossa mentre le premesse restano verdi: il test dice DOVE si è rotto.
+func _l_ancora_del_ricordo_torna_a_casa(t) -> void:
+	var mondo := _villaggio(t, 1)
+	var vis = mondo["vis"]
+	var r: Dictionary = mondo["righe"][0]
+	var node: Node3D = r["node"]
+	var casa := Vector3(1.0, 0, 6.0)
+	# la panchina di casa è a TRE metri dalla porta; quella vicino al palo
+	# che hai piantato è a nove: da casa vince sempre la prima
+	var di_casa := _panchina(t, Vector3(-2.0, 0, 6.0))
+	var del_palo := _panchina(t, Vector3(10.0, 0, 6.0))
+	(mondo["build"] as Node).set("pezzi", {"Panchina": [di_casa, del_palo]})
+	# nessun giocatore in scena: quel che si misura può venire SOLO dal
+	# ricordo del gesto, mai dalla scena 3
+	vis._player = null
+
+	vis._ciclo_sonno(DT, 0.5)
+	var id: int = int(r["ecs"])
+	var i_casa: int = int(vis._ecs.indice_cosa("casa"))
+	t.eq(vis._panchina_per(r, casa), di_casa,
+			"PREMESSA: prima del gesto si siede sulla panchina di casa sua")
+
+	# UN palo di staccionata, sotto i suoi occhi. Uno solo.
+	vis._ecs.osserva(id, vis._ecs.indice_verbo("costruisce"), Vector3(10.0, 0, 7.0), -1)
+	t.ok(vis._ancora_ricordo(r, casa, "casa") != casa,
+			"PREMESSA: il gesto appena visto sposta l'ancora")
+	t.eq(vis._panchina_per(r, casa), del_palo,
+			"PREMESSA: e il corpo va a sedersi da quella parte")
+
+	# --- IL TEMPO PASSA: poco più di tre minuti di gioco -------------------
+	var mv := float(vis._ecs.debug_ritmo()["mezza_vita"])
+	for _k in 61:
+		vis._ecs.avanza(5.0, 0.5)
+
+	var righe: Array = vis._ecs.debug_grafo(id)["ricordi"]
+	t.eq(righe.size(), 1, "PREMESSA: il ricordo è ancora nel grafo, non è stato potato")
+	var w := float(vis._ecs.debug_grafo_peso(righe[0],
+			float(vis._ecs.debug_ritmo()["tempo"]), mv))
+	t.ok(w > 0.0,
+			"PREMESSA: e pesa ancora più di zero (%.8f) — sotto una soglia, non sparito" % w)
+	t.ok(w < VIS.AMMIRA_SOGLIA,
+			"PREMESSA: ma meno della soglia (%.5f contro %.2f)" % [w, VIS.AMMIRA_SOGLIA])
+	t.ok(vis._ecs.dove(id, i_casa, 0.0, casa) != casa,
+			"PREMESSA: e SENZA pavimento indicherebbe ancora il posto — è la riga che questo caso sorveglia")
+
+	t.ok(vis._ancora_ricordo(r, casa, "casa") == casa,
+			"e invece l'ancora è tornata a casa, ESATTA: la conseguenza finisce col ricordo")
+	t.eq(vis._panchina_per(r, casa), di_casa,
+			"e il corpo torna alla panchina di sempre: quel palo non gli cambia più la vita")
+
+	# --- E TRENTA GIORNATE DOPO, ancora casa. Con l'ancora senza pavimento
+	#     qui l'ammirazione valeva 0.000000 e la panchina era ancora quella
+	#     di là: è la misura che ha fatto nascere questo caso.
+	for _k in int(7200.0 / 5.0):
+		vis._ecs.avanza(5.0, 0.5)
+	t.almost(float(vis._ecs.ammirazione(id)), 0.0,
+			"trenta giornate dopo non ammira più niente", 1e-9)
+	t.eq(vis._panchina_per(r, casa), di_casa,
+			"…e si siede a casa sua, come ha sempre fatto")
+
+	# E IL CORPO CI VA DAVVERO, dalla recita di produzione — non dalla
+	# funzione che ho appena provato. Va per ULTIMA: `_recita` scrive
+	# `_routine_aux` sul corpo, e da quel momento `_free_bench` considera
+	# quella panchina OCCUPATA (da lui stesso), quindi ogni domanda
+	# successiva risponderebbe un'altra cosa.
+	vis._recita(r, node, vis._ensure_brain(r), "riposo", "day")
+	t.eq(node.get("_routine_aux"), di_casa,
+			"e ci va davvero, dalla recita di produzione")
+
+
+## INSISTERE NON COMPRA UNA CONSEGUENZA SENZA FINE.
+##
+## La durata di una conseguenza è `mezza_vita · log2(peso/soglia)`: finché il
+## peso di un ricordo cresceva senza tetto (`1 + 0.25·(quante-1)`, lineare
+## fino a 64,5 volte), la durata cresceva senza tetto — e quindici secondi di
+## modalità costruzione davanti a un vicino erano una MONETA, con quattro
+## commenti del progetto a giurare il contrario.
+##
+## Qui non si misura una formula: si misura **per quanti secondi di gioco
+## quel vicino continua a scegliere l'altra panchina**. È la cosa che il
+## giocatore sente, ed è l'unico numero che vale la pena difendere.
+##
+## Prima (retta): 185 s per un gesto, 550 s per trenta, 905 s per
+## duecentocinquantacinque. Dopo (curva col tetto): 185, 395, 420, e il
+## limite assoluto è 422 s per QUALUNQUE insistenza.
+func _insistere_non_compra_una_conseguenza_senza_fine(t) -> void:
+	var dura := func(gesti: int) -> float:
+		var mondo := _villaggio(t, 1)
+		var vis = mondo["vis"]
+		var r: Dictionary = mondo["righe"][0]
+		var casa := Vector3(1.0, 0, 6.0)
+		var di_casa := _panchina(t, Vector3(-2.0, 0, 6.0))
+		var del_palo := _panchina(t, Vector3(10.0, 0, 6.0))
+		(mondo["build"] as Node).set("pezzi", {"Panchina": [di_casa, del_palo]})
+		vis._player = null
+		vis._ciclo_sonno(DT, 0.5)
+		var id: int = int(r["ecs"])
+		for _k in gesti:
+			vis._ecs.osserva(id, vis._ecs.indice_verbo("costruisce"),
+					Vector3(10.0, 0, 7.0), -1)
+		var secondi := 0.0
+		while vis._panchina_per(r, casa) == del_palo and secondi < 3000.0:
+			vis._ecs.avanza(5.0, 0.5)
+			secondi += 5.0
+		return secondi
+
+	var uno := float(dura.call(1))
+	var trenta := float(dura.call(30))
+	var tutti := float(dura.call(255))
+
+	t.ok(uno > 60.0 and uno < 3000.0,
+			"PREMESSA: un gesto solo tiene la panchina spostata per %.0f s, e poi smette" % uno)
+	t.ok(trenta > uno,
+			"insistere si sente: trenta gesti tengono %.0f s contro %.0f" % [trenta, uno])
+	t.ok(tutti < 2.5 * uno,
+			"ma NON senza fine: duecentocinquantacinque gesti tengono %.0f s, meno di due volte e mezza un gesto solo (%.0f). Con la retta di prima erano cinque volte"
+					% [tutti, uno])
+	t.ok(tutti - trenta < 0.2 * (trenta - uno),
+			"e oltre la trentina non si compra quasi più niente: gli ultimi 225 gesti valgono %.0f s contro i %.0f dei primi 29"
+					% [tutti - trenta, trenta - uno])
+
+
+## LA PORTATA VERA, MISURATA — e non è quella che qui c'era scritta.
+##
+## Per un po' il commento di `SPOSTA_MAX` diceva che l'ancora spostata
+## «cambia QUALE panchina, non fa comparire un villaggio nuovo di panchine».
+## Non è vero, e la differenza si vede col metro: `_free_bench` cerca entro
+## il suo raggio **dall'ancora**, quindi un'ancora spostata di sei metri
+## allunga la portata da casa di sei metri esatti — e un vicino può finire
+## a sedersi più lontano di quanto arrivi da casa sua.
+##
+## È VOLUTO, ed è la scena 2 (la panchina appena posata un po' più in là).
+## Ma va DICHIARATO e va SORVEGLIATO. Questo caso misura le due portate sulla
+## funzione vera invece di ricopiare un numero, e chiude due cose diverse:
+##  · **la differenza è esattamente `SPOSTA_MAX`** — se qualcuno filtrasse il
+##    risultato «per sicurezza» (dentro sedici metri da casa, per dire) la
+##    scena 2 morirebbe e questa differenza andrebbe a zero;
+##  · **e la portata totale sta sotto un TETTO scritto in metri**. Questa
+##    seconda riga serve perché la prima, da sola, è cieca a `SPOSTA_MAX`:
+##    se un domani diventasse dodici, il salto misurato e quello atteso
+##    crescerebbero insieme e la prima resterebbe verde mentre i corpi
+##    camminano il doppio. Venticinque metri è la dichiarazione: più in là
+##    di così un vicino non deve finire per una cosa che ha visto — le case
+##    del villaggio distano fra loro molto meno.
+func _la_portata_cresce_di_sposta_max(t) -> void:
+	var mondo := _villaggio(t, 1)
+	var vis = mondo["vis"]
+	var r: Dictionary = mondo["righe"][0]
+	var casa := Vector3.ZERO
+	var sola := _panchina(t, Vector3(0, 0, 10.0))
+	(mondo["build"] as Node).set("pezzi", {"Panchina": [sola]})
+	vis._player = null
+	vis._ciclo_sonno(DT, 0.5)
+	var id: int = int(r["ecs"])
+
+	# la portata SENZA ricordo: si allontana la sola panchina finché da casa
+	# non si vede più. Si misura sulla funzione vera, non si ricopia il 16.
+	var portata_da_casa := 0.0
+	for k in 120:
+		var d := 5.0 + 0.25 * float(k)
+		sola.global_position = Vector3(0, 0, d)
+		if vis._panchina_per(r, casa) == null:
+			break
+		portata_da_casa = d
+
+	# e la portata CON il ricordo: il gesto è sempre nella stessa direzione,
+	# così l'ancora si sposta di SPOSTA_MAX pieni verso la panchina
+	var portata_col_ricordo := 0.0
+	for k in 120:
+		var d := 5.0 + 0.25 * float(k)
+		sola.global_position = Vector3(0, 0, d)
+		# il ricordo si rinfresca a ogni giro: qui si misura la GEOMETRIA,
+		# non lo sbiadire (che ha il suo caso, qui sopra)
+		vis._ecs.osserva(id, vis._ecs.indice_verbo("costruisce"), Vector3(0, 0, 200.0), -1)
+		if vis._panchina_per(r, casa) == null:
+			break
+		portata_col_ricordo = d
+
+	t.ok(portata_da_casa > 10.0,
+			"PREMESSA: da casa si arriva a %.2f m" % portata_da_casa)
+	t.almost(portata_col_ricordo - portata_da_casa, VIS.SPOSTA_MAX,
+			"e col ricordo si arriva a %.2f: la portata cresce di SPOSTA_MAX, non di zero e non di ottanta"
+					% portata_col_ricordo, 0.3)
+	# IL TETTO IN METRI, ed è l'unica riga di questo caso che non si muove
+	# insieme a `SPOSTA_MAX`: se un domani il salto raddoppiasse, quella di
+	# sopra resterebbe verde (misura e attesa crescono insieme) e questa no.
+	t.ok(portata_col_ricordo < 25.0,
+			"e più lontano di venticinque metri da casa nessuno finisce per una cosa che ha visto (%.2f)"
+					% portata_col_ricordo)
+	# quel che NON cresce: nessuno si sposta verso una PERSONA. La garanzia
+	# vera di questo sistema è quella, e sta nella spazzata su `ancora_riposo`.
+	t.ok(portata_col_ricordo < portata_da_casa + PERC.RAGGIO,
+			"e resta comunque dentro il raggio da cui si può aver visto il gesto (%.2f contro %.2f)"
+					% [portata_col_ricordo - portata_da_casa, PERC.RAGGIO])
+
+
 # ================================ 4. L'AIUOLA CHE HA VISTO (scena 4)
 
 ## Il Garden VERO, fuori dall'albero (il suo `_ready` vuole il villaggio
@@ -1104,17 +1339,28 @@ func _una_promozione_al_giorno(t) -> void:
 ## Due corpi che si ascoltano, in un registro vero e in scena (`_run_chat`
 ## chiama `get_tree()`).
 func _due_che_chiacchierano(t) -> Dictionary:
+	return _capannello(t, 2, 1.2)
+
+
+## `quanti` corpi su un cerchietto, tutti a portata di voce di tutti
+## (`_chats` chiede meno di 1.9 m): con raggio 0.85 i vicini di cerchio
+## stanno a 0.85 m e i più lontani a 1.70.
+func _capannello(t, quanti: int, raggio := 0.85) -> Dictionary:
 	var vis = t.stage(Registro.new())
 	var righe: Array = []
 	var corpi: Array = []
-	for i in 2:
+	for i in quanti:
 		var v = Chiacchierone.new()
 		v.dna = DNA.generate(8800 + i * 53)
 		v.mode = "resident"
 		t.stage(v)
 		v._enter_state("r_idle")
 		v._timer = 9999.0
-		v.global_position = Vector3(float(i) * 1.2, 0, 0)
+		if quanti == 2:
+			v.global_position = Vector3(float(i) * raggio, 0, 0)
+		else:
+			var ang := TAU * float(i) / float(quanti)
+			v.global_position = Vector3(cos(ang), 0, sin(ang)) * raggio
 		var r := {"node": v, "label": "Voce%d" % i, "dna": v.dna,
 				"cell": Vector2i(i, 0), "species": "chibi"}
 		vis._residents.append(r)
@@ -1210,6 +1456,58 @@ func _e_poi_non_se_ne_parla_piu(t) -> void:
 			"…e le chiacchiere dopo ci sono state comunque: il silenzio è il comportamento normale, non l'assenza di chiacchiere")
 
 
+## CHI APRE BOCCA NON È L'ANAGRAFE — sul `_chats` VERO, coi corpi veri.
+##
+## `test_pettegolezzo` prova la funzione che sceglie
+## (`Visitors.scegli_chiacchiera`, pura); questo prova che il villaggio LA
+## USA. Senza, `_chats` potrebbe tornare a prendere la prima coppia in
+## ordine di indice e chiamare `_run_chat(a, b)` con sempre i < j — cioè
+## esattamente il difetto — e tutte le statistiche di là resterebbero verdi
+## su una funzione che non chiama nessuno.
+##
+## LA SPIA NON STA NEL CODICE DI PRODUZIONE: chi apre bocca è chi ha appena
+## mostrato la nuvoletta, perché quella di chi ascolta arriva un secondo
+## dopo, con un timer che dentro un test non scatta mai.
+##
+## Misurato con l'anagrafe che decideva: **600 chiacchierate, e l'indice 0
+## le apriva tutte e 600**; gli altri cinque zero.
+func _le_chiacchiere_non_seguono_l_anagrafe(t) -> void:
+	var scena := _capannello(t, 6)
+	var vis = scena["vis"]
+	var corpi: Array = scena["corpi"]
+	var apre: Array = []
+	var prima: Array = []
+	for c in corpi:
+		apre.append(0)
+		prima.append(((c as Node3D).get("bolle") as Array).size())
+	var giri := 600
+	for _k in giri:
+		# il lucchetto della coppia è a 35 s di orologio VERO, e un test non
+		# può aspettarli: azzerarlo è dire «da allora è passato il tempo».
+		# Il soggetto qui è CHI viene scelto, non ogni quanto.
+		vis._pair_cd.clear()
+		vis._chat_acc = 0.0
+		vis._chats(0.1)
+		for i in corpi.size():
+			var adesso: int = ((corpi[i] as Node3D).get("bolle") as Array).size()
+			if adesso > int(prima[i]):
+				apre[i] += 1
+			prima[i] = adesso
+	var totale := 0
+	var meno := giri
+	for i in corpi.size():
+		totale += int(apre[i])
+		meno = mini(meno, int(apre[i]))
+	t.eq(totale, giri, "ognuno dei %d giri ha prodotto UNA chiacchierata" % giri)
+	# sei corpi, quindici coppie, cinque coppie per testa: ognuno dovrebbe
+	# aprire bocca circa 600·(5/15)·0.5 = 100 volte. Il pavimento è a 40,
+	# lontanissimo dal rumore (scarto tipo ≈ 7) e lontanissimo dallo zero
+	# che dava l'anagrafe.
+	t.ok(meno >= 40,
+			"nessuno dei sei resta muto: il più zitto apre bocca %d volte su %d (%s)"
+					% [meno, giri, str(apre)])
+
+
 # ========================================= 7. IL RITMO VIENE DAL GIORNO
 
 ## LE MEZZE VITE SI DERIVANO DAL CICLO DEL GIORNO. Il C++ ha un valore di
@@ -1226,3 +1524,144 @@ func _le_mezze_vite_vengono_dal_giorno(t) -> void:
 	_gira(vis, 2)
 	t.almost(float(vis._ecs.debug_ritmo()["mezza_vita"]), 300.0,
 			"col giorno da dieci minuti, i ricordi ne durano cinque", 1e-9)
+
+
+# ============================== 8. IL CANALE DELLA VITA (la retroazione)
+#
+# La Fase 4 ha una conseguenza che non aggiunge una riga di testo nuova e
+# che perciò nessuna guardia della localizzazione, e nessuna asserzione
+# sulle emozioni, poteva vedere: **il feed verso il giocatore aumenta.**
+# Chi ti ha vista annaffiare ha più voglia di annaffiare (il modulatore di
+# `cura_giardino` sale fino a +47%), quindi lo fa più spesso, quindi il
+# toast «♥ X sta annaffiando le tue aiuole!» esce più spesso. Fai il gesto
+# gentile, e il gioco comincia a scriverti in faccia che qualcuno lo sta
+# facendo per te. Misurato nel MainLevel vero (`tools/prova_toast.gd`).
+#
+# La cura sta nel CANALE, non nel modulatore: che i vicini annaffino di più
+# è la Fase 4 che funziona.
+
+
+## Offre una notizia al canale e dice se è USCITA. Guarda il cartellino
+## vero, non il diario: è la riga che tiene onesto tutto il resto di questa
+## sezione, perché se il diario e lo schermo divergessero, le misure qui
+## sotto racconterebbero un gioco che non esiste.
+func _offri(vis, quando: float, genere: String, testo: String) -> bool:
+	vis._vita_orologio = quando
+	vis._toast_label.text = "(niente)"
+	vis._vita_toast(genere, testo)
+	return str(vis._toast_label.text) == testo
+
+
+## LA STESSA NOTIZIA NON SI RIPETE NELLA STESSA GIORNATA — e il genere non è
+## il testo: due vicini diversi che annaffiano sono la STESSA notizia.
+func _il_canale_non_ripete_la_stessa_notizia(t) -> void:
+	var vis = t.stage(Registro.new())
+	var orologio = t.stage(Orologio.new())
+	orologio.set("cycle_seconds", 240.0)
+	vis._daynight = orologio
+	t.ok(_offri(vis, 0.0, "annaffia", "♥ Pip sta annaffiando le tue aiuole!"),
+			"la prima volta si dice")
+	t.ok(not _offri(vis, 30.0, "annaffia", "♥ Bo sta annaffiando le tue aiuole!"),
+			"la seconda no, ed è UN ALTRO vicino: il genere non è il nome nella frase")
+	t.ok(not _offri(vis, 239.0, "annaffia", "♥ Nina sta annaffiando le tue aiuole!"),
+			"…e non si dice per tutta la giornata")
+	t.ok(_offri(vis, 241.0, "annaffia", "♥ Nina sta annaffiando le tue aiuole!"),
+			"il giorno dopo torna a essere una notizia")
+
+
+## E LA GIORNATA È QUELLA DEL VILLAGGIO, non un 240 ricopiato qui: è la
+## stessa fonte da cui il cuore deriva le mezze vite dei ricordi.
+func _la_quiete_del_genere_viene_dal_giorno(t) -> void:
+	var vis = t.stage(Registro.new())
+	var orologio = t.stage(Orologio.new())
+	orologio.set("cycle_seconds", 600.0)
+	vis._daynight = orologio
+	t.ok(_offri(vis, 0.0, "annaffia", "a"), "la prima volta si dice")
+	t.ok(not _offri(vis, 400.0, "annaffia", "b"),
+			"col giorno da dieci minuti, dopo quasi sette è ancora la stessa giornata")
+	t.ok(_offri(vis, 601.0, "annaffia", "c"),
+			"…e la notizia torna solo dopo i dieci minuti veri")
+
+
+## LE NOTIZIE RARE NON PERDONO PIÙ LA CORSA.
+##
+## È il guasto INVERSO di quello che si vede, e il motivo per cui la cura
+## non è stringere il lucchetto globale: con un lucchetto solo, le due
+## notizie comuni (l'annaffiatura, lo spuntino) si mangiavano il canale e
+## quelle rare — il segreto al fungo, la farfalla, il canto alla luna —
+## arrivavano sempre dentro i 25 s di un'annaffiatura e non si vedevano
+## quasi mai.
+func _le_notizie_rare_non_perdono_piu_la_corsa(t) -> void:
+	var vis = t.stage(Registro.new())
+	var orologio = t.stage(Orologio.new())
+	orologio.set("cycle_seconds", 240.0)
+	vis._daynight = orologio
+	# un villaggio che annaffia in continuazione
+	for k in 4:
+		_offri(vis, float(k) * 10.0, "annaffia", "annaffia %d" % k)
+	# …e una farfalla, che capita una volta ogni mezz'ora
+	t.ok(_offri(vis, 32.0, "farfalla", "Una farfalla ha spaventato Pip!"),
+			"la farfalla passa: il canale stava zitto sull'annaffiatura, non su tutto")
+	# il RITMO però resta: due notizie diverse non si accavallano
+	t.ok(not _offri(vis, 40.0, "fungo", "un segreto a un fungo"),
+			"…ma non si parla addosso: il lucchetto del ritmo c'è ancora")
+
+
+## IL FEED NON SEGUE PIÙ LA VOGLIA — ed è la riparazione, detta come misura.
+##
+## I due ritmi non sono inventati: sono quelli CONTATI nel MainLevel vero
+## (`tools/prova_toast.gd`, due fasi da 900 s). Un villaggio freddo offre 23
+## notizie di annaffiatura, uno con il modulatore addosso ne offre 40 —
+## +74%, e le annaffiature vere passano da 27 a 38. Qui si ricreano quei
+## due ritmi (una ogni 40 s e una ogni 23 s) e si guarda cosa LEGGE il
+## giocatore: col canale di allora erano 17 contro 21.
+func _il_feed_non_segue_la_voglia(t) -> void:
+	var freddo := _quanti_toast(t, 40.0)
+	var caldo := _quanti_toast(t, 23.0)
+	t.eq(freddo, 4,
+			"il villaggio freddo offre 23 annaffiature in un quarto d'ora e ne dice %d: una al giorno"
+					% freddo)
+	t.eq(caldo, freddo,
+			"…e quello caldo ne offre 40 e ne dice le STESSE (%d): il feed non segue più la voglia"
+					% caldo)
+
+
+func _quanti_toast(t, ogni: float) -> int:
+	var vis = t.stage(Registro.new())
+	var orologio = t.stage(Orologio.new())
+	orologio.set("cycle_seconds", 240.0)
+	vis._daynight = orologio
+	var quanti := 0
+	var quando := 0.0
+	while quando < 900.0:
+		if _offri(vis, quando, "annaffia", "♥ Pip sta annaffiando le tue aiuole!"):
+			quanti += 1
+		quando += ogni
+	return quanti
+
+
+## IL DIARIO DICE LA VERITÀ. È l'unico strumento con cui si può giudicare un
+## filtro (quello che ha FERMATO non si vede da nessun'altra parte), e uno
+## strumento che mente è peggio di nessuno strumento.
+func _il_diario_dice_la_verita(t) -> void:
+	var vis = t.stage(Registro.new())
+	var orologio = t.stage(Orologio.new())
+	orologio.set("cycle_seconds", 240.0)
+	vis._daynight = orologio
+	t.eq((vis.debug_vita_diario as Array).size(), 0,
+			"a canale spento il diario resta vuoto: in partita non costa niente")
+	vis.debug_registra_vita(true)
+	var uscite := 0
+	for k in 6:
+		if _offri(vis, float(k) * 12.0, "annaffia", "annaffia %d" % k):
+			uscite += 1
+	var diario: Array = vis.debug_vita_diario
+	t.eq(diario.size(), 6, "il diario ha tutte e sei le notizie OFFERTE")
+	var segnate := 0
+	for d in diario:
+		if bool((d as Dictionary)["uscita"]):
+			segnate += 1
+	t.eq(segnate, uscite,
+			"…e quelle che dichiara uscite sono esattamente quelle comparse sul cartellino (%d)"
+					% uscite)
+	t.eq(uscite, 1, "che in una giornata sola è UNA")

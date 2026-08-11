@@ -159,11 +159,25 @@ var _tst_pos := Vector3.ZERO
 var _tst_t := 0.0
 var _tst_off := 0.0
 var _tst_appl := 0.0   # quanto è stato sommato al rig il frame scorso
+## LE RAFFICHE, una riga per verbo: `[quando è arrivato l'ultimo gesto,
+## quando la testa si è alzata l'ultima volta]`, in secondi di `_t`. Sono al
+## massimo otto righe (i verbi del ponte) e non entrano in nessun
+## salvataggio: vedi `guarda_gesto`.
+var _tst_raffiche := {}
+## La taratura PERSONALE dello sguardo, dal genoma e una volta sola:
+## ogni quanto si rialza gli occhi durante una raffica, di quanto la sua
+## mira è spostata, e la fase dei suoi due orologi. Vedi `_taratura_sguardo`.
+var _tst_ritmo := -1.0
+var _tst_mira := 0.0
+var _tst_fase := 0.0
 ## Quanto può girarsi una testa senza che il collo diventi un giocattolo
 ## rotto. Scelto GUARDANDO cinque tarature affiancate (0.30 · 0.60 · 0.90 ·
 ## 1.20 · 1.50 rad) di tre quarti e di profilo: sotto 0.60 la testa non si
 ## legge come girata — sembra la solita oscillazione dell'idle — e sopra
 ## 1.20 il muso esce dalla sagoma della testona e il collo si strappa.
+##
+## È il tetto della RICEVUTA, non del collo: sul canale scrivono anche la
+## recita del corpo e lo stato, e la somma la ferma `COLLO_MAX`.
 const TESTA_MAX := 0.90
 ## L'attenzione è ASIMMETRICA, come il respiro: la testa scatta verso il
 ## gesto e ci torna via piano. Un solo coefficiente per tutti e due i versi
@@ -171,6 +185,55 @@ const TESTA_MAX := 0.90
 ## cicli.
 const TESTA_VAI := 9.0
 const TESTA_TORNA := 4.0
+
+## ── IL RITMO DELLA RAFFICA ────────────────────────────────────────────────
+##
+## Ogni quanti secondi la testa si RIALZA mentre lo stesso gesto continua, e
+## per quale frazione della prima occhiata. Vedi `guarda_gesto` per il
+## perché: qui basti che la prima occhiata è piena e le riprese sono corte,
+## come si guarda qualcuno che sta ancora lavorando.
+##
+## Il ritmo è la MEDIA: quello vero è di ciascuno (`_taratura_sguardo`), o
+## due vicini si rialzerebbero all'unisono come due metronomi.
+const RAFFICA_RITMO := 11.0
+const RAFFICA_RIPRESA := 0.45
+
+## ── L'IMBARDATA VIVA ──────────────────────────────────────────────────────
+##
+## Quanto della posa dello STATO sopravvive sotto lo sguardo. `_sguardo_
+## testimone` misura lo scostamento dalla posa corrente: portandolo a zero
+## la testa arriverebbe sul bersaglio ESATTO e ci resterebbe immobile, cioè
+## cancellerebbe proprio il dondolio del passo e del respiro che rende viva
+## la tenuta — l'adesivo appiccicato sopra la posa. Con 0.5 il corpo
+## continua a respirare mentre guarda, e la mira resta leggibile.
+const CEDE_ALLO_STATO := 0.5
+## L'ampiezza del vagare della mira, in radianti (4,3°): non si fissa un
+## punto, si guarda ATTORNO a un punto. Due orologi incommensurabili e una
+## fase che è sua (vedi `_vaga`).
+const VAGA_AMPIEZZA := 0.075
+## Di quanto la mira di ciascuno è spostata, in radianti (±2,9°): chi guarda
+## le zampe, chi la faccia, chi la cosa. È l'asimmetria che impedisce a due
+## testimoni affiancati di dare lo STESSO angolo al quinto decimale.
+const MIRA_PERSONALE := 0.05
+
+## IL TETTO DEL COLLO — l'ultima parola sul canale, dopo TUTTI gli scrittori.
+##
+## `TESTA_MAX` limita la ricevuta, ma la ricevuta non è sola su
+## `_head.rotation.y`: ci scrivono anche lo stato (fino a 0.30) e la recita
+## del corpo (`hy_amp`: «distratto» 0.45, «sguardo sfuggente» 0.55), e i tre
+## si SOMMANO. Senza un tetto finale un vicino distratto che riceve una
+## ricevuta arriva a 1.40 rad — 80° — e a quell'angolo la faccia sparisce:
+## resta una palla di pelo con un nasino che sporge dal bordo, l'occhio
+## tagliato a metà dalla sagoma e il sopracciglio staccato in volo. È la
+## trappola della «bocca in volo davanti al muso», sullo stesso rig.
+##
+## 1.20 rad (69°) è MISURATO, non dedotto: sei tarature identiche in tutto
+## tranne l'angolo, in primo piano frontale, di profilo e alla distanza vera
+## della camera (`tools/provino_collo.gd`). A 1.20 la faccia si legge ancora
+## — un occhio intero, il muso attaccato, la guancia rosa; a 1.35 non c'è
+## più. Il tetto NON si tocca senza rifare quel provino.
+const COLLO_MAX := 1.20
+var _capp_appl := 0.0   # quanto il tetto ha tolto al rig il frame scorso
 
 var _hidden := false
 var _player_ref: Node3D
@@ -1070,6 +1133,10 @@ func _process(delta: float) -> void:
 	# un `+=` a ogni frame su un canale che nessuno azzera avvita il collo
 	# fino a fargli fare il giro. Si toglie qui, PRIMA che lo stato posi.
 	_sguardo_togli()
+	# …e infine il TETTO DEL COLLO, che è l'ultima cosa scritta l'altro frame
+	# e quindi la prima da togliere. Sono tre correzioni additive sullo stesso
+	# canale: l'ordine fra loro non conta, conta che nessuna resti addosso.
+	_cappello_togli()
 	rotation.y = _yaw
 	# LA RETE DI SICUREZZA DELLA CODA. Non si svuota in `_walk_to` (che la
 	# riscrive comunque) né nei due o tre posti che vengono in mente: si
@@ -1436,9 +1503,15 @@ func _process(delta: float) -> void:
 	# chiunque abbia un collo ---
 	_sguardo_testimone(delta)
 
-	# --- LA RECITA DEL CORPO, ultimissima: le posture della ribellione si
-	# stendono SOPRA ciò che stati e volto hanno già posato ---
+	# --- LA RECITA DEL CORPO: le posture della ribellione si stendono SOPRA
+	# ciò che stati e volto hanno già posato ---
 	_recita_applica(delta)
+
+	# --- E IL TETTO DEL COLLO, ultimissimo. Deve stare DOPO tutti e tre gli
+	# scrittori del canale (stato, ricevuta, recita) perché è la loro SOMMA a
+	# uscire dall'anatomia, non nessuno dei tre da solo. Messo prima, o dentro
+	# uno dei tre, non vedrebbe mai il numero che deve fermare ---
+	_cappello_collo()
 
 
 ## LO SGUARDO DEL TESTIMONE: la metà visibile della percezione (l'altra è il
@@ -1448,12 +1521,21 @@ func _process(delta: float) -> void:
 ## `_recita_applica`, tre righe più sotto — invece di scrivere il canale in
 ## assoluto. Due ragioni, e la seconda è la più importante:
 ##  1. il collo non si irrigidisce: la testa continua a dondolare col passo
-##     e col respiro mentre guarda, e una testa perfettamente ferma su un
-##     bersaglio è la firma dell'adesivo appiccicato sopra la posa;
+##     e col respiro mentre guarda (`CEDE_ALLO_STATO`), e una testa
+##     perfettamente ferma su un bersaglio è la firma dell'adesivo
+##     appiccicato sopra la posa;
 ##  2. **non può restare fuori posa**. Quando `_tst_off` torna a zero questa
 ##     funzione somma 0.0, e la testa è di nuovo tutta dello stato che la
 ##     stava posando — senza che nessuno debba ricordarsi di rimetterla a
 ##     posto in undici punti di uscita.
+##
+## LA TENUTA NON È FERMA, ed è la cosa che questa funzione ha imparato dopo:
+## la prima stesura sottraeva `base` per INTERO, cioè cancellava esattamente
+## il dondolio di cui il commento qui sopra si vantava — e con un bersaglio
+## fermo il risultato era una testa immobile al millesimo, identica in due
+## vicini affiancati. Ci vogliono tre cose, tutte e tre a scadenza diversa:
+## la posa dello stato che passa a metà, il vagare della mira (`_vaga`, due
+## orologi incommensurabili) e lo scarto personale (`_tst_mira`).
 func _sguardo_testimone(delta: float) -> void:
 	if _head == null:
 		_tst_off = 0.0
@@ -1485,13 +1567,67 @@ func _sguardo_testimone(delta: float) -> void:
 			# c'è un segno da sbagliare.
 			var prima := _head.transform.basis
 			_head.look_at(b, Vector3.UP)
-			var mira := clampf(wrapf(_head.rotation.y, -PI, PI), -TESTA_MAX, TESTA_MAX)
+			var puro := wrapf(_head.rotation.y, -PI, PI)
 			_head.transform.basis = prima
-			bersaglio = mira - base
+			# IL TETTO SI PRENDE SULLA SOLA GEOMETRIA, e il margine è quello
+			# di ciò che si somma dopo. Pinzando la somma, un testimone di
+			# traverso al gesto — il caso comune, dove la mira vorrebbe 90° —
+			# resterebbe schiacciato contro il tetto: il micro-movimento e lo
+			# scarto personale verrebbero tagliati via proprio lì, cioè
+			# morirebbero esattamente nel caso per cui esistono (MISURATO: due
+			# testimoni al tetto davano lo stesso angolo anche con la mira
+			# personale accesa). Così invece il massimo resta `TESTA_MAX`
+			# tondo, e ci si arriva col vagare al colmo.
+			var tetto := TESTA_MAX - VAGA_AMPIEZZA - MIRA_PERSONALE
+			var mira := clampf(puro, -tetto, tetto) + _tst_mira + _vaga()
+			bersaglio = mira - base * (1.0 - CEDE_ALLO_STATO)
 	var k := TESTA_VAI if absf(bersaglio) > absf(_tst_off) else TESTA_TORNA
 	_tst_off = lerpf(_tst_off, bersaglio, 1.0 - exp(-k * delta))
 	_head.rotation.y += _tst_off
 	_tst_appl = _tst_off
+
+
+## IL VAGARE DELLA MIRA — la differenza fra guardare e fissare.
+##
+## Nessuno tiene gli occhi inchiodati a un punto: si guarda ATTORNO alla
+## cosa, e l'oscillazione non si richiude mai su sé stessa perché gli
+## orologi sono due e incommensurabili (0.83 e 2.17 rad/s: il rapporto è
+## irrazionale, quindi la figura non si ripete). Un `sin()` puro si
+## smaschera in due cicli.
+##
+## LA FASE È SUA, dal genoma: due vicini che guardano la stessa cosa nello
+## stesso istante non possono muoversi all'unisono — sarebbero due pupazzi
+## sullo stesso filo.
+##
+## E L'ETÀ SI SENTE: chi ha vissuto guarda più lento e più corto. Le
+## orecchie non le tocca nessuno qui — questo canale è solo l'imbardata
+## della testa — perché a un anziano le orecchie non devono scattare.
+func _vaga() -> float:
+	var lento := 1.0 - 0.34 * _eta
+	var amp := VAGA_AMPIEZZA * (1.0 - 0.40 * _eta)
+	return amp * (sin(_t * 0.83 * lento + _tst_fase) * 0.62
+			+ sin(_t * 2.17 * lento + _tst_fase * 2.7) * 0.38)
+
+
+## LA TARATURA PERSONALE DELLO SGUARDO, una volta sola e dal GENOMA.
+##
+## Il genoma è l'unica cosa di questo corpo che non cambia mai e che
+## sopravvive al salvataggio: un dado tirato all'avvio darebbe a ciascuno un
+## carattere diverso a ogni ricaricamento, e `randf()` in `_process` darebbe
+## un tremolio invece di un'indole.
+func _taratura_sguardo() -> void:
+	if _tst_ritmo > 0.0:
+		return
+	var s := int(dna.get("seed", 0))
+	if s == 0:
+		# ospiti senza genoma (riccio, passerotto) e corpi di prova: basta che
+		# sia STABILE per questo corpo, non che sia bello
+		s = hash(str(dna.get("label", name)))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = absi(s) + 977
+	_tst_ritmo = RAFFICA_RITMO * rng.randf_range(0.78, 1.24)
+	_tst_mira = rng.randf_range(-1.0, 1.0) * MIRA_PERSONALE
+	_tst_fase = rng.randf_range(0.0, TAU)
 
 
 ## Toglie lo scostamento del frame scorso. Gemello di `_recita_togli`, e per
@@ -1501,6 +1637,33 @@ func _sguardo_togli() -> void:
 	if _head != null and _tst_appl != 0.0:
 		_head.rotation.y -= _tst_appl
 	_tst_appl = 0.0
+
+
+## IL TETTO DEL COLLO, applicato alla SOMMA. Ultimissima riga del `_process`:
+## vedi `COLLO_MAX` per il numero e per come è stato misurato.
+##
+## È una correzione additiva come le altre due, e si toglie allo stesso modo
+## il frame dopo: chi la scrivesse in assoluto (`rotation.y = clampf(...)`)
+## impedirebbe agli scrittori di sotto di tornare indietro da soli.
+func _cappello_collo() -> void:
+	if _head == null:
+		# senza testa non c'è niente da pinzare — e nemmeno niente da togliere
+		# il frame dopo (l'estetista rimonta il corpo da capo: un residuo
+		# ricordato su una testa che non esiste più tornerebbe addosso a
+		# quella nuova). Stessa rete di `_sguardo_testimone`.
+		_capp_appl = 0.0
+		return
+	var y := _head.rotation.y
+	var dentro := clampf(y, -COLLO_MAX, COLLO_MAX)
+	_capp_appl = dentro - y
+	if _capp_appl != 0.0:
+		_head.rotation.y = dentro
+
+
+func _cappello_togli() -> void:
+	if _head != null and _capp_appl != 0.0:
+		_head.rotation.y -= _capp_appl
+	_capp_appl = 0.0
 
 
 # passo del corpo: il passerotto avanza a scatti (solo mentre è in aria)
@@ -2804,7 +2967,22 @@ func candidate_result(ok: bool, bed_pos: Vector3) -> void:
 
 
 ## Vero mentre una scena rara è in corso: chi lo chiede (il pannello dei
-## desideri, il saluto) si fa da parte e la lascia finire.
+## desideri, il saluto, la percezione) si fa da parte e la lascia finire.
+##
+## LE SCENE RARE SONO LA COSA PIÙ PREZIOSA DEL GIOCO, e lo sono perché sono
+## rare: il concerto al pianoforte, il coro attorno al carillon, il
+## nascondino nel bosco, il raduno al Grande Albero la sera del lutto, la
+## prima parola di un cucciolo. Ognuna succede una volta ogni tanto, ognuna
+## è scritta a mano, e ognuna dura pochi secondi in cui i corpi fanno una
+## cosa precisa. Basta che in quei secondi il giocatore posi un pezzo a nove
+## metri, e tutte le teste si girano verso il cursore: il coro canta di
+## spalle, chi è nascosto guarda fuori dal masso, e il villaggio raccolto in
+## silenzio attorno all'albero segue una staccionata.
+##
+## Perciò `apri_scena` **si chiama davvero**, da tutte e cinque — e non è
+## sempre stato così: per un pezzo l'unico chiamante era `Promesse`, cioè
+## questa valvola non proteggeva nessuna delle scene che il commento di
+## `Percezione.puo_vedere` le attribuiva.
 func in_scena() -> bool:
 	return _scena_t > 0.0
 
@@ -2820,8 +2998,7 @@ func dorme() -> bool:
 	return _state == "tk_nap"
 
 
-## HA VISTO MOCHI FARE QUALCOSA, LÌ — e per `dur` secondi la testa resta
-## girata da quella parte.
+## HA VISTO MOCHI FARE QUALCOSA, LÌ — e la testa si gira da quella parte.
 ##
 ## La chiama `Percezione._testimonia` (scenes/npc/Percezione.gd) nella riga
 ## PRIMA di incidere il ricordo, e quell'ordine non è negoziabile: la testa
@@ -2835,19 +3012,85 @@ func dorme() -> bool:
 ## non smette quello che stava facendo: un villaggio in cui un gesto del
 ## giocatore interrompe ventotto vite è un villaggio che non lo lascia mai
 ## stare da solo.
-func guarda_gesto(pos: Vector3, dur: float) -> void:
+##
+## ────────────────────────────────────────────────────────────────────────
+## UNA RAFFICA DI GESTI È UNA RICEVUTA, NON QUARANTA
+## ────────────────────────────────────────────────────────────────────────
+##
+## `gesto` è il verbo (l'indice del ponte) e `finestra` è la FINESTRA DI
+## FUSIONE del grafo dei ricordi, che arriva dal C++ e non si ricopia qui
+## (`Percezione._cabla` → `EcsMondo.debug_grafo_costanti`).
+##
+## La ricevuta ha la stessa grammatica del RICORDO che accompagna, e non è
+## un'analogia: nel grafo, gesti uguali e ravvicinati NON fanno ricordi
+## nuovi — fondono in uno solo che si rinfresca e conta `quante`. Perciò
+## anche la testa si gira una volta per RICORDO, non una per gesto:
+##
+##  · gesto nuovo (verbo diverso, o la raffica si è interrotta più a lungo
+##    della finestra): occhiata PIENA — ed è esattamente quando nel grafo
+##    nasce un ricordo nuovo;
+##  · la raffica continua: la testa si RIALZA ogni `_tst_ritmo` secondi, e
+##    per una frazione del tempo (`RAFFICA_RIPRESA`) — l'occhiata di chi
+##    torna a guardare uno che sta ancora lavorando.
+##
+## COSA SUCCEDEVA SENZA. La costruzione non ha lucchetto (`_try_place` sta
+## su `is_action_pressed`) ed emette un gesto per PEZZO: stendendo un
+## sentiero di quaranta pietre, ogni pezzo riarmava i 3,2 s e i vicini entro
+## nove metri restavano con la testa girata verso il cursore per QUARANTADUE
+## SECONDI FILATI — il 76% del tempo, misurato. Due vicini che
+## chiacchieravano a quindici gradi l'uno dall'altro finivano a
+## cinquantacinque, cioè al tetto del collo, continuando a scambiarsi le
+## nuvolette guardando dalla parte opposta. La ricevuta smetteva di dire «ti
+## ho vista» e cominciava a dire «mi stanno fissando», sull'attività più
+## ripetuta del gioco. **La cura non è abbassare la durata**: una durata
+## corta rovinerebbe il gesto singolo, che è quello che deve leggersi.
+##
+## Il ritmo è di CIASCUNO (`_taratura_sguardo`): due vicini che guardano lo
+## stesso cantiere non si rialzano all'unisono.
+func guarda_gesto(pos: Vector3, dur: float, gesto := -1, finestra := 0.0) -> void:
+	_taratura_sguardo()
+	# IL BERSAGLIO È SEMPRE L'ULTIMO GESTO: si guarda l'ultima cosa che è
+	# successa, che è come funzionano gli occhi.
 	_tst_pos = pos
-	# il MASSIMO, non l'ultimo: due gesti ravvicinati non ACCORCIANO lo
-	# sguardo (il bersaglio invece è sempre l'ultimo — si guarda l'ultima
-	# cosa che è successa, che è come funzionano gli occhi).
-	_tst_t = maxf(_tst_t, dur)
+	var ultimo := -1.0
+	var occhiata := -1.0
+	if _tst_raffiche.has(gesto):
+		var r: Array = _tst_raffiche[gesto]
+		ultimo = float(r[0])
+		occhiata = float(r[1])
+	# `gesto < 0` = il chiamante non sa di ricordi (i corpi di prova): ogni
+	# gesto è nuovo, come prima che questa grammatica esistesse.
+	var nuova := gesto < 0 or ultimo < 0.0 or (_t - ultimo) > finestra
+	if nuova or (_t - occhiata) >= _tst_ritmo:
+		# il MASSIMO, non l'ultimo: due gesti ravvicinati non ACCORCIANO lo
+		# sguardo già in corso.
+		_tst_t = maxf(_tst_t, dur if nuova else dur * RAFFICA_RIPRESA)
+		occhiata = _t
+	_tst_raffiche[gesto] = [_t, occhiata]
 
 
-## Apre una scena lunga «dur»: per quel tempo il vicino non saluta e non
-## chiede nulla — sta al suo appuntamento.
+## Apre una scena lunga «dur»: per quel tempo il vicino non saluta, non
+## chiede nulla e non gira la testa sui gesti di Mochi — sta al suo
+## appuntamento.
+##
+## `maxf` e non `=`: chi rinfresca una scena lunga (il concerto ogni brano,
+## il nascondino a ogni acquattamento) non deve poterla ACCORCIARE.
 func apri_scena(dur: float) -> void:
 	_scena_t = maxf(_scena_t, dur)
 	_greet_cd = maxf(_greet_cd, dur)
+
+
+## LA SCENA È FINITA. La chiama chi l'aveva aperta, quando si scioglie prima
+## del tempo che aveva previsto: senza, un concerto che finisce presto
+## lascerebbe il vicino sordo al villaggio per tutti i secondi che
+## avanzavano — e la percezione continuerebbe a non vederlo.
+##
+## Il saluto si riapre subito dopo (non nell'istante: `_greet_cd` scende al
+## suo valore normale, così chi esce da una scena non salta addosso a Mochi
+## nel frame in cui il coro si scioglie).
+func chiudi_scena() -> void:
+	_scena_t = 0.0
+	_greet_cd = minf(_greet_cd, 2.0)
 
 
 # i residenti salutano chi passa a trovarli

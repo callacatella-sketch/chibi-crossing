@@ -83,6 +83,8 @@ func run(t) -> void:
 
 	_la_tabella(t, m)
 	_il_gusto_pesca_da_dove_il_dato_vive(t)
+	_il_tetto_del_gusto_pinza(t)
+	_ogni_cosa_ha_i_suoi_geni(t)
 	_il_gusto_porta_il_carattere(t, m)
 	_il_grafo_vuoto_e_neutro(t, m)
 	_solo_due_si_muovono(t, m)
@@ -91,6 +93,7 @@ func run(t) -> void:
 	_lo_specchio_ostile(t, m)
 	_una_voce_non_pesa_piu_di_un_occhio(t, m)
 	_il_regalo_pesa_e_ringrazia(t, m)
+	_la_gratitudine_vale_il_doppio_nelle_chiacchiere(t, m)
 	_il_tempo_passa_in_lettura(t, m)
 	_l_interesse_e_di_una_cosa_sola(t, m)
 	_la_saturazione_frena(t, m)
@@ -197,6 +200,180 @@ func _il_gusto_pesca_da_dove_il_dato_vive(t) -> void:
 		t.ok(GUSTO.COSA_DEL_BISOGNO.has(str(voce[1])),
 				"l'indole «%s» accelera «%s», e quel bisogno arriva fino al gusto"
 						% [nome, voce[1]])
+
+
+## IL TETTO DEL GUSTO PINZA DAVVERO — e senza di lui il ponte riceve numeri
+## fuori dalla scala che dichiara.
+##
+## `TETTO = 4.0` non è una taratura del carattere: è la sbarra che tiene i
+## sei numeri in un intervallo raccontabile anche il giorno che qualcuno alza
+## un moltiplicatore in `VillagerBrain.INDOLI` — cioè esiste esattamente per
+## il cambiamento che nessun altro test vedrebbe. Toglierlo lasciava la suite
+## VERDE: su quattrocento caratteri veri il massimo passava da 4,0000 a
+## 4,7941 e nessuno se ne accorgeva, perché `chibi::valuta` accetta qualunque
+## numero positivo e i modulatori restano plausibili.
+##
+## Due misure, e la seconda non dipende dalla distribuzione di `ChibiDNA`:
+## quattrocento caratteri veri (dodici valori arrivano al tetto oggi) e la
+## combinazione PIÙ CALDA che le due tabelle permettono, costruita dalle
+## tabelle stesse invece che scritta a mano.
+func _il_tetto_del_gusto_pinza(t) -> void:
+	var oltre := 0
+	var al_tetto := 0
+	var massimo := 0.0
+	for gusto in _caratteri:
+		for i in gusto.size():
+			massimo = maxf(massimo, float(gusto[i]))
+			if float(gusto[i]) > GUSTO.TETTO:
+				oltre += 1
+			elif float(gusto[i]) >= GUSTO.TETTO:
+				al_tetto += 1
+	t.eq(oltre, 0,
+			"su %d letture di caratteri veri nessun gusto esce dalla scala dichiarata"
+					% (_caratteri.size() * GUSTO.COSE.size()))
+	t.ok(massimo <= GUSTO.TETTO,
+			"e il massimo resta il tetto (%.4f)" % massimo)
+	# …E IL TETTO MORDE: senza questa riga la precedente sarebbe vera anche
+	# per un gusto che al tetto non ci arriva mai, cioè proverebbe il
+	# silenzio invece della sbarra.
+	t.ok(al_tetto > 0,
+			"…e ci arriva davvero: %d valori sono esattamente al tetto" % al_tetto)
+
+	# LA COMBINAZIONE PIÙ CALDA, letta dalle tabelle: il bisogno su cui due
+	# indoli si moltiplicano di più, e il peso più alto che un genoma vero
+	# scrive per la cosa che quel bisogno serve.
+	var per_bisogno := {}
+	for nome in BRAIN.INDOLI:
+		var voce: Array = BRAIN.INDOLI[nome]
+		if voce.size() < 3:
+			continue
+		var b := str(voce[1])
+		var lista: Array = per_bisogno.get(b, [])
+		lista.append([float(voce[2]), str(nome)])
+		per_bisogno[b] = lista
+	var migliore := 0.0
+	var due: Array = []
+	var cosa_calda := ""
+	for b in per_bisogno:
+		var lista: Array = per_bisogno[b]
+		lista.sort_custom(func(x, y): return float(x[0]) > float(y[0]))
+		if lista.size() < 2:
+			continue
+		var prod := float(lista[0][0]) * float(lista[1][0])
+		if prod > migliore:
+			migliore = prod
+			due = [str(lista[0][1]), str(lista[1][1])]
+			cosa_calda = str(GUSTO.COSA_DEL_BISOGNO.get(str(b), ""))
+	t.ok(cosa_calda != "" and due.size() == 2,
+			"due indoli spingono la stessa cosa (%s: %s ×%.2f)" % [cosa_calda, str(due), migliore])
+	if cosa_calda == "" or due.size() != 2:
+		return
+	# il peso più alto che un genoma vero scrive per quella cosa: niente
+	# numeri inventati, si guarda il campione già calcolato
+	var chiavi: Array = GUSTO.DA_PESO.get(cosa_calda, [])
+	var peso_vero := 0.0
+	for s in range(1000, 1400):
+		var pesi: Dictionary = (DNA.generate(s).get("weights", {}) as Dictionary)
+		var somma := 0.0
+		for k in chiavi:
+			somma += float(pesi.get(str(k), 1.0))
+		peso_vero = maxf(peso_vero, somma / float(maxi(1, chiavi.size())))
+	t.ok(peso_vero * migliore > GUSTO.TETTO,
+			"PREMESSA: senza tetto questo carattere uscirebbe a %.4f" % (peso_vero * migliore))
+	var caldo: Dictionary = {"weights": {}, "indole": due}
+	for k in chiavi:
+		(caldo["weights"] as Dictionary)[str(k)] = peso_vero
+	var gusto_caldo: PackedFloat64Array = GUSTO.da_dna(caldo)
+	var i_caldo := int(GUSTO.COSE.find(cosa_calda))
+	t.ok(float(gusto_caldo[i_caldo]) == GUSTO.TETTO,
+			"e il tetto lo ferma ESATTAMENTE lì (%.10f)" % gusto_caldo[i_caldo])
+
+
+## OGNI COSA HA I SUOI GENI — e sono TANTI quanti la tabella dichiara.
+##
+## «La casa È il tetto, i muri, la porta e la finestra»: quattro pesi, e la
+## media fra loro. Sostituire quella riga con `["roof","roof","roof","roof"]`
+## lasciava la suite VERDE — la tabella continuava a dichiarare quattro voci,
+## ogni voce esisteva davvero nel genoma, e tre quarti del carattere di quella
+## persona smettevano di contare in silenzio.
+##
+## Il conto qui NON legge la tabella per sapere QUALI geni cercare: prende
+## tutti i pesi di un genoma vero, li muove UNO PER VOLTA, e conta quanti
+## fanno cambiare ciascuna cosa. Quel numero deve combaciare con la lunghezza
+## che la tabella dichiara — ed è proprio lì che la mutazione si spezza:
+## quattro voci dichiarate, un solo gene che muove.
+func _ogni_cosa_ha_i_suoi_geni(t) -> void:
+	# un genoma PIATTO e senza indoli: nessun valore è al tetto, quindi una
+	# spinta si vede sempre (su un gusto già pinzato non si muoverebbe niente
+	# e il conto direbbe zero per il motivo sbagliato)
+	var chiavi: Array = (DNA.generate(4242).get("weights", {}) as Dictionary).keys()
+	var base := {"weights": {}, "indole": []}
+	for k in chiavi:
+		(base["weights"] as Dictionary)[str(k)] = 0.5
+	var partenza: PackedFloat64Array = GUSTO.da_dna(base)
+
+	var muovono := {}          # cosa -> {gene: true}
+	for k in chiavi:
+		var spinto := {"weights": (base["weights"] as Dictionary).duplicate(), "indole": []}
+		(spinto["weights"] as Dictionary)[str(k)] = 1.5
+		var dopo: PackedFloat64Array = GUSTO.da_dna(spinto)
+		for i in dopo.size():
+			if dopo[i] != partenza[i]:
+				var cosa := str(GUSTO.COSE[i])
+				var set: Dictionary = muovono.get(cosa, {})
+				set[str(k)] = true
+				muovono[cosa] = set
+
+	for cosa in GUSTO.COSE:
+		var attesi: int = (GUSTO.DA_PESO.get(str(cosa), []) as Array).size()
+		var visti: int = (muovono.get(str(cosa), {}) as Dictionary).size()
+		t.eq(visti, attesi,
+				"«%s» si compone di %d geni DIVERSI, ed è quanti ne dichiara" % [cosa, attesi])
+
+	# E QUALI. Il conto qui sopra prende una casa fatta di quattro tetti; non
+	# prenderebbe due cose che si SCAMBIANO i geni — «il fiore nasce dal peso
+	# del comfort, il cibo da quello del giardino» — perché i conti tornano
+	# tutti. Quel legame non ha nessun'altra casa nel progetto da cui
+	# derivarlo: è una frase in italiano («la casa È il tetto, i muri, la
+	# porta e la finestra»), quindi si scrive una SECONDA STESURA del
+	# contratto, a mano e apposta, esattamente come `COSA_ATTESA` fa per i
+	# verbi del ponte. La differenza è che questa non si confronta con la
+	# tabella: si verifica MUOVENDO il gene e guardando cosa si sposta.
+	var geni_attesi := {
+		"garden": "fiore", "comfort": "cibo",
+		"roof": "casa", "walls": "casa", "door": "casa", "window": "casa",
+		"warmth": "fuoco", "sunny": "pesce", "welcome": "amico",
+	}
+	for gene in geni_attesi:
+		var cosa_attesa := str(geni_attesi[gene])
+		var mosse: Array = []
+		for cosa in muovono:
+			if (muovono[cosa] as Dictionary).has(str(gene)):
+				mosse.append(str(cosa))
+		t.eq(mosse, [cosa_attesa],
+				"muovere «%s» sposta il gusto per «%s», e nient'altro" % [gene, cosa_attesa])
+	# …e nessun peso del genoma resta a muovere qualcosa senza essere
+	# dichiarato qui: un gene che entra di soppiatto in una cosa è un pezzo di
+	# carattere che nessuno ha deciso.
+	for k in chiavi:
+		if geni_attesi.has(str(k)):
+			continue
+		var tocca := false
+		for cosa in muovono:
+			if (muovono[cosa] as Dictionary).has(str(k)):
+				tocca = true
+		t.ok(not tocca, "il peso «%s» non entra in nessuna delle sei cose" % k)
+	# E LE SEI COSE SONO SEI. Due cose che nascono dagli stessi identici geni
+	# sarebbero una colonna sola con due nomi: il ponte ne riceverebbe sei,
+	# il villaggio ne distinguerebbe cinque, e nessuno vedrebbe la differenza.
+	var firme := {}
+	for cosa in muovono:
+		var geni: Array = (muovono[cosa] as Dictionary).keys()
+		geni.sort()
+		firme[str(geni)] = true
+	t.eq(firme.size(), muovono.size(),
+			"e nessuna coppia di cose nasce dagli stessi geni (%d firme per %d cose)"
+					% [firme.size(), muovono.size()])
 
 
 ## IL GUSTO PORTA IL CARATTERE FIN QUI — e questa è la scena, non un numero.
@@ -447,6 +624,59 @@ func _il_regalo_pesa_e_ringrazia(t, m) -> void:
 	var vis_fiore: Dictionary = m.debug_occ(_fresco(0), NEUTRO, 0.0, {})
 	t.ok(float(reg_fiore["mod"][AZ_CURA_GIARDINO]) > float(vis_fiore["mod"][AZ_CURA_GIARDINO]),
 			"un'annaffiata fatta per me lascia più traccia di una qualunque")
+
+
+## LA GRATITUDINE VALE IL DOPPIO NELLE CHIACCHIERE — e il DOPPIO si misura,
+## non si legge.
+##
+## `modulatori()` compone la voglia di raccontare con `ammirazione + 2·
+## gratitudine`: non è «ti voglio più bene», è che chi ha ricevuto qualcosa
+## ha una cosa da raccontare, e quella cosa pesa più di una qualunque che ha
+## solo visto. Portare quel coefficiente da 2.0 a 1.0 lasciava la suite
+## VERDE: il caso che sembrava coprirlo (`_il_regalo_pesa_e_ringrazia`)
+## verifica che la gratitudine ESISTA e che muova le chiacchiere più di un
+## gesto qualunque — cosa che resta vera anche con 1.0, perché il regalo pesa
+## già il doppio per conto suo (`peso()`, R_SU_DI_ME).
+##
+## LA MISURA NON RICOPIA LA FORMULA: si conta in GESTI VISTI. Un dono fatto a
+## me vale 2 di ammirazione e 2 di gratitudine, cioè 2 + 2·2 = SEI gesti
+## visti; col coefficiente a 1.0 ne varrebbe quattro. Bastano quindi tre
+## letture e nessuna aritmetica di là.
+func _la_gratitudine_vale_il_doppio_nelle_chiacchiere(t, m) -> void:
+	var dono := _fresco(7, _a_me)
+	var d_dono: Dictionary = m.debug_occ(dono, NEUTRO, 0.0, {})
+	# PREMESSA: il dono vale due gesti di ammirazione, ed è tutta gratitudine
+	var visto: Dictionary = m.debug_occ(_fresco(7), NEUTRO, 0.0, {})
+	var u := float(visto["ammirazione"])
+	t.ok(u > 0.0, "un gesto visto vale qualcosa (%.6f)" % u)
+	t.almost(float(d_dono["ammirazione"]), u * 2.0, "un dono a me ne vale due", 1e-15)
+	t.almost(float(d_dono["gratitudine"]), u * 2.0, "…e sono tutti gratitudine", 1e-15)
+
+	var quanti := func(n: int) -> float:
+		var lista := []
+		for _i in n:
+			lista.append([7, 0, 1, 255, 0.0])
+		var d: Dictionary = m.debug_occ(_grafo(lista), NEUTRO, 0.0, {})
+		return float(d["mod"][AZ_CHIACCHIERE])
+
+	var mio := float(d_dono["mod"][AZ_CHIACCHIERE])
+	t.almost(mio, quanti.call(6),
+			"da raccontare, UN dono fatto a me vale SEI gesti visti", 1e-15)
+	# …e non quattro, che è quanto varrebbe col coefficiente a 1.0. Senza
+	# questa riga la precedente non distinguerebbe le due tarature: la prova
+	# sta proprio nel non combaciare con l'altro numero.
+	t.ok(absf(mio - quanti.call(4)) > 1e-9,
+			"e NON quattro: la gratitudine entra col suo doppio (%.9f contro %.9f)"
+					% [mio, quanti.call(4)])
+	# la stessa cosa detta da fuori: due gesti visti e uno ricevuto pesano
+	# uguale sull'ammirazione, ma non uguale sulla voglia di raccontarlo
+	var due_visti: Dictionary = m.debug_occ(
+			_grafo([[7, 0, 1, 255, 0.0], [7, 0, 1, 255, 0.0]]), NEUTRO, 0.0, {})
+	t.almost(float(due_visti["ammirazione"]), float(d_dono["ammirazione"]),
+			"due gesti visti pesano quanto un dono ricevuto (stessa ammirazione)", 1e-15)
+	t.ok(mio > float(due_visti["mod"][AZ_CHIACCHIERE]),
+			"…ma il dono si racconta di più (%.6f contro %.6f)"
+					% [mio, float(due_visti["mod"][AZ_CHIACCHIERE])])
 
 
 ## IL TEMPO PASSA IN LETTURA, e passa di mezze vite. Nel dato non c'è nessun

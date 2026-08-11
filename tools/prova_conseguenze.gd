@@ -293,8 +293,12 @@ func _go() -> void:
 	var d_posa := c0.global_position.distance_to(_mondo(PANCA_C))
 	_costruisce(_mondo(PANCA_C))
 	await create_timer(0.4).timeout
+	# la SOGLIA arriva dal chiamante, come in partita
+	# (`Visitors._ancora_ricordo`): senza, `dove()` veniva chiamata con tre
+	# argomenti e il banco moriva a metà, restando appeso per sempre.
 	var dove_casa: Vector3 = cuore.call("dove", int(r0["ecs"]),
-			cuore.get("C_CASA"), _mondo(CASA))
+			cuore.get("C_CASA"), float(visitors.get("AMMIRA_SOGLIA")),
+			_mondo(CASA))
 	print("       lui è a %.2f m dalla posa; si ricorda del posto %s (la panchina sta in %s)"
 			% [d_posa, dove_casa, _mondo(PANCA_C)])
 	_dico(dove_casa.distance_to(_mondo(PANCA_C)) < 0.6,
@@ -356,7 +360,8 @@ func _go() -> void:
 	print("       adesso ne ha %d, di cui sentiti %d" % [righe.size(), sentiti])
 	_dico(sentiti == 1, "e dopo la chiacchiera ne ha UNO, sentito dire")
 	var suo_posto: Vector3 = cuore.call("dove", int(r1["ecs"]),
-			cuore.get("C_FIORE"), _mondo(CASA2))
+			cuore.get("C_FIORE"), float(visitors.get("AMMIRA_SOGLIA")),
+			_mondo(CASA2))
 	print("       e sa DOVE: %s (l'aiuola sta a %s)" % [suo_posto, _mondo(AIUOLA_L)])
 	_dico(suo_posto.distance_to(_mondo(AIUOLA_L)) < 0.6,
 			"il luogo attraversa il passaparola intatto")

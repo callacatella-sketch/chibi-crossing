@@ -59,6 +59,7 @@ func run(t) -> void:
 	_le_costanti_non_divergono(t, m)
 	_le_cose_si_sanno_dire(t, m)
 	_il_peso_decade_in_lettura(t, m)
+	_le_ripetizioni_saturano(t, m)
 	_il_peso_non_impazzisce(t, m)
 	_la_fusione(t, m)
 	_la_fusione_non_confonde(t, m)
@@ -265,6 +266,77 @@ func _il_peso_decade_in_lettura(t, m) -> void:
 	var niente := _ric(m.V_ANNAFFIA, 1, {"intensita": 0})
 	t.almost(m.debug_grafo_peso(niente, 0.0, MV), 0.0,
 			"un ricordo a intensità zero non pesa niente", 1e-12)
+
+
+## IL VENTESIMO GESTO CONTA MENO DEL SECONDO — e per mesi non era vero,
+## mentre quattro commenti in quattro file lo dichiaravano.
+##
+## Il termine delle ripetizioni era `1 + 0.25·(quante-1)`, cioè LINEARE: il
+## ventesimo gesto valeva esattamente quanto il secondo (+0.25 tondi tutti e
+## due) e duecentocinquantacinque annaffiature pesavano 64,5 volte una. Non è
+## un difetto di eleganza, è una MONETA: la durata di una conseguenza è
+## `mezza_vita · log2(peso/soglia)`, quindi un peso senza tetto è una durata
+## senza tetto, e quindici secondi di modalità costruzione davanti a un
+## vicino compravano cinque volte l'effetto di un gesto solo.
+##
+## Le quattro asserzioni chiudono quattro modi di sbagliare, e la prima è
+## quella che le altre tre rendono non-vacue:
+##  1. **c'è un TETTO** (il salto da 1 a 255 volte non può superarlo);
+##  2. **il ventesimo passo è più piccolo del secondo**, misurato: è la
+##     frase, presa alla lettera;
+##  3. **insistere serve ancora**: una curva che schiacciasse tutto a 1.0
+##     passerebbe le due di sopra e cancellerebbe «ti ho vista lavorare
+##     tutto il pomeriggio», che è una cosa vera da ricordare;
+##  4. **l'esempio storico resta esatto**: sei aiuole valgono 2.25, bit per
+##     bit come prima. `RIP_MEZZA` è derivato apposta da questo vincolo, e
+##     chi ritara il tetto senza rifarne il conto lo rompe qui.
+##
+## I due numeri della curva si leggono dal BINARIO: un test che li ricopia
+## resta verde il giorno che qualcuno li tara.
+func _le_ripetizioni_saturano(t, m) -> void:
+	var tetto := float(_c["rip_tetto"])
+	var mezza := float(_c["rip_mezza"])
+	t.ok(tetto > 0.0 and mezza > 0.0,
+			"PREMESSA: la curva delle ripetizioni arriva dal binario (tetto %s, mezza %s)"
+					% [str(tetto), str(mezza)])
+
+	var p = func(q: int) -> float:
+		return float(m.debug_grafo_peso(_ric(m.V_ANNAFFIA, 1, {"quante": q}), 0.0, MV))
+
+	# 1. IL TETTO. Nessuna insistenza può portare un ricordo oltre 1 + tetto.
+	t.ok(p.call(255) < 1.0 + tetto,
+			"duecentocinquantacinque volte pesano %.4f, e il tetto è %.1f: insistere non paga senza fine"
+					% [p.call(255), 1.0 + tetto])
+	t.ok(p.call(255) < 4.0 * p.call(1),
+			"cioè meno di quattro occhiate (%.4f contro %.4f): prima ne valeva 64,5"
+					% [p.call(255), p.call(1)])
+
+	# 2. IL VENTESIMO PASSO È PIÙ PICCOLO DEL SECONDO, letteralmente.
+	var passo2 := float(p.call(2)) - float(p.call(1))
+	var passo20 := float(p.call(20)) - float(p.call(19))
+	t.ok(passo20 < passo2,
+			"il ventesimo gesto conta meno del secondo (%.5f contro %.5f)" % [passo20, passo2])
+	t.ok(passo20 < 0.2 * passo2,
+			"…e non di un pelo: ne conta meno di un quinto (%.5f contro %.5f). Con la retta di prima erano IDENTICI"
+					% [passo20, passo2])
+
+	# 3. MA INSISTERE SERVE ANCORA. Una curva piatta passerebbe tutto il resto
+	#    di questo caso e cancellerebbe una cosa vera.
+	t.ok(p.call(6) > p.call(1),
+			"un pomeriggio pesa comunque più di un'occhiata (%.4f contro %.4f)"
+					% [p.call(6), p.call(1)])
+	t.ok(p.call(30) > p.call(6),
+			"…e mezza giornata più di un pomeriggio (%.4f contro %.4f)"
+					% [p.call(30), p.call(6)])
+	t.ok(p.call(2) > 1.0,
+			"e già la seconda volta si sente (%.4f): è una delle due strade per restare in mente"
+					% p.call(2))
+
+	# 4. E L'ESEMPIO CHE IL PROGETTO HA GIÀ SCRITTO RESTA ESATTO.
+	t.almost(p.call(1), 1.0, "un'occhiata sola vale sempre uno esatto", 1e-12)
+	t.almost(p.call(6), 2.25,
+			"e sei aiuole valgono ancora 2.25 volte una: la curva conserva l'esempio già provato",
+			1e-12)
 
 
 ## Il peso non deve mai diventare NaN né crescere. Un NaN in un peso NON

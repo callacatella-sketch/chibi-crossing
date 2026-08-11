@@ -330,6 +330,13 @@ public:
 	// catena non significherebbe più niente, e un pettegolezzo che non
 	// significa niente è rumore.
 	//
+	// E PASSA ANCHE IL FREDDO. L'eco nasce con l'intensità già ridotta dal
+	// tempo che il ricordo dell'ORIGINALE ha preso (`chibi::sconto_tempo`),
+	// perché `inserisci` ritimbra sempre `quando` ad adesso: senza quel
+	// fattore la voce ripartiva da capo e — misurato — dopo venti minuti
+	// pesava 562 volte l'occhio che l'aveva vista. Con il fattore vale
+	// `smorzamento × il peso di chi l'ha vista`, adesso e per sempre.
+	//
 	// E da `p_b` non riparte: il suo ricordo porta `R_SENTITO`, e
 	// `da_raccontare` salta i sentiti. Una notizia non è un broadcast.
 	int racconta(int64_t p_a, int64_t p_b, double p_smorzamento);
@@ -393,7 +400,16 @@ public:
 	// intatta (vedi `racconta`), ed è ciò che permette a un terzo che non
 	// c'era di andare all'aiuola giusta — la sola prova che un pettegolezzo
 	// ha una conseguenza nel mondo e non solo in un dizionario.
-	godot::Vector3 dove(int64_t p_id, int p_cosa, const godot::Vector3 &p_se_niente) const;
+	//
+	// LA SOGLIA È LA RIGA PER CUI UN'ANCORA TORNA A CASA, e arriva dal
+	// chiamante come lo smorzamento in `racconta`. Sotto quel peso il
+	// ricordo non indica più niente e si torna al ripiego: senza pavimento
+	// bastava un peso > 0, che `2^(-dt/mv)` non raggiunge prima di ~1074
+	// mezze vite — cioè l'ancora spostata da un gesto non tornava MAI
+	// indietro. Zero riproduce il comportamento di prima, ed è così che il
+	// test lo può falsificare.
+	godot::Vector3 dove(int64_t p_id, int p_cosa, double p_soglia,
+			const godot::Vector3 &p_se_niente) const;
 
 	// COSA VALE LA PENA RICORDARSI PER DAVVERO. Torna la `cosa` del ricordo
 	// più pesante fra quelli VISTI COI PROPRI OCCHI, se supera `p_soglia`;

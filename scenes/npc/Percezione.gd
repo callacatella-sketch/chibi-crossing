@@ -32,6 +32,18 @@ extends Node
 ## innocuo: sembra distrazione, che è una cosa che le creature fanno.
 ## Perciò l'ordine delle due righe è quello, e non l'altro.
 ##
+## **L'UNITÀ È IL RICORDO, NON IL GESTO** — e questa riga è la sola
+## precisazione che la regola ammette. Nel grafo, gesti uguali e ravvicinati
+## non fanno ricordi nuovi: fondono in uno solo che si rinfresca e conta
+## `quante` (`FINESTRA_FUSIONE`, src/grafo_ricordi.h). Il ventesimo pezzo di
+## un sentiero non è una cosa vista in più — è la stessa cosa, ancora. Perciò
+## la testa si gira una volta per RICORDO: piena quando il ricordo nasce, e
+## poi solo un'occhiata ogni tanto finché la raffica dura. Ogni conseguenza
+## del sistema pesa un ricordo, e ogni ricordo ha avuto la sua testa girata:
+## la premessa c'è tutta. Il conto sta in `Visitor.guarda_gesto`, che riceve
+## da qui il verbo e la finestra vera — la finestra **non si ricopia**, la
+## dice il C++.
+##
 ## ────────────────────────────────────────────────────────────────────────
 ## COSA NON C'È, e non per dimenticanza
 ## ────────────────────────────────────────────────────────────────────────
@@ -94,12 +106,27 @@ const RAGGIO := 9.0
 ## otto numeri da tarare e da guardare, e nessuno di quegli otto sarebbe più
 ## leggibile di questo. Chi un giorno volesse la durata vera del gesto la
 ## faccia arrivare dal chiamante — la firma di `guarda_gesto` la prende già.
+##
+## **NON ABBASSARLO PER CURARE UNA RAFFICA.** Se qualcuno segnala vicini che
+## fissano troppo a lungo mentre si costruisce, il numero da guardare non è
+## questo: è il RITMO delle riprese in `Visitor.guarda_gesto`. Questo qui
+## regola il gesto SINGOLO — l'annaffiata, la pesca, il dono — cioè
+## esattamente quello che deve restare leggibile; accorciarlo rovinerebbe il
+## caso buono per rattoppare quello cattivo.
 const DURATA_SGUARDO := 3.2
 
 ## Il registro dei vicini e il cuore ECS. Si RITROVANO a ogni chiamata
 ## finché non ci sono entrambi: vedi `_cabla()`.
 var _visitors: Node = null
 var _cuore: Object = null
+
+## LA FINESTRA DI FUSIONE DEL GRAFO, in secondi, letta dal C++ una volta
+## sola (`EcsMondo.debug_grafo_costanti`). Non è una costante di questo file
+## e non deve diventarlo: è il numero che decide se un gesto fa un ricordo
+## NUOVO o rinfresca quello di prima, vive in `src/grafo_ricordi.h`, e la
+## ricevuta deve seguirlo — se un domani qualcuno lo cambia lì, la testa
+## deve cambiare ritmo con lui invece di raccontare una regola scaduta.
+var _finestra := 0.0
 
 
 func _ready() -> void:
@@ -125,11 +152,18 @@ func _ready() -> void:
 ##    chiusi. `Visitor._process` lo sa già (chi dorme non insegue nessuno
 ##    con lo sguardo); qui lo si dice anche alla memoria, perché sarebbe
 ##    assurdo ricordarsi di un gesto che non si è potuto guardare.
-##  · **è a un appuntamento suo** — `in_scena()`: il concerto, il congedo,
-##    il nascondino, la festa. Sono le scene rare del gioco, quelle scritte
-##    a mano perché una volta ogni tanto succeda qualcosa di preciso: un
-##    gesto qualunque del giocatore non deve poterle interrompere né
-##    prendersene il merito.
+##  · **è a un appuntamento suo** — `in_scena()`: il concerto al pianoforte,
+##    il coro attorno al carillon, il nascondino nel bosco, il raduno al
+##    Grande Albero la sera del lutto, la prima parola di un cucciolo, e
+##    l'appuntamento delle Promesse. Sono le scene rare del gioco, quelle
+##    scritte a mano perché una volta ogni tanto succeda qualcosa di
+##    preciso: un gesto qualunque del giocatore non deve poterle
+##    interrompere né prendersene il merito.
+##    **Questo elenco è una promessa verificabile**, non una didascalia: chi
+##    lo allunga deve far chiamare `Visitor.apri_scena` alla scena che
+##    aggiunge, o scrive una valvola che non chiude niente. È già successo —
+##    per un pezzo l'unico chiamante era `Promesse`, e le cinque scene qui
+##    sopra restavano scoperte con questo commento a giurare il contrario.
 ##  · **è lontano** — oltre `raggio` metri.
 ##
 ## Il raggio arriva come parametro e non si legge da qui dentro: così il
@@ -233,7 +267,7 @@ func _testimonia(riga: Dictionary, verbo: int, pos: Vector3, soggetto: int) -> v
 	# righe, e mai in mezzo.
 	if node == null or not is_instance_valid(node) or id < 0:
 		return
-	node.call("guarda_gesto", pos, DURATA_SGUARDO)
+	node.call("guarda_gesto", pos, DURATA_SGUARDO, verbo, _finestra)
 	_cuore.call("osserva", id, verbo, pos, soggetto)
 
 
@@ -261,4 +295,15 @@ func _cabla() -> bool:
 		# Il cuore non c'è finché nessun residente è stato censito: è normale
 		# in un villaggio appena aperto, e si ritenta al gesto dopo.
 		_cuore = _visitors.call("cuore")
-	return _cuore != null and is_instance_valid(_cuore)
+		_finestra = 0.0
+	if _cuore == null or not is_instance_valid(_cuore):
+		return false
+	if _finestra <= 0.0:
+		# UNA VOLTA SOLA, e appena il cuore c'è: la finestra è una costante
+		# del ponte, non un dato che cambia. (Se la lettura fallisse, zero
+		# vuol dire «ogni gesto è nuovo» — cioè il comportamento di prima
+		# che questa grammatica esistesse: si degrada verso il rumoroso, mai
+		# verso il muto.)
+		var k: Dictionary = _cuore.call("debug_grafo_costanti")
+		_finestra = float(k.get("finestra_fusione", 0.0))
+	return true

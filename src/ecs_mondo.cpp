@@ -288,7 +288,7 @@ void EcsMondo::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("imposta_ritmo", "ciclo_secondi"), &EcsMondo::imposta_ritmo);
 	// FASE 4 (P6): le tre letture vive — NON sono oracoli, le chiama il gioco
 	ClassDB::bind_method(D_METHOD("ammirazione", "id"), &EcsMondo::ammirazione);
-	ClassDB::bind_method(D_METHOD("dove", "id", "cosa", "se_niente"), &EcsMondo::dove);
+	ClassDB::bind_method(D_METHOD("dove", "id", "cosa", "soglia", "se_niente"), &EcsMondo::dove);
 	ClassDB::bind_method(D_METHOD("cosa_da_ricordare", "id", "soglia"), &EcsMondo::cosa_da_ricordare);
 	ClassDB::bind_method(D_METHOD("debug_grafo", "id"), &EcsMondo::debug_grafo);
 	ClassDB::bind_method(D_METHOD("debug_emozioni", "id"), &EcsMondo::debug_emozioni);
@@ -1024,6 +1024,11 @@ Dictionary EcsMondo::debug_grafo_costanti() const {
 	d["r_su_di_me"] = static_cast<int>(chibi::R_SU_DI_ME);
 	d["r_detto"] = static_cast<int>(chibi::R_DETTO);
 	d["byte_ricordo"] = static_cast<int>(sizeof(chibi::Ricordo));
+	// LA CURVA DELLE RIPETIZIONI, cosi il test non ne scrive nemmeno un
+	// numero a mano: `1 + rip_tetto·(q-1)/((q-1)+rip_mezza)`. Chi la tara
+	// fa muovere il test, invece di farlo mentire.
+	d["rip_tetto"] = chibi::RIP_TETTO;
+	d["rip_mezza"] = chibi::RIP_MEZZA;
 	PackedInt32Array cdv;
 	cdv.resize(static_cast<int>(chibi::N_VERBI));
 	for (int i = 0; i < static_cast<int>(chibi::N_VERBI); i++) {
@@ -1129,22 +1134,36 @@ int EcsMondo::racconta(int64_t p_a, int64_t p_b, double p_smorzamento) {
 	chibi::GrafoComponent &ga = _reg->reg.get<chibi::GrafoComponent>(da_handle(p_a));
 	chibi::GrafoComponent &gb = _reg->reg.get<chibi::GrafoComponent>(da_handle(p_b));
 
+	const float ora = static_cast<float>(_tempo);
+	const double mv = _reg->tar_occ.mezza_vita;
+
 	// COSA SA GIA B. Una maschera di verbi, e si guardano TUTTI i suoi
 	// ricordi — anche quelli che a sua volta ha solo sentito dire. Se una
 	// notizia gli e gia arrivata, ripassargliela non e un pettegolezzo: e un
 	// doppione nel suo grafo, che pesa due volte e gli occupa due righe delle
 	// ventiquattro.
+	//
+	// MA UN RICORDO SPENTO NON E CONOSCENZA, ed e la porta che il ritimbro
+	// dell'eco ha aperto: da quando l'intensita dell'eco porta anche il
+	// freddo che il ricordo ha gia preso (vedi sotto), una voce arrivata
+	// molto tardi entra nel grafo di B a intensita ZERO. Senza questa
+	// riga quella riga morta gli TAPPEREBBE quel verbo per sempre: chi
+	// avesse visto la cosa fresca non potrebbe piu raccontargliela, e la
+	// notizia vera resterebbe fuori per colpa di una che non pesa niente.
+	// `!(peso > 0)` prende zero, negativi e NaN, come ovunque qui.
 	uint32_t saputi = 0;
 	const int nb = (gb.g.n < chibi::MAX_FATTI) ? static_cast<int>(gb.g.n) : chibi::MAX_FATTI;
 	for (int i = 0; i < nb; i++) {
 		const uint8_t v = gb.g.f[i].verbo;
-		if (v < chibi::N_VERBI) {
-			saputi |= (1u << v);
+		if (v >= chibi::N_VERBI) {
+			continue;
 		}
+		if (!(chibi::peso(gb.g.f[i], ora, mv) > 0.0)) {
+			continue;
+		}
+		saputi |= (1u << v);
 	}
 
-	const float ora = static_cast<float>(_tempo);
-	const double mv = _reg->tar_occ.mezza_vita;
 	const int i = chibi::da_raccontare(ga.g, ora, mv, saputi);
 	if (i < 0) {
 		// IL SILENZIO E IL COMPORTAMENTO NORMALE, ed e importante che qui non
@@ -1205,8 +1224,26 @@ int EcsMondo::racconta(int64_t p_a, int64_t p_b, double p_smorzamento) {
 	// 140.25, e buttare via un quarto di punto per pigrizia su un canale che
 	// il giocatore percepisce come «piu fioco» e proprio il genere di
 	// sciatteria che si accumula.
+	//
+	// ⚠️ E CI VA ANCHE IL FREDDO CHE IL RICORDO HA GIA PRESO (`sconto_tempo`).
+	// Senza quel fattore la regola dichiarata qui sopra, in `sistema_occ` e
+	// in `grafo_ricordi` — «una voce non puo mai pesare piu dell'averlo visto
+	// con i propri occhi» — era vera SOLO NELL'ISTANTE del racconto: lo
+	// smorzamento stava nell'intensita, ma il tempo si RITIMBRAVA
+	// (`inserisci` scrive sempre `p_ora`), quindi la voce ripartiva da capo
+	// mentre il testimone continuava a dimenticare. MISURATO, con mezza vita
+	// 120 s: raccontata subito B/A = 0.55; raccontata dopo 104 s PAREGGIO;
+	// dopo 300 s B pesa 3,1 volte A; dopo 1200 s **562 volte**. La scena era
+	// questa: A ti vede annaffiare, e venti minuti di gioco dopo ha dimenticato;
+	// proprio allora incrocia B, e B — CHE NON C'ERA — si ritrova sopra
+	// soglia con la posizione esatta dell'aiuola e ci va. Era anche l'unico
+	// modo in cui un fatto sopravviveva alla mezza vita dichiarata.
+	// Col fattore, l'eco nasce gia raffreddata e da li in poi decade come
+	// l'originale: **B(t) = smorzamento · A(t) per SEMPRE**, non solo
+	// nell'istante. Il rapporto e costante e si misura.
 	eco.intensita = static_cast<uint8_t>(
-			static_cast<int>(static_cast<double>(orig.intensita) * sm + 0.5));
+			static_cast<int>(static_cast<double>(orig.intensita)
+					* chibi::sconto_tempo(orig, ora, mv) * sm + 0.5));
 	eco.px = orig.px;
 	eco.pz = orig.pz;
 
@@ -1297,7 +1334,8 @@ double EcsMondo::ammirazione(int64_t p_id) const {
 	return t.ammirazione;
 }
 
-Vector3 EcsMondo::dove(int64_t p_id, int p_cosa, const Vector3 &p_se_niente) const {
+Vector3 EcsMondo::dove(int64_t p_id, int p_cosa, double p_soglia,
+		const Vector3 &p_se_niente) const {
 	ERR_FAIL_COND_V(!conosce(p_id), p_se_niente);
 	// Una `cosa` fuori tabella non e un caso di degrado, e un errore di
 	// cablaggio: si dice. (Il ripiego torna lo stesso, cosi il chiamante non
@@ -1310,19 +1348,46 @@ Vector3 EcsMondo::dove(int64_t p_id, int p_cosa, const Vector3 &p_se_niente) con
 	const int n = (g.n < chibi::MAX_FATTI) ? static_cast<int>(g.n) : chibi::MAX_FATTI;
 	const float ora = static_cast<float>(_tempo);
 
+	// IL PAVIMENTO, e non e un ornamento: e la riga per cui un'ancora
+	// spostata TORNA A CASA.
+	//
+	// `migliore` partiva da zero, cioe da «qualunque peso maggiore di zero
+	// va bene» — e 2^(-dt/mv) non arriva a zero prima di **~1074 mezze
+	// vite** (trentasei ore di gioco). Misurato: un solo gesto visto da un
+	// vicino gli spostava l'ancora, e trenta giornate dopo — con
+	// l'ammirazione scesa a 0.000000 — l'ancora era ancora spostata. In
+	// partita voleva dire: posi UN palo di staccionata mentre qualcuno ti
+	// guarda, e da li in poi, per tutta la sessione, quel vicino ignora la
+	// panchina a tre metri da casa sua. E' la «conseguenza senza premessa»
+	// che questa fase esiste per rendere impossibile, ed e anche la seconda
+	// smentita della riga «l'emozione dura minuti e non lascia traccia».
+	//
+	// LA SOGLIA ARRIVA DAL CHIAMANTE, come `p_smorzamento` in `racconta` e
+	// `p_soglia` in `cosa_da_ricordare`: quanto a lungo un gesto deve
+	// contare e una decisione di GIOCO, e le decisioni di gioco stanno dove
+	// si leggono (`Visitors.AMMIRA_SOGLIA`). Zero riproduce esattamente il
+	// comportamento di prima, ed e cosi che il test lo puo falsificare.
+	//
+	// `!(soglia > 0)` prende zero, negativi E NaN: una taratura assurda
+	// dall'altra parte del ponte degrada verso «nessun pavimento», mai
+	// verso «nessun ricordo indica piu niente».
+	double migliore = p_soglia;
+	if (!(migliore > 0.0)) {
+		migliore = 0.0;
+	}
+
 	// A PARITA VINCE L'INDICE PIU BASSO, come in `da_raccontare`: nessun dado,
 	// mai. Due ricordi identici a pari peso devono mandare due vicini nello
 	// stesso posto, o la scena 4 diventa una monetina.
-	double migliore = 0.0;
 	int scelto = -1;
 	for (int i = 0; i < n; i++) {
 		if (g.f[i].cosa != static_cast<uint8_t>(p_cosa)) {
 			continue;
 		}
 		const double w = chibi::peso(g.f[i], ora, _reg->tar_occ.mezza_vita);
-		// `> migliore` con `migliore` a zero prende anche il caso di un
-		// ricordo spento (peso 0 o NaN): un ricordo che non pesa piu niente
-		// non ha piu un posto da indicare.
+		// `> migliore` prende anche il caso di un ricordo spento (peso 0 o
+		// NaN): un ricordo che non pesa piu niente non ha piu un posto da
+		// indicare.
 		if (w > migliore) {
 			migliore = w;
 			scelto = i;

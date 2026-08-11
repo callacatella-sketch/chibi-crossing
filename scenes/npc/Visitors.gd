@@ -65,6 +65,12 @@ var _pockets: Node
 var _chat_acc := 0.0
 var _wish_acc := 0.0
 var _pair_cd := {}
+## Il dado delle chiacchiere: chi si parla adesso e chi apre bocca. NON si
+## salva, ed è una decisione — una chiacchierata è ambiente, dura tre
+## secondi e non lascia niente dietro di sé (`_run_chat` tira già `randf()`
+## per il tema allo stesso titolo). I dadi che si salvano sono quelli che
+## decidono una vita, e stanno in `Animo`.
+var _chat_rng := RandomNumberGenerator.new()
 ## Chi ha addosso la posa della PORTA CHIUSA (label -> true), messa qui
 ## sotto. Serve a sapere che è NOSTRA: il meta "postura" lo usano anche gli
 ## Affetti e il telegrafo della ribellione, e con gli stessi nomi —
@@ -95,7 +101,11 @@ var _pp_prec := Vector3.ZERO
 var _spiegato_le_strade := false
 ## Chi ti sta venendo a cercare, e da quanto: {label -> secondi di attesa}.
 var _in_confronto := {}
-var _vita_cd := 0.0     # un solo toast di vita quotidiana ogni tanto
+## L'orologio del canale della vita quotidiana: secondi da quando gira il
+## villaggio. Non si salva — il canale è un ritmo, non uno stato.
+var _vita_orologio := 0.0
+var _vita_ultimo_qualunque := -1.0e18   # quando abbiamo detto QUALUNQUE cosa
+var _vita_ultimo := {}                  # genere -> quando abbiamo detto QUELLA
 
 var _prompt: PanelContainer
 var _prompt_label: Label
@@ -106,6 +116,10 @@ var _toast_label: Label
 func _ready() -> void:
 	add_to_group("persistable")
 	add_to_group("visitors")   # il cursore delle Voci ci chiede un assaggio
+	# in partita le chiacchiere non si ripetono uguali da una sessione
+	# all'altra; nei banchi il seme resta quello di fabbrica (che `_ready`
+	# non viene chiamato) e le misure sono ripetibili
+	_chat_rng.randomize()
 	_player = get_node("%Player")
 	_build = get_node("../BuildSystem")
 	_daynight = get_node_or_null("../DayNight")
@@ -229,7 +243,7 @@ func _process(delta: float) -> void:
 	# di routine, chi è impegnato (onsen, casa sull'albero) finisce.
 	# E intanto i bisogni scorrono: dormendo si ricarica l'energia.
 	var t_ora: float = float(_daynight.get("time")) if _daynight else 0.5
-	_vita_cd -= delta
+	_vita_orologio += delta
 	_ciclo_sonno(delta, t_ora)
 	_gesti_agenda()
 
@@ -472,7 +486,7 @@ func _recita(r: Dictionary, node: Node3D, brain: RefCounted, act: String, ph: St
 				node.call("do_task", "nibble", pos, func():
 					brain.satisfy("spuntino")
 					brain.remember("cibo", "uno spuntino ai cespugli"))
-				_vita_toast(L10n.tf("%s sgranocchia qualcosa tra i cespugli…", [r["label"]]))
+				_vita_toast("spuntino", L10n.tf("%s sgranocchia qualcosa tra i cespugli…", [r["label"]]))
 				return
 		"cura_giardino":
 			if _garden:
@@ -487,12 +501,12 @@ func _recita(r: Dictionary, node: Node3D, brain: RefCounted, act: String, ph: St
 							_garden.villager_water(bed)
 						brain.satisfy("cura_giardino")
 						brain.remember("fiore", "un'aiuola annaffiata"))
-					_vita_toast(L10n.tf("♥ %s sta annaffiando le tue aiuole!", [r["label"]]))
+					_vita_toast("annaffia", L10n.tf("♥ %s sta annaffiando le tue aiuole!", [r["label"]]))
 					return
 		"riposo":
 			if brain.get("quirk") == "pisolini_ovunque" and randf() < 0.5:
 				node.call("do_task", "nap", Vector3.ZERO, func(): brain.satisfy("pisolino"))
-				_vita_toast(L10n.tf("%s si è addormentato lì, così.", [r["label"]]))
+				_vita_toast("pisolino", L10n.tf("%s si è addormentato lì, così.", [r["label"]]))
 				return
 			# LA SCENA 3: la panchina si sceglie da un'ancora che, per chi ti
 			# ammira e ce l'ha vicino, è spostata di qualche metro verso di te.
@@ -554,7 +568,7 @@ func _recita(r: Dictionary, node: Node3D, brain: RefCounted, act: String, ph: St
 			node.call("do_task", "stella", Vector3.ZERO, func():
 				brain.satisfy("stella")
 				brain.remember("dormire", "una notte di stelle"))
-			_vita_toast(L10n.tf("%s è rimasto fuori a guardare le stelle…", [r["label"]]))
+			_vita_toast("stelle", L10n.tf("%s è rimasto fuori a guardare le stelle…", [r["label"]]))
 			return
 		"regia":
 			var piano := _regia_plan(r, ph)
@@ -806,8 +820,24 @@ func testimoni(pos: Vector3, raggio: float) -> Array:
 ## Non è un raggio d'azione: è la lunghezza del guinzaglio che questo sistema
 ## NON deve avere. Sei metri stanno dentro il cortile di casa (le case del
 ## villaggio distano fra loro molto di più) e sono la metà scarsa del raggio
-## con cui si cerca una panchina (16 m): l'ancora spostata cambia QUALE
-## panchina, non fa comparire un villaggio nuovo di panchine.
+## con cui si cerca una panchina (16 m).
+##
+## ⚠️ MA IL CORPO PUÒ ARRIVARE PIÙ LONTANO DI SEI METRI, e per un po' qui
+## c'è stato scritto il contrario («l'ancora spostata cambia QUALE panchina,
+## non fa comparire un villaggio nuovo di panchine»). Non è vero, e la
+## differenza si misura: `_free_bench` cerca entro 16 m **dall'ancora**, e
+## se l'ancora è già a sei metri da casa il posto scelto può stare a
+## ventidue — misurato, un vicino si è seduto a dieci metri da casa sua
+## proprio per questo. Il raggio di ricerca cresce davvero, da 16 a 22 m.
+##
+## **Ed è voluto**, perché è esattamente la scena 2: posi una panchina in
+## un angolo del villaggio mentre qualcuno ti guarda, e quel qualcuno ci va.
+## Se si filtrasse il risultato a 16 m da casa, la panchina appena posata un
+## po' più in là non chiamerebbe più nessuno — cioè l'emozione TOGLIEREBBE,
+## che è la cosa che qui non deve mai succedere. Quello che questa costante
+## garantisce non è un raggio: è che **nessuno cammini verso una PERSONA**.
+## Si cammina verso una panchina, che sta ferma, e non più lontano di
+## SPOSTA_MAX + il raggio di sempre.
 const SPOSTA_MAX := 6.0
 
 ## Fin dove si cerca un'aiuola che ha sete, in metri.
@@ -822,13 +852,29 @@ const SPOSTA_MAX := 6.0
 ## chi ha visto cosa — senza un errore, e con la suite verde.
 const RAGGIO_AIUOLA := 14.0
 
-## Quanta ammirazione serve perché l'ancora del riposo si sposti.
+## SOTTO QUESTO PESO, QUELLO CHE HAI VISTO NON SPOSTA PIÙ NIENTE.
 ##
-## L'unità è quella di `Tinte.ammirazione`: un'occhiata sola, fresca, a gusto
-## neutro vale esattamente **1.0**, e dimezza ogni mezza giornata di gioco.
-## 0.35 è quindi «poco più di un'occhiata e mezza fa» — misurato: una sola
-## osservazione tiene l'ancora spostata per 1,51 mezze vite, cioè circa tre
+## UN NUMERO SOLO PER TUTTE E DUE LE ANCORE, ed è la cosa importante di
+## questa riga. Lo leggono:
+##  · `ancora_riposo`, contro `Tinte.ammirazione` (la somma di tutto quello
+##    che ti ha visto fare) — «mi fa piacere che tu sia qui»;
+##  · `_ancora_ricordo`, contro il peso del SINGOLO ricordo che nomina il
+##    posto (`EcsMondo.dove`) — «l'aiuola che ti ho vista annaffiare».
+## Sono due domande diverse fatte nella STESSA unità: l'occhiata. Un ricordo
+## fresco, visto una volta, non fatto a me, a gusto neutro pesa esattamente
+## **1.0** (`chibi::peso`), e dimezza ogni mezza giornata di gioco. 0.35 è
+## quindi «poco più di un'occhiata e mezza fa» — misurato: una sola
+## osservazione tiene un'ancora spostata per 1,51 mezze vite, cioè circa tre
 ## minuti di gioco, poi si riassesta da sola.
+##
+## ⚠️ IL SECONDO LETTORE È NUOVO, E PRIMA NON C'ERA: `dove()` accettava
+## qualunque peso maggiore di zero, e `2^(-dt/mezza_vita)` non arriva a zero
+## prima di ~1074 mezze vite. Misurato: posato UN palo di staccionata sotto
+## gli occhi di un vicino, la sua ancora restava spostata dopo trenta
+## giornate di gioco, con l'ammirazione a 0.000000. Cioè quel vicino
+## ignorava per sempre la panchina a tre metri da casa sua per una cosa che
+## non ricordava più. Il valore non è cambiato: è cambiato il numero di
+## posti che lo guardano — e se un domani si tara, si tara **una volta**.
 ##
 ## Perché bassa e non alta: questa non è una scena rara da conservare, è una
 ## tendenza. Deve capitare abbastanza spesso da diventare una cosa che il
@@ -852,11 +898,22 @@ const MOCHI_VICINA := 20.0
 ## Le due strade per superarla sono le due che vale la pena ricordare, e non
 ## è una coincidenza — sono i due moltiplicatori che `chibi::peso` conosce:
 ##  · **l'hai fatto a me** (R_SU_DI_ME raddoppia): un regalo, un piatto;
-##  · **ti ho vista farlo a lungo** (`quante`, +25% per ripetizione dentro la
-##    finestra di fusione): sei aiuole nello stesso pomeriggio.
-## Una passata di sfuggita, invece, non diventa il ricordo di una vita — ed è
-## esattamente il motivo per cui annaffiare in cerchio davanti a un vicino
-## non serve a niente (regola 6: il gesto gentile non è una moneta).
+##  · **ti ho vista farlo a lungo** (`quante`): due volte dentro la finestra
+##    di fusione bastano (1.375), sei valgono 2.25.
+## Una passata di sfuggita, invece, non diventa il ricordo di una vita.
+##
+## ⚠️ QUI C'ERA SCRITTO che questa soglia è «il motivo per cui annaffiare in
+## cerchio davanti a un vicino non serve a niente», e le due righe di sopra
+## dicevano già il contrario: farlo a lungo È una delle due strade per
+## superarla. Insistere serve, e deve servire — «ti ho vista lavorare tutto
+## il pomeriggio» è una cosa vera che vale la pena ricordarsi. Quello che
+## non deve succedere è che insistere PAGHI SENZA FINE, e a tenerlo chiuso
+## non è questa soglia: è il tetto delle ripetizioni in `chibi::peso`
+## (`RIP_TETTO`), che ferma un pomeriggio intero a quattro occhiate. Con
+## quello, il tempo che una conseguenza dura passa da 185 s (un gesto) a un
+## massimo di 422 s — per qualunque insistenza, misurato. E la promozione
+## resta comunque **una al giorno**: annaffiare in cerchio non riempie la
+## memoria di nessuno.
 const RICORDO_SOGLIA := 1.0
 
 ## L'ANCORA DEL RIPOSO — pura, e per questo falsificabile una valvola per
@@ -902,15 +959,24 @@ func _ammirazione_di(r: Dictionary) -> float:
 ## traduzione vive in un posto solo, di là, e un nome sbagliato si ferma qui
 ## con un avviso invece di diventare in silenzio il ricordo di un'altra cosa.
 ##
-## DUE COSE CHE SEMBRANO DETTAGLI E NON LO SONO:
+## TRE COSE CHE SEMBRANO DETTAGLI E NON LO SONO:
 ##  · il ripiego di `dove()` è `home`, quindi «non ricordo niente» produce
 ##    `home.move_toward(home, …)` = `home` ESATTO: chi non ha visto niente si
 ##    comporta come si è sempre comportato, bit per bit, senza un `if`;
 ##  · si sposta verso un POSTO, mai verso una persona. È tutta la differenza
-##    con `ancora_riposo`, ed è il motivo per cui questa non ha bisogno di
-##    nessuna valvola: un'aiuola e una panchina non camminano, quindi qui non
+##    con `ancora_riposo`, ed è il motivo per cui questa non ha bisogno delle
+##    sue due valvole: un'aiuola e una panchina non camminano, quindi qui non
 ##    c'è nessuno che si possa seguire (regola 5, il guinzaglio che non deve
-##    esistere).
+##    esistere);
+##  · **la soglia**, ed è la sola cosa che fa TORNARE INDIETRO l'ancora. Un
+##    ricordo scende sotto `AMMIRA_SOGLIA` in tre minuti di gioco e da lì in
+##    poi `dove()` risponde `home`, cioè l'ancora si riassesta da sé. Senza
+##    quel numero l'ancora poteva solo essere SOSTITUITA, mai tornare: il
+##    peso di un ricordo non arriva a zero prima di trentasei ore di gioco,
+##    e un palo di staccionata posato sotto gli occhi di un vicino gli
+##    cambiava la panchina per tutta la sessione. La soglia sta di qua e non
+##    dentro il C++ per la stessa ragione dello smorzamento del
+##    pettegolezzo: è una decisione di gioco, e si legge dove si prende.
 func _ancora_ricordo(r: Dictionary, home: Vector3, cosa: String) -> Vector3:
 	if _ecs == null or not is_instance_valid(_ecs) or not r.has("ecs"):
 		return home
@@ -920,7 +986,8 @@ func _ancora_ricordo(r: Dictionary, home: Vector3, cosa: String) -> Vector3:
 		# non si sposta mai, cioè come niente, per sempre e con la suite verde
 		push_warning("Visitors: cosa sconosciuta «%s» (l'ancora non si sposterà mai)" % cosa)
 		return home
-	return home.move_toward(_ecs.dove(int(r["ecs"]), c, home), SPOSTA_MAX)
+	return home.move_toward(
+			_ecs.dove(int(r["ecs"]), c, AMMIRA_SOGLIA, home), SPOSTA_MAX)
 
 
 ## UN POSTO DOVE SEDERSI, e DA DOVE si cerca. Tre ancore in ordine, e si
@@ -1023,8 +1090,16 @@ func _aiuola_da_curare(r: Dictionary, home: Vector3) -> Node3D:
 ## salvataggio, e `debug_quirk` scrive su un cervello vivo: una copia in C++
 ## fotografata alla registrazione diventerebbe stale al primo cambiamento,
 ## **con la suite verde**. Si ricalcola, si confronta, e si spinge solo se è
-## cambiato davvero — così il gradino del modulatore di là non viene
-## annullato trenta volte al secondo.
+## cambiato davvero.
+##
+## COSA FA DAVVERO QUESTO CONFRONTO, e cosa NON fa. Non è lui a impedire che
+## il gradino del modulatore venga annullato di continuo: quello lo fa già
+## `EcsMondo::riferisci_gusto`, che confronta le sei voci di là e invalida la
+## vista SOLO se una è cambiata (src/ecs_mondo.cpp) — MISURATO da una
+## revisione avversariale, che ha visto la mutazione «riproietta sempre»
+## restare verde proprio per quello. Qui il confronto risparmia un
+## marshalling di Variant per residente ogni `FATTI_OGNI` frame: piccolo, ma
+## la ragione è quella, e vale la pena scriverla giusta.
 func _cuore_di(r: Dictionary) -> void:
 	if _ecs == null or not is_instance_valid(_ecs) or not r.has("ecs"):
 		return
@@ -1059,6 +1134,13 @@ func _cuore_di(r: Dictionary) -> void:
 	# sei e ha già un consumatore che lo mette in scena senza parole. Il grafo
 	# dei ricordi, lui, non si salva: l'emozione dura minuti e non lascia
 	# traccia, o si imparerebbe a farsi guardare per «caricare» qualcuno.
+	#
+	# «DURA MINUTI» NON È GRATIS: non basta non salvare il grafo, perché una
+	# CONSEGUENZA può sopravvivere al ricordo che l'ha prodotta. È già
+	# successo due volte, e le due riparazioni sono `AMMIRA_SOGLIA` passata a
+	# `dove()` (l'ancora che torna a casa) e il freddo che `racconta` incide
+	# nell'eco (la voce che non risorge). Chi aggiunge un terzo lettore del
+	# grafo deve chiedersi non «cosa legge», ma **quando smette di leggere**.
 	if bool(r.get("promosso_oggi", false)):
 		return
 	var c: int = int(_ecs.cosa_da_ricordare(id, RICORDO_SOGLIA))
@@ -2330,15 +2412,15 @@ func _quirk_tick(r: Dictionary, node: Node3D, brain: RefCounted, delta: float, t
 			if fungo:
 				node.call("do_task", "chat_fungo",
 						fungo.global_position + Vector3(0.5, 0, 0.4), Callable())
-				_vita_toast(L10n.tf("%s sta confidando un segreto a un fungo…", [r["label"]]))
+				_vita_toast("fungo", L10n.tf("%s sta confidando un segreto a un fungo…", [r["label"]]))
 		"paura_farfalle":
 			if _cozy and int(_cozy.call("nearest_butterfly", node.global_position, 1.6)) >= 0:
 				node.call("do_task", "startle", Vector3.ZERO, Callable())
-				_vita_toast(L10n.tf("Una farfalla ha spaventato %s!", [r["label"]]))
+				_vita_toast("farfalla", L10n.tf("Una farfalla ha spaventato %s!", [r["label"]]))
 		"canta_alla_luna":
 			if t_ora >= 0.78 and t_ora < 0.95:
 				node.call("do_task", "sing", Vector3.ZERO, Callable())
-				_vita_toast(L10n.tf("♪ %s sta cantando alla luna.", [r["label"]]))
+				_vita_toast("canto", L10n.tf("♪ %s sta cantando alla luna.", [r["label"]]))
 		"colleziona_sassolini":
 			# la mania che diventa un dono: chi colleziona sassolini, quando
 			# ne trova uno DAVVERO piatto e tu sei lì vicino, te lo porta —
@@ -2355,11 +2437,111 @@ func _quirk_tick(r: Dictionary, node: Node3D, brain: RefCounted, delta: float, t
 						func(): brain.satisfy("pisolino"))
 
 
-# un solo racconto di vita ogni tanto: la quiete è il prodotto
-func _vita_toast(testo: String) -> void:
-	if _vita_cd > 0.0:
+# ------------------------------------------------- il canale della vita
+#
+# Quello che i vicini combinano, detto al giocatore in una riga sola. È
+# l'unico canale del gioco che parla senza essere stato interrogato, e per
+# questo ha due lucchetti invece di uno.
+
+## IL RITMO: quanto tace il canale dopo aver detto QUALUNQUE cosa.
+## Un solo racconto di vita ogni tanto — la quiete è il prodotto.
+const QUIETE := 25.0
+
+## Il ripiego per la memoria del canale dove non c'è nessun DayNight (i
+## banchi di prova, il prologo, il diorama): la giornata di fabbrica.
+const GIORNO_DI_RIPIEGO := 240.0
+
+## LA MEMORIA DEL CANALE: la stessa notizia non si ripete prima che sia
+## passata una GIORNATA intera (`DayNight.cycle_seconds`, letto di là e mai
+## ricopiato — è la stessa fonte da cui il cuore deriva le mezze vite dei
+## ricordi). È una finestra che scorre, non il calendario: nessuno scalino a
+## mezzanotte, e la garanzia è esattamente «al più una volta al giorno».
+##
+## ⚠️ QUESTO LUCCHETTO È NATO DA UNA CONSEGUENZA DELLA FASE 4 CHE NESSUNO
+## AVEVA PREVISTO, e che non aggiunge una riga di testo nuova — quindi né la
+## guardia della localizzazione né i test delle emozioni potevano vederla.
+## Chi ti ha vista annaffiare ha più voglia di annaffiare (il modulatore di
+## `cura_giardino` sale a 1.4278 misurato), quindi lo fa più spesso, quindi
+## il villaggio te lo SCRIVE IN FACCIA più spesso. Misurato nel MainLevel
+## vero (`tools/prova_toast.gd`: quattro vicini, sei aiuole tenute assetate,
+## due fasi da 900 s con gli stessi corpi e gli stessi bisogni di partenza,
+## e fra le due cambia SOLO il modulatore):
+##
+##   il GESTO    annaffiature vere    27 → 38   (+41%)
+##   l'OFFERTA   notizie proposte     23 → 40   (+74%)
+##   il FEED     toast letti          17 → 21   (col canale di allora)
+##
+## Ventun volte «♥ X sta annaffiando le tue aiuole!» in un quarto d'ora, una
+## ogni quarantacinque secondi, sempre la stessa frase col nome cambiato:
+## fai il gesto gentile, e il gioco comincia a mandarti notifiche. È «il
+## villaggio non commenta MAI» violato da una porta di servizio.
+##
+## LA CURA STA NEL CANALE, NON NEL MODULATORE, ed è una decisione: che i
+## vicini annaffino di più è la Fase 4 che funziona — la scena 4 è tornare
+## all'orto e TROVARCI il proprio gesto fatto da un altro. Un toast che te
+## lo annuncia è la cosa che quella scena non voleva: toglie la scoperta.
+## Perciò il gesto resta com'è (misurato dopo la cura: sempre 27 → 38) e
+## cambia solo quanto se ne parla — **3 → 3**.
+##
+## IL NUMERO SI È SCELTO GUARDANDO I CINQUE FEED, non a occhio. Lo stesso
+## quarto d'ora caldo, rigiocato attraverso questo predicato a cinque
+## tarature (`prova_toast.gd` lo stampa; le notizie offerte non dipendono
+## dal filtro, quindi il confronto è esatto):
+##
+##   0 s (il canale di allora)  21 toast — uno ogni 45 s: un feed
+##   60 s                       11 — uno ogni 80 s, si sente ancora il ritmo
+##   120 s                       7 — uno ogni due minuti, e si ripete
+##   240 s (una giornata)        4 — uno ogni quattro minuti
+##   480 s                       2 — la vita del villaggio sparisce
+##
+## Da 120 in su il freddo e il caldo pareggiano; a 240 la frase smette di
+## sembrare una notifica e la vita si sente ancora, e in più è l'unico
+## valore che ha una RAGIONE invece di una taratura.
+##
+## E il lucchetto è PER GENERE, non più stretto in generale, perché c'è un
+## guasto gemello che va nella direzione opposta: con il solo lucchetto
+## globale le notizie comuni si mangiavano il canale e quelle rare — il
+## segreto al fungo, la farfalla, il canto alla luna, la notte sotto le
+## stelle — perdevano la corsa. Si conta dal diario: a 0 s l'annaffiatura
+## teneva il canale chiuso per 21·25 = 525 s su 900, cioè **il 58% del
+## tempo una notizia rara sarebbe stata inghiottita**; adesso l'8%.
+## Stringere il lucchetto globale avrebbe peggiorato proprio quello.
+static func vita_zitta(ora: float, ultimo_qualunque: float, ultimo_genere: float,
+		quiete: float, quiete_genere: float) -> bool:
+	return ora - ultimo_qualunque < quiete or ora - ultimo_genere < quiete_genere
+
+
+## Il diario di quello che il canale si è sentito OFFRIRE, uscito o no —
+## spento in partita, lo accende `debug_registra_vita`.
+##
+## Non è impalcatura da banco: un canale il cui mestiere è scegliere cosa
+## NON dire non si può giudicare guardando solo quello che è uscito. Due
+## tarature molto diverse danno lo stesso numero di toast quando il
+## lucchetto globale è saturo, e senza le notizie fermate non c'è modo di
+## sapere quale delle due sta zitta sulla cosa giusta.
+var debug_vita_diario: Array = []
+var debug_vita_registra := false
+
+
+func debug_registra_vita(acceso: bool) -> void:
+	debug_vita_registra = acceso
+	if acceso:
+		debug_vita_diario.clear()
+
+
+func _vita_toast(genere: String, testo: String) -> void:
+	var quiete_genere := GIORNO_DI_RIPIEGO
+	if _daynight != null and is_instance_valid(_daynight):
+		quiete_genere = float(_daynight.cycle_seconds)
+	var zitta := vita_zitta(_vita_orologio, _vita_ultimo_qualunque,
+			float(_vita_ultimo.get(genere, -1.0e18)), QUIETE, quiete_genere)
+	if debug_vita_registra:
+		debug_vita_diario.append({"t": _vita_orologio, "genere": genere,
+				"testo": testo, "uscita": not zitta})
+	if zitta:
 		return
-	_vita_cd = 25.0
+	_vita_ultimo_qualunque = _vita_orologio
+	_vita_ultimo[genere] = _vita_orologio
 	_show_toast(testo)
 
 
@@ -2433,6 +2615,67 @@ func _free_bench(from: Vector3) -> Node3D:
 	return migliore
 
 
+## CHI CHIACCHIERA ADESSO, E CHI APRE BOCCA — pura, e la sola cosa di
+## `_chats` che meriti di esistere da sola.
+##
+## ⚠️ PRIMA DELLA FASE 4 QUESTA DECISIONE NON ESISTEVA, ed è il difetto che
+## questa funzione è nata per chiudere. `_chats` scandiva le coppie con due
+## cicli annidati (`for i … for j in range(i + 1, …)`) e si fermava alla
+## PRIMA buona, chiamando `_run_chat(a, b)` con **sempre i < j**. Finché
+## l'ordine era solo coreografia (chi mostra per primo la nuvoletta) non
+## voleva dire niente. Da quando `EcsMondo.racconta(a, b)` è asimmetrica
+## per contratto — A parla, B ascolta — quell'ordine è SEMANTICA, e il
+## posto in `_residents` decideva chi ha una voce. Due misure, nel villaggio
+## vero (`tools/prova_chiacchiere.gd`):
+##
+##  · **il capannello** — cinque vicini addosso, una notizia a testa, 300 s:
+##    86 chiacchierate, gli indici 0-3 hanno raccontato una volta ciascuno e
+##    **l'indice 4 ZERO**, pur avendo chiacchierato 33 volte. In generale il
+##    residente k poteva raccontare solo a k+1…N−1, e l'ULTIMO a nessuno.
+##  · **il falò** — dodici vicini sull'anello vero del fuoco, dove ognuno ha
+##    quattro persone a portata di voce, 600 s: 181 chiacchierate e **cinque
+##    residenti su dodici non hanno aperto bocca NEMMENO UNA VOLTA** (gli
+##    indici 5-9), perché la prima coppia in ordine lessicografico vinceva
+##    sempre e le altre non arrivavano mai al proprio turno.
+##
+## E in coda a `_residents` ci finiscono, per costruzione, il vicino appena
+## arrivato (`_settle`) e il cucciolo appena nato (`Nascite`): il villaggio
+## aveva **un solo cronista stabile, il più anziano**, e quello che i nuovi
+## ti vedevano fare non usciva mai dalla loro testa.
+##
+## Le due leve sono diverse e servono tutte e due — riparare il verso e
+## lasciare la scelta della coppia in ordine di anagrafe vorrebbe dire che
+## il cucciolo può raccontare, ma non incontra mai nessuno:
+##
+##  1. **LA COPPIA SI SORTEGGIA** fra tutte quelle a portata di voce, con un
+##     campionamento a serbatoio: uniforme in una passata sola, senza una
+##     seconda lista da allocare dentro il frame.
+##  2. **CHI APRE BOCCA È IL MOMENTO, NON L'ANAGRAFE**: una monetina. Resta
+##     UN tentativo di racconto per incontro — quanto se ne parla nel
+##     villaggio non cambia, cambia solo che non è sempre lo stesso a
+##     parlare. (Provare tutti e due i versi raddoppierebbe il passaparola,
+##     e con lui le conseguenze che i vicini traggono da un ricordo altrui:
+##     è una taratura sua, non una riparazione.)
+##
+## `coppie` sono le coppie **già ordinate** (i < j, che è l'identità della
+## coppia e la chiave del suo cooldown). Torna `Vector2i(chi_parla,
+## chi_ascolta)`, oppure `Vector2i(-1, -1)` se non c'è nessuno che si parli.
+static func scegli_chiacchiera(coppie: Array, rng: RandomNumberGenerator) -> Vector2i:
+	var scelta := Vector2i(-1, -1)
+	var quante := 0
+	for c in coppie:
+		quante += 1
+		# campionamento a serbatoio: la k-esima candidata prende il posto con
+		# probabilità 1/k, e alla fine tutte hanno avuto la stessa
+		if int(rng.randi() % quante) == 0:
+			scelta = c as Vector2i
+	if scelta.x < 0:
+		return scelta
+	if rng.randf() < 0.5:
+		return Vector2i(scelta.y, scelta.x)
+	return scelta
+
+
 # due vicini si scambiano nuvolette: zero testo, tanta vita
 func _chats(delta: float) -> void:
 	_chat_acc -= delta
@@ -2440,25 +2683,42 @@ func _chats(delta: float) -> void:
 		return
 	_chat_acc = 3.5
 	var chatty := ["r_idle", "r_wander", "r_sniff", "r_fire", "r_bench"]
+	var now := Time.get_ticks_msec()
+	# SI GUARDANO TUTTE, e non è uno spreco: la scansione completa la si
+	# pagava già ogni volta che nessuno si parlava — cioè quasi sempre —
+	# perché il ciclo si interrompeva solo QUANDO trovava una coppia. Quello
+	# che si paga in più è una tacca su ventiquattro.
+	# MISURATO nel caso peggiore che esista (ventotto residenti tutti
+	# attorno al falò, dove la prova a buon mercato non scarta più niente,
+	# `tools/prova_chiacchiere.gd` sezione 3): **771 µs a scatto, e uno
+	# scatto ogni 3,5 s = 0,22 ms al secondo.**
+	# La DISTANZA sta per prima perché è la prova che ne scarta di più, e le
+	# due chiamate a `is_hidden` (le sole vere chiamate di metodo) per
+	# ultime, così quasi nessuna coppia ci arriva.
+	var coppie: Array[Vector2i] = []
 	for i in _residents.size():
 		for j in range(i + 1, _residents.size()):
 			var a := _residents[i].get("node") as Node3D
 			var b := _residents[j].get("node") as Node3D
 			if a == null or b == null or not is_instance_valid(a) or not is_instance_valid(b):
 				continue
-			if a.call("is_hidden") or b.call("is_hidden"):
+			if a.global_position.distance_to(b.global_position) > 1.9:
 				continue
 			if str(a.get("_state")) not in chatty or str(b.get("_state")) not in chatty:
 				continue
-			if a.global_position.distance_to(b.global_position) > 1.9:
+			if a.call("is_hidden") or b.call("is_hidden"):
 				continue
-			var key := "%d_%d" % [i, j]
-			var now := Time.get_ticks_msec()
-			if now - int(_pair_cd.get(key, -99999)) < 35000:
+			# la chiave del cooldown è la COPPIA (i < j), e resta tale: sono
+			# due persone che si sono appena viste, non un verso
+			if now - int(_pair_cd.get("%d_%d" % [i, j], -99999)) < 35000:
 				continue
-			_pair_cd[key] = now
-			_run_chat(a, b)
-			return
+			coppie.append(Vector2i(i, j))
+	var scelta := scegli_chiacchiera(coppie, _chat_rng)
+	if scelta.x < 0:
+		return
+	_pair_cd["%d_%d" % [mini(scelta.x, scelta.y), maxi(scelta.x, scelta.y)]] = now
+	_run_chat(_residents[scelta.x].get("node") as Node3D,
+			_residents[scelta.y].get("node") as Node3D)
 
 
 # LE CHIACCHIERE HANNO UN TEMA: la parola Chibiese detta a voce e il simbolo
@@ -2478,6 +2738,17 @@ func _res_of(node: Node3D) -> Dictionary:
 	return {}
 
 
+## UNA CHIACCHIERATA, E NON È SIMMETRICA: `a` è **chi apre bocca**, `b` chi
+## risponde. Quasi tutto qui dentro va nei due versi (si guardano, si
+## nutrono a vicenda l'affetto e la compagnia, il libro mastro segna due
+## gesti), ma due cose no — il PETTEGOLEZZO (`racconta(a, b)`: A racconta,
+## B ascolta) e la nuvoletta, che esce dalla bocca di A e solo dopo un
+## secondo da quella di B.
+##
+## Chi passa i due corpi in un ordine invece che nell'altro sta perciò
+## decidendo chi ha una voce, non una coreografia. In `_chats` lo decide una
+## monetina (`scegli_chiacchiera`); a chiamarla in ordine di anagrafe si
+## azzittisce metà villaggio, e la storia sta là sopra.
 func _run_chat(a: Node3D, b: Node3D) -> void:
 	a.call("face_towards", b.global_position)
 	b.call("face_towards", a.global_position)
@@ -2497,7 +2768,8 @@ func _run_chat(a: Node3D, b: Node3D) -> void:
 	# avvisati.
 	#
 	# IL SILENZIO È IL COMPORTAMENTO NORMALE: `racconta` torna -1 quasi
-	# sempre (misurato: 100 chiacchiere con notizia contro 412 mute), perché
+	# sempre (misurato su ventotto vicini per mezz'ora, col verso deciso
+	# come in partita: 111 chiacchiere con notizia contro 403 mute), perché
 	# una notizia si racconta UNA volta e chi l'ha sentita non la ripassa.
 	# Quando tace, il tema torna a essere quello di sempre.
 	#

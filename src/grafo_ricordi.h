@@ -25,6 +25,18 @@
 //    riga scartata in silenzio. L'emozione dura minuti e non lascia traccia
 //    — se durasse, il gesto gentile diventerebbe una moneta e si
 //    imparerebbe ad annaffiare in cerchio per «caricare» i vicini.
+//    ⚠️ «NON LASCIA TRACCIA» NON È GRATIS, e per due volte è stato FALSO
+//    mentre questa riga lo dichiarava. Le due strade per cui un ricordo
+//    sopravviveva alla propria mezza vita erano: (a) un CONSUMATORE senza
+//    pavimento — `EcsMondo::dove()` accettava qualunque peso > 0, e
+//    2^(-dt/mv) non arriva a zero prima di ~1074 mezze vite, quindi
+//    l'ancora spostata da un gesto non tornava mai a casa (misurato: dopo
+//    trenta giornate di gioco, con l'ammirazione a 0.000000, era ancora
+//    spostata); (b) il RITIMBRO dell'eco — `racconta` ricopiava
+//    l'intensità intera su un ricordo timbrato ADESSO, e la voce
+//    ripartiva da capo (misurato: dopo venti minuti chi aveva SENTITO
+//    pesava 562 volte chi aveva VISTO). Chi aggiunge un lettore nuovo del
+//    grafo si chieda quale delle due strade sta riaprendo.
 //  · nessun rng. I dadi del villaggio si salvano (Animo._rng): un secondo
 //    generatore qui sarebbe una seconda storia che nessun salvataggio
 //    racconta. Perciò `da_raccontare()` è DETERMINISTICO fino ai pareggi.
@@ -141,10 +153,48 @@ struct GrafoRicordi {
 	uint32_t versione = 0;
 };
 
+// LE RIPETIZIONI SATURANO, e questa è la sola cosa che rende vera la frase
+// «il ventesimo gesto conta meno del secondo» scritta in mezzo progetto.
+//
+//   ripetizioni(q) = 1 + RIP_TETTO · (q-1) / ((q-1) + RIP_MEZZA)
+//
+// Prima era `1 + 0.25·(q-1)`, cioè LINEARE: il ventesimo gesto contava
+// esattamente quanto il secondo (+0.25 tondi tutti e due) e la
+// duecentocinquantacinquesima annaffiatura valeva 64,5 volte una. Con la
+// soglia in mano al chiamante quella crescita non è innocua: la durata di
+// una conseguenza è `mezza_vita · log2(peso/soglia)`, quindi un peso che
+// cresce senza tetto è una DURATA che cresce senza tetto — cioè la moneta
+// che il progetto dichiara impossibile in quattro file. Misurato prima (con
+// la soglia `Visitors.AMMIRA_SOGLIA` e la mezza vita del gioco): 1 gesto
+// 185 s, 30 gesti 550 s, 255 gesti 905 s. Misurato dopo: 185 s, 395 s,
+// 420 s — e il tetto, per QUALUNQUE insistenza, è 422 s.
+//
+// I due numeri non sono scelti a caso e non sono tarati a occhio:
+//  · RIP_TETTO = 3 → un pomeriggio intero vale al massimo QUATTRO occhiate,
+//    che è la stessa scala dell'unica altra asimmetria del file (R_SU_DI_ME
+//    ne vale due). Un tetto più alto rimetterebbe la moneta, uno più basso
+//    renderebbe indistinguibile «ti ho vista lavorare tutto il giorno» da
+//    «ti ho intravista».
+//  · RIP_MEZZA = 7 è DERIVATO, non scelto: è l'unico valore che tiene
+//    `ripetizioni(6) = 2.25` ESATTO, cioè che conserva bit per bit
+//    l'esempio già scritto e già provato («sei aiuole valgono 2.25 volte
+//    una, non sei»). Cambiare il tetto senza rifare questo conto rompe
+//    quell'esempio in silenzio.
+constexpr double RIP_TETTO = 3.0;
+constexpr double RIP_MEZZA = 7.0;
+
+// QUANTO S'È RAFFREDDATO: il solo fattore del TEMPO, 2^(-(ora-quando)/mv),
+// in [0,1]. Sta qui, e non dentro `peso()` soltanto, perché ha un secondo
+// lettore che ne ha bisogno da solo: `EcsMondo::racconta`, che deve
+// incidere nell'eco il freddo che il ricordo ha già preso (vedi la nota
+// (b) in cima). Due esponenziali scritti in due posti sono due orologi
+// sullo stesso ricordo, ed è il difetto che tutta questa fase evita.
+double sconto_tempo(const Ricordo &p_ricordo, float p_ora, double p_mezza_vita);
+
 // IL PESO DI UN RICORDO, E DECADE IN LETTURA.
 //
 //   (intensita/255) · 2^(-(ora-quando)/mezza_vita)
-//                   · (1 + 0.25·(quante-1))
+//                   · ripetizioni(quante)
 //                   · (su_di_me ? 2 : 1)
 //
 // È l'idioma di `Animo._recenza` (scenes/npc/Animo.gd), e non è una

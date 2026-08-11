@@ -28,7 +28,7 @@ constexpr double MV_MINIMA = 1.0e-6;
 
 } // namespace
 
-double peso(const Ricordo &p_ricordo, float p_ora, double p_mezza_vita) {
+double sconto_tempo(const Ricordo &p_ricordo, float p_ora, double p_mezza_vita) {
 	const double mv = (p_mezza_vita > MV_MINIMA) ? p_mezza_vita : MV_MINIMA;
 
 	double dt = static_cast<double>(p_ora) - static_cast<double>(p_ricordo.quando);
@@ -40,16 +40,24 @@ double peso(const Ricordo &p_ricordo, float p_ora, double p_mezza_vita) {
 	if (dt < 0.0) {
 		dt = 0.0;
 	}
+	return std::exp2(-dt / mv);
+}
 
-	// le ripetizioni contano poco per volta: sei aiuole valgono 2.25 volte
-	// una, non sei. Un pomeriggio in giardino non deve schiacciare tutto il
-	// resto di quello che si è fatto.
+double peso(const Ricordo &p_ricordo, float p_ora, double p_mezza_vita) {
+	// LE RIPETIZIONI SATURANO: sei aiuole valgono 2.25 volte una, e
+	// duecentocinquantacinque ne valgono 3.92 — non 64,5. Un pomeriggio in
+	// giardino non deve schiacciare tutto il resto di quello che si è
+	// fatto, e nessuna insistenza deve poter comprare una conseguenza più
+	// lunga di quattro occhiate: la durata è `mv · log2(peso/soglia)`, e un
+	// peso senza tetto è una durata senza tetto. Le due costanti e la
+	// misura prima/dopo stanno su `RIP_TETTO` in grafo_ricordi.h.
 	const int volte = (p_ricordo.quante >= 1) ? (static_cast<int>(p_ricordo.quante) - 1) : 0;
-	const double ripetizioni = 1.0 + 0.25 * static_cast<double>(volte);
+	const double v = static_cast<double>(volte);
+	const double ripetizioni = 1.0 + RIP_TETTO * v / (v + RIP_MEZZA);
 	const double a_me = ((p_ricordo.bandiere & R_SU_DI_ME) != 0) ? 2.0 : 1.0;
 
 	return (static_cast<double>(p_ricordo.intensita) / 255.0)
-			* std::exp2(-dt / mv) * ripetizioni * a_me;
+			* sconto_tempo(p_ricordo, p_ora, p_mezza_vita) * ripetizioni * a_me;
 }
 
 int inserisci(GrafoRicordi &r_grafo, const Ricordo &p_nuovo, float p_ora,
