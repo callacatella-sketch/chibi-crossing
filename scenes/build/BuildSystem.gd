@@ -870,6 +870,10 @@ func _try_place() -> void:
 		wc.pay_for_piece(str(item["name"]))
 	if _sfx: _sfx.place_ok()
 	get_tree().call_group("regista", "note", "costruzione")
+	# il posto del pezzo, non quello di Mochi: `_cursor_pos` è il punto in
+	# metri di mondo del cursore — il centro della cella per i pezzi, il
+	# centro del bordo per le staccionate — ed è dove il vicino guarda.
+	get_tree().call_group("percezione", "accaduto", "costruisce", _cursor_pos)
 
 
 ## LA FILA CONTINUA. Piu' gradinate affiancate nella stessa direzione

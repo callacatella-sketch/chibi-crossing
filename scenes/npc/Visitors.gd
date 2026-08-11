@@ -9,6 +9,8 @@ const MIND := preload("res://scenes/npc/VillagerMind.gd")
 const DNA := preload("res://scenes/npc/ChibiDNA.gd")
 const BRAIN := preload("res://scenes/npc/VillagerBrain.gd")
 const PIANI := preload("res://scenes/npc/Piani.gd")
+const PERCEZIONE := preload("res://scenes/npc/Percezione.gd")
+const GUSTO := preload("res://scenes/npc/Gusto.gd")
 const ANIMO := preload("res://scenes/npc/Animo.gd")
 const VILLAGGIO := preload("res://scenes/npc/Villaggio.gd")
 const UI_BROWN := Color("6a4a3a")
@@ -182,6 +184,12 @@ func _on_new_day(_day: int) -> void:
 		var wish: Dictionary = r.get("wish", {})
 		if not wish.is_empty() and bool(wish.get("done", false)):
 			r["wish"] = {}
+		# (Fase 4) UNA PROMOZIONE AL GIORNO, e il contatore si azzera QUI —
+		# col giorno, non con un timer suo. Un secondo orologio sul giorno
+		# sarebbe una seconda idea di quando finisce una giornata, e questo
+		# progetto ne ha già una (`day_changed`, che detta anche l'età, i
+		# desideri e il giro dell'Animo).
+		r["promosso_oggi"] = false
 
 
 func is_bed_claimed(cell: Vector2i) -> bool:
@@ -434,8 +442,11 @@ func _brain_ctx(r: Dictionary, ph: String) -> Dictionary:
 	return {
 		"mattina": ph == "morning",
 		"sera_stellata": t_ora >= 0.80 and t_ora < 0.92,
-		"aiuola_da_annaffiare": _garden != null \
-				and _garden.bed_needing_water(home, 14.0) != null,
+		# la stessa domanda che si fa la recita, e per forza: se la
+		# fattibilità guardasse un'aiuola e il corpo ne raggiungesse
+		# un'altra, «cura_giardino» sarebbe fattibile per un'aiuola che
+		# nessuno va ad annaffiare
+		"aiuola_da_annaffiare": _aiuola_da_curare(r, home) != null,
 		"spuntino_vicino": _nearest_named(["Cespuglio", "Fungo", "Orto"], home, 12.0) != null,
 		"amico_in_giro": amico,
 		"regia": get_tree().get_first_node_in_group("regista") != null,
@@ -465,7 +476,10 @@ func _recita(r: Dictionary, node: Node3D, brain: RefCounted, act: String, ph: St
 				return
 		"cura_giardino":
 			if _garden:
-				var bed: Node3D = _garden.bed_needing_water(home, 14.0)
+				# LA SCENA 4: fra le assetate, quella che ha visto annaffiare.
+				# La regola «quali aiuole hanno sete» resta tutta del Garden —
+				# qui cambia solo il punto da cui si guarda.
+				var bed: Node3D = _aiuola_da_curare(r, home)
 				if bed:
 					var lato: Vector3 = bed.global_position + Vector3(0.75, 0, 0.1)
 					node.call("do_task", "water", lato, func():
@@ -480,7 +494,10 @@ func _recita(r: Dictionary, node: Node3D, brain: RefCounted, act: String, ph: St
 				node.call("do_task", "nap", Vector3.ZERO, func(): brain.satisfy("pisolino"))
 				_vita_toast(L10n.tf("%s si è addormentato lì, così.", [r["label"]]))
 				return
-			var bench := _free_bench(home)
+			# LA SCENA 3: la panchina si sceglie da un'ancora che, per chi ti
+			# ammira e ce l'ha vicino, è spostata di qualche metro verso di te.
+			# L'ancora, non il corpo: vedi il blocco «IL CUORE» più sopra.
+			var bench := _panchina_per(r, home)
 			if bench:
 				# per gli sgabelli del gazebo si arriva SUL posto (il +0.8
 				# della Panchina attraverserebbe il tavolino) e si guarda
@@ -682,6 +699,16 @@ func _ensure_ecs() -> void:
 	# le costanti si leggono dall'oggetto: qui dentro non si scrive 0/1/2
 	_ST_DORME = _ecs.STATO_DORME
 	_ST_FUORI = _ecs.STATO_FUORI
+	# IL RITMO DELLA MEMORIA SI DERIVA DAL CICLO DEL GIORNO, e si dice UNA
+	# volta sola: un villaggio con le giornate lunghe ha ricordi lunghi. Il
+	# C++ ha un suo valore di partenza che vale lo stesso conto (mezza
+	# giornata), ma un default che combacia per caso è il modo esatto in cui
+	# due numeri divorziano — il giorno che qualcuno sposta `cycle_seconds`,
+	# i ricordi lo devono seguire senza che nessuno vada a cercare un 120
+	# nascosto in un header. Se non c'è nessun DayNight (i banchi di prova,
+	# il prologo) non si inventa un ciclo: resta quello di là.
+	if _daynight != null and is_instance_valid(_daynight):
+		_ecs.imposta_ritmo(float(_daynight.cycle_seconds))
 
 
 ## L'handle dell'entità. Vive SOLO qui, in RAM, dentro la riga del residente:
@@ -718,6 +745,333 @@ func _dimentica_ecs(r: Dictionary) -> void:
 	r.erase("ecs")
 	r.erase("ecs_ind")
 	r.erase("ecs_q")
+
+
+## IL CUORE, per chi deve incidere un ricordo. È l'unico modo di arrivarci
+## da fuori: il registro ECS nasce TARDI (`_ensure_ecs` al primo ciclo del
+## sonno), quindi qui si torna `null` finché non c'è, e chi chiede deve
+## riprovare — non fidarsi di una fotografia scattata nel proprio `_ready`.
+func cuore() -> Object:
+	return _ecs if (_ecs != null and is_instance_valid(_ecs)) else null
+
+
+## CHI C'ERA. La fonte unica del «l'ha visto»: una riga per testimone,
+## `{node, ecs, label}` — il corpo da far girare e l'entità su cui incidere.
+##
+## Solo questa funzione sa mettere insieme le due cose, perché l'handle ECS
+## vive dentro la riga del residente e da nessun'altra parte. Il PREDICATO
+## invece NON è qui: sta in `Percezione.puo_vedere`, accanto al raggio che
+## usa. Due ragioni, e la seconda è quella che decide:
+##  1. la percezione è il mestiere di quel file, non di questo (che ne ha
+##    già quaranta);
+##  2. **Visitors non si istanzia in headless** — il suo `_ready` vuole
+##    `%Player` e `../BuildSystem` — quindi un predicato scritto qui dentro
+##    non sarebbe guastabile da un test una valvola per volta, e in questo
+##    progetto una guardia che nessun test può far diventare rossa è già
+##    stata, tre volte, una guardia che non c'era.
+func testimoni(pos: Vector3, raggio: float) -> Array:
+	var out: Array = []
+	for r in _residents:
+		if not r.has("ecs"):
+			continue      # non ancora censito: non ha una memoria in cui incidere
+		var node := r.get("node") as Node3D
+		if not PERCEZIONE.puo_vedere(node, pos, raggio):
+			continue
+		out.append({"node": node, "ecs": int(r["ecs"]), "label": str(r.get("label", ""))})
+	return out
+
+
+# ==================== IL CUORE: DOVE UNA MEMORIA DIVENTA UN GESTO ==========
+#
+# Quattro fili, e tutti e quattro finiscono in una cosa che si VEDE. La
+# Fase 4 non ha una riga di testo, non un toast, non una lettera: quello che
+# un vicino ha visto fare a Mochi esce da qui in tre modi soli — DOVE si
+# mette, QUALE simbolo gli scappa in una chiacchiera con un altro, e (una
+# volta al giorno, al massimo) un ricordo che gli resta addosso anche dopo un
+# riavvio.
+#
+# LA REGOLA CHE VIENE PRIMA DI TUTTE, e che ha deciso la forma di ogni riga
+# qui sotto: **l'ammirazione non produce un guinzaglio.** Non esiste una nona
+# azione «stai vicino a Mochi», non esiste un corpo che si sposta perché il
+# giocatore si è spostato. Quello che si sposta è un'ANCORA — il punto da cui
+# si cerca una panchina, il punto da cui si cerca un'aiuola — di al massimo
+# SPOSTA_MAX metri da casa propria. Il guasto opposto non è un bug che si
+# nota: sono ventotto vicini che ti orbitano intorno, con la suite verde e
+# tutti i test comportamentali soddisfatti, e ci si arriva TARANDO BENE un
+# sistema progettato male. Un gioco cozy in cui non si può stare da soli è
+# rovinato.
+
+## Di quanto può spostarsi un'ancora da casa propria, in metri.
+##
+## Non è un raggio d'azione: è la lunghezza del guinzaglio che questo sistema
+## NON deve avere. Sei metri stanno dentro il cortile di casa (le case del
+## villaggio distano fra loro molto di più) e sono la metà scarsa del raggio
+## con cui si cerca una panchina (16 m): l'ancora spostata cambia QUALE
+## panchina, non fa comparire un villaggio nuovo di panchine.
+const SPOSTA_MAX := 6.0
+
+## Fin dove si cerca un'aiuola che ha sete, in metri.
+##
+## **NON è una soglia nuova**, ed è l'opposto: questo 14 era scritto a mano in
+## TRE punti di questo file (il contesto del cervello, i luoghi del piano, la
+## recita), la Fase 4 li ha ridotti a una funzione sola, e lì dentro ne
+## restavano due copie — quella per l'ancora spostata e quella per il ripiego
+## su casa. Due copie in una funzione sola sono il caso peggiore: chi ne
+## cambia una allarga la ricerca da casa e non quella da spostati, e il
+## villaggio comincia a scegliere l'aiuola con due metri diversi a seconda di
+## chi ha visto cosa — senza un errore, e con la suite verde.
+const RAGGIO_AIUOLA := 14.0
+
+## Quanta ammirazione serve perché l'ancora del riposo si sposti.
+##
+## L'unità è quella di `Tinte.ammirazione`: un'occhiata sola, fresca, a gusto
+## neutro vale esattamente **1.0**, e dimezza ogni mezza giornata di gioco.
+## 0.35 è quindi «poco più di un'occhiata e mezza fa» — misurato: una sola
+## osservazione tiene l'ancora spostata per 1,51 mezze vite, cioè circa tre
+## minuti di gioco, poi si riassesta da sola.
+##
+## Perché bassa e non alta: questa non è una scena rara da conservare, è una
+## tendenza. Deve capitare abbastanza spesso da diventare una cosa che il
+## giocatore sente («qui c'è sempre qualcuno») e mai abbastanza da diventare
+## un corteo — e a impedire il corteo non è questa soglia, sono `SPOSTA_MAX`
+## e le due valvole qui sotto.
+const AMMIRA_SOGLIA := 0.35
+
+## Quanto dev'essere vicina Mochi a casa di uno perché la sua ancora si
+## sposti verso di lei. Oltre venti metri, «più vicino a Mochi» vorrebbe dire
+## dall'altra parte del villaggio — cioè un vicino che abbandona il proprio
+## angolo perché il giocatore è passato di là. Questa è la valvola che
+## trasforma «mi fa piacere che tu sia qui» in «ti sto seguendo».
+const MOCHI_VICINA := 20.0
+
+## Quanto dev'essere pesante il ricordo più forte perché diventi un ricordo
+## PERMANENTE (`VillagerBrain.remember`, l'unica cosa della Fase 4 che
+## attraversa un riavvio). Stessa unità di sopra: **un'occhiata sola vale
+## 1.0**, quindi questa soglia dice, letteralmente, «più di un'occhiata».
+##
+## Le due strade per superarla sono le due che vale la pena ricordare, e non
+## è una coincidenza — sono i due moltiplicatori che `chibi::peso` conosce:
+##  · **l'hai fatto a me** (R_SU_DI_ME raddoppia): un regalo, un piatto;
+##  · **ti ho vista farlo a lungo** (`quante`, +25% per ripetizione dentro la
+##    finestra di fusione): sei aiuole nello stesso pomeriggio.
+## Una passata di sfuggita, invece, non diventa il ricordo di una vita — ed è
+## esattamente il motivo per cui annaffiare in cerchio davanti a un vicino
+## non serve a niente (regola 6: il gesto gentile non è una moneta).
+const RICORDO_SOGLIA := 1.0
+
+## L'ANCORA DEL RIPOSO — pura, e per questo falsificabile una valvola per
+## volta (`Visitors` non si istanzia in headless: il suo `_ready` vuole
+## `%Player` e `../BuildSystem`).
+##
+## Torna il punto DA CUI cercare una panchina. È casa propria, sempre, tranne
+## quando tutte e due queste cose sono vere insieme:
+##  1. quel vicino ti ammira davvero (ha visto, e gli è importato);
+##  2. tu sei già dalle sue parti.
+## E anche allora si sposta al massimo di `SPOSTA_MAX`. Nessuno ti raggiunge,
+## nessuno ti insegue: cambia solo QUALE panchina, fra quelle che c'erano già.
+static func ancora_riposo(home: Vector3, pos_mochi: Vector3, ammira: float) -> Vector3:
+	if not (ammira > AMMIRA_SOGLIA):
+		return home
+	if home.distance_to(pos_mochi) >= MOCHI_VICINA:
+		return home
+	return home.move_toward(pos_mochi, SPOSTA_MAX)
+
+
+## Quanto ti ammira, adesso. Zero per chi non ha ancora un cuore (il villaggio
+## appena aperto, i banchi senza GDExtension): il degrado va sempre verso il
+## comportamento di sempre, mai verso un ramo nuovo che nessuno ha provato.
+func _ammirazione_di(r: Dictionary) -> float:
+	if _ecs == null or not is_instance_valid(_ecs) or not r.has("ecs"):
+		return 0.0
+	return float(_ecs.ammirazione(int(r["ecs"])))
+
+
+## L'ANCORA DI UN RICORDO: il punto da cui cercare, spostato verso il posto
+## in cui ho visto Mochi fare QUELLA cosa — e mai più di `SPOSTA_MAX` metri
+## da casa mia.
+##
+## UNA SOLA FUNZIONE PER DUE SCENE, e non per risparmiare righe: «l'aiuola
+## che ha visto» e «la panchina che ti ha vista costruire» sono la stessa
+## regola detta su due cose diverse, e una regola scritta due volte è una
+## regola che prima o poi si dice diversa (le specie, la scala della
+## ribellione, il salvataggio: questo progetto l'ha già pagata tre volte).
+## Chi ne aggiungerà una terza CHIAMI questa, e non ricopi il `move_toward`.
+##
+## LA COSA SI CHIEDE PER NOME, non per indice. È la stessa disciplina del bus
+## della percezione (`Percezione.accaduto` manda «annaffia», non un 0): la
+## traduzione vive in un posto solo, di là, e un nome sbagliato si ferma qui
+## con un avviso invece di diventare in silenzio il ricordo di un'altra cosa.
+##
+## DUE COSE CHE SEMBRANO DETTAGLI E NON LO SONO:
+##  · il ripiego di `dove()` è `home`, quindi «non ricordo niente» produce
+##    `home.move_toward(home, …)` = `home` ESATTO: chi non ha visto niente si
+##    comporta come si è sempre comportato, bit per bit, senza un `if`;
+##  · si sposta verso un POSTO, mai verso una persona. È tutta la differenza
+##    con `ancora_riposo`, ed è il motivo per cui questa non ha bisogno di
+##    nessuna valvola: un'aiuola e una panchina non camminano, quindi qui non
+##    c'è nessuno che si possa seguire (regola 5, il guinzaglio che non deve
+##    esistere).
+func _ancora_ricordo(r: Dictionary, home: Vector3, cosa: String) -> Vector3:
+	if _ecs == null or not is_instance_valid(_ecs) or not r.has("ecs"):
+		return home
+	var c: int = int(_ecs.indice_cosa(cosa))
+	if c < 0:
+		# rumoroso di proposito: da solo si manifesterebbe come un'ancora che
+		# non si sposta mai, cioè come niente, per sempre e con la suite verde
+		push_warning("Visitors: cosa sconosciuta «%s» (l'ancora non si sposterà mai)" % cosa)
+		return home
+	return home.move_toward(_ecs.dove(int(r["ecs"]), c, home), SPOSTA_MAX)
+
+
+## UN POSTO DOVE SEDERSI, e DA DOVE si cerca. Tre ancore in ordine, e si
+## ferma alla prima che dà una panchina vera.
+##
+## 1. **SE SEI QUI E TI AMMIRA** — la scena 3: sceglie la panchina libera più
+##    vicina a un punto un po' spostato verso di te. Non ti raggiunge, non ti
+##    parla, non si avvicina: fa le sue cose, un po' più in là.
+##
+## 2. **ALTRIMENTI, DOVE TI HA VISTA COSTRUIRE.** Posa una panchina in un
+##    angolo del villaggio mentre qualcuno ti guarda, e quando a quel
+##    qualcuno verrà voglia di sedersi ci andrà — proprio lui, proprio lì.
+##    È la stessa regola della quarta scena detta sull'altra cosa che il
+##    giocatore lascia nel mondo: là il gesto era annaffiare, qui è
+##    costruire, e la funzione che sposta l'ancora è LA STESSA
+##    (`_ancora_ricordo`). Non è una macchina nuova: è la lettura `dove()`,
+##    che c'era già e aveva un consumatore solo, agganciata a `_free_bench`,
+##    che c'era già da sempre.
+##    Perché è sicura: si sposta verso un POSTO, non verso una persona — e
+##    una panchina non cammina, quindi non c'è nessuno da seguire. Il salto è
+##    lo stesso `SPOSTA_MAX`, e il caso peggiore possibile è che si sieda su
+##    un'altra delle panchine che c'erano già.
+##    E viene DOPO la prima: se sei qui adesso, quello che sta succedendo
+##    adesso conta più di quello che è successo ieri.
+##
+## 3. **E SE NO, CASA.** Senza questo ripiego l'unica panchina del villaggio,
+##    se sta dalla parte opposta, uscirebbe dal raggio dell'ancora spostata e
+##    il vicino si addormenterebbe per terra — cioè starebbe PEGGIO per
+##    averti visto, che è il modo più veloce per rendere illeggibile un
+##    sistema che non parla. L'emozione AGGIUNGE, mai toglie.
+func _panchina_per(r: Dictionary, home: Vector3) -> Node3D:
+	var verso_te := ancora_riposo(home, _dove_sta_mochi(home), _ammirazione_di(r))
+	if verso_te != home:
+		var vicina: Node3D = _free_bench(verso_te)
+		if vicina != null:
+			return vicina
+	var verso_opera := _ancora_ricordo(r, home, "casa")
+	if verso_opera != home:
+		var nuova: Node3D = _free_bench(verso_opera)
+		if nuova != null:
+			return nuova
+	return _free_bench(home)
+
+
+## Dove sta Mochi. Senza giocatore (i banchi di prova, il diorama del titolo)
+## si risponde «a casa tua», che è il valore per cui `ancora_riposo` non
+## sposta niente: il degrado va verso il comportamento di sempre.
+func _dove_sta_mochi(home: Vector3) -> Vector3:
+	if _player == null or not is_instance_valid(_player):
+		return home
+	return _player.global_position
+
+
+## L'AIUOLA CHE HA SETE, e DA DOVE si guarda. Fonte unica: prima di questa
+## funzione la stessa domanda si faceva in tre punti diversi (il contesto del
+## cervello, i luoghi del piano, la recita) — tre copie della stessa riga,
+## che è precisamente come due sistemi cominciano a raccontare due villaggi.
+##
+## La regola «quali aiuole hanno sete» resta tutta e sola del Garden: qui
+## cambia il PUNTO DA CUI si cerca, e cambia di al massimo `SPOSTA_MAX` metri
+## da casa. È la scena 4 — chi ti ha vista annaffiare *quella* aiuola, fra le
+## assetate sceglie quella, e Mochi torna all'orto e ritrova il proprio gesto
+## nello stesso punto, fatto da un altro.
+##
+## Lo spostamento dell'ancora e il suo ripiego stanno in `_ancora_ricordo`,
+## che è la stessa funzione che sposta l'ancora della panchina: se l'emozione
+## non ricorda niente, torna `home` ESATTO e da qui in giù non cambia una
+## virgola di quel che il villaggio faceva prima.
+##
+## E SE DALL'ANCORA SPOSTATA NON SI VEDE NESSUNA AIUOLA, SI RIPIEGA SU CASA.
+## Senza questa riga l'emozione potrebbe far fare MENO (un vicino che, per
+## aver visto, smette di annaffiare) — e una conseguenza che toglie è il modo
+## più veloce per rendere il sistema illeggibile.
+func _aiuola_da_curare(r: Dictionary, home: Vector3) -> Node3D:
+	if _garden == null:
+		return null
+	var da := _ancora_ricordo(r, home, "fiore")
+	if da != home:
+		var vista: Node3D = _garden.bed_needing_water(da, RAGGIO_AIUOLA)
+		if vista != null:
+			return vista
+	return _garden.bed_needing_water(home, RAGGIO_AIUOLA)
+
+
+## IL CUORE DI UN RESIDENTE, alla cadenza dei FATTI e non a ogni frame.
+##
+## Fa due cose, e nessuna delle due è una decisione: spinge di là il GUSTO
+## (chi tiene a cosa) e, al massimo una volta al giorno, promuove il ricordo
+## più forte a ricordo permanente.
+##
+## PERCHÉ NON ACCANTO A `riferisci_bisogni`, che gira a sessanta hertz: i
+## bisogni sono cinque double già pronti, il gusto è un giro sul genoma e
+## sulle indoli più un array nuovo. Ventotto vicini per sessanta frame
+## sarebbero 1.680 ricostruzioni al secondo di un dato che cambia quando
+## qualcuno esce dal salone di bellezza.
+##
+## PERCHÉ CONFRONTA-E-RIPROIETTA e non «si scrive una volta e basta»: è la
+## lezione della Fase 1, pagata col `DnaComponent`. Il salone di bellezza
+## riscrive i geni DENTRO lo stesso Dictionary che sta nella riga del
+## salvataggio, e `debug_quirk` scrive su un cervello vivo: una copia in C++
+## fotografata alla registrazione diventerebbe stale al primo cambiamento,
+## **con la suite verde**. Si ricalcola, si confronta, e si spinge solo se è
+## cambiato davvero — così il gradino del modulatore di là non viene
+## annullato trenta volte al secondo.
+func _cuore_di(r: Dictionary) -> void:
+	if _ecs == null or not is_instance_valid(_ecs) or not r.has("ecs"):
+		return
+	# SFALSATO PER RESIDENTE, con l'etichetta come seme. Senza questa riga
+	# ventotto vicini caricati nello stesso frame si riproietterebbero tutti
+	# insieme ogni mezzo secondo: la spesa sarebbe la stessa in media e un
+	# picco venti volte più alto, cioè uno scatto ogni mezzo secondo nel
+	# villaggio più pieno — che è l'unico posto in cui si nota.
+	if not r.has("cuore_scad"):
+		r["cuore_scad"] = float(absi(hash(str(r.get("label", "")))) % FATTI_OGNI)
+	var scad := float(r["cuore_scad"])
+	r["cuore_scad"] = scad - 1.0
+	if scad > 0.0:
+		return
+	r["cuore_scad"] = float(FATTI_OGNI)
+
+	var id: int = int(r["ecs"])
+	# L'INDOLE ARRIVA DAL CERVELLO, non dal genoma: è lì che vive quella VERA
+	# (il genoma può non averla affatto — i villaggi salvati prima che le
+	# indoli ci entrassero — e `debug_quirk` scrive su un cervello vivo). È la
+	# stessa fonte da cui `_ecs_id` proietta la finestra del sonno: una
+	# persona, un'indole.
+	var g: PackedFloat64Array = GUSTO.da_dna(
+			r.get("dna", {}), _ensure_brain(r).indole)
+	if r.get("gusto_ecs") != g:
+		r["gusto_ecs"] = g
+		_ecs.riferisci_gusto(id, g)
+
+	# LA PROMOZIONE: una al giorno, e solo per quello che ha visto coi propri
+	# occhi. È l'unico residuo di tutta la Fase 4 che attraversa un riavvio, e
+	# passa da un canale che esiste già, è già persistito, è già limitato a
+	# sei e ha già un consumatore che lo mette in scena senza parole. Il grafo
+	# dei ricordi, lui, non si salva: l'emozione dura minuti e non lascia
+	# traccia, o si imparerebbe a farsi guardare per «caricare» qualcuno.
+	if bool(r.get("promosso_oggi", false)):
+		return
+	var c: int = int(_ecs.cosa_da_ricordare(id, RICORDO_SOGLIA))
+	if c < 0:
+		return
+	r["promosso_oggi"] = true
+	# Il secondo campo è una CHIAVE, mai una frase: non lo mostra nessuno, e
+	# il giorno che lo mostrasse servirebbe `L10n.rendi()`. Il primo è il
+	# concetto che uscirà dalla nuvoletta — cioè una parola che un chibi sa
+	# davvero dire (`Visitor.LP_SIMBOLI`).
+	var nome := str(_ecs.nome_cosa(c))
+	if nome != "":
+		_ensure_brain(r).remember(nome, nome)
 
 
 ## I FATTI DEL MONDO per un residente, come maschera di bit.
@@ -842,15 +1196,14 @@ func _luoghi_del_piano(r: Dictionary, home: Vector3) -> Array:
 		var p: Vector3 = nodo.global_position
 		return {"ok": true, "metri": p.distance_to(home), "pos": p}
 	fuori.append(cerca.call(_nearest_named(["Cespuglio", "Fungo", "Orto"], home, 12.0)))
-	var aiuola: Node3D = null
-	if _garden:
-		aiuola = _garden.bed_needing_water(home, 14.0)
-		if aiuola != null and not _build.raggiungibile(
+	var aiuola: Node3D = _aiuola_da_curare(r, home)
+	if aiuola != null:
+		if not _build.raggiungibile(
 				Vector2i(roundi(home.x), roundi(home.z)),
 				Vector2i(roundi(aiuola.global_position.x), roundi(aiuola.global_position.z))):
 			aiuola = null  # il Garden non sa dei recinti: glielo si dice qui
 	fuori.append(cerca.call(aiuola))
-	fuori.append(cerca.call(_free_bench(home)))
+	fuori.append(cerca.call(_panchina_per(r, home)))
 	fuori.append(cerca.call(_nearest_named(["Stagno", "Grande Albero", "Panchina"], home, 18.0)))
 	# LA LAVAGNA È PRONTA solo se non c'è già un biglietto di questo vicino:
 	# uno che ha già chiesto non va a chiedere di nuovo, va a fare altro.
@@ -947,6 +1300,10 @@ func _ciclo_sonno(delta: float, t_ora: float) -> void:
 			_ecs.riferisci_agenda(id_e, _fatti_di(r, node),
 					str(node.get("_state")) in STATI_A_RIPOSO,
 					float(r.get("next_act", 0.0)) > 0.0)
+			# --- FASE 4: il cuore. Alla cadenza dei FATTI, sfalsata: il
+			#     gusto si riproietta solo se è cambiato, e una volta al
+			#     giorno il ricordo più forte diventa un ricordo per sempre.
+			_cuore_di(r)
 			# il dado si tira una volta per DECISIONE, non a ogni frame
 			if _ecs.vuole_dado(id_e):
 				_ecs.semina_agenda(id_e, brain.jitter())
@@ -2104,12 +2461,14 @@ func _chats(delta: float) -> void:
 			return
 
 
-# le chiacchiere hanno un TEMA: la parola Chibiese detta a voce e il
-# simbolo nella nuvoletta sono la stessa cosa — così si impara
-const CHAT_TOPICS := {
-	"fiore": "✿", "cibo": "!", "amico": "♥", "dormire": "z",
-	"fuoco": "~", "pioggia": "…", "felice": "!",
-}
+# LE CHIACCHIERE HANNO UN TEMA: la parola Chibiese detta a voce e il simbolo
+# nella nuvoletta sono la stessa cosa — così si impara.
+#
+# La tabella dei simboli NON abita più qui. C'era un `CHAT_TOPICS` con sette
+# voci, identiche a sette delle undici di `Visitor.LP_SIMBOLI`: due tabelle
+# con gli stessi valori, cioè una fonte doppia già viva, che aspettava solo
+# che qualcuno cambiasse un simbolo da una parte sola. Adesso il simbolo di
+# un concetto sta dove sta già — nel corpo che lo mostra.
 
 
 func _res_of(node: Node3D) -> Dictionary:
@@ -2127,10 +2486,35 @@ func _run_chat(a: Node3D, b: Node3D) -> void:
 	var brain_a: RefCounted = _ensure_brain(ra) if not ra.is_empty() else null
 	var brain_b: RefCounted = _ensure_brain(rb) if not rb.is_empty() else null
 
-	# il tema lo detta il momento: la pioggia, il falò della sera, un
-	# RICORDO recente («ho visto un posto bellissimo…»), o la testolina
+	# ────────────────────────────────────────────────────────────────────
+	# IL PETTEGOLEZZO, e viene PRIMA di tutto il resto.
+	#
+	# «Hai una notizia?» — se A ha visto Mochi fare qualcosa che B non sa
+	# ancora, di quello si parla. È l'unica uscita che la Fase 4 ha il
+	# permesso di avere a schermo: non un toast, non una lettera, non una
+	# nuvoletta rivolta al giocatore, ma un simbolo scambiato fra due di
+	# LORO — e la magia sta tutta nell'averlo COLTO, non nell'esserne stati
+	# avvisati.
+	#
+	# IL SILENZIO È IL COMPORTAMENTO NORMALE: `racconta` torna -1 quasi
+	# sempre (misurato: 100 chiacchiere con notizia contro 412 mute), perché
+	# una notizia si racconta UNA volta e chi l'ha sentita non la ripassa.
+	# Quando tace, il tema torna a essere quello di sempre.
+	#
+	# Lo smorzamento arriva da `Villaggio.SMORZAMENTO`, la costante con cui
+	# in questo villaggio si è sempre pagata una cosa saputa per sentito
+	# dire: non se ne inventa una seconda per un canale nuovo.
+	var novita := -1
+	if _ecs != null and is_instance_valid(_ecs) and ra.has("ecs") and rb.has("ecs"):
+		novita = int(_ecs.racconta(int(ra["ecs"]), int(rb["ecs"]),
+				VILLAGGIO.SMORZAMENTO))
+
+	# altrimenti il tema lo detta il momento: la pioggia, il falò della sera,
+	# un RICORDO recente («ho visto un posto bellissimo…»), o la testolina
 	var topic := "fiore"
-	if _weather and _weather.is_raining():
+	if novita >= 0:
+		topic = str(_ecs.nome_cosa(novita))
+	elif _weather and _weather.is_raining():
 		topic = "pioggia"
 	elif brain_a and randf() < 0.35 and not (brain_a.ricordo_recente() as Array).is_empty():
 		topic = str((brain_a.ricordo_recente() as Array)[0])
@@ -2138,7 +2522,9 @@ func _run_chat(a: Node3D, b: Node3D) -> void:
 		topic = ["fuoco", "dormire", "cibo", "amico"][randi() % 4]
 	else:
 		topic = ["fiore", "cibo", "amico", "felice"][randi() % 4]
-	if not CHAT_TOPICS.has(topic):
+	# un concetto che il corpo non sa mostrare diventa «amico»: il ripiego
+	# c'era già, e adesso guarda la tabella VERA dei simboli
+	if not VISITOR.LP_SIMBOLI.has(topic):
 		topic = "amico"
 
 	# le chiacchiere nutrono l'amicizia (e il bisogno di compagnia)
@@ -2158,7 +2544,7 @@ func _run_chat(a: Node3D, b: Node3D) -> void:
 		get_tree().call_group("affetti", "gesto", nome_a, nome_b, "chiacchiera")
 		get_tree().call_group("affetti", "gesto", nome_b, nome_a, "chiacchiera")
 
-	a.call("chat_bubble", CHAT_TOPICS[topic])
+	a.call("chat_bubble", VISITOR.LP_SIMBOLI[topic])
 	a.call("speak", [topic, "~"], "neutro")
 	var brontolone: bool = brain_b != null and brain_b.has_indole("brontolone")
 	get_tree().create_timer(1.1).timeout.connect(func():
@@ -2168,7 +2554,7 @@ func _run_chat(a: Node3D, b: Node3D) -> void:
 				b.call("chat_bubble", "…")
 				b.call("speak", ["no", "~"], "neutro")
 			else:
-				b.call("chat_bubble", CHAT_TOPICS[topic])
+				b.call("chat_bubble", VISITOR.LP_SIMBOLI[topic])
 				# la risposta: d'accordo («ha!») o entusiasta
 				b.call("speak", ["si", topic] if randf() < 0.5 else ["~", "felice"], "felice"))
 	get_tree().create_timer(2.2).timeout.connect(func():
@@ -2284,6 +2670,11 @@ func _give_dish(r: Dictionary) -> void:
 	get_tree().call_group("regista", "note", "socievole")
 	var dish: Dictionary = _cooking.call("take_dish")
 	var node := r.get("node") as Node3D
+	# IL DONO SI VEDE, e chi lo riceve se lo ricorda il doppio: `a_chi` è la
+	# sua label, e da quella `EcsMondo.osserva` DERIVA `R_SU_DI_ME` — l'unica
+	# asimmetria fra persone che il grafo dei ricordi conosce.
+	get_tree().call_group("percezione", "accaduto", "dona",
+			node.global_position, str(r.get("label", "")))
 	var w: Dictionary = r.get("dna", {}).get("weights", {})
 	# chi ama il calduccio adora i piatti caldi, chi ama il giardino i freddi
 	var loves_it: bool = bool(dish.get("warm", true)) == \
@@ -2382,6 +2773,8 @@ func offer_item(r: Dictionary, item: Dictionary) -> void:
 	if node == null or not is_instance_valid(node):
 		return
 	get_tree().call_group("regista", "note", "socievole")
+	get_tree().call_group("percezione", "accaduto", "dona",
+			node.global_position, str(r.get("label", "")))
 	var w: Dictionary = r.get("dna", {}).get("weights", {})
 	var loves_it := _item_loved(item, w)
 	node.call("face_towards", _player.global_position)

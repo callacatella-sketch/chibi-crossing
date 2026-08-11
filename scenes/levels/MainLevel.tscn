@@ -35,6 +35,7 @@
 [ext_resource type="Script" path="res://scenes/interact/Bottiglie.gd" id="24_bott1"]
 [ext_resource type="Script" path="res://scenes/interact/Scavi.gd" id="25_scav1"]
 [ext_resource type="Script" path="res://scenes/interact/Sbornia.gd" id="26_sbrn1"]
+[ext_resource type="Script" path="res://scenes/npc/Percezione.gd" id="32_perc1"]
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_1a2b3"]
 size = Vector2(240, 240)
@@ -162,6 +163,9 @@ script = ExtResource("15_home1")
 
 [node name="Visitors" type="Node" parent="."]
 script = ExtResource("14_visi1")
+
+[node name="Percezione" type="Node" parent="."]
+script = ExtResource("32_perc1")
 
 [node name="Rimbalzello" type="Node" parent="."]
 script = ExtResource("29_rimb1")

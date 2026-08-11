@@ -143,6 +143,35 @@ var _greet_cd := 0.0
 # ordinario tace: un appuntamento mantenuto non va coperto dal desiderio
 # della panchina, che può aspettare dieci secondi.
 var _scena_t := 0.0
+
+# --- LA RICEVUTA: la testa che si gira su un gesto di Mochi ----------------
+#
+# La scrive `Percezione._testimonia` (scenes/npc/Percezione.gd) nella riga
+# PRIMA di incidere il ricordo, e quell'ordine è tutta la credibilità del
+# sistema: una conseguenza senza premessa non attenua l'effetto, lo inverte.
+#
+# `_tst_pos` è dove guardare, `_tst_t` quanto resta, `_tst_off` quanto la
+# testa È girata adesso. Lo scostamento si SOMMA alla posa dello stato e
+# torna a zero da solo (vedi `_sguardo_testimone`): un canale scritto in
+# assoluto da un solo stato resta fuori posa alla prima interruzione, e in
+# questo progetto è già successo.
+var _tst_pos := Vector3.ZERO
+var _tst_t := 0.0
+var _tst_off := 0.0
+var _tst_appl := 0.0   # quanto è stato sommato al rig il frame scorso
+## Quanto può girarsi una testa senza che il collo diventi un giocattolo
+## rotto. Scelto GUARDANDO cinque tarature affiancate (0.30 · 0.60 · 0.90 ·
+## 1.20 · 1.50 rad) di tre quarti e di profilo: sotto 0.60 la testa non si
+## legge come girata — sembra la solita oscillazione dell'idle — e sopra
+## 1.20 il muso esce dalla sagoma della testona e il collo si strappa.
+const TESTA_MAX := 0.90
+## L'attenzione è ASIMMETRICA, come il respiro: la testa scatta verso il
+## gesto e ci torna via piano. Un solo coefficiente per tutti e due i versi
+## fa una testa a molla, che è la cosa che smaschera un'animazione in due
+## cicli.
+const TESTA_VAI := 9.0
+const TESTA_TORNA := 4.0
+
 var _hidden := false
 var _player_ref: Node3D
 
@@ -1035,6 +1064,12 @@ func _process(delta: float) -> void:
 	# (chi scrive in assoluto sovrascrive comunque; chi non scrive — idle —
 	# ritrova il valore base, senza accumuli)
 	_recita_togli()
+	# …e via anche lo sguardo del testimone del frame scorso, per la STESSA
+	# ragione e non per simmetria: ci sono stati che NON riscrivono la
+	# rotazione della testa (`_anim_inspect` posa x e z e lascia stare y), e
+	# un `+=` a ogni frame su un canale che nessuno azzera avvita il collo
+	# fino a fargli fare il giro. Si toglie qui, PRIMA che lo stato posi.
+	_sguardo_togli()
 	rotation.y = _yaw
 	# LA RETE DI SICUREZZA DELLA CODA. Non si svuota in `_walk_to` (che la
 	# riscrive comunque) né nei due o tre posti che vengono in mente: si
@@ -1055,6 +1090,11 @@ func _process(delta: float) -> void:
 	_emote_cd -= delta
 	_speak_cd -= delta
 	_scena_t = maxf(0.0, _scena_t - delta)
+	# LA RICEVUTA SCADE DA SOLA, e scade per OGNI stato: qui, in cima al
+	# `_process`, dove non c'è nessun `match` da cui si possa uscire. Un
+	# orologio consumato dentro un ramo solo si ferma alla prima
+	# interruzione, e la testa resterebbe girata per sempre.
+	_tst_t = maxf(0.0, _tst_t - delta)
 	# mentre parla, la testolina annuisce a tempo con la voce
 	# (scalato su delta e clampato: niente derive a framerate alti)
 	if _voice_player and _voice_player.playing and _head:
@@ -1375,6 +1415,13 @@ func _process(delta: float) -> void:
 		if _state == "tk_nap":
 			# a occhi chiusi non si insegue nessuno: chi dorme, dorme
 			_face.clear_gaze()
+		elif _tst_t > 0.0 and not _hidden:
+			# LA RICEVUTA. Sta SOTTO chi dorme (a occhi chiusi non si guarda
+			# niente) e SOPRA `LOOK_STATES` e il giocatore vicino: più in
+			# basso questi due rami riscriverebbero la gaze il frame dopo e
+			# non si vedrebbe NIENTE — e il sistema che ne dipende sembrerebbe
+			# reagire a caso.
+			_face.look_at_world(_tst_pos + Vector3(0, 0.35, 0))
 		elif LOOK_STATES.has(_state) and _target != Vector3.ZERO:
 			_face.look_at_world(_target + Vector3(0, 0.35, 0))
 		elif _player_ref and is_instance_valid(_player_ref) \
@@ -1384,9 +1431,76 @@ func _process(delta: float) -> void:
 			_face.clear_gaze()
 		_face.update(delta)
 
+	# --- LA TESTA CHE SI GIRA, fuori dal blocco del volto perché il volto
+	# ce l'hanno solo i chibi generati da DNA, e la ricevuta deve valere per
+	# chiunque abbia un collo ---
+	_sguardo_testimone(delta)
+
 	# --- LA RECITA DEL CORPO, ultimissima: le posture della ribellione si
 	# stendono SOPRA ciò che stati e volto hanno già posato ---
 	_recita_applica(delta)
+
+
+## LO SGUARDO DEL TESTIMONE: la metà visibile della percezione (l'altra è il
+## ricordo, che vive nel C++). Gira per OGNI stato, e questo è il punto.
+##
+## Lo scostamento si SOMMA a quello che lo stato ha già posato — l'idioma di
+## `_recita_applica`, tre righe più sotto — invece di scrivere il canale in
+## assoluto. Due ragioni, e la seconda è la più importante:
+##  1. il collo non si irrigidisce: la testa continua a dondolare col passo
+##     e col respiro mentre guarda, e una testa perfettamente ferma su un
+##     bersaglio è la firma dell'adesivo appiccicato sopra la posa;
+##  2. **non può restare fuori posa**. Quando `_tst_off` torna a zero questa
+##     funzione somma 0.0, e la testa è di nuovo tutta dello stato che la
+##     stava posando — senza che nessuno debba ricordarsi di rimetterla a
+##     posto in undici punti di uscita.
+func _sguardo_testimone(delta: float) -> void:
+	if _head == null:
+		_tst_off = 0.0
+		return
+	# la posa che lo stato ha appena messo: lo scostamento si misura da lì,
+	# così la testa arriva DAVVERO sul bersaglio invece di superarlo di
+	# quanto stava già oscillando per conto suo
+	var base := _head.rotation.y
+	var bersaglio := 0.0
+	# `dorme()` e non `_state == "tk_nap"`: quel confronto è la stessa domanda
+	# che si fa `Percezione.puo_vedere` per decidere se un ricordo si incide, e
+	# le due devono restare LA STESSA. Se un giorno il pisolino cambiasse nome
+	# di stato, il vicino smetterebbe di ricordare e continuerebbe a girare la
+	# testa da addormentato — cioè la ricevuta senza la conseguenza, che è
+	# esattamente il guasto che tutta la percezione esiste per rendere
+	# impossibile.
+	if _tst_t > 0.0 and not _hidden and not dorme():
+		var b := _tst_pos
+		# il bersaglio si appiattisce all'altezza degli occhi: un collo non
+		# guarda in su, e `look_at` con una direzione verticale non è definito
+		b.y = _head.global_position.y
+		if _head.global_position.distance_squared_to(b) > 0.0025:
+			# IL RIG GUARDA −Z, e qui non si scrive nessun `atan2`: si chiede
+			# a Godot di puntare il proprio −Z sul bersaglio (`look_at` è
+			# definito esattamente così) e si legge l'angolo che ne esce, già
+			# al netto di come è girato il corpo. Un `atan2` col segno
+			# sbagliato ha tenuto il fantasma del congedo di spalle a Mochi
+			# per mesi, sotto un commento che giurava il contrario: qui non
+			# c'è un segno da sbagliare.
+			var prima := _head.transform.basis
+			_head.look_at(b, Vector3.UP)
+			var mira := clampf(wrapf(_head.rotation.y, -PI, PI), -TESTA_MAX, TESTA_MAX)
+			_head.transform.basis = prima
+			bersaglio = mira - base
+	var k := TESTA_VAI if absf(bersaglio) > absf(_tst_off) else TESTA_TORNA
+	_tst_off = lerpf(_tst_off, bersaglio, 1.0 - exp(-k * delta))
+	_head.rotation.y += _tst_off
+	_tst_appl = _tst_off
+
+
+## Toglie lo scostamento del frame scorso. Gemello di `_recita_togli`, e per
+## la stessa ragione: senza, il canale si accumula sugli stati che non lo
+## riscrivono, e il rig non torna mai a posto da solo.
+func _sguardo_togli() -> void:
+	if _head != null and _tst_appl != 0.0:
+		_head.rotation.y -= _tst_appl
+	_tst_appl = 0.0
 
 
 # passo del corpo: il passerotto avanza a scatti (solo mentre è in aria)
@@ -2693,6 +2807,40 @@ func candidate_result(ok: bool, bed_pos: Vector3) -> void:
 ## desideri, il saluto) si fa da parte e la lascia finire.
 func in_scena() -> bool:
 	return _scena_t > 0.0
+
+
+## STA FACENDO IL PISOLINO: il corpo è nel mondo, ma a occhi chiusi.
+##
+## Il sonno della notte è un'ALTRA cosa e si chiede a `is_hidden()` — lì il
+## corpo rientra in casa e sparisce dal prato. Le due domande sono diverse e
+## servono tutte e due a chi deve sapere se qualcuno può aver VISTO qualcosa
+## (`Percezione.puo_vedere`): un vicino accoccolato sulla panchina è nel
+## mondo, a due passi, e non ha visto niente.
+func dorme() -> bool:
+	return _state == "tk_nap"
+
+
+## HA VISTO MOCHI FARE QUALCOSA, LÌ — e per `dur` secondi la testa resta
+## girata da quella parte.
+##
+## La chiama `Percezione._testimonia` (scenes/npc/Percezione.gd) nella riga
+## PRIMA di incidere il ricordo, e quell'ordine non è negoziabile: la testa
+## girata è la RICEVUTA, l'unica prova che il giocatore ha che la
+## conseguenza di domani ha una premessa di oggi.
+##
+## Non è uno stato e non tocca `_state`: è un livello che si stende sopra
+## qualunque cosa il corpo stia già facendo, come la pioggia addosso e come
+## le posture della ribellione. Chi ha visto continua a camminare, a
+## sedersi, a mangiare — gira la testa, e basta. Non si avvicina, non parla,
+## non smette quello che stava facendo: un villaggio in cui un gesto del
+## giocatore interrompe ventotto vite è un villaggio che non lo lascia mai
+## stare da solo.
+func guarda_gesto(pos: Vector3, dur: float) -> void:
+	_tst_pos = pos
+	# il MASSIMO, non l'ultimo: due gesti ravvicinati non ACCORCIANO lo
+	# sguardo (il bersaglio invece è sempre l'ultimo — si guarda l'ultima
+	# cosa che è successa, che è come funzionano gli occhi).
+	_tst_t = maxf(_tst_t, dur)
 
 
 ## Apre una scena lunga «dur»: per quel tempo il vicino non saluta e non

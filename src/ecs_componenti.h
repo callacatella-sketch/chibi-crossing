@@ -5,6 +5,9 @@
 
 #include <godot_cpp/variant/vector3.hpp>
 
+#include "grafo_ricordi.h" // FASE 4: GrafoRicordi
+#include "sistema_occ.h"   // FASE 4: Gusto (e, per suo tramite, N_AZIONI)
+
 namespace chibi {
 
 // IL DNA, e la regola che gli impedisce di mentire.
@@ -102,6 +105,96 @@ struct TransformComponent {
 	float yaw = 0.0f;
 	uint64_t frame_agg = 0;
 };
+
+// ======================================================================
+// FASE 4 (P4) — PERCEZIONE, MEMORIA, EMOZIONE
+//
+// Tre componenti, e sono di TRE specie diverse. La specie non è una
+// sfumatura: dice chi possiede il dato, e quindi che genere di guasto è
+// possibile su quel dato.
+// ======================================================================
+
+// IL GRAFO DEI RICORDI — **VOLATILE**, e non è una semplificazione.
+//
+// Vive in RAM sull'entità, come l'handle: nessuna chiave nuova in
+// village.json, nessuna migrazione, nessuna riga scartata in silenzio al
+// caricamento. Ed è anche una regola di GAME DESIGN, non solo di
+// ingegneria: l'emozione dura minuti e non lascia traccia, perché un
+// residuo che dura si impara a coltivare — ci si farebbe guardare mentre
+// si annaffia in cerchio per «caricare» i vicini, e il gesto gentile
+// diventerebbe una moneta. La moneta dei legami in questo gioco è già
+// un'altra (Legami, Affetti), e dev'essere l'unica.
+//
+// Dove muore il cervello muore l'entità, e con l'entità muore questo
+// grafo: `dimentica()` distrugge l'entità e tutti i suoi componenti
+// insieme. Non c'è nessuna spazzata da fare sugli handle che i ricordi
+// degli ALTRI portano dentro (`Ricordo.soggetto`) — un handle morto non
+// risolve, e il ricordo degrada a «qualcuno». È il degrado giusto:
+// un'etichetta assente, mai un comportamento sbagliato.
+struct GrafoComponent {
+	GrafoRicordi g;
+};
+
+// IL GUSTO — **SPECCHIO**, esattamente come `BisogniComponent`.
+//
+// Il proprietario del dato è il GDScript (`scenes/npc/Gusto.gd`), che lo
+// deriva dai pesi del DNA e dall'indole. Nessuno dei due è immutabile a
+// runtime: il salone di bellezza riscrive DENTRO il Dictionary del DNA e
+// `debug_quirk` cambia il quirk di un cervello vivo. Perciò qui c'è una
+// COPIA, che il cablaggio confronta e riproietta quando i valori cambiano
+// davvero — la stessa disciplina (e la stessa lezione già pagata) del
+// `DnaComponent`.
+//
+// Neutro = tutti 1.0: un villaggio senza gusti è un villaggio in cui ogni
+// gesto vale uguale per tutti, ed è lo stato in cui nasce un'entità che
+// nessuno ha ancora descritto.
+struct GustoComponent {
+	Gusto gu;
+};
+
+// «Non ho mai valutato». Sta qui e non nel .cpp perché è il valore con cui
+// il componente NASCE: chi lo legge deve poterlo riconoscere senza andare
+// a cercare da un'altra parte cosa significhi quel numero.
+//
+// Una versione vera potrebbe teoricamente arrivare a questo valore, ma
+// servono 2^32 scritture sullo stesso grafo (a un ricordo per frame, anni
+// di gioco continuo su un solo vicino), e la conseguenza sarebbe UNA
+// rivalutazione saltata: il gradino dopo la rimette a posto da sé.
+constexpr uint32_t VISTA_MAI = 0xFFFFFFFFu;
+
+// LE EMOZIONI — **DERIVATO**, e con un LATCH.
+//
+// Non è uno stato affettivo: non c'è un umore che scende, non c'è
+// un'emozione con la sua identità e la sua durata. `mod` è la LETTURA del
+// grafo fatta all'ultimo gradino, congelata fino al prossimo. L'emozione
+// *è* la lettura (vedi la tesi in sistema_occ.h); questo componente è solo
+// il posto dove la lettura riposa fra un gradino e l'altro.
+//
+// PERCHÉ UN LATCH E NON UNA LETTURA PER FRAME: costa 2,6 volte meno e dà un
+// numero che sta fermo mentre lo si usa. Le due misure e la ragione che
+// invece NON vale (il tremolio, che è un'eredità del piano e non si
+// verifica) stanno per esteso su `PASSO_EMO`, in sistema_occ.h — qui non se
+// ne tiene una seconda copia.
+//
+// Si rivaluta SOLO quando il grafo è cambiato (`vista` contro
+// `GrafoRicordi.versione`) oppure quando sono passati `PASSO_EMO` secondi
+// (`t_valutato`). Dentro un gradino il mod è lo stesso double, bit per bit —
+// e un test lo pretende bit per bit, non «circa».
+//
+// Il neutro è LETTERALE, otto 1.0 scritti a mano: su quell'esattezza
+// poggia la prova di equivalenza dell'agenda (67.200 confronti bit-esatti).
+// Un neutro costruito da un calcolo che «dovrebbe» dare 1.0 la farebbe
+// cadere — o peggio, la farebbe passare per un pelo oggi.
+struct EmozioniComponent {
+	double mod[N_AZIONI] = { 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0 };
+	uint32_t vista = VISTA_MAI;
+	float t_valutato = -1.0e9f;
+};
+
+// Se un domani arriva una nona azione, i letterali qui sopra (e i loro
+// gemelli in `AgendaComponent.jitter`, in `modulatori()` e in `avanza()`)
+// smettono di coprirla: che lo dica il compilatore, non il profiler.
+static_assert(N_AZIONI == 8, "otto azioni, otto 1.0 letterali");
 
 } // namespace chibi
 

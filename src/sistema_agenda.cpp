@@ -149,7 +149,7 @@ const AzioneDef *tabella() {
 }
 
 void punteggi(const double p_bisogni[N_BISOGNI], uint32_t p_fatti,
-		uint32_t p_indole, bool p_nottambulo,
+		uint32_t p_indole, bool p_nottambulo, const double p_mod[N_AZIONI],
 		double r_punti[N_AZIONI], uint32_t *r_fattibile) {
 	uint32_t fattibile = 0;
 	for (int a = 0; a < N_AZIONI; a++) {
@@ -180,6 +180,43 @@ void punteggi(const double p_bisogni[N_BISOGNI], uint32_t p_fatti,
 					break;
 			}
 		}
+		// --- FASE 4: L'INNESTO DELL'EMOZIONE ----------------------------
+		// Qui, e non altrove. DOPO i fattori (l'emozione inclina un
+		// desiderio già formato, non ne inventa uno) e PRIMA del nottambulo,
+		// del compensation factor e del pavimento — e ognuna delle tre è una
+		// scelta con una conseguenza:
+		//
+		//  · prima del NOTTAMBULO e prima del COMPENSATION FACTOR: nessuna
+		//    simpatia rimette in piedi una stella che il DNA ha spento.
+		//    ONESTÀ SULLA MISURA: oggi queste due sono ordini INDIFFERENTI,
+		//    e l'ho verificato guastandoli — spostare l'innesto dopo il
+		//    nottambulo lascia la suite verde, perché un mod moltiplicativo
+		//    non può resuscitare uno zero (0 × qualunque cosa = 0) e
+		//    `usa_compensa` è spento su tutte e otto le azioni. L'ordine
+		//    scritto qui è quello che resta GIUSTO il giorno che una delle
+		//    due cose cambia (un mod additivo, o una riga che accende
+		//    `usa_compensa`), non una proprietà che un test sorveglia.
+		//  · prima del PAVIMENTO: un'aiuola che secca chiama chiunque, anche
+		//    chi ti ama poco. Il mondo batte l'emozione; con l'ordine
+		//    rovesciato un vicino tiepido lascerebbe seccare il giardino
+		//    perché tu non gli stai simpatica, e il giocatore non avrebbe
+		//    nessun modo di capire perché.
+		//
+		// Lo SCARTO è pinzato in valore ASSOLUTO, non in rapporto: è la rete
+		// che tiene l'emozione fuori dalla corsia d'urgenza (vedi DELTA_MAX).
+		// Un tetto sul rapporto — «al massimo x1.5» — lascerebbe passare
+		// +1.60 su un punteggio da 3.2, cioè quasi il triplo del margine.
+		//
+		// Il mod NEGATIVO si pinza a zero PRIMA di moltiplicare. Non è
+		// prudenza: è la stessa regola per cui `valuta()` pinza il gusto
+		// negativo (un'emozione che TOGLIE voglia sarebbe il contenuto
+		// negativo che questa fase si vieta). E senza, un mod < 0 porterebbe
+		// il punteggio SOTTO ZERO — un punteggio negativo perde qualunque
+		// confronto, compreso quello con «non si può fare».
+		const double mo = (p_mod[a] > 0.0) ? p_mod[a] : 0.0;
+		const double d = v * mo - v;
+		v += (d > DELTA_MAX ? DELTA_MAX : (d < -DELTA_MAX ? -DELTA_MAX : d));
+
 		// il nottambulo della stella, derivato dal DNA e non passato come
 		// fatto: la frase «chi è nottambulo» vive in sistema_sonno.cpp e in
 		// nessun altro posto

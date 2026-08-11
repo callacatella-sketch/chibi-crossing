@@ -106,6 +106,22 @@ struct AzioneDef {
 // la modifichi a runtime credendo di «tarare».
 const AzioneDef *tabella();
 
+// --- FASE 4: IL TETTO SULLO SCARTO ASSOLUTO -----------------------------
+//
+// Quanto, al massimo, l'emozione può muovere un punteggio. È uno scarto
+// ASSOLUTO e non un rapporto, e il numero non è di gusto: `TaraturaAgenda`
+// (qui sotto) apre la corsia d'urgenza quando il primo batte il corrente di
+// più di `margine` (0.60), e l'urgenza porta il tempo minimo da 2,0 s a
+// 0,5 s. Con 0.45 < 0.60 l'emozione, PARTENDO DA UN PAREGGIO, non può mai
+// aprire quella corsia da sola: se potesse, un vicino che ti ammira
+// cambierebbe idea quattro volte più spesso — per sempre, e senza che
+// nessun test se ne accorga, perché tutte le asserzioni sui punteggi
+// resterebbero verdi.
+//
+// Il `+50%` dell'autore resta LETTERALE dove si esprime l'intenzione
+// (`sistema_occ.h`, `k_ammirazione`): qui c'è solo la rete.
+constexpr double DELTA_MAX = 0.45;
+
 // I PUNTEGGI, deterministici: niente rumore, niente argmax. Il rumore vive
 // in GDScript (il villaggio salva i suoi dadi, e un secondo generatore in
 // C++ sarebbe una seconda storia) e attraversa il ponte già estratto.
@@ -114,8 +130,16 @@ const AzioneDef *tabella();
 // scrive il GDScript: è l'unico modo di avere l'uguaglianza esatta invece
 // che «circa», perché con gli stessi operandi e la stessa associazione i
 // due risultati sono lo stesso double, bit per bit.
+//
+// `p_mod` è OBBLIGATORIO e MAI NULLABLE, ed è una decisione di progetto, non
+// una svista: con un puntatore nullable la prova di equivalenza (67.200
+// confronti bit-esatti) passerebbe dal ramo `nullptr` e NON PROVEREBBE IL
+// CODICE NUOVO. È la lezione già pagata due volte in Fase 1 — una prova che
+// aggira il codice nuovo non prova niente. Chi non ha emozioni da dichiarare
+// passa otto 1.0 letterali, e quegli 1.0 attraversano la moltiplicazione
+// come tutti gli altri.
 void punteggi(const double p_bisogni[N_BISOGNI], uint32_t p_fatti,
-		uint32_t p_indole, bool p_nottambulo,
+		uint32_t p_indole, bool p_nottambulo, const double p_mod[N_AZIONI],
 		double r_punti[N_AZIONI], uint32_t *r_fattibile);
 
 // LE TRE LEVE dell'inerzia. I numeri non sono di gusto: vengono dalle
@@ -128,6 +152,15 @@ struct TaraturaAgenda {
 	double margine = 0.60;     // sopra questo scarto è un'urgenza: si cambia subito
 	double tetto_impegno = 45.0; // se il corpo resta occupato più di così, si ridecide
 };
+
+// LA RETE, verificata dal compilatore: se un giorno qualcuno alza DELTA_MAX
+// o abbassa il margine, la build non parte. Un test in GDScript lo ripete a
+// runtime leggendo ENTRAMBI i numeri dal C++ (mai riscritti a mano di là),
+// perché questa relazione è l'unica cosa che tiene l'emozione fuori dalla
+// corsia d'urgenza — e una relazione affidata solo alla memoria di chi tara
+// è una relazione che prima o poi si rompe in silenzio.
+static_assert(DELTA_MAX < TaraturaAgenda{}.margine,
+		"DELTA_MAX deve restare sotto il margine d'urgenza: l'emozione INCLINA, non accelera.");
 
 struct EsitoAgenda {
 	int32_t azione = AZ_NESSUNA;

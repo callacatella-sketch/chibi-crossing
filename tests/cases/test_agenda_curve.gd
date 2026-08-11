@@ -42,7 +42,8 @@ func _api(t, m) -> void:
 	for nome in ["riferisci_bisogni", "riferisci_agenda", "semina_agenda",
 			"vuole_dado", "azione", "azione_cambiata", "azione_desiderata",
 			"azione_da", "maschera_fatti", "indice_azione", "indice_bisogno",
-			"debug_punteggi", "debug_agenda", "debug_tara_agenda"]:
+			"debug_punteggi", "debug_punteggi_mod", "debug_costanti_agenda",
+			"debug_agenda", "debug_tara_agenda"]:
 		t.ok(m.has_method(nome), "EcsMondo espone «%s» nel binario" % nome)
 
 
@@ -151,11 +152,65 @@ func _gironzola_si_puo_sempre(t, m) -> void:
 
 ## Nessun punteggio deve uscire dalla scala per una taratura sbagliata: le
 ## curve pinzano l'uscita in [0,1] e il peso è dichiarato a parte.
+##
+## FASE 4: la stessa asserzione si rifà col MODULATORE dell'emozione acceso
+## al massimo, e con lo STESSO tetto. Il modulatore non è inventato qui: si
+## chiede a `modulatori()` (la fonte) cosa produce con le tinte a fondo
+## scala, perché il tetto dev'essere provato contro quel che il gioco può
+## davvero produrre — un vettore inventato a mano proverebbe un sistema che
+## non esiste, in un senso o nell'altro.
 func _niente_punteggi_fuori_scala(t, m) -> void:
 	var strani := PackedFloat64Array([-5.0, 9.0, 0.5, -0.001, 1.001])
-	var p := _p(m, strani, ["spuntino_vicino", "amico_in_giro",
-			"aiuola_da_annaffiare", "meraviglia_posto", "mattina"], ["goloso"])
+	var fatti := ["spuntino_vicino", "amico_in_giro",
+			"aiuola_da_annaffiare", "meraviglia_posto", "mattina"]
+	var p := _p(m, strani, fatti, ["goloso"])
 	for i in 8:
 		t.ok(not is_nan(p[i]), "il punteggio %d non è NaN nemmeno con bisogni assurdi" % i)
 		t.ok(p[i] >= 0.0 and p[i] <= 3.5,
 				"e resta in scala (%d = %.3f)" % [i, p[i]])
+
+	var mod := _mod_al_massimo(m)
+	t.eq(mod.size(), 8, "il modulatore dell'emozione ha una voce per azione")
+	var q: PackedFloat64Array = m.debug_punteggi_mod(strani,
+			m.maschera_fatti(PackedStringArray(fatti)),
+			m.maschera_indole(PackedStringArray(["goloso"])), m.indice_quirk(""), mod)
+	var mossi := 0
+	for i in 8:
+		t.ok(not is_nan(q[i]),
+				"col modulatore acceso il punteggio %d non è NaN" % i)
+		t.ok(q[i] >= 0.0 and q[i] <= 3.5,
+				"e resta nella STESSA scala di prima (%d = %.3f)" % [i, q[i]])
+		if q[i] != p[i]:
+			mossi += 1
+	# l'anti-tautologia: se il modulatore non muovesse niente, le sedici
+	# asserzioni qui sopra sarebbero una copia di quelle di prima
+	t.ok(mossi >= 1,
+			"…e il modulatore ha davvero mosso qualcosa (%d punteggi su 8)" % mossi)
+	t.ok(q[m.AZ_CHIACCHIERE] > p[m.AZ_CHIACCHIERE],
+			"a muoversi sono le chiacchiere (%.3f → %.3f)"
+					% [p[m.AZ_CHIACCHIERE], q[m.AZ_CHIACCHIERE]])
+	# …e a NON muoversi è la cura del giardino, ed è la regola 9 vista qui
+	# dentro: con la cura piena il punteggio grezzo è zero, l'emozione
+	# moltiplica zero, e quel che resta è il PAVIMENTO — 0.9 per chiunque.
+	t.almost(q[m.AZ_CURA_GIARDINO], 0.9,
+			"e l'aiuola secca vale 0.9 anche per chi ti ammira: il mondo batte l'emozione",
+			1e-12)
+
+
+## IL MODULATORE PIÙ GRANDE CHE IL GIOCO SAPPIA PRODURRE, chiesto alla sua
+## fonte (`chibi::modulatori`, via l'oracolo dell'occ) con un grafo dei
+## ricordi pieno, caldo e con i gusti a fondo scala.
+func _mod_al_massimo(m) -> PackedFloat64Array:
+	var neutro := PackedFloat64Array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+	var cost: Dictionary = m.debug_occ(PackedFloat64Array(), neutro, 0.0, {})
+	var su_di_me := int(cost["su_di_me"])
+	var v_annaffia: int = m.indice_verbo("annaffia")
+	var v_dona: int = m.indice_verbo("dona")
+	var ricordi := PackedFloat64Array()
+	for i in 12:
+		ricordi.append_array(PackedFloat64Array([float(v_annaffia), 0.0, 255.0, 255.0, 0.0]))
+	for i in 12:
+		ricordi.append_array(PackedFloat64Array([float(v_dona), float(su_di_me), 255.0, 255.0, 0.0]))
+	var forti := PackedFloat64Array([4.0, 4.0, 4.0, 4.0, 4.0, 4.0])
+	var letto: Dictionary = m.debug_occ(ricordi, forti, 0.0, {})
+	return letto["mod"]

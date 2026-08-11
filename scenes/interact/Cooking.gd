@@ -257,6 +257,9 @@ func _choose_recipe(i: int) -> void:
 	for kind in recipe["need"]:
 		pantry[kind] = int(pantry.get(kind, 0)) - int(recipe["need"][kind])
 	get_tree().call_group("regista", "note", "cucina")
+	# `_near` è il camino su cui si sta cucinando: la guardia in cima alla
+	# funzione lo ha già verificato non nullo, insieme agli ingredienti.
+	get_tree().call_group("percezione", "accaduto", "cucina", _near.global_position)
 	_menu_open = false
 	_menu.visible = false
 	if _sfx:

@@ -19,6 +19,23 @@ extends RefCounted
 ## e l'equivalenza si può pretendere esatta invece che «circa».
 static func punteggi(needs: Dictionary, ctx: Dictionary, indole: Array,
 		quirk: String) -> Dictionary:
+	var punti := punteggi_pre_pavimento(needs, ctx, indole, quirk)
+	if bool(ctx.get("aiuola_da_annaffiare", false)):
+		punti["cura_giardino"] = maxf(float(punti["cura_giardino"]), 0.9)
+	return punti
+
+
+## LO STESSO CONTO, fermato un attimo PRIMA del pavimento dell'aiuola.
+##
+## Non è una seconda copia delle formule: `punteggi()` qui sopra chiama
+## questa e ci applica il `maxf` — c'è UNA sola scrittura di ogni riga, e le
+## due funzioni non possono divorziare. Serve alla Fase 4: l'emozione entra
+## PRIMA del pavimento (il mondo batte l'emozione), quindi per sapere cosa
+## deve venir fuori col modulatore acceso bisogna poter leggere il valore
+## grezzo. Senza, il test sull'innesto dovrebbe riscrivere le formule per la
+## terza volta, ed è così che nascono le divergenze silenziose.
+static func punteggi_pre_pavimento(needs: Dictionary, ctx: Dictionary,
+		indole: Array, quirk: String) -> Dictionary:
 	var punti := {}
 
 	punti["spuntino"] = (1.0 - float(needs["pancino"])) * 2.0 \
@@ -37,8 +54,6 @@ static func punteggi(needs: Dictionary, ctx: Dictionary, indole: Array,
 			* (1.7 if "ordinato" in indole else 1.0) \
 			* (1.4 if bool(ctx.get("mattina", false)) else 1.0) \
 			* (1.0 if bool(ctx.get("aiuola_da_annaffiare", false)) else 0.0)
-	if bool(ctx.get("aiuola_da_annaffiare", false)):
-		punti["cura_giardino"] = maxf(float(punti["cura_giardino"]), 0.9)
 
 	punti["meraviglia"] = (1.0 - float(needs["meraviglia"])) * 1.4 \
 			* (1.6 if "sognatore" in indole else 1.0)
