@@ -33,6 +33,36 @@ per il registro delle entità (`src/ecs_mondo.cpp`).
 Licenza: **MIT** — Copyright (c) 2017-2023 Michele Caini, author of EnTT.
 Testo completo: [`src/thirdparty/entt/LICENSE`](src/thirdparty/entt/LICENSE).
 
+## llama.cpp (e ggml)
+
+Motore di inferenza per modelli linguistici, incluso come **submodule** in
+`src/thirdparty/llama.cpp` e **pinnato al tag `b10326`** (SHA `3653e6d`).
+Comprende `ggml`, che vive nello stesso repository (`ggml/`).
+Licenza: **MIT** — Copyright (c) 2023-2026 The ggml authors.
+Testo completo: [`src/thirdparty/llama.cpp/LICENSE`](src/thirdparty/llama.cpp/LICENSE).
+
+Entra nel gioco **solo** nelle build compilate con `scons llm=yes`; con la leva
+spenta (il default) non una riga di llama.cpp finisce nel binario. Quando è
+acceso, il codice compilato è quello delle librerie `llama`, `ggml`,
+`ggml-base` e dei backend di calcolo: `common/`, i tool, il server e la
+cartella `vendor/` (cpp-httplib, nlohmann/json, miniaudio, stb, sheredom) **non
+vengono compilati** (`LLAMA_BUILD_COMMON=OFF`), quindi le loro licenze non
+riguardano il gioco distribuito.
+
+Dentro il codice compilato ci sono due contributi di terzi, tutti e due MIT e
+tutti e due con l'avviso nel file sorgente:
+
+- `ggml/src/ggml-cpu/llamafile/sgemm.cpp` — Copyright 2024 Mozilla Foundation;
+- `rope_yarn` in `ggml/src/ggml-cpu/ops.cpp` — Copyright (c) 2023 Jeffrey
+  Quesnelle e Bowen Peng.
+
+> **I PESI DEI MODELLI SONO UN'ALTRA COSA.** La licenza MIT di llama.cpp copre
+> il motore, non i modelli che gli si danno da leggere: ogni `.gguf` ha la
+> licenza sua, e il modello di questo gioco viaggerà **dentro il pacchetto**
+> (quindi si ridistribuisce, e per giunta a scopo commerciale). Prima di
+> sceglierne uno va letta la sua licenza, non quella di llama.cpp; e quando è
+> scelto, la sua voce va aggiunta qui sotto insieme al file di licenza.
+
 ## Godot Engine
 
 Il gioco gira sul motore **Godot Engine** (MIT — Copyright (c) 2014-present

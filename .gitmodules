@@ -4,3 +4,19 @@
 	# master = linea API 4.7 (nessun branch 4.7 dedicato a monte, ancora):
 	# DEVE combaciare con la versione di Godot del progetto (project.godot 4.7)
 	branch = master
+[submodule "llama.cpp"]
+	path = src/thirdparty/llama.cpp
+	url = https://github.com/ggml-org/llama.cpp
+	# NESSUN `branch`: e' voluto. A monte non esistono rami stabili, solo tag
+	# di build (b10326, b10327, ...) prodotti piu' volte al giorno; l'unica
+	# verita' e' il SHA registrato qui dal gitlink. Un `branch = master`
+	# renderebbe `git submodule update --remote` un aggiornamento a caso.
+	# Il tag pinnato oggi e' b10326 (SHA 3653e6d, 2026-08-07): si cambia con un
+	# commit suo, dopo aver visto la CI verde su tutti e tre i sistemi.
+	#
+	# shallow: il clone completo pesa 436 MB di storia per un sorgente che ci
+	# serve fermo a un SHA. Con questa riga `git submodule update --init` porta
+	# a casa 40 MB di .git (+168 MB di albero). Se un giorno git non riuscisse
+	# a pescare il SHA pinnato in profondita' 1, il ripiego e'
+	# `git -c submodule."llama.cpp".shallow=false submodule update --init`.
+	shallow = true

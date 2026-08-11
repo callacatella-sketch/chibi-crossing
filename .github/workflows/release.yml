@@ -84,10 +84,16 @@ jobs:
       AZURE_TS_ACCOUNT: ${{ secrets.AZURE_TS_ACCOUNT }}
       AZURE_TS_CERT_PROFILE: ${{ secrets.AZURE_TS_CERT_PROFILE }}
     steps:
-      - name: Checkout (con submodule godot-cpp)
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
+
+      # I sottomoduli si tirano giu' a mano, e SOLO quelli che servono. Da
+      # quando c'e' llama.cpp (Fase 5, `src/thirdparty/llama.cpp`) un
+      # `submodules: recursive` porterebbe 200 MB di motore di inferenza dentro
+      # ogni job che compila il gioco SENZA di lui — cioe' dentro tutti tranne
+      # uno. Qui serve godot-cpp e basta.
+      - name: Sottomodulo godot-cpp
+        run: git submodule update --init --depth 1 godot-cpp
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -180,10 +186,16 @@ jobs:
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
     steps:
-      - name: Checkout (con submodule godot-cpp)
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
+
+      # I sottomoduli si tirano giu' a mano, e SOLO quelli che servono. Da
+      # quando c'e' llama.cpp (Fase 5, `src/thirdparty/llama.cpp`) un
+      # `submodules: recursive` porterebbe 200 MB di motore di inferenza dentro
+      # ogni job che compila il gioco SENZA di lui — cioe' dentro tutti tranne
+      # uno. Qui serve godot-cpp e basta.
+      - name: Sottomodulo godot-cpp
+        run: git submodule update --init --depth 1 godot-cpp
 
       - name: Setup Python
         uses: actions/setup-python@v5

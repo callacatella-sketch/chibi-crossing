@@ -11,6 +11,15 @@
 #include "ecosystem_manager.h"
 #include "ecs_mondo.h"
 
+// FASE 5, e la condizione non e' decorativa: `CHIBI_LLM` lo definisce il
+// SConstruct solo con `llm=yes`. Senza, `llm_ponte.cpp` non viene nemmeno
+// compilato, questo include sparisce, e il preprocessore restituisce
+// esattamente il file di prima — il binario e' identico byte per byte
+// (verificato per impronta SHA-256 su entrambi i target).
+#ifdef CHIBI_LLM
+#include "llm_ponte.h"
+#endif
+
 using namespace godot;
 
 void initialize_chibi_crossing_module(ModuleInitializationLevel p_level) {
@@ -24,6 +33,12 @@ void initialize_chibi_crossing_module(ModuleInitializationLevel p_level) {
     ClassDB::register_class<PlayerController>();
     ClassDB::register_class<EcosystemManager>();
     ClassDB::register_class<EcsMondo>();
+#ifdef CHIBI_LLM
+    // L'ESISTENZA di questa classe e' il segnale: il gioco chiede
+    // `ClassDB.class_exists("LlmLocale")` e sa se ha un cuore che scrive.
+    // Nessun sistema deve DIPENDERE dalla risposta `true`.
+    ClassDB::register_class<LlmLocale>();
+#endif
 }
 
 void uninitialize_chibi_crossing_module(ModuleInitializationLevel p_level) {

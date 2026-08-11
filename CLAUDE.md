@@ -1453,6 +1453,113 @@ suite non dice niente su questo. E il ramo Windows del `SConstruct` non è
 verificabile da un Mac: la CI (`build.yml`, che ora gira anche sui rami di
 lavoro) è l'unico giudice per Windows e Linux.
 
+## FASE 5 — il cuore che scrive (llama.cpp), e la leva spenta
+
+Il gioco **può** avere dentro un modello linguistico piccolo, in locale, che
+scrive di suo pugno le lettere del Gufo, i pensieri e i discorsi. Il terreno
+c'è: `llama.cpp` è un **sottomodulo pinnato** e il `SConstruct` lo compila e lo
+linka con `scons llm=yes`. Di default è **spento**, e non «spento» come «c'è ma
+non si usa»: con `llm=no` i sorgenti `src/llm_*.cpp` non entrano nemmeno nella
+lista dei file da compilare.
+
+> ### ⚠️ LA REGOLA CHE PRECEDE TUTTE, QUI: il gioco funziona IDENTICO senza
+>
+> Chi non ha il modello ha un gioco **meno sorprendente**, non un gioco a cui
+> manca un pezzo. Niente schermate di errore, niente caricamenti che si
+> piantano, niente lettera che non arriva: le lettere scritte a mano ci sono e
+> restano. Chi scrive il ramo «c'è il modello» **scrive prima quello senza** —
+> e se una funzione non ha una risposta bella senza, quella funzione non si fa.
+
+**Come fa il gioco a saperlo.** La GDExtension registra la classe nativa
+`LlmLocale` **solo** se compilata con `llm=yes`: l'esistenza della classe *è* il
+segnale. Non c'è un file di configurazione da tenere allineato né un flag
+salvato che possa mentire — un binario compilato senza llama.cpp non ha proprio
+il codice per rispondere di sì. La domanda si fa in un posto solo,
+[`systems/Llm.gd`](systems/Llm.gd) (`Llm.disponibile()` / `Llm.apri()`), e un
+test fa la guardia perché resti così.
+
+**Il pin.** Tag **`b10326`** (SHA `3653e6d`, 7 agosto 2026), in
+`src/thirdparty/llama.cpp`. A monte non esistono rami stabili: solo tag di
+build, più d'uno al giorno. Quindi in `.gitmodules` **non c'è `branch`** — la
+verità è il SHA del gitlink — e c'è `shallow = true`, perché il clone completo
+pesa 436 MB di storia per un sorgente che ci serve fermo. Con `shallow`:
+`git submodule update --init --depth 1 src/thirdparty/llama.cpp` → 40 MB di
+`.git` e 168 MB di albero. Cambiare tag è **un commit suo**, dopo aver visto la
+CI verde su tutti e tre i sistemi.
+
+**Come si compila** (serve `cmake`; llama.cpp non ha altro build supportato a
+monte, ed è la sua CMake a scegliere sorgenti e flag per architettura):
+
+```
+scons platform=macos arch=universal target=template_debug llm=yes -j8
+```
+
+La prima volta sono venti minuti scarsi (ggml è qualche centinaio di file);
+dopo, un timbro (`llm-build/<piattaforma>-<arch>/timbro.json`) tiene conto del
+SHA e delle opzioni e non rifà niente finché non cambiano. Le leve:
+`llm_metal=yes` (GPU su macOS, spenta finché non c'è un modello vero da
+misurare), `llm_avx2=no` (x86: rinuncia alla baseline Haswell), `llm_cmake=…`,
+`llm_msvc_crt=…`, `llm_ricostruisci=yes`.
+
+**Le trappole, e sono quasi tutte di piattaforma:**
+
+1. **Il CRT di MSVC è il rischio numero uno, e non è verificabile da un Mac.**
+   Il nostro ramo win32 non passa né `/MD` né `/MT`: `cl.exe` senza opzioni usa
+   il runtime C **statico** (`/MT`), che è anche quello che sceglie godot-cpp
+   (`use_static_cpp=True`). CMake invece parte da `/MD`. Due metà con CRT
+   diversi si fermano al link con **LNK2038**, e il rimedio è una variabile:
+   `llm_msvc_crt=MultiThreadedDLL`. Il giudice è il job *Compila con llama.cpp
+   (windows)* di `build.yml`.
+2. **macOS universale = DUE passate + `lipo`.** `CMAKE_OSX_ARCHITECTURES` con
+   due valori insieme non funziona: ggml sceglie sorgenti e flag guardando
+   proprio quella variabile (`ggml/cmake/common.cmake`) e con `arm64;x86_64`
+   non riconosce nessuna delle due. Si compila una volta per architettura e si
+   uniscono gli archivi.
+3. **`-fPIC` non è opzionale**: le `.a` finiscono dentro una libreria
+   *condivisa*, e su Linux senza `CMAKE_POSITION_INDEPENDENT_CODE=ON` il link
+   muore con «relocation R_X86_64_32 … can not be used when making a shared
+   object».
+4. **`GGML_NATIVE=OFF` non vuol dire «senza SIMD»**: in ggml spegne
+   `-march=native` (che darebbe un binario buono solo per il PC che l'ha
+   compilato) e **accende** la baseline fissa Haswell su x86. È quello che
+   fanno le release ufficiali di llama.cpp. Metterlo a `ON` significa
+   spedire un gioco che va in SIGILL sulla macchina di qualcun altro.
+5. **Le eccezioni: il confine si compila DIVERSO dal resto del cuore.**
+   godot-cpp compila tutto con `-fno-exceptions`; llama.cpp compila i suoi con
+   le eccezioni, e `llama_decode`, `llama_tokenize` e `llama_token_to_piece`
+   **non se le riprendono da sole** (`llama_model_load_from_file` e
+   `llama_init_from_model` sì: hanno il loro try/catch e tornano `nullptr`).
+   Un throw che arriva su un frame senza eccezioni non è un errore da gestire,
+   è `std::terminate`. Perciò il `SConstruct` compila `src/llm_*.cpp` — e solo
+   quelli — con `-fexceptions`, e [`src/llm_llama.h`](src/llm_llama.h) fa
+   fallire la build con un `#error` se quel flag sparisce.
+6. **`ggml` ABORTISCE il processo, e non c'è callback.** `GGML_ABORT` non è
+   `assert()`: `NDEBUG` non lo spegne e chiama `abort()`. Un `.gguf` corrotto o
+   troncato può portarsi via il gioco del giocatore, e **nessun `try` lo
+   prende**. È un residuo dichiarato di questa fase: chi porterà il modello
+   vero deve validarlo prima di darlo in pasto a llama, e valutare seriamente
+   se farlo girare in un processo suo — che è l'unica difesa vera.
+7. **`src/thirdparty/` ha un `.gdignore`, e serve.** L'importer di Godot
+   scandaglia `src/` sul serio, e lì dentro ci sono migliaia di file e dei
+   `.gguf` di prova del repository a monte.
+8. **I pesi non entrano MAI nel repository** (`*.gguf` in `.gitignore`). Git
+   conserva ogni versione di ogni file per sempre: due gigabyte messi lì una
+   volta non si tolgono più, e rallentano il clone di chiunque per sempre.
+9. **La licenza dei PESI non è quella di llama.cpp.** Il motore è MIT; ogni
+   modello ha la licenza sua, e questo viaggerà **dentro il pacchetto** di un
+   gioco commerciale. Si legge prima di sceglierlo, e si annota in
+   [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+
+**Come si verifica** (la suite verde non dice niente sul terreno):
+
+- `build.yml` ha un job **`build-llm`** che compila con `llm=yes` su tutti e
+  tre i sistemi (con cache della build di ggml: la prima volta è lunga, poi no);
+- `tests.yml` ha un job **`test-llm`** che fa girare **la stessa suite** sul
+  cuore con llama dentro. È il gemello che nessuno guarda mai: «funziona
+  identico senza» ha senso solo se qualcuno prova anche «e identico con»;
+- in locale, l'impronta: con `llm=no` il binario dev'essere **byte per byte**
+  quello di prima (`shasum -a 256 bin/*.dylib` prima e dopo).
+
 ## Test
 
 Test-suite **dependency-free** (nessun addon, nessuna rete) in `tests/`:

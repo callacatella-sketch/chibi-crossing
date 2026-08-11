@@ -47,10 +47,16 @@ jobs:
     name: Esegui la test-suite
     runs-on: macos-latest
     steps:
-      - name: Checkout (con submodule godot-cpp)
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
+
+      # I sottomoduli si tirano giu' a mano, e SOLO quelli che servono. Da
+      # quando c'e' llama.cpp (Fase 5, `src/thirdparty/llama.cpp`) un
+      # `submodules: recursive` porterebbe 200 MB di motore di inferenza dentro
+      # ogni job che compila il gioco SENZA di lui — cioe' dentro tutti tranne
+      # uno. Qui serve godot-cpp e basta.
+      - name: Sottomodulo godot-cpp
+        run: git submodule update --init --depth 1 godot-cpp
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -62,6 +68,68 @@ jobs:
 
       - name: Compila il cuore C++ (macOS universale, debug)
         run: scons platform=macos arch=universal target=template_debug -j4
+
+      - name: Setup Godot (senza export templates)
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: ${{ env.GODOT_VERSION }}
+          use-dotnet: false
+          include-templates: false
+
+      - name: Genera la cache di import (registra le GDExtension)
+        run: godot --headless --path . --import || true
+
+      - name: Esegui i test
+        run: godot --headless --path . --script res://tests/test_runner.gd
+
+  # --------------------------------------------------------------------------
+  # FASE 5 — LA STESSA SUITE, sul cuore compilato CON llama.cpp dentro.
+  #
+  # E' la prova della promessa: «il gioco deve funzionare identico senza» ha un
+  # gemello che nessuno guarda mai, ed e' «e identico CON». Il job qui sopra
+  # prova un binario in cui `LlmLocale` non esiste; questo prova quello in cui
+  # esiste — stessi test, stesso numero di asserzioni. Ed e' anche l'unico
+  # posto in cui le asserzioni condizionate di `test_llm_terreno.gd` (quelle
+  # che interrogano il registro dei backend di ggml) girano davvero: senza
+  # questo job sarebbero un ramo di codice che nessuno esegue.
+  # --------------------------------------------------------------------------
+  test-llm:
+    name: Esegui la test-suite (con llama.cpp)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Il SHA a cui e' pinnato llama.cpp
+        id: pin
+        shell: bash
+        run: echo "sha=$(git ls-tree HEAD src/thirdparty/llama.cpp | awk '{print $3}')" >> "$GITHUB_OUTPUT"
+
+      - name: Sottomoduli (godot-cpp + llama.cpp)
+        run: git submodule update --init --depth 1 godot-cpp src/thirdparty/llama.cpp
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Installa SCons e Ninja
+        run: python -m pip install --upgrade pip scons ninja
+
+      - name: Cache della build di llama.cpp
+        uses: actions/cache@v4
+        with:
+          # Solo le librerie INSTALLATE, non le centinaia di megabyte di
+          # oggetti: il timbro nel SConstruct guarda proprio queste due cose
+          # (`inst/lib` pieno + `timbro.json` che combacia) e salta tutto il
+          # resto senza nemmeno chiamare cmake.
+          path: |
+            src/thirdparty/llm-build/*/inst
+            src/thirdparty/llm-build/*/timbro.json
+          key: llm-macos-${{ steps.pin.outputs.sha }}-${{ hashFiles('SConstruct') }}
+
+      - name: Compila il cuore C++ con llama.cpp (macOS universale, debug)
+        run: scons platform=macos arch=universal target=template_debug llm=yes -j4
 
       - name: Setup Godot (senza export templates)
         uses: chickensoft-games/setup-godot@v2
