@@ -644,9 +644,10 @@ const STATI_INTERROMPIBILI := ["r_idle", "r_wander", "r_fire", "r_bench",
 ## contesto costa (interroga il Garden, cerca i cespugli, guarda gli altri
 ## residenti): calcolarlo a 60 Hz per ventotto vicini vorrebbe dire metà
 ## frame, e il costo CRESCEREBBE con quanto il giocatore costruisce — cioè
-## il gioco punirebbe chi costruisce. Sfalsato per residente, così a ogni
-## frame se ne rinfresca circa uno: la spesa è quella di oggi, e i fatti
-## sono freschi ogni mezzo secondo invece che ogni 9-15 secondi.
+## il gioco punirebbe chi costruisce. Sfalsato per residente (la FASE viene
+## da `hash(label)`, vedi `_fatti_di`), così a ogni frame se ne rinfresca
+## circa uno: la spesa è quella di oggi, e i fatti sono freschi ogni mezzo
+## secondo invece che ogni 9-15 secondi.
 const FATTI_OGNI := 30
 
 ## QUALE STATO DEL CORPO SAZIA QUALE BISOGNO, e si paga quando il gesto
@@ -726,7 +727,10 @@ func _dimentica_ecs(r: Dictionary) -> void:
 ## contesto costa (il Garden, i cespugli, gli altri vicini) e calcolarlo a
 ## sessanta hertz per ventotto persone vorrebbe dire metà frame. Sfalsato,
 ## a ogni frame se ne rinfresca circa uno — la stessa spesa di prima, con i
-## fatti freschi ogni mezzo secondo invece che ogni 9-15 secondi.
+## fatti freschi ogni mezzo secondo invece che ogni 9-15 secondi. Lo
+## sfalsamento è la riga di `hash(label)` qui sotto, e non è decorativa:
+## senza, «circa uno per frame» diventa «tutti e ventotto insieme, due
+## volte al secondo».
 ##
 ## Fra un rinfresco e l'altro il motore continua a valutare: sono i BISOGNI
 ## a scorrere di continuo, e sono loro a muovere le decisioni.
@@ -735,7 +739,38 @@ func _fatti_di(r: Dictionary, node: Node3D) -> int:
 	r["fatti_scad"] = scad - 1.0
 	if scad > 0.0 and r.has("fatti"):
 		return int(r["fatti"])
-	r["fatti_scad"] = float(FATTI_OGNI)
+	# SFALSATO PER RESIDENTE, con l'etichetta come seme — come in `_cuore_di`.
+	# Senza, `load_extra` crea tutti i residenti nello stesso frame, tutti
+	# scadono nello stesso frame, e ventotto `_brain_ctx` +
+	# `_luoghi_del_piano` cadono INSIEME due volte al secondo, per sempre.
+	# La MEDIA resta quella promessa qui sopra — ed è per questo che una
+	# media non basta a vedere il guasto — mentre il picco è ventotto volte
+	# tanto. Misurato nel MainLevel vero, 28 vicini su 600 frame
+	# (`tools/misura_picco_fatti.gd`): prima 19 frame caldi e picco 28, con
+	# l'istogramma tutto-o-niente (0 oppure 28, mai una via di mezzo); dopo,
+	# 292 frame caldi e picco 6, a media invariata.
+	#
+	# IL SEME VA QUI, NON SUL DEFAULT DI `r.get`, e la differenza col gemello
+	# è la clausola `and r.has("fatti")` della guardia qui sopra: `_cuore_di`
+	# si ferma al solo `scad > 0.0` e lì basta seminare il contatore prima.
+	# Qui la clausola c'è per forza — senza, il ritorno in cache leggerebbe
+	# una chiave che non esiste ancora — e rende il primo giro un rinfresco
+	# QUALUNQUE cosa dica il contatore: seminare il default è un no-op
+	# esatto, misurato (stessi 19 frame caldi, stesso picco 28).
+	# Si sfalsa perciò la FASE, non il primo giro, ed è anche giusto così:
+	# chi non ha ancora i fatti resterebbe senza `luoghi`, che `_recita` e
+	# `_piano_dirotta` si aspettano pronti nello stesso ciclo. E nessuno
+	# aspetta più di prima: il seme sta sotto FATTI_OGNI, quindi il ciclo si
+	# accorcia soltanto — verificato su tutti e trenta i semi, ogni rinfresco
+	# cade dove cadeva o prima, mai dopo.
+	#
+	# Il modulo è FATTI_OGNI per stare identico al gemello, non perché sia il
+	# numero esatto: fra un rinfresco e il successivo passano 31 chiamate, e
+	# una fase su 31 non viene mai usata. Sui 28 nomi veri (`ChibiDNA.NAMES`)
+	# vale un rinfresco: picco 5 col 30, picco 4 col 31. Se la si vuole, si
+	# cambia QUI E NEL GEMELLO insieme.
+	r["fatti_scad"] = float(FATTI_OGNI) if r.has("fatti") \
+			else float(absi(hash(str(r.get("label", "")))) % FATTI_OGNI)
 	# FUORI DAL VILLAGGIO NON CI SONO FATTI. `_brain_ctx` interroga il
 	# BuildSystem, il Garden e i gruppi dell'albero: senza mondo esploderebbe
 	# a ogni rinfresco, e un errore a runtime interrompe la funzione in
