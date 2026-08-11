@@ -401,6 +401,10 @@ var _tail_p: Node3D
 var _tail_tip: Node3D
 var _step_acc := 0.0
 var _sit_t := 0.0     # da quanto è seduto/coricato: l'assestamento vive qui
+## Quanto manca all'ATTERRAGGIO sul sedile. Finché scorre, `_sit_t` non
+## avanza: il plop deve suonare quando il corpo tocca il legno, non mentre
+## ci sta ancora arrivando.
+var _sit_attesa := 0.0
 # il sonno: la fase del respiro (per la zeta) e il fremito del sogno
 var _sonno_r_prev := 1.0
 var _sonno_fremito := 4.0
@@ -687,6 +691,139 @@ func _build_suitcase() -> void:
 	_vis.add_child(_suitcase)
 
 
+# --------------------------------------------------- il corpo che si posa
+
+## GLI STATI CHE TENGONO SU IL CORPO. Fuori da questi, `position.y` deve
+## essere zero: è l'erba. La lista è la rete di sicurezza del canale più
+## orfano che ci sia — l'ALTEZZA del corpo. Chi ci sta dentro se la scrive
+## da sé, ogni frame (l'onsen, la scala) o con un tween che gli appartiene
+## (la panchina).
+const STATI_SOLLEVATI := {
+	"sit": true, "r_bench": true, "dismount": true,
+	"th_up": true, "th_perch": true, "th_down": true,
+	"on_dip": true, "on_soak": true, "on_out": true,
+}
+
+## L'ULTIMO AVVICINAMENTO alla seduta, in metri al secondo. Poco meno del
+## passo (1.45): ci si avvicina RALLENTANDO, e il ciclo del passo resta
+## acceso fino all'ultimo perché la velocità resta quella di un corpo che
+## cammina. Prima erano quasi novanta centimetri in quattro decimi di
+## secondo con un'attenuazione che parte al massimo: **8,9 m/s** misurati in
+## 45 s di MainLevel vero, e il ciclo del passo che si congelava a mezz'aria
+## (sopra i 2,8 m/s `Andatura.misura` legge un teletrasporto e smette di far
+## girare la fase). Nel provino a fotogrammi la seduta durava UN frame.
+const SEDUTA_VEL := 1.15
+## Sotto questo tempo un avvicinamento non si legge: è uno scatto.
+const SEDUTA_AVV_MIN := 0.18
+## Quanto dura il salire sul sedile, alla misura della Panchina (52 cm).
+## Per un trespolo più alto cresce come la radice dell'altezza — è il tempo
+## di un salto vero.
+const SEDUTA_SALITA := 0.34
+## Quando comincia a salire, in frazione dell'avvicinamento: si piegano le
+## ginocchia MENTRE si arriva. Sono due tempi, non due gesti in fila.
+const SEDUTA_ANTICIPO := 0.55
+## E quanto dura lo scendere: giù dal sedile, che è una caduta breve.
+const SEDUTA_DISCESA := 0.30
+
+## Il tween che sta muovendo il CORPO, e lo stato che l'ha acceso.
+var _corpo_tw: Tween = null
+var _corpo_tw_padrone := ""
+## SE IL CORPO È POSATO SU UN SEDILE. Non è deducibile dallo stato, ed è
+## per questo che esiste: chi sta seduto in panchina e riceve un piatto
+## passa a `r_pasto` — che non è uno stato «sollevato» — ma è ancora
+## seduto sul legno, e mandarlo a terra lo farebbe cadere dalla panchina a
+## metà pranzo. Lo accende `_siediti`, lo spengono `_alzati`, `_walk_to` e
+## ogni `_enter_state` che non sia una seduta.
+var _su_un_sedile := false
+
+
+## IL TWEEN DEL CORPO È DI CHI L'HA ACCESO.
+##
+## Un tween è legato al NODO, non allo stato: continua a scrivere
+## `position` anche dopo che lo stato che l'aveva creato è finito. Il
+## montaggio sulla panchina durava 0,4 s e in quei 0,4 s chiunque poteva
+## cambiare stato — la routine, una chiacchierata, il Salone, un piano del
+## Regista. Misurato nel MainLevel vero: il corpo scivolava a più di 5 m/s
+## MENTRE camminava da un'altra parte, e — peggio — restava appeso a 52 cm
+## dall'erba per il resto della partita, perché l'ultimo a scrivere
+## `position.y` era il tween morto: 928 frame di levitazione su 2704, un
+## sesto del tempo.
+##
+## Perciò: un solo tween per il corpo, che porta il nome del suo padrone.
+## Cambiare stato lo spegne (`_enter_state`, `_walk_to`), e la rete in
+## `_process` lo spegne comunque per gli stati che si assegnano a mano.
+func _corpo_muovi() -> Tween:
+	_corpo_ferma()
+	_corpo_tw = create_tween()
+	_corpo_tw_padrone = _state
+	return _corpo_tw
+
+
+func _corpo_ferma() -> void:
+	if _corpo_tw != null and _corpo_tw.is_valid():
+		_corpo_tw.kill()
+	_corpo_tw = null
+	_corpo_tw_padrone = ""
+
+
+## LA RETE, ogni frame: il tween orfano muore e i piedi tornano a terra.
+## Gira per OGNI stato — è la regola dei canali orfani applicata al canale
+## che nessuno guardava, l'altezza del corpo.
+func _corpo_rete() -> void:
+	if _corpo_tw != null and _state != _corpo_tw_padrone:
+		_corpo_ferma()
+	if not _su_un_sedile and not STATI_SOLLEVATI.has(_state) \
+			and absf(position.y) > 0.001:
+		position.y = 0.0
+
+
+## SEDERSI. Due tempi sovrapposti, non un teletrasporto: l'ultimo tratto si
+## copre alla velocità di un corpo che cammina (e le zampe continuano a
+## camminare, perché il blend dell'andatura non ha motivo di spegnersi), e
+## la salita sul sedile parte mentre si arriva.
+##
+## Il PLOP non è qui: è in `_anim_sit` (`assesto_seduta`), e adesso comincia
+## quando il corpo tocca davvero il legno — `_sit_attesa`.
+func _siediti(dove: Vector3) -> void:
+	var piano := Vector2(dove.x - position.x, dove.z - position.z)
+	var t_avv := maxf(SEDUTA_AVV_MIN, piano.length() / SEDUTA_VEL)
+	var salita: float = maxf(0.0, dove.y - position.y)
+	# il tempo di un salto vero cresce come la radice dell'altezza: il
+	# passerotto sul trespolo (86 cm) ci mette più della panchina (52)
+	var t_su := SEDUTA_SALITA * sqrt(maxf(salita, 0.02) / 0.52)
+	var attesa := t_avv * SEDUTA_ANTICIPO
+	var tw := _corpo_muovi()
+	tw.set_parallel(true)
+	tw.tween_property(self, "position:x", dove.x, t_avv) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(self, "position:z", dove.z, t_avv) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(self, "position:y", dove.y, t_su).set_delay(attesa) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	# l'assestamento aspetta l'atterraggio
+	_sit_attesa = maxf(t_avv, attesa + t_su)
+	_su_un_sedile = true
+
+
+## ALZARSI: il contrario, e nello stesso ordine di causa. Prima si lascia
+## il sedile (la discesa accelera: è una caduta breve), e il tratto a terra
+## si copre camminando. Chi chiama passa cosa fare una volta a terra.
+func _alzati(dove: Vector3, poi: String) -> void:
+	var piano := Vector2(dove.x - position.x, dove.z - position.z)
+	var t_via := maxf(SEDUTA_AVV_MIN, piano.length() / SEDUTA_VEL)
+	var tw := _corpo_muovi()
+	tw.set_parallel(true)
+	tw.tween_property(self, "position:x", dove.x, t_via) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(self, "position:z", dove.z, t_via) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(self, "position:y", 0.0, SEDUTA_DISCESA) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tw.chain().tween_callback(func(): _enter_state(poi))
+	# il sedile è già stato lasciato: da qui in poi la quota è dell'erba
+	_su_un_sedile = false
+
+
 # ---------------------------------------------------------------- stati
 
 ## IL RECINTO DEL PASTO. Finché mangia, il corpo è suo: nessuno gli cambia
@@ -702,6 +839,8 @@ func _pasto_occupa(nuovo: String) -> bool:
 func _walk_to(pos: Vector3, next: String) -> void:
 	if _pasto_in_corso:
 		return
+	_corpo_ferma()   # chi cammina non è più in braccio a nessun tween
+	_su_un_sedile = false
 	position.y = 0.0  # rinormalizza: chi arriva da panchina/onsen/scala torna a terra
 	var meta := Vector3(pos.x, 0, pos.z)
 	_next_state = next
@@ -885,9 +1024,17 @@ func _build_system() -> Node:
 func _enter_state(s: String) -> void:
 	if _pasto_occupa(s):
 		return
+	# IL TWEEN DEL CORPO MUORE CON LO STATO CHE L'HA ACCESO (vedi
+	# `_corpo_muovi`): si spegne PRIMA del `match`, così lo stato nuovo è
+	# libero di accenderne uno suo.
+	_corpo_ferma()
+	# e il sedile si lascia: se lo stato nuovo è una seduta, se lo riprende
+	# lui due righe più sotto (`_siediti`)
+	_su_un_sedile = false
 	_state = s
 	# ogni seduta ricomincia dall'ASSESTAMENTO (plop, fianchi, sospiro)
 	_sit_t = 0.0
+	_sit_attesa = 0.0
 	match s:
 		"browse":
 			if _poi_i < _pois.size():
@@ -994,9 +1141,7 @@ func _enter_state(s: String) -> void:
 						_yaw = atan2(-verso.x, -verso.z)
 				else:
 					_yaw = _routine_aux.rotation.y + PI
-				var tw := create_tween()
-				tw.tween_property(self, "position", seat, 0.4) \
-						.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+				_siediti(seat)
 			_timer = _routine_durata if _routine_durata > 0.0 else randf_range(14.0, 22.0)
 		"r_attesa":
 			# arrivato al posto dell'appuntamento: si volta verso il
@@ -1062,10 +1207,15 @@ func _enter_state(s: String) -> void:
 			_timer = 1.3
 			_emote("!", Color(0.95, 0.6, 0.4))
 			speak(["paura"], "domanda")
+			# IL RINCULO. Sette decimetri all'indietro con TRANS_BACK
+			# partivano a 9,4 m/s: non uno spavento, un teletrasporto — e
+			# sopra i 2,8 m/s l'andatura smette perfino di far girare la
+			# fase del passo. SINE/OUT parte a 3,1 m/s: è il salto di chi
+			# si è preso paura, e si legge come tale.
 			var back := global_transform.basis.z.normalized()
-			var tw2 := create_tween()
+			var tw2 := _corpo_muovi()
 			tw2.tween_property(self, "position", position + back * 0.7, 0.35) \
-					.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+					.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 		"tk_nap":
 			# il pisolino dura quanto serve alle sue tre fasi: accovacciarsi
 			# (1.1), dormire davvero (qualche respiro pieno), stiracchiarsi
@@ -1107,9 +1257,7 @@ func _mount_bench() -> void:
 		offset = _bench.get_meta("posatoio", POSATOIO_PREDEFINITO)
 	var dest: Vector3 = _bench.global_transform * offset
 	_yaw = _bench.rotation.y + PI
-	var tw := create_tween()
-	tw.tween_property(self, "position", dest, 0.45) \
-			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_siediti(dest)
 	if _sfx:
 		_sfx.play("step_grass2", -20.0, 1.4)
 
@@ -1127,6 +1275,9 @@ func _process(delta: float) -> void:
 	# (chi scrive in assoluto sovrascrive comunque; chi non scrive — idle —
 	# ritrova il valore base, senza accumuli)
 	_recita_togli()
+	# la rete del CORPO, prima di ogni altra cosa: il tween che ha perso il
+	# suo stato muore, e i piedi tornano sull'erba (vedi `_corpo_muovi`)
+	_corpo_rete()
 	# …e via anche lo sguardo del testimone del frame scorso, per la STESSA
 	# ragione e non per simmetria: ci sono stati che NON riscrivono la
 	# rotazione della testa (`_anim_inspect` posa x e z e lascia stare y), e
@@ -1220,11 +1371,10 @@ func _process(delta: float) -> void:
 			if _timer <= 0.0 and _bench and is_instance_valid(_bench):
 				var down: Vector3 = _bench.global_transform * Vector3(0, 0, 0.85)
 				_gift_pos = down
-				var tw := create_tween()
-				tw.tween_property(self, "position", Vector3(down.x, 0, down.z), 0.4) \
-						.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-				tw.tween_callback(func(): _enter_state("gift"))
+				# lo stato PRIMA del tween: il padrone del tween è chi lo
+				# accende, e qui il padrone è «dismount»
 				_state = "dismount"
+				_alzati(Vector3(down.x, 0, down.z), "gift")
 			elif _timer <= 0.0:
 				_enter_state("gift")
 		"gift":
@@ -1233,7 +1383,13 @@ func _process(delta: float) -> void:
 			if _timer <= 0.0:
 				_enter_state("leave")
 		"dismount":
-			pass
+			# SCENDERE È UN MOVIMENTO, e il corpo lo deve fare. Prima qui
+			# c'era `pass`: il rig restava inchiodato all'ultima posa da
+			# seduto mentre il corpo scivolava a terra — un fermo immagine
+			# che trasla. Adesso il tratto verso l'erba si copre alla
+			# velocità di un passo, e il ciclo se ne accorge da sé (la
+			# fase avanza coi metri, il blend si accende e si spegne).
+			_anim_move(delta)
 		"c_inspect":
 			_timer -= delta
 			_anim_inspect()
@@ -1281,11 +1437,8 @@ func _process(delta: float) -> void:
 				var down := position
 				if _routine_aux and is_instance_valid(_routine_aux):
 					down = _routine_aux.global_transform * Vector3(0, 0, 0.8)
-				var tw := create_tween()
-				tw.tween_property(self, "position", Vector3(down.x, 0, down.z), 0.4) \
-						.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-				tw.tween_callback(func(): _enter_state("r_idle"))
 				_state = "dismount"
+				_alzati(Vector3(down.x, 0, down.z), "r_idle")
 		"r_attesa":
 			# in piedi, che respira, rivolto al fenomeno — e se arrivi ti
 			# saluta come sa fare lui (il saluto della sua indole)
@@ -1945,7 +2098,14 @@ func _anim_sit() -> void:
 	# con due colpi. Gli anziani fanno tutto con più calma. Solo dopo
 	# arriva il respiro lento di sempre (e il guardarsi intorno).
 	_relax_legs()
-	_sit_t += get_process_delta_time()
+	# IL PLOP SUONA SULL'ATTERRAGGIO. Finché il corpo sta ancora salendo
+	# sul sedile l'assestamento non parte: un tonfo mentre si è per aria è
+	# la stessa bugia di una posa senza micro-movimento, al contrario.
+	var dt := get_process_delta_time()
+	if _sit_attesa > 0.0:
+		_sit_attesa = maxf(0.0, _sit_attesa - dt)
+	else:
+		_sit_t += dt
 	var a := assesto_seduta(_sit_t / (1.0 + 0.6 * _eta))
 	var calo: float = a["calo"]
 	_vis.rotation.x = 0.0

@@ -499,6 +499,70 @@ immaginate):**
   su una persona attecchiva più di una sul re del villaggio. È la via più
   corta perché una storia triste diventi una gogna.
 
+## REGOLA: il tween che muove il CORPO è di chi l'ha acceso
+
+Un `Tween` è legato al **nodo**, non allo stato che l'ha creato: continua a
+scrivere `position` anche dopo che quello stato è finito. In `Visitor.gd`
+questo è costato per anni, in silenzio, la cosa più brutta che si vedesse
+muoversi nel villaggio — e nessuno l'aveva mai misurata.
+
+**Cosa succedeva davvero** (misurato in 45 s di MainLevel vero con
+[`tools/prova_seduta_troncata.gd`](tools/prova_seduta_troncata.gd)):
+
+- il montaggio sulla panchina copriva quasi **un metro in 0,4 s** con
+  TRANS_BACK/EASE_OUT, cioè partendo alla massima velocità: **8,9 m/s**
+  misurati, col ciclo del passo a **blend 1,00**. E sopra i 2,8 m/s
+  (`Andatura.VELOCITA_ASSURDA`) l'andatura legge un teletrasporto e SMETTE
+  di far girare la fase: le zampe si congelavano a mezz'aria mentre il
+  corpo traslava. Nel provino a fotogrammi, la seduta durava **un frame**;
+- e se qualcuno cambiava stato in quei 0,4 s — la routine, una
+  chiacchierata, il Salone, un piano del Regista — il tween continuava a
+  scrivere `position` **mentre il corpo camminava da un'altra parte**, e
+  l'ultimo a scrivere `position.y` restava lui: **928 frame su 2704 con un
+  vicino che cammina a 52 cm dall'erba**. Un sesto del tempo.
+
+**La cura, e la regola per chi verrà** (guardia:
+[`tests/cases/test_seduta_corpo.gd`](tests/cases/test_seduta_corpo.gd)):
+
+1. **Un solo tween per il corpo, e porta il nome del suo padrone.** Si crea
+   con `_corpo_muovi()`, che registra `_state` in `_corpo_tw_padrone`.
+   `_enter_state` e `_walk_to` lo spengono; `_corpo_rete()` in `_process` lo
+   spegne comunque, ogni frame, per gli stati che si assegnano a mano
+   (`dismount`, `r_pasto`, `hidden`). **Mai** `create_tween()` crudo su
+   `position`: il test lo cerca nel sorgente e fa la guardia.
+2. **L'ALTEZZA del corpo è il canale più orfano che ci sia.** `STATI_SOLLEVATI`
+   elenca chi ha diritto di stare su; per tutti gli altri la rete rimette i
+   piedi a terra. È la stessa regola di `Andatura.rilassa`, applicata al
+   canale che nessuno guardava.
+3. **Ma «seduto» non è deducibile dallo stato:** chi riceve un piatto in
+   panchina passa a `r_pasto`, che non è uno stato sollevato, ed è ancora
+   sul legno. Per questo esiste `_su_un_sedile` — lo accende `_siediti`, lo
+   spengono `_alzati`, `_walk_to` e ogni `_enter_state`.
+4. **Un tween che muove il corpo deve avere una velocità VERA.** Sedersi è
+   `_siediti`: l'ultimo tratto si copre a 1,15 m/s (poco meno del passo, ci
+   si avvicina rallentando) e la salita sul sedile parte MENTRE si arriva —
+   due tempi sovrapposti, non un teletrasporto. Il tempo della salita cresce
+   come la **radice** dell'altezza, che è il tempo di un salto vero (il
+   passerotto sul trespolo a 86 cm ci mette più della panchina a 52).
+5. **Il plop aspetta l'atterraggio.** L'assestamento vive in
+   `assesto_seduta`, e `_sit_attesa` lo tiene fermo finché il corpo non
+   tocca il legno: un tonfo mentre si è per aria è una bugia come un'altra.
+6. **Scendere è un movimento.** Lo stato `dismount` aveva `pass`: il rig
+   restava inchiodato all'ultima posa da seduto mentre il corpo scivolava a
+   terra — un fermo immagine che trasla.
+
+**E una trappola di MISURA, non di codice.** L'ordine del frame in Godot è
+`process_frame` → `_process` dei nodi → **tween**. Una sonda dentro
+`_process` cade in mezzo, e la differenza fra due suoi campioni somma due
+spostamenti che il giocatore non ha mai visto insieme: 3,2 m/s di picco
+puramente inventato, che per mezz'ora ho preso per un residuo del guasto.
+Ci si aggancia a `process_frame`, che vede il corpo com'è stato disegnato.
+
+Dopo: **1,81 m/s di massimo, zero scivoli, zero frame di levitazione**.
+Si guarda con [`tools/provino_seduta.gd`](tools/provino_seduta.gd), che
+fotografa salita e discesa **di profilo** a intervalli fissi — il movimento
+non si giudica in una posa, si giudica in una pellicola.
+
 ## REGOLA: i sogni — sognare è ciò che salva un ricordo
 
 Nel proprio letto, «E — vai a dormire»: lo schermo si chiude e **prima del
