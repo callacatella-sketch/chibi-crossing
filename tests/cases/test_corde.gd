@@ -11,8 +11,18 @@ extends RefCounted
 
 const FISICA := preload("res://scenes/world/CordaFisica.gd")
 const VIVE := preload("res://scenes/world/CordeVive.gd")
+const METEO := preload("res://scenes/world/Weather.gd")
 const CAT := preload("res://scenes/build/BuildCatalog.gd")
 const CHIESA := preload("res://scenes/build/BuildChiesa.gd")
+
+
+## Un cielo finto: al gestore delle corde il cielo serve per una cosa
+## sola, dire quanto tira il vento. Se il numero arriva alle corde, si sa
+## da dove è passato.
+class MeteoFinto extends Node3D:
+	var forza := 1.0
+	func vento() -> float:
+		return forza
 
 
 func run(t) -> void:
@@ -25,6 +35,8 @@ func run(t) -> void:
 	_test_i_pezzi_dichiarano(t)
 	_test_appesi_sulla_corda(t)
 	_test_gestore_headless(t)
+	_test_il_vento_viene_dal_cielo(t)
+	_test_il_cielo_arriva_alla_corda(t)
 
 
 ## La corda ferma: pancia sotto i capi, simmetrica, coi capi al loro posto.
@@ -223,6 +235,73 @@ func _test_gestore_headless(t) -> void:
 		t.ok(seguace.position.distance_to(atteso) < 0.005,
 				"le lampadine seguono il filo che si muove")
 	gestore.free()
+
+
+## DA DOVE VIENE IL VENTO. Da `Weather.vento()`, che è la sola casa del
+## numero — non da `RenderingServer.global_shader_parameter_get()`, che è
+## una lettura da editor: a runtime lascia un errore per FOTOGRAMMA e non
+## risponde (misurato nel MainLevel vero: torna `<null>` col cielo a
+## 1.786). Le corde ci stavano appese, e restavano nella brezza del sereno
+## anche sotto l'acquazzone.
+func _test_il_vento_viene_dal_cielo(t) -> void:
+	var gestore = VIVE.new()
+	var cielo := MeteoFinto.new()
+	gestore._weather = cielo
+
+	cielo.forza = 1.8                       # l'acquazzone
+	t.almost(float(gestore._forza_vento()), 1.8, "il gestore prende il vento dal cielo")
+	cielo.forza = 0.45                      # la nebbia: l'aria si ferma
+	t.almost(float(gestore._forza_vento()), 0.45,
+			"…e lo risente appena il cielo cambia")
+
+	# la leva dei test resta sopra a tutto
+	gestore.vento_forzato = 2.2
+	t.almost(float(gestore._forza_vento()), 2.2,
+			"il vento forzato dei test scavalca il cielo")
+	gestore.vento_forzato = -1.0
+
+	# e senza cielo (test, provini, diorama del titolo) resta la brezza del
+	# sereno — che a dirla è comunque Weather, non un 1.0 ricopiato qui
+	gestore._weather = null
+	t.almost(float(gestore._forza_vento()),
+			METEO.forza_del_vento("clear", false, false),
+			"senza cielo resta la brezza del sereno")
+
+	# (che nessuno riapra la fonte dal server di rendering lo tiene chiuso
+	# test_vento.gd, che guarda TUTTI i sorgenti: qui si prova il
+	# comportamento, lì si sorveglia la porta)
+	cielo.free()
+	gestore.free()
+
+
+## IL NUMERO ARRIVA DAVVERO ALLA CORDA. Non basta che `_forza_vento()`
+## torni 1.8: se il valore non entrasse nella fisica, la corda si
+## muoverebbe uguale sotto l'acquazzone e nella nebbia — ed è esattamente
+## il guasto che un cambio di fonte può introdurre senza far fallire
+## niente.
+func _test_il_cielo_arriva_alla_corda(t) -> void:
+	var per_nome := {}
+	for v in CAT.items():
+		per_nome[str(v["name"])] = v
+	var mosse: Array = []
+	for forza: float in [0.45, 1.8]:        # nebbia, acquazzone
+		var gestore = VIVE.new()
+		var cielo := MeteoFinto.new()
+		cielo.forza = forza
+		gestore._weather = cielo
+		var lucine = t.stage((per_nome["Lucine"]["builder"] as Callable).call())
+		var corda: MeshInstance3D = _corde_di(lucine)[0]
+		gestore.registra(corda)
+		var prima: Vector3 = FISICA.campiona(corda.get_meta("posa"), 0.5)
+		for _k in 90:
+			gestore.passo(1.0 / 60.0)
+		var stato: Dictionary = gestore._stato_di(corda)
+		mosse.append((FISICA.campiona(stato["punti"], 0.5) as Vector3).distance_to(prima))
+		cielo.free()
+		gestore.free()
+	t.ok(mosse[1] > mosse[0] * 1.5,
+			"la corda sente l'acquazzone più della nebbia (%.4f m contro %.4f m)"
+					% [mosse[1], mosse[0]])
 
 
 func _corde_di(n: Node) -> Array:

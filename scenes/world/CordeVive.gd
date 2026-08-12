@@ -34,6 +34,9 @@ extends Node3D
 ## AGGIUNGE il movimento, non si ripara l'assenza.
 
 const FISICA := preload("res://scenes/world/CordaFisica.gd")
+## Il cielo: è lui che dice quanto tira il vento, e lo dice a tutti da un
+## posto solo (vedi Weather.vento()).
+const METEO := preload("res://scenes/world/Weather.gd")
 
 ## Sotto questo movimento la mesh non si riscrive: nessun occhio lo vede
 ## e la ImmediateMesh è l'unico costo vero del sistema.
@@ -59,8 +62,7 @@ func _ready() -> void:
 	# i vicini di MainLevel arrivano dopo: si aggancia in differita, e il
 	# censimento riprova comunque a ogni giro (lezione del Taccuino)
 	(func() -> void:
-		_player = get_node_or_null("../Player")
-		_weather = get_node_or_null("../Weather")
+		_aggancia()
 		var build := get_tree().get_first_node_in_group("build_system")
 		if build and build.has_signal("placed_changed"):
 			build.connect("placed_changed", func() -> void: _ricenso = RICENSIMENTO)
@@ -84,10 +86,24 @@ func _riduci_animazioni() -> bool:
 	return s != null and bool(s.get("reduce_motion"))
 
 
+## Il giocatore e il cielo. Si RIPROVA a ogni censimento: un riferimento
+## preso una volta sola e trovato null resta null per sempre (lezione del
+## Taccuino), e un cielo perso lascerebbe le corde nella brezza del sereno
+## anche sotto l'acquazzone — senza che niente lo dica.
+func _aggancia() -> void:
+	if not is_inside_tree():
+		return
+	if not is_instance_valid(_player):
+		_player = get_node_or_null("../Player")
+	if not is_instance_valid(_weather):
+		_weather = get_node_or_null("../Weather")
+
+
 ## Il censimento: ogni nodo nuovo del gruppo diventa uno stato vivo.
 func _censisci() -> void:
 	if not is_inside_tree():
 		return
+	_aggancia()
 	for nodo in get_tree().get_nodes_in_group("corda_viva"):
 		registra(nodo)
 
@@ -212,11 +228,27 @@ func passo(delta: float) -> void:
 		_ridisegna(c3)
 
 
+## Quanto tira il vento, adesso. La fonte è UNA — `Weather.vento()` — ed è
+## lo stesso numero che il cielo manda agli shader.
+##
+## Qui prima c'era `RenderingServer.global_shader_parameter_get("vento_forza")`:
+## la stessa informazione ripresa dal server di rendering invece che da chi
+## la scrive. È una lettura da EDITOR, e a runtime Godot la rifiuta con un
+## errore per fotogramma («This function should never be used outside the
+## editor») — e soprattutto NON RISPONDE: misurata nel MainLevel vero, col
+## cielo a 1.786, quella chiamata torna `<null>`. Il ramo che si prendeva
+## era sempre l'altro, cioè `1.0`: **ogni corda del villaggio ha dondolato
+## nella brezza del sereno anche sotto l'acquazzone**, e la suite non se ne
+## accorgeva perché i test passano da `vento_forzato`. Non rimetterla: il
+## vento si CHIEDE al cielo.
 func _forza_vento() -> float:
 	if vento_forzato >= 0.0:
 		return vento_forzato
-	var v: Variant = RenderingServer.global_shader_parameter_get("vento_forza")
-	return float(v) if v != null else 1.0
+	if is_instance_valid(_weather) and _weather.has_method("vento"):
+		return float(_weather.call("vento"))
+	# senza cielo (i test, i provini, il diorama del titolo) resta la
+	# brezza del sereno — e a dire quanto vale è comunque Weather
+	return METEO.forza_del_vento("clear", false, false)
 
 
 func _stato_di(nodo: Node) -> Dictionary:

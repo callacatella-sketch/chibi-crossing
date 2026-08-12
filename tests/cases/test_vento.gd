@@ -20,6 +20,7 @@ func run(t) -> void:
     _test_ogni_fronda_il_suo_piegamento(t)
     _test_il_vento_segue_il_cielo(t)
     _test_il_globale_esiste(t)
+    _test_una_sola_casa_per_il_vento(t)
 
 
 # ------------------------------------------------------- una sola aria
@@ -136,6 +137,75 @@ func _test_il_globale_esiste(t) -> void:
     var mat: ShaderMaterial = GEO.paint_mat(Color.WHITE, Color.BLACK)
     var ch: Variant = mat.get_shader_parameter("chioma")
     t.ok(ch == null or float(ch) == 0.0, "un materiale qualunque non è una chioma")
+
+
+# ------------------------------------------------------- una sola casa
+
+## Il vento lo SCRIVE Weather: quindi è Weather a dirlo anche a chi non è
+## uno shader. Chi lo vuole (le corde vive, il rimbalzello) lo chiede a
+## `vento()`; nessuno lo riprende dal server di rendering.
+##
+## `RenderingServer.global_shader_parameter_get()` è una lettura da
+## EDITOR: a runtime Godot la rifiuta con un errore per FOTOGRAMMA
+## («This function should never be used outside the editor»), costa 283 µs
+## a chiamata e — la cosa grave — NON RISPONDE: misurata nel MainLevel vero
+## col cielo a 1.786, torna `<null>`. Le corde vive ci stavano appese e
+## sono rimaste nella brezza del sereno anche sotto l'acquazzone, con la
+## suite verde. Un dato che si scrive non si riprende dal disegnatore: la
+## porta resta chiusa.
+func _test_una_sola_casa_per_il_vento(t) -> void:
+    var cielo = WEATHER.new()
+    t.ok(cielo.has_method("vento"), "il cielo pubblica il vento di adesso")
+    t.almost(float(cielo.call("vento")), 1.0,
+            "e un cielo appena nato è la brezza del sereno")
+    cielo.free()
+
+    var colpevoli: Array = []
+    for f in _script_sotto("res://scenes") + _script_sotto("res://systems"):
+        if _codice(f).contains("global_shader_parameter_get"):
+            colpevoli.append(f)
+    t.ok(colpevoli.is_empty(),
+            "nessuno riprende i globali dal server di rendering %s" % str(colpevoli))
+
+    # e i due che il vento lo consumano lo prendono di lì
+    var corde := _codice("res://scenes/world/CordeVive.gd")
+    t.ok(corde.contains("_weather.call(\"vento\")"),
+            "le corde vive chiedono il vento al cielo")
+    var sasso := _codice("res://scenes/interact/Rimbalzello.gd")
+    t.ok(sasso.contains("w.call(\"vento\")"),
+            "il rimbalzello pure (e non più dal campo privato del cielo)")
+
+
+static func _script_sotto(radice: String) -> Array:
+    var out: Array = []
+    var dir := DirAccess.open(radice)
+    if dir == null:
+        return out
+    dir.list_dir_begin()
+    var f := dir.get_next()
+    while f != "":
+        var p := radice.path_join(f)
+        if dir.current_is_dir():
+            out.append_array(_script_sotto(p))
+        elif f.ends_with(".gd"):
+            out.append(p)
+        f = dir.get_next()
+    dir.list_dir_end()
+    return out
+
+
+## Il sorgente SENZA le righe di commento. Serve perché la lezione di
+## questo difetto è scritta apposta nei commenti di chi lo ha pagato
+## (Weather, CordeVive): la chiamata vietata ci è NOMINATA, e un guardiano
+## ingenuo la scambierebbe per un suo ritorno — dichiarando rotto proprio
+## il file che l'ha tolta.
+static func _codice(percorso: String) -> String:
+    var righe := PackedStringArray()
+    for r in _sorgente(percorso).split("\n"):
+        if (r as String).strip_edges().begins_with("#"):
+            continue
+        righe.append(r)
+    return "\n".join(righe)
 
 
 static func _sorgente(percorso: String) -> String:

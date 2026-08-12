@@ -412,6 +412,34 @@ guardia.
   giocatore immobile la farfalla si scostava lo stesso, e «il prato smette di
   avere paura di te» non poteva avverarsi. **Non ritoccare le tre costanti:
   si tara `calma()`.**
+- **Il vento del momento** (quanto tira adesso) →
+  [`scenes/world/Weather.gd`](scenes/world/Weather.gd), `vento()`. Lo stesso
+  numero che il cielo manda agli shader (il globale `vento_forza`) lo
+  leggono di lì le corde vive e il rimbalzello. **Un globale di shader si
+  SCRIVE e basta: non lo si riprende dal server di rendering.**
+  `RenderingServer.global_shader_parameter_get()` è una lettura da EDITOR, e
+  a runtime Godot la rifiuta con un errore per FOTOGRAMMA («This function
+  should never be used outside the editor») — senza restituire il valore.
+  `CordeVive` la chiamava a ogni `_process` e si riprendeva sempre **1.0**,
+  la brezza del sereno, mentre il cielo era a 1.775: sotto l'acquazzone ogni
+  corda del villaggio ha continuato a dondolare come in una giornata serena.
+  E la suite era verde, perché i test passano dalla leva `vento_forzato` e
+  quel ramo non lo attraversavano mai — la stessa forma del difetto del
+  Filo Rosso (codice morto in partita, test contenti).
+  Misurato nel MainLevel vero con
+  [`tools/misura_fps.gd`](tools/misura_fps.gd): la chiamata torna
+  **`<null>`** anche col cielo a 1.786, costa **283 µs** cronometrata sulla
+  riga, e il suo errore-per-fotogramma (1710 righe in quattro minuti di
+  gioco; 242 in un provino da due) è ora **zero in tutto il log**.
+  **Il grosso dei fotogrammi persi però NON era suo**: 283 µs non fanno
+  crollare un fotogramma, e la fama di «funzione che distrugge le
+  prestazioni» ha quasi fatto chiudere il caso sul colpevole sbagliato. Chi
+  torna a misurare qui: vedi la sezione sulle prestazioni in fondo, e
+  soprattutto **guarda il carico della macchina** prima di attribuire un
+  numero al codice. La guardia sta in
+  [`test_vento.gd`](tests/cases/test_vento.gd) e scandaglia TUTTI i
+  sorgenti di `scenes/` e `systems/` — saltando i commenti, perché questa
+  lezione la chiamata vietata la nomina apposta.
 
 ## REGOLA: gli affetti fra vicini, e il libero arbitrio
 
@@ -1606,3 +1634,37 @@ e la logica pura GDScript (`ChibiDNA`, funzioni matematiche di `CozyWorld`).
   RefCounted`, niente `add_child` all'albero (le classi C++ si creano con
   `.new()` e si liberano con `.free()`); usa `var x = ...` (non `:=`) quando il
   valore viene da un'istanza non tipizzata, altrimenti l'inferenza fallisce.
+
+## Le PRESTAZIONI non si misurano headless (né a occhio)
+
+Senza rendering non c'è niente da contare, e `--headless` è proprio il modo
+in cui una stalla del server di rendering diventa invisibile. Per i
+fotogrammi c'è [`tools/misura_fps.gd`](tools/misura_fps.gd): apre il
+MainLevel VERO con la finestra, spegne il vsync (o si misura il monitor) e
+conta i fotogrammi a orologio.
+
+```
+CHIBI_FPS_SEC=8 CHIBI_FPS_GIRI=2 ~/Downloads/Godot.app/Contents/MacOS/Godot \
+    --path . --resolution 1280x720 --script res://tools/misura_fps.gd
+```
+
+- **Si misura sempre A/B nella STESSA corsa** (qui: col gestore delle corde
+  acceso e spento, a finestre ALTERNATE). Due processi diversi non sono
+  confrontabili — compilazione degli shader, cache, e soprattutto **le altre
+  sessioni di agente**.
+- **Guarda il carico PRIMA di credere a un numero** (`uptime`, e quanti
+  Godot girano). Il 2026-08-12, con venti processi Godot di altre sessioni
+  addosso, il MainLevel stava a **8 fps prendendo il 25% di UN core**: il
+  gioco era affamato, non lento. In quelle condizioni due finestre
+  consecutive ballano di ±10 ms, e infatti una prima lettura attribuiva
+  **14.6 ms** a un difetto che, cronometrato sulla riga, ne costa **0.28**;
+  la classifica per nodo dava «+10 ms» perfino a chi in `_process` non fa
+  nulla. Se le differenze che cerchi sono dell'ordine del rumore, la misura
+  non è pronta: **cronometra la riga** (`Time.get_ticks_usec()` attorno alla
+  chiamata sospetta, una volta per fotogramma) invece dei fotogrammi.
+- `CHIBI_FPS_SONDA=1` aggiunge un nodo che fa **solo** la chiamata sospetta,
+  un fotogramma per volta: è il difetto in provetta, e dice quanto costa
+  quella riga e nient'altro.
+- `CHIBI_FPS_DIAGNOSI=1` chiede prima **pixel o codice** (si rimpicciolisce
+  la finestra: se i fotogrammi volano, il collo di bottiglia è nel disegno)
+  e poi spegne il `_process` di un figlio del livello per volta.
