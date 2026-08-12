@@ -164,10 +164,14 @@ static func items() -> Array[Dictionary]:
 			"builder": BuildPalestra.panca_pesi,
 			"cols": [[Vector3(0.62, 0.62, 0.92), Vector3(0, 0.31, 0)],
 					[Vector3(0.92, 0.5, 0.14), Vector3(0, 0.8, -0.36)]]},
+		# tre corpi: il piede a croce (ci si inciampa), il montante dietro
+		# e il sacco appeso — misurati sul corpo nuovo, che pende piu' in
+		# basso e ha la pancia piu' larga di quello vecchio
 		{"name": "Sacco", "cat": 3, "type": "cell", "layer": 2,
 			"builder": BuildPalestra.sacco,
-			"cols": [[Vector3(0.44, 2.0, 0.44), Vector3(0, 1.0, 0.32)],
-					[Vector3(0.44, 0.94, 0.44), Vector3(0, 1.52, -0.08)]]},
+			"cols": [[Vector3(0.72, 0.12, 0.72), Vector3(0, 0.06, 0.28)],
+					[Vector3(0.16, 2.0, 0.16), Vector3(0, 1.0, 0.28)],
+					[Vector3(0.46, 1.06, 0.46), Vector3(0, 1.09, -0.10)]]},
 		{"name": "Cyclette", "cat": 3, "type": "cell", "layer": 2,
 			"builder": BuildPalestra.cyclette,
 			"cols": [[Vector3(0.5, 1.1, 1.14), Vector3(0, 0.55, -0.11)]]},
