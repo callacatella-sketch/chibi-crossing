@@ -46,13 +46,24 @@ void uninitialize_chibi_crossing_module(ModuleInitializationLevel p_level) {
         return;
     }
 #ifdef CHIBI_LLM
-    // LA RETE DI SICUREZZA DELLO SPEGNIMENTO. Il gioco spegne il traduttore da
-    // solo (`Pensatoio._exit_tree`), ma un thread ancora vivo dentro una
+    // LA RETE DI SICUREZZA DELLO SPEGNIMENTO, ed e' l'ULTIMA delle tre — le
+    // altre due stanno un piano piu' in su e fermano il lavoro senza liberare
+    // il modello: il distruttore dell'ultimo maniglione (`~LlmLocale`) e il
+    // `NOTIFICATION_PREDELETE` del Pensatoio. Questa qui e' l'unica che si
+    // occupa del THREAD, e serve perche' un thread ancora vivo dentro una
     // libreria dinamica che si sta SCARICANDO e' un crash all'uscita — e un
     // crash all'uscita non lo vede nessuno, perche' la finestra e' gia'
-    // sparita. Qui il thread e' gia' fermo nel caso normale, e questa riga
-    // costa zero; nel caso che qualcuno si e' dimenticato, costa l'attesa di
-    // un pezzo di token (l'abort_callback lo interrompe a meta').
+    // sparita. Nel caso normale il thread sta solo aspettando e questa riga
+    // costa zero; se stava generando, costa un pezzo di token
+    // (l'abort_callback lo interrompe a meta').
+    //
+    // ⚠️ CHE VENGA CHIAMATA DAVVERO E' MISURATO, non sperato: con una sonda
+    // temporanea su stderr, Godot 4.7.1 chiama il terminatore per tutti e
+    // quattro i livelli (3, 2, 1, 0) e questa riga gira al livello SCENE (2),
+    // con il gioco che si chiude in 2.4 s mentre il modello stava generando.
+    // La nota vecchia diceva invece che a spegnere il traduttore era
+    // «`Pensatoio._exit_tree`»: quel metodo non esiste — il Pensatoio e' un
+    // RefCounted e non sta nell'albero — ed era una rete disegnata, mai tesa.
     LlmLocale::spegni_tutto();
 #endif
 }

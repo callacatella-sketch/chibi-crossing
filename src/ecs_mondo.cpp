@@ -300,7 +300,8 @@ void EcsMondo::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("deduci", "id", "obiettivo", "righe", "soglia"), &EcsMondo::deduci);
 	ClassDB::bind_method(D_METHOD("deduzione_muta", "id", "soglia"), &EcsMondo::deduzione_muta);
 	ClassDB::bind_method(D_METHOD("deduzione_pronta", "id", "soglia", "attesa", "finestra"), &EcsMondo::deduzione_pronta);
-	ClassDB::bind_method(D_METHOD("deduzione_dove", "id", "i", "se_niente"), &EcsMondo::deduzione_dove);
+	ClassDB::bind_method(D_METHOD("deduzione_dove", "id", "i", "corpo", "meta", "apertura"),
+			&EcsMondo::deduzione_dove);
 	ClassDB::bind_method(D_METHOD("deduzione_obiettivo", "id", "i"), &EcsMondo::deduzione_obiettivo);
 	ClassDB::bind_method(D_METHOD("deduzione_ricevuta", "id", "i"), &EcsMondo::deduzione_ricevuta);
 	ClassDB::bind_method(D_METHOD("deduzione_spendi", "id", "i"), &EcsMondo::deduzione_spendi);
@@ -1597,22 +1598,29 @@ int EcsMondo::deduzione_pronta(int64_t p_id, double p_soglia, double p_attesa,
 			_reg->tar_occ.mezza_vita, p_soglia, p_attesa, p_finestra);
 }
 
-Vector3 EcsMondo::deduzione_dove(int64_t p_id, int p_i, const Vector3 &p_se_niente) const {
-	ERR_FAIL_COND_V(!conosce(p_id), p_se_niente);
+Vector3 EcsMondo::deduzione_dove(int64_t p_id, int p_i, const Vector3 &p_corpo,
+		const Vector3 &p_meta, double p_apertura) const {
+	ERR_FAIL_COND_V(!conosce(p_id), p_corpo);
 	const chibi::Deduzioni &dd =
 			_reg->reg.get<chibi::DeduzioniComponent>(da_handle(p_id)).d;
 	if (p_i < 0 || p_i >= static_cast<int>(dd.n)) {
-		return p_se_niente;
+		return p_corpo;
 	}
+	chibi::Lettura lettura;
+	lettura.dax = static_cast<float>(p_corpo.x);
+	lettura.daz = static_cast<float>(p_corpo.z);
+	lettura.metax = static_cast<float>(p_meta.x);
+	lettura.metaz = static_cast<float>(p_meta.z);
+	lettura.apertura = p_apertura;
 	const int k = chibi::perche_piu_forte(dd.d[p_i], static_cast<float>(_tempo),
-			_reg->tar_occ.mezza_vita);
+			_reg->tar_occ.mezza_vita, lettura);
 	if (k < 0) {
-		return p_se_niente;
+		return p_corpo;
 	}
 	// La `y` è quella del ripiego, come in `dove()`: il ricordo non la
 	// conserva, e inventare uno zero manderebbe sottoterra chi ragiona su una
 	// casa sull'albero.
-	return Vector3(dd.d[p_i].perche[k].px, p_se_niente.y, dd.d[p_i].perche[k].pz);
+	return Vector3(dd.d[p_i].perche[k].px, p_corpo.y, dd.d[p_i].perche[k].pz);
 }
 
 int EcsMondo::deduzione_obiettivo(int64_t p_id, int p_i) const {

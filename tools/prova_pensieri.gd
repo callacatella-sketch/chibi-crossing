@@ -121,11 +121,48 @@ const CENTRO := Vector3(7.0, 0.0, 9.0)
 ## villaggio lo consideri ancora vivo. Si legge di là, non si sceglie qui.
 const SOGLIA := 0.35
 
-## Dove sta Mochi mentre il vicino paga la ricevuta: LONTANO. La ricevuta è
-## un vicino che guarda un posto in cui non succede niente; se Mochi fosse
-## nell'inquadratura, chi guarda la foto leggerebbe «sta guardando lei» — che
-## è la scena della Fase 4, non questa.
-const MOCHI_VIA := Vector3(-26.0, 0.0, -20.0)
+## ⚠️ **DOVE STA MOCHI MENTRE IL VICINO PAGA LA RICEVUTA**, e questa riga è
+## cambiata di segno.
+##
+## Diceva: LONTANO — «se Mochi fosse nell'inquadratura, chi guarda la foto
+## leggerebbe *sta guardando lei*». La foto usciva più pulita, e il banco
+## misurava una scena che in partita non succede: **la ricevuta non si paga a
+## chi non ha nessuno che lo guardi** (`Deduzioni.RAGGIO`), e in partita la
+## camera sta addosso a Mochi — se lei non c'è, quella testa non la vede
+## nessuno.
+##
+## Adesso Mochi resta a `MOCHI_GUARDA_DA` metri dal vicino, **dalla parte
+## opposta all'ancora**: dentro il raggio perché la ricevuta si paghi, e
+## fuori dalla linea di sguardo perché la testa non si legga come rivolta a
+## lei. Le due condizioni non sono in conflitto — sono la scena vera.
+const MOCHI_GUARDA_DA := 3.2
+
+## DOVE STA MOCHI ADESSO. Senza giocatore (non capita nel MainLevel) si
+## risponde con un punto impossibile, così `_si_vede` dice NO invece di
+## mentire.
+func _dove_mochi() -> Vector3:
+	if _player == null or not is_instance_valid(_player):
+		return Vector3(1e6, 0.0, 1e6)
+	return _player.global_position
+
+
+## LA DOMANDA VERA DELLA RICEVUTA, la stessa che fa `Deduzioni.consegna`:
+## il corpo si può guardare **e** c'è qualcuno a guardarlo.
+func _si_vede(corpo: Node3D) -> bool:
+	return PERCEZIONE.puo_vedere(corpo, _dove_mochi(), DED.RAGGIO)
+
+
+## MOCHI SI METTE A GUARDARE: dentro il raggio della ricevuta, dalla parte
+## opposta all'ancora. Vedi `MOCHI_GUARDA_DA`.
+func _mochi_guarda(dove_lui: Vector3, ancora: Vector3) -> void:
+	if _player == null or not is_instance_valid(_player):
+		return
+	var indietro: Vector3 = dove_lui - ancora
+	indietro.y = 0.0
+	indietro = indietro.normalized() if indietro.length() > 0.01 else Vector3.FORWARD
+	var p: Vector3 = dove_lui + indietro * MOCHI_GUARDA_DA
+	_player.global_position = Vector3(p.x, _player.global_position.y, p.z)
+
 
 ## LA POSA DELLA RICEVUTA. Sei metri dal posto guardato: dentro il raggio
 ## della percezione, e abbastanza lontano che nell'inquadratura larga ci
@@ -692,8 +729,6 @@ func _go() -> void:
 
 	# lo sguardo dei gesti si deve SPEGNERE prima di misurare le ricevute
 	await create_timer(PERCEZIONE.DURATA_SGUARDO + 1.0).timeout
-	if _player != null:
-		_player.global_position = MOCHI_VIA
 
 	# ---------------------------------------------------------- il motore
 	print("\n--- il cuore che scrive ---")
@@ -944,6 +979,7 @@ func _scena_deduzione(indice: int, sigla: String, titolo: String,
 	var ancora_attesa := _mondo(posto)
 	var posa: Vector3 = _posa_buona(_mondo_nodo, ancora_attesa, corpo)
 	await _porta_vicino(indice, posa)
+	_mochi_guarda(posa, ancora_attesa)
 	_tieni_indice = indice
 	_tieni_pos = posa
 	_tieni_corpo = corpo
@@ -1046,10 +1082,20 @@ func _scena_deduzione(indice: int, sigla: String, titolo: String,
 		_tieni = false   # la presa non deve sopravvivere alla scena
 		return
 	var dedotto := str(esito["obiettivo"])
+	# LA META e l'ANCORA, chieste come le chiede la ricevuta vera: l'ancora è
+	# il perché più pesante FRA QUELLI CHE SI LEGGONO da dove sta il corpo,
+	# cioè quelli nella direzione in cui andrà.
+	var meta_ded: Dictionary = DED.meta_del_gesto(_cuore, id, int(esito["indice"]),
+			r.get("luoghi", []), int(r.get("fatti", 0)))
 	var ancora: Vector3 = _cuore.call("deduzione_dove", id, int(esito["indice"]),
-			corpo.global_position)
-	print("     obiettivo «%s» · l'ANCORA della ricevuta (il posto del ricordo): %s"
-			% [dedotto, ancora])
+			corpo.global_position,
+			meta_ded.get("pos", corpo.global_position), DED.APERTURA)
+	print("     obiettivo «%s» · andrà al luogo «%s» %s"
+			% [dedotto, str(meta_ded.get("luogo", "—")),
+			str(meta_ded.get("pos", "(nessuna meta)"))])
+	print("     l'ANCORA della ricevuta (il posto del ricordo): %s%s" % [ancora,
+			"" if ancora.distance_to(corpo.global_position) > 0.05
+					else "  ⚠️ nessun perché si legge da qui: la ricevuta tacerà"])
 
 	# ---- 4) LA POSA, e le tre macchine ---------------------------------
 	#
@@ -1070,15 +1116,15 @@ func _scena_deduzione(indice: int, sigla: String, titolo: String,
 	# `vede? NO`. In partita la deduzione ha minuti per trovare il suo
 	# momento; se non lo trova muore in silenzio, che è l'esito buono.
 	var t_attesa := _t()
-	while _t() - t_attesa < 45.0 \
-			and not PERCEZIONE.puo_vedere(corpo, corpo.global_position, 1.0):
+	while _t() - t_attesa < 45.0 and not _si_vede(corpo):
 		await create_timer(0.25).timeout
 	print("     (in condizione di guardare dopo %.1f s: %s%s)" % [_t() - t_attesa,
-			"sì" if PERCEZIONE.puo_vedere(corpo, corpo.global_position, 1.0) else "MAI",
-			"" if PERCEZIONE.puo_vedere(corpo, corpo.global_position, 1.0)
-					else " — dentro casa: %s · dorme: %s · a un appuntamento: %s"
+			"sì" if _si_vede(corpo) else "MAI",
+			"" if _si_vede(corpo)
+					else " — dentro casa: %s · dorme: %s · a un appuntamento: %s · Mochi a %.1f m"
 							% [str(corpo.call("is_hidden")), str(corpo.call("dorme")),
-							str(corpo.call("in_scena"))]])
+							str(corpo.call("in_scena")),
+							corpo.global_position.distance_to(_dove_mochi())]])
 
 	if ancora.distance_to(ancora_attesa) > 1.5:
 		# l'ancora non è il gesto di questa scena: il vicino ha citato un
@@ -1087,6 +1133,7 @@ func _scena_deduzione(indice: int, sigla: String, titolo: String,
 		print("     (l'ancora NON è il gesto di adesso: si riposa il corpo)")
 		posa = _posa_buona(_mondo_nodo, ancora, corpo)
 		await _porta_vicino(indice, posa)
+		_mochi_guarda(posa, ancora)
 		_tieni_pos = posa
 	var sc_prima := await _punta(corpo, ancora, POSA_SCARTO)
 	var cervello = _vis.call("debug_brain", indice)
@@ -1149,7 +1196,7 @@ func _scena_deduzione(indice: int, sigla: String, titolo: String,
 			print("     %5.1f  %+6.1f°  %6.1f°   %-12s %-5s %-6s %-5s %s"
 					% [_t(), rad_to_deg(_collo(corpo)), rad_to_deg(sc),
 					str(corpo.get("_state")),
-					"sì" if PERCEZIONE.puo_vedere(corpo, corpo.global_position, 1.0) else "NO",
+					"sì" if _si_vede(corpo) else "NO",
 					"sì" if bool(corpo.call("collo_ci_arriva", ancora)) else "NO",
 					"sì" if muta else "—",
 					"sì" if int(_cuore.call("deduzione_pronta", id, SOGLIA, DED.ATTESA,

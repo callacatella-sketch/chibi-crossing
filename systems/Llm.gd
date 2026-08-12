@@ -31,6 +31,17 @@ extends RefCounted
 ##    regola delle fonti uniche: la domanda ha una casa sola, così il giorno
 ##    in cui la risposta dipenderà anche da altro (un modello scaricato, una
 ##    impostazione del giocatore, poca memoria) cambia un posto e non venti.
+##
+## ⚠️ **E `disponibile()` NON vuol dire «il modello si aprirà».** Dice una
+## cosa sola: che questo binario ha llama.cpp dentro. Il modello può poi non
+## aprirsi per ragioni che nessuno può sapere prima — il file non c'è, non è
+## sano (il portiere, `llm_gguf.h`), sfonda il tetto di RAM dell'autore,
+## oppure **questa macchina non ha la memoria libera** per tenerlo senza
+## mandare in swap il gioco (`Config::riserva_byte`). Tutti e quattro i casi
+## finiscono nello stesso posto — `LlmLocale.stato()` che diventa `GUASTO` e
+## una `diagnosi` leggibile nei log — e tutti e quattro sono **normali**: chi
+## li incontra ha il gioco di sempre, quello con le lettere scritte a mano.
+## Nessuno deve mostrarli a chi gioca.
 
 ## Il nome della classe nativa registrata da `src/llm_ponte.cpp`.
 const CLASSE := "LlmLocale"

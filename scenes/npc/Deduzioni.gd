@@ -24,6 +24,41 @@ extends RefCounted
 ## 3. **SI FA.** Alla prima decisione vera dell'agenda, e solo se il mondo ha
 ##    una strada, l'obiettivo del pianificatore è il suo. Una volta.
 ##
+## ────────────────────────────────────────────────────────────────────────
+## E «SI VEDE» VUOL DIRE **CHE IL GIOCATORE LA VEDE**
+## ────────────────────────────────────────────────────────────────────────
+##
+## Sembra ovvio e non lo era: per un pezzo la ricevuta chiedeva
+## `Percezione.puo_vedere(node, node.global_position, 1.0)` — la posizione
+## DEL VICINO STESSO — cioè una domanda in cui la distanza è zero per
+## costruzione. Restavano tre valvole (dorme, è dentro casa, è a un
+## appuntamento suo) e mancava la sola che dà il nome a tutto il meccanismo:
+## **c'era qualcuno a guardare?** MISURATO nel villaggio vero: sei ricevute
+## su sei pagate con Mochi parcheggiata a cinquanta metri.
+##
+## La scena che ne usciva è precisamente quella che questa fase esiste per
+## rendere impossibile: il giocatore è nel bosco, o in modalità costruzione;
+## dall'altra parte del prato un vicino gira la testa e nessuno lo vede; e
+## tre secondi dopo cambia mestiere. **Il giocatore vede solo la
+## conseguenza**, e impara che il villaggio si muove a caso.
+##
+## Adesso la ricevuta chiede tre cose, e ognuna è una domanda diversa:
+##
+##  · **il corpo si può guardare** — le tre valvole di sempre, chieste a
+##    `Percezione.puo_vedere` e non con tre `if` scritti qui, perché il
+##    giorno che qualcuno ne aggiunge una quarta la ricevuta la eredita;
+##  · **il giocatore è abbastanza vicino** da leggere una testa che si gira
+##    (`RAGGIO`);
+##  · **e quello che la testa indica sta nella direzione in cui il corpo
+##    andrà** (`APERTURA`), o si vede un'occhiata di qua e un viaggio di là.
+##
+## Chi non le passa non perde niente: la deduzione **resta muta e aspetta**.
+## È la stessa disciplina del collo — un vicino si gira di continuo, un
+## giocatore gira per il villaggio, e la deduzione ha minuti per trovare il
+## suo momento. Se non lo trova muore in silenzio, che è l'esito buono.
+## MISURATO (`tools/misura_attribuzione.gd`): dentro la vita di una
+## deduzione il momento buono arriva nel 90% dei casi.
+##
 ## ⚠️ **PERCHÉ QUESTO ORDINE, e non un altro.** «Una conseguenza che il
 ## giocatore non sa attribuire non attenua l'effetto: LO INVERTE.» È la regola
 ## che la Fase 4 ha già pagato con la testa che si gira, e qui vale doppio,
@@ -80,6 +115,52 @@ const PIANI := preload("res://scenes/npc/Piani.gd")
 const SUG := preload("res://scenes/npc/Suggeritore.gd")
 const GIUDICE := preload("res://scenes/npc/Giudice.gd")
 const PERCEZIONE := preload("res://scenes/npc/Percezione.gd")
+const VISITOR := preload("res://scenes/npc/Visitor.gd")
+
+
+# =========================================================================
+# LE DUE MISURE DELLA RICEVUTA — la distanza e l'angolo
+# =========================================================================
+
+## FIN DOVE IL GIOCATORE LEGGE UNA TESTA CHE SI GIRA, in metri.
+##
+## Non è un numero nuovo: è `Visitor.FACCIA_AL_GIOCATORE`, cioè la distanza
+## sotto la quale il gioco ha già deciso — anni fa, per un'altra ragione —
+## che la testa di un chibi è una cosa che si guarda: sotto quella soglia il
+## volto smette di fare le sue cose e insegue Mochi con gli occhi.
+##
+## **Non è `Percezione.RAGGIO`, ed è una domanda diversa.** Nove metri è fin
+## dove arriva lo sguardo distratto di un vicino sul prato — cioè chi PUÒ
+## AVER VISTO un gesto di Mochi. Qui la domanda è rovesciata: fin dove
+## l'occhio del giocatore, con la camera a quattro metri e mezzo d'altezza,
+## legge un'imbardata di quarantacinque gradi su una testa che sullo schermo
+## è alta poche decine di pixel. Le due risposte non hanno nessuna ragione di
+## essere lo stesso numero, e tenerle uguali sarebbe la solita tabella
+## gemella che comincia a divergere.
+##
+## PROVINATO guardando (`tools/provino_ricevuta.gd`), non dedotto: la stessa
+## ricevuta, la stessa testa, cinque distanze e la camera vera del gioco.
+const RAGGIO := VISITOR.FACCIA_AL_GIOCATORE
+
+## QUANTO POSSONO DIVERGERE «DOVE GUARDA» E «DOVE VA», in radianti.
+##
+## ⚠️ **UNO SGUARDO È UNA DIREZIONE, NON UN PUNTO**, e questa riga è tutta la
+## differenza fra un canale vivo e un canale morto. La prima idea per legare
+## la premessa alla conseguenza era chiedere che i due POSTI coincidessero:
+## MISURATO su tutto ciò che la grammatica può produrre in un villaggio vero
+## (`tools/misura_attribuzione.gd`), con due metri di tolleranza
+## sopravvivevano **8 deduzioni su 100** — cioè il canale spento. Ed era la
+## domanda sbagliata: il giocatore non misura i metri lungo un raggio di
+## sguardo, vede una testa girarsi di là e un corpo andare di là. Cinque
+## metri a venti metri di distanza sono quattordici gradi (la stessa cosa);
+## cinque metri a sei sono quarantacinque (due cose diverse).
+##
+## Chiesto in gradi, dallo stesso vertice da cui il giocatore guarda — il
+## corpo del vicino — la stessa scena sopravvive nell'87% dei casi.
+##
+## PROVINATO guardando (`tools/provino_ricevuta.gd`): la stessa ricevuta con
+## la meta a 0°, 15°, 30°, 45° e 60° dall'ancora.
+const APERTURA := deg_to_rad(30.0)
 
 
 # =========================================================================
@@ -249,6 +330,47 @@ static func incassa(cuore: Object, id: int, bozze: Array, rit: Dictionary,
 			"motivo": str(scelta["motivo"]) if i >= 0 else "il ponte l'ha rifiutata"}
 
 
+## DOVE ANDRÀ, se questa deduzione diventa un gesto. `{}` se non ci va da
+## nessuna parte — e allora non c'è niente da prefigurare.
+##
+## ⚠️ **NON C'È NESSUNA TABELLA «OBIETTIVO → LUOGO», E NON SE NE SCRIVE UNA.**
+## La corrispondenza fra i quattro provvedimenti e i cinque luoghi vive già,
+## una volta sola, dentro gli operatori del risolutore (`sistema_piani.h`), e
+## una seconda copia scritta a mano qui è precisamente il modo in cui in
+## questo progetto sono divergite le specie, la scala della ribellione e il
+## salvataggio. Si chiede al RISOLUTORE: il primo passo di ogni piano è
+## sempre un trasferimento (le pose le accende solo un operatore, mai il
+## mondo), e il luogo di quel trasferimento è l'indice dentro `luoghi`.
+##
+## Costa una pianificazione, ed è lo stesso prezzo che `Visitors._piano_dirotta`
+## paga a ogni fronte dell'agenda. Qui si paga solo quando c'è una deduzione
+## che aspetta la sua ricevuta: nel caso normale — nessun modello — questa
+## funzione non viene chiamata affatto.
+static func meta_del_gesto(cuore: Object, id: int, i: int, luoghi: Array,
+		fatti: int) -> Dictionary:
+	if cuore == null or not is_instance_valid(cuore) or i < 0:
+		return {}
+	if luoghi.size() < PIANI.LUOGHI.size():
+		return {}
+	var ob := int(cuore.call("deduzione_obiettivo", id, i))
+	if ob == 0:
+		return {}
+	var passi: PackedInt32Array = cuore.call("pianifica", fatti, ob,
+			PIANI.cammino(luoghi))
+	if passi.is_empty():
+		return {}
+	var op: Dictionary = cuore.call("debug_operatore", int(passi[0]))
+	var l := int(op.get("luogo", -1))
+	if l < 0 or l >= luoghi.size():
+		# non può succedere (il primo passo è sempre un trasferimento), e se
+		# succedesse vorrebbe dire che il risolutore ha cambiato forma: si tace
+		return {}
+	var voce: Dictionary = luoghi[l]
+	if not bool(voce.get("ok", false)):
+		return {}
+	return {"luogo": str(PIANI.LUOGHI[l]), "pos": voce["pos"] as Vector3}
+
+
 # =========================================================================
 # 2. LA RICEVUTA — le due righe
 # =========================================================================
@@ -267,23 +389,38 @@ static func incassa(cuore: Object, id: int, bozze: Array, rit: Dictionary,
 ##
 ## Torna `true` se la ricevuta è stata pagata.
 ##
-## ⚠️ **SI PAGA SOLO A CHI PUÒ GUARDARE**, e la domanda si fa a
-## `Percezione.puo_vedere` passandogli la SUA posizione: la distanza diventa
-## zero e quello che resta sono esattamente le tre valvole che contano qui —
-## il corpo sparito dentro casa, il pisolino, l'appuntamento a una scena
-## rara. Chiedere non è un vezzo: pagare la ricevuta a un vicino addormentato
-## vorrebbe dire una conseguenza la cui premessa non si è vista, cioè il
-## guasto che tutto questo file esiste per rendere impossibile. E si chiede
-## di là, non con tre `if` scritti qui, perché il giorno che qualcuno
-## aggiunge una quarta valvola la ricevuta la eredita invece di ignorarla.
-static func consegna(cuore: Object, id: int, node: Node3D, i: int) -> bool:
+## ⚠️ **LE TRE DOMANDE, e nessuna è una taratura** (vedi il blocco in cima al
+## file per il perché di ciascuna):
+##
+## 1. **il corpo si può guardare, e il giocatore è lì** —
+##    `Percezione.puo_vedere(node, occhio, RAGGIO)`. L'`occhio` è dove sta
+##    Mochi, e passarglielo è tutta la differenza fra «qualcuno ha visto» e
+##    «è successo». Le tre valvole di sempre (dentro casa, addormentato, a un
+##    appuntamento suo) arrivano con lei, gratis: si chiede di là e non con
+##    quattro `if` scritti qui, perché il giorno che qualcuno ne aggiunge una
+##    quinta la ricevuta la eredita invece di ignorarla.
+## 2. **c'è davvero un posto in cui andrà** (`meta_del_gesto`). Senza, non
+##    c'è nessuna direzione a cui legare lo sguardo — e nemmeno nessuna
+##    conseguenza da prefigurare. Si tace, e si riprova al giro dopo.
+## 3. **e il collo ci arriva** — vedi sotto.
+static func consegna(cuore: Object, id: int, node: Node3D, i: int,
+		occhio: Vector3, luoghi: Array, fatti: int) -> bool:
 	if cuore == null or not is_instance_valid(cuore) or i < 0:
 		return false
 	if node == null or not is_instance_valid(node):
 		return false
-	if not PERCEZIONE.puo_vedere(node, node.global_position, 1.0):
+	if not PERCEZIONE.puo_vedere(node, occhio, RAGGIO):
 		return false
-	var dove: Vector3 = cuore.call("deduzione_dove", id, i, node.global_position)
+	var meta: Dictionary = meta_del_gesto(cuore, id, i, luoghi, fatti)
+	if meta.is_empty():
+		return false
+	# L'ANCORA SI SCEGLIE FRA I PERCHÉ VERI, e la sceglie il ponte: il più
+	# pesante fra quelli che stanno nella direzione in cui il corpo andrà.
+	# Se non ne resta nessuno torna il ripiego — cioè la posizione del vicino
+	# stesso — e la valvola del collo qui sotto lo tratta come «non c'è niente
+	# da mostrare», che è quello che è.
+	var dove: Vector3 = cuore.call("deduzione_dove", id, i, node.global_position,
+			meta["pos"], APERTURA)
 	# SI ASPETTA IL MOMENTO IN CUI IL COLLO CI ARRIVA. Vedi
 	# `Visitor.collo_ci_arriva`: misurato nel MainLevel vero, col posto alle
 	# spalle la testa si ferma al tetto del rig e restano **102° di scarto** —

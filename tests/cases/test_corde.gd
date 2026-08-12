@@ -15,6 +15,16 @@ const CAT := preload("res://scenes/build/BuildCatalog.gd")
 const CHIESA := preload("res://scenes/build/BuildChiesa.gd")
 
 
+## UN CIELO FINTO, con la sola porta che il villaggio usa per chiedergli
+## il vento: il gruppo «weather» e il metodo `forza_del_vento` (e' il
+## contratto di `Rimbalzello._vento()`, e adesso anche delle corde).
+class FintoCielo extends Node3D:
+	var _vento := 1.0
+
+	func forza_del_vento(_stato: String, _nevica: bool, _nebbia: bool) -> float:
+		return _vento
+
+
 func run(t) -> void:
 	_test_si_assesta(t)
 	_test_tratti_uguali(t)
@@ -25,6 +35,8 @@ func run(t) -> void:
 	_test_i_pezzi_dichiarano(t)
 	_test_appesi_sulla_corda(t)
 	_test_gestore_headless(t)
+	_test_vento_dal_cielo(t)
+	_test_nessuna_porta_murata(t)
 
 
 ## La corda ferma: pancia sotto i capi, simmetrica, coi capi al loro posto.
@@ -223,6 +235,135 @@ func _test_gestore_headless(t) -> void:
 		t.ok(seguace.position.distance_to(atteso) < 0.005,
 				"le lampadine seguono il filo che si muove")
 	gestore.free()
+
+
+## IL VENTO DEVE ARRIVARE DAL CIELO — e questo test esiste perche' per
+## due anni non ci e' arrivato, con la suite verde.
+##
+## `_forza_vento()` chiedeva il vento a
+## `RenderingServer.global_shader_parameter_get("vento_forza")`. Fuori
+## dall'editor Godot fa fallire quella funzione apposta: tornava `null`,
+## e le corde ricevevano SEMPRE 1.0 — il vento del sereno — anche col
+## temporale, che il cielo tira a 1.8. E il guasto era MUTO headless per
+## due ragioni indipendenti, che e' il motivo per cui va provato COSI':
+## il renderer fittizio non ha quel guardrail (nessun errore da vedere),
+## e 1.0 e' proprio il valore giusto del sereno (nessun numero sbagliato
+## da vedere). Serve un cielo che dica un numero DIVERSO da 1.0, e poi
+## guardare se le corde lo sentono addosso.
+##
+## Si misura il COMPORTAMENTO — quanto si scosta la pancia della corda —
+## non la risposta della funzione: una `_forza_vento` giusta collegata a
+## un `passo` che la butta via passerebbe un test di lettura.
+func _test_vento_dal_cielo(t) -> void:
+	var cielo := FintoCielo.new()
+	t.stage(cielo)
+	cielo.add_to_group("weather")
+
+	var sereno: Array = _agita(t, 1.0)
+	var tempesta: Array = _agita(t, 1.8)
+	t.almost(float(sereno[1]), 1.0, "col sereno le corde sentono il vento del sereno", 0.001)
+	t.almost(float(tempesta[1]), 1.8, "col temporale sentono il vento del temporale", 0.001)
+	# La spinta va col QUADRATO della forza (`1.1 * forza * forza` in
+	# `passo`): fra 1.0 e 1.8 ci sono 3.24 volte. La soglia sta a 2.0,
+	# cioe' sotto il misurato ma abbondantemente sopra l'1.0 che darebbe
+	# una corda sorda: e' la fascia in cui il test dice qualcosa senza
+	# ridiventare rosso se un giorno si ritocca la curva del vento.
+	var quanto := float(tempesta[0]) / maxf(float(sereno[0]), 1e-9)
+	t.ok(quanto > 2.5,
+			"col temporale la corda si scosta molto di piu' (x%.2f)" % quanto)
+
+	# E SENZA CIELO le corde respirano lo stesso, con la brezza del
+	# sereno: il diorama del titolo, il bosco e i banchi non hanno un
+	# Weather, e una corda che si pianta li' e' un guasto peggiore di
+	# quello che questo test sorveglia.
+	cielo.remove_from_group("weather")
+	var orfano: Array = _agita(t, -1.0)
+	t.almost(float(orfano[1]), 1.0, "senza cielo si risponde la brezza del sereno", 0.001)
+	t.almost(float(orfano[0]), float(sereno[0]),
+			"e la corda si scosta esattamente come col sereno", 0.0001)
+
+
+## Un gestore nuovo, una corda vera nuova, e novanta passi di vento: si
+## torna quanto la pancia si e' scostata NELLA DIREZIONE DEL VENTO, e che
+## vento ha visto il gestore. Corda e gestore sono NUOVI a ogni chiamata:
+## due misure che partono da stati diversi non sono confrontabili.
+func _agita(t, vento_del_cielo: float) -> Array:
+	for n in (t.tree() as SceneTree).get_nodes_in_group("weather"):
+		if n is FintoCielo:
+			(n as FintoCielo)._vento = maxf(vento_del_cielo, 0.0)
+	# IL SOGGETTO E' UN FESTONE, e la scelta e' misurata. Le «Lucine» del
+	# catalogo hanno una cordicella corta e tesa che sente il vento al
+	# 50%: fra sereno e temporale si scostava di 1.88 volte invece delle
+	# 3.24 della fisica, perche' una corda tesa e corta satura — e con
+	# quel soggetto la soglia del test avrebbe dovuto scendere sotto il
+	# doppio, cioe' diventare quasi indistinguibile da «zero vento». La
+	# campata da tre metri e' invece la corda che il vento ha il permesso
+	# di muovere davvero (`vento` = 1.0), ed e' anche quella che si vede
+	# ondeggiare nel provino.
+	var pezzo = t.stage(CAT.festone(Vector3(-1.5, 2.4, 0.0), Vector3(1.5, 2.4, 0.0),
+			CAT.FESTONE_BULBI, 20260812))
+	var corda: MeshInstance3D = _corde_di(pezzo)[0]
+	var gestore = t.stage(VIVE.new())
+	gestore.registra(corda)
+	var stato: Dictionary = gestore._stato_di(corda)
+	if stato.is_empty():
+		t.ok(false, "il gestore non ha registrato la campata")
+		return [0.0, 1.0]
+	# LA FASE SI FISSA. `registra` la ricava dall'instance_id del nodo
+	# («orologi incommensurabili»: due corde vicine non ondeggiano in
+	# sincrono), quindi cambia a ogni corda costruita — e due misure con
+	# turbolenze sfasate non sono confrontabili al millimetro. Qui la si
+	# azzera, cosi' le tre corse differiscono per UNA cosa sola: il vento.
+	stato["fase"] = 0.0
+
+	# SI MISURA LUNGO L'ASSE DEL VENTO, e dopo che la corda si e'
+	# assestata. Il primo mezzo secondo la pancia SCENDE (la posa di
+	# riposo nasce con dieci giri di vincoli, il gestore ne fa sei: la
+	# corda cede ancora un poco sotto il proprio peso), e quello
+	# spostamento — cinque centimetri, tutto in Y — e' identico col
+	# sereno e col temporale: misurando la distanza in linea d'aria dalla
+	# posa seppelliva il vento dentro la gravita' e i due venti
+	# risultavano uguali all'1% (misurato: x1.03). Il vento parte lungo
+	# +X (`_dir_vento` nasce a zero), la gravita' non ha X: proiettare
+	# sulla X separa le due cose senza doverle sottrarre.
+	var riposo: Vector3 = FISICA.campiona(corda.get_meta("posa"), 0.5)
+	for _k in 90:
+		gestore.passo(1.0 / 60.0)
+	var spinta := 0.0
+	for _k in 60:
+		gestore.passo(1.0 / 60.0)
+		spinta += (FISICA.campiona(stato["punti"], 0.5) as Vector3).x - riposo.x
+	return [spinta / 60.0, float(gestore._forza_vento())]
+
+
+## LA PORTA MURATA NON SI RIAPRE. Questo e' un controllo sul SORGENTE, ed
+## e' l'eccezione che il progetto si concede quando il guasto non ha
+## nessuna traccia headless: `global_shader_parameter_get` fuori
+## dall'editor non stampa niente in `--headless` (renderer fittizio) e
+## torna proprio il valore del sereno, quindi in un banco a occhi chiusi
+## e' indistinguibile dal codice giusto. Con la finestra aperta invece
+## costa un ERROR per frame — 3600 al minuto, 55 µs l'uno, sei righe di
+## log a testa.
+##
+## I COMMENTI SI TOLGONO PRIMA DI CERCARE: la nota che spiega il guasto
+## nomina la funzione, e un controllo ingenuo resterebbe rosso per colpa
+## della sua stessa spiegazione (o, peggio, verrebbe scritto in modo da
+## non nominarla mai — cioe' cancellando la memoria del difetto).
+func _test_nessuna_porta_murata(t) -> void:
+	var f := FileAccess.open("res://scenes/world/CordeVive.gd", FileAccess.READ)
+	t.ok(f != null, "CordeVive.gd si legge")
+	if f == null:
+		return
+	var vive := 0
+	for riga in f.get_as_text().split("\n"):
+		var nuda := (riga as String).strip_edges()
+		if nuda.begins_with("#"):
+			continue
+		if nuda.contains("global_shader_parameter_get"):
+			vive += 1
+	f.close()
+	t.eq(vive, 0,
+			"CordeVive non chiede piu' il vento al RenderingServer (righe vive: %d)" % vive)
 
 
 func _corde_di(n: Node) -> Array:

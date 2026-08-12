@@ -59,6 +59,12 @@ const POSTO_DI := {
 ## La soglia del villaggio: `Visitors.AMMIRA_SOGLIA`.
 const SOGLIA := 0.35
 
+## A CHE DISTANZA STA MOCHI mentre il vicino paga la sua ricevuta. Dentro
+## `Deduzioni.RAGGIO` (4,5 m) perché la testa che si gira si veda, e non
+## addosso: il vicino gironzola attorno a casa sua, e a mezzo metro gli si
+## finirebbe in mezzo alla strada.
+const MOCHI_GUARDA_DA := 2.6
+
 var _guasti := 0
 
 
@@ -165,6 +171,31 @@ func _go() -> void:
 	for _k in 3:
 		call_group("percezione", "accaduto", "annaffia", posto, "")
 		await create_timer(2.5).timeout
+
+	# ⚠️ **E POI MOCHI TORNA INDIETRO E RESTA LÌ A GUARDARE.**
+	#
+	# La ricevuta non si paga a chi non ha nessuno che lo guardi
+	# (`Deduzioni.RAGGIO`), e senza questa riga il banco misurerebbe una scena
+	# che in partita non succede: un vicino che gira la testa in un villaggio
+	# vuoto. Non è una comodità di banco — è il pezzo di mondo che il banco
+	# deve fornire, come l'orologio fermo e il lease sull'agenda.
+	#
+	# Si mette dalla parte OPPOSTA all'ancora, e a più di un metro e mezzo:
+	# se fosse sulla linea di sguardo, la testa che si gira si leggerebbe come
+	# «sta guardando lei», che è la scena della Fase 4 e non questa.
+	var casa_del_vicino := Vector3(CASA.x, 0, CASA.y)
+	var giocatore := livello.get_node_or_null("Player") as Node3D
+	_dico(giocatore != null, "il MainLevel ha un Player (senza, nessuna ricevuta)")
+	if giocatore != null:
+		var indietro: Vector3 = casa_del_vicino - posto
+		indietro.y = 0.0
+		indietro = indietro.normalized() if indietro.length() > 0.01 else Vector3.FORWARD
+		var dove_mochi: Vector3 = casa_del_vicino + indietro * MOCHI_GUARDA_DA
+		giocatore.global_position = Vector3(dove_mochi.x,
+				giocatore.global_position.y, dove_mochi.z)
+		print("        Mochi torna a %.1f m da casa sua e guarda (dalla parte opposta all'ancora)"
+				% MOCHI_GUARDA_DA)
+
 	var grafo: Dictionary = cuore.call("debug_grafo", id)
 	var righe: Array = grafo.get("ricordi", [])
 	_dico(righe.size() >= 1, "il gesto è nel suo grafo (%d ricordi)" % righe.size())

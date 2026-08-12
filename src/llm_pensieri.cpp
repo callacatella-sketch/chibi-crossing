@@ -7,6 +7,10 @@
 // per la lista dei guasti che abortiscono il processo e di quelli che no.
 #include "llm_gguf.h"
 
+// Quanta RAM ha questa macchina, adesso: l'altra metà del cancello (il tetto
+// guarda il modello, questa guarda il PC di chi gioca). Vedi `llm_memoria.h`.
+#include "llm_memoria.h"
+
 #include <chrono>
 #include <cstring>
 #include <exception>
@@ -185,20 +189,59 @@ void Traduttore::annulla() {
 	// buttato senza una riga di log. Nel banco a blocchi alternati il
 	// risultato era «zero pensieri consegnati» con tutto verde.
 	//
-	// Sotto lo stesso lucchetto del prelievo, invece, i due ordini possibili
-	// sono tutti e due giusti: o il lavoro è ancora in coda (e lo si butta),
-	// o il thread l'ha già preso (e allora ha già azzerato la bandiera, che
-	// si rialza adesso e lo interrompe).
+	// ⚠️⚠️ E C'È UNA SECONDA VERSIONE DELLO STESSO GUASTO, PEGGIORE, che è
+	// costata il villaggio muto PER SEMPRE — misurata con
+	// `tools/prova_concorrenza.cpp`, che la riproduce al PRIMO giro:
+	//
+	//   `accoda()` accende `_in_volo` mettendo in coda; a spegnerlo, prima,
+	//   c'era UN SOLO posto — la fine di un lavoro ESEGUITO. Ma fra il
+	//   momento in cui la richiesta entra in coda e il momento in cui il
+	//   thread la prende passa un pezzo di tempo VERO (misurato su un M1
+	//   scarico: mediana 27 µs, massimo 34; su una macchina carica p90 2454 µs
+	//   e punte di 117 ms — cioè proprio quando il modello genera, che è
+	//   quando la macchina è carica). Un `annulla()` che prende il lucchetto
+	//   dentro quella finestra svuotava la coda: quel lavoro non esisteva più,
+	//   nessuno l'avrebbe mai finito, e `_in_volo` restava acceso per sempre.
+	//   `libero()` falso per sempre → `accoda()` che rifiuta tutto per il
+	//   resto del processo → il villaggio ammutolisce, in silenzio, e la
+	//   diagnosi continua a dire «pronto».
+	//   Il corollario era altrettanto muto: nella stessa finestra si alzava
+	//   anche la finestra del silenzio (`g_abbandoni`, `_zittisci`) e non la
+	//   richiudeva nessuno — da lì in poi OGNI errore di llama restava
+	//   declassato ad avviso, cioè si spegneva la rete che accorge quando il
+	//   gioco è rotto davvero.
+	//
+	// La cura è sapere DI CHI È il lavoro, e si sa solo sotto il lucchetto:
+	// `_preso` lo accende il thread nello stesso istante in cui toglie la
+	// richiesta dalla coda. Da qui i due rami sono esatti, e ognuno spegne
+	// quello che ha acceso:
+	//  · il thread ce l'ha in mano  → si alza la bandiera e sarà LUI a
+	//    spegnere `_in_volo` e a richiudere il silenzio quando molla;
+	//  · non ce l'ha ancora nessuno → il lavoro sparisce qui, e allora
+	//    `_in_volo` lo spegne QUI, perché non c'è nessun altro che possa.
 	std::lock_guard<std::mutex> g(_mutex);
-	if (!_annullato.exchange(true, std::memory_order_relaxed) &&
-			_in_volo.load(std::memory_order_relaxed)) {
-		// da qui e fino alla fine del lavoro in volo, gli errori che llama
-		// stampa mentre molla non sono errori: sono il rumore di questo gesto
-		g_abbandoni.fetch_add(1, std::memory_order_relaxed);
-		_zittisci = true;
+	if (!_coda.empty()) {
+		_buttati.fetch_add(_coda.size(), std::memory_order_relaxed);
+		_coda.clear();
 	}
-	_buttati.fetch_add(_coda.size(), std::memory_order_relaxed);
-	_coda.clear();
+	if (_preso) {
+		if (!_annullato.exchange(true, std::memory_order_relaxed)) {
+			// da qui e fino alla fine del lavoro in volo, gli errori che llama
+			// stampa mentre molla non sono errori: sono il rumore di questo
+			// gesto. La finestra la richiude il thread, che è l'unico a sapere
+			// quando ha davvero finito di mollare.
+			g_abbandoni.fetch_add(1, std::memory_order_relaxed);
+			_zittisci = true;
+		}
+	} else {
+		// NESSUNO ci sta lavorando. Se `_in_volo` è acceso l'ha acceso
+		// `accoda()` per un lavoro che adesso non esiste più: si spegne qui.
+		// E `_annullato` torna giù perché non c'è niente da interrompere —
+		// lasciarla alzata farebbe nascere già annullato il pensiero dopo,
+		// che è il guasto della nota qui sopra.
+		_in_volo.store(false, std::memory_order_relaxed);
+		_annullato.store(false, std::memory_order_relaxed);
+	}
 	_esiti.clear();
 	_da_ritirare.store(0, std::memory_order_release);
 }
@@ -216,14 +259,30 @@ void Traduttore::chiudi() {
 	}
 	_fermati.store(true, std::memory_order_relaxed);
 	_annullato.store(true, std::memory_order_relaxed);
-	// chiudere mentre si genera fa mollare llama a metà, e llama lo racconta
-	// con tre righe di errore: qui sono il rumore della chiusura, non guasti
-	if (_in_volo.load(std::memory_order_relaxed)) {
-		g_abbandoni.fetch_add(1, std::memory_order_relaxed);
-		_zittisci = true;
+	{
+		// ⚠️ SOTTO IL LUCCHETTO, e non è pignoleria: `_zittisci` è un `bool`
+		// normale che il thread legge e scrive nel suo epilogo. Scriverlo da
+		// qui senza il lucchetto è una corsa vera fra due thread sullo stesso
+		// byte — il genere di cosa che non si vede mai in prova e che il
+		// sanitizer chiama data race.
+		//
+		// Chiudere mentre si genera fa mollare llama a metà, e llama lo
+		// racconta con tre righe di errore: qui sono il rumore della
+		// chiusura, non guasti. Ma la finestra si apre solo se il thread ha
+		// DAVVERO un lavoro in mano (`_preso`): se il lavoro era ancora in
+		// coda, llama non l'ha mai visto e non stamperà niente.
+		std::lock_guard<std::mutex> g(_mutex);
+		if (_preso && !_zittisci) {
+			g_abbandoni.fetch_add(1, std::memory_order_relaxed);
+			_zittisci = true;
+		}
+		_campanello.notify_all();
 	}
-	_campanello.notify_all();
 	_thread.join();
+	// Il thread è morto: se la finestra del silenzio è rimasta aperta — cioè
+	// se è morto PRIMA di richiuderla — la si richiude qui. `g_abbandoni` è
+	// globale al processo: un incremento lasciato indietro declassa ad avviso
+	// ogni errore di llama fino alla fine della partita.
 	if (_zittisci) {
 		_zittisci = false;
 		g_abbandoni.fetch_sub(1, std::memory_order_relaxed);
@@ -297,6 +356,10 @@ void Traduttore::_ciclo() {
 				// Sta sotto lo stesso lucchetto di `annulla()` apposta — vedi
 				// la nota là, è il guasto che rendeva muto il villaggio.
 				_annullato.store(false, std::memory_order_relaxed);
+				// «QUESTO LAVORO CE L'HO IN MANO IO», e da adesso `_in_volo` è
+				// affare mio: `annulla()` legge questa riga per sapere se deve
+				// aspettare che molli (sì) o spegnere lui la bandiera (no).
+				_preso = true;
 			}
 		}
 
@@ -331,54 +394,62 @@ void Traduttore::_ciclo() {
 		}
 		_stato.store(StatoLlm::PRONTO, std::memory_order_relaxed);
 
-		const bool buttato = _annullato.exchange(false, std::memory_order_relaxed);
+		// ⚠️ L'EPILOGO STA TUTTO SOTTO UN LUCCHETTO SOLO, ed è la seconda metà
+		// della cura descritta in `annulla()`. Deve essere INDIVISIBILE
+		// rispetto a lei: se `annulla()` cadesse in mezzo — fra il momento in
+		// cui si legge la bandiera e quello in cui si spegne `_preso` — i due
+		// rami di là sceglierebbero guardando uno stato a metà, e si
+		// tornerebbe a una finestra in cui nessuno spegne `_in_volo`.
+		bool buttato = false;
 		{
+			std::lock_guard<std::mutex> g(_mutex);
+			buttato = _annullato.exchange(false, std::memory_order_relaxed);
 			// la finestra del silenzio si chiude QUI: il lavoro che stava
 			// mollando è finito, e da adesso un errore di llama è un errore
-			std::lock_guard<std::mutex> g(_mutex);
 			if (_zittisci) {
 				_zittisci = false;
 				g_abbandoni.fetch_sub(1, std::memory_order_relaxed);
 			}
-		}
-		// ⚠️ `_in_volo` SI SPEGNE PER ULTIMO, DOPO CHE L'ESITO È RITIRABILE.
-		// È lui, e non lo stato, a dire al thread principale «ho finito»
-		// (`libero()` li guarda tutti e due). Spegnendolo PRIMA di posare
-		// l'esito si apre una finestra di pochi microsecondi in cui il gioco
-		// vede un motore libero e una cassetta ancora vuota — e chi aspetta
-		// quel biglietto lo dichiara perso un istante prima che arrivi, per
-		// poi buttarlo un frame dopo perché il numero non è più quello che
-		// aspettava. Un pensiero perso ogni tanto, senza una riga di log, e
-		// solo su una macchina carica: la specie di difetto che si scopre in
-		// produzione o non si scopre affatto.
-		if (buttato) {
-			// UN ESITO ANNULLATO NON SI CONSEGNA. Se si consegnasse, il
-			// chiamante dovrebbe ricordarsi di guardare un flag — e prima o
-			// poi qualcuno non se ne ricorda, e un pensiero di due scene fa
-			// arriva addosso a un vicino che nel frattempo se n'è andato.
-			_buttati.fetch_add(1, std::memory_order_relaxed);
-		} else {
-			// ⚠️ MA UN ESITO VUOTO SÌ, ED È UNA CORREZIONE, NON UNO SFIZIO.
-			// Prima si buttava anche quello (`|| esito.bozze.empty()`), e il
-			// risultato era il guasto peggiore di tutta la fase: chi aspetta
-			// quel biglietto — `Pensatoio` — non lo riceve MAI, quindi non
-			// smette mai di aspettarlo, quindi non chiede più nessun pensiero.
-			// **Il villaggio diventa muto per sempre, in silenzio, dopo un
-			// errore solo**: un prompt più lungo della finestra, una grammatica
-			// che non si apre, un `llama_decode` che rifiuta. Un errore che
-			// nessuno riceve non è un errore gestito: è un sistema che si
-			// spegne da solo. L'esito vuoto porta `errore` compilato, ed è la
-			// sola strada per cui quel testo arriva a chi può stamparlo.
-			if (esito.bozze.empty()) {
+			// il lavoro non è più in mano a nessuno
+			_preso = false;
+			if (buttato) {
+				// UN ESITO ANNULLATO NON SI CONSEGNA. Se si consegnasse, il
+				// chiamante dovrebbe ricordarsi di guardare un flag — e prima o
+				// poi qualcuno non se ne ricorda, e un pensiero di due scene fa
+				// arriva addosso a un vicino che nel frattempo se n'è andato.
 				_buttati.fetch_add(1, std::memory_order_relaxed);
 			} else {
-				_fatti.fetch_add(1, std::memory_order_relaxed);
+				// ⚠️ MA UN ESITO VUOTO SÌ, ED È UNA CORREZIONE, NON UNO SFIZIO.
+				// Prima si buttava anche quello (`|| esito.bozze.empty()`), e il
+				// risultato era il guasto peggiore di tutta la fase: chi aspetta
+				// quel biglietto — `Pensatoio` — non lo riceve MAI, quindi non
+				// smette mai di aspettarlo, quindi non chiede più nessun pensiero.
+				// **Il villaggio diventa muto per sempre, in silenzio, dopo un
+				// errore solo**: un prompt più lungo della finestra, una grammatica
+				// che non si apre, un `llama_decode` che rifiuta. Un errore che
+				// nessuno riceve non è un errore gestito: è un sistema che si
+				// spegne da solo. L'esito vuoto porta `errore` compilato, ed è la
+				// sola strada per cui quel testo arriva a chi può stamparlo.
+				if (esito.bozze.empty()) {
+					_buttati.fetch_add(1, std::memory_order_relaxed);
+				} else {
+					_fatti.fetch_add(1, std::memory_order_relaxed);
+				}
+				_esiti.push_back(std::move(esito));
+				_da_ritirare.store(static_cast<int>(_esiti.size()), std::memory_order_release);
 			}
-			std::lock_guard<std::mutex> g(_mutex);
-			_esiti.push_back(std::move(esito));
-			_da_ritirare.store(static_cast<int>(_esiti.size()), std::memory_order_release);
+			// ⚠️ `_in_volo` SI SPEGNE PER ULTIMO, DOPO CHE L'ESITO È RITIRABILE.
+			// È lui, e non lo stato, a dire al thread principale «ho finito»
+			// (`libero()` li guarda tutti e due). Spegnendolo PRIMA di posare
+			// l'esito si apre una finestra di pochi microsecondi in cui il gioco
+			// vede un motore libero e una cassetta ancora vuota — e chi aspetta
+			// quel biglietto lo dichiara perso un istante prima che arrivi, per
+			// poi buttarlo un frame dopo perché il numero non è più quello che
+			// aspettava. Un pensiero perso ogni tanto, senza una riga di log, e
+			// solo su una macchina carica: la specie di difetto che si scopre in
+			// produzione o non si scopre affatto.
+			_in_volo.store(false, std::memory_order_relaxed);
 		}
-		_in_volo.store(false, std::memory_order_relaxed);
 	}
 
 	// Il modello si libera SUL THREAD che l'ha aperto: `llama_free` tocca i
@@ -460,16 +531,42 @@ bool Traduttore::_carica() {
 			_diagnosi = "l'impronta non combacia: questo non è il modello collaudato";
 			return false;
 		}
+		const uint64_t serve = stima_byte_totali(fatti, static_cast<uint32_t>(_cfg.n_ctx));
 		if (_cfg.tetto_byte > 0) {
 			// IL TETTO SI DICE PRIMA. Un tetto che si scopre dopo aver
 			// riempito la memoria non è un tetto: è un referto.
-			const uint64_t serve = stima_byte_totali(fatti, static_cast<uint32_t>(_cfg.n_ctx));
 			if (serve > _cfg.tetto_byte) {
 				std::lock_guard<std::mutex> g(_mutex);
 				_diagnosi = "il modello chiede circa " +
 						std::to_string(serve / (1024 * 1024)) + " MB (pesi + cache a " +
 						std::to_string(_cfg.n_ctx) + " gettoni) e il tetto è " +
 						std::to_string(_cfg.tetto_byte / (1024 * 1024)) + " MB";
+				return false;
+			}
+		}
+		// ── E LA MACCHINA CE LI HA, QUESTI BYTE? ──────────────────────────
+		//
+		// Il tetto dice quanto costa il modello; questa riga guarda quanto ha
+		// in tasca il PC di chi gioca ADESSO. Sono due domande diverse, e la
+		// seconda è quella che decide se il gioco andrà in swap: un modello
+		// che sta nel tetto su una macchina piena è comunque il motivo per
+		// cui il frame comincia a singhiozzare, e un giocatore non ha modo di
+		// collegare la cosa. Perciò qui si dice di no da soli — la funzione si
+		// spegne, il gioco resta identico, le lettere scritte a mano ci sono.
+		//
+		// ⚠️ ZERO VUOL DIRE «NON LO SO», e «non lo so» non è mai un no: se la
+		// piattaforma non sa dire quanta RAM è libera (vedi `llm_memoria.h`)
+		// si passa oltre. Spegnere una funzione per un numero che non
+		// abbiamo sarebbe il degrado dalla parte sbagliata.
+		if (_cfg.riserva_byte > 0) {
+			const uint64_t libera = memoria_libera_sistema();
+			if (libera > 0 && serve + _cfg.riserva_byte > libera) {
+				std::lock_guard<std::mutex> g(_mutex);
+				_diagnosi = "questa macchina ha " +
+						std::to_string(libera / (1024 * 1024)) +
+						" MB liberi: il modello ne chiede " +
+						std::to_string(serve / (1024 * 1024)) + " e al gioco ne devono " +
+						"restare almeno " + std::to_string(_cfg.riserva_byte / (1024 * 1024));
 				return false;
 			}
 		}

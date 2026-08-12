@@ -9,6 +9,8 @@
 #include "llm_memoria.h"
 #include "llm_pensieri.h"
 
+#include <atomic>
+
 #include <godot_cpp/classes/file_access.hpp>
 #include <godot_cpp/classes/project_settings.hpp>
 #include <godot_cpp/core/class_db.hpp>
@@ -18,6 +20,11 @@
 using namespace godot;
 
 namespace {
+
+// Quante righe di llama sono state tenute per sé perché stavamo abbandonando
+// una generazione. Non si stampano (vedi la nota dentro `chibi_llm_log`), ma
+// si contano: un rumore che nessuno misura diventa un rumore che cresce.
+std::atomic<uint64_t> g_righe_zittite{ 0 };
 
 // llama.cpp scrive su stderr per conto suo. Dirottato qui, il rumore diventa
 // una riga di Godot — e sotto la soglia dell'errore resta silenzio: durante il
@@ -34,16 +41,29 @@ void chibi_llm_log(ggml_log_level p_livello, const char *p_testo, void *) {
 	// ⚠️ UN DECODE ABBANDONATO NON È UN GUASTO, ED È IL CASO NORMALE.
 	// Quando `abort_callback` ferma `llama_decode` a metà — cioè a ogni
 	// cambio di scena, a ogni ritorno al titolo, a ogni chiusura del gioco —
-	// llama.cpp lo racconta con TRE righe di errore («graph_compute … failed
-	// with error 1», «process_ubatch: failed to compute graph»,
-	// «llama_decode: failed to decode, ret = 2»). Sono la firma di un gesto
-	// VOLUTO, e lasciarle passare come errori significherebbe tre errori per
-	// ogni cambio di scena: in un progetto che conta gli `SCRIPT ERROR` e
-	// pretende zero, non si rompe il gioco — si rompe la rete che si accorge
-	// quando il gioco è rotto davvero.
-	// Fuori da quella finestra (`abbandono_in_corso`) un errore di llama
-	// resta un errore, e si vede.
-	if (p_livello >= GGML_LOG_LEVEL_ERROR && !chibi::abbandono_in_corso()) {
+	// llama.cpp lo racconta. Misurate una per una (b10326, gemma-3):
+	//   ERROR  graph_compute: ggml_backend_sched_graph_compute_async failed…
+	//   ERROR  process_ubatch: failed to compute graph, compute status: 1
+	//   WARN   decode: removing memory module entries for seq_id = 0, pos …
+	//   ERROR  llama_decode: failed to decode, ret = 2
+	// Quattro righe, e sono la firma di un gesto VOLUTO.
+	//
+	// Prima venivano DECLASSATE ad avviso, e non bastava: adesso che le uscite
+	// funzionano davvero (il maniglione che muore, il Pensatoio che muore, il
+	// gioco che si chiude) un abbandono capita a OGNI cambio di scena, e
+	// quattro avvisi per cambio di scena insegnano a non leggere gli avvisi —
+	// che è lo stesso guasto di prima, un gradino più in basso: non si rompe
+	// il gioco, si rompe la rete che si accorge quando il gioco è rotto
+	// davvero. Dentro la finestra dell'abbandono, quindi, non si stampa: si
+	// CONTA (`misure()["righe_zittite"]`), perché un prezzo che nessuno
+	// misura è un prezzo che si paga per sempre.
+	//
+	// Fuori da quella finestra un errore di llama resta un errore, e si vede.
+	if (chibi::abbandono_in_corso()) {
+		g_righe_zittite.fetch_add(1, std::memory_order_relaxed);
+		return;
+	}
+	if (p_livello >= GGML_LOG_LEVEL_ERROR) {
 		UtilityFunctions::push_error(riga);
 	} else {
 		UtilityFunctions::push_warning(riga);
@@ -51,6 +71,16 @@ void chibi_llm_log(ggml_log_level p_livello, const char *p_testo, void *) {
 }
 
 bool g_acceso = false;
+
+// QUANTI MANIGLIONI VIVI CI SONO ADESSO.
+//
+// Il traduttore è del processo, ma chi lo interroga sono le istanze di questa
+// classe: `raccogli()` si può chiamare SOLO da un maniglione. Quando muore
+// l'ultimo non c'è più nessuno che possa ritirare un pensiero — e un pensiero
+// che nessuno ritirerà è lavoro che il giocatore paga in core e non riceve
+// mai. È la ragione per cui il distruttore, da solo, butta il volo: vedi la
+// nota là sotto.
+std::atomic<int> g_maniglioni{ 0 };
 
 // IL TRADUTTORE DEL PROCESSO. Uno solo, e vive fuori da qualunque istanza:
 // `LlmLocale` è un maniglione (vedi l'header). Sta in una funzione e non fra
@@ -75,6 +105,7 @@ std::string a_std(const String &p_s) {
 } // namespace
 
 LlmLocale::LlmLocale() {
+	g_maniglioni.fetch_add(1, std::memory_order_relaxed);
 	avvia();
 }
 
@@ -83,6 +114,32 @@ LlmLocale::~LlmLocale() {
 	// processo, non a questo oggetto: liberarlo quando l'ultimo riferimento
 	// GDScript sparisce vorrebbe dire spegnere llama sotto i piedi di chiunque
 	// altro lo stia usando. Si spegne quando si spegne il gioco.
+	//
+	// ⚠️ MA IL LAVORO IN VOLO SÌ, ED È L'USCITA CHE MANCAVA.
+	//
+	// Un pensiero dura secondi; in quei secondi il giocatore torna al titolo,
+	// ricarica la partita, entra in una scena nuova. L'albero se ne va e con
+	// lui il maniglione — e prima di questa riga NON SUCCEDEVA NIENTE:
+	// misurato con `tools/prova_uscita.gd`, lasciando cadere ogni riferimento
+	// il thread continuava a scrivere per quaranta secondi buoni, cioè fino
+	// alla fine della generazione, macinando i core di una macchina che nel
+	// frattempo sta caricando una scena. Le due uscite che la documentazione
+	// dava per esistenti erano rotte tutte e due: `Pensatoio._exit_tree` non
+	// esiste (il Pensatoio è un `RefCounted`, non sta nell'albero) e
+	// `annulla()` «si chiama al cambio di scena» non lo chiamava nessuno.
+	//
+	// PERCHÉ L'ULTIMO E NON OGNUNO: `Llm.apri()` torna un maniglione nuovo a
+	// ogni chiamata, e ce ne sono di usa-e-getta (`Llm.riga_di_stato()` ne
+	// apre uno per leggere la versione). Se ogni distruttore buttasse il volo,
+	// stampare una riga di diagnostica ucciderebbe il pensiero di un vicino.
+	// Finché ne resta uno vivo, c'è ancora qualcuno che può ritirare l'esito.
+	//
+	// E NON `chiudi()`: quello libera il modello, e riaprire due gigabyte e
+	// mezzo a ogni cambio di scena sarebbe la cura peggiore della malattia. Il
+	// modello resta caldo, il lavoro senza destinatario no.
+	if (g_maniglioni.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+		traduttore().annulla();
+	}
 }
 
 void LlmLocale::avvia() {
@@ -178,6 +235,27 @@ Dictionary LlmLocale::memoria() const {
 	Dictionary d;
 	d["impronta"] = static_cast<int64_t>(chibi::memoria_impronta());
 	d["residente"] = static_cast<int64_t>(chibi::memoria_residente());
+	// E le due della MACCHINA, che sono l'altra metà del tetto: quanto costa
+	// il modello lo dice la stima, se quei byte ci sono lo dice questa riga.
+	// Zero = la piattaforma non lo sa dire (vedi `llm_memoria.h`).
+	d["totale_sistema"] = static_cast<int64_t>(chibi::memoria_totale_sistema());
+	d["libera_sistema"] = static_cast<int64_t>(chibi::memoria_libera_sistema());
+	return d;
+}
+
+Dictionary LlmLocale::limiti() const {
+	// I VALORI DI SERIE, LETTI DAL BINARIO. È la regola delle fonti uniche
+	// applicata a un numero che stava cominciando a vivere in tre posti: il
+	// tetto era scritto a mano in `sonda_llm.gd` (2 GB) mentre il gioco ne
+	// usava un altro. Un provino che confronta un modello con un tetto
+	// SBAGLIATO non è un provino: è un secondo tetto.
+	const chibi::Config c;
+	Dictionary d;
+	d["tetto_byte"] = static_cast<int64_t>(c.tetto_byte);
+	d["riserva_byte"] = static_cast<int64_t>(c.riserva_byte);
+	d["n_ctx"] = c.n_ctx;
+	d["max_token"] = c.max_token;
+	d["priorita"] = c.priorita;
 	return d;
 }
 
@@ -226,6 +304,13 @@ bool LlmLocale::apri_modello(const String &p_percorso, const Dictionary &p_opzio
 	// costerebbe un modello troppo grande). `0` = nessun tetto.
 	if (p_opzioni.has("tetto_byte")) {
 		cfg.tetto_byte = static_cast<uint64_t>(static_cast<int64_t>(p_opzioni["tetto_byte"]));
+	}
+	// LA RISERVA DELLA MACCHINA (quanta RAM deve restare libera dopo il
+	// carico). Come il tetto, si scavalca SOLO per misurare: un banco deve
+	// poter aprire anche il modello che il gioco rifiuterebbe, o non c'è
+	// modo di scoprire di quanto sfora. `0` = non si guarda.
+	if (p_opzioni.has("riserva_byte")) {
+		cfg.riserva_byte = static_cast<uint64_t>(static_cast<int64_t>(p_opzioni["riserva_byte"]));
 	}
 	// L'impronta attesa: se c'è, il file deve essere ESATTAMENTE quello. È
 	// l'unica difesa vera contro il residuo dichiarato in `llm_gguf.h`, e il
@@ -331,6 +416,9 @@ Dictionary LlmLocale::misure() const {
 	d["caricamento"] = static_cast<double>(t.caricamento());
 	d["diagnosi"] = String::utf8(t.diagnosi().c_str());
 	d["n_thread_consigliati"] = chibi::n_thread_consigliati();
+	// Le righe di llama tenute per noi durante gli abbandoni: quattro per
+	// abbandono, e un abbandono capita a ogni cambio di scena.
+	d["righe_zittite"] = static_cast<int64_t>(g_righe_zittite.load(std::memory_order_relaxed));
 	return d;
 }
 
@@ -345,6 +433,7 @@ void LlmLocale::_bind_methods() {
 			&LlmLocale::esamina, DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("impronta", "percorso"), &LlmLocale::impronta);
 	ClassDB::bind_method(D_METHOD("memoria"), &LlmLocale::memoria);
+	ClassDB::bind_method(D_METHOD("limiti"), &LlmLocale::limiti);
 
 	ClassDB::bind_method(D_METHOD("apri_modello", "percorso", "opzioni"),
 			&LlmLocale::apri_modello, DEFVAL(Dictionary()));

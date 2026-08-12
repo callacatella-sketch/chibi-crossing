@@ -34,6 +34,7 @@ const GIU := preload("res://scenes/npc/Giudice.gd")
 const PIANI := preload("res://scenes/npc/Piani.gd")
 const PERCEZIONE := preload("res://scenes/npc/Percezione.gd")
 const VISITOR := preload("res://scenes/npc/Visitor.gd")
+const VISITORS := preload("res://scenes/npc/Visitors.gd")
 
 ## Il ciclo del giorno con cui si tara tutto: `imposta_ritmo` ne fa la mezza
 ## vita (ciclo/2 = 120 s), che è il numero con cui il villaggio vero gira.
@@ -117,7 +118,12 @@ func run(t) -> void:
 	_senza_ricevuta_nessun_obiettivo_mai(t)
 	_la_ricevuta_gira_la_testa(t)
 	_a_chi_non_puo_guardare_non_si_paga_niente(t)
+	_senza_il_giocatore_non_si_paga_niente(t)
 	_il_collo_deve_arrivarci(t)
+	_l_ancora_si_sceglie_fra_i_perche_veri(t)
+	_un_ancora_che_punta_altrove_non_si_mostra(t)
+	_senza_una_meta_non_si_paga_niente(t)
+	_il_registro_passa_dove_sta_mochi(t)
 	_la_ricevuta_deve_avere_il_suo_tempo(t)
 	_la_ricevuta_scade(t)
 
@@ -176,12 +182,32 @@ func _ob(m, nome: String) -> int:
 
 
 ## I cinque luoghi «tutti raggiungibili e vicini», nella forma che
-## `Piani.cammino` si aspetta.
-func _luoghi_pieni() -> Array:
+## `Piani.cammino` si aspetta, e tutti nel punto `dove`.
+##
+## Il `pos` non serve al piano (`Piani.cammino` guarda `metri` e `ok`): serve
+## alla RICEVUTA, che da lì ricava dove andrà il corpo e quindi in che
+## direzione ha senso girare la testa. Metterli tutti e cinque nello stesso
+## punto vuol dire «qualunque cosa deduca, va lì», che è la forma più
+## semplice in cui un caso può dichiarare la sua geometria.
+func _luoghi_verso(dove: Vector3) -> Array:
 	var out := []
 	for i in PIANI.LUOGHI.size():
-		out.append({"ok": true, "metri": 3.0, "pos": Vector3.ZERO})
+		out.append({"ok": true, "metri": 3.0, "pos": dove})
 	return out
+
+
+func _luoghi_pieni() -> Array:
+	return _luoghi_verso(Vector3.ZERO)
+
+
+## LA RICEVUTA, chiesta come la chiede il villaggio. I casi che provano una
+## valvola cambiano UNA cosa sola rispetto a questa chiamata:
+##  · `occhio` — dove sta Mochi. Addosso al vicino, se non si dice altro;
+##  · `meta`   — dove il corpo andrà. Nel posto del ricordo, se non si dice
+##               altro: la geometria in cui la scena si legge.
+func _paga(m, id: int, corpo: Node3D, i: int, occhio: Vector3,
+		meta := Vector3(0, 0, -12)) -> bool:
+	return DED.consegna(m, id, corpo, i, occhio, _luoghi_verso(meta), _fatti_pieni(m))
 
 
 func _luoghi_vuoti() -> Array:
@@ -396,7 +422,9 @@ func _la_catena_pesa_quanto_il_suo_anello_piu_debole(t) -> void:
 	t.almost(float(_deduzioni(m, id)[0]["peso"]), minf(p0, p1),
 			"la deduzione pesa quanto il suo anello più debole", 1e-9)
 
-	var dove: Vector3 = m.deduzione_dove(id, 0, Vector3(-99, 0, -99))
+	# apertura ZERO = «non filtrare», cioè la domanda pura: fra i due, quale
+	# si guarda? (Il filtro ha un caso suo, `_l_ancora_si_sceglie_fra_i_perche_veri`.)
+	var dove: Vector3 = m.deduzione_dove(id, 0, Vector3(-99, 0, -99), Vector3.ZERO, 0.0)
 	t.almost(dove.x, 3.0, "e si guarda il posto del ricordo più FORTE (x)", 1e-4)
 	t.almost(dove.z, 4.0, "e si guarda il posto del ricordo più FORTE (z)", 1e-4)
 	m.free()
@@ -571,7 +599,7 @@ func _la_ricevuta_gira_la_testa(t) -> void:
 	m.deduci(id, _ob(m, "provvedi_cura"), PackedInt32Array([0]), SOGLIA)
 
 	var i := int(m.deduzione_muta(id, SOGLIA))
-	t.ok(DED.consegna(m, id, corpo, i), "la ricevuta si paga")
+	t.ok(_paga(m, id, corpo, i, corpo.global_position), "la ricevuta si paga")
 	t.eq(corpo.guardato.size(), 1, "la testa si è girata una volta")
 	var g: Array = corpo.guardato[0]
 	t.almost((g[0] as Vector3).x, 0.0, "verso il posto del ricordo (x)", 1e-4)
@@ -587,7 +615,7 @@ func _la_ricevuta_gira_la_testa(t) -> void:
 	# conseguenza che non arriva mai
 	var quando := float(_deduzioni(m, id)[0]["ricevuta"])
 	_passano(m, 5.0)
-	DED.consegna(m, id, corpo, 0)
+	_paga(m, id, corpo, 0, corpo.global_position)
 	t.almost(float(_deduzioni(m, id)[0]["ricevuta"]), quando,
 			"la ricevuta si paga una volta sola", 1e-6)
 	m.free()
@@ -605,7 +633,7 @@ func _a_chi_non_puo_guardare_non_si_paga_niente(t) -> void:
 		m.osserva(id, m.V_ANNAFFIA, Vector3(0, 0, -12), -1)
 		m.deduci(id, _ob(m, "provvedi_cura"), PackedInt32Array([0]), SOGLIA)
 		var i := int(m.deduzione_muta(id, SOGLIA))
-		t.ok(not DED.consegna(m, id, corpo, i),
+		t.ok(not _paga(m, id, corpo, i, corpo.global_position),
 				"a un vicino «%s» la ricevuta non si paga" % guasto)
 		t.eq(corpo.guardato.size(), 0, "e la testa non si è girata (%s)" % guasto)
 		t.eq(int(_deduzioni(m, id)[0]["bandiere"]), 0,
@@ -620,9 +648,65 @@ func _a_chi_non_puo_guardare_non_si_paga_niente(t) -> void:
 	c2.position = Vector3(5, 0, 7)
 	m2.osserva(id2, m2.V_ANNAFFIA, Vector3(5, 0, 7), -1)
 	m2.deduci(id2, _ob(m2, "provvedi_cura"), PackedInt32Array([0]), SOGLIA)
-	t.ok(not DED.consegna(m2, id2, c2, 0),
+	t.ok(not _paga(m2, id2, c2, 0, c2.global_position, Vector3(5, 0, -5)),
 			"non si gira la testa verso i propri piedi")
 	m2.free()
+
+
+## ⚠️ **E IL GIOCATORE DEVE ESSERCI.** È la quarta valvola, ed è quella che
+## dà il nome a tutto il meccanismo: una ricevuta è una testa che si gira, e
+## una testa che si gira mentre Mochi è dall'altra parte del villaggio non
+## l'ha vista nessuno. Restava solo la conseguenza — cioè il guasto che
+## questa fase esiste per rendere impossibile, non per tararlo bene.
+##
+## MISURATO prima della cura, nel villaggio vero: **sei ricevute su sei**
+## pagate con Mochi parcheggiata a cinquanta metri.
+##
+## La valvola morde ESATTAMENTE sul raggio del rig (`Visitor.FACCIA_AL_GIOCATORE`,
+## la distanza sotto la quale il gioco ha già deciso che una testa è una cosa
+## che si guarda), e si misura spostando l'occhio di un pelo di qua e di là:
+## stesso vicino, stesso posto, e la risposta cambia.
+##
+## E la deduzione NON muore per questo: resta muta e aspetta che il giocatore
+## passi di lì. È la stessa disciplina del collo.
+func _senza_il_giocatore_non_si_paga_niente(t) -> void:
+	var m = _mondo()
+	var id := _uno(m)
+	var corpo: Corpo = t.stage(Corpo.new())
+	m.osserva(id, m.V_ANNAFFIA, Vector3(0, 0, -12), -1)
+	m.deduci(id, _ob(m, "provvedi_cura"), PackedInt32Array([0]), SOGLIA)
+	var i := int(m.deduzione_muta(id, SOGLIA))
+	t.ok(i >= 0, "la deduzione c'è ed è muta")
+
+	# Mochi dall'altra parte del prato: il vicino gira la testa e non la vede
+	# nessuno — quindi non la gira affatto
+	var lontano := Vector3(0, 0, DED.RAGGIO + 40.0)
+	t.ok(not _paga(m, id, corpo, i, lontano),
+			"con Mochi a %.0f m la ricevuta NON si paga" % lontano.length())
+	t.eq(corpo.guardato.size(), 0, "e la testa non si gira a vuoto")
+	t.ok(int(m.deduzione_muta(id, SOGLIA)) >= 0, "la deduzione aspetta il suo momento")
+
+	# passa un minuto di villaggio: continua ad aspettare
+	_passano(m, 60.0)
+	t.ok(not _paga(m, id, corpo, 0, lontano), "e continua a non pagarsi")
+
+	# LA VALVOLA MORDE SUL RAGGIO, e il numero non è di questo file
+	t.ok(DED.RAGGIO > 0.0, "il raggio della ricevuta è un numero vero (%.2f m)" % DED.RAGGIO)
+	t.eq(DED.RAGGIO, VISITOR.FACCIA_AL_GIOCATORE,
+			"ed è quello sotto cui il volto insegue già il giocatore")
+	for prova in [[DED.RAGGIO + 0.1, false], [DED.RAGGIO - 0.1, true]]:
+		var m2 = _mondo()
+		var id2 := _uno(m2)
+		var c2: Corpo = t.stage(Corpo.new())
+		m2.osserva(id2, m2.V_ANNAFFIA, Vector3(0, 0, -12), -1)
+		m2.deduci(id2, _ob(m2, "provvedi_cura"), PackedInt32Array([0]), SOGLIA)
+		# di FIANCO, non davanti: Mochi non deve finire sulla linea di sguardo
+		t.eq(_paga(m2, id2, c2, 0, Vector3(float(prova[0]), 0, 0)), bool(prova[1]),
+				"Mochi a %.2f m (raggio %.2f): la ricevuta %s"
+						% [float(prova[0]), DED.RAGGIO,
+						"si paga" if bool(prova[1]) else "aspetta"])
+		m2.free()
+	m.free()
 
 
 ## IL COLLO DEVE ARRIVARCI, o non si paga niente — e la deduzione ASPETTA.
@@ -644,7 +728,7 @@ func _il_collo_deve_arrivarci(t) -> void:
 	m.deduci(id, _ob(m, "provvedi_cura"), PackedInt32Array([0]), SOGLIA)
 	var i := int(m.deduzione_muta(id, SOGLIA))
 	t.ok(i >= 0, "la deduzione c'è ed è muta")
-	t.ok(not DED.consegna(m, id, corpo, i),
+	t.ok(not _paga(m, id, corpo, i, corpo.global_position, Vector3(0, 0, 12)),
 			"col posto alle spalle la ricevuta NON si paga")
 	t.eq(corpo.guardato.size(), 0, "e la testa non si gira a vuoto")
 	t.ok(int(m.deduzione_muta(id, SOGLIA)) >= 0,
@@ -652,11 +736,12 @@ func _il_collo_deve_arrivarci(t) -> void:
 
 	# passa un minuto di villaggio: continua ad aspettare, non muore per questo
 	_passano(m, 60.0)
-	t.ok(not DED.consegna(m, id, corpo, 0), "e continua a non pagarsi")
+	t.ok(not _paga(m, id, corpo, 0, corpo.global_position, Vector3(0, 0, 12)),
+			"e continua a non pagarsi")
 
 	# poi il vicino si gira (cammina, cambia mestiere: succede da solo)
 	corpo.rotate_y(PI)
-	t.ok(DED.consegna(m, id, corpo, 0),
+	t.ok(_paga(m, id, corpo, 0, corpo.global_position, Vector3(0, 0, 12)),
 			"e appena si gira, la ricevuta si paga")
 	t.eq(corpo.guardato.size(), 1, "e la testa si gira UNA volta, quella giusta")
 
@@ -676,11 +761,216 @@ func _il_collo_deve_arrivarci(t) -> void:
 		c2.rotate_y(float(prova[0]))
 		m2.osserva(id2, m2.V_ANNAFFIA, Vector3(0, 0, -12), -1)
 		m2.deduci(id2, _ob(m2, "provvedi_cura"), PackedInt32Array([0]), SOGLIA)
-		t.eq(DED.consegna(m2, id2, c2, 0), bool(prova[1]),
+		t.eq(_paga(m2, id2, c2, 0, c2.global_position), bool(prova[1]),
 				"girato di %.3f rad (tetto %.3f): la ricevuta %s"
 						% [float(prova[0]), tetto, "si paga" if bool(prova[1]) else "aspetta"])
 		m2.free()
 	m.free()
+
+
+## ⚠️ **L'ANCORA SI SCEGLIE FRA I PERCHÉ VERI: si mostra quello che si LEGGE.**
+##
+## Uno sguardo è una DIREZIONE, non un punto, e il giocatore la giudica dallo
+## stesso vertice da cui la vede: il corpo del vicino. Se la testa punta di
+## qua e le gambe vanno di là, quello che si vede sono due cose senza
+## rapporto — cioè la conseguenza inattribuibile che questa fase esiste per
+## rendere impossibile.
+##
+## Qui il vicino ha due ricordi veri: uno FRESCO alle sue spalle e uno più
+## vecchio nella direzione in cui andrà. La regola («il più pesante») non
+## cambia: cambia il campo su cui si applica, e il campo sono i perché che
+## stanno nella direzione giusta. Tutti e due sono veri, quindi non si sta
+## ammorbidendo niente — si sta indicando quello che il gesto sa indicare.
+##
+## E la controprova che il filtro NON è decorativo: la stessa deduzione, la
+## stessa geometria, apertura zero («non filtrare») → si torna a guardare il
+## fresco alle spalle.
+func _l_ancora_si_sceglie_fra_i_perche_veri(t) -> void:
+	var m = _mondo()
+	var id := _uno(m)
+	var corpo: Corpo = t.stage(Corpo.new())
+	var meta := Vector3(0, 0, -14)          # dove andrà: davanti a lui
+	m.osserva(id, m.V_COSTRUISCE, Vector3(0.5, 0, -12), -1)  # il vecchio, DAVANTI
+	_passano(m, 60.0)
+	m.osserva(id, m.V_ANNAFFIA, Vector3(0, 0, 11), -1)       # il fresco, DIETRO
+	m.deduci(id, _ob(m, "provvedi_cura"), PackedInt32Array([0, 1]), SOGLIA)
+
+	var ritmo: Dictionary = m.debug_ritmo()
+	var righe: Array = m.debug_grafo(id)["ricordi"]
+	t.ok(float(m.debug_grafo_peso(righe[1], ritmo["tempo"], ritmo["mezza_vita"]))
+			> float(m.debug_grafo_peso(righe[0], ritmo["tempo"], ritmo["mezza_vita"])),
+			"il ricordo dietro le spalle è il più pesante dei due")
+
+	var senza: Vector3 = m.deduzione_dove(id, 0, corpo.global_position, meta, 0.0)
+	t.almost(senza.z, 11.0, "senza filtro si guarda il più pesante: quello dietro", 1e-4)
+	var con: Vector3 = m.deduzione_dove(id, 0, corpo.global_position, meta, DED.APERTURA)
+	t.almost(con.z, -12.0, "col filtro si guarda l'altro, che è vero uguale", 1e-4)
+	t.almost(con.x, 0.5, "e ci si guarda per intero, non a metà strada", 1e-4)
+
+	# E LA RICEVUTA SI PAGA su quello: il collo ci arriva, perché è davanti.
+	t.ok(_paga(m, id, corpo, 0, corpo.global_position, meta),
+			"la ricevuta si paga sull'ancora che si legge")
+	t.almost(((corpo.guardato[0] as Array)[0] as Vector3).z, -12.0,
+			"e la testa si gira PROPRIO lì", 1e-4)
+	m.free()
+
+	# ── E UN PERCHÉ SOTTO I PROPRI PIEDI NON SI MOSTRA MAI, nemmeno senza
+	# filtro: un collo non guarda dove sta. Prima era una rinuncia (se il più
+	# pesante era lì, la ricevuta non si pagava affatto); adesso è una scelta,
+	# e si mostra il perché dopo — che è vero uguale.
+	var m3 = _mondo()
+	var id3 := _uno(m3)
+	var c3: Corpo = t.stage(Corpo.new())
+	c3.position = Vector3(4, 0, 4)
+	m3.osserva(id3, m3.V_COSTRUISCE, Vector3(4, 0, -8), -1)  # il vecchio, lontano
+	_passano(m3, 60.0)
+	m3.osserva(id3, m3.V_ANNAFFIA, Vector3(4, 0, 4), -1)     # il fresco, SOTTO I PIEDI
+	m3.deduci(id3, _ob(m3, "provvedi_cura"), PackedInt32Array([0, 1]), SOGLIA)
+	var senza_filtro: Vector3 = m3.deduzione_dove(id3, 0, c3.global_position,
+			Vector3.ZERO, 0.0)
+	t.almost(senza_filtro.z, -8.0,
+			"il perché sotto i piedi si salta, e si mostra l'altro", 1e-4)
+	t.ok(_paga(m3, id3, c3, 0, c3.global_position, Vector3(4, 0, -10)),
+			"e così la ricevuta si paga invece di morire")
+	m3.free()
+
+
+## ⚠️ **E SE NESSUN PERCHÉ STA DALLA PARTE GIUSTA, SI TACE.** È il degrado di
+## questo progetto — meglio nessuna conseguenza che una inattribuibile — e
+## non è una rinuncia: la deduzione resta muta e il vicino, che si gira di
+## continuo e cambia posto, avrà un'altra occasione.
+##
+## LA VALVOLA MORDE SULL'APERTURA, e si misura mettendo la meta un pelo di
+## qua e un pelo di là dello stesso cono: stessa deduzione, stesso ricordo,
+## e la risposta cambia. Il numero non è di questo file.
+func _un_ancora_che_punta_altrove_non_si_mostra(t) -> void:
+	t.ok(DED.APERTURA > 0.0 and DED.APERTURA < PI * 0.5,
+			"l'apertura della ricevuta è un cono vero (%.1f°)" % rad_to_deg(DED.APERTURA))
+	var ancora := Vector3(0, 0, -12)
+	for prova in [[DED.APERTURA - 0.06, true], [DED.APERTURA + 0.06, false]]:
+		var m = _mondo()
+		var id := _uno(m)
+		var corpo: Corpo = t.stage(Corpo.new())
+		m.osserva(id, m.V_ANNAFFIA, ancora, -1)
+		m.deduci(id, _ob(m, "provvedi_cura"), PackedInt32Array([0]), SOGLIA)
+		# la meta alla stessa distanza, ruotata attorno al corpo
+		var meta: Vector3 = ancora.rotated(Vector3.UP, float(prova[0]))
+		t.eq(_paga(m, id, corpo, 0, corpo.global_position, meta), bool(prova[1]),
+				"meta a %.1f° dall'ancora (apertura %.1f°): la ricevuta %s"
+						% [rad_to_deg(float(prova[0])), rad_to_deg(DED.APERTURA),
+						"si paga" if bool(prova[1]) else "tace"])
+		t.eq(int(_deduzioni(m, id)[0]["bandiere"]) == 0, not bool(prova[1]),
+				"e la deduzione %s" % ("è spesa a metà" if bool(prova[1]) else "aspetta ancora"))
+		m.free()
+
+
+## ⚠️ **E SENZA UNA META NON SI PAGA NIENTE.** La ricevuta prefigura una
+## conseguenza: se il mondo non ha una strada per quell'obiettivo non c'è
+## nessuna conseguenza da prefigurare, e nemmeno nessuna direzione a cui
+## legare lo sguardo. Si tace, e si riprova quando il mondo si riapre — il
+## degrado va verso il silenzio, che qui è l'esito buono.
+func _senza_una_meta_non_si_paga_niente(t) -> void:
+	var m = _mondo()
+	var id := _uno(m)
+	var corpo: Corpo = t.stage(Corpo.new())
+	m.osserva(id, m.V_ANNAFFIA, Vector3(0, 0, -12), -1)
+	m.deduci(id, _ob(m, "provvedi_cura"), PackedInt32Array([0]), SOGLIA)
+
+	# col mondo chiuso il risolutore non ha nessuna catena: niente meta
+	t.ok(DED.meta_del_gesto(m, id, 0, _luoghi_vuoti(), _fatti_pieni(m)).is_empty(),
+			"col mondo chiuso non c'è nessuna meta")
+	t.ok(not DED.consegna(m, id, corpo, 0, corpo.global_position,
+			_luoghi_vuoti(), _fatti_pieni(m)),
+			"e quindi la ricevuta non si paga")
+	t.eq(corpo.guardato.size(), 0, "la testa non si gira a vuoto")
+	t.ok(int(m.deduzione_muta(id, SOGLIA)) >= 0, "la deduzione aspetta")
+
+	# e senza i cinque luoghi (il villaggio non ha ancora i fatti) nemmeno
+	t.ok(DED.meta_del_gesto(m, id, 0, [], _fatti_pieni(m)).is_empty(),
+			"e senza i cinque luoghi non c'è meta")
+
+	# LA META NON È UNA TABELLA SCRITTA A MANO: la dice il risolutore, e
+	# ognuno dei quattro obiettivi finisce nel SUO luogo.
+	var atteso := {"provvedi_pancino": "cibo", "provvedi_cura": "aiuola",
+			"provvedi_energia": "seduta", "provvedi_meraviglia": "bello"}
+	for ob in atteso:
+		var m2 = _mondo()
+		var id2 := _uno(m2)
+		m2.osserva(id2, m2.V_ANNAFFIA, Vector3(0, 0, -12), -1)
+		m2.deduci(id2, _ob(m2, str(ob)), PackedInt32Array([0]), SOGLIA)
+		var meta: Dictionary = DED.meta_del_gesto(m2, id2, 0, _luoghi_pieni(), _fatti_pieni(m2))
+		t.eq(str(meta.get("luogo", "")), str(atteso[ob]),
+				"«%s» porta al luogo «%s»" % [ob, atteso[ob]])
+		m2.free()
+	m.free()
+
+
+## ⚠️ **E IL FILO DEVE ESSERE ATTACCATO A MOCHI, non al vicino.**
+##
+## Il difetto di partenza NON era dentro `consegna`: era la riga che la
+## chiama. Un `consegna` perfetto a cui il registro passa la posizione del
+## vicino invece di quella del giocatore rimette il gioco esattamente
+## com'era, **con tutti i casi qui sopra verdi** — la falsificazione l'ha
+## misurato: sostituendo l'argomento, nessuna asserzione si accorgeva di
+## niente.
+##
+## Perciò questo caso non guarda `Deduzioni`: guarda **il registro**. Si
+## istanzia `Visitors` senza albero (l'idioma di `test_cablaggio`: il suo
+## `_ready` non parte, e `_cuore_di` è una funzione come le altre), gli si
+## dà un cuore vero e un finto Mochi, e si sposta SOLO Mochi. Se il filo è
+## attaccato a lei, la risposta cambia; se è attaccato al vicino, no.
+func _il_registro_passa_dove_sta_mochi(t) -> void:
+	for lontana in [true, false]:
+		var m = _mondo()
+		var id := _uno(m)
+		var corpo: Corpo = t.stage(Corpo.new())
+		m.osserva(id, m.V_ANNAFFIA, Vector3(0, 0, -12), -1)
+		m.deduci(id, _ob(m, "provvedi_cura"), PackedInt32Array([0]), SOGLIA)
+
+		var v = VISITORS.new()
+		var mochi: Node3D = t.stage(Node3D.new())
+		mochi.position = Vector3(0, 0, DED.RAGGIO + 30.0) if lontana \
+				else Vector3(DED.RAGGIO * 0.5, 0, 0)
+		v._ecs = m
+		v._player = mochi
+		var r := {"ecs": id, "label": "Prova", "cell": Vector2i(0, 0),
+				"dna": {"name": "Prova"}, "brain": {},
+				"luoghi": _luoghi_verso(Vector3(0, 0, -12)),
+				"fatti": _fatti_pieni(m),
+				# il contatore sfalsato: senza, il primo giro esce subito
+				"cuore_scad": 0.0, "promosso_oggi": true}
+		v._cuore_di(r, corpo)
+		t.eq(corpo.guardato.size(), 0 if lontana else 1,
+				"con Mochi %s il registro %s la ricevuta"
+						% ["lontana" if lontana else "vicina",
+						"non paga" if lontana else "paga"])
+		t.eq(int(_deduzioni(m, id)[0]["bandiere"]) == 0, lontana,
+				"e la deduzione %s" % ("aspetta ancora" if lontana else "ha il suo bit"))
+		v.free()
+		m.free()
+
+	# ── E SENZA NESSUN GIOCATORE non si paga niente. È il caso dei banchi di
+	# prova e del diorama del titolo, ed è l'unico posto della classe in cui
+	# il degrado va verso il SILENZIO invece che verso «come si è sempre
+	# fatto»: `_dove_sta_mochi` ripiega su `home` perché di là un'ancora che
+	# non si sposta è il comportamento di sempre; qui ripiegare vorrebbe dire
+	# pagare una ricevuta a nessuno.
+	var m2 = _mondo()
+	var id2 := _uno(m2)
+	var c2: Corpo = t.stage(Corpo.new())
+	m2.osserva(id2, m2.V_ANNAFFIA, Vector3(0, 0, -12), -1)
+	m2.deduci(id2, _ob(m2, "provvedi_cura"), PackedInt32Array([0]), SOGLIA)
+	var v2 = VISITORS.new()
+	v2._ecs = m2
+	v2._player = null
+	v2._cuore_di({"ecs": id2, "label": "Prova", "cell": Vector2i(0, 0),
+			"dna": {"name": "Prova"}, "brain": {},
+			"luoghi": _luoghi_verso(Vector3(0, 0, -12)), "fatti": _fatti_pieni(m2),
+			"cuore_scad": 0.0, "promosso_oggi": true}, c2)
+	t.eq(c2.guardato.size(), 0, "senza nessun giocatore la testa non si gira")
+	t.eq(int(_deduzioni(m2, id2)[0]["bandiere"]), 0, "e la deduzione resta muta")
+	v2.free()
+	m2.free()
 
 
 ## LA RICEVUTA DEVE AVERE IL SUO TEMPO. Una testa che si gira e un corpo che
@@ -692,7 +982,7 @@ func _la_ricevuta_deve_avere_il_suo_tempo(t) -> void:
 	var corpo: Corpo = t.stage(Corpo.new())
 	m.osserva(id, m.V_ANNAFFIA, Vector3(0, 0, -12), -1)
 	m.deduci(id, _ob(m, "provvedi_cura"), PackedInt32Array([0]), SOGLIA)
-	DED.consegna(m, id, corpo, int(m.deduzione_muta(id, SOGLIA)))
+	_paga(m, id, corpo, int(m.deduzione_muta(id, SOGLIA)), corpo.global_position)
 
 	t.eq(int(m.deduzione_pronta(id, SOGLIA, DED.ATTESA, 0.0)), -1,
 			"nell'istante della ricevuta non è ancora pronta")
@@ -714,7 +1004,7 @@ func _la_ricevuta_scade(t) -> void:
 	var fin := DED.finestra(m)
 	m.osserva(id, m.V_ANNAFFIA, Vector3(0, 0, -12), -1)
 	m.deduci(id, _ob(m, "provvedi_cura"), PackedInt32Array([0]), SOGLIA)
-	DED.consegna(m, id, corpo, int(m.deduzione_muta(id, SOGLIA)))
+	_paga(m, id, corpo, int(m.deduzione_muta(id, SOGLIA)), corpo.global_position)
 
 	_passano(m, fin * 0.5)
 	t.ok(int(m.deduzione_pronta(id, SOGLIA, DED.ATTESA, fin)) >= 0,
@@ -754,7 +1044,7 @@ func _una_deduzione_pronta_cambia_l_azione(t) -> void:
 	var corpo: Corpo = t.stage(Corpo.new())
 	m.osserva(id, m.V_ANNAFFIA, Vector3(0, 0, -12), -1)
 	m.deduci(id, _ob(m, "provvedi_cura"), PackedInt32Array([0]), SOGLIA)
-	DED.consegna(m, id, corpo, int(m.deduzione_muta(id, SOGLIA)))
+	_paga(m, id, corpo, int(m.deduzione_muta(id, SOGLIA)), corpo.global_position)
 	_passano(m, DED.ATTESA + 1.0)
 
 	var act := str(DED.dirotta(m, id, "spuntino", _luoghi_pieni(), _fatti_pieni(m), SOGLIA))
@@ -772,7 +1062,7 @@ func _si_spende_una_volta_sola(t) -> void:
 	var corpo: Corpo = t.stage(Corpo.new())
 	m.osserva(id, m.V_ANNAFFIA, Vector3(0, 0, -12), -1)
 	m.deduci(id, _ob(m, "provvedi_cura"), PackedInt32Array([0]), SOGLIA)
-	DED.consegna(m, id, corpo, int(m.deduzione_muta(id, SOGLIA)))
+	_paga(m, id, corpo, int(m.deduzione_muta(id, SOGLIA)), corpo.global_position)
 	_passano(m, DED.ATTESA + 1.0)
 
 	t.eq(str(DED.dirotta(m, id, "spuntino", _luoghi_pieni(), _fatti_pieni(m), SOGLIA)),
@@ -792,7 +1082,7 @@ func _senza_una_strada_non_si_dirotta(t) -> void:
 	var corpo: Corpo = t.stage(Corpo.new())
 	m.osserva(id, m.V_ANNAFFIA, Vector3(0, 0, -12), -1)
 	m.deduci(id, _ob(m, "provvedi_cura"), PackedInt32Array([0]), SOGLIA)
-	DED.consegna(m, id, corpo, int(m.deduzione_muta(id, SOGLIA)))
+	_paga(m, id, corpo, int(m.deduzione_muta(id, SOGLIA)), corpo.global_position)
 	_passano(m, DED.ATTESA + 1.0)
 
 	# controprova: con i luoghi pieni dirotterebbe (è lo stesso banco)
@@ -819,7 +1109,7 @@ func _quello_che_l_agenda_voleva_gia_non_e_un_dirottamento(t) -> void:
 	var corpo: Corpo = t.stage(Corpo.new())
 	m.osserva(id, m.V_ANNAFFIA, Vector3(0, 0, -12), -1)
 	m.deduci(id, _ob(m, "provvedi_cura"), PackedInt32Array([0]), SOGLIA)
-	DED.consegna(m, id, corpo, int(m.deduzione_muta(id, SOGLIA)))
+	_paga(m, id, corpo, int(m.deduzione_muta(id, SOGLIA)), corpo.global_position)
 	_passano(m, DED.ATTESA + 1.0)
 	t.eq(str(DED.dirotta(m, id, "cura_giardino", _luoghi_pieni(), _fatti_pieni(m), SOGLIA)),
 			"cura_giardino", "l'azione resta quella che era")
@@ -1109,7 +1399,7 @@ func _senza_modello_non_cambia_un_bit(t) -> void:
 	t.eq(_deduzioni(m, id).size(), 0, "un vicino nasce senza deduzioni")
 	t.eq(int(m.deduzione_muta(id, SOGLIA)), -1, "non c'è niente da mostrare")
 	t.eq(int(m.deduzione_pronta(id, SOGLIA, 0.0, 0.0)), -1, "niente di pronto")
-	t.ok(not DED.consegna(m, id, corpo, 0), "e niente da consegnare")
+	t.ok(not _paga(m, id, corpo, 0, corpo.global_position), "e niente da consegnare")
 	t.eq(corpo.guardato.size(), 0, "nessuna testa si gira")
 	for act in ["spuntino", "riposo", "quattro_chiacchiere", "gironzola"]:
 		t.eq(str(DED.dirotta(m, id, act, _luoghi_pieni(), _fatti_pieni(m), SOGLIA)), act,
@@ -1120,7 +1410,8 @@ func _senza_modello_non_cambia_un_bit(t) -> void:
 	# la GDExtension non è nemmeno compilata)
 	t.eq(str(DED.dirotta(null, 0, "spuntino", _luoghi_pieni(), 0, SOGLIA)), "spuntino",
 			"senza cuore non si dirotta")
-	t.ok(not DED.consegna(null, 0, corpo, 0), "senza cuore non si consegna")
+	t.ok(not DED.consegna(null, 0, corpo, 0, corpo.global_position, _luoghi_pieni(), 0),
+			"senza cuore non si consegna")
 	t.eq(int((DED.incassa(null, 0, [{"obiettivo": "provvedi_cura", "perche": [0]}],
 			{}) as Dictionary)["indice"]), -1, "senza cuore non si incassa")
 	m.free()

@@ -129,7 +129,38 @@ struct Config {
 	// `n_ctx` gettoni lo sfondano, il modello non si apre nemmeno — e lo si
 	// dice col numero, prima di allocare. Zero = nessun tetto (i banchi di
 	// prova, che misurano proprio quanto costa un modello troppo grande).
-	uint64_t tetto_byte = 2ull * 1024 * 1024 * 1024;
+	//
+	// ⚠️ TRE GIGABYTE DAL 2026-08-12, E LO DECIDE L'AUTORE. Erano due, e due
+	// non bastavano: sotto quel tetto, con questa quantizzazione, ci stava
+	// solo un modello da un miliardo di parametri — e col 1B ventuno lettere
+	// su ventiquattro erano rotte. A 3072 MB ci stanno i due modelli che il
+	// provino aveva trovato ONESTI (zero invenzioni su quindici):
+	// gemma-3-4b (2640 MB stimati a 2048 gettoni) e gemma-4-E2B (2835).
+	// Il tetto non è l'unica difesa: da solo direbbe «questo modello costa
+	// meno di tre giga» anche su una macchina che di giga liberi ne ha uno.
+	// L'altra metà è `riserva_byte`, qui sotto.
+	uint64_t tetto_byte = 3ull * 1024 * 1024 * 1024;
+
+	// ── E QUANTA RAM DEVE RESTARE ALLA MACCHINA ──────────────────────────
+	//
+	// Il tetto è una domanda sul MODELLO; questa è la domanda sul PC di chi
+	// gioca, e non si può rispondere con una costante: la stessa build gira
+	// su un Mac da 8 GB con due browser aperti e su un fisso da 32 GB con
+	// niente. Se dopo aver caricato il modello alla macchina resterebbe meno
+	// di questo, il modello NON si apre: la funzione si spegne da sola invece
+	// di mandare in swap il gioco del giocatore — che è il contrario della
+	// regola della Fase 5 («il gioco funziona identico senza»).
+	//
+	// Il numero non è a occhio, è quello che il gioco ANCORA CHIEDERÀ dopo
+	// che il modello è aperto, misurato su questa macchina:
+	//   · il MainLevel con ventotto residenti costa ~700 MB, e il modello si
+	//     apre PRIMA che il mondo esista (dal titolo, o appena entrati);
+	//   · la cache di attenzione cresce generando e non torna indietro
+	//     (misurati +166 MB su gemma-3-1b dopo cinque bozze).
+	// Un gigabyte è la somma di quei due, arrotondata in su. Zero = non si
+	// guarda: i banchi di prova, che devono poter misurare anche il modello
+	// che il gioco rifiuterebbe.
+	uint64_t riserva_byte = 1024ull * 1024 * 1024;
 	// Se non è vuota, il file deve avere ESATTAMENTE questa impronta
 	// SHA-256. È l'unica difesa vera contro il residuo dichiarato in
 	// `llm_gguf.h`: un modello che il gioco ha già collaudato non può
@@ -306,6 +337,14 @@ private:
 	bool _chiesto_carico = false;
 	// «ho aperto io una finestra di silenzio»: vedi `abbandono_in_corso()`
 	bool _zittisci = false;
+	// ⚠️ «IL THREAD HA UN LAVORO IN MANO», e non è un doppione di `_in_volo`:
+	// `_in_volo` si accende quando la richiesta entra IN CODA, questo quando
+	// il thread la PRENDE. Fra i due momenti passano decine di microsecondi
+	// (misurati: mediana 27 µs a macchina scarica, punte di 117 ms a macchina
+	// carica), ed è la finestra in cui `annulla()` deve sapere chi spegne
+	// `_in_volo`: il thread, o lei. Senza questa riga il villaggio ammutolisce
+	// per sempre — vedi la nota in `annulla()`.
+	bool _preso = false;
 };
 
 }  // namespace chibi

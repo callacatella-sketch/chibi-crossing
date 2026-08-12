@@ -40,7 +40,14 @@ extends SceneTree
 
 const LLM := preload("res://systems/Llm.gd")
 
-const TETTO := 2 * 1024 * 1024 * 1024 # il tetto dell'autore, in byte
+## ⚠️ IL TETTO NON SI SCRIVE QUI. È dell'autore e vive in UN posto solo
+## (`chibi::Config::tetto_byte`, in `src/llm_pensieri.h`): il ponte lo
+## racconta con `limiti()`, e questa sonda lo legge. Ricopiarlo era già
+## costato una divergenza — la sonda diceva 2 GB quando il gioco era passato
+## a 3, e un provino che confronta un modello con un tetto diverso da quello
+## del gioco non misura il gioco.
+var _tetto := 0
+var _riserva := 0
 
 var _llm: Object = null
 
@@ -71,9 +78,16 @@ func _go() -> void:
 	_llm = LLM.apri()
 	print("llama.cpp %s · backend: %s" % [str(_llm.versione()), ", ".join(_llm.backend())])
 	print("istruzioni: %s" % str(_llm.info_sistema()).strip_edges())
+	var lim = _llm.limiti()
+	_tetto = int(lim["tetto_byte"])
+	_riserva = int(lim["riserva_byte"])
 	var m0 = _llm.memoria()
 	print("il processo, adesso: impronta %s · residente %s"
 			% [_mb(m0["impronta"]), _mb(m0["residente"])])
+	# LA MACCHINA, che è l'altra metà del tetto: un modello che ci sta nel
+	# tetto su un PC pieno è comunque il motivo per cui il gioco andrà in swap.
+	print("la macchina: %s in tutto · %s liberi adesso (riserva del gioco: %s)"
+			% [_mb(m0["totale_sistema"]), _mb(m0["libera_sistema"]), _mb(_riserva)])
 
 	var col_gioco := OS.get_environment("CHIBI_GIOCO") != ""
 	if col_gioco:
@@ -119,7 +133,7 @@ func _sezione_portiere() -> void:
 	files.sort()
 
 	print("")
-	print("════ A. IL PORTIERE ════ (tetto dell'autore: %s)" % _mb(TETTO))
+	print("════ A. IL PORTIERE ════ (tetto dell'autore: %s)" % _mb(_tetto))
 	print("%-24s %-9s %-16s %8s %9s %10s %10s  %s"
 			% ["file", "esito", "arch/quant", "sul disco", "ms esame", "stima 2k", "stima 4k", "ci sta?"])
 	for p in files:
@@ -135,7 +149,7 @@ func _sezione_portiere() -> void:
 					("%s %s" % [e["architettura"], e["quantizzazione"]]).substr(0, 16),
 					_mb(e["byte_file"]), float(e["ms_esame"]),
 					_mb(s2), _mb(s4),
-					("sì" if s2 <= TETTO else "NO — sfonda di %s" % _mb(s2 - TETTO))])
+					("sì" if s2 <= _tetto else "NO — sfonda di %s" % _mb(s2 - _tetto))])
 		if con_impronta:
 			print("%-24s   sha256 %s (%.0f ms)" % ["", str(e["impronta"]).substr(0, 24), float(e["ms_impronta"])])
 
@@ -163,7 +177,12 @@ func _sezione_carico(col_gioco: bool) -> void:
 	# scopre di QUANTO sfonda, invece di scoprire solo che sfonda.
 	# `CHIBI_TETTO=<byte>` lo riaccende, ed è il modo di provare dal vivo che
 	# il cancello del gioco funziona davvero (CHIBI_TETTO=2147483648).
-	var opz := {"n_ctx": ctx, "tetto_byte": int(OS.get_environment("CHIBI_TETTO"))}
+	# La riserva della MACCHINA segue la stessa regola del tetto: spenta di
+	# serie qui, perché la sonda gira spesso su una macchina carica di altri
+	# lavori e deve poter misurare lo stesso. `CHIBI_RISERVA=<byte>` la
+	# riaccende, ed è il modo di provare dal vivo che il cancello funziona.
+	var opz := {"n_ctx": ctx, "tetto_byte": int(OS.get_environment("CHIBI_TETTO")),
+			"riserva_byte": int(OS.get_environment("CHIBI_RISERVA"))}
 	# Le due manopole che cambiano il numero di gettoni al secondo più di
 	# tutto il resto messo insieme, e vanno misurate, non credute:
 	#   priorità 2 = QOS_CLASS_BACKGROUND, cioè i core di efficienza;
@@ -272,8 +291,10 @@ func _sezione_scrittura(copie: int, prima) -> void:
 			% [_mb(prima["impronta"]), _mb(dopo["impronta"]),
 				_mb(int(dopo["impronta"]) - int(prima["impronta"]))])
 	print("  TETTO       %s su %s → %s"
-			% [_mb(dopo["impronta"]), _mb(TETTO),
-				("ci sta" if int(dopo["impronta"]) <= TETTO else "SFONDA di %s" % _mb(int(dopo["impronta"]) - TETTO))])
+			% [_mb(dopo["impronta"]), _mb(_tetto),
+				("ci sta" if int(dopo["impronta"]) <= _tetto else "SFONDA di %s" % _mb(int(dopo["impronta"]) - _tetto))])
+	print("  MACCHINA    %s liberi adesso (erano %s prima del carico)"
+			% [_mb(dopo["libera_sistema"]), _mb(prima["libera_sistema"])])
 	print("")
 	var bozze: PackedStringArray = esito["bozze"]
 	for i in bozze.size():

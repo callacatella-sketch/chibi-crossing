@@ -14,6 +14,24 @@ extends RefCounted
 ## Un finto che semplifica il dato è come nasce un test che passa per il
 ## motivo sbagliato — è già successo in questo progetto, con la fixture dei
 ## Legami che «normalizzava» il nome e rendeva il difetto invisibile.
+##
+## ⚠️⚠️ E UN DOPPIO PUÒ ANCHE MENTIRE AL CONTRARIO — È SUCCESSO QUI, ED È
+## COSTATO IL VILLAGGIO MUTO PER SEMPRE.
+##
+## `MotoreFinto.annulla()` faceva `occupato = false`, sempre: cioè
+## IMPLEMENTAVA IL COMPORTAMENTO GIUSTO CHE IL C++ NON AVEVA. Nel motore vero
+## `accoda()` accendeva `_in_volo` e a spegnerlo c'era un posto solo — la fine
+## di un lavoro ESEGUITO; un `annulla()` arrivato prima che il thread avesse
+## preso la richiesta (una finestra vera: mediana 27 µs a macchina scarica,
+## punte di 117 ms a macchina carica) buttava il lavoro e lasciava il motore
+## occupato PER SEMPRE. Nessun test poteva vederlo, perché il doppio era più
+## corretto dell'originale.
+##
+## Adesso il finto sa la cosa che il vero sa: **un lavoro può essere ancora in
+## coda o già in mano al thread**, e `annulla()` si comporta diversamente nei
+## due casi (`prende()` / `molla()` qui sotto). Un doppio che mente è peggio di
+## nessun doppio: nessun doppio ti fa scrivere un test vero, un doppio che
+## mente ti fa credere di averlo già scritto.
 
 const PENSATOIO := preload("res://scenes/npc/Pensatoio.gd")
 const LLM := preload("res://systems/Llm.gd")
@@ -24,6 +42,11 @@ const LLM := preload("res://systems/Llm.gd")
 class MotoreFinto extends RefCounted:
 	var pronto := true
 	var occupato := false
+	## ⚠️ «IL LAVORO È GIÀ IN MANO A CHI SCRIVE», che nel motore vero è
+	## `_preso`: la richiesta è stata tolta dalla coda e llama ci sta dentro.
+	## Fra `accoda()` e questo istante passa una finestra vera, ed è lì che il
+	## villaggio ammutoliva (vedi la nota in cima).
+	var preso := false
 	var biglietto := 0
 	var accodate: Array = []
 	var annullamenti := 0
@@ -38,6 +61,7 @@ class MotoreFinto extends RefCounted:
 			return 0
 		biglietto += 1
 		occupato = true
+		preso = false   # è IN CODA: chi scrive non l'ha ancora visto
 		accodate.append({"chi": chi, "sistema": sistema, "utente": utente,
 				"gramm": gramm, "opz": opz, "biglietto": biglietto})
 		return biglietto
@@ -47,10 +71,30 @@ class MotoreFinto extends RefCounted:
 			return {}
 		return _pronti.pop_front()
 
+	## ⚠️ E QUI IL FINTO SMETTE DI MENTIRE. I due rami sono quelli veri:
+	##  · il lavoro è ancora in coda → sparisce, e il motore torna LIBERO
+	##    subito (misurato sul vero: 0 ms);
+	##  · il lavoro è già in mano a chi scrive → il motore resta OCCUPATO
+	##    finché non molla (misurato sul vero: 1–35 ms, perché
+	##    `abort_callback` ferma `llama_decode` a metà di un gettone).
+	## Prima c'era solo il primo ramo, per tutti e due i casi: il doppio
+	## garantiva una cosa che il motore non faceva.
 	func annulla() -> void:
 		annullamenti += 1
-		occupato = false
 		_pronti.clear()
+		if not preso:
+			occupato = false
+
+	## Chi scrive prende il lavoro: da qui in poi un `annulla()` non libera
+	## niente all'istante. È l'evento che nel vero apre la finestra.
+	func prende() -> void:
+		preso = true
+
+	## E lo molla (fine di una generazione abbandonata): il motore torna
+	## libero senza consegnare niente.
+	func molla() -> void:
+		preso = false
+		occupato = false
 
 	## Il motore finisce: mette un esito da ritirare e (di norma) torna libero.
 	##
@@ -65,6 +109,7 @@ class MotoreFinto extends RefCounted:
 	func finisci(b: int, bozze: PackedStringArray, libera := true) -> void:
 		if libera:
 			occupato = false
+			preso = false
 		_pronti.append({"biglietto": b, "chi": 1, "bozze": bozze,
 				"secondi_prompt": 0.5, "secondi_generazione": 2.0,
 				"token_prompt": 700, "token_generati": 60, "errore": ""})
@@ -74,6 +119,8 @@ func run(t) -> void:
 	_uno_alla_volta(t)
 	_il_biglietto_si_controlla(t)
 	_svuota_non_consegna_piu(t)
+	_annulla_mentre_il_motore_ha_gia_preso(t)
+	_il_pensatoio_morendo_butta_il_volo(t)
 	_il_giro_e_un_giro_non_una_classifica(t)
 	_il_muto_va_a_riposo(t)
 	_la_ripresa_e_un_pavimento(t)
@@ -171,6 +218,91 @@ func _svuota_non_consegna_piu(t) -> void:
 	m.finisci(bg, PackedStringArray(["tardi.\ntardi.\ntardi."]))
 	p.passo(1.0)
 	t.eq(consegne.size(), 0, "quello che arriva dopo svuota() non si consegna")
+
+
+## SI PUÒ ANNULLARE ANCHE MENTRE CHI SCRIVE HA GIÀ IL LAVORO IN MANO, e in
+## quel caso il motore NON torna libero all'istante: resta occupato per il
+## tempo che gli serve a mollare (misurato sul vero: 1–35 ms, perché
+## `abort_callback` ferma `llama_decode` a metà di un gettone).
+##
+## È il caso che il doppio non sapeva raccontare — diceva sempre «annulla e
+## sono libero» — e finché lo diceva, questa riga del Pensatoio non era
+## provata da nessuno: **si aspetta, e appena il motore è libero si ricomincia
+## a pensare**. Un cambio di scena non deve lasciare il villaggio muto né
+## fargli chiedere un pensiero a un motore che sta ancora mollando il
+## precedente.
+##
+## FALSIFICATO togliendo `butta_il_volo(_motore)` da `svuota()`: il conto
+## degli annullamenti resta 0 e due asserzioni diventano rosse.
+##
+## ⚠️ E UNA FALSIFICAZIONE CHE NON HA FUNZIONATO, scritta qui perché è più
+## utile di una che funziona: togliendo `if not bool(_motore.call("libero")):
+## return` da `passo()` la prima stesura di questo caso restava VERDE. Il
+## Pensatoio chiedeva a un motore occupato, il finto rifiutava, e alla fine il
+## conto delle accodate tornava lo stesso. Quella riga però un prezzo ce
+## l'ha, e si vede da altre due parti: **si costruisce un foglio per buttarlo**
+## (è il costo che il ritmo esiste per non pagare) e **qualcuno perde il suo
+## turno**, perché il cursore avanza comunque. Le due asserzioni in fondo
+## guardano quelle, e con la riga tolta diventano rosse tutte e due.
+func _annulla_mentre_il_motore_ha_gia_preso(t) -> void:
+	var fogli := [0]
+	var foglio := func(c):
+		fogli[0] += 1
+		return _pieno(c)
+	var b := _banco(_cand(3), foglio)
+	var p = b[0]
+	var m = b[1]
+	var consegne: Array = b[2]
+	p.passo(1.0)
+	t.eq(m.accodate.size(), 1, "è partito un pensiero")
+	m.prende()   # chi scrive l'ha tolto dalla coda: da qui è dentro llama
+	p.svuota()   # il cambio di scena
+	t.eq(int(m.annullamenti), 1, "svuota() lo dice al motore")
+	t.ok(not bool(m.libero()),
+			"e il motore resta occupato finché non molla (il doppio non mente più)")
+	p.passo(1.0)
+	t.eq(m.accodate.size(), 1, "a un motore che sta mollando non si chiede niente")
+	t.eq(fogli[0], 1, "e non gli si costruisce nemmeno il foglio (invece: %d)" % fogli[0])
+	m.molla()    # il thread se ne accorge dentro llama e lascia lì
+	p.passo(PENSATOIO.RIPRESA)
+	t.eq(m.accodate.size(), 2, "appena è libero, il villaggio torna a pensare")
+	t.eq(int(m.accodate[1]["chi"]), 101,
+			"e tocca a chi era di turno: nessuno perde il giro perché il motore era occupato")
+	t.eq(consegne.size(), 0, "e la generazione abbandonata non consegna niente")
+
+
+## IL PENSATOIO, MORENDO, SI PORTA DIETRO IL LAVORO IN VOLO — ed è l'uscita
+## che mancava (`NOTIFICATION_PREDELETE`).
+##
+## Un pensiero dura secondi; in quei secondi il giocatore torna al titolo o
+## ricarica la partita. Chi ospitava il ritmo se ne va, e prima NON SUCCEDEVA
+## NIENTE: misurato con `tools/prova_uscita.gd` su un modello vero, il thread
+## continuava a scrivere per quaranta secondi — fino in fondo — mentre il
+## gioco caricava un'altra scena. La documentazione dava per esistente un
+## `Pensatoio._exit_tree` che non può esistere: questo è un `RefCounted`, non
+## sta nell'albero.
+##
+## ⚠️ E QUESTO CASO SORVEGLIA ANCHE LA TRAPPOLA DI GODOT che c'è sotto: dentro
+## `NOTIFICATION_PREDELETE` i PROPRI metodi non si possono chiamare («in base
+## 'null instance'», misurato su 4.7.1). La prima stesura chiamava `svuota()`
+## e non annullava niente, lasciando solo un `SCRIPT ERROR` — che in questo
+## runner non fa fallire nulla. Se qualcuno riportasse il gesto dentro un
+## metodo d'istanza, il conto degli annullamenti torna a zero e questo caso
+## diventa rosso.
+##
+## FALSIFICATO togliendo `_notification()` da `Pensatoio.gd` (annullamenti
+## resta 0), e rimettendoci dentro `svuota()` al posto della statica (idem).
+func _il_pensatoio_morendo_butta_il_volo(t) -> void:
+	var m := MotoreFinto.new()
+	var p = PENSATOIO.new()
+	p.collega(m, func(): return _cand(2), _pieno, func(_c, _b, _f): pass)
+	p.passo(1.0)
+	t.eq(m.accodate.size(), 1, "c'è un pensiero in volo")
+	t.eq(int(m.annullamenti), 0, "e nessuno ha ancora annullato niente")
+	p = null   # il cambio di scena: chi lo teneva se ne va
+	t.eq(int(m.annullamenti), 1,
+			"morendo, il Pensatoio dice al motore di lasciar perdere (invece: %d)"
+					% int(m.annullamenti))
 
 
 ## IL GIRO È UN GIRO, NON UNA CLASSIFICA. Tutti passano una volta prima che
@@ -380,6 +512,52 @@ func _il_ponte_se_c_e(t) -> void:
 	t.ok(not cuore.apri_modello("/non/esiste/mai.gguf", {}),
 			"un modello che non c'è si rifiuta senza rumore")
 	t.eq(int(cuore.stato()), 0, "e lo stato resta spento (non 'guasto')")
+	# ANNULLARE A VUOTO NON DEVE ROMPERE NIENTE, ed è il caso NORMALE: si
+	# cambia scena mentre il villaggio non stava pensando. Questa chiamata,
+	# sul motore vero, passa dal ramo «nessuno ha in mano niente» —
+	# quello che spegne `_in_volo` invece di aspettare un thread che non
+	# arriverà mai.
+	cuore.annulla()
+	t.eq(int(cuore.stato()), 0, "annullare a vuoto non cambia lo stato")
+	t.eq(int(cuore.accoda(1, "s", "u", "root ::= \"a\"", {})), 0,
+			"e dopo un annulla a vuoto il motore è quello di prima")
+
+	_il_tetto_e_la_macchina(t, cuore)
+
 	# `chiudi()` su un traduttore mai acceso deve tornare, non appendersi
 	cuore.chiudi()
 	t.ok(true, "chiudi() su un traduttore spento torna")
+
+
+## IL TETTO DELL'AUTORE E LA RAM DELLA MACCHINA — le due metà del cancello.
+##
+## Il tetto è **3 GB dal 2026-08-12** (erano 2, e sotto i 2 ci stava solo un
+## modello da un miliardo di parametri: col 1B ventuno lettere su ventiquattro
+## erano rotte). È una decisione dell'AUTORE, e sta scritta in un posto solo —
+## `chibi::Config::tetto_byte` — che `limiti()` racconta: prima era ricopiato
+## a mano dentro `tools/sonda_llm.gd`, e i due numeri erano già diversi.
+##
+## E il tetto da solo non basta: dice quanto costa il modello, non se quei
+## byte ci sono. Su una macchina piena un modello che sta nel tetto è comunque
+## il motivo per cui il gioco comincia a singhiozzare, e il giocatore non ha
+## modo di collegare le due cose. Per questo il ponte sa dire quanta RAM ha la
+## macchina — e questo caso pretende che il numero esista e sia sano.
+##
+## FALSIFICATO: riportando `tetto_byte` a 2 GB (la prima asserzione diventa
+## rossa), mettendo `riserva_byte = 0` di serie (la seconda), e facendo
+## tornare 0 a `memoria_libera_sistema()` (le ultime due).
+func _il_tetto_e_la_macchina(t, cuore) -> void:
+	var lim: Dictionary = cuore.limiti()
+	t.eq(int(lim["tetto_byte"]), 3 * 1024 * 1024 * 1024,
+			"il tetto dell'autore è 3 GB (invece: %d MB)" % (int(lim["tetto_byte"]) / 1048576))
+	t.ok(int(lim["riserva_byte"]) > 0,
+			"e alla macchina deve restare qualcosa: la riserva non è zero")
+	var mem: Dictionary = cuore.memoria()
+	var totale := int(mem["totale_sistema"])
+	var libera := int(mem["libera_sistema"])
+	# Zero vorrebbe dire «questa piattaforma non lo sa dire»: la suite gira su
+	# macOS (e in CI anche su Linux col job `test-llm`), e tutte e due lo sanno.
+	t.ok(totale > 0, "la macchina sa dire quanta RAM ha in tutto (invece: %d)" % totale)
+	t.ok(libera > 0 and libera <= totale,
+			"e quanta ne ha libera adesso, che non può essere più del totale (%d su %d)"
+					% [libera, totale])

@@ -278,7 +278,14 @@ func _ritmo(percorso: String, priorita: int, n_thread: int, copie: int) -> void:
 		return
 	var n_ctx := int(OS.get_environment("CHIBI_CTX")) \
 			if OS.get_environment("CHIBI_CTX") != "" else 1024
-	var opz := {"priorita": priorita, "n_ctx": n_ctx}
+	var opz := {"priorita": priorita, "n_ctx": n_ctx,
+			# ⚠️ IL CANCELLO DELLA MEMORIA SI PUÒ SPEGNERE SOLO QUI, e serve:
+			# questo banco deve poter misurare anche il modello che il gioco
+			# rifiuterebbe — su una macchina carica di altri lavori la riserva
+			# (1 GB) fa dire di no a un 4B, ed è giusto in partita e inutile in
+			# un banco. `CHIBI_RISERVA=<byte>` la riaccende, ed è il modo di
+			# provare dal vivo che il cancello funziona davvero.
+			"riserva_byte": int(OS.get_environment("CHIBI_RISERVA"))}
 	if n_thread > 0:
 		opz["n_thread"] = n_thread
 	var t0 := Time.get_ticks_msec()
@@ -475,7 +482,14 @@ func _go() -> void:
 	# diagnosi dice di quanto si sfora.
 	var n_ctx := int(OS.get_environment("CHIBI_CTX")) \
 			if OS.get_environment("CHIBI_CTX") != "" else 1024
-	var opz := {"priorita": priorita, "n_ctx": n_ctx}
+	var opz := {"priorita": priorita, "n_ctx": n_ctx,
+			# ⚠️ IL CANCELLO DELLA MEMORIA SI PUÒ SPEGNERE SOLO QUI, e serve:
+			# questo banco deve poter misurare anche il modello che il gioco
+			# rifiuterebbe — su una macchina carica di altri lavori la riserva
+			# (1 GB) fa dire di no a un 4B, ed è giusto in partita e inutile in
+			# un banco. `CHIBI_RISERVA=<byte>` la riaccende, ed è il modo di
+			# provare dal vivo che il cancello funziona davvero.
+			"riserva_byte": int(OS.get_environment("CHIBI_RISERVA"))}
 	if n_thread > 0:
 		opz["n_thread"] = n_thread
 	_via()

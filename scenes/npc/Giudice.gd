@@ -405,6 +405,17 @@ static func incipit(testo: String, cit := []) -> String:
 ##                     non mantiene, e si butta;
 ##   · `gia_dedotto` — gli obiettivi già dedotti di recente per questo
 ##                     vicino: la novità, per un JSON.
+##
+## ⚠️ **`gia_dedotto` NON È DECORATIVO, ED È L'ALTRA METÀ DELLA MISURA DI
+## SOPRA.** Delle 34 deduzioni scelte e non incassate, cinque cadevano sul
+## peso (chiuso qui sopra) e **le altre erano GEMELLE**: il ponte rifiuta una
+## deduzione col medesimo obiettivo di una ancora viva
+## (`inserisci_deduzione`, regola 4), e questo file non ha modo di saperlo da
+## solo. Chi chiama deve riempirlo, e la fonte è una sola: gli obiettivi
+## delle deduzioni vive di QUEL vicino, che il ponte sa dire
+## (`EcsMondo.debug_deduzioni(id)` → `obiettivo`, tradotto in nome con
+## `Deduzioni.nome_obiettivo`). Finché resta vuoto, il Giudice promuove
+## bozze che il mondo butterà — e la seconda bocciatura è muta.
 ## Sta fuori apposta: così questo file resta puro e provabile senza binario,
 ## esattamente come `ritratto()` è l'unico posto del Suggeritore che tocca la
 ## GDExtension.
@@ -412,6 +423,15 @@ const CAMPI_DEDUZIONE := ["obiettivo", "perche"]
 
 
 ## È AZIONABILE? Torna {"ok": bool, "motivo": String}.
+##
+## ⚠️ E «AZIONABILE» VUOL DIRE ANCHE «IL PONTE LA PRENDE». Le porte qui sotto
+## sono le stesse che `chibi::inserisci_deduzione` rifarà sul grafo vero: il
+## tetto della catena (`PERCHE_MAX`), i doppioni, e — dal 2026-08-12 — il
+## PESO dei ricordi che la reggono. Quest'ultima mancava, e il conto è stato
+## misurato: **34 deduzioni scelte su 118 non entravano**, con la seconda
+## bocciatura muta («il ponte l'ha rifiutata» e nient'altro). La domanda non
+## si riscrive qui: si chiede a `Suggeritore.regge_una_deduzione()`, che è la
+## stessa che decide cosa la grammatica ha il permesso di offrire.
 static func utile(ded: Dictionary, rit: Dictionary, mondo := {}) -> Dictionary:
 	for k in ded:
 		if not CAMPI_DEDUZIONE.has(str(k)):
@@ -442,6 +462,15 @@ static func utile(ded: Dictionary, rit: Dictionary, mondo := {}) -> Dictionary:
 	for r in (perche as Array):
 		if not vivi.has(int(r)):
 			return {"ok": false, "motivo": "si appoggia a un ricordo che non c'è (riga %d)" % int(r)}
+		# ...E DEVE PESARE ABBASTANZA. Non è una seconda soglia: è la stessa
+		# domanda che si fa la grammatica prima di offrire quella riga, e la
+		# stessa che il ponte rifarà sul grafo vero
+		# (`Suggeritore.regge_una_deduzione`). Senza, questo file promuoveva
+		# bozze che `chibi::inserisci_deduzione` rifiuta sempre — misurato: 34
+		# deduzioni scelte su 118 non entravano, e la seconda bocciatura è muta.
+		if not SUG.regge_una_deduzione(rit, int(r)):
+			return {"ok": false,
+					"motivo": "si appoggia a un ricordo troppo debole per reggerla (riga %d)" % int(r)}
 		# NIENTE DOPPIONI. La catena si misura dall'anello più debole (vedi
 		# `scegli_deduzione`): citare due volte lo stesso ricordo la fa
 		# sembrare più lunga senza renderla più solida, ed è il modo in cui un
@@ -469,8 +498,15 @@ static func utile(ded: Dictionary, rit: Dictionary, mondo := {}) -> Dictionary:
 ## ricordo **più debole**: una catena vale quanto il suo anello più fragile, e
 ## misurare così toglie il vantaggio a chi cita tutto quello che può — che è
 ## il modo in cui un modello, senza volerlo, gonfia una deduzione.
+##
+## ⚠️ QUI IL MINIMO È UN ORDINE, NON UNA PORTA, e la differenza è tutta la
+## ragione per cui questa funzione è cambiata. Il numero lo calcola
+## `Suggeritore.peso_catena()` — la stessa formula di `chibi::peso_deduzione`
+## e degli altri due che la usano — e la SOGLIA si applica una volta sola,
+## dentro `utile()` (`regge_una_deduzione`). Prima il minimo si ricalcolava
+## qui, riga per riga, e non lo si confrontava con niente: due formule quasi
+## uguali in due file, e la soglia in nessuno dei due.
 static func scegli_deduzione(bozze: Array, rit: Dictionary, mondo := {}) -> Dictionary:
-	var pesi = rit.get("pesi", null)
 	var schede := []
 	var vince := -1
 	for i in bozze.size():
@@ -478,20 +514,49 @@ static func scegli_deduzione(bozze: Array, rit: Dictionary, mondo := {}) -> Dict
 		var esito := utile(ded, rit, mondo)
 		var s := {"ok": bool(esito["ok"]), "perche": str(esito["motivo"]), "punti": 0.0}
 		if bool(esito["ok"]):
-			var minimo := INF
-			for r in (ded["perche"] as Array):
-				var p := 1.0
-				if pesi != null and int(r) < pesi.size():
-					p = float(pesi[int(r)])
-				minimo = min(minimo, p)
-			s["punti"] = float(minimo)
-			s["perche"] = "il ricordo più debole che la regge pesa %.2f" % float(minimo)
+			var minimo := SUG.peso_catena(rit, ded["perche"] as Array)
+			s["punti"] = minimo
+			s["perche"] = "il ricordo più debole che la regge pesa %.2f" % minimo
 			if vince < 0 or float(s["punti"]) > float(schede[vince]["punti"]):
 				vince = i
 		schede.append(s)
 
 	if vince < 0:
 		return {"scelta": -1, "deduzione": {}, "motivo": "nessuna deduzione azionabile",
-				"schede": schede}
+				"schede": schede, "diverse": quante_diverse(bozze)}
 	return {"scelta": vince, "deduzione": bozze[vince],
-			"motivo": str(schede[vince]["perche"]), "schede": schede}
+			"motivo": "%s (%d proposte diverse su %d)"
+					% [str(schede[vince]["perche"]), quante_diverse(bozze), bozze.size()],
+			"schede": schede, "diverse": quante_diverse(bozze)}
+
+
+## QUANTE PROPOSTE DIVERSE C'ERANO DAVVERO. Due bozze che chiedono la stessa
+## cosa appoggiandosi agli stessi ricordi sono UNA proposta, per quanto siano
+## arrivate separate: qui non c'è prosa, quindi «diverso» è una domanda con
+## una risposta esatta.
+##
+## ⚠️ **QUESTO NUMERO ESISTE PERCHÉ È BASSO, E NESSUNO LO GUARDAVA.** Il
+## Giudice serve a «generare molto e tenere poco» — ma tenere poco ha senso
+## solo se c'era molto. Misurato su un banco appaiato (gemma-3-4b, 13
+## ritratti deterministici, 5 copie ciascuno, `tools/misura_varieta.gd`):
+##
+##     base                              obiettivi diversi 1.31 · bozze 1.62
+##     perche prima nella grammatica     1.00 · 1.15   (PEGGIO)
+##     temperatura 1.15                  1.31 · 1.54   (uguale)
+##     temperatura 1.15 e top_p 1.00     1.38 · 1.69   (uguale, nel rumore)
+##
+## Cioè: **cinque copie comprano una proposta e mezza**, e non è una taratura
+## sfortunata — è la forma del problema (una grammatica da poche decine di
+## uscite, un modello sicuro di sé). Chi un domani tara `Pensatoio.COPIE` per
+## le deduzioni deve guardare QUESTO numero e non il totale delle bozze: sono
+## gettoni pagati per una scelta che non c'è. Il numero viaggia nel `motivo`
+## apposta — un provino che stampa la ragione lo vede senza doverlo cercare.
+static func quante_diverse(bozze: Array) -> int:
+	var viste := {}
+	for b in bozze:
+		var d: Dictionary = b if b is Dictionary else {}
+		var righe := []
+		for r in (d.get("perche", []) as Array):
+			righe.append(int(r))
+		viste["%s|%s" % [str(d.get("obiettivo", "")), str(righe)]] = true
+	return viste.size()

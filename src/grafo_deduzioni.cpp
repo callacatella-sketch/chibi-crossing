@@ -1,5 +1,7 @@
 #include "grafo_deduzioni.h"
 
+#include <cmath>
+
 namespace chibi {
 
 bool obiettivo_solo(uint32_t p_obiettivo) {
@@ -44,11 +46,49 @@ double peso_utile(const Deduzione &p_ded, float p_ora, double p_mezza_vita) {
 	return peso_deduzione(p_ded, p_ora, p_mezza_vita);
 }
 
-int perche_piu_forte(const Deduzione &p_ded, float p_ora, double p_mezza_vita) {
+namespace {
+
+// Sotto questo, due punti sono lo stesso punto e la direzione fra loro non
+// esiste. Cinque centimetri: è il pavimento del rig (`Visitor.collo_ci_arriva`
+// rifiuta lo stesso quadrato di distanza), e sotto quella soglia un collo non
+// ha comunque niente da indicare.
+constexpr double LUCE_MINIMA = 0.05;
+
+} // namespace
+
+int perche_piu_forte(const Deduzione &p_ded, float p_ora, double p_mezza_vita,
+		const Lettura &p_lettura) {
 	const int n = (p_ded.n < MAX_PERCHE) ? static_cast<int>(p_ded.n) : MAX_PERCHE;
+
+	// LA DIREZIONE DELLA META, calcolata una volta. Se la meta è addosso al
+	// corpo non c'è nessuna direzione con cui confrontarsi, e allora non si
+	// filtra: il degrado va verso il comportamento di prima, mai verso «non
+	// succede mai niente».
+	const double mx = static_cast<double>(p_lettura.metax) - static_cast<double>(p_lettura.dax);
+	const double mz = static_cast<double>(p_lettura.metaz) - static_cast<double>(p_lettura.daz);
+	const double ml = std::sqrt(mx * mx + mz * mz);
+	// LE DUE DOMANDE SI FANNO IN POSITIVO (`> 0.0`), non negando un `<=`: con
+	// un NaN — un'apertura calcolata male, una meta che arriva da un conto
+	// guasto — ogni confronto è falso, quindi `filtra` esce FALSO e il ponte
+	// si comporta come prima che la valvola esistesse. Negando, un NaN
+	// filtrerebbe tutto e nessuna ricevuta si pagherebbe più, in silenzio.
+	const bool filtra = (p_lettura.apertura > 0.0) && (ml > LUCE_MINIMA);
+	const double coseno = filtra ? std::cos(p_lettura.apertura) : -2.0;
+
 	int scelto = -1;
 	double migliore = 0.0;
 	for (int i = 0; i < n; i++) {
+		const double ax = static_cast<double>(p_ded.perche[i].px) - static_cast<double>(p_lettura.dax);
+		const double az = static_cast<double>(p_ded.perche[i].pz) - static_cast<double>(p_lettura.daz);
+		const double al = std::sqrt(ax * ax + az * az);
+		// SOTTO I PROPRI PIEDI NON SI GUARDA. Vale sempre, anche senza
+		// filtro: non è una preferenza di messa in scena, è un collo.
+		if (!(al > LUCE_MINIMA)) {
+			continue;
+		}
+		if (filtra && !((ax * mx + az * mz) / (al * ml) >= coseno)) {
+			continue;
+		}
 		const double w = peso(p_ded.perche[i], p_ora, p_mezza_vita);
 		if (w > migliore) {
 			migliore = w;

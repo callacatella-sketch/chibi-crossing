@@ -37,6 +37,9 @@ func run(t) -> void:
 	_una_riga_libera_puo_ancora_respirare(t)
 	_la_parola_incollata_non_e_una_parola(t)
 	_il_pezzo_di_citazione_non_e_una_riga_tua(t)
+	_il_foglio_non_e_testo(t)
+	_le_virgolette_non_ci_sono(t)
+	_una_parola_senza_vocali_non_e_una_parola(t)
 
 	_l_ancoraggio_e_una_porta_non_un_punteggio(t)
 	_lo_scarto_raro_vince(t)
@@ -158,6 +161,17 @@ func _il_buco_del_collaudo_e_chiuso(t) -> void:
 		# persona su di te. Toglierla lasciava la suite verde.
 		["ti hanno vista, e adesso lo sanno tutti.",
 				"chi altri ti ha vista, che è il mestiere del sentito dire"],
+		# ⚠️ LE DUE RIGHE CHE PASSAVANO ANCORA, e sono uscite davvero: la
+		# regola del telaio pretendeva PERCEZIONE + un infinito o un
+		# participio, quindi con un oggetto NOMINALE non scattava; e la regola
+		# del passato di seconda persona guarda «hai/sei», non «ho». Misurate
+		# su un banco puro, senza modello, prima che la regola 3b esistesse.
+		["ho visto i tuoi passi e ho visto le tue zampe.",
+				"cos'ho visto DI TE, detto con un nome invece che con un verbo"],
+		["ho visto la tua casa e ho visto il tuo focolare.",
+				"lo stesso, con la seconda persona in un possessivo"],
+		["l'ho guardata, la tua aiuola, per tutto il pomeriggio.",
+				"il telaio nudo, e il «tuo» due parole più in là"],
 	]
 	for c in casi:
 		var riga := str(c[0])
@@ -187,6 +201,118 @@ func _una_riga_libera_puo_ancora_respirare(t) -> void:
 	]:
 		t.eq(str(SUG.afferma(riga, rit)), "",
 				"una riga che non afferma niente passa: «%s»" % riga)
+
+
+## IL FOGLIO LETTO AD ALTA VOCE. Il prompt scrive tre cose che il modello deve
+## LEGGERE e mai ripetere — il dossier del vicino, l'etichetta del peso fra
+## quadre, i pezzi facoltativi fra parentesi — e nessuna delle tre è falsa:
+## sono appunti di regia, e una lettera che li recita suona come un referto.
+##
+## Ogni riga qui sotto è USCITA DAVVERO, sul mazzo di 180 bozze registrate in
+## partita: fra le 77 che il collaudo promuoveva, una su cinque era questa
+## cosa qui. La coda conta quanto la frase intera — l'etichetta è «se lo
+## ricorda bene» e la riga diceva «che lo ricorda bene».
+func _il_foglio_non_e_testo(t) -> void:
+	var rit := _banco()
+	var casi := [
+		["che lo ricorda bene, come una pietra al sole.", "l'etichetta del peso, senza il «se»"],
+		["il suo peso resta addosso appena, e non so dire altro.", "l'etichetta del peso, intera"],
+		["qualche ora fa, e da allora non è cambiato niente.",
+				"il «quando», che sta fra parentesi"],
+		["che a due passi da casa sua, e nient'altro.", "il «dove», che sta fra parentesi"],
+		["ha sempre un certo languorino, e non lo dice.", "l'indole, cioè il dossier"],
+		["poi, un certo languorino che non passa mai.", "l'indole, presa dalla coda"],
+		["capita che canticchia alla luna, quando è tardi.", "la stravaganza"],
+		["adesso cerca qualcuno con cui parlare, e non lo trova.", "il mestiere di adesso"],
+		["quello che sta più a cuore è lontano, stasera.", "l'apertura dell'elenco del gusto"],
+	]
+	for c in casi:
+		var riga := str(c[0])
+		var testo := _lettera(rit, 0, "il vento muove le foglie di pietra.", riga)
+		var esito: Dictionary = SUG.accetta(testo, rit)
+		t.ok(not bool(esito["ok"]), "il foglio riletto non passa: %s" % str(c[1]))
+		t.eq(str(esito.get("porta", "")), "forma",
+				"...e passa dalla porta della forma (%s)" % str(c[1]))
+
+	# LA CONTROPROVA, e senza di lei tutto questo sarebbe un controllo che
+	# boccia tutto. Sotto le tre parole un frammento smette di essere la frase
+	# del gioco e torna a essere italiano di chiunque — e il dossier di UN
+	# ALTRO vicino non è il foglio di questo.
+	for riga in [
+		"il vento sussurra poco fa, e nessuno lo sente.",
+		"si riposa anche la pietra, in questo villaggio.",
+		"a lungo, e poi il silenzio si è richiuso sopra tutto.",
+		"poltrisce fino a tardi anche il sole, in autunno.",
+		"si perde a guardare il cielo perfino il fiume, oggi.",
+		# e nemmeno un «quando» che questo foglio non contiene: le frasi
+		# vietate sono quelle scritte STASERA, non le sei possibili
+		"un pezzo fa il villaggio era più piccolo, e si sentiva.",
+	]:
+		var testo := _lettera(rit, 0, "il vento muove le foglie di pietra.", riga)
+		t.ok(bool((SUG.accetta(testo, rit) as Dictionary)["ok"]),
+				"e una riga che non è di questo foglio passa: «%s»" % riga)
+
+
+## LE VIRGOLETTE NON CI SONO, e un apostrofo che non elide è una virgoletta.
+##
+## È la regola che pesa di più sul mazzo vero: **44 bozze su 180**, cioè più
+## della metà di quelle che il collaudo promuoveva. Un modello piccolo prende
+## l'apostrofo per una virgoletta, e da lì la riga libera smette di essere sua
+## e diventa una citazione di qualcosa — del foglio, della SAGOMA del prompt
+## («'una riga tua' irds un fiore»), o di una frase che nessuno ha detto
+## («'mi hai vista annaffiare le aiuole'»).
+func _le_virgolette_non_ci_sono(t) -> void:
+	var rit := _banco()
+	for riga in [
+		"'una riga tua' e poi il vento si è fermato.",
+		"il sole scende, ' e la pietra resta fredda.",
+		"' ' e poi più niente, per tutta la sera.",
+		"non so dirlo, 'forse è solo il vento che passa.",
+	]:
+		var testo := _lettera(rit, 0, "il vento muove le foglie di pietra.", riga)
+		var esito: Dictionary = SUG.accetta(testo, rit)
+		t.ok(not bool(esito["ok"]), "una virgoletta non passa: «%s»" % riga)
+		t.eq(str(esito.get("porta", "")), "forma", "...e passa dalla forma: «%s»" % riga)
+
+	# LA CONTROPROVA: l'apostrofo italiano resta, tutto quanto. L'elisione
+	# («l'ho», «un'ombra») e il troncamento in fondo («un po'») sono la
+	# ragione per cui l'apostrofo è nell'alfabeto, e vietarli vorrebbe dire
+	# togliere al Gufo il modo in cui questa lingua respira.
+	for riga in [
+		"l'ho pensato tutto il pomeriggio, e non ho concluso niente.",
+		"un'ombra lunga si è posata sul legno, e ci è rimasta.",
+		"un po' di silenzio, e il villaggio sembra più grande.",
+		"c'è un po' d'aria stasera, e l'erba se n'è accorta.",
+	]:
+		var testo := _lettera(rit, 0, "il vento muove le foglie di pietra.", riga)
+		t.ok(bool((SUG.accetta(testo, rit) as Dictionary)["ok"]),
+				"e l'apostrofo che elide passa: «%s»" % riga)
+
+
+## UNA PAROLA SENZA VOCALI NON È UNA PAROLA. Regola di lingua, non di gusto:
+## in italiano ogni parola ne ha almeno una, e le sigle qui non esistono
+## (non ci sono maiuscole).
+##
+## ⚠️ IL CASO CHE LA TIENE ONESTA è il secondo: `parole()` spezza
+## sull'apostrofo apposta, quindi «l'ho» dà «l» e «ho» — e «l» non ha vocali.
+## Una prima stesura guardava proprio lì e bocciava **19 bozze su 180**, quasi
+## tutte per un'elisione perfettamente italiana.
+func _una_parola_senza_vocali_non_e_una_parola(t) -> void:
+	var rit := _banco()
+	var testo := _lettera(rit, 0, "il vento muove le foglie.",
+			"il silenzio si posa sul legno, ryst.")
+	var esito: Dictionary = SUG.accetta(testo, rit)
+	t.ok(not bool(esito["ok"]), "un pezzo di gettone non è una parola")
+	t.eq(str(esito.get("porta", "")), "parola", "...e passa dalla porta della parola")
+
+	for riga in [
+		"l'ho pensato a lungo, e non ne ho parlato con nessuno.",
+		"c'è chi dorme e c'è chi guarda, e va bene così.",
+		"quell'ombra si è mossa appena, poi più niente.",
+	]:
+		var buona := _lettera(rit, 0, "il vento muove le foglie.", riga)
+		t.ok(bool((SUG.accetta(buona, rit) as Dictionary)["ok"]),
+				"e l'elisione non è una parola senza vocali: «%s»" % riga)
 
 
 ## Il modello che sbatte contro il tetto della grammatica non si ferma:

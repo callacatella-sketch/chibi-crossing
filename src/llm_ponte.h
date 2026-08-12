@@ -86,6 +86,16 @@ public:
 	Dictionary raccogli();
 
 	// Butta il lavoro in volo. NON BLOCCA: si chiama al cambio di scena.
+	//
+	// ⚠️ E SE NESSUNO LA CHIAMA, LA CHIAMA IL DISTRUTTORE dell'ULTIMO
+	// maniglione vivo. Non è una comodità: è l'uscita che mancava. Un
+	// pensiero dura secondi, e in quei secondi il giocatore torna al titolo o
+	// ricarica la partita; l'albero se ne va, i maniglioni con lui, e prima
+	// il thread continuava a scrivere fino in fondo (misurato: quaranta
+	// secondi buoni) per un esito che nessuno avrebbe più ritirato.
+	// «Ultimo» e non «ognuno» perché i maniglioni usa-e-getta esistono
+	// (`Llm.riga_di_stato()`): finché ne resta uno vivo, c'è ancora qualcuno
+	// che può chiamare `raccogli()`.
 	void annulla();
 	// Spegne il thread e libera il modello. Bloccante, idempotente. La
 	// chiama anche lo spegnimento della GDExtension, che è la rete di
@@ -142,11 +152,19 @@ public:
 	// scriverselo da qualche parte e poi pretenderlo).
 	String impronta(const String &p_percorso);
 
-	// Quanto pesa QUESTO PROCESSO adesso, in byte: { impronta, residente }.
-	// È il metro del tetto dei 2 GB, e va letto col gioco acceso — che è
+	// Quanto pesa QUESTO PROCESSO adesso, e quanta RAM ha la macchina:
+	// { impronta, residente, totale_sistema, libera_sistema }, in byte.
+	// È il metro del tetto dell'autore, e va letto col gioco acceso — che è
 	// l'unico posto da cui il numero è quello vero. Zero = la piattaforma non
 	// lo sa dire (vedi `llm_memoria.cpp`).
 	Dictionary memoria() const;
+
+	// I VALORI DI SERIE DEL CANCELLO, letti dal binario invece che ricopiati:
+	// { tetto_byte, riserva_byte, n_ctx, max_token, priorita }. Serve ai
+	// provini e ai test — il tetto era già scritto a mano in `sonda_llm.gd`,
+	// e un provino che confronta un modello con un tetto diverso da quello
+	// del gioco non misura il gioco.
+	Dictionary limiti() const;
 };
 
 } // namespace godot

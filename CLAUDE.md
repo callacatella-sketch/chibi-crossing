@@ -1624,9 +1624,94 @@ dentro un processo Godot con audio e Objective-C vivi è il rimedio che
 introduce il guasto che dovrebbe curare. Se un domani si volesse davvero,
 la strada onesta è un eseguibile suo con IPC — non una fork.
 
-### Il tetto dei 2 GB, misurato
+### LA FINESTRA DI `annulla()`, e le tre uscite
 
-Il tetto è dell'autore e vale **2 GB sul PC del giocatore**. Ora ha un metro:
+Due difetti di concorrenza, tutti e due muti, tutti e due riprodotti prima di
+essere corretti. Il banco è [`tools/prova_concorrenza.cpp`](tools/prova_concorrenza.cpp)
+(eseguibile a parte, come `portiere_vs_llama.cpp`: serve un `Traduttore` vero,
+un modello vero e il controllo dei microsecondi) e
+[`tools/prova_uscita.gd`](tools/prova_uscita.gd) (il gioco vero che se ne va).
+
+**1. IL VILLAGGIO AMMUTOLIVA PER SEMPRE, IN SILENZIO.** `accoda()` accende
+`_in_volo` mettendo in coda; a spegnerlo c'era **un posto solo**, la fine di un
+lavoro ESEGUITO. Fra la coda e il prelievo del thread passa però un tempo
+vero — misurato: **mediana 27 µs** a macchina scarica (min 12, max 34), e
+**mediana 5.7 ms con punte di 24 ms** a carico 37, cioè proprio quando il
+modello sta generando, che è quando la macchina è carica. Un `annulla()` che
+prendeva il lucchetto lì dentro buttava la coda: quel lavoro non esisteva più,
+nessuno l'avrebbe finito, `_in_volo` restava acceso **per sempre** →
+`libero()` falso per sempre → `accoda()` che rifiuta tutto per il resto del
+processo. Riprodotto al primo giro. E il corollario era altrettanto muto:
+nella stessa finestra si alzava `g_abbandoni` e non la riabbassava nessuno,
+quindi **ogni** errore di llama restava declassato — si spegneva la rete.
+
+La cura è sapere **di chi è** il lavoro, e si sa solo sotto il lucchetto:
+`_preso` lo accende il thread nello stesso istante in cui toglie la richiesta
+dalla coda, e l'epilogo del thread sta tutto sotto un lucchetto solo (deve
+essere indivisibile rispetto ad `annulla()`, o i due rami di là guarderebbero
+uno stato a metà). Dopo: **8 giri su 8** con annullamento a distanza zero, il
+motore libero in 0 ms, il pensiero dopo che arriva sempre, la finestra del
+silenzio che si apre solo durante una generazione VERA e si richiude quando
+llama molla.
+
+**2. AL CAMBIO DI SCENA NON FERMAVA NIENTE NESSUNO.** Le due uscite che la
+documentazione dava per esistenti erano rotte tutte e due: `Pensatoio._exit_tree`
+**non può esistere** (è un `RefCounted`, non sta nell'albero) e `annulla()`
+«si chiama al cambio di scena» non la chiamava nessuno. Misurato: lasciando
+cadere ogni riferimento, il thread continuava a scrivere **quaranta secondi**,
+cioè fino alla fine della generazione, mentre il gioco caricava un'altra
+scena. Adesso le uscite sono tre e nessuna chiede di ricordarsi niente:
+
+| uscita | chi la tira | misurato |
+|---|---|---|
+| muore l'ULTIMO maniglione (`~LlmLocale`) | il cambio di scena, il ritorno al titolo | 40 s → **6 ms** |
+| muore il Pensatoio (`NOTIFICATION_PREDELETE`) | chi ospita il ritmo se ne va | 40 s → **35 ms** |
+| si scarica la GDExtension (`register_types.cpp`) | la chiusura del gioco | **funzionava**: sonda temporanea su stderr, terminatore chiamato ai livelli 3·2·1·0, `spegni_tutto` al livello SCENE, processo chiuso in 2.4 s mentre generava |
+
+L'ULTIMO maniglione e non ognuno: `Llm.apri()` ne torna uno nuovo a ogni
+chiamata e ce n'è di usa-e-getta (`Llm.riga_di_stato()`) — se ogni distruttore
+buttasse il volo, stampare una riga di diagnostica ucciderebbe il pensiero di
+un vicino. E si annulla, **non** si chiude: `chiudi()` libera il modello, e
+riaprire due gigabyte e mezzo a ogni cambio di scena sarebbe la cura peggiore
+della malattia.
+
+> ⚠️ **TRAPPOLA DI GODOT, misurata (4.7.1): dentro `NOTIFICATION_PREDELETE` i
+> PROPRI metodi non si possono chiamare.** I campi si leggono ancora e i
+> metodi degli ALTRI oggetti si chiamano, ma `svuota()` — un metodo di sé
+> stessi — dà «Attempt to call function … in base 'null instance'», che in
+> questo runner è un `SCRIPT ERROR` che **non fa fallire niente**: il
+> Pensatoio si portava dietro un errore rosso e nessun annullamento. Il gesto
+> vive perciò in una funzione **statica** (`Pensatoio.butta_il_volo`), che
+> sta sullo script e non sull'istanza.
+
+> ⚠️ **E IL DOPPIO MENTIVA — al contrario.** `MotoreFinto.annulla()` faceva
+> `occupato = false` **sempre**: implementava il comportamento giusto che il
+> C++ non aveva, quindi nessun test poteva vedere il difetto. Adesso il finto
+> sa la cosa che il vero sa (un lavoro può essere in coda o già in mano a chi
+> scrive: `prende()` / `molla()`) e il caso che ne è nato è rosso appena si
+> tocca la riga che sorveglia. **Un doppio che mente è peggio di nessun
+> doppio: nessun doppio ti fa scrivere un test vero, uno che mente ti fa
+> credere di averlo già scritto.**
+
+**E le quattro righe per abbandono.** Quando `abort_callback` ferma
+`llama_decode` a metà, llama stampa quattro righe (misurate una per una: tre
+ERROR e una WARN). Prima venivano declassate ad avviso; adesso che le uscite
+funzionano davvero, un abbandono capita a **ogni cambio di scena**, e quattro
+avvisi per cambio di scena insegnano a non leggere gli avvisi — lo stesso
+guasto di prima, un gradino più in basso. Dentro la finestra dell'abbandono
+quindi non si stampa: si **conta** (`misure()["righe_zittite"]`), perché un
+rumore che nessuno misura è un rumore che cresce. Fuori da quella finestra un
+errore di llama resta un errore, e si vede.
+
+### Il tetto dei 3 GB, e la RAM che la macchina ha DAVVERO
+
+Il tetto è dell'autore e dal **2026-08-12 vale 3 GB** (erano 2). La ragione è
+una misura, non un ripensamento: sotto i 2 GB, con questa quantizzazione, ci
+stava **solo** un modello da un miliardo di parametri — e col 1B ventuno
+lettere su ventiquattro erano rotte. A 3072 MB ci stanno tutti e due i modelli
+che il provino aveva trovato ONESTI (zero invenzioni su quindici):
+gemma-3-4b e gemma-4-E2B.
+
 `stima_byte_totali()` (pesi + cache di attenzione alla finestra scelta) lo
 dice **prima** di allocare, e `Config::tetto_byte` fa rifiutare il modello che
 lo sfonda. Il numero vero, dopo il carico, lo dà `LlmLocale.memoria()` letto
@@ -1634,35 +1719,50 @@ da dentro il processo — **mai `ps rss`**, che su macOS conta male le pagine
 mappate da file (su gemma-3-1b dichiara 1947 MB dove l'impronta fisica ne
 dice 1301).
 
-Misurato con [`tools/sonda_llm.gd`](tools/sonda_llm.gd) su un Mac da 8 GB:
+| modello | sul disco | stima a 1024 | a 2048 | a 4096 | ci sta (2048)? |
+|---|---|---|---|---|---|
+| gemma-3-1b Q4_K_M | 769 MB | 788 MB | **814 MB** | 866 MB | sì |
+| llama-3.2-3b Q4_K_M | 1926 MB | 2030 MB | 2142 MB | 2366 MB | sì |
+| gemma-3-4b Q4_K_M | 2374 MB | 2504 MB | **2640 MB** | 2912 MB | sì |
+| qwen-3.5-4b Q4_K_M | 2582 MB | 2700 MB | 2828 MB | 3084 MB | sì (a 4096 no) |
+| gemma-4-E2B Q4_0 | 2710 MB | 2765 MB | **2835 MB** | 2975 MB | sì |
 
-| modello | sul disco | stima a 2048 gettoni | ci sta? |
-|---|---|---|---|
-| gemma-3-1b Q4_K_M | 769 MB | **814 MB** | sì |
-| llama-3.2-3b Q4_K_M | 1926 MB | 2142 MB | no, di 94 MB |
-| gemma-3-4b Q4_K_M | 2374 MB | 2640 MB | no, di 592 MB |
-| qwen-3.5-4b Q4_K_M | 2582 MB | 2828 MB | no, di 780 MB |
-| gemma-4-E2B Q4_0 | 2710 MB | 2835 MB | no, di 787 MB |
+**⚠️ MA IL TETTO DA SOLO È MEZZA DIFESA, e la metà che manca è quella che si
+vede.** Il tetto dice quanto costa il MODELLO; non dice se quei byte la
+macchina ce li ha. Misurato su questo Mac da 8 GB con altri lavori aperti:
+con **1781 MB liberi**, aprire gemma-3-4b (2640 MB) col MainLevel acceso ha
+mandato la macchina in swap — **più di cinque minuti di caricamento**, carico
+medio da 4 a 30, swap da 3.5 a 4.8 GB. Il giocatore non ha modo di collegare
+quel singhiozzo a una funzione facoltativa che non ha chiesto: vedrebbe solo
+un gioco che si è rotto.
 
-E dal vivo: **col MainLevel acceso** il gioco da solo pesa 683 MB e col
-modello aperto **1301 MB**. A gioco spento, gemma-3-1b costa 588 MB da
-fermo e altri **166 MB dopo aver scritto cinque bozze** (la cache di
-attenzione si riempie generando, e quei megabyte non tornano indietro finché
-il contesto vive). Le due misure sommate danno il caso peggiore vero:
-**~1.47 GB, dentro il tetto**. La somma è dichiarata come somma: la
-generazione col gioco acceso non è stata misurata fino in fondo, perché la
-macchina era a carico 42 con altri agenti che compilavano (vedi «cosa NON è
-misurato», sotto).
+Perciò il portiere adesso guarda anche **la RAM DISPONIBILE della macchina**
+(`Config::riserva_byte`, di serie 1 GB) e, se dopo il carico al gioco non ne
+resterebbe abbastanza, **il modello non si apre**: la funzione si spegne da
+sola, il gioco resta identico, le lettere scritte a mano ci sono. Il numero
+non è a occhio — è quello che il gioco ANCORA CHIEDERÀ dopo che il modello è
+aperto: il MainLevel con ventotto residenti costa ~700 MB (e il modello si
+apre prima che il mondo esista) più la cache di attenzione che cresce
+generando e non torna indietro (+166 MB misurati su gemma-3-1b dopo cinque
+bozze).
 
-> ⚠️ **Il tetto e il provino della qualità dicono due cose diverse, e va
-> risolto.** Il provino dei modelli aveva scelto gemma-3-4b e gemma-4-E2B
-> come gli unici insieme onesti e leggibili: **sfondano tutti e due**. Sotto
-> i 2 GB, con questa quantizzazione, ci sta solo un modello da un miliardo di
-> parametri. Le strade sono tre, e nessuna è gratis: (a) un 1B della stessa
-> famiglia (gemma-3-1b passa la grammatica ma le righe libere sono più
-> deboli); (b) un 3B a quantizzazione più bassa (Q4_0 o Q3_K_M), da
-> provinare; (c) alzare il tetto, che è una decisione dell'autore e non di un
-> agente. **La scelta va fatta guardando le lettere, non la tabella.**
+Come si legge la RAM, piattaforma per piattaforma
+([`src/llm_memoria.cpp`](src/llm_memoria.cpp)):
+
+| | totale | disponibile |
+|---|---|---|
+| macOS | `sysctl hw.memsize` | `host_statistics64`: libere + inattive + eliminabili (**non** `external`, che è già dentro le altre: contarlo due volte direbbe più memoria di quanta ce n'è) |
+| Linux | `MemTotal` | `MemAvailable` (la stima del kernel; se manca, `MemFree`, che sottostima — il verso giusto) |
+| Windows | `GlobalMemoryStatusEx().ullTotalPhys` | `ullAvailPhys`. Sta in kernel32, già linkata: nessuna libreria in più (per questo qui c'è Windows e in `memoria_impronta()` no, dove servirebbe psapi). **Non verificabile da un Mac: il giudice è la CI.** |
+
+**Zero vuol dire «non lo so», e «non lo so» non è mai un no**: se la
+piattaforma non sa rispondere si passa oltre. Spegnere una funzione per un
+numero che non abbiamo sarebbe il degrado dalla parte sbagliata.
+
+**E il tetto non si ricopia**: vive in `chibi::Config` e il ponte lo racconta
+con `LlmLocale.limiti()`. `tools/sonda_llm.gd` lo scriveva a mano (2 GB) ed
+era già diverso da quello del gioco — un provino che confronta un modello con
+un tetto sbagliato non è un provino, è un secondo tetto.
 
 ### Il prezzo, e cosa NON è misurato
 
@@ -1706,6 +1806,65 @@ secondo Godot al 210% di CPU con 2.2 GB residenti). I gettoni al secondo qui
 sopra sono perciò **un pavimento**, non una misura: vanno rifatti su una
 macchina ferma, ed è la prima cosa da fare prima di scegliere il modello.
 
+### I DUE CANDIDATI DEL 3B, misurati dal vivo (2026-08-12)
+
+Stessa macchina (M1, 8 GB), stesso prompt vero (651–659 gettoni), finestra
+2048, priorità 1, cinque bozze. **Ogni riga porta il carico della macchina,
+perché senza quello non vuol dire niente**: questi sono pavimenti, non
+misure pulite.
+
+| modello | carico | impronta VERA | prompt | uscita | loadavg · swap |
+|---|---|---|---|---|---|
+| gemma-3-1b Q4_K_M | 54 s | 620 MB | 22.3 g/s | 1.1 g/s | 26 · 5.2 GB |
+| gemma-3-4b Q4_K_M | 47 s | **2745 MB** | 18–32 g/s | **4.0–4.7 g/s** | 14 · 4.6 GB |
+| gemma-3-4b (secondo giro) | 39 s | 2773 MB | 9.2 g/s | **0.2 g/s** | 12 · 4.2 GB |
+| gemma-4-E2B Q4_0 | 20 s | **1649 MB** | 24.8 g/s | 1.7 g/s | 5 · 2.9 GB |
+| gemma-3-4b, senza gioco e senza swap | 33 s | 2760 → 2849 dopo aver scritto | | | 15 · — |
+
+**Tre cose che questa tabella dice e la tabella delle stime non poteva
+dire:**
+
+1. **La stima SBAGLIA di brutto su gemma-4-E2B, e in nostro favore**: stima
+   2835 MB, impronta vera **1649**. È un modello «E2B» — due miliardi di
+   parametri *attivi* su un file da 2.7 GB — e la stima, che parte dalla
+   dimensione del file, conta pesi che non vengono mai toccati. Sul 4B
+   normale invece la stima è quasi esatta (2640 stimati, 2745 veri).
+   **Su una macchina da 8 GB questo cambia la classifica**: E2B costa un
+   gigabyte in meno del 4B, non duecento megabyte in più.
+2. **Il 4B è più veloce a scrivere di E2B** (4.0–4.7 contro 1.7 g/s), e a
+   scrivere è dove il tempo si spende. Le due righe del 4B però differiscono
+   di **venticinque volte** fra loro con la stessa configurazione: la
+   variabile non è la CPU (carico 14 contro 12) ma la **memoria** — nel
+   secondo giro lo swap era a 4.2 GB con 881 MB liberi, e ogni gettone
+   toccava pesi che il sistema aveva paginato via. Quando la RAM non c'è, la
+   funzione non degrada: **collassa** (una lettera in dieci minuti) e si
+   porta dietro tutta la macchina. È esattamente il guasto che
+   `riserva_byte` esiste per non far succedere.
+3. **Il frame, invece, non se ne accorge.** Misurato nel MainLevel vero con
+   ventotto residenti, a blocchi alternati (`tools/misura_pensieri.gd`,
+   gemma-3-4b, finestra 2048):
+
+   | | n | medio | p50 | p99 | MAX | frame > 2×p50 |
+   |---|---|---|---|---|---|---|
+   | motore spento | 1180 | 60.84 ms | 60.27 | 77.47 | 373.04 | 3 |
+   | il villaggio pensa | 1200 | **59.88 ms** | 59.71 | 76.17 | **98.67** | **0** |
+
+   Scarto sul frame medio **−0.96 ms (−1.6%)**: il cuore che scrive non si
+   sente, e il frame peggiore è *migliore* col motore acceso (il picco da
+   373 ms è caduto in un blocco spento — è la macchina, non noi). Anche
+   durante il **caricamento** (70 s col gioco acceso, mentre la macchina
+   swappava) il frame resta a 64.75 ms di media con tre soli frame oltre il
+   doppio della mediana.
+
+**La scelta, onestamente, non è ancora chiusa da questi numeri.** Il 4B
+scrive più in fretta ma costa un gigabyte in più di RAM vera; E2B costa
+poco e scrive piano. Su un Mac da 8 GB — che è la macchina dell'autore — il
+4B col gioco acceso porta il processo a **3534 MB**, e il resto della
+macchina se ne accorge. **Il pezzo che manca è di qualità, non di
+prestazioni: quale dei due scrive lettere migliori** (le due righe libere,
+non la grammatica). Quello lo dice il provino delle lettere, non questa
+tabella.
+
 **Come si guarda:**
 
 ```
@@ -1720,6 +1879,24 @@ clang++ -std=c++17 -fexceptions -O2 -DCHIBI_LLM -Isrc \
   src/thirdparty/llm-build/macos-universal/inst/lib/lib{llama,ggml,ggml-cpu,ggml-blas,ggml-base}.a \
   -framework Accelerate -o /tmp/portiere_vs_llama
 PORTIERE=/tmp/portiere_vs_llama python3 tools/rovina_gguf.py <modello.gguf>
+
+# la CONCORRENZA (la finestra di annulla, la rete del silenzio): stesso
+# schema, ma vogliono anche llm_pensieri.cpp e llm_memoria.cpp
+clang++ … tools/prova_concorrenza.cpp src/llm_pensieri.cpp src/llm_gguf.cpp \
+  src/llm_memoria.cpp … -o /tmp/prova_concorrenza
+/tmp/prova_concorrenza finestra  <gguf> 30      # quanto dura la finestra
+/tmp/prova_concorrenza annulla   <gguf> 0 8     # accoda+annulla dentro la finestra
+/tmp/prova_concorrenza abbandono <gguf>         # la rete degli errori si richiude?
+
+# le tre uscite, nel gioco vero
+CHIBI_MODELLO=<file.gguf> Godot --headless --path . \
+  --script res://tools/prova_uscita.gd
+
+# il frame con ventotto residenti, a blocchi alternati (CHIBI_RISERVA=0
+# spegne il cancello della RAM: un banco deve poter misurare anche il
+# modello che il gioco rifiuterebbe)
+CHIBI_MODELLO=<file.gguf> CHIBI_CTX=2048 CHIBI_RISERVA=0 \
+  Godot --path . --script res://tools/misura_pensieri.gd
 ```
 
 La guardia headless è
@@ -1830,11 +2007,38 @@ Due tempi, e **nessuno dei due è scelto**:
   farebbe arrivare la conseguenza quando il giocatore non ricorda più la
   premessa — e quello non attenua l'effetto, **lo inverte**.
 
-E si paga **solo a chi può guardare**: la domanda si fa a
-`Percezione.puo_vedere` passandogli la sua stessa posizione, così la distanza
-va a zero e restano esattamente le tre valvole che contano (nascosto,
-addormentato, in scena). Chiesta di là e non con tre `if` scritti a mano: il
-giorno che qualcuno aggiunge una quarta valvola, la ricevuta la eredita.
+E si paga **solo a chi può guardare, e solo se c'è QUALCUNO A GUARDARE.** La
+domanda si fa a `Percezione.puo_vedere` — di là e non con quattro `if`
+scritti a mano, così il giorno che qualcuno aggiunge una quinta valvola la
+ricevuta la eredita — ma le si passa **dove sta Mochi**, non la posizione del
+vicino stesso.
+
+> ⚠️ **IL DIFETTO CHE QUESTA RIGA HA AVUTO PER UN PEZZO, ed era di progetto.**
+> La domanda era `puo_vedere(node, node.global_position, 1.0)`: la distanza
+> era zero **per costruzione**, quindi delle quattro valvole ne vivevano tre
+> (dentro casa, addormentato, a un appuntamento) e mancava proprio quella che
+> dà il nome al meccanismo. MISURATO nel villaggio vero
+> (`tools/misura_attribuzione.gd`, le due regole appaiate sulle stesse
+> deduzioni): **8 ricevute su 8 pagate con Mochi a 20 metri di mediana**.
+> La scena era: il giocatore è nel bosco o in modalità costruzione, dall'altra
+> parte del prato un vicino gira la testa, nessuno lo vede, e tre secondi dopo
+> cambia mestiere. **Il giocatore vede solo la conseguenza** — cioè il guasto
+> che inverte l'effetto, non una sua approssimazione.
+> Dopo: **0 su 8 fuori raggio**, mediana 4,1 m. E il canale non muore: una
+> deduzione resta muta e ASPETTA (come già faceva col collo), e dentro la sua
+> vita il momento buono arriva nel **65–90%** dei casi — misurato facendo
+> girare Mochi per il villaggio come gira un giocatore.
+
+**`Deduzioni.RAGGIO` non è `Percezione.RAGGIO`, ed è una domanda diversa.**
+Nove metri è fin dove un vicino si accorge di un gesto di Mochi; qui la
+domanda è rovesciata — fin dove *il giocatore* legge una testa che si gira,
+con la camera incollata a Mochi a 2,7 m d'altezza. È
+`Visitor.FACCIA_AL_GIOCATORE` (**4,5 m**), cioè la distanza sotto la quale il
+gioco aveva già deciso, per un'altra ragione, che la faccia di un chibi vale
+la pena di puntarla verso di te. PROVINATO guardando
+(`tools/provino_ricevuta.gd`, la camera VERA del gioco, cinque distanze): a
+4,5 m l'imbardata si legge, a 6,5 è al limite, a 9 la testa è venti pixel e
+**la ricevuta non esiste**.
 
 > ⚠️ **E SI ASPETTA CHE IL COLLO CI ARRIVI — il difetto che solo la prova
 > viva poteva vedere.** Il rig ha un tetto (`Visitor.TESTA_MAX`, meno il
@@ -1947,9 +2151,31 @@ l'ancora della ricevuta è il posto di quel ricordo.
 #### 6. Come si verifica
 
 ```
-Godot --headless --path . --script res://tests/test_runner.gd     # 259 asserzioni
-Godot --headless --path . --script res://tools/prova_deduzione.gd # la scena vera
+Godot --headless --path . --script res://tests/test_runner.gd       # 290 asserzioni
+Godot --headless --path . --script res://tools/prova_deduzione.gd   # la scena vera
+Godot --headless --path . --script res://tools/misura_attribuzione.gd  # i NUMERI
+CHIBI_RICEVUTA=<dir> Godot --path . --script res://tools/provino_ricevuta.gd
 ```
+
+I due banchi nuovi rispondono alle domande che nessuna asserzione sa fare.
+
+[`tools/misura_attribuzione.gd`](tools/misura_attribuzione.gd) è **il metro
+dell'attribuzione**, e non gli serve nessun `.gguf`: quello che un modello
+può scrivere è un insieme FINITO e lo genera il gioco (un obiettivo fra i
+fattibili, da uno a tre indici fra le righe vive), quindi lo **enumera
+tutto** — che è più onesto che campionarne ottantaquattro con un modello,
+perché la geometria non dipende da quale il modello sceglie. Poi mette **le
+due regole (prima e adesso) sulla STESSA corsa, sullo stesso istante, sulla
+stessa deduzione**: due corse diverse sarebbero due villaggi, e la differenza
+misurata non sarebbe della regola. E fa girare Mochi per il villaggio come
+gira un giocatore — modello dichiarato in cima al file — per rispondere a
+«dentro la vita di una deduzione, il momento buono arriva?».
+
+[`tools/provino_ricevuta.gd`](tools/provino_ricevuta.gd) è **il provino**, e
+guarda dalla **camera vera del gioco** (incollata a Mochi, 2,7 m d'altezza,
+niente imbardata): una macchina piazzata a un metro dal muso risponderebbe a
+una domanda che nessuno si fa. Tre scene: le cinque distanze, i cinque angoli
+fra l'ancora e la meta, e la curva del «perché resta muta».
 
 [`tests/cases/test_deduzioni.gd`](tests/cases/test_deduzioni.gd) non cerca
 stringhe nei sorgenti: interroga il binario, fa girare i passi veri, e guarda
@@ -1970,7 +2196,22 @@ coprivano davvero:
   prova a portarsi la ricevuta in tasca resta verde *perché* il ponte
   pulisce, e diventa rosso appena si toglie la riga che pulisce;
 - **«non si guardano i propri piedi»**: dopo la valvola del collo era
-  diventata irraggiungibile, e si è tolta.
+  diventata irraggiungibile, e si è tolta. **È tornata, ed è tornata come
+  SCELTA invece che come rinuncia**: adesso `perche_piu_forte` salta un
+  perché che sta addosso al corpo (direzione non definita) e mostra quello
+  dopo, che è vero uguale. Così è di nuovo falsificabile — la mutazione «non
+  saltarlo» fa arrossire un caso.
+
+E **quattro mutazioni nuove**, una per ogni valvola aggiunta, tutte rosse:
+togliere l'occhio di Mochi dalla domanda della percezione (5 asserzioni),
+portare il raggio a cento metri, passare apertura zero al ponte, spegnere il
+filtro dentro `perche_piu_forte`, allargare il cono al doppio, e prendere il
+vertice della lettura dalla meta invece che dal corpo (16 asserzioni).
+Una mutazione **non** ha morso alla prima stesura, ed è la lezione di sempre:
+togliere il `return` quando non c'è la meta è un accesso a un Dictionary
+vuoto, cioè un errore a runtime — che **non fa fallire il test**, lo
+interrompe a metà lasciando la suite verde. La mutazione plausibile è
+*ripiegare sulla posizione del corpo*, e quella arrossisce.
 
 [`tools/prova_deduzione.gd`](tools/prova_deduzione.gd) è la prova viva, **e
 non serve nessun `.gguf`**: le bozze sono tre JSON scritti a mano, come li
@@ -2025,16 +2266,74 @@ M1 da 8 GB):
 - **la ricevuta si vede, quasi sempre**: su **nove ricevute pagate, sette**
   portano la testa sul posto (picco 0.0–6.3°); **due no** (26.2°→28.2° e
   25.6°→23.3°), e in quei due casi il bit è acceso e il giocatore non vede
-  niente. Tutte e due erano la seconda scena di una corsa lunga. **Non è
-  spiegato**: i due candidati stanno in `Visitor._sguardo_applica` (quanto la
-  posa dello stato mangia lo scostamento) e nella stanchezza.
+  niente.
 
-**⚠️ E una cosa che la Fase 5 non ha ancora**, vista per la prima volta qui:
-la ricevuta punta il posto di un RICORDO, il corpo va dove la messa in scena
-manda l'obiettivo, e i due **coincidono solo se il mondo li ha messi vicini**.
-Misurato affiancato, stesso codice e due geometrie: **1.46 m** (si legge) e
-**10.49 m** (non si legge — un'occhiata di qua e un viaggio di là). Il residuo
-era dichiarato dall'injection; qui è in scena.
+  > **ADESSO È SPIEGATO, e non erano i due sospettati.** Né
+  > `Visitor._sguardo_applica` né la stanchezza: **è il corpo che si gira
+  > dopo**. `collo_ci_arriva` si chiede UNA volta, nell'istante in cui la
+  > ricevuta si paga; poi il vicino continua a vivere, e
+  > `_sguardo_testimone` **ripinza il bersaglio a `tetto_ricevuta()` a ogni
+  > frame** — se il corpo si volta, la testa resta incollata al tetto e il
+  > residuo è quello che avanza. MISURATO
+  > (`tools/provino_ricevuta.gd`, provino 3: si paga la ricevuta e poi si
+  > gira il corpo a gradini):
+  >
+  > | corpo girato di | la testa manca il posto di |
+  > |---|---|
+  > | 0°–45° | 2,2°–4,3° (ci arriva) |
+  > | 60° | 8,6° |
+  > | 75° | 17,3° |
+  > | **90°** | **29,0°** |
+  > | 120° | 37,8° |
+  >
+  > I 28,2° e i 23,3° sono un corpo che si è voltato di **ottanta-novanta
+  > gradi** durante i 3,2 s dello sguardo. E la porta dell'apertura (qui
+  > sotto) è anche la sua cura strutturale: adesso il posto guardato sta
+  > entro 30° da dove il corpo sta per andare, quindi mettersi in cammino
+  > porta la testa VERSO il bersaglio invece che via. Resta scoperto solo
+  > chi si volta per una ragione che con la deduzione non c'entra (l'agenda
+  > non ha ancora aperto la sua decisione).
+
+**⚠️ UNO SGUARDO È UNA DIREZIONE, NON UN PUNTO** — e questa è la seconda metà
+dell'attribuzione, vista per la prima volta qui e poi curata.
+
+La ricevuta punta il posto di un RICORDO, il corpo va dove la messa in scena
+manda l'obiettivo, e i due non coincidono quasi mai: misurato su **tutto ciò
+che la grammatica può produrre** in un villaggio vero
+(`tools/misura_attribuzione.gd`), la distanza fra i due posti ha mediana 5–8 m.
+Chiedere che coincidessero — due metri di tolleranza — lasciava in vita **8
+deduzioni su 100**, cioè il canale spento.
+
+Ma era la domanda sbagliata. Il giocatore non misura i metri lungo un raggio
+di sguardo: vede una testa girarsi di là e un corpo andare di là, e giudica
+**dallo stesso vertice**, che è il corpo del vicino. Cinque metri a venti
+metri di distanza sono quattordici gradi (la stessa cosa); cinque metri a sei
+sono quarantacinque (due cose diverse). Perciò:
+
+1. **la porta è ANGOLARE** (`Deduzioni.APERTURA`, 30°), e in gradi la stessa
+   scena sopravvive nel **90%** dei casi invece che nell'8%;
+2. **l'ancora si SCEGLIE fra i perché veri.** Una deduzione ne porta fino a
+   tre, tutti collaudati dal Giudice: `chibi::perche_piu_forte` prende il più
+   pesante **fra quelli che stanno nella direzione giusta**. Il criterio non
+   cambia, cambia il campo — e fra cose tutte vere si può mostrare quella che
+   il gesto sa indicare, che è quello che fa una persona quando indica
+   qualcosa. Vale venti punti percentuali di sopravvivenza (70% → 90%);
+3. **e se non ne resta nessuno, si tace.** La deduzione resta muta e aspetta,
+   come già faceva col collo.
+
+La meta la dice il **risolutore**, non una tabella nuova: il primo passo di
+ogni piano è un trasferimento (`sistema_piani.h`), e il luogo di quel
+trasferimento è l'indice dentro `r["luoghi"]` (`Deduzioni.meta_del_gesto`).
+Misurato appaiato sulle stesse deduzioni: l'angolo fra il posto guardato e la
+meta passa da **mediana 28°, massimo 62°** a **mediana 0–12°, massimo 20°**.
+PROVINATO guardando (`tools/provino_ricevuta.gd`, provino 2, la camera vera):
+a 0° e 30° il corpo se ne va nella direzione in cui la testa aveva guardato;
+a 45° esce dall'inquadratura da un'altra parte.
+
+**Residuo dichiarato:** quando la meta è **addosso** al vicino (meno di 5 cm:
+è già sul posto) non c'è nessuna direzione da confrontare e il filtro non
+filtra — è il degrado dichiarato di `chibi::Lettura`, la stessa convenzione di
+`p_finestra <= 0`. Misurato: 1 caso su 5 in una corsa, 0 nell'altra.
 
 **Le trappole di banco già pagate, tutte scritte nel file:**
 

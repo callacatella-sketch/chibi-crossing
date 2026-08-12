@@ -479,12 +479,22 @@ public:
 			double p_finestra) const;
 
 	// DOVE GUARDA. Il posto del ricordo più forte fra quelli che la reggono
-	// — cioè un posto in cui il giocatore ha DAVVERO fatto qualcosa mentre
-	// quel vicino guardava. Il ripiego è un parametro, come in `dove()`: così
-	// «non c'è niente da mostrare» e «guarda casa sua» sono lo stesso
-	// Vector3, e nessun chiamante può dimenticarsi di controllare.
+	// **e che si leggono da lì** — cioè un posto in cui il giocatore ha
+	// DAVVERO fatto qualcosa mentre quel vicino guardava, e che sta nella
+	// stessa direzione in cui il corpo sta per andare.
+	//
+	// `p_corpo` fa due mestieri, e sono lo stesso: è il RIPIEGO («non c'è
+	// niente da mostrare» e «guarda casa sua» sono lo stesso Vector3, come in
+	// `dove()`, e nessun chiamante può dimenticarsi di controllare) ed è il
+	// VERTICE da cui si giudica la lettura — un collo non guarda dove sta, e
+	// due direzioni si confrontano solo se partono dallo stesso punto.
+	//
+	// `p_meta` è dove quel vicino andrà se la deduzione diventa un gesto, e
+	// `p_apertura` (radianti, `<= 0` = «non filtrare») quanto largo è il cono
+	// dentro il quale le due direzioni sono la stessa. Vedi `chibi::Lettura`.
 	godot::Vector3 deduzione_dove(int64_t p_id, int p_i,
-			const godot::Vector3 &p_se_niente) const;
+			const godot::Vector3 &p_corpo, const godot::Vector3 &p_meta,
+			double p_apertura) const;
 
 	// LA MASCHERA DEL PROVVEDIMENTO, quella che `pianifica()` si aspetta.
 	// 0 se l'indice non è di una deduzione.

@@ -206,6 +206,44 @@ func passo(delta: float) -> void:
 	_prova_a_chiedere()
 
 
+## ⚠️ E QUANDO IL PENSATOIO MUORE, SE LO PORTA DIETRO.
+##
+## Questa è un'USCITA VERA, e prima non ce n'erano: la documentazione ne
+## dichiarava una (`Pensatoio._exit_tree`, citata in `register_types.cpp`) che
+## non poteva esistere — questo è un `RefCounted`, non sta nell'albero e
+## `_exit_tree` non gli arriva mai. Misurato con `tools/prova_uscita.gd`:
+## lasciando cadere il Pensatoio mentre un pensiero era in volo, il thread
+## continuava a scrivere per quaranta secondi, cioè fino in fondo, mentre il
+## gioco caricava un'altra scena.
+##
+## `NOTIFICATION_PREDELETE` arriva a QUALUNQUE Object un istante prima che
+## venga distrutto, `RefCounted` compreso. Chi ospita il ritmo non deve
+## ricordarsi di niente: gli basta lasciarlo andare.
+##
+## ⚠️⚠️ E QUI C'È UNA TRAPPOLA DI GODOT, misurata (4.7.1): dentro
+## `NOTIFICATION_PREDELETE` **i propri metodi non si possono chiamare**. I
+## campi si leggono ancora (`_motore` è valido) e i metodi degli ALTRI oggetti
+## si chiamano; ma `svuota()` — cioè un metodo di sé stessi — dà
+## «Attempt to call function 'svuota' in base 'null instance'», che nel runner
+## di questo progetto è un `SCRIPT ERROR` che NON fa fallire niente: il
+## Pensatoio si sarebbe portato dietro un errore rosso e nessun annullamento.
+## Per questo il gesto vive in una funzione **statica** (le statiche stanno
+## sullo script, non sull'istanza, e da lì si chiamano ancora): una sola
+## implementazione, chiamata da tutte e due le strade.
+func _notification(cosa: int) -> void:
+	if cosa == NOTIFICATION_PREDELETE:
+		butta_il_volo(_motore)
+
+
+## Dire al motore di lasciar perdere quello che sta scrivendo. Statica apposta
+## (vedi la trappola qui sopra), e con la sua guardia: il motore può essere
+## già sparito, o non esserci mai stato — che è la configurazione normale di
+## chi gioca senza modello.
+static func butta_il_volo(motore: Object) -> void:
+	if motore != null and is_instance_valid(motore):
+		motore.call("annulla")
+
+
 ## Butta quello che è in volo. Si chiama quando si cambia scena, si torna al
 ## titolo, si ricarica una partita: da lì in poi nessun esito ha più un
 ## destinatario, e uno che arrivasse sarebbe un pensiero di un altro mondo.
@@ -215,8 +253,7 @@ func svuota() -> void:
 	_in_volo_chi = null
 	_in_volo_foglio = {}
 	_riposo.clear()
-	if _motore != null and is_instance_valid(_motore):
-		_motore.call("annulla")
+	butta_il_volo(_motore)
 
 
 ## Ogni quanto, in secondi, un dato vicino riceve un pensiero — dato quanto

@@ -240,6 +240,14 @@ const SOGLIA_VIVO := 1.0
 ## invece di fidarsi di questo numero.
 const SOGLIA_VIVISSIMO := 2.25
 
+## QUANTO PESA UN RICORDO CHE NESSUNO HA MISURATO. È l'unità della scala —
+## «un ricordo fresco, visto una volta, non fatto a me, a gusto neutro pesa
+## esattamente 1.0» (`chibi::peso`) — e serve ai ritratti scritti a mano, che
+## non portano i pesi. Sta qui invece che sparso perché `fatti()` e
+## `peso_riga()` devono rispondere lo stesso: un ritratto senza pesi non deve
+## avere due letture, una che ordina i ricordi e una che li potrebbe potare.
+const PESO_OCCHIATA := 1.0
+
 ## Quanti ricordi entrano nel foglio. Sei, e non ventiquattro, per due
 ## ragioni che tirano nella stessa direzione:
 ##  · un modello da tre miliardi di parametri annega in un elenco lungo, e
@@ -460,7 +468,7 @@ static func fatti(rit: Dictionary) -> Array:
 	# esecuzioni identiche danno due lettere diverse.
 	var ordine := []
 	for i in righe.size():
-		var p := 1.0
+		var p := PESO_OCCHIATA
 		if pesi != null and i < pesi.size():
 			p = float(pesi[i])
 			if not (p > 0.0):
@@ -737,6 +745,7 @@ static func banco(rit: Dictionary) -> Dictionary:
 		"citazioni": _citazioni_da(f, rit),
 		"nomi": _nomi_del_villaggio(rit),
 		"radici": _radici_dei_verbi(),
+		"ponteggio": _frasi_del_foglio(rit, f),
 	}
 
 
@@ -980,15 +989,22 @@ static func _gusto_in_parole(rit: Dictionary) -> String:
 	# lunghezza.
 	var pezzi := []
 	if float(gusto[top]) > 1.0:
-		pezzi.append("quello che sta più a cuore: %s"
-				% str(NOMI_COSE.get(str(cose[top]), "")))
+		pezzi.append("%s: %s" % [GUSTO_PIU, str(NOMI_COSE.get(str(cose[top]), ""))])
 	var niente := []
 	for i in cose.size():
 		if float(gusto[i]) <= 0.0:
 			niente.append(str(NOMI_COSE.get(str(cose[i]), "")))
 	if not niente.is_empty():
-		pezzi.append("quello che non dice niente: " + ", ".join(niente))
+		pezzi.append(GUSTO_NIENTE + ": " + ", ".join(niente))
 	return "; ".join(pezzi)
+
+
+## LE DUE APERTURE DELL'ELENCO DEL GUSTO, in un posto solo perché le legge
+## anche il collaudo: il dossier che il foglio scrive è la prima cosa che un
+## modello piccolo ricopia, e per riconoscerlo bisogna saperlo com'è scritto.
+## Vedi `_frasi_del_foglio`.
+const GUSTO_PIU := "quello che sta più a cuore"
+const GUSTO_NIENTE := "quello che non dice niente"
 
 
 # =========================================================================
@@ -1103,9 +1119,10 @@ const PERCHE_MAX := 3
 ##    tabella da cui esce la frase del prompt e che `test_suggeritore.gd`
 ##    lega a `Piani.OBIETTIVO` **e** a `EcsMondo.maschera_obiettivo()`: un
 ##    quinto obiettivo inventato qui non ha una maschera, e il test lo dice;
-##  · le **righe** sono i `riga` di `fatti(rit)`, cioè gli indici veri delle
-##    righe vive del grafo di QUESTO vicino stasera. Un indice che non
-##    esiste non è campionabile.
+##  · le **righe** sono i `riga` di `righe_vive(rit)`, cioè gli indici veri
+##    delle righe del grafo di QUESTO vicino stasera **che pesano abbastanza
+##    da reggere una deduzione** (vedi `regge_una_deduzione`). Un indice che
+##    non esiste non è campionabile, e nemmeno uno che il ponte butterebbe.
 ##
 ## E le combinazioni si scrivono PER ESTESO, come `citazioni()`: i
 ## sottoinsiemi crescenti di uno, due o tre indici. Con sei ricordi sono
@@ -1167,13 +1184,100 @@ static func grammatica_deduzione(rit: Dictionary) -> String:
 	return "\n".join(r) + "\n"
 
 
-## GLI INDICI DELLE RIGHE VIVE del grafo, nell'ordine in cui il prompt le
-## mostra. È la stessa lista che `Giudice.utile()` usa per bocciare una
-## deduzione appoggiata a un ricordo che non c'è: si chiede a `fatti()`, che
-## ha già potato gli spenti e quelli senza bandiere.
+## ═══════════════════════════════════════════════════════════════════════
+## LA SOGLIA DELLA DEDUZIONE — una sola, e si chiede QUI
+## ═══════════════════════════════════════════════════════════════════════
+##
+## ⚠️ IL GUASTO CHE QUESTE TRE FUNZIONI CHIUDONO, e come si è visto.
+##
+## Un ricordo abbastanza vivo per una LETTERA non è abbastanza vivo per una
+## DEDUZIONE, e per anni le due domande erano la stessa: `fatti()` pota a
+## `p > 0` (giusto: una lettera che dice «sta già sbiadendo» è vera, ed è una
+## delle quattro etichette che `_forza` sa scrivere), la grammatica offriva
+## quelle righe, `Giudice.utile()` le accettava — e poi
+## `chibi::inserisci_deduzione` rifiutava la deduzione, perché di là la
+## soglia c'è (`!(forza > p_soglia)`, `src/grafo_deduzioni.cpp`).
+##
+## Misurato su un banco deterministico (un ricordo che invecchia, nessun
+## modello): a 240 s di età un ricordo pesa 0.250 — passa i primi tre
+## cancelli e viene rifiutato dal quarto. Su una partita lunga vera, 34
+## deduzioni scelte su 118 non entravano. Costo per il giocatore: zero,
+## perché il silenzio è l'esito buono. Costo per il gioco: una generazione
+## intera pagata per essere buttata, **e la bocciatura è muta** — chi chiama
+## vede solo «il ponte l'ha rifiutata».
+##
+## LA CURA È UNA SOLA DOMANDA, non due soglie che si somigliano:
+## `regge_una_deduzione()`. La chiedono tutti e tre quelli che devono
+## saperlo, e nessuno di loro riscrive il confronto:
+##  · `grammatica_deduzione()` — così il modello non può nemmeno campionare
+##    la riga che verrà buttata;
+##  · `_blocco_ricordi_numerati()` — così il foglio non mostra un numero che
+##    la grammatica non ammette (un ricordo elencato e non scrivibile è una
+##    trappola per un modello piccolo);
+##  · `Giudice.utile()` — che è il posto che sa dire anche PERCHÉ no.
+##
+## E il confronto è `>` stretto, come di là: `!(forza > p_soglia)` prende
+## anche il NaN, e le due parti devono rispondere lo stesso sul filo.
+##
+## ⚠️ IL RESIDUO, dichiarato e MISURATO: il ritratto è una fotografia, il
+## ponte legge il grafo VERO. Fra i due c'è la generazione — secondi, a volte
+## decine — e in quel tempo un ricordo decade (`2^(-dt/mezza_vita)`). Un
+## ricordo che al momento del foglio pesava appena sopra la soglia può essere
+## sceso sotto quando la bozza torna: la fascia a rischio è
+## `[soglia, soglia / 2^(-durata/mezza_vita)]`, cioè larga il 12% della
+## soglia per una generazione di 20 s con la mezza vita del villaggio
+## (120 s). **L'ultima parola resta del ponte**, ed è giusto così: allargare
+## di qua per «coprire» il decadimento vorrebbe dire inventare una seconda
+## soglia con un margine tarato a occhio — esattamente la cosa che questa
+## sezione toglie.
+
+## REGGE UNA DEDUZIONE? La domanda si fa qui e in nessun altro posto.
+static func regge_una_deduzione(rit: Dictionary, riga: int) -> bool:
+	return peso_riga(rit, riga) > SOGLIA_TIEPIDO
+
+
+## IL PESO DI UNA RIGA nel ritratto. `PESO_OCCHIATA` quando il ritratto non
+## porta i pesi (un dizionario scritto a mano, un clone senza GDExtension):
+## il degrado va verso «si può dire», che è il comportamento che c'era prima
+## che questa valvola esistesse. Zero per una riga che non c'è.
+static func peso_riga(rit: Dictionary, riga: int) -> float:
+	var pesi = rit.get("pesi", null)
+	if pesi == null:
+		return PESO_OCCHIATA
+	if riga < 0 or riga >= pesi.size():
+		return 0.0
+	return float(pesi[riga])
+
+
+## L'ANELLO PIÙ DEBOLE di una catena di ricordi — cioè quanto pesa la
+## deduzione che ci si appoggia. È `chibi::peso_deduzione` detto di qua, e i
+## due si devono a un numero identico: `Giudice.scegli_deduzione` ordina con
+## questo, il ponte pota con quello. Zero per una catena vuota (che non può
+## esistere, ma la riga che lo dice costa un confronto e toglie un modo di
+## sbagliare — è la stessa riga che c'è di là).
+static func peso_catena(rit: Dictionary, righe) -> float:
+	var minimo := INF
+	for r in righe:
+		minimo = min(minimo, peso_riga(rit, int(r)))
+	return 0.0 if minimo == INF else minimo
+
+
+## I FATTI CHE POSSONO REGGERE UNA DEDUZIONE, nell'ordine in cui il prompt
+## li mostra. Sono un SOTTOINSIEME di `fatti()`, mai un secondo elenco.
+static func fatti_deducibili(rit: Dictionary) -> Array:
+	var out := []
+	for f in fatti(rit):
+		if regge_una_deduzione(rit, int((f as Dictionary)["riga"])):
+			out.append(f)
+	return out
+
+
+## GLI INDICI DELLE RIGHE che possono reggere una deduzione. È la stessa
+## lista che `Giudice.utile()` usa per bocciare una deduzione appoggiata a un
+## ricordo che non c'è **o troppo debole per reggerla**.
 static func righe_vive(rit: Dictionary) -> PackedInt32Array:
 	var out := PackedInt32Array()
-	for f in fatti(rit):
+	for f in fatti_deducibili(rit):
 		out.append(int((f as Dictionary)["riga"]))
 	return out
 
@@ -1269,9 +1373,13 @@ static func parti_deduzione(rit: Dictionary) -> Dictionary:
 ## Perciò i `mods` si stendono per esteso, senza parentesi: sono gli stessi
 ## atomi chiusi della lettera (quando, dove, quante volte), ed è esattamente
 ## quello che distingue una riga dall'altra.
+## ⚠️ E L'ELENCO È QUELLO DEDUCIBILE, non tutti i fatti: un ricordo mostrato
+## col suo numero ma non ammesso dalla grammatica è una trappola per un
+## modello piccolo — lo legge, lo sceglie, e il campionatore glielo nega a
+## metà riga. Vedi `regge_una_deduzione`.
 static func _blocco_ricordi_numerati(rit: Dictionary) -> String:
 	var r := ["QUELLO CHE HAI VISTO"]
-	for f in fatti(rit):
+	for f in fatti_deducibili(rit):
 		var voce: Dictionary = f
 		var testo := str(voce["base"])
 		for m in (voce["mods"] as Array):
@@ -1336,6 +1444,9 @@ static func _blocco_scelte(rit: Dictionary) -> String:
 ##  3. **nessun telaio di percezione seguito da un'azione** — «l'ho vista
 ##     costruire» è una seconda citazione, scritta da chi non ne ha il
 ##     diritto;
+##  3b. **e nemmeno con un OGGETTO NOMINALE** — «ho visto i tuoi passi»: è il
+##     buco che la 3 lasciava aperto, misurato e chiuso il 2026-08-12 (vedi
+##     più sotto);
 ##  4. **nessun verbo del mondo coniugato** — gli otto verbi arrivano da
 ##     `INFINITO`, che è la coniugazione della tabella del binario;
 ##  5. **nessuna cosa del villaggio messa al passato** — le sei cose
@@ -1346,9 +1457,60 @@ static func _blocco_scelte(rit: Dictionary) -> String:
 ## per sbaglio costa una bozza; una bozza falsa che passa costa la fiducia
 ## del giocatore, e per sempre.** Dove una regola è incerta, si stringe.
 ##
-## IL RESIDUO, dichiarato: un nome INVENTATO in minuscolo («la volpina
-## perua») resta indistinguibile da un nome comune, e questa funzione non lo
-## vede. Quello che non può più passare è un FATTO.
+## ────────────────────────────────────────────────────────────────────────
+## IL BUCO DELLA REGOLA 3, misurato il 2026-08-12
+## ────────────────────────────────────────────────────────────────────────
+##
+## La regola 3 pretende PERCEZIONE **+ un infinito o un participio**. Con un
+## oggetto NOMINALE non scattava, e la regola 2 non copriva il buco perché
+## guarda gli ausiliari della seconda persona («hai», «sei») mentre queste
+## frasi sono in PRIMA persona. Banco puro, senza modello:
+##
+##     «ho visto i tuoi passi e ho visto le tue zampe.»      PASSAVA
+##     «ho visto la tua casa e ho visto il tuo focolare.»    PASSAVA
+##     «ti ho vista annaffiare le aiuole.»                   bocciata
+##
+## La prima è una lettera vera, uscita in partita. La cura è la regola 3b: un
+## telaio di percezione insieme a un modo di dire «tuo» (`TUO`, che è una
+## lista di grammatica italiana, non di parole vietate) non è mai una riga di
+## chi parla.
+##
+## ────────────────────────────────────────────────────────────────────────
+## E LE ALTRE DUE PORTE, che non sono l'ancoraggio ma stanno con lui
+## ────────────────────────────────────────────────────────────────────────
+##
+## Rileggendo **180 bozze registrate in partita** (non un provino: la catena
+## vera, un modello piccolo), delle 77 che il collaudo promuoveva solo una
+## ventina erano davvero righe di chi parla. Le altre erano due cose che
+## l'ancoraggio non può vedere, perché non affermano niente:
+##  · **le virgolette** — 44 bozze su 180, vedi `_riga_libera_ok`;
+##  · **il foglio riletto ad alta voce** — 19÷29 bozze, vedi
+##    `_frasi_del_foglio`.
+## Dopo: **da 77 promosse su 180 a 21÷31**. L'intervallo è onesto — il
+## dossier vero di quel mazzo non era stato registrato, quindi il conto
+## stretto usa solo le frasi certe (mestiere, obiettivo, gusto, ponteggio) e
+## quello largo tutte le indoli invece della sola scritta su quel foglio.
+##
+## ────────────────────────────────────────────────────────────────────────
+## IL RESIDUO, dichiarato e misurato
+## ────────────────────────────────────────────────────────────────────────
+##
+##  · **un nome INVENTATO in minuscolo** («la volpina perua») resta
+##    indistinguibile da un nome comune. Quello che non può più passare è un
+##    FATTO;
+##  · **le non-parole** («irds», «uisce», «izzazione»): `_non_e_una_parola`
+##    prende solo quelle senza vocali, che è una regola di lingua vera ma
+##    stretta. Le altre sono pezzi di gettone rimasti attaccati, e per
+##    riconoscerli servirebbe un dizionario italiano dentro il gioco;
+##  · **le affermazioni sul MONDO** — «la neve cade» col sereno, «la notte si
+##    addice» alle 13:24 (misurate: 4 lettere su 24 mandate). Il meteo NON è
+##    nel ritratto, quindi oggi una regola non potrebbe nemmeno guardarlo; la
+##    stagione e il momento ci sono, ma una regola su di loro **avrebbe falsi
+##    positivi veri**: non sa distinguere «è notte» (una bugia) da «la notte
+##    è lunga quando piove» (un pensiero di chi scrive, sempre vero perché è
+##    suo) — che è esattamente la metà che questo file esiste per
+##    proteggere. Chi la vorrà chiudere deve portarsi dietro il TEMPO
+##    VERBALE, non l'elenco delle stagioni.
 
 ## I PARTICIPI DELLA PERCEZIONE. Sono i verbi con cui in italiano si dice di
 ## aver visto o saputo una cosa — cioè l'attacco di tutte le frasi chiuse che
@@ -1364,6 +1526,14 @@ const PERCEZIONE := ["vista", "visto", "viste", "visti",
 ## Gli ausiliari della SECONDA persona: dietro di loro c'è sempre e solo
 ## Mochi, perché è l'unica persona a cui questo gioco dà del tu.
 const TU_AUSILIARI := ["hai", "sei", "avevi", "eri"]
+
+## E I MODI IN CUI L'ITALIANO DICE «TUO». Stessa ragione: in questo gioco il
+## «tu» è una persona sola. Serve alla regola 3b — un telaio di percezione più
+## uno di questi è una citazione riscritta a mano, anche quando quel che
+## afferma sta in un nome invece che in un verbo («ho visto i tuoi passi»).
+## L'apostrofo separa le parole (vedi `parole()`), quindi «t'ho» dà «t» e
+## «ho»: la «t» sta in lista per quello, e da sola non è una parola italiana.
+const TUO := ["tuo", "tua", "tuoi", "tue", "ti", "te", "t"]
 
 ## Gli ausiliari della TERZA. «essere stato» da solo non è un fatto, è la
 ## copula («non c'è mai stato un vuoto»): il participio che conta è quello
@@ -1428,6 +1598,25 @@ static func afferma(riga: String, rit: Dictionary, b := {}) -> String:
 			for j in [i + 1, i + 2]:
 				if j < ws.size() and (_e_infinito(ws[j]) or _e_participio(ws[j])):
 					return "una riga libera non dice cos'ha visto: «%s %s»" % [w, ws[j]]
+
+			# 3b. ...E NEMMENO CON UN OGGETTO NOMINALE, che è il buco che la
+			# regola qui sopra lasciava aperto — misurato su un banco puro,
+			# senza modello:
+			#     «ho visto i tuoi passi e ho visto le tue zampe.»   PASSAVA
+			#     «ho visto la tua casa e ho visto il tuo focolare.» PASSAVA
+			#     «ti ho vista annaffiare le aiuole.»                bocciata
+			# La regola 2 copre solo gli ausiliari della seconda persona
+			# («hai», «sei»); questa forma è in PRIMA persona («ho visto») e
+			# quel che afferma sta in un NOME, non in un verbo. È la stessa
+			# frase della citazione — cos'ho visto di te — scritta da chi non
+			# ne ha il diritto, e quella lettera è uscita davvero.
+			#
+			# La fonte è chiusa e minuscola: i modi in cui l'italiano dice
+			# «tuo». Un telaio di percezione insieme a uno di questi, nella
+			# stessa riga, non è mai una riga di chi parla.
+			for altra in ws:
+				if TUO.has(altra):
+					return "una riga libera non dice cos'ha visto di te: «%s … %s»" % [w, altra]
 
 		# 4. UN VERBO DEL MONDO CONIUGATO. L'infinito nudo resta lecito
 		# («anche quando tagliare sarebbe più corto» è del Gufo).
@@ -1566,6 +1755,44 @@ static func _parola_incollata(riga: String) -> String:
 	return ""
 
 
+## LE CINQUE VOCALI, accentate comprese. Si ricavano da `LETTERE`, che è
+## l'alfabeto vero della metà libera: una lista scritta a mano qui sarebbe la
+## seconda, e il giorno che l'alfabeto cambia divergerebbero.
+const VOCALI := "aeiouàáèéìíòóùú"
+
+## UNA PAROLA SENZA VOCALI NON È UNA PAROLA. Non è una regola di stile: è una
+## regola della lingua — in italiano ogni parola ne ha almeno una, e le uniche
+## eccezioni sono sigle, che qui non possono esistere (non ci sono maiuscole).
+##
+## Chiude un pezzetto di un guasto più grande, e la misura dice quanto: fra le
+## righe promosse dal mazzo vero c'erano «ryst», «irds», «uisce»,
+## «izzazione» — pezzi di gettone rimasti attaccati a una riga. Questa regola
+## prende solo il primo. **IL RESTO È RESIDUO DICHIARATO**: una non-parola con
+## dentro una vocale è indistinguibile, per una funzione pura, da una parola
+## rara — e un dizionario italiano dentro il gioco è un'altra faccenda.
+##
+## ⚠️ SI GUARDA FRA GLI SPAZI, NON CON `parole()`, e la differenza è tutto il
+## caso: `parole()` spezza sull'apostrofo apposta (il clitico dentro una
+## parola sola non si vedrebbe), quindi «l'ho» le dà «l» e «ho» — e «l» non ha
+## vocali. Misurato: con `parole()` questa regola bocciava **19 bozze su 180**,
+## e quasi tutte per un'elisione perfettamente italiana.
+static func _non_e_una_parola(riga: String) -> String:
+	for p in riga.to_lower().split(" ", false):
+		var w := str(p).strip_edges().trim_suffix(",")
+		for f in FINALI:
+			w = w.trim_suffix(f)
+		if w == "":
+			continue
+		var vocale := false
+		for k in w.length():
+			if VOCALI.contains(w.substr(k, 1)):
+				vocale = true
+				break
+		if not vocale:
+			return w
+	return ""
+
+
 ## I NOMI CHE IL VILLAGGIO HA DAVVERO, in minuscolo e a pezzi. Un'etichetta
 ## è «la volpina Papavero»: vale «volpina» quanto «papavero», perché in
 ## questo villaggio non ci sono volpine che non siano qualcuno.
@@ -1665,6 +1892,9 @@ static func accetta(testo: String, rit: Dictionary, b := {}) -> Dictionary:
 		var w := _parola_incollata(str(riga))
 		if w != "":
 			return _no("«%s» non è una parola: è il tetto della grammatica" % w, "parola")
+		var q := _non_e_una_parola(str(riga))
+		if q != "":
+			return _no("«%s» non è una parola italiana: non ha vocali" % q, "parola")
 
 	# LA TERZA PORTA, E NON È UN DOPPIONE DELLA GRAMMATICA. La grammatica sa
 	# impedire di CAMPIONARE una frase falsa fra quelle chiuse; non sa niente
@@ -1704,12 +1934,12 @@ static func _ponteggio(riga: String, b: Dictionary) -> String:
 	for f in FINALI:
 		s = s.trim_suffix(f)
 
-	# l'etichetta del peso, per intero. La lista non si ricopia: si chiede ai
-	# fatti di questo vicino, che è lo stesso posto da cui esce il foglio.
-	for f in (b["fatti"] as Array):
-		var forza := str((f as Dictionary)["forza"])
-		if forza != "" and s.contains(forza):
-			return "«%s» è l'etichetta del peso, non una riga tua" % forza
+	# IL FOGLIO NON È TESTO. La lista non si ricopia: la costruisce
+	# `_frasi_del_foglio()` dal ritratto, cioè dallo stesso posto da cui esce
+	# il foglio.
+	for voce in (b.get("ponteggio", []) as Array):
+		if s.contains(str(voce)):
+			return "«%s» è una frase del foglio, non una riga tua" % str(voce)
 
 	if s.length() < 8:
 		return ""
@@ -1717,6 +1947,88 @@ static func _ponteggio(riga: String, b: Dictionary) -> String:
 		if str(c).to_lower().contains(s):
 			return "«%s» è un pezzo della citazione, non una riga tua" % riga
 	return ""
+
+
+## ═══════════════════════════════════════════════════════════════════════
+## IL FOGLIO LETTO AD ALTA VOCE — e perché è un guasto e non uno stile
+## ═══════════════════════════════════════════════════════════════════════
+##
+## Il prompt di questo file scrive tre cose che il modello deve LEGGERE e mai
+## ripetere: il dossier del vicino (chi è, cosa sta facendo, cosa gli sta a
+## cuore), le etichette del peso fra quadre, e i pezzi facoltativi fra
+## parentesi. Nessuna delle tre è una bugia — sono tutte vere — ma nessuna è
+## una frase da mettere in una lettera: sono **appunti di regia**, e una
+## lettera che li recita suona come un referto.
+##
+## Misurato sul mazzo vero (180 bozze italiane registrate in partita, un
+## modello piccolo): fra le 77 righe promosse dal collaudo, **una su cinque**
+## era il foglio riletto ad alta voce —
+##   «non sopporta un'aiuola trascurata, adesso fa il suo giro, quello che
+##    sta più a cuore»
+##   «confida i suoi segreti ai funghi, adesso cerca qualcosa da sgranocchiare»
+##   «un pezzo fa, un pezzo fa, un pezzo fa»
+##   «che a due passi da casa sua»
+##   «'un rametto di salvia' lo ricorda bene»
+## — e la penultima è anche la prova che serviva la CODA e non solo la frase
+## intera: l'etichetta è «se lo ricorda bene», la riga dice «lo ricorda bene».
+##
+## LE DUE REGOLE CHE LA TENGONO ONESTA:
+##
+## 1. **Solo le frasi di QUESTO foglio.** Non le otto azioni, non le otto
+##    indoli: quella scritta stasera per questo vicino. Un villaggio dove
+##    nessuno guarda il cielo non toglie al Gufo la parola «guarda il cielo».
+## 2. **Almeno tre parole.** Sotto le tre, un frammento smette di essere la
+##    frase del gioco e torna a essere italiano di tutti («si riposa»,
+##    «poco fa», «a lungo»). È la stessa fascia grigia del taccuino: meglio
+##    lasciar passare un'eco corta che vietare una parola comune.
+static func _frasi_del_foglio(rit: Dictionary, elenco: Array) -> Array:
+	var frasi := []
+	# il dossier: chi è, cosa fa, cosa vuole, cosa gli sta a cuore
+	for id in (rit.get("indole", []) as Array):
+		var voce = BRAIN.INDOLI.get(str(id), null)
+		if voce != null and (voce as Array).size() > 0:
+			frasi.append(str(voce[0]))
+	frasi.append(str(BRAIN.QUIRK_LINES.get(str(rit.get("quirk", "")), "")))
+	frasi.append(str(AZIONI_DETTE.get(str(rit.get("azione", "")), "")))
+	frasi.append(str(OBIETTIVI_DETTI.get(str(rit.get("obiettivo", "")), "")))
+	frasi.append(GUSTO_PIU)
+	frasi.append(GUSTO_NIENTE)
+	# il ponteggio della citazione: l'etichetta del peso e i pezzi facoltativi
+	for f in elenco:
+		var voce: Dictionary = f
+		frasi.append(str(voce["forza"]))
+		for m in (voce["mods"] as Array):
+			frasi.append(str(m))
+
+	var out := []
+	for f in frasi:
+		for coda in _code(str(f)):
+			if not out.has(coda):
+				out.append(coda)
+	return out
+
+
+## LE CODE DI UNA FRASE, da tre parole in su: la frase intera e quello che
+## resta togliendole la prima parola, poi la seconda. Non di più — «sta
+## facendo qualcosa per la fame» diventa «qualcosa per la fame», che è ancora
+## la frase del gioco; una parola più in là sarebbe «per la fame», cioè
+## italiano di chiunque.
+const CODA_PAROLE_MIN := 3
+const CODA_TAGLI := 2
+
+static func _code(frase: String) -> Array:
+	var out := []
+	if frase == "":
+		return out
+	var ws := frase.to_lower().split(" ", false)
+	for k in (CODA_TAGLI + 1):
+		if ws.size() - k < CODA_PAROLE_MIN:
+			break
+		var pezzi := []
+		for i in range(k, ws.size()):
+			pezzi.append(str(ws[i]))
+		out.append(" ".join(pezzi))
+	return out
 
 
 ## Una riga libera è fatta SOLO delle lettere ammesse. Nessuna maiuscola
@@ -1741,15 +2053,43 @@ static func _riga_libera_ok(riga: String) -> String:
 	var lettere := _alfabeto()
 	var quante := 0
 	var in_parola := false
+	var prec := SPAZIO
 	for k in corpo.length():
 		var cp := corpo.unicode_at(k)
 		if cp == SPAZIO:
 			in_parola = false
+			prec = cp
 			continue
 		if cp == VIRGOLA:
+			prec = cp
 			continue
 		if not lettere.has(cp):
 			return "una riga libera non può contenere «%s»" % corpo.substr(k, 1)
+		# ⚠️ L'APOSTROFO DEVE ELIDERE, o è una VIRGOLETTA.
+		#
+		# Le virgolette sono vietate (il messaggio di sistema lo dice, e
+		# l'alfabeto non le contiene): l'apostrofo era passato perché in
+		# italiano serve a respirare — «l'ho vista», «un'ombra». Ma un modello
+		# piccolo se lo prende come virgoletta, e allora la riga libera smette
+		# di essere una riga sua e diventa una CITAZIONE di qualcosa: del
+		# foglio, della sagoma del prompt, di una frase inventata.
+		#
+		# Misurato sul mazzo vero (180 bozze italiane registrate in partita):
+		# **30 delle 77 righe promosse** cominciavano un pezzo con un
+		# apostrofo che non elide — «'scrive' a te», «'una riga tua' irds un
+		# fiore» (che è la SAGOMA del prompt, letta ad alta voce), «' ' uisce
+		# verso l'alto».
+		#
+		# La regola è di lingua, non di gusto, e non ha eccezioni da tarare:
+		# un apostrofo italiano ha SEMPRE una lettera davanti — elisione
+		# («l'ho») o troncamento («un po'», «be'»). Uno che apre non elide
+		# niente: apre una citazione.
+		#
+		# (E l'apostrofo NON conta come lettera davanti a sé stesso: «' '» è
+		# una virgoletta aperta e una chiusa, non una parola elisa.)
+		if cp == APOSTROFO and (prec == APOSTROFO or not lettere.has(prec)):
+			return "un apostrofo che non elide è una virgoletta, e le virgolette non ci sono"
+		prec = cp
 		if not in_parola:
 			in_parola = true
 			quante += 1

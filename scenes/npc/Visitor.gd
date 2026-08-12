@@ -216,6 +216,21 @@ const VAGA_AMPIEZZA := 0.075
 ## testimoni affiancati di dare lo STESSO angolo al quinto decimale.
 const MIRA_PERSONALE := 0.05
 
+## FIN DOVE UNA TESTA VALE LA PENA DI GUARDARLA, in metri.
+##
+## Era un 4.5 scritto dentro un `elif`: è la distanza sotto la quale il volto
+## smette di fare le sue cose e insegue il giocatore con gli occhi. Il numero
+## non è cambiato — è cambiato che adesso ha un nome, perché ha un SECONDO
+## lettore: la ricevuta della deduzione (`Deduzioni.RAGGIO`).
+##
+## E i due lettori fanno la stessa domanda, che è la ragione per cui è UNA
+## costante e non due: **a che distanza la testa di un chibi è ancora una
+## cosa che si guarda?** Se il gioco non ritiene che valga la pena puntare
+## gli occhi di qualcuno verso Mochi a otto metri, allora a otto metri il
+## giocatore non può nemmeno leggere una testa che si gira — e una ricevuta
+## che nessuno legge non attenua l'effetto della conseguenza: **lo inverte**.
+const FACCIA_AL_GIOCATORE := 4.5
+
 ## IL TETTO DEL COLLO — l'ultima parola sul canale, dopo TUTTI gli scrittori.
 ##
 ## `TESTA_MAX` limita la ricevuta, ma la ricevuta non è sola su
@@ -1645,7 +1660,7 @@ func _process(delta: float) -> void:
 		elif LOOK_STATES.has(_state) and _target != Vector3.ZERO:
 			_face.look_at_world(_target + Vector3(0, 0.35, 0))
 		elif _player_ref and is_instance_valid(_player_ref) \
-				and global_position.distance_to(_player_ref.global_position) < 4.5:
+				and global_position.distance_to(_player_ref.global_position) < FACCIA_AL_GIOCATORE:
 			_face.look_at_node(_player_ref)
 		else:
 			_face.clear_gaze()

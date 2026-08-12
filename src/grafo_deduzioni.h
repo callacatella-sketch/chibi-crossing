@@ -167,12 +167,54 @@ double peso_deduzione(const Deduzione &p_ded, float p_ora, double p_mezza_vita);
 // modo di chiedere la cosa sbagliata.
 double peso_utile(const Deduzione &p_ded, float p_ora, double p_mezza_vita);
 
-// QUALE DEI PERCHÉ SI GUARDA: il più PESANTE. È il posto verso cui si gira
-// la testa, e dev'essere quello che il giocatore ha più probabilità di
-// riconoscere — non il più debole, che è quello con cui si SCEGLIE fra due
-// deduzioni. Le due domande sono diverse apposta.
+// LA LETTURA — da dove la ricevuta si guarda, e verso dove porta.
+//
+// Uno sguardo non è un punto: è una DIREZIONE che parte da un corpo. Il
+// giocatore non misura i metri lungo il raggio — vede la testa girarsi di
+// là, e poi il corpo andare di là. Le due direzioni si prendono perciò
+// dallo STESSO vertice (`da*`, cioè il corpo che gira la testa), che è
+// l'unico punto di vista da cui la scena è una scena sola.
+//
+// `apertura` è in radianti, ed è il cono dentro il quale le due direzioni
+// sono la STESSA direzione per chi guarda. **`<= 0` vuol dire «non
+// filtrare»**, cioè il comportamento che c'era prima che questa valvola
+// esistesse: è la stessa convenzione di `p_finestra` in `deduzione_pronta`,
+// ed è così che un test la può falsificare.
+struct Lettura {
+	float dax = 0.0f;   // dove sta il corpo che gira la testa
+	float daz = 0.0f;
+	float metax = 0.0f; // dove andrà, se la deduzione diventa un gesto
+	float metaz = 0.0f;
+	double apertura = 0.0;
+};
+
+// QUALE DEI PERCHÉ SI GUARDA: il più PESANTE **fra quelli che si leggono**.
+//
+// Il criterio non è cambiato — è il più pesante, perché dev'essere quello
+// che il giocatore ha più probabilità di riconoscere, e non il più debole
+// (che è quello con cui si SCEGLIE fra due deduzioni: le due domande sono
+// diverse apposta). Quello che è cambiato è il CAMPO su cui si applica.
+//
+// **Tutti i perché sono veri**: sono i ricordi che il modello ha citato e
+// che il Giudice ha collaudato. Fra cose tutte vere si può scegliere quella
+// che si vede, ed è esattamente ciò che fa una persona quando indica
+// qualcosa. Non si sta ammorbidendo una premessa: si sta mostrando, fra le
+// premesse, quella che il gesto sa indicare.
+//
+// Fuori restano due specie di perché:
+//  · quelli che puntano **da un'altra parte** rispetto a dove il corpo
+//    andrà (oltre `apertura`): la testa direbbe una cosa e le gambe
+//    un'altra, che è la forma esatta del guasto che inverte l'effetto;
+//  · quelli **sotto i propri piedi** (direzione non definita): un collo non
+//    guarda dove sta. Prima questa era una rinuncia — se il più pesante era
+//    lì, la ricevuta non si pagava affatto; adesso è una scelta, e la
+//    deduzione mostra il perché dopo.
+//
+// -1 se non ne resta nessuno, e allora la ricevuta non si paga: il silenzio
+// è il comportamento normale.
 // A parità vince l'indice più basso: nessun dado, mai.
-int perche_piu_forte(const Deduzione &p_ded, float p_ora, double p_mezza_vita);
+int perche_piu_forte(const Deduzione &p_ded, float p_ora, double p_mezza_vita,
+		const Lettura &p_lettura);
 
 // INSERISCE, e dice di no in sei modi. Torna l'indice, oppure **-1**.
 //

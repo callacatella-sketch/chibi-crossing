@@ -1140,9 +1140,20 @@ func _cuore_di(r: Dictionary, node: Node3D) -> void:
 	# PRIMA della promozione e del suo `return`: una deduzione che aspetta la
 	# sua ricevuta non deve rimanere muta perché quel giorno il vicino aveva
 	# già promosso un ricordo.
+	#
+	# ⚠️ **DOVE STA MOCHI È UN ARGOMENTO, e senza di lei non si paga niente.**
+	# La ricevuta è una testa che si gira: se non c'è nessun giocatore — i
+	# banchi di prova, il diorama del titolo — non c'è nemmeno nessuno che
+	# possa vederla, e una conseguenza la cui premessa non ha visto nessuno è
+	# il guasto che tutta la Fase 5 esiste per rendere impossibile. Qui il
+	# degrado va verso il SILENZIO e non verso «come si è sempre fatto», ed è
+	# l'unico posto della classe in cui è così: `_dove_sta_mochi` ripiega su
+	# `home` perché di là un'ancora che non si sposta è il comportamento di
+	# sempre; qui ripiegare vorrebbe dire pagare una ricevuta a nessuno.
 	var muta: int = int(_ecs.deduzione_muta(id, AMMIRA_SOGLIA))
-	if muta >= 0:
-		DEDUZIONI.consegna(_ecs, id, node, muta)
+	if muta >= 0 and _player != null and is_instance_valid(_player):
+		DEDUZIONI.consegna(_ecs, id, node, muta, _player.global_position,
+				r.get("luoghi", []), int(r.get("fatti", 0)))
 
 	# LA PROMOZIONE: una al giorno, e solo per quello che ha visto coi propri
 	# occhi. È l'unico residuo di tutta la Fase 4 che attraversa un riavvio, e
