@@ -1560,6 +1560,509 @@ misurare), `llm_avx2=no` (x86: rinuncia alla baseline Haswell), `llm_cmake=…`,
 - in locale, l'impronta: con `llm=no` il binario dev'essere **byte per byte**
   quello di prima (`shasum -a 256 bin/*.dylib` prima e dopo).
 
+### IL PORTIERE — il file si guarda PRIMA che lo guardi llama
+
+Il punto 6 qui sopra («ggml ABORTISCE il processo, e non c'è callback») non è
+più un residuo generico: è stato **misurato**, e la parte che si poteva
+chiudere è chiusa. Il pezzo è [`src/llm_gguf.{h,cpp}`](src/llm_gguf.h) —
+legge il `.gguf` per conto suo, con un controllo di limite su ogni campo, e
+dice di no **senza che llama lo abbia mai aperto**. Sta davanti all'unico
+caricamento che esiste (`Traduttore::_carica`, sul thread: il frame non paga
+niente) e costa **45–184 ms** su un modello vero.
+
+**Cosa succede DAVVERO a un file guasto** (b10326, misurato su
+gemma-3-1b con [`tools/rovina_gguf.py`](tools/rovina_gguf.py), che fabbrica
+quindici guasti e per ognuno chiede a due processi diversi cosa ne pensano il
+portiere e llama da sola):
+
+| guasto | llama da sola | portiere |
+|---|---|---|
+| `general.alignment` col tipo sbagliato | **MORTO — abort()** | rifiutato |
+| `tokenizer.ggml.token_type` come f32 | **accettato**, tokenizzatore corrotto in silenzio | rifiutato |
+| `tokenizer.ggml.scores` come i32 | **accettato**, idem | rifiutato |
+| troncato (1 byte o 8 MB), firma, tipi, offset, dimensione a zero… (11 casi) | rifiutato pulito | rifiutato |
+| un bit girato dentro i pesi | accettato | accettato |
+
+Le tre righe che contano:
+
+1. **L'unico `abort()` che sono riuscito a raggiungere è
+   `general.alignment`**, e non è in llama: è in **ggml**.
+   `gguf_init_from_file` lo legge con `gguf_get_val_u32`, che dentro fa
+   `GGML_ASSERT(tipo == u32)`. Tutti gli altri metadati passano dal ramo di
+   llama (`GKV::get_kv`), che **tira un'eccezione** — e un'eccezione il gioco
+   la vede come «modello non caricato», che è sano. Un byte cambiato lì
+   dentro è il processo che muore.
+   ⚠️ «Che sono riuscito a raggiungere» è la formulazione onesta: sono quindici
+   guasti fabbricati a mano, non una dimostrazione. Gli iperparametri hanno
+   invarianti che nessun controllo di forma può dedurre
+   (`GGML_ASSERT(n_expert_used > 0)` e compagnia), e contro quelle c'è solo
+   l'impronta.
+2. **Due guasti llama non li vede affatto.** Gli elenchi del tokenizzatore li
+   legge con un cast crudo (`(const float *) gguf_get_arr_data`,
+   llama-vocab.cpp:2419): con il tipo sbagliato non c'è né errore né abort —
+   c'è un tokenizzatore che legge spazzatura. È il guasto peggiore da
+   diagnosticare, ed è il motivo per cui il portiere ha una tabella di attese
+   sui **soli** elenchi che llama legge così.
+3. **Il resto di llama è più robusto di quanto la nota vecchia temesse.** Su
+   quindici guasti, undici li rifiuta pulito. Il portiere quindi non serve a
+   «salvare il gioco da llama»: serve a chiudere i due buchi veri, a dire di
+   no **prima** (con una frase in italiano invece che con un `nullptr`), e a
+   fare da posto dove mettere il tetto di RAM.
+
+**Il residuo, dichiarato:** un bit girato dentro i pesi non lo vede nessuno
+dei due. Contro quello c'è **solo l'impronta**: `esamina(percorso, true)`
+calcola lo SHA-256 e `Config::impronta_attesa` fa rifiutare il file che non
+combacia. Costa una lettura completa (11 s su 769 MB, sul thread), quindi è
+**spenta di serie**: si accende il giorno in cui il gioco spedirà il suo
+modello, e quel giorno l'impronta diventa una costante in `Llm.gd`.
+
+**E il PROCESSO SEPARATO?** Valutato e **non fatto**, con la misura in mano:
+l'unica famiglia di abort raggiungibile è chiusa dal portiere, un helper
+eseguibile andrebbe compilato, impacchettato, firmato e notarizzato su due
+piattaforme (e su Windows non è verificabile da qui), e `fork()` senza `exec`
+dentro un processo Godot con audio e Objective-C vivi è il rimedio che
+introduce il guasto che dovrebbe curare. Se un domani si volesse davvero,
+la strada onesta è un eseguibile suo con IPC — non una fork.
+
+### Il tetto dei 2 GB, misurato
+
+Il tetto è dell'autore e vale **2 GB sul PC del giocatore**. Ora ha un metro:
+`stima_byte_totali()` (pesi + cache di attenzione alla finestra scelta) lo
+dice **prima** di allocare, e `Config::tetto_byte` fa rifiutare il modello che
+lo sfonda. Il numero vero, dopo il carico, lo dà `LlmLocale.memoria()` letto
+da dentro il processo — **mai `ps rss`**, che su macOS conta male le pagine
+mappate da file (su gemma-3-1b dichiara 1947 MB dove l'impronta fisica ne
+dice 1301).
+
+Misurato con [`tools/sonda_llm.gd`](tools/sonda_llm.gd) su un Mac da 8 GB:
+
+| modello | sul disco | stima a 2048 gettoni | ci sta? |
+|---|---|---|---|
+| gemma-3-1b Q4_K_M | 769 MB | **814 MB** | sì |
+| llama-3.2-3b Q4_K_M | 1926 MB | 2142 MB | no, di 94 MB |
+| gemma-3-4b Q4_K_M | 2374 MB | 2640 MB | no, di 592 MB |
+| qwen-3.5-4b Q4_K_M | 2582 MB | 2828 MB | no, di 780 MB |
+| gemma-4-E2B Q4_0 | 2710 MB | 2835 MB | no, di 787 MB |
+
+E dal vivo: **col MainLevel acceso** il gioco da solo pesa 683 MB e col
+modello aperto **1301 MB**. A gioco spento, gemma-3-1b costa 588 MB da
+fermo e altri **166 MB dopo aver scritto cinque bozze** (la cache di
+attenzione si riempie generando, e quei megabyte non tornano indietro finché
+il contesto vive). Le due misure sommate danno il caso peggiore vero:
+**~1.47 GB, dentro il tetto**. La somma è dichiarata come somma: la
+generazione col gioco acceso non è stata misurata fino in fondo, perché la
+macchina era a carico 42 con altri agenti che compilavano (vedi «cosa NON è
+misurato», sotto).
+
+> ⚠️ **Il tetto e il provino della qualità dicono due cose diverse, e va
+> risolto.** Il provino dei modelli aveva scelto gemma-3-4b e gemma-4-E2B
+> come gli unici insieme onesti e leggibili: **sfondano tutti e due**. Sotto
+> i 2 GB, con questa quantizzazione, ci sta solo un modello da un miliardo di
+> parametri. Le strade sono tre, e nessuna è gratis: (a) un 1B della stessa
+> famiglia (gemma-3-1b passa la grammatica ma le righe libere sono più
+> deboli); (b) un 3B a quantizzazione più bassa (Q4_0 o Q3_K_M), da
+> provinare; (c) alzare il tetto, che è una decisione dell'autore e non di un
+> agente. **La scelta va fatta guardando le lettere, non la tabella.**
+
+### Il prezzo, e cosa NON è misurato
+
+Con `tools/sonda_llm.gd` (gemma-3-1b, finestra 2048, prompt vero da 607
+gettoni, grammatica vera):
+
+| | lettura del prompt | scrittura |
+|---|---|---|
+| priorità 0 (core normali) | 148.7 gettoni/s | 4.4 gettoni/s |
+| priorità 2 (core di efficienza, il valore di serie) | 36.9 gettoni/s | 1.1 gettoni/s |
+
+Il carico del modello: **1.4 s** con la cache del disco calda, **5 s**
+fredda, e fino a **11 s** con la macchina occupata — sempre sul thread, con
+il gioco che continua a disegnare.
+
+**Due cose vanno sapute prima di credere a questi numeri.**
+
+1. **Scrivere è trentaquattro volte più lento che leggere**, e non è il
+   modello: è il **vocabolario di gemma-3, 262.144 parole**. Ogni gettone
+   scritto costa una passata su tutte per campionare. Misurato con
+   `portiere_vs_llama campionatori`: la grammatica in testa alla catena
+   raddoppia il tempo per gettone e si prende il 27% del totale.
+   **Ma la grammatica non si tocca** (senza, il 27% delle citazioni è
+   inventato): la manopola giusta, semmai, è il vocabolario del modello che
+   si sceglie.
+2. **⚠️ E l'ordine della catena non è una questione di velocità.** Mettere la
+   grammatica DOPO `top_k` la fa costare quasi niente — e fa **morire il
+   processo**: se tutti i candidati rimasti sono vietati, il dado ne sceglie
+   uno comunque e il passo dopo llama tira `Unexpected empty grammar stack
+   after accepting piece`. Riprodotto in dieci secondi. Da lì viene
+   `Traduttore::_riparata`, l'ombrello che trasforma una qualunque eccezione
+   di llama in un pensiero perso invece che in un gioco chiuso: **un'eccezione
+   che esce dalla funzione di un `std::thread` è `std::terminate`**, e prima
+   non c'era nessun `try` su quel cammino.
+
+**Cosa non è misurato, ed è onesto dirlo:** la generazione **col gioco
+acceso** non ha un numero affidabile. Il Mac su cui è stata fatta questa
+tornata è a 8 core e 8 GB, e per tutta la durata delle prove aveva **altri
+agenti che compilavano e misuravano sopra** (carico medio fra 9 e 42, un
+secondo Godot al 210% di CPU con 2.2 GB residenti). I gettoni al secondo qui
+sopra sono perciò **un pavimento**, non una misura: vanno rifatti su una
+macchina ferma, ed è la prima cosa da fare prima di scegliere il modello.
+
+**Come si guarda:**
+
+```
+CHIBI_MODELLI=<dir dei gguf> CHIBI_IMPRONTA=1 \
+  Godot --headless --path . --script res://tools/sonda_llm.gd
+CHIBI_MODELLO=<file.gguf> CHIBI_PROMPT=<dir> CHIBI_GIOCO=1 CHIBI_PRIORITA=0 \
+  Godot --path . --script res://tools/sonda_llm.gd
+
+clang++ -std=c++17 -fexceptions -O2 -DCHIBI_LLM -Isrc \
+  -Isrc/thirdparty/llm-build/macos-universal/inst/include \
+  tools/portiere_vs_llama.cpp src/llm_gguf.cpp \
+  src/thirdparty/llm-build/macos-universal/inst/lib/lib{llama,ggml,ggml-cpu,ggml-blas,ggml-base}.a \
+  -framework Accelerate -o /tmp/portiere_vs_llama
+PORTIERE=/tmp/portiere_vs_llama python3 tools/rovina_gguf.py <modello.gguf>
+```
+
+La guardia headless è
+[`tests/cases/test_llm_portiere.gd`](tests/cases/test_llm_portiere.gd), e non
+prova un modello vero (due gigabyte non stanno in CI): **si costruisce un
+`.gguf` di trecento byte in GDScript e lo si rompe in quindici modi**,
+pretendendo ogni volta il no GIUSTO — il motivo si legge, perché un portiere
+che rifiuta tutto sarebbe verde qui e inutile in partita. Le cinque guardie
+sono state **falsificate una per una** (spente nel sorgente, ricompilato,
+riprovato): tolta la troncatura 3 asserzioni diventano rosse, tolto il tipo
+dell'allineamento 4, tolte le attese sugli array 2, tolto `ne >= 1` 2, tolto
+l'offset in fila 2. E l'ultima asserzione del file prova che il portiere sia
+**davvero cablato** davanti al caricamento vero: togliendo la chiamata, il no
+arriva da llama con un'altra frase e il caso diventa rosso.
+
+**La rete: nessuna.** Verificato in tre modi — nella dylib non c'è **nessun
+simbolo** di rete non risolto (`nm -u`: zero fra `socket`, `connect`,
+`getaddrinfo`, `SSL_`, `curl_`, CFNetwork), le uniche librerie di sistema
+linkate sono Accelerate, libc++ e libSystem, e negli archivi di llama.cpp non
+c'è un solo simbolo di rete (`LLAMA_BUILD_COMMON=OFF` lascia fuori httplib e
+curl). Dal vivo, `lsof -i` sul processo del gioco durante carico e generazione
+dice **zero connessioni**.
+
+### L'INJECTION — la deduzione entra nel mondo, e si VEDE prima di succedere
+
+La terza consegna dell'autore: «l'LLM restituisce un JSON. Questo JSON viene
+parsato dal C++ e trasformato in un nuovo nodo nel Knowledge Graph (una
+deduzione astratta) o in un nuovo Obiettivo prioritario per il GOAP.» Sono
+tutte e due le cose, e in quest'ordine: il nodo è la deduzione, l'obiettivo è
+quello che produce — **ma solo dopo aver pagato la sua ricevuta.**
+
+Il cammino, e ogni pezzo ha una casa sola:
+
+| dove | cosa |
+|---|---|
+| [`Suggeritore.grammatica_deduzione()`](scenes/npc/Suggeritore.gd) | la grammatica GBNF del JSON, generata dalle enum |
+| [`Giudice.utile()` / `scegli_deduzione()`](scenes/npc/Giudice.gd) | il collaudo e la scelta |
+| [`Deduzioni.gd`](scenes/npc/Deduzioni.gd) | l'ufficio: incassa · ricevuta · dirottamento |
+| [`src/grafo_deduzioni.{h,cpp}`](src/grafo_deduzioni.h) | il nodo, puro (quinto gemello) |
+| `EcsMondo::deduci / deduzione_*` | il ponte |
+| `Visitors._cuore_di` / `_gesti_agenda` | i due punti di cablaggio, due righe |
+
+#### 1. Perché una deduzione NON è un `Ricordo`
+
+La strada corta era una bandiera in più su una riga dell'anello dei
+ventiquattro. Sarebbe stata la cosa peggiore di tutta la fase, per **tre**
+strade indipendenti e tutte mute:
+
+1. **`da_raccontare()` la prenderebbe** — un vicino andrebbe a raccontare a un
+   altro una cosa mai successa, e l'eco la inciderebbe come `R_SENTITO` in un
+   terzo: l'allucinazione propagata dal sistema che serve a propagare i fatti
+   veri;
+2. **`cosa_da_ricordare()` la promuoverebbe** — cioè finirebbe in
+   `VillagerBrain.remember()`, che è **persistito**: una frase di un modello
+   linguistico dentro `village.json`;
+3. **`inserisci()` POTA PER PESO** — una deduzione forte scaccerebbe un
+   ricordo vero. La macchina cancellerebbe quello che il giocatore ha fatto
+   davvero per far posto a quello che si è immaginata.
+
+Perciò le deduzioni stanno in un **array loro** (due slot per vicino). Non è
+una potatura tarata bene: è una potatura che non le vede proprio. La domanda
+dell'autore («senza che una deduzione possa scacciare un ricordo vero») ha
+l'unica risposta che non dipende da un numero.
+
+**E porta le COPIE dei suoi perché, non gli indici.** Un indice dentro
+l'anello è la stessa trappola dell'handle nudo che `Ricordo.soggetto` ha già
+pagato: l'anello ricicla gli slot, quindi la riga 3 di adesso non è la riga 3
+di fra un minuto, e la deduzione comincerebbe a citare un altro gesto — in
+silenzio, e solo in un villaggio dove il giocatore lavora molto, cioè dove
+nessun collaudo arriva. La copia **non è un secondo orologio**: conserva il
+`quando` originale e si legge con `chibi::peso`, la stessa funzione. È quello
+che fa una citazione dentro una lettera del Gufo. Residuo dichiarato: una
+deduzione può sopravvivere al ricordo che l'ha prodotta, ed è il verso giusto
+— *la conclusione sopravvive al dettaglio, mai il contrario*.
+
+**Il peso di una deduzione è quello del suo anello più debole**, riletto
+adesso — la regola che il Giudice applica alla nascita, fatta vivere nel
+tempo. Chi cita di più non dura di più. E **le ripetizioni si RIFIUTANO, non
+si fondono**: è l'opposto dell'anello dei ricordi, apposta. Se fondessero, un
+modello che si ripete — che è il difetto naturale dei modelli piccoli: due
+incipit su quindici, misurati — si costruirebbe da solo un obiettivo
+inarrestabile.
+
+#### 2. La RICEVUTA, e perché è un bit e non una buona pratica
+
+**Una deduzione entra nel mondo come un fatto osservabile prima che come un
+obiettivo.** Finché la testa non si è girata, `deduzione_pronta()` risponde
+-1: `chibi::D_RICEVUTA` è la regola scritta in un bit, e
+`inserisci_deduzione()` azzera le bandiere in ingresso — **una deduzione nasce
+muta**, e nemmeno un chiamante sbagliato può fabbricarne una con la ricevuta
+già in tasca.
+
+**Il canale non è nuovo: è la testa della Fase 4** (`Visitor.guarda_gesto`,
+`Percezione.DURATA_SGUARDO`). La differenza fra le due scene non la fa il
+codice, la fa il mondo: là la testa si gira verso una cosa che sta succedendo
+adesso, qui verso un posto in cui non succede niente. Un vicino che guarda
+l'aiuola vuota e poi ci va si legge senza una parola — e le parole qui non
+sono ammesse (`Percezione`: «nessun testo, nessun toast, nessuna lettera»).
+
+Due tempi, e **nessuno dei due è scelto**:
+
+- **l'attesa** è `Percezione.DURATA_SGUARDO`, letta di là: la premessa e la
+  sua durata sono la stessa cosa. Una testa che si gira e un corpo che parte
+  nello stesso frame non sono due battute, sono una cosa illeggibile;
+- **la finestra** è il `tetto_impegno` dell'agenda, letto dal binario: è il
+  tempo massimo che l'agenda può metterci ad aprire una decisione. Più corta
+  farebbe scadere deduzioni che non hanno avuto la loro occasione; più lunga
+  farebbe arrivare la conseguenza quando il giocatore non ricorda più la
+  premessa — e quello non attenua l'effetto, **lo inverte**.
+
+E si paga **solo a chi può guardare**: la domanda si fa a
+`Percezione.puo_vedere` passandogli la sua stessa posizione, così la distanza
+va a zero e restano esattamente le tre valvole che contano (nascosto,
+addormentato, in scena). Chiesta di là e non con tre `if` scritti a mano: il
+giorno che qualcuno aggiunge una quarta valvola, la ricevuta la eredita.
+
+> ⚠️ **E SI ASPETTA CHE IL COLLO CI ARRIVI — il difetto che solo la prova
+> viva poteva vedere.** Il rig ha un tetto (`Visitor.TESTA_MAX`, meno il
+> vagare e lo scarto personale: **0.775 rad, 44,4°**), e con il posto alle
+> spalle la testa si ferma lì. Misurato nel MainLevel vero, prima:
+> **la testa a 45° e il bersaglio a 148°, cioè 102° di scarto**. Nella Fase 4
+> quella mezza girata bastava — il gesto vero è già davanti al giocatore, e
+> una testa che si sforza dice comunque «mi sono accorto di qualcosa». Qui
+> **la testa È tutta la scena**, e una testa che punta altrove non è una
+> premessa: è rumore, cioè il guasto che inverte l'effetto.
+> Perciò `Visitor.collo_ci_arriva()` (stesso `look_at` di
+> `_sguardo_testimone`, stesso tetto, letto da `tetto_ricevuta()` che ora ha
+> due lettori invece di un conto ripetuto) e la ricevuta **aspetta**. Non è
+> una rinuncia: un vicino si gira di continuo, e la deduzione ha minuti per
+> trovare il suo momento; se non lo trova muore senza che nessuno se ne
+> accorga. Misurato dopo: ricevuta pagata a **0,67 s con 16,3° di scarto**, e
+> la testa scende poi a **0,0°** sul bersaglio.
+> Questa valvola ha anche **assorbito** il controllo che c'era prima («il
+> ripiego è tornato indietro tale e quale: non si guardano i propri piedi»):
+> era un sottoinsieme stretto di questo, e nessuna mutazione poteva più
+> renderlo rosso. Una guardia che nessun test può far fallire è una guardia
+> che non c'è, e si toglie.
+
+#### 3. «Prioritario», detto preciso
+
+Vuol dire **che quando l'agenda apre una decisione, la deduzione è la prima a
+cui si chiede** — e se il mondo le dà una strada intera, il piano è il suo.
+Non vuol dire niente di più, e le tre cose che *non* vuol dire sono le tre
+leve della Fase 2:
+
+1. **non scavalca il lucchetto del corpo**: si dirotta solo dentro
+   `_gesti_agenda`, sul FRONTE (`azione_cambiata`), che esiste solo quando il
+   registro ha già deciso che si può cambiare;
+2. **non tocca `T_MIN`**: non c'è nessuna corsia d'urgenza — la deduzione non
+   alza un punteggio, non muove un modulatore, non entra nell'argmax. Arriva
+   DOPO che l'argmax ha parlato;
+3. **non tocca il dado congelato**: in tutto questo cammino non c'è un dado
+   (il Giudice è puro, il seme del modello arriva da fuori).
+
+E la quarta, della Fase 3: **MAI un piano a metà.** Si chiede al risolutore, e
+se torna a mani vuote non si dirotta niente.
+
+**La deduzione si spende ANCHE quando non dirotta**, ed è voluto: «il mondo
+non ha una strada», «l'agenda voleva già quello» e «l'ho fatto» sono tutte la
+fine della sua vita. Tenerla in caldo vorrebbe dire che alla decisione dopo —
+fra quaranta secondi — parte una conseguenza la cui premessa il giocatore non
+ha più in mente. **Una deduzione vale UN'occasione, quella subito dopo la sua
+ricevuta.**
+
+#### 4. Il VETO: quattro assenze, non quattro promesse
+
+- **nessun testo verso il giocatore** — una deduzione ha due campi e nessuno
+  dei due è una stringa (`Giudice.CAMPI_DEDUZIONE`), e la grammatica non ha un
+  posto in cui infilarne una: nessuna classe di caratteri, nessuna ripetizione
+  aperta, solo letterali. Le due guardie sono indipendenti apposta (una governa
+  il campionamento e vale solo se chi chiama passa la grammatica; l'altra
+  governa cosa entra nel mondo e non ha configurazione);
+- **nessun giudizio su una persona, nessuna classifica** — `EcsMondo::deduci`
+  **azzera il soggetto** delle copie. Non c'è una regola da rispettare: non
+  c'è un campo in cui scriverlo. (E il peso non cambia di un bit: `peso()`
+  guarda le bandiere, non il soggetto.);
+- **nessun corteo dietro Mochi** — i quattro provvedimenti non dicono «vai da
+  qualcuno», e il posto che si guarda è quello di un ricordo: un'aiuola, una
+  panchina, un cespuglio. Cose che non camminano, che è lo stesso argomento
+  per cui `_ancora_ricordo` non ha bisogno delle valvole di `ancora_riposo`;
+- **e non ci si mette in fila** — il Pensatoio consegna un pensiero per volta
+  in tutto il villaggio e mette a riposo chi l'ha ricevuto per cinque minuti.
+
+#### 5. La grammatica del JSON, e il giro chiuso
+
+`grammatica_deduzione()` non ha un letterale scritto a mano: gli **obiettivi**
+sono le chiavi di `OBIETTIVI_DETTI` (che un test lega a `Piani.OBIETTIVO` e a
+`maschera_obiettivo()`), le **righe** sono i `riga` di `fatti(rit)`, cioè gli
+indici veri delle righe vive del grafo di quel vicino stasera. Escono
+l'obiettivo che sta già perseguendo (proporlo non è una deduzione) e quelli
+per cui il mondo non ha una strada adesso (`Visitors.obiettivi_fattibili`).
+
+E le combinazioni si scrivono **per esteso**, come `citazioni()`: i
+sottoinsiemi *crescenti* di uno, due o tre indici — quarantuno alternative con
+sei ricordi. Costa qualche riga e in cambio rende impossibili le due forme che
+una regola ricorsiva lascerebbe passare: il **doppione** (gonfia una catena
+senza renderla più solida) e la **permutazione** (la stessa deduzione contata
+come due bozze diverse).
+
+Siccome le uscite possibili sono finite, il test le **enumera tutte** e
+pretende che il gioco le incassi tutte: *tutto ciò che la grammatica può
+produrre, il gioco lo sa aprire e collaudare*. Non è un campione, è l'insieme.
+
+E una cosa che si è vista solo **guardando il foglio**, non contando:
+nell'elenco numerato dei ricordi i pezzi facoltativi della lettera (quando,
+dove, quante volte) **non sono facoltativi**. Senza, due annaffiate in due
+posti diversi escono come due righe identiche con due numeri davanti — in una
+lettera non è un guaio (il modello ne copia una e basta), qui il modello deve
+dire QUALI ricordi lo hanno fatto pensare, e su due righe uguali la scelta è
+un dado. Un dado che poi decide **dove il vicino gira la testa**, perché
+l'ancora della ricevuta è il posto di quel ricordo.
+
+> ⚠️ **UNO SCOSTAMENTO DICHIARATO dal piano dell'autore:** «il JSON viene
+> parsato dal C++». Si apre in GDScript (`JSON.parse_string`), per due ragioni
+> che tirano nella stessa direzione. (a) Il collaudo di una deduzione è già
+> tutto in GDScript — `Giudice.utile` sa quali obiettivi il mondo può servire
+> adesso e quali ricordi sono ancora vivi — e un parser di là vorrebbe dire
+> due posti che decidono se una deduzione è buona: le tabelle gemelle questo
+> progetto le ha già pagate tre volte. (b) Il testo di un modello è l'ingresso
+> più ostile del gioco, e un parser scritto a mano in C++ su quell'ingresso è
+> una superficie nuova dentro il processo del giocatore. Quello che attraversa
+> il confine sono **due interi e una lista di indici** — la stessa disciplina
+> del foglio del Pensatoio: byte, non frasi.
+
+#### 6. Come si verifica
+
+```
+Godot --headless --path . --script res://tests/test_runner.gd     # 259 asserzioni
+Godot --headless --path . --script res://tools/prova_deduzione.gd # la scena vera
+```
+
+[`tests/cases/test_deduzioni.gd`](tests/cases/test_deduzioni.gd) non cerca
+stringhe nei sorgenti: interroga il binario, fa girare i passi veri, e guarda
+cosa succede al grafo e al collo. **Trentatré mutazioni, una riga per volta,
+tutte rosse** — e la falsificazione ha trovato quattro guardie che i test non
+coprivano davvero:
+
+- **il tetto della catena nel Giudice**: il caso usava un ritratto con meno
+  ricordi vivi del tetto, quindi la bozza troppo lunga cadeva prima su
+  «si appoggia a un ricordo che non c'è». Serviva un banco più largo;
+- **il rifiuto di una catena troppo lunga nel ponte**: la mutazione «ingenua»
+  (togliere il controllo) è un accesso fuori array, quindi non misura niente;
+  quella *plausibile* — **troncare invece di rifiutare** — consegnerebbe al
+  mondo una deduzione diversa da quella collaudata. E per vederla il caso
+  doveva citare indici tutti DIVERSI, o il doppione lo copriva;
+- **«una deduzione nasce muta»**: da sola non è falsificabile (nessun
+  chiamante passa le bandiere). Si dimostra in COPPIA — un chiamante che
+  prova a portarsi la ricevuta in tasca resta verde *perché* il ponte
+  pulisce, e diventa rosso appena si toglie la riga che pulisce;
+- **«non si guardano i propri piedi»**: dopo la valvola del collo era
+  diventata irraggiungibile, e si è tolta.
+
+[`tools/prova_deduzione.gd`](tools/prova_deduzione.gd) è la prova viva, **e
+non serve nessun `.gguf`**: le bozze sono tre JSON scritti a mano, come li
+scriverebbe un modello, e tutto il resto del cammino è quello vero — la
+percezione vera, il Giudice vero, il ponte vero, il registro vero, il corpo
+vero. Stampa la grammatica per esteso (si legge a occhio, come le citazioni),
+poi la pellicola della ricevuta frame per frame, poi dove cammina il corpo.
+Misurato: **ricevuta a 0,67 s con 16,3° di scarto**, testa sul bersaglio a
+**0,0°**, obiettivo pronto a **8,40 s** (7,7 s dopo la premessa), e il corpo
+che si ferma a **0,60 m dal posto che ha guardato**. L'ultima scena rifà lo
+stesso identico gesto a deduzione spesa: il vicino se ne va dall'altra parte,
+che è il ramo su cui gira il gioco di chi non ha installato niente.
+
+E **due cose che il banco deve fare, o non prova quello che dice**: zittire
+l'agenda con il lease (senza, fra il gesto e la deduzione il registro cambia
+mestiere da solo e l'obiettivo che il vicino sta già perseguendo esce dai
+deducibili — giustamente), e insediare **due** vicini (senza qualcuno con cui
+parlare, «quattro_chiacchiere» non manda il corpo da nessuna parte e la scena
+4 misurerebbe un corpo fermo dov'era).
+
+### LA PROVA VIVA: il modello vero dentro il villaggio vero
+
+Gli altri quattro banchi della Fase 5 provano **un pezzo per volta**, e tre su
+quattro lo provano **senza modello** (bozze scritte a mano). Il quinto è
+[`tools/prova_pensieri.gd`](tools/prova_pensieri.gd), ed è l'unico posto in
+cui un `.gguf` vero scrive dentro il MainLevel vero e si guarda cosa succede:
+
+```
+CHIBI_MODELLO=/percorso/al.gguf CHIBI_PENSIERI=/dove/le/foto \
+  ~/Downloads/Godot.app/Contents/MacOS/Godot --path . \
+  --script res://tools/prova_pensieri.gd        # senza --headless: le foto
+CHIBI_GIRI=0 CHIBI_GIOSTRA=1 …                  # solo le scene, per tarare le inquadrature
+```
+
+Stampa i **prompt per esteso**, **tutte** le bozze con la scheda del Giudice
+(perché una gara senza gli altri corridori non è una gara), la deduzione che
+entra nel grafo, la ricevuta frame per frame e dove cammina il corpo; e
+fotografa i tre momenti — prima, durante, dopo — **dalle stesse quattro
+macchine**, perché una testa che si gira non si vede in una foto sola.
+
+**Cosa ha misurato** (gemma-3-1b Q4_K_M, tre vicini, 5 bozze per pensiero, un
+M1 da 8 GB):
+
+- **il silenzio è la metà degli esiti**: 6 pensieri → 3 lettere e 3 silenzi;
+  **30 bozze generate, 7 ammesse (23%)**, buttate 10 all'ancoraggio e 13 alla
+  forma. La porta dell'ancoraggio non è teorica: in un pensiero su due il
+  modello scrive nella metà libera una frase che AFFERMA («la volpina papavero
+  ti ha vista costruire, più di una volta, poco fa»), e senza quella porta la
+  lettera uscirebbe con la stessa frase tre volte di fila;
+- **le deduzioni valgono per costruzione**: 5 JSON su 5 validi, in 6 s. È la
+  prima volta che un modello vero vede `grammatica_deduzione`;
+- **la ricevuta si vede, quasi sempre**: su **nove ricevute pagate, sette**
+  portano la testa sul posto (picco 0.0–6.3°); **due no** (26.2°→28.2° e
+  25.6°→23.3°), e in quei due casi il bit è acceso e il giocatore non vede
+  niente. Tutte e due erano la seconda scena di una corsa lunga. **Non è
+  spiegato**: i due candidati stanno in `Visitor._sguardo_applica` (quanto la
+  posa dello stato mangia lo scostamento) e nella stanchezza.
+
+**⚠️ E una cosa che la Fase 5 non ha ancora**, vista per la prima volta qui:
+la ricevuta punta il posto di un RICORDO, il corpo va dove la messa in scena
+manda l'obiettivo, e i due **coincidono solo se il mondo li ha messi vicini**.
+Misurato affiancato, stesso codice e due geometrie: **1.46 m** (si legge) e
+**10.49 m** (non si legge — un'occhiata di qua e un viaggio di là). Il residuo
+era dichiarato dall'injection; qui è in scena.
+
+**Le trappole di banco già pagate, tutte scritte nel file:**
+
+1. **`_yaw`, non `rotation.y`.** `Visitor._process` finisce con `rotation.y =
+   _yaw` per ogni stato, ogni frame: un'imbardata scritta da fuori vive un
+   frame. Due stesure «convergevano» a 64° e 172° invece che a 30, la testa
+   non arrivava più al bersaglio (il tetto del collo è 44°) e il banco
+   dichiarava un silenzio che era suo.
+2. **L'orologio si ferma** (`cycle_seconds`): un giorno dura quattro minuti e
+   il banco venti. Senza, a metà prova i vicini vanno a dormire —
+   `resident_sleep()` li rimpicciolisce a **scala 0.03**, la ricevuta non si
+   paga più a chi è dentro casa, e le foto inquadrano un granello al buio.
+3. **Le due valvole si stampano** (`vede?` e `collo?`). Una ricevuta che non
+   arriva ha due sole ragioni, e un banco che dice solo «non è stata pagata»
+   lascia indovinare: la colonna `vede? NO` ha spiegato in un colpo venticinque
+   secondi di silenzio (era a un appuntamento).
+4. **Il gesto della scena si fa ADESSO**, non all'inizio: dopo cinque lettere
+   i ricordi dell'apertura pesavano **0.17** e il ponte rifiutava tutto. E con
+   verbi e posti DIVERSI da quelli dell'apertura, o il grafo si ritrova due
+   righe che in italiano si leggono uguali e il modello cita la vecchia (5
+   bozze su 5, misurato).
+5. **Le celle si provano una per una**: `place_cell` rifiuta in silenzio nel
+   letto del fiume, e `debug_settle` su una cella rifiutata non insedia
+   nessuno. Il banco conta i letti e si ferma.
+6. **Una giostra di azimut si guarda a movimento finito**: scattata durante la
+   ricevuta confonde l'angolo col tempo (a 45° la faccia, a 90° la nuca, a
+   315° di nuovo la faccia).
+
 ## Test
 
 Test-suite **dependency-free** (nessun addon, nessuna rete) in `tests/`:

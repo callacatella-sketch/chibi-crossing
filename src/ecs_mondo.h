@@ -433,6 +433,76 @@ public:
 	//    chiede più di uno.
 	int cosa_da_ricordare(int64_t p_id, double p_soglia) const;
 
+	// --- FASE 5 (P3): L'INJECTION -----------------------------------------
+	//
+	// Un modello linguistico ha scritto un JSON, il Giudice l'ha collaudato,
+	// e quello che attraversa il ponte sono DUE INTERI E UNA LISTA DI INDICI.
+	// Mai la stringa.
+	//
+	// ⚠️ E QUI C'È UNO SCOSTAMENTO DICHIARATO dal piano dell'autore, che dice
+	// «il JSON viene parsato dal C++». Il JSON si apre in GDScript
+	// (`JSON.parse_string`), per due ragioni che tirano nella stessa
+	// direzione:
+	//  1. **il collaudo di una deduzione è già in GDScript** ed è tutto lì
+	//     (`Giudice.utile`, che sa quali obiettivi il mondo può servire
+	//     ADESSO e quali ricordi sono ancora vivi). Un parser di qua
+	//     vorrebbe dire due posti che decidono se una deduzione è buona, e
+	//     questo progetto ha già pagato tre volte le tabelle gemelle;
+	//  2. **il testo di un modello è l'ingresso più ostile del gioco.** Un
+	//     parser scritto a mano in C++ su quell'ingresso è una superficie
+	//     nuova, in un cuore che gira dentro il processo del giocatore. In
+	//     GDScript un JSON malformato torna `null` e basta.
+	// Quello che attraversa il confine, come per il foglio del Pensatoio,
+	// sono BYTE — e i byte non portano una frase allo schermo.
+
+	// DEDUCE. Torna l'indice della deduzione, oppure **-1 se non ha scritto
+	// niente** (obiettivo che non è uno dei quattro, righe fuori dal grafo o
+	// ripetute, deduzione già fioca, gemella viva, anello pieno di più
+	// forti). Come `osserva()`: chi chiama deve poter distinguere i due casi.
+	//
+	// `p_righe` sono gli INDICI delle righe del grafo che la reggono — gli
+	// stessi che `Suggeritore.fatti()` porta nel campo `riga`. Si copiano, e
+	// **si copiano SENZA IL SOGGETTO**: una deduzione non è mai su qualcuno.
+	//
+	// La soglia arriva dal chiamante, come in `dove()` e in
+	// `cosa_da_ricordare()`: quanto deve pesare un ricordo per contare è una
+	// decisione di gioco, e le decisioni di gioco stanno dove si leggono.
+	int deduci(int64_t p_id, int p_obiettivo, const godot::PackedInt32Array &p_righe,
+			double p_soglia);
+
+	// LA DEDUZIONE CHE ASPETTA LA SUA RICEVUTA, o -1 (il caso normale).
+	int deduzione_muta(int64_t p_id, double p_soglia) const;
+
+	// LA DEDUZIONE CHE PUÒ DIVENTARE UN OBIETTIVO ADESSO, o -1 (il caso
+	// normale, e il caso di SEMPRE per chi non ha il modello).
+	int deduzione_pronta(int64_t p_id, double p_soglia, double p_attesa,
+			double p_finestra) const;
+
+	// DOVE GUARDA. Il posto del ricordo più forte fra quelli che la reggono
+	// — cioè un posto in cui il giocatore ha DAVVERO fatto qualcosa mentre
+	// quel vicino guardava. Il ripiego è un parametro, come in `dove()`: così
+	// «non c'è niente da mostrare» e «guarda casa sua» sono lo stesso
+	// Vector3, e nessun chiamante può dimenticarsi di controllare.
+	godot::Vector3 deduzione_dove(int64_t p_id, int p_i,
+			const godot::Vector3 &p_se_niente) const;
+
+	// LA MASCHERA DEL PROVVEDIMENTO, quella che `pianifica()` si aspetta.
+	// 0 se l'indice non è di una deduzione.
+	int deduzione_obiettivo(int64_t p_id, int p_i) const;
+
+	// LA RICEVUTA È PAGATA: la testa si è girata, il giocatore ha visto.
+	//
+	// ⚠️ Questa funzione ha UN SOLO CHIAMANTE LEGITTIMO in tutto il gioco, ed
+	// è la funzione che gira la testa (`Deduzioni.consegna`, due righe
+	// consecutive, l'idioma di `Percezione._testimonia`). Chiamarla senza
+	// aver girato la testa vuol dire una conseguenza senza premessa, e una
+	// conseguenza senza premessa non attenua l'effetto: **lo inverte**.
+	void deduzione_ricevuta(int64_t p_id, int p_i);
+
+	// SPESA: il piano è stato consegnato, e non si ripete. Senza questa
+	// riga la deduzione resterebbe la priorità di quel vicino per sempre.
+	void deduzione_spendi(int64_t p_id, int p_i);
+
 	// --- le letture di prova (nessuna di queste muove niente) ------------
 	// Il grafo di un residente, nella stessa forma dei quattro oracoli di P1
 	// ({ "ricordi": Array, "versione": int }).
@@ -445,6 +515,13 @@ public:
 	// La taratura VIVA della memoria più `PASSO_EMO` e l'orologio monotono,
 	// così nessun test riscrive un numero a mano.
 	godot::Dictionary debug_ritmo() const;
+	// LE DEDUZIONI di un residente: una riga per deduzione, con obiettivo,
+	// bandiere, peso di adesso e le righe che la reggono in forma di
+	// `Ricordo` (le stesse chiavi di `debug_grafo`). E le costanti del C++
+	// (`MAX_DEDUZIONI`, `MAX_PERCHE`, le due bandiere), così nessun test ne
+	// riscrive una a mano.
+	godot::Dictionary debug_deduzioni(int64_t p_id) const;
+	godot::Dictionary debug_deduzioni_costanti() const;
 	// «Cosa racconterei a chi sa già questi verbi»: la stessa funzione pura
 	// di `debug_grafo_da_raccontare`, con la maschera che `racconta()` usa in
 	// partita. Senza, la scelta filtrata sarebbe provabile solo di rimbalzo.

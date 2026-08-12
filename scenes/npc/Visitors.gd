@@ -11,6 +11,7 @@ const BRAIN := preload("res://scenes/npc/VillagerBrain.gd")
 const PIANI := preload("res://scenes/npc/Piani.gd")
 const PERCEZIONE := preload("res://scenes/npc/Percezione.gd")
 const GUSTO := preload("res://scenes/npc/Gusto.gd")
+const DEDUZIONI := preload("res://scenes/npc/Deduzioni.gd")
 const ANIMO := preload("res://scenes/npc/Animo.gd")
 const VILLAGGIO := preload("res://scenes/npc/Villaggio.gd")
 const UI_BROWN := Color("6a4a3a")
@@ -1101,7 +1102,7 @@ func _aiuola_da_curare(r: Dictionary, home: Vector3) -> Node3D:
 ## restare verde proprio per quello. Qui il confronto risparmia un
 ## marshalling di Variant per residente ogni `FATTI_OGNI` frame: piccolo, ma
 ## la ragione è quella, e vale la pena scriverla giusta.
-func _cuore_di(r: Dictionary) -> void:
+func _cuore_di(r: Dictionary, node: Node3D) -> void:
 	if _ecs == null or not is_instance_valid(_ecs) or not r.has("ecs"):
 		return
 	# SFALSATO PER RESIDENTE, con l'etichetta come seme. Senza questa riga
@@ -1128,6 +1129,20 @@ func _cuore_di(r: Dictionary) -> void:
 	if r.get("gusto_ecs") != g:
 		r["gusto_ecs"] = g
 		_ecs.riferisci_gusto(id, g)
+
+	# FASE 5: LA RICEVUTA DELLA DEDUZIONE. Sta qui, sulla cadenza dei fatti,
+	# e non nel `_process` di nessuno: una deduzione arriva al massimo una
+	# volta ogni cinque minuti per vicino (`Pensatoio.RIPOSO`), quindi
+	# chiedere «ce n'è una da mostrare?» mezzo secondo dopo l'altro è già
+	# ottanta volte più spesso del necessario. Nel caso normale — e il caso
+	# normale è «non c'è nessun modello» — costa un confronto fra interi.
+	#
+	# PRIMA della promozione e del suo `return`: una deduzione che aspetta la
+	# sua ricevuta non deve rimanere muta perché quel giorno il vicino aveva
+	# già promosso un ricordo.
+	var muta: int = int(_ecs.deduzione_muta(id, AMMIRA_SOGLIA))
+	if muta >= 0:
+		DEDUZIONI.consegna(_ecs, id, node, muta)
 
 	# LA PROMOZIONE: una al giorno, e solo per quello che ha visto coi propri
 	# occhi. È l'unico residuo di tutta la Fase 4 che attraversa un riavvio, e
@@ -1305,6 +1320,50 @@ func _piano_dirotta(r: Dictionary, node: Node3D, act: String, home: Vector3) -> 
 	return true
 
 
+## FASE 5: L'OBIETTIVO PRIORITARIO. Il raccordo fra il registro e l'ufficio
+## delle deduzioni, e non fa nient'altro: la regola sta tutta in
+## `Deduzioni.dirotta()`, che è pura e si può guastare una valvola per volta
+## senza un villaggio in scena.
+##
+## Torna l'azione da recitare. Senza cuore, senza deduzioni pronte, o con un
+## mondo che non ha una strada, torna **la stessa Stringa** che le è
+## arrivata: `_recita` non si accorge che questa riga esiste.
+func _deduzione_dirotta(r: Dictionary, act: String) -> String:
+	if _ecs == null or not is_instance_valid(_ecs) or not r.has("ecs"):
+		return act
+	return DEDUZIONI.dirotta(_ecs, int(r["ecs"]), act,
+			r.get("luoghi", []), int(r.get("fatti", 0)), AMMIRA_SOGLIA)
+
+
+## GLI OBIETTIVI PER CUI IL MONDO HA UNA STRADA, adesso, per questo vicino.
+##
+## Serve alla GRAMMATICA delle deduzioni (`Suggeritore.grammatica_deduzione`
+## la legge da `rit["fattibili"]`), e serve al Giudice. Non è una guardia in
+## più: è la stessa guardia, spostata **prima del campionamento** invece che
+## dopo. Un obiettivo che il mondo non sa servire, se il modello riesce a
+## proporlo, costa una bozza buttata; se non riesce a proporlo, costa niente.
+##
+## Vuoto quando non c'è il cuore o non ci sono ancora i luoghi: di là «vuoto»
+## vuol dire «non filtrare», cioè il comportamento che c'era prima.
+func obiettivi_fattibili(r: Dictionary) -> Array:
+	var out := []
+	if _ecs == null or not is_instance_valid(_ecs):
+		return out
+	var luoghi: Array = r.get("luoghi", [])
+	if luoghi.size() < PIANI.LUOGHI.size():
+		return out
+	var cammino := PIANI.cammino(luoghi)
+	var fatti := int(r.get("fatti", 0))
+	for act in PIANI.OBIETTIVO:
+		var nome := str(PIANI.OBIETTIVO[act])
+		var ob := int(_ecs.maschera_obiettivo(nome))
+		if ob == 0:
+			continue
+		if not (_ecs.pianifica(fatti, ob, cammino) as PackedInt32Array).is_empty():
+			out.append(nome)
+	return out
+
+
 func _luoghi_del_piano(r: Dictionary, home: Vector3) -> Array:
 	var fuori := []
 	var cerca := func(nodo: Node3D) -> Dictionary:
@@ -1375,6 +1434,12 @@ func _gesti_agenda() -> void:
 		# insopportabile: è una ferita del personaggio, non una preferenza,
 		# e resta dov'era
 		act = _filtra_luogo(str(r.get("label", "")), act)
+		# FASE 5: E POI LA DEDUZIONE, se ce n'è una che ha già mostrato la
+		# sua ricevuta. DOPO il Limbico apposta — una ferita del personaggio
+		# non si discute con una macchina — e dentro il fronte, che è l'unico
+		# posto in cui cambiare idea non rompe nessuna delle tre leve della
+		# Fase 2. Senza modello questa riga restituisce la stessa Stringa.
+		act = _deduzione_dirotta(r, act)
 		_recita(r, node, brain, act, ph)
 		# IL POZZO DELLE CHIACCHIERE, e va chiuso qui o il motore ci cade
 		# dentro. Chi sceglie «quattro_chiacchiere» non sazia NIENTE: la
@@ -1420,7 +1485,7 @@ func _ciclo_sonno(delta: float, t_ora: float) -> void:
 			# --- FASE 4: il cuore. Alla cadenza dei FATTI, sfalsata: il
 			#     gusto si riproietta solo se è cambiato, e una volta al
 			#     giorno il ricordo più forte diventa un ricordo per sempre.
-			_cuore_di(r)
+			_cuore_di(r, node)
 			# il dado si tira una volta per DECISIONE, non a ogni frame
 			if _ecs.vuole_dado(id_e):
 				_ecs.semina_agenda(id_e, brain.jitter())
@@ -4096,6 +4161,11 @@ func debug_force_activity(i: int, act: String) -> bool:
 	# sempre e solo il ramo scritto a mano — cioè non proverebbe la Fase 3.
 	r["fatti_scad"] = -1.0
 	_fatti_di(r, node)
+	# E LA DEDUZIONE, esattamente come in `_gesti_agenda`. Non è una comodità:
+	# è la stessa trappola già pagata dalla riga qui sopra — una verifica CLI
+	# che salta un passo del cablaggio prova sempre e solo il ramo scritto a
+	# mano, cioè non prova la fase per cui è stata scritta.
+	act = _deduzione_dirotta(r, act)
 	_recita(r, node, _ensure_brain(r), act, "day")
 	return true
 

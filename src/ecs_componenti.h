@@ -5,8 +5,9 @@
 
 #include <godot_cpp/variant/vector3.hpp>
 
-#include "grafo_ricordi.h" // FASE 4: GrafoRicordi
-#include "sistema_occ.h"   // FASE 4: Gusto (e, per suo tramite, N_AZIONI)
+#include "grafo_deduzioni.h" // FASE 5: Deduzioni
+#include "grafo_ricordi.h"   // FASE 4: GrafoRicordi
+#include "sistema_occ.h"     // FASE 4: Gusto (e, per suo tramite, N_AZIONI)
 
 namespace chibi {
 
@@ -195,6 +196,29 @@ struct EmozioniComponent {
 // gemelli in `AgendaComponent.jitter`, in `modulatori()` e in `avanza()`)
 // smettono di coprirla: che lo dica il compilatore, non il profiler.
 static_assert(N_AZIONI == 8, "otto azioni, otto 1.0 letterali");
+
+// ======================================================================
+// FASE 5 — LE DEDUZIONI
+// ======================================================================
+
+// LE DEDUZIONI — **VOLATILE**, come il grafo dei ricordi, e per una ragione
+// in più che il grafo non aveva.
+//
+// Il grafo non si salva perché l'emozione dura minuti e non deve diventare
+// una moneta. Questo non si salva anche perché **il suo contenuto non è
+// riproducibile**: viene da un modello linguistico che il giocatore può non
+// avere, che può essere un altro modello, che su un'altra macchina scrive
+// un'altra cosa. Un salvataggio che ne dipendesse non si riaprirebbe uguale
+// due volte — e per la stragrande maggioranza dei giocatori (il modello è
+// spento di serie) questo componente resta vuoto per l'intera partita, il
+// che è esattamente la promessa «il gioco funziona IDENTICO senza».
+//
+// Nasce vuoto INSIEME agli altri, come i tre della Fase 4: un componente
+// aggiunto «quando serve» farebbe sparire dei residenti dalle viste che lo
+// includono, in silenzio.
+struct DeduzioniComponent {
+	Deduzioni d;
+};
 
 } // namespace chibi
 

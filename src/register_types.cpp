@@ -45,6 +45,16 @@ void uninitialize_chibi_crossing_module(ModuleInitializationLevel p_level) {
     if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
         return;
     }
+#ifdef CHIBI_LLM
+    // LA RETE DI SICUREZZA DELLO SPEGNIMENTO. Il gioco spegne il traduttore da
+    // solo (`Pensatoio._exit_tree`), ma un thread ancora vivo dentro una
+    // libreria dinamica che si sta SCARICANDO e' un crash all'uscita — e un
+    // crash all'uscita non lo vede nessuno, perche' la finestra e' gia'
+    // sparita. Qui il thread e' gia' fermo nel caso normale, e questa riga
+    // costa zero; nel caso che qualcuno si e' dimenticato, costa l'attesa di
+    // un pezzo di token (l'abort_callback lo interrompe a meta').
+    LlmLocale::spegni_tutto();
+#endif
 }
 
 extern "C" {

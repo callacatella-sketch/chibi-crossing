@@ -5,6 +5,7 @@
 
 #include "ecs_componenti.h"
 #include "ecs_entt.h"
+#include "grafo_deduzioni.h"
 #include "grafo_ricordi.h"
 #include "sistema_agenda.h"
 #include "sistema_occ.h"
@@ -294,6 +295,17 @@ void EcsMondo::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_emozioni", "id"), &EcsMondo::debug_emozioni);
 	ClassDB::bind_method(D_METHOD("debug_ritmo"), &EcsMondo::debug_ritmo);
 	ClassDB::bind_method(D_METHOD("debug_grafo_novita", "grafo", "ora", "mezza_vita", "gia_saputi"), &EcsMondo::debug_grafo_novita);
+	// FASE 5 (P3): l'injection. Il JSON si apre in GDScript; di qua passano
+	// due interi e una lista di indici (vedi la nota in ecs_mondo.h).
+	ClassDB::bind_method(D_METHOD("deduci", "id", "obiettivo", "righe", "soglia"), &EcsMondo::deduci);
+	ClassDB::bind_method(D_METHOD("deduzione_muta", "id", "soglia"), &EcsMondo::deduzione_muta);
+	ClassDB::bind_method(D_METHOD("deduzione_pronta", "id", "soglia", "attesa", "finestra"), &EcsMondo::deduzione_pronta);
+	ClassDB::bind_method(D_METHOD("deduzione_dove", "id", "i", "se_niente"), &EcsMondo::deduzione_dove);
+	ClassDB::bind_method(D_METHOD("deduzione_obiettivo", "id", "i"), &EcsMondo::deduzione_obiettivo);
+	ClassDB::bind_method(D_METHOD("deduzione_ricevuta", "id", "i"), &EcsMondo::deduzione_ricevuta);
+	ClassDB::bind_method(D_METHOD("deduzione_spendi", "id", "i"), &EcsMondo::deduzione_spendi);
+	ClassDB::bind_method(D_METHOD("debug_deduzioni", "id"), &EcsMondo::debug_deduzioni);
+	ClassDB::bind_method(D_METHOD("debug_deduzioni_costanti"), &EcsMondo::debug_deduzioni_costanti);
 	ClassDB::bind_method(D_METHOD("indice_verbo", "nome"), &EcsMondo::indice_verbo);
 	ClassDB::bind_method(D_METHOD("indice_cosa", "nome"), &EcsMondo::indice_cosa);
 	ClassDB::bind_method(D_METHOD("nome_verbo", "verbo"), &EcsMondo::nome_verbo);
@@ -381,6 +393,9 @@ int64_t EcsMondo::registra(const PackedStringArray &p_indole, const String &p_qu
 	_reg->reg.emplace<chibi::GrafoComponent>(e);
 	_reg->reg.emplace<chibi::GustoComponent>(e);
 	_reg->reg.emplace<chibi::EmozioniComponent>(e);
+	// FASE 5: nasce vuoto insieme agli altri, e per chi non ha il modello
+	// resta vuoto per l'intera partita. Vedi `DeduzioniComponent`.
+	_reg->reg.emplace<chibi::DeduzioniComponent>(e);
 	// NIENTE TransformComponent: vedi ecs_componenti.h
 	return a_handle(e);
 }
@@ -1504,4 +1519,171 @@ int EcsMondo::debug_grafo_novita(const Dictionary &p_grafo, double p_ora,
 	const chibi::GrafoRicordi g = grafo_da(p_grafo);
 	return chibi::da_raccontare(g, static_cast<float>(p_ora), p_mezza_vita,
 			static_cast<uint32_t>(p_gia_saputi));
+}
+
+// ======================================================================
+// FASE 5 — L'INJECTION
+// ======================================================================
+
+int EcsMondo::deduci(int64_t p_id, int p_obiettivo, const PackedInt32Array &p_righe,
+		double p_soglia) {
+	ERR_FAIL_COND_V(!conosce(p_id), -1);
+	const entt::entity e = da_handle(p_id);
+	const chibi::GrafoRicordi &g = _reg->reg.get<chibi::GrafoComponent>(e).g;
+	const int n_grafo = (g.n < chibi::MAX_FATTI) ? static_cast<int>(g.n) : chibi::MAX_FATTI;
+
+	const int quante = p_righe.size();
+	// SI RIFIUTA, NON SI TRONCA — e le due cose non si somigliano affatto.
+	// Troncare consegnerebbe al mondo una deduzione DIVERSA da quella che il
+	// modello ha proposto e il Giudice ha collaudato, e nessuno se ne
+	// accorgerebbe: la catena valutata sarebbe un pezzo di quella scritta.
+	// (E questa riga sta PRIMA del ciclo perché il ciclo scrive dentro
+	// `d.perche[k]`: senza, una lista lunga uscirebbe dall'array.)
+	if (quante <= 0 || quante > chibi::MAX_PERCHE) {
+		return -1;
+	}
+
+	chibi::Deduzione d;
+	d.obiettivo = static_cast<uint32_t>(p_obiettivo);
+	for (int k = 0; k < quante; k++) {
+		const int riga = p_righe[k];
+		// UNA RIGA CHE NON C'È NON REGGE NIENTE. Il Giudice controlla già che
+		// il ricordo sia vivo, ma lui guarda il ritratto — che è una
+		// FOTOGRAFIA presa quando il pensiero è partito, cioè secondi fa. Fra
+		// quella foto e adesso l'anello può essersi mosso. Qui si guarda il
+		// grafo VERO, ed è l'ultimo posto in cui si può ancora dire di no.
+		if (riga < 0 || riga >= n_grafo) {
+			return -1;
+		}
+		// NIENTE DOPPIONI. Un modello che cita due volte lo stesso ricordo
+		// gonfia la propria catena senza aggiungerci niente — e siccome la
+		// catena si misura dall'anello più debole, il doppione la farebbe
+		// sembrare più corta di quello che è. Si stringe, come sempre dove
+		// una regola è incerta.
+		for (int j = 0; j < k; j++) {
+			if (p_righe[j] == riga) {
+				return -1;
+			}
+		}
+		d.perche[k] = g.f[riga];
+		// **IL SOGGETTO NON PASSA.** Una deduzione non è mai su qualcuno: vedi
+		// il veto in cima a grafo_deduzioni.h. Il peso non cambia di un bit
+		// (`peso()` guarda le bandiere, non il soggetto), quindi qui non si
+		// sta tarando niente — si sta togliendo l'unico campo con cui una
+		// deduzione potrebbe diventare un'opinione su una persona.
+		d.perche[k].soggetto = chibi::SOGG_NESSUNO;
+	}
+	d.n = static_cast<uint8_t>(quante);
+
+	chibi::DeduzioniComponent &dc = _reg->reg.get<chibi::DeduzioniComponent>(e);
+	return chibi::inserisci_deduzione(dc.d, d, static_cast<float>(_tempo),
+			_reg->tar_occ.mezza_vita, p_soglia);
+}
+
+int EcsMondo::deduzione_muta(int64_t p_id, double p_soglia) const {
+	ERR_FAIL_COND_V(!conosce(p_id), -1);
+	const chibi::Deduzioni &dd =
+			_reg->reg.get<chibi::DeduzioniComponent>(da_handle(p_id)).d;
+	return chibi::deduzione_muta(dd, static_cast<float>(_tempo),
+			_reg->tar_occ.mezza_vita, p_soglia);
+}
+
+int EcsMondo::deduzione_pronta(int64_t p_id, double p_soglia, double p_attesa,
+		double p_finestra) const {
+	ERR_FAIL_COND_V(!conosce(p_id), -1);
+	const chibi::Deduzioni &dd =
+			_reg->reg.get<chibi::DeduzioniComponent>(da_handle(p_id)).d;
+	return chibi::deduzione_pronta(dd, static_cast<float>(_tempo),
+			_reg->tar_occ.mezza_vita, p_soglia, p_attesa, p_finestra);
+}
+
+Vector3 EcsMondo::deduzione_dove(int64_t p_id, int p_i, const Vector3 &p_se_niente) const {
+	ERR_FAIL_COND_V(!conosce(p_id), p_se_niente);
+	const chibi::Deduzioni &dd =
+			_reg->reg.get<chibi::DeduzioniComponent>(da_handle(p_id)).d;
+	if (p_i < 0 || p_i >= static_cast<int>(dd.n)) {
+		return p_se_niente;
+	}
+	const int k = chibi::perche_piu_forte(dd.d[p_i], static_cast<float>(_tempo),
+			_reg->tar_occ.mezza_vita);
+	if (k < 0) {
+		return p_se_niente;
+	}
+	// La `y` è quella del ripiego, come in `dove()`: il ricordo non la
+	// conserva, e inventare uno zero manderebbe sottoterra chi ragiona su una
+	// casa sull'albero.
+	return Vector3(dd.d[p_i].perche[k].px, p_se_niente.y, dd.d[p_i].perche[k].pz);
+}
+
+int EcsMondo::deduzione_obiettivo(int64_t p_id, int p_i) const {
+	ERR_FAIL_COND_V(!conosce(p_id), 0);
+	const chibi::Deduzioni &dd =
+			_reg->reg.get<chibi::DeduzioniComponent>(da_handle(p_id)).d;
+	if (p_i < 0 || p_i >= static_cast<int>(dd.n)) {
+		return 0;
+	}
+	return static_cast<int>(dd.d[p_i].obiettivo);
+}
+
+void EcsMondo::deduzione_ricevuta(int64_t p_id, int p_i) {
+	ERR_FAIL_COND(!conosce(p_id));
+	chibi::Deduzioni &dd = _reg->reg.get<chibi::DeduzioniComponent>(da_handle(p_id)).d;
+	if (p_i < 0 || p_i >= static_cast<int>(dd.n)) {
+		return;
+	}
+	// SI PAGA UNA VOLTA SOLA. Ripagarla riazzererebbe l'orologio dell'attesa,
+	// e una ricevuta che si rinnova è una conseguenza che non arriva mai.
+	if ((dd.d[p_i].bandiere & chibi::D_RICEVUTA) != 0) {
+		return;
+	}
+	dd.d[p_i].bandiere |= chibi::D_RICEVUTA;
+	dd.d[p_i].ricevuta = static_cast<float>(_tempo);
+}
+
+void EcsMondo::deduzione_spendi(int64_t p_id, int p_i) {
+	ERR_FAIL_COND(!conosce(p_id));
+	chibi::Deduzioni &dd = _reg->reg.get<chibi::DeduzioniComponent>(da_handle(p_id)).d;
+	if (p_i < 0 || p_i >= static_cast<int>(dd.n)) {
+		return;
+	}
+	dd.d[p_i].bandiere |= chibi::D_SPESA;
+}
+
+Dictionary EcsMondo::debug_deduzioni(int64_t p_id) const {
+	Dictionary out;
+	Array righe;
+	out["deduzioni"] = righe;
+	ERR_FAIL_COND_V(!conosce(p_id), out);
+	const chibi::Deduzioni &dd =
+			_reg->reg.get<chibi::DeduzioniComponent>(da_handle(p_id)).d;
+	const float ora = static_cast<float>(_tempo);
+	const double mv = _reg->tar_occ.mezza_vita;
+	for (int i = 0; i < static_cast<int>(dd.n); i++) {
+		const chibi::Deduzione &d = dd.d[i];
+		Array perche;
+		for (int k = 0; k < static_cast<int>(d.n); k++) {
+			perche.append(da_ricordo(d.perche[k]));
+		}
+		Dictionary r;
+		r["obiettivo"] = static_cast<int64_t>(d.obiettivo);
+		r["bandiere"] = static_cast<int>(d.bandiere);
+		r["quando"] = d.quando;
+		r["ricevuta"] = d.ricevuta;
+		r["perche"] = perche;
+		r["peso"] = chibi::peso_deduzione(d, ora, mv);
+		r["peso_utile"] = chibi::peso_utile(d, ora, mv);
+		righe.append(r);
+	}
+	out["deduzioni"] = righe;
+	return out;
+}
+
+Dictionary EcsMondo::debug_deduzioni_costanti() const {
+	Dictionary d;
+	d["max_deduzioni"] = chibi::MAX_DEDUZIONI;
+	d["max_perche"] = chibi::MAX_PERCHE;
+	d["d_ricevuta"] = static_cast<int>(chibi::D_RICEVUTA);
+	d["d_spesa"] = static_cast<int>(chibi::D_SPESA);
+	d["maschera_provvedimenti"] = static_cast<int64_t>(chibi::MASCHERA_PROVVEDIMENTI);
+	return d;
 }

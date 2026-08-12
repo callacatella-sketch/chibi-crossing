@@ -1731,13 +1731,60 @@ func _sguardo_testimone(delta: float) -> void:
 			# testimoni al tetto davano lo stesso angolo anche con la mira
 			# personale accesa). Così invece il massimo resta `TESTA_MAX`
 			# tondo, e ci si arriva col vagare al colmo.
-			var tetto := TESTA_MAX - VAGA_AMPIEZZA - MIRA_PERSONALE
+			var tetto := tetto_ricevuta()
 			var mira := clampf(puro, -tetto, tetto) + _tst_mira + _vaga()
 			bersaglio = mira - base * (1.0 - CEDE_ALLO_STATO)
 	var k := TESTA_VAI if absf(bersaglio) > absf(_tst_off) else TESTA_TORNA
 	_tst_off = lerpf(_tst_off, bersaglio, 1.0 - exp(-k * delta))
 	_head.rotation.y += _tst_off
 	_tst_appl = _tst_off
+
+
+## IL TETTO VERO DELLA RICEVUTA: `TESTA_MAX` meno quello che si somma DOPO
+## la pinzatura (il vagare e lo scarto personale). Sta in una funzione perché
+## ha DUE lettori — chi mira (`_sguardo_testimone`) e chi si chiede se ci
+## arriva (`collo_ci_arriva`) — e due copie di questo conto sarebbero due
+## tetti diversi che divergono al primo ritocco.
+static func tetto_ricevuta() -> float:
+	return TESTA_MAX - VAGA_AMPIEZZA - MIRA_PERSONALE
+
+
+## IL COLLO CI ARRIVA? Cioè: se gli si chiedesse di guardare lì, la testa ci
+## arriverebbe davvero, o resterebbe schiacciata contro il tetto?
+##
+## ⚠️ **SERVE ALLA FASE 5, e serve a una cosa sola: sapere QUANDO pagare una
+## ricevuta.** Nella Fase 4 la testa si gira su un gesto che sta succedendo, e
+## se il gesto è alle spalle una testa che si sforza a mezza strada racconta
+## comunque «mi sono accorto di qualcosa»: la scena vera ce l'ha già il
+## giocatore davanti. Nella Fase 5 invece **la testa È tutta la scena** — è
+## l'unica cosa che il giocatore vede prima che il vicino cambi mestiere — e
+## una testa ferma al tetto, con il posto a centoventi gradi dall'altra parte,
+## non dice «sto pensando a quell'aiuola»: dice «sto guardando altrove».
+## Misurato nel MainLevel vero (`tools/prova_deduzione.gd`): col posto a 148°
+## il collo si fermava a 45° e restavano **102° di scarto**.
+##
+## Perciò la deduzione ASPETTA. Non è una rinuncia: è la regola 2 del taccuino
+## («il silenzio è il comportamento normale») applicata al corpo. Un vicino si
+## gira di continuo — cambia mestiere ogni dieci-quarantacinque secondi e
+## cammina — e la deduzione ha minuti per trovare il suo momento; se non lo
+## trova, muore senza che nessuno se ne accorga, che è l'esito buono.
+##
+## Il conto lo fa `look_at` e non un `atan2`: è la stessa riga di
+## `_sguardo_testimone`, e qui non c'è un segno da sbagliare (il rig guarda
+## −Z, e un `atan2` col segno storto ha tenuto il fantasma del congedo di
+## spalle a Mochi per mesi sotto un commento che giurava il contrario).
+func collo_ci_arriva(pos: Vector3) -> bool:
+	if _head == null or not is_instance_valid(_head):
+		return false
+	var b := pos
+	b.y = _head.global_position.y
+	if _head.global_position.distance_squared_to(b) <= 0.0025:
+		return false
+	var prima := _head.transform.basis
+	_head.look_at(b, Vector3.UP)
+	var puro := wrapf(_head.rotation.y, -PI, PI)
+	_head.transform.basis = prima
+	return absf(puro) <= tetto_ricevuta()
 
 
 ## IL VAGARE DELLA MIRA — la differenza fra guardare e fissare.
