@@ -356,172 +356,513 @@ static func panca_pesi() -> Node3D:
 ## toppe sono cuscinetti a sfera schiacciata, allungati e storti sul
 ## proprio asse, col bordo cucito tutt'intorno — una sfera si posa bene
 ## su una pancia che curva anche in verticale, una tessera piatta no.
+# ============================================================================
+# IL SACCO DA PUGILATO
+# ============================================================================
+# La versione bocciata era un BOZZOLO A FUSO: appuntito sopra e sotto, con
+# dischi piatti appiccicati addosso e delle asticelle che pendevano. Un
+# sacco vero e' un CILINDRO — spalla appena arrotondata, fianco DRITTO per
+# tutta la pancia, fondo a calotta — appeso a quattro cinghie, girella e
+# catena. Rifatto da zero cosi', e poi ingrassato: a raggio 0.185 usciva
+# un proiettile, e in un villaggio cozy anche gli attrezzi sono paffuti.
+#
+# Il corpo e' cucito a OTTO SPICCHI di cuoio con le cuciture in rilievo,
+# cappuccio e fascia di fondo in cuoio scuro con le borchie d'ottone; il
+# supporto e' una piantana di ferro con la base a croce zavorrata dai
+# dischi di ghisa, e ai guantoni appesi per i lacci si arriva prima che
+# al sacco — che e' esattamente l'ordine in cui li prende chi si allena.
+#
+# IL SUPPORTO STA DIETRO (+Z): il pugno si tira da davanti, e col palo
+# davanti il sacco sparirebbe proprio dal lato da cui lo si guarda.
+#
+# TRAPPOLA PAGATA — `BUILDER.lathe` vuole il profilo dal BASSO IN ALTO.
+# Con le quote decrescenti si invertono insieme il winding e le normali:
+# la superficie sparisce nel backface culling, senza un errore. Il primo
+# provino aveva cappuccio, fascia di fondo e girella INVISIBILI, e le
+# quattro cinghie sembravano antenne. (`_lathe_spicchio` no: emette
+# entrambi i versi, ed e' per questo che il corpo si vedeva lo stesso.)
+
+
+const SB_CUOIO_A := Color("b57044")
+const SB_CUOIO_A2 := Color("8e5228")
+const SB_CUOIO_B := Color("9c5c33")
+const SB_CUOIO_B2 := Color("7a431f")
+const SB_CUOIO_SCURO := Color("6d3d1e")
+const SB_CUOIO_SCURO2 := Color("4a2812")
+const SB_CUOIO_TOPPA := Color("a8683a")
+const SB_CUOIO_TOPPA2 := Color("7d4823")
+const SB_FILO := Color("e8d3aa")
+const SB_FILO2 := Color("c2a77c")
+const SB_FERRO := Color("6e6960")
+const SB_FERRO2 := Color("4a463f")
+const SB_ACCIAIO := Color("9a978f")
+const SB_ACCIAIO2 := Color("6b6862")
+const SB_GHISA := Color("5d5f66")
+const SB_GHISA2 := Color("3c3d44")
+const SB_GOMMA := Color("3a383c")
+const SB_GOMMA2 := Color("222124")
+const SB_ROSSO := Color("bb4b3c")
+const SB_ROSSO2 := Color("8c3227")
+
+# IL SB_PROFILO DEL CORPO, nel sistema del nodo «sacco» (pivot in alto, y
+# negative verso il basso). Il raggio resta INCHIODATO a 0.185 da -0.548
+# a -1.330: quel tratto dritto — il 72% del corpo — e' tutta la
+# differenza fra un sacco e un bozzolo.
+const SB_PROFILO := [
+	Vector2(0.0000, -0.4350),
+	Vector2(0.0685, -0.4370),
+	Vector2(0.1230, -0.4470),
+	Vector2(0.1665, -0.4660),
+	Vector2(0.1965, -0.4950),
+	Vector2(0.2095, -0.5250),
+	Vector2(0.2120, -0.5480),
+	Vector2(0.2120, -0.8000),
+	Vector2(0.2120, -1.1000),
+	Vector2(0.2120, -1.2700),
+	Vector2(0.2095, -1.2950),
+	Vector2(0.1965, -1.3320),
+	Vector2(0.1665, -1.3750),
+	Vector2(0.1230, -1.4180),
+	Vector2(0.0685, -1.4480),
+	Vector2(0.0000, -1.4620),
+]
+
+# Il cappuccio: la stessa spalla, otto millimetri piu' su e piu' larga —
+# si appoggia sulla pancia e la scavalca, come una vera calotta cucita.
+const SB_CAPPUCCIO := [
+	Vector2(0.1770, -0.6680),
+	Vector2(0.2135, -0.6520),
+	Vector2(0.2210, -0.6200),
+	Vector2(0.2210, -0.5420),
+	Vector2(0.2180, -0.5170),
+	Vector2(0.2055, -0.4870),
+	Vector2(0.1735, -0.4580),
+	Vector2(0.1280, -0.4390),
+	Vector2(0.0710, -0.4290),
+	Vector2(0.0000, -0.4270),
+]
+
+const SB_Y_PERNO := 2.04    # quota del perno: da li' pende tutto
+const SB_Z_SACCO := -0.10   # il sacco sta DAVANTI
+const SB_Z_PALO := 0.28     # il palo sta DIETRO
+
+
+# --------------------------------------------------------------- ferri
+
+static func _sb_toro(padre: Node3D, dentro: float, fuori: float, mat: Material,
+		pos: Vector3, rot := Vector3.ZERO) -> MeshInstance3D:
+	var tm := TorusMesh.new()
+	tm.inner_radius = dentro
+	tm.outer_radius = fuori
+	tm.rings = 28
+	tm.ring_segments = 10
+	var mi := MeshInstance3D.new()
+	mi.mesh = tm
+	mi.material_override = mat
+	mi.position = pos
+	mi.rotation = rot
+	padre.add_child(mi)
+	return mi
+
+
+## Il raggio VERO del corpo a una data quota: lo usano cuciture, borchie
+## e toppa, che devono STRUSCIARE sulla pancia, non fluttuare a un raggio
+## inventato.
+static func _sb_r_corpo(y: float) -> float:
+	for i in range(SB_PROFILO.size() - 1):
+		var a: Vector2 = SB_PROFILO[i]
+		var b: Vector2 = SB_PROFILO[i + 1]
+		if y <= a.y and y >= b.y:
+			var d := b.y - a.y
+			var t := 0.0 if absf(d) < 1e-6 else (y - a.y) / d
+			return lerpf(a.x, b.x, clampf(t, 0.0, 1.0))
+	return 0.0
+
+
+## Un cordoncino che segue una lista di [raggio, quota] a un dato azimut
+## (stessa convenzione di _lathe_spicchio: z = -sin).
+static func _sb_cordone(padre: Node3D, punti: Array, az: float, sp: float,
+		mat: Material, raggio: float) -> void:
+	var pts: Array[Vector3] = []
+	var rad: Array[float] = []
+	for p in punti:
+		var v: Vector2 = p
+		pts.append(Vector3(cos(az) * (v.x + sp), v.y, -sin(az) * (v.x + sp)))
+		rad.append(raggio)
+	BUILDER.tube(padre, pts, rad, mat, maxi(pts.size() * 3, 18), 6)
+
+
+## Una cucitura ORIZZONTALE: un filo che gira attorno alla pancia.
+static func _sb_giro_filo(padre: Node3D, r: float, y: float, mat: Material,
+		raggio: float) -> void:
+	var pts: Array[Vector3] = []
+	var rad: Array[float] = []
+	for i in 29:
+		var a := TAU * float(i) / 28.0
+		pts.append(Vector3(cos(a) * r, y, -sin(a) * r))
+		rad.append(raggio)
+	BUILDER.tube(padre, pts, rad, mat, 64, 6)
+
+
+# ------------------------------------------------------------ il pezzo
+
+## IL RAMMENDO. In un villaggio dove tutto si aggiusta, un sacco che si
+## strappa non si butta: si rattoppa. La toppa NON e' un disco appoggiato
+## sopra (era il difetto della versione bocciata: dischi piatti che
+## galleggiavano sulla pancia) — e' uno SPICCHIO DI RIVOLUZIONE costruito
+## sullo stesso profilo del corpo, quattro millimetri piu' in fuori:
+## curva come il sacco perche' E' la curva del sacco. Attorno le corre il
+## giro dei punti a croce, alternati come li fa una mano vera.
+static func _sb_rammendo(s: Node3D, az: float, y0: float, y1: float,
+		mezzo_arco: float, telo: Material, filo: Material) -> void:
+	var prof: Array = []
+	var passi := 5
+	for i in passi + 1:
+		var y := lerpf(y0, y1, float(i) / float(passi))
+		prof.append(Vector2(_sb_r_corpo(y) + 0.004, y))
+	CAT._lathe_spicchio(s, prof, telo, az - mezzo_arco, az + mezzo_arco)
+	# i punti a croce: due trattini incrociati, uno piu' lungo dell'altro
+	# (cuciti a mano, non stampati), tutt'attorno al bordo della toppa
+	var giri := 7
+	for i in giri:
+		var t := float(i) / float(giri - 1)
+		for lato: float in [-1.0, 1.0]:
+			var a := az + lato * mezzo_arco
+			var yy := lerpf(y0, y1, t)
+			var rr := _sb_r_corpo(yy) + 0.007
+			var u := Vector3(cos(a), 0.0, -sin(a))
+			for verso: float in [-1.0, 1.0]:
+				var punto := CAT._cyl(s, 0.0026, 0.0026, 0.020, filo,
+						u * rr + Vector3(0, yy, 0))
+				punto.rotation.y = -a
+				punto.rotation.x = verso * 0.7 + (0.12 if i % 2 == 0 else -0.12)
+	for i in giri:
+		var t2 := float(i) / float(giri - 1)
+		for bordo: float in [0.0, 1.0]:
+			var a2 := az + lerpf(-mezzo_arco, mezzo_arco, t2)
+			var yy2 := lerpf(y0, y1, bordo)
+			var rr2 := _sb_r_corpo(yy2) + 0.007
+			var u2 := Vector3(cos(a2), 0.0, -sin(a2))
+			var pu := CAT._cyl(s, 0.0026, 0.0026, 0.020, filo,
+					u2 * rr2 + Vector3(0, yy2, 0))
+			pu.rotation.y = -a2
+			pu.rotation.z = PI * 0.5
+			pu.rotation.x = 0.5 if i % 2 == 0 else -0.5
+
+
 static func sacco() -> Node3D:
 	var n := Node3D.new()
-	var legno := CAT._mat(CAT.WOOD, CAT.WOOD_DARK, 4.0, 0.5)
-	var tela := CAT._mat(CANVAS, CANVAS_DARK, 5.0, 0.5)
-	var tela_cucitura := CAT._mat(CANVAS_DARK.darkened(0.08), CANVAS_DARK.darkened(0.22), 4.0, 0.35)
-	var toppa_verde := CAT._mat(SALVIA, SALVIA_DARK, 6.0, 0.45)
-	var toppa_cuoio := CAT._mat(CUOIO, CUOIO_DARK, 6.0, 0.45)
-	var indaco := Color("7c8bab")
-	var indaco_scuro := Color("5c6a86")
-	var toppa_indaco := CAT._mat(indaco, indaco_scuro, 6.0, 0.45)
-	var corda := CAT._mat(CORDA, CUOIO, 7.0, 0.4)
-	var filo := CAT._mat(CANVAS_DARK.darkened(0.22), CANVAS.darkened(0.02), 4.0, 0.3)
 
-	# IL PALO STA DIETRO. Il fronte dei pezzi è -Z: col palo davanti, dal
-	# lato da cui si guarda (e da cui si tira il pugno) il sacco spariva
-	# dietro un pezzo di legno.
-	CAT._box(n, Vector3(0.44, 0.07, 0.44), legno, Vector3(0, 0.035, 0.32))
-	CAT._box(n, Vector3(0.11, 2.0, 0.11), legno, Vector3(0, 1.0, 0.32))
-	# la mensola diagonale: un palo dritto sarebbe una sbarra, questa è
-	# una spalla
-	# IL PUNTONE RESTA DIETRO AL SACCO. Lungo 0.52 e inclinato di 0.8, il suo
-	# piede finiva a z 0.02: dentro il sacco, che a quell'altezza occupa da
-	# −0.28 a +0.12. La traversa lo trapassava da parte a parte e riemergeva
-	# davanti alla toppa verde, come un blocchetto sospeso. Adesso va dal
-	# palo (z 0.32, y 1.40) su fino a 1.70 fermandosi a z 0.20, che è oltre
-	# il fianco del sacco a quella quota.
-	var puntone := CAT._box(n, Vector3(0.07, 0.33, 0.07), legno, Vector3(0, 1.55, 0.26))
-	puntone.rotation.x = -0.38
-	# il braccio curvo che porta il sacco (tubo su tre punti, non un box)
-	BUILDER.tube(n, [Vector3(0, 1.94, 0.3), Vector3(0, 2.08, 0.14),
-			Vector3(0, 2.06, -0.08)], [0.05, 0.045, 0.038], legno, 14, 10)
+	var cuoio_a := CAT._mat(SB_CUOIO_A, SB_CUOIO_A2, 5.0, 0.42)
+	var cuoio_b := CAT._mat(SB_CUOIO_B, SB_CUOIO_B2, 5.5, 0.45)
+	var cuoio_sc := CAT._mat(SB_CUOIO_SCURO, SB_CUOIO_SCURO2, 5.0, 0.5)
+	var cuoio_tp := CAT._mat(SB_CUOIO_TOPPA, SB_CUOIO_TOPPA2, 7.0, 0.5)
+	var filo := CAT._mat(SB_FILO, SB_FILO2, 9.0, 0.4)
+	var ferro := CAT._mat(SB_FERRO, SB_FERRO2, 4.0, 0.45)
+	var acciaio := CAT._mat(SB_ACCIAIO, SB_ACCIAIO2, 5.0, 0.4)
+	var ottone := CAT._mat(CAT.OTTONE, CAT.OTTONE_SCURO, 5.0, 0.4)
+	var ghisa := CAT._mat(SB_GHISA, SB_GHISA2, 4.5, 0.5)
+	var gomma := CAT._mat(SB_GOMMA, SB_GOMMA2, 6.0, 0.35)
+	var rosso := CAT._mat(SB_ROSSO, SB_ROSSO2, 5.0, 0.45)
 
-	# IL SACCO, appeso: pivot in alto, così dondola dal punto giusto
+	# DOVE CI SI METTE: davanti al sacco (verso -Z, il fronte del pezzo),
+	# a mezzo passo, guardando il sacco. Senza questo nodo l'attrezzo e'
+	# un soprammobile: e' la convenzione con cui la palestra dice a un
+	# chibi dove piazzarsi, e il test la pretende.
+	_posto(n, Vector3(0, 0, -0.62), Vector3(0, 0, 1))
+	_sb_piantana(n, ferro, acciaio, ottone, ghisa, gomma)
+	_sb_appendino(n, acciaio, ottone)
+	_sb_guantoni(n, rosso, cuoio_sc, filo, ferro)
+
+	# ------------------------------------------------ IL SACCO APPESO
+	# pivot IN ALTO, dove passa il perno: un domani dondola dal punto
+	# giusto senza spostare un solo numero.
 	var sacco := Node3D.new()
 	sacco.name = "sacco"
-	sacco.position = Vector3(0, 2.04, -0.08)
+	sacco.position = Vector3(0, SB_Y_PERNO, SB_Z_SACCO)
 	n.add_child(sacco)
-	# lieve ellitticità: un sacco vero non è un cerchio perfetto — si
-	# gonfia un po' più da un verso che dall'altro
-	sacco.scale = Vector3(1.05, 1.0, 0.91)
 
-	# il profilo del corpo, dal collo (dove stringe la corda) al fondo:
-	# spalla che si apre in fretta, pancia piena e BASSA, e un fondo che
-	# segue un vero arco (gli ultimi cinque punti disegnano una calotta,
-	# non un cono che si chiude di scatto)
-	var profilo: Array[Vector2] = [
-		Vector2(0.044, -0.15), Vector2(0.098, -0.225), Vector2(0.152, -0.31),
-		Vector2(0.192, -0.415), Vector2(0.213, -0.52), Vector2(0.222, -0.6),
-		Vector2(0.221, -0.68), Vector2(0.207, -0.79), Vector2(0.182, -0.895),
-		Vector2(0.144, -0.985), Vector2(0.097, -1.06), Vector2(0.0896, -1.097),
-		Vector2(0.0686, -1.129), Vector2(0.0371, -1.15), Vector2(0.0, -1.157),
-	]
-	# il raggio VERO del sacco a una data altezza: lo usano le cuciture
-	# (che devono strusciare sulla pancia, non fluttuare a un raggio a
-	# caso) e le toppe (che vi si appoggiano)
-	var raggio_a_altezza := func(y: float) -> float:
-		for i in range(profilo.size() - 1):
-			var pa: Vector2 = profilo[i]
-			var pb: Vector2 = profilo[i + 1]
-			if (y <= pa.y and y >= pb.y) or (y >= pa.y and y <= pb.y):
-				var campata: float = pb.y - pa.y
-				var tt := 0.0 if absf(campata) < 0.0001 else (y - pa.y) / campata
-				return lerpf(pa.x, pb.x, clampf(tt, 0.0, 1.0))
-		return profilo[profilo.size() - 1].x
+	_sb_ferramenta(sacco, acciaio, ottone, cuoio_sc, filo)
+	_sb_corpo(sacco, cuoio_a, cuoio_b, cuoio_sc, filo, ottone, cuoio_tp)
+	# due rammendi di anni diversi: quello grande in salvia sul fianco
+	# che prende i pugni, quello piccolo di cuoio chiaro piu' in basso
+	_sb_rammendo(sacco, PI * 0.5 + 0.75, -0.80, -1.06, 0.52,
+			CAT._mat(SALVIA, SALVIA_DARK, 6.0, 0.45), filo)
+	_sb_rammendo(sacco, PI * 0.5 - 1.5, -1.10, -1.21, 0.22,
+			CAT._mat(CANVAS, CANVAS_DARK, 6.0, 0.4), filo)
 
-	# il cordino, appena rastremato, con un piccolo nodo dove si aggancia
-	CAT._cyl(sacco, 0.009, 0.014, 0.2, corda, Vector3(0, -0.1, 0))
-	CAT._ball(sacco, 0.02, corda, Vector3(0, -0.004, 0), Vector3(1.0, 0.65, 1.0))
-
-	# IL CORPO: superficie di rivoluzione, molti più punti dell'originale
-	# perché la curva si legga come un vero sacco, non un poligono
-	BUILDER.lathe(sacco, profilo, tela, Vector3.ZERO, 28)
-
-	# LA LEGATURA IN CIMA: non tre anelli impilati (farebbero una torta a
-	# piani, vista da sopra) ma UNA corda che avvolge il collo a spirale,
-	# un giro dopo l'altro scendendo — così si legge davvero come corda
-	# attorcigliata, e segue il vero raggio del collo (appena più larga,
-	# per stringerlo da fuori e non annegare dentro la tela)
-	var punti_avvolgimento: Array[Vector3] = []
-	var raggi_avvolgimento: Array[float] = []
-	var passi_avvolgimento := 32
-	var giri_avvolgimento := 3.2
-	for i in range(passi_avvolgimento + 1):
-		var t := float(i) / float(passi_avvolgimento)
-		var y_avv := lerpf(-0.157, -0.285, t)
-		var ang_avv := t * TAU * giri_avvolgimento
-		var r_avv: float = raggio_a_altezza.call(y_avv) * 1.14
-		punti_avvolgimento.append(Vector3(cos(ang_avv) * r_avv, y_avv, sin(ang_avv) * r_avv))
-		raggi_avvolgimento.append(0.0115)
-	BUILDER.tube(sacco, punti_avvolgimento, raggi_avvolgimento, corda, 44, 8)
-	# e il capo della corda che avanza, mollemente, dopo l'ultimo giro
-	var fine_avv: Vector3 = punti_avvolgimento[punti_avvolgimento.size() - 1]
-	BUILDER.tube(sacco, [fine_avv, fine_avv + Vector3(0.04, -0.025, 0.015),
-			fine_avv + Vector3(0.06, -0.085, 0.025)], [0.011, 0.009, 0.006], corda, 10, 7)
-	CAT._ball(sacco, 0.012, corda, fine_avv + Vector3(0.062, -0.095, 0.027))
-
-	# LE CUCITURE VERTICALI: quattro pannelli (gli angoli sono appena
-	# irregolari — un sacco cucito a mano non è un poligono perfetto),
-	# ognuna a TRE fasce di altezza, ogni fascia sul SUO raggio medio
-	# (misurato dal profilo vero): così la striscia segue la pancia
-	# invece di galleggiare vicino al collo o affondare nella pancia.
-	# Sopra la striscia, il punto a zig-zag di `_cucitura`.
-	var angoli_cuciture: Array[float] = [0.3, PI * 0.5 + 0.16, PI + 0.36, PI * 1.5 - 0.22]
-	var fasce := [[-0.15, -0.415], [-0.415, -0.895], [-0.895, -1.157]]
-	for ang in angoli_cuciture:
-		var giro := Node3D.new()
-		giro.rotation.y = ang
-		sacco.add_child(giro)
-		for fascia in fasce:
-			var y_alto: float = fascia[0]
-			var y_basso: float = fascia[1]
-			var y_mezzo := (y_alto + y_basso) * 0.5
-			var r: float = raggio_a_altezza.call(y_mezzo)
-			# la striscia va appoggiata FUORI dal tessuto (raggio vero +
-			# margine), mai dentro: un box quasi tutto annegato nella
-			# mesh del lathe fa z-fighting con la superficie e si vede
-			# come un'asta grigia tremolante, non come una cucitura
-			var z := r + 0.004
-			CAT._box(giro, Vector3(0.011, absf(y_basso - y_alto) * 0.94, 0.006),
-					tela_cucitura, Vector3(0, y_mezzo, z))
-			# il punto a zig-zag: `_cucitura` orienta il filo per cuciture
-			# ORIZZONTALI (usa atan2 su x/z), ma questa corre in VERTICALE —
-			# usata così com'è, ogni punto resta con la lunghezza sull'asse
-			# radiale e spunta come un ago piantato di traverso, non come
-			# un punto steso sulla stoffa. Qui si scrive a mano: lunghezza
-			# su Y (lungo la cucitura), leggero scarto alterno su Z, un
-			# punto ogni 3 cm — il classico punto erba di chi cuce a mano.
-			# (E anche questi punti stanno sopra la striscia, fuori dalla
-			# mesh: stesso principio, stesso errore da non ripetere.)
-			var n_punti := maxi(5, int(absf(y_basso - y_alto) / 0.032))
-			var occhiello: float = (absf(y_basso - y_alto) - 0.03) / float(n_punti) * 0.62
-			for i in range(n_punti):
-				var u := (float(i) + 0.5) / float(n_punti)
-				var y_i := lerpf(y_alto - 0.015, y_basso + 0.015, u)
-				var punto := CAT._box(giro, Vector3(0.003, occhiello, 0.0032), filo,
-						Vector3(0, y_i, z + 0.0046))
-				punto.rotation.z = 0.3 if i % 2 == 0 else -0.3
-
-	# LE TOPPE. Cuscinetti a sfera schiacciata (come una sfera si posa
-	# bene su una pancia che curva sia in verticale sia in giro — una
-	# tessera piatta no: su un raggio di ~0.2 m una toppa di 13-15 cm è
-	# grande abbastanza da lasciare uno spiraglio visibile sotto i bordi),
-	# allungati e storti sul proprio asse (un rattoppo vero non è mai un
-	# ovale dritto), col bordo cucito tutt'intorno, e uno con l'angolo
-	# smussato, come se fosse stato ritagliato da uno scampolo più grande.
-	_toppa(sacco, 2.5, -0.6, 0.075, Vector3(1.0, 1.35, 0.42), 0.26, toppa_verde,
-			filo, raggio_a_altezza, true)
-	_toppa(sacco, -2.35, -0.68, 0.058, Vector3(1.0, 1.3, 0.4), -0.34, toppa_cuoio,
-			filo, raggio_a_altezza, false)
-	_toppa(sacco, 3.55, -0.53, 0.042, Vector3(1.0, 1.25, 0.38), 0.18, toppa_indaco,
-			filo, raggio_a_altezza, false)
-
-	_posto(n, Vector3(0, 0.0, -0.64), Vector3.BACK)
 	return n
 
 
-## Una toppa cucita sul sacco: una sfera schiacciata (allungata e appena
-## storta sul proprio asse — un rattoppo vero non è mai un ovale dritto),
-## non una tessera piatta: su una pancia che curva sia in verticale sia
-## in giro, una sfera si "salda" alla curva anche se il centro è appena
-## incassato, mentre una faccia piatta lascia uno spiraglio visibile sotto
-## i bordi (l'ha dimostrato il primo tentativo, a tessere rettangolari).
-## Appena incassata e per il resto ben fuori dal tessuto — non fluttua,
-## non annega — e il bordo cucito segue punto per punto il raggio VERO
-## del sacco (`raggio_a_altezza`), perché la pancia curva anche sotto una
-## toppa non piccola.
+# ------------------------------------------------------- la ferramenta
+
+static func _sb_ferramenta(s: Node3D, acciaio: Material, ottone: Material,
+		cuoio_sc: Material, filo: Material) -> void:
+	# LA CATENA a maglie vere: gli assi si alternano (una fila di anelli
+	# complanari e' una scala, non una catena) e le maglie si accavallano
+	# per un paio di millimetri, come fa il ferro che si infila nel ferro.
+	_sb_toro(s, 0.012, 0.028, acciaio, Vector3(0, -0.056, 0), Vector3(PI * 0.5, 0, 0))
+	_sb_toro(s, 0.012, 0.028, acciaio, Vector3(0, -0.096, 0), Vector3(0, 0, PI * 0.5))
+
+	# LA GIRELLA: occhiello alto (prende la catena), corpo tornito
+	# d'ottone con le due ghiere, occhiello basso (prende l'anello).
+	_sb_toro(s, 0.013, 0.030, acciaio, Vector3(0, -0.132, 0), Vector3(PI * 0.5, 0, 0))
+	BUILDER.lathe(s, [Vector2(0.014, -0.194), Vector2(0.026, -0.186),
+			Vector2(0.032, -0.179), Vector2(0.024, -0.171),
+			Vector2(0.023, -0.149), Vector2(0.031, -0.142),
+			Vector2(0.032, -0.135), Vector2(0.025, -0.128),
+			Vector2(0.014, -0.124)], ottone, Vector3.ZERO, 22)
+	_sb_toro(s, 0.014, 0.033, acciaio, Vector3(0, -0.204, 0), Vector3(0, 0, PI * 0.5))
+
+	# L'ANELLO MAESTRO, verticale: la girella lo prende per la sbarra di
+	# sopra, le cinghie lo prendono per quella di sotto.
+	_sb_toro(s, 0.034, 0.058, acciaio, Vector3(0, -0.250, 0), Vector3(PI * 0.5, 0, 0))
+	# il passante di cuoio che avvolge la sbarra bassa
+	_sb_toro(s, 0.016, 0.040, cuoio_sc, Vector3(0, -0.296, 0), Vector3(0, 0, PI * 0.5))
+	# IL GAMBALETTO che raccoglie le quattro cinghie sotto l'anello
+	BUILDER.lathe(s, [Vector2(0.056, -0.345), Vector2(0.048, -0.332),
+			Vector2(0.034, -0.316), Vector2(0.024, -0.304),
+			Vector2(0.019, -0.298)], cuoio_sc, Vector3.ZERO, 24)
+	_sb_giro_filo(s, 0.0495, -0.336, filo, 0.0036)
+
+	# LE QUATTRO CINGHIE devono ABBRACCIARE il cappuccio e finire cucite
+	# sulla pancia. Dritte e mozze a mezz'aria diventano quattro antenne
+	# divaricate, ed e' la prima cosa che si vede del pezzo; e in cuoio
+	# scuro come il cappuccio sparivano dentro di lui, lasciando visibile
+	# solo il tratto in volo — cioe' di nuovo quattro antenne. Chiare, e
+	# giu' lungo il fianco fino alla borchia che dice «cucita qui».
+	var cuoio_cinghia := CAT._mat(SB_CUOIO_A, SB_CUOIO_A2, 6.0, 0.42)
+	for k in 4:
+		var az := PI * 0.5 * float(k)
+		var u := Vector3(cos(az), 0.0, -sin(az))
+		var giu: Array = []
+		var spess: Array = []
+		for q: Vector2 in [Vector2(0.048, -0.334), Vector2(0.112, -0.408),
+				Vector2(0.178, -0.478), Vector2(0.229, -0.548),
+				Vector2(0.231, -0.628), Vector2(0.223, -0.694),
+				Vector2(0.220, -0.775)]:
+			giu.append(u * q.x + Vector3(0, q.y, 0))
+			spess.append(lerpf(0.013, 0.019, float(giu.size()) / 7.0))
+		BUILDER.tube(s, giu, spess, cuoio_cinghia, 26, 8)
+		CAT._ball(s, 0.016, ottone, u * 0.224 + Vector3(0, -0.782, 0),
+				Vector3(1.0, 1.0, 0.55))
+
+
+# ------------------------------------------------------------ il corpo
+
+static func _sb_corpo(s: Node3D, cuoio_a: Material, cuoio_b: Material,
+		cuoio_sc: Material, filo: Material, ottone: Material,
+		cuoio_tp: Material) -> void:
+	# GLI OTTO SPICCHI: stesso profilo per tutti, due tinte alternate.
+	for k in 8:
+		var a0 := TAU / 8.0 * float(k)
+		CAT._lathe_spicchio(s, SB_PROFILO, cuoio_a if k % 2 == 0 else cuoio_b,
+				a0, a0 + TAU / 8.0, 7)
+
+	# LE CUCITURE degli spicchi sono un CORDONE DI CUOIO, non un filo
+	# chiaro: otto fili panna spessi facevano una gabbia per uccelli
+	# attorno al sacco — la cosa che si vedeva per prima. Il filo panna
+	# resta, ma solo dove conta davvero (i due giri di ribattitura, i
+	# passanti, la toppa).
+	var tratto: Array = []
+	for i in range(1, SB_PROFILO.size() - 1):
+		tratto.append(SB_PROFILO[i])
+	for k in 8:
+		_sb_cordone(s, tratto, TAU / 8.0 * float(k), 0.0016, cuoio_sc, 0.0050)
+
+	# IL SB_CAPPUCCIO e LA FASCIA DI FONDO, in cuoio scuro. I bordi si
+	# infilano SOTTO la pancia: un orlo che galleggia si vede subito.
+	BUILDER.lathe(s, SB_CAPPUCCIO, cuoio_sc, Vector3.ZERO, 36)
+	BUILDER.lathe(s, [Vector2(0.1500, -1.4150), Vector2(0.1965, -1.4000),
+			Vector2(0.1885, -1.3700), Vector2(0.2210, -1.3250),
+			Vector2(0.2210, -1.2750), Vector2(0.2135, -1.2450),
+			Vector2(0.1770, -1.2320)], cuoio_sc, Vector3.ZERO, 36)
+
+	# le due ribattiture a filo panna, appena sotto gli orli
+	_sb_giro_filo(s, 0.1875, -0.6860, filo, 0.0038)
+	_sb_giro_filo(s, 0.1875, -1.2130, filo, 0.0038)
+
+	# LE BORCHIE d'ottone, schiacciate sul raggio: una palla tonda
+	# sarebbe una perlina, una borchia e' una cupola.
+	for k in 16:
+		var a := TAU / 16.0 * (float(k) + 0.5)
+		var b1 := CAT._ball(s, 0.0140, ottone,
+				Vector3(cos(a) * 0.1930, -0.5950, -sin(a) * 0.1930),
+				Vector3(0.46, 1.0, 1.0))
+		b1.rotation.y = a
+		var b2 := CAT._ball(s, 0.0140, ottone,
+				Vector3(cos(a) * 0.1930, -1.3000, -sin(a) * 0.1930),
+				Vector3(0.46, 1.0, 1.0))
+		b2.rotation.y = a
+
+	# I QUATTRO PASSANTI: la cinghia non si ferma sull'orlo, ci corre
+	# sopra e va a inchiodarsi sulla spalla. Sono spicchi di superficie
+	# sul profilo del cappuccio: seguono la curvatura ESATTA, dove una
+	# lastra piatta lascerebbe uno spiraglio in controluce.
+	var pass_prof := [Vector2(0.1160, -0.4415), Vector2(0.1560, -0.4600),
+			Vector2(0.1840, -0.4890), Vector2(0.1950, -0.5190),
+			Vector2(0.1975, -0.5430), Vector2(0.1975, -0.6200),
+			Vector2(0.2180, -0.6530), Vector2(0.1590, -0.6700)]
+	for k in 4:
+		var az := PI * 0.5 * float(k)
+		var mezzo := 0.036 / 0.1975
+		CAT._lathe_spicchio(s, pass_prof, cuoio_sc, az - mezzo, az + mezzo, 4)
+		_sb_cordone(s, pass_prof, az - mezzo, 0.0028, filo, 0.0036)
+		_sb_cordone(s, pass_prof, az + mezzo, 0.0028, filo, 0.0036)
+		var ch := CAT._ball(s, 0.0150, ottone,
+				Vector3(cos(az) * 0.2015, -0.6340, -sin(az) * 0.2015),
+				Vector3(0.42, 1.0, 1.0))
+		ch.rotation.y = az
+
+	# LA TOPPA: il segno dell'uso, cucita su tutti e quattro i lati.
+	var az_t := PI * 0.5 + 0.42
+	var mezzo_t := 0.060 / 0.185
+	var toppa_prof := [Vector2(0.1815, -0.8500), Vector2(0.1885, -0.8720),
+			Vector2(0.1900, -0.9200), Vector2(0.1900, -0.9850),
+			Vector2(0.1880, -1.0260), Vector2(0.1810, -1.0450)]
+	CAT._lathe_spicchio(s, toppa_prof, cuoio_tp, az_t - mezzo_t,
+			az_t + mezzo_t, 5)
+	_sb_cordone(s, toppa_prof, az_t - mezzo_t, 0.0026, filo, 0.0034)
+	_sb_cordone(s, toppa_prof, az_t + mezzo_t, 0.0026, filo, 0.0034)
+	for lato in 2:
+		var yy := -0.8630 if lato == 0 else -1.0330
+		var pts: Array[Vector3] = []
+		var rad: Array[float] = []
+		for i in 9:
+			var a := lerpf(az_t - mezzo_t, az_t + mezzo_t, float(i) / 8.0)
+			pts.append(Vector3(cos(a) * 0.1895, yy, -sin(a) * 0.1895))
+			rad.append(0.0034)
+		BUILDER.tube(s, pts, rad, filo, 22, 6)
+
+
+# --------------------------------------------------------- la piantana
+
+static func _sb_disco(n: Node3D, r: float, y: float, mat: Material) -> void:
+	BUILDER.lathe(n, [Vector2(0.0500, 0.0000), Vector2(0.0780, 0.0035),
+			Vector2(0.0820, 0.0110), Vector2(r - 0.040, 0.0130),
+			Vector2(r - 0.006, 0.0210), Vector2(r, 0.0280),
+			Vector2(r - 0.006, 0.0350), Vector2(r - 0.040, 0.0430),
+			Vector2(0.0820, 0.0450), Vector2(0.0780, 0.0525),
+			Vector2(0.0500, 0.0560)], mat, Vector3(0, y, SB_Z_PALO), 30)
+
+
+static func _sb_piantana(n: Node3D, ferro: Material, acciaio: Material,
+		ottone: Material, ghisa: Material, gomma: Material) -> void:
+	# LA BASE A CROCE: il braccio davanti e' il piu' lungo — e' lui a
+	# tenere in piedi il tutto quando il sacco arriva addosso.
+	var braccia := [
+		[Vector3(0, 0.035, 0.040), 0.245, Vector3.ZERO],
+		[Vector3(0, 0.035, 0.415), 0.140, Vector3.ZERO],
+		[Vector3(-0.160, 0.035, SB_Z_PALO), 0.160, Vector3(0, PI * 0.5, 0)],
+		[Vector3(0.160, 0.035, SB_Z_PALO), 0.160, Vector3(0, PI * 0.5, 0)],
+	]
+	for b in braccia:
+		CAT._lastra(n, float(b[1]), 0.070, 0.030, 0.115, ferro,
+				b[0] as Vector3, b[2] as Vector3)
+	for p in [Vector3(0, 0.013, -0.180), Vector3(0, 0.013, 0.540),
+			Vector3(-0.305, 0.013, SB_Z_PALO), Vector3(0.305, 0.013, SB_Z_PALO)]:
+		CAT._cyl(n, 0.048, 0.056, 0.028, gomma, p as Vector3)
+
+	# IL MOZZO e I TRE DISCHI DI SB_GHISA, di taglia decrescente: una pila
+	# di dischi identici legge come un mucchio di copertoni.
+	CAT._cyl(n, 0.092, 0.106, 0.072, ferro, Vector3(0, 0.088, SB_Z_PALO))
+	_sb_disco(n, 0.196, 0.122, ghisa)
+	_sb_disco(n, 0.178, 0.180, ghisa)
+	_sb_disco(n, 0.157, 0.238, ghisa)
+	# la ghiera che li blocca, col galletto d'ottone
+	CAT._cyl(n, 0.070, 0.078, 0.040, acciaio, Vector3(0, 0.316, SB_Z_PALO))
+	var vite := CAT._cyl(n, 0.011, 0.013, 0.060, ottone,
+			Vector3(-0.100, 0.316, SB_Z_PALO))
+	vite.rotation.z = PI * 0.5
+	CAT._ball(n, 0.021, ottone, Vector3(-0.130, 0.316, SB_Z_PALO),
+			Vector3(0.55, 1.0, 1.0))
+
+	# IL MONTANTE tubolare, con due ghiere
+	CAT._cyl(n, 0.052, 0.060, 1.950, ferro, Vector3(0, 1.015, SB_Z_PALO))
+	_sb_toro(n, 0.058, 0.076, acciaio, Vector3(0, 0.372, SB_Z_PALO))
+	_sb_toro(n, 0.056, 0.074, acciaio, Vector3(0, 1.610, SB_Z_PALO))
+
+	# IL BRACCIO: un tubo che sale, gira e va avanti fino sopra il sacco.
+	BUILDER.tube(n, [Vector3(0, 1.820, SB_Z_PALO), Vector3(0, 1.975, 0.256),
+			Vector3(0, 2.056, 0.148), Vector3(0, 2.062, 0.010),
+			Vector3(0, 2.062, SB_Z_SACCO - 0.020)],
+			[0.052, 0.049, 0.046, 0.043, 0.041], ferro, 36, 14)
+	CAT._ball(n, 0.042, ferro, Vector3(0, 2.062, SB_Z_SACCO - 0.022))
+
+	# IL TIRANTE diagonale. Si ferma a z 0.135: il fianco del sacco
+	# arriva a 0.085, quindi non lo trapassa — era l'errore della
+	# versione vecchia, dove il puntone riemergeva DAVANTI al sacco.
+	BUILDER.tube(n, [Vector3(0, 1.560, SB_Z_PALO - 0.012),
+			Vector3(0, 1.800, 0.222), Vector3(0, 2.020, 0.135)],
+			[0.024, 0.022, 0.021], acciaio, 22, 10)
+	CAT._ball(n, 0.032, acciaio, Vector3(0, 1.560, SB_Z_PALO - 0.010),
+			Vector3(1.0, 0.7, 0.9))
+	CAT._ball(n, 0.029, acciaio, Vector3(0, 2.022, 0.138),
+			Vector3(1.0, 0.7, 0.9))
+
+	# IL PERNO sotto il braccio, da cui pende la catena
+	_sb_toro(n, 0.012, 0.028, acciaio, Vector3(0, 2.028, SB_Z_SACCO),
+			Vector3(0, 0, PI * 0.5))
+	CAT._cyl(n, 0.018, 0.020, 0.024, acciaio, Vector3(0, 2.098, SB_Z_SACCO))
+
+
+static func _sb_appendino(n: Node3D, acciaio: Material, ottone: Material) -> void:
+	# IL SECONDO GANCIO, libero sul braccio: ci si appende quel che
+	# capita, ed e' quel che rende un attrezzo «usato».
+	var g := Node3D.new()
+	g.position = Vector3(0, 2.028, 0.075)
+	n.add_child(g)
+	_sb_toro(g, 0.010, 0.026, acciaio, Vector3.ZERO, Vector3(0, 0, PI * 0.5))
+	BUILDER.tube(g, [Vector3(0, -0.016, 0.000), Vector3(0, -0.050, 0.032),
+			Vector3(0, -0.084, 0.006), Vector3(0, -0.108, -0.026),
+			Vector3(0, -0.136, -0.032), Vector3(0, -0.154, -0.010)],
+			[0.010, 0.010, 0.0095, 0.009, 0.008, 0.0065], acciaio, 28, 8)
+	CAT._ball(g, 0.008, ottone, Vector3(0, -0.155, -0.008))
+
+
+# --------------------------------------------------------- i guantoni
+
+static func _sb_guanto(padre: Node3D, mat: Material, polso: Material,
+		filo: Material, pos: Vector3, rot: Vector3) -> void:
+	var g := Node3D.new()
+	g.position = pos
+	g.rotation = rot
+	padre.add_child(g)
+	# il polsino, poi il pugno: due volumi, non una palla sola
+	BUILDER.lathe(g, [Vector2(0.052, -0.078), Vector2(0.057, -0.062),
+			Vector2(0.055, -0.014), Vector2(0.044, 0.000)],
+			polso, Vector3.ZERO, 22)
+	CAT._ball(g, 0.068, mat, Vector3(0, -0.132, 0.004),
+			Vector3(0.86, 1.15, 0.98))
+	var pol := CAT._ball(g, 0.032, mat, Vector3(0.058, -0.120, 0.014),
+			Vector3(0.80, 1.25, 0.85))
+	pol.rotation = Vector3(0.25, 0, -0.45)
+	# il bordo del polsino e la piega delle nocche
+	_sb_toro(g, 0.040, 0.062, polso, Vector3(0, -0.074, 0.002))
+	var pieg := _sb_toro(g, 0.032, 0.054, polso, Vector3(0, -0.168, 0.032),
+			Vector3(PI * 0.42, 0, 0))
+	pieg.scale = Vector3(1.05, 1.0, 0.55)
+	_sb_toro(g, 0.038, 0.050, filo, Vector3(0, -0.006, 0.0))
+
+
+static func _sb_guantoni(n: Node3D, rosso: Material, cuoio_sc: Material,
+		filo: Material, ferro: Material) -> void:
+	var chiodo := CAT._cyl(n, 0.013, 0.015, 0.110, ferro,
+			Vector3(0.108, 1.380, SB_Z_PALO))
+	chiodo.rotation.z = -PI * 0.5
+	CAT._ball(n, 0.020, ferro, Vector3(0.166, 1.380, SB_Z_PALO))
+
+	BUILDER.tube(n, [Vector3(0.132, 1.372, SB_Z_PALO), Vector3(0.142, 1.286, 0.244),
+			Vector3(0.136, 1.208, 0.228)], [0.007, 0.0065, 0.006], filo, 20, 6)
+	BUILDER.tube(n, [Vector3(0.132, 1.372, SB_Z_PALO), Vector3(0.156, 1.292, 0.336),
+			Vector3(0.162, 1.186, 0.350)], [0.007, 0.0065, 0.006], filo, 20, 6)
+
+	_sb_guanto(n, rosso, cuoio_sc, filo, Vector3(0.136, 1.208, 0.228),
+			Vector3(0.10, 0.35, 0.16))
+	_sb_guanto(n, rosso, cuoio_sc, filo, Vector3(0.162, 1.186, 0.350),
+			Vector3(-0.08, -0.30, -0.13))
+
+
 static func _toppa(sacco: Node3D, angolo: float, y: float, raggio: float,
 		scl: Vector3, rot_extra: float, mat: Material, filo: Material,
 		raggio_a_altezza: Callable, taglio: bool) -> void:

@@ -34,6 +34,9 @@ extends Node3D
 ## AGGIUNGE il movimento, non si ripara l'assenza.
 
 const FISICA := preload("res://scenes/world/CordaFisica.gd")
+## Il cielo: è lui che dice quanto tira il vento, e lo dice a tutti da un
+## posto solo (vedi Weather.vento()).
+const METEO := preload("res://scenes/world/Weather.gd")
 
 ## Sotto questo movimento la mesh non si riscrive: nessun occhio lo vede
 ## e la ImmediateMesh è l'unico costo vero del sistema.
@@ -47,10 +50,7 @@ const RICENSIMENTO := 4.0
 var _corde: Array = []          # stati vivi, uno per corda
 var _censite := {}              # instance_id -> true
 var _player: Node3D
-## Il cielo, trovato pigramente per gruppo (vedi `_forza_vento`). NON è
-## tipizzato `Node3D` apposta: chi lo cerca lo cerca per GRUPPO, e il
-## gruppo è un contratto di metodo, non di classe.
-var _weather: Node = null
+var _weather: Node3D
 var _clock := 0.0
 var _dir_vento := 0.0
 var _ricenso := 0.0
@@ -62,11 +62,7 @@ func _ready() -> void:
 	# i vicini di MainLevel arrivano dopo: si aggancia in differita, e il
 	# censimento riprova comunque a ogni giro (lezione del Taccuino)
 	(func() -> void:
-		_player = get_node_or_null("../Player")
-		# il cielo NON si cerca qui: lo trova `_forza_vento` per gruppo,
-		# e riprova finché non c'è. Cercarlo per percorso («../Weather»)
-		# è una seconda porta sulla stessa cosa, e nel diorama del titolo
-		# e nei banchi quel percorso non esiste.
+		_aggancia()
 		var build := get_tree().get_first_node_in_group("build_system")
 		if build and build.has_signal("placed_changed"):
 			build.connect("placed_changed", func() -> void: _ricenso = RICENSIMENTO)
@@ -90,10 +86,24 @@ func _riduci_animazioni() -> bool:
 	return s != null and bool(s.get("reduce_motion"))
 
 
+## Il giocatore e il cielo. Si RIPROVA a ogni censimento: un riferimento
+## preso una volta sola e trovato null resta null per sempre (lezione del
+## Taccuino), e un cielo perso lascerebbe le corde nella brezza del sereno
+## anche sotto l'acquazzone — senza che niente lo dica.
+func _aggancia() -> void:
+	if not is_inside_tree():
+		return
+	if not is_instance_valid(_player):
+		_player = get_node_or_null("../Player")
+	if not is_instance_valid(_weather):
+		_weather = get_node_or_null("../Weather")
+
+
 ## Il censimento: ogni nodo nuovo del gruppo diventa uno stato vivo.
 func _censisci() -> void:
 	if not is_inside_tree():
 		return
+	_aggancia()
 	for nodo in get_tree().get_nodes_in_group("corda_viva"):
 		registra(nodo)
 
@@ -218,50 +228,27 @@ func passo(delta: float) -> void:
 		_ridisegna(c3)
 
 
-## QUANTO TIRA IL VENTO, ADESSO — e lo dice il CIELO, che è l'unico che
-## lo sa. È la stessa porta di `Rimbalzello._vento()`: il gruppo
-## «weather» e il numero che Weather insegue (`_vento`), cioè
-## esattamente quello che Weather passa all'erba e alle chiome. Una sola
-## lettura, e le corde si muovono con lo stesso vento del prato.
+## Quanto tira il vento, adesso. La fonte è UNA — `Weather.vento()` — ed è
+## lo stesso numero che il cielo manda agli shader.
 ##
-## PRIMA si chiedeva a `RenderingServer.global_shader_parameter_get(
-## "vento_forza")` — il parametro globale che Weather scrive per gli
-## shader. Sembra la stessa fonte e invece è l'unica porta che, fuori
-## dall'editor, è murata: Godot fa fallire quella funzione apposta
-## (`ERR_FAIL_V_MSG`, «This function should never be used outside the
-## editor, it can severely damage performance»). Tornava `null` a ogni
-## frame, e questa funzione rispondeva SEMPRE 1.0: dal giorno in cui le
-## corde sono nate (3 agosto 2026) non hanno mai sentito il meteo — col
-## temporale, che il cielo tira a 1.8, il bucato e i festoni pendevano
-## come in una giornata di bonaccia. Misurato sulla campata da tre
-## metri: la spinta passa da 4,4 a 14,0 cm, cioè per 3,2 — che è
-## esattamente il quadrato del rapporto dei venti, come vuole `passo`.
-##
-## E NESSUN BANCO HEADLESS POTEVA VEDERLO, in nessuno dei due modi: in
-## `--headless` il renderer fittizio non ha quel guardrail, quindi la
-## funzione tace e non stampa niente; e il valore che tornava era 1.0,
-## che è esattamente il vento del sereno — cioè il caso in cui giusto e
-## sbagliato coincidono. Con la finestra aperta, invece, costava un
-## ERROR per frame: sei righe di log e ~400 byte l'uno (3600 errori e
-## 1,4 MB al minuto), e 54 µs a macchina scarica — ma **230 µs, con
-## picchi a 5,5 ms, a macchina carica**, che è quando un frame se li
-## sente. La strada nuova ne costa 1, e 3 sotto carico.
+## Qui prima c'era `RenderingServer.global_shader_parameter_get("vento_forza")`:
+## la stessa informazione ripresa dal server di rendering invece che da chi
+## la scrive. È una lettura da EDITOR, e a runtime Godot la rifiuta con un
+## errore per fotogramma («This function should never be used outside the
+## editor») — e soprattutto NON RISPONDE: misurata nel MainLevel vero, col
+## cielo a 1.786, quella chiamata torna `<null>`. Il ramo che si prendeva
+## era sempre l'altro, cioè `1.0`: **ogni corda del villaggio ha dondolato
+## nella brezza del sereno anche sotto l'acquazzone**, e la suite non se ne
+## accorgeva perché i test passano da `vento_forzato`. Non rimetterla: il
+## vento si CHIEDE al cielo.
 func _forza_vento() -> float:
 	if vento_forzato >= 0.0:
 		return vento_forzato
-	if not is_instance_valid(_weather):
-		if not is_inside_tree():
-			return 1.0
-		var w := get_tree().get_first_node_in_group("weather")
-		# SI RIPROVA a ogni frame finché non c'è (lezione del Taccuino: un
-		# cablaggio cercato una volta sola in `_ready` resta null per
-		# sempre). E se non c'è affatto — il diorama del titolo, il bosco,
-		# i banchi — la risposta giusta è la brezza del sereno: le corde
-		# devono respirare comunque.
-		if w == null or not w.has_method("forza_del_vento"):
-			return 1.0
-		_weather = w
-	return float(_weather.get("_vento"))
+	if is_instance_valid(_weather) and _weather.has_method("vento"):
+		return float(_weather.call("vento"))
+	# senza cielo (i test, i provini, il diorama del titolo) resta la
+	# brezza del sereno — e a dire quanto vale è comunque Weather
+	return METEO.forza_del_vento("clear", false, false)
 
 
 func _stato_di(nodo: Node) -> Dictionary:
