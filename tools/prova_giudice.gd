@@ -211,8 +211,13 @@ func _go() -> void:
 ## adesso guarda anche il senso — e la porta da cui esce una bozza dice
 ## esattamente a chi dei due si deve la bocciatura:
 ##   · `forma`      la bocciava anche prima;
-##   · `parola` e `ancoraggio` sono le porte nuove: quelle bozze, prima,
-##     arrivavano sullo schermo del giocatore.
+##   · `parola`, `ancoraggio` e `cielo` sono le porte nuove: quelle bozze,
+##     prima, arrivavano sullo schermo del giocatore.
+##
+## ⚠️ IL CONTO SI FA CON `.get`, e non è pignoleria: `accetta()` può tornare
+## una porta che questo banco non conosce (è già successo con `cielo`), e un
+## `tot[k]` su una chiave che non c'è è un errore a runtime — cioè un banco
+## che muore invece di stampare una colonna in più.
 func _quanto_era_grande_il_buco(rit: Dictionary) -> void:
 	print("=".repeat(74))
 	print("QUANTO ERA GRANDE IL BUCO — le 152 generazioni italiane del provino")
@@ -221,28 +226,30 @@ func _quanto_era_grande_il_buco(rit: Dictionary) -> void:
 	## inglese, fatte con un ALTRO ritratto e un'altra grammatica. Col ritratto
 	## italiano non citano niente di vero e cadono tutte sulla forma — che non
 	## dice niente sul collaudo, e gonfierebbe una colonna con un artefatto.
-	print("%-12s %-10s %5s %8s %8s %11s %s" % ["modello", "prova", "n",
-			"passa", "forma", "parola", "ANCORAGGIO (prima passavano)"])
-	var tot := {"n": 0, "ok": 0, "forma": 0, "parola": 0, "ancoraggio": 0}
+	print("%-12s %-10s %5s %8s %8s %8s %6s %s" % ["modello", "prova", "n",
+			"passa", "forma", "parola", "cielo", "ANCORAGGIO (prima passavano)"])
+	var tot := {"n": 0, "ok": 0, "forma": 0, "parola": 0, "cielo": 0, "ancoraggio": 0}
 	for f in _mazzi():
 		var d: Dictionary = f
 		for cond in ["A_gram", "B_gram", "B_libero"]:
 			if not d.has(cond):
 				continue
-			var conta := {"n": 0, "ok": 0, "forma": 0, "parola": 0, "ancoraggio": 0}
+			var conta := {"n": 0, "ok": 0, "forma": 0, "parola": 0, "cielo": 0,
+					"ancoraggio": 0}
 			for b in (d[cond] as Array):
 				var e: Dictionary = SUG.accetta(str(b), rit)
 				conta["n"] += 1
 				var k := "ok" if bool(e["ok"]) else str(e.get("porta", "forma"))
 				conta[k] = int(conta.get(k, 0)) + 1
-			print("%-12s %-10s %5d %8d %8d %8d %11d" % [str(d["modello"]), cond,
+			print("%-12s %-10s %5d %8d %8d %8d %6d %11d" % [str(d["modello"]), cond,
 					conta["n"], conta["ok"], conta["forma"], conta["parola"],
-					conta["ancoraggio"]])
+					int(conta.get("cielo", 0)), conta["ancoraggio"]])
 			for k in conta:
-				tot[k] = int(tot[k]) + int(conta[k])
-	print("%-12s %-10s %5d %8d %8d %8d %11d" % ["TUTTI", "", int(tot["n"]),
-			int(tot["ok"]), int(tot["forma"]), int(tot["parola"]), int(tot["ancoraggio"])])
-	var nuove := int(tot["parola"]) + int(tot["ancoraggio"])
+				tot[k] = int(tot.get(k, 0)) + int(conta[k])
+	print("%-12s %-10s %5d %8d %8d %8d %6d %11d" % ["TUTTI", "", int(tot["n"]),
+			int(tot["ok"]), int(tot["forma"]), int(tot["parola"]),
+			int(tot.get("cielo", 0)), int(tot["ancoraggio"])])
+	var nuove := int(tot["parola"]) + int(tot["ancoraggio"]) + int(tot.get("cielo", 0))
 	print("Il collaudo di prima ne promuoveva %d; di quelle, %d (%.0f%%) uscivano rotte"
 			% [int(tot["ok"]) + nuove, nuove,
 			100.0 * float(nuove) / float(max(1, int(tot["ok"]) + nuove))])

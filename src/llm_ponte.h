@@ -21,6 +21,10 @@
 #include <godot_cpp/variant/packed_string_array.hpp>
 #include <godot_cpp/variant/string.hpp>
 
+namespace chibi {
+class Traduttore;
+}
+
 namespace godot {
 
 class LlmLocale : public RefCounted {
@@ -165,6 +169,36 @@ public:
 	// e un provino che confronta un modello con un tetto diverso da quello
 	// del gioco non misura il gioco.
 	Dictionary limiti() const;
+
+	// --- IL BANCO DELLA CONCORRENZA -------------------------------------
+	//
+	// La faccia Godot del banco di `chibi::Traduttore` (la nota lunga sta
+	// lì): un `Traduttore` VERO su cui si muove a mano un lavoro FINTO, per
+	// provare senza modello la corsa fra `annulla()` e chi scrive. È il
+	// posto in cui questo cuore ha già ammutolito il villaggio per sempre, e
+	// finora l'unico giudice voleva due gigabyte di pesi e un eseguibile a
+	// parte (`tools/prova_concorrenza.cpp`), cioè non girava in nessuna
+	// suite.
+	//
+	// ⚠️ È UN TRADUTTORE **SUO**, NON QUELLO DEL PROCESSO. Toccare il
+	// singleton da un test lo lascerebbe acceso per tutti i casi successivi
+	// — e `test_pensatoio` pretende, giustamente, di trovarlo SPENTO. Nasce
+	// col primo `banco_accendi()` e muore con questo maniglione.
+	//
+	// Nel gioco non lo chiama nessuno, e `test_llm_banco.gd` scandaglia i
+	// sorgenti di `scenes/` e `systems/` perché resti così.
+	bool banco_accendi();
+	int64_t banco_accoda(int64_t p_chi, const String &p_utente, const String &p_grammatica);
+	bool banco_prendi();
+	void banco_finisci(const String &p_bozza);
+	void banco_annulla();
+	Dictionary banco_raccogli();
+	// { libero, in_mano, deve_smettere, pensieri, buttati, abbandono } —
+	// tutto quello che serve per giudicare da fuori una transizione.
+	Dictionary banco_stato() const;
+
+private:
+	chibi::Traduttore *_banco = nullptr;
 };
 
 } // namespace godot

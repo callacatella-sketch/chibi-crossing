@@ -43,6 +43,17 @@ var prato_eterno := false
 ## La lingua: "auto" (quella del sistema, se la conosciamo) · "it" · "en".
 ## L'italiano è la lingua sorgente — vedi systems/L10n.gd e docs/TRADUZIONE.md.
 var language := "auto"
+## LA LEVA DEL CUORE CHE SCRIVE (Fase 5): quando è vera, il villaggio NON
+## pensa — nessun modello si apre, nessun pensiero parte, il gioco è quello
+## di sempre con i testi scritti a mano.
+##
+## ⚠️ **NON HA UNA CASELLA NEL PANNELLO, ed è una scelta dichiarata** (la
+## ragione per esteso sta in `Llm.acceso()`): una casella mostrata a chi non
+## ha nessun modello racconta che gli manca un pezzo, e non gli manca niente.
+## Il bit vive qui perché qui vivono le preferenze persistite del giocatore —
+## la DOMANDA («il villaggio può pensare?») invece ha una casa sola, ed è
+## `systems/Llm.gd`. Come `prato_eterno`: il bit di qua, il predicato di là.
+var llm_spento := false
 
 
 func _ready() -> void:
@@ -215,6 +226,7 @@ func _load() -> void:
 	move_speed = float(cfg.get_value("gameplay", "move_speed", move_speed))
 	prato_eterno = bool(cfg.get_value("gameplay", "prato_eterno", prato_eterno))
 	language = str(cfg.get_value("gameplay", "language", language))
+	llm_spento = bool(cfg.get_value("gameplay", "llm_spento", llm_spento))
 
 
 func _save() -> void:
@@ -229,4 +241,5 @@ func _save() -> void:
 	cfg.set_value("gameplay", "move_speed", move_speed)
 	cfg.set_value("gameplay", "prato_eterno", prato_eterno)
 	cfg.set_value("gameplay", "language", language)
+	cfg.set_value("gameplay", "llm_spento", llm_spento)
 	cfg.save(PATH)

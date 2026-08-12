@@ -48,46 +48,79 @@ const SOGLIA := 0.35
 
 
 # =========================================================================
-# UN CORPO FINTO, che sa fare le quattro cose che la ricevuta gli chiede
+# IL CORPO — ed è un VICINO VERO, col suo rig
 # =========================================================================
 
-## NON È UN VISITOR, ed è il punto: la ricevuta deve poter essere provata
-## senza un villaggio in scena. Ma le quattro risposte sono quelle vere —
-## `Percezione.puo_vedere` chiama proprio questi quattro metodi — e
-## `guarda_gesto` REGISTRA invece di fingere, così il test guarda cosa è
-## stato chiesto al collo, non se una funzione è stata chiamata.
-class Corpo extends Node3D:
-	var nascosto := false
-	var addormentato := false
-	var in_una_scena := false
-	## Fin dove arriva il collo. È `Visitor.tetto_ricevuta()` — letta di là,
-	## non ricopiata — e il caso `_il_collo_deve_arrivarci` la restringe a
-	## mano per provare che la valvola morde.
-	var tetto := VISITOR.tetto_ricevuta()
+## ⚠️ **QUESTO CORPO ERA UN DOPPIO, E IL DOPPIO MENTIVA.**
+##
+## Fino al 2026-08-12 era un `Node3D` che RI-IMPLEMENTAVA `collo_ci_arriva`
+## (un `angle_to` fra il −Z del corpo e la direzione del posto). Il conto
+## tornava, e proprio per questo era il guasto peggiore che questo file
+## potesse avere: **la valvola vera non aveva nessun lettore.** MISURATO,
+## guastando `Visitor.collo_ci_arriva` nel sorgente e rifacendo la suite:
+##
+##   · `return true` sempre  → ricevute pagate col posto a 180°: 63942/0/0
+##   · `return false` sempre → nessuna ricevuta, MAI, in tutto il gioco:
+##                             63942/0/0
+##
+## Cioè la riga che decide se una ricevuta si paga nel villaggio vero poteva
+## diventare una costante, in tutte e due le direzioni, senza che una sola
+## asserzione se ne accorgesse. È la stessa classe di guasto del
+## `MotoreFinto` che «annullava e liberava sempre» (vedi `test_pensatoio`):
+## **un doppio che mente è peggio di nessun doppio — nessun doppio ti fa
+## scrivere un test vero, uno che mente ti fa credere di averlo già
+## scritto.**
+##
+## Adesso il corpo È un `Visitor`, con il rig montato da `ChibiBuilder` come
+## quello dei residenti: `collo_ci_arriva`, `is_hidden`, `dorme` e `in_scena`
+## sono le funzioni di produzione, e `Percezione.puo_vedere` interroga
+## proprio loro. Di finto resta una cosa sola, ed è quella che un test deve
+## avere: **`guarda_gesto` REGISTRA quello che gli si chiede** — e poi chiama
+## `super()`, così il canale dello sguardo gira davvero.
+##
+## MISURATO che il cambio non sposta la geometria: la testa di un chibi sta
+## ESATTAMENTE sopra l'origine del corpo (scarto orizzontale 0.0000 m su tre
+## genomi), che è la stessa posizione da cui misurava il doppio.
+class Corpo extends "res://scenes/npc/Visitor.gd":
+	const DNA := preload("res://scenes/npc/ChibiDNA.gd")
+
 	var guardato := []  # [pos, durata] di ogni sguardo chiesto
 
-	func is_hidden() -> bool:
-		return nascosto
+	## Il genoma si dà QUI, prima che l'albero chiami `_ready`: senza, il
+	## `Visitor` monta un riccio invece di un chibi — un corpo che nel
+	## villaggio non fa mai da residente, e che ha la testa in un altro posto.
+	func _init() -> void:
+		dna = DNA.generate(4507)
+		species = "chibi"
+		mode = "resident"
 
-	func dorme() -> bool:
-		return addormentato
-
-	func in_scena() -> bool:
-		return in_una_scena
-
-	## LA STESSA DOMANDA DEL RIG, sullo stesso asse: il corpo di prova guarda
-	## −Z come il rig vero (`ChibiBuilder`), quindi l'angolo si misura da lì.
-	func collo_ci_arriva(pos: Vector3) -> bool:
-		var verso: Vector3 = pos - global_position
-		verso.y = 0.0
-		if verso.length() < 0.05:
-			return false
-		var avanti: Vector3 = -global_transform.basis.z
-		avanti.y = 0.0
-		return absf(avanti.normalized().angle_to(verso.normalized())) <= tetto
-
-	func guarda_gesto(pos: Vector3, dur: float, _gesto := -1, _finestra := 0.0) -> void:
+	func guarda_gesto(pos: Vector3, dur: float, gesto := -1, finestra := 0.0) -> void:
 		guardato.append([pos, dur])
+		super(pos, dur, gesto, finestra)
+
+
+## LE TRE VALVOLE DELLA PERCEZIONE, accese sui campi VERI del `Visitor`.
+##
+## Il doppio aveva tre booleani suoi (`nascosto`, `addormentato`,
+## `in_una_scena`) e tre funzioni che li restituivano: un'altra
+## reimplementazione, con lo stesso difetto in piccolo. Qui si scrive lo
+## stato vero e rispondono `is_hidden()`, `dorme()` e `in_scena()` di
+## produzione — quelle che `Percezione.puo_vedere` chiama davvero.
+const GUASTI := {
+	"nascosto": ["_hidden", true],
+	"addormentato": ["_state", "tk_nap"],
+	"in_una_scena": ["_scena_t", 5.0],
+}
+
+
+## Gira il corpo, come si gira un corpo in questo gioco: `_yaw` E la
+## rotazione. Scrivere solo `rotation.y` è la trappola già pagata da
+## `tools/prova_pensieri.gd` — `Visitor._process` finisce con
+## `rotation.y = _yaw` per ogni stato, e un'imbardata scritta da fuori vive
+## un frame solo.
+func _gira(corpo: Node3D, rad: float) -> void:
+	corpo.set("_yaw", rad)
+	corpo.rotation.y = rad
 
 
 func run(t) -> void:
@@ -119,9 +152,12 @@ func run(t) -> void:
 	_la_ricevuta_gira_la_testa(t)
 	_a_chi_non_puo_guardare_non_si_paga_niente(t)
 	_senza_il_giocatore_non_si_paga_niente(t)
+	_il_raggio_e_quello_a_cui_una_testa_si_legge(t)
 	_il_collo_deve_arrivarci(t)
+	_la_promessa_del_collo_la_mantiene_il_rig(t)
 	_l_ancora_si_sceglie_fra_i_perche_veri(t)
 	_un_ancora_che_punta_altrove_non_si_mostra(t)
+	_l_apertura_ammette_quel_che_il_villaggio_produce(t)
 	_senza_una_meta_non_si_paga_niente(t)
 	_il_registro_passa_dove_sta_mochi(t)
 	_la_ricevuta_deve_avere_il_suo_tempo(t)
@@ -625,11 +661,13 @@ func _la_ricevuta_gira_la_testa(t) -> void:
 ## della percezione, chieste a lei. Ognuna si guasta da sola: si accende una
 ## per volta e si pretende che la ricevuta NON venga pagata.
 func _a_chi_non_puo_guardare_non_si_paga_niente(t) -> void:
-	for guasto in ["nascosto", "addormentato", "in_una_scena"]:
+	for guasto in GUASTI:
 		var m = _mondo()
 		var id := _uno(m)
 		var corpo: Corpo = t.stage(Corpo.new())
-		corpo.set(guasto, true)
+		# lo stato VERO del vicino, non un booleano del banco: risponde
+		# `is_hidden()` / `dorme()` / `in_scena()` di produzione
+		corpo.set(str((GUASTI[guasto] as Array)[0]), (GUASTI[guasto] as Array)[1])
 		m.osserva(id, m.V_ANNAFFIA, Vector3(0, 0, -12), -1)
 		m.deduci(id, _ob(m, "provvedi_cura"), PackedInt32Array([0]), SOGLIA)
 		var i := int(m.deduzione_muta(id, SOGLIA))
@@ -709,6 +747,47 @@ func _senza_il_giocatore_non_si_paga_niente(t) -> void:
 	m.free()
 
 
+## ⚠️ **IL RAGGIO GIUDICATO CON NUMERI CHE NON SONO IL RAGGIO.**
+##
+## Le due sonde qui sopra stanno a `RAGGIO ± 0.1`: dicono che la valvola
+## MORDE, non che morde nel posto giusto. Portando `FACCIA_AL_GIOCATORE` a
+## cento metri resterebbero verdi tutte e due — e il gioco tornerebbe a
+## pagare ricevute con Mochi dall'altra parte del villaggio, che è il difetto
+## MISURATO (sei ricevute su sei, mediana 20 m) da cui è nata tutta questa
+## valvola.
+##
+## Perciò due numeri che vengono da fuori, tutti e due PROVINATI guardando
+## (`tools/provino_ricevuta.gd`, la camera vera del gioco, cinque distanze):
+##
+##  · **due metri** — la distanza a cui in questo gioco ci si parla, e a cui
+##    una testa che si gira riempie lo schermo: lì la ricevuta DEVE pagarsi,
+##    o il canale è spento;
+##  · **nove metri** — dove il provino ha visto «la testa è venti pixel e la
+##    ricevuta non esiste». È anche, per pura coincidenza utile,
+##    `Percezione.RAGGIO`: fin dove un vicino si accorge di un gesto. Le due
+##    domande sono diverse (vedi il blocco in cima a `Deduzioni.gd`) e questa
+##    riga pretende che restino diverse — se un domani qualcuno le fondesse,
+##    diventa rossa.
+func _il_raggio_e_quello_a_cui_una_testa_si_legge(t) -> void:
+	t.ok(DED.RAGGIO < PERCEZIONE.RAGGIO,
+			"la ricevuta ha il raggio CORTO: si legge una testa da più vicino di quanto "
+					+ "un vicino si accorga di un gesto (%.1f m contro %.1f m)"
+					% [DED.RAGGIO, PERCEZIONE.RAGGIO])
+	for prova in [[2.0, true], [9.0, false]]:
+		var m = _mondo()
+		var id := _uno(m)
+		var corpo: Corpo = t.stage(Corpo.new())
+		m.osserva(id, m.V_ANNAFFIA, Vector3(0, 0, -12), -1)
+		m.deduci(id, _ob(m, "provvedi_cura"), PackedInt32Array([0]), SOGLIA)
+		# di FIANCO: Mochi non deve finire sulla linea di sguardo
+		t.eq(_paga(m, id, corpo, 0, Vector3(float(prova[0]), 0, 0)), bool(prova[1]),
+				"con Mochi a %.0f m la ricevuta %s"
+						% [float(prova[0]),
+						"si paga: la testa riempie lo schermo" if bool(prova[1])
+								else "tace: il provino lì ha visto venti pixel"])
+		m.free()
+
+
 ## IL COLLO DEVE ARRIVARCI, o non si paga niente — e la deduzione ASPETTA.
 ##
 ## È il difetto che la suite non poteva vedere e che ha trovato la prova viva
@@ -740,7 +819,7 @@ func _il_collo_deve_arrivarci(t) -> void:
 			"e continua a non pagarsi")
 
 	# poi il vicino si gira (cammina, cambia mestiere: succede da solo)
-	corpo.rotate_y(PI)
+	_gira(corpo, PI)
 	t.ok(_paga(m, id, corpo, 0, corpo.global_position, Vector3(0, 0, 12)),
 			"e appena si gira, la ricevuta si paga")
 	t.eq(corpo.guardato.size(), 1, "e la testa si gira UNA volta, quella giusta")
@@ -758,7 +837,7 @@ func _il_collo_deve_arrivarci(t) -> void:
 		var m2 = _mondo()
 		var id2 := _uno(m2)
 		var c2: Corpo = t.stage(Corpo.new())
-		c2.rotate_y(float(prova[0]))
+		_gira(c2, float(prova[0]))
 		m2.osserva(id2, m2.V_ANNAFFIA, Vector3(0, 0, -12), -1)
 		m2.deduci(id2, _ob(m2, "provvedi_cura"), PackedInt32Array([0]), SOGLIA)
 		t.eq(_paga(m2, id2, c2, 0, c2.global_position), bool(prova[1]),
@@ -766,6 +845,94 @@ func _il_collo_deve_arrivarci(t) -> void:
 						% [float(prova[0]), tetto, "si paga" if bool(prova[1]) else "aspetta"])
 		m2.free()
 	m.free()
+
+
+## ⚠️ **E LA PROMESSA DEL COLLO LA MANTIENE IL RIG — o il tetto è un numero
+## che non vuol dire niente.**
+##
+## `collo_ci_arriva()` promette una cosa sola: *se gli si chiedesse di
+## guardare lì, la testa ci arriverebbe davvero*. Le sonde qui sopra la
+## giudicano contro `tetto_ricevuta()`, cioè contro sé stessa: portando il
+## tetto a π resterebbero tutte verdi, e il gioco tornerebbe a pagare
+## ricevute su posti che il collo non raggiunge — che è ESATTAMENTE il
+## difetto che la prova viva aveva trovato (`tools/prova_deduzione.gd`: col
+## posto a 148° la testa si ferma a 45°, e restano 102° di scarto).
+##
+## Qui invece la promessa si VERIFICA, facendo girare il rig vero: si chiede
+## al collo, poi si gira la testa per davvero (`guarda_gesto` + tre quarti di
+## secondo di `_process`) e si misura quanto le manca. È la stessa misura
+## della prova viva, ridotta a due righe che girano in CI.
+##
+## MISURATO su questo banco, tre corse identiche (è deterministico):
+##   · posto a 34°, il collo dice SÌ  → gliene manca **0.0057 rad (0.3°)**
+##   · posto a 148°, il collo dice NO → gliene mancano **1.8128 rad (103.9°)**
+## E i 103.9° sono gli stessi 102° che aveva misurato la prova viva nel
+## MainLevel: due banchi diversi, lo stesso numero.
+##
+## Le tolleranze stanno sul residuo MISURATO, non a occhio. 0.20 rad perché
+## il residuo vero è 0.006 e quello che può crescere onestamente è il vagare
+## della mira (`VAGA_AMPIEZZA + MIRA_PERSONALE` = 0.125): sotto quella soglia
+## ci sta il vagare, sopra ci sta solo una testa ferma. 1.00 rad è poco più
+## di metà dello scarto vero — e la distanza fra i due casi è di due ordini
+## di grandezza, quindi non c'è nessuna banda grigia da tarare.
+##
+## ⚠️ E questa è la sola asserzione del file che legge `collo_ci_arriva`
+## DIRETTAMENTE: tutte le altre ci passano attraverso `Deduzioni.consegna`.
+## Le due cose sono diverse — quella dice «la valvola è cablata», questa dice
+## «la valvola dice il vero».
+func _la_promessa_del_collo_la_mantiene_il_rig(t) -> void:
+	# due posti alla STESSA distanza: uno davanti, uno a 148° (l'angolo
+	# misurato nel MainLevel vero, che è come si è scoperta questa valvola)
+	# ⚠️ IL POSTO RAGGIUNGIBILE NON STA DAVANTI, e non è un dettaglio: davanti
+	# la testa è GIÀ puntata, e il residuo resterebbe minuscolo anche se
+	# `guarda_gesto` non facesse niente — cioè l'asserzione non proverebbe
+	# nulla. Sta a 34°, dentro il tetto (0.775 rad) ma abbastanza fuori da
+	# pretendere che il collo si muova per davvero.
+	var casi := [
+		[Vector3(0, 0, -12.0).rotated(Vector3.UP, 0.60), true,
+				"a 34°, dentro il tetto del collo", 0.20],
+		[Vector3(6.4, 0, 10.2), false, "a 148°, dietro la spalla", 1.00],
+	]
+	for caso in casi:
+		var corpo: Corpo = t.stage(Corpo.new())
+		_gira(corpo, 0.0)
+		corpo._enter_state("r_idle")
+		corpo._timer = 9999.0
+		var posto: Vector3 = caso[0]
+		var arriva: bool = bool(corpo.collo_ci_arriva(posto))
+		t.eq(arriva, bool(caso[1]), "il collo %s a un posto %s"
+				% ["ci arriva" if bool(caso[1]) else "NON ci arriva", str(caso[2])])
+		# e adesso glielo si chiede davvero
+		corpo.guarda_gesto(posto, 6.0)
+		for _i in 45:
+			corpo._process(1.0 / 60.0)
+		var manca := _scarto_del_collo(corpo, posto)
+		if bool(caso[1]):
+			t.ok(manca <= float(caso[3]),
+					"…e infatti la testa ci arriva: le mancano %.3f rad (%.1f°)"
+							% [manca, rad_to_deg(manca)])
+		else:
+			t.ok(manca >= float(caso[3]),
+					"…e infatti la testa resta al tetto: le mancano %.3f rad (%.1f°)"
+							% [manca, rad_to_deg(manca)])
+
+
+## QUANTO MANCA ALLA TESTA per puntare quel posto, adesso. Lo stesso `look_at`
+## di `Visitor._sguardo_testimone` — mai un `atan2`, che è il segno che questo
+## progetto ha già sbagliato una volta (il fantasma del congedo di spalle a
+## Mochi per mesi).
+func _scarto_del_collo(corpo: Node3D, posto: Vector3) -> float:
+	var h: Node3D = corpo.get("_head")
+	if h == null:
+		return TAU
+	var b := posto
+	b.y = h.global_position.y
+	var adesso: float = h.rotation.y
+	var prima := h.transform.basis
+	h.look_at(b, Vector3.UP)
+	var voluto := wrapf(h.rotation.y, -PI, PI)
+	h.transform.basis = prima
+	return absf(wrapf(voluto - adesso, -PI, PI))
 
 
 ## ⚠️ **L'ANCORA SI SCEGLIE FRA I PERCHÉ VERI: si mostra quello che si LEGGE.**
@@ -861,6 +1028,41 @@ func _un_ancora_che_punta_altrove_non_si_mostra(t) -> void:
 						"si paga" if bool(prova[1]) else "tace"])
 		t.eq(int(_deduzioni(m, id)[0]["bandiere"]) == 0, not bool(prova[1]),
 				"e la deduzione %s" % ("è spesa a metà" if bool(prova[1]) else "aspetta ancora"))
+		m.free()
+
+
+## ⚠️ **L'APERTURA GIUDICATA CON NUMERI CHE NON SONO L'APERTURA.**
+##
+## Stessa storia del raggio: le sonde a `APERTURA ± 0.06` dicono che il cono
+## esiste, non che è largo quanto serve. E qui sbagliare costa da tutte e due
+## le parti, perché questo numero ha già avuto una versione sbagliata: la
+## prima idea era chiedere che i due POSTI coincidessero, e con due metri di
+## tolleranza sopravvivevano **8 deduzioni su 100** — cioè il canale spento,
+## con la suite verde.
+##
+## I due numeri di fuori:
+##
+##  · **20°** è il MASSIMO che il villaggio vero produce fra il posto
+##    guardato e la meta (`tools/misura_attribuzione.gd`, su tutto ciò che la
+##    grammatica può generare: mediana 0–12°, massimo 20°). Un cono che non
+##    ammette il suo stesso massimo è un cono che spegne il canale;
+##  · **45°** è il gradino a cui il provino ha visto il corpo «uscire
+##    dall'inquadratura da un'altra parte» (`tools/provino_ricevuta.gd`,
+##    provino 2, la camera vera). Lì la ricevuta non deve pagarsi, o si torna
+##    a mostrare un'occhiata di qua e un viaggio di là.
+func _l_apertura_ammette_quel_che_il_villaggio_produce(t) -> void:
+	var ancora := Vector3(0, 0, -12)
+	for prova in [[20.0, true], [45.0, false]]:
+		var m = _mondo()
+		var id := _uno(m)
+		var corpo: Corpo = t.stage(Corpo.new())
+		m.osserva(id, m.V_ANNAFFIA, ancora, -1)
+		m.deduci(id, _ob(m, "provvedi_cura"), PackedInt32Array([0]), SOGLIA)
+		var meta: Vector3 = ancora.rotated(Vector3.UP, deg_to_rad(float(prova[0])))
+		t.eq(_paga(m, id, corpo, 0, corpo.global_position, meta), bool(prova[1]),
+				"meta a %.0f° dall'ancora: la ricevuta %s" % [float(prova[0]),
+						"si paga (è il massimo che il villaggio produce)" if bool(prova[1])
+								else "tace (lì il provino ha visto due cose diverse)"])
 		m.free()
 
 

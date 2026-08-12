@@ -1501,16 +1501,13 @@ static func _blocco_scelte(rit: Dictionary) -> String:
 ##  · **le non-parole** («irds», «uisce», «izzazione»): `_non_e_una_parola`
 ##    prende solo quelle senza vocali, che è una regola di lingua vera ma
 ##    stretta. Le altre sono pezzi di gettone rimasti attaccati, e per
-##    riconoscerli servirebbe un dizionario italiano dentro il gioco;
-##  · **le affermazioni sul MONDO** — «la neve cade» col sereno, «la notte si
-##    addice» alle 13:24 (misurate: 4 lettere su 24 mandate). Il meteo NON è
-##    nel ritratto, quindi oggi una regola non potrebbe nemmeno guardarlo; la
-##    stagione e il momento ci sono, ma una regola su di loro **avrebbe falsi
-##    positivi veri**: non sa distinguere «è notte» (una bugia) da «la notte
-##    è lunga quando piove» (un pensiero di chi scrive, sempre vero perché è
-##    suo) — che è esattamente la metà che questo file esiste per
-##    proteggere. Chi la vorrà chiudere deve portarsi dietro il TEMPO
-##    VERBALE, non l'elenco delle stagioni.
+##    riconoscerli servirebbe un dizionario italiano dentro il gioco. Vedi
+##    più sotto («LE CICATRICI DEL GETTONE») le tre strade provate e
+##    misurate per chiuderlo, e perché si buttano tutte e tre;
+##  · **le affermazioni sul MONDO** — questa era la voce più grossa, ed è
+##    quella che il paragrafo qui sotto chiude a metà. La metà chiusa è il
+##    CIELO; la metà aperta (il sole, la notte come parola, la stagione) è
+##    dichiarata lì con la misura che dice perché.
 
 ## I PARTICIPI DELLA PERCEZIONE. Sono i verbi con cui in italiano si dice di
 ## aver visto o saputo una cosa — cioè l'attacco di tutte le frasi chiuse che
@@ -1561,6 +1558,231 @@ const CONIUGATO := ["ato", "ata", "ati", "ate", "ito", "ita", "iti", "ite",
 ## «la».
 const ARTICOLI := ["la", "il", "lo", "le", "i", "gli", "un", "una", "uno",
 	"l", "di", "del", "della", "dei", "delle", "da"]
+
+
+## ═══════════════════════════════════════════════════════════════════════
+## IL CIELO — l'unica cosa del mondo che una riga libera può smentire
+## ═══════════════════════════════════════════════════════════════════════
+##
+## L'ancoraggio ferma «chi ha fatto cosa a chi» perché ha il grafo contro cui
+## confrontare. Il CIELO non ce l'aveva, e si è visto: sul mazzo vero del 4B
+## — trenta lettere mandate, quelle che il giocatore avrebbe letto — **otto
+## righe affermavano un tempo che non era quello**:
+##
+##     «la pioggia mi avvolge» col sereno            (cinque righe, cinque lettere)
+##     «la neve, un peso» d'autunno, col sereno      (due righe)
+##     «le foglie bruciano al sole» alle 22:50       (una riga)
+##
+## E il conto vero è peggiore di così: su TUTTE le bozze di quel mazzo il
+## cielo è nominato **27 volte, e 27 volte è sbagliato**. Zero su 27. Non è
+## un modello che ogni tanto sbaglia il tempo: è un modello che il tempo non
+## ce l'ha, e quando gli serve una riga d'atmosfera se lo inventa — il che
+## vuol dire che la probabilità di azzeccarlo è quella di un dado.
+##
+## ────────────────────────────────────────────────────────────────────────
+## LA FONTE È UNA, ED È QUELLA CHE IL FOGLIO GIÀ USA
+## ────────────────────────────────────────────────────────────────────────
+##
+## Non c'è nessuna nuova verità sul meteo dentro questo file, e non deve
+## essercene: si guardano le tre chiavi del ritratto che il livello ha già
+## riempito per scrivere il prompt —
+##
+##     `rit["meteo"]`     ← `CozyWorld.contesto_critter()`, cioè la riga con
+##                          cui il bestiario decide se stasera vola la
+##                          farfalla di neve. Uno dei quattro `Critters.METEO`;
+##     `rit["momento"]`   ← `OraDelGiorno.momento()`, i sei momenti che il
+##                          blocco `QUAND'È` scrive nero su bianco;
+##     `rit["stagione"]`  ← `DayNight.season_name()`, idem.
+##
+## Nessuna delle tre si ricalcola qui: questo file non ha mai guardato un
+## orologio e continua a non guardarlo. Quello che c'è qui dentro sono le
+## PAROLE con cui una riga afferma uno di quegli stati — e le chiavi di
+## quella tabella sono i nomi degli stati veri, così che un test possa
+## legarle a `Critters.METEO` e a `OraDelGiorno.MOMENTI`. Se un domani
+## nasce un quinto stato del cielo, quel test diventa rosso invece di
+## lasciare una parola che non giudica più niente.
+##
+## ────────────────────────────────────────────────────────────────────────
+## E LA METAFORA? È LA METÀ PER CUI IL MODELLO È QUI
+## ────────────────────────────────────────────────────────────────────────
+##
+## Una regola larga qui non fa danno all'ancoraggio: fa danno alla POESIA,
+## che è l'unica cosa che un modello aggiunge a questo gioco. Perciò ogni
+## parola di questa tabella è stata contata sul mazzo vero — **1395 righe
+## libere italiane**, quattro modelli, il provino e la partita:
+##
+##     «pioggia» (17 righe) · «neve» (10) · «nebbia» (5)   → 32 in tutto,
+##       e le radici non prendono nient'altro: zero collisioni su 1395 righe.
+##     il telaio «al sole» (1 riga)                        → e le altre
+##       **59** righe che contengono «sole» NON vengono toccate.
+##
+## Le due valvole che salvano la figura retorica, tutte e due misurate:
+##  · **il PARAGONE non afferma** («il silenzio cade come pioggia»). Zero
+##    occorrenze nel mazzo: non costa e non salva niente di misurato — sta
+##    qui perché un paragone, per definizione, non dice che sta piovendo;
+##  · **l'IMPRESSIONE non è il cielo** («la legna sa di pioggia», «un senso
+##    di pioggia», «il legno profuma di pioggia»). Questa costa: sono **3
+##    righe delle 27**, cioè l'11% della famiglia, e sono tre righe belle.
+##    Il telaio è chiuso e adiacente — un verbo o un nome di percezione, poi
+##    «di», poi la parola del cielo — quindi non fa passare «piccole gocce
+##    di pioggia» né «una sera di pioggia», che invece affermano eccome.
+##
+## ────────────────────────────────────────────────────────────────────────
+## COSA RESTA APERTO, e perché è una DECISIONE e non una dimenticanza
+## ────────────────────────────────────────────────────────────────────────
+##
+## Il vecchio residuo diceva: «chi la vorrà chiudere deve portarsi dietro il
+## TEMPO VERBALE, non l'elenco delle stagioni». Aveva ragione, e la misura
+## lo conferma parola per parola:
+##
+##  · **il SOLE non si giudica**, tranne addosso e di notte. «sole» compare
+##    in **60 righe su 1395**, ed è la parola preferita del Gufo: «il sole
+##    cala lento sul mio ramo», «il sole è un peso», «un vago ricordo del
+##    sole», «come un sole che non brucia mai», «qui siede l'ombra del
+##    sole». Di quelle 60 **una sola** è una bugia sul mondo. Una regola su
+##    «sole» abbastanza larga da prenderla ne ucciderebbe cinquantanove: è
+##    il filtro che uccide la poesia, misurato. Resta il telaio LOCATIVO —
+##    «al sole», «nel sole», «sotto il sole», «dal sole» — che chiede che il
+##    sole ci SIA addosso, e solo quando il momento vero è la notte: un
+##    caso, zero falsi positivi su 1395 righe;
+##  · **la NOTTE come parola non si giudica affatto.** Il mazzo ha «la notte
+##    è lunga e io resto qui ad aspettare» e «la notte è lunga ma ora dormo
+##    su quel ramo secco»: è ESATTAMENTE la frase che il vecchio residuo
+##    aveva previsto, e non è una bugia nemmeno a mezzogiorno — è un
+##    pensiero di chi scrive. Undici righe su 1395 parlano di notte o di
+##    buio, e nessuna afferma che sia notte adesso;
+##  · **la STAGIONE non si giudica.** Zero occorrenze sbagliate misurate, e
+##    «d'estate» in una riga libera è quasi sempre l'eco del blocco
+##    `QUAND'È` — un altro guasto, con un'altra cura (`_frasi_del_foglio`),
+##    non una bugia;
+##  · **il grado non si giudica.** Sotto una pioggerella si può scrivere
+##    «acquazzone» e passa: sono la stessa famiglia. Un'esagerazione di
+##    stile non è un mondo diverso;
+##  · **e il FOGLIO non dice al modello che tempo fa.** Questa regola boccia
+##    chi indovina male una cosa che non gli è stata detta, ed è il motivo
+##    per cui butta parecchio (la misura sta in `tools/prova_cielo.gd`). La
+##    cura alla radice sarebbe una riga in più in `_blocco_quando` — ma
+##    quella cambia le GENERAZIONI, e le generazioni si misurano
+##    rigenerando il mazzo con un modello da 2,6 GB. Finché quella misura
+##    non c'è, il prompt non si tocca: qui si è cambiato solo ciò che si
+##    poteva contare.
+
+## LE PAROLE CHE AFFERMANO UNO STATO DEL CIELO. La chiave è lo stato, e i
+## nomi sono quelli veri (`Critters.METEO`): un test li lega, perché una
+## chiave scritta storta non fallisce — smette di giudicare, e in silenzio.
+##
+## Si guarda la RADICE e non la parola intera, perché un modello coniuga e
+## una lista di forme scritta a mano ne dimentica sempre una («piovigginava»
+## non l'avrei messa). Le radici sono lunghe apposta: verificate sul mazzo
+## vero, prendono 32 righe su 1395 e sono tutte e sole quelle che parlano del
+## cielo — zero collisioni.
+##
+## `sereno` NON è qui, ed è la sua definizione: il sereno è quello che resta
+## quando nessuna di queste parole è vera. Non esiste una riga che «afferma
+## il sereno» e che si possa smentire.
+const CIELO := {
+	"pioggia": ["piogg", "piov", "acquazzon"],
+	"neve": ["nev"],
+	"nebbia": ["nebbi"],
+}
+
+## IL SOLE ADDOSSO. Non è una parola, è un TELAIO: «al sole» chiede che il
+## sole ci sia, mentre «il sole cala» parla del sole come di una cosa, e di
+## notte è vero uguale. Sono le uniche quattro forme in cui, in italiano, il
+## sole diventa un posto in cui si sta.
+const SOLE_ADDOSSO := [["al", "sole"], ["nel", "sole"], ["dal", "sole"],
+	["sotto", "il", "sole"]]
+
+## IL MOMENTO IN CUI IL SOLE NON C'È. Uno dei sei di `OraDelGiorno.MOMENTI`
+## (il test lo lega), ed è l'unico che non ammette discussione: all'alba e al
+## tramonto il sole c'è ancora, di sera dipende.
+const MOMENTO_SENZA_SOLE := "notte"
+
+## IL PARAGONE NON AFFERMA. «come pioggia», «come la neve», «quanto una
+## nebbia»: la finestra è di due parole perché in mezzo ci sta l'articolo.
+const PARAGONE := ["come", "quanto"]
+
+## L'IMPRESSIONE NON È IL CIELO. «sa di pioggia», «profuma di pioggia», «un
+## senso di pioggia» — l'odore di una cosa non è quella cosa. Il telaio è
+## adiacente (parola, «di», parola del cielo) e per questo non copre «gocce
+## di pioggia», che invece la pioggia ce l'ha dentro davvero.
+const IMPRESSIONE := ["sa", "sanno", "sapeva", "sapevano",
+	"profuma", "profumano", "profumava", "odora", "odorano", "odorava",
+	"senso", "sapore", "odore", "profumo", "sentore"]
+const DI := ["di", "d"]
+
+
+## LA RIGA LIBERA SMENTISCE IL CIELO? Torna "" se non lo smentisce (il caso
+## buono), altrimenti il motivo. Pura come `afferma`: una stringa scritta a
+## mano e un ritratto scritto a mano.
+##
+## ⚠️ SENZA LA CHIAVE NON SI GIUDICA, e non è prudenza generica: è che non
+## c'è un oracolo. Il prologo, il diorama del titolo e i banchi di prova non
+## hanno un cielo da smentire, e un ritratto senza `meteo` deve comportarsi
+## ESATTAMENTE come si comportava prima che questa funzione esistesse. Il
+## degrado va sempre verso «passa»: bocciare per una chiave mancante vorrebbe
+## dire che il gioco tace di più proprio dove il mondo è più piccolo.
+static func afferma_sul_cielo(riga: String, rit: Dictionary) -> String:
+	var ws := parole(riga)
+
+	var meteo := str(rit.get("meteo", ""))
+	if meteo != "":
+		for i in ws.size():
+			var stato := _stato_del_cielo(str(ws[i]))
+			if stato == "" or stato == meteo:
+				continue
+			if _e_un_paragone(ws, i) or _e_un_impressione(ws, i):
+				continue
+			return "una riga libera non cambia il tempo che fa: dice «%s», e c'è %s" \
+					% [str(ws[i]), meteo]
+
+	if str(rit.get("momento", "")) == MOMENTO_SENZA_SOLE:
+		for tel in SOLE_ADDOSSO:
+			var k := _telaio(ws, tel as Array)
+			if k >= 0 and not _e_un_paragone(ws, k):
+				return "una riga libera non accende il sole di notte: «%s»" \
+						% " ".join(tel as Array)
+	return ""
+
+
+## QUALE STATO DEL CIELO AFFERMA QUESTA PAROLA, o "".
+static func _stato_del_cielo(w: String) -> String:
+	for stato in CIELO:
+		for rad in (CIELO[stato] as Array):
+			if w.begins_with(str(rad)):
+				return str(stato)
+	return ""
+
+
+## LA PAROLA IN POSIZIONE `i` STA DENTRO UN PARAGONE? Si guarda indietro di
+## due, che è quanto basta a scavalcare l'articolo («come la neve»).
+static func _e_un_paragone(ws: PackedStringArray, i: int) -> bool:
+	for k in [i - 1, i - 2]:
+		if k >= 0 and PARAGONE.has(str(ws[k])):
+			return true
+	return false
+
+
+## ...O DENTRO UN'IMPRESSIONE? Telaio adiacente e nient'altro: `w di X`.
+static func _e_un_impressione(ws: PackedStringArray, i: int) -> bool:
+	if i < 2:
+		return false
+	return IMPRESSIONE.has(str(ws[i - 2])) and DI.has(str(ws[i - 1]))
+
+
+## DOVE COMINCIA QUESTO TELAIO DI PAROLE, o -1.
+static func _telaio(ws: PackedStringArray, tel: Array) -> int:
+	if tel.is_empty() or ws.size() < tel.size():
+		return -1
+	for i in range(ws.size() - tel.size() + 1):
+		var tutte := true
+		for k in tel.size():
+			if str(ws[i + k]) != str(tel[k]):
+				tutte = false
+				break
+		if tutte:
+			return i
+	return -1
 
 
 ## LA RIGA LIBERA AFFERMA QUALCOSA? Torna "" se non afferma niente (il caso
@@ -1743,6 +1965,28 @@ static func _passato_di_terza(ws: PackedStringArray) -> String:
 	return ""
 
 
+## LE TRE CICATRICI DELLA PAROLA, in una passata sola: torna "" se le
+## parole di questa riga sono parole (il caso buono), altrimenti il motivo.
+##
+## Sono tre domande diverse — il tetto della grammatica, le vocali, il
+## registro — e stanno insieme
+## perché escono tutte dalla stessa porta (`parola`) e perché così un banco
+## di prova può misurarle su una stringa scritta a mano, senza villaggio.
+## È pubblica per quello: `tools/prova_cielo.gd` le fa girare sul mazzo vero
+## e conta quante righe ognuna prende.
+static func parole_storte(riga: String) -> String:
+	var w := _parola_incollata(riga)
+	if w != "":
+		return "«%s» non è una parola: è il tetto della grammatica" % w
+	var q := _non_e_una_parola(riga)
+	if q != "":
+		return "«%s» non è una parola italiana: non ha vocali" % q
+	var v := _fuori_registro(riga)
+	if v != "":
+		return "«%s» non è una parola che il Gufo ha in bocca" % v
+	return ""
+
+
 ## UNA PAROLA INCOLLATA: il modello ha sbattuto contro il tetto della
 ## grammatica e ha tolto lo spazio. Vedi `LETTERE_MAX`.
 static func _parola_incollata(riga: String) -> String:
@@ -1793,6 +2037,88 @@ static func _non_e_una_parola(riga: String) -> String:
 	return ""
 
 
+
+
+## ═══════════════════════════════════════════════════════════════════════
+## LE CICATRICI DEL GETTONE — quella che si chiude, e quella che no
+## ═══════════════════════════════════════════════════════════════════════
+##
+## Rileggendo le trenta lettere mandate dal 4B, due guasti di PAROLA non li
+## vedeva nessuna regola. Uno si chiude qui, l'altro no — e il modo in cui si
+## distinguono è tutta la questione, perché la differenza non è quanto sono
+## brutti: è se esiste una regola che li prende senza portarsi via
+## dell'italiano vero.
+##
+## 1. **UNA PAROLA VERA, NEL REGISTRO SBAGLIATO.** «ivi» è italiano — è
+##    l'avverbio di luogo degli atti notarili — e compare in **cinque delle
+##    trenta lettere mandate** («il legno scricchiola ivi», «piume sulla
+##    corteccia ivi», «pioggia leggera ivi ivi»), diciannove volte sul mazzo
+##    intero. Nessuna delle diciannove vuol dire niente: il modello ci tappa
+##    i buchi, come farebbe con un gettone qualunque, e il risultato è una
+##    lettera che sembra uscita da un ufficio.
+##    ⚠️ **QUESTA È UNA REGOLA DI GUSTO, e va detto.** Tutte le altre di
+##    questo file sono di lingua o di grafo; questa dice «il Gufo non ha
+##    queste parole in bocca», e il criterio è quello che il messaggio di
+##    sistema chiede già: *parole semplici*. La lista è corta apposta e non
+##    deve allungarsi a ogni bozza brutta — ci stanno solo i deittici e i
+##    connettivi da atto pubblico, che in una lettera di questo gioco non
+##    hanno un uso possibile. Costo misurato sul mazzo vero: **zero righe
+##    buone**, perché nessuna delle diciannove lo era.
+##
+## 2. **E QUELLO CHE RESTA APERTO: le non-parole con le vocali dentro**
+##    («ivieta», «orteccio», «moffa», «orte», «ervingo», «ialogo», «ildi»).
+##    Sono code di parole vere a cui il gettone ha mangiato l'inizio (o due
+##    parole senza lo spazio in mezzo), e per riconoscerle serve un
+##    dizionario italiano — che è un'altra faccenda. **Tre** strade sono
+##    state provate e MISURATE, e tutte e tre si buttano:
+##     · «una parola italiana finisce per vocale» — vera come regola, ma sul
+##       mazzo prende soltanto due parole (e sono inglesi), mentre il
+##       troncamento poetico che il Gufo ha diritto di usare («andar via»,
+##       «il fior di neve», «cuor») finirebbe bocciato: si perde più di
+##       quanto si prenda;
+##     · «la parola non compare in nessun'altra riga del mazzo» — cioè un
+##       dizionario improvvisato con la frequenza: **493 parole su 1036**
+##       compaiono una volta sola in tutto il corpus, e sono quasi tutte
+##       italiano bellissimo («fronde», «luccichio», «smarrita»,
+##       «piumaggio»). Sarebbe la mannaia sulla varietà, che è l'unica cosa
+##       per cui il modello è qui;
+##     · **«due parole-attrezzo incollate»** — questa era scritta, funzionava
+##       e prendeva `ildi` («il»+«di»). È stata tolta dopo aver ENUMERATO
+##       quello che prendeva: con `ARTICOLI` come lista di pezzi boccia
+##       **«dello»** («del»+«lo»), **«dagli»**, **«digli»**, **«dadi»**,
+##       **«loda»** e **«lodi»**, che sono italiano di tutti i giorni. E c'è
+##       di peggio del falso positivo di oggi: `ARTICOLI` esiste per
+##       tagliare le ETICHETTE dei vicini, non per questo. Il giorno che
+##       qualcuno ci aggiunge «nel», «dal», «sul» — una modifica innocua,
+##       fatta per un'altra ragione, in un altro punto del file — la regola
+##       comincia a bocciare **«nella»**, **«dalla»** e **«sulla»** senza che
+##       nessun test possa accorgersene. Un guadagno di **una riga su 1751**
+##       non paga una trappola così. Chi la riscriverà: serve un elenco di
+##       parole-attrezzo che sia SUO, e la dimostrazione che le
+##       concatenazioni non sono parole vere — cioè, di nuovo, un
+##       dizionario.
+
+## LE PAROLE CHE IL GUFO NON HA IN BOCCA. Deittici e connettivi da atto
+## notarile: parole vere, ma di un registro che questo gioco non parla in
+## nessun altro punto — né nelle lettere scritte a mano, né nei dialoghi.
+## Non è un elenco di parole brutte, e non deve diventarlo: se un domani ci
+## si aggiunge una parola che qualcuno potrebbe dire davvero, questa lista ha
+## smesso di essere una regola ed è diventata un gusto personale.
+const FUORI_REGISTRO := ["ivi", "quivi", "colà", "altresì", "nonché",
+	"laddove", "allorché", "ovverosia", "testé", "orbene",
+	"suddetto", "suddetta", "suddetti", "suddette",
+	"predetto", "predetta", "predetti", "predette",
+	"codesto", "codesta", "codesti", "codeste"]
+
+
+## LA PAROLA DI QUESTA RIGA CHE IL GUFO NON HA IN BOCCA, o "".
+static func _fuori_registro(riga: String) -> String:
+	for w in parole(riga):
+		if FUORI_REGISTRO.has(str(w)):
+			return str(w)
+	return ""
+
+
 ## I NOMI CHE IL VILLAGGIO HA DAVVERO, in minuscolo e a pezzi. Un'etichetta
 ## è «la volpina Papavero»: vale «volpina» quanto «papavero», perché in
 ## questo villaggio non ci sono volpine che non siano qualcuno.
@@ -1827,7 +2153,9 @@ static func _nomi_del_villaggio(rit: Dictionary) -> PackedStringArray:
 ##                   posto, e righe libere di soli caratteri ammessi;
 ##  · `parola`     — una parola incollata al tetto della grammatica;
 ##  · `ancoraggio` — il SENSO: quello che una riga libera non ha il diritto
-##                   di dire (vedi la sezione qui sopra).
+##                   di dire (vedi la sezione qui sopra);
+##  · `cielo`      — il MONDO: quello che una riga libera non può smentire,
+##                   perché il villaggio lo sa (vedi «IL CIELO»).
 ## Stanno in tre passate separate e non intrecciate perché il motivo dica
 ## sempre la stessa cosa, e perché un banco di prova possa misurare quanto
 ## pesa ognuna: un testo che esce con `porta = "ancoraggio"` è un testo che
@@ -1889,12 +2217,9 @@ static func accetta(testo: String, rit: Dictionary, b := {}) -> Dictionary:
 			return _no(m, "forma")
 
 	for riga in libere:
-		var w := _parola_incollata(str(riga))
+		var w := parole_storte(str(riga))
 		if w != "":
-			return _no("«%s» non è una parola: è il tetto della grammatica" % w, "parola")
-		var q := _non_e_una_parola(str(riga))
-		if q != "":
-			return _no("«%s» non è una parola italiana: non ha vocali" % q, "parola")
+			return _no(w, "parola")
 
 	# LA TERZA PORTA, E NON È UN DOPPIONE DELLA GRAMMATICA. La grammatica sa
 	# impedire di CAMPIONARE una frase falsa fra quelle chiuse; non sa niente
@@ -1904,6 +2229,17 @@ static func accetta(testo: String, rit: Dictionary, b := {}) -> Dictionary:
 		var m := afferma(str(riga), rit, banc)
 		if m != "":
 			return _no(m, "ancoraggio")
+
+	# LA QUARTA PORTA: IL CIELO. Sta a parte dall'ancoraggio e non dentro,
+	# perché non è la stessa domanda e non ha la stessa fonte — l'ancoraggio
+	# confronta col GRAFO di quel vicino, questa col MONDO di adesso — e
+	# perché un banco di prova deve poter contare quanto pesa ognuna delle
+	# due. Un testo che esce con `porta = "cielo"` è un testo che il collaudo
+	# di ieri avrebbe mandato al giocatore.
+	for riga in libere:
+		var c := afferma_sul_cielo(str(riga), rit)
+		if c != "":
+			return _no(c, "cielo")
 
 	# ...e IL PONTEGGIO NON È TESTO. Due cose che il gioco scrive per il
 	# MODELLO e che il giocatore non deve mai leggere:
@@ -1941,11 +2277,80 @@ static func _ponteggio(riga: String, b: Dictionary) -> String:
 		if s.contains(str(voce)):
 			return "«%s» è una frase del foglio, non una riga tua" % str(voce)
 
+	# ...E NEMMENO LA SAGOMA.
+	var sag := sagoma_del_foglio(riga)
+	if sag != "":
+		return sag
+
 	if s.length() < 8:
 		return ""
 	for c in (b["citazioni"] as Array):
 		if str(c).to_lower().contains(s):
 			return "«%s» è un pezzo della citazione, non una riga tua" % riga
+	return ""
+
+
+## ═══════════════════════════════════════════════════════════════════════
+## LA SAGOMA LETTA AD ALTA VOCE — l'istruzione che esce dalla busta
+## ═══════════════════════════════════════════════════════════════════════
+##
+## `_frasi_del_foglio` guarda il blocco UTENTE (il dossier, le etichette, i
+## pezzi fra parentesi). Il messaggio di SISTEMA non lo guardava nessuno — e
+## quello, a un modello piccolo, si ricopia meglio di tutto il resto, perché
+## è la cosa che gli è stata detta per ultima e in imperativo. Sul mazzo
+## vero:
+##
+##     «una riga tua, se ti va.»    dieci volte, e in UNA LETTERA MANDATA
+##     «a riga tua ivi.»            due volte, mandata
+##     «una riga mia orte.»         due volte
+##     «mia riga a te.»             mandata
+##     «una riga tua il vento e il miele.»
+##
+## Sono l'istruzione che esce dalla busta: il giocatore apre una lettera del
+## Gufo e ci trova scritto il modulo con cui è stata compilata.
+##
+## LA REGOLA NON È SULLA FRASE, e non è nemmeno sulla parola. Ci sono
+## voluti due giri e una bocciatura per arrivarci:
+##
+##  1. **la frase intera** («una riga tua») ne prende diciannove su ventisei:
+##     le altre sette sono mutazioni («a riga tua», «una riga mia», «mia riga
+##     a te») che a un confronto letterale sfuggono tutte;
+##  2. **la parola sola** («riga») le prende tutte e ventisei — e boccia
+##     anche *«una lucciola sola scrive una riga d'oro sull'acqua nera»*,
+##     che non viene da nessun modello: è la bozza bella scritta a mano
+##     dentro `test_giudice.gd`, quella che serve a provare che la rarità
+##     funziona. La suite è diventata rossa in sei punti, ed è stato il modo
+##     giusto di scoprirlo: «riga» è una parola che questa voce PUÒ usare;
+##  3. quello che il villaggio non ha è **la riga DI QUALCUNO**. «una riga
+##     tua», «le righe tue», «una riga mia» sono il prompt che divide il
+##     lavoro fra chi dà le frasi e chi le scrive: un possessivo di prima o
+##     seconda persona attaccato al nome del foglio. Fuori dal foglio quella
+##     cosa non esiste — a un vicino che scrive a Mochi non tocca «una riga
+##     sua».
+##
+## Misurato sul mazzo vero: **ventisei righe su ventisei** prese, e **zero**
+## righe buone perdute — passano la lucciola d'oro, «una riga bianca,
+## fredda» e «mi manda una riga».
+##
+## Un test lega queste liste al messaggio di sistema VERO: se un domani il
+## prompt chiederà «un verso tuo», qui diventa rosso invece di continuare a
+## sorvegliare una parola che il foglio non usa più.
+const PAROLE_DEL_FOGLIO := ["riga", "righe"]
+const POSSESSIVI := ["mia", "mio", "mie", "miei", "tua", "tuo", "tue", "tuoi"]
+
+
+## LA SAGOMA DEL FOGLIO IN QUESTA RIGA, o "". Si guarda la COPPIA, perché è
+## il possessivo a fare del foglio una cosa di qualcuno — e sta di qua o di
+## là («una riga tua», «mia riga a te»).
+static func sagoma_del_foglio(riga: String) -> String:
+	var ws := parole(riga)
+	for i in ws.size():
+		if not PAROLE_DEL_FOGLIO.has(str(ws[i])):
+			continue
+		for k in [i - 1, i + 1]:
+			if k >= 0 and k < ws.size() and POSSESSIVI.has(str(ws[k])):
+				var coppia := [str(ws[i]), str(ws[k])] if k > i else [str(ws[k]), str(ws[i])]
+				return "«%s %s» è la sagoma del foglio, non una riga tua" % coppia
 	return ""
 
 

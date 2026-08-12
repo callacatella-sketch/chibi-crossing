@@ -4,12 +4,12 @@ extends RefCounted
 ## abitano le cose che servono a `Suggeritore`.
 ##
 ## `Suggeritore` è puro: prende un Dictionary e torna un prompt. Ma quel
-## Dictionary va RIEMPITO, e le sue chiavi vivono in sette posti diversi —
+## Dictionary va RIEMPITO, e le sue chiavi vivono in otto posti diversi —
 ## il cuore C++ (i ricordi, le tinte), `Legami` (l'età), `VillagerBrain` (le
 ## otto azioni), `Piani` (i quattro obiettivi), `DayNight` (la stagione e il
-## ciclo), `OraDelGiorno` (i sei momenti), il registro dei residenti (i nomi
-## vivi). Questo file è quel raccordo, e per questo è l'unico pezzo della
-## Fase 5 che tocca il villaggio.
+## ciclo), `OraDelGiorno` (i sei momenti), `CozyWorld` (che tempo fa), il
+## registro dei residenti (i nomi vivi). Questo file è quel raccordo, e per
+## questo è l'unico pezzo della Fase 5 che tocca il villaggio.
 ##
 ## ⚠️ **UN COLLETTORE SBAGLIA DOVE UN DIZIONARIO SCRITTO A MANO NON PUÒ.** Un
 ## ritratto di prova non dimentica mai una chiave; questo sì. Ed è la ragione
@@ -103,6 +103,21 @@ static func ritratto(visitors: Node, daynight: Node, cuore: Object, r: Dictionar
 		mondo["stagione"] = str(daynight.call("season_name"))
 		mondo["momento"] = ORA.momento(int(float(daynight.get("time")) * 24.0))
 		mondo["ciclo"] = float(daynight.get("cycle_seconds"))
+	# CHE TEMPO FA, e la fonte non è `Weather`: è `CozyWorld.contesto_critter()`,
+	# la stessa riga con cui il bestiario decide se stasera vola la farfalla di
+	# neve. Chiedere a Weather «piove?» qui vorrebbe dire riscrivere il pezzo
+	# che sta di là — «d'inverno la precipitazione è una nevicata, non
+	# pioggia» — e sarebbe la seconda risposta alla domanda «è inverno?», che
+	# in questo progetto è vietata per iscritto.
+	#
+	# Il ritratto NON inventa un cielo quando il mondo non ce l'ha (il
+	# prologo, il diorama, i banchi di prova): la chiave resta assente, e il
+	# collaudo lo legge come «non c'è niente da smentire».
+	var cozy: Node = visitors.get_tree().get_first_node_in_group("cozy_world") \
+			if visitors != null and visitors.is_inside_tree() else null
+	if cozy != null and is_instance_valid(cozy) and cozy.has_method("contesto_critter"):
+		var ctx: Dictionary = cozy.call("contesto_critter")
+		mondo["meteo"] = str(ctx.get("meteo", ""))
 	return SUG.ritratto(cuore, id, chi, mondo)
 
 

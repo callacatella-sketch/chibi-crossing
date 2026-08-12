@@ -254,6 +254,20 @@ void Traduttore::chiudi() {
 			delete _m;
 			_m = nullptr;
 		}
+		// ⚠️ E LA FINESTRA DEL SILENZIO SI RICHIUDE ANCHE QUI. `g_abbandoni`
+		// è globale al PROCESSO: un incremento lasciato indietro declassa ad
+		// avviso ogni errore di llama fino alla fine della partita, cioè
+		// spegne la rete che si accorge quando il gioco è rotto davvero.
+		// Nel gioco questo ramo non ci arriva mai (la finestra si apre solo
+		// se `_preso`, e `_preso` è vero solo quando c'è un thread che
+		// scrive), ma il banco può portarcelo — e una riga che vale «mai,
+		// tranne quando qualcuno prova» è il posto esatto in cui un residuo
+		// si accumula senza che nessuno lo veda.
+		std::lock_guard<std::mutex> g(_mutex);
+		if (_zittisci) {
+			_zittisci = false;
+			g_abbandoni.fetch_sub(1, std::memory_order_relaxed);
+		}
 		_fermati.store(true, std::memory_order_relaxed);
 		return;
 	}
@@ -341,25 +355,12 @@ void Traduttore::_ciclo() {
 			if (_chiesto_carico) {
 				_chiesto_carico = false;
 				carica = true;
-			} else {
-				lavoro = std::move(_coda.front());
-				_coda.pop_front();
-				// IL BIGLIETTO SI PRENDE QUI, sotto lo stesso lock del prelievo.
-				// Leggerlo più tardi vorrebbe dire leggere un contatore che nel
-				// frattempo può essere avanzato, cioè consegnare un pensiero
-				// con il numero di un altro — ed è proprio il numero con cui
-				// chi riceve decide se buttarlo.
-				_in_lavorazione = _biglietto;
-				biglietto = _biglietto;
-				// E QUI SI AZZERA LA BANDIERA DELL'ANNULLAMENTO: un annullamento
-				// arrivato PRIMA che questo lavoro esistesse non lo riguarda.
-				// Sta sotto lo stesso lucchetto di `annulla()` apposta — vedi
-				// la nota là, è il guasto che rendeva muto il villaggio.
-				_annullato.store(false, std::memory_order_relaxed);
-				// «QUESTO LAVORO CE L'HO IN MANO IO», e da adesso `_in_volo` è
-				// affare mio: `annulla()` legge questa riga per sapere se deve
-				// aspettare che molli (sì) o spegnere lui la bandiera (no).
-				_preso = true;
+			} else if (!_prendi_lavoro(lavoro, biglietto)) {
+				// Non può succedere (il predicato del campanello ha appena
+				// detto che la coda non è vuota, e siamo ancora sotto lo
+				// stesso lucchetto), ma se succedesse la risposta giusta è
+				// tornare ad aspettare — mai generare su una richiesta vuota.
+				continue;
 			}
 		}
 
@@ -393,63 +394,7 @@ void Traduttore::_ciclo() {
 			esito.errore = "llama.cpp si è lamentata mentre scriveva";
 		}
 		_stato.store(StatoLlm::PRONTO, std::memory_order_relaxed);
-
-		// ⚠️ L'EPILOGO STA TUTTO SOTTO UN LUCCHETTO SOLO, ed è la seconda metà
-		// della cura descritta in `annulla()`. Deve essere INDIVISIBILE
-		// rispetto a lei: se `annulla()` cadesse in mezzo — fra il momento in
-		// cui si legge la bandiera e quello in cui si spegne `_preso` — i due
-		// rami di là sceglierebbero guardando uno stato a metà, e si
-		// tornerebbe a una finestra in cui nessuno spegne `_in_volo`.
-		bool buttato = false;
-		{
-			std::lock_guard<std::mutex> g(_mutex);
-			buttato = _annullato.exchange(false, std::memory_order_relaxed);
-			// la finestra del silenzio si chiude QUI: il lavoro che stava
-			// mollando è finito, e da adesso un errore di llama è un errore
-			if (_zittisci) {
-				_zittisci = false;
-				g_abbandoni.fetch_sub(1, std::memory_order_relaxed);
-			}
-			// il lavoro non è più in mano a nessuno
-			_preso = false;
-			if (buttato) {
-				// UN ESITO ANNULLATO NON SI CONSEGNA. Se si consegnasse, il
-				// chiamante dovrebbe ricordarsi di guardare un flag — e prima o
-				// poi qualcuno non se ne ricorda, e un pensiero di due scene fa
-				// arriva addosso a un vicino che nel frattempo se n'è andato.
-				_buttati.fetch_add(1, std::memory_order_relaxed);
-			} else {
-				// ⚠️ MA UN ESITO VUOTO SÌ, ED È UNA CORREZIONE, NON UNO SFIZIO.
-				// Prima si buttava anche quello (`|| esito.bozze.empty()`), e il
-				// risultato era il guasto peggiore di tutta la fase: chi aspetta
-				// quel biglietto — `Pensatoio` — non lo riceve MAI, quindi non
-				// smette mai di aspettarlo, quindi non chiede più nessun pensiero.
-				// **Il villaggio diventa muto per sempre, in silenzio, dopo un
-				// errore solo**: un prompt più lungo della finestra, una grammatica
-				// che non si apre, un `llama_decode` che rifiuta. Un errore che
-				// nessuno riceve non è un errore gestito: è un sistema che si
-				// spegne da solo. L'esito vuoto porta `errore` compilato, ed è la
-				// sola strada per cui quel testo arriva a chi può stamparlo.
-				if (esito.bozze.empty()) {
-					_buttati.fetch_add(1, std::memory_order_relaxed);
-				} else {
-					_fatti.fetch_add(1, std::memory_order_relaxed);
-				}
-				_esiti.push_back(std::move(esito));
-				_da_ritirare.store(static_cast<int>(_esiti.size()), std::memory_order_release);
-			}
-			// ⚠️ `_in_volo` SI SPEGNE PER ULTIMO, DOPO CHE L'ESITO È RITIRABILE.
-			// È lui, e non lo stato, a dire al thread principale «ho finito»
-			// (`libero()` li guarda tutti e due). Spegnendolo PRIMA di posare
-			// l'esito si apre una finestra di pochi microsecondi in cui il gioco
-			// vede un motore libero e una cassetta ancora vuota — e chi aspetta
-			// quel biglietto lo dichiara perso un istante prima che arrivi, per
-			// poi buttarlo un frame dopo perché il numero non è più quello che
-			// aspettava. Un pensiero perso ogni tanto, senza una riga di log, e
-			// solo su una macchina carica: la specie di difetto che si scopre in
-			// produzione o non si scopre affatto.
-			_in_volo.store(false, std::memory_order_relaxed);
-		}
+		_epilogo(std::move(esito));
 	}
 
 	// Il modello si libera SUL THREAD che l'ha aperto: `llama_free` tocca i
@@ -466,6 +411,152 @@ void Traduttore::_ciclo() {
 			_m->modello = nullptr;
 		}
 	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// IL PROLOGO E L'EPILOGO DI CHI SCRIVE
+//
+// Stanno in due funzioni loro perché hanno DUE chiamanti: il thread e il
+// banco (`banco_prendi` / `banco_finisci`). Ricopiarli nel banco sarebbe
+// provare una seconda implementazione — cioè il doppio che mente, la classe
+// di guasto più cara di questo progetto: il finto è più comodo del vero,
+// quindi il vero non è provato.
+// ─────────────────────────────────────────────────────────────────────────
+
+// ⚠️ PRESUPPONE IL LUCCHETTO PRESO da chi chiama, e deve stare nello STESSO
+// tratto in cui si è verificato che la coda non è vuota: fra le due cose ci
+// ricasca `annulla()`, che è tutto il difetto di questa pagina.
+bool Traduttore::_prendi_lavoro(Richiesta &r_lavoro, uint64_t &r_biglietto) {
+	if (_coda.empty()) {
+		return false;
+	}
+	r_lavoro = std::move(_coda.front());
+	_coda.pop_front();
+	// IL BIGLIETTO SI PRENDE QUI, sotto lo stesso lock del prelievo.
+	// Leggerlo più tardi vorrebbe dire leggere un contatore che nel
+	// frattempo può essere avanzato, cioè consegnare un pensiero con il
+	// numero di un altro — ed è proprio il numero con cui chi riceve decide
+	// se buttarlo.
+	_in_lavorazione = _biglietto;
+	r_biglietto = _biglietto;
+	// E QUI SI AZZERA LA BANDIERA DELL'ANNULLAMENTO: un annullamento
+	// arrivato PRIMA che questo lavoro esistesse non lo riguarda. Sta sotto
+	// lo stesso lucchetto di `annulla()` apposta — vedi la nota là, è il
+	// guasto che rendeva muto il villaggio.
+	_annullato.store(false, std::memory_order_relaxed);
+	// «QUESTO LAVORO CE L'HO IN MANO IO», e da adesso `_in_volo` è affare
+	// mio: `annulla()` legge questa riga per sapere se deve aspettare che
+	// molli (sì) o spegnere lui la bandiera (no).
+	_preso = true;
+	return true;
+}
+
+// ⚠️ L'EPILOGO STA TUTTO SOTTO UN LUCCHETTO SOLO, ed è la seconda metà della
+// cura descritta in `annulla()`. Deve essere INDIVISIBILE rispetto a lei: se
+// `annulla()` cadesse in mezzo — fra il momento in cui si legge la bandiera e
+// quello in cui si spegne `_preso` — i due rami di là sceglierebbero
+// guardando uno stato a metà, e si tornerebbe a una finestra in cui nessuno
+// spegne `_in_volo`.
+void Traduttore::_epilogo(Esito &&p_esito) {
+	std::lock_guard<std::mutex> g(_mutex);
+	const bool buttato = _annullato.exchange(false, std::memory_order_relaxed);
+	// la finestra del silenzio si chiude QUI: il lavoro che stava mollando è
+	// finito, e da adesso un errore di llama è un errore
+	if (_zittisci) {
+		_zittisci = false;
+		g_abbandoni.fetch_sub(1, std::memory_order_relaxed);
+	}
+	// il lavoro non è più in mano a nessuno
+	_preso = false;
+	if (buttato) {
+		// UN ESITO ANNULLATO NON SI CONSEGNA. Se si consegnasse, il
+		// chiamante dovrebbe ricordarsi di guardare un flag — e prima o poi
+		// qualcuno non se ne ricorda, e un pensiero di due scene fa arriva
+		// addosso a un vicino che nel frattempo se n'è andato.
+		_buttati.fetch_add(1, std::memory_order_relaxed);
+	} else {
+		// ⚠️ MA UN ESITO VUOTO SÌ, ED È UNA CORREZIONE, NON UNO SFIZIO.
+		// Prima si buttava anche quello (`|| esito.bozze.empty()`), e il
+		// risultato era il guasto peggiore di tutta la fase: chi aspetta
+		// quel biglietto — `Pensatoio` — non lo riceve MAI, quindi non
+		// smette mai di aspettarlo, quindi non chiede più nessun pensiero.
+		// **Il villaggio diventa muto per sempre, in silenzio, dopo un
+		// errore solo**: un prompt più lungo della finestra, una grammatica
+		// che non si apre, un `llama_decode` che rifiuta. Un errore che
+		// nessuno riceve non è un errore gestito: è un sistema che si
+		// spegne da solo. L'esito vuoto porta `errore` compilato, ed è la
+		// sola strada per cui quel testo arriva a chi può stamparlo.
+		if (p_esito.bozze.empty()) {
+			_buttati.fetch_add(1, std::memory_order_relaxed);
+		} else {
+			_fatti.fetch_add(1, std::memory_order_relaxed);
+		}
+		_esiti.push_back(std::move(p_esito));
+		_da_ritirare.store(static_cast<int>(_esiti.size()), std::memory_order_release);
+	}
+	// ⚠️ `_in_volo` SI SPEGNE PER ULTIMO, DOPO CHE L'ESITO È RITIRABILE.
+	// È lui, e non lo stato, a dire al thread principale «ho finito»
+	// (`libero()` li guarda tutti e due). Spegnendolo PRIMA di posare
+	// l'esito si apre una finestra di pochi microsecondi in cui il gioco
+	// vede un motore libero e una cassetta ancora vuota — e chi aspetta
+	// quel biglietto lo dichiara perso un istante prima che arrivi, per poi
+	// buttarlo un frame dopo perché il numero non è più quello che
+	// aspettava. Un pensiero perso ogni tanto, senza una riga di log, e solo
+	// su una macchina carica: la specie di difetto che si scopre in
+	// produzione o non si scopre affatto.
+	_in_volo.store(false, std::memory_order_relaxed);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// IL BANCO — vedi la nota lunga nell'intestazione. Qui non c'è llama, non
+// c'è un thread, e non si inventa nemmeno una parola: si muove a mano il
+// lavoro attraverso le funzioni VERE.
+// ─────────────────────────────────────────────────────────────────────────
+
+bool Traduttore::banco_accendi() {
+	// Non scavalca mai un traduttore vivo: se c'è un thread, o se qualcuno
+	// ha già chiesto un modello, o se `chiudi()` l'ha spento, si dice di no.
+	if (_thread.joinable() || _fermati.load(std::memory_order_relaxed)) {
+		return false;
+	}
+	if (_stato.load(std::memory_order_relaxed) != StatoLlm::SPENTO) {
+		return false;
+	}
+	{
+		std::lock_guard<std::mutex> g(_mutex);
+		_diagnosi = "banco: nessun modello, nessun thread";
+	}
+	_stato.store(StatoLlm::PRONTO, std::memory_order_relaxed);
+	return true;
+}
+
+bool Traduttore::banco_prendi() {
+	std::lock_guard<std::mutex> g(_mutex);
+	if (!_prendi_lavoro(_banco_lavoro, _banco_biglietto)) {
+		return false;
+	}
+	// come il thread: si annuncia DOPO aver lasciato il prelievo, ed è
+	// l'unica cosa che il gioco vede di questo tratto
+	_stato.store(StatoLlm::PENSA, std::memory_order_relaxed);
+	return true;
+}
+
+void Traduttore::banco_finisci(const std::string &p_bozza) {
+	Esito e;
+	e.chi = _banco_lavoro.chi;
+	e.biglietto = _banco_biglietto;
+	if (!p_bozza.empty()) {
+		e.bozze.push_back(p_bozza);
+	} else {
+		e.errore = "il banco non ha prodotto niente";
+	}
+	_stato.store(StatoLlm::PRONTO, std::memory_order_relaxed);
+	_epilogo(std::move(e));
+}
+
+bool Traduttore::banco_in_mano() const {
+	std::lock_guard<std::mutex> g(_mutex);
+	return _preso;
 }
 
 bool Traduttore::_riparata(const std::function<bool()> &p_lavoro, const char *p_dove) {

@@ -321,11 +321,25 @@ const TRAMONTO_DA := 0.67
 const TRAMONTO_A := 0.80
 
 
+## I QUATTRO STATI DEL CIELO, in ordine: il primo è quello che non è niente.
+##
+## Erano un commento, e per anni è bastato — l'unico lettore era `cond.meteo`
+## qui dentro. Adesso ce n'è un secondo che sta lontanissimo da qui: il
+## collaudo delle lettere del Gufo (`Suggeritore.CIELO`, che sa quali parole
+## AFFERMANO ognuno di questi stati e boccia la riga che ne afferma uno
+## diverso da quello vero). Due elenchi di stati del cielo, in due file che
+## non si conoscono, divergerebbero al primo stato nuovo — e divergerebbero
+## in silenzio, perché una parola che non corrisponde a nessuno stato non
+## fallisce: semplicemente non giudica più niente. Perciò la lista è UNA, e
+## un test lega le chiavi di là a questa.
+const METEO := ["sereno", "pioggia", "neve", "nebbia"]
+
+
 ## Costruisce il contesto con cui si interroga disponibile().
 ##   stagione  0..3 (da DayNight.get_season())
 ##   tempo     l'orologio 0..1 di DayNight.time
 ##   notte     DayNight.is_night() (la soglia vera è la sua, non la nostra)
-##   meteo     "sereno" | "pioggia" | "neve" | "nebbia"
+##   meteo     uno di `METEO`
 static func contesto(stagione: int, tempo: float, notte: bool, meteo: String) -> Dictionary:
 	var ora := "notte" if notte else "giorno"
 	if (tempo >= ALBA_DA and tempo <= ALBA_A) \

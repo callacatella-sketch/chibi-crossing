@@ -140,6 +140,18 @@ LlmLocale::~LlmLocale() {
 	if (g_maniglioni.fetch_sub(1, std::memory_order_acq_rel) == 1) {
 		traduttore().annulla();
 	}
+	// Il banco è di QUESTO maniglione e muore con lui. Niente `chiudi()`
+	// scritto qui: lo chiama già `~Traduttore`, ed è lì dentro — nel ramo
+	// senza thread — che si richiude la finestra del silenzio se chi provava
+	// l'ha lasciata aperta (quel contatore è globale al PROCESSO). Una
+	// chiamata in più qui sarebbe una riga che nessuna mutazione può far
+	// diventare rossa: PROVATO, togliendola la suite resta verde. In questo
+	// progetto una guardia che nessun test può far fallire è una guardia che
+	// non c'è, e si toglie.
+	if (_banco != nullptr) {
+		delete _banco;
+		_banco = nullptr;
+	}
 }
 
 void LlmLocale::avvia() {
@@ -422,6 +434,85 @@ Dictionary LlmLocale::misure() const {
 	return d;
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// IL BANCO DELLA CONCORRENZA — vedi la nota nell'header, e quella lunga in
+// `llm_pensieri.h`. Qui non si apre nessun modello e non si scrive niente:
+// si muove a mano un lavoro finto attraverso le funzioni VERE.
+// ─────────────────────────────────────────────────────────────────────────
+
+bool LlmLocale::banco_accendi() {
+	if (_banco == nullptr) {
+		_banco = new chibi::Traduttore();
+	}
+	return _banco->banco_accendi();
+}
+
+int64_t LlmLocale::banco_accoda(int64_t p_chi, const String &p_utente,
+		const String &p_grammatica) {
+	if (_banco == nullptr) {
+		return 0;
+	}
+	// LE TRE PORTE DI `accoda()` RESTANO QUELLE VERE (motore pronto, coda
+	// vuota, grammatica obbligatoria): il banco non ne salta nessuna, altrimenti
+	// proverebbe una funzione che il gioco non ha.
+	chibi::Richiesta r;
+	r.chi = p_chi;
+	r.utente = a_std(p_utente);
+	r.grammatica = a_std(p_grammatica);
+	return static_cast<int64_t>(_banco->accoda(std::move(r)));
+}
+
+bool LlmLocale::banco_prendi() {
+	return _banco != nullptr && _banco->banco_prendi();
+}
+
+void LlmLocale::banco_finisci(const String &p_bozza) {
+	if (_banco != nullptr) {
+		_banco->banco_finisci(a_std(p_bozza));
+	}
+}
+
+void LlmLocale::banco_annulla() {
+	if (_banco != nullptr) {
+		_banco->annulla();
+	}
+}
+
+Dictionary LlmLocale::banco_raccogli() {
+	Dictionary d;
+	chibi::Esito e;
+	if (_banco == nullptr || !_banco->raccogli(e)) {
+		return d;
+	}
+	PackedStringArray bozze;
+	for (const std::string &b : e.bozze) {
+		bozze.push_back(String::utf8(b.c_str(), static_cast<int>(b.size())));
+	}
+	d["biglietto"] = static_cast<int64_t>(e.biglietto);
+	d["chi"] = e.chi;
+	d["bozze"] = bozze;
+	d["errore"] = String::utf8(e.errore.c_str());
+	return d;
+}
+
+Dictionary LlmLocale::banco_stato() const {
+	Dictionary d;
+	if (_banco == nullptr) {
+		return d;
+	}
+	d["libero"] = _banco->libero();
+	d["stato"] = static_cast<int>(_banco->stato());
+	d["in_mano"] = _banco->banco_in_mano();
+	d["deve_smettere"] = _banco->banco_deve_smettere();
+	d["pensieri"] = static_cast<int64_t>(_banco->quanti_pensieri());
+	d["buttati"] = static_cast<int64_t>(_banco->quanti_annullati());
+	// LA RETE DEL SILENZIO, che è globale al PROCESSO: se resta aperta, da
+	// lì in poi ogni errore di llama viene declassato ad avviso — cioè si
+	// spegne la rete che si accorge quando il gioco è rotto davvero.
+	d["abbandono"] = chibi::abbandono_in_corso();
+	return d;
+}
+
 void LlmLocale::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("avvia"), &LlmLocale::avvia);
 	ClassDB::bind_method(D_METHOD("versione"), &LlmLocale::versione);
@@ -447,6 +538,16 @@ void LlmLocale::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("annulla"), &LlmLocale::annulla);
 	ClassDB::bind_method(D_METHOD("chiudi"), &LlmLocale::chiudi);
 	ClassDB::bind_method(D_METHOD("misure"), &LlmLocale::misure);
+
+	// il banco della concorrenza (solo per i test: vedi l'header)
+	ClassDB::bind_method(D_METHOD("banco_accendi"), &LlmLocale::banco_accendi);
+	ClassDB::bind_method(D_METHOD("banco_accoda", "chi", "utente", "grammatica"),
+			&LlmLocale::banco_accoda);
+	ClassDB::bind_method(D_METHOD("banco_prendi"), &LlmLocale::banco_prendi);
+	ClassDB::bind_method(D_METHOD("banco_finisci", "bozza"), &LlmLocale::banco_finisci);
+	ClassDB::bind_method(D_METHOD("banco_annulla"), &LlmLocale::banco_annulla);
+	ClassDB::bind_method(D_METHOD("banco_raccogli"), &LlmLocale::banco_raccogli);
+	ClassDB::bind_method(D_METHOD("banco_stato"), &LlmLocale::banco_stato);
 
 	BIND_ENUM_CONSTANT(LLM_SPENTO);
 	BIND_ENUM_CONSTANT(LLM_CARICA);

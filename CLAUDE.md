@@ -1721,6 +1721,60 @@ della malattia.
 > doppio: nessun doppio ti fa scrivere un test vero, uno che mente ti fa
 > credere di averlo già scritto.**
 
+> ### ⚠️ E LA CURA NON ERA PROVATA DA NIENTE — il BANCO DELLA CONCORRENZA
+>
+> Riparare il doppio ha reso provabile il **Pensatoio**, non il **motore**.
+> MISURATO il 2026-08-12, togliendo dal C++ una per volta le due righe che
+> curano il difetto qui sopra — `_in_volo.store(false)` dal ramo «era ancora
+> in coda» di `annulla()`, e `_preso = true` dal prologo di chi scrive — e
+> rifacendo la suite intera: **63942 passati, 0 falliti** tutte e due le
+> volte. L'unico giudice era `prova_concorrenza.cpp`, che vuole due gigabyte
+> di pesi e un eseguibile compilato a mano: non gira in nessuna suite, non
+> gira in CI.
+>
+> Adesso il difetto si vede **senza modello e senza thread**, in
+> [`tests/cases/test_llm_banco.gd`](tests/cases/test_llm_banco.gd). La chiave
+> è che **il difetto non è di tempistica: è una transizione di stato che
+> nessuno gestiva**, e il tempo decideva solo quanto spesso ci si cascava.
+> Perciò non si cerca di infilarsi in una finestra da 27 µs da GDScript (un
+> test che passa *quasi* sempre non dice niente): si toglie di mezzo **il
+> lavoro**, e si muove la richiesta a mano attraverso le funzioni VERE —
+> `accoda()`, `annulla()`, `_prendi_lavoro()`, `_epilogo()`, chiamate dagli
+> stessi posti e sotto lo stesso lucchetto (`Traduttore::banco_*`,
+> `LlmLocale.banco_*`).
+>
+> **È l'opposto di un doppio**: un doppio reimplementa la cosa da provare;
+> qui non si reimplementa niente, si toglie la cosa che non c'entra. Il
+> prologo e l'epilogo sono stati estratti in due funzioni proprio perché
+> hanno due chiamanti — ricopiarli nel banco sarebbe stato rifare, in
+> piccolo, il difetto del `MotoreFinto`.
+>
+> **Tre regole per chi ci mette le mani:**
+> 1. il banco **non inventa una parola**: il testo dell'esito lo passa chi
+>    prova, e `banco_accendi()` rifiuta un traduttore già acceso;
+> 2. è un `Traduttore` **del maniglione**, non quello del processo — se
+>    accendesse il singleton, tutti i casi successivi della suite si
+>    troverebbero un motore che non hanno chiesto (`test_pensatoio` pretende,
+>    giustamente, di trovarlo SPENTO);
+> 3. **nel gioco non lo chiama nessuno**, e un caso del file scandaglia
+>    `scenes/` e `systems/` perché resti così. Quel caso gira anche nel
+>    binario senza llama, che è l'unico che la CI normale compila.
+>
+> VERIFICATO che i due banchi vedono **la stessa cosa**: sulla stessa
+> mutazione, `prova_concorrenza annulla <gguf> 0 8` dice «libero dopo MAI ·
+> pensiero PERSO · appesi 1» e la suite diventa rossa in tre asserzioni. E
+> le sei mutazioni provate una per una (le due righe della cura, la guardia
+> che alza la finestra del silenzio una volta sola, l'esito vuoto che si
+> consegna lo stesso, la finestra richiusa da `chiudi()` senza thread) danno
+> 3 · 8 · 2 · 3 · 1 asserzioni rosse. La sesta — un `chiudi()` scritto a mano
+> nel distruttore del ponte — non è arrossita **perché era ridondante**
+> (`~Traduttore` lo chiama già): è stata tolta, che è quello che si fa con
+> una guardia che nessun test può far fallire.
+>
+> Il rifacimento è stato riprovato **col modello vero**:
+> `prova_uscita.gd` dà di nuovo 5 ms e 29 ms sulle prime due uscite, e
+> `prova_concorrenza annulla` 8 giri su 8 con zero appesi.
+
 **E le quattro righe per abbandono.** Quando `abort_callback` ferma
 `llama_decode` a metà, llama stampa quattro righe (misurate una per una: tre
 ERROR e una WARN). Prima venivano declassate ad avviso; adesso che le uscite
@@ -2241,6 +2295,50 @@ vuoto, cioè un errore a runtime — che **non fa fallire il test**, lo
 interrompe a metà lasciando la suite verde. La mutazione plausibile è
 *ripiegare sulla posizione del corpo*, e quella arrossisce.
 
+> ### ⚠️ E IL CORPO DI QUEL BANCO ERA UN DOPPIO CHE MENTIVA (2026-08-12)
+>
+> Il `Corpo` del test era un `Node3D` che **ri-implementava**
+> `collo_ci_arriva` — un `angle_to` fra il −Z del corpo e il posto. Il conto
+> tornava, e proprio per questo era il guasto peggiore che quel file potesse
+> avere: **la valvola vera non aveva nessun lettore.** MISURATO, guastando
+> `Visitor.collo_ci_arriva` nel sorgente e rifacendo la suite: `return true`
+> sempre (ricevute pagate col posto a 180°) → **63942/0/0**; `return false`
+> sempre (nessuna ricevuta, MAI, in tutto il gioco) → **63942/0/0**. La riga
+> che decide se una ricevuta si paga poteva diventare una costante, **in
+> tutte e due le direzioni**, senza che una sola asserzione se ne accorgesse.
+>
+> Adesso il corpo del banco **è un `Visitor`**, col rig di `ChibiBuilder`:
+> `collo_ci_arriva`, `is_hidden`, `dorme` e `in_scena` sono le funzioni di
+> produzione, e le tre valvole si accendono scrivendo lo **stato vero**
+> (`_hidden`, `_state = "tk_nap"`, `_scena_t`) invece di tre booleani del
+> banco. Di finto resta solo `guarda_gesto`, che REGISTRA e poi chiama
+> `super()`. Il cambio non sposta la geometria: **la testa di un chibi sta
+> esattamente sopra l'origine del corpo** (scarto orizzontale 0.0000 m su tre
+> genomi), che è il punto da cui misurava il doppio. Le due mutazioni adesso
+> danno **9 e 16 asserzioni rosse**.
+>
+> **E i due numeri della ricevuta erano sorvegliati solo rispetto a sé
+> stessi**: le sonde stavano a `RAGGIO ± 0.1` e `APERTURA ± 0.06`, cioè
+> dicevano che la valvola morde, non che morde nel posto giusto — portando
+> `FACCIA_AL_GIOCATORE` a cento metri restavano verdi. Adesso ognuno ha una
+> guardia fatta di numeri che **non sono lui**, e tutti provinati o misurati
+> altrove: due metri (si paga) e nove (tace, ed è anche `Percezione.RAGGIO`:
+> le due domande devono restare diverse) per il raggio; 20° (il MASSIMO che
+> il villaggio vero produce, `misura_attribuzione`) e 45° (dove il provino ha
+> visto il corpo uscire dall'inquadratura) per l'apertura. Le quattro
+> mutazioni corrispondenti sono rosse.
+>
+> **E la promessa del collo la mantiene il rig.** Anche `tetto_ricevuta()`
+> era giudicato contro sé stesso: portandolo a π restava tutto verde. Il caso
+> nuovo chiede al collo *e poi gira la testa per davvero* (`guarda_gesto` +
+> tre quarti di secondo di `_process`), e misura quanto le manca. MISURATO,
+> deterministico su tre corse: posto a 34° → **0.0057 rad (0.3°)**; posto a
+> 148° → **1.8128 rad (103.9°)** — cioè gli stessi 102° che la prova viva
+> aveva misurato nel MainLevel, da un banco completamente diverso. ⚠️ E il
+> posto raggiungibile **non sta davanti**: davanti la testa è già puntata, e
+> il residuo resterebbe minuscolo anche con lo sguardo spento (verificato:
+> spegnendo `guarda_gesto` il residuo diventa 0.600 rad e il caso arrossisce).
+
 [`tools/prova_deduzione.gd`](tools/prova_deduzione.gd) è la prova viva, **e
 non serve nessun `.gguf`**: le bozze sono tre JSON scritti a mano, come li
 scriverebbe un modello, e tutto il resto del cammino è quello vero — la
@@ -2259,6 +2357,133 @@ mestiere da solo e l'obiettivo che il vicino sta già perseguendo esce dai
 deducibili — giustamente), e insediare **due** vicini (senza qualcuno con cui
 parlare, «quattro_chiacchiere» non manda il corpo da nessuna parte e la scena
 4 misurerebbe un corpo fermo dov'era).
+
+### IL CIELO — l'unica cosa del mondo che una riga libera può smentire
+
+L'ancoraggio ferma «chi ha fatto cosa a chi» perché confronta col grafo. Il
+CIELO non aveva un confronto, e sul mazzo vero del 4B — **trenta lettere
+mandate**, quelle che il giocatore avrebbe letto — otto righe affermavano un
+tempo che non era quello: «la pioggia mi avvolge» col sereno **cinque volte**,
+«la neve, un peso» d'autunno, «le foglie bruciano al sole» alle 22:50. E il
+conto sulle bozze è peggio: **il cielo è nominato 27 volte e 27 volte è
+sbagliato**. Zero su 27 — non è un modello che ogni tanto sbaglia il tempo, è
+un modello che il tempo non ce l'ha e se lo inventa.
+
+Adesso `Suggeritore.accetta()` ha una **quarta porta**, `cielo`
+(`afferma_sul_cielo`), e la fonte non è nuova: sono le tre chiavi che il
+livello mette già nel ritratto per scrivere il prompt —
+
+| chiave | da dove | chi la usa già |
+|---|---|---|
+| `rit["meteo"]` | `CozyWorld.contesto_critter()` | il bestiario, per la farfalla di neve |
+| `rit["momento"]` | `OraDelGiorno.momento()` | il blocco `QUAND'È` del prompt |
+| `rit["stagione"]` | `DayNight.season_name()` | idem |
+
+`FoglioDelVicino` chiede il meteo a **`contesto_critter()` e non a `Weather`**:
+chiederlo a Weather vorrebbe dire riscrivere «d'inverno la precipitazione è una
+nevicata, non pioggia», cioè dare una seconda risposta a «è inverno?» — che qui
+è vietato per iscritto. E le chiavi della tabella delle parole sono i nomi veri
+degli stati (**`Critters.METEO`**, che era un commento ed è diventato una
+lista): un test le lega nei due versi, perché una chiave scritta storta non
+fallisce — **smette di giudicare, in silenzio**.
+
+**MISURATO, appaiato, sullo stesso mazzo** (`tools/prova_cielo.gd`: rigioca la
+gara con le stesse bozze e gli stessi punteggi, cambiando solo il collaudo; e
+prima di misurare qualunque cosa rigioca la gara di IERI con le regole di ieri
+e pretende la stessa scelta — 40 su 40):
+
+| | prima | dopo |
+|---|---|---|
+| lettere mandate | 30 | 22 |
+| lettere con una riga rotta *(che il filtro riconosce)* | 14 | 0 |
+| righe rotte | 16 | 0 |
+| lettere toccate dal filtro | | 14 |
+| ...di cui **erano rotte** | | **14** |
+| **lettere sane cambiate per sbaglio** | | **0** |
+
+Le otto lettere diventate silenzio erano **tutte e otto** rotte, e il silenzio
+è un esito legittimo (il gioco manda la lettera scritta a mano). Delle 163
+righe libere che il collaudo di ieri promuoveva ne cadono **38** (21 cielo, 10
+parola, 7 sagoma): **rilette una per una, nessuna era una riga da tenere.**
+
+**LA REGOLA CHE HA GUIDATO OGNI TARATURA: il filtro non deve uccidere la
+poesia, che è l'unica cosa per cui il modello è lì.** Perciò ogni parola è
+stata contata sul mazzo vero (**1395 righe libere**, quattro modelli):
+
+- si giudicano **pioggia · neve · nebbia** (32 righe in tutto, zero collisioni:
+  le radici non prendono nient'altro). `sereno` non è nella tabella ed è la sua
+  definizione — è quel che resta quando nessuna delle altre è vera;
+- **due valvole salvano la figura retorica**: il PARAGONE («il silenzio cade
+  come pioggia») e l'IMPRESSIONE («la legna sa di pioggia», «un senso di
+  pioggia» — telaio adiacente *nome/verbo di percezione + di + parola del
+  cielo*, che infatti non salva «piccole gocce di pioggia»). L'impressione
+  costa 3 righe su 27, e sono tre righe belle;
+- **il SOLE non si giudica**, tranne addosso e di notte. «sole» compare in
+  **60 righe su 1395** ed è la parola preferita del Gufo («il sole cala lento
+  sul mio ramo», «un vago ricordo del sole», «l'ombra del sole»): **una sola**
+  è una bugia. Una regola larga abbastanza da prenderla ne ucciderebbe 59.
+  Resta il telaio locativo (`al/nel/dal/sotto il sole`) e **solo di notte**: un
+  caso, zero falsi positivi su 1395 righe;
+- **la NOTTE come parola non si giudica affatto.** Il mazzo ha «la notte è
+  lunga e io resto qui ad aspettare»: è esattamente la frase che il residuo
+  vecchio aveva previsto, e non è una bugia nemmeno a mezzogiorno.
+
+**E il prompt NON è stato toccato.** La cura alla radice sarebbe una riga in
+più in `_blocco_quando` (il modello non sa che tempo fa, e questa porta lo
+boccia per una cosa che nessuno gli ha detto) — ma quella cambia le
+GENERAZIONI, e le generazioni si misurano solo rigenerando il mazzo con un
+modello da 2,6 GB. Finché quella misura non c'è, si è cambiato **solo ciò che
+si poteva contare**.
+
+**Le altre due cicatrici**, dalla stessa rilettura:
+
+- **«ivi»** — italiano vero, l'avverbio degli atti notarili, in **cinque delle
+  trenta lettere** («il legno scricchiola ivi», «pioggia leggera ivi ivi») e 19
+  volte sul mazzo. `FUORI_REGISTRO` è una lista corta di deittici e connettivi
+  da atto pubblico. ⚠️ **È una regola di GUSTO, e nel sorgente è scritto che lo
+  è**: tutte le altre di quel file sono di lingua o di grafo. Non deve
+  allungarsi a ogni bozza brutta. Costo misurato: zero righe buone;
+- **la sagoma del foglio** — «una riga tua, se ti va.» è arrivata in una
+  lettera vera, e non è un'invenzione del modello: è **il messaggio di sistema
+  ricopiato**. La regola guarda la COPPIA (`riga`/`righe` + un possessivo di
+  prima o seconda persona), e ci sono voluti due giri: la prima stesura
+  guardava la parola «riga» e ha fatto diventare rossa la suite in sei punti
+  perché bocciava *«una lucciola sola scrive una riga d'oro sull'acqua nera»*,
+  la bozza bella scritta a mano in `test_giudice.gd`. **26 su 26 prese, 0
+  righe buone perdute.**
+
+**LA REGOLA PROVATA E BUTTATA, che vale quanto quelle scritte.** «Due
+parole-attrezzo incollate» (`ildi` = «il»+«di») funzionava e chiudeva una riga.
+È stata tolta dopo aver **enumerato** cosa prendeva: con `ARTICOLI` come lista
+di pezzi boccia **«dello», «dagli», «digli», «dadi», «loda», «lodi»**. E c'è di
+peggio del falso positivo di oggi: `ARTICOLI` esiste per tagliare le etichette
+dei vicini: il giorno che qualcuno ci aggiunge «nel», «dal», «sul» — una
+modifica innocua, fatta per un'altra ragione — la regola comincia a bocciare
+**«nella», «dalla», «sulla»** e nessun test può accorgersene. Una riga su 1751
+non paga una trappola così.
+
+**COSA RESTA APERTO.** Il numero onesto non lo dà un contatore: si legge. Le
+22 lettere di dopo, rilette a mano, hanno **4 righe rotte in 3 lettere** (più
+due righe discutibili in una quarta, l'eco del foglio) — contro **20 righe in
+17 lettere** delle 30 di prima, contate con lo stesso metro:
+
+- **le non-parole con le vocali dentro** («ivieta», «orteccio», «moffa»,
+  «ildi»): servirebbe un dizionario italiano. Tre strade provate e misurate,
+  tutte e tre buttate — l'ultima è quella qui sopra, le altre due
+  («finisce per vocale», «la parola non compare altrove») stanno in
+  `Suggeritore.gd`, con i numeri;
+- **la riga ripetuta identica** («mangiando un nocciolo arido» due volte);
+- **l'eco del blocco `QUAND'È`** («mattina, d'estate…»): è la stessa famiglia
+  di `_frasi_del_foglio`, ma le sue code chiedono tre parole e «mattina,
+  d'estate» ne ha due;
+- **il tempo verbale del sole** («il sole si spegne» di notte): il residuo
+  vecchio diceva «chi la vorrà chiudere deve portarsi dietro il TEMPO
+  VERBALE», e aveva ragione — questa metà non è chiusa.
+
+```
+CHIBI_MAZZO=<pensieri.jsonl> Godot --headless --path . \
+  --script res://tools/prova_cielo.gd
+```
 
 ### LA PROVA VIVA: il modello vero dentro il villaggio vero
 
@@ -2389,6 +2614,165 @@ filtra — è il degrado dichiarato di `chibi::Lettura`, la stessa convenzione d
 6. **Una giostra di azimut si guarda a movimento finito**: scattata durante la
    ricevuta confonde l'angolo col tempo (a 45° la faccia, a 90° la nuca, a
    315° di nuovo la faccia).
+
+### IL CABLAGGIO IN PARTITA — il nodo che possiede il ritmo
+
+Fino al 2026-08-12 la Fase 5 era un laboratorio completo e **non collegato**:
+il Suggeritore sapeva scrivere il prompt, il Pensatoio sapeva fare la fila, il
+Giudice sapeva scegliere, `Deduzioni` sapeva incassare, e a valle `Visitors`
+sapeva già pagare la ricevuta (`_cuore_di`) e dirottare l'agenda
+(`_deduzione_dirotta`) — tutto provato, tutto misurato, **e il grafo delle
+deduzioni restava vuoto per sempre**, perché nessuno chiamava niente. I cinque
+banchi accendevano il ritmo a mano: se il pezzo che li mette insieme non fosse
+mai esistito, sarebbero stati verdi lo stesso.
+
+Il pezzo che mancava è [`scenes/npc/Pensieri.gd`](scenes/npc/Pensieri.gd), un
+nodo che sta in `MainLevel.tscn` **accanto a Percezione** — il gemello più
+vicino, e non per simmetria: ha gli stessi collaboratori che nascono tardi.
+
+    un vicino → FoglioDelVicino.foglio_deduzione() → Pensatoio.accoda
+      → il thread C++ scrive N bozze JSON → Deduzioni.incassa()
+      → un nodo MUTO nel grafo, che aspetta di farsi vedere
+
+> #### ⚠️ SENZA MODELLO NON SUCCEDE NIENTE — e «niente» è letterale
+>
+> La porta è `Llm.acceso()`, **non** `Llm.disponibile()`, e la differenza è
+> tutta la fase: `disponibile()` dice che il BINARIO sa scrivere, ed è vera su
+> `llm=yes` anche quando i pesi non ci sono — cioè per **ogni** giocatore
+> finché il gioco non spedirà il suo modello. Con la porta chiusa il `_ready`
+> spegne il proprio `_process` e ritorna prima di aver allocato un solo
+> oggetto: niente ponte, niente Pensatoio, niente elenco, nessuna riga
+> stampata. Un `_process` spento non viene *chiamato*, quindi il costo per
+> fotogramma non è «piccolo»: è **zero**.
+
+**Le sette regole del nodo**, e ognuna chiude un guasto vero:
+
+1. **Il cablaggio si riprova, sempre** (`_cabla`, l'idioma di `Percezione`).
+   L'`EcsMondo` nasce al primo ciclo del sonno e i figli di CozyWorld nascono
+   su più frame: cablare una volta sola dentro un `call_deferred` del `_ready`
+   trova `null` **per sempre**, ed è così che è morto il taccuino del Gufo.
+2. **Il modello si apre quando c'è qualcuno che può pensare**, non al
+   caricamento della scena: due gigabyte e mezzo mappati in un villaggio senza
+   abitanti sono due gigabyte e mezzo pagati per una funzione senza soggetto.
+3. **Si pensa solo su chi si può vedere.** Chi è dentro casa non è candidato:
+   la sua ricevuta non si potrebbe pagare a nessuno, e con un pensiero ogni
+   parecchi secondi spendere lo slot su di lui vuol dire buttarlo. (Di notte i
+   ventotto sono tutti dentro, e allora **l'elenco vuoto si ricorda anche
+   lui**, o si ricostruirebbe sessanta volte al secondo per tutta la notte.)
+4. **`gia_dedotto` si riempie.** Il ponte rifiuta la gemella di una deduzione
+   viva e il Giudice non ha modo di saperlo: lasciandolo vuoto si promuovono
+   bozze che il mondo butta, **e la seconda bocciatura è muta**.
+5. **Si collauda contro il ritratto con cui il pensiero è PARTITO**, che
+   arriva col foglio: ricostruirlo alla consegna vuol dire giudicare contro un
+   villaggio di un minuto dopo.
+6. **Il seme è derivato, mai tirato**, e conta i tentativi: due pensieri dello
+   stesso vicino non devono chiedere la stessa identica cosa.
+7. **Non si scrive mai nel mondo da qui.** Quello che entra è un nodo muto nel
+   grafo; la prima cosa che ne esce è una testa che si gira.
+
+**Le uscite sono due**, e la prima è quella che nel 2026-08-11 mancava del
+tutto: `_exit_tree` (che a un `RefCounted` come il Pensatoio non arriva mai) e
+la morte del maniglione. MISURATO col cambio di scena verso il titolo con una
+generazione in volo: **il motore torna libero in 170–644 ms** invece dei
+quaranta secondi di una generazione intera, e **accetta ancora lavoro** — che
+è la controprova che la riparazione della finestra di `annulla()` regge anche
+dal chiamante vero.
+
+**La porta del giocatore.** Serve una leva — il giorno in cui il modello
+viaggia dentro il pacchetto, l'unica via d'uscita sarebbe cancellare un file
+nella cartella d'installazione — e la leva c'è: il bit sta in
+`Settings.llm_spento` (persistito, come `prato_eterno`), la domanda in
+`Llm.acceso()`. **Ma non ha una casella nel pannello, ed è una scelta
+dichiarata:** una casella «il villaggio pensa» mostrata a chi non ha nessun
+modello è esattamente «un gioco a cui manca un pezzo», cioè la cosa che questa
+fase non ha il permesso di essere. Comparirà sotto `if Llm.disponibile() and
+Llm.percorso_modello() != ""`, e sarà una riga.
+
+**Dove sta il modello**: `Llm.percorso_modello()`, due candidati in ordine —
+`CHIBI_MODELLO` (i banchi, e l'autore) e `user://modelli/pensieri.gguf` (chi
+gioca). Il terzo, accanto all'eseguibile, arriverà il giorno della spedizione
+e **non cambierà nient'altro**: mai dentro il `.pck`, perché llama vuole un
+percorso su disco e una risorsa impacchettata non ne ha uno.
+
+#### Come si guarda, e cosa ha detto
+
+```
+CHIBI_MODELLO=<file.gguf> CHIBI_RISERVA=0 CHIBI_MINUTI=12 CHIBI_QUANTI=28 \
+  Godot --path . --resolution 1280x720 \
+  --script res://tools/prova_villaggio_pensa.gd
+```
+
+[`tools/prova_villaggio_pensa.gd`](tools/prova_villaggio_pensa.gd) è l'unico
+banco che **non collega niente**: apre il MainLevel vero, trova il nodo dov'è,
+insedia i residenti, fa camminare Mochi come cammina un giocatore, e guarda.
+
+**MISURATO** (gemma-3-1b Q4_K_M, finestra 2048, 28 residenti, 12 minuti di
+partita ciascuna, M1 da 8 GB **con altre sessioni di agente addosso** —
+loadavg 3.2–4.9, quindi questi sono PAVIMENTI e non misure pulite):
+
+| | prio 1 | prio 2 (a) | prio 2 (b) |
+|---|---|---|---|
+| pensieri consegnati | 48 | 41 | 39 |
+| deduzioni ENTRATE nel grafo | 41 | 35 | 36 |
+| **ricevute pagate** (teste girate) | **32** | **8** | **19** |
+| **mestieri cambiati per una deduzione** | **18** | **3** | **12** |
+| tentativi muti | 3 | 13 | 2 |
+| pensieri persi / buttati dal ritmo | 0 / 0 | 0 / 0 | 0 / 0 |
+| un pensiero, in tutto il villaggio, ogni | 15.0 s | 17.6 s | 18.5 s |
+| un dato vicino ne riceve uno ogni | 7.0 min | 8.2 min | 8.6 min |
+| il foglio costa (peggiore) | 1.12 (1.33) ms | 0.52 (2.14) | 0.62 (1.08) |
+| la consegna costa (peggiore) | 1.18 (1.74) ms | 0.40 (1.59) | 0.80 (1.06) |
+| **fotogramma medio, misura APPAIATA** | **+4.43 ms (+9.8%)** | +2.56 (+8.0%) | **+1.19 ms (+3.4%)** |
+| il `_process` del nodo, cronometrato | 18.8 µs (peggio 826) | 13.5–19.4 µs | idem |
+| cambio scena con un pensiero in volo | 176 ms | 316 ms | **92 ms** |
+
+E il **contatore delle ricevute di `Visitors` combacia esattamente con
+l'oracolo indipendente** (le bandiere lette dal grafo) in tutte e tre le
+corse: 32/32, 8/8, 19/19.
+
+Le tre righe che contano:
+
+1. **IL GIRO GIRA DA SOLO.** Nessun banco lo spinge: il nodo trova il
+   villaggio, apre il modello (1–4 s, sul thread, col gioco che disegna),
+   sceglie i vicini a turno, le deduzioni entrano, le teste si girano e
+   qualcuno cambia mestiere. **Zero pensieri persi, zero buttati dal ritmo**
+   in trentasei minuti di partita.
+2. **IL COSTO NON È IL NODO, È IL THREAD.** Il `_process` del nodo costa
+   **diciotto microsecondi** in media (il peggiore, 0.8–2 ms, è il fotogramma
+   in cui si monta un foglio, una volta ogni parecchi secondi): il
+   millimetro-e-mezzo sul fotogramma medio è llama che scrive, cioè un core
+   che il gioco non ha più. Ed è la ragione per cui `PRIORITA` è la più bassa
+   — il numero sta accanto alla costante, e non è stato indovinato.
+3. **⚠️ LE RICEVUTE VARIANO MOLTISSIMO FRA UNA CORSA E L'ALTRA, e non l'ho
+   spiegato.** 32 su 41 deduzioni, poi 8 su 35, poi 19 su 36 — stesso
+   villaggio, stesso dado per il giro di Mochi. La ricevuta è per costruzione
+   una COINCIDENZA (Mochi entro 4,5 m **mentre** il collo di quel vicino ci
+   arriva **mentre** quella deduzione è ancora muta), e il giro del ritmo cade
+   su vicini diversi a fotogrammi diversi — ma «è una coincidenza» non è una
+   spiegazione, è un'ipotesi. **Chi ci torna misuri questo prima di qualunque
+   altra cosa**: è il numero che decide se il giocatore VEDE la premessa, e
+   una conseguenza senza premessa non attenua l'effetto — lo inverte.
+
+**Le due trappole di banco, tutte e due pagate scrivendo questo file:**
+
+1. **UN PRATO NUDO NON PAGA NESSUNA RICEVUTA, e non è colpa del cablaggio.**
+   Alla prima corsa: cinque deduzioni entrate nel grafo e **zero ricevute**.
+   La ricevuta chiede `Deduzioni.meta_del_gesto`, che chiede al risolutore
+   dove andrà il corpo: senza cespugli e senza panchine nessuno dei cinque
+   luoghi è `ok`, quindi nessun piano, quindi nessuna direzione a cui legare
+   lo sguardo. Il banco adesso **costruisce** e stampa «residenti con almeno
+   un posto raggiungibile»: se quel numero è zero, le ricevute saranno zero e
+   il cablaggio non c'entra.
+2. **I corpi vanno messi SULLA PROPRIA CELLA.** `Visitors` calcola i luoghi a
+   partire da `home = cell`: un corpo a trenta metri dalla sua cella pianifica
+   per un posto e cammina in un altro. (`misura_pensieri` li mette in griglia
+   comoda, ed è giusto per lui: misura il costo, non il comportamento.)
+
+**E i due contatori di `Visitors`** (`debug_deduzioni_contatori`: ricevute
+pagate, mestieri cambiati) hanno un **oracolo indipendente** dentro il banco —
+le bandiere `D_RICEVUTA`/`D_SPESA` lette dal grafo. Chiedere al contatore se
+ha ragione sarebbe chiedere al giudice se è d'accordo con sé stesso, che è
+l'errore che `tools/misura_cammino.gd` esiste per non commettere.
 
 ## Test
 

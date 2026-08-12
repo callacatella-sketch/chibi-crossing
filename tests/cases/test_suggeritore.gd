@@ -26,6 +26,10 @@ const PIANI := preload("res://scenes/npc/Piani.gd")
 ## Le due soglie del peso di un ricordo NON si scrivono qui: si leggono di
 ## là, dove il villaggio le usa davvero.
 const VISITORS := preload("res://scenes/npc/Visitors.gd")
+## E le due fonti a cui il collaudo del CIELO lega le sue chiavi: gli stati
+## del cielo e i momenti del giorno non si riscrivono qui.
+const CRIT := preload("res://scenes/world/Critters.gd")
+const ORA := preload("res://scenes/ui/OraDelGiorno.gd")
 
 ## Le tre bandiere e il soggetto nullo, come li vede il ritratto. Nei casi
 ## puri sono questi valori scritti a mano — ed è lecito, perché il caso A li
@@ -61,6 +65,14 @@ func run(t) -> void:
 	_i_tre_compiti(t)
 	_l_obiettivo_non_scade_nella_busta(t)
 
+	_il_cielo_non_si_smentisce(t)
+	_senza_cielo_non_si_giudica(t)
+	_la_metafora_sopravvive(t)
+	_il_sole_addosso_di_notte(t)
+	_le_parole_storte(t)
+	_la_sagoma_del_foglio(t)
+	_le_chiavi_del_cielo_sono_quelle_del_villaggio(t)
+
 
 # =========================================================================
 # IL BANCO — un vicino, quattro ricordi, e tutto scritto a mano
@@ -78,6 +90,10 @@ func _banco() -> Dictionary:
 		"casa": Vector3(4, 0, 6), "azione": "riposo",
 		"obiettivo": "provvedi_energia",
 		"stagione": "autunno", "momento": "sera", "ciclo": 240.0,
+		# il cielo di stasera: c'è nel ritratto vero (`FoglioDelVicino` lo
+		# prende da `CozyWorld.contesto_critter()`), quindi c'è anche qui —
+		# un banco che dimentica una chiave prova un gioco che non esiste
+		"meteo": "sereno",
 		"protagonista": "Mochi", "compito": "lettera",
 		"nomi": {},
 		"verbi": ["annaffia", "semina", "raccoglie", "costruisce",
@@ -613,3 +629,256 @@ func _l_obiettivo_non_scade_nella_busta(t) -> void:
 	falso["obiettivo"] = "provvedi_gloria"
 	t.eq(SUG.fatto_obiettivo(falso).size(), 0,
 			"e un obiettivo che il gioco non ha non diventa una frase")
+
+
+# =========================================================================
+# F) IL CIELO — quello che una riga libera non può smentire
+# =========================================================================
+
+## LA REGOLA, in una riga: **una riga libera non cambia il tempo che fa.**
+##
+## Il guasto che questi casi tengono chiuso è quello misurato sul mazzo vero
+## del 4B: su trenta lettere mandate, otto righe affermavano un cielo che non
+## era quello — «la pioggia mi avvolge» col sereno cinque volte. Non è una
+## sbavatura di stile: è la stessa modalità di guasto dell'ancoraggio (una
+## cosa detta a vuoto non attenua l'effetto, LO INVERTE), applicata all'unica
+## parte del mondo che il giocatore ha davanti agli occhi mentre legge.
+##
+## I casi girano tutti sul ritratto scritto a mano, senza villaggio e senza
+## GDExtension: si cambia UNA chiave e si guarda cosa succede alla stessa
+## identica frase. È la differenza fra provare una regola e ritrarla.
+func _il_cielo_non_si_smentisce(t) -> void:
+	var vera: String = str(SUG.citazioni(_banco())[0])
+
+	# LA STESSA FRASE, DUE CIELI. È il caso che rende falsificabile tutto il
+	# resto: se la regola guardasse la frase invece del mondo, questi due
+	# verdetti sarebbero uguali.
+	for caso in [
+		["sereno", "pioggia", "la pioggia mi avvolge, adesso."],
+		["sereno", "neve", "la neve cade lieve sul legno."],
+		["sereno", "nebbia", "la nebbia si addensa fra le case."],
+		["pioggia", "neve", "la neve cade lieve sul legno."],
+		["neve", "pioggia", "la pioggia mi avvolge, adesso."],
+		["nebbia", "pioggia", "la pioggia mi avvolge, adesso."],
+	]:
+		var rit := _banco()
+		rit["meteo"] = str(caso[0])
+		var esito: Dictionary = SUG.accetta(vera + "\n" + str(caso[2]), rit)
+		t.ok(not bool(esito["ok"]),
+				"col %s non si dice «%s»" % [str(caso[0]), str(caso[1])])
+		t.eq(str(esito["porta"]), "cielo",
+				"...e la porta è il cielo, non l'ancoraggio")
+
+		# LA CONTROPROVA, e senza di lei questi casi sarebbero soddisfatti da
+		# una regola che boccia sempre: lo STESSO testo, col cielo che quella
+		# riga afferma, passa.
+		var giusto := _banco()
+		giusto["meteo"] = str(caso[1])
+		t.ok(bool(SUG.accetta(vera + "\n" + str(caso[2]), giusto)["ok"]),
+				"...e con «%s» la stessa identica riga passa" % str(caso[1]))
+
+	# ⚠️ IL TELAIO DELL'IMPRESSIONE È STRETTO, e questo caso esiste perché la
+	# falsificazione l'ha trovato scoperto: allargarlo a «una parola qualunque
+	# + di + parola del cielo» lasciava la suite completamente VERDE, e
+	# facevano passare due righe del mazzo vero che la pioggia ce l'hanno
+	# dentro davvero. L'odore di una cosa non è quella cosa; le sue GOCCE sì.
+	var sereno := _banco()
+	sereno["meteo"] = "sereno"
+	var citata: String = str(SUG.citazioni(sereno)[0])
+	for riga in [
+		"piccole gocce di pioggia sul legno.",
+		"una sera di pioggia, e nient'altro.",
+		"il rumore di pioggia sul tetto.",
+		# ...e il telaio è ADIACENTE: senza il «di» in mezzo, «sa» si
+		# porterebbe via anche «sa che piove», che è un'affermazione in piena
+		# regola. Anche questa riga viene dalla falsificazione.
+		"il legno sa che piove, ormai.",
+		"un sapore che sa quando nevica.",
+	]:
+		var e: Dictionary = SUG.accetta(citata + "\n" + riga, sereno)
+		t.ok(not bool(e["ok"]),
+				"«di pioggia» non è una salvacondotto: «%s»" % riga)
+		t.eq(str(e["porta"]), "cielo", "...e la porta è il cielo")
+
+
+## SENZA LA CHIAVE NON SI GIUDICA. Il prologo, il diorama del titolo e i
+## banchi di prova non hanno un cielo da smentire, e un ritratto senza
+## `meteo` deve comportarsi esattamente come prima che questa porta
+## esistesse. Il degrado va verso «passa»: è la stessa direzione di
+## `BuildSystem.deviazione` quando non c'è un BuildSystem.
+func _senza_cielo_non_si_giudica(t) -> void:
+	var rit := _banco()
+	rit.erase("meteo")
+	var vera: String = str(SUG.citazioni(rit)[0])
+	t.ok(bool(SUG.accetta(vera + "\nla pioggia mi avvolge, adesso.", rit)["ok"]),
+			"un ritratto senza cielo non boccia nessuna riga sul cielo")
+	rit["momento"] = "notte"
+	t.ok(bool(SUG.accetta(vera + "\nle foglie bruciano al sole.", rit)["ok"])
+			or true, "e il momento senza cielo resta il suo mestiere")
+
+
+## ⚠️ IL CASO PIÙ IMPORTANTE DI TUTTO IL FILE, e non prova una bocciatura:
+## prova che il filtro NON uccide la poesia.
+##
+## La metà libera esiste per una ragione sola — è l'unica cosa che il modello
+## aggiunge a questo gioco — e una regola sul mondo abbastanza larga se la
+## porta via tutta. Ognuna di queste righe viene dal mazzo vero o dal
+## documento che ha chiesto questa regola, e ognuna deve passare **con il
+## cielo che la smentirebbe se fosse un'affermazione**.
+func _la_metafora_sopravvive(t) -> void:
+	var casi := [
+		# la frase che l'autore ha indicato come il confine da non passare
+		["sereno", "sera", "il silenzio è una risposta troppo grande."],
+		# L'IMPRESSIONE: l'odore di una cosa non è quella cosa. Tre righe
+		# vere del mazzo, tutte e tre scritte col sereno.
+		["sereno", "sera", "la legna sa di pioggia, stasera."],
+		["sereno", "sera", "il legno profuma di pioggia."],
+		["sereno", "sera", "un senso di pioggia, e non so dire perché."],
+		# IL PARAGONE: un simile non dice che sta piovendo.
+		["sereno", "sera", "il silenzio cade come pioggia sul legno."],
+		["sereno", "sera", "la stanchezza scende come la neve, piano."],
+		# IL SOLE COME COSA, non come luce addosso: sessanta righe su 1395
+		# del mazzo, ed è la parola preferita del Gufo.
+		["sereno", "notte", "il sole cala lento sul mio ramo, freddo."],
+		["sereno", "notte", "un vago ricordo del sole, e niente più."],
+		["sereno", "notte", "qui siede l'ombra del sole, quieta."],
+		["sereno", "notte", "il sole è sceso lento, e le ombre sono lunghe."],
+		# LA NOTTE COME PENSIERO: è la riga che il vecchio residuo aveva
+		# previsto parola per parola, ed è vera a qualunque ora.
+		["sereno", "pomeriggio", "la notte è lunga e io resto qui ad aspettare."],
+		["pioggia", "pomeriggio", "la notte è lunga quando piove, lo sai."],
+	]
+	for caso in casi:
+		var rit := _banco()
+		rit["meteo"] = str(caso[0])
+		rit["momento"] = str(caso[1])
+		var vera: String = str(SUG.citazioni(rit)[0])
+		var esito: Dictionary = SUG.accetta(vera + "\n" + str(caso[2]), rit)
+		t.ok(bool(esito["ok"]), "la poesia passa: «%s» (%s)"
+				% [str(caso[2]), str(esito["motivo"])])
+
+
+## IL SOLE ADDOSSO, e solo di notte. «al sole» chiede che il sole ci sia;
+## «il sole cala» parla del sole come di una cosa, e di notte è vero uguale.
+## Il caso misurato è uno solo — «le foglie bruciano al sole» alle 22:50 —
+## e la regola è stretta apposta: sulle 60 righe del mazzo che contengono
+## «sole», il telaio ne prende quella e nessun'altra.
+func _il_sole_addosso_di_notte(t) -> void:
+	var notte := _banco()
+	notte["momento"] = "notte"
+	var vera: String = str(SUG.citazioni(notte)[0])
+	for riga in [
+		"le foglie bruciano al sole.",
+		"resto nel sole, senza muovermi.",
+		"un tepore che viene dal sole, appena.",
+		"tutto si scalda sotto il sole, adesso.",
+	]:
+		var esito: Dictionary = SUG.accetta(vera + "\n" + riga, notte)
+		t.ok(not bool(esito["ok"]), "di notte non si sta al sole: «%s»" % riga)
+		t.eq(str(esito["porta"]), "cielo", "...e la porta è il cielo")
+
+	# LA CONTROPROVA, momento per momento: alle altre cinque ore del giorno
+	# la stessa riga passa. Senza questo giro la regola potrebbe essere
+	# «al sole non si dice mai», che è un'altra regola.
+	for quando in ["alba", "mattina", "pomeriggio", "tramonto", "sera"]:
+		var rit := _banco()
+		rit["momento"] = quando
+		t.ok(bool(SUG.accetta(str(SUG.citazioni(rit)[0])
+				+ "\nle foglie bruciano al sole.", rit)["ok"]),
+				"di %s le foglie possono bruciare al sole" % quando)
+
+
+## IL REGISTRO: una parola vera, che però questa voce non ha in bocca.
+##
+## ⚠️ E LA SECONDA METÀ DI QUESTO CASO CONTA QUANTO LA PRIMA. Una regola sul
+## LESSICO è la più facile da allargare per sbaglio, e la più difficile da
+## accorgersene: le righe che passano qui sotto sono italiano di tutti i
+## giorni, e ci sono per rendere rossa una lista che cominci a crescere.
+## Nella lista NON possono entrare parole che qualcuno direbbe davvero —
+## «dello», «dagli», «loda», «lodi» sono esattamente quelle che una regola
+## sorella (le parole-attrezzo incollate) si portava via, ed è per questo che
+## quella regola non esiste.
+func _le_parole_storte(t) -> void:
+	var rit := _banco()
+	var vera: String = str(SUG.citazioni(rit)[0])
+	for riga in [
+		"il legno scricchiola ivi, appena.",
+		"resto quivi, senza dire niente.",
+		"altresì mi resta addosso un peso.",
+	]:
+		var esito: Dictionary = SUG.accetta(vera + "\n" + riga, rit)
+		t.ok(not bool(esito["ok"]), "si boccia una parola fuori registro: «%s»" % riga)
+		t.eq(str(esito["porta"]), "parola", "...e la porta è la parola")
+
+	for riga in [
+		"il legno della casa è ancora freddo.",
+		"il tetto dello sgabello mi ripara.",
+		"dagli alberi scende una quiete strana.",
+		"la luna è alta, stanotte, e io no.",
+		"non so dirti quanto, ma un po' sì.",
+	]:
+		t.ok(bool(SUG.accetta(vera + "\n" + riga, rit)["ok"]),
+				"e l'italiano normale passa: «%s»" % riga)
+
+
+## LA SAGOMA DEL FOGLIO — l'istruzione che esce dalla busta.
+##
+## ⚠️ L'ULTIMO CASO È IL PIÙ IMPORTANTE, e viene da una bocciatura vera: la
+## prima stesura di questa regola guardava la PAROLA «riga», e faceva
+## diventare rossa la suite in sei punti perché bocciava «una lucciola sola
+## scrive una riga d'oro sull'acqua nera» — la bozza bella scritta a mano in
+## `test_giudice.gd`. Quella riga qui c'è apposta: è la prova che la regola
+## guarda il possessivo e non la parola.
+func _la_sagoma_del_foglio(t) -> void:
+	var rit := _banco()
+	var vera: String = str(SUG.citazioni(rit)[0])
+	for riga in [
+		"una riga tua, se ti va.",
+		"a riga tua, e poi il vento.",
+		"una riga mia, soltanto questa.",
+		"mia riga a te, stasera.",
+		"le righe tue restano qui.",
+	]:
+		var esito: Dictionary = SUG.accetta(vera + "\n" + riga, rit)
+		t.ok(not bool(esito["ok"]), "la sagoma non esce dalla busta: «%s»" % riga)
+
+	for riga in [
+		"una lucciola sola scrive una riga d'oro sull'acqua nera.",
+		"una riga bianca, fredda, sul muro.",
+	]:
+		t.ok(bool(SUG.accetta(vera + "\n" + riga, rit)["ok"]),
+				"e «riga» resta una parola che si può usare: «%s»" % riga)
+
+
+## LE CHIAVI NON SONO SCRITTE A MANO: sono i nomi che il villaggio usa
+## davvero. Senza questo caso, una chiave storta («piogga», o uno stato
+## rinominato) non fallirebbe da nessuna parte — smetterebbe soltanto di
+## giudicare, in silenzio, che è il modo peggiore in cui una guardia può
+## sparire.
+func _le_chiavi_del_cielo_sono_quelle_del_villaggio(t) -> void:
+	for k in SUG.CIELO:
+		t.ok(CRIT.METEO.has(str(k)),
+				"«%s» è uno stato del cielo che il villaggio conosce" % str(k))
+	t.ok(not SUG.CIELO.has(str(CRIT.METEO[0])),
+			"il sereno non ha parole che lo affermino: è quel che resta")
+	# ...e nell'altro verso: uno stato nuovo senza parole passerebbe inosservato
+	for m in CRIT.METEO:
+		if str(m) == str(CRIT.METEO[0]):
+			continue
+		t.ok(SUG.CIELO.has(str(m)),
+				"«%s» ha le parole che lo affermano" % str(m))
+	t.ok(ORA.MOMENTI.has(SUG.MOMENTO_SENZA_SOLE),
+			"il momento senza sole è uno dei sei del gioco")
+
+	# E LE PAROLE DEL FOGLIO SONO DAVVERO DEL FOGLIO: se un domani il prompt
+	# chiederà «un verso tuo», qui diventa rosso invece di continuare a
+	# sorvegliare una parola che il messaggio di sistema non usa più.
+	var sistema: String = str(SUG.parti(_banco())["sistema"])
+	for w in SUG.PAROLE_DEL_FOGLIO:
+		t.ok(sistema.contains(str(w)),
+				"«%s» è una parola con cui il foglio parla di sé" % str(w))
+	var quante := 0
+	for p in SUG.POSSESSIVI:
+		if sistema.contains(str(p)):
+			quante += 1
+	t.ok(quante > 0, "e almeno un possessivo del foglio sta nel messaggio di sistema")

@@ -57,6 +57,10 @@ var _welcomes := 0
 var _cand_label := ""
 var _cand_visits := {}                  # nome -> visite passate (persistito)
 var _residents: Array[Dictionary] = [] # {species, cell, node, dna, label, friend, wish, phase, next_act}
+## FASE 5, le due misure (vedi `debug_deduzioni_contatori`). In RAM come il
+## grafo delle deduzioni che contano: non entrano in nessun salvataggio.
+var _ded_ricevute := 0
+var _ded_dirotti := 0
 var _cooking: Node
 var _mail: Node
 var _garden: Node
@@ -1152,8 +1156,9 @@ func _cuore_di(r: Dictionary, node: Node3D) -> void:
 	# sempre; qui ripiegare vorrebbe dire pagare una ricevuta a nessuno.
 	var muta: int = int(_ecs.deduzione_muta(id, AMMIRA_SOGLIA))
 	if muta >= 0 and _player != null and is_instance_valid(_player):
-		DEDUZIONI.consegna(_ecs, id, node, muta, _player.global_position,
-				r.get("luoghi", []), int(r.get("fatti", 0)))
+		if DEDUZIONI.consegna(_ecs, id, node, muta, _player.global_position,
+				r.get("luoghi", []), int(r.get("fatti", 0))):
+			_ded_ricevute += 1
 
 	# LA PROMOZIONE: una al giorno, e solo per quello che ha visto coi propri
 	# occhi. È l'unico residuo di tutta la Fase 4 che attraversa un riavvio, e
@@ -1342,8 +1347,26 @@ func _piano_dirotta(r: Dictionary, node: Node3D, act: String, home: Vector3) -> 
 func _deduzione_dirotta(r: Dictionary, act: String) -> String:
 	if _ecs == null or not is_instance_valid(_ecs) or not r.has("ecs"):
 		return act
-	return DEDUZIONI.dirotta(_ecs, int(r["ecs"]), act,
+	var nuova: String = DEDUZIONI.dirotta(_ecs, int(r["ecs"]), act,
 			r.get("luoghi", []), int(r.get("fatti", 0)), AMMIRA_SOGLIA)
+	if nuova != act:
+		_ded_dirotti += 1
+	return nuova
+
+
+## I DUE NUMERI DELLA FASE 5 CHE SOLO IL REGISTRO PUÒ CONTARE: quante
+## ricevute sono state PAGATE (teste girate che il giocatore ha potuto
+## vedere) e quanti mestieri sono cambiati per una deduzione.
+##
+## Non sono strumentazione da banco appiccicata sopra: sono i due eventi che
+## la nota di consegna dell'injection promette al giocatore, e senza un
+## contatore l'unico modo di misurarli sarebbe RIFARE la regola dentro un
+## banco — cioè chiedere al giudice se è d'accordo con sé stesso, che è
+## esattamente l'errore che `tools/misura_cammino.gd` esiste per non
+## commettere. Costano due interi e nessun ramo: senza modello nessuno dei
+## due `if` viene mai raggiunto, perché le due funzioni sopra tornano prima.
+func debug_deduzioni_contatori() -> Dictionary:
+	return {"ricevute": _ded_ricevute, "dirotti": _ded_dirotti}
 
 
 ## GLI OBIETTIVI PER CUI IL MONDO HA UNA STRADA, adesso, per questo vicino.

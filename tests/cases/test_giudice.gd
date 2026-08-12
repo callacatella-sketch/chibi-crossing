@@ -42,6 +42,7 @@ func run(t) -> void:
 	_una_parola_senza_vocali_non_e_una_parola(t)
 
 	_l_ancoraggio_e_una_porta_non_un_punteggio(t)
+	_il_cielo_e_una_porta_e_ha_un_nome(t)
 	_lo_scarto_raro_vince(t)
 	_a_pari_merito_vince_il_primo(t)
 	_due_giri_uguali_danno_la_stessa_lettera(t)
@@ -386,6 +387,38 @@ func _l_ancoraggio_e_una_porta_non_un_punteggio(t) -> void:
 			"non ho mosso una piuma, per non disturbarti.")
 	t.eq(int(GIU.scegli(bozze, rit)["scelta"]), 4,
 			"la stessa bozza rara, se non mente, vince")
+
+
+## IL CIELO È UNA PORTA COME L'ANCORAGGIO, e per le stesse ragioni: una
+## bozza che si inventa il tempo che fa non può vincere per quanto è rara.
+##
+## E il caso guarda anche una cosa che sembra cosmetica e non lo è: **il
+## nome della porta finisce nella diagnosi del silenzio**. `_perche_silenzio`
+## conta le porte scorrendo una lista scritta a mano — una porta che non è in
+## quella lista non fallisce da nessuna parte, sparisce e basta, e il giorno
+## che il villaggio tace nessuno sa dire perché. «due si sono inventate il
+## tempo» è una diagnosi; «nessuna bozza è passata ()» è un'alzata di spalle.
+func _il_cielo_e_una_porta_e_ha_un_nome(t) -> void:
+	var rit := _banco()
+	rit["meteo"] = "sereno"
+	var bozze := [
+		_lettera(rit, 0, "la pioggia mi avvolge, adesso.", "e non so dire altro."),
+		_lettera(rit, 0, "la neve cade lieve sul legno.", "e non so dire altro, ancora."),
+	]
+	var esito: Dictionary = GIU.scegli(bozze, rit)
+	t.eq(int(esito["scelta"]), -1, "col sereno, due bozze che piovono danno silenzio")
+	t.ok(str(esito["motivo"]).contains("cielo"),
+			"e il silenzio dice che si sono inventate il tempo: «%s»" % str(esito["motivo"]))
+	for s in (esito["schede"] as Array):
+		t.eq(str((s as Dictionary)["porta"]), "cielo", "porta «cielo» su tutte e due")
+
+	# LA CONTROPROVA: sotto la pioggia le stesse identiche bozze sono lecite,
+	# e una esce. Senza di lei questo caso lo passerebbe anche un collaudo
+	# che boccia tutto.
+	var piove := _banco()
+	piove["meteo"] = "pioggia"
+	t.eq(int(GIU.scegli(bozze, piove)["scelta"]), 0,
+			"e sotto la pioggia la stessa bozza esce")
 
 
 ## LA CURA DELLA MONOTONIA. Quattordici bozze che si somigliano e una che

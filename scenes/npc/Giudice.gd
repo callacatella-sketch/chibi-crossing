@@ -278,7 +278,12 @@ static func _perche_silenzio(schede: Array) -> String:
 		var p := str((s as Dictionary)["porta"])
 		conta[p] = int(conta.get(p, 0)) + 1
 	var pezzi := []
-	for p in ["ancoraggio", "memoria", "forma", "parola"]:
+	# L'ORDINE È QUELLO DELLA DIAGNOSI, dal guasto che spiega di più a quello
+	# che spiega di meno: «tre inventavano, due si sono inventate il tempo» è
+	# una diagnosi. Una porta che non fosse in questa lista SPARIREBBE dal
+	# conto senza fallire da nessuna parte — è la ragione per cui un test la
+	# lega alle porte che `Suggeritore.accetta()` sa davvero restituire.
+	for p in ["ancoraggio", "cielo", "memoria", "forma", "parola"]:
 		if conta.has(p):
 			pezzi.append("%d %s" % [int(conta[p]), p])
 	return "nessuna bozza è passata (%s)" % ", ".join(pezzi)

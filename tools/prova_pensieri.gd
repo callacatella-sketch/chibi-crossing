@@ -739,6 +739,14 @@ func _go() -> void:
 		opz["n_ctx"] = int(OS.get_environment("CHIBI_CTX"))
 	if OS.get_environment("CHIBI_THREAD") != "":
 		opz["n_thread"] = int(OS.get_environment("CHIBI_THREAD"))
+	# ⚠️ LA LEVA DEI BANCHI, e solo dei banchi (la stessa di `misura_pensieri`
+	# e di `Pensieri`): il cancello della RAM è quello che impedisce al gioco
+	# di mandare in swap la macchina di chi gioca, e in partita NON si tocca.
+	# Ma un banco deve poter misurare anche il modello che il gioco
+	# rifiuterebbe — su questa macchina, con l'editor aperto, il 4B non entra
+	# — e senza questa riga l'alternativa sarebbe non misurarlo affatto.
+	if OS.get_environment("CHIBI_RISERVA") != "":
+		opz["riserva_byte"] = int(OS.get_environment("CHIBI_RISERVA"))
 	# IL PORTIERE PRIMA DI TUTTO: è la stessa funzione che sta davanti al
 	# caricamento vero, e qui si stampa quello che ha visto.
 	var esame: Dictionary = _llm.call("esamina", percorso, false)
@@ -751,7 +759,8 @@ func _go() -> void:
 			float(esame.get("ms_esame", 0))])
 	var t_car := Time.get_ticks_msec()
 	if not bool(_llm.call("apri_modello", percorso, opz)):
-		print("GUASTO: apri_modello ha detto no: %s" % percorso)
+		print("GUASTO: apri_modello ha detto no: %s — %s"
+				% [percorso, str((_llm.call("misure") as Dictionary).get("diagnosi", ""))])
 		quit(1)
 		return
 	while int(_llm.call("stato")) == 1:

@@ -1,12 +1,22 @@
 // IL BANCO DELLA CONCORRENZA — la finestra fra `accoda()` e il thread.
 //
-// Perché un eseguibile a parte, come `portiere_vs_llama.cpp`: la domanda a cui
-// questo banco risponde è «cosa succede se `annulla()` arriva PRIMA che il
-// thread abbia preso il lavoro», e per farsela serve un `Traduttore` vero, con
-// un modello vero, e il controllo dei microsecondi. Dentro la suite non si può
-// (senza modello `accoda()` rifiuta sempre, e quindi il difetto è invisibile);
-// dentro Godot si può, ma il frame ci mette il suo rumore e la finestra è
-// larga decine di microsecondi.
+// Perché un eseguibile a parte, come `portiere_vs_llama.cpp`: questo banco
+// misura la finestra VERA — quanti microsecondi passano fra `accoda()` e il
+// momento in cui il thread prende il lavoro — e per farlo servono un modello
+// vero, un thread vero e il controllo dei microsecondi. Quel numero non lo può
+// dare nessun altro, ed è quello che dice quanto è PROBABILE il difetto su una
+// macchina carica.
+//
+// ⚠️ MA NON È PIÙ L'UNICO GIUDICE, ed è una buona notizia: dal 2026-08-12 il
+// difetto (non la sua probabilità: il difetto) si vede anche dalla suite, senza
+// modello e senza thread — `tests/cases/test_llm_banco.gd`, che muove a mano un
+// lavoro finto attraverso `accoda()`, `annulla()`, `_prendi_lavoro()` e
+// `_epilogo()`, cioè le funzioni VERE. Il difetto non è di tempistica: è una
+// transizione di stato che nessuno gestiva, e il tempo decideva solo quanto
+// spesso ci si cascava. VERIFICATO che i due banchi vedono la stessa cosa: con
+// `_in_volo` tolto dal ramo «era ancora in coda», qui esce «libero dopo: MAI,
+// pensiero: PERSO, appesi: 1» e di là diventano rosse tre asserzioni.
+// Questo eseguibile resta per il NUMERO; la suite tiene la guardia.
 //
 // ⚠️ IL DIFETTO CHE QUESTO BANCO HA TROVATO, detto in una riga: `accoda()`
 // accende `_in_volo` mettendo in coda, e a spegnerlo è SOLO la fine di un

@@ -296,12 +296,75 @@ public:
 	double secondi_caricamento() const { return _sec_caricamento.load(std::memory_order_relaxed); }
 	std::string diagnosi() const;
 
+	// ─────────────────────────────────────────────────────────────────────
+	// IL BANCO — un lavoro FINTO, per provare la concorrenza SENZA modello
+	// ─────────────────────────────────────────────────────────────────────
+	//
+	// ⚠️ ESISTE PER UNA RAGIONE SOLA, E NON È COMODITÀ: la corsa fra
+	// `annulla()` e chi scrive è il posto in cui questo file ha già
+	// ammutolito il villaggio PER SEMPRE (vedi la nota in `annulla()`), e
+	// l'unico giudice che aveva era `tools/prova_concorrenza.cpp` — che
+	// vuole due gigabyte di pesi, un eseguibile a parte, e non gira in
+	// nessuna suite. Cioè: le due righe che riparano quel guasto si
+	// potevano togliere tutte e due lasciando la suite completamente verde.
+	// MISURATO, togliendole una per volta: 63942 passati, 0 falliti.
+	//
+	// COSA È FINTO E COSA NO. Finto è **il lavoro**: qui non si apre nessun
+	// `.gguf`, non si chiama llama, non si genera un gettone — il testo
+	// dell'esito lo passa chi chiama, perché un motore che si inventa le
+	// parole sarebbe la cosa più pericolosa che questo file possa avere.
+	// Vero è **tutto il resto**: `accoda()`, `annulla()`, il prologo di chi
+	// scrive (`_prendi_lavoro`) e il suo epilogo (`_epilogo`) sono le
+	// funzioni di produzione, chiamate dagli stessi posti, sotto lo stesso
+	// lucchetto. È l'opposto di un doppio: invece di reimplementare la cosa
+	// da provare, si toglie di mezzo la cosa che non c'entra.
+	//
+	// E NON C'È NESSUN THREAD. Il difetto non è di tempistica — è una
+	// transizione di stato che nessuno gestiva; il tempo decideva solo
+	// quanto spesso ci si cascava. Muovendo il lavoro a mano, la finestra
+	// che nel gioco vero dura decine di microsecondi qui dura quanto pare a
+	// chi prova, e il caso è DETERMINISTICO invece che probabile.
+	//
+	// NEL GIOCO NON LO CHIAMA NESSUNO: `banco_accendi()` rifiuta se il
+	// traduttore è già acceso, e `test_llm_banco.gd` scandaglia i sorgenti
+	// di `scenes/` e `systems/` per tenere chiusa quella porta.
+
+	// Mette il traduttore in PRONTO senza modello e senza thread. `false` se
+	// c'è già un motore acceso (o se `chiudi()` l'ha spento): il banco non
+	// scavalca mai un traduttore vivo.
+	bool banco_accendi();
+	// Il PROLOGO di chi scrive: toglie la richiesta dalla coda ed è
+	// l'istante in cui il lavoro diventa suo. `false` se la coda è vuota.
+	bool banco_prendi();
+	// E il suo EPILOGO, con la bozza che chi prova ha deciso. Bozza vuota =
+	// una generazione che non ha prodotto niente (un errore del motore), che
+	// è un caso vero e va consegnato lo stesso — vedi la nota nell'epilogo.
+	void banco_finisci(const std::string &p_bozza);
+	// «Chi scrive ha un lavoro in mano?» (= `_preso`, sotto il lucchetto).
+	bool banco_in_mano() const;
+	// LA DOMANDA CHE LLAMA FA A OGNI NODO DEL GRAFO: `abort_callback`
+	// chiede esattamente questo, ed è l'unico modo in cui un `annulla()`
+	// arriva dentro una generazione. Un banco che non la potesse leggere
+	// non saprebbe distinguere «annullato» da «non annullato».
+	bool banco_deve_smettere() const { return _molla(); }
+
 private:
 	struct Motore;  // PIMPL: llama.h vive SOLO dentro llm_pensieri.cpp
 
 	void _ciclo();                       // il corpo del thread
 	bool _carica();                      // apre il .gguf (sul thread)
 	void _genera(const Richiesta &, Esito &);
+	// IL PROLOGO E L'EPILOGO DI CHI SCRIVE, in due funzioni loro. Non è
+	// un abbellimento: hanno DUE chiamanti (il thread e il banco), e
+	// ricopiarli vorrebbe dire provare una seconda implementazione — il
+	// doppio che mente, che in questo progetto ha già coperto per mesi il
+	// difetto che queste righe riparano.
+	//
+	// `_prendi_lavoro` PRESUPPONE IL LUCCHETTO PRESO da chi chiama: deve
+	// stare nello stesso tratto in cui si è verificato che la coda non è
+	// vuota, o fra le due cose ci ricasca `annulla()`.
+	bool _prendi_lavoro(Richiesta &r_lavoro, uint64_t &r_biglietto);
+	void _epilogo(Esito &&p_esito);
 	// L'ombrello: fa girare un lavoro e trasforma una qualunque eccezione di
 	// llama.cpp in un `false` con una diagnosi. Un'eccezione che esce dalla
 	// funzione di un thread è `std::terminate` — vedi la nota nel .cpp.
@@ -345,6 +408,13 @@ private:
 	// `_in_volo`: il thread, o lei. Senza questa riga il villaggio ammutolisce
 	// per sempre — vedi la nota in `annulla()`.
 	bool _preso = false;
+
+	// Il lavoro che il BANCO ha in mano (chi e biglietto): nel thread vero
+	// sono due variabili locali di `_ciclo`, qui devono sopravvivere fra
+	// `banco_prendi()` e `banco_finisci()` perché è chi prova a decidere
+	// quanto dura quel tratto.
+	Richiesta _banco_lavoro;
+	uint64_t _banco_biglietto = 0;
 };
 
 }  // namespace chibi
