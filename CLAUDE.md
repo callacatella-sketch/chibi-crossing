@@ -1654,8 +1654,9 @@ CHIBI_FPS_SEC=8 CHIBI_FPS_GIRI=2 ~/Downloads/Godot.app/Contents/MacOS/Godot \
   sessioni di agente**.
 - **Guarda il carico PRIMA di credere a un numero** (`uptime`, e quanti
   Godot girano). Il 2026-08-12, con venti processi Godot di altre sessioni
-  addosso, il MainLevel stava a **8 fps prendendo il 25% di UN core**: il
-  gioco era affamato, non lento. In quelle condizioni due finestre
+  addosso, il MainLevel stava a **8 fps prendendo il 25% di UN core**; due
+  ore dopo, **stesso codice** e macchina più libera, **17.8 fps**: il gioco
+  era affamato, non lento. In quelle condizioni due finestre
   consecutive ballano di ±10 ms, e infatti una prima lettura attribuiva
   **14.6 ms** a un difetto che, cronometrato sulla riga, ne costa **0.28**;
   la classifica per nodo dava «+10 ms» perfino a chi in `_process` non fa
