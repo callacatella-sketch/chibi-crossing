@@ -37,6 +37,7 @@ func run(t) -> void:
 	_test_gestore_headless(t)
 	_test_il_vento_viene_dal_cielo(t)
 	_test_il_cielo_arriva_alla_corda(t)
+	_test_la_fase_viene_dal_posto(t)
 
 
 ## La corda ferma: pancia sotto i capi, simmetrica, coi capi al loro posto.
@@ -299,9 +300,91 @@ func _test_il_cielo_arriva_alla_corda(t) -> void:
 		mosse.append((FISICA.campiona(stato["punti"], 0.5) as Vector3).distance_to(prima))
 		cielo.free()
 		gestore.free()
-	t.ok(mosse[1] > mosse[0] * 1.5,
+	# LA SOGLIA È MISURATA, non scelta a occhio. Con la corda sana il
+	# rapporto vale 2.063 e non balla di un bit (la fase della corda viene
+	# dal POSTO: vedi CordeVive._fase_di — prima veniva dal contatore delle
+	# istanze e questa riga era rossa una corsa su quattro, con 0.0063 m
+	# contro 0.0042 m, cioè esattamente 1.5). Il residuo vero è la fase:
+	# girandola per tutto il cerchio il rapporto scende al minimo a 1.488.
+	# Il GUASTO da prendere — il numero del cielo che non arriva alla
+	# fisica — dà 1.0000 esatto, perché le due misure diventano la stessa.
+	# 1.30 sta in mezzo ai due numeri misurati, con margine da tutte e due
+	# le parti.
+	t.ok(mosse[1] > mosse[0] * 1.30,
 			"la corda sente l'acquazzone più della nebbia (%.4f m contro %.4f m)"
 					% [mosse[1], mosse[0]])
+
+
+## LA FASE DELLA CORDA NON È UN CONTATORE. È ciò che tiene due corde
+## vicine fuori sincrono, e per anni è venuta da `get_instance_id()`: un
+## contatore di processo, che cambia con la storia delle allocazioni.
+## Effetto: la stessa corda, nello stesso villaggio, ondeggiava diversa a
+## ogni avvio — niente foto del catalogo rifacibile, niente provino
+## ripetibile, e il caso qui sopra rosso una volta su quattro senza che
+## niente fosse cambiato.
+##
+## Qui si prova il COMPORTAMENTO, non la formula: la stessa corda nello
+## stesso posto deve dare la stessa fase anche dopo che il processo ha
+## allocato altro (è quello che un contatore non sa fare), e due corde in
+## posti diversi devono continuare a darne di diverse.
+func _test_la_fase_viene_dal_posto(t) -> void:
+	var per_nome := {}
+	for v in CAT.items():
+		per_nome[str(v["name"])] = v
+	var b: Callable = per_nome["Lucine"]["builder"] as Callable
+
+	# le QUATTRO CELLE di un quadrato, più la prima rifatta in fondo:
+	# vicine come non possono esserlo di più, e la ripetizione dice se la
+	# fase sopravvive alle allocazioni che ci sono state in mezzo
+	var celle: Array = [Vector3.ZERO, Vector3(2, 0, 0), Vector3(0, 0, 2),
+			Vector3(2, 0, 2), Vector3.ZERO]
+	var fasi: Array = []
+	for dove: Vector3 in celle:
+		# fra una corda e l'altra il processo alloca: con la fase presa dal
+		# contatore delle istanze, la prima e l'ultima NON coinciderebbero
+		var zavorra: Array = []
+		for _z in 40:
+			zavorra.append(Node3D.new())
+		var pezzo := t.stage(b.call()) as Node3D
+		pezzo.global_position = dove
+		var gestore = VIVE.new()
+		gestore.registra(_corde_di(pezzo)[0])
+		fasi.append(float(gestore._corde[0]["fase"]))
+		gestore.free()
+		for z in zavorra:
+			z.free()
+
+	t.almost(fasi[0], fasi[4],
+			"la stessa corda nello stesso posto ritrova la sua fase")
+	# «diverse» non basta: a un grado di scarto due corde ondeggiano
+	# insieme a occhio. La soglia è MISURATA: su 36 lucine piantate a due
+	# metri di passo, fra le 110 coppie di vicine (entro tre metri) la più
+	# somigliante sta a 0.86 rad — e le quattro celle qui sopra sono il
+	# caso peggiore di quella misura. 0.5 lascia margine senza scendere
+	# dove due corde parrebbero la stessa corda.
+	for i1 in 4:
+		for i2 in range(i1 + 1, 4):
+			var d: float = absf(fasi[i1] - fasi[i2])
+			d = minf(d, TAU - d)
+			t.ok(d > 0.5, "due lucine in celle vicine restano fuori sincrono (%.3f rad)" % d)
+
+	# e le due sorelle dell'altalena, che il posto ce l'hanno identico: a
+	# distinguerle restano i loro attacchi, distanti 32 cm. Questa riga
+	# non è una formalità — rimettendo il vecchio contatore per vedere se
+	# il caso diventava rosso è venuto fuori che le due corde del
+	# seggiolino stavano a 0.063 rad, quattro gradi: ondeggiavano
+	# INSIEME, e nessuno se n'era accorto.
+	var alt := t.stage((per_nome["Altalena"]["builder"] as Callable).call()) as Node3D
+	var g2 = VIVE.new()
+	for c in _corde_di(alt):
+		g2.registra(c)
+	t.eq(g2._corde.size(), 2, "l'altalena dichiara le sue due corde")
+	if g2._corde.size() == 2:
+		var ds: float = absf(float(g2._corde[0]["fase"]) - float(g2._corde[1]["fase"]))
+		ds = minf(ds, TAU - ds)
+		t.ok(ds > 0.3,
+				"le due corde dell'altalena non dondolano insieme (%.3f rad)" % ds)
+	g2.free()
 
 
 func _corde_di(n: Node) -> Array:
