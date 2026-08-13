@@ -27,6 +27,26 @@ env:
   # Deve combaciare con la versione in project.godot (config/features "4.7").
   GODOT_VERSION: 4.7.1
 
+  # IL MODELLO CHE VIAGGIA DENTRO IL PACCHETTO — gemma-3-4b-it Q4_K_M, 2,4 GB.
+  # Vedi CLAUDE.md «FASE 5» e la sezione «Dove va il MODELLO dentro il bundle»
+  # di RELEASE_SIGNING.md.
+  #
+  # ⚠️ QUI NON C'E' NE' L'IMPRONTA NE' IL NOME DEL FILE, ed e' voluto: vivono
+  # in `systems/Llm.gd` (`IMPRONTA_SPEDITO`, `NOME_MODELLO`), che e' anche il
+  # posto da cui il GIOCO li legge. Ricopiarli qui vorrebbe dire due tabelle
+  # gemelle che divergono in silenzio: il giorno che si cambia modello e si
+  # aggiorna solo una delle due, la CI impacchetta un file che il gioco
+  # rifiuta — e il gioco non si rompe, si SPEGNE (le lettere scritte a mano
+  # ci sono), quindi nessuno se ne accorgerebbe. I passi qui sotto le leggono
+  # da li' con `sed`, e falliscono se non le trovano.
+  #
+  # La REVISIONE e' pinnata al commit, non a `main`: un tag del gioco deve
+  # produrre sempre lo stesso byte-per-byte, e un ricaricamento a monte non
+  # deve poter cambiare quel che spediamo.
+  MODELLO_REPO: ggml-org/gemma-3-4b-it-GGUF
+  MODELLO_FILE: gemma-3-4b-it-Q4_K_M.gguf
+  MODELLO_REVISIONE: d0976223747697cb51e056d85c532013931fe52e
+
 jobs:
   # ---------------------------------------------------------------------------
   # Controlli in 10 secondi su un runner gratuito: se la configurazione non
@@ -69,6 +89,104 @@ jobs:
           test -f misc/macos_entitlements.plist \
             || { echo "::error::Manca misc/macos_entitlements.plist, richiesto dalla firma macOS."; exit 1; }
           echo "ETC2/ASTC abilitato ed entitlement presenti"
+
+      # IL MODELLO C'E' ANCORA, ED E' QUELLO GIUSTO? — in dieci secondi e
+      # SENZA SCARICARE UN BYTE. Hugging Face pubblica lo sha256 del file
+      # nell'intestazione `x-linked-etag` (i .gguf sono file LFS/Xet: l'etag
+      # E' l'oid, cioe' l'impronta), e la dimensione in `x-linked-size`. Una
+      # richiesta HEAD basta a confrontarli con quel che il gioco pretende.
+      #
+      # Perche' qui e non solo nel job che scarica: la Fase 5 aggiunge
+      # l'UNICA dipendenza da un servizio esterno che questa pipeline abbia.
+      # Se il repository a monte sparisce, o diventa «gated», o il file viene
+      # ricaricato diverso, questo lo dice PRIMA di quaranta minuti di
+      # compilazione, notarizzazione e due runner macOS (che costano 10x).
+      #
+      # ⚠️ Questo NON e' la verifica: e' un fumo. L'autorita' resta l'impronta
+      # ricalcolata sui byte scaricati, nei due job che impacchettano.
+      - name: Il modello si scarica ancora senza credenziali?
+        shell: bash
+        env:
+          # Facoltativo, e deve restare tale: il 2026-08-13 il repository
+          # `ggml-org/gemma-3-4b-it-GGUF` risponde `"gated": false` e il file
+          # si scarica anonimo (verificato con una HEAD: 302 -> 200). Il
+          # token serve solo se un domani a monte lo chiudessero, o se si
+          # inciampasse nel limite di richieste per indirizzo IP dei runner.
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # Le due costanti si LEGGONO dal gioco, non si ricopiano (vedi il
+          # blocco `env` in cima). Se un domani cambiano nome, questo passo
+          # deve fallire rumorosamente invece di confrontare stringhe vuote.
+          nome="$(sed -n 's/^const NOME_MODELLO := "\(.*\)"$/\1/p' systems/Llm.gd | head -n1)"
+          impronta="$(sed -n 's/^const IMPRONTA_SPEDITO := "\([0-9a-f]\{64\}\)"$/\1/p' systems/Llm.gd | head -n1)"
+          test -n "$nome" \
+            || { echo "::error::Non riesco a leggere NOME_MODELLO da systems/Llm.gd (atteso: const NOME_MODELLO := \"...\"). Senza, la CI non sa come chiamare il file e il gioco non lo troverebbe."; exit 1; }
+          test -n "$impronta" \
+            || { echo "::error::Non riesco a leggere IMPRONTA_SPEDITO da systems/Llm.gd (attesi 64 caratteri esadecimali). Senza, il modello verrebbe impacchettato SENZA verifica."; exit 1; }
+          echo "il gioco chiede: $nome · sha256 $impronta"
+
+          url="https://huggingface.co/$MODELLO_REPO/resolve/$MODELLO_REVISIONE/$MODELLO_FILE"
+          echo "a monte: $url"
+          # `-I` senza `-L`: la risposta di Hugging Face (302 verso il CDN) e'
+          # proprio quella che porta le due intestazioni che ci servono.
+          #
+          # ⚠️ DUE RAMI E NON UN'ESPANSIONE CONDIZIONALE. Scrivere
+          # `${HF_TOKEN:+-H "Authorization: Bearer $HF_TOKEN"}` sembra elegante
+          # e NON funziona: l'espansione non e' quotata (se la quoti diventa un
+          # argomento solo), quindi la divisione in parole la spezza in quattro
+          # — `-H`, `"Authorization:`, `Bearer`, `<token>"` — e curl si ritrova
+          # un'intestazione monca e tre URL da scaricare. Con un array si
+          # inciamperebbe invece in bash 3.2 (quello dei runner macOS), dove
+          # `"${a[@]}"` su un array vuoto e' «unbound variable» sotto `set -u`.
+          if [ -n "${HF_TOKEN:-}" ]; then
+            teste="$(curl -sS -I --connect-timeout 30 --max-time 120 \
+                       -H "Authorization: Bearer $HF_TOKEN" "$url" || true)"
+          else
+            teste="$(curl -sS -I --connect-timeout 30 --max-time 120 "$url" || true)"
+          fi
+          teste="$(printf '%s' "$teste" | tr -d '\r')"
+          test -n "$teste" \
+            || { echo "::error::Nessuna risposta da huggingface.co per il modello. Se e' un guasto passeggero, rilancia; se il repository e' sparito, il modello va cambiato (e con lui IMPRONTA_SPEDITO in systems/Llm.gd)."; exit 1; }
+
+          codice="$(printf '%s\n' "$teste" | awk '/^HTTP\//{c=$2} END{print c}')"
+          echo "$teste" | sed -n '1p;/^x-linked-/p;/^x-error/p'
+          case "$codice" in
+            200|302|307) ;;
+            401|403)
+              echo "::error::Hugging Face risponde $codice sul modello: il repository e' diventato «gated» (servono credenziali). Crea il secret HF_TOKEN (Settings -> Secrets and variables -> Actions) con un token di lettura Hugging Face che abbia accettato la licenza Gemma, e rilancia. La Release NON puo' uscire senza il modello."
+              exit 1 ;;
+            *)
+              echo "::error::Hugging Face risponde $codice sul modello: non e' scaricabile. La Release NON puo' uscire senza il modello."
+              exit 1 ;;
+          esac
+
+          etag="$(printf '%s\n' "$teste" | awk -F': ' 'tolower($1)=="x-linked-etag"{print $2}' | tr -d '"' | head -n1)"
+          dim="$(printf '%s\n' "$teste" | awk -F': ' 'tolower($1)=="x-linked-size"{print $2}' | head -n1)"
+          if [ -z "$etag" ]; then
+            # Non e' un errore: l'intestazione e' un dettaglio di come Hugging
+            # Face serve i file grossi, e puo' cambiare. Chi verifica davvero
+            # e' il passo che scarica.
+            echo "::warning::Hugging Face non ha mandato x-linked-etag: non posso confrontare l'impronta senza scaricare. Il controllo vero resta nei job che impacchettano."
+          elif [ "$etag" != "$impronta" ]; then
+            echo "::error::Il file a monte ha impronta $etag, il gioco ne pretende $impronta. O e' cambiato il modello (allora si aggiorna MODELLO_REVISIONE qui e IMPRONTA_SPEDITO in systems/Llm.gd, insieme), o si sta pinnando la revisione sbagliata."
+            exit 1
+          else
+            echo "    ok  l'impronta a monte combacia con IMPRONTA_SPEDITO"
+          fi
+          if [ -n "$dim" ]; then
+            echo "    il modello pesa $dim byte ($((dim / 1048576)) MiB)"
+          fi
+          # ⚠️ Mai `${HF_TOKEN:- ...}` in un messaggio: quella forma stampa il
+          # VALORE della variabile quando c'e'. GitHub mascheri i secret nei
+          # log, ma un segreto che finisce in un `echo` per sbaglio non e' una
+          # cosa su cui appoggiarsi.
+          if [ -n "${HF_TOKEN:-}" ]; then
+            echo "    ok  il modello e' raggiungibile (con il token HF_TOKEN)"
+          else
+            echo "    ok  il modello e' raggiungibile senza credenziali"
+          fi
 
   # ---------------------------------------------------------------------------
   windows:
@@ -114,6 +232,33 @@ jobs:
           scons platform=windows target=template_debug -j4
           scons platform=windows target=template_release -j4
 
+      # ⚠️ IL BINARIO CHE SPEDIAMO SA SCRIVERE? — e se non sa, il modello non
+      # deve partire. Il gioco decide se la Fase 5 esiste guardando se la
+      # classe nativa `LlmLocale` e' registrata (Llm.disponibile(): «l'esistenza
+      # della classe E' il segnale»), e quella classe c'e' SOLO se il cuore e'
+      # stato compilato con `llm=yes`. Le righe qui sopra non lo passano.
+      #
+      # Senza questo controllo, spedire il modello e' un no-op da 2,4 GB: ogni
+      # giocatore si scarica e si tiene sul disco un file che il gioco non apre
+      # mai — `Llm.acceso()` e' falsa, `Pensieri._ready` spegne il proprio
+      # `_process` e ritorna. E non si vedrebbe: il gioco senza Fase 5 e' un
+      # gioco INTERO, con le sue lettere scritte a mano. Nessun collaudo, e
+      # nessuna partita, potrebbe distinguerlo da uno che funziona.
+      #
+      # Si guarda il binario vero e non il comando: e' la stessa domanda che si
+      # fa il gioco, fatta all'artefatto invece che alla riga di build.
+      - name: Il cuore compilato conosce LlmLocale?
+        shell: bash
+        run: |
+          set -euo pipefail
+          bin="bin/chibi_crossing.dll"
+          test -f "$bin" || { echo "::error::Non trovo $bin dopo la compilazione."; exit 1; }
+          quante="$(grep -ac 'LlmLocale' "$bin" || true)"
+          echo "$bin · $(wc -c < "$bin" | tr -d ' ') byte · LlmLocale: $quante"
+          test "$quante" != "0" \
+            || { echo "::error::Il cuore C++ e' stato compilato SENZA llama.cpp (la classe LlmLocale non c'e'), ma questa release impacchetta un modello da 2,4 GB che nessuno aprira' mai: Llm.disponibile() sara' falsa per tutti. Va deciso l'uno o l'altro. Per spedire davvero la Fase 5 servono, INSIEME: il sottomodulo (git submodule update --init --depth 1 src/thirdparty/llama.cpp), 'llm=yes' su ENTRAMBI i target di scons, su Windows l'allineamento del CRT (llm_msvc_crt=MultiThreadedDLL, vedi CLAUDE.md: due meta' con CRT diversi si fermano al link con LNK2038) e una cache della build di ggml come quella di build.yml, o ogni tag paga venti minuti in piu' per sistema. In alternativa si toglie il modello dal pacchetto e lo si lascia a chi gioca in user://modelli/ (Llm.percorso_modello lo prevede gia')."; exit 1; }
+          echo "    ok  il binario spedito sa scrivere"
+
       - name: Setup Godot + export templates
         uses: chickensoft-games/setup-godot@v2
         with:
@@ -157,6 +302,74 @@ jobs:
           cp misc/licenze/*.txt build/windows/Licenze/
           ls -la build/windows/Licenze
 
+      # IL MODELLO ACCANTO ALL'ESEGUIBILE — 2,4 GB che il gioco cerca da solo.
+      # La mappa eseguibile -> modello vive in `Llm.spedito_accanto_a()` (unica
+      # casa, provata in tests/cases/test_llm_spedito.gd): su Windows e' la
+      # cartella dell'.exe, e basta. Il nome del file lo dice `Llm.NOME_MODELLO`
+      # e NON si ricopia qui: si legge.
+      #
+      # Non nel `.pck`, mai: llama.cpp apre un percorso su disco con fopen/mmap,
+      # e una risorsa impacchettata non ne ha uno (per giunta qui il .pck e'
+      # EMBEDDED nell'.exe). Si scarica direttamente a destinazione: una copia
+      # in piu' di 2,4 GB non serve a nessuno.
+      #
+      # ⚠️ SE QUESTO PASSO FALLISCE, IL JOB FALLISCE. Non esiste il ramo «esce
+      # lo stesso, senza modello»: il gioco senza modello e' un gioco intero
+      # (le lettere scritte a mano ci sono e restano), ma una RELEASE senza il
+      # modello che diciamo di spedire e' una release sbagliata, e sbagliata in
+      # silenzio — nessuno se ne accorgerebbe giocando.
+      - name: Scarica il modello e verificane l'impronta
+        shell: bash
+        env:
+          # Facoltativo: il modello non e' «gated» (verificato). Vedi il passo
+          # gemello nel preflight.
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          nome="$(sed -n 's/^const NOME_MODELLO := "\(.*\)"$/\1/p' systems/Llm.gd | head -n1)"
+          impronta="$(sed -n 's/^const IMPRONTA_SPEDITO := "\([0-9a-f]\{64\}\)"$/\1/p' systems/Llm.gd | head -n1)"
+          test -n "$nome" -a -n "$impronta" \
+            || { echo "::error::Non riesco a leggere NOME_MODELLO/IMPRONTA_SPEDITO da systems/Llm.gd: il modello non si puo' ne' nominare ne' verificare."; exit 1; }
+
+          url="https://huggingface.co/$MODELLO_REPO/resolve/$MODELLO_REVISIONE/$MODELLO_FILE"
+          dest="build/windows/$nome"
+          rm -f "$dest"
+
+          # `--continue-at -` fa RIPRENDERE i tentativi invece di ricominciare
+          # 2,4 GB da capo; su un file che non esiste ancora parte da zero.
+          # (Due rami e non un'espansione condizionale: vedi il preflight.)
+          if [ -n "${HF_TOKEN:-}" ]; then
+            curl --fail --location --show-error --silent \
+                 --retry 5 --retry-delay 10 --retry-all-errors \
+                 --connect-timeout 30 --continue-at - \
+                 -H "Authorization: Bearer $HF_TOKEN" \
+                 --output "$dest" "$url" \
+              || { echo "::error::Scaricamento del modello fallito da $url (con token)."; exit 1; }
+          else
+            curl --fail --location --show-error --silent \
+                 --retry 5 --retry-delay 10 --retry-all-errors \
+                 --connect-timeout 30 --continue-at - \
+                 --output "$dest" "$url" \
+              || { echo "::error::Scaricamento del modello fallito da $url. Se Hugging Face risponde 401/403 il repository e' diventato «gated»: crea il secret HF_TOKEN con un token di lettura che abbia accettato la licenza Gemma. La Release NON puo' uscire senza il modello."; exit 1; }
+          fi
+
+          # L'AUTORITA' E' QUESTA, non l'intestazione letta nel preflight: i
+          # byte che abbiamo in mano. Chiude anche il residuo dichiarato in
+          # src/llm_gguf.h — il bit girato dentro i pesi, che ne' il portiere
+          # ne' llama vedono, e che a runtime puo' finire in abort().
+          byte="$(wc -c < "$dest" | tr -d ' ')"
+          if command -v sha256sum >/dev/null 2>&1; then
+            vera="$(sha256sum "$dest" | cut -d' ' -f1)"
+          else
+            vera="$(shasum -a 256 "$dest" | cut -d' ' -f1)"
+          fi
+          echo "$dest · $byte byte ($((byte / 1048576)) MiB) · sha256 $vera"
+          test "$vera" = "$impronta" \
+            || { echo "::error::Il modello scaricato ha impronta $vera, il gioco ne pretende $impronta (Llm.IMPRONTA_SPEDITO). Se il download e' andato a buon fine ma l'impronta e' diversa, il file a monte e' cambiato: si aggiornano INSIEME MODELLO_REVISIONE qui e IMPRONTA_SPEDITO in systems/Llm.gd."; exit 1; }
+          echo "    ok  l'impronta combacia con Llm.IMPRONTA_SPEDITO"
+          df -h . | tail -n1
+
       - name: Firma con Azure Trusted Signing (solo se ci sono i secret)
         if: env.AZURE_CLIENT_ID != ''
         uses: azure/trusted-signing-action@v0
@@ -176,9 +389,36 @@ jobs:
         shell: bash
         run: echo "::warning::Secret Azure Trusted Signing assenti -> .exe NON firmato. Vedi RELEASE_SIGNING.md."
 
+      # ⚠️ 7-ZIP E NON `Compress-Archive`, E NON E' UN GUSTO: il cmdlet di
+      # PowerShell usa l'API .NET System.IO.Compression.ZipArchive, che la
+      # documentazione Microsoft dichiara limitata a **2 GB** («The API limits
+      # the maximum file size to 2GB»). Il modello da solo ne pesa 2,32 GiB:
+      # da quando viaggia dentro il pacchetto, quella riga non puo' piu'
+      # funzionare — e fallirebbe alla fine di venti minuti di build.
+      # 7-Zip e' preinstallato sui runner Windows e scrive zip64.
+      #
+      # `-mx=1` invece della compressione massima: i pesi quantizzati sono
+      # praticamente incomprimibili (si guadagna qualche per mille), e la
+      # compressione forte su 2,4 GB costerebbe minuti di CPU per niente.
       - name: Comprimi la build
-        shell: pwsh
-        run: Compress-Archive -Path build/windows/* -DestinationPath ChibiCrossing-windows.zip -Force
+        shell: bash
+        run: |
+          set -euo pipefail
+          # ⚠️ PERCORSI RELATIVI, NON $GITHUB_WORKSPACE. Su un runner Windows
+          # quella variabile vale `D:\a\repo\repo`, con le barre ROVESCIATE:
+          # dentro bash le barre rovesciate sono caratteri di escape, e un
+          # `cd "$GITHUB_WORKSPACE"` e' il genere di riga che a volte funziona
+          # e a volte no a seconda di come MSYS traduce il percorso. `../..`
+          # dice la stessa cosa e non dipende da nessuna traduzione.
+          cd build/windows
+          7z a -tzip -mx=1 ../../ChibiCrossing-windows.zip ./* > /dev/null
+          cd ../..
+          test -s ChibiCrossing-windows.zip \
+            || { echo "::error::La compressione non ha prodotto ChibiCrossing-windows.zip."; exit 1; }
+          echo "pacchetto: $(wc -c < ChibiCrossing-windows.zip | tr -d ' ') byte"
+          # Che dentro ci sia tutto lo verifica il job `release`, sui pacchetti
+          # veri: qui si guarda solo che l'archivio si sia scritto.
+          7z l ChibiCrossing-windows.zip | tail -n 20
 
       - name: Carica artifact
         uses: actions/upload-artifact@v4
@@ -231,6 +471,21 @@ jobs:
           scons platform=macos arch=universal target=template_debug -j4
           scons platform=macos arch=universal target=template_release -j4
 
+      # ⚠️ Vedi il gemello nel job Windows: il gioco riconosce la Fase 5
+      # dall'esistenza della classe nativa `LlmLocale`, che c'e' solo con
+      # `llm=yes`. Un modello da 2,4 GB dentro un pacchetto che non sa aprirlo
+      # e' un no-op che nessuna partita puo' smascherare.
+      - name: Il cuore compilato conosce LlmLocale?
+        run: |
+          set -euo pipefail
+          bin="bin/libchibi_crossing.macos.template_release.universal.dylib"
+          test -f "$bin" || { echo "::error::Non trovo $bin dopo la compilazione."; exit 1; }
+          quante="$(grep -ac 'LlmLocale' "$bin" || true)"
+          echo "$bin · $(wc -c < "$bin" | tr -d ' ') byte · LlmLocale: $quante"
+          test "$quante" != "0" \
+            || { echo "::error::Il cuore C++ e' stato compilato SENZA llama.cpp (la classe LlmLocale non c'e'), ma questa release impacchetta un modello da 2,4 GB che nessuno aprira' mai: Llm.disponibile() sara' falsa per tutti. Va deciso l'uno o l'altro. Per spedire davvero la Fase 5 servono, INSIEME: il sottomodulo (git submodule update --init --depth 1 src/thirdparty/llama.cpp), 'llm=yes' su ENTRAMBI i target di scons, su macOS le due passate per architettura piu' lipo (le fa gia' il SConstruct) e una cache della build di ggml come quella di build.yml, o ogni tag paga venti minuti in piu' per sistema. In alternativa si toglie il modello dal pacchetto e lo si lascia a chi gioca in user://modelli/ (Llm.percorso_modello lo prevede gia')."; exit 1; }
+          echo "    ok  il binario spedito sa scrivere"
+
       - name: Setup Godot + export templates
         uses: chickensoft-games/setup-godot@v2
         with:
@@ -257,6 +512,54 @@ jobs:
             || { echo "::error::L'export non ha prodotto build/macos/ChibiCrossing.zip."; exit 1; }
           ls -la build/macos
 
+      # IL MODELLO — qui si scarica soltanto; a metterlo DENTRO il bundle e'
+      # il passo dopo, insieme alle licenze, perche' aprire e richiudere una
+      # .app da 2,4 GB due volte costa minuti veri di zip.
+      #
+      # Va in RUNNER_TEMP e non nel workspace: cosi' `mv` piu' sotto e' un
+      # rinomino sullo stesso volume (istantaneo, e nessuna seconda copia da
+      # 2,4 GB su un runner macOS che ha ~14 GB di disco in tutto).
+      #
+      # ⚠️ SE QUESTO PASSO FALLISCE, IL JOB FALLISCE: vedi il gemello Windows.
+      - name: Scarica il modello e verificane l'impronta
+        shell: bash
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          nome="$(sed -n 's/^const NOME_MODELLO := "\(.*\)"$/\1/p' systems/Llm.gd | head -n1)"
+          impronta="$(sed -n 's/^const IMPRONTA_SPEDITO := "\([0-9a-f]\{64\}\)"$/\1/p' systems/Llm.gd | head -n1)"
+          test -n "$nome" -a -n "$impronta" \
+            || { echo "::error::Non riesco a leggere NOME_MODELLO/IMPRONTA_SPEDITO da systems/Llm.gd: il modello non si puo' ne' nominare ne' verificare."; exit 1; }
+
+          url="https://huggingface.co/$MODELLO_REPO/resolve/$MODELLO_REVISIONE/$MODELLO_FILE"
+          dest="$RUNNER_TEMP/$nome"
+          rm -f "$dest"
+
+          if [ -n "${HF_TOKEN:-}" ]; then
+            curl --fail --location --show-error --silent \
+                 --retry 5 --retry-delay 10 --retry-all-errors \
+                 --connect-timeout 30 --continue-at - \
+                 -H "Authorization: Bearer $HF_TOKEN" \
+                 --output "$dest" "$url" \
+              || { echo "::error::Scaricamento del modello fallito da $url (con token)."; exit 1; }
+          else
+            curl --fail --location --show-error --silent \
+                 --retry 5 --retry-delay 10 --retry-all-errors \
+                 --connect-timeout 30 --continue-at - \
+                 --output "$dest" "$url" \
+              || { echo "::error::Scaricamento del modello fallito da $url. Se Hugging Face risponde 401/403 il repository e' diventato «gated»: crea il secret HF_TOKEN con un token di lettura che abbia accettato la licenza Gemma. La Release NON puo' uscire senza il modello."; exit 1; }
+          fi
+
+          byte="$(wc -c < "$dest" | tr -d ' ')"
+          vera="$(shasum -a 256 "$dest" | cut -d' ' -f1)"
+          echo "$dest · $byte byte ($((byte / 1048576)) MiB) · sha256 $vera"
+          test "$vera" = "$impronta" \
+            || { echo "::error::Il modello scaricato ha impronta $vera, il gioco ne pretende $impronta (Llm.IMPRONTA_SPEDITO). Se il download e' andato a buon fine ma l'impronta e' diversa, il file a monte e' cambiato: si aggiornano INSIEME MODELLO_REVISIONE qui e IMPRONTA_SPEDITO in systems/Llm.gd."; exit 1; }
+          echo "    ok  l'impronta combacia con Llm.IMPRONTA_SPEDITO"
+          df -h "$RUNNER_TEMP" | tail -n1
+
       # LE LICENZE DENTRO IL BUNDLE, e su macOS «dentro» e' l'unica opzione
       # giusta: il .app E' l'artefatto distribuito — chi lo trascina in
       # Applicazioni si porta via SOLO quello, e una cartella «Licenze» messa
@@ -268,9 +571,24 @@ jobs:
       # ⚠️ QUESTO PASSO STA PRIMA DELLA FIRMA, e non e' un caso: iniettare file
       # in un bundle gia' firmato ne rompe la firma. Chi sposta questo passo
       # piu' in basso ottiene una release che Gatekeeper rifiuta.
-      - name: Metti le licenze dentro il bundle
+      # IL MODELLO VIAGGIA NELLA STESSA APERTURA, e non e' pigrizia: aprire e
+      # richiudere una .app da 2,4 GB costa minuti di zip ogni volta, e su un
+      # runner macOS costa anche il disco (ce n'e' ~14 GB in tutto, e in questo
+      # job convivono Godot, gli export templates, il bundle e i suoi archivi).
+      # Un passo suo vorrebbe dire un secondo giro completo di unzip + ditto.
+      #
+      # Vale per lui, parola per parola, tutto quel che c'e' scritto qui sopra
+      # per le licenze: Contents/Resources/ e non Contents/MacOS/ (fuori di li'
+      # e' «unsealed contents» per codesign), e PRIMA DELLA FIRMA.
+      - name: Metti le licenze e il modello dentro il bundle
         run: |
           set -euo pipefail
+          nome="$(sed -n 's/^const NOME_MODELLO := "\(.*\)"$/\1/p' "$GITHUB_WORKSPACE/systems/Llm.gd" | head -n1)"
+          test -n "$nome" \
+            || { echo "::error::Non riesco a leggere NOME_MODELLO da systems/Llm.gd."; exit 1; }
+          test -s "$RUNNER_TEMP/$nome" \
+            || { echo "::error::Il modello non e' in $RUNNER_TEMP/$nome: il passo che lo scarica non ha fatto il suo lavoro."; exit 1; }
+
           cd build/macos
           unzip -oq ChibiCrossing.zip
           APP="$(find . -maxdepth 1 -name '*.app' | head -n1)"
@@ -278,6 +596,12 @@ jobs:
           mkdir -p "$APP/Contents/Resources/Licenze"
           cp "$GITHUB_WORKSPACE"/misc/licenze/*.txt "$APP/Contents/Resources/Licenze/"
           ls -la "$APP/Contents/Resources/Licenze"
+
+          # `mv` e non `cp`: sullo stesso volume e' un rinomino istantaneo, e
+          # non tiene 2,4 GB in doppia copia su un disco che ne ha pochi.
+          mv "$RUNNER_TEMP/$nome" "$APP/Contents/Resources/$nome"
+          ls -la "$APP/Contents/Resources/$nome"
+
           # si ricomprime con la STESSA forma di prima (la .app alla radice
           # dello zip): il passo della firma piu' sotto la ripesca con
           # `find . -maxdepth 1 -name '*.app'`, e una cartella in piu' alla
@@ -285,6 +609,7 @@ jobs:
           rm -f ChibiCrossing.zip
           ditto -c -k --keepParent "$APP" ChibiCrossing.zip
           rm -rf "$APP"
+          df -h . | tail -n1
 
       - name: Firma + notarizza (solo se ci sono i secret Apple)
         if: env.MACOS_CERT_BASE64 != ''
@@ -307,6 +632,13 @@ jobs:
           unzip -oq ChibiCrossing.zip
           APP="$(find . -maxdepth 1 -name '*.app' | head -n1)"
           ENT="$GITHUB_WORKSPACE/misc/macos_entitlements.plist"
+          # Da quando il modello viaggia dentro il bundle questa cartella tiene
+          # 2,4 GB per copia, e il runner macOS ha ~14 GB di disco in tutto:
+          # l'archivio da cui abbiamo appena estratto non serve piu' — lo
+          # riscriviamo noi al punto 5. Senza questa riga il picco di questo
+          # passo e' zip + .app + notarize.zip, cioe' quasi sette gigabyte.
+          rm -f ChibiCrossing.zip
+          df -h . | tail -n1
 
           # 3) Firma prima le librerie native annidate, poi l'app (hardened runtime).
           find "$APP" \( -name '*.dylib' -o -name '*.framework' \) -print0 | while IFS= read -r -d '' lib; do
@@ -318,11 +650,15 @@ jobs:
           ditto -c -k --keepParent "$APP" "notarize.zip"
           xcrun notarytool submit "notarize.zip" \
             --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+          # Consegnato ad Apple: la copia locale non serve piu'. Il ticket si
+          # graffa sulla .app, non sullo zip (per questo `stapler` viene dopo).
+          rm -f notarize.zip
           xcrun stapler staple "$APP"
 
           # 5) Ricomprimi l'app firmata+notarizzata per la distribuzione.
-          rm -f ChibiCrossing.zip notarize.zip
+          rm -f ChibiCrossing.zip
           ditto -c -k --keepParent "$APP" "ChibiCrossing.zip"
+          df -h . | tail -n1
 
       - name: Avviso se firma/notarizzazione saltate
         if: env.MACOS_CERT_BASE64 == ''
@@ -344,6 +680,12 @@ jobs:
     needs: [windows, macos]
     runs-on: ubuntu-latest
     steps:
+      # Serve per LEGGERE `systems/Llm.gd`: i controlli qui sotto chiedono al
+      # gioco come si chiama il file del modello, invece di ricopiarne il nome
+      # (vedi il blocco `env` in cima). Costa cinque secondi.
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Scarica gli artifact
         uses: actions/download-artifact@v4
         with:
@@ -397,13 +739,113 @@ jobs:
           # `unzip`: con i separatori a barra rovescia il pattern non trova
           # niente, `unzip` esce comunque 0, e il controllo passerebbe a vuoto.
           rm -rf /tmp/verifica_licenze && mkdir -p /tmp/verifica_licenze
-          unzip -qq -o dist/ChibiCrossing-windows.zip -d /tmp/verifica_licenze
+          # `-x '*.gguf'`: da quando il modello viaggia dentro il pacchetto,
+          # estrarre tutto vuol dire scrivere 2,4 GB su disco per leggere un
+          # .txt. Il `*` di Info-ZIP attraversa i separatori, quindi il motivo
+          # per cui qui sopra si estrae TUTTO invece di dare un pattern (le
+          # barre rovesciate) non si riapre: si esclude per estensione.
+          unzip -qq -o dist/ChibiCrossing-windows.zip -x '*.gguf' -d /tmp/verifica_licenze
           avviso="$(find /tmp/verifica_licenze -name '*NOTICE-Gemma.txt' | head -n1)"
           test -n "$avviso" || { echo "::error::NOTICE-Gemma.txt non estratto dal pacchetto Windows."; exit 1; }
           grep -qF 'Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms' \
             "$avviso" \
             || { echo "::error::NOTICE-Gemma.txt non contiene, su una riga sola, la frase esatta richiesta dalla Sezione 3.1 punto 4."; exit 1; }
           echo "    ok  la frase della Sezione 3.1 punto 4 e' integra"
+
+      # ⚠️ IL MODELLO E' DENTRO I PACCHETTI VERI? — l'altra meta' del cancello
+      # qui sopra. Un gioco senza modello resta un gioco intero (le lettere
+      # scritte a mano ci sono), e questo e' proprio il problema: se un
+      # refactoring dell'export perdesse per strada il `.gguf`, NESSUNO se ne
+      # accorgerebbe giocando — la Fase 5 si spegne in silenzio, per progetto.
+      # L'unico posto in cui quel silenzio si puo' rompere e' qui.
+      #
+      # L'IMPRONTA non si ricontrolla: l'hanno gia' verificata i due job che
+      # impacchettano, sui byte appena scaricati, contro `Llm.IMPRONTA_SPEDITO`
+      # — e su macOS il file e' dentro un bundle FIRMATO, cioe' sigillato.
+      # Rifarla qui vorrebbe dire estrarre 4,8 GB per riscoprire la stessa
+      # cosa. Si guarda quel che quei job non potevano guardare: che il file
+      # sia sopravvissuto all'impacchettamento, che stia nel posto GIUSTO, e
+      # che i due pacchetti portino lo stesso identico file.
+      - name: Il modello e' DENTRO i pacchetti, e nel posto giusto?
+        shell: bash
+        run: |
+          set -euo pipefail
+          nome="$(sed -n 's/^const NOME_MODELLO := "\(.*\)"$/\1/p' systems/Llm.gd | head -n1)"
+          test -n "$nome" \
+            || { echo "::error::Non riesco a leggere NOME_MODELLO da systems/Llm.gd."; exit 1; }
+          echo "il gioco cerchera': $nome"
+
+          # Stampa «byte percorso» della voce del modello. Separatore SPAZIO e
+          # non tabulazione: dentro uno scalare YAML un tab e' legale ma
+          # invisibile, e un editor che lo normalizza romperebbe il taglio
+          # senza che si veda nel diff. I percorsi che accettiamo non hanno
+          # spazi, e la loro forma la controlliamo due righe piu' sotto.
+          misura() {  # $1 = zip
+            unzip -l "$1" | tr '\\' '/' | awk -v n="$nome" '$NF ~ ("(^|/)" n "$") {print $1, $NF; exit}'
+          }
+
+          riga_w="$(misura dist/ChibiCrossing-windows.zip)"
+          test -n "$riga_w" \
+            || { echo "::error::dist/ChibiCrossing-windows.zip non contiene $nome. Su Windows il modello va ACCANTO all'.exe (Llm.spedito_accanto_a): senza, la Fase 5 e' spenta per tutti, in silenzio."; exit 1; }
+          byte_w="${riga_w%% *}"; via_w="${riga_w##* }"
+          echo "    windows: $via_w · $byte_w byte"
+          # Accanto all'eseguibile, cioe' alla radice dello zip: nessuna barra.
+          case "$via_w" in
+            */*) echo "::error::Nel pacchetto Windows il modello sta in '$via_w', non accanto all'.exe. Il gioco lo cerca nella cartella dell'eseguibile (Llm.spedito_accanto_a) e li' non lo troverebbe."; exit 1 ;;
+          esac
+
+          riga_m="$(misura dist/ChibiCrossing-macos.zip)"
+          test -n "$riga_m" \
+            || { echo "::error::dist/ChibiCrossing-macos.zip non contiene $nome. Senza, la Fase 5 e' spenta per tutti, in silenzio."; exit 1; }
+          byte_m="${riga_m%% *}"; via_m="${riga_m##* }"
+          echo "    macos:   $via_m · $byte_m byte"
+          # ⚠️ Contents/Resources/ e NON Contents/MacOS/: fuori di li' il file
+          # e' «unsealed contents» per codesign — firma che non verifica e
+          # notarizzazione che non passa (RELEASE_SIGNING.md). E' la stessa
+          # riga che `Llm.spedito_accanto_a` implementa dal lato del gioco:
+          # qui si controlla che il pacchetto le dia ragione.
+          case "$via_m" in
+            *.app/Contents/Resources/"$nome") ;;
+            *) echo "::error::Nel pacchetto macOS il modello sta in '$via_m', non in <gioco>.app/Contents/Resources/$nome. Fuori da Resources/ codesign lo vede come «unsealed contents»: la notarizzazione non passa e il gioco non lo troverebbe comunque."; exit 1 ;;
+          esac
+
+          # Nessuna costante da tenere allineata: i due pacchetti devono
+          # portare LO STESSO file, e ognuno dei due job ha gia' verificato
+          # l'impronta per conto suo.
+          test "$byte_w" = "$byte_m" \
+            || { echo "::error::Il modello pesa $byte_w byte nel pacchetto Windows e $byte_m in quello macOS: non sono lo stesso file. Uno dei due e' stato troncato dall'impacchettamento."; exit 1; }
+          echo "    ok  stesso modello nei due pacchetti ($((byte_w / 1048576)) MiB)"
+
+      # ⚠️ IL LIMITE DI GITHUB, E VA GUARDATO PRIMA DI PROVARCI. La
+      # documentazione e' esplicita: «Each file included in a release must be
+      # under 2 GiB». Con il modello dentro, ogni pacchetto ne pesa ~2,4 —
+      # cioe' `softprops/action-gh-release` fallirebbe caricando, dopo un'ora
+      # fra compilazione, export e notarizzazione, con un errore dell'API che
+      # non nomina il motivo vero.
+      #
+      # Qui il motivo si legge. E si ferma anche la PROVA GENERALE (senza
+      # tag), apposta: una prova generale che passa e un tag che fallisce e'
+      # esattamente la strada non battuta che questo workflow esiste per
+      # evitare.
+      #
+      # NB: gli artifact del run restano scaricabili — quello che non si puo'
+      # fare e' pubblicarli COME RELEASE.
+      - name: I pacchetti stanno sotto il limite di 2 GiB delle Release?
+        shell: bash
+        run: |
+          set -euo pipefail
+          tetto=2147483648  # 2 GiB, il limite per singolo file di una Release
+          troppo=0
+          for z in dist/ChibiCrossing-windows.zip dist/ChibiCrossing-macos.zip; do
+            byte="$(wc -c < "$z" | tr -d ' ')"
+            printf '%-40s %s byte (%s MiB)\n' "$z" "$byte" "$((byte / 1048576))"
+            if [ "$byte" -ge "$tetto" ]; then troppo=1; fi
+          done
+          if [ "$troppo" = "1" ]; then
+            echo "::error::Un pacchetto supera i 2 GiB e GitHub NON lo accetta come allegato di una Release («Each file included in a release must be under 2 GiB»). E' la conseguenza diretta dello spedire il modello da 2,4 GB dentro il gioco: nemmeno allegarlo a parte funzionerebbe, perche' il .gguf da solo pesa gia' 2,32 GiB. Le strade sono tre, e sono una decisione dell'autore, non della CI: (1) spezzare i pacchetti in parti sotto i 2 GiB e ricomporli a valle; (2) distribuire il gioco da un altro canale (itch.io, Steam, un proprio spazio) e lasciare a GitHub solo i sorgenti; (3) tornare a NON spedire il modello e lasciare che sia chi gioca a metterlo in user://modelli/ (il gioco lo prevede gia': Llm.percorso_modello)."
+            exit 1
+          fi
+          echo "    ok  entrambi i pacchetti stanno sotto i 2 GiB"
 
       - name: Crea la GitHub Release (solo sui tag)
         if: startsWith(github.ref, 'refs/tags/')
