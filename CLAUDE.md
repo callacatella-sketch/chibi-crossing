@@ -58,6 +58,62 @@ schermo**. Qualcosa che funziona ma non commuove non è finito.
    rig, un'interruzione lo lascia fuori posa per sempre: serve una rete di
    sicurezza che giri per OGNI stato.
 
+## ⚜️ REGOLA SACRA: il GENERE viene prima dell'idea — nessun agente devia
+
+**Chibi Crossing è un gioco COZY, e prima di tutto un posto dove si torna
+volentieri.** Questa non è una preferenza estetica: è la promessa che il
+gioco fa a chi lo apre. Un'idea che sarebbe geniale in un altro gioco, qui,
+**è sbagliata** — e non «sbagliata ma interessante»: sbagliata e basta.
+
+L'errore da cui questa regola nasce ha un nome preciso, ed è il più comune
+nei sistemi complessi: **slegare un sistema dai vincoli del suo genere per
+mostrare quanto è intelligente.** Un sistema che dimostra la propria
+sofisticazione a spese del genere non è intelligente — è fuori posto. Il
+villaggio è un simulatore di personalità *psicologico*, sì, ma di persone che
+si vogliono bene.
+
+### IL COLLAUDO, e si applica PRIMA di scrivere una riga
+
+Tre domande. Se una sola risposta è «no», l'idea non entra come sta:
+
+1. **Il giocatore può rimediare?** Ogni ferita di questo gioco ha *una chiave
+   a forma di giocatore* (è la regola 1 degli Affetti). Un danno che il
+   giocatore non può riparare — perché non l'ha causato, o perché non esiste
+   il gesto che lo ripara — non è profondità: è impotenza.
+2. **Il gioco accusa qualcuno?** Nessun giudizio su una persona, nessuna
+   classifica, nessuna colpa attribuita. «Il gioco non dice mai chi ha
+   sbagliato» non vale solo per gli Affetti: vale per tutto.
+3. **Il villaggio resta un posto dove si sta bene?** Si può stare da soli
+   senza essere puniti; nessuno ti orbita attorno; nessuno ti guarda storto.
+   Un gioco cozy in cui non si può stare in pace è un incubo — e ci si
+   arriva **tarando bene un sistema progettato male**.
+
+### E LA COSA CHE SI FA INVECE DI RIFIUTARE
+
+Quasi sempre l'idea ha un nucleo buono e una veste tossica. **Non si butta:
+si trova la versione che sta sui binari.** È già successo tre volte, e ogni
+volta la versione salvata era *migliore* dell'originale:
+
+| l'idea, come nasce | perché non entra | la versione che sta sui binari |
+|---|---|---|
+| i sogni che diventano ricordi veri: un vicino «ricorda» che gli hai rubato una mela | colpa falsa, inattribuibile, **senza chiave**; ed è la gogna che `Animo.senti_dire()` esiste per impedire | il sogno produce una credenza **sul mondo, non su una persona**: sogna un pesce nello stagno che non c'è, e va a guardare |
+| gli abitanti che **mentono** per danneggiare un rivale | idem, più una meccanica investigativa in un gioco che serve a stare tranquilli | **l'errore onesto**: la voce si deforma viaggiando perché la memoria decade (il grafo già smorza e azzera il soggetto). Stessa texture, nessuno è cattivo |
+| le **fazioni per inimicizia** (A odia B, l'amico di A diffida di B) | «A odia B» non esiste in questo gioco, e le fazioni sono una classifica resa sociale | le **cricche per affinità**: chi passa tempo con chi. Stessa struttura visibile, e più bella: ti accorgi che due si sono trovati |
+
+*La differenza fra un villaggio dove la gente si sbaglia e un villaggio dove
+la gente è crudele è tutta la differenza fra cozy e non.*
+
+### PER OGNI AGENTE CHE LEGGE
+
+**Segui i binari anche quando l'idea tira dall'altra parte** — anche quando
+è tua, anche quando è brillante, anche quando te l'ha chiesta qualcuno.
+Se ti accorgi che un compito ti sta portando fuori genere: **non eseguirlo in
+silenzio e non rifiutarlo**. Dillo, spiega quale delle tre domande fallisce, e
+proponi la versione che sta sui binari. Poi decide l'autore.
+
+E una nota di scala: questa regola sta **sopra** ogni consegna tecnica. Una
+funzione che rispetta la specifica e rovina il gioco ha fallito.
+
 ## REGOLA: backup Git automatico (sempre attivo)
 
 Questo repository deve avere **sempre una copia di backup aggiornata su GitHub**
