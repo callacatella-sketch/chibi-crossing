@@ -420,6 +420,17 @@ func _il_modello_si_apre_solo_se_c_e_qualcuno(t) -> void:
 	var reg := _villaggio(t, cuore, 0)   # registro vivo, villaggio vuoto
 	var n = Banco.new()
 	n.ponte = Ponte.new()
+	# ⚠️ `CHIBI_RISERVA` acceso APPOSTA, e per un motivo di misura. Più sotto
+	# si pretende che le opzioni con cui il modello si apre siano ESATTAMENTE
+	# quelle che il nodo dichiara (`opzioni_modello`): in un banco senza
+	# modello, però, un dizionario scritto a mano dentro `_avvia` avrebbe gli
+	# stessi due campi e l'uguaglianza sarebbe vera per caso. Con la riserva
+	# accesa i due dizionari si separano, e l'uguaglianza torna a dire
+	# qualcosa. (MISURATO: senza questa riga, un `_avvia` che si costruisce le
+	# opzioni da sé — cioè che butta via l'IMPRONTA del modello spedito —
+	# lasciava la suite verde.)
+	var riserva_prima := OS.get_environment("CHIBI_RISERVA")
+	OS.set_environment("CHIBI_RISERVA", "12345")
 	_metti(t, n)
 	for i in 6:
 		n._process(1.0)
@@ -435,6 +446,14 @@ func _il_modello_si_apre_solo_se_c_e_qualcuno(t) -> void:
 	t.eq(n.ponte.chiamate, 1, "col primo abitante il modello si apre")
 	t.eq(int((n.ponte.opzioni_modello as Dictionary).get("n_ctx", 0)), PENSIERI.FINESTRA,
 			"si apre con la finestra su cui sono state fatte le misure")
+	# E LE OPZIONI SONO QUELLE CHE IL NODO DICHIARA, non un dizionario scritto
+	# a mano lì per lì: `opzioni_modello()` porta anche l'IMPRONTA del modello
+	# spedito, che è la sola difesa contro un bit girato dentro i pesi. Un
+	# `_avvia` che se ne costruisse uno per conto suo la lascerebbe fuori — e
+	# la funzione girerebbe senza la sua rete, in silenzio.
+	t.eq(n.ponte.opzioni_modello, n.opzioni_modello(str(n.ponte.aperto)),
+			"il modello si apre con le opzioni che il nodo stesso dichiara")
+	OS.set_environment("CHIBI_RISERVA", riserva_prima)
 	_pulisci(cuore)
 
 

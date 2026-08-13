@@ -8,6 +8,8 @@ extends PanelContainer
 signal closed
 
 var _settings: Node
+var _col: VBoxContainer
+var _note: NoteLegali
 
 
 func _ready() -> void:
@@ -21,6 +23,7 @@ func _build() -> void:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 14)
 	add_child(col)
+	_col = col
 
 	col.add_child(CozyUI.title_label(L10n.t("Impostazioni"), 30))
 	col.add_child(_sep())
@@ -52,10 +55,22 @@ func _build() -> void:
 	# gioco resta intero anche senza (regola cozy del Filo Rosso)
 	col.add_child(_toggle_row("Prato Eterno (nessuna partenza)", "prato_eterno",
 			func(on): _settings.set_prato_eterno(on)))
+	# «Il villaggio pensa»: la leva del cuore che scrive. La riga c'è SOLO se
+	# c'è qualcosa da spegnere — vedi `Llm.leva_visibile()`.
+	if _llm_row_visibile():
+		col.add_child(_llm_row())
 	if _settings and _settings.quality_available():
 		col.add_child(_quality_row())
 
 	col.add_child(_sep())
+	# «NOTE LEGALI» — l'ultima riga prima di Indietro, e non e' burocrazia:
+	# le licenze dei componenti di terze parti CHIEDONO che i loro avvisi
+	# viaggino col gioco, e i Gemma Terms of Use (Sezione 3.1) chiedono che
+	# chi riceve il gioco sia informato dei vincoli d'uso. I file stanno
+	# accanto all'eseguibile — ma li' non li apre nessuno, e su macOS sono
+	# dentro il bundle. Questa e' la porta che li rende leggibili davvero.
+	col.add_child(_note_legali_row())
+
 	var back := CozyUI.cozy_button(L10n.t("Indietro"), CozyUI.PINK, 18)
 	back.custom_minimum_size = Vector2(200, 52)
 	back.pressed.connect(func(): closed.emit())
@@ -64,6 +79,36 @@ func _build() -> void:
 	var centro := CenterContainer.new()
 	centro.add_child(back)
 	col.add_child(centro)
+
+
+# ------------------------------------------------------------ note legali
+## Il bottone, e la pagina che apre. La pagina si costruisce **la prima volta
+## che serve**: e' un ScrollContainer con dentro il testo di quattro licenze,
+## e chi apre le impostazioni per alzare il volume non deve pagarla.
+func _note_legali_row() -> Control:
+	var b := CozyUI.cozy_button(L10n.t("Note legali"), CozyUI.LAVENDER, 15)
+	b.custom_minimum_size = Vector2(200, 42)
+	b.pressed.connect(_apri_note)
+	var centro := CenterContainer.new()
+	centro.add_child(b)
+	return centro
+
+
+func _apri_note() -> void:
+	if _note == null:
+		_note = NoteLegali.new()
+		add_child(_note)
+		_note.incorpora()
+		_note.closed.connect(_chiudi_note)
+	_note.riparti()
+	_note.visible = true
+	_col.visible = false
+
+
+func _chiudi_note() -> void:
+	if _note:
+		_note.visible = false
+	_col.visible = true
 
 
 # ---------------------------------------------------------------- righe
@@ -100,6 +145,14 @@ func _slider_row(label: String, key: String, lo: float, hi: float, step: float,
 
 
 func _toggle_row(label: String, key: String, setter: Callable) -> Control:
+	return _toggle_riga(label, bool(_settings.get(key)) if _settings else false, setter)
+
+
+## La riga vera, con lo stato iniziale PASSATO invece che letto da una chiave.
+## Serve a «Il villaggio pensa», il cui bit salvato è il contrario di quello
+## che la casella mostra (`llm_spento`): il verso si gira in un posto solo,
+## dentro `Settings.set_llm_acceso()`, e qui arriva già dritto.
+func _toggle_riga(label: String, acceso: bool, setter: Callable) -> Control:
 	var row := HBoxContainer.new()
 	var l := CozyUI.body_label(L10n.t(label), 17)
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -107,12 +160,46 @@ func _toggle_row(label: String, key: String, setter: Callable) -> Control:
 	row.add_child(l)
 	var cb := CheckButton.new()
 	cb.focus_mode = Control.FOCUS_NONE
-	cb.button_pressed = bool(_settings.get(key)) if _settings else false
+	cb.button_pressed = acceso
 	cb.add_theme_color_override("font_color", CozyUI.INK)
 	cb.toggled.connect(func(on):
 		if _settings: setter.call(on))
 	row.add_child(cb)
 	return row
+
+
+## ────────────────────────────────────────────────────────────────────────
+## «IL VILLAGGIO PENSA» — l'unica riga del pannello che a volte non c'è
+## ────────────────────────────────────────────────────────────────────────
+##
+## La condizione ha una casa sola (`Llm.leva_visibile()`): il binario sa
+## scrivere E un modello c'è. Mostrarla a chi non ha niente da spegnere
+## sarebbe raccontargli che gli manca un pezzo — e non gli manca niente: ha
+## un gioco meno sorprendente, che è un'altra cosa. Per lo stesso motivo qui
+## non c'è nessuna casella ingrigita: **o la riga c'è, o non esiste.**
+##
+## E non nomina nessuna macchina. Chi gioca non deve sapere cos'è un modello
+## linguistico per decidere se vuole che i suoi vicini abbiano idee loro; gli
+## serve sapere tre cose, e sono quelle scritte sotto la casella: cosa fa,
+## cosa costa, e da quando vale.
+func _llm_row_visibile() -> bool:
+	return Llm.leva_visibile()
+
+
+func _llm_row() -> Control:
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 2)
+	var acceso := true
+	if _settings:
+		acceso = not bool(_settings.get("llm_spento"))
+	col.add_child(_toggle_riga("Il villaggio pensa", acceso,
+			func(on): _settings.set_llm_acceso(on)))
+	var nota := CozyUI.body_label(
+			L10n.t("Ogni tanto un vicino ha un'idea tutta sua. Chiede memoria al computer, e cambia dal prossimo avvio."),
+			13, CozyUI.INK_SOFT)
+	nota.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(nota)
+	return col
 
 
 ## La riga della lingua. I nomi delle lingue NON si traducono mai

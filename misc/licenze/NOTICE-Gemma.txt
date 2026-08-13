@@ -1,0 +1,141 @@
+==============================================================================
+  NOTICE
+==============================================================================
+
+Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms
+
+==============================================================================
+
+The sentence above is the notice required by the Gemma Terms of Use,
+Section 3.1, point 4, and is reproduced word for word. Everything below is
+context added by the distributor of this package.
+
+  NON MANDARLA A CAPO. E' l'unica riga di questo file che deve restare una
+  riga sola: la Sezione 3.1 chiede un file che CONTENGA quella frase, e una
+  frase spezzata su due righe non e' piu' quella stringa. Ci sono due guardie
+  che la cercano per intero - tests/cases/test_licenze.gd e il passo «Le
+  licenze sono DENTRO i pacchetti?» di .github/workflows/release.yml - e
+  diventano rosse se qualcuno la riformatta. (Andava gia' a capo alla prima
+  stesura: se ne e' accorto il banco, non la rilettura.)
+
+  DO NOT re-wrap the line above. It must stay a single line.
+
+La frase qui sopra e' l'avviso richiesto dai Gemma Terms of Use, Sezione 3.1,
+punto 4, ed e' riportata parola per parola. Tutto quello che segue e' contesto
+aggiunto da chi distribuisce questo pacchetto.
+
+
+------------------------------------------------------------------------------
+WHAT IS SHIPPED HERE / COSA VIAGGIA IN QUESTO PACCHETTO
+------------------------------------------------------------------------------
+
+EN  This product, Chibi Crossing, includes a copy of Gemma model weights:
+
+      Model            Gemma 3 4B IT (instruction tuned)
+      File             gemma-3-4b-it-Q4_K_M.gguf  (shipped as pensieri.gguf)
+      Format           GGUF, 4-bit K-quant (Q4_K_M)
+      Original model   google/gemma-3-4b-it  -  Google DeepMind
+      Obtained from    huggingface.co/ggml-org/gemma-3-4b-it-GGUF
+      Licence declared in the file itself, key `general.license`: "gemma"
+
+    The weights are redistributed UNMODIFIED. Chibi Crossing did not train,
+    fine-tune, quantise, prune, merge or otherwise alter them: the file is a
+    byte-for-byte copy of the quantisation published by ggml-org, which is
+    itself derived from google/gemma-3-4b-it.
+
+    Gemma Terms of Use, Section 1.1(c): "Gemma" means those weights
+    "regardless of the source that you obtained it from". Obtaining the file
+    from a third-party repository therefore does not change which terms apply.
+
+IT  Questo prodotto, Chibi Crossing, include una copia dei pesi del modello
+    Gemma 3 4B IT di Google DeepMind, nel formato GGUF quantizzato a 4 bit
+    pubblicato da ggml-org. I pesi sono ridistribuiti SENZA MODIFICHE: non
+    sono stati addestrati, rifiniti, quantizzati o alterati in alcun modo da
+    chi pubblica questo gioco.
+
+
+------------------------------------------------------------------------------
+THE DOCUMENTS THAT TRAVEL WITH IT / I DOCUMENTI CHE LO ACCOMPAGNANO
+------------------------------------------------------------------------------
+
+  Gemma-Terms-of-Use.txt            the Agreement, in full
+  Gemma-Prohibited-Use-Policy.txt   the Prohibited Use Policy, in full,
+                                    incorporated by reference into the
+                                    Agreement by its Section 3.2
+
+Both are copies of the documents published by Google at ai.google.dev. Google
+may update them; the authoritative version is always the one online.
+
+
+------------------------------------------------------------------------------
+USE RESTRICTIONS - THIS APPLIES TO YOU / VINCOLI D'USO - VALGONO ANCHE PER TE
+------------------------------------------------------------------------------
+
+EN  NOTICE TO SUBSEQUENT USERS, given under Section 3.1 of the Gemma Terms of
+    Use: Gemma and Model Derivatives are subject to the use restrictions in
+    Section 3.2 of those Terms, which incorporate by reference the Gemma
+    Prohibited Use Policy, found at:
+
+        https://ai.google.dev/gemma/prohibited_use_policy
+
+    and reproduced in full in the file Gemma-Prohibited-Use-Policy.txt next
+    to this one.
+
+    In plain words: you must not use Gemma - including the copy inside this
+    game - for the restricted uses listed in the Prohibited Use Policy, and
+    you must not use it in violation of applicable laws and regulations. The
+    same restriction is written as a binding term in the licence agreement
+    for this game (see LICENSE, section "Gemma model weights").
+
+    Google claims no rights in the text this model generates on your machine
+    (Section 3.3), and you are responsible for it.
+
+IT  AVVISO A CHI RICEVE QUESTO PACCHETTO, dato ai sensi della Sezione 3.1 dei
+    Gemma Terms of Use: Gemma e i Model Derivatives sono soggetti ai vincoli
+    d'uso della Sezione 3.2 di quei Termini, che richiamano la Gemma
+    Prohibited Use Policy, reperibile su
+    https://ai.google.dev/gemma/prohibited_use_policy e riportata per intero
+    nel file Gemma-Prohibited-Use-Policy.txt accanto a questo.
+
+    In parole semplici: non puoi usare Gemma - inclusa la copia dentro questo
+    gioco - per gli usi vietati dalla Prohibited Use Policy, ne' in violazione
+    di leggi e regolamenti applicabili. Lo stesso vincolo e' scritto come
+    clausola vincolante nella licenza di questo gioco (vedi LICENSE, sezione
+    "Gemma model weights").
+
+    Google non rivendica alcun diritto sul testo che il modello genera sulla
+    tua macchina (Sezione 3.3), e di quel testo rispondi tu.
+
+
+------------------------------------------------------------------------------
+NO ENDORSEMENT / NESSUNA APPROVAZIONE
+------------------------------------------------------------------------------
+
+EN  Gemma and Google are trademarks of Google LLC. Chibi Crossing is not
+    affiliated with, sponsored by or endorsed by Google. The names are used
+    only to identify which model is included, as the Gemma Terms of Use
+    require. Gemma Terms of Use, Section 4.2, grants no trademark rights.
+
+IT  Gemma e Google sono marchi di Google LLC. Chibi Crossing non e' affiliato
+    a Google, ne' sponsorizzato o approvato da Google: i nomi compaiono solo
+    per dire QUALE modello e' incluso, come i Gemma Terms of Use richiedono.
+
+
+------------------------------------------------------------------------------
+HOW THIS GAME USES THE MODEL / COME QUESTO GIOCO USA IL MODELLO
+------------------------------------------------------------------------------
+
+EN  Some of the text you read in Chibi Crossing - letters, thoughts, small
+    remarks by the villagers - may be written by this model while you play,
+    on your own machine. Nothing is sent anywhere: the model runs locally and
+    the game makes no network connection for it. If the model is absent, or
+    if your computer does not have the free memory to hold it, the game runs
+    exactly as it always does, with the hand-written text.
+
+IT  Una parte del testo che leggi in Chibi Crossing - lettere, pensieri,
+    piccole frasi dei vicini - puo' essere scritta da questo modello mentre
+    giochi, sulla tua macchina. Niente viene mandato da nessuna parte: il
+    modello gira in locale e il gioco non apre nessuna connessione per lui.
+    Se il modello non c'e', o se il computer non ha la memoria libera per
+    tenerlo, il gioco funziona esattamente come sempre, con i testi scritti a
+    mano.

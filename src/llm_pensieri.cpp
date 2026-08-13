@@ -610,16 +610,27 @@ bool Traduttore::_carica() {
 	//    duecentomila stringhe di vocabolario da attraversare) e l'impronta
 	//    costa molto di più. Il frame non deve pagare niente: qui siamo già
 	//    dentro il thread del traduttore, e `_molla()` può interromperlo.
+	//
+	// ── E L'ORDINE DEI QUATTRO CANCELLI È IL PREZZO, DAL PIÙ BASSO ───────
+	//
+	// ⚠️ MISURATO IL 2026-08-13, ed è il giorno in cui il gioco ha cominciato
+	// a spedire il suo modello: fino a ieri l'impronta stava PRIMA del tetto
+	// e della riserva, e su una macchina che il modello non l'avrebbe aperto
+	// mai — quella dell'autore, 8 GB — il no arrivava dopo **37.4 secondi**
+	// di lettura ininterrotta di due gigabyte e mezzo, a ogni avvio, per
+	// niente. (11.7 s a priorità normale; 37.4 alla priorità di fondo che il
+	// gioco usa davvero, `Pensieri.PRIORITA = 2`, perché su macOS la QoS di
+	// fondo strozza anche l'I/O.) Adesso l'ordine è: la FORMA (17 ms), il
+	// TETTO (gratis), la RISERVA della macchina (gratis), e solo per ultima
+	// l'IMPRONTA — che così la paga soltanto chi il modello lo aprirà.
+	//
+	// La regola è la stessa dei quattro cancelli di `BuildSystem.deviazione`:
+	// in ordine di prezzo, e il caso comune non paga il caso raro.
 	if (_cfg.valida) {
-		const FattiGguf fatti = esamina_gguf(_cfg.modello, !_cfg.impronta_attesa.empty());
+		const FattiGguf fatti = esamina_gguf(_cfg.modello, false);
 		if (!fatti.ok) {
 			std::lock_guard<std::mutex> g(_mutex);
 			_diagnosi = "il file non è un modello sano: " + fatti.motivo;
-			return false;
-		}
-		if (!_cfg.impronta_attesa.empty() && fatti.impronta != _cfg.impronta_attesa) {
-			std::lock_guard<std::mutex> g(_mutex);
-			_diagnosi = "l'impronta non combacia: questo non è il modello collaudato";
 			return false;
 		}
 		const uint64_t serve = stima_byte_totali(fatti, static_cast<uint32_t>(_cfg.n_ctx));
@@ -658,6 +669,45 @@ bool Traduttore::_carica() {
 						" MB liberi: il modello ne chiede " +
 						std::to_string(serve / (1024 * 1024)) + " e al gioco ne devono " +
 						"restare almeno " + std::to_string(_cfg.riserva_byte / (1024 * 1024));
+				return false;
+			}
+		}
+		// ── L'IMPRONTA, PER ULTIMA E PER INTERO ───────────────────────────
+		//
+		// È l'unica difesa contro il residuo dichiarato in `llm_gguf.h`: un
+		// bit girato dentro i pesi non lo vede né il portiere né llama, e gli
+		// iperparametri hanno invarianti interne che nessun controllo di
+		// forma può dedurre (`GGML_ASSERT(n_expert_used > 0)` e compagnia) —
+		// cioè un `abort()`, cioè il gioco del giocatore che sparisce. Se
+		// questi due gigabyte e mezzo sono ESATTAMENTE quelli collaudati,
+		// tutto quel residuo è chiuso per costruzione.
+		//
+		// ⚠️ NON SI VERIFICA «UNA VOLTA SOLA E POI SI RICORDA», e non è pigrizia.
+		// Un promemoria del genere vivrebbe in `user://`, che chi gioca può
+		// scrivere: una difesa che si spegne modificando un file di testo è
+		// la stessa leva che `Config::valida` non ha, per la stessa ragione
+		// («una leva che salta un controllo di sicurezza prima o poi la trova
+		// qualcuno accesa»). E contro il logorio del disco non varrebbe
+		// niente comunque: un bit che marcisce non sposta la data del file.
+		// Il prezzo — 37 s sul thread, con il gioco che disegna — lo paga
+		// solo chi il modello lo apre davvero, ed è tutto quello che il
+		// giocatore ne vede: il primo pensiero della serata arriva mezzo
+		// minuto più tardi, in un gioco che ne fa uno ogni quindici secondi.
+		if (!_cfg.impronta_attesa.empty()) {
+			const std::string vera = impronta_file(
+					_cfg.modello, nullptr, &Traduttore::_abort_llama, this);
+			if (_molla()) {
+				// Si sta chiudendo: l'impronta è vuota perché l'abbiamo
+				// mollata, non perché il file sia sbagliato. Dirlo qui
+				// evita che un cambio di scena si travesta da modello
+				// guasto nei log di chi diagnostica.
+				std::lock_guard<std::mutex> g(_mutex);
+				_diagnosi = "l'impronta è stata mollata a metà (il gioco sta chiudendo)";
+				return false;
+			}
+			if (vera != _cfg.impronta_attesa) {
+				std::lock_guard<std::mutex> g(_mutex);
+				_diagnosi = "l'impronta non combacia: questo non è il modello collaudato";
 				return false;
 			}
 		}

@@ -71,6 +71,32 @@ base64 -i Certificati.p12 | pbcopy   # copia negli appunti da incollare nel secr
 Se la notarizzazione fallisce o l'app crasha all'avvio, rivedi le *entitlement*
 in [`misc/macos_entitlements.plist`](misc/macos_entitlements.plist).
 
+### ⚠️ Dove va il MODELLO dentro il bundle (e perché non altrove)
+
+Dal 2026-08-13 il gioco spedisce il suo modello linguistico
+(`pensieri.gguf`, ~2,4 GB). Su macOS va in **`<gioco>.app/Contents/Resources/`**,
+accanto al `.pck`. Non è una preferenza di ordine:
+
+* `codesign` **sigilla** il bundle, e ogni file che sta dentro `Contents/` ma
+  fuori da `Resources/` (per esempio accanto all'eseguibile, in
+  `Contents/MacOS/`) diventa *unsealed contents*: la firma non verifica e la
+  notarizzazione non passa;
+* **il file va messo PRIMA della firma.** Iniettare qualcosa in un bundle già
+  firmato ne rompe la firma, e il risultato è una release che Gatekeeper
+  rifiuta;
+* su **Windows e Linux** il modello sta semplicemente accanto all'eseguibile.
+
+Il gioco lo cerca lì da solo: la mappa eseguibile → modello vive in
+`Llm.spedito_accanto_a()` (unica casa), ed è provata per tutte e tre le
+piattaforme in `tests/cases/test_llm_spedito.gd` — da un Mac quella riga non si
+può verificare in nessun altro modo. **Mai dentro il `.pck`**: llama.cpp apre un
+percorso su disco, e una risorsa impacchettata non ne ha uno.
+
+Il modello ha anche una **impronta SHA-256** in `Llm.IMPRONTA_SPEDITO`: se si
+cambia il `.gguf` spedito e non si rifà quella costante, la funzione si spegne
+per tutti in silenzio (il gioco resta intero, con le lettere scritte a mano).
+Si ricalcola con `shasum -a 256 pensieri.gguf`.
+
 ---
 
 ## 2) Windows — Azure Trusted Signing (consigliato)

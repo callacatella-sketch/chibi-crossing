@@ -57,6 +57,13 @@ const T := {
 	"Schermo intero": "Full screen",
 	"Riduci animazioni": "Reduce motion",
 	"Prato Eterno (nessuna partenza)": "Eternal Meadow (nobody ever leaves)",
+	# «Il villaggio pensa»: la leva del cuore che scrive (Fase 5). La riga
+	# compare solo a chi ha un modello, e non nomina nessuna macchina — chi
+	# gioca non deve sapere cos'è un modello linguistico per decidere se
+	# vuole che i suoi vicini abbiano idee loro.
+	"Il villaggio pensa": "The village thinks",
+	"Ogni tanto un vicino ha un'idea tutta sua. Chiede memoria al computer, e cambia dal prossimo avvio.":
+			"Now and then a neighbour has an idea all of their own. It asks the computer for some memory, and it changes from the next time you open the game.",
 	"Indietro": "Back",
 	"Qualità grafica": "Graphics quality",
 
@@ -655,6 +662,35 @@ const T := {
 	"Da quando i banconi sono due?": "Since when are there two counters?",
 	"Il mondo sembra disegnato col mouse.":
 			"The world looks like it was drawn with a mouse.",
+	# ------------------------------------------------------- le note legali
+	# La pagina che porta gli avvisi di licenza dei componenti di terze parti
+	# (obbligo MIT) e i documenti di Gemma (obbligo dei Gemma Terms of Use,
+	# Sezione 3.1). ⚠️ QUI SI TRADUCE PER FARSI CAPIRE, NON PER FARE BELLA
+	# FIGURA: se una di queste righe diventa vaga, l'avviso non è più un
+	# avviso. I NOMI PROPRI non si toccano — «Gemma Terms of Use» e «Gemma
+	# Prohibited Use Policy» sono i titoli dei documenti veri, e chi li cerca
+	# li cerca così anche in italiano.
+	"Note legali": "Legal notices",
+	"Licenze dei componenti di terze parti": "Third-party licences",
+	"Gemma — avviso richiesto": "Gemma — required notice",
+	"Chibi Crossing è un'opera protetta: il codice, i disegni, la musica e i testi sono di chi l'ha fatto. Quello che segue, invece, non è nostro — e viaggia con le sue condizioni.":
+			"Chibi Crossing is a protected work: the code, the drawings, the music and the writing belong to the people who made it. What follows, though, is not ours — and it travels with conditions of its own.",
+	"Il motore e le librerie": "The engine and the libraries",
+	"Godot Engine, godot-cpp, EnTT, lua-gdextension: licenza MIT.":
+			"Godot Engine, godot-cpp, EnTT, lua-gdextension: MIT licence.",
+	"Una parte dei testi che leggi — certe lettere, certi pensieri dei vicini — la scrive un modello linguistico che gira sul tuo computer, mentre giochi. Non esce niente da questa macchina: il gioco non apre nessuna connessione per lui. Senza di lui il villaggio resta lo stesso, con i testi scritti a mano.":
+			"Some of the writing you read — certain letters, certain thoughts of the neighbours — is written by a language model running on your own computer, while you play. Nothing leaves this machine: the game opens no connection for it. Without it the village is the same village, with the writing done by hand.",
+	"Il motore che lo fa girare": "The engine that runs it",
+	"llama.cpp e ggml: licenza MIT.": "llama.cpp and ggml: MIT licence.",
+	"I pesi del modello. Non sono MIT: valgono i Gemma Terms of Use, e i vincoli d'uso di quei termini valgono anche per te.":
+			"The model weights. These are not MIT: the Gemma Terms of Use apply, and the use restrictions in those terms apply to you as well.",
+	"Leggi il testo": "Read the text",
+	"Leggi i Gemma Terms of Use": "Read the Gemma Terms of Use",
+	"Leggi la Prohibited Use Policy": "Read the Prohibited Use Policy",
+	"Gemma e Google sono marchi di Google LLC. Chibi Crossing non è affiliato a Google, né approvato da Google.":
+			"Gemma and Google are trademarks of Google LLC. Chibi Crossing is not affiliated with, nor endorsed by, Google.",
+	"I testi completi delle licenze sono nella cartella «%s», accanto al gioco.":
+			"The full licence texts are in the “%s” folder, next to the game.",
 }
 
 

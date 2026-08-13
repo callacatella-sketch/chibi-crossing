@@ -142,6 +142,21 @@ jobs:
             || { echo "::error::L'export non ha prodotto build/windows/ChibiCrossing.exe."; exit 1; }
           ls -la build/windows
 
+      # LE LICENZE ACCANTO ALL'ESEGUIBILE. Non e' cortesia: la MIT chiede che
+      # l'avviso di copyright sia incluso «in all copies», e i Gemma Terms of
+      # Use (Sezione 3.1) chiedono che la distribuzione sia ACCOMPAGNATA da un
+      # file «Notice» e da una copia dell'accordo. Un file dentro il .pck non
+      # accompagna niente: su Windows il .pck e' pure EMBEDDED nell'.exe
+      # (binary_format/embed_pck=true), quindi per chi riceve il gioco non
+      # esiste. Qui diventano file veri, accanto al gioco.
+      - name: Metti le licenze accanto al gioco
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/windows/Licenze
+          cp misc/licenze/*.txt build/windows/Licenze/
+          ls -la build/windows/Licenze
+
       - name: Firma con Azure Trusted Signing (solo se ci sono i secret)
         if: env.AZURE_CLIENT_ID != ''
         uses: azure/trusted-signing-action@v0
@@ -242,6 +257,35 @@ jobs:
             || { echo "::error::L'export non ha prodotto build/macos/ChibiCrossing.zip."; exit 1; }
           ls -la build/macos
 
+      # LE LICENZE DENTRO IL BUNDLE, e su macOS «dentro» e' l'unica opzione
+      # giusta: il .app E' l'artefatto distribuito — chi lo trascina in
+      # Applicazioni si porta via SOLO quello, e una cartella «Licenze» messa
+      # accanto nello zip resterebbe indietro al primo trascinamento. Vanno in
+      # Contents/Resources/, che e' dove stanno il .pck e il modello: fuori di
+      # li' `codesign` le vedrebbe come «unsealed contents» e la
+      # notarizzazione non passerebbe (vedi RELEASE_SIGNING.md).
+      #
+      # ⚠️ QUESTO PASSO STA PRIMA DELLA FIRMA, e non e' un caso: iniettare file
+      # in un bundle gia' firmato ne rompe la firma. Chi sposta questo passo
+      # piu' in basso ottiene una release che Gatekeeper rifiuta.
+      - name: Metti le licenze dentro il bundle
+        run: |
+          set -euo pipefail
+          cd build/macos
+          unzip -oq ChibiCrossing.zip
+          APP="$(find . -maxdepth 1 -name '*.app' | head -n1)"
+          test -n "$APP" || { echo "::error::Nessuna .app dentro ChibiCrossing.zip."; exit 1; }
+          mkdir -p "$APP/Contents/Resources/Licenze"
+          cp "$GITHUB_WORKSPACE"/misc/licenze/*.txt "$APP/Contents/Resources/Licenze/"
+          ls -la "$APP/Contents/Resources/Licenze"
+          # si ricomprime con la STESSA forma di prima (la .app alla radice
+          # dello zip): il passo della firma piu' sotto la ripesca con
+          # `find . -maxdepth 1 -name '*.app'`, e una cartella in piu' alla
+          # radice gliela farebbe mancare.
+          rm -f ChibiCrossing.zip
+          ditto -c -k --keepParent "$APP" ChibiCrossing.zip
+          rm -rf "$APP"
+
       - name: Firma + notarizza (solo se ci sono i secret Apple)
         if: env.MACOS_CERT_BASE64 != ''
         run: |
@@ -315,6 +359,51 @@ jobs:
           for z in ChibiCrossing-windows.zip ChibiCrossing-macos.zip; do
             test -s "dist/$z" || { echo "::error::Manca dist/$z."; exit 1; }
           done
+
+      # ⚠️ L'ULTIMO CANCELLO PRIMA DI PUBBLICARE, e guarda i pacchetti VERI —
+      # non il repository. Ridistribuire i pesi di Gemma senza il file «Notice»
+      # e senza una copia dell'accordo vuol dire ridistribuirli SENZA LICENZA
+      # (Gemma Terms of Use, Sezione 3.1); e senza gli avvisi MIT si e' fuori
+      # anche da godot-cpp, EnTT, lua-gdextension e llama.cpp. Un refactoring
+      # dell'export che perde la cartella per strada non deve poter diventare
+      # una Release: qui la pipeline si ferma.
+      - name: Le licenze sono DENTRO i pacchetti?
+        shell: bash
+        run: |
+          set -euo pipefail
+          # elenco LETTERALE, non una variabile da riespandere: lo split di una
+          # stringa dipende dalla shell (zsh non lo fa, bash si'), ed e' il modo
+          # in cui questo controllo diventa verde o rosso per la ragione
+          # sbagliata senza che nessuno se ne accorga.
+          for z in dist/ChibiCrossing-windows.zip dist/ChibiCrossing-macos.zip; do
+            echo "--- $z"
+            # `tr` non e' superstizione: Compress-Archive di PowerShell puo'
+            # scrivere i separatori con la BARRA ROVESCIA, e un controllo che
+            # cerca "Licenze/..." fallirebbe su un pacchetto perfettamente
+            # giusto — cioe' bloccherebbe la release per il motivo sbagliato.
+            elenco="$(unzip -Z1 "$z" | tr '\\' '/')"
+            for f in NOTICE-Gemma.txt Gemma-Terms-of-Use.txt \
+                     Gemma-Prohibited-Use-Policy.txt LICENZE-TERZE-PARTI.txt; do
+              echo "$elenco" | grep -q "Licenze/$f$" \
+                || { echo "::error::$z non contiene Licenze/$f — la Release NON puo' uscire cosi'."; exit 1; }
+              echo "    ok  Licenze/$f"
+            done
+          done
+          # E LA FRASE che la Sezione 3.1 punto 4 impone parola per parola: se
+          # il file c'e' ma e' stato riscritto — o soltanto mandato a capo —
+          # l'obbligo non e' assolto e il pacchetto non ha una licenza.
+          #
+          # Si estrae TUTTO e si cerca con `find`, invece di dare un pattern a
+          # `unzip`: con i separatori a barra rovescia il pattern non trova
+          # niente, `unzip` esce comunque 0, e il controllo passerebbe a vuoto.
+          rm -rf /tmp/verifica_licenze && mkdir -p /tmp/verifica_licenze
+          unzip -qq -o dist/ChibiCrossing-windows.zip -d /tmp/verifica_licenze
+          avviso="$(find /tmp/verifica_licenze -name '*NOTICE-Gemma.txt' | head -n1)"
+          test -n "$avviso" || { echo "::error::NOTICE-Gemma.txt non estratto dal pacchetto Windows."; exit 1; }
+          grep -qF 'Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms' \
+            "$avviso" \
+            || { echo "::error::NOTICE-Gemma.txt non contiene, su una riga sola, la frase esatta richiesta dalla Sezione 3.1 punto 4."; exit 1; }
+          echo "    ok  la frase della Sezione 3.1 punto 4 e' integra"
 
       - name: Crea la GitHub Release (solo sui tag)
         if: startsWith(github.ref, 'refs/tags/')

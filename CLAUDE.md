@@ -1481,7 +1481,7 @@ suite non dice niente su questo. E il ramo Windows del `SConstruct` non è
 verificabile da un Mac: la CI (`build.yml`, che ora gira anche sui rami di
 lavoro) è l'unico giudice per Windows e Linux.
 
-## FASE 5 — il cuore che scrive (llama.cpp), e la leva spenta
+## FASE 5 — il cuore che scrive (llama.cpp), e la leva del giocatore
 
 Il gioco **può** avere dentro un modello linguistico piccolo, in locale, che
 scrive di suo pugno le lettere del Gufo, i pensieri e i discorsi. Il terreno
@@ -1638,11 +1638,14 @@ Le tre righe che contano:
    fare da posto dove mettere il tetto di RAM.
 
 **Il residuo, dichiarato:** un bit girato dentro i pesi non lo vede nessuno
-dei due. Contro quello c'è **solo l'impronta**: `esamina(percorso, true)`
-calcola lo SHA-256 e `Config::impronta_attesa` fa rifiutare il file che non
-combacia. Costa una lettura completa (11 s su 769 MB, sul thread), quindi è
-**spenta di serie**: si accende il giorno in cui il gioco spedirà il suo
-modello, e quel giorno l'impronta diventa una costante in `Llm.gd`.
+dei due. Contro quello c'è **solo l'impronta**, e dal **2026-08-13 È ACCESA**:
+`Config::impronta_attesa` fa rifiutare il file che non combacia, la costante
+vive in `Llm.IMPRONTA_SPEDITO`, e `Llm.impronta_attesa(percorso)` la arma
+**solo sul modello che spediamo** — dei tre candidati è l'unico di cui
+conosciamo i byte. Costa una lettura completa del file (misurata: 12 s a
+priorità normale e ≈37 s alla priorità di fondo che usa il gioco), e per
+questo è l'**ultimo** dei quattro cancelli invece del primo. Il quadro
+completo, coi numeri e con l'ordine, sta in «IL MODELLO CHE SPEDIAMO».
 
 **E il PROCESSO SEPARATO?** Valutato e **non fatto**, con la misura in mano:
 l'unica famiglia di abort raggiungibile è chiusa dal portiere, un helper
@@ -2638,8 +2641,10 @@ vicino, e non per simmetria: ha gli stessi collaboratori che nascono tardi.
 >
 > La porta è `Llm.acceso()`, **non** `Llm.disponibile()`, e la differenza è
 > tutta la fase: `disponibile()` dice che il BINARIO sa scrivere, ed è vera su
-> `llm=yes` anche quando i pesi non ci sono — cioè per **ogni** giocatore
-> finché il gioco non spedirà il suo modello. Con la porta chiusa il `_ready`
+> `llm=yes` anche quando i pesi non ci sono — cioè per chi ha cancellato il
+> modello spedito, per chi gioca da un albero di sorgenti, e per ogni banco.
+> (Dal 2026-08-13 il modello viaggia dentro il pacchetto: vedi «IL MODELLO CHE
+> SPEDIAMO», più sotto.) Con la porta chiusa il `_ready`
 > spegne il proprio `_process` e ritorna prima di aver allocato un solo
 > oggetto: niente ponte, niente Pensatoio, niente elenco, nessuna riga
 > stampata. Un `_process` spento non viene *chiamato*, quindi il costo per
@@ -2678,21 +2683,19 @@ quaranta secondi di una generazione intera, e **accetta ancora lavoro** — che
 è la controprova che la riparazione della finestra di `annulla()` regge anche
 dal chiamante vero.
 
-**La porta del giocatore.** Serve una leva — il giorno in cui il modello
-viaggia dentro il pacchetto, l'unica via d'uscita sarebbe cancellare un file
-nella cartella d'installazione — e la leva c'è: il bit sta in
-`Settings.llm_spento` (persistito, come `prato_eterno`), la domanda in
-`Llm.acceso()`. **Ma non ha una casella nel pannello, ed è una scelta
-dichiarata:** una casella «il villaggio pensa» mostrata a chi non ha nessun
-modello è esattamente «un gioco a cui manca un pezzo», cioè la cosa che questa
-fase non ha il permesso di essere. Comparirà sotto `if Llm.disponibile() and
-Llm.percorso_modello() != ""`, e sarà una riga.
+**La porta del giocatore.** Il bit sta in `Settings.llm_spento` (persistito,
+come `prato_eterno`), la domanda in `Llm.acceso()`. Fino al 2026-08-12 non
+aveva una casella nel pannello, ed era la scelta giusta: mostrata a chi non ha
+nessun modello racconta che gli manca un pezzo. Adesso che il modello viaggia
+dentro il pacchetto la casella c'è, sotto `Llm.leva_visibile()` — vedi «IL
+MODELLO CHE SPEDIAMO», più sotto.
 
-**Dove sta il modello**: `Llm.percorso_modello()`, due candidati in ordine —
-`CHIBI_MODELLO` (i banchi, e l'autore) e `user://modelli/pensieri.gguf` (chi
-gioca). Il terzo, accanto all'eseguibile, arriverà il giorno della spedizione
-e **non cambierà nient'altro**: mai dentro il `.pck`, perché llama vuole un
-percorso su disco e una risorsa impacchettata non ne ha uno.
+**Dove sta il modello**: `Llm.percorso_modello()`, **tre** candidati in ordine
+— `CHIBI_MODELLO` (i banchi, e l'autore), `user://modelli/pensieri.gguf` (quello
+che chi gioca ci ha messo) e il modello SPEDITO accanto all'eseguibile. Mai
+dentro il `.pck`, perché llama vuole un percorso su disco e una risorsa
+impacchettata non ne ha uno. L'ordine — e perché `user://` sta sopra quello
+spedito — sta nella sezione dedicata.
 
 #### Come si guarda, e cosa ha detto
 
@@ -2773,6 +2776,191 @@ pagate, mestieri cambiati) hanno un **oracolo indipendente** dentro il banco —
 le bandiere `D_RICEVUTA`/`D_SPESA` lette dal grafo. Chiedere al contatore se
 ha ragione sarebbe chiedere al giudice se è d'accordo con sé stesso, che è
 l'errore che `tools/misura_cammino.gd` esiste per non commettere.
+
+### IL MODELLO CHE SPEDIAMO — il terzo posto, l'impronta accesa, la casella
+
+Dal **2026-08-13** il gioco viaggia col suo modello dentro: **gemma-3-4b-it
+Q4_K_M**, 2 489 757 856 byte. Cambiano tre cose, e nessuna delle tre tocca il
+ramo di chi non ce l'ha (verificato nel modo più forte che c'è: con `llm=no`
+il binario è **byte per byte** quello di prima — stesso SHA-256 —, perché i
+`src/llm_*.cpp` non entrano nemmeno nella lista dei file da compilare).
+
+#### 1. Il terzo posto, e perché `user://` gli sta SOPRA
+
+`Llm.percorso_modello()` ha tre candidati, **dal più esplicito al più
+implicito**: `CHIBI_MODELLO` → `user://modelli/pensieri.gguf` → **accanto
+all'eseguibile**. Mai dentro il `.pck`: llama apre un percorso su disco, e una
+risorsa impacchettata non ne ha uno.
+
+- «Accanto» non è la stessa cartella dappertutto, e la differenza non è
+  cosmetica. Su **macOS** l'eseguibile sta in `<gioco>.app/Contents/MacOS/`, e
+  lì un file di dati non ci può stare: `codesign` sigilla il bundle e tutto ciò
+  che finisce fuori da `Contents/Resources/` diventa «unsealed contents» — una
+  firma che non verifica e una notarizzazione che non passa. Su **Windows e
+  Linux**, accanto e basta. La mappa vive in `Llm.spedito_accanto_a(exe)`,
+  **presa a parte apposta**: è l'unica riga di questa fase che decide qualcosa
+  su Windows, e da un Mac non si può verificare in nessun altro modo — un
+  banco non può piantare un `.gguf` dentro il bundle di Godot, e un export
+  firmato gira solo in CI.
+- **`user://` sta sopra il modello spedito, e non è una preferenza di gusto.**
+  La lista dà UN percorso, non una catena di ripieghi: se il C++ rifiuta quello
+  scelto (tetto, riserva di RAM, portiere) la funzione si spegne — non passa al
+  successivo. Il modello spedito chiede **2640 MB** e su una macchina da 8 GB
+  la riserva lo rifiuta: se stesse sopra, chi ha una macchina piccola non
+  potrebbe far funzionare la funzione **in nessun modo**. Con `user://` sopra,
+  quel file è esattamente la via d'uscita che sembra.
+  *Residuo dichiarato:* un `pensieri.gguf` dimenticato in `user://` scavalca
+  per sempre quello spedito. È il verso giusto, e si legge — `Pensieri` stampa
+  il percorso **per intero**, non `get_file()` (i candidati 2 e 3 si chiamano
+  uguale, e col solo nome del file quel sorpasso è invisibile in un log).
+
+#### 2. L'IMPRONTA È ACCESA, ed è l'ultimo dei quattro cancelli
+
+`Llm.IMPRONTA_SPEDITO` è lo SHA-256 del file che spediamo, e
+`Llm.impronta_attesa(percorso)` la arma **solo su quel percorso**: se fosse
+globale, `CHIBI_MODELLO` non servirebbe più a niente (ogni banco si prenderebbe
+«questo non è il modello collaudato») e il `.gguf` di chi gioca verrebbe
+rifiutato senza che lui possa capire perché. Dei tre candidati ce n'è uno solo
+di cui conosciamo i byte.
+
+> ⚠️ **E L'ORDINE DEI CANCELLI IN `Traduttore::_carica` È CAMBIATO.** Era
+> FORMA → **IMPRONTA** → TETTO → RISERVA; adesso l'impronta è **ultima**.
+> MISURATO sulla macchina dell'autore, che il modello non lo aprirà mai (la
+> riserva dice di no): il rifiuto arrivava dopo **37 431 ms** di lettura
+> ininterrotta di due gigabyte e mezzo, a ogni avvio, per un no che si sapeva
+> già. Adesso **490 ms** (e **1,35 s** nel MainLevel vero, dal nodo). È la
+> regola dei quattro cancelli di `BuildSystem.deviazione`: in ordine di prezzo,
+> e il caso comune non paga il caso raro.
+
+Quanto costa, e a quale priorità — **la seconda cifra è quella vera**, perché
+il thread del traduttore gira a `Pensieri.PRIORITA = 2` e su macOS quella QoS
+**strozza anche l'I/O**:
+
+| | il portiere (forma) | l'impronta, priorità 0/1 | l'impronta, **priorità 2** |
+|---|---|---|---|
+| gemma-3-4b, 2,4 GB | 17 ms | 11,7–12,3 s (194 MB/s) | **≈37 s** (66 MB/s) |
+| gemma-3-1b, 806 MB | — | — | 15,5 s |
+
+**Si verifica per INTERO, a ogni avvio, e non «una volta sola ricordandosela».**
+Un promemoria del genere vivrebbe in `user://`, che chi gioca può scrivere: una
+difesa che si spegne modificando un file di testo è la stessa leva che
+`Config::valida` non ha, per la stessa ragione. E contro il logorio del disco
+non varrebbe niente comunque — **un bit che marcisce non sposta la data del
+file**. Il prezzo lo paga solo chi il modello lo apre davvero, sul thread, col
+gioco che disegna: il primo pensiero della serata arriva mezzo minuto più
+tardi, in un gioco che ne fa uno ogni quindici secondi. (Scartato anche
+l'*hash parziale*: il portiere copre già l'intestazione per intero in 17 ms, e
+campionare l'1% dei pesi mancherebbe un bit girato 99 volte su 100 — mezza
+difesa che si legge come una difesa è peggio di nessuna.)
+
+> ⚠️ **E L'IMPRONTA SI PUÒ MOLLARE A METÀ.** `Traduttore::chiudi()` fa
+> `_thread.join()`: senza una via d'uscita, chi torna al titolo mentre
+> l'impronta legge aspetterebbe la fine con lo schermo fermo — cioè
+> riaprirebbe da un'altra porta il guasto che le «tre uscite» hanno chiuso
+> (40 s → 6 ms). `impronta_file` interroga adesso un `molla` ogni blocco da
+> 1 MB. MISURATO: `chiudi()` a impronta iniziata costa **3,0 ms**;
+> **falsificato** togliendo quella riga e ricompilando → **11 872 ms**.
+
+#### 3. La casella nel pannello — adesso ha senso, e prima no
+
+«Il villaggio pensa» compare in `CozySettingsPanel` **solo** sotto
+`Llm.leva_visibile()` (= il binario sa scrivere E c'è un modello). Fino a ieri
+la casella non c'era, ed era la scelta giusta: mostrata a chi non ha nessun
+modello racconta che gli manca un pezzo, e non gli manca niente. Da quando il
+modello viaggia dentro il pacchetto la stessa regola dice il contrario — non
+racconta una mancanza, racconta una cosa che c'è e che si può spegnere — e
+senza di lei l'unica via d'uscita sarebbe cancellare un file dentro la cartella
+d'installazione, che non è una via d'uscita: è un sabotaggio.
+
+- **O la riga c'è, o non esiste**: niente casella ingrigita.
+- Il bit salvato è `Settings.llm_spento` (**spento**, non «acceso»: il valore
+  di serie di un `bool` è `false`, e il valore di serie della funzione dev'essere
+  ACCESA). Il verso si gira in un posto solo, `set_llm_acceso()`.
+- La riga **non nomina nessuna macchina**: chi gioca non deve sapere cos'è un
+  modello linguistico per decidere se vuole che i suoi vicini abbiano idee
+  loro. Sotto la casella ci sono le tre cose che gli servono — cosa fa, cosa
+  costa, da quando vale.
+
+#### 4. E su una macchina che non ce la fa, cosa vede chi gioca? NIENTE
+
+È il caso dell'autore, ed è probabilmente il caso della maggioranza.
+MISURATO nel MainLevel vero, con la riserva VERA (`tools/prova_rete_ram.gd`,
+gemma-3-4b, 2583 MB liberi):
+
+| | |
+|---|---|
+| il nodo si spegne dopo | **1,35 s** |
+| fotogrammi durante il rifiuto | 33,2/s (identici a dopo: 33,2/s) |
+| `_process` del nodo, dopo | **false** (un nodo spento non viene chiamato) |
+| ritmo acceso / pensieri partiti | false / 0 |
+| frasi del guasto a schermo | **0 su 13** |
+| la diagnosi di oggi, a schermo | **0 volte** |
+| finestre di dialogo | **0** |
+| `village.json` scritto con `save_now()` | **sì**, 85 769 byte |
+
+La riga nel log — l'unica traccia, e serve a chi diagnostica un difetto
+segnalato — è: `pensieri: spento — questa macchina ha 2583 MB liberi: il
+modello ne chiede 2640 e al gioco ne devono restare almeno 1024 (il gioco
+continua con i testi scritti a mano)`.
+
+**La controprova sta nello stesso banco**: rifatto col 1B (814 MB stimati, che
+ci stanno) lo stato è **«pensa»** in 4,45 s. Un banco che dicesse «rifiutato»
+comunque non misurerebbe niente.
+
+⚠️ E una trappola di banco già pagata: la prima stesura cercava a schermo le
+parole «memoria» e «modello», e segnalava — giustamente, secondo la sua regola
+— la **descrizione della casella** nelle impostazioni. Adesso cerca i pezzi
+LETTERALI delle diagnosi del C++ più la diagnosi vera di quella corsa, e guarda
+`is_visible_in_tree()` e non `visible` (il menu di pausa costruisce il pannello
+all'avvio e lo tiene nascosto: con `visible` il banco misurava un albero, non
+uno schermo).
+
+#### Come si verifica
+
+```
+CHIBI_MODELLO=<file.gguf> Godot --headless --path . \
+    --script res://tools/misura_impronta.gd          # l'ordine dei cancelli
+... CHIBI_SCENA=molla ...    # chiudere mentre l'impronta legge
+... CHIBI_SCENA=apre  ...    # l'impronta GIUSTA non impedisce nulla
+... CHIBI_SCENA=falsa ...    # e quella sbagliata ferma tutto, col SUO motivo
+
+CHIBI_MODELLO=<file.gguf> Godot --path . --resolution 1280x720 \
+    --script res://tools/prova_rete_ram.gd           # il gioco vero, senza rete
+```
+
+⚠️ **Un'apertura per processo**, e non è pigrizia dei banchi: `Traduttore::apri()`
+si chiama una volta sola nella vita del processo, e `chiudi()` non la riabilita.
+Le scene che aprono vanno in corse diverse.
+
+La guardia headless è
+[`tests/cases/test_llm_spedito.gd`](tests/cases/test_llm_spedito.gd): **24
+mutazioni, una riga per volta, tutte rosse** (la mappa delle piattaforme,
+l'ordine dei tre candidati in tutte e otto le combinazioni, l'impronta armata
+sul percorso sbagliato o su nessuno, la costante troncata, il verso della leva,
+il giro completo `_save`→`_load`, e la riga del pannello nei due versi).
+
+**Due cose che quel file NON prova, ed è scritto lì dentro:**
+1. che `Llm.IMPRONTA_SPEDITO` sia davvero lo SHA-256 del file spedito — per
+   saperlo bisogna avere il file, e il file non sta nel repository. Si controlla
+   solo che abbia la FORMA di uno SHA-256 (una costante troncata o con una
+   maiuscola spegnerebbe la funzione per tutti, in silenzio). La verifica vera
+   è `tools/misura_impronta.gd`, che legge il file e confronta.
+2. l'ORDINE dei quattro cancelli dentro `Traduttore::_carica`: quel gettone di
+   `apri()` è già speso da `test_llm_portiere`. La sua guardia è la misura —
+   37 431 ms prima, 490 ms dopo.
+
+⚠️ **E DUE MUTAZIONI SONO SOPRAVVISSUTE alla prima stesura dei test**, tutte e
+due della stessa famiglia («si guarda a metà»):
+- togliere `llm_spento` da `Settings._load` restava verde, perché il caso
+  guardava il **file** e non il ritorno: una leva che si salva e non si rilegge
+  è una leva che chi gioca deve ritirare ogni sera;
+- e la guardia sul fatto che `Pensieri` chieda l'impronta era un **source-check
+  che matchava il proprio commento**: sostituendo la chiamata con `var imp := ""`
+  — cioè spegnendo l'unica difesa contro il bit girato nei pesi — la suite
+  restava verde. Adesso `Pensieri.opzioni_modello(percorso)` è una funzione a
+  sé, interrogabile con **il percorso del modello spedito** (che
+  `spedito_accanto_a` sa dire anche quando il file non c'è), e il dizionario che
+  arriva ad `apri_modello` deve esserle **uguale**.
 
 ## Test
 
@@ -2855,3 +3043,96 @@ CHIBI_FPS_SEC=8 CHIBI_FPS_GIRI=2 ~/Downloads/Godot.app/Contents/MacOS/Godot \
 - `CHIBI_FPS_DIAGNOSI=1` chiede prima **pixel o codice** (si rimpicciolisce
   la finestra: se i fotogrammi volano, il collo di bottiglia è nel disegno)
   e poi spegne il `_process` di un figlio del livello per volta.
+
+## LA LICENZA DEI PESI — si spedisce Gemma, e ha condizioni
+
+Dal 2026-08-13 il gioco **spedisce il modello dentro il pacchetto**:
+`gemma-3-4b-it` Q4_K_M, la riquantizzazione pubblicata da
+[`ggml-org`](https://huggingface.co/ggml-org/gemma-3-4b-it-GGUF). Quindi non
+lo usiamo soltanto: lo **ridistribuiamo**, a scopo commerciale, dentro un
+prodotto la cui [`LICENSE`](LICENSE) è proprietaria. Sono due cose diverse, e
+la seconda ha obblighi che la prima non aveva.
+
+**La licenza del motore NON è la licenza dei pesi.** llama.cpp è MIT; i pesi
+stanno sotto i **Gemma Terms of Use** (<https://ai.google.dev/gemma/terms>),
+che richiamano per riferimento la **Gemma Prohibited Use Policy**. Chi ha
+quantizzato non aggiunge niente di suo: `ggml-org` dichiara `license: gemma`,
+non è *gated*, e non ha un file di licenza proprio. E prendere il file da lì
+non cambia nulla — Sezione 1.1(c): «Gemma» sono quei pesi *«regardless of the
+source that you obtained it from»*. Lo dice anche il `.gguf`, nella chiave
+`general.license`.
+
+### I quattro obblighi, e dove stanno
+
+La **Sezione 3.1** pone quattro condizioni alla ridistribuzione. Non sono
+formalità: senza, il permesso di ridistribuire non c'è.
+
+| 3.1 | cosa chiede | dove |
+|---|---|---|
+| 1 | i vincoli d'uso della 3.2 come **clausola vincolante** nell'accordo d'uso, più l'avviso a chi riceve | [`LICENSE`](LICENSE), sezione «GEMMA MODEL WEIGHTS» (e la gemella italiana) |
+| 2 | **una copia dell'accordo** a ogni destinatario | `misc/licenze/Gemma-Terms-of-Use.txt` |
+| 3 | avvisi sui **file modificati** | non ne modifichiamo nessuno; la catena è dichiarata nel NOTICE |
+| 4 | un file **«Notice»** con la frase esatta | `misc/licenze/NOTICE-Gemma.txt` |
+
+**I file viaggiano DUE volte, e servono tutte e due le strade.** Accanto
+all'eseguibile (`release.yml`: cartella `Licenze/`; su macOS **dentro** il
+bundle, in `Contents/Resources/Licenze/`, perché il `.app` è l'artefatto che
+l'utente trascina e una cartella lasciata accanto resterebbe indietro), e
+dentro il `.pck` (`include_filter` in `export_presets.cfg`) perché la pagina
+**Note legali** del gioco possa leggerli. Un file dentro un `.pck` non
+«accompagna» niente per chi riceve il gioco — su Windows il `.pck` è pure
+embedded nell'`.exe`; un file accanto all'eseguibile non lo apre quasi
+nessuno. Una la legge il gioco, l'altra la legge una persona.
+
+> ⚠️ **NESSUNA SOGLIA.** Nei Gemma Terms of Use la parola «commercial» non
+> compare, e non c'è nessuna soglia di utenti o fatturato (Llama ne ha una a
+> 700 milioni di utenti mensili; questa no). Gli obblighi sono identici alla
+> prima copia e alla milionesima.
+
+> ⚠️ **GEMMA 3 E GEMMA 4 NON HANNO LA STESSA LICENZA.** L'Appendix dei
+> Termini elenca **Gemma 3**; **Gemma 4 no** — è **Apache 2.0**
+> (<https://ai.google.dev/gemma/apache_2>), senza flow-down e senza vincoli
+> d'uso. Passare a `gemma-4-E2B` (l'altro candidato misurato più sopra) vuol
+> dire **rifare questa sezione da capo**, non ritoccarla.
+
+### Le tre trappole già pagate
+
+1. **La frase della 3.1 punto 4 deve stare su UNA riga.** La prima stesura
+   del NOTICE la mandava a capo dopo «found at»: si leggeva benissimo e la
+   stringa richiesta **non c'era**. Stessa cosa era successa alla clausola
+   italiana del `LICENSE` («prevalgono i Gemma Terms of Use», spezzata a
+   metà). Se n'è accorto il banco, non la rilettura — e ora ci sono due
+   guardie che la cercano intera.
+2. **Gli avvisi MIT non si ricopiano a mano.** `tools/genera_licenze.py`
+   assemble `LICENZE-TERZE-PARTI.txt` **leggendo i LICENSE veri** (godot-cpp,
+   EnTT, lua-gdextension, llama.cpp, più i due contributi incorporati nei
+   sorgenti di ggml). Un avviso ricopiato invecchia in silenzio: il giorno
+   che EnTT cambia intestazione, il file spedito dichiara il falso e nessun
+   test lo vede. E l'intervallo di righe comprende il **permesso** per
+   intero, non la sola riga di copyright — «the above copyright notice AND
+   this permission notice».
+3. **Il gioco esportato non aveva MAI avuto un avviso di licenza.** Non è un
+   difetto della Fase 5: godot-cpp, EnTT, lua-gdextension e Godot stesso sono
+   MIT e chiedono l'avviso «in all copies» da sempre. Il pacchetto usciva
+   senza. Adesso `release.yml` ha un cancello che apre gli zip **veri** e si
+   ferma se manca un file o se la frase è stata riscritta.
+
+### Come si verifica
+
+```
+python3 tools/genera_licenze.py --verifica      # l'avviso spedito è aggiornato?
+Godot --headless --path . --script res://tests/test_runner.gd   # test_licenze.gd
+CHIBI_NOTE=/tmp/note Godot --path . --resolution 1280x720 \
+    --script res://tools/provino_note_legali.gd  # e come si LEGGE la pagina
+```
+
+MISURATO che `include_filter` funziona davvero, invece di sperarlo:
+`--export-pack` (che non richiede gli export template) produce un `.pck`
+dove i quattro file ci sono — l'indice li elenca senza il prefisso `res://`,
+ed è per questo che una prima ricerca con `res://misc/licenze/` non trovava
+niente e sembrava che l'export li lasciasse fuori.
+
+**Quello che NON è chiuso** sta in fondo a
+[`docs/LICENZA_MODELLO.md`](docs/LICENZA_MODELLO.md): sono le domande da
+girare a un legale prima di pubblicare. **Non sono state risolte qui, e non
+vanno spuntate da un agente.**

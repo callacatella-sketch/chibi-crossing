@@ -136,7 +136,24 @@ uint64_t stima_byte_totali(const FattiGguf &f, uint32_t n_ctx);
 // Lo SHA-256 di un file, in esadecimale minuscolo. Vuoto se il file non si
 // legge. Sta qui perché è il compagno dell'esame, e perché l'impronta è
 // l'unica difesa vera contro il residuo dichiarato qui sopra.
-std::string impronta_file(const std::string &percorso, double *ms_fuori = nullptr);
+//
+// ⚠️ SI PUÒ MOLLARE A METÀ, e non è un lusso: dal 2026-08-13 il gioco spedisce
+// il suo modello e questa funzione gira sul thread del traduttore a ogni
+// avvio, su due gigabyte e mezzo. MISURATO: 11.7 s a priorità normale e
+// **37.4 s** alla priorità di fondo che usa il gioco (su macOS la QoS di
+// fondo strozza anche l'I/O — è la stessa nota che sta in `Config::priorita`).
+// `Traduttore::chiudi()` fa `_thread.join()`: senza una via d'uscita, chi
+// torna al titolo mentre l'impronta si calcola aspetterebbe fino a
+// trentasette secondi con lo schermo fermo. È esattamente il guasto che le
+// «tre uscite» della Fase 5 hanno chiuso (40 s → 6 ms) e che non si può
+// riaprire da un'altra porta.
+//
+// `molla` viene interrogata a ogni blocco da 1 MB (≈5 ms di lettura): se
+// risponde `true` la funzione torna **stringa vuota**, come per un file che
+// non si legge. Chi chiama deve saperlo — le due risposte si distinguono
+// riguardando la propria ragione di mollare, non l'impronta.
+std::string impronta_file(const std::string &percorso, double *ms_fuori = nullptr,
+		bool (*molla)(void *) = nullptr, void *molla_dato = nullptr);
 
 } // namespace chibi
 

@@ -47,12 +47,18 @@ var language := "auto"
 ## pensa — nessun modello si apre, nessun pensiero parte, il gioco è quello
 ## di sempre con i testi scritti a mano.
 ##
-## ⚠️ **NON HA UNA CASELLA NEL PANNELLO, ed è una scelta dichiarata** (la
-## ragione per esteso sta in `Llm.acceso()`): una casella mostrata a chi non
-## ha nessun modello racconta che gli manca un pezzo, e non gli manca niente.
+## ⚠️ **LA CASELLA SI VEDE SOLO A CHI HA UN MODELLO** (`Llm.leva_visibile()`,
+## e la ragione per esteso sta in `Llm.acceso()`): mostrata a chi non ne ha
+## nessuno racconterebbe che gli manca un pezzo, e non gli manca niente.
 ## Il bit vive qui perché qui vivono le preferenze persistite del giocatore —
 ## la DOMANDA («il villaggio può pensare?») invece ha una casa sola, ed è
 ## `systems/Llm.gd`. Come `prato_eterno`: il bit di qua, il predicato di là.
+##
+## ⚠️ E IL VERSO È «SPENTO», non «acceso»: il valore di serie di un `bool` è
+## `false`, e il valore di serie di questa funzione dev'essere ACCESA. Un
+## `llm_acceso` girerebbe la funzione a chiunque non abbia mai aperto il
+## pannello — cioè quasi tutti — e la stessa riga che difende chi non l'ha
+## voluta spegnerebbe il villaggio a chi non ha detto niente.
 var llm_spento := false
 
 
@@ -179,6 +185,21 @@ func set_move_speed(v: float) -> void:
 
 func set_prato_eterno(on: bool) -> void:
 	prato_eterno = on
+	_save(); changed.emit()
+
+
+## LA LEVA DEL CUORE CHE SCRIVE. L'argomento è «il villaggio pensa» — cioè
+## quello che legge chi guarda la casella — e il bit salvato è il suo
+## contrario: qui si gira una volta sola, in un posto solo.
+##
+## ⚠️ SI APPLICA AL PROSSIMO AVVIO, e il pannello lo dice a chi gioca. Il
+## modello lo apre `scenes/npc/Pensieri.gd` una volta per vita del livello
+## (`_chiesto`), e riaprire due gigabyte e mezzo — o chiuderli — mentre
+## qualcuno sta pensando è la cura peggiore della malattia: una generazione
+## in volo, un thread da fermare, e trentasette secondi di impronta da
+## rifare. Spegnere una funzione non deve costare più che tenerla.
+func set_llm_acceso(on: bool) -> void:
+	llm_spento = not on
 	_save(); changed.emit()
 
 

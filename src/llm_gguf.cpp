@@ -352,7 +352,8 @@ uint64_t pad(uint64_t x, uint64_t n) {
 
 } // namespace
 
-std::string impronta_file(const std::string &percorso, double *ms_fuori) {
+std::string impronta_file(const std::string &percorso, double *ms_fuori,
+		bool (*molla)(void *), void *molla_dato) {
 	const auto t0 = std::chrono::steady_clock::now();
 	std::FILE *f = std::fopen(percorso.c_str(), "rb");
 	if (f == nullptr) {
@@ -360,7 +361,15 @@ std::string impronta_file(const std::string &percorso, double *ms_fuori) {
 	}
 	Sha256 h;
 	std::vector<uint8_t> buffer(1u << 20);
+	bool mollato = false;
 	while (true) {
+		// SI CHIEDE PRIMA DI LEGGERE, non dopo: la lettura di un blocco è la
+		// cosa lenta, e chiedere dopo vorrebbe dire pagarne sempre uno in più
+		// (e su un disco lento «uno in più» non è un dettaglio).
+		if (molla != nullptr && molla(molla_dato)) {
+			mollato = true;
+			break;
+		}
 		const size_t letti = std::fread(buffer.data(), 1, buffer.size(), f);
 		if (letti == 0) {
 			break;
@@ -369,7 +378,7 @@ std::string impronta_file(const std::string &percorso, double *ms_fuori) {
 	}
 	const bool rotto = std::ferror(f) != 0;
 	std::fclose(f);
-	if (rotto) {
+	if (rotto || mollato) {
 		return std::string();
 	}
 	const std::string esa = h.chiudi();

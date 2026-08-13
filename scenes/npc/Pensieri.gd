@@ -274,24 +274,18 @@ func _avvia() -> void:
 		_stato = "carica"
 		_t_carico_ms = Time.get_ticks_msec()
 		var percorso := LLM.percorso_modello()
-		var opz := {"n_ctx": FINESTRA, "priorita": PRIORITA}
-		# ⚠️ LA LEVA DEI BANCHI, e solo dei banchi. Il cancello della RAM
-		# (`Config::riserva_byte`, di serie 1 GB) è quello che impedisce al
-		# gioco di mandare in swap la macchina di chi gioca: **in partita non
-		# si tocca**, e infatti qui non c'è nessun valore di serie da passare.
-		# Ma un banco deve poter misurare anche il modello che il gioco
-		# rifiuterebbe — su questa macchina, con altre sessioni addosso, la
-		# riserva rifiuta perfino il modello da un miliardo di parametri — e
-		# senza questa riga l'unica alternativa sarebbe misurare un gioco
-		# diverso da quello vero. È lo stesso `CHIBI_RISERVA` degli altri
-		# banchi della fase, e vale solo se qualcuno lo esporta a mano.
-		var riserva := OS.get_environment("CHIBI_RISERVA")
-		if riserva != "":
-			opz["riserva_byte"] = int(riserva)
+		var opz := opzioni_modello(percorso)
 		if not bool(_llm.call("apri_modello", percorso, opz)):
 			_ferma(str((_llm.call("misure") as Dictionary).get("diagnosi", "rifiutato")))
 			return
-		print("pensieri: apro «%s» (finestra %d)" % [percorso.get_file(), FINESTRA])
+		# ⚠️ IL PERCORSO PER INTERO, non `get_file()`. I tre candidati di
+		# `Llm.percorso_modello()` si chiamano tutti «pensieri.gguf» tranne
+		# il primo: col solo nome del file, un modello dimenticato in
+		# `user://` che scavalca quello spedito è **invisibile** in un log —
+		# ed è il residuo dichiarato di quell'ordine. Qui si legge.
+		print("pensieri: apro «%s» (finestra %d, impronta %s)"
+				% [percorso, FINESTRA,
+				"verificata" if opz.has("impronta") else "non richiesta"])
 		return
 	# CARICA (1) → si aspetta, e il gioco continua a disegnare: il carico sta
 	# sul thread, ed è misurato (il fotogramma medio non se ne accorge).
@@ -306,6 +300,48 @@ func _avvia() -> void:
 	_stato = "pensa"
 	print("pensieri: il villaggio pensa (%d ms per aprire il modello)"
 			% (Time.get_ticks_msec() - _t_carico_ms))
+
+
+## CON CHE COSA SI APRE IL MODELLO — e sta in una funzione sua perché è
+## **l'unica parte dell'accensione che un banco può interrogare**.
+##
+## Il modello spedito vive dentro il pacchetto di un gioco esportato: nessun
+## test può piantarcene uno (piantarlo dentro il bundle di Godot vorrebbe dire
+## romperne la firma), quindi nessun test può far arrivare `_avvia()` fin qui
+## con il percorso che conta. Presa a parte, invece, le si può passare quel
+## percorso — `Llm.spedito_accanto_a()` lo sa dire anche quando il file non
+## c'è — e guardare cosa risponde.
+##
+## ⚠️ **E NON BASTA CERCARE `impronta_attesa` NEL SORGENTE.** MISURATO il
+## 2026-08-13: la prima stesura di questa guardia era proprio quello, e
+## sostituendo la chiamata con `var imp := ""` — cioè spegnendo l'unica difesa
+## contro il bit girato nei pesi — **la suite restava verde**, perché la
+## parola cercata compariva nel commento qui sopra. È la trappola che questo
+## progetto ha già pagato due volte (il `source-check` che matcha un commento)
+## e che `test_vento.gd` salta i commenti apposta per evitare.
+##
+## L'IMPRONTA vale SOLO per il file dentro il pacchetto: `Llm.impronta_attesa`
+## torna "" per `CHIBI_MODELLO` e per il `.gguf` che chi gioca si è messo in
+## `user://`, di cui non conosciamo — e non possiamo conoscere — i byte.
+##
+## ⚠️ LA RISERVA È LA LEVA DEI BANCHI, e solo dei banchi. Il cancello della RAM
+## (`Config::riserva_byte`, di serie 1 GB) è quello che impedisce al gioco di
+## mandare in swap la macchina di chi gioca: **in partita non si tocca**, e
+## infatti qui non c'è nessun valore di serie da passare. Ma un banco deve
+## poter misurare anche il modello che il gioco rifiuterebbe — su questa
+## macchina la riserva rifiuta perfino il modello da un miliardo di parametri
+## — e senza questa riga l'unica alternativa sarebbe misurare un gioco diverso
+## da quello vero. È lo stesso `CHIBI_RISERVA` degli altri banchi della fase, e
+## vale solo se qualcuno lo esporta a mano.
+func opzioni_modello(percorso: String) -> Dictionary:
+	var opz := {"n_ctx": FINESTRA, "priorita": PRIORITA}
+	var imp := LLM.impronta_attesa(percorso)
+	if imp != "":
+		opz["impronta"] = imp
+	var riserva := OS.get_environment("CHIBI_RISERVA")
+	if riserva != "":
+		opz["riserva_byte"] = int(riserva)
+	return opz
 
 
 ## SI SPEGNE E BASTA, per sempre, e con UNA riga nel registro.
