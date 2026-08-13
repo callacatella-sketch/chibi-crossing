@@ -107,6 +107,98 @@ const CARTELLA_MODELLI := "user://modelli"
 const IMPRONTA_SPEDITO := "882e8d2db44dc554fb0ea5077cb7e4bc49e7342a1f0da57901c0802ea21a0863"
 
 
+# =========================================================================
+# DA DOVE ARRIVA, QUANTO PESA, QUANTO CHIEDE
+# =========================================================================
+#
+# Dal 2026-08-13 il modello **non viaggia più dentro il pacchetto**: si
+# scarica al primo uso, quando chi gioca accende «Il villaggio pensa». Il
+# gioco resta piccolo per tutti, e chi non userà mai la funzione non paga
+# niente — né in byte scaricati, né in spazio sul disco.
+#
+# La ragione che l'ha forzata è tecnica e non si aggira: GitHub non accetta
+# allegati sopra i 2 GiB e il pacchetto col modello ne pesava 2,4 (il modello
+# da solo 2,32 GiB). Le conseguenze legali di questo cambio — chi accetta i
+# Gemma Terms of Use, e quando — stanno in `docs/LICENZA_MODELLO.md`, e la
+# risposta è: **il giocatore, scaricando**. Perciò glieli mostra la
+# schermata, prima del primo byte.
+#
+# ⚠️ **QUESTE TRE RIGHE SONO LA CARTA D'IDENTITÀ DEL MODELLO E STANNO QUI.**
+# Erano in `.github/workflows/release.yml` (che lo scaricava per metterlo nel
+# pacchetto) e da lì non le può leggere il gioco. Adesso è il gioco che
+# scarica, quindi la casa è questa — la stessa in cui vivono già il nome del
+# file e l'impronta, e per la stessa ragione: due tabelle gemelle divergono
+# in silenzio, e quando divergono la funzione non si rompe, si **spegne**.
+
+## Come si chiama il modello davanti a una persona. **Non si traduce**: è un
+## nome proprio, e chi lo cerca su internet lo cerca così.
+const MODELLO_NOME := "Gemma 3 4B IT"
+const MODELLO_DI_CHI := "Google DeepMind"
+
+## Il nome del posto da cui arriva, come lo scriverebbe chi ci va col
+## browser. Si mostra a chi gioca: «da huggingface.co» dice più di un URL
+## lungo tre righe, e dice la stessa cosa.
+const SORGENTE_CASA := "huggingface.co"
+
+## QUANTO PESA, in byte esatti. VERIFICATO il 2026-08-13 sull'intestazione
+## `content-length` della sorgente vera (e la stessa risposta porta
+## `x-linked-etag` uguale, byte per byte, a `IMPRONTA_SPEDITO`).
+##
+## Serve a dirlo a chi gioca prima di chiederglielo: nella schermata che lo
+## offre (`OffertaModello`) e nella pagina delle Note legali, che sono le due
+## che devono raccontare la stessa cosa allo stesso modo.
+##
+## ⚠️ **E DEVE COMBACIARE CON `Scarico.DIMENSIONE`**, che è lo stesso numero
+## visto dall'altra parte (quanti byte deve portare a casa il corriere). Sono
+## due case per due domande diverse — «cos'è» qui, «dove andarlo a prendere»
+## di là — ma il numero è uno solo, e due costanti che dicono lo stesso numero
+## divergono in silenzio: qui il guasto sarebbe una schermata che promette un
+## peso e un download che ne porta un altro. Il legame lo tiene stretto
+## un'asserzione in `tests/cases/test_offerta_modello.gd`, e la strada giusta
+## il giorno che qualcuno rimette mano a questa fase è farne sparire una.
+const BYTE_MODELLO := 2489757856
+
+## QUANTA MEMORIA CHIEDERÀ, quando lo si aprirà. 2640 MiB: è
+## `stima_byte_totali(gemma-3-4b, 2048)` — la stessa stima che fa il portiere
+## in C++, alla finestra che il gioco usa davvero (`Pensieri.FINESTRA`).
+##
+## ⚠️ **NON È UN NUMERO DECORATIVO: È IL CANCELLO CHE EVITA UN DOWNLOAD PER
+## NIENTE.** Su una macchina che non ha questa memoria il modello non si apre
+## (`Traduttore::_carica`, riserva compresa) e il villaggio non pensa lo
+## stesso: chiedere prima due gigabyte e mezzo di rete e di disco sarebbe la
+## cosa peggiore che questa fase possa fare a qualcuno. La domanda si fa
+## PRIMA, in `Capienza.della_memoria()`.
+##
+## ⚠️ **PERCHÉ UNA COSTANTE E NON UNA MISURA.** Il numero vero lo dà
+## `LlmLocale.esamina(percorso)["byte_stimati_2k"]` — leggendo il file, che
+## però qui ancora non c'è: è esattamente il file che stiamo decidendo se
+## scaricare. L'unica alternativa sarebbe scaricarlo per sapere se conveniva
+## scaricarlo. La costante si verifica quando il file arriva:
+## `tools/misura_modello.gd` la confronta con la stima vera, e `Pensieri`
+## stampa la diagnosi del portiere se un giorno divergessero.
+##
+## E il verso dell'errore è scelto: la stima del portiere **sbaglia per
+## eccesso** (`llm_gguf.h`: conta la cache a finestra piena su tutti gli
+## strati, e gemma-3 ha la finestra scorrevole). Sovrastimare, al peggio, non
+## offre il download a una macchina che ce l'avrebbe fatta di misura;
+## sottostimare lo offre a una che non ce la fa. Fra i due si sceglie il
+## primo, e non è un pareggio.
+const RAM_MODELLO := 2640 * 1024 * 1024
+
+
+## I PESI SONO SU QUESTO DISCO? La domanda ha un nome perché ha due lettori
+## (la casella del pannello e la schermata che chiede) e perché
+## `percorso_modello() != ""` letto in due posti diventa, prima o poi, due
+## regole diverse.
+##
+## ⚠️ **DOVE ANDARLO A PRENDERE non sta qui**: sta in `Scarico` (repository,
+## revisione, indirizzo, e la domanda `Scarico.serve()`). Questo file dice
+## **cos'è** il modello e dove vive una volta a casa; quello dice **come ci
+## arriva**. Sono due domande diverse e nessuno dei due ricopia l'altro.
+static func modello_in_casa() -> bool:
+	return percorso_modello() != ""
+
+
 ## IL MODELLO SPEDITO: dove finisce dentro il pacchetto, o "" se non c'è.
 ##
 ## **Accanto all'eseguibile, mai dentro il `.pck`**: llama.cpp apre un
@@ -235,10 +327,67 @@ static func il_primo_che_c_e(da_fuori: String, suo: String, spedito: String) -> 
 ## impronta deve avere» è una domanda in più che può solo sbagliare. (È anche
 ## ciò che rende questa riga provabile: nell'editor il posto esiste sempre,
 ## il file mai.)
+## Nome del contrassegno che il corriere lascia accanto al modello scaricato.
+## Non è una difesa — è una dichiarazione di PROVENIENZA, e la differenza
+## conta: se sparisce, il peggio che succede è che non si verifica più (come
+## per un modello messo a mano), mai che si accetti qualcosa di sbagliato.
+const CONTRASSEGNO := "pensieri.provenienza"
+
+
+## L'impronta che ci si aspetta da QUESTO file — "" vuol dire «non lo so», e
+## non lo so non è mai un no.
+##
+## Due percorsi su tre la armano, e la ragione è la stessa: sono i due in cui
+## il file lo abbiamo messo NOI, quindi sappiamo che byte deve avere.
+##
+##  - **accanto all'eseguibile**: c'è solo se ce l'abbiamo messo noi;
+##  - **`user://` col contrassegno**: ce l'ha messo il corriere, che ha già
+##    verificato l'impronta una volta. Ma verificarla di NUOVO a ogni
+##    caricamento non è ridondante — è l'unica difesa contro un bit che
+##    marcisce sul disco mesi dopo, che è precisamente il guasto per cui
+##    l'impronta esiste (né il portiere né llama vedono un bit girato nei
+##    pesi). Il corriere protegge dal download storto; questo dal disco.
+##
+## E `CHIBI_MODELLO` non la arma MAI: è la porta di chi vuole provare un
+## altro modello, e armarla la chiuderebbe. Idem un `.gguf` piantato a mano
+## in `user://` senza contrassegno: chi sperimenta continua a poterlo fare.
 static func impronta_attesa(percorso: String) -> String:
 	if percorso == "":
 		return ""
-	return IMPRONTA_SPEDITO if percorso == spedito_accanto_a(OS.get_executable_path()) else ""
+	if percorso == spedito_accanto_a(OS.get_executable_path()):
+		return IMPRONTA_SPEDITO
+	if percorso == ProjectSettings.globalize_path(
+			CARTELLA_MODELLI.path_join(NOME_MODELLO)):
+		return impronta_del_contrassegno()
+	return ""
+
+
+## Cosa dice il contrassegno lasciato dal corriere. Vuoto se non c'è, se non
+## si legge, o se dentro c'è qualcosa che non è un'impronta: **un
+## contrassegno rotto vale come nessun contrassegno**, mai come un no.
+static func impronta_del_contrassegno() -> String:
+	var f := FileAccess.open(CARTELLA_MODELLI.path_join(CONTRASSEGNO),
+			FileAccess.READ)
+	if f == null:
+		return ""
+	var riga := f.get_line().strip_edges().to_lower()
+	f.close()
+	if riga.length() != 64:
+		return ""
+	for c in riga:
+		if not (c in "0123456789abcdef"):
+			return ""
+	return riga
+
+
+## Il corriere lo scrive quando il file è atterrato e l'impronta combacia.
+static func segna_provenienza(impronta: String) -> void:
+	DirAccess.make_dir_recursive_absolute(CARTELLA_MODELLI)
+	var f := FileAccess.open(CARTELLA_MODELLI.path_join(CONTRASSEGNO),
+			FileAccess.WRITE)
+	if f != null:
+		f.store_line(impronta)
+		f.close()
 
 
 ## LA LEVA DI CHI GIOCA. Vera quando il villaggio ha il permesso di pensare:
@@ -262,9 +411,17 @@ static func impronta_attesa(percorso: String) -> String:
 ##
 ## La condizione era già scritta qui dentro, ed è quella:
 ## `Llm.disponibile() and Llm.percorso_modello() != ""` — il binario sa
-## scrivere E c'è di che. La mostra `CozySettingsPanel`; il bit che governa è
-## `Settings.llm_spento`, persistito. Come `prato_eterno`: il bit di là, il
-## predicato di qua.
+## scrivere E c'è di che. Il bit che governa è `Settings.llm_spento`,
+## persistito. Come `prato_eterno`: il bit di là, il predicato di qua.
+##
+## ⚠️ **QUESTA NON È PIÙ LA CONDIZIONE DELLA RIGA NEL PANNELLO**, e la
+## differenza è nata il 2026-08-13 col modello che non viaggia più dentro il
+## pacchetto. Da allora la riga si mostra a chiunque abbia un binario che sa
+## scrivere (`Llm.disponibile()`), perché per tutti loro c'è **qualcosa da
+## scegliere**: chi ha i pesi può spegnerli, chi non li ha può averli. Questa
+## funzione resta la domanda «c'è qualcosa da SPEGNERE?», che è un'altra cosa
+## e ha ancora due lettori veri — la casella parte spuntata solo per loro, e
+## `NoteLegali` la cita per spiegare perché *non* la usa.
 ##
 ## `CHIBI_LLM=0` spegne tutto anche dai banchi: serve alle misure appaiate
 ## (lo stesso villaggio, con e senza), che sono l'unico modo di dimostrare
@@ -289,7 +446,7 @@ static func acceso() -> bool:
 ## `disponibile()`: il giorno in cui «si può scegliere» dipenderà anche da
 ## altro, cambia un posto e non due.
 static func leva_visibile() -> bool:
-	return disponibile() and percorso_modello() != ""
+	return disponibile() and modello_in_casa()
 
 
 ## Il bit del giocatore, letto da dove vivono le sue preferenze. Difensivo

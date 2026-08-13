@@ -10,6 +10,11 @@ signal closed
 var _settings: Node
 var _col: VBoxContainer
 var _note: NoteLegali
+var _offerta: OffertaModello
+## Questo pannello si è già condannato a essere rifatto a fine frame? Vedi
+## `_ricostruisci()`: è la bandiera che rende visibile alla suite una
+## `call_deferred` che, dentro un caso di test, non si esegue mai.
+var _rifacimento_in_coda := false
 
 
 func _ready() -> void:
@@ -172,34 +177,101 @@ func _toggle_riga(label: String, acceso: bool, setter: Callable) -> Control:
 ## «IL VILLAGGIO PENSA» — l'unica riga del pannello che a volte non c'è
 ## ────────────────────────────────────────────────────────────────────────
 ##
-## La condizione ha una casa sola (`Llm.leva_visibile()`): il binario sa
-## scrivere E un modello c'è. Mostrarla a chi non ha niente da spegnere
-## sarebbe raccontargli che gli manca un pezzo — e non gli manca niente: ha
-## un gioco meno sorprendente, che è un'altra cosa. Per lo stesso motivo qui
-## non c'è nessuna casella ingrigita: **o la riga c'è, o non esiste.**
+## La condizione è `Llm.disponibile()`: **questo binario sa scrivere.** La
+## riga c'è quando c'è qualcosa da scegliere, e da quando il modello non
+## viaggia più dentro il pacchetto (2026-08-13) c'è qualcosa da scegliere per
+## tutti loro — chi ha i pesi può spegnerli, chi non li ha può averli.
+##
+## ⚠️ **NON È PIÙ `Llm.leva_visibile()`, e la differenza è tutto il senso di
+## questa riga.** Quella domanda («c'è qualcosa da SPEGNERE?») è vera solo col
+## file già sul disco: con lei, adesso, la riga non comparirebbe a nessuno —
+## e la funzione sarebbe irraggiungibile per chiunque, per sempre, con la
+## suite verde. Prima il ragionamento era l'opposto (mostrarla a chi non ha i
+## pesi gli racconta che gli manca un pezzo), ed era giusto **finché non c'era
+## modo di averli**: una porta chiusa a chiave è una mancanza, una porta che
+## si apre è una scelta.
+##
+## Per lo stesso motivo qui non c'è nessuna casella ingrigita: **o la riga
+## c'è, o non esiste.**
 ##
 ## E non nomina nessuna macchina. Chi gioca non deve sapere cos'è un modello
 ## linguistico per decidere se vuole che i suoi vicini abbiano idee loro; gli
 ## serve sapere tre cose, e sono quelle scritte sotto la casella: cosa fa,
 ## cosa costa, e da quando vale.
 func _llm_row_visibile() -> bool:
-	return Llm.leva_visibile()
+	return Llm.disponibile()
 
 
+## LA CASELLA MOSTRA LA VERITÀ, NON IL BIT. Quello che dice è «il villaggio
+## pensa?», e la risposta è `Llm.acceso()` — che è falsa anche quando il bit
+## è acceso ma i pesi non ci sono. Mostrare il bit vorrebbe dire una casella
+## spuntata sopra un villaggio che non pensa: il valore di serie di
+## `llm_spento` è `false`, quindi la casella nascerebbe **accesa** per
+## chiunque non abbia mai scaricato niente.
 func _llm_row() -> Control:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 2)
-	var acceso := true
-	if _settings:
-		acceso = not bool(_settings.get("llm_spento"))
-	col.add_child(_toggle_riga("Il villaggio pensa", acceso,
-			func(on): _settings.set_llm_acceso(on)))
-	var nota := CozyUI.body_label(
-			L10n.t("Ogni tanto un vicino ha un'idea tutta sua. Chiede memoria al computer, e cambia dal prossimo avvio."),
+	var in_casa := Llm.modello_in_casa()
+	col.add_child(_toggle_riga("Il villaggio pensa", Llm.acceso(), _llm_toggled))
+	var nota := CozyUI.body_label(L10n.t(
+			"Ogni tanto un vicino ha un'idea tutta sua. Chiede memoria al computer, e cambia dal prossimo avvio."
+			if in_casa else
+			"Ogni tanto un vicino ha un'idea tutta sua. Per farlo il gioco ha bisogno di scaricare una cosa, una volta sola: prima te lo chiede."),
 			13, CozyUI.INK_SOFT)
 	nota.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	col.add_child(nota)
 	return col
+
+
+## Il gesto sulla casella. Con i pesi in casa è la leva di sempre; senza, è
+## una **domanda**, e la domanda la fa `OffertaModello`.
+##
+## ⚠️ **ACCENDERE SENZA I PESI NON SCRIVE IL BIT.** Se lo scrivesse, chi apre
+## la pagina e dice «non adesso» si porterebbe a casa una preferenza che non
+## ha espresso — e la casella resterebbe spuntata sopra un villaggio che non
+## pensa, che è la bugia che questa riga esiste per non dire. Il bit lo
+## accende `OffertaModello`, quando il file è arrivato davvero.
+func _llm_toggled(on: bool) -> void:
+	if Llm.modello_in_casa():
+		if _settings:
+			_settings.set_llm_acceso(on)
+		return
+	# ⚠️ **SI APRE, OPPURE SI RICOSTRUISCE: MAI TUTTE E DUE.** `_ricostruisci()`
+	# butta TUTTI i figli del pannello a fine frame, e da quando la pagina
+	# dello scaricamento è uno di quei figli, chiamarla dopo `_apri_offerta()`
+	# vuol dire crearla, mostrarla e liberarla nello stesso gesto: la pagina
+	# compariva e spariva un fotogramma dopo, e **la funzione era
+	# irraggiungibile dall'interfaccia per chiunque** — con la suite verde,
+	# perché i casi di `test_offerta_modello` costruiscono `OffertaModello`
+	# per conto loro e non passano mai di qui. MISURATO col pannello vero:
+	# `_offerta` è un `PanelContainer` vivo e visibile nel frame del gesto, e
+	# `<null>` al frame successivo.
+	#
+	# Il ritorno non salta nessun rinfresco: la casella la rimette a posto
+	# `_chiudi_offerta`, che ricostruisce quando la pagina si chiude — cioè
+	# quando c'è di nuovo un pannello da guardare.
+	if on:
+		_apri_offerta()
+		return
+	_ricostruisci()
+
+
+func _apri_offerta() -> void:
+	if _offerta == null:
+		_offerta = OffertaModello.new()
+		add_child(_offerta)
+		_offerta.incorpora()
+		_offerta.closed.connect(_chiudi_offerta)
+	_offerta.riparti()
+	_offerta.visible = true
+	_col.visible = false
+
+
+func _chiudi_offerta() -> void:
+	if _offerta:
+		_offerta.visible = false
+	_col.visible = true
+	_ricostruisci()
 
 
 ## La riga della lingua. I nomi delle lingue NON si traducono mai
@@ -229,14 +301,45 @@ func _language_row() -> Control:
 	return row
 
 
-# rifà il pannello nella lingua nuova (una sola volta, a fine frame: si sta
-# ricostruendo l'albero da dentro il segnale di un bottone che gli appartiene)
+# rifà il pannello (una sola volta, a fine frame: si sta ricostruendo
+# l'albero da dentro il segnale di un bottone che gli appartiene)
+#
+# ⚠️ **LE DUE PAGINE FIGLIE SI DIMENTICANO**, o restano due riferimenti a
+# nodi liberati: `_note` e `_offerta` sono figli come gli altri e vengono
+# buttati qui dentro, ma `_apri_note`/`_apri_offerta` li riusano se «non sono
+# null» — e un'istanza liberata assegnata a una variabile TIPIZZATA non è
+# null, è un errore che scatta prima di qualunque guardia (è la lezione dei
+# festoni). Prima del 2026-08-13 si arrivava qui solo cambiando lingua, e il
+# guasto era una porta stretta: cambia lingua, apri le Note legali, crolla.
+# Adesso si ricostruisce a ogni chiusura della pagina dello scaricamento.
+#
+# ⚠️ **E IL RIFACIMENTO SI VEDE PRIMA DI ACCADERE** (`_rifacimento_in_coda`).
+# Non è una comodità: è l'UNICO modo in cui la suite può accorgersi di un
+# rifacimento chiesto per sbaglio. Il runner fa girare un caso per
+# fotogramma, dentro un caso non passa nessun frame, e una `call_deferred`
+# perciò non si esegue MAI mentre le asserzioni guardano: un pannello che si
+# è appena condannato da solo è indistinguibile da uno sano. È così che «la
+# pagina dello scaricamento si apre e sparisce un frame dopo» è vissuto con
+# 66322 asserzioni verdi. La bandiera rende la condanna un fatto osservabile
+# nell'istante in cui viene chiesta — e la spegne solo chi il rifacimento lo
+# esegue davvero.
 func _ricostruisci() -> void:
-	(func() -> void:
-		for c in get_children():
-			remove_child(c)
-			c.queue_free()
-		_build()).call_deferred()
+	_rifacimento_in_coda = true
+	_rifai_adesso.call_deferred()
+
+
+## Il corpo del rifacimento, con un nome suo perché abbia un chiamante che
+## non sia soltanto la coda differita (è l'idioma di `_apparecchia` in
+## `test_salvataggio_finestra`: quello che il motore farebbe a fine frame, un
+## banco lo fa a mano e nello stesso ordine).
+func _rifai_adesso() -> void:
+	_rifacimento_in_coda = false
+	for c in get_children():
+		remove_child(c)
+		c.queue_free()
+	_note = null
+	_offerta = null
+	_build()
 
 
 func _quality_row() -> Control:

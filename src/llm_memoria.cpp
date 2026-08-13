@@ -12,6 +12,12 @@
 #include <windows.h>
 #elif defined(__linux__)
 #include <cstdio>
+// ⚠️ `<cstdlib>` NON e' superfluo, ed e' un guasto che si vede SOLO su Linux:
+// `std::strtoull` vive qui, e libc++ (macOS) lo tira dentro per conto suo
+// mentre libstdc++ (gcc, cioe' la CI Linux) no. Senza questa riga il job
+// `build-llm (linux)` muore con «'strtoull' is not a member of 'std'» — e da
+// un Mac non si vede, perche' compila.
+#include <cstdlib>
 #include <cstring>
 #include <unistd.h>
 #endif

@@ -63,11 +63,34 @@ extends SceneTree
 ## LE TRAPPOLE DI MISURA, tutte pagate scrivendo questo file
 ## ────────────────────────────────────────────────────────────────────────
 ##
-## 1. **`--headless` FORZA il passo fisso** (lo dice `--help`: «--fixed-fps
-##    is forced when enabled»). È la ragione per cui questo banco è headless:
-##    il `delta` che arriva ai `_process` è lo stesso identico numero a ogni
-##    corsa, e senza quello due vite non sarebbero confrontabili nemmeno se
-##    il codice fosse lo stesso.
+## 1. ⚠️ **IL PASSO FISSO VA CHIESTO: `--fixed-fps 60`. SENZA, QUESTO BANCO
+##    NON MISURA NIENTE.**
+##
+##    Una stesura precedente di questa nota diceva che «`--headless` FORZA il
+##    passo fisso», citando `--help`: «--fixed-fps is forced when enabled».
+##    **Quella riga dell'aiuto sta sotto `--write-movie`, non sotto
+##    `--headless`** — parla del registratore di filmati. In headless il
+##    `delta` continua ad arrivare dall'orologio vero, e MISURATO il
+##    2026-08-13 il banco ne vedeva **19 valori distinti** in una corsa.
+##
+##    La conseguenza è che il banco era **più rumoroso del segnale che
+##    doveva rilevare**: due corse IDENTICHE (stesso binario, stesso
+##    braccio, stesso seme) davano **37.9% di decisioni diverse**, primo
+##    scarto a t=0.00 — mentre la differenza che si voleva misurare
+##    (`senza` su llm=no contro `assente` su llm=yes) ne dava 25.0%. Cioè:
+##    qualunque cosa fosse successa, questo file avrebbe stampato due
+##    impronte diverse e chi lo leggeva avrebbe concluso «non identico».
+##
+##    Con `--fixed-fps 60` il passo diventa **un solo valore**
+##    (0.01666666666667), il rumore proprio scende a **0.30%** e il primo
+##    scarto si sposta a **t=168** su 180 secondi. Solo allora il confronto
+##    dei bracci vuol dire qualcosa — e infatti dice **0.06%**, cinque volte
+##    sotto il rumore, con i bisogni identici allo 0.000000.
+##
+##    **Un'impronta uguale resta la prova più forte; un'impronta diversa non
+##    è una prova di niente finché non si è misurato il rumore proprio.**
+##    Chi usa questo banco faccia SEMPRE prima la corsa di controllo (lo
+##    stesso braccio due volte), e confronti il risultato con quella.
 ## 2. **I DADI SI SEMINANO A MANO, TUTTI.** `Visitors._ready` fa
 ##    `_chat_rng.randomize()` (in partita è giusto: le chiacchiere non si
 ##    ripetono uguali), e il dado globale di Godot parte da un seme casuale.

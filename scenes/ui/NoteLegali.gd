@@ -4,24 +4,34 @@ extends PanelContainer
 ## LE NOTE LEGALI — la pagina che dice cosa c'è dentro il gioco che non è
 ## nostro, e sotto quali condizioni ci sta.
 ##
-## Non è una cortesia e non è un vezzo: la licenza MIT chiede che il suo
-## avviso di copyright viaggi «in all copies», e i **Gemma Terms of Use**
-## (Sezione 3.1) chiedono che la distribuzione porti con sé un file «Notice»,
-## una copia dell'accordo e l'avviso dei vincoli d'uso a chi la riceve. Quei
-## file viaggiano **accanto al gioco** (cartella `Licenze/`, su macOS dentro
-## `Contents/Resources/`) — ma un file accanto all'eseguibile lo apre una
-## persona su mille, e su macOS sta dentro un bundle che quasi nessuno apre.
-## Questa pagina è il modo in cui li può leggere chi non andrà mai a cercarli.
+## Non è una cortesia e non è un vezzo. La licenza MIT chiede che il suo
+## avviso di copyright viaggi «in all copies»: quello è un obbligo pieno, e
+## riguarda il motore e le librerie. I documenti di **Gemma** stanno qui per
+## una ragione diversa e più forte — **il gioco non spedisce nessun modello**,
+## lo scarica il giocatore se accende la funzione, e in quel momento si
+## vincola ai Gemma Terms of Use *per il fatto stesso di scaricarlo*
+## (preambolo dell'accordo). Il repository da cui il file arriva non gli
+## consegna niente: **questa pagina, e la schermata dello scaricamento, sono
+## gli unici posti in cui quei termini gli vengono mostrati.**
+## I file viaggiano anche **accanto al gioco** (cartella `Licenze/`, su macOS
+## dentro `Contents/Resources/`) — ma un file accanto all'eseguibile lo apre
+## una persona su mille, e su macOS sta dentro un bundle che quasi nessuno
+## apre. Questa pagina è il modo in cui li può leggere chi non andrà mai a
+## cercarli.
 ##
 ## ⚠️ **LE TRE REGOLE, e vengono tutte dalla stessa parte.**
 ##
-## 1. **Si mostra solo quello che c'è DAVVERO in questo binario.** La sezione
-##    del modello linguistico compare se e solo se il modello c'è
-##    (`Llm.leva_visibile()`, la stessa domanda della casella nelle
-##    impostazioni): dichiarare un componente che non è stato spedito è una
-##    bugia, e mostrarne uno assente a chi non ce l'ha è di nuovo «un gioco a
-##    cui manca un pezzo». Chi non ha il modello legge una pagina completa e
-##    vera per il **suo** gioco.
+## 1. **Si mostra solo quello che questo binario sa DAVVERO fare.** La sezione
+##    del modello linguistico compare se e solo se il cuore è stato compilato
+##    con llama.cpp dentro (`Llm.disponibile()`): allora la funzione esiste,
+##    e i suoi documenti descrivono una cosa che il giocatore **può
+##    scegliere**, l'abbia già scaricata o no. Chi ha una build senza legge una
+##    pagina completa e vera per il **suo** gioco, senza una voce spenta che
+##    gli racconta che gli manca un pezzo.
+##    ⚠️ E la domanda **non** è `Llm.leva_visibile()` (che è vera solo col
+##    file già sul disco): con quella, i termini si vedrebbero soltanto DOPO
+##    aver scaricato — cioè dopo essersi vincolati. Sono due domande diverse,
+##    ed è la ragione per cui qui non si riusa quella della casella.
 ## 2. **I testi non si ricopiano qui dentro.** Si leggono dai file veri
 ##    (`res://misc/licenze/`), che a loro volta sono generati o scaricati
 ##    dalle fonti: una licenza ricopiata in una costante GDScript invecchia in
@@ -43,13 +53,14 @@ signal closed
 const CARTELLA := "res://misc/licenze"
 
 ## I documenti, nell'ordine in cui vanno letti. `solo_col_modello` marca
-## quelli che esistono soltanto se il gioco ha spedito i pesi.
+## quelli che riguardano il modello linguistico: si mostrano se questo binario
+## sa farlo girare — l'abbia gia' scaricato o no (vedi `_col_modello`).
 const DOCUMENTI := [
 	{"file": "LICENZE-TERZE-PARTI.txt",
 	 "titolo": "Licenze dei componenti di terze parti",
 	 "solo_col_modello": false},
 	{"file": "NOTICE-Gemma.txt",
-	 "titolo": "Gemma — avviso richiesto",
+	 "titolo": "Gemma — che cosa scarichi",
 	 "solo_col_modello": true},
 	{"file": "Gemma-Terms-of-Use.txt",
 	 "titolo": "Gemma Terms of Use",
@@ -138,15 +149,24 @@ func _riempi_indice() -> void:
 			"LICENZE-TERZE-PARTI.txt"))
 
 	if _col_modello():
-		_elenco.add_child(_paragrafo(L10n.t(
-				"Una parte dei testi che leggi — certe lettere, certi pensieri dei vicini — la scrive un modello linguistico che gira sul tuo computer, mentre giochi. Non esce niente da questa macchina: il gioco non apre nessuna connessione per lui. Senza di lui il villaggio resta lo stesso, con i testi scritti a mano.")))
+		# ⚠️ LA TAGLIA E IL POSTO NON SI SCRIVONO QUI. Vivono in `Llm`
+		# (`BYTE_MODELLO`, `SORGENTE_CASA`), che è anche la casa di chi
+		# scarica: due numeri gemelli in due schermate divergono in silenzio,
+		# e qui divergerebbero proprio nella pagina che serve a dire il vero.
+		# E si SCRIVONO come li scrive la schermata dello scaricamento
+		# (`Capienza.in_giga`): «2,5 GB» con la virgola dell'italiano, non il
+		# «2.31 GiB» di `humanize_size` — che è esatto, ed è la stessa cosa
+		# detta a un'altra persona. Anche la presentazione ha una casa sola.
+		_elenco.add_child(_paragrafo(L10n.tf(
+				"Una parte dei testi che leggi — certe lettere, certi pensieri dei vicini — la può scrivere un modello linguistico che gira sul tuo computer, mentre giochi. Il modello non è dentro il gioco: se accendi «Il villaggio pensa», il gioco lo scarica una volta sola (%s, da %s). Dopo, non esce più niente da questa macchina: il testo nasce qui e resta qui. E se non lo accendi, il gioco non apre nessuna connessione per lui — il villaggio resta lo stesso, con i testi scritti a mano.",
+				[Capienza.in_giga(Llm.BYTE_MODELLO), Llm.SORGENTE_CASA])))
 		_elenco.add_child(_voce(
 				L10n.t("Il motore che lo fa girare"),
 				L10n.t("llama.cpp e ggml: licenza MIT."),
 				"LICENZE-TERZE-PARTI.txt"))
 		_elenco.add_child(_voce(
 				"Gemma 3 4B IT — Google DeepMind",
-				L10n.t("I pesi del modello. Non sono MIT: valgono i Gemma Terms of Use, e i vincoli d'uso di quei termini valgono anche per te."),
+				L10n.t("Il modello che il gioco può scaricare per te. Non è nostro e non è MIT: valgono i Gemma Terms of Use di Google, e i vincoli d'uso di quei termini valgono anche per te. Il gioco te li mostra, e ti chiede di accettarli, prima di scaricare qualunque cosa."),
 				"NOTICE-Gemma.txt"))
 		_elenco.add_child(_bottone_doc(L10n.t("Leggi i Gemma Terms of Use"),
 				"Gemma-Terms-of-Use.txt"))
@@ -262,6 +282,25 @@ func riparti() -> void:
 		_su_indietro()
 
 
+## APRE UN DOCUMENTO SUBITO, saltando l'indice. Torna falso — e non fa
+## niente — se quel documento non è leggibile: chi chiama deve poter
+## decidere cosa mostrare al posto suo, invece di trovarsi una pagina vuota.
+##
+## ⚠️ **ESISTE PER LA SCHERMATA DELLO SCARICAMENTO, e il motivo è una regola
+## di `docs/LICENZA_MODELLO.md`**: prima del primo byte il giocatore deve
+## poter leggere per intero i Gemma Terms of Use e la Prohibited Use Policy,
+## perché scaricando si vincola (preambolo dell'accordo) e il repository a
+## monte non glieli consegna. Il lettore che serve è **questo** — quello che
+## toglie i fili di «====» dall'intestazione e non tocca una parola
+## dell'accordo. Ricopiarne uno accanto vorrebbe dire due modi di mostrare la
+## stessa licenza, e uno dei due invecchierebbe.
+func mostra_documento(file: String) -> bool:
+	if not _esiste(file):
+		return false
+	_apri(file)
+	return true
+
+
 ## Toglie il proprio fondo di carta. Serve quando la pagina vive DENTRO un
 ## altro pannello (le impostazioni): due fondi di carta sovrapposti fanno un
 ## bordo doppio e un'ombra che non torna. Da sola — se un giorno qualcuno la
@@ -276,17 +315,26 @@ func incorpora() -> void:
 # =========================================================================
 
 ## Il provino forza la risposta per fotografare tutte e due le pagine senza
-## avere due gigabyte e mezzo di pesi sul disco. In partita resta -1, cioè
-## «chiedi a chi lo sa». Non è un secondo interruttore: è l'assenza di uno.
+## avere un cuore compilato con llama.cpp. In partita resta -1, cioè «chiedi a
+## chi lo sa». Non è un secondo interruttore: è l'assenza di uno.
 var forza_modello := -1
 
 
-## C'è il modello, quindi ci sono i suoi documenti? È la STESSA domanda della
-## casella nelle impostazioni: se un domani cambia, cambia in un posto solo.
+## Questo gioco può usare un modello linguistico, quindi ci sono i suoi
+## documenti da leggere?
+##
+## ⚠️ **`disponibile()` e non `leva_visibile()`**, e la differenza è tutta la
+## fase. `leva_visibile()` chiede «il binario sa scrivere **E il file c'è**»:
+## è la domanda giusta per la casella nelle impostazioni (una casella deve
+## avere qualcosa da spegnere), ed è la domanda sbagliata qui. I Gemma Terms
+## of Use vincolano il giocatore **per il fatto stesso di scaricare** il
+## modello: mostrargli i documenti solo quando il file è già sul disco vuol
+## dire mostrarglieli **dopo** che si è vincolato. Qui la porta è la funzione,
+## non il file.
 func _col_modello() -> bool:
 	if forza_modello >= 0:
 		return forza_modello == 1
-	return Llm.leva_visibile()
+	return Llm.disponibile()
 
 
 static func percorso(file: String) -> String:

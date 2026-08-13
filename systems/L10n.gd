@@ -148,6 +148,31 @@ static func _assicura() -> void:
 	_lingua = ora
 	_pronta = true
 	_tabella = {}
+	# ⚠️ **LA TABELLA VECCHIA SI TOGLIE SEMPRE, ANCHE TORNANDO ALL'ITALIANO.**
+	# `_registra_in_godot()` monta la tabella dentro il TranslationServer, e
+	# quella registrazione NON sparisce cambiando lingua: resta lì, con la sua
+	# `locale`. Il guaio è che Godot, quando per la lingua di adesso non trova
+	# nessuna traduzione, **ripiega sulla lingua di riserva del progetto** —
+	# che è `en` (`internationalization/locale/fallback`). Quindi tornando
+	# all'italiano, l'unica tabella registrata era ancora quella inglese ed è
+	# tornata a vincere.
+	#
+	# MISURATO il 2026-08-13, in tre righe:
+	#     it  →  TranslationServer.translate("Il villaggio pensa") = «Il villaggio pensa»
+	#     en  →  «The village thinks»
+	#     it  →  «The village thinks»   ← e qui il gioco è in italiano
+	#
+	# `L10n.t()` non se ne accorgeva (legge `_tabella`, che era giusta): a
+	# parlare inglese era **l'auto-traduzione dei Control di Godot**, quella
+	# che traduce da sola il `text` di ogni Label e di ogni Button. Cioè
+	# mezza interfaccia, e solo per chi cambia lingua due volte nella stessa
+	# sessione — la persona che apre le impostazioni perché il gioco parla una
+	# lingua che non capisce, prova l'altra, e torna indietro.
+	#
+	# Delle tre cure provate una sola funziona: togliere la traduzione dalla
+	# lista non basta, e registrarne una vuota per l'italiano nemmeno (Godot
+	# ripiega lo stesso). `clear()` sì.
+	TranslationServer.clear()
 	if ora == SORGENTE or not TABELLE.has(ora):
 		return
 	for parte in TABELLE[ora]:

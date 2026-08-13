@@ -3,9 +3,13 @@
 ==============================================================================
 
   This box is NOT part of the Agreement. It records only where this copy
-  comes from, as required by the Gemma Terms of Use, Section 3.1.
-  Questo riquadro NON fa parte dell'accordo: dice solo da dove viene
-  questa copia.
+  comes from and when it was taken. The game carries this text although it
+  distributes no model weights: it is what you are shown, and asked to
+  accept, before the game downloads Gemma onto your own computer for you.
+  Questo riquadro NON fa parte dell'accordo: dice solo da dove viene questa
+  copia e di quando e'. Il gioco se la porta dietro pur non distribuendo
+  nessun peso, perche' e' il testo che ti viene mostrato - e che ti si
+  chiede di accettare - prima che il gioco scarichi Gemma per te.
 
   Source / fonte  : https://ai.google.dev/gemma/prohibited_use_policy
   Retrieved / del : 2026-08-13

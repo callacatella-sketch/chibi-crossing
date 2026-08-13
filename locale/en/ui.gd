@@ -664,26 +664,29 @@ const T := {
 			"The world looks like it was drawn with a mouse.",
 	# ------------------------------------------------------- le note legali
 	# La pagina che porta gli avvisi di licenza dei componenti di terze parti
-	# (obbligo MIT) e i documenti di Gemma (obbligo dei Gemma Terms of Use,
-	# Sezione 3.1). ⚠️ QUI SI TRADUCE PER FARSI CAPIRE, NON PER FARE BELLA
+	# (obbligo MIT) e i documenti di Gemma — che il gioco NON spedisce: chi
+	# accende la funzione se lo scarica, e scaricandolo si vincola ai Gemma
+	# Terms of Use. Questa pagina e la schermata dello scaricamento sono gli
+	# unici posti in cui glieli mostra qualcuno.
+	# ⚠️ QUI SI TRADUCE PER FARSI CAPIRE, NON PER FARE BELLA
 	# FIGURA: se una di queste righe diventa vaga, l'avviso non è più un
 	# avviso. I NOMI PROPRI non si toccano — «Gemma Terms of Use» e «Gemma
 	# Prohibited Use Policy» sono i titoli dei documenti veri, e chi li cerca
 	# li cerca così anche in italiano.
 	"Note legali": "Legal notices",
 	"Licenze dei componenti di terze parti": "Third-party licences",
-	"Gemma — avviso richiesto": "Gemma — required notice",
+	"Gemma — che cosa scarichi": "Gemma — what you download",
 	"Chibi Crossing è un'opera protetta: il codice, i disegni, la musica e i testi sono di chi l'ha fatto. Quello che segue, invece, non è nostro — e viaggia con le sue condizioni.":
 			"Chibi Crossing is a protected work: the code, the drawings, the music and the writing belong to the people who made it. What follows, though, is not ours — and it travels with conditions of its own.",
 	"Il motore e le librerie": "The engine and the libraries",
 	"Godot Engine, godot-cpp, EnTT, lua-gdextension: licenza MIT.":
 			"Godot Engine, godot-cpp, EnTT, lua-gdextension: MIT licence.",
-	"Una parte dei testi che leggi — certe lettere, certi pensieri dei vicini — la scrive un modello linguistico che gira sul tuo computer, mentre giochi. Non esce niente da questa macchina: il gioco non apre nessuna connessione per lui. Senza di lui il villaggio resta lo stesso, con i testi scritti a mano.":
-			"Some of the writing you read — certain letters, certain thoughts of the neighbours — is written by a language model running on your own computer, while you play. Nothing leaves this machine: the game opens no connection for it. Without it the village is the same village, with the writing done by hand.",
+	"Una parte dei testi che leggi — certe lettere, certi pensieri dei vicini — la può scrivere un modello linguistico che gira sul tuo computer, mentre giochi. Il modello non è dentro il gioco: se accendi «Il villaggio pensa», il gioco lo scarica una volta sola (%s, da %s). Dopo, non esce più niente da questa macchina: il testo nasce qui e resta qui. E se non lo accendi, il gioco non apre nessuna connessione per lui — il villaggio resta lo stesso, con i testi scritti a mano.":
+			"Some of the writing you read — certain letters, certain thoughts of the neighbours — can be written by a language model running on your own computer, while you play. The model is not inside the game: if you switch on “The village thinks”, the game downloads it just once (%s, from %s). After that, nothing leaves this machine: the writing is born here and stays here. And if you never switch it on, the game opens no connection for it — the village is the same village, with the writing done by hand.",
 	"Il motore che lo fa girare": "The engine that runs it",
 	"llama.cpp e ggml: licenza MIT.": "llama.cpp and ggml: MIT licence.",
-	"I pesi del modello. Non sono MIT: valgono i Gemma Terms of Use, e i vincoli d'uso di quei termini valgono anche per te.":
-			"The model weights. These are not MIT: the Gemma Terms of Use apply, and the use restrictions in those terms apply to you as well.",
+	"Il modello che il gioco può scaricare per te. Non è nostro e non è MIT: valgono i Gemma Terms of Use di Google, e i vincoli d'uso di quei termini valgono anche per te. Il gioco te li mostra, e ti chiede di accettarli, prima di scaricare qualunque cosa.":
+			"The model the game can download for you. It is not ours and it is not MIT: Google's Gemma Terms of Use apply, and the use restrictions in those terms apply to you as well. The game shows them to you, and asks you to accept them, before it downloads anything.",
 	"Leggi il testo": "Read the text",
 	"Leggi i Gemma Terms of Use": "Read the Gemma Terms of Use",
 	"Leggi la Prohibited Use Policy": "Read the Prohibited Use Policy",
@@ -691,6 +694,133 @@ const T := {
 			"Gemma and Google are trademarks of Google LLC. Chibi Crossing is not affiliated with, nor endorsed by, Google.",
 	"I testi completi delle licenze sono nella cartella «%s», accanto al gioco.":
 			"The full licence texts are in the “%s” folder, next to the game.",
+
+	# --- LA SCHERMATA CHE CHIEDE (scenes/ui/OffertaModello.gd) --------------
+	# Il modello non viaggia più nel pacchetto: si scarica al primo uso, e
+	# questa è la pagina che lo chiede. Il giocatore la vede UNA VOLTA SOLA:
+	# è lei a decidere se userà mai la funzione.
+	#
+	# ⚠️ IL TONO È METÀ DEL LAVORO, e in inglese si perde più facilmente che
+	# altrove: la lingua dei download tira verso il commerciale («Unlock!»,
+	# «Get the full experience»), e questa pagina non ha il permesso di
+	# spingere. Frasi corte, verbi concreti, nessun esclamativo, e il rifiuto
+	# scritto con la stessa cura del sì. Dove l'italiano dice «non cambia
+	# niente», l'inglese dice «nothing changes» e non «you won't miss much»:
+	# la seconda è una rassicurazione, la prima è un fatto.
+	"Ogni tanto un vicino si accorge di qualcosa, ci pensa su, e più tardi fa una cosa che nessuno gli ha chiesto di fare. A scrivere quei pensieri è un piccolo modello di linguaggio, che gira qui — sul tuo computer, mentre giochi.":
+			"Every so often a neighbour notices something, turns it over for a while, and later goes and does something nobody asked them to do. Those thoughts are written by a small language model that runs here — on your own computer, while you play.",
+	"Dentro il gioco non c'è: ne raddoppierebbe il peso, e se lo porterebbe appresso anche chi non lo vorrà mai. Se lo vuoi, si scarica una volta sola.":
+			"It isn't inside the game: it would double the size, and everyone who never wants it would be carrying it about all the same. If you'd like it, it comes down just the once.",
+	# La scheda dei fatti. Etichette corte, allineate a sinistra: sono una
+	# colonna, non frasi.
+	"Che cos'è": "What it is",
+	"Quanto pesa": "How big",
+	"Da dove": "Where from",
+	"Quante volte": "How often",
+	"una sola: poi resta sul tuo disco": "just the once: then it stays on your disk",
+	"Quanto ci mette": "How long",
+	"su una linea di casa, minuti — a volte una mezz'ora":
+			"on a home line, minutes — sometimes half an hour",
+	"Mentre arriva, il tuo indirizzo si vede da Hugging Face e dalla rete che consegna il file — come per qualunque cosa si scarichi. Dal gioco non parte niente, né adesso né dopo: quello che i vicini pensano nasce su questa macchina e resta qui.":
+			"While it comes down, your address is visible to Hugging Face and to the network that delivers the file — as it is for anything you download. Nothing leaves the game, neither now nor later: what the neighbours think is born on this machine and stays here.",
+	"Il modello è di Google, e viaggia con le sue condizioni: scaricandolo le accetti. Restano leggibili per sempre da Impostazioni → Note legali.":
+			"The model is Google's, and it travels with Google's conditions: by downloading it you accept them. They stay readable for good under Settings → Legal notices.",
+	# L'ATTO. «I am old enough to do so» e non «I confirm I am of age»: chi
+	# accetta sta dando una dichiarazione (Sezione 2.1 dell'accordo), e una
+	# dichiarazione si scrive in prima persona e in parole di tutti i giorni.
+	"Accetto i Gemma Terms of Use e la Prohibited Use Policy, e ho l'età per farlo.":
+			"I accept the Gemma Terms of Use and the Prohibited Use Policy, and I am old enough to do so.",
+	"Se dici di no non cambia niente: il villaggio è già scritto a mano, e resta come lo conosci.":
+			"If you say no, nothing changes: the village is already written by hand, and stays as you know it.",
+	"Non adesso": "Not now",
+	"Scaricalo": "Download it",
+
+	# Il pezzo già arrivato.
+	"Ne era già arrivato un pezzo: %s di %s. Posso riprendere da lì — non si ricomincia da capo.":
+			"Part of it had already arrived: %s of %s. I can carry on from there — no starting over.",
+	"Oppure lo butto via, e il disco torna com'era.":
+			"Or I throw it away, and the disk goes back to how it was.",
+	"Butta via il pezzo": "Throw the part away",
+
+	# La macchina che non ce la fa. NIENTE NUMERI, in nessuna delle due
+	# lingue: quello che serve sapere è che non c'è niente da scaricare e che
+	# non è colpa di chi legge.
+	"Questo computer non ha memoria da prestargli, e non è una cosa che si aggiusta chiudendo una finestra.":
+			"This computer hasn't the memory to lend it, and that isn't something a closed window can mend.",
+	"Non c'è niente da scaricare, allora — meglio così, sarebbe stata una lunga attesa per niente. Il villaggio resta quello che conosci: le lettere e i pensieri scritti a mano ci sono tutti, e sono la maggior parte.":
+			"So there's nothing to download — just as well, it would have been a long wait for nothing. The village stays the one you know: the letters and the thoughts written by hand are all there, and they are most of them.",
+	"Va bene così": "That's all right",
+	"Questo computer, in questo momento, non ha memoria da prestargli. Un villaggio che pensa a spese del villaggio che si muove non sarebbe un buon affare.":
+			"This computer, just now, hasn't the memory to lend it. A village that thinks at the expense of the village that moves would be a poor bargain.",
+	"Non c'è niente da scaricare, allora. Se chiudi qualcos'altro e torni qui, riprovo volentieri.":
+			"So there's nothing to download. Close something else and come back, and I'll gladly try again.",
+	"Riprova": "Try again",
+
+	# Mentre arriva.
+	"Sta arrivando": "On its way",
+	"%s di %s": "%s of %s",
+	"Puoi chiudere questa pagina e tornare a giocare: va avanti per conto suo. Il villaggio comincerà a pensare dal prossimo avvio.":
+			"You can close this page and go back to playing: it carries on by itself. The village will start thinking the next time you open the game.",
+	"Se lo fermi, quello che è già arrivato resta: si riprende da lì.":
+			"If you stop it, what has already arrived stays: it carries on from there.",
+	"Ferma": "Stop",
+	# «quanto manca», detto come lo direbbe una persona (systems/Capienza.gd)
+	"ancora un momento": "a moment more",
+	"meno di un minuto": "less than a minute",
+	"un minuto circa": "about a minute",
+	"circa %d minuti": "about %d minutes",
+	"circa un'ora": "about an hour",
+	"più di %d ore": "more than %d hours",
+
+	# Quando va storto. Nessuna di queste frasi dà la colpa a chi legge, e
+	# tutte dicono che cosa ne è stato di quello che era già arrivato: è la
+	# sola cosa che una persona vuole sapere davanti a un errore.
+	"Ricomincia": "Start again",
+
+	# È arrivato.
+	"È arrivato": "It's here",
+	"Da qui in avanti, ogni tanto, un vicino avrà un'idea tutta sua: si accorgerà di qualcosa, ci penserà su, e andrà a fare una cosa che nessuno gli ha chiesto.":
+			"From now on, every so often, a neighbour will have an idea of their own: they'll notice something, turn it over, and go and do something nobody asked them to.",
+	"Comincia dal prossimo avvio del gioco. Se un giorno cambi idea, basta spegnere «Il villaggio pensa» qui nelle impostazioni.":
+			"It starts the next time you open the game. If you change your mind one day, just switch “The village thinks” off here in the settings.",
+	"Va bene": "All right",
+
+	"Quello che era arrivato l'ho lasciato dov'era: se fai un po' di posto, si riprende da lì.":
+			"What had arrived I've left where it was: make a little room and it carries on from there.",
+	"Non dipende da te né da questo computer: se il posto è cambiato, lo sistemiamo noi.":
+			"It's nothing to do with you or with this computer: if it has moved, we shall put it right.",
+
+	# La riga nel pannello, per chi il modello non ce l'ha ancora.
+	"Ogni tanto un vicino ha un'idea tutta sua. Per farlo il gioco ha bisogno di scaricare una cosa, una volta sola: prima te lo chiede.":
+			"Every so often a neighbour has an idea of their own. For that, the game needs to download something, just the once: it asks you first.",
+
+	# --- IL CORRIERE (systems/Scarico.gd) -----------------------------------
+	# Le frasi dello scaricamento vero: cosa sta facendo, e com'è andata. Le
+	# scrive `Scarico` e le MOSTRA `OffertaModello`, che è la ragione per cui
+	# stanno qui accanto alle sue: chi rilegge questa parte deve poter vedere
+	# in colonna tutto quello che una persona legge in quella pagina, e
+	# accorgersi se due frasi vicine si contraddicono.
+	#
+	# ⚠️ Ogni riga di esito dice DUE cose: cos'è successo, e cosa si può fare
+	# adesso. «Non ha funzionato» senza un seguito è solo un modo elegante di
+	# dare la colpa a chi legge, e in inglese lo è ancora di più (la lingua
+	# degli errori tira verso il passivo e la sigla).
+	"Un momento…": "One moment…",
+	"Mi collego…": "Getting in touch…",
+	"Controllo che sia arrivato tutto…": "Checking that all of it arrived…",
+	"Ci siamo.": "Nearly there.",
+	"È arrivato. Dal prossimo avvio i vicini avranno idee tutte loro.":
+			"It's here. From the next time you open the game, the neighbours will have ideas of their own.",
+	"Lasciato a metà. Quello che è arrivato resta: si riprende da lì.":
+			"Left half done. What arrived stays: it carries on from there.",
+	"Sul disco non c'è abbastanza spazio libero.":
+			"There isn't enough free room on the disk.",
+	"La connessione non ha retto. Riprova quando vuoi: si riprende da dov'era.":
+			"The connection didn't hold. Try again whenever you like: it carries on from where it was.",
+	"Quello che è arrivato non era intero, e l'ho buttato. Riprova quando vuoi.":
+			"What arrived wasn't whole, and I've thrown it away. Try again whenever you like.",
+	"Adesso non si trova. Riprova più tardi.": "It can't be found just now. Try again later.",
+	"Non riesco a scrivere sul disco.": "I can't write to the disk.",
 }
 
 

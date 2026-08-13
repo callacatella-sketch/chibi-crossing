@@ -56,8 +56,12 @@ func run(t) -> void:
 	_l_accordo_e_quello_giusto(t)
 	_gli_avvisi_mit_sono_quelli_veri(t)
 	_il_license_porta_i_vincoli_d_uso(t)
+	_il_license_non_dice_di_spedire_i_pesi(t)
+	_l_avviso_dice_che_lo_scarica_il_giocatore(t)
 	_l_export_li_porta_dentro(t)
 	_la_pagina_del_gioco_li_trova(t)
+	_la_pagina_non_promette_una_rete_che_non_c_e(t)
+	_la_pagina_si_apre_sulla_FUNZIONE_non_sul_file(t)
 
 
 # ---------------------------------------------------------------- utilità
@@ -222,6 +226,79 @@ func _il_license_porta_i_vincoli_d_uso(t) -> void:
 			"la metà italiana del LICENSE porta la stessa prevalenza")
 
 
+# ------------------------------------ e non dichiara di spedire quel che non spedisce
+
+## ⚠️ **DA QUANDO IL MODELLO LO SCARICA IL GIOCATORE, LA METÀ DI QUESTE RIGHE
+## CHE ERA UN OBBLIGO È DIVENTATA UNA BUGIA.** La Sezione 3.1 pone le sue
+## quattro condizioni a chi *«reproduce or Distribute copies of Gemma»*: noi
+## non trasmettiamo, non pubblichiamo, non condividiamo e non ospitiamo
+## niente — i byte vanno da Hugging Face al disco di chi gioca. Le condizioni
+## non hanno più destinatari su cui mordere, e un `LICENSE` che continuasse a
+## dire *«distributed builds may include a copy of Gemma»* descriverebbe un
+## file che nel pacchetto non c'è.
+##
+## Perciò qui si sorvegliano DUE cose, e servono tutte e due: che il
+## documento **affermi il vero** (la frase c'è, in tutte e due le lingue) e
+## che **non sia tornata** la frase vecchia. La prima da sola non basta —
+## si possono scrivere due paragrafi che si contraddicono; la seconda da sola
+## nemmeno — si può cancellare la frase falsa e non dire più niente.
+func _il_license_non_dice_di_spedire_i_pesi(t) -> void:
+	var lic := _testo("res://LICENSE")
+
+	t.ok(lic.contains("The Work contains no machine-learning model weights"),
+			"il LICENSE dichiara che l'Opera non contiene pesi (EN)")
+	t.ok(lic.contains("L'Opera non contiene pesi di modelli di apprendimento automatico"),
+			"il LICENSE dichiara che l'Opera non contiene pesi (IT)")
+
+	for bugia in ["Distributed builds of the Work may include a copy",
+			"is included with every build that contains Gemma",
+			"possono includere una copia dei pesi",
+			"viaggia con ogni versione che contiene"]:
+		t.ok(not lic.contains(bugia),
+				"il LICENSE non dice più «%s»" % bugia)
+
+	# ⚠️ E IL VINCOLO D'USO HA CAMBIATO BASE, non è sparito. Citare ancora la
+	# 3.1 sarebbe invocare una clausola che non ci vincola più — una citazione
+	# a vuoto. La base vera è la Prohibited Use Policy, che vincola anche chi
+	# «allow[s] others to use», e noi siamo quelli che il modello glielo
+	# mettono in mano.
+	for citazione_morta in ["as required by Section 3.1 of the Gemma Terms of Use",
+			"come richiesto dalla Sezione 3.1 dei Gemma Terms of Use"]:
+		t.ok(not lic.contains(citazione_morta),
+				"il LICENSE non fonda più il vincolo d'uso sulla 3.1 («%s»)" % citazione_morta)
+	t.ok(lic.count("allow[s] others to use") >= 2,
+			"il LICENSE fonda il vincolo d'uso sul «nor allow others to use» della policy, in tutte e due le lingue")
+
+
+# ---------------------------------- l'avviso racconta lo SCARICAMENTO, non il pacchetto
+
+## Il file «Notice» resta nel pacchetto anche se la 3.1 non ce lo chiede più
+## (cautela dichiarata: costa una riga, ed è già dove servirebbe se un domani
+## qualcuno leggesse «scaricare per conto tuo» come una forma di
+## distribuzione). Ma il suo CONTENUTO deve raccontare quello che succede
+## davvero, o è un avviso che disinforma proprio chi è venuto a informarsi.
+func _l_avviso_dice_che_lo_scarica_il_giocatore(t) -> void:
+	var avviso := _spedito("NOTICE-Gemma.txt")
+
+	t.ok(avviso.contains("This package contains NO model weights"),
+			"l'avviso dichiara che nel pacchetto non c'è nessun modello (EN)")
+	t.ok(avviso.contains("Questo pacchetto NON contiene nessun modello"),
+			"l'avviso dichiara che nel pacchetto non c'è nessun modello (IT)")
+	t.ok(avviso.contains("huggingface.co"),
+			"l'avviso dice DA DOVE arriva il file che il gioco scarica")
+	t.ok(not avviso.contains("This product, Chibi Crossing, includes a copy of Gemma"),
+			"l'avviso non dichiara più di includere una copia dei pesi")
+
+	# La ragione per cui il gioco mostra i termini PRIMA: ci si vincola con
+	# l'atto stesso di scaricare (preambolo dell'accordo). Se questa frase
+	# sparisce, sparisce l'unica spiegazione che il giocatore riceve del
+	# perché gli si sta chiedendo qualcosa.
+	t.ok(avviso.contains("bound by the Gemma Terms of Use through the act of"),
+			"l'avviso spiega che ci si vincola scaricando o usando (EN)")
+	t.ok(avviso.contains("per il fatto stesso di scaricare o di usare Gemma"),
+			"l'avviso spiega che ci si vincola scaricando o usando (IT)")
+
+
 # ------------------------------------------- l'export se li porta dentro
 
 func _l_export_li_porta_dentro(t) -> void:
@@ -270,3 +347,119 @@ func _la_pagina_del_gioco_li_trova(t) -> void:
 	# pacchetto: due percorsi diversi vorrebbero dire due verità diverse su
 	# cosa il giocatore sta leggendo.
 	t.eq(NOTE.CARTELLA, CARTELLA, "la pagina legge dalla cartella spedita")
+
+
+# ================================================================ LA PAGINA VIVA
+#
+# ⚠️ Quello che segue NON cerca stringhe nei sorgenti: **costruisce la pagina
+# vera** e legge il testo che finisce nei suoi nodi. La differenza non è di
+# stile. Una pagina si può rompere in tre modi che un `grep` non vede — la
+# frase c'è ma sta dietro un `if` che non scatta mai, la frase c'è in
+# italiano e non in inglese, la voce è stata spostata in un ramo che non si
+# mostra — e tutti e tre finiscono nello stesso posto: un giocatore che legge
+# una cosa diversa da quella che il file sorgente prometteva.
+
+## Costruisce la pagina fuori dall'albero e restituisce TUTTO il testo che
+## mostra. `_costruisci()` e non `_ready()`: il secondo scatta solo entrando
+## nell'albero, e i test non ce la mettono (convenzione della suite).
+func _testi_della_pagina(forza: int) -> PackedStringArray:
+	var pagina = NOTE.new()
+	pagina.forza_modello = forza
+	pagina.call("_costruisci")
+	var fuori := PackedStringArray()
+	_raccogli_testo(pagina, fuori)
+	pagina.free()
+	return fuori
+
+
+func _raccogli_testo(n: Node, dentro: PackedStringArray) -> void:
+	var testo = n.get("text")
+	if testo != null and str(testo) != "":
+		dentro.append(str(testo))
+	for c in n.get_children():
+		_raccogli_testo(c, dentro)
+
+
+## ⚠️ **LA PAGINA NON PUÒ PROMETTERE UNA MACCHINA MUTA, PERCHÉ ADESSO PARLA.**
+##
+## Fino al 2026-08-13 questa pagina diceva, in tutte e due le lingue: «Non
+## esce niente da questa macchina: il gioco non apre nessuna connessione per
+## lui». Era vero finché i pesi viaggiavano nel pacchetto. Da quando li
+## scarica il gioco — 2,4 GB da huggingface.co — quella frase è **falsa**, ed
+## è falsa proprio nella pagina che esiste per dire il vero: l'unico posto in
+## cui un giocatore attento va a controllare se un gioco parla con qualcuno.
+##
+## L'invariante non è «non dire mai la parola connessione»: è che **non si può
+## parlare di rete senza nominare lo scaricamento**. Scritto così, la frase
+## vecchia diventa rossa e la frase nuova — che nomina tutte e due le cose, e
+## dice quale vale quando — resta verde.
+func _la_pagina_non_promette_una_rete_che_non_c_e(t) -> void:
+	var prima := L10n.lingua_corrente()
+	# ⚠️ Le due lingue si provano tutte e due: una pagina onesta in italiano e
+	# rimasta indietro in inglese è esattamente il guasto che una tabella di
+	# traduzione fa nascere, e `test_localizzazione` non lo vede (lui guarda
+	# se la chiave c'è, non se la frase dice ancora il vero).
+	for coppia in [{"lingua": "it", "scarica": "scarica", "rete": "connession"},
+			{"lingua": "en", "scarica": "download", "rete": "connection"}]:
+		L10n.imposta(str(coppia["lingua"]))
+		var righe := _testi_della_pagina(1)
+		var tutto := "\n".join(righe).to_lower()
+		t.ok(tutto.contains(str(coppia["scarica"])),
+				"[%s] la pagina dice che il modello si SCARICA" % coppia["lingua"])
+		if tutto.contains(str(coppia["rete"])):
+			t.ok(tutto.contains(str(coppia["scarica"])),
+					"[%s] se la pagina parla di rete, nomina anche lo scaricamento" % coppia["lingua"])
+		t.ok(tutto.contains("huggingface.co"),
+				"[%s] la pagina dice DA DOVE arriva il modello" % coppia["lingua"])
+		# ⚠️ E LA TAGLIA È QUELLA VERA, SCRITTA DA CHI LA SA SCRIVERE. Il
+		# numero non si scrive qui (sarebbe la seconda copia del difetto che
+		# sto sorvegliando): si chiede alle stesse due fonti che usa la
+		# pagina — `Llm.BYTE_MODELLO` per il dato, `Capienza.in_giga` per la
+		# presentazione, che è anche quella della schermata dello
+		# scaricamento. Chi scrivesse «2,4 GB» a mano dentro la frase — o
+		# cambiasse il modello dimenticando questa riga — diventa rosso.
+		t.ok(tutto.contains(Capienza.in_giga(Llm.BYTE_MODELLO).to_lower()),
+				"[%s] la pagina dice QUANTO pesa, con il numero di Llm (%s)"
+						% [coppia["lingua"], Capienza.in_giga(Llm.BYTE_MODELLO)])
+		# E non promette più il silenzio assoluto — in NESSUNA delle due
+		# lingue, che è il motivo per cui le due frasi vietate si cercano
+		# tutte e due dentro tutti e due i giri: una chiave inglese che manca
+		# fa ricadere la pagina sull'italiano, e la bugia rientrerebbe dalla
+		# porta di servizio.
+		t.ok(not tutto.contains("nothing leaves this machine: the game opens no connection"),
+				"[%s] la promessa «nessuna connessione» non è tornata, in inglese" % coppia["lingua"])
+		t.ok(not tutto.contains("non esce niente da questa macchina: il gioco non apre nessuna connessione"),
+				"[%s] la promessa «nessuna connessione» non è tornata, in italiano" % coppia["lingua"])
+	L10n.imposta(prima)
+
+
+## ⚠️ **I TERMINI SI MOSTRANO PRIMA DELLO SCARICAMENTO, NON DOPO.**
+##
+## `Llm.leva_visibile()` è vera solo col file già sul disco: è la domanda
+## giusta per la casella nelle impostazioni (una casella deve avere qualcosa
+## da spegnere) e la domanda **sbagliata** per questa pagina. I Gemma Terms
+## of Use vincolano chi scarica *per il fatto stesso di scaricare*
+## (preambolo); una pagina che mostrasse i documenti solo a chi ha già il
+## file glieli mostrerebbe **dopo** che si è vincolato — cioè quando non
+## servono più a decidere.
+##
+## Il caso vive nel villaggio in cui gira: con un cuore compilato `llm=yes` e
+## nessun `.gguf` sul disco — che è esattamente la CI e questa suite — la
+## sezione di Gemma **deve** esserci. Con un cuore `llm=no` non deve esserci
+## nessuna voce di una funzione che quel binario non ha. Due mondi, due
+## asserzioni: nessun ramo resta muto.
+func _la_pagina_si_apre_sulla_FUNZIONE_non_sul_file(t) -> void:
+	var righe := _testi_della_pagina(-1)          # -1 = chiedi a chi lo sa
+	var tutto := "\n".join(righe)
+	var nomina_gemma := tutto.contains("Gemma")
+	if Llm.disponibile():
+		t.ok(nomina_gemma,
+				"col cuore che sa scrivere la pagina mostra i documenti di Gemma (modello sul disco: %s)"
+						% ("sì" if Llm.percorso_modello() != "" else "NO"))
+		t.ok(tutto.contains("Note legali") or tutto.contains("Legal notices"),
+				"e resta la pagina delle note legali, non un'altra cosa")
+	else:
+		t.ok(not nomina_gemma,
+				"senza llama.cpp nel binario la pagina non nomina una funzione che non c'è")
+		t.ok(tutto.contains("MIT") or tutto.length() > 0,
+				"ma resta una pagina completa e vera per quel gioco")

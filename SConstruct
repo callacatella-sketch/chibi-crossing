@@ -343,6 +343,21 @@ def _llm_cabla(scons_env, ambiente_link, piattaforma):
             )
     elif piattaforma == "linux":
         ambiente_link.Append(LIBS=["pthread", "dl", "m"])
+    elif piattaforma == "windows":
+        # ⚠️ IL REGISTRO DI WINDOWS, e non e' una dipendenza nostra: ggml-cpu
+        # legge il nome della CPU da HKEY_LOCAL_MACHINE (ggml-cpu.cpp,
+        # `ggml_backend_cpu_device_context`), cioe' chiama RegOpenKeyEx /
+        # RegQueryValueExA / RegCloseKey, che stanno in advapi32.
+        #
+        # A monte non si vede perche' llama.cpp si linka con CMake, e CMake
+        # passa a MSVC una lista di librerie di sistema di serie
+        # (CMAKE_C_STANDARD_LIBRARIES: kernel32, user32, ..., advapi32). Il
+        # nostro ramo win32 costruisce la riga di link a mano e quella lista
+        # non ce l'ha: MISURATO in CI (build.yml, job `build-llm (windows)`,
+        # run 31681424170) — «LNK2019: unresolved external symbol
+        # __imp_RegCloseKey» e altri due, poi LNK1120. Da un Mac non e'
+        # verificabile: il giudice e' la CI.
+        ambiente_link.Append(LIBS=["advapi32.lib"])
 
     print("== llm=yes: llama.cpp {} ==".format((_llm_versione() or "?")[:12]))
 

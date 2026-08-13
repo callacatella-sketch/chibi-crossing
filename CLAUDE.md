@@ -219,6 +219,45 @@ push origin v1.0.0`) o a mano da *Actions → Run workflow*.
   [`RELEASE_SIGNING.md`](RELEASE_SIGNING.md). I certificati costano e sono legati
   all'identità dell'utente: **li carica solo lui** come GitHub Secrets, l'agente
   non li vede né li inserisce.
+- **La release compila il cuore con `llm=yes`**, su tutte e due le piattaforme
+  e su tutti e due i target. Non è un dettaglio di build: la classe nativa
+  `LlmLocale` esiste solo così, e senza di lei `Llm.disponibile()` è falsa per
+  chiunque installi il gioco — la casella «Il villaggio pensa» non compare, il
+  modello non viene mai scaricato, e **la Fase 5 è morta in silenzio**. Il
+  sottomodulo `src/thirdparty/llama.cpp` entra nel checkout, `ninja` si
+  installa (senza, su Windows CMake sceglierebbe il generatore Visual Studio,
+  che porta un toolset diverso da quello di SCons) e la compilazione di ggml si
+  tiene da parte con **la stessa chiave di cache di `build.yml`** — un tag
+  riusa quel che `build.yml` ha già pagato su `main`, e chi cambia la chiave di
+  qua e non di là fa pagare venti minuti in più a ogni tag, in silenzio.
+  ⚠️ **Il CRT su Windows NON si passa**: il nostro ramo `win32` non dà né `/MD`
+  né `/MT`, quindi `cl.exe` usa il runtime C statico — la stessa scelta di
+  godot-cpp — e lo SConstruct lo dice già a CMake (`llm_msvc_crt`, di serie
+  `MultiThreaded`). `llm_msvc_crt=MultiThreadedDLL` è il RIMEDIO se il link
+  muore con LNK2038, non una precauzione da prendere prima: scritto a priori,
+  crea proprio lo scontro che dovrebbe evitare.
+- **Il modello NON viaggia nel pacchetto** (decisione dell'autore, 2026-08-13):
+  se lo scarica il gioco al primo uso. Il `curl` che lo metteva dentro non c'è
+  più, e con lui il cancello dei 2 GiB di GitHub. Restano **tre** cancelli, e
+  sono l'unico posto in cui il silenzio della Fase 5 si può rompere: il
+  preflight interroga la sorgente con una `HEAD` **senza token** (chi gioca non
+  ce l'ha: una CI che passasse grazie a un token direbbe di sì proprio quando
+  tutti sono rotti) e confronta `x-linked-etag`/`x-linked-size` con
+  `Llm.IMPRONTA_SPEDITO`/`Llm.BYTE_MODELLO`; i due job che compilano
+  interrogano il **binario**; il job che pubblica apre i **pacchetti veri** e
+  ripete la domanda alla libreria che riceve chi gioca. E il cancello delle
+  licenze non ha più l'elenco scritto a mano: l'elenco è `misc/licenze/*.txt`,
+  perché quattro nomi ricopiati erano una tabella gemella che divergeva in
+  silenzio il giorno in cui gli avvisi si rivedono.
+- **I cancelli della release si provano SENZA aspettare un tag**:
+  [`tools/prova_release.py`](tools/prova_release.py) estrae gli script dal
+  workflow vero (non li ricopia), li fa girare su pacchetti fabbricati e poi
+  guasta una cosa per volta pretendendo il rosso GIUSTO — messaggio compreso,
+  perché un cancello che rifiuta tutto sarebbe verde qui e inutile in partita.
+  Ha trovato, fra le altre cose, dei backtick vivi dentro un messaggio d'errore
+  (facevano partire un `sed` senza argomenti: legge stdin, e il passo si
+  piantava per sempre) che `bash -n` non poteva vedere. Con `--rete` interroga
+  anche la sorgente vera, con una `HEAD`.
 - **Godot in locale** è portabile in `~/Downloads/Godot.app` (4.7.1): utile per
   validare in fretta un export headless
   (`.../Godot.app/Contents/MacOS/Godot --headless --path . --export-release ...`).
@@ -1577,6 +1616,23 @@ misurare), `llm_avx2=no` (x86: rinuncia alla baseline Haswell), `llm_cmake=…`,
    modello ha la licenza sua, e questo viaggerà **dentro il pacchetto** di un
    gioco commerciale. Si legge prima di sceglierlo, e si annota in
    [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+10. **Su Windows il link vuole `advapi32`, e a monte non si vede.** `ggml-cpu`
+   legge il nome della CPU dal REGISTRO (`RegOpenKeyEx`/`RegQueryValueExA`/
+   `RegCloseKey`, in `ggml-cpu.cpp`). llama.cpp si linka con CMake, che passa a
+   MSVC una lista di librerie di sistema di serie (`CMAKE_C_STANDARD_LIBRARIES`,
+   dove `advapi32` c'è); il nostro ramo `win32` costruisce la riga di link **a
+   mano** e quella lista non ce l'ha. MISURATO in CI (`build.yml`, job
+   *Compila con llama.cpp (windows)*, run 31681424170): tre `LNK2019` e poi
+   `LNK1120`. Adesso `_llm_cabla` lo aggiunge. ⚠️ E NON era il CRT — il
+   sospettato numero uno di questo ramo: il link era arrivato fino in fondo,
+   quindi le due metà avevano già lo stesso runtime C (`/MT` da tutte e due le
+   parti, che è il default di `cl.exe` e la scelta di `llm_msvc_crt`).
+11. **Su Linux `std::strtoull` vuole `<cstdlib>`**, e da un Mac non si vede:
+   libc++ lo tira dentro per conto suo, libstdc++ no. `src/llm_memoria.cpp` lo
+   usa per leggere `/proc/meminfo` e non lo includeva — il job *Compila con
+   llama.cpp (linux)* moriva con «'strtoull' is not a member of 'std'». È la
+   forma generale della regola: **una build che compila solo dove la scrivi non
+   è compilata**, e il giudice è la CI su tutti e tre i sistemi.
 
 **Come si verifica** (la suite verde non dice niente sul terreno):
 
@@ -2961,6 +3017,230 @@ due della stessa famiglia («si guarda a metà»):
   sé, interrogabile con **il percorso del modello spedito** (che
   `spedito_accanto_a` sa dire anche quando il file non c'è), e il dizionario che
   arriva ad `apri_modello` deve esserle **uguale**.
+
+### IL CORRIERE — due gigabyte e mezzo presi bene, o non presi affatto
+
+Dal 2026-08-13 il modello **non viaggia più nel pacchetto**: se lo scarica il
+gioco al primo uso, quando chi gioca accende la funzione. Il pezzo che va a
+prenderlo è in tre file, e ognuno fa una cosa sola:
+
+| dove | cosa |
+|---|---|
+| [`systems/Scarico.gd`](systems/Scarico.gd) | il NODO: il thread, il lucchetto, i segnali, le parole per chi gioca, e l'indirizzo da cui si prende |
+| [`systems/ScaricoMacchina.gd`](systems/ScaricoMacchina.gd) | il VIAGGIO: tutte le decisioni, a passi, senza thread e senza `HTTPClient` |
+| [`systems/ScaricoRete.gd`](systems/ScaricoRete.gd) | il TUBO: sei metodi sopra `HTTPClient`, zero decisioni |
+
+**Il nodo vive sotto `/root`**, non dentro il livello: chi comincia dal menù di
+pausa e poi torna al titolo non perde quello che ha già preso. Le costanti non
+si ricopiano — `Llm` dice **cos'è** il modello (nome, impronta, peso, cartella),
+`Scarico` dice **dove andarlo a prendere** (repository, revisione, indirizzo).
+
+**Le sette regole del viaggio** stanno per esteso in cima a `ScaricoMacchina`.
+Le tre che nessuno deve toccare:
+
+1. **Il file buono nasce all'ultimo istante.** Finché non è arrivato tutto e
+   l'impronta non combacia si chiama `pensieri.gguf.parte` — un nome che
+   `Llm.percorso_modello()` non guarda. Un download interrotto non «sembra
+   valido» mai: non è una convenzione, è una proprietà del nome.
+2. **L'impronta non è facoltativa, e chi non combacia si BUTTA.** Un file
+   rovinato lasciato sul disco spegne la funzione per sempre, e chi gioca non
+   ha modo di collegare le due cose.
+3. **Il degrado va verso «ricominciare», mai verso «scrivere storto».** Se il
+   server ignora il `Range` (200 invece di 206), o il `Content-Range` comincia
+   altrove, si tronca e si riparte: un file cucito male passa tutti i controlli
+   tranne l'ultimo, e l'ultimo costa una rilettura di due gigabyte e mezzo.
+
+**Le trappole MISURATE, e tre sono di Godot:**
+
+- ⚠️ **`HTTPRequest` non sa riprendere: `download_file` TRONCA.** Misurato
+  (4.7.1): un file di 1 MiB di `0xAA`, una richiesta con `Range:
+  bytes=1048576-2097151`, e dopo il file è 1 MiB e comincia coi byte nuovi. Da
+  qui `HTTPClient` a mano, su un thread.
+- ⚠️ **`get_response_headers()` SVUOTA le intestazioni**, quindi
+  `has_response()` diventa **falso** subito dopo averle lette — mentre lo stato
+  è `STATUS_BODY` e i byte stanno arrivando. Chiedendola nell'ordine sbagliato
+  il tubo restituiva `ATTENDE` **7932 volte in dodici secondi e zero byte**, con
+  la suite verde: il tubo è l'unica parte che i test non possono coprire, ed è
+  per questo che esiste il banco che scarica davvero.
+- ⚠️ **Prima del primo fotogramma la cifratura non si accende.** In `_init()` di
+  uno script `SceneTree`, `TLSOptions.client()` dà «SSL module failed to
+  initialize!» e lo stato resta `CANT_CONNECT`; dopo un `await process_frame`,
+  la stessa riga si connette in 190 ms — **e funziona anche da un thread**. In
+  partita non capita mai (si scarica da un bottone); un banco che chiede in
+  `_init` diagnostica «rete morta» con la rete viva.
+- ⚠️ **L'indirizzo firmato della CDN è legato al `Range` chiesto all'ORIGINE.**
+  Riusarlo con un altro intervallo risponde `403 Auth failed: invalid range`.
+  Perciò il rimbalzo si segue con le stesse identiche intestazioni, e ogni
+  ripresa riparte da casa: un indirizzo del CDN non si conserva MAI.
+- ⚠️ **Il giro infinito del progresso.** Contare «ha portato byte da quando è
+  cominciato questo tentativo» più la rincorsa all'indietro (`INDIETRO`, 1 MiB)
+  fa un ciclo che non finisce: il file cresce di mille byte e ne ritorna
+  indietro quattromila, ma «ha portato dei byte» azzera i tentativi. Il metro è
+  **il punto più lontano a cui si sia mai arrivati**.
+
+**Cosa è stato MISURATO scaricando davvero** (2,32 GiB da Hugging Face, linea di
+casa, M1 da 8 GB con altre sessioni addosso — loadavg 2,2–3,7):
+
+| | |
+|---|---|
+| preflight (una `HEAD`, zero byte di modello) | 221–631 ms, `x-linked-etag` e `x-linked-size` combaciano |
+| velocità | **7,4 MB/s**, la linea: `curl` sullo stesso pezzo ne fa 7,31 |
+| annullamento (thread che molla una connessione viva) | **37–47 ms** medi, peggiore 54 |
+| riprese vere dalla CDN firmata | 6 + 2, tutte con `Range`, file finale corretto |
+| impronta di 2,32 GiB | **~8 s** (312 MB/s misurati su `HashingContext`) |
+| **fotogramma, misura APPAIATA** | +0,29 ms (+0,7%) in una corsa, **−1,47 ms (−2,8%)** nell'altra: sotto il rumore |
+| rete col villaggio acceso e nessuno scarico | **0 connessioni** (`lsof` sul processo) |
+| rete mentre scarica | **1** |
+| rete subito dopo l'annullamento | **0** — annullare chiude il socket, non solo la barra |
+
+E la ripresa funziona anche **fra due processi diversi**: una corsa uccisa a
+334 MiB è ripartita da lì in quella dopo, e il file finale ha l'impronta giusta.
+
+**Come si guarda:**
+
+```
+Godot --headless --path . --script res://tools/prova_scarico.gd     # CHIBI_SOLO_PREFLIGHT=1
+CHIBI_ACCESO=45 CHIBI_SPENTO=8 CHIBI_DOVE=<cartella> \
+  Godot --path . --resolution 1280x720 --script res://tools/prova_scarico.gd
+```
+
+Il banco alterna blocchi «scarica» e «fermo»: ogni passaggio è un annullamento
+VERO e ogni ritorno una ripresa VERA, e i fotogrammi dei due tipi di blocco si
+confrontano **nella stessa corsa** (su questa macchina non ce n'è un'altra di
+utile). La guardia headless è
+[`tests/cases/test_scarico.gd`](tests/cases/test_scarico.gd): fa camminare la
+macchina VERA davanti a un tubo che sa cadere, ignorare il `Range`, mandare byte
+sbagliati e chiudere la porta — 147 asserzioni, e **venticinque mutazioni una
+per volta, tutte rosse**. Due erano mute alla prima stesura e sono state
+riscritte: il tubo dichiarava un `Content-Range` storto e poi mandava i byte
+GIUSTI (spegnere il controllo lasciava il file corretto), e il `flush()` prima
+di rileggere non era falsificabile perché lasciar cadere il `FileAccess` chiude
+— quella riga è stata tolta.
+
+> ⚠️ **E UNA TRAPPOLA DI BANCO CHE COSTA DUE GIGABYTE.**
+> `test_offerta_modello.gd::_pulisci()` cancella `Scarico.destinazione()` e il
+> suo `.parte` — cioè **il modello vero di chi sta sviluppando**. Misurato due
+> volte: una corsa della suite fatta da un'altra sessione si è portata via
+> prima 211 MiB di scarico a metà, poi il file intero appena atterrato. Per
+> questo `test_scarico.gd` lavora in `user://prova_scarico` e
+> `tools/prova_scarico.gd` posa il file nella cartella vera **solo se glielo
+> si chiede** (`CHIBI_POSA=1`).
+
+### LA STRADA DEL GIOCATORE — e la porta che per un giorno è stata murata
+
+I banchi qui sopra provano ognuno un PEZZO: il corriere coi suoi byte, la
+pagina coi suoi `Label`, il portiere coi suoi quindici guasti. Nessuno
+camminava la strada **come la cammina una persona** — la casella, la pagina,
+il sì, la rete che cade, il file rotto — e in quel buco ci stava un difetto
+che rendeva l'intera fase irraggiungibile.
+
+> ### ⚠️ IL DIFETTO: la pagina si apriva e spariva un fotogramma dopo
+>
+> `CozySettingsPanel._llm_toggled` faceva `_apri_offerta()` **e poi**
+> `_ricostruisci()`. Il secondo butta TUTTI i figli del pannello a fine
+> frame, e da quando la pagina dello scaricamento è uno di quei figli, il
+> gesto la creava, la mostrava e la condannava nello stesso respiro.
+> MISURATO col pannello vero: `_offerta` è un `PanelContainer` **vivo e
+> visibile** nel fotogramma del gesto, e **`<null>`** in quello dopo. Chi
+> giocava vedeva la casella tornare da sola al suo posto e nient'altro:
+> **il download, il consenso, le licenze, il villaggio che pensa — tutto
+> irraggiungibile dall'interfaccia, per chiunque**, con 66322 asserzioni
+> verdi.
+>
+> **Perché nessuno se n'era accorto, ed è la lezione vera:** il runner fa
+> girare **un caso per fotogramma**, e dentro un caso non passa nessun
+> frame. Una `call_deferred` quindi **non si esegue MAI** mentre le
+> asserzioni guardano — un pannello che si è appena condannato da solo è
+> indistinguibile da uno sano. E tutti i casi della pagina si costruivano
+> l'`OffertaModello` per conto loro: **provavano la stanza, mai la porta.**
+>
+> La cura è un `return`; la guardia è `_rifacimento_in_coda`, la bandiera
+> che rende la condanna un fatto osservabile nell'istante in cui viene
+> chiesta, più `_rifai_adesso()` — il corpo del rifacimento con un nome suo,
+> così un banco può fare a mano quello che il motore farebbe a fine frame
+> (è l'idioma di `_apparecchia` in `test_salvataggio_finestra`).
+> FALSIFICATO: rimettendo il difetto **2 rosse**, togliendo il rifacimento
+> dalla chiusura **1**.
+>
+> ⚠️ E l'asserzione che chiude il cerchio guarda **`is_queued_for_deletion()`,
+> non `is_instance_valid()`**: `queue_free()` non libera niente sul momento,
+> e dentro un caso di test quel momento non arriva mai — con
+> `is_instance_valid` la seconda asserzione **non mordeva** (misurato: una
+> rossa invece di due).
+
+Il banco che cammina la strada intera è
+[`tools/prova_strada.gd`](tools/prova_strada.gd), sei scene, e gira **su
+tutti e due i binari** (con llama e senza: sul secondo pretende che la riga
+«Il villaggio pensa» NON esista, che è il gioco che la CI normale compila).
+Guida il corriere VERO col tubo finto di `test_scarico`, e il metro non è
+«torna il codice giusto» ma **cosa legge chi sta davanti allo schermo**:
+
+| scena | misurato |
+|---|---|
+| dice di no | pagina aperta e chiusa: **zero byte scritti**, bit non toccato, nessuna ricevuta, nessun corriere |
+| la rete CADE e torna | ogni tentativo porta a casa un pezzo, il file rimesso insieme ha l'impronta giusta |
+| la rete è MORTA | «La connessione non ha retto…», nessun file col nome buono |
+| chi gioca FERMA | 2 105 344 byte restano, col nome sbagliato; riprendendo si chiede `Range: bytes=1056768-` |
+| la rete LENTA | il file arriva; «meno di un minuto · 12 Mbit/s», mai una percentuale al secondo |
+| il DISCO finisce | detto **prima di scaricare un solo byte** (`fatti() == 0`) |
+| il file arriva ROTTO | l'impronta lo becca, il file viene **buttato**, e riprovando arriva quello giusto |
+| la macchina non ce la fa | col computer dell'autore quel giorno (2583 MiB liberi) **il download non viene nemmeno nominato** |
+
+⚠️ **Due trappole di banco, tutte e due pagate scrivendolo:**
+
+1. **Il file di prova dev'essere più grande di `ScaricoMacchina.INDIETRO`**
+   (la rincorsa di 1 MiB con cui si riprende). Con trecento kilobyte ogni
+   ripresa rincorre fino a zero, nessun tentativo guadagna un byte, e quello
+   che si osserva è **una costante del corriere invece del suo
+   comportamento**.
+2. **Si aspetta con l'OROLOGIO, non a fotogrammi.** Fra un tentativo e
+   l'altro il corriere riposa davvero (2+4+8+16 s), e in headless i
+   fotogrammi volano: un tetto a fotogrammi scade mentre il corriere sta
+   ancora aspettando il suo turno, e il banco dichiara «non ha fatto niente»
+   di uno che stava facendo la cosa giusta. Mi ha dato tre falsi guasti in
+   tre scene diverse.
+
+### Il fotogramma mentre il modello arriva, e il bit girato a riposo
+
+[`tools/misura_scarico_fps.gd`](tools/misura_scarico_fps.gd) conta i
+fotogrammi del MainLevel VERO mentre il file arriva **davvero** dalla
+sorgente vera, a blocchi alternati *scarica · fermo* nella stessa corsa
+(vsync spento, in una cartella sua che poi butta). Due corse, macchina
+scarica (loadavg 1.2–1.6), ~60 Mbit/s, 427 MB per corsa:
+
+| | medio | MAX | >2×p50 |
+|---|---|---|---|
+| mentre scarica | 29.34 / 28.90 ms | 53.69 / 52.91 | **0** |
+| a motore fermo | 29.70 / 29.20 ms | 32.36 / 31.94 | **0** |
+| **scarto** | **−0.36 ms (−1.2%) · −0.30 ms (−1.0%)** | | |
+
+Lo scarto è **negativo** in tutte e due le corse: il download non si sente,
+e la promessa «puoi tornare a giocare» si mantiene. L'unico solco vero è
+**un fotogramma solo da ~53 ms all'apertura della connessione**, riprodotto
+in tutte e due le corse e sempre nel primo blocco — sotto la soglia del
+doppio della mediana, ma c'è.
+
+[`tools/prova_bit_girato.gd`](tools/prova_bit_girato.gd) risponde all'altra
+metà: **dopo l'installazione, chi riverifica il file?** La risposta,
+misurata sul modello VERO da 2,4 GB, è **nessuno**:
+`Llm.impronta_attesa()` torna l'impronta solo per il posto accanto
+all'eseguibile — che da quando il modello non viaggia più nel pacchetto **non
+esiste per nessuno** — e per il file scaricato in `user://` torna `""`.
+Resta il portiere, e questo è fin dove arriva:
+
+| dove cade il bit | il portiere |
+|---|---|
+| nella firma (primi 4 byte) | **FERMATO** — «non è un file GGUF» |
+| nei conti di testa | **FERMATO** — «dichiara 4294967740 tensori» |
+| dentro i metadati | passa |
+| dentro i pesi (metà file, e in fondo) | passa |
+
+Cioè: **in transito l'impronta becca qualunque cosa** (scena 5), **a riposo
+no**. È il residuo che la Fase 5 dichiarava già in teoria, adesso misurato in
+partita. Chi lo vorrà chiudere ha una strada che non punisce chi si mette un
+`.gguf` suo in `user://modelli/`: la **ricevuta** che il consenso scrive già
+può portarsi l'impronta di ciò che il gioco ha scaricato — si riverifica solo
+quel file, e solo perché sappiamo cosa deve essere.
 
 ## Test
 

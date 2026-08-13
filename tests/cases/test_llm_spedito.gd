@@ -63,6 +63,7 @@ func run(t) -> void:
 	_l_impronta_ha_la_forma_giusta(t)
 	_la_leva_del_giocatore(t)
 	_la_riga_del_pannello(t)
+	_il_contrassegno_di_provenienza(t)
 
 
 # =========================================================================
@@ -205,8 +206,19 @@ func _l_impronta_e_di_un_percorso_solo(t) -> void:
 			"sul modello spedito l'impronta è armata")
 	t.eq(LLM.impronta_attesa("/un/altro/modello.gguf"), "",
 			"su un modello qualunque non si chiede nessuna impronta")
-	t.eq(LLM.impronta_attesa(ProjectSettings.globalize_path(ESCA_UTENTE)), "",
-			"sul modello di chi gioca nemmeno: dei suoi byte non sappiamo niente")
+	# ⚠️ SUL MODELLO IN `user://` LA RISPOSTA DIPENDE DAL CONTRASSEGNO, e
+	# questa asserzione e' stata riscritta apposta: prima diceva «li' non si
+	# verifica mai», e quella non era una regola — era il buco. Dopo lo
+	# scarico nessuno riverificava piu' il modello, e l'impronta esiste
+	# proprio per il bit che marcisce sul disco mesi dopo.
+	# Adesso: col contrassegno del corriere si', senza no (chi sperimenta con
+	# un altro modello resta libero). Il caso suo e'
+	# `_il_contrassegno_di_provenienza`; qui si fissa solo che la risposta
+	# NON e' incondizionata.
+	var atteso_utente := LLM.impronta_del_contrassegno()
+	t.eq(LLM.impronta_attesa(ProjectSettings.globalize_path(ESCA_UTENTE)),
+			atteso_utente,
+			"sul modello in user:// risponde il contrassegno, non una costante")
 	t.eq(LLM.impronta_attesa(""), "", "e su «» non c'è niente da verificare")
 
 	# ⚠️ E LA GIUNTURA: chi apre il modello deve CHIEDERLA DAVVERO. Senza,
@@ -306,43 +318,58 @@ func _la_leva_del_giocatore(t) -> void:
 # 5. LA RIGA DEL PANNELLO
 # =========================================================================
 
-## LA RIGA C'È ESATTAMENTE QUANDO `Llm.leva_visibile()` È VERA, e l'asserzione
+## LA RIGA C'È ESATTAMENTE QUANDO `Llm.disponibile()` È VERA, e l'asserzione
 ## è scritta come un'UGUAGLIANZA apposta: è l'unica forma che dice qualcosa in
 ## tutte e due le configurazioni del gioco.
 ##
-##  · nel binario NORMALE (llm=no, quello che gioca la gente) `leva_visibile()`
-##    è falsa e la riga non deve esistere: una casella «il villaggio pensa»
-##    mostrata a chi non ha nessun modello racconta che gli manca un pezzo, e
-##    non gli manca niente;
-##  · nel binario con llama.cpp e un modello piantato, deve esserci.
+##  · nel binario NORMALE (llm=no, quello che gioca la gente) la riga non deve
+##    esistere: una casella «il villaggio pensa» dentro un gioco che non
+##    saprebbe pensare in nessun caso racconta una mancanza, e non c'è niente
+##    da scegliere;
+##  · nel binario con llama.cpp deve esserci **anche senza i pesi**.
+##
+## ⚠️ **QUESTA CONDIZIONE È CAMBIATA IL 2026-08-13, e il cambio è tutto il
+## senso della fase.** Prima era `Llm.leva_visibile()` — «c'è qualcosa da
+## SPEGNERE?», vera solo col file già sul disco — ed era giusta finché il
+## modello viaggiava dentro il pacchetto: chi non ce l'aveva non poteva
+## averlo, e mostrargli la casella era raccontargli una mancanza. Adesso il
+## modello si scarica al primo uso, e con la condizione vecchia la riga non
+## comparirebbe **a nessuno**: il file arriva solo passando di lì, quindi la
+## funzione sarebbe irraggiungibile per sempre, con la suite verde.
+## Una porta chiusa a chiave è una mancanza; una porta che si apre è una
+## scelta. La domanda «c'è qualcosa da spegnere?» esiste ancora, e ha altri
+## due lettori (vedi `Llm.leva_visibile`).
 ##
 ## FALSIFICATO: aggiungendo la riga senza condizione (rossa su llm=no),
-## togliendo la chiamata a `_llm_row()` (rossa su llm=yes col modello), e
-## facendo tornare `leva_visibile()` sempre vero (rossa su llm=no).
+## togliendo la chiamata a `_llm_row()` (rossa su llm=yes), e rimettendo
+## `leva_visibile()` come condizione (rossa su llm=yes senza i pesi — cioè
+## nella configurazione di OGNI giocatore alla prima apertura).
 func _la_riga_del_pannello(t) -> void:
 	var vecchio := OS.get_environment("CHIBI_MODELLO")
 	DirAccess.make_dir_recursive_absolute("user://modelli")
 	_scrivi(ESCA_UTENTE)
 	OS.set_environment("CHIBI_MODELLO", "")
 
-	t.eq(LLM.leva_visibile(), LLM.disponibile() and LLM.percorso_modello() != "",
-			"la condizione della riga ha una casa sola")
+	t.eq(LLM.leva_visibile(), LLM.disponibile() and LLM.modello_in_casa(),
+			"«c'è qualcosa da spegnere?» ha una casa sola")
 	t.ok(LLM.percorso_modello() != "", "il banco ha piantato un modello: c'è di che")
 
 	var p: Control = PANNELLO.new()
 	t.stage(p)
-	t.eq(_c_e_la_riga(p, L10n.t("Il villaggio pensa")), LLM.leva_visibile(),
-			"la riga «Il villaggio pensa» c'è esattamente quando c'è qualcosa da spegnere")
+	t.eq(_c_e_la_riga(p, L10n.t("Il villaggio pensa")), LLM.disponibile(),
+			"la riga «Il villaggio pensa» c'è esattamente quando il binario sa scrivere")
 
-	# E la controprova: senza modello la riga non c'è MAI, in nessuna delle
-	# due configurazioni. Senza di lei il caso sarebbe verde su un pannello
-	# che mostra sempre la casella, purché il banco pianti sempre un modello.
+	# E LA CONTROPROVA CHE CONTA: senza i pesi la riga deve esserci LO STESSO
+	# (è da lì che si arriva alla schermata che li offre), ma solo su un
+	# binario che saprebbe usarli. Senza questo caso, rimettere la condizione
+	# vecchia lascerebbe la suite verde e la funzione irraggiungibile.
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(ESCA_UTENTE))
 	t.eq(LLM.percorso_modello(), "", "tolta l'esca, non c'è nessun modello")
+	t.eq(LLM.leva_visibile(), false, "e non c'è più niente da spegnere")
 	var q: Control = PANNELLO.new()
 	t.stage(q)
-	t.eq(_c_e_la_riga(q, L10n.t("Il villaggio pensa")), false,
-			"senza modello la casella non esiste (non «esiste e ingrigita»)")
+	t.eq(_c_e_la_riga(q, L10n.t("Il villaggio pensa")), LLM.disponibile(),
+			"ma la riga resta: senza di lei nessuno potrebbe mai avere i pesi")
 
 	OS.set_environment("CHIBI_MODELLO", vecchio)
 
@@ -359,3 +386,79 @@ func _scrivi(dove: String) -> void:
 	if f != null:
 		f.store_string("non è un modello: è un'esca per provare quale percorso vince")
 		f.close()
+
+
+# =========================================================================
+# 8. IL CONTRASSEGNO DI PROVENIENZA
+# =========================================================================
+
+## DOPO LO SCARICO, QUALCUNO DEVE ANCORA RIVERIFICARE.
+##
+## Il corriere verifica l'impronta una volta, quando il file atterra. Ma
+## l'impronta esiste per un guasto diverso — **un bit che marcisce sul disco
+## mesi dopo** — e contro quello nessuno guardava più: `impronta_attesa()`
+## rispondeva "" per il percorso `user://`, quindi il modello scaricato non
+## veniva riverificato a nessun caricamento successivo.
+##
+## La cura non poteva essere «arma sempre `user://`»: quel percorso è anche
+## la porta di chi vuole provare un ALTRO modello, e armarla gliela
+## chiuderebbe. Serviva sapere **chi ce l'ha messo** — e il contrassegno lo
+## dice. Non è una difesa (chi lo cancella non guadagna niente: si torna a
+## «non lo so», che non è mai un no): è una dichiarazione di provenienza.
+func _il_contrassegno_di_provenienza(t) -> void:
+	var cartella := LLM.CARTELLA_MODELLI
+	var segno := cartella.path_join(LLM.CONTRASSEGNO)
+	var suo := ProjectSettings.globalize_path(
+			cartella.path_join(LLM.NOME_MODELLO))
+	# si lavora su una copia di sicurezza: in questa cartella può esserci il
+	# modello VERO di chi sviluppa, e un banco che glielo tocca è un banco
+	# che gli porta via due gigabyte e mezzo
+	var prima := ""
+	if FileAccess.file_exists(segno):
+		var f0 := FileAccess.open(segno, FileAccess.READ)
+		if f0 != null:
+			prima = f0.get_as_text()
+			f0.close()
+	DirAccess.make_dir_recursive_absolute(cartella)
+
+	# 1) SENZA contrassegno non si arma niente: chi sperimenta resta libero
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(segno))
+	t.eq(LLM.impronta_attesa(suo), "",
+			"senza contrassegno il modello in user:// non si verifica (chi prova un altro modello deve poterlo fare)")
+
+	# 2) COL contrassegno, l'impronta si arma — ed è quella scritta lì
+	LLM.segna_provenienza(LLM.IMPRONTA_SPEDITO)
+	t.eq(LLM.impronta_attesa(suo), LLM.IMPRONTA_SPEDITO,
+			"col contrassegno del corriere il modello scaricato SI riverifica a ogni caricamento")
+
+	# 3) UN CONTRASSEGNO ROTTO VALE COME NESSUNO, mai come un no. Il degrado
+	#    va sempre verso «si gioca»: un file di testo corrotto non deve poter
+	#    spegnere la funzione.
+	for schifezza in ["", "   ", "non-e-un-impronta", "ZZZZ",
+			"882e8d2db44dc554fb0ea5077cb7e4bc49e7342a1f0da57901c0802ea21a086",
+			"882e8d2db44dc554fb0ea5077cb7e4bc49e7342a1f0da57901c0802ea21a0863XX"]:
+		var f := FileAccess.open(segno, FileAccess.WRITE)
+		f.store_line(schifezza)
+		f.close()
+		t.eq(LLM.impronta_attesa(suo), "",
+				"un contrassegno rotto («%s») vale come nessuno" % schifezza.substr(0, 12))
+
+	# 4) e le maiuscole non contano (chi lo scrive a mano non deve sbagliare)
+	var f2 := FileAccess.open(segno, FileAccess.WRITE)
+	f2.store_line(LLM.IMPRONTA_SPEDITO.to_upper())
+	f2.close()
+	t.eq(LLM.impronta_attesa(suo), LLM.IMPRONTA_SPEDITO,
+			"e le maiuscole non cambiano l'impronta")
+
+	# 5) CHIBI_MODELLO non si arma MAI, contrassegno o no: è la porta di chi
+	#    sperimenta, e armarla la chiuderebbe
+	LLM.segna_provenienza(LLM.IMPRONTA_SPEDITO)
+	t.eq(LLM.impronta_attesa("/un/percorso/qualunque/altro.gguf"), "",
+			"un modello preso da CHIBI_MODELLO non si verifica mai contro l'impronta nostra")
+
+	# si rimette com'era
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(segno))
+	if prima != "":
+		var f3 := FileAccess.open(segno, FileAccess.WRITE)
+		f3.store_string(prima)
+		f3.close()

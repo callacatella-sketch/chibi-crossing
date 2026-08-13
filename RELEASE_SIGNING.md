@@ -71,31 +71,70 @@ base64 -i Certificati.p12 | pbcopy   # copia negli appunti da incollare nel secr
 Se la notarizzazione fallisce o l'app crasha all'avvio, rivedi le *entitlement*
 in [`misc/macos_entitlements.plist`](misc/macos_entitlements.plist).
 
-### ⚠️ Dove va il MODELLO dentro il bundle (e perché non altrove)
+### ⚠️ Il MODELLO non viaggia nel pacchetto (e cosa ci viaggia al suo posto)
 
-Dal 2026-08-13 il gioco spedisce il suo modello linguistico
-(`pensieri.gguf`, ~2,4 GB). Su macOS va in **`<gioco>.app/Contents/Resources/`**,
-accanto al `.pck`. Non è una preferenza di ordine:
+Dal **2026-08-13** il modello linguistico **non sta dentro la release**. Se lo
+scarica il gioco, al primo uso, quando chi gioca accende la funzione — così il
+pacchetto resta piccolo per tutti, e chi non userà mai il villaggio pensante non
+paga niente. La ragione tecnica che ha chiuso la questione: **GitHub non accetta
+allegati sopra i 2 GiB** in una Release, e il modello da solo ne pesa 2,32.
+
+Quindi in `release.yml` **non c'è nessun `curl` che scarica i pesi**, e non ci
+deve tornare. Quel che ci viaggia adesso è:
+
+* il **cuore C++ compilato con `llm=yes`** — cioè con llama.cpp dentro (+7,1 MB
+  sul binario: 1 141 496 byte senza, 8 226 280 con, misurati su macOS
+  universale). Senza `llm=yes` la classe nativa `LlmLocale` non viene
+  registrata, `Llm.disponibile()` è falsa per chiunque, la casella «Il villaggio
+  pensa» non compare mai e **il modello che il gioco scaricherebbe non avrebbe
+  chi lo apre**;
+* le **licenze**, che non sono cortesia: la MIT chiede l'avviso «in all copies»
+  (godot-cpp, EnTT, lua-gdextension, llama.cpp). Su Windows finiscono in
+  `Licenze/` accanto all'`.exe`; su macOS **dentro** il bundle, in
+  `Contents/Resources/Licenze/`.
+
+**Su macOS il posto non è una preferenza di ordine**, e la regola vale per
+qualunque file si voglia aggiungere al bundle (le licenze oggi, un modello
+domani se mai ci si tornasse):
 
 * `codesign` **sigilla** il bundle, e ogni file che sta dentro `Contents/` ma
   fuori da `Resources/` (per esempio accanto all'eseguibile, in
   `Contents/MacOS/`) diventa *unsealed contents*: la firma non verifica e la
   notarizzazione non passa;
-* **il file va messo PRIMA della firma.** Iniettare qualcosa in un bundle già
+* **i file vanno messi PRIMA della firma.** Iniettare qualcosa in un bundle già
   firmato ne rompe la firma, e il risultato è una release che Gatekeeper
-  rifiuta;
-* su **Windows e Linux** il modello sta semplicemente accanto all'eseguibile.
+  rifiuta.
 
-Il gioco lo cerca lì da solo: la mappa eseguibile → modello vive in
-`Llm.spedito_accanto_a()` (unica casa), ed è provata per tutte e tre le
-piattaforme in `tests/cases/test_llm_spedito.gd` — da un Mac quella riga non si
-può verificare in nessun altro modo. **Mai dentro il `.pck`**: llama.cpp apre un
-percorso su disco, e una risorsa impacchettata non ne ha uno.
+### I tre cancelli che impediscono di pubblicare una release muta
 
-Il modello ha anche una **impronta SHA-256** in `Llm.IMPRONTA_SPEDITO`: se si
-cambia il `.gguf` spedito e non si rifà quella costante, la funzione si spegne
-per tutti in silenzio (il gioco resta intero, con le lettere scritte a mano).
-Si ricalcola con `shasum -a 256 pensieri.gguf`.
+La Fase 5 ha una modalità di guasto che **nessuno può vedere giocando**: senza,
+il gioco è un gioco INTERO — le lettere scritte a mano ci sono e restano, la
+casella semplicemente non compare. Nessun collaudo e nessuna segnalazione
+potranno mai dire che è rotto, quindi il silenzio si rompe solo in CI:
+
+1. **preflight** — *«Il modello si scarica ancora senza credenziali?»*: una
+   richiesta `HEAD` a Hugging Face (nessun byte scaricato) confronta
+   `x-linked-etag` e `x-linked-size` con `Llm.IMPRONTA_SPEDITO` e
+   `Llm.BYTE_MODELLO`. Si chiede **senza token, apposta**: chi gioca un token
+   non ce l'ha, e una CI che passasse *grazie* a un token direbbe di sì proprio
+   nel caso in cui tutti sono rotti. Rosso su 401/403/404 (sono per sempre),
+   avviso su rete e 5xx (la Release esce lo stesso: il modello non ci viaggia
+   dentro).
+2. **nei due job che compilano** — *«Il cuore compilato conosce LlmLocale?»*:
+   guarda il **binario**, non il comando, cioè fa all'artefatto la stessa
+   domanda che il gioco fa a `ClassDB`.
+3. **prima di pubblicare** — *«Il gioco che pubblichiamo sa pensare?»*: apre i
+   **pacchetti veri** e ripete la domanda alla libreria che riceve chi gioca,
+   perché fra il binario compilato e il pacchetto ci sono l'export di Godot, la
+   firma e (su macOS) un giro di `unzip`/`ditto`.
+
+Il gioco cerca i pesi in tre posti, in ordine — `CHIBI_MODELLO`,
+`user://modelli/pensieri.gguf` (dove finisce anche il download), e accanto
+all'eseguibile — e la mappa eseguibile → modello vive in
+`Llm.spedito_accanto_a()` (unica casa, provata per tutte e tre le piattaforme in
+`tests/cases/test_llm_spedito.gd`: da un Mac quella riga non si può verificare in
+nessun altro modo). **Mai dentro il `.pck`**: llama.cpp apre un percorso su
+disco, e una risorsa impacchettata non ne ha uno.
 
 ---
 
