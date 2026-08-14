@@ -94,9 +94,9 @@ class Corpo extends "res://scenes/npc/Visitor.gd":
 		species = "chibi"
 		mode = "resident"
 
-	func guarda_gesto(pos: Vector3, dur: float, gesto := -1, finestra := 0.0) -> void:
+	func guarda_gesto(pos: Vector3, dur: float, gesto := -1, finestra := 0.0) -> bool:
 		guardato.append([pos, dur])
-		super(pos, dur, gesto, finestra)
+		return super(pos, dur, gesto, finestra)
 
 
 ## LE TRE VALVOLE DELLA PERCEZIONE, accese sui campi VERI del `Visitor`.

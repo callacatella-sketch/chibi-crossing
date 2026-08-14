@@ -90,7 +90,22 @@ func misura(delta: float, posizione: Vector3, yaw: float) -> void:
 		v = 0.0
 	blend = lerpf(blend, 1.0 if v > VELOCITA_FERMO else 0.0, 1.0 - exp(-8.0 * delta))
 	if v > VELOCITA_FERMO:
-		fase += v * delta * RAD_PER_METRO * (1.0 + 0.42 * riparo)
+		# IL VERSO. `v` è il MODULO dello spostamento, quindi la fase avanzava
+		# anche per un corpo che va INDIETRO: le zampe facevano il passo in
+		# avanti mentre il corpo indietreggiava. **Non è un rischio futuro: è
+		# in partita adesso** — `tk_startle` tweena il corpo verso
+		# `position + basis.z * 0.7` (e `basis.z` è *dietro*) per 0,7 m in
+		# 0,35 s: i primi decimi stanno sopra `VELOCITA_ASSURDA` e la fase si
+		# congela, poi tutta la decelerazione è moonwalk. `_alzati` ha la
+		# stessa forma.
+		#
+		# Per chi cammina avanti il prodotto scalare è sempre positivo: **non
+		# cambia un bit**. Ed è la fondazione di qualunque gesto all'indietro
+		# che qualcuno vorrà mai.
+		var muso := Vector2(-sin(yaw), -cos(yaw))
+		var avanti := signf(Vector2(d.x, d.z).dot(muso))
+		fase += v * delta * RAD_PER_METRO * (1.0 + 0.42 * riparo) \
+				* (1.0 if avanti == 0.0 else avanti)
 	var rate := wrapf(yaw - _prev_yaw, -PI, PI) / maxf(delta, 0.0001)
 	_prev_yaw = yaw
 	banco = lerpf(banco, clampf(-rate * 0.16, -0.13, 0.13) * blend,

@@ -59,12 +59,13 @@ class Testimone extends "res://scenes/npc/Visitor.gd":
 	## `_tst_t` a dire se la testa si è alzata davvero, e il conto delle due
 	## cose (chiamate ricevute vs occhiate vere) è proprio quello che serve
 	## a misurare la raffica.
-	func guarda_gesto(pos: Vector3, dur: float, gesto := -1, finestra := 0.0) -> void:
+	func guarda_gesto(pos: Vector3, dur: float, gesto := -1, finestra := 0.0) -> bool:
 		var prima_t := _tst_t
-		super(pos, dur, gesto, finestra)
+		var nuovo := super(pos, dur, gesto, finestra)
 		sguardi.append({"pos": pos, "dur": dur, "gesto": gesto,
-				"alzata": _tst_t > prima_t,
+				"alzata": _tst_t > prima_t, "nuovo": nuovo,
 				"prima": (banco.conta() if banco != null else -1)})
+		return nuovo
 
 
 ## Il registro dei vicini, VERO, con solo il `_ready` scavalcato: quello di

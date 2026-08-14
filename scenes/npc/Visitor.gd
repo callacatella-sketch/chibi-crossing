@@ -18,6 +18,7 @@ const ANDATURA := preload("res://scenes/npc/Andatura.gd")
 const DNA_GEN := preload("res://scenes/npc/ChibiDNA.gd")
 const CHIBIESE := preload("res://audio/Chibiese.gd")
 const FACE := preload("res://scenes/characters/FaceController.gd")
+const GESTI := preload("res://scenes/npc/Gesti.gd")
 
 # gli stati in cui lo sguardo si posa su ciò che il villager esamina (_target).
 # Dizionario-come-insieme, const: nessuna allocazione per-frame nel _process.
@@ -107,6 +108,83 @@ var _rc_trans := ""
 var _rc_trans_t := 0.0
 var _rc_cur := {}    # canale -> valore corrente (fuso coi muscoli)
 var _rc_appl := {}   # ciò che è stato sommato al rig l'ultimo frame
+
+# ------------------------------------------ IL VOCABOLARIO DEL CORPO CHE PENSA
+# Le buste stanno in `Gesti.gd` (pure, senza Godot); qui c'è il corpo che le
+# indossa, e soprattutto LA RETE. Ogni canale che il vocabolario tocca torna a
+# riposo per OGNI stato, non solo per quello che l'ha acceso: se `r` restasse
+# incastrato a 0,35 dopo un cambio di stato, il vicino camminerebbe a un terzo
+# per il resto della partita — e nessun test guarda la velocità.
+var _gs_nome := ""          # il gesto in corso ("" = nessuno)
+var _gs_t := 0.0            # da quanto dura
+var _gs_dur := 0.0
+var _gs_dati := {}
+var _gs_fase := 0.0         # la fase personale, dal genoma (mai un dado)
+var _gs_cur := {}           # i canali del gesto, questo frame
+var _gs_r := 1.0            # il moltiplicatore del ritmo, questo frame
+var _gs_debito := 0.0       # quanti metri di strada ha già rubato
+var _gs_spegni := 0.0       # 1 → 0 mentre un gesto troncato rientra
+var _gs_ultimo := {}        # l'ultima posa scritta, che la rampa fa sfumare
+# la scala del corpo: si scrive in ASSOLUTO su `_corpo` (mai su `_vis`, che ha
+# cinque tween addosso), quindi il riposo va ricordato e restituito a mano
+var _gs_scala_nodo: Node3D = null
+var _gs_scala_riposo := Vector3.ONE
+# il Punto su un ANZIANO non frena: aspetta il suo fiato (vedi Gesti)
+var _gs_attesa := 0.0
+var _gs_attesa_nome := ""
+var _gs_attesa_dati := {}
+# --- i due LIVELLI, che non prendono il gettone del villaggio ---
+## «CI STO PENSANDO»: il rollio del capo. Questo bit è **DERIVATO** dai due
+## qui sotto (`_gs_capo_liv or _gs_capo_frase`) e non si scrive mai a mano:
+## è la stessa forma di `Affetti.coppia()` e della fusione delle serre —
+## niente da tenere sincronizzato, niente che possa restare appeso a metà.
+##
+## ⚠️ **IL ROLLIO HA DUE PADRONI, e confonderli è costato tre difetti muti.**
+## Lo accende il VILLAGGIO (`Visitors._tick_capo`, su chi ha finito la forza
+## di trattenersi: dura minuti) e lo accende una FRASE (`frase("pensiero")`,
+## e dura quanto il gesto). Con un bit solo, la frase che finiva spegneva
+## anche il livello del villaggio — e il registro continuava a credere che
+## quel vicino ce l'avesse, tenendogli occupato un posto per sempre.
+var _gs_capo := false
+var _gs_capo_liv := false   # …acceso dal VILLAGGIO (il livello)
+var _gs_capo_frase := false # …acceso da una FRASE (e il gesto lo possiede)
+## Sopra questo scarto la testa è inclinata **per chi guarda**, e non conta
+## più di chi sia il bit. Il rollio pieno vive fra 0,08 e 0,11 rad (4,6°–6,3°,
+## `Gesti.CAPO_AMP_*`): due centesimi di radiante sono 1,1°, cioè il primo
+## gradino sopra il quale una testa non è più dritta.
+##
+## ⚠️ **SERVE PERCHÉ LA MOLLA RIENTRA DA SÉ**, e ci mette qualche decimo di
+## secondo. Un tetto che contasse i soli bit accesi concederebbe la terza
+## testa mentre la prima sta ancora tornando su: MISURATO nel MainLevel vero
+## (`tools/misura_capi.gd`, dodici residenti, tre minuti) **8,3 secondi con
+## tre teste inclinate insieme, e la terza a 4,7° di media** — cioè il rollio
+## quasi pieno, non la coda di niente. È la stessa divergenza fra registro e
+## mondo di un piano più su, un piano più in basso: i BIT non sono il RIG.
+const CAPO_STORTO := 0.02
+
+var _gs_capo_x := 0.0       # lo stato della molla
+var _gs_capo_v := 0.0
+var _gs_capo_b := 0.0       # il bersaglio del trasferimento in corso
+var _gs_capo_next := 0.0    # quando scatta il prossimo
+var _gs_capo_verso := 1.0
+var _gs_soma := 0.0         # «sono ancora guardingo»: la forza del sussulto
+var _gs_soma_t := 0.0
+## LA RAMPA DEI LIVELLI: quanta parte dei due livelli è ancora del corpo.
+## Parte da UNO — un corpo che nasce non sta uscendo da nessuna scena — e va
+## a zero quando il mondo gli toglie il corpo di mano.
+var _gs_liv := 1.0
+## LE MANOPOLE DEL PROVINO — vuoto è il gioco, e nel gioco non le scrive
+## nessuno (un caso di `test_gesti` scandaglia `scenes/` perché resti così).
+## Servono perché la coda e la rampa sono LIVELLI: non passano da
+## `frase(nome, extra)` come gli eventi, quindi non c'è nessun dizionario in
+## cui infilare le varianti — e **un banco che non può spegnere la cura non
+## può mostrare cosa cura**.
+##
+## È UN dizionario e non quattro campi apposta: così la via di lettura nel
+## gioco è `is_empty()`, cioè niente, e le chiavi sono le stesse che gli
+## eventi ricevono in `d` (`mezza`, `quota`, `quota_ax`, `scatto`) più
+## `rampa`.
+var debug_gesti := {}
 
 # LA PIOGGIA ADDOSSO: lo alza Visitors per chi è fuori senza un tetto.
 # Non è una postura (quelle le detta l'animo): è un livello che si SOMMA
@@ -859,6 +937,9 @@ func _walk_to(pos: Vector3, next: String) -> void:
 	position.y = 0.0  # rinormalizza: chi arriva da panchina/onsen/scala torna a terra
 	var meta := Vector3(pos.x, 0, pos.z)
 	_next_state = next
+	# UN PUNTO PER VIAGGIO. Due fermate nello stesso tragitto non sono due
+	# pensieri: sono un vicino che non sa camminare.
+	_gs_viaggio = false
 	# la strada, se il villaggio dice che la retta non basta
 	_tappe = _deviazione(meta)
 	_target = meta if _tappe.is_empty() else _prossima_tappa()
@@ -1043,6 +1124,17 @@ func _enter_state(s: String) -> void:
 	# `_corpo_muovi`): si spegne PRIMA del `match`, così lo stato nuovo è
 	# libero di accenderne uno suo.
 	_corpo_ferma()
+	# …E COL TWEEN MUORE ANCHE IL GESTO. Un gesto è la risposta del corpo a
+	# un momento preciso; se il mondo manda quel corpo a fare un'altra cosa,
+	# il momento è passato. Sta QUI e non dentro un `match` per la stessa
+	# ragione della coda delle tappe: un'attività si interrompe da undici
+	# parti diverse, e nessuna passa da un posto solo.
+	#
+	# ⚠️ Senza questa riga il Punto continuava a tenere il ritmo a ZERO dopo
+	# che lo stato era cambiato — misurato: `_gs_r` a 0.00 in `r_idle` e in
+	# `r_pasto` — e il corpo si sarebbe ritrovato incollato al terreno al
+	# viaggio dopo, invisibile perché nessun test guarda la velocità.
+	gesto_spegni()
 	# e il sedile si lascia: se lo stato nuovo è una seduta, se lo riprende
 	# lui due righe più sotto (`_siediti`)
 	_su_un_sedile = false
@@ -1320,6 +1412,10 @@ func _process(delta: float) -> void:
 		_rotta_attesa = false
 	# il metro del passo: velocita' vera, blend, curva (per ogni stato)
 	_gait_misura(delta)
+	# …e IL VOCABOLARIO DEL CORPO, sempre prima del `match`: `_move_gait` —
+	# che il ritmo moltiplica — viene chiamato da `_cammina` là dentro. Gira
+	# per OGNI stato, che è tutta la sua rete.
+	_gesto_passo(delta)
 	_emote_cd -= delta
 	_speak_cd -= delta
 	_scena_t = maxf(0.0, _scena_t - delta)
@@ -1882,17 +1978,23 @@ func _cappello_togli() -> void:
 
 
 # passo del corpo: il passerotto avanza a scatti (solo mentre è in aria)
+#
+# ⚠️ **È L'UNICO CONSUMATORE DEL RITMO** (`_gs_r`), ed è per questo che «il
+# corpo che si ferma» costa zero canali del rig: niente in `_rc_appl`, niente
+# da togliere, niente che possa restare fuori posa. In un rig dove `_vis.scale`
+# ha cinque padroni, questa non è eleganza — è la differenza fra «si
+# costruisce» e «si costruisce dopo un censimento».
 func _move_gait(delta: float) -> float:
 	if species == "passerotto":
 		var hop := fposmod(_t * 2.4, 1.0)
 		return delta * (1.7 if hop < 0.55 else 0.15)
 	# l'età si sente nel fiato: ogni tanto l'anziano si ferma un attimo
-	# a metà strada, e poi riparte piano
-	if _eta > 0.55:
-		var ciclo := fposmod(_t, 7.5)
-		if ciclo < 1.3:
-			return delta * 0.12
-	return delta
+	# a metà strada, e poi riparte piano. È il fermo che questo corpo aveva
+	# già, e il Punto NON gliene aggiunge un secondo: ci si accomoda sopra
+	# (vedi `_in_fiato`, che è la fonte unica di questa finestra).
+	if _in_fiato():
+		return delta * 0.12 * _gs_r
+	return delta * _gs_r
 
 
 # ---------------------------------------------------------------- anims
@@ -2626,6 +2728,14 @@ func _clear_can() -> void:
 ## Monta (o rimonta) il corpo dal genoma corrente. Chi lo richiama deve
 ## aver già smontato il vecchio: ci pensa `rifai_il_look`.
 func _monta_corpo() -> void:
+	# IL CORPO CAMBIA IDENTITÀ, e con lui tutti i nodi del rig. Quello che il
+	# frame scorso è stato sommato alle vecchie orecchie non si può togliere
+	# dalle nuove: si dimentica. (Lo stesso vale per il gesto, che tiene in
+	# prestito la scala di un `_corpo` che sta per non esistere più.)
+	gesto_spegni(true)
+	_rc_appl = {}
+	_tst_appl = 0.0
+	_capp_appl = 0.0
 	var parts: Dictionary = BUILDER.build(dna)
 	_corpo = parts["root"]
 	# la taglia del genoma è già dentro root.scale (ChibiBuilder): la si
@@ -2957,6 +3067,11 @@ func set_cucciolo(c: float) -> void:
 	c = clampf(c, 0.0, 1.0)
 	if species != "chibi" or _corpo == null or absf(c - _cresc) < 0.004:
 		return
+	# LA CRESCITA VINCE SUL GESTO, e non ci si prova nemmeno a comporre: qui
+	# si scrive `_corpo.scale` in assoluto, cioè il canale che il Raccolto
+	# tiene in prestito. Si spegne PRIMA (che restituisce la scala di riposo)
+	# e poi si riscrive: nessun ordine da ricordare, nessuna base che invecchia.
+	gesto_spegni(true)
 	_cresc = c
 	# i primi giorni restano piccolissimi più a lungo, poi la crescita
 	# accelera: è la forma vera di una crescita, non una retta
@@ -3269,7 +3384,16 @@ func dorme() -> bool:
 ##
 ## Il ritmo è di CIASCUNO (`_taratura_sguardo`): due vicini che guardano lo
 ## stesso cantiere non si rialzano all'unisono.
-func guarda_gesto(pos: Vector3, dur: float, gesto := -1, finestra := 0.0) -> void:
+##
+## ⚠️ **TORNA SE IL RICORDO ERA NUOVO**, e non è un ritorno di comodo: è la
+## FONTE UNICA di quella distinzione. Il corpo che si ferma (`Regia`,
+## l'occasione «ha visto») deve seguire la stessa grammatica della testa —
+## una volta per RICORDO, non una per gesto — e ricalcolarla dal chiamante
+## vorrebbe dire due letture della finestra di fusione del C++, cioè due
+## numeri che un giorno divergono in silenzio. Chi la chiama senza saperne
+## niente (`gesto < 0`: i banchi, i provini) riceve `true`, che è come si è
+## sempre comportato questo canale.
+func guarda_gesto(pos: Vector3, dur: float, gesto := -1, finestra := 0.0) -> bool:
 	_taratura_sguardo()
 	# IL BERSAGLIO È SEMPRE L'ULTIMO GESTO: si guarda l'ultima cosa che è
 	# successa, che è come funzionano gli occhi.
@@ -3289,6 +3413,7 @@ func guarda_gesto(pos: Vector3, dur: float, gesto := -1, finestra := 0.0) -> voi
 		_tst_t = maxf(_tst_t, dur if nuova else dur * RAFFICA_RIPRESA)
 		occhiata = _t
 	_tst_raffiche[gesto] = [_t, occhiata]
+	return nuova
 
 
 ## Apre una scena lunga «dur»: per quel tempo il vicino non saluta, non
@@ -3300,6 +3425,24 @@ func guarda_gesto(pos: Vector3, dur: float, gesto := -1, finestra := 0.0) -> voi
 func apri_scena(dur: float) -> void:
 	_scena_t = maxf(_scena_t, dur)
 	_greet_cd = maxf(_greet_cd, dur)
+	# …E IL VOCABOLARIO TACE, SUBITO. Un vicino che si ferma a pensare in
+	# mezzo al coro del carillon, o che si tira indietro di tre centimetri
+	# durante il raduno del congedo, rovina la cosa più preziosa che questo
+	# gioco abbia: le poche scene scritte a mano perché una volta ogni tanto
+	# succeda qualcosa di preciso. E le scene si aprono proprio così — su un
+	# villaggio che stava già vivendo, e magari gesticolando.
+	#
+	# ⚠️ **ONESTAMENTE: a proteggere le scene è `in_scena()` dentro
+	# `sospeso`** (`_gesto_passo`), che spegne il gesto E i due livelli al
+	# primo fotogramma e per tutta la durata. Questa riga fa una cosa più
+	# piccola, e comunque vera: lo fa **nello stesso istante**, prima che
+	# chiunque legga `gesto_in_corso()` — a cominciare da chi apre la scena,
+	# che subito dopo posa il corpo dove gli serve.
+	#
+	# Con la RAMPA e non di netto (`Gesti.SPEGNI`): il corpo rientra in tre
+	# decimi di secondo, e chi guarda vede uno che si ricompone — non un
+	# salto del rig nell'istante in cui la scena comincia.
+	gesto_spegni()
 
 
 ## LA SCENA È FINITA. La chiama chi l'aveva aperta, quando si scioglie prima
@@ -3547,13 +3690,22 @@ func _recita_togli() -> void:
 		_c_arms[0].rotation.z -= _rc_appl["az0"]
 		_c_arms[1].rotation.x -= _rc_appl["ax1"]
 		_c_arms[1].rotation.z -= _rc_appl["az1"]
-	for ear in _c_ears:
+	for i in _c_ears.size():
+		var ear: Node3D = _c_ears[i]
 		ear.rotation.x -= _rc_appl["ear"]
+		# l'orecchio destro porta anche l'ASIMMETRIA: due orecchie che si
+		# muovono al millesimo insieme sono due orecchie sullo stesso filo
+		if i == 1:
+			ear.rotation.x -= _rc_appl.get("ear_dx", 0.0)
 	if _head:
 		_head.rotation.x -= _rc_appl["hx"]
 		_head.rotation.y -= _rc_appl["hy"]
+		_head.rotation.z -= _rc_appl.get("hz", 0.0)
+		_head.position.y -= _rc_appl.get("hpy", 0.0)
 	if _vis:
 		_vis.rotation.x -= _rc_appl["vx"]
+		_vis.rotation.z -= _rc_appl.get("vrz", 0.0)
+		_vis.position.x -= _rc_appl.get("px", 0.0)
 		_vis.position.y -= _rc_appl["vy"]
 		_vis.position.z -= _rc_appl.get("vz", 0.0)
 	if _tail_p:
@@ -3650,23 +3802,738 @@ func _recita_applica(delta: float) -> void:
 	_mostra_fagotto(bool((RECITA.get(stab, {}) as Dictionary) \
 			.get("fagotto", false)))
 
+	# LA SOMMA DELLE DUE SORGENTI, e UNA SOLA RETE.
+	#
+	# La postura si fonde coi muscoli (il filtro qui sopra); il gesto ha la
+	# sua busta e **non vuole un secondo filtro** — dentro un passa-basso a
+	# 6,0 il Rialzo, che vive di 46 cm/s nel primo decimo, arriverebbe a
+	# cinque millimetri. Perciò le due sorgenti restano separate mentre si
+	# calcolano e si sommano SOLO qui, un attimo prima di toccare il rig.
+	#
+	# `_rc_cur` non va inquinato: è lo stato del filtro, e sommarci il gesto
+	# vorrebbe dire che al frame dopo la postura riparte da dove l'aveva
+	# lasciata il gesto — una deriva lentissima e invisibile.
+	var fin := _rc_cur.duplicate()
+	for c in _gs_cur:
+		if c == "r" or c == "sy":
+			continue   # il ritmo non è un canale del rig; la scala è assoluta
+		fin[c] = float(fin.get(c, 0.0)) + float(_gs_cur[c])
+	# IL ROLLIO DELL'ESPRESSIONE. `FaceController` calcola da anni un
+	# suggerimento di inclinazione del capo per ogni espressione, e finora lo
+	# leggeva **solo Mochi**: i vicini avevano la faccia giusta sul collo
+	# sbagliato. Entra da qui e non con un `+=` sparso, così se lo porta via
+	# la stessa rete di tutto il resto.
+	if _face and _state != "tk_nap":
+		fin["hz"] = float(fin.get("hz", 0.0)) + _face.head_tilt()
+
 	if _c_arms.size() == 2:
-		_c_arms[0].rotation.x += _rc_cur["ax0"]
-		_c_arms[0].rotation.z += _rc_cur["az0"]
-		_c_arms[1].rotation.x += _rc_cur["ax1"]
-		_c_arms[1].rotation.z += _rc_cur["az1"]
-	for ear in _c_ears:
-		ear.rotation.x += _rc_cur["ear"]
+		_c_arms[0].rotation.x += fin["ax0"]
+		_c_arms[0].rotation.z += fin["az0"]
+		_c_arms[1].rotation.x += fin["ax1"]
+		_c_arms[1].rotation.z += fin["az1"]
+	for i in _c_ears.size():
+		var ear: Node3D = _c_ears[i]
+		ear.rotation.x += fin["ear"]
+		if i == 1:
+			ear.rotation.x += float(fin.get("ear_dx", 0.0))
 	if _head:
-		_head.rotation.x += _rc_cur["hx"]
-		_head.rotation.y += _rc_cur["hy"]
-	_vis.rotation.x += _rc_cur["vx"]
-	_vis.position.y += _rc_cur["vy"]
+		_head.rotation.x += fin["hx"]
+		_head.rotation.y += fin["hy"]
+		_head.rotation.z += float(fin.get("hz", 0.0))
+		_head.position.y += float(fin.get("hpy", 0.0))
+	_vis.rotation.x += fin["vx"]
+	_vis.rotation.z += float(fin.get("vrz", 0.0))
+	_vis.position.x += float(fin.get("px", 0.0))
+	_vis.position.y += fin["vy"]
 	# il mezzo passo indietro: uno spostamento VERO, non un'inclinazione
-	_vis.position.z += _rc_cur["vz"]
+	_vis.position.z += fin["vz"]
 	if _tail_p:
-		_tail_p.rotation.x += _rc_cur["tail"]
-	_rc_appl = _rc_cur.duplicate()
+		_tail_p.rotation.x += fin["tail"]
+	_rc_appl = fin
+	# la scala del corpo è l'unico canale che si scrive in ASSOLUTO (vedi
+	# `_gesto_scala`): non passa dal togli/somma, ha la sua restituzione
+	_gesto_scala(float(_gs_cur.get("sy", 1.0)))
+
+
+# =========================================================================
+# IL VOCABOLARIO DEL CORPO CHE PENSA — il motore
+# =========================================================================
+#
+# Le buste stanno in `Gesti.gd`. Qui c'è il corpo, e qui c'è la RETE.
+#
+# **Ordine nel frame, e non è un dettaglio.** `_gesto_passo` gira PRIMA del
+# `match` — perché `_move_gait`, che moltiplica il ritmo, viene chiamato da
+# `_cammina` dentro il `match` — e i canali si applicano DOPO, in coda a
+# `_recita_applica`, insieme alla postura. Un solo togli, una sola somma, un
+# solo `_rc_appl`: due reti sullo stesso rig sono due reti che possono
+# divergere.
+#
+# **Nessun canale del gesto insegue la ricevuta**, e questa è una regola:
+# un inseguitore (`torso ← 0,62·_tst_off`) messo prima del `look_at` che
+# legge la torsione già tolta non ha nessuna retroazione negativa, e la
+# testa atterra fino a 24° oltre il bersaglio in regime — cioè il guasto da
+# 28,2° della Fase 5 reintrodotto. L'unico canale che guarda `_tst_t` è
+# `hy` del Largo, e lo guarda per CEDERE, non per inseguire.
+
+## IL FIATO DELL'ANZIANO, in un posto solo. `_move_gait` ferma già chi ha
+## vissuto per 1,3 s ogni 7,5: è il fermo che questo corpo aveva PRIMA che il
+## vocabolario esistesse, e batte il gettone di villaggio di venti volte.
+## Il Punto non gliene aggiunge un secondo — gli si accomoda sopra.
+const FIATO_ETA := 0.55
+const FIATO_PERIODO := 7.5
+const FIATO_DUR := 1.3
+
+## Per quanto un gesto rimasto in attesa del fiato continua ad aspettare.
+## Poco più di un periodo: se il fiato non arriva entro il giro, il momento è
+## passato e **si tace** — il silenzio è il comportamento normale.
+const GESTO_ATTESA_MAX := 8.0
+
+## Sotto questo blend non c'è un passo da spezzare: chiedere un Punto a un
+## corpo già fermo produce zero pixel, e il sistema crederebbe di aver pagato
+## una premessa che il giocatore non ha mai potuto vedere.
+const GESTO_BLEND_MIN := 0.6
+## E servono almeno TRE metri di strada davanti. Due ragioni, e la seconda è
+## quella che ha alzato il numero: un fermo a mezzo metro dall'arrivo si legge
+## come «è arrivato», non come «gli è venuto in mente»; e siccome adesso un
+## cambio di stato SPEGNE il gesto (`_enter_state`), arrivare a destinazione
+## prima della fine lo troncherebbe — un Punto costa 3,4 s, di cui due fermo,
+## e in due metri non ci si sta.
+const GESTO_STRADA_MIN := 3.0
+
+
+func _in_fiato() -> bool:
+	return _eta > FIATO_ETA and fposmod(_t, FIATO_PERIODO) < FIATO_DUR
+
+
+## Il corpo può prendersi un gesto adesso? Non è una domanda di villaggio (il
+## gettone e il riposo li tiene `Visitors`): è la domanda del CORPO.
+##
+## ⚠️ **L'UNICA ECCEZIONE AL RIFLESSO, e senza di lei il sollievo non sarebbe
+## MAI partito.** `trasalisce` dura 1,3 s e la strada lenta del Limbico
+## arriva dopo 0,4 (`Visitors.ATTESA_RICONOSCIMENTO`): il riconoscimento
+## cade sempre e comunque **dentro** il transitorio del sussulto, quindi la
+## valvola che tiene il vocabolario fuori dai riflessi avrebbe zittito per
+## sempre l'unico gesto che di quel riflesso è la seconda metà — in silenzio,
+## e con qualunque suite verde.
+##
+## Il permesso non si dà da fuori: se lo prende chi ha DAVVERO sussultato.
+## `scioglie_il_riflesso` arriva solo dal gesto che dichiara il buio, e quel
+## gesto si rifiuta comunque se `_sussulto_fresco()` è falso.
+func gesto_libero(scioglie_il_riflesso := false) -> bool:
+	if dna.is_empty() or _vis == null or _corpo == null:
+		return false
+	if _gs_nome != "" or _gs_spegni > 0.0 or _gs_attesa > 0.0:
+		return false
+	# il riflesso del Limbico sta SOPRA il vocabolario: chi sta trasalendo
+	# non si mette a pensare. (E chi dorme, chi è dentro casa, chi è a un
+	# appuntamento: le stesse tre valvole della ricevuta.)
+	if _rc_trans != "" and not (scioglie_il_riflesso and _rc_trans == "trasalisce"):
+		return false
+	if _hidden or dorme() or in_scena():
+		return false
+	return true
+
+
+## Il gesto in corso, "" se nessuno. Lo legge `Visitors` per sapere quando il
+## gettone del villaggio torna libero.
+func gesto_in_corso() -> String:
+	if _gs_nome != "":
+		return _gs_nome
+	return _gs_attesa_nome
+
+
+## CHIEDE UN GESTO. Torna false — e non fa niente — se il corpo non è nelle
+## condizioni di dirlo: **un gesto rifiutato è silenzio, mai un gesto a
+## metà**. È la regola 5 della Fase 3 («mai un piano a metà») portata al
+## corpo, e per la stessa ragione: portare il corpo a metà di una frase e
+## piantarcelo è il guasto che si vede.
+##
+## `dati` è la variazione: `tenuta`, `decisa`, `lato`, `via`, `posto`.
+## Quello che non arriva se lo prende dal GENOMA — mai da un dado: due
+## ricaricamenti e il giocatore scoprirebbe che il carattere era una monetina.
+func gesto(nome: String, dati := {}) -> bool:
+	if not gesto_libero(bool(dati.get("buio", false))) or not GESTI.e_evento(nome):
+		return false
+	var d: Dictionary = dati.duplicate()
+	_gesto_taratura()
+	match nome:
+		"punto":
+			# IL PUNTO VUOLE UN PASSO DA SPEZZARE. È un contrasto di MOTO:
+			# senza il moto non c'è il contrasto, e il gesto costa quanto
+			# costa senza dire niente.
+			if _state != "walk" or _andatura == null \
+					or float(_andatura.blend) < GESTO_BLEND_MIN:
+				return false
+			if global_position.distance_to(meta_cammino()) < GESTO_STRADA_MIN:
+				return false
+			if _gs_viaggio:
+				return false      # una sola per viaggio
+			if not d.has("tenuta"):
+				d["tenuta"] = GESTI.PUNTO_TENUTA * (1.0 + _gs_scarto)
+			# l'anziano non frena: aspetta il suo fiato e ci veste sopra
+			if _eta > FIATO_ETA:
+				d["frena"] = false
+				if not _in_fiato():
+					_gs_attesa = GESTO_ATTESA_MAX
+					_gs_attesa_nome = nome
+					_gs_attesa_dati = d
+					return true
+			_gs_viaggio = true
+		"largo":
+			if _state != "walk":
+				return false
+			# DA CHE PARTE SI GIRA AL LARGO lo sa solo il corpo, perché è una
+			# domanda nel SUO frame: se il posto è alla sua destra, ci si
+			# scosta a sinistra. Calcolarlo da fuori vorrebbe dire ricopiare
+			# qui la convenzione del rig (che guarda −Z), ed è il segno che
+			# ha tenuto il fantasma del congedo di spalle a Mochi per mesi.
+			if not d.has("via") and d.has("posto"):
+				var v: Vector3 = d["posto"] - global_position
+				v.y = 0.0
+				# la DESTRA del corpo, scritta per esteso: una rotazione di
+				# `_yaw` attorno a Y manda l'asse X in (cos, 0, −sin). Non si
+				# usa `global_transform.basis` perché l'ordine fra il
+				# `_process` di Visitors e questo non è garantito, e la base
+				# potrebbe essere ancora quella del frame prima.
+				var destra := Vector2(cos(_yaw), -sin(_yaw))
+				# se il posto è a destra ci si scosta a sinistra, e viceversa
+				d["via"] = -1.0 if destra.dot(Vector2(v.x, v.z)) >= 0.0 else 1.0
+		"rialzo":
+			# ⚠️ **IL BUIO È UNA PRECONDIZIONE, non un commento.** Il Rialzo
+			# non si recita da solo: una scintilla senza il buio prima è una
+			# lampadina accesa a mezzogiorno. L'unica frase che lo chiede da
+			# fuori è il SOLLIEVO, e lì il buio c'è davvero — è il sussulto
+			# passato quattro decimi di secondo prima, che ha irrigidito
+			# questo stesso corpo e la cui coda somatica è ancora accesa.
+			# Chi chiede il Rialzo senza aver sussultato **non lo ottiene**,
+			# e non c'è nessun modo di scriverlo storto: la valvola legge il
+			# corpo, non un parametro di chi chiama.
+			if bool(d.get("buio", false)) and not _sussulto_fresco():
+				return false
+			if not d.has("lato"):
+				d["lato"] = 1.0 if _gs_scarto >= 0.0 else -1.0
+	_gesto_accendi(nome, d)
+	return true
+
+
+## IL SUSSULTO È APPENA SUCCESSO — e «appena» vuol dire che il corpo ce l'ha
+## ancora addosso. Due condizioni, e servono tutte e due:
+##  · la coda somatica è VIVA (le spalle sono ancora un filo più chiuse);
+##  · ed è GIOVANE. La coda vive fino a otto secondi; il sollievo è la
+##    seconda metà di un sussulto (0,4 s dopo, `ATTESA_RICONOSCIMENTO`), non
+##    il ricordo di uno spavento di sei secondi fa. Un secondo e mezzo è
+##    largo tre volte e mezzo la strada lenta, e chiuso.
+const SOLLIEVO_FINESTRA := 1.5
+
+
+func _sussulto_fresco() -> bool:
+	return _gs_soma > 0.0 and _gs_soma_t <= SOLLIEVO_FINESTRA \
+			and GESTI.coda_ampiezza(_gs_soma, _gs_soma_t) > 0.0
+
+
+## UNA FRASE del vocabolario (`Gesti.FRASI`). È l'API che usa il villaggio:
+## `gesto()` è il gesto singolo e serve ai banchi, `frase()` è quello che il
+## mondo ha da dire. La differenza non è cosmetica — la tabella delle frasi è
+## il posto in cui è scritto che **il Rialzo non si recita da solo**.
+func frase(nome: String, extra := {}) -> bool:
+	if not GESTI.FRASI.has(nome):
+		return false
+	var v: Dictionary = GESTI.FRASI[nome]
+	var d: Dictionary = (v["d"] as Dictionary).duplicate()
+	for k in extra:
+		d[k] = extra[k]
+	var ok := gesto(str(v["g"]), d)
+	# il Capo si accende INSIEME al Punto del pensiero, e si spegne quando il
+	# gesto finisce: è il rollio di chi ci sta pensando davvero, e sta dentro
+	# la tenuta perché è lì che il corpo non fa nient'altro.
+	#
+	# ⚠️ **E SI CHIEDE IL PERMESSO AL VILLAGGIO.** Quante teste inclinate si
+	# vedono insieme è una regola del MONDO (`Visitors.CAPO_MAX`: due), e
+	# questa riga la scavalcava — il registro concedeva i suoi due posti e la
+	# frase ne accendeva un terzo che nessuno contava. MISURATO nel MainLevel
+	# vero con dodici residenti e tre minuti di partita: **tre teste storte
+	# insieme per il 5,4% del tempo** (9,7 s su 180), col registro che ne
+	# dichiarava due e 282 fotogrammi di divergenza.
+	#
+	# ⚠️ **E LA FRASE PRENDE IL SUO BIT ANCHE SE LA TESTA PENDE GIÀ.** La
+	# condizione era `not _gs_capo` — «non accenderlo se è già acceso» — e con
+	# un bit solo era l'unica scritta possibile. Con due, rinunciare
+	# all'appartenenza significa che se il villaggio gli toglie il livello in
+	# mezzo al gesto la testa si raddrizza a metà di un Punto: un accento
+	# troncato, cioè l'adesivo staccato male. Il PERMESSO invece si chiede
+	# solo se comparirebbe una testa NUOVA — che è la stessa esenzione con
+	# cui `Visitors._tick_capo` concede il livello a chi ce l'ha già storto.
+	if ok and bool(d.get("capo", false)) and not _gs_capo_frase \
+			and (_gs_capo or _capo_concesso()):
+		_gs_capo_frase = true
+		_capo_aggiorna()
+	return ok
+
+
+## C'È POSTO per un'altra testa inclinata in tutto il villaggio?
+##
+## Il degrado va verso QUELLO CHE C'ERA: senza registro (un banco, un
+## provino, il diorama del titolo, il Prologo) si passa. La scarsità è del
+## villaggio, e dove non c'è villaggio non c'è folla in cui leggere una posa
+## di gruppo — è la stessa regola con cui `_nell_inquadratura` lascia passare
+## chi non ha una camera.
+func _capo_concesso() -> bool:
+	if not is_inside_tree():
+		return true
+	var reg := get_tree().get_first_node_in_group("visitors")
+	if reg == null or not is_instance_valid(reg) \
+			or not reg.has_method("capo_permesso"):
+		return true
+	return bool(reg.call("capo_permesso"))
+
+
+func _gesto_accendi(nome: String, d: Dictionary) -> void:
+	_gs_nome = nome
+	_gs_dati = d
+	_gs_t = 0.0
+	_gs_dur = GESTI.durata(nome, d)
+	_gs_debito = 0.0
+	if nome == "rialzo" and _face:
+		# l'accento del volto: uno dei due soli canali che compongono SOPRA
+		# `_expr_for_state`, che questo `_process` riscrive ogni frame
+		_face.brow_flash(0.8)
+	if nome == "rialzo" and bool(d.get("buio", false)):
+		# ⚠️ **E IL CORPO MOLLA DAVVERO.** «Il Rialzo la scioglie» era scritto
+		# nella grammatica e non lo faceva nessuno: dopo «ah… sei tu» il
+		# vicino restava guardingo — orecchie giù, passo al 72% — per altri
+		# otto secondi di posa e settantaquattro di rallentando. Il sollievo
+		# è l'unico gesto che DICHIARA di venire dopo un sussulto (e senza
+		# quel sussulto si rifiuta): è l'unico che ha il diritto di mollarlo,
+		# e sta qui perché nessun chiamante possa dimenticarselo.
+		soma_sciogli()
+
+
+## SPEGNE il gesto in corso. Di serie con la rampa (`Gesti.SPEGNI`): un taglio
+## secco è un salto del rig, cioè la firma dell'adesivo staccato male. Con
+## `subito` si taglia davvero — lo usa solo chi sta smontando il corpo.
+func gesto_spegni(subito := false) -> void:
+	_gs_attesa = 0.0
+	_gs_attesa_nome = ""
+	if subito:
+		_gs_nome = ""
+		_gs_spegni = 0.0
+		_gs_ultimo = {}
+		_gs_cur = {}
+		_gs_r = 1.0
+		_gesto_scala(1.0)
+		return
+	if _gs_nome == "":
+		return
+	_gs_nome = ""
+	_gs_ultimo = _gs_cur.duplicate()
+	_gs_spegni = 1.0
+	# ⚠️ **E QUI NON SI SPEGNE NESSUN CAPO.** La riga c'era, e non bastava:
+	# il ramo `subito` esce quattro righe più su e quello del gesto già
+	# finito due — cioè proprio le due strade da cui il corpo viene smontato
+	# (`_monta_corpo`, l'estetista; `set_cucciolo`, ogni gradino di crescita
+	# di un cucciolo). Il rollio restava acceso PER SEMPRE, e siccome il
+	# registro del villaggio non l'aveva mai concesso, non se ne accorgeva
+	# nessuno: MISURATO col Salone vero, trentacinque secondi dopo la seduta
+	# la testa era ancora a 5,9° e continuava a rollare.
+	# Lo spegne la RETE in `_gesto_passo`, che gira per OGNI stato.
+
+
+## «CI STO PENSANDO» — il rollio del capo. È un LIVELLO: non ferma nessuno e
+## non trasla nessuno, quindi non prende il gettone del villaggio e non
+## compete con niente. Si accende su uno stato che DURA, mai su un evento.
+##
+## Questa è la porta del VILLAGGIO (`Visitors._tick_capo`): scrive il suo
+## bit e basta. Se in quel momento il rollio è acceso da una frase, spegnerlo
+## di qui non raddrizza niente — ed è giusto così, perché quella testa non è
+## sua.
+func capo_pende(on: bool) -> void:
+	if _gs_capo_liv == on:
+		return
+	_gs_capo_liv = on
+	_capo_aggiorna()
+
+
+## LA TESTA È INCLINATA ADESSO? È la domanda che fa il villaggio per contare
+## le teste vere invece di fidarsi di un registro parallelo — e si risponde
+## guardando il RIG, non i bit: una testa a cui il livello è appena stato
+## tolto è ancora storta finché la molla non è rientrata.
+func capo_storto() -> bool:
+	return _gs_capo or absf(_gs_capo_x) >= CAPO_STORTO
+
+
+## …E CE L'HA MESSA IL VILLAGGIO? Sono due domande diverse: il registro
+## governa il proprio livello e non deve poter spegnere il rollio di una
+## frase (che dura pochi secondi e finisce da sé).
+func capo_livello() -> bool:
+	return _gs_capo_liv
+
+
+## Il bit DERIVATO, e l'unico posto che lo scrive. Il fronte di salita tara
+## il genoma e fa scattare subito il primo trasferimento; quello di discesa
+## azzera il bersaglio, e la molla rientra da sé (è la sua rete).
+func _capo_aggiorna() -> void:
+	var on := _gs_capo_liv or _gs_capo_frase
+	if on == _gs_capo:
+		return
+	_gs_capo = on
+	if on:
+		_gesto_taratura()
+		_gs_capo_next = 0.35     # il primo trasferimento arriva subito
+	else:
+		_gs_capo_b = 0.0         # la molla rientra da sé: è la sua rete
+
+
+## «SONO ANCORA GUARDINGO» — i due strati somatici. `forza` è quella che
+## `Visitors._tick_sussulti` calcola già: nessun innesco nuovo.
+##
+## ⚠️ **ED È LA FORZA DELL'ALLARME, non «di una reazione».** Una gioia non ne
+## ha (`Limbico.percepisci` la misura a parte, sotto il nome di `calore`), e
+## `Visitors` la chiama solo dentro il ramo di chi ha trasalito: due guardie
+## indipendenti sulla stessa regola, perché questo livello è la faccia della
+## paura e sopra un cuoricino diceva il contrario di quel che stava
+## succedendo.
+##
+## `maxf` e non `=`: un secondo spavento dentro il primo non lo ACCORCIA.
+func somatico(forza: float) -> void:
+	forza = clampf(forza, 0.0, 1.0)
+	if forza <= 0.0:
+		return
+	_gesto_taratura()
+	if forza >= _gs_soma * exp(-_gs_soma_t / GESTI.CODA_TAU) * _soma_resto():
+		_gs_soma = forza
+		_gs_soma_t = 0.0
+		# UNA PAURA NUOVA NON ASPETTA CHE FINISCA IL SOLLIEVO DI PRIMA: senza
+		# questa riga il corpo resterebbe sordo per tutto lo scioglimento,
+		# cioè proprio nei decimi di secondo in cui il giocatore è lì.
+		_gs_soma_sciolto = -1.0
+
+
+## −1 = nessuno scioglimento in corso; altrimenti da quanti secondi è
+## cominciato.
+var _gs_soma_sciolto := -1.0
+
+
+## «AH… SEI TU» — IL CORPO MOLLA. È l'altra porta di questo livello e la
+## sorella di `somatico()`: una lo accende, questa lo lascia andare.
+##
+## Non taglia: rientra con la rampa di `Gesti.coda_rilascio`. E non è un'API
+## per chi passa di lì — la chiama il Rialzo del SOLLIEVO, che è l'unico gesto
+## del vocabolario che dichiara di venire dopo un sussulto, e che si rifiuta
+## da solo se quel sussulto non c'è stato (`_sussulto_fresco`).
+func soma_sciogli() -> void:
+	if _gs_soma <= 0.0 or _gs_soma_sciolto >= 0.0:
+		return
+	_gs_soma_sciolto = 0.0
+
+
+## Quanto resta della coda per via del rilascio in corso; 1.0 se non ce n'è.
+func _soma_resto() -> float:
+	return 1.0 if _gs_soma_sciolto < 0.0 else GESTI.coda_rilascio(_gs_soma_sciolto)
+
+
+## La fase e lo scarto personali: UNA volta, e dal genoma. Un dado tirato
+## all'avvio darebbe a ciascuno un carattere diverso a ogni ricaricamento;
+## un `randf()` in `_process` darebbe un tremolio invece di un'indole.
+func _gesto_taratura() -> void:
+	if _gs_fase != 0.0:
+		return
+	var s := int(dna.get("seed", 0))
+	if s == 0:
+		s = hash(str(dna.get("label", name)))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = absi(s) + 1451
+	_gs_fase = rng.randf_range(0.05, TAU)
+	_gs_scarto = rng.randf_range(-1.0, 1.0) * GESTI.PUNTO_TENUTA_SCARTO
+
+
+var _gs_scarto := 0.0
+var _gs_viaggio := false    # un Punto per viaggio: lo azzera `_walk_to`
+var _gs_cede := 1.0         # 1 = il Largo tiene la testa, 0 = ha ceduto
+
+
+## UN PASSO DEL VOCABOLARIO. Gira PRIMA del `match`, per OGNI stato — e
+## «per ogni stato» è tutta la rete: `_gs_r` incastrato a 0,35 dopo un
+## cambio di stato è un vicino che cammina a un terzo per il resto della
+## partita, invisibile perché nessun test guarda la velocità.
+func _gesto_passo(delta: float) -> void:
+	_gs_r = 1.0
+	# SOSPESO non è SPENTO: chi dorme non gesticola, ma quando si sveglia il
+	# livello che aveva addosso è ancora suo (è la lezione di `_recita_applica`
+	# sulla postura che si sospende invece di cancellarsi).
+	#
+	# ⚠️ **E `in_scena()` STA IN QUESTA LISTA**, che è la stessa valvola con
+	# cui la percezione protegge le sei scene scritte a mano. Durante una di
+	# quelle il corpo non è suo: è di chi ha scritto la scena. Vale per i
+	# GESTI (che `apri_scena` spegne già con la rampa) **e per i due
+	# LIVELLI** — il rallentando moltiplica `_move_gait`, cioè cambierebbe i
+	# tempi di una coreografia scritta a mano, e un capo storto in mezzo al
+	# coro del carillon è un attore che non guarda il direttore.
+	var sospeso := dna.is_empty() or _vis == null or _corpo == null \
+			or not is_instance_valid(_corpo) or _hidden or _state == "tk_nap" \
+			or in_scena()
+	if sospeso and _gs_nome != "":
+		gesto_spegni()
+	if sospeso and (_gs_attesa > 0.0):
+		_gs_attesa = 0.0
+		_gs_attesa_nome = ""
+
+	# ⚠️ **LA RETE DEL CAPO: il rollio acceso da una frase è di QUELLA
+	# frase.** Sta qui, e non nei due o tre posti che vengono in mente, per
+	# la stessa ragione della coda delle tappe e della rete del corpo: una
+	# frase si interrompe da troppe parti — la fine naturale, il debito del
+	# ritmo, una scena che si apre, il pisolino, l'estetista che rimonta il
+	# corpo, la crescita di un cucciolo — e nessuna di quelle passa da un
+	# posto solo. I due `capo_pende(false)` scritti a mano ne coprivano due;
+	# le altre lasciavano una testa inclinata **per sempre** (MISURATO col
+	# Salone vero: 5,9° trentacinque secondi dopo, e ancora in movimento).
+	#
+	# E la domanda è `gesto_in_corso()`, non `_gs_nome`: su un ANZIANO il
+	# Punto aspetta il suo fiato (`_gs_attesa`) e per qualche decimo di
+	# secondo la frase è partita senza che nessun gesto sia acceso. Guardare
+	# il solo nome del gesto spegnerebbe il capo dei vecchi un fotogramma
+	# dopo averlo acceso — in silenzio, e solo a loro.
+	if _gs_capo_frase and gesto_in_corso() == "":
+		_gs_capo_frase = false
+		_capo_aggiorna()
+
+	var canali: Dictionary = GESTI.riposo()
+
+	# 1) L'ATTESA DEL FIATO (solo gli anziani ci passano)
+	if _gs_attesa > 0.0:
+		_gs_attesa -= delta
+		if _in_fiato():
+			var nm := _gs_attesa_nome
+			var dd := _gs_attesa_dati
+			_gs_attesa = 0.0
+			_gs_attesa_nome = ""
+			_gs_viaggio = true
+			_gesto_accendi(nm, dd)
+		elif _gs_attesa <= 0.0:
+			# il fiato non è arrivato in tempo: si tace, e nessuno lo sa
+			_gs_attesa_nome = ""
+
+	# 2) L'EVENTO
+	if _gs_nome != "" and not sospeso:
+		_gs_t += delta
+		canali = GESTI.bersagli(_gs_nome, _gs_t, _gs_dati, _gs_fase)
+		_gs_debito += (1.0 - float(canali["r"])) * delta * GESTI.VELOCITA_METRO
+		if _gs_debito > GESTI.DEBITO_MAX:
+			# la rete del ritmo: mai un corpo che cammina a un terzo per sempre
+			gesto_spegni()
+			canali = GESTI.riposo()
+		elif _gs_t >= _gs_dur:
+			# il rollio del pensiero finisce col pensiero, e a spegnerlo è la
+			# RETE qui sopra: al prossimo fotogramma `gesto_in_corso()` è
+			# vuoto. Un secondo posto che lo spegne sarebbe un secondo posto
+			# da ricordarsi.
+			_gs_nome = ""
+			_gs_cur = {}
+			canali = GESTI.riposo()
+		elif _gs_nome == "largo":
+			canali["hy"] = _gesto_largo_testa(float(canali["hy"]), delta)
+
+	# 3) LA RAMPA di chi è stato troncato
+	if _gs_spegni > 0.0:
+		_gs_spegni = maxf(0.0, _gs_spegni - delta / GESTI.SPEGNI)
+		var f := _gs_spegni * _gs_spegni * (3.0 - 2.0 * _gs_spegni)
+		for c in canali:
+			var molt: bool = (c == "r" or c == "sy")
+			var vecchio := float(_gs_ultimo.get(c, 1.0 if molt else 0.0))
+			if molt:
+				canali[c] *= lerpf(1.0, vecchio, f)
+			else:
+				canali[c] += vecchio * f
+		if _gs_spegni <= 0.0:
+			_gs_ultimo = {}
+
+	# 4) I DUE LIVELLI, in coda: un livello non si tronca, e non è mai
+	#    dentro la rampa di un evento (sono cose diverse, e comporle
+	#    vorrebbe dire che spegnere un gesto spegne anche l'allerta).
+	#
+	# ⚠️ **MA NON SI STACCANO DI NETTO, ed è il difetto che questa riga
+	# chiude.** «Un livello non si tronca» era vero e ha fatto concludere la
+	# cosa sbagliata: che allora non gli servisse nessuna rampa. Un livello
+	# non finisce mai da sé — ma il MONDO glielo toglie di mano di continuo
+	# (una scena scritta a mano, il pisolino, il rientro in casa), e finché
+	# `applica` era un booleano quel passaggio di mano era un fotogramma.
+	# MISURATO sul rig vero, coi due livelli addosso, aprendo una scena:
+	# **0,4158 rad in un fotogramma sull'orecchio destro** — ventiquattro
+	# gradi — e 0,3974 all'uscita. Il tetto che lo stesso banco impone a un
+	# GESTO troncato è 0,030. L'evento aveva la sua rampa dal primo giorno; i
+	# livelli, che sono i canali più grossi del vocabolario, no.
+	var mira := 0.0 if sospeso else 1.0
+	var rampa := GESTI.LIVELLI_RAMPA
+	if not debug_gesti.is_empty():
+		rampa = maxf(0.02, float(debug_gesti.get("rampa", rampa)))
+	_gs_liv = move_toward(_gs_liv, mira, delta / rampa)
+	# smoothstep e non lineare: una rampa lineare non salta, ma ha uno
+	# spigolo di velocità ai due estremi — e uno spigolo su un canale da
+	# mezzo radiante si vede come un piccolo scatto in coda al grande.
+	var gl := _gs_liv * _gs_liv * (3.0 - 2.0 * _gs_liv)
+	_gesto_capo(delta, canali, gl, not sospeso)
+	# ⚠️ **E L'OROLOGIO DELLA CODA GIRA ANCHE DA SOSPESI.** Un livello
+	# sospeso che non invecchia non è sospeso: è in PAUSA, e riemerge intatto
+	# quando la sospensione finisce. La coda somatica vive otto secondi
+	# (`Gesti.CODA_VITA`); una notte di sonno o un concerto di dieci minuti
+	# la ritrovavano viva dall'altra parte — cioè un vicino che riprende a
+	# essere guardingo per uno spavento di dieci minuti prima, senza nessuna
+	# premessa che il giocatore possa avere ancora in mente. Il tempo passa
+	# per tutti: si aggiorna sempre, si APPLICA per la frazione che è ancora
+	# sua.
+	_gesto_soma(delta, canali, gl)
+
+	# 5) IL RITMO, con la sua ultima rete: fuori da questa forbice non c'è
+	#    niente che il vocabolario abbia il permesso di chiedere.
+	_gs_r = clampf(float(canali["r"]), 0.0, 1.25)
+	_gs_cur = canali
+
+
+## Il rollio del capo: una sequenza di TRASFERIMENTI con una molla
+## sottosmorzata, non un `sin`. Fra un trasferimento e l'altro non succede
+## niente — ed è l'immobilità a rendere leggibile il trasferimento.
+##
+## Il passo è SOTTO-CAMPIONATO a 120 Hz fisso: con k=170 (ω = 13 rad/s) un
+## Eulero semi-implicito a 20 fotogrammi al secondo dà una forma diversa da
+## uno a 144, e «la deriva del += su una base non riscritta» è già costata a
+## questo progetto un canale che passava da 9,6° a 46°.
+## `guadagno` è la rampa dei livelli (0 = il corpo non è suo); `avanza` dice
+## se la molla deve girare. **Sono due cose diverse e vanno tenute diverse**:
+## durante la rampa d'uscita il corpo non decide più dove guardare — la molla
+## è ferma dov'era — ma quello che ha addosso se ne va gradualmente. Farle
+## coincidere vorrebbe dire far rientrare la molla a zero durante la scena,
+## cioè inventare un trasferimento che non c'è.
+func _gesto_capo(delta: float, canali: Dictionary, guadagno: float,
+		avanza: bool) -> void:
+	if avanza:
+		if _gs_capo:
+			_gs_capo_next -= delta
+			if _gs_capo_next <= 0.0:
+				_gs_capo_verso = -_gs_capo_verso
+				_gs_capo_b = GESTI.capo_bersaglio(_t, _gs_fase, _gs_capo_verso)
+				_gs_capo_next = GESTI.capo_intervallo(_t, _gs_fase)
+		elif absf(_gs_capo_x) < 0.0005 and absf(_gs_capo_v) < 0.005:
+			_gs_capo_x = 0.0
+			_gs_capo_v = 0.0
+		if _gs_capo or _gs_capo_x != 0.0 or _gs_capo_v != 0.0:
+			var resto := minf(delta, 0.25)
+			while resto > 0.0:
+				var h := minf(resto, 1.0 / 120.0)
+				_gs_capo_v += (GESTI.CAPO_K * (_gs_capo_b - _gs_capo_x)
+						- GESTI.CAPO_C * _gs_capo_v) * h
+				_gs_capo_x += _gs_capo_v * h
+				resto -= h
+	if guadagno > 0.0 and _gs_capo_x != 0.0:
+		canali["hz"] = float(canali["hz"]) + _gs_capo_x * guadagno
+
+
+## I due strati somatici. Il veloce (la coda) deve decadere PIÙ IN FRETTA del
+## proprio riarmo — 6,0 s contro i 9,0 del cooldown del sussulto — o resta
+## acceso il 100% del tempo su chiunque il giocatore sfiori camminando, che è
+## il livello monotono che la regola dei livelli vieta.
+func _gesto_soma(delta: float, canali: Dictionary, guadagno: float) -> void:
+	if _gs_soma <= 0.0:
+		return
+	_gs_soma_t += delta
+	# IL RILASCIO moltiplica la FORZA, e da lì scende in tutti e due gli
+	# strati: la posa e il rallentando mollano insieme, senza una seconda
+	# composizione da tenere allineata. E il suo orologio gira anche da
+	# sospesi, come quello della coda — un rilascio in pausa che riemerge
+	# intatto dopo un concerto è un corpo che si scioglie senza nessuno che
+	# lo stia guardando.
+	var forza := _gs_soma
+	if _gs_soma_sciolto >= 0.0:
+		_gs_soma_sciolto += delta
+		forza *= GESTI.coda_rilascio(_gs_soma_sciolto)
+	var r := GESTI.soma_ritmo(forza, _gs_soma_t)
+	var a := GESTI.coda_ampiezza(forza, _gs_soma_t)
+	if a <= 0.0 and r > 0.995:
+		_gs_soma = 0.0
+		_gs_soma_t = 0.0
+		_gs_soma_sciolto = -1.0
+		return
+	if guadagno <= 0.0:
+		return
+	# il RITMO passa dalla rampa come tutto il resto: è il canale che
+	# cambierebbe i tempi di una coreografia scritta a mano, e restituirlo di
+	# colpo è un corpo che accelera del 28% in un fotogramma.
+	canali["r"] = float(canali["r"]) * lerpf(1.0, r, guadagno)
+	if a <= 0.0:
+		return
+	var c: Dictionary = GESTI.coda_canali(a, _t, _gs_fase, debug_gesti)
+	for k in c:
+		if k == "r":
+			continue
+		if k == "sy":
+			canali["sy"] = lerpf(1.0, float(c["sy"]), guadagno) * float(canali["sy"])
+		else:
+			canali[k] = float(canali[k]) + float(c[k]) * guadagno
+
+
+## LA TESTA DEL LARGO. `Gesti` restituisce una FRAZIONE (0…0,55): solo qui si
+## sa dov'è il posto, e solo qui si sa che il collo ha un tetto.
+##
+## E qui — solo qui — un canale del gesto guarda `_tst_t`, per CEDERE: se
+## arriva una ricevuta vera, il vicino smette di guardare la catasta e guarda
+## quello che Mochi sta facendo a due metri da lui. Il degrado va sempre
+## verso il comportamento che c'era già.
+func _gesto_largo_testa(frazione: float, delta: float) -> float:
+	_gs_cede = lerpf(_gs_cede, 0.0 if _tst_t > 0.0 else 1.0,
+			1.0 - exp(-6.0 * delta))
+	var posto: Vector3 = _gs_dati.get("posto", Vector3.ZERO)
+	if posto == Vector3.ZERO:
+		return 0.0
+	var v := posto - global_position
+	v.y = 0.0
+	if v.length_squared() < 0.0025:
+		return 0.0
+	var tetto := tetto_ricevuta()
+	var ang := clampf(wrapf(atan2(-v.x, -v.z) - _yaw, -PI, PI), -tetto, tetto)
+	return frazione * ang * _gs_cede
+
+
+## LA SCALA DEL CORPO — l'unico canale che si scrive in ASSOLUTO, e per una
+## ragione precisa: `_vis.scale` ha CINQUE tween addosso (l'ingresso, il
+## sonno, il risveglio, il congedo, il pasto) e l'ordine del frame è
+## `process_frame → _process → tween`, quindi un togli additivo su un valore
+## posato da un tween lo corrompe. `_corpo.scale` ha **un solo scrittore**,
+## `set_cucciolo`, e sta fuori dal `_process`.
+##
+## Il volume si conserva: `y × f` e `xz × f^(−½)`. Un corpo che si comprime si
+## ALLARGA; uno che si rimpicciolisce e basta è un errore di scala, e si legge
+## come tale in un decimo di secondo.
+func _gesto_scala(f: float) -> void:
+	if _corpo == null or not is_instance_valid(_corpo):
+		_gs_scala_nodo = null
+		return
+	if absf(f - 1.0) < 0.0005:
+		if _gs_scala_nodo != null:
+			if is_instance_valid(_gs_scala_nodo) and _gs_scala_nodo == _corpo:
+				_corpo.scale = _gs_scala_riposo
+			_gs_scala_nodo = null
+		return
+	if _gs_scala_nodo != _corpo:
+		_gs_scala_nodo = _corpo
+		_gs_scala_riposo = _corpo.scale
+	var lat := pow(maxf(f, 0.05), -0.5)
+	_corpo.scale = Vector3(_gs_scala_riposo.x * lat, _gs_scala_riposo.y * f,
+			_gs_scala_riposo.z * lat)
+
+
+## SOLO PER I PROVINI: posa i canali del vocabolario in assoluto — senza
+## busta, senza tempo — e li applica con **lo scrittore vero**, cioè lo stesso
+## `_recita_applica` che gira in partita.
+##
+## Serve al cancello del verso (`tools/provino_verso.gd`), che deve poter
+## confrontare `+A` con `−A`: **`−A` non è un gesto del gioco**, è la
+## controprova — girare il capo dalla parte opposta, allungare invece di
+## comprimere. Un provino che se lo disegnasse da sé misurerebbe il proprio
+## disegnatore; da qui invece misura il rig.
+func debug_posa(canali: Dictionary) -> void:
+	_recita_togli()
+	_gs_cur = canali.duplicate()
+	# delta grande apposta: il filtro della POSTURA si posa in un colpo, così
+	# quello che resta sul rig è il gesto e nient'altro
+	_recita_applica(1.0)
 
 
 ## Il fagottino del trasloco: bastone sulla spalla, sacchetto annodato.

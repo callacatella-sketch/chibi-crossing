@@ -3298,6 +3298,908 @@ partita. Chi lo vorrà chiudere ha una strada che non punisce chi si mette un
 può portarsi l'impronta di ciò che il gioco ha scaricato — si riverifica solo
 quel file, e solo perché sappiamo cosa deve essere.
 
+## IL VOCABOLARIO DEL CORPO CHE PENSA
+
+Questo gioco è un **simulatore di personalità umana**, e da lì discende la
+regola che governa tutto il resto: **la leggibilità è la cosa più
+importante.** Fino al 2026-08-13 l'unico segno che un vicino avesse una vita
+interiore era **una testa che si gira** per 3,2 s — ed era stata misurata:
+
+- si legge solo da davanti e solo da vicino;
+- **di spalle non ha VERSO**: si vedono le orecchie muoversi e non si sa da
+  che parte (rapporto misurato **1,04**, e in questa tornata 0,67–1,11);
+- a diciassette metri la testa è venti pixel;
+- e in partita, **sette teste girate in venticinque minuti**.
+
+Adesso c'è un vocabolario: [`scenes/npc/Gesti.gd`](scenes/npc/Gesti.gd) (le
+buste, pure, senza Godot) e il motore in `Visitor` (`_gesto_passo`,
+`_recita_applica`, `_gesto_scala`). Quattro FRASI, non sei gesti — e ognuna
+corrisponde a una cosa che il gioco aveva GIÀ da dire:
+
+| frase | corpo | chi la chiede, e già esisteva |
+|---|---|---|
+| **la premessa** | il Punto (molle) | `Percezione._testimonia`, la terza riga |
+| **il pensiero** | il Punto deciso + il Capo | la ricevuta di una deduzione (`Visitors._cuore_di`) |
+| **la rinuncia** | il Raccolto → il Rialzo | `Limbico.trattieni()` che torna **true** |
+| **l'evitamento** | il Largo, camminando | `Limbico.evita(luogo)` in `_filtra_luogo` |
+
+Più due **LIVELLI**, che non prendono il gettone: il **Capo che pende**
+(`regolazione < 0.45`) e la **coda somatica** (la `forza` che
+`_tick_sussulti` calcola già). **Zero inneschi nuovi**: il vocabolario non
+può aumentare la frequenza degli eventi, può solo renderli visibili.
+
+### IL CRITERIO UNICO, e cosa ha bocciato
+
+«Pixel di contorno cambiati» misura la **rilevabilità** (è successo
+qualcosa), non la **leggibilità** (è successo *di là*). Il criterio è
+
+    |maschera(+A) XOR maschera(−A)| / |maschera(A) XOR riposo|  ≥  1,6
+
+cioè: le due versioni OPPOSTE dello stesso gesto si distinguono FRA LORO?
+Misurato sul rig vero con [`tools/provino_verso.gd`](tools/provino_verso.gd)
+(quattro azimut × 6/9/17 m, pixel contati dal fotogramma renderizzato contro
+una lastra di fondo, posa scritta dallo **scrittore vero**):
+
+| canale, isolato | verso | | |
+|---|---|---|---|
+| **verticale** (`vy`) | 1,76–1,89 ✅ | il più direzionale del rig | |
+| **profondità** (`vz`) | 1,67–1,97 ✅ | e nessuno se l'aspettava | |
+| **laterale** (`px`) | 1,62–1,94 ✅ | e il più GROSSO (3682 px a 6 m) | |
+| **scala** (`sy`) | 1,64–1,85 ✅ fino a −10%; a −13% cade | | |
+| **rollio del capo** (`hz`) | 1,74–1,86 a 0,08 · **1,60–1,74 a 0,11** · 1,47 a 0,14 ❌ | | |
+| **orecchie** (`ear`) | 1,84–1,97 a 0,20 · 1,39 a 0,55 ❌ · **di profilo non passa mai** | | |
+| **braccia** (`ax`) | 3–33 px in tutto: fuori dalla campana della testona | | |
+| **coda** (`tail`) | **0 px di fronte**, 82 al massimo | | |
+| *(la ricevuta di oggi: testa 44°)* | **0,67–1,11** ❌ | | |
+
+**Tre cose che questa tabella dice e che nessun ragionamento avrebbe dato:**
+
+1. **L'ampiezza di una ROTAZIONE va al contrario dell'intuizione.** Il verso
+   di un rollio *cala* crescendo (1,86 → 1,10 fra 0,08 e 0,24 rad): le due
+   regioni spazzate si sovrappongono sempre di più. Un gesto rotatorio non si
+   fa più leggibile facendolo più grosso — si fa più leggibile facendolo più
+   **raro**. La sintesi da cui parte questo lavoro diceva «rollio 0,10–0,18
+   rad»: **0,18 è fuori**.
+2. **Traslazione e scala portano il verso; le rotazioni no.** Vale per
+   l'imbardata (0,88), per il busto (1,47 a 0,18) e per le orecchie. È la
+   ragione per cui il canale portante di ogni gesto qui è `vy`, `vz`, `px` o
+   `sy`, e le rotazioni sono accenti.
+3. **Un accento può COPRIRE la parola.** Le orecchie a 0,55 (la sintesi le
+   voleva a 0,55 e 0,70) facevano scendere il gesto INTERO a 1,45–1,54
+   mentre il suo canale portante stava a 1,67–1,83. La diagnosi si fa
+   spegnendo un accento per volta (`provino_verso`, il blocco «RACCOLTO
+   senza…»): a tre quarti, `vx` valeva 0,15 di verso perduto, le orecchie
+   0,09, il mento 0,03.
+
+**Dove si è arrivati** (gesto intero, dodici colonne): Largo 1,62–1,78 ·
+Capo 1,60–1,84 · Rialzo (tenuta) 1,67–1,91 · Raccolto 1,54–1,71 · Rialzo
+(picco) 1,56–1,74. **Residuo dichiarato:** i due gesti che portano più
+accenti restano 0,06–0,10 sotto il loro canale portante nelle colonne di tre
+quarti. La regola operativa è quindi: **il canale PORTANTE deve passare a
+ogni azimut, e gli accenti non possono costare più di un decimo.**
+
+### IL PUNTO — se se ne consegna uno solo, è questo
+
+Non perché sia il più bello: perché è **l'unico che fabbrica lo sfondo su cui
+gli altri diventano leggibili**, e perché costa **zero canali del rig** —
+moltiplica `_move_gait()`, che ha un solo consumatore. Niente da togliere,
+niente che possa restare fuori posa.
+
+Il suo segnale non è una forma: è un **contrasto di MOTO**. Misurato
+(`provino_verso`, parte 3): la sagoma di un corpo che cammina cambia
+472–2949 px per fotogramma; **fermo, sta al livello del rumore del renderer**
+— 0 px netti in tre viste su quattro. I rapporti misurabili vanno da **6,8:1
+a 27,4:1**.
+
+> ⚠️ **QUELLA MISURA HA TRE PAVIMENTI, e la prima stesura li aveva tutti e
+> tre addosso.** (a) L'**erba che ondeggia**: confrontando due fotogrammi
+> crudi il fondo dava 15.000 px e il rapporto usciva 1,3:1, cioè «il fermo non
+> si vede» — l'esatto contrario del vero. Si spegne il vento e si conta la
+> **maschera**, non il fotogramma. (b) L'**antialiasing**: TAA e FXAA fanno
+> ballare ogni pixel di bordo, e il bordo di un chibi è dello stesso ordine
+> del segnale. (c) Il **dithering del renderer**, ~1% di pixel ovunque: si
+> stampa il pavimento accanto al segnale, a quattro soglie. E il riquadro va
+> tenuto STRETTO ma non troppo: chi cammina di traverso esce da un riquadro
+> stretto in due decimi, e la prima misura dichiarava **zero pixel di moto**
+> per «profilo» e «trequarti».
+
+**L'anziano non riceve un secondo fermo.** `_move_gait` ferma già chi ha
+`_eta > 0.55` per 1,3 s ogni 7,5 — quello *è* il fermo, e batte il gettone di
+villaggio di venti volte. Su un anziano il Punto **non frena**: aspetta il
+prossimo fiato (`_in_fiato()`, fonte unica della finestra) e ci veste sopra
+il payload; se non arriva in tempo, **silenzio**.
+
+### LE REGOLE CHE NON SI NEGOZIANO
+
+**R1 — Il verso, o non è una parola.** Nessun gesto porta il proprio
+significato su un'imbardata. Chi ne aggiunge uno lo fa passare da
+`provino_verso` **prima** di scriverlo.
+
+**R2 — Uno per volta in tutto il villaggio, e il gettone ha un PERIODO.**
+`Visitors.GESTO_PASSO := 12 s` (accumulatore di villaggio) + `GESTO_RIPOSO :=
+300 s` per vicino (±15% dal nome) + `GESTO_RAGGIO := 9 m`. **Chi perde muore
+in silenzio, non si accoda**: una coda su ventotto corpi trasforma un picco
+(il falò, quaranta pietre di sentiero) in un minuto di pantomima.
+> ⚠️ **UN GETTONE SENZA PERIODO È UN MIMO PERMANENTE.** «Uno per volta»
+> significa da solo *sempre esattamente un mimo in scena, per sempre*: appena
+> uno finisce, il primo che passa prende il posto. `GESTO_PASSO` è l'unico
+> numero che può uccidere il lavoro in tutte e due le direzioni, e si tara
+> **in partita** (`tools/prova_villaggio_gesti.gd`), mai contro zero.
+
+**IL METRO, in partita** (quattordici residenti, cinque minuti, un giocatore
+che cammina e lavora — il banco costruisce le situazioni, non chiama mai
+`chiedi_frase` a mano):
+
+| gettone | richieste | rifiutate DAL GETTONE | gesti | simultanei | frazione mimo |
+|---|---|---|---|---|---|
+| 20 s | 383 | **193 (50%)** | 6 in 5 min | **1** | 1,13% |
+| **12 s** | 175 | **26 (15%)** | 4 in 5 min | **1** | 1,41% |
+
+Sei vicini diversi su quattordici, **nessuno due volte**, tutti col giocatore
+dentro i nove metri. Il metro di partenza era *sette teste girate in
+venticinque minuti*.
+
+> ⚠️ **E LE DUE CORSE NON SONO APPAIATE.** Il numero di RICHIESTE è più che
+> raddoppiato fra l'una e l'altra, perché dipende da quante volte il lavoro
+> di Mochi trova dei testimoni — cioè dal giro del giocatore, non dal
+> gettone. «Sei gesti contro quattro» **non dice niente**. Quello che si
+> confronta è la SELETTIVITÀ del gettone rispetto alla domanda della sua
+> corsa: a venti secondi il gettone ERA il collo di bottiglia (metà dei no
+> erano suoi), a dodici lo sono le condizioni del mondo. **È l'ordine
+> giusto: il mondo decide quando un gesto ha senso, il gettone impedisce
+> soltanto che se ne vedano due insieme.**
+
+> ⚠️ **UN VILLAGGIO APPENA NATO NON GESTICOLA, E NON È UN GUASTO.** Prima
+> versione del banco: quattordici residenti, un giocatore che passeggia, e
+> **zero gesti in novanta secondi**. Giusto così — le quattro frasi hanno
+> inneschi VERI: la premessa vuole che Mochi FACCIA qualcosa, la rinuncia
+> vuole qualcuno che abbia qualcosa da rinfacciarti, l'evitamento vuole un
+> posto che qualcuno abbia imparato a temere. **Il silenzio è il
+> comportamento normale**, e un banco che non costruisce le situazioni
+> misura il proprio prato vuoto.
+
+E il silenzio ha SEI RAGIONI DIVERSE, che da fuori si vedono tutte uguali:
+`Visitors.debug_gesti_contatori()` le conta una per una (gettone · riposo ·
+fuori raggio · non cammina · passo non a regime · troppo vicino all'arrivo).
+Senza quel conto si finisce per accusare il cablaggio quando era il gettone.
+
+**Residuo dichiarato:** in queste corse è partita **solo la premessa**. La
+rinuncia vuole Mochi a meno di 2,6 m da chi si trattiene, l'evitamento vuole
+che l'agenda scelga proprio il posto marchiato, il pensiero vuole il modello
+della Fase 5. Le altre tre frasi sono provate al banco
+(`tests/cases/test_gesti.gd`) e in pellicola (`tools/provino_gesti.gd`), **non
+ancora in partita**.
+
+**R3 — La ricevuta non è MAI condizionata dal gettone.** Se il turno è
+occupato la testa si gira lo stesso, e il gesto semplicemente non parte. Il
+degrado va SEMPRE verso il comportamento che c'era già.
+
+**R4 — Un livello TINGE, non posa mai; e ogni coda decade più in fretta del
+proprio riarmo.** `arousal` e `regolazione` scendono solo in `passa_giorno`,
+cioè quattro minuti reali: una posa legata al loro livello resterebbe accesa
+per una giornata di gioco. La coda somatica ha `τ = 2,8` (vita 6 s) contro i
+**9 s** di raffreddamento del sussulto — con τ=7 resterebbe accesa il 100%
+del tempo su chiunque il giocatore sfiori camminando.
+
+**R5 — Il gesto è la premessa di una conseguenza, o non si fa.** Nessun gesto
+di colore, nessun idle arricchito, **il silenzio è il comportamento normale**.
+
+**R6 — Ogni canale ha un padrone, e la rete gira per OGNI stato.**
+`_gesto_passo` sta FUORI dal `match`, e `_enter_state` spegne il gesto: senza
+quella riga il Punto teneva il ritmo a **zero** dopo il cambio di stato
+(misurato in `r_idle` e in `r_pasto`), e il corpo sarebbe rimasto incollato al
+terreno al viaggio dopo — invisibile, perché nessun test guarda la velocità.
+
+### LE TRAPPOLE DEL RIG, tutte pagate
+
+1. **La scala vive su `_corpo`, non su `_vis`.** `_vis.scale` ha **cinque
+   tween** (ingresso, sonno, risveglio, congedo, pasto) e l'ordine del frame
+   è `process_frame → _process → tween`: un togli additivo su un valore
+   posato da un tween lo corrompe. `_corpo.scale` ha un solo scrittore,
+   `set_cucciolo`, e sta fuori dal `_process`. **Un canale la cui base è
+   scritta da un tween si RIFIUTA, non si combatte.**
+2. **Una sola rete, non due.** I canali nuovi (`px sy hz hpy vrz ear_dx`)
+   entrano nello **stesso** `_rc_appl` della recita: un togli, una somma. Ma
+   le due sorgenti restano separate mentre si calcolano — sommare il gesto
+   dentro `_rc_cur` (che è lo stato di un filtro) farebbe ripartire la
+   postura da dove l'ha lasciata il gesto, con una deriva invisibile.
+3. **Le buste sono ESPLICITE, non un passa-basso.** Il dizionario della
+   recita fonde ogni canale a 6,0 (90% in 0,38 s): il Rialzo, che vive di
+   46 cm/s nel primo decimo, dentro quel filtro sarebbe arrivato a cinque
+   millimetri. Il prezzo è che un gesto troncato salterebbe — per quello c'è
+   la rampa `Gesti.SPEGNI`, che è la rete e non un secondo filtro.
+4. **Il Rialzo non si recita da solo.** Vive INNESTATO: dentro la ripartenza
+   decisa del Punto e dentro il rilascio del Raccolto. Una scintilla senza il
+   buio prima è una lampadina accesa a mezzogiorno, e un gesto che si recita
+   da solo insegna al giocatore che non vuol dire niente.
+5. **`DEBITO_MAX` non è 1,20 m.** La sintesi lo diceva, ed è aritmeticamente
+   incompatibile con una tenuta di 1,6–2,4 s: a 1,45 m/s fermarsi due secondi
+   costa **tre metri**. Con 1,20 il Punto si sarebbe rifiutato **sempre**, e
+   il gesto che tutta questa fase esiste per consegnare non sarebbe mai
+   partito — con la suite verde, perché nessuna asserzione guarda «è mai
+   successo».
+6. **`Andatura.misura` usava il MODULO** dello spostamento: la fase avanzava
+   anche per un corpo che va indietro — le zampe facevano il passo in avanti
+   mentre il corpo indietreggiava. **Non era un rischio futuro: era in
+   partita** (`tk_startle` tweena il corpo verso `position + basis.z * 0.7`).
+   Adesso c'è il segno; per chi cammina avanti **non cambia un bit**.
+7. **`FaceController.head_tilt()` aveva un lettore solo, ed era Mochi.** I
+   vicini avevano la faccia giusta sul collo sbagliato da anni. Entra dal
+   canale `hz`, così se lo porta via la stessa rete di tutto il resto.
+
+### LE TRAPPOLE DI BANCO (i test e i provini sbagliavano da soli)
+
+- **L'oracolo è un GEMELLO.** Confrontare il rig prima e dopo un gesto non
+  prova niente: `Andatura.applica` scrive orecchie e busto **in assoluto** a
+  ogni fotogramma, e la differenza misurata era la fase del passo. Undici
+  asserzioni rosse su un codice sano — e un test rumoroso lo si finisce per
+  allentare finché non dice più niente.
+- **…e prima di confrontare si NORMALIZZA il passo.** Quei canali sono
+  riscritti **solo negli stati di movimento**: da fermo restano congelati
+  all'ultimo fotogramma camminato, e il Punto, che ferma il suo corpo, ha per
+  forza una fase diversa (0,116 rad di scarto, su codice sano).
+- **La camera ha una molla.** Spostare Mochi e scattare subito produce una
+  pellicola che scivola: è sembrata una traslazione del gesto per un minuto
+  buono. E a distanza ravvicinata **la testona di Mochi copre esattamente il
+  vicino** che si sta guardando — una pellicola intera del Rialzo era dietro
+  la protagonista.
+- **Il ritaglio lo calcola la CAMERA**, non chi guarda dopo: in una pellicola
+  il corpo si sposta (è il punto), e un riquadro fisso finisce per
+  fotografare l'erba dicendo «il gesto non si vede».
+
+### QUATTRO GUARDIE CHE NESSUN TEST POTEVA FAR FALLIRE
+
+[`tests/cases/test_gesti.gd`](tests/cases/test_gesti.gd) è comportamentale (un
+`Visitor` vero, il `_process` a 60 Hz, si guarda il rig) e ha **quindici
+mutazioni** annotate con le asserzioni rosse. Quattro righe, alla prima
+stesura, erano **zero rosse**:
+
+- togliere il `* _gs_r` da `_move_gait` — cioè **scollegare il gesto dal
+  passo** — lasciava due asserzioni rosse e nessuna diceva la cosa che conta:
+  il banco guardava `_gs_r`, che è il numero *prima* di essere usato. Adesso
+  si misurano i **metri**, contro un gemello che non si è fermato;
+- la **restituzione della scala** e la **rampa di spegnimento**: zero rosse.
+  Due guardie che nessun test poteva far fallire, cioè due guardie che non
+  c'erano;
+- e l'**assestamento della tenuta** — il micro-movimento, cioè la regola che
+  questo progetto mette per prima — si poteva azzerare con 582 asserzioni
+  tutte verdi. Adesso c'è un caso che cerca un PERIODO nella curva e pretende
+  di non trovarlo, **con la controprova**: sullo stesso banco, un `sin()`
+  puro il periodo lo fa trovare.
+
+### Come si guarda
+
+```
+CHIBI_VERSO=<dir> Godot --path . --resolution 1280x720 \
+  --script res://tools/provino_verso.gd          # il CANCELLO (CHIBI_PARTI=1|2|3)
+CHIBI_GESTI=<dir> CHIBI_VISTA=profilo CHIBI_DIST=2.6 Godot --path . \
+  --script res://tools/provino_gesti.gd          # la PELLICOLA (CHIBI_TENUTE=1)
+CHIBI_MINUTI=6 CHIBI_QUANTI=14 Godot --path . \
+  --script res://tools/prova_villaggio_gesti.gd  # la PROVA VIVA, e GESTO_PASSO
+```
+
+
+## LA REGIA — quando i gesti succedono, e quando NON succede niente
+
+Il vocabolario del corpo (qui sopra) è un repertorio: sa COME si dice una
+cosa. La REGIA è l'altra metà, ed è quella che decide se il villaggio sembra
+abitato o sembra un carillon di pupazzi: **quale momento della vita interiore
+di un vicino vale il palco, e quanto spesso.**
+
+Vive in [`scenes/npc/Regia.gd`](scenes/npc/Regia.gd) — pura, senza Godot — e
+si esegue nell'usciere di `Visitors` (`chiedi_gesto`).
+
+### LE SETTE OCCASIONI, e nessuna casa nuova
+
+Tutte e sette sono momenti che il gioco **simulava già** e che non avevano un
+corpo. Zero contatori nuovi, zero campi nel salvataggio, zero dadi: il
+vocabolario non può far succedere le cose più spesso, può solo renderle
+visibili.
+
+| occasione | frase | dove vive il dato, e da SEMPRE | attesa |
+|---|---|---|---|
+| `ha_visto` | premessa (Punto molle) | il grafo dei ricordi, via `Percezione._testimonia` | 1,00 |
+| `era_per_me` | premessa | `R_SU_DI_ME`, la sola asimmetria del grafo | 0,35 |
+| `se_lo_tiene` | pensiero (Punto deciso) | `EcsMondo.cosa_da_ricordare` — la promozione | 0,30 |
+| `ha_dedotto` | pensiero | il grafo delle deduzioni (Fase 5) | 0,15 |
+| `si_e_trattenuto` | rinuncia (Raccolto→Rialzo) | `Limbico.trattieni()` che torna TRUE | 0,45 |
+| `quel_posto_no` | evitamento (il Largo) | `Limbico.evita()` (i marchi) | 0,45 |
+| `ah_sei_tu` | **sollievo** (il Rialzo) | `Limbico.rivaluta()` dopo un sussulto | 0,10 |
+
+Più i due LIVELLI, che non prendono il palco: il **capo che pende** e la
+**coda somatica**.
+
+### L'USCIERE NON SERVE CHI BUSSA PER PRIMO
+
+`attesa` è la frazione di orologio che dev'essersi consumata perché quella
+occasione valga il disturbo. **Uno vuol dire «aspetta tutto il giro».**
+
+L'ordine non è gusto: sta scritto in due colonne che si misurano — quanto
+spesso l'occasione capita (più è rara, meno aspetta) e quanto il giocatore
+può ricondurla a sé (più gli è addosso, meno aspetta). Le due tirano nella
+stessa direzione, perché in questo gioco le occasioni frequenti sono quelle
+in cui fai una cosa qualunque a nove metri da qualcuno, e le rare sono quelle
+in cui a qualcuno succede qualcosa addosso a te.
+
+> ⚠️ **PERCHÉ NON UNA CODA A PRIORITÀ.** Una coda consegnerebbe il gesto DOPO
+> il suo momento, e un gesto separato dalla sua premessa è il guasto che
+> tutta questa fase esiste per impedire. **Chi perde muore in silenzio.**
+
+> ⚠️ **DUE SCARSITÀ, UNA REGOLA, UN NUMERO SOLO.** `Regia.palco_libero()` ha
+> due chiamanti: il **gettone del villaggio** (12 s: uno per volta, e non
+> troppo spesso) e il **riposo della persona** (5 min: non sempre lo stesso).
+> Due orologi di durata diversa, la stessa aritmetica. Averne ordinato uno
+> solo era un ordine applicato a metà — vedi la misura qui sotto.
+
+### IL SILENZIO HA SETTE NOMI, e si contano tutti
+
+Un banco che dice «zero gesti» lascia indovinare, e si finisce per accusare
+il cablaggio quando era semplicemente il palco occupato. `chiedi_gesto` conta
+ogni no per nome, e `debug_gesti_contatori()` li stampa: *un altro sta
+parlando · palco caldo · riposo · fuori raggio · non cammina · passo non a
+regime · già un Punto in questo viaggio · troppo vicino all'arrivo · nessun
+buio prima · nessun corpo*.
+
+### LA REGOLA DELL'ATTRIBUZIONE, in tre righe di codice
+
+1. **La premessa segue il RICORDO, non il gesto.** `guarda_gesto` adesso
+   *restituisce* se il ricordo era nuovo, e `Percezione` gira quella risposta
+   alla regia: nel grafo gesti uguali e ravvicinati fondono in uno solo, e il
+   ventesimo sasso di un sentiero non è una cosa vista in più. Senza,
+   **il 79% delle richieste erano ripetizioni** e il corpo si fermava quasi
+   sempre in mezzo a una raffica monotona invece che sul gesto singolo — che
+   è l'unico che si legge. Il numero non si ricalcola: la finestra di fusione
+   vive nel C++ e ha **un** lettore.
+2. **L'ancora si verifica, o si tace.** `Regia.ancora_valida()`: il ripiego
+   di `EcsMondo.dove()` è casa propria, e guardarsi la porta di casa non
+   racconta niente a nessuno.
+3. **Un gesto rimandato vive quanto la sua premessa.** La sala d'attesa di
+   `Visitors` (`_rimanda_gesto`) tiene un'occasione finché il corpo non è
+   nelle condizioni — ma la promozione scade con la **testa girata**
+   (`Percezione.DURATA_SGUARDO`), che è letteralmente la premessa che il
+   giocatore sta guardando, e l'evitamento con i pochi secondi in cui quel
+   posto è ancora «quello lì».
+
+### LE SCENE RARE SONO INTOCCABILI
+
+Il concerto, il congedo, il nascondino, il concertino, la prima parola di un
+cucciolo, l'appuntamento delle Promesse. Durante una di quelle il corpo non è
+suo: è di chi ha scritto la scena.
+
+- `in_scena()` è entrato in `sospeso` dentro `_gesto_passo`: spegne il gesto
+  **e i due livelli**. Non è pignoleria — il rallentando moltiplica
+  `_move_gait`, cioè cambierebbe i tempi di una coreografia scritta a mano.
+- `apri_scena()` spegne il gesto in corso **nello stesso istante**, con la
+  rampa: le scene si aprono su un villaggio che stava già vivendo.
+- ⚠️ **E L'OROLOGIO DEI LIVELLI GIRA ANCHE DA SOSPESI.** Un livello sospeso
+  che non invecchia non è sospeso: è in PAUSA, e riemerge intatto dall'altra
+  parte. La coda somatica vive otto secondi; una notte di sonno o un concerto
+  di dieci minuti la ritrovavano viva — cioè un vicino che ricomincia a
+  essere guardingo per uno spavento di dieci minuti prima, senza nessuna
+  premessa che il giocatore possa ancora avere in mente.
+
+### IL SOLLIEVO: il Rialzo che non si recita da solo, e non è un'eccezione
+
+«Ah… sei tu» — il sussulto che si scioglie nel riconoscimento
+(`Visitors._tick_riconoscimenti`, la strada veloce e la strada lenta a 0,4 s
+di distanza). Era una posa (`si_illumina`) e basta; adesso il corpo **sale
+davvero**, quattro centimetri a mezzo metro al secondo.
+
+Il Rialzo non si recita da solo perché una scintilla senza il buio prima è
+una lampadina accesa a mezzogiorno. Qui il buio c'è, e **non lo mette la
+tabella delle frasi**: è il sussulto, che ha irrigidito quel corpo quattro
+decimi di secondo prima. La regola non è affidata a un commento —
+`Visitor.gesto()` legge il CORPO (`_sussulto_fresco()`) e si rifiuta se il
+buio non c'è: nessun chiamante può prendersi quel gesto barando.
+
+> ⚠️ **E SENZA UN'ECCEZIONE NON SAREBBE MAI PARTITO.** `trasalisce` dura
+> 1,3 s e il riconoscimento arriva dopo 0,4: il sollievo cade **sempre**
+> dentro il transitorio del sussulto, cioè dentro la valvola che tiene il
+> vocabolario fuori dai riflessi. L'eccezione è stretta a quel transitorio e
+> a quel gesto, e un caso di test prova che non si allarghi.
+
+### IL CAPO CHE PENDE HA TRE CAUSE, e non è un cruscotto
+
+Non ho più forza di trattenermi (`Limbico.regolazione`) · sono di malumore da
+giorni (`umore`, la stessa soglia di `stato_corpo()`) · ho una cosa in testa
+che non ho ancora detto (una deduzione muta). Una sola causa sarebbe un gesto
+che mappa uno-a-uno su una variabile interna, cioè la legenda che un
+giocatore attento impara in tre ore. E senza modello linguistico la terza è
+sempre falsa: restano le prime due, cioè il gioco è identico.
+
+`CAPO_MAX = 2` in tutto il villaggio, e **il tetto conta le TESTE, non le
+righe di un registro.** Il rollio ha due padroni — `Visitors._tick_capo` (un
+LIVELLO che dura minuti) e `Visitor.frase("pensiero")` (che dura quanto il
+gesto) — e i due non si parlavano: il registro concedeva i suoi due posti e
+la frase ne accendeva un terzo che nessuno contava. MISURATO nel MainLevel
+vero ([`tools/misura_capi.gd`](tools/misura_capi.gd), dodici residenti, tre
+minuti di partita): **tre teste storte insieme per il 5,4% del tempo**, col
+registro che ne dichiarava due e **282 fotogrammi di divergenza**. E dopo un
+passaggio dal Salone di bellezza (`rifai_il_look` → `gesto_spegni(true)`, il
+ramo che usciva prima di arrivare alla riga che spegneva il capo) una testa
+restava inclinata **per sempre**: 5,9° trentacinque secondi dopo, e ancora in
+movimento.
+
+- il bit che il rig legge è **DERIVATO** (`_gs_capo_liv or _gs_capo_frase`) e
+  ogni padrone scrive solo il suo: la fine di una frase non spegne più il
+  pensiero del villaggio, e il villaggio non tronca più una frase a metà;
+- il conto è **derivato dal mondo** (`Visitors.capi_storti()`): niente
+  registro da tenere allineato e niente da potare — il posto di chi parte col
+  fagotto si libera da sé, nello stesso istante;
+- si contano le teste **come le vede il giocatore**: una a cui il livello è
+  appena stato tolto è ancora storta finché la molla non rientra
+  (`Visitor.CAPO_STORTO`, 1,1°). Senza, la terza testa compariva mentre la
+  prima tornava su — misurata a **4,7° di media**, cioè il rollio quasi
+  pieno: i BIT non sono il RIG, ed è la stessa divergenza un piano più giù;
+- e la RETE che spegne il capo di una frase finita gira in `_gesto_passo`,
+  **per OGNI stato** — non nei due o tre posti che vengono in mente — e
+  guarda `gesto_in_corso()`, non `_gs_nome`: sull'anziano il Punto aspetta il
+  suo fiato, e per qualche decimo di secondo la frase è partita senza che
+  nessun gesto sia acceso.
+
+Dopo, sullo stesso banco: **zero fotogrammi con più di due teste storte** in
+tre minuti di partita (erano 9,7 s), il tetto che tiene anche con dodici
+vicini che ci pensano tutti, e la testa dell'estetista dritta in **0,03 s**.
+La guardia è nei casi 12–12d di
+[`test_regia.gd`](tests/cases/test_regia.gd), con dodici mutazioni tutte
+rosse: quella di prima asseriva su `_gesto_capi.size()`, cioè sul REGISTRO,
+mentre l'invariante scritta parla di TESTE — **un test che guarda il registro
+invece del mondo è verde mentre il mondo è rotto**.
+
+### QUANTI GESTI AL MINUTO, MISURATO
+
+`tools/prova_villaggio_gesti.gd`, **28 residenti, 10 minuti**, un giocatore
+che lavora (raffiche vere, come il BuildSystem che emette un gesto per pezzo),
+va a trovare qualcuno una volta su tre e **si ferma** quando arriva:
+
+| | |
+|---|---|
+| ⇒ **gesti al minuto in tutto il villaggio** | **2,10** (uno ogni 28,6 s) |
+| un dato vicino ne fa uno ogni | 13,3 min |
+| vicini diversi che hanno gesticolato | 15 su 28 (il più prolifico: 3) |
+| **simultanei, massimo** | **1** — sempre |
+| col giocatore dentro i nove metri | **21 su 21** |
+| frazione di secondi-vicino dentro un gesto | **1,36%** (tetto del mimo: 15%) |
+| frasi viste | Punto 9 · Rialzo 8 · Raccolto 4 |
+
+Il metro di partenza era **sette teste girate in venticinque minuti** (0,28 al
+minuto), e la testa continua a girarsi come prima: questi 2,10 sono in più.
+
+**E la regia si legge in una tabella sola** — chieste contro concesse:
+
+| occasione | chieste | concesse | quota del palco |
+|---|---|---|---|
+| `ha_visto` | 781 | 6 | 0,8% delle sue richieste |
+| `era_per_me` | 36 | 1 | |
+| `se_lo_tiene` | 26 | 2 | |
+| `si_e_trattenuto` | 9 | 4 | **44%** |
+| `ah_sei_tu` | 16 | 8 | **50%** |
+
+L'occasione che bussa il **90%** delle volte si prende il **29%** del palco;
+le due più rare e più attribuibili ottengono metà di quello che chiedono.
+
+⚠️ **E IL PRIMA NON È APPAIATO — lo dico prima che qualcuno ci creda.** Con
+il palco ordinato e il riposo no, il referto diceva **13 gesti, 13 su 13
+`ha_visto`, zero di tutto il resto**; ma fra quella corsa e questa il banco è
+cambiato tre volte (la velocità di Mochi, la sosta, la popolazione del
+morso), quindi «13 contro 21» **non dice niente**. Quello che si può
+confrontare è la FORMA della distribuzione dentro la corsa: là una sola
+occasione su cinque arrivava al corpo, qui cinque su cinque. La misura
+appaiata vera sarebbe una leva A/B dentro la stessa corsa, e non c'è: è il
+residuo di metodo di questa fase.
+
+**I residui, dichiarati:**
+
+- **`quel_posto_no` non è mai stato chiesto** in nessuna delle corse. Vuole
+  che il pianificatore mandi un vicino MARCHIATO proprio in quel luogo, e in
+  dieci minuti di banco non è capitato. È cablato e provato al banco, non
+  ancora visto in partita.
+- **La sala d'attesa riprova a ogni fotogramma** (2.194 riprove in dieci
+  minuti, cioè 3,5 al secondo): sono un `node_di` e una `frase()` rifiutata.
+  Misurabile, non misurato — se un domani costasse, la cadenza è la manopola.
+- **`ha_dedotto` è a zero senza modello linguistico**, ed è la regola della
+  Fase 5: la sua gemella `se_lo_tiene` è la ragione per cui il «pensiero» si
+  vede lo stesso.
+
+### LE TRAPPOLE DI BANCO, tutte pagate misurando
+
+Tre volte su quattro, un'occasione a zero **era colpa del banco**, e ogni
+volta il referto la dichiarava come un silenzio del gioco:
+
+1. **Mochi camminava a 2,6 m/s**, cioè più piano di quanto un giocatore possa
+   camminare (`PlayerController`: 3,0 a passo, 6,0 di corsa). La strada
+   veloce del Limbico guarda proprio COME arrivi (`indizio_grezzo` non vede
+   niente di brusco sotto 1,6 m/s): a 2,6 la forza del sussulto vale 0,13
+   contro una soglia di 0,22 — **nessuno sussultava mai**. Le velocità si
+   leggono dal giocatore vero, non si scrivono.
+2. **Passava e ripartiva.** Il morso trattenuto ha 12 s di raffreddamento e
+   il sussulto 9: sfiorando qualcuno a sei metri al secondo la finestra è di
+   mezzo secondo. Adesso, quando arriva, **si ferma due secondi e mezzo** —
+   che è quello che fa un giocatore.
+3. **Preparava la popolazione IMPOSSIBILE.** Per provare «si è trattenuto e
+   ce l'ha fatta» il banco consumava cinque morsi, cioè fabbricava
+   esattamente chi la forza NON ce l'ha più — il ramo in cui `trattieni()`
+   torna falso. Chiedeva zero e otteneva zero.
+4. E il **passo del banco era 1/60 fisso** mentre la scena ne disegna 25:
+   muovendo Mochi di `6.0/60` per fotogramma il gioco misurava 2,5 m/s. Una
+   misura che non sa che ora è non misura niente.
+
+### Come si guarda
+
+```
+CHIBI_MINUTI=10 CHIBI_QUANTI=28 Godot --path . --resolution 1280x720 \
+  --script res://tools/prova_villaggio_gesti.gd   # i GESTI AL MINUTO, e le occasioni
+CHIBI_SOLLIEVO=<dir> Godot --path . --resolution 900x600 \
+  --script res://tools/provino_sollievo.gd        # «ah… sei tu», tre azimut
+```
+
+`provino_sollievo` **non spara il gesto a mano**: muove solo il giocatore, e
+tutto il resto è il gioco — il sussulto vero, la strada lenta vera, l'usciere
+vero. Se il cablaggio non ci fosse, quella pellicola sarebbe un chibi fermo.
+Misurato: sussulto a 7,0 s, il Rialzo parte a **0,56 s** dal sussulto con
+`vy = +0,050` e `sy = 1,037`, e a confronto fotogramma per fotogramma (stessa
+camera, stessa ombra) il corpo è visibilmente più alto e le orecchie sono
+passate da indietro a su.
+
+
+## LA GIOIA NON PORTA LA FACCIA DELLA PAURA
+
+La strada veloce del `Limbico` ha due risposte — **chi ti teme trasalisce, chi
+ti vuole bene si illumina** — e il commento di `_tick_sussulti` chiama la
+seconda «il segnale più onesto che il giocatore riceve». Per un giorno intero
+quel segnale ha avuto addosso la faccia della paura, per tre difetti diversi
+che tiravano tutti dalla stessa parte.
+
+### 1 · LA CODA GUARDINGA SEGUIVA TUTTE LE REAZIONI
+
+`somatico(forza)` stava **prima** del `match`, quindi la coda somatica — che è
+la posa dell'allarme: orecchie GIÙ, braccia chiuse, coda irrigidita, corpo
+rimpicciolito, passo al 72% — si posava anche sopra il cuoricino, e perfino
+sopra i percetti che non producevano nessuna reazione.
+
+MISURATO nel villaggio vero ([`tools/misura_sussulti.gd`](tools/misura_sussulti.gd),
+28 residenti, 8 minuti, Mochi che cammina e lavora come un giocatore):
+
+| | percetti | la coda si ARMA | | percetti | la coda si arma |
+|---|---|---|---|---|---|
+| | **prima** | | | **dopo** | |
+| `trasalisce` | 4 | 4 (100%) | | 13 | 10 (77%) |
+| `si_illumina` | **48** | **45 (94%)** | | 0 | — |
+| `nulla` | 129 | **91 (71%)** | | 129 | **1 (1%)** |
+
+**La gioia è dodici volte più frequente della paura** (48 contro 4): il livello
+«guardingo» stava addosso a chi ti vuole bene molto più che a chi ti teme. E
+il rallentando — l'unica cosa del vocabolario che arriva ai vicini lontani —
+restava acceso il **41,6%** dei secondi-vicino, contro il **5,4%** di adesso.
+La coda visibile: 7,2% → 1,1%.
+
+### 2 · L'ARITMETICA: una moneta sola, e tutta fatta di paura
+
+`forza` usciva da `(absf(carica) + grezzo) × reattivita × (1 + arousal·0,6)`, e
+tutti e tre gli ingredienti sono dell'ALLARME — il valore assoluto del marchio
+mette la paura e l'affetto sulla stessa scala; `reattivita` è per definizione
+il guadagno della paura («la codardia lo alza, la grinta lo abbassa»);
+l'ultimo è l'allerta che si autoalimenta. Conseguenze misurate:
+
+- **un amico dopo sei incontri felici valeva 0,600, PIÙ di uno sconosciuto
+  caricato di corsa (0,394)**: chi ti vuole bene reagiva più forte di chi si è
+  spaventato;
+- quella forza alzava l'`arousal`, che in questo gioco ha un vocabolario solo
+  («ancora guardingo», «col cuore in gola») e un consumatore che cambia il
+  gioco: `Visitors._spiega_come_sta` toglie il saluto felice a chi ha il corpo
+  scosso e ci mette una nuvoletta di puntini. **Un solo regalo** portava
+  l'arousal a 0,315, cioè oltre la soglia: fare un regalo a qualcuno e
+  vederselo restituire con un «…»;
+- e `si_illumina` era il ramo **di serie** — bastava superare la soglia e non
+  avere niente di brusco — quindi una camminata addosso (0,185 di bruschezza)
+  faceva comparire un cuoricino sopra la testa di chi non ti aveva mai visto:
+  **45 cuoricini su 48 senza nessuna storia dietro**.
+
+Adesso ci sono **due monete**: l'`allarme` (solo la carica NEGATIVA più la
+bruschezza, coi suoi guadagni) e il `calore` (la carica positiva, e basta).
+`forza` è l'allarme e solo l'allarme — una gioia ne ha **zero** — e la stessa
+regola vale sulla strada lenta: `rivaluta` pompa l'attivazione con
+`maxf(0, −sorpresa)`, così la delusione e il tradimento scuotono il corpo e un
+regalo no.
+
+**Il cuoricino adesso si guadagna**, e la porta esiste già: un piatto, una
+festa, un accompagnamento (`Visitors.gesto_gentile` → `Animo.ricorda` →
+`rivaluta`) lasciano un marchio di 0,44 sul giocatore, sopra la soglia. Un
+gesto gentile solo, e da lì in poi quel vicino ti si illumina quando arrivi.
+
+### 3 · «IL RIALZO LA SCIOGLIE» — una promessa che non manteneva nessuno
+
+`Gesti.FRASI` lo scriveva a chiare lettere: *il corpo si è irrigidito davvero
+— la coda somatica è accesa e si vede — e il Rialzo la scioglie*. Non la
+scioglieva niente: dopo «ah… sei tu» il vicino restava guardingo per altri
+otto secondi di posa e **settantaquattro** di passo rallentato. Un sollievo
+che non scioglie niente non è un sollievo: è una seconda posa sopra la prima.
+
+Adesso `Gesti.coda_rilascio` moltiplica la FORZA (così i due strati mollano
+insieme, senza una seconda composizione da tenere allineata) e `Visitor.
+soma_sciogli()` è la sorella di `somatico()`. **La rampa è `Gesti.SPEGNI`**, la
+stessa con cui si mette giù un gesto troncato: in questo progetto, quando
+qualcosa si molla, si molla così — un secondo tempo di rilascio scritto lì
+sarebbe una costante gemella da tenere allineata a mano. E non taglia: un
+livello che sparisce in un fotogramma è un salto del rig, e sarebbe il salto
+peggiore possibile, perché arriva nell'istante in cui il giocatore ha quel
+corpo in faccia a due metri.
+
+### LE REGOLE, per chi ci torna
+
+1. **La coda somatica è la faccia della PAURA.** Sta dentro il ramo di chi ha
+   trasalito, e ci sono **due guardie indipendenti**: il cablaggio (`Visitors`)
+   e l'aritmetica (`Limbico`, dove una gioia non ha forza d'allarme da
+   passare). Romperne una sola non riapre il difetto — le mutazioni lo
+   dimostrano, e fanno arrossire asserzioni diverse.
+2. **`arousal` è l'allarme: lo alza solo ciò che allarma.** Vale sulle due
+   strade. Ha un vocabolario solo, e quel vocabolario è di paura.
+3. **Un cuoricino deve dire una cosa che è successa.** Un cuore che il
+   giocatore non sa ricondurre a niente non attenua l'affetto vero: lo rende
+   illeggibile. È la stessa regola del taccuino del Gufo e della ricevuta
+   della Fase 5.
+4. **La paura non è cambiata di un bit**, ed è dimostrato su una griglia
+   (`test_gioia._la_paura_non_e_cambiata`, 270 spaventi veri contro la formula
+   di ieri scritta nel test): `maxf(0, −carica)` è `absf(carica)` quando la
+   carica è negativa. Se cambiasse anche lei non sarebbe una correzione, ma
+   una taratura nuova con dentro una correzione.
+5. **Le altre sei `si_illumina` del gioco** (il Salone, il Concerto, le
+   Promesse, l'Accompagnare, la visita serena) non sono state toccate e
+   guadagnano lo stesso: capitano tutte col giocatore a meno di 3,5 metri —
+   cioè dentro il raggio del percetto — e due di loro non aprono nessuna
+   scena, quindi la coda ci si posava sopra.
+
+### Come si guarda
+
+```
+CHIBI_MINUTI=8 CHIBI_QUANTI=28 Godot --headless --path . \
+  --script res://tools/misura_sussulti.gd    # i NUMERI: chi arma la coda, e perché
+CHIBI_GIOIA=<dir> Godot --path . --resolution 1280x720 \
+  --script res://tools/provino_gioia.gd      # le due lastre: si vede o non si vede
+```
+
+[`tools/misura_sussulti.gd`](tools/misura_sussulti.gd) ha un **oracolo
+indipendente**: non chiede a `Visitors` se ha acceso la coda, legge il CORPO
+(`_gs_soma`, `_gs_soma_t`) e a parte il `Limbico`, e rileva il percetto dal
+salto all'insù del raffreddamento. ⚠️ E guarda **l'orologio**, non il livello:
+«acceso da poco» sbaglia in silenzio ogni volta che la coda di prima brucia
+ancora più forte — la prima stesura sottocontava del 30%.
+
+[`tools/provino_gioia.gd`](tools/provino_gioia.gd) mette **tre corpi identici
+nello stesso fotogramma** (due corse sarebbero due villaggi): la posa della
+gioia con la coda addosso, la posa da sola, e il riposo. MISURATO, orecchie
+applicate al rig (negativo = SU):
+
+| istante | A · con la coda | B · senza |
+|---|---|---|
+| 0,00 s | **+0,258** (giù) | −0,004 |
+| **0,17 s** (il cuoricino) | **+0,150** (giù) | **−0,099** (su) |
+| 0,45 s (il colmo) | −0,244 | **−0,473** |
+| 0,90 s | −0,392 | **−0,591** |
+
+Segno OPPOSTO nell'istante in cui compare il cuoricino, e **al colmo della
+posa la gioia vale la metà**. La seconda lastra fa la stessa cosa col
+sollievo: due corpi che hanno sussultato davvero, e a uno solo arriva il
+riconoscimento — a 0,30 s le sue orecchie sono a −0,583 e la coda è a zero,
+mentre il gemello è ancora a +0,274 con la coda a 0,800.
+
+⚠️ **E QUEL PROVINO SI ERA ACCECATO DA SOLO.** La prima stesura chiedeva la
+forza di ieri al `Limbico` VIVO — che dopo la cura risponde **0,000**, perché
+una gioia non ha forza d'allarme: il corpo A riceveva `somatico(0)` e la
+lastra mostrava due corpi identici, cioè un difetto che non esiste più
+sembrava non essere mai esistito. Un provino che chiede al codice curato di
+rifare il difetto misura la cura. La forza di ieri è una **misura**, e sta
+scritta nel file con la sua provenienza.
+
+## IL PROVINO DEL VOCABOLARIO — l'unica fase che decide se quel lavoro esiste
+
+Il vocabolario del corpo (sopra) e la regia (sopra) sono stati **guardati**,
+uno per uno, alle distanze vere e dai quattro lati, nel MainLevel vero e con
+la camera vera del gioco: [`tools/provino_vocabolario.gd`](tools/provino_vocabolario.gd).
+Da lì escono due correzioni misurate e sette verdetti onesti — uno per gesto,
+compreso quello che dice «questo qui, a nove metri, non c'è».
+
+### LO STRUMENTO, e le cinque regole che chiudono cinque modi di mentirsi
+
+1. **La camera è quella VERA.** `Player.tscn`: 2,70 m sopra Mochi, 3,70
+   dietro, inclinata di 28°, fov 50, e **senza imbardata**. Una macchina
+   piazzata a un metro dal muso risponde a una domanda che nessun giocatore
+   si fa.
+2. **Il ritaglio non bara.** Nella lastra delle distanze il riquadro è di
+   **pixel fissi** (195 su un fotogramma da 1920×1080), non «tanti quanti ne
+   occupa il corpo»: a due metri il chibi riempie la tessera, a nove ne
+   occupa un quarto — che è quello che vede chi gioca. Un ritaglio che scala
+   col corpo mostra un gesto leggibile a nove metri che in partita non
+   esiste.
+3. **L'azimut si CALCOLA.** Il vicino sta di lato rispetto a Mochi (o la sua
+   testona lo copre): «di profilo» rispetto alla camera **non** è `yaw = 90°`
+   — è un errore di dieci-diciassette gradi, e si porta via proprio la
+   colonna che si sta misurando. L'angolo si prende fra la direzione
+   *camera → corpo* e il muso.
+4. **Il tempo si rallenta, non si campiona a caso.** `Engine.time_scale` a
+   0,35: il gioco gira identico e il provino può chiedere il fotogramma a
+   0,12 s dall'inizio. Il colmo del Rialzo dura un decimo di secondo — a
+   venticinque fotogrammi al secondo, a velocità piena, quel fotogramma **non
+   esiste**.
+5. **Il gesto vecchio sta nella stessa matrice, e nel suo caso migliore** (il
+   bersaglio a 90°, cioè la testa al tetto dei 44°). Un confronto in cui il
+   termine di paragone è messo male non è un confronto.
+
+E **tre riquadri diversi, perché i gesti non sono tutti della stessa specie**:
+fermo sul corpo (le pose), **fermo sul MONDO** (chi si ferma: il Punto è la
+sua traversata, e un riquadro che insegue il corpo cancella esattamente il
+segnale), e **fermo sulla strada che il corpo avrebbe fatto senza il gesto**
+(chi continua a camminare: il Largo e il rallentando, dove la notizia è lo
+SCARTO).
+
+### I SETTE VERDETTI, guardati
+
+| | 2 m | 6 m | 9 m | di SPALLE | mimo? |
+|---|---|---|---|---|---|
+| **ricevuta** (la testa che si gira) | sì | solo di fronte | **no, da nessun lato** | **no** | — |
+| **premessa · pensiero** (il Punto) | sì | **sì** | **sì** | **sì** | no |
+| **rinuncia** (il Raccolto) | sì | **sì** | **sì** | **sì** | no |
+| **sollievo** (il Rialzo) | sì | sì | debole | sì (le orecchie) | no |
+| **evitamento** (il Largo) | sì (dopo la cura) | sì (dopo) | debole | debole | no |
+| **il Capo** (livello) | sì, anche di spalle | debole | **no** | sì a 2 m | no |
+| **la Coda** (livello) | sì | sì | debole | sì | no |
+
+- **La ricevuta di ieri è confermata dal vero, con un altro strumento.** Nella
+  pellicola a sei metri, di **profilo** e di **spalle**, i sette fotogrammi
+  del gesto sono **la stessa immagine**; a nove metri non cambia niente da
+  nessuno dei quattro lati. Il numero della sintesi (verso 0,67–1,11) non era
+  pessimismo: è quello che si vede.
+- **IL PUNTO È IL GESTO DI QUESTO VOCABOLARIO.** Nella lastra del moto — otto
+  istanti, riquadro fermo sul mondo — il corpo entra da un bordo, sta **fermo
+  in quattro tessere consecutive**, e riparte. Succede identico a due, a
+  quattro, a sei e a nove metri, e **di spalle come di fronte**: è l'unico
+  segno del gioco che sopravvive all'inquadratura che oggi non dice niente. E
+  costa zero canali del rig.
+- **Il Raccolto è l'unica POSA che regge a nove metri**, da tutti e quattro i
+  lati, e regge per la ragione giusta: un solido di rotazione non ha
+  orientamento ma ha una **proporzione**, e la proporzione si vede da
+  ovunque. Nella coppia riposo|gesto a nove metri il corpo è visibilmente più
+  basso e più largo, con le orecchie cadute.
+- **Il sollievo funziona perché il buio c'è davvero**: nei fotogrammi prima
+  le orecchie sono ripiegate all'indietro (la coda somatica del sussulto) e
+  in tre decimi di secondo tornano su, dritte, col corpo che sale. **Di
+  spalle si legge**, ed è l'orecchio a dirlo.
+- **Il Capo si legge a due metri — anche di spalle** (le due orecchie che si
+  inclinano insieme sono un segno pulito) — **a sei è debole, a nove non
+  c'è.** È un LIVELLO e resta dichiarato così: si nota quando ci si avvicina
+  a qualcuno, non attraverso il prato. **Non gli si alza l'ampiezza**: questo
+  progetto ha già misurato che il verso di un rollio *cala* crescendo. La
+  strada giusta, se un giorno lo si vorrà chiudere, è quella del Raccolto —
+  una componente di **silhouette** (la testa che affonda nelle spalle), non
+  una rotazione più grossa.
+
+### LA CURA GROSSA: due gesti su tre non li vedeva nessuno
+
+**MISURATO** (parte V del provino: venti residenti, otto minuti, un giocatore
+che cammina e lavora — e ogni gesto concesso viene confrontato col frustum
+della camera vera):
+
+| | gesti concessi | nell'inquadratura | fuori |
+|---|---|---|---|
+| prima | 12 | 4 | **8 (67%)** |
+| dopo | 6 | **6** | **0 (0%)** |
+
+Il raggio dei nove metri era un'**approssimazione della visibilità**, e in
+questo gioco approssima male: la camera non ha imbardata e il giocatore non
+la può girare, quindi **buona parte del cerchio dei nove metri sta dietro la
+macchina da presa**. Un gesto che parte lì consumava il gettone del villaggio
+(12 s) e il riposo di quella persona (5 minuti) per mostrare una cosa che
+nessuno poteva vedere in nessun modo — cioè non era neutro: **rubava il palco
+a quelli che si sarebbero visti**. Era la regola 4 della `Regia` scritta nel
+commento e non nel codice.
+
+Adesso c'è `Visitors._nell_inquadratura()`, una riga sopra `frase()`. I gesti
+che il giocatore VEDE passano da **quattro a sei**, e il totale scende perché
+un'occasione fuori campo muore in silenzio — che è quello che deve fare.
+
+> ⚠️ **IL DEGRADO VA VERSO QUELLO CHE C'ERA: senza camera si passa.** Le
+> suite headless, i banchi, il diorama del titolo non hanno un `Camera3D`
+> corrente e non cambiano di un bit. Spegnere una funzione per una domanda a
+> cui non sappiamo rispondere è il degrado dalla parte sbagliata. Le due
+> mutazioni sono rosse: togliere il cancello ne arrossisce **3**, invertire
+> il degrado (nessuna camera → nessun gesto) ne arrossisce **10**.
+
+> ⚠️ **E LE DUE CORSE NON SONO APPAIATE.** Appena il comportamento cambia i
+> due villaggi divergono, quindi «12 contro 6» non dice niente da solo.
+> Quello che si confronta è la FRAZIONE dentro la propria corsa: 33% contro
+> 100%.
+
+### LA CURA PICCOLA: il Largo non aveva un canale di TEMPO
+
+Era l'unico evento del vocabolario il cui carico utile si misura **solo
+contro la riga che il corpo avrebbe fatto**: nove centimetri di scostamento e
+cinque gradi di inclinazione. Ma quella riga il giocatore non ce l'ha. Il
+Punto si legge perché un corpo fermo si confronta col corpo di prima; un
+corpo che cammina nove centimetri più in là non si confronta con niente —
+**guardato**, con `dip = 0` le otto tessere della striscia sono la stessa
+immagine, a sei metri, di tre quarti e di spalle.
+
+Adesso il Largo **esita**: `Gesti.LARGO_DIP = 0.45` dimezza il passo per due
+decimi di secondo *prima* di scostarsi, e poi il corpo riprende e va via un
+filo più svelto. Scelto su **cinque varianti affiancate ed etichettate**
+(A com'è · B esitazione 0,45 · C inclinazione 0,15 · D le due insieme ·
+E esitazione 0,70): C non aggiunge niente a sei metri, **E diventa una
+fermata** — cioè la parola del Punto, detta male — e B è quella che si vede
+restando un'esitazione. Costa sedici centimetri di strada, e il Largo
+continua a guadagnarne più di quanti ne perda.
+
+La guardia è `test_gesti._il_largo_esita_prima_di_scostarsi`, e sorveglia la
+FORMA con tre numeri che non sono suoi: c'è (< 0,85), non è una fermata
+(> 0,40 — e la soglia è 0,40 e non 0,30 apposta, o la variante scartata
+sarebbe passata per un centesimo), è già finita quando il corpo si scosta.
+
+### LE TRAPPOLE DI BANCO, tutte pagate
+
+1. **DA QUANTO INDIETRO PARTE IL CORPO È UN CONTO.** Fra il `_walk_to` e
+   l'accensione del gesto passano l'assestamento e tutto il pre-rullo della
+   pellicola: a 1,45 m/s sono **tre metri**, e la prima stesura ne concedeva
+   1,6. Il corpo arrivava un metro e mezzo oltre il punto inquadrato e
+   continuava ad andarsene: a sei metri, di profilo, **usciva dal
+   fotogramma**, e la tessera veniva fuori mezza nera. Un provino che perde
+   il corpo non dice «il gesto non si vede» — non dice niente.
+2. **UN RIQUADRO CHE INSEGUE IL CORPO CANCELLA IL PUNTO.** È il gesto il cui
+   segnale È lo spostamento: centrandolo su di lui, la striscia diventa una
+   successione di fotogrammi identici. Il riquadro sta fermo sul MONDO.
+3. **…E PER CHI NON SI FERMA NON PUÒ STARE FERMO NEMMENO QUELLO.** Il Largo e
+   il rallentando attraversano un riquadro fisso in mezzo secondo. Il loro
+   riquadro insegue **la strada che il corpo avrebbe fatto senza il gesto**.
+4. **LA CHIAVE DI UN CENSIMENTO È IL CORPO, NON IL NOME.** Con diciannove
+   residenti due etichette si ripetono, e la riga che spegne il segno «sta
+   gesticolando» lo spegneva a un OMONIMO: ogni gesto veniva ricontato a ogni
+   fotogramma. **150 «gesti» dove l'usciere ne aveva concessi 17.** Un banco
+   che conta male non dice una cosa un po' sbagliata: dice una cosa che non
+   esiste.
+5. **La testona di Mochi copre il vicino.** A dodici gradi di scostamento
+   laterale entra nel riquadro da sotto e a due metri lo riempie per un
+   quarto. A ventitré gradi il vicino sta a due terzi di schermo, dentro
+   l'inquadratura vera e fuori dalla testona — che è poi quello che fa un
+   giocatore quando guarda qualcuno.
+
+### I RESIDUI, dichiarati
+
+- **`premessa` e `pensiero` si leggono come UN gesto solo.** La differenza —
+  ripartenza molle contro decisa, più il Rialzo innestato — si vede a due
+  metri e si perde a sei. Non è un guasto (il significato lo porta il
+  contesto, non il corpo), ma «quattro frasi» in scena sono **tre corpi
+  distinti più una variante**.
+- **IN MEZZO A UNA FOLLA, UN CORPO FERMO NON SPICCA.** La premessa del Punto
+  è «venti corpi che camminano sono il riferimento» — ma in un villaggio vero
+  la maggioranza dei vicini in un dato istante *non* cammina: sta seduta,
+  chiacchiera, oziona. Guardando due fotogrammi pieni a 1,25 s di distanza
+  **non sono riuscito a dire quale dei nove chibi in campo stesse
+  gesticolando**. In movimento il giocatore ha molto più di due fotogrammi, e
+  una decelerazione a mezzo metro da sé è saliente in modo che una coppia di
+  istantanee non può mostrare: ma il residuo resta, e la misura che manca è
+  «quanti vicini camminano davvero, in media, dentro l'inquadratura».
+- **Il giocatore si occlude da solo.** In un villaggio costruito fitto, i
+  tetti e le spalliere dei letti coprono i corpi: due gesti su sei di una
+  corsa erano dietro qualcosa. Il cancello dell'inquadratura non lo sa (prova
+  il frustum, non la visibilità).
+- **`quel_posto_no` continua a non essere mai stato visto in partita**, quindi
+  l'esitazione del Largo è provata al banco e in provino, non sul campo.
+- E il provino **non prova un solo canale in movimento continuo**: giudica
+  pellicole di fotogrammi fermi, che è il metro più severo dei due.
+
+### Come si guarda
+
+```
+CHIBI_VOC=<dir> Godot --path . --resolution 1280x720 \
+  --script res://tools/provino_vocabolario.gd
+#   CHIBI_PARTI=D  le distanze (4 distanze × 4 lati, riposo|gesto)
+#              F   la pellicola a 6 m · G il dettaglio a 2 m
+#              M   il contrasto di MOTO (solo chi cammina)
+#              X   le VARIANTI affiancate · V il villaggio vivo
+#   CHIBI_SOLO=premessa,rinuncia   CHIBI_VISTE=profilo,spalle
+python3 tools/sinossi_vocabolario.py <dir> 9      # tutti i gesti, una lastra
+COPPIE=1 python3 tools/sinossi_vocabolario.py <dir> 9   # riposo|gesto appaiati
+```
+
+
 ## Test
 
 Test-suite **dependency-free** (nessun addon, nessuna rete) in `tests/`:

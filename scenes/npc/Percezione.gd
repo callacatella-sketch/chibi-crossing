@@ -94,6 +94,11 @@ extends Node
 ## premessa il giocatore non ha potuto vedere — cioè il guasto di sopra.
 const RAGGIO := 9.0
 
+## Chi decide se uno sguardo vale anche un CORPO. Sta di là e non qui: la
+## regia è la stessa per tutte e sette le occasioni del vocabolario, e questo
+## nodo ne conosce due.
+const REGIA := preload("res://scenes/npc/Regia.gd")
+
 ## Per quanto tempo la testa resta girata, in secondi.
 ##
 ## Misurato sui gesti veri, non scelto a occhio: l'orto tiene Mochi occupata
@@ -267,8 +272,47 @@ func _testimonia(riga: Dictionary, verbo: int, pos: Vector3, soggetto: int) -> v
 	# righe, e mai in mezzo.
 	if node == null or not is_instance_valid(node) or id < 0:
 		return
-	node.call("guarda_gesto", pos, DURATA_SGUARDO, verbo, _finestra)
+	var nuovo := bool(node.call("guarda_gesto", pos, DURATA_SGUARDO, verbo, _finestra))
 	_cuore.call("osserva", id, verbo, pos, soggetto)
+	# ------------------------------------------------------------------
+	# E LA TERZA RIGA, che è di un'altra specie e sta DOPO le due apposta.
+	#
+	# La testa che si gira è la premessa, e da sola non basta: misurata, si
+	# legge solo da vicino e solo da davanti — di spalle l'imbardata non ha
+	# verso (rapporto 1,04: si vedono le orecchie muoversi e non si sa da
+	# che parte), e a diciassette metri la testa è venti pixel. Il PUNTO —
+	# il corpo che si ferma — si legge a diciassette metri da qualunque
+	# azimut, perché non è una forma: è l'assenza improvvisa di movimento in
+	# un villaggio che cammina.
+	#
+	# ⚠️ **STA DOPO, E NON È UNA DI LORO.** Quelle due non possono fallire;
+	# questa **quasi sempre fallisce** — il palco del villaggio è ancora
+	# caldo, il vicino ha già gesticolato da poco, sta fermo, è a undici
+	# metri. Il silenzio è il comportamento normale e la ricevuta resta
+	# pagata lo stesso: il degrado va SEMPRE verso il comportamento che
+	# c'era già.
+	#
+	# ⚠️ **E SEGUE IL RICORDO, NON IL GESTO.** `nuovo` è la cosa che
+	# `guarda_gesto` ha appena deciso per la TESTA, restituita invece che
+	# ricalcolata: nel grafo, gesti uguali e ravvicinati non fanno ricordi
+	# nuovi — fondono in uno solo che si rinfresca e conta `quante`. Il
+	# ventesimo pezzo di un sentiero non è una cosa vista in più, è la stessa
+	# cosa ancora, e un corpo non si ferma due volte per la stessa cosa.
+	# Senza questa riga il Punto usciva **quasi sempre in mezzo a una raffica
+	# monotona** invece che sul gesto singolo, che è quello che si legge —
+	# perché l'usciere serviva chi bussava per primo, e in una raffica bussa
+	# sempre la raffica. Il numero non si ricalcola qui: la finestra di
+	# fusione vive nel C++ e deve avere UN lettore.
+	#
+	# E chi era il DESTINATARIO se lo ricorda il doppio (`R_SU_DI_ME`, la
+	# sola asimmetria che il grafo conosce): per lui è un'occasione diversa,
+	# che aspetta molto meno. Non è un giudizio su una persona — è «quella
+	# cosa lì l'hai fatta a me».
+	if _visitors.has_method("chiedi_gesto"):
+		var occ: String = REGIA.occasione_dello_sguardo(nuovo,
+				soggetto >= 0 and soggetto == id)
+		if occ != "":
+			_visitors.call("chiedi_gesto", str(riga.get("label", "")), occ)
 
 
 # ------------------------------------------------------------- il cablaggio

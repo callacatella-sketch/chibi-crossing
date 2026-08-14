@@ -54,6 +54,17 @@ const ESTINZIONE := 0.12
 const SOGLIA_EVITAMENTO := 0.45
 ## Quanto costa trattenersi una volta.
 const COSTO_MORSO := 0.22
+## Sotto questa misura il corpo non fa proprio niente. Vale per tutte e due
+## le monete della strada veloce (l'allarme e il calore): il silenzio è il
+## comportamento normale, e la soglia è UNA.
+const SOGLIA_SUSSULTO := 0.22
+## Oltre questa bruschezza il corpo parte comunque, anche se chi arriva è
+## caro: il riflesso non sa ancora chi sia. Ed è anche il tetto sotto cui una
+## gioia può farsi vedere — in mezzo a qualcosa di brusco un cuoricino non ci
+## sta.
+const RIFLESSO_GREZZO := 0.25
+## Quanta scia lascia un allarme nel corpo.
+const SCIA_ALLARME := 0.55
 
 # ---------------------------------------------------------------- stato
 
@@ -112,21 +123,56 @@ func percepisci(attore := "", luogo := "", indizio := 0.0) -> Dictionary:
 		if absf(c) > absf(carica):
 			carica = c
 			fonte = chiave
-	# il corpo già attivato reagisce più forte a tutto: è l'allerta che si
-	# autoalimenta, ed è il motivo per cui dopo uno spavento tutto spaventa
 	var grezzo := clampf(indizio, 0.0, 1.0)
-	var forza: float = clampf((absf(carica) + grezzo) * reattivita
+	# ⚠️ **DUE MONETE, NON UNA — ed è la correzione più importante di questo
+	# file.** Una sola `forza` pagava tutte e due le reazioni, e quella forza
+	# era fatta di soli ingredienti dell'ALLARME: il valore assoluto del
+	# marchio (cioè la paura e l'affetto sulla stessa scala), la `reattivita`
+	# — che è per definizione il guadagno della paura, «la codardia lo alza,
+	# la grinta lo abbassa» — e l'autoalimentazione dell'allerta.
+	#
+	# Le conseguenze erano tre, tutte MISURATE nel villaggio vero
+	# (`tools/misura_sussulti.gd`, 28 residenti, 8 minuti):
+	#  · un amico dopo sei incontri felici valeva **0,600**, cioè PIÙ di uno
+	#    sconosciuto caricato di corsa (0,394): chi ti vuole bene reagiva più
+	#    forte di chi si è spaventato;
+	#  · quella forza alzava l'`arousal`, che in questo gioco ha un
+	#    vocabolario solo — «ancora guardingo», «col cuore in gola» — e un
+	#    consumatore che cambia il gioco (`Visitors._spiega_come_sta` toglie
+	#    il saluto felice a chi ha il corpo scosso): **13 residenti su 28**
+	#    finivano la giornata così, e più ti volevano bene prima ci
+	#    arrivavano;
+	#  · e `si_illumina` era il ramo DI SERIE, quindi bastava una camminata
+	#    addosso per far comparire un cuoricino sopra la testa di uno che non
+	#    ti aveva mai visto: **45 cuoricini su 48 senza nessuna storia
+	#    dietro**. Un cuore che il giocatore non sa ricondurre a niente non
+	#    attenua l'affetto vero: lo rende illeggibile.
+	#
+	# Adesso l'ALLARME lo alimenta solo ciò che allarma (la carica NEGATIVA e
+	# la bruschezza), e il CALORE è la carica positiva e basta: nessun
+	# guadagno di paura, nessuna autoalimentazione. Per tutto ciò che
+	# allarmava, il conto è identico al bit — `maxf(0, -carica)` è
+	# `absf(carica)` quando la carica è negativa — e un test lo dimostra su
+	# una griglia (`test_gioia._la_paura_non_e_cambiata`).
+	#
+	# `forza` resta l'allarme e SOLO l'allarme, anche quando non basta a far
+	# trasalire nessuno: chi la legge legge quanto il corpo si è attivato.
+	var allarme: float = clampf((maxf(0.0, -carica) + grezzo) * reattivita
 			* (1.0 + arousal * 0.6), 0.0, 1.0)
+	var calore: float = maxf(0.0, carica)
 	var reazione := "nulla"
-	if forza > 0.22:
+	if allarme > SOGLIA_SUSSULTO and (carica < 0.0 or grezzo > RIFLESSO_GREZZO):
 		# un segnale brusco fa trasalire ANCHE se chi arriva è caro: il
-		# corpo non ha ancora idea di chi sia. Se invece non c'è niente di
-		# brusco, resta la lettura del marchio — chi ti vuole bene si
-		# illumina, chi ti teme trasalisce.
-		reazione = "trasalisce" if (carica < 0.0 or grezzo > 0.25) else "si_illumina"
-		arousal = clampf(arousal + forza * 0.55, 0.0, 1.0)
-	ultimo_sussulto = {"reazione": reazione, "forza": forza, "fonte": fonte,
-			"carica": carica, "grezzo": grezzo}
+		# corpo non ha ancora idea di chi sia.
+		reazione = "trasalisce"
+		# e la scia la lascia l'allarme, perché è lui che resta nel corpo
+		arousal = clampf(arousal + allarme * SCIA_ALLARME, 0.0, 1.0)
+	elif calore > SOGLIA_SUSSULTO and grezzo <= RIFLESSO_GREZZO:
+		# niente di brusco, e una storia vera alle spalle: chi ti vuole bene
+		# si illumina — e adesso il cuoricino dice una cosa che è successa.
+		reazione = "si_illumina"
+	ultimo_sussulto = {"reazione": reazione, "forza": allarme, "calore": calore,
+			"fonte": fonte, "carica": carica, "grezzo": grezzo}
 	return ultimo_sussulto
 
 
@@ -174,9 +220,24 @@ func rivaluta(tipo: String, attore: String, valenza: float, luogo := "",
 	# in gola» per quaranta giorni di fila — vero per un trauma, ridicolo per
 	# una giornata di legna. Ora il logorio cronico va quasi tutto nell'umore,
 	# e il corpo si allarma solo per ciò che arriva di colpo.
+	#
+	# ⚠️ **E L'ALLARME LO ALZA SOLO CIÒ CHE ALLARMA** — la stessa regola della
+	# strada veloce, qui sopra. `absf(sorpresa)` metteva sulla stessa scala il
+	# tradimento e il regalo: MISURATO, **un solo regalo** portava l'arousal a
+	# 0,315 e il gioco dichiarava quel vicino «ancora guardingo». Non è una
+	# parola in un diario: `Visitors._spiega_come_sta` legge proprio quella
+	# riga e, salutando (T), TOGLIE il saluto felice e ci mette una nuvoletta
+	# di puntini. Fare un regalo a qualcuno e vederselo restituire con un
+	# «…» è la gioia con addosso la faccia della paura, un piano più in alto.
+	#
+	# La sorpresa NEGATIVA resta tutta: la delusione e il tradimento scuotono
+	# il corpo, ed è la riga che tiene in piedi «il male da chi ti aspettavi
+	# il bene». Quella positiva va dove è sempre andata la parte cronica —
+	# nell'UMORE, che ha le sue parole («di buonumore») e nessuna paura
+	# dentro.
 	var acuto: float = 0.08 if identita else 0.40
 	var cronico: float = 0.26 if identita else 0.16
-	arousal = clampf(arousal + absf(sorpresa) * acuto * reattivita, 0.0, 1.0)
+	arousal = clampf(arousal + maxf(0.0, -sorpresa) * acuto * reattivita, 0.0, 1.0)
 	umore = clampf(umore + sentito * cronico, -1.0, 1.0)
 
 	# e il posto (o la persona) si CARICA di quello che si è sentito

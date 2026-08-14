@@ -14,6 +14,7 @@ const GUSTO := preload("res://scenes/npc/Gusto.gd")
 const DEDUZIONI := preload("res://scenes/npc/Deduzioni.gd")
 const ANIMO := preload("res://scenes/npc/Animo.gd")
 const VILLAGGIO := preload("res://scenes/npc/Villaggio.gd")
+const REGIA := preload("res://scenes/npc/Regia.gd")
 const UI_BROWN := Color("6a4a3a")
 # Fino a ventotto vicini: il passaparola del Villaggio, le chiacchiere, le
 # indoli e le stravaganze rendono per densità — la scala dell'Animo produce
@@ -211,6 +212,452 @@ func _on_new_day(_day: int) -> void:
 		r["promosso_oggi"] = false
 
 
+# =========================================================================
+# IL VOCABOLARIO DEL CORPO — l'usciere del villaggio
+# =========================================================================
+#
+# I gesti stanno in `Gesti.gd` e il corpo in `Visitor.gd`. Qui c'è l'unica
+# cosa che né l'uno né l'altro possono sapere: **quanti se ne possono vedere
+# insieme**. Ed è la domanda più pericolosa di tutto il lavoro.
+#
+# ⚠️ **UN GETTONE SENZA PERIODO È UN MIMO PERMANENTE.** «Uno per volta in
+# tutto il villaggio» sembra la regola giusta e da sola significa *sempre
+# esattamente un mimo in scena, per sempre*: appena uno finisce, il primo che
+# passa prende il posto. Serve anche il PERIODO — quanto raramente il gettone
+# torna disponibile — ed è il numero che decide se il villaggio sembra vivo o
+# sembra un carillon di pupazzi.
+#
+# Si tara contro quello che il villaggio fa GIÀ, non contro zero: una
+# chiacchierata ogni 3,5 s (`_chat_acc`), un sussulto ogni 9 s per residente,
+# un cambio di mestiere ogni 0,4–1,6 s, il fiato dell'anziano il 17% del
+# tempo. Venti secondi è il primo valore che sta **un ordine di grandezza
+# sopra** la cosa più rara che il villaggio produce già.
+#
+# ⚠️ **DODICI, E IL NUMERO SI SCEGLIE SU QUANTO IL GETTONE MORDE, non su
+# quanti gesti escono.** Misurato con `tools/prova_villaggio_gesti.gd`
+# (quattordici residenti, cinque minuti, un giocatore che lavora):
+#
+#   | gettone | richieste | rifiutate DAL GETTONE | gesti | frazione mimo |
+#   |---|---|---|---|---|
+#   | 20 s | 383 | **193 (50%)** | 6 | 1,13% |
+#   | 12 s | 175 | **26 (15%)** | 4 | 1,41% |
+#
+# ⚠️ **E LE DUE CORSE NON SONO APPAIATE**: il numero di RICHIESTE è più che
+# raddoppiato fra l'una e l'altra (383 contro 175), perché dipende da quante
+# volte il lavoro di Mochi trova dei testimoni — cioè dal giro che fa il
+# giocatore, non dal gettone. «Sei gesti contro quattro» perciò **non dice
+# niente**, ed è la stessa trappola per cui in questo progetto le misure si
+# fanno A/B nella STESSA corsa. Quello che si può confrontare è la
+# SELETTIVITÀ del gettone rispetto alla domanda della sua corsa, e lì la
+# differenza è netta: a venti secondi il gettone era il collo di bottiglia
+# (metà dei no erano suoi), a dodici lo sono le condizioni del mondo — il
+# vicino deve camminare, deve avere strada davanti, non deve aver appena
+# gesticolato. **È l'ordine giusto: il mondo decide QUANDO un gesto ha senso,
+# il gettone impedisce soltanto che se ne vedano due insieme.**
+#
+# La frazione di secondi-vicino passata dentro un gesto resta 1,1–1,4%, dieci
+# volte sotto il tetto del mimo (15%), e i simultanei restano **1** in tutte
+# e due le corse.
+const GESTO_PASSO := 12.0
+## E ogni vicino ha il suo riposo lungo: cinque minuti, per genoma ±30%. Non è
+## la stessa cosa del gettone — il gettone dice «uno per volta», questo dice
+## «non sempre lo stesso», che è quello che distingue un villaggio da un
+## teatrino con un attore.
+const GESTO_RIPOSO := 300.0
+## E MAI OLTRE I NOVE METRI. A quindici metri un gesto da dieci centimetri
+## sono 6,7 pixel: rumore. Un rumore illeggibile insegna al giocatore che i
+## vicini si muovono a caso, che è il danno peggiore che questo lavoro possa
+## fare. È lo stesso raggio di `Percezione.RAGGIO`, e per la stessa ragione:
+## fuori di lì la premessa non si vede.
+const GESTO_RAGGIO := 9.0
+## L'altezza a cui si guarda un chibi: mezzo metro, il petto. Serve alla
+## domanda dell'inquadratura, e non è un numero nuovo — è la stessa quota a
+## cui `Deduzioni` misura se il giocatore vede una testa girarsi.
+const GESTO_QUOTA := 0.55
+
+var _gesto_acc := 0.0        # il gettone del villaggio
+var _gesto_chi := ""         # chi lo tiene adesso
+var _gesto_riposo := {}      # label -> secondi che gli restano di riposo
+## Quante teste inclinate si vedono INSIEME in tutto il villaggio. Il Capo
+## non prende il gettone (non ferma nessuno e non trasla nessuno), ma ha la
+## sua scarsità, e la ragione è estetica: **tre teste inclinate insieme sono
+## una posa di gruppo, non tre pensieri.**
+##
+## PROVINATO guardando (`tools/provino_capi.gd`, la camera vera del gioco,
+## tre chibi a sette metri): a tre, i musetti si inclinano dalla stessa parte
+## e il quadro si legge come una coreografia — quello che il vocabolario del
+## corpo esiste per non essere. A due, sono due persone che stanno pensando a
+## due cose diverse.
+const CAPO_MAX := 2
+## LA SALA D'ATTESA: label -> {occasione, extra, scade, vicino_a}.
+##
+## Certe occasioni capitano quando il corpo non è nelle condizioni di dirle:
+## il Limbico fa cambiare idea a uno che è ancora fermo, la promozione di un
+## ricordo cade su uno seduto in panchina. Il Punto e il Largo vogliono
+## tutti e due un corpo in cammino — è la loro natura, sono contrasti di
+## MOTO — quindi la scelta è fra buttare l'occasione e aspettare un attimo.
+##
+## ⚠️ **E UN GESTO RIMANDATO VIVE QUANTO LA SUA PREMESSA, mai un secondo di
+## più.** Non è una scadenza tarata a occhio: è il tempo per cui il
+## giocatore ha ancora sotto gli occhi la ragione. Per la promozione è la
+## TESTA GIRATA (`Percezione.DURATA_SGUARDO`), che è letteralmente la
+## premessa che sta guardando; per l'evitamento sono i pochi secondi in cui
+## quel posto è ancora «quello lì». Scaduto il tempo si tace, e nessuno lo
+## sa: una conseguenza che arriva quando la premessa non c'è più non attenua
+## l'effetto, **lo inverte**.
+##
+## UNA VOCE PER PERSONA: chi ha già qualcosa in attesa e riceve una seconda
+## occasione tiene la NUOVA (quella vecchia ha perso il suo momento). Due
+## code sullo stesso corpo sarebbero due gesti in fila, cioè pantomima.
+var _gesto_evita := {}
+## Fin dove il posto marchiato resta «quello lì»: oltre, il gesto indicherebbe
+## un punto che il giocatore non collega più a niente.
+const GESTO_EVITA_RAGGIO := 7.0
+
+
+## L'USCIERE. Torna false — e non fa niente — se il villaggio non ha spazio
+## per questa OCCASIONE adesso: **chi perde muore in silenzio**, non si
+## accoda. Una coda su ventotto corpi trasforma un picco (il falò, quaranta
+## pietre di sentiero) in un minuto di pantomima.
+##
+## ⚠️ **SI CHIEDE PER OCCASIONE, NON PER FRASE, e la differenza è la regia.**
+## Prima l'usciere riceveva «premessa» e serviva chi bussava per primo — e
+## chi bussa per primo è sempre la stessa: `ha_visto` capita a ogni gesto del
+## giocatore che qualcuno veda (misurato: 383 richieste in cinque minuti,
+## contro le zero-o-una di una deduzione). Con un gettone solo, l'occasione
+## più frequente si prendeva il palco sempre, e le cinque che valgono di più
+## non si vedevano mai. La tabella che dice quanto vale ciascuna sta in
+## `Regia.OCCASIONI` — una sola casa, pura, falsificabile — e qui si
+## esegue.
+##
+## ⚠️ **E CONTA I NO, uno per uno.** Il silenzio ha otto ragioni diverse e da
+## fuori si vedono tutte uguali: un banco che dice solo «zero gesti» lascia
+## indovinare, e si finisce per accusare il cablaggio quando il gettone era
+## semplicemente occupato. Il conto sta in RAM, costa un incremento, e lo
+## legge `debug_gesti_contatori()`.
+var _gesto_no := {}
+## …e i SÌ, per occasione: senza, il referto dice quanti gesti sono usciti e
+## non QUALI momenti della vita interiore il giocatore ha potuto vedere —
+## che è l'unica cosa che questa fase deve misurare.
+var _gesto_si := {}
+
+## `conta` distingue il PRIMO tentativo dalle riprove della sala d'attesa:
+## senza, un'occasione che aspetta il passo per tre secondi si conterebbe
+## duecento volte e il referto direbbe che è la più insistente del villaggio
+## invece che la più rara. Le riprove hanno la loro riga (`↻`).
+## Un no col suo nome. Le RIPROVE della sala d'attesa non entrano
+## nell'istogramma: un'occasione che aspetta il passo per tre secondi si
+## conterebbe ottanta volte e il referto direbbe che è la più insistente del
+## villaggio — misurato, 963 «un altro sta parlando» su 1133 richieste vere.
+## Il loro conto è la riga `↻`, che dice un'altra cosa e la dice a parte.
+func _no(conta: bool, perche: String) -> void:
+	if conta:
+		_gesto_no[perche] = int(_gesto_no.get(perche, 0)) + 1
+
+
+func chiedi_gesto(label: String, occasione: String, extra := {},
+		conta := true) -> bool:
+	if conta:
+		_gesto_no["chiesti"] = int(_gesto_no.get("chiesti", 0)) + 1
+		_gesto_no["? " + occasione] = int(_gesto_no.get("? " + occasione, 0)) + 1
+	else:
+		_gesto_no["↻ " + occasione] = int(_gesto_no.get("↻ " + occasione, 0)) + 1
+	var nome := REGIA.frase_di(occasione)
+	if nome == "":
+		# rumoroso di proposito: un'occasione scritta storta non fallisce —
+		# **smette di parlare, in silenzio, per sempre** (è il guasto della
+		# tabella delle parole del cielo, e quello del verbo fuori tabella
+		# in `Percezione.accaduto`).
+		push_warning("Visitors: occasione sconosciuta «%s» (quel momento non si vedrà mai)" % occasione)
+		return false
+	# IL CORPO DI PRIMA NON HA ANCORA FINITO. È l'unica regola che non ha
+	# eccezioni: due gesti insieme non sono due persone che pensano, sono un
+	# carillon.
+	if _gesto_chi != "":
+		_no(conta, "un altro sta parlando")
+		return false
+	# …E IL PALCO È ANCORA CALDO. Quanto debba essersi raffreddato lo dice
+	# l'occasione: il periodo intero per quella che capita di continuo, un
+	# decimo per quella che il giocatore si è tirato addosso da solo.
+	if not REGIA.palco_libero(occasione, _gesto_acc, GESTO_PASSO):
+		_no(conta, "palco caldo")
+		return false
+	# …E IL RIPOSO DI QUELLA PERSONA, con la STESSA aritmetica e lo stesso
+	# numero. Non è simmetria: è la stessa fame di prima, un piano più in
+	# basso — MISURATO nel villaggio vero con ventotto residenti, dieci
+	# minuti, un giocatore che lavora. Il palco era ordinato e il riposo no,
+	# e il risultato è che i **439 no più numerosi erano suoi**: `ha_visto`
+	# bussa 1105 volte e brucia il riposo di chi passa, cosicché la
+	# promozione di un ricordo (26 richieste) e il dono (36) trovavano
+	# sempre gente che «ha appena parlato». Tredici gesti su tredici erano
+	# `ha_visto`, cioè l'unica occasione che il vocabolario non era stato
+	# fatto per mostrare.
+	if not REGIA.palco_libero(occasione, float(_gesto_riposo.get(label, 0.0)),
+			GESTO_RIPOSO):
+		_no(conta, "riposo")
+		return false
+	var nodo := node_di(label)
+	if nodo == null or not is_instance_valid(nodo) \
+			or not nodo.has_method("frase"):
+		_no(conta, "nessun corpo")
+		return false
+	# FUORI RAGGIO NON SI RECITA. Il degrado va verso il silenzio: un gesto
+	# che il giocatore non può vedere non è mezzo gesto, è zero.
+	if _player == null \
+			or _player.global_position.distance_to(nodo.global_position) > GESTO_RAGGIO:
+		_no(conta, "fuori raggio")
+		return false
+	# …E NEMMENO FUORI DALL'INQUADRATURA.
+	if not _nell_inquadratura(nodo.global_position):
+		_no(conta, "fuori dall'inquadratura")
+		return false
+	if not bool(nodo.call("frase", nome, extra)):
+		var perche := "corpo occupato"
+		if nome == "premessa" or nome == "pensiero":
+			if str(nodo.get("_state")) != "walk":
+				perche = "non cammina"
+			elif nodo.get("_andatura") != null \
+					and float(nodo.get("_andatura").blend) <= 0.6:
+				perche = "passo non a regime"
+			elif bool(nodo.get("_gs_viaggio")):
+				perche = "gia' un Punto in questo viaggio"
+			else:
+				perche = "troppo vicino all'arrivo"
+		elif nome == "sollievo":
+			# ⚠️ E LO SI CHIEDE AL CORPO, non lo si indovina. Un'etichetta
+			# messa a naso è la stessa cosa di «zero gesti»: durante una
+			# messa a punto ho letto «nessun buio prima» su un rifiuto che
+			# di buio ne aveva da vendere, e ho cercato per venti minuti nel
+			# posto sbagliato. Il referto che tira a indovinare è peggio del
+			# referto che tace.
+			perche = ("nessun buio prima"
+					if not bool(nodo.call("_sussulto_fresco"))
+					else "corpo occupato")
+		_no(conta, perche)
+		return false
+	_gesto_chi = label
+	_gesto_acc = GESTO_PASSO
+	var s := hash(label) % 601
+	_gesto_riposo[label] = GESTO_RIPOSO * (0.85 + 0.30 * float(s) / 600.0)
+	_gesto_si[occasione] = int(_gesto_si.get(occasione, 0)) + 1
+	return true
+
+
+## IL GIOCATORE CE L'HA DAVANTI? Non «vicino»: **dentro l'inquadratura**.
+##
+## ⚠️ **IL RAGGIO ERA UN'APPROSSIMAZIONE DELLA VISIBILITÀ, E IN QUESTO GIOCO
+## APPROSSIMA MALE.** La camera non ha imbardata (`Player.tscn`: guarda −Z,
+## 2,70 m sopra e 3,70 dietro Mochi, fov 50) e il giocatore non la può
+## girare: **buona parte del cerchio dei nove metri sta dietro la macchina da
+## presa**, e un gesto che parte lì consuma il gettone del villaggio (12 s) e
+## il riposo di quella persona (5 minuti) per mostrare una cosa che nessuno
+## può vedere in nessun modo. È la regola 4 della `Regia` presa sul serio —
+## «un gesto che nessuno vede non è mezzo gesto: è zero» — e finora era
+## scritta nel commento e non nel codice.
+##
+## MISURATO nel villaggio vero (`tools/provino_vocabolario.gd`, parte V:
+## venti residenti, otto minuti, un giocatore che cammina e lavora):
+## **12 gesti concessi, 8 fuori dall'inquadratura — il 67%**. Non è una
+## rifinitura: due terzi del vocabolario si spendevano dove non arriva
+## l'occhio, e il gettone che li aveva pagati restava caldo dodici secondi.
+##
+## Il degrado va SEMPRE verso quello che c'era: **senza camera si passa** —
+## le suite headless, i banchi, il diorama del titolo e chiunque non abbia un
+## `Camera3D` corrente continuano a comportarsi come prima. Spegnere una
+## funzione per una domanda a cui non sappiamo rispondere sarebbe il degrado
+## dalla parte sbagliata — è la stessa regola con cui il portiere del cuore
+## che scrive legge la RAM della macchina: **zero vuol dire «non lo so», e
+## «non lo so» non è mai un no**.
+func _nell_inquadratura(pos: Vector3) -> bool:
+	if not is_inside_tree():
+		return true
+	var vp := get_viewport()
+	if vp == null:
+		return true
+	var cam := vp.get_camera_3d()
+	if cam == null:
+		return true
+	return cam.is_position_in_frustum(pos + Vector3(0, GESTO_QUOTA, 0))
+
+
+## Il referto dei NO, per i banchi (`prova_villaggio_gesti`). In RAM, non si
+## salva, e nel gioco non lo chiama nessuno.
+func debug_gesti_contatori() -> Dictionary:
+	var d: Dictionary = _gesto_no.duplicate()
+	for o in _gesto_si:
+		d["✓ " + str(o)] = _gesto_si[o]
+	return d
+
+
+func _tick_gesti(delta: float) -> void:
+	_gesto_acc = maxf(0.0, _gesto_acc - delta)
+	for k in _gesto_riposo.keys():
+		var t: float = float(_gesto_riposo[k]) - delta
+		if t <= 0.0:
+			_gesto_riposo.erase(k)
+		else:
+			_gesto_riposo[k] = t
+	# il gettone torna libero quando il corpo ha finito, non quando scade
+	# l'accumulatore: sono due cose diverse, e confonderle vorrebbe dire
+	# lasciar partire il secondo gesto sopra il primo
+	if _gesto_chi != "":
+		var n := node_di(_gesto_chi)
+		if n == null or not is_instance_valid(n) \
+				or not n.has_method("gesto_in_corso") \
+				or str(n.call("gesto_in_corso")) == "":
+			_gesto_chi = ""
+	_tick_evita(delta)
+	_tick_capi(delta)
+
+
+## Mette un'occasione in sala d'attesa. `vicino_a` diverso da ZERO aggiunge
+## la condizione «e il corpo dev'essere ancora nei paraggi di quel posto».
+func _rimanda_gesto(label: String, occasione: String, dur: float,
+		extra := {}, vicino_a := Vector3.ZERO) -> void:
+	_gesto_evita[label] = {"occ": occasione, "extra": extra, "scade": dur,
+			"vicino_a": vicino_a}
+
+
+## LA SALA D'ATTESA. Si riprova a ogni fotogramma finché il corpo non è
+## nelle condizioni, e si rinuncia quando la premessa è scaduta.
+func _tick_evita(delta: float) -> void:
+	if _gesto_evita.is_empty():
+		return
+	for label in _gesto_evita.keys():
+		var v: Dictionary = _gesto_evita[label]
+		v["scade"] = float(v["scade"]) - delta
+		if float(v["scade"]) <= 0.0:
+			_gesto_evita.erase(label)
+			continue
+		var n := node_di(label)
+		if n == null or not is_instance_valid(n):
+			_gesto_evita.erase(label)
+			continue
+		var vicino_a: Vector3 = v.get("vicino_a", Vector3.ZERO)
+		if vicino_a != Vector3.ZERO \
+				and n.global_position.distance_to(vicino_a) > GESTO_EVITA_RAGGIO:
+			continue
+		if chiedi_gesto(label, str(v["occ"]), v.get("extra", {}), false):
+			_gesto_evita.erase(label)
+
+
+## Ogni quanto si torna a chiedere chi ha il capo storto. È un LIVELLO su
+## stati che durano minuti: chiederlo sessanta volte al secondo per ventotto
+## vicini vorrebbe dire 3.360 chiamate al secondo per un dato che cambia due
+## volte in un pomeriggio.
+##
+## ⚠️ E STA QUI E NON DENTRO IL CICLO DEI SUSSULTI, dov'era. Là il
+## raffreddamento del sussulto (9 s per residente) faceva da cancello *anche*
+## a questa domanda: chi era stato appena spaventato dal giocatore non poteva
+## smettere di pensare per nove secondi. Due meccaniche diverse dietro lo
+## stesso `continue`.
+const CAPO_OGNI := 0.75
+var _capo_acc := 0.0
+
+
+func _tick_capi(delta: float) -> void:
+	_capo_acc -= delta
+	if _capo_acc > 0.0:
+		return
+	_capo_acc = CAPO_OGNI
+	for r in _residents:
+		var label := str(r.get("label", ""))
+		if label == "" or not _animi.has(label):
+			continue
+		_tick_capo(r, label, _animi[label], r.get("node") as Node3D)
+
+
+## QUANTE TESTE SONO INCLINATE ADESSO — contate nel MONDO, una per una.
+##
+## ⚠️ **E NON IN UN REGISTRO.** Qui c'era `_gesto_capi`, un dizionario di
+## label che il villaggio teneva a mano, e aveva la modalità di guasto di
+## tutti i registri paralleli: **divergeva**. Divergeva verso il basso quando
+## una frase accendeva il rollio dal corpo (il registro non lo sapeva, e il
+## tetto lasciava passare una terza testa); divergeva verso l'alto quando la
+## frase finiva su qualcuno a cui il registro aveva appena concesso il
+## livello (il posto restava occupato da una testa dritta). MISURATO nel
+## MainLevel vero con dodici residenti: **282 fotogrammi divergenti in tre
+## minuti**, e tre teste storte insieme per il 5,4% del tempo.
+##
+## Il conto DERIVATO non ha niente da tenere sincronizzato e niente da
+## potare: chi se n'è andato col fagotto non è più in `_residents`, e il suo
+## posto si libera da sé nello stesso istante. È la stessa forma di
+## `Affetti.coppia()` e della fusione delle serre.
+##
+## Residuo dichiarato: il corpo di chi parte resta in scena per gli 0,8 s in
+## cui rimpicciolisce fino a sparire, e in quella coda non è più contato. Una
+## testa storta che si smaterializza non è una posa di gruppo, e il rimedio —
+## spegnere il capo dentro `_congeda` — sarebbe il terzo posto scritto a mano
+## che questo lavoro esiste per togliere.
+func capi_storti() -> int:
+	var n := 0
+	for r in _residents:
+		var nodo := r.get("node") as Node3D
+		if nodo != null and is_instance_valid(nodo) \
+				and nodo.has_method("capo_storto") and bool(nodo.call("capo_storto")):
+			n += 1
+	return n
+
+
+## C'È POSTO per un'altra testa inclinata? La chiede il CORPO, prima di
+## accendere il Capo dentro una frase (`Visitor.frase`): il tetto è del
+## villaggio, e una frase che se lo accendesse da sola sarebbe un secondo
+## villaggio che non conosce il primo.
+func capo_permesso() -> bool:
+	return capi_storti() < CAPO_MAX
+
+
+## IL LIVELLO del Capo che pende, e su non più di due vicini per volta: tre
+## teste inclinate insieme sono una posa di gruppo, non tre pensieri.
+##
+## È un LIVELLO e non un evento — non consuma il gettone — ma ha la sua
+## scarsità, perché la regola che conta non è «quanto costa» ma «quanti se ne
+## vedono insieme».
+##
+## ⚠️ **LE CAUSE SONO TRE, E LE DECIDE `Regia`.** Una sola causa
+## (`regolazione < 0.45`, che è quello che c'era) è un gesto che mappa
+## uno-a-uno su una variabile interna, cioè un cruscotto: un giocatore
+## attento dopo tre ore ha in testa la legenda e legge il villaggio invece di
+## viverci. Con «non ho più forza di trattenermi» · «sono di malumore da
+## giorni» · «ho una cosa in testa che non ho ancora detto» il capo storto
+## dice *a lui sta succedendo qualcosa*, mai quale leva.
+##
+## La terza causa è il RIMUGINARE: una deduzione della Fase 5 che è entrata
+## nel grafo e non ha ancora avuto la sua ricevuta. Senza modello quel numero
+## è sempre -1 e restano le prime due — cioè il gioco è identico, che è la
+## regola della Fase 5.
+func _tick_capo(r: Dictionary, label: String, animo: RefCounted, nodo: Node3D) -> void:
+	if nodo == null or not is_instance_valid(nodo) \
+			or not nodo.has_method("capo_pende"):
+		return
+	var rimugina := false
+	if _ecs != null and is_instance_valid(_ecs) and r.has("ecs"):
+		rimugina = int(_ecs.deduzione_muta(int(r["ecs"]), AMMIRA_SOGLIA)) >= 0
+	# LE STESSE TRE VALVOLE DELLA RICEVUTA, e `in_scena` non è di troppo:
+	# durante il coro del carillon un capo storto è un attore che non guarda
+	# il direttore.
+	var vuole: bool = REGIA.capo_pensa(float(animo.limbico.regolazione),
+			float(animo.limbico.umore), rimugina) \
+			and not bool(nodo.call("dorme")) and not bool(nodo.call("is_hidden")) \
+			and not bool(nodo.call("in_scena"))
+	# ⚠️ **SI CHIEDE AL CORPO SE IL LIVELLO È SUO, non se la testa è storta.**
+	# Sono due domande diverse: il rollio ha due padroni (questo registro e
+	# una frase del vocabolario), e un registro che leggesse «la testa è
+	# inclinata» spegnerebbe il pensiero di chi sta gesticolando — cioè
+	# troncherebbe una frase che dura tre secondi con un tick che passa ogni
+	# 0,75.
+	var ce_l_ha := bool(nodo.call("capo_livello"))
+	if vuole == ce_l_ha:
+		return
+	# IL TETTO CONTA LE TESTE, e concedere il livello a chi ce l'ha già storto
+	# per una frase non ne aggiunge nessuna: quel posto è già occupato da lui.
+	# (Ed è il caso bello: il pensiero che la frase mostrava CONTINUA, invece
+	# di spegnersi appena il gesto finisce.)
+	if vuole and not bool(nodo.call("capo_storto")) and capi_storti() >= CAPO_MAX:
+		return
+	nodo.call("capo_pende", vuole)
+
+
 func is_bed_claimed(cell: Vector2i) -> bool:
 	for r in _residents:
 		if r["cell"] == cell:
@@ -219,6 +666,7 @@ func is_bed_claimed(cell: Vector2i) -> bool:
 
 
 func _process(delta: float) -> void:
+	_tick_gesti(delta)
 	_tick_sussulti(delta)
 	_tick_confronti(delta)
 	_tick_partenze(delta)
@@ -484,7 +932,7 @@ func _recita(r: Dictionary, node: Node3D, brain: RefCounted, act: String, ph: St
 		return
 	match act:
 		"spuntino":
-			var cibo := _nearest_named(["Cespuglio", "Fungo", "Orto"], home, 12.0)
+			var cibo := _nearest_named(PEZZI_CIBO, home, 12.0)
 			if cibo:
 				var pos: Vector3 = cibo.global_position
 				pos += (home - pos).normalized() * 0.6
@@ -1159,6 +1607,17 @@ func _cuore_di(r: Dictionary, node: Node3D) -> void:
 		if DEDUZIONI.consegna(_ecs, id, node, muta, _player.global_position,
 				r.get("luoghi", []), int(r.get("fatti", 0))):
 			_ded_ricevute += 1
+			# IL PENSIERO. La ricevuta di una deduzione era, letteralmente,
+			# una testa che si gira: il giocatore vedeva quello e poi, sette
+			# secondi dopo, un vicino che cambiava mestiere. Adesso il corpo
+			# **si ferma**, il capo pende una volta o due, e si riparte
+			# decisi — e la ripartenza decisa porta il Rialzo addosso, che è
+			# la faccia visibile di «ho deciso».
+			#
+			# Se il gettone è occupato non succede niente e la ricevuta resta
+			# pagata: la testa si gira comunque. La regola è quella della
+			# Fase 5 — **la ricevuta non è MAI condizionata dal gettone**.
+			chiedi_gesto(str(r.get("label", "")), "ha_dedotto")
 
 	# LA PROMOZIONE: una al giorno, e solo per quello che ha visto coi propri
 	# occhi. È l'unico residuo di tutta la Fase 4 che attraversa un riavvio, e
@@ -1186,6 +1645,57 @@ func _cuore_di(r: Dictionary, node: Node3D) -> void:
 	var nome := str(_ecs.nome_cosa(c))
 	if nome != "":
 		_ensure_brain(r).remember(nome, nome)
+	_se_lo_tiene(r, node, id, c)
+
+
+## «SE LO TIENE» — il corpo della PROMOZIONE, e il gemello senza modello del
+## pensiero.
+##
+## Fin qui la promozione era **completamente invisibile**: un ricordo passava
+## dal grafo che vive in RAM a `VillagerBrain.remember`, che attraversa un
+## riavvio, e sullo schermo non succedeva niente. Il giocatore avrebbe visto
+## la conseguenza — quella parola che scappa in una nuvoletta, giorni dopo —
+## senza mai aver visto il momento in cui quel vicino ha deciso di tenersela.
+## Una conseguenza senza premessa non attenua l'effetto: **lo inverte**.
+##
+## ⚠️ **E QUESTA È L'OCCASIONE CHE FUNZIONA PER TUTTI.** L'altra metà del
+## «pensiero» — la deduzione della Fase 5 — vuole un modello linguistico da
+## due gigabyte e mezzo, cioè non succede a chi non l'ha scaricato: senza
+## questa, il gesto più bello del vocabolario sarebbe stato una funzione
+## facoltativa. La promozione invece è vecchia quanto la Fase 4, gira in ogni
+## partita, ed è già limitata a **una al giorno per vicino**.
+##
+## LE DUE RIGHE, nell'ordine, e l'ordine è quello di `Percezione`:
+##  1. la TESTA va sul posto di quel ricordo — è la ricevuta, e non passa
+##     dal gettone: si paga sempre, come quella della Fase 5;
+##  2. il CORPO, se il villaggio ha spazio — e quasi sempre non ce l'ha.
+##
+## L'ANCORA SI VERIFICA, e se non c'è si tace. `EcsMondo.dove()` ripiega su
+## casa propria quando di quel ricordo non resta abbastanza: guardarsi la
+## porta di casa e poi fermarsi non racconta niente a nessuno, ed è
+## esattamente il gesto che il giocatore non saprebbe ricondurre a sé.
+func _se_lo_tiene(r: Dictionary, node: Node3D, id: int, cosa: int) -> void:
+	if node == null or not is_instance_valid(node) \
+			or not node.has_method("guarda_gesto"):
+		return
+	var home := Vector3(r["cell"].x, 0, r["cell"].y)
+	var dove: Vector3 = _ecs.dove(id, cosa, AMMIRA_SOGLIA, home)
+	if not REGIA.ancora_valida(dove, home):
+		return
+	node.call("guarda_gesto", dove, PERCEZIONE.DURATA_SGUARDO)
+	var label := str(r.get("label", ""))
+	if chiedi_gesto(label, "se_lo_tiene"):
+		return
+	# ⚠️ **E SE IL CORPO NON È IN CAMMINO, SI ASPETTA — quanto dura la testa
+	# girata, e non un secondo di più.** Una promozione capita al massimo una
+	# volta al giorno per vicino e cade dove capita: seduto in panchina, fermo
+	# a un cespuglio, appena arrivato. Il Punto invece è un contrasto di MOTO
+	# e vuole un passo da spezzare. MISURATO nel villaggio vero: dei no,
+	# **284 erano «non cammina»** — cioè l'occasione più rara e più bella del
+	# vocabolario cadeva quasi sempre sul corpo sbagliato.
+	# La premessa è la testa girata verso quel posto: finché è girata, il
+	# corpo che si ferma si legge come la seconda metà dello stesso gesto.
+	_rimanda_gesto(label, "se_lo_tiene", PERCEZIONE.DURATA_SGUARDO)
 
 
 ## I FATTI DEL MONDO per un residente, come maschera di bit.
@@ -1650,7 +2160,39 @@ func _filtra_luogo(label: String, act: String) -> String:
 	if nodo != null and is_instance_valid(nodo) and nodo.has_method("chat_bubble"):
 		nodo.call("chat_bubble", "…")
 		nodo.set_meta("postura", "esita")
+		# IL LARGO. Fin qui il vicino cambiava idea e se ne andava **senza
+		# nessun segno residuo**: il momento c'era nella simulazione e il
+		# corpo non lo diceva. Non si chiede adesso — adesso è ancora fermo,
+		# e il Largo è l'unico gesto che si recita CAMMINANDO: si segna il
+		# posto e si aspetta che il ripiego lo metta in movimento.
+		var dove := _luogo_posizione(luogo, label, nodo.global_position)
+		if dove != Vector3.ZERO:
+			_rimanda_gesto(label, "quel_posto_no", 4.0, {"posto": dove}, dove)
 	return RIPIEGO           # cambia idea e va a cercare compagnia
+
+
+## Dove sta, nel mondo, un luogo del Limbico. La metà FISICA della stessa
+## corrispondenza di `LUOGO_ATTIVITA` — e i nomi dei pezzi si leggono da dove
+## già vivono (`PEZZI_CIBO`, la stessa lista che usa `_recita` per lo
+## spuntino) invece di ricopiarli qui.
+##
+## Il BOSCO non ha un posto: non è un pezzo costruito, è una direzione. Chi
+## evita il bosco non ha niente da guardare, e il Largo non parte — che è il
+## degrado giusto (silenzio, mai un gesto verso il niente).
+func _luogo_posizione(luogo: String, label: String, da: Vector3) -> Vector3:
+	match luogo:
+		"cucina":
+			var cibo := _nearest_named(PEZZI_CIBO, da, 14.0)
+			if cibo != null:
+				return cibo.global_position
+		"orto":
+			for r in _residents:
+				if str(r.get("label", "")) == label:
+					var bed: Node3D = _aiuola_da_curare(r, da)
+					if bed != null:
+						return bed.global_position
+					break
+	return Vector3.ZERO
 
 
 ## Da quali posti questo residente gira al largo, e perché. Il registro lo
@@ -2091,6 +2633,19 @@ func _tick_confronti(delta: float) -> void:
 				if node.has_method("chat_bubble"):
 					node.call("chat_bubble", "…")
 				node.set_meta("postura", "spalle_basse")
+			else:
+				# ⚠️ **E CE L'HA FATTA — cioè il caso COMUNE, che finora non
+				# aveva nessun corpo.** Questo ramo non esisteva: il gioco
+				# reagiva solo al morso FALLITO, quindi «mordersi la lingua»
+				# si vedeva soltanto quando smetteva di funzionare. La
+				# rinuncia riuscita è il gesto più silenzioso che una persona
+				# faccia, e adesso si vede: il corpo si raccoglie, si tira
+				# indietro di tre centimetri, e ne esce piano.
+				#
+				# L'ANCORA È MOCHI, e sta a meno di 2,6 metri per costruzione
+				# (la condizione di questo ramo): non c'è niente da
+				# verificare, e non c'è modo di non ricondurlo a sé.
+				chiedi_gesto(label, "si_e_trattenuto")
 
 
 # LA STRADA VELOCE, ADDOSSO AL RESIDENTE. Quando Mochi arriva, il corpo del
@@ -2150,6 +2705,39 @@ func _tick_sussulti(delta: float) -> void:
 				node.set_meta("postura", "trasalisce")
 				if node.has_method("chat_bubble"):
 					node.call("chat_bubble", "!")
+				# LA CODA E IL RALLENTANDO. `Limbico` promette da sempre che
+				# l'attivazione somatica «è lentezza fisica, non
+				# testardaggine», e non l'aveva mai mantenuta: `arousal`
+				# aveva due lettori, ed erano una stringa e la voce. Adesso
+				# resta nel CORPO — le spalle un filo più chiuse, lo sguardo
+				# che scansiona, il passo che cala — per qualche secondo dopo
+				# che la testa ha già capito.
+				#
+				# ⚠️ **E STA DENTRO QUESTO RAMO, non prima del `match`.**
+				# La coda è la faccia della PAURA: orecchie giù, braccia
+				# chiuse, coda irrigidita, corpo rimpicciolito, passo al 72%.
+				# Accesa un gradino più su si posava su tutte e tre le
+				# risposte — e siccome la gioia è dodici volte più frequente
+				# della paura (MISURATO nel villaggio vero, otto minuti con
+				# ventotto residenti: 48 «si illumina» contro 4
+				# «trasalisce»), il livello «guardingo» stava addosso a chi
+				# ti vuole bene molto più che a chi ti teme. Nell'istante del
+				# cuoricino le orecchie andavano GIÙ 17 volte su 21; il
+				# rallentando restava acceso il 41,6% dei secondi in cui
+				# Mochi era vicina a qualcuno; e si accendeva perfino sui
+				# percetti che non producevano NESSUNA reazione (91 volte su
+				# 129) — cioè il livello monotono, che è il guasto che la
+				# regola dei livelli vieta.
+				#
+				# La seconda guardia è nel `Limbico` e sta a monte: `forza` è
+				# l'ALLARME, e una gioia ne ha zero. Sono indipendenti
+				# apposta.
+				#
+				# ⚠️ E NON PRENDE IL GETTONE: è un livello, non un evento.
+				# Passa da qui e non da `chiedi_frase` apposta — un sussulto
+				# è una reazione, e una reazione non aspetta il suo turno.
+				if node.has_method("somatico"):
+					node.call("somatico", float(s.get("forza", 0.0)))
 				# \u2026e QUI comincia la strada lenta: fra poco la testa capir\u00e0
 				_riconoscimenti[label] = ATTESA_RICONOSCIMENTO
 			"si_illumina":
@@ -2200,6 +2788,25 @@ func _tick_riconoscimenti(delta: float) -> void:
 			if node.has_method("chat_bubble"):
 				node.call("chat_bubble", "\u2665")
 			_spiega_le_strade(label)
+			# \u2026E IL CORPO SI SCIOGLIE DAVVERO. `si_illumina` \u00e8 una posa: le
+			# orecchie su, le braccia su, il mento su, e per un secondo e
+			# otto decimi resta l\u00ec. Quello che mancava \u00e8 il MOVIMENTO \u2014
+			# quattro centimetri di corpo che sale a mezzo metro al secondo,
+			# che \u00e8 il canale pi\u00f9 direzionale del rig e l'unico che dice
+			# \u00absollievo\u00bb invece di \u00abattenzione\u00bb.
+			#
+			# \u26a0\ufe0f **\u00c8 IL RIALZO, CHE NON SI RECITA DA SOLO \u2014 e qui non lo fa.**
+			# Il buio prima c'\u00e8, e non lo mette la tabella delle frasi: \u00e8 il
+			# SUSSULTO di quattro decimi di secondo fa, che ha irrigidito
+			# questo stesso corpo. `Visitor.frase("sollievo")` lo verifica
+			# sul corpo (`_sussulto_fresco`) e si rifiuta se non \u00e8 vero:
+			# nessun altro chiamante pu\u00f2 prendersi quel gesto barando.
+			#
+			# \u00c8 l'occasione pi\u00f9 attribuibile che questo gioco abbia \u2014 il
+			# giocatore \u00e8 a meno di 3,2 metri, ha appena fatto saltare
+			# qualcuno, e un istante dopo quello lo riconosce \u2014 e in
+			# `Regia.OCCASIONI` \u00e8 infatti quella che aspetta meno di tutte.
+			chiedi_gesto(label, "ah_sei_tu")
 		else:
 			# non si scioglie: di te, per ora, non \u00e8 ancora convinto
 			node.set_meta("postura", "esita")
@@ -2260,6 +2867,12 @@ const LUOGO_DEL_LAVORO := {
 const LUOGO_ATTIVITA := {
 	"cura_giardino": "orto", "spuntino": "cucina", "meraviglia": "bosco",
 }
+## Dove si mangia, in pezzi del catalogo. Fonte unica: la usano `_recita`
+## (per mandarci chi ha fame) e `_luogo_posizione` (per sapere dove guardare
+## quando quel posto è diventato insopportabile). Erano la stessa lista
+## scritta due volte, ed è così che due sistemi cominciano a raccontare due
+## villaggi diversi.
+const PEZZI_CIBO := ["Cespuglio", "Fungo", "Orto"]
 ## Dove ripiega chi cambia idea: deve essere un'attività che _recita CONOSCE,
 ## o il ripiego cadrebbe nel vuoto e il residente resterebbe immobile.
 const RIPIEGO := "quattro_chiacchiere"
