@@ -124,6 +124,11 @@ func run(t) -> void:
 	_il_riposo_ha_lo_stesso_ordine(t)
 	_la_sala_d_attesa(t)
 	_l_inquadratura_o_silenzio(t)
+	_l_occlusione_o_silenzio(t)
+	_l_ordine_dei_cancelli(t)
+	_l_occhio_dentro_un_solido(t)
+	_la_leva_dell_occlusione_e_dei_banchi(t)
+	_l_affondo_del_capo(t)
 	if ClassDB.class_exists("EcsMondo"):
 		_la_raffica_non_ferma_il_corpo(t)
 		_se_lo_tiene_ha_bisogno_di_un_posto(t)
@@ -1105,3 +1110,404 @@ func _l_inquadratura_o_silenzio(t) -> void:
 	t.ok(not vis.chiedi_gesto("V0", "ha_visto"),
 			"dentro l'inquadratura ma fuori raggio: sempre silenzio")
 	cam.current = false
+
+
+# =========================================================================
+# 17 · L'OCCLUSIONE — «dentro l'inquadratura» non vuol dire «lo vedi»
+# =========================================================================
+#
+# Il cancello di prima provava il FRUSTUM, cioè dove sta un corpo. Ma il
+# villaggio è pieno di roba che sta nell'inquadratura esattamente come lui:
+# muri, tronchi, schienali, il Grande Albero. Un gesto concesso a chi è
+# dietro qualcosa costa dodici secondi di gettone e cinque minuti di riposo
+# **tolti a un vicino che si sarebbe visto** — è il gemello esatto del
+# guasto dell'inquadratura, un passo più in là.
+#
+# MISURATO nel villaggio vero contro l'oracolo dei PIXEL (spegnere il corpo
+# per un fotogramma e contare di quanto cambia il quadro:
+# `tools/misura_occlusione.gd`, 124 campioni). La maschera dei tre raggi è
+# quasi sempre TUTTA O NIENTE — 74 a zero, 47 a tre, **tre soli in mezzo** —
+# quindi fra «due» e «tre» la misura non decide: ballano tre campioni su
+# centoventiquattro. `GESTO_COPERTO_MIN` è TRE per la ragione di sempre,
+# **nel dubbio il gesto esce**: un palo, uno stipite, uno schienale coprono
+# un pezzo di corpo e non coprono una persona. Quello che il cancello compra
+# si vede sull'esito — sui gesti veri, a cancello acceso, gli invisibili
+# sono ZERO (erano il 17% a cancello spento, misurato appaiato a blocchi
+# alternati nella stessa corsa).
+func _l_occlusione_o_silenzio(t) -> void:
+	var w = _villaggio(t, 1)
+	var vis = w["vis"]
+	var c = (w["corpi"] as Array)[0]
+	# ⚠️ **VIA LE CAMERE DEL CASO DI PRIMA.** I nodi messi in scena vivono
+	# fino a FINE FOTOGRAMMA, e un `current = false` non basta: il viewport
+	# promuove da sé la prossima `Camera3D` che trova nell'albero. Il caso
+	# dell'inquadratura ne lascia una, e con quella addosso il ramo «senza
+	# camera» misurerebbe la macchina di un altro.
+	_niente_camere(t)
+	var cam := t.stage(Camera3D.new()) as Camera3D
+	cam.fov = 50.0
+	cam.global_position = Vector3(0, 2.7, 3.7)
+	cam.current = true
+
+	# 1) CAMPO LIBERO: il gesto esce. È la controprova, e va per prima o non
+	#    si saprebbe se il no di dopo è del muro o di qualcos'altro.
+	t.ok(_riprova(vis, c), "a campo libero il gesto esce")
+	t.eq(int(vis.call("debug_quote_coperte", c.global_position)), 0,
+			"…e nessuna delle tre quote ha qualcosa davanti")
+
+	# 2) UN MURO IN MEZZO: silenzio, e il no ha il suo nome.
+	var muro := _muro(t, 4.0)
+	t.eq(int(vis.call("debug_quote_coperte", c.global_position)), 7,
+			"col muro davanti sono coperte tutte e tre le quote")
+	var prima: Dictionary = vis.call("debug_gesti_contatori")
+	t.ok(not _riprova(vis, c), "dietro un muro non si recita")
+	var dopo: Dictionary = vis.call("debug_gesti_contatori")
+	t.eq(int(dopo.get("coperto", 0)) - int(prima.get("coperto", 0)), 1,
+			"e il no si chiama «coperto», non «fuori dall'inquadratura»")
+	# …e il gettone NON si consuma: un gesto rifiutato non costa il palco
+	t.almost(float(vis.get("_gesto_acc")), 0.0,
+			"un gesto coperto non brucia il gettone del villaggio", 0.001)
+
+	# 3) MEZZO CORPO SI VEDE, E TANTO BASTA. Questo è il caso che il numero
+	#    tre compra, ed è quello che una regola «prudente» butterebbe via:
+	#    una staccionata copre le gambe, uno stipite copre gambe e petto, e
+	#    di quel vicino se ne vede ancora abbastanza per leggerci un gesto.
+	# ⚠️ **`free()` E NON `queue_free()`**: dentro un caso non passa nessun
+	# fotogramma, e un nodo in coda resterebbe con le sue collisioni ATTIVE
+	# per tutto il resto del caso — è la trappola della Vetreria, dove un
+	# `queue_free` lasciava il varco tappato per un frame.
+	muro.free()
+	var basso := _muro(t, 1.42)
+	t.eq(int(vis.call("debug_quote_coperte", c.global_position)), 4,
+			"una staccionata copre SOLO le gambe")
+	t.ok(_riprova(vis, c), "…e di lì sopra il gesto si vede ancora: esce")
+
+	# …e nemmeno DUE quote bastano. È il caso che `GESTO_COPERTO_MIN = 3`
+	# compra, e quello che una regola «prudente» butterebbe via: uno stipite
+	# copre gambe e petto, e di quel vicino se ne vede ancora la testa —
+	# misurato coi pixel, fra il 6,9% e il 32% della sagoma, contro lo 0,0%
+	# di chi è coperto davvero.
+	basso.free()
+	_muro(t, 1.58)
+	t.eq(int(vis.call("debug_quote_coperte", c.global_position)), 6,
+			"uno stipite copre gambe e petto, e non la testa")
+	t.ok(_riprova(vis, c), "…e due quote su tre non bastano a zittire")
+
+	# 4) IL DEGRADO VA VERSO QUELLO CHE C'ERA: senza camera si passa, muro o
+	#    non muro. È la stessa regola dell'inquadratura, e vale per i banchi
+	#    headless, il diorama del titolo e chiunque non abbia una macchina.
+	_muro(t, 4.0)
+	t.eq(int(vis.call("debug_quote_coperte", c.global_position)), 7,
+			"col muro alto tornano coperte tutte e tre")
+	t.ok(not _riprova(vis, c), "…e infatti si tace")
+	_niente_camere(t)
+	t.eq(int(vis.call("debug_quote_coperte", c.global_position)), 0,
+			"senza camera non si sa rispondere, e «non lo so» non è mai un no")
+	t.ok(_riprova(vis, c), "senza camera il gesto esce come è sempre uscito")
+
+
+# =========================================================================
+# 17b · L'ORDINE DEI CANCELLI — il caro sta per ultimo
+# =========================================================================
+#
+# Tre raggi contro la fisica costano molto più di un confronto di frustum, e
+# di richieste ne arrivano centinaia al minuto. L'ordine non è estetica: è la
+# stessa regola dei quattro cancelli di `BuildSystem.deviazione` — in ordine
+# di prezzo, e il caso comune non paga il caso raro.
+#
+# Si prova col NOME DEL NO, che è l'unica cosa osservabile da fuori: un
+# corpo che è insieme fuori raggio, fuori inquadratura E coperto dev'essere
+# respinto dal più economico dei tre.
+func _l_ordine_dei_cancelli(t) -> void:
+	var w = _villaggio(t, 1)
+	var vis = w["vis"]
+	var c = (w["corpi"] as Array)[0]
+	_niente_camere(t)
+	var cam := t.stage(Camera3D.new()) as Camera3D
+	cam.fov = 50.0
+	cam.global_position = Vector3(0, 2.7, 3.7)
+	cam.current = true
+	_muro(t, 4.0)
+
+	# ⚠️ **E UN MURO ANCHE DIETRO LA MACCHINA.** La prima stesura di questo
+	# caso metteva il corpo dietro la camera e il muro davanti: fra l'occhio
+	# e quel corpo non c'era niente, quindi i tre raggi dicevano «scoperto»
+	# comunque, e **spostare il cancello caro in cima restava verde**
+	# (misurato). Perché la domanda sull'ordine abbia una risposta, quel
+	# corpo dev'essere fuori inquadratura E coperto insieme.
+	_muro(t, 4.0, 4.5)
+
+	# dietro la macchina (e dietro un muro): deve vincere l'inquadratura
+	c.call("gesto_spegni", true)
+	c.global_position = Vector3(0, 0, 5.0)
+	_in_cammino(c, Vector3(0, 0, 40))
+	c.global_position = Vector3(0, 0, 5.0)
+	_sgombra(vis)
+	t.eq(int(vis.call("debug_quote_coperte", c.global_position)), 7,
+			"il corpo dietro la macchina è ANCHE coperto: la domanda ha senso")
+	var p1: Dictionary = vis.call("debug_gesti_contatori")
+	t.ok(not vis.chiedi_gesto("V0", "ha_visto"), "silenzio")
+	var d1: Dictionary = vis.call("debug_gesti_contatori")
+	t.eq(int(d1.get("fuori dall'inquadratura", 0))
+			- int(p1.get("fuori dall'inquadratura", 0)), 1,
+			"chi è dietro la macchina lo respinge il frustum, che è gratis")
+	t.eq(int(d1.get("coperto", 0)) - int(p1.get("coperto", 0)), 0,
+			"…e i tre raggi non si tirano nemmeno")
+
+	# a venticinque metri, dentro l'inquadratura e dietro il muro: deve
+	# vincere il raggio, che è ancora più economico del frustum
+	c.call("gesto_spegni", true)
+	c.global_position = Vector3(0, 0, -25.0)
+	_in_cammino(c, Vector3(0, 0, -60))
+	c.global_position = Vector3(0, 0, -25.0)
+	_sgombra(vis)
+	t.eq(int(vis.call("debug_quote_coperte", c.global_position)), 7,
+			"e il corpo lontano è coperto pure lui")
+	var p2: Dictionary = vis.call("debug_gesti_contatori")
+	t.ok(not vis.chiedi_gesto("V0", "ha_visto"), "silenzio")
+	var d2: Dictionary = vis.call("debug_gesti_contatori")
+	t.eq(int(d2.get("fuori raggio", 0)) - int(p2.get("fuori raggio", 0)), 1,
+			"chi è lontano lo respinge il raggio, prima di tutto il resto")
+	t.eq(int(d2.get("coperto", 0)) - int(p2.get("coperto", 0)), 0,
+			"…e nemmeno lì si paga la fisica")
+	cam.current = false
+
+
+## Un muro largo fra la camera e il corpo, alto fin dove si vuole. Le
+## `CollisionShape3D` sono figlie DIRETTE dello `StaticBody3D`: una shape
+## dentro un contenitore non viene registrata affatto, e senza errori (è la
+## trappola della Vetreria).
+func _muro(t, cima: float, z := 0.0) -> Node3D:
+	var body := StaticBody3D.new()
+	var forma := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(8.0, cima + 1.0, 0.4)
+	forma.shape = box
+	forma.position = Vector3(0, (cima - 1.0) * 0.5, 0)
+	body.add_child(forma)
+	t.stage(body)
+	body.global_position = Vector3(0, 0, z)
+	# ⚠️ **E LO SI FORZA.** Le notifiche di trasformazione dei `Node3D` sono
+	# BATCHED: la fisica riceve la posizione nuova a fine fotogramma, e
+	# dentro un caso di test quel momento non arriva mai. Il muro messo a
+	# z = 4,5 restava a z = 0 per il server, e i tre raggi lo attraversavano
+	# come se non ci fosse — con la suite verde (misurato: un muro
+	# perfettamente in mezzo dava maschera 0).
+	body.force_update_transform()
+	return body
+
+
+## Via ogni `Camera3D` e ogni muro dall'albero, SUBITO. Per le camere,
+## `current = false` non basta: il viewport ne promuove un'altra da sé. E
+## tutti i casi di questo file girano nello stesso FOTOGRAMMA — il runner ne
+## fa uno per file — quindi la scenografia di un caso resta addosso al
+## successivo se non la si toglie a mano.
+func _niente_camere(t) -> void:
+	for tipo in ["Camera3D", "StaticBody3D"]:
+		for n in t.tree().root.find_children("*", tipo, true, false):
+			var nodo := n as Node
+			if nodo.get_parent() != null:
+				nodo.get_parent().remove_child(nodo)
+			nodo.free()
+
+
+## Il palco sgombro: il gettone freddo, nessuno che parla, nessun riposo.
+func _sgombra(vis) -> void:
+	vis.set("_gesto_acc", 0.0)
+	vis.set("_gesto_chi", "")
+	vis.set("_gesto_riposo", {})
+
+
+## Rimette il corpo davanti alla macchina, in cammino, col palco sgombro, e
+## richiede il gesto. Tutto quello che serve per fare la stessa domanda due
+## volte di seguito e confrontare le risposte.
+func _riprova(vis, c) -> bool:
+	c.call("gesto_spegni", true)
+	c.global_position = Vector3(0, 0, -3.0)
+	_in_cammino(c, Vector3(0, 0, -40))
+	# ⚠️ **E LO SI RIMETTE DOV'ERA.** `_in_cammino` fa girare sette decimi di
+	# secondi di `_process`: il corpo cammina davvero, e si sposta di un
+	# metro buono. Senza questa riga la domanda si fa su un punto e la
+	# risposta arriva da un altro — e il muretto tarato per le gambe a tre
+	# metri non copriva più niente a quattro. Il ciclo del passo resta a
+	# regime: quello che si rimette a posto è la posizione, non l'andatura.
+	c.global_position = Vector3(0, 0, -3.0)
+	_sgombra(vis)
+	return bool(vis.chiedi_gesto("V0", "ha_visto"))
+
+
+# =========================================================================
+# 17c · LA LEVA È DEI BANCHI, E NEL GIOCO NON LA TOCCA NESSUNO
+# =========================================================================
+#
+# `Visitors.debug_occlusione` esiste per una ragione sola: avere il «prima»
+# e il «dopo» sulla STESSA corsa, sugli stessi corpi, negli stessi istanti
+# (`tools/misura_occlusione.gd` la alterna a blocchi). È la stessa disciplina
+# del banco della concorrenza del cuore che scrive: un banco può togliere di
+# mezzo una cosa, il gioco no.
+#
+# Se un giorno qualcuno la spegnesse in partita — anche solo «per provare» —
+# il cancello sparirebbe **senza che una sola asserzione se ne accorga**,
+# perché tutti i casi qui sopra la lasciano accesa. Perciò si scandaglia il
+# sorgente, saltando i commenti: questa lezione la leva la NOMINA apposta.
+func _la_leva_dell_occlusione_e_dei_banchi(t) -> void:
+	var vis = Registro.new()
+	t.ok(bool(vis.get("debug_occlusione")),
+			"di serie il cancello è ACCESO: il gioco vero non ha una leva")
+	vis.free()
+	# si cerca la SCRITTURA, non la parola: `Visitors` la dichiara e la
+	# legge, ed è casa sua. La dichiarazione è `debug_occlusione :=`, che
+	# nessuno di questi due telai prende.
+	var colpevoli: Array = []
+	for f in _script_sotto("res://scenes") + _script_sotto("res://systems"):
+		var src := _codice(f)
+		if src.contains("debug_occlusione = ") \
+				or src.contains("\"debug_occlusione\""):
+			colpevoli.append(f)
+	t.ok(colpevoli.is_empty(),
+			"nel gioco nessuno la spegne %s" % str(colpevoli))
+
+
+static func _script_sotto(radice: String) -> Array:
+	var out: Array = []
+	var dir := DirAccess.open(radice)
+	if dir == null:
+		return out
+	dir.list_dir_begin()
+	var f := dir.get_next()
+	while f != "":
+		var p := radice.path_join(f)
+		if dir.current_is_dir():
+			out.append_array(_script_sotto(p))
+		elif f.ends_with(".gd"):
+			out.append(p)
+		f = dir.get_next()
+	dir.list_dir_end()
+	return out
+
+
+## Il sorgente SENZA le righe di commento: la lezione di questa leva è
+## scritta apposta nei commenti di `Visitors`, e un guardiano ingenuo la
+## scambierebbe per un suo uso — dichiarando colpevole proprio il file che
+## la definisce.
+static func _codice(percorso: String) -> String:
+	var righe := PackedStringArray()
+	for r in FileAccess.get_file_as_string(percorso).split("\n"):
+		var s := (r as String).strip_edges()
+		if s.begins_with("#"):
+			continue
+		righe.append(r)
+	return "\n".join(righe)
+
+
+# =========================================================================
+# 18 · L'AFFONDO — il Capo che arriva anche a nove metri
+# =========================================================================
+#
+# Il rollio del capo è il livello che dice «ci sto pensando», e il suo
+# difetto dichiarato era la distanza: sei gradi su una testona sono
+# quattrocento pixel a due metri e SEDICI a nove — l'antialiasing.
+#
+# ⚠️ **LA CURA OVVIA È SBAGLIATA, ED È MISURATA.** Ingrandire il rollio
+# compra rilevabilità e perde LEGGIBILITÀ: `tools/provino_verso.gd`, sul rig
+# vero e dalla camera vera, dà verso **1,60 a 6° · 1,27 a 10° · 1,11 a 14°**
+# — sotto il cancello, cioè un gesto che si nota e non si legge. La strada
+# giusta è un'altra grandezza: la SAGOMA. Con l'affondo, alla stessa
+# rilevabilità, il verso NON si muove (1,60 contro 1,60 nella colonna
+# peggiore), e sul PROFILO — dove un rollio attorno all'asse ottico è visto
+# di taglio e non fa quasi niente — i pixel passano da 115 a 376, **tre volte
+# e mezzo**.
+#
+# Qui non si contano pixel (in headless non ce ne sono): si prova che il
+# canale c'è, che segue il rollio, che **non porta un secondo significato**,
+# e che non resta orfano.
+func _l_affondo_del_capo(t) -> void:
+	# 1) È SIMMETRICO, e non è un dettaglio: il rollio ha già un verso, e un
+	#    canale che ne portasse un secondo direbbe due cose insieme. La testa
+	#    scende uguale da tutte e due le parti.
+	t.almost(GESTI.capo_affondo(0.09), GESTI.capo_affondo(-0.09),
+			"l'affondo è lo stesso da una parte e dall'altra")
+	t.almost(GESTI.capo_affondo(0.0), 0.0,
+			"a capo dritto la testa sta dov'era")
+	t.ok(GESTI.capo_affondo(GESTI.CAPO_AMP_MAX) < GESTI.capo_affondo(GESTI.CAPO_AMP_MIN),
+			"più il capo pende, più la testa scende")
+	t.ok(GESTI.capo_affondo(GESTI.CAPO_AMP_MAX) < -0.03,
+			"e al colmo scende abbastanza da cambiare la sagoma")
+
+	# 2) SUL RIG VERO: il livello acceso porta la testa giù.
+	var v = _corpo(t, 4242)
+	v.call("_enter_state", "r_idle")
+	v.set("_timer", 999999.0)
+	v.call("capo_pende", true)
+	_gira(v, 2.0)
+	var giu := float((v.get("_gs_cur") as Dictionary).get("hpy", 0.0))
+	t.ok(giu < -0.01, "col capo storto la testa è affondata (%.4f)" % giu)
+
+	# 3) IL TUFFO. Passando da una parte all'altra la molla attraversa il
+	#    dritto, e la testa RISALE prima di riscendere: a nove metri il
+	#    rollio non si vede più e quel tuffo sì — è l'unica cosa che
+	#    distingue «sta pensando» da «sta lì».
+	#
+	#    ⚠️ E si guarda il MASSIMO lungo il tragitto, non il valore alla
+	#    fine: alla fine la testa è di nuovo giù dall'altra parte, e un
+	#    affondo COSTANTE — cioè il canale senza il tuffo — darebbe
+	#    esattamente lo stesso numero.
+	v.set("_gs_capo_next", 0.0)
+	var risalita := -9.0
+	var passi := 0
+	while passi < 90:
+		passi += 1
+		v._process(DT)
+		risalita = maxf(risalita,
+				float((v.get("_gs_cur") as Dictionary).get("hpy", 0.0)))
+	t.ok(risalita > giu * 0.35,
+			"nel trasferimento la testa risale (%.4f contro %.4f)"
+			% [risalita, giu])
+	var dopo := float((v.get("_gs_cur") as Dictionary).get("hpy", 0.0))
+	t.ok(dopo < -0.01, "…e dall'altra parte riscende (%.4f)" % dopo)
+
+	# 4) NON È UN CANALE ORFANO. Spento il livello, la molla rientra da sé e
+	#    la testa torna al suo posto: nessuna rete da ricordarsi altrove.
+	v.call("capo_pende", false)
+	_gira(v, 3.0)
+	t.almost(float((v.get("_gs_cur") as Dictionary).get("hpy", 0.0)), 0.0,
+			"spento il capo, la testa torna al suo posto", 0.001)
+
+
+# =========================================================================
+# 17d · L'OCCHIO DENTRO UN SOLIDO — il caso che le foto hanno trovato
+# =========================================================================
+#
+# La camera di questo gioco segue Mochi a scorrimento fisso e **non schiva
+# niente**: le capita di finire dentro il tronco del Grande Albero. Lì lo
+# schermo è tutto corteccia e del vicino non arriva un pixel — ed è proprio
+# lì che i tre raggi dicevano «scoperto», perché di serie un raggio che
+# PARTE dentro una forma non la vede affatto.
+#
+# MISURATO nel villaggio vero, e trovato GUARDANDO: il banco
+# (`tools/misura_occlusione.gd`) fotografa i casi in cui la regola e i pixel
+# non vanno d'accordo, e due di quelle foto sono uno schermo pieno di
+# corteccia con il riquadro del vicino vuoto in mezzo. Nessun numero da solo
+# lo avrebbe detto: dicevano «la regola ha sbagliato», non PERCHÉ.
+func _l_occhio_dentro_un_solido(t) -> void:
+	var w = _villaggio(t, 1)
+	var vis = w["vis"]
+	var c = (w["corpi"] as Array)[0]
+	_niente_camere(t)
+	var muro := _muro(t, 4.0)
+	var cam := t.stage(Camera3D.new()) as Camera3D
+	cam.fov = 50.0
+	# dentro il muro, che è la corteccia del Grande Albero in piccolo
+	cam.global_position = Vector3(0, 1.5, 0)
+	cam.current = true
+	c.global_position = Vector3(0, 0, -3.0)
+	t.eq(int(vis.call("debug_quote_coperte", c.global_position)), 7,
+			"con l'occhio DENTRO un solido è coperto tutto")
+	t.ok(not _riprova(vis, c), "…e non si recita per nessuno")
+
+	# …e uscendone di mezzo metro il mondo torna quello di prima
+	muro.free()
+	t.eq(int(vis.call("debug_quote_coperte", c.global_position)), 0,
+			"tolto il solido, l'occhio ci vede di nuovo")
+	t.ok(_riprova(vis, c), "…e il gesto esce")
+	_niente_camere(t)

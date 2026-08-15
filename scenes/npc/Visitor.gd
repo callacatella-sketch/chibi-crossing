@@ -129,10 +129,18 @@ var _gs_ultimo := {}        # l'ultima posa scritta, che la rampa fa sfumare
 # cinque tween addosso), quindi il riposo va ricordato e restituito a mano
 var _gs_scala_nodo: Node3D = null
 var _gs_scala_riposo := Vector3.ONE
-# il Punto su un ANZIANO non frena: aspetta il suo fiato (vedi Gesti)
+# LA SALA D'ATTESA DEL CORPO, e ci si aspetta DUE cose diverse:
+#  · il FIATO di un anziano — il Punto non gli frena il corpo, si accomoda
+#    sopra il fermo che quel corpo fa già da sé. Se il fiato non arriva entro
+#    `GESTO_ATTESA_MAX`, **si tace**;
+#  · la BATTUTA di chi risponde in un duetto — quattro decimi di secondo, e
+#    allo scadere **si accende**.
+# Il verso lo dice `_gs_attesa_fiato`, e i due versi non convivono: o si
+# aspetta una cosa che può non arrivare, o si aspetta un orologio.
 var _gs_attesa := 0.0
 var _gs_attesa_nome := ""
 var _gs_attesa_dati := {}
+var _gs_attesa_fiato := true
 # --- i due LIVELLI, che non prendono il gettone del villaggio ---
 ## «CI STO PENSANDO»: il rollio del capo. Questo bit è **DERIVATO** dai due
 ## qui sotto (`_gs_capo_liv or _gs_capo_frase`) e non si scrive mai a mano:
@@ -3905,6 +3913,75 @@ func _in_fiato() -> bool:
 	return _eta > FIATO_ETA and fposmod(_t, FIATO_PERIODO) < FIATO_DUR
 
 
+## QUESTO CORPO HA L'ETÀ DEL FIATO? Cioè: si ferma già da sé, e un Punto non
+## glielo ferma — glielo veste sopra. Lo chiede il duetto per sapere chi dei
+## due ha il fermo già in calendario, e lo chiede di qua invece di leggere
+## `_eta` da fuori perché la soglia è una e sta qui.
+func del_fiato() -> bool:
+	return _eta > FIATO_ETA
+
+
+## FRA QUANTO QUESTO CORPO PUÒ APRIRE UN PUNTO CHE SI VEDA, dentro la
+## finestra `[lo, hi]` — e **−1.0 se dentro quella finestra non c'è nessun
+## istante buono**.
+##
+## Per chi non ha l'età del fiato la risposta è sempre `lo`: il suo corpo
+## frena quando gli si chiede, e un istante vale l'altro.
+##
+## ⚠️ **PER UN ANZIANO NON È COSÌ, e da lì viene tutta questa funzione.** Il
+## Punto di un anziano ha `frena = false`: **non ferma il corpo**, si accomoda
+## sopra il fermo che quel corpo fa già da sé, 1,3 s ogni 7,5. Fuori dal fiato
+## quel fermo non c'è — il Punto uscirebbe lo stesso, ma sarebbe una posa
+## sopra un corpo che cammina, cioè l'adesivo. Perciò l'istante non lo sceglie
+## chi chiede: lo detta un orologio che non controlliamo, e a chi chiede resta
+## il diritto di dire «allora niente».
+##
+## È lo stesso conto di `_in_fiato()` — la finestra `FIATO_DUR` ogni
+## `FIATO_PERIODO` — guardato in avanti invece che adesso. Una sola verità sul
+## respiro dei vecchi, non due.
+func fiato_fra(lo: float, hi: float) -> float:
+	if lo > hi:
+		return -1.0
+	if _eta <= FIATO_ETA:
+		return lo
+	# dove cade `lo` dentro il ciclo del respiro
+	var f := fposmod(_t + lo, FIATO_PERIODO)
+	if f < FIATO_DUR:
+		return lo            # il fiato è già cominciato, e dura ancora
+	var prossimo := lo + (FIATO_PERIODO - f)
+	return prossimo if prossimo <= hi else -1.0
+
+
+## PERCHÉ QUESTO CORPO NON PUÒ DIRE UN PUNTO ADESSO — "" se può.
+##
+## ⚠️ **UNA FONTE, TRE LETTORI, e prima ce n'erano due che DIVERGEVANO già.**
+## Le precondizioni del Punto vivevano in `gesto()` e, riscritte a mano, nel
+## referto dei no di `Visitors.chiedi_gesto`. Le due copie si erano già
+## staccate in due punti — il referto guardava `blend <= 0.6` dove il gesto
+## guarda `< 0.6`, e metteva `_gs_viaggio` prima della strada invece che
+## dopo — così il referto poteva raccontare un no diverso da quello vero. È
+## la tabella gemella che questo progetto ha già pagato tre volte, e il terzo
+## lettore (il permesso del duetto, che deve chiedere «potresti?» **senza
+## impegnare nessuno**) l'avrebbe fatta diventare la quarta copia.
+##
+## Il nome del no È la parola del referto: chi lo legge non deve tradurre.
+func punto_impedimento() -> String:
+	if not gesto_libero():
+		return "corpo occupato"
+	# IL PUNTO VUOLE UN PASSO DA SPEZZARE. È un contrasto di MOTO: senza il
+	# moto non c'è il contrasto, e il gesto costa quanto costa senza dire
+	# niente.
+	if _state != "walk":
+		return "non cammina"
+	if _andatura == null or float(_andatura.blend) < GESTO_BLEND_MIN:
+		return "passo non a regime"
+	if _gs_viaggio:
+		return "gia' un Punto in questo viaggio"
+	if global_position.distance_to(meta_cammino()) < GESTO_STRADA_MIN:
+		return "troppo vicino all'arrivo"
+	return ""
+
+
 ## Il corpo può prendersi un gesto adesso? Non è una domanda di villaggio (il
 ## gettone e il riposo li tiene `Visitors`): è la domanda del CORPO.
 ##
@@ -3958,26 +4035,37 @@ func gesto(nome: String, dati := {}) -> bool:
 	_gesto_taratura()
 	match nome:
 		"punto":
-			# IL PUNTO VUOLE UN PASSO DA SPEZZARE. È un contrasto di MOTO:
-			# senza il moto non c'è il contrasto, e il gesto costa quanto
-			# costa senza dire niente.
-			if _state != "walk" or _andatura == null \
-					or float(_andatura.blend) < GESTO_BLEND_MIN:
+			# le precondizioni stanno in UN posto solo (`punto_impedimento`),
+			# perché hanno tre lettori: questo, il referto dei no, e il
+			# permesso del duetto che chiede «potresti?» senza impegnare
+			if punto_impedimento() != "":
 				return false
-			if global_position.distance_to(meta_cammino()) < GESTO_STRADA_MIN:
-				return false
-			if _gs_viaggio:
-				return false      # una sola per viaggio
 			if not d.has("tenuta"):
 				d["tenuta"] = GESTI.PUNTO_TENUTA * (1.0 + _gs_scarto)
-			# l'anziano non frena: aspetta il suo fiato e ci veste sopra
+			# ⚠️ **LA BATTUTA È UN DATO DEL GESTO, non un timer di chi
+			# chiama.** `fra` è fra quanti secondi questo corpo deve
+			# cominciare: zero per chi apre, un battito per chi risponde. Chi
+			# la chiede l'ha già fatta pesare da `fiato_fra()`, che sa se in
+			# quell'istante il corpo di un anziano ci sarà.
+			var fra := maxf(0.0, float(d.get("fra", 0.0)))
+			d.erase("fra")
+			# l'anziano non frena: si accomoda sopra il fermo che fa già da sé
 			if _eta > FIATO_ETA:
 				d["frena"] = false
-				if not _in_fiato():
-					_gs_attesa = GESTO_ATTESA_MAX
-					_gs_attesa_nome = nome
-					_gs_attesa_dati = d
-					return true
+			# LA SALA D'ATTESA È UNA SOLA, e ci passano tutti e due i motivi
+			# per cui un Punto può non cominciare adesso: il fiato di un
+			# anziano, e il battito di chi risponde. Due sale sarebbero due
+			# stati da spegnere, e il secondo si dimenticherebbe.
+			if fra > 0.0 or (_eta > FIATO_ETA and not _in_fiato()):
+				_gs_attesa = fra if fra > 0.0 else GESTO_ATTESA_MAX
+				# ⚠️ Con `fra` la scadenza **accende**; senza, la scadenza è
+				# la rinuncia (il fiato non è arrivato in tempo, e si tace).
+				# Sono i due versi opposti dello stesso orologio, ed è per
+				# questo che il bit si chiama come la cosa che si aspetta.
+				_gs_attesa_fiato = fra <= 0.0
+				_gs_attesa_nome = nome
+				_gs_attesa_dati = d
+				return true
 			_gs_viaggio = true
 		"largo":
 			if _state != "walk":
@@ -4108,12 +4196,47 @@ func _gesto_accendi(nome: String, d: Dictionary) -> void:
 		soma_sciogli()
 
 
+## La sala d'attesa consegna. Una funzione sola perché ha DUE chiamanti (il
+## fiato e la battuta) e ricopiarne il corpo sarebbe, in piccolo, la stessa
+## tabella gemella di `punto_impedimento`.
+func _attesa_accendi() -> void:
+	var nm := _gs_attesa_nome
+	var dd := _gs_attesa_dati
+	_attesa_svuota()
+	if nm == "":
+		return
+	_gs_viaggio = true
+	_gesto_accendi(nm, dd)
+
+
+## …e il suo unico modo di svuotarsi, verso compreso: un bit lasciato indietro
+## qui è un canale orfano che si legge una volta sola, molto dopo.
+func _attesa_svuota() -> void:
+	_gs_attesa = 0.0
+	_gs_attesa_nome = ""
+	_gs_attesa_fiato = true
+
+
+## HA UNA BATTUTA IN CANNA? Vero se questo corpo ha un gesto in sala d'attesa
+## che partirà da sé. Lo legge chi deve annullare un duetto che non si può
+## più recitare: **spegnere la risposta prima che si veda non costa niente,
+## e non lasciare mai in scena metà frase.**
+func attesa_in_corso() -> bool:
+	return _gs_attesa > 0.0 and _gs_attesa_nome != ""
+
+
+## ANNULLA la battuta in canna, e SOLO quella: se il gesto è già cominciato
+## questa non lo tocca (per quello c'è `gesto_spegni`, che ha la rampa).
+func attesa_annulla() -> void:
+	if _gs_attesa > 0.0:
+		_attesa_svuota()
+
+
 ## SPEGNE il gesto in corso. Di serie con la rampa (`Gesti.SPEGNI`): un taglio
 ## secco è un salto del rig, cioè la firma dell'adesivo staccato male. Con
 ## `subito` si taglia davvero — lo usa solo chi sta smontando il corpo.
 func gesto_spegni(subito := false) -> void:
-	_gs_attesa = 0.0
-	_gs_attesa_nome = ""
+	_attesa_svuota()
 	if subito:
 		_gs_nome = ""
 		_gs_spegni = 0.0
@@ -4274,8 +4397,7 @@ func _gesto_passo(delta: float) -> void:
 	if sospeso and _gs_nome != "":
 		gesto_spegni()
 	if sospeso and (_gs_attesa > 0.0):
-		_gs_attesa = 0.0
-		_gs_attesa_nome = ""
+		_attesa_svuota()
 
 	# ⚠️ **LA RETE DEL CAPO: il rollio acceso da una frase è di QUELLA
 	# frase.** Sta qui, e non nei due o tre posti che vengono in mente, per
@@ -4298,19 +4420,20 @@ func _gesto_passo(delta: float) -> void:
 
 	var canali: Dictionary = GESTI.riposo()
 
-	# 1) L'ATTESA DEL FIATO (solo gli anziani ci passano)
+	# 1) L'ATTESA — il fiato di un anziano, o la battuta di chi risponde
 	if _gs_attesa > 0.0:
 		_gs_attesa -= delta
-		if _in_fiato():
-			var nm := _gs_attesa_nome
-			var dd := _gs_attesa_dati
-			_gs_attesa = 0.0
-			_gs_attesa_nome = ""
-			_gs_viaggio = true
-			_gesto_accendi(nm, dd)
+		if _gs_attesa_fiato:
+			if _in_fiato():
+				_attesa_accendi()
+			elif _gs_attesa <= 0.0:
+				# il fiato non è arrivato in tempo: si tace, e nessuno lo sa
+				_gs_attesa_nome = ""
 		elif _gs_attesa <= 0.0:
-			# il fiato non è arrivato in tempo: si tace, e nessuno lo sa
-			_gs_attesa_nome = ""
+			# LA BATTUTA È SCADUTA, E LA SCADENZA ACCENDE. È il verso opposto
+			# del fiato, e non è una simmetria mancata: là si aspetta una cosa
+			# che può non arrivare, qui si aspetta un orologio.
+			_attesa_accendi()
 
 	# 2) L'EVENTO
 	if _gs_nome != "" and not sospeso:
@@ -4424,6 +4547,13 @@ func _gesto_capo(delta: float, canali: Dictionary, guadagno: float,
 				resto -= h
 	if guadagno > 0.0 and _gs_capo_x != 0.0:
 		canali["hz"] = float(canali["hz"]) + _gs_capo_x * guadagno
+		# …E LA SAGOMA. Il rollio è la parola di questo livello a due metri;
+		# a nove metri la parola è la testa che scende fra le spalle. Va
+		# insieme al rollio e non per conto suo: nasce con lui, rientra con
+		# lui (`_gs_capo_x` torna a zero da sé) e non lascia un canale
+		# orfano da spegnere in un secondo posto.
+		canali["hpy"] = float(canali["hpy"]) \
+				+ GESTI.capo_affondo(_gs_capo_x) * guadagno
 
 
 ## I due strati somatici. Il veloce (la coda) deve decadere PIÙ IN FRETTA del

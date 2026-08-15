@@ -276,9 +276,39 @@ const VELOCITA_METRO := 1.45
 #    **8,9:1 di fronte, 54:1 di profilo, 11:1 di spalle**. Nessuna posa si
 #    avvicina, e nessuna sopravvive a 17 m, che è la mediana vera degli
 #    avvistamenti in partita.
-#  · **È l'unico che GUADAGNA dalla folla.** Venti corpi che camminano sono
-#    il riferimento; uno che si ferma è il segnale. Ogni altro gesto compete
-#    con la locomozione degli altri diciannove; questo la usa.
+#  · **È l'unico che GUADAGNA dalla folla.** I corpi che camminano sono il
+#    riferimento; uno che si ferma è il segnale. Ogni altro gesto compete con
+#    la locomozione degli altri; questo la usa.
+#
+# ⚠️ **MA LA FOLLA NON C'È, ED È MISURATA.** «Venti corpi che camminano»
+# diceva la prima stesura di questa nota, e non è il villaggio che esiste.
+# MISURATO in partita con VENTOTTO residenti, quattro campioni al secondo per
+# quattordici minuti (2823 campioni, `tools/misura_occlusione.gd`, parte 2):
+#
+#   corpi dentro l'inquadratura, entro nove metri ....... media 2,54
+#     (nessuno 13% · uno 10% · due 21% · tre 30% · quattro 21% · cinque+ 5%)
+#   ...di quelli, quanti CAMMINANO .................... media 0,59
+#     (nessuno 55% · uno 32% · due 10% · tre 2%)
+#   ...quanti SI SPOSTANO davvero (>0,35 m/s) ......... media 0,71
+#   e nell'istante in cui parte un Punto, altri che camminavano in quadro:
+#     mediana DUE, e nessuno in quattro casi su otto.
+#
+# Cioè: l'inquadratura tiene due o tre vicini, e **più della metà del tempo
+# non ne cammina nessuno**. La conclusione però non è quella che sembra, e
+# va letta prima di «rinforzare» il Punto:
+#
+#  · il guasto temuto — «in mezzo a una folla un corpo fermo non spicca» —
+#    **non può capitare**: una folla che cammina non c'è mai. Il massimo
+#    misurato è TRE che camminano insieme, nel 2% dei fotogrammi;
+#  · e quando l'attore è l'unico che si muove (metà delle volte), fermarsi
+#    non lo confonde col fondo: **spegne tutto il moto del quadro**, che è il
+#    cambiamento più grosso che quel fotogramma possa contenere;
+#  · quello che resta senza riferimento è la TENUTA — 1,8 s in cui l'attore è
+#    uno dei due o tre corpi fermi. Se un domani si vorrà rinforzare il
+#    Punto, **il carico utile va lì e non sulla frenata**, e il canale non
+#    può essere uno che porta già un'altra parola (la scala è del Raccolto,
+#    il verticale del Rialzo, il rollio del Capo). Non lo si aggiunge senza
+#    un provino: qui dentro nessun numero è stato indovinato.
 
 ## Quanto dura la frenata. Una rampa LINEARE, non un esponenziale: un
 ## esponenziale non ha un istante in cui il corpo si è fermato, e l'istante è
@@ -768,6 +798,45 @@ static func capo_bersaglio(t: float, fase: float, verso: float) -> float:
 	return verso * amp
 
 
+## L'AFFONDO — la testa che scende fra le spalle, e l'unica ragione per cui
+## questo livello arriva anche a nove metri.
+##
+## ⚠️ **NON SI FA UN GESTO PIÙ GROSSO PER FARLO ARRIVARE PIÙ LONTANO.** Il
+## rollio, misurato, ha il verso che CALA crescendo (1,74–1,86 a 0,08 ·
+## 1,60–1,74 a 0,11 · 1,10–1,17 a 0,24): una rotazione attorno a un perno
+## spazza due regioni che, crescendo l'angolo, si sovrappongono sempre di più
+## con la sagoma di partenza. Sei gradi di rollio su una testona sono
+## quattrocento pixel a due metri e **sedici** a nove — e sedici pixel su una
+## sagoma di cinquanta non sono un gesto, sono l'antialiasing.
+##
+## La strada giusta è un'altra grandezza: la SAGOMA. La testa che scende
+## chiude la tacca del collo, e il contorno cambia FORMA invece che
+## inclinazione — che è quello che sopravvive quando il corpo è alto
+## cinquanta pixel.
+##
+## **Il quadrato non è una comodità, sono tre cose insieme:**
+##  1. **niente spigolo al passaggio.** `|x|` avrebbe una V nell'istante in
+##     cui la molla attraversa lo zero, cioè uno scatto in mezzo al
+##     trasferimento;
+##  2. **il trasferimento diventa un EVENTO anche in sagoma.** Passando da
+##     una parte all'altra la testa risale e riscende: a nove metri il rollio
+##     non si vede e quel tuffo sì, ed è l'unica cosa che distingue «sta
+##     pensando» da «sta lì»;
+##  3. **due trasferimenti non affondano uguale.** L'ampiezza del rollio vive
+##     fra 0,08 e 0,11, quindi il quadrato normalizzato vive fra 0,53 e 1,00:
+##     la profondità cambia da sola, senza un secondo orologio.
+##
+## Torna un numero NEGATIVO (giù), come vuole il canale.
+const CAPO_AFFONDO := 0.05
+
+
+static func capo_affondo(x: float) -> float:
+	var n := x / CAPO_AMP_MAX
+	# non si taglia a uno: l'overshoot della molla (27%) porta il tuffo un
+	# filo più giù del suo assestamento, ed è l'assestamento a leggersi
+	return -CAPO_AFFONDO * minf(n * n, 1.25)
+
+
 # =========================================================================
 # 5 · IL LARGO — «quel posto lì, no»
 # =========================================================================
@@ -1181,9 +1250,21 @@ static func costo_metri(nome: String, d: Dictionary, passo := 1.0 / 240.0) -> fl
 # `Visitors._tick_confronti` reagisce solo al `trattieni()` FALSO (il morso
 # che non riesce, e allora qualcosa esce di sbieco). Il morso RIUSCITO — cioè
 # il caso comune, cioè mordersi la lingua e riuscirci — non si vedeva.
+#
+# ⚠️ E **`incontro` NON È UN GESTO NUOVO: è una COMBINAZIONE.** «Ci siamo
+# trovati» non ha bisogno di un canale che non c'è — ha bisogno di due corpi
+# e di un ritardo. È il Punto deciso, cioè il Punto col Rialzo innestato
+# nella ripartenza, che questa stessa tabella dichiara essere il solo posto
+# in cui il Rialzo ha diritto di esistere; e quello che lo rende una frase a
+# due non sta qui dentro, perché non è del corpo: è il QUARTO DI SECONDO fra
+# l'uno e l'altro, e vive dove vivono le due persone (`Visitors.chiedi_duetto`).
+#
+# Non porta il `capo` del pensiero apposta. Trovarsi non è pensare: il rollio
+# racconta una cosa che dura, e questa dura un secondo e mezzo.
 const FRASI := {
 	"premessa": {"g": "punto", "d": {}},
 	"pensiero": {"g": "punto", "d": {"decisa": true, "capo": true}},
+	"incontro": {"g": "punto", "d": {"decisa": true}},
 	"rinuncia": {"g": "raccolto", "d": {"rialzo": 0.6}},
 	"evitamento": {"g": "largo", "d": {}},
 	"sollievo": {"g": "rialzo", "d": {"buio": true}},

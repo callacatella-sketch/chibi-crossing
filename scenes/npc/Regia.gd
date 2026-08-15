@@ -61,6 +61,13 @@ extends RefCounted
 ##   | `si_e_trattenuto`  | `Limbico.trattieni()` che torna TRUE          |
 ##   | `quel_posto_no`    | `Limbico.evita()` (i marchi)                  |
 ##   | `ah_sei_tu`        | `Limbico.rivaluta()` dopo un sussulto         |
+##   | `ci_si_trova`      | `Cricche.ritrovo_vivo()`, derivato dalla      |
+##   | `ci_sei_anche_tu`  | co-presenza che `_chats` costruiva e buttava  |
+##
+## ⚠️ Le ultime due valgono la regola nella sua forma più forte: **il
+## villaggio non si incontra una volta di più** per averle. Chi si ritrova ci
+## andava comunque, all'ora in cui ci va sempre, con quella persona lì;
+## l'unica cosa che cambia è che adesso, ogni tanto, lo si VEDE.
 ##
 ## E i due LIVELLI (il capo che pende, la coda somatica) leggono `Limbico`
 ## come lo leggeva già `stato_corpo()`.
@@ -133,6 +140,30 @@ const OCCASIONI := {
 	# quello lo riconosce. **È il momento più attribuibile che questo gioco
 	# abbia**, e per questo aspetta quasi niente.
 	"ah_sei_tu": {"frase": "sollievo", "attesa": 0.10},
+	# CI SI TROVA. Due che da giorni finiscono nello stesso angolo alla
+	# stessa ora ci stanno tornando, e a qualche metro l'uno dall'altro si
+	# fermano — prima uno, un battito dopo l'altro. **È l'occasione più rara
+	# del gioco**: una al giorno in tutto il villaggio, e mai due volte sulla
+	# stessa coppia dentro la settimana.
+	#
+	# ⚠️ **PAREGGIA CON «ah… sei tu», E NON LA SUPERA.** Sulla colonna della
+	# rarità la batte di parecchio; su quella dell'attribuibilità no — «ah…
+	# sei tu» è una cosa che il giocatore ha appena fatto lui, a tre metri,
+	# mezzo secondo fa, mentre questa gliela si può ricondurre solo attraverso
+	# giorni (dove ha posato un letto, dove ha posato una panchina). Le due
+	# colonne tirano in direzioni opposte, e **a pari merito non si elegge**,
+	# che è la stessa regola con cui questo sistema sceglie una cricca.
+	#
+	# E non le serve vincere: ha già un tetto suo, durissimo, che nessun'altra
+	# occasione ha — una al giorno. Chi ha una scorta non ha bisogno anche
+	# della precedenza.
+	"ci_si_trova": {"frase": "incontro", "attesa": 0.10},
+	# CI SEI ANCHE TU. Uno sta arrivando al posto in cui si trova con
+	# qualcuno, alla sua ora, e lì c'è MOCHI. Si ferma un momento, e poi va.
+	# È lo stesso Punto molle di `ha_visto`, ma l'ancora è il giocatore e la
+	# premessa è che il giocatore *è nel loro posto* — cioè una cosa che ha
+	# fatto lui, e che può rifare domani alla stessa ora.
+	"ci_sei_anche_tu": {"frase": "premessa", "attesa": 0.45},
 }
 
 

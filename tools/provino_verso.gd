@@ -130,6 +130,23 @@ func _sonde() -> Array:
 	var capo := GESTI.riposo()
 	capo["hz"] = GESTI.CAPO_AMP_MAX
 	out.append(["CAPO rollio %.0f°" % rad_to_deg(GESTI.CAPO_AMP_MAX), capo])
+	# ⚠️ **LA STRADA SBAGLIATA, MESSA NELLA STESSA TABELLA.** «Si legge a due
+	# metri e non a nove» ha una cura ovvia e una giusta, e l'ovvia è
+	# ingrandire il rollio. Qui ci sono tutte e due, misurate accanto: le due
+	# rotazioni più grosse comprano rilevabilità e PERDONO il verso (è la
+	# ragione per cui l'imbardata non porta niente), la sagoma compra
+	# rilevabilità e il verso resta.
+	for gr: float in [0.18, 0.24]:
+		var cg := GESTI.riposo()
+		cg["hz"] = gr
+		out.append(["CAPO rollio %.0f° (più grosso)" % rad_to_deg(gr), cg])
+	# LA SAGOMA: la testa che affonda fra le spalle, quattro profondità.
+	for aff: float in [0.02, 0.035, 0.05, 0.07]:
+		var ca := GESTI.riposo()
+		ca["hz"] = GESTI.CAPO_AMP_MAX
+		ca["hpy"] = -aff
+		out.append(["CAPO + affondo %.1f cm" % (aff * 100.0), ca])
+	out.append(["· affondo 5 cm", _solo("hpy", -0.05)])
 	# --- LA DIAGNOSI: lo stesso Raccolto con un accento SPENTO per volta.
 	# È l'unico modo di sapere QUALE canale sta coprendo la parola, invece di
 	# ritoccarli tutti e sperare.

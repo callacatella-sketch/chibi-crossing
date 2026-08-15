@@ -15,6 +15,8 @@ const DEDUZIONI := preload("res://scenes/npc/Deduzioni.gd")
 const ANIMO := preload("res://scenes/npc/Animo.gd")
 const VILLAGGIO := preload("res://scenes/npc/Villaggio.gd")
 const REGIA := preload("res://scenes/npc/Regia.gd")
+const GESTI := preload("res://scenes/npc/Gesti.gd")
+const POSTO := preload("res://scenes/world/PostoDiSempre.gd")
 const UI_BROWN := Color("6a4a3a")
 # Fino a ventotto vicini: il passaparola del Villaggio, le chiacchiere, le
 # indoli e le stravaganze rendono per densità — la scala dell'Animo produce
@@ -71,6 +73,10 @@ var _pockets: Node
 var _chat_acc := 0.0
 var _wish_acc := 0.0
 var _pair_cd := {}
+## Il registro delle cricche, se c'è: la co-presenza che `_chats` costruisce
+## e oggi butta via. Si ricerca finché non si trova — il nodo nasce nel
+## livello, e in un banco non nasce affatto.
+var _cricche: Node
 ## Il dado delle chiacchiere: chi si parla adesso e chi apre bocca. NON si
 ## salva, ed è una decisione — una chiacchierata è ambiente, dura tre
 ## secondi e non lascia niente dietro di sé (`_run_chat` tira già `randf()`
@@ -274,6 +280,34 @@ const GESTO_RAGGIO := 9.0
 ## domanda dell'inquadratura, e non è un numero nuovo — è la stessa quota a
 ## cui `Deduzioni` misura se il giocatore vede una testa girarsi.
 const GESTO_QUOTA := 0.55
+## LE TRE QUOTE DEL CORPO a cui si chiede «di qui si vede?». Un chibi è alto
+## poco più di un metro (la testona è centrata a 0,92): sono la testa, il
+## petto — che è `GESTO_QUOTA`, cioè il punto che l'inquadratura guarda già —
+## e le gambe.
+##
+## ⚠️ **TRE E NON UNA, e non è prudenza: è che una sola sarebbe una moneta.**
+## Un palo di staccionata largo quattordici centimetri copre un punto e non
+## copre un corpo; un tetto copre tutto. Con un raggio solo il primo caso è
+## un no — un gesto buono buttato — e nessuno può accorgersene.
+const GESTO_QUOTE := [0.90, 0.55, 0.22]
+## …e quante devono essere coperte perché si taccia: **TUTTE E TRE.**
+##
+## ⚠️ **E LA MISURA NON DECIDE FRA DUE E TRE — lo dice la misura stessa.**
+## MISURATO nel villaggio vero contro l'oracolo dei PIXEL (124 campioni,
+## `tools/misura_occlusione.gd`: si spegne il corpo per un fotogramma e si
+## conta di quanto cambia il quadro), la maschera è quasi sempre TUTTA O
+## NIENTE — 74 campioni a zero quote, 47 a tre, e **tre soli in mezzo**. Fra
+## «due» e «tre» ballano tre campioni su centoventiquattro: chi scegliesse
+## col numero starebbe leggendo il rumore.
+##
+## Si sceglie TRE per la ragione di sempre: **nel dubbio il gesto esce.** È
+## la stessa direzione di «senza camera si passa» — il degrado va verso
+## quello che c'era, non verso il silenzio. Un palo, uno stipite, uno
+## schienale coprono un pezzo di corpo e non coprono una persona.
+##
+## E quello che il numero compra si vede sull'esito, non sulla soglia:
+## **sui gesti VERI, a cancello acceso, gli invisibili sono zero.**
+const GESTO_COPERTO_MIN := 3
 
 var _gesto_acc := 0.0        # il gettone del villaggio
 var _gesto_chi := ""         # chi lo tiene adesso
@@ -370,18 +404,41 @@ func chiedi_gesto(label: String, occasione: String, extra := {},
 		# in `Percezione.accaduto`).
 		push_warning("Visitors: occasione sconosciuta «%s» (quel momento non si vedrà mai)" % occasione)
 		return false
+	var perche_cancello := _cancelli_gesto(label, occasione)
+	if perche_cancello != "":
+		_no(conta, perche_cancello)
+		return false
+	var nodo := node_di(label)
+	if not bool(nodo.call("frase", nome, extra)):
+		_no(conta, _perche_no(nodo, nome))
+		return false
+	_gesto_chi = label
+	_gesto_acc = GESTO_PASSO
+	_paga_gesto(label)
+	_gesto_si[occasione] = int(_gesto_si.get(occasione, 0)) + 1
+	return true
+
+
+## I SETTE CANCELLI DEL VILLAGGIO, e nessuno di loro tocca un corpo: "" se si
+## passa, altrimenti il nome del no.
+##
+## ⚠️ **SONO A PARTE PERCHÉ HANNO DUE LETTORI, e il secondo deve poter
+## chiedere SENZA IMPEGNARE.** Un duetto si recita in due o non si recita
+## affatto: prima di accendere qualcuno bisogna sapere che tutti e due
+## potrebbero, e per saperlo bisogna fare queste sette domande **su due
+## persone**, a mani vuote. Ricopiarle sarebbe la tabella gemella per la
+## quarta volta in questo solo file.
+func _cancelli_gesto(label: String, occasione: String) -> String:
 	# IL CORPO DI PRIMA NON HA ANCORA FINITO. È l'unica regola che non ha
 	# eccezioni: due gesti insieme non sono due persone che pensano, sono un
-	# carillon.
+	# carillon. (Un duetto non fa eccezione: prende UN gettone in due.)
 	if _gesto_chi != "":
-		_no(conta, "un altro sta parlando")
-		return false
+		return "un altro sta parlando"
 	# …E IL PALCO È ANCORA CALDO. Quanto debba essersi raffreddato lo dice
 	# l'occasione: il periodo intero per quella che capita di continuo, un
 	# decimo per quella che il giocatore si è tirato addosso da solo.
 	if not REGIA.palco_libero(occasione, _gesto_acc, GESTO_PASSO):
-		_no(conta, "palco caldo")
-		return false
+		return "palco caldo"
 	# …E IL RIPOSO DI QUELLA PERSONA, con la STESSA aritmetica e lo stesso
 	# numero. Non è simmetria: è la stessa fame di prima, un piano più in
 	# basso — MISURATO nel villaggio vero con ventotto residenti, dieci
@@ -394,53 +451,259 @@ func chiedi_gesto(label: String, occasione: String, extra := {},
 	# fatto per mostrare.
 	if not REGIA.palco_libero(occasione, float(_gesto_riposo.get(label, 0.0)),
 			GESTO_RIPOSO):
-		_no(conta, "riposo")
-		return false
+		return "riposo"
 	var nodo := node_di(label)
 	if nodo == null or not is_instance_valid(nodo) \
 			or not nodo.has_method("frase"):
-		_no(conta, "nessun corpo")
-		return false
+		return "nessun corpo"
 	# FUORI RAGGIO NON SI RECITA. Il degrado va verso il silenzio: un gesto
 	# che il giocatore non può vedere non è mezzo gesto, è zero.
 	if _player == null \
 			or _player.global_position.distance_to(nodo.global_position) > GESTO_RAGGIO:
-		_no(conta, "fuori raggio")
-		return false
+		return "fuori raggio"
 	# …E NEMMENO FUORI DALL'INQUADRATURA.
 	if not _nell_inquadratura(nodo.global_position):
-		_no(conta, "fuori dall'inquadratura")
-		return false
-	if not bool(nodo.call("frase", nome, extra)):
-		var perche := "corpo occupato"
-		if nome == "premessa" or nome == "pensiero":
-			if str(nodo.get("_state")) != "walk":
-				perche = "non cammina"
-			elif nodo.get("_andatura") != null \
-					and float(nodo.get("_andatura").blend) <= 0.6:
-				perche = "passo non a regime"
-			elif bool(nodo.get("_gs_viaggio")):
-				perche = "gia' un Punto in questo viaggio"
-			else:
-				perche = "troppo vicino all'arrivo"
-		elif nome == "sollievo":
-			# ⚠️ E LO SI CHIEDE AL CORPO, non lo si indovina. Un'etichetta
-			# messa a naso è la stessa cosa di «zero gesti»: durante una
-			# messa a punto ho letto «nessun buio prima» su un rifiuto che
-			# di buio ne aveva da vendere, e ho cercato per venti minuti nel
-			# posto sbagliato. Il referto che tira a indovinare è peggio del
-			# referto che tace.
-			perche = ("nessun buio prima"
-					if not bool(nodo.call("_sussulto_fresco"))
-					else "corpo occupato")
-		_no(conta, perche)
-		return false
-	_gesto_chi = label
-	_gesto_acc = GESTO_PASSO
+		return "fuori dall'inquadratura"
+	# …E NEMMENO DIETRO QUALCOSA. «Dentro l'inquadratura» non vuol dire
+	# «visibile»: il villaggio è pieno di tetti, di muri, di alberi e di
+	# schienali, e il gesto di un corpo coperto costa esattamente quanto
+	# quello di un corpo che si vede — dodici secondi di gettone e cinque
+	# minuti di riposo, tolti a uno che si sarebbe visto. È il gate più caro
+	# dei sette (tre raggi contro la fisica) ed è per questo che sta per
+	# ultimo: ci arriva una richiesta ogni parecchi secondi, non mille al
+	# minuto.
+	if debug_occlusione and _gesto_coperto(nodo.global_position):
+		return "coperto"
+	return ""
+
+
+## IL CONTO DI CHI HA PARLATO: il riposo lungo di quella persona, per genoma
+## ±30%. Il GETTONE del villaggio non sta qui — lo paga il chiamante, perché
+## un duetto ne paga **uno solo in due** ma il riposo lo devono a testa: stare
+## in una cricca non compra palco.
+func _paga_gesto(label: String) -> void:
 	var s := hash(label) % 601
 	_gesto_riposo[label] = GESTO_RIPOSO * (0.85 + 0.30 * float(s) / 600.0)
-	_gesto_si[occasione] = int(_gesto_si.get(occasione, 0)) + 1
-	return true
+
+
+# =========================================================================
+# IL DUETTO — l'unica frase che questo vocabolario dice in due
+# =========================================================================
+#
+# A si ferma. Un battito dopo, si ferma B. Restano fermi insieme più di un
+# secondo, poi ripartono tutti e due decisi, e vanno dalla stessa parte.
+#
+# ⚠️ **NON È UN GESTO NUOVO.** È il Punto deciso, due volte, sfalsato. Il
+# significato non sta in nessuno dei due corpi: sta **nell'intervallo**, che
+# è l'unico canale di questo gioco che non appartiene a nessun rig.
+#
+# ⚠️ **E IL RITARDO NON È UNA RIFINITURA: È LA FRASE.** A zero sono due corpi
+# che si bloccano nello stesso fotogramma, cioè un singhiozzo del motore —
+# il giocatore lo legge come un difetto, non come un momento. A quattro
+# decimi il secondo corpo è una REAZIONE al primo. Il numero ha un
+# precedente misurato in questo stesso gioco: la nuvoletta di chi risponde a
+# una chiacchierata esce a +1,1 s (`_run_chat`), e si legge da sempre come
+# una risposta.
+
+## QUANTO ASPETTA CHI RISPONDE. Provinato affiancato
+## (`tools/provino_duetto.gd`), con una tessera di controllo che contiene un
+## singhiozzo VERO di tre fotogrammi: se duetto e singhiozzo si assomigliano,
+## il numero è sbagliato.
+const DUETTO_RITARDO := 0.40
+## …e fin dove la battuta può slittare per aspettare il fiato di un anziano.
+## Oltre, il secondo fermo non è più una risposta: è un altro fatto.
+const DUETTO_RITARDO_MAX := 0.90
+
+## ⚠️ **IL DUETTO SI RECITA SOLO OLTRE IL RAGGIO DELLA CHIACCHIERA, e non è
+## una taratura: è la cura di una COLLISIONE DI SAGOME.**
+##
+## «In questo gioco non succede mai niente insieme» è falso. `_run_chat` gira
+## tutti e due i musi nello stesso fotogramma, la nuvoletta di B esce a
+## +1,1 s e il cuoricino a +2,2: **la chiacchierata È GIÀ un duetto
+## sfalsato**. Due corpi che si fermano l'uno per l'altro a un metro e mezzo
+## di distanza, quindi, non si leggono come «si sono trovati» — si leggono
+## come «una chiacchierata a cui non sono uscite le bolle», che è peggio di
+## niente perché insegna al giocatore che le bolle a volte mancano.
+##
+## La cura è geometrica: `_chats` guarda entro 1,9 m, e sopra i 2,2 m una
+## chiacchierata **è impossibile per costruzione**. Quello che si vede lì non
+## somiglia a nient'altro che il gioco faccia.
+const DUETTO_MIN := 2.2
+## …e non oltre: due corpi agli estremi dell'inquadratura sono due fatti, non
+## uno. (Il Punto pretende `GESTO_STRADA_MIN` = 3 m di strada davanti a
+## ciascuno, quindi la finestra esiste davvero: due che convergono su uno
+## stesso punto da tre metri ciascuno stanno fra i 2,2 e i 6.)
+const DUETTO_MAX := 6.0
+
+
+## CHIEDE UN DUETTO. Torna `false` — e **non muove nessuno dei due** — se il
+## villaggio o uno dei due corpi non è nelle condizioni.
+##
+## ⚠️ **O TUTTI E DUE, O NESSUNO, e non è una preferenza estetica.** Un Punto
+## solitario in mezzo al prato il giocatore lo attribuisce a tutt'altro — a
+## quello che stava facendo lui, che è la cosa che il vocabolario gli ha
+## insegnato a fare. Un duetto troncato non attenua l'effetto: **lo inverte**,
+## e per giunta ha già speso il gettone di tutti.
+##
+## L'indivisibilità è costruita, non sperata: si accende **prima chi
+## risponde** — che per quattro decimi di secondo non si vede, sta in sala
+## d'attesa — e solo dopo chi apre. Se chi apre non ce la fa, la battuta si
+## annulla e **non è mai esistita**. L'ordine inverso lascerebbe in scena un
+## corpo fermo senza risposta.
+##
+## E il conto: **UN gettone di villaggio in due** (un duetto è un momento
+## solo), ma **il riposo lo pagano a testa** — stare in una cricca non compra
+## palco, e senza questa riga i due che si ritrovano diventerebbero i due che
+## si vedono di più, cioè la classifica dall'altra porta.
+##
+## ⚠️ **IL RESIDUO, DICHIARATO.** L'indivisibilità la garantisce questa
+## funzione nell'istante in cui concede; nei quattro decimi successivi il
+## MONDO può ancora togliere di mezzo chi deve rispondere — si apre una scena
+## scritta, arriva un pisolino, il corpo si nasconde — e la rete di
+## `Visitor._process` gli svuota la sala d'attesa. Allora chi ha aperto
+## recita da solo. La finestra è di ventiquattro fotogrammi e comincia subito
+## dopo che i sette cancelli hanno dichiarato libero quel corpo, quindi il
+## caso è vicino allo zero; e quello che resta a schermo è **un Punto
+## singolo**, cioè una cosa che il gioco fa comunque tutti i giorni. Si
+## dichiara invece di curarla, perché la cura vorrebbe che chi risponde
+## sapesse di chi apre — cioè un legame fra due corpi che oggi non esiste, e
+## che costerebbe più di quel che vale.
+func chiedi_duetto(label_a: String, label_b: String, occasione: String,
+		conta := true) -> bool:
+	if conta:
+		_gesto_no["chiesti"] = int(_gesto_no.get("chiesti", 0)) + 1
+		_gesto_no["? " + occasione] = int(_gesto_no.get("? " + occasione, 0)) + 1
+	var nome := REGIA.frase_di(occasione)
+	if nome == "":
+		push_warning("Visitors: occasione sconosciuta «%s» (quel momento non si vedrà mai)" % occasione)
+		return false
+	if label_a == label_b:
+		_no(conta, "duetto: uno solo")
+		return false
+	# i sette cancelli del villaggio, su TUTTI E DUE, a mani vuote
+	for l in [label_a, label_b]:
+		var p := _cancelli_gesto(str(l), occasione)
+		if p != "":
+			_no(conta, p)
+			return false
+	var na := node_di(label_a)
+	var nb := node_di(label_b)
+	# LA DISTANZA FRA I DUE è la valvola che separa questa frase dalla
+	# chiacchierata, e quella che tiene i due corpi in uno sguardo solo
+	var d := na.global_position.distance_to(nb.global_position)
+	if d < DUETTO_MIN:
+		_no(conta, "duetto: troppo vicini (sembra una chiacchierata)")
+		return false
+	if d > DUETTO_MAX:
+		_no(conta, "duetto: troppo lontani")
+		return false
+	# ⚠️ **CHI APRE NON SI INDOVINA: SI ENUMERA.** Le letture possibili della
+	# stessa scena sono due, e si prende la prima che sta in piedi per intero
+	# — così non esiste il caso «ho scelto A, e adesso scopro che A non può».
+	#
+	# **Fra le due si preferisce quella in cui apre l'ANZIANO**, e non è
+	# gentilezza: il corpo di un anziano non frena — si accomoda sopra il
+	# fermo che fa già da sé, 1,3 s ogni 7,5 — quindi **il suo fermo è già in
+	# calendario** e l'altro ci reagisce. Il contrario vorrebbe dire aspettare
+	# il respiro di un vecchio per chiudere una frase che è già cominciata:
+	# un battito che balla di secondi invece che di decimi.
+	var ordini: Array = [[label_a, label_b], [label_b, label_a]]
+	if bool(nb.call("del_fiato")) and not bool(na.call("del_fiato")):
+		ordini.reverse()
+	var motivo := "duetto: nessuno dei due può aprire adesso"
+	for o in ordini:
+		var n_apre := node_di(str(o[0]))
+		var n_risp := node_di(str(o[1]))
+		# si CHIEDE, non si impegna: `punto_impedimento` è la stessa funzione
+		# che `gesto()` userà fra tre righe, quindi qui non si indovina niente
+		var imp := str(n_apre.call("punto_impedimento"))
+		if imp == "":
+			imp = str(n_risp.call("punto_impedimento"))
+		if imp != "":
+			motivo = imp
+			continue
+		# chi apre dev'essere nel suo fiato ADESSO (per chi non ha l'età del
+		# fiato è sempre vero)
+		if float(n_apre.call("fiato_fra", 0.0, 0.0)) < 0.0:
+			motivo = "duetto: chi apre non ha il fiato adesso"
+			continue
+		# …e chi risponde dev'essere nel suo, dentro la finestra della
+		# battuta. Se non ci sarà, **si tace, e nessuno lo sa.**
+		var battuta := float(n_risp.call("fiato_fra", DUETTO_RITARDO,
+				DUETTO_RITARDO_MAX))
+		if battuta < 0.0:
+			motivo = "duetto: il fiato di chi risponde non cade nella battuta"
+			continue
+		# PRIMA LA RISPOSTA (che per quattro decimi non si vede), POI
+		# L'APERTURA — e se l'apertura non riesce, la battuta non è mai
+		# esistita.
+		if not bool(n_risp.call("frase", nome, {"fra": battuta})):
+			motivo = _perche_no(n_risp, nome)
+			continue
+		if not bool(n_apre.call("frase", nome, {})):
+			n_risp.call("attesa_annulla")
+			motivo = _perche_no(n_apre, nome)
+			continue
+		# IL GETTONE LO TIENE CHI RISPONDE, perché finisce per ultimo: il suo
+		# `gesto_in_corso()` è già pieno (la sala d'attesa conta), quindi il
+		# villaggio resta zitto da adesso fino all'ultimo fotogramma del
+		# duetto invece che fino a quattro decimi prima.
+		_gesto_chi = str(o[1])
+		_gesto_acc = GESTO_PASSO
+		_paga_gesto(str(o[0]))
+		_paga_gesto(str(o[1]))
+		_gesto_si[occasione] = int(_gesto_si.get(occasione, 0)) + 1
+		_duetto_ultimo = {"apre": str(o[0]), "risponde": str(o[1]),
+				"battuta": battuta}
+		return true
+	_no(conta, motivo)
+	return false
+
+
+## L'ultimo duetto concesso: chi ha aperto, chi ha risposto, di quanto è
+## slittata la battuta. In RAM, non si salva, e **nel gioco non lo legge
+## nessuno** — serve ai banchi, che il ritardo devono misurarlo e non
+## crederci sulla parola.
+var _duetto_ultimo := {}
+
+
+func debug_duetto_ultimo() -> Dictionary:
+	return _duetto_ultimo.duplicate()
+
+
+## PERCHÉ IL CORPO HA DETTO DI NO, con la sua parola.
+##
+## ⚠️ **LA RISPOSTA È DEL CORPO, non di questa funzione.** Le precondizioni
+## del Punto stavano riscritte qui a mano, e le due copie **si erano già
+## staccate**: `blend <= 0.6` invece di `< 0.6`, e `_gs_viaggio` guardato
+## prima della strada invece che dopo. Un referto che racconta un no diverso
+## da quello vero è peggio di un referto che tace — durante una messa a punto
+## costa venti minuti nel posto sbagliato, e lo dice la nota qui sotto.
+func _perche_no(nodo: Node3D, nome: String) -> String:
+	if _e_un_punto(nome):
+		var p := str(nodo.call("punto_impedimento"))
+		return p if p != "" else "corpo occupato"
+	if nome == "sollievo":
+		# ⚠️ E LO SI CHIEDE AL CORPO, non lo si indovina. Un'etichetta messa a
+		# naso è la stessa cosa di «zero gesti»: durante una messa a punto ho
+		# letto «nessun buio prima» su un rifiuto che di buio ne aveva da
+		# vendere, e ho cercato per venti minuti nel posto sbagliato. Il
+		# referto che tira a indovinare è peggio del referto che tace.
+		return ("nessun buio prima"
+				if not bool(nodo.call("_sussulto_fresco"))
+				else "corpo occupato")
+	return "corpo occupato"
+
+
+## Questa frase è un PUNTO? Cioè: `punto_impedimento()` sa rispondere per lei?
+##
+## Si LEGGE dalla tabella vera (`Gesti.FRASI`), non da un elenco ricopiato:
+## un elenco a mano resterebbe indietro di una riga il giorno che qualcuno
+## aggiunge una frase, e il referto tornerebbe a tirare a indovinare **proprio
+## sulla frase nuova**, che è quella su cui si sta lavorando.
+func _e_un_punto(frase: String) -> bool:
+	var v: Dictionary = GESTI.FRASI.get(frase, {})
+	return str(v.get("g", "")) == "punto"
 
 
 ## IL GIOCATORE CE L'HA DAVANTI? Non «vicino»: **dentro l'inquadratura**.
@@ -478,6 +741,133 @@ func _nell_inquadratura(pos: Vector3) -> bool:
 	if cam == null:
 		return true
 	return cam.is_position_in_frustum(pos + Vector3(0, GESTO_QUOTA, 0))
+
+
+## …E DAVANTI NON C'È NIENTE? Il frustum dice DOVE sta un corpo, non se lo
+## si vede: un tetto, un muro, il tronco del Grande Albero e lo schienale di
+## una panchina stanno dentro l'inquadratura esattamente come lui.
+##
+## ⚠️ **UN GESTO CONCESSO E NON VISTO NON È NEUTRO.** Costa il gettone del
+## villaggio (dodici secondi in cui nessun altro può parlare) e il riposo di
+## quella persona (cinque minuti), e li toglie a un vicino che si sarebbe
+## visto. È il gemello esatto del guasto che l'inquadratura ha chiuso, un
+## passo più in là.
+##
+## **L'ORACOLO NON È QUESTA FUNZIONE, SONO I PIXEL.** La fisica non sa cosa
+## finisce sullo schermo: sa dove stanno i solidi. Il metro di questa regola
+## è `tools/misura_occlusione.gd`, che a ogni gesto vero spegne il corpo per
+## un fotogramma e conta di quanto cambia il quadro — che è la stessa cosa
+## che vede chi gioca. La regola si tara **contro quella**, mai contro sé
+## stessa.
+##
+## Il degrado va SEMPRE verso quello che c'era: senza albero, senza camera e
+## senza mondo fisico si passa. Zero vuol dire «non lo so», e «non lo so»
+## non è mai un no.
+##
+## ────────────────────────────────────────────────────────────────────────
+## I DUE RESIDUI, MISURATI E FOTOGRAFATI (non temuti: visti)
+## ────────────────────────────────────────────────────────────────────────
+##
+## La fisica sa dove stanno i SOLIDI, e il quadro non è fatto di solidi.
+## Restano perciò due famiglie, e vanno nei due versi opposti:
+##
+## 1. **IL VETRO.** I muri di casa si disegnano semitrasparenti quando ci si
+##    guarda dentro: il raggio li trova, l'occhio ci vede attraverso. Sono i
+##    quindici «falsi allarmi» su quarantasette della misura — e sono tutti
+##    vicini DENTRO una casa, cioè, in partita, gente che `is_hidden()`
+##    esclude molto prima di qui. Costa silenzio, che è il comportamento
+##    normale.
+## 2. **LE FRONDE E I TETTI.** Le chiome degli alberi non hanno collisioni, e
+##    nemmeno il pezzo «Tetto» (`cols: []` a catalogo — e non gliele si
+##    aggiunge per questo cancello: una collisione sul tetto cambierebbe dove
+##    si cammina, che è un'altra cosa). Se la camera finisce in mezzo a una
+##    chioma, lo schermo è verde e il gesto si spende lo stesso. Fotografato.
+##
+## Il residuo GEMELLO — la camera dentro il tronco del Grande Albero — è
+## chiuso, e da una riga sola: vedi `hit_from_inside` più sotto.
+func _gesto_coperto(pos: Vector3) -> bool:
+	var m := _quote_coperte(pos)
+	var n := 0
+	for i in GESTO_QUOTE.size():
+		if m & (1 << i):
+			n += 1
+	return n >= GESTO_COPERTO_MIN
+
+
+## Quali delle `GESTO_QUOTE` hanno qualcosa davanti, come maschera di bit
+## (bit *i* = la quota *i*). Una sola funzione: la regola qui sopra e il
+## banco leggono **la stessa risposta**, o si finirebbe per tarare un metro
+## contro un altro metro.
+##
+## **QUANTO COSTA, cronometrato sulla riga** (il MainLevel vero, un villaggio
+## di centosessantanove case coi muri, 4000 domande a punti a caso): **12,3 µs
+## a domanda**, tre raggi compresi. E di domande ne arrivano qui **0,3 al
+## secondo** (misurate in partita: 1983 richieste in quattordici minuti, di
+## cui 1728 respinte dai sei cancelli che stanno prima). Non si cronometrano
+## i fotogrammi per una cosa che costa quattro microsecondi al secondo: si
+## cronometra la riga, che è la regola di questo progetto quando la
+## differenza cercata è sotto il rumore della macchina.
+##
+## ⚠️ **IL GIOCATORE SI ESCLUDE.** La capsula di Mochi è alta 90 cm e la
+## camera guarda da 2,70: il conto dice che non copre nessuno (a nove metri
+## il raggio le passa un metro e mezzo sopra la testa) —
+## ma è l'unico corpo che sta SEMPRE fra l'occhio e il villaggio, e un
+## giorno che qualcuno le allarga la capsula il vocabolario ammutolirebbe in
+## silenzio, che è la forma di guasto che questo file esiste per non avere.
+func _quote_coperte(pos: Vector3) -> int:
+	if not is_inside_tree():
+		return 0
+	var vp := get_viewport()
+	if vp == null:
+		return 0
+	var cam := vp.get_camera_3d()
+	if cam == null:
+		return 0
+	var mondo := vp.find_world_3d()
+	if mondo == null:
+		return 0
+	var spazio := mondo.direct_space_state
+	if spazio == null:
+		return 0
+	var esclusi: Array[RID] = []
+	if _player != null and is_instance_valid(_player) \
+			and _player is CollisionObject3D:
+		esclusi.append((_player as CollisionObject3D).get_rid())
+	var occhio := cam.global_position
+	var m := 0
+	for i in GESTO_QUOTE.size():
+		var q := PhysicsRayQueryParameters3D.create(occhio,
+				pos + Vector3(0, float(GESTO_QUOTE[i]), 0))
+		q.exclude = esclusi
+		q.collide_with_areas = false
+		# ⚠️ **E SE L'OCCHIO È DENTRO QUALCOSA, È COPERTO.** Di serie un
+		# raggio che PARTE dentro una forma non la vede affatto, e questo
+		# gioco ha una camera a scorrimento fisso che non schiva niente: le
+		# capita di finire dentro il tronco del Grande Albero. MISURATO — la
+		# foto è nel banco: lo schermo è tutto corteccia, del vicino non
+		# arriva un pixel, e i tre raggi dicevano «scoperto». È il guasto
+		# peggiore di questo cancello, perché è **proprio quando il giocatore
+		# non vede niente** che il vocabolario si spendeva.
+		q.hit_from_inside = true
+		if not spazio.intersect_ray(q).is_empty():
+			m |= 1 << i
+	return m
+
+
+## LA LEVA DEI BANCHI, e di nessun altro. Spenta, i raggi si tirano lo
+## stesso — chi misura vuole sapere cosa AVREBBE detto la regola — ma il
+## gesto parte comunque: è l'unico modo di avere il «prima» e il «dopo»
+## sulla stessa corsa, sugli stessi corpi, negli stessi istanti.
+##
+## Nel gioco non la tocca nessuno, e un caso di `test_regia` scandaglia
+## `scenes/` e `systems/` perché resti così.
+var debug_occlusione := true
+
+
+## La maschera delle quote coperte, per i banchi. Non reimplementa niente:
+## è la stessa funzione che usa la regola.
+func debug_quote_coperte(pos: Vector3) -> int:
+	return _quote_coperte(pos)
 
 
 ## Il referto dei NO, per i banchi (`prova_villaggio_gesti`). In RAM, non si
@@ -890,6 +1280,86 @@ func _routine(delta: float) -> void:
 				# Resta il LEASE: `next_act` è come gli undici sistemi a
 				# evento zittiscono l'agenda, e il C++ lo riceve come fatto.
 				r["next_act"] = 0.0
+
+
+# ------------------------------------------------- NON CI SI ALZA PER PRIMI
+#
+# Il canale SOTTRATTIVO delle cricche, e l'unico che chiede all'agenda invece
+# che al corpo: quando uno è nel posto in cui si ritrova con qualcuno, alla
+# sua ora, e quel qualcuno — **o Mochi** — è lì accanto, l'agenda tace sei
+# secondi in più. Non fa fare niente a nessuno: **toglie** il momento in cui
+# uno si sarebbe alzato.
+#
+# Sei secondi sono `PostoDiSempre.INSIEME_MINIMO`, cioè la risposta che
+# questo gioco ha già dato alla domanda «quanto dura uno stare insieme perché
+# si veda». Non è un numero nuovo.
+
+## …e non si alza chi si è appena alzato: **una volta per persona per
+## giornata**. Il tetto è duro perché il rischio non è estetico — un vicino
+## trattenuto di continuo è un vicino che non mangia, e la prima cosa che il
+## giocatore vedrebbe è qualcuno che sta peggio.
+var _insieme_oggi := {}       # label -> giorno in cui gli è già toccato
+
+
+## L'AGENDA ASPETTA. Torna `true` se ha davvero allungato il guinzaglio.
+##
+## ⚠️ **SI ALZA IL LEASE, NON SI INGOIA UNA DECISIONE.** La strada corta —
+## intercettare il fronte in `_gesti_agenda` e non recitare — è un LIVELLOCK:
+## `azione_cambiata` è vero in un fotogramma solo, e se in quel fotogramma non
+## si recita, quella decisione **non verrà recitata mai** (alla rivalutazione
+## dopo, se vince la stessa azione, il fronte non c'è più). Il vicino
+## resterebbe fermo con la fame che sale e nessuno stampa un errore. Qui
+## invece si tace PRIMA che il motore decida: il lease è esattamente il modo
+## in cui gli undici sistemi a evento fanno aspettare l'agenda, e il C++ lo
+## riceve come fatto (`riferisci_agenda`).
+##
+## E si può solo ALZARE: `maxf`. Abbassare un lease vorrebbe dire scavalcare
+## un sistema a evento — il concerto, il congedo — con una regola di gruppo.
+func trattieni_insieme(label: String) -> bool:
+	if _phase() == "fire":
+		return false      # al falò si sta insieme comunque: non è una notizia
+	var giorno: int = int(_daynight.get("day")) if _daynight else 0
+	if int(_insieme_oggi.get(label, -1)) == giorno:
+		return false
+	for r in _residents:
+		if str(r.get("label", "")) != label:
+			continue
+		var node := r.get("node") as Node3D
+		if node == null or not is_instance_valid(node):
+			return false
+		# chi è in mezzo a una scena scritta non è di nessuno di noi, e chi
+		# non è a riposo sta già andando da qualche parte: trattenere un
+		# corpo in cammino non è «resta ancora un po'», è un inciampo
+		if bool(node.call("in_scena")) or bool(node.call("is_hidden")):
+			return false
+		if not (str(node.get("_state")) in STATI_A_RIPOSO):
+			return false
+		# …E MAI CONTRO UN BISOGNO CHE URLA. Sei secondi non affamano
+		# nessuno, ma la regola dev'essere scritta: la compagnia non passa
+		# sopra al pancino, e un sistema che facesse stare peggio qualcuno
+		# per «renderlo leggibile» avrebbe già perso.
+		var brain: RefCounted = _ensure_brain(r)
+		for k in brain.needs:
+			if float(brain.needs[k]) < INSIEME_BISOGNO_MIN:
+				return false
+		_insieme_oggi[label] = giorno
+		r["next_act"] = maxf(float(r.get("next_act", 0.0)),
+				POSTO.INSIEME_MINIMO)
+		return true
+	return false
+
+
+## Sotto questo livello un bisogno è un'urgenza, e chi ha un'urgenza si alza
+## quando vuole lui.
+##
+## ⚠️ **NON È UN NUMERO MISURATO, ed è onesto dirlo**: nel gioco non esiste
+## una soglia di «bisogno basso» da ereditare — l'urgenza dell'agenda è un
+## margine fra PUNTEGGI (`sistema_agenda.h`, 0.60), non un livello. Questo è
+## un pavimento di PRINCIPIO, e il principio è che la compagnia non passa
+## sopra al pancino. Sei secondi su una giornata da 240 non affamano nessuno;
+## la riga sta qui perché il giorno che qualcuno alzasse `INSIEME_MINIMO`
+## trovi già scritto dove si ferma.
+const INSIEME_BISOGNO_MIN := 0.25
 
 
 # ------------------------------------------------------- l'agenda recitata
@@ -1444,7 +1914,7 @@ func _ancora_ricordo(r: Dictionary, home: Vector3, cosa: String) -> Vector3:
 			_ecs.dove(int(r["ecs"]), c, AMMIRA_SOGLIA, home), SPOSTA_MAX)
 
 
-## UN POSTO DOVE SEDERSI, e DA DOVE si cerca. Tre ancore in ordine, e si
+## UN POSTO DOVE SEDERSI, e DA DOVE si cerca. Quattro ancore in ordine, e si
 ## ferma alla prima che dà una panchina vera.
 ##
 ## 1. **SE SEI QUI E TI AMMIRA** — la scena 3: sceglie la panchina libera più
@@ -1467,7 +1937,23 @@ func _ancora_ricordo(r: Dictionary, home: Vector3, cosa: String) -> Vector3:
 ##    E viene DOPO la prima: se sei qui adesso, quello che sta succedendo
 ##    adesso conta più di quello che è successo ieri.
 ##
-## 3. **E SE NO, CASA.** Senza questo ripiego l'unica panchina del villaggio,
+## 3. **E POI, DOVE SI TROVA CON QUALCUNO.** Chi da giorni finisce nello
+##    stesso angolo con le stesse persone si siede *da quella parte*, e con
+##    abbastanza giornate certi posti diventano di qualcuno — senza che
+##    esista da nessuna parte un flag di proprietà, e senza che il gioco lo
+##    dica. L'ancora è il **punto medio delle case** di quelli con cui si
+##    ritrova: un POSTO, non una persona, quindi non c'è nessuno da seguire
+##    (è la stessa ragione per cui è sicura la 2).
+##
+##    ⚠️ **STA DOPO MOCHI, E MAI PRIMA, ed è tutta la terza domanda della
+##    regola del cozy.** Finché sei nei paraggi l'ancora la vince il
+##    GIOCATORE: **il villaggio non si raggruppa mai altrove nel momento in
+##    cui arrivi**. Un giocatore che vedesse i vicini radunarsi lontano da lui
+##    proprio quando entra in scena avrebbe imparato, senza una parola, di
+##    essere quello di troppo — e sarebbe colpa di quattro righe messe
+##    nell'ordine sbagliato.
+##
+## 4. **E SE NO, CASA.** Senza questo ripiego l'unica panchina del villaggio,
 ##    se sta dalla parte opposta, uscirebbe dal raggio dell'ancora spostata e
 ##    il vicino si addormenterebbe per terra — cioè starebbe PEGGIO per
 ##    averti visto, che è il modo più veloce per rendere illeggibile un
@@ -1483,15 +1969,76 @@ func _panchina_per(r: Dictionary, home: Vector3) -> Node3D:
 		var nuova: Node3D = _free_bench(verso_opera)
 		if nuova != null:
 			return nuova
+	var verso_loro := _ancora_ritrovo(r, home)
+	if verso_loro != home:
+		var insieme: Node3D = _free_bench(verso_loro)
+		if insieme != null:
+			return insieme
 	return _free_bench(home)
+
+
+## L'ANCORA DEL RITROVO: casa propria spostata verso il punto medio delle
+## CASE di quelli con cui ci si ritrova, e mai più di `SPOSTA_MAX`.
+##
+## Le case e non i corpi: un corpo cammina, e un'ancora che insegue un corpo
+## è un corteo. È la stessa distinzione che rende sicura l'ancora dell'opera.
+##
+## Senza registro delle cricche — un banco, il diorama, una partita nuova —
+## torna `home` ESATTO, e da lì in giù non cambia una virgola di quello che
+## il villaggio faceva prima.
+func _ancora_ritrovo(r: Dictionary, home: Vector3) -> Vector3:
+	var cr := get_tree().get_first_node_in_group("cricche")
+	if cr == null or not is_instance_valid(cr) or not cr.has_method("compagni"):
+		return home
+	var nome := str((r.get("dna", {}) as Dictionary).get("name", ""))
+	if nome == "":
+		return home
+	var somma := Vector3.ZERO
+	var n := 0
+	for altro in (cr.call("compagni", nome) as PackedStringArray):
+		var lab := label_di_nome(str(altro))
+		if lab == "":
+			continue
+		var c := cella_di(lab)
+		if c.x == 999:
+			continue
+		somma += Vector3(float(c.x), 0.0, float(c.y))
+		n += 1
+	# ⚠️ **UNA GUARDIA SOLA, e prima ce n'erano due.** C'era anche un
+	# `if loro.is_empty(): return home` davanti al ciclo, e **non poteva
+	# mordere**: con l'elenco vuoto il ciclo non aggiunge niente, `n` resta
+	# zero, e si finisce esattamente qui. L'ha trovata una mutazione — toglierla
+	# lasciava la suite verde — e una guardia che nessun test può far fallire è
+	# una guardia che non c'è. (È la stessa lezione di `GIORNATE_RESTA_LUNGA`,
+	# tolta dal predicato per la stessa ragione.)
+	#
+	# Questa invece morde: chi si ritrova con nessuno, o con gente che ha
+	# traslocato, deve avere **casa sua ESATTA** — non il baricentro di un
+	# insieme vuoto, che sarebbe l'origine del mondo.
+	if n == 0:
+		return home
+	return home.move_toward(somma / float(n), SPOSTA_MAX)
 
 
 ## Dove sta Mochi. Senza giocatore (i banchi di prova, il diorama del titolo)
 ## si risponde «a casa tua», che è il valore per cui `ancora_riposo` non
 ## sposta niente: il degrado va verso il comportamento di sempre.
 func _dove_sta_mochi(home: Vector3) -> Vector3:
+	var p: Variant = posizione_mochi()
+	return home if p == null else (p as Vector3)
+
+
+## DOVE STA MOCHI, o `null` se in questa scena non c'è un giocatore (i banchi,
+## il diorama del titolo, il Prologo).
+##
+## ⚠️ **`null` e non `Vector3.ZERO`**: l'origine è un punto VERO del
+## villaggio — ci passa il fiume, e non è lontana dalla piazza. Confonderla
+## con «non lo so» vorrebbe dire che tutto ciò che si misura «vicino a Mochi»
+## si accende attorno a un fantasma piantato là, per sempre, e a nessuno
+## verrebbe in mente di guardare lì.
+func posizione_mochi() -> Variant:
 	if _player == null or not is_instance_valid(_player):
-		return home
+		return null
 	return _player.global_position
 
 
@@ -3455,6 +4002,11 @@ func _chats(delta: float) -> void:
 				continue
 			if a.call("is_hidden") or b.call("is_hidden"):
 				continue
+			# LE CRICCHE PRENDONO NOTA QUI, e PRIMA del raffreddamento: i 35
+			# secondi sono della chiacchierata, non della co-presenza. Due
+			# vicini che passano un pomeriggio nello stesso angolo si sono
+			# trovati anche se hanno chiacchierato una volta sola.
+			_segna_incontro(i, j, a, b)
 			# la chiave del cooldown è la COPPIA (i < j), e resta tale: sono
 			# due persone che si sono appena viste, non un verso
 			if now - int(_pair_cd.get("%d_%d" % [i, j], -99999)) < 35000:
@@ -3466,6 +4018,77 @@ func _chats(delta: float) -> void:
 	_pair_cd["%d_%d" % [mini(scelta.x, scelta.y), maxi(scelta.x, scelta.y)]] = now
 	_run_chat(_residents[scelta.x].get("node") as Node3D,
 			_residents[scelta.y].get("node") as Node3D)
+
+
+## SI CONTA SOLO DOVE SI VA DA SÉ — i quattro cancelli del campionamento
+## delle cricche, e stanno qui perché questo è l'unico posto che sa che ora
+## è al villaggio e chi è in mezzo a una scena.
+##
+## ⚠️ **IL FALÒ NON REGISTRA NIENTE, ed è il cancello che regge tutto il
+## resto.** La sera `_posto_al_falo(i)` mette i vicini a 0,92 m (i±1) e
+## 1,78 m (i±2), tutti dentro gli 1,9 m di questa scansione: ne uscirebbero
+## cinquanta coppie a sera, sempre le stesse, con l'ora concentratissima e
+## il posto fisso. Sarebbero clique PER COSTRUZIONE (i, i+1, i+2) e
+## passerebbero ogni collaudo — solo che la loro forma non è un'abitudine:
+## è `_posto_al_falo(i)`, cioè **l'ordine in cui la gente ha traslocato**.
+## Al falò la vicinanza non la sceglie nessuno. Resta il posto dove una
+## cricca si VEDE, mai quello dove si CONTA.
+##
+## Gli altri tre valgono la stessa cosa da tre parti: chi è in mezzo a una
+## scena (Concerto, Congedo, Nascondino, Concertino, Nascite) e chi ha un
+## lease lungo — cioè chi è stato MESSO lì da un sistema — non ci è andato
+## da sé, e il suo stare vicino a qualcuno non è una notizia su di lui.
+func _segna_incontro(i: int, j: int, a: Node3D, b: Node3D) -> void:
+	if _cricche == null or not is_instance_valid(_cricche):
+		_cricche = get_tree().get_first_node_in_group("cricche")
+		if _cricche == null:
+			return
+	if _phase() == "fire":
+		return
+	if str(a.get("_state")) == "r_fire" or str(b.get("_state")) == "r_fire":
+		return
+	if bool(a.call("in_scena")) or bool(b.call("in_scena")):
+		return
+	if float(_residents[i].get("next_act", 0.0)) > 30.0:
+		return
+	if float(_residents[j].get("next_act", 0.0)) > 30.0:
+		return
+	# I NOMI, MAI GLI INDICI. `_residents` cambia lunghezza in mezzo alla
+	# giornata (un arrivo, una nascita, una partenza): un indice conservato
+	# è l'handle nudo che questo progetto ha già pagato con `Ricordo.soggetto`
+	# — l'incontro di ieri finirebbe intestato a un'altra persona.
+	var na := str((_residents[i].get("dna", {}) as Dictionary).get("name", ""))
+	var nb := str((_residents[j].get("dna", {}) as Dictionary).get("name", ""))
+	if na == "" or nb == "":
+		return
+	var dove: Vector3 = (a.global_position + b.global_position) * 0.5
+	# IL CANCELLO DEL POSTO, e non e' un doppione di quello dell'ora.
+	#
+	# La regola dice «al falo' la vicinanza non la sceglie nessuno»: i posti
+	# sono `_posto_al_falo(i)`, cioe' l'ORDINE DI TRASLOCO, e l'anello mette
+	# gli stessi vicini a portata ogni sera. Con 13 residenti sono 27 coppie e
+	# 16 triangoli; con 28 sono 86 coppie, 83 triangoli e 25 quartetti —
+	# esattamente la «cricca per costruzione (i, i+1, i+2)» che quella regola
+	# esiste per impedire.
+	#
+	# I due cancelli sopra guardano l'OROLOGIO e lo STATO, e non bastano: i
+	# corpi non si smaterializzano quando la campanella suona. MISURATO su due
+	# corse (22 giornate): 26 righe su 139 e 17 su 81 — cioe' il 19-21% —
+	# scritte DENTRO la radura con l'ora fra 0.858 e 0.902, dopo la fase; e
+	# hanno fabbricato 3 delle 6 abitudini della prima corsa e 2 delle 4 della
+	# seconda. Il nuovo arrivato entrava in tre giornate tutte e due le volte
+	# CON LA STESSA PERSONA, perche' il suo posto al fuoco le capitava a 1,36 m.
+	# Il villaggio non c'entrava niente.
+	#
+	# ⚠️ E la misura precedente («zero righe dal falo'») non era sbagliata: il
+	# suo oracolo classificava per fase NEL MOMENTO DEL CAMPIONE, quindi le
+	# righe di dopo finivano nel secchio «fuori dal falo'». Verificava il
+	# cancello contro se' stesso.
+	if _cozy != null and is_instance_valid(_cozy):
+		var centro: Vector3 = _cozy.get("CLEARING_CENTER")
+		if dove.distance_to(centro) < float(_cozy.get("CLEARING_R")):
+			return
+	_cricche.call("incontro", na, nb, dove)
 
 
 # LE CHIACCHIERE HANNO UN TEMA: la parola Chibiese detta a voce e il simbolo
