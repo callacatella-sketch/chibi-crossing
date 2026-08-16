@@ -94,7 +94,40 @@ var _coppie_sedute := 0.0    # secondi-coppia
 var _coppie_distinte := {}
 var _grappolo_max := 0
 var _camp_tre := 0
+## ⚠️ **LA DOMANDA DELLA REGOLA SACRA, e nessuno la misurava.** Un
+## meccanismo che avvicina la gente puo' produrre due villaggi opposti: uno
+## in cui tutti stanno con tutti a turno, e uno in cui si formano dei blocchi
+## e qualcuno resta fuori. I numeri della co-presenza (righe, coppie,
+## grappoli) **non li distinguono**: cento righe possono essere venti persone
+## che si mescolano o quattro che si vedono sempre.
+##
+## Si contano quindi i PARTNER DISTINTI per residente — e si spezza la curva
+## per INDOLE, perche' il modo in cui questo sistema potrebbe escludere
+## qualcuno e' proprio quello: il carattere che diventa un cancello invece
+## che una preferenza. Il fattore dell'insieme e' cieco al carattere apposta;
+## questa e' la riga che lo verifica nel mondo invece che nel commento.
+##
+## Oracolo INDIPENDENTE: le coppie si contano dalle POSIZIONI DEI CORPI
+## campionate qui, mai chiedendo a `Cricche`.
+var _partner := {}           # label -> { label dell'altro: campioni }
+var _indole := {}            # label -> indole
 var _isto := {}              # quanti vicini entro PARAGGI -> campioni
+## ⚠️ **LA STESSA BARRA, FUORI DAL RITO.** La barra dello zero misurata su
+## tutta la giornata e' dominata dal FALO': ogni sera ventotto corpi si
+## siedono in cerchio a posti ASSEGNATI (`_posto_al_falo`), e quella e' una
+## coda a otto-nove vicini che vale dieci-diciotto punti percentuali e balla
+## di sei punti fra una corsa e l'altra — cioe' piu' di qualunque effetto
+## che questo meccanismo possa avere. MISURATO: due corse nello stesso modo
+## danno 47,24% e 42,62%, e la differenza fra i due modi e' piu' piccola di
+## quella. Un cancello di arresto che non sa distinguere il suo segnale dal
+## proprio rumore non e' un cancello.
+##
+## E l'esclusione non e' una comodita': e' la **stessa regola** con cui
+## `Visitors._segna_incontro` rifiuta di registrare la co-presenza al falo'
+## — li' la vicinanza non la sceglie nessuno. Un meccanismo che non tocca il
+## rito non va misurato attraverso il rito.
+var _isto_lib := {}          # …contando solo i campioni in cui NESSUNO e' al falo'
+var _isto_lib_tot := 0
 var _isto_tot := 0
 var _campioni := 0
 var _fronti := {}            # azione -> quante volte l'agenda l'ha APERTA
@@ -354,6 +387,26 @@ func _ogni_frame(res: Array, dt: float) -> void:
 func _campiona(res: Array) -> void:
 	var bit := _bit_insieme()
 	var seduti: Array = []
+	# ⚠️ **IL RITO SI RICONOSCE DALLA FASE, non dallo stato.** La prima
+	# stesura guardava chi fosse in `r_fire`, e non bastava: durante la fase
+	# del falo' i corpi ci CAMMINANO verso, e ci stanno intorno, senza essere
+	# in quello stato — la coda restava tutta li' (9,31% a sette vicini).
+	# La fase e' la stessa che `Visitors` usa per comandare il rito.
+	var rito := str(_vis.call("_phase")) == "fire"
+	# ⚠️ **E UN CORPO DENTRO CASA NON E' NELLA SCENA.** Di notte i residenti
+	# sono nascosti (`resident_sleep` li rimpicciolisce a scala 0.03) ma la
+	# loro POSIZIONE resta sulla cella di casa: due case adiacenti facevano
+	# due «vicini entro tre metri» per tutta la notte, e nessuno dei due
+	# corpi era visibile. La domanda del grumo e' «il giocatore vede un
+	# mucchio?», quindi si contano i corpi che si vedono.
+	var visibili: Array = []
+	for r0 in res:
+		var n0 := (r0 as Dictionary).get("node") as Node3D
+		if n0 == null or not is_instance_valid(n0):
+			continue
+		if bool(n0.call("is_hidden")) or bool(n0.call("dorme")):
+			continue
+		visibili.append(n0)
 	for r in res:
 		var d := r as Dictionary
 		var n := d.get("node") as Node3D
@@ -384,6 +437,32 @@ func _campiona(res: Array) -> void:
 				quanti += 1
 		_isto[quanti] = int(_isto.get(quanti, 0)) + 1
 		_isto_tot += 1
+		# …e CHI erano, per l'esclusione. Fuori dal rito, per la stessa
+		# ragione della barra 8b: al falo' i posti li assegna il rito, e i
+		# partner che ne uscirebbero non li ha scelti nessuno.
+		if not rito and not bool(n.call("is_hidden")) and not bool(n.call("dorme")):
+			if not _partner.has(lab):
+				_partner[lab] = {}
+				_indole[lab] = str((d.get("dna", {}) as Dictionary).get("indole", "?"))
+			for altro2 in res:
+				var d2 := altro2 as Dictionary
+				var n3 := d2.get("node") as Node3D
+				if n3 == null or n3 == n or not is_instance_valid(n3):
+					continue
+				if bool(n3.call("is_hidden")) or bool(n3.call("dorme")):
+					continue
+				if n3.global_position.distance_to(n.global_position) <= VISITORS.VICINI:
+					var l2 := str(d2.get("label", ""))
+					(_partner[lab] as Dictionary)[l2] = \
+							int((_partner[lab] as Dictionary).get(l2, 0)) + 1
+		if not rito and not bool(n.call("is_hidden")) and not bool(n.call("dorme")):
+			var q_vis := 0
+			for nv in visibili:
+				if nv != n and (nv as Node3D).global_position \
+						.distance_to(n.global_position) <= PARAGGI:
+					q_vis += 1
+			_isto_lib[q_vis] = int(_isto_lib.get(q_vis, 0)) + 1
+			_isto_lib_tot += 1
 		if str(n.get("_state")) == "r_bench":
 			seduti.append([lab, n.global_position])
 	# --- i SEDUTI vicini: coppie, grappolo
@@ -527,7 +606,11 @@ func _referto(res: Array) -> void:
 			% [_grappolo_max, _camp_tre])
 
 	# 8
-	print("\n8. ⚠️ LA BARRA DELLO ZERO — quanti vicini entro %.1f m:" % PARAGGI)
+	_stampa_esclusione()
+	_stampa_barra("8b. LA BARRA VERA — corpi VISIBILI, fuori dal rito del falo'",
+			_isto_lib, _isto_lib_tot)
+	print("\n8. ⚠️ LA BARRA DELLO ZERO — quanti vicini entro %.1f m (col falo' dentro:" % PARAGGI)
+	print("   e' dominata dal rito, e balla di sei punti fra due corse uguali):")
 	var chiavi := _isto.keys()
 	chiavi.sort()
 	for k3 in chiavi:
@@ -540,3 +623,62 @@ func _referto(res: Array) -> void:
 		var righe: Array = _cric.get("_incontri")
 		print("\n9. IL REGISTRO — %d righe in %d giornate (%.1f al giorno)"
 				% [righe.size(), _giorni, float(righe.size()) / float(_giorni)])
+
+
+## Una barra sola, stampata come le altre — piu' la coda alta, che e' la
+## firma del rito: se cresce, quello che si sta guardando e' il falo'.
+func _stampa_barra(titolo: String, isto: Dictionary, tot: int) -> void:
+	print("\n%s (%d campioni):" % [titolo, tot])
+	if tot == 0:
+		print("   (nessun campione fuori dal rito)")
+		return
+	var chiavi: Array = isto.keys()
+	chiavi.sort()
+	var coda := 0.0
+	for k in chiavi:
+		var f := 100.0 * float(isto[k]) / float(tot)
+		if int(k) >= 5:
+			coda += f
+		print("   %2d vicini  %5.2f%%%s" % [int(k), f,
+				"   ← IL CANCELLO DI ARRESTO" if int(k) == 0 else ""])
+	print("   …la coda da 5 vicini in su: %.2f%% (la firma del rito)" % coda)
+
+
+## ⚠️ **CHI STA CON CHI, E CHI CON NESSUNO** — la domanda della REGOLA SACRA.
+##
+## Non «quante coppie», che non distingue un villaggio che si mescola da uno
+## a blocchi: **quanti partner DIVERSI** ha avuto ciascuno, e la stessa curva
+## spezzata per indole. Se una indole ha sistematicamente meno partner delle
+## altre, il carattere ha smesso di essere una preferenza ed e' diventato un
+## cancello — che e' esattamente cio' che la regola 5 vieta.
+func _stampa_esclusione() -> void:
+	print("\n10. ⚠️ L'ESCLUSIONE — partner DISTINTI per residente (fuori dal rito):")
+	if _partner.is_empty():
+		print("   (nessun campione)")
+		return
+	var per_indole := {}
+	var zero := 0
+	var righe: Array = []
+	for lab in _partner:
+		var q: int = (_partner[lab] as Dictionary).size()
+		if q == 0:
+			zero += 1
+		righe.append([q, str(lab), str(_indole.get(lab, "?"))])
+		var ind := str(_indole.get(lab, "?"))
+		if not per_indole.has(ind):
+			per_indole[ind] = []
+		(per_indole[ind] as Array).append(q)
+	righe.sort_custom(func(a2, b2): return int(a2[0]) > int(b2[0]))
+	var linea := ""
+	for r in righe:
+		linea += "%s:%d " % [str(r[1]), int(r[0])]
+	print("   %s" % linea)
+	print("   → chi non ha avuto NESSUN partner: %d su %d" % [zero, _partner.size()])
+	print("   per indole:")
+	for ind in per_indole:
+		var v: Array = per_indole[ind]
+		var somma := 0
+		for x in v:
+			somma += int(x)
+		print("      %-14s %d residenti, partner distinti in media %.2f"
+				% [ind, v.size(), float(somma) / maxf(1.0, float(v.size()))])

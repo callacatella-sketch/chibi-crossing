@@ -159,6 +159,57 @@ func _go() -> void:
 		cam.look_at(Vector3(0, 0.9, -8.0))
 		await _scatta("due_accanto_%s" % str(vista2[1]))
 
+	# ---------- 2b) ACCANTO, O AGLI ESTREMI? ----------
+	#
+	# ⚠️ **E' LA DOMANDA PIU' IMPORTANTE DI TUTTA QUESTA FASE, e non e' di
+	# taratura: sono due FRASI diverse.** Un mobile a tre sedute con due
+	# occupate si legge in due modi opposti a seconda di QUALI due:
+	#
+	#   · le due accanto, col vuoto di lato  → «stanno insieme»
+	#   · le due agli estremi, col vuoto in mezzo → «si evitano»
+	#
+	# E la seconda e' quella che capitava, perche' `_free_bench` ordinava per
+	# distanza dall'ANCORA — che e' la risposta a un'altra domanda: l'ancora
+	# sta fuori dal Gazebo, quindi due arrivi finivano ai due estremi. Nessun
+	# conteggio se ne accorge: in tutte e due le scene ci sono due persone
+	# sedute vicine, e il registro delle cricche incassa la stessa riga.
+	# Se ne accorge solo l'occhio, e questa e' la lastra in cui guardarlo.
+	#
+	# Il vuoto NON e' generico, ed e' la ragione per cui la scena regge: i
+	# tre cuscini del Gazebo sono di tre colori diversi e sul tavolino ci
+	# sono le tazze degli ospiti. La sedia libera e' **quella azzurra, con la
+	# sua tazza davanti** — un vuoto specifico si legge come un invito; uno
+	# generico non si legge affatto.
+	print("2b · ACCANTO o AGLI ESTREMI — la lastra che decide l'ordinamento")
+	for corpo_vecchio in corpi:
+		(corpo_vecchio as Node3D).queue_free()
+	corpi.clear()
+	await process_frame
+	if posti.size() >= 3:
+		var scene := {"ACCANTO_vuoto_di_lato": [0, 1],
+				"ESTREMI_vuoto_in_mezzo": [0, 2]}
+		for etichetta in scene:
+			var quali: Array = scene[etichetta]
+			var due: Array = []
+			for i in quali:
+				# lo STESSO seme nelle due scene, o si finirebbe per
+				# giudicare due chibi diversi invece di due disposizioni
+				var c2 := _corpo(radice, 5150 + int(i) * 311, Vector3(0, 0, -8.0))
+				due.append(c2)
+				c2.call("do_routine", "bench",
+						(posti[i] as Node3D).global_position, Vector3.ZERO, posti[i])
+			for _f2 in 300:
+				await process_frame
+			for vista3 in [[Vector3(0, 1.6, -3.6), "fronte"],
+					[Vector3(3.0, 2.0, -5.0), "tre_quarti"],
+					[Vector3(0, 5.5, -8.01), "alto"]]:
+				cam.position = vista3[0]
+				cam.look_at(Vector3(0, 0.9, -8.0))
+				await _scatta("%s_%s" % [etichetta, str(vista3[1])])
+			for c3 in due:
+				(c3 as Node3D).queue_free()
+			await process_frame
+
 	# ---------- 3) IL SALUTO DA SEDUTI ----------
 	# La riga in dubbio: il saluto aggiunge un saltello (`vy`) pensato per un
 	# corpo in piedi. Su un corpo seduto e' un tremolio dentro il legno, o e'

@@ -4200,6 +4200,411 @@ COPPIE=1 python3 tools/sinossi_vocabolario.py <dir> 9   # riposo|gesto appaiati
 ```
 
 
+## LE CRICCHE, e la nozione di INSIEME che mancava al motore
+
+Tre vicini che da qualche giorno finiscono nello stesso angolo alla stessa
+ora non hanno deciso niente: **si trovano**. Il predicato che lo riconosce
+sta in [`scenes/npc/Cricche.gd`](scenes/npc/Cricche.gd); la metà che glielo
+rende possibile sta nel punteggio del C++ e in `Visitors`, ed è arrivata
+dopo — perché il predicato era giusto e **il villaggio non gli dava da
+mangiare**.
+
+### La cricca è un PREDICATO DERIVATO, come `coppia()`
+
+Non esiste da nessuna parte un dato «sono un gruppo». Esiste un **elenco
+datato di incontri** — chi, con chi, che giorno, a che ora, in che punto — e
+tutto il resto si rilegge da lì ogni volta. Niente da tenere sincronizzato,
+nessun salvataggio da migrare, e soprattutto: **la dissoluzione non è un
+evento.** Non c'è nessuna riga «si sono lasciati», nessun contatore che
+scende, nessuna posa da togliere. Una cricca smette di esistere come si
+smette di passare da un posto.
+
+**Il dato non è nuovo: oggi finiva nel cestino.** `Visitors._chats`
+costruisce ogni 3,5 s la lista di TUTTE le coppie entro `VICINI` in uno stato
+chiacchierabile, e ne usa UNA. Quella lista *è* la co-presenza del villaggio,
+già filtrata e già pagata.
+
+**E la riga non ha un VERSO** (i due nomi in ordine alfabetico, cioè in un
+ordine che non vuol dire niente): da una riga senza verso non si ricava chi
+cercava chi, quindi non si ricava un giudizio. È l'opposto esatto di
+`Affetti.ASIMMETRIA`, ed è voluto — l'asimmetria è la grammatica
+dell'AFFETTO, non quella dell'ABITUDINE. Per la stessa ragione la riga **non
+va in `Affetti._righe`**: lì dentro cambierebbe `conto()`, quindi
+`il_piu_caro()`, quindi `coppia()`.
+
+⚠️ **E si conta solo dove si va da sé.** Al falò i posti li assegna
+`_posto_al_falo(i)`, cioè l'ordine in cui la gente ha traslocato: le cricche
+che ne uscirebbero sarebbero clique **per costruzione** `(i, i+1, i+2)`, e
+passerebbero ogni collaudo. Il falò resta il posto dove una cricca si VEDE,
+mai quello dove si CONTA — i quattro cancelli stanno in
+`Visitors._segna_incontro`, e uno di loro è `LEASE_SPONTANEO` (vedi sotto).
+
+### L'INSIEME — la nozione che l'utility AI non aveva
+
+Ventotto vicini risolvevano ventotto argmax separati. Nessun termine, in
+nessuna delle otto azioni, guardava **dove sono gli altri**: la co-presenza
+era una coincidenza, le coincidenze sono rare, e le triadi non nascevano.
+Misurato: **22 giornate, sei coppie che si ritrovano, ZERO cricche.**
+
+> **`insieme` = «il posto che sceglierei ha, entro `VICINI`, qualcuno che ci
+> È SEDUTO ADESSO».**
+
+Tre proprietà strutturali, e nessuna è una taratura:
+
+- **è un POSTO, non un corpo.** Un'ancora che insegue un corpo è un corteo;
+  una seduta non cammina.
+- **è un FATTO DEL MONDO, non un'intenzione.** Chi *cammina verso* una
+  seduta non conta — vedi la trappola dello stallo, più sotto.
+- **ha una CAPIENZA DI FALEGNAMERIA.** Per essere «accanto» bisogna occupare
+  un `Posto*` fratello: una panchina isolata contribuisce zero, il Gazebo
+  tre, la Gradinata quattro. **Il tetto al grumo è quanti sgabelli ha
+  costruito il giocatore**, non un numero in un file.
+
+Dove vive: `F_INSIEME` (bit 13) in [`src/sistema_agenda.h`](src/sistema_agenda.h),
+quarto fattore **in coda** alla riga `AZ_RIPOSO`; il fatto lo calcola
+`Visitors._luoghi_del_piano` **sul posto che `_panchina_per` ha già scelto**
+(zero query nuove), e ci arriva a gradini di `FATTI_OGNI`.
+
+### ⚠️ LA COSA DA MISURARE PRIMA DI PROGETTARE: una seduta durava 0,01 s
+
+Il termine, da solo, era **impossibile**. Tre giornate nel villaggio vero,
+prima di toccare niente: il bit acceso **0 volte su 169.286 campioni**,
+perché una seduta in panchina durava **un centesimo di secondo** (nove
+sedute, il 100% sotto il secondo). Non esisteva nessuna finestra dentro cui
+un secondo potesse arrivare.
+
+Eppure `Visitor._enter_state("r_bench")` scrive `randf_range(14, 22)` **da
+sempre**. Tre righe si combinavano, e ognuna era giusta per conto suo:
+
+1. il gesto **paga la sazietà nel fotogramma d'arrivo** (`STATO_CHE_SAZIA`);
+2. `r_bench` sta in `STATI_A_RIPOSO`, cioè **il lucchetto del corpo è aperto
+   mentre si è seduti**;
+3. energia 1.0 vuol dire `riposo` a zero, quindi qualunque altra cosa vince,
+   quindi il fronte, quindi si riparte.
+
+Il controesempio era già in casa: **`r_fire` sazia esattamente allo stesso
+modo** e dura **12,96 s durante il falò** contro **0,746 s fuori** — e
+l'unica differenza è che il falò si scrive il suo lease. Adesso la sosta se
+lo scrive da sé (`Visitor.resta_in_posa()` + una riga nel latch di
+`_gesti_agenda`): **p50 da 0,01 a 16,20 s**.
+
+**Senza quel pezzo, tutto il resto sarebbe stato codice morto in partita con
+la suite verde** — il guasto che questo progetto ha già pagato tre volte.
+
+### LE SETTE REGOLE CHE NON SI NEGOZIANO
+
+1. **UN POSTO, MAI UN CORPO.** *(oscillazione, corteo)*
+2. **UN BOOLEANO, MAI UN CONTEGGIO.** *(grumo)* «C'è qualcuno» e «ce ne sono
+   cinque» valgono lo stesso: un posto che si riempie **non diventa più
+   forte, diventa PIENO**. Un conteggio è *preferential attachment*, e in
+   poche giornate è una legge di potenza.
+3. **ZERO RAGGIO NUOVO: si RIORDINA, mai si AGGIUNGE.** *(grumo)* Stessa
+   ancora, stesso `RAGGIO_SEDUTA`: l'insieme dei candidati non cambia di un
+   elemento, cambia solo l'ordine. Un meccanismo che non può portare nessuno
+   dove non sarebbe già potuto andare non può fare un mucchio, **qualunque
+   sia K**. È il criterio con cui si giudicano tutte le mosse sociali future.
+4. **IL FATTO È SU CHI È SEDUTO ADESSO, MAI SU CHI STA ARRIVANDO.**
+   *(stallo)* Mai condizionare sull'intenzione di un altro agente: nessuno va
+   per primo, il fatto non è mai vero, e la funzione è codice morto in
+   partita con la suite verde. Il bootstrap non serve — la sosta è
+   incondizionata, quindi il primo si siede i suoi quindici secondi comunque,
+   **e quella È la finestra**.
+5. **IL RIFIUTO NON HA UN RAMO.** *(esclusione)* Alzarsi è ciò che fanno
+   tutti tutto il giorno: accettazione e rifiuto sono **lo stesso gesto visto
+   in due momenti**, e non esiste codice che sappia distinguerli. E nessuna
+   regola per cui B che si siede fa alzare A. Il carattere può dire quanto
+   uno **cerca** compagnia (`timido ×0.6` su `AZ_CHIACCHIERE`, che esiste
+   già); **non può mai dire chi accetta** — e il fattore dell'insieme è cieco
+   al carattere, apposta.
+6. **LA SOSTA È INCONDIZIONATA, E STA SOTTO `LEASE_SPONTANEO`.** Chi è solo
+   si siede quindici secondi come tutti — un pisolino che durasse solo in
+   compagnia sarebbe l'esclusione scritta nel motore. E sopra i 30 s
+   `_segna_incontro` smette di registrare **in silenzio**: si formerebbero
+   cricche che il registro non vede mai. Una costante sola, letta dai due.
+7. **IL TETTO DI K LO VERIFICA IL COMPILATORE.** `K_INSIEME = 1.20`, e un
+   `static_assert` su costanti **estratte dalla riga** (non ricopiate) vieta
+   di sfondare il margine d'urgenza: a 1.30 la build non parte. Il fattore
+   **non è mai in `richiede`** — uno stanco e solo deve poter fare un
+   pisolino sempre.
+
+**E chi sta da solo non cambia di un bit.** Ogni condizione è un fatto
+**positivo** («quel posto ha qualcuno accanto»): nessun ramo si accende sul
+vuoto. **Non esiste e non deve esistere** una funzione «chi è solo», «da
+quante giornate non sta con nessuno», «chi ha rifiutato chi» — niente
+partizione, quindi niente complemento.
+
+### IL DOVE: lo spareggio sta DENTRO ogni anello
+
+`_seduta_da(ancora)` prova prima `_free_bench(ancora, true)` — i soli posti
+che hanno compagnia — e **si ripiega** su `_free_bench(ancora)`.
+
+⚠️ **Un quinto anello sotto il ritrovo sarebbe stato IRRAGGIUNGIBILE** per
+chiunque abbia una coppia viva: 13 residenti su 13 hanno fra le 14 e le 27
+sedute entro sedici metri, quindi il terzo anello restituisce quasi sempre
+qualcosa e l'invito **si spegnerebbe da solo man mano che il villaggio
+diventa sociale** — cioè al contrario di come deve andare.
+
+⚠️ **E l'ordine dei quattro anelli non si tocca: Mochi resta la PRIMA.** Se
+la compagnia salisse sopra `ancora_riposo`, il villaggio si raggrupperebbe
+altrove **proprio nel momento in cui arrivi**: è la terza domanda della
+REGOLA SACRA, e la risposta sbagliata.
+
+**La chiave del filtro è DOPPIA, e l'ordine dei due confronti è il punto:**
+prima **quale compagnia** (quella più vicina all'ancora), poi **quale sedia
+accanto a quella compagnia**. Ordinare solo sulla seconda — la prima stesura
+— aveva un difetto che si vede solo con due gruppi in scena: fra una panchina
+occupata a tre metri e una a quindici vinceva quella a quindici, se il suo
+vicino era quaranta centimetri più accosto. Il corpo attraversava il
+villaggio per una differenza che nessuno può vedere.
+
+⚠️ **E «quale sedia» non è una sottigliezza: sono due FRASI diverse.** Due
+sedute accanto col vuoto di lato si legge «stanno insieme»; due sedute agli
+estremi col vuoto in mezzo si legge «si evitano» — e la seconda era quella
+che capitava, perché si ordinava per distanza dall'**ancora**, che sta fuori
+dal mobile. Nessun conteggio se ne accorge (in tutte e due le scene ci sono
+due persone sedute vicine, e il registro incassa la stessa riga): se ne
+accorge solo l'occhio, su `tools/provino_sosta.gd` scena 2b.
+
+E il vuoto **non è generico**: i tre cuscini del Gazebo sono di tre colori
+diversi, con le tazze degli ospiti sul tavolino («il tè è per tre», sta
+scritto nel sorgente). La sedia libera è *quella azzurra, con la sua tazza
+davanti* — un vuoto specifico si legge come un invito, uno generico non si
+legge affatto. **Zero righe: è già costruito.**
+
+### MOCHI È IL PONTE PIÙ FORTE DEL VILLAGGIO
+
+Ti siedi su uno sgabello del Gazebo, e i due sgabelli accanto cominciano a
+chiamare. Due vicini stanchi arrivano e si siedono **a 92 cm l'uno
+dall'altro**: `_chats` scrive la riga B—C, e un triangolo che non poteva
+chiudersi si chiude. Se ti alzi, non ti segue nessuno — la dichiarazione era
+il posto.
+
+⚠️ **Non è gatata sull'ammirazione**, apposta: gaterla escluderebbe dalla
+vita sociale nuova proprio chi non si è ancora fatto ammirare. Ed è
+**l'unica chiave a forma di GIOCATORE** che questo sistema abbia. La stessa
+riga chiude un difetto vivo: `_free_bench` cicla solo `_residents`, e un
+vicino **si sedeva dentro Mochi** — invisibile finché una seduta durava
+trenta millisecondi.
+
+### L'AFFINITÀ È UN ORARIO — niente da scrivere, tutto da proteggere
+
+`Cricche` chiede tre giornate alla stessa ora nello stesso posto. Chi può?
+**Chi si stanca alla stessa ora** — e l'ora del risveglio è
+`chibi::finestra_di_sonno(indole, quirk)`. Il grafo sociale del villaggio è
+generato dal **genoma del sonno**, che esiste già, è già persistito, ed è già
+visibile (chi si alza presto lo vedi).
+
+Non c'è nessuna tabella di compatibilità da nessuna parte, e **la ragione per
+cui due non si trovano è un orologio, non un giudizio**: il gioco è
+strutturalmente incapace di accusare qualcuno. Conseguenza operativa: **non
+aggiungere MAI una tabella di affinità**, in nessuna forma.
+
+### IL TEOREMA, e perché non si alza un numero
+
+*Un termine di attrazione produce **ARCHI**; una cricca è un **TRIANGOLO**
+(`Cricche._e_clique`: nessuno entra per catena). L'attrazione è binaria, la
+chiusura è ternaria: **nessuna quantità di archi chiude un triangolo**.*
+
+Raddoppiare le coppie vive compra un candidato ogni ventidue giornate e zero
+confermati, se non nascono sullo stesso mobile. **Chi vuole cricche
+costruisce un mobile a tre sedute fratelle, non alza un numero.** Se in
+partita si misura che nessuno costruisce il Gazebo, la risposta è un **Ordine
+del Gufo** che lo mette in mano al giocatore — non un termine più forte.
+
+### COSA HANNO DETTO LE MISURE — tre coppie appaiate
+
+Due giornate di gioco, 13 residenti, un Gazebo raggiungibile; ogni coppia è
+la stessa corsa con e senza il filtro, e si riporta la **distribuzione**, mai
+un numero.
+
+| | senza il filtro | col filtro |
+|---|---|---|
+| il fatto è acceso | 0,56 · 0,98 · 0,60 % | **4,36 · 6,20 · 5,83 %** |
+| residenti che lo vedono | 1 · 3 · 2 su 13 | **13 · 12 · 13** |
+| **il termine scavalca l'argmax** | **0,00 · 0,00 · 0,00 %** | 3,01 · 3,04 · 10,90 % |
+| campioni-coppia seduti accanto | 0 · 0 · 0 | 308 · 0 · 528 |
+| grappolo massimo | 1 · 1 · 1 | **3 · 1 · 3** |
+| righe al giorno nel registro | 50,5 · 54,0 · 52,5 | 55,0 · 57,0 · 57,0 |
+
+**La riga che conta è la terza.** Senza il filtro il termine non è debole:
+è **inerte**, in tutte e tre le corse — zero decisioni cambiate su
+seicentoventotto e più valutazioni col bit acceso. È la conferma del residuo
+che chi aveva scritto il termine aveva dichiarato da sé: *«l'incidenza non la
+alza K, la alza quale seduta viene scelta»*. Il punteggio senza il posto è
+metà meccanismo, e la metà che non fa niente.
+
+E **il grappolo si ferma a tre**, che è il numero di sgabelli del Gazebo: il
+tetto al mucchio è la falegnameria del giocatore, non una costante in un
+file. È l'unica garanzia di questa fase che non dipende da una taratura.
+
+### ⚠️ IL CANCELLO DI ARRESTO NON SAPEVA MISURARSI
+
+La barra dello zero — la frazione di tempo in cui un residente non ha nessuno
+entro tre metri — è **il cancello di arresto** di tutta questa fase: se scende,
+il villaggio si sta ammucchiando e il meccanismo va tolto, qualunque cosa
+dicano gli altri numeri. Alla prima misura dava **44,18% col filtro contro
+47,09% senza**, cioè il verso da temere. Ma dentro lo stesso modo ballava di
+**4,6 e 7,6 punti** fra una corsa e l'altra: *la differenza fra i due modi era
+più piccola della differenza fra due corse identiche.* Un cancello che non
+distingue il proprio segnale dal proprio rumore non è un cancello — è peggio
+di nessun cancello, perché lo si legge come una risposta.
+
+**Il rumore erano due cose, e nessuna delle due è il meccanismo.**
+
+1. **Il FALÒ, e non si riconosce dallo stato.** La prima correzione escludeva
+   chi fosse in `r_fire`, e non è bastata: durante la *fase* del falò i corpi
+   ci **camminano verso** e ci stanno intorno senza mai entrare in quello
+   stato, e la coda restava tutta lì (9,31% a sette vicini). Il rito si
+   riconosce dalla **fase** (`Visitors._phase() == "fire"`), che è la stessa
+   con cui il rito viene comandato.
+2. **I CORPI DENTRO CASA.** Di notte i residenti sono nascosti
+   (`resident_sleep` li rimpicciolisce a scala 0.03) ma la loro **posizione
+   resta sulla cella di casa**: due case adiacenti facevano due «vicini entro
+   tre metri» per tutta la notte, con due corpi che il giocatore non vedeva.
+   La domanda del grumo è *«si vede un mucchio?»*, quindi si contano i corpi
+   che si vedono — `is_hidden()` e `dorme()`, i predicati del gioco.
+
+Effetto sullo strumento: la coda oltre i cinque vicini passa da **18,15% a
+0,13%**. E l'esclusione del rito non è una comodità di misura: è la **stessa
+regola** con cui `_segna_incontro` rifiuta di registrare la co-presenza al
+falò — lì la vicinanza non la sceglie nessuno, e un meccanismo che non tocca
+il rito non va misurato attraverso il rito.
+
+### IL VERDETTO — tre coppie appaiate, con lo strumento pulito
+
+| | senza il filtro | col filtro |
+|---|---|---|
+| **il termine scavalca l'argmax** | **0,00 · 0,00 · 0,00 %** | **4,55 · 5,80 · 5,56 %** |
+| grappolo massimo di seduti | **1 · 1 · 1** | **3 · 3 · 2** |
+| coppie sedute DISTINTE | **0 · 0 · 0** | **4 · 2 · 2** |
+| chi resta senza NESSUN partner | 0 su 13 | **0 su 13** |
+| barra dello ZERO | 62,45 · 59,44 · **73,42** | 58,20 · 60,43 · 62,47 |
+| coda da 4 vicini in su | 1,03 · 0,69 · 0,67 % | 1,04 · 1,43 · 1,33 % |
+
+**Le prime tre righe non si sovrappongono, e sono la risposta.** Senza il
+filtro il termine non è debole: è **inerte** — zero decisioni cambiate, in
+tutte e tre le corse, su migliaia di valutazioni col bit acceso. È la
+conferma del residuo che chi aveva scritto il termine aveva dichiarato da sé:
+*«l'incidenza non la alza K, la alza quale seduta viene scelta»*.
+
+**E il grappolo si ferma a tre**, che è il numero di sgabelli del Gazebo: il
+tetto al mucchio è la falegnameria del giocatore, non una costante in un file.
+
+> ### ⚠️ MA IL CANCELLO, COM'ERA SCRITTO, VIETAVA DI FUNZIONARE
+>
+> *Qualunque* meccanismo che faccia sedere due vicini insieme abbassa la
+> frazione di tempo passato da soli: è l'effetto voluto, non il guasto. Preso
+> alla lettera, «la barra non deve scendere» boccia la funzione **per il
+> fatto di funzionare**.
+>
+> E infatti la barra **non risponde**: la differenza fra i due modi
+> (−4,7 punti in media) è più piccola della dispersione dentro un modo solo
+> (14 punti fra le tre corse senza filtro), **e in una coppia su tre cambia
+> di segno** — col filtro il villaggio sta da solo *più* a lungo. Con tre
+> coppie non è una domanda a cui questa barra sappia rispondere, e dirlo è
+> più utile che scegliere la coppia che dà ragione.
+>
+> Il guasto da cui il cancello protegge è un'altra cosa: il villaggio che
+> **converge**. Si vede nella **coda**, e la coda risponde: passa da **0,80%
+> a 1,27%** di media — mezzo punto, coerente in tutte e tre le coppie. È
+> piccolo e ha una spiegazione meccanica precisa (tre seduti su un Gazebo più
+> qualcuno che passa fa quattro vicini per quello in mezzo), ed è **limitato
+> dal mobilio**: il grappolo di seduti non supera mai tre, e l'istogramma
+> muore a cinque vicini.
+>
+> **Il cancello quindi si legge così, e va letto così da chi verrà:** la coda
+> da quattro vicini in su non deve **continuare a crescere** man mano che il
+> villaggio diventa sociale, e il calo della barra dello zero dev'essere
+> spiegato dal secchiello «1 vicino». Oggi vale **1,27%**, ed è il numero da
+> confrontare. Se un giorno la massa comincia a salire verso il quattro e il
+> cinque, il villaggio si sta ammucchiando e il meccanismo va tolto.
+
+**E la domanda della REGOLA SACRA ha una risposta misurata, non argomentata:**
+partner **distinti** per residente, contati dalle posizioni dei corpi (mai
+chiedendo a `Cricche`), fuori dal rito e sui soli corpi in scena:
+
+```
+Ciliegia 12 · Biscotto 11 · Castagna 11 · Prugna 11 · Amaretto 10 · Malva 10
+Timo 10 · Loto 9 · Cannella 8 · Nuvola 8 · Cacao 8 · Brioche 7 · Nocciola 7
+→ chi non ha avuto NESSUN partner: 0 su 13   (in tutte e sei le corse)
+```
+
+**Zero esclusi, e nessun blocco.** Da cinque a dodici partner diversi a testa
+è un villaggio che si mescola, non uno che si divide in gruppi chiusi — ed è
+la cosa che i numeri della co-presenza non potevano dire: cento righe possono
+essere venti persone che si mescolano o quattro che si vedono sempre. Nessuno
+dei tre disegni la misurava.
+
+*Residuo dichiarato:* la curva spezzata per **indole** oggi raggruppa per la
+coppia di tratti (`["goloso", "chiacchierone"]`), quindi i gruppi hanno uno o
+due elementi e le medie non dicono niente di solido. Per rispondere davvero a
+«il carattere è diventato un cancello?» va spezzata per **tratto singolo**, e
+su più giornate di due.
+
+### COME SI MISURA (e il CANCELLO DI ARRESTO)
+
+```
+CHIBI_GIORNI=2 CHIBI_QUANTI=13 CHIBI_GAZEBO=1 \
+  Godot --headless --path . --script res://tools/misura_insieme.gd
+CHIBI_SOSTA=<dir> Godot --path . --resolution 1280x720 \
+  --script res://tools/provino_sosta.gd
+Godot --headless --path . --script res://tools/prova_insieme_mochi.gd
+Godot --headless --path . --script res://tools/misura_k_insieme.gd
+```
+
+⚠️ **`misura_insieme` ha un oracolo INDIPENDENTE**: i grappoli e le coppie si
+contano dalle **posizioni dei corpi**, campionate dal banco, mai chiedendo a
+`Cricche` né al fatto stesso. Chiedere al giudice se è d'accordo con sé
+stesso è l'errore che `tools/misura_cammino.gd` esiste per non commettere.
+
+⚠️ **LA BARRA DELLO ZERO È IL CANCELLO DI ARRESTO.** È la frazione di tempo
+in cui un residente non ha nessuno entro **tre metri** (`PARAGGI`, che non è
+`VICINI`: il grumo si vede alla scala della SCENA, non a quella della
+panchina). **Se scende, il villaggio si sta ammucchiando e il meccanismo va
+tolto, qualunque cosa dicano gli altri otto numeri.** Un villaggio-grumo è la
+fine del cozy: non si distinguono più le persone, non ci sono più posti,
+spariscono le distanze che raccontano qualcosa.
+
+⚠️ **E la corsa sulle CRICCHE non può essere A/B nella stessa corsa**: il
+meccanismo cambia la STORIA, e una storia non si biforca a metà giornata.
+Corse **appaiate** con lo stesso salvataggio, e si riporta la distribuzione,
+mai un numero. È l'unica eccezione alla regola A/B di questo progetto, e ha
+una ragione, non una comodità.
+
+⚠️ **E il banco non tocca il `village.json` dell'autore**
+(`set_persist_for_debug(false)`, impronta confrontata prima e dopo): un banco
+altrui si è già portato via due gigabyte.
+
+### LE TRAPPOLE GIÀ PAGATE
+
+1. **Il termine da solo era codice morto** — la sosta, sopra. È la lezione
+   generale: prima di aggiungere un termine, **misura se la finestra in cui
+   può accendersi esiste**.
+2. **La chiave che faceva due mestieri.** `d_migliore` era insieme il limite
+   dei candidati e il migliore trovato finora, e finché si ordinava per
+   distanza dall'ancora i due coincidevano. Col filtro non coincidono più: la
+   mutazione che allarga il raggio **lasciava la suite completamente verde**,
+   perché a bocciarla era il valore iniziale della variabile e non un
+   cancello. Adesso il cancello ha un nome (`RAGGIO_SEDUTA`) e il caso che lo
+   sorveglia ha la geometria stretta — seduta a 17 m, compagno a 15,5 —
+   perché è l'unica in cui si vede quale delle due righe lavora.
+3. **Le mutazioni ingenue non fanno fallire un test: lo interrompono.**
+   Togliere il controllo dello stato in `_seduto_accanto` o nella
+   prenotazione è un accesso a un campo che non c'è, cioè un errore a runtime
+   che lascia la suite verde. Le plausibili sono «accetta anche chi cammina»
+   e «guarda `r_bench` e dimentica `walk`».
+4. **Un doppio che ri-implementa la cosa da provare la lascia senza
+   lettori.** In `test_insieme` il finto BuildSystem dice DOVE sono i pezzi
+   (che è un dato) e non decide niente: `_free_bench`, `_seduto_accanto` e
+   `_panchina_per` restano quelli del gioco. E il finto è un `Node3D` e non
+   un `Node`, perché `Visitors._build` è tipizzato e un `set()` col tipo
+   sbagliato **non assegna e non dice niente**.
+5. **La prova bit-esatta dell'agenda è CIECA a questo fattore**, per
+   costruzione: la sua spazzata accende solo i sei fatti storici, quindi il
+   bit 13 non può accendersi e `alt = 1.0` è il neutro esatto. Resta verde
+   senza toccarne una riga — **e per questo la guardia del fattore è un caso
+   NOMINATO**, che legge `K` dal binario invece di riscriverlo.
+
 ## Test
 
 Test-suite **dependency-free** (nessun addon, nessuna rete) in `tests/`:

@@ -116,6 +116,12 @@ func run(t) -> void:
 	_e_un_gradino_non_un_filo(t)
 	_la_sosta_non_sfonda_il_registro(t)
 	_la_sosta_e_incondizionata(t)
+	# --- il DOVE
+	_il_filtro_puo_solo_togliere(t)
+	_lo_spareggio_non_allunga_il_guinzaglio(t)
+	_ci_si_siede_accanto_non_in_fondo(t)
+	_il_filtro_rispetta_la_prenotazione(t)
+	_la_compagnia_piu_vicina_prima(t)
 
 
 # ======================================================================
@@ -541,12 +547,21 @@ func _il_fatto_esce_dal_POSTO_SCELTO(t) -> void:
 	var build = v["build"]
 	var corpi: Array = v["corpi"]
 	# casa mia e' l'origine. La panchina PIU' VICINA e' a due metri; l'altra
-	# coppia di panchine sta a quindici, ed e' li' che qualcuno e' seduto.
+	# coppia di panchine sta FUORI DAL RAGGIO, ed e' li' che qualcuno e'
+	# seduto.
+	#
+	# ⚠️ Le due lontane stavano a quindici metri, cioe' DENTRO i sedici del
+	# raggio, e da quando esiste il filtro quella e' una scena diversa: il
+	# corpo ci andrebbe davvero, perche' fra i posti che avrebbe usato
+	# comunque quello ha compagnia. Giusto cosi' — ma allora il caso non
+	# sorvegliava piu' la sua invariante (il fatto viene dal posto SCELTO),
+	# la sorvegliava per caso. Portandole a venticinque metri la compagnia
+	# torna a essere irraggiungibile, e l'invariante si vede di nuovo da sola.
 	var vicina := _seduta(Vector3(2.0, 0, 0), casa)
-	var lontana := _seduta(Vector3(15.0, 0, 0), casa)
-	var lontana2 := _seduta(Vector3(15.9, 0, 0), casa)
+	var lontana := _seduta(Vector3(25.0, 0, 0), casa)
+	var lontana2 := _seduta(Vector3(25.9, 0, 0), casa)
 	build.pezzi["Panchina"] = [vicina, lontana, lontana2]
-	_siedi(corpi[1] as Node3D, lontana2, Vector3(15.9, 0, 0))
+	_siedi(corpi[1] as Node3D, lontana2, Vector3(25.9, 0, 0))
 	var r: Dictionary = vis._residents[0]
 	var home := Vector3(0, 0, 0)
 	r["cell"] = Vector2i(0, 0)
@@ -781,3 +796,179 @@ func _e_un_gradino_non_un_filo(t) -> void:
 			+ "il tetto a occhi chiusi (%d cambi)") % cambi)
 	t.ok(acceso > 0 and acceso < giri,
 			"e il fatto si e' davvero acceso e spento (%d fotogrammi su %d)" % [acceso, giri])
+
+
+# ======================================================================
+#  IL DOVE — si RIORDINA, mai si AGGIUNGE
+# ======================================================================
+
+## IL FILTRO PUO' SOLO TOGLIERE, e quando toglie tutto si ripiega.
+##
+## `_free_bench(from, true)` non e' una ricerca nuova: e' la stessa, con un
+## `continue` in piu'. E `_seduta_da` e' lo spareggio: se la compagnia non
+## c'e', si prende il posto che si sarebbe preso comunque — **mai niente**.
+## La mutazione plausibile e' proprio quella che uno scriverebbe pensando di
+## semplificare: `_seduta_da` che restituisce direttamente il filtrato. Con
+## quella, un vicino che non ha nessuno seduto in giro — cioe' il caso
+## COMUNE, e per definizione chi e' solo — smette di trovare una panchina e
+## si addormenta per terra. L'invito diventerebbe una tassa sulla solitudine.
+func _il_filtro_puo_solo_togliere(t) -> void:
+	var v := _villaggio(t, 1)
+	var casa: Node = v["casa"]
+	var vis = v["vis"]
+	var build = v["build"]
+	var sola := _seduta(Vector3(2, 0, 0), casa)
+	var occupata := _seduta(Vector3(6, 0, 0), casa)
+	var accanto := _seduta(Vector3(6.95, 0, 0), casa)
+	build.pezzi["Panchina"] = [sola, occupata, accanto]
+
+	# nessuno seduto da nessuna parte: il filtro non trova NIENTE...
+	var niente = vis._free_bench(Vector3.ZERO, true)
+	t.ok(niente == null, "senza nessuno seduto, il filtro non trova niente")
+	# ...ma lo spareggio si ripiega su quella che si sarebbe presa comunque
+	var ripiego = vis._seduta_da(Vector3.ZERO)
+	t.ok(ripiego == sola,
+			"e chi e' solo si siede lo stesso, sulla piu' vicina (mai per terra)")
+
+	# adesso qualcuno si siede
+	_siedi(v["corpi"][0], occupata, Vector3(6, 0, 0))
+	var trovata = vis._free_bench(Vector3.ZERO, true)
+	t.ok(trovata == accanto, "col filtro si va dove c'e' compagnia")
+	var senza = vis._free_bench(Vector3.ZERO)
+	t.ok(senza == sola, "e senza filtro si va sulla piu' vicina, come sempre")
+	# ⚠️ e lo spareggio preferisce la compagnia FRA I CANDIDATI DI PRIMA:
+	# la piu' vicina esisteva ed e' stata scartata, non e' stata ignorata
+	t.ok(vis._seduta_da(Vector3.ZERO) == accanto,
+			"lo spareggio sceglie la compagnia fra i posti che c'erano gia'")
+
+
+## ⚠️ **ZERO RAGGIO NUOVO: si RIORDINA, mai si AGGIUNGE.**
+##
+## E' la regola su cui poggia tutto il resto — la ragione strutturale per cui
+## questo meccanismo non puo' fare un mucchio, qualunque sia K: non puo'
+## portare nessuno dove non sarebbe gia' potuto andare per conto suo.
+##
+## La mutazione plausibile e' la piu' tentatrice di tutta la fase: «la
+## compagnia vale qualche metro in piu'». Con quella, un vicino attraversa
+## mezzo villaggio per una panchina che non avrebbe mai considerato — e i
+## corpi cominciano a convergere verso un punto solo, che e' il grumo. Qui
+## la seduta accompagnata sta a trenta metri: deve restare invisibile.
+func _lo_spareggio_non_allunga_il_guinzaglio(t) -> void:
+	var v := _villaggio(t, 1)
+	var casa: Node = v["casa"]
+	var vis = v["vis"]
+	var build = v["build"]
+	# ⚠️ **LA GEOMETRIA E' STRETTA APPOSTA**, e la prima stesura non lo era:
+	# con la coppia a trenta metri la mutazione «alza il raggio» restava
+	# VERDE, perche' a bocciarla era il valore iniziale della chiave e non il
+	# cancello. Qui la seduta libera sta a diciassette metri — appena FUORI —
+	# e il suo compagno a quindici e mezzo, cioe' appena DENTRO: e' l'unica
+	# geometria in cui si vede quale delle due righe sta facendo il lavoro.
+	var vicina := _seduta(Vector3(2, 0, 0), casa)
+	var lontana_occupata := _seduta(Vector3(15.5, 0, 0), casa)
+	var lontana_libera := _seduta(Vector3(17.0, 0, 0), casa)
+	build.pezzi["Panchina"] = [vicina, lontana_occupata, lontana_libera]
+	_siedi(v["corpi"][0], lontana_occupata, Vector3(15.5, 0, 0))
+
+	t.ok(vis._free_bench(Vector3.ZERO, true) == null,
+			"la compagnia oltre i sedici metri NON entra fra i candidati")
+	# …e la controprova: il compagno E' dentro il raggio, quindi non e' lui
+	# a essere fuori portata — e' la SEDUTA. Senza, il caso non distingue.
+	t.ok(vis._free_bench(Vector3(1.5, 0, 0), true) == lontana_libera,
+			"spostando l'ancora di un metro e mezzo, la stessa seduta rientra")
+	t.ok(vis._seduta_da(Vector3.ZERO) == vicina,
+			"e si va dove si sarebbe andati comunque: il raggio non cresce mai")
+
+
+## QUALE DEI DUE SGABELLI LIBERI — «accanto», mai «all'altro capo».
+##
+## ⚠️ Non e' una sottigliezza di taratura: sono due FRASI diverse. Due seduti
+## accanto con la sedia vuota di lato si legge «stanno insieme»; due seduti
+## agli estremi con la sedia vuota in mezzo si legge «si evitano». E la
+## seconda e' quella che capitava, perche' `_free_bench` ordinava per
+## distanza dall'ANCORA — che e' la risposta a un'altra domanda.
+##
+## La mutazione plausibile e' lasciare la chiave com'era (`k = d` anche col
+## filtro): la scena resta «due persone sedute», e nessun conteggio se ne
+## accorge. Se ne accorge solo l'occhio — e questo caso, che fissa quel che
+## l'occhio ha scelto (`tools/provino_sosta.gd`, scena 2b).
+func _ci_si_siede_accanto_non_in_fondo(t) -> void:
+	var v := _villaggio(t, 1)
+	var casa: Node = v["casa"]
+	var vis = v["vis"]
+	var build = v["build"]
+	# tre sedute fratelle, come i tre sgabelli del Gazebo
+	var uno := _seduta(Vector3(0, 0, 0), casa)
+	var due := _seduta(Vector3(0.95, 0, 0), casa)
+	var tre := _seduta(Vector3(1.80, 0, 0), casa)
+	build.pezzi["Panchina"] = [uno, due, tre]
+	_siedi(v["corpi"][0], uno, Vector3(0, 0, 0))
+
+	# l'ancora sta DALL'ALTRA PARTE: ordinando su di lei vincerebbe `tre`,
+	# cioe' l'estremo opposto a chi e' seduto — il buco in mezzo.
+	var ancora := Vector3(10, 0, 0)
+	t.ok(vis._free_bench(ancora) == tre,
+			"senza filtro vince il piu' vicino all'ancora, come sempre")
+	t.ok(vis._free_bench(ancora, true) == due,
+			"col filtro ci si siede ACCANTO a chi c'e', non all'altro capo")
+
+
+## IL FILTRO NON PUO' SCAVALCARE LA PRENOTAZIONE — o due corpi finiscono
+## sullo stesso sgabello.
+##
+## ⚠️ La mutazione INGENUA (togliere il controllo dello stato) e' un errore a
+## runtime, che **non fa fallire un test: lo interrompe**, lasciando la suite
+## verde. Quella plausibile e' guardare `r_bench` e dimenticare `walk` — cioe'
+## «e' occupato solo se ci sta gia' qualcuno sopra» — che non esplode, e' anche
+## ragionevole a leggerla, e mette due chibi uno dentro l'altro appena il
+## secondo arriva.
+func _il_filtro_rispetta_la_prenotazione(t) -> void:
+	var v := _villaggio(t, 3)
+	var casa: Node = v["casa"]
+	var vis = v["vis"]
+	var build = v["build"]
+	var occupata := _seduta(Vector3(6, 0, 0), casa)
+	var accanto := _seduta(Vector3(6.95, 0, 0), casa)
+	var sola := _seduta(Vector3(2, 0, 0), casa)
+	build.pezzi["Panchina"] = [sola, occupata, accanto]
+	_siedi(v["corpi"][0], occupata, Vector3(6, 0, 0))
+	# il secondo ha GIA' prenotato il posto accanto, e ci sta camminando
+	var in_arrivo: Node3D = v["corpi"][1]
+	in_arrivo.set("_routine_aux", accanto)
+	in_arrivo.set("_state", "walk")
+	in_arrivo.global_position = Vector3(4, 0, 0)
+
+	t.ok(vis._free_bench(Vector3.ZERO, true) == null,
+			"il posto accanto e' gia' prenotato: il filtro non lo offre a un terzo")
+	t.ok(vis._seduta_da(Vector3.ZERO) == sola,
+			"e il terzo va a sedersi altrove — non addosso a chi sta arrivando")
+
+
+## PRIMA QUALE COMPAGNIA, POI QUALE SEDIA — e l'ordine dei due confronti si
+## vede solo con due gruppi in scena.
+##
+## La mutazione plausibile e' la stesura di ieri: ordinare **solo** per
+## distanza da chi e' seduto. E' ragionevole a leggerla (e risolve la
+## domanda per cui era nata, quale sgabello dello stesso mobile), ma fra due
+## mobili diversi confronta due numeri che non parlano di distanza da casa:
+## vince il gruppo i cui seduti stanno piu' accosti fra loro. Qui il gruppo
+## lontano e' piu' accosto di quattro centimetri, e con quella chiave il
+## corpo attraversa dodici metri in piu' per una differenza che nessuno puo'
+## vedere.
+func _la_compagnia_piu_vicina_prima(t) -> void:
+	var v := _villaggio(t, 2)
+	var casa: Node = v["casa"]
+	var vis = v["vis"]
+	var build = v["build"]
+	# il gruppo VICINO: seduto a 3 m, sedia libera a 90 cm da lui
+	var qui_occupata := _seduta(Vector3(3.0, 0, 0), casa)
+	var qui_libera := _seduta(Vector3(3.90, 0, 0), casa)
+	# il gruppo LONTANO: seduto a 15 m, sedia libera a 86 cm — piu' accosta
+	var la_occupata := _seduta(Vector3(15.0, 0, 0), casa)
+	var la_libera := _seduta(Vector3(15.86, 0, 0), casa)
+	build.pezzi["Panchina"] = [qui_occupata, qui_libera, la_occupata, la_libera]
+	_siedi(v["corpi"][0], qui_occupata, Vector3(3.0, 0, 0))
+	_siedi(v["corpi"][1], la_occupata, Vector3(15.0, 0, 0))
+
+	t.ok(vis._free_bench(Vector3.ZERO, true) == qui_libera,
+			"fra due compagnie si sceglie la piu' VICINA, non la piu' accosta")
