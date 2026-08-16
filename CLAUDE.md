@@ -4357,13 +4357,33 @@ occupata a tre metri e una a quindici vinceva quella a quindici, se il suo
 vicino era quaranta centimetri più accosto. Il corpo attraversava il
 villaggio per una differenza che nessuno può vedere.
 
-⚠️ **E «quale sedia» non è una sottigliezza: sono due FRASI diverse.** Due
+⚠️ **E «quale seduta» non è una sottigliezza: sono due FRASI diverse.** Due
 sedute accanto col vuoto di lato si legge «stanno insieme»; due sedute agli
-estremi col vuoto in mezzo si legge «si evitano» — e la seconda era quella
-che capitava, perché si ordinava per distanza dall'**ancora**, che sta fuori
-dal mobile. Nessun conteggio se ne accorge (in tutte e due le scene ci sono
-due persone sedute vicine, e il registro incassa la stessa riga): se ne
-accorge solo l'occhio, su `tools/provino_sosta.gd` scena 2b.
+estremi col vuoto in mezzo si legge «si evitano». Nessun conteggio distingue
+le due scene — in tutte e due ci sono due persone sedute vicine, e il
+registro incassa la stessa riga: se ne accorge solo l'occhio, su
+`tools/provino_sosta.gd` scena 2b (tre panchine accostate, le due lastre
+affiancate).
+
+⚠️ **MA A ESCLUDERE «AGLI ESTREMI» È IL FILTRO, NON L'ORDINAMENTO — e la
+prima stesura di questo capitolo diceva il contrario.** Su tre panchine a
+1,2 m l'una dall'altra, quella all'altro capo sta a **2,4 m** dal seduto,
+cioè oltre `VICINI`: non è «accanto» affatto, e non entra nemmeno fra i
+candidati filtrati. Perché la seconda chiave decida servono **tre o più
+sedute tutte entro `VICINI` dalla stessa**, e in questo catalogo — misurato,
+non dedotto — ce l'hanno solo il **Gazebo** (dove però i tre sgabelli sono un
+triangolo quasi equilatero, 0,92 · 0,95 · 1,00 m: la scelta è fra cose
+uguali) e la **Gradinata**, che non è fra i candidati di `_free_bench`.
+Quindi `k2` oggi è **quasi inerte**, e vale la pena scriverlo invece di
+lasciar credere che stia lavorando: resta perché costa un confronto e chiude
+la porta al mobile che verrà.
+
+⚠️ **E SE UN GIORNO SI AGGIUNGE LA GRADINATA ai posti dove ci si siede**, si
+guardi prima `provino_sosta` scena 2c: le sue quattro sedute stanno tutte
+entro `VICINI` l'una dall'altra, e quattro chibi lì sopra **si
+compenetrano** — non si leggono come quattro persone, si leggono come un
+mucchio. Il tetto al grumo in questo progetto è la falegnameria, e quel pezzo
+di falegnameria non regge quattro corpi.
 
 E il vuoto **non è generico**: i tre cuscini del Gazebo sono di tre colori
 diversi, con le tazze degli ospiti sul tavolino («il tè è per tre», sta

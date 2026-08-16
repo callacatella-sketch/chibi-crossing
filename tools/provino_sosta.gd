@@ -161,54 +161,102 @@ func _go() -> void:
 
 	# ---------- 2b) ACCANTO, O AGLI ESTREMI? ----------
 	#
-	# ⚠️ **E' LA DOMANDA PIU' IMPORTANTE DI TUTTA QUESTA FASE, e non e' di
-	# taratura: sono due FRASI diverse.** Un mobile a tre sedute con due
-	# occupate si legge in due modi opposti a seconda di QUALI due:
+	# ⚠️ **E LA DOMANDA VUOLE UNA FILA, non il Gazebo** — misurato, non
+	# dedotto: i tre sgabelli del Gazebo stanno a 0,92 · 0,95 · 1,00 m l'uno
+	# dall'altro, cioe' sono un TRIANGOLO quasi equilatero attorno al
+	# tavolino. Li' «i due estremi col vuoto in mezzo» non esiste: tutti e
+	# tre sono accanto a tutti e tre, e qualunque coppia si sieda produce la
+	# stessa scena. La prima stesura di questo provino confrontava lo
+	# sgabello 0+1 contro lo 0+2 e mostrava due immagini che dicevano la
+	# stessa cosa — cioe' rispondeva a una domanda che quel mobile non pone.
 	#
-	#   · le due accanto, col vuoto di lato  → «stanno insieme»
-	#   · le due agli estremi, col vuoto in mezzo → «si evitano»
+	# Dove la pone e' una FILA: tre panchine accostate. Li' il secondo che
+	# arriva puo' sedersi accanto al primo, o all'altro capo lasciando il
+	# buco in mezzo, e le due scene si leggono in modo opposto:
 	#
-	# E la seconda e' quella che capitava, perche' `_free_bench` ordinava per
-	# distanza dall'ANCORA — che e' la risposta a un'altra domanda: l'ancora
-	# sta fuori dal Gazebo, quindi due arrivi finivano ai due estremi. Nessun
-	# conteggio se ne accorge: in tutte e due le scene ci sono due persone
-	# sedute vicine, e il registro delle cricche incassa la stessa riga.
-	# Se ne accorge solo l'occhio, e questa e' la lastra in cui guardarlo.
+	#   · accanto, col vuoto di lato      → «stanno insieme»
+	#   · agli estremi, col vuoto in mezzo → «si evitano»
 	#
-	# Il vuoto NON e' generico, ed e' la ragione per cui la scena regge: i
-	# tre cuscini del Gazebo sono di tre colori diversi e sul tavolino ci
-	# sono le tazze degli ospiti. La sedia libera e' **quella azzurra, con la
-	# sua tazza davanti** — un vuoto specifico si legge come un invito; uno
-	# generico non si legge affatto.
-	print("2b · ACCANTO o AGLI ESTREMI — la lastra che decide l'ordinamento")
+	# Il vuoto non e' generico e non deve esserlo: e' UNA panchina precisa,
+	# in un posto preciso della fila. Un vuoto specifico si legge come un
+	# invito; uno generico non si legge affatto.
+	print("2b · ACCANTO o AGLI ESTREMI, su una FILA — la lastra dell'ordinamento")
 	for corpo_vecchio in corpi:
 		(corpo_vecchio as Node3D).queue_free()
 	corpi.clear()
 	await process_frame
-	if posti.size() >= 3:
-		var scene := {"ACCANTO_vuoto_di_lato": [0, 1],
-				"ESTREMI_vuoto_in_mezzo": [0, 2]}
-		for etichetta in scene:
-			var quali: Array = scene[etichetta]
-			var due: Array = []
-			for i in quali:
-				# lo STESSO seme nelle due scene, o si finirebbe per
-				# giudicare due chibi diversi invece di due disposizioni
-				var c2 := _corpo(radice, 5150 + int(i) * 311, Vector3(0, 0, -8.0))
-				due.append(c2)
-				c2.call("do_routine", "bench",
-						(posti[i] as Node3D).global_position, Vector3.ZERO, posti[i])
-			for _f2 in 300:
-				await process_frame
-			for vista3 in [[Vector3(0, 1.6, -3.6), "fronte"],
-					[Vector3(3.0, 2.0, -5.0), "tre_quarti"],
-					[Vector3(0, 5.5, -8.01), "alto"]]:
-				cam.position = vista3[0]
-				cam.look_at(Vector3(0, 0.9, -8.0))
-				await _scatta("%s_%s" % [etichetta, str(vista3[1])])
-			for c3 in due:
-				(c3 as Node3D).queue_free()
+	# tre panchine vere, accostate come le poserebbe un giocatore
+	var fila: Array = []
+	for i2 in 3:
+		var b: Node3D = _pezzo("Panchina")
+		radice.add_child(b)
+		b.position = Vector3(-1.2 + 1.2 * float(i2), 0, 8.0)
+		fila.append(b)
+	await process_frame
+	var scene := {"ACCANTO_vuoto_di_lato": [0, 1], "ESTREMI_vuoto_in_mezzo": [0, 2]}
+	for etichetta in scene:
+		var quali: Array = scene[etichetta]
+		var due: Array = []
+		for k2 in quali.size():
+			var idx: int = int(quali[k2])
+			# lo STESSO seme nelle due scene (e nello stesso ORDINE), o si
+			# finirebbe per giudicare due chibi diversi invece di due
+			# disposizioni
+			var c2 := _corpo(radice, 5150 + k2 * 311, Vector3(0, 0, 6.0))
+			due.append(c2)
+			c2.call("do_routine", "bench",
+					(fila[idx] as Node3D).global_position, Vector3.ZERO, fila[idx])
+		for _f2 in 420:
 			await process_frame
+		for vista3 in [[Vector3(0, 1.35, 4.9), "fronte"],
+				[Vector3(3.4, 1.6, 5.6), "tre_quarti"],
+				[Vector3(0.01, 4.6, 8.0), "alto"]]:
+			cam.position = vista3[0]
+			cam.look_at(Vector3(0, 0.55, 8.0))
+			await _scatta("%s_%s" % [etichetta, str(vista3[1])])
+		for c3 in due:
+			(c3 as Node3D).queue_free()
+		await process_frame
+	for b2 in fila:
+		(b2 as Node3D).queue_free()
+	await process_frame
+
+	# ---------- 2c) LA GRADINATA — quattro sedute, tutte accanto ----------
+	#
+	# E' l'unico mobile del gioco in cui la SECONDA chiave dell'ordinamento
+	# ha davvero qualcosa da decidere: quattro sedute, e fino a TRE altre
+	# entro `VICINI` dalla stessa (misurato). Sulla fila di panchine il
+	# filtro da solo basta — la panchina all'altro capo sta a 2,4 m e non e'
+	# «accanto» affatto — mentre qui tutte le candidate passano il filtro, e
+	# a scegliere e' la distanza da chi e' seduto.
+	#
+	# E c'e' una seconda cosa da guardare, che nessun numero dice: quattro
+	# chibi a meno di due metri **si compenetrano?** Si legge come quattro
+	# persone su una gradinata, o come un mucchio?
+	print("2c · la GRADINATA — quattro sedute vicine, e i corpi che ci stanno")
+	var grad: Node3D = _pezzo("Gradinata")
+	radice.add_child(grad)
+	grad.position = Vector3(0, 0, 14.0)
+	await process_frame
+	var scalini: Array = grad.find_children("Posto*", "Node3D", true, false)
+	print("   sedute trovate: %d" % scalini.size())
+	var seduti_g: Array = []
+	for i3 in scalini.size():
+		var c4 := _corpo(radice, 6100 + i3 * 457, Vector3(0, 0, 12.0))
+		seduti_g.append(c4)
+		c4.call("do_routine", "bench",
+				(scalini[i3] as Node3D).global_position, Vector3.ZERO, scalini[i3])
+	for _f3 in 420:
+		await process_frame
+	for vista4 in [[Vector3(0, 1.5, 10.6), "fronte"], [Vector3(4.0, 1.5, 12.4), "tre_quarti"],
+			[Vector3(4.6, 1.1, 14.0), "profilo"]]:
+		cam.position = vista4[0]
+		cam.look_at(Vector3(0, 0.75, 14.0))
+		await _scatta("GRADINATA_%s" % str(vista4[1]))
+	for c5 in seduti_g:
+		(c5 as Node3D).queue_free()
+	grad.queue_free()
+	await process_frame
 
 	# ---------- 3) IL SALUTO DA SEDUTI ----------
 	# La riga in dubbio: il saluto aggiunge un saltello (`vy`) pensato per un

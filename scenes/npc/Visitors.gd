@@ -4072,23 +4072,46 @@ func _free_bench(from: Vector3, con_qualcuno := false) -> Node3D:
 		var compagno: Node3D = _seduto_accanto(seat)
 		if con_qualcuno and compagno == null:
 			continue
-		# ⚠️ **QUALE DEI DUE SGABELLI LIBERI, e non e' una sottigliezza.**
-		# «Due accanto con la sedia vuota di lato» e «due agli estremi con la
-		# sedia vuota in mezzo» sono due frasi diverse, e la seconda si legge
-		# «si evitano». Ordinando sull'ancora capitava la seconda: il Gazebo
-		# ha tre sgabelli e l'ancora sta fuori, quindi due arrivi finivano ai
-		# due estremi.
+		# ⚠️ **QUALE POSTO LIBERO, e non e' una sottigliezza: sono due FRASI
+		# diverse.** Due sedute accanto col vuoto di lato si legge «stanno
+		# insieme»; due sedute agli estremi col vuoto in mezzo si legge «si
+		# evitano». PROVINATO guardando (`tools/provino_sosta.gd` scena 2b,
+		# tre panchine accostate): le due lastre affiancate non lasciano
+		# dubbi, ed e' l'unica cosa di tutto questo meccanismo che, sbagliata,
+		# renderebbe brutta anche la versione giusta di tutto il resto.
 		#
-		# La chiave del filtro e' quindi DOPPIA, e l'ordine dei due confronti
-		# e' il punto: **prima QUALE COMPAGNIA** (quella piu' vicina
-		# all'ancora, cioe' la stessa domanda di sempre, fatta sul corpo
-		# seduto invece che sul legno), **poi QUALE SEDIA accanto a quella
-		# compagnia**. Ordinare solo sulla seconda era la stesura di ieri, e
-		# aveva un difetto che si vede solo con due gruppi in scena: fra una
-		# panchina occupata a tre metri e una a quindici, vinceva quella a
-		# quindici se il suo vicino era quaranta centimetri piu' accosto. Il
-		# corpo attraversava il villaggio per una differenza che nessuno puo'
-		# vedere. Due confronti esatti, nessun peso da tarare.
+		# La chiave e' DOPPIA, e l'ordine dei due confronti e' il punto:
+		# **prima QUALE COMPAGNIA** (quella piu' vicina all'ancora, cioe' la
+		# domanda di sempre fatta sul corpo seduto invece che sul legno),
+		# **poi QUALE SEDUTA accanto a quella compagnia**.
+		#
+		# ⚠️ E il peso dei due non e' lo stesso, misurato:
+		#
+		#  · `k` (quale compagnia) e' quello che LAVORA. Ordinare solo sulla
+		#    seconda — la prima stesura — mandava il corpo a quindici metri
+		#    invece che a tre se il vicino di la' era quattro centimetri piu'
+		#    accosto: il corpo attraversava il villaggio per una differenza
+		#    che nessuno puo' vedere. La guardia e'
+		#    `test_insieme._la_compagnia_piu_vicina_prima`.
+		#  · `k2` (quale seduta) oggi e' quasi INERTE, e va detto invece che
+		#    lasciato credere. La scena «agli estremi col buco in mezzo» la
+		#    esclude gia' il FILTRO, non l'ordinamento: su tre panchine
+		#    accostate a 1,2 m quella all'altro capo sta a 2,4 m dal seduto,
+		#    cioe' oltre `VICINI`, e non e' «accanto» affatto. Perche' `k2`
+		#    decida servono TRE o piu' sedute tutte entro `VICINI` dalla
+		#    stessa, e in questo catalogo (misurato) ce l'hanno solo il
+		#    Gazebo — dove pero' i tre sgabelli sono un triangolo quasi
+		#    equilatero (0,92 · 0,95 · 1,00 m) e quindi la scelta e' fra cose
+		#    uguali — e la Gradinata, che **non e' fra i candidati di questa
+		#    funzione**. `k2` resta perche' costa un confronto e chiude la
+		#    porta per il mobile che verra', non perche' oggi si veda.
+		#
+		# ⚠️ E SE UN GIORNO SI AGGIUNGE LA GRADINATA ai candidati qui sopra,
+		# si guardi PRIMA `provino_sosta` scena 2c: le sue quattro sedute
+		# stanno tutte entro `VICINI` l'una dall'altra, e quattro chibi li'
+		# sopra **si compenetrano** — non si leggono come quattro persone, si
+		# leggono come un mucchio. Il tetto al grumo in questo progetto e' la
+		# falegnameria, e quel pezzo di falegnameria non regge quattro corpi.
 		var k := d
 		var k2 := 0.0
 		if con_qualcuno:
