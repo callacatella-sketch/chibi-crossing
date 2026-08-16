@@ -4490,54 +4490,61 @@ regola** con cui `_segna_incontro` rifiuta di registrare la co-presenza al
 falò — lì la vicinanza non la sceglie nessuno, e un meccanismo che non tocca
 il rito non va misurato attraverso il rito.
 
-### IL VERDETTO — tre coppie appaiate, con lo strumento pulito
+### IL VERDETTO — misurato DUE VOLTE, e la prima volta era sporca
+
+⚠️ **Le prime tre coppie appaiate sono state prese col difetto
+dell'auto-compagnia dentro** (un vicino seduto si accendeva il fatto da sé,
+vedi la revisione più sotto), quindi gonfiavano l'incidenza del fatto e
+sporcavano il ramo senza filtro. Rifatte sul codice riparato:
 
 | | senza il filtro | col filtro |
 |---|---|---|
-| **il termine scavalca l'argmax** | **0,00 · 0,00 · 0,00 %** | **4,55 · 5,80 · 5,56 %** |
-| grappolo massimo di seduti | **1 · 1 · 1** | **3 · 3 · 2** |
-| coppie sedute DISTINTE | **0 · 0 · 0** | **4 · 2 · 2** |
+| il fatto è acceso | **0,00 % · 0,28 %** (0 e 1 residente su 13) | 2,93 % · 4,62 % (12 e 13 su 13) |
+| **il termine scavalca l'argmax** | **0,00 % · 0,00 %** | 16,29 % · 7,98 % |
+| coppie sedute DISTINTE | **0 · 0** | **2 · 2** |
+| grappolo massimo | **1 · 1** | **3 · 3** |
+| campioni con ≥3 seduti vicini | **0 · 0** | 74 · 164 |
 | chi resta senza NESSUN partner | 0 su 13 | **0 su 13** |
-| barra dello ZERO | 62,45 · 59,44 · **73,42** | 58,20 · 60,43 · 62,47 |
-| coda da 4 vicini in su | 1,03 · 0,69 · 0,67 % | 1,04 · 1,43 · 1,33 % |
+| barra dello ZERO | 65,59 · 60,51 | 54,50 · 59,73 |
+| coda da 4 vicini in su | 0,80 · **4,75** % | 1,20 · 1,22 % |
 
-**Le prime tre righe non si sovrappongono, e sono la risposta.** Senza il
-filtro il termine non è debole: è **inerte** — zero decisioni cambiate, in
-tutte e tre le corse, su migliaia di valutazioni col bit acceso. È la
-conferma del residuo che chi aveva scritto il termine aveva dichiarato da sé:
-*«l'incidenza non la alza K, la alza quale seduta viene scelta»*.
+**Senza il filtro il fatto non si accende MAI** — zero volte su 113.009
+campioni in una corsa, e per una persona sola nell'altra — e non cambia
+**nessuna** decisione. Il termine da solo è un pezzo di motore staccato; a
+farlo girare è il posto.
 
-**E il grappolo si ferma a tre**, che è il numero di sgabelli del Gazebo: il
-tetto al mucchio è la falegnameria del giocatore, non una costante in un file.
+**E il grappolo si ferma a tre**, che è il numero di sgabelli del Gazebo.
 
-> ### ⚠️ MA IL CANCELLO, COM'ERA SCRITTO, VIETAVA DI FUNZIONARE
+> ### ⚠️ IL CANCELLO, COM'ERA SCRITTO, VIETAVA DI FUNZIONARE
 >
 > *Qualunque* meccanismo che faccia sedere due vicini insieme abbassa la
 > frazione di tempo passato da soli: è l'effetto voluto, non il guasto. Preso
 > alla lettera, «la barra non deve scendere» boccia la funzione **per il
 > fatto di funzionare**.
 >
-> E infatti la barra **non risponde**: la differenza fra i due modi
-> (−4,7 punti in media) è più piccola della dispersione dentro un modo solo
-> (14 punti fra le tre corse senza filtro), **e in una coppia su tre cambia
-> di segno** — col filtro il villaggio sta da solo *più* a lungo. Con tre
-> coppie non è una domanda a cui questa barra sappia rispondere, e dirlo è
-> più utile che scegliere la coppia che dà ragione.
+> E la barra **non risponde**: fra i due modi la differenza va da 11 punti a
+> **0,8**, cioè meno della dispersione dentro un modo solo (e su tre coppie
+> precedenti cambiava di segno). Con questi numeri non è una domanda a cui
+> questa barra sappia rispondere, e dirlo è più utile che scegliere la coppia
+> che dà ragione.
 >
-> Il guasto da cui il cancello protegge è un'altra cosa: il villaggio che
-> **converge**. Si vede nella **coda**, e la coda risponde: passa da **0,80%
-> a 1,27%** di media — mezzo punto, coerente in tutte e tre le coppie. È
-> piccolo e ha una spiegazione meccanica precisa (tre seduti su un Gazebo più
-> qualcuno che passa fa quattro vicini per quello in mezzo), ed è **limitato
-> dal mobilio**: il grappolo di seduti non supera mai tre, e l'istogramma
-> muore a cinque vicini.
+> ⚠️ **E NEMMENO LA CODA RISPONDE — la stesura di ieri diceva di sì, e
+> sbagliava.** Sulle tre coppie sporche la coda da quattro vicini in su
+> passava da 0,80 % a 1,27 %, «coerente in tutte e tre», e l'avevo indicata
+> come *il numero da confrontare in futuro*. Sulle due coppie pulite: col
+> filtro **1,20 e 1,22**, senza **0,80 e 4,75**. Una corsa SENZA ha la coda
+> quattro volte quella di entrambe le corse CON. Quel mezzo punto era rumore,
+> e chiamarlo segnale era esattamente l'errore che questa sezione denuncia un
+> paragrafo più sopra.
 >
-> **Il cancello quindi si legge così, e va letto così da chi verrà:** la coda
-> da quattro vicini in su non deve **continuare a crescere** man mano che il
-> villaggio diventa sociale, e il calo della barra dello zero dev'essere
-> spiegato dal secchiello «1 vicino». Oggi vale **1,27%**, ed è il numero da
-> confrontare. Se un giorno la massa comincia a salire verso il quattro e il
-> cinque, il villaggio si sta ammucchiando e il meccanismo va tolto.
+> **Quel che resta, e regge:** il grappolo di seduti non supera mai TRE, in
+> nessuna corsa e in nessuna geometria — compresa la fila di otto panchine
+> accostate costruita apposta per farlo salire, dove si ferma a **due**. È
+> l'unico limite di questa fase che non dipende da una taratura né da una
+> media: dipende da quante sedute fratelle il giocatore ha costruito. **Se
+> un giorno il grappolo supera la capienza del mobile più grande, allora il
+> villaggio si sta ammucchiando** — e quello è un fatto, non una
+> percentuale.
 
 **E la domanda della REGOLA SACRA ha una risposta misurata, non argomentata:**
 partner **distinti** per residente, contati dalle posizioni dei corpi (mai
