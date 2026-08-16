@@ -4595,6 +4595,92 @@ una ragione, non una comodità.
 (`set_persist_for_debug(false)`, impronta confrontata prima e dopo): un banco
 altrui si è già portato via due gigabyte.
 
+### ⚠️ COSA HA TROVATO LA REVISIONE AVVERSARIALE (quattro lenti)
+
+Il lavoro è stato passato a quattro lenti indipendenti — correttezza,
+integrazione, il GENERE, e i test. Hanno trovato **sette difetti veri**, e i
+due peggiori erano contro cose che il sorgente dichiarava già chiuse.
+
+1. **UN VICINO SEDUTO FACEVA COMPAGNIA A SÉ STESSO.** La guardia c'era
+   (`if n.get("_routine_aux") == seat: continue`) e non serviva a niente:
+   morde solo sul posto che quel corpo ha prenotato, e quel posto
+   `_free_bench` non lo restituisce **mai** (è già «taken»). I posti che
+   arrivano a `_seduto_accanto` sono per costruzione diversi dal proprio, e
+   lì un vicino solo su uno sgabello del Gazebo si accendeva il fatto da sé
+   guardando lo sgabello di fianco: il riposo prendeva il suo ×1,20 e
+   restava incollato lì. Ora `_seduto_accanto` sa CHI sta chiedendo.
+   ⚠️ **E la lezione di metodo vale più del difetto**: una mutazione su
+   quella riga *arrossisce*, quindi la guardia risultava viva. **Una guardia
+   che fallisce sulla mutazione sbagliata è più insidiosa di una muta: dice
+   «coperto» e non lo è.**
+2. **CHI È DENTRO UNA SCENA FACEVA COMPAGNIA.** Il pubblico del Concerto sta
+   seduto fino a 48 s — tre volte la sosta — e dominava il segnale; ma
+   `_segna_incontro` rifiuta per costruzione ogni co-presenza in cui uno dei
+   due sia `in_scena()`. L'invito spendeva il gettone e una camminata per
+   portare due vicini **dove il registro non li vede**.
+3. **IL LETTO DI MOCHI CONTAVA COME SEDUTA.** `_sit_down` scrive `_seat_node`
+   per ogni `kind`, letto compreso, e `_sleep_until_morning` non lo azzera:
+   tutta la notte il letto risultava «un corpo seduto» e chiamava i vicini
+   verso un corpo dietro una tenda nera.
+4. **IL COSTO.** `_seduto_accanto` girava anche nel ramo NON filtrato e ne
+   buttava il risultato — una scansione di tutti i residenti **per ogni
+   candidato**, più un `get_first_node_in_group` a testa, sul cammino che
+   gira sempre. Misurato con 28 residenti: `_free_bench` da 83 a **445 µs**,
+   `_seduta_da` a **804**. Adesso si cerca solo se serve.
+5. **LO `static_assert` NON ERA LA RETE CHE DICEVA DI ESSERE.** La relazione
+   scritta ignorava che l'emozione si innesta **dopo** i fattori
+   (`v += clamp(v·mo − v, ±DELTA_MAX)`): lo scarto vero è
+   `v0(K−1) + DELTA_MAX(1 − 1/K)` = 0,523, e il tetto non è a 1,2678 ma a
+   **K ≈ 1,2305**. In mezzo c'era **1,25**, che la tabella di taratura
+   presentava come opzione «0 urgenze» — vera, ma *a modulatore neutro*.
+   Falsificato: con la relazione corretta la build si ferma a 1,25 e passa a
+   1,23.
+6. **`sedile_attuale()` non aveva un solo lettore nei test**, perché il banco
+   ne aveva una gemella finta — ed è la classe in cui viveva il difetto 3.
+   Ora si prova la classe VERA col solo `_ready` scavalcato.
+7. **Sette guardie erano MUTE** (zero asserzioni rosse su 34 mutazioni
+   provate): il fatto derivato dal posto scelto, «accanto è il più vicino»,
+   l'ordine dei quattro anelli con Mochi per prima, `LEASE_SPONTANEO`
+   giudicato solo contro sé stesso, e un caso il cui nome non coincideva con
+   ciò su cui poteva fallire. Tutte chiuse, e **falsificate una per una**:
+   3 · 1 · 1 · 1 · 1 · 1 · 1 · 1 · 4 asserzioni rosse.
+
+**E la geometria che il cancello d'arresto non aveva mai visto.** La lente
+del genere ha dimostrato che «il grappolo si ferma a tre» era una proprietà
+della **fixture**: il banco posava otto panchine isolate (la coppia più
+vicina a quattro metri), quindi il grafo delle sedute aveva componenti da
+uno. Le celle sono da un metro, quindi due panchine accostate stanno dentro
+`VICINI` e una fila *in teoria* si riempie a catena. MISURATO con la fila
+vera (otto panchine accostate, due coppie appaiate): **il grappolo massimo
+resta 2**. La catena non si forma perché le decisioni di riposo sono rare
+rispetto alla finestra di 14–22 s — ma il tetto **non è il mobile**, ed è
+scritto qui perché nessuno ci ricaschi.
+
+### ⚠️ I RESIDUI DICHIARATI, con la ragione
+
+- **Il fatto e il corpo possono guardare due posti diversi.** `_recita`
+  chiama `_panchina_per` una seconda volta, fino a mezzo secondo dopo, e da
+  quando esiste il filtro la risposta dipende da chi è seduto *in questo
+  istante*. Ho provato a chiudere il buco **promettendo** il posto, e **tre
+  asserzioni di `test_cuore_vicini` sono diventate rosse**: fra le due
+  chiamate cambia anche l'ANCORA, e una promessa congelata fa inseguire al
+  corpo un posto che non ha più ragione di esistere — *«se il giocatore se ne
+  va dall'altra parte, nessuno insegue nessuno»*. Quella proprietà vale di
+  più. Chi vorrà chiudere il cerchio deve far scadere la promessa **quando
+  cambia l'ancora**, non quando cambia il posto.
+- **Il Salone non dichiara la sua scena.** Mette il cliente in `r_bench` per
+  16 s senza `apri_scena`, quindi quel corpo conta come compagnia e la sua
+  co-presenza si registra come spontanea — la stessa forma del difetto del
+  falò, un piano più in là. La cura è in `Salone.gd`, non qui.
+- **`_resident_greet` in `r_bench` chiude il vocabolario del corpo** per
+  1,47 s a ogni saluto, cioè il 18% del tempo seduto, e il metro dei gesti
+  (2,10 al minuto) non è stato rimisurato dopo.
+- **`FATTI_OGNI` è sorvegliata da `test_cuore_vicini`, non da
+  `test_insieme`**: in quel banco il mondo alterna con un periodo che si
+  allinea alla cadenza del rinfresco, e i cambi sono **3 col gradino a 30 e
+  2 col gradino a 1**. Un tetto assoluto scritto lì sembrerebbe una guardia
+  e non lo sarebbe.
+
 ### LE TRAPPOLE GIÀ PAGATE
 
 1. **Il termine da solo era codice morto** — la sosta, sopra. È la lezione

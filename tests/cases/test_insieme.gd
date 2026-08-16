@@ -122,6 +122,13 @@ func run(t) -> void:
 	_ci_si_siede_accanto_non_in_fondo(t)
 	_il_filtro_rispetta_la_prenotazione(t)
 	_la_compagnia_piu_vicina_prima(t)
+	_un_seduto_non_fa_compagnia_a_se_stesso(t)
+	_chi_e_in_scena_non_fa_compagnia(t)
+	_il_letto_non_e_una_seduta(t)
+	_il_fatto_segue_l_ancora_SPOSTATA(t)
+	_accanto_e_il_piu_vicino_non_il_primo(t)
+	_mochi_resta_il_primo_anello(t)
+	_il_tetto_del_lease_sta_sopra_la_posa(t)
 
 
 # ======================================================================
@@ -254,6 +261,28 @@ func _il_tetto_non_apre_l_urgenza(t, m) -> void:
 	t.ok(massimo * (k - 1.0) < margine,
 			("lo scarto piu' grande che l'insieme puo' produrre (%.4f) sta sotto il "
 			+ "margine d'urgenza (%.4f): INCLINA, non accelera") % [massimo * (k - 1.0), margine])
+	# ⚠️ **E LO SCARTO SI MISURA, non si ricostruisce dal K DICHIARATO.** La
+	# riga qui sopra moltiplica per `k` letto da `debug_costanti_agenda`,
+	# cioe' per la COSTANTE — non per il numero che sta davvero nella riga
+	# della tabella. MISURATO: mettendo `f_fatto(F_INSIEME, 1.35, 1.0)` con
+	# `K_INSIEME` ancora a 1.20 la corsia d'urgenza si apre sul serio
+	# (2.24 × 0.35 = 0.784 contro un margine di 0.60), e questo caso restava
+	# VERDE — e con lui il `static_assert`, che legge la costante uguale.
+	# Qui si chiedono al binario i due punteggi, col bit e senza, e la
+	# differenza e' quella vera: un letterale storto nella riga non ha piu'
+	# dove nascondersi.
+	var scarto := 0.0
+	for c2 in CARATTERI:
+		var ind2: int = m.maschera_indole(PackedStringArray(c2))
+		var b2 := PackedFloat64Array([1.0, 0.0, 1.0, 1.0, 1.0])
+		var con: PackedFloat64Array = m.debug_punteggi(b2, m.maschera_fatti(
+				PackedStringArray([VISITORS.FATTO_INSIEME])), ind2, -1)
+		var senza: PackedFloat64Array = m.debug_punteggi(b2, 0, ind2, -1)
+		scarto = maxf(scarto, con[1] - senza[1])
+	t.ok(scarto > 0.0, "il termine sposta davvero il punteggio (%.4f)" % scarto)
+	t.ok(scarto < margine,
+			("lo scarto MISURATO dal binario (%.4f) sta sotto il margine (%.4f) — "
+			+ "e questo non passa dal K dichiarato") % [scarto, margine])
 	# e il massimo lo fa il dormiglione, che e' chi il fattore moltiplica di piu'
 	var p_dorm: PackedFloat64Array = m.debug_punteggi(
 			PackedFloat64Array([1.0, 0.0, 1.0, 1.0, 1.0]), 0, i_dorm, -1)
@@ -337,10 +366,19 @@ class FintoGiorno extends Node3D:
 ## Il registro dei vicini VERO, col solo `_ready` scavalcato: il suo vuole
 ## `%Player` e `../BuildSystem`, cioe' il villaggio intero.
 class Registro extends "res://scenes/npc/Visitors.gd":
+	## Quanto quel vicino ti ammira. E' un DATO — lo produce l'ECS a partire
+	## dal grafo dei ricordi — e qui lo si detta, come `FintoBuild` detta
+	## dove sono i pezzi: `ancora_riposo` e l'ordine dei quattro anelli
+	## restano quelli veri, ed e' quello che si sta provando.
+	var finta_ammirazione := 0.0
+
 	func _ready() -> void:
 		set_process(false)
 		set_physics_process(false)
 		add_to_group("visitors")
+
+	func _ammirazione_di(_r: Dictionary) -> float:
+		return finta_ammirazione
 
 
 ## IL MONDO, non il comportamento. Dice DOVE sono i pezzi e se ci si arriva,
@@ -651,6 +689,37 @@ func _la_sosta_e_incondizionata(t) -> void:
 	var da_solo: float = c.resta_in_posa()
 	t.ok(da_solo >= 14.0,
 			"da solo, in mezzo al prato, ci si siede lo stesso (%.2f s)" % da_solo)
+	# ⚠️ **E IL LEASE SI SCRIVE CON IL FATTO SPENTO.** L'asserzione qui sopra
+	# duplica `_la_sosta_dura_quanto_la_posa` e non ha nessun rapporto con la
+	# compagnia: il nome del caso e cio' su cui puo' fallire non coincidevano.
+	# Questa invece e' la proprieta' NOMINATA — una sosta che durasse solo in
+	# compagnia sarebbe l'esclusione scritta nel motore — e si prova sul
+	# villaggio, col registro vero e nessuno seduto nei paraggi.
+	var v := _villaggio(t, 1)
+	var vis = v["vis"]
+	var casa: Node = v["casa"]
+	var build = v["build"]
+	var panca := _seduta(Vector3(2, 0, 0), casa)
+	build.pezzi["Panchina"] = [panca]
+	var solo: Node3D = v["corpi"][0]
+	solo.global_position = Vector3(0, 0, 0)
+	vis._ensure_ecs()
+	var r0: Dictionary = vis._residents[0]
+	r0["cell"] = Vector2i(0, 0)
+	vis._ecs_id(r0)
+	vis._ensure_brain(r0)
+	vis._luoghi_del_piano(r0, Vector3(0, 0, 0))
+	t.ok(not bool(r0.get(VISITORS.FATTO_INSIEME, true)),
+			"PREMESSA: non c'e' nessuno seduto, quindi il fatto e' SPENTO")
+	solo.set("_routine_aux", panca)
+	solo._enter_state("r_bench")
+	var posa: float = solo.resta_in_posa()
+	r0["saziato"] = false
+	r0["next_act"] = 0.0
+	vis._gesti_agenda()
+	t.almost(float(r0.get("next_act", 0.0)), minf(posa, VISITORS.LEASE_SPONTANEO),
+			("e il lease si scrive lo stesso, col fatto SPENTO: la sosta non "
+			+ "chiede compagnia (%.2f s)") % posa, 0.001)
 	# e nel sorgente non esiste nessuna funzione che chieda «chi e' solo»:
 	# niente partizione, quindi niente complemento
 	for f in ["scenes/npc/Visitors.gd", "scenes/npc/Visitor.gd"]:
@@ -796,6 +865,27 @@ func _e_un_gradino_non_un_filo(t) -> void:
 			+ "il tetto a occhi chiusi (%d cambi)") % cambi)
 	t.ok(acceso > 0 and acceso < giri,
 			"e il fatto si e' davvero acceso e spento (%d fotogrammi su %d)" % [acceso, giri])
+	# ⚠️ **RESIDUO DICHIARATO: questo caso sorveglia il CODICE del gradino,
+	# non la sua COSTANTE.** Il tetto qui sopra si muove insieme a
+	# `FATTI_OGNI`, quindi portandola a 1 — cioe' facendo seguire al fatto i
+	# corpi a sessanta hertz, che e' il guasto che il caso esiste per
+	# impedire — la suite resta verde di qua.
+	#
+	# Ci ho provato a metterci un tetto ASSOLUTO, e non funziona: MISURATO,
+	# i cambi sono **3 con il gradino a 30 e 2 con il gradino a 1**. Il
+	# mondo qui alterna a ogni fotogramma, cioe' con periodo due, e la
+	# cadenza del rinfresco ci si ALLINEA: a ogni rinfresco il mondo si
+	# trova sempre nella stessa fase, e il fatto risulta costante in tutte e
+	# due le tarature. Un numero assoluto scritto qui sopra sembrerebbe una
+	# guardia e sarebbe un'altra asserzione che non sa fallire — cioe'
+	# esattamente la cosa che questo file esiste per non avere.
+	#
+	# La costante e' sorvegliata altrove, e davvero: `test_cuore_vicini`
+	# tiene lo SFALSAMENTO (due asserzioni rosse a `FATTI_OGNI = 1`), che e'
+	# la proprieta' per cui quel numero e' stato scelto. Chi vorra' chiudere
+	# anche il tremolio da qui deve prima togliere l'allineamento — un mondo
+	# che cambia con un periodo che non divide il gradino — e MISURARE che i
+	# due numeri si separino, invece di sperarlo.
 
 
 # ======================================================================
@@ -972,3 +1062,251 @@ func _la_compagnia_piu_vicina_prima(t) -> void:
 
 	t.ok(vis._free_bench(Vector3.ZERO, true) == qui_libera,
 			"fra due compagnie si sceglie la piu' VICINA, non la piu' accosta")
+
+
+## ⚠️ **CHI CHIEDE NON FA COMPAGNIA A SE' STESSO**, e per un pezzo l'ha fatto.
+##
+## La guardia c'era — `if n.get("_routine_aux") == seat: continue` — e non
+## serviva a niente: morde solo quando il posto interrogato e' ESATTAMENTE
+## quello che quel corpo ha prenotato, e quel posto `_free_bench` non lo
+## restituisce mai (e' gia' «taken»). I posti che arrivano a
+## `_seduto_accanto` sono per costruzione DIVERSI dal proprio.
+##
+## Il caso vero e' questo: un vicino SOLO si siede su uno sgabello del
+## Gazebo, e lo sgabello di fianco — a novantacinque centimetri, cioe' dentro
+## `VICINI` **da lui stesso** — risultava «accompagnato». Il fatto si
+## accendeva per un vicino solo, il riposo prendeva il suo ×1.20, e
+## `_panchina_per` gli proponeva il posto accanto a se stesso: restava
+## incollato li'. Il commento sopra `_seduto_accanto` dichiarava chiuso
+## proprio quel guasto.
+##
+## ⚠️ E la seconda meta' del caso e' quella che rende il difetto invisibile:
+## per CHIUNQUE ALTRO quel posto e' davvero accompagnato, e deve restarlo.
+## Un test che chiedesse solo «e' falso» passerebbe anche cancellando la
+## compagnia del tutto.
+func _un_seduto_non_fa_compagnia_a_se_stesso(t) -> void:
+	var v := _villaggio(t, 2)
+	var casa: Node = v["casa"]
+	var vis = v["vis"]
+	var build = v["build"]
+	var suo := _seduta(Vector3(0, 0, 0), casa)
+	var accanto := _seduta(Vector3(0.95, 0, 0), casa)
+	var lontana := _seduta(Vector3(6, 0, 0), casa)
+	build.pezzi["Panchina"] = [suo, accanto, lontana]
+	var chi: Node3D = v["corpi"][0]
+	_siedi(chi, suo, Vector3(0, 0, 0))
+
+	t.ok(not vis._accanto_a_qualcuno(accanto, chi),
+			"chi e' seduto non fa compagnia a SE' STESSO sul posto di fianco")
+	t.ok(vis._accanto_a_qualcuno(accanto),
+			"…ma per chiunque altro quel posto E' accompagnato")
+	# e la conseguenza vera: il suo `_panchina_per` non deve trovare
+	# compagnia da nessuna parte, quindi ripiega sulla piu' vicina
+	var r: Dictionary = vis._residents[0]
+	r["cell"] = Vector2i(6, 0)
+	t.ok(vis._free_bench(Vector3(6, 0, 0), true, chi) == null,
+			"e il filtro, chiesto da lui, non trova nessuna compagnia")
+	t.ok(vis._seduta_da(Vector3(6, 0, 0), chi) == lontana,
+			"quindi si siede dove si sarebbe seduto comunque")
+
+
+## ⚠️ **CHI E' DENTRO UNA SCENA NON FA COMPAGNIA A NESSUNO.**
+##
+## Il pubblico del Concerto resta seduto fino a quarantotto secondi — tre
+## volte la sosta — quindi domina il segnale della compagnia. Ma
+## `_segna_incontro` rifiuta per costruzione ogni co-presenza in cui uno dei
+## due sia `in_scena()`: senza questa riga l'invito spende il gettone e una
+## camminata per portare due vicini esattamente dove il registro delle
+## cricche non li vede. E' la trappola gia' scritta sopra `VICINI`, un piano
+## piu' in la'.
+func _chi_e_in_scena_non_fa_compagnia(t) -> void:
+	var v := _villaggio(t, 2)
+	var casa: Node = v["casa"]
+	var vis = v["vis"]
+	var build = v["build"]
+	var occupata := _seduta(Vector3(0, 0, 0), casa)
+	var accanto := _seduta(Vector3(0.95, 0, 0), casa)
+	build.pezzi["Panchina"] = [occupata, accanto]
+	var attore: Node3D = v["corpi"][0]
+	_siedi(attore, occupata, Vector3(0, 0, 0))
+	t.ok(vis._accanto_a_qualcuno(accanto), "da fermo, il posto accanto chiama")
+
+	# adesso quel corpo entra in una scena scritta a mano (il Concerto)
+	attore.call("apri_scena", 60.0)
+	t.ok(bool(attore.call("in_scena")), "il corpo e' dentro una scena")
+	t.ok(not vis._accanto_a_qualcuno(accanto),
+			"e allora il posto accanto TACE: quella co-presenza il registro "
+			+ "delle cricche non la incasserebbe comunque")
+
+
+## ⚠️ **DORMIRE NON E' SEDERSI.**
+##
+## `Interactions._sit_down` scrive `_seat_node` per OGNI `kind`, letto
+## compreso, e `_sleep_until_morning` non lo azzera: senza la guardia, per
+## tutta la notte il letto di Mochi risultava «un corpo seduto» e ogni seduta
+## entro `VICINI` da li' chiamava qualcuno — verso un corpo che sta dietro
+## una tenda nera.
+##
+## ⚠️ E si prova la funzione VERA, non una gemella: la classe e' quella di
+## produzione col solo `_ready` scavalcato (il suo vuole `%Player` e mezzo
+## livello). Una finta che ri-implementasse `sedile_attuale` lascerebbe
+## quella vera senza nessun lettore.
+func _il_letto_non_e_una_seduta(t) -> void:
+	var pannello = PannelloVero.new()
+	t.stage(pannello)
+	var letto := Node3D.new()
+	t.stage(letto)
+	pannello.set("_seated", true)
+	pannello.set("_seat_node", letto)
+	pannello.set("_sleeping", false)
+	t.ok(pannello.call("sedile_attuale") == letto,
+			"da sveglia e seduta, il sedile c'e'")
+	pannello.set("_sleeping", true)
+	t.ok(pannello.call("sedile_attuale") == null,
+			"ma mentre dorme non c'e' nessun corpo seduto da nessuna parte")
+
+
+## Il pannello VERO, col solo `_ready` scavalcato: il suo vuole `%Player`,
+## `../BuildSystem` e mezzo livello.
+class PannelloVero extends "res://scenes/interact/Interactions.gd":
+	func _ready() -> void:
+		pass
+
+	func _process(_d: float) -> void:
+		pass
+
+
+## ⚠️ **IL FATTO SEGUE IL POSTO SCELTO — e per vederlo l'ancora dev'essere
+## SPOSTATA.**
+##
+## Il caso che sorvegliava questa invariante era muto contro la mutazione che
+## il suo stesso commento nomina («c'e' qualcuno seduto vicino a casa mia?»),
+## e la ragione e' di banco, non di codice: senza giocatore, senza grafo dei
+## ricordi e senza cricche, tutti e quattro gli anelli di `_panchina_per`
+## degenerano in `_seduta_da(home)`. «Il posto scelto» e «la panchina piu'
+## vicina a casa» erano LO STESSO NODO, quindi non c'era niente da separare.
+##
+## Qui l'ancora si sposta davvero (Mochi vicina, ammirazione sopra soglia), e
+## la geometria e' scelta perche' le due domande diano risposte DIVERSE: la
+## seduta accompagnata sta a diciassette metri da casa — fuori dal raggio, se
+## la si cerca da li' — e a undici dall'ancora, cioe' dentro.
+func _il_fatto_segue_l_ancora_SPOSTATA(t) -> void:
+	var v := _villaggio(t, 2)
+	var casa: Node = v["casa"]
+	var vis = v["vis"]
+	var build = v["build"]
+	# il giocatore, e un vicino che lo ammira: l'ancora si sposta di
+	# `SPOSTA_MAX` verso di lui
+	var mochi := Node3D.new()
+	casa.add_child(mochi)
+	mochi.global_position = Vector3(10, 0, 0)
+	vis.set("_player", mochi)
+	vis.finta_ammirazione = 0.5
+
+	var di_casa := _seduta(Vector3(1, 0, 0), casa)
+	var accompagnata := _seduta(Vector3(17, 0, 0), casa)
+	build.pezzi["Panchina"] = [di_casa, accompagnata]
+	_siedi(v["corpi"][1], _seduta(Vector3(17.9, 0, 0), casa), Vector3(17.9, 0, 0))
+
+	var r: Dictionary = vis._residents[0]
+	r["cell"] = Vector2i(0, 0)
+	var home := Vector3(0, 0, 0)
+	(v["corpi"][0] as Node3D).global_position = home
+
+	# PREMESSA: e' qui che le due domande si separano. Senza queste due
+	# righe il caso tornerebbe muto come prima.
+	t.ok(vis._free_bench(home) == di_casa,
+			"PREMESSA: la panchina piu' vicina a CASA e' quella di casa")
+	t.ok(vis._free_bench(home, true) == null,
+			"PREMESSA: e cercando la compagnia DA CASA non si trova niente "
+			+ "(la seduta accompagnata e' fuori raggio)")
+
+	var scelta = vis._panchina_per(r, home)
+	t.ok(scelta == accompagnata,
+			"ma l'ancora e' spostata, e da li' il posto scelto e' quello accompagnato")
+	vis._luoghi_del_piano(r, home)
+	t.ok(bool(r.get(VISITORS.FATTO_INSIEME, false)),
+			"e il fatto segue il posto SCELTO, non una domanda sua")
+
+
+## ⚠️ **«ACCANTO» E' IL PIU' VICINO, NON IL PRIMO DELL'ELENCO.**
+##
+## Non e' cosmetica: `_free_bench` ordina per distanza fra l'ancora e IL
+## COMPAGNO, quindi un compagno sbagliato da' la chiave sbagliata e manda il
+## corpo sul mobile sbagliato. La mutazione plausibile e' fermarsi al primo
+## che rientra nel raggio (`if d <= VICINI: chi = n; break`), che sembra un
+## risparmio e non produce nessun errore.
+func _accanto_e_il_piu_vicino_non_il_primo(t) -> void:
+	var v := _villaggio(t, 2)
+	var casa: Node = v["casa"]
+	var vis = v["vis"]
+	var libera := _seduta(Vector3(0, 0, 0), casa)
+	# il PRIMO dell'elenco e' il piu' LONTANO dei due (dentro `VICINI`)
+	var lontano: Node3D = v["corpi"][0]
+	var vicino: Node3D = v["corpi"][1]
+	_siedi(lontano, _seduta(Vector3(1.7, 0, 0), casa), Vector3(1.7, 0, 0))
+	_siedi(vicino, _seduta(Vector3(0.5, 0, 0), casa), Vector3(0.5, 0, 0))
+	t.ok(vis._seduto_accanto(libera) == vicino,
+			"accanto e' il piu' VICINO, non il primo che capita nell'elenco")
+
+
+## ⚠️ **MOCHI RESTA IL PRIMO ANELLO** — e nessun test lo teneva.
+##
+## E' la terza domanda della REGOLA SACRA: se la compagnia salisse sopra
+## `ancora_riposo`, il villaggio si raggrupperebbe altrove **proprio nel
+## momento in cui arrivi**. La mutazione plausibile e' una riga sola
+## (provare `_free_bench(home, true)` prima dei quattro anelli), non produce
+## nessun errore, e rende il gioco meno cozy senza che niente lo dica.
+##
+## La geometria separa le due risposte: la seduta accompagnata sta a undici
+## metri da casa — dentro il raggio se la si cerca da CASA — e a diciassette
+## dall'ancora spostata, cioe' fuori.
+func _mochi_resta_il_primo_anello(t) -> void:
+	var v := _villaggio(t, 2)
+	var casa: Node = v["casa"]
+	var vis = v["vis"]
+	var build = v["build"]
+	var mochi := Node3D.new()
+	casa.add_child(mochi)
+	mochi.global_position = Vector3(10, 0, 0)
+	vis.set("_player", mochi)
+	vis.finta_ammirazione = 0.5
+
+	var dalla_tua_parte := _seduta(Vector3(6, 0, 0), casa)
+	var accompagnata := _seduta(Vector3(-11, 0, 0), casa)
+	build.pezzi["Panchina"] = [dalla_tua_parte, accompagnata]
+	_siedi(v["corpi"][1], _seduta(Vector3(-11.9, 0, 0), casa), Vector3(-11.9, 0, 0))
+
+	var r: Dictionary = vis._residents[0]
+	r["cell"] = Vector2i(0, 0)
+	var home := Vector3(0, 0, 0)
+	(v["corpi"][0] as Node3D).global_position = home
+
+	t.ok(vis._free_bench(home, true) == accompagnata,
+			"PREMESSA: cercando la compagnia da CASA la si trova")
+	t.ok(vis._panchina_per(r, home) == dalla_tua_parte,
+			"ma l'invito non scavalca il giocatore: ci si siede dove sei TU")
+
+
+## ⚠️ **IL TETTO DEL LEASE STA SOPRA LA POSA PIU' LUNGA — misurata dal corpo.**
+##
+## `LEASE_SPONTANEO` era giudicato solo contro se stesso: tutti e tre i punti
+## che lo nominano lo confrontano con `VISITORS.LEASE_SPONTANEO`. MISURATO:
+## portandolo da 30 a **5** ogni sosta spontanea viene troncata in silenzio —
+## cioe' sparisce la finestra da p50 16,2 s su cui poggia tutto il
+## meccanismo — e la suite resta completamente VERDE.
+##
+## Il numero che lo sorveglia non e' lui: e' la finestra che il corpo si da'
+## da se' in `_enter_state("r_bench")`, e la si MISURA su duecento corpi
+## diversi invece di ricopiarla di qua.
+func _il_tetto_del_lease_sta_sopra_la_posa(t) -> void:
+	var piu_lunga := 0.0
+	for i in 200:
+		var c := _corpo(t, 91000 + i * 37)
+		c._enter_state("r_bench")
+		piu_lunga = maxf(piu_lunga, float(c.resta_in_posa()))
+	t.ok(piu_lunga > 0.0, "il corpo si da' una posa (la piu' lunga misurata: %.2f s)" % piu_lunga)
+	t.ok(VISITORS.LEASE_SPONTANEO > piu_lunga,
+			("il tetto (%.1f s) sta SOPRA la posa piu' lunga (%.2f s): un tetto piu' "
+			+ "basso troncherebbe proprio la finestra che il fatto esiste per abitare")
+					% [VISITORS.LEASE_SPONTANEO, piu_lunga])

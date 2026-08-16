@@ -155,8 +155,14 @@ constexpr double DELTA_MAX = 0.45;
 //   1.10       0.90%                0.1024 / 0.2061           0
 //   1.15       3.70%                0.1536 / 0.3091           0
 //   1.20       4.62%                0.2048 / 0.4122           0   ←
-//   1.25       7.04%                0.2560 / 0.5152           0
+//   1.25       7.04%                0.2560 / 0.5152           0   ⚠️ vedi sotto
 //   1.30      11.44%                0.3072 / 0.6182        2048   ⚠️
+//
+// ⚠️ **La colonna delle urgenze e' misurata A MODULATORE NEUTRO** (il banco
+// passa da `debug_punteggi`, che mette otto 1.0): dice quando il fattore da
+// SOLO apre la corsia. Col modulatore dell'emozione innestato sopra, il
+// tetto vero scende a K ≈ 1.2305 — quindi **1.25 non e' un'opzione**, e a
+// dirlo e' il `static_assert` in fondo al file, non questa tabella.
 //
 // Quattro decisioni su cento e' una CONSIDERAZIONE: novantasei volte su
 // cento il vicino fa quello che avrebbe fatto comunque. Sotto 1.15 il
@@ -238,7 +244,28 @@ static_assert(DELTA_MAX < TaraturaAgenda{}.margine,
 // peso del riposo per una ragione che con le cricche non c'entra, la build
 // NON PARTE — che e' l'unico posto in cui questa relazione puo' essere
 // sorvegliata da qualcosa che non dimentica.
-static_assert(RIPOSO_PESO * RIPOSO_DORMIGLIONE * (K_INSIEME - 1.0) < TaraturaAgenda{}.margine,
+//
+// ⚠️ **E I DUE TERMINI SI SOMMANO: l'emozione arriva DOPO i fattori.** La
+// prima stesura di questo assert si fermava a 0.448, e sbagliava — non di
+// poco: `punteggi()` applica il modulatore **sul punteggio gia'
+// moltiplicato** (`v += clamp(v·mo - v, ±DELTA_MAX)`), quindi un modulatore
+// scelto male fa saturare il ramo con l'insieme e non quello senza, e la
+// differenza cresce di `DELTA_MAX · (1 - 1/K)`. Lo scarto vero e'
+//
+//     v0·(K - 1)  +  DELTA_MAX·(1 - 1/K)  =  0.448 + 0.075  =  0.523
+//
+// che regge (0.523 < 0.60), ma il tetto NON e' dove sembrava: la relazione
+// vecchia lasciava salire K fino a ~1.2678, quella vera si attraversa a
+// **K ≈ 1.2305**. In mezzo c'e' 1.25, che la tabella di taratura qui sopra
+// presenta come opzione «0 urgenze» — e lo e' davvero, ma **a modulatore
+// neutro**: `tools/misura_k_insieme.gd` passa da `debug_punteggi`, che
+// mette otto 1.0. Oggi il punto e' muto perche' `sistema_occ.cpp` pinna il
+// modulatore del riposo a 1.0; il giorno che il riposo prende un
+// modulatore, senza questa riga l'assert smetterebbe di essere la rete che
+// dice di essere — e nessun test potrebbe accorgersene, perche' la prova di
+// equivalenza e' cieca al bit 13 per costruzione.
+static_assert(RIPOSO_PESO * RIPOSO_DORMIGLIONE * (K_INSIEME - 1.0)
+				+ DELTA_MAX * (1.0 - 1.0 / K_INSIEME) < TaraturaAgenda{}.margine,
 		"K_INSIEME sfonda il margine d'urgenza: l'insieme INCLINA, non accelera.");
 
 struct EsitoAgenda {

@@ -136,6 +136,15 @@ func is_seated() -> bool:
 func sedile_attuale() -> Node3D:
 	if not _seated or _seat_node == null or not is_instance_valid(_seat_node):
 		return null
+	# ⚠️ **DORMIRE NON E' SEDERSI.** `_sit_down` scrive `_seat_node` per ogni
+	# `kind`, LETTO compreso, e `_sleep_until_morning` non lo azzera: senza
+	# questa riga, per tutta la notte il letto di Mochi risulta «un corpo
+	# seduto» e ogni seduta entro `VICINI` da li' chiama qualcuno — verso un
+	# corpo che sta dietro una tenda nera. Non e' un corpo seduto come gli
+	# altri, e la chiave a forma di giocatore dev'essere un GESTO, non una
+	# dormita.
+	if _sleeping:
+		return null
 	return _seat_node
 
 

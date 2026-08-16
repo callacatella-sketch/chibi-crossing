@@ -58,6 +58,7 @@ extends SceneTree
 ## d'accordo con sé stesso.
 
 const CRICCHE := preload("res://scenes/npc/Cricche.gd")
+const VIS := preload("res://scenes/npc/Visitors.gd")
 
 var _vis: Node
 var _dn: Node3D
@@ -207,8 +208,13 @@ func _campiona(residenti: Array) -> void:
 				perche = "seduto al fuoco"
 			elif bool(a.call("in_scena")) or bool(b.call("in_scena")):
 				perche = "in scena"
-			elif float(ri.get("next_act", 0.0)) > 30.0 \
-					or float(rj.get("next_act", 0.0)) > 30.0:
+			# ⚠️ **IL TETTO SI LEGGE, non si ricopia.** Questo e' l'ORACOLO
+			# che misura il quarto cancello di `_segna_incontro`: con il
+			# numero scritto a mano, il giorno che la costante si muove
+			# l'oracolo misurerebbe la regola di IERI — in silenzio, e
+			# dicendo di misurare quella di oggi.
+			elif float(ri.get("next_act", 0.0)) > VIS.LEASE_SPONTANEO \
+					or float(rj.get("next_act", 0.0)) > VIS.LEASE_SPONTANEO:
 				perche = "lease lungo (l'ha messo lì un sistema)"
 			_motivi[perche] = int(_motivi.get(perche, 0)) + 1
 

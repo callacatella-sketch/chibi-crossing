@@ -2021,22 +2021,26 @@ func _ancora_ricordo(r: Dictionary, home: Vector3, cosa: String) -> Vector3:
 ##    averti visto, che è il modo più veloce per rendere illeggibile un
 ##    sistema che non parla. L'emozione AGGIUNGE, mai toglie.
 func _panchina_per(r: Dictionary, home: Vector3) -> Node3D:
+	# CHI sta chiedendo: serve a non farsi compagnia da soli (vedi
+	# `_seduto_accanto`). Puo' essere `null` nei banchi, e li' il
+	# comportamento e' quello di prima.
+	var corpo := r.get("node") as Node3D
 	var verso_te := ancora_riposo(home, _dove_sta_mochi(home), _ammirazione_di(r))
 	if verso_te != home:
-		var vicina: Node3D = _seduta_da(verso_te)
+		var vicina: Node3D = _seduta_da(verso_te, corpo)
 		if vicina != null:
 			return vicina
 	var verso_opera := _ancora_ricordo(r, home, "casa")
 	if verso_opera != home:
-		var nuova: Node3D = _seduta_da(verso_opera)
+		var nuova: Node3D = _seduta_da(verso_opera, corpo)
 		if nuova != null:
 			return nuova
 	var verso_loro := _ancora_ritrovo(r, home)
 	if verso_loro != home:
-		var insieme: Node3D = _seduta_da(verso_loro)
+		var insieme: Node3D = _seduta_da(verso_loro, corpo)
 		if insieme != null:
 			return insieme
-	return _seduta_da(home)
+	return _seduta_da(home, corpo)
 
 
 ## FRA I POSTI CHE QUEL VICINO AVREBBE USATO COMUNQUE, QUELLO CON COMPAGNIA.
@@ -2063,8 +2067,8 @@ func _panchina_per(r: Dictionary, home: Vector3) -> Node3D:
 ## Il costo: fino a due scansioni per anello invece di una, dentro un
 ## rinfresco che tocca UN residente per fotogramma (`FATTI_OGNI`). Misurato
 ## in partita, sta nei microsecondi.
-func _seduta_da(ancora: Vector3) -> Node3D:
-	var accompagnata: Node3D = _free_bench(ancora, true)
+func _seduta_da(ancora: Vector3, chiede: Node3D = null) -> Node3D:
+	var accompagnata: Node3D = _free_bench(ancora, true, chiede)
 	return accompagnata if accompagnata != null else _free_bench(ancora)
 
 
@@ -2579,7 +2583,33 @@ func _luoghi_del_piano(r: Dictionary, home: Vector3) -> Array:
 	# Zero query nuove: `_panchina_per` era gia' chiamata proprio qui.
 	var panca: Node3D = _panchina_per(r, home)
 	fuori.append(cerca.call(panca))
-	r[FATTO_INSIEME] = panca != null and _accanto_a_qualcuno(panca)
+	r[FATTO_INSIEME] = panca != null \
+			and _accanto_a_qualcuno(panca, r.get("node") as Node3D)
+	# ⚠️ **RESIDUO DICHIARATO, e la cura era peggiore del male.** A mandare
+	# il corpo e' `_recita`, che chiama `_panchina_per` una SECONDA volta —
+	# fino a mezzo secondo dopo (`FATTI_OGNI`) — e da quando esiste il filtro
+	# la risposta dipende da CHI E' SEDUTO IN QUESTO ISTANTE, cioe' dalla
+	# quantita' piu' veloce del sistema. Le due chiamate possono quindi dare
+	# due posti diversi, e il vicino si siede da solo con il termine acceso.
+	#
+	# Ho provato a chiudere il buco PROMETTENDO il posto (conservarlo qui e
+	# farlo riusare da `_recita` se ancora libero), e **tre asserzioni di
+	# `test_cuore_vicini` sono diventate rosse**: fra le due chiamate cambia
+	# anche l'ANCORA, e una promessa congelata fa inseguire al corpo un posto
+	# che non ha piu' ragione di esistere — «se il giocatore se ne va
+	# dall'altra parte, si torna alla panchina di casa: nessuno insegue
+	# nessuno». Quella proprieta' vale piu' di questa.
+	#
+	# Quel che resta e' la staleness che hanno TUTTI i fatti della maschera:
+	# una fotografia vecchia al massimo `FATTI_OGNI` fotogrammi, mentre il
+	# corpo sceglie fresco. Fra le due, la scelta fresca e' quella giusta —
+	# il posto dove si va e' migliore di quello che si era immaginato. Chi
+	# vorra' chiudere davvero il cerchio deve far scadere la promessa
+	# QUANDO CAMBIA L'ANCORA, non quando cambia il posto, e misurare che le
+	# tre asserzioni di `test_cuore_vicini` restino verdi.
+	# La panca scelta si conserva PER DIAGNOSI, non per il corpo: vedi il
+	# residuo qui sopra.
+	r["panca_scelta"] = panca
 	fuori.append(cerca.call(_nearest_named(["Stagno", "Grande Albero", "Panchina"], home, 18.0)))
 	# LA LAVAGNA È PRONTA solo se non c'è già un biglietto di questo vicino:
 	# uno che ha già chiesto non va a chiedere di nuovo, va a fare altro.
@@ -4026,7 +4056,7 @@ func _nearest_named(names: Array, from: Vector3, max_d: float) -> Node3D:
 ## scenografia e diventa il posto dove i vicini vanno a prendere il tè.
 ## L'occupazione si controlla sul NODO (ogni sgabello è un nodo suo):
 ## tre vicini, tre sgabelli, nessuno in braccio a nessuno.
-func _free_bench(from: Vector3, con_qualcuno := false) -> Node3D:
+func _free_bench(from: Vector3, con_qualcuno := false, chiede: Node3D = null) -> Node3D:
 	var candidati: Array = []
 	for bench in _build.get_placed_by_name("Panchina"):
 		candidati.append(bench)
@@ -4050,8 +4080,10 @@ func _free_bench(from: Vector3, con_qualcuno := false) -> Node3D:
 	## sull'ancora la chiave E' la distanza dall'ancora, e allora questo
 	## numero fa tutti e due i mestieri come faceva prima.
 	## Per COSA si ordina — e NIENTE ALTRO: il limite dei candidati e' il
-	## cancello qui sotto, che ha il suo nome. (Prima erano la stessa
-	## variabile, e la mutazione che allargava il raggio restava verde.)
+	## cancello `RAGGIO_SEDUTA` qui sotto, che ha il suo nome. Prima erano la
+	## stessa variabile (partiva da 16 e faceva i due mestieri insieme), e la
+	## mutazione che allargava il raggio restava VERDE perche' a bocciarla
+	## era il valore iniziale invece del cancello.
 	var chiave := INF
 	## …e a PARITA' di chiave, quale. Serve solo al filtro (vedi sotto);
 	## senza filtro resta a zero contro INF e non toglie mai niente.
@@ -4069,9 +4101,18 @@ func _free_bench(from: Vector3, con_qualcuno := false) -> Node3D:
 		# criterio con cui si giudicano tutte le mosse sociali future.
 		if d > RAGGIO_SEDUTA:
 			continue
-		var compagno: Node3D = _seduto_accanto(seat)
-		if con_qualcuno and compagno == null:
-			continue
+		# ⚠️ **SOLO SE SERVE.** La prima stesura la chiamava sempre e nel
+		# ramo senza filtro buttava il risultato: e' una scansione di tutti
+		# i residenti PER OGNI CANDIDATO, piu' un
+		# `get_first_node_in_group` a testa, sul cammino che gira sempre.
+		# MISURATO con ventotto residenti: `_free_bench` da 83 a 445 µs, e
+		# `_seduta_da` (che ne fa due) da 83 a 804. Con questa riga il ramo
+		# comune torna a costare quello di prima.
+		var compagno: Node3D = null
+		if con_qualcuno:
+			compagno = _seduto_accanto(seat, chiede, di_mochi)
+			if compagno == null:
+				continue
 		# ⚠️ **QUALE POSTO LIBERO, e non e' una sottigliezza: sono due FRASI
 		# diverse.** Due sedute accanto col vuoto di lato si legge «stanno
 		# insieme»; due sedute agli estremi col vuoto in mezzo si legge «si
@@ -4164,8 +4205,8 @@ func _free_bench(from: Vector3, con_qualcuno := false) -> Node3D:
 ## cominciano a chiamare. Non e' gatata sull'ammirazione apposta: farlo
 ## escluderebbe dalla vita sociale nuova proprio chi non si e' ancora fatto
 ## ammirare.
-func _accanto_a_qualcuno(seat: Node3D) -> bool:
-	return _seduto_accanto(seat) != null
+func _accanto_a_qualcuno(seat: Node3D, chi: Node3D = null) -> bool:
+	return _seduto_accanto(seat, chi) != null
 
 
 ## CHI e' seduto accanto a quel posto — il PIU' VICINO, o `null` se non c'e'
@@ -4178,7 +4219,8 @@ func _accanto_a_qualcuno(seat: Node3D) -> bool:
 ## chi arriva secondo si siede accanto a chi c'e' gia', e su uno a quattro
 ## chi arriva terzo si mette accanto ai due — mai in fondo alla fila con un
 ## buco in mezzo.
-func _seduto_accanto(seat: Node3D) -> Node3D:
+func _seduto_accanto(seat: Node3D, chiede: Node3D = null,
+		di_mochi: Node3D = null) -> Node3D:
 	if seat == null or not is_instance_valid(seat):
 		return null
 	var p: Vector3 = seat.global_position
@@ -4188,15 +4230,38 @@ func _seduto_accanto(seat: Node3D) -> Node3D:
 		var n := r.get("node") as Node3D
 		if n == null or not is_instance_valid(n):
 			continue
+		# ⚠️ **CHI CHIEDE NON FA COMPAGNIA A SE' STESSO — e la guardia sul
+		# solo `_routine_aux` non bastava: mordeva unicamente sul posto che
+		# quel corpo ha prenotato, e quel posto `_free_bench` non lo
+		# restituisce MAI (e' gia' «taken»). I posti che arrivano qui sono
+		# per costruzione DIVERSI dal proprio, e li' un vicino seduto da
+		# solo su uno sgabello del Gazebo si accendeva il fatto da se'
+		# guardando lo sgabello di fianco, a novantacinque centimetri: il
+		# riposo prendeva il suo ×1.20 e restava incollato li'. E' il
+		# guasto che il commento qui sotto dichiarava chiuso.
+		if n == chiede:
+			continue
 		if n.get("_routine_aux") == seat:
 			continue
 		if str(n.get("_state")) != "r_bench":
+			continue
+		# ⚠️ **CHI E' DENTRO UNA SCENA NON FA COMPAGNIA A NESSUNO.** Il
+		# pubblico del Concerto sta seduto fino a quarantotto secondi, cioe'
+		# tre volte la sosta, e domina il segnale della compagnia — ma
+		# `_segna_incontro` rifiuta per costruzione ogni co-presenza in cui
+		# uno dei due sia `in_scena()`. Senza questa riga l'invito spende il
+		# gettone e una camminata per portare due vicini esattamente dove il
+		# registro delle cricche non li vede: e' la trappola gia' scritta
+		# sopra `VICINI`, un piano piu' in la'.
+		if n.has_method("in_scena") and bool(n.call("in_scena")):
 			continue
 		var d := n.global_position.distance_to(p)
 		if d <= d_min:
 			d_min = d
 			chi = n
-	var m := sedile_di_mochi()
+	# il sedile di Mochi si passa da fuori: chiederlo qui vorrebbe dire un
+	# `get_first_node_in_group` per OGNI candidato di `_free_bench`
+	var m: Node3D = di_mochi if di_mochi != null else sedile_di_mochi()
 	if m != null and m != seat and m.global_position.distance_to(p) <= d_min:
 		chi = m
 	return chi
