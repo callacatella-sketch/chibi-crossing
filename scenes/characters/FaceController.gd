@@ -208,6 +208,19 @@ var _c_mouth_open := 0.0
 var _c_blush := 0.0
 var _c_tilt := 0.0
 
+# ---------------------------------------------------------------- neurochimica
+# I quattro neurotrasmettitori che somatizzano l'animo nel volto (0..1)
+var dopamina: float = 0.5       # motivazione, focus, ricompensa (base 0.5)
+var serotonina: float = 0.5     # tono dell'umore, serenità, postura sopracciglia (base 0.5)
+var ossitocina: float = 0.0     # calore sociale, affetto, vasodilatazione guance (base 0.0)
+var cortisolo: float = 0.0      # allarme, tensione corrugatore, costrizione pupillare (base 0.0)
+
+# valori correnti fusi (filtro esponenziale morbido per evitare scatti rigidi)
+var _c_dopamina := 0.5
+var _c_serotonina := 0.5
+var _c_ossitocina := 0.0
+var _c_cortisolo := 0.0
+
 var _t_brow_h := 0.0
 var _t_brow_ang := 0.0
 var _t_brow_sq := 0.0
@@ -436,6 +449,40 @@ func head_tilt() -> float:
 	return _c_tilt
 
 
+## Imposta i livelli dei neurotrasmettitori (in blocco o parziali).
+## Supporta nomi italiani e inglesi, o un dizionario con parametri di stato.
+func set_neuro(nt: Dictionary) -> void:
+	if nt.has("dopamina"): dopamina = clampf(float(nt["dopamina"]), 0.0, 1.0)
+	elif nt.has("dopamine"): dopamina = clampf(float(nt["dopamine"]), 0.0, 1.0)
+	if nt.has("serotonina"): serotonina = clampf(float(nt["serotonina"]), 0.0, 1.0)
+	elif nt.has("serotonin"): serotonina = clampf(float(nt["serotonin"]), 0.0, 1.0)
+	if nt.has("ossitocina"): ossitocina = clampf(float(nt["ossitocina"]), 0.0, 1.0)
+	elif nt.has("oxytocin"): ossitocina = clampf(float(nt["oxytocin"]), 0.0, 1.0)
+	if nt.has("cortisolo"): cortisolo = clampf(float(nt["cortisolo"]), 0.0, 1.0)
+	elif nt.has("cortisol"): cortisolo = clampf(float(nt["cortisol"]), 0.0, 1.0)
+	# compatibilità con parametri limbici
+	if nt.has("arousal"): cortisolo = clampf(float(nt["arousal"]), 0.0, 1.0)
+	if nt.has("umore"): serotonina = clampf(0.5 + 0.5 * float(nt["umore"]), 0.0, 1.0)
+
+
+## Somatizza direttamente l'apparato affettivo di Limbico.gd sul volto.
+func set_from_limbico(lim) -> void:
+	if lim == null:
+		return
+	if "arousal" in lim:
+		cortisolo = clampf(float(lim.arousal), 0.0, 1.0)
+	if "umore" in lim:
+		serotonina = clampf(0.5 + 0.5 * float(lim.umore), 0.0, 1.0)
+
+
+## Ripristina i neurotrasmettitori allo stato basale di riposo.
+func reset_neuro() -> void:
+	dopamina = 0.5
+	serotonina = 0.5
+	ossitocina = 0.0
+	cortisolo = 0.0
+
+
 # ------------------------------------------------------------ il motore
 
 # ------------------------------------------------------------- le lacrime
@@ -607,13 +654,39 @@ func _aggiorna_luce() -> void:
 # fusione esponenziale dei canali continui verso gli obiettivi
 func _blend_channels(delta: float) -> void:
 	var k := 1.0 - exp(-_blend * delta)
+	var k_neuro := 1.0 - exp(-6.0 * delta)
+
+	# fusione morbida dei neurotrasmettitori (evita scatti rigidi)
+	_c_dopamina = lerpf(_c_dopamina, dopamina, k_neuro)
+	_c_serotonina = lerpf(_c_serotonina, serotonina, k_neuro)
+	_c_ossitocina = lerpf(_c_ossitocina, ossitocina, k_neuro)
+	_c_cortisolo = lerpf(_c_cortisolo, cortisolo, k_neuro)
+
+	# 1 · Corrugatore modulato dal cortisolo (tensione da allarme/stress)
+	var sq_neuro := _c_cortisolo * 0.05
+	var eff_brow_sq := _t_brow_sq + sq_neuro
+
+	# 2 · Inclinazione sopracciglia modulata dalla serotonina:
+	# bassa serotonina = inclinazione interna sollevata (V rovesciata / sguardo triste o malinconico)
+	# alta serotonina = rilassamento e fiducia
+	var ang_neuro := (_c_serotonina - 0.5) * 0.08
+	var eff_brow_ang := _t_brow_ang + ang_neuro
+
+	# 3 · Dilatazione pupillare:
+	# dopamina e ossitocina dilatano (luce viva, empatia, eccitazione), cortisolo restringe (midriasi da stress/minaccia)
+	var pupil_mult := 1.0 + (_c_dopamina - 0.5) * 0.22 + _c_ossitocina * 0.20 - _c_cortisolo * 0.25
+	var eff_pupil := clampf(_t_pupil * pupil_mult, 0.6, 1.6)
+
+	# 4 · Blush passivo modulato dall'ossitocina (il rossore caldo del legame e vicinanza)
+	var eff_blush := clampf(_t_blush + _c_ossitocina * 0.32, -0.5, 1.0)
+
 	_c_brow_h = lerpf(_c_brow_h, _t_brow_h, k)
-	_c_brow_ang = lerpf(_c_brow_ang, _t_brow_ang, k)
-	_c_brow_sq = lerpf(_c_brow_sq, _t_brow_sq, k)
+	_c_brow_ang = lerpf(_c_brow_ang, eff_brow_ang, k)
+	_c_brow_sq = lerpf(_c_brow_sq, eff_brow_sq, k)
 	_c_eye_open = lerpf(_c_eye_open, _t_eye_open, k)
-	_c_pupil = lerpf(_c_pupil, _t_pupil, k)
+	_c_pupil = lerpf(_c_pupil, eff_pupil, k)
 	_c_mouth_open = lerpf(_c_mouth_open, _t_mouth_open, k)
-	_c_blush = lerpf(_c_blush, _t_blush, k)
+	_c_blush = lerpf(_c_blush, eff_blush, k)
 	_c_tilt = lerpf(_c_tilt, _t_tilt, k)
 	# guizzo del sopracciglio che si spegne
 	_brow_flash = lerpf(_brow_flash, 0.0, 1.0 - exp(-6.0 * delta))
@@ -711,7 +784,7 @@ func _apply_brows(delta: float) -> void:
 		var c_h := 8.0 if ritardo else 10.0
 		_brow_h_vel[i] += (k_h * (_t_brow_h - _brow_h_cur[i]) - c_h * _brow_h_vel[i]) * dt
 		_brow_h_cur[i] += _brow_h_vel[i] * dt
-		_brow_ang_vel[i] += (150.0 * (_t_brow_ang - _brow_ang_cur[i]) \
+		_brow_ang_vel[i] += (150.0 * (_c_brow_ang - _brow_ang_cur[i]) \
 				- 14.0 * _brow_ang_vel[i]) * dt
 		_brow_ang_cur[i] += _brow_ang_vel[i] * dt
 
@@ -759,8 +832,14 @@ func _apply_brows(delta: float) -> void:
 			_:
 				pass
 
+		# micro-tensione muscolare da cortisolo/stress
+		var micro_tensione := 0.0
+		if _c_cortisolo > 0.25:
+			var freq := 24.0 + float(i) * 3.0
+			micro_tensione = (_c_cortisolo - 0.25) * 0.002 * sin(_t * freq)
+
 		# 3 · tutto insieme: alzata (+y), corrugamento (x), angolo interno (z)
-		b.position.y = base_p.y + _brow_h_cur[i] + h_rec + idle + flash - tuffo
+		b.position.y = base_p.y + _brow_h_cur[i] + h_rec + idle + flash - tuffo + micro_tensione
 		b.position.x = base_p.x - side * (_c_brow_sq + sq_rec)
 		# l'angolo interno: arrabbiato abbassa l'interno, triste lo alza.
 		# lo z locale ruota il sopracciglio; il segno dipende dal lato.
@@ -901,17 +980,29 @@ func _update_gaze(delta: float) -> void:
 		want.x = clampf(loc.x / maxf(_face_side, 0.001), -1.0, 1.0)
 		want.y = clampf(loc.y / 0.35, -0.7, 0.9)
 
+	# Modulazione dopaminergica dello sguardo:
+	# - Alta dopamina (focus/motivazione/curiosità): aggancio saldo, minore dispersione del targeting,
+	#   inseguimento più rapido e scatti saccadici decisi.
+	# - Bassa dopamina (apatia/distrazione): sguardo che vaga di più, dispersioni più ampie,
+	#   sbirciate frequenti altrove e inseguimento più pigro.
+	var focus := clampf(_c_dopamina, 0.05, 1.0)
+	var jitter_mul := lerpf(1.8, 0.45, focus)
+	var glance_prob := lerpf(0.36, 0.08, focus)
+	var tracking_k := lerpf(2.2, 7.5, focus)
+	var snap_k := lerpf(14.0, 30.0, focus)
+
 	# saccadi: lo sguardo non scivola, SALTA. ogni tanto un nuovo bersaglio
 	# (o una sbirciata altrove se vaga a riposo)
 	_next_saccade -= delta
 	if _next_saccade <= 0.0:
-		_next_saccade = _rng.randf_range(0.7, 2.4)
+		_next_saccade = _rng.randf_range(lerpf(0.9, 0.5, focus), lerpf(2.8, 1.8, focus))
 		if _gaze_has_point:
-			# micro-scarto attorno al bersaglio: l'occhio non è un laser
-			_gaze_tgt = want + Vector2(_rng.randf_range(-0.12, 0.12),
-					_rng.randf_range(-0.1, 0.1))
-			# ogni tanto una breve sbirciata via, poi torna
-			if _rng.randf() < 0.2:
+			# micro-scarto attorno al bersaglio (la dopamina ne controlla la precisione)
+			_gaze_tgt = want + Vector2(
+					_rng.randf_range(-0.12, 0.12) * jitter_mul,
+					_rng.randf_range(-0.1, 0.1) * jitter_mul)
+			# ogni tanto una breve sbirciata via, poi torna (più frequente a bassa dopamina)
+			if _rng.randf() < glance_prob:
 				_gaze_tgt += Vector2(_rng.randf_range(-0.6, 0.6),
 						_rng.randf_range(-0.3, 0.3))
 			# un cambio di sguardo spesso accompagna un ammicco
@@ -919,17 +1010,25 @@ func _update_gaze(delta: float) -> void:
 				blink_now()
 		else:
 			# a riposo: vaga piano, sguardo sognante
-			_gaze_tgt = Vector2(_rng.randf_range(-0.5, 0.5),
-					_rng.randf_range(-0.35, 0.45))
+			var wander_r := lerpf(0.65, 0.35, focus)
+			_gaze_tgt = Vector2(_rng.randf_range(-wander_r, wander_r),
+					_rng.randf_range(-wander_r * 0.7, wander_r * 0.9))
+		_gaze_tgt.x = clampf(_gaze_tgt.x, -1.0, 1.0)
+		_gaze_tgt.y = clampf(_gaze_tgt.y, -0.7, 0.9)
 	elif _gaze_has_point:
 		# tra una saccade e l'altra insegue morbido il bersaglio che si muove
-		_gaze_tgt = _gaze_tgt.lerp(want, 1.0 - exp(-4.0 * delta))
+		_gaze_tgt = _gaze_tgt.lerp(want, 1.0 - exp(-tracking_k * delta))
+		_gaze_tgt.x = clampf(_gaze_tgt.x, -1.0, 1.0)
+		_gaze_tgt.y = clampf(_gaze_tgt.y, -0.7, 0.9)
 
 	# micro-deriva continua (l'occhio non sta mai perfettamente fermo)
-	_gaze_drift = _gaze_drift.lerp(Vector2(sin(_t * 1.7) * 0.05,
-			sin(_t * 2.3 + 1.0) * 0.04), 1.0 - exp(-3.0 * delta))
+	var drift_scale := lerpf(1.3, 0.7, focus)
+	_gaze_drift = _gaze_drift.lerp(Vector2(sin(_t * 1.7) * 0.05 * drift_scale,
+			sin(_t * 2.3 + 1.0) * 0.04 * drift_scale), 1.0 - exp(-3.0 * delta))
 	# lo scatto della saccade è rapido, poi si assesta
-	_gaze_cur = _gaze_cur.lerp(_gaze_tgt + _gaze_drift, 1.0 - exp(-22.0 * delta))
+	var raw_cur := _gaze_cur.lerp(_gaze_tgt + _gaze_drift, 1.0 - exp(-snap_k * delta))
+	_gaze_cur.x = clampf(raw_cur.x, -1.0, 1.0)
+	_gaze_cur.y = clampf(raw_cur.y, -0.7, 0.9)
 
 
 # ------------------------------------------------------------ bocca

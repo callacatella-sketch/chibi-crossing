@@ -80,6 +80,9 @@ const SEA_FOG_ADD := [0.0, -0.0003, 0.0018, 0.0016]
 const SEA_AMB := [Color(1.0, 1.0, 1.0), Color(1.02, 1.0, 0.97),
 		Color(1.07, 1.0, 0.89), Color(0.92, 0.96, 1.06)]
 
+# la temperatura stagionale di base (°C): primavera mite, estate calda, autunno fresco, inverno freddo
+const SEA_TEMP := [18.0, 26.5, 14.5, 3.5]
+
 # lo stato-stagione, ricalcolato a ogni nuovo giorno (non a ogni frame)
 var _season := -99
 var _snow := 0.0
@@ -92,6 +95,7 @@ var _g_skyhor := Color(1, 1, 1)
 var _g_fog := Color(1, 1, 1)
 var _g_fog_add := 0.0
 var _g_amb := Color(1, 1, 1)
+var _g_temp := 18.0
 
 var _sun: DirectionalLight3D
 var _moon: DirectionalLight3D
@@ -286,6 +290,7 @@ func _grade_season() -> void:
 	_g_fog = _blend_season_color(SEA_FOG)
 	_g_fog_add = _blend_season_float(SEA_FOG_ADD)
 	_g_amb = _blend_season_color(SEA_AMB)
+	_g_temp = _blend_season_float(SEA_TEMP)
 
 
 ## Ricalcola stagione, neve e grading dal giorno corrente. Se la stagione
@@ -555,3 +560,42 @@ func _apply() -> void:
 		_fireflies.emitting = night
 		if _cozy and _cozy.has_method("set_night"):
 			_cozy.set_night(night)
+
+	# --- parametri ambientali per il sistema neurochimico / ECS ---
+	var luce_amb := clampf(day_f * (1.0 - g * 0.45) + (_moon.light_energy / 0.32) * 0.12, 0.0, 1.0)
+	var temp_amb := _g_temp + elev * 3.5 - g * 3.0
+	var pioggia_amb := clampf(g, 0.0, 1.0)
+	for ecs in get_tree().get_nodes_in_group("ecs_mondo"):
+		if ecs.has_method("imposta_ambiente"):
+			ecs.imposta_ambiente(temp_amb, luce_amb, pioggia_amb)
+
+
+## Restituisce la temperatura percepita attuale (°C)
+func temperatura_ambiente() -> float:
+	var a := (time - 0.25) * TAU
+	var elev := sin(a)
+	return _g_temp + elev * 3.5 - weather_gloom * 3.0
+
+
+## Restituisce il livello di illuminazione ambientale (0.0 .. 1.0)
+func luce_ambiente() -> float:
+	var a := (time - 0.25) * TAU
+	var elev := sin(a)
+	var day_f := smoothstep(-0.18, 0.22, elev)
+	var moon_e: float = _moon.light_energy if _moon else 0.0
+	return clampf(day_f * (1.0 - weather_gloom * 0.45) + (moon_e / 0.32) * 0.12, 0.0, 1.0)
+
+
+## Restituisce l'intensità della pioggia / copertura (0.0 .. 1.0)
+func pioggia_ambiente() -> float:
+	return clampf(weather_gloom, 0.0, 1.0)
+
+
+## Dizionario completo dei parametri ambientali attuali
+func parametri_ambientali() -> Dictionary:
+	return {
+		"temperatura": temperatura_ambiente(),
+		"luce": luce_ambiente(),
+		"pioggia": pioggia_ambiente(),
+		"ora": time,
+	}

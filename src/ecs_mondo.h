@@ -9,6 +9,8 @@
 #include <godot_cpp/variant/string.hpp>
 #include <godot_cpp/variant/vector3.hpp>
 
+#include "sistema_neurochimica.h"
+
 // IL REGISTRO. Un Node Godot che possiede un registry EnTT e gli fa fare
 // UNA cosa sola: decidere se un residente sta sveglio, dorme, o è rimasto
 // fuori perché qualcuno gli ha chiuso la porta.
@@ -58,12 +60,11 @@ class EcsMondo : public godot::Node {
 	// grafo eterno, con la suite verde, è precisamente il guasto che
 	// `peso()` è stato scritto per rendere impossibile.
 	//
-	// Perciò il tempo dei ricordi lo tiene il registro, sommando i delta
-	// veri. Non è un parametro in più su `avanza()` (l'arità è un contratto
-	// con i test e col cablaggio) e non è un'ora che il chiamante può
-	// passare: è la stessa disciplina di `in_finestra()` — chi chiede non
-	// deve poter portare un'ora sua, se no le verità diventano due.
+	// L'orologio monotono della memoria e del sistema
 	double _tempo = 0.0;
+
+	// Contesto ambientale (temperatura, luce, pioggia, ora)
+	chibi::AmbienteContesto _ambiente;
 
 protected:
 	static void _bind_methods();
@@ -79,6 +80,17 @@ public:
 		STATO_SVEGLIO = 0,
 		STATO_DORME = 1,
 		STATO_FUORI = 2,
+	};
+
+	enum NeurotrasmettitoreEnum {
+		NT_DOPAMINA = chibi::NT_DOPAMINA,
+		NT_OSSITOCINA = chibi::NT_OSSITOCINA,
+		NT_SEROTONINA = chibi::NT_SEROTONINA,
+		NT_CORTISOLO = chibi::NT_CORTISOLO,
+		NT_MELATONINA = chibi::NT_MELATONINA,
+		NT_ADENOSINA = chibi::NT_ADENOSINA,
+		NT_ENDORFINE = chibi::NT_ENDORFINE,
+		N_NEURO = chibi::N_NEURO,
 	};
 
 	// Le azioni dell'agenda. Il GDScript non scrive un indice a mano da
@@ -547,6 +559,14 @@ public:
 	// Serve anche alla PROMOZIONE (P6): `brain.remember()` vuole un nome, e
 	// quel nome dev'essere uno dei simboli che un chibi sa dire.
 	godot::String nome_cosa(int p_cosa) const;
+
+	// --- SISTEMA NEUROCHIMICO -------------------------------------------
+	void stimola_neurochimica(int64_t p_id, int p_tipo, double p_quantita);
+	void stimola_neurochimica_vettore(int64_t p_id, const godot::PackedFloat64Array &p_stimoli);
+	double neuro_livello(int64_t p_id, int p_tipo) const;
+	godot::PackedFloat64Array neuro_tutti(int64_t p_id) const;
+	void imposta_ambiente(double p_temp, double p_luce, double p_pioggia);
+	godot::Dictionary debug_neurochimica(int64_t p_id) const;
 };
 
 VARIANT_ENUM_CAST(EcsMondo::Stato);
@@ -554,5 +574,6 @@ VARIANT_ENUM_CAST(EcsMondo::Azione);
 VARIANT_ENUM_CAST(EcsMondo::Verbo);
 VARIANT_ENUM_CAST(EcsMondo::Cosa);
 VARIANT_ENUM_CAST(EcsMondo::Bandiera);
+VARIANT_ENUM_CAST(EcsMondo::NeurotrasmettitoreEnum);
 
 #endif // CHIBI_ECS_MONDO_H

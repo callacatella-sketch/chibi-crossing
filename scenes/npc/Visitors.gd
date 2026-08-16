@@ -1633,6 +1633,7 @@ func _ensure_ecs() -> void:
 		return
 	_ecs = ClassDB.instantiate("EcsMondo")
 	_ecs.name = "CuoreSonno"
+	_ecs.add_to_group("ecs_mondo")
 	add_child(_ecs)
 	# le costanti si leggono dall'oggetto: qui dentro non si scrive 0/1/2
 	_ST_DORME = _ecs.STATO_DORME
@@ -2596,6 +2597,27 @@ func _ciclo_sonno(delta: float, t_ora: float) -> void:
 		var st: int = _ecs.stato(id)
 		var nascosto: bool = node.call("is_hidden")
 		var lab := str(r.get("label", ""))
+		# Aggiornamento neurochimico circadiano e da attività continua (veglia/sonno/onsen)
+		var animo_r: RefCounted = _animi.get(lab)
+		if animo_r and animo_r.limbico:
+			var l: RefCounted = animo_r.limbico
+			# Melatonina: sale di notte e cala di giorno
+			if t_ora > 0.72 or t_ora < 0.25:
+				l.stimola_neuro("melatonina", 0.006 * delta)
+			else:
+				l.stimola_neuro("melatonina", -0.015 * delta)
+			# Adenosina & Cortisolo: dipendono dallo stato di sonno o veglia
+			if st == _ST_DORME:
+				l.stimola_neuro("adenosina", -0.015 * delta)
+				l.stimola_neuro("cortisolo", -0.008 * delta)
+			else:
+				l.stimola_neuro("adenosina", 0.003 * delta)
+			# Onsen continuo: se immerso nella pozza termale, rilascio di endorfine e benessere
+			if str(node.get("_state")).begins_with("on_"):
+				l.stimola_neuro("endorfine", 0.03 * delta)
+				l.stimola_neuro("serotonina", 0.015 * delta)
+				l.stimola_neuro("cortisolo", -0.03 * delta)
+				l.stimola_neuro("adenosina", -0.015 * delta)
 		# la posa della porta chiusa la mette e la toglie SEMPRE lo stesso
 		# posto, e solo se è ancora la nostra
 		_aggiorna_posa_fuori(lab, node, st == _ST_FUORI)
@@ -3594,6 +3616,24 @@ func dona_drive(label: String, drive: String, quanto: float,
 	if not d.has(drive):
 		return
 	d[drive] = clampf(float(d[drive]) + quanto, pavimento, 1.0)
+	if animo.has_method("sincronizza_neuro"):
+		animo.call("sincronizza_neuro")
+	if animo.limbico:
+		if drive == "sicurezza" and quanto > 0.0:
+			animo.limbico.stimola_neuro("cortisolo", -quanto * 0.35)
+		elif drive == "appartenenza" and quanto > 0.0:
+			animo.limbico.stimola_neuro("ossitocina", quanto * 0.30)
+
+
+## Stimola la risposta neurochimica del bagno caldo nell'onsen
+func stimola_onsen(label: String, intensita := 1.0) -> void:
+	if _animi.has(label):
+		var animo: RefCounted = _animi[label]
+		if animo and animo.limbico:
+			animo.limbico.stimola_neuro("endorfine", 0.22 * intensita)
+			animo.limbico.stimola_neuro("serotonina", 0.14 * intensita)
+			animo.limbico.stimola_neuro("cortisolo", -0.22 * intensita)
+			animo.limbico.stimola_neuro("adenosina", -0.15 * intensita)
 
 
 ## Un ricordo buono (o cattivo) intestato a un ALTRO residente, non al
@@ -4176,6 +4216,22 @@ func _run_chat(a: Node3D, b: Node3D) -> void:
 	if brain_b and not ra.is_empty():
 		brain_b.bump_affinita(str(ra["label"]))
 		brain_b.satisfy("quattro_chiacchiere")
+
+	# Stimoli neurochimici della conversazione (ossitocina, serotonina, distensione)
+	var animo_a: RefCounted = _animi.get(str(ra.get("label", "")))
+	var animo_b: RefCounted = _animi.get(str(rb.get("label", "")))
+	if animo_a and animo_a.limbico:
+		animo_a.limbico.stimola_neuro("ossitocina", 0.08)
+		animo_a.limbico.stimola_neuro("serotonina", 0.05)
+		animo_a.limbico.stimola_neuro("cortisolo", -0.05)
+		if novita >= 0:
+			animo_a.limbico.stimola_neuro("dopamina", 0.06)
+	if animo_b and animo_b.limbico:
+		animo_b.limbico.stimola_neuro("ossitocina", 0.08)
+		animo_b.limbico.stimola_neuro("serotonina", 0.05)
+		animo_b.limbico.stimola_neuro("cortisolo", -0.05)
+		if novita >= 0:
+			animo_b.limbico.stimola_neuro("dopamina", 0.06)
 	# …e finiscono anche sul LIBRO MASTRO degli affetti, con il loro peso
 	# vero: una chiacchiera vale un ventesimo di un atto di coraggio. La
 	# vicinanza non è affetto, e senza questa proporzione il libro mastro
@@ -4309,6 +4365,14 @@ func _give_dish(r: Dictionary) -> void:
 	# un piatto caldo non è solo un piatto: SCIOGLIE il rancore. È la porta
 	# che rende il sistema dell'animo un dialogo invece che una condanna.
 	gesto_gentile(str(r.get("label", "")), "piatto", 0.85)
+	# Stimolo neurochimico del cibo caldo e del gesto affettuoso
+	if _animi.has(str(r.get("label", ""))):
+		var an: RefCounted = _animi[str(r.get("label", ""))]
+		if an and an.limbico:
+			an.limbico.stimola_neuro("dopamina", 0.15)
+			an.limbico.stimola_neuro("endorfine", 0.20)
+			an.limbico.stimola_neuro("ossitocina", 0.12)
+			an.limbico.stimola_neuro("cortisolo", -0.12)
 	get_tree().call_group("regista", "note", "socievole")
 	var dish: Dictionary = _cooking.call("take_dish")
 	var node := r.get("node") as Node3D

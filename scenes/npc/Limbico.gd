@@ -66,6 +66,21 @@ const RIFLESSO_GREZZO := 0.25
 ## Quanta scia lascia un allarme nel corpo.
 const SCIA_ALLARME := 0.55
 
+## --- I 7 CANALI NEUROCHIMICI ---
+const NEURO_TRASMETTITORI := [
+	"dopamina", "ossitocina", "serotonina", "cortisolo",
+	"melatonina", "adenosina", "endorfine"
+]
+const NEURO_BASELINE := {
+	"dopamina": 0.40,
+	"ossitocina": 0.40,
+	"serotonina": 0.50,
+	"cortisolo": 0.08,
+	"melatonina": 0.0,
+	"adenosina": 0.0,
+	"endorfine": 0.15,
+}
+
 # ---------------------------------------------------------------- stato
 
 ## Attivazione del corpo: 0 = calmo, 1 = cuore in gola. Decade in fretta ma
@@ -85,6 +100,9 @@ var ultimo_sussulto := {}
 ## Quante volte si è morso la lingua oggi: serve a raccontare lo scoppio.
 var morsi_oggi := 0
 
+## Il tensore/dizionario neurochimico dell'individuo (0.0 .. 1.0)
+var neuro: Dictionary = NEURO_BASELINE.duplicate()
+
 ## Quanto è reattivo questo individuo (dal carattere: la codardia alza
 ## l'allarme, la grinta lo abbassa). 1.0 = nella media.
 var reattivita := 1.0
@@ -96,8 +114,41 @@ func setup(tratti: Dictionary) -> void:
 	var cod: float = float(tratti.get("codardia", 0.5))
 	var gri: float = float(tratti.get("grinta", 0.5))
 	var amb: float = float(tratti.get("ambizione", 0.5))
+	var lea: float = float(tratti.get("lealta", 0.5))
 	reattivita = clampf(0.6 + cod * 0.9 - gri * 0.35, 0.2, 1.8)
 	abitudine = clampf(ABITUDINE * (0.7 + amb * 0.8), 0.05, 0.75)
+	neuro = NEURO_BASELINE.duplicate()
+	neuro["cortisolo"] = clampf(0.05 + cod * 0.10, 0.0, 1.0)
+	neuro["ossitocina"] = clampf(0.30 + lea * 0.25, 0.0, 1.0)
+	neuro["dopamina"] = clampf(0.30 + amb * 0.25, 0.0, 1.0)
+	neuro["endorfine"] = clampf(0.10 + gri * 0.20, 0.0, 1.0)
+	neuro["serotonina"] = clampf(0.40 + (1.0 - cod) * 0.20, 0.0, 1.0)
+
+
+## Stimola o modifica un canale neurochimico (impulso o accumulo)
+func stimola_neuro(tipo: String, quantita: float) -> void:
+	if not neuro.has(tipo):
+		return
+	neuro[tipo] = clampf(float(neuro[tipo]) + quantita, 0.0, 1.0)
+	_modula_stati_da_neuro()
+
+
+## Restituisce il livello corrente (0.0 .. 1.0) del neurotrasmettitore
+func livello_neuro(tipo: String) -> float:
+	return float(neuro.get(tipo, float(NEURO_BASELINE.get(tipo, 0.0))))
+
+
+## Modula arousal, umore e regolazione in base all'assetto neurochimico attuale
+func _modula_stati_da_neuro() -> void:
+	var cort: float = float(neuro.get("cortisolo", 0.08))
+	var dop: float = float(neuro.get("dopamina", 0.40))
+	var ser: float = float(neuro.get("serotonina", 0.50))
+	var ox: float = float(neuro.get("ossitocina", 0.40))
+	var endo: float = float(neuro.get("endorfine", 0.15))
+
+	var spinta_umore: float = (dop - 0.40) * 0.20 + (ser - 0.50) * 0.35 \
+			+ (ox - 0.40) * 0.20 + (endo - 0.15) * 0.15 - (cort - 0.08) * 0.40
+	umore = clampf(umore + spinta_umore * 0.05, -1.0, 1.0)
 
 
 # ============================================================ le due strade
@@ -167,10 +218,13 @@ func percepisci(attore := "", luogo := "", indizio := 0.0) -> Dictionary:
 		reazione = "trasalisce"
 		# e la scia la lascia l'allarme, perché è lui che resta nel corpo
 		arousal = clampf(arousal + allarme * SCIA_ALLARME, 0.0, 1.0)
+		stimola_neuro("cortisolo", allarme * 0.30)
 	elif calore > SOGLIA_SUSSULTO and grezzo <= RIFLESSO_GREZZO:
 		# niente di brusco, e una storia vera alle spalle: chi ti vuole bene
 		# si illumina — e adesso il cuoricino dice una cosa che è successa.
 		reazione = "si_illumina"
+		stimola_neuro("ossitocina", calore * 0.20)
+		stimola_neuro("dopamina", calore * 0.15)
 	ultimo_sussulto = {"reazione": reazione, "forza": allarme, "calore": calore,
 			"fonte": fonte, "carica": carica, "grezzo": grezzo}
 	return ultimo_sussulto
@@ -240,6 +294,15 @@ func rivaluta(tipo: String, attore: String, valenza: float, luogo := "",
 	arousal = clampf(arousal + maxf(0.0, -sorpresa) * acuto * reattivita, 0.0, 1.0)
 	umore = clampf(umore + sentito * cronico, -1.0, 1.0)
 
+	# Stimolazione dei canali neurochimici in base alla valenza e sorpresa
+	if sentito > 0.0:
+		stimola_neuro("dopamina", sentito * 0.25)
+		stimola_neuro("serotonina", sentito * 0.20)
+		if attore != "":
+			stimola_neuro("ossitocina", sentito * 0.20)
+	elif sentito < 0.0:
+		stimola_neuro("cortisolo", -sentito * 0.35 * reattivita)
+
 	# e il posto (o la persona) si CARICA di quello che si è sentito
 	if absf(sentito) > 0.3:
 		if luogo != "":
@@ -287,12 +350,17 @@ func _perche_sentito(tipo: String, attore: String, letto: float,
 ## «per una sciocchezza»: la sciocchezza non c'entra, era la decima volta in
 ## un giorno che si trattenevano. Un leale ci prova più a lungo; un orgoglioso
 ## spende più forza ogni volta, perché gli costa di più.
+## Il cortisolo alto rende più faticoso trattenersi, scalando il costo del morso.
 func trattieni(costo := COSTO_MORSO) -> bool:
-	if regolazione < costo:
+	var cort := livello_neuro("cortisolo")
+	var costo_effettivo: float = costo * (1.0 + cort * 0.75)
+	if regolazione < costo_effettivo:
 		regolazione = 0.0
+		stimola_neuro("cortisolo", 0.08)
 		return false
-	regolazione -= costo
+	regolazione -= costo_effettivo
 	morsi_oggi += 1
+	stimola_neuro("cortisolo", 0.02)
 	return true
 
 
@@ -375,6 +443,34 @@ func visita_serena(luogo: String) -> void:
 
 # ============================================================ il giorno
 
+## Consolida il sonno simulando le fasi NREM e REM:
+## - NREM: azzeramento adenosina (eliminazione pressione omeostatica),
+##   drenaggio cortisolo verso baseline, ricarica regolazione
+## - REM: reset arousal somatico, stabilizzazione emotiva e integrazione neurotrasmettitori
+func consolida_sonno(notte_protetta := true) -> void:
+	# --- FASE NREM (Non-Rapid Eye Movement) ---
+	# 1. Azzeramento adenosina
+	neuro["adenosina"] = 0.0
+	# 2. Drenaggio cortisolo verso baseline
+	var base_cort: float = float(NEURO_BASELINE.get("cortisolo", 0.08))
+	var drenaggio: float = 0.85 if notte_protetta else 0.40
+	neuro["cortisolo"] = move_toward(float(neuro.get("cortisolo", base_cort)), base_cort, drenaggio)
+	# 3. Ricarica regolazione (autocontrollo ricaricato)
+	regolazione = clampf(regolazione + (0.85 if notte_protetta else 0.35), 0.0, 1.0)
+
+	# --- FASE REM (Rapid Eye Movement) ---
+	# 4. Calma / reset arousal somatico
+	arousal = clampf(arousal * (1.0 - CALMA), 0.0, 1.0)
+	# 5. Stabilizzazione emotiva (rientro dell'umore verso neutro)
+	var rientro: float = RIENTRO_UMORE * (1.3 if notte_protetta else 0.8)
+	umore = move_toward(umore, 0.0, rientro)
+	# Rientro verso baseline dei neurotrasmettitori
+	for k in ["dopamina", "ossitocina", "serotonina", "endorfine"]:
+		var base_nt: float = float(NEURO_BASELINE.get(k, 0.5))
+		neuro[k] = move_toward(float(neuro.get(k, base_nt)), base_nt, 0.20 if notte_protetta else 0.10)
+	neuro["melatonina"] = 0.0
+
+
 ## La notte rimette a posto il corpo, non la memoria: l'attivazione cala in
 ## fretta, l'umore molto più piano, la pazienza torna piena.
 ##
@@ -387,9 +483,7 @@ func visita_serena(luogo: String) -> void:
 ## sotto finché non fa più paura» non sarebbe stato niente. Per i vicini
 ## resta com'è sempre stato: le loro paure si consumano col tempo.
 func passa_giorno(riposato := true, sbiadisci_marchi := true) -> void:
-	arousal = clampf(arousal * (1.0 - CALMA), 0.0, 1.0)
-	umore = move_toward(umore, 0.0, RIENTRO_UMORE)
-	regolazione = clampf(regolazione + (0.85 if riposato else 0.35), 0.0, 1.0)
+	consolida_sonno(riposato)
 	morsi_oggi = 0
 	# i marchi non confermati si spengono piano
 	if sbiadisci_marchi:
@@ -422,7 +516,8 @@ func stato_corpo() -> String:
 func save() -> Dictionary:
 	return {"arousal": arousal, "umore": umore, "regolazione": regolazione,
 			"attese": attese.duplicate(), "marchi": marchi.duplicate(true),
-			"reattivita": reattivita, "abitudine": abitudine}
+			"reattivita": reattivita, "abitudine": abitudine,
+			"neuro": neuro.duplicate()}
 
 
 func load(d: Dictionary) -> void:
@@ -433,3 +528,8 @@ func load(d: Dictionary) -> void:
 	marchi = (d.get("marchi", {}) as Dictionary).duplicate(true)
 	reattivita = float(d.get("reattivita", 1.0))
 	abitudine = float(d.get("abitudine", ABITUDINE))
+	var n_salvato: Dictionary = d.get("neuro", {})
+	neuro = NEURO_BASELINE.duplicate()
+	for k in n_salvato:
+		neuro[k] = float(n_salvato[k])
+

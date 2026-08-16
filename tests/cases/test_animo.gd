@@ -24,6 +24,7 @@ func run(t) -> void:
 	_test_salvataggio(t)
 	_test_dal_genoma_vero(t)
 	_test_sfogo(t)
+	_test_neurochimica_animo(t)
 
 
 func _chibi(nome: String, tratti := {}, sogno := "boscaiolo"):
@@ -345,3 +346,47 @@ func _test_sfogo(t) -> void:
 	var sereno = _chibi("Zucchero2", {}, "boscaiolo")
 	t.ok(sereno.sfogo().contains("niente") or sereno.sfogo().contains("Lascia"),
 			"chi sta bene non inventa uno sfogo")
+
+
+# ---- INTEGRAZIONE NEUROCHIMICA: drive -> neuro, ossitocina -> perdono, cortisolo -> tunnel-vision ----
+func _test_neurochimica_animo(t) -> void:
+	var a = _chibi("Zafferano", {"lealta": 0.8}, "boscaiolo")
+	# 1. Drive mapping
+	a.drive["fatica"] = 0.8
+	a.sincronizza_neuro()
+	t.almost(a.limbico.livello_neuro("adenosina"), 0.8, "fatica sincronizza adenosina", 0.05)
+
+	a.drive["appartenenza"] = 0.9
+	a.sincronizza_neuro()
+	t.ok(a.limbico.livello_neuro("ossitocina") > 0.6, "appartenenza alta alza l'ossitocina")
+
+	# 2. Ossitocina amplifica il perdono nel rancore
+	var con_ox = _chibi("Loto1", {}, "guerriero")
+	var senz_ox = _chibi("Loto2", {}, "guerriero")
+	for i in 6:
+		con_ox.esegue("taglia_legna")
+		senz_ox.esegue("taglia_legna")
+	# Aggiungiamo ricordi positivi
+	con_ox.ricorda("regalo", "giocatore", 0.8, 1.0)
+	senz_ox.ricorda("regalo", "giocatore", 0.8, 1.0)
+	con_ox.limbico.stimola_neuro("ossitocina", 0.5)
+	senz_ox.limbico.neuro["ossitocina"] = 0.05
+	t.ok(con_ox.rancore() < senz_ox.rancore(),
+			"l'ossitocina amplifica lo sconto del rancore attraverso i ricordi positivi")
+
+	# 3. Cortisolo e tunnel-vision decisionale
+	var calmo = _chibi("Salvia1")
+	var stressato = _chibi("Salvia2")
+	stressato.limbico.stimola_neuro("cortisolo", 0.85)
+	stressato.drive["fatica"] = 0.95
+	var opzioni := ["riposa", "gironzola", "canta"]
+	var scelte_stress := {}
+	for i in 20:
+		var sc := stressato.decide(opzioni, "giocatore", 1.6)
+		scelte_stress[sc] = int(scelte_stress.get(sc, 0)) + 1
+	t.ok(int(scelte_stress.get("riposa", 0)) >= 18,
+			"il cortisolo alto irrigidisce il Softmax creando tunnel-vision sulla routine greedy di sollievo")
+
+	# 4. Trattieni
+	t.ok(calmo.trattieni(), "Animo.trattieni delega correttamente al Limbico")
+

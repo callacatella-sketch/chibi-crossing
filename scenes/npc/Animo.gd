@@ -265,6 +265,41 @@ func setup(dna: Dictionary, seed_v := -1) -> void:
 
 	for d in DRIVES:
 		drive[d] = 0.12 if d in MALESSERI else 0.85
+	sincronizza_neuro()
+
+
+## Mappatura dei 6 drive sui corrispondenti canali neurochimici del Limbico:
+## - fatica -> adenosina
+## - noia -> dopamina
+## - sicurezza -> cortisolo / serotonina
+## - appartenenza -> ossitocina
+## - stima & autonomia -> serotonina / endorfine
+func sincronizza_neuro() -> void:
+	if limbico == null:
+		return
+	# 1. Fatica -> Adenosina (pressione omeostatica del sonno)
+	var m_fatica: float = malessere("fatica")
+	limbico.neuro["adenosina"] = clampf(m_fatica, 0.0, 1.0)
+
+	# 2. Noia -> Dopamina (l'assenza di novità deprime la dopamina; l'autonomia la sostiene)
+	var m_noia: float = malessere("noia")
+	var aut_val: float = float(drive.get("autonomia", 0.5))
+	limbico.neuro["dopamina"] = clampf((1.0 - m_noia) * 0.55 + aut_val * 0.35 + 0.05, 0.0, 1.0)
+
+	# 3. Sicurezza -> Cortisolo (minaccia, insicurezza o allarme innalzano il cortisolo)
+	var m_sicurezza: float = malessere("sicurezza")
+	if m_sicurezza > 0.25:
+		var cort_pre: float = float(limbico.neuro.get("cortisolo", 0.08))
+		limbico.neuro["cortisolo"] = clampf(maxf(cort_pre, m_sicurezza * 0.8), 0.0, 1.0)
+
+	# 4. Appartenenza -> Ossitocina (calore sociale, fiducia e legame)
+	var app_val: float = float(drive.get("appartenenza", 0.5))
+	limbico.neuro["ossitocina"] = clampf(app_val * 0.75 + 0.12, 0.0, 1.0)
+
+	# 5. Stima & Autonomia -> Serotonina ed Endorfine (soddisfazione, status, sollievo)
+	var stima_val: float = float(drive.get("stima", 0.5))
+	limbico.neuro["serotonina"] = clampf(stima_val * 0.55 + aut_val * 0.35 + 0.10, 0.0, 1.0)
+	limbico.neuro["endorfine"] = clampf(stima_val * 0.35 + (1.0 - m_fatica) * 0.45 + 0.10, 0.0, 1.0)
 
 
 ## Il carattere in una riga, per il diario e per il debug.
@@ -340,6 +375,7 @@ func passa_giorno() -> void:
 			drive[d] = clampf(float(drive[d]) - r, 0.0, 1.0)
 		else:
 			drive[d] = clampf(float(drive[d]) + r * 0.5, 0.0, 1.0)
+	sincronizza_neuro()
 	_potatura()
 
 
@@ -380,6 +416,7 @@ func esegue(compito: String, ordinante := "giocatore") -> void:
 	# abitua, ci si sensibilizza (vedi Limbico.rivaluta)
 	ricorda(compito, ordinante, valenza, 0.5 + 0.5 * minf(1.0, mult / CONTRO_SOGNO),
 			"", e_tradito)
+	sincronizza_neuro()
 
 
 ## Un fatto qualunque della vita del villaggio.
@@ -398,6 +435,7 @@ func ricorda(tipo: String, attore: String, valenza: float, intensita := 0.5,
 	})
 	if sentito < 0.0:
 		drive["stima"] = clampf(float(drive["stima"]) + sentito * 0.12 * intensita, 0.0, 1.0)
+	sincronizza_neuro()
 	# si pota SUBITO, non solo al cambio di giorno: in una giornata sola
 	# possono succedere cento cose, e i ricordi vivi devono restare pochi
 	# perché il sommario (quello che sa dire «quarantasette volte») si riempia
@@ -416,6 +454,7 @@ func lutto(amico: String, consolato_da := "") -> void:
 	else:
 		ricorda("consolato", consolato_da, 0.6, 0.8)
 		drive["appartenenza"] = clampf(float(drive["appartenenza"]) + 0.22, 0.0, 1.0)
+	sincronizza_neuro()
 
 
 # i ricordi vecchi non svaniscono: si fondono nel sommario, che è ciò che
@@ -471,7 +510,10 @@ func rancore(attore := "giocatore") -> float:
 	for r in ricordi:
 		if r["attore"] == attore and float(r["valenza"]) > 0.0:
 			buoni += float(r["valenza"]) * float(r["intensita"]) * _recenza(int(r["quando"]))
-	somma = maxf(0.0, somma - buoni * 1.4)
+	var ox: float = limbico.livello_neuro("ossitocina") if limbico else 0.40
+	# L'ossitocina amplifica l'effetto riconciliante e il perdono dei ricordi positivi
+	var moltiplicatore_ox: float = 1.0 + clampf(ox, 0.0, 1.0) * 0.75
+	somma = maxf(0.0, somma - buoni * 1.4 * moltiplicatore_ox)
 	return 1.0 - exp(-somma / SATURAZIONE * 3.0)
 
 
@@ -580,6 +622,16 @@ func punteggio(azione: String, chiede := "giocatore") -> float:
 		# carattere, ed è da qui che due vicini davanti alla stessa scelta
 		# arrivano a due risposte diverse
 		s += sollievo * malessere(d) * 2.2 * peso_drive(d)
+	# Sotto cortisolo alto (> 0.45), le routine greedy di sollievo primario dai bisogni hanno priorità
+	var cort: float = limbico.livello_neuro("cortisolo") if limbico else 0.0
+	if cort > 0.45:
+		var fattore_stress: float = (cort - 0.45) / 0.55
+		for d in DRIVES:
+			if c.has(d):
+				var delta_s: float = float(c[d])
+				var sollievo_s: float = (-delta_s if d in MALESSERI else delta_s)
+				if sollievo_s > 0.0:
+					s += sollievo_s * malessere(d) * fattore_stress * 1.5
 	# IL CARATTERE TIRA. È l'equivalente, per le risposte, del tiro del
 	# sogno: l'unico termine che non passa da `malessere()` e quindi l'unico
 	# che sopravvive quando un vicino sta bene — che è il caso normale.
@@ -614,6 +666,12 @@ func punteggio(azione: String, chiede := "giocatore") -> float:
 func decide(azioni: Array, chiede := "giocatore", nitidezza := 1.6) -> String:
 	if azioni.is_empty():
 		return ""
+	var cort: float = limbico.livello_neuro("cortisolo") if limbico else 0.0
+	var nitidezza_effettiva: float = nitidezza
+	if cort > 0.45:
+		# Irrigidimento del Softmax: il cortisolo alto crea tunnel-vision sulle routine greedy
+		var fattore_stress: float = (cort - 0.45) / 0.55
+		nitidezza_effettiva = nitidezza * (1.0 + fattore_stress * 3.0)
 	var voti := []
 	for a in azioni:
 		voti.append({"a": a, "s": punteggio(a, chiede)})
@@ -623,13 +681,22 @@ func decide(azioni: Array, chiede := "giocatore", nitidezza := 1.6) -> String:
 	var base: float = float(top[top.size() - 1]["s"])
 	var tot := 0.0
 	for v in top:
-		tot += exp((float(v["s"]) - base) * nitidezza)
+		tot += exp((float(v["s"]) - base) * nitidezza_effettiva)
 	var tiro := _rng.randf() * tot
 	for v in top:
-		tiro -= exp((float(v["s"]) - base) * nitidezza)
+		tiro -= exp((float(v["s"]) - base) * nitidezza_effettiva)
 		if tiro <= 0.0:
 			return str(v["a"])
 	return str(top[0]["a"])
+
+
+## Tenta di mordersi la lingua delegando al Limbico (con costo modulato dal cortisolo)
+func trattieni(costo := -1.0) -> bool:
+	if limbico == null:
+		return true
+	if costo < 0.0:
+		return limbico.trattieni()
+	return limbico.trattieni(costo)
 
 
 # ---------------------------------------------------------------- il contagio
@@ -878,3 +945,4 @@ func load(d: Dictionary) -> void:
 		limbico.load(d["limbico"])
 	if d.has("rng"):
 		_rng.state = int(str(d["rng"]))
+	sincronizza_neuro()
