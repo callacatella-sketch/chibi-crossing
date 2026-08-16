@@ -50,6 +50,11 @@ var _prompt_label: Label
 var _target: Node3D
 var _target_name := ""
 var _seated := false
+## SU COSA e' seduta, non solo SE. Serve a chi deve sapere che quel posto e'
+## occupato — `Visitors._free_bench`, che cicla solo `_residents` e quindi un
+## vicino si sedeva DENTRO Mochi, e il fatto dell'insieme, per cui Mochi
+## seduta e' un corpo seduto come gli altri.
+var _seat_node: Node3D = null
 var _return_pos := Vector3.ZERO
 
 # il carillon a portata di zampa (se nessuna seduta è più vicina); la
@@ -68,6 +73,11 @@ var _sleeping := false
 
 func _ready() -> void:
 	add_to_group("persistable")
+	# …e si fa trovare per GRUPPO, come tutti gli altri sistemi del livello.
+	# I due che la cercavano per percorso relativo (`../Interactions`) sono
+	# figli del livello; `Visitors` no, e un percorso indovinato da la' e' il
+	# modo esatto in cui una domanda comincia a rispondere `null` per sempre.
+	add_to_group("interactions")
 	_player = get_node("%Player")
 	_mochi = _player.get_node("Mochi")
 	_build = get_node("../BuildSystem")
@@ -114,6 +124,19 @@ static func yaw_seduta(kind: String, yaw_pezzo: float) -> float:
 
 func is_seated() -> bool:
 	return _seated
+
+
+## SU COSA E' SEDUTA MOCHI ADESSO, o `null` se e' in piedi.
+##
+## Un accessore da una riga, e ha due lettori che chiedono cose diverse:
+## `_free_bench` («quel posto e' occupato»: non ci si siede addosso a
+## nessuno) e il fatto dell'insieme («li' c'e' qualcuno»: il posto accanto
+## chiama). E' l'unica chiave a forma di GIOCATORE che le cricche abbiano —
+## siediti al Gazebo, e i due sgabelli di fianco cominciano a chiamare.
+func sedile_attuale() -> Node3D:
+	if not _seated or _seat_node == null or not is_instance_valid(_seat_node):
+		return null
+	return _seat_node
 
 
 func _build_prompt() -> void:
@@ -300,6 +323,7 @@ var _move_tw: Tween
 
 func _sit_down(seat: Node3D, kind: String) -> void:
 	_seated = true
+	_seat_node = seat
 	_return_pos = _player.global_position
 	_player.set_physics_process(false)
 	_player.velocity = Vector3.ZERO
@@ -331,6 +355,7 @@ func _sit_down(seat: Node3D, kind: String) -> void:
 
 func _stand_up() -> void:
 	_seated = false
+	_seat_node = null
 	_mochi.call("set_pose", "stand")
 	if _move_tw and _move_tw.is_valid():
 		_move_tw.kill()
@@ -408,6 +433,7 @@ func _sleep_until_morning() -> void:
 func debug_sit(kind: String) -> void:
 	if _seated:
 		_seated = false
+		_seat_node = null
 		_mochi.call("set_pose", "stand")
 	for it in _build.get_interactables():
 		if it["name"] == kind:

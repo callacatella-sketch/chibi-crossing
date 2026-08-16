@@ -1547,6 +1547,14 @@ func _process(delta: float) -> void:
 		"r_bench":
 			_timer -= delta
 			_anim_sit()
+			# CHI E' SEDUTO TI SALUTA. Lo facevano gia' `r_idle`, `r_sniff`,
+			# `r_attesa` e `r_fire`; questo no, e non si vedeva perche' una
+			# seduta durava trenta millisecondi. Da quando dura quindici
+			# secondi, un vicino a un metro da te che non alza la testa si
+			# legge come freddezza — cioe' il sistema racconterebbe una cosa
+			# che non e' vera. (Si somma alla posa: `_resident_greet` scrive
+			# il meta «postura», non lo stato.)
+			_resident_greet(delta)
 			if _timer <= 0.0:
 				# SENZA `aux` NON SI SCENDEVA. Il ramo pretendeva il mobile
 				# per calcolare dove rimettere i piedi, e chi era stato
@@ -2857,6 +2865,27 @@ func do_routine(kind: String, pos: Vector3, look := Vector3.ZERO,
 			# quindi restava seduto lì per sempre. Il punto da guardare
 			# viaggia in _fire_look, già valorizzato qui sopra.
 			_walk_to(pos, "r_confronto")
+
+
+## QUANTO MANCA ALLA FINE DELLA POSA IN CUI SI E' ADESSO, in secondi.
+##
+## Il corpo si e' gia' dato la sua durata (`r_bench`: 14-22 s, oppure quella
+## che gli ha imposto chi lo ha fatto sedere): questa riga la RENDE LEGGIBILE
+## a chi tiene il guinzaglio dell'agenda, invece di farla indovinare.
+##
+## ⚠️ Il numero non si ricopia di la'. Una copia del `randf_range` in
+## `Visitors` sarebbe la tabella gemella che questo progetto ha gia' pagato
+## tre volte: il giorno che si allunga la sosta, il lease resterebbe quello
+## di prima e il vicino si alzerebbe **a meta' del proprio gesto** — che e'
+## esattamente il difetto che la sosta esiste per chiudere, un gradino piu'
+## in la'.
+##
+## E' il conto alla rovescia dello STATO IN CUI SI E' ADESSO, e non va mai
+## sotto zero (un lease negativo sarebbe un'agenda zittita al contrario).
+## Chi la chiama lo fa dentro `STATO_CHE_SAZIA` — cioe' quando il corpo sta
+## gia' facendo il gesto — e li' quel conto E' la durata della posa.
+func resta_in_posa() -> float:
+	return maxf(0.0, _timer)
 
 
 func face_towards(p: Vector3) -> void:

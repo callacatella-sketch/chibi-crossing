@@ -81,6 +81,11 @@ const char *FATTI[] = {
 	// FASE 3, in coda: l'ordine dei primi otto è un contratto
 	"spuntino_raggiungibile", "aiuola_raggiungibile", "seduta_libera_vicina",
 	"meraviglia_raggiungibile", "lavagna_pronta",
+	// L'INSIEME, in coda a sua volta: IL BIT E' L'INDICE (`maschera_fatti`
+	// fa `1u << k`), quindi una riga infilata in mezzo sposterebbe TUTTI i
+	// bit successivi e il villaggio comincerebbe a credere di avere il
+	// cespuglio quando ha la lavagna. Si aggiunge in fondo, sempre.
+	"insieme_accanto",
 };
 
 const char *AZIONI[] = {
@@ -737,6 +742,14 @@ Dictionary EcsMondo::debug_costanti_agenda() const {
 	// test diventa rosso invece di continuare a raccontare una regola che
 	// non vale piu.
 	d["delta_max"] = chibi::DELTA_MAX;
+	// L'INSIEME: si legge DA QUI e non si riscrive di la. Un test che
+	// ricopiasse 1.20 nel proprio sorgente proverebbe il proprio numero, e
+	// il giorno che qualcuno lo tara resterebbe verde raccontando una
+	// taratura che non esiste piu. (E il TETTO non si espone: il tetto e'
+	// `max(riposo) * (k - 1) < margine`, e `max(riposo)` si MISURA
+	// interrogando `debug_punteggi` — un tetto scritto qui sarebbe la
+	// stessa relazione affidata di nuovo alla memoria di chi tara.)
+	d["k_insieme"] = chibi::K_INSIEME;
 	d["n_azioni"] = static_cast<int>(chibi::N_AZIONI);
 	d["n_bisogni"] = static_cast<int>(chibi::N_BISOGNI);
 	// la taratura VIVA di questo registro (per un'istanza appena creata sono

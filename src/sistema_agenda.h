@@ -72,6 +72,22 @@ enum Fatto : uint32_t {
 	F_SEDUTA = 1u << 10,
 	F_BELLO_RAGG = 1u << 11,
 	F_LAVAGNA = 1u << 12,
+	// --- L'INSIEME: la nozione che l'utility AI non aveva -------------
+	// «il posto che sceglierei ha, entro un braccio, qualcuno che ci E'
+	// SEDUTO ADESSO». Tre proprieta' strutturali, e nessuna e' tarata:
+	//  · e' un POSTO, non un corpo — una seduta non cammina, quindi non
+	//    c'e' nessuno da inseguire (la stessa regola di `_ancora_ritrovo`);
+	//  · e' un FATTO DEL MONDO, non un'intenzione — chi sta CAMMINANDO
+	//    verso una seduta non conta. E' la sola forma che non produce lo
+	//    stallo: se contasse anche l'intenzione, due che si dirigono
+	//    ciascuno accanto al posto intenzionale dell'altro non
+	//    partirebbero mai, e il primo che arriva troverebbe vuoto;
+	//  · e' un BOOLEANO, mai un conteggio — «c'e' qualcuno» e «ce ne sono
+	//    cinque» valgono lo stesso, quindi un posto che si riempie non
+	//    diventa piu' forte: diventa PIENO. Un conteggio sarebbe
+	//    preferential attachment, e in poche giornate una legge di potenza
+	//    (cioe' il villaggio-grumo).
+	F_INSIEME = 1u << 13,
 };
 // F_NOTTAMBULO non esiste apposta: si deriva dal DnaComponent con
 // chibi::nottambulo(), così quella frase resta scritta in un posto solo.
@@ -122,6 +138,51 @@ const AzioneDef *tabella();
 // (`sistema_occ.h`, `k_ammirazione`): qui c'è solo la rete.
 constexpr double DELTA_MAX = 0.45;
 
+// --- L'INSIEME: I TRE NUMERI DEL RIPOSO, ESTRATTI DALLA RIGA ------------
+//
+// `riposo` vale (1-energia) · RIPOSO_PESO · (dormiglione ? RIPOSO_DORMIGLIONE
+// : 1) · (insieme ? K_INSIEME : 1), ed e' la riga di `costruisci_tabella`
+// (case AZ_RIPOSO) letta ad alta voce. Stanno QUI e non la' perche' il
+// `static_assert` in fondo a questo file possa leggerli: ricopiarli
+// sarebbe una tabella gemella, cioe' un tetto che sorveglia numeri diversi
+// da quelli che il villaggio usa davvero.
+//
+// K_INSIEME e' 1.20 e non e' un valore di gusto: e' MISURATO, appaiato sullo
+// stesso contesto (`tools/misura_k_insieme.gd`, 40.960 contesti veri —
+// nove caratteri, quattro forme di mondo, i cinque bisogni indipendenti):
+//
+//   K      decisioni SCAVALCATE   scarto (mediano/max)   urgenze aperte
+//   1.10       0.90%                0.1024 / 0.2061           0
+//   1.15       3.70%                0.1536 / 0.3091           0
+//   1.20       4.62%                0.2048 / 0.4122           0   ←
+//   1.25       7.04%                0.2560 / 0.5152           0
+//   1.30      11.44%                0.3072 / 0.6182        2048   ⚠️
+//
+// Quattro decisioni su cento e' una CONSIDERAZIONE: novantasei volte su
+// cento il vicino fa quello che avrebbe fatto comunque. Sotto 1.15 il
+// termine non muove quasi niente (0,90%, e 1.05 e 1.10 danno lo stesso
+// identico conteggio); da 1.30 in su comincia ad APRIRE la corsia
+// d'urgenza — che e' esattamente dove il `static_assert` qui sotto ferma
+// la build, e le due cose combaciano perche' sono la stessa relazione.
+//
+// E CHI VIENE SCAVALCATO conta quanto il quanto: a 1.20, delle 1892
+// decisioni ribaltate 1562 le toglie a «quattro_chiacchiere» (che e'
+// l'azione piu' scelta del villaggio) e SOLO 40 a «cura_giardino» — perche'
+// il pavimento dell'aiuola assetata chiama chiunque, e il mondo batte
+// l'insieme. Da «stella» e da «regia» non toglie mai niente.
+//
+// ⚠️ E NEL VILLAGGIO VERO IL TERMINE E' MOLTO PIU' TIMIDO DI COSI', ed e'
+// onesto scriverlo qui: su tre giornate di gioco il bit si accende nello
+// 0,89% dei campioni (due residenti su tredici), e in quelle 1501
+// valutazioni — appaiate sullo stesso istante, col bit e senza — **non ha
+// mai cambiato l'argmax**, perche' chi aveva compagnia accanto non era
+// stanco. La spazzata qui sopra dice quanto il termine PUO' spostare; il
+// villaggio dice quanto spesso gliene capita l'occasione, e quel numero non
+// lo alza K: lo alza QUALE seduta viene scelta.
+constexpr double RIPOSO_PESO = 1.6;
+constexpr double RIPOSO_DORMIGLIONE = 1.4;
+constexpr double K_INSIEME = 1.20;
+
 // I PUNTEGGI, deterministici: niente rumore, niente argmax. Il rumore vive
 // in GDScript (il villaggio salva i suoi dadi, e un secondo generatore in
 // C++ sarebbe una seconda storia) e attraversa il ponte già estratto.
@@ -161,6 +222,24 @@ struct TaraturaAgenda {
 // è una relazione che prima o poi si rompe in silenzio.
 static_assert(DELTA_MAX < TaraturaAgenda{}.margine,
 		"DELTA_MAX deve restare sotto il margine d'urgenza: l'emozione INCLINA, non accelera.");
+
+// LA STESSA RETE PER L'INSIEME, e serve una riga sua perche' e' un canale
+// DIVERSO: `DELTA_MAX` pinza `p_mod`, cioe' l'emozione, e un fattore di
+// TABELLA non ci passa mai. Senza questo assert il tetto dell'insieme non
+// esisterebbe affatto — e la prova di equivalenza non potrebbe vederlo, che
+// e' cieca al bit 13 per costruzione (la sua spazzata accende solo i sei
+// fatti storici).
+//
+// Lo scarto piu' grande che il fattore puo' produrre e' a energia zero, su
+// un dormiglione: 1.0 · 1.6 · 1.4 · (1.20 - 1.0) = 0.448, sotto il margine
+// (0.60) oltre il quale il tempo minimo scende da 2,0 s a 0,5 s. Partendo
+// da un pareggio, quindi, l'insieme non puo' MAI aprire la corsia
+// d'urgenza da solo: INCLINA, non accelera. Il giorno che qualcuno alza il
+// peso del riposo per una ragione che con le cricche non c'entra, la build
+// NON PARTE — che e' l'unico posto in cui questa relazione puo' essere
+// sorvegliata da qualcosa che non dimentica.
+static_assert(RIPOSO_PESO * RIPOSO_DORMIGLIONE * (K_INSIEME - 1.0) < TaraturaAgenda{}.margine,
+		"K_INSIEME sfonda il margine d'urgenza: l'insieme INCLINA, non accelera.");
 
 struct EsitoAgenda {
 	int32_t azione = AZ_NESSUNA;

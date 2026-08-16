@@ -74,11 +74,30 @@ AzioneDef costruisci_tabella(int p_i) {
 			return costruisci(AZ_SPUNTINO, 0, 0, 0.0, 4, f);
 		}
 		case AZ_RIPOSO: {
-			// (1-energia) * 1.6 * (dormiglione ? 1.4 : 1)
-			// L'unica azione che non guarda il mondo: si può sempre.
-			const Fattore f[] = { f_curva(B_ENERGIA), f_peso(1.6),
-				f_indole(I_DORMIGLIONE, 1.4, 1.0) };
-			return costruisci(AZ_RIPOSO, 0, 0, 0.0, 3, f);
+			// (1-energia) * 1.6 * (dormiglione ? 1.4 : 1) * (insieme ? 1.20 : 1)
+			//
+			// L'INSIEME E' IL QUARTO FATTORE, ED E' IN CODA: l'ordine della
+			// moltiplicazione e' il contratto dell'equivalenza bit-esatta, e
+			// un fattore infilato in mezzo cambierebbe l'associazione di
+			// tutti quelli dopo. In coda, e a bit spento, la riga vale
+			// `v * 1.0` — che e' lo STESSO double, bit per bit, non «circa».
+			//
+			// ⚠️ E MAI IN `richiede`, che resta ZERO. Due ragioni
+			// indipendenti, e ognuna basta da sola:
+			//  · uno stanco e SOLO deve poter fare un pisolino sempre. Un
+			//    gate qui vorrebbe dire che chi non ha nessuno accanto non
+			//    riposa piu' — cioe' l'esclusione scritta nel motore;
+			//  · nella spazzata dell'equivalenza il bit e' sempre spento,
+			//    quindi `riposo` varrebbe zero dappertutto e i 67.200
+			//    confronti crollerebbero tutti insieme.
+			//
+			// L'unica azione che non guarda il mondo adesso ne guarda una
+			// cosa sola, e la piu' piccola che ci sia: se il posto dove
+			// starei ha gia' qualcuno.
+			const Fattore f[] = { f_curva(B_ENERGIA), f_peso(RIPOSO_PESO),
+				f_indole(I_DORMIGLIONE, RIPOSO_DORMIGLIONE, 1.0),
+				f_fatto(F_INSIEME, K_INSIEME, 1.0) };
+			return costruisci(AZ_RIPOSO, 0, 0, 0.0, 4, f);
 		}
 		case AZ_CHIACCHIERE: {
 			// (1-compagnia) * 1.8 * (chiacchierone ? 1.5 : 1)
