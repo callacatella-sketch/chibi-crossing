@@ -51,6 +51,14 @@ uniform vec4 terra_orlo : source_color = vec4(0.47, 0.39, 0.28, 1.0);
 // bordo d'ombra, la ghiaia della riva, la roccia che affiora. Sono i
 // MOTIVI per cui il suolo cambia colore da un metro all'altro — senza,
 // qualunque quantita' di rumore resta «una distesa verde».
+// LA MAPPA DEL TERRENO, cotta una volta sulla CPU da CozyWorld (mai un
+// render target: uno che non renderizza torna bianco, e sul suolo bianco
+// vuol dire «consumato» — e' costato il villaggio intero reso a piazzale).
+//   R = il sentiero del bosco, DIPINTO invece che appiccicato con dischi
+//   G = l'ombra di CONTATTO di alberi e cespugli
+uniform sampler2D terreno_map : filter_linear, repeat_disable, hint_default_black;
+uniform vec2 terreno_origin = vec2(-30.0, -54.0);
+uniform vec2 terreno_size = vec2(60.0, 68.0);
 uniform vec4 erba_secca : source_color = vec4(0.72, 0.71, 0.44, 1.0);
 uniform vec4 muschio : source_color = vec4(0.32, 0.48, 0.30, 1.0);
 uniform vec4 ghiaia : source_color = vec4(0.74, 0.71, 0.62, 1.0);
@@ -173,6 +181,28 @@ void fragment() {
 	vec3 fcol = mix(forest_a.rgb, forest_b.rgb, smoothstep(0.3, 0.75, macro));
 	fcol = mix(fcol, forest_litter.rgb, smoothstep(0.55, 0.85, micro) * 0.5);
 	col = mix(col, fcol, fmask);
+
+	// IL SENTIERO DEL BOSCO, dipinto nel manto: segue il suolo, si sfrangia
+	// col rumore del prato e non costa un triangolo. Terra battuta al
+	// centro, orlo consumato ai bordi — e i sassolini solo da vicino.
+	vec2 tuv = (wpos.xz - terreno_origin) / terreno_size;
+	float t_dentro = step(0.0, tuv.x) * step(tuv.x, 1.0)
+			* step(0.0, tuv.y) * step(tuv.y, 1.0);
+	vec4 tmap = texture(terreno_map, tuv) * t_dentro;
+	float sentiero = smoothstep(0.18, 0.72, tmap.r + (fbm3(rot * wpos.xz * 1.9) - 0.5) * 0.30);
+	if (sentiero > 0.002) {
+		vec3 tsent = mix(terra_orlo.rgb, terra_battuta.rgb,
+				smoothstep(0.35, 0.85, tmap.r));
+		tsent = mix(tsent, ghiaia.rgb * 0.92,
+				smoothstep(0.60, 0.88, fbm3(wpos.xz * 5.5)) * vicino * 0.45);
+		col = mix(col, tsent, sentiero * 0.92);
+	}
+
+	// L'OMBRA DI CONTATTO: sotto un albero il suolo si scurisce, e da li'
+	// in poi l'albero POGGIA invece di stare appoggiato sopra. E' il
+	// difetto che faceva sembrare tutto un adesivo su un tappeto, e costa
+	// zero triangoli e zero draw call.
+	col *= 1.0 - 0.34 * smoothstep(0.05, 0.85, tmap.g);
 
 	// l'ombra dei ciuffi: dove l'erba si addensa il manto si scurisce
 	// (stesso campo che decide dove nascono i fili) — le radici hanno

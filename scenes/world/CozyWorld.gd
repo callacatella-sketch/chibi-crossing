@@ -186,6 +186,9 @@ func _ready() -> void:
 	_build_pollen()
 	await get_tree().process_frame
 	_build_forest()
+	# la mappa del terreno si cuoce ADESSO: il sentiero del bosco esiste
+	# solo dopo _build_forest, e una tela cotta prima esce vuota in silenzio
+	_bake_terreno_map()
 	await get_tree().process_frame
 	_build_pond()
 	await get_tree().process_frame
@@ -219,6 +222,22 @@ func _ready() -> void:
 
 const TUFT_RECT := Rect2(-16.0, -19.0, 32.0, 33.0)
 
+## LA MAPPA DEL TERRENO. Una tela cotta UNA volta sulla CPU (mai un
+## SubViewport: un render target che non renderizza torna BIANCO, e sul
+## terreno bianco vuol dire «consumato» — e' costato il villaggio intero
+## reso come piazzale) con dentro cio' che una formula non puo' sapere:
+##   R = il sentiero del bosco, dipinto invece che appiccicato con 80
+##       dischi che si vedevano col bordo tagliato e l'ombra sotto;
+##   G = l'ombra di CONTATTO di alberi e cespugli — quella che toglie a
+##       tutto l'aria di adesivo appoggiato sul tappeto.
+const TERRENO_RECT := Rect2(-30.0, -54.0, 60.0, 68.0)
+const TERRENO_RIS := 256
+
+## Le impronte a terra di chi ci sta sopra: [x, z, raggio]. Le registrano
+## gli alberi e i cespugli mentre nascono — l'unico momento in cui la
+## posizione si sa davvero.
+var _impronte: Array[Vector3] = []
+
 
 
 
@@ -245,6 +264,51 @@ func _bake_tuft_map() -> void:
 			gmat.set_shader_parameter("tuft_size", TUFT_RECT.size)
 			# la maniglia del manto: la stagione ne ridipinge i verdi
 			_ground_mat = gmat
+
+
+## Cuoce la mappa del terreno. Va chiamata DOPO il bosco: prima, il
+## sentiero non esiste ancora e la tela uscirebbe vuota — in silenzio.
+func _bake_terreno_map() -> void:
+	var w := TERRENO_RIS
+	var h := TERRENO_RIS
+	var img := Image.create_empty(w, h, false, Image.FORMAT_RGBA8)
+	# il sentiero: distanza dal campione piu' vicino, in una griglia
+	# grossolana per non fare N x M distanze (256x256 x 80 sarebbe mezzo
+	# milione di radici quadrate a ogni avvio)
+	for py in h:
+		var wz := TERRENO_RECT.position.y + (float(py) + 0.5) / float(h) * TERRENO_RECT.size.y
+		for px in w:
+			var wx := TERRENO_RECT.position.x + (float(px) + 0.5) / float(w) * TERRENO_RECT.size.x
+			var d2 := 1e9
+			for i in _path_samples.size():
+				var s3 := _path_samples[i]
+				var dx := wx - s3.x
+				var dz := wz - s3.z
+				var q := dx * dx + dz * dz
+				if q < d2:
+					d2 = q
+			var sent := 1.0 - smoothstep(0.42, 1.05, sqrt(d2))
+			var ombra := 0.0
+			for imp in _impronte:
+				var ex := wx - imp.x
+				var ez := wz - imp.z
+				# imp = (x, raggio, z): il raggio sta in y
+				var dd := sqrt(ex * ex + ez * ez) / maxf(imp.y, 0.01)
+				ombra = maxf(ombra, 1.0 - smoothstep(0.35, 1.0, dd))
+			if px == 0 or py == 0 or px == w - 1 or py == h - 1:
+				sent = 0.0
+				ombra = 0.0
+			img.set_pixel(px, py, Color(sent, ombra, 0.0, 1.0))
+	if _ground_mat:
+		_ground_mat.set_shader_parameter("terreno_map",
+				ImageTexture.create_from_image(img))
+		_ground_mat.set_shader_parameter("terreno_origin", TERRENO_RECT.position)
+		_ground_mat.set_shader_parameter("terreno_size", TERRENO_RECT.size)
+
+
+## Registra un'impronta a terra: e' da qui che nasce l'ombra di contatto.
+func segna_impronta(pos: Vector3, raggio: float) -> void:
+	_impronte.append(Vector3(pos.x, raggio, pos.z))
 
 
 func _build_grass() -> void:
@@ -401,10 +465,15 @@ func _build_flowers() -> void:
 # nella chioma, e la chioma come NUVOLA — lobo scuro sotto (l'ombra
 # interna), massa centrale a due toni, ciuffi chiari in cima dove batte
 # il sole. Tutto fuso in una sola mesh: un draw call per materiale.
+## Ogni albero lascia la sua impronta sul terreno: l'ombra di contatto
+## nasce da qui, non da una lista scritta a mano che diverge al primo
+## albero spostato.
 func _make_tree(pos: Vector3, size: float, leaf_a: Color, leaf_b: Color,
 		seed_v := 0, leaf_klass := "green") -> Node3D:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1000 + seed_v * 37 + int(pos.x * 7.0 + pos.z * 13.0)
+	# l'ombra di contatto: larga quanto la chioma, non quanto il tronco
+	segna_impronta(pos, 1.35 * size)
 
 	var bark := GEO.paint_mat(Color("9a6b4f"), Color("7e563f"), 2.5, 0.55)
 	# le chiome lasciano PASSARE il controluce: la frangia si accende
@@ -522,6 +591,7 @@ func _build_trees() -> void:
 	_register_leaf(bush_dark, Color("5e9a50"), Color("4b8040"), "bush", 0.0, 0.55)
 	_register_leaf(bush_light, Color("8cc873"), Color("6cae5b"), "bush", 0.0, 0.55)
 	for p in [Vector3(-3.5, 0, -7.0), Vector3(4.0, 0, 7.5), Vector3(-8.0, 0, -1.5)]:
+		segna_impronta(p, 0.72)
 		var parts := []
 		parts.append([GEO.puff_mesh(0.52, rng.randi(), 0.62, 0.12),
 				Transform3D(Basis.IDENTITY, Vector3(0, 0.28, 0)), bush_dark])
@@ -1138,17 +1208,18 @@ func _build_forest_path(rng: RandomNumberGenerator) -> void:
 		for i in 20:
 			_path_samples.append(MATH.catmull(p0, p1, p2, p3, float(i) / 20.0))
 
-	var disc := GEO.cyl_mesh(0.55, 0.6, 0.05, 10)
-	disc.material = GEO.paint_mat(Color("9a7a55"), Color("83674a"), 0.9, 0.55, 0.0, true)
-	var transforms: Array[Transform3D] = []
+	# IL SENTIERO NON SI APPICCICA PIU'. Erano 80 dischi di terra posati
+	# sull'erba: da vicino si vedevano il bordo tagliato, il labbro
+	# verticale e l'ombra sotto — un adesivo, non un sentiero. Ora il
+	# sentiero e' DIPINTO nel manto (canale R di terreno_map), quindi
+	# segue il suolo, si sfrangia col rumore del prato e non costa un
+	# solo triangolo. `rng` resta consumato com'era, cosi' tutto quello
+	# che nasce dopo nel bosco non si sposta di un centimetro.
 	for i in _path_samples.size():
-		var s := _path_samples[i]
-		var w := rng.randf_range(0.8, 1.15)
-		var rot := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(w, 1, w))
-		# quote leggermente sfalsate: dischi sovrapposti senza z-fighting
-		var pos := s + Vector3(rng.randf_range(-0.2, 0.2), 0.012 + float(i % 5) * 0.004, rng.randf_range(-0.2, 0.2))
-		transforms.append(Transform3D(rot, pos))
-	_scatter_exact(disc, transforms, false)
+		rng.randf_range(0.8, 1.15)
+		rng.randf()
+		rng.randf_range(-0.2, 0.2)
+		rng.randf_range(-0.2, 0.2)
 
 
 func _build_forest_trees(rng: RandomNumberGenerator) -> void:
