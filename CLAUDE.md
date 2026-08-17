@@ -4984,6 +4984,183 @@ mutazione le lascia verdi tutte e due, perché in quel banco il sopracciglio
 non passa affatto dalla molla. Un'asserzione che passa in tutti e due i casi
 non è una guardia: è un'asserzione che dice «coperto» senza esserlo.
 
+
+## LE PERSONE CAMBIANO — un tratto che deriva, e i tre posti in cui non entra
+
+I tratti (codardia, grinta, lealtà, ambizione, orgoglio) erano decisi alla
+nascita e non si muovevano di un millesimo, qualunque cosa succedesse a quella
+persona. Adesso uno di loro **deriva**, lentissimamente, nella direzione in
+cui la vita di quel vicino ha spinto — e siccome tutto il gioco legge i
+tratti, spostarne uno muove tutta la persona.
+
+Vive in [`scenes/npc/Deriva.gd`](scenes/npc/Deriva.gd) (puro, senza Godot e
+senza stato) più `Animo.tratto()` / `tratto_base()`.
+
+### ⚠️ LA DERIVA NON SI SALVA, ed è la decisione che tiene su tutto
+
+È una **lettura**, come `Affetti.coppia()` e come `Animo.assenza()`: si ricava
+ogni volta dalle prove che erano già nel salvataggio. Zero chiavi nuove, zero
+migrazioni, niente che possa restare appeso a metà.
+
+Non è eleganza. **I tratti in questo gioco sono salvati DUE volte** —
+`dna.tratti` e `animo.tratti` — e la copia da cui il gioco legge è la seconda:
+`_ensure_brain` fa `setup(dna)` e **poi** `load(salvato)`, che riscrive
+`tratti`. Un delta scritto lì dentro sarebbe diventato permanente al primo
+`save()` e si sarebbe **ricomposto a ogni caricamento**: chi era sarebbe
+perduto, e non ci sarebbe più nessun posto da cui tornare.
+
+### LA REGOLA: la deriva entra dove il tratto COLORA
+
+> **e non entra in nessuna funzione la cui uscita è una PORTA, una SOGLIA o
+> una FRASE.**
+
+Non è pignoleria: sono due vie d'uscita dal genere, trovate leggendo il codice
+invece che scoprendole in partita.
+
+- **`soglie()` decide chi se ne va dal villaggio.** Abbassa il gradino della
+  diserzione di `codardia × 0,28`, e sotto c'è `Visitors._congeda()`. Con la
+  deriva dentro, *«protetto e nutrito»* sarebbe diventato **«se ne va
+  prima»**: il giocatore avrebbe perso i vicini di cui si è occupato di più.
+  Misurato: 0,35 di codardia si mangia il **60%** del campo naturale fra
+  quattordici residenti.
+- **`Affetti.conto()` legge tutto il libro mastro con la mezza vita della
+  lealtà**, comprese le righe di sei mesi fa. Una lealtà che deriva
+  **riscriverebbe il passato**, e potrebbe sciogliere una coppia senza che
+  nessuno abbia fatto niente — `ancora_coppia()` è un confronto fra conti, e
+  una mezza vita più corta schiaccia il passato e lascia in piedi il recente.
+  *La mezza vita è la grammatica con cui si legge la storia, non un colore.*
+- E il **testo** legge la base per una ragione più semplice: quello che uno
+  dice quando sbotta è chi è sempre stato.
+
+### LA FORMA: una frazione della PROPRIA distanza dal bordo
+
+`δ = FRAZIONE × pressione × (distanza dal proprio bordo, in quella direzione)`
+
+È il vincolo «mai oltre una frazione del tratto originale» letto alla lettera,
+e in cambio regala **tre teoremi invece di tre tarature**:
+
+1. **nessuno arriva al muro, a nessuna ampiezza.** Un tetto additivo di ±0,35
+   porterebbe al muro il **47%** dei valori veri — tre codardi a 0,85 / 0,92 /
+   0,98 diventerebbero *tre volte la stessa persona*. Qui è zero per
+   costruzione.
+2. **a parità di prove l'ordine si conserva** (la derivata rispetto alla base
+   vale `1 − FRAZIONE·|s| > 0`).
+3. **chi nasce a 0 o a 1 non deriva** — non ha strada da fare.
+
+`FRAZIONE = 0.40` non è scelta: sotto 0,20 di spostamento **non si vede niente
+su nessun canale** e 0,35 è il 94° percentile. In mezzo c'è **una deviazione
+standard (0,2146)**, misurata sul generatore vero, e al valore mediano della
+codardia questa frazione dà esattamente quello.
+
+### LE TRE REGOLE DELLE SPINTE, e sono strutture
+
+1. **Solo prove POSITIVE e datate di cose ACCADUTE.** Mai il conteggio di ciò
+   che non è successo: sarebbe una punizione per chi gioca in un altro modo.
+   Collaudo meccanico: **senza righe, δ = 0.000**.
+2. **Solo carburante UNO-A-UNO**, col cancello sulla chiave
+   `attore == "giocatore"` — non su una lista di esclusioni.
+3. **La quantità la porta la RIGA**: qui si dichiara solo la **direzione**.
+   Questo cancella una classe intera di taratura, e fa sì che lo stesso piatto
+   valga numeri diversi per due vicini (la valenza passa già dal `Limbico` di
+   quella persona).
+
+⚠️ **E DUE ESEMPI DELL'AUTORE NON SONO ENTRATI, con la misura in mano.**
+
+- *«chi è stato protetto per venti notti»*: la riga `vegliato` la Veglia la
+  scrive a **ogni** residente **ogni** mattina — 1,000 per residente per
+  giornata, identica per tutti. È una marea che solleva tutte le barche, cioè
+  nessuna. La versione sui binari vuole prima che la Veglia sappia dire **chi**
+  ha avuto la *propria* porta al buio.
+- *«chi è stato spesso solo diventa più autonomo»*: il suo carburante è
+  un'**assenza** (regola 1), e «più autonomo» in questo codice è l'orgoglio —
+  il solo tratto che **non tinge nessun canale del corpo**. La versione sui
+  binari è la sua metà positiva: *chi ha passato molto tempo con qualcuno
+  diventa un filo più leale*, dalle righe di co-presenza.
+
+### DUE TRATTI NON DERIVANO, e non è una dimenticanza
+
+- **la GRINTA**: il suo unico carburante candidato è il lavoro, che fa fuoco
+  1,000 volte per residente per giornata **per tutti**; e il suo canale sul
+  corpo è l'**adenosina**, cioè la stanchezza — la sola direzione che non si
+  riesce a dichiarare «diversa e non peggiore».
+- **l'ORGOGLIO**: non tinge nessun canale, e i suoi tre lettori sono una
+  porta, una crisi e una frase. Un tratto che non può colorare nulla non
+  deriva.
+
+### I NUMERI, misurati sulle biografie vere
+
+`tools/misura_deriva_vera.gd`, tredici residenti del salvataggio vero:
+
+| | |
+|---|---|
+| prove del giocatore per residente per giornata | media **0,744** · massimo 2,333 · **dev.std 1,014** |
+| chi si è mosso di più | Cannella `0,724 → 0,534` · Ciliegia `0,617 → 0,434` · Nuvola `0,544 → 0,397` |
+| chi non ha prove del giocatore | δ **esattamente +0,0000** |
+| ⚠️ **tratti al muro** | **0** |
+| ⚠️ **dispersione della codardia** | di nascita **0,2339** → derivata **0,2373** |
+| inversioni d'ordine | 8 su 78 coppie (10%) |
+
+**La dispersione non scende: sale.** È il cancello di arresto più importante —
+se il villaggio rendesse le persone uguali, il meccanismo andrebbe tolto
+qualunque cosa dicano gli altri numeri — e passa perché la dev.std del flusso
+(1,014) è **più grande della sua media**: il giocatore non può essere gentile
+con ventotto persone nello stesso pomeriggio, e *quello* è il vincolo che fa
+la varietà.
+
+⚠️ **E due cose vanno dette sui numeri, invece che lasciate credere:**
+
+- **il flusso misurato è il MIO banco, non un giocatore.** Il mio porta
+  qualcosa a qualcuno ogni ventisette secondi: è un tetto, non una media. Con
+  un giocatore più parco la deriva è più lenta, e la tabella slitta.
+- **la deriva satura in fretta**: proiettata, una stagione dà δ −0,195, tre
+  stagioni −0,228, dodici −0,233. Quasi tutto il movimento è nella **prima**
+  stagione, non «fra la prima e la terza» come il progetto prevedeva.
+
+### E il RITORNO è più lento di quanto il progetto dicesse
+
+Il piano diceva «δ si dimezza in diciotto giornate». Vero solo dove la
+saturazione è quasi lineare. Misurato: con cinque gesti leggeri dopo una mezza
+vita resta il **54%**; con venti gesti pieni resta l'**86%**. *Chi è stato
+curato molto non torna indietro in tre settimane* — detta così è anche più
+vera, ma andava saputa.
+
+### Come si verifica
+
+```
+Godot --headless --path . --script res://tests/test_runner.gd
+CHIBI_GIORNI=3 Godot --headless --path . --script res://tools/misura_deriva_vera.gd
+```
+
+Il banco ha **tre numeri di arresto dichiarati prima di misurare**: nessun
+tratto al muro, la dispersione che non scende, e il flusso che non è uniforme.
+Se uno esce storto, **il piano è sbagliato e va detto, non tarato** — e in
+particolare *non si abbassa `SAZIETA`*: abbassarla fa saturare tutti e cancella
+proprio la varietà.
+
+**Le guardie sono state falsificate una per una, ventidue mutazioni.** E
+**sette erano mute alla prima stesura**, tutte della stessa famiglia — un caso
+che passa perché un altro cancello lo copre:
+
+- il caso del TESTO ha avuto bisogno di **tre** stesure: la prima confrontava
+  due chibi qualunque (se la codardia non sta vicino alla soglia la frase non
+  cambia in nessuno dei due casi); la seconda dava al termine di paragone gli
+  stessi ricordi, e allora **derivava anche lui**. La forma che funziona ha
+  **tre corpi** e rende la soglia osservabile. E il fixture deve avere
+  qualcosa di cui lamentarsi, o `sfogo_rimandato` esce alla prima riga;
+- il caso del carburante aveva **due cancelli in gioco insieme** (il tipo e
+  l'attore) e ognuno mascherava la mutazione dell'altro;
+- la recenza era coperta solo sulle righe vive e **non sul sommario**, che è
+  la metà che sopravvive nei villaggi pieni di vita;
+- e il **colore** non era sorvegliato affatto: la mutazione che scollega la
+  deriva dal suo unico consumatore lasciava la suite verde.
+
+⚠️ **UNA GUARDIA RESTA DICHIARATA COME NON FALSIFICABILE**, e sta scritta nel
+sorgente: la riga di `Affetti._lealta_di` che legge la **base**. La lealtà non
+deriva ancora, quindi `tratto` e `tratto_base` danno lo stesso numero e la
+mutazione che le scambia lascia la suite verde. La riga è giusta lo stesso e
+va scritta adesso — ma **chi cablerà la lealtà deve rendere rossa quella
+mutazione prima di consegnare**.
+
 ## Test
 
 Test-suite **dependency-free** (nessun addon, nessuna rete) in `tests/`:
