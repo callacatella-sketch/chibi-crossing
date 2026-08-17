@@ -55,6 +55,10 @@ var _strato_alba: Node2D    # lo sbiadimento del nuovo giorno (blend SUB)
 var _camminatori: Array = []
 var _orme: Array = []       # orme da dipingere al prossimo flush: [Vector2 px, peso]
 var _init_da_fare := true
+## Quante volte ancora il fondo (nero + memoria) va ridipinto: vedi
+## _disegna_init. Il target non si cancella mai, e un fondo perso non
+## torna piu'.
+var _base_giri := 3
 var _alba_da_fare := 0.0
 var _sporca := false        # la tela ha orme non ancora salvate
 
@@ -87,7 +91,16 @@ func _fai_tela() -> void:
 	_vp.transparent_bg = false
 	# la tela NON si cancella mai: è la memoria. Si dipinge solo quando
 	# c'è qualcosa di nuovo (UPDATE_ONCE al flush, mai a vuoto).
-	_vp.render_target_clear_mode = SubViewport.CLEAR_MODE_NEVER
+	#
+	# MA LA PRIMA VOLTA SI CANCELLA, ed è la correzione che vale tutto il
+	# terreno: con CLEAR_MODE_NEVER fin dall'inizio, il render target parte
+	# dalla memoria GPU NON INIZIALIZZATA — bianca, su Metal — e il fondo
+	# nero disegnato dal Node2D non basta se quel primo disegno non viene
+	# renderizzato. Bianco vuol dire «consumato al massimo»: il villaggio
+	# intero, tutti i 44x44 metri, reso come TERRA BATTUTA. Misurato a
+	# runtime: la tela leggeva min 1.000, max 1.000, e il prato era un
+	# piazzale. Una pulizia esplicita, e poi la memoria riprende.
+	_vp.render_target_clear_mode = SubViewport.CLEAR_MODE_ONCE
 	_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	add_child(_vp)
 
@@ -113,8 +126,19 @@ func _fai_tela() -> void:
 	_strato_alba.draw.connect(_disegna_alba)
 	_vp.add_child(_strato_alba)
 
-	# il primo flush: fondo nero + la memoria salvata, se c'è
+	# il primo flush: fondo nero + la memoria salvata, se c'è. E altri due
+	# nei frame seguenti, quando il viewport ha davvero renderizzato: e'
+	# la rete di sicurezza contro il target mai disegnato.
 	_flush()
+	(func() -> void:
+		await get_tree().process_frame
+		_flush()
+		await get_tree().process_frame
+		# la pulizia è servita: da qui in poi la tela è di nuovo la
+		# memoria che non si cancella mai
+		_vp.render_target_clear_mode = SubViewport.CLEAR_MODE_NEVER
+		_flush()
+	).call()
 
 
 func _fai_pennello() -> GradientTexture2D:
@@ -154,8 +178,18 @@ func _flush() -> void:
 
 
 func _disegna_init() -> void:
-	if not _init_da_fare:
+	# IL FONDO SI DIPINGE PIU' VOLTE, NON UNA SOLA. Il render target ha
+	# CLEAR_MODE_NEVER: se il PRIMO render non avviene — e all'avvio non
+	# avviene, il viewport non e' ancora pronto — il fondo nero non viene
+	# scritto MAI PIU', e la tela resta la memoria GPU non inizializzata,
+	# che su Metal e' BIANCA. Bianca vuol dire «consumato al massimo»:
+	# tutto il villaggio, tutti i 44x44 metri, reso come terra battuta.
+	# MISURATO a runtime prima della correzione: min 1.000, max 1.000.
+	# Tre giri di sicurezza costano tre disegni all'avvio, quando nessuno
+	# ha ancora fatto un passo: nessuna orma si perde.
+	if _base_giri <= 0:
 		return
+	_base_giri -= 1
 	_init_da_fare = false
 	# il fondo nero esplicito: senza, il primo clear userebbe il colore di
 	# sfondo del progetto (crema) = mondo interamente consumato
@@ -163,7 +197,11 @@ func _disegna_init() -> void:
 	# la memoria della partita scorsa, se esiste
 	if FileAccess.file_exists(FILE_MEMORIA):
 		var img := Image.load_from_file(FILE_MEMORIA)
-		if img != null and not img.is_empty():
+		# e non ci si fida nemmeno di quella gia' scritta: una tela satura
+		# renderebbe il villaggio intero come terra battuta, con un bordo
+		# a squadra in mezzo al prato. Meglio ricominciare a consumare
+		# l'erba da capo che aprire il gioco su un piazzale.
+		if img != null and not img.is_empty() and not _degenere(img):
 			var tex := ImageTexture.create_from_image(img)
 			_strato_init.draw_texture_rect(tex,
 					Rect2(0, 0, RISOLUZIONE, RISOLUZIONE), false)
@@ -323,8 +361,36 @@ func salva() -> void:
 	if img == null or img.is_empty():
 		return
 	img.convert(Image.FORMAT_L8)
+	# UNA TELA SATURA NON E' UNA MEMORIA, E' UN ERRORE. Il render target ha
+	# CLEAR_MODE_NEVER: se nessun frame l'ha ancora disegnato — succede a
+	# ogni strumento che apre il MainLevel con la finestra e chiude dopo
+	# pochi frame, e i provini di questo progetto sono decine — get_image()
+	# torna memoria GPU non inizializzata, che su Metal e' BIANCA. Scritta
+	# su disco, quella diventa «tutto il villaggio e' terra battuta» per
+	# sempre: e' esattamente cosa e' successo al salvataggio dell'autore,
+	# misurato (512x512, min 255, max 255, media 255.0).
+	if _degenere(img):
+		push_warning("Sentieri: tela degenere, memoria NON sovrascritta")
+		return
 	if img.save_png(FILE_MEMORIA) == OK:
 		_sporca = false
+
+
+## Una tela e' degenere quando non ha nessuna informazione: tutta uguale.
+## Vale per il bianco (target mai disegnato) e per il nero pieno, che non
+## si distingue da una tela vergine e non vale la pena riscrivere.
+static func _degenere(img: Image) -> bool:
+	var minimo := 255
+	var massimo := 0
+	# un campionamento a griglia: 32x32 letture bastano a dire se c'e'
+	# informazione, e non costano il milione di pixel
+	for iy in 32:
+		for ix in 32:
+			var v := int(img.get_pixel(ix * img.get_width() / 32,
+					iy * img.get_height() / 32).r * 255.0)
+			minimo = mini(minimo, v)
+			massimo = maxi(massimo, v)
+	return massimo - minimo <= 2 and massimo >= 250
 
 
 func _exit_tree() -> void:

@@ -46,6 +46,15 @@ uniform vec2 sentieri_origin = vec2(-22.0, -26.0);
 uniform vec2 sentieri_size = vec2(44.0, 44.0);
 uniform vec4 terra_battuta : source_color = vec4(0.63, 0.53, 0.37, 1.0);
 uniform vec4 terra_orlo : source_color = vec4(0.47, 0.39, 0.28, 1.0);
+// LE CAMPITURE DEL MANTO. Un prato vero non e' un verde: e' l'erba corta
+// dei passaggi, il secco dei dossi al sole, il muschio delle conche e del
+// bordo d'ombra, la ghiaia della riva, la roccia che affiora. Sono i
+// MOTIVI per cui il suolo cambia colore da un metro all'altro — senza,
+// qualunque quantita' di rumore resta «una distesa verde».
+uniform vec4 erba_secca : source_color = vec4(0.72, 0.71, 0.44, 1.0);
+uniform vec4 muschio : source_color = vec4(0.32, 0.48, 0.30, 1.0);
+uniform vec4 ghiaia : source_color = vec4(0.74, 0.71, 0.62, 1.0);
+uniform vec4 roccia : source_color = vec4(0.60, 0.58, 0.55, 1.0);
 
 varying vec3 wpos;
 varying float v_hill;
@@ -65,6 +74,29 @@ float vnoise(vec2 p) {
 
 float fbm(vec2 p) {
 	return vnoise(p) * 0.6 + vnoise(p * 2.7 + 13.0) * 0.4;
+}
+
+// IL RILIEVO DIPINTO. Non alza un solo vertice — la quota di gioco resta
+// esattamente zero, e il collider e' e resta piatto — ma da' al manto una
+// quota FINTA da cui nascono tre cose vere: la normale (quindi la luce),
+// l'ombra delle conche, e la ragione per cui l'erba e' secca sui dossi e
+// muschiosa nelle conche. La derivata e' analitica: due fbm a bassa
+// frequenza, gradiente per differenze centrali sullo STESSO campo.
+float quota_dipinta(vec2 p) {
+	return fbm(p * 0.075) * 0.62 + fbm(p * 0.21 + 19.0) * 0.20;
+}
+
+vec3 rilievo(vec2 p, out float h) {
+	// passo di 35 cm: sopra Nyquist del quad (1,49 m) e sotto la scala
+	// del campo, cosi' la normale non sfarfalla e non si sfaccetta
+	const float e = 0.35;
+	h = quota_dipinta(p);
+	float hx = quota_dipinta(p + vec2(e, 0.0)) - quota_dipinta(p - vec2(e, 0.0));
+	float hz = quota_dipinta(p + vec2(0.0, e)) - quota_dipinta(p - vec2(0.0, e));
+	// la normale in spazio MONDO (si converte una volta sola, alla fine:
+	// in fragment() NORMAL e' in spazio VISTA, e sommarci uno scostamento
+	// calcolato in XZ-mondo da un'illuminazione che ruota con la camera)
+	return normalize(vec3(-hx / (2.0 * e), 1.0, -hz / (2.0 * e)));
 }
 
 float fbm3(vec2 p) {
@@ -104,11 +136,37 @@ void fragment() {
 	float micro = fbm(rot * wpos.xz * 0.85 + 31.0);
 	float streak = vnoise(vec2(wpos.x * 0.4 + wpos.z * 0.07, wpos.z * 0.06));
 
+	// quanto siamo vicini: il dettaglio fine si accende solo dove l'occhio
+	// puo' vederlo, e si spegne prima di diventare sfarfallio
+	float dist = length(VERTEX);
+	float vicino = 1.0 - smoothstep(14.0, 30.0, dist);
+
+	// IL RILIEVO DIPINTO: quota finta, normale vera
+	float h_ril;
+	vec3 n_mondo = rilievo(wpos.xz, h_ril);
+
 	// tre scale di verde: le stagioni del prato in un colpo d'occhio
 	vec3 col = mix(grass_a.rgb, grass_b.rgb, smoothstep(0.22, 0.88, macro));
 	col = mix(col, grass_c.rgb, smoothstep(0.55, 0.85, meso) * 0.30);
 	col = mix(col, grass_b.rgb * 0.93, smoothstep(0.60, 0.88, micro) * 0.28);
 	col *= 1.0 - 0.05 * smoothstep(0.5, 0.9, streak);
+
+	// L'OMBRA DELLE CONCHE: dove il terreno dipinto affonda, la luce
+	// arriva meno. E' l'unica ombra di forma che il manto abbia mai avuto,
+	// e da sola toglie l'aria di tavolo da biliardo.
+	col *= 0.82 + 0.28 * smoothstep(0.18, 0.62, h_ril);
+
+	// L'ERBA SECCA sui dossi al sole: il giallo di paglia arriva dove il
+	// terreno si alza ed e' esposto, e si spegne nelle conche
+	float secco = smoothstep(0.52, 0.86, h_ril * 0.75 + macro * 0.45)
+			* (1.0 - smoothstep(0.35, 0.9, v_river));
+	col = mix(col, erba_secca.rgb, secco * 0.42);
+
+	// IL MUSCHIO nelle conche e all'ombra del bosco: verde cupo e umido,
+	// dove l'acqua si ferma e il sole non asciuga
+	float umido = (1.0 - smoothstep(0.10, 0.46, h_ril))
+			* smoothstep(0.25, 0.75, meso);
+	col = mix(col, muschio.rgb, umido * 0.45);
 
 	// il bioma foresta sfuma dentro il prato con un bordo irregolare
 	float fmask = smoothstep(14.0, 22.0, -wpos.z + (vnoise(wpos.xz * 0.12) - 0.5) * 9.0);
@@ -124,6 +182,14 @@ void fragment() {
 
 	// le sponde del fiume: una battigia sabbiosa STRETTA (l'erba arriva
 	// quasi all'acqua), poi il fondo bruno punteggiato di sassolini
+	// LA RIVA non e' una riga: e' un degradare. L'erba si dirada, entra la
+	// ghiaia asciutta, poi la sabbia bagnata, poi il fondo. Il bordo e'
+	// sfrangiato dal rumore, mai una curva pulita.
+	float riva = smoothstep(0.06, 0.42, v_river + (fbm(wpos.xz * 0.9) - 0.5) * 0.16);
+	col = mix(col, ghiaia.rgb, riva * 0.55);
+	// i ciottoli della battigia, solo da vicino
+	float ciot = smoothstep(0.62, 0.86, fbm3(wpos.xz * 4.2)) * riva * vicino;
+	col = mix(col, ghiaia.rgb * 0.78, ciot * 0.5);
 	float bankm = smoothstep(0.28, 0.62, v_river);
 	col = mix(col, vec3(0.74, 0.66, 0.48), bankm * 0.7);
 	col = mix(col, vec3(0.33, 0.36, 0.31), smoothstep(0.5, 1.05, v_river));
@@ -142,7 +208,17 @@ void fragment() {
 	vec2 suv = (wpos.xz - sentieri_origin) / sentieri_size;
 	float dentro = step(0.0, suv.x) * step(suv.x, 1.0)
 			* step(0.0, suv.y) * step(suv.y, 1.0);
-	float usura = texture(sentieri_tex, suv).r * dentro
+	// LA TELA VALE SOLO SE E' UNA MEMORIA. Il terreno campiona una
+	// ViewportTexture: se quel viewport non ha mai renderizzato — o non
+	// esiste piu' — Godot restituisce BIANCO, e bianco vuol dire
+	// «consumato al massimo»: tutti i 44x44 metri resi come terra
+	// battuta, con un bordo a squadra in mezzo al prato. E' successo, ed
+	// e' MISURATO (la tela leggeva 1.000 ovunque). Un angolo della tela
+	// non e' mai un sentiero: se e' consumato pure lui, non e' usura, e'
+	// una texture non valida — e il prato torna prato.
+	float spia = texture(sentieri_tex, vec2(0.015, 0.015)).r;
+	float tela_valida = 1.0 - smoothstep(0.55, 0.85, spia);
+	float usura = texture(sentieri_tex, suv).r * dentro * tela_valida
 			* (1.0 - smoothstep(0.25, 0.6, v_river));
 	float sgrana = fbm3(rot * wpos.xz * 1.7 + 47.0) - 0.5;
 	float calpestio = smoothstep(0.10, 0.45, usura + sgrana * 0.18);
@@ -240,11 +316,19 @@ void fragment() {
 			float rdst = length(fract(rp) - 0.5 - roff);
 			float anello = smoothstep(0.055, 0.0, abs(rdst - rph * 0.42))
 					* (1.0 - rph) * pioggia_cade;
-			NORMAL = normalize(NORMAL + vec3((w1 - 0.5) * 0.10 + anello * 0.30, 0.0,
-					(w2 - 0.5) * 0.10 - anello * 0.25) * pozza);
+			// L'INCRESPATURA SI COMPONE IN SPAZIO MONDO. Sommarla a NORMAL
+			// (che in fragment() e' in spazio VISTA) usando scostamenti
+			// calcolati in XZ-mondo da' un'illuminazione che RUOTA CON LA
+			// CAMERA: funziona come vibrazione e si smaschera girandoci
+			// attorno. Qui si accumula sulla normale del mondo, e si
+			// converte una volta sola, in fondo.
+			n_mondo = normalize(n_mondo + vec3(
+					(w1 - 0.5) * 0.30 + anello * 0.9, 0.0,
+					(w2 - 0.5) * 0.30 - anello * 0.75) * pozza);
 			// il cielo dentro l'acqua: all'incidenza radente lo specchio
 			// vince (fresnel), a piombo si vede il fondo scuro del manto
-			float fresp = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 2.0);
+			vec3 n_v = normalize((VIEW_MATRIX * vec4(n_mondo, 0.0)).xyz);
+			float fresp = pow(1.0 - clamp(dot(n_v, VIEW), 0.0, 1.0), 2.0);
 			vec3 cielo = mix(cielo_orizzonte.rgb, cielo_alto.rgb, 0.25 + 0.5 * fresp);
 			col = mix(col, mix(col * 0.45, cielo, 0.38 + 0.45 * fresp), pozza);
 			// gli anelli si leggono anche come luce, non solo come rilievo
@@ -252,7 +336,45 @@ void fragment() {
 		}
 	}
 
+	// LA GRANA FINE, sotto il mezzo metro: e' quella che mancava del tutto
+	// (il dettaglio piu' fine del manto stava a 44 cm, ed e' la misura
+	// esatta della «distesa verde»). Si accende solo da vicino, cosi' non
+	// diventa sfarfallio a distanza.
+	if (vicino > 0.002) {
+		float grana = fbm3(wpos.xz * 11.0);
+		float fili = smoothstep(0.58, 0.92, fbm(rot * wpos.xz * 23.0 + 3.0));
+		col *= 1.0 - (0.10 * (grana - 0.5) + 0.05 * fili) * vicino * (1.0 - pozza);
+	}
+
+	// LA NORMALE DEL MANTO, convertita UNA volta sola dal mondo alla vista
+	NORMAL = normalize((VIEW_MATRIX * vec4(n_mondo, 0.0)).xyz);
+
 	ALBEDO = col;
 	ROUGHNESS = mix(1.0 - 0.4 * wetness, 0.045, pozza);
 	SPECULAR = mix(0.05 + 0.3 * wetness, 0.75, pozza);
+}
+
+
+// IL PRATO ENTRA NELLA STESSA LUCE DI TUTTO IL RESTO DEL MONDO. Era
+// l'unica superficie del gioco senza un light() proprio: usava il
+// diffuse_toon di serie, mentre chibi, case, chiome e mobili passano
+// tutti dalla stessa banda cel di handpaint/toon. Il risultato era che
+// il terminatore del prato non combaciava con quello di NESSUNO — ed e'
+// esattamente la ragione per cui Mochi sembra un adesivo appoggiato su
+// un tappeto invece di stare in piedi su un prato.
+void light() {
+	vec3 n = normalize(NORMAL);
+	vec3 l = normalize(LIGHT);
+	vec3 v = normalize(VIEW);
+	// la STESSA banda di handpaint.gdshader: stessi estremi, stesso
+	// morbido. E' una fonte unica travestita da numero.
+	float lit = smoothstep(0.03, 0.42, dot(n, l) * ATTENUATION);
+	DIFFUSE_LIGHT += ALBEDO * LIGHT_COLOR / PI * lit;
+
+	// il rim direzionale, tenue: sul suolo serve solo a far cantare i
+	// dossi controluce all'alba e al tramonto, non a disegnare un bordo
+	float fres = pow(1.0 - clamp(dot(n, v), 0.0, 1.0), 4.0);
+	float side = smoothstep(-0.10, 0.60, dot(n, l));
+	DIFFUSE_LIGHT += ALBEDO * LIGHT_COLOR * fres * side * 0.22
+			* clamp(ATTENUATION, 0.0, 1.0);
 }

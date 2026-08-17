@@ -154,6 +154,10 @@ func _process(delta: float) -> void:
 	# nebbia. Si arriva sempre per gradi: un vento che scatta si vede.
 	_vento = lerpf(_vento, _vento_target(), 1.0 - exp(-0.5 * delta))
 	RenderingServer.global_shader_parameter_set("vento_forza", _vento)
+	# e le CORDE VIVE lo ricevono per posta invece di chiederlo al
+	# RenderingServer: leggerlo a runtime e' una funzione da editor
+	# (avviso a ogni frame, e torna null — le corde sentivano una costante)
+	get_tree().call_group("corde_vive", "set_vento", _vento)
 
 	# la nebbiolina: mattine d'autunno serene; il sole alto la scioglie
 	var ora := float(_daynight.get("time")) if _daynight else 0.5

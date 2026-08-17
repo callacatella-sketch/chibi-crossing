@@ -56,6 +56,8 @@ var vento_forzato := -1.0
 
 
 func _ready() -> void:
+	# il meteo spedisce qui il vento (set_vento): serve il gruppo
+	add_to_group("corde_vive")
 	# i vicini di MainLevel arrivano dopo: si aggancia in differita, e il
 	# censimento riprova comunque a ogni giro (lezione del Taccuino)
 	(func() -> void:
@@ -202,11 +204,25 @@ func passo(delta: float) -> void:
 		_ridisegna(c3)
 
 
+## LA FORZA DEL VENTO, senza chiedere al RenderingServer.
+## `global_shader_parameter_get` e' una funzione DA EDITOR: a runtime Godot
+## stampa «This function should never be used outside the editor, it can
+## severely damage performance» a OGNI FRAME — migliaia di righe che
+## nascondono gli errori veri in ogni provino — e per giunta torna null,
+## quindi le corde sentivano una costante e non il vento. Il valore lo
+## scrive Weather con set_vento(): qui si legge la copia locale.
+var _vento_locale := 1.0
+
+
+## Il meteo pubblica qui la sua forza del vento (0 = bonaccia).
+func set_vento(f: float) -> void:
+	_vento_locale = maxf(0.0, f)
+
+
 func _forza_vento() -> float:
 	if vento_forzato >= 0.0:
 		return vento_forzato
-	var v: Variant = RenderingServer.global_shader_parameter_get("vento_forza")
-	return float(v) if v != null else 1.0
+	return _vento_locale
 
 
 func _stato_di(nodo: Node) -> Dictionary:
