@@ -8,6 +8,7 @@
 #include "grafo_deduzioni.h"
 #include "grafo_ricordi.h"
 #include "sistema_agenda.h"
+#include "sistema_neurochimica.h"
 #include "sistema_occ.h"
 #include "sistema_piani.h"
 #include "sistema_sonno.h"
@@ -317,6 +318,14 @@ void EcsMondo::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("nome_verbo", "verbo"), &EcsMondo::nome_verbo);
 	ClassDB::bind_method(D_METHOD("nome_cosa", "cosa"), &EcsMondo::nome_cosa);
 
+	// SISTEMA NEUROCHIMICO
+	ClassDB::bind_method(D_METHOD("stimola_neurochimica", "id", "tipo", "quantita"), &EcsMondo::stimola_neurochimica);
+	ClassDB::bind_method(D_METHOD("stimola_neurochimica_vettore", "id", "stimoli"), &EcsMondo::stimola_neurochimica_vettore);
+	ClassDB::bind_method(D_METHOD("neuro_livello", "id", "tipo"), &EcsMondo::neuro_livello);
+	ClassDB::bind_method(D_METHOD("neuro_tutti", "id"), &EcsMondo::neuro_tutti);
+	ClassDB::bind_method(D_METHOD("imposta_ambiente", "temp", "luce", "pioggia"), &EcsMondo::imposta_ambiente);
+	ClassDB::bind_method(D_METHOD("debug_neurochimica", "id"), &EcsMondo::debug_neurochimica);
+
 	// il GDScript non scrive mai 0/1/2 a mano
 	BIND_ENUM_CONSTANT(STATO_SVEGLIO);
 	BIND_ENUM_CONSTANT(STATO_DORME);
@@ -351,6 +360,16 @@ void EcsMondo::_bind_methods() {
 	BIND_ENUM_CONSTANT(R_SENTITO);
 	BIND_ENUM_CONSTANT(R_SU_DI_ME);
 	BIND_ENUM_CONSTANT(R_DETTO);
+
+	// SISTEMA NEUROCHIMICO: i 7 canali
+	BIND_ENUM_CONSTANT(NT_DOPAMINA);
+	BIND_ENUM_CONSTANT(NT_OSSITOCINA);
+	BIND_ENUM_CONSTANT(NT_SEROTONINA);
+	BIND_ENUM_CONSTANT(NT_CORTISOLO);
+	BIND_ENUM_CONSTANT(NT_MELATONINA);
+	BIND_ENUM_CONSTANT(NT_ADENOSINA);
+	BIND_ENUM_CONSTANT(NT_ENDORFINE);
+	BIND_ENUM_CONSTANT(N_NEURO);
 }
 
 int EcsMondo::maschera_indole(const PackedStringArray &p_nomi) const {
@@ -402,6 +421,10 @@ int64_t EcsMondo::registra(const PackedStringArray &p_indole, const String &p_qu
 	// FASE 5: nasce vuoto insieme agli altri, e per chi non ha il modello
 	// resta vuoto per l'intera partita. Vedi `DeduzioniComponent`.
 	_reg->reg.emplace<chibi::DeduzioniComponent>(e);
+	// SISTEMA NEUROCHIMICO: inizializzato con baseline adatte per indole
+	chibi::ComponenteNeurochimica neuro;
+	chibi::inizializza_neurochimica_indole(neuro, dna.indole);
+	_reg->reg.emplace<chibi::ComponenteNeurochimica>(e, neuro);
 	// NIENTE TransformComponent: vedi ecs_componenti.h
 	return a_handle(e);
 }
@@ -412,6 +435,10 @@ void EcsMondo::riproietta(int64_t p_id, const PackedStringArray &p_indole, const
 	chibi::DnaComponent &dna = _reg->reg.get<chibi::DnaComponent>(da_handle(p_id));
 	dna.indole = static_cast<uint32_t>(maschera_indole(p_indole));
 	dna.quirk = indice_quirk(p_quirk);
+	if (_reg->reg.all_of<chibi::ComponenteNeurochimica>(da_handle(p_id))) {
+		chibi::ComponenteNeurochimica &neuro = _reg->reg.get<chibi::ComponenteNeurochimica>(da_handle(p_id));
+		chibi::inizializza_neurochimica_indole(neuro, dna.indole);
+	}
 }
 
 bool EcsMondo::conosce(int64_t p_id) const {
@@ -459,6 +486,7 @@ void EcsMondo::riferisci(int64_t p_id, bool p_nascosto, bool p_corpo_libero, boo
 void EcsMondo::avanza(double p_delta, double p_ora) {
 	ERR_FAIL_NULL(_reg);
 	_ultima_ora = p_ora;
+	_ambiente.ora = static_cast<float>(p_ora);
 	// L'OROLOGIO DELLA MEMORIA. Monotono per costruzione: un delta negativo
 	// (un banco di prova che va all'indietro, un frame patologico) non lo fa
 	// tornare indietro. Se potesse, i ricordi ringiovanirebbero e la potatura
@@ -478,6 +506,14 @@ void EcsMondo::avanza(double p_delta, double p_ora) {
 			st.stato = nuovo;
 			st.da = 0.0;
 		}
+	}
+
+	// SISTEMA NEUROCHIMICO: eseguito su tutte le entita prima dell'agenda
+	auto neuro_vista = _reg->reg.view<chibi::ComponenteNeurochimica, chibi::StatoComponent>();
+	for (const entt::entity e : neuro_vista) {
+		chibi::ComponenteNeurochimica &nc = neuro_vista.get<chibi::ComponenteNeurochimica>(e);
+		const chibi::StatoComponent &st = neuro_vista.get<chibi::StatoComponent>(e);
+		chibi::passo_neurochimico_batch(&nc, &st, 1, static_cast<float>(p_delta), _ambiente);
 	}
 
 	// LA SECONDA VISTA: l'agenda, e gira DOPO il sonno apposta. Deve vedere
@@ -1706,5 +1742,105 @@ Dictionary EcsMondo::debug_deduzioni_costanti() const {
 	d["d_ricevuta"] = static_cast<int>(chibi::D_RICEVUTA);
 	d["d_spesa"] = static_cast<int>(chibi::D_SPESA);
 	d["maschera_provvedimenti"] = static_cast<int64_t>(chibi::MASCHERA_PROVVEDIMENTI);
+	return d;
+}
+
+// --- SISTEMA NEUROCHIMICO -------------------------------------------
+
+void EcsMondo::stimola_neurochimica(int64_t p_id, int p_tipo, double p_quantita) {
+	ERR_FAIL_NULL(_reg);
+	ERR_FAIL_COND_MSG(!conosce(p_id), "EcsMondo.stimola_neurochimica: handle sconosciuto.");
+	ERR_FAIL_COND_MSG(p_tipo < 0 || p_tipo >= chibi::N_NEURO, "EcsMondo.stimola_neurochimica: tipo non valido.");
+	chibi::ComponenteNeurochimica &neuro = _reg->reg.get<chibi::ComponenteNeurochimica>(da_handle(p_id));
+	neuro.impulsi[p_tipo] += static_cast<float>(p_quantita);
+}
+
+void EcsMondo::stimola_neurochimica_vettore(int64_t p_id, const PackedFloat64Array &p_stimoli) {
+	ERR_FAIL_NULL(_reg);
+	ERR_FAIL_COND_MSG(!conosce(p_id), "EcsMondo.stimola_neurochimica_vettore: handle sconosciuto.");
+	chibi::ComponenteNeurochimica &neuro = _reg->reg.get<chibi::ComponenteNeurochimica>(da_handle(p_id));
+	const int n = (p_stimoli.size() < chibi::N_NEURO) ? static_cast<int>(p_stimoli.size()) : chibi::N_NEURO;
+	for (int i = 0; i < n; i++) {
+		neuro.impulsi[i] += static_cast<float>(p_stimoli[i]);
+	}
+}
+
+double EcsMondo::neuro_livello(int64_t p_id, int p_tipo) const {
+	ERR_FAIL_NULL_V(_reg, 0.0);
+	ERR_FAIL_COND_V_MSG(!conosce(p_id), 0.0, "EcsMondo.neuro_livello: handle sconosciuto.");
+	ERR_FAIL_COND_V_MSG(p_tipo < 0 || p_tipo >= chibi::N_NEURO, 0.0, "EcsMondo.neuro_livello: tipo non valido.");
+	const chibi::ComponenteNeurochimica &neuro = _reg->reg.get<chibi::ComponenteNeurochimica>(da_handle(p_id));
+	return static_cast<double>(neuro.livello[p_tipo]);
+}
+
+PackedFloat64Array EcsMondo::neuro_tutti(int64_t p_id) const {
+	PackedFloat64Array out;
+	ERR_FAIL_NULL_V(_reg, out);
+	ERR_FAIL_COND_V_MSG(!conosce(p_id), out, "EcsMondo.neuro_tutti: handle sconosciuto.");
+	const chibi::ComponenteNeurochimica &neuro = _reg->reg.get<chibi::ComponenteNeurochimica>(da_handle(p_id));
+	out.resize(chibi::N_NEURO);
+	for (int i = 0; i < chibi::N_NEURO; i++) {
+		out[i] = static_cast<double>(neuro.livello[i]);
+	}
+	return out;
+}
+
+void EcsMondo::imposta_ambiente(double p_temp, double p_luce, double p_pioggia) {
+	_ambiente.temperatura = static_cast<float>(p_temp);
+	_ambiente.luce = static_cast<float>(p_luce);
+	_ambiente.pioggia = static_cast<float>(p_pioggia);
+}
+
+Dictionary EcsMondo::debug_neurochimica(int64_t p_id) const {
+	Dictionary d;
+	ERR_FAIL_NULL_V(_reg, d);
+	ERR_FAIL_COND_V_MSG(!conosce(p_id), d, "EcsMondo.debug_neurochimica: handle sconosciuto.");
+	const chibi::ComponenteNeurochimica &neuro = _reg->reg.get<chibi::ComponenteNeurochimica>(da_handle(p_id));
+
+	PackedFloat64Array livelli;
+	PackedFloat64Array baselines;
+	PackedFloat64Array decadimenti;
+	PackedFloat64Array produzioni;
+	PackedFloat64Array impulsi;
+	PackedFloat64Array suscettibilita;
+
+	livelli.resize(chibi::N_NEURO);
+	baselines.resize(chibi::N_NEURO);
+	decadimenti.resize(chibi::N_NEURO);
+	produzioni.resize(chibi::N_NEURO);
+	impulsi.resize(chibi::N_NEURO);
+	suscettibilita.resize(chibi::N_NEURO);
+
+	for (int i = 0; i < chibi::N_NEURO; i++) {
+		livelli[i] = static_cast<double>(neuro.livello[i]);
+		baselines[i] = static_cast<double>(neuro.baseline[i]);
+		decadimenti[i] = static_cast<double>(neuro.decadimento[i]);
+		produzioni[i] = static_cast<double>(neuro.produzione[i]);
+		impulsi[i] = static_cast<double>(neuro.impulsi[i]);
+		suscettibilita[i] = static_cast<double>(neuro.suscettibilita[i]);
+	}
+
+	d["livello"] = livelli;
+	d["baseline"] = baselines;
+	d["decadimento"] = decadimenti;
+	d["produzione"] = produzioni;
+	d["impulsi"] = impulsi;
+	d["suscettibilita"] = suscettibilita;
+
+	d["dopamina"] = static_cast<double>(neuro.livello[chibi::NT_DOPAMINA]);
+	d["ossitocina"] = static_cast<double>(neuro.livello[chibi::NT_OSSITOCINA]);
+	d["serotonina"] = static_cast<double>(neuro.livello[chibi::NT_SEROTONINA]);
+	d["cortisolo"] = static_cast<double>(neuro.livello[chibi::NT_CORTISOLO]);
+	d["melatonina"] = static_cast<double>(neuro.livello[chibi::NT_MELATONINA]);
+	d["adenosina"] = static_cast<double>(neuro.livello[chibi::NT_ADENOSINA]);
+	d["endorfine"] = static_cast<double>(neuro.livello[chibi::NT_ENDORFINE]);
+
+	Dictionary amb;
+	amb["temperatura"] = static_cast<double>(_ambiente.temperatura);
+	amb["luce"] = static_cast<double>(_ambiente.luce);
+	amb["pioggia"] = static_cast<double>(_ambiente.pioggia);
+	amb["ora"] = static_cast<double>(_ambiente.ora);
+	d["ambiente"] = amb;
+
 	return d;
 }

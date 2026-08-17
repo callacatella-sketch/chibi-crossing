@@ -7,6 +7,7 @@
 
 #include "grafo_deduzioni.h" // FASE 5: Deduzioni
 #include "grafo_ricordi.h"   // FASE 4: GrafoRicordi
+#include "sistema_neurochimica.h" // Sistema Neurochimico (7 canali)
 #include "sistema_occ.h"     // FASE 4: Gusto (e, per suo tramite, N_AZIONI)
 
 namespace chibi {
@@ -219,6 +220,26 @@ static_assert(N_AZIONI == 8, "otto azioni, otto 1.0 letterali");
 struct DeduzioniComponent {
 	Deduzioni d;
 };
+
+// ======================================================================
+// IL SISTEMA NEUROCHIMICO — POD a 7 canali
+//
+// Mantiene lo stato neurochimico dell'abitante (dopamina, ossitocina,
+// serotonina, cortisolo, melatonina, adenosina, endorfine).
+//
+// L'allineamento a 32 byte (alignas(32)) garantisce un layout SIMD 256-bit
+// ottimale e cache-friendly in memoria EnTT contigua.
+// ======================================================================
+struct alignas(32) ComponenteNeurochimica {
+	float livello[N_NEURO] = { 0.5f, 0.5f, 0.5f, 0.2f, 0.1f, 0.2f, 0.3f };
+	float baseline[N_NEURO] = { 0.5f, 0.5f, 0.5f, 0.2f, 0.1f, 0.2f, 0.3f };
+	float decadimento[N_NEURO] = { 0.05f, 0.05f, 0.02f, 0.08f, 0.10f, 0.04f, 0.06f };
+	float produzione[N_NEURO] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+	float impulsi[N_NEURO] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+	float suscettibilita[N_NEURO] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
+};
+
+static_assert(N_NEURO == 7, "sette canali neurochimici");
 
 } // namespace chibi
 

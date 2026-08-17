@@ -21,6 +21,8 @@ func run(t) -> void:
 	_test_umore_lente(t)
 	_test_goccia_che_trabocca(t)
 	_test_carattere_cambia_il_corpo(t)
+	_test_neurochimica(t)
+	_test_consolida_sonno(t)
 	_test_salvataggio(t)
 
 
@@ -176,6 +178,43 @@ func _test_carattere_cambia_il_corpo(t) -> void:
 			"chi ha ambizione si abitua prima a quello che riceve")
 
 
+func _test_neurochimica(t) -> void:
+	var l = _nuovo()
+	t.ok(l.livello_neuro("dopamina") > 0.0, "ha baseline di dopamina")
+	t.ok(l.livello_neuro("serotonina") > 0.0, "ha baseline di serotonina")
+	t.almost(l.livello_neuro("cortisolo"), 0.08, "cortisolo a baseline fisiologica", 0.04)
+
+	# Stimolo neurochimico
+	var pre_dop: float = l.livello_neuro("dopamina")
+	l.stimola_neuro("dopamina", 0.25)
+	t.almost(l.livello_neuro("dopamina"), minf(1.0, pre_dop + 0.25), "stimola_neuro incrementa la dopamina")
+
+	# Cortisolo aumenta il costo di trattenersi
+	var l_calmo = _nuovo()
+	var l_stress = _nuovo()
+	l_stress.stimola_neuro("cortisolo", 0.70)
+	l_calmo.regolazione = 0.30
+	l_stress.regolazione = 0.30
+	var ok_calmo: bool = l_calmo.trattieni(0.25)
+	var ok_stress: bool = l_stress.trattieni(0.25)
+	t.ok(ok_calmo, "il calmo riesce a trattenersi con poca regolazione")
+	t.ok(not ok_stress, "sotto cortisolo elevato il morso costa di più e fallisce")
+
+
+func _test_consolida_sonno(t) -> void:
+	var l = _nuovo()
+	l.stimola_neuro("adenosina", 0.85)
+	l.stimola_neuro("cortisolo", 0.60)
+	l.arousal = 0.80
+	l.regolazione = 0.10
+
+	l.consolida_sonno(true) # notte protetta
+	t.almost(l.livello_neuro("adenosina"), 0.0, "NREM azzera l'adenosina", 0.001)
+	t.ok(l.livello_neuro("cortisolo") < 0.20, "NREM drena il cortisolo verso baseline")
+	t.ok(l.regolazione > 0.80, "NREM ricarica la capacità di regolazione")
+	t.ok(l.arousal < 0.50, "REM calma l'arousal somatico")
+
+
 func _test_salvataggio(t) -> void:
 	var l = _nuovo({"codardia": 0.7})
 	for i in 3:
@@ -192,3 +231,6 @@ func _test_salvataggio(t) -> void:
 	t.eq(l2.evita("pozzo"), l.evita("pozzo"), "e le paure apprese")
 	t.almost(float(l2.attese["regalo|giocatore"]), float(l.attese["regalo|giocatore"]),
 			"e le attese: ricaricando, non si ricomincia a stupirsi di tutto")
+	t.almost(l2.livello_neuro("dopamina"), l.livello_neuro("dopamina"),
+			"e i livelli neurochimici sopravvivono al salvataggio")
+

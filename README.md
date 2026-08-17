@@ -1,545 +1,193 @@
-# Chibi Crossing
+# Chibi Crossing 🐾🌸
 
-Un life-sim *cozy* alla Animal Crossing con protagonista **Mochi**, una
-gattina chibi. Tutto è morbido, pastello e "dipinto a mano". (C'è anche
-un lato horror, per ora dormiente — vedi in fondo.)
+Un life-sim *cozy* psicologico e sistemico con protagonista **Mochi**, una gattina chibi. Tutto è morbido, pastello e "dipinto a mano" — ma sotto la superficie pulsa un'architettura tecnologica e di intelligenza artificiale all'avanguardia nell'industria videoludica. (C'è anche un lato horror, per ora dormiente — vedi in fondo.)
 
-**Motore:** Godot 4.7 (Forward+, D3D12, Jolt Physics) con gameplay core in
-C++ via GDExtension. Tutta l'arte è procedurale: zero asset esterni.
+**Motore:** Godot 4.7 (Forward+, D3D12/Metal, Jolt Physics) con gameplay core in C++ via GDExtension (ECS EnTT, llama.cpp, simulazione ecologica).  
+**Arte e Audio:** 100% Procedurali — **zero texture esterne, zero file audio registrati**.
 
-## Come si gioca
+---
+
+## 🌟 Le Eccellenze Tecniche & Il Cuore AI (Perché è Unico)
+
+Chibi Crossing si distingue da qualsiasi altro simulatore di vita per l'integrazione di sistemi ingegneristici di livello accademico applicati al genere cozy:
+
+### 1. 🧠 Intelligenza Artificiale Generativa Locale (LLM C++ Nativo)
+* **Modello Linguistico Integrato:** Esegue modelli LLM locali in formato GGUF (architettura Llama/Gemma via `llama.cpp` nativo) direttamente dentro la GDExtension C++.
+* **Zero Cloud, 100% Privacy e Offline:** Nessun server esterno, nessuna chiamata API, nessun costo o latenza: le lettere del Gufo, i monologhi interiori e le reazioni dei vicini sono generati localmente sulla macchina del giocatore.
+* **Fallback Invisibile ("Regola della Fase 5"):** Se il modello non è presente o la macchina non lo supporta, il gioco ricade istantaneamente e senza errori sui testi procedurali pre-scritti: il gioco è intero e godibile su qualsiasi hardware.
+
+### 2. ⚡ Architettura ECS in C++ ad Alte Prestazioni (EnTT)
+* **Simulazione Nativa:** Il cuore logico (`src/ecs_mondo.cpp`, `sistema_piani.cpp`, `sistema_agenda.cpp`, `sistema_sonno.cpp`) utilizza un pattern Entity-Component-System basato sulla libreria nativa **EnTT**.
+* **Decine di Abitanti a 60+ FPS:** Gestisce pianificazione, biosfere, navigazione e memorie di decine di entità contemporaneamente con footprint di memoria ridottissimo e zero overhead da garbage collector.
+
+### 3. 🎯 Utility AI Psicologica & Percettrone Explainable (XAI)
+* **L'Animo (`Animo.gd`):** Gli NPC non seguono binari temporali rigidi. Sono guidati da 6 bisogni primari (*fatica, noia, sicurezza, autonomia, appartenenza, stima*) e 5 tratti del carattere (*orgoglio, lealtà, grinta, codardia, ambizione*). Calcolano l'utilità marginale delle azioni e scelgono liberamente cosa fare.
+* **Spiegabilità all'Indietro (`racconta()`):** Il sistema è un'Explainable AI: ogni decisione o scatto di ribellione sa spiegare matematicamente la sua causa (es. *"L'ho fatto perché ero stanco e mi mancava autonomia"*). L'LLM legge questa logica formale per formulare il dialogo.
+* **La Mente del Candidato (Percettrone):** La valutazione delle case costruite per i traslochi usa una rete neurale a singolo strato (Percettrone con funzione di attivazione sigmoidea) che pesa le feature della casa rispetto alla specie e al DNA dell'aspirante abitante.
+
+### 4. 🕸️ Memoria Sociale a Grafo, Deduzioni e Gossip
+* **Libro Mastro degli Affetti (`Affetti.gd`):** Le relazioni non sono barre numeriche 0-100. Ogni gesto (un aiuto, una veglia, un pasto) viene registrato con data e peso. L'amicizia e l'amore sono predicati derivati con curva di decadimento temporale (`mezza_vita = 18 giorni`).
+* **Grafi di Conoscenza (`grafo_ricordi.cpp`, `grafo_deduzioni.cpp`):** I ricordi transitano tra gli abitanti via pettegolezzo; le voci si attenuano e si deformano fisiologicamente nel tempo senza creare fazioni tossiche o giudizi morali.
+
+### 5. 🎭 Il Vocabolario del Corpo (Animazione Espressiva a Distanza)
+* **Sette Gesti Leggibili:** L'interiorità degli NPC è tradotta visivamente attraverso pose fisiche e procedurali ottimizzate per essere leggibili da 2 a 9 metri da ogni angolazione (tra cui *Il Punto* — l'arresto che spicca nel movimento — e *Il Raccolto*).
+* **Zero Falsi Positivi:** Corretta ogni discrepanza emotiva (la coda guardinga scatta solo per paure reali e mai per gioia; la testa affonda nelle spalle per mostrare timore senza perdere il profilo della silhouette).
+
+### 6. 👥 Cricche e Dinamiche di Gruppo Derivate
+* **Nessun Gruppo Forzato:** Il predicato `cricca()` è calcolato matematicamente senza campi salvati o classifiche sociali. Chi ama stare da solo non viene penalizzato.
+* **Chiusura Transitiva dell'Amicizia:** Se A è amico intimo di B e di C, fungerà da "ponte" facendoli conoscere, originando cricche spontanee ed evitando agglomerati artificiali al falò.
+
+### 7. 🦋 Ecosistema Dinamico Emergente (C++)
+* **Manager Demografico (`src/ecosystem_manager.cpp`):** Farfalle e lucciole non sono particelle grafiche casuali, ma popolazioni simulate con capacità portante.
+* **Impollinazione Reale:** Le farfalle visitano i fiori e li impollinano generando nuovi fiori selvatici; le lucciole depongono uova vicino allo specchio d'acqua. Semine e raccolti del giocatore disperdono semi che i passerotti possono mangiare o che possono germogliare: ogni villaggio ha un ecosistema biologico unico.
+
+---
+
+## 🌺 Il Sistema Emozionale "Il Filo Rosso"
+
+Un legame invisibile connette Mochi ai suoi compagni di villaggio ([`docs/SISTEMA_EMOZIONALE.md`](docs/SISTEMA_EMOZIONALE.md)):
+
+* **La Memoria dei Momenti:** Il gioco registra i momenti chiave (il benvenuto sulla soglia, il primo bagno insieme all'Onsen, la tazza di tè condivisa sotto la pioggia).
+* **Invecchiamento Biologico Visibile e Uditivo:** Con il passare dei mesi i vicini invecchiano: il pelo assume sfumature argentee, il passo rallenta (-38%), compare il bastoncino di ciliegio e la **voce Chibiese invecchia organicamente** (frequenze più basse, incrinature di respiro, cadenza lenta).
+* **Il Congedo Gentile (Il Grande Prato):** Nessun personaggio muore o sparisce bruscamente. Dopo una vita piena e una settimana di desideri condivisi, il vicino parte per il "Grande Prato". Sul posto nasce un **fiore unico generato dal suo DNA**, in cielo si accende la sua costellazione, sul Grande Albero viene inciso un anello dorato e il suo accessorio entra nel guardaroba di Mochi.
+* **Lutto Giocato ed Empatia Bidirezionale:** Nel periodo di lutto Mochi cammina a testa bassa; gli altri residenti se ne accorgono, la raggiungono e le si siedono accanto in silenzio per farle compagnia o le portano un piatto caldo.
+* **I Sogni Notturni (`Sogni.gd`):** Durante il sonno, il gioco recupera i ricordi più a rischio di essere dimenticati e li mette in scena in sequenze oniriche mute, rendendoli indelebili per sempre nel cuore del villaggio.
+
+---
+
+## 🎮 Come si gioca
 
 | Input | Azione |
 |---|---|
-| WASD / frecce / stick | cammina |
-| Spazio | corri (consuma stamina, occhi ">.<") |
-| **E** | siediti su sedie/sgabelli/panchine · dormi nel letto · alzati |
-| **B** | modalità costruzione |
-| rotella / 1-9 / tab categorie | scegli il pezzo |
-| R | ruota il pezzo da piazzare |
-| F | ruota un oggetto già piazzato |
-| clic sinistro | piazza (o demolisce, con ✕ Demolisci attivo) |
-| X | rimuovi |
+| **WASD / Frecce / Stick** | Cammina |
+| **Spazio** | Corri (consuma stamina, occhi ">.<" con isteresi) |
+| **E** | Interagisci (siediti, dormi, parla, raccogli, pesca, cucina, annaffia) |
+| **B** | Modalità Costruzione (Builder) |
+| **Rotella / 1-9 / Tab** | Scegli pezzo nel catalogo di costruzione |
+| **R** | Ruota pezzo in costruzione / Avvia proiettore dei Ricordi |
+| **F** | Ruota oggetto già piazzato |
+| **V** | Alterna piano di costruzione (Piano Terra / Secondo Piano) |
+| **Clic Sinistro** | Piazza pezzo / Demolisci (se ✕ Demolisci attivo) |
+| **X** | Rimuovi / Demolisci rapido |
+| **H** | Imposta letto corrente come Casa Propria |
+| **G** | Apri Guardaroba / Cambia abito |
+| **P** | Modalità Fotografica (volo libero con WASD + Mouse, clic per scatto) |
+| **F2** | Attiva/Disattiva Co-op Locale sul Divano (Giocatore 2 con IJKL + U) |
 
-## Cosa c'è
+---
 
-- **Mochi** (`scenes/characters/Mochi.gd`) — chibi procedurale con
-  cel-shading pastello (scala 0.75: passa dalle porte). Legge la velocità
-  del `PlayerController` C++ e anima da sola la camminata: rotazione
-  fluida, passo saltellante, ondeggiamento, braccine, orecchie che
-  sobbalzano, coda vivace e sbuffi di polvere. In corsa strizza gli occhi
-  **">.<"** (con isteresi). In idle respira, sbatte le palpebre, si
-  guarda intorno. Ha pose di **seduta** (gambette piegate, zampine in
-  grembo) e di **sonno** (occhi chiusi, respiro profondo, "z" di
-  carillon che salgono fluttuando).
-- **Il prato** (`scenes/world/CozyWorld.gd`) — 3200 fili d'erba che
-  ondeggiano al vento (MultiMesh + shader), fiori in tre varietà, alberi
-  con un ciliegio che perde petali, cespugli, sassi del sentiero, nuvole
-  soffici alla deriva, farfalle che svolazzano e pulviscolo dorato.
-- **Il builder** (`scenes/build/BuildSystem.gd` + `BuildCatalog.gd`) —
-  modalità costruzione stile AC su griglia (snap via `GridManager` C++),
-  con griglia visiva che sfuma attorno al cursore. I pezzi "cell"
-  occupano celle su 3 layer sovrapponibili (pavimenti / tappeti /
-  oggetti); muri, finestre, porte e staccionate sono pezzi **"edge"**:
-  agganciano i bordi tra le celle e si orientano da soli, come in AC.
-  **23 pezzi in 3 categorie** (Struttura / Arredo / Giardino), tra cui
-  **tetto** (diventa trasparente quando Mochi è in casa), letto, libreria
-  con libri generati, camino con fuoco particellare e luce, panchina,
-  cassetta della posta. Le **porte riempiono il varco**, si aprono da
-  sole quando Mochi si avvicina e si richiudono alle sue spalle. I muri
-  fanno il **cutaway alla The Sims**: quando un muro sta tra la camera e
-  Mochi si dissolve, così dentro casa si vede sempre. Ogni pezzo
-  piazzato riceve le sue **collisioni** (StaticBody3D). Strumento
-  **✕ Demolisci** dedicato: evidenzia in rosso e abbatte col clic.
-  Fantasma verde/rosso, R ruota, F ruota il già piazzato, pop + scintille.
-- **Interazioni** (`scenes/interact/Interactions.gd`) — prompt
-  contestuale sopra i mobili: **E** per sedersi su sedie, sgabelli e
-  panchine, per dormire nel letto e per rialzarsi. Sedendosi Mochi si
-  abbassa davvero sul sedile, piega le gambette che restano a penzoloni
-  dall'orlo del vestitino e si appoggia allo schienale; nel letto si
-  **reclina sul cuscino** a pancia in su, chiude gli occhi, respira
-  piano e sogna "z" fluttuanti. Il controller C++ va in pausa durante
-  l'interazione.
-- **Audio** (`audio/Sfx.gd`, autoload) — tutto sintetizzato in codice,
-  zero file esterni: passi sincronizzati col ciclo del passo e **diversi
-  per superficie** (fruscio sull'erba, "tok" cavo sul parquet, "tak"
-  secco sulla pietra), porta con soffio d'aria + click della maniglia in
-  apertura e tonfo + scatto della serratura in chiusura, pop di
-  piazzamento con arpeggio, errore morbido, poof, tic, plin, cinguettii
-  casuali, vento in loop senza cuciture e una **musichetta carillon**
-  (giro I-V-vi-IV) renderizzata in un thread e riprodotta in loop
-  perfetto.
-- **La foresta** (`scenes/world/CozyWorld.gd`, mappa 120×120) — un bioma
-  procedurale a nord del prato: pini e latifoglie su griglia con jitter,
-  un **sentiero sterrato serpeggiante** (Catmull-Rom di dischi di terra)
-  che porta a una **radura col falò** scoppiettante, felci che
-  costeggiano il sentiero, rocce muschiose, tronchi caduti, ceppi,
-  funghi rossi e **funghi luminosi** teal, **fasci di luce** tra le
-  chiome (svaniscono di notte), nebbiolina alla deriva e foglie d'oro
-  che planano. Il sottobosco è dipinto nello shader del terreno con un
-  bordo bioma irregolare. **Tutto ottimizzato**: ogni specie è una mesh
-  fusa istanziata via MultiMesh (l'intera foresta sta in una manciata di
-  draw call, divisa in blocchi est/ovest per il culling), le collisioni
-  dei ~200 tronchi vivono in un unico StaticBody3D, le particelle sono
-  GPU con AABB delimitati e il terreno resta un singolo piano.
-- **Ciclo giorno/notte** (`scenes/world/DayNight.gd`) — il sole
-  attraversa il cielo da est a ovest (le ombre girano con lui) e cede il
-  posto alla luna; il cielo scivola tra quattro palette con il bagliore
-  dell'alba e del tramonto all'orizzonte; di notte si accendono 260
-  stelle, arrivano le **lucciole lampeggianti** e pollini e farfalle
-  vanno a riposo; i dischi di sole e luna sono nel cielo. Ciclo di 4
-  minuti, `set_time()` per saltare a un'ora precisa.
-- **Sopravvivenza con conseguenze** — a stamina zero Mochi è **sfinita**:
-  correre diventa arrancare (più lento che camminare), le orecchie si
-  afflosciano, gli occhi restano a mezz'asta e spunta una goccia di
-  sudore, finché la stamina non risale oltre il 35%.
-- **Giardinaggio** (`scenes/interact/Garden.gd`) — pianta i semi in
-  un'Aiuola, annaffiala (l'acqua viene dalla tua barra: annaffiatoio,
-  pioggerella e terra che si scurisce) e a ogni notte i semi crescono di
-  un passo: monticelli, germogli, boccioli, **fioritura** — festeggiata
-  con petali e campanellini. Mai punitiva: senza acqua l'aiuola aspetta
-  e basta. Con E raccogli il mazzolino e ricominci. Stadi e annaffiature
-  vivono nel JSON del villaggio.
-- **L'Orto** (`Garden.gd` + catalogo) — la variante contadina
-  dell'Aiuola: terra squadrata coi solchi e i picchetti. Stessi stadi di
-  crescita, ma la cella decide la coltura — **carote** (ciuffi piumati
-  con la puntina arancione che spunta), **zucche** (panciute a spicchi
-  col picciolo ricurvo) o **bacche** (cespuglietti punteggiati di viola)
-  — e il raccolto finisce **nella dispensa** con una festa di colori.
-- **I funghi del bosco** — tra gli alberi spuntano funghi rossi da
-  raccolta (più grandi dei decorativi): con E si staccano con uno
-  sbuffo di terra e **saltellano in un arco** fino al cestino, +1 in
-  dispensa. Il bosco ne fa ricrescere sempre altri, altrove: la
-  passeggiata ha uno scopo.
-- **Il ricettario del camino** (`scenes/interact/Cooking.gd`) — davanti
-  a un Camino, E apre il **ricettario**: sette piatti su carta crema
-  (tè del prato, zuppa di carote, vellutata di zucca, risotto ai funghi,
-  spiedini di bosco, crumble e tè alle bacche), coi requisiti di
-  dispensa e i tasti 1-7. Scelto il piatto, il rituale: il **pentolino
-  sobbolle davanti al fuoco** col vapore che sale, poi la ciotola (o la
-  tazza col manico, per i tè) passa tra le zampine di Mochi, lei **ci
-  soffia sopra** a occhi socchiusi… e finalmente **mangia**: tre
-  morsetti con le briciole che cadono e il "gnam gnam" sintetizzato.
-  Ogni ricetta ricarica le sue barre (la vellutata tutte e tre!), ne
-  avanza sempre una **porzione da regalare**, e i residenti giudicano
-  il piatto coi gusti del loro DNA — chi ama il calduccio adora i
-  piatti caldi, i giardinieri quelli freddi. Dispensa nel JSON.
-- **Il calendario** (`DayNight.day`) — ogni mattino conta: al risveglio
-  il sipario dice "Buongiorno! · Giorno N", salvato nel JSON del
-  villaggio. Il segnale `day_changed` guida posta e giardino.
-- **La posta del mattino** (`scenes/interact/Mail.gd`) — a ogni nuovo
-  giorno (dormito o vissuto) un amico del bosco lascia una letterina
-  nella **Cassetta posta**: scampanellio d'ali, scintille e bandierina
-  che si alza. Avvicinandosi lo **sportello si apre da solo** con un
-  rimbalzino elastico e la busta col sigillo a cuoricino fa capolino;
-  con E si legge la lettera su una card di carta crema — otto mittenti
-  (passerotto, riccio, volpe, gufo…), e a volte un **regalino** che
-  sboccia dalla cassetta tra le scintille. Dormire diventa un'attesa.
-- **Character creation a DNA** (`scenes/npc/ChibiDNA.gd` +
-  `ChibiBuilder.gd`) — ogni nuovo villager nasce da un **genoma**
-  generato (e serializzato nel JSON: rinasce identico): archetipo
-  (gattino, coniglietta, orsetto, volpina, topolino — orecchie e musetti
-  dedicati), palette pelo/vestitino, proporzioni (testa, occhi,
-  orecchie), bocca (w / sorriso / o), guanciotte, lentiggini, quattro
-  code, accessori (fiore, fiocco, sciarpina), un **nome** (Nocciola,
-  Miele, Brioche…) e una **personalità**: i pesi della mente, colorati
-  dall'archetipo (la coniglietta sogna il giardino, l'orsetto il
-  camino) più rumore individuale. I candidati al trasloco sono sempre
-  villager nuovi di zecca, fino a 4 residenti.
-- **Casa e trasloco** (`scenes/interact/Home.gd` + `scenes/npc/`) — vicino
-  a un letto, **H** lo imposta come casa tua (una sola, col cuoricino che
-  ci fluttua sopra): al prossimo avvio ti sveglierai lì. Costruisci
-  un'altra casa con un letto e un tetto e arriva un **aspirante
-  villager con la valigia**: ispeziona la casa, aspetta sull'uscio il
-  tuo **benvenuto** (E, fino a tre volte) e poi decide. La sua testa è
-  `VillagerMind.gd`: un valutatore **in stile percettrone** — la casa
-  ridotta a feature (tetto, pareti, porta, finestra, comfort, giardino,
-  calore, accoglienza, bel tempo), pesi diversi per specie (il riccio
-  sogna il giardino, il passerotto le finestre), somma pesata →
-  sigmoide → decisione. E la mente **si spiega**: ti dice cosa adora e
-  cosa le manca («…però un caminetto scalderebbe le zampe»), così sai
-  sempre cosa costruire. Ricorda le visite passate (torna meno
-  diffidente) e, se dice sì, **si trasferisce**: valigia accanto al
-  letto, vive attorno a casa sua, ti saluta coi cuoricini, dorme la
-  notte. Tutto persistito nel JSON.
-- **Visitatori** (`scenes/npc/`) — di giorno, col sereno, ogni tanto un
-  animaletto del bosco viene a trovarti: il **Riccio** (trotterella
-  dondolando, nasino che annusa) o il **Passerotto** (saltelli
-  parabolici con squash & stretch, ali che battono in aria, avanza solo
-  durante il balzo). Entra dal bordo del mondo, **curiosa tra i mobili**
-  con un "?" sopra la testa, si riposa **sulla panchina** (il passerotto
-  si appollaia sullo schienale, il riccio si accoccola sul sedile con
-  cuoricini), poi lascia un **regalino** col fiocco che fluttua e se ne
-  torna nel bosco. Con E lo raccogli: cuoricini e un messaggio ("Il
-  Riccio ti ha lasciato una bacca lucida!"). Non chiede mai niente.
-- **La vita dei residenti** (`Visitors.gd` + `Visitor.gd`) — i villager
-  hanno una **routine**: al mattino escono ad annusare aiuole e funghi
-  (col "?" e il cuoricino), di giorno si alternano tra passeggiate e
-  **panchine** (mai in due sulla stessa), e al tramonto **si ritrovano
-  tutti al falò della radura**, seduti in cerchio a guardare il fuoco:
-  la radura diventa un luogo. Due vicini si scambiano **nuvolette di
-  chiacchiere** (tondi bianchi con simboli e cuoricini — zero testo,
-  tanta vita). Dopo il trasloco arrivano i **piccoli desideri** («sogno
-  un fungo vicino a casa…», generati dai pesi della mente): esaudirli
-  = doppio salto di gioia, cuoricini e una **letterina di
-  ringraziamento** nella cassetta il mattino dopo. E i piatti del
-  camino **avanzano una porzione regalabile**: ogni villager ha i suoi
-  gusti dal DNA (piatti caldi per i freddolosi, freddi per i
-  giardinieri) — l'**amicizia** cresce, e al terzo cuore arriva la
-  lettera d'amicizia.
-  Tutto persistito nel JSON.
-- **L'onsen del bosco ♨** (`scenes/world/Onsen.gd`) — oltre la radura
-  del falò, una pozza termale VERA: lo **specchio d'acqua** usa lo
-  shader dello stagno (il cielo e la lanterna **si riflettono davvero**)
-  in palette termale, la corona è di **massi sfaccettati** (sfere
-  low-poly coi vertici perturbati e normali di faccia, mai marshmallow),
-  sassi bagnati scuri semi-sommersi lungo la linea d'acqua, un filo di
-  schiuma, il **cairn di pietre in equilibrio**, il **deck di legno**
-  d'ingresso col secchiello e gli asciugamanini, ghiaia scura, muschio
-  e felci tutt'attorno. Il **vapore** sale in colonne morbide e una
-  **nebbiolina bassa scivola sul pelo dell'acqua**; la **lanterna di
-  pietra** (tōrō) accende la sera, e di notte le **lucciole ballano
-  sull'acqua**. Con E sul bordo Mochi **si immerge
-  fino al musetto** — posa dedicata: occhi socchiusi beati, guanciotte
-  rosse al massimo, dondolio d'acqua — e la stamina risale veloce
-  (l'acqua calda disseta pure), coi cuoricini che salgono col vapore.
-  E ogni tanto **un residente arriva in accappatoio** con
-  l'asciugamanino piegato in testa, scivola in acqua accanto a te e
-  **sospira in Chibiese**: il bagno condiviso scalda l'amicizia (+1).
-  Chi è a mollo non viene mandato a nanna a metà bagno: finisce con
-  calma, poi va a dormire.
-- **Il guardaroba di Mochi** (`scenes/characters/Wardrobe.gd`) — ogni
-  capo è un **ricordo indossabile**: si sblocca vivendo, non comprando.
-  Il **cappello di petali** con la prima fioritura del giardino, la
-  **lanterna-lucciola da polso** (si accende da sola col buio) con la
-  prima lucciola in collezione, la **sciarpina di lana** coi regali del
-  passerotto, l'**impermeabilino giallo** con la prima pioggia — e
-  indossarlo sotto la pioggia la rende felice: scintille dorate ai
-  piedi. **G** apre il guardaroba (1-4 indossa/togli, un capo per
-  slot); i capi si agganciano a testa, polso e corpo e seguono ogni
-  animazione. I residenti vicini si voltano e commentano il vestito
-  nuovo in Chibiese («wa-wi!») coi cuoricini. Persistito nel JSON.
-- **Le costellazioni di Mochi** (`scenes/world/Stargazing.gd`) — di
-  notte, E sull'erba libera: Mochi **si sdraia a pancia in su** e la
-  camera sale piano verso la cupola. Le 260 stelle si uniscono come un
-  puntini-da-collegare (clic per unire, destro per annullare), dai un
-  nome alla tua costellazione e da quella notte **esiste per sempre**:
-  linee sottili che si accendono al crepuscolo, il nome dorato sospeso
-  tra le stelle, l'evento inciso negli anelli del Grande Albero. E ogni
-  tanto una **stella cadente** attraversa il cielo: SPAZIO per
-  esprimere un desiderio… e qualche mattina dopo, nella posta, una
-  lettera con un regalino. Tutto persistito nel JSON.
-- **Il calendario del villaggio** (`scenes/world/Calendar.gd` +
-  la **Lavagna** nel catalogo) — ogni nuovo abitante, sistemata la
-  valigia, **va alla lavagna e scrive il suo compleanno col gessetto**
-  (animazione di scrittura, righe che appaiono sulla lavagna). Con E
-  davanti alla lavagna: gli eventi in arrivo in bella copia —
-  compleanni, il compleanno del villaggio, l'arrivo del **mercante**.
-  Il giorno giusto il festeggiato gira col **cappellino a cono**: se
-  gli regali un piatto del camino scatta la **FESTA A SORPRESA** —
-  coriandoli, tutto il villaggio che accorre a ballare, amicizia
-  che vola, l'evento negli anelli e la lettera di ringraziamento.
-  E ogni ~6 giorni (annunciato il giorno prima) arriva il mercante
-  col **carretto a strisce**: baratta un piatto caldo del camino con
-  un sacchetto di ingredienti rari per la dispensa.
-- **Il timelapse dei ricordi** (`scenes/world/Memories.gd`) — ogni
-  mattina, poco dopo il "Buongiorno", il gioco scatta UNA foto del
-  villaggio dalla **stessa identica inquadratura** — senza mai
-  interrompere il gioco: un SubViewport dedicato che condivide il mondo
-  renderizza un solo frame e lo salva in `user://ricordi/`. Ai piedi
-  del Grande Albero, **R accende il proiettore**: il film del tuo
-  villaggio che nasce, giorno per giorno, foto in dissolvenza su
-  cornice di carta crema col contatore dei giorni — e chiude con
-  "…e la storia continua".
-- **Co-op sul divano** (`scenes/characters/Coop.gd`) — **F2** e accanto
-  a Mochi sboccia un secondo chibi per chi ti siede accanto: generato
-  dal DNA la prima volta e **poi sempre lui** (l'identità dell'amico
-  del divano è salvata nel villaggio). Si muove con **IJKL** (fisica
-  vera: gravità, scale, solai), parla Chibiese («ya-ho, mi-ka!» quando
-  arriva), scodinzola, e con **U aiuta davvero in giardino**: pianta,
-  annaffia (gratis — gli ospiti non consumano la borraccia di Mochi) e
-  raccoglie nella stessa dispensa. Se si allontana troppo dallo schermo
-  condiviso torna con uno sbuffo accanto a te. Costruire in due lo
-  stesso giardino, appunto.
-- **Il Grande Albero** (`scenes/world/GrandTree.gd`) — il monumento al
-  centro del prato, un bonsai condiviso: **cresce di giorno in giorno**
-  col calendario del villaggio, da alberello a gigante in un mese (curva
-  dolce, `day^0.62`), e all'alba di ogni nuovo giorno si stira di un
-  anello con un tween elastico e le scintille dorate. Sul tronco il
-  gioco **incide gli eventi**: gli arrivi (♥), le fioriture (✿), i
-  compleanni settimanali del villaggio e le case sull'albero (★), le
-  prime volte della collezione (♦) — i segni salgono a spirale con la
-  vita del villaggio. Con E ai piedi dell'albero si leggono **gli
-  anelli**: la cronaca su carta crema, "Giorno 5 · ♥ Nocciola si è
-  trasferita". Dal ramo basso pende un'**altalena di corda** che
-  ondeggia nella brezza. Cronaca persistita nel JSON.
-- **L'ecosistema vero** (`src/ecosystem_manager.cpp` +
-  `scenes/world/Ecosystem.gd`) — farfalle e lucciole non sono più
-  particelle: sono **popolazioni simulate in C++** (GDExtension) con
-  capacità portante e rendering MultiMesh a costo fisso. Le farfalle
-  scelgono un fiore, lo raggiungono, ci sorseggiano sopra e
-  **impollinano**: dove impollinano nascono **fiori selvatici** (che
-  germogliano, crescono e ondeggiano nella brezza — specie e maturità
-  per istanza); più fiori alzano la capacità portante e attirano altre
-  farfalle. Le **lucciole depongono le uova vicino all'acqua** dello
-  stagno di notte; le uova si schiudono dopo due giorni. Semina e
-  raccolto **spargono semi** attorno alle aiuole: o li becchi... o li
-  beccano i **passerotti** che calano dal cielo, oppure germogliano in
-  fiori selvatici. Ogni giorno un po' di mortalità tiene l'equilibrio.
-  Il prato risponde davvero a come giochi: due giocatori dopo un mese
-  hanno due ecosistemi diversi — e tutto (fiori, uova, semi,
-  popolazioni) vive nel JSON del villaggio. L'arte resta in GDScript
-  (mesh procedurali + shader: battito d'ali nel vertex shader, bagliore
-  additivo con fase per lucciola, corolle tinte per istanza).
-- **La verticalità** (`BuildSystem.gd` + catalogo) — il secondo piano
-  che i giocatori di AC sognano da vent'anni: in modalità costruzione
-  **V** alterna il piano (la griglia sale a quota solaio). La **Scala**
-  è ripida ma vera: Mochi la sale in pura fisica (rampa + gravità del
-  controller C++). Il **Solaio** è il pavimento di sopra (vuole un
-  appoggio: un muro sotto, un solaio vicino o una scala accanto), il
-  **Ponticello di corda** ondeggia tra le piattaforme, e sopra ci vanno
-  muri, finestre, tetti e mobili. Le dissolvenze sono a tre strati: i
-  muri fanno cutaway, i tetti svaniscono quando sei coperto, e l'intero
-  piano di sopra si dissolve quando cammini al piano terra — la casa in
-  sezione, come una casa di bambola. Salvataggio con le chiavi estese
-  al piano (`up_cells`/`up_edges`), retrocompatibile.
-- **La casa sull'albero** — il premio finale: un pezzo unico con
-  tronco, chioma, piattaforma con ringhiera, casetta con la finestrella
-  accesa, scala a pioli percorribile e la **lanterna che dondola** nel
-  vento con la sua luce calda. E quando sali e ti fermi lassù, ogni
-  tanto **un residente si arrampica a trovarti**: su per i pioli a
-  saltelli, un «ya-ho!» dal trespolo col cuoricino, un po' di compagnia
-  guardando il tramonto, e poi giù. La verticalità è anche questo.
-- **Il Chibiese** (`audio/Chibiese.gd`) — la lingua parlata dei
-  villager, sintetizzata dal DNA. Il timbro nasce dall'archetipo
-  (l'orsetto brontola grave e ruvido, la topolina squittisce), l'altezza
-  dalla taglia, la cadenza dal seed: ogni residente ha una voce sua,
-  riconoscibile a orecchio. Le sillabe sono **grani di formante** (un
-  impulso glottale che fa risuonare F1/F2 a ogni periodo del pitch) con
-  vibrato, respiro e prosodia per stato d'animo (neutro, felice,
-  domanda, triste). E il vocabolario: **quindici parole fisse**, le
-  stesse sillabe per tutti — «ta-ki» è grazie, «ni-nu» la pioggia,
-  «po-mo» la casa — così col tempo il giocatore impara davvero a
-  capirli, senza una riga di testo. Parlano nei momenti giusti: il
-  saluto («ya-ho!»), il grazie per un piatto, il commento alla prima
-  goccia di pioggia, il buongiorno al sole, il desiderio sussurrato
-  quando passi vicino, il «ha! po-mo!» di chi accetta il trasloco. Al
-  falò le chiacchiere hanno un **tema**: la parola detta a voce e il
-  simbolo nella nuvoletta sono la stessa cosa — la lingua si impara
-  per affetto. Voci spaziali (AudioStreamPlayer3D), frasi renderizzate
-  al volo e messe in cache.
-- **Retino e collezione** (`scenes/interact/Collection.gd`) — di giorno
-  acchiappi le **farfalle** del prato (rosa, azzurre, gialle), di notte
-  le **lucciole** vere che si accendono vicino a te: E fa apparire il
-  retino nella zampa di Mochi con una sventagliata elastica e uno
-  swoosh sintetizzato, la creaturina scivola nel retino tra le
-  scintille. Mai un fallimento, il prato si ripopola da solo. La
-  collezione va **in mostra in cima a ogni Libreria** (ricostruita col
-  fronte aperto e i libri a vista): barattoli col sughero, farfalle
-  dietro il vetro, la lucciola che brilla, e i contatori. Persistita
-  nel JSON.
-- **Il calendario delle specie** (`scenes/world/Critters.gd`) — il
-  bestiario è cresciuto a **22 specie collezionabili** e ognuna sa
-  QUANDO esiste (`cond`: stagione, ora, meteo): la **farfalla di
-  ciliegio** vola in primavera tra i petali del ciliegio, il **girino**
-  nuota solo in primavera, d'estate la **cicala** canta sugli alberi del
-  bosco, lo **scarabeo dorato** luccica nell'erba di notte e la
-  **lucciola regale** (grande, d'oro caldo) appare tra le lucciole;
-  d'autunno la **falena della luna** vola di notte, la **carpa foglia
-  d'oro** abbocca e nel bosco spunta il **porcino** (che il mercante
-  paga bene); d'inverno c'è il **pesce ghiaccio** e — rarissima, solo
-  mentre la neve scende fitta — la **farfalla di neve**. La **libellula
-  ambrata** e il **pesce dell'alba** escono solo al crepuscolo, e con
-  la pioggia arrivano la **lumachina** e la **rana blu** sulla riva
-  dello stagno. E quando la mattina d'autunno fuma di nebbiolina
-  (`Weather.is_misty`), aleggia la **farfalla di bruma** e — rara,
-  solo sullo stagno velato — la **damigella di velo** cuce l'aria. Nelle Tasche il segnalibro Collezione è diventato
-  un'**enciclopedia**: le specie mai viste sono **sagome grigie** con
-  un indizio ("solo quando piove", "nelle notti d'autunno") — è la
-  scheda vuota a farti uscire col retino. E d'inverno la pioggerella
-  diventa una **nevicata fitta**: fiocchi lenti, silenzio, niente
-  erba zuppa.
-- **Lo stagno e la pesca** (`scenes/interact/Fishing.gd` + CozyWorld) —
-  un piccolo specchio d'acqua tra prato e foresta: shader acqua con i
-  **riflessi veri del cielo**, luccichii di sole, fresnel e piccole
-  onde; sponda sabbiosa, ninfee in fiore che respirano, canne con le
-  pannocchie al vento, e **rane che si tuffano** quando ti avvicini,
-  con l'anello nell'acqua. La pesca alla AC ma senza fallimenti:
-  E lancia (canna con **filo fisico** fino al galleggiante, arco, bloop
-  e ripple), i cerchi si stringono, il galleggiante affonda —
-  "E — tira!" — e il pesciolino (carpetta dorata, azzurrino o carpa
-  rosina) salta fuori roteando tra gli spruzzi. Se non tiri, ribussa.
-  I pesci finiscono nei **barattoli-acquario** sulla Libreria, accanto
-  alle farfalle. Allontanarsi riavvolge, il tutto persiste nel JSON.
-- **I messaggi in bottiglia** (`scenes/interact/Bottiglie.gd`) — ogni
-  tanto (mai più di una ogni due giorni) la cascata porta giù una
-  **bottiglia col sughero**: scivola a valle con la corrente, dondolando
-  tra le ninfee, con un luccichio che si nota dalla riva. Se nessuno la
-  ripesca prima della fine del fiume se ne va — un'urgenza gentile:
-  un'altra arriverà. Con **E** Mochi si sporge e la ripesca: dentro c'è
-  sempre una **lettera da oltre la cascata** (otto mittenti — la lontra
-  viaggiatrice, il capitano Gabbiano, nonna Castoro… — mai due volte la
-  stessa finché il giro non si chiude) e un dono: noccioline, ingredienti,
-  una stellina o la **conchiglia di fiume** per i Tesori. La prima
-  bottiglia si incide negli anelli del Grande Albero. Persistito nel JSON.
-- **I luccichii del mattino** (`scenes/interact/Scavi.gd`) — ogni giorno
-  due o tre punti del prato **scintillano d'oro**: lì sotto c'è qualcosa.
-  Con **E** Mochi si accuccia e **scava con le zampine** (tre zampate,
-  sbuffi di terra) e il trovamento salta fuori in un arco: un sacchettino
-  di noccioline, un ingrediente, la **campanella di coccio** che qualcuno
-  perse tanto tempo fa, o — di rado — una stellina. I punti sono
-  deterministici nel giorno e rinascono altrove ogni mattina: insieme
-  alla posta e alla foto dei ricordi, un motivo in più per cui ogni
-  mattina conta.
-- **Modalità foto** (`scenes/interact/PhotoMode.gd`) — **P** nasconde
-  tutta la UI e libera la camera: WASD per volare, mouse per guardare,
-  Q/E giù/su, rotella per lo zoom, e **clic per scattare**: flash,
-  click e la foto è salvata in `user://photos`. Il mondo continua a
-  vivere davanti all'obiettivo. P o Esc per tornare.
-- **Meteo gentile** (`scenes/world/Weather.gd`) — ogni tanto una
-  pioggerella, mai un temporale: il cielo si ammorbidisce in
-  grigio-lavanda, gocce sottili seguono Mochi (e **si fermano sui
-  tetti**: dentro casa non piove e il suono diventa ovattato), anellini
-  di splash sull'erba, il prato **si scurisce e prende un velo lucido**
-  (uniform `wetness` nello shader), i passi sull'erba diventano
-  **splash acquosi**, il suono di pioggia è un loop sintetizzato senza
-  cuciture col vento che si alza, e il camino invita: "tè al riparo
-  dalla pioggia". Quando smette, se è giorno, un **arcobaleno a 7 bande
-  pastello** (mesh procedurale con vertex color, punte che sfumano) si
-  distende sul villaggio e svanisce piano.
-- **Il posto di sempre** (`scenes/world/PostoDiSempre.gd`) — non è una
-  meccanica che si sblocca: è una cosa che il gioco **nota**. Se ti fermi
-  sempre nello stesso punto alla stessa ora — l'orlo dello stagno quando
-  cala la luce, il ramo del Grande Albero al mattino — senza averlo
-  deciso, il villaggio se ne accorge prima di te. E un giorno arrivi, e
-  **qualcuno è già lì**: chi ti conosce meglio, cioè chi ha più momenti
-  sul Filo Rosso. Non dice niente. Non se ne va. Non c'è un toast, non
-  c'è un prompt, non c'è un premio: il momento vale esattamente quanto
-  non viene spiegato. L'unica cosa che il gioco si permette è annodare il
-  momento al Filo — così, cento giorni dopo, davanti al fiore, «quel
-  posto dove ci si trovava senza dirselo» riaffiora col resto della
-  storia. E non capita tutti i giorni: l'attesa fa parte del dono.
-- **Il Rimbalzello** (`scenes/interact/Rimbalzello.gd`) — un sasso
-  piatto, la riva giusta, e **nessun punteggio**: il punteggio è il
-  SUONO. Ogni rimbalzo suona un gradino più su della scala pentatonica
-  del villaggio (la stessa del coro, dove non esiste la nota storta), e
-  quando il sasso si stanca resta l'ultimo plop grave e i cerchi che si
-  allargano. Si capisce come sta andando **con l'orecchio**. L'unica
-  bravura è **leggere il cielo**: nella nebbiolina del mattino l'acqua è
-  uno specchio e il sasso corre, con la folata di un temporale in arrivo
-  si pianta al secondo salto (è il vento vero, quello condiviso con
-  l'erba e le chiome). Non si fallisce mai: il minimo è due rimbalzi. E
-  il sasso non si compra — **te lo porta il vicino che colleziona
-  sassolini**: quell'indole esisteva da sempre, faceva una cosa carina e
-  non serviva a niente; adesso è l'inizio di un gioco.
-- **La veglia della guardia** (`scenes/npc/Veglia.gd`) — «Fare la guardia»
-  era l'unico lavoro che si poteva solo perderci: costava rancore e non
-  produceva niente. Adesso produce **il sonno degli altri**. Al calare
-  della sera chi ha l'incarico esce a fare la **ronda** e accende una
-  lanterna di carta a ogni tappa — prima le case di chi dorme, poi la
-  piazza e il falò. Quante ne accende lo decide la stessa resa che regola
-  legna e piatti: sereno, il villaggio è tutto illuminato; svogliato,
-  metà resta al buio; dal rifiuto in poi non esce proprio — e **la scala
-  della ribellione si legge a colpo d'occhio, di notte, senza aprire un
-  pannello**. All'alba le lanterne si spengono. Chi ha dormito sotto la
-  veglia si sveglia più sereno e con un ricordo buono intestato al
-  guardiano (che così diventa, notte dopo notte, la voce a cui il
-  villaggio crede di più); chi ha dormito al buio si sveglia un po' meno
-  tranquillo — mai abbastanza da ribellarsi, e un Lampione comprato al
-  carretto conta come una lanterna. Chi veglia paga la propria quiete
-  per comprare quella di tutti gli altri: era già scritto in
-  `Animo.COMPITI` (`"guardia": {"sicurezza": -0.05}`), mancava solo il
-  destinatario.
-- **Una sola aria** (`shaders/vento.gdshaderinc`) — l'erba aveva le sue
-  folate, il bucato la sua oscillazione, e le chiome degli alberi… niente:
-  stavano immobili in mezzo a un mondo che ondeggiava, e si muovevano solo
-  quando il taglialegna le colpiva. Ora la folata è **una sola** e viaggia
-  sul terreno: quando passa si piega prima l'erba di là, poi la chioma
-  dell'albero, poi l'erba di qua — è quel **ritardo** a far sembrare vivo
-  il vento. Le chiome si piegano dall'attaccatura al ramo in su (il tronco
-  resta piantato), i lobi esterni ballano più del cuore, ogni albero ha la
-  sua fase presa dal punto in cui è piantato (due alberi vicini non
-  respirano mai all'unisono) e le foglie hanno un fremito d'alta frequenza
-  che si accende col pieno della folata. Ogni famiglia di fronde ha il suo
-  peso: il ciliegio è una vela, la conifera si piega appena, il cespuglio
-  freme e basta. E il vento **segue il cielo**: raffiche quando si copre,
-  neve che scende piano, e nella nebbiolina del mattino l'aria si ferma.
-- **I vicini mangiano davvero** (`scenes/npc/Pasto.gd`) — il piatto regalato
-  non svanisce più a mezz'aria: gliela si **consegna**, e lui la mangia col
-  rituale di Mochi visto da fuori. Le zampine salgono ad accogliere la
-  ciotola, la testona si sporge sul piatto e le orecchie si drizzano al buon
-  odore, ci **soffia** sopra se scotta (occhi socchiusi e sbuffi), poi **tre
-  morsetti**: la testona scende nella ciotola che le viene incontro, il corpo
-  si schiaccia appena, cadono le **briciole** e il cibo dentro la ciotola
-  **cala di un terzo per morso**. Alla fine il sospiro beato, il cuoricino e
-  solo allora il grazie in Chibiese — è il boccone a parlare, non l'educazione
-  — e la ciotola si inclina per mostrarsi **vuota** prima di sparire. Chi
-  adora quel piatto lo mangia con più foga; sul freddo non ci soffia. I tempi
-  sono una tabella sola, verificata headless (`tests/cases/test_pasto.gd`), e
-  mentre mangia **nessuno lo interrompe**: il corpo è del pasto.
-- **Italiano e inglese** (`systems/L10n.gd`) — il gioco parla due lingue,
-  e si sceglie in cima alle Impostazioni (o segue quella del sistema).
-  L'italiano è la **lingua sorgente**: nel codice le frasi restano quelle
-  vere (`L10n.t("Buongiorno!")`), così una traduzione mancante mostra
-  l'italiano e mai una sigla. Si traduce **solo ciò che si mostra**: i nomi
-  dei pezzi, gli id delle specie e i gradini della scala restano italiani
-  nel salvataggio — un villaggio salvato in inglese si riapre in italiano.
-  Le tabelle stanno in `locale/en/` (quattro parti: schermate, lettere,
-  mondo, vicini) e un test verifica segnaposto, a capo, grafie britanniche
-  e glossario. Guida e glossario: [`docs/TRADUZIONE.md`](docs/TRADUZIONE.md).
-- **Atmosfera** — cielo procedurale, ACES, SSAO, glow, profondità di
-  campo, vignettatura, MSAA 4×, shader "handpaint" con lavaggio
-  pittorico per tutti i materiali del mondo.
+## 🏡 Cosa c'è nel Mondo
 
-## Avvio
+### Mochi & I Residenti
+* **Mochi Procedurale (`scenes/characters/Mochi.gd`):** Cel-shading pastello, animazioni a codice con molleggio, orecchie vive, coda reattiva, battito di ciglia e posa a letto con "z" di carillon.
+* **DNA & Archetipi (`ChibiDNA.gd` + `ChibiBuilder.gd`):** Ogni vicino nasce da un genoma unico (gattini, conigliette, orsetti, volpine, topolini), proporzioni, orecchie, accessori e personalità dedicati.
+* **La Lingua "Chibiese" (`audio/Chibiese.gd`):** Voci spaziali generate da sintesi di formanti con 15 vocaboli fissi (*"ta-ki"* = grazie, *"ni-nu"* = pioggia, *"po-mo"* = casa) che il giocatore può imparare a comprendere a orecchio.
 
-Apri il progetto con Godot 4.7 e premi Play. La build C++ (già compilata
-in `bin/`) si rigenera con `scons` dalla radice del progetto.
+### Il Builder Architettonico & Le Grandi Opere
+* **Verticalità e Secondi Piani (`BuildSystem.gd`):** Griglia multilivello, scale salibili in fisica reale, solai calpestabili, ponticelli di corda e dissolvenze a "casa di bambola" (cutaway dei muri e tetti trasparenti quando Mochi è all'interno).
+* **Edifici Speciali Modulari:**
+  * **La Boutique (`BuildBoutique.gd`):** 15 pezzi dedicati alla moda di paese, vetrine a tutta altezza, stender regolari, luce calda puntata sui manichini.
+  * **La Chiesa di Paese (`BuildChiesa.gd`):** Navata simmetrica, campanile con banderuola a rondine, abside tondo, rosone con cuore rosso e vetrate colorate procedurali.
+  * **La Palestra Rustica (`BuildPalestra.gd`):** Attrezzi in legno, corda, cuoio e pietra di fiume con punti d'uso esatti per gli allenamenti dei villager.
+  * **La Casa sull'Albero:** Rifugio panoramico con lanterne oscillanti al vento dove i vicini salgono ad ammirare il tramonto.
+  * **Serre & Rastrelliere Modulari:** Strutture che si fondono e si allineano automaticamente posizionando i pezzi vicini.
 
-### Screenshot di verifica da CLI
+### Attività, Raccolta & Sopravvivenza Dolce
+* **Giardinaggio & Orto (`Garden.gd`):** Aiuole fiorite e orto contadino con carote, zucche e bacche. Crescita non punitiva (senza acqua le piante aspettano senza morire).
+* **Cucina del Camino (`Cooking.gd` + `Pasto.gd`):** 7 ricette su carta crema. Pentolino che sobbolle al fuoco, vapore, e rituale del pasto a tre bocconi visibili con briciole, ciotola che si svuota e soffio sul cibo caldo.
+* **Pesca nello Stagno (`Fishing.gd`):** Canna con filo a simulazione fisica, galleggiante, increspature dell'acqua e pesciolini esposti in barattoli-acquario.
+* **Messaggi in Bottiglia (`Bottiglie.gd`):** Bottiglie che scendono lungo la cascata portando lettere da mittenti lontani e regali rari.
+* **Scavi del Mattino (`Scavi.gd`):** Punti dorati luccicanti sull'erba da scavare a zampate per dissotterrare tesori e campanelle di coccio.
+* **L'Onsen del Bosco ♨ (`Onsen.gd`):** Pozza termale con riflessi in tempo reale, vapori bassi, lanterne tōrō e recupero rapido di stamina. I vicini entrano in accappatoio per condividere il bagno.
+* **Costellazioni & Desideri (`Stargazing.gd`):** Collega le 260 stelle del cielo notturno per tracciare e battezzare costellazioni permanenti; esprimi desideri sulle stelle cadenti.
+* **Il Grande Albero (`GrandTree.gd`):** Albero centrale che cresce giorno dopo giorno (`day^0.62`), incidendo a spirale sul tronco tutti gli eventi storici del villaggio.
+* **Timelapse dei Ricordi (`Memories.gd`):** Ogni mattina scatta una foto identica in SubViewport invisibile: accendendo il proiettore ai piedi del Grande Albero puoi rivedere il film della nascita del tuo villaggio.
+* **Il Rimbalzello (`Rimbalzello.gd`):** Fai rimbalzare sassi piatti sull'acqua dello stagno; ogni salto suona una nota pentatonica pura che dipende dal vento reale.
+* **La Veglia Notturna (`Veglia.gd`):** Il guardiano designato compie la ronda accendendo lanterne di carta per regalare sogni tranquilli a chi riposa.
 
+### Il Prologo Interattivo & Il Menù Vivente
+* **Il Temporale del Prologo (`scenes/prologo/`):** 3 minuti giocabili senza scelte esplicite sotto una tempesta che forgeranno la personalità di Mochi, lasciando un marchio limbico curabile solo esponendosi serenamente alla pioggia.
+* **Menù Principale Dinamico (`TitleScreen.gd`):** Carica i dati del villaggio in un istante, sincronizzandosi con l'ora reale dell'orologio del giocatore (alba, mezzogiorno, notte stellata) e riflettendo il clima emotivo della comunità (allegria, attesa o lutto).
+
+---
+
+## 🎨 Arte, Shader e Audio 100% Procedurali
+
+* **Nessun File Audio Esterno (`audio/Sfx.gd`):** Tutti i suoni (passi su erba/parquet/pietra, vento, cinguettii, sciabordio dell'acqua, fusa, scatti di porte e carillon I-V-vi-IV) sono generati da sintesi matematica in codice.
+* **Shaders Pittorici:**
+  * `ground.gdshader`: Terreno acquerellato a transizione sfumata tra biomi.
+  * `water.gdshader`: Acqua termale e fluviale con riflessi speculari veri, fresnel, increspature e spuma.
+  * `vento.gdshaderinc`: Modello di vento unificato che attraversa il mondo facendo piegare erba, chiome e panni con ritardo fisico naturale.
+  * `toon.gdshader` & `handpaint.gdshader`: Cel-shading pastello e lavaggio artistico applicato su ogni mesh generata.
+
+---
+
+## 👁️ Il Lato Oscuro (Dormiente)
+
+Il gioco nasconde una variabile dormiente: `Mochi.anomalies_enabled = true`.  
+Se attivata, il mondo fatato si spegne, gli occhi dei chibi diventano voragini nere e i comportamenti dell'AI deviano in una dimensione psicologica inquietante. Per quando sarà il momento.
+
+---
+
+## 📁 Architettura del Repository
+
+```
+src/                       Gameplay Core & Sistemi Nativi in C++ (GDExtension)
+  ecs_mondo.*              Mondo Entity-Component-System (EnTT)
+  curve_utilita.*          Calcolo curve matematiche per Utility AI
+  grafo_ricordi.*          Grafo sociale delle memorie residenti
+  grafo_deduzioni.*        Motore di deduzione a grafo
+  sistema_piani.*          GOAP & Pianificazione autonoma
+  sistema_agenda.*         Agende dinamiche residenti
+  sistema_sonno.*          Gestione del riposo ed emissione sogni
+  llm_gguf.* / llm_llama.* Integrazione motore llama.cpp (GGUF locale)
+  llm_pensieri.*           Generazione pensieri e lettere interiori
+  ecosystem_manager.*      Simulatore demografico di popolazioni (farfalle/lucciole)
+  player_controller.*      Controller fisico WASD/gamepad
+  survival_component.*     Barre fame/acqua/stamina native
+  grid_manager.*           Snap geometrico per il builder
+
+scenes/
+  characters/              Mochi, rig animazioni, guardaroba, co-op
+  npc/                     Animo, Affetti, Cricche, Gesti, VillagerMind, Limbico, Pasto
+  build/                   BuildSystem, BuildCatalog, BuildBoutique, BuildChiesa, BuildPalestra
+  interact/                Giardino, Cucina, Pesca, Sogni, Onsen, Scavi, Mail, Foto, Rimbalzello
+  world/                   CozyWorld, DayNight, GrandTree, Weather, Ecosystem, Stargazing
+  prologo/                 Sequenza iniziale del temporale e marchi psicologici
+  ui/                      TitleScreen viva, HUD pastello, Tasche, Negozio, Diorama
+  levels/                  MainLevel.tscn
+
+systems/                   Autoload e Singletons (Llm.gd, L10n.gd, Settings.gd, ArbitroE.gd)
+shaders/                   Shaders procedurali (vento, terreno, acqua, cel-shading, cielo)
+audio/                     Sintetizzatore Sfx.gd e motore vocale Chibiese.gd
+docs/                      Specifiche di design (Filo Rosso, Prologo, Traduzioni)
+```
+
+---
+
+## 🛠️ Avvio e Compilazione
+
+### Avvio Rapido
+Apri la cartella con **Godot 4.7.1** e premi **Play (F5)**.
+
+### Compilazione del Cuore C++ (SCons)
+Assicurati di avere `scons`, `cmake` e un compilatore C++17 (MSVC su Windows, Clang/Xcode su macOS, GCC su Linux):
+
+```bash
+# Sottomoduli (godot-cpp e llama.cpp)
+git submodule update --init --recursive
+
+# Compilazione debug / release standard
+scons platform=macos arch=universal target=template_debug -j8
+scons platform=windows target=template_release -j8
+
+# Compilazione con LLM locale attivo (Fase 5)
+scons platform=macos arch=universal target=template_debug llm=yes -j8
+```
+
+### Verifica Automatica da CLI
 ```powershell
-$env:CHIBI_SHOT = "C:\percorso\output"
+$env:CHIBI_SHOT = "output_folder"
 godot --path .
 ```
-
-Salva `cozy_vista.png`, `mochi_walk.png`, `mochi_closeup.png` e
-`mochi_builder.png` (con una casetta demo costruita col sistema vero),
-poi esce da solo.
-
-## Architettura
-
-```
-src/                       gameplay core in C++ (GDExtension)
-  player_controller.*      movimento WASD/gamepad + stamina
-  survival_component.*     fame / acqua / stamina con segnali per la UI
-  grid_manager.*           snap alla griglia (usato dal builder)
-audio/Sfx.gd               tutta la colonna sonora, sintetizzata in codice
-scenes/
-  characters/Mochi.*       la chibi: costruzione + idle + camminata (+ anomalie)
-  characters/Player.tscn   PlayerController C++ + Mochi + camera
-  world/CozyWorld.gd       erba, fiori, alberi, nuvole, farfalle, particelle
-  world/DayNight.gd        ciclo giorno/notte, luna, stelle, lucciole
-  build/BuildSystem.gd     modalità costruzione, celle + bordi, collisioni, UI
-  build/BuildCatalog.gd    i 22 pezzi d'arredo procedurali
-  levels/MainLevel.*       livello, ambiente, wiring, verifica CLI
-  ui/HUD.*                 barre sopravvivenza pastello
-shaders/
-  toon.gdshader            cel-shading di Mochi
-  handpaint.gdshader       materiali "dipinti a mano" + vento
-  ground.gdshader          prato acquerello
-  grid.gdshader            griglia di costruzione
-  vignette.gdshader        vignettatura calda
-addons/lua-gdextension     scripting Lua (per mod / eventi)
-```
-
-## Roadmap
-
-1. **Mochi, la protagonista chibi** *(fatto)*
-2. **Camminata animata + mondo cozy + prototipo builder** *(fatto)*
-3. **Audio completo, muri sui bordi, 23 arredi, collisioni** *(fatto)*
-4. **Porte animate, tetti, demolizione, sedersi/dormire, ciclo giorno/notte** *(fatto)*
-5. **Mappa 120×120 + bioma foresta procedurale con sentiero e radura** *(fatto)*
-6. Villager NPC con dialoghi; tetti automatici a stanza chiusa
-7. *(dormiente)* Il lato horror: `Mochi.anomalies_enabled = true` riattiva
-   le anomalie — occhi-voragine, mondo che si spegne. Per quando sarà ora.
+Salva automaticamente gli screenshot di verifica (`cozy_vista.png`, `mochi_walk.png`, `mochi_closeup.png`, `mochi_builder.png`) ed esce.
