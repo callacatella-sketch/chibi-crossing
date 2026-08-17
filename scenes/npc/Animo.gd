@@ -456,9 +456,20 @@ func ricorda(tipo: String, attore: String, valenza: float, intensita := 0.5,
 
 ## Un lutto ignorato: il caso che il brief cita, e che deve pesare tanto.
 ## Non è il lutto a fare rancore verso di te — è l'INDIFFERENZA.
-func lutto(amico: String, consolato_da := "") -> void:
+## [param quanto] e' QUANTO CONTAVA quella persona, 0..1 — e di serie vale
+## 1.0, che e' esattamente il comportamento di prima.
+##
+## ⚠️ **Prima era scritto a mano, uguale per tutti**, e con `Congedo` che
+## mette in lutto ogni residente il risultato era che una partenza toccava
+## dodici persone allo stesso identico modo. Il grado deve nascere gia'
+## distribuito, e a distribuirlo non e' una curva inventata: e' il libro
+## mastro degli Affetti, letto **in assoluto**. Mai normalizzato sul massimo
+## del villaggio — normalizzare su un massimo E' una classifica, ed e' il no
+## numero due della regola sacra.
+func lutto(amico: String, consolato_da := "", quanto := 1.0) -> void:
+	var q: float = clampf(quanto, 0.0, 1.0) if is_finite(quanto) else 1.0
 	drive["appartenenza"] = clampf(float(drive["appartenenza"]) - 0.35, 0.0, 1.0)
-	ricorda("lutto", amico, -0.8, 1.0)
+	ricorda("lutto", amico, -0.8, q)
 	if consolato_da == "":
 		# nessuno si è fatto vivo: il rancore va a chi comanda il villaggio
 		ricorda("lutto_ignorato", "giocatore", -0.7,
@@ -480,6 +491,77 @@ func _potatura() -> void:
 		voce["peso"] = float(voce["peso"]) + float(r["valenza"]) * float(r["intensita"])
 		voce["ultimo"] = maxi(int(voce["ultimo"]), int(r["quando"]))
 		sommario[k] = voce
+
+
+## QUANTO PESA ANCORA, OGGI, CIO' CHE NON C'E' PIU'. 0.0 .. 1.0.
+##
+## Non e' un campo e non e' un bit: e' una LETTURA di due cose che stavano
+## gia' nel salvataggio da sempre — la recenza dell'ultimo ricordo di
+## perdita, e quanto e' scavato il senso di appartenenza. Il prodotto di due
+## numeri che ci sono gia', come `coppia()` e' il minimo reciproco di due
+## conti che ci sono gia'. **Zero chiavi nuove, zero migrazioni**: un
+## salvataggio di ieri riaperto oggi risponde 0.0 per tutti, perche' nessuno
+## ha una riga «lutto», e il gioco e' quello di prima.
+##
+## ⚠️ **LEGGE UN TIPO SOLO, ed e' la regola «il giocatore non puo' causarla»
+## scritta in una riga.** `RICORDO_PERDITA` e' `"lutto"` e basta: NON
+## `"lutto_ignorato"`, che e' la riga che `lutto()` incide contro il
+## GIOCATORE quando nessuno si e' fatto vivo. Se questa funzione la
+## leggesse, chi non ha fatto in tempo a salutare ventisette persone in tre
+## giornate avrebbe causato lui lo stato che dura — per una cosa che non ha
+## fatto, a scala di villaggio.
+##
+## ⚠️ **E il `quando` si cerca anche nel SOMMARIO.** `_potatura()` fa
+## `pop_front()` sopra i quaranta ricordi vivi, quindi la riga del lutto
+## finisce nel sommario in poche giornate di villaggio vivace — e il
+## sommario non si pota mai. Guardare solo `ricordi` darebbe un substrato
+## che sparisce **proprio dove il villaggio e' pieno di vita**, cioe' dove
+## nessun collaudo arriva.
+const RICORDO_PERDITA := "lutto"
+
+
+func assenza() -> float:
+	var quando := -1
+	var intensita := 0.0
+	for r in ricordi:
+		if str(r.get("tipo", "")) != RICORDO_PERDITA:
+			continue
+		var q := int(r.get("quando", 0))
+		if q >= quando:
+			quando = q
+			intensita = float(r.get("intensita", 1.0))
+	for k in sommario:
+		if not str(k).begins_with(RICORDO_PERDITA + "|"):
+			continue
+		var v: Dictionary = sommario[k]
+		var q2 := int(v.get("ultimo", 0))
+		if q2 >= quando:
+			quando = q2
+			intensita = maxf(intensita, float(v.get("intensita", 1.0)))
+	if quando < 0:
+		return 0.0
+	return assenza_da(oggi - quando, intensita,
+			float(drive.get("appartenenza", 0.5)))
+
+
+## La forma della cosa, senza lo stato: pura, e provabile senza villaggio.
+##
+## Il primo fattore e' `_recenza` — la STESSA curva, con la STESSA
+## `MEZZA_VITA` — cioe' l'orologio piu' lento che questo gioco possieda:
+## diciotto giornate sono settantadue minuti reali. Il secondo e' la
+## profondita', ed e' quello che il giocatore e il villaggio possono
+## muovere: `passa_giorno` riempie l'appartenenza da sola, e ogni gesto
+## gentile la riempie prima.
+##
+## Il prodotto ha la forma giusta **senza che nessuno la disegni**: una
+## settimana acuta, e poi una coda lunga e fioca. Non c'e' nessuna curva da
+## tarare — ci sono due orologi che il gioco aveva gia'.
+static func assenza_da(giorni: int, intensita: float, appartenenza: float) -> float:
+	if giorni < 0 or not is_finite(intensita) or not is_finite(appartenenza):
+		return 0.0
+	return pow(0.5, float(giorni) / MEZZA_VITA) \
+			* clampf(intensita, 0.0, 1.0) \
+			* clampf(1.0 - appartenenza, 0.0, 1.0)
 
 
 func _recenza(quando: int) -> float:
