@@ -3698,11 +3698,24 @@ const RIPIEGO := "quattro_chiacchiere"
 ## risentimento. Chi sognava altro lo vive tre volte più amaro di chi quel
 ## lavoro lo amava — ed è per questo che due residenti mandati allo stesso
 ## posto finiscono in due punti diversi della scala.
-func assegna_compito(label: String, compito: String) -> void:
+## [param ordinante] e' CHI ha deciso questa giornata.
+##
+## ⚠️ **Era cablato a «giocatore», e non era vero.** `Lavori` fa decidere da
+## se' chi non ha un incarico — passa `"se_stesso"` a `decide()`, e il
+## commento accanto promette «nel ricordo restera' cosi'» — ma poi la riga
+## finiva qui e veniva incisa contro il giocatore lo stesso. MISURATO nel
+## salvataggio vero: `incarichi = {}` (il registro non e' mai stato usato) e
+## **tutte e settantotto le righe di compito intestate a lui**.
+##
+## Non e' un dettaglio contabile: `rancore("giocatore")` conta cosi' dei torti
+## che il giocatore non ha ordinato, e la distinzione «quante delle mie
+## giornate le ha decise qualcun altro» — che e' il carburante della lealta'
+## e dell'ambizione — non poteva nascere.
+func assegna_compito(label: String, compito: String, ordinante := "giocatore") -> void:
 	if not _animi.has(label):
 		return
 	var animo: RefCounted = _animi[label]
-	animo.esegue(compito, "giocatore")
+	animo.esegue(compito, ordinante)
 	# e il POSTO si carica di com'è andata: dopo abbastanza volte, quel posto
 	# diventa qualcosa da evitare — senza che nessuno lo scriva
 	var luogo := str(LUOGO_DEL_LAVORO.get(compito, ""))

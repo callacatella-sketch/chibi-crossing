@@ -35,6 +35,7 @@ func run(t) -> void:
     _test_il_buio_non_punisce(t)
     _test_il_ramo_che_mancava(t)
     _test_i_fili(t)
+    _protetto_e_un_fatto_DI_QUELLA_PERSONA(t)
 
 
 # ------------------------------------------------------------ chi è al buio
@@ -265,3 +266,116 @@ func _test_i_fili(t) -> void:
     # la Veglia è in scena (senza, il ramo del registro non trova nessuno)
     var scena := FileAccess.get_file_as_string("res://scenes/levels/MainLevel.tscn")
     t.ok(scena.contains("Veglia.gd"), "la Veglia è cablata nel livello")
+
+
+## ⚠️ **«PROTETTO» E' UN FATTO DI QUELLA PERSONA, e prima era il meteo del
+## villaggio.**
+##
+## `al_buio()` si chiedeva SOLO nel ramo senza guardia: con una guardia in
+## servizio, ogni residente riceveva la stessa identica riga `vegliato` —
+## misurato, **1,000 per residente per giornata, uguale per tutti e
+## quattordici**. Una prova che tocca tutti allo stesso modo non distingue
+## nessuno: e' la ragione per cui «chi e' stato protetto per venti notti» non
+## poteva entrare fra le spinte che fanno derivare un tratto.
+##
+## Adesso la riga va a chi la ronda ha DAVVERO protetto — chi era al buio — e
+## chi ha una luce davanti a casa era gia' al sicuro, per un gesto che il
+## giocatore ha fatto mesi prima. Due chiavi, tutte e due sue: assegnare la
+## guardia, e piantare i lampioni.
+func _protetto_e_un_fatto_DI_QUELLA_PERSONA(t) -> void:
+    var v = VegliaConLuci.new()
+    t.stage(v)
+    var reg = RegistroVeglia.new()
+    t.stage(reg)
+    v.set("_visitors", reg)
+    v.set("_guardia", "G")
+    v.set("_resa", 1.0)
+    # una luce sola, davanti a casa di «illuminato»
+    v.luci = [Vector3(0, 0, 0)]
+    # ⚠️ i corpi sono NODI VERI: la Veglia legge `node.global_position`, e
+    #    con `null` tutti finirebbero all'origine — cioe' tutti sotto la
+    #    stessa luce, e il caso misurerebbe il proprio banco.
+    reg._residents = [
+        {"label": "G", "node": _corpo_a(t, Vector3(20, 0, 20))},
+        {"label": "illuminato", "node": _corpo_a(t, Vector3(1, 0, 0))},
+        {"label": "al_buio", "node": _corpo_a(t, Vector3(40, 0, 40))},
+    ]
+    v.rendiconto_del_mattino()
+
+    t.eq(int(reg.righe.get("al_buio", 0)), 1,
+            "chi era al buio ha avuto la ronda, e la riga e' SUA")
+    t.eq(int(reg.righe.get("illuminato", 0)), 0,
+            "chi aveva gia' una luce davanti a casa non riceve la riga: era "
+            + "gia' al sicuro, per un lampione che il giocatore ha piantato")
+    t.eq(int(reg.righe.get("G", 0)), 0, "e chi ha vegliato non veglia se stesso")
+
+    # ⚠️ IL NUMERO CHE FALSIFICA: le righe per residente devono avere
+    # min ≠ max. Se sono tutte uguali, «protetto» e' tornato a essere il
+    # meteo del villaggio e la deriva non ci si puo' appoggiare.
+    var valori: Array = []
+    for r in reg._residents:
+        if str(r["label"]) == "G":
+            continue
+        valori.append(int(reg.righe.get(str(r["label"]), 0)))
+    var mn := 999
+    var mx := -1
+    for x in valori:
+        mn = mini(mn, int(x))
+        mx = maxi(mx, int(x))
+    t.ok(mn != mx,
+            "e le righe per residente NON sono tutte uguali (min %d, max %d): "
+                    % [mn, mx] + "e' un fatto di quella persona, non il meteo")
+
+    # …e senza guardia, chi e' al buio ci perde e chi ha la luce no
+    reg.righe.clear()
+    reg.doni.clear()
+    v.set("_guardia", "")
+    v.set("_resa", 0.0)
+    var esito: Dictionary = v.rendiconto_del_mattino()
+    # due: quello lontano, e anche l'ex guardia — che senza incarico e' un
+    # residente come gli altri, e la sua casa e' lontana dalla luce.
+    t.eq(int(esito.get("al_buio", -1)), 2,
+            "senza guardia, chi non ha una luce resta al buio")
+    t.ok(not reg.doni.has("illuminato|sicurezza"),
+            "…e chi ce l'ha no: il lampione piantato mesi fa lavora da solo")
+
+
+func _corpo_a(t, dove: Vector3) -> Node3D:
+    var n := Node3D.new()
+    t.stage(n)
+    n.global_position = dove
+    return n
+
+
+## La Veglia VERA, con la sola sorgente dei dati dettata: dove sono le luci.
+class VegliaConLuci extends "res://scenes/npc/Veglia.gd":
+    var luci: Array = []
+
+    func _ready() -> void:
+        pass
+
+    func luci_del_villaggio() -> Array:
+        return luci
+
+
+## Un registro che REGISTRA e non decide niente.
+class RegistroVeglia extends Node:
+    var _residents: Array = []
+    var righe := {}
+    var doni := {}
+
+    func dona_drive(label: String, quale: String, quanto: float, _min := 0.0) -> void:
+        doni[label + "|" + quale] = float(doni.get(label + "|" + quale, 0.0)) + quanto
+
+    func ricorda_per(label: String, tipo: String, _chi: String, _peso: float) -> void:
+        if tipo == "vegliato":
+            righe[label] = int(righe.get(label, 0)) + 1
+
+    func lega_vicini(_a: String, _b: String, _q: float) -> void:
+        pass
+
+    ## `_annota_la_veglia` la chiede per intestare la riga del libro mastro:
+    ## senza, il caso si INTERROMPE a meta' — e un errore a runtime non fa
+    ## fallire un test, lo interrompe lasciando la suite verde.
+    func _nome_da_label(label: String) -> String:
+        return label

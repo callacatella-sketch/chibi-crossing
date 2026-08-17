@@ -5154,6 +5154,42 @@ che passa perché un altro cancello lo copre:
 - e il **colore** non era sorvegliato affatto: la mutazione che scollega la
   deriva dal suo unico consumatore lasciava la suite verde.
 
+### ⚠️ E DUE RIPARAZIONI CHE SERVIVANO PRIMA — «protetto» e «l'ho scelto io»
+
+Due dati che il gioco produceva ogni giorno erano **inutilizzabili come
+spinte**, e in tutti e due i casi per la stessa ragione: non distinguevano
+nessuno.
+
+**La giornata scelta era incisa contro il giocatore.** `Lavori` fa decidere
+da sé chi non ha un incarico — passa `"se_stesso"` a `decide()`, e il commento
+accanto promette *«nel ricordo resterà così»* — ma poi `assegna_compito` la
+incideva con `"giocatore"` cablato. Misurato nel salvataggio vero: il registro
+degli incarichi **vuoto**, e tutte e settantotto le righe di compito intestate
+a lui. Non è contabilità: `rancore("giocatore")` contava così dei torti che il
+giocatore non ha ordinato, e la distinzione *«quante delle mie giornate le ha
+decise qualcun altro»* — il carburante della lealtà e dell'ambizione — non
+poteva nascere.
+
+⚠️ **E la guardia che sorvegliava quella riga matchava il proprio commento**:
+cercava la stringa `"se_stesso"` nel sorgente, e c'era — dentro `decide()`,
+mentre il difetto stava tre chiamate più in là. Adesso è comportamentale, e
+attraversa il cablaggio vero: la prima stesura chiamava `Animo.esegue` diretto
+e **lasciava verdi tutte e due le mutazioni**.
+
+**E «protetto» era il meteo del villaggio.** `Veglia` chiedeva `al_buio()`
+**solo nel ramo senza guardia**: con una guardia in servizio ogni residente
+riceveva la stessa identica riga `vegliato` — 1,000 per residente per giornata,
+uguale per tutti e quattordici. Adesso la riga va a chi la ronda ha **davvero**
+protetto, cioè a chi era al buio; chi ha una luce davanti a casa era già al
+sicuro, per un gesto che il giocatore ha fatto mesi prima e che si vede nel
+fatto che *non perde sicurezza*.
+
+Le chiavi restano due, tutte e due sue: **assegnare la guardia** e **piantare i
+lampioni** — e la seconda si può fare *prima di sapere che serve*. È la
+condizione che mancava perché «chi è stato protetto per venti notti» possa un
+giorno entrare fra le spinte: il numero che lo falsifica è che le righe per
+residente abbiano **min ≠ max**.
+
 ⚠️ **UNA GUARDIA RESTA DICHIARATA COME NON FALSIFICABILE**, e sta scritta nel
 sorgente: la riga di `Affetti._lealta_di` che legge la **base**. La lealtà non
 deriva ancora, quindi `tratto` e `tratto_base` danno lo stesso numero e la
