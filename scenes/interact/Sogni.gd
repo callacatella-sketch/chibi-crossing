@@ -130,6 +130,9 @@ const GRAMMATICA := {
 	# porgere qualcosa, e non finire mai di porgerlo
 	"piatto": "porgere", "regalo": "porgere", "oro": "porgere",
 	"desiderio": "porgere", "risposta": "porgere",
+	# il reperto della Stratigrafia: il piccolo oggetto che chi è partito
+	# ha lasciato alla terra — nel sogno lo si porge, non lo si spiega
+	"reperto": "porgere",
 	# cercarsi: uno si sporge da dietro qualcosa, e non esce mai del tutto
 	"nascondino": "cercarsi", "prima_parola": "cercarsi",
 	# il contatto: per mezzo secondo i due corpi sono una massa sola

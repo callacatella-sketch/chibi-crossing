@@ -329,6 +329,73 @@ const T := {
 		"Down in the soil: a little earthenware bell. It rings still!",
 	"Sotto terra… una stellina! ⭐": "Down in the soil… a star! ⭐",
 
+	# ------------------------------------------ la Stratigrafia: i reperti
+	# Ciò che riaffiora da sotto un luccichio (scenes/world/Strati.gd →
+	# Scavi._consegna_reperto): la scheggia di ciò che il giocatore ha
+	# demolito, il piccolo oggetto di chi è partito, il segno che una
+	# stagione ha lasciato. Le frasi degli oggetti vivono in
+	# Scavi.TESTO_OGGETTO/TESTO_SEGNO sotto il campo "k" (la frase
+	# rimandata: è lì che il guardiano dei letterali le vede) — la chiave
+	# qui è copiata byte-per-byte da quelle tabelle.
+	"Sotto terra: una scheggia di «%s» di una volta. C'era davvero.":
+		"Down in the soil: a splinter of an old %s. It really was there, once.",
+	# la label del partito arriva con l'articolo davanti («il gattino
+	# Cannella»): in italiano sta da soggetto, e anche qui il nome resta
+	# soggetto della relativa.
+	"Sotto terra: %s. Un pensiero che %s ha lasciato qui.":
+		"Down in the soil: %s. A little something %s left behind.",
+	"Sotto terra: %s.": "Down in the soil: %s.",
+	"un sassolino lucido, scelto fra mille":
+		"a shiny little pebble, chosen from a thousand",
+	"un foglietto di note, sbiadite dalla luna":
+		"a slip of notes, faded by the moon",
+	"un funghetto di legno, intagliato con pazienza":
+		"a little wooden mushroom, patiently carved",
+	"una farfallina di carta, piegata con cura":
+		"a little paper butterfly, folded with care",
+	"un nastrino consumato da mille giravolte":
+		"a ribbon worn thin by a thousand twirls",
+	"un cuscinetto ricamato, ancora morbido":
+		"a little embroidered cushion, still soft",
+	"un truciolo arricciato come un ricciolo":
+		"a wood shaving curled like a lock of hair",
+	"un sacchettino di semi, legato con cura":
+		"a little bag of seeds, tied with care",
+	"un cucchiaino di legno, consumato ai bordi":
+		"a little wooden spoon, worn at the edges",
+	"una lanternina spenta, che vegliava di notte":
+		"a little lantern gone out, that kept watch at night",
+	"una mappina piegata in otto": "a little map folded in eight",
+	"un pennellino consumato fino al manico":
+		"a little paintbrush worn down to the handle",
+	"un fischietto di canna che risponde ancora":
+		"a little reed whistle that still answers",
+	"un barattolino con due briciole, messe da parte":
+		"a little jar with two crumbs, set aside",
+	"una tazzina sbeccata, quella del primo sole":
+		"a chipped little cup, the one for first light",
+	"un campanellino che non sta mai zitto":
+		"a tiny bell that never stays quiet",
+	"un guscio di nocciola, una casa piccola piccola":
+		"a hazelnut shell, the littlest of homes",
+	"una stellina di latta, un po' ammaccata":
+		"a little tin star, a bit dented",
+	"un gomitolino avvolto stretto stretto":
+		"a tiny ball of yarn, wound tight and true",
+	"un cuoricino di legno, intagliato di nascosto":
+		"a little wooden heart, carved in secret",
+	"un bottone di legno, caldo in mano": "a wooden button, warm in the hand",
+	"un piccolo ricordo": "a little keepsake",
+	"un petalo pressato che sa ancora di primavera":
+		"a pressed petal that still smells of spring",
+	"una spiga dorata, piegata dal sole d'estate":
+		"a golden ear of wheat, bent by the summer sun",
+	"una foglia d'oro, scesa piano piano in autunno":
+		"a golden leaf that drifted slowly down, one autumn",
+	"un fiocco di neve che non si è mai sciolto":
+		"a snowflake that never melted",
+	"un piccolo segno di stagione": "a little token a season left behind",
+
 	# --------------------------------------------------- il nido e Briciola
 	"🪺 Nella Casetta uccellini è comparso un nido, con tre uova!":
 		"🪺 A nest has appeared in the Birdhouse, with three eggs in it!",

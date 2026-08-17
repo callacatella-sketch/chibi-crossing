@@ -769,6 +769,48 @@ contrasto che hanno di giorno. Chi ci torna: la manopola è il rapporto fra
 sogno, e la strada giusta è un provino affiancato che funzioni (quello in
 `CHIBI_PROVLUCE` accavalla i sogni e va sistemato prima di fidarsene).
 
+## REGOLA: la Stratigrafia — il salvataggio come sito archeologico
+
+Il prato ricorda in profondità ([`scenes/world/Strati.gd`](scenes/world/Strati.gd),
+nodo nel MainLevel, gruppi `persistable` + `strati`): ciò che il giocatore
+DEMOLISCE lascia un reperto sepolto nella cella; chi PARTE per sempre
+sotterra un oggettino vicino a casa (scelto dal carattere: quirk → mestiere
+→ indole); le STAGIONI depositano di rado un segno. Li riporta alla luce il
+verbo che esiste già — i luccichii di Scavi: ogni tanto uno nasce sopra uno
+strato, e quel giorno il trovamento È il reperto (che finisce nelle Tasche
+come tesoro, e per i ricordi scrive il momento «reperto» sul filo del
+partito e può riaffiorare nei Sogni).
+
+Le regole che NON si negoziano:
+
+1. **Seppellisce solo il GIOCATORE.** L'hook vive in `_try_remove()` (con
+   la cintura `_loading`), MAI in `_remove_at`: `debug_clear`,
+   `debug_remove_edge` e i caricamenti non lasciano strati — o il
+   pulisci-tutto dell'harness seppellirebbe un villaggio intero.
+2. **Il ledger è JSON-safe GIÀ IN RAM** (`cella` = `[x, z]`, mai Vector2i)
+   e si legge con `int()`: gli interi tornano float dal disco.
+3. **La potatura protegge i ricordi**: cap `MAX_STRATI`, si lascia andare
+   prima stagione, poi demolizione, poi (mai, finché si può) i ricordi.
+4. **Determinismo nel giorno**: per i luccichii contano solo strati con
+   `g < oggi` — una demolizione a metà giornata NON cambia i punti già
+   nati. Semi da `hash()` stabili, mai da `get_instance_id()`.
+5. **Chiave = NOME del DNA** (le due anagrafi): il momento «reperto» va sul
+   filo col nome; la label è solo per il toast.
+6. **`estratto` si marca SUBITO**, prima dell'animazione: salvare a metà
+   scavata non duplica il reperto né lo perde.
+7. **Cozy**: niente rovine in superficie, niente pannelli, niente annunci.
+   Il silenzio è il comportamento normale (`PROB_AFFIORA`), e il reperto di
+   chi è partito è tenerezza, mai colpa.
+8. **Ciclo di preload**: Strati precarica Scavi (fonte unica di RECT);
+   Scavi NON deve mai precaricare Strati (lo trova nel gruppo) o il parse
+   muore in silenzio nei test headless.
+
+Guardie: [`tests/cases/test_strati.gd`](tests/cases/test_strati.gd) (977
+righe, coi test che SANNO fallire: mutare `g < oggi` in `g <= oggi` accende
+10 rossi). Prova viva: `tools/prova_strati.gd` (MainLevel vero, exit 0).
+Provino visivo: `CHIBI_STRATI=<dir> Godot --path . --script
+res://tools/provino_strati.gd`.
+
 ## REGOLA: il taccuino del Gufo — si afferma solo ciò che si è VISTO
 
 Il Regista ha due canali. Il primo conta i gesti grossi e il Gufo te li

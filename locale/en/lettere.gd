@@ -363,6 +363,11 @@ const T := {
 	# I quattro a capo sono il respiro: si conservano tutti.
 	"Di quel posto avevo paura, e non lo dicevo.\nIl giorno %d ci siamo andati insieme\ne non è successo niente — proprio niente.\nAdesso ci passo anche da solo, e non ci penso.":
 		"I was afraid of that place, and never said so.\nOn day %d we went there together\nand nothing happened — nothing at all.\nNow I walk past on my own, and never think of it.",
+	# LA STRATIGRAFIA: la lettera dal Grande Prato di chi viene a sapere
+	# che il suo piccolo oggetto è stato dissotterrato (Mail.MOMENTI_TESTO
+	# ["reperto"]). I tre a capo si conservano.
+	"Quel piccolo ricordo l'avevo lasciato\nalla terra, vicino a casa.\nIl giorno %d l'hai trovato tu.\nMi piace saperlo nelle tue zampe.":
+		"That little keepsake — I left it\nto the earth, close to home.\nOn day %d you found it.\nI like knowing it is in your paws.",
 	# l'ultimo desiderio di chi lascia dei figli (Congedo.DESIDERI_TESTO)
 	"tornare sulla soglia dove l'ha visto per la prima volta":
 		"to stand again on the doorstep where they first saw them",
