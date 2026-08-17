@@ -37,6 +37,10 @@ func run(t) -> void:
 	_il_colore_invece_la_vede(t)
 	_non_si_ricalcola_a_meta_giornata(t)
 	_un_salvataggio_vecchio_e_il_gioco_di_prima(t)
+	_la_lealta_deriva_ma_non_riscrive_il_passato(t)
+	_la_compagnia_di_ieri_non_vale_quella_di_oggi(t)
+	_il_villaggio_presta_la_compagnia_prima_della_giornata(t)
+	_riaprire_la_partita_non_riporta_nessuno_a_com_era(t)
 func _rec(oggi: int) -> Callable:
 	return func(quando: int) -> float:
 		return pow(0.5, float(oggi - quando) / MEZZA_VITA)
@@ -330,7 +334,8 @@ func _i_tratti_che_non_derivano(t) -> void:
 	t.ok(not DERIVA.DERIVANO.has("grinta") and not DERIVA.DERIVANO.has("orgoglio"),
 			"e l'elenco lo dice")
 	for tratto2 in DERIVA.DERIVANO:
-		t.ok(DERIVA.SPINTE.has(str(tratto2)) or DERIVA.MARCHI.has(str(tratto2)),
+		t.ok(DERIVA.SPINTE.has(str(tratto2)) or DERIVA.MARCHI.has(str(tratto2))
+				or DERIVA.COMPAGNIA.has(str(tratto2)),
 				"ogni tratto che deriva ha almeno una spinta («%s»)" % tratto2)
 
 
@@ -565,3 +570,218 @@ func _un_salvataggio_vecchio_e_il_gioco_di_prima(t) -> void:
 				"«%s»: senza prove, il tratto e' quello di nascita" % tr, 1e-12)
 	t.almost(ripreso.limbico.reattivita, vecchio.limbico.reattivita,
 			"e la reattivita' e' identica a quella di sempre", 1e-12)
+
+
+## ⚠️ **LA LEALTÀ DERIVA — E NON DEVE RISCRIVERE IL PASSATO.**
+##
+## Chi ha passato molto tempo con qualcuno diventa un filo più leale, e il
+## carburante sono le righe di co-presenza: prove positive, datate, e che
+## distinguono per davvero (nel salvataggio vero vanno **da 2 a 24 per
+## persona**). Chi non ne ha resta a chi era — nessun malus, nessuna
+## partizione, e non esiste nessuna funzione «chi è solo».
+##
+## Ma la lealtà ha un lettore che NON è un colore, ed è il più pericoloso del
+## gioco: `Affetti.conto()` la usa per calcolare la **mezza vita** con cui
+## rilegge tutte le righe del libro mastro, comprese quelle di sei mesi fa.
+## Una lealtà che derivasse lì dentro **riscriverebbe il passato**. E la
+## direzione, misurata qui sotto, è l'opposto di quella che si teme: la
+## compagnia è una prova solo positiva, quindi la mezza vita si ALLUNGA e sullo
+## stesso identico libro mastro il conto **sale del 27%**. Non scioglie una
+## coppia: ne **fabbrica** una — `SOGLIA_COPPIA` è un confronto assoluto, e chi
+## ha passato molto tempo con C si vedrebbe gonfiare il conto con B, cioè
+## **finirebbe in coppia con B senza che fra loro sia successo niente**.
+##
+## Quando la lealtà non derivava, questa guardia non poteva fallire, e stava
+## scritto nel sorgente di `Affetti` che chi l'avrebbe cablata doveva renderla
+## rossa **prima** di consegnare. È questo il caso.
+func _la_lealta_deriva_ma_non_riscrive_il_passato(t) -> void:
+	# --- deriva davvero, e dalla compagnia
+	var solo = ANIMO.new()
+	solo.setup(CHIBIDNA.generate(8080))
+	var insieme = ANIMO.new()
+	insieme.setup(CHIBIDNA.generate(8080))
+	var giornate: Array = []
+	for g in 24:
+		giornate.append(g)
+	insieme.compagnia = giornate
+	insieme.oggi = 24
+	insieme._deriva_giorno = -1
+	insieme._ricalcola_deriva()
+	solo.oggi = 24
+	solo._deriva_giorno = -1
+	solo._ricalcola_deriva()
+	t.almost(solo.tratto("lealta"), solo.tratto_base("lealta"),
+			"chi non ha passato tempo con nessuno resta chi era: nessun malus",
+			1e-12)
+	t.ok(insieme.tratto("lealta") > insieme.tratto_base("lealta") + 0.01,
+			("e chi ne ha passato molto e' un filo piu' leale (%.4f contro %.4f)")
+					% [insieme.tratto("lealta"), insieme.tratto_base("lealta")])
+
+	# --- ⚠️ **MA IL LIBRO MASTRO NON SI ACCORGE DI NIENTE.**
+	# Un passato VECCHIO e uno recente: e' esattamente la coppia su cui la
+	# mezza vita fa la differenza. Se derivasse, il passato si schiaccerebbe.
+	var libro := [
+		{"a": "Uno", "b": "Due", "t": "coraggio", "d": 2},
+		{"a": "Due", "b": "Uno", "t": "piatto", "d": 8},
+		{"a": "Uno", "b": "Due", "t": "veglia", "d": 15},
+		{"a": "Uno", "b": "Due", "t": "chiacchiera", "d": 75},
+	]
+	var conti: Array = []
+	for chi in [solo, insieme]:
+		var vis = RegistroVicini.new()
+		t.stage(vis)
+		(vis.get("_animi") as Dictionary)["U"] = chi
+		(vis.get("_residents") as Array).append(
+				{"label": "U", "dna": {"name": "Uno"}})
+		var reg = RegistroAffetti.new()
+		t.stage(reg)
+		reg.set("_visitors", vis)
+		reg.set("_righe", libro.duplicate(true))
+		conti.append(float(reg.quanto("Uno", "Due")))
+	t.almost(conti[0], conti[1],
+			("il libro mastro legge la lealta' di CHI ERA: %.9f contro %.9f — "
+			+ "la mezza vita e' la grammatica con cui si legge la storia, non "
+			+ "un colore, e con la deriva dentro lo stesso identico passato "
+			+ "varrebbe il 27%% in piu'") % [conti[0], conti[1]], 1e-9)
+	t.ok(conti[0] > 0.0, "…e c'e' davvero qualcosa da contare (%.4f)" % conti[0])
+
+
+## Il libro mastro VERO, col solo `_ready` scavalcato e una sola sorgente di
+## dati dettata: chi sono gli animi. `conto()` e `_lealta_di` restano quelli
+## del gioco.
+class RegistroAffetti extends "res://scenes/npc/Affetti.gd":
+	func _ready() -> void:
+		set_process(false)
+
+	func _process(_d: float) -> void:
+		pass
+
+	## `_cabla` andrebbe a cercare il registro nell'albero: qui glielo si da'.
+	func _cabla() -> void:
+		pass
+
+	func _giorno() -> int:
+		return 80
+
+
+class RegistroVicini extends "res://scenes/npc/Visitors.gd":
+	func _ready() -> void:
+		set_process(false)
+		set_physics_process(false)
+
+	func _process(_d: float) -> void:
+		pass
+
+
+## ⚠️ **E LA COMPAGNIA HA UNA DATA.** Ogni riga di co-presenza e' pesata dalla
+## stessa recenza di tutto il resto del file, e non e' un dettaglio: e' il
+## vincolo che l'autore ha posto per iscritto — **il ritorno dev'essere sempre
+## possibile**. Senza la data, chi ha passato tre settimane con qualcuno due
+## anni fa e poi non l'ha piu' visto resterebbe piu' leale **per sempre**, e la
+## deriva smetterebbe di essere una deriva per diventare una cicatrice.
+func _la_compagnia_di_ieri_non_vale_quella_di_oggi(t) -> void:
+	var recente: Array = []
+	var vecchia: Array = []
+	for i in 12:
+		recente.append(300 - i)
+		vecchia.append(40 + i)
+	var nulla: Array = []
+	var s_ora := DERIVA.spinta("lealta", nulla, {}, {}, _rec(300), recente)
+	var s_allora := DERIVA.spinta("lealta", nulla, {}, {}, _rec(300), vecchia)
+	t.ok(s_ora > 0.05,
+			"dodici giornate insieme, adesso, spingono davvero (%.4f)" % s_ora)
+	t.ok(s_allora < s_ora * 0.5,
+			("e le stesse dodici, ma di allora, valgono meno della meta' "
+			+ "(%.4f contro %.4f): il ritorno e' sempre possibile")
+					% [s_allora, s_ora])
+
+
+## ⚠️ **IL CABLAGGIO, e non il pezzo.** Cinque volte in questo progetto un
+## sistema completo, provato e VERDE non aveva un solo lettore in partita.
+## Qui la compagnia vive in `Cricche` e la deriva vive in `Animo`: se il
+## villaggio non fa il ponte una volta al giorno, `Deriva.COMPAGNIA` e'
+## aritmetica che nessuno esegue mai. Si chiama il giorno VERO
+## (`_giorno_di_animo`), non la funzione che lo fa.
+func _il_villaggio_presta_la_compagnia_prima_della_giornata(t) -> void:
+	var reg = RegistroCricche.new()
+	reg.add_to_group("cricche")
+	t.stage(reg)
+	reg.set("_incontri", [
+		{"a": "Uno", "b": "Due", "d": 30, "q": 0.5, "l": "prato"},
+		{"a": "Tre", "b": "Uno", "d": 31, "q": 0.5, "l": "prato"},
+		{"a": "Due", "b": "Tre", "d": 31, "q": 0.5, "l": "prato"},
+	])
+	var vis = RegistroVicini.new()
+	t.stage(vis)
+	var chi = ANIMO.new()
+	chi.setup(CHIBIDNA.generate(4242))
+	chi.compagnia = [999]      # una compagnia STANTIA, che deve sparire
+	(vis.get("_animi") as Dictionary)["U"] = chi
+	(vis.get("_residents") as Array).append(
+			{"label": "U", "dna": {"name": "Uno"}})
+	vis.set("_villaggio", PaeseFermo.new())
+
+	vis.call("_giorno_di_animo")
+	t.eq(chi.compagnia.size(), 2,
+			("il villaggio presta la compagnia PRIMA di far passare la "
+			+ "giornata: due righe toccano «Uno» (ottenute %d)")
+					% chi.compagnia.size())
+	t.ok(not chi.compagnia.has(999),
+			"…e quella di ieri viene sostituita, non aggiunta")
+
+	# --- e senza il registro delle cricche NON resta quella di ieri.
+	reg.remove_from_group("cricche")
+	vis.call("_giorno_di_animo")
+	t.eq(chi.compagnia.size(), 0,
+			("senza il registro la compagnia si AZZERA (%d): tenersi quella "
+			+ "del giorno prima e' una prova che nessuno ha piu' fatto")
+					% chi.compagnia.size())
+
+
+class RegistroCricche extends "res://scenes/npc/Cricche.gd":
+	func _ready() -> void:
+		set_process(false)
+
+	func _process(_d: float) -> void:
+		pass
+
+
+## Un paese in cui non succede niente: il giorno passa e non produce eventi.
+## Cosi' l'unica cosa osservabile del `_giorno_di_animo` e' il ponte.
+class PaeseFermo extends RefCounted:
+	func simula_giorno() -> Array:
+		return []
+
+
+## ⚠️ **RIAPRIRE LA PARTITA NON RIPORTA NESSUNO A COM'ERA.**
+##
+## `compagnia` non si salva — sta nel registro delle cricche, che è già
+## persistito — e il ponte gira **una volta al giorno**. Ma un animo nasce
+## anche al CARICAMENTO: se il prestito aspettasse il prossimo cambio di
+## giorno, per quattro minuti reali dopo ogni caricamento la lealtà derivata
+## tornerebbe alla base, e i vicini si comporterebbero in modo diverso da come
+## si comportavano un istante prima di salvare.
+##
+## È il difetto che non si vede mai, perché nessuno confronta due partite.
+func _riaprire_la_partita_non_riporta_nessuno_a_com_era(t) -> void:
+	var reg = RegistroCricche.new()
+	reg.add_to_group("cricche")
+	t.stage(reg)
+	reg.set("_incontri", [
+		{"a": "Uno", "b": "Due", "d": 30, "q": 0.5, "l": "prato"},
+		{"a": "Tre", "b": "Uno", "d": 31, "q": 0.5, "l": "prato"},
+	])
+	var vis = RegistroVicini.new()
+	t.stage(vis)
+	# la riga del salvataggio, come la ricostruisce un caricamento
+	var riga := {"label": "U", "dna": CHIBIDNA.generate(4242)}
+	(riga["dna"] as Dictionary)["name"] = "Uno"
+	(vis.get("_residents") as Array).append(riga)
+
+	var animo = vis.call("_ensure_brain", riga)
+	t.ok(animo != null, "il caricamento fa nascere il cervello")
+	var a2: RefCounted = (vis.get("_animi") as Dictionary).get("U")
+	t.ok(a2 != null, "…e con lui l'animo")
+	t.eq((a2.get("compagnia") as Array).size(), 2,
+			("e la compagnia c'e' GIA', senza aspettare il cambio di giorno "
+			+ "(ottenute %d righe)") % (a2.get("compagnia") as Array).size())

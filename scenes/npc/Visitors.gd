@@ -5,6 +5,7 @@ extends Node
 ## riposa sulla panchina e lascia un regalino che puoi raccogliere con E.
 
 const VISITOR := preload("res://scenes/npc/Visitor.gd")
+const CRICCHE := preload("res://scenes/npc/Cricche.gd")
 const MIND := preload("res://scenes/npc/VillagerMind.gd")
 const DNA := preload("res://scenes/npc/ChibiDNA.gd")
 const BRAIN := preload("res://scenes/npc/VillagerBrain.gd")
@@ -2867,6 +2868,15 @@ func _ensure_brain(r: Dictionary) -> RefCounted:
 			animo.load(salvato_a)
 		_animi[key] = animo
 		_iscrivi_al_villaggio(key, animo)
+		# ⚠️ **E LA COMPAGNIA SI PRESTA SUBITO, non al prossimo cambio di
+		# giorno.** L'animo nasce anche al CARICAMENTO di una partita, e il
+		# ponte gira una volta al giorno: senza questa riga, per un'intera
+		# giornata di gioco dopo ogni caricamento la lealta' derivata
+		# tornerebbe alla base — cioe' salvare e riaprire cambierebbe come si
+		# comportano i vicini, che e' il difetto che non si vede mai perche'
+		# nessuno confronta due partite.
+		_presta_la_compagnia_a(animo,
+				str((r.get("dna", {}) as Dictionary).get("name", "")))
 		# il timido saluta solo gli amici veri
 		var node := r.get("node") as Node3D
 		if node:
@@ -3972,6 +3982,13 @@ func cronaca_villaggio() -> Array:
 func _giorno_di_animo() -> void:
 	if _villaggio == null:
 		return
+	# ⚠️ **LA COMPAGNIA SI PRESTA PRIMA DELLA GIORNATA.** Il registro delle
+	# cricche sa con chi ognuno ha passato del tempo, ed e' l'unica prova che
+	# la lealta' possa derivare — ma vive in un altro nodo. Si passa come
+	# DATO, una volta al giorno, invece di far leggere ad `Animo` mezzo
+	# albero della scena: e' la stessa disciplina con cui `Cricche` riceve il
+	# giorno invece di guardare l'orologio.
+	_presta_la_compagnia()
 	for evento in _villaggio.simula_giorno():
 		if str(evento.get("tipo", "")) != "scatto":
 			continue
@@ -5997,3 +6014,38 @@ func _leggi_ambiente() -> Dictionary:
 		return {}
 	var d = _daynight.call("parametri_ambientali")
 	return d if d is Dictionary else {}
+
+
+## Le giornate passate con qualcuno, da `Cricche` a ogni `Animo`. Il registro
+## resta la sola casa del dato: qui si presta, non si copia.
+##
+## ⚠️ Se il registro non c'e' (i banchi, il diorama del titolo, il Prologo) si
+## presta un elenco vuoto — cioe' nessuna spinta, cioe' chi era. Il degrado va
+## verso il comportamento di sempre.
+func _presta_la_compagnia() -> void:
+	var cr := get_tree().get_first_node_in_group("cricche")
+	var vive: Array = []
+	if cr != null and is_instance_valid(cr):
+		vive = cr.get("_incontri") as Array
+	for lab in _animi:
+		_presta_la_compagnia_a(_animi[lab], _nome_da_label(str(lab)), vive)
+
+
+## La stessa riga per uno solo — la usano il ponte giornaliero e la nascita
+## dell'animo (che capita anche al caricamento). `righe` a `null` vuol dire
+## «vai a prenderle tu»: cosi' il giro giornaliero le legge UNA volta per
+## tutti, e chi nasce da solo non paga il giro degli altri.
+func _presta_la_compagnia_a(a: RefCounted, nome: String, righe = null) -> void:
+	if a == null:
+		return
+	var vive: Array = righe if righe is Array else []
+	if righe == null and is_inside_tree():
+		# ⚠️ `get_tree()` e' `null` per un registro costruito fuori dall'albero
+		# (i banchi, le fixture): il degrado va verso «nessuna compagnia», mai
+		# verso un errore — che nel runner non fa fallire niente e lascia la
+		# suite verde con la funzione interrotta a meta'.
+		var cr := get_tree().get_first_node_in_group("cricche")
+		if cr != null and is_instance_valid(cr):
+			vive = cr.get("_incontri") as Array
+	a.compagnia = CRICCHE.giornate_insieme(vive, nome) if not vive.is_empty() \
+			else []

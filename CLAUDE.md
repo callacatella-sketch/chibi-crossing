@@ -4985,13 +4985,14 @@ non passa affatto dalla molla. Un'asserzione che passa in tutti e due i casi
 non è una guardia: è un'asserzione che dice «coperto» senza esserlo.
 
 
-## LE PERSONE CAMBIANO — un tratto che deriva, e i tre posti in cui non entra
+## LE PERSONE CAMBIANO — i tratti che derivano, e i tre posti in cui non entrano
 
 I tratti (codardia, grinta, lealtà, ambizione, orgoglio) erano decisi alla
 nascita e non si muovevano di un millesimo, qualunque cosa succedesse a quella
-persona. Adesso uno di loro **deriva**, lentissimamente, nella direzione in
-cui la vita di quel vicino ha spinto — e siccome tutto il gioco legge i
-tratti, spostarne uno muove tutta la persona.
+persona. Adesso **due** di loro derivano, lentissimamente, nella direzione in
+cui la vita di quel vicino ha spinto — la **codardia** da come il giocatore
+l'ha trattata, la **lealtà** dal tempo passato con qualcuno — e siccome tutto
+il gioco legge i tratti, spostarne uno muove tutta la persona.
 
 Vive in [`scenes/npc/Deriva.gd`](scenes/npc/Deriva.gd) (puro, senza Godot e
 senza stato) più `Animo.tratto()` / `tratto_base()`.
@@ -5075,9 +5076,10 @@ codardia questa frazione dà esattamente quello.
   un'**assenza** (regola 1), e «più autonomo» in questo codice è l'orgoglio —
   il solo tratto che **non tinge nessun canale del corpo**. La versione sui
   binari è la sua metà positiva: *chi ha passato molto tempo con qualcuno
-  diventa un filo più leale*, dalle righe di co-presenza.
+  diventa un filo più leale*, dalle righe di co-presenza — **ed è entrata**
+  (sotto, «LA LEALTÀ DALLA CO-PRESENZA»).
 
-### DUE TRATTI NON DERIVANO, e non è una dimenticanza
+### I TRATTI CHE NON DERIVANO, e non è una dimenticanza
 
 - **la GRINTA**: il suo unico carburante candidato è il lavoro, che fa fuoco
   1,000 volte per residente per giornata **per tutti**; e il suo canale sul
@@ -5086,6 +5088,10 @@ codardia questa frazione dà esattamente quello.
 - **l'ORGOGLIO**: non tinge nessun canale, e i suoi tre lettori sono una
   porta, una crisi e una frase. Un tratto che non può colorare nulla non
   deriva.
+- **l'AMBIZIONE**: il suo carburante candidato è *«quante delle mie giornate
+  le ha decise qualcun altro»*, e la riparazione che lo rende misurabile
+  (`assegna_compito` con l'ordinante vero) è già in casa — ma la spinta non è
+  stata scritta, e non si dichiara fatto quello che non è stato misurato.
 
 ### I NUMERI, misurati sulle biografie vere
 
@@ -5129,10 +5135,15 @@ vera, ma andava saputa.
 ```
 Godot --headless --path . --script res://tests/test_runner.gd
 CHIBI_GIORNI=3 Godot --headless --path . --script res://tools/misura_deriva_vera.gd
+CHIBI_GIORNI=2 CHIBI_QUANTI=13 CHIBI_GAZEBO=1 \
+  Godot --headless --path . --script res://tools/misura_insieme.gd   # sez. 11
 ```
 
-Il banco ha **tre numeri di arresto dichiarati prima di misurare**: nessun
-tratto al muro, la dispersione che non scende, e il flusso che non è uniforme.
+Il primo banco ha **tre numeri di arresto dichiarati prima di misurare**:
+nessun tratto al muro, la dispersione che non scende, e il flusso che non è
+uniforme. Il secondo è quello della lealtà, e va letto **due volte**: il suo
+flusso balla di cinque volte fra due corse uguali, e una corsa sola non dice
+niente.
 Se uno esce storto, **il piano è sbagliato e va detto, non tarato** — e in
 particolare *non si abbassa `SAZIETA`*: abbassarla fa saturare tutti e cancella
 proprio la varietà.
@@ -5190,12 +5201,91 @@ condizione che mancava perché «chi è stato protetto per venti notti» possa u
 giorno entrare fra le spinte: il numero che lo falsifica è che le righe per
 residente abbiano **min ≠ max**.
 
-⚠️ **UNA GUARDIA RESTA DICHIARATA COME NON FALSIFICABILE**, e sta scritta nel
-sorgente: la riga di `Affetti._lealta_di` che legge la **base**. La lealtà non
-deriva ancora, quindi `tratto` e `tratto_base` danno lo stesso numero e la
-mutazione che le scambia lascia la suite verde. La riga è giusta lo stesso e
-va scritta adesso — ma **chi cablerà la lealtà deve rendere rossa quella
-mutazione prima di consegnare**.
+### LA LEALTÀ DALLA CO-PRESENZA — e il residuo che si chiude
+
+*Chi ha passato molto tempo con qualcuno diventa un filo più leale.* È il
+secondo tratto che deriva, ed è la metà positiva di un'idea dell'autore che
+non poteva entrare com'era («chi è stato spesso solo diventa più autonomo»,
+che ha per carburante un'**assenza**).
+
+**Il carburante esisteva già e finiva nel cestino**: le righe di co-presenza
+del registro delle Cricche (`_incontri`), che sono datate, **senza verso** (i
+due nomi in ordine alfabetico) e distinguono per davvero. Zero contatori
+nuovi, zero campi nel salvataggio.
+
+- `Deriva.COMPAGNIA := {"lealta": 1}` — una direzione, e la quantità la porta
+  la riga, come tutte le altre spinte.
+- **Ogni riga è pesata dalla stessa recenza di tutto il resto.** Non è un
+  dettaglio: è il vincolo dell'autore — *il ritorno dev'essere sempre
+  possibile*. Senza la data, chi ha passato tre settimane con qualcuno due
+  anni fa resterebbe più leale **per sempre**, e la deriva diventerebbe una
+  cicatrice.
+- **Il ponte è una riga al giorno** (`Visitors._presta_la_compagnia`, dentro
+  `_giorno_di_animo`, **prima** di far passare la giornata): il registro vive
+  in un altro nodo e si passa come DATO, invece di far leggere ad `Animo`
+  mezzo albero della scena. Senza il ponte, tutto questo è aritmetica che
+  nessuno esegue mai — il guasto che questo progetto ha già pagato cinque
+  volte, e per questo la guardia chiama il **giorno vero**, non la funzione.
+- **La chiave a forma di GIOCATORE** non è nuova ed è già forte: è tutto il
+  lavoro dell'INSIEME. Lui posa i mobili a sedute fratelle, e **lui fa da
+  ponte sedendosi** — due vicini che si siedono accanto a Mochi scrivono una
+  riga fra loro due.
+
+**I NUMERI, dal villaggio vero** (`tools/misura_insieme.gd`, sezione 11 —
+tredici residenti, due giornate, col Gazebo). **Due corse con gli stessi
+identici parametri**, e la prima cosa da dire è che non si somigliano:
+
+| | corsa A | corsa B |
+|---|---|---|
+| righe di co-presenza per residente per giornata | **0,31** | **1,77** |
+| chi si è mosso dopo due giornate | 5 su 13 | **12 su 13** |
+| δ medio · massimo | +0,042 · +0,216 | **+0,148** · +0,267 |
+| proiezione a 7 · 28 · 112 giornate | +0,173 · +0,240 · **+0,245** | +0,2455 · +0,2457 · **+0,2457** |
+| il tetto di `delta` su quel residente (`FRAZIONE` 0,40) | +0,246 | +0,246 |
+
+⚠️ **IL FLUSSO BALLA DI CINQUE VOLTE E MEZZO FRA DUE CORSE UGUALI**, e chi
+scrive «0,31 righe al giorno» come se fosse una misura sta scrivendo il
+rumore di un villaggio. Dipende da come quel villaggio è nato: quanti letti
+finiscono vicini, chi si stanca alla stessa ora, se il Gazebo è sulla strada
+di qualcuno. Il numero onesto è **fra 0,3 e 1,8**, e va riportato così.
+
+**Ed è proprio per questo che il risultato conta: le due corse finiscono
+nello stesso posto.** Tutte e due si fermano a **+0,246 sul tetto di
+`delta`** — il 99,5% e il 99,96% di quanto la forma concede. Il flusso decide
+*quanto in fretta*, la forma decide *fin dove*, e fin dove è il 40% della
+distanza che quella persona aveva dal bordo. Nessuno diventa irriconoscibile
+perché non gli è permesso, non perché il flusso sia stato tarato piano.
+E la saturazione è più rapida di quanto la codardia avesse mostrato: nella
+corsa B la deriva è **già tutta lì dopo sette giornate**.
+
+⚠️ E i due zeri della tabella sono la regola che morde, non un guasto: chi ha
+**zero righe** resta esattamente dov'era (`Loto: 0 righe, +0,000` — nessun
+malus per chi sta per conto suo), e chi ha la lealtà **già al muro** non si
+muove perché `delta` lì vale zero per costruzione. Il banco stampa perciò la
+**base accanto al δ**: nella corsa A un residente con una riga e +0,000 non
+era spiegabile, ed è per quello che quel numero adesso c'è di fianco.
+
+**IL RESIDUO CHE SI CHIUDE, e perché era il pezzo importante.** Stava scritto
+in `Affetti._lealta_di` che la mutazione `tratto_base` → `tratto` non era
+falsificabile (la lealtà non derivava ancora: i due davano lo stesso numero) e
+che **chi avesse cablato la deriva doveva renderla rossa prima di
+consegnare**. È stata resa rossa (`test_deriva`, il caso della lealtà che
+deriva senza riscrivere il passato).
+
+E **la misura ha corretto il timore di allora**, che diceva «una mezza vita
+più corta schiaccia il passato e scioglie una coppia». La deriva della lealtà
+è solo POSITIVA, quindi la mezza vita si **allunga**: sullo stesso identico
+libro mastro il conto passa da **0,5874 a 0,7443, +27%**. Non scioglie una
+coppia — ne **fabbrica** una. `SOGLIA_COPPIA` è un confronto assoluto, e chi
+ha passato molto tempo con C si vedrebbe gonfiare il conto con B, cioè
+finirebbe in coppia con B **senza che fra loro sia successo niente di nuovo**.
+È lo specchio esatto della regola 3 degli Affetti.
+
+**Le cinque mutazioni, tutte rosse** (e tre erano mute alla prima stesura,
+cioè tre buchi veri): la compagnia non è più un carburante · non ha più
+recenza · il villaggio non fa più il ponte · le giornate insieme guardano un
+lato solo della riga (che non ha verso, quindi dimenticarne uno è la
+distrazione plausibile) · senza il registro si tiene la compagnia di ieri.
 
 ## Test
 

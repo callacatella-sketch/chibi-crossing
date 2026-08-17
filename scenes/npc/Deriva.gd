@@ -68,7 +68,7 @@ extends RefCounted
 ## (`Limbico.setup` tinge cortisolo, ossitocina, dopamina, endorfine,
 ## serotonina: l'orgoglio non compare), e i suoi tre lettori sono una porta,
 ## una crisi e una **frase**. Un tratto che non può colorare nulla non deriva.
-const DERIVANO := ["codardia"]
+const DERIVANO := ["codardia", "lealta"]
 
 ## LA DIREZIONE, mai la quantità. `-1` = quel gesto porta il tratto giù.
 const SPINTE := {
@@ -81,6 +81,25 @@ const SPINTE := {
 ## ⚠️ Oggi è **dormiente**: zero marchi su tredici residenti in 55 giornate.
 const MARCHI := {
 	"codardia": 1,
+}
+
+## LA COMPAGNIA — quante volte quella persona ha passato del tempo con
+## qualcuno, e in che direzione la muove.
+##
+## ⚠️ **NON e' carburante del giocatore, e va detto perche' non viola la
+## regola del uno-a-uno.** Quella regola esiste perche' *cio' che il villaggio
+## fa a tutti non distingue nessuno*, e il cancello sull'attore ne era
+## l'attuazione per i ricordi. La co-presenza distingue eccome — misurata nel
+## salvataggio vero, va da **2 a 24 righe per persona**: e' quello che il
+## meccanismo chiede.
+##
+## E la chiave del giocatore c'e', ed e' quella costruita con la nozione di
+## INSIEME: **i posti dove ci si trova li posa lui**, e sedendosi puo' fare da
+## ponte fra due che non si erano mai incontrati. Chi non riceve niente resta
+## a chi era — nessun malus, nessuna partizione, e **non esiste e non deve
+## esistere una funzione «chi e' solo»**.
+const COMPAGNIA := {
+	"lealta": 1,
 }
 
 ## QUANTO AL MASSIMO, come frazione della PROPRIA distanza dal bordo.
@@ -109,9 +128,15 @@ const SAZIETA := 8.0
 ## `Callable`: la mezza vita dei ricordi vive in `Animo` e non si ricopia di
 ## qua. È la stessa disciplina con cui `Cricche` riceve il giorno invece di
 ## leggere l'orologio.
+## [param compagnia] sono le GIORNATE in cui quella persona ha passato del
+## tempo con qualcuno — una per riga di co-presenza. Arrivano da fuori
+## (`Cricche` vive in un altro file e in un altro nodo): questa resta pura, ed
+## e' la stessa disciplina con cui riceve `recenza` invece di leggere
+## l'orologio.
 static func spinta(tratto: String, ricordi: Array, sommario: Dictionary,
-		marchi: Dictionary, recenza: Callable) -> float:
-	if not SPINTE.has(tratto) and not MARCHI.has(tratto):
+		marchi: Dictionary, recenza: Callable, compagnia: Array = []) -> float:
+	if not SPINTE.has(tratto) and not MARCHI.has(tratto) \
+			and not COMPAGNIA.has(tratto):
 		return 0.0
 	var somma := 0.0
 	var tipi: Dictionary = SPINTE.get(tratto, {})
@@ -158,6 +183,15 @@ static func spinta(tratto: String, ricordi: Array, sommario: Dictionary,
 			var m := marchi[mk] as Dictionary
 			forza += maxf(0.0, -float(m.get("carica", 0.0)))
 		somma += float(int(MARCHI[tratto])) * forza
+
+	# --- e il tempo passato con qualcuno. Ogni riga vale uno, pesata dalla
+	#     stessa recenza di tutto il resto: chi si e' visto molto e poi piu'
+	#     torna indietro da solo, come tutto in questo file.
+	if COMPAGNIA.has(tratto):
+		var insieme := 0.0
+		for g in compagnia:
+			insieme += float(recenza.call(int(g)))
+		somma += float(int(COMPAGNIA[tratto])) * insieme
 
 	if not is_finite(somma) or is_zero_approx(somma):
 		return 0.0

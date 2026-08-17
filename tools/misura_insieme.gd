@@ -624,6 +624,8 @@ func _referto(res: Array) -> void:
 		print("\n9. IL REGISTRO — %d righe in %d giornate (%.1f al giorno)"
 				% [righe.size(), _giorni, float(righe.size()) / float(_giorni)])
 
+	_stampa_lealta()
+
 
 ## Una barra sola, stampata come le altre — piu' la coda alta, che e' la
 ## firma del rito: se cresce, quello che si sta guardando e' il falo'.
@@ -682,3 +684,84 @@ func _stampa_esclusione() -> void:
 			somma += int(x)
 		print("      %-14s %d residenti, partner distinti in media %.2f"
 				% [ind, v.size(), float(somma) / maxf(1.0, float(v.size()))])
+
+
+## ⚠️ **E LA LEALTA' SI MUOVE DAVVERO?** — la domanda che chiude il cerchio.
+##
+## Le righe di co-presenza sono il carburante della deriva della lealta'
+## (`Deriva.COMPAGNIA`), e questo e' l'unico posto in cui si puo' misurare
+## quante ne produce un villaggio VERO. Senza questo numero la deriva sarebbe
+## aritmetica che gira su un carburante immaginato — che e' il modo in cui in
+## questo progetto sono nati cinque sistemi verdi e morti in partita.
+##
+## Si stampano due cose diverse, e la distinzione sta accanto ai numeri:
+## il MISURATO (dove sono adesso i residenti veri, dopo le giornate girate) e
+## la PROIEZIONE aritmetica **sulle funzioni vere** (`Animo.tratto`), che dice
+## dove sarebbero mantenendo lo stesso flusso per una stagione e per un anno.
+func _stampa_lealta() -> void:
+	print("\n11. ⚠️ LA LEALTA' — la co-presenza e' il suo carburante")
+	if _vis == null or not is_instance_valid(_vis):
+		print("   (nessun registro dei vicini)")
+		return
+	var animi: Dictionary = _vis.get("_animi")
+	if animi.is_empty():
+		print("   (nessun animo)")
+		return
+	# il ponte VERO, non una scorciatoia: e' lo stesso che gira ogni giorno
+	_vis.call("_presta_la_compagnia")
+
+	# «oggi» e' l'ultima giornata che il registro ha visto: e' la stessa
+	# sorgente su cui la recenza e' calcolata, quindi non puo' sfasarsi.
+	var oggi := 1
+	if _cric != null and is_instance_valid(_cric):
+		for r in (_cric.get("_incontri") as Array):
+			oggi = maxi(oggi, int((r as Dictionary).get("d", 0)))
+	var righe_tot := 0
+	var mossi := 0
+	var d_max := 0.0
+	var d_somma := 0.0
+	var linea := ""
+	for lab in animi:
+		var a: RefCounted = animi[lab]
+		var comp: Array = a.get("compagnia")
+		righe_tot += comp.size()
+		var d: float = float(a.tratto("lealta")) - float(a.tratto_base("lealta"))
+		d_somma += d
+		d_max = maxf(d_max, d)
+		if d > 0.001:
+			mossi += 1
+		# la BASE si stampa: chi e' gia' al muro non puo' derivare, ed e' il
+		# cancello di `Deriva.delta` — senza il numero accanto, uno zero li'
+		# si legge come un guasto invece che come la regola che funziona
+		linea += "%s:%d/%.2f%+.3f " % [str(lab), comp.size(),
+				a.tratto_base("lealta"), d]
+	print("   %s" % linea)
+	print("   → righe di co-presenza: %d in totale, %.2f per residente per giornata"
+			% [righe_tot, float(righe_tot) / maxf(1.0, float(animi.size()))
+					/ maxf(1.0, float(_giorni))])
+	print("   → MISURATO: %d residenti su %d hanno la lealta' mossa; media %+.4f, massimo %+.4f"
+			% [mossi, animi.size(), d_somma / maxf(1.0, float(animi.size())), d_max])
+
+	# --- la PROIEZIONE, sulle funzioni vere e su un residente vero
+	var per_giorno: float = float(righe_tot) / maxf(1.0, float(animi.size())) \
+			/ maxf(1.0, float(_giorni))
+	var chi: RefCounted = animi[animi.keys()[0]]
+	var salva: Array = (chi.get("compagnia") as Array).duplicate()
+	var base: float = float(chi.tratto_base("lealta"))
+	print("   → PROIEZIONE (aritmetica sulle funzioni VERE, stesso flusso):")
+	for orizzonte in [7, 28, 112]:
+		var finto: Array = []
+		var quante := int(round(per_giorno * float(orizzonte)))
+		for i in quante:
+			# distribuite sull'orizzonte, la piu' recente a oggi
+			finto.append(oggi - int(float(i) * float(orizzonte)
+					/ maxf(1.0, float(quante))))
+		chi.set("compagnia", finto)
+		chi.set("_deriva_giorno", -1)
+		chi.call("_ricalcola_deriva")
+		print("      %3d giornate (%3d righe):  %.4f → %.4f  (%+.4f)"
+				% [orizzonte, quante, base, chi.tratto("lealta"),
+						chi.tratto("lealta") - base])
+	chi.set("compagnia", salva)
+	chi.set("_deriva_giorno", -1)
+	chi.call("_ricalcola_deriva")

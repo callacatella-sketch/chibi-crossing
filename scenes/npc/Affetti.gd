@@ -465,16 +465,24 @@ func _lealta_di(nome: String) -> float:
 			# senza che nessuno abbia fatto niente. La mezza vita e' la
 			# grammatica con cui si legge la storia, non un colore.
 			#
-			# ⚠️ **RESIDUO DICHIARATO: oggi questa riga non ha una guardia che
-			# sappia fallire, e va detto invece che lasciato credere.** La
-			# lealta' non e' ancora fra i tratti che derivano (`Deriva.DERIVANO`
-			# ha solo la codardia), quindi `tratto` e `tratto_base` restituiscono
-			# lo stesso numero e la mutazione che le scambia lascia la suite
-			# verde — misurato: zero asserzioni rosse. La riga e' giusta lo
-			# stesso, e va scritta ADESSO: il giorno che la lealta' derivera',
-			# chi la cabla non dovra' accorgersi da solo che questa e' una
-			# grammatica e non un colore. Chi consegnera' quel commit deve
-			# rendere rossa questa mutazione **prima** di consegnarlo.
+			# ⚠️ **E ADESSO LA MUTAZIONE E' ROSSA — il residuo e' chiuso.** Quando
+			# questa riga e' stata scritta la lealta' non derivava ancora, quindi
+			# `tratto` e `tratto_base` davano lo stesso numero e scambiarle
+			# lasciava la suite verde: stava scritto qui che chi avrebbe cablato
+			# la deriva della lealta' doveva rendere rossa la mutazione **prima**
+			# di consegnare. E' stato fatto (`test_deriva`, il caso della lealta'
+			# che deriva senza riscrivere il passato).
+			#
+			# E la MISURA ha corretto il timore di allora, che diceva «una mezza
+			# vita piu' corta schiaccia il passato». La deriva della lealta' e'
+			# solo POSITIVA (la compagnia e' una prova positiva e basta), quindi
+			# la mezza vita si ALLUNGA: sullo stesso identico libro mastro il
+			# conto passa da **0.5874 a 0.7443, +27%**. Non scioglie una coppia:
+			# ne **fabbrica** una. `SOGLIA_COPPIA` e' un confronto assoluto, e
+			# chi ha passato molto tempo con C vedrebbe gonfiarsi il proprio
+			# conto con B — cioe' si troverebbe in coppia con B senza che fra
+			# loro due sia successo niente di nuovo. E' lo specchio della regola
+			# 3: la coppia si forma con GESTI VERI, mai per un coefficiente.
 			if a.has_method("tratto_base"):
 				return float(a.call("tratto_base", "lealta"))
 			return float((a.get("tratti") as Dictionary).get("lealta", 0.5))

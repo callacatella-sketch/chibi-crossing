@@ -599,6 +599,10 @@ static func assenza_da(giorni: int, intensita: float, appartenenza: float) -> fl
 ## gia' persistite. E' una cache, non uno stato.
 var _deriva := {}
 var _deriva_giorno := -1
+## Le giornate passate con qualcuno, prestate da `Cricche` una volta al
+## giorno. **Non si salva**: sta nel registro delle cricche, che e' gia'
+## persistito, e ricopiarla qui sarebbe la seconda casa di un dato solo.
+var compagnia: Array = []
 
 
 ## IL TRATTO DI ADESSO — chi vuole il tratto lo chiede QUI, e solo qui.
@@ -626,7 +630,7 @@ func _ricalcola_deriva() -> void:
 	for nome in DERIVA.DERIVANO:
 		var t := str(nome)
 		var pressione: float = DERIVA.spinta(t, ricordi, sommario,
-				limbico.marchi if limbico != null else {}, _recenza)
+				limbico.marchi if limbico != null else {}, _recenza, compagnia)
 		nuovo[t] = DERIVA.delta(float(tratti.get(t, 0.5)), pressione)
 	_deriva = nuovo
 	# e le due grandezze che il Limbico DERIVA dai tratti si rifanno: senza,
