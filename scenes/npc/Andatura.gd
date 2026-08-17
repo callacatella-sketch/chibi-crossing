@@ -97,22 +97,41 @@ func set_neuro(nt: Dictionary) -> void:
 	if nt.has("adenosina"): adenosina = clampf(float(nt["adenosina"]), 0.0, 1.0)
 	elif nt.has("adenosine"): adenosina = clampf(float(nt["adenosine"]), 0.0, 1.0)
 	elif nt.has("fatica"): adenosina = clampf(float(nt["fatica"]), 0.0, 1.0)
-	# compatibilità con limbico
-	if nt.has("arousal"): cortisolo = clampf(float(nt["arousal"]), 0.0, 1.0)
-	if nt.has("umore"): serotonina = clampf(0.5 + 0.5 * float(nt["umore"]), 0.0, 1.0)
-	if nt.has("regolazione"): adenosina = clampf(1.0 - float(nt["regolazione"]), 0.0, 1.0)
+	# ⚠️ **QUI C'ERA UNA «COMPATIBILITA' CON LIMBICO»**, e la terza riga era
+	# la peggiore di tutto il lavoro: `adenosina = 1 − regolazione`.
+	# `regolazione` e' **la forza di trattenersi**, non la stanchezza —
+	# quindi chi si era appena morso la lingua camminava come un esausto
+	# (rimbalzo ×0,45, orecchie cadute a +0,180 rad), e il giocatore non
+	# aveva modo di leggerlo come autocontrollo. E' un'etichetta clinica
+	# addosso a una persona, ed e' la stessa famiglia del difetto del
+	# capitolo «LA GIOIA NON PORTA LA FACCIA DELLA PAURA»: un livello che si
+	# posa su un canale che non gli appartiene. I sette canali esistono, e
+	# `set_from_limbico` li passa interi.
 
 
 ## Somatizza direttamente l'apparato affettivo di Limbico.gd sul corpo in cammino.
+## ⚠️ **SI LEGGONO I CANALI VERI, non se ne inventano da altri livelli.**
+##
+## La prima stesura RI-DERIVAVA la chimica: `cortisolo = arousal`,
+## `serotonina = 0.5 + 0.5·umore`, e — la peggiore —
+## `adenosina = 1 − regolazione`. Ma `regolazione` e' **la forza di
+## trattenersi**, non la stanchezza: con quella riga chi si e' morso la
+## lingua cammina come un esausto (rimbalzo ×0,45, orecchie cadute), e il
+## giocatore non ha modo di leggerlo come autocontrollo. E' un'etichetta
+## clinica addosso a una persona, ed e' la stessa famiglia del difetto che il
+## capitolo «LA GIOIA NON PORTA LA FACCIA DELLA PAURA» ha gia' pagato: un
+## livello che si posa su un canale che non gli appartiene.
+##
+## Lo stesso valeva per l'umore: `0.5 + 0.5·umore` con umore −0.9 dava una
+## gobba di **−0,198 rad (−11,3°) permanente** — piu' di due terzi della
+## vecchiaia piena. Un umore basso e' una cosa che passa; una gobba no.
+##
+## I sette canali esistono: si leggono.
 func set_from_limbico(lim) -> void:
 	if lim == null:
 		return
-	if "arousal" in lim:
-		cortisolo = clampf(float(lim.arousal), 0.0, 1.0)
-	if "umore" in lim:
-		serotonina = clampf(0.5 + 0.5 * float(lim.umore), 0.0, 1.0)
-	if "regolazione" in lim:
-		adenosina = clampf(1.0 - float(lim.regolazione), 0.0, 1.0)
+	if "neuro" in lim and lim.neuro is Dictionary:
+		set_neuro(lim.neuro)
 
 
 ## Ripristina i parametri allo stato di riposo basale.

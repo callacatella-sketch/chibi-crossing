@@ -201,6 +201,9 @@ var _face_side := 0.36    # semiapertura occhi (per normalizzare lo sguardo)
 # valori correnti (fusi) e obiettivi
 var _c_brow_h := 0.0
 var _c_brow_ang := 0.0
+## Quanto ci mette la chimica sul sopracciglio, tenuto a parte: la molla del
+## rig lo somma al bersaglio invece di inseguire il valore gia' filtrato.
+var _brow_ang_neuro := 0.0
 var _c_brow_sq := 0.0
 var _c_eye_open := 1.0
 var _c_pupil := 1.0
@@ -460,19 +463,26 @@ func set_neuro(nt: Dictionary) -> void:
 	elif nt.has("oxytocin"): ossitocina = clampf(float(nt["oxytocin"]), 0.0, 1.0)
 	if nt.has("cortisolo"): cortisolo = clampf(float(nt["cortisolo"]), 0.0, 1.0)
 	elif nt.has("cortisol"): cortisolo = clampf(float(nt["cortisol"]), 0.0, 1.0)
-	# compatibilità con parametri limbici
-	if nt.has("arousal"): cortisolo = clampf(float(nt["arousal"]), 0.0, 1.0)
-	if nt.has("umore"): serotonina = clampf(0.5 + 0.5 * float(nt["umore"]), 0.0, 1.0)
+	# ⚠️ **QUI C'ERA UNA «COMPATIBILITA' CON I PARAMETRI LIMBICI»**, e faceva
+	# `cortisolo = arousal` e `serotonina = 0.5 + 0.5·umore`. Non e'
+	# compatibilita': e' un livello che si prende il canale di un altro.
 
 
 ## Somatizza direttamente l'apparato affettivo di Limbico.gd sul volto.
+## ⚠️ **SI LEGGONO I CANALI VERI, non se ne inventano da altri livelli.**
+##
+## La prima stesura RI-DERIVAVA la chimica: `cortisolo = arousal` e
+## `serotonina = 0.5 + 0.5·umore`. Ma `arousal` e' l'allarme, e ha un
+## vocabolario tutto di paura; `umore` e' il canale lento, e con umore −0.9
+## quella riga dava sul corpo una gobba **permanente** di piu' di due terzi
+## della vecchiaia piena. E' la stessa famiglia del difetto del capitolo
+## «LA GIOIA NON PORTA LA FACCIA DELLA PAURA»: un livello che si posa su un
+## canale che non gli appartiene. I sette canali esistono: si leggono.
 func set_from_limbico(lim) -> void:
 	if lim == null:
 		return
-	if "arousal" in lim:
-		cortisolo = clampf(float(lim.arousal), 0.0, 1.0)
-	if "umore" in lim:
-		serotonina = clampf(0.5 + 0.5 * float(lim.umore), 0.0, 1.0)
+	if "neuro" in lim and lim.neuro is Dictionary:
+		set_neuro(lim.neuro)
 
 
 ## Ripristina i neurotrasmettitori allo stato basale di riposo.
@@ -671,6 +681,9 @@ func _blend_channels(delta: float) -> void:
 	# alta serotonina = rilassamento e fiducia
 	var ang_neuro := (_c_serotonina - 0.5) * 0.08
 	var eff_brow_ang := _t_brow_ang + ang_neuro
+	# lo si conserva a parte perche' la molla del rig lo somma al bersaglio
+	# VERO invece di inseguire questo (vedi `_apply_rig`)
+	_brow_ang_neuro = ang_neuro
 
 	# 3 · Dilatazione pupillare:
 	# dopamina e ossitocina dilatano (luce viva, empatia, eccitazione), cortisolo restringe (midriasi da stress/minaccia)
@@ -784,7 +797,15 @@ func _apply_brows(delta: float) -> void:
 		var c_h := 8.0 if ritardo else 10.0
 		_brow_h_vel[i] += (k_h * (_t_brow_h - _brow_h_cur[i]) - c_h * _brow_h_vel[i]) * dt
 		_brow_h_cur[i] += _brow_h_vel[i] * dt
-		_brow_ang_vel[i] += (150.0 * (_c_brow_ang - _brow_ang_cur[i]) \
+		# ⚠️ **LA MOLLA INSEGUE IL BERSAGLIO, non un valore gia' filtrato.**
+		# Per un pezzo ha inseguito `_c_brow_ang`, che e' il bersaglio passato
+		# attraverso il `lerp` di poco piu' sopra: un filtro in serie con la
+		# molla, cioe' un ritardo che nessuno aveva chiesto. E non solo con la
+		# neurochimica — MISURATO a chimica NEUTRA: al sesto fotogramma il
+		# sopracciglio stava a 0.0222 dove prima stava a 0.0564, con uno
+		# scarto massimo di **0,0384 rad al nono, il 43% della sua ampiezza**.
+		# Su Mochi e su ogni chibi, a ogni cambio di espressione.
+		_brow_ang_vel[i] += (150.0 * (_t_brow_ang + _brow_ang_neuro - _brow_ang_cur[i]) \
 				- 14.0 * _brow_ang_vel[i]) * dt
 		_brow_ang_cur[i] += _brow_ang_vel[i] * dt
 

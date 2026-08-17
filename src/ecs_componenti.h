@@ -7,7 +7,6 @@
 
 #include "grafo_deduzioni.h" // FASE 5: Deduzioni
 #include "grafo_ricordi.h"   // FASE 4: GrafoRicordi
-#include "sistema_neurochimica.h" // Sistema Neurochimico (7 canali)
 #include "sistema_occ.h"     // FASE 4: Gusto (e, per suo tramite, N_AZIONI)
 
 namespace chibi {
@@ -221,25 +220,31 @@ struct DeduzioniComponent {
 	Deduzioni d;
 };
 
-// ======================================================================
-// IL SISTEMA NEUROCHIMICO — POD a 7 canali
+// ⚠️ **QUI C'ERA UN `ComponenteNeurochimica`, ed e' stato tolto.** Sette
+// canali per entita', integrati sessanta volte al secondo, con `alignas(32)`
+// e una funzione «batch» — e **nessun lettore**: misurato mettendo un
+// `return` in testa al suo passo, la suite restava identica (68157/0) e
+// `avanza()` scendeva da 11,4 a 8,2 µs. L'agenda non lo leggeva, il
+// modulatore del cuore nemmeno; l'unica cosa che entrava era il meteo.
 //
-// Mantiene lo stato neurochimico dell'abitante (dopamina, ossitocina,
-// serotonina, cortisolo, melatonina, adenosina, endorfine).
+// E soprattutto era un DOPPIONE: `Limbico.neuro` (GDScript) e' l'altro
+// modello, ed e' quello che governa il gioco — con baseline gia' DIVERSE in
+// cinque canali su sette. Il capitolo qui sopra su `BisogniComponent` dice
+// perche' la casa e' di la': **quel dato e' persistito**, e due case sullo
+// stesso dato salvato e' il guasto che le fonti uniche vietano. Quello che
+// il modello C++ aveva di buono — l'integrazione esatta, il decadimento per
+// canale, la produzione ambientale — e' stato portato in `Limbico`, dove
+// qualcuno lo legge.
 //
-// L'allineamento a 32 byte (alignas(32)) garantisce un layout SIMD 256-bit
-// ottimale e cache-friendly in memoria EnTT contigua.
-// ======================================================================
-struct alignas(32) ComponenteNeurochimica {
-	float livello[N_NEURO] = { 0.5f, 0.5f, 0.5f, 0.2f, 0.1f, 0.2f, 0.3f };
-	float baseline[N_NEURO] = { 0.5f, 0.5f, 0.5f, 0.2f, 0.1f, 0.2f, 0.3f };
-	float decadimento[N_NEURO] = { 0.05f, 0.05f, 0.02f, 0.08f, 0.10f, 0.04f, 0.06f };
-	float produzione[N_NEURO] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
-	float impulsi[N_NEURO] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
-	float suscettibilita[N_NEURO] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
-};
-
-static_assert(N_NEURO == 7, "sette canali neurochimici");
+// Tre cose che vale la pena non ripetere, tutte misurate: `alignas(32)` era
+// decorativo (zero istruzioni SIMD generate, `_expf` scalare, e degli array
+// solo il primo era allineato — un load AVX2 sugli altri avrebbe fatto
+// fault, su un target che comprende arm64 dove AVX2 non esiste); la funzione
+// «batch» era una TRAPPOLA (presume due pool EnTT paralleli, che paralleli
+// non sono: chi l'avesse usata davvero avrebbe accoppiato il neuro di X con
+// lo stato di Y); e l'integrazione dichiarata «esatta» aveva il termine di
+// produzione FUORI dall'esponenziale, quindi lo stato era funzione del frame
+// rate.
 
 } // namespace chibi
 

@@ -1676,6 +1676,13 @@ const LEASE_SPONTANEO := 30.0
 ## davvero un bit, e che sia solo suo.
 const FATTO_INSIEME := "insieme_accanto"
 
+## Cosa dice il cielo adesso — `luce`, `pioggia`, `temperatura`. Si rinfresca
+## una volta per fotogramma e lo legge il passo neurochimico di ogni
+## residente. Vuoto se non c'e' nessun `DayNight` (i banchi, il diorama del
+## titolo, il Prologo): li' la chimica sta ferma al suo punto di riposo, che
+## e' il degrado giusto — «non succede niente», mai un numero inventato.
+var _ambiente: Dictionary = {}
+
 var _ecs: Object = null
 var _ecs_manca_detto := false
 var _ST_DORME := 1
@@ -2765,6 +2772,10 @@ func _ciclo_sonno(delta: float, t_ora: float) -> void:
 		return
 	# 2) IL PASSO: l'unica decisione che il C++ possiede in tutto il gioco
 	_ecs.avanza(delta, t_ora)
+	# …e QUANTO DA' IL MONDO adesso: si chiede UNA volta per fotogramma, non
+	# ventotto. Il cielo lo sa gia' (`DayNight` calcola luce, temperatura e
+	# pioggia per i suoi shader): qui si legge, non si ricalcola.
+	_ambiente = _leggi_ambiente()
 	# 3) I GESTI. Applicazione IDEMPOTENTE: si guarda com'è il corpo ADESSO e
 	#    lo si porta dov'è giusto. Nessun fronte da perdere, nessun ordine da
 	#    ricordare — e se un altro sistema ha mosso il corpo nel frattempo, al
@@ -2777,27 +2788,41 @@ func _ciclo_sonno(delta: float, t_ora: float) -> void:
 		var st: int = _ecs.stato(id)
 		var nascosto: bool = node.call("is_hidden")
 		var lab := str(r.get("label", ""))
-		# Aggiornamento neurochimico circadiano e da attività continua (veglia/sonno/onsen)
+		# ============ IL PASSO NEUROCHIMICO, e il mondo che lo alimenta ======
+		#
+		# ⚠️ **UN PASSO SOLO, SU `delta`.** Qui c'erano nove `stimola_neuro`
+		# per fotogramma per residente, ognuno moltiplicato per `delta` —
+		# cioe' un'integrazione di Eulero scritta a mano, sparsa su nove
+		# righe, dentro un ciclo che gira sessanta volte al secondo. E
+		# siccome ogni `stimola_neuro` tirava anche l'umore di un passo
+		# fisso, l'umore diventava una rampa alla frequenza del fotogramma:
+		# MISURATO, dieci residenti su dieci a **+1.0000** dopo diciassette
+		# secondi, e un LUTTO cancellato in tre.
+		#
+		# Adesso il tempo tocca la chimica in UN posto solo
+		# (`Limbico.passo_neuro`), con l'integrazione esatta: il risultato
+		# non dipende piu' dal frame rate. Il ritmo del giorno e della notte
+		# non e' piu' scritto qui — lo fa la LUCE, che il cielo sa gia' e che
+		# arriva da `DayNight.parametri_ambientali()`.
 		var animo_r: RefCounted = _animi.get(lab)
 		if animo_r and animo_r.limbico:
 			var l: RefCounted = animo_r.limbico
-			# Melatonina: sale di notte e cala di giorno
-			if t_ora > 0.72 or t_ora < 0.25:
-				l.stimola_neuro("melatonina", 0.006 * delta)
-			else:
-				l.stimola_neuro("melatonina", -0.015 * delta)
-			# Adenosina & Cortisolo: dipendono dallo stato di sonno o veglia
-			if st == _ST_DORME:
-				l.stimola_neuro("adenosina", -0.015 * delta)
-				l.stimola_neuro("cortisolo", -0.008 * delta)
-			else:
-				l.stimola_neuro("adenosina", 0.003 * delta)
-			# Onsen continuo: se immerso nella pozza termale, rilascio di endorfine e benessere
+			l.passo_neuro(delta, _ambiente, st == _ST_DORME)
+			# L'ONSEN resta un impulso, ed e' giusto: non e' il mondo che
+			# scorre, e' una cosa che si sta facendo. (Ed e' l'unico posto
+			# del gioco in cui il ristoro e' continuo invece che a evento:
+			# per questo si scala su `delta` e non su una costante.)
 			if str(node.get("_state")).begins_with("on_"):
 				l.stimola_neuro("endorfine", 0.03 * delta)
 				l.stimola_neuro("serotonina", 0.015 * delta)
 				l.stimola_neuro("cortisolo", -0.03 * delta)
 				l.stimola_neuro("adenosina", -0.015 * delta)
+			# …e il CORPO indossa la chimica: la faccia e l'andatura. Senza
+			# questa riga i due file della somatizzazione — 247 righe, con i
+			# loro test — sono codice morto in partita, e il corpo esce
+			# BIT-IDENTICO a quello di prima (misurato su 600 fotogrammi).
+			if node.has_method("indossa_neuro"):
+				node.call("indossa_neuro", l.neuro)
 		# la posa della porta chiusa la mette e la toglie SEMPRE lo stesso
 		# posto, e solo se è ancora la nostra
 		_aggiorna_posa_fuori(lab, node, st == _ST_FUORI)
@@ -5893,3 +5918,16 @@ func debug_quirk(i: int, q: String) -> void:
 	if node and is_instance_valid(node):
 		var t_ora: float = float(_daynight.get("time")) if _daynight else 0.85
 		_quirk_tick(r, node, brain, 0.0, t_ora)
+
+
+## QUANTO DA' IL MONDO, adesso. Il cielo lo sa gia': `DayNight` calcola luce,
+## temperatura e pioggia per i suoi shader, e li pubblica in una riga sola.
+## Qui si LEGGE — ricalcolare le stesse formule di qua sarebbe la tabella
+## gemella che questo progetto vieta.
+func _leggi_ambiente() -> Dictionary:
+	if _daynight == null or not is_instance_valid(_daynight):
+		return {}
+	if not _daynight.has_method("parametri_ambientali"):
+		return {}
+	var d = _daynight.call("parametri_ambientali")
+	return d if d is Dictionary else {}

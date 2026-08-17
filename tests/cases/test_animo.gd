@@ -351,28 +351,78 @@ func _test_sfogo(t) -> void:
 # ---- INTEGRAZIONE NEUROCHIMICA: drive -> neuro, ossitocina -> perdono, cortisolo -> tunnel-vision ----
 func _test_neurochimica_animo(t) -> void:
 	var a = _chibi("Zafferano", {"lealta": 0.8}, "boscaiolo")
-	# 1. Drive mapping
+	# 1. I BISOGNI SPOSTANO IL PUNTO DI RIPOSO, e il livello ci arriva col tempo
 	a.drive["fatica"] = 0.8
 	a.sincronizza_neuro()
-	t.almost(a.limbico.livello_neuro("adenosina"), 0.8, "fatica sincronizza adenosina", 0.05)
+	t.almost(float(a.limbico.neuro_base["adenosina"]), 0.8,
+			"la fatica sposta il PUNTO DI RIPOSO dell'adenosina", 0.05)
+	for _p in 150:
+		a.limbico.passo_neuro(2.0)
+	t.almost(a.limbico.livello_neuro("adenosina"), 0.8,
+			"e col tempo il livello ci arriva", 0.05)
 
 	a.drive["appartenenza"] = 0.9
 	a.sincronizza_neuro()
-	t.ok(a.limbico.livello_neuro("ossitocina") > 0.6, "appartenenza alta alza l'ossitocina")
+	t.ok(float(a.limbico.neuro_base["ossitocina"]) > 0.6,
+			"l'appartenenza alza il punto di riposo dell'ossitocina")
 
-	# 2. Ossitocina amplifica il perdono nel rancore
-	var con_ox = _chibi("Loto1", {}, "guerriero")
-	var senz_ox = _chibi("Loto2", {}, "guerriero")
+	# ⚠️ **E UN IMPULSO SOPRAVVIVE A UNA SINCRONIZZAZIONE.** E' il difetto
+	# misurato: `sincronizza_neuro` ASSEGNAVA cinque canali su sette, ed e'
+	# chiamata da sei posti (`ricorda` compreso, cioe' da ogni fatto della
+	# vita del villaggio). La chiacchierata portava l'ossitocina a 1.0000 e
+	# il primo `ricorda()` la riportava a 0.7575: il piatto caldo, l'onsen e
+	# la chiacchierata non contavano NIENTE.
+	var prima_imp = a.limbico.livello_neuro("ossitocina")
+	a.limbico.stimola_neuro("ossitocina", 0.25)
+	var dopo_imp = a.limbico.livello_neuro("ossitocina")
+	t.ok(dopo_imp > prima_imp + 0.1, "l'impulso si vede subito")
+	a.sincronizza_neuro()
+	t.almost(a.limbico.livello_neuro("ossitocina"), dopo_imp,
+			"e una sincronizzazione NON lo cancella: i drive muovono il riposo, "
+			+ "non il livello", 0.0001)
+
+	# ⚠️ E IL CORTISOLO NON SI RI-AGGANCIA SOLO VERSO L'ALTO. Misurato nella
+	# scena vera del piatto caldo: un vicino con `sicurezza = 0.30` si
+	# svegliava guarito (0.0800), il giocatore gli portava da mangiare, e
+	# restava con 0.4400 — il gesto piu' affettuoso del gioco lo lasciava
+	# piu' teso di come si era svegliato.
+	var b = _chibi("Zafferano2", {}, "boscaiolo")
+	b.drive["sicurezza"] = 0.30
+	b.sincronizza_neuro()
+	var teso := float(b.limbico.neuro_base["cortisolo"])
+	t.ok(teso > 0.4, "poca sicurezza alza il punto di riposo del cortisolo (%.3f)" % teso)
+	b.drive["sicurezza"] = 0.95
+	b.sincronizza_neuro()
+	t.ok(float(b.limbico.neuro_base["cortisolo"]) < teso * 0.5,
+			"e quando torna la sicurezza il punto di riposo SCENDE: nessun max()")
+
+	# 2. ⚠️ **IL PERDONO NON DIPENDE DA QUANTI AMICI TI HA DATO IL MONDO.**
+	#
+	# Qui c'era un moltiplicatore dell'ossitocina sullo sconto del rancore, e
+	# l'ossitocina la fa l'appartenenza, che a sua volta la fa `_chats` — UNA
+	# chiacchierata per volta in tutto il villaggio. Misurato: lo sconto
+	# andava da ×1,146 a ×1,596 fra appartenenza 0.10 e 0.90, cioe' **chi il
+	# mondo non ha incontrato perdonava meno**. E' la stessa forma della
+	# «tassa giornaliera per non essersi visti» che la regola 3 degli Affetti
+	# vieta per iscritto.
+	#
+	# ⚠️ E il caso che lo sorvegliava confrontava **due persone diverse**
+	# (`Loto1` e `Loto2`, DNA diversi): misurato, invertendo l'ossitocina il
+	# verso della disuguaglianza NON cambiava — a governare era il soggetto.
+	# Qui si guarda lo STESSO individuo, che e' l'unico modo di isolare un
+	# canale.
+	var stesso = _chibi("Loto1", {}, "guerriero")
 	for i in 6:
-		con_ox.esegue("taglia_legna")
-		senz_ox.esegue("taglia_legna")
-	# Aggiungiamo ricordi positivi
-	con_ox.ricorda("regalo", "giocatore", 0.8, 1.0)
-	senz_ox.ricorda("regalo", "giocatore", 0.8, 1.0)
-	con_ox.limbico.stimola_neuro("ossitocina", 0.5)
-	senz_ox.limbico.neuro["ossitocina"] = 0.05
-	t.ok(con_ox.rancore() < senz_ox.rancore(),
-			"l'ossitocina amplifica lo sconto del rancore attraverso i ricordi positivi")
+		stesso.esegue("taglia_legna")
+	stesso.ricorda("regalo", "giocatore", 0.8, 1.0)
+	stesso.limbico.neuro["ossitocina"] = 0.05
+	var r_bassa = stesso.rancore()
+	stesso.limbico.neuro["ossitocina"] = 0.95
+	var r_alta = stesso.rancore()
+	t.almost(r_alta, r_bassa,
+			"l'ossitocina non tocca il perdono: la chiave e' del giocatore, "
+			+ "non dell'appartenenza che il mondo ti ha assegnato", 1e-9)
+	t.ok(r_bassa > 0.0, "…e c'e' del rancore da perdonare (%.4f)" % r_bassa)
 
 	# 3. Cortisolo e tunnel-vision decisionale
 	var calmo = _chibi("Salvia1")
@@ -386,6 +436,30 @@ func _test_neurochimica_animo(t) -> void:
 		scelte_stress[sc] = int(scelte_stress.get(sc, 0)) + 1
 	t.ok(int(scelte_stress.get("riposa", 0)) >= 18,
 			"il cortisolo alto irrigidisce il Softmax creando tunnel-vision sulla routine greedy di sollievo")
+
+	# ⚠️ **MA NON SFONDA UNA SCELTA DI VITA.** Il fattore ×4 si moltiplicava
+	# anche per `NITIDEZZA_VITA` (4.5) e dava 18: lo stress rendeva piu'
+	# CERTA una decisione che cambia una vita. Misurato su 240 caratteri ×
+	# 30 rotture, il ventaglio delle sette risposte crollava dall'87,9% al
+	# 25,4%. Il tetto e' fatto di un numero che non e' suo — `NITIDEZZA_VITA`
+	# stessa — e questo caso lo misura sul VENTAGLIO, cioe' sulla cosa che
+	# quel numero esiste per proteggere.
+	var ventaglio := 0
+	var quanti := 0
+	for seme in 40:
+		var chi = _chibi("Ventaglio%d" % seme)
+		chi.limbico.neuro["cortisolo"] = 0.95
+		var viste := {}
+		for giro in 30:
+			viste[chi.decide(ANIMO.REAZIONI.keys(), "giocatore",
+					ANIMO.NITIDEZZA_VITA)] = true
+		quanti += 1
+		if viste.size() >= 3:
+			ventaglio += 1
+	var frazione := float(ventaglio) / float(maxi(1, quanti))
+	t.ok(frazione >= 0.80,
+			("e sotto stress il carattere da' ancora tre risposte diverse su trenta "
+			+ "rotture nel %.0f%% dei casi (mai sotto l'80)") % (frazione * 100.0))
 
 	# 4. Trattieni
 	t.ok(calmo.trattieni(), "Animo.trattieni delega correttamente al Limbico")

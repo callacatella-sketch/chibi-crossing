@@ -277,29 +277,41 @@ func setup(dna: Dictionary, seed_v := -1) -> void:
 func sincronizza_neuro() -> void:
 	if limbico == null:
 		return
-	# 1. Fatica -> Adenosina (pressione omeostatica del sonno)
+	# ⚠️ **I BISOGNI SPOSTANO IL PUNTO DI RIPOSO, NON IL LIVELLO.** Prima
+	# questa funzione ASSEGNAVA cinque canali su sette, e la chiamano sei
+	# posti diversi (`setup`, `passa_giorno`, `esegue`, `ricorda`, `lutto`,
+	# `load`) piu' `Visitors`: ogni impulso degli eventi veniva cancellato
+	# dal primo fatto qualunque del villaggio. MISURATO: la chiacchierata
+	# portava l'ossitocina a 1.0000, e un `ricorda()` la riportava a 0.7575.
+	# Il piatto caldo, l'onsen e la chiacchierata non contavano niente — in
+	# silenzio, con la suite verde.
+	#
+	# E c'era di peggio sul cortisolo: il ri-aggancio era un `max()`, cioe'
+	# **solo verso l'alto**. Misurato nell'ordine vero di `_give_dish`: un
+	# vicino con `sicurezza = 0.30` si sveglia guarito dalla notte (0.0800),
+	# il giocatore gli porta un piatto caldo, e resta con **0.4400** — cioe'
+	# il gesto piu' affettuoso del gioco lo lasciava piu' teso di come si era
+	# svegliato. Adesso il piatto sposta il livello (in giu', come deve) e i
+	# drive spostano soltanto il posto dove il livello torna.
 	var m_fatica: float = malessere("fatica")
-	limbico.neuro["adenosina"] = clampf(m_fatica, 0.0, 1.0)
-
-	# 2. Noia -> Dopamina (l'assenza di novità deprime la dopamina; l'autonomia la sostiene)
 	var m_noia: float = malessere("noia")
-	var aut_val: float = float(drive.get("autonomia", 0.5))
-	limbico.neuro["dopamina"] = clampf((1.0 - m_noia) * 0.55 + aut_val * 0.35 + 0.05, 0.0, 1.0)
-
-	# 3. Sicurezza -> Cortisolo (minaccia, insicurezza o allarme innalzano il cortisolo)
 	var m_sicurezza: float = malessere("sicurezza")
-	if m_sicurezza > 0.25:
-		var cort_pre: float = float(limbico.neuro.get("cortisolo", 0.08))
-		limbico.neuro["cortisolo"] = clampf(maxf(cort_pre, m_sicurezza * 0.8), 0.0, 1.0)
-
-	# 4. Appartenenza -> Ossitocina (calore sociale, fiducia e legame)
+	var aut_val: float = float(drive.get("autonomia", 0.5))
 	var app_val: float = float(drive.get("appartenenza", 0.5))
-	limbico.neuro["ossitocina"] = clampf(app_val * 0.75 + 0.12, 0.0, 1.0)
-
-	# 5. Stima & Autonomia -> Serotonina ed Endorfine (soddisfazione, status, sollievo)
 	var stima_val: float = float(drive.get("stima", 0.5))
-	limbico.neuro["serotonina"] = clampf(stima_val * 0.55 + aut_val * 0.35 + 0.10, 0.0, 1.0)
-	limbico.neuro["endorfine"] = clampf(stima_val * 0.35 + (1.0 - m_fatica) * 0.45 + 0.10, 0.0, 1.0)
+	var base: Dictionary = limbico.neuro_base
+	# 1. Fatica -> Adenosina (pressione omeostatica del sonno)
+	base["adenosina"] = clampf(m_fatica, 0.0, 1.0)
+	# 2. Noia -> Dopamina (l'assenza di novità la deprime; l'autonomia la sostiene)
+	base["dopamina"] = clampf((1.0 - m_noia) * 0.55 + aut_val * 0.35 + 0.05, 0.0, 1.0)
+	# 3. Sicurezza -> Cortisolo. Nessun `max()`: chi sta bene torna giu'.
+	base["cortisolo"] = clampf(maxf(float(limbico.NEURO_BASELINE["cortisolo"]),
+			m_sicurezza * 0.8), 0.0, 1.0)
+	# 4. Appartenenza -> Ossitocina (calore sociale, fiducia e legame)
+	base["ossitocina"] = clampf(app_val * 0.75 + 0.12, 0.0, 1.0)
+	# 5. Stima & Autonomia -> Serotonina ed Endorfine
+	base["serotonina"] = clampf(stima_val * 0.55 + aut_val * 0.35 + 0.10, 0.0, 1.0)
+	base["endorfine"] = clampf(stima_val * 0.35 + (1.0 - m_fatica) * 0.45 + 0.10, 0.0, 1.0)
 
 
 ## Il carattere in una riga, per il diario e per il debug.
@@ -510,10 +522,17 @@ func rancore(attore := "giocatore") -> float:
 	for r in ricordi:
 		if r["attore"] == attore and float(r["valenza"]) > 0.0:
 			buoni += float(r["valenza"]) * float(r["intensita"]) * _recenza(int(r["quando"]))
-	var ox: float = limbico.livello_neuro("ossitocina") if limbico else 0.40
-	# L'ossitocina amplifica l'effetto riconciliante e il perdono dei ricordi positivi
-	var moltiplicatore_ox: float = 1.0 + clampf(ox, 0.0, 1.0) * 0.75
-	somma = maxf(0.0, somma - buoni * 1.4 * moltiplicatore_ox)
+	# ⚠️ **IL PERDONO NON DIPENDE DA QUANTI AMICI TI HA DATO IL MONDO.** Qui
+	# c'era un moltiplicatore sull'ossitocina, e l'ossitocina la fa
+	# l'appartenenza (`sincronizza_neuro`), che a sua volta la fa `_chats` —
+	# **una** chiacchierata per volta in tutto il villaggio. Misurato: lo
+	# sconto dei ricordi buoni andava da ×1,146 con appartenenza 0.10 a
+	# ×1,596 con 0.90, cioe' **chi il mondo non ha incontrato perdonava
+	# meno**. E' la stessa forma della «tassa giornaliera per non essersi
+	# visti» che la regola 3 degli Affetti vieta per iscritto: una ferita la
+	# cui unica chiave sta in mano al caso invece che al giocatore. I ricordi
+	# belli scontano il rancore, e li mette li' chi gioca.
+	somma = maxf(0.0, somma - buoni * 1.4)
 	return 1.0 - exp(-somma / SATURAZIONE * 3.0)
 
 
@@ -669,9 +688,22 @@ func decide(azioni: Array, chiede := "giocatore", nitidezza := 1.6) -> String:
 	var cort: float = limbico.livello_neuro("cortisolo") if limbico else 0.0
 	var nitidezza_effettiva: float = nitidezza
 	if cort > 0.45:
-		# Irrigidimento del Softmax: il cortisolo alto crea tunnel-vision sulle routine greedy
+		# Irrigidimento del Softmax: il cortisolo alto stringe il campo, e chi
+		# e' teso fa la cosa che lo solleva invece di guardarsi intorno.
+		#
+		# ⚠️ **MA NON PIU' DI UNA SCELTA DI VITA, ed e' il tetto che mancava.**
+		# Senza, il fattore ×4 si moltiplicava anche per `NITIDEZZA_VITA`
+		# (4.5) e dava 18: lo stress rendeva piu' certa una decisione che
+		# cambia una vita, che e' l'opposto di quello che lo stress fa.
+		# MISURATO su 240 caratteri veri × 30 rotture: il ventaglio delle
+		# sette risposte di `REAZIONI` — «lo stesso carattere che in 30
+		# rotture ne da' tre diverse», l'invariante che una revisione
+		# avversariale precedente aveva stabilito — passava dall'87,9% al
+		# **25,4%** col cortisolo a 0.90. Col tetto, una routine puo'
+		# diventare decisa quanto una scelta di vita, mai di piu'.
 		var fattore_stress: float = (cort - 0.45) / 0.55
-		nitidezza_effettiva = nitidezza * (1.0 + fattore_stress * 3.0)
+		nitidezza_effettiva = minf(nitidezza * (1.0 + fattore_stress * 3.0),
+				maxf(nitidezza, NITIDEZZA_VITA))
 	var voti := []
 	for a in azioni:
 		voti.append({"a": a, "s": punteggio(a, chiede)})

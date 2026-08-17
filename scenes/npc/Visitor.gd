@@ -4770,3 +4770,35 @@ func _mostra_fagotto(serve: bool) -> void:
 		var tw := create_tween()
 		tw.tween_property(f, "scale", Vector3.ONE * 0.05, 0.3)
 		tw.tween_callback(f.queue_free)
+
+
+## IL CORPO INDOSSA LA CHIMICA — l'unica riga che rende visibile il modello.
+##
+## ⚠️ **Senza di lei sono 247 righe di codice morto.** `FaceController` e
+## `Andatura` avevano tutto scritto e provato — corrugatore col cortisolo,
+## pupille con la dopamina, blush con l'ossitocina, rimbalzo con l'adenosina,
+## coda con la serotonina — e **nessun chiamante in tutto il gioco**.
+## MISURATO: sessanta secondi di cammino, dieci canali del rig, il corpo
+## usciva **bit-identico** a quello di prima del commit (scarto 0.0000000000).
+## Un sistema completo, provato, verde, e mai eseguito: la forma di guasto
+## che questo progetto ha gia' pagato tre volte.
+##
+## La chiama `Visitors` una volta per fotogramma, con i canali VERI — non
+## ri-derivati da `arousal`/`umore`/`regolazione`, che e' il modo in cui un
+## livello si prende il corpo di un altro.
+func indossa_neuro(neuro: Dictionary) -> void:
+	# ⚠️ **SENZA CHIMICA SI TORNA A RIPOSO, non si resta all'ultimo valore.**
+	# E' la stessa regola dei canali orfani del rig: un corpo che perde chi
+	# gli scriveva un canale ci resta incollato per sempre. Qui capita per
+	# davvero — il diorama del titolo e il Prologo non hanno `Visitors`, e un
+	# corpo rimontato dall'estetista riparte da zero.
+	if neuro.is_empty():
+		if _andatura != null:
+			_andatura.reset_neuro()
+		if _face != null:
+			_face.reset_neuro()
+		return
+	if _andatura != null:
+		_andatura.set_neuro(neuro)
+	if _face != null:
+		_face.set_neuro(neuro)

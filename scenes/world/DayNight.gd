@@ -561,13 +561,17 @@ func _apply() -> void:
 		if _cozy and _cozy.has_method("set_night"):
 			_cozy.set_night(night)
 
-	# --- parametri ambientali per il sistema neurochimico / ECS ---
-	var luce_amb := clampf(day_f * (1.0 - g * 0.45) + (_moon.light_energy / 0.32) * 0.12, 0.0, 1.0)
-	var temp_amb := _g_temp + elev * 3.5 - g * 3.0
-	var pioggia_amb := clampf(g, 0.0, 1.0)
-	for ecs in get_tree().get_nodes_in_group("ecs_mondo"):
-		if ecs.has_method("imposta_ambiente"):
-			ecs.imposta_ambiente(temp_amb, luce_amb, pioggia_amb)
+	# ⚠️ **IL CIELO NON SPINGE PIU' NIENTE A NESSUNO, e ci si guadagna due
+	# volte.** Qui c'era un `imposta_ambiente` verso il gruppo `ecs_mondo`,
+	# ogni fotogramma, con le tre formule RICOPIATE dalle funzioni qui sotto
+	# — che nel frattempo avevano un solo chiamante: se stesse. Due copie
+	# della stessa aritmetica, e la copia stava dentro `_apply`, che gira a
+	# ogni frame.
+	#
+	# Adesso il cielo si limita a SAPERE (`parametri_ambientali()`), e chi ha
+	# bisogno del mondo se lo legge quando gli serve — `Visitors` una volta
+	# per fotogramma, non ventotto. E' anche il verso giusto della
+	# dipendenza: il tempo atmosferico non deve conoscere chi lo respira.
 
 
 ## Restituisce la temperatura percepita attuale (°C)

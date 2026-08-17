@@ -26,6 +26,9 @@ func run(t) -> void:
 	_test_salvataggio(t)
 
 
+	_il_passo_e_invariante(t)
+	_l_umore_non_si_muove_da_solo(t)
+	_il_NaN_non_avvelena(t)
 func _nuovo(tratti := {}):
 	var l = LIMBICO.new()
 	l.setup(tratti)
@@ -234,3 +237,97 @@ func _test_salvataggio(t) -> void:
 	t.almost(l2.livello_neuro("dopamina"), l.livello_neuro("dopamina"),
 			"e i livelli neurochimici sopravvivono al salvataggio")
 
+
+
+## ⚠️ **L'INTEGRAZIONE E' INVARIANTE AL PASSO — e prima non lo era.**
+##
+## Il modello di prima scriveva `B + (N−B)·e^(−λΔt) + Π·Δt`: il decadimento
+## esatto e la produzione in Eulero esplicito, fuori dall'esponenziale. Il
+## punto fisso diventava `B + Π·Δt/(1−e^(−λΔt))`, cioe' una funzione del
+## PASSO — e siccome il passo e' il fotogramma, **lo stato era funzione del
+## frame rate**. MISURATO sul binario di allora: un minuto simulato a 1 fps
+## contro 60 fps dava melatonina 0.697490 contro 0.669030.
+##
+## Qui si percorre lo STESSO tempo di gioco a due cadenze diverse e si
+## pretende lo stesso risultato. La tolleranza e' quella dei double, non una
+## soglia comoda: con `Π/λ` dentro la parentesi le due curve sono la stessa
+## curva campionata piu' o meno fitto.
+func _il_passo_e_invariante(t) -> void:
+	var amb := {"luce": 1.0, "pioggia": 0.0, "temperatura": 20.0}
+	var fitto = LIMBICO.new()
+	var rado = LIMBICO.new()
+	fitto.setup({"codardia": 0.5, "grinta": 0.5, "ambizione": 0.5, "lealta": 0.5})
+	rado.setup({"codardia": 0.5, "grinta": 0.5, "ambizione": 0.5, "lealta": 0.5})
+	for _i in 400:
+		fitto.passo_neuro(0.5, amb, false)
+	for _i in 100:
+		rado.passo_neuro(2.0, amb, false)
+	for tipo in LIMBICO.NEURO_TRASMETTITORI:
+		t.almost(float(fitto.neuro[tipo]), float(rado.neuro[tipo]),
+				"«%s»: duecento secondi sono duecento secondi, a qualunque cadenza" % tipo,
+				1e-6)
+	# …e la serotonina non sfonda il tetto: il suo punto fisso e' 0.85, non 2.50
+	t.ok(float(fitto.neuro["serotonina"]) < 0.99,
+			"e la serotonina non resta incollata al tetto (%.4f): con luce piena "
+			% float(fitto.neuro["serotonina"])
+			+ "il suo equilibrio e' 0.85, non 2.50")
+
+
+## ⚠️ **L'UMORE NON SI MUOVE DA SOLO** — e per un pezzo l'ha fatto.
+##
+## `_modula_stati_da_neuro` faceva `umore += spinta * 0.05` **per CHIAMATA**,
+## e `Visitors._ciclo_sonno` la chiamava due volte per fotogramma per ogni
+## residente. MISURATO nel MainLevel vero, dieci residenti che nessuno tocca:
+## **umore +1.0000 su dieci su dieci**, saturo in 17,5 s a 60 fps e in 42,1 s
+## a 25 — esattamente il rapporto 60/25. Un LUTTO si cancellava in tre
+## secondi, e `stato_corpo()` non avrebbe mai piu' detto «di malumore».
+##
+## La soglia non e' un numero comodo: e' quanto rimette a posto una NOTTE DI
+## SONNO (`RIENTRO_UMORE`). Un secondo di villaggio non puo' spostare l'umore
+## piu' di una notte.
+func _l_umore_non_si_muove_da_solo(t) -> void:
+	var l = LIMBICO.new()
+	l.setup({"codardia": 0.5, "grinta": 0.5, "ambizione": 0.5, "lealta": 0.5})
+	l.umore = 0.0
+	# un secondo di villaggio: sessanta fotogrammi, e a ognuno il gioco
+	# stimola i canali del ritmo circadiano come fa `_ciclo_sonno`
+	for _f in 60:
+		l.stimola_neuro("melatonina", 0.0)
+		l.stimola_neuro("adenosina", 0.0)
+		l.passo_neuro(1.0 / 60.0)
+	t.ok(absf(l.umore) <= LIMBICO.RIENTRO_UMORE,
+			("un secondo di villaggio sposta l'umore di %.4f, meno di quanto lo "
+			+ "rimetta a posto una notte (%.4f)") % [absf(l.umore), LIMBICO.RIENTRO_UMORE])
+	# …e un LUTTO non si cancella in tre secondi
+	l.umore = -0.9
+	for _f2 in 180:
+		l.passo_neuro(1.0 / 60.0)
+	t.ok(l.umore < -0.5,
+			"e tre secondi dopo un colpo l'umore e' ancora sotto (%.4f)" % l.umore)
+
+
+## ⚠️ **UN NaN NON AVVELENA IL CANALE PER SEMPRE.**
+##
+## Lo stato e' ricorsivo e `clamp(NaN)` restituisce NaN: un solo fotogramma
+## sporco basta. MISURATO sul modello di prima, con un NaN passato una volta
+## sola dall'ambiente: **quattro canali su sette morti per sempre**, ancora
+## NaN dieci secondi dopo. Il cancello sta all'ingresso, e ce n'e' uno solo.
+func _il_NaN_non_avvelena(t) -> void:
+	var l = LIMBICO.new()
+	l.setup({"codardia": 0.5, "grinta": 0.5, "ambizione": 0.5, "lealta": 0.5})
+	var prima := float(l.neuro["cortisolo"])
+	l.stimola_neuro("cortisolo", NAN)
+	t.almost(float(l.neuro["cortisolo"]), prima, "un impulso NaN si scarta", 1e-9)
+	l.passo_neuro(NAN)
+	l.passo_neuro(INF)
+	l.passo_neuro(1.0, {"luce": NAN, "pioggia": 0.0, "temperatura": 20.0})
+	l.passo_neuro(1.0, {"luce": 0.5, "pioggia": 0.0, "temperatura": NAN})
+	var vivi := 0
+	for tipo in LIMBICO.NEURO_TRASMETTITORI:
+		if is_finite(float(l.neuro[tipo])):
+			vivi += 1
+	t.eq(vivi, LIMBICO.NEURO_TRASMETTITORI.size(),
+			"e dopo un ambiente sporco tutti e sette i canali sono ancora vivi")
+	# e il modello riprende a funzionare
+	l.passo_neuro(1.0, {"luce": 1.0, "pioggia": 0.0, "temperatura": 20.0})
+	t.ok(is_finite(l.umore), "…e l'umore non e' avvelenato")

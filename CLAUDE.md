@@ -4718,6 +4718,230 @@ scritto qui perché nessuno ci ricaschi.
    senza toccarne una riga — **e per questo la guardia del fattore è un caso
    NOMINATO**, che legge `K` dal binario invece di riscriverlo.
 
+
+## LA NEUROCHIMICA — sette canali, una casa sola, e il tempo che li muove
+
+Ogni vicino ha sette canali che si muovono da soli: **dopamina, ossitocina,
+serotonina, cortisolo, melatonina, adenosina, endorfine**. Vivono in
+[`scenes/npc/Limbico.gd`](scenes/npc/Limbico.gd), tornano al loro punto di
+riposo quando non succede niente, e da lì escono l'umore, la fatica di
+mordersi la lingua, e quello che si vede addosso a un corpo.
+
+### La forma: un punto di riposo, gli impulsi, e il tempo
+
+- **`neuro`** è il livello adesso, ed è l'unico stato — persistito.
+- **`neuro_base`** è dove torna: lo tinge il carattere (`setup`) e lo spostano
+  i bisogni (`Animo.sincronizza_neuro`). ⚠️ **I bisogni spostano il PUNTO DI
+  RIPOSO, non il livello.** Prima lo assegnavano, e siccome
+  `sincronizza_neuro` la chiamano sei posti (`ricorda` compreso, cioè ogni
+  fatto della vita del villaggio), **ogni impulso degli eventi veniva
+  cancellato**: misurato, la chiacchierata portava l'ossitocina a 1,0000 e il
+  primo `ricorda()` la riportava a 0,7575. Il piatto caldo, l'onsen e la
+  chiacchierata non contavano niente.
+- **`stimola_neuro`** è un impulso: una cosa che è appena successa.
+- **`passo_neuro(dt, ambiente, dorme)`** è l'unico posto in cui il tempo tocca
+  la chimica.
+
+**L'integrazione è ESATTA, e il pezzo che conta è dove sta `Π/λ`:**
+
+```
+N(t+Δt) = (B + Π/λ) + (N − B − Π/λ) · e^(−λΔt)
+```
+
+La prima stesura scriveva `B + (N−B)·e^(−λΔt) + Π·Δt` — decadimento esatto e
+produzione in Eulero esplicito, **fuori** dall'esponenziale. Sembrava esatta e
+non lo era: il punto fisso diventava `B + Π·Δt/(1−e^(−λΔt))`, cioè una
+funzione del PASSO, e il passo è il fotogramma. MISURATO sul binario di
+allora: un minuto simulato a 1 fps contro 60 fps dava melatonina **0,697490
+contro 0,669030**. *Lo stato era funzione del frame rate.*
+
+⚠️ **E ogni riga di `NEURO_PRODUZIONE` si legge col suo λ accanto**, perché il
+punto fisso è `B + Π/λ`. È lì che il modello era rotto: la serotonina aveva
+Π = 0,04 contro λ = 0,02, cioè equilibrio **2,50** — il 150% oltre il tetto.
+Misurato: arrivava a 0,999 in quattordici secondi e ci restava, e un impulso
+di +0,50 la muoveva di `+0.000000`. Su quel canale l'omeostasi **non
+esisteva**: era una costante 1,0 per tutta la parte illuminata della giornata,
+per chiunque, qualunque cosa succedesse.
+
+### ⚠️ L'UMORE SI MUOVE COL TEMPO, e per un pezzo si è mosso PER CHIAMATA
+
+È il difetto peggiore che questo sistema abbia avuto, ed è l'unico che
+arrivava davvero a schermo. `_modula_stati_da_neuro` faceva
+`umore += spinta * 0.05` **a ogni chiamata**, e `Visitors._ciclo_sonno` la
+chiamava due volte per fotogramma per ogni residente: l'umore era una rampa
+alla frequenza del fotogramma.
+
+| MISURATO nel MainLevel vero, 10 residenti che nessuno tocca | |
+|---|---|
+| umore, dopo qualche secondo | **+1,0000 su 10 su 10** |
+| carattere medio, tempo di saturazione | 17,5 s a 60 fps · **42,1 s a 25 fps** |
+| carattere codardo | **−1,0000 in 2,77 s** |
+| un LUTTO | cancellato in **tre secondi** |
+
+Il rapporto 17,5/42,1 è esattamente 60/25. E le conseguenze non erano
+teoriche: `stato_corpo()` non avrebbe mai più detto «di malumore» a nessuno,
+il capo che pende perdeva una delle sue tre cause (diventava una legenda
+uno-a-uno decisa dai tratti alla nascita), e con i drive un po' più bassi —
+cioè in un villaggio che ha vissuto — **tutti finivano a −1,0000**.
+
+Adesso l'umore insegue la chimica con la sua costante di tempo
+(`UMORE_TAU = 90 s`), e la soglia che lo sorveglia non è un numero comodo: è
+**quanto rimette a posto una notte di sonno**. *Un secondo di villaggio non
+può spostare l'umore più di una notte.*
+
+### ⚠️ UNA CASA SOLA — il modello C++ è stato TOLTO
+
+C'era anche `src/sistema_neurochimica.{h,cpp}` più un `ComponenteNeurochimica`
+in ECS: girava sessanta volte al secondo per ogni residente e **non lo leggeva
+nessuno**. Misurato mettendo un `return` in testa al suo passo: la suite
+restava **identica** (68157/0) e `avanza()` scendeva da 11,4 a 8,2 µs — il
+tempo dimostra che la mutazione era nel binario, e nessuna asserzione se n'è
+accorta.
+
+Ed era un **doppione**, con baseline già divergenti in cinque canali su sette
+(cortisolo 0,20 contro 0,08, adenosina 0,20 contro 0,0, endorfine 0,40 contro
+0,15). La casa è in GDScript e non di là per una ragione già scritta nel
+capitolo dell'ECS: **quel dato è persistito**, e i dati persistiti restano in
+GDScript — «due case sullo stesso dato salvato è il guasto che le fonti uniche
+vietano». Quello che il C++ aveva di buono — l'integrazione, il decadimento
+per canale, la produzione ambientale — è stato portato in `Limbico`.
+
+**Tre cose di quel codice che vale la pena non ripetere, tutte misurate:**
+
+1. **`alignas(32)` era decorativo.** Zero istruzioni SIMD generate (l'oggetto
+   chiama `_expf` scalare), e degli array solo il primo era allineato a 32 —
+   gli altri stavano a 28/56/84/112/140, quindi **un load allineato AVX2 su
+   `baseline` avrebbe fatto fault**. Su un target universale che comprende
+   **arm64**, dove AVX2 non esiste. Costo: +14% di memoria per niente.
+2. **La funzione «batch» era una TRAPPOLA.** `passo_neurochimico_batch(n, …)`
+   presume due pool EnTT paralleli, e paralleli non sono: chi l'avesse usata
+   davvero come batch avrebbe accoppiato **il neuro di X con lo stato di Y**.
+   Il sito di chiamata la evitava passando `n = 1` — cioè l'unica ragione
+   d'essere di quella funzione non è mai stata usata, e il resto era una mina.
+3. **`AmbienteContesto.ora` era scritto ogni fotogramma e non letto mai.** Il
+   commento di testata prometteva «e ciclo circadiano»: la seconda metà non
+   esisteva.
+
+### ⚠️ IL MONDO ENTRA DA UNA PORTA SOLA, e il cielo non spinge niente
+
+`DayNight` sa già luce, temperatura e pioggia (le calcola per i suoi shader) e
+le pubblica in `parametri_ambientali()`. `Visitors` le legge **una volta per
+fotogramma** — non ventotto — e le passa al passo. Prima il cielo SPINGEVA
+l'ambiente al gruppo `ecs_mondo` a ogni frame, con le tre formule **ricopiate**
+dalle funzioni che avevano un solo chiamante: sé stesse.
+
+**Il cancello del NaN sta all'ingresso, e ce n'è uno solo.** Lo stato è
+ricorsivo e `clamp(NaN)` restituisce NaN: un NaN è **assorbente**. Misurato
+sul modello di allora, con un solo fotogramma sporco: **quattro canali su
+sette morti per sempre**, ancora NaN dieci secondi dopo.
+
+**E senza mondo non succede niente**: nei banchi, nel diorama del titolo e nel
+Prologo la chimica sta ferma al punto di riposo. Il degrado va verso «non
+succede niente», mai verso un numero inventato.
+
+### ⚠️ IL CORPO INDOSSA LA CHIMICA — e per un pezzo non la indossava nessuno
+
+`FaceController` e `Andatura` avevano tutto scritto e provato — corrugatore
+col cortisolo, pupille con la dopamina, blush con l'ossitocina, rimbalzo con
+l'adenosina, coda con la serotonina — e **nessun chiamante in tutto il gioco**.
+MISURATO: sessanta secondi di cammino, dieci canali del rig, il corpo usciva
+**bit-identico** a quello di prima (scarto `0.0000000000`). Duecentoquarantasette
+righe complete, provate, verdi, e mai eseguite: la forma di guasto che questo
+progetto ha già pagato tre volte.
+
+La riga che mancava è `Visitor.indossa_neuro(neuro)`, chiamata da `Visitors`
+una volta per fotogramma.
+
+⚠️ **E SI PASSANO I CANALI VERI, non se ne inventano da altri livelli.** La
+prima stesura ri-derivava la chimica: `cortisolo = arousal`,
+`serotonina = 0.5 + 0.5·umore` e — la peggiore — **`adenosina = 1 −
+regolazione`**. Ma `regolazione` è *la forza di trattenersi*, non la
+stanchezza: con quella riga **chi si è appena morso la lingua cammina come un
+esausto** (rimbalzo ×0,45, orecchie cadute), e il giocatore non ha modo di
+leggerlo come autocontrollo. È un'etichetta clinica addosso a una persona, ed
+è la stessa famiglia del difetto del capitolo «LA GIOIA NON PORTA LA FACCIA
+DELLA PAURA»: *un livello che si posa su un canale che non gli appartiene*.
+Lo stesso valeva per l'umore: −0,9 dava una gobba **permanente** di 11,3°, più
+di due terzi della vecchiaia piena. Un umore basso passa; una gobba no.
+
+### Le tre chiavi del giocatore, e quelle che gli erano state tolte
+
+- **Il cortisolo non è cronico**: `consolida_sonno` lo drena ogni notte, e la
+  Veglia lo sconta. Questo era già giusto.
+- ⚠️ **Ma il ri-aggancio era un `max()`, cioè solo verso l'alto.** Misurato
+  nella scena vera del piatto caldo: un vicino con `sicurezza = 0,30` si
+  sveglia guarito (0,0800), il giocatore gli porta da mangiare, e resta con
+  **0,4400** — *il gesto più affettuoso del gioco lo lasciava più teso di come
+  si era svegliato*. Adesso il piatto sposta il livello, i drive spostano solo
+  il punto di riposo, e quando la sicurezza torna il riposo **scende**.
+- ⚠️ **Il perdono non dipende da quanti amici ti ha dato il mondo.** C'era un
+  moltiplicatore dell'ossitocina sullo sconto del rancore, e l'ossitocina la
+  fa l'appartenenza, che a sua volta la fa `_chats` — **una** chiacchierata per
+  volta in tutto il villaggio. Misurato: da ×1,146 a ×1,596 fra appartenenza
+  0,10 e 0,90, cioè **chi il mondo non ha incontrato perdonava meno**. È la
+  stessa forma della «tassa giornaliera per non essersi visti» che la regola 3
+  degli Affetti vieta per iscritto. Tolto.
+- ⚠️ **E il morso della lingua paga lo stress IN PIÙ, non quello che si ha
+  sempre.** Scalava sul cortisolo assoluto, e il cortisolo di riposo vale
+  0,05–0,15: il morso costava dal 4 all'11% in più **per tutti, dal primo
+  fotogramma**. Misurato A/B su un codardo: due morsi invece di tre prima di
+  scoppiare — un sistema tarato altrove spostato da un effetto collaterale.
+
+### ⚠️ LO STRESS STRINGE UNA ROUTINE, MAI UNA SCELTA DI VITA
+
+Il cortisolo alto irrigidisce il softmax di `Animo.decide()` — chi è teso fa
+la cosa che lo solleva invece di guardarsi intorno. Ma il fattore ×4 si
+moltiplicava **anche** per `NITIDEZZA_VITA` (4,5) e dava 18: lo stress rendeva
+più *certa* una decisione che cambia una vita, che è l'opposto di quello che
+lo stress fa.
+
+MISURATO su 240 caratteri veri × 30 rotture, il ventaglio delle sette risposte
+di `REAZIONI` — «lo stesso carattere che in 30 rotture ne dà tre diverse»,
+l'invariante che una revisione avversariale precedente aveva stabilito:
+
+| cortisolo | 0,08 | 0,46 | 0,60 | 0,90 |
+|---|---|---|---|---|
+| ventaglio ≥ 3 risposte | 87,9 % | 86,7 % | 53,8 % | **25,4 %** |
+
+Il tetto è fatto di un numero che non è suo (`NITIDEZZA_VITA` stessa): una
+routine può diventare decisa quanto una scelta di vita, **mai di più**. E
+`Animo.decide()` è il SECONDO softmax del gioco: `DELTA_MAX` e il suo
+`static_assert` sorvegliano solo quello del C++, questo non lo vede nessun
+compilatore — la sua rete è il caso che misura il ventaglio.
+
+### Come si verifica
+
+```
+Godot --headless --path . --script res://tests/test_runner.gd
+CHIBI_MINUTI=2 Godot --headless --path . --script res://tools/prova_neuro_vivo.gd
+```
+
+Il banco vivo è l'unico che dice le cose che la suite non sa dire, e ha tre
+domande: **la chimica arriva al corpo?** (si guasta il cortisolo e si guarda
+il rig: `0,051 → 0,941`); **l'umore è ancora una cosa che si muove?** (dopo due
+minuti di villaggio: media 0,316, **zero saturi, zero estremi**); **un colpo
+resta addosso?** (tre secondi dopo un lutto: **−0,857**).
+
+⚠️ **E l'animo si prende da `Visitors`, non se ne fabbrica uno**: `_ensure_brain`
+ne crea uno suo dal genoma e **sovrascrive** `_animi[key]`. Un animo di banco
+messo lì prima viene buttato, e il caso misurerebbe un oggetto che il gioco non
+guarda — il rig resta alla baseline del carattere qualunque cosa gli si scriva.
+
+**Le guardie sono state falsificate una per una, dodici mutazioni tutte rosse**
+(il corpo che non indossa più la chimica · l'umore per chiamata · l'Eulero
+fuori dall'esponenziale · il cancello del NaN · i drive che scrivono il livello
+· il tetto della tunnel-vision · l'ossitocina sul perdono · la regolazione
+travestita da fatica · la serotonina che sfonda il tetto · il morso sul
+cortisolo assoluto · la compatibilità che fa scrivere un canale a un livello).
+
+**Residuo dichiarato, e sta scritto nel test:** la correzione alla molla del
+sopracciglio — un filtro che era finito **in serie** con la molla del rig,
+0,0384 rad di ritardo anche a chimica neutra, su Mochi e su ogni chibi a ogni
+cambio di espressione — **non ha una guardia**. Ne ho provate due e la
+mutazione le lascia verdi tutte e due, perché in quel banco il sopracciglio
+non passa affatto dalla molla. Un'asserzione che passa in tutti e due i casi
+non è una guardia: è un'asserzione che dice «coperto» senza esserlo.
+
 ## Test
 
 Test-suite **dependency-free** (nessun addon, nessuna rete) in `tests/`:
