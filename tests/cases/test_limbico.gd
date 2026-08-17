@@ -29,6 +29,7 @@ func run(t) -> void:
 	_il_passo_e_invariante(t)
 	_l_umore_non_si_muove_da_solo(t)
 	_il_NaN_non_avvelena(t)
+	_la_notte_ha_una_RESA_non_un_interruttore(t)
 func _nuovo(tratti := {}):
 	var l = LIMBICO.new()
 	l.setup(tratti)
@@ -331,3 +332,75 @@ func _il_NaN_non_avvelena(t) -> void:
 	# e il modello riprende a funzionare
 	l.passo_neuro(1.0, {"luce": 1.0, "pioggia": 0.0, "temperatura": 20.0})
 	t.ok(is_finite(l.umore), "…e l'umore non e' avvelenato")
+
+
+## ⚠️ **LA NOTTE HA UNA RESA, NON UN INTERRUTTORE — e gli estremi devono
+## essere BYTE PER BYTE i due rami di prima.**
+##
+## `consolida_sonno` aveva un `bool`: `true` la notte di tutti, `false` una
+## notte che ripara meno — **e quel ramo non lo chiamava nessuno**, in tutto
+## il gioco. Adesso e' un grado fra i due, e questo caso e' la prova che il
+## cambiamento non ha spostato niente: a `resa = 1.0` i sette canali, la
+## regolazione, l'arousal e l'umore devono uscire **identici** a com'erano,
+## e a `resa = 0.0` identici all'altro ramo. In mezzo, monotono.
+##
+## E' il primo passo di un lavoro piu' grande, e la regola che lo governa e'
+## questa: **ogni forma e' un moltiplicatore su un canale che esiste, e col
+## substrato a zero il gioco e' bit-identico**. Se questo caso arrossisce,
+## quel lavoro non parte.
+func _la_notte_ha_una_RESA_non_un_interruttore(t) -> void:
+	var CANALI := ["dopamina", "ossitocina", "serotonina", "cortisolo",
+			"melatonina", "adenosina", "endorfine"]
+
+	# --- gli estremi, contro i due rami scritti a mano qui dentro
+	for atteso in [[1.0, 0.85, 0.85, 1.0, 0.20], [0.0, 0.40, 0.35, 0.8, 0.10]]:
+		var r: float = float(atteso[0])
+		var l = LIMBICO.new()
+		l.setup({"codardia": 0.5, "grinta": 0.5, "ambizione": 0.5, "lealta": 0.5})
+		l.regolazione = 0.10
+		l.arousal = 0.90
+		l.umore = 0.90
+		for c in CANALI:
+			l.neuro[c] = 0.90
+		var atteso_cort: float = move_toward(0.90,
+				float(l.neuro_base["cortisolo"]), float(atteso[1]))
+		var atteso_reg: float = clampf(0.10 + float(atteso[2]), 0.0, 1.0)
+		var atteso_umo: float = move_toward(0.90, 0.0,
+				LIMBICO.RIENTRO_UMORE * float(atteso[3]))
+		l.consolida_sonno(r)
+		t.almost(float(l.neuro["cortisolo"]), atteso_cort,
+				"resa %.1f: il cortisolo drena come il ramo di prima" % r, 1e-9)
+		t.almost(l.regolazione, atteso_reg,
+				"resa %.1f: la regolazione si ricarica come prima" % r, 1e-9)
+		t.almost(l.umore, atteso_umo,
+				"resa %.1f: l'umore rientra come prima" % r, 1e-9)
+		for c2 in ["dopamina", "ossitocina", "serotonina", "endorfine"]:
+			t.almost(float(l.neuro[c2]), move_toward(0.90,
+					float(l.neuro_base[c2]), float(atteso[4])),
+					"resa %.1f: «%s» rientra come prima" % [r, c2], 1e-9)
+		t.almost(float(l.neuro["adenosina"]), 0.0,
+				"resa %.1f: l'adenosina si azzera comunque" % r, 1e-12)
+		t.almost(float(l.neuro["melatonina"]), 0.0,
+				"resa %.1f: e la melatonina anche" % r, 1e-12)
+
+	# --- IN MEZZO E' MONOTONO: piu' resa, piu' pazienza al risveglio. Senza
+	#     questo, un `lerp` scritto al contrario passerebbe gli estremi.
+	var prec := -1.0
+	for passo in 6:
+		var r2: float = float(passo) / 5.0
+		var m = LIMBICO.new()
+		m.setup({"codardia": 0.5, "grinta": 0.5, "ambizione": 0.5, "lealta": 0.5})
+		m.regolazione = 0.0
+		m.consolida_sonno(r2)
+		t.ok(m.regolazione > prec,
+				"resa %.2f rende piu' di %.2f (regolazione %.4f)" % [r2, r2 - 0.2, m.regolazione])
+		prec = m.regolazione
+
+	# --- e una resa storta non fa danni: il degrado va verso la notte NORMALE
+	for storta in [NAN, INF, -3.0, 7.0]:
+		var g = LIMBICO.new()
+		g.setup({"codardia": 0.5, "grinta": 0.5, "ambizione": 0.5, "lealta": 0.5})
+		g.regolazione = 0.0
+		g.consolida_sonno(storta)
+		t.ok(is_finite(g.regolazione) and g.regolazione > 0.3,
+				"una resa storta (%s) non avvelena la notte (%.3f)" % [storta, g.regolazione])

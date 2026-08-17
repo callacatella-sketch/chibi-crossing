@@ -638,16 +638,28 @@ func visita_serena(luogo: String) -> void:
 ## - NREM: azzeramento adenosina (eliminazione pressione omeostatica),
 ##   drenaggio cortisolo verso baseline, ricarica regolazione
 ## - REM: reset arousal somatico, stabilizzazione emotiva e integrazione neurotrasmettitori
-func consolida_sonno(notte_protetta := true) -> void:
+## ⚠️ **`resa` E' UN GRADO, NON UN INTERRUTTORE — e non e' un parametro
+## nuovo: e' quello di prima, reso continuo.** 1.0 e' ESATTAMENTE la notte
+## che il gioco ha sempre dato a tutti; 0.0 e' ESATTAMENTE il ramo che
+## esisteva gia' per la notte che non ripara — **e che non chiamava
+## nessuno**. In mezzo c'e' un `lerp` fra i due, e in questa funzione non
+## compare **un solo numero nuovo**.
+##
+## Il `bool` di prima e' stato CANCELLATO, non affiancato: e' la regola 2
+## («non e' una categoria, e' un grado») scritta in una struttura invece
+## che in un commento. Se restasse, ci sarebbe ancora un posto in cui
+## scrivere un bit, e prima o poi qualcuno lo scriverebbe.
+func consolida_sonno(resa := 1.0) -> void:
+	var r: float = clampf(resa, 0.0, 1.0) if is_finite(resa) else 1.0
 	# --- FASE NREM (Non-Rapid Eye Movement) ---
 	# 1. Azzeramento adenosina
 	neuro["adenosina"] = 0.0
 	# 2. Drenaggio cortisolo verso baseline
 	var base_cort: float = float(neuro_base.get("cortisolo", NEURO_BASELINE["cortisolo"]))
-	var drenaggio: float = 0.85 if notte_protetta else 0.40
+	var drenaggio: float = lerpf(0.40, 0.85, r)
 	neuro["cortisolo"] = move_toward(float(neuro.get("cortisolo", base_cort)), base_cort, drenaggio)
 	# 3. Ricarica regolazione (autocontrollo ricaricato)
-	regolazione = clampf(regolazione + (0.85 if notte_protetta else 0.35), 0.0, 1.0)
+	regolazione = clampf(regolazione + lerpf(0.35, 0.85, r), 0.0, 1.0)
 
 	# --- FASE REM (Rapid Eye Movement) ---
 	# 4. Calma / reset arousal somatico
@@ -660,12 +672,12 @@ func consolida_sonno(notte_protetta := true) -> void:
 	# il numero con cui questo gioco ha deciso, altrove e con la sua misura,
 	# quanto una notte rimette a posto l'umore. Chi lo vuole cambiare lo
 	# cambi li', con il suo perche'.
-	var rientro: float = RIENTRO_UMORE * (1.0 if notte_protetta else 0.8)
+	var rientro: float = RIENTRO_UMORE * lerpf(0.8, 1.0, r)
 	umore = move_toward(umore, 0.0, rientro)
 	# Rientro verso baseline dei neurotrasmettitori
 	for k in ["dopamina", "ossitocina", "serotonina", "endorfine"]:
 		var base_nt: float = float(neuro_base.get(k, NEURO_BASELINE.get(k, 0.5)))
-		neuro[k] = move_toward(float(neuro.get(k, base_nt)), base_nt, 0.20 if notte_protetta else 0.10)
+		neuro[k] = move_toward(float(neuro.get(k, base_nt)), base_nt, lerpf(0.10, 0.20, r))
 	neuro["melatonina"] = 0.0
 
 
@@ -680,8 +692,10 @@ func consolida_sonno(notte_protetta := true) -> void:
 ## che il giocatore avesse il tempo di accorgersi che c'era, e «tornarci
 ## sotto finché non fa più paura» non sarebbe stato niente. Per i vicini
 ## resta com'è sempre stato: le loro paure si consumano col tempo.
-func passa_giorno(riposato := true, sbiadisci_marchi := true) -> void:
-	consolida_sonno(riposato)
+## [param resa] e' quanto la notte ha rimesso a posto: 1.0 una notte come
+## tutte, meno di 1.0 una notte che ha reso meno. Vedi `consolida_sonno`.
+func passa_giorno(resa := 1.0, sbiadisci_marchi := true) -> void:
+	consolida_sonno(resa)
 	morsi_oggi = 0
 	# i marchi non confermati si spengono piano
 	if sbiadisci_marchi:

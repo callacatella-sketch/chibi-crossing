@@ -3688,8 +3688,18 @@ func gesto_gentile(label: String, tipo := "regalo", peso := 0.8) -> void:
 ## Il lutto di un residente: se nessuno lo consola, il rancore va a chi
 ## comanda il villaggio. È l'indifferenza a ferire, non la perdita.
 func lutto_di(label: String, amico: String, consolato_da := "") -> void:
-	if _animi.has(label):
-		(_animi[label] as RefCounted).lutto(amico, consolato_da)
+	if not _animi.has(label):
+		return
+	# ⚠️ **QUANTO CONTAVA, e non e' uguale per tutti.** Prima l'intensita'
+	# era scritta a mano a 1.0, e `Congedo` mette in lutto OGNI residente:
+	# una partenza toccava dodici persone allo stesso identico modo. A
+	# distribuirla non e' una curva inventata — e' il libro mastro degli
+	# Affetti, letto in assoluto. Misurato sul salvataggio di prova: il
+	# legame piu' forte del villaggio vale 0,79 e la coda sta sotto 0,3,
+	# quindi il grado nasce gia' distribuito da se'. **Il tetto non lo
+	# scrive nessuno: lo scrive il libro mastro.**
+	var quanto := affetto_fra(label, label_di_nome(amico))
+	(_animi[label] as RefCounted).lutto(amico, consolato_da, quanto)
 
 
 ## LA FUNZIONE DELLA LEGGIBILITÀ: perché quel residente si comporta così.
