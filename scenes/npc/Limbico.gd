@@ -218,6 +218,31 @@ func setup(tratti: Dictionary) -> void:
 	neuro = neuro_base.duplicate()
 
 
+## LE DUE GRANDEZZE CHE IL CORPO DERIVA DAI TRATTI, rifatte.
+##
+## Erano due righe dentro `setup()`, cioe' calcolate una volta sola nella vita
+## di un vicino. Adesso i tratti possono muoversi (vedi `Animo.tratto()`), e
+## una formula che gira una volta sola e' una formula che si ferma un
+## millimetro prima del corpo. Il precedente e' `EcsMondo::riproietta`, un
+## piano piu' giu': chi ha dei geni derivati li rifa' quando i geni cambiano.
+##
+## ⚠️ **E queste due NON si rileggono piu' dal salvataggio.** Erano scritte E
+## rilette con un default di 1.0, cioe' **congelate sul disco per sempre**: un
+## salvataggio vecchio riportava una reattivita' che non corrispondeva piu' ai
+## tratti di quella persona, e nessuno se ne accorgeva. Si continuano a
+## SCRIVERE in `save()`, e va detto perche': un valore derivato scritto e mai
+## riletto e' una diagnostica, non una seconda fonte — e toglierlo dal file
+## farebbe regredire una build vecchia che aprisse un salvataggio nuovo
+## (`load` aveva il default a 1.0, cioe' appiattirebbe la reattivita' di tutti
+## alla media). Un test prova che nessuno le rilegge.
+func riproietta(tratti: Dictionary) -> void:
+	var cod: float = float(tratti.get("codardia", 0.5))
+	var gri: float = float(tratti.get("grinta", 0.5))
+	var amb: float = float(tratti.get("ambizione", 0.5))
+	reattivita = clampf(0.6 + cod * 0.9 - gri * 0.35, 0.2, 1.8)
+	abitudine = clampf(ABITUDINE * (0.7 + amb * 0.8), 0.05, 0.75)
+
+
 ## UN IMPULSO: una cosa che e' appena successa sposta un canale, adesso.
 ##
 ## ⚠️ **E NON TOCCA L'UMORE.** Prima chiamava `_modula_stati_da_neuro()`, che
@@ -738,8 +763,10 @@ func load(d: Dictionary) -> void:
 	regolazione = float(d.get("regolazione", 1.0))
 	attese = (d.get("attese", {}) as Dictionary).duplicate()
 	marchi = (d.get("marchi", {}) as Dictionary).duplicate(true)
-	reattivita = float(d.get("reattivita", 1.0))
-	abitudine = float(d.get("abitudine", ABITUDINE))
+	# ⚠️ `reattivita` e `abitudine` NON si rileggono: sono DERIVATE dai tratti
+	# (`riproietta`), e rileggerle dal disco le congelava per sempre — un
+	# salvataggio vecchio riportava una reattivita' che non corrispondeva piu'
+	# a quella persona. Si continuano a scrivere in `save()` come diagnostica.
 	var n_salvato: Dictionary = d.get("neuro", {})
 	neuro = NEURO_BASELINE.duplicate()
 	for k in n_salvato:

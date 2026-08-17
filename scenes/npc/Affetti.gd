@@ -456,6 +456,27 @@ func _lealta_di(nome: String) -> float:
 		var key := str(r.get("label", ""))
 		if animi.has(key):
 			var a = animi[key]
+			# ⚠️ **LA BASE, e non il tratto di adesso.** Questa lealta' decide
+			# la MEZZA VITA con cui `conto()` rilegge TUTTE le righe del libro
+			# mastro, comprese quelle di sei mesi fa. Una lealta' che derivasse
+			# **riscriverebbe il passato**: `ancora_coppia()` e' un confronto
+			# fra conti, e una mezza vita piu' corta schiaccia il passato e
+			# lascia in piedi il recente — cioe' potrebbe sciogliere una coppia
+			# senza che nessuno abbia fatto niente. La mezza vita e' la
+			# grammatica con cui si legge la storia, non un colore.
+			#
+			# ⚠️ **RESIDUO DICHIARATO: oggi questa riga non ha una guardia che
+			# sappia fallire, e va detto invece che lasciato credere.** La
+			# lealta' non e' ancora fra i tratti che derivano (`Deriva.DERIVANO`
+			# ha solo la codardia), quindi `tratto` e `tratto_base` restituiscono
+			# lo stesso numero e la mutazione che le scambia lascia la suite
+			# verde — misurato: zero asserzioni rosse. La riga e' giusta lo
+			# stesso, e va scritta ADESSO: il giorno che la lealta' derivera',
+			# chi la cabla non dovra' accorgersi da solo che questa e' una
+			# grammatica e non un colore. Chi consegnera' quel commit deve
+			# rendere rossa questa mutazione **prima** di consegnarlo.
+			if a.has_method("tratto_base"):
+				return float(a.call("tratto_base", "lealta"))
 			return float((a.get("tratti") as Dictionary).get("lealta", 0.5))
 	return 0.5
 

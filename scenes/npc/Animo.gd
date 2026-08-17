@@ -107,6 +107,7 @@ const TELEGRAFO := {
 ## Dopo quanti giorni un ricordo pesa la metà. Il rancore non è eterno: si
 ## può rimediare, ed è ciò che rende il sistema un dialogo e non una condanna.
 const MEZZA_VITA := 18.0
+const DERIVA := preload("res://scenes/npc/Deriva.gd")
 ## Oltre questo numero i ricordi non spariscono: si FONDONO in un sommario
 ## (tipo+attore -> quante volte, quanto pesavano). È l'aggregazione a creare
 ## la frase «mi hai mandato a spaccare legna quarantasette volte»: senza,
@@ -251,6 +252,10 @@ func setup(dna: Dictionary, seed_v := -1) -> void:
 	if s < 0:
 		s = abs(hash(nome))
 	_rng.seed = s
+	# alla nascita non c'e' nessuna prova, quindi δ = 0 — ma la chiamata c'e'
+	# lo stesso, perche' e' lei a riproiettare il corpo dai tratti.
+	_deriva_giorno = -1
+	_ricalcola_deriva()
 
 	var dnat: Dictionary = dna.get("tratti", {})
 	for t in TRATTI:
@@ -349,15 +354,15 @@ func peso_drive(d: String) -> float:
 		"fatica":
 			return 1.0
 		"noia":
-			return 0.6 + 0.9 * float(tratti.get("ambizione", 0.5))
+			return 0.6 + 0.9 * tratto("ambizione")
 		"sicurezza":
-			return 0.7 + 1.0 * float(tratti.get("codardia", 0.5))
+			return 0.7 + 1.0 * tratto("codardia")
 		"autonomia":
-			return 0.7 + 0.9 * float(tratti.get("orgoglio", 0.5))
+			return 0.7 + 0.9 * tratto("orgoglio")
 		"appartenenza":
-			return 0.7 + 0.7 * float(tratti.get("lealta", 0.5))
+			return 0.7 + 0.7 * tratto("lealta")
 		"stima":
-			return 0.6 + 1.1 * float(tratti.get("orgoglio", 0.5))
+			return 0.6 + 1.1 * tratto("orgoglio")
 	return 1.0
 
 
@@ -379,8 +384,9 @@ func disagio() -> float:
 ## appartenenza anche quando non succede nulla.
 func passa_giorno() -> void:
 	oggi += 1
+	_ricalcola_deriva()
 	limbico.passa_giorno()
-	var recupero := 0.7 + 0.6 * float(tratti.get("grinta", 0.5))
+	var recupero := 0.7 + 0.6 * tratto("grinta")
 	for d in DRIVES:
 		var r: float = float(RIENTRO[d]) * (recupero if d == "fatica" else 1.0)
 		if d in MALESSERI:
@@ -422,7 +428,7 @@ func esegue(compito: String, ordinante := "giocatore") -> void:
 	elif e_tradito:
 		mult = CONTRO_SOGNO                # gli stai rubando la vita
 	# l'ambizione rende ogni compito umile più amaro
-	mult *= 0.75 + 0.5 * float(tratti.get("ambizione", 0.5))
+	mult *= 0.75 + 0.5 * tratto("ambizione")
 	var valenza := 0.12 if e_sogno else (-0.28 * mult if e_tradito else -0.08 * mult)
 	# se il compito tradisce il sogno, l'evento tocca l'IDENTITÀ: non ci si
 	# abitua, ci si sensibilizza (vedi Limbico.rivaluta)
@@ -473,7 +479,7 @@ func lutto(amico: String, consolato_da := "", quanto := 1.0) -> void:
 	if consolato_da == "":
 		# nessuno si è fatto vivo: il rancore va a chi comanda il villaggio
 		ricorda("lutto_ignorato", "giocatore", -0.7,
-				0.7 + 0.3 * float(tratti.get("lealta", 0.5)))
+				0.7 + 0.3 * tratto("lealta"))
 	else:
 		ricorda("consolato", consolato_da, 0.6, 0.8)
 		drive["appartenenza"] = clampf(float(drive["appartenenza"]) + 0.22, 0.0, 1.0)
@@ -564,6 +570,79 @@ static func assenza_da(giorni: int, intensita: float, appartenenza: float) -> fl
 			* clampf(1.0 - appartenenza, 0.0, 1.0)
 
 
+# ================= I DUE VOLTI DI UN TRATTO ==========================
+#
+# ⚠️ **LA REGOLA, e vale per tutti i ventuno lettori dei tratti di questo
+# gioco: la deriva entra dove il tratto COLORA, e non entra in nessuna
+# funzione la cui uscita e' una PORTA, una SOGLIA o una FRASE.**
+#
+# Non e' pignoleria, ed e' costata due vie d'uscita dal genere trovate
+# leggendo il codice:
+#
+#  · `soglie()` abbassa il gradino della DISERZIONE di `codardia × 0.28`, e
+#    sotto quella soglia c'e' `Visitors._congeda()`. Con la deriva dentro,
+#    «protetto e nutrito» diventerebbe **«se ne va prima»**: il giocatore
+#    perderebbe i vicini di cui si e' occupato di piu'. Misurato: 0.35 di
+#    codardia si mangia il 60% del campo naturale fra quattordici residenti.
+#  · `Affetti.conto()` calcola la mezza vita dei ricordi con la lealta' e la
+#    applica a **tutte** le righe, comprese quelle di sei mesi fa. Una lealta'
+#    che deriva **riscriverebbe il passato**, e potrebbe sciogliere una
+#    coppia senza che nessuno abbia fatto niente — perche' `ancora_coppia()`
+#    e' un confronto fra conti, e una mezza vita piu' corta schiaccia il
+#    passato e lascia in piedi il recente. La mezza vita e' la grammatica con
+#    cui si legge la storia, non un colore.
+#
+# E il TESTO legge la base per una ragione piu' semplice: quello che uno dice
+# quando sbotta e' chi e' sempre stato.
+
+## δ per tratto. **NON entra in `save()`**: si ricava dalle prove, che sono
+## gia' persistite. E' una cache, non uno stato.
+var _deriva := {}
+var _deriva_giorno := -1
+
+
+## IL TRATTO DI ADESSO — chi vuole il tratto lo chiede QUI, e solo qui.
+func tratto(nome: String) -> float:
+	return clampf(float(tratti.get(nome, 0.5))
+			+ float(_deriva.get(nome, 0.0)), 0.0, 1.0)
+
+
+## CHI SEI SEMPRE STATO. Lo leggono le porte, le soglie e le frasi, e nessun
+## altro. E' il genoma: **nessuno lo scrive, mai**.
+func tratto_base(nome: String) -> float:
+	return float(tratti.get(nome, 0.5))
+
+
+## ⚠️ **UNA VOLTA AL GIORNO, e non di piu'.** Un tratto che cambia a meta'
+## giornata non e' una persona che cambia: e' un cruscotto. La chiamano
+## `setup()` (dove le prove non ci sono ancora, quindi δ = 0), `load()` in
+## coda — cosi' l'ordine `setup → load` di `_ensure_brain`, che oggi
+## cancellerebbe tutto, qui lavora per noi — e `passa_giorno()`.
+func _ricalcola_deriva() -> void:
+	if _deriva_giorno == oggi and not _deriva.is_empty():
+		return
+	_deriva_giorno = oggi
+	var nuovo := {}
+	for nome in DERIVA.DERIVANO:
+		var t := str(nome)
+		var pressione: float = DERIVA.spinta(t, ricordi, sommario,
+				limbico.marchi if limbico != null else {}, _recenza)
+		nuovo[t] = DERIVA.delta(float(tratti.get(t, 0.5)), pressione)
+	_deriva = nuovo
+	# e le due grandezze che il Limbico DERIVA dai tratti si rifanno: senza,
+	# la deriva si fermerebbe un millimetro prima del corpo.
+	if limbico != null:
+		limbico.riproietta(_tratti_derivati())
+
+
+## I tratti come sono adesso, per chi ne vuole tutti insieme (il Limbico).
+func _tratti_derivati() -> Dictionary:
+	var out := {}
+	for k in tratti:
+		out[k] = tratto(str(k))
+	return out
+
+
 func _recenza(quando: int) -> float:
 	return pow(0.5, float(oggi - quando) / MEZZA_VITA)
 
@@ -625,10 +704,15 @@ func rancore(attore := "giocatore") -> float:
 ## Un codardo non ti verrà mai a cercare: sparisce. Un orgoglioso non
 ## sabota alle spalle: ti affronta in faccia.
 func soglie() -> Dictionary:
-	var org: float = float(tratti.get("orgoglio", 0.5))
-	var lea: float = float(tratti.get("lealta", 0.5))
-	var cod: float = float(tratti.get("codardia", 0.5))
-	var gri: float = float(tratti.get("grinta", 0.5))
+	# ⚠️ **QUESTE SONO PORTE, e leggono CHI ERA.** Sotto il gradino della
+	# diserzione c'e' `Visitors._congeda()`: con la deriva dentro, «protetto
+	# e nutrito» diventerebbe «se ne va prima», e il giocatore perderebbe i
+	# vicini di cui si e' occupato di piu'. Misurato: 0.35 di codardia si
+	# mangia il 60% del campo naturale fra quattordici residenti.
+	var org: float = tratto_base("orgoglio")
+	var lea: float = tratto_base("lealta")
+	var cod: float = tratto_base("codardia")
+	var gri: float = tratto_base("grinta")
 	var out := {}
 	for g in SCALA:
 		out[g] = float(SOGLIA[g])
@@ -738,13 +822,13 @@ func punteggio(azione: String, chiede := "giocatore") -> float:
 	# che sopravvive quando un vicino sta bene — che è il caso normale.
 	if c.has("tratto"):
 		var amp: float = float(c.get("ampiezza", AMPIEZZA_TRATTO))
-		s += amp * (float(tratti.get(str(c["tratto"]), 0.5)) - 0.5) \
+		s += amp * (tratto(str(c["tratto"])) - 0.5) \
 				* 2.0 * float(c.get("verso", 1))
 	# il sogno tira: si fa volentieri ciò che ci avvicina a chi vogliamo essere
 	if str(c.get("serve", "")) == sogno:
-		s += 0.45 * (0.5 + float(tratti.get("ambizione", 0.5)))
+		s += 0.45 * (0.5 + tratto("ambizione"))
 	elif sogno in (c.get("tradisce", []) as Array):
-		s -= 0.5 * (0.5 + float(tratti.get("orgoglio", 0.5)))
+		s -= 0.5 * (0.5 + tratto("orgoglio"))
 	# i ricordi: se questo compito ti ha già bruciato, pesa
 	s -= 0.5 * minf(1.0, float(quante_volte(azione, chiede)) / 25.0)
 	# l'opinione su chi chiede, e il gradino della scala
@@ -831,7 +915,7 @@ func senti_dire(da: String, su: String, valenza: float, forza := 1.0) -> float:
 	# che sospenda il giudizio. Verso un vicino la resistenza e' piu'
 	# morbida che verso il giocatore (si difende chi si conosce meglio), ma
 	# non e' zero.
-	var resistenza: float = float(tratti.get("lealta", 0.5))
+	var resistenza: float = tratto("lealta")
 	if su != "giocatore":
 		resistenza *= 0.6
 	var peso: float = credito * forza * (1.0 - resistenza * 0.75)
@@ -853,7 +937,7 @@ func senti_dire(da: String, su: String, valenza: float, forza := 1.0) -> float:
 ## più di uno svogliato, e uno che tutti stimano più di un solitario.
 func eco() -> float:
 	return frazione(gradino) \
-			* (0.5 + 0.5 * float(tratti.get("orgoglio", 0.5)))
+			* (0.5 + 0.5 * tratto("orgoglio"))
 
 
 # ---------------------------------------------------------------- IL PERCHÉ
@@ -979,9 +1063,12 @@ func sfogo_rimandato() -> Dictionary:
 		return {"k": "Non è niente. Lascia stare."}
 	# il torto principale, detto come lo direbbe lui
 	var apertura := {"k": "Ti rendi conto?"}
-	if float(tratti.get("orgoglio", 0.5)) > 0.65:
+	# ⚠️ **QUESTO E' TESTO, e legge CHI ERA.** Quello che uno dice quando
+	# sbotta e' chi e' sempre stato — non l'effetto di come lo hai trattato
+	# nell'ultima stagione.
+	if tratto_base("orgoglio") > 0.65:
 		apertura = {"k": "Guardami quando ti parlo."}
-	elif float(tratti.get("codardia", 0.5)) > 0.65:
+	elif tratto_base("codardia") > 0.65:
 		apertura = {"k": "Scusa… posso dirti una cosa?"}
 	var corpo_frase: Dictionary = c[0]["chiave"]
 	# se c'è un secondo motivo, si aggiunge: sono le catene a fare male
@@ -990,7 +1077,7 @@ func sfogo_rimandato() -> Dictionary:
 	var chiusa := {"k": "Non lo faccio più."}
 	if almeno(gradino, "diserzione"):
 		chiusa = {"k": "Me ne vado."}
-	elif float(tratti.get("lealta", 0.5)) > 0.6:
+	elif tratto_base("lealta") > 0.6:
 		chiusa = {"k": "Io ti sono stato accanto. Tu no."}
 	var trattenuto: Dictionary = limbico.perche_scoppio_rimandato()
 	if not trattenuto.is_empty():
@@ -1060,3 +1147,10 @@ func load(d: Dictionary) -> void:
 	if d.has("rng"):
 		_rng.state = int(str(d["rng"]))
 	sincronizza_neuro()
+	# ⚠️ **IN CODA, e l'ordine lavora per noi.** `_ensure_brain` fa
+	# `setup(dna)` e POI `load(salvato)`: e' lo stesso ordine che oggi
+	# cancella tutto quello che `setup` aveva calcolato. Qui la deriva si
+	# ricava dalle prove — che `load` ha appena rimesso al loro posto — e
+	# quindi arriva per ultima, quando tutto quello che le serve c'e'.
+	_deriva_giorno = -1
+	_ricalcola_deriva()

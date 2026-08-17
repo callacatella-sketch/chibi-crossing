@@ -12,6 +12,8 @@ extends RefCounted
 ## col corpo bit-identico: tutti completi, provati, verdi).
 
 const DERIVA := preload("res://scenes/npc/Deriva.gd")
+const ANIMO := preload("res://scenes/npc/Animo.gd")
+const CHIBIDNA := preload("res://scenes/npc/ChibiDNA.gd")
 
 ## La curva del tempo, come la fa `Animo._recenza`: qui si passa una Callable
 ## perché la mezza vita vive di là e non si ricopia.
@@ -28,6 +30,13 @@ func run(t) -> void:
 	_i_tratti_che_non_derivano(t)
 
 
+	# --- il CABLAGGIO
+	_il_genoma_non_si_scrive_MAI(t)
+	_la_deriva_arriva_al_CORPO(t)
+	_le_porte_e_le_frasi_leggono_CHI_ERA(t)
+	_il_colore_invece_la_vede(t)
+	_non_si_ricalcola_a_meta_giornata(t)
+	_un_salvataggio_vecchio_e_il_gioco_di_prima(t)
 func _rec(oggi: int) -> Callable:
 	return func(quando: int) -> float:
 		return pow(0.5, float(oggi - quando) / MEZZA_VITA)
@@ -323,3 +332,236 @@ func _i_tratti_che_non_derivano(t) -> void:
 	for tratto2 in DERIVA.DERIVANO:
 		t.ok(DERIVA.SPINTE.has(str(tratto2)) or DERIVA.MARCHI.has(str(tratto2)),
 				"ogni tratto che deriva ha almeno una spinta («%s»)" % tratto2)
+
+
+# ======================================================================
+#  IL CABLAGGIO — la meta' che, mancando, rende tutto il resto una statua
+# ======================================================================
+
+func _animo(seme := 4242, gesti := 0, giorni := 0):
+	var a = ANIMO.new()
+	a.setup(CHIBIDNA.generate(seme))
+	for g in gesti:
+		a.ricorda("piatto", "giocatore", 0.8, 1.0)
+		a.passa_giorno()
+	for g2 in giorni:
+		a.passa_giorno()
+	return a
+
+
+## ⚠️ **IL GENOMA NON SI SCRIVE MAI, e il giro di vita lo dimostra.**
+##
+## E' il vincolo dell'autore («il ritorno dev'essere sempre possibile») ridotto
+## a una proprieta' verificabile: se la deriva finisse dentro `tratti`, sarebbe
+## permanente al primo salvataggio e si **ricomporrebbe** a ogni caricamento —
+## chi era sarebbe perduto e non ci sarebbe piu' nessun posto da cui tornare.
+##
+## La mutazione plausibile e' una riga sola in coda al ricalcolo
+## (`tratti[t] = tratto(t)`), ed e' la stesura che uno scrive per «rendere
+## permanente la deriva».
+func _il_genoma_non_si_scrive_MAI(t) -> void:
+	var a = _animo(4242, 30)
+	var base_prima: float = a.tratto_base("codardia")
+	t.ok(absf(a.tratto("codardia") - base_prima) > 0.01,
+			"PREMESSA: dopo trenta gesti la deriva c'e' davvero (%.4f contro %.4f)"
+					% [a.tratto("codardia"), base_prima])
+
+	# due giri di salvataggio e caricamento: se la deriva si componesse, il
+	# secondo giro darebbe un numero diverso dal primo
+	var b = ANIMO.new()
+	b.setup(CHIBIDNA.generate(4242))
+	b.load(a.save())
+	var dopo_uno: float = b.tratto("codardia")
+	var c = ANIMO.new()
+	c.setup(CHIBIDNA.generate(4242))
+	c.load(b.save())
+	t.almost(c.tratto_base("codardia"), base_prima,
+			"il genoma e' identico dopo due giri di salvataggio", 1e-12)
+	t.almost(dopo_uno, a.tratto("codardia"),
+			"e il tratto derivato sopravvive al caricamento", 1e-9)
+	t.almost(c.tratto("codardia"), dopo_uno,
+			"…e non si COMPONE: due giri danno lo stesso numero di uno", 1e-9)
+	t.ok(not a.save().has("deriva"),
+			"e la deriva non entra nel salvataggio: zero chiavi nuove")
+
+
+## ⚠️ **LA DERIVA ARRIVA AL CORPO** — la guardia contro il quinto sistema
+## spento di questo progetto.
+##
+## `Limbico.reattivita` e' derivata dai tratti e comanda la forza del sussulto,
+## cioe' la posa che il provino ha misurato come l'unica che regge a nove metri
+## da tutti e quattro i lati. Se il ricalcolo si fermasse un millimetro prima,
+## la deriva sarebbe un numero perfetto che non muove un pixel.
+##
+## Due mutazioni plausibili: dimenticare `riproietta` nel ricalcolo (la forma
+## esatta del difetto storico), oppure **lasciare `reattivita` in
+## `Limbico.load`** — che la congelerebbe sul disco, com'era.
+func _la_deriva_arriva_al_CORPO(t) -> void:
+	var fermo = _animo(7717, 0)
+	var mosso = _animo(7717, 30)
+	t.ok(absf(mosso.tratto("codardia") - fermo.tratto("codardia")) > 0.01,
+			"PREMESSA: i due tratti sono diversi")
+	t.ok(mosso.limbico.reattivita < fermo.limbico.reattivita - 0.005,
+			("la reattivita' del corpo segue la deriva: %.4f contro %.4f — "
+			+ "chi e' stato curato trasalisce meno")
+					% [mosso.limbico.reattivita, fermo.limbico.reattivita])
+	# …e sopravvive al giro del salvataggio (dove prima veniva CONGELATA)
+	var ripreso = ANIMO.new()
+	ripreso.setup(CHIBIDNA.generate(7717))
+	ripreso.load(mosso.save())
+	t.almost(ripreso.limbico.reattivita, mosso.limbico.reattivita,
+			"e il caricamento non la congela a un valore che non c'entra piu'", 1e-9)
+	# LA CONTROPROVA: senza deriva, la reattivita' e' quella di sempre
+	var vergine = ANIMO.new()
+	vergine.setup(CHIBIDNA.generate(7717))
+	var cod: float = vergine.tratto_base("codardia")
+	var gri: float = vergine.tratto_base("grinta")
+	t.almost(vergine.limbico.reattivita,
+			clampf(0.6 + cod * 0.9 - gri * 0.35, 0.2, 1.8),
+			"e senza deriva e' esattamente la formula di sempre", 1e-12)
+
+
+## ⚠️ **LE PORTE, LE SOGLIE E LE FRASI LEGGONO CHI ERA.**
+##
+## Sotto il gradino della diserzione c'e' `Visitors._congeda()`: con la deriva
+## dentro, «protetto e nutrito» diventerebbe **«se ne va prima»**, e il
+## giocatore perderebbe i vicini di cui si e' occupato di piu'. E la lealta'
+## che decide la mezza vita del libro mastro degli Affetti **riscriverebbe il
+## passato**, sciogliendo una coppia senza che nessuno abbia fatto niente.
+##
+## La mutazione plausibile e' la piu' naturale che ci sia: «tutti i lettori al
+## derivato», che e' quello che uno fa quando cabla.
+func _le_porte_e_le_frasi_leggono_CHI_ERA(t) -> void:
+	var fermo = _animo(5150, 0)
+	var mosso = _animo(5150, 40)
+	t.ok(absf(mosso.tratto("codardia") - fermo.tratto("codardia")) > 0.05,
+			"PREMESSA: la deriva e' grossa (%.4f)"
+					% absf(mosso.tratto("codardia") - fermo.tratto("codardia")))
+	var s_fermo: Dictionary = fermo.soglie()
+	var s_mosso: Dictionary = mosso.soglie()
+	for k in s_fermo:
+		t.almost(float(s_mosso[k]), float(s_fermo[k]),
+				"la soglia «%s» non si muove: e' una PORTA, e sotto c'e' chi se "
+				% k + "ne va dal villaggio", 1e-12)
+	# --- e il TESTO. ⚠️ Ci sono volute tre stesure, e le due bocciate erano
+	#     mute per due ragioni diverse — vale la pena scriverle:
+	#     (a) la prima confrontava due chibi qualunque: se la codardia non
+	#         sta vicino alla soglia la frase non cambia in nessuno dei due
+	#         casi, e la mutazione resta verde;
+	#     (b) la seconda dava al termine di paragone gli STESSI ricordi, e
+	#         allora derivava anche lui: con la mutazione attraversavano la
+	#         soglia tutti e due, e tornavano uguali.
+	#     La forma che funziona ha tre corpi, e rende la soglia OSSERVABILE:
+	#     uno che sta sopra senza deriva, uno che sta sotto senza deriva (per
+	#     dimostrare che la frase cambia davvero), e uno che sta sopra ma
+	#     DERIVA sotto — quello deve parlare come il primo.
+	var CAUSE := 12
+	var sopra = _con_causa(0.70, 0)
+	var sotto = _con_causa(0.42, 0)
+	var derivato = _con_causa(0.70, 40)
+	t.ok(sopra.tratto_base("codardia") > 0.65 and sotto.tratto_base("codardia") < 0.65,
+			"PREMESSA: uno sta sopra la soglia della frase e l'altro sotto")
+	var k_sopra := _apertura(sopra)
+	var k_sotto := _apertura(sotto)
+	t.ok(k_sopra != k_sotto,
+			"PREMESSA: la soglia e' viva — chi sta sopra e chi sta sotto dicono "
+			+ "cose diverse")
+	t.ok(derivato.tratto_base("codardia") > 0.65
+			and derivato.tratto("codardia") < 0.65,
+			"PREMESSA: e il terzo era sopra (%.3f) e adesso e' sotto (%.3f)"
+					% [derivato.tratto_base("codardia"), derivato.tratto("codardia")])
+	t.eq(_apertura(derivato), k_sopra,
+			"ma quello che dice quando sbotta e' ancora quello di CHI ERA: "
+			+ "il testo legge la base")
+
+
+## ⚠️ **E IL COLORE, INVECE, LA DERIVA LO VEDE.**
+##
+## E' la meta' speculare della guardia qui sopra: se le porte devono NON
+## vederla, i canali che colorano la persona devono vederla — o la deriva e'
+## un numero perfetto che non tocca niente. `peso_drive("sicurezza")` e' il
+## primo di quei canali, ed e' quello che decide quanto pesa la paura nelle
+## scelte di ogni giornata.
+##
+## ⚠️ La prima stesura di questo file non ce l'aveva, e la mutazione «il
+## colore torna alla base» — cioe' la deriva scollegata dal suo unico
+## consumatore — lasciava la suite VERDE.
+func _il_colore_invece_la_vede(t) -> void:
+	var fermo = _animo(4711, 0)
+	var mosso = _animo(4711, 40)
+	t.ok(mosso.peso_drive("sicurezza") < fermo.peso_drive("sicurezza") - 1e-6,
+			("il peso della sicurezza segue la deriva: %.4f contro %.4f")
+					% [mosso.peso_drive("sicurezza"), fermo.peso_drive("sicurezza")])
+	# …e un canale che non dipende da un tratto che deriva non si muove
+	t.almost(mosso.peso_drive("stima"), fermo.peso_drive("stima"),
+			"e un canale che dipende da un tratto che NON deriva sta fermo", 1e-12)
+
+
+## Un corpo con una codardia decisa, qualcosa di cui lamentarsi, e — se
+## `gesti > 0` — abbastanza cure del giocatore da farlo derivare.
+##
+## ⚠️ I torti e i piatti sono due tipi DIVERSI apposta: i torti fanno le
+## `cause()` (senza, `sfogo_rimandato` esce alla prima riga con «Non e'
+## niente, lascia stare» e il caso confronta due volte la stessa frase
+## generica), i piatti fanno la deriva. Cosi' si puo' avere lo stesso motivo
+## di sfogo con e senza deriva.
+## L'APERTURA dello sfogo — cioe' la sola parte che i tratti decidono. Il
+## resto della frase sono le CAUSE, e quelle la deriva le muove per davvero
+## (muovendo i drive): confrontare la frase intera farebbe fallire il caso per
+## una ragione giusta ma diversa da quella che sorveglia.
+func _apertura(a) -> String:
+	var d: Dictionary = a.sfogo_rimandato()
+	var args: Array = d.get("args", [])
+	return JSON.stringify(args[0]) if args.size() > 0 else JSON.stringify(d)
+
+
+func _con_causa(codardia: float, gesti: int):
+	var a = ANIMO.new()
+	a.setup(CHIBIDNA.generate(1234))
+	a.tratti["orgoglio"] = 0.10
+	a.tratti["lealta"] = 0.10
+	a.tratti["codardia"] = codardia
+	for i in 12:
+		a.ricorda("torto", "giocatore", -0.7, 0.9)
+	for g in gesti:
+		a.ricorda("piatto", "giocatore", 0.9, 1.0)
+		a.passa_giorno()
+	a._deriva_giorno = -1
+	a._ricalcola_deriva()
+	return a
+
+
+## ⚠️ **NON SI RICALCOLA A META' GIORNATA.** Un tratto che cambia mentre lo
+## guardi non e' una persona che cambia: e' un cruscotto. La mutazione
+## plausibile e' chiamare il ricalcolo da `ricorda()` — la stesura «sempre
+## fresco».
+func _non_si_ricalcola_a_meta_giornata(t) -> void:
+	var a = _animo(9001, 10)
+	var prima: float = a.tratto("codardia")
+	for i in 10:
+		a.ricorda("piatto", "giocatore", 0.9, 1.0)
+	t.almost(a.tratto("codardia"), prima,
+			"dieci gesti nella stessa giornata non muovono il tratto", 1e-12)
+	a.passa_giorno()
+	t.ok(a.tratto("codardia") < prima - 1e-6,
+			"e il giorno dopo si', tutto insieme (%.4f contro %.4f)"
+					% [a.tratto("codardia"), prima])
+
+
+## ⚠️ **UN SALVATAGGIO VECCHIO E' IL GIOCO DI PRIMA.** Nessuna migrazione,
+## nessuna chiave nuova: chi non ha prove del giocatore ha δ = 0, e la
+## reattivita' e' quella che la formula ha sempre dato.
+func _un_salvataggio_vecchio_e_il_gioco_di_prima(t) -> void:
+	var vecchio = ANIMO.new()
+	vecchio.setup(CHIBIDNA.generate(3131))
+	var blob: Dictionary = vecchio.save()
+	blob.erase("ricordi")
+	blob.erase("sommario")
+	var ripreso = ANIMO.new()
+	ripreso.setup(CHIBIDNA.generate(3131))
+	ripreso.load(blob)
+	for tr in DERIVA.DERIVANO:
+		t.almost(ripreso.tratto(str(tr)), ripreso.tratto_base(str(tr)),
+				"«%s»: senza prove, il tratto e' quello di nascita" % tr, 1e-12)
+	t.almost(ripreso.limbico.reattivita, vecchio.limbico.reattivita,
+			"e la reattivita' e' identica a quella di sempre", 1e-12)
