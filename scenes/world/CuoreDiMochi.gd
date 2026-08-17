@@ -276,7 +276,7 @@ func _on_nuovo_giorno(_giorno: int) -> void:
 	_sedute_oggi = 0
 	# `false`: il marchio del temporale NON sbiadisce da solo. Si spegne
 	# solo tornandoci sotto (vedi Limbico.passa_giorno).
-	limbico.passa_giorno(true, false)
+	limbico.passa_giorno(1.0, false)
 
 
 # ============================================================== letture

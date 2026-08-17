@@ -228,6 +228,54 @@ func _appendi_nuova() -> void:
 		_build.request_save()
 
 
+## Questo vicino ha già un biglietto appeso?
+func ha_richiesta_di(label: String) -> bool:
+	for c in _attive:
+		if str(c.get("chi", "")) == label:
+			return true
+	return false
+
+
+## LA RICHIESTA CHE NASCE DA UN PIANO (Fase 3).
+##
+## Non è la lavagna che stanotte ha scelto qualcuno a caso: è un vicino
+## che ADESSO non arriva più al suo cespuglio, ci ha ripensato, ed è
+## andato a scrivere. Dopo di qui è tutto uguale — stesso biglietto,
+## stessa consegna, stesso premio, stesso momento sul Filo Rosso quando
+## gliela porti — e deve restare uguale: la richiesta che nasce da un
+## recinto non è un evento speciale, è la stessa cosa con un'altra causa.
+##
+## Torna `true` solo se il biglietto è stato appeso davvero.
+func appendi_per(label: String, id := "mela") -> bool:
+	if label == "" or _visitors == null or ha_richiesta_di(label):
+		return false
+	var trovato := {}
+	for r in (_visitors.get("_residents") as Array):
+		if str(r.get("label", "")) == label:
+			trovato = r
+			break
+	if trovato.is_empty() or str(trovato.get("species", "")) != "chibi":
+		return false
+	# stessa regola della lavagna al mattino: un cucciolo non scrive
+	if bool(_visitors.call("e_cucciolo", label)):
+		return false
+	var dna: Dictionary = trovato.get("dna", {})
+	var n := 2 + randi() % 3
+	var c := {"chi": label, "nome": str(dna.get("name", "")),
+			"id": id, "n": n, "piatto": str(PIATTI.get(id, "la mia cena")),
+			"testo": "%d %s per %s!" % [n, _plurale(id, n),
+					str(PIATTI.get(id, "la mia cena"))],
+			"premio": CRIT.vendita(id) * n * 2 + 4, "giorno": _day()}
+	_attive.append(c)
+	_toast(L10n.tf("📌 %s ha appeso una richiesta alla lavagna:\n«%s» (%d🌰)",
+			[c["chi"], biglietto(c), c["premio"]]))
+	if _sfx:
+		_sfx.ui_select()
+	if _build:
+		_build.request_save()
+	return true
+
+
 # ------------------------------------------------------------- la consegna
 
 ## Il giocatore HA la merce di questa commissione?

@@ -107,6 +107,14 @@ const TIPI := {
 	# ACCOMPAGNARE (scenes/npc/Accompagna.gd): il giorno in cui siete
 	# tornati insieme nel posto che temeva, e non è successo niente.
 	"coraggio": ["quel posto che non fa più paura", ["coraggio", "insieme"]],
+	# LA STRATIGRAFIA (scenes/world/Strati.gd): il piccolo oggetto che chi
+	# è partito ha lasciato alla terra, tornato alla luce sotto un
+	# luccichio. È l'unico tipo pensato per un filo già chiuso — e proprio
+	# per questo può riaffiorare nei sogni e nelle lettere, come tutto ciò
+	# che il filo porta con sé. (Incrementa filo["n"] DOPO l'addio: oggi
+	# nessuno lo rilegge, ma chi un domani leggesse momenti_vissuti
+	# post-partenza deve sapere che il reperto lo gonfia di 1.)
+	"reperto": ["il piccolo ricordo che la terra ha custodito", ["ricordo", "grazie"]],
 }
 
 # nome residente -> {"momenti": [{d, t, x}], "giorno_arrivo": int}

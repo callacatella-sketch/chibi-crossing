@@ -54,6 +54,26 @@ const GIORNI_CONFERMA := 3
 const PESO_VERO := 0.5
 const GESTI_VERI_MIN := 3
 
+## L'ABITUDINE NON È UN GESTO. Lo stesso gesto pesante, fra le stesse due
+## persone e nello stesso verso, non si riscrive prima di una settimana: chi
+## tiene accesa una luce sulla stessa porta ogni notte non sta rifacendo una
+## scelta, sta tenendo un'abitudine — e il libro mastro tiene il gesto.
+##
+## MISURATO: una riga da 0,80 ripetuta ogni notte va a regime a ~41,9, cioè
+## diciassette volte `SOGLIA_COPPIA`, e annega tutto quello che fa il
+## giocatore (`coraggio` vale 1,20 e succede una volta sola). Con la valvola,
+## un mese di veglie sulla stessa porta scrive 5 righe invece di 30 e si
+## legge 3,33 da chi le riceve: conta ancora — deve contare — ma sta sulla
+## stessa scala dei gesti del giocatore invece di sommergerli.
+##
+## Sette giorni, e non ventuno: è la finestra dell'`ASIMMETRIA`. Perché il
+## solo DONATORE arrivi alla soglia con un flusso a senso unico serve
+## `0.55*0.80/(1-2^(-T/36)) >= 2.4`, cioè T ≤ ~10 giorni con lealtà bassa;
+## a 14-21 chi veglia non può più essere ricambiato affatto (misurato: a 28
+## residenti la prima coppia slitta al giorno 114-198, oltre l'orizzonte di
+## quasi ogni partita).
+const GIORNI_RIPETIZIONE := 7
+
 ## UNA RIGA PER TIPO DI GESTO, e vale come fonte unica. I numeri non sono
 ## gusto: la scala dice che la vicinanza non è affetto e che proteggere
 ## qualcuno pesa più che mangiarci insieme.
@@ -96,17 +116,31 @@ const MARGINE_FRAGILE := 1.25
 ## IL PAREGGIO NON ELEGGE NESSUNO. Quanto il primo deve staccare il secondo
 ## per potersi chiamare «il più caro».
 ##
-## I gesti che il villaggio fa VERSO TUTTI (`Lavori._gesto_verso_tutti`: la
-## guardia che veglia sul sonno di tutti, il cuoco che divide il piatto con
-## tutti) scrivono lo stesso tipo di gesto, lo stesso giorno, verso ogni
-## residente: `conto()` restituiva valori identici al centesimo e il `>`
-## stretto eleggeva il PRIMO dell'array `_residents`. La coppia si sarebbe
-## spostata su un'altra persona il giorno in cui qualcuno arriva o parte e
-## l'array si riordina — senza che fosse successo niente.
+## Nacque contro i gesti che il villaggio faceva VERSO TUTTI in un colpo
+## solo — la guardia che vegliava su ognuno, il cuoco che divideva il piatto
+## con ognuno: stesso tipo, stesso giorno, stesso peso verso ogni residente,
+## `conto()` identico al centesimo e il `>` stretto che eleggeva il PRIMO
+## dell'array `_residents`.
 ##
-## È esattamente la classifica invisibile che questo sistema si è
-## ripromesso di non scrivere: se due contano UGUALE, il gioco non sceglie
-## per il vicino. Nessun eletto, nessuna coppia, nessun telegrafo.
+## POI L'ABBIAMO MISURATO (240 giorni x 6 semi) e non era un pareggio: era un
+## DOMINIO. Fra la guardia e il cuoco il conto cresceva di 1,14 al giorno
+## contro 0,44 verso chiunque altro — 2,6 a 1. Prima coppia sempre al giorno
+## 3, sempre quei due, a 3, 6, 12 e 28 residenti; e UNA SOLA coppia in tutta
+## la partita, perché per ogni altro vicino il massimo era la guardia, che
+## non ricambiava nessuno. Un solo incarico assegnato sterilizzava gli
+## affetti dell'INTERO villaggio — e questo margine non poteva fermarlo: è
+## una guardia contro i pareggi, e contro un dominio non serve un margine.
+##
+## La cura sta alla radice, non qui: la riga nasce dove il gesto SUCCEDE
+## davvero (una porta per notte per la veglia, la ciotola che il giocatore
+## porta con le sue zampe per il piatto) e `GIORNI_RIPETIZIONE` impedisce
+## all'abitudine di riscriverla ogni giorno.
+##
+## Il margine RESTA, perché i pareggi veri esistono ancora (due gesti gemelli
+## lo stesso giorno) ed è esattamente la classifica invisibile che questo
+## sistema si è ripromesso di non scrivere: se due contano UGUALE, il gioco
+## non sceglie per il vicino. Nessun eletto, nessuna coppia, nessun
+## telegrafo.
 const MARGINE_ELEZIONE := 1.06
 
 var _righe: Array = []        # {a, b, t, d}: da A verso B, tipo, giorno
@@ -316,6 +350,39 @@ static func pota(righe: Array, oggi: int, tetto := 400) -> Array:
 	return out
 
 
+## DA QUANTI GIORNI questa stessa riga — stesso chi, stesso verso, stesso
+## tipo — non viene scritta. `-1` se non è mai successo. Pura.
+##
+## Si deriva da `_righe`, che è già nel salvataggio e che `pota()` non pota
+## MAI per le righe pesanti: la risposta è la stessa prima e dopo un
+## caricamento, e non c'è nessuno stato nuovo da migrare.
+static func giorni_dall_ultimo(righe: Array, da: String, verso: String,
+		tipo: String, oggi: int) -> int:
+	# il «mai successo» è un BOOLEANO, non un giorno sentinella: con un -1 al
+	# posto suo una riga datata a un giorno <= -1 (i provini partono da lì, e
+	# un salvataggio storto pure) si leggerebbe come inesistente, e la valvola
+	# si aprirebbe di soppiatto
+	var trovato := false
+	var ultimo := 0
+	for r in righe:
+		var riga := r as Dictionary
+		# la chiave è la TERNA: un «piatto» fra due «veglia» non è una
+		# ripetizione — è la differenza fra una consuetudine e due gesti
+		if str(riga.get("a", "")) != da or str(riga.get("b", "")) != verso:
+			continue
+		if str(riga.get("t", "")) != tipo:
+			continue
+		# ⚠️ dal JSON il giorno torna `float`: senza `int()` il confronto
+		# scivola e la valvola si apre (o si chiude) di un giorno
+		var g := int(riga.get("d", 0))
+		if not trovato or g > ultimo:
+			ultimo = g
+			trovato = true
+	if not trovato:
+		return -1
+	return maxi(0, oggi - ultimo)
+
+
 # ============================================================ la porta unica
 
 ## UN GESTO È SUCCESSO. È l'unica porta per scrivere sul libro mastro: due
@@ -327,7 +394,16 @@ func gesto(da: String, verso: String, tipo: String) -> void:
 	if da == "" or verso == "" or da == verso or not GESTI.has(tipo):
 		return
 	_cabla()
-	_righe.append({"a": da, "b": verso, "t": tipo, "d": _giorno()})
+	var oggi := _giorno()
+	# LA VALVOLA CONTRO L'ABITUDINE: un gesto pesante che si ripete ogni
+	# giorno fra le stesse due persone non è più una notizia (vedi
+	# `GIORNI_RIPETIZIONE`). I gesti leggeri passano sempre: una chiacchiera
+	# vale 0,05, e cento chiacchiere devono poter restare cento chiacchiere.
+	if absf(float(GESTI.get(tipo, 0.0))) >= PESO_VERO:
+		var da_quanto := giorni_dall_ultimo(_righe, da, verso, tipo, oggi)
+		if da_quanto >= 0 and da_quanto < GIORNI_RIPETIZIONE:
+			return
+	_righe.append({"a": da, "b": verso, "t": tipo, "d": oggi})
 	if _righe.size() > 420:
 		_righe = pota(_righe, _giorno())
 
@@ -380,6 +456,27 @@ func _lealta_di(nome: String) -> float:
 		var key := str(r.get("label", ""))
 		if animi.has(key):
 			var a = animi[key]
+			# ⚠️ **LA BASE, e non il tratto di adesso.** Questa lealta' decide
+			# la MEZZA VITA con cui `conto()` rilegge TUTTE le righe del libro
+			# mastro, comprese quelle di sei mesi fa. Una lealta' che derivasse
+			# **riscriverebbe il passato**: `ancora_coppia()` e' un confronto
+			# fra conti, e una mezza vita piu' corta schiaccia il passato e
+			# lascia in piedi il recente — cioe' potrebbe sciogliere una coppia
+			# senza che nessuno abbia fatto niente. La mezza vita e' la
+			# grammatica con cui si legge la storia, non un colore.
+			#
+			# ⚠️ **RESIDUO DICHIARATO: oggi questa riga non ha una guardia che
+			# sappia fallire, e va detto invece che lasciato credere.** La
+			# lealta' non e' ancora fra i tratti che derivano (`Deriva.DERIVANO`
+			# ha solo la codardia), quindi `tratto` e `tratto_base` restituiscono
+			# lo stesso numero e la mutazione che le scambia lascia la suite
+			# verde — misurato: zero asserzioni rosse. La riga e' giusta lo
+			# stesso, e va scritta ADESSO: il giorno che la lealta' derivera',
+			# chi la cabla non dovra' accorgersi da solo che questa e' una
+			# grammatica e non un colore. Chi consegnera' quel commit deve
+			# rendere rossa questa mutazione **prima** di consegnarlo.
+			if a.has_method("tratto_base"):
+				return float(a.call("tratto_base", "lealta"))
 			return float((a.get("tratti") as Dictionary).get("lealta", 0.5))
 	return 0.5
 

@@ -999,6 +999,10 @@ func _give_wood(t: Dictionary) -> void:
 	_stumps.append({"root": root, "stump": t["stump"], "spec": t["spec"],
 			"pos": Vector2(pos.x, pos.z)})
 	get_tree().call_group("regista", "note", "legna")
+	# `pos` è il piede dell'albero appena caduto (due righe più su): il
+	# vicino guarda lì, non addosso a Mochi — la cosa che è successa è il
+	# posto che si è aperto nel bosco.
+	get_tree().call_group("percezione", "accaduto", "taglia", pos)
 	get_tree().create_timer(1.1).timeout.connect(func() -> void:
 		_toast(root.global_position + Vector3(0, 1.0, 0),
 				L10n.tf("+%d legna", [WOOD_PER_TREE])))

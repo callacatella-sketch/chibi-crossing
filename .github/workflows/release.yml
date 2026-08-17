@@ -70,6 +70,92 @@ jobs:
             || { echo "::error::Manca misc/macos_entitlements.plist, richiesto dalla firma macOS."; exit 1; }
           echo "ETC2/ASTC abilitato ed entitlement presenti"
 
+      # ⚠️ IL MODELLO SI SCARICA ANCORA, SENZA CREDENZIALI, ED E' QUELLO?
+      # Dieci secondi, e SENZA scaricare un byte.
+      #
+      # Dal 2026-08-13 il modello non viaggia piu' dentro il pacchetto: se lo
+      # scarica il GIOCO, al primo uso, da `Llm.sorgente_url()`. La Release
+      # quindi non ha piu' bisogno di Hugging Face — ma il GIOCO si', e nessun
+      # altro posto fa questa domanda. Se a monte il file sparisse, o
+      # diventasse «gated», o venisse ricaricato diverso, il guasto sarebbe
+      # muto per costruzione: chi accende la funzione vede un caricamento che
+      # non arriva (o un'impronta che non combacia), il gioco resta intero con
+      # le sue lettere scritte a mano, e nessuna partita puo' smascherarlo.
+      #
+      # ⚠️ SI CHIEDE SENZA TOKEN, ED E' LA COSA PIU' IMPORTANTE DI QUESTO
+      # PASSO. Prima c'era un `HF_TOKEN` facoltativo: aveva senso quando a
+      # scaricare era la CI, non ha piu' senso adesso che scarica il gioco —
+      # chi gioca un token non ce l'ha. Una CI che passa GRAZIE a un token
+      # proverebbe uno scenario in cui nessun giocatore si trova mai, e
+      # direbbe di si' proprio nel caso in cui tutti sono rotti.
+      #
+      # Le costanti si LEGGONO da `systems/Llm.gd` (fonte unica: `sorgente_url`
+      # le compone di la'), non si ricopiano qui. Se cambiano nome questo passo
+      # deve fallire rumorosamente, invece di confrontare stringhe vuote.
+      - name: Il modello si scarica ancora senza credenziali?
+        shell: bash
+        run: |
+          set -euo pipefail
+          leggi() {  # $1 = nome della costante, $2 = forma del valore
+            sed -n "s/^const $1 := \"\\($2\\)\"\$/\\1/p;s/^const $1 := \\($2\\)\$/\\1/p" systems/Llm.gd | head -n1
+          }
+          repo="$(leggi SORGENTE_REPO '.*')"
+          file="$(leggi SORGENTE_FILE '.*')"
+          rev="$(leggi SORGENTE_REVISIONE '.*')"
+          impronta="$(leggi IMPRONTA_SPEDITO '[0-9a-f]\{64\}')"
+          byte="$(leggi BYTE_MODELLO '[0-9]\{1,\}')"
+          for coppia in "SORGENTE_REPO:$repo" "SORGENTE_FILE:$file" "SORGENTE_REVISIONE:$rev" \
+                        "IMPRONTA_SPEDITO:$impronta" "BYTE_MODELLO:$byte"; do
+            test -n "${coppia#*:}" \
+              || { echo "::error::Non riesco a leggere ${coppia%%:*} da systems/Llm.gd. O e' stata rinominata, o ha cambiato forma: senza, questo controllo non giudica piu' niente e il download del gioco resta senza nessuna guardia. Allinea l'estrazione qui sopra alla fonte unica."; exit 1; }
+          done
+          url="https://huggingface.co/$repo/resolve/$rev/$file"
+          echo "il gioco scarichera': $url"
+          echo "e pretendera': $byte byte · sha256 $impronta"
+
+          # `-I` senza `-L`: la risposta di Hugging Face (302 verso la CDN) e'
+          # proprio quella che porta le due intestazioni che servono. Sui file
+          # grossi (LFS/Xet) `x-linked-etag` E' lo sha256 dei byte, e
+          # `x-linked-size` la loro quantita'.
+          teste="$(curl -sS -I --connect-timeout 30 --max-time 120 "$url" | tr -d '\r' || true)"
+          if [ -z "$teste" ]; then
+            echo "::warning::Nessuna risposta da huggingface.co. Puo' essere un guasto passeggero della rete del runner: la Release esce lo stesso (il modello non ci viaggia dentro), ma il download del gioco NON e' stato verificato. Se si ripete, controllalo a mano."
+            exit 0
+          fi
+          codice="$(printf '%s\n' "$teste" | awk '/^HTTP\//{c=$2} END{print c}')"
+          printf '%s\n' "$teste" | sed -n '1p;/^x-linked-/p'
+          case "$codice" in
+            200|302|307) ;;
+            401|403)
+              echo "::error::Hugging Face risponde $codice SENZA credenziali: il repository e' diventato «gated». Il gioco scarica il modello da li' e un token non ce l'ha: la funzione sarebbe spenta per TUTTI i giocatori, in silenzio. Va scelta un'altra sorgente (o un altro modello) e aggiornate INSIEME, in systems/Llm.gd, SORGENTE_* e IMPRONTA_SPEDITO."
+              exit 1 ;;
+            404)
+              echo "::error::Hugging Face risponde 404: il file pinnato non c'e' piu' a quella revisione. Il gioco lo cercherebbe li' e non lo troverebbe. Si aggiornano INSIEME SORGENTE_REVISIONE e IMPRONTA_SPEDITO in systems/Llm.gd."
+              exit 1 ;;
+            *)
+              echo "::warning::Hugging Face risponde $codice: non e' un no definitivo (429, 5xx, un intoppo della CDN). La Release esce lo stesso, ma il download del gioco non e' stato verificato."
+              exit 0 ;;
+          esac
+
+          etag="$(printf '%s\n' "$teste" | awk -F': ' 'tolower($1)=="x-linked-etag"{print $2}' | tr -d '"' | head -n1)"
+          dim="$(printf '%s\n' "$teste" | awk -F': ' 'tolower($1)=="x-linked-size"{print $2}' | head -n1)"
+          if [ -z "$etag" ]; then
+            # Non e' un errore: l'intestazione e' un dettaglio di come Hugging
+            # Face serve i file grossi, e puo' cambiare. Chi verifica davvero
+            # e' il portiere, sul disco di chi gioca, a scaricamento finito.
+            echo "::warning::Hugging Face non ha mandato x-linked-etag: non posso confrontare l'impronta senza scaricare 2,4 GB. Il controllo vero resta il portiere, dopo il download."
+          elif [ "$etag" != "$impronta" ]; then
+            echo "::error::Il file a monte ha impronta $etag, il gioco ne pretende $impronta (Llm.IMPRONTA_SPEDITO). Cosi' com'e', ogni giocatore scaricherebbe 2,4 GB per sentirsi dire che non e' il file giusto — e la funzione resterebbe spenta senza che nessuno capisca perche'. O e' cambiato il file a monte (allora si aggiornano INSIEME SORGENTE_REVISIONE e IMPRONTA_SPEDITO), o si sta pinnando la revisione sbagliata."
+            exit 1
+          else
+            echo "    ok  l'impronta a monte combacia con Llm.IMPRONTA_SPEDITO"
+          fi
+          if [ -n "$dim" ] && [ "$dim" != "$byte" ]; then
+            echo "::error::Il file a monte pesa $dim byte, Llm.BYTE_MODELLO ne dichiara $byte. Quel numero il gioco lo mostra a chi gioca PRIMA di chiedergli il download, e ci disegna la barra che avanza: se sbaglia, la barra mente."
+            exit 1
+          fi
+          echo "    ok  $dim byte ($((dim / 1048576)) MiB), scaricabile senza credenziali"
+
   # ---------------------------------------------------------------------------
   windows:
     name: Export Windows (.exe firmato)
@@ -84,29 +170,134 @@ jobs:
       AZURE_TS_ACCOUNT: ${{ secrets.AZURE_TS_ACCOUNT }}
       AZURE_TS_CERT_PROFILE: ${{ secrets.AZURE_TS_CERT_PROFILE }}
     steps:
-      - name: Checkout (con submodule godot-cpp)
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
+
+      # I sottomoduli si tirano giu' a mano, e SOLO quelli che servono (un
+      # `submodules: recursive` porterebbe dietro anche quel che non entra in
+      # questo job). Qui servono TUTTI E DUE: godot-cpp per il cuore, e
+      # llama.cpp perche' da oggi la release compila con `llm=yes`.
+      #
+      # `shallow = true` sta in .gitmodules: di llama.cpp arriva il SHA pinnato
+      # e basta — 40 MB di storia invece di 436.
+      - name: Sottomoduli (godot-cpp + llama.cpp)
+        run: git submodule update --init --depth 1 godot-cpp src/thirdparty/llama.cpp
+
+      # La chiave della cache qui sotto. Si legge dal GITLINK del superprogetto
+      # (`git ls-tree`), non dal sottomodulo: cosi' vale anche prima che sia
+      # stato tirato giu', ed e' la stessa riga di build.yml.
+      - name: Il SHA a cui e' pinnato llama.cpp
+        id: pin
+        shell: bash
+        run: echo "sha=$(git ls-tree HEAD src/thirdparty/llama.cpp | awk '{print $3}')" >> "$GITHUB_OUTPUT"
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
-      - name: Installa SCons
-        run: python -m pip install --upgrade pip scons
+      # Ninja esplicito: senza, CMake sceglie il generatore di default e su
+      # Windows sarebbe Visual Studio, che si tira dietro un toolset SUO invece
+      # di quello che SCons ha gia' configurato. Le due meta' che poi si
+      # linkano insieme devono uscire dallo STESSO compilatore.
+      - name: Installa SCons e Ninja
+        run: python -m pip install --upgrade pip scons ninja
+
+      # cmake NON si installa: c'e' gia' sull'immagine del runner. Non e' una
+      # speranza — e' MISURATO: il job `build-llm` di build.yml configura e
+      # compila ggml su tutte e tre le immagini senza installare niente. Qui la
+      # dipendenza si dichiara ad alta voce, cosi' il giorno in cui
+      # un'immagine lo togliesse l'errore la nomina invece di uscire da dentro
+      # lo SConstruct dopo il checkout dei sottomoduli.
+      - name: Gli attrezzi di llama.cpp ci sono?
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v cmake >/dev/null \
+            || { echo "::error::cmake non e' nel PATH del runner, e llama.cpp non ha altro build supportato a monte. Rimedio: un passo che lo installi (python -m pip install cmake), oppure passare a scons llm_cmake=<percorso>."; exit 1; }
+          command -v ninja >/dev/null \
+            || { echo "::error::ninja non e' nel PATH: senza, CMake sceglierebbe il generatore Visual Studio, che porta un toolset diverso da quello con cui SCons compila l'altra meta' del cuore."; exit 1; }
+          cmake --version | head -n1
+          ninja --version
+
+      # La compilazione di ggml + llama e' la parte lunga (centinaia di file) e
+      # dipende solo dal SHA pinnato e dalle opzioni: si tiene da parte.
+      #
+      # ⚠️ LA CHIAVE E' LA STESSA DI build.yml, parola per parola, ed e' voluto:
+      # GitHub lascia leggere a un run le cache del proprio ref E quelle del
+      # ramo di default, quindi un tag riusa la compilazione che build.yml ha
+      # gia' pagato su main. Chi la cambia qui e non la' non rompe niente — fa
+      # solo pagare venti minuti in piu' a ogni tag, in silenzio.
+      - name: Cache della build di llama.cpp
+        uses: actions/cache@v4
+        with:
+          # Solo le librerie INSTALLATE, non le centinaia di megabyte di
+          # oggetti: il timbro nel SConstruct guarda proprio queste due cose
+          # (`inst/lib` pieno + `timbro.json` che combacia) e salta tutto il
+          # resto senza nemmeno chiamare cmake.
+          path: |
+            src/thirdparty/llm-build/*/inst
+            src/thirdparty/llm-build/*/timbro.json
+          key: llm-windows-${{ steps.pin.outputs.sha }}-${{ hashFiles('SConstruct') }}
 
       # ENTRAMBI i target, non solo release: chibi_crossing.gdextension mappa
       # anche la voce *.debug, ed e' QUELLA che carica l'eseguibile EDITOR di
       # Godot usato qui sotto per l'import e l'export. Senza, la GDExtension non
       # si carica, le classi del cuore C++ non risultano registrate e il gioco
       # esportato parte senza camera (lo "schermo grigio con la sola musica").
-      - name: Compila il cuore C++ (debug + release)
+      #
+      # ⚠️ `llm=yes` SU TUTTI E DUE, ed e' la riga che accende la Fase 5 per chi
+      # gioca: senza, la classe nativa `LlmLocale` non viene registrata,
+      # `Llm.disponibile()` e' falsa per tutti, la casella «Il villaggio pensa»
+      # non compare mai (`Llm.leva_visibile()`) e il modello che il gioco
+      # scaricherebbe al primo uso non avrebbe chi lo apre. Il cancello subito
+      # sotto non guarda questa riga: guarda il binario.
+      #
+      # ⚠️ E IL CRT NON SI PASSA. E' la trappola numero uno di questo ramo, ed
+      # e' facile prenderla al contrario: il nostro win32 non passa ne' /MD ne'
+      # /MT, quindi cl.exe usa il runtime C STATICO (/MT) — la stessa scelta di
+      # godot-cpp (use_static_cpp) — e lo SConstruct lo dice gia' a CMake
+      # (`llm_msvc_crt`, di serie "MultiThreaded"). Scrivere qui
+      # `llm_msvc_crt=MultiThreadedDLL` creerebbe proprio lo scontro che si
+      # vuole evitare: e' il rimedio da usare SE il link muore con LNK2038
+      # «mismatch detected for 'RuntimeLibrary'», non una precauzione da
+      # prendere prima.
+      - name: Compila il cuore C++ (debug + release, llm=yes)
         shell: bash
         run: |
-          scons platform=windows target=template_debug -j4
-          scons platform=windows target=template_release -j4
+          scons platform=windows target=template_debug llm=yes -j4
+          scons platform=windows target=template_release llm=yes -j4
+
+      # ⚠️ IL BINARIO CHE SPEDIAMO SA SCRIVERE? — e da quando il modello non
+      # viaggia piu' nel pacchetto, questo cancello e' l'unica cosa che tiene
+      # in vita la Fase 5 in una release.
+      #
+      # Il gioco decide se la Fase 5 esiste guardando se la classe nativa
+      # `LlmLocale` e' registrata (`Llm.disponibile()`: «l'esistenza della
+      # classe E' il segnale»), e quella classe c'e' SOLO se il cuore e' stato
+      # compilato con `llm=yes`. Senza, non succede niente di visibile: la
+      # casella «Il villaggio pensa» non compare, nessuno scarica nessun
+      # modello, e il gioco resta un gioco INTERO con le sue lettere scritte a
+      # mano. Nessun collaudo e nessuna partita potrebbero distinguerlo da uno
+      # che funziona — ed e' per questo che il guasto si puo' fermare qui e in
+      # nessun altro posto.
+      #
+      # Si guarda il binario e non il comando: e' la stessa domanda che si fa
+      # il gioco, fatta all'artefatto invece che alla riga di build. MISURATO
+      # sui binari veri (macOS, universale, 2026-08-13): con `llm=yes` la
+      # stringa c'e' QUATTRO volte e il file pesa 8 226 280 byte; con `llm=no`
+      # ZERO volte e 1 141 496. Il cancello e' falsificato nei due versi.
+      - name: Il cuore compilato conosce LlmLocale?
+        shell: bash
+        run: |
+          set -euo pipefail
+          bin="bin/chibi_crossing.dll"
+          test -f "$bin" || { echo "::error::Non trovo $bin dopo la compilazione."; exit 1; }
+          quante="$(grep -ac 'LlmLocale' "$bin" || true)"
+          echo "$bin · $(wc -c < "$bin" | tr -d ' ') byte · LlmLocale: $quante"
+          test "$quante" != "0" \
+            || { echo "::error::Il cuore C++ e' stato compilato SENZA llama.cpp: la classe LlmLocale non c'e', quindi in questa release Llm.disponibile() sarebbe falsa per tutti — la casella «Il villaggio pensa» non comparirebbe mai, il modello non verrebbe mai scaricato, e la Fase 5 sarebbe morta in silenzio. Serve 'llm=yes' su ENTRAMBI i target di scons, col sottomodulo src/thirdparty/llama.cpp nel checkout. Se invece la compilazione e' morta prima, il log lo dice: su Windows i due sospetti sono il CRT (LNK2038 -> llm_msvc_crt=MultiThreadedDLL) e le librerie di sistema che il nostro link a mano deve passare per ggml (advapi32, per il registro da cui legge il nome della CPU)."; exit 1; }
+          echo "    ok  il binario spedito sa scrivere"
 
       - name: Setup Godot + export templates
         uses: chickensoft-games/setup-godot@v2
@@ -136,6 +327,21 @@ jobs:
             || { echo "::error::L'export non ha prodotto build/windows/ChibiCrossing.exe."; exit 1; }
           ls -la build/windows
 
+      # LE LICENZE ACCANTO ALL'ESEGUIBILE. Non e' cortesia: la MIT chiede che
+      # l'avviso di copyright sia incluso «in all copies», e i Gemma Terms of
+      # Use (Sezione 3.1) chiedono che la distribuzione sia ACCOMPAGNATA da un
+      # file «Notice» e da una copia dell'accordo. Un file dentro il .pck non
+      # accompagna niente: su Windows il .pck e' pure EMBEDDED nell'.exe
+      # (binary_format/embed_pck=true), quindi per chi riceve il gioco non
+      # esiste. Qui diventano file veri, accanto al gioco.
+      - name: Metti le licenze accanto al gioco
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/windows/Licenze
+          cp misc/licenze/*.txt build/windows/Licenze/
+          ls -la build/windows/Licenze
+
       - name: Firma con Azure Trusted Signing (solo se ci sono i secret)
         if: env.AZURE_CLIENT_ID != ''
         uses: azure/trusted-signing-action@v0
@@ -155,9 +361,39 @@ jobs:
         shell: bash
         run: echo "::warning::Secret Azure Trusted Signing assenti -> .exe NON firmato. Vedi RELEASE_SIGNING.md."
 
+      # 7-ZIP E NON `Compress-Archive`: il cmdlet di PowerShell usa l'API .NET
+      # System.IO.Compression.ZipArchive, che la documentazione Microsoft
+      # dichiara limitata a **2 GB**, e scrive per giunta i separatori con la
+      # barra ROVESCIATA (e' la ragione dei `tr '\\' '/'` nel job `release`).
+      # 7-Zip e' preinstallato sui runner Windows, scrive zip64 e separatori
+      # standard. Il modello non viaggia piu' dentro il pacchetto e quel tetto
+      # non e' piu' vicino: si resta su 7z perche' e' la scelta piu' solida,
+      # non piu' perche' e' l'unica possibile.
+      #
+      # E la compressione torna quella di serie: `-mx=1` c'era per i pesi
+      # quantizzati, che sono praticamente incomprimibili e occupavano quasi
+      # tutto il pacchetto — comprimerli forte era pagare minuti di CPU per
+      # qualche per mille. Adesso dentro c'e' solo il gioco, che si comprime, e
+      # ogni megabyte in meno e' un megabyte che chi gioca non scarica.
       - name: Comprimi la build
-        shell: pwsh
-        run: Compress-Archive -Path build/windows/* -DestinationPath ChibiCrossing-windows.zip -Force
+        shell: bash
+        run: |
+          set -euo pipefail
+          # ⚠️ PERCORSI RELATIVI, NON $GITHUB_WORKSPACE. Su un runner Windows
+          # quella variabile vale `D:\a\repo\repo`, con le barre ROVESCIATE:
+          # dentro bash le barre rovesciate sono caratteri di escape, e un
+          # `cd "$GITHUB_WORKSPACE"` e' il genere di riga che a volte funziona
+          # e a volte no a seconda di come MSYS traduce il percorso. `../..`
+          # dice la stessa cosa e non dipende da nessuna traduzione.
+          cd build/windows
+          7z a -tzip ../../ChibiCrossing-windows.zip ./* > /dev/null
+          cd ../..
+          test -s ChibiCrossing-windows.zip \
+            || { echo "::error::La compressione non ha prodotto ChibiCrossing-windows.zip."; exit 1; }
+          echo "pacchetto: $(wc -c < ChibiCrossing-windows.zip | tr -d ' ') byte"
+          # Che dentro ci sia tutto lo verifica il job `release`, sui pacchetti
+          # veri: qui si guarda solo che l'archivio si sia scritto.
+          7z l ChibiCrossing-windows.zip | tail -n 20
 
       - name: Carica artifact
         uses: actions/upload-artifact@v4
@@ -180,18 +416,58 @@ jobs:
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
     steps:
-      - name: Checkout (con submodule godot-cpp)
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
+
+      # I sottomoduli si tirano giu' a mano, e SOLO quelli che servono. Qui
+      # servono TUTTI E DUE: godot-cpp per il cuore, e llama.cpp perche' da
+      # oggi la release compila con `llm=yes`. `shallow = true` sta in
+      # .gitmodules: di llama.cpp arriva il SHA pinnato e basta.
+      - name: Sottomoduli (godot-cpp + llama.cpp)
+        run: git submodule update --init --depth 1 godot-cpp src/thirdparty/llama.cpp
+
+      - name: Il SHA a cui e' pinnato llama.cpp
+        id: pin
+        shell: bash
+        run: echo "sha=$(git ls-tree HEAD src/thirdparty/llama.cpp | awk '{print $3}')" >> "$GITHUB_OUTPUT"
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
-      - name: Installa SCons
-        run: python -m pip install --upgrade pip scons
+      # Ninja anche qui, e non per simmetria: senza un generatore esplicito
+      # CMake sceglie Makefile, e la compilazione di ggml (centinaia di file,
+      # DUE volte — una per architettura) e' sensibilmente piu' lenta.
+      - name: Installa SCons e Ninja
+        run: python -m pip install --upgrade pip scons ninja
+
+      - name: Gli attrezzi di llama.cpp ci sono?
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v cmake >/dev/null \
+            || { echo "::error::cmake non e' nel PATH del runner, e llama.cpp non ha altro build supportato a monte. Rimedio: un passo che lo installi (python -m pip install cmake), oppure passare a scons llm_cmake=<percorso>."; exit 1; }
+          command -v ninja >/dev/null \
+            || { echo "::error::ninja non e' nel PATH."; exit 1; }
+          cmake --version | head -n1
+          ninja --version
+
+      # ⚠️ La chiave e' la STESSA di build.yml (vedi il gemello Windows): un
+      # tag riusa la compilazione che build.yml ha gia' pagato su main. E qui
+      # vale il doppio, perche' su macOS le passate sono DUE — `arm64;x86_64`
+      # insieme non funziona (ggml sceglie sorgenti e flag guardando
+      # CMAKE_OSX_ARCHITECTURES), quindi si compila una volta per architettura
+      # e si uniscono gli archivi con `lipo`. Il glob `*/inst` prende tutte e
+      # tre le cartelle: macos-arm64, macos-x86_64 e la macos-universal che
+      # esce da lipo.
+      - name: Cache della build di llama.cpp
+        uses: actions/cache@v4
+        with:
+          path: |
+            src/thirdparty/llm-build/*/inst
+            src/thirdparty/llm-build/*/timbro.json
+          key: llm-macos-${{ steps.pin.outputs.sha }}-${{ hashFiles('SConstruct') }}
 
       # ENTRAMBI i target: su macOS i due binari hanno NOMI DIVERSI
       # (…template_debug.universal.dylib e …template_release.universal.dylib) e
@@ -199,10 +475,30 @@ jobs:
       # Godot — quello che qui sotto importa ed esporta — carica la voce
       # macos.debug: senza quel file la GDExtension non si carica e il gioco
       # esportato resta senza il cuore C++.
-      - name: Compila il cuore C++ (debug + release, universale)
+      #
+      # ⚠️ `llm=yes` su tutti e due: vedi il gemello Windows. Senza questa riga
+      # la Fase 5 non esiste per chi gioca, e non si vede.
+      - name: Compila il cuore C++ (debug + release, universale, llm=yes)
         run: |
-          scons platform=macos arch=universal target=template_debug -j4
-          scons platform=macos arch=universal target=template_release -j4
+          scons platform=macos arch=universal target=template_debug llm=yes -j4
+          scons platform=macos arch=universal target=template_release llm=yes -j4
+
+      # ⚠️ Vedi il gemello nel job Windows: il gioco riconosce la Fase 5
+      # dall'esistenza della classe nativa `LlmLocale`, che c'e' solo con
+      # `llm=yes`, e un gioco senza non e' distinguibile da uno con — le
+      # lettere scritte a mano ci sono e restano. MISURATO su questi due
+      # binari: con llama dentro 8 226 280 byte e la stringa 4 volte, senza
+      # 1 141 496 byte e zero volte.
+      - name: Il cuore compilato conosce LlmLocale?
+        run: |
+          set -euo pipefail
+          bin="bin/libchibi_crossing.macos.template_release.universal.dylib"
+          test -f "$bin" || { echo "::error::Non trovo $bin dopo la compilazione."; exit 1; }
+          quante="$(grep -ac 'LlmLocale' "$bin" || true)"
+          echo "$bin · $(wc -c < "$bin" | tr -d ' ') byte · LlmLocale: $quante"
+          test "$quante" != "0" \
+            || { echo "::error::Il cuore C++ e' stato compilato SENZA llama.cpp: la classe LlmLocale non c'e', quindi in questa release Llm.disponibile() sarebbe falsa per tutti — la casella «Il villaggio pensa» non comparirebbe mai, il modello non verrebbe mai scaricato, e la Fase 5 sarebbe morta in silenzio. Serve 'llm=yes' su ENTRAMBI i target di scons, col sottomodulo src/thirdparty/llama.cpp nel checkout; su macOS le due passate per architettura piu' lipo le fa gia' il SConstruct."; exit 1; }
+          echo "    ok  il binario spedito sa scrivere"
 
       - name: Setup Godot + export templates
         uses: chickensoft-games/setup-godot@v2
@@ -230,6 +526,43 @@ jobs:
             || { echo "::error::L'export non ha prodotto build/macos/ChibiCrossing.zip."; exit 1; }
           ls -la build/macos
 
+      # LE LICENZE DENTRO IL BUNDLE, e su macOS «dentro» e' l'unica opzione
+      # giusta: il .app E' l'artefatto distribuito — chi lo trascina in
+      # Applicazioni si porta via SOLO quello, e una cartella «Licenze» messa
+      # accanto nello zip resterebbe indietro al primo trascinamento. Vanno in
+      # Contents/Resources/, che e' dove sta il .pck: fuori di li' `codesign`
+      # le vedrebbe come «unsealed contents» e la notarizzazione non
+      # passerebbe (vedi RELEASE_SIGNING.md).
+      #
+      # ⚠️ QUESTO PASSO STA PRIMA DELLA FIRMA, e non e' un caso: iniettare file
+      # in un bundle gia' firmato ne rompe la firma. Chi sposta questo passo
+      # piu' in basso ottiene una release che Gatekeeper rifiuta.
+      #
+      # Fino al 2026-08-13 qui entrava anche il MODELLO (2,4 GB), nella stessa
+      # apertura del bundle per non pagare due giri di unzip + ditto. Adesso il
+      # modello non viaggia piu' col gioco — se lo scarica il gioco al primo
+      # uso, in `user://` — e questo passo e' tornato a essere quello che dice
+      # di essere.
+      - name: Metti le licenze dentro il bundle
+        run: |
+          set -euo pipefail
+          cd build/macos
+          unzip -oq ChibiCrossing.zip
+          APP="$(find . -maxdepth 1 -name '*.app' | head -n1)"
+          test -n "$APP" || { echo "::error::Nessuna .app dentro ChibiCrossing.zip."; exit 1; }
+          mkdir -p "$APP/Contents/Resources/Licenze"
+          cp "$GITHUB_WORKSPACE"/misc/licenze/*.txt "$APP/Contents/Resources/Licenze/"
+          ls -la "$APP/Contents/Resources/Licenze"
+
+          # si ricomprime con la STESSA forma di prima (la .app alla radice
+          # dello zip): il passo della firma piu' sotto la ripesca con
+          # `find . -maxdepth 1 -name '*.app'`, e una cartella in piu' alla
+          # radice gliela farebbe mancare.
+          rm -f ChibiCrossing.zip
+          ditto -c -k --keepParent "$APP" ChibiCrossing.zip
+          rm -rf "$APP"
+          df -h . | tail -n1
+
       - name: Firma + notarizza (solo se ci sono i secret Apple)
         if: env.MACOS_CERT_BASE64 != ''
         run: |
@@ -251,6 +584,13 @@ jobs:
           unzip -oq ChibiCrossing.zip
           APP="$(find . -maxdepth 1 -name '*.app' | head -n1)"
           ENT="$GITHUB_WORKSPACE/misc/macos_entitlements.plist"
+          # L'archivio da cui abbiamo appena estratto non serve piu': lo
+          # riscriviamo noi al punto 5. Il runner macOS ha ~14 GB di disco in
+          # tutto, e in questo job convivono Godot, gli export templates, il
+          # bundle e i suoi archivi — senza questa riga il picco del passo e'
+          # zip + .app + notarize.zip.
+          rm -f ChibiCrossing.zip
+          df -h . | tail -n1
 
           # 3) Firma prima le librerie native annidate, poi l'app (hardened runtime).
           find "$APP" \( -name '*.dylib' -o -name '*.framework' \) -print0 | while IFS= read -r -d '' lib; do
@@ -262,11 +602,15 @@ jobs:
           ditto -c -k --keepParent "$APP" "notarize.zip"
           xcrun notarytool submit "notarize.zip" \
             --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+          # Consegnato ad Apple: la copia locale non serve piu'. Il ticket si
+          # graffa sulla .app, non sullo zip (per questo `stapler` viene dopo).
+          rm -f notarize.zip
           xcrun stapler staple "$APP"
 
           # 5) Ricomprimi l'app firmata+notarizzata per la distribuzione.
-          rm -f ChibiCrossing.zip notarize.zip
+          rm -f ChibiCrossing.zip
           ditto -c -k --keepParent "$APP" "ChibiCrossing.zip"
+          df -h . | tail -n1
 
       - name: Avviso se firma/notarizzazione saltate
         if: env.MACOS_CERT_BASE64 == ''
@@ -288,6 +632,12 @@ jobs:
     needs: [windows, macos]
     runs-on: ubuntu-latest
     steps:
+      # Serve per LEGGERE `systems/Llm.gd`: i controlli qui sotto chiedono al
+      # gioco come si chiama il file del modello, invece di ricopiarne il nome
+      # (vedi il blocco `env` in cima). Costa cinque secondi.
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Scarica gli artifact
         uses: actions/download-artifact@v4
         with:
@@ -302,6 +652,164 @@ jobs:
           ls -la dist
           for z in ChibiCrossing-windows.zip ChibiCrossing-macos.zip; do
             test -s "dist/$z" || { echo "::error::Manca dist/$z."; exit 1; }
+            # QUANTO PESA IL PACCHETTO. Non e' un cancello: e' il numero che
+            # racconta la decisione del 2026-08-13. Il modello non viaggia piu'
+            # dentro il gioco, e il gioco e' tornato piccolo per tutti — prima
+            # ogni pacchetto ne portava 2,4 GB, cioe' oltre i 2 GiB che GitHub
+            # concede a un allegato di Release. Qui si legge a colpo d'occhio
+            # se un domani ricominciasse a gonfiarsi.
+            byte="$(wc -c < "dist/$z" | tr -d ' ')"
+            printf '    %-32s %12s byte (%s MiB)\n' "$z" "$byte" "$((byte / 1048576))"
+          done
+
+      # I PACCHETTI SI APRONO UNA VOLTA SOLA, e i due cancelli qui sotto
+      # guardano dentro la stessa cartella.
+      #
+      # Si estrae TUTTO invece di dare un pattern a `unzip`, e non e' pigrizia:
+      # con i separatori a barra ROVESCIATA un pattern non trova niente,
+      # `unzip` esce comunque 0, e il controllo passerebbe a vuoto — verde per
+      # il motivo sbagliato. (Costava 2,4 GB di scrittura per pacchetto finche'
+      # il modello viaggiava dentro; adesso e' il gioco e basta.)
+      - name: Apri i pacchetti
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/pacchi && mkdir -p /tmp/pacchi
+          apri() {
+            esito=0
+            unzip -qq -o "$1" -d "$2" || esito=$?
+            # `unzip` torna 1 per gli AVVISI (voci saltate, permessi, symlink:
+            # una .app ne ha). Da 2 in su e' un errore vero, e allora si ferma
+            # qui invece di far fallire i cancelli per il motivo sbagliato.
+            test "$esito" -le 1 \
+              || { echo "::error::unzip ha fallito su $1 (codice $esito): il pacchetto non si apre, e non si puo' verificare che cosa contiene."; exit 1; }
+          }
+          for s in windows macos; do
+            mkdir -p "/tmp/pacchi/$s"
+            apri "dist/ChibiCrossing-$s.zip" "/tmp/pacchi/$s"
+          done
+          du -sh /tmp/pacchi/* | sed 's/^/    /'
+
+      # ⚠️ UNO DEI DUE CANCELLI PRIMA DI PUBBLICARE, e guarda i pacchetti VERI
+      # — non il repository. Ridistribuire i pesi di Gemma senza il file
+      # «Notice» e senza una copia dell'accordo vuol dire ridistribuirli SENZA
+      # LICENZA (Gemma Terms of Use, Sezione 3.1); e senza gli avvisi MIT si e'
+      # fuori anche da godot-cpp, EnTT, lua-gdextension e llama.cpp — che nel
+      # cuore ci sta anche adesso che i pesi non viaggiano piu'. Un
+      # refactoring dell'export che perde la cartella per strada non deve
+      # poter diventare una Release: qui la pipeline si ferma.
+      #
+      # ⚠️ L'ELENCO NON E' PIU' SCRITTO QUI: e' `misc/licenze/*.txt`, cioe' la
+      # cartella che i due job copiano dentro i pacchetti. Quattro nomi scritti
+      # a mano erano una tabella gemella, e il giorno in cui gli avvisi si
+      # rivedono — cioe' oggi, perche' il gioco non spedisce piu' i pesi — la
+      # lista e la cartella divergono e il cancello continua a dire di si' su
+      # un pacchetto incompleto. Con la fonte unica non c'e' niente da tenere
+      # allineato: quel che sta in `misc/licenze/` DEVE stare nei pacchetti.
+      #
+      # E la cartella vuota non e' un lasciapassare: senza nemmeno un file da
+      # controllare questo passo fallisce, perche' un cancello che si spegne da
+      # solo e' peggio di nessun cancello.
+      - name: Le licenze sono DENTRO i pacchetti?
+        shell: bash
+        run: |
+          set -euo pipefail
+          attesi=()
+          for f in misc/licenze/*.txt; do
+            # senza questa riga, una cartella vuota lascerebbe il glob NON
+            # espanso e `attesi` conterrebbe la stringa "*.txt": il conto piu'
+            # sotto direbbe «uno», e il cancello cercherebbe un file inventato.
+            test -e "$f" || continue
+            attesi+=("$(basename "$f")")
+          done
+          test "${#attesi[@]}" -ge 1 \
+            || { echo "::error::misc/licenze/ non contiene nessun .txt: o la cartella e' stata svuotata, o questo controllo sta guardando il posto sbagliato. In tutti e due i casi la Release non puo' uscire."; exit 1; }
+          echo "attesi in ogni pacchetto: ${attesi[*]}"
+
+          for z in dist/ChibiCrossing-windows.zip dist/ChibiCrossing-macos.zip; do
+            echo "--- $z"
+            # `tr` non e' superstizione: un pacchetto scritto con i separatori
+            # a barra ROVESCIATA (e' quel che fa Compress-Archive di
+            # PowerShell) farebbe fallire un controllo che cerca "Licenze/...",
+            # cioe' bloccherebbe la release per il motivo sbagliato.
+            elenco="$(unzip -Z1 "$z" | tr '\\' '/')"
+            for f in "${attesi[@]}"; do
+              printf '%s\n' "$elenco" | grep -q "Licenze/$f$" \
+                || { echo "::error::$z non contiene Licenze/$f — la Release NON puo' uscire cosi'."; exit 1; }
+              echo "    ok  Licenze/$f"
+            done
+          done
+
+          # E LA FRASE che la Sezione 3.1 punto 4 impone parola per parola: se
+          # il file c'e' ma e' stato riscritto — o soltanto mandato a capo —
+          # l'obbligo non e' assolto e il pacchetto non ha una licenza. Si
+          # legge dal pacchetto gia' aperto, non da `misc/licenze/`: e' quel
+          # che riceve chi gioca.
+          #
+          # ⚠️ E si guarda SE quel file e' fra gli attesi. Il giorno in cui il
+          # progetto non avesse piu' niente a che fare con Gemma, l'avviso non
+          # sarebbe piu' in `misc/licenze/` e questa verifica non avrebbe piu'
+          # oggetto: allora lo DICE (::warning::) invece di tacere, perche' una
+          # guardia che si spegne in silenzio e' il guasto che questo file
+          # esiste per non commettere.
+          if printf '%s\n' "${attesi[@]}" | grep -qx 'NOTICE-Gemma.txt'; then
+            # `*NOTICE-Gemma.txt` e non `NOTICE-Gemma.txt`: se il pacchetto
+            # avesse i separatori a barra ROVESCIATA, `unzip` scrive UN file
+            # che si chiama «Licenze\NOTICE-Gemma.txt» — il percorso e' tutto
+            # dentro il nome, e un `-name` esatto non lo troverebbe.
+            avviso="$(find /tmp/pacchi/windows -name '*NOTICE-Gemma.txt' | head -n1)"
+            test -n "$avviso" \
+              || { echo "::error::NOTICE-Gemma.txt non si trova dentro il pacchetto Windows aperto."; exit 1; }
+            grep -qF 'Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms' \
+              "$avviso" \
+              || { echo "::error::NOTICE-Gemma.txt non contiene, su una riga sola, la frase esatta richiesta dalla Sezione 3.1 punto 4."; exit 1; }
+            echo "    ok  la frase della Sezione 3.1 punto 4 e' integra"
+          else
+            echo "::warning::In misc/licenze/ non c'e' NOTICE-Gemma.txt: la verifica della frase della Sezione 3.1 punto 4 non ha girato. Se il gioco distribuisce i pesi di Gemma — o li fa scaricare a chi gioca — quel file ci vuole."
+          fi
+
+      # ⚠️ IL GIOCO CHE PUBBLICHIAMO SA PENSARE? — l'altro cancello, e da oggi
+      # e' l'unica guardia che sta fra una release e una Fase 5 morta.
+      #
+      # Al posto di questo passo, fino al 2026-08-13, c'era «il modello e'
+      # dentro i pacchetti?». La domanda era la stessa di adesso, e cioe': una
+      # cosa che il giocatore NON vede mancare. Il gioco senza la Fase 5 e' un
+      # gioco intero — le lettere scritte a mano ci sono e restano, la casella
+      # «Il villaggio pensa» semplicemente non compare — quindi nessuna
+      # partita, nessun collaudo e nessuna segnalazione potranno mai dire che
+      # e' rotto. L'unico posto in cui quel silenzio si rompe e' qui.
+      #
+      # I due job hanno gia' interrogato il cuore APPENA COMPILATO (bin/…). Fra
+      # quel binario e il pacchetto ci sono pero' l'export di Godot, la firma
+      # e — su macOS — un giro di unzip + ditto: qui si guarda il binario che
+      # riceve chi gioca, che e' quel che quei passi non potevano guardare.
+      #
+      # La domanda e' esattamente quella del gioco
+      # (`ClassDB.class_exists("LlmLocale")`, unica casa in systems/Llm.gd): la
+      # classe nativa esiste solo se il cuore e' stato compilato con `llm=yes`.
+      # MISURATO sui binari veri (macOS universale, 2026-08-13): con llama
+      # dentro la stringa c'e' 4 volte e il file pesa 8 226 280 byte; senza,
+      # 0 volte e 1 141 496.
+      - name: Il gioco che pubblichiamo sa pensare?
+        shell: bash
+        run: |
+          set -euo pipefail
+          for s in windows macos; do
+            echo "--- ChibiCrossing-$s.zip"
+            trovati=0
+            while IFS= read -r cuore; do
+              trovati=$((trovati + 1))
+              quante="$(grep -ac 'LlmLocale' "$cuore" || true)"
+              printf '    %s · %s byte · LlmLocale: %s\n' \
+                "${cuore#/tmp/pacchi/$s/}" "$(wc -c < "$cuore" | tr -d ' ')" "$quante"
+              test "$quante" != "0" \
+                || { echo "::error::Nel pacchetto $s il cuore C++ non conosce LlmLocale: e' stato compilato senza llama.cpp, quindi Llm.disponibile() sara' falsa per chiunque installi questa release — la casella «Il villaggio pensa» non compare, il modello non viene mai scaricato, e la Fase 5 e' spenta in silenzio. Serve 'llm=yes' sui due target di scons, nel job che esporta $s."; exit 1; }
+            # L'asterisco davanti per la stessa ragione del NOTICE qui sopra
+            # (un pacchetto a barre rovesciate mette il percorso dentro il
+            # nome), e i nomi vengono da chibi_crossing.gdextension.
+            done < <(find "/tmp/pacchi/$s" \( -name '*chibi_crossing.dll' -o -name '*libchibi_crossing.*.dylib' \))
+            test "$trovati" -ge 1 \
+              || { echo "::error::Nel pacchetto $s non c'e' NESSUNA libreria del cuore C++ (ne' chibi_crossing.dll ne' libchibi_crossing.*.dylib): il gioco esportato e' senza GDExtension, cioe' senza camera — «schermo grigio con la sola musica». O l'export non l'ha copiata, o e' cambiato il nome del file in chibi_crossing.gdextension e questo controllo cerca quello vecchio."; exit 1; }
           done
 
       - name: Crea la GitHub Release (solo sui tag)

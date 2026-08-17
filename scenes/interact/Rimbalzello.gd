@@ -144,9 +144,11 @@ func _sulla_riva() -> bool:
 
 func _vento() -> float:
 	var w := get_tree().get_first_node_in_group("weather")
-	if w and w.has_method("forza_del_vento"):
+	if w and w.has_method("vento"):
 		# lo stato vero del cielo, dallo stesso posto che lo dice all'erba
-		return float(w.get("_vento"))
+		# (l'API pubblica, non il campo privato: un rinomina e il tiro
+		# tornava a essere sempre di brezza, in silenzio)
+		return float(w.call("vento"))
 	return 1.0
 
 

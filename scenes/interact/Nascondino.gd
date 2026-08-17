@@ -40,6 +40,11 @@ const ACCETTA_R := 1.7                   # dire di sì = avvicinarsi
 const RISATINA_R := 9.0                  # il chiacchierone si tradisce da qui
 const DIST_NASCONDIGLI := 7.0            # i tre non si ammucchiano
 const BOSCO_Z := -18.0                   # i nascondigli buoni sono nel folto
+## Per quanto si tiene aperta la scena di chi e' nascosto. La posa si rinnova
+## ogni 5-8 s (`t_resta`, in `_caccia`) e la scena si rinnova con lei: nove
+## secondi stanno un filo sopra il rinnovo piu' lento, o fra un
+## acquattamento e l'altro la testa tornerebbe libera di girarsi.
+const SCENA_RINNOVO := 9.0
 
 var _stato := "quiete"     # quiete | proposta | conteggio | caccia
 var _giorno_fatto := -1
@@ -248,6 +253,13 @@ func _accettato() -> void:
 			voce["dietro"] = dietro
 			# e si guarda la prop, cioe' si sta rannicchiati dalla sua parte
 			nodo.call("do_routine", "sniff", dietro, centro)
+		# CHI E' NASCOSTO STA GIOCANDO, e il gioco e' con te: `in_scena()` lo
+		# toglie ai gesti del giocatore (`Percezione.puo_vedere`). Senza, uno
+		# che posa un pezzo mentre cerca fa spuntare cinque teste da dietro
+		# cinque massi, tutte girate verso il cursore — cioe' si trovano da
+		# sole, ed e' finito il gioco.
+		if nodo.has_method("apri_scena"):
+			nodo.call("apri_scena", SCENA_RINNOVO)
 		if nodo.has_method("speak"):
 			nodo.call("speak", ["risata"], "felice")
 	_stato = "conteggio"
@@ -301,6 +313,8 @@ func _caccia(delta: float) -> void:
 			n["t_resta"] = randf_range(5.0, 8.0)
 			if nodo.has_method("do_routine"):
 				nodo.call("do_routine", "sniff", n["spot"], n["spot"])
+			if nodo.has_method("apri_scena"):
+				nodo.call("apri_scena", SCENA_RINNOVO)
 
 	_hud_label.text = L10n.tf("Nascondino nel bosco  ·  trovati %d/%d  ·  prima del tramonto",
 			[trovati, _nascosti.size()])
@@ -341,6 +355,11 @@ func _trovato(n: Dictionary) -> void:
 		_:
 			_toast(L10n.tf("Trovato! %s ride di gusto dietro il %s.",
 					[_label(n), L10n.t(str(n["tipo"]))]))
+	# TROVATO: il suo turno di scena e' finito. Da qui in poi e' un vicino
+	# come gli altri, e se Mochi fa qualcosa lo guarda (chi aspetta alla
+	# radura non sta piu' giocando).
+	if nodo.has_method("chiudi_scena"):
+		nodo.call("chiudi_scena")
 	# il trovato trotterella alla radura ad aspettare gli altri
 	if nodo.has_method("do_routine"):
 		var radura: Vector3 = COZYW.CLEARING_CENTER
@@ -388,6 +407,8 @@ func _tramonto() -> void:
 				nodo.call("speak", ["risata"], "felice")
 			if nodo.has_method("do_routine"):
 				nodo.call("do_routine", "wander", Vector3.ZERO)
+			if nodo.has_method("chiudi_scena"):
+				nodo.call("chiudi_scena")
 		elif get_node_or_null("../../Visitors"):
 			get_node_or_null("../../Visitors").call("_bump_friend", n["r"], 1)
 	_toast(L10n.t("Il sole scende: escono dai nascondigli ridendo. Rivincita domani!"))

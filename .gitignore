@@ -10,7 +10,26 @@
 # dalla CI build.yml (Windows). Un clone pulito ricompila prima di aprire Godot.
 /bin/*.dll
 /bin/*.dylib
+# i .so di Linux: la CI li produce da quando build.yml compila anche lì, e
+# senza questa riga l'hook di backup (`git add -A`) li committerebbe dentro
+# un «backup automatico» — binari nel repo, che il progetto non vuole
+/bin/*.so
 /bin/*.lib
+
+# FASE 5 — i PESI DEI MODELLI non entrano MAI nel repository.
+# Un .gguf da 2 GB dentro git non si toglie più: git conserva ogni versione di
+# ogni file per sempre, e un repository che pesa quanto un gioco intero rende
+# lento ogni clone di chiunque, per sempre. Il modello viaggia nel PACCHETTO
+# del gioco (lo mette l'export, non il versionamento) e in locale si tiene
+# fuori dall'albero. Vale anche per i formati vicini: un .bin di pesi
+# «temporaneo» è la scorciatoia con cui questa riga verrebbe aggirata.
+*.gguf
+*.ggml
+*.safetensors
+
+# la build di llama.cpp (CMake): artefatti, non sorgenti. Stanno sotto
+# src/thirdparty/ così l'importer di Godot non li scandaglia (c'è il .gdignore).
+/src/thirdparty/llm-build/
 
 # cache e artefatti di compilazione (SCons / GDExtension C++)
 .sconsign.dblite

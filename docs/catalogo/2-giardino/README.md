@@ -1,6 +1,6 @@
 # Giardino
 
-*quello che sta fuori: verde, luci, giochi, servizi* — 32 pezzi.
+*quello che sta fuori: verde, luci, giochi, servizi* — 35 pezzi.
 
 | | fronte | tre quarti | profilo |
 |---|---|---|---|
@@ -25,11 +25,14 @@
 | **Lampione**<br><sub>0.36 × 2.36 m</sub> | <img src="lampione/1-fronte.jpg" width="200"> | <img src="lampione/2-tre-quarti.jpg" width="200"> | <img src="lampione/3-profilo.jpg" width="200"> |
 | **Lanterna blu**<br><sub>0.34 × 2.05 m</sub> | <img src="lanterna-blu/1-fronte.jpg" width="200"> | <img src="lanterna-blu/2-tre-quarti.jpg" width="200"> | <img src="lanterna-blu/3-profilo.jpg" width="200"> |
 | **Lavagna**<br><sub>1.07 × 1.70 m</sub> | <img src="lavagna/1-fronte.jpg" width="200"> | <img src="lavagna/2-tre-quarti.jpg" width="200"> | <img src="lavagna/3-profilo.jpg" width="200"> |
-| **Lucine**<br><sub>1.00 × 1.94 m</sub> | <img src="lucine/1-fronte.jpg" width="200"> | <img src="lucine/2-tre-quarti.jpg" width="200"> | <img src="lucine/3-profilo.jpg" width="200"> |
+| **Lucine**<br><sub>1.23 × 2.08 m</sub> | <img src="lucine/1-fronte.jpg" width="200"> | <img src="lucine/2-tre-quarti.jpg" width="200"> | <img src="lucine/3-profilo.jpg" width="200"> |
 | **Manichetta**<br><sub>0.65 × 0.59 m</sub> | <img src="manichetta/1-fronte.jpg" width="200"> | <img src="manichetta/2-tre-quarti.jpg" width="200"> | <img src="manichetta/3-profilo.jpg" width="200"> |
 | **Mongolfiera**<br><sub>0.99 × 2.47 m</sub> | <img src="mongolfiera/1-fronte.jpg" width="200"> | <img src="mongolfiera/2-tre-quarti.jpg" width="200"> | <img src="mongolfiera/3-profilo.jpg" width="200"> |
 | **Ombrellone**<br><sub>2.01 × 2.42 m</sub> | <img src="ombrellone/1-fronte.jpg" width="200"> | <img src="ombrellone/2-tre-quarti.jpg" width="200"> | <img src="ombrellone/3-profilo.jpg" width="200"> |
 | **Orto**<br><sub>0.92 × 0.24 m</sub> | <img src="orto/1-fronte.jpg" width="200"> | <img src="orto/2-tre-quarti.jpg" width="200"> | <img src="orto/3-profilo.jpg" width="200"> |
+| **Palo bandierine**<br><sub>0.33 × 2.07 m</sub> | <img src="palo-bandierine/1-fronte.jpg" width="200"> | <img src="palo-bandierine/2-tre-quarti.jpg" width="200"> | <img src="palo-bandierine/3-profilo.jpg" width="200"> |
+| **Palo lanterne**<br><sub>0.32 × 2.08 m</sub> | <img src="palo-lanterne/1-fronte.jpg" width="200"> | <img src="palo-lanterne/2-tre-quarti.jpg" width="200"> | <img src="palo-lanterne/3-profilo.jpg" width="200"> |
+| **Palo lucine**<br><sub>0.26 × 2.07 m</sub> | <img src="palo-lucine/1-fronte.jpg" width="200"> | <img src="palo-lucine/2-tre-quarti.jpg" width="200"> | <img src="palo-lucine/3-profilo.jpg" width="200"> |
 | **Panchina**<br><sub>0.94 × 0.88 m</sub> | <img src="panchina/1-fronte.jpg" width="200"> | <img src="panchina/2-tre-quarti.jpg" width="200"> | <img src="panchina/3-profilo.jpg" width="200"> |
 | **Pennone**<br><sub>0.11 × 2.07 m</sub> | <img src="pennone/1-fronte.jpg" width="200"> | <img src="pennone/2-tre-quarti.jpg" width="200"> | <img src="pennone/3-profilo.jpg" width="200"> |
 | **Pianta**<br><sub>0.45 × 0.58 m</sub> | <img src="pianta/1-fronte.jpg" width="200"> | <img src="pianta/2-tre-quarti.jpg" width="200"> | <img src="pianta/3-profilo.jpg" width="200"> |

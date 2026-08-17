@@ -61,6 +61,14 @@ const MOMENTI_TESTO := {
 	"battesimo": "Il nome che porto me l'hai dato tu,\nil giorno %d, quando ero grande così.\nNon me lo ricordo. Me l'hanno raccontato\nabbastanza volte da ricordarmelo lo stesso.",
 	"prima_parola": "Dicono che la prima parola\nl'ho detta il giorno %d, tutta storta,\ne che tu eri lì e hai riso.\nPoi l'ho imparata bene, ma quella era mia.",
 	"coraggio": "Di quel posto avevo paura, e non lo dicevo.\nIl giorno %d ci siamo andati insieme\ne non è successo niente — proprio niente.\nAdesso ci passo anche da solo, e non ci penso.",
+	# LA STRATIGRAFIA: il momento "reperto" vive sul filo di chi è GIÀ
+	# partito — e chi è partito scrive dal Grande Prato (vedi il giro dei
+	# mittenti qui sotto: partiti() e andati_via() sono in lista). Quindi
+	# questo template NON è codice morto: è la busta in cui chi se n'è
+	# andato viene a sapere che il suo piccolo oggetto è stato ritrovato.
+	# Il %d è il giorno dello SCAVO, non della sepoltura: è quello che il
+	# momento ricorda.
+	"reperto": "Quel piccolo ricordo l'avevo lasciato\nalla terra, vicino a casa.\nIl giorno %d l'hai trovato tu.\nMi piace saperlo nelle tue zampe.",
 }
 
 

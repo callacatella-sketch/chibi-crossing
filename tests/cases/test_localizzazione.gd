@@ -44,6 +44,7 @@ func run(t) -> void:
     _test_glossario(t)
     _test_il_motore(t)
     _test_i_dati_non_si_traducono(t)
+    _test_tornare_indietro(t)
     _test_ogni_frase_avvolta_e_tradotta(t)
     _test_copertura(t)
     _test_le_tabelle_dati(t)
@@ -332,6 +333,46 @@ func _test_il_motore(t) -> void:
     # mai la frase in tabella, perché avrebbe già i valori dentro)
     L.imposta("it")
     t.eq(L.tf("Giorno %d", [7]), "Giorno 7", "tf formatta dopo aver tradotto")
+
+    L.imposta(prima)
+
+
+# ------------------------------------------------------ e tornare indietro
+# ⚠️ **IL GIRO SI CHIUDE, NON SI GUARDA A METÀ.** Andare in inglese
+# funzionava; TORNARE no, e non per colpa di `L10n.t()`.
+#
+# `_registra_in_godot()` monta la tabella dentro il `TranslationServer` —
+# serve all'auto-traduzione dei Control, quella che traduce da sola il `text`
+# di ogni Label e di ogni Button — e quella registrazione non spariva
+# cambiando lingua. Tornati all'italiano, l'unica tabella registrata era
+# ancora quella inglese, e Godot **ci ripiegava sopra** perché la lingua di
+# riserva del progetto è `en`: mezza interfaccia restava in inglese dentro un
+# gioco impostato in italiano.
+#
+# Il caso guarda `TranslationServer.translate()` e non `L10n.t()`, ed è tutto
+# il punto: `t()` era GIUSTA in tutte e tre le tappe — a parlare inglese era
+# l'altra strada, quella che nessun test attraversava. FALSIFICATO: tolta la
+# riga `TranslationServer.clear()` da `_assicura()`, questo caso diventa
+# rosso e nient'altro nella suite si muove.
+#
+# E chi ci cascava non era un caso limite: è **la persona che apre le
+# impostazioni perché il gioco parla una lingua che non capisce**, prova
+# l'altra, e torna indietro.
+
+func _test_tornare_indietro(t) -> void:
+    var prima := L.lingua_corrente()
+    var frase := "Il villaggio pensa"
+
+    L.imposta("it")
+    t.eq(TranslationServer.translate(frase), frase,
+            "in italiano l'auto-traduzione dei Control lascia stare la frase")
+    L.imposta("en")
+    t.eq(TranslationServer.translate(frase), L.t(frase),
+            "in inglese l'auto-traduzione dice la stessa cosa di L10n.t()")
+    L.imposta("it")
+    t.eq(TranslationServer.translate(frase), frase,
+            "e tornando in italiano torna l'italiano (non la lingua di riserva)")
+    t.eq(L.t(frase), frase, "L10n.t() era giusta anche prima: il guasto era l'altra strada")
 
     L.imposta(prima)
 

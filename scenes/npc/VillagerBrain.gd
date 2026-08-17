@@ -39,6 +39,44 @@ const QUIRK_LINES := {
 
 const MAX_MEMORIA := 6
 
+## I NOMI DELLE AZIONI, nell'ordine in cui il motore C++ le numera. È la
+## fonte unica: il C++ ne tiene solo la traduzione nome→indice, e un test
+## (test_agenda_tabelle) confronta i due elenchi uno per uno — così
+## aggiungere un'azione qui senza insegnarla di là fa diventare la suite
+## ROSSA invece di far divergere due tabelle in silenzio.
+## «gironzola» è l'ultima e non è un'azione nuova: è il ripiego su cui
+## `_recita` cadeva in silenzio, che diventa una scelta dichiarata.
+const AZIONI := ["spuntino", "riposo", "quattro_chiacchiere", "cura_giardino",
+		"meraviglia", "stella", "regia", "gironzola"]
+
+## I nomi dei bisogni nell'ordine in cui attraversano il ponte verso il C++.
+## Sono le chiavi di `needs`, e l'ordine è un contratto.
+const BISOGNI := ["pancino", "energia", "compagnia", "meraviglia", "cura"]
+
+
+## I cinque bisogni impacchettati per il ponte. Il C++ li riceve come
+## SPECCHIO di sola lettura: il proprietario resta questo oggetto, perché
+## sono persistiti dentro residents[].brain.
+func bisogni_packed() -> PackedFloat64Array:
+	var p := PackedFloat64Array()
+	p.resize(BISOGNI.size())
+	for i in BISOGNI.size():
+		p[i] = float(needs[BISOGNI[i]])
+	return p
+
+
+## Il dado, tirato QUI e spinto di là già estratto: in C++ non c'è e non ci
+## sarà un generatore: i dadi del villaggio si salvano, e un secondo
+## generatore sarebbe una seconda storia che nessun salvataggio racconta.
+## Si tira una volta per DECISIONE, non a ogni frame — è una delle tre leve
+## contro il tremolio.
+func jitter() -> PackedFloat64Array:
+	var p := PackedFloat64Array()
+	p.resize(AZIONI.size())
+	for i in AZIONI.size():
+		p[i] = _rng.randf() * 0.25
+	return p
+
 var indole: Array = []
 var quirk := ""
 var needs := {"pancino": 0.9, "energia": 1.0, "compagnia": 0.7,

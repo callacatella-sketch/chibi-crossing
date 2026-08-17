@@ -2160,6 +2160,13 @@ const RIVER_Z_MIN := -56.0
 const RIVER_Z_MAX := 56.0
 const RIVER_WATER_Y := -0.45
 const CLIFF_H := 2.5
+## Il profilo della parete: [sporgenza verso il fiume, quota], svasato alla
+## base e col ciglio che aggetta. La prima riga è il PIEDE — quanto la
+## roccia si spinge in avanti a quota zero, cioè dove un corpo che cammina
+## a terra ci sbatte dentro: `terreno_vietato` la legge da qui invece di
+## ricopiarne il numero.
+const CLIFF_PROFILO := [[0.55, 0.0], [0.30, 0.75], [0.12, 1.55], [0.02, 2.15],
+		[0.30, CLIFF_H - 0.02]]
 const BRIDGE_Z := 3.2
 const LOG_Z := -26.0
 # la fonte di verita' e' WorldMath: qui solo un alias, cosi' i molti usi
@@ -2175,6 +2182,99 @@ var _fall_ripple_cd := 0.0
 func is_river(pos: Vector3) -> bool:
 	return absf(pos.x - MATH.river_x(pos.z)) < 2.9 \
 			and pos.z > RIVER_Z_MIN and pos.z < RIVER_Z_MAX
+
+
+# ------------------------------------------ dove NON si posa una zampa
+
+## MEZZA CELLA IN DIAGONALE. Una cella è larga un metro e un corpo la
+## attraversa tutta: chiederne solo il centro dichiara asciutta una cella
+## il cui spigolo è già dentro il letto — dove il prato è scavato di
+## quaranta centimetri. Ogni prova qui sotto si allarga di questo.
+const _MEZZA_CELLA := 0.71
+
+
+## IL TERRENO VIETATO: in questa cella un corpo non ci può camminare.
+##
+## Serve ai VARCHI, cioè a chi calcola la strada che un vicino percorre per
+## girare attorno a un recinto. Il grafo dei varchi è fatto dei soli BORDI
+## costruiti, e nel letto del fiume `place_cell` vieta di costruire: quindi
+## l'acqua è, per costruzione, il corridoio più sgombro di tutto il
+## villaggio — e la ricerca ci si infilava dentro, mandando il vicino a
+## camminare sospeso quarantacinque centimetri sopra il pelo dell'acqua.
+##
+## ## Cosa entra, e cosa no — la regola è UNA
+##
+## **Vietato è dove il terreno non sta a quota zero.** Non «dov'è
+## scomodo», non «dove c'è un masso»: un masso e un albero sono oggetti
+## POSATI sul prato, e attraversarli era già possibile andando dritti —
+## la strada non peggiora niente. Qui si tolgono di mezzo solo i tre posti
+## in cui il PAVIMENTO non c'è:
+##
+##  · **l'acqua** — `distanza_dall_acqua` è la fonte unica e le conosce
+##    tutt'e due, il nastro del fiume e l'ellisse dello stagno: qui non se
+##    ne riscrive nessuna forma;
+##  · **il letto del fiume** — che è più largo del pelo dell'acqua, ed è
+##    la stessa domanda che si fa `place_cell` («il letto del fiume resta
+##    del fiume»): lì il prato è scavato fino a 1.15 m e l'acqua sta a
+##    −0.45;
+##  · **la parete di scogliera** — oltre il piede (`CLIFF_PROFILO`) il
+##    terreno sale di due metri e mezzo, e un corpo a quota zero ci
+##    entra dentro.
+##
+## NON entrano le **colline**: il mondo è una tavola piatta fino a ±45 m
+## più una fascia di grazia, la formula del sollevamento vive nel vertex di
+## `ground.gdshader` e non ha una gemella in GDScript. Portarcela per
+## coprire un posto in cui nessun vicino può essere mandato vorrebbe dire
+## esattamente la copia che questo progetto vieta.
+##
+## ## Perché una CELLA e non un bordo
+##
+## I pezzi costruiti bloccano i BORDI (un bordo è un arco del grafo, e
+## piantare una staccionata è tagliarlo). Il fiume no: il fiume toglie il
+## PAVIMENTO, e un pavimento che manca è una cella intera. Sono due cose
+## diverse e restano diverse — chi le fondesse dovrebbe inventarsi quattro
+## muri attorno a ogni cella d'acqua, e si ritroverebbe un recinto chiuso
+## dove c'è solo una riva.
+##
+## ## DOVE si campiona, e perché lì (i numeri sono derivate, non gusti)
+##
+## Questa la chiama la ricerca delle rotte, una volta per cella e poi mai
+## più (`Varchi.Suolo` se la ricorda). Ma quella prima volta sono centinaia
+## di celle dentro un frame, quindi ogni campione si paga: la prima
+## stesura ne faceva cinque per cella — il centro e i quattro spigoli,
+## ognuno con tutte e tre le prove — e costava **3,77 µs a cella**, cioè
+## tre millisecondi per una rotta nuova. Adesso ogni prova si campiona
+## dove le SERVE:
+##
+##  · **l'acqua**: un campione solo, il centro, perché
+##    `distanza_dall_acqua` risponde con una DISTANZA — e una distanza è
+##    già omnidirezionale.
+##  · **il letto**: due campioni, i due estremi in x. Il letto è una
+##    fascia lungo il corso, e il corso si sposta di **0,102 m per metro**
+##    (la derivata di `river_x`: 1,35·0,061 + 0,85·0,023), cioè cinque
+##    centimetri su mezza cella. La z non serve campionarla.
+##  · **la parete**: tre campioni in z, perché lì la z conta eccome —
+##    `cliff_x` si sposta fino a **1,82 m per metro** (9 · 1,5/7,4, la
+##    pendenza massima dello smoothstep) dove il canyon si pinza sulla
+##    cascata. I due bordi **e il centro**, perché a `FALL_Z` la parete ha
+##    il suo minimo: guardare solo i bordi lo salterebbe.
+##
+## Sei domande invece di quindici: **2,0 µs a cella invece di 3,77**, cioè
+## 1,6 ms invece di 3 per una rotta nuova. E la fascia vietata è semmai un
+## dito più larga di prima (3,61 m dall'asse del fiume contro 3,45): il
+## verso dell'errore è quello giusto.
+func terreno_vietato(cell: Vector2i) -> bool:
+	var x := float(cell.x)
+	var z := float(cell.y)
+	if distanza_dall_acqua(Vector3(x, 0.0, z)) <= _MEZZA_CELLA:
+		return true
+	if is_river(Vector3(x - _MEZZA_CELLA, 0.0, z)) \
+			or is_river(Vector3(x + _MEZZA_CELLA, 0.0, z)):
+		return true
+	var piede := float(CLIFF_PROFILO[0][0]) + _MEZZA_CELLA
+	return x > cliff_x_at(z) - piede \
+			or x > cliff_x_at(z - 0.5) - piede \
+			or x > cliff_x_at(z + 0.5) - piede
 
 
 
@@ -2233,9 +2333,9 @@ func _build_cliff() -> void:
 	var grass_cap := GEO.paint_mat(Color("85b768"), Color("619a4e"), 0.9, 0.55, 0.0, true)
 	var fringe_mat := GEO.paint_mat(Color("6fa757"), Color("548c46"), 1.6, 0.55, 0.015)
 
-	# la parete: profilo [sporgenza verso il fiume, quota], svasata alla
-	# base, col ciglio che aggetta — e gobbe di roccia lungo il corso
-	var prof := [[0.55, 0.0], [0.30, 0.75], [0.12, 1.55], [0.02, 2.15], [0.30, CLIFF_H - 0.02]]
+	# la parete: il profilo sta in CLIFF_PROFILO (fonte unica: se ne serve
+	# anche chi deve sapere dove il terreno smette di essere calpestabile)
+	var prof := CLIFF_PROFILO
 	var pos: Array = []
 	var z := RIVER_Z_MIN
 	while z <= RIVER_Z_MAX + 0.01:

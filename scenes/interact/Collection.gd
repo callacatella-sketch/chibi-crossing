@@ -893,6 +893,16 @@ func add_catch(kind: String) -> void:
 	_counts[kind] = int(_counts.get(kind, 0)) + 1
 	_seen[kind] = true
 	get_tree().call_group("regista", "note", "pesca" if is_fish(kind) else "retino")
+	# LA CATTURA NON HA UN LUOGO SUO: il pesce arriva da un galleggiante che
+	# è già stato ritirato, la farfalla da un retino che era in zampa. Il
+	# posto del gesto è quello di MOCHI, ed è anche quello giusto da
+	# guardare — il gesto è suo, non del pesce.
+	# E SOLO IL PESCE: degli otto verbi che il ponte conosce nessuno dice «ha
+	# preso una farfalla col retino», e inventarne uno vorrebbe dire una
+	# `Cosa` nuova, la sua parola in Chibiese e il suo simbolo in
+	# `Visitor.LP_SIMBOLI` — tre cose, in quest'ordine, non una riga qui.
+	if is_fish(kind) and _player:
+		get_tree().call_group("percezione", "accaduto", "pesca", _player.global_position)
 	# economia gentile: le catture rare regalano una stellina
 	var eco := get_tree().get_first_node_in_group("economy")
 	var got_star := (int(eco.award_catch(kind)) if eco and eco.has_method("award_catch") else 0)

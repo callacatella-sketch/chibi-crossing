@@ -43,6 +43,23 @@ var prato_eterno := false
 ## La lingua: "auto" (quella del sistema, se la conosciamo) · "it" · "en".
 ## L'italiano è la lingua sorgente — vedi systems/L10n.gd e docs/TRADUZIONE.md.
 var language := "auto"
+## LA LEVA DEL CUORE CHE SCRIVE (Fase 5): quando è vera, il villaggio NON
+## pensa — nessun modello si apre, nessun pensiero parte, il gioco è quello
+## di sempre con i testi scritti a mano.
+##
+## ⚠️ **LA CASELLA SI VEDE SOLO A CHI HA UN MODELLO** (`Llm.leva_visibile()`,
+## e la ragione per esteso sta in `Llm.acceso()`): mostrata a chi non ne ha
+## nessuno racconterebbe che gli manca un pezzo, e non gli manca niente.
+## Il bit vive qui perché qui vivono le preferenze persistite del giocatore —
+## la DOMANDA («il villaggio può pensare?») invece ha una casa sola, ed è
+## `systems/Llm.gd`. Come `prato_eterno`: il bit di qua, il predicato di là.
+##
+## ⚠️ E IL VERSO È «SPENTO», non «acceso»: il valore di serie di un `bool` è
+## `false`, e il valore di serie di questa funzione dev'essere ACCESA. Un
+## `llm_acceso` girerebbe la funzione a chiunque non abbia mai aperto il
+## pannello — cioè quasi tutti — e la stessa riga che difende chi non l'ha
+## voluta spegnerebbe il villaggio a chi non ha detto niente.
+var llm_spento := false
 
 
 func _ready() -> void:
@@ -171,6 +188,21 @@ func set_prato_eterno(on: bool) -> void:
 	_save(); changed.emit()
 
 
+## LA LEVA DEL CUORE CHE SCRIVE. L'argomento è «il villaggio pensa» — cioè
+## quello che legge chi guarda la casella — e il bit salvato è il suo
+## contrario: qui si gira una volta sola, in un posto solo.
+##
+## ⚠️ SI APPLICA AL PROSSIMO AVVIO, e il pannello lo dice a chi gioca. Il
+## modello lo apre `scenes/npc/Pensieri.gd` una volta per vita del livello
+## (`_chiesto`), e riaprire due gigabyte e mezzo — o chiuderli — mentre
+## qualcuno sta pensando è la cura peggiore della malattia: una generazione
+## in volo, un thread da fermare, e trentasette secondi di impronta da
+## rifare. Spegnere una funzione non deve costare più che tenerla.
+func set_llm_acceso(on: bool) -> void:
+	llm_spento = not on
+	_save(); changed.emit()
+
+
 # ---------------------------------------------------------------- lingua
 func set_language(codice: String) -> void:
 	language = codice
@@ -215,6 +247,7 @@ func _load() -> void:
 	move_speed = float(cfg.get_value("gameplay", "move_speed", move_speed))
 	prato_eterno = bool(cfg.get_value("gameplay", "prato_eterno", prato_eterno))
 	language = str(cfg.get_value("gameplay", "language", language))
+	llm_spento = bool(cfg.get_value("gameplay", "llm_spento", llm_spento))
 
 
 func _save() -> void:
@@ -229,4 +262,5 @@ func _save() -> void:
 	cfg.set_value("gameplay", "move_speed", move_speed)
 	cfg.set_value("gameplay", "prato_eterno", prato_eterno)
 	cfg.set_value("gameplay", "language", language)
+	cfg.set_value("gameplay", "llm_spento", llm_spento)
 	cfg.save(PATH)

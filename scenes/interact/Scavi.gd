@@ -15,6 +15,15 @@ extends Node
 ## stessi punti): il salvataggio ricorda solo quali sono già stati
 ## scavati. La generazione e i trovamenti sono funzioni pure, provate
 ## headless in tests/cases/test_scavi.gd.
+##
+## LA STRATIGRAFIA (scenes/world/Strati.gd): ogni tanto un luccichio IN
+## PIÙ nasce sopra uno strato SEPOLTO — ciò che il giocatore ha demolito,
+## il piccolo oggetto di chi è partito, un segno di stagione — e quel
+## giorno il trovamento È il reperto. In superficie è identico agli
+## altri: si scopre scavando, e il silenzio è il comportamento normale.
+## ⚠️ Scavi NON precarica Strati (lo trova nel gruppo "strati"): Strati
+## precarica GIÀ Scavi per RECT e punto_libero, e il ciclo di preload
+## fallirebbe in modi silenziosi nei test headless.
 
 const CRIT := preload("res://scenes/world/Critters.gd")
 const UI_BROWN := Color("6a4a3a")
@@ -90,6 +99,7 @@ var _sfx
 var _giorno := 0
 var _scavati: Array = []        # indici già scavati oggi
 var _spots: Array = []          # {"i": int, "pos": Vector3, "node": Node3D}
+                                # (+ "strato": Dictionary se sotto c'è un reperto; lì "i" vale -1)
 var _busy := false
 var _t := 0.0
 
@@ -148,6 +158,32 @@ func _rigenera() -> void:
 		node.position = p
 		add_child(node)
 		_spots.append({"i": i, "pos": p, "node": node})
+	# LA STRATIGRAFIA: un luccichio IN PIÙ può nascere sopra uno strato
+	# sepolto (scenes/world/Strati.gd, gruppo "strati"). È _fai_luccichio()
+	# uguale agli altri: niente rovine in superficie, il giocatore non può
+	# distinguerlo — lo scopre scavando. La distanza si misura su `punti`
+	# INTERA (la lista deterministica del giorno), NON su _spots: la
+	# nascita non deve dipendere da scavati/coperture di metà giornata.
+	var strati_n := get_tree().get_first_node_in_group("strati")
+	if strati_n != null:
+		var s: Dictionary = strati_n.call("strato_del_giorno", _giorno)
+		if not s.is_empty():
+			var c: Array = s["cella"]
+			var sp := Vector3(int(c[0]), 0.0, int(c[1]))
+			var coperto := _build != null and \
+					bool(_build.call("has_cover", Vector2i(int(c[0]), int(c[1]))))
+			var stretto := false
+			for q in punti:
+				if Vector2(q.x - sp.x, q.z - sp.z).length() < DIST_MIN:
+					stretto = true
+					break
+			# cella coperta, stretta o non più libera → SILENZIO: lo
+			# strato resta sotto e riproverà un altro mattino
+			if not coperto and not stretto and punto_libero(sp, ostacoli):
+				var sn := _fai_luccichio()
+				sn.position = sp
+				add_child(sn)
+				_spots.append({"i": -1, "pos": sp, "node": sn, "strato": s})
 
 
 func _fai_luccichio() -> Node3D:
@@ -270,7 +306,22 @@ func _scava(k: int) -> void:
 	_spots.remove_at(k)
 	var node := spot["node"] as Node3D
 	var pos: Vector3 = spot["pos"]
-	_scavati.append(int(spot["i"]))
+	if spot.has("strato"):
+		# LA STRATIGRAFIA: la riga esce dalla terra SUBITO, prima
+		# dell'animazione — la stessa rete di sicurezza dell'indice qui
+		# sotto: salvataggio a metà scavata → al reload il luccichio non
+		# rispunta e il reperto non si duplica. E l'ACCREDITO (Tasche +
+		# momento nei Legami) sta QUI ACCANTO, atomico con estratto():
+		# quando stava a fine volo, un save_now() dal menu di pausa in
+		# quella finestra di 1,6 s salvava un ledger senza riga e delle
+		# Tasche senza reperto — e per un "ricordo" la perdita è per
+		# sempre, il partito non riseppellisce.
+		var strati_n := get_tree().get_first_node_in_group("strati")
+		if strati_n != null:
+			strati_n.call("estratto", spot["strato"], _giorno)
+		_accredita_reperto(spot["strato"])
+	else:
+		_scavati.append(int(spot["i"]))
 	# Mochi si volta e si accuccia a scavare con le zampine
 	var dir := ((pos - _player.global_position) * Vector3(1, 0, 1)).normalized()
 	_mochi.set("_yaw", atan2(-dir.x, -dir.z))
@@ -288,15 +339,30 @@ func _scava(k: int) -> void:
 	tw.tween_callback(func() -> void:
 		if is_instance_valid(node):
 			node.queue_free()
-		_estrai(int(spot["i"]), pos))
+		if spot.has("strato"):
+			_estrai_strato(spot["strato"], pos)
+		else:
+			_estrai(int(spot["i"]), pos))
 
 
 func _estrai(indice: int, pos: Vector3) -> void:
 	var dono := trovamento(_giorno, indice)
-	var pepita := _fai_trovamento(dono)
+	_vola(_fai_trovamento(dono), pos, func() -> void: _consegna(dono))
+
+
+## LA STRATIGRAFIA: il trovamento È il reperto — la tabella del giorno non
+## si consulta. La deviazione sta A VALLE apposta: trovamento() e i suoi
+## semi non si toccano, e test_scavi resta com'è.
+func _estrai_strato(strato: Dictionary, pos: Vector3) -> void:
+	_vola(_fai_reperto(strato), pos, func() -> void: _consegna_reperto(strato))
+
+
+## Il volo in arco fino al petto di Mochi (come il fungo), condiviso fra
+## trovamenti e reperti: a fine volo parla `consegna`, la pepita si
+## rimpicciolisce, Mochi si rialza e lo scavo si chiude.
+func _vola(pepita: Node3D, pos: Vector3, consegna: Callable) -> void:
 	pepita.position = pos + Vector3(0, 0.05, 0)
 	add_child(pepita)
-	# il trovamento salta in un arco fino al petto di Mochi (come il fungo)
 	var dest: Vector3 = _player.global_position + Vector3(0, 1.2, 0)
 	var tw := create_tween().set_parallel(true)
 	tw.tween_property(pepita, "global_position:x", dest.x, 0.4).set_trans(Tween.TRANS_SINE)
@@ -309,7 +375,7 @@ func _estrai(indice: int, pos: Vector3) -> void:
 	tw.chain().tween_callback(func() -> void:
 		if _sfx:
 			_sfx.place_ok()
-		_consegna(dono)
+		consegna.call()
 		var st := create_tween()
 		st.tween_property(pepita, "scale", Vector3.ONE * 0.02, 0.2) \
 				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
@@ -351,6 +417,115 @@ func _consegna(dono: Dictionary) -> void:
 		visitors.call("_show_toast", testo)
 
 
+# ------------------------------------------------------------- i reperti
+# I testi dei reperti della Stratigrafia vivono QUI (chi mostra possiede
+# il testo, e la dipendenza di preload resta a senso unico Strati→Scavi).
+# Il campo si chiama "k" APPOSTA: è uno dei tre nomi che il guardiano
+# della localizzazione riconosce (test_localizzazione) — con un nome
+# qualunque queste frasi uscirebbero in italiano nella versione inglese,
+# a suite verde.
+
+const TESTO_OGGETTO := {
+	"sassolino_lucido":     {"k": "un sassolino lucido, scelto fra mille"},
+	"foglietto_di_note":    {"k": "un foglietto di note, sbiadite dalla luna"},
+	"funghetto_di_legno":   {"k": "un funghetto di legno, intagliato con pazienza"},
+	"farfallina_di_carta":  {"k": "una farfallina di carta, piegata con cura"},
+	"nastrino_da_ballo":    {"k": "un nastrino consumato da mille giravolte"},
+	"cuscinetto_ricamato":  {"k": "un cuscinetto ricamato, ancora morbido"},
+	"truciolo_riccio":      {"k": "un truciolo arricciato come un ricciolo"},
+	"sacchettino_di_semi":  {"k": "un sacchettino di semi, legato con cura"},
+	"cucchiaino_di_legno":  {"k": "un cucchiaino di legno, consumato ai bordi"},
+	"lanternina_spenta":    {"k": "una lanternina spenta, che vegliava di notte"},
+	"mappina_piegata":      {"k": "una mappina piegata in otto"},
+	"pennellino_consumato": {"k": "un pennellino consumato fino al manico"},
+	"fischietto_di_canna":  {"k": "un fischietto di canna che risponde ancora"},
+	"barattolino_di_briciole": {"k": "un barattolino con due briciole, messe da parte"},
+	"tazzina_sbeccata":     {"k": "una tazzina sbeccata, quella del primo sole"},
+	"campanellino":         {"k": "un campanellino che non sta mai zitto"},
+	"guscio_di_nocciola":   {"k": "un guscio di nocciola, una casa piccola piccola"},
+	"stellina_di_latta":    {"k": "una stellina di latta, un po' ammaccata"},
+	"gomitolino":           {"k": "un gomitolino avvolto stretto stretto"},
+	"cuoricino_di_legno":   {"k": "un cuoricino di legno, intagliato di nascosto"},
+	"bottone_di_legno":     {"k": "un bottone di legno, caldo in mano"},
+}
+const TESTO_SEGNO := {
+	"petalo_pressato": {"k": "un petalo pressato che sa ancora di primavera"},
+	"spiga_dorata":    {"k": "una spiga dorata, piegata dal sole d'estate"},
+	"foglia_d_oro":    {"k": "una foglia d'oro, scesa piano piano in autunno"},
+	"fiocco_intatto":  {"k": "un fiocco di neve che non si è mai sciolto"},
+}
+
+
+## L'id delle Tasche che uno strato consegna: la scheggia per una
+## demolizione, l'oggetto del carattere per un ricordo, il segno per una
+## stagione. Pura: la prova test_strati (il reperto giusto).
+static func tesoro_del_reperto(strato: Dictionary) -> String:
+	match str(strato.get("tipo", "")):
+		"demolizione":
+			return "scheggia_di_casa"
+		"ricordo":
+			return str(strato.get("oggetto", ""))
+		"stagione":
+			return str(strato.get("segno", ""))
+	return ""
+
+
+## L'accredito di STATO del reperto — il tesoro nelle Tasche e il momento
+## nei Legami. Lo chiama _scava, ACCANTO a estratto(): la riga esce dal
+## ledger e il reperto entra in tasca nello stesso frame, e nessun
+## salvataggio può cadere in mezzo. A fine volo restano solo la scena
+## (modellino e toast): pura messinscena, senza stato.
+func _accredita_reperto(strato: Dictionary) -> void:
+	var inv := get_node_or_null("../Inventory")
+	var tesoro := tesoro_del_reperto(strato)
+	if inv and tesoro != "":
+		inv.add_treasure(tesoro, 1)
+	if str(strato.get("tipo", "")) == "ricordo":
+		# il momento nei Legami parte con l'accredito, ben PRIMA del toast
+		# del reperto: momento() emette il suo («il filo si colora») e
+		# l'ultimo a parlare dev'essere il reperto (stessa regola di
+		# _congeda). mostra_filo è no-op per i partiti: nessun segno in
+		# superficie, com'è giusto.
+		for legami in get_tree().get_nodes_in_group("legami"):
+			if legami.has_method("momento"):
+				legami.call("momento", str(strato.get("nome", "")), "reperto", tesoro)
+				break
+
+
+## La consegna del reperto a fine volo: SOLO il toast — nessun pannello
+## nuovo, nessun contatore (lo stato è già accreditato da
+## _accredita_reperto, atomico con estratto() dentro _scava). Il reperto
+## di chi è partito è tenerezza: la label nel toast dice DI CHI era, mai
+## di chi è la colpa.
+func _consegna_reperto(strato: Dictionary) -> void:
+	var visitors := get_node_or_null("../Visitors")
+	var tesoro := tesoro_del_reperto(strato)
+	var testo := ""
+	match str(strato.get("tipo", "")):
+		"demolizione":
+			testo = L10n.tf("Sotto terra: una scheggia di «%s» di una volta. C'era davvero.",
+					[L10n.t(str(strato.get("pezzo", "")))])
+		"ricordo":
+			var fr: Dictionary = TESTO_OGGETTO.get(tesoro, {"k": "un piccolo ricordo"})
+			var lbl := str(strato.get("label", ""))
+			if lbl == "":
+				testo = L10n.tf("Sotto terra: %s.", [L10n.rendi(fr)])
+			else:
+				# la label sta da SOGGETTO, perché porta SEMPRE l'articolo
+				# davanti («il gattino Cannella», «l'orsetto Ciliegia» —
+				# ChibiDNA la costruisce così): un «Era di %s.» produceva
+				# «Era di il gattino Cannella.» in OGNI toast. E il verbo
+				# regge un «che» relativo, che non chiede l'accordo del
+				# participio: vale per il sassolino e per la farfallina.
+				testo = L10n.tf("Sotto terra: %s. Un pensiero che %s ha lasciato qui.",
+						[L10n.rendi(fr), lbl])
+		"stagione":
+			testo = L10n.tf("Sotto terra: %s.",
+					[L10n.rendi(TESTO_SEGNO.get(tesoro, {"k": "un piccolo segno di stagione"}))])
+	if visitors and testo != "":
+		visitors.call("_show_toast", testo)
+
+
 ## Il modellino di ciò che esce dalla terra: un sacchettino, una carotina,
 ## la campanella o la stellina — abbastanza da leggersi in un arco di volo.
 func _fai_trovamento(dono: Dictionary) -> Node3D:
@@ -386,6 +561,56 @@ func _fai_trovamento(dono: Dictionary) -> Node3D:
 			mat.emission_enabled = true
 			mat.emission = Color(1.0, 0.9, 0.5)
 			mat.emission_energy_multiplier = 1.4
+	mi.material_override = mat
+	node.add_child(mi)
+	return node
+
+
+## Il modellino del reperto, nell'idioma di _fai_trovamento: la scheggia
+## di legno vecchio per una demolizione, la sferetta TINTA col pelo di
+## chi è partito (si riconosce CHI era dal colore, come nei sogni), la
+## sferetta nel colore del segno per una stagione. Colori di PARTENZA:
+## la taratura finale è a occhio col provino (REGOLA ZERO).
+func _fai_reperto(strato: Dictionary) -> Node3D:
+	var node := Node3D.new()
+	var mi := MeshInstance3D.new()
+	var mat := StandardMaterial3D.new()
+	match str(strato.get("tipo", "")):
+		"demolizione":
+			var bm := BoxMesh.new()
+			bm.size = Vector3(0.16, 0.03, 0.07)
+			mi.mesh = bm
+			mat.albedo_color = Color(0.55, 0.42, 0.30)   # legno vecchio
+			mat.roughness = 1.0
+		"ricordo":
+			var sm := SphereMesh.new()
+			sm.radius = 0.08
+			sm.height = 0.16
+			mi.mesh = sm
+			var tinta: Array = strato.get("tinta", []) if strato.get("tinta") is Array else []
+			if tinta.size() >= 3:
+				mat.albedo_color = Color(float(tinta[0]), float(tinta[1]), float(tinta[2]))
+			else:
+				mat.albedo_color = Color(0.82, 0.72, 0.58)   # il beige caldo di riserva
+		_:
+			var sm := SphereMesh.new()
+			sm.radius = 0.07
+			sm.height = 0.14
+			mi.mesh = sm
+			var colori := {
+				"petalo_pressato": Color(0.95, 0.75, 0.80),
+				"spiga_dorata": Color(0.85, 0.70, 0.35),
+				"foglia_d_oro": Color(0.80, 0.60, 0.25),
+				"fiocco_intatto": Color(0.96, 0.98, 1.0),
+			}
+			var segno := str(strato.get("segno", ""))
+			mat.albedo_color = colori.get(segno, Color(0.9, 0.9, 0.9))
+			if segno == "fiocco_intatto":
+				# l'emissione tenue della stellina: un fiocco che non si
+				# è mai sciolto brilla appena
+				mat.emission_enabled = true
+				mat.emission = Color(0.85, 0.92, 1.0)
+				mat.emission_energy_multiplier = 0.9
 	mi.material_override = mat
 	node.add_child(mi)
 	return node

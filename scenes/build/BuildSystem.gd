@@ -25,6 +25,7 @@ signal placed_changed
 # preload esplicito: non dipende dalla cache globale delle class_name
 const CATALOG := preload("res://scenes/build/BuildCatalog.gd")
 const GRID_SHADER := preload("res://shaders/grid.gdshader")
+const VARCHI := preload("res://scenes/build/Varchi.gd")
 
 const VALID_TINT := Color(0.45, 0.9, 0.5, 0.38)
 const INVALID_TINT := Color(0.95, 0.35, 0.3, 0.42)
@@ -869,6 +870,10 @@ func _try_place() -> void:
 		wc.pay_for_piece(str(item["name"]))
 	if _sfx: _sfx.place_ok()
 	get_tree().call_group("regista", "note", "costruzione")
+	# il posto del pezzo, non quello di Mochi: `_cursor_pos` è il punto in
+	# metri di mondo del cursore — il centro della cella per i pezzi, il
+	# centro del bordo per le staccionate — ed è dove il vicino guarda.
+	get_tree().call_group("percezione", "accaduto", "costruisce", _cursor_pos)
 
 
 ## LA FILA CONTINUA. Piu' gradinate affiancate nella stessa direzione
@@ -1061,6 +1066,114 @@ static func _riscrivi_scatole(corpo: Node3D, campata: Node3D) -> void:
 		corpo.add_child(shape)
 
 
+# --- I FESTONI: i pali si passano il filo -------------------------------
+# Stessa filosofia delle serre: il collegamento è DERIVATO dalle celle
+# occupate, non salvato. Il salvataggio resta una riga per palo, non c'è
+# niente da migrare, e un filo non può restare appeso a un palo che non
+# c'è più — perché non è mai esistito come dato.
+# Qui si decide solo CHI si vede con CHI: il disegno lo fa BuildCatalog.
+
+## Le otto direzioni in cui un palo cerca un compagno.
+const FESTONE_DIR: Array[Vector2i] = [Vector2i(1, 0), Vector2i(1, 1),
+		Vector2i(0, 1), Vector2i(-1, 1), Vector2i(-1, 0), Vector2i(-1, -1),
+		Vector2i(0, -1), Vector2i(1, -1)]
+
+
+## Che veste porta il palo in `c` — e insieme la domanda «è un palo?»
+## (-1 = no). L'elenco dei nomi sta in BuildCatalog: fonte unica.
+static func veste_palo(dict: Dictionary, c: Vector2i) -> int:
+	var nodo := dict.get(c) as Node3D
+	if nodo == null:
+		return -1
+	return BuildCatalog.FESTONE_PALI.find(str(nodo.get_meta("item_name", "")))
+
+
+## Chi ha in carico il filo fra due pali: il minore in ordine
+## lessicografico. È la stessa regola del montante condiviso fra due
+## serre, e serve alla stessa cosa: che il filo lo disegni UNO solo.
+static func _prima_di(a: Vector2i, b: Vector2i) -> bool:
+	return a.x < b.x or (a.x == b.x and a.y < b.y)
+
+
+## Il seme di una campata: dipende SOLO dalle due celle, quindi lo stesso
+## filo esce identico a ogni ricostruzione e a ogni ricaricamento (le
+## lampadine non si rimescolano sotto gli occhi del giocatore).
+static func _seme_festone(a: Vector2i, b: Vector2i) -> int:
+	return absi(a.x * 73_856_093 + a.y * 19_349_663
+			+ b.x * 83_492_791 + b.y * 2_971_215 + 7)
+
+
+## Il PRIMO palo incontrato in ognuna delle otto direzioni, entro
+## FESTONE_PORTATA celle. Il primo e non tutti: senza questa regola una
+## fila di sei pali diventa un ventaglio di quindici fili sovrapposti
+## invece di una collana.
+static func vicini_festone(dict: Dictionary, c: Vector2i) -> Array:
+	var fuori: Array = []
+	if veste_palo(dict, c) < 0:
+		return fuori
+	for d: Vector2i in FESTONE_DIR:
+		for k in range(1, BuildCatalog.FESTONE_PASSI + 1):
+			var v: Vector2i = c + d * k
+			if veste_palo(dict, v) < 0:
+				continue
+			# il PRIMO palo su quella retta, e poi si smette di guardare:
+			# se è troppo lontano il filo non c'è, ma nemmeno si cerca
+			# oltre — quel palo fa comunque da tappo alla vista
+			if Vector2(v - c).length() <= BuildCatalog.FESTONE_PORTATA:
+				fuori.append(v)
+			break
+	return fuori
+
+
+## I pali che una modifica in `cell` può aver cambiato: quello nella
+## cella e il primo incontrato nelle otto direzioni. Sono esattamente
+## quelli per cui «il primo palo in quella direzione» adesso è un altro —
+## o non c'è più.
+static func pali_toccati(dict: Dictionary, cell: Vector2i) -> Array:
+	var fuori: Array = []
+	if veste_palo(dict, cell) >= 0:
+		fuori.append(cell)
+	for d: Vector2i in FESTONE_DIR:
+		for k in range(1, BuildCatalog.FESTONE_PASSI + 1):
+			var v: Vector2i = cell + d * k
+			if veste_palo(dict, v) >= 0:
+				# QUI non si filtra sulla distanza: un palo appena fuori
+				# portata va rifatto lo stesso, perché quello che gli è
+				# comparso davanti può avergli tolto la vista di un altro
+				fuori.append(v)
+				break
+	return fuori
+
+
+## Rifà i fili che partono dal palo in `c`. Il figlio «Festoni» si
+## RINOMINA prima di liberarlo: un nodo in coda tiene occupato il nome
+## fino a fine frame, e il nuovo diventerebbe «Festoni2» — al rinfresco
+## dopo non lo troveresti più (è la trappola già pagata con la Vetreria).
+static func ricostruisci_festoni(dict: Dictionary, c: Vector2i) -> void:
+	var nodo := dict.get(c) as Node3D
+	var veste := veste_palo(dict, c)
+	if nodo == null or veste < 0:
+		return
+	var vecchio := nodo.find_child("Festoni", false, false)
+	if vecchio != null:
+		vecchio.name = "FestoniVecchi"
+		nodo.remove_child(vecchio)
+		vecchio.queue_free()
+	var casa := Node3D.new()
+	casa.name = "Festoni"
+	# le campate si calcolano in coordinate MONDO: si annulla la
+	# rotazione con cui il giocatore ha posato il palo, come fa l'aiuola
+	casa.rotation.y = -nodo.rotation.y
+	nodo.add_child(casa)
+	var cima := Vector3(0, BuildCatalog.FESTONE_CIMA, 0)
+	for v: Vector2i in vicini_festone(dict, c):
+		if not _prima_di(c, v):
+			continue
+		var b := Vector3(float(v.x - c.x), BuildCatalog.FESTONE_CIMA,
+				float(v.y - c.y))
+		casa.add_child(BuildCatalog.festone(cima, b, veste, _seme_festone(c, v)))
+
+
 ## LE RASTRELLIERE IN FILA. Una accanto all'altra non sono due mobili: sono
 ## una scaffalatura piu' lunga. La fila si riconosce come quella della
 ## Gradinata — celle adiacenti lungo l'asse X del pezzo, con la STESSA
@@ -1222,6 +1335,8 @@ func place_cell(cell: Vector2i, piece: String, rot := 0, animate := true, lvl :=
 	rinfresca_aiuole(dict, cell)
 	# e le serre vicine diventano UN edificio (a fine frame, una volta sola)
 	_segna_serre(dict, cell)
+	# e i pali del festone si passano il filo (idem: a fine frame)
+	_segna_festoni(dict, cell)
 	# pavimenti, sentieri e tappeti a terra schiacciano l'erba sotto di sé
 	if lvl == 0 and int(item["layer"]) <= 1:
 		get_tree().call_group("cozy_world", "flatten_cell", cell)
@@ -1250,6 +1365,8 @@ func place_edge(key: Vector2i, piece: String, flip := false, animate := true, lv
 	node.rotation.y = tf[1] + (PI if flip else 0.0)
 	_placed_root.add_child(node)
 	dict[key] = node
+	# un bordo nuovo può aver chiuso un recinto: il grafo si rifà pigro
+	_varchi_sporchi = true
 	node.set_meta("lvl", lvl)
 	_register_special(piece, node)
 	node.set_meta("flip", flip)
@@ -1319,6 +1436,20 @@ func _try_remove() -> void:
 	var found := _find_removable()
 	if found.is_empty():
 		return
+	# LA STRATIGRAFIA (scenes/world/Strati.gd): solo il gesto del GIOCATORE
+	# seppellisce un reperto nella cella. L'harness e i caricamenti
+	# (debug_clear, debug_remove_edge, _load_village) passano da _remove_at
+	# diretto e NON devono lasciare strati: l'hook vive QUI e non là — e la
+	# guardia _loading è la cintura oltre le bretelle, per il giorno in cui
+	# qualcuno chiamasse questo gesto in mezzo a un caricamento.
+	# found = [layer, key, node]: la cella è la CHIAVE del dizionario e i
+	# meta del nodo sono ancora leggibili. La chiamata resta SINCRONA e
+	# PRIMA di _remove_at: il pezzo muore col tween della rimozione, e una
+	# chiamata rimandata giocherebbe con un nodo in via di sparizione.
+	if not _loading:
+		var strati := get_tree().get_first_node_in_group("strati")
+		if strati != null:
+			strati.call("su_demolizione", found[0], found[1], found[2], _level)
 	_remove_at(found[0], found[1], _level)
 
 
@@ -1328,6 +1459,8 @@ func _remove_at(layer, key, lvl := 0) -> void:
 		return
 	var node := dict[key] as Node3D
 	dict.erase(key)
+	if layer is String:
+		_varchi_sporchi = true  # tolto un muro, il recinto si riapre
 	# se in mezzo alla fila c'era una gradinata, i vicini si riprendono
 	# il bracciolo sul fianco tornato libero — e i sentieri accanto
 	# ritirano le pietre dal varco
@@ -1338,6 +1471,10 @@ func _remove_at(layer, key, lvl := 0) -> void:
 		rinfresca_aiuole(dict, key)
 		# tolta una campata, il gruppo si richiude — o si spezza in due
 		_segna_serre(dict, key)
+		# tolto un palo, i fili che ci arrivavano spariscono da soli: non
+		# erano salvati, erano DERIVATI (ma i vicini vanno rifatti, perché
+		# per loro il primo palo in quella direzione adesso è un altro)
+		_segna_festoni(dict, key)
 	_unregister_special(node)
 	if node == _demo_target:
 		_demo_target = null
@@ -1545,6 +1682,336 @@ func _flush_serre() -> void:
 func aggiorna_serre_ora() -> void:
 	if _serre_pending or not _serre_da_rifare.is_empty():
 		_flush_serre()
+
+
+# --- I FESTONI: stesso idioma differito delle serre ---------------------
+var _festoni_da_rifare: Array = []
+var _festoni_pending := false
+
+
+func _segna_festoni(dict: Dictionary, cell: Vector2i) -> void:
+	# GUARDIA OBBLIGATORIA, come per le serre: i rinfresca ricevono il
+	# dizionario del LAYER, non del nome. Senza questa uscita, posare una
+	# Sedia in mezzo al prato metterebbe in coda un lavoro per niente.
+	if pali_toccati(dict, cell).is_empty():
+		return
+	_festoni_da_rifare.append([dict, cell])
+	if _festoni_pending:
+		return
+	_festoni_pending = true
+	_flush_festoni.call_deferred()
+
+
+func _flush_festoni() -> void:
+	_festoni_pending = false
+	var lavoro := _festoni_da_rifare
+	_festoni_da_rifare = []
+	# il caricamento pianta i pali uno per uno: senza il differito, una
+	# fila di sei pali si rifarebbe 1+2+3+4+5+6 volte, le prime cinque
+	# di forma sbagliata
+	var fatti := {}
+	for voce: Array in lavoro:
+		var dict: Dictionary = voce[0]
+		var cell: Vector2i = voce[1]
+		for c: Vector2i in pali_toccati(dict, cell):
+			if fatti.has(c):
+				continue
+			fatti[c] = true
+			ricostruisci_festoni(dict, c)
+
+
+## Il flush SINCRONO dei festoni (vedi aggiorna_serre_ora).
+func aggiorna_festoni_ora() -> void:
+	if _festoni_pending or not _festoni_da_rifare.is_empty():
+		_flush_festoni()
+
+
+# --- I VARCHI: dove si passa ------------------------------------------
+#
+# Il villaggio come GRAFO. Non si ricalcola per domanda — si ricalcola
+# quando cambia un bordo, e poi la risposta è un confronto fra due
+# interi (vedi Varchi.componenti). È lo stesso patto delle serre e dei
+# festoni: dato DERIVATO, niente da salvare, niente da migrare.
+var _muri_cache := {}
+var _isole_cache := {}
+var _varchi_sporchi := true
+var _suolo_cache = null
+
+
+## L'insieme dei bordi che sbarrano la strada, a terra. La decisione di
+## cosa sbarri NON è scritta qui: si deriva dalle `cols` del catalogo.
+func muri() -> Dictionary:
+	_aggiorna_varchi()
+	return _muri_cache
+
+
+# --- IL TURNO DELLE ROTTE: chi cerca una strada, e quando ------------
+#
+# LA SERA DEL FALÒ, ventotto vicini si alzano insieme. `Visitors._routine`
+# li sfalsa di un lease casuale fra 0,4 e 1,8 secondi, che a 60 Hz vuol
+# dire ottantaquattro frame per ventotto partenze: quasi sempre uno per
+# frame, ogni tanto tre o quattro nello stesso. Con una staccionata
+# piantata di traverso sul tragitto — l'unico caso in cui una strada
+# serve davvero — ogni domanda costa un millisecondo e mezzo, e quattro
+# insieme fanno **sei millisecondi in un frame solo**: un singhiozzo,
+# nella scena più guardata della giornata.
+#
+# Il turno è la risposta, e ha una regola sola: **nessuno perde la sua
+# strada, la riceve un frame dopo.** Chi trova il turno occupato cammina
+# dritto per un frame (quattro centimetri) e ripropone la domanda al
+# prossimo (`Visitor._rotta_attesa`). Il fuoco è a cinquanta metri: la
+# strada arriva molto prima della staccionata.
+#
+# La spesa si misura in MICROSECONDI VERI, non in numero di domande, e
+# per un motivo che conta: le domande a buon mercato — quelle che escono
+# dai primi cancelli — non consumano niente, quindi in un villaggio
+# normale il turno è sempre aperto e questo codice non esiste. Si accorge
+# di sé stesso solo quando qualcuno sta davvero cercando.
+const BUDGET_ROTTE_US := 1500
+var _turno_frame := -1
+var _turno_speso := 0
+var _turno_attivo := true
+
+
+## C'è ancora tempo, in questo frame, per cercare una strada? Chi la chiede
+## deve domandarlo PRIMA (`Visitor._deviazione`): un «no» non è un rifiuto,
+## è un «fra un frame».
+func turno_rotte_libero() -> bool:
+	if not _turno_attivo:
+		return true
+	_turno_rinfresca()
+	return _turno_speso < BUDGET_ROTTE_US
+
+
+func _turno_rinfresca() -> void:
+	var f := int(Engine.get_process_frames())
+	if f != _turno_frame:
+		_turno_frame = f
+		_turno_speso = 0
+
+
+## Spegne il turno: serve ai banchi di prova che fanno mille viaggi dentro
+## UN frame del motore (`tools/misura_cammino.gd`), dove il contatore dei
+## frame non avanza mai e il turno resterebbe chiuso per sempre. In partita
+## non si tocca.
+func set_turno_rotte_for_debug(on: bool) -> void:
+	_turno_attivo = on
+
+
+## IL SUOLO: dove il mondo non ha messo un pavimento (il fiume, lo stagno,
+## la parete). La verità è di `CozyWorld.terreno_vietato`; questo è solo il
+## quaderno su cui non si riscrive due volte la stessa risposta.
+##
+## Non si invalida MAI, e il motivo è che il terreno non si muove: il fiume
+## di stasera è quello di stamattina — è semmai il giocatore che non ci
+## può costruire. Fuori dal villaggio (il bosco, il prologo, il diorama del
+## menù) `_cozy` non c'è: il suolo resta senza oracolo e non vieta niente,
+## cioè si cammina come si è sempre camminato.
+## Un quaderno SENZA oracolo si rifà, appena il mondo compare: `_cozy` si
+## trova in `_ready`, e chi chiedesse una strada un istante prima si
+## porterebbe dietro per sempre un suolo che non vieta niente — cioè il
+## fiume tornerebbe corridoio, in silenzio e senza un errore. Un quaderno
+## già scritto invece non si butta mai: il terreno non cambia.
+func suolo():
+	if _suolo_cache != null and _suolo_cache.sa_qualcosa():
+		return _suolo_cache
+	var chiedi := Callable()
+	if _cozy != null and is_instance_valid(_cozy) \
+			and _cozy.has_method("terreno_vietato"):
+		chiedi = Callable(_cozy, "terreno_vietato")
+	if _suolo_cache == null or chiedi.is_valid():
+		_suolo_cache = VARCHI.Suolo.new(chiedi)
+	return _suolo_cache
+
+
+## Le isole del villaggio: zero è il fuori, ≥ 1 è un posto chiuso.
+func isole() -> Dictionary:
+	_aggiorna_varchi()
+	return _isole_cache
+
+
+## Da questa cella si arriva a quella? La domanda della Fase 3.
+func raggiungibile(da: Vector2i, a: Vector2i) -> bool:
+	return VARCHI.raggiungibile(isole(), da, a)
+
+
+## La cella di un punto del mondo. La REGOLA vive in `Varchi.cella` — la
+## stessa che usa il filo continuo per sapere da che cella parte — e questa
+## è solo la porta in tre dimensioni: se le due divergessero, il corpo e il
+## giudice si racconterebbero due griglie diverse.
+func cella_di(p: Vector3) -> Vector2i:
+	return VARCHI.cella(Vector2(p.x, p.z))
+
+
+## La strada vera, in metri di mondo, già tirata a filo. Vuota se non c'è
+## strada — e chi la chiede DEVE distinguere «vuota» da «dritto per di
+## là», perché sono la stessa cosa solo quando la partenza è l'arrivo.
+##
+## ## Gli estremi sono quelli VERI, ed è tutto il punto
+##
+## La BFS ragiona in celle e restituisce centri; il corpo però parte da
+## dov'è e va dove gli hanno detto, che sono due punti qualunque dentro le
+## loro celle. Finché il filo si tirava sui soli centri, il villaggio
+## giudicava una spezzata e il corpo ne camminava un'altra — e siccome un
+## filo teso rasenta gli spigoli **per costruzione**, mezzo metro di
+## scarto agli estremi bastava a mandare una gamba intera dall'altra parte
+## del muro (misurato: 32 viaggi su mille, 25 nella prima tratta).
+##
+## La SPINA DORSALE qui sotto risolve la cosa alla radice, e si dimostra
+## invece di sperare:
+##
+##   punto vero di partenza → centro della sua cella → centri delle celle
+##   della rotta → centro dell'ultima cella → punto vero d'arrivo
+##
+## Ogni coppia consecutiva è libera **per costruzione**: le prime due (e le
+## ultime due) stanno dentro la stessa cella, quindi non attraversano
+## nessun confine; le altre sono centri di celle adiacenti con il bordo
+## aperto e con il pavimento sotto, perché è la ricerca ad averle scelte
+## (`Varchi.passa` chiede tutt'e due le cose). Il filo tirato può solo
+## togliere tappe, e toglie solo quelle la cui scorciatoia ha superato la
+## stessa domanda che si farà il corpo — **compresa quella sull'acqua**:
+## senza il suolo qui, una scorciatoia poteva rientrare nel fiume che la
+## rotta aveva appena schivato.
+func rotta_mondo(da: Vector3, a: Vector3, tetto := VARCHI.MAX_CELLE) -> Array[Vector3]:
+	var m := muri()
+	var terra = suolo()
+	var celle := VARCHI.rotta(m, cella_di(da), cella_di(a), tetto, terra)
+	var fuori: Array[Vector3] = []
+	if celle.is_empty():
+		return fuori
+	var spina: Array[Vector2] = []
+	_accoda(spina, Vector2(da.x, da.z))
+	for c in celle:
+		_accoda(spina, Vector2(c))
+	_accoda(spina, Vector2(a.x, a.z))
+	for p in VARCHI.tira_filo_mondo(m, spina, terra):
+		fuori.append(Vector3(p.x, 0.0, p.y))
+	return fuori
+
+
+## Accoda un punto alla spina, saltandolo se è quello di prima. Serve nei
+## due casi in cui il corpo è già ESATTAMENTE sul centro della sua cella
+## (e capita: le tappe di ieri sono centri di cella): un punto doppio
+## darebbe al filo una gamba lunga zero, cioè una direzione indefinita.
+func _accoda(spina: Array[Vector2], p: Vector2) -> void:
+	if spina.is_empty() or spina[spina.size() - 1].distance_squared_to(p) > 1e-12:
+		spina.append(p)
+
+
+## LA DEVIAZIONE: le tappe da fare per arrivare ad `a` senza attraversare un
+## muro — **vuota quando la retta basta**, che è il caso normale.
+##
+## È la porta da cui passa il corpo dei vicini (`Visitor._walk_to`), e la
+## differenza con `rotta_mondo` non è tecnica, è di contratto: lì «vuota»
+## vuol dire «non c'è strada», qui vuol dire «non c'è niente da fare, vai
+## dritto come hai sempre fatto». Un solo significato, e va sempre verso
+## «si cammina»: nessuna risposta di questa funzione può piantare un vicino.
+##
+## La partenza si TOGLIE, e si toglie perché c'è: `rotta_mondo` comincia
+## dal punto vero da cui si parte, cioè da dove il corpo è già. Toglierla
+## non è una scorciatoia — è la prova che la prima gamba che il corpo
+## cammina è ESATTAMENTE la prima gamba che il villaggio ha giudicato. Con
+## la vecchia stesura, che cominciava dal centro della cella, le due erano
+## quasi la stessa cosa, e «quasi» valeva 25 viaggi su mille attraverso un
+## muro.
+##
+## ## L'INVARIANTE, che è l'unica cosa da non rompere
+##
+## **Il corpo o cammina la retta di sempre, oppure una spezzata che non
+## tocca né un muro né l'acqua.** Non esiste una terza risposta. Ne
+## discende la regola che decide l'ordine dei cancelli qui sotto: *la
+## deviazione non può mettere il corpo in un posto peggiore di quello in
+## cui lo metterebbe la retta.*
+##
+## Per questo il cancello della retta guarda **soltanto i muri**, non il
+## suolo. Se la retta è libera da muri, si va dritti — anche se rasenta lo
+## stagno, esattamente come faceva prima che tutto questo esistesse.
+## Chiedere una strada anche per schivare l'acqua sembra più bello e non lo
+## è: le mete di questo gioco sono spesso in riva (il posto da cui si
+## guardano le rane, la sponda, il ponte), e la ricerca finirebbe per
+## esaurire il tetto senza trovare niente — cioè per pagare millisecondi e
+## ridare comunque la retta. Il fiume è entrato per **togliere dalla rotta
+## una scorciatoia che non c'era mai stata**, non per riscrivere il
+## cammino di tutti.
+##
+## I QUATTRO CANCELLI, in ordine di prezzo crescente — una rotta costa fra
+## il mezzo millisecondo e i due, quindi si paga solo quando serve davvero
+## (i numeri, tutti misurati, stanno in `Varchi`):
+##
+##   1. non ci sono muri nel villaggio     → niente da schivare (O(1))
+##   2. si parte e si arriva nella stessa cella → niente da tirare (O(1))
+##   3. **la retta non ha muri davanti**   → decine di µs, ed è il caso comune
+##   4. **la meta è nell'acqua**           → non c'è strada che ci arrivi
+##
+## e solo dopo, la ricerca col suo tetto. Il terzo cancello interroga il
+## segmento VERO (punto di partenza → punto d'arrivo), non i centri delle
+## due celle: chiedere di una retta diversa da quella che si percorrerà è
+## il modo più economico di dichiarare libero un muro.
+##
+## Il quarto è quello che tiene basso il conto: una meta dentro il letto
+## del fiume (capita — un pezzo sulla riva, un posto arrotondato di
+## mezzo metro) non è raggiungibile per costruzione, e senza questo
+## cancello ogni singolo viaggio verso di lei pagherebbe una ricerca
+## esaurita fino al tetto per sentirsi dire di no.
+##
+## **Ce n'era un quinto, ed è stato tolto**: «più lontano di
+## `ROTTA_RAGGIO`». Escludeva il falò per costruzione (cinquantasei celle
+## contro ventiquattro) e non proteggeva da niente — il prezzo di una
+## ricerca non dipende dalla distanza. La storia intera sta in `Varchi`.
+func deviazione(da: Vector3, a: Vector3) -> Array[Vector3]:
+	var niente: Array[Vector3] = []
+	var m := muri()
+	if m.is_empty():
+		return niente
+	var c0 := cella_di(da)
+	var c1 := cella_di(a)
+	if c0 == c1:
+		return niente   # dentro una cella non si attraversa nessun confine
+	if VARCHI.filo_libero(m, Vector2(da.x, da.z), Vector2(a.x, a.z)):
+		return niente
+	var terra = suolo()
+	if terra.vietata(c1):
+		return niente   # la meta è nell'acqua: nessuna strada ci arriva
+	# da qui in giù si SPENDE: il tempo speso va sul conto del frame, ed è
+	# quello che tiene la sera del falò dentro un frame (vedi il turno)
+	var orologio := Time.get_ticks_usec()
+	var tappe := rotta_mondo(da, a, VARCHI.ROTTA_TETTO)
+	_turno_rinfresca()
+	_turno_speso += Time.get_ticks_usec() - orologio
+	if tappe.size() < 2:
+		return niente   # murato, o troppo caro: si va dritto, come prima
+	tappe.remove_at(0)   # la prima è dove si è già
+	return tappe
+
+
+func _aggiorna_varchi() -> void:
+	if not _varchi_sporchi:
+		return
+	_varchi_sporchi = false
+	_muri_cache = {}
+	for key: Vector2i in (_placed["edge"] as Dictionary):
+		var nodo := (_placed["edge"] as Dictionary)[key] as Node3D
+		if nodo == null or not is_instance_valid(nodo):
+			continue
+		var idx := item_index(str(nodo.get_meta("item_name", "")))
+		if idx < 0:
+			continue
+		if not VARCHI.e_varco(_items[idx]["cols"] as Array):
+			_muri_cache[key] = true
+	_isole_cache = VARCHI.componenti(_muri_cache)
+
+
+## Toglie un pezzo di bordo (per la verifica CLI: è il gesto con cui il
+## giocatore riapre un recinto).
+func debug_remove_edge(key: Vector2i, lvl := 0) -> void:
+	_remove_at("edge", key, lvl)
+
+
+## Il ricalcolo SINCRONO (vedi aggiorna_serre_ora): serve a chi costruisce
+## e interroga nello stesso frame.
+func aggiorna_varchi_ora() -> void:
+	_varchi_sporchi = true
+	_aggiorna_varchi()
 
 
 func _save_village() -> void:

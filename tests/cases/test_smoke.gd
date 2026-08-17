@@ -10,3 +10,6 @@ func run(t) -> void:
 	t.ok(ClassDB.class_exists("PlayerController"), "PlayerController registrata")
 	t.ok(ClassDB.class_exists("GridManager"), "GridManager registrata")
 	t.ok(ClassDB.class_exists("EcosystemManager"), "EcosystemManager registrata")
+	# IL CANARINO dell'ECS: se questa è rossa, la .dylib non ha la classe —
+	# e ogni altro test sull'ECS mentirebbe dicendo «saltato».
+	t.ok(ClassDB.class_exists("EcsMondo"), "EcsMondo registrata")

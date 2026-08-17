@@ -343,6 +343,11 @@ const T := {
 	"il nome che gli hai scelto tu": "the name you chose for them",
 	"la prima parola, detta tutta storta": "the first word, come out all crooked",
 	"quel posto che non fa più paura": "that place that frightens them no more",
+	# la Stratigrafia: il momento che un reperto dissotterrato annoda al
+	# filo di chi è partito (Legami.TIPI["reperto"], prima colonna — la
+	# tabella dati che _test_le_tabelle_dati spulcia per nome)
+	"il piccolo ricordo che la terra ha custodito":
+			"the little keepsake the earth kept safe",
 
 	# l'autunno di un vicino
 	"🍂 Sul musetto di %s brillano i primi peli d'argento":

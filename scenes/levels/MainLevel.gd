@@ -84,6 +84,11 @@ func _ready():
 	add_child(_spawn_system("res://scenes/npc/Taccuino.gd", "Taccuino"))
 	add_child(_spawn_system("res://scenes/interact/Sogni.gd", "Sogni"))
 	add_child(_spawn_system("res://scenes/npc/Affetti.gd", "Affetti"))
+	# le cricche: il registro di chi si ritrova con chi. Incassa la
+	# co-presenza che le chiacchiere costruiscono e oggi buttano via, e ne
+	# deriva un predicato. NON MUOVE NIENTE: nessun corpo, nessuna posa,
+	# nessuna parola — i canali visibili sono un passo suo
+	add_child(_spawn_system("res://scenes/npc/Cricche.gd", "Cricche"))
 	# la Voce: chi ha bisogno si confida col Fiato Sospeso, e tu scegli
 	# se tacere o portare la parola a qualcuno — il puzzle sociale
 	add_child(_spawn_system("res://scenes/npc/Voce.gd", "Voce"))

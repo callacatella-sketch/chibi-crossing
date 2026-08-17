@@ -57,6 +57,13 @@ const T := {
 	"Schermo intero": "Full screen",
 	"Riduci animazioni": "Reduce motion",
 	"Prato Eterno (nessuna partenza)": "Eternal Meadow (nobody ever leaves)",
+	# «Il villaggio pensa»: la leva del cuore che scrive (Fase 5). La riga
+	# compare solo a chi ha un modello, e non nomina nessuna macchina — chi
+	# gioca non deve sapere cos'è un modello linguistico per decidere se
+	# vuole che i suoi vicini abbiano idee loro.
+	"Il villaggio pensa": "The village thinks",
+	"Ogni tanto un vicino ha un'idea tutta sua. Chiede memoria al computer, e cambia dal prossimo avvio.":
+			"Now and then a neighbour has an idea all of their own. It asks the computer for some memory, and it changes from the next time you open the game.",
 	"Indietro": "Back",
 	"Qualità grafica": "Graphics quality",
 
@@ -196,6 +203,97 @@ const T := {
 	"da oltre la cascata": "from beyond the waterfall",
 	"dissotterrata nel prato": "dug up in the meadow",
 
+	# ------------------------------------- i reperti della Stratigrafia
+	# Le schede nuove di Inventory.TREASURES (name/src/desc): il guardiano
+	# dei letterali NON le vede (passano da L10n.t su una variabile), la
+	# rete è il giro _test_lingua_reperti di test_strati più la disciplina.
+	# I nomi vengono dal progetto della Stratigrafia; le desc delle sette
+	# schede del mestiere sono qui per intero, le altre arrivano con le
+	# loro schede.
+	"scheggia di casa": "splinter of home",
+	"sassolino lucido": "shiny little pebble",
+	"foglietto di note": "slip of notes",
+	"funghetto di legno": "little wooden mushroom",
+	"farfallina di carta": "little paper butterfly",
+	"nastrino da ballo": "dancing ribbon",
+	"cuscinetto ricamato": "little embroidered cushion",
+	"cucchiaino di legno": "little wooden spoon",
+	"tazzina sbeccata": "chipped little cup",
+	"campanellino": "tiny bell",
+	"guscio di nocciola": "hazelnut shell",
+	"stellina di latta": "little tin star",
+	"gomitolino": "tiny ball of yarn",
+	"cuoricino di legno": "little wooden heart",
+	"bottone di legno": "wooden button",
+	"petalo pressato": "pressed petal",
+	"spiga dorata": "golden ear of wheat",
+	"foglia d'oro": "golden leaf",
+	"fiocco intatto": "unmelted snowflake",
+	"truciolo riccio": "curly wood shaving",
+	"sacchettino di semi": "little bag of seeds",
+	"lanternina spenta": "little spent lantern",
+	"mappina piegata": "little folded map",
+	"pennellino consumato": "worn little paintbrush",
+	"fischietto di canna": "little reed whistle",
+	"barattolino di briciole": "little jar of crumbs",
+	"dissotterrato nel prato": "dug up in the meadow",
+	"lasciato da chi è partito": "left behind by someone who moved on",
+	"lasciata da chi è partito": "left behind by someone who moved on",
+	"Arricciato come un ricciolo.\nQualcuno faceva cantare la sega.":
+			"Curled like a lock of hair.\nSomeone made the saw sing.",
+	"Legato con cura. Qualcuno pensava\ngià alla primavera dopo.":
+			"Tied with care. Someone was already\nthinking of the spring to come.",
+	"Spenta da un pezzo. Vegliava sul sonno\ndegli altri, una notte per volta.":
+			"Long since gone out. It kept watch over\nthe sleep of others, one night at a time.",
+	"Piegata in otto. I posti belli\nhanno una crocetta.":
+			"Folded in eight. The lovely places\nare marked with a little cross.",
+	"Consumato fino al manico. Il villaggio\nera più bello dove passava.":
+			"Worn down to the handle. The village\nwas lovelier wherever it went.",
+	"Soffiaci piano: risponde ancora.": "Blow softly: it still answers.",
+	"Due briciole rimaste. Qualcuno teneva\nsempre qualcosa per dopo.":
+			"Two crumbs left. Someone always kept\na little something for later.",
+	# …e le desc delle altre diciannove schede (Inventory.TREASURES,
+	# la Stratigrafia): a-capo conservati, sono l'impaginazione della
+	# scheda nelle Tasche.
+	"Un pezzetto di qualcosa che c'era.\nLa terra non dimentica le case.":
+			"A little piece of something that stood here.\nThe earth does not forget its homes.",
+	"Scelto fra mille sassi uguali.\nPer qualcuno era quello giusto.":
+			"Chosen from a thousand pebbles alike.\nTo someone, it was the right one.",
+	"Le note sono sbiadite, ma la luna\nse le ricorda tutte.":
+			"The notes have faded, but the moon\nremembers every one.",
+	"Intagliato con pazienza. Forse\nascoltava meglio dei funghi veri.":
+			"Patiently carved. Perhaps it listened\nbetter than the real mushrooms did.",
+	"Piegata con cura: una farfalla\nche non fa paura a nessuno.":
+			"Folded with care: a butterfly\nthat frightens no one at all.",
+	"Consumato da mille giravolte.\nLa musica c'è ancora, dentro.":
+			"Worn thin by a thousand twirls.\nThe music is still in there.",
+	"Ancora morbido. Buono per un\npisolino in qualunque posto.":
+			"Still soft. Just right for a nap\nin any old place.",
+	"Consumato ai bordi da mille\nassaggi. Sa ancora di minestra.":
+			"Worn at the edges by a thousand\ntastings. It still smells of soup.",
+	"Sbeccata da un pezzo. Era quella\ndel primo sole del mattino.":
+			"Chipped long ago. It was the one\nfor the first sun of the morning.",
+	"Non sta mai zitto. Qualcuno\nchiacchierava anche col vento.":
+			"It never stays quiet. Someone\nchatted even with the wind.",
+	"Una casa piccola piccola.\nCi si sta solo se si è timidi.":
+			"The littlest of homes. Only\nthe shy can fit inside.",
+	"Un po' ammaccata. Chi sogna\nse le costruisce da sé, le stelle.":
+			"A bit dented. Dreamers build\ntheir stars themselves.",
+	"Avvolto stretto stretto.\nNeanche un filo fuori posto.":
+			"Wound tight and true.\nNot a single thread out of place.",
+	"Intagliato di nascosto. Brontolava,\nma intanto intagliava cuori.":
+			"Carved in secret. All that grumbling,\nand still they carved little hearts.",
+	"Caldo in mano. Di chi fosse\nnon si sa: lo teneva stretto.":
+			"Warm in the hand. Whose it was,\nno one knows: they held it tight.",
+	"Sa ancora di primavera.\nLa terra l'ha tenuto piatto e vivo.":
+			"It still smells of spring.\nThe earth kept it flat and alive.",
+	"Piegata dal sole d'estate.\nD'inverno scalda solo a guardarla.":
+			"Bent by the summer sun.\nIn winter it warms you just to look.",
+	"Scesa piano piano, un autunno.\nLa terra l'ha presa al volo.":
+			"It drifted slowly down, one autumn.\nThe earth caught it mid-air.",
+	"Non si è mai sciolto. L'inverno\ngli ha voluto bene fino in fondo.":
+			"It never melted. Winter loved it\nright to the very end.",
+
 	# ------------------------------------------- il carretto del mercante
 	"Il carretto del mercante": "The pedlar's cart",
 	"Vendi": "Sell",
@@ -251,6 +349,10 @@ const T := {
 			"A brazier that spits golden sparks into the night.",
 	"Una scatola di ciliegio con la manovella: caricala\ne cambia la musica di tutto il villaggio.":
 			"A cherrywood box with a crank: wind it up\nand the whole village changes its tune.",
+	# la vetrina del banco dei pali: è QUI che il gioco spiega la
+	# meccanica, quindi la traduzione deve insegnarla, non solo dirla
+	"Paletti da piantare dove vuoi. Fra due che si vedono\nil filo si tende da solo: più lontani li metti, più\nlampadine ci stanno. Il disegno lo fai tu.":
+		"Little posts to plant wherever you like. Between any two\nthat can see each other the wire strings itself: the\nfurther apart, the more bulbs. The pattern is yours.",
 	"Un giardino di vetro: col suo tepore, orto e fiori\ncrescono anche sotto la neve.":
 			"A garden of glass: in its warmth, patch and flowers\ngrow even under the snow.",
 	"Una mongolfiera a strisce, ormeggiata in giardino.\nDondola nel vento e non parte mai senza di te.":
@@ -337,6 +439,12 @@ const T := {
 	"Fioriera bistrot": "Bistro planter",
 	"Fioriera selvatica": "Wild planter",
 	"Lucine": "String lights",
+	# i tre pali del festone: si piantano e il filo si tende da solo fra
+	# quelli che si vedono. «Post» e non «Pole»: è un paletto piantato in
+	# giardino, non un palo della luce.
+	"Palo lucine": "Bulb post",
+	"Palo lanterne": "Lantern post",
+	"Palo bandierine": "Bunting post",
 	"Frigo gelati": "Ice-cream freezer",
 	"Guardiola": "Guard post",
 	"Insegna guardia": "Guard post sign",
@@ -645,6 +753,165 @@ const T := {
 	"Da quando i banconi sono due?": "Since when are there two counters?",
 	"Il mondo sembra disegnato col mouse.":
 			"The world looks like it was drawn with a mouse.",
+	# ------------------------------------------------------- le note legali
+	# La pagina che porta gli avvisi di licenza dei componenti di terze parti
+	# (obbligo MIT) e i documenti di Gemma — che il gioco NON spedisce: chi
+	# accende la funzione se lo scarica, e scaricandolo si vincola ai Gemma
+	# Terms of Use. Questa pagina e la schermata dello scaricamento sono gli
+	# unici posti in cui glieli mostra qualcuno.
+	# ⚠️ QUI SI TRADUCE PER FARSI CAPIRE, NON PER FARE BELLA
+	# FIGURA: se una di queste righe diventa vaga, l'avviso non è più un
+	# avviso. I NOMI PROPRI non si toccano — «Gemma Terms of Use» e «Gemma
+	# Prohibited Use Policy» sono i titoli dei documenti veri, e chi li cerca
+	# li cerca così anche in italiano.
+	"Note legali": "Legal notices",
+	"Licenze dei componenti di terze parti": "Third-party licences",
+	"Gemma — che cosa scarichi": "Gemma — what you download",
+	"Chibi Crossing è un'opera protetta: il codice, i disegni, la musica e i testi sono di chi l'ha fatto. Quello che segue, invece, non è nostro — e viaggia con le sue condizioni.":
+			"Chibi Crossing is a protected work: the code, the drawings, the music and the writing belong to the people who made it. What follows, though, is not ours — and it travels with conditions of its own.",
+	"Il motore e le librerie": "The engine and the libraries",
+	"Godot Engine, godot-cpp, EnTT, lua-gdextension: licenza MIT.":
+			"Godot Engine, godot-cpp, EnTT, lua-gdextension: MIT licence.",
+	"Una parte dei testi che leggi — certe lettere, certi pensieri dei vicini — la può scrivere un modello linguistico che gira sul tuo computer, mentre giochi. Il modello non è dentro il gioco: se accendi «Il villaggio pensa», il gioco lo scarica una volta sola (%s, da %s). Dopo, non esce più niente da questa macchina: il testo nasce qui e resta qui. E se non lo accendi, il gioco non apre nessuna connessione per lui — il villaggio resta lo stesso, con i testi scritti a mano.":
+			"Some of the writing you read — certain letters, certain thoughts of the neighbours — can be written by a language model running on your own computer, while you play. The model is not inside the game: if you switch on “The village thinks”, the game downloads it just once (%s, from %s). After that, nothing leaves this machine: the writing is born here and stays here. And if you never switch it on, the game opens no connection for it — the village is the same village, with the writing done by hand.",
+	"Il motore che lo fa girare": "The engine that runs it",
+	"llama.cpp e ggml: licenza MIT.": "llama.cpp and ggml: MIT licence.",
+	"Il modello che il gioco può scaricare per te. Non è nostro e non è MIT: valgono i Gemma Terms of Use di Google, e i vincoli d'uso di quei termini valgono anche per te. Il gioco te li mostra, e ti chiede di accettarli, prima di scaricare qualunque cosa.":
+			"The model the game can download for you. It is not ours and it is not MIT: Google's Gemma Terms of Use apply, and the use restrictions in those terms apply to you as well. The game shows them to you, and asks you to accept them, before it downloads anything.",
+	"Leggi il testo": "Read the text",
+	"Leggi i Gemma Terms of Use": "Read the Gemma Terms of Use",
+	"Leggi la Prohibited Use Policy": "Read the Prohibited Use Policy",
+	"Gemma e Google sono marchi di Google LLC. Chibi Crossing non è affiliato a Google, né approvato da Google.":
+			"Gemma and Google are trademarks of Google LLC. Chibi Crossing is not affiliated with, nor endorsed by, Google.",
+	"I testi completi delle licenze sono nella cartella «%s», accanto al gioco.":
+			"The full licence texts are in the “%s” folder, next to the game.",
+
+	# --- LA SCHERMATA CHE CHIEDE (scenes/ui/OffertaModello.gd) --------------
+	# Il modello non viaggia più nel pacchetto: si scarica al primo uso, e
+	# questa è la pagina che lo chiede. Il giocatore la vede UNA VOLTA SOLA:
+	# è lei a decidere se userà mai la funzione.
+	#
+	# ⚠️ IL TONO È METÀ DEL LAVORO, e in inglese si perde più facilmente che
+	# altrove: la lingua dei download tira verso il commerciale («Unlock!»,
+	# «Get the full experience»), e questa pagina non ha il permesso di
+	# spingere. Frasi corte, verbi concreti, nessun esclamativo, e il rifiuto
+	# scritto con la stessa cura del sì. Dove l'italiano dice «non cambia
+	# niente», l'inglese dice «nothing changes» e non «you won't miss much»:
+	# la seconda è una rassicurazione, la prima è un fatto.
+	"Ogni tanto un vicino si accorge di qualcosa, ci pensa su, e più tardi fa una cosa che nessuno gli ha chiesto di fare. A scrivere quei pensieri è un piccolo modello di linguaggio, che gira qui — sul tuo computer, mentre giochi.":
+			"Every so often a neighbour notices something, turns it over for a while, and later goes and does something nobody asked them to do. Those thoughts are written by a small language model that runs here — on your own computer, while you play.",
+	"Dentro il gioco non c'è: ne raddoppierebbe il peso, e se lo porterebbe appresso anche chi non lo vorrà mai. Se lo vuoi, si scarica una volta sola.":
+			"It isn't inside the game: it would double the size, and everyone who never wants it would be carrying it about all the same. If you'd like it, it comes down just the once.",
+	# La scheda dei fatti. Etichette corte, allineate a sinistra: sono una
+	# colonna, non frasi.
+	"Che cos'è": "What it is",
+	"Quanto pesa": "How big",
+	"Da dove": "Where from",
+	"Quante volte": "How often",
+	"una sola: poi resta sul tuo disco": "just the once: then it stays on your disk",
+	"Quanto ci mette": "How long",
+	"su una linea di casa, minuti — a volte una mezz'ora":
+			"on a home line, minutes — sometimes half an hour",
+	"Mentre arriva, il tuo indirizzo si vede da Hugging Face e dalla rete che consegna il file — come per qualunque cosa si scarichi. Dal gioco non parte niente, né adesso né dopo: quello che i vicini pensano nasce su questa macchina e resta qui.":
+			"While it comes down, your address is visible to Hugging Face and to the network that delivers the file — as it is for anything you download. Nothing leaves the game, neither now nor later: what the neighbours think is born on this machine and stays here.",
+	"Il modello è di Google, e viaggia con le sue condizioni: scaricandolo le accetti. Restano leggibili per sempre da Impostazioni → Note legali.":
+			"The model is Google's, and it travels with Google's conditions: by downloading it you accept them. They stay readable for good under Settings → Legal notices.",
+	# L'ATTO. «I am old enough to do so» e non «I confirm I am of age»: chi
+	# accetta sta dando una dichiarazione (Sezione 2.1 dell'accordo), e una
+	# dichiarazione si scrive in prima persona e in parole di tutti i giorni.
+	"Accetto i Gemma Terms of Use e la Prohibited Use Policy, e ho l'età per farlo.":
+			"I accept the Gemma Terms of Use and the Prohibited Use Policy, and I am old enough to do so.",
+	"Se dici di no non cambia niente: il villaggio è già scritto a mano, e resta come lo conosci.":
+			"If you say no, nothing changes: the village is already written by hand, and stays as you know it.",
+	"Non adesso": "Not now",
+	"Scaricalo": "Download it",
+
+	# Il pezzo già arrivato.
+	"Ne era già arrivato un pezzo: %s di %s. Posso riprendere da lì — non si ricomincia da capo.":
+			"Part of it had already arrived: %s of %s. I can carry on from there — no starting over.",
+	"Oppure lo butto via, e il disco torna com'era.":
+			"Or I throw it away, and the disk goes back to how it was.",
+	"Butta via il pezzo": "Throw the part away",
+
+	# La macchina che non ce la fa. NIENTE NUMERI, in nessuna delle due
+	# lingue: quello che serve sapere è che non c'è niente da scaricare e che
+	# non è colpa di chi legge.
+	"Questo computer non ha memoria da prestargli, e non è una cosa che si aggiusta chiudendo una finestra.":
+			"This computer hasn't the memory to lend it, and that isn't something a closed window can mend.",
+	"Non c'è niente da scaricare, allora — meglio così, sarebbe stata una lunga attesa per niente. Il villaggio resta quello che conosci: le lettere e i pensieri scritti a mano ci sono tutti, e sono la maggior parte.":
+			"So there's nothing to download — just as well, it would have been a long wait for nothing. The village stays the one you know: the letters and the thoughts written by hand are all there, and they are most of them.",
+	"Va bene così": "That's all right",
+	"Questo computer, in questo momento, non ha memoria da prestargli. Un villaggio che pensa a spese del villaggio che si muove non sarebbe un buon affare.":
+			"This computer, just now, hasn't the memory to lend it. A village that thinks at the expense of the village that moves would be a poor bargain.",
+	"Non c'è niente da scaricare, allora. Se chiudi qualcos'altro e torni qui, riprovo volentieri.":
+			"So there's nothing to download. Close something else and come back, and I'll gladly try again.",
+	"Riprova": "Try again",
+
+	# Mentre arriva.
+	"Sta arrivando": "On its way",
+	"%s di %s": "%s of %s",
+	"Puoi chiudere questa pagina e tornare a giocare: va avanti per conto suo. Il villaggio comincerà a pensare dal prossimo avvio.":
+			"You can close this page and go back to playing: it carries on by itself. The village will start thinking the next time you open the game.",
+	"Se lo fermi, quello che è già arrivato resta: si riprende da lì.":
+			"If you stop it, what has already arrived stays: it carries on from there.",
+	"Ferma": "Stop",
+	# «quanto manca», detto come lo direbbe una persona (systems/Capienza.gd)
+	"ancora un momento": "a moment more",
+	"meno di un minuto": "less than a minute",
+	"un minuto circa": "about a minute",
+	"circa %d minuti": "about %d minutes",
+	"circa un'ora": "about an hour",
+	"più di %d ore": "more than %d hours",
+
+	# Quando va storto. Nessuna di queste frasi dà la colpa a chi legge, e
+	# tutte dicono che cosa ne è stato di quello che era già arrivato: è la
+	# sola cosa che una persona vuole sapere davanti a un errore.
+	"Ricomincia": "Start again",
+
+	# È arrivato.
+	"È arrivato": "It's here",
+	"Da qui in avanti, ogni tanto, un vicino avrà un'idea tutta sua: si accorgerà di qualcosa, ci penserà su, e andrà a fare una cosa che nessuno gli ha chiesto.":
+			"From now on, every so often, a neighbour will have an idea of their own: they'll notice something, turn it over, and go and do something nobody asked them to.",
+	"Comincia dal prossimo avvio del gioco. Se un giorno cambi idea, basta spegnere «Il villaggio pensa» qui nelle impostazioni.":
+			"It starts the next time you open the game. If you change your mind one day, just switch “The village thinks” off here in the settings.",
+	"Va bene": "All right",
+
+	"Quello che era arrivato l'ho lasciato dov'era: se fai un po' di posto, si riprende da lì.":
+			"What had arrived I've left where it was: make a little room and it carries on from there.",
+	"Non dipende da te né da questo computer: se il posto è cambiato, lo sistemiamo noi.":
+			"It's nothing to do with you or with this computer: if it has moved, we shall put it right.",
+
+	# La riga nel pannello, per chi il modello non ce l'ha ancora.
+	"Ogni tanto un vicino ha un'idea tutta sua. Per farlo il gioco ha bisogno di scaricare una cosa, una volta sola: prima te lo chiede.":
+			"Every so often a neighbour has an idea of their own. For that, the game needs to download something, just the once: it asks you first.",
+
+	# --- IL CORRIERE (systems/Scarico.gd) -----------------------------------
+	# Le frasi dello scaricamento vero: cosa sta facendo, e com'è andata. Le
+	# scrive `Scarico` e le MOSTRA `OffertaModello`, che è la ragione per cui
+	# stanno qui accanto alle sue: chi rilegge questa parte deve poter vedere
+	# in colonna tutto quello che una persona legge in quella pagina, e
+	# accorgersi se due frasi vicine si contraddicono.
+	#
+	# ⚠️ Ogni riga di esito dice DUE cose: cos'è successo, e cosa si può fare
+	# adesso. «Non ha funzionato» senza un seguito è solo un modo elegante di
+	# dare la colpa a chi legge, e in inglese lo è ancora di più (la lingua
+	# degli errori tira verso il passivo e la sigla).
+	"Un momento…": "One moment…",
+	"Mi collego…": "Getting in touch…",
+	"Controllo che sia arrivato tutto…": "Checking that all of it arrived…",
+	"Ci siamo.": "Nearly there.",
+	"È arrivato. Dal prossimo avvio i vicini avranno idee tutte loro.":
+			"It's here. From the next time you open the game, the neighbours will have ideas of their own.",
+	"Lasciato a metà. Quello che è arrivato resta: si riprende da lì.":
+			"Left half done. What arrived stays: it carries on from there.",
+	"Sul disco non c'è abbastanza spazio libero.":
+			"There isn't enough free room on the disk.",
+	"La connessione non ha retto. Riprova quando vuoi: si riprende da dov'era.":
+			"The connection didn't hold. Try again whenever you like: it carries on from where it was.",
+	"Quello che è arrivato non era intero, e l'ho buttato. Riprova quando vuoi.":
+			"What arrived wasn't whole, and I've thrown it away. Try again whenever you like.",
+	"Adesso non si trova. Riprova più tardi.": "It can't be found just now. Try again later.",
+	"Non riesco a scrivere sul disco.": "I can't write to the disk.",
 }
 
 

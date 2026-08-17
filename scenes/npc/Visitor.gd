@@ -18,6 +18,7 @@ const ANDATURA := preload("res://scenes/npc/Andatura.gd")
 const DNA_GEN := preload("res://scenes/npc/ChibiDNA.gd")
 const CHIBIESE := preload("res://audio/Chibiese.gd")
 const FACE := preload("res://scenes/characters/FaceController.gd")
+const GESTI := preload("res://scenes/npc/Gesti.gd")
 
 # gli stati in cui lo sguardo si posa su ciò che il villager esamina (_target).
 # Dizionario-come-insieme, const: nessuna allocazione per-frame nel _process.
@@ -108,6 +109,91 @@ var _rc_trans_t := 0.0
 var _rc_cur := {}    # canale -> valore corrente (fuso coi muscoli)
 var _rc_appl := {}   # ciò che è stato sommato al rig l'ultimo frame
 
+# ------------------------------------------ IL VOCABOLARIO DEL CORPO CHE PENSA
+# Le buste stanno in `Gesti.gd` (pure, senza Godot); qui c'è il corpo che le
+# indossa, e soprattutto LA RETE. Ogni canale che il vocabolario tocca torna a
+# riposo per OGNI stato, non solo per quello che l'ha acceso: se `r` restasse
+# incastrato a 0,35 dopo un cambio di stato, il vicino camminerebbe a un terzo
+# per il resto della partita — e nessun test guarda la velocità.
+var _gs_nome := ""          # il gesto in corso ("" = nessuno)
+var _gs_t := 0.0            # da quanto dura
+var _gs_dur := 0.0
+var _gs_dati := {}
+var _gs_fase := 0.0         # la fase personale, dal genoma (mai un dado)
+var _gs_cur := {}           # i canali del gesto, questo frame
+var _gs_r := 1.0            # il moltiplicatore del ritmo, questo frame
+var _gs_debito := 0.0       # quanti metri di strada ha già rubato
+var _gs_spegni := 0.0       # 1 → 0 mentre un gesto troncato rientra
+var _gs_ultimo := {}        # l'ultima posa scritta, che la rampa fa sfumare
+# la scala del corpo: si scrive in ASSOLUTO su `_corpo` (mai su `_vis`, che ha
+# cinque tween addosso), quindi il riposo va ricordato e restituito a mano
+var _gs_scala_nodo: Node3D = null
+var _gs_scala_riposo := Vector3.ONE
+# LA SALA D'ATTESA DEL CORPO, e ci si aspetta DUE cose diverse:
+#  · il FIATO di un anziano — il Punto non gli frena il corpo, si accomoda
+#    sopra il fermo che quel corpo fa già da sé. Se il fiato non arriva entro
+#    `GESTO_ATTESA_MAX`, **si tace**;
+#  · la BATTUTA di chi risponde in un duetto — quattro decimi di secondo, e
+#    allo scadere **si accende**.
+# Il verso lo dice `_gs_attesa_fiato`, e i due versi non convivono: o si
+# aspetta una cosa che può non arrivare, o si aspetta un orologio.
+var _gs_attesa := 0.0
+var _gs_attesa_nome := ""
+var _gs_attesa_dati := {}
+var _gs_attesa_fiato := true
+# --- i due LIVELLI, che non prendono il gettone del villaggio ---
+## «CI STO PENSANDO»: il rollio del capo. Questo bit è **DERIVATO** dai due
+## qui sotto (`_gs_capo_liv or _gs_capo_frase`) e non si scrive mai a mano:
+## è la stessa forma di `Affetti.coppia()` e della fusione delle serre —
+## niente da tenere sincronizzato, niente che possa restare appeso a metà.
+##
+## ⚠️ **IL ROLLIO HA DUE PADRONI, e confonderli è costato tre difetti muti.**
+## Lo accende il VILLAGGIO (`Visitors._tick_capo`, su chi ha finito la forza
+## di trattenersi: dura minuti) e lo accende una FRASE (`frase("pensiero")`,
+## e dura quanto il gesto). Con un bit solo, la frase che finiva spegneva
+## anche il livello del villaggio — e il registro continuava a credere che
+## quel vicino ce l'avesse, tenendogli occupato un posto per sempre.
+var _gs_capo := false
+var _gs_capo_liv := false   # …acceso dal VILLAGGIO (il livello)
+var _gs_capo_frase := false # …acceso da una FRASE (e il gesto lo possiede)
+## Sopra questo scarto la testa è inclinata **per chi guarda**, e non conta
+## più di chi sia il bit. Il rollio pieno vive fra 0,08 e 0,11 rad (4,6°–6,3°,
+## `Gesti.CAPO_AMP_*`): due centesimi di radiante sono 1,1°, cioè il primo
+## gradino sopra il quale una testa non è più dritta.
+##
+## ⚠️ **SERVE PERCHÉ LA MOLLA RIENTRA DA SÉ**, e ci mette qualche decimo di
+## secondo. Un tetto che contasse i soli bit accesi concederebbe la terza
+## testa mentre la prima sta ancora tornando su: MISURATO nel MainLevel vero
+## (`tools/misura_capi.gd`, dodici residenti, tre minuti) **8,3 secondi con
+## tre teste inclinate insieme, e la terza a 4,7° di media** — cioè il rollio
+## quasi pieno, non la coda di niente. È la stessa divergenza fra registro e
+## mondo di un piano più su, un piano più in basso: i BIT non sono il RIG.
+const CAPO_STORTO := 0.02
+
+var _gs_capo_x := 0.0       # lo stato della molla
+var _gs_capo_v := 0.0
+var _gs_capo_b := 0.0       # il bersaglio del trasferimento in corso
+var _gs_capo_next := 0.0    # quando scatta il prossimo
+var _gs_capo_verso := 1.0
+var _gs_soma := 0.0         # «sono ancora guardingo»: la forza del sussulto
+var _gs_soma_t := 0.0
+## LA RAMPA DEI LIVELLI: quanta parte dei due livelli è ancora del corpo.
+## Parte da UNO — un corpo che nasce non sta uscendo da nessuna scena — e va
+## a zero quando il mondo gli toglie il corpo di mano.
+var _gs_liv := 1.0
+## LE MANOPOLE DEL PROVINO — vuoto è il gioco, e nel gioco non le scrive
+## nessuno (un caso di `test_gesti` scandaglia `scenes/` perché resti così).
+## Servono perché la coda e la rampa sono LIVELLI: non passano da
+## `frase(nome, extra)` come gli eventi, quindi non c'è nessun dizionario in
+## cui infilare le varianti — e **un banco che non può spegnere la cura non
+## può mostrare cosa cura**.
+##
+## È UN dizionario e non quattro campi apposta: così la via di lettura nel
+## gioco è `is_empty()`, cioè niente, e le chiavi sono le stesse che gli
+## eventi ricevono in `d` (`mezza`, `quota`, `quota_ax`, `scatto`) più
+## `rampa`.
+var debug_gesti := {}
+
 # LA PIOGGIA ADDOSSO: lo alza Visitors per chi è fuori senza un tetto.
 # Non è una postura (quelle le detta l'animo): è un livello che si SOMMA
 # a qualunque recita — zampina a visiera, orecchie basse, passetto svelto.
@@ -143,6 +229,113 @@ var _greet_cd := 0.0
 # ordinario tace: un appuntamento mantenuto non va coperto dal desiderio
 # della panchina, che può aspettare dieci secondi.
 var _scena_t := 0.0
+
+# --- LA RICEVUTA: la testa che si gira su un gesto di Mochi ----------------
+#
+# La scrive `Percezione._testimonia` (scenes/npc/Percezione.gd) nella riga
+# PRIMA di incidere il ricordo, e quell'ordine è tutta la credibilità del
+# sistema: una conseguenza senza premessa non attenua l'effetto, lo inverte.
+#
+# `_tst_pos` è dove guardare, `_tst_t` quanto resta, `_tst_off` quanto la
+# testa È girata adesso. Lo scostamento si SOMMA alla posa dello stato e
+# torna a zero da solo (vedi `_sguardo_testimone`): un canale scritto in
+# assoluto da un solo stato resta fuori posa alla prima interruzione, e in
+# questo progetto è già successo.
+var _tst_pos := Vector3.ZERO
+var _tst_t := 0.0
+var _tst_off := 0.0
+var _tst_appl := 0.0   # quanto è stato sommato al rig il frame scorso
+## LE RAFFICHE, una riga per verbo: `[quando è arrivato l'ultimo gesto,
+## quando la testa si è alzata l'ultima volta]`, in secondi di `_t`. Sono al
+## massimo otto righe (i verbi del ponte) e non entrano in nessun
+## salvataggio: vedi `guarda_gesto`.
+var _tst_raffiche := {}
+## La taratura PERSONALE dello sguardo, dal genoma e una volta sola:
+## ogni quanto si rialza gli occhi durante una raffica, di quanto la sua
+## mira è spostata, e la fase dei suoi due orologi. Vedi `_taratura_sguardo`.
+var _tst_ritmo := -1.0
+var _tst_mira := 0.0
+var _tst_fase := 0.0
+## Quanto può girarsi una testa senza che il collo diventi un giocattolo
+## rotto. Scelto GUARDANDO cinque tarature affiancate (0.30 · 0.60 · 0.90 ·
+## 1.20 · 1.50 rad) di tre quarti e di profilo: sotto 0.60 la testa non si
+## legge come girata — sembra la solita oscillazione dell'idle — e sopra
+## 1.20 il muso esce dalla sagoma della testona e il collo si strappa.
+##
+## È il tetto della RICEVUTA, non del collo: sul canale scrivono anche la
+## recita del corpo e lo stato, e la somma la ferma `COLLO_MAX`.
+const TESTA_MAX := 0.90
+## L'attenzione è ASIMMETRICA, come il respiro: la testa scatta verso il
+## gesto e ci torna via piano. Un solo coefficiente per tutti e due i versi
+## fa una testa a molla, che è la cosa che smaschera un'animazione in due
+## cicli.
+const TESTA_VAI := 9.0
+const TESTA_TORNA := 4.0
+
+## ── IL RITMO DELLA RAFFICA ────────────────────────────────────────────────
+##
+## Ogni quanti secondi la testa si RIALZA mentre lo stesso gesto continua, e
+## per quale frazione della prima occhiata. Vedi `guarda_gesto` per il
+## perché: qui basti che la prima occhiata è piena e le riprese sono corte,
+## come si guarda qualcuno che sta ancora lavorando.
+##
+## Il ritmo è la MEDIA: quello vero è di ciascuno (`_taratura_sguardo`), o
+## due vicini si rialzerebbero all'unisono come due metronomi.
+const RAFFICA_RITMO := 11.0
+const RAFFICA_RIPRESA := 0.45
+
+## ── L'IMBARDATA VIVA ──────────────────────────────────────────────────────
+##
+## Quanto della posa dello STATO sopravvive sotto lo sguardo. `_sguardo_
+## testimone` misura lo scostamento dalla posa corrente: portandolo a zero
+## la testa arriverebbe sul bersaglio ESATTO e ci resterebbe immobile, cioè
+## cancellerebbe proprio il dondolio del passo e del respiro che rende viva
+## la tenuta — l'adesivo appiccicato sopra la posa. Con 0.5 il corpo
+## continua a respirare mentre guarda, e la mira resta leggibile.
+const CEDE_ALLO_STATO := 0.5
+## L'ampiezza del vagare della mira, in radianti (4,3°): non si fissa un
+## punto, si guarda ATTORNO a un punto. Due orologi incommensurabili e una
+## fase che è sua (vedi `_vaga`).
+const VAGA_AMPIEZZA := 0.075
+## Di quanto la mira di ciascuno è spostata, in radianti (±2,9°): chi guarda
+## le zampe, chi la faccia, chi la cosa. È l'asimmetria che impedisce a due
+## testimoni affiancati di dare lo STESSO angolo al quinto decimale.
+const MIRA_PERSONALE := 0.05
+
+## FIN DOVE UNA TESTA VALE LA PENA DI GUARDARLA, in metri.
+##
+## Era un 4.5 scritto dentro un `elif`: è la distanza sotto la quale il volto
+## smette di fare le sue cose e insegue il giocatore con gli occhi. Il numero
+## non è cambiato — è cambiato che adesso ha un nome, perché ha un SECONDO
+## lettore: la ricevuta della deduzione (`Deduzioni.RAGGIO`).
+##
+## E i due lettori fanno la stessa domanda, che è la ragione per cui è UNA
+## costante e non due: **a che distanza la testa di un chibi è ancora una
+## cosa che si guarda?** Se il gioco non ritiene che valga la pena puntare
+## gli occhi di qualcuno verso Mochi a otto metri, allora a otto metri il
+## giocatore non può nemmeno leggere una testa che si gira — e una ricevuta
+## che nessuno legge non attenua l'effetto della conseguenza: **lo inverte**.
+const FACCIA_AL_GIOCATORE := 4.5
+
+## IL TETTO DEL COLLO — l'ultima parola sul canale, dopo TUTTI gli scrittori.
+##
+## `TESTA_MAX` limita la ricevuta, ma la ricevuta non è sola su
+## `_head.rotation.y`: ci scrivono anche lo stato (fino a 0.30) e la recita
+## del corpo (`hy_amp`: «distratto» 0.45, «sguardo sfuggente» 0.55), e i tre
+## si SOMMANO. Senza un tetto finale un vicino distratto che riceve una
+## ricevuta arriva a 1.40 rad — 80° — e a quell'angolo la faccia sparisce:
+## resta una palla di pelo con un nasino che sporge dal bordo, l'occhio
+## tagliato a metà dalla sagoma e il sopracciglio staccato in volo. È la
+## trappola della «bocca in volo davanti al muso», sullo stesso rig.
+##
+## 1.20 rad (69°) è MISURATO, non dedotto: sei tarature identiche in tutto
+## tranne l'angolo, in primo piano frontale, di profilo e alla distanza vera
+## della camera (`tools/provino_collo.gd`). A 1.20 la faccia si legge ancora
+## — un occhio intero, il muso attaccato, la guancia rosa; a 1.35 non c'è
+## più. Il tetto NON si tocca senza rifare quel provino.
+const COLLO_MAX := 1.20
+var _capp_appl := 0.0   # quanto il tetto ha tolto al rig il frame scorso
+
 var _hidden := false
 var _player_ref: Node3D
 
@@ -180,6 +373,116 @@ var _yaw := 0.0
 var _speed := 1.3
 var _sfx
 
+# --- LA CODA DELLE TAPPE: il corpo segue la ROTTA, non la retta ------------
+#
+# `_target` è dove si sta andando ADESSO; `_tappe` sono le mete che
+# restano dopo di lui, e solo quando la coda è vuota il viaggio è finito
+# (`_next_state`). Le tappe le chiede `_walk_to` al BuildSystem — che
+# risponde vuoto tutte le volte che la retta basta, cioè quasi sempre —
+# e per questo TUTTI i cammini del gioco girano attorno ai muri, non solo
+# quelli che qualcuno ha pianificato: la coda sta sotto, dove il corpo
+# cammina, e nessuno dei trenta chiamanti di `_walk_to` sa che esiste.
+#
+# Fuori dal villaggio (bosco, prologo, diorama del menù) il BuildSystem
+# non c'è: la coda resta vuota e si cammina dritto, esattamente come
+# prima. Il degrado va SEMPRE verso «si cammina».
+#
+# LA COSA CHE NON SI PUÒ ALLENTARE: il corpo cammina la spezzata
+# ESATTA che il villaggio ha giudicato. Non ci si avvicina a una tappa,
+# non la si smussa: ci si passa SOPRA, e il resto del passo si spende
+# sulla gamba dopo (`_avanza`). Uno smusso di venticinque centimetri
+# sembra innocuo — «tanto è meno del mezzo metro che separa il centro
+# cella dal muro» — ma quel mezzo metro è perpendicolare al bordo,
+# mentre lo smusso avviene nella direzione del cammino: taglia
+# l'angolo, e l'angolo è il punto in cui c'è il palo. Misurato, il
+# taglio d'angolo mandava il corpo dentro un muro in 4 viaggi su
+# mille; sommato agli estremi sbagliati faceva 36.
+#
+# IL CANALE NON È ORFANO. La coda si azzera in `_process`, per OGNI
+# stato che non sia "walk": un viaggio interrotto a metà (il pasto, un
+# concerto, il congedo, il nascondino) la lasciava piena, e
+# `meta_cammino()` di un vicino seduto raccontava la meta del viaggio
+# precedente.
+var _tappe: Array[Vector3] = []
+var _bs_ref: Node = null
+## Il turno era occupato quando si è chiesta la strada: si riprova al
+## frame prossimo (vedi `_deviazione`). Si spegne insieme alla coda.
+var _rotta_attesa := false
+var _attesa_frame := 0
+
+# --- COME SI GIRA UN ANGOLO -------------------------------------------
+#
+# Camminare la spezzata esatta vuol dire che la direzione del movimento
+# cambia in un frame, mentre il muso la insegue con la sua costante di
+# tempo (0.14 s). Un corpo che si sposta in una direzione mentre guarda
+# in un'altra, col ciclo del passo a cadenza piena, è un carrello
+# elevatore — e prima di questa riparazione lo era davvero: misurate 837
+# sbandate su mille viaggi, fino a 122 gradi per tre decimi di secondo,
+# 28 cm di scivolata di lato, con `Andatura.blend` a 1.00.
+#
+# La cura è di corpo, non di numeri: **si guarda più avanti della tappa,
+# e si cammina piano finché non si è girati.**
+#
+#  · IL MUSO MIRA AVANTI. Non alla tappa, ma a un punto un po' più in là
+#    SULLA STRADA (`_punto_avanti`): il muso comincia a girare prima
+#    dell'angolo e ci arriva già quasi allineato. Su un cammino dritto il
+#    punto più avanti sta sulla stessa retta della meta, quindi il muso
+#    fa esattamente quello che faceva prima — bit per bit.
+#  · SI RALLENTA IN CURVA. La velocità è moltiplicata per quanto il corpo
+#    va DOVE GUARDA. È quello che fa un corpo, ed è anche l'unico modo di
+#    girare senza scivolare di lato. Il pavimento (`PASSO_PIVOT`) tiene
+#    il corpo in movimento anche a 180 gradi — niente stalli — ma sotto
+#    la velocità in cui `Andatura` si considera ferma: così il ciclo del
+#    passo si spegne da solo mentre si perna, e si riaccende uscendo
+#    dalla curva. Nessuna riga di animazione da scrivere.
+
+## Quanto più avanti della tappa guarda il muso, in metri.
+##
+## SCELTO COL PROVINO, non a gusto (`tools/misura_cammino.gd`, mille
+## viaggi per taratura, scivolata di lato col passo acceso per viaggio):
+##
+##   0.00 → 0.157 m · **0.15 → 0.144** · 0.25 → 0.147 · 0.40 → 0.162 ·
+##   0.70 → 0.228 m
+##
+## E il numero che ha deciso non è nemmeno quello: è la DURATA peggiore di
+## una sbandata, 0.25 s a 0.15 contro **2.77 s a 0.70**. Guardare troppo
+## avanti crea un cappio — il muso punta oltre l'angolo, l'allineamento
+## crolla, la velocità con lui, e il corpo non arriva mai all'angolo che
+## gli farebbe cambiare mira. Quindici centimetri anticipano la svolta di
+## un decimo di secondo (un passo scarso) senza aprire il cappio.
+## Quanti frame si sta fermi ad aspettare una strada prima di prendersela
+## comunque, scavalcando il turno. Sei frame = un decimo di secondo: non si
+## legge come un'esitazione, e mette un tetto al fermo.
+const ATTESA_MAX := 6
+
+const GUARDA_AVANTI := 0.15
+
+## Il pavimento della velocità in curva: la frazione di passo che resta
+## anche quando si sta guardando esattamente dalla parte opposta. Serve a
+## due cose insieme — che una svolta di 180 gradi non inchiodi il corpo, e
+## che quel filo di movimento resti SOTTO `Andatura.VELOCITA_FERMO`
+## (0.12 m/s), perché il passo si spenga mentre si perna. A 0.02 la
+## scivolata non migliora e la sbandata peggiore si allunga da 0.38 a
+## 0.87 s: il pavimento più basso non è più delicato, è solo più lento.
+const PASSO_PIVOT := 0.05
+
+## Quanto in fretta gira il muso: la costante di sempre (7.0, cioè un
+## settimo di secondo per fondersi) più uno SCATTO proporzionale a quanto
+## manca. Su un cammino dritto lo scarto è zero e lo scatto non esiste,
+## quindi il cammino dritto è quello di sempre; su una svolta secca il
+## muso gira in fretta, come gira una bestiola piccola — ed è quello che
+## accorcia la finestra in cui il corpo va da una parte e guarda
+## dall'altra. Misurato: la scivolata per viaggio scende da 0.144 a 0.123 m.
+const GIRA := 7.0
+const GIRA_SCATTO := 8.0
+
+## Quanto è ripida la frenata in curva: la velocità è moltiplicata per
+## l'allineamento ELEVATO a questo. Lineare (1.0) frena troppo poco a
+## quarantacinque gradi — dove il corpo tiene ancora il 72% del passo e
+## scivola; al quadrato tiene il 50%. Misurato: sbandata peggiore da
+## 0.120 a 0.094 m, al prezzo di due centesimi di secondo per viaggio.
+const PASSO_CURVA := 2.0
+
 var _bench: Node3D
 var _pois: Array[Vector3] = []
 var _poi_i := 0
@@ -199,6 +502,10 @@ var _tail_p: Node3D
 var _tail_tip: Node3D
 var _step_acc := 0.0
 var _sit_t := 0.0     # da quanto è seduto/coricato: l'assestamento vive qui
+## Quanto manca all'ATTERRAGGIO sul sedile. Finché scorre, `_sit_t` non
+## avanza: il plop deve suonare quando il corpo tocca il legno, non mentre
+## ci sta ancora arrivando.
+var _sit_attesa := 0.0
 # il sonno: la fase del respiro (per la zeta) e il fremito del sogno
 var _sonno_r_prev := 1.0
 var _sonno_fremito := 4.0
@@ -485,6 +792,139 @@ func _build_suitcase() -> void:
 	_vis.add_child(_suitcase)
 
 
+# --------------------------------------------------- il corpo che si posa
+
+## GLI STATI CHE TENGONO SU IL CORPO. Fuori da questi, `position.y` deve
+## essere zero: è l'erba. La lista è la rete di sicurezza del canale più
+## orfano che ci sia — l'ALTEZZA del corpo. Chi ci sta dentro se la scrive
+## da sé, ogni frame (l'onsen, la scala) o con un tween che gli appartiene
+## (la panchina).
+const STATI_SOLLEVATI := {
+	"sit": true, "r_bench": true, "dismount": true,
+	"th_up": true, "th_perch": true, "th_down": true,
+	"on_dip": true, "on_soak": true, "on_out": true,
+}
+
+## L'ULTIMO AVVICINAMENTO alla seduta, in metri al secondo. Poco meno del
+## passo (1.45): ci si avvicina RALLENTANDO, e il ciclo del passo resta
+## acceso fino all'ultimo perché la velocità resta quella di un corpo che
+## cammina. Prima erano quasi novanta centimetri in quattro decimi di
+## secondo con un'attenuazione che parte al massimo: **8,9 m/s** misurati in
+## 45 s di MainLevel vero, e il ciclo del passo che si congelava a mezz'aria
+## (sopra i 2,8 m/s `Andatura.misura` legge un teletrasporto e smette di far
+## girare la fase). Nel provino a fotogrammi la seduta durava UN frame.
+const SEDUTA_VEL := 1.15
+## Sotto questo tempo un avvicinamento non si legge: è uno scatto.
+const SEDUTA_AVV_MIN := 0.18
+## Quanto dura il salire sul sedile, alla misura della Panchina (52 cm).
+## Per un trespolo più alto cresce come la radice dell'altezza — è il tempo
+## di un salto vero.
+const SEDUTA_SALITA := 0.34
+## Quando comincia a salire, in frazione dell'avvicinamento: si piegano le
+## ginocchia MENTRE si arriva. Sono due tempi, non due gesti in fila.
+const SEDUTA_ANTICIPO := 0.55
+## E quanto dura lo scendere: giù dal sedile, che è una caduta breve.
+const SEDUTA_DISCESA := 0.30
+
+## Il tween che sta muovendo il CORPO, e lo stato che l'ha acceso.
+var _corpo_tw: Tween = null
+var _corpo_tw_padrone := ""
+## SE IL CORPO È POSATO SU UN SEDILE. Non è deducibile dallo stato, ed è
+## per questo che esiste: chi sta seduto in panchina e riceve un piatto
+## passa a `r_pasto` — che non è uno stato «sollevato» — ma è ancora
+## seduto sul legno, e mandarlo a terra lo farebbe cadere dalla panchina a
+## metà pranzo. Lo accende `_siediti`, lo spengono `_alzati`, `_walk_to` e
+## ogni `_enter_state` che non sia una seduta.
+var _su_un_sedile := false
+
+
+## IL TWEEN DEL CORPO È DI CHI L'HA ACCESO.
+##
+## Un tween è legato al NODO, non allo stato: continua a scrivere
+## `position` anche dopo che lo stato che l'aveva creato è finito. Il
+## montaggio sulla panchina durava 0,4 s e in quei 0,4 s chiunque poteva
+## cambiare stato — la routine, una chiacchierata, il Salone, un piano del
+## Regista. Misurato nel MainLevel vero: il corpo scivolava a più di 5 m/s
+## MENTRE camminava da un'altra parte, e — peggio — restava appeso a 52 cm
+## dall'erba per il resto della partita, perché l'ultimo a scrivere
+## `position.y` era il tween morto: 928 frame di levitazione su 2704, un
+## sesto del tempo.
+##
+## Perciò: un solo tween per il corpo, che porta il nome del suo padrone.
+## Cambiare stato lo spegne (`_enter_state`, `_walk_to`), e la rete in
+## `_process` lo spegne comunque per gli stati che si assegnano a mano.
+func _corpo_muovi() -> Tween:
+	_corpo_ferma()
+	_corpo_tw = create_tween()
+	_corpo_tw_padrone = _state
+	return _corpo_tw
+
+
+func _corpo_ferma() -> void:
+	if _corpo_tw != null and _corpo_tw.is_valid():
+		_corpo_tw.kill()
+	_corpo_tw = null
+	_corpo_tw_padrone = ""
+
+
+## LA RETE, ogni frame: il tween orfano muore e i piedi tornano a terra.
+## Gira per OGNI stato — è la regola dei canali orfani applicata al canale
+## che nessuno guardava, l'altezza del corpo.
+func _corpo_rete() -> void:
+	if _corpo_tw != null and _state != _corpo_tw_padrone:
+		_corpo_ferma()
+	if not _su_un_sedile and not STATI_SOLLEVATI.has(_state) \
+			and absf(position.y) > 0.001:
+		position.y = 0.0
+
+
+## SEDERSI. Due tempi sovrapposti, non un teletrasporto: l'ultimo tratto si
+## copre alla velocità di un corpo che cammina (e le zampe continuano a
+## camminare, perché il blend dell'andatura non ha motivo di spegnersi), e
+## la salita sul sedile parte mentre si arriva.
+##
+## Il PLOP non è qui: è in `_anim_sit` (`assesto_seduta`), e adesso comincia
+## quando il corpo tocca davvero il legno — `_sit_attesa`.
+func _siediti(dove: Vector3) -> void:
+	var piano := Vector2(dove.x - position.x, dove.z - position.z)
+	var t_avv := maxf(SEDUTA_AVV_MIN, piano.length() / SEDUTA_VEL)
+	var salita: float = maxf(0.0, dove.y - position.y)
+	# il tempo di un salto vero cresce come la radice dell'altezza: il
+	# passerotto sul trespolo (86 cm) ci mette più della panchina (52)
+	var t_su := SEDUTA_SALITA * sqrt(maxf(salita, 0.02) / 0.52)
+	var attesa := t_avv * SEDUTA_ANTICIPO
+	var tw := _corpo_muovi()
+	tw.set_parallel(true)
+	tw.tween_property(self, "position:x", dove.x, t_avv) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(self, "position:z", dove.z, t_avv) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(self, "position:y", dove.y, t_su).set_delay(attesa) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	# l'assestamento aspetta l'atterraggio
+	_sit_attesa = maxf(t_avv, attesa + t_su)
+	_su_un_sedile = true
+
+
+## ALZARSI: il contrario, e nello stesso ordine di causa. Prima si lascia
+## il sedile (la discesa accelera: è una caduta breve), e il tratto a terra
+## si copre camminando. Chi chiama passa cosa fare una volta a terra.
+func _alzati(dove: Vector3, poi: String) -> void:
+	var piano := Vector2(dove.x - position.x, dove.z - position.z)
+	var t_via := maxf(SEDUTA_AVV_MIN, piano.length() / SEDUTA_VEL)
+	var tw := _corpo_muovi()
+	tw.set_parallel(true)
+	tw.tween_property(self, "position:x", dove.x, t_via) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(self, "position:z", dove.z, t_via) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(self, "position:y", 0.0, SEDUTA_DISCESA) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tw.chain().tween_callback(func(): _enter_state(poi))
+	# il sedile è già stato lasciato: da qui in poi la quota è dell'erba
+	_su_un_sedile = false
+
+
 # ---------------------------------------------------------------- stati
 
 ## IL RECINTO DEL PASTO. Finché mangia, il corpo è suo: nessuno gli cambia
@@ -500,18 +940,216 @@ func _pasto_occupa(nuovo: String) -> bool:
 func _walk_to(pos: Vector3, next: String) -> void:
 	if _pasto_in_corso:
 		return
+	_corpo_ferma()   # chi cammina non è più in braccio a nessun tween
+	_su_un_sedile = false
 	position.y = 0.0  # rinormalizza: chi arriva da panchina/onsen/scala torna a terra
-	_target = Vector3(pos.x, 0, pos.z)
+	var meta := Vector3(pos.x, 0, pos.z)
 	_next_state = next
+	# UN PUNTO PER VIAGGIO. Due fermate nello stesso tragitto non sono due
+	# pensieri: sono un vicino che non sa camminare.
+	_gs_viaggio = false
+	# la strada, se il villaggio dice che la retta non basta
+	_tappe = _deviazione(meta)
+	_target = meta if _tappe.is_empty() else _prossima_tappa()
 	_state = "walk"
+
+
+## Stacca la prima tappa dalla coda. Due righe invece di `pop_front()`
+## perché il tipo resti Vector3 fino in fondo: `_target` è tipizzato, e
+## un'assegnazione non tipizzata qui sarebbe l'unico punto del cammino in
+## cui il parser smette di controllare.
+func _prossima_tappa() -> Vector3:
+	var t: Vector3 = _tappe[0]
+	_tappe.remove_at(0)
+	return t
+
+
+## DOVE STA ANDANDO, alla fine del viaggio — non la prossima tappa. Da
+## quando il corpo segue la rotta, `_target` è il passo e non più la meta:
+## chi vuole sapere dove uno è diretto (le verifiche, e chiunque legga
+## l'intenzione invece del movimento) deve chiedere qui.
+func meta_cammino() -> Vector3:
+	return _tappe[_tappe.size() - 1] if not _tappe.is_empty() else _target
+
+
+# --------------------------------------------- un frame di cammino
+
+## UN FRAME DI CAMMINO. Torna `true` quando il viaggio è finito.
+##
+## Tre gesti, in quest'ordine, e l'ordine conta: si decide DOVE GUARDARE,
+## poi QUANTO camminare (che dipende da dove si guarda), e solo alla fine
+## si sposta il corpo lungo il filo.
+func _cammina(delta: float) -> bool:
+	# 1) IL MUSO mira più avanti della tappa, così l'angolo comincia a
+	#    girarlo prima di esserci sopra. Su un cammino dritto il punto più
+	#    avanti sta sulla stessa retta della meta: il muso fa esattamente
+	#    quello che ha sempre fatto.
+	var verso := _punto_avanti(GUARDA_AVANTI) - position
+	verso.y = 0.0
+	if verso.length_squared() > 1e-10:
+		var mira := atan2(-verso.x, -verso.z)
+		var manca := absf(wrapf(mira - _yaw, -PI, PI))
+		_yaw = lerp_angle(_yaw, mira,
+				1.0 - exp(-(GIRA + GIRA_SCATTO * manca / PI) * delta))
+	# 2) SI CAMMINA PIANO finché non si è girati dove si va. È il solo modo
+	#    di svoltare senza scivolare di lato — e siccome il pavimento sta
+	#    sotto la velocità in cui `Andatura` si considera ferma, il ciclo
+	#    del passo si spegne da solo mentre il corpo perna.
+	var to := _target - position
+	to.y = 0.0
+	var allineato := 1.0
+	if to.length_squared() > 1e-10:
+		var muso := Vector2(-sin(_yaw), -cos(_yaw))
+		allineato = maxf(0.0, muso.dot(Vector2(to.x, to.z).normalized()))
+	var passo := _speed * _move_gait(delta) \
+			* (PASSO_PIVOT + (1.0 - PASSO_PIVOT) * pow(allineato, PASSO_CURVA))
+	# 3) e si avanza SUL FILO
+	return _avanza(passo)
+
+
+## Avanza di `quanto` metri LUNGO LA SPEZZATA. Sulla tappa ci si posa
+## SOPRA e il resto del passo si spende sulla gamba dopo: né una sosta di
+## un frame a ogni angolo, né — soprattutto — un angolo smussato.
+##
+## Lo smusso era il difetto: consumare la tappa a venticinque centimetri
+## di distanza vuol dire tagliare per la corda dell'angolo, e la corda di
+## un angolo girato attorno a un muro passa **dentro il muro**. Qui la
+## spezzata camminata è, punto per punto, quella che il villaggio ha
+## giudicato libera.
+func _avanza(quanto: float) -> bool:
+	for _giro in 16:
+		var to := _target - position
+		to.y = 0.0
+		var dist := to.length()
+		if dist > quanto:
+			position += to / dist * quanto
+			return false
+		position = Vector3(_target.x, position.y, _target.z)
+		quanto -= dist
+		if _tappe.is_empty():
+			return true
+		_target = _prossima_tappa()
+	return false
+
+
+## Il punto della strada che sta `quanto` metri più avanti del corpo,
+## seguendo la SPEZZATA e non la linea d'aria. È quello che il muso mira:
+## mirare alla tappa vorrebbe dire cominciare a girare solo quando ci si è
+## già sopra, cioè sbandare di lato per tutta la durata della svolta.
+##
+## Quando la strada finisce prima, si mira alla meta — che è il caso di
+## ogni cammino dritto, e per quello il conto torna identico a com'era.
+func _punto_avanti(quanto: float) -> Vector3:
+	var p := Vector3(position.x, 0.0, position.z)
+	var t := Vector3(_target.x, 0.0, _target.z)
+	if quanto <= 0.0:
+		return t   # nessun anticipo: si mira alla tappa
+	for i in range(_tappe.size() + 1):
+		var to := t - p
+		var d := to.length()
+		if d >= quanto:
+			return p + to / maxf(d, 1e-9) * quanto
+		quanto -= d
+		p = t
+		if i < _tappe.size():
+			var w: Vector3 = _tappe[i]
+			t = Vector3(w.x, 0.0, w.z)
+	return t
+
+
+## Le tappe per arrivare a `meta` senza attraversare un muro. Vuota = «vai
+## dritto», ed è la risposta normale: la dà il villaggio senza muri, il
+## bosco (dove il BuildSystem non esiste), la tratta corta, e soprattutto
+## la stragrande maggioranza dei viaggi, in cui davanti non c'è niente.
+##
+## L'unico caso in cui una risposta vuota NON è una risposta è il turno
+## occupato (la sera del falò, quando in ventotto si alzano insieme):
+## allora si segna `_rotta_attesa` e si riprova al frame dopo, avendo
+## camminato quattro centimetri nella direzione giusta. **Nessuno perde la
+## sua strada** — la riceve un attimo più tardi.
+func _deviazione(meta: Vector3, forza := false) -> Array[Vector3]:
+	var vuoto: Array[Vector3] = []
+	var bs := _build_system()
+	if bs == null:
+		return vuoto
+	if not forza and not bs.turno_rotte_libero():
+		_rotta_attesa = true
+		return vuoto
+	_rotta_attesa = false
+	_attesa_frame = 0
+	var tappe: Array[Vector3] = bs.deviazione(global_position, meta)
+	return tappe
+
+
+## LA DOMANDA RIMANDATA. Gira solo per chi il turno l'ha trovato occupato,
+## e si spegne da sola alla prima risposta — anche quando la risposta è
+## «vai dritto», perché quella è una risposta.
+##
+## Si ricalcola da DOVE SI È ADESSO, non da dove si era partiti: sono
+## quattro centimetri, ma la regola per cui il corpo cammina esattamente la
+## spezzata che il villaggio ha giudicato non ammette «quasi» — è già
+## costata 25 viaggi su mille attraverso un muro.
+func _riprova_rotta() -> void:
+	var meta := meta_cammino()
+	_attesa_frame += 1
+	# LA RETE: dopo un decimo di secondo la strada si prende comunque,
+	# saltando il turno. Il turno serve a spalmare una spesa, non a
+	# decidere chi puo' rispettare un muro: se la macchina e' cosi' carica
+	# che il turno non si apre mai, si paga la ricerca — un microsecondo
+	# in piu' non lo vede nessuno, un chibi dentro la staccionata si'.
+	var nuove := _deviazione(meta, _attesa_frame >= ATTESA_MAX)
+	if nuove.is_empty():
+		return
+	_tappe = nuove
+	_target = _prossima_tappa()
+
+
+## Il villaggio, se c'è. Si tiene il riferimento, ma si ricontrolla che sia
+## ancora vivo: un Visitor può sopravvivere a un cambio di scena (il banco
+## di prova ne fa nascere e morire a decine), e un nodo liberato che
+## risponde ancora è il modo più silenzioso di far esplodere un frame.
+func _build_system() -> Node:
+	if _bs_ref != null and is_instance_valid(_bs_ref):
+		return _bs_ref
+	_bs_ref = null
+	if not is_inside_tree():
+		return null
+	var n := get_tree().get_first_node_in_group("build_system")
+	# `has_method` e non la fiducia: il gruppo è una convenzione, e un
+	# giorno potrebbe entrarci un nodo che non sa rispondere. Il cammino
+	# non è il posto dove scoprirlo con un errore a runtime. **Si chiedono
+	# TUTTI E DUE** i metodi: chiedere solo il primo ha già rotto un banco
+	# di prova nel momento in cui è nato il turno.
+	if n != null and n.has_method("deviazione") and n.has_method("turno_rotte_libero"):
+		_bs_ref = n
+	return _bs_ref
 
 
 func _enter_state(s: String) -> void:
 	if _pasto_occupa(s):
 		return
+	# IL TWEEN DEL CORPO MUORE CON LO STATO CHE L'HA ACCESO (vedi
+	# `_corpo_muovi`): si spegne PRIMA del `match`, così lo stato nuovo è
+	# libero di accenderne uno suo.
+	_corpo_ferma()
+	# …E COL TWEEN MUORE ANCHE IL GESTO. Un gesto è la risposta del corpo a
+	# un momento preciso; se il mondo manda quel corpo a fare un'altra cosa,
+	# il momento è passato. Sta QUI e non dentro un `match` per la stessa
+	# ragione della coda delle tappe: un'attività si interrompe da undici
+	# parti diverse, e nessuna passa da un posto solo.
+	#
+	# ⚠️ Senza questa riga il Punto continuava a tenere il ritmo a ZERO dopo
+	# che lo stato era cambiato — misurato: `_gs_r` a 0.00 in `r_idle` e in
+	# `r_pasto` — e il corpo si sarebbe ritrovato incollato al terreno al
+	# viaggio dopo, invisibile perché nessun test guarda la velocità.
+	gesto_spegni()
+	# e il sedile si lascia: se lo stato nuovo è una seduta, se lo riprende
+	# lui due righe più sotto (`_siediti`)
+	_su_un_sedile = false
 	_state = s
 	# ogni seduta ricomincia dall'ASSESTAMENTO (plop, fianchi, sospiro)
 	_sit_t = 0.0
+	_sit_attesa = 0.0
 	match s:
 		"browse":
 			if _poi_i < _pois.size():
@@ -618,9 +1256,7 @@ func _enter_state(s: String) -> void:
 						_yaw = atan2(-verso.x, -verso.z)
 				else:
 					_yaw = _routine_aux.rotation.y + PI
-				var tw := create_tween()
-				tw.tween_property(self, "position", seat, 0.4) \
-						.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+				_siediti(seat)
 			_timer = _routine_durata if _routine_durata > 0.0 else randf_range(14.0, 22.0)
 		"r_attesa":
 			# arrivato al posto dell'appuntamento: si volta verso il
@@ -686,10 +1322,15 @@ func _enter_state(s: String) -> void:
 			_timer = 1.3
 			_emote("!", Color(0.95, 0.6, 0.4))
 			speak(["paura"], "domanda")
+			# IL RINCULO. Sette decimetri all'indietro con TRANS_BACK
+			# partivano a 9,4 m/s: non uno spavento, un teletrasporto — e
+			# sopra i 2,8 m/s l'andatura smette perfino di far girare la
+			# fase del passo. SINE/OUT parte a 3,1 m/s: è il salto di chi
+			# si è preso paura, e si legge come tale.
 			var back := global_transform.basis.z.normalized()
-			var tw2 := create_tween()
+			var tw2 := _corpo_muovi()
 			tw2.tween_property(self, "position", position + back * 0.7, 0.35) \
-					.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+					.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 		"tk_nap":
 			# il pisolino dura quanto serve alle sue tre fasi: accovacciarsi
 			# (1.1), dormire davvero (qualche respiro pieno), stiracchiarsi
@@ -731,9 +1372,7 @@ func _mount_bench() -> void:
 		offset = _bench.get_meta("posatoio", POSATOIO_PREDEFINITO)
 	var dest: Vector3 = _bench.global_transform * offset
 	_yaw = _bench.rotation.y + PI
-	var tw := create_tween()
-	tw.tween_property(self, "position", dest, 0.45) \
-			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_siediti(dest)
 	if _sfx:
 		_sfx.play("step_grass2", -20.0, 1.4)
 
@@ -751,12 +1390,48 @@ func _process(delta: float) -> void:
 	# (chi scrive in assoluto sovrascrive comunque; chi non scrive — idle —
 	# ritrova il valore base, senza accumuli)
 	_recita_togli()
+	# la rete del CORPO, prima di ogni altra cosa: il tween che ha perso il
+	# suo stato muore, e i piedi tornano sull'erba (vedi `_corpo_muovi`)
+	_corpo_rete()
+	# …e via anche lo sguardo del testimone del frame scorso, per la STESSA
+	# ragione e non per simmetria: ci sono stati che NON riscrivono la
+	# rotazione della testa (`_anim_inspect` posa x e z e lascia stare y), e
+	# un `+=` a ogni frame su un canale che nessuno azzera avvita il collo
+	# fino a fargli fare il giro. Si toglie qui, PRIMA che lo stato posi.
+	_sguardo_togli()
+	# …e infine il TETTO DEL COLLO, che è l'ultima cosa scritta l'altro frame
+	# e quindi la prima da togliere. Sono tre correzioni additive sullo stesso
+	# canale: l'ordine fra loro non conta, conta che nessuna resti addosso.
+	_cappello_togli()
 	rotation.y = _yaw
+	# LA RETE DI SICUREZZA DELLA CODA. Non si svuota in `_walk_to` (che la
+	# riscrive comunque) né nei due o tre posti che vengono in mente: si
+	# svuota QUI, per ogni stato che non sia "walk", perché un viaggio si
+	# interrompe da undici parti diverse — il pasto, il concerto, il
+	# congedo, il nascondino — e nessuna di quelle passa da un posto solo.
+	# Senza, `meta_cammino()` di un vicino seduto o che dorme raccontava
+	# la meta del viaggio PRECEDENTE, e chi legge l'intenzione (il
+	# taccuino, le verifiche, la regia) la prendeva per buona.
+	# (e con la coda si spegne anche la domanda rimandata: un vicino che si
+	# è seduto non ha più nessuna strada da farsi dare)
+	if _state != "walk":
+		if not _tappe.is_empty():
+			_tappe.clear()
+		_rotta_attesa = false
 	# il metro del passo: velocita' vera, blend, curva (per ogni stato)
 	_gait_misura(delta)
+	# …e IL VOCABOLARIO DEL CORPO, sempre prima del `match`: `_move_gait` —
+	# che il ritmo moltiplica — viene chiamato da `_cammina` là dentro. Gira
+	# per OGNI stato, che è tutta la sua rete.
+	_gesto_passo(delta)
 	_emote_cd -= delta
 	_speak_cd -= delta
 	_scena_t = maxf(0.0, _scena_t - delta)
+	# LA RICEVUTA SCADE DA SOLA, e scade per OGNI stato: qui, in cima al
+	# `_process`, dove non c'è nessun `match` da cui si possa uscire. Un
+	# orologio consumato dentro un ramo solo si ferma alla prima
+	# interruzione, e la testa resterebbe girata per sempre.
+	_tst_t = maxf(0.0, _tst_t - delta)
 	# mentre parla, la testolina annuisce a tempo con la voce
 	# (scalato su delta e clampato: niente derive a framerate alti)
 	if _voice_player and _voice_player.playing and _head:
@@ -782,15 +1457,26 @@ func _process(delta: float) -> void:
 
 	match _state:
 		"walk":
-			var to := _target - position
-			to.y = 0.0
-			var dist := to.length()
-			if dist < 0.12:
-				_enter_state(_next_state)
-			else:
-				var dir := to / dist
-				_yaw = lerp_angle(_yaw, atan2(-dir.x, -dir.z), 1.0 - exp(-7.0 * delta))
-				position += dir * _speed * _move_gait(delta)
+			# la strada che il turno non ha potuto dare al frame scorso
+			if _rotta_attesa:
+				_riprova_rotta()
+			# E SE ANCORA NON C'E\', SI ASPETTA FERMI.
+			#
+			# «cammina dritto per un frame, sono quattro centimetri» sembra
+			# innocuo e non lo e\': una risposta vuota vuol dire «vai verso la
+			# META», cioe\' esattamente contro il muro che si doveva aggirare.
+			# MISURATO: venti corpi a tre centimetri da una staccionata che
+			# chiedono la strada nello stesso frame, fino a UNDICI la
+			# attraversavano — e chi la attraversa ci resta, perche\' la
+			# domanda dopo riparte da oltre il muro. Il verso dell\'errore era
+			# pure il peggiore: piu\' la macchina e\' carica, piu\' corpi
+			# venivano rimandati, quindi il guasto peggiorava proprio quando
+			# il giocatore aveva gia\' il gioco che arrancava.
+			# Fermarsi costa al massimo ATTESA_MAX frame (un decimo di
+			# secondo), e dopo quelli la strada si prende comunque.
+			if not _rotta_attesa:
+				if _cammina(delta):
+					_enter_state(_next_state)
 			_anim_move(delta)
 		"inspect":
 			_timer -= delta
@@ -804,11 +1490,10 @@ func _process(delta: float) -> void:
 			if _timer <= 0.0 and _bench and is_instance_valid(_bench):
 				var down: Vector3 = _bench.global_transform * Vector3(0, 0, 0.85)
 				_gift_pos = down
-				var tw := create_tween()
-				tw.tween_property(self, "position", Vector3(down.x, 0, down.z), 0.4) \
-						.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-				tw.tween_callback(func(): _enter_state("gift"))
+				# lo stato PRIMA del tween: il padrone del tween è chi lo
+				# accende, e qui il padrone è «dismount»
 				_state = "dismount"
+				_alzati(Vector3(down.x, 0, down.z), "gift")
 			elif _timer <= 0.0:
 				_enter_state("gift")
 		"gift":
@@ -817,7 +1502,13 @@ func _process(delta: float) -> void:
 			if _timer <= 0.0:
 				_enter_state("leave")
 		"dismount":
-			pass
+			# SCENDERE È UN MOVIMENTO, e il corpo lo deve fare. Prima qui
+			# c'era `pass`: il rig restava inchiodato all'ultima posa da
+			# seduto mentre il corpo scivolava a terra — un fermo immagine
+			# che trasla. Adesso il tratto verso l'erba si copre alla
+			# velocità di un passo, e il ciclo se ne accorge da sé (la
+			# fase avanza coi metri, il blend si accende e si spegne).
+			_anim_move(delta)
 		"c_inspect":
 			_timer -= delta
 			_anim_inspect()
@@ -856,6 +1547,14 @@ func _process(delta: float) -> void:
 		"r_bench":
 			_timer -= delta
 			_anim_sit()
+			# CHI E' SEDUTO TI SALUTA. Lo facevano gia' `r_idle`, `r_sniff`,
+			# `r_attesa` e `r_fire`; questo no, e non si vedeva perche' una
+			# seduta durava trenta millisecondi. Da quando dura quindici
+			# secondi, un vicino a un metro da te che non alza la testa si
+			# legge come freddezza — cioe' il sistema racconterebbe una cosa
+			# che non e' vera. (Si somma alla posa: `_resident_greet` scrive
+			# il meta «postura», non lo stato.)
+			_resident_greet(delta)
 			if _timer <= 0.0:
 				# SENZA `aux` NON SI SCENDEVA. Il ramo pretendeva il mobile
 				# per calcolare dove rimettere i piedi, e chi era stato
@@ -865,11 +1564,8 @@ func _process(delta: float) -> void:
 				var down := position
 				if _routine_aux and is_instance_valid(_routine_aux):
 					down = _routine_aux.global_transform * Vector3(0, 0, 0.8)
-				var tw := create_tween()
-				tw.tween_property(self, "position", Vector3(down.x, 0, down.z), 0.4) \
-						.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-				tw.tween_callback(func(): _enter_state("r_idle"))
 				_state = "dismount"
+				_alzati(Vector3(down.x, 0, down.z), "r_idle")
 		"r_attesa":
 			# in piedi, che respira, rivolto al fenomeno — e se arrivi ti
 			# saluta come sa fare lui (il saluto della sua indole)
@@ -993,7 +1689,7 @@ func _process(delta: float) -> void:
 					(_c_arms[1] as Node3D).rotation.x = 0.0
 				_spawn_heart()
 				speak(["si", "felice"], "felice")
-				_enter_state("r_idle")
+				_finish_task()
 		"on_dip":
 			# scivola nell'acqua, piano piano
 			_timer += delta / 1.4
@@ -1066,32 +1762,255 @@ func _process(delta: float) -> void:
 		if _state == "tk_nap":
 			# a occhi chiusi non si insegue nessuno: chi dorme, dorme
 			_face.clear_gaze()
+		elif _tst_t > 0.0 and not _hidden:
+			# LA RICEVUTA. Sta SOTTO chi dorme (a occhi chiusi non si guarda
+			# niente) e SOPRA `LOOK_STATES` e il giocatore vicino: più in
+			# basso questi due rami riscriverebbero la gaze il frame dopo e
+			# non si vedrebbe NIENTE — e il sistema che ne dipende sembrerebbe
+			# reagire a caso.
+			_face.look_at_world(_tst_pos + Vector3(0, 0.35, 0))
 		elif LOOK_STATES.has(_state) and _target != Vector3.ZERO:
 			_face.look_at_world(_target + Vector3(0, 0.35, 0))
 		elif _player_ref and is_instance_valid(_player_ref) \
-				and global_position.distance_to(_player_ref.global_position) < 4.5:
+				and global_position.distance_to(_player_ref.global_position) < FACCIA_AL_GIOCATORE:
 			_face.look_at_node(_player_ref)
 		else:
 			_face.clear_gaze()
 		_face.update(delta)
 
-	# --- LA RECITA DEL CORPO, ultimissima: le posture della ribellione si
-	# stendono SOPRA ciò che stati e volto hanno già posato ---
+	# --- LA TESTA CHE SI GIRA, fuori dal blocco del volto perché il volto
+	# ce l'hanno solo i chibi generati da DNA, e la ricevuta deve valere per
+	# chiunque abbia un collo ---
+	_sguardo_testimone(delta)
+
+	# --- LA RECITA DEL CORPO: le posture della ribellione si stendono SOPRA
+	# ciò che stati e volto hanno già posato ---
 	_recita_applica(delta)
+
+	# --- E IL TETTO DEL COLLO, ultimissimo. Deve stare DOPO tutti e tre gli
+	# scrittori del canale (stato, ricevuta, recita) perché è la loro SOMMA a
+	# uscire dall'anatomia, non nessuno dei tre da solo. Messo prima, o dentro
+	# uno dei tre, non vedrebbe mai il numero che deve fermare ---
+	_cappello_collo()
+
+
+## LO SGUARDO DEL TESTIMONE: la metà visibile della percezione (l'altra è il
+## ricordo, che vive nel C++). Gira per OGNI stato, e questo è il punto.
+##
+## Lo scostamento si SOMMA a quello che lo stato ha già posato — l'idioma di
+## `_recita_applica`, tre righe più sotto — invece di scrivere il canale in
+## assoluto. Due ragioni, e la seconda è la più importante:
+##  1. il collo non si irrigidisce: la testa continua a dondolare col passo
+##     e col respiro mentre guarda (`CEDE_ALLO_STATO`), e una testa
+##     perfettamente ferma su un bersaglio è la firma dell'adesivo
+##     appiccicato sopra la posa;
+##  2. **non può restare fuori posa**. Quando `_tst_off` torna a zero questa
+##     funzione somma 0.0, e la testa è di nuovo tutta dello stato che la
+##     stava posando — senza che nessuno debba ricordarsi di rimetterla a
+##     posto in undici punti di uscita.
+##
+## LA TENUTA NON È FERMA, ed è la cosa che questa funzione ha imparato dopo:
+## la prima stesura sottraeva `base` per INTERO, cioè cancellava esattamente
+## il dondolio di cui il commento qui sopra si vantava — e con un bersaglio
+## fermo il risultato era una testa immobile al millesimo, identica in due
+## vicini affiancati. Ci vogliono tre cose, tutte e tre a scadenza diversa:
+## la posa dello stato che passa a metà, il vagare della mira (`_vaga`, due
+## orologi incommensurabili) e lo scarto personale (`_tst_mira`).
+func _sguardo_testimone(delta: float) -> void:
+	if _head == null:
+		_tst_off = 0.0
+		return
+	# la posa che lo stato ha appena messo: lo scostamento si misura da lì,
+	# così la testa arriva DAVVERO sul bersaglio invece di superarlo di
+	# quanto stava già oscillando per conto suo
+	var base := _head.rotation.y
+	var bersaglio := 0.0
+	# `dorme()` e non `_state == "tk_nap"`: quel confronto è la stessa domanda
+	# che si fa `Percezione.puo_vedere` per decidere se un ricordo si incide, e
+	# le due devono restare LA STESSA. Se un giorno il pisolino cambiasse nome
+	# di stato, il vicino smetterebbe di ricordare e continuerebbe a girare la
+	# testa da addormentato — cioè la ricevuta senza la conseguenza, che è
+	# esattamente il guasto che tutta la percezione esiste per rendere
+	# impossibile.
+	if _tst_t > 0.0 and not _hidden and not dorme():
+		var b := _tst_pos
+		# il bersaglio si appiattisce all'altezza degli occhi: un collo non
+		# guarda in su, e `look_at` con una direzione verticale non è definito
+		b.y = _head.global_position.y
+		if _head.global_position.distance_squared_to(b) > 0.0025:
+			# IL RIG GUARDA −Z, e qui non si scrive nessun `atan2`: si chiede
+			# a Godot di puntare il proprio −Z sul bersaglio (`look_at` è
+			# definito esattamente così) e si legge l'angolo che ne esce, già
+			# al netto di come è girato il corpo. Un `atan2` col segno
+			# sbagliato ha tenuto il fantasma del congedo di spalle a Mochi
+			# per mesi, sotto un commento che giurava il contrario: qui non
+			# c'è un segno da sbagliare.
+			var prima := _head.transform.basis
+			_head.look_at(b, Vector3.UP)
+			var puro := wrapf(_head.rotation.y, -PI, PI)
+			_head.transform.basis = prima
+			# IL TETTO SI PRENDE SULLA SOLA GEOMETRIA, e il margine è quello
+			# di ciò che si somma dopo. Pinzando la somma, un testimone di
+			# traverso al gesto — il caso comune, dove la mira vorrebbe 90° —
+			# resterebbe schiacciato contro il tetto: il micro-movimento e lo
+			# scarto personale verrebbero tagliati via proprio lì, cioè
+			# morirebbero esattamente nel caso per cui esistono (MISURATO: due
+			# testimoni al tetto davano lo stesso angolo anche con la mira
+			# personale accesa). Così invece il massimo resta `TESTA_MAX`
+			# tondo, e ci si arriva col vagare al colmo.
+			var tetto := tetto_ricevuta()
+			var mira := clampf(puro, -tetto, tetto) + _tst_mira + _vaga()
+			bersaglio = mira - base * (1.0 - CEDE_ALLO_STATO)
+	var k := TESTA_VAI if absf(bersaglio) > absf(_tst_off) else TESTA_TORNA
+	_tst_off = lerpf(_tst_off, bersaglio, 1.0 - exp(-k * delta))
+	_head.rotation.y += _tst_off
+	_tst_appl = _tst_off
+
+
+## IL TETTO VERO DELLA RICEVUTA: `TESTA_MAX` meno quello che si somma DOPO
+## la pinzatura (il vagare e lo scarto personale). Sta in una funzione perché
+## ha DUE lettori — chi mira (`_sguardo_testimone`) e chi si chiede se ci
+## arriva (`collo_ci_arriva`) — e due copie di questo conto sarebbero due
+## tetti diversi che divergono al primo ritocco.
+static func tetto_ricevuta() -> float:
+	return TESTA_MAX - VAGA_AMPIEZZA - MIRA_PERSONALE
+
+
+## IL COLLO CI ARRIVA? Cioè: se gli si chiedesse di guardare lì, la testa ci
+## arriverebbe davvero, o resterebbe schiacciata contro il tetto?
+##
+## ⚠️ **SERVE ALLA FASE 5, e serve a una cosa sola: sapere QUANDO pagare una
+## ricevuta.** Nella Fase 4 la testa si gira su un gesto che sta succedendo, e
+## se il gesto è alle spalle una testa che si sforza a mezza strada racconta
+## comunque «mi sono accorto di qualcosa»: la scena vera ce l'ha già il
+## giocatore davanti. Nella Fase 5 invece **la testa È tutta la scena** — è
+## l'unica cosa che il giocatore vede prima che il vicino cambi mestiere — e
+## una testa ferma al tetto, con il posto a centoventi gradi dall'altra parte,
+## non dice «sto pensando a quell'aiuola»: dice «sto guardando altrove».
+## Misurato nel MainLevel vero (`tools/prova_deduzione.gd`): col posto a 148°
+## il collo si fermava a 45° e restavano **102° di scarto**.
+##
+## Perciò la deduzione ASPETTA. Non è una rinuncia: è la regola 2 del taccuino
+## («il silenzio è il comportamento normale») applicata al corpo. Un vicino si
+## gira di continuo — cambia mestiere ogni dieci-quarantacinque secondi e
+## cammina — e la deduzione ha minuti per trovare il suo momento; se non lo
+## trova, muore senza che nessuno se ne accorga, che è l'esito buono.
+##
+## Il conto lo fa `look_at` e non un `atan2`: è la stessa riga di
+## `_sguardo_testimone`, e qui non c'è un segno da sbagliare (il rig guarda
+## −Z, e un `atan2` col segno storto ha tenuto il fantasma del congedo di
+## spalle a Mochi per mesi sotto un commento che giurava il contrario).
+func collo_ci_arriva(pos: Vector3) -> bool:
+	if _head == null or not is_instance_valid(_head):
+		return false
+	var b := pos
+	b.y = _head.global_position.y
+	if _head.global_position.distance_squared_to(b) <= 0.0025:
+		return false
+	var prima := _head.transform.basis
+	_head.look_at(b, Vector3.UP)
+	var puro := wrapf(_head.rotation.y, -PI, PI)
+	_head.transform.basis = prima
+	return absf(puro) <= tetto_ricevuta()
+
+
+## IL VAGARE DELLA MIRA — la differenza fra guardare e fissare.
+##
+## Nessuno tiene gli occhi inchiodati a un punto: si guarda ATTORNO alla
+## cosa, e l'oscillazione non si richiude mai su sé stessa perché gli
+## orologi sono due e incommensurabili (0.83 e 2.17 rad/s: il rapporto è
+## irrazionale, quindi la figura non si ripete). Un `sin()` puro si
+## smaschera in due cicli.
+##
+## LA FASE È SUA, dal genoma: due vicini che guardano la stessa cosa nello
+## stesso istante non possono muoversi all'unisono — sarebbero due pupazzi
+## sullo stesso filo.
+##
+## E L'ETÀ SI SENTE: chi ha vissuto guarda più lento e più corto. Le
+## orecchie non le tocca nessuno qui — questo canale è solo l'imbardata
+## della testa — perché a un anziano le orecchie non devono scattare.
+func _vaga() -> float:
+	var lento := 1.0 - 0.34 * _eta
+	var amp := VAGA_AMPIEZZA * (1.0 - 0.40 * _eta)
+	return amp * (sin(_t * 0.83 * lento + _tst_fase) * 0.62
+			+ sin(_t * 2.17 * lento + _tst_fase * 2.7) * 0.38)
+
+
+## LA TARATURA PERSONALE DELLO SGUARDO, una volta sola e dal GENOMA.
+##
+## Il genoma è l'unica cosa di questo corpo che non cambia mai e che
+## sopravvive al salvataggio: un dado tirato all'avvio darebbe a ciascuno un
+## carattere diverso a ogni ricaricamento, e `randf()` in `_process` darebbe
+## un tremolio invece di un'indole.
+func _taratura_sguardo() -> void:
+	if _tst_ritmo > 0.0:
+		return
+	var s := int(dna.get("seed", 0))
+	if s == 0:
+		# ospiti senza genoma (riccio, passerotto) e corpi di prova: basta che
+		# sia STABILE per questo corpo, non che sia bello
+		s = hash(str(dna.get("label", name)))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = absi(s) + 977
+	_tst_ritmo = RAFFICA_RITMO * rng.randf_range(0.78, 1.24)
+	_tst_mira = rng.randf_range(-1.0, 1.0) * MIRA_PERSONALE
+	_tst_fase = rng.randf_range(0.0, TAU)
+
+
+## Toglie lo scostamento del frame scorso. Gemello di `_recita_togli`, e per
+## la stessa ragione: senza, il canale si accumula sugli stati che non lo
+## riscrivono, e il rig non torna mai a posto da solo.
+func _sguardo_togli() -> void:
+	if _head != null and _tst_appl != 0.0:
+		_head.rotation.y -= _tst_appl
+	_tst_appl = 0.0
+
+
+## IL TETTO DEL COLLO, applicato alla SOMMA. Ultimissima riga del `_process`:
+## vedi `COLLO_MAX` per il numero e per come è stato misurato.
+##
+## È una correzione additiva come le altre due, e si toglie allo stesso modo
+## il frame dopo: chi la scrivesse in assoluto (`rotation.y = clampf(...)`)
+## impedirebbe agli scrittori di sotto di tornare indietro da soli.
+func _cappello_collo() -> void:
+	if _head == null:
+		# senza testa non c'è niente da pinzare — e nemmeno niente da togliere
+		# il frame dopo (l'estetista rimonta il corpo da capo: un residuo
+		# ricordato su una testa che non esiste più tornerebbe addosso a
+		# quella nuova). Stessa rete di `_sguardo_testimone`.
+		_capp_appl = 0.0
+		return
+	var y := _head.rotation.y
+	var dentro := clampf(y, -COLLO_MAX, COLLO_MAX)
+	_capp_appl = dentro - y
+	if _capp_appl != 0.0:
+		_head.rotation.y = dentro
+
+
+func _cappello_togli() -> void:
+	if _head != null and _capp_appl != 0.0:
+		_head.rotation.y -= _capp_appl
+	_capp_appl = 0.0
 
 
 # passo del corpo: il passerotto avanza a scatti (solo mentre è in aria)
+#
+# ⚠️ **È L'UNICO CONSUMATORE DEL RITMO** (`_gs_r`), ed è per questo che «il
+# corpo che si ferma» costa zero canali del rig: niente in `_rc_appl`, niente
+# da togliere, niente che possa restare fuori posa. In un rig dove `_vis.scale`
+# ha cinque padroni, questa non è eleganza — è la differenza fra «si
+# costruisce» e «si costruisce dopo un censimento».
 func _move_gait(delta: float) -> float:
 	if species == "passerotto":
 		var hop := fposmod(_t * 2.4, 1.0)
 		return delta * (1.7 if hop < 0.55 else 0.15)
 	# l'età si sente nel fiato: ogni tanto l'anziano si ferma un attimo
-	# a metà strada, e poi riparte piano
-	if _eta > 0.55:
-		var ciclo := fposmod(_t, 7.5)
-		if ciclo < 1.3:
-			return delta * 0.12
-	return delta
+	# a metà strada, e poi riparte piano. È il fermo che questo corpo aveva
+	# già, e il Punto NON gliene aggiunge un secondo: ci si accomoda sopra
+	# (vedi `_in_fiato`, che è la fonte unica di questa finestra).
+	if _in_fiato():
+		return delta * 0.12 * _gs_r
+	return delta * _gs_r
 
 
 # ---------------------------------------------------------------- anims
@@ -1359,7 +2278,14 @@ func _anim_sit() -> void:
 	# con due colpi. Gli anziani fanno tutto con più calma. Solo dopo
 	# arriva il respiro lento di sempre (e il guardarsi intorno).
 	_relax_legs()
-	_sit_t += get_process_delta_time()
+	# IL PLOP SUONA SULL'ATTERRAGGIO. Finché il corpo sta ancora salendo
+	# sul sedile l'assestamento non parte: un tonfo mentre si è per aria è
+	# la stessa bugia di una posa senza micro-movimento, al contrario.
+	var dt := get_process_delta_time()
+	if _sit_attesa > 0.0:
+		_sit_attesa = maxf(0.0, _sit_attesa - dt)
+	else:
+		_sit_t += dt
 	var a := assesto_seduta(_sit_t / (1.0 + 0.6 * _eta))
 	var calo: float = a["calo"]
 	_vis.rotation.x = 0.0
@@ -1818,6 +2744,14 @@ func _clear_can() -> void:
 ## Monta (o rimonta) il corpo dal genoma corrente. Chi lo richiama deve
 ## aver già smontato il vecchio: ci pensa `rifai_il_look`.
 func _monta_corpo() -> void:
+	# IL CORPO CAMBIA IDENTITÀ, e con lui tutti i nodi del rig. Quello che il
+	# frame scorso è stato sommato alle vecchie orecchie non si può togliere
+	# dalle nuove: si dimentica. (Lo stesso vale per il gesto, che tiene in
+	# prestito la scala di un `_corpo` che sta per non esistere più.)
+	gesto_spegni(true)
+	_rc_appl = {}
+	_tst_appl = 0.0
+	_capp_appl = 0.0
 	var parts: Dictionary = BUILDER.build(dna)
 	_corpo = parts["root"]
 	# la taglia del genoma è già dentro root.scale (ChibiBuilder): la si
@@ -1933,17 +2867,42 @@ func do_routine(kind: String, pos: Vector3, look := Vector3.ZERO,
 			_walk_to(pos, "r_confronto")
 
 
+## QUANTO MANCA ALLA FINE DELLA POSA IN CUI SI E' ADESSO, in secondi.
+##
+## Il corpo si e' gia' dato la sua durata (`r_bench`: 14-22 s, oppure quella
+## che gli ha imposto chi lo ha fatto sedere): questa riga la RENDE LEGGIBILE
+## a chi tiene il guinzaglio dell'agenda, invece di farla indovinare.
+##
+## ⚠️ Il numero non si ricopia di la'. Una copia del `randf_range` in
+## `Visitors` sarebbe la tabella gemella che questo progetto ha gia' pagato
+## tre volte: il giorno che si allunga la sosta, il lease resterebbe quello
+## di prima e il vicino si alzerebbe **a meta' del proprio gesto** — che e'
+## esattamente il difetto che la sosta esiste per chiudere, un gradino piu'
+## in la'.
+##
+## E' il conto alla rovescia dello STATO IN CUI SI E' ADESSO, e non va mai
+## sotto zero (un lease negativo sarebbe un'agenda zittita al contrario).
+## Chi la chiama lo fa dentro `STATO_CHE_SAZIA` — cioe' quando il corpo sta
+## gia' facendo il gesto — e li' quel conto E' la durata della posa.
+func resta_in_posa() -> float:
+	return maxf(0.0, _timer)
+
+
 func face_towards(p: Vector3) -> void:
 	var to := p - position
 	_yaw = atan2(-to.x, -to.z)
 
 
-## Va alla lavagna a scrivere il suo compleanno col gessetto.
-func go_write(pos: Vector3, look: Vector3) -> void:
+## Va alla lavagna a scrivere col gessetto: il suo compleanno, oppure —
+## dalla Fase 3 — la richiesta che ha deciso di appendere. `on_done` scatta
+## quando il gessetto si ferma, non quando parte: il biglietto compare
+## sulla lavagna nel momento in cui l'ha scritto.
+func go_write(pos: Vector3, look: Vector3, on_done := Callable()) -> void:
 	if _hidden or mode != "resident" or _state.begins_with("th") \
 			or _state.begins_with("on_") or _state == "write":
 		return
 	_write_look = look
+	_task_cb = on_done
 	_walk_to(pos, "write")
 
 
@@ -2145,6 +3104,11 @@ func set_cucciolo(c: float) -> void:
 	c = clampf(c, 0.0, 1.0)
 	if species != "chibi" or _corpo == null or absf(c - _cresc) < 0.004:
 		return
+	# LA CRESCITA VINCE SUL GESTO, e non ci si prova nemmeno a comporre: qui
+	# si scrive `_corpo.scale` in assoluto, cioè il canale che il Raccolto
+	# tiene in prestito. Si spegne PRIMA (che restituisce la scala di riposo)
+	# e poi si riscrive: nessun ordine da ricordare, nessuna base che invecchia.
+	gesto_spegni(true)
 	_cresc = c
 	# i primi giorni restano piccolissimi più a lungo, poi la crescita
 	# accelera: è la forma vera di una crescita, non una retta
@@ -2377,16 +3341,158 @@ func candidate_result(ok: bool, bed_pos: Vector3) -> void:
 
 
 ## Vero mentre una scena rara è in corso: chi lo chiede (il pannello dei
-## desideri, il saluto) si fa da parte e la lascia finire.
+## desideri, il saluto, la percezione) si fa da parte e la lascia finire.
+##
+## LE SCENE RARE SONO LA COSA PIÙ PREZIOSA DEL GIOCO, e lo sono perché sono
+## rare: il concerto al pianoforte, il coro attorno al carillon, il
+## nascondino nel bosco, il raduno al Grande Albero la sera del lutto, la
+## prima parola di un cucciolo. Ognuna succede una volta ogni tanto, ognuna
+## è scritta a mano, e ognuna dura pochi secondi in cui i corpi fanno una
+## cosa precisa. Basta che in quei secondi il giocatore posi un pezzo a nove
+## metri, e tutte le teste si girano verso il cursore: il coro canta di
+## spalle, chi è nascosto guarda fuori dal masso, e il villaggio raccolto in
+## silenzio attorno all'albero segue una staccionata.
+##
+## Perciò `apri_scena` **si chiama davvero**, da tutte e cinque — e non è
+## sempre stato così: per un pezzo l'unico chiamante era `Promesse`, cioè
+## questa valvola non proteggeva nessuna delle scene che il commento di
+## `Percezione.puo_vedere` le attribuiva.
 func in_scena() -> bool:
 	return _scena_t > 0.0
 
 
-## Apre una scena lunga «dur»: per quel tempo il vicino non saluta e non
-## chiede nulla — sta al suo appuntamento.
+## STA FACENDO IL PISOLINO: il corpo è nel mondo, ma a occhi chiusi.
+##
+## Il sonno della notte è un'ALTRA cosa e si chiede a `is_hidden()` — lì il
+## corpo rientra in casa e sparisce dal prato. Le due domande sono diverse e
+## servono tutte e due a chi deve sapere se qualcuno può aver VISTO qualcosa
+## (`Percezione.puo_vedere`): un vicino accoccolato sulla panchina è nel
+## mondo, a due passi, e non ha visto niente.
+func dorme() -> bool:
+	return _state == "tk_nap"
+
+
+## HA VISTO MOCHI FARE QUALCOSA, LÌ — e la testa si gira da quella parte.
+##
+## La chiama `Percezione._testimonia` (scenes/npc/Percezione.gd) nella riga
+## PRIMA di incidere il ricordo, e quell'ordine non è negoziabile: la testa
+## girata è la RICEVUTA, l'unica prova che il giocatore ha che la
+## conseguenza di domani ha una premessa di oggi.
+##
+## Non è uno stato e non tocca `_state`: è un livello che si stende sopra
+## qualunque cosa il corpo stia già facendo, come la pioggia addosso e come
+## le posture della ribellione. Chi ha visto continua a camminare, a
+## sedersi, a mangiare — gira la testa, e basta. Non si avvicina, non parla,
+## non smette quello che stava facendo: un villaggio in cui un gesto del
+## giocatore interrompe ventotto vite è un villaggio che non lo lascia mai
+## stare da solo.
+##
+## ────────────────────────────────────────────────────────────────────────
+## UNA RAFFICA DI GESTI È UNA RICEVUTA, NON QUARANTA
+## ────────────────────────────────────────────────────────────────────────
+##
+## `gesto` è il verbo (l'indice del ponte) e `finestra` è la FINESTRA DI
+## FUSIONE del grafo dei ricordi, che arriva dal C++ e non si ricopia qui
+## (`Percezione._cabla` → `EcsMondo.debug_grafo_costanti`).
+##
+## La ricevuta ha la stessa grammatica del RICORDO che accompagna, e non è
+## un'analogia: nel grafo, gesti uguali e ravvicinati NON fanno ricordi
+## nuovi — fondono in uno solo che si rinfresca e conta `quante`. Perciò
+## anche la testa si gira una volta per RICORDO, non una per gesto:
+##
+##  · gesto nuovo (verbo diverso, o la raffica si è interrotta più a lungo
+##    della finestra): occhiata PIENA — ed è esattamente quando nel grafo
+##    nasce un ricordo nuovo;
+##  · la raffica continua: la testa si RIALZA ogni `_tst_ritmo` secondi, e
+##    per una frazione del tempo (`RAFFICA_RIPRESA`) — l'occhiata di chi
+##    torna a guardare uno che sta ancora lavorando.
+##
+## COSA SUCCEDEVA SENZA. La costruzione non ha lucchetto (`_try_place` sta
+## su `is_action_pressed`) ed emette un gesto per PEZZO: stendendo un
+## sentiero di quaranta pietre, ogni pezzo riarmava i 3,2 s e i vicini entro
+## nove metri restavano con la testa girata verso il cursore per QUARANTADUE
+## SECONDI FILATI — il 76% del tempo, misurato. Due vicini che
+## chiacchieravano a quindici gradi l'uno dall'altro finivano a
+## cinquantacinque, cioè al tetto del collo, continuando a scambiarsi le
+## nuvolette guardando dalla parte opposta. La ricevuta smetteva di dire «ti
+## ho vista» e cominciava a dire «mi stanno fissando», sull'attività più
+## ripetuta del gioco. **La cura non è abbassare la durata**: una durata
+## corta rovinerebbe il gesto singolo, che è quello che deve leggersi.
+##
+## Il ritmo è di CIASCUNO (`_taratura_sguardo`): due vicini che guardano lo
+## stesso cantiere non si rialzano all'unisono.
+##
+## ⚠️ **TORNA SE IL RICORDO ERA NUOVO**, e non è un ritorno di comodo: è la
+## FONTE UNICA di quella distinzione. Il corpo che si ferma (`Regia`,
+## l'occasione «ha visto») deve seguire la stessa grammatica della testa —
+## una volta per RICORDO, non una per gesto — e ricalcolarla dal chiamante
+## vorrebbe dire due letture della finestra di fusione del C++, cioè due
+## numeri che un giorno divergono in silenzio. Chi la chiama senza saperne
+## niente (`gesto < 0`: i banchi, i provini) riceve `true`, che è come si è
+## sempre comportato questo canale.
+func guarda_gesto(pos: Vector3, dur: float, gesto := -1, finestra := 0.0) -> bool:
+	_taratura_sguardo()
+	# IL BERSAGLIO È SEMPRE L'ULTIMO GESTO: si guarda l'ultima cosa che è
+	# successa, che è come funzionano gli occhi.
+	_tst_pos = pos
+	var ultimo := -1.0
+	var occhiata := -1.0
+	if _tst_raffiche.has(gesto):
+		var r: Array = _tst_raffiche[gesto]
+		ultimo = float(r[0])
+		occhiata = float(r[1])
+	# `gesto < 0` = il chiamante non sa di ricordi (i corpi di prova): ogni
+	# gesto è nuovo, come prima che questa grammatica esistesse.
+	var nuova := gesto < 0 or ultimo < 0.0 or (_t - ultimo) > finestra
+	if nuova or (_t - occhiata) >= _tst_ritmo:
+		# il MASSIMO, non l'ultimo: due gesti ravvicinati non ACCORCIANO lo
+		# sguardo già in corso.
+		_tst_t = maxf(_tst_t, dur if nuova else dur * RAFFICA_RIPRESA)
+		occhiata = _t
+	_tst_raffiche[gesto] = [_t, occhiata]
+	return nuova
+
+
+## Apre una scena lunga «dur»: per quel tempo il vicino non saluta, non
+## chiede nulla e non gira la testa sui gesti di Mochi — sta al suo
+## appuntamento.
+##
+## `maxf` e non `=`: chi rinfresca una scena lunga (il concerto ogni brano,
+## il nascondino a ogni acquattamento) non deve poterla ACCORCIARE.
 func apri_scena(dur: float) -> void:
 	_scena_t = maxf(_scena_t, dur)
 	_greet_cd = maxf(_greet_cd, dur)
+	# …E IL VOCABOLARIO TACE, SUBITO. Un vicino che si ferma a pensare in
+	# mezzo al coro del carillon, o che si tira indietro di tre centimetri
+	# durante il raduno del congedo, rovina la cosa più preziosa che questo
+	# gioco abbia: le poche scene scritte a mano perché una volta ogni tanto
+	# succeda qualcosa di preciso. E le scene si aprono proprio così — su un
+	# villaggio che stava già vivendo, e magari gesticolando.
+	#
+	# ⚠️ **ONESTAMENTE: a proteggere le scene è `in_scena()` dentro
+	# `sospeso`** (`_gesto_passo`), che spegne il gesto E i due livelli al
+	# primo fotogramma e per tutta la durata. Questa riga fa una cosa più
+	# piccola, e comunque vera: lo fa **nello stesso istante**, prima che
+	# chiunque legga `gesto_in_corso()` — a cominciare da chi apre la scena,
+	# che subito dopo posa il corpo dove gli serve.
+	#
+	# Con la RAMPA e non di netto (`Gesti.SPEGNI`): il corpo rientra in tre
+	# decimi di secondo, e chi guarda vede uno che si ricompone — non un
+	# salto del rig nell'istante in cui la scena comincia.
+	gesto_spegni()
+
+
+## LA SCENA È FINITA. La chiama chi l'aveva aperta, quando si scioglie prima
+## del tempo che aveva previsto: senza, un concerto che finisce presto
+## lascerebbe il vicino sordo al villaggio per tutti i secondi che
+## avanzavano — e la percezione continuerebbe a non vederlo.
+##
+## Il saluto si riapre subito dopo (non nell'istante: `_greet_cd` scende al
+## suo valore normale, così chi esce da una scena non salta addosso a Mochi
+## nel frame in cui il coro si scioglie).
+func chiudi_scena() -> void:
+	_scena_t = 0.0
+	_greet_cd = minf(_greet_cd, 2.0)
 
 
 # i residenti salutano chi passa a trovarli
@@ -2621,13 +3727,22 @@ func _recita_togli() -> void:
 		_c_arms[0].rotation.z -= _rc_appl["az0"]
 		_c_arms[1].rotation.x -= _rc_appl["ax1"]
 		_c_arms[1].rotation.z -= _rc_appl["az1"]
-	for ear in _c_ears:
+	for i in _c_ears.size():
+		var ear: Node3D = _c_ears[i]
 		ear.rotation.x -= _rc_appl["ear"]
+		# l'orecchio destro porta anche l'ASIMMETRIA: due orecchie che si
+		# muovono al millesimo insieme sono due orecchie sullo stesso filo
+		if i == 1:
+			ear.rotation.x -= _rc_appl.get("ear_dx", 0.0)
 	if _head:
 		_head.rotation.x -= _rc_appl["hx"]
 		_head.rotation.y -= _rc_appl["hy"]
+		_head.rotation.z -= _rc_appl.get("hz", 0.0)
+		_head.position.y -= _rc_appl.get("hpy", 0.0)
 	if _vis:
 		_vis.rotation.x -= _rc_appl["vx"]
+		_vis.rotation.z -= _rc_appl.get("vrz", 0.0)
+		_vis.position.x -= _rc_appl.get("px", 0.0)
 		_vis.position.y -= _rc_appl["vy"]
 		_vis.position.z -= _rc_appl.get("vz", 0.0)
 	if _tail_p:
@@ -2724,23 +3839,860 @@ func _recita_applica(delta: float) -> void:
 	_mostra_fagotto(bool((RECITA.get(stab, {}) as Dictionary) \
 			.get("fagotto", false)))
 
+	# LA SOMMA DELLE DUE SORGENTI, e UNA SOLA RETE.
+	#
+	# La postura si fonde coi muscoli (il filtro qui sopra); il gesto ha la
+	# sua busta e **non vuole un secondo filtro** — dentro un passa-basso a
+	# 6,0 il Rialzo, che vive di 46 cm/s nel primo decimo, arriverebbe a
+	# cinque millimetri. Perciò le due sorgenti restano separate mentre si
+	# calcolano e si sommano SOLO qui, un attimo prima di toccare il rig.
+	#
+	# `_rc_cur` non va inquinato: è lo stato del filtro, e sommarci il gesto
+	# vorrebbe dire che al frame dopo la postura riparte da dove l'aveva
+	# lasciata il gesto — una deriva lentissima e invisibile.
+	var fin := _rc_cur.duplicate()
+	for c in _gs_cur:
+		if c == "r" or c == "sy":
+			continue   # il ritmo non è un canale del rig; la scala è assoluta
+		fin[c] = float(fin.get(c, 0.0)) + float(_gs_cur[c])
+	# IL ROLLIO DELL'ESPRESSIONE. `FaceController` calcola da anni un
+	# suggerimento di inclinazione del capo per ogni espressione, e finora lo
+	# leggeva **solo Mochi**: i vicini avevano la faccia giusta sul collo
+	# sbagliato. Entra da qui e non con un `+=` sparso, così se lo porta via
+	# la stessa rete di tutto il resto.
+	if _face and _state != "tk_nap":
+		fin["hz"] = float(fin.get("hz", 0.0)) + _face.head_tilt()
+
 	if _c_arms.size() == 2:
-		_c_arms[0].rotation.x += _rc_cur["ax0"]
-		_c_arms[0].rotation.z += _rc_cur["az0"]
-		_c_arms[1].rotation.x += _rc_cur["ax1"]
-		_c_arms[1].rotation.z += _rc_cur["az1"]
-	for ear in _c_ears:
-		ear.rotation.x += _rc_cur["ear"]
+		_c_arms[0].rotation.x += fin["ax0"]
+		_c_arms[0].rotation.z += fin["az0"]
+		_c_arms[1].rotation.x += fin["ax1"]
+		_c_arms[1].rotation.z += fin["az1"]
+	for i in _c_ears.size():
+		var ear: Node3D = _c_ears[i]
+		ear.rotation.x += fin["ear"]
+		if i == 1:
+			ear.rotation.x += float(fin.get("ear_dx", 0.0))
 	if _head:
-		_head.rotation.x += _rc_cur["hx"]
-		_head.rotation.y += _rc_cur["hy"]
-	_vis.rotation.x += _rc_cur["vx"]
-	_vis.position.y += _rc_cur["vy"]
+		_head.rotation.x += fin["hx"]
+		_head.rotation.y += fin["hy"]
+		_head.rotation.z += float(fin.get("hz", 0.0))
+		_head.position.y += float(fin.get("hpy", 0.0))
+	_vis.rotation.x += fin["vx"]
+	_vis.rotation.z += float(fin.get("vrz", 0.0))
+	_vis.position.x += float(fin.get("px", 0.0))
+	_vis.position.y += fin["vy"]
 	# il mezzo passo indietro: uno spostamento VERO, non un'inclinazione
-	_vis.position.z += _rc_cur["vz"]
+	_vis.position.z += fin["vz"]
 	if _tail_p:
-		_tail_p.rotation.x += _rc_cur["tail"]
-	_rc_appl = _rc_cur.duplicate()
+		_tail_p.rotation.x += fin["tail"]
+	_rc_appl = fin
+	# la scala del corpo è l'unico canale che si scrive in ASSOLUTO (vedi
+	# `_gesto_scala`): non passa dal togli/somma, ha la sua restituzione
+	_gesto_scala(float(_gs_cur.get("sy", 1.0)))
+
+
+# =========================================================================
+# IL VOCABOLARIO DEL CORPO CHE PENSA — il motore
+# =========================================================================
+#
+# Le buste stanno in `Gesti.gd`. Qui c'è il corpo, e qui c'è la RETE.
+#
+# **Ordine nel frame, e non è un dettaglio.** `_gesto_passo` gira PRIMA del
+# `match` — perché `_move_gait`, che moltiplica il ritmo, viene chiamato da
+# `_cammina` dentro il `match` — e i canali si applicano DOPO, in coda a
+# `_recita_applica`, insieme alla postura. Un solo togli, una sola somma, un
+# solo `_rc_appl`: due reti sullo stesso rig sono due reti che possono
+# divergere.
+#
+# **Nessun canale del gesto insegue la ricevuta**, e questa è una regola:
+# un inseguitore (`torso ← 0,62·_tst_off`) messo prima del `look_at` che
+# legge la torsione già tolta non ha nessuna retroazione negativa, e la
+# testa atterra fino a 24° oltre il bersaglio in regime — cioè il guasto da
+# 28,2° della Fase 5 reintrodotto. L'unico canale che guarda `_tst_t` è
+# `hy` del Largo, e lo guarda per CEDERE, non per inseguire.
+
+## IL FIATO DELL'ANZIANO, in un posto solo. `_move_gait` ferma già chi ha
+## vissuto per 1,3 s ogni 7,5: è il fermo che questo corpo aveva PRIMA che il
+## vocabolario esistesse, e batte il gettone di villaggio di venti volte.
+## Il Punto non gliene aggiunge un secondo — gli si accomoda sopra.
+const FIATO_ETA := 0.55
+const FIATO_PERIODO := 7.5
+const FIATO_DUR := 1.3
+
+## Per quanto un gesto rimasto in attesa del fiato continua ad aspettare.
+## Poco più di un periodo: se il fiato non arriva entro il giro, il momento è
+## passato e **si tace** — il silenzio è il comportamento normale.
+const GESTO_ATTESA_MAX := 8.0
+
+## Sotto questo blend non c'è un passo da spezzare: chiedere un Punto a un
+## corpo già fermo produce zero pixel, e il sistema crederebbe di aver pagato
+## una premessa che il giocatore non ha mai potuto vedere.
+const GESTO_BLEND_MIN := 0.6
+## E servono almeno TRE metri di strada davanti. Due ragioni, e la seconda è
+## quella che ha alzato il numero: un fermo a mezzo metro dall'arrivo si legge
+## come «è arrivato», non come «gli è venuto in mente»; e siccome adesso un
+## cambio di stato SPEGNE il gesto (`_enter_state`), arrivare a destinazione
+## prima della fine lo troncherebbe — un Punto costa 3,4 s, di cui due fermo,
+## e in due metri non ci si sta.
+const GESTO_STRADA_MIN := 3.0
+
+
+func _in_fiato() -> bool:
+	return _eta > FIATO_ETA and fposmod(_t, FIATO_PERIODO) < FIATO_DUR
+
+
+## QUESTO CORPO HA L'ETÀ DEL FIATO? Cioè: si ferma già da sé, e un Punto non
+## glielo ferma — glielo veste sopra. Lo chiede il duetto per sapere chi dei
+## due ha il fermo già in calendario, e lo chiede di qua invece di leggere
+## `_eta` da fuori perché la soglia è una e sta qui.
+func del_fiato() -> bool:
+	return _eta > FIATO_ETA
+
+
+## FRA QUANTO QUESTO CORPO PUÒ APRIRE UN PUNTO CHE SI VEDA, dentro la
+## finestra `[lo, hi]` — e **−1.0 se dentro quella finestra non c'è nessun
+## istante buono**.
+##
+## Per chi non ha l'età del fiato la risposta è sempre `lo`: il suo corpo
+## frena quando gli si chiede, e un istante vale l'altro.
+##
+## ⚠️ **PER UN ANZIANO NON È COSÌ, e da lì viene tutta questa funzione.** Il
+## Punto di un anziano ha `frena = false`: **non ferma il corpo**, si accomoda
+## sopra il fermo che quel corpo fa già da sé, 1,3 s ogni 7,5. Fuori dal fiato
+## quel fermo non c'è — il Punto uscirebbe lo stesso, ma sarebbe una posa
+## sopra un corpo che cammina, cioè l'adesivo. Perciò l'istante non lo sceglie
+## chi chiede: lo detta un orologio che non controlliamo, e a chi chiede resta
+## il diritto di dire «allora niente».
+##
+## È lo stesso conto di `_in_fiato()` — la finestra `FIATO_DUR` ogni
+## `FIATO_PERIODO` — guardato in avanti invece che adesso. Una sola verità sul
+## respiro dei vecchi, non due.
+func fiato_fra(lo: float, hi: float) -> float:
+	if lo > hi:
+		return -1.0
+	if _eta <= FIATO_ETA:
+		return lo
+	# dove cade `lo` dentro il ciclo del respiro
+	var f := fposmod(_t + lo, FIATO_PERIODO)
+	if f < FIATO_DUR:
+		return lo            # il fiato è già cominciato, e dura ancora
+	var prossimo := lo + (FIATO_PERIODO - f)
+	return prossimo if prossimo <= hi else -1.0
+
+
+## PERCHÉ QUESTO CORPO NON PUÒ DIRE UN PUNTO ADESSO — "" se può.
+##
+## ⚠️ **UNA FONTE, TRE LETTORI, e prima ce n'erano due che DIVERGEVANO già.**
+## Le precondizioni del Punto vivevano in `gesto()` e, riscritte a mano, nel
+## referto dei no di `Visitors.chiedi_gesto`. Le due copie si erano già
+## staccate in due punti — il referto guardava `blend <= 0.6` dove il gesto
+## guarda `< 0.6`, e metteva `_gs_viaggio` prima della strada invece che
+## dopo — così il referto poteva raccontare un no diverso da quello vero. È
+## la tabella gemella che questo progetto ha già pagato tre volte, e il terzo
+## lettore (il permesso del duetto, che deve chiedere «potresti?» **senza
+## impegnare nessuno**) l'avrebbe fatta diventare la quarta copia.
+##
+## Il nome del no È la parola del referto: chi lo legge non deve tradurre.
+func punto_impedimento() -> String:
+	if not gesto_libero():
+		return "corpo occupato"
+	# IL PUNTO VUOLE UN PASSO DA SPEZZARE. È un contrasto di MOTO: senza il
+	# moto non c'è il contrasto, e il gesto costa quanto costa senza dire
+	# niente.
+	if _state != "walk":
+		return "non cammina"
+	if _andatura == null or float(_andatura.blend) < GESTO_BLEND_MIN:
+		return "passo non a regime"
+	if _gs_viaggio:
+		return "gia' un Punto in questo viaggio"
+	if global_position.distance_to(meta_cammino()) < GESTO_STRADA_MIN:
+		return "troppo vicino all'arrivo"
+	return ""
+
+
+## Il corpo può prendersi un gesto adesso? Non è una domanda di villaggio (il
+## gettone e il riposo li tiene `Visitors`): è la domanda del CORPO.
+##
+## ⚠️ **L'UNICA ECCEZIONE AL RIFLESSO, e senza di lei il sollievo non sarebbe
+## MAI partito.** `trasalisce` dura 1,3 s e la strada lenta del Limbico
+## arriva dopo 0,4 (`Visitors.ATTESA_RICONOSCIMENTO`): il riconoscimento
+## cade sempre e comunque **dentro** il transitorio del sussulto, quindi la
+## valvola che tiene il vocabolario fuori dai riflessi avrebbe zittito per
+## sempre l'unico gesto che di quel riflesso è la seconda metà — in silenzio,
+## e con qualunque suite verde.
+##
+## Il permesso non si dà da fuori: se lo prende chi ha DAVVERO sussultato.
+## `scioglie_il_riflesso` arriva solo dal gesto che dichiara il buio, e quel
+## gesto si rifiuta comunque se `_sussulto_fresco()` è falso.
+func gesto_libero(scioglie_il_riflesso := false) -> bool:
+	if dna.is_empty() or _vis == null or _corpo == null:
+		return false
+	if _gs_nome != "" or _gs_spegni > 0.0 or _gs_attesa > 0.0:
+		return false
+	# il riflesso del Limbico sta SOPRA il vocabolario: chi sta trasalendo
+	# non si mette a pensare. (E chi dorme, chi è dentro casa, chi è a un
+	# appuntamento: le stesse tre valvole della ricevuta.)
+	if _rc_trans != "" and not (scioglie_il_riflesso and _rc_trans == "trasalisce"):
+		return false
+	if _hidden or dorme() or in_scena():
+		return false
+	return true
+
+
+## Il gesto in corso, "" se nessuno. Lo legge `Visitors` per sapere quando il
+## gettone del villaggio torna libero.
+func gesto_in_corso() -> String:
+	if _gs_nome != "":
+		return _gs_nome
+	return _gs_attesa_nome
+
+
+## CHIEDE UN GESTO. Torna false — e non fa niente — se il corpo non è nelle
+## condizioni di dirlo: **un gesto rifiutato è silenzio, mai un gesto a
+## metà**. È la regola 5 della Fase 3 («mai un piano a metà») portata al
+## corpo, e per la stessa ragione: portare il corpo a metà di una frase e
+## piantarcelo è il guasto che si vede.
+##
+## `dati` è la variazione: `tenuta`, `decisa`, `lato`, `via`, `posto`.
+## Quello che non arriva se lo prende dal GENOMA — mai da un dado: due
+## ricaricamenti e il giocatore scoprirebbe che il carattere era una monetina.
+func gesto(nome: String, dati := {}) -> bool:
+	if not gesto_libero(bool(dati.get("buio", false))) or not GESTI.e_evento(nome):
+		return false
+	var d: Dictionary = dati.duplicate()
+	_gesto_taratura()
+	match nome:
+		"punto":
+			# le precondizioni stanno in UN posto solo (`punto_impedimento`),
+			# perché hanno tre lettori: questo, il referto dei no, e il
+			# permesso del duetto che chiede «potresti?» senza impegnare
+			if punto_impedimento() != "":
+				return false
+			if not d.has("tenuta"):
+				d["tenuta"] = GESTI.PUNTO_TENUTA * (1.0 + _gs_scarto)
+			# ⚠️ **LA BATTUTA È UN DATO DEL GESTO, non un timer di chi
+			# chiama.** `fra` è fra quanti secondi questo corpo deve
+			# cominciare: zero per chi apre, un battito per chi risponde. Chi
+			# la chiede l'ha già fatta pesare da `fiato_fra()`, che sa se in
+			# quell'istante il corpo di un anziano ci sarà.
+			var fra := maxf(0.0, float(d.get("fra", 0.0)))
+			d.erase("fra")
+			# l'anziano non frena: si accomoda sopra il fermo che fa già da sé
+			if _eta > FIATO_ETA:
+				d["frena"] = false
+			# LA SALA D'ATTESA È UNA SOLA, e ci passano tutti e due i motivi
+			# per cui un Punto può non cominciare adesso: il fiato di un
+			# anziano, e il battito di chi risponde. Due sale sarebbero due
+			# stati da spegnere, e il secondo si dimenticherebbe.
+			if fra > 0.0 or (_eta > FIATO_ETA and not _in_fiato()):
+				_gs_attesa = fra if fra > 0.0 else GESTO_ATTESA_MAX
+				# ⚠️ Con `fra` la scadenza **accende**; senza, la scadenza è
+				# la rinuncia (il fiato non è arrivato in tempo, e si tace).
+				# Sono i due versi opposti dello stesso orologio, ed è per
+				# questo che il bit si chiama come la cosa che si aspetta.
+				_gs_attesa_fiato = fra <= 0.0
+				_gs_attesa_nome = nome
+				_gs_attesa_dati = d
+				return true
+			_gs_viaggio = true
+		"largo":
+			if _state != "walk":
+				return false
+			# DA CHE PARTE SI GIRA AL LARGO lo sa solo il corpo, perché è una
+			# domanda nel SUO frame: se il posto è alla sua destra, ci si
+			# scosta a sinistra. Calcolarlo da fuori vorrebbe dire ricopiare
+			# qui la convenzione del rig (che guarda −Z), ed è il segno che
+			# ha tenuto il fantasma del congedo di spalle a Mochi per mesi.
+			if not d.has("via") and d.has("posto"):
+				var v: Vector3 = d["posto"] - global_position
+				v.y = 0.0
+				# la DESTRA del corpo, scritta per esteso: una rotazione di
+				# `_yaw` attorno a Y manda l'asse X in (cos, 0, −sin). Non si
+				# usa `global_transform.basis` perché l'ordine fra il
+				# `_process` di Visitors e questo non è garantito, e la base
+				# potrebbe essere ancora quella del frame prima.
+				var destra := Vector2(cos(_yaw), -sin(_yaw))
+				# se il posto è a destra ci si scosta a sinistra, e viceversa
+				d["via"] = -1.0 if destra.dot(Vector2(v.x, v.z)) >= 0.0 else 1.0
+		"rialzo":
+			# ⚠️ **IL BUIO È UNA PRECONDIZIONE, non un commento.** Il Rialzo
+			# non si recita da solo: una scintilla senza il buio prima è una
+			# lampadina accesa a mezzogiorno. L'unica frase che lo chiede da
+			# fuori è il SOLLIEVO, e lì il buio c'è davvero — è il sussulto
+			# passato quattro decimi di secondo prima, che ha irrigidito
+			# questo stesso corpo e la cui coda somatica è ancora accesa.
+			# Chi chiede il Rialzo senza aver sussultato **non lo ottiene**,
+			# e non c'è nessun modo di scriverlo storto: la valvola legge il
+			# corpo, non un parametro di chi chiama.
+			if bool(d.get("buio", false)) and not _sussulto_fresco():
+				return false
+			if not d.has("lato"):
+				d["lato"] = 1.0 if _gs_scarto >= 0.0 else -1.0
+	_gesto_accendi(nome, d)
+	return true
+
+
+## IL SUSSULTO È APPENA SUCCESSO — e «appena» vuol dire che il corpo ce l'ha
+## ancora addosso. Due condizioni, e servono tutte e due:
+##  · la coda somatica è VIVA (le spalle sono ancora un filo più chiuse);
+##  · ed è GIOVANE. La coda vive fino a otto secondi; il sollievo è la
+##    seconda metà di un sussulto (0,4 s dopo, `ATTESA_RICONOSCIMENTO`), non
+##    il ricordo di uno spavento di sei secondi fa. Un secondo e mezzo è
+##    largo tre volte e mezzo la strada lenta, e chiuso.
+const SOLLIEVO_FINESTRA := 1.5
+
+
+func _sussulto_fresco() -> bool:
+	return _gs_soma > 0.0 and _gs_soma_t <= SOLLIEVO_FINESTRA \
+			and GESTI.coda_ampiezza(_gs_soma, _gs_soma_t) > 0.0
+
+
+## UNA FRASE del vocabolario (`Gesti.FRASI`). È l'API che usa il villaggio:
+## `gesto()` è il gesto singolo e serve ai banchi, `frase()` è quello che il
+## mondo ha da dire. La differenza non è cosmetica — la tabella delle frasi è
+## il posto in cui è scritto che **il Rialzo non si recita da solo**.
+func frase(nome: String, extra := {}) -> bool:
+	if not GESTI.FRASI.has(nome):
+		return false
+	var v: Dictionary = GESTI.FRASI[nome]
+	var d: Dictionary = (v["d"] as Dictionary).duplicate()
+	for k in extra:
+		d[k] = extra[k]
+	var ok := gesto(str(v["g"]), d)
+	# il Capo si accende INSIEME al Punto del pensiero, e si spegne quando il
+	# gesto finisce: è il rollio di chi ci sta pensando davvero, e sta dentro
+	# la tenuta perché è lì che il corpo non fa nient'altro.
+	#
+	# ⚠️ **E SI CHIEDE IL PERMESSO AL VILLAGGIO.** Quante teste inclinate si
+	# vedono insieme è una regola del MONDO (`Visitors.CAPO_MAX`: due), e
+	# questa riga la scavalcava — il registro concedeva i suoi due posti e la
+	# frase ne accendeva un terzo che nessuno contava. MISURATO nel MainLevel
+	# vero con dodici residenti e tre minuti di partita: **tre teste storte
+	# insieme per il 5,4% del tempo** (9,7 s su 180), col registro che ne
+	# dichiarava due e 282 fotogrammi di divergenza.
+	#
+	# ⚠️ **E LA FRASE PRENDE IL SUO BIT ANCHE SE LA TESTA PENDE GIÀ.** La
+	# condizione era `not _gs_capo` — «non accenderlo se è già acceso» — e con
+	# un bit solo era l'unica scritta possibile. Con due, rinunciare
+	# all'appartenenza significa che se il villaggio gli toglie il livello in
+	# mezzo al gesto la testa si raddrizza a metà di un Punto: un accento
+	# troncato, cioè l'adesivo staccato male. Il PERMESSO invece si chiede
+	# solo se comparirebbe una testa NUOVA — che è la stessa esenzione con
+	# cui `Visitors._tick_capo` concede il livello a chi ce l'ha già storto.
+	if ok and bool(d.get("capo", false)) and not _gs_capo_frase \
+			and (_gs_capo or _capo_concesso()):
+		_gs_capo_frase = true
+		_capo_aggiorna()
+	return ok
+
+
+## C'È POSTO per un'altra testa inclinata in tutto il villaggio?
+##
+## Il degrado va verso QUELLO CHE C'ERA: senza registro (un banco, un
+## provino, il diorama del titolo, il Prologo) si passa. La scarsità è del
+## villaggio, e dove non c'è villaggio non c'è folla in cui leggere una posa
+## di gruppo — è la stessa regola con cui `_nell_inquadratura` lascia passare
+## chi non ha una camera.
+func _capo_concesso() -> bool:
+	if not is_inside_tree():
+		return true
+	var reg := get_tree().get_first_node_in_group("visitors")
+	if reg == null or not is_instance_valid(reg) \
+			or not reg.has_method("capo_permesso"):
+		return true
+	return bool(reg.call("capo_permesso"))
+
+
+func _gesto_accendi(nome: String, d: Dictionary) -> void:
+	_gs_nome = nome
+	_gs_dati = d
+	_gs_t = 0.0
+	_gs_dur = GESTI.durata(nome, d)
+	_gs_debito = 0.0
+	if nome == "rialzo" and _face:
+		# l'accento del volto: uno dei due soli canali che compongono SOPRA
+		# `_expr_for_state`, che questo `_process` riscrive ogni frame
+		_face.brow_flash(0.8)
+	if nome == "rialzo" and bool(d.get("buio", false)):
+		# ⚠️ **E IL CORPO MOLLA DAVVERO.** «Il Rialzo la scioglie» era scritto
+		# nella grammatica e non lo faceva nessuno: dopo «ah… sei tu» il
+		# vicino restava guardingo — orecchie giù, passo al 72% — per altri
+		# otto secondi di posa e settantaquattro di rallentando. Il sollievo
+		# è l'unico gesto che DICHIARA di venire dopo un sussulto (e senza
+		# quel sussulto si rifiuta): è l'unico che ha il diritto di mollarlo,
+		# e sta qui perché nessun chiamante possa dimenticarselo.
+		soma_sciogli()
+
+
+## La sala d'attesa consegna. Una funzione sola perché ha DUE chiamanti (il
+## fiato e la battuta) e ricopiarne il corpo sarebbe, in piccolo, la stessa
+## tabella gemella di `punto_impedimento`.
+func _attesa_accendi() -> void:
+	var nm := _gs_attesa_nome
+	var dd := _gs_attesa_dati
+	_attesa_svuota()
+	if nm == "":
+		return
+	_gs_viaggio = true
+	_gesto_accendi(nm, dd)
+
+
+## …e il suo unico modo di svuotarsi, verso compreso: un bit lasciato indietro
+## qui è un canale orfano che si legge una volta sola, molto dopo.
+func _attesa_svuota() -> void:
+	_gs_attesa = 0.0
+	_gs_attesa_nome = ""
+	_gs_attesa_fiato = true
+
+
+## HA UNA BATTUTA IN CANNA? Vero se questo corpo ha un gesto in sala d'attesa
+## che partirà da sé. Lo legge chi deve annullare un duetto che non si può
+## più recitare: **spegnere la risposta prima che si veda non costa niente,
+## e non lasciare mai in scena metà frase.**
+func attesa_in_corso() -> bool:
+	return _gs_attesa > 0.0 and _gs_attesa_nome != ""
+
+
+## ANNULLA la battuta in canna, e SOLO quella: se il gesto è già cominciato
+## questa non lo tocca (per quello c'è `gesto_spegni`, che ha la rampa).
+func attesa_annulla() -> void:
+	if _gs_attesa > 0.0:
+		_attesa_svuota()
+
+
+## SPEGNE il gesto in corso. Di serie con la rampa (`Gesti.SPEGNI`): un taglio
+## secco è un salto del rig, cioè la firma dell'adesivo staccato male. Con
+## `subito` si taglia davvero — lo usa solo chi sta smontando il corpo.
+func gesto_spegni(subito := false) -> void:
+	_attesa_svuota()
+	if subito:
+		_gs_nome = ""
+		_gs_spegni = 0.0
+		_gs_ultimo = {}
+		_gs_cur = {}
+		_gs_r = 1.0
+		_gesto_scala(1.0)
+		return
+	if _gs_nome == "":
+		return
+	_gs_nome = ""
+	_gs_ultimo = _gs_cur.duplicate()
+	_gs_spegni = 1.0
+	# ⚠️ **E QUI NON SI SPEGNE NESSUN CAPO.** La riga c'era, e non bastava:
+	# il ramo `subito` esce quattro righe più su e quello del gesto già
+	# finito due — cioè proprio le due strade da cui il corpo viene smontato
+	# (`_monta_corpo`, l'estetista; `set_cucciolo`, ogni gradino di crescita
+	# di un cucciolo). Il rollio restava acceso PER SEMPRE, e siccome il
+	# registro del villaggio non l'aveva mai concesso, non se ne accorgeva
+	# nessuno: MISURATO col Salone vero, trentacinque secondi dopo la seduta
+	# la testa era ancora a 5,9° e continuava a rollare.
+	# Lo spegne la RETE in `_gesto_passo`, che gira per OGNI stato.
+
+
+## «CI STO PENSANDO» — il rollio del capo. È un LIVELLO: non ferma nessuno e
+## non trasla nessuno, quindi non prende il gettone del villaggio e non
+## compete con niente. Si accende su uno stato che DURA, mai su un evento.
+##
+## Questa è la porta del VILLAGGIO (`Visitors._tick_capo`): scrive il suo
+## bit e basta. Se in quel momento il rollio è acceso da una frase, spegnerlo
+## di qui non raddrizza niente — ed è giusto così, perché quella testa non è
+## sua.
+func capo_pende(on: bool) -> void:
+	if _gs_capo_liv == on:
+		return
+	_gs_capo_liv = on
+	_capo_aggiorna()
+
+
+## LA TESTA È INCLINATA ADESSO? È la domanda che fa il villaggio per contare
+## le teste vere invece di fidarsi di un registro parallelo — e si risponde
+## guardando il RIG, non i bit: una testa a cui il livello è appena stato
+## tolto è ancora storta finché la molla non è rientrata.
+func capo_storto() -> bool:
+	return _gs_capo or absf(_gs_capo_x) >= CAPO_STORTO
+
+
+## …E CE L'HA MESSA IL VILLAGGIO? Sono due domande diverse: il registro
+## governa il proprio livello e non deve poter spegnere il rollio di una
+## frase (che dura pochi secondi e finisce da sé).
+func capo_livello() -> bool:
+	return _gs_capo_liv
+
+
+## Il bit DERIVATO, e l'unico posto che lo scrive. Il fronte di salita tara
+## il genoma e fa scattare subito il primo trasferimento; quello di discesa
+## azzera il bersaglio, e la molla rientra da sé (è la sua rete).
+func _capo_aggiorna() -> void:
+	var on := _gs_capo_liv or _gs_capo_frase
+	if on == _gs_capo:
+		return
+	_gs_capo = on
+	if on:
+		_gesto_taratura()
+		_gs_capo_next = 0.35     # il primo trasferimento arriva subito
+	else:
+		_gs_capo_b = 0.0         # la molla rientra da sé: è la sua rete
+
+
+## «SONO ANCORA GUARDINGO» — i due strati somatici. `forza` è quella che
+## `Visitors._tick_sussulti` calcola già: nessun innesco nuovo.
+##
+## ⚠️ **ED È LA FORZA DELL'ALLARME, non «di una reazione».** Una gioia non ne
+## ha (`Limbico.percepisci` la misura a parte, sotto il nome di `calore`), e
+## `Visitors` la chiama solo dentro il ramo di chi ha trasalito: due guardie
+## indipendenti sulla stessa regola, perché questo livello è la faccia della
+## paura e sopra un cuoricino diceva il contrario di quel che stava
+## succedendo.
+##
+## `maxf` e non `=`: un secondo spavento dentro il primo non lo ACCORCIA.
+func somatico(forza: float) -> void:
+	forza = clampf(forza, 0.0, 1.0)
+	if forza <= 0.0:
+		return
+	_gesto_taratura()
+	if forza >= _gs_soma * exp(-_gs_soma_t / GESTI.CODA_TAU) * _soma_resto():
+		_gs_soma = forza
+		_gs_soma_t = 0.0
+		# UNA PAURA NUOVA NON ASPETTA CHE FINISCA IL SOLLIEVO DI PRIMA: senza
+		# questa riga il corpo resterebbe sordo per tutto lo scioglimento,
+		# cioè proprio nei decimi di secondo in cui il giocatore è lì.
+		_gs_soma_sciolto = -1.0
+
+
+## −1 = nessuno scioglimento in corso; altrimenti da quanti secondi è
+## cominciato.
+var _gs_soma_sciolto := -1.0
+
+
+## «AH… SEI TU» — IL CORPO MOLLA. È l'altra porta di questo livello e la
+## sorella di `somatico()`: una lo accende, questa lo lascia andare.
+##
+## Non taglia: rientra con la rampa di `Gesti.coda_rilascio`. E non è un'API
+## per chi passa di lì — la chiama il Rialzo del SOLLIEVO, che è l'unico gesto
+## del vocabolario che dichiara di venire dopo un sussulto, e che si rifiuta
+## da solo se quel sussulto non c'è stato (`_sussulto_fresco`).
+func soma_sciogli() -> void:
+	if _gs_soma <= 0.0 or _gs_soma_sciolto >= 0.0:
+		return
+	_gs_soma_sciolto = 0.0
+
+
+## Quanto resta della coda per via del rilascio in corso; 1.0 se non ce n'è.
+func _soma_resto() -> float:
+	return 1.0 if _gs_soma_sciolto < 0.0 else GESTI.coda_rilascio(_gs_soma_sciolto)
+
+
+## La fase e lo scarto personali: UNA volta, e dal genoma. Un dado tirato
+## all'avvio darebbe a ciascuno un carattere diverso a ogni ricaricamento;
+## un `randf()` in `_process` darebbe un tremolio invece di un'indole.
+func _gesto_taratura() -> void:
+	if _gs_fase != 0.0:
+		return
+	var s := int(dna.get("seed", 0))
+	if s == 0:
+		s = hash(str(dna.get("label", name)))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = absi(s) + 1451
+	_gs_fase = rng.randf_range(0.05, TAU)
+	_gs_scarto = rng.randf_range(-1.0, 1.0) * GESTI.PUNTO_TENUTA_SCARTO
+
+
+var _gs_scarto := 0.0
+var _gs_viaggio := false    # un Punto per viaggio: lo azzera `_walk_to`
+var _gs_cede := 1.0         # 1 = il Largo tiene la testa, 0 = ha ceduto
+
+
+## UN PASSO DEL VOCABOLARIO. Gira PRIMA del `match`, per OGNI stato — e
+## «per ogni stato» è tutta la rete: `_gs_r` incastrato a 0,35 dopo un
+## cambio di stato è un vicino che cammina a un terzo per il resto della
+## partita, invisibile perché nessun test guarda la velocità.
+func _gesto_passo(delta: float) -> void:
+	_gs_r = 1.0
+	# SOSPESO non è SPENTO: chi dorme non gesticola, ma quando si sveglia il
+	# livello che aveva addosso è ancora suo (è la lezione di `_recita_applica`
+	# sulla postura che si sospende invece di cancellarsi).
+	#
+	# ⚠️ **E `in_scena()` STA IN QUESTA LISTA**, che è la stessa valvola con
+	# cui la percezione protegge le sei scene scritte a mano. Durante una di
+	# quelle il corpo non è suo: è di chi ha scritto la scena. Vale per i
+	# GESTI (che `apri_scena` spegne già con la rampa) **e per i due
+	# LIVELLI** — il rallentando moltiplica `_move_gait`, cioè cambierebbe i
+	# tempi di una coreografia scritta a mano, e un capo storto in mezzo al
+	# coro del carillon è un attore che non guarda il direttore.
+	var sospeso := dna.is_empty() or _vis == null or _corpo == null \
+			or not is_instance_valid(_corpo) or _hidden or _state == "tk_nap" \
+			or in_scena()
+	if sospeso and _gs_nome != "":
+		gesto_spegni()
+	if sospeso and (_gs_attesa > 0.0):
+		_attesa_svuota()
+
+	# ⚠️ **LA RETE DEL CAPO: il rollio acceso da una frase è di QUELLA
+	# frase.** Sta qui, e non nei due o tre posti che vengono in mente, per
+	# la stessa ragione della coda delle tappe e della rete del corpo: una
+	# frase si interrompe da troppe parti — la fine naturale, il debito del
+	# ritmo, una scena che si apre, il pisolino, l'estetista che rimonta il
+	# corpo, la crescita di un cucciolo — e nessuna di quelle passa da un
+	# posto solo. I due `capo_pende(false)` scritti a mano ne coprivano due;
+	# le altre lasciavano una testa inclinata **per sempre** (MISURATO col
+	# Salone vero: 5,9° trentacinque secondi dopo, e ancora in movimento).
+	#
+	# E la domanda è `gesto_in_corso()`, non `_gs_nome`: su un ANZIANO il
+	# Punto aspetta il suo fiato (`_gs_attesa`) e per qualche decimo di
+	# secondo la frase è partita senza che nessun gesto sia acceso. Guardare
+	# il solo nome del gesto spegnerebbe il capo dei vecchi un fotogramma
+	# dopo averlo acceso — in silenzio, e solo a loro.
+	if _gs_capo_frase and gesto_in_corso() == "":
+		_gs_capo_frase = false
+		_capo_aggiorna()
+
+	var canali: Dictionary = GESTI.riposo()
+
+	# 1) L'ATTESA — il fiato di un anziano, o la battuta di chi risponde
+	if _gs_attesa > 0.0:
+		_gs_attesa -= delta
+		if _gs_attesa_fiato:
+			if _in_fiato():
+				_attesa_accendi()
+			elif _gs_attesa <= 0.0:
+				# il fiato non è arrivato in tempo: si tace, e nessuno lo sa
+				_gs_attesa_nome = ""
+		elif _gs_attesa <= 0.0:
+			# LA BATTUTA È SCADUTA, E LA SCADENZA ACCENDE. È il verso opposto
+			# del fiato, e non è una simmetria mancata: là si aspetta una cosa
+			# che può non arrivare, qui si aspetta un orologio.
+			_attesa_accendi()
+
+	# 2) L'EVENTO
+	if _gs_nome != "" and not sospeso:
+		_gs_t += delta
+		canali = GESTI.bersagli(_gs_nome, _gs_t, _gs_dati, _gs_fase)
+		_gs_debito += (1.0 - float(canali["r"])) * delta * GESTI.VELOCITA_METRO
+		if _gs_debito > GESTI.DEBITO_MAX:
+			# la rete del ritmo: mai un corpo che cammina a un terzo per sempre
+			gesto_spegni()
+			canali = GESTI.riposo()
+		elif _gs_t >= _gs_dur:
+			# il rollio del pensiero finisce col pensiero, e a spegnerlo è la
+			# RETE qui sopra: al prossimo fotogramma `gesto_in_corso()` è
+			# vuoto. Un secondo posto che lo spegne sarebbe un secondo posto
+			# da ricordarsi.
+			_gs_nome = ""
+			_gs_cur = {}
+			canali = GESTI.riposo()
+		elif _gs_nome == "largo":
+			canali["hy"] = _gesto_largo_testa(float(canali["hy"]), delta)
+
+	# 3) LA RAMPA di chi è stato troncato
+	if _gs_spegni > 0.0:
+		_gs_spegni = maxf(0.0, _gs_spegni - delta / GESTI.SPEGNI)
+		var f := _gs_spegni * _gs_spegni * (3.0 - 2.0 * _gs_spegni)
+		for c in canali:
+			var molt: bool = (c == "r" or c == "sy")
+			var vecchio := float(_gs_ultimo.get(c, 1.0 if molt else 0.0))
+			if molt:
+				canali[c] *= lerpf(1.0, vecchio, f)
+			else:
+				canali[c] += vecchio * f
+		if _gs_spegni <= 0.0:
+			_gs_ultimo = {}
+
+	# 4) I DUE LIVELLI, in coda: un livello non si tronca, e non è mai
+	#    dentro la rampa di un evento (sono cose diverse, e comporle
+	#    vorrebbe dire che spegnere un gesto spegne anche l'allerta).
+	#
+	# ⚠️ **MA NON SI STACCANO DI NETTO, ed è il difetto che questa riga
+	# chiude.** «Un livello non si tronca» era vero e ha fatto concludere la
+	# cosa sbagliata: che allora non gli servisse nessuna rampa. Un livello
+	# non finisce mai da sé — ma il MONDO glielo toglie di mano di continuo
+	# (una scena scritta a mano, il pisolino, il rientro in casa), e finché
+	# `applica` era un booleano quel passaggio di mano era un fotogramma.
+	# MISURATO sul rig vero, coi due livelli addosso, aprendo una scena:
+	# **0,4158 rad in un fotogramma sull'orecchio destro** — ventiquattro
+	# gradi — e 0,3974 all'uscita. Il tetto che lo stesso banco impone a un
+	# GESTO troncato è 0,030. L'evento aveva la sua rampa dal primo giorno; i
+	# livelli, che sono i canali più grossi del vocabolario, no.
+	var mira := 0.0 if sospeso else 1.0
+	var rampa := GESTI.LIVELLI_RAMPA
+	if not debug_gesti.is_empty():
+		rampa = maxf(0.02, float(debug_gesti.get("rampa", rampa)))
+	_gs_liv = move_toward(_gs_liv, mira, delta / rampa)
+	# smoothstep e non lineare: una rampa lineare non salta, ma ha uno
+	# spigolo di velocità ai due estremi — e uno spigolo su un canale da
+	# mezzo radiante si vede come un piccolo scatto in coda al grande.
+	var gl := _gs_liv * _gs_liv * (3.0 - 2.0 * _gs_liv)
+	_gesto_capo(delta, canali, gl, not sospeso)
+	# ⚠️ **E L'OROLOGIO DELLA CODA GIRA ANCHE DA SOSPESI.** Un livello
+	# sospeso che non invecchia non è sospeso: è in PAUSA, e riemerge intatto
+	# quando la sospensione finisce. La coda somatica vive otto secondi
+	# (`Gesti.CODA_VITA`); una notte di sonno o un concerto di dieci minuti
+	# la ritrovavano viva dall'altra parte — cioè un vicino che riprende a
+	# essere guardingo per uno spavento di dieci minuti prima, senza nessuna
+	# premessa che il giocatore possa avere ancora in mente. Il tempo passa
+	# per tutti: si aggiorna sempre, si APPLICA per la frazione che è ancora
+	# sua.
+	_gesto_soma(delta, canali, gl)
+
+	# 5) IL RITMO, con la sua ultima rete: fuori da questa forbice non c'è
+	#    niente che il vocabolario abbia il permesso di chiedere.
+	_gs_r = clampf(float(canali["r"]), 0.0, 1.25)
+	_gs_cur = canali
+
+
+## Il rollio del capo: una sequenza di TRASFERIMENTI con una molla
+## sottosmorzata, non un `sin`. Fra un trasferimento e l'altro non succede
+## niente — ed è l'immobilità a rendere leggibile il trasferimento.
+##
+## Il passo è SOTTO-CAMPIONATO a 120 Hz fisso: con k=170 (ω = 13 rad/s) un
+## Eulero semi-implicito a 20 fotogrammi al secondo dà una forma diversa da
+## uno a 144, e «la deriva del += su una base non riscritta» è già costata a
+## questo progetto un canale che passava da 9,6° a 46°.
+## `guadagno` è la rampa dei livelli (0 = il corpo non è suo); `avanza` dice
+## se la molla deve girare. **Sono due cose diverse e vanno tenute diverse**:
+## durante la rampa d'uscita il corpo non decide più dove guardare — la molla
+## è ferma dov'era — ma quello che ha addosso se ne va gradualmente. Farle
+## coincidere vorrebbe dire far rientrare la molla a zero durante la scena,
+## cioè inventare un trasferimento che non c'è.
+func _gesto_capo(delta: float, canali: Dictionary, guadagno: float,
+		avanza: bool) -> void:
+	if avanza:
+		if _gs_capo:
+			_gs_capo_next -= delta
+			if _gs_capo_next <= 0.0:
+				_gs_capo_verso = -_gs_capo_verso
+				_gs_capo_b = GESTI.capo_bersaglio(_t, _gs_fase, _gs_capo_verso)
+				_gs_capo_next = GESTI.capo_intervallo(_t, _gs_fase)
+		elif absf(_gs_capo_x) < 0.0005 and absf(_gs_capo_v) < 0.005:
+			_gs_capo_x = 0.0
+			_gs_capo_v = 0.0
+		if _gs_capo or _gs_capo_x != 0.0 or _gs_capo_v != 0.0:
+			var resto := minf(delta, 0.25)
+			while resto > 0.0:
+				var h := minf(resto, 1.0 / 120.0)
+				_gs_capo_v += (GESTI.CAPO_K * (_gs_capo_b - _gs_capo_x)
+						- GESTI.CAPO_C * _gs_capo_v) * h
+				_gs_capo_x += _gs_capo_v * h
+				resto -= h
+	if guadagno > 0.0 and _gs_capo_x != 0.0:
+		canali["hz"] = float(canali["hz"]) + _gs_capo_x * guadagno
+		# …E LA SAGOMA. Il rollio è la parola di questo livello a due metri;
+		# a nove metri la parola è la testa che scende fra le spalle. Va
+		# insieme al rollio e non per conto suo: nasce con lui, rientra con
+		# lui (`_gs_capo_x` torna a zero da sé) e non lascia un canale
+		# orfano da spegnere in un secondo posto.
+		canali["hpy"] = float(canali["hpy"]) \
+				+ GESTI.capo_affondo(_gs_capo_x) * guadagno
+
+
+## I due strati somatici. Il veloce (la coda) deve decadere PIÙ IN FRETTA del
+## proprio riarmo — 6,0 s contro i 9,0 del cooldown del sussulto — o resta
+## acceso il 100% del tempo su chiunque il giocatore sfiori camminando, che è
+## il livello monotono che la regola dei livelli vieta.
+func _gesto_soma(delta: float, canali: Dictionary, guadagno: float) -> void:
+	if _gs_soma <= 0.0:
+		return
+	_gs_soma_t += delta
+	# IL RILASCIO moltiplica la FORZA, e da lì scende in tutti e due gli
+	# strati: la posa e il rallentando mollano insieme, senza una seconda
+	# composizione da tenere allineata. E il suo orologio gira anche da
+	# sospesi, come quello della coda — un rilascio in pausa che riemerge
+	# intatto dopo un concerto è un corpo che si scioglie senza nessuno che
+	# lo stia guardando.
+	var forza := _gs_soma
+	if _gs_soma_sciolto >= 0.0:
+		_gs_soma_sciolto += delta
+		forza *= GESTI.coda_rilascio(_gs_soma_sciolto)
+	var r := GESTI.soma_ritmo(forza, _gs_soma_t)
+	var a := GESTI.coda_ampiezza(forza, _gs_soma_t)
+	if a <= 0.0 and r > 0.995:
+		_gs_soma = 0.0
+		_gs_soma_t = 0.0
+		_gs_soma_sciolto = -1.0
+		return
+	if guadagno <= 0.0:
+		return
+	# il RITMO passa dalla rampa come tutto il resto: è il canale che
+	# cambierebbe i tempi di una coreografia scritta a mano, e restituirlo di
+	# colpo è un corpo che accelera del 28% in un fotogramma.
+	canali["r"] = float(canali["r"]) * lerpf(1.0, r, guadagno)
+	if a <= 0.0:
+		return
+	var c: Dictionary = GESTI.coda_canali(a, _t, _gs_fase, debug_gesti)
+	for k in c:
+		if k == "r":
+			continue
+		if k == "sy":
+			canali["sy"] = lerpf(1.0, float(c["sy"]), guadagno) * float(canali["sy"])
+		else:
+			canali[k] = float(canali[k]) + float(c[k]) * guadagno
+
+
+## LA TESTA DEL LARGO. `Gesti` restituisce una FRAZIONE (0…0,55): solo qui si
+## sa dov'è il posto, e solo qui si sa che il collo ha un tetto.
+##
+## E qui — solo qui — un canale del gesto guarda `_tst_t`, per CEDERE: se
+## arriva una ricevuta vera, il vicino smette di guardare la catasta e guarda
+## quello che Mochi sta facendo a due metri da lui. Il degrado va sempre
+## verso il comportamento che c'era già.
+func _gesto_largo_testa(frazione: float, delta: float) -> float:
+	_gs_cede = lerpf(_gs_cede, 0.0 if _tst_t > 0.0 else 1.0,
+			1.0 - exp(-6.0 * delta))
+	var posto: Vector3 = _gs_dati.get("posto", Vector3.ZERO)
+	if posto == Vector3.ZERO:
+		return 0.0
+	var v := posto - global_position
+	v.y = 0.0
+	if v.length_squared() < 0.0025:
+		return 0.0
+	var tetto := tetto_ricevuta()
+	var ang := clampf(wrapf(atan2(-v.x, -v.z) - _yaw, -PI, PI), -tetto, tetto)
+	return frazione * ang * _gs_cede
+
+
+## LA SCALA DEL CORPO — l'unico canale che si scrive in ASSOLUTO, e per una
+## ragione precisa: `_vis.scale` ha CINQUE tween addosso (l'ingresso, il
+## sonno, il risveglio, il congedo, il pasto) e l'ordine del frame è
+## `process_frame → _process → tween`, quindi un togli additivo su un valore
+## posato da un tween lo corrompe. `_corpo.scale` ha **un solo scrittore**,
+## `set_cucciolo`, e sta fuori dal `_process`.
+##
+## Il volume si conserva: `y × f` e `xz × f^(−½)`. Un corpo che si comprime si
+## ALLARGA; uno che si rimpicciolisce e basta è un errore di scala, e si legge
+## come tale in un decimo di secondo.
+func _gesto_scala(f: float) -> void:
+	if _corpo == null or not is_instance_valid(_corpo):
+		_gs_scala_nodo = null
+		return
+	if absf(f - 1.0) < 0.0005:
+		if _gs_scala_nodo != null:
+			if is_instance_valid(_gs_scala_nodo) and _gs_scala_nodo == _corpo:
+				_corpo.scale = _gs_scala_riposo
+			_gs_scala_nodo = null
+		return
+	if _gs_scala_nodo != _corpo:
+		_gs_scala_nodo = _corpo
+		_gs_scala_riposo = _corpo.scale
+	var lat := pow(maxf(f, 0.05), -0.5)
+	_corpo.scale = Vector3(_gs_scala_riposo.x * lat, _gs_scala_riposo.y * f,
+			_gs_scala_riposo.z * lat)
+
+
+## SOLO PER I PROVINI: posa i canali del vocabolario in assoluto — senza
+## busta, senza tempo — e li applica con **lo scrittore vero**, cioè lo stesso
+## `_recita_applica` che gira in partita.
+##
+## Serve al cancello del verso (`tools/provino_verso.gd`), che deve poter
+## confrontare `+A` con `−A`: **`−A` non è un gesto del gioco**, è la
+## controprova — girare il capo dalla parte opposta, allungare invece di
+## comprimere. Un provino che se lo disegnasse da sé misurerebbe il proprio
+## disegnatore; da qui invece misura il rig.
+func debug_posa(canali: Dictionary) -> void:
+	_recita_togli()
+	_gs_cur = canali.duplicate()
+	# delta grande apposta: il filtro della POSTURA si posa in un colpo, così
+	# quello che resta sul rig è il gesto e nient'altro
+	_recita_applica(1.0)
 
 
 ## Il fagottino del trasloco: bastone sulla spalla, sacchetto annodato.
@@ -2818,3 +4770,35 @@ func _mostra_fagotto(serve: bool) -> void:
 		var tw := create_tween()
 		tw.tween_property(f, "scale", Vector3.ONE * 0.05, 0.3)
 		tw.tween_callback(f.queue_free)
+
+
+## IL CORPO INDOSSA LA CHIMICA — l'unica riga che rende visibile il modello.
+##
+## ⚠️ **Senza di lei sono 247 righe di codice morto.** `FaceController` e
+## `Andatura` avevano tutto scritto e provato — corrugatore col cortisolo,
+## pupille con la dopamina, blush con l'ossitocina, rimbalzo con l'adenosina,
+## coda con la serotonina — e **nessun chiamante in tutto il gioco**.
+## MISURATO: sessanta secondi di cammino, dieci canali del rig, il corpo
+## usciva **bit-identico** a quello di prima del commit (scarto 0.0000000000).
+## Un sistema completo, provato, verde, e mai eseguito: la forma di guasto
+## che questo progetto ha gia' pagato tre volte.
+##
+## La chiama `Visitors` una volta per fotogramma, con i canali VERI — non
+## ri-derivati da `arousal`/`umore`/`regolazione`, che e' il modo in cui un
+## livello si prende il corpo di un altro.
+func indossa_neuro(neuro: Dictionary) -> void:
+	# ⚠️ **SENZA CHIMICA SI TORNA A RIPOSO, non si resta all'ultimo valore.**
+	# E' la stessa regola dei canali orfani del rig: un corpo che perde chi
+	# gli scriveva un canale ci resta incollato per sempre. Qui capita per
+	# davvero — il diorama del titolo e il Prologo non hanno `Visitors`, e un
+	# corpo rimontato dall'estetista riparte da zero.
+	if neuro.is_empty():
+		if _andatura != null:
+			_andatura.reset_neuro()
+		if _face != null:
+			_face.reset_neuro()
+		return
+	if _andatura != null:
+		_andatura.set_neuro(neuro)
+	if _face != null:
+		_face.set_neuro(neuro)

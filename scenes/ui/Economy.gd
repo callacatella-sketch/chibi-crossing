@@ -42,6 +42,10 @@ const SHOP_PIECES := [
 	# silhouette diverse valgono piu' di tre copie della stessa.
 	{"name": "Cesto fiorito", "cost": 70, "cur": "nut", "cat": 2,
 		"desc": "Un cesto di vimini intrecciato a mano, colmo di fiori di campo:\nmargherite, campanule che pendono e achillea."},
+	{"name": "Fioriera bistrot", "cost": 85, "cur": "nut", "cat": 2,
+		"desc": "Avorio laccato e verde salvia, coi gerani in mazzo:\nquella dei caffè coi tavolini fuori."},
+	{"name": "Fioriera selvatica", "cost": 60, "cur": "nut", "cat": 2,
+		"desc": "Una cassa rustica che il prato si è ripreso:\nerba alta, fiori misti e l'edera che scende."},
 	{"name": "Fontana", "cost": 150, "cur": "nut", "cat": 2,
 		"desc": "Una fontanella tonda con lo zampillo che canta."},
 	{"name": "Gazebo", "cost": 240, "cur": "nut", "cat": 0,
@@ -88,6 +92,8 @@ const SHOP_PIECES := [
 		"desc": "La boutique del paese, tutta intera: la vetrina che di\nsera illumina la strada, gli stender, i camerini con la\ntenda pesante e lo specchio a tre ante."},
 	{"name": "Serra", "cost": 520, "cur": "nut", "cat": 2,
 		"desc": "Un giardino di vetro: col suo tepore, orto e fiori\ncrescono anche sotto la neve."},
+	{"name": "Palo lucine", "cost": 210, "cur": "nut", "cat": 2,
+		"desc": "Paletti da piantare dove vuoi. Fra due che si vedono\nil filo si tende da solo: più lontani li metti, più\nlampadine ci stanno. Il disegno lo fai tu."},
 	{"name": "Mongolfiera", "cost": 650, "cur": "nut", "cat": 2,
 		"desc": "Una mongolfiera a strisce, ormeggiata in giardino.\nDondola nel vento e non parte mai senza di te."},
 ]
@@ -229,6 +235,10 @@ const CORREDO := {
 	# LA BOUTIQUE: si compra la vetrina e arriva il negozio intero. Un
 	# negozio di vestiti con lo stender e senza camerino non è mezzo
 	# negozio: è un magazzino.
+	# I PALI DEL FESTONE: si compra il palo delle lampadine e arrivano
+	# anche quello dei lampioncini e quello delle bandierine. Con una
+	# veste sola non si comporrebbe niente: il bello è alternarle.
+	"Palo lucine": ["Palo lanterne", "Palo bandierine"],
 	"Vetrina moda": ["Insegna boutique", "Manichino", "Busto sartoriale",
 			"Stender", "Tavolo piegati", "Scaffale a giorno", "Camerino",
 			"Specchiera", "Cassa boutique", "Poltroncina", "Cesto saldi",

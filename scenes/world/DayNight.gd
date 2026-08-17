@@ -80,6 +80,9 @@ const SEA_FOG_ADD := [0.0, -0.0003, 0.0018, 0.0016]
 const SEA_AMB := [Color(1.0, 1.0, 1.0), Color(1.02, 1.0, 0.97),
 		Color(1.07, 1.0, 0.89), Color(0.92, 0.96, 1.06)]
 
+# la temperatura stagionale di base (°C): primavera mite, estate calda, autunno fresco, inverno freddo
+const SEA_TEMP := [18.0, 26.5, 14.5, 3.5]
+
 # lo stato-stagione, ricalcolato a ogni nuovo giorno (non a ogni frame)
 var _season := -99
 var _snow := 0.0
@@ -92,6 +95,7 @@ var _g_skyhor := Color(1, 1, 1)
 var _g_fog := Color(1, 1, 1)
 var _g_fog_add := 0.0
 var _g_amb := Color(1, 1, 1)
+var _g_temp := 18.0
 
 var _sun: DirectionalLight3D
 var _moon: DirectionalLight3D
@@ -286,6 +290,7 @@ func _grade_season() -> void:
 	_g_fog = _blend_season_color(SEA_FOG)
 	_g_fog_add = _blend_season_float(SEA_FOG_ADD)
 	_g_amb = _blend_season_color(SEA_AMB)
+	_g_temp = _blend_season_float(SEA_TEMP)
 
 
 ## Ricalcola stagione, neve e grading dal giorno corrente. Se la stagione
@@ -555,3 +560,46 @@ func _apply() -> void:
 		_fireflies.emitting = night
 		if _cozy and _cozy.has_method("set_night"):
 			_cozy.set_night(night)
+
+	# ⚠️ **IL CIELO NON SPINGE PIU' NIENTE A NESSUNO, e ci si guadagna due
+	# volte.** Qui c'era un `imposta_ambiente` verso il gruppo `ecs_mondo`,
+	# ogni fotogramma, con le tre formule RICOPIATE dalle funzioni qui sotto
+	# — che nel frattempo avevano un solo chiamante: se stesse. Due copie
+	# della stessa aritmetica, e la copia stava dentro `_apply`, che gira a
+	# ogni frame.
+	#
+	# Adesso il cielo si limita a SAPERE (`parametri_ambientali()`), e chi ha
+	# bisogno del mondo se lo legge quando gli serve — `Visitors` una volta
+	# per fotogramma, non ventotto. E' anche il verso giusto della
+	# dipendenza: il tempo atmosferico non deve conoscere chi lo respira.
+
+
+## Restituisce la temperatura percepita attuale (°C)
+func temperatura_ambiente() -> float:
+	var a := (time - 0.25) * TAU
+	var elev := sin(a)
+	return _g_temp + elev * 3.5 - weather_gloom * 3.0
+
+
+## Restituisce il livello di illuminazione ambientale (0.0 .. 1.0)
+func luce_ambiente() -> float:
+	var a := (time - 0.25) * TAU
+	var elev := sin(a)
+	var day_f := smoothstep(-0.18, 0.22, elev)
+	var moon_e: float = _moon.light_energy if _moon else 0.0
+	return clampf(day_f * (1.0 - weather_gloom * 0.45) + (moon_e / 0.32) * 0.12, 0.0, 1.0)
+
+
+## Restituisce l'intensità della pioggia / copertura (0.0 .. 1.0)
+func pioggia_ambiente() -> float:
+	return clampf(weather_gloom, 0.0, 1.0)
+
+
+## Dizionario completo dei parametri ambientali attuali
+func parametri_ambientali() -> Dictionary:
+	return {
+		"temperatura": temperatura_ambiente(),
+		"luce": luce_ambiente(),
+		"pioggia": pioggia_ambiente(),
+		"ora": time,
+	}

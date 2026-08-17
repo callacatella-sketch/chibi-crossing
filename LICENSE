@@ -34,6 +34,56 @@ Third-party components included in this repository (for example godot-cpp
 and the lua-gdextension addon) remain under their own licenses; see
 THIRD_PARTY_NOTICES.md. Godot Engine is not covered by this license.
 
+--------------------------------------------------------------------------
+THE GEMMA LANGUAGE MODEL — WHICH THE WORK DOES NOT SHIP
+--------------------------------------------------------------------------
+
+The Work contains no machine-learning model weights, and no copy of Gemma is
+distributed with it.
+
+The Work can optionally use Google's Gemma model ("Gemma") to write some of
+its text while you play, locally on your own machine. If — and only if — you
+turn that feature on, the Work downloads one copy of Gemma from a third-party
+repository (huggingface.co) onto your own computer, at your request and for
+you. The copyright holder of the Work does not supply, host or distribute
+Gemma, and the game works fully without it: the hand-written text is there
+and stays there.
+
+Gemma is NOT part of the Work and is NOT licensed under this license — not
+before you download it, and not after, when the file sits in the game's own
+folder on your disk. Gemma is provided under and subject to the Gemma Terms
+of Use found at ai.google.dev/gemma/terms.
+
+You become bound by those Terms through the act of downloading or using
+Gemma (Gemma Terms of Use, preamble). That is why the Work shows you those
+Terms, and asks you to accept them, BEFORE it downloads anything. Copies of
+the Terms and of the Gemma Prohibited Use Policy travel with the Work, in the
+"Licenze" folder next to the game and readable in Settings -> Legal notices.
+
+Nothing in this license restricts, or is intended to restrict, any right you
+have in Gemma under the Gemma Terms of Use. If this license and the Gemma
+Terms of Use disagree as to Gemma, the Gemma Terms of Use prevail.
+
+USE RESTRICTIONS (binding). As a condition of your use of the Work together
+with Gemma, you must not use Gemma or any Model Derivative:
+  - for the restricted uses set out in the Gemma Prohibited Use Policy at
+    ai.google.dev/gemma/prohibited_use_policy; or
+  - in violation of applicable laws and regulations.
+This is not a redistribution term: the Work redistributes nothing. It is
+here because the Gemma Prohibited Use Policy binds not only whoever uses
+Gemma but also whoever "allow[s] others to use" it — and the Work is what
+puts Gemma into your hands.
+
+Google claims no rights in the text Gemma generates on your machine, and you
+are solely responsible for that text and its subsequent use (Gemma Terms of
+Use, Section 3.3). The copyright holder of the Work makes no warranty as to
+generated text, which is produced on your device and is not reviewed by
+anyone before you read it.
+
+Gemma and Google are trademarks of Google LLC. The Work is not affiliated
+with, sponsored by, or endorsed by Google; those names are used only to say
+which model the Work can use.
+
 THE WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM,
 DAMAGES OR OTHER LIABILITY ARISING FROM THE WORK OR ITS USE.
@@ -73,6 +123,58 @@ I componenti di terze parti inclusi in questo repository (per esempio
 godot-cpp e l'addon lua-gdextension) restano soggetti alle rispettive
 licenze: vedi THIRD_PARTY_NOTICES.md. Il motore Godot non è coperto da
 questa licenza.
+
+--------------------------------------------------------------------------
+IL MODELLO GEMMA — CHE L'OPERA NON SPEDISCE
+--------------------------------------------------------------------------
+
+L'Opera non contiene pesi di modelli di apprendimento automatico, e con essa
+non viene distribuita nessuna copia di Gemma.
+
+L'Opera può, se vuoi, usare il modello Gemma di Google («Gemma») per
+scrivere una parte dei suoi testi mentre giochi, in locale sulla tua
+macchina. Se — e soltanto se — accendi quella funzione, l'Opera scarica UNA
+copia di Gemma da un repository di terzi (huggingface.co) sul tuo computer,
+su tua richiesta e per te. Il titolare del copyright dell'Opera non fornisce,
+non ospita e non distribuisce Gemma; e senza Gemma il gioco è intero: i testi
+scritti a mano ci sono e restano.
+
+Gemma NON fa parte dell'Opera e NON è concesso in licenza da questa licenza —
+né prima che tu lo scarichi, né dopo, quando il file sta nella cartella del
+gioco sul tuo disco. Gemma è fornito ai sensi dei Gemma Terms of Use,
+reperibili su ai.google.dev/gemma/terms.
+
+Quei Termini ti vincolano per il fatto stesso di scaricare o di usare Gemma
+(Gemma Terms of Use, preambolo). È per questo che l'Opera te li mostra, e ti
+chiede di accettarli, PRIMA di scaricare qualunque cosa. Una copia dei
+Termini e della Gemma Prohibited Use Policy viaggia con l'Opera, nella
+cartella «Licenze» accanto al gioco e leggibile in Impostazioni -> Note
+legali.
+
+Nulla in questa licenza limita, né intende limitare, i diritti che i Gemma
+Terms of Use ti riconoscono su Gemma. In caso di contrasto fra questa
+licenza e i Gemma Terms of Use riguardo a Gemma,
+prevalgono i Gemma Terms of Use.
+
+VINCOLI D'USO (vincolanti). Quale condizione dell'uso dell'Opera insieme a
+Gemma, non puoi usare Gemma né alcun Model Derivative:
+  - per gli usi vietati dalla Gemma Prohibited Use Policy, reperibile su
+    ai.google.dev/gemma/prohibited_use_policy; né
+  - in violazione di leggi e regolamenti applicabili.
+Non è una clausola di ridistribuzione: l'Opera non ridistribuisce niente.
+Sta qui perché la Gemma Prohibited Use Policy vincola non solo chi usa Gemma,
+ma anche chi «allow[s] others to use» — e l'Opera è ciò che ti mette Gemma
+fra le mani.
+
+Google non rivendica alcun diritto sul testo che Gemma genera sulla tua
+macchina, e di quel testo e dei suoi usi successivi rispondi unicamente tu
+(Gemma Terms of Use, Sezione 3.3). Il titolare del copyright dell'Opera non
+presta alcuna garanzia sul testo generato, che nasce sul tuo dispositivo e
+non è riletto da nessuno prima che tu lo legga.
+
+Gemma e Google sono marchi di Google LLC. L'Opera non è affiliata a Google,
+né sponsorizzata o approvata da Google: quei nomi compaiono solo per dire
+QUALE modello l'Opera può usare.
 
 L'OPERA È FORNITA "COSÌ COM'È", SENZA GARANZIE DI ALCUN TIPO, ESPRESSE O
 IMPLICITE. IN NESSUN CASO IL TITOLARE DEL COPYRIGHT SARÀ RESPONSABILE PER

@@ -1,0 +1,207 @@
+==============================================================================
+  NOTICE
+==============================================================================
+
+Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms
+
+==============================================================================
+
+The sentence above is the notice text set out in the Gemma Terms of Use,
+Section 3.1, point 4, and is reproduced word for word. Everything below is
+context added by the maker of this game.
+
+  WHY IT IS STILL HERE, NOW THAT NOTHING IS REDISTRIBUTED. Section 3.1
+  attaches its four conditions to reproducing or Distributing Gemma. This
+  game does neither: it ships no weights, hosts none, and serves none - if
+  you turn the feature on, YOUR computer fetches one copy from a third-party
+  repository. The four conditions therefore have no recipients to bite on.
+  The sentence is kept anyway, because it costs one line, it is true, and if
+  the question "is fetching-on-your-behalf a form of distribution?" is ever
+  answered the other way, the artefact is already where it would need to be.
+
+  NON MANDARLA A CAPO. E' l'unica riga di questo file che deve restare una
+  riga sola: la Sezione 3.1 chiede un file che CONTENGA quella frase, e una
+  frase spezzata su due righe non e' piu' quella stringa. Ci sono due guardie
+  che la cercano per intero - tests/cases/test_licenze.gd e il passo «Le
+  licenze sono DENTRO i pacchetti?» di .github/workflows/release.yml - e
+  diventano rosse se qualcuno la riformatta. (Andava gia' a capo alla prima
+  stesura: se ne e' accorto il banco, non la rilettura.)
+
+  DO NOT re-wrap the line above. It must stay a single line.
+
+La frase qui sopra e' l'avviso previsto dai Gemma Terms of Use, Sezione 3.1,
+punto 4, ed e' riportata parola per parola. Tutto quello che segue e' contesto
+aggiunto da chi fa questo gioco.
+
+
+------------------------------------------------------------------------------
+NOTHING IS SHIPPED HERE / QUI NON VIAGGIA NESSUN MODELLO
+------------------------------------------------------------------------------
+
+EN  This package contains NO model weights. Chibi Crossing is a complete game
+    without them: every letter, every thought, every line the villagers say
+    has a hand-written version, and that is what you read unless you decide
+    otherwise.
+
+    If you turn on "The village thinks", the game downloads ONE file onto
+    your own computer, once:
+
+      Model            Gemma 3 4B IT (instruction tuned)
+      File             gemma-3-4b-it-Q4_K_M.gguf  (saved as pensieri.gguf)
+      Size             2 489 757 856 bytes (about 2.5 GB)
+      Format           GGUF, 4-bit K-quant (Q4_K_M)
+      Original model   google/gemma-3-4b-it  -  Google DeepMind
+      Downloaded from  huggingface.co/ggml-org/gemma-3-4b-it-GGUF
+      Licence declared in the file itself, key `general.license`: "gemma"
+
+    The file is downloaded unmodified, and Chibi Crossing does not train,
+    fine-tune, quantise, prune, merge or otherwise alter Gemma. The 4-bit
+    quantisation is the one published by ggml-org, derived from
+    google/gemma-3-4b-it. Before the game opens it, it checks that the file
+    is byte-for-byte the expected one (SHA-256).
+
+    Gemma Terms of Use, Section 1.1(c): "Gemma" means those weights
+    "regardless of the source that you obtained it from". Fetching the file
+    from a third-party repository therefore does not change which terms
+    apply to it, or to you.
+
+IT  Questo pacchetto NON contiene nessun modello. Chibi Crossing e' un gioco
+    intero senza: ogni lettera, ogni pensiero, ogni frase dei vicini ha una
+    versione scritta a mano, ed e' quella che leggi se non decidi altrimenti.
+
+    Se accendi «Il villaggio pensa», il gioco scarica UNA volta un file sul
+    tuo computer: la quantizzazione a 4 bit di Gemma 3 4B IT di Google
+    DeepMind pubblicata da ggml-org su huggingface.co (2 489 757 856 byte,
+    circa 2,5 GB). Il file si scarica senza modifiche - non lo addestriamo,
+    non lo rifiniamo, non lo quantizziamo, non lo alteriamo in alcun modo -
+    e prima di aprirlo il gioco verifica che sia byte per byte quello atteso
+    (SHA-256).
+
+
+------------------------------------------------------------------------------
+WHAT GOES OVER THE NETWORK / COSA PASSA DALLA RETE
+------------------------------------------------------------------------------
+
+EN  Once, if you ask for it: a download of about 2.5 GB from huggingface.co
+    and the content-delivery network it redirects to. Like any download, it
+    shows those servers your IP address and the fact that something was
+    requested. Nothing is uploaded: not your village, not your save file,
+    not the names you chose, not a single word you or the model wrote.
+
+    After that download, the feature makes no network connection at all. The
+    model runs on your machine and its text never leaves it. If you never
+    turn the feature on, the game makes no connection for it at all.
+
+IT  Una volta sola, e solo se lo chiedi tu: uno scaricamento di circa 2,5 GB
+    da huggingface.co e dalla rete di distribuzione a cui rimanda. Come ogni
+    scaricamento, quei server vedono il tuo indirizzo IP e il fatto che
+    qualcosa e' stato chiesto. Non viene caricato niente: ne' il tuo
+    villaggio, ne' il salvataggio, ne' i nomi che hai scelto, ne' una sola
+    parola scritta da te o dal modello.
+
+    Dopo quello scaricamento la funzione non apre nessuna connessione. Il
+    modello gira sulla tua macchina e il suo testo non la lascia mai. E se
+    la funzione non l'accendi, il gioco non apre nessuna connessione per lei.
+
+
+------------------------------------------------------------------------------
+THE DOCUMENTS NEXT TO THIS ONE / I DOCUMENTI ACCANTO A QUESTO
+------------------------------------------------------------------------------
+
+  Gemma-Terms-of-Use.txt            the Agreement, in full
+  Gemma-Prohibited-Use-Policy.txt   the Prohibited Use Policy, in full,
+                                    incorporated by reference into the
+                                    Agreement by its Section 3.2
+
+Both are copies of the documents published by Google at ai.google.dev. Google
+may update them; the authoritative version is always the one online.
+
+EN  They travel with the game although the game distributes no weights,
+    because the game is the only place you will be shown them. The
+    repository the file comes from carries neither a copy of the Agreement
+    nor a notice; Google's own repository does show the licence and asks you
+    to agree, and the game asks you in its place, before it downloads.
+
+IT  Viaggiano col gioco anche se il gioco non distribuisce nessun peso,
+    perche' il gioco e' l'unico posto in cui ti verranno mostrati: il
+    repository da cui il file arriva non porta ne' una copia dell'accordo ne'
+    un avviso. Il repository di Google, invece, la licenza te la mostra e ti
+    chiede di accettarla - e il gioco te la chiede al posto suo, prima di
+    scaricare.
+
+
+------------------------------------------------------------------------------
+USE RESTRICTIONS - THIS APPLIES TO YOU / VINCOLI D'USO - VALGONO ANCHE PER TE
+------------------------------------------------------------------------------
+
+EN  Gemma and Model Derivatives are subject to the use restrictions in
+    Section 3.2 of the Gemma Terms of Use, which incorporate by reference the
+    Gemma Prohibited Use Policy, found at:
+
+        https://ai.google.dev/gemma/prohibited_use_policy
+
+    and reproduced in full in the file Gemma-Prohibited-Use-Policy.txt next
+    to this one.
+
+    In plain words: you must not use Gemma - including the copy this game
+    fetches for you - for the restricted uses listed in the Prohibited Use
+    Policy, and you must not use it in violation of applicable laws and
+    regulations. You are bound by the Gemma Terms of Use through the act of
+    downloading or using Gemma (see their preamble), which is why the game
+    shows them to you and asks you to accept them first. The same
+    restriction is written as a binding term in the licence agreement for
+    this game (see LICENSE, section "The Gemma language model").
+
+    Google claims no rights in the text this model generates on your machine
+    (Section 3.3), and you are responsible for it.
+
+IT  Gemma e i Model Derivatives sono soggetti ai vincoli d'uso della Sezione
+    3.2 dei Gemma Terms of Use, che richiamano la Gemma Prohibited Use
+    Policy, reperibile su https://ai.google.dev/gemma/prohibited_use_policy e
+    riportata per intero nel file Gemma-Prohibited-Use-Policy.txt accanto a
+    questo.
+
+    In parole semplici: non puoi usare Gemma - inclusa la copia che questo
+    gioco scarica per te - per gli usi vietati dalla Prohibited Use Policy,
+    ne' in violazione di leggi e regolamenti applicabili. I Gemma Terms of
+    Use ti vincolano per il fatto stesso di scaricare o di usare Gemma (vedi
+    il loro preambolo): per questo il gioco te li mostra e ti chiede di
+    accettarli prima. Lo stesso vincolo e' scritto come clausola vincolante
+    nella licenza di questo gioco (vedi LICENSE, sezione «Il modello Gemma»).
+
+    Google non rivendica alcun diritto sul testo che il modello genera sulla
+    tua macchina (Sezione 3.3), e di quel testo rispondi tu.
+
+
+------------------------------------------------------------------------------
+NO ENDORSEMENT / NESSUNA APPROVAZIONE
+------------------------------------------------------------------------------
+
+EN  Gemma and Google are trademarks of Google LLC. Chibi Crossing is not
+    affiliated with, sponsored by or endorsed by Google. The names are used
+    only to say WHICH model the game can use. Gemma Terms of Use, Section
+    4.2, grants no trademark rights.
+
+IT  Gemma e Google sono marchi di Google LLC. Chibi Crossing non e' affiliato
+    a Google, ne' sponsorizzato o approvato da Google: i nomi compaiono solo
+    per dire QUALE modello il gioco puo' usare.
+
+
+------------------------------------------------------------------------------
+HOW THIS GAME USES THE MODEL / COME QUESTO GIOCO USA IL MODELLO
+------------------------------------------------------------------------------
+
+EN  Some of the text you read in Chibi Crossing - letters, thoughts, small
+    remarks by the villagers - may be written by this model while you play,
+    on your own machine, if you have chosen to download it. It is written
+    there and then, and nobody reads it before you do. If the model is
+    absent, if you never asked for it, or if your computer does not have the
+    free memory to hold it, the game runs exactly as it always does, with
+    the hand-written text.
+
+IT  Una parte del testo che leggi in Chibi Crossing - lettere, pensieri,
+    piccole frasi dei vicini - puo' essere scritta da questo modello mentre
+    giochi, sulla tua macchina, se hai scelto di scaricarlo. Nasce li' per
+    li', e non lo rilegge nessuno prima di te. Se il modello non c'e', se non
+    l'hai mai chiesto, o se il computer non ha la memoria libera per tenerlo,
+    il gioco funziona esattamente come sempre, con i testi scritti a mano.

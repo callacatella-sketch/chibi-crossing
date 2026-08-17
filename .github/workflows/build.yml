@@ -9,7 +9,10 @@ name: Build del cuore C++ (Windows + macOS + Linux)
 
 on:
   push:
-    branches: [main]
+    # anche i rami di lavoro: il ramo Windows del SConstruct non e'
+    # verificabile da un Mac, e scoprire che non compila DOPO il merge su
+    # main vuol dire scoprirlo sul ramo principale. Qui si scopre prima.
+    branches: [main, 'claude/**', 'ecs/**']
     paths:
       - 'src/**'
       - 'SConstruct'
@@ -49,10 +52,16 @@ jobs:
               bin/libchibi_crossing.linux.template_debug.x86_64.so
               bin/libchibi_crossing.linux.template_release.x86_64.so
     steps:
-      - name: Checkout (con submodule godot-cpp)
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
+
+      # I sottomoduli si tirano giu' a mano, e SOLO quelli che servono. Da
+      # quando c'e' llama.cpp (Fase 5, `src/thirdparty/llama.cpp`) un
+      # `submodules: recursive` porterebbe 200 MB di motore di inferenza dentro
+      # ogni job che compila il gioco SENZA di lui — cioe' dentro tutti tranne
+      # uno. Qui serve godot-cpp e basta.
+      - name: Sottomodulo godot-cpp
+        run: git submodule update --init --depth 1 godot-cpp
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -74,3 +83,88 @@ jobs:
           name: bin-${{ matrix.name }}
           path: ${{ matrix.artifacts }}
           if-no-files-found: error
+
+  # --------------------------------------------------------------------------
+  # FASE 5 — la stessa cosa con `llm=yes`, cioe' con llama.cpp dentro.
+  #
+  # E' un job SUO, non una riga in piu' nella matrice di sopra, per due ragioni:
+  # la build normale (quella che finisce nel gioco) non deve aspettare venti
+  # minuti di ggml, e i binari che escono di qui NON vanno pubblicati come
+  # artifact — non sono il gioco, sono la prova che il terreno regge.
+  #
+  # Il ramo win32 del SConstruct non e' verificabile da un Mac, e questa fase ci
+  # aggiunge il rischio piu' brutto che ci sia: il CRT. Il nostro ramo compila
+  # con il runtime C statico (/MT, il default di cl.exe e la scelta di
+  # godot-cpp), CMake parte da quello dinamico (/MD), e due meta' con CRT
+  # diversi si fermano al link con LNK2038. Se succede, il rimedio e' una
+  # variabile: `llm_msvc_crt=MultiThreadedDLL`.
+  # --------------------------------------------------------------------------
+  build-llm:
+    name: Compila con llama.cpp (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows
+            os: windows-latest
+            scons_args: platform=windows
+          - name: macos
+            os: macos-latest
+            scons_args: platform=macos arch=universal
+          - name: linux
+            os: ubuntu-latest
+            scons_args: platform=linux
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Il SHA a cui e' pinnato llama.cpp
+        id: pin
+        shell: bash
+        run: echo "sha=$(git ls-tree HEAD src/thirdparty/llama.cpp | awk '{print $3}')" >> "$GITHUB_OUTPUT"
+
+      # `shallow = true` sta in .gitmodules: si porta a casa il SHA pinnato e
+      # basta (40 MB di storia invece di 436).
+      - name: Sottomoduli (godot-cpp + llama.cpp)
+        run: git submodule update --init --depth 1 godot-cpp src/thirdparty/llama.cpp
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      # Ninja esplicito: senza, CMake sceglie il generatore di default e su
+      # Windows sarebbe Visual Studio, che si tira dietro un toolset SUO invece
+      # di quello che SCons ha gia' configurato. Il compilatore dev'essere lo
+      # STESSO delle due meta' che poi si linkano insieme.
+      - name: Installa SCons e Ninja
+        run: python -m pip install --upgrade pip scons ninja
+
+      # La compilazione di ggml + llama e' la parte lunga (centinaia di file) e
+      # dipende solo dal SHA pinnato e dalle opzioni: si tiene da parte. La
+      # chiave contiene il SConstruct perche' e' li' che vivono le opzioni.
+      - name: Cache della build di llama.cpp
+        uses: actions/cache@v4
+        with:
+          # Solo le librerie INSTALLATE, non le centinaia di megabyte di
+          # oggetti: il timbro nel SConstruct guarda proprio queste due cose
+          # (`inst/lib` pieno + `timbro.json` che combacia) e salta tutto il
+          # resto senza nemmeno chiamare cmake.
+          path: |
+            src/thirdparty/llm-build/*/inst
+            src/thirdparty/llm-build/*/timbro.json
+          key: llm-${{ matrix.name }}-${{ steps.pin.outputs.sha }}-${{ hashFiles('SConstruct') }}
+
+      - name: Build debug (llm=yes)
+        run: scons ${{ matrix.scons_args }} target=template_debug llm=yes -j4
+
+      - name: Build release (llm=yes)
+        run: scons ${{ matrix.scons_args }} target=template_release llm=yes -j4
+
+      # Non e' un'asserzione, e' un numero da guardare: il cuore con llama
+      # dentro pesa qualche megabyte in piu' di quello senza. Se pesasse uguale,
+      # il linker avrebbe buttato via tutto.
+      - name: Quanto pesa il cuore con llama dentro
+        shell: bash
+        run: ls -la bin/

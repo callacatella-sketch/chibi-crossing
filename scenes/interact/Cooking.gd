@@ -61,7 +61,9 @@ var _inventory: Node
 ## La dispensa del villaggio: {"carota": n, …}. Persistita.
 var pantry := {}
 
-## La porzione avanzata: {"name", "art", "warm"} — da regalare.
+## La porzione avanzata: {"name", "art", "warm", "cuoco"} — da regalare.
+## `cuoco` c'è solo se l'ha cucinata un vicino: è il nome DNA di chi l'ha
+## fatta, e serve a chi la mangia per sapere a chi dire grazie.
 var held_dish := {}
 
 var _near: Node3D
@@ -116,7 +118,13 @@ func add_ingredient(kind: String, n: int) -> int:
 ## bancone, se il bancone è libero). Solo ricette con ingredienti veri:
 ## un tè d'acqua fresca non conta come giornata di lavoro.
 ## Ritorna il nome del piatto, o "" se la dispensa non basta.
-func cook_by_villager() -> String:
+## `cuoco` è il nome DNA di chi ha cucinato e viaggia DENTRO la ciotola: il
+## libro mastro degli affetti è indicizzato per nome, e la riga d'affetto la
+## scrive chi il piatto se lo MANGIA — così a chi va il gesto lo decide il
+## giocatore portando la ciotola, non una classifica calcolata dal gioco.
+## Vuoto (il piatto cucinato dal giocatore) = nessuna riga, mai: il giocatore
+## non ha bisogno di comprarsi le amicizie degli altri.
+func cook_by_villager(cuoco := "") -> String:
 	for recipe in RECIPES:
 		if (recipe["need"] as Dictionary).is_empty() or not _can_cook(recipe):
 			continue
@@ -124,11 +132,16 @@ func cook_by_villager() -> String:
 			pantry[kind] = int(pantry.get(kind, 0)) - int(recipe["need"][kind])
 		if held_dish.is_empty():
 			held_dish = {"name": String(recipe["name"]).to_lower(),
-					"art": recipe["art"], "warm": recipe["warm"]}
+					"art": recipe["art"], "warm": recipe["warm"], "cuoco": cuoco}
 		if _inventory:
+			# la firma va su ENTRAMBE le copie della porzione (il bancone e le
+			# Tasche): sono due canali della STESSA ciotola, e chi la riceve può
+			# arrivare da tutti e due. Persiste gratis — `add_dish` fa
+			# `duplicate(true)` e `take_dish` restituisce la voce intera.
 			_inventory.add_dish({
 				"id": String(recipe["name"]).to_lower().replace(" ", "_"),
 				"name": recipe["name"], "art": recipe["art"], "warm": recipe["warm"],
+				"cuoco": cuoco,
 				"tags": INV.dish_tags(recipe["warm"], recipe["need"]),
 				"icon": DISH_ICON.get(recipe["name"], "zuppa")})
 		_build.request_save()
@@ -244,6 +257,9 @@ func _choose_recipe(i: int) -> void:
 	for kind in recipe["need"]:
 		pantry[kind] = int(pantry.get(kind, 0)) - int(recipe["need"][kind])
 	get_tree().call_group("regista", "note", "cucina")
+	# `_near` è il camino su cui si sta cucinando: la guardia in cima alla
+	# funzione lo ha già verificato non nullo, insieme agli ingredienti.
+	get_tree().call_group("percezione", "accaduto", "cucina", _near.global_position)
 	_menu_open = false
 	_menu.visible = false
 	if _sfx:

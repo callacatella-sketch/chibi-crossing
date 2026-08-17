@@ -163,6 +163,9 @@ func _unhandled_input(event: InputEvent) -> void:
 func _plant(bed: Node3D, con_mochi := true) -> void:
 	_busy = true
 	get_tree().call_group("regista", "note", "giardino")
+	# …e chi era nel prato lo VEDE (scenes/npc/Percezione.gd): gira la testa
+	# adesso, e domani sceglie questa aiuola invece di un'altra.
+	get_tree().call_group("percezione", "accaduto", "semina", bed.global_position)
 	var b: Dictionary = _beds[bed]
 	b["stage"] = 0
 	b["watered"] = false
@@ -279,6 +282,7 @@ func _seed_burst(from: Vector3, to: Vector3) -> void:
 func _water(bed: Node3D) -> void:
 	_busy = true
 	get_tree().call_group("regista", "note", "giardino")
+	get_tree().call_group("percezione", "accaduto", "annaffia", bed.global_position)
 	var b: Dictionary = _beds[bed]
 	b["watered"] = true
 	if _survival:
@@ -329,6 +333,7 @@ func _water(bed: Node3D) -> void:
 func _harvest(bed: Node3D, con_mochi := true) -> void:
 	_busy = true
 	get_tree().call_group("regista", "note", "giardino")
+	get_tree().call_group("percezione", "accaduto", "raccoglie", bed.global_position)
 	var b: Dictionary = _beds[bed]
 	var crop := String(b["crop"])
 	b["stage"] = -1

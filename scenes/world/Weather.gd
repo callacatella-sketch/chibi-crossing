@@ -90,6 +90,21 @@ func _vento_target() -> float:
 	return forza_del_vento(_state, _snowing, _misty)
 
 
+## IL VENTO DI ADESSO — e questa è la sua unica casa. Il numero che di qui
+## parte verso gli shader (il globale `vento_forza`) è lo stesso che
+## leggono le corde vive e il rimbalzello: chi lo vuole lo chiede QUI.
+##
+## In particolare non lo si riprende dal RenderingServer:
+## `global_shader_parameter_get()` è una lettura da EDITOR e a runtime NON
+## RISPONDE — misurato nel MainLevel vero col cielo a 1.786, torna `<null>`
+## — lasciando un errore per fotogramma nel log (1710 righe in quattro
+## minuti) e 283 µs di fotogramma buttati a ogni chiamata. Le corde vive lo
+## facevano a ogni `_process`: hanno dondolato nella brezza del sereno
+## anche sotto l'acquazzone, per quanto è vecchia quella riga.
+func vento() -> float:
+	return _vento
+
+
 ## Vero mentre la nebbiolina del mattino d'autunno avvolge il villaggio:
 ## la finestra per le eventuali specie della nebbia (bestiario).
 func is_misty() -> bool:
@@ -154,10 +169,6 @@ func _process(delta: float) -> void:
 	# nebbia. Si arriva sempre per gradi: un vento che scatta si vede.
 	_vento = lerpf(_vento, _vento_target(), 1.0 - exp(-0.5 * delta))
 	RenderingServer.global_shader_parameter_set("vento_forza", _vento)
-	# e le CORDE VIVE lo ricevono per posta invece di chiederlo al
-	# RenderingServer: leggerlo a runtime e' una funzione da editor
-	# (avviso a ogni frame, e torna null — le corde sentivano una costante)
-	get_tree().call_group("corde_vive", "set_vento", _vento)
 
 	# la nebbiolina: mattine d'autunno serene; il sole alto la scioglie
 	var ora := float(_daynight.get("time")) if _daynight else 0.5

@@ -34,12 +34,33 @@ extends Node3D
 ## AGGIUNGE il movimento, non si ripara l'assenza.
 
 const FISICA := preload("res://scenes/world/CordaFisica.gd")
+## Il cielo: è lui che dice quanto tira il vento, e lo dice a tutti da un
+## posto solo (vedi Weather.vento()).
+const METEO := preload("res://scenes/world/Weather.gd")
 
 ## Sotto questo movimento la mesh non si riscrive: nessun occhio lo vede
 ## e la ImmediateMesh è l'unico costo vero del sistema.
 const SOGLIA_SONNO := 0.0004
 ## Il fianco di Mochi: quanto «ingombra» passando fra le corde.
 const RAGGIO_MOCHI := 0.42
+## I pesi che SPARPAGLIANO le fasi (vedi `_fase_di`): di quanto avanza
+## la fase per ogni metro di mondo. Non sono numeri a caso — sono tarati
+## sulla CELLA del villaggio, che è di due metri (GridManager): una cella
+## di scarto porta la fase avanti di 0.618 di giro in x e di 0.755 in z,
+## cioè i passi del girasole. È la stessa spaziatura che dava il vecchio
+## `id * 0.618`, ma ancorata al POSTO invece che al contatore delle
+## allocazioni. Un peso razionale (mezzo giro per cella, un quarto)
+## rimetterebbe in sincrono file intere di corde: questi non richiudono
+## mai il giro.
+const SPARPAGLIA_MONDO := Vector3(0.3090169944, 0.2849201455, 0.3774388331)
+## I due capi in locale: è ciò che distingue le due corde sorelle
+## dell'altalena, che il posto nel mondo ce l'hanno identico (i loro
+## attacchi distano 32 cm, e bastano a mandarle a mezzo giro l'una
+## dall'altra).
+const SPARPAGLIA_CAPI := Vector3(0.7548776662, 0.4655712318, 0.5698402910)
+## E il VERSO: due corde tese fra gli stessi due punti ma in direzione
+## opposta hanno lo stesso centro e la stessa somma dei capi.
+const SPARPAGLIA_VERSO := Vector3(0.3819660113, 0.2469796037, 0.6180339887)
 ## Ogni quanto si torna a cercare corde nuove (i pezzi si piazzano e si
 ## tolgono): il segnale placed_changed fa da campanello, questo è la rete.
 const RICENSIMENTO := 4.0
@@ -56,13 +77,10 @@ var vento_forzato := -1.0
 
 
 func _ready() -> void:
-	# il meteo spedisce qui il vento (set_vento): serve il gruppo
-	add_to_group("corde_vive")
 	# i vicini di MainLevel arrivano dopo: si aggancia in differita, e il
 	# censimento riprova comunque a ogni giro (lezione del Taccuino)
 	(func() -> void:
-		_player = get_node_or_null("../Player")
-		_weather = get_node_or_null("../Weather")
+		_aggancia()
 		var build := get_tree().get_first_node_in_group("build_system")
 		if build and build.has_signal("placed_changed"):
 			build.connect("placed_changed", func() -> void: _ricenso = RICENSIMENTO)
@@ -86,10 +104,24 @@ func _riduci_animazioni() -> bool:
 	return s != null and bool(s.get("reduce_motion"))
 
 
+## Il giocatore e il cielo. Si RIPROVA a ogni censimento: un riferimento
+## preso una volta sola e trovato null resta null per sempre (lezione del
+## Taccuino), e un cielo perso lascerebbe le corde nella brezza del sereno
+## anche sotto l'acquazzone — senza che niente lo dica.
+func _aggancia() -> void:
+	if not is_inside_tree():
+		return
+	if not is_instance_valid(_player):
+		_player = get_node_or_null("../Player")
+	if not is_instance_valid(_weather):
+		_weather = get_node_or_null("../Weather")
+
+
 ## Il censimento: ogni nodo nuovo del gruppo diventa uno stato vivo.
 func _censisci() -> void:
 	if not is_inside_tree():
 		return
+	_aggancia()
 	for nodo in get_tree().get_nodes_in_group("corda_viva"):
 		registra(nodo)
 
@@ -122,7 +154,7 @@ func registra(nodo: Node) -> void:
 		"seg": seg, "ancore": ancore,
 		"raggio": float(m.get("raggio", 0.01)), "lati": int(m.get("lati", 6)),
 		"vento": float(m.get("vento", 1.0)),
-		"fase": fmod(float(nodo.get_instance_id()) * 0.618, TAU),
+		"fase": _fase_di(nodo, a, b),
 		"peso_fondo": float(m.get("peso_fondo", 0.0)),
 		"id": nodo.get_instance_id(),
 		"appesi": _risolvi(nodo, m.get("appesi", [])),
@@ -132,6 +164,48 @@ func registra(nodo: Node) -> void:
 		"larghezza": float(m.get("larghezza", 0.0)),
 		"sveglia": true,
 	})
+
+
+## LA FASE DELLA CORDA — a che punto sta, del suo giro di turbolenza,
+## quando il mondo comincia. Serve a una cosa sola: due corde vicine non
+## devono ondeggiare in sincrono (orologi incommensurabili, come sempre
+## in questo progetto).
+##
+## Veniva da `get_instance_id()`, ed era un guasto silenzioso: quello è
+## un contatore di PROCESSO, e cambia con la storia delle allocazioni. La
+## stessa corda, nello stesso villaggio, allo stesso frame, ondeggiava
+## diversa a ogni avvio — la stessa foto del catalogo e lo stesso provino
+## non si potevano rifare uguali. (Ed è così che `test_corde.gd` è
+## diventato ballerino: a fisica identica misurava ogni corsa una corda
+## diversa. Il rapporto acquazzone/nebbia ballava fra 1.44 e 2.23, e la
+## soglia scelta a occhio — 1.5 — stava DENTRO quella forbice: rosso una
+## volta su quattro, sempre e solo lì.)
+##
+## Ora la fase viene DA DOVE LA CORDA STA: il posto nel mondo (che due
+## pezzi uguali in due celle diverse non condividono) più i suoi due capi
+## in locale (che le due corde sorelle dell'altalena non condividono).
+## Misurato su 36 lucine piantate a due metri di passo: nessuna fase
+## ripetuta, e fra le corde VICINE (entro tre metri, quelle che si
+## guardano insieme) la coppia più somigliante sta a 49 gradi di fase.
+##
+## E qui c'è la sorpresa, uscita rimettendo il contatore per vedere se il
+## test nuovo diventava davvero rosso: il vecchio `id * 0.618` non teneva
+## le corde fuori sincrono NEANCHE PRIMA. Il passo di 0.618 sparpaglia le
+## istanze CONSECUTIVE, ma fra la corda di una lucina e quella della
+## lucina accanto ci sta in mezzo un intero albero di nodi, e gli id
+## saltano di decine: la distanza di fase tornava a essere un dado.
+## Misurato: due lucine vicine a 0.073 rad, e — peggio — le DUE CORDE
+## DELL'ALTALENA a 0.063 rad l'una dall'altra, cioè quattro gradi, cioè
+## un seggiolino appeso a due corde che ondeggiano insieme. Adesso stanno
+## a mezzo giro. Le corde restano fuori sincrono, e il villaggio si
+## ripete uguale.
+func _fase_di(nodo: Node, a: Vector3, b: Vector3) -> float:
+	var dove := Vector3.ZERO
+	if nodo is Node3D and nodo.is_inside_tree():
+		dove = (nodo as Node3D).global_position
+	var giro := dove.dot(SPARPAGLIA_MONDO) + (a + b).dot(SPARPAGLIA_CAPI) \
+			+ (b - a).dot(SPARPAGLIA_VERSO)
+	return fposmod(giro, 1.0) * TAU
 
 
 func _risolvi(nodo: Node, voci: Array) -> Array:
@@ -155,10 +229,20 @@ func passo(delta: float) -> void:
 
 	var vivi: Array = []
 	for c in _corde:
-		var nodo: MeshInstance3D = c["nodo"]
-		if not is_instance_valid(nodo):
+		# SI CONTROLLA PRIMA DI ASSEGNARE. Mettere un'istanza già liberata
+		# in una variabile TIPIZZATA è di per sé un errore di runtime
+		# («Trying to assign invalid previously freed instance»), e un
+		# errore qui interrompe `passo` a metà: da quel frame in poi tutte
+		# le corde del villaggio smettono di respirare, e la voce morta
+		# resta in `_corde` per sempre perché la riga che la dimentica sta
+		# sotto quella che esplode. Con `is_instance_valid(nodo)` DOPO
+		# l'assegnazione la guardia non veniva mai raggiunta.
+		# (Prima non si vedeva quasi mai: le corde si liberano solo
+		# togliendo un pezzo. I festoni si rifanno a ogni palo piantato.)
+		if not is_instance_valid(c["nodo"]):
 			_censite.erase(c["id"])   # il pezzo è stato tolto: si dimentica
 			continue
+		var nodo: MeshInstance3D = c["nodo"]
 		vivi.append(c)
 		var inv: Basis = nodo.global_transform.basis.inverse()
 		var punti: Array = c["punti"]
@@ -204,25 +288,27 @@ func passo(delta: float) -> void:
 		_ridisegna(c3)
 
 
-## LA FORZA DEL VENTO, senza chiedere al RenderingServer.
-## `global_shader_parameter_get` e' una funzione DA EDITOR: a runtime Godot
-## stampa «This function should never be used outside the editor, it can
-## severely damage performance» a OGNI FRAME — migliaia di righe che
-## nascondono gli errori veri in ogni provino — e per giunta torna null,
-## quindi le corde sentivano una costante e non il vento. Il valore lo
-## scrive Weather con set_vento(): qui si legge la copia locale.
-var _vento_locale := 1.0
-
-
-## Il meteo pubblica qui la sua forza del vento (0 = bonaccia).
-func set_vento(f: float) -> void:
-	_vento_locale = maxf(0.0, f)
-
-
+## Quanto tira il vento, adesso. La fonte è UNA — `Weather.vento()` — ed è
+## lo stesso numero che il cielo manda agli shader.
+##
+## Qui prima c'era `RenderingServer.global_shader_parameter_get("vento_forza")`:
+## la stessa informazione ripresa dal server di rendering invece che da chi
+## la scrive. È una lettura da EDITOR, e a runtime Godot la rifiuta con un
+## errore per fotogramma («This function should never be used outside the
+## editor») — e soprattutto NON RISPONDE: misurata nel MainLevel vero, col
+## cielo a 1.786, quella chiamata torna `<null>`. Il ramo che si prendeva
+## era sempre l'altro, cioè `1.0`: **ogni corda del villaggio ha dondolato
+## nella brezza del sereno anche sotto l'acquazzone**, e la suite non se ne
+## accorgeva perché i test passano da `vento_forzato`. Non rimetterla: il
+## vento si CHIEDE al cielo.
 func _forza_vento() -> float:
 	if vento_forzato >= 0.0:
 		return vento_forzato
-	return _vento_locale
+	if is_instance_valid(_weather) and _weather.has_method("vento"):
+		return float(_weather.call("vento"))
+	# senza cielo (i test, i provini, il diorama del titolo) resta la
+	# brezza del sereno — e a dire quanto vale è comunque Weather
+	return METEO.forza_del_vento("clear", false, false)
 
 
 func _stato_di(nodo: Node) -> Dictionary:
@@ -235,9 +321,9 @@ func _stato_di(nodo: Node) -> Dictionary:
 ## Il sedile dell'altalena: appeso ai fondi delle due corde, orientato
 ## come le corde lo tengono — non il contrario.
 func _siedi(ca: Dictionary, cb: Dictionary) -> void:
-	var sedile: Node3D = ca["solidale"]
-	if sedile == null or not is_instance_valid(sedile):
+	if not is_instance_valid(ca["solidale"]):
 		return
+	var sedile: Node3D = ca["solidale"]
 	var pa: Array = ca["punti"]
 	var pb: Array = cb["punti"]
 	var fa: Vector3 = pa[pa.size() - 1]
@@ -257,15 +343,16 @@ func _ridisegna(c: Dictionary) -> void:
 	FISICA.scrivi_tubo(nodo.mesh, c["punti"], c["raggio"], c["lati"])
 	var punti: Array = c["punti"]
 	for ap in c["appesi"]:
-		var seguace: Node3D = ap["nodo"]
-		if not is_instance_valid(seguace):
+		# vedi la nota in `passo`: prima si controlla, poi si assegna
+		if not is_instance_valid(ap["nodo"]):
 			continue
+		var seguace: Node3D = ap["nodo"]
 		seguace.position = FISICA.campiona(punti, float(ap["t"])) \
 				+ Vector3(0, -float(ap.get("giu", 0.0)), 0)
 	for ti in c["tiranti"]:
-		var cil: Node3D = ti["nodo"]
-		if not is_instance_valid(cil):
+		if not is_instance_valid(ti["nodo"]):
 			continue
+		var cil: Node3D = ti["nodo"]
 		var cima: Vector3 = FISICA.campiona(punti, float(ti["t"]))
 		var fondo: Vector3 = ti["fondo"]
 		var asse: Vector3 = cima - fondo
