@@ -84,6 +84,7 @@ func _draw() -> void:
 		"pesce": _jar_pesce()
 		"bestiola": _jar_bestiola()
 		"sagoma": _jar_sagoma()
+		"reperto": _reperto()
 		_: _bacca()
 
 
@@ -356,6 +357,26 @@ func _campanella() -> void:
 	_ell(0.66, 0.36, 0.045, 0.03, Color(0.99, 0.96, 0.89))
 	_circle(0.5, 0.72, 0.05, bordo)
 	_stroke([Vector2(0.5, 0.24), Vector2(0.5, 0.16)], bordo, 0.045)
+
+
+func _reperto() -> void:
+	# il piccolo involto della Stratigrafia: UN disegno per tutti i
+	# reperti — le cose che la terra ha custodito arrivano avvolte in un
+	# fagottino di stoffa chiara, col nodo in cima e un'ombra calda. Cosa
+	# c'è dentro lo dice la scheda, non l'icona: è il pacchetto, non il
+	# contenuto, a fare «reperto».
+	var stoffa := Color("f0e2c6")
+	var bordo := Color("c2a071")
+	_ell(0.5, 0.87, 0.27, 0.055, Color(0.48, 0.34, 0.2, 0.28))   # l'ombra calda
+	_ell(0.5, 0.62, 0.27, 0.24, stoffa, bordo, 0.028)            # il corpo
+	# le pieghe della stoffa, che salgono verso il collo
+	_stroke([Vector2(0.36, 0.74), Vector2(0.46, 0.46)], bordo, 0.018)
+	_stroke([Vector2(0.64, 0.74), Vector2(0.54, 0.46)], bordo, 0.018)
+	_stroke([Vector2(0.5, 0.8), Vector2(0.5, 0.5)], Color(bordo, 0.55), 0.016)
+	# il nodo: le due orecchie di stoffa e il giro che le stringe
+	_ell(0.4, 0.3, 0.1, 0.065, stoffa, bordo, 0.024)
+	_ell(0.6, 0.3, 0.1, 0.065, stoffa, bordo, 0.024)
+	_ell(0.5, 0.37, 0.07, 0.05, stoffa, bordo, 0.024)
 
 
 # ---------------------------------------------------------------- collezione (barattoli)

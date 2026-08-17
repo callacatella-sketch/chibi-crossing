@@ -203,6 +203,97 @@ const T := {
 	"da oltre la cascata": "from beyond the waterfall",
 	"dissotterrata nel prato": "dug up in the meadow",
 
+	# ------------------------------------- i reperti della Stratigrafia
+	# Le schede nuove di Inventory.TREASURES (name/src/desc): il guardiano
+	# dei letterali NON le vede (passano da L10n.t su una variabile), la
+	# rete è il giro _test_lingua_reperti di test_strati più la disciplina.
+	# I nomi vengono dal progetto della Stratigrafia; le desc delle sette
+	# schede del mestiere sono qui per intero, le altre arrivano con le
+	# loro schede.
+	"scheggia di casa": "splinter of home",
+	"sassolino lucido": "shiny little pebble",
+	"foglietto di note": "slip of notes",
+	"funghetto di legno": "little wooden mushroom",
+	"farfallina di carta": "little paper butterfly",
+	"nastrino da ballo": "dancing ribbon",
+	"cuscinetto ricamato": "little embroidered cushion",
+	"cucchiaino di legno": "little wooden spoon",
+	"tazzina sbeccata": "chipped little cup",
+	"campanellino": "tiny bell",
+	"guscio di nocciola": "hazelnut shell",
+	"stellina di latta": "little tin star",
+	"gomitolino": "tiny ball of yarn",
+	"cuoricino di legno": "little wooden heart",
+	"bottone di legno": "wooden button",
+	"petalo pressato": "pressed petal",
+	"spiga dorata": "golden ear of wheat",
+	"foglia d'oro": "golden leaf",
+	"fiocco intatto": "unmelted snowflake",
+	"truciolo riccio": "curly wood shaving",
+	"sacchettino di semi": "little bag of seeds",
+	"lanternina spenta": "little spent lantern",
+	"mappina piegata": "little folded map",
+	"pennellino consumato": "worn little paintbrush",
+	"fischietto di canna": "little reed whistle",
+	"barattolino di briciole": "little jar of crumbs",
+	"dissotterrato nel prato": "dug up in the meadow",
+	"lasciato da chi è partito": "left behind by someone who moved on",
+	"lasciata da chi è partito": "left behind by someone who moved on",
+	"Arricciato come un ricciolo.\nQualcuno faceva cantare la sega.":
+			"Curled like a lock of hair.\nSomeone made the saw sing.",
+	"Legato con cura. Qualcuno pensava\ngià alla primavera dopo.":
+			"Tied with care. Someone was already\nthinking of the spring to come.",
+	"Spenta da un pezzo. Vegliava sul sonno\ndegli altri, una notte per volta.":
+			"Long since gone out. It kept watch over\nthe sleep of others, one night at a time.",
+	"Piegata in otto. I posti belli\nhanno una crocetta.":
+			"Folded in eight. The lovely places\nare marked with a little cross.",
+	"Consumato fino al manico. Il villaggio\nera più bello dove passava.":
+			"Worn down to the handle. The village\nwas lovelier wherever it went.",
+	"Soffiaci piano: risponde ancora.": "Blow softly: it still answers.",
+	"Due briciole rimaste. Qualcuno teneva\nsempre qualcosa per dopo.":
+			"Two crumbs left. Someone always kept\na little something for later.",
+	# …e le desc delle altre diciannove schede (Inventory.TREASURES,
+	# la Stratigrafia): a-capo conservati, sono l'impaginazione della
+	# scheda nelle Tasche.
+	"Un pezzetto di qualcosa che c'era.\nLa terra non dimentica le case.":
+			"A little piece of something that stood here.\nThe earth does not forget its homes.",
+	"Scelto fra mille sassi uguali.\nPer qualcuno era quello giusto.":
+			"Chosen from a thousand pebbles alike.\nTo someone, it was the right one.",
+	"Le note sono sbiadite, ma la luna\nse le ricorda tutte.":
+			"The notes have faded, but the moon\nremembers every one.",
+	"Intagliato con pazienza. Forse\nascoltava meglio dei funghi veri.":
+			"Patiently carved. Perhaps it listened\nbetter than the real mushrooms did.",
+	"Piegata con cura: una farfalla\nche non fa paura a nessuno.":
+			"Folded with care: a butterfly\nthat frightens no one at all.",
+	"Consumato da mille giravolte.\nLa musica c'è ancora, dentro.":
+			"Worn thin by a thousand twirls.\nThe music is still in there.",
+	"Ancora morbido. Buono per un\npisolino in qualunque posto.":
+			"Still soft. Just right for a nap\nin any old place.",
+	"Consumato ai bordi da mille\nassaggi. Sa ancora di minestra.":
+			"Worn at the edges by a thousand\ntastings. It still smells of soup.",
+	"Sbeccata da un pezzo. Era quella\ndel primo sole del mattino.":
+			"Chipped long ago. It was the one\nfor the first sun of the morning.",
+	"Non sta mai zitto. Qualcuno\nchiacchierava anche col vento.":
+			"It never stays quiet. Someone\nchatted even with the wind.",
+	"Una casa piccola piccola.\nCi si sta solo se si è timidi.":
+			"The littlest of homes. Only\nthe shy can fit inside.",
+	"Un po' ammaccata. Chi sogna\nse le costruisce da sé, le stelle.":
+			"A bit dented. Dreamers build\ntheir stars themselves.",
+	"Avvolto stretto stretto.\nNeanche un filo fuori posto.":
+			"Wound tight and true.\nNot a single thread out of place.",
+	"Intagliato di nascosto. Brontolava,\nma intanto intagliava cuori.":
+			"Carved in secret. All that grumbling,\nand still they carved little hearts.",
+	"Caldo in mano. Di chi fosse\nnon si sa: lo teneva stretto.":
+			"Warm in the hand. Whose it was,\nno one knows: they held it tight.",
+	"Sa ancora di primavera.\nLa terra l'ha tenuto piatto e vivo.":
+			"It still smells of spring.\nThe earth kept it flat and alive.",
+	"Piegata dal sole d'estate.\nD'inverno scalda solo a guardarla.":
+			"Bent by the summer sun.\nIn winter it warms you just to look.",
+	"Scesa piano piano, un autunno.\nLa terra l'ha presa al volo.":
+			"It drifted slowly down, one autumn.\nThe earth caught it mid-air.",
+	"Non si è mai sciolto. L'inverno\ngli ha voluto bene fino in fondo.":
+			"It never melted. Winter loved it\nright to the very end.",
+
 	# ------------------------------------------- il carretto del mercante
 	"Il carretto del mercante": "The pedlar's cart",
 	"Vendi": "Sell",

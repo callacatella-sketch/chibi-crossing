@@ -1,4 +1,4 @@
-[gd_scene load_steps=45 format=3 uid="uid://mainlevel_uid"]
+[gd_scene load_steps=46 format=3 uid="uid://mainlevel_uid"]
 
 [ext_resource type="Script" path="res://scenes/levels/MainLevel.gd" id="1_xxyz1"]
 [ext_resource type="PackedScene" uid="uid://d3u2b9x8y8v" path="res://scenes/characters/Player.tscn" id="2_yyzx2"]
@@ -34,6 +34,7 @@
 [ext_resource type="Script" path="res://scenes/world/Barchetta.gd" id="27_barc1"]
 [ext_resource type="Script" path="res://scenes/interact/Bottiglie.gd" id="24_bott1"]
 [ext_resource type="Script" path="res://scenes/interact/Scavi.gd" id="25_scav1"]
+[ext_resource type="Script" path="res://scenes/world/Strati.gd" id="25_strt1"]
 [ext_resource type="Script" path="res://scenes/interact/Sbornia.gd" id="26_sbrn1"]
 [ext_resource type="Script" path="res://scenes/npc/Percezione.gd" id="32_perc1"]
 [ext_resource type="Script" path="res://scenes/npc/Pensieri.gd" id="33_pens1"]
@@ -203,6 +204,9 @@ script = ExtResource("24_bott1")
 
 [node name="Scavi" type="Node" parent="."]
 script = ExtResource("25_scav1")
+
+[node name="Strati" type="Node" parent="."]
+script = ExtResource("25_strt1")
 
 [node name="Sbornia" type="Node" parent="."]
 script = ExtResource("26_sbrn1")

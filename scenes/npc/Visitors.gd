@@ -3085,6 +3085,11 @@ func _congeda(i: int, r: Dictionary, animo: RefCounted) -> void:
 	# chi non c'è più sarebbe la cosa più triste del villaggio
 	get_tree().call_group("calendario", "dimentica",
 			str((r.get("dna", {}) as Dictionary).get("name", "")))
+	# LA STRATIGRAFIA: chi se ne va sotterra un piccolo oggetto vicino a
+	# casa sua (scenes/world/Strati.gd). QUI e non più in basso: fra poche
+	# righe r esce da _residents e l'ultima riga azzera l'incarico — il
+	# ricordo si seppellisce finché il partito è ancora intero.
+	_seppellisci_ricordo(r, label)
 	if node != null and is_instance_valid(node):
 		var tw := create_tween()
 		tw.tween_property(node, "scale", Vector3.ONE * 0.01, 0.8) \
@@ -3106,6 +3111,38 @@ func _congeda(i: int, r: Dictionary, animo: RefCounted) -> void:
 	# e l'incarico si azzera: una label riciclata in futuro non deve
 	# ereditare dal giorno uno un lavoro mai assegnato (rancore invisibile)
 	get_tree().call_group("lavori", "assegna", label, "")
+
+
+## LA STRATIGRAFIA — chi parte per sempre sotterra un piccolo oggetto
+## vicino a casa sua (scenes/world/Strati.gd), e vale per ENTRAMBI gli
+## addii: la diserzione e il Grande Prato. Il TONO è lo stesso —
+## tenerezza, mai colpa — perché la distinzione (fiore, lutto) la fanno
+## già i Legami. Le regole del cablaggio:
+## · la chiave è il NOME del dna (le due anagrafi): la label viaggia
+##   accanto solo per il toast del ritrovamento;
+## · il MESTIERE si legge QUI, nello stesso frame, e si passa come
+##   parametro: entrambi i chiamanti azzerano l'incarico poche righe
+##   dopo (assegna label ""), e chi arrivasse tardi troverebbe "";
+## · chiamata SINCRONA, mai differita: r esce da _residents nello
+##   stesso giro, e con lui la cella di casa e il dna.
+func _seppellisci_ricordo(r: Dictionary, label: String) -> void:
+	var strati := get_tree().get_first_node_in_group("strati")
+	if strati == null:
+		# Strati vive nel .tscn, ma una partenza potrebbe in teoria
+		# batterne il _ready: meglio nessun reperto che un crash — il
+		# silenzio è il comportamento normale della Stratigrafia.
+		push_warning("Visitors: Stratigrafia assente, la partenza di «%s» non lascia reperti" % label)
+		return
+	var casa: Vector2i = r.get("cell", Vector2i(999, 999))
+	var mestiere := ""
+	var lavori := get_tree().get_first_node_in_group("lavori")
+	if lavori != null:
+		mestiere = str(lavori.call("incarico", label))
+	# la casa (999,999) dei senza-letto finisce fuori dal prato: ci
+	# pensano il ripiego seminato di Strati, o il suo silenzio
+	strati.call("su_partenza",
+			str((r.get("dna", {}) as Dictionary).get("name", "")), label,
+			[casa.x, casa.y], r.get("dna", {}), mestiere)
 
 
 func _label_in_use(label: String) -> bool:
@@ -3207,6 +3244,12 @@ func parte_per_il_grande_prato(label: String) -> void:
 		# e' partito per il Grande Prato non festeggia piu' qui
 		get_tree().call_group("calendario", "dimentica",
 				str((r.get("dna", {}) as Dictionary).get("name", "")))
+		# LA STRATIGRAFIA — anche la partenza gentile lascia un ricordo
+		# alla terra. Le celle attorno escludono (+1,+1): lì il Congedo
+		# pianta il fiore-memoriale, e il reperto non va sotto i suoi
+		# petali. PRIMA di remove_at e dell'azzeramento dell'incarico:
+		# r è ancora intero.
+		_seppellisci_ricordo(r, label)
 		_dimentica_ecs(r)
 		_residents.remove_at(i)
 		_animi.erase(label)

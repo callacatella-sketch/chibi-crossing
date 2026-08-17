@@ -1436,6 +1436,20 @@ func _try_remove() -> void:
 	var found := _find_removable()
 	if found.is_empty():
 		return
+	# LA STRATIGRAFIA (scenes/world/Strati.gd): solo il gesto del GIOCATORE
+	# seppellisce un reperto nella cella. L'harness e i caricamenti
+	# (debug_clear, debug_remove_edge, _load_village) passano da _remove_at
+	# diretto e NON devono lasciare strati: l'hook vive QUI e non là — e la
+	# guardia _loading è la cintura oltre le bretelle, per il giorno in cui
+	# qualcuno chiamasse questo gesto in mezzo a un caricamento.
+	# found = [layer, key, node]: la cella è la CHIAVE del dizionario e i
+	# meta del nodo sono ancora leggibili. La chiamata resta SINCRONA e
+	# PRIMA di _remove_at: il pezzo muore col tween della rimozione, e una
+	# chiamata rimandata giocherebbe con un nodo in via di sparizione.
+	if not _loading:
+		var strati := get_tree().get_first_node_in_group("strati")
+		if strati != null:
+			strati.call("su_demolizione", found[0], found[1], found[2], _level)
 	_remove_at(found[0], found[1], _level)
 
 
