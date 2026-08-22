@@ -636,13 +636,30 @@ func _ricalcola_deriva() -> void:
 	for nome in DERIVA.DERIVANO:
 		var t := str(nome)
 		var pressione: float = DERIVA.spinta(t, ricordi, sommario,
-				limbico.marchi if limbico != null else {}, _recenza, compagnia)
+				limbico.marchi if limbico != null else {}, _recenza, compagnia,
+				compiti_del_sogno())
 		nuovo[t] = DERIVA.delta(float(tratti.get(t, 0.5)), pressione)
 	_deriva = nuovo
 	# e le due grandezze che il Limbico DERIVA dai tratti si rifanno: senza,
 	# la deriva si fermerebbe un millimetro prima del corpo.
 	if limbico != null:
 		limbico.riproietta(_tratti_derivati())
+
+
+## ⚠️ **QUALI COMPITI SERVONO IL MIO SOGNO** — e sta QUI perché la tabella è
+## qui. `Deriva` deve poter riconoscere la riga «mi hai dato il lavoro che
+## sognavo», ma il `tipo` di quella riga è il nome del compito, e i nomi
+## vivono in `COMPITI`: ricopiarli di là sarebbe la tabella gemella che questo
+## progetto ha già pagato tre volte. Il dato attraversa il confine, non la
+## tabella — è la stessa disciplina con cui il villaggio presta la compagnia.
+func compiti_del_sogno() -> Array:
+	if sogno == "":
+		return []
+	var out: Array = []
+	for c in COMPITI:
+		if str((COMPITI[c] as Dictionary).get("serve", "")) == sogno:
+			out.append(str(c))
+	return out
 
 
 ## I tratti come sono adesso, per chi ne vuole tutti insieme (il Limbico).

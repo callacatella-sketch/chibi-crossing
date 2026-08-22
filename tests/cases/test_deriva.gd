@@ -335,7 +335,8 @@ func _i_tratti_che_non_derivano(t) -> void:
 			"e l'elenco lo dice")
 	for tratto2 in DERIVA.DERIVANO:
 		t.ok(DERIVA.SPINTE.has(str(tratto2)) or DERIVA.MARCHI.has(str(tratto2))
-				or DERIVA.COMPAGNIA.has(str(tratto2)),
+				or DERIVA.COMPAGNIA.has(str(tratto2))
+				or DERIVA.SOGNO.has(str(tratto2)),
 				"ogni tratto che deriva ha almeno una spinta («%s»)" % tratto2)
 
 

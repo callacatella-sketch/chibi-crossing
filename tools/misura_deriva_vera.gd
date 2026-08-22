@@ -189,6 +189,77 @@ func _go() -> void:
 						finto.tratto("codardia"),
 						finto.tratto("codardia") - finto.tratto_base("codardia")])
 
+	# ---------------------------------------------------------------------
+	# PARTE 4 — L'AMBIZIONE: il carburante esiste in partita?
+	# ---------------------------------------------------------------------
+	#
+	# ⚠️ **E' LA DOMANDA CHE HA UCCISO «vegliato».** Quella spinta sembrava
+	# perfetta e non distingueva nessuno (1.000 righe per residente per
+	# giornata, identiche per tutti e quattordici). Qui il carburante e' «mi
+	# hai dato il lavoro che sognavo»: si assegna il lavoro GIUSTO a meta' dei
+	# residenti e uno qualunque all'altra meta', si fanno passare le giornate
+	# con la porta VERA (`Lavori.assegna` → `_on_nuovo_giorno` →
+	# `assegna_compito` → `esegue`), e si guarda se i due gruppi divergono.
+	#
+	# Se il minimo e il massimo coincidono, la spinta non distingue e va
+	# tolta, esattamente come «vegliato».
+	print("\n--- 4) l'ambizione: il sogno servito, con la porta VERA ---")
+	var lav := liv.get_node_or_null("Lavori")
+	if lav == null:
+		print("       (nessun nodo Lavori: non misurato)")
+	else:
+		var giusti := {}
+		var qualunque := {}
+		for i in res.size():
+			var lab3 := str(res[i].get("label", ""))
+			var a3 = animi.get(lab3)
+			if a3 == null:
+				continue
+			var suoi: Array = a3.call("compiti_del_sogno")
+			if suoi.is_empty():
+				continue
+			if i % 2 == 0:
+				lav.call("assegna", lab3, str(suoi[0]))
+				giusti[lab3] = float(a3.tratto("ambizione"))
+			else:
+				# un lavoro che NON serve il suo sogno: il primo che non e' suo
+				for c3 in ANIMO.COMPITI:
+					if not suoi.has(str(c3)) \
+							and (lav.get("LAVORI") as Dictionary).has(str(c3)):
+						lav.call("assegna", lab3, str(c3))
+						break
+				qualunque[lab3] = float(a3.tratto("ambizione"))
+		print("       incarichi dati: %d col sogno servito, %d qualunque"
+				% [giusti.size(), qualunque.size()])
+		var g2b := int(dn.get("day")) if dn else 0
+		var passi3 := int(4.0 * 240.0 / 3.0)
+		for _p in passi3:
+			await create_timer(3.0).timeout
+		var g3 := int(dn.get("day")) if dn else 4
+		var gpass: int = maxi(1, g3 - g2b)
+		var dg: Array = []
+		var dq: Array = []
+		for lab4 in giusti:
+			dg.append(float((animi[lab4] as RefCounted).tratto("ambizione"))
+					- float(giusti[lab4]))
+		for lab5 in qualunque:
+			dq.append(float((animi[lab5] as RefCounted).tratto("ambizione"))
+					- float(qualunque[lab5]))
+		print("       %d giornate passate" % gpass)
+		print("       col SOGNO SERVITO   δ ambizione: %s" % _riassunto(dg))
+		print("       con un lavoro QUALUNQUE       : %s" % _riassunto(dq))
+		var mg := 0.0
+		for x in dg:
+			mg = maxf(mg, absf(float(x)))
+		var mq := 0.0
+		for x in dq:
+			mq = maxf(mq, absf(float(x)))
+		_dico(mg > 0.0, "il sogno servito muove davvero l'ambizione "
+				+ "(se e' zero, la spinta e' aritmetica che nessuno esegue)")
+		_dico(mg > mq, "e DISTINGUE: chi ha ricevuto il lavoro giusto si muove "
+				+ "piu' di chi ne ha ricevuto uno qualunque (%.4f contro %.4f)"
+						% [mg, mq])
+
 	print("\n==== DERIVA VERA: %s ====" % ("TUTTO A POSTO" if _guasti == 0
 			else "%d ARRESTI" % _guasti))
 	quit(1 if _guasti > 0 else 0)
@@ -210,3 +281,17 @@ func _conta_prove(a) -> int:
 				and (DERIVA.SPINTE["codardia"] as Dictionary).has(str(p[0])):
 			n += int((a.sommario[k] as Dictionary).get("quante", 1))
 	return n
+
+
+func _riassunto(a: Array) -> String:
+	if a.is_empty():
+		return "(nessun campione)"
+	var mn := 9e9
+	var mx := -9e9
+	var sm := 0.0
+	for x in a:
+		mn = minf(mn, float(x))
+		mx = maxf(mx, float(x))
+		sm += float(x)
+	return "n=%d  media %+.4f  min %+.4f  max %+.4f" % [a.size(),
+			sm / float(a.size()), mn, mx]
