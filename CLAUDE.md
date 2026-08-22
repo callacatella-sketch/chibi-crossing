@@ -5120,10 +5120,11 @@ non è una guardia: è un'asserzione che dice «coperto» senza esserlo.
 
 I tratti (codardia, grinta, lealtà, ambizione, orgoglio) erano decisi alla
 nascita e non si muovevano di un millesimo, qualunque cosa succedesse a quella
-persona. Adesso **due** di loro derivano, lentissimamente, nella direzione in
+persona. Adesso **tre** di loro derivano, lentissimamente, nella direzione in
 cui la vita di quel vicino ha spinto — la **codardia** da come il giocatore
-l'ha trattata, la **lealtà** dal tempo passato con qualcuno — e siccome tutto
-il gioco legge i tratti, spostarne uno muove tutta la persona.
+l'ha trattata, la **lealtà** dal tempo passato con qualcuno, l'**ambizione**
+dal vedersi dare il lavoro che si sognava — e siccome tutto il gioco legge i
+tratti, spostarne uno muove tutta la persona.
 
 Vive in [`scenes/npc/Deriva.gd`](scenes/npc/Deriva.gd) (puro, senza Godot e
 senza stato) più `Animo.tratto()` / `tratto_base()`.
@@ -5219,10 +5220,8 @@ codardia questa frazione dà esattamente quello.
 - **l'ORGOGLIO**: non tinge nessun canale, e i suoi tre lettori sono una
   porta, una crisi e una frase. Un tratto che non può colorare nulla non
   deriva.
-- **l'AMBIZIONE**: il suo carburante candidato è *«quante delle mie giornate
-  le ha decise qualcun altro»*, e la riparazione che lo rende misurabile
-  (`assegna_compito` con l'ordinante vero) è già in casa — ma la spinta non è
-  stata scritta, e non si dichiara fatto quello che non è stato misurato.
+- **l'AMBIZIONE deriva**, e vedi «IL SOGNO SERVITO» più sotto: il carburante
+  che il piano proponeva non poteva entrare, ma la sua metà positiva sì.
 
 ### I NUMERI, misurati sulle biografie vere
 
@@ -5331,6 +5330,53 @@ lampioni** — e la seconda si può fare *prima di sapere che serve*. È la
 condizione che mancava perché «chi è stato protetto per venti notti» possa un
 giorno entrare fra le spinte: il numero che lo falsifica è che le righe per
 residente abbiano **min ≠ max**.
+
+### IL SOGNO SERVITO — «mi hai dato il lavoro che sognavo»
+
+Terzo tratto che deriva, e il primo per cui **il carburante proposto non
+poteva entrare**. L'idea era *«quante delle mie giornate le ha decise qualcun
+altro»* → ambizione. Quelle righe non passano **nessuno** dei due cancelli di
+`Deriva`: hanno `attore == "se_stesso"` (non uno-a-uno col giocatore) e
+valenza **negativa** — `Animo.esegue()` scrive `-0.08 * mult` per un compito
+qualunque, cioè sono torti, e *un torto non deve poter spostare chi sei*.
+
+Ma dentro la stessa funzione c'è **l'unica riga di compito con valenza
+positiva**: `+0.12`, e la scrive *soltanto* quando il compito serve il sogno
+di quella persona. E l'ordinante è `"giocatore"` quando il lavoro viene
+dall'incarico della Lavagna. Cioè il gesto è: **leggere il sogno di qualcuno e
+dargli quel lavoro**.
+
+- `Deriva.SOGNO := {"ambizione": 1}`, e la direzione è verso l'alto: chi si
+  vede riconosciuto osa di più. **Non è «meglio»** — l'ambizione fa pesare la
+  noia, rende i compiti umili più amari, fa tirare il sogno, e alza la
+  dopamina di riposo. È un carattere diverso.
+- **La metà speculare resta fuori**, e non per simmetria: «chi non ha deciso
+  da sé» sarebbe una punizione per chi usa la Lavagna, cioè per uno stile di
+  gioco. La Lavagna è una meccanica del gioco: non può costare.
+- **Il tipo della riga è il nome del compito**, e i nomi vivono in
+  `Animo.COMPITI`: `Animo.compiti_del_sogno()` li passa a `Deriva` come DATO.
+  Ricopiarli di là sarebbe la tabella gemella — la stessa disciplina con cui
+  il villaggio presta la compagnia.
+
+**MISURATO in partita** con la porta VERA (`Lavori.assegna` → `_on_nuovo_giorno`
+→ `assegna_compito` → `esegue`), tredici residenti, quattro giornate:
+
+| | δ ambizione |
+|---|---|
+| col **sogno servito** (7 residenti) | media **+0,0169** · da +0,0030 a **+0,0342** |
+| con un lavoro **qualunque** (6) | **+0,0000 · +0,0000 · +0,0000** |
+
+È la separazione che «vegliato» non aveva: lì il flusso era 1,000 righe per
+residente per giornata **identiche per tutti**, qui è tutto o niente e lo
+decide il giocatore.
+
+**Sei mutazioni, tutte rosse.** Una era muta alla prima stesura, e per la
+ragione già pagata: **il cancello della valenza è coperto dal cancello del
+tipo** — passando dal gioco un compito-del-sogno ha *sempre* `+0.12`, quindi
+toglierlo non cambiava niente. Ma `spinta()` è pura e riceve `ricordi` come
+DATO: il cancello è una proprietà sua, non del suo unico chiamante di oggi. Si
+prova fabbricando la riga che il gioco non produce (un compito del sogno con
+valenza `-0.9`) e pretendendo zero, con la controprova positiva accanto.
 
 ### LA LEALTÀ DALLA CO-PRESENZA — e il residuo che si chiude
 

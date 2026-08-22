@@ -41,6 +41,7 @@ func run(t) -> void:
 	_la_compagnia_di_ieri_non_vale_quella_di_oggi(t)
 	_il_villaggio_presta_la_compagnia_prima_della_giornata(t)
 	_riaprire_la_partita_non_riporta_nessuno_a_com_era(t)
+	_il_sogno_servito_muove_l_ambizione(t)
 func _rec(oggi: int) -> Callable:
 	return func(quando: int) -> float:
 		return pow(0.5, float(oggi - quando) / MEZZA_VITA)
@@ -786,3 +787,106 @@ func _riaprire_la_partita_non_riporta_nessuno_a_com_era(t) -> void:
 	t.eq((a2.get("compagnia") as Array).size(), 2,
 			("e la compagnia c'e' GIA', senza aspettare il cambio di giorno "
 			+ "(ottenute %d righe)") % (a2.get("compagnia") as Array).size())
+
+
+## ⚠️ **«MI HAI DATO IL LAVORO CHE SOGNAVO»** — il carburante dell'ambizione,
+## e l'unica riga di COMPITO che passa i due cancelli di `Deriva`.
+##
+## L'idea da cui nasce era «quante delle mie giornate le ha decise qualcun
+## altro», e quelle righe non passano NIENTE: hanno `attore == "se_stesso"`
+## (non uno-a-uno col giocatore) e valenza **negativa** — cioè sono torti, e
+## un torto non deve poter spostare chi sei. `Animo.esegue()` scrive `+0.12`
+## **soltanto** quando il compito serve il sogno di quella persona.
+##
+## MISURATO in partita con la porta VERA (`Lavori.assegna` →
+## `_on_nuovo_giorno` → `assegna_compito` → `esegue`), quattro giornate,
+## tredici residenti: chi ha ricevuto il lavoro del proprio sogno si muove da
+## **+0,0030 a +0,0342**; chi ne ha ricevuto uno qualunque sta a **+0,0000
+## esatto**, tutti e sei. È la separazione che «vegliato» non aveva.
+func _il_sogno_servito_muove_l_ambizione(t) -> void:
+	var a = ANIMO.new()
+	a.setup(CHIBIDNA.generate(9182))
+	var suoi: Array = a.compiti_del_sogno()
+	t.ok(not suoi.is_empty(),
+			"chi ha un sogno ha almeno un compito che glielo serve (%s → %s)"
+					% [str(a.get("sogno")), str(suoi)])
+	# ⚠️ e NON sono tutti i compiti: se lo fossero, il cancello non morderebbe
+	t.ok(suoi.size() < (ANIMO.COMPITI as Dictionary).size(),
+			"…e non sono tutti (%d su %d)"
+					% [suoi.size(), (ANIMO.COMPITI as Dictionary).size()])
+
+	# --- il lavoro GIUSTO, dal giocatore
+	var giusto = ANIMO.new()
+	giusto.setup(CHIBIDNA.generate(9182))
+	for g in 10:
+		giusto.oggi = g
+		giusto.esegue(str(suoi[0]), "giocatore")
+	giusto.oggi = 10
+	giusto._deriva_giorno = -1
+	giusto._ricalcola_deriva()
+
+	# --- un lavoro QUALUNQUE, dallo stesso giocatore
+	var altro := ""
+	for c in ANIMO.COMPITI:
+		if not suoi.has(str(c)):
+			altro = str(c)
+			break
+	var qualunque = ANIMO.new()
+	qualunque.setup(CHIBIDNA.generate(9182))
+	for g2 in 10:
+		qualunque.oggi = g2
+		qualunque.esegue(altro, "giocatore")
+	qualunque.oggi = 10
+	qualunque._deriva_giorno = -1
+	qualunque._ricalcola_deriva()
+
+	var d_giusto: float = giusto.tratto("ambizione") - giusto.tratto_base("ambizione")
+	var d_altro: float = qualunque.tratto("ambizione") - qualunque.tratto_base("ambizione")
+	t.ok(d_giusto > 0.01,
+			"il sogno servito alza l'ambizione (%+.4f)" % d_giusto)
+	t.almost(d_altro, 0.0,
+			("e un lavoro qualunque non la muove di un bit (%+.4f): quelle "
+			+ "righe hanno valenza negativa, e un torto non sposta chi sei")
+					% d_altro, 1e-12)
+
+	# --- e NON conta se il lavoro se l'è scelto da sé: il cancello del
+	#     uno-a-uno vale anche qui, o il carburante sarebbe la marea che
+	#     solleva tutte le barche.
+	var da_solo = ANIMO.new()
+	da_solo.setup(CHIBIDNA.generate(9182))
+	for g3 in 10:
+		da_solo.oggi = g3
+		da_solo.esegue(str(suoi[0]), "se_stesso")
+	da_solo.oggi = 10
+	da_solo._deriva_giorno = -1
+	da_solo._ricalcola_deriva()
+	t.almost(da_solo.tratto("ambizione") - da_solo.tratto_base("ambizione"), 0.0,
+			("chi il lavoro del suo sogno se l'e' scelto da solo non deriva: "
+			+ "il gesto e' del GIOCATORE o non e' un gesto"), 1e-12)
+
+	# --- chi non ha un sogno non ha carburante, e non e' un guasto
+	t.ok(DERIVA.spinta("ambizione", [], {}, {}, _rec(10), [], []) == 0.0,
+			"senza compiti del sogno la spinta e' zero esatta")
+
+	# ⚠️ **E IL CANCELLO DELLA VALENZA SI PROVA A MANO, o resta mascherato.**
+	# Passando dal gioco, un compito che serve il sogno ha SEMPRE `+0.12`
+	# (`Animo.esegue`), quindi il cancello del tipo copre quello della
+	# valenza e la mutazione che lo toglie resta verde — misurato: zero
+	# asserzioni rosse. Ma `spinta()` è pura e riceve `ricordi` come DATO:
+	# il cancello è una proprietà sua, non del suo unico chiamante di oggi,
+	# e un domani `esegue` potrebbe scrivere un compito-del-sogno amaro.
+	# Si fabbrica la riga che il gioco non produce e si pretende zero.
+	var amara := [{"tipo": str(suoi[0]), "attore": "giocatore",
+			"valenza": -0.9, "intensita": 1.0, "quando": 10}]
+	t.almost(DERIVA.spinta("ambizione", amara, {}, {}, _rec(10), [], suoi), 0.0,
+			("una riga NEGATIVA sul compito del sogno non sposta niente: un "
+			+ "torto non deve poter cambiare chi sei, e vale anche qui"), 1e-12)
+	var dolce := [{"tipo": str(suoi[0]), "attore": "giocatore",
+			"valenza": 0.9, "intensita": 1.0, "quando": 10}]
+	t.ok(DERIVA.spinta("ambizione", dolce, {}, {}, _rec(10), [], suoi) > 0.1,
+			"…e la controprova: la stessa riga POSITIVA spinge davvero")
+
+	# e lo stesso sul SOMMARIO, che è la metà che sopravvive nei villaggi vivi
+	t.almost(DERIVA.spinta("ambizione", [], {str(suoi[0]) + "|giocatore":
+			{"peso": -0.9, "ultimo": 10, "n": 5}}, {}, _rec(10), [], suoi), 0.0,
+			"e nemmeno dal sommario, dove i ricordi vecchi si fondono", 1e-12)
