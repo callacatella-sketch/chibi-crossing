@@ -378,11 +378,12 @@ func bersaglio_umore() -> float:
 ##
 ## [param amb] e' quello che dice il mondo adesso — `luce`, `pioggia`,
 ## `temperatura` — e arriva da `DayNight.parametri_ambientali()`.
-func passo_neuro(dt: float, amb: Dictionary = {}, dorme := false) -> void:
+func passo_neuro(dt: float, amb: Dictionary = {}, dorme := false,
+		notte := 0.0) -> void:
 	if not is_finite(dt) or dt <= 0.0:
 		return
 	dt = minf(dt, NEURO_PASSO_MAX)
-	var prod := produzione_ambientale(amb, dorme)
+	var prod := produzione_ambientale(amb, dorme, notte)
 	for tipo in NEURO_TRASMETTITORI:
 		var lam: float = float(NEURO_DECADIMENTO.get(tipo, 0.05))
 		var b: float = float(neuro_base.get(tipo, NEURO_BASELINE.get(tipo, 0.0)))
@@ -409,7 +410,8 @@ func passo_neuro(dt: float, amb: Dictionary = {}, dorme := false) -> void:
 ## ⚠️ **Il mondo non e' obbligato a rispondere**: senza `amb` (i banchi, il
 ## diorama del titolo, il Prologo) si resta al punto di riposo e basta. Il
 ## degrado va verso «non succede niente», mai verso un numero inventato.
-static func produzione_ambientale(amb: Dictionary, dorme: bool) -> Dictionary:
+static func produzione_ambientale(amb: Dictionary, dorme: bool,
+		notte := 0.0) -> Dictionary:
 	var out := {}
 	for tipo in NEURO_TRASMETTITORI:
 		out[tipo] = 0.0
@@ -424,7 +426,34 @@ static func produzione_ambientale(amb: Dictionary, dorme: bool) -> Dictionary:
 	out["dopamina"] = NEURO_PRODUZIONE["dopamina"] * comfort * luce
 	out["ossitocina"] = NEURO_PRODUZIONE["ossitocina"] * comfort
 	out["serotonina"] = NEURO_PRODUZIONE["serotonina"] * luce * (1.0 - 0.5 * pioggia)
-	out["melatonina"] = NEURO_PRODUZIONE["melatonina"] * (1.0 - luce)
+	# ⚠️ **LA MELATONINA NON SEGUE LA LUCE: SEGUE LA PROPRIA NOTTE.**
+	#
+	# Era `Π * (1 − luce)`, e il difetto NON era «una seconda risposta a che
+	# ora è» — era peggio e si misura: **quella riga non era un orologio, era
+	# un barometro.** Il cielo di `DayNight.luce_ambiente()` cala col
+	# `weather_gloom`, quindi a MEZZOGIORNO con un temporale la luce scende a
+	# 0.550 e il punto di riposo della melatonina saliva a **0.202** — cioè il
+	# **94%** del picco che il canale endogeno raggiunge la sera (0.216),
+	# addosso a tutti e ventotto insieme. Un ritmo circadiano non si sposta
+	# perché piove.
+	#
+	# E la seconda metà: tutti i vicini avevano la stessa identica curva,
+	# mentre il gioco ha da sempre una fase PER PERSONA
+	# (`chibi::finestra_di_sonno`, il genoma del sonno: persistito, visibile,
+	# ed è perfino il grafo sociale del villaggio — le cricche nascono da chi
+	# si stanca alla stessa ora).
+	#
+	# Adesso la sorgente è `notte` (0..1), che arriva dal C++ e ANTICIPA: sale
+	# nell'anticipo prima della propria finestra di sonno.
+	#
+	# ⚠️ **E LA LUCE NON ENTRA PIÙ AFFATTO**, nemmeno come soppressore. Una
+	# prima stesura la teneva con un `(1 − 0.85·luce)` e il perché scritto era
+	# «così comincia a calare all'alba»: MISURATO, comprava −14% di picco e
+	# −2,4 s di finestra, e la conseguenza che prometteva **non esiste** —
+	# all'alba il corpo è già nascosto a scala 0.03 (`Visitor.resident_sleep`)
+	# e `consolida_sonno` azzera comunque il canale. Una terza manopola con un
+	# perché decorativo è debito, e si toglie.
+	out["melatonina"] = NEURO_PRODUZIONE["melatonina"] * clampf(notte, 0.0, 1.0)
 	out["endorfine"] = NEURO_PRODUZIONE["endorfine"] * comfort * (1.0 - 0.5 * pioggia)
 	# chi dorme non accumula stress e non accumula sonno
 	if not dorme:

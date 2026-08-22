@@ -278,10 +278,12 @@ void EcsMondo::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("stato", "id"), &EcsMondo::stato);
 	ClassDB::bind_method(D_METHOD("da_quanto", "id"), &EcsMondo::da_quanto);
 	ClassDB::bind_method(D_METHOD("in_finestra", "id"), &EcsMondo::in_finestra);
+	ClassDB::bind_method(D_METHOD("fase_circadiana", "id", "anticipo"), &EcsMondo::fase_circadiana);
 	ClassDB::bind_method(D_METHOD("maschera_indole", "nomi"), &EcsMondo::maschera_indole);
 	ClassDB::bind_method(D_METHOD("indice_quirk", "nome"), &EcsMondo::indice_quirk);
 	ClassDB::bind_method(D_METHOD("debug_entita", "id"), &EcsMondo::debug_entita);
 	ClassDB::bind_method(D_METHOD("debug_in_finestra", "maschera", "quirk", "ora"), &EcsMondo::debug_in_finestra);
+	ClassDB::bind_method(D_METHOD("debug_fase_circadiana", "maschera", "quirk", "ora", "anticipo"), &EcsMondo::debug_fase_circadiana);
 	ClassDB::bind_method(D_METHOD("debug_quante_pose"), &EcsMondo::debug_quante_pose);
 	ClassDB::bind_method(D_METHOD("debug_grafo_inserisci", "grafo", "ricordo", "ora", "mezza_vita"), &EcsMondo::debug_grafo_inserisci);
 	ClassDB::bind_method(D_METHOD("debug_grafo_peso", "ricordo", "ora", "mezza_vita"), &EcsMondo::debug_grafo_peso);
@@ -895,6 +897,20 @@ bool EcsMondo::in_finestra(int64_t p_id) const {
 bool EcsMondo::debug_in_finestra(int p_maschera, int p_quirk, double p_ora) const {
 	return chibi::finestra_di_sonno(static_cast<uint32_t>(p_maschera),
 			static_cast<int32_t>(p_quirk), p_ora);
+}
+
+double EcsMondo::fase_circadiana(int64_t p_id, double p_anticipo) const {
+	ERR_FAIL_COND_V(!conosce(p_id), 0.0);
+	// come `in_finestra`: l'ora è quella dell'ultimo passo, e non si accetta
+	// da fuori — o avremmo due verità sulla stessa domanda.
+	const chibi::DnaComponent &dna = _reg->reg.get<chibi::DnaComponent>(da_handle(p_id));
+	return chibi::fase_circadiana(dna.indole, dna.quirk, _ultima_ora, p_anticipo);
+}
+
+double EcsMondo::debug_fase_circadiana(int p_maschera, int p_quirk, double p_ora,
+		double p_anticipo) const {
+	return chibi::fase_circadiana(static_cast<uint32_t>(p_maschera),
+			static_cast<int32_t>(p_quirk), p_ora, p_anticipo);
 }
 
 Dictionary EcsMondo::debug_entita(int64_t p_id) const {

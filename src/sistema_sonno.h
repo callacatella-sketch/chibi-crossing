@@ -52,6 +52,37 @@ bool nottambulo(uint32_t p_indole, int32_t p_quirk);
 // La finestra ATTRAVERSA la mezzanotte: `t >= inizio or t < fine`.
 bool finestra_di_sonno(uint32_t p_indole, int32_t p_quirk, double p_ora);
 
+// GLI ESTREMI della finestra, per chi non gli basta il sì/no.
+//
+// Non è una seconda tabella: `finestra_di_sonno()` chiama QUESTA, e i tre
+// numeri (0.80 / 0.92, 0.295 / 0.262 / 0.36) esistono in un posto solo.
+// Serviva perché la melatonina deve sapere QUANTO MANCA alla propria notte,
+// non soltanto se ci è già dentro — e ricopiare quei numeri in GDScript
+// sarebbe la tabella gemella che questo progetto ha già pagato tre volte.
+void estremi_finestra(uint32_t p_indole, int32_t p_quirk, double &r_inizio,
+		double &r_fine);
+
+// LA FASE CIRCADIANA: quanto è «la propria notte», adesso. 0 fuori, 1 dentro,
+// e una rampa nell'anticipo che precede l'inizio.
+//
+// ⚠️ **È il segnale ENDOGENO, e la differenza con la luce è tutta qui.** La
+// luce è esogena e istantanea: dice che fuori è buio adesso. Questo dice che
+// sta arrivando la TUA sera, e la tua non è quella di un altro — la fase è
+// quella di `finestra_di_sonno`, cioè il genoma del sonno, che è già
+// persistito, già visibile (chi si alza presto lo vedi) ed è perfino il grafo
+// sociale del villaggio (le cricche nascono da chi si stanca alla stessa ora).
+//
+// ⚠️ **E NON DECIDE NIENTE.** È un ingrediente per un canale della chimica,
+// non un ingresso di `passo_sonno`: il ciclo sonno/veglia resta l'unica
+// autorità, e una seconda autorità sullo stesso canale è il difetto che la
+// regola 1 dell'ECS vieta per iscritto.
+//
+// [param p_anticipo] è quanta parte di giornata prima dell'inizio la rampa
+// impiega a salire (0.08 ≈ due ore su ventiquattro). Con 0 la fase è il
+// sì/no di `finestra_di_sonno`, cioè il comportamento senza anticipo.
+double fase_circadiana(uint32_t p_indole, int32_t p_quirk, double p_ora,
+		double p_anticipo);
+
 // IL PASSO. Pura: niente rng, niente stato globale, niente Godot, niente
 // albero della scena. Prende lo stato di adesso e i tre fatti, torna lo
 // stato dopo.

@@ -4932,6 +4932,119 @@ di due terzi della vecchiaia piena. Un umore basso passa; una gobba no.
   fotogramma**. Misurato A/B su un codardo: due morsi invece di tre prima di
   scoppiare — un sistema tarato altrove spostato da un effetto collaterale.
 
+### ⚠️ LA MELATONINA NON ERA UN OROLOGIO: ERA UN BAROMETRO
+
+Il canale c'era, si integrava esattamente, si salvava, si azzerava al
+risveglio — e **la sua sorgente era la luce del cielo**: `Π · (1 − luce)`.
+
+Il difetto non è «una seconda risposta alla domanda che ora è», che era la
+prima diagnosi e non regge. È peggio, e si misura. `DayNight.luce_ambiente()`
+cala col `weather_gloom`, quindi **a mezzogiorno sotto un temporale** la luce
+scende a 0,550 e il punto di riposo della melatonina saliva a **0,202** —
+cioè il **94%** del picco che il canale endogeno raggiunge la sera, addosso a
+tutti e ventotto insieme. *Un ritmo circadiano non si sposta perché piove.*
+
+E la seconda metà: tutti i vicini avevano **la stessa identica curva**, mentre
+il gioco ha da sempre una fase per persona.
+
+**La cura tiene la fase dove la fase già vive.** `chibi::estremi_finestra` è
+stata estratta da `finestra_di_sonno` — i cinque numeri (0.80/0.92,
+0.295/0.262/0.36) restano in **un posto solo** e la vecchia funzione chiama la
+nuova — e sopra ci sta `chibi::fase_circadiana(indole, quirk, ora, anticipo)`:
+**1 dentro la propria finestra, una rampa nell'anticipo prima dell'inizio, 0
+altrove**. Il ponte è `EcsMondo.fase_circadiana(id, anticipo)`, con la stessa
+disciplina di `in_finestra`: *l'ora la sa il sistema, non il chiamante* — se
+l'accettasse da fuori avremmo due verità sulla stessa domanda.
+
+- **Non decide niente.** Non entra in `passo_sonno`: il ciclo sonno/veglia
+  resta l'unica autorità del C++, e una seconda autorità sullo stesso canale è
+  il difetto che la regola 1 dell'ECS vieta per iscritto.
+- **La luce non entra più affatto**, nemmeno come soppressore. Una prima
+  stesura la teneva con un `(1 − 0.85·luce)` e il perché scritto era «così
+  comincia a calare all'alba»: misurato, comprava −14% di picco e −2,4 s di
+  finestra, e la conseguenza che prometteva **non esiste** — all'alba il corpo
+  è già nascosto a scala 0,03 e `consolida_sonno` azzera comunque. Una terza
+  manopola con un perché decorativo è debito.
+- **Il degrado va dove va sempre**: `notte = 0` ⇒ melatonina zero (i banchi,
+  il Prologo, il diorama). E `Visitors` chiede **una volta sola** se il
+  binario sa rispondere: una GDExtension compilata prima di questa riga non ha
+  il simbolo, e un metodo che non esiste è un errore a runtime *per residente
+  per fotogramma* — **milleseicento al secondo** con ventotto vicini, con la
+  suite verde.
+
+**⚠️ IL CANALE NON HA ANCORA UN LETTORE**, e va detto invece che lasciato
+credere: `melatonina` non compare in `Andatura.gd`, in `FaceController.gd` né
+in `Visitor.gd`. Questa consegna è **una correzione della sorgente**, non una
+funzione nuova — e si è misurato prima di decidere se dargliene uno.
+
+### IL CANCELLO D'ARRESTO, misurato prima di toccare il rig
+
+[`tools/misura_notte.gd`](tools/misura_notte.gd), MainLevel vero, tredici
+residenti, due giornate. L'oracolo è indipendente: la melatonina si legge dal
+`Limbico`, la visibilità dal **frustum della camera vera**
+(`Visitors._nell_inquadratura`), e il corpo nascosto non conta — dentro la
+finestra di sonno `resident_sleep()` lo rimpicciolisce a scala 0,03.
+
+| | |
+|---|---|
+| picco, sulla **rampa** (sto per rientrare) | media **0,347** · da 0,250 a 0,448 |
+| picco, la **notte fuori** (non è andato a letto) | media **0,410** |
+| quanto pesa la rampa sul tempo acceso | **52,1%** |
+| campioni accesi **dentro l'inquadratura** | **43,9%** |
+| ⚠️ **dispersione degli istanti di accensione** | **0,062 di giornata = 14,9 s reali** (da 0,7505 a 0,8705) |
+| dispersione dell'adenosina alla sera | 0,045 (media 0,413, da 0,338 a 0,516) |
+
+**Il cancello passa**, e due previsioni sono state smentite dalla misura: il
+picco non è 0,216 ma 0,25–0,45 (metà del tempo acceso è gente che *non è
+riuscita ad andare a letto*, e la sua melatonina arriva al punto fisso pieno),
+e la **sincronia non è un problema** — quindici secondi reali di dispersione,
+col modo dominante a quattro corpi accesi insieme su tredici.
+
+⚠️ **Se la dispersione fosse stata quasi zero, il corpo non si sarebbe
+fatto**: un villaggio in cui ogni sera venti corpi si affossano all'unisono
+non è cozy, è un carillon. Il numero è il cancello, non una taratura.
+
+### Come si verifica
+
+```
+python3 -m SCons platform=macos arch=universal target=template_debug -j8
+Godot --headless --path . --import
+Godot --headless --path . --script res://tests/test_runner.gd
+CHIBI_GIORNI=2 CHIBI_QUANTI=20 Godot --path . --resolution 1280x720 \
+    --script res://tools/misura_notte.gd
+```
+
+⚠️ **Il C++ è cambiato: la CI su tutti e tre i sistemi è obbligatoria**, e qui
+morde davvero — il ramo Windows non è verificabile da un Mac.
+
+Le guardie sono in
+[`tests/cases/test_sonno_circadiano.gd`](tests/cases/test_sonno_circadiano.gd),
+e **sette mutazioni su otto sono rosse**: la melatonina che torna alla luce
+(5) · che entra nell'umore, cioè il colore che diventa porta (1) · il
+villaggio che non passa più la notte alla chimica (1) · gli estremi della
+rampa che divergono da quelli della finestra (6) · l'estrazione che sposta
+l'inizio (9) · un anticipo NaN che passa il cancello (2) · e l'ottava è
+**dichiarata non falsificabile**: che `_ecs_sa_la_notte` venga davvero
+consultato non si può provare, perché nel banco il binario ha sempre il
+simbolo.
+
+**E tre mutazioni erano mute alla prima stesura**, cioè tre buchi veri:
+
+1. **il cablaggio** — la riga che passa la notte alla chimica. Chiuso con un
+   caso che chiama `_ciclo_sonno` VERO e guarda la melatonina, più la
+   controprova a mezzogiorno col buio pieno (deve restare zero).
+   ⚠️ E il fixture deve **dare il cielo** scavalcando `_leggi_ambiente`:
+   `_ciclo_sonno` lo rinfresca da sé, e senza un `DayNight` nell'albero torna
+   vuoto — che è il degrado dichiarato del `Limbico`, non un guasto.
+2. **la normalizzazione sul cerchio** — due `while` che erano
+   **irraggiungibili**: ci si arriva solo dopo che la finestra ha detto no,
+   quindi `ora < inizio` sempre. Tolti, come si fa con una guardia che nessun
+   test può far fallire.
+3. **il cancello dell'anticipo**, che contro uno zero è ridondante (il conto
+   dà zero da sé) e serve **solo contro il NaN**: `manca >= NaN` è falso, si
+   passa oltre, e si torna NaN — che in `neuro` è **assorbente**. Adesso c'è
+   il caso che gli passa NAN, −1 e INF.
+
 ### ⚠️ IL CARATTERE NON TINGEVA NIENTE, e la controprova ha smontato anche me
 
 `Limbico.setup()` aveva cinque righe che scrivevano `neuro_base` dai tratti —

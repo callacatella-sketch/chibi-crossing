@@ -1677,6 +1677,20 @@ const LEASE_SPONTANEO := 30.0
 ## davvero un bit, e che sia solo suo.
 const FATTO_INSIEME := "insieme_accanto"
 
+## QUANTO PRIMA la propria sera comincia a farsi sentire, in frazione di
+## giornata. 0.08 sono poco meno di due ore su ventiquattro.
+##
+## ⚠️ **È anche tutta la finestra in cui il canale si può vedere**, e va detto:
+## `Visitor.resident_sleep()` non manda nessuno a casa a piedi — appena
+## `passo_sonno` dice DORME il corpo si rimpicciolisce a scala 0.03 e sparisce.
+## Dentro la finestra di sonno non c'è nessun corpo addosso a cui leggere
+## niente, quindi la melatonina è osservabile **solo** durante questa rampa:
+## 0.08 di giornata sono **19,2 secondi reali** (`cycle_seconds` 240).
+##
+## ⚠️ **Non decide niente**: entra solo nella produzione di un canale della
+## chimica. Chi va a letto e quando resta l'unica autorità del C++.
+const ANTICIPO_NOTTE := 0.08
+
 ## Cosa dice il cielo adesso — `luce`, `pioggia`, `temperatura`. Si rinfresca
 ## una volta per fotogramma e lo legge il passo neurochimico di ogni
 ## residente. Vuoto se non c'e' nessun `DayNight` (i banchi, il diorama del
@@ -1687,6 +1701,9 @@ var _ambiente: Dictionary = {}
 var _ecs: Object = null
 var _ecs_manca_detto := false
 var _ST_DORME := 1
+## Il binario sa rispondere a `fase_circadiana`? Una GDExtension vecchia no,
+## e la domanda si fa una volta sola (vedi il ciclo del sonno).
+var _ecs_sa_la_notte := false
 var _ST_FUORI := 2
 
 
@@ -1707,6 +1724,10 @@ func _ensure_ecs() -> void:
 	add_child(_ecs)
 	# le costanti si leggono dall'oggetto: qui dentro non si scrive 0/1/2
 	_ST_DORME = _ecs.STATO_DORME
+	# si chiede UNA volta, qui dove le costanti si leggono già dal binario:
+	# `has_method` per residente per fotogramma sarebbe la stessa domanda
+	# pagata ventotto volte al frame per una risposta che non cambia mai.
+	_ecs_sa_la_notte = _ecs.has_method("fase_circadiana")
 	_ST_FUORI = _ecs.STATO_FUORI
 	# IL RITMO DELLA MEMORIA SI DERIVA DAL CICLO DEL GIORNO, e si dice UNA
 	# volta sola: un villaggio con le giornate lunghe ha ricordi lunghi. Il
@@ -2808,7 +2829,30 @@ func _ciclo_sonno(delta: float, t_ora: float) -> void:
 		var animo_r: RefCounted = _animi.get(lab)
 		if animo_r and animo_r.limbico:
 			var l: RefCounted = animo_r.limbico
-			l.passo_neuro(delta, _ambiente, st == _ST_DORME)
+			# ⚠️ **E LA PROPRIA NOTTE**, che è l'unica cosa di questa riga
+			# che cambia da un vicino all'altro. Non è un'ora e non è la
+			# luce: è quanto manca alla finestra di sonno DI COSTUI, e la
+			# sa il C++ — che è la stessa disciplina di `in_finestra`,
+			# l'ora la conosce il sistema e non gliela passa il chiamante.
+			# Costa una chiamata al ponte per residente per fotogramma, la
+			# stessa cadenza con cui gli si chiede già lo stato.
+			# ⚠️ **E LA PROPRIA NOTTE**, l'unica cosa di questa riga che
+			# cambia da un vicino all'altro. Non è un'ora e non è la luce:
+			# è quanto manca alla finestra di sonno DI COSTUI, e la sa il
+			# C++ — la stessa disciplina di `in_finestra`, l'ora la conosce
+			# il sistema e non gliela passa il chiamante.
+			#
+			# ⚠️ **E SI CHIEDE SE IL BINARIO SA RISPONDERE.** Le GDExtension
+			# si caricano all'avvio: chi apre il gioco con una libreria
+			# compilata prima di questa riga — o con la release che non è
+			# stata rifatta — non ha il simbolo, e un metodo che non esiste
+			# è un errore a runtime **per residente per fotogramma**:
+			# milleseicento al secondo con ventotto vicini, e la suite
+			# verde. Il degrado va dove va sempre: `notte = 0`, cioè il
+			# gioco di ieri, identico.
+			l.passo_neuro(delta, _ambiente, st == _ST_DORME,
+					float(_ecs.fase_circadiana(id, ANTICIPO_NOTTE))
+							if _ecs_sa_la_notte else 0.0)
 			# L'ONSEN resta un impulso, ed e' giusto: non e' il mondo che
 			# scorre, e' una cosa che si sta facendo. (Ed e' l'unico posto
 			# del gioco in cui il ristoro e' continuo invece che a evento:
