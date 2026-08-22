@@ -4972,10 +4972,12 @@ l'accettasse da fuori avremmo due verità sulla stessa domanda.
   per fotogramma* — **milleseicento al secondo** con ventotto vicini, con la
   suite verde.
 
-**⚠️ IL CANALE NON HA ANCORA UN LETTORE**, e va detto invece che lasciato
-credere: `melatonina` non compare in `Andatura.gd`, in `FaceController.gd` né
-in `Visitor.gd`. Questa consegna è **una correzione della sorgente**, non una
-funzione nuova — e si è misurato prima di decidere se dargliene uno.
+**⚠️ E IL CANALE NON AVEVA UN LETTORE.** Per mesi `melatonina` non è comparsa
+in `Andatura.gd`, in `FaceController.gd` né in `Visitor.gd`: si calcolava, si
+integrava esattamente, si salvava, si azzerava al risveglio — e non la
+guardava nessuno. È la settima volta in questo progetto. Adesso ce l'ha, ed è
+un LIVELLO del vocabolario del corpo (sotto), consegnato **dopo** che il
+cancello d'arresto ha detto di sì.
 
 ### IL CANCELLO D'ARRESTO, misurato prima di toccare il rig
 
@@ -5004,6 +5006,56 @@ col modo dominante a quattro corpi accesi insieme su tredici.
 fatto**: un villaggio in cui ogni sera venti corpi si affossano all'unisono
 non è cozy, è un carillon. Il numero è il cancello, non una taratura.
 
+### «STA ARRIVANDO LA MIA SERA» — il livello, e la parola che NON deve ripetere
+
+Un **LIVELLO**, non un gesto: non prende il gettone del villaggio, perché non
+è un evento che vuole il palco — è uno stato, come la coda somatica e il capo
+che pende, e capita a tutti ogni sera. Vive in `Gesti.notte_livello()` /
+`notte_canali()` (pure) e in `Visitor._gesto_notte`, che è il gemello esatto
+di `_gesto_soma`: `sy` si moltiplica, `hpy` si somma, e nessuno scrive
+`_corpo.scale` da fuori (sarebbe la trappola del tween, già pagata).
+
+**Il canale portante è la SILHOUETTE** — il corpo che si abbassa e si allarga,
+la testa che affonda fra le spalle — perché è l'unica cosa che questo progetto
+ha misurato leggersi da tutti e quattro i lati.
+
+> ### ⚠️ E NON DEVE DIRE LA PAROLA CHE IL CORPO DICE GIÀ
+>
+> L'adenosina è la pressione di sonno («sono stanco») e scrive **le orecchie**
+> (`+0.18 · adenosina` in `Andatura.applica`). La melatonina è il segnale
+> circadiano («è la MIA sera»): sono due processi diversi, e la differenza
+> deve stare nel TEMPO — uno anticipa la propria finestra, l'altro sale con
+> la giornata — non in un accento in più.
+>
+> GUARDATO (`tools/provino_notte.gd`, la lastra «la parola doppia»: la notte,
+> la coda somatica e il riposo nello stesso fotogramma, a quattro azimut): le
+> tre pose si distinguono, e **a distinguerle sono esattamente le orecchie**,
+> che la notte lascia dritte. Se le toccasse, questo canale diventerebbe un
+> secondo modo di dire «allarme».
+
+**Il guadagno non è scelto: è il massimo che il verso regge.** Il cancello di
+`provino_verso` ha già misurato questo canale — la scala porta il verso a
+**1,64–1,85 fino a −10%, e a −13% cade** — quindi `NOTTE_SY = 0.10`, e
+qualunque numero più grosso comprerebbe visibilità pagandola in leggibilità.
+
+E guardato lo stesso: cinque varianti affiancate nello stesso fotogramma
+(−4%, −7%, −10%, −15%, −22%), quattro azimut, due distanze. A 2 m −0,04 e
+−0,07 non si leggono, **−0,10 si legge e il corpo resta un corpo**, −0,15
+comincia a sembrare schiacciato, −0,22 è deforme. **La controprova a livello
+zero dà cinque silhouette identiche**: la progressione è del canale, non della
+fase delle micro-espressioni — è la lezione che il provino del carattere aveva
+già pagato.
+
+**Residuo dichiarato: a 6 m è debole, a 9 non c'è.** È la stessa cosa già
+scritta del capo che pende — un livello si nota quando ci si avvicina a
+qualcuno, non attraverso il prato.
+
+**Sette mutazioni, tutte rosse**: il livello che non arriva più al rig (2) · la
+chimica che non lo alimenta (3) · il canale orfano che resta fuori posa (1) ·
+la notte che scrive sulle orecchie (1) · la soglia che taglia invece di
+smorzare (1) · il guadagno che sfonda il limite del verso (1) · il corpo che
+si assottiglia invece di allargarsi (2).
+
 ### Come si verifica
 
 ```
@@ -5012,6 +5064,8 @@ Godot --headless --path . --import
 Godot --headless --path . --script res://tests/test_runner.gd
 CHIBI_GIORNI=2 CHIBI_QUANTI=20 Godot --path . --resolution 1280x720 \
     --script res://tools/misura_notte.gd
+CHIBI_NOTTE=<dir> Godot --path . --resolution 1280x720 \
+    --script res://tools/provino_notte.gd
 ```
 
 ⚠️ **Il C++ è cambiato: la CI su tutti e tre i sistemi è obbligatoria**, e qui

@@ -176,6 +176,13 @@ var _gs_capo_b := 0.0       # il bersaglio del trasferimento in corso
 var _gs_capo_next := 0.0    # quando scatta il prossimo
 var _gs_capo_verso := 1.0
 var _gs_soma := 0.0         # «sono ancora guardingo»: la forza del sussulto
+## «sta arrivando la mia sera»: il livello applicato, e la melatonina che lo
+## alimenta. La seconda la scrive `indossa_neuro`, cioè la stessa porta da cui
+## entra tutta la chimica — non c'è un secondo canale da tenere allineato.
+var _gs_notte := 0.0
+var _notte_mel := 0.0
+## solo per `tools/provino_notte.gd`: −1 = usa la costante di `Gesti`
+var _gs_notte_prova := -1.0
 var _gs_soma_t := 0.0
 ## LA RAMPA DEI LIVELLI: quanta parte dei due livelli è ancora del corpo.
 ## Parte da UNO — un corpo che nasce non sta uscendo da nessuna scena — e va
@@ -4533,6 +4540,7 @@ func _gesto_passo(delta: float) -> void:
 	# per tutti: si aggiorna sempre, si APPLICA per la frazione che è ancora
 	# sua.
 	_gesto_soma(delta, canali, gl)
+	_gesto_notte(delta, canali, gl)
 
 	# 5) IL RITMO, con la sua ultima rete: fuori da questa forbice non c'è
 	#    niente che il vocabolario abbia il permesso di chiedere.
@@ -4589,6 +4597,40 @@ func _gesto_capo(delta: float, canali: Dictionary, guadagno: float,
 ## proprio riarmo — 6,0 s contro i 9,0 del cooldown del sussulto — o resta
 ## acceso il 100% del tempo su chiunque il giocatore sfiori camminando, che è
 ## il livello monotono che la regola dei livelli vieta.
+## ⚠️ **LA NOTTE CHE ARRIVA — un LIVELLO, non un gesto.**
+##
+## Segue la melatonina, che è già un canale filtrato: `neuro` è integrato
+## esattamente con la sua costante di tempo (τ = 10 s), quindi il livello NON
+## ha bisogno di un secondo filtro — ce l'ha già dentro. Quello che ha
+## bisogno di una costante di tempo sua è il **rilascio**: `consolida_sonno`
+## azzera la melatonina di colpo al risveglio, e un livello che sparisce in
+## un fotogramma è un salto del rig.
+##
+## ⚠️ **E il canale del corpo lo scrive UNA sorgente per volta nel
+## dizionario**, come la coda somatica: `sy` si moltiplica, `hpy` si somma.
+## Chi scrivesse `_corpo.scale` da qui combatterebbe con `_gesto_scala`, e
+## l'ultimo a scrivere vincerebbe — è la trappola del tween che questo
+## progetto ha già pagato.
+func _gesto_notte(delta: float, canali: Dictionary, guadagno: float) -> void:
+	var vero := GESTI.notte_livello(_notte_mel)
+	# il rilascio è l'unica cosa che ha una costante di tempo sua: salire
+	# segue la chimica, scendere non può essere più svelto della rampa
+	# canonica con cui in questo progetto si molla qualunque cosa.
+	if vero >= _gs_notte:
+		_gs_notte = vero
+	else:
+		_gs_notte = maxf(vero, _gs_notte - delta / GESTI.SPEGNI)
+	if _gs_notte <= 0.0 or guadagno <= 0.0:
+		return
+	# ⚠️ SOLO PER I PROVINI: il guadagno della silhouette si sceglie
+	# guardando cinque varianti affiancate, e per confrontarle nello STESSO
+	# fotogramma serve poterlo cambiare per corpo. In partita è `-1` e non
+	# tocca niente (`Gesti.notte_canali` usa la costante).
+	var c: Dictionary = GESTI.notte_canali(_gs_notte, _gs_notte_prova)
+	canali["sy"] = lerpf(1.0, float(c["sy"]), guadagno) * float(canali["sy"])
+	canali["hpy"] = float(canali["hpy"]) + float(c["hpy"]) * guadagno
+
+
 func _gesto_soma(delta: float, canali: Dictionary, guadagno: float) -> void:
 	if _gs_soma <= 0.0:
 		return
@@ -4797,8 +4839,18 @@ func indossa_neuro(neuro: Dictionary) -> void:
 			_andatura.reset_neuro()
 		if _face != null:
 			_face.reset_neuro()
+		# ⚠️ e il livello della notte torna a riposo con tutto il resto: e' un
+		# canale del rig come gli altri, e un canale orfano resta fuori posa
+		# per sempre.
+		_notte_mel = 0.0
 		return
 	if _andatura != null:
 		_andatura.set_neuro(neuro)
 	if _face != null:
 		_face.set_neuro(neuro)
+	# ⚠️ **LA MELATONINA NON VA A NESSUNO DEI DUE**, e va detto: `Andatura` e
+	# `FaceController` ignorano in silenzio le chiavi che non conoscono, e per
+	# sei mesi questo canale non ha avuto un solo lettore. Adesso ce l'ha, ed
+	# e' un LIVELLO del vocabolario del corpo (`_gesto_notte`) — non un altro
+	# accento sulle orecchie, che sono gia' dell'adenosina.
+	_notte_mel = float(neuro.get("melatonina", 0.0))

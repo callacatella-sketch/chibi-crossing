@@ -17,6 +17,7 @@ extends RefCounted
 
 const LIMBICO := preload("res://scenes/npc/Limbico.gd")
 const ORACOLO := preload("res://tests/oracolo_sonno.gd")
+const GESTI := preload("res://scenes/npc/Gesti.gd")
 
 
 func run(t) -> void:
@@ -33,6 +34,9 @@ func run(t) -> void:
 	_senza_notte_non_succede_niente(t)
 	_un_anticipo_malato_non_avvelena(t, m)
 	_il_villaggio_passa_la_notte_alla_chimica(t)
+	_la_notte_arriva_al_corpo(t)
+	_la_notte_non_e_la_coda_somatica(t)
+	_il_livello_non_e_un_canale_orfano(t)
 	m.free()
 
 
@@ -342,3 +346,114 @@ class VicinoDiProva extends "res://scenes/npc/Visitors.gd":
 
 	func _leggi_ambiente() -> Dictionary:
 		return {"luce": 0.0, "pioggia": 0.0, "temperatura": 20.0}
+
+
+## ⚠️ **IL CANALE ARRIVA AL CORPO, o è aritmetica.** Per sei mesi la melatonina
+## non ha avuto un solo lettore: `Andatura` e `FaceController` ignorano in
+## silenzio le chiavi che non conoscono. Qui si passa la chimica dalla porta
+## VERA (`indossa_neuro`), si fa girare il `_process` VERO, e si guarda la
+## scala del corpo — non un campo del vocabolario, il RIG.
+func _la_notte_arriva_al_corpo(t) -> void:
+	var v = _corpo_vero(t)
+	if v == null:
+		return
+	var base: Vector3 = (v.get("_corpo") as Node3D).scale
+	for _i in 30:
+		v.call("indossa_neuro", {"melatonina": GESTI.NOTTE_PIENA})
+		v.call("_process", 1.0 / 60.0)
+	var dopo: Vector3 = (v.get("_corpo") as Node3D).scale
+	var calo: float = 1.0 - dopo.y / maxf(0.0001, base.y)
+	t.ok(calo > GESTI.NOTTE_SY * 0.5,
+			("la propria notte abbassa il CORPO: la scala verticale cala del "
+			+ "%.1f%% (il livello pieno ne vuole %.1f%%)")
+					% [calo * 100.0, GESTI.NOTTE_SY * 100.0])
+	# e il corpo si allarga invece di assottigliarsi: e' un solido di
+	# rotazione che si schiaccia, non uno che rimpicciolisce
+	t.ok(dopo.x > base.x * 1.001,
+			"…e si allarga (%.4f → %.4f): e' una silhouette, non una scala"
+					% [base.x, dopo.x])
+
+	# ⚠️ SOTTO SOGLIA NON SUCCEDE NIENTE, e la soglia SMORZA: un livello che
+	# si accende su un confronto compare in un fotogramma.
+	for _j in 60:
+		v.call("indossa_neuro", {"melatonina": 0.0})
+		v.call("_process", 1.0 / 60.0)
+	t.almost((v.get("_corpo") as Node3D).scale.y, base.y,
+			"e a melatonina zero il corpo torna dov'era", 1e-4)
+	t.almost(GESTI.notte_livello(GESTI.NOTTE_SOGLIA * 0.5), 0.0,
+			"sotto soglia il livello e' zero esatto", 1e-12)
+	var meta: float = GESTI.notte_livello(
+			(GESTI.NOTTE_SOGLIA + GESTI.NOTTE_PIENA) * 0.5)
+	t.ok(meta > 0.2 and meta < 0.8,
+			"e a meta' strada la soglia SMORZA invece di tagliare (%.3f)" % meta)
+
+
+## ⚠️ **NON DEVE DIRE LA PAROLA CHE IL CORPO DICE GIÀ.**
+##
+## L'adenosina è la pressione di sonno («sono stanco») e scrive **le
+## orecchie** (`Andatura.applica`: `+0.18 · adenosina`). La melatonina è il
+## segnale circadiano («è la MIA sera»): se scrivesse anche lei sulle
+## orecchie, le due pose diventerebbero la stessa. GUARDATO
+## (`tools/provino_notte.gd`, la lastra «la parola doppia»): a distinguere la
+## notte dalla coda somatica sono **esattamente** le orecchie, che la notte
+## lascia dritte.
+func _la_notte_non_e_la_coda_somatica(t) -> void:
+	var c: Dictionary = GESTI.notte_canali(1.0)
+	for k in ["ear", "ear_dx"]:
+		t.almost(float(c[k]), 0.0,
+				("la notte non tocca «%s»: le orecchie sono dell'adenosina, e "
+				+ "sono la sola cosa che distingue questa posa dall'allarme")
+						% k, 1e-12)
+	t.almost(float(c["r"]), 1.0,
+			("e non tocca il RITMO del passo: un rallentando scalare e' "
+			+ "indecodificabile, e cambierebbe QUANDO la gente arriva a casa "
+			+ "— una seconda autorita' sul sonno dalla porta di servizio"),
+			1e-12)
+	t.ok(float(c["sy"]) < 1.0 and float(c["hpy"]) > 0.0,
+			"quello che tocca e' la SILHOUETTE: il corpo giu' e la testa che "
+			+ "affonda")
+	# il guadagno sta dentro il limite MISURATO del verso
+	t.ok(GESTI.NOTTE_SY <= 0.10 + 1e-9,
+			("il guadagno non sfonda il limite del verso gia' misurato: la "
+			+ "scala lo porta fino a −10%%, a −13%% cade (adesso −%.1f%%)")
+					% (GESTI.NOTTE_SY * 100.0))
+
+
+## ⚠️ **UN CANALE ORFANO RESTA FUORI POSA PER SEMPRE.** Il diorama del titolo
+## e il Prologo non hanno `Visitors`, e un corpo rimontato dall'estetista
+## riparte da zero: se `indossa_neuro({})` non azzerasse anche questo livello,
+## quel chibi resterebbe accovacciato in eterno.
+func _il_livello_non_e_un_canale_orfano(t) -> void:
+	var v = _corpo_vero(t)
+	if v == null:
+		return
+	for _i in 30:
+		v.call("indossa_neuro", {"melatonina": GESTI.NOTTE_PIENA})
+		v.call("_process", 1.0 / 60.0)
+	t.ok(float(v.get("_notte_mel")) > 0.0, "il livello e' acceso")
+	v.call("indossa_neuro", {})
+	t.almost(float(v.get("_notte_mel")), 0.0,
+			"senza chimica il livello torna a riposo, come tutto il resto",
+			1e-12)
+	# ⚠️ e la leva del provino non e' in uso in partita
+	t.almost(float(v.get("_gs_notte_prova")), -1.0,
+			("la leva del provino vale −1 su un corpo vero: e' solo per le "
+			+ "varianti affiancate"), 1e-12)
+	t.almost(float(GESTI.notte_canali(1.0, -1.0)["sy"]),
+			float(GESTI.notte_canali(1.0)["sy"]),
+			"…e con −1 la funzione usa la costante", 1e-12)
+
+
+## Un `Visitor` VERO col rig costruito: `_gesto_passo`, `_gesto_notte`,
+## `_gesto_scala` e `indossa_neuro` restano quelli del gioco.
+func _corpo_vero(t):
+	var v = preload("res://scenes/npc/Visitor.gd").new()
+	v.set("species", "chibi")
+	v.set("dna", preload("res://scenes/npc/ChibiDNA.gd").generate(7331))
+	t.stage(v)
+	if v.get("_corpo") == null:
+		t.ok(false, "il rig non si e' costruito")
+		return null
+	v.call("_enter_state", "r_idle")
+	v.set("_timer", 999999.0)
+	return v

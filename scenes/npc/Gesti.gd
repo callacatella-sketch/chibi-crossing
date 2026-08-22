@@ -1062,6 +1062,77 @@ static func coda_rilascio(s: float) -> float:
 ## essere guardingo, stanco o pensieroso, e il giocatore legge «a lui sta
 ## succedendo qualcosa», mai quale leva. È l'unica cosa di tutto il
 ## vocabolario che arriva ai venti vicini lontani.
+# =========================================================================
+# LA NOTTE CHE ARRIVA — il livello della melatonina
+# =========================================================================
+#
+# ⚠️ **NON È UN GESTO, ed è la ragione per cui non prende il gettone.** Un
+# gesto è un EVENTO che si vede una volta e vuole il palco; questo è uno
+# STATO, come la coda somatica e il capo che pende: capita a tutti, ogni
+# sera, e l'unica cosa che dice è «sta arrivando la MIA ora».
+#
+# ⚠️ **E DICE UNA COSA CHE L'ADENOSINA NON SA DIRE.** L'adenosina è la
+# pressione di sonno: sale con le ore di veglia, e vuol dire «sono stanco».
+# Questa anticipa la PROPRIA finestra, e vuol dire «è la mia sera» — due
+# processi diversi, ed è per questo che i canali non si sovrappongono: le
+# orecchie sono già dell'adenosina (`Andatura.applica`, `+0.18 · adenosina`),
+# e scriverci sopra vorrebbe dire ripetere una parola che il corpo dice già.
+#
+# Il canale portante è la SILHOUETTE, che è l'unica cosa che questo progetto
+# ha misurato leggersi da tutti e quattro i lati e a distanza: il corpo che
+# si abbassa e la testa che affonda fra le spalle.
+#
+# ⚠️ **La soglia SMORZA, non taglia.** Un livello che si accende su un
+# confronto compare in un fotogramma, e un salto del rig è la cosa peggiore
+# che possa fare un canale che dovrebbe dire «piano piano».
+const NOTTE_SOGLIA := 0.08
+const NOTTE_PIENA := 0.42
+## Quanto si abbassa il corpo, a livello pieno.
+##
+## ⚠️ **NON è scelto: è il massimo che il verso regge.** Il cancello del verso
+## (`tools/provino_verso.gd`) ha già misurato questo canale una volta per
+## tutte — la scala porta il verso a **1,64–1,85 fino a −10%, e a −13% cade**
+## — quindi qualunque numero più grosso comprerebbe visibilità pagandola in
+## leggibilità, che è il contrario di quello che serve.
+##
+## E GUARDATO (`tools/provino_notte.gd`, cinque varianti affiancate nello
+## stesso fotogramma, a quattro azimut e due distanze): a 2 m −0,04 e −0,07
+## non si leggono, −0,10 si legge e il corpo resta un corpo, −0,15 si legge
+## ma comincia a sembrare **schiacciato**, −0,22 è deforme. A 6 m −0,10 è al
+## limite. La controprova a livello zero dà cinque silhouette **identiche**:
+## la progressione è del canale, non della fase delle micro-espressioni.
+##
+## ⚠️ **Residuo dichiarato: a 6 m è debole, a 9 non c'è.** È la stessa cosa
+## che il progetto ha già scritto del capo che pende — un livello si nota
+## quando ci si avvicina a qualcuno, non attraverso il prato.
+const NOTTE_SY := 0.10
+## Quanto affonda la testa fra le spalle, in metri, a livello pieno.
+const NOTTE_HPY := 0.022
+
+
+## Il livello, da un canale di melatonina. Puro.
+static func notte_livello(melatonina: float) -> float:
+	var m := clampf(melatonina, 0.0, 1.0)
+	if not is_finite(m):
+		return 0.0
+	return smoothstep(NOTTE_SOGLIA, NOTTE_PIENA, m)
+
+
+## I canali del rig, dal livello. `sy` è un FATTORE (si moltiplica), `hpy` un
+## termine (si somma) — la stessa convenzione della coda somatica.
+static func notte_canali(livello: float, sy := -1.0) -> Dictionary:
+	var out := riposo()
+	var l := clampf(livello, 0.0, 1.0)
+	if l <= 0.0:
+		return out
+	# `sy < 0` = usa la costante. Il parametro esiste solo per il provino che
+	# affianca cinque guadagni nello stesso fotogramma: in partita non lo
+	# passa nessuno, e un test lo prova.
+	out["sy"] = 1.0 - (NOTTE_SY if sy < 0.0 else sy) * l
+	out["hpy"] = NOTTE_HPY * l
+	return out
+
+
 static func soma_ritmo(forza: float, t: float) -> float:
 	var b := clampf(forza, 0.0, 1.0) * exp(-t / SOMA_TAU)
 	return maxf(SOMA_PAVIMENTO, 1.0 - SOMA_CALO * b)
