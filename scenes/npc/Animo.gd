@@ -317,6 +317,12 @@ func sincronizza_neuro() -> void:
 	# 5. Stima & Autonomia -> Serotonina ed Endorfine
 	base["serotonina"] = clampf(stima_val * 0.55 + aut_val * 0.35 + 0.10, 0.0, 1.0)
 	base["endorfine"] = clampf(stima_val * 0.35 + (1.0 - m_fatica) * 0.45 + 0.10, 0.0, 1.0)
+	# 6. ⚠️ **E POI IL CARATTERE**, che e' uno scarto e non una scrittura.
+	# Le cinque righe qui sopra assegnano; il carattere ci si somma sopra. Se
+	# invece riassegnasse, cancellerebbe i bisogni — cioe' il difetto che la
+	# testata di questa funzione documenta, rifatto un piano piu' giu'. Un
+	# carattere medio somma zero esatto: per lui non e' cambiato niente.
+	limbico.applica_tinta(base)
 
 
 ## Il carattere in una riga, per il diario e per il debug.

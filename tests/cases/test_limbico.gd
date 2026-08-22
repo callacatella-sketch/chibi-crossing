@@ -9,6 +9,8 @@
 extends RefCounted
 
 const LIMBICO := preload("res://scenes/npc/Limbico.gd")
+const ANIMO_L := preload("res://scenes/npc/Animo.gd")
+const DNA_L := preload("res://scenes/npc/ChibiDNA.gd")
 
 
 func run(t) -> void:
@@ -30,6 +32,9 @@ func run(t) -> void:
 	_l_umore_non_si_muove_da_solo(t)
 	_il_NaN_non_avvelena(t)
 	_la_notte_ha_una_RESA_non_un_interruttore(t)
+	_il_carattere_tinge_la_chimica_a_riposo(t)
+	_il_carattere_non_cancella_i_bisogni(t)
+	_la_deriva_rifa_la_tinta(t)
 func _nuovo(tratti := {}):
 	var l = LIMBICO.new()
 	l.setup(tratti)
@@ -404,3 +409,109 @@ func _la_notte_ha_una_RESA_non_un_interruttore(t) -> void:
 		g.consolida_sonno(storta)
 		t.ok(is_finite(g.regolazione) and g.regolazione > 0.3,
 				"una resa storta (%s) non avvelena la notte (%.3f)" % [storta, g.regolazione])
+
+
+## ⚠️ **IL CARATTERE TINGE LA CHIMICA A RIPOSO — e per un pezzo non tingeva
+## niente.**
+##
+## `Limbico.setup()` aveva cinque righe che scrivevano `neuro_base` dai tratti
+## (cortisolo dalla codardia, ossitocina dalla lealtà, e così via). Erano
+## **morte**: `Animo.sincronizza_neuro()` riassegna gli stessi cinque canali
+## dai bisogni, e la chiamano sette posti — a partire da `Animo.setup()`
+## stesso, tre righe dopo. MISURATO: con la codardia da 0,20 a 0,85 i cinque
+## canali uscivano **bit-identici**. Ogni vicino del villaggio aveva la stessa
+## identica chimica a riposo, e il carattere non ci arrivava né alla nascita
+## né mai.
+##
+## Il numero che rende la cosa osservabile è `bersaglio_umore()`, che legge la
+## chimica a riposo e ha lettori veri (`stato_corpo()`, il capo che pende).
+func _il_carattere_tinge_la_chimica_a_riposo(t) -> void:
+	var animi := []
+	for cod in [0.15, 0.50, 0.90]:
+		var a = ANIMO_L.new()
+		var g: Dictionary = DNA_L.generate(4242)
+		var tr: Dictionary = (g["tratti"] as Dictionary).duplicate()
+		tr["codardia"] = cod
+		g["tratti"] = tr
+		a.setup(g)
+		animi.append(a)
+	var c0: float = float(animi[0].limbico.neuro_base["cortisolo"])
+	var c1: float = float(animi[1].limbico.neuro_base["cortisolo"])
+	var c2: float = float(animi[2].limbico.neuro_base["cortisolo"])
+	t.ok(c2 > c1 and c1 > c0,
+			("un codardo sta piu' in alto sul cortisolo A RIPOSO: %.4f < %.4f "
+			+ "< %.4f") % [c0, c1, c2])
+	t.ok(c2 - c0 > 0.05,
+			"…e lo scarto e' quello dichiarato in AMPIEZZA_TINTA (%.4f)"
+					% (c2 - c0))
+	var s0: float = float(animi[0].limbico.neuro_base["serotonina"])
+	var s2: float = float(animi[2].limbico.neuro_base["serotonina"])
+	t.ok(s0 > s2, "e piu' in basso sulla serotonina (%.4f contro %.4f)" % [s0, s2])
+	# il numero con un consumatore vero
+	var u0: float = float(animi[0].limbico.bersaglio_umore())
+	var u2: float = float(animi[2].limbico.bersaglio_umore())
+	t.ok(u0 - u2 > 0.05,
+			("e l'umore a cui tende un codardo e' piu' basso di %.4f: e' il "
+			+ "lettore che rende la tinta una cosa che succede") % (u0 - u2))
+
+	# ⚠️ **IL NEUTRO SOMMA ZERO ESATTO.** E' la promessa piu' forte di questa
+	# cura: per un carattere medio il gioco e' bit-identico a prima, quindi
+	# tutte le misure gia' prese (il piatto caldo, il ri-aggancio del
+	# cortisolo, il morso della lingua) restano valide senza rifarle.
+	var neutro: Dictionary = LIMBICO.tinta_carattere({})
+	for c in neutro:
+		t.almost(float(neutro[c]), 0.0,
+				"il carattere neutro non sposta «%s» di un bit" % str(c), 1e-12)
+
+
+## ⚠️ **E NON CANCELLA I BISOGNI.** La cura ovvia — riassegnare i cinque canali
+## dal carattere DOPO `sincronizza_neuro` — rifarebbe un piano piu' giu' il
+## difetto che la testata di quella funzione documenta: sei chiamanti che
+## buttavano via ogni impulso degli eventi. Il carattere e' uno SCARTO che si
+## somma, e questo caso lo dimostra muovendo un bisogno e guardando che il
+## canale lo segua ancora.
+func _il_carattere_non_cancella_i_bisogni(t) -> void:
+	var a = ANIMO_L.new()
+	var g: Dictionary = DNA_L.generate(4242)
+	var tr: Dictionary = (g["tratti"] as Dictionary).duplicate()
+	tr["codardia"] = 0.90
+	g["tratti"] = tr
+	a.setup(g)
+	var prima: float = float(a.limbico.neuro_base["cortisolo"])
+	# la sicurezza crolla: il cortisolo di riposo deve salire lo stesso
+	a.drive["sicurezza"] = 0.05
+	a.sincronizza_neuro()
+	var dopo: float = float(a.limbico.neuro_base["cortisolo"])
+	t.ok(dopo > prima + 0.3,
+			("i bisogni muovono ancora il punto di riposo col carattere "
+			+ "addosso: %.4f → %.4f") % [prima, dopo])
+	# e la tinta e' ancora li' dentro: lo stesso bisogno su un coraggioso da'
+	# un numero piu' basso
+	var b = ANIMO_L.new()
+	var g2: Dictionary = DNA_L.generate(4242)
+	var tr2: Dictionary = (g2["tratti"] as Dictionary).duplicate()
+	tr2["codardia"] = 0.10
+	g2["tratti"] = tr2
+	b.setup(g2)
+	b.drive["sicurezza"] = 0.05
+	b.sincronizza_neuro()
+	t.ok(float(b.limbico.neuro_base["cortisolo"]) < dopo - 0.01,
+			("…e a parita' di bisogno un coraggioso resta piu' basso "
+			+ "(%.4f contro %.4f)")
+					% [float(b.limbico.neuro_base["cortisolo"]), dopo])
+
+
+## ⚠️ **LA DERIVA RIFA' LA TINTA, o si ferma un millimetro prima del corpo.**
+## `riproietta()` rifaceva DUE delle sette grandezze che `setup` deriva dai
+## tratti; le altre cinque sono i canali della chimica. Un tratto che deriva
+## senza rifarle muove il comportamento e non muove niente di somatico.
+func _la_deriva_rifa_la_tinta(t) -> void:
+	var l = LIMBICO.new()
+	l.setup({"codardia": 0.90})
+	var prima: float = float(l.neuro_tinta["cortisolo"])
+	l.riproietta({"codardia": 0.30})
+	var dopo: float = float(l.neuro_tinta["cortisolo"])
+	t.ok(dopo < prima - 0.02,
+			("la deriva rifa' la tinta: %+.4f → %+.4f") % [prima, dopo])
+	t.almost(float(LIMBICO.tinta_carattere({"codardia": 0.30})["cortisolo"]),
+			dopo, "…e con la STESSA funzione pura, non una gemella", 1e-12)

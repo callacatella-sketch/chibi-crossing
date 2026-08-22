@@ -4772,8 +4772,11 @@ mordersi la lingua, e quello che si vede addosso a un corpo.
 ### La forma: un punto di riposo, gli impulsi, e il tempo
 
 - **`neuro`** è il livello adesso, ed è l'unico stato — persistito.
-- **`neuro_base`** è dove torna: lo tinge il carattere (`setup`) e lo spostano
-  i bisogni (`Animo.sincronizza_neuro`). ⚠️ **I bisogni spostano il PUNTO DI
+- **`neuro_base`** è dove torna: lo spostano i bisogni
+  (`Animo.sincronizza_neuro`) e ci si somma sopra lo **scarto del carattere**
+  (`tinta_carattere` → `applica_tinta`). ⚠️ Fino al 2026-08-18 la tinta del
+  carattere era una SCRITTURA dentro `setup`, e i bisogni la cancellavano tre
+  righe dopo: vedi «IL CARATTERE NON TINGEVA NIENTE», più sotto. ⚠️ **I bisogni spostano il PUNTO DI
   RIPOSO, non il livello.** Prima lo assegnavano, e siccome
   `sincronizza_neuro` la chiamano sei posti (`ricorda` compreso, cioè ogni
   fatto della vita del villaggio), **ogni impulso degli eventi veniva
@@ -4928,6 +4931,134 @@ di due terzi della vecchiaia piena. Un umore basso passa; una gobba no.
   0,05–0,15: il morso costava dal 4 all'11% in più **per tutti, dal primo
   fotogramma**. Misurato A/B su un codardo: due morsi invece di tre prima di
   scoppiare — un sistema tarato altrove spostato da un effetto collaterale.
+
+### ⚠️ IL CARATTERE NON TINGEVA NIENTE, e la controprova ha smontato anche me
+
+`Limbico.setup()` aveva cinque righe che scrivevano `neuro_base` dai tratti —
+cortisolo dalla codardia, ossitocina dalla lealtà, dopamina dall'ambizione,
+endorfine dalla grinta, serotonina dalla codardia al contrario — col commento
+*«il carattere tinge il punto di riposo, così un vicino appena nato è già sé
+stesso»*. Erano **morte**: `Animo.sincronizza_neuro()` riassegna gli stessi
+cinque canali dai bisogni, e la chiamano **sette** posti — a partire da
+`Animo.setup()` stesso, **tre righe dopo**.
+
+MISURATO, con la codardia da 0,20 a 0,85:
+
+| | cortisolo | ossitocina | dopamina | serotonina | endorfine |
+|---|---|---|---|---|---|
+| **prima** (qualunque carattere) | 0.1200 | 0.7575 | 0.8315 | 0.8650 | 0.7935 |
+
+**Bit-identici.** Ogni vicino del villaggio aveva la stessa identica chimica a
+riposo, e il carattere non ci arrivava né alla nascita né mai. È la stessa
+forma delle 247 righe di somatizzazione senza chiamanti: codice completo,
+provato, verde e mai eseguito — la sesta volta in questo progetto.
+
+**La cura non poteva essere «riassegnare dopo i bisogni»**: cancellerebbe i
+bisogni, cioè rifarebbe un piano più giù il difetto che la testata di
+`sincronizza_neuro` documenta. Il carattere è diventato uno **SCARTO dal
+carattere neutro** (`Limbico.tinta_carattere`, pura) che si **somma** a quel
+che i bisogni hanno deciso, in un posto solo (`applica_tinta`, chiamata in
+coda a `sincronizza_neuro`). Tre proprietà, e nessuna è una taratura:
+
+1. **un carattere medio somma zero esatto** — per lui il gioco è bit-identico
+   a prima, quindi tutte le misure già prese (il piatto caldo, il ri-aggancio
+   del cortisolo, il morso della lingua) restano valide senza rifarle;
+2. **un codardo sta più in alto sul cortisolo sempre**, qualunque cosa dicano
+   i suoi bisogni — che è cosa vuol dire avere un carattere;
+3. **è una funzione dei TRATTI, quindi la deriva la muove** — `riproietta()`
+   rifaceva due delle sette grandezze che `setup` deriva dai tratti, e le
+   altre cinque erano proprio quelle che arrivano addosso a un corpo.
+
+E c'è un lettore vero, che è quello che rende la tinta una cosa che succede:
+`bersaglio_umore()` legge la chimica a riposo, e l'umore ha consumatori
+(`stato_corpo()`, il capo che pende, il vocabolario del corpo).
+
+| codardia | cortisolo | serotonina | reattività | umore a cui tende |
+|---|---|---|---|---|
+| 0,15 | 0.0850 | 0.9350 | 0.5080 | **+0.4098** |
+| 0,50 (il neutro) | 0.1200 | 0.8650 | 0.8230 | +0.3713 |
+| 0,90 | 0.1600 | 0.7850 | 1.1830 | **+0.3273** |
+
+### IL PROVINO, e il verdetto onesto: a riposo NON si vede — e non deve
+
+La deriva era stata **misurata e mai guardata**, ed è la REGOLA ZERO al
+contrario. Lo strumento è
+[`tools/provino_carattere.gd`](tools/provino_carattere.gd): cinque corpi con
+lo **stesso genoma**, la stessa imbardata, la stessa distanza, nello **stesso
+fotogramma**, che differiscono per una cosa sola — il carattere. Catena vera
+dal tratto al pixel (`setup` → `tinta_carattere` → `sincronizza_neuro` →
+`passo_neuro` fatto girare fino al punto di riposo → `indossa_neuro` → rig):
+nessun canale scritto a mano, o la lastra mostrerebbe cinque corpi identici
+comunque.
+
+> ### ⚠️ **E LA CONTROPROVA HA SMONTATO LA MIA PRIMA LETTURA**
+>
+> Guardando il dettaglio 3× della lastra del carattere avevo letto una
+> progressione pulita delle sopracciglia, e stavo per scriverla. Poi ho
+> scattato la **stessa lastra con cinque corpi IDENTICI** (chimica bit-uguale:
+> 0.1200 / 0.8650 / 0.8224 per tutti e cinque) — e le sopracciglia erano
+> **visibilmente diverse fra loro**. Quello che avevo letto come «il
+> carattere» era la fase dell'ammicco e delle micro-espressioni.
+>
+> Il conto lo diceva già, e non l'avevo fatto: il canale del sopracciglio è
+> `(serotonina − 0.5) * 0.08`, cioè **0,7 gradi su TUTTO il campo del
+> carattere** — sotto il rumore del volto vivo. È la stessa scala a cui un
+> oracolo sbagliato produce undici asserzioni rosse su codice sano.
+> **Una lastra affiancata senza controprova è un test senza oracolo.**
+
+**Il verdetto, guardato:**
+
+| | si vede? |
+|---|---|
+| il carattere **a riposo**, 2 m, dettaglio 3× | **no** — sotto la fase delle micro-espressioni |
+| la **deriva** a riposo (0,019 di cortisolo) | **no**, nemmeno a 3× |
+| il carattere **nel momento** (lo stesso spavento), 2 m di fronte | **sì**, progressione monotona su cinque colonne |
+| …**di spalle** | sì, più debole — ed è silhouette, non faccia |
+| la **deriva** nel momento (forza 0,90 → 0,75) | **al limite**: un gradino su cinque, e affiancati non si è mai |
+
+**E l'ampiezza NON è stata alzata**, con la ragione: per rendere un codardo
+visibile da fermo bisognerebbe tenerlo a cortisolo alto **sempre**, cioè
+cucirgli addosso in permanenza la faccia della paura. È il difetto che il
+capitolo «LA GIOIA NON PORTA LA FACCIA DELLA PAURA» esiste per impedire, ed è
+un'etichetta clinica su una persona — la seconda domanda della REGOLA SACRA.
+
+**Dove il carattere si vede è la REAZIONE, e lì l'ampiezza c'era già.** Stesso
+spavento (`indizio_grezzo` 0,430, marchio −0,45 per tutti, la catena vera di
+`_tick_sussulti`), e la forza che ne esce va da **0,447 a 1,000** — più del
+doppio, perché `reattivita` va da 0,51 a 1,18. Nella lastra si legge come
+silhouette: il corpo che si rimpicciolisce e le orecchie che vanno indietro,
+in progressione, colonna dopo colonna. La controprova sotto spavento (cinque
+forze identiche, 0.7240) dà **cinque pose identiche**: la progressione è del
+carattere.
+
+**I residui, dichiarati:**
+
+- **la deriva è una cosa che si SENTE, non che si vede.** Muove `reattivita`
+  di 0,17, l'umore di riposo di 0,033, il peso dell'appartenenza, la
+  resistenza alle voci — cioè dove va quella persona e come reagisce, non che
+  faccia ha. Chi vorrà renderla visibile deve trovare un canale di
+  **silhouette** (la strada del Raccolto), non alzare un guadagno.
+- **a 9 m la misura non c'è**: i corpi erano coperti da un edificio del
+  villaggio. È il residuo che `provino_vocabolario` aveva già dichiarato — il
+  cancello prova il frustum, non la visibilità.
+- **la lastra del carattere a riposo resta nel provino** anche se il verdetto
+  è «no»: è la lastra che dimostra il no, e toglierla vorrebbe dire dover
+  ricredersi da capo.
+
+### Come si guarda
+
+```
+CHIBI_CAR=<dir> Godot --path . --resolution 1280x720 \
+    --script res://tools/provino_carattere.gd
+```
+
+⚠️ **Non `--headless`: qui si guarda.** E tre trappole di banco già pagate
+scrivendolo: **la testona di Mochi copriva esattamente il corpo di mezzo** (si
+nasconde il solo modello, la camera resta dov'è); **i cartellini non stanno
+nell'HUD** e il gioco ne crea di nuovi mentre il provino gira, quindi si
+rispengono prima di ogni scatto con la regola della Modalità Foto; e **la fila
+si apre con la distanza**, o a sei metri in ogni cella del ritaglio a pixel
+fissi ci finiscono due corpi.
 
 ### ⚠️ LO STRESS STRINGE UNA ROUTINE, MAI UNA SCELTA DI VITA
 
