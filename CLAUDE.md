@@ -5613,6 +5613,40 @@ DATO: il cancello è una proprietà sua, non del suo unico chiamante di oggi. Si
 prova fabbricando la riga che il gioco non produce (un compito del sogno con
 valenza `-0.9`) e pretendendo zero, con la controprova positiva accanto.
 
+### LE DUE COSE CHE NON SI FANNO, e la ragione vale quanto il codice
+
+**«CHI È STATO PROTETTO PER VENTI NOTTI» — non entra fra le spinte.** Era
+l'ultimo esempio dell'autore rimasto aperto, e la condizione che mancava è
+stata creata (la riga `vegliato` adesso distingue: va solo a chi ne aveva
+bisogno). Restano due ragioni, e la seconda è quella che decide:
+
+- **l'attore è la GUARDIA, non il giocatore**, e il sorgente dice perché non
+  si può cambiare: *«in Animo i ricordi buoni scontano i cattivi, e col nome
+  sbagliato una notte di veglia comprerebbe il perdono di tutto il
+  villaggio»*. Da solo però non basterebbe — la co-presenza è entrata pur non
+  essendo del giocatore, perché distingue e perché la chiave a forma di
+  giocatore c'è;
+- **la direzione sarebbe codardia ↓, che già deriva dai gesti del giocatore**:
+  non aggiungerebbe una dimensione, raddoppierebbe una che c'è. E premierebbe
+  una *configurazione* — buio davanti a casa più una guardia in servizio —
+  cioè chi ha piantato i lampioni non la otterrebbe mai. «Costruire bene ti
+  toglie qualcosa» non è un malus, ma è la terza domanda della REGOLA SACRA
+  che comincia a scricchiolare.
+
+**L'ANTICIPO TINTO DALLA STANCHEZZA — non serve.** La proposta era di
+moltiplicare `ANTICIPO_NOTTE` per la pressione di sonno, per spezzare il fatto
+che `estremi_finestra` ha **due soli** valori di inizio (0.80 e 0.92) e quindi
+diciannove residenti su ventotto avrebbero la stessa rampa nello stesso
+istante. Il falsificatore era dichiarato prima di misurare, e la misura ha
+detto che **il problema non c'è**: la dispersione degli istanti di accensione
+è **0,062 di giornata = 14,9 secondi reali**, col modo dominante a quattro
+corpi accesi insieme su tredici. Una cura per un carillon che non suona.
+
+*(E l'adenosina alla sera avrebbe avuto il materiale — media 0,413, da 0,338 a
+0,516 — quindi la strada resta percorribile il giorno che la sincronia
+diventasse un problema vero. Il numero che la riaprirebbe è quella
+dispersione: se scende sotto qualche secondo, si torna qui.)*
+
 ### LA LEALTÀ DALLA CO-PRESENZA — e il residuo che si chiude
 
 *Chi ha passato molto tempo con qualcuno diventa un filo più leale.* È il
