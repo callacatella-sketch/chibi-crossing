@@ -35,6 +35,7 @@ func run(t) -> void:
 	_un_anticipo_malato_non_avvelena(t, m)
 	_il_villaggio_passa_la_notte_alla_chimica(t)
 	_la_notte_arriva_al_corpo(t)
+	_la_melatonina_si_spegne_al_risveglio(t)
 	_la_notte_non_e_la_coda_somatica(t)
 	_il_livello_non_e_un_canale_orfano(t)
 	m.free()
@@ -409,10 +410,82 @@ func _la_notte_non_e_la_coda_somatica(t) -> void:
 			+ "indecodificabile, e cambierebbe QUANDO la gente arriva a casa "
 			+ "— una seconda autorita' sul sonno dalla porta di servizio"),
 			1e-12)
-	t.ok(float(c["sy"]) < 1.0 and float(c["hpy"]) > 0.0,
-			"quello che tocca e' la SILHOUETTE: il corpo giu' e la testa che "
-			+ "affonda")
+	t.ok(float(c["sy"]) < 1.0,
+			"quello che tocca e' la SILHOUETTE: il corpo giu'…")
+	# ⚠️ **IL SEGNO DI `hpy` SI GIUDICA CONTRO LA CONVENZIONE DEL FILE, mai
+	# contro se' stesso.** Il rig applica `hpy` col piu', quindi «affonda»
+	# vuol dire NEGATIVO — e l'altro livello che usa questo canale
+	# (`capo_affondo`) e' negativo per costruzione. La prima stesura aveva il
+	# segno al contrario e la testa SALIVA mentre il corpo si abbassava:
+	# nessuna asserzione poteva accorgersene, perche' guardava solo che il
+	# numero non fosse zero.
+	t.ok(float(c["hpy"]) < 0.0,
+			("…e la testa che AFFONDA (%.4f): il segno e' quello di "
+			+ "`capo_affondo`, non un verso nuovo") % float(c["hpy"]))
+	t.ok(signf(float(c["hpy"])) == signf(GESTI.capo_affondo(1.0)),
+			("e ha lo STESSO segno dell'altro livello che scrive questo "
+			+ "canale (%.4f contro %.4f)")
+					% [float(c["hpy"]), GESTI.capo_affondo(1.0)])
 	# il guadagno sta dentro il limite MISURATO del verso
+	# ⚠️ **LA COMPOSIZIONE NON SFONDA IL LIMITE.** `sy` si moltiplica fra gli
+	# scrittori, e la notte gira anche mentre un gesto e' in corso: col
+	# Raccolto (gia' −10%) darebbe −19%, che il provino ha guardato essere
+	# deforme. MISURATO: con la coda somatica a forza 1.0 la composizione
+	# libera dava −13,15%, cioe' proprio dove il verso cade.
+	var v2 = _corpo_vero(t)
+	if v2 != null:
+		var base2: Vector3 = (v2.get("_corpo") as Node3D).scale
+		for _i in 30:
+			v2.call("indossa_neuro", {"melatonina": GESTI.NOTTE_PIENA})
+			v2.call("somatico", 1.0)
+			v2.call("_process", 1.0 / 60.0)
+		var giu: float = 1.0 - (v2.get("_corpo") as Node3D).scale.y \
+				/ maxf(0.0001, base2.y)
+		t.ok(giu <= (1.0 - GESTI.SY_TETTO) + 0.005,
+				("la notte E il sussulto insieme non sfondano il tetto: "
+				+ "−%.2f%% contro il limite di −%.0f%%")
+						% [giu * 100.0, (1.0 - GESTI.SY_TETTO) * 100.0])
+		t.ok(giu > 0.05,
+				"…e non e' che si spengono a vicenda (−%.2f%%)" % (giu * 100.0))
+	# ⚠️ **E NON TAGLIA CHI ERA GIA' PIU' IN BASSO.** Il Raccolto scende SOTTO
+	# il tetto col fiato dell'assestamento — che e' il micro-movimento, cioe'
+	# la regola che questo progetto mette per prima. Un tetto secco
+	# (`maxf(dopo, SY_TETTO)`) lo appiattirebbe: il corpo resterebbe fermo a
+	# 0.90 mentre respira. Il pavimento e' il MINIMO fra quello che c'era e il
+	# tetto, e qui si prova passando alla funzione vera un canale gia' sotto.
+	var v3 = _corpo_vero(t)
+	if v3 != null:
+		v3.set("_notte_mel", GESTI.NOTTE_PIENA)
+		v3.set("_gs_notte", 1.0)
+		var sotto := GESTI.riposo()
+		sotto["sy"] = 0.85          # un gesto che comprime piu' del tetto
+		v3.call("_gesto_notte", 1.0 / 60.0, sotto, 1.0)
+		t.almost(float(sotto["sy"]), 0.85,
+				("un corpo gia' sotto il tetto non viene toccato dalla notte "
+				+ "(%.4f): l'assestamento del Raccolto resta vivo")
+						% float(sotto["sy"]), 1e-9)
+		var appena := GESTI.riposo()
+		appena["sy"] = 0.97         # la coda somatica: sopra il tetto
+		v3.call("_gesto_notte", 1.0 / 60.0, appena, 1.0)
+		t.almost(float(appena["sy"]), GESTI.SY_TETTO,
+				("e uno appena sopra il tetto ci si ferma sopra (%.4f)")
+						% float(appena["sy"]), 1e-9)
+
+	t.almost(GESTI.SY_TETTO, GESTI.RACCOLTO_SY,
+			("il tetto non e' un numero nuovo: e' quello che questo stesso "
+			+ "canale aveva gia' col Raccolto"), 1e-12)
+
+	# ⚠️ **E UN PAVIMENTO FATTO DI NUMERI CHE NON SONO SUOI.** Il tetto qui
+	# sotto giudica `NOTTE_SY` contro il limite del verso, che e' un numero
+	# di un'altra misura — ma da solo lascerebbe passare uno ZERO, cioe' il
+	# canale spento. Il pavimento e' la coda somatica al suo picco tipico
+	# (−3,5% con `a = 1`): sotto quello la notte direbbe meno di un livello
+	# che il progetto ha gia' dichiarato leggibile, e non varrebbe il canale
+	# che occupa. E GUARDATO: a 2 m −0,04 e −0,07 non si leggono.
+	t.ok(GESTI.NOTTE_SY > 0.035,
+			("il guadagno sta sopra la coda somatica al suo picco (%.3f "
+			+ "contro 0.035): sotto, questo canale non varrebbe il posto che "
+			+ "prende") % GESTI.NOTTE_SY)
 	t.ok(GESTI.NOTTE_SY <= 0.10 + 1e-9,
 			("il guadagno non sfonda il limite del verso gia' misurato: la "
 			+ "scala lo porta fino a −10%%, a −13%% cade (adesso −%.1f%%)")
@@ -457,3 +530,51 @@ func _corpo_vero(t):
 	v.call("_enter_state", "r_idle")
 	v.set("_timer", 999999.0)
 	return v
+
+
+## ⚠️ **IL CANALE MUORE COL RISVEGLIO, non a mezzanotte.**
+##
+## `consolida_sonno()` azzera la melatonina, ma gira su `passa_giorno`, cioè
+## sull'orologio del VILLAGGIO (il cambio-giorno è alle 0.29). Il risveglio
+## invece è **personale**: la finestra di un mattiniero finisce a 0.262. Fra i
+## due c'è un pezzo di mattina in cui il corpo è di nuovo in scena col canale
+## ancora al punto fisso — cioè un vicino che cammina nel prato illuminato con
+## addosso la posa della notte.
+func _la_melatonina_si_spegne_al_risveglio(t) -> void:
+	var vis = VicinoDiProva.new()
+	t.stage(vis)
+	var corpo := Node3D.new()
+	corpo.set_script(preload("res://scenes/npc/Visitor.gd"))
+	t.stage(corpo)
+	corpo.set("dna", preload("res://scenes/npc/ChibiDNA.gd").generate(5150))
+	(vis.get("_residents") as Array).append({"label": "N",
+			"cell": Vector2i(0, 0), "species": "chibi", "node": corpo,
+			"dna": corpo.get("dna")})
+	# la notte: il canale sale e il corpo si nasconde
+	for _i in 60:
+		vis.call("_ciclo_sonno", 0.5, 0.95)
+	var a = (vis.get("_animi") as Dictionary).get("N")
+	if a == null:
+		t.ok(false, "nessun animo")
+		return
+	var notte: float = float((a.limbico.neuro as Dictionary).get("melatonina", 0.0))
+	t.ok(notte > 0.05, "di notte il canale e' acceso (%.4f)" % notte)
+
+	# ⚠️ **IL CORPO SI NASCONDE DALLA PORTA VERA.** Nel banco nessuno si
+	# addormenta davvero — `passo_sonno` vuole anche il corpo libero e la
+	# porta aperta, e un fixture senza casa raggiungibile resta SVEGLIO per
+	# sempre (misurato: stato 0 anche alle 0.95). Si usa quindi la stessa
+	# chiamata che fa il gioco (`resident_sleep`), e il ciclo dopo trova un
+	# corpo nascosto con lo stato di veglia: e' esattamente il ramo del
+	# risveglio, raggiunto per la via vera.
+	corpo.call("resident_sleep")
+	# ⚠️ e l'ora e' 0.35, non 0.28: la finestra di un tipo normale finisce a
+	# **0.295**, cioe' DOPO il cambio-giorno del villaggio (0.29). Il buco fra
+	# i due orologi si apre solo per chi si sveglia prima — il mattiniero, che
+	# finisce a 0.262 — e un caso che usasse 0.28 su un genoma qualunque
+	# misurerebbe un residente che sta ancora dormendo.
+	vis.call("_ciclo_sonno", 0.5, 0.35)
+	t.almost(float((a.limbico.neuro as Dictionary).get("melatonina", 0.0)), 0.0,
+			("al risveglio il canale si spegne, senza aspettare la mezzanotte "
+			+ "del villaggio: un corpo che torna in scena con addosso la posa "
+			+ "della notte e' la posa di ieri"), 1e-9)

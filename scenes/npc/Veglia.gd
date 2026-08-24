@@ -484,6 +484,25 @@ func rendiconto_del_mattino() -> Dictionary:
 	var esito := {"lanterne": _lanterne_accese, "guardia": _guardia, "al_buio": 0}
 	if _visitors == null:
 		return esito
+	# ⚠️ **DUE DOMANDE, NON UNA — e la prima stesura ne faceva una sola, con
+	# la risposta ROVESCIATA.**
+	#
+	# `luci_del_villaggio()` comprende le lanterne che la ronda ha ACCESO
+	# stanotte. Chiedendo `al_buio` con quelle, chi la guardia ha davvero
+	# raggiunto risulta **non al buio** — e la riga «vegliato», che e' la
+	# gratitudine per essere stati protetti, finiva a chi la ronda NON aveva
+	# raggiunto. Esattamente al contrario, e con la suite verde.
+	#
+	# Le due domande sono diverse e servono a due cose diverse:
+	#   · `luci_gia` (le sole COSTRUITE) — avevi bisogno della ronda? Chi ha
+	#     un lampione davanti a casa era gia' al sicuro, per un gesto che il
+	#     giocatore ha fatto mesi prima: niente riga e niente malus.
+	#   · `luci` (tutte)                 — sei rimasto al buio anche DOPO che
+	#     e' passata?
+	# La riga va a chi ne aveva bisogno e adesso ha una luce; il malus a chi
+	# e' rimasto al buio comunque. E' la stessa convenzione che
+	# `chi_ha_vegliato` usa gia': la domanda «serviva?» si fa sulle costruite.
+	var luci_gia := luci_costruite()
 	var luci := luci_del_villaggio()
 	var dono := dono_di_sicurezza(_resa) if _guardia != "" else 0.0
 	for r in (_visitors.get("_residents") as Array):
@@ -509,6 +528,7 @@ func rendiconto_del_mattino() -> Dictionary:
 		# spinte della deriva: una prova che tocca tutti allo stesso modo non
 		# distingue nessuno, ed e' una marea che solleva tutte le barche.
 		var buio := al_buio(dove, luci)
+		var serviva := al_buio(dove, luci_gia)
 		if dono > 0.0:
 			_visitors.call("dona_drive", label, "sicurezza", dono)
 			# ⚠️ **LA RIGA VA A CHI LA RONDA HA DAVVERO PROTETTO**, cioe' a chi
@@ -522,7 +542,13 @@ func rendiconto_del_mattino() -> Dictionary:
 			# Il ricordo resta intestato ALLA GUARDIA, mai al giocatore: in
 			# Animo i ricordi buoni scontano i cattivi, e col nome sbagliato
 			# una notte di veglia comprerebbe il perdono di tutto il villaggio.
-			if buio:
+			# ⚠️ La riga va a chi ne AVEVA BISOGNO — e il bisogno si misura
+			# sulle sole luci COSTRUITE, come fa gia' `chi_ha_vegliato`. Chi
+			# ha un lampione davanti a casa (`not serviva`) non prende
+			# niente: era gia' al sicuro, per un gesto che il giocatore ha
+			# fatto mesi prima e che si vede nel fatto che NON perde
+			# sicurezza.
+			if serviva:
 				_visitors.call("ricorda_per", label, "vegliato", _guardia,
 						0.30 * _resa)
 				_visitors.call("lega_vicini", label, _guardia, VEGLIA_CREDITO)

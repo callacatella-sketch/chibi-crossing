@@ -299,10 +299,14 @@ func _i_marchi_tirano_dall_altra_parte(t) -> void:
 	t.almost(DERIVA.spinta("codardia", [], {}, caro, rec), 0.0,
 			"un posto caro non rende nessuno piu' pauroso", 1e-12)
 	# e le due direzioni si compensano: la vita non e' a senso unico
+	#
+	# ⚠️ Qui c'era una terza asserzione che finiva con `… or true`: in GDScript
+	# il confronto lega piu' stretto di `or`, quindi era **costantemente vera**
+	# e il runner la contava fra i passati. Una guardia che nessun test puo'
+	# far fallire e' una guardia che non c'e', e si toglie — non si «ripara»
+	# togliendo l'`or true`, perche' la disuguaglianza che restava era
+	# comunque la stessa cosa che dice il caso qui sotto.
 	var righe := [_riga("piatto", "giocatore", 0.7, 1.0, 9)]
-	t.ok(absf(DERIVA.spinta("codardia", righe, {}, paure, rec))
-			< absf(DERIVA.spinta("codardia", righe, {}, {}, rec)) + 1e-9
-			or true, "le due direzioni convivono nello stesso conto")
 	t.ok(DERIVA.spinta("codardia", righe, {}, paure, rec)
 			> DERIVA.spinta("codardia", righe, {}, {}, rec),
 			"una paura viva riduce la spinta verso il coraggio")
@@ -670,6 +674,15 @@ class RegistroVicini extends "res://scenes/npc/Visitors.gd":
 	func _ready() -> void:
 		set_process(false)
 		set_physics_process(false)
+		# ⚠️ **IL GIORNO DEL VILLAGGIO SI DÀ**, come si dà il cielo: le righe
+		# di `Cricche` sono datate col suo orologio, e senza di lui il
+		# prestito non può tradurle — il degrado dichiarato è «non si presta»,
+		# perché inventare una data è peggio che non averla.
+		# ⚠️ E il nodo dev'essere un `Node3D`: `_daynight` è tipizzato, e un
+		# `set()` col tipo sbagliato **non assegna e non dice niente**.
+		var falso := OrologioFinto.new()
+		add_child(falso)
+		_daynight = falso
 
 	func _process(_d: float) -> void:
 		pass
@@ -731,6 +744,24 @@ func _il_villaggio_presta_la_compagnia_prima_della_giornata(t) -> void:
 	t.ok(not chi.compagnia.has(999),
 			"…e quella di ieri viene sostituita, non aggiunta")
 
+	# ⚠️ **E SENZA IL GIORNO DEL VILLAGGIO NON SI PRESTA.** Le date arrivano
+	# nell'orologio di `Cricche`: senza il termine di conversione non si
+	# possono tradurre, e inventare una data e' peggio che non averla.
+	var vis_cieco = RegistroVicini.new()
+	t.stage(vis_cieco)
+	vis_cieco.set("_daynight", null)
+	var chi2 = ANIMO.new()
+	chi2.setup(CHIBIDNA.generate(4242))
+	chi2.compagnia = [1, 2, 3]
+	(vis_cieco.get("_animi") as Dictionary)["U"] = chi2
+	(vis_cieco.get("_residents") as Array).append(
+			{"label": "U", "dna": {"name": "Uno"}})
+	vis_cieco.call("_presta_la_compagnia")
+	t.eq((chi2.get("compagnia") as Array).size(), 0,
+			("senza il giorno del villaggio la compagnia si azzera invece di "
+			+ "essere letta con l'orologio sbagliato (%d righe)")
+					% (chi2.get("compagnia") as Array).size())
+
 	# --- e senza il registro delle cricche NON resta quella di ieri.
 	reg.remove_from_group("cricche")
 	vis.call("_giorno_di_animo")
@@ -787,6 +818,43 @@ func _riaprire_la_partita_non_riporta_nessuno_a_com_era(t) -> void:
 	t.eq((a2.get("compagnia") as Array).size(), 2,
 			("e la compagnia c'e' GIA', senza aspettare il cambio di giorno "
 			+ "(ottenute %d righe)") % (a2.get("compagnia") as Array).size())
+	# ⚠️ **E LA DERIVA LA USA, che e' la cosa che conta.** La prima stesura di
+	# questo caso guardava `compagnia.size()`, cioe' il REGISTRO invece del
+	# MONDO: e una revisione avversariale ha trovato che `Animo.load()`
+	# ricalcola la deriva **in coda a se stesso**, cioe' PRIMA che
+	# `_ensure_brain` presti la compagnia — e la cache per giornata non la
+	# rifaceva piu'. Il campo era pieno e il tratto non si muoveva.
+	# ⚠️ **E LE DATE SONO NELL'OROLOGIO DI CHI LE LEGGE.** `Cricche` data col
+	# giorno del VILLAGGIO, `Animo._recenza` misura con `oggi`, che conta le
+	# giornate vissute da quell'animo e parte da zero. MISURATO nel MainLevel
+	# vero: 14 giornate di scarto, e `pow(0.5, negativo)` **amplifica** — una
+	# riga di ieri valeva 1.65 invece di 0.96, e a 55 giornate otto volte.
+	# La recenza e' il meccanismo con cui la deriva TORNA INDIETRO: amplificando
+	# diventava una cicatrice, che e' il vincolo che l'autore ha posto.
+	#
+	# ⚠️ Si giudica la RECENZA, non la data: una data da sola non dice niente
+	# finche' non si sa con quale orologio verra' letta. La proprieta' vera e'
+	# che una riga del passato SMORZI (≤ 1), mai che amplifichi.
+	#
+	# ⚠️ E si guarda PRIMA di toccare `oggi`. La prima stesura scriveva
+	# `oggi = 40` e poi confrontava le date con quello: tre mutazioni — niente
+	# traduzione, traduzione col segno rovesciato, e nessun degrado senza
+	# orologio — restavano TUTTE E TRE VERDI. Avevo scelto il valore che
+	# rendeva cieca la mia stessa guardia.
+	var peggiore := 0.0
+	for g in (a2.get("compagnia") as Array):
+		peggiore = maxf(peggiore, float(a2.call("_recenza", int(g))))
+	t.ok(peggiore <= 1.0 + 1e-9,
+			("una riga del passato SMORZA, non amplifica (la peggiore vale "
+			+ "%.4f): due orologi diversi facevano un esponente negativo")
+					% peggiore)
+	t.ok(peggiore > 0.0, "…e non e' zero: le righe ci sono (%.4f)" % peggiore)
+
+	a2.set("oggi", 40)
+	t.ok(a2.tratto("lealta") > a2.tratto_base("lealta") + 0.001,
+			("e il TRATTO si muove davvero (%.4f contro %.4f): guardare il "
+			+ "registro invece del mondo lasciava passare un prestito che era "
+			+ "un no-op") % [a2.tratto("lealta"), a2.tratto_base("lealta")])
 
 
 ## ⚠️ **«MI HAI DATO IL LAVORO CHE SOGNAVO»** — il carburante dell'ambizione,
@@ -890,3 +958,10 @@ func _il_sogno_servito_muove_l_ambizione(t) -> void:
 	t.almost(DERIVA.spinta("ambizione", [], {str(suoi[0]) + "|giocatore":
 			{"peso": -0.9, "ultimo": 10, "n": 5}}, {}, _rec(10), [], suoi), 0.0,
 			"e nemmeno dal sommario, dove i ricordi vecchi si fondono", 1e-12)
+
+
+## Il giorno del villaggio, e nient'altro: e' un DATO, non una decisione.
+## `Node3D` perche' `Visitors._daynight` e' tipizzato, e un `set()` col tipo
+## sbagliato non assegna e non dice niente.
+class OrologioFinto extends Node3D:
+	var day := 40

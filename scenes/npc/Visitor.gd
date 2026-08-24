@@ -4627,7 +4627,16 @@ func _gesto_notte(delta: float, canali: Dictionary, guadagno: float) -> void:
 	# fotogramma serve poterlo cambiare per corpo. In partita è `-1` e non
 	# tocca niente (`Gesti.notte_canali` usa la costante).
 	var c: Dictionary = GESTI.notte_canali(_gs_notte, _gs_notte_prova)
-	canali["sy"] = lerpf(1.0, float(c["sy"]), guadagno) * float(canali["sy"])
+	# ⚠️ **E LA NOTTE NON AGGRAVA CHI E' GIA' AL LIMITE.** `sy` ha piu'
+	# scrittori e si moltiplicano: composta col Raccolto (che vale gia' −10%)
+	# la notte darebbe −19%, cioe' la zona che il provino ha guardato essere
+	# DEFORME. Il pavimento e' il minimo fra quello che c'era e il tetto:
+	# cosi' la notte non porta mai sotto il limite provato, e **non tocca chi
+	# era gia' piu' in basso di suo** — l'assestamento del Raccolto, che
+	# scende sotto 0.90 col fiato, resta intatto invece di essere tagliato.
+	var prima := float(canali["sy"])
+	var dopo := lerpf(1.0, float(c["sy"]), guadagno) * prima
+	canali["sy"] = maxf(dopo, minf(prima, GESTI.SY_TETTO))
 	canali["hpy"] = float(canali["hpy"]) + float(c["hpy"]) * guadagno
 
 

@@ -2877,6 +2877,19 @@ func _ciclo_sonno(delta: float, t_ora: float) -> void:
 		else:
 			if nascosto:
 				node.call("resident_wake")
+				# ⚠️ **E LA MELATONINA SI SPEGNE QUI, non a mezzanotte.**
+				# `consolida_sonno()` la azzera, ma gira su `passa_giorno`,
+				# cioe' sull'orologio del VILLAGGIO (il cambio-giorno e' alle
+				# 0.29); il risveglio invece e' PERSONALE — la finestra
+				# finisce a 0.262 per un mattiniero. Fra i due c'e' un pezzo
+				# di mattina in cui il corpo e' di nuovo in scena con la
+				# melatonina ancora al punto fisso, cioe' un vicino che
+				# cammina nel prato illuminato con addosso la posa della
+				# notte. Il canale nasce col sonno e muore col risveglio:
+				# questo e' il suo posto.
+				var an: RefCounted = _animi.get(lab)
+				if an != null and an.limbico != null:
+					(an.limbico.neuro as Dictionary)["melatonina"] = 0.0
 			elif not (_ecs.in_finestra(id) \
 					and str(node.get("_state")) in STATI_INTERROMPIBILI):
 				# le stravaganze continuano a girare quando non sta per
@@ -6091,5 +6104,58 @@ func _presta_la_compagnia_a(a: RefCounted, nome: String, righe = null) -> void:
 		var cr := get_tree().get_first_node_in_group("cricche")
 		if cr != null and is_instance_valid(cr):
 			vive = cr.get("_incontri") as Array
-	a.compagnia = CRICCHE.giornate_insieme(vive, nome) if not vive.is_empty() \
-			else []
+	# ⚠️ **I DUE OROLOGI, e questo e' il difetto piu' grave che questa riga
+	# abbia avuto.**
+	#
+	# `Cricche` data ogni riga col giorno del VILLAGGIO (`_daynight.day`);
+	# `Animo._recenza` misura con `oggi`, che parte da ZERO e conta le
+	# giornate vissute da QUELL'animo (`passa_giorno` lo incrementa). Non c'e'
+	# niente che li allinei. MISURATO nel MainLevel vero: `day = 14` e
+	# `oggi = 0` per tutti e tredici, cioe' **quattordici giornate di
+	# scarto** — e `pow(0.5, (oggi - quando) / MEZZA_VITA)` con un esponente
+	# NEGATIVO non smorza: **amplifica**. Una riga di ieri valeva **1.65**
+	# invece di 0.96; con 55 giornate di scarto, **otto volte**.
+	#
+	# E la conseguenza non e' «un numero un po' storto»: la recenza e' il
+	# meccanismo con cui la deriva TORNA INDIETRO, ed e' il vincolo che
+	# l'autore ha posto per iscritto. Amplificando, le righe vecchie pesano
+	# di piu' col passare del tempo — la deriva smette di essere una deriva e
+	# diventa una **cicatrice**.
+	#
+	# La cura converte le date nell'orologio di chi le legge, al prestito: la
+	# recenza resta una sola formula, e nessuno dei due orologi si tocca.
+	var giorni: Array = CRICCHE.giornate_insieme(vive, nome) \
+			if not vive.is_empty() else []
+	# ⚠️ e il giorno si LEGGE con la rete: un nodo che non ha quella proprieta'
+	# torna `null`, e `int(null)` e' un errore a runtime — che nel runner non
+	# fa fallire niente e lascia la suite VERDE con la funzione interrotta a
+	# meta'. E' la stessa lezione di `get_tree()` fuori dall'albero.
+	var giorno_v = _daynight.get("day") if _daynight != null else null
+	if giorni.is_empty() or giorno_v == null:
+		# ⚠️ senza il giorno del villaggio non si CONVERTE, quindi non si
+		# presta: inventare una data e' peggio che non averla, e il degrado
+		# va sempre verso «non succede niente».
+		a.compagnia = []
+	else:
+		var oggi_villaggio := int(giorno_v)
+		var oggi_animo := int(a.get("oggi"))
+		var tradotte: Array = []
+		for g in giorni:
+			tradotte.append(oggi_animo - (oggi_villaggio - int(g)))
+		a.compagnia = tradotte
+	# ⚠️ **E LA DERIVA SI RIFA', o il prestito e' un NO-OP.**
+	#
+	# `_ricalcola_deriva()` ha una cache per giornata (`_deriva_giorno`), e
+	# `Animo.load()` la riempie **in coda a se stesso** — cioe' PRIMA che
+	# `_ensure_brain` arrivi a prestare la compagnia, tre righe dopo. Senza
+	# questa riga, al caricamento la compagnia entra nel campo e **non entra
+	# nella deriva** fino al cambio di giorno: quattro minuti reali in cui i
+	# vicini si comportano come se non avessero mai passato del tempo con
+	# nessuno.
+	#
+	# ⚠️ E la prima guardia di questo prestito non poteva vederlo, perche'
+	# guardava `compagnia.size()` — cioe' il REGISTRO invece del MONDO. E' lo
+	# stesso difetto che il capo che pende ha gia' pagato, scritto in
+	# CLAUDE.md, e l'ho rifatto: adesso il caso guarda `tratto("lealta")`.
+	a.set("_deriva_giorno", -1)
+	a.call("_ricalcola_deriva")

@@ -1106,8 +1106,32 @@ const NOTTE_PIENA := 0.42
 ## che il progetto ha già scritto del capo che pende — un livello si nota
 ## quando ci si avvicina a qualcuno, non attraverso il prato.
 const NOTTE_SY := 0.10
-## Quanto affonda la testa fra le spalle, in metri, a livello pieno.
-const NOTTE_HPY := 0.022
+## ⚠️ **IL TETTO DELLA COMPOSIZIONE, e non è una precauzione: è un difetto
+## MISURATO.**
+##
+## `sy` ha più scrittori e si MOLTIPLICANO (`_innesta`): la notte è un livello
+## e gira anche mentre un gesto è in corso. Composta con la coda somatica dà
+## fino a **−13,15%** (a forza 1.0), che è esattamente dove il verso cade; e
+## composta col **Raccolto** — che vale già `RACCOLTO_SY` = −10% — darebbe
+## **−19%**, cioè dentro la zona che il provino ha guardato essere *deforme*
+## (a −22% il corpo non è più un corpo).
+##
+## Il numero non è scelto: è `RACCOLTO_SY`, cioè il limite che questo stesso
+## canale aveva già, ed è il limite misurato del verso.
+const SY_TETTO := 0.90
+## Quanto affonda la testa fra le spalle, a livello pieno.
+##
+## ⚠️ **IL SEGNO E' NEGATIVO, e la prima stesura l'aveva al contrario.** La
+## convenzione di questo canale la detta l'altro livello che lo usa —
+## `capo_affondo()`, che torna `-CAPO_AFFONDO * …` — e il rig applica `hpy`
+## col PIU' (`_head.position.y += fin["hpy"]`; la riga col meno, poco sopra,
+## e' il TOGLI del pattern togli/riapplica, non un secondo verso). Con `+0.022`
+## la testa **saliva** mentre il corpo si abbassava: il contrario di quello che
+## il commento prometteva, e mezzo segnale perso. Trovato da una revisione
+## avversariale, non da un test — e adesso un caso confronta il segno con
+## quello di `capo_affondo`, cioe' con la convenzione del file invece che con
+## se' stesso.
+const NOTTE_HPY := -0.022
 
 
 ## Il livello, da un canale di melatonina. Puro.

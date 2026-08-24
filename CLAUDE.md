@@ -5056,6 +5056,74 @@ la notte che scrive sulle orecchie (1) · la soglia che taglia invece di
 smorzare (1) · il guadagno che sfonda il limite del verso (1) · il corpo che
 si assottiglia invece di allargarsi (2).
 
+### ⚠️ COSA HA TROVATO LA REVISIONE AVVERSARIALE (cinque lenti, poi uno scettico per difetto)
+
+Cinque commit erano stati consegnati senza passare da una revisione
+indipendente — cioè saltando la regola 7 della REGOLA ZERO. Cinque lenti in
+sola lettura (correttezza · integrazione · il GENERE · i test · cosa resta
+aperto) hanno prodotto **21 difetti**, e ognuno è stato passato a uno
+**scettico incaricato di refutarlo**: ne sono sopravvissuti **11**. I sei che
+contano, in ordine di gravità:
+
+1. **LA RIGA «vegliato» ERA INVERTITA.** `rendiconto_del_mattino` chiedeva
+   `al_buio()` con `luci_del_villaggio()`, che comprende **le lanterne che la
+   ronda ha acceso stanotte**: chi la guardia aveva davvero raggiunto
+   risultava *non al buio*, e la riga di gratitudine finiva **a chi la ronda
+   non aveva raggiunto**. Esattamente al contrario, e con la suite verde. Ora
+   le domande sono due e diverse: *ne avevi bisogno?* sulle sole luci
+   **costruite** (come fa già `chi_ha_vegliato`), *sei rimasto al buio?* su
+   tutte.
+2. **DUE OROLOGI.** `Cricche` data ogni riga di co-presenza col giorno del
+   **villaggio**; `Animo._recenza` misura con `oggi`, che parte da **zero** e
+   conta le giornate vissute da quell'animo. Nessuno li allineava. MISURATO
+   nel MainLevel vero: `day = 14` contro `oggi = 0` — quattordici giornate di
+   scarto, e `pow(0.5, esponente_negativo)` non smorza: **amplifica**. Una
+   riga di ieri valeva **1.65** invece di 0.96; con 55 giornate di scarto,
+   **otto volte**. E la recenza è il meccanismo con cui la deriva TORNA
+   INDIETRO: amplificando, la deriva smetteva di essere una deriva e diventava
+   una **cicatrice** — il vincolo che l'autore aveva posto per iscritto. La
+   traduzione si fa nell'unico punto in cui i due orologi si incontrano, il
+   ponte.
+3. **IL PRESTITO AL CARICAMENTO ERA UN NO-OP.** `Animo.load()` ricalcola la
+   deriva **in coda a sé stesso**, cioè PRIMA che `_ensure_brain` presti la
+   compagnia tre righe dopo — e la cache per giornata non la rifaceva più. Il
+   campo era pieno e il tratto non si muoveva. ⚠️ **E la mia guardia non
+   poteva vederlo, perché guardava `compagnia.size()`** — cioè il REGISTRO
+   invece del MONDO: è lo stesso difetto che il capo che pende ha già pagato,
+   scritto in questo file, e l'ho rifatto.
+4. **IL SEGNO DI `hpy` ERA ROVESCIATO.** Il rig applica `hpy` col PIÙ (la riga
+   col meno, poco sopra, è il *togli* del pattern togli/riapplica), e l'altro
+   livello che scrive quel canale — `capo_affondo()` — è negativo per
+   costruzione. Con `+0.022` la testa **saliva** mentre il corpo si abbassava.
+   Adesso un caso confronta il segno con quello di `capo_affondo`, cioè con la
+   convenzione del file invece che con sé stesso.
+5. **LA COMPOSIZIONE SFONDAVA IL LIMITE DEL VERSO** (trovato misurando, non
+   segnalato): `sy` ha più scrittori e si moltiplicano. Con la coda somatica a
+   forza 1.0 la composizione dava **−13,15%**, cioè dove il verso cade; col
+   **Raccolto** — che vale già `RACCOLTO_SY` = −10% — avrebbe dato **−19%**,
+   dentro la zona che il provino ha guardato essere *deforme*. Il pavimento è
+   il **minimo fra quello che c'era e il tetto**: la notte non porta mai sotto
+   il limite, e **non tocca chi era già più in basso di suo** (l'assestamento
+   del Raccolto resta vivo invece di essere tagliato).
+6. **LA MELATONINA NON SI SPEGNEVA AL RISVEGLIO.** `consolida_sonno` la
+   azzera, ma gira su `passa_giorno`, cioè sull'orologio del **villaggio** (il
+   cambio-giorno è alle 0.29); il risveglio è **personale** — un mattiniero
+   finisce a 0.262. Fra i due c'è un pezzo di mattina in cui il corpo torna in
+   scena col canale ancora al punto fisso: un vicino che cammina nel prato
+   illuminato con addosso la posa della notte.
+
+E due guardie **morte**, tolte: un `t.ok(… or true)` che in GDScript è
+costantemente vero (il confronto lega più stretto di `or`, e il runner lo
+contava fra i passati), e `NOTTE_SY` giudicato contro sé stesso — il tetto
+c'era, il pavimento no, quindi il canale si poteva spegnere del tutto restando
+verde.
+
+⚠️ **E TRE MUTAZIONI SONO RIMASTE MUTE ALLA PRIMA STESURA DELLA CURA DEI DUE
+OROLOGI**, per una ragione che vale più del difetto: la guardia scriveva
+`oggi = 40` **e poi** confrontava le date con quello — cioè sceglieva il
+valore che la rendeva cieca. Adesso giudica la **recenza** (deve smorzare,
+mai amplificare) e lo fa **prima** di toccare l'orologio.
+
 ### Come si verifica
 
 ```

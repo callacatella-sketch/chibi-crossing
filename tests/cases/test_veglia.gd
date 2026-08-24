@@ -304,6 +304,36 @@ func _protetto_e_un_fatto_DI_QUELLA_PERSONA(t) -> void:
 
     t.eq(int(reg.righe.get("al_buio", 0)), 1,
             "chi era al buio ha avuto la ronda, e la riga e' SUA")
+
+    # ⚠️ **E CHI LA RONDA HA DAVVERO RAGGIUNTO NON PERDE LA RIGA.**
+    #
+    # Il difetto stava qui, e nessun caso poteva vederlo: la domanda «eri al
+    # buio?» si faceva su `luci_del_villaggio()`, che comprende **le lanterne
+    # che la ronda ha acceso stanotte**. Chi la guardia aveva raggiunto
+    # risultava percio' NON al buio, e la riga di gratitudine finiva a chi la
+    # ronda NON aveva raggiunto — esattamente al contrario, con la suite
+    # verde. Trovato da una revisione avversariale.
+    var v2 = VegliaConLuci.new()
+    t.stage(v2)
+    var reg2 = RegistroVeglia.new()
+    t.stage(reg2)
+    v2.set("_visitors", reg2)
+    v2.set("_guardia", "G")
+    v2.set("_resa", 1.0)
+    v2.luci = []                       # nessun lampione costruito
+    # la ronda ha acceso una lanterna sulla porta di «raggiunto»
+    v2.set("_tappe", [Vector3(5, 0, 5)])
+    v2.set("_tappa_i", 1)
+    reg2._residents = [
+        {"label": "G", "node": _corpo_a(t, Vector3(20, 0, 20))},
+        {"label": "raggiunto", "node": _corpo_a(t, Vector3(5, 0, 5))},
+        {"label": "lasciato", "node": _corpo_a(t, Vector3(40, 0, 40))},
+    ]
+    v2.rendiconto_del_mattino()
+    t.eq(int(reg2.righe.get("raggiunto", 0)), 1,
+            ("chi la ronda ha RAGGIUNTO riceve la riga: la lanterna che gli "
+            + "hanno acceso non deve cancellare il fatto che ne avesse "
+            + "bisogno"))
     t.eq(int(reg.righe.get("illuminato", 0)), 0,
             "chi aveva gia' una luce davanti a casa non riceve la riga: era "
             + "gia' al sicuro, per un lampione che il giocatore ha piantato")
@@ -354,8 +384,19 @@ class VegliaConLuci extends "res://scenes/npc/Veglia.gd":
     func _ready() -> void:
         pass
 
-    func luci_del_villaggio() -> Array:
+    # ⚠️ **LE DUE FONTI SI SCAVALCANO TUTTE E DUE.** La Veglia fa ORA due
+    # domande diverse — «ne avevi bisogno?» sulle sole luci COSTRUITE, e
+    # «sei rimasto al buio?» su tutte — e un banco che ne scavalca una sola
+    # le confonde: `luci_costruite()` cadrebbe su quella vera (vuota, senza
+    # BuildSystem) e chiunque risulterebbe bisognoso, compreso chi ha il
+    # lampione davanti a casa.
+    func luci_costruite() -> Array:
         return luci
+
+    func luci_del_villaggio() -> Array:
+        var out: Array = luci.duplicate()
+        out.append_array(luci_della_ronda())
+        return out
 
 
 ## Un registro che REGISTRA e non decide niente.
