@@ -186,6 +186,10 @@ func _ready() -> void:
 	_build_pollen()
 	await get_tree().process_frame
 	_build_forest()
+	# l'erbario e la mappa vengono DOPO il bosco, e per la stessa ragione:
+	# il sentiero esiste solo adesso, e chi lo interrogasse prima
+	# troverebbe una lista vuota — senza un errore, senza una traccia
+	_build_erbario()
 	# la mappa del terreno si cuoce ADESSO: il sentiero del bosco esiste
 	# solo dopo _build_forest, e una tela cotta prima esce vuota in silenzio
 	_bake_terreno_map()
@@ -457,6 +461,107 @@ func _build_flowers() -> void:
 			_flower_field(GEO.lavender_mesh(), 6, 3, 6, 4, rng)]:
 		if field:
 			_flower_fields.append(field)
+
+
+## L'ERBARIO: quello che c'e' a terra oltre l'erba e i fiori. Un prato vero
+## non e' erba e basta — ha i sassi mezzi sepolti che rompono il piano, i
+## ciuffi alti e le canne dove il terreno e' umido, i rametti caduti al
+## limitare del bosco. Tutto su MultiMesh (una draw call a specie) e tutto
+## posato con le stesse esclusioni del resto del mondo: mai nell'acqua, mai
+## sul sentiero, mai dove si costruisce.
+func _build_erbario() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 90210
+	var libero := func(p: Vector3, bordo: float) -> bool:
+		if p.distance_to(POND_CENTER) < POND_R + bordo:
+			return false
+		if absf(p.x - MATH.river_x(p.z)) < 2.2 + bordo:
+			return false
+		for i in _path_samples.size():
+			if p.distance_to(_path_samples[i]) < 1.1:
+				return false
+		return true
+
+	# I SASSI MEZZI SEPOLTI: affiorano, non stanno appoggiati. Il trucco e'
+	# tutto qui — il centro sta SOTTO lo zero, quindi il suolo li taglia e
+	# non si vede mai il bordo d'appoggio.
+	var sasso := GEO.merge([
+		[GEO.puff_mesh(0.28, 7, 0.55, 0.16), Transform3D.IDENTITY,
+				GEO.paint_mat(Color("b9b3a6"), Color("968f83"), 2.0, 0.6)],
+		[GEO.puff_mesh(0.17, 13, 0.62, 0.18),
+				Transform3D(Basis.IDENTITY, Vector3(0.18, -0.04, 0.09)),
+				GEO.paint_mat(Color("a8a196"), Color("857f74"), 2.0, 0.6)]])
+	var sassi: Array[Transform3D] = []
+	for i in 44:
+		var r := rng.randf_range(3.0, 23.0)
+		var a := rng.randf() * TAU
+		var p := Vector3(cos(a) * r, 0, sin(a) * r)
+		if not libero.call(p, 1.2):
+			continue
+		var sc := rng.randf_range(0.5, 1.35)
+		var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(
+				Vector3(sc, sc * rng.randf_range(0.5, 0.8), sc))
+		# il centro AFFONDA: quanto piu' e' grosso, tanto piu' e' sepolto
+		p.y = -0.10 * sc - rng.randf_range(0.0, 0.05)
+		sassi.append(Transform3D(b, p))
+	_scatter_exact(sasso, sassi)
+
+	# LE CANNE dove il terreno e' umido: attorno allo stagno e lungo il
+	# fiume. Non in mezzo al prato — una canna asciutta e' una bugia.
+	var canna := GEO.merge([
+		[GEO.blade_mesh(), Transform3D(Basis(Vector3.UP, 0.0).scaled(
+				Vector3(1.0, 3.4, 1.0)), Vector3.ZERO),
+				GEO.paint_mat(Color("7f9c58"), Color("607c44"), 1.2, 0.5)],
+		[GEO.blade_mesh(), Transform3D(Basis(Vector3.UP, 1.9).scaled(
+				Vector3(0.9, 2.7, 0.9)), Vector3(0.06, 0, 0.04)),
+				GEO.paint_mat(Color("93ab63"), Color("74904e"), 1.2, 0.5)],
+		[GEO.blade_mesh(), Transform3D(Basis(Vector3.UP, 3.9).scaled(
+				Vector3(0.8, 2.1, 0.8)), Vector3(-0.05, 0, 0.07)),
+				GEO.paint_mat(Color("6f8c50"), Color("55703c"), 1.2, 0.5)]])
+	var canne: Array[Transform3D] = []
+	for i in 90:
+		var p := Vector3.ZERO
+		if i % 2 == 0:
+			var a2 := rng.randf() * TAU
+			var rr := POND_R + rng.randf_range(0.15, 1.05)
+			p = POND_CENTER + Vector3(cos(a2) * rr, 0, sin(a2) * rr)
+		else:
+			var z := rng.randf_range(-16.0, 12.0)
+			var lato := 1.0 if rng.randf() < 0.5 else -1.0
+			p = Vector3(MATH.river_x(z) + lato * rng.randf_range(2.1, 3.2), 0, z)
+		for j in _path_samples.size():
+			if p.distance_to(_path_samples[j]) < 1.0:
+				p = Vector3.ZERO
+				break
+		if p == Vector3.ZERO:
+			continue
+		var sc2 := rng.randf_range(0.75, 1.3)
+		var b2 := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(sc2, sc2, sc2))
+		# le canne si piegano tutte un po' dalla stessa parte: e' il vento
+		b2 = Basis(Vector3.RIGHT, rng.randf_range(0.04, 0.16)) * b2
+		canne.append(Transform3D(b2, p))
+	_scatter_exact(canna, canne, false)
+
+	# I RAMETTI caduti, al limitare del bosco: piccoli, sdraiati, e sempre
+	# piu' fitti man mano che ci si avvicina agli alberi
+	var ramo := GEO.merge([
+		[GEO.trunk_mesh(0.42, 0.028, 0.018, 3), Transform3D(
+				Basis(Vector3.FORWARD, PI * 0.5), Vector3.ZERO),
+				GEO.paint_mat(Color("7a5c42"), Color("5f4733"), 3.0, 0.6)]])
+	var rametti: Array[Transform3D] = []
+	for i in 70:
+		var z2 := rng.randf_range(-19.0, 2.0)
+		var x2 := rng.randf_range(-17.0, 17.0)
+		var p2 := Vector3(x2, 0.02, z2)
+		# la densita' cresce verso il bosco (z negativo)
+		if rng.randf() > smoothstep(4.0, -18.0, z2):
+			continue
+		if not libero.call(p2, 0.8):
+			continue
+		var b3 := Basis(Vector3.UP, rng.randf() * TAU).scaled(
+				Vector3.ONE * rng.randf_range(0.6, 1.25))
+		rametti.append(Transform3D(b3, p2))
+	_scatter_exact(ramo, rametti, false)
 
 
 # ---------------------------------------------------------------- alberi
@@ -3148,6 +3253,10 @@ func set_season(season: int, snow: float, transition: bool) -> void:
 	_season = season
 	_season_snow = snow
 	_apply_season(transition)
+	# la lettiera dell'autunno: la stagione prende una FORMA, non solo una
+	# tinta — si accumula sotto le chiome (canale G della mappa del terreno)
+	if _ground_mat:
+		_ground_mat.set_shader_parameter("lettiera", 1.0 if season == 2 else 0.0)
 	# le particelle della stagione. Le voci morte si scartano prima: un
 	# ciliegio abbattuto dal taglialegna porta via il suo emettitore di
 	# petali, e la lista non deve puntare a un nodo liberato
