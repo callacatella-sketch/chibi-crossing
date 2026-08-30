@@ -301,9 +301,13 @@ static func _lerp_lista(v: Array, t: float) -> float:
 ## una sfera schiacciata, è un disco appena bombato di flosculi — con la
 ## conca al centro (i fiorellini di mezzo non sono ancora aperti) e il
 ## bordo che si rialza. `grana` fa i flosculi: senza, è un pulsante.
+## `lobi` + `lobo` fanno una corolla a LOBI (un non-ti-scordar-di-me, un
+## flox): il raggio si modula sull'angolo, e quello che esce non è un
+## poligono ma un fiorellino. Modularne l'ALTEZZA — che era l'unica leva
+## di prima, `grana` — su un disco alto due millimetri non si vede.
 static func cupola_su(st: SurfaceTool, base: Transform3D, raggio: float,
 		alt: float, segs := 10, anelli := 3, grana := 0.0,
-		conca := 0.18, maschera := CUORE) -> void:
+		conca := 0.18, maschera := CUORE, lobi := 0, lobo := 0.0) -> void:
 	var col := Color(maschera.r, maschera.g, maschera.b, 0.0)
 	var g: Array = []
 	for k in anelli + 1:
@@ -312,6 +316,11 @@ static func cupola_su(st: SurfaceTool, base: Transform3D, raggio: float,
 		var riga: Array[Vector3] = []
 		for j in segs:
 			var a := TAU * float(j) / float(segs)
+			var rr := rho
+			if lobi > 0:
+				# i lobi si aprono man mano che si va verso il bordo: al
+				# centro la corolla è un tubo, fuori è una stella morbida
+				rr *= 1.0 + lobo * cos(float(lobi) * a) * t
 			# LA CONCA IN MEZZO. Il profilo è una calotta (la radice), e
 			# `conca` le scava il centro: in un capolino vero i flosculi
 			# di mezzo non sono ancora aperti e il disco è più basso lì.
@@ -321,7 +330,7 @@ static func cupola_su(st: SurfaceTool, base: Transform3D, raggio: float,
 					* sqrt(maxf(0.0, 1.0 - t * t * 0.86))
 			if grana > 0.0:
 				y += grana * alt * sin(float(segs) * 0.5 * a) * t
-			riga.append(Vector3(cos(a) * rho, y, sin(a) * rho))
+			riga.append(Vector3(cos(a) * rr, y, sin(a) * rr))
 		g.append(riga)
 	var nrm := anello_normali(g, segs)
 	for k in g.size() - 1:

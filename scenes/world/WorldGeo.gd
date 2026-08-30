@@ -99,6 +99,7 @@ static func fiore_mat(pet_a: Color, pet_b: Color, cuore: Color, verde: Color,
 		mat.set_shader_parameter("testa", 1.0)
 		mat.set_shader_parameter("testa_base", testa_base)
 	mat.set_shader_parameter("fremito", fremito)
+	mat.set_shader_parameter("varia_tinta", 1.0)
 	return mat
 
 
@@ -289,6 +290,123 @@ static func lavender_mesh() -> ArrayMesh:
 	st.index()
 	st.set_material(fiore_mat(Color("a98fd8"), Color("8f6fc4"),
 			Color("6f57a4"), Color("7d9a66"), 0.042, 0.32, 0.226))
+	var mesh := ArrayMesh.new()
+	st.commit(mesh)
+	return mesh
+
+
+## IL TRIFOGLIO: il TAPPETO. Alto nove centimetri, cioè sotto la linea
+## dell'erba (che ne fa trenta), e non compete con nessuno — serve a
+## rompere il verde uniforme del prato là dove i fiori grandi sarebbero
+## troppi. Tre foglioline e un capolino di flosculi, settanta triangoli.
+##
+## ⚠️ È la specie che risponde alla domanda vera: a otto metri — che è
+## l'inquadratura normale del gioco — di un fiore alto ventidue
+## centimetri si vedono trenta pixel e di un petalo otto. Lì non conta
+## la corolla, contano la CLASSE DI SAGOMA e la massa. Quattro specie
+## tutte alte fra 0.20 e 0.36 sono un plotone; il tappeto è l'altra
+## classe.
+static func clover_mesh(fiore: Color) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var cima := Vector3(0, 0.070, 0)
+	FIO.stelo_su(st, Transform3D.IDENTITY,
+			[Vector3.ZERO, Vector3(0.002, 0.034, -0.003), cima],
+			[0.0022, 0.0018, 0.0015], 3, 3)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 131
+	# le tre foglioline: basse, aperte a stella, con la punta che ricade
+	for i in 3:
+		var a := float(i) * TAU / 3.0 + 0.4
+		FIO.lamina_su(st, Transform3D(
+				Basis(Vector3.UP, -a) * Basis(Vector3.BACK, 0.30),
+				Vector3(cos(a) * 0.003, 0.018, sin(a) * 0.003)),
+				FIO.contorno_lancia(0.021, 0.0092, 3, 0.10), 2.2, 0.20)
+	# il capolino: una cupola con la GRANA, che è quello che fa i flosculi
+	FIO.cupola_su(st, Transform3D(Basis.IDENTITY, cima),
+			0.0105, 0.0092, 7, 2, 0.26, 0.10, FIO.PETALO)
+	st.index()
+	st.set_material(fiore_mat(fiore, fiore.lerp(Color("c8ccd6"), 0.30),
+			fiore.darkened(0.16), Color("6b9a54"), 0.020, 0.08, 0.0,
+			0.0018, 0.36))
+	var mesh := ArrayMesh.new()
+	st.commit(mesh)
+	return mesh
+
+
+## IL PAPAVERO: l'ALTO, e la sua testa sta FUORI ASSE di cinque
+## centimetri — è la rottura di sagoma che a otto metri si legge quando
+## la forma della corolla non esiste più. Quattro petali larghi, cupolati
+## e appena sfalsati, sul gambo che si china sotto il loro peso.
+static func poppy_mesh(petalo: Color) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	# `piega` alta: il gambo di un papavero si china davvero
+	var cima := stelo_fiore(st, 0.290, 0.85, 0.185, 71)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 717
+	# ⚠️ UN PAPAVERO È UNA COPPA, e la coppa la fa `caduta` NEGATIVA: la
+	# punta del petalo finisce PIÙ IN ALTO dell'attacco. Con la caduta
+	# positiva e l'inclinazione a −0.62 rad i quattro petali si aprivano
+	# piatti come le ali di una farfalla rossa.
+	# e un petalo di papavero è più LARGO che lungo: con la mezza
+	# larghezza a metà della lunghezza restavano quattro spicchi
+	# appuntiti con gli spazi in mezzo, cioè una stella marina rossa
+	var opz := {"incisione": 0.0, "arco": 0.10, "caduta": -0.34,
+			"conca": 0.72, "torsione": 0.14, "ventre": 0.14,
+			"apertura": 0.72, "punta": 0.42, "spessore": 0.00060}
+	for i in 4:
+		var a := float(i) / 4.0 * TAU + rng.randf_range(-0.14, 0.14)
+		var o2 := opz.duplicate()
+		o2["caduta"] = -0.34 + rng.randf_range(-0.08, 0.08)
+		o2["torsione"] = rng.randf_range(-0.16, 0.16)
+		FIO.petalo_su(st, Transform3D(
+				Basis(Vector3.UP, -a)
+				* Basis(Vector3.BACK, -0.16 + rng.randf_range(-0.13, 0.13)),
+				cima + Vector3(cos(a) * 0.0075, -0.001, sin(a) * 0.0075)),
+				0.041 * rng.randf_range(0.92, 1.08), 0.0335, 3, 3, o2,
+				rng.randf())
+	# la capsula scura: bassa e larga, in FONDO alla coppa. Alta e con la
+	# conca rovesciata veniva un cono nero che spuntava sopra il fiore
+	FIO.cupola_su(st, Transform3D(Basis.IDENTITY, cima + Vector3(0, 0.0005, 0)),
+			0.0082, 0.0046, 8, 2, 0.10, 0.20, FIO.CUORE)
+	st.index()
+	st.set_material(fiore_mat(petalo, petalo.lerp(Color("8e2f3a"), 0.40),
+			Color("3a3140"), Color("7ba05f"), 0.075, 0.30, 0.245,
+			0.0048, 0.62))
+	var mesh := ArrayMesh.new()
+	st.commit(mesh)
+	return mesh
+
+
+## IL NON-TI-SCORDAR-DI-ME: il piccolo AZZURRO. Cinque corolline in cima
+## a una cima che si arriccia — l'azzurro è la tinta che manca al prato,
+## e a due metri il suo occhio giallo è la cosa più graziosa che ci sia.
+static func forgetmenot_mesh() -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var cima := stelo_fiore(st, 0.105, 0.72, 0.090, 53)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5353
+	for i in 5:
+		var t := float(i) / 4.0
+		# la cima SCORPIOIDE: le corolle salgono arricciandosi, non
+		# stanno su un ombrello — è il segno della specie
+		var a := t * 3.4 + 0.5
+		var r := 0.0125 * (0.30 + 0.70 * t)
+		var p := cima + Vector3(cos(a) * r, t * 0.019, sin(a) * r)
+		var base := Transform3D(
+				Basis(Vector3.UP, -a) * Basis(Vector3.BACK, 0.30 * (1.0 - t)),
+				p)
+		FIO.cupola_su(st, base, 0.0092 * (0.72 + 0.28 * t), 0.0026,
+				10, 2, 0.0, 0.40, FIO.PETALO, 5, 0.26)
+		FIO.cupola_su(st, Transform3D(base.basis,
+				p + base.basis * Vector3(0, 0.0015, 0)),
+				0.0025, 0.0010, 6, 1, 0.0, 0.0, FIO.CUORE)
+	st.index()
+	st.set_material(fiore_mat(Color("9ec4f0"), Color("6d95cc"),
+			Color("f7d572"), Color("7ba46a"), 0.026, 0.11, 0.0,
+			0.0022, 0.44))
 	var mesh := ArrayMesh.new()
 	st.commit(mesh)
 	return mesh

@@ -81,7 +81,10 @@ func _fiori() -> Array:
 			["margherita", "daisy_mesh", [Color("fffaf4"), Color("ffcf5e")]],
 			["margherita rosa", "daisy_mesh", [Color("ffc4d6"), Color("ffd76e")]],
 			["tulipano", "tulip_mesh", [Color("ffb35c")]],
-			["lavanda", "lavender_mesh", []]]:
+			["lavanda", "lavender_mesh", []],
+			["trifoglio", "clover_mesh", [Color("fdf6ec")]],
+			["papavero", "poppy_mesh", [Color("e8574f")]],
+			["nontiscordar", "forgetmenot_mesh", []]]:
 		var nome: String = voce[0]
 		var fn: String = voce[1]
 		# WorldGeo e' una libreria di funzioni STATIC: has_method/callv
@@ -207,6 +210,30 @@ func _go() -> void:
 		await _scatta(dove + "/7-macchia-occhio.jpg", Vector3(0, 0.12, 0), 2.4, 0.10)
 		_sv.remove_child(macchia)
 		macchia.free()
+
+	# --- IL VENTO, ISOLATO. Nel MainLevel lo scarto fra due fotogrammi è
+	# dominato dall'erba, che si muoveva già: qui non c'è nient'altro che
+	# si muova, quindi quello che cambia sono i fiori e basta.
+	if "W" in parti:
+		var fila2 := Node3D.new()
+		_sv.add_child(fila2)
+		for i in fiori.size():
+			var mi := MeshInstance3D.new()
+			mi.mesh = fiori[i][1]
+			mi.position = Vector3(-0.30 * float(fiori.size() - 1) * 0.5
+					+ 0.30 * float(i), 0, 0)
+			fila2.add_child(mi)
+		for forza: float in [0.0, 1.0, 1.775]:
+			RenderingServer.global_shader_parameter_set("vento_forza", forza)
+			var tag := "0-fermo" if forza < 0.1 \
+					else ("1-brezza" if forza < 1.2 else "2-acquazzone")
+			for k in 5:
+				await _scatta(dove + "/8-vento-%s-%d.jpg" % [tag, k],
+						Vector3(0, 0.14, 0), 0.95, 0.16)
+				for _w in 8:
+					await process_frame
+		_sv.remove_child(fila2)
+		fila2.free()
 
 	print("FATTO -> ", dove)
 	quit()

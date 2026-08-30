@@ -57,6 +57,14 @@ uniform float testa_base = 0.0;
 uniform float testa_ritardo = 0.14;
 // il fremito del singolo petalo, in metri: minuscolo apposta
 uniform float fremito = 0.0;
+// LA VARIAZIONE PER ISTANZA. In un prato non ci sono due fiori dello
+// stesso identico colore: qui la tinta si sposta di poco, e lo
+// spostamento arriva dal MultiMesh (`INSTANCE_CUSTOM.x`, un numero fisso
+// per istanza). ⚠️ Non passa da `use_colors`: il COLOR dei vertici è la
+// maschera d'organo, e Godot ci moltiplicherebbe dentro il colore
+// d'istanza — i petali diventerebbero del colore del gambo.
+// Zero vuol dire «nessun dato»: un fiore non istanziato non si sposta.
+uniform float varia_tinta = 0.0;
 
 // L'INVERNO che copre il mondo: la neve si posa sulle facce rivolte al
 // cielo di tutto ciò che è dipinto a mano — chiome, cespugli, sassi,
@@ -72,6 +80,8 @@ varying vec3 v_pos;
 // (use_world_noise), e il colletto vuole sapere quanto si è alti sopra
 // le proprie radici, non sopra il livello del mare
 varying float v_alt;
+// il numero personale di questa istanza (0 = non è istanziata)
+varying float v_varia;
 // la componente verticale della normale in spazio-mondo: quanto una
 // faccia guarda il cielo, e quindi quanta neve ci si posa sopra
 varying float v_up;
@@ -96,6 +106,7 @@ void vertex() {
 	vec3 wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	v_pos = use_world_noise ? wp : VERTEX;
 	v_alt = VERTEX.y;
+	v_varia = INSTANCE_CUSTOM.x;
 	// dove punta la faccia, in spazio-mondo: la neve cade dall'alto
 	v_up = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz).y;
 	if (wind_strength > 0.0) {
@@ -175,6 +186,15 @@ void fragment() {
 				+ mix(organo_cuore.rgb, organo_cuore.rgb * 0.76, k) * COLOR.g
 				+ mix(organo_verde.rgb, organo_verde.rgb * 0.72, k) * COLOR.b;
 		ALBEDO *= mix(1.0 - colletto, 1.0, smoothstep(0.0, 0.06, v_alt));
+		if (varia_tinta > 0.0 && v_varia > 0.001) {
+			float d = (v_varia - 0.53) * 2.13;
+			// caldo/freddo più un filo di valore: i due assi lungo cui
+			// varia un fiore vero. Il caso puro fa sale e pepe; queste
+			// due leve, piccole, fanno un dipinto
+			ALBEDO *= vec3(1.0 + 0.085 * d, 1.0 + 0.018 * d, 1.0 - 0.070 * d)
+					* (1.0 + 0.075 * (fract(v_varia * 7.31) - 0.5)) * varia_tinta
+					+ vec3(1.0 - varia_tinta);
+		}
 	}
 	ROUGHNESS = 1.0;
 	SPECULAR = 0.08;

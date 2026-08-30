@@ -135,8 +135,6 @@ func _ready() -> void:
 	# nodo esiste da subito) e interrogano la geometria solo a runtime.
 	_build_grass()
 	await get_tree().process_frame
-	_build_flowers()
-	await get_tree().process_frame
 	_build_trees()
 	await get_tree().process_frame
 	# il Grande Albero: il monumento che cresce coi giorni del villaggio
@@ -189,6 +187,13 @@ func _ready() -> void:
 	_build_pollen()
 	await get_tree().process_frame
 	_build_forest()
+	# I FIORI vengono DOPO il bosco, e per la stessa ragione dell'erbario
+	# qui sotto: la loro semina interroga `_path_samples`, e chi lo
+	# interrogasse prima troverebbe una lista vuota — senza un errore,
+	# senza una traccia. È la trappola che l'erbario ha già pagato una
+	# volta, e con centinaia di fiori si vedrebbe subito: margherite in
+	# mezzo al sentiero.
+	_build_flowers()
 	# l'erbario e la mappa vengono DOPO il bosco, e per la stessa ragione:
 	# il sentiero esiste solo adesso, e chi lo interrogasse prima
 	# troverebbe una lista vuota — senza un errore, senza una traccia
@@ -419,49 +424,124 @@ func unflatten_cell(cell: Vector2i) -> void:
 
 
 
-# semina un campo a macchie: i fiori veri crescono in famigliole, non
-# equidistanti — centri di macchia + 2-5 fiori stretti intorno + sparsi
+## IL SUOLO LIBERO, e ce n'è UNO. Lo stagno, il letto del fiume, i
+## sentieri del bosco: le stesse esclusioni per tutto ciò che si posa a
+## terra. L'erbario ce l'aveva; i fiori guardavano SOLO lo stagno e una
+## `z > -14.5`, e a centosessanta istanze non si vedeva — a mille sì.
+func suolo_libero(p: Vector3, bordo := 0.0) -> bool:
+	if p.distance_to(POND_CENTER) < POND_R + bordo:
+		return false
+	if absf(p.x - MATH.river_x(p.z)) < 2.2 + bordo:
+		return false
+	for i in _path_samples.size():
+		if p.distance_to(_path_samples[i]) < 1.1:
+			return false
+	return true
+
+
+## IL PESO DI HABITAT, da dati che il mondo ha GIÀ: quanto si è vicini
+## all'acqua e quanto si va verso il bosco. `acqua` e `bosco` vanno da
+## −1 (scappa) a +1 (cerca); a 0 la specie è indifferente e il peso
+## vale 1 ovunque.
+##
+## Costa zero e fa il lavoro che tre specie in più non farebbero:
+## attraversando il prato i fiori CAMBIANO, invece di essere la stessa
+## spruzzata dappertutto.
+func peso_habitat(p: Vector3, acqua: float, bosco: float) -> float:
+	var d := minf(p.distance_to(POND_CENTER) - POND_R,
+			absf(p.x - MATH.river_x(p.z)) - 2.2)
+	var vicino := clampf(1.0 - d / 9.0, 0.0, 1.0)
+	var boscoso := clampf((-p.z - 2.0) / 14.0, 0.0, 1.0)
+	return clampf(1.0 + acqua * (vicino * 2.0 - 1.0)
+			+ bosco * (boscoso * 2.0 - 1.0), 0.06, 3.0)
+
+
+# Semina un campo a macchie: i fiori veri crescono in famigliole, non
+# equidistanti — centri di macchia + un pugno di fiori stretti intorno +
+# sparsi. Ogni specie ha il suo habitat, e la sua posa.
 func _flower_field(mesh: Mesh, clusters: int, per_min: int, per_max: int,
-		singles: int, rng: RandomNumberGenerator) -> MultiMeshInstance3D:
+		singles: int, rng: RandomNumberGenerator,
+		acqua := 0.0, bosco := 0.0, raggio_macchia := 0.55) -> MultiMeshInstance3D:
 	var transforms: Array[Transform3D] = []
+	var custom: Array[Color] = []
 	var spot := func() -> Vector3:
-		for attempt in 10:
-			var r := rng.randf_range(2.5, 21.0)
+		for attempt in 14:
+			var r := rng.randf_range(2.2, 22.0)
 			var a := rng.randf() * TAU
 			var p := Vector3(cos(a) * r, 0, sin(a) * r)
-			if p.distance_to(POND_CENTER) > POND_R + 1.6 and p.z > -14.5:
-				return p
-		return Vector3(6, 0, 6)
+			if not suolo_libero(p, 1.4):
+				continue
+			# il peso di habitat come rifiuto: si tira un dado contro il
+			# peso, così la specie si addensa dove le piace senza che
+			# nessuna zona resti vietata per decreto
+			if rng.randf() * 3.0 > peso_habitat(p, acqua, bosco):
+				continue
+			return p
+		return Vector3.ZERO
+	var posa := func(p: Vector3, ang: float) -> void:
+		if p == Vector3.ZERO:
+			return
+		# LA TAGLIA tirata verso il piccolo: in un prato vero i grandi
+		# sono pochi. E l'inclinazione CORRELATA alla taglia — i più alti
+		# pendono di più, perché pesano di più. Con ±0.09 rad per tutti
+		# quello che si otteneva era un plotone sull'attenti.
+		var sc := 0.70 + 0.55 * pow(rng.randf(), 1.7)
+		var pend := rng.randf_range(-0.26, 0.26) * sc
+		var b := Basis(Vector3.UP, rng.randf() * TAU) \
+				.scaled(Vector3.ONE * sc)
+		b = Basis(Vector3(cos(ang), 0, sin(ang)).cross(Vector3.UP).normalized(),
+				pend) * b
+		# LA BASE SOTTO LO ZERO: il suolo taglia lo stelo, e non si vede
+		# mai il disco d'appoggio. È il trucco dei sassi dell'erbario.
+		transforms.append(Transform3D(b, p + Vector3(0, -0.012, 0)))
+		# ⚠️ mai esattamente ZERO: lo zero è il valore che arriva a un
+		# fiore NON istanziato, e vuol dire «nessuna variazione»
+		custom.append(Color(rng.randf_range(0.06, 1.0), rng.randf(), 0.0, 0.0))
 	for c in clusters:
 		var centro: Vector3 = spot.call()
 		for i in rng.randi_range(per_min, per_max):
 			var ang := rng.randf() * TAU
-			var rr := sqrt(rng.randf()) * 0.55
-			var p := centro + Vector3(cos(ang) * rr, 0, sin(ang) * rr)
-			var b := Basis(Vector3.UP, rng.randf() * TAU) \
-					.scaled(Vector3.ONE * rng.randf_range(0.8, 1.2))
-			# ogni fiore pende dalla sua parte: niente plotone sull'attenti
-			b = Basis(Vector3(cos(ang), 0, sin(ang)).cross(Vector3.UP).normalized(),
-					rng.randf_range(-0.09, 0.09)) * b
-			transforms.append(Transform3D(b, p))
+			var rr := sqrt(rng.randf()) * raggio_macchia
+			posa.call(centro + Vector3(cos(ang) * rr, 0, sin(ang) * rr), ang)
 	for i in singles:
-		var b := Basis(Vector3.UP, rng.randf() * TAU) \
-				.scaled(Vector3.ONE * rng.randf_range(0.75, 1.15))
-		transforms.append(Transform3D(b, spot.call()))
-	return _scatter_exact(mesh, transforms, false)
+		posa.call(spot.call(), rng.randf() * TAU)
+	return _scatter_exact(mesh, transforms, false, custom)
 
 
 func _build_flowers() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 4242
-	# margherite bianche e rosa, tulipani caldi, spighe di lavanda.
-	# I campi si raccolgono: d'inverno il prato gelato li nasconde sotto la neve
+	# ⚠️ LE CLASSI DI SAGOMA, non le specie. A otto metri — che è
+	# l'inquadratura normale — di un fiore alto ventidue centimetri si
+	# vedono trenta pixel: la corolla non esiste, e leggono soltanto la
+	# CLASSE (tappeto · medio · alto), la massa, e il movimento. Quattro
+	# specie tutte alte fra 0.20 e 0.36 sono lo stesso plotone in quattro
+	# colori. Il trifoglio sta SOTTO la linea dell'erba, il papavero
+	# sopra: sono quelli i due che cambiano la lettura.
+	#
+	# I campi si raccolgono: d'inverno il prato gelato li nasconde.
 	for field in [
-			_flower_field(GEO.daisy_mesh(Color("fffaf4"), Color("ffcf5e")), 9, 3, 5, 8, rng),
-			_flower_field(GEO.daisy_mesh(Color("ffc4d6"), Color("ffd76e")), 7, 3, 5, 6, rng),
+			# il TAPPETO, fitto e ovunque, un filo più verso l'acqua
+			_flower_field(GEO.clover_mesh(Color("fdf6ec")), 24, 12, 22, 60,
+					rng, 0.35, 0.0, 0.85),
+			_flower_field(GEO.clover_mesh(Color("f6d8e2")), 10, 8, 14, 20,
+					rng, 0.35, 0.0, 0.75),
+			# i MEDI
+			_flower_field(GEO.daisy_mesh(Color("fffaf4"), Color("ffcf5e")),
+					16, 4, 8, 22, rng, 0.0, -0.25),
+			_flower_field(GEO.daisy_mesh(Color("ffc4d6"), Color("ffd76e")),
+					11, 3, 6, 14, rng, 0.0, -0.15),
+			# l'AZZURRO, che è la tinta che manca al prato: sta all'umido
+			# e verso il bosco, come il suo vero
+			_flower_field(GEO.forgetmenot_mesh(), 13, 6, 12, 18, rng,
+					0.75, 0.35, 0.60),
+			# gli ALTI, radi apposta: sono la rottura di sagoma, e una
+			# rottura che si ripete non rompe più niente
+			_flower_field(GEO.lavender_mesh(), 9, 4, 8, 10, rng, -0.45, 0.0),
+			_flower_field(GEO.poppy_mesh(Color("e8574f")), 7, 2, 5, 12, rng,
+					-0.55, -0.35, 0.75),
 			_flower_field(GEO.tulip_mesh(Color("ffb35c")), 5, 2, 4, 4, rng),
-			_flower_field(GEO.tulip_mesh(Color("f2879e")), 5, 2, 4, 4, rng),
-			_flower_field(GEO.lavender_mesh(), 6, 3, 6, 4, rng)]:
+			_flower_field(GEO.tulip_mesh(Color("f2879e")), 5, 2, 4, 4, rng)]:
 		if field:
 			_flower_fields.append(field)
 
@@ -476,14 +556,7 @@ func _build_erbario() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 90210
 	var libero := func(p: Vector3, bordo: float) -> bool:
-		if p.distance_to(POND_CENTER) < POND_R + bordo:
-			return false
-		if absf(p.x - MATH.river_x(p.z)) < 2.2 + bordo:
-			return false
-		for i in _path_samples.size():
-			if p.distance_to(_path_samples[i]) < 1.1:
-				return false
-		return true
+		return suolo_libero(p, bordo)
 
 	# I SASSI MEZZI SEPOLTI: affiorano, non stanno appoggiati. Il trucco e'
 	# tutto qui — il centro sta SOTTO lo zero, quindi il suolo li taglia e
@@ -1244,15 +1317,26 @@ func _build_pollen() -> void:
 
 
 
-func _scatter_exact(mesh: Mesh, transforms: Array, shadows := true) -> MultiMeshInstance3D:
+## ⚠️ E `use_colors` RESTA SPENTO su ogni campo di fiori, ed è una
+## regola: Godot moltiplica il colore d'istanza dentro il `COLOR` dei
+## vertici, e per un fiore quel COLOR è la MASCHERA D'ORGANO — accenderlo
+## dipingerebbe i petali del colore del gambo, senza un errore. I canali
+## per istanza viaggiano in `custom_data`.
+func _scatter_exact(mesh: Mesh, transforms: Array, shadows := true,
+		custom: Array = []) -> MultiMeshInstance3D:
 	if transforms.is_empty():
 		return null
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
+	if not custom.is_empty():
+		mm.use_custom_data = true
 	mm.mesh = mesh
 	mm.instance_count = transforms.size()
 	for i in transforms.size():
 		mm.set_instance_transform(i, transforms[i])
+	if not custom.is_empty():
+		for i in mini(custom.size(), transforms.size()):
+			mm.set_instance_custom_data(i, custom[i])
 	var mmi := MultiMeshInstance3D.new()
 	mmi.multimesh = mm
 	if not shadows:
