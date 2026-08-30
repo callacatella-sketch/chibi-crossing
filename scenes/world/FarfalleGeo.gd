@@ -43,9 +43,18 @@ extends RefCounted
 ##       una farfalla hanno il margine scuro, ed è quello che a sei metri
 ##       la fa leggere come una farfalla invece che come un coriandolo
 
-## Il torace: dentro questo raggio la geometria NON è ala, e il battito
-## non la tocca. Lo legge anche il vertex shader delle novanta.
-const RAGGIO_TORACE := 0.014
+## Il torace in frazione dell'APERTURA: dentro questo raggio la
+## geometria non è ala, e il battito non la tocca. Lo legge anche il
+## vertex shader delle novanta, che riceve il valore in metri.
+## ⚠️ Era una costante in METRI, e finché tutte le farfalle avevano la
+## stessa apertura non si vedeva: su una farfalla piccola quel raggio
+## era un quarto della semiapertura, cioè un torace largo come mezza ala.
+const TORACE_FRAZIONE := 0.085
+
+
+## Il raggio del torace in metri, per un'apertura data.
+static func raggio_torace(apertura: float) -> float:
+	return apertura * TORACE_FRAZIONE
 
 
 ## I due profili, in frazioni dell'apertura e della corda. `s` va da 0
@@ -129,16 +138,17 @@ static func _ala_su(st: SurfaceTool, lato: float, dietro: bool,
 ## una capsula col default di Godot — e sta TUTTO entro `RAGGIO_TORACE`,
 ## o il battito lo piegherebbe come un'ala.
 static func _corpo_su(st: SurfaceTool, lung: float, colore: Color) -> void:
-	# [z in frazioni di lung (da +testa a −coda), raggio in metri]
+	# [z, raggio] tutti e due in FRAZIONI di `lung`: un corpo scritto in
+	# metri assoluti resta grosso uguale su una farfalla piccola
 	var anelli: Array = [
-			[0.50, 0.0018], [0.44, 0.0068], [0.34, 0.0092],
-			[0.16, 0.0126], [-0.06, 0.0102], [-0.28, 0.0064],
-			[-0.44, 0.0034], [-0.50, 0.0008]]
+			[0.50, 0.017], [0.44, 0.063], [0.34, 0.085],
+			[0.16, 0.116], [-0.06, 0.094], [-0.28, 0.059],
+			[-0.44, 0.031], [-0.50, 0.007]]
 	var lati := 6
 	var g: Array = []
 	for a: Array in anelli:
 		var z: float = float(a[0]) * lung
-		var r: float = float(a[1])
+		var r: float = float(a[1]) * lung
 		var riga: Array[Vector3] = []
 		for j in lati:
 			var t := TAU * float(j) / float(lati)
@@ -203,9 +213,9 @@ static func piatta(apertura: float, corda: float, passi := 8,
 	var corpo := Color(0.0, 0.0, 0.0, 0.0)
 	for lato: float in [-1.0, 1.0]:
 		_ala_su(st, lato, false, apertura, corda, passi, camber,
-				RAGGIO_TORACE * 0.6, ala_ant)
+				raggio_torace(apertura) * 0.6, ala_ant)
 		_ala_su(st, lato, true, apertura * 0.72, corda, passi - 2, camber * 0.7,
-				RAGGIO_TORACE * 0.5, ala_post)
+				raggio_torace(apertura) * 0.5, ala_post)
 	_corpo_su(st, corda * 0.92, corpo)
 	_antenne_su(st, corda * 0.92, corpo)
 	st.index()
@@ -221,9 +231,9 @@ static func ali_lato(lato: float, apertura: float, corda: float,
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	_ala_su(st, lato, false, apertura, corda, passi, camber,
-			RAGGIO_TORACE * 0.6, Color(0.0, 0.0, 0.0, 1.0))
+			raggio_torace(apertura) * 0.6, Color(0.0, 0.0, 0.0, 1.0))
 	_ala_su(st, lato, true, apertura * 0.72, corda, passi - 2, camber * 0.7,
-			RAGGIO_TORACE * 0.5, Color(0.0, 1.0, 0.0, 1.0))
+			raggio_torace(apertura) * 0.5, Color(0.0, 1.0, 0.0, 1.0))
 	st.index()
 	return st.commit()
 

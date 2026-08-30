@@ -927,7 +927,7 @@ func _make_butterfly(kind_i: int) -> void:
 	# dodici millimetri — e con l'ombra accesa — contro quattro triangoli
 	# d'ala. Il budget c'era già, era speso al contrario.
 	var body := MeshInstance3D.new()
-	body.mesh = FARF.corpo(body_len * 1.55)
+	body.mesh = FARF.corpo(body_len * 0.72)
 	body.material_override = GEO.paint_mat(Color("6a5a4a"), Color("4a3e33"), 8.0, 0.4)
 	b.add_child(body)
 
@@ -952,7 +952,13 @@ func _make_butterfly(kind_i: int) -> void:
 		# l'attacco sta nell'ORIGINE del perno: è così che `rotation.z`
 		# la fa ruotare dal punto giusto, ed è il contratto che
 		# `_farfalla_fidata` si aspetta per posarla sul naso di Mochi
-		mi.mesh = FARF.ali_lato(side, wing_size.x * 1.90, wing_size.y * 1.55)
+		# ⚠️ LA SCALA. Con i moltiplicatori della prima stesura veniva
+		# un'apertura di 28 cm: larga quanto la testa di un chibi. Era la
+		# taglia che avevano da sempre — un quad di 15 cm per lato — ma
+		# finché erano pallini sfumati nessuno la leggeva come una
+		# farfalla, quindi nessuno vedeva che era enorme. Dare una sagoma
+		# a una cosa ne rivela la taglia.
+		mi.mesh = FARF.ali_lato(side, wing_size.x * 0.86, wing_size.y * 0.70)
 		mi.material_override = wing_mat
 		pivot.add_child(mi)
 		wings.append(pivot)

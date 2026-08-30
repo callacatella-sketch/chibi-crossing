@@ -162,10 +162,10 @@ func _ground_ok(pos: Vector3) -> bool:
 # materiale della SUPERFICIE 0, e con due superfici il ritinto stagionale
 # si spegnerebbe in silenzio.
 func _butterfly_mesh() -> ArrayMesh:
-	var mesh := FARF.piatta(0.230, 0.168)
+	var mesh := FARF.piatta(0.105, 0.076)
 	var mat := ShaderMaterial.new()
 	mat.shader = BUTTERFLY_SHADER
-	mat.set_shader_parameter("raggio_torace", FARF.RAGGIO_TORACE)
+	mat.set_shader_parameter("raggio_torace", FARF.raggio_torace(0.105))
 	mesh.surface_set_material(0, mat)
 	_butterfly_mat = mat
 	return mesh

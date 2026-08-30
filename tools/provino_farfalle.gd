@@ -80,7 +80,7 @@ func _studio() -> void:
 func _rig(kind: String, apertura: float, corda: float) -> Dictionary:
 	var b := Node3D.new()
 	var body := MeshInstance3D.new()
-	body.mesh = FARF.corpo(corda * 0.92)
+	body.mesh = FARF.corpo(corda * 0.72)
 	body.material_override = GEO.paint_mat(Color("6a5a4a"), Color("4a3e33"), 8.0, 0.4)
 	b.add_child(body)
 	var col: Color = CRIT.colore(kind)
@@ -134,9 +134,9 @@ func _go() -> void:
 	if parti == "":
 		parti = "SBM"
 
-	var piatta: Mesh = FARF.piatta(0.230, 0.168)
-	var ala: Mesh = FARF.ali_lato(1.0, 0.285, 0.186)
-	var corpo: Mesh = FARF.corpo(0.1085)
+	var piatta: Mesh = FARF.piatta(0.105, 0.076)
+	var ala: Mesh = FARF.ali_lato(1.0, 0.129, 0.084)
+	var corpo: Mesh = FARF.corpo(0.0605)
 	print("FARFALLA piatta (le 90)   %4d tris · %d superfici"
 			% [_conta(piatta), piatta.get_surface_count()])
 	print("FARFALLA rig  (le 5)      %4d tris (%d ala x2 + %d corpo)"
@@ -146,14 +146,14 @@ func _go() -> void:
 
 	# --- S: LA SAGOMA
 	if "S" in parti:
-		var r := _rig("rosa", 0.285, 0.186)
+		var r := _rig("rosa", 0.129, 0.084)
 		_sv.add_child(r["nodo"])
 		_batti(r, 0.18)
 		await process_frame
 		for v in [["1-alto.jpg", 0.0, 1.05], ["2-trequarti.jpg", 0.8, 0.30],
 				["3-profilo.jpg", 1.5708, 0.08], ["4-davanti.jpg", 0.0, 0.10],
 				["5-da-sotto.jpg", 0.2, -0.55]]:
-			await _scatta(dove + "/" + str(v[0]), Vector3.ZERO, 0.40,
+			await _scatta(dove + "/" + str(v[0]), Vector3.ZERO, 0.19,
 					float(v[2]), float(v[1]))
 		_sv.remove_child(r["nodo"])
 		(r["nodo"] as Node3D).free()
@@ -162,16 +162,16 @@ func _go() -> void:
 	if "B" in parti:
 		var fila := Node3D.new()
 		_sv.add_child(fila)
-		var passo := 0.36
+		var passo := 0.165
 		var istanti := 8
 		for i in istanti:
 			var theta := TAU * float(i) / float(istanti)
 			for riga in 2:
-				var r := _rig("rosa" if riga == 0 else "azzurra", 0.285, 0.186)
+				var r := _rig("rosa" if riga == 0 else "azzurra", 0.129, 0.084)
 				var n := r["nodo"] as Node3D
 				n.position = Vector3(
 						(float(i) - float(istanti - 1) * 0.5) * passo,
-						0.24 if riga == 0 else -0.24, 0.0)
+						0.11 if riga == 0 else -0.11, 0.0)
 				fila.add_child(n)
 				# riga 0: la legge VERA (fronti ripidi, colmo piatto)
 				# riga 1: il `sin()` puro di prima, per confronto
@@ -179,8 +179,8 @@ func _go() -> void:
 						else absf(sin(theta))
 				_batti(r, s * 0.95)
 		await process_frame
-		await _scatta(dove + "/6-battito.jpg", Vector3(0, 0, 0), 1.75, 0.16)
-		await _scatta(dove + "/7-battito-profilo.jpg", Vector3(0, 0, 0), 1.75,
+		await _scatta(dove + "/6-battito.jpg", Vector3(0, 0, 0), 0.80, 0.16)
+		await _scatta(dove + "/7-battito-profilo.jpg", Vector3(0, 0, 0), 0.80,
 				0.16, 1.35)
 		_sv.remove_child(fila)
 		fila.free()
@@ -191,10 +191,10 @@ func _go() -> void:
 		var m := MultiMesh.new()
 		m.transform_format = MultiMesh.TRANSFORM_3D
 		m.use_custom_data = true
-		var mesh2: ArrayMesh = FARF.piatta(0.230, 0.168)
+		var mesh2: ArrayMesh = FARF.piatta(0.105, 0.076)
 		var mat := ShaderMaterial.new()
 		mat.shader = SHADER
-		mat.set_shader_parameter("raggio_torace", FARF.RAGGIO_TORACE)
+		mat.set_shader_parameter("raggio_torace", FARF.raggio_torace(0.105))
 		mesh2.surface_set_material(0, mat)
 		m.mesh = mesh2
 		var rng := RandomNumberGenerator.new()
@@ -202,10 +202,10 @@ func _go() -> void:
 		m.instance_count = 14
 		for i in 14:
 			var a := rng.randf() * TAU
-			var rr := 1.1 * sqrt(rng.randf())
+			var rr := 0.55 * sqrt(rng.randf())
 			m.set_instance_transform(i, Transform3D(
 					Basis(Vector3.UP, rng.randf() * TAU),
-					Vector3(cos(a) * rr, rng.randf_range(-0.25, 0.30),
+					Vector3(cos(a) * rr, rng.randf_range(-0.12, 0.15),
 							sin(a) * rr)))
 			# sfasamento COSTANTE, specie, velocità: il contratto dello shader
 			m.set_instance_custom_data(i, Color(rng.randf(),
@@ -213,8 +213,8 @@ func _go() -> void:
 		mm.multimesh = m
 		_sv.add_child(mm)
 		await process_frame
-		await _scatta(dove + "/8-novanta-2m.jpg", Vector3.ZERO, 2.0, 0.22)
-		await _scatta(dove + "/9-novanta-6m.jpg", Vector3.ZERO, 6.0, 0.26)
+		await _scatta(dove + "/8-novanta-1m.jpg", Vector3.ZERO, 1.0, 0.22)
+		await _scatta(dove + "/9-novanta-3m.jpg", Vector3.ZERO, 3.0, 0.26)
 		_sv.remove_child(mm)
 		mm.free()
 
