@@ -8,6 +8,10 @@ extends RefCounted
 ## Estratte da CozyWorld.gd per alleggerirlo.
 
 const HANDPAINT := preload("res://shaders/handpaint.gdshader")
+## Gli organi di un fiore (petalo, lamina, stelo, capolino): la casa
+## unica delle leggi di forma. FioriGeo non carica nessuno, quindi non
+## c'è nessun anello.
+const FIO := preload("res://scenes/world/FioriGeo.gd")
 
 
 static func paint_mat(a: Color, b: Color, grain := 4.0, amount := 0.45, wind := 0.0,
@@ -55,115 +59,252 @@ static func blade_mesh() -> ArrayMesh:
 				st.add_vertex(v[0])
 	return st.commit()
 
-# il gambo comune: stelo con una lieve curva naturale + due foglioline
-# basali lanceolate. Ogni specie ci appoggia sopra la sua corolla.
-static func flower_base(mesh: ArrayMesh, h: float, leaf_s := 1.0) -> void:
-	var green := paint_mat(Color("7fae6a"), Color("5f9050"), 6.0, 0.5, 0.02, true)
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	# stelo in due segmenti, il secondo piegato appena: mai un palo dritto
-	var low := cyl_mesh(0.011, 0.013, h * 0.55, 6)
-	var high := cyl_mesh(0.009, 0.011, h * 0.5, 6)
-	st.append_from(low, 0, Transform3D(Basis.IDENTITY, Vector3(0, h * 0.275, 0)))
-	st.append_from(high, 0, Transform3D(
-			Basis(Vector3.RIGHT, 0.12), Vector3(0, h * 0.76, -h * 0.03)))
-	# foglie: ellissoidi lunghi e sottili, inclinati verso l'alto
-	var leaf := sphere_mesh(0.05, 8)
-	for side: float in [-1.0, 1.0]:
-		var b := Basis(Vector3.UP, side * 1.2 + 0.4) \
-				* Basis(Vector3.RIGHT, -0.55) \
-				* Basis.IDENTITY.scaled(Vector3(0.42, 0.14, 1.5) * leaf_s)
-		st.append_from(leaf, 0, Transform3D(b, Vector3(side * 0.03, h * 0.16, 0.015)))
-	st.set_material(green)
-	st.commit(mesh)
+## ---------------------------------------------------------------------
+## I FIORI DEL PRATO
+##
+## Ogni fiore è UNA superficie sola e i suoi organi si distinguono dal
+## COLOR dei vertici ([FioriGeo]: r petalo · g cuore · b verde, `a` la
+## fase personale del petalo). Tre superfici erano tre draw call per un
+## oggetto grande otto centimetri.
+##
+## ⚠️ E LA PROPORZIONE VIENE PRIMA DEL POLIGONO. La margherita di prima
+## aveva la corolla di **ø 0.229 su uno stelo di 0.20**: larga quanto
+## alta, in un prato dove il filo d'erba fa 0.30. Era QUELLA — non gli
+## otto meridiani della sfera — a farla leggere come una girandola di
+## confetti. Adesso la testa fa ø 0.075 su 0.22 di altezza, e costa un
+## terzo dei triangoli di prima (1464 → ~430) perché una sfera scalata
+## spende quasi tutto in meridiani che nessuno vede.
+## ---------------------------------------------------------------------
 
-## La margherita: doppia corona di petali veri (8 sotto + 5 sopra,
-## ruotati e appena rialzati) attorno al bottone dorato bombato.
+## Il materiale di un fiore: una superficie, tre organi, il vento del
+## mondo. `chioma` è l'ampiezza con cui la folata lo piega — la STESSA
+## folata che un istante prima ha piegato l'erba di là — e `testa_base`
+## la quota sopra la quale la corolla arriva IN RITARDO sullo stelo, che
+## è tutto il peso del fiore.
+static func fiore_mat(pet_a: Color, pet_b: Color, cuore: Color, verde: Color,
+		chioma := 0.05, span := 0.22, testa_base := 0.0,
+		fremito := 0.0035, trans := 0.55) -> ShaderMaterial:
+	var mat := paint_mat(pet_a, pet_b, 3.0, 0.42, 0.0, true, trans)
+	mat.set_shader_parameter("usa_organi", true)
+	mat.set_shader_parameter("organo_cuore", cuore)
+	mat.set_shader_parameter("organo_verde", verde)
+	# IL COLLETTO: le radici in ombra e le punte accese. È il trucco con
+	# cui il filo d'erba si fonde col suolo, e senza di lui un fiore
+	# sembra appoggiato sul prato invece che piantato dentro.
+	mat.set_shader_parameter("colletto", 0.42)
+	mat.set_shader_parameter("chioma", chioma)
+	mat.set_shader_parameter("chioma_base", 0.0)
+	mat.set_shader_parameter("chioma_span", span)
+	if testa_base > 0.0:
+		mat.set_shader_parameter("testa", 1.0)
+		mat.set_shader_parameter("testa_base", testa_base)
+	mat.set_shader_parameter("fremito", fremito)
+	return mat
+
+
+## Il gambo comune: UNO stelo su una curva vera (prima erano due cilindri
+## accostati con 0.12 rad di piega, e a ottanta centimetri lo spigolo del
+## gomito si vedeva) più le foglie basali, che sono lamine con la
+## nervatura e la punta che ricade — non due lame esagonali.
+##
+## `attacco` è dove finisce lo stelo: è lì che ogni specie appoggia la
+## sua corolla, e la restituisce perché nessuno debba ricalcolarla.
+static func stelo_fiore(st: SurfaceTool, h: float, leaf_s := 1.0,
+		piega := 0.055, seme := 0) -> Vector3:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seme
+	var giro := rng.randf() * TAU
+	var dir := Vector3(cos(giro), 0.0, sin(giro))
+	# la curva: dritto alla base, e si china verso la cima. Tre controlli
+	# bastano, la Catmull-Rom fa il resto
+	var cima := Vector3(0, h, 0) + dir * (h * piega)
+	var punti: Array = [Vector3.ZERO, Vector3(0, h * 0.45, 0)
+			+ dir * (h * piega * 0.16), cima]
+	# ⚠️ IL RAGGIO. Prima lo stelo era 7.5 mm di raggio — quindici
+	# millimetri di cannuccia sotto una testa che ora ne fa
+	# settantacinque. Un gambo vero sta a un decimo della sua corolla, e
+	# a cinque lati un tubo di sei millimetri si legge già tondo.
+	FIO.stelo_su(st, Transform3D.IDENTITY, punti,
+			[0.0034, 0.0026, 0.0021], 5, 5)
+	# LA ROSETTA BASALE: tre foglie, non due. Due opposte fanno un'elica
+	# — da qualunque parte la guardi ne vedi una di taglio, e sparisce.
+	# Sono anche più larghe e più corte di prima: una lancia sottile a
+	# ottanta centimetri è uno stecco.
+	for i in 3:
+		var a := giro + float(i) * TAU / 3.0 + rng.randf_range(-0.28, 0.28)
+		var su := 0.34 + rng.randf_range(-0.10, 0.14)
+		var base := Transform3D(
+				Basis(Vector3.UP, -a) * Basis(Vector3.BACK, su),
+				Vector3(cos(a) * 0.004, h * 0.045, sin(a) * 0.004))
+		FIO.lamina_su(st, base,
+				FIO.contorno_lancia(0.044 * leaf_s, 0.0155 * leaf_s, 4, 0.06),
+				1.9, 0.16)
+	return cima
+
+
+## LA MARGHERITA: due corone di petali VERI attorno al capolino dorato.
+## I petali della corona bassa sono reclinati e quelli della corona alta
+## sfalsati fra loro — e larghi apposta perché si SOVRAPPONGANO alla
+## base: tredici petali con gli spazi in mezzo fanno una stella marina.
 static func daisy_mesh(petal_color: Color, center_color: Color) -> ArrayMesh:
-	var mesh := ArrayMesh.new()
-	flower_base(mesh, 0.20)
-
-	var pet_mat := paint_mat(petal_color, petal_color.lightened(0.22), 2.2, 0.5, 0.02, true, 0.5)
-	var petal := sphere_mesh(0.034, 8)
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	# corona bassa: 8 petali lunghi, appena conici verso l'alto
-	for i in 8:
-		var a := float(i) / 8.0 * TAU
-		var b := Basis(Vector3.UP, -a) * Basis(Vector3.RIGHT, -0.22) \
-				* Basis.IDENTITY.scaled(Vector3(0.62, 0.22, 1.75))
-		st.append_from(petal, 0, Transform3D(b,
-				Vector3(cos(a) * 0.055, 0.205, sin(a) * 0.055)))
-	# corona alta: 5 petali più corti, sfalsati, più alzati
-	for i in 5:
-		var a := float(i) / 5.0 * TAU + 0.63
-		var b := Basis(Vector3.UP, -a) * Basis(Vector3.RIGHT, -0.5) \
-				* Basis.IDENTITY.scaled(Vector3(0.55, 0.2, 1.3))
-		st.append_from(petal, 0, Transform3D(b,
-				Vector3(cos(a) * 0.038, 0.218, sin(a) * 0.038)))
-	st.set_material(pet_mat)
-	st.commit(mesh)
-
-	st = SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	st.append_from(sphere_mesh(0.03, 10), 0, Transform3D(
-			Basis.IDENTITY.scaled(Vector3(1, 0.62, 1)), Vector3(0, 0.225, 0)))
-	st.set_material(paint_mat(center_color, center_color.darkened(0.25), 9.0, 0.55))
+	var cima := stelo_fiore(st, 0.200, 1.0, 0.060, 11)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 911
+	# ⚠️ LA LARGHEZZA È IL PETALO. Con `ventre 0.20 · apertura 0.62 ·
+	# punta 0.45` il seno diventa un PLATEAU — la mezza larghezza andava
+	# 0.79 → 1.00 → 0.75, cioè un rettangolo con la punta intaccata: dei
+	# NASTRI bianchi, che è esattamente il difetto di partenza sotto
+	# un'altra forma. Con 0.10 · 0.72 · 0.75 va 0.41 → 1.00 → 0.63:
+	# base stretta, massimo oltre la metà, punta arrotondata. Obovata.
+	var opz := {"incisione": 0.12, "arco": 0.26, "caduta": 0.20,
+			"conca": 0.62, "torsione": 0.13, "ventre": 0.10,
+			"apertura": 0.72, "punta": 0.75, "spessore": 0.00042}
+	# DUE CORONE, e nessun petalo uguale a un altro. Una corona di petali
+	# identici a passo regolare è un'ombrellina: quello che fa la
+	# margherita è che ogni ligula ha la sua inclinazione, la sua
+	# lunghezza e il suo scarto di passo.
+	for corona in 2:
+		var quanti := 10 if corona == 0 else 6
+		var raggio := 0.0065 if corona == 0 else 0.0052
+		var quota := 0.0018 if corona == 0 else 0.0038
+		var incl := -0.13 if corona == 0 else -0.33
+		var lung := 0.0300 if corona == 0 else 0.0258
+		for i in quanti:
+			var a := float(i) / float(quanti) * TAU \
+					+ (0.0 if corona == 0 else 0.52) \
+					+ rng.randf_range(-0.10, 0.10)
+			var o2 := opz.duplicate()
+			o2["caduta"] = 0.20 + rng.randf_range(-0.09, 0.09)
+			o2["torsione"] = rng.randf_range(-0.20, 0.20)
+			FIO.petalo_su(st, Transform3D(
+					Basis(Vector3.UP, -a)
+					* Basis(Vector3.BACK, incl + rng.randf_range(-0.13, 0.13)),
+					cima + Vector3(cos(a) * raggio, quota, sin(a) * raggio)),
+					lung * rng.randf_range(0.90, 1.09),
+					0.0072 * rng.randf_range(0.90, 1.10), 3, 2, o2,
+					rng.randf())
+	# il capolino: un disco bombato di flosculi con la conca in mezzo,
+	# non una sfera schiacciata
+	FIO.cupola_su(st, Transform3D(Basis.IDENTITY, cima + Vector3(0, 0.0020, 0)),
+			0.0136, 0.0072, 9, 3, 0.13, 0.26)
+	st.index()
+	st.set_material(fiore_mat(petal_color,
+			petal_color.lerp(Color("c3cfe2"), 0.34),
+			center_color, Color("6f9c58"), 0.055, 0.22, 0.160, 0.0035, 0.42))
+	var mesh := ArrayMesh.new()
 	st.commit(mesh)
 	return mesh
 
-## Il tulipano: sei petali verticali chiusi a coppa su uno stelo alto,
-## con la foglia lunga avvolgente tipica.
+
+## IL TULIPANO: sei petali a coppa, chiusi in cima. Il segno della specie
+## è la CONCA forte — un petalo di tulipano è un cucchiaio — e la punta
+## NON incisa: si arrotonda, non si divide.
 static func tulip_mesh(cup_color: Color) -> ArrayMesh:
-	var mesh := ArrayMesh.new()
-	flower_base(mesh, 0.26, 1.25)
-
-	var pet_mat := paint_mat(cup_color, cup_color.lightened(0.18), 2.0, 0.45, 0.02, true, 0.55)
-	var petal := sphere_mesh(0.045, 8)
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var cima := stelo_fiore(st, 0.250, 1.45, 0.045, 23)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 233
+	# ⚠️ IL VERSO DELLA CONCA. Un petalo in piedi ha il proprio «su»
+	# rivolto DENTRO il fiore (lo porta lì `Basis(BACK, PI/2)`): quindi
+	# `conca` POSITIVA arriccia i bordi verso l'asse — la coppa — e
+	# negativa li apre. Con il segno sbagliato il tulipano usciva a
+	# imbuto, aperto in cima e cavo dentro: un cappello di carta.
+	# E per la stessa ragione `caduta` NEGATIVA fa cadere la punta
+	# all'INTERNO, che è come si chiude un tulipano.
+	# ⚠️ E LA LARGHEZZA È ARITMETICA, non gusto. A raggio 13 mm la
+	# circonferenza è 83 mm: sei petali larghi 34 la riempiono due volte
+	# e mezzo, e quello che esce non è una coppa — è un TUBO PIENO, un
+	# sacchetto di carta giallo. Con 21 mm l'una si sovrappongono di una
+	# volta e mezzo, che è quanto basta perché non si vedano fessure.
+	# E la punta deve STRINGERSI: `ventre + apertura = 0.94` porta il
+	# lembo a un quinto della sua larghezza sull'ultima riga, e senza
+	# quello il tulipano ha il coperchio piatto.
+	var opz := {"incisione": 0.0, "arco": -0.12, "caduta": -0.13,
+			"conca": 0.55, "torsione": 0.04, "ventre": 0.12,
+			"apertura": 0.80, "punta": 1.0, "spessore": 0.00055}
 	for i in 6:
-		var a := float(i) / 6.0 * TAU
-		# petali dritti che si stringono in alto: la silhouette a uovo
-		var b := Basis(Vector3.UP, -a) * Basis(Vector3.RIGHT, 0.16) \
-				* Basis.IDENTITY.scaled(Vector3(0.72, 1.35, 0.4))
-		st.append_from(petal, 0, Transform3D(b,
-				Vector3(cos(a) * 0.026, 0.315, sin(a) * 0.026)))
-	st.set_material(pet_mat)
-	st.commit(mesh)
-
-	# il cuoricino scuro appena visibile dentro la coppa
-	st = SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	st.append_from(sphere_mesh(0.02, 8), 0, Transform3D(
-			Basis.IDENTITY, Vector3(0, 0.31, 0)))
-	st.set_material(paint_mat(cup_color.darkened(0.4), cup_color.darkened(0.55), 6.0, 0.4))
+		var a := float(i) / 6.0 * TAU + rng.randf_range(-0.06, 0.06)
+		# i tre esterni si aprono un filo più dei tre interni: è così che
+		# si vede che sono due giri e non un bicchiere
+		var incl := PI * 0.5 + (0.01 if i % 2 == 0 else 0.10)
+		var o2 := opz.duplicate()
+		o2["caduta"] = -0.13 + rng.randf_range(-0.022, 0.022)
+		FIO.petalo_su(st, Transform3D(
+				Basis(Vector3.UP, -a) * Basis(Vector3.BACK, incl),
+				cima + Vector3(cos(a) * 0.0130, -0.003, sin(a) * 0.0130)),
+				0.062 * rng.randf_range(0.95, 1.05), 0.0125, 4, 2, o2,
+				float(i) / 6.0)
+	# il cuore scuro in FONDO alla coppa: si intravede solo da sopra, e
+	# sta basso apposta — sporgendo diventava una scheggia arancione fra
+	# i petali
+	FIO.cupola_su(st, Transform3D(Basis.IDENTITY, cima + Vector3(0, 0.001, 0)),
+			0.0088, 0.0055, 7, 2, 0.0, 0.05)
+	st.index()
+	st.set_material(fiore_mat(cup_color, cup_color.lerp(Color("d98a3e"), 0.42),
+			cup_color.darkened(0.45), Color("6f9c58"), 0.048, 0.28, 0.222,
+			0.0030, 0.48))
+	var mesh := ArrayMesh.new()
 	st.commit(mesh)
 	return mesh
 
-## La lavanda: spiga di campanellini viola sfalsati su uno stelo slanciato.
-static func lavender_mesh() -> ArrayMesh:
-	var mesh := ArrayMesh.new()
-	flower_base(mesh, 0.30, 0.8)
 
-	var bud_mat := paint_mat(Color("a98fd8"), Color("8f6fc4"), 2.5, 0.5, 0.025, true, 0.45)
-	var bud := sphere_mesh(0.026, 8)
+## LA LAVANDA: una spiga di campanelle vere in verticilli sfalsati, non
+## otto palline infilate su un filo. Le campanelle hanno la bocca a
+## quattro lobi: è quella, in controluce, a fare la spiga soffice.
+static func lavender_mesh() -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for i in 7:
-		var t := float(i) / 6.0
-		var a := t * 5.2  # i campanellini salgono a spirale
-		var y := 0.24 + t * 0.11
-		var r := 0.018 * (1.0 - t * 0.45)
-		var b := Basis(Vector3.UP, -a) \
-				* Basis.IDENTITY.scaled(Vector3(1.15, 0.85, 1.15) * (1.0 - t * 0.35))
-		st.append_from(bud, 0, Transform3D(b, Vector3(cos(a) * r, y, sin(a) * r)))
-	# la puntina in cima
-	st.append_from(bud, 0, Transform3D(
-			Basis.IDENTITY.scaled(Vector3(0.6, 0.9, 0.6)), Vector3(0, 0.365, 0)))
-	st.set_material(bud_mat)
+	var cima := stelo_fiore(st, 0.235, 0.70, 0.070, 37)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 37
+	# ⚠️ LA SPIGA È FATTA DI DENSITÀ, non di sagoma. Sei campanelle su un
+	# bastone si leggono come sei frecce infilzate; quello che fa una
+	# lavanda è un cilindro SOFFICE — quindi verticilli fitti, che si
+	# sovrappongono, su un terzo dell'altezza della pianta.
+	var verticilli := 8
+	for k in verticilli:
+		var t := float(k) / float(verticilli - 1)
+		var y := t * 0.100
+		var r := 0.0115 * (1.0 - t * 0.46)
+		var lung := 0.0165 * (1.0 - t * 0.30)
+		for j in 3:
+			var a := TAU * float(j) / 3.0 + float(k) * 0.82 \
+					+ rng.randf_range(-0.12, 0.12)
+			FIO.campanella_su(st, Transform3D(
+					Basis(Vector3.UP, -a)
+					* Basis(Vector3.BACK, 0.82 + rng.randf_range(-0.16, 0.16)),
+					cima + Vector3(cos(a) * r, y, sin(a) * r)),
+					lung, 0.0062 * (1.0 - t * 0.22),
+					FIO.PETALO, rng.randf())
+	# la punta: due bocci ancora chiusi, che è ciò che rende una spiga
+	# una spiga e non un pennello tagliato di netto
+	for k in 2:
+		FIO.campanella_su(st, Transform3D(
+				Basis(Vector3.UP, float(k) * 2.1) * Basis(Vector3.BACK, 0.34),
+				cima + Vector3(0, 0.104 + float(k) * 0.009, 0)),
+				0.0105, 0.0040, FIO.PETALO, 0.7 + float(k) * 0.15)
+	st.index()
+	st.set_material(fiore_mat(Color("a98fd8"), Color("8f6fc4"),
+			Color("6f57a4"), Color("7d9a66"), 0.042, 0.32, 0.226))
+	var mesh := ArrayMesh.new()
 	st.commit(mesh)
 	return mesh
+
+
+## Il gambo comune, per chi lo vuole ancora come mesh a sé (il Prologo e
+## i vasi): resta l'API di prima, che ora passa dagli organi.
+static func flower_base(mesh: ArrayMesh, h: float, leaf_s := 1.0) -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	stelo_fiore(st, h, leaf_s, 0.055, int(h * 1000.0))
+	st.index()
+	st.set_material(fiore_mat(Color("7fae6a"), Color("5f9050"),
+			Color("7fae6a"), Color("7fae6a"), 0.04, h))
+	st.commit(mesh)
+
 
 static func soft_circle(color: Color, edge := 0.6) -> GradientTexture2D:
 	var tex := GradientTexture2D.new()

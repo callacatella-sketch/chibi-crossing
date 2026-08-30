@@ -33,6 +33,31 @@ uniform float chioma_span = 1.0;
 // il sole alle spalle di una chioma la accende di verde-oro
 uniform float translucency : hint_range(0.0, 1.0) = 0.0;
 
+// --- I FIORI: TRE ORGANI IN UNA SUPERFICIE SOLA ----------------------
+// Un fiore è largo otto centimetri: tre superfici erano tre draw call
+// per niente. La maschera d'organo viaggia nel COLOR dei vertici —
+// r petalo, g cuore, b verde — e `a` porta la FASE personale del
+// petalo, perché una corolla che si muove tutta insieme è un palloncino.
+// Tutto spento di serie: nessun altro materiale dipinto a mano cambia
+// di un bit.
+uniform bool usa_organi = false;
+uniform vec4 organo_cuore : source_color = vec4(1.0);
+uniform vec4 organo_verde : source_color = vec4(1.0);
+// IL COLLETTO: quanto si scurisce la base della pianta. Le radici in
+// ombra e le punte accese sono ciò che fa sembrare un fiore PIANTATO
+// invece che appoggiato — è la stessa regola con cui il filo d'erba si
+// fonde col suolo.
+uniform float colletto : hint_range(0.0, 1.0) = 0.0;
+// IL RITARDO DELLA TESTA. Sopra `testa_base` la corolla campiona la
+// STESSA folata un filo indietro nel tempo: arriva dopo lo stelo e
+// torna dopo. Non è un secondo seno da tarare — è il peso del fiore,
+// e costa una seconda valutazione della folata che c'è già.
+uniform float testa = 0.0;
+uniform float testa_base = 0.0;
+uniform float testa_ritardo = 0.14;
+// il fremito del singolo petalo, in metri: minuscolo apposta
+uniform float fremito = 0.0;
+
 // L'INVERNO che copre il mondo: la neve si posa sulle facce rivolte al
 // cielo di tutto ciò che è dipinto a mano — chiome, cespugli, sassi,
 // tetti, tumuli dell'orto. Un solo globale pilota l'intera nevicata
@@ -43,6 +68,10 @@ global uniform float snow_amount;
 uniform bool no_snow = false;
 
 varying vec3 v_pos;
+// l'altezza LOCALE del vertice: v_pos per i fiori è in spazio-mondo
+// (use_world_noise), e il colletto vuole sapere quanto si è alti sopra
+// le proprie radici, non sopra il livello del mare
+varying float v_alt;
 // la componente verticale della normale in spazio-mondo: quanto una
 // faccia guarda il cielo, e quindi quanta neve ci si posa sopra
 varying float v_up;
@@ -66,6 +95,7 @@ float fbm(vec2 p) {
 void vertex() {
 	vec3 wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	v_pos = use_world_noise ? wp : VERTEX;
+	v_alt = VERTEX.y;
 	// dove punta la faccia, in spazio-mondo: la neve cade dall'alto
 	v_up = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz).y;
 	if (wind_strength > 0.0) {
@@ -98,6 +128,28 @@ void vertex() {
 
 		float piega = (folata + brezza * 0.35) * chioma * w;
 		VERTEX.xz += dir * piega;
+
+		// --- il RITARDO della testa: il peso del fiore ---
+		// la corolla non è un adesivo sullo stelo: la folata la raggiunge
+		// dopo, e la lascia dopo. Si campiona la stessa folata a
+		// TIME − testa_ritardo e si somma la DIFFERENZA, così quando il
+		// vento è fermo la testa non si sposta di un millimetro.
+		if (testa > 0.0) {
+			float ht = smoothstep(testa_base, testa_base + 0.055, VERTEX.y);
+			float dietro = vento_folata(wp.xz, TIME - testa_ritardo);
+			VERTEX.xz += dir * (dietro - folata) * chioma * w * ht * testa;
+		}
+		// --- il fremito del singolo PETALO ---
+		// la fase viene da COLOR.a, che è personale di ogni petalo: due
+		// petali della stessa corolla non si muovono mai insieme, ed è
+		// la differenza fra una corolla e una girandola
+		if (fremito > 0.0) {
+			float fp = COLOR.a * 6.283 + fase;
+			float viv = (0.45 + 0.55 * folata) * COLOR.r;
+			VERTEX.x += sin(TIME * 3.7 + fp) * fremito * viv;
+			VERTEX.y += sin(TIME * 4.9 + fp * 1.7) * fremito * 0.7 * viv;
+			VERTEX.z += cos(TIME * 4.3 + fp * 1.3) * fremito * viv;
+		}
 		// piegandosi la chioma SCENDE un poco: è una rotazione attorno al
 		// ramo, non una traslazione — senza questo sembra che scivoli via
 		VERTEX.y -= abs(piega) * 0.35;
@@ -115,6 +167,15 @@ void fragment() {
 	float n = fbm(uv * noise_scale + 3.1);
 	float wash = smoothstep(0.32, 0.78, n);
 	ALBEDO = mix(color_a.rgb, color_b.rgb, wash * noise_amount);
+	if (usa_organi) {
+		// ogni organo prende il PROPRIO lavaggio: un cuore dorato lavato
+		// col bianco dei petali diventa un uovo al tegamino
+		float k = wash * noise_amount;
+		ALBEDO = ALBEDO * COLOR.r
+				+ mix(organo_cuore.rgb, organo_cuore.rgb * 0.76, k) * COLOR.g
+				+ mix(organo_verde.rgb, organo_verde.rgb * 0.72, k) * COLOR.b;
+		ALBEDO *= mix(1.0 - colletto, 1.0, smoothstep(0.0, 0.06, v_alt));
+	}
 	ROUGHNESS = 1.0;
 	SPECULAR = 0.08;
 	// base minima di rim, sempre accesa: leggibilità notturna delle
