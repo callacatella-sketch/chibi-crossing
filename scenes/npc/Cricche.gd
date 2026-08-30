@@ -294,6 +294,23 @@ static func registra(inc: Array, a: String, b: String, giorno: int,
 
 
 ## I campioni di una coppia, nell'ordine in cui sono stati scritti. Pura.
+## LE GIORNATE IN CUI QUELLA PERSONA HA PASSATO DEL TEMPO CON QUALCUNO —
+## una voce per riga, con chiunque. Pura.
+##
+## E' l'unica cosa che questo registro presta alla deriva dei tratti, e la
+## presta come DATO: qui non si decide niente, e chi la usa la pesa con la
+## propria curva del tempo.
+static func giornate_insieme(inc: Array, nome: String) -> Array:
+	var out: Array = []
+	if nome == "":
+		return out
+	for r in inc:
+		var riga := r as Dictionary
+		if str(riga.get("a", "")) == nome or str(riga.get("b", "")) == nome:
+			out.append(int(riga.get("d", 0)))
+	return out
+
+
 static func campioni(inc: Array, a: String, b: String) -> Array:
 	var primo := a if a < b else b
 	var secondo := b if a < b else a

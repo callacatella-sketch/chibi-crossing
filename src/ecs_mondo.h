@@ -181,6 +181,9 @@ public:
 	int stato(int64_t p_id) const;
 	double da_quanto(int64_t p_id) const;
 	bool in_finestra(int64_t p_id) const;
+	// Quanto è «la propria notte», adesso (0..1). Stessa disciplina di
+	// `in_finestra`: l'ora la sa il SISTEMA, non il chiamante.
+	double fase_circadiana(int64_t p_id, double p_anticipo) const;
 
 	// --- tabelle: i NOMI restano in GDScript, qui solo la traduzione -----
 	int maschera_indole(const godot::PackedStringArray &p_nomi) const;
@@ -204,6 +207,8 @@ public:
 	// --- oracoli per i test (precedente: EcosystemManager::debug_farfalla)
 	godot::Dictionary debug_entita(int64_t p_id) const;
 	bool debug_in_finestra(int p_maschera, int p_quirk, double p_ora) const;
+	double debug_fase_circadiana(int p_maschera, int p_quirk, double p_ora,
+			double p_anticipo) const;
 	// Quante entità portano una posa. In Fase 1 deve essere SEMPRE 0: un
 	// componente scritto ogni frame e letto da nessuno è un motore acceso a
 	// vuoto. Il giorno in cui arriva il primo lettore vero, questo test si

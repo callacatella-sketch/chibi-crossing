@@ -5,6 +5,7 @@ extends Node
 ## riposa sulla panchina e lascia un regalino che puoi raccogliere con E.
 
 const VISITOR := preload("res://scenes/npc/Visitor.gd")
+const CRICCHE := preload("res://scenes/npc/Cricche.gd")
 const MIND := preload("res://scenes/npc/VillagerMind.gd")
 const DNA := preload("res://scenes/npc/ChibiDNA.gd")
 const BRAIN := preload("res://scenes/npc/VillagerBrain.gd")
@@ -1676,6 +1677,20 @@ const LEASE_SPONTANEO := 30.0
 ## davvero un bit, e che sia solo suo.
 const FATTO_INSIEME := "insieme_accanto"
 
+## QUANTO PRIMA la propria sera comincia a farsi sentire, in frazione di
+## giornata. 0.08 sono poco meno di due ore su ventiquattro.
+##
+## ⚠️ **È anche tutta la finestra in cui il canale si può vedere**, e va detto:
+## `Visitor.resident_sleep()` non manda nessuno a casa a piedi — appena
+## `passo_sonno` dice DORME il corpo si rimpicciolisce a scala 0.03 e sparisce.
+## Dentro la finestra di sonno non c'è nessun corpo addosso a cui leggere
+## niente, quindi la melatonina è osservabile **solo** durante questa rampa:
+## 0.08 di giornata sono **19,2 secondi reali** (`cycle_seconds` 240).
+##
+## ⚠️ **Non decide niente**: entra solo nella produzione di un canale della
+## chimica. Chi va a letto e quando resta l'unica autorità del C++.
+const ANTICIPO_NOTTE := 0.08
+
 ## Cosa dice il cielo adesso — `luce`, `pioggia`, `temperatura`. Si rinfresca
 ## una volta per fotogramma e lo legge il passo neurochimico di ogni
 ## residente. Vuoto se non c'e' nessun `DayNight` (i banchi, il diorama del
@@ -1686,6 +1701,9 @@ var _ambiente: Dictionary = {}
 var _ecs: Object = null
 var _ecs_manca_detto := false
 var _ST_DORME := 1
+## Il binario sa rispondere a `fase_circadiana`? Una GDExtension vecchia no,
+## e la domanda si fa una volta sola (vedi il ciclo del sonno).
+var _ecs_sa_la_notte := false
 var _ST_FUORI := 2
 
 
@@ -1706,6 +1724,10 @@ func _ensure_ecs() -> void:
 	add_child(_ecs)
 	# le costanti si leggono dall'oggetto: qui dentro non si scrive 0/1/2
 	_ST_DORME = _ecs.STATO_DORME
+	# si chiede UNA volta, qui dove le costanti si leggono già dal binario:
+	# `has_method` per residente per fotogramma sarebbe la stessa domanda
+	# pagata ventotto volte al frame per una risposta che non cambia mai.
+	_ecs_sa_la_notte = _ecs.has_method("fase_circadiana")
 	_ST_FUORI = _ecs.STATO_FUORI
 	# IL RITMO DELLA MEMORIA SI DERIVA DAL CICLO DEL GIORNO, e si dice UNA
 	# volta sola: un villaggio con le giornate lunghe ha ricordi lunghi. Il
@@ -2807,7 +2829,30 @@ func _ciclo_sonno(delta: float, t_ora: float) -> void:
 		var animo_r: RefCounted = _animi.get(lab)
 		if animo_r and animo_r.limbico:
 			var l: RefCounted = animo_r.limbico
-			l.passo_neuro(delta, _ambiente, st == _ST_DORME)
+			# ⚠️ **E LA PROPRIA NOTTE**, che è l'unica cosa di questa riga
+			# che cambia da un vicino all'altro. Non è un'ora e non è la
+			# luce: è quanto manca alla finestra di sonno DI COSTUI, e la
+			# sa il C++ — che è la stessa disciplina di `in_finestra`,
+			# l'ora la conosce il sistema e non gliela passa il chiamante.
+			# Costa una chiamata al ponte per residente per fotogramma, la
+			# stessa cadenza con cui gli si chiede già lo stato.
+			# ⚠️ **E LA PROPRIA NOTTE**, l'unica cosa di questa riga che
+			# cambia da un vicino all'altro. Non è un'ora e non è la luce:
+			# è quanto manca alla finestra di sonno DI COSTUI, e la sa il
+			# C++ — la stessa disciplina di `in_finestra`, l'ora la conosce
+			# il sistema e non gliela passa il chiamante.
+			#
+			# ⚠️ **E SI CHIEDE SE IL BINARIO SA RISPONDERE.** Le GDExtension
+			# si caricano all'avvio: chi apre il gioco con una libreria
+			# compilata prima di questa riga — o con la release che non è
+			# stata rifatta — non ha il simbolo, e un metodo che non esiste
+			# è un errore a runtime **per residente per fotogramma**:
+			# milleseicento al secondo con ventotto vicini, e la suite
+			# verde. Il degrado va dove va sempre: `notte = 0`, cioè il
+			# gioco di ieri, identico.
+			l.passo_neuro(delta, _ambiente, st == _ST_DORME,
+					float(_ecs.fase_circadiana(id, ANTICIPO_NOTTE))
+							if _ecs_sa_la_notte else 0.0)
 			# L'ONSEN resta un impulso, ed e' giusto: non e' il mondo che
 			# scorre, e' una cosa che si sta facendo. (Ed e' l'unico posto
 			# del gioco in cui il ristoro e' continuo invece che a evento:
@@ -2832,6 +2877,19 @@ func _ciclo_sonno(delta: float, t_ora: float) -> void:
 		else:
 			if nascosto:
 				node.call("resident_wake")
+				# ⚠️ **E LA MELATONINA SI SPEGNE QUI, non a mezzanotte.**
+				# `consolida_sonno()` la azzera, ma gira su `passa_giorno`,
+				# cioe' sull'orologio del VILLAGGIO (il cambio-giorno e' alle
+				# 0.29); il risveglio invece e' PERSONALE — la finestra
+				# finisce a 0.262 per un mattiniero. Fra i due c'e' un pezzo
+				# di mattina in cui il corpo e' di nuovo in scena con la
+				# melatonina ancora al punto fisso, cioe' un vicino che
+				# cammina nel prato illuminato con addosso la posa della
+				# notte. Il canale nasce col sonno e muore col risveglio:
+				# questo e' il suo posto.
+				var an: RefCounted = _animi.get(lab)
+				if an != null and an.limbico != null:
+					(an.limbico.neuro as Dictionary)["melatonina"] = 0.0
 			elif not (_ecs.in_finestra(id) \
 					and str(node.get("_state")) in STATI_INTERROMPIBILI):
 				# le stravaganze continuano a girare quando non sta per
@@ -2867,6 +2925,15 @@ func _ensure_brain(r: Dictionary) -> RefCounted:
 			animo.load(salvato_a)
 		_animi[key] = animo
 		_iscrivi_al_villaggio(key, animo)
+		# ⚠️ **E LA COMPAGNIA SI PRESTA SUBITO, non al prossimo cambio di
+		# giorno.** L'animo nasce anche al CARICAMENTO di una partita, e il
+		# ponte gira una volta al giorno: senza questa riga, per un'intera
+		# giornata di gioco dopo ogni caricamento la lealta' derivata
+		# tornerebbe alla base — cioe' salvare e riaprire cambierebbe come si
+		# comportano i vicini, che e' il difetto che non si vede mai perche'
+		# nessuno confronta due partite.
+		_presta_la_compagnia_a(animo,
+				str((r.get("dna", {}) as Dictionary).get("name", "")))
 		# il timido saluta solo gli amici veri
 		var node := r.get("node") as Node3D
 		if node:
@@ -3698,11 +3765,24 @@ const RIPIEGO := "quattro_chiacchiere"
 ## risentimento. Chi sognava altro lo vive tre volte più amaro di chi quel
 ## lavoro lo amava — ed è per questo che due residenti mandati allo stesso
 ## posto finiscono in due punti diversi della scala.
-func assegna_compito(label: String, compito: String) -> void:
+## [param ordinante] e' CHI ha deciso questa giornata.
+##
+## ⚠️ **Era cablato a «giocatore», e non era vero.** `Lavori` fa decidere da
+## se' chi non ha un incarico — passa `"se_stesso"` a `decide()`, e il
+## commento accanto promette «nel ricordo restera' cosi'» — ma poi la riga
+## finiva qui e veniva incisa contro il giocatore lo stesso. MISURATO nel
+## salvataggio vero: `incarichi = {}` (il registro non e' mai stato usato) e
+## **tutte e settantotto le righe di compito intestate a lui**.
+##
+## Non e' un dettaglio contabile: `rancore("giocatore")` conta cosi' dei torti
+## che il giocatore non ha ordinato, e la distinzione «quante delle mie
+## giornate le ha decise qualcun altro» — che e' il carburante della lealta'
+## e dell'ambizione — non poteva nascere.
+func assegna_compito(label: String, compito: String, ordinante := "giocatore") -> void:
 	if not _animi.has(label):
 		return
 	var animo: RefCounted = _animi[label]
-	animo.esegue(compito, "giocatore")
+	animo.esegue(compito, ordinante)
 	# e il POSTO si carica di com'è andata: dopo abbastanza volte, quel posto
 	# diventa qualcosa da evitare — senza che nessuno lo scriva
 	var luogo := str(LUOGO_DEL_LAVORO.get(compito, ""))
@@ -3959,6 +4039,13 @@ func cronaca_villaggio() -> Array:
 func _giorno_di_animo() -> void:
 	if _villaggio == null:
 		return
+	# ⚠️ **LA COMPAGNIA SI PRESTA PRIMA DELLA GIORNATA.** Il registro delle
+	# cricche sa con chi ognuno ha passato del tempo, ed e' l'unica prova che
+	# la lealta' possa derivare — ma vive in un altro nodo. Si passa come
+	# DATO, una volta al giorno, invece di far leggere ad `Animo` mezzo
+	# albero della scena: e' la stessa disciplina con cui `Cricche` riceve il
+	# giorno invece di guardare l'orologio.
+	_presta_la_compagnia()
 	for evento in _villaggio.simula_giorno():
 		if str(evento.get("tipo", "")) != "scatto":
 			continue
@@ -5984,3 +6071,91 @@ func _leggi_ambiente() -> Dictionary:
 		return {}
 	var d = _daynight.call("parametri_ambientali")
 	return d if d is Dictionary else {}
+
+
+## Le giornate passate con qualcuno, da `Cricche` a ogni `Animo`. Il registro
+## resta la sola casa del dato: qui si presta, non si copia.
+##
+## ⚠️ Se il registro non c'e' (i banchi, il diorama del titolo, il Prologo) si
+## presta un elenco vuoto — cioe' nessuna spinta, cioe' chi era. Il degrado va
+## verso il comportamento di sempre.
+func _presta_la_compagnia() -> void:
+	var cr := get_tree().get_first_node_in_group("cricche")
+	var vive: Array = []
+	if cr != null and is_instance_valid(cr):
+		vive = cr.get("_incontri") as Array
+	for lab in _animi:
+		_presta_la_compagnia_a(_animi[lab], _nome_da_label(str(lab)), vive)
+
+
+## La stessa riga per uno solo — la usano il ponte giornaliero e la nascita
+## dell'animo (che capita anche al caricamento). `righe` a `null` vuol dire
+## «vai a prenderle tu»: cosi' il giro giornaliero le legge UNA volta per
+## tutti, e chi nasce da solo non paga il giro degli altri.
+func _presta_la_compagnia_a(a: RefCounted, nome: String, righe = null) -> void:
+	if a == null:
+		return
+	var vive: Array = righe if righe is Array else []
+	if righe == null and is_inside_tree():
+		# ⚠️ `get_tree()` e' `null` per un registro costruito fuori dall'albero
+		# (i banchi, le fixture): il degrado va verso «nessuna compagnia», mai
+		# verso un errore — che nel runner non fa fallire niente e lascia la
+		# suite verde con la funzione interrotta a meta'.
+		var cr := get_tree().get_first_node_in_group("cricche")
+		if cr != null and is_instance_valid(cr):
+			vive = cr.get("_incontri") as Array
+	# ⚠️ **I DUE OROLOGI, e questo e' il difetto piu' grave che questa riga
+	# abbia avuto.**
+	#
+	# `Cricche` data ogni riga col giorno del VILLAGGIO (`_daynight.day`);
+	# `Animo._recenza` misura con `oggi`, che parte da ZERO e conta le
+	# giornate vissute da QUELL'animo (`passa_giorno` lo incrementa). Non c'e'
+	# niente che li allinei. MISURATO nel MainLevel vero: `day = 14` e
+	# `oggi = 0` per tutti e tredici, cioe' **quattordici giornate di
+	# scarto** — e `pow(0.5, (oggi - quando) / MEZZA_VITA)` con un esponente
+	# NEGATIVO non smorza: **amplifica**. Una riga di ieri valeva **1.65**
+	# invece di 0.96; con 55 giornate di scarto, **otto volte**.
+	#
+	# E la conseguenza non e' «un numero un po' storto»: la recenza e' il
+	# meccanismo con cui la deriva TORNA INDIETRO, ed e' il vincolo che
+	# l'autore ha posto per iscritto. Amplificando, le righe vecchie pesano
+	# di piu' col passare del tempo — la deriva smette di essere una deriva e
+	# diventa una **cicatrice**.
+	#
+	# La cura converte le date nell'orologio di chi le legge, al prestito: la
+	# recenza resta una sola formula, e nessuno dei due orologi si tocca.
+	var giorni: Array = CRICCHE.giornate_insieme(vive, nome) \
+			if not vive.is_empty() else []
+	# ⚠️ e il giorno si LEGGE con la rete: un nodo che non ha quella proprieta'
+	# torna `null`, e `int(null)` e' un errore a runtime — che nel runner non
+	# fa fallire niente e lascia la suite VERDE con la funzione interrotta a
+	# meta'. E' la stessa lezione di `get_tree()` fuori dall'albero.
+	var giorno_v = _daynight.get("day") if _daynight != null else null
+	if giorni.is_empty() or giorno_v == null:
+		# ⚠️ senza il giorno del villaggio non si CONVERTE, quindi non si
+		# presta: inventare una data e' peggio che non averla, e il degrado
+		# va sempre verso «non succede niente».
+		a.compagnia = []
+	else:
+		var oggi_villaggio := int(giorno_v)
+		var oggi_animo := int(a.get("oggi"))
+		var tradotte: Array = []
+		for g in giorni:
+			tradotte.append(oggi_animo - (oggi_villaggio - int(g)))
+		a.compagnia = tradotte
+	# ⚠️ **E LA DERIVA SI RIFA', o il prestito e' un NO-OP.**
+	#
+	# `_ricalcola_deriva()` ha una cache per giornata (`_deriva_giorno`), e
+	# `Animo.load()` la riempie **in coda a se stesso** — cioe' PRIMA che
+	# `_ensure_brain` arrivi a prestare la compagnia, tre righe dopo. Senza
+	# questa riga, al caricamento la compagnia entra nel campo e **non entra
+	# nella deriva** fino al cambio di giorno: quattro minuti reali in cui i
+	# vicini si comportano come se non avessero mai passato del tempo con
+	# nessuno.
+	#
+	# ⚠️ E la prima guardia di questo prestito non poteva vederlo, perche'
+	# guardava `compagnia.size()` — cioe' il REGISTRO invece del MONDO. E' lo
+	# stesso difetto che il capo che pende ha gia' pagato, scritto in
+	# CLAUDE.md, e l'ho rifatto: adesso il caso guarda `tratto("lealta")`.
+	a.set("_deriva_giorno", -1)
+	a.call("_ricalcola_deriva")

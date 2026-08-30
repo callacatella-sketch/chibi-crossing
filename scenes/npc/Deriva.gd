@@ -65,10 +65,18 @@ extends RefCounted
 ## riesce a dichiarare «diversa e non peggiore».
 ##
 ## ⚠️ **l'ORGOGLIO no, e va detto.** Non tinge **nessun** canale del corpo
-## (`Limbico.setup` tinge cortisolo, ossitocina, dopamina, endorfine,
+## (la tinta del carattere fa cortisolo, ossitocina, dopamina, endorfine,
 ## serotonina: l'orgoglio non compare), e i suoi tre lettori sono una porta,
 ## una crisi e una **frase**. Un tratto che non può colorare nulla non deriva.
-const DERIVANO := ["codardia"]
+##
+## ⚠️ **l'AMBIZIONE sì, e non era vero fino a ieri.** Quando questo file è
+## nato, il suo unico carburante candidato era «quante delle mie giornate le
+## ha decise qualcun altro» — e quelle righe non passavano NESSUNO dei due
+## cancelli: hanno `attore == "se_stesso"` (non uno-a-uno col giocatore) e
+## valenza **negativa** (`Animo.esegue` scrive `-0.08 * mult` per un compito
+## qualunque), cioè sono torti, e un torto non deve poter spostare chi sei.
+## La versione che sta sui binari è sotto, in `SOGNO`.
+const DERIVANO := ["codardia", "lealta", "ambizione"]
 
 ## LA DIREZIONE, mai la quantità. `-1` = quel gesto porta il tratto giù.
 const SPINTE := {
@@ -81,6 +89,48 @@ const SPINTE := {
 ## ⚠️ Oggi è **dormiente**: zero marchi su tredici residenti in 55 giornate.
 const MARCHI := {
 	"codardia": 1,
+}
+
+## LA COMPAGNIA — quante volte quella persona ha passato del tempo con
+## qualcuno, e in che direzione la muove.
+##
+## ⚠️ **NON e' carburante del giocatore, e va detto perche' non viola la
+## regola del uno-a-uno.** Quella regola esiste perche' *cio' che il villaggio
+## fa a tutti non distingue nessuno*, e il cancello sull'attore ne era
+## l'attuazione per i ricordi. La co-presenza distingue eccome — misurata nel
+## salvataggio vero, va da **2 a 24 righe per persona**: e' quello che il
+## meccanismo chiede.
+##
+## E la chiave del giocatore c'e', ed e' quella costruita con la nozione di
+## INSIEME: **i posti dove ci si trova li posa lui**, e sedendosi puo' fare da
+## ponte fra due che non si erano mai incontrati. Chi non riceve niente resta
+## a chi era — nessun malus, nessuna partizione, e **non esiste e non deve
+## esistere una funzione «chi e' solo»**.
+const COMPAGNIA := {
+	"lealta": 1,
+}
+
+## IL SOGNO SERVITO — «mi hai dato il lavoro che sognavo di fare».
+##
+## È il carburante dell'ambizione, ed è l'unica riga di COMPITO che passa i
+## due cancelli di questo file. `Animo.esegue()` scrive `+0.12` **soltanto**
+## quando il compito serve il sogno di quella persona (tutti gli altri sono
+## negativi), e l'ordinante è `"giocatore"` quando il lavoro viene
+## dall'incarico della Lavagna — che è esattamente il gesto: **leggere il
+## sogno di qualcuno e dargli quel lavoro**.
+##
+## ⚠️ **La direzione è verso l'ALTO, e non è «meglio».** Chi si vede
+## riconosciuto osa di più: l'ambizione fa pesare la noia (`peso_drive`),
+## rende i compiti umili più amari (`esegue`), fa tirare il sogno
+## (`punteggio`) e alza la dopamina di riposo. È un carattere diverso, non
+## superiore — e chi non ha mai ricevuto l'incarico giusto resta esattamente
+## dov'era: nessun malus, come sempre in questo file.
+##
+## ⚠️ **E NON si guarda «chi non ha deciso da sé»**, che è la metà speculare
+## e sarebbe una punizione per chi usa la Lavagna, cioè per uno stile di
+## gioco. La Lavagna è una meccanica del gioco: non può costare.
+const SOGNO := {
+	"ambizione": 1,
 }
 
 ## QUANTO AL MASSIMO, come frazione della PROPRIA distanza dal bordo.
@@ -109,9 +159,16 @@ const SAZIETA := 8.0
 ## `Callable`: la mezza vita dei ricordi vive in `Animo` e non si ricopia di
 ## qua. È la stessa disciplina con cui `Cricche` riceve il giorno invece di
 ## leggere l'orologio.
+## [param compagnia] sono le GIORNATE in cui quella persona ha passato del
+## tempo con qualcuno — una per riga di co-presenza. Arrivano da fuori
+## (`Cricche` vive in un altro file e in un altro nodo): questa resta pura, ed
+## e' la stessa disciplina con cui riceve `recenza` invece di leggere
+## l'orologio.
 static func spinta(tratto: String, ricordi: Array, sommario: Dictionary,
-		marchi: Dictionary, recenza: Callable) -> float:
-	if not SPINTE.has(tratto) and not MARCHI.has(tratto):
+		marchi: Dictionary, recenza: Callable, compagnia: Array = [],
+		sogno_servito: Array = []) -> float:
+	if not SPINTE.has(tratto) and not MARCHI.has(tratto) \
+			and not COMPAGNIA.has(tratto) and not SOGNO.has(tratto):
 		return 0.0
 	var somma := 0.0
 	var tipi: Dictionary = SPINTE.get(tratto, {})
@@ -152,12 +209,51 @@ static func spinta(tratto: String, ricordi: Array, sommario: Dictionary,
 	# --- i marchi ancora accesi, dall'altra parte. Senza recenza: si
 	#     spengono già da soli, e ricontarne il decadimento sarebbe contarlo
 	#     due volte.
+	# --- e il SOGNO SERVITO, che è un tipo di riga per persona: quali compiti
+	#     servano il tuo sogno lo sa `Animo` (ha la tabella), e qui arriva
+	#     come DATO. Ricopiare `COMPITI` in questo file sarebbe la tabella
+	#     gemella che il progetto vieta per iscritto.
+	if SOGNO.has(tratto) and not sogno_servito.is_empty():
+		for r in ricordi:
+			var d2 := r as Dictionary
+			if str(d2.get("attore", "")) != "giocatore":
+				continue
+			if not sogno_servito.has(str(d2.get("tipo", ""))):
+				continue
+			var v2 := float(d2.get("valenza", 0.0))
+			if not (v2 > 0.0):
+				continue
+			somma += float(int(SOGNO[tratto])) * v2 \
+					* float(d2.get("intensita", 1.0)) \
+					* float(recenza.call(int(d2.get("quando", 0))))
+		for k2 in sommario:
+			var pz := str(k2).split("|")
+			if pz.size() < 2 or str(pz[1]) != "giocatore":
+				continue
+			if not sogno_servito.has(str(pz[0])):
+				continue
+			var s2 := sommario[k2] as Dictionary
+			var p2 := float(s2.get("peso", 0.0))
+			if not (p2 > 0.0):
+				continue
+			somma += float(int(SOGNO[tratto])) * p2 \
+					* float(recenza.call(int(s2.get("ultimo", 0))))
+
 	if MARCHI.has(tratto):
 		var forza := 0.0
 		for mk in marchi:
 			var m := marchi[mk] as Dictionary
 			forza += maxf(0.0, -float(m.get("carica", 0.0)))
 		somma += float(int(MARCHI[tratto])) * forza
+
+	# --- e il tempo passato con qualcuno. Ogni riga vale uno, pesata dalla
+	#     stessa recenza di tutto il resto: chi si e' visto molto e poi piu'
+	#     torna indietro da solo, come tutto in questo file.
+	if COMPAGNIA.has(tratto):
+		var insieme := 0.0
+		for g in compagnia:
+			insieme += float(recenza.call(int(g)))
+		somma += float(int(COMPAGNIA[tratto])) * insieme
 
 	if not is_finite(somma) or is_zero_approx(somma):
 		return 0.0

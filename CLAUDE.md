@@ -4772,8 +4772,11 @@ mordersi la lingua, e quello che si vede addosso a un corpo.
 ### La forma: un punto di riposo, gli impulsi, e il tempo
 
 - **`neuro`** è il livello adesso, ed è l'unico stato — persistito.
-- **`neuro_base`** è dove torna: lo tinge il carattere (`setup`) e lo spostano
-  i bisogni (`Animo.sincronizza_neuro`). ⚠️ **I bisogni spostano il PUNTO DI
+- **`neuro_base`** è dove torna: lo spostano i bisogni
+  (`Animo.sincronizza_neuro`) e ci si somma sopra lo **scarto del carattere**
+  (`tinta_carattere` → `applica_tinta`). ⚠️ Fino al 2026-08-18 la tinta del
+  carattere era una SCRITTURA dentro `setup`, e i bisogni la cancellavano tre
+  righe dopo: vedi «IL CARATTERE NON TINGEVA NIENTE», più sotto. ⚠️ **I bisogni spostano il PUNTO DI
   RIPOSO, non il livello.** Prima lo assegnavano, e siccome
   `sincronizza_neuro` la chiamano sei posti (`ricorda` compreso, cioè ogni
   fatto della vita del villaggio), **ogni impulso degli eventi veniva
@@ -4929,6 +4932,369 @@ di due terzi della vecchiaia piena. Un umore basso passa; una gobba no.
   fotogramma**. Misurato A/B su un codardo: due morsi invece di tre prima di
   scoppiare — un sistema tarato altrove spostato da un effetto collaterale.
 
+### ⚠️ LA MELATONINA NON ERA UN OROLOGIO: ERA UN BAROMETRO
+
+Il canale c'era, si integrava esattamente, si salvava, si azzerava al
+risveglio — e **la sua sorgente era la luce del cielo**: `Π · (1 − luce)`.
+
+Il difetto non è «una seconda risposta alla domanda che ora è», che era la
+prima diagnosi e non regge. È peggio, e si misura. `DayNight.luce_ambiente()`
+cala col `weather_gloom`, quindi **a mezzogiorno sotto un temporale** la luce
+scende a 0,550 e il punto di riposo della melatonina saliva a **0,202** —
+cioè il **94%** del picco che il canale endogeno raggiunge la sera, addosso a
+tutti e ventotto insieme. *Un ritmo circadiano non si sposta perché piove.*
+
+E la seconda metà: tutti i vicini avevano **la stessa identica curva**, mentre
+il gioco ha da sempre una fase per persona.
+
+**La cura tiene la fase dove la fase già vive.** `chibi::estremi_finestra` è
+stata estratta da `finestra_di_sonno` — i cinque numeri (0.80/0.92,
+0.295/0.262/0.36) restano in **un posto solo** e la vecchia funzione chiama la
+nuova — e sopra ci sta `chibi::fase_circadiana(indole, quirk, ora, anticipo)`:
+**1 dentro la propria finestra, una rampa nell'anticipo prima dell'inizio, 0
+altrove**. Il ponte è `EcsMondo.fase_circadiana(id, anticipo)`, con la stessa
+disciplina di `in_finestra`: *l'ora la sa il sistema, non il chiamante* — se
+l'accettasse da fuori avremmo due verità sulla stessa domanda.
+
+- **Non decide niente.** Non entra in `passo_sonno`: il ciclo sonno/veglia
+  resta l'unica autorità del C++, e una seconda autorità sullo stesso canale è
+  il difetto che la regola 1 dell'ECS vieta per iscritto.
+- **La luce non entra più affatto**, nemmeno come soppressore. Una prima
+  stesura la teneva con un `(1 − 0.85·luce)` e il perché scritto era «così
+  comincia a calare all'alba»: misurato, comprava −14% di picco e −2,4 s di
+  finestra, e la conseguenza che prometteva **non esiste** — all'alba il corpo
+  è già nascosto a scala 0,03 e `consolida_sonno` azzera comunque. Una terza
+  manopola con un perché decorativo è debito.
+- **Il degrado va dove va sempre**: `notte = 0` ⇒ melatonina zero (i banchi,
+  il Prologo, il diorama). E `Visitors` chiede **una volta sola** se il
+  binario sa rispondere: una GDExtension compilata prima di questa riga non ha
+  il simbolo, e un metodo che non esiste è un errore a runtime *per residente
+  per fotogramma* — **milleseicento al secondo** con ventotto vicini, con la
+  suite verde.
+
+**⚠️ E IL CANALE NON AVEVA UN LETTORE.** Per mesi `melatonina` non è comparsa
+in `Andatura.gd`, in `FaceController.gd` né in `Visitor.gd`: si calcolava, si
+integrava esattamente, si salvava, si azzerava al risveglio — e non la
+guardava nessuno. È la settima volta in questo progetto. Adesso ce l'ha, ed è
+un LIVELLO del vocabolario del corpo (sotto), consegnato **dopo** che il
+cancello d'arresto ha detto di sì.
+
+### IL CANCELLO D'ARRESTO, misurato prima di toccare il rig
+
+[`tools/misura_notte.gd`](tools/misura_notte.gd), MainLevel vero, tredici
+residenti, due giornate. L'oracolo è indipendente: la melatonina si legge dal
+`Limbico`, la visibilità dal **frustum della camera vera**
+(`Visitors._nell_inquadratura`), e il corpo nascosto non conta — dentro la
+finestra di sonno `resident_sleep()` lo rimpicciolisce a scala 0,03.
+
+| | |
+|---|---|
+| picco, sulla **rampa** (sto per rientrare) | media **0,347** · da 0,250 a 0,448 |
+| picco, la **notte fuori** (non è andato a letto) | media **0,410** |
+| quanto pesa la rampa sul tempo acceso | **52,1%** |
+| campioni accesi **dentro l'inquadratura** | **43,9%** |
+| ⚠️ **dispersione degli istanti di accensione** | **0,062 di giornata = 14,9 s reali** (da 0,7505 a 0,8705) |
+| dispersione dell'adenosina alla sera | 0,045 (media 0,413, da 0,338 a 0,516) |
+
+**Il cancello passa**, e due previsioni sono state smentite dalla misura: il
+picco non è 0,216 ma 0,25–0,45 (metà del tempo acceso è gente che *non è
+riuscita ad andare a letto*, e la sua melatonina arriva al punto fisso pieno),
+e la **sincronia non è un problema** — quindici secondi reali di dispersione,
+col modo dominante a quattro corpi accesi insieme su tredici.
+
+⚠️ **Se la dispersione fosse stata quasi zero, il corpo non si sarebbe
+fatto**: un villaggio in cui ogni sera venti corpi si affossano all'unisono
+non è cozy, è un carillon. Il numero è il cancello, non una taratura.
+
+### «STA ARRIVANDO LA MIA SERA» — il livello, e la parola che NON deve ripetere
+
+Un **LIVELLO**, non un gesto: non prende il gettone del villaggio, perché non
+è un evento che vuole il palco — è uno stato, come la coda somatica e il capo
+che pende, e capita a tutti ogni sera. Vive in `Gesti.notte_livello()` /
+`notte_canali()` (pure) e in `Visitor._gesto_notte`, che è il gemello esatto
+di `_gesto_soma`: `sy` si moltiplica, `hpy` si somma, e nessuno scrive
+`_corpo.scale` da fuori (sarebbe la trappola del tween, già pagata).
+
+**Il canale portante è la SILHOUETTE** — il corpo che si abbassa e si allarga,
+la testa che affonda fra le spalle — perché è l'unica cosa che questo progetto
+ha misurato leggersi da tutti e quattro i lati.
+
+> ### ⚠️ E NON DEVE DIRE LA PAROLA CHE IL CORPO DICE GIÀ
+>
+> L'adenosina è la pressione di sonno («sono stanco») e scrive **le orecchie**
+> (`+0.18 · adenosina` in `Andatura.applica`). La melatonina è il segnale
+> circadiano («è la MIA sera»): sono due processi diversi, e la differenza
+> deve stare nel TEMPO — uno anticipa la propria finestra, l'altro sale con
+> la giornata — non in un accento in più.
+>
+> GUARDATO (`tools/provino_notte.gd`, la lastra «la parola doppia»: la notte,
+> la coda somatica e il riposo nello stesso fotogramma, a quattro azimut): le
+> tre pose si distinguono, e **a distinguerle sono esattamente le orecchie**,
+> che la notte lascia dritte. Se le toccasse, questo canale diventerebbe un
+> secondo modo di dire «allarme».
+
+**Il guadagno non è scelto: è il massimo che il verso regge.** Il cancello di
+`provino_verso` ha già misurato questo canale — la scala porta il verso a
+**1,64–1,85 fino a −10%, e a −13% cade** — quindi `NOTTE_SY = 0.10`, e
+qualunque numero più grosso comprerebbe visibilità pagandola in leggibilità.
+
+E guardato lo stesso: cinque varianti affiancate nello stesso fotogramma
+(−4%, −7%, −10%, −15%, −22%), quattro azimut, due distanze. A 2 m −0,04 e
+−0,07 non si leggono, **−0,10 si legge e il corpo resta un corpo**, −0,15
+comincia a sembrare schiacciato, −0,22 è deforme. **La controprova a livello
+zero dà cinque silhouette identiche**: la progressione è del canale, non della
+fase delle micro-espressioni — è la lezione che il provino del carattere aveva
+già pagato.
+
+**Residuo dichiarato: a 6 m è debole, a 9 non c'è.** È la stessa cosa già
+scritta del capo che pende — un livello si nota quando ci si avvicina a
+qualcuno, non attraverso il prato.
+
+**Sette mutazioni, tutte rosse**: il livello che non arriva più al rig (2) · la
+chimica che non lo alimenta (3) · il canale orfano che resta fuori posa (1) ·
+la notte che scrive sulle orecchie (1) · la soglia che taglia invece di
+smorzare (1) · il guadagno che sfonda il limite del verso (1) · il corpo che
+si assottiglia invece di allargarsi (2).
+
+### ⚠️ COSA HA TROVATO LA REVISIONE AVVERSARIALE (cinque lenti, poi uno scettico per difetto)
+
+Cinque commit erano stati consegnati senza passare da una revisione
+indipendente — cioè saltando la regola 7 della REGOLA ZERO. Cinque lenti in
+sola lettura (correttezza · integrazione · il GENERE · i test · cosa resta
+aperto) hanno prodotto **21 difetti**, e ognuno è stato passato a uno
+**scettico incaricato di refutarlo**: ne sono sopravvissuti **11**. I sei che
+contano, in ordine di gravità:
+
+1. **LA RIGA «vegliato» ERA INVERTITA.** `rendiconto_del_mattino` chiedeva
+   `al_buio()` con `luci_del_villaggio()`, che comprende **le lanterne che la
+   ronda ha acceso stanotte**: chi la guardia aveva davvero raggiunto
+   risultava *non al buio*, e la riga di gratitudine finiva **a chi la ronda
+   non aveva raggiunto**. Esattamente al contrario, e con la suite verde. Ora
+   le domande sono due e diverse: *ne avevi bisogno?* sulle sole luci
+   **costruite** (come fa già `chi_ha_vegliato`), *sei rimasto al buio?* su
+   tutte.
+2. **DUE OROLOGI.** `Cricche` data ogni riga di co-presenza col giorno del
+   **villaggio**; `Animo._recenza` misura con `oggi`, che parte da **zero** e
+   conta le giornate vissute da quell'animo. Nessuno li allineava. MISURATO
+   nel MainLevel vero: `day = 14` contro `oggi = 0` — quattordici giornate di
+   scarto, e `pow(0.5, esponente_negativo)` non smorza: **amplifica**. Una
+   riga di ieri valeva **1.65** invece di 0.96; con 55 giornate di scarto,
+   **otto volte**. E la recenza è il meccanismo con cui la deriva TORNA
+   INDIETRO: amplificando, la deriva smetteva di essere una deriva e diventava
+   una **cicatrice** — il vincolo che l'autore aveva posto per iscritto. La
+   traduzione si fa nell'unico punto in cui i due orologi si incontrano, il
+   ponte.
+3. **IL PRESTITO AL CARICAMENTO ERA UN NO-OP.** `Animo.load()` ricalcola la
+   deriva **in coda a sé stesso**, cioè PRIMA che `_ensure_brain` presti la
+   compagnia tre righe dopo — e la cache per giornata non la rifaceva più. Il
+   campo era pieno e il tratto non si muoveva. ⚠️ **E la mia guardia non
+   poteva vederlo, perché guardava `compagnia.size()`** — cioè il REGISTRO
+   invece del MONDO: è lo stesso difetto che il capo che pende ha già pagato,
+   scritto in questo file, e l'ho rifatto.
+4. **IL SEGNO DI `hpy` ERA ROVESCIATO.** Il rig applica `hpy` col PIÙ (la riga
+   col meno, poco sopra, è il *togli* del pattern togli/riapplica), e l'altro
+   livello che scrive quel canale — `capo_affondo()` — è negativo per
+   costruzione. Con `+0.022` la testa **saliva** mentre il corpo si abbassava.
+   Adesso un caso confronta il segno con quello di `capo_affondo`, cioè con la
+   convenzione del file invece che con sé stesso.
+5. **LA COMPOSIZIONE SFONDAVA IL LIMITE DEL VERSO** (trovato misurando, non
+   segnalato): `sy` ha più scrittori e si moltiplicano. Con la coda somatica a
+   forza 1.0 la composizione dava **−13,15%**, cioè dove il verso cade; col
+   **Raccolto** — che vale già `RACCOLTO_SY` = −10% — avrebbe dato **−19%**,
+   dentro la zona che il provino ha guardato essere *deforme*. Il pavimento è
+   il **minimo fra quello che c'era e il tetto**: la notte non porta mai sotto
+   il limite, e **non tocca chi era già più in basso di suo** (l'assestamento
+   del Raccolto resta vivo invece di essere tagliato).
+6. **LA MELATONINA NON SI SPEGNEVA AL RISVEGLIO.** `consolida_sonno` la
+   azzera, ma gira su `passa_giorno`, cioè sull'orologio del **villaggio** (il
+   cambio-giorno è alle 0.29); il risveglio è **personale** — un mattiniero
+   finisce a 0.262. Fra i due c'è un pezzo di mattina in cui il corpo torna in
+   scena col canale ancora al punto fisso: un vicino che cammina nel prato
+   illuminato con addosso la posa della notte.
+
+E due guardie **morte**, tolte: un `t.ok(… or true)` che in GDScript è
+costantemente vero (il confronto lega più stretto di `or`, e il runner lo
+contava fra i passati), e `NOTTE_SY` giudicato contro sé stesso — il tetto
+c'era, il pavimento no, quindi il canale si poteva spegnere del tutto restando
+verde.
+
+⚠️ **E TRE MUTAZIONI SONO RIMASTE MUTE ALLA PRIMA STESURA DELLA CURA DEI DUE
+OROLOGI**, per una ragione che vale più del difetto: la guardia scriveva
+`oggi = 40` **e poi** confrontava le date con quello — cioè sceglieva il
+valore che la rendeva cieca. Adesso giudica la **recenza** (deve smorzare,
+mai amplificare) e lo fa **prima** di toccare l'orologio.
+
+### Come si verifica
+
+```
+python3 -m SCons platform=macos arch=universal target=template_debug -j8
+Godot --headless --path . --import
+Godot --headless --path . --script res://tests/test_runner.gd
+CHIBI_GIORNI=2 CHIBI_QUANTI=20 Godot --path . --resolution 1280x720 \
+    --script res://tools/misura_notte.gd
+CHIBI_NOTTE=<dir> Godot --path . --resolution 1280x720 \
+    --script res://tools/provino_notte.gd
+```
+
+⚠️ **Il C++ è cambiato: la CI su tutti e tre i sistemi è obbligatoria**, e qui
+morde davvero — il ramo Windows non è verificabile da un Mac.
+
+Le guardie sono in
+[`tests/cases/test_sonno_circadiano.gd`](tests/cases/test_sonno_circadiano.gd),
+e **sette mutazioni su otto sono rosse**: la melatonina che torna alla luce
+(5) · che entra nell'umore, cioè il colore che diventa porta (1) · il
+villaggio che non passa più la notte alla chimica (1) · gli estremi della
+rampa che divergono da quelli della finestra (6) · l'estrazione che sposta
+l'inizio (9) · un anticipo NaN che passa il cancello (2) · e l'ottava è
+**dichiarata non falsificabile**: che `_ecs_sa_la_notte` venga davvero
+consultato non si può provare, perché nel banco il binario ha sempre il
+simbolo.
+
+**E tre mutazioni erano mute alla prima stesura**, cioè tre buchi veri:
+
+1. **il cablaggio** — la riga che passa la notte alla chimica. Chiuso con un
+   caso che chiama `_ciclo_sonno` VERO e guarda la melatonina, più la
+   controprova a mezzogiorno col buio pieno (deve restare zero).
+   ⚠️ E il fixture deve **dare il cielo** scavalcando `_leggi_ambiente`:
+   `_ciclo_sonno` lo rinfresca da sé, e senza un `DayNight` nell'albero torna
+   vuoto — che è il degrado dichiarato del `Limbico`, non un guasto.
+2. **la normalizzazione sul cerchio** — due `while` che erano
+   **irraggiungibili**: ci si arriva solo dopo che la finestra ha detto no,
+   quindi `ora < inizio` sempre. Tolti, come si fa con una guardia che nessun
+   test può far fallire.
+3. **il cancello dell'anticipo**, che contro uno zero è ridondante (il conto
+   dà zero da sé) e serve **solo contro il NaN**: `manca >= NaN` è falso, si
+   passa oltre, e si torna NaN — che in `neuro` è **assorbente**. Adesso c'è
+   il caso che gli passa NAN, −1 e INF.
+
+### ⚠️ IL CARATTERE NON TINGEVA NIENTE, e la controprova ha smontato anche me
+
+`Limbico.setup()` aveva cinque righe che scrivevano `neuro_base` dai tratti —
+cortisolo dalla codardia, ossitocina dalla lealtà, dopamina dall'ambizione,
+endorfine dalla grinta, serotonina dalla codardia al contrario — col commento
+*«il carattere tinge il punto di riposo, così un vicino appena nato è già sé
+stesso»*. Erano **morte**: `Animo.sincronizza_neuro()` riassegna gli stessi
+cinque canali dai bisogni, e la chiamano **sette** posti — a partire da
+`Animo.setup()` stesso, **tre righe dopo**.
+
+MISURATO, con la codardia da 0,20 a 0,85:
+
+| | cortisolo | ossitocina | dopamina | serotonina | endorfine |
+|---|---|---|---|---|---|
+| **prima** (qualunque carattere) | 0.1200 | 0.7575 | 0.8315 | 0.8650 | 0.7935 |
+
+**Bit-identici.** Ogni vicino del villaggio aveva la stessa identica chimica a
+riposo, e il carattere non ci arrivava né alla nascita né mai. È la stessa
+forma delle 247 righe di somatizzazione senza chiamanti: codice completo,
+provato, verde e mai eseguito — la sesta volta in questo progetto.
+
+**La cura non poteva essere «riassegnare dopo i bisogni»**: cancellerebbe i
+bisogni, cioè rifarebbe un piano più giù il difetto che la testata di
+`sincronizza_neuro` documenta. Il carattere è diventato uno **SCARTO dal
+carattere neutro** (`Limbico.tinta_carattere`, pura) che si **somma** a quel
+che i bisogni hanno deciso, in un posto solo (`applica_tinta`, chiamata in
+coda a `sincronizza_neuro`). Tre proprietà, e nessuna è una taratura:
+
+1. **un carattere medio somma zero esatto** — per lui il gioco è bit-identico
+   a prima, quindi tutte le misure già prese (il piatto caldo, il ri-aggancio
+   del cortisolo, il morso della lingua) restano valide senza rifarle;
+2. **un codardo sta più in alto sul cortisolo sempre**, qualunque cosa dicano
+   i suoi bisogni — che è cosa vuol dire avere un carattere;
+3. **è una funzione dei TRATTI, quindi la deriva la muove** — `riproietta()`
+   rifaceva due delle sette grandezze che `setup` deriva dai tratti, e le
+   altre cinque erano proprio quelle che arrivano addosso a un corpo.
+
+E c'è un lettore vero, che è quello che rende la tinta una cosa che succede:
+`bersaglio_umore()` legge la chimica a riposo, e l'umore ha consumatori
+(`stato_corpo()`, il capo che pende, il vocabolario del corpo).
+
+| codardia | cortisolo | serotonina | reattività | umore a cui tende |
+|---|---|---|---|---|
+| 0,15 | 0.0850 | 0.9350 | 0.5080 | **+0.4098** |
+| 0,50 (il neutro) | 0.1200 | 0.8650 | 0.8230 | +0.3713 |
+| 0,90 | 0.1600 | 0.7850 | 1.1830 | **+0.3273** |
+
+### IL PROVINO, e il verdetto onesto: a riposo NON si vede — e non deve
+
+La deriva era stata **misurata e mai guardata**, ed è la REGOLA ZERO al
+contrario. Lo strumento è
+[`tools/provino_carattere.gd`](tools/provino_carattere.gd): cinque corpi con
+lo **stesso genoma**, la stessa imbardata, la stessa distanza, nello **stesso
+fotogramma**, che differiscono per una cosa sola — il carattere. Catena vera
+dal tratto al pixel (`setup` → `tinta_carattere` → `sincronizza_neuro` →
+`passo_neuro` fatto girare fino al punto di riposo → `indossa_neuro` → rig):
+nessun canale scritto a mano, o la lastra mostrerebbe cinque corpi identici
+comunque.
+
+> ### ⚠️ **E LA CONTROPROVA HA SMONTATO LA MIA PRIMA LETTURA**
+>
+> Guardando il dettaglio 3× della lastra del carattere avevo letto una
+> progressione pulita delle sopracciglia, e stavo per scriverla. Poi ho
+> scattato la **stessa lastra con cinque corpi IDENTICI** (chimica bit-uguale:
+> 0.1200 / 0.8650 / 0.8224 per tutti e cinque) — e le sopracciglia erano
+> **visibilmente diverse fra loro**. Quello che avevo letto come «il
+> carattere» era la fase dell'ammicco e delle micro-espressioni.
+>
+> Il conto lo diceva già, e non l'avevo fatto: il canale del sopracciglio è
+> `(serotonina − 0.5) * 0.08`, cioè **0,7 gradi su TUTTO il campo del
+> carattere** — sotto il rumore del volto vivo. È la stessa scala a cui un
+> oracolo sbagliato produce undici asserzioni rosse su codice sano.
+> **Una lastra affiancata senza controprova è un test senza oracolo.**
+
+**Il verdetto, guardato:**
+
+| | si vede? |
+|---|---|
+| il carattere **a riposo**, 2 m, dettaglio 3× | **no** — sotto la fase delle micro-espressioni |
+| la **deriva** a riposo (0,019 di cortisolo) | **no**, nemmeno a 3× |
+| il carattere **nel momento** (lo stesso spavento), 2 m di fronte | **sì**, progressione monotona su cinque colonne |
+| …**di spalle** | sì, più debole — ed è silhouette, non faccia |
+| la **deriva** nel momento (forza 0,90 → 0,75) | **al limite**: un gradino su cinque, e affiancati non si è mai |
+
+**E l'ampiezza NON è stata alzata**, con la ragione: per rendere un codardo
+visibile da fermo bisognerebbe tenerlo a cortisolo alto **sempre**, cioè
+cucirgli addosso in permanenza la faccia della paura. È il difetto che il
+capitolo «LA GIOIA NON PORTA LA FACCIA DELLA PAURA» esiste per impedire, ed è
+un'etichetta clinica su una persona — la seconda domanda della REGOLA SACRA.
+
+**Dove il carattere si vede è la REAZIONE, e lì l'ampiezza c'era già.** Stesso
+spavento (`indizio_grezzo` 0,430, marchio −0,45 per tutti, la catena vera di
+`_tick_sussulti`), e la forza che ne esce va da **0,447 a 1,000** — più del
+doppio, perché `reattivita` va da 0,51 a 1,18. Nella lastra si legge come
+silhouette: il corpo che si rimpicciolisce e le orecchie che vanno indietro,
+in progressione, colonna dopo colonna. La controprova sotto spavento (cinque
+forze identiche, 0.7240) dà **cinque pose identiche**: la progressione è del
+carattere.
+
+**I residui, dichiarati:**
+
+- **la deriva è una cosa che si SENTE, non che si vede.** Muove `reattivita`
+  di 0,17, l'umore di riposo di 0,033, il peso dell'appartenenza, la
+  resistenza alle voci — cioè dove va quella persona e come reagisce, non che
+  faccia ha. Chi vorrà renderla visibile deve trovare un canale di
+  **silhouette** (la strada del Raccolto), non alzare un guadagno.
+- **a 9 m la misura non c'è**: i corpi erano coperti da un edificio del
+  villaggio. È il residuo che `provino_vocabolario` aveva già dichiarato — il
+  cancello prova il frustum, non la visibilità.
+- **la lastra del carattere a riposo resta nel provino** anche se il verdetto
+  è «no»: è la lastra che dimostra il no, e toglierla vorrebbe dire dover
+  ricredersi da capo.
+
+### Come si guarda
+
+```
+CHIBI_CAR=<dir> Godot --path . --resolution 1280x720 \
+    --script res://tools/provino_carattere.gd
+```
+
+⚠️ **Non `--headless`: qui si guarda.** E tre trappole di banco già pagate
+scrivendolo: **la testona di Mochi copriva esattamente il corpo di mezzo** (si
+nasconde il solo modello, la camera resta dov'è); **i cartellini non stanno
+nell'HUD** e il gioco ne crea di nuovi mentre il provino gira, quindi si
+rispengono prima di ogni scatto con la regola della Modalità Foto; e **la fila
+si apre con la distanza**, o a sei metri in ogni cella del ritaglio a pixel
+fissi ci finiscono due corpi.
+
 ### ⚠️ LO STRESS STRINGE UNA ROUTINE, MAI UNA SCELTA DI VITA
 
 Il cortisolo alto irrigidisce il softmax di `Animo.decide()` — chi è teso fa
@@ -4985,12 +5351,14 @@ non passa affatto dalla molla. Un'asserzione che passa in tutti e due i casi
 non è una guardia: è un'asserzione che dice «coperto» senza esserlo.
 
 
-## LE PERSONE CAMBIANO — un tratto che deriva, e i tre posti in cui non entra
+## LE PERSONE CAMBIANO — i tratti che derivano, e i tre posti in cui non entrano
 
 I tratti (codardia, grinta, lealtà, ambizione, orgoglio) erano decisi alla
 nascita e non si muovevano di un millesimo, qualunque cosa succedesse a quella
-persona. Adesso uno di loro **deriva**, lentissimamente, nella direzione in
-cui la vita di quel vicino ha spinto — e siccome tutto il gioco legge i
+persona. Adesso **tre** di loro derivano, lentissimamente, nella direzione in
+cui la vita di quel vicino ha spinto — la **codardia** da come il giocatore
+l'ha trattata, la **lealtà** dal tempo passato con qualcuno, l'**ambizione**
+dal vedersi dare il lavoro che si sognava — e siccome tutto il gioco legge i
 tratti, spostarne uno muove tutta la persona.
 
 Vive in [`scenes/npc/Deriva.gd`](scenes/npc/Deriva.gd) (puro, senza Godot e
@@ -5075,9 +5443,10 @@ codardia questa frazione dà esattamente quello.
   un'**assenza** (regola 1), e «più autonomo» in questo codice è l'orgoglio —
   il solo tratto che **non tinge nessun canale del corpo**. La versione sui
   binari è la sua metà positiva: *chi ha passato molto tempo con qualcuno
-  diventa un filo più leale*, dalle righe di co-presenza.
+  diventa un filo più leale*, dalle righe di co-presenza — **ed è entrata**
+  (sotto, «LA LEALTÀ DALLA CO-PRESENZA»).
 
-### DUE TRATTI NON DERIVANO, e non è una dimenticanza
+### I TRATTI CHE NON DERIVANO, e non è una dimenticanza
 
 - **la GRINTA**: il suo unico carburante candidato è il lavoro, che fa fuoco
   1,000 volte per residente per giornata **per tutti**; e il suo canale sul
@@ -5086,6 +5455,8 @@ codardia questa frazione dà esattamente quello.
 - **l'ORGOGLIO**: non tinge nessun canale, e i suoi tre lettori sono una
   porta, una crisi e una frase. Un tratto che non può colorare nulla non
   deriva.
+- **l'AMBIZIONE deriva**, e vedi «IL SOGNO SERVITO» più sotto: il carburante
+  che il piano proponeva non poteva entrare, ma la sua metà positiva sì.
 
 ### I NUMERI, misurati sulle biografie vere
 
@@ -5129,10 +5500,15 @@ vera, ma andava saputa.
 ```
 Godot --headless --path . --script res://tests/test_runner.gd
 CHIBI_GIORNI=3 Godot --headless --path . --script res://tools/misura_deriva_vera.gd
+CHIBI_GIORNI=2 CHIBI_QUANTI=13 CHIBI_GAZEBO=1 \
+  Godot --headless --path . --script res://tools/misura_insieme.gd   # sez. 11
 ```
 
-Il banco ha **tre numeri di arresto dichiarati prima di misurare**: nessun
-tratto al muro, la dispersione che non scende, e il flusso che non è uniforme.
+Il primo banco ha **tre numeri di arresto dichiarati prima di misurare**:
+nessun tratto al muro, la dispersione che non scende, e il flusso che non è
+uniforme. Il secondo è quello della lealtà, e va letto **due volte**: il suo
+flusso balla di cinque volte fra due corse uguali, e una corsa sola non dice
+niente.
 Se uno esce storto, **il piano è sbagliato e va detto, non tarato** — e in
 particolare *non si abbassa `SAZIETA`*: abbassarla fa saturare tutti e cancella
 proprio la varietà.
@@ -5154,12 +5530,208 @@ che passa perché un altro cancello lo copre:
 - e il **colore** non era sorvegliato affatto: la mutazione che scollega la
   deriva dal suo unico consumatore lasciava la suite verde.
 
-⚠️ **UNA GUARDIA RESTA DICHIARATA COME NON FALSIFICABILE**, e sta scritta nel
-sorgente: la riga di `Affetti._lealta_di` che legge la **base**. La lealtà non
-deriva ancora, quindi `tratto` e `tratto_base` danno lo stesso numero e la
-mutazione che le scambia lascia la suite verde. La riga è giusta lo stesso e
-va scritta adesso — ma **chi cablerà la lealtà deve rendere rossa quella
-mutazione prima di consegnare**.
+### ⚠️ E DUE RIPARAZIONI CHE SERVIVANO PRIMA — «protetto» e «l'ho scelto io»
+
+Due dati che il gioco produceva ogni giorno erano **inutilizzabili come
+spinte**, e in tutti e due i casi per la stessa ragione: non distinguevano
+nessuno.
+
+**La giornata scelta era incisa contro il giocatore.** `Lavori` fa decidere
+da sé chi non ha un incarico — passa `"se_stesso"` a `decide()`, e il commento
+accanto promette *«nel ricordo resterà così»* — ma poi `assegna_compito` la
+incideva con `"giocatore"` cablato. Misurato nel salvataggio vero: il registro
+degli incarichi **vuoto**, e tutte e settantotto le righe di compito intestate
+a lui. Non è contabilità: `rancore("giocatore")` contava così dei torti che il
+giocatore non ha ordinato, e la distinzione *«quante delle mie giornate le ha
+decise qualcun altro»* — il carburante della lealtà e dell'ambizione — non
+poteva nascere.
+
+⚠️ **E la guardia che sorvegliava quella riga matchava il proprio commento**:
+cercava la stringa `"se_stesso"` nel sorgente, e c'era — dentro `decide()`,
+mentre il difetto stava tre chiamate più in là. Adesso è comportamentale, e
+attraversa il cablaggio vero: la prima stesura chiamava `Animo.esegue` diretto
+e **lasciava verdi tutte e due le mutazioni**.
+
+**E «protetto» era il meteo del villaggio.** `Veglia` chiedeva `al_buio()`
+**solo nel ramo senza guardia**: con una guardia in servizio ogni residente
+riceveva la stessa identica riga `vegliato` — 1,000 per residente per giornata,
+uguale per tutti e quattordici. Adesso la riga va a chi la ronda ha **davvero**
+protetto, cioè a chi era al buio; chi ha una luce davanti a casa era già al
+sicuro, per un gesto che il giocatore ha fatto mesi prima e che si vede nel
+fatto che *non perde sicurezza*.
+
+Le chiavi restano due, tutte e due sue: **assegnare la guardia** e **piantare i
+lampioni** — e la seconda si può fare *prima di sapere che serve*. È la
+condizione che mancava perché «chi è stato protetto per venti notti» possa un
+giorno entrare fra le spinte: il numero che lo falsifica è che le righe per
+residente abbiano **min ≠ max**.
+
+### IL SOGNO SERVITO — «mi hai dato il lavoro che sognavo»
+
+Terzo tratto che deriva, e il primo per cui **il carburante proposto non
+poteva entrare**. L'idea era *«quante delle mie giornate le ha decise qualcun
+altro»* → ambizione. Quelle righe non passano **nessuno** dei due cancelli di
+`Deriva`: hanno `attore == "se_stesso"` (non uno-a-uno col giocatore) e
+valenza **negativa** — `Animo.esegue()` scrive `-0.08 * mult` per un compito
+qualunque, cioè sono torti, e *un torto non deve poter spostare chi sei*.
+
+Ma dentro la stessa funzione c'è **l'unica riga di compito con valenza
+positiva**: `+0.12`, e la scrive *soltanto* quando il compito serve il sogno
+di quella persona. E l'ordinante è `"giocatore"` quando il lavoro viene
+dall'incarico della Lavagna. Cioè il gesto è: **leggere il sogno di qualcuno e
+dargli quel lavoro**.
+
+- `Deriva.SOGNO := {"ambizione": 1}`, e la direzione è verso l'alto: chi si
+  vede riconosciuto osa di più. **Non è «meglio»** — l'ambizione fa pesare la
+  noia, rende i compiti umili più amari, fa tirare il sogno, e alza la
+  dopamina di riposo. È un carattere diverso.
+- **La metà speculare resta fuori**, e non per simmetria: «chi non ha deciso
+  da sé» sarebbe una punizione per chi usa la Lavagna, cioè per uno stile di
+  gioco. La Lavagna è una meccanica del gioco: non può costare.
+- **Il tipo della riga è il nome del compito**, e i nomi vivono in
+  `Animo.COMPITI`: `Animo.compiti_del_sogno()` li passa a `Deriva` come DATO.
+  Ricopiarli di là sarebbe la tabella gemella — la stessa disciplina con cui
+  il villaggio presta la compagnia.
+
+**MISURATO in partita** con la porta VERA (`Lavori.assegna` → `_on_nuovo_giorno`
+→ `assegna_compito` → `esegue`), tredici residenti, quattro giornate:
+
+| | δ ambizione |
+|---|---|
+| col **sogno servito** (7 residenti) | media **+0,0169** · da +0,0030 a **+0,0342** |
+| con un lavoro **qualunque** (6) | **+0,0000 · +0,0000 · +0,0000** |
+
+È la separazione che «vegliato» non aveva: lì il flusso era 1,000 righe per
+residente per giornata **identiche per tutti**, qui è tutto o niente e lo
+decide il giocatore.
+
+**Sei mutazioni, tutte rosse.** Una era muta alla prima stesura, e per la
+ragione già pagata: **il cancello della valenza è coperto dal cancello del
+tipo** — passando dal gioco un compito-del-sogno ha *sempre* `+0.12`, quindi
+toglierlo non cambiava niente. Ma `spinta()` è pura e riceve `ricordi` come
+DATO: il cancello è una proprietà sua, non del suo unico chiamante di oggi. Si
+prova fabbricando la riga che il gioco non produce (un compito del sogno con
+valenza `-0.9`) e pretendendo zero, con la controprova positiva accanto.
+
+### LE DUE COSE CHE NON SI FANNO, e la ragione vale quanto il codice
+
+**«CHI È STATO PROTETTO PER VENTI NOTTI» — non entra fra le spinte.** Era
+l'ultimo esempio dell'autore rimasto aperto, e la condizione che mancava è
+stata creata (la riga `vegliato` adesso distingue: va solo a chi ne aveva
+bisogno). Restano due ragioni, e la seconda è quella che decide:
+
+- **l'attore è la GUARDIA, non il giocatore**, e il sorgente dice perché non
+  si può cambiare: *«in Animo i ricordi buoni scontano i cattivi, e col nome
+  sbagliato una notte di veglia comprerebbe il perdono di tutto il
+  villaggio»*. Da solo però non basterebbe — la co-presenza è entrata pur non
+  essendo del giocatore, perché distingue e perché la chiave a forma di
+  giocatore c'è;
+- **la direzione sarebbe codardia ↓, che già deriva dai gesti del giocatore**:
+  non aggiungerebbe una dimensione, raddoppierebbe una che c'è. E premierebbe
+  una *configurazione* — buio davanti a casa più una guardia in servizio —
+  cioè chi ha piantato i lampioni non la otterrebbe mai. «Costruire bene ti
+  toglie qualcosa» non è un malus, ma è la terza domanda della REGOLA SACRA
+  che comincia a scricchiolare.
+
+**L'ANTICIPO TINTO DALLA STANCHEZZA — non serve.** La proposta era di
+moltiplicare `ANTICIPO_NOTTE` per la pressione di sonno, per spezzare il fatto
+che `estremi_finestra` ha **due soli** valori di inizio (0.80 e 0.92) e quindi
+diciannove residenti su ventotto avrebbero la stessa rampa nello stesso
+istante. Il falsificatore era dichiarato prima di misurare, e la misura ha
+detto che **il problema non c'è**: la dispersione degli istanti di accensione
+è **0,062 di giornata = 14,9 secondi reali**, col modo dominante a quattro
+corpi accesi insieme su tredici. Una cura per un carillon che non suona.
+
+*(E l'adenosina alla sera avrebbe avuto il materiale — media 0,413, da 0,338 a
+0,516 — quindi la strada resta percorribile il giorno che la sincronia
+diventasse un problema vero. Il numero che la riaprirebbe è quella
+dispersione: se scende sotto qualche secondo, si torna qui.)*
+
+### LA LEALTÀ DALLA CO-PRESENZA — e il residuo che si chiude
+
+*Chi ha passato molto tempo con qualcuno diventa un filo più leale.* È il
+secondo tratto che deriva, ed è la metà positiva di un'idea dell'autore che
+non poteva entrare com'era («chi è stato spesso solo diventa più autonomo»,
+che ha per carburante un'**assenza**).
+
+**Il carburante esisteva già e finiva nel cestino**: le righe di co-presenza
+del registro delle Cricche (`_incontri`), che sono datate, **senza verso** (i
+due nomi in ordine alfabetico) e distinguono per davvero. Zero contatori
+nuovi, zero campi nel salvataggio.
+
+- `Deriva.COMPAGNIA := {"lealta": 1}` — una direzione, e la quantità la porta
+  la riga, come tutte le altre spinte.
+- **Ogni riga è pesata dalla stessa recenza di tutto il resto.** Non è un
+  dettaglio: è il vincolo dell'autore — *il ritorno dev'essere sempre
+  possibile*. Senza la data, chi ha passato tre settimane con qualcuno due
+  anni fa resterebbe più leale **per sempre**, e la deriva diventerebbe una
+  cicatrice.
+- **Il ponte è una riga al giorno** (`Visitors._presta_la_compagnia`, dentro
+  `_giorno_di_animo`, **prima** di far passare la giornata): il registro vive
+  in un altro nodo e si passa come DATO, invece di far leggere ad `Animo`
+  mezzo albero della scena. Senza il ponte, tutto questo è aritmetica che
+  nessuno esegue mai — il guasto che questo progetto ha già pagato cinque
+  volte, e per questo la guardia chiama il **giorno vero**, non la funzione.
+- **La chiave a forma di GIOCATORE** non è nuova ed è già forte: è tutto il
+  lavoro dell'INSIEME. Lui posa i mobili a sedute fratelle, e **lui fa da
+  ponte sedendosi** — due vicini che si siedono accanto a Mochi scrivono una
+  riga fra loro due.
+
+**I NUMERI, dal villaggio vero** (`tools/misura_insieme.gd`, sezione 11 —
+tredici residenti, due giornate, col Gazebo). **Due corse con gli stessi
+identici parametri**, e la prima cosa da dire è che non si somigliano:
+
+| | corsa A | corsa B |
+|---|---|---|
+| righe di co-presenza per residente per giornata | **0,31** | **1,77** |
+| chi si è mosso dopo due giornate | 5 su 13 | **12 su 13** |
+| δ medio · massimo | +0,042 · +0,216 | **+0,148** · +0,267 |
+| proiezione a 7 · 28 · 112 giornate | +0,173 · +0,240 · **+0,245** | +0,2455 · +0,2457 · **+0,2457** |
+| il tetto di `delta` su quel residente (`FRAZIONE` 0,40) | +0,246 | +0,246 |
+
+⚠️ **IL FLUSSO BALLA DI CINQUE VOLTE E MEZZO FRA DUE CORSE UGUALI**, e chi
+scrive «0,31 righe al giorno» come se fosse una misura sta scrivendo il
+rumore di un villaggio. Dipende da come quel villaggio è nato: quanti letti
+finiscono vicini, chi si stanca alla stessa ora, se il Gazebo è sulla strada
+di qualcuno. Il numero onesto è **fra 0,3 e 1,8**, e va riportato così.
+
+**Ed è proprio per questo che il risultato conta: le due corse finiscono
+nello stesso posto.** Tutte e due si fermano a **+0,246 sul tetto di
+`delta`** — il 99,5% e il 99,96% di quanto la forma concede. Il flusso decide
+*quanto in fretta*, la forma decide *fin dove*, e fin dove è il 40% della
+distanza che quella persona aveva dal bordo. Nessuno diventa irriconoscibile
+perché non gli è permesso, non perché il flusso sia stato tarato piano.
+E la saturazione è più rapida di quanto la codardia avesse mostrato: nella
+corsa B la deriva è **già tutta lì dopo sette giornate**.
+
+⚠️ E i due zeri della tabella sono la regola che morde, non un guasto: chi ha
+**zero righe** resta esattamente dov'era (`Loto: 0 righe, +0,000` — nessun
+malus per chi sta per conto suo), e chi ha la lealtà **già al muro** non si
+muove perché `delta` lì vale zero per costruzione. Il banco stampa perciò la
+**base accanto al δ**: nella corsa A un residente con una riga e +0,000 non
+era spiegabile, ed è per quello che quel numero adesso c'è di fianco.
+
+**IL RESIDUO CHE SI CHIUDE, e perché era il pezzo importante.** Stava scritto
+in `Affetti._lealta_di` che la mutazione `tratto_base` → `tratto` non era
+falsificabile (la lealtà non derivava ancora: i due davano lo stesso numero) e
+che **chi avesse cablato la deriva doveva renderla rossa prima di
+consegnare**. È stata resa rossa (`test_deriva`, il caso della lealtà che
+deriva senza riscrivere il passato).
+
+E **la misura ha corretto il timore di allora**, che diceva «una mezza vita
+più corta schiaccia il passato e scioglie una coppia». La deriva della lealtà
+è solo POSITIVA, quindi la mezza vita si **allunga**: sullo stesso identico
+libro mastro il conto passa da **0,5874 a 0,7443, +27%**. Non scioglie una
+coppia — ne **fabbrica** una. `SOGLIA_COPPIA` è un confronto assoluto, e chi
+ha passato molto tempo con C si vedrebbe gonfiare il conto con B, cioè
+finirebbe in coppia con B **senza che fra loro sia successo niente di nuovo**.
+È lo specchio esatto della regola 3 degli Affetti.
+
+**Le cinque mutazioni, tutte rosse** (e tre erano mute alla prima stesura,
+cioè tre buchi veri): la compagnia non è più un carburante · non ha più
+recenza · il villaggio non fa più il ponte · le giornate insieme guardano un
+lato solo della riga (che non ha verso, quindi dimenticarne uno è la
+distrazione plausibile) · senza il registro si tiene la compagnia di ieri.
 
 ## Test
 

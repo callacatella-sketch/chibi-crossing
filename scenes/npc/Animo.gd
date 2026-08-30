@@ -317,6 +317,12 @@ func sincronizza_neuro() -> void:
 	# 5. Stima & Autonomia -> Serotonina ed Endorfine
 	base["serotonina"] = clampf(stima_val * 0.55 + aut_val * 0.35 + 0.10, 0.0, 1.0)
 	base["endorfine"] = clampf(stima_val * 0.35 + (1.0 - m_fatica) * 0.45 + 0.10, 0.0, 1.0)
+	# 6. ⚠️ **E POI IL CARATTERE**, che e' uno scarto e non una scrittura.
+	# Le cinque righe qui sopra assegnano; il carattere ci si somma sopra. Se
+	# invece riassegnasse, cancellerebbe i bisogni — cioe' il difetto che la
+	# testata di questa funzione documenta, rifatto un piano piu' giu'. Un
+	# carattere medio somma zero esatto: per lui non e' cambiato niente.
+	limbico.applica_tinta(base)
 
 
 ## Il carattere in una riga, per il diario e per il debug.
@@ -599,6 +605,10 @@ static func assenza_da(giorni: int, intensita: float, appartenenza: float) -> fl
 ## gia' persistite. E' una cache, non uno stato.
 var _deriva := {}
 var _deriva_giorno := -1
+## Le giornate passate con qualcuno, prestate da `Cricche` una volta al
+## giorno. **Non si salva**: sta nel registro delle cricche, che e' gia'
+## persistito, e ricopiarla qui sarebbe la seconda casa di un dato solo.
+var compagnia: Array = []
 
 
 ## IL TRATTO DI ADESSO — chi vuole il tratto lo chiede QUI, e solo qui.
@@ -626,13 +636,30 @@ func _ricalcola_deriva() -> void:
 	for nome in DERIVA.DERIVANO:
 		var t := str(nome)
 		var pressione: float = DERIVA.spinta(t, ricordi, sommario,
-				limbico.marchi if limbico != null else {}, _recenza)
+				limbico.marchi if limbico != null else {}, _recenza, compagnia,
+				compiti_del_sogno())
 		nuovo[t] = DERIVA.delta(float(tratti.get(t, 0.5)), pressione)
 	_deriva = nuovo
 	# e le due grandezze che il Limbico DERIVA dai tratti si rifanno: senza,
 	# la deriva si fermerebbe un millimetro prima del corpo.
 	if limbico != null:
 		limbico.riproietta(_tratti_derivati())
+
+
+## ⚠️ **QUALI COMPITI SERVONO IL MIO SOGNO** — e sta QUI perché la tabella è
+## qui. `Deriva` deve poter riconoscere la riga «mi hai dato il lavoro che
+## sognavo», ma il `tipo` di quella riga è il nome del compito, e i nomi
+## vivono in `COMPITI`: ricopiarli di là sarebbe la tabella gemella che questo
+## progetto ha già pagato tre volte. Il dato attraversa il confine, non la
+## tabella — è la stessa disciplina con cui il villaggio presta la compagnia.
+func compiti_del_sogno() -> Array:
+	if sogno == "":
+		return []
+	var out: Array = []
+	for c in COMPITI:
+		if str((COMPITI[c] as Dictionary).get("serve", "")) == sogno:
+			out.append(str(c))
+	return out
 
 
 ## I tratti come sono adesso, per chi ne vuole tutti insieme (il Limbico).

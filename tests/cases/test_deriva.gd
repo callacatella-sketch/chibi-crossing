@@ -37,6 +37,11 @@ func run(t) -> void:
 	_il_colore_invece_la_vede(t)
 	_non_si_ricalcola_a_meta_giornata(t)
 	_un_salvataggio_vecchio_e_il_gioco_di_prima(t)
+	_la_lealta_deriva_ma_non_riscrive_il_passato(t)
+	_la_compagnia_di_ieri_non_vale_quella_di_oggi(t)
+	_il_villaggio_presta_la_compagnia_prima_della_giornata(t)
+	_riaprire_la_partita_non_riporta_nessuno_a_com_era(t)
+	_il_sogno_servito_muove_l_ambizione(t)
 func _rec(oggi: int) -> Callable:
 	return func(quando: int) -> float:
 		return pow(0.5, float(oggi - quando) / MEZZA_VITA)
@@ -294,10 +299,14 @@ func _i_marchi_tirano_dall_altra_parte(t) -> void:
 	t.almost(DERIVA.spinta("codardia", [], {}, caro, rec), 0.0,
 			"un posto caro non rende nessuno piu' pauroso", 1e-12)
 	# e le due direzioni si compensano: la vita non e' a senso unico
+	#
+	# ⚠️ Qui c'era una terza asserzione che finiva con `… or true`: in GDScript
+	# il confronto lega piu' stretto di `or`, quindi era **costantemente vera**
+	# e il runner la contava fra i passati. Una guardia che nessun test puo'
+	# far fallire e' una guardia che non c'e', e si toglie — non si «ripara»
+	# togliendo l'`or true`, perche' la disuguaglianza che restava era
+	# comunque la stessa cosa che dice il caso qui sotto.
 	var righe := [_riga("piatto", "giocatore", 0.7, 1.0, 9)]
-	t.ok(absf(DERIVA.spinta("codardia", righe, {}, paure, rec))
-			< absf(DERIVA.spinta("codardia", righe, {}, {}, rec)) + 1e-9
-			or true, "le due direzioni convivono nello stesso conto")
 	t.ok(DERIVA.spinta("codardia", righe, {}, paure, rec)
 			> DERIVA.spinta("codardia", righe, {}, {}, rec),
 			"una paura viva riduce la spinta verso il coraggio")
@@ -330,7 +339,9 @@ func _i_tratti_che_non_derivano(t) -> void:
 	t.ok(not DERIVA.DERIVANO.has("grinta") and not DERIVA.DERIVANO.has("orgoglio"),
 			"e l'elenco lo dice")
 	for tratto2 in DERIVA.DERIVANO:
-		t.ok(DERIVA.SPINTE.has(str(tratto2)) or DERIVA.MARCHI.has(str(tratto2)),
+		t.ok(DERIVA.SPINTE.has(str(tratto2)) or DERIVA.MARCHI.has(str(tratto2))
+				or DERIVA.COMPAGNIA.has(str(tratto2))
+				or DERIVA.SOGNO.has(str(tratto2)),
 				"ogni tratto che deriva ha almeno una spinta («%s»)" % tratto2)
 
 
@@ -565,3 +576,392 @@ func _un_salvataggio_vecchio_e_il_gioco_di_prima(t) -> void:
 				"«%s»: senza prove, il tratto e' quello di nascita" % tr, 1e-12)
 	t.almost(ripreso.limbico.reattivita, vecchio.limbico.reattivita,
 			"e la reattivita' e' identica a quella di sempre", 1e-12)
+
+
+## ⚠️ **LA LEALTÀ DERIVA — E NON DEVE RISCRIVERE IL PASSATO.**
+##
+## Chi ha passato molto tempo con qualcuno diventa un filo più leale, e il
+## carburante sono le righe di co-presenza: prove positive, datate, e che
+## distinguono per davvero (nel salvataggio vero vanno **da 2 a 24 per
+## persona**). Chi non ne ha resta a chi era — nessun malus, nessuna
+## partizione, e non esiste nessuna funzione «chi è solo».
+##
+## Ma la lealtà ha un lettore che NON è un colore, ed è il più pericoloso del
+## gioco: `Affetti.conto()` la usa per calcolare la **mezza vita** con cui
+## rilegge tutte le righe del libro mastro, comprese quelle di sei mesi fa.
+## Una lealtà che derivasse lì dentro **riscriverebbe il passato**. E la
+## direzione, misurata qui sotto, è l'opposto di quella che si teme: la
+## compagnia è una prova solo positiva, quindi la mezza vita si ALLUNGA e sullo
+## stesso identico libro mastro il conto **sale del 27%**. Non scioglie una
+## coppia: ne **fabbrica** una — `SOGLIA_COPPIA` è un confronto assoluto, e chi
+## ha passato molto tempo con C si vedrebbe gonfiare il conto con B, cioè
+## **finirebbe in coppia con B senza che fra loro sia successo niente**.
+##
+## Quando la lealtà non derivava, questa guardia non poteva fallire, e stava
+## scritto nel sorgente di `Affetti` che chi l'avrebbe cablata doveva renderla
+## rossa **prima** di consegnare. È questo il caso.
+func _la_lealta_deriva_ma_non_riscrive_il_passato(t) -> void:
+	# --- deriva davvero, e dalla compagnia
+	var solo = ANIMO.new()
+	solo.setup(CHIBIDNA.generate(8080))
+	var insieme = ANIMO.new()
+	insieme.setup(CHIBIDNA.generate(8080))
+	var giornate: Array = []
+	for g in 24:
+		giornate.append(g)
+	insieme.compagnia = giornate
+	insieme.oggi = 24
+	insieme._deriva_giorno = -1
+	insieme._ricalcola_deriva()
+	solo.oggi = 24
+	solo._deriva_giorno = -1
+	solo._ricalcola_deriva()
+	t.almost(solo.tratto("lealta"), solo.tratto_base("lealta"),
+			"chi non ha passato tempo con nessuno resta chi era: nessun malus",
+			1e-12)
+	t.ok(insieme.tratto("lealta") > insieme.tratto_base("lealta") + 0.01,
+			("e chi ne ha passato molto e' un filo piu' leale (%.4f contro %.4f)")
+					% [insieme.tratto("lealta"), insieme.tratto_base("lealta")])
+
+	# --- ⚠️ **MA IL LIBRO MASTRO NON SI ACCORGE DI NIENTE.**
+	# Un passato VECCHIO e uno recente: e' esattamente la coppia su cui la
+	# mezza vita fa la differenza. Se derivasse, il passato si schiaccerebbe.
+	var libro := [
+		{"a": "Uno", "b": "Due", "t": "coraggio", "d": 2},
+		{"a": "Due", "b": "Uno", "t": "piatto", "d": 8},
+		{"a": "Uno", "b": "Due", "t": "veglia", "d": 15},
+		{"a": "Uno", "b": "Due", "t": "chiacchiera", "d": 75},
+	]
+	var conti: Array = []
+	for chi in [solo, insieme]:
+		var vis = RegistroVicini.new()
+		t.stage(vis)
+		(vis.get("_animi") as Dictionary)["U"] = chi
+		(vis.get("_residents") as Array).append(
+				{"label": "U", "dna": {"name": "Uno"}})
+		var reg = RegistroAffetti.new()
+		t.stage(reg)
+		reg.set("_visitors", vis)
+		reg.set("_righe", libro.duplicate(true))
+		conti.append(float(reg.quanto("Uno", "Due")))
+	t.almost(conti[0], conti[1],
+			("il libro mastro legge la lealta' di CHI ERA: %.9f contro %.9f — "
+			+ "la mezza vita e' la grammatica con cui si legge la storia, non "
+			+ "un colore, e con la deriva dentro lo stesso identico passato "
+			+ "varrebbe il 27%% in piu'") % [conti[0], conti[1]], 1e-9)
+	t.ok(conti[0] > 0.0, "…e c'e' davvero qualcosa da contare (%.4f)" % conti[0])
+
+
+## Il libro mastro VERO, col solo `_ready` scavalcato e una sola sorgente di
+## dati dettata: chi sono gli animi. `conto()` e `_lealta_di` restano quelli
+## del gioco.
+class RegistroAffetti extends "res://scenes/npc/Affetti.gd":
+	func _ready() -> void:
+		set_process(false)
+
+	func _process(_d: float) -> void:
+		pass
+
+	## `_cabla` andrebbe a cercare il registro nell'albero: qui glielo si da'.
+	func _cabla() -> void:
+		pass
+
+	func _giorno() -> int:
+		return 80
+
+
+class RegistroVicini extends "res://scenes/npc/Visitors.gd":
+	func _ready() -> void:
+		set_process(false)
+		set_physics_process(false)
+		# ⚠️ **IL GIORNO DEL VILLAGGIO SI DÀ**, come si dà il cielo: le righe
+		# di `Cricche` sono datate col suo orologio, e senza di lui il
+		# prestito non può tradurle — il degrado dichiarato è «non si presta»,
+		# perché inventare una data è peggio che non averla.
+		# ⚠️ E il nodo dev'essere un `Node3D`: `_daynight` è tipizzato, e un
+		# `set()` col tipo sbagliato **non assegna e non dice niente**.
+		var falso := OrologioFinto.new()
+		add_child(falso)
+		_daynight = falso
+
+	func _process(_d: float) -> void:
+		pass
+
+
+## ⚠️ **E LA COMPAGNIA HA UNA DATA.** Ogni riga di co-presenza e' pesata dalla
+## stessa recenza di tutto il resto del file, e non e' un dettaglio: e' il
+## vincolo che l'autore ha posto per iscritto — **il ritorno dev'essere sempre
+## possibile**. Senza la data, chi ha passato tre settimane con qualcuno due
+## anni fa e poi non l'ha piu' visto resterebbe piu' leale **per sempre**, e la
+## deriva smetterebbe di essere una deriva per diventare una cicatrice.
+func _la_compagnia_di_ieri_non_vale_quella_di_oggi(t) -> void:
+	var recente: Array = []
+	var vecchia: Array = []
+	for i in 12:
+		recente.append(300 - i)
+		vecchia.append(40 + i)
+	var nulla: Array = []
+	var s_ora := DERIVA.spinta("lealta", nulla, {}, {}, _rec(300), recente)
+	var s_allora := DERIVA.spinta("lealta", nulla, {}, {}, _rec(300), vecchia)
+	t.ok(s_ora > 0.05,
+			"dodici giornate insieme, adesso, spingono davvero (%.4f)" % s_ora)
+	t.ok(s_allora < s_ora * 0.5,
+			("e le stesse dodici, ma di allora, valgono meno della meta' "
+			+ "(%.4f contro %.4f): il ritorno e' sempre possibile")
+					% [s_allora, s_ora])
+
+
+## ⚠️ **IL CABLAGGIO, e non il pezzo.** Cinque volte in questo progetto un
+## sistema completo, provato e VERDE non aveva un solo lettore in partita.
+## Qui la compagnia vive in `Cricche` e la deriva vive in `Animo`: se il
+## villaggio non fa il ponte una volta al giorno, `Deriva.COMPAGNIA` e'
+## aritmetica che nessuno esegue mai. Si chiama il giorno VERO
+## (`_giorno_di_animo`), non la funzione che lo fa.
+func _il_villaggio_presta_la_compagnia_prima_della_giornata(t) -> void:
+	var reg = RegistroCricche.new()
+	reg.add_to_group("cricche")
+	t.stage(reg)
+	reg.set("_incontri", [
+		{"a": "Uno", "b": "Due", "d": 30, "q": 0.5, "l": "prato"},
+		{"a": "Tre", "b": "Uno", "d": 31, "q": 0.5, "l": "prato"},
+		{"a": "Due", "b": "Tre", "d": 31, "q": 0.5, "l": "prato"},
+	])
+	var vis = RegistroVicini.new()
+	t.stage(vis)
+	var chi = ANIMO.new()
+	chi.setup(CHIBIDNA.generate(4242))
+	chi.compagnia = [999]      # una compagnia STANTIA, che deve sparire
+	(vis.get("_animi") as Dictionary)["U"] = chi
+	(vis.get("_residents") as Array).append(
+			{"label": "U", "dna": {"name": "Uno"}})
+	vis.set("_villaggio", PaeseFermo.new())
+
+	vis.call("_giorno_di_animo")
+	t.eq(chi.compagnia.size(), 2,
+			("il villaggio presta la compagnia PRIMA di far passare la "
+			+ "giornata: due righe toccano «Uno» (ottenute %d)")
+					% chi.compagnia.size())
+	t.ok(not chi.compagnia.has(999),
+			"…e quella di ieri viene sostituita, non aggiunta")
+
+	# ⚠️ **E SENZA IL GIORNO DEL VILLAGGIO NON SI PRESTA.** Le date arrivano
+	# nell'orologio di `Cricche`: senza il termine di conversione non si
+	# possono tradurre, e inventare una data e' peggio che non averla.
+	var vis_cieco = RegistroVicini.new()
+	t.stage(vis_cieco)
+	vis_cieco.set("_daynight", null)
+	var chi2 = ANIMO.new()
+	chi2.setup(CHIBIDNA.generate(4242))
+	chi2.compagnia = [1, 2, 3]
+	(vis_cieco.get("_animi") as Dictionary)["U"] = chi2
+	(vis_cieco.get("_residents") as Array).append(
+			{"label": "U", "dna": {"name": "Uno"}})
+	vis_cieco.call("_presta_la_compagnia")
+	t.eq((chi2.get("compagnia") as Array).size(), 0,
+			("senza il giorno del villaggio la compagnia si azzera invece di "
+			+ "essere letta con l'orologio sbagliato (%d righe)")
+					% (chi2.get("compagnia") as Array).size())
+
+	# --- e senza il registro delle cricche NON resta quella di ieri.
+	reg.remove_from_group("cricche")
+	vis.call("_giorno_di_animo")
+	t.eq(chi.compagnia.size(), 0,
+			("senza il registro la compagnia si AZZERA (%d): tenersi quella "
+			+ "del giorno prima e' una prova che nessuno ha piu' fatto")
+					% chi.compagnia.size())
+
+
+class RegistroCricche extends "res://scenes/npc/Cricche.gd":
+	func _ready() -> void:
+		set_process(false)
+
+	func _process(_d: float) -> void:
+		pass
+
+
+## Un paese in cui non succede niente: il giorno passa e non produce eventi.
+## Cosi' l'unica cosa osservabile del `_giorno_di_animo` e' il ponte.
+class PaeseFermo extends RefCounted:
+	func simula_giorno() -> Array:
+		return []
+
+
+## ⚠️ **RIAPRIRE LA PARTITA NON RIPORTA NESSUNO A COM'ERA.**
+##
+## `compagnia` non si salva — sta nel registro delle cricche, che è già
+## persistito — e il ponte gira **una volta al giorno**. Ma un animo nasce
+## anche al CARICAMENTO: se il prestito aspettasse il prossimo cambio di
+## giorno, per quattro minuti reali dopo ogni caricamento la lealtà derivata
+## tornerebbe alla base, e i vicini si comporterebbero in modo diverso da come
+## si comportavano un istante prima di salvare.
+##
+## È il difetto che non si vede mai, perché nessuno confronta due partite.
+func _riaprire_la_partita_non_riporta_nessuno_a_com_era(t) -> void:
+	var reg = RegistroCricche.new()
+	reg.add_to_group("cricche")
+	t.stage(reg)
+	reg.set("_incontri", [
+		{"a": "Uno", "b": "Due", "d": 30, "q": 0.5, "l": "prato"},
+		{"a": "Tre", "b": "Uno", "d": 31, "q": 0.5, "l": "prato"},
+	])
+	var vis = RegistroVicini.new()
+	t.stage(vis)
+	# la riga del salvataggio, come la ricostruisce un caricamento
+	var riga := {"label": "U", "dna": CHIBIDNA.generate(4242)}
+	(riga["dna"] as Dictionary)["name"] = "Uno"
+	(vis.get("_residents") as Array).append(riga)
+
+	var animo = vis.call("_ensure_brain", riga)
+	t.ok(animo != null, "il caricamento fa nascere il cervello")
+	var a2: RefCounted = (vis.get("_animi") as Dictionary).get("U")
+	t.ok(a2 != null, "…e con lui l'animo")
+	t.eq((a2.get("compagnia") as Array).size(), 2,
+			("e la compagnia c'e' GIA', senza aspettare il cambio di giorno "
+			+ "(ottenute %d righe)") % (a2.get("compagnia") as Array).size())
+	# ⚠️ **E LA DERIVA LA USA, che e' la cosa che conta.** La prima stesura di
+	# questo caso guardava `compagnia.size()`, cioe' il REGISTRO invece del
+	# MONDO: e una revisione avversariale ha trovato che `Animo.load()`
+	# ricalcola la deriva **in coda a se stesso**, cioe' PRIMA che
+	# `_ensure_brain` presti la compagnia — e la cache per giornata non la
+	# rifaceva piu'. Il campo era pieno e il tratto non si muoveva.
+	# ⚠️ **E LE DATE SONO NELL'OROLOGIO DI CHI LE LEGGE.** `Cricche` data col
+	# giorno del VILLAGGIO, `Animo._recenza` misura con `oggi`, che conta le
+	# giornate vissute da quell'animo e parte da zero. MISURATO nel MainLevel
+	# vero: 14 giornate di scarto, e `pow(0.5, negativo)` **amplifica** — una
+	# riga di ieri valeva 1.65 invece di 0.96, e a 55 giornate otto volte.
+	# La recenza e' il meccanismo con cui la deriva TORNA INDIETRO: amplificando
+	# diventava una cicatrice, che e' il vincolo che l'autore ha posto.
+	#
+	# ⚠️ Si giudica la RECENZA, non la data: una data da sola non dice niente
+	# finche' non si sa con quale orologio verra' letta. La proprieta' vera e'
+	# che una riga del passato SMORZI (≤ 1), mai che amplifichi.
+	#
+	# ⚠️ E si guarda PRIMA di toccare `oggi`. La prima stesura scriveva
+	# `oggi = 40` e poi confrontava le date con quello: tre mutazioni — niente
+	# traduzione, traduzione col segno rovesciato, e nessun degrado senza
+	# orologio — restavano TUTTE E TRE VERDI. Avevo scelto il valore che
+	# rendeva cieca la mia stessa guardia.
+	var peggiore := 0.0
+	for g in (a2.get("compagnia") as Array):
+		peggiore = maxf(peggiore, float(a2.call("_recenza", int(g))))
+	t.ok(peggiore <= 1.0 + 1e-9,
+			("una riga del passato SMORZA, non amplifica (la peggiore vale "
+			+ "%.4f): due orologi diversi facevano un esponente negativo")
+					% peggiore)
+	t.ok(peggiore > 0.0, "…e non e' zero: le righe ci sono (%.4f)" % peggiore)
+
+	a2.set("oggi", 40)
+	t.ok(a2.tratto("lealta") > a2.tratto_base("lealta") + 0.001,
+			("e il TRATTO si muove davvero (%.4f contro %.4f): guardare il "
+			+ "registro invece del mondo lasciava passare un prestito che era "
+			+ "un no-op") % [a2.tratto("lealta"), a2.tratto_base("lealta")])
+
+
+## ⚠️ **«MI HAI DATO IL LAVORO CHE SOGNAVO»** — il carburante dell'ambizione,
+## e l'unica riga di COMPITO che passa i due cancelli di `Deriva`.
+##
+## L'idea da cui nasce era «quante delle mie giornate le ha decise qualcun
+## altro», e quelle righe non passano NIENTE: hanno `attore == "se_stesso"`
+## (non uno-a-uno col giocatore) e valenza **negativa** — cioè sono torti, e
+## un torto non deve poter spostare chi sei. `Animo.esegue()` scrive `+0.12`
+## **soltanto** quando il compito serve il sogno di quella persona.
+##
+## MISURATO in partita con la porta VERA (`Lavori.assegna` →
+## `_on_nuovo_giorno` → `assegna_compito` → `esegue`), quattro giornate,
+## tredici residenti: chi ha ricevuto il lavoro del proprio sogno si muove da
+## **+0,0030 a +0,0342**; chi ne ha ricevuto uno qualunque sta a **+0,0000
+## esatto**, tutti e sei. È la separazione che «vegliato» non aveva.
+func _il_sogno_servito_muove_l_ambizione(t) -> void:
+	var a = ANIMO.new()
+	a.setup(CHIBIDNA.generate(9182))
+	var suoi: Array = a.compiti_del_sogno()
+	t.ok(not suoi.is_empty(),
+			"chi ha un sogno ha almeno un compito che glielo serve (%s → %s)"
+					% [str(a.get("sogno")), str(suoi)])
+	# ⚠️ e NON sono tutti i compiti: se lo fossero, il cancello non morderebbe
+	t.ok(suoi.size() < (ANIMO.COMPITI as Dictionary).size(),
+			"…e non sono tutti (%d su %d)"
+					% [suoi.size(), (ANIMO.COMPITI as Dictionary).size()])
+
+	# --- il lavoro GIUSTO, dal giocatore
+	var giusto = ANIMO.new()
+	giusto.setup(CHIBIDNA.generate(9182))
+	for g in 10:
+		giusto.oggi = g
+		giusto.esegue(str(suoi[0]), "giocatore")
+	giusto.oggi = 10
+	giusto._deriva_giorno = -1
+	giusto._ricalcola_deriva()
+
+	# --- un lavoro QUALUNQUE, dallo stesso giocatore
+	var altro := ""
+	for c in ANIMO.COMPITI:
+		if not suoi.has(str(c)):
+			altro = str(c)
+			break
+	var qualunque = ANIMO.new()
+	qualunque.setup(CHIBIDNA.generate(9182))
+	for g2 in 10:
+		qualunque.oggi = g2
+		qualunque.esegue(altro, "giocatore")
+	qualunque.oggi = 10
+	qualunque._deriva_giorno = -1
+	qualunque._ricalcola_deriva()
+
+	var d_giusto: float = giusto.tratto("ambizione") - giusto.tratto_base("ambizione")
+	var d_altro: float = qualunque.tratto("ambizione") - qualunque.tratto_base("ambizione")
+	t.ok(d_giusto > 0.01,
+			"il sogno servito alza l'ambizione (%+.4f)" % d_giusto)
+	t.almost(d_altro, 0.0,
+			("e un lavoro qualunque non la muove di un bit (%+.4f): quelle "
+			+ "righe hanno valenza negativa, e un torto non sposta chi sei")
+					% d_altro, 1e-12)
+
+	# --- e NON conta se il lavoro se l'è scelto da sé: il cancello del
+	#     uno-a-uno vale anche qui, o il carburante sarebbe la marea che
+	#     solleva tutte le barche.
+	var da_solo = ANIMO.new()
+	da_solo.setup(CHIBIDNA.generate(9182))
+	for g3 in 10:
+		da_solo.oggi = g3
+		da_solo.esegue(str(suoi[0]), "se_stesso")
+	da_solo.oggi = 10
+	da_solo._deriva_giorno = -1
+	da_solo._ricalcola_deriva()
+	t.almost(da_solo.tratto("ambizione") - da_solo.tratto_base("ambizione"), 0.0,
+			("chi il lavoro del suo sogno se l'e' scelto da solo non deriva: "
+			+ "il gesto e' del GIOCATORE o non e' un gesto"), 1e-12)
+
+	# --- chi non ha un sogno non ha carburante, e non e' un guasto
+	t.ok(DERIVA.spinta("ambizione", [], {}, {}, _rec(10), [], []) == 0.0,
+			"senza compiti del sogno la spinta e' zero esatta")
+
+	# ⚠️ **E IL CANCELLO DELLA VALENZA SI PROVA A MANO, o resta mascherato.**
+	# Passando dal gioco, un compito che serve il sogno ha SEMPRE `+0.12`
+	# (`Animo.esegue`), quindi il cancello del tipo copre quello della
+	# valenza e la mutazione che lo toglie resta verde — misurato: zero
+	# asserzioni rosse. Ma `spinta()` è pura e riceve `ricordi` come DATO:
+	# il cancello è una proprietà sua, non del suo unico chiamante di oggi,
+	# e un domani `esegue` potrebbe scrivere un compito-del-sogno amaro.
+	# Si fabbrica la riga che il gioco non produce e si pretende zero.
+	var amara := [{"tipo": str(suoi[0]), "attore": "giocatore",
+			"valenza": -0.9, "intensita": 1.0, "quando": 10}]
+	t.almost(DERIVA.spinta("ambizione", amara, {}, {}, _rec(10), [], suoi), 0.0,
+			("una riga NEGATIVA sul compito del sogno non sposta niente: un "
+			+ "torto non deve poter cambiare chi sei, e vale anche qui"), 1e-12)
+	var dolce := [{"tipo": str(suoi[0]), "attore": "giocatore",
+			"valenza": 0.9, "intensita": 1.0, "quando": 10}]
+	t.ok(DERIVA.spinta("ambizione", dolce, {}, {}, _rec(10), [], suoi) > 0.1,
+			"…e la controprova: la stessa riga POSITIVA spinge davvero")
+
+	# e lo stesso sul SOMMARIO, che è la metà che sopravvive nei villaggi vivi
+	t.almost(DERIVA.spinta("ambizione", [], {str(suoi[0]) + "|giocatore":
+			{"peso": -0.9, "ultimo": 10, "n": 5}}, {}, _rec(10), [], suoi), 0.0,
+			"e nemmeno dal sommario, dove i ricordi vecchi si fondono", 1e-12)
+
+
+## Il giorno del villaggio, e nient'altro: e' un DATO, non una decisione.
+## `Node3D` perche' `Visitors._daynight` e' tipizzato, e un `set()` col tipo
+## sbagliato non assegna e non dice niente.
+class OrologioFinto extends Node3D:
+	var day := 40

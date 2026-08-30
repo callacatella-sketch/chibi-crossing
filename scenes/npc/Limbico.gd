@@ -191,6 +191,29 @@ var neuro: Dictionary = NEURO_BASELINE.duplicate()
 ## (`Animo.sincronizza_neuro`). Non si salva: si ricalcola da tratti e drive,
 ## che sono gia' persistiti tutti e due.
 var neuro_base: Dictionary = NEURO_BASELINE.duplicate()
+## ⚠️ **LO SCARTO DEL CARATTERE**, e non si salva: e' una funzione pura dei
+## tratti (`tinta_carattere`), che sono gia' persistiti. Rifarla al caricamento
+## costa cinque moltiplicazioni; salvarla vorrebbe dire una seconda casa per un
+## dato derivato — e quelle in questo progetto divergono sempre.
+var neuro_tinta: Dictionary = {}
+
+## Quanto il carattere puo' spostare il punto di riposo di ogni canale, da un
+## estremo all'altro del tratto. **Sono le ampiezze delle righe che stavano in
+## `setup()`**, riportate qui intere: la riga del cortisolo era `0.05 + cod *
+## 0.10`, cioe' un decimo di canale fra il coraggioso e il codardo.
+##
+## ⚠️ Si tarano **guardando** (`tools/provino_carattere.gd`), mai a occhio: un
+## decimo di cortisolo sul corrugatore puo' essere invisibile, e un carattere
+## che non si vede non e' un carattere. E si tarano sapendo che TUTTO il
+## villaggio le indossa insieme — un'ampiezza che rende leggibile il codardo
+## rende anche tutti gli altri un po' piu' se stessi.
+const AMPIEZZA_TINTA := {
+	"cortisolo": 0.10,
+	"ossitocina": 0.25,
+	"dopamina": 0.25,
+	"endorfine": 0.20,
+	"serotonina": 0.20,
+}
 
 ## Quanto è reattivo questo individuo (dal carattere: la codardia alza
 ## l'allarme, la grinta lo abbassa). 1.0 = nella media.
@@ -209,12 +232,9 @@ func setup(tratti: Dictionary) -> void:
 	# il carattere tinge il PUNTO DI RIPOSO, e il livello ci parte sopra:
 	# cosi' un vicino appena nato e' gia' se stesso, e ci torna dopo ogni cosa
 	# che gli succede.
+	neuro_tinta = tinta_carattere(tratti)
 	neuro_base = NEURO_BASELINE.duplicate()
-	neuro_base["cortisolo"] = clampf(0.05 + cod * 0.10, 0.0, 1.0)
-	neuro_base["ossitocina"] = clampf(0.30 + lea * 0.25, 0.0, 1.0)
-	neuro_base["dopamina"] = clampf(0.30 + amb * 0.25, 0.0, 1.0)
-	neuro_base["endorfine"] = clampf(0.10 + gri * 0.20, 0.0, 1.0)
-	neuro_base["serotonina"] = clampf(0.40 + (1.0 - cod) * 0.20, 0.0, 1.0)
+	applica_tinta(neuro_base)
 	neuro = neuro_base.duplicate()
 
 
@@ -241,6 +261,62 @@ func riproietta(tratti: Dictionary) -> void:
 	var amb: float = float(tratti.get("ambizione", 0.5))
 	reattivita = clampf(0.6 + cod * 0.9 - gri * 0.35, 0.2, 1.8)
 	abitudine = clampf(ABITUDINE * (0.7 + amb * 0.8), 0.05, 0.75)
+	# ⚠️ **E LA TINTA, o la deriva si ferma un millimetro prima del corpo.**
+	# Questa funzione rifaceva DUE grandezze delle sette che `setup` deriva
+	# dai tratti; le altre cinque sono i canali della chimica, cioe' proprio
+	# quelli che arrivano addosso a un corpo (il corrugatore, le pupille, il
+	# rimbalzo, la coda). Un tratto che deriva senza rifarle muove il
+	# comportamento e non muove NIENTE che si veda.
+	neuro_tinta = tinta_carattere(tratti)
+
+
+## ⚠️ **IL CARATTERE E' UNO SCARTO, non una scrittura.**
+##
+## Queste cinque righe stavano dentro `setup()` e ASSEGNAVANO cinque canali
+## di `neuro_base`. Erano **morte**: `Animo.sincronizza_neuro()` riassegna gli
+## stessi cinque canali dai bisogni, e la chiamano sette posti — a partire da
+## `Animo.setup()` stesso, tre righe dopo. MISURATO: con la codardia da 0.20 a
+## 0.85 i cinque canali uscivano **bit-identici** (cortisolo 0.1200,
+## ossitocina 0.7575, dopamina 0.8315, serotonina 0.8650, endorfine 0.7935).
+## Il carattere non tingeva la chimica a riposo: ne' alla nascita, ne' mai —
+## quindi ogni vicino del villaggio aveva lo stesso corpo a riposo, e le
+## differenze passavano solo dai drive. E' la stessa forma di guasto dei 247
+## righe di somatizzazione senza chiamanti: codice completo, provato, verde e
+## mai eseguito.
+##
+## La cura NON puo' essere «riassegnare dopo i bisogni»: cancellerebbe i
+## bisogni, che e' esattamente il difetto che `sincronizza_neuro` documenta
+## nella sua testata. Il carattere diventa uno **SCARTO dal carattere neutro**
+## (tutti i tratti a 0.5) che si SOMMA a quel che i bisogni hanno deciso:
+##
+##   · un carattere perfettamente medio contribuisce **zero esatto**, quindi
+##     per lui il gioco e' bit-identico a prima (e con lui restano intatte
+##     tutte le misure gia' prese: il piatto caldo, il ri-aggancio del
+##     cortisolo, il morso della lingua);
+##   · un codardo sta un filo piu' in alto sul cortisolo **sempre**, qualunque
+##     cosa dicano i suoi bisogni — che e' cosa vuol dire avere un carattere;
+##   · e siccome e' una funzione dei TRATTI, la deriva la muove.
+static func tinta_carattere(tratti: Dictionary) -> Dictionary:
+	var cod: float = float(tratti.get("codardia", 0.5)) - 0.5
+	var gri: float = float(tratti.get("grinta", 0.5)) - 0.5
+	var amb: float = float(tratti.get("ambizione", 0.5)) - 0.5
+	var lea: float = float(tratti.get("lealta", 0.5)) - 0.5
+	return {
+		"cortisolo": cod * AMPIEZZA_TINTA["cortisolo"],
+		"ossitocina": lea * AMPIEZZA_TINTA["ossitocina"],
+		"dopamina": amb * AMPIEZZA_TINTA["dopamina"],
+		"endorfine": gri * AMPIEZZA_TINTA["endorfine"],
+		"serotonina": -cod * AMPIEZZA_TINTA["serotonina"],
+	}
+
+
+## Somma la tinta a un punto di riposo gia' deciso dai bisogni. Un posto solo,
+## chiamato in coda a `Animo.sincronizza_neuro()`: se ne esistessero due,
+## sarebbero due composizioni da tenere allineate a mano.
+func applica_tinta(base: Dictionary) -> void:
+	for c in neuro_tinta:
+		if base.has(c):
+			base[c] = clampf(float(base[c]) + float(neuro_tinta[c]), 0.0, 1.0)
 
 
 ## UN IMPULSO: una cosa che e' appena successa sposta un canale, adesso.
@@ -302,11 +378,12 @@ func bersaglio_umore() -> float:
 ##
 ## [param amb] e' quello che dice il mondo adesso — `luce`, `pioggia`,
 ## `temperatura` — e arriva da `DayNight.parametri_ambientali()`.
-func passo_neuro(dt: float, amb: Dictionary = {}, dorme := false) -> void:
+func passo_neuro(dt: float, amb: Dictionary = {}, dorme := false,
+		notte := 0.0) -> void:
 	if not is_finite(dt) or dt <= 0.0:
 		return
 	dt = minf(dt, NEURO_PASSO_MAX)
-	var prod := produzione_ambientale(amb, dorme)
+	var prod := produzione_ambientale(amb, dorme, notte)
 	for tipo in NEURO_TRASMETTITORI:
 		var lam: float = float(NEURO_DECADIMENTO.get(tipo, 0.05))
 		var b: float = float(neuro_base.get(tipo, NEURO_BASELINE.get(tipo, 0.0)))
@@ -333,7 +410,8 @@ func passo_neuro(dt: float, amb: Dictionary = {}, dorme := false) -> void:
 ## ⚠️ **Il mondo non e' obbligato a rispondere**: senza `amb` (i banchi, il
 ## diorama del titolo, il Prologo) si resta al punto di riposo e basta. Il
 ## degrado va verso «non succede niente», mai verso un numero inventato.
-static func produzione_ambientale(amb: Dictionary, dorme: bool) -> Dictionary:
+static func produzione_ambientale(amb: Dictionary, dorme: bool,
+		notte := 0.0) -> Dictionary:
 	var out := {}
 	for tipo in NEURO_TRASMETTITORI:
 		out[tipo] = 0.0
@@ -348,7 +426,34 @@ static func produzione_ambientale(amb: Dictionary, dorme: bool) -> Dictionary:
 	out["dopamina"] = NEURO_PRODUZIONE["dopamina"] * comfort * luce
 	out["ossitocina"] = NEURO_PRODUZIONE["ossitocina"] * comfort
 	out["serotonina"] = NEURO_PRODUZIONE["serotonina"] * luce * (1.0 - 0.5 * pioggia)
-	out["melatonina"] = NEURO_PRODUZIONE["melatonina"] * (1.0 - luce)
+	# ⚠️ **LA MELATONINA NON SEGUE LA LUCE: SEGUE LA PROPRIA NOTTE.**
+	#
+	# Era `Π * (1 − luce)`, e il difetto NON era «una seconda risposta a che
+	# ora è» — era peggio e si misura: **quella riga non era un orologio, era
+	# un barometro.** Il cielo di `DayNight.luce_ambiente()` cala col
+	# `weather_gloom`, quindi a MEZZOGIORNO con un temporale la luce scende a
+	# 0.550 e il punto di riposo della melatonina saliva a **0.202** — cioè il
+	# **94%** del picco che il canale endogeno raggiunge la sera (0.216),
+	# addosso a tutti e ventotto insieme. Un ritmo circadiano non si sposta
+	# perché piove.
+	#
+	# E la seconda metà: tutti i vicini avevano la stessa identica curva,
+	# mentre il gioco ha da sempre una fase PER PERSONA
+	# (`chibi::finestra_di_sonno`, il genoma del sonno: persistito, visibile,
+	# ed è perfino il grafo sociale del villaggio — le cricche nascono da chi
+	# si stanca alla stessa ora).
+	#
+	# Adesso la sorgente è `notte` (0..1), che arriva dal C++ e ANTICIPA: sale
+	# nell'anticipo prima della propria finestra di sonno.
+	#
+	# ⚠️ **E LA LUCE NON ENTRA PIÙ AFFATTO**, nemmeno come soppressore. Una
+	# prima stesura la teneva con un `(1 − 0.85·luce)` e il perché scritto era
+	# «così comincia a calare all'alba»: MISURATO, comprava −14% di picco e
+	# −2,4 s di finestra, e la conseguenza che prometteva **non esiste** —
+	# all'alba il corpo è già nascosto a scala 0.03 (`Visitor.resident_sleep`)
+	# e `consolida_sonno` azzera comunque il canale. Una terza manopola con un
+	# perché decorativo è debito, e si toglie.
+	out["melatonina"] = NEURO_PRODUZIONE["melatonina"] * clampf(notte, 0.0, 1.0)
 	out["endorfine"] = NEURO_PRODUZIONE["endorfine"] * comfort * (1.0 - 0.5 * pioggia)
 	# chi dorme non accumula stress e non accumula sonno
 	if not dorme:

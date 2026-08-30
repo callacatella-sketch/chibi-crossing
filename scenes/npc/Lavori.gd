@@ -123,7 +123,10 @@ func _scelte_di_giornata() -> void:
 		if scelta == "":
 			continue
 		_scelte[label] = scelta
-		_visitors.assegna_compito(label, scelta)
+		# …e nel suo ricordo resta una scelta SUA, non una richiesta: e' la
+		# meta' che il commento qui sopra promette da sempre e che si fermava
+		# un passo prima.
+		_visitors.assegna_compito(label, scelta, "se_stesso")
 
 
 # ------------------------------------------------------- la produzione

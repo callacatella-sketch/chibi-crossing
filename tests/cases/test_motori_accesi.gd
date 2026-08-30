@@ -17,6 +17,7 @@ extends RefCounted
 
 const ANIMO := preload("res://scenes/npc/Animo.gd")
 const CARTA := preload("res://scenes/world/Carta.gd")
+const DNA := preload("res://scenes/npc/ChibiDNA.gd")
 
 
 func run(t) -> void:
@@ -34,8 +35,51 @@ func _test_decide_e_acceso(t) -> void:
 	var corpo := _corpo(lav, "_scelte_di_giornata")
 	t.ok(corpo.contains("_incarichi.has(label)"),
 			"decide solo chi è LIBERO: gli ordini del giocatore vincono")
-	t.ok(corpo.contains("\"se_stesso\""),
-			"…e nel suo ricordo resterà una scelta SUA, non una richiesta")
+	# ⚠️ **QUESTA GUARDIA MATCHAVA IL PROPRIO COMMENTO.** Cercava la stringa
+	# `"se_stesso"` nel sorgente — e c'era, dentro `decide()` — mentre la riga
+	# finiva poi in `Visitors.assegna_compito`, che la incideva contro il
+	# GIOCATORE. MISURATO nel salvataggio vero: tutte e settantotto le righe
+	# di compito intestate a lui, con il registro degli incarichi vuoto.
+	# Adesso si guarda il RICORDO, non il sorgente.
+	var chi = ANIMO.new()
+	chi.setup(DNA.generate(4242))
+	chi.esegue("taglia_legna", "se_stesso")
+	t.eq(chi.quante_volte("taglia_legna", "se_stesso"), 1,
+			"una giornata scelta da se' resta scritta come SUA")
+	t.eq(chi.quante_volte("taglia_legna", "giocatore"), 0,
+			"…e non come una richiesta di chi comanda il villaggio")
+
+	# ⚠️ **E IL CABLAGGIO VA ATTRAVERSATO, o si prova solo l'API.** La prima
+	# stesura di questa guardia chiamava `Animo.esegue` diretto: le due
+	# mutazioni che rimettono il difetto — l'ordinante cablato dentro
+	# `assegna_compito`, e `Lavori` che smette di passarlo — la lasciavano
+	# **verde tutte e due**. Qui si passa dalle funzioni vere.
+	var vis = RegistroCompiti.new()
+	t.stage(vis)
+	var libero = ANIMO.new()
+	libero.setup(DNA.generate(77))
+	(vis.get("_animi") as Dictionary)["L"] = libero
+	vis.assegna_compito("L", "taglia_legna", "se_stesso")
+	t.eq(libero.quante_volte("taglia_legna", "se_stesso"), 1,
+			"`assegna_compito` incide l'ordinante che gli si passa")
+	vis.assegna_compito("L", "taglia_legna")
+	t.eq(libero.quante_volte("taglia_legna", "giocatore"), 1,
+			"…e di serie resta il giocatore, come una richiesta vera")
+
+	# …e il registro dei lavori lo passa DAVVERO, per chi non ha un incarico
+	var reg_lav = RegistroLavori.new()
+	t.stage(reg_lav)
+	reg_lav.set("_visitors", vis)
+	(vis.get("_residents") as Array).append({"label": "L"})
+	vis.ordinanti.clear()
+	reg_lav._scelte_di_giornata()
+	t.ok(vis.ordinanti.has("se_stesso"),
+			"e chi non ha un incarico si sceglie la giornata da se': "
+			+ "nel suo ricordo resta cosi' (%s)" % str(vis.ordinanti))
+	t.ok(not vis.ordinanti.has("giocatore"),
+			"…e non come una richiesta che nessuno gli ha fatto")
+
+
 	t.ok(_corpo(lav, "_on_nuovo_giorno").contains("_scelte_di_giornata"),
 			"e succede ogni mattina")
 	t.ok(_sorgente("res://scenes/npc/Visitors.gd").contains("func animo_oggetto_di"),
@@ -206,3 +250,33 @@ func _corpo(src: String, nome: String) -> String:
 func _sorgente(path: String) -> String:
 	var f := FileAccess.open(path, FileAccess.READ)
 	return f.get_as_text() if f else ""
+
+
+## Un registro che REGISTRA. `assegna_compito` resta quella del gioco.
+class RegistroCompiti extends "res://scenes/npc/Visitors.gd":
+	var ordinanti: Array = []
+
+	func _ready() -> void:
+		set_process(false)
+		set_physics_process(false)
+
+	func _process(_d: float) -> void:
+		pass
+
+	func assegna_compito(label: String, compito: String, ordinante := "giocatore") -> void:
+		ordinanti.append(ordinante)
+		super(label, compito, ordinante)
+
+	func e_cucciolo(_l: String) -> bool:
+		return false
+
+	func animo_oggetto_di(label: String):
+		return (get("_animi") as Dictionary).get(label)
+
+
+
+
+## Il registro dei lavori VERO, col solo `_ready` scavalcato.
+class RegistroLavori extends "res://scenes/npc/Lavori.gd":
+	func _ready() -> void:
+		set_process(false)
