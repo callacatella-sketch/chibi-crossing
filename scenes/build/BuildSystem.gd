@@ -98,10 +98,55 @@ var _cozy: Node3D
 var _ui: CanvasLayer
 var _panel: PanelContainer
 var _idle_hint: Label
-var _items_row: HBoxContainer
+var _items_row: GridContainer
+var _items_scroll: ScrollContainer
 var _cat_buttons: Array[Button] = []
 var _item_buttons: Array[Button] = []
 var _cat := 0
+
+# ============================================================ IL BANCO DEI PEZZI
+# Il catalogo è passato da una manciata di pezzi a CENTOTRENTASETTE, e la
+# riga sola che li conteneva è diventata illeggibile: trentotto bottoni
+# schiacciati in una fascia larga quanto lo schermo non sono un menù, sono
+# un righello. Peggio: i tasti 1-9 coprivano i primi nove e basta, e la
+# rotella scorreva l'intero catalogo un pezzo alla volta.
+#
+# Il banco nuovo ha tre idee, e ognuna toglie un modo di perdersi:
+#
+#  1. LA GRIGLIA. I pezzi stanno in righe da CO​LONNE bottoni a larghezza
+#     FISSA, dentro una finestra che scorre: un bottone è largo uguale che
+#     ce ne siano tre o quaranta, quindi il nome si legge SEMPRE. La
+#     finestra ha un'altezza fissa: il pannello non salta più cambiando
+#     categoria.
+#  2. LA RICERCA. Con centotrentasette pezzi, ricordarsi in che categoria
+#     sta la Fioriera è un lavoro. Si preme «/» e si scrive: la griglia
+#     mostra i pezzi di TUTTE le categorie che contengono quelle lettere,
+#     nel nome tradotto e in quello italiano (il salvataggio parla
+#     italiano: chi gioca in inglese trova «planter» E «fioriera»).
+#  3. I RECENTI. Chi costruisce una casa usa cinque pezzi in cerchio per
+#     dieci minuti. La prima scheda è la loro: gli ultimi pezzi POSATI, in
+#     ordine di quando li hai usati. Non è una preferenza da configurare —
+#     è il gioco che guarda cosa stai facendo.
+#
+# E i pezzi sotto chiave non stanno più mescolati ai tuoi: la griglia li
+# raccoglie in fondo, sotto la loro intestazione, così la prima cosa che
+# vedi è SEMPRE quello che puoi posare adesso.
+
+## Quante colonne ha la griglia, e quante righe si vedono senza scorrere.
+const BANCO_COLONNE := 6
+const BANCO_RIGHE_VISTE := 3
+## Quanti pezzi ricorda la scheda dei recenti.
+const RECENTI_MAX := 12
+## L'indice della scheda «recenti» fra i bottoni delle categorie.
+const CAT_RECENTI := -1
+
+var _ricerca := ""                  # il testo cercato ("" = nessuna ricerca)
+var _ricerca_attiva := false        # si sta scrivendo adesso?
+var _ricerca_label: Label
+var _conta_label: Label
+var _recenti: Array[String] = []    # nomi dei pezzi posati, dal più recente
+var _cat_recenti_btn: Button
+var _visibili: Array[int] = []      # gli indici mostrati adesso, in ordine
 
 # --- recinto degli "Ordini del Gufo" ---------------------------------------
 # Il catalogo si apre a poco a poco: è GufoOrders che, sbloccando gli Ordini,
@@ -245,13 +290,29 @@ func _first_unlocked_index() -> int:
 
 # il vicino sbloccato nella direzione data (per la rotella), saltando i pezzi
 # ancora sotto chiave; se non ce n'è, resta dov'è
+## Il pezzo posabile dopo (o prima) DENTRO quello che si sta guardando.
+## Prima girava su tutto il catalogo: con centotrentasette pezzi la
+## rotella era un viaggio, e ti portava fuori dalla categoria senza che
+## l'avessi chiesto. Se la vista corrente non ha nulla di posabile si
+## ripiega sul catalogo intero, perché una rotella che non fa niente
+## sembra rotta.
 func _next_unlocked(dir: int) -> int:
-	var n := _items.size()
-	for step in range(1, n + 1):
-		var i := posmod(_index + dir * step, n)
+	var lista := _visibili if not _visibili.is_empty() else _pezzi_visibili()
+	var posabili: Array[int] = []
+	for i in lista:
 		if is_unlocked(str(_items[i]["name"])):
-			return i
-	return _index
+			posabili.append(i)
+	if posabili.is_empty():
+		var n := _items.size()
+		for step in range(1, n + 1):
+			var i2 := posmod(_index + dir * step, n)
+			if is_unlocked(str(_items[i2]["name"])):
+				return i2
+		return _index
+	var dove := posabili.find(_index)
+	if dove < 0:
+		return posabili[0] if dir > 0 else posabili[posabili.size() - 1]
+	return posabili[posmod(dove + dir, posabili.size())]
 
 
 ## Conteggio dei pezzi piazzati per nome (tutti i piani e i layer): il
@@ -301,6 +362,19 @@ func has_cover(cell: Vector2i) -> bool:
 # ---------------------------------------------------------------- input
 
 func _unhandled_input(event: InputEvent) -> void:
+	# LA RICERCA PRIMA DI TUTTO. Mentre si scrive, «R» è una erre e non una
+	# rotazione: se il builder leggesse i suoi tasti prima, cercare
+	# «brandina» farebbe ruotare il fantasma cinque volte e cambiare piano.
+	if _active and _ricerca_attiva and event is InputEventKey \
+			and event.pressed and not event.echo:
+		if _ricerca_tasto(event as InputEventKey):
+			get_viewport().set_input_as_handled()
+			return
+	if _active and event is InputEventKey and event.pressed and not event.echo \
+			and (event as InputEventKey).keycode == KEY_SLASH:
+		_ricerca_accendi()
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("build_toggle"):
 		_set_active(not _active)
 		get_viewport().set_input_as_handled()
@@ -333,13 +407,19 @@ func _unhandled_input(event: InputEvent) -> void:
 			_select(_next_unlocked(1))
 	elif event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode >= KEY_1 and event.keycode <= KEY_9:
-			var i: int = event.keycode - KEY_1
-			var cat_items := _cat_item_indices(_cat)
-			if i < cat_items.size():
-				if is_unlocked(str(_items[cat_items[i]]["name"])):
-					_select(cat_items[i])
-				elif _sfx:
-					_sfx.place_deny()
+			# il numero conta i pezzi POSABILI di quello che stai
+			# guardando, nello stesso ordine in cui la griglia li stampa
+			# sui bottoni: il «3» del cartellino e il «3» della tastiera
+			# devono essere lo stesso pezzo, sempre
+			var quale: int = event.keycode - KEY_1
+			var posabili: Array[int] = []
+			for i2 in _visibili:
+				if is_unlocked(str(_items[i2]["name"])):
+					posabili.append(i2)
+			if quale < posabili.size():
+				_select(posabili[quale])
+			elif _sfx:
+				_sfx.place_deny()
 
 
 func _set_active(active: bool) -> void:
@@ -369,6 +449,81 @@ func set_active_for_debug(active: bool, ghost_world_pos: Vector3, item_name := "
 
 # ---------------------------------------------------------------- selezione
 
+## COSA SI VEDE ADESSO, in ordine. Una funzione sola, e la usano tutti:
+## la griglia per disegnarsi, i tasti 1-9 per sapere chi è il terzo, la
+## rotella per sapere chi viene dopo. Se le tre cose avessero tre liste
+## diverse, il «3» del cartellino e il «3» della tastiera finirebbero su
+## due pezzi diversi — ed è il genere di bugia che non dà nessun errore.
+##
+## L'ordine è: prima quello che puoi posare ADESSO, poi la merce del
+## mercante (col prezzo: sai per cosa stai risparmiando), poi quello che
+## arriva da sé. Dentro ogni gruppo resta l'ordine del catalogo, che è
+## quello con cui il villaggio è stato pensato.
+func _pezzi_visibili() -> Array[int]:
+	var liberi: Array[int] = []
+	var vetrina: Array[int] = []
+	var attesa: Array[int] = []
+	var candidati: Array[int] = []
+	if _ricerca != "":
+		candidati = _cerca_indici(_ricerca)
+	elif _cat == CAT_RECENTI:
+		# i recenti NON si riordinano per stato: l'ordine è quello con cui
+		# li hai usati, ed è tutto il valore della scheda
+		var out: Array[int] = []
+		for nome in _recenti:
+			var i := item_index(nome)
+			if i >= 0:
+				out.append(i)
+		return out
+	else:
+		candidati = _cat_item_indices(_cat)
+	for i in candidati:
+		var nome := str(_items[i]["name"])
+		if is_unlocked(nome):
+			liberi.append(i)
+		elif not _shop_offer(nome).is_empty():
+			vetrina.append(i)
+		else:
+			attesa.append(i)
+	var tutti: Array[int] = []
+	tutti.append_array(liberi)
+	tutti.append_array(vetrina)
+	tutti.append_array(attesa)
+	return tutti
+
+
+## La ricerca guarda il nome TRADOTTO e quello italiano. Il nome italiano
+## è la chiave del salvataggio e non cambia mai: chi gioca in inglese e
+## legge una guida italiana trova il pezzo lo stesso, e viceversa.
+func _cerca_indici(testo: String) -> Array[int]:
+	var q := testo.strip_edges().to_lower()
+	var out: Array[int] = []
+	if q == "":
+		return out
+	for i in _items.size():
+		var nome := str(_items[i]["name"])
+		if nome.to_lower().contains(q) or L10n.t(nome).to_lower().contains(q):
+			out.append(i)
+	return out
+
+
+## Un pezzo POSATO entra nei recenti (in testa, senza doppioni). Si segna
+## quando si posa, non quando si seleziona: sfogliare il catalogo non è
+## usare un pezzo, e una scheda «recenti» che si riempie sfogliando
+## diventa la copia della categoria che stavi guardando.
+func _segna_recente(piece: String) -> void:
+	if piece == "":
+		return
+	_recenti.erase(piece)
+	_recenti.push_front(piece)
+	while _recenti.size() > RECENTI_MAX:
+		_recenti.pop_back()
+	if _cat_recenti_btn:
+		_cat_recenti_btn.disabled = _recenti.is_empty()
+	if _cat == CAT_RECENTI and _panel and _panel.visible:
+		_rebuild_item_row()
+
+
 func _cat_item_indices(cat: int) -> Array[int]:
 	var out: Array[int] = []
 	for i in _items.size():
@@ -384,7 +539,10 @@ func _select(i: int) -> void:
 		return
 	_set_demolish(false)
 	_index = i
-	if _items[i]["cat"] != _cat:
+	# la ricerca e i recenti sono VISTE, non categorie: saltare alla
+	# categoria del pezzo scelto cancellerebbe la lista che stavi
+	# guardando proprio nell'istante in cui l'hai usata
+	if _ricerca == "" and _cat != CAT_RECENTI and _items[i]["cat"] != _cat:
 		_cat = _items[i]["cat"]
 		_rebuild_item_row()
 	# i pezzi del piano di sopra portano il cursore su da soli
@@ -409,9 +567,14 @@ func _set_level(lvl: int) -> void:
 func _sync_ui_selection() -> void:
 	for j in _cat_buttons.size():
 		_cat_buttons[j].set_pressed_no_signal(j == _cat)
-	var cat_items := _cat_item_indices(_cat)
+	if _cat_recenti_btn:
+		_cat_recenti_btn.set_pressed_no_signal(_cat == CAT_RECENTI)
+	# i bottoni del banco stanno in parallelo a `_visibili` (le
+	# intestazioni e le celle vuote non entrano in `_item_buttons`): se le
+	# due liste si sfasassero, il bottone acceso sarebbe quello sbagliato
 	for j in _item_buttons.size():
-		_item_buttons[j].set_pressed_no_signal(cat_items[j] == _index)
+		if j < _visibili.size():
+			_item_buttons[j].set_pressed_no_signal(_visibili[j] == _index)
 
 
 func _refresh_ghost() -> void:
@@ -868,6 +1031,9 @@ func _try_place() -> void:
 		place_cell(_cursor_key, item["name"], _rot, true, _level, v)
 	if wc:
 		wc.pay_for_piece(str(item["name"]))
+	# il pezzo appena POSATO entra nei recenti: è il gesto vero, non lo
+	# sfogliare il catalogo
+	_segna_recente(str(item["name"]))
 	if _sfx: _sfx.place_ok()
 	get_tree().call_group("regista", "note", "costruzione")
 	# il posto del pezzo, non quello di Mochi: `_cursor_pos` è il punto in
@@ -2363,7 +2529,7 @@ func _build_ui() -> void:
 	_panel.add_theme_stylebox_override("panel", sb)
 	var dock := CenterContainer.new()
 	dock.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	dock.offset_top = -172.0
+	dock.offset_top = -286.0
 	dock.offset_bottom = -14.0
 	dock.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(dock)
@@ -2390,6 +2556,14 @@ func _build_ui() -> void:
 	cats.alignment = BoxContainer.ALIGNMENT_CENTER
 	vbox.add_child(cats)
 	var cat_group := ButtonGroup.new()
+	# LA SCHEDA DEI RECENTI, per prima: chi costruisce una casa usa cinque
+	# pezzi in cerchio, e farglieli ritrovare ogni volta in mezzo a
+	# centotrenta è il modo piu' rapido di stancarlo. Nasce spenta —
+	# prima di posare qualcosa non ha niente da dire.
+	_cat_recenti_btn = _make_button(L10n.t("★ Recenti"), cat_group, 12)
+	_cat_recenti_btn.disabled = true
+	_cat_recenti_btn.pressed.connect(_on_cat_pressed.bind(CAT_RECENTI))
+	cats.add_child(_cat_recenti_btn)
 	for c in CAT_NAMES.size():
 		var btn := _make_button(L10n.t(CAT_NAMES[c]), cat_group, 12)
 		btn.pressed.connect(_on_cat_pressed.bind(c))
@@ -2411,14 +2585,42 @@ func _build_ui() -> void:
 	_demo_btn.toggled.connect(func(on: bool): _set_demolish(on))
 	cats.add_child(_demo_btn)
 
-	# riga dei pezzi della categoria corrente
-	_items_row = HBoxContainer.new()
-	_items_row.add_theme_constant_override("separation", 6)
-	_items_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	vbox.add_child(_items_row)
+	# la barra sopra il banco: cosa si cerca (a sinistra) e quanti pezzi
+	# ci sono (a destra)
+	var barra := HBoxContainer.new()
+	barra.add_theme_constant_override("separation", 10)
+	barra.custom_minimum_size = Vector2(BANCO_COLONNE * 144, 0)
+	vbox.add_child(barra)
+	_ricerca_label = Label.new()
+	_ricerca_label.add_theme_font_size_override("font_size", 12)
+	_ricerca_label.add_theme_color_override("font_color", UI_BROWN)
+	_ricerca_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	barra.add_child(_ricerca_label)
+	_conta_label = Label.new()
+	_conta_label.add_theme_font_size_override("font_size", 12)
+	_conta_label.add_theme_color_override("font_color", Color(UI_BROWN, 0.6))
+	_conta_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	barra.add_child(_conta_label)
+
+	# IL BANCO: una griglia a larghezza fissa dentro una finestra che
+	# scorre. L'altezza è FISSA (tre righe): cosi' il pannello non salta
+	# su e giu' passando da una categoria di dieci pezzi a una di
+	# trentotto — e un menu' che salta è un menu' in cui si sbaglia bottone.
+	_items_scroll = ScrollContainer.new()
+	_items_scroll.custom_minimum_size = Vector2(BANCO_COLONNE * 144,
+			BANCO_RIGHE_VISTE * 40)
+	_items_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_items_scroll.follow_focus = true
+	vbox.add_child(_items_scroll)
+	_items_row = GridContainer.new()
+	_items_row.columns = BANCO_COLONNE
+	_items_row.add_theme_constant_override("h_separation", 6)
+	_items_row.add_theme_constant_override("v_separation", 6)
+	_items_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_items_scroll.add_child(_items_row)
 
 	var hint := Label.new()
-	hint.text = L10n.t("B esci  ·  rotella / 1-9 scegli  ·  R ruota  ·  V piano su/giù  ·  F ruota piazzato  ·  clic piazza  ·  X rimuovi")
+	hint.text = L10n.t("B esci  ·  / cerca  ·  rotella / 1-9 scegli  ·  R ruota  ·  V piano su/giù  ·  F ruota piazzato  ·  clic piazza  ·  X rimuovi")
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.add_theme_font_size_override("font_size", 12)
 	hint.add_theme_color_override("font_color", Color(UI_BROWN, 0.75))
@@ -2469,59 +2671,74 @@ func _make_button(text: String, group: ButtonGroup, font_size: int) -> Button:
 
 
 func _on_cat_pressed(cat: int) -> void:
-	if cat == _cat:
+	if cat == _cat and _ricerca == "":
 		return
 	_set_demolish(false)  # cambiare categoria esce dalla demolizione
+	# toccare una scheda chiude la ricerca: sono due modi di guardare lo
+	# stesso banco, e tenerli accesi insieme lascia il giocatore a
+	# chiedersi perché la categoria che ha appena scelto è mezza vuota
+	_ricerca = ""
+	_ricerca_attiva = false
 	_cat = cat
 	_rebuild_item_row()
-	# seleziona il primo pezzo SBLOCCATO della categoria (se ce n'è)
-	var cat_items := _cat_item_indices(cat)
+	# seleziona il primo pezzo POSABILE della scheda (se ce n'è)
 	var pick := -1
-	for ci in cat_items:
-		if is_unlocked(str(_items[ci]["name"])):
-			pick = ci
+	for i in _visibili:
+		if is_unlocked(str(_items[i]["name"])):
+			pick = i
 			break
 	if pick >= 0:
-		_index = pick
-		_refresh_ghost()
-	_sync_ui_selection()
-	if _sfx: _sfx.ui_select()
+		_select(pick)
+	else:
+		_sync_ui_selection()
 
 
 func _rebuild_item_row() -> void:
 	for btn in _item_buttons:
 		btn.queue_free()
 	_item_buttons.clear()
+	for f in _items_row.get_children():
+		f.queue_free()
 	var group := ButtonGroup.new()
-	var cat_items := _cat_item_indices(_cat)
-	for j in cat_items.size():
-		var i := cat_items[j]
-		var piece := str(_items[i]["name"])
+	_visibili = _pezzi_visibili()
+	var sezione := ""          # quale intestazione è già stata messa
+	var n_libero := 0          # i numeri 1-9 contano SOLO i posabili
+	for j2 in _visibili.size():
+		var i2 := _visibili[j2]
+		var piece := str(_items[i2]["name"])
 		var locked := not is_unlocked(piece)
-		# Due lucchetti diversi meritano due promesse diverse.
-		#   · Ordini del Gufo: restano un "?" grigio, come i ricordi non ancora
-		#     vissuti del Guardaroba — lì la rivelazione È il premio.
-		#   · Mercante: sono MERCE IN VETRINA, non un segreto. Si mostrano col
-		#     nome e col prezzo, così sai per cosa stai risparmiando. (Prima
-		#     erano "?" con la didascalia del Gufo: un Ordine che per loro non
-		#     sarebbe mai arrivato, perché si comprano e basta.)
 		var offer := _shop_offer(piece) if locked else {}
 		var in_vetrina := not offer.is_empty()
-		# `piece` è la chiave del salvataggio: si traduce solo l'etichetta
+		# le intestazioni separano i tre stati. Prima erano mescolati, e
+		# con centotrenta pezzi la prima cosa che vedevi era spesso un «?»
+		var mia := "libero" if not locked else ("vetrina" if in_vetrina else "attesa")
+		# L'INTESTAZIONE SEPARA, quindi vuole qualcosa sopra da separare:
+		# in cima alla lista non dice niente. E nei RECENTI non ci va mai,
+		# perché lì l'ordine è quello con cui hai usato i pezzi — mettere
+		# «dal mercante» in mezzo a una cronologia è una riga che mente.
+		if mia != sezione:
+			sezione = mia
+			if mia != "libero" and j2 > 0 and _cat != CAT_RECENTI and _ricerca_ordinata():
+				_intestazione(L10n.t("Dal mercante") if mia == "vetrina"
+						else L10n.t("Arriva col tempo"))
 		var label: String
 		if in_vetrina:
 			label = "%s · %d" % [L10n.t(piece), int(offer.get("cost", 0))]
 		elif locked:
 			label = "?"
 		else:
-			label = str(j + 1) + " " + L10n.t(piece)
-		var btn := _make_button(label, group, 13)
-		btn.custom_minimum_size = Vector2(0, 38)
+			n_libero += 1
+			# il numero è una SCORCIATOIA, e le scorciatoie sono nove:
+			# stamparlo sul decimo bottone sarebbe un tasto che non esiste
+			label = ("%d  %s" % [n_libero, L10n.t(piece)]) if n_libero <= 9 \
+					else L10n.t(piece)
+		var btn := _make_button(label, group, 12)
+		btn.custom_minimum_size = Vector2(138, 34)
+		btn.clip_text = true
+		btn.tooltip_text = L10n.t(piece)
 		if locked:
 			btn.disabled = true
 			if in_vetrina:
-				# leggibile, non spenta: si vede cosa ti aspetta al carretto.
-				# Il prezzo prende il colore della sua valuta, come nel negozio.
 				btn.modulate = Color(1, 1, 1, 0.88)
 				btn.add_theme_color_override("font_disabled_color",
 						CozyUI.NUT if str(offer.get("cur", "nut")) == "nut" \
@@ -2530,10 +2747,6 @@ func _rebuild_item_row() -> void:
 				btn.tooltip_text = _shop_tooltip(offer)
 			else:
 				btn.modulate = Color(1, 1, 1, 0.5)
-				# Il Gufo non porta i compagni di corredo: quelli arrivano
-				# tutti insieme al pezzo che si compra al carretto. Dirgli
-				# «lo porterà un Ordine» era una promessa falsa — un Ordine
-				# per loro non arriva mai.
 				var padrone := _padrone_corredo(piece)
 				if padrone.is_empty():
 					btn.tooltip_text = L10n.t("Un Ordine del Gufo lo porterà")
@@ -2541,9 +2754,123 @@ func _rebuild_item_row() -> void:
 					btn.tooltip_text = L10n.tf("Arriva col corredo di %s",
 							[L10n.t(padrone)])
 		else:
-			btn.pressed.connect(_select.bind(i))
+			btn.pressed.connect(_select.bind(i2))
 		_items_row.add_child(btn)
 		_item_buttons.append(btn)
+	if _visibili.is_empty():
+		var vuoto := Label.new()
+		vuoto.text = L10n.t("Niente da queste parti.") if _ricerca == "" \
+				else L10n.t("Nessun pezzo con questo nome.")
+		vuoto.add_theme_font_size_override("font_size", 12)
+		vuoto.add_theme_color_override("font_color", Color(UI_BROWN, 0.6))
+		_items_row.add_child(vuoto)
+	_aggiorna_barra()
+	if _items_scroll:
+		_items_scroll.scroll_vertical = 0
+
+
+## L'intestazione di una sezione: occupa la riga INTERA della griglia (un
+## `GridContainer` non sa fare colonne unite, quindi la si riempie con
+## celle vuote fino a capo riga — se no l'etichetta finisce in mezzo ai
+## bottoni e la griglia si sfalsa).
+func _intestazione(testo: String) -> void:
+	# LE CELLE DI RIEMPIMENTO HANNO LA TAGLIA DI UN BOTTONE. Un `Control`
+	# nudo è largo zero, e un `GridContainer` misura ogni colonna sulla
+	# cella più grande: con i riempitivi a zero le colonne si sfasano e
+	# l'intestazione finisce ACCANTO all'ultimo bottone invece che a capo.
+	var quanti := _items_row.get_child_count() % BANCO_COLONNE
+	if quanti != 0:
+		for k in BANCO_COLONNE - quanti:
+			_items_row.add_child(_cella_vuota())
+	var lab := Label.new()
+	lab.text = "— " + testo + " —"
+	lab.add_theme_font_size_override("font_size", 11)
+	lab.add_theme_color_override("font_color", Color(UI_BROWN, 0.55))
+	lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lab.custom_minimum_size = Vector2(138, 22)
+	lab.clip_text = true
+	_items_row.add_child(lab)
+	for k2 in BANCO_COLONNE - 1:
+		_items_row.add_child(_cella_vuota())
+
+
+## La lista corrente è raggruppata per stato? (i recenti no: sono una
+## cronologia, e ordinarli li distruggerebbe)
+func _ricerca_ordinata() -> bool:
+	return _cat != CAT_RECENTI
+
+
+func _cella_vuota() -> Control:
+	var c := Control.new()
+	c.custom_minimum_size = Vector2(138, 0)
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return c
+
+
+## La riga sopra la griglia: cosa si sta cercando, e quanti pezzi ci sono.
+## Il conto non è decorativo — dice se stai guardando tutto o una fetta.
+func _aggiorna_barra() -> void:
+	if _ricerca_label == null:
+		return
+	if _ricerca_attiva or _ricerca != "":
+		_ricerca_label.text = "🔍 " + _ricerca + ("▏" if _ricerca_attiva else "")
+		_ricerca_label.modulate = Color(1, 1, 1, 1.0)
+	else:
+		_ricerca_label.text = L10n.t("/ per cercare un pezzo")
+		_ricerca_label.modulate = Color(1, 1, 1, 0.55)
+	if _conta_label:
+		var posabili := 0
+		for i in _visibili:
+			if is_unlocked(str(_items[i]["name"])):
+				posabili += 1
+		_conta_label.text = L10n.tf("%d di %d", [posabili, _visibili.size()]) \
+				if posabili != _visibili.size() \
+				else L10n.tf("%d pezzi", [_visibili.size()])
+
+
+## La ricerca si accende con «/», si spegne con Esc. Mentre è accesa i
+## tasti del builder (R, V, F, X…) diventano lettere: è per questo che
+## serve una modalità e non un campo sempre attivo — in un gioco dove si
+## costruisce con le lettere, un cursore che ruba i tasti è una trappola.
+func _ricerca_accendi() -> void:
+	_ricerca_attiva = true
+	_aggiorna_barra()
+	if _sfx: _sfx.ui_select()
+
+
+func _ricerca_spegni(pulisci: bool) -> void:
+	_ricerca_attiva = false
+	if pulisci and _ricerca != "":
+		_ricerca = ""
+		_rebuild_item_row()
+	else:
+		_aggiorna_barra()
+
+
+func _ricerca_tasto(event: InputEventKey) -> bool:
+	if event.keycode == KEY_ESCAPE:
+		_ricerca_spegni(true)
+		return true
+	if event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
+		_ricerca_spegni(false)
+		# Invio prende il primo pezzo posabile fra i risultati: cercare e
+		# poi doverlo anche cliccare sarebbe metà lavoro
+		for i in _visibili:
+			if is_unlocked(str(_items[i]["name"])):
+				_select(i)
+				break
+		return true
+	if event.keycode == KEY_BACKSPACE:
+		if _ricerca != "":
+			_ricerca = _ricerca.substr(0, _ricerca.length() - 1)
+			_rebuild_item_row()
+		return true
+	var ch := char(event.unicode)
+	if event.unicode >= 32 and ch != "":
+		_ricerca += ch
+		_rebuild_item_row()
+		return true
+	return false
 
 
 # ============================================================ economia colori

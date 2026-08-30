@@ -1,0 +1,125 @@
+BASE  passati=7892 falliti=0 err=0   (filtro)
+GEMELLA umore·Limbico si stacca da Regia.CAPO_UMORE  ROSSE 1        err=0 pass=7891
+         FAIL: [test_limbico.gd] e lo stato del corpo lo dice (atteso di malumore, ottenuto tranquillo)
+GEMELLA CODA_VITA·derivata a mano da tau/soglia      ROSSE 4        err=0 pass=7888
+         FAIL: [test_gesti.gd] la Coda: le due braccia non sono un filo solo (residuo 1.6%)
+         FAIL: [test_gesti.gd] la Coda: le due braccia non sono un filo solo (residuo 3.0%)
+         FAIL: [test_gesti.gd] …e finisce a zero esatto (atteso ~0.0, ottenuto 0.48954165955695)
+GEMELLA PUNTO_MOLLE (= Visitor.TESTA_TORNA)          ROSSE 1        err=0 pass=7891
+         FAIL: [test_gesti.gd] in un secondo e due il gemello fa 1.74 m e chi si è fermato 0.38
+GEMELLA PUNTO_DECISA (= Visitor.TESTA_VAI)           >>> VERDE <<<  err=0 pass=7892
+GEMELLA CAPO_K (= FaceController)                    >>> VERDE <<<  err=0 pass=7892
+TEMPO punto·spinta lampo                             ROSSE 1        err=0 pass=7891
+         FAIL: [test_gesti.gd] la ripartenza DECISA passa sopra il ritmo normale
+TEMPO raccolto·attacco a scatto                      >>> VERDE <<<  err=0 pass=7892
+TEMPO raccolto·rilascio piu' veloce dell'attacco     >>> VERDE <<<  err=0 pass=7892
+TEMPO raccolto·tenuta 0,2 s                          >>> VERDE <<<  err=0 pass=7892
+TEMPO rialzo·durata 0,25 s                           >>> VERDE <<<  err=0 pass=7892
+TEMPO largo·durata 0,4 s                             ROSSE 6        err=0 pass=7886
+         FAIL: [test_gesti.gd] il Largo non ruba strada, ne guadagna (0.19 m)
+         FAIL: [test_gesti.gd] …e di quanto basta (0.000 m)
+         FAIL: [test_gesti.gd] …con la testa che si stacca a fatica (0.000 rad)
+TEMPO largo·esitazione che non arriva mai            ROSSE 3        err=0 pass=7889
+         FAIL: [test_gesti.gd] il Largo non ruba strada, ne guadagna (0.31 m)
+         FAIL: [test_gesti.gd] l'esitazione è PRIMA dello scostamento (colmo a 0.90 s)
+         FAIL: [test_gesti.gd] a nove decimi il passo è di nuovo pieno: si attraversa la vita, non la si interrompe
+TEMPO largo·esitazione che non passa piu'            ROSSE 3        err=0 pass=7889
+         FAIL: [test_gesti.gd] il Largo non ruba strada, ne guadagna (0.85 m)
+         FAIL: [test_gesti.gd] a nove decimi il passo è di nuovo pieno: si attraversa la vita, non la si interrompe
+         FAIL: [test_gesti.gd] l'esitazione costa meno di mezzo metro (0.85 m)
+META' raccolto·orecchie stessa quota                 >>> VERDE <<<  err=0 pass=7892
+META' raccolto·braccia stessa quota                  >>> VERDE <<<  err=0 pass=7892
+META' raccolto·orecchio senza ritardo                >>> VERDE <<<  err=0 pass=7892
+META' raccolto·orecchio non pigro                    >>> VERDE <<<  err=0 pass=7892
+META' raccolto·orecchio molla insieme                >>> VERDE <<<  err=0 pass=7892
+META' raccolto·braccio non pigro                     >>> VERDE <<<  err=0 pass=7892
+META' largo·orecchie stessa quota                    >>> VERDE <<<  err=0 pass=7892
+META' largo·braccia stessa quota                     >>> VERDE <<<  err=0 pass=7892
+META' largo·senza ritardo                            ROSSE 2        err=0 pass=7890
+         FAIL: [test_gesti.gd] il Largo (dall'altra parte): le due ORECCHIE non sono un filo solo (residuo 6.5%, soglia 10%)
+         FAIL: [test_gesti.gd] il Largo (dall'altra parte): le due BRACCIA non sono un filo solo (residuo 5.0%)
+META' largo·senza pigrizia                           >>> VERDE <<<  err=0 pass=7892
+META' coda·stesso tau (un filo solo)                 >>> VERDE <<<  err=0 pass=7892
+META' coda·orecchie stessa quota                     >>> VERDE <<<  err=0 pass=7892
+META' coda·braccia stessa quota                      >>> VERDE <<<  err=0 pass=7892
+FORMA largo·tremolio 0                               >>> VERDE <<<  err=0 pass=7892
+FORMA raccolto·tremolio braccia 0                    ROSSE 6        err=0 pass=7886
+         FAIL: [test_gesti.gd] …e le due braccia pure (0 e 0)
+         FAIL: [test_gesti.gd] …e le due braccia pure (0 e 0)
+         FAIL: [test_gesti.gd] …e le due braccia pure (0 e 0)
+GRAM pensiero·senza il Capo                          ROSSE 10       err=0 pass=7882
+         FAIL: [test_regia.gd] …col posto libero la testa si inclina: il tetto è una scarsità, non un divieto
+         FAIL: [test_regia.gd] …e la testa si inclina lo stesso: dove non c'è villaggio non c'è folla
+         FAIL: [test_regia.gd] …e la testa comincia a inclinarsi
+GRAM rinuncia·non si esce col mezzo respiro          >>> VERDE <<<  err=0 pass=7892
+GRAM premessa·diventa un Raccolto                    ROSSE 1        err=0 pass=7891
+         FAIL: [test_regia.gd] …ed è in corso (atteso punto, ottenuto raccolto)
+VALV fiato·tutti anziani (nessun Punto frena)        >>> VERDE <<<  err=0 pass=7892
+RETE _enter_state·senza gesto_spegni()               ROSSE 4        err=0 pass=7888
+         FAIL: [test_gesti.gd] «r_idle»: il RITMO è tornato a uno dopo l'interruzione (atteso ~1.0, ottenuto 0.0)
+         FAIL: [test_gesti.gd] «r_idle»: «vis.rz» è quello del GEMELLO dopo l'interruzione (atteso ~-0.00061539473245, ottenuto -0.00602629780769)
+         FAIL: [test_gesti.gd] «r_pasto»: il RITMO è tornato a uno dopo l'interruzione (atteso ~1.0, ottenuto 0.0)
+RETE _monta_corpo·senza gesto_spegni(true)           ROSSE 2        err=0 pass=7890
+         FAIL: [test_regia.gd] col gesto se ne va il rollio: la rete lo spegne per QUALUNQUE stato
+         FAIL: [test_regia.gd] …e la testa torna dritta da sé, senza salti (atteso ~0.0, ottenuto -0.09308558553543)
+RETE set_cucciolo·senza gesto_spegni(true)           ROSSE 3        err=0 pass=7889
+         FAIL: [test_gesti.gd] la crescita ha spento il gesto (atteso , ottenuto raccolto)
+         FAIL: [test_gesti.gd] …e la scala è ESATTAMENTE quella della crescita (atteso ~0.40164713745117, ottenuto 0.6462322473526)
+         FAIL: [test_regia.gd] …e nemmeno la crescita lascia una testa storta dietro di sé
+RETE apri_scena·senza gesto_spegni()                 ROSSE 1        err=0 pass=7891
+         FAIL: [test_regia.gd] appena la scena si apre, il gesto in corso finisce (atteso , ottenuto punto)
+RETE _walk_to·_gs_viaggio non si riarma (un Punto per PARTITA) ROSSE 6        err=0 pass=7886
+         FAIL: [test_gesti.gd] …e al viaggio dopo riparte
+         FAIL: [test_regia.gd] (la frase riparte)
+         FAIL: [test_regia.gd] (la stessa frase, un attimo dopo)
+RETE livelli·nessuna rampa (24 gradi in un frame)    ROSSE 2        err=0 pass=7890
+         FAIL: [test_gesti.gd] i livelli passano di mano SENZA saltare (max 0.3806 su «ear0», tetto 0.025)
+         FAIL: [test_gesti.gd] …e rientrano senza saltare (max 0.2466 su «ear1»)
+RETE livelli·rampa lineare (spigolo di velocita')    >>> VERDE <<<  err=0 pass=7892
+RETE capo·il rollio ignora la rampa dei livelli      >>> VERDE <<<  err=0 pass=7892
+VALV capo_concesso·senza registro NEGA (degrado al contrario) >>> VERDE <<<  err=0 pass=7892
+USH capo·si chiede una volta al minuto               ROSSE 5        err=0 pass=7887
+         FAIL: [test_regia.gd] …e chi resta si divide di nuovo i due posti (atteso 2, ottenuto 1)
+         FAIL: [test_regia.gd] …e il terzo, che pensava e aspettava, ha preso quello che si è liberato
+         FAIL: [test_regia.gd] il registro riconosce il pensiero che era già lì invece di ignorarlo, e non gli fa pagare un posto che occupa già
+USH riconoscimento dopo 5 s                          ROSSE 1        err=0 pass=7891
+         FAIL: [test_due_strade.gd] e fra corpo e testa passa circa mezzo secondo (5.00 s)
+USH riarmo del sussulto 0,5 s (la coda diventa monotona) >>> VERDE <<<  err=0 pass=7892
+USH sussulto·raggio 30 m                             >>> VERDE <<<  err=0 pass=7892
+REGIA era_per_me paga il periodo intero              ROSSE 2        err=0 pass=7890
+         FAIL: [test_regia.gd] «era_per_me» è più rara di «ha visto» e aspetta meno
+         FAIL: [test_regia.gd] «era per me» aspetta meno di «ha visto»
+REGIA se_lo_tiene paga il periodo intero             ROSSE 1        err=0 pass=7891
+         FAIL: [test_regia.gd] «se_lo_tiene» è più rara di «ha visto» e aspetta meno
+REGIA si_e_trattenuto paga il periodo intero         ROSSE 1        err=0 pass=7891
+         FAIL: [test_regia.gd] «si_e_trattenuto» è più rara di «ha visto» e aspetta meno
+REGIA quel_posto_no paga il periodo intero           ROSSE 1        err=0 pass=7891
+         FAIL: [test_regia.gd] «quel_posto_no» è più rara di «ha visto» e aspetta meno
+
+=== 49 mutazioni · 26 VERDI (la suite non le vede) ===
+   VERDE  GEMELLA PUNTO_DECISA (= Visitor.TESTA_VAI)
+   VERDE  GEMELLA CAPO_K (= FaceController)
+   VERDE  TEMPO raccolto·attacco a scatto
+   VERDE  TEMPO raccolto·rilascio piu' veloce dell'attacco
+   VERDE  TEMPO raccolto·tenuta 0,2 s
+   VERDE  TEMPO rialzo·durata 0,25 s
+   VERDE  META' raccolto·orecchie stessa quota
+   VERDE  META' raccolto·braccia stessa quota
+   VERDE  META' raccolto·orecchio senza ritardo
+   VERDE  META' raccolto·orecchio non pigro
+   VERDE  META' raccolto·orecchio molla insieme
+   VERDE  META' raccolto·braccio non pigro
+   VERDE  META' largo·orecchie stessa quota
+   VERDE  META' largo·braccia stessa quota
+   VERDE  META' largo·senza pigrizia
+   VERDE  META' coda·stesso tau (un filo solo)
+   VERDE  META' coda·orecchie stessa quota
+   VERDE  META' coda·braccia stessa quota
+   VERDE  FORMA largo·tremolio 0
+   VERDE  GRAM rinuncia·non si esce col mezzo respiro
+   VERDE  VALV fiato·tutti anziani (nessun Punto frena)
+   VERDE  RETE livelli·rampa lineare (spigolo di velocita')
+   VERDE  RETE capo·il rollio ignora la rampa dei livelli
+   VERDE  VALV capo_concesso·senza registro NEGA (degrado al contrario)
+   VERDE  USH riarmo del sussulto 0,5 s (la coda diventa monotona)
+   VERDE  USH sussulto·raggio 30 m

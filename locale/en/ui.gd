@@ -432,6 +432,19 @@ const T := {
 	"Lavagnetta": "Little chalkboard",
 	"Biliardino": "Table football",
 	"Ombrellone": "Parasol",
+	# ------------------------------------------- il banco del builder
+	# Con centotrentasette pezzi il pannello ha una griglia, una ricerca e
+	# la scheda dei recenti: queste sono le sue parole.
+	"★ Recenti": "★ Recent",
+	"/ per cercare un pezzo": "/ to search for a piece",
+	"Dal mercante": "From the pedlar",
+	"Arriva col tempo": "Comes in time",
+	"Niente da queste parti.": "Nothing over here.",
+	"Nessun pezzo con questo nome.": "No piece by that name.",
+	"%d di %d": "%d of %d",
+	"%d pezzi": "%d pieces",
+	"B esci  ·  / cerca  ·  rotella / 1-9 scegli  ·  R ruota  ·  V piano su/giù  ·  F ruota piazzato  ·  clic piazza  ·  X rimuovi":
+			"B exit  ·  / search  ·  wheel / 1-9 pick  ·  R rotate  ·  V floor up/down  ·  F turn placed  ·  click to place  ·  X remove",
 	"Fioriera": "Planter",
 	# le tre sorelle della fioriera: cesto di vimini, cassa da bistrot,
 	# e quella che nessuno pota

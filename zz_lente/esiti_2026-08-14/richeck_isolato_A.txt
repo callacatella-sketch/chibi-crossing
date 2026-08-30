@@ -1,0 +1,12 @@
+da confermare sulla suite INTERA: 4
+BASE  passati=67748 falliti=0 err=0
+AMP punto·peso che continua a 0                      >>> VERDE <<<  err=0 pass=67748
+AMP punto·assestamento vrz a 0                       >>> VERDE <<<  err=0 pass=67748
+TEMPO punto·orecchie lente                           >>> VERDE <<<  err=0 pass=67748
+AMP raccolto·braccia ~0                              >>> VERDE <<<  err=0 pass=67748
+
+=== 4 confermate VERDI sulla suite INTERA ===
+   AMP punto·peso che continua a 0
+   AMP punto·assestamento vrz a 0
+   TEMPO punto·orecchie lente
+   AMP raccolto·braccia ~0

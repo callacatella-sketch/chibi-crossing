@@ -686,6 +686,205 @@ Si guarda con [`tools/provino_seduta.gd`](tools/provino_seduta.gd), che
 fotografa salita e discesa **di profilo** a intervalli fissi — il movimento
 non si giudica in una posa, si giudica in una pellicola.
 
+## LE CRICCHE SI VEDONO — il duetto, e i tre canali che non parlano
+
+`Cricche.gd` sa dire chi si ritrova con chi. Un predicato che nessuno vede
+però è un foglio di calcolo: qui c'è come il giocatore **se ne accorge senza
+che il gioco glielo dica** — dove si mettono, con chi, a che ora, e il
+momento in cui due si trovano.
+
+| canale | cosa vede chi gioca | dove |
+|---|---|---|
+| **IL DUETTO** | due che ci stanno tornando si fermano, a un battito l'uno dall'altro | `Visitors.chiedi_duetto` · occasione `ci_si_trova` |
+| **CI SEI ANCHE TU** | uno arriva nel loro posto, **ci sei tu**, e si ferma | occasione `ci_sei_anche_tu` |
+| **NON CI SI ALZA PER PRIMI** | l'agenda tace sei secondi in più mentre l'altro — o Mochi — è lì accanto | `Visitors.trattieni_insieme` |
+| **L'ANCORA DELLA PANCHINA** | certi posti diventano di qualcuno | `_ancora_ritrovo`, **terza** nella cascata |
+
+**Nessuno dei quattro inventa un canale del rig, un testo, un simbolo o un
+evento** — zero stringhe, quindi zero traduzioni. E **il villaggio non si
+incontra una volta di più**: chi si ritrova ci andava comunque, all'ora in
+cui ci va sempre. L'unica cosa che cambia è che ogni tanto lo si vede.
+
+E il canale su cui si appendono è **la coppia, non la cricca**: misurato,
+in sette giornate il villaggio produce due coppie che si ritrovano e **zero
+cricche a tre**. Appenderli a `cricche()` sarebbe stato codice morto in
+partita con la suite verde.
+
+### Il duetto: il significato sta NELL'INTERVALLO
+
+Non è un gesto nuovo. È il **Punto deciso, due volte, sfalsato di 0,40 s** —
+e quel ritardo *è* la frase: a zero sono due corpi che si bloccano nello
+stesso fotogramma, cioè un singhiozzo del motore. MISURATO col provino
+(`tools/provino_duetto.gd`, che stampa il ciclo del passo dei due accanto
+alle tessere):
+
+```
+duetto 0,40   98/98  50/87  07/86  01/45  00/09   ← due rampe uguali, SPOSTATE
+duetto 0,00   98/98  50/50  07/07  02/02  00/00   ← una rampa sola: il motore
+SINGHIOZZO    98/98  85/85  91/91  91/91  92/92   ← nessuna rampa, e insieme
+```
+
+La tessera di controllo è un **singhiozzo VERO** (il `_process` dei due
+spento per tre fotogrammi). È la ragione per cui questo provino sa fallire:
+se il duetto le somigliasse, il numero sarebbe sbagliato. E nel MainLevel
+vero il Δt si misura sul corpo: **primo fermo a 0,40 s, secondo a 0,80 s**.
+
+⚠️ **Un fotogramma FERMO non può giudicare una battuta**: due corpi immobili
+a sette metri si somigliano qualunque sia il ritardo. Le tessere servono a
+vedere che la scena si legge; a decidere il numero è la pellicola in cifre.
+
+**Le regole che lo tengono in piedi:**
+
+1. **OLTRE IL RAGGIO DELLA CHIACCHIERA** (`DUETTO_MIN` 2,2 m, contro gli 1,9
+   di `_chats`). «In questo gioco non succede mai niente insieme» è **falso**:
+   `_run_chat` gira i due musi nello stesso frame e la nuvoletta del secondo
+   esce a +1,1 s — la chiacchierata *è già* un duetto sfalsato. Sotto i 2,2 m
+   il giocatore legge «una chiacchierata a cui non sono uscite le bolle», che
+   è peggio di niente. Sopra, una chiacchierata è impossibile **per
+   costruzione**. (E il +1,1 s è anche il precedente misurato che dice che un
+   ritardo si legge come reazione.)
+2. **O TUTTI E DUE, O NESSUNO.** Si accende **prima chi risponde** — che per
+   quattro decimi sta in sala d'attesa e non si vede — e solo dopo chi apre;
+   se chi apre non ce la fa, la battuta si annulla e non è mai esistita.
+   L'ordine inverso lascia in scena un corpo fermo senza risposta, e **un
+   Punto solitario il giocatore lo attribuisce a tutt'altro**.
+3. **UN GETTONE IN DUE, IL RIPOSO A TESTA.** Il riposo doppio è un cancello,
+   non una simmetria: senza, i due che si ritrovano diventerebbero i due che
+   si vedono di più — la classifica dalla porta di servizio. E il gettone lo
+   tiene **chi risponde**, perché finisce per ultimo.
+4. **L'ANZIANO APRE**, e non per gentilezza: il suo corpo non frena
+   (`frena=false`), si accomoda sopra il fermo che fa già da sé — **il suo
+   fermo è già in calendario**, e l'altro reagisce. Se il suo respiro adesso
+   non c'è, **non apre nessuno**. Il ruolo non si indovina: si ENUMERANO le
+   due letture e si prende la prima che sta in piedi per intero.
+5. **UNO AL GIORNO IN TUTTO IL VILLAGGIO, e mai due volte sulla stessa coppia
+   dentro la settimana.** Non è prudenza, è la meccanica: un momento che
+   capita due volte in un minuto smette di essere un momento, e la stessa
+   coppia ripetuta ogni giorno **disegna la mappa di chi sta con chi**.
+   Il rovescio conta quanto il dritto: siccome ogni giorno tocca a una coppia
+   diversa, **un vicino che non si ritrova con nessuno è indistinguibile da
+   uno il cui turno non è ancora arrivato**.
+
+### Le due cose da non sbagliare, e come sono chiuse
+
+**CHI STA DA SOLO NON CAMBIA DI UN BIT.** Nessun canale si accende sul
+VUOTO: ogni condizione è un fatto positivo («questi due si ritrovano»), e non
+esiste un ramo che chieda «e chi non si ritrova con nessuno?». MISURATO nel
+MainLevel vero, col solitario messo **in mezzo** a due che si trovano, alla
+loro ora, nel loro posto: lease `0,00 → 0,00`, gesto `«» → «»`, ancora della
+panchina **casa sua a 0,000 m di scarto** — mentre nello stesso istante i
+due, lì accanto, il loro momento ce l'hanno.
+
+**IL GIOCATORE NON È MAI LASCIATO FUORI.** `ci_sei_anche_tu` gli parla
+addosso (sei nel loro posto, alla loro ora, e uno se n'è accorto); i sei
+secondi contano **Mochi come «qualcuno»** con la stessa riga che vale per i
+vicini — misurato, il lease sale a 6,00 s con lei accanto e resta 0,00 senza
+nessuno; e **l'ancora del ritrovo sta DOPO quella di Mochi** nella cascata di
+`_panchina_per`. Se salisse sopra, il villaggio si raggrupperebbe altrove
+**proprio nel momento in cui arrivi**, e il giocatore avrebbe imparato senza
+una parola di essere quello di troppo.
+
+### Le trappole già pagate
+
+- **`punto_impedimento()` — una fonte, tre lettori**, e prima erano due copie
+  **già divergenti**: il referto dei no guardava `blend <= 0.6` dove il gesto
+  guarda `< 0.6`, e metteva `_gs_viaggio` prima della strada. Un referto che
+  racconta un no diverso da quello vero costa venti minuti nel posto
+  sbagliato.
+- **La sala d'attesa ha DUE VERSI** (`_gs_attesa_fiato`): col fiato la
+  scadenza è la rinuncia, con la battuta la scadenza **accende**. Due sale
+  sarebbero due stati da spegnere, e il secondo si dimenticherebbe.
+- **Una guardia che nessun test può far fallire non c'è**: in
+  `_ancora_ritrovo` c'era un `if loro.is_empty()` davanti a un ciclo che con
+  l'elenco vuoto finiva comunque su `if n == 0`. L'ha trovata una mutazione,
+  ed è stata tolta (come `GIORNATE_RESTA_LUNGA` nel predicato).
+- **Il canale sottrattivo stava dietro a un `return`** e non girava quando
+  uno si era fermato per Mochi — cioè **proprio nella scena per cui esiste**.
+- **Non si intercetta il FRONTE dell'agenda per trattenere qualcuno**:
+  `azione_cambiata` è vero in un fotogramma solo, e non recitare lì dentro
+  vuol dire che quella decisione non verrà recitata MAI (livelock muto, col
+  vicino fermo e la fame che sale). Si alza il **lease**, prima che il motore
+  decida, e solo con `maxf`.
+
+### ⚠️ Le trappole di BANCO, che qui sono costate più di quelle di codice
+
+1. **Fra l'ultimo spostamento e la domanda non deve passare un fotogramma.**
+   I corpi camminano davvero: mezzo secondo sono 65 cm, e arrivano a meno di
+   `GESTO_STRADA_MIN` dalla loro meta. Il banco stampava venti righe di
+   `apre=false` che sembravano un difetto del gesto.
+2. **Rimettere un corpo al suo posto NON deve toccarne lo stato.** La cura
+   della trappola 1 chiamava `_posa`, che fa `_enter_state("r_idle")`:
+   geometria perfetta, e «non cammina» su tutta la linea. **Due cause
+   diverse, lo stesso sintomo — per questo un banco stampa il MOTIVO.**
+3. **LA CAMERA DI QUESTO GIOCO NON SI GIRA.** Spostare Mochi attorno alla
+   scena per cambiare inquadratura mette il soggetto **dietro l'obiettivo**:
+   tre quarti delle tessere uscivano col prato vuoto e la nuca di Mochi. Si
+   ruota la **direzione di arrivo**, non la macchina. E lo scatto che non
+   trova i corpi adesso **lo dichiara** invece di salvare il quadro intero.
+4. **La geometria della convergenza non è arbitraria**: ognuno vuole più di
+   3 m di strada davanti, la meta entro 4 m dal posto, e i due entro 6 m fra
+   loro. Due che arrivano da parti opposte disterebbero per forza più di sei
+   metri — ci si arriva **dallo stesso quadrante**, su un arco di 60°, che è
+   la corda uguale al raggio.
+5. **Un banco che mette il soggetto fuori campo non prova la regola che crede
+   di provare**: nel caso dei quattro convergenti il quarto corpo finiva a
+   9,3 m (oltre `GESTO_RAGGIO`), quindi a fermare il secondo duetto non era il
+   tetto giornaliero ma il raggio — e la mutazione che toglie il tetto
+   **sopravviveva**.
+6. **Le due scorte si azzerano prima di misurare il ritmo naturale**, o il
+   conto è zero *per costruzione* e si legge come «la fase è morta».
+
+### ⚠️ QUANTO SUCCEDE DAVVERO — e il numero è scomodo
+
+MISURATO nel MainLevel vero (`tools/prova_si_trovano.gd`, sei residenti, una
+coppia viva, Mochi che gira come gira un giocatore):
+
+| | |
+|---|---|
+| il duetto **guidato** (corpi veri, usciere vero, cancelli veri) | funziona: Δt **0,40 s**, apre l'uno e risponde l'altro |
+| «non ci si alza per primi», spontaneo | **1** in sette minuti |
+| il duetto **spontaneo**, in sette minuti | **0** |
+| l'ora della coppia si è presentata | **33 volte** |
+| e a fermarlo è stato, **11 volte su 11** | *«non stanno camminando tutti e due»* |
+
+**Il cancello che morde non è un tetto né la geometria: è che due persone
+precise sono raramente in cammino nello stesso secondo.** Il resto — i due
+tetti, la distanza, l'inquadratura, l'usciere — non è nemmeno stato
+interrogato.
+
+⚠️ **E LA RISPOSTA NON È ALLARGARE LE VALVOLE.** Ognuna di quelle condizioni
+esiste per una ragione misurata altrove: senza «stanno camminando» il Punto
+non ha un passo da spezzare, senza «ci stanno tornando» è un incrocio e non
+un ritrovo. Chi vorrà alzare quel numero ha due strade oneste — **misurare su
+un villaggio pieno e su più giornate di gioco** (qui c'era UNA coppia viva
+soltanto, e il banco dura minuti mentre l'abitudine dura giorni), oppure
+guardare se sia il caso che il momento sappia ASPETTARE, con la sala d'attesa
+che il vocabolario del corpo ha già (`_rimanda_gesto`). Quello che non si fa è
+togliere una condizione per far salire un contatore.
+
+### Come si guarda, e come si misura
+
+```
+CHIBI_DUETTO=<dir> ~/Downloads/Godot.app/Contents/MacOS/Godot --path . \
+    --resolution 1280x720 --script res://tools/provino_duetto.gd
+CHIBI_MINUTI=7 Godot --headless --path . --script res://tools/prova_si_trovano.gd
+Godot --headless --path . --script res://tools/misura_cricche.gd
+```
+
+`prova_si_trovano` stampa **ogni no col suo nome** (`debug_momenti`): un
+momento che tace quasi sempre, senza il conto per motivo, è indistinguibile da
+un cablaggio rotto.
+
+La guardia headless è
+[`tests/cases/test_cricche_corpo.gd`](tests/cases/test_cricche_corpo.gd):
+corpi `Visitor` VERI col rig di `ChibiBuilder` e l'usciere VERO (niente doppi
+che ri-implementano quel che si prova — la lezione del `Corpo` di
+`test_deduzioni`), **31 mutazioni plausibili una per volta, tutte rosse**.
+Cinque sono sopravvissute alla prima stesura, e ognuna era un buco vero: la
+soglia del passo presa sul filo, la valvola di chi apre isolata da quella di
+chi risponde, la guardia ridondante, e i due tetti che il gettone stava
+coprendo.
+
 ## REGOLA: i sogni — sognare è ciò che salva un ricordo
 
 Nel proprio letto, «E — vai a dormire»: lo schermo si chiude e **prima del
