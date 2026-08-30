@@ -8,6 +8,9 @@ extends Node3D
 
 const MATH := preload("res://scenes/world/WorldMath.gd")
 const GEO := preload("res://scenes/world/WorldGeo.gd")
+## La sagoma delle farfalle: una fonte, due montaggi (i cinque rig
+## nominati qui, le novanta del MultiMesh in Ecosystem).
+const FARF := preload("res://scenes/world/FarfalleGeo.gd")
 const RIVER_SHADER := preload("res://shaders/river.gdshader")
 const WATERFALL_SHADER := preload("res://shaders/waterfall.gdshader")
 const GRASS_BLADE := preload("res://shaders/grass_blade.gdshader")
@@ -919,34 +922,38 @@ func _make_butterfly(kind_i: int) -> void:
 			flap = 12.0
 			wing_size = Vector2(0.12, 0.1)
 
+	# IL CORPO. Era una `CapsuleMesh` senza `radial_segments`, cioè il
+	# default di Godot: 64 × 8 ≈ MILLE TRENTA triangoli per un corpo di
+	# dodici millimetri — e con l'ombra accesa — contro quattro triangoli
+	# d'ala. Il budget c'era già, era speso al contrario.
 	var body := MeshInstance3D.new()
-	var cap := CapsuleMesh.new()
-	cap.radius = 0.012
-	cap.height = body_len
-	body.mesh = cap
-	body.rotation.x = PI * 0.5
+	body.mesh = FARF.corpo(body_len * 1.55)
 	body.material_override = GEO.paint_mat(Color("6a5a4a"), Color("4a3e33"), 8.0, 0.4)
 	b.add_child(body)
 
+	# LE ALI. Erano un QuadMesh col `soft_circle` tagliato ad
+	# `alpha_scissor 0.4` e UNSHADED: un pallino a bordo duro che il ciclo
+	# del giorno non tocca mai, una sola ala per lato e nessuna sagoma.
+	# Adesso sono anteriore + posteriore con l'intaglio in mezzo — è
+	# l'intaglio a far leggere «farfalla» — e sono MEMBRANE: col
+	# `translucency` acceso, al tramonto il sole ci passa dietro.
 	var wing_col: Color = CRIT.colore(kind)
+	# ⚠️ `noise_scale` è tarato su oggetti grandi metri: su un'ala di
+	# dieci centimetri il lavaggio non varia di niente e resta una tinta
+	# piatta. A 26 diventa la MACULATURA, e sta ferma sull'ala perché
+	# senza `use_world_noise` la trama è in spazio OGGETTO.
+	var wing_mat := GEO.paint_mat(wing_col, wing_col.darkened(0.42),
+			26.0, 0.58, 0.0, false, 0.50)
 	var wings: Array[Node3D] = []
 	for side: float in [-1.0, 1.0]:
 		var pivot := Node3D.new()
 		b.add_child(pivot)
-		var quad := QuadMesh.new()
-		quad.size = wing_size
-		var mat := StandardMaterial3D.new()
-		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
-		mat.alpha_scissor_threshold = 0.4
-		mat.albedo_texture = GEO.soft_circle(wing_col, 0.75)
-		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		quad.material = mat
 		var mi := MeshInstance3D.new()
-		mi.mesh = quad
-		mi.rotation.x = -PI * 0.5
-		mi.position = Vector3(side * (wing_size.x * 0.57), 0, 0)
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		# l'attacco sta nell'ORIGINE del perno: è così che `rotation.z`
+		# la fa ruotare dal punto giusto, ed è il contratto che
+		# `_farfalla_fidata` si aspetta per posarla sul naso di Mochi
+		mi.mesh = FARF.ali_lato(side, wing_size.x * 1.90, wing_size.y * 1.55)
+		mi.material_override = wing_mat
 		pivot.add_child(mi)
 		wings.append(pivot)
 
@@ -1146,7 +1153,7 @@ func _farfalla_fidata(b: Dictionary, delta: float) -> void:
 			if moto.length() > 0.001:
 				node.rotation.y = lerp_angle(node.rotation.y,
 						atan2(-moto.x, -moto.z), 1.0 - exp(-5.0 * delta))
-		flap = sin(_t * float(b.get("flap", 17.0)) + s) * 1.05
+		flap = FARF.battito(_t * float(b.get("flap", 17.0)) + s) * 1.05
 		node.rotation.x = lerpf(node.rotation.x, 0.0, 1.0 - exp(-6.0 * delta))
 	else:
 		b["posa_t"] = float(b.get("posa_t", 0.0)) + delta
@@ -3481,7 +3488,13 @@ func _process(delta: float) -> void:
 			var target := atan2(-vel.x, -vel.z)
 			node.rotation.y = lerp_angle(node.rotation.y, target, 1.0 - exp(-6.0 * delta))
 		# quando schiva, le alette battono più fitte: lo sforzo si vede
-		var flap := sin(_t * float(b.get("flap", 17.0)) + s) \
+		# ⚠️ NON `sin()`: la battuta è ASIMMETRICA — scende in fretta,
+		# risale piano, e in cima si ferma un istante. Un `sin()` puro ha
+		# salita e discesa identiche e nessuna pausa, e «si smaschera in
+		# due cicli». La legge sta in `FarfalleGeo.battito`, e ce n'è UNA
+		# in tutto il gioco: la stessa la trascrive il vertex shader
+		# delle novanta del MultiMesh.
+		var flap := FARF.battito(_t * float(b.get("flap", 17.0)) + s) \
 				* (0.85 + minf(dodge.length() * 0.5, 0.35))
 		(b["wing_l"] as Node3D).rotation.z = flap
 		(b["wing_r"] as Node3D).rotation.z = -flap

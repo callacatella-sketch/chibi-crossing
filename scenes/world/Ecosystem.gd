@@ -9,6 +9,10 @@ extends Node3D
 ## come giochi — e lo stato si salva nel JSON del villaggio.
 
 const BUTTERFLY_SHADER := preload("res://shaders/butterfly.gdshader")
+## La sagoma delle farfalle: una fonte, due montaggi.
+const FARF := preload("res://scenes/world/FarfalleGeo.gd")
+## Gli organi di un fiore: la stessa casa dei fiori del prato.
+const FIO := preload("res://scenes/world/FioriGeo.gd")
 const FIREFLY_SHADER := preload("res://shaders/firefly.gdshader")
 const WILDFLOWER_SHADER := preload("res://shaders/wildflower.gdshader")
 const TOON := preload("res://shaders/toon.gdshader")
@@ -144,22 +148,24 @@ func _ground_ok(pos: Vector3) -> bool:
 
 # ---------------------------------------------------------------- mesh
 
-# farfalla: due ali a quadrilatero, il battito lo fa il vertex shader
+# LA FARFALLA delle novanta: la SAGOMA la fa FarfalleGeo, la stessa che
+# monta i cinque rig nominati di CozyWorld — se divergessero, quella che
+# catturi nel retino non sarebbe quella che hai visto volare.
+#
+# ⚠️ Erano DUE QUADRILATERI: quattro triangoli in tutto, con
+# `set_normal(Vector3.UP)` su ogni vertice, e il torace era una BANDA
+# DIPINTA dal fragment. Adesso ci sono quattro ali con l'intaglio, un
+# corpo vero e le antenne — e il contratto col vertex shader viaggia nel
+# COLOR (a = ala, g = posteriore) invece che in una soglia su |x|.
+#
+# ⚠️ UNA SUPERFICIE SOLA, e non è un vezzo: `_butterfly_mat` cattura il
+# materiale della SUPERFICIE 0, e con due superfici il ritinto stagionale
+# si spegnerebbe in silenzio.
 func _butterfly_mesh() -> ArrayMesh:
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for side: float in [-1.0, 1.0]:
-		var quad: Array[Vector3] = [
-			Vector3(side * 0.01, 0, 0.055), Vector3(side * 0.105, 0, 0.075),
-			Vector3(side * 0.115, 0, -0.055), Vector3(side * 0.01, 0, -0.045),
-		]
-		var order := [0, 1, 2, 0, 2, 3] if side > 0.0 else [0, 2, 1, 0, 3, 2]
-		for k in order:
-			st.set_normal(Vector3.UP)
-			st.add_vertex(quad[k])
-	var mesh := st.commit()
+	var mesh := FARF.piatta(0.230, 0.168)
 	var mat := ShaderMaterial.new()
 	mat.shader = BUTTERFLY_SHADER
+	mat.set_shader_parameter("raggio_torace", FARF.RAGGIO_TORACE)
 	mesh.surface_set_material(0, mat)
 	_butterfly_mat = mat
 	return mesh
@@ -176,39 +182,73 @@ func _firefly_mesh() -> QuadMesh:
 	return quad
 
 
-# fiore selvatico: gambo a croce, cinque petali e il cuoricino giallo.
-# Il gambo ha COLOR.a = 0 (resta verde), i petali 1 (prendono la tinta).
+# IL FIORE SELVATICO nato dall'impollinazione. È il fiore più numeroso
+# del prato (fino a 380 istanze) ed era anche il più squadrato del
+# gioco: gambo = DUE LAME INCROCIATE, cinque petali = UN quadrilatero
+# ciascuno, cuore = un QUADRATO orizzontale di 5.6 cm — sedici triangoli
+# in tutto, e ogni vertice con `set_normal(Vector3.UP)`, cioè la luce ci
+# cadeva sopra costante, senza nessun volume.
+#
+# Adesso usa gli stessi organi dei fiori del prato ([FioriGeo]).
+#
+# ⚠️ TRE COSE CHE NON SI TOCCANO, e ognuna si romperebbe in silenzio:
+#  1. `COLOR.a` resta la maschera petalo/verde — `wildflower.gdshader` fa
+#     `mix(vcol.rgb, petal, vcol.a)`, e con la maschera storta i petali
+#     diventano verdi;
+#  2. le tinte restano QUATTRO: `kind` 0..3 è PERSISTITO nel village.json
+#     e riletto con un CLAMP(0,3), quindi tre tinte ricolorerebbero i
+#     salvataggi vecchi;
+#  3. UNA superficie sola: `_wildflower_mat` cattura il materiale della
+#     SUPERFICIE 0, e con due superfici il ritinto stagionale si spegne.
 func _flower_mesh() -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var stem := Color(0.45, 0.62, 0.34, 0.0)
+	# la maschera: `a` = 1 prende la tinta della specie, 0 resta verde.
+	# `rgb` è il colore di chi NON prende la tinta.
+	var stem := Color(0.42, 0.60, 0.32, 0.0)
 	var petal := Color(1, 1, 1, 1.0)
-	var heart := Color(0.98, 0.85, 0.4, 0.0)
+	var heart := Color(0.98, 0.82, 0.36, 0.0)
 
-	var add_quad := func(a: Vector3, b: Vector3, c: Vector3, d: Vector3, col: Color):
-		for v in [a, b, c, a, c, d]:
-			st.set_color(col)
-			st.set_normal(Vector3.UP)
-			st.add_vertex(v)
-
-	# gambo: due lame incrociate
-	for a in [0.0, PI * 0.5]:
-		var dir := Vector3(cos(a) * 0.016, 0, sin(a) * 0.016)
-		add_quad.call(-dir, dir, dir + Vector3(0, 0.24, 0), -dir + Vector3(0, 0.24, 0), stem)
-	# petali: cinque quadretti inclinati a corolla
+	var cima := Vector3(0, 0.235, 0)
+	FIO.stelo_su(st, Transform3D.IDENTITY,
+			[Vector3.ZERO, Vector3(0.004, 0.11, -0.006), cima],
+			[0.0040, 0.0031, 0.0025], 4, 4, FIO.VERDE)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5150
+	for i in 2:
+		var a := 1.1 + float(i) * PI + rng.randf_range(-0.3, 0.3)
+		FIO.lamina_su(st, Transform3D(
+				Basis(Vector3.UP, -a) * Basis(Vector3.BACK, 0.36),
+				Vector3(cos(a) * 0.004, 0.030, sin(a) * 0.004)),
+				FIO.contorno_lancia(0.040, 0.0135, 4, 0.06), 1.9, 0.16,
+				FIO.VERDE)
+	var opz := {"incisione": 0.14, "arco": 0.24, "caduta": 0.18,
+			"conca": 0.58, "torsione": 0.14, "ventre": 0.10,
+			"apertura": 0.72, "punta": 0.75, "spessore": 0.00040}
 	for i in 5:
-		var a := float(i) / 5.0 * TAU
-		var out := Vector3(cos(a), 0, sin(a))
-		var side := Vector3(-sin(a), 0, cos(a)) * 0.035
-		var base := out * 0.02 + Vector3(0, 0.24, 0)
-		var tip := out * 0.085 + Vector3(0, 0.275, 0)
-		add_quad.call(base - side, base + side, tip + side * 0.6, tip - side * 0.6, petal)
-	# il cuoricino
-	var hs := 0.028
-	add_quad.call(Vector3(-hs, 0.252, -hs), Vector3(hs, 0.252, -hs),
-			Vector3(hs, 0.252, hs), Vector3(-hs, 0.252, hs), heart)
+		var a := float(i) / 5.0 * TAU + rng.randf_range(-0.10, 0.10)
+		var o2 := opz.duplicate()
+		o2["caduta"] = 0.18 + rng.randf_range(-0.07, 0.07)
+		FIO.petalo_su(st, Transform3D(
+				Basis(Vector3.UP, -a)
+				* Basis(Vector3.BACK, -0.18 + rng.randf_range(-0.10, 0.10)),
+				cima + Vector3(cos(a) * 0.0075, 0.0015, sin(a) * 0.0075)),
+				0.0345, 0.0105, 3, 2, o2, rng.randf(), FIO.PETALO)
+	FIO.cupola_su(st, Transform3D(Basis.IDENTITY, cima + Vector3(0, 0.0018, 0)),
+			0.0125, 0.0068, 8, 3, 0.12, 0.24, FIO.CUORE)
 
-	var mesh := st.commit()
+	# ⚠️ La maschera d'organo di FioriGeo (r petalo · g cuore · b verde)
+	# NON è quella di questo shader (`a` = prende la tinta): si traduce
+	# qui, una volta, invece di dare a `wildflower` una seconda
+	# convenzione da tenere allineata.
+	var arr := st.commit_to_arrays()
+	var col: PackedColorArray = arr[Mesh.ARRAY_COLOR]
+	for k in col.size():
+		var c := col[k]
+		col[k] = petal if c.r > 0.5 else (heart if c.g > 0.5 else stem)
+	arr[Mesh.ARRAY_COLOR] = col
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
 	var mat := ShaderMaterial.new()
 	mat.shader = WILDFLOWER_SHADER
 	mat.set_shader_parameter("tint_a", Color("fff7ea"))
