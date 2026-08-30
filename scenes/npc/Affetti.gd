@@ -79,19 +79,60 @@ const GIORNI_RIPETIZIONE := 7
 ## qualcuno pesa più che mangiarci insieme.
 const GESTI := {
 	"chiacchiera": 0.05,        # passare del tempo vicini
-	"falo": 0.08,               # la stessa sera, lo stesso fuoco
 	"salone": 0.30,             # l'ha visto diventare un altro
 	"fianco": 0.35,             # ha attraversato il villaggio per stargli accanto
 	"musica": 0.40,             # seduti al buio ad ascoltare
-	"promessa": 0.60,           # si è fatto trovare
 	"piatto": 0.70,             # ha diviso quello che aveva
 	"veglia": 0.80,             # gli ha tenuto accesa una luce
-	"posto": 0.90,              # si sono trovati senza dirselo
 	"consolazione": 1.00,       # c'era, il giorno del lutto
 	"coraggio": 1.20,           # ci è andato per primo
 	"nascita": 2.00,            # hanno fatto una vita
-	"mancanza": -0.50,          # aveva promesso, e non è venuto
 }
+
+## ⚠️ QUATTRO VOCI TOLTE, E LA RAGIONE VALE PIÙ DELLA TABELLA.
+## Fino al 2026-08-10 qui dentro c'erano anche `falo` 0.08, `promessa` 0.60,
+## `posto` 0.90 e `mancanza` −0.50. **Non le emetteva NESSUNO**, e non è una
+## dimenticanza recente: cercando in TUTTA la storia del repository non
+## esiste un solo commit in cui una di quelle quattro sia mai stata passata
+## a `gesto()`. Erano scritte a tavolino prima che il gioco esistesse, e
+## ognuna delle quattro, esaminata, non poteva esistere:
+##
+## `posto` e `promessa` erano COPIE. Le stesse identiche parole vivono già
+## in `Legami.TIPI` — «quel posto dove ci si trovava senza dirselo», «quella
+## volta che ti ho aspettato, e sei venuto» — ma là il soggetto è il
+## GIOCATORE, che è il libro giusto: le promesse sono fra un vicino e Mochi
+## (`Promesse._prova_incontro` esce se il giocatore non è lì), e questo
+## libro mastro «lega i vicini FRA LORO». Due tabelle, la stessa chiave, due
+## significati: è la fonte doppia che questo progetto vieta. E per `posto`
+## c'è un divieto scritto a mano da un altro file: `Cricche.gd` dice «**E non
+## va in `Affetti._righe`**… una riga di co-presenza lì dentro cambierebbe
+## `conto()`, quindi `il_piu_caro()`, quindi `coppia()`». MISURATO: due
+## duetti a una settimana l'uno dall'altro — ventotto minuti reali, due
+## Punti muti — bastavano a fabbricare una coppia (2.67 contro 2.40).
+##
+## `mancanza` era l'unico peso negativo, e faceva tre danni che nessuno si
+## aspettava. `gesti_veri()` conta con `absf`, quindi **tre delusioni
+## valevano tre gesti VERI** e passavano da sole il cancello che esiste per
+## dimostrare che fra due c'è qualcosa; `pota()` non la buttava mai (stesso
+## `absf`), quindi un rimprovero restava finché restava il villaggio; e nove
+## a settimana scioglievano una coppia viva col calendario invece che coi
+## gesti — la macchina del divorzio che la regola 3 vieta. Più la ragione
+## che basta da sola: è la riga «tradimento» che la regola 5 giura di non
+## avere. La delusione una casa ce l'ha già, ed è `Limbico`: là decade, là
+## si estingue, e là la chiave a forma di giocatore esiste.
+##
+## `falo` era `_gesto_verso_tutti` al quadrato. Al fuoco i posti li assegna
+## l'ordine di trasloco, non l'affetto — il commit che ha tolto il falò
+## dalle cricche l'ha già misurato — e in Affetti non c'è nessun cancello a
+## fermarlo: 756 righe a sera con ventotto residenti contro un tetto di 420,
+## novantamila a regime, e `le_coppie()` (che gira una volta per giornata di
+## gioco, cioè ogni quattro minuti reali) da 233 ms a **55 secondi**.
+##
+## TOGLIERLE NON HA RICHIESTO NESSUNA MIGRAZIONE, ed è per costruzione:
+## `gesto()` rifiuta i tipi che non sono in tabella, e i tre lettori dei
+## pesi chiedono `GESTI.get(tipo, 0.0)` — un tipo sconosciuto pesa zero e
+## viene saltato. Un salvataggio che ne contenesse (non può: nessuno le ha
+## mai scritte) si aprirebbe uguale.
 
 ## Quanti momenti col GIOCATORE servono per richiudere ogni ferita. È la
 ## chiave a forma di giocatore, e non è un ornamento: nessuna ferita che

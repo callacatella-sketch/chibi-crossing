@@ -53,8 +53,34 @@ func _test_la_scala_dei_gesti(t) -> void:
 			% [AFF.GESTI["coraggio"], AFF.GESTI["chiacchiera"]])
 	t.ok(float(AFF.GESTI["nascita"]) == 2.0,
 			"e fare una vita insieme è il gesto più grande della tabella")
-	t.ok(float(AFF.GESTI["mancanza"]) < 0.0,
-			"una promessa mancata TOGLIE: il libro mastro sa anche sottrarre")
+	# OGNI VOCE DI QUESTA TABELLA HA UN EMETTITORE, e il lucchetto è
+	# l'elenco esatto. Fino al 2026-08-10 ce n'erano quattro che non emetteva
+	# nessuno — mai, in tutta la storia del repository — e una di loro
+	# (`mancanza`, l'unico peso negativo) era sorvegliata proprio qui da un
+	# `t.ok(GESTI["mancanza"] < 0.0)`: un'asserzione su una costante che
+	# nessuno legge, incapace di fallire, che descriveva un comportamento
+	# inesistente. Il perché di ognuna sta in `Affetti.gd`, sotto la tabella.
+	#
+	# ⚠️ E QUESTO LUCCHETTO SA COSA NON PROVA: chiude l'INSIEME delle chiavi,
+	# non dimostra che vengano emesse. La guardia che l'avrebbe dimostrato —
+	# cercare ogni tipo nei sorgenti — è stata provata e BUTTATA, perché
+	# MISURATA non discrimina: `posto` compare quotato diciotto volte fuori
+	# da Affetti (una perfino in una riga con la parola «gesto») e sarebbe
+	# passato da morto, mentre `salone` e `musica`, che sono emessi davvero,
+	# risultavano mancanti perché le loro chiamate stanno su più righe.
+	# Falsi verdi e falsi rossi insieme: una guardia così è peggio di
+	# nessuna, perché si legge come una prova.
+	var attesi := ["chiacchiera", "salone", "fianco", "musica", "piatto",
+			"veglia", "consolazione", "coraggio", "nascita"]
+	var chiavi: Array = AFF.GESTI.keys()
+	chiavi.sort()
+	attesi.sort()
+	t.eq(str(chiavi), str(attesi),
+			"la tabella ha esattamente i nove tipi che qualcuno emette davvero")
+	for k in AFF.GESTI:
+		t.ok(float(AFF.GESTI[k]) > 0.0,
+				"'%s' pesa in positivo: il libro mastro elenca cose successe,"
+				% k + " non colpe (un peso negativo sarebbe una riga «tradimento»)")
 	# ogni peso è dichiarato una volta sola
 	var visti := {}
 	for k in AFF.GESTI:
