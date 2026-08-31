@@ -146,7 +146,20 @@ void light() {
 	vec3 n = normalize(NORMAL);
 	vec3 l = normalize(LIGHT);
 	vec3 v = normalize(VIEW);
-	float lit = smoothstep(0.03, 0.42, dot(n, l) * ATTENUATION);
+	// L'OMBRA SPEGNE IL GRADINO, NON LO SPOSTA. Moltiplicare ATTENUATION
+	// DENTRO lo smoothstep rende la soglia del toon dipendente dall'ombra:
+	// col sole alto una parete verticale sta gia' a dot ~0.50, cioe' a un
+	// soffio da 0.42, e in penombra ci cade sotto e diventa NERA di colpo,
+	// mentre una faccia rivolta al cielo (dot ~0.95) resta PIENA. Il
+	// confine smette di seguire l'ombra e si incolla allo spigolo dove
+	// cambia la pendenza: e' cosi' che il piede degli alberi si vestiva di
+	// una gonna vermiglia col bordo netto (MISURATO: il fusto all'ombra
+	// della propria chioma stava a #402f34, il piede fuori dall'ombra a
+	// #91493e — e il vermiglio era il colore GIUSTO della corteccia al
+	// sole, comparso pero' solo li', come una toppa).
+	// Il pieno sole e l'ombra piena non cambiano di un bit: cambia solo la
+	// PENOMBRA, che era un interruttore e adesso e' un gradiente.
+	float lit = smoothstep(0.03, 0.42, dot(n, l)) * ATTENUATION;
 	DIFFUSE_LIGHT += ALBEDO * LIGHT_COLOR / PI * lit;
 
 	// rim DIREZIONALE: il bordo si accende solo sul lato della luce,
