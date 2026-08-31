@@ -598,7 +598,11 @@ func _materialize_forest() -> void:
 	if not _cozy.take_forest_tree(got["key"], got["index"]):
 		return
 	var pos: Vector3 = got["pos"]
-	var node: Node3D = _cozy.plant_tree(pos, float(got["scale"]) * 0.9, int(pos.x * 31.0 + pos.z * 17.0))
+	# LA SPECIE VIAGGIA CON LO SCAMBIO: `nearest_forest_tree` la sa gia'
+	# ("pine" o "broad"), e senza passarla ogni conifera del bosco diventava
+	# una latifoglia tonda appena Mochi le arrivava a cinque metri.
+	var node: Node3D = _cozy.plant_tree(pos, float(got["scale"]) * 0.9,
+			int(pos.x * 31.0 + pos.z * 17.0), str(got.get("kind", "broad")))
 	if node == null:
 		return
 	var t := _adopt(node)

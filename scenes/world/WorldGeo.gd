@@ -385,7 +385,21 @@ static func leaf_target(c: Color, klass: String, season: int) -> Color:
 			if klass == "needle":
 				return Color.from_hsv(fposmod(c.h - 0.01, 1.0), c.s * 0.95, c.v * 0.97)
 			if klass == "cherry":
-				return Color.from_hsv(lerpf(0.98, 0.07, clampf(c.v, 0.0, 1.0)), 0.55,
+				# ⚠️ LA TINTA E' UN CERCHIO, E QUI SI FACEVA IL GIRO LUNGO.
+				# L'intento e' scritto due righe sopra — «oro, rame,
+				# cremisi» — cioe' cremisi (0.98) per gli strati scuri e
+				# oro (0.07) per quelli chiari: sono NOVE CENTESIMI di
+				# ruota passando per lo zero. Interpolando da 0.98 a 0.07
+				# in linea retta se ne percorrono NOVANTUNO, dalla parte
+				# sbagliata: si attraversa il blu (0.6), il ciano (0.5) e
+				# il VERDE (0.3). MISURATO sul ciliegio vero: lo strato
+				# scuro (v = 0.749) usciva a tinta 0.298, cioe' `#6ec257`
+				# — un ciliegio d'autunno con la gonna d'ombra VERDE
+				# addosso, sotto due strati arancioni.
+				# Il file lo sapeva gia': le conifere, qui sotto, girano
+				# con `fposmod`. Questa riga se l'era dimenticato.
+				return Color.from_hsv(fposmod(lerpf(-0.02, 0.07,
+						clampf(c.v, 0.0, 1.0)), 1.0), 0.55,
 						clampf(c.v * 0.95 + 0.05, 0.0, 1.0))
 			return Color.from_hsv(lerpf(0.03, 0.10, clampf(c.v, 0.0, 1.0)), 0.72,
 					clampf(c.v * 1.02 + 0.05, 0.0, 1.0))
