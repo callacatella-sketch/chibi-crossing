@@ -1553,18 +1553,56 @@ func _build_forest_undergrowth(rng: RandomNumberGenerator) -> void:
 		fern_tf.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), _forest_spot(rng)))
 	_scatter_exact(fern, fern_tf, false)
 
-	# rocce muschiose
+	# ROCCE MUSCHIOSE, e sono la stessa pietra dei sassi del prato — la
+	# tecnica sta scritta la' sopra e qui era rimasta fuori:
+	#  · il centro AFFONDA sotto lo zero, cosi' il suolo taglia il bordo
+	#    d'appoggio invece di lasciarlo in vista (un masso appoggiato sul
+	#    prato si vede che e' appoggiato);
+	#  · `puff_mesh` e non `sphere_mesh`: una pietra non e' un ellissoide
+	#    liscio, e il cel-shading su una sfera perfetta fa bande regolari.
+	# ⚠️ E IL MUSCHIO NON E' UNA PALLA VERDE APPOGGIATA SOPRA. Prima era una
+	# sfera piena che spuntava dal fianco del sasso: l'intersezione fra due
+	# solidi e' una curva NETTA, e si leggeva come una placca di vernice
+	# verde con lo spigolo poligonale. Adesso e' una CROSTA — bassa, larga,
+	# schiacciata — che sta sulla CALOTTA e segue il sasso: il suo bordo e'
+	# la sua stessa silhouette morbida, non un taglio.
+	# ⚠️ E d'inverno prendeva la neve un decimo di quanto la prendesse il
+	# sasso: il mondo era tutto bianco e li' in mezzo restava una macchia di
+	# verde saturo. Il manto dello shader si posa sulle facce rivolte al
+	# CIELO (`v_up`), e una crosta piatta ne ha molte piu' di una palla che
+	# sporge di fianco — adesso si imbianca insieme alla pietra.
 	var rock_gray := GEO.paint_mat(Color("8f9088"), Color("74786f"), 2.0, 0.5)
-	var moss := GEO.paint_mat(Color("6a9a5a"), Color("55804a"), 3.0, 0.5)
+	# il muschio e' spento e un filo grigio: il verde acceso di prima
+	# gridava piu' dell'erba vera che gli sta intorno
+	var moss := GEO.paint_mat(Color("6f8f60"), Color("5a7850"), 3.0, 0.45)
 	var rock := GEO.merge([
-		[GEO.sphere_mesh(0.5, 10), Transform3D(Basis.IDENTITY.scaled(Vector3(1, 0.62, 0.85)), Vector3(0, 0.2, 0)), rock_gray],
-		[GEO.sphere_mesh(0.32, 8), Transform3D(Basis.IDENTITY.scaled(Vector3(1, 0.55, 0.9)), Vector3(0.42, 0.12, 0.18)), rock_gray],
-		[GEO.sphere_mesh(0.3, 8), Transform3D(Basis.IDENTITY.scaled(Vector3(1, 0.4, 1)), Vector3(0, 0.4, -0.04)), moss],
+		[GEO.puff_mesh(0.5, 41, 0.62, 0.13, 12, 7),
+				Transform3D(Basis.IDENTITY.scaled(Vector3(1, 1, 0.85)),
+				Vector3(0, 0.12, 0)), rock_gray],
+		[GEO.puff_mesh(0.32, 77, 0.58, 0.15, 10, 6),
+				Transform3D(Basis.IDENTITY.scaled(Vector3(1, 1, 0.9)),
+				Vector3(0.42, 0.02, 0.18)), rock_gray],
+		# LE QUOTE NON SONO A OCCHIO: la calotta della pietra sta a
+		# 0.12 + 0.5*0.62 = 0.43, e una crosta alta 0.42*0.26 = 0.11
+		# centrata a 0.37 ne emerge per quattro centimetri. Piu' in basso
+		# sparisce DENTRO il sasso (provato: a 0.29 non si vedeva
+		# affatto), piu' in alto torna la palla appoggiata di prima.
+		# E sono DUE, sbilenche: una crosta sola esce con un bordo a
+		# ellisse pulita e si legge come un coperchio verde. Il muschio
+		# cresce a chiazze — due macchie di grandezza diversa, spostate
+		# dal centro, con `lump` alto perche' il bordo sia frastagliato.
+		[GEO.puff_mesh(0.26, 113, 0.42, 0.30, 12, 6),
+				Transform3D(Basis.IDENTITY, Vector3(-0.09, 0.37, -0.06)), moss],
+		[GEO.puff_mesh(0.17, 149, 0.46, 0.34, 10, 5),
+				Transform3D(Basis.IDENTITY, Vector3(0.16, 0.35, 0.11)), moss],
 	])
 	var rock_tf: Array[Transform3D] = []
 	for i in 36:
 		var s := rng.randf_range(0.5, 1.3)
 		var rp := _forest_spot(rng, 1.1)
+		# affiora, non sta appoggiato: quanto piu' e' grosso tanto piu' e'
+		# sepolto (la stessa regola dei sassi del prato)
+		rp.y = -0.09 * s - rng.randf_range(0.0, 0.04)
 		rock_tf.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), rp))
 		# il masso occupa terreno: chi cerca dove piantare un albero deve saperlo
 		_rock_spots.append(Vector3(rp.x, s, rp.z))   # y = raggio del masso
