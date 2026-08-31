@@ -1193,6 +1193,134 @@ res://tools/provino_rastrelliere.gd` (una, due, tre miste, quattro) e con
 piedi a slitta: **due** su una fila di tre, **quattro** dopo aver tolto
 quella di mezzo.
 
+## L'ATELIER — il builder che si può GUARDARE, non solo scorrere
+
+Con centotrentasette pezzi a catalogo, la vecchia barra del builder era una
+fila di nomi che non ci stavano: si sceglieva leggendo, e per sapere che
+faccia avesse un pezzo bisognava posarlo. L'Atelier
+([`BuildSystem._costruisci_pannello`](scenes/build/BuildSystem.gd)) ha tre
+zone, e ognuna risponde a una domanda diversa:
+
+| zona | risponde a | dove |
+|---|---|---|
+| **la colonna** | *quanto mi manca, e di che famiglia?* | le viste + il conto per categoria |
+| **la griglia** | *che cosa È questo pezzo?* | le carte col RITRATTO, [`Miniature.gd`](scenes/build/Miniature.gd) |
+| **il taccuino** | *e adesso?* | [`Consigli.gd`](scenes/build/Consigli.gd) |
+
+`/` cerca per nome (italiano **e** tradotto), `1-9` e la rotella scelgono,
+`Tab` richiude il pannello lasciando in mano il pezzo, `★ Recenti` si
+riempie **al momento di POSARE** e non al momento di scegliere — sfogliare
+il catalogo non è usarlo.
+
+### IL RITRATTO SI FA IN CASA, e costa due fotogrammi a testa
+
+Il catalogo è geometria **procedurale**: non esiste nessuna immagine da
+caricare, esiste una funzione che costruisce un `Node3D`. `Miniature.gd` è
+lo studio fotografico che la trasforma in un ritratto — un `SubViewport`
+con un mondo suo, tre luci, un disco d'ombra morbida, e la stessa
+inquadratura del catalogo visivo (l'ingombro VERO delle mesh, e la camera
+arretra quanto chiedono gli otto spigoli: una camera fissa lascia il fungo
+in un puntino e il campanile fuori campo).
+
+**Un ritratto costa DUE `await` strutturali** — uno perché le mesh esistano
+davvero (l'ingombro si MISURA, e misurare un albero che non c'è ancora dà
+una scatola vuota), uno perché il viewport disegni. Non è tempo di CPU: è
+latenza. Servendone uno per volta, la griglia si riempie alla velocità del
+**frame rate**, non a quella della macchina.
+
+MISURATO nel MainLevel vero (Arredo, 30 ritratti, ogni corsa col proprio
+fotogramma a riposo come termine di paragone):
+
+| studi | la griglia è piena dopo | fotogramma mentre dipinge | il PEGGIORE |
+|---|---|---|---|
+| 1 | **2954 ms** | +9,7 ms | 87,9 ms |
+| 4 | **921 ms** | +19,9 ms | 86,3 ms |
+
+**Il fotogramma peggiore non cambia**: lo fa un singolo builder pesante,
+non la concorrenza. Quello che cambia è il transitorio di carte bianche,
+da tre secondi a meno di uno — ed è l'unica delle due cose che il giocatore
+vede. Ogni studio ha un mondo suo (due pezzi nello stesso mondo si
+fotograferebbero a vicenda), il ritratto finito resta in cache per tutta la
+sessione, e **in `--headless` lo studio nasce spento e non alloca niente**:
+la suite non paga nulla.
+
+### IL TACCUINO NON INVENTA NIENTE
+
+Ogni riga nasce da un dato che il gioco possiede già — un letto senza
+tetto (`BuildSystem.has_cover`), un corredo che si sta popolando
+(`Economy.CORREDO`), il borsellino contro il listino. **Se non lo si può
+derivare, non si scrive**: un consiglio inventato non è un aiuto più
+debole, è una UI che smette di meritare fiducia, e da lì non si torna
+indietro. E il tono viene dalla REGOLA SACRA: non mette fretta («del
+corredo del bar hai posato nove pezzi», mai «te ne mancano cinque»), non
+nomina nessun vicino, non mette i pezzi in classifica — e **il silenzio è
+un esito**: un villaggio appena nato ha una riga sola, e va bene così.
+
+### LE TRAPPOLE GIÀ PAGATE
+
+1. **UN `SCRIPT ERROR` PER FOTOGRAMMA, CON LA SUITE VERDE.** `_mappa_celle`
+   confronta il layer con `"edge"`, ma il ciclo dei layer è
+   `[0, 1, 2, 3, "edge"]` e GDScript tipizza la variabile del `for` come
+   **int** sul primo elemento: il confronto con una `String` è un errore a
+   runtime, e girava dentro `_process`. Si scrive `str(layer) == "edge"`.
+   È la lezione del capitolo «Test» applicata alla UI: un errore a runtime
+   **non fa fallire niente**, interrompe la funzione e basta.
+2. **LA CODA SI PROSCIUGA DA SOLA.** `_chiedi_visibili()` mette in coda
+   solo le carte dentro la finestra dello scroll — ma all'apertura il
+   layout della griglia **non è ancora calcolato**, quindi vede la finestra
+   sbagliata e ne accoda una riga. Misurato: `n: 10` su 31, con la seconda
+   riga bianca per sempre. La cura è che la coda **si rialimenti a ogni
+   ritratto che arriva** (`_su_miniatura`), e non cicla perché
+   `_carte_attesa.erase()` avviene sempre: se non arriva niente, non gira
+   niente. Dopo: `n: 31, in_coda: 0`.
+   ⚠️ E la prima diagnosi era sbagliata: avevo dato la colpa allo studio
+   singolo e costruito il pool, che **da solo non cambiò un bit** (`n: 10`
+   identico). È il pool ad aver dimostrato dov'era il difetto, non il
+   contrario — e il numero che lo dice è `n`, non i millisecondi.
+3. **`clip_text` TOGLIE IL TESTO DALLA DIMENSIONE MINIMA.** In `_pillola`
+   c'era `clip_text = true`: dentro un contenitore che si restringe
+   (`SHRINK_BEGIN`, o una riga in alto a destra) il bottone collassa sui
+   soli margini, e in partita uscivano **tre cerchietti bianchi vuoti** —
+   i due strumenti dell'intestazione e il pezzo consigliato dal taccuino.
+   Chi ha un testo lungo lo clippa da sé.
+4. **UN NOME CENTRATO CON `clip_text` SI TAGLIA DA TUTTE E DUE LE PARTI.**
+   «Lampada semplice» usciva «.ampada semplice». Le etichette delle carte
+   vanno **su due righe** (`AUTOWRAP_WORD_SMART` + `max_lines_visible = 2`)
+   con `OVERRUN_TRIM_ELLIPSIS` come ultima rete.
+5. **Le celle di riempimento della griglia devono avere una LARGHEZZA.**
+   Un `Control` vuoto largo zero in un `GridContainer` sfalsa le colonne, e
+   l'intestazione di una sezione finisce di fianco a un bottone.
+
+### Come si guarda
+
+```
+CHIBI_ATELIER=<dir> ~/Downloads/Godot.app/Contents/MacOS/Godot --path . \
+    --resolution 1920x1080 --script res://tools/provino_atelier.gd
+~/Downloads/Godot.app/Contents/MacOS/Godot --path . --resolution 1920x1080 \
+    --script res://tools/misura_atelier.gd
+```
+
+⚠️ **Nessuno dei due in `--headless`**: senza schermo lo studio nasce
+spento, e il provino fotograferebbe la propria assenza. Il primo scatta tre
+istanti (subito · 2 s · 6 s) e stampa le misure — **se la terza tessera ha
+ancora una carta bianca, la catena si è interrotta**, ed è il modo in cui
+questa UI si rompe senza che una sola asserzione se ne accorga. Il secondo
+è il metro: quando la griglia è piena, e quanto pesa il fotogramma mentre
+dipinge. ⚠️ Si confrontano gli **scarti dal proprio riposo**, mai i
+millisecondi nudi: due corse dello stesso codice, in questa serie, sono
+uscite col riposo a 38,6 e a 40,65 ms.
+
+### I RESIDUI, dichiarati
+
+- **Nessuna guardia headless copre la griglia.** I quattro difetti qui
+  sopra sono stati trovati tutti **guardando**, e nessuno di loro poteva
+  far fallire un test: tre erano di layout e uno era un errore a runtime.
+  Un banco che apra il pannello vero e conti le carte ancora vestite di
+  niente è la cosa che manca.
+- **Il costo con centotrentasette pezzi sbloccati non è misurato**: la
+  corsa è su Arredo (31 carte visibili). La coda chiede solo ciò che si
+  guarda, quindi non dovrebbe cambiare — ma «non dovrebbe» non è un numero.
+
 ## I VARCHI e i PIANI: il villaggio come grafo, e l'IA che cambia idea
 
 Un vicino che ha fame va al cespuglio. Se il giocatore **chiude il

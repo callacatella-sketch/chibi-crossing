@@ -445,6 +445,50 @@ const T := {
 	"%d pezzi": "%d pieces",
 	"B esci  ·  / cerca  ·  rotella / 1-9 scegli  ·  R ruota  ·  V piano su/giù  ·  F ruota piazzato  ·  clic piazza  ·  X rimuovi":
 			"B exit  ·  / search  ·  wheel / 1-9 pick  ·  R rotate  ·  V floor up/down  ·  F turn placed  ·  click to place  ·  X remove",
+	# ------------------------------------------------------- L'ATELIER
+	# Il banco dei pezzi è diventato uno studio: a sinistra le categorie e
+	# i corredi, al centro i ritratti dei pezzi, a destra il taccuino che
+	# dice quello che il villaggio ha visto. «Atelier» resta com'è: in
+	# inglese vuol dire la stessa cosa (lo studio di chi fa le cose a
+	# mano) ed è il NOME del posto, non la sua descrizione.
+	"L'Atelier": "The Atelier",
+	"Il catalogo": "The catalogue",
+	"Tutto il catalogo": "The whole catalogue",
+	"I corredi": "The sets",
+	"Il taccuino": "The notebook",
+	"cerca un pezzo…": "search for a piece…",
+	"Tab — richiudi": "Tab — fold away",
+	"Tab — apri": "Tab — open up",
+	"Tab — apri l'Atelier": "Tab — open the Atelier",
+	# la carta di un pezzo che porterà un Ordine del Gufo: il nome non si
+	# dice (la rivelazione è il premio), e sotto il punto interrogativo
+	# c'è solo una promessa di tempo
+	"un giorno": "one day",
+	# il nastrino sulla carta di un compagno di corredo: UNA parola, o non
+	# ci sta (il nome del capo può essere lungo il doppio della carta)
+	"corredo": "set",
+	"clic posa  ·  R gira  ·  V piano  ·  F gira un pezzo posato  ·  X toglie  ·  rotella e 1-9 scelgono  ·  / cerca  ·  Tab richiude  ·  B esce":
+			"click to place  ·  R turns  ·  V storey  ·  F turns a placed piece  ·  X removes  ·  wheel and 1-9 choose  ·  / search  ·  Tab folds away  ·  B leaves",
+	# --- il taccuino: quello che il villaggio ha visto (Consigli.gd).
+	# Nessuna di queste frasi mette fretta e nessuna accusa nessuno: dicono
+	# cosa c'è, mai cosa manca. In inglese vale doppio — «you still need»
+	# sarebbe una lista di cose da fare, e questo è un gioco in cui si
+	# torna volentieri.
+	"Un letto dorme sotto le stelle. Un Tetto sulla sua cella, e qualcuno potrà abitarci.":
+			"A bed is sleeping under the stars. A Roof on its cell, and someone will be able to live there.",
+	"Ci sono %d letti che dormono sotto le stelle. Basta un Tetto sulla loro cella.":
+			"There are %d beds sleeping under the stars. A Roof on their cell is all it takes.",
+	"Del corredo di %s hai posato %d pezzi su %d. C'è anche %s, da qualche parte.":
+			"Of the %s set you have put down %d pieces out of %d. There is also %s, somewhere.",
+	"Vicino ai tuoi %s c'è quasi sempre %s.":
+			"Near your %s there is nearly always %s.",
+	"Hai da parte abbastanza per %s: %d %s.":
+			"You have enough put by for %s: %d %s.",
+	"Ancora %d %s e %s è tuo.": "Another %d %s and %s is yours.",
+	"%s ce l'hai da un po', e non l'hai mai posato nemmeno una volta.":
+			"You have had %s for a while, and you have never once put it down.",
+	"Qui non c'è ancora niente. Un Pavimento è un buon posto da cui cominciare.":
+			"There is nothing here yet. A Floor is a good place to begin.",
 	"Fioriera": "Planter",
 	# le tre sorelle della fioriera: cesto di vimini, cassa da bistrot,
 	# e quella che nessuno pota
