@@ -67,9 +67,13 @@ static func petalo_griglia(lung: float, largo: float, nu: int, nv: int,
 	var caduta: float = o.get("caduta", 0.26)
 	var conca: float = o.get("conca", 0.20)
 	var torsione: float = o.get("torsione", 0.10)
-	var ventre: float = o.get("ventre", 0.20)
-	var apertura: float = o.get("apertura", 0.62)
-	var punta: float = o.get("punta", 0.45)
+	# ⚠️ I VALORI DI SERIE SONO QUELLI DELLA MARGHERITA, e devono essere
+	# quelli BUONI: con `0.20 · 0.62 · 0.45` il seno diventa un plateau —
+	# la mezza larghezza va 0.79 → 1.00 → 0.75, cioè un rettangolo con la
+	# punta intaccata. Un nastro.
+	var ventre: float = o.get("ventre", 0.10)
+	var apertura: float = o.get("apertura", 0.72)
+	var punta: float = o.get("punta", 0.75)
 	var righe: Array = []
 	for iu in nu + 1:
 		var u := float(iu) / float(nu)

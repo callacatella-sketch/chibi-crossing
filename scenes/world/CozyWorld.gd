@@ -90,6 +90,20 @@ var _petal_fx: Array[GPUParticles3D] = []   # i petali dei ciliegi (solo primave
 var _forest_leaf_fx: GPUParticles3D      # le foglie che cadono nel bosco (autunno)
 var _forest_leaf_mat: StandardMaterial3D  # il loro colore, ridipinto per stagione
 var _flower_fields: Array[MultiMeshInstance3D] = []  # i campi di fiori (spariscono d'inverno)
+## cella -> [[indice del campo, indice dell'istanza], …] e, in parallelo
+## ai campi, le trasformate VERE. È l'idioma identico di
+## `_grass_cells`/`_grass_base`, e serve alla stessa cosa: accucciare i
+## fiori sotto un pavimento.
+##
+## ⚠️ E LE TRASFORMATE SI TENGONO QUI, non si rileggono dal MultiMesh:
+## `MultiMesh.get_instance_transform()` torna l'IDENTITÀ in `--headless`
+## (il renderer fittizio non conserva il buffer, mentre `set_` funziona
+## e con la finestra aperta il mondo si disegna giusto). Un indice
+## costruito rileggendo sarebbe rotto in ogni test headless, IN SILENZIO
+## e con la suite verde. Misurato: con la finestra le origini sono
+## quelle vere, in headless sono tutte (0, 0, 0).
+var _flower_cells := {}
+var _flower_base: Array = []
 var _snow_fx: GPUParticles3D             # la nevicata sul villaggio (inverno)
 var _meadow_leaf_fx: GPUParticles3D      # le foglie che volano sul prato (autunno)
 var _season_tw: Tween
@@ -213,6 +227,11 @@ func _ready() -> void:
 	# le particelle stagionali (neve e foglie al vento) e la prima veste:
 	# ora tutta la geometria esiste, i materiali sono raccolti, si può dipingere
 	_build_season_fx()
+	# IL SECCHIELLO dei fiori per cella si riempie a mondo FINITO: le
+	# margherite della scogliera e quelle della riva entrano in
+	# `_flower_fields` dopo la semina, e indicizzare prima le lascerebbe
+	# fuori — cioè le uniche che non si accuccerebbero, in silenzio.
+	_indicizza_fiori()
 	world_built.emit()
 	_init_season()
 	# le farfalle nascono DOPO la prima veste stagionale: il bestiario decide
@@ -393,25 +412,44 @@ func _build_grass() -> void:
 
 ## Sotto un pavimento o un tappeto l'erba si accuccia (il BuildSystem
 ## chiama qui a ogni piazzamento): nessun filo spunta dal parquet.
+##
+## ⚠️ E CON L'ERBA SI ACCUCCIANO I FIORI. Questa funzione toccava SOLO
+## `_grass_cells`: con centosessanta fiori sparsi su ventidue metri
+## capitava di rado e nessuno l'aveva vista; con mille capita a ogni
+## pezzo posato — margherite alte ventidue centimetri che spuntano dal
+## parquet, dentro le case, sotto i tappeti. La densità non ha creato il
+## difetto: l'ha reso visibile.
 func flatten_cell(cell: Vector2i) -> void:
-	if _grass_flat.has(cell) or not _grass_cells.has(cell):
+	if _grass_flat.has(cell):
 		return
 	_grass_flat[cell] = true
-	for i in (_grass_cells[cell] as PackedInt32Array):
-		var tf: Transform3D = _grass_base[i]
-		_grass_mm.set_instance_transform(i,
-				Transform3D(tf.basis.scaled(Vector3(1, 0.02, 1)), tf.origin))
+	if _grass_cells.has(cell):
+		for i in (_grass_cells[cell] as PackedInt32Array):
+			var tf: Transform3D = _grass_base[i]
+			_grass_mm.set_instance_transform(i,
+					Transform3D(tf.basis.scaled(Vector3(1, 0.02, 1)), tf.origin))
+	for v in _flower_cells.get(cell, []):
+		var c := int((v as Array)[0])
+		var idx: int = int((v as Array)[1])
+		var tf2: Transform3D = (_flower_base[c] as Array)[idx]
+		(_flower_fields[c] as MultiMeshInstance3D).multimesh \
+				.set_instance_transform(idx,
+				Transform3D(tf2.basis.scaled(Vector3(1, 0.02, 1)), tf2.origin))
 
 
-## E quando il pezzo viene rimosso, l'erba rinasce.
+## E quando il pezzo viene rimosso, l'erba rinasce. E i fiori con lei.
 func unflatten_cell(cell: Vector2i) -> void:
 	if not _grass_flat.has(cell):
 		return
 	_grass_flat.erase(cell)
-	if not _grass_cells.has(cell):
-		return
-	for i in (_grass_cells[cell] as PackedInt32Array):
-		_grass_mm.set_instance_transform(i, _grass_base[i])
+	if _grass_cells.has(cell):
+		for i in (_grass_cells[cell] as PackedInt32Array):
+			_grass_mm.set_instance_transform(i, _grass_base[i])
+	for v in _flower_cells.get(cell, []):
+		var c := int((v as Array)[0])
+		var idx: int = int((v as Array)[1])
+		(_flower_fields[c] as MultiMeshInstance3D).multimesh \
+				.set_instance_transform(idx, (_flower_base[c] as Array)[idx])
 
 
 # ---------------------------------------------------------------- fiori
@@ -461,7 +499,7 @@ func peso_habitat(p: Vector3, acqua: float, bosco: float) -> float:
 # sparsi. Ogni specie ha il suo habitat, e la sua posa.
 func _flower_field(mesh: Mesh, clusters: int, per_min: int, per_max: int,
 		singles: int, rng: RandomNumberGenerator,
-		acqua := 0.0, bosco := 0.0, raggio_macchia := 0.55) -> MultiMeshInstance3D:
+		acqua := 0.0, bosco := 0.0, raggio_macchia := 0.55) -> void:
 	var transforms: Array[Transform3D] = []
 	var custom: Array[Color] = []
 	var spot := func() -> Vector3:
@@ -505,7 +543,7 @@ func _flower_field(mesh: Mesh, clusters: int, per_min: int, per_max: int,
 			posa.call(centro + Vector3(cos(ang) * rr, 0, sin(ang) * rr), ang)
 	for i in singles:
 		posa.call(spot.call(), rng.randf() * TAU)
-	return _scatter_exact(mesh, transforms, false, custom)
+	_registra_campo(_scatter_exact(mesh, transforms, false, custom), transforms)
 
 
 func _build_flowers() -> void:
@@ -520,30 +558,50 @@ func _build_flowers() -> void:
 	# sopra: sono quelli i due che cambiano la lettura.
 	#
 	# I campi si raccolgono: d'inverno il prato gelato li nasconde.
-	for field in [
-			# il TAPPETO, fitto e ovunque, un filo più verso l'acqua
-			_flower_field(GEO.clover_mesh(Color("fdf6ec")), 24, 12, 22, 60,
-					rng, 0.35, 0.0, 0.85),
-			_flower_field(GEO.clover_mesh(Color("f6d8e2")), 10, 8, 14, 20,
-					rng, 0.35, 0.0, 0.75),
-			# i MEDI
-			_flower_field(GEO.daisy_mesh(Color("fffaf4"), Color("ffcf5e")),
-					16, 4, 8, 22, rng, 0.0, -0.25),
-			_flower_field(GEO.daisy_mesh(Color("ffc4d6"), Color("ffd76e")),
-					11, 3, 6, 14, rng, 0.0, -0.15),
-			# l'AZZURRO, che è la tinta che manca al prato: sta all'umido
-			# e verso il bosco, come il suo vero
-			_flower_field(GEO.forgetmenot_mesh(), 13, 6, 12, 18, rng,
-					0.75, 0.35, 0.60),
-			# gli ALTI, radi apposta: sono la rottura di sagoma, e una
-			# rottura che si ripete non rompe più niente
-			_flower_field(GEO.lavender_mesh(), 9, 4, 8, 10, rng, -0.45, 0.0),
-			_flower_field(GEO.poppy_mesh(Color("e8574f")), 7, 2, 5, 12, rng,
-					-0.55, -0.35, 0.75),
-			_flower_field(GEO.tulip_mesh(Color("ffb35c")), 5, 2, 4, 4, rng),
-			_flower_field(GEO.tulip_mesh(Color("f2879e")), 5, 2, 4, 4, rng)]:
-		if field:
-			_flower_fields.append(field)
+	# il TAPPETO, fitto e ovunque, un filo più verso l'acqua
+	_flower_field(GEO.clover_mesh(Color("fdf6ec")), 24, 12, 22, 60,
+			rng, 0.35, 0.0, 0.85)
+	_flower_field(GEO.clover_mesh(Color("f6d8e2")), 10, 8, 14, 20,
+			rng, 0.35, 0.0, 0.75)
+	# i MEDI
+	_flower_field(GEO.daisy_mesh(Color("fffaf4"), Color("ffcf5e")),
+			16, 4, 8, 22, rng, 0.0, -0.25)
+	_flower_field(GEO.daisy_mesh(Color("ffc4d6"), Color("ffd76e")),
+			11, 3, 6, 14, rng, 0.0, -0.15)
+	# l'AZZURRO, che è la tinta che manca al prato: sta all'umido e verso
+	# il bosco, come il suo vero
+	_flower_field(GEO.forgetmenot_mesh(), 13, 6, 12, 18, rng, 0.75, 0.35, 0.60)
+	# gli ALTI, radi apposta: sono la rottura di sagoma, e una rottura che
+	# si ripete non rompe più niente
+	_flower_field(GEO.lavender_mesh(), 9, 4, 8, 10, rng, -0.45, 0.0)
+	_flower_field(GEO.poppy_mesh(Color("e8574f")), 7, 2, 5, 12, rng,
+			-0.55, -0.35, 0.75)
+	_flower_field(GEO.tulip_mesh(Color("ffb35c")), 5, 2, 4, 4, rng)
+	_flower_field(GEO.tulip_mesh(Color("f2879e")), 5, 2, 4, 4, rng)
+
+
+## Registra un campo di fiori: il nodo e le sue trasformate. Passano di
+## qui TUTTI — la semina, le margherite della scogliera, quelle della
+## riva — o le ultime resterebbero fuori dall'indice, cioè sarebbero le
+## uniche a non accucciarsi, in silenzio.
+func _registra_campo(nodo: MultiMeshInstance3D, transforms: Array) -> void:
+	if nodo == null:
+		return
+	_flower_fields.append(nodo)
+	_flower_base.append(transforms)
+
+
+## Il secchiello cella → istanze, per `flatten_cell`.
+func _indicizza_fiori() -> void:
+	_flower_cells.clear()
+	for c in _flower_base.size():
+		var tfs: Array = _flower_base[c]
+		for i in tfs.size():
+			var tf: Transform3D = tfs[i]
+			var cella := Vector2i(roundi(tf.origin.x), roundi(tf.origin.z))
+			if not _flower_cells.has(cella):
+				_flower_cells[cella] = []
+			(_flower_cells[cella] as Array).append([c, i])
 
 
 ## L'ERBARIO: quello che c'e' a terra oltre l'erba e i fiori. Un prato vero
@@ -2720,9 +2778,7 @@ func _build_cliff() -> void:
 				Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.9, 1.2)),
 				Vector3(MATH.cliff_x(dz) + rng.randf_range(0.7, 2.6), CLIFF_H, dz)))
 	# anche le margherite della scogliera spariscono sotto la neve d'inverno
-	var cliff_daisies := _scatter_exact(daisy, dts, false)
-	if cliff_daisies:
-		_flower_fields.append(cliff_daisies)
+	_registra_campo(_scatter_exact(daisy, dts, false), dts)
 
 	# la parete è roccia vera: non ci si arrampica. I box seguono il
 	# TANGENTE della parete (vicino alla cascata corre in diagonale)
@@ -3187,12 +3243,8 @@ func _build_east_bank(rng: RandomNumberGenerator) -> void:
 		else:
 			dts.append(tf)
 	# le margherite e la lavanda della riva seguono lo stesso destino invernale
-	var bank_daisies := _scatter_exact(daisy, dts, false)
-	if bank_daisies:
-		_flower_fields.append(bank_daisies)
-	var bank_lav := _scatter_exact(lav, lts, false)
-	if bank_lav:
-		_flower_fields.append(bank_lav)
+	_registra_campo(_scatter_exact(daisy, dts, false), dts)
+	_registra_campo(_scatter_exact(lav, lts, false), lts)
 
 	# due alberi di riva, coi piedi nel prato
 	_make_tree(Vector3(MATH.river_x(9.5) + 6.4, 0, 9.5), 0.95,

@@ -334,6 +334,12 @@ sono state estratte in due librerie di funzioni `static`:
   geometria: mesh procedurali (`puff_mesh`, `trunk_mesh`, `skirt_mesh`,
   `blade_mesh`, fiori), primitive, `merge`, materiali `paint_mat`, texture
   `soft_circle`, emettitori `drift_emitter`.
+- [`scenes/world/FioriGeo.gd`](scenes/world/FioriGeo.gd) — gli ORGANI di un
+  fiore (petalo, lamina, stelo, capolino, campanella) e
+  [`scenes/world/FarfalleGeo.gd`](scenes/world/FarfalleGeo.gd) — la sagoma
+  e la battuta di una farfalla. Non caricano nessuno: sono le case delle
+  leggi di forma, e le chiamano sia il prato sia l'ecosistema del C++.
+  Vedi «I FIORI E LE FARFALLE», più sotto.
 
 Si usano tramite i `const MATH`/`const GEO` in cima a CozyWorld
 (`GEO.cone_mesh(...)`). Nelle librerie i nomi NON hanno l'underscore iniziale.
@@ -346,6 +352,301 @@ quindi un confronto esatto dell'albero dà falsi allarmi. Usare
 [`tests/world_snapshot.gd`](tests/world_snapshot.gd) confrontando
 l'**istogramma per classe** (quello sì stabile) e, per le funzioni pure, scrivere
 una prova di equivalenza vecchia-vs-nuova implementazione.
+
+
+## I FIORI E LE FARFALLE — il petalo ha due facce
+
+«Fanno schifo perché sono solo poligoni e squadrati.» Il difetto era
+letterale, e **non era il conteggio**: una margherita del prato costava
+**1464 triangoli** — più di tutta l'erba del villaggio — ed era fatta di
+TREDICI SFERE scalate 0.62 × 0.22 × 1.75. Un ellissoide schiacciato
+porta le normali di una SFERA: la luce ci cade sopra come su una biglia,
+mai come su un petalo. La regola era già scritta in casa, in
+[`_bis_petalo`](scenes/build/BuildCatalog.gd): *«è la forma, non la
+tinta, a togliere il sapore di caramella: un ellissoide schiacciato
+resta un confetto»* — e i fiori del prato non potevano chiamarla.
+
+### ⚠️ E METÀ DEL DIFETTO NON ERA LA FORMA: ERA LA PROPORZIONE
+
+La corolla faceva **ø 0.229 su uno stelo di 0.20** — larga quanto alta,
+in un prato dove il filo d'erba ne fa 0.30. Era QUELLA, prima degli otto
+meridiani, a farla leggere come una girandola di confetti. Adesso
+ø 0.075 su 0.21, e il numero contro cui si giudica **non è suo**: è
+`blade_mesh`, il filo d'erba (`test_fiori._la_proporzione_del_capolino`).
+
+### LE CASE
+
+| dove | cosa |
+|---|---|
+| [`scenes/world/FioriGeo.gd`](scenes/world/FioriGeo.gd) | gli ORGANI: petalo, lamina, stelo, capolino, campanella. Puro, non carica nessuno |
+| [`scenes/world/FarfalleGeo.gd`](scenes/world/FarfalleGeo.gd) | la SAGOMA di una farfalla, e la sua BATTUTA |
+| `WorldGeo.daisy/tulip/lavender/clover/poppy/forgetmenot_mesh` | le sette specie del prato |
+| `Ecosystem._flower_mesh` · `_butterfly_mesh` | le popolazioni del C++ (380 fiori selvatici, 90 farfalle) |
+| `CozyWorld._make_butterfly` | i cinque rig nominati (retino, taccuino, Fiato Sospeso) |
+
+### LE CINQUE LEGGI DEL PETALO, e sono misurabili
+
+1. **OBOVATO** — `w = W · sin(π·(0.20 + 0.62·u))^0.45` era un PLATEAU: la
+   mezza larghezza andava 0.79 → 1.00 → 0.75, cioè un rettangolo con la
+   punta intaccata. **Dei nastri**, che è il difetto di partenza sotto
+   un'altra forma. Con `0.10 · 0.72 · 0.75` va 0.41 → 1.00 → 0.63.
+2. **LA PUNTA È INCISA** — `x -= incisione·u¹⁰·(1−v²)`: senza, cinque
+   punte a mandorla fanno una stella marina.
+3. **LA PUNTA CADE** — la spina sale e ricade. Un petalo dritto è un
+   raggio di ruota.
+4. **LA CONCA** — ⚠️ e si misura sulla **MEZZA LARGHEZZA**, non sulla
+   lunghezza: è una curvatura TRASVERSALE. Legata alla lunghezza esplode
+   sui petali lunghi e stretti — su un petalo di tulipano lungo 62 mm
+   faceva **16 mm di incurvatura per lato**, i bordi attraversavano il
+   fiore e uscivano dall'altra parte, e in cima usciva una corona
+   sfrangiata che sembrava un bicchiere di carta strappato. **È una
+   legge sbagliata, non un numero da tarare.**
+5. **LA TORSIONE** — nessun petalo è planare, e due petali della stessa
+   corolla non prendono mai la stessa luce.
+
+**E HA DUE FACCE.** Dorso e ventre sono due fogli con normali OPPOSTE,
+separati da uno spessore che si annulla sul margine (`(1−v²)·(1−u³)`):
+il petalo si chiude da sé **senza un triangolo in più**, e in controluce
+il bordo diventa una LINEA DI SPESSORE invece di un taglio. È la sola
+cosa che rende visibile il `translucency` che questi materiali avevano
+già a 0.5 e che non si era mai visto.
+
+### UNA SUPERFICIE PER FIORE, e il COLOR è il contratto
+
+Un fiore è largo otto centimetri: tre superfici erano tre draw call per
+niente. La **maschera d'organo** viaggia nel COLOR dei vertici — `r`
+petalo, `g` cuore, `b` verde — e `a` porta la **fase personale del
+petalo**, perché una corolla che si muove tutta insieme è un palloncino.
+In `handpaint.gdshader` sono tre uniform in più, **tutti spenti di
+serie**: nessun altro materiale dipinto a mano cambia di un bit.
+
+> ⚠️ **E `use_colors` DEL MULTIMESH RESTA SPENTO, SEMPRE.** Godot
+> MOLTIPLICA il colore d'istanza dentro il `COLOR` dei vertici: per un
+> fiore quel COLOR è la maschera d'organo, e accenderlo **dipinge i
+> petali del colore del gambo, senza un errore**. I canali per istanza
+> viaggiano in `custom_data` (`_scatter_exact(..., custom)`), e la
+> guardia sta in `test_fiori._nessun_campo_accende_use_colors`.
+
+### LA FOLATA ARRIVA AI FIORI (ed è quello che si vede di più)
+
+Prima passavano `wind_strength = 0.02` all'ondina locale — un `sin()`
+con la stessa fase per tutta la pianta, **1,25 mm** su una margherita —
+dentro un'erba che ha la folata del mondo. Bastava guardarli per sentire
+che l'aria non era la stessa aria. Adesso accendono il ramo `chioma` di
+`handpaint`, che è la STESSA folata di erba e chiome, più:
+
+- **IL RITARDO DELLA TESTA**: sopra `testa_base` la corolla campiona la
+  folata a `TIME − 0.14 s` e si somma la **DIFFERENZA** (così ad aria
+  ferma la testa non si sposta di un millimetro). Non è un secondo seno
+  da tarare: è il **peso del fiore** — la corolla arriva dopo lo stelo e
+  torna dopo;
+- **IL FREMITO per petalo**, con la fase da `COLOR.a`.
+
+MISURATO **nello studio**, dove non c'è altro che si muova (nel
+MainLevel lo scarto fra due fotogrammi è dominato dall'erba): lo scarto
+fra fotogrammi consecutivi passa da **0.075** (il pavimento del
+renderer) a **0.20–0.34**, e la spiga di lavanda si vede piegata.
+
+### LE TRE CLASSI DI SAGOMA — la varietà si decide a OTTO METRI
+
+A otto metri — l'inquadratura normale, con la camera a 2.70 sopra e 3.70
+dietro Mochi — di un fiore alto 22 cm si vedono **trenta pixel** e di un
+petalo otto: la corolla non esiste, e leggono soltanto la **classe di
+sagoma**, la massa e il movimento. Quattro specie tutte alte fra 0.20 e
+0.36 sono lo stesso plotone in quattro colori, per quanto bene siano
+fatte. Perciò tre specie nuove, e sono le tre che cambiano la lettura:
+
+| | h | tris | classe |
+|---|---|---|---|
+| **trifoglio** | 0.079 | 94 | il TAPPETO, sotto la linea dell'erba |
+| non-ti-scordar-di-me | 0.127 | 382 | il piccolo AZZURRO, la tinta che mancava |
+| margherita (×2) · tulipano (×2) | 0.21 · 0.31 | 560 · 342 | i MEDI |
+| lavanda | 0.36 | 538 | l'alto sottile |
+| **papavero** | 0.32 | 298 | l'ALTO, testa FUORI ASSE |
+
+Da **166 istanze a 1046**, e da 176k triangoli (com'era all'inizio) a
+270k: sei volte i fiori per una volta e mezzo il costo.
+
+**LA SEMINA**, che prima era cieca:
+
+- `CozyWorld.suolo_libero()` è **UNO** per tutto ciò che si posa a terra
+  — stagno, letto del fiume, sentieri. Ce l'aveva solo l'erbario; i
+  fiori guardavano lo stagno e una `z > -14.5`;
+- ⚠️ **e per questo `_build_flowers()` sta DOPO `_build_forest()`**:
+  `_path_samples` esiste solo allora, e chi lo interroga prima trova una
+  lista vuota **senza un errore e senza una traccia**. È la trappola che
+  l'erbario ha già pagato una volta;
+- `peso_habitat()` da dati che il mondo ha già (distanza dall'acqua,
+  quanto si va verso il bosco): l'azzurro sta all'umido, il papavero
+  all'asciutto. **Costa zero e fa il lavoro che tre specie in più non
+  farebbero** — attraversando il prato i fiori CAMBIANO;
+- la taglia tirata verso il piccolo (`0.70 + 0.55·r^1.7`) e
+  l'inclinazione **correlata alla taglia**: i più alti pendono di più
+  perché pesano di più (con ±0.09 rad per tutti era un plotone);
+- la base a **−0.012**: il suolo TAGLIA lo stelo e non si vede mai il
+  disco d'appoggio — il trucco dei sassi dell'erbario.
+
+### ⚠️ I FIORI SI ACCUCCIANO SOTTO I PAVIMENTI (il buco che la densità ha rivelato)
+
+`flatten_cell` toccava SOLO `_grass_cells`. Con 166 fiori sparsi su
+ventidue metri capitava di rado e nessuno l'aveva visto; con mille
+capita **a ogni pezzo posato** — margherite alte 22 cm che spuntano dal
+parquet, dentro le case, sotto i tappeti. La densità non ha creato il
+difetto: l'ha reso visibile. Adesso `_flower_cells`/`_flower_base` sono
+l'idioma identico di `_grass_cells`/`_grass_base`, e
+`tools/prova_accuccia.gd` lo prova **nel MainLevel vero**, guardando
+l'altezza dei corpi: **1.2093 → 0.0242 → 1.2093**.
+
+> ### ⚠️⚠️ E QUI C'È UNA TRAPPOLA DI GODOT CHE VALE PER TUTTI
+>
+> **`MultiMesh.get_instance_transform()` torna l'IDENTITÀ in
+> `--headless`.** Il renderer fittizio non conserva il buffer, mentre
+> `set_instance_transform` funziona e con la finestra aperta il mondo si
+> disegna giusto. MISURATO: con la finestra le origini sono quelle vere,
+> in headless sono **tutte (0, 0, 0)**.
+>
+> Un indice costruito rileggendo il MultiMesh è quindi rotto in ogni
+> test headless, **in silenzio e con la suite verde** — la prima stesura
+> di `_indicizza_fiori` metteva tutti i 1046 fiori nella cella (0,0). Le
+> trasformate si TENGONO in GDScript (`_flower_base`), che è esattamente
+> perché `_grass_base` esiste. E **anche un banco può caderci**: la
+> prova viva dell'accucciamento va fatta con la finestra, non headless.
+>
+> Corollario minore, pagato nello stesso banco: `Basis.scaled()`
+> moltiplica le RIGHE, cioè schiaccia lungo la y del MONDO — e su una
+> base inclinata `basis.get_scale().y` non lo vede. Si misura
+> `(basis * Vector3.UP).y`.
+
+### LE FARFALLE: quattro triangoli e un corpo da mille
+
+Il budget c'era già, ed era **speso al contrario**.
+
+- le **NOVANTA** dell'ecosistema erano due quadrilateri — **quattro
+  triangoli in tutto**, con `set_normal(Vector3.UP)` su ogni vertice:
+  in piena battuta l'ala restava illuminata come una lastra orizzontale;
+- le **CINQUE** nominate avevano una `CapsuleMesh` **senza
+  `radial_segments`**, cioè il default di Godot 64 × 8 ≈ **1030
+  triangoli per un corpo di 12 mm**, con l'ombra accesa, contro quattro
+  triangoli d'ala fatti di un cerchio sfumato tagliato ad
+  `alpha_scissor 0.4` e UNSHADED — un pallino a bordo duro che il ciclo
+  del giorno non tocca mai.
+
+Adesso 232 triangoli le piatte e 248 il rig: **le cinque costano il 5%
+di prima**. Una sagoma, due montaggi (`piatta` per il MultiMesh,
+`ali_lato` + `corpo` per i rig): se divergessero, quella che catturi nel
+retino non sarebbe quella che hai visto volare.
+
+**QUATTRO ALI, non due** — è l'INTAGLIO fra anteriore e posteriore a far
+leggere «farfalla» invece di «fogliolina». E **l'apice dell'anteriore
+sta fuori E AVANTI**: sono servite tre stesure per arrivarci, perché con
+l'apice a metà corda escono due lame spazzate all'indietro — un paio di
+baffi — e questo si vede in un colpo d'occhio nella lastra dall'alto,
+non in un numero.
+
+**LA BATTUTA È UNA SOLA IN TUTTO IL GIOCO** (`FarfalleGeo.battito`,
+trascritta nel vertex shader delle novanta), e fa due cose:
+
+1. **il tempo si deforma** — `sin(θ + 0.35·sin θ)`: la derivata della
+   fase vale `1 + 0.35·cos θ`, si passa in un verso a 1.35 e nell'altro
+   a 0.65. MISURATO: il colmo cade al **39.5% del mezzo ciclo** contro
+   il 50.0% esatto del seno puro;
+2. **il colmo è piatto** — `pow` sul seno: si sta in cima il **47.1%**
+   del tempo contro il 41.0% del seno.
+
+> ⚠️ **E LA PRIMA STESURA AVEVA SOLO LA (2), mentre il commento
+> prometteva la (1).** `pow(|sin|)` ha il colmo piatto ma sale e scende
+> IDENTICO. Se n'è accorto il test — che pretendeva un'asimmetria di
+> tempo e non la trovava — non la rilettura del commento. E la prima
+> stesura della guardia la cercava nel posto sbagliato («quanto tempo
+> si sta sopra lo zero»): la legge è DISPARI, quindi ci sta esattamente
+> metà del tempo. L'asimmetria è in **dove cade il colmo**.
+
+**NELLO SHADER DELLE NOVANTA**, quattro cose: la cerniera è oltre il
+RAGGIO DEL TORACE (era «tutto ciò che sta entro |x| < 0.0714», e un
+torace modellato verrebbe piegato come un'ala); il corpo lo dice la MESH
+(`COLOR.a`), non una banda dipinta; le NORMALI girano col battito; l'ala
+posteriore parte in **ritardo di 0.55 rad** (`COLOR.g`). Più l'ORLO
+scuro sul margine (`COLOR.r` porta la distanza dalla cerniera): a sei
+metri è quello a distinguere una farfalla da un coriandolo colorato.
+
+> ⚠️ **E LE ANTENNE HANNO UN CANALE LORO (`COLOR.b`).** Escono dal
+> raggio del torace ma non sono ala: senza, la cerniera le prenderebbe
+> per punte d'ala e le piegherebbe.
+
+### ⚠️ DARE UNA SAGOMA A UNA COSA NE RIVELA LA TAGLIA
+
+Nel MainLevel vero, alla camera vera del gioco: le farfalle erano larghe
+**quanto la testa di un chibi** — 28 cm d'apertura. Era la taglia che
+avevano da sempre (un quad di 15 cm per lato), ma finché erano pallini
+sfumati **nessuno le leggeva come farfalle, quindi nessuno vedeva che
+erano enormi**. Adesso 12,9 cm le nominate e 10,5 cm quelle del
+MultiMesh.
+
+E la stessa lezione due volte dentro `FarfalleGeo`: il raggio del TORACE
+e i raggi del CORPO erano in **metri assoluti**. Finché tutte avevano la
+stessa apertura non si vedeva; su una piccola quel torace era un quarto
+della semiapertura. Adesso sono FRAZIONI, e la libellula (0.18 × 0.04) e
+la falena (0.16 × 0.10) restano proporzionate senza numeri loro.
+
+### IL FIORE SELVATICO DEL C++ (380 istanze, 16 triangoli)
+
+Era il pezzo più squadrato del gioco: gambo a DUE LAME INCROCIATE,
+cinque petali da UN quadrilatero, cuore un QUADRATO orizzontale di
+5,6 cm, tutto con la normale verso l'alto. Adesso passa dagli stessi
+organi. **I tre vincoli non si toccano** e stanno scritti sopra la
+funzione: `COLOR.a` è la maschera petalo/verde (con la maschera storta i
+petali diventano verdi); le tinte restano **QUATTRO** (`kind` 0..3 è
+PERSISTITO e riletto con un CLAMP, quindi tre tinte ricolorerebbero i
+salvataggi vecchi); **UNA** superficie, o `_wildflower_mat` non cattura
+più il materiale e il ritinto stagionale si spegne in silenzio.
+
+⚠️ **E la sua fase di vento veniva dalle coordinate OGGETTO**
+(`VERTEX.x·2 + VERTEX.z·2`), che sono identiche in ogni istanza:
+trecentottanta fiori che ondeggiavano nello stesso istante, dentro
+un'erba che ha la folata del mondo.
+
+### IL PREZZO, misurato
+
+`tools/prova_prato_vivo.gd`, parte P: A/B **nella stessa corsa**,
+finestre alternate coi campi accesi e spenti, vsync spento.
+
+| | |
+|---|---|
+| coi fiori (1046 istanze) | 41.10 ms |
+| senza | 40.54 ms |
+| **scarto** | **+0.56 ms (+1.4%)** |
+
+Il cancello d'arresto dichiarato prima di misurare era **il 5%**.
+⚠️ La macchina aveva carico 4.10 (altre sessioni di agente): sono
+**pavimenti**, non misure pulite — ma l'A/B sta nella stessa corsa, che
+è l'unica cosa che conta.
+
+### Come si guarda
+
+```
+CHIBI_FIORI=<dir> Godot --path . --resolution 1100x680 \
+    --script res://tools/provino_fiori.gd      # CHIBI_PARTI=F D M W
+CHIBI_FARF=<dir>  Godot --path . --resolution 1500x620 \
+    --script res://tools/provino_farfalle.gd   # CHIBI_PARTI=S B M
+CHIBI_PRATO=<dir> Godot --path . --resolution 1280x720 \
+    --script res://tools/prova_prato_vivo.gd   # CHIBI_PARTI=D V F C P
+Godot --path . --resolution 640x400 --script res://tools/prova_accuccia.gd
+```
+
+- `provino_fiori` — la FILA, il DETTAGLIO da quattro azimut, la MACCHIA
+  a sei metri (dove «si smaschera il coriandolo»), e il VENTO isolato;
+- `provino_farfalle` — la SAGOMA (compreso **da sotto**, che è come la
+  vede Mochi quando le si posa sul muso), la PELLICOLA DEL BATTITO con
+  il `sin()` puro nella riga accanto, e le novanta con lo shader VERO;
+- `prova_prato_vivo` — il MainLevel vero alle quattro distanze che
+  contano, la pellicola del vento a `vento_forza` 1.0 e 1.775, e il
+  prezzo del fotogramma. ⚠️ **Ferma l'orologio** (`cycle_seconds`): un
+  giorno dura quattro minuti e il banco di più, e a metà prova si
+  fotograferebbe il tramonto.
+
+La guardia headless è [`tests/cases/test_fiori.gd`](tests/cases/test_fiori.gd),
+e **non è un source-check**: costruisce le mesh vere, campiona le leggi
+vere e guarda la geometria. Le mutazioni sono annotate nel commit.
 
 ## Il Prologo: il tutorial che ha avuto conseguenze
 

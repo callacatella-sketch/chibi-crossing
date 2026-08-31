@@ -141,5 +141,54 @@ func _go() -> void:
 			n.position = Vector3(2.0, 0.85, 3.0)
 			await _scatta("6-farfalla-%d-%s.jpg" % [i, str(b["kind"])],
 					Vector3(2.0, 0.95, 3.55), Vector3(2.0, 0.85, 3.0))
+	# --- P: IL FOTOGRAMMA, A/B nella STESSA corsa
+	# ⚠️ Due processi diversi non sono confrontabili (compilazione degli
+	# shader, cache, e soprattutto le altre sessioni di agente). Si
+	# alternano finestre con i campi accesi e spenti, e si contano i
+	# fotogrammi a orologio.
+	if "P" in parti:
+		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+		_cam.position = Vector3(2.0, 2.82, 6.70)
+		_cam.look_at(Vector3(2.0, 0.12, 3.0), Vector3.UP)
+		var sec := 5.0
+		if OS.get_environment("CHIBI_FPS_SEC") != "":
+			sec = float(OS.get_environment("CHIBI_FPS_SEC"))
+		var giri := 3
+		if OS.get_environment("CHIBI_FPS_GIRI") != "":
+			giri = int(OS.get_environment("CHIBI_FPS_GIRI"))
+		var somma := {true: 0.0, false: 0.0}
+		var conta := {true: 0, false: 0}
+		for g in giri:
+			for acceso in [true, false]:
+				if cw:
+					for f in (cw.get("_flower_fields") as Array):
+						(f as Node3D).visible = acceso
+				# la prima mezza finestra si butta: è quella in cui il
+				# renderer si riassesta dopo il cambio
+				var t0 := Time.get_ticks_usec()
+				while float(Time.get_ticks_usec() - t0) < sec * 250000.0:
+					await process_frame
+				t0 = Time.get_ticks_usec()
+				var n := 0
+				while float(Time.get_ticks_usec() - t0) < sec * 1000000.0:
+					await process_frame
+					n += 1
+				var dt := float(Time.get_ticks_usec() - t0) / 1000000.0
+				somma[acceso] = float(somma[acceso]) + dt
+				conta[acceso] = int(conta[acceso]) + n
+		if cw:
+			for f in (cw.get("_flower_fields") as Array):
+				(f as Node3D).visible = true
+		var ms_on := float(somma[true]) * 1000.0 / maxf(float(conta[true]), 1.0)
+		var ms_off := float(somma[false]) * 1000.0 / maxf(float(conta[false]), 1.0)
+		print("FOTOGRAMMA (A/B nella stessa corsa, %d giri da %.0f s)"
+				% [giri, sec])
+		print("   coi fiori   %.2f ms (%.1f fps, %d fotogrammi)"
+				% [ms_on, 1000.0 / ms_on, int(conta[true])])
+		print("   senza       %.2f ms (%.1f fps, %d fotogrammi)"
+				% [ms_off, 1000.0 / ms_off, int(conta[false])])
+		print("   scarto      %+.2f ms (%+.1f%%)"
+				% [ms_on - ms_off, (ms_on / ms_off - 1.0) * 100.0])
+
 	print("PRATO -> ", _dove)
 	quit()

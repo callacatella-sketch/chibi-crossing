@@ -179,8 +179,8 @@ func _go() -> void:
 						else absf(sin(theta))
 				_batti(r, s * 0.95)
 		await process_frame
-		await _scatta(dove + "/6-battito.jpg", Vector3(0, 0, 0), 0.80, 0.16)
-		await _scatta(dove + "/7-battito-profilo.jpg", Vector3(0, 0, 0), 0.80,
+		await _scatta(dove + "/6-battito.jpg", Vector3(0, 0, 0), 1.16, 0.16)
+		await _scatta(dove + "/7-battito-profilo.jpg", Vector3(0, 0, 0), 1.16,
 				0.16, 1.35)
 		_sv.remove_child(fila)
 		fila.free()

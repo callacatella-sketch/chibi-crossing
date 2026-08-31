@@ -42,6 +42,9 @@ extends RefCounted
 ##   r = quanto si è lontani dalla cerniera, 0..1 — è l'ORLO: le ali di
 ##       una farfalla hanno il margine scuro, ed è quello che a sei metri
 ##       la fa leggere come una farfalla invece che come un coriandolo
+##   b = 1 sulle ANTENNE. Non sono ala (non battono) e non sono torace
+##       (escono dal suo raggio): senza un canale loro, la cerniera del
+##       vertex shader le prenderebbe per punte d'ala e le piegherebbe.
 
 ## Il torace in frazione dell'APERTURA: dentro questo raggio la
 ## geometria non è ala, e il battito non la tocca. Lo legge anche il
@@ -171,13 +174,20 @@ static func _corpo_su(st: SurfaceTool, lung: float, colore: Color) -> void:
 ## Fiato Sospeso, a due centimetri dal naso di Mochi — e sono anche la
 ## sola parte di una farfalla che nessuno disegnerebbe di sua iniziativa.
 static func _antenne_su(st: SurfaceTool, lung: float, colore: Color) -> void:
+	# ⚠️ TUTTO IN FRAZIONI DI `lung`, come il corpo: scritte in metri
+	# assoluti, su una farfalla piccola le antenne restavano lunghe
+	# uguali e uscivano più delle ali
+	var c := Color(colore.r, colore.g, 1.0, colore.a)
 	for lato: float in [-1.0, 1.0]:
 		var punti: Array[Vector3] = [
-				Vector3(lato * 0.0016, 0.0012, lung * 0.46),
-				Vector3(lato * 0.0060, 0.0090, lung * 0.62),
-				Vector3(lato * 0.0105, 0.0158, lung * 0.70),
-				Vector3(lato * 0.0128, 0.0182, lung * 0.72)]
-		var raggi: Array[float] = [0.0009, 0.0007, 0.0007, 0.0016]
+				Vector3(lato * 0.022, 0.017, lung * 0.46),
+				Vector3(lato * 0.083, 0.124, lung * 0.62),
+				Vector3(lato * 0.145, 0.218, lung * 0.70),
+				Vector3(lato * 0.177, 0.251, lung * 0.72)]
+		for k in punti.size():
+			punti[k] = Vector3(punti[k].x * lung, punti[k].y * lung, punti[k].z)
+		var raggi: Array[float] = [0.0124 * lung, 0.0097 * lung,
+				0.0097 * lung, 0.0221 * lung]
 		for k in punti.size() - 1:
 			var a: Vector3 = punti[k]
 			var b: Vector3 = punti[k + 1]
@@ -195,7 +205,7 @@ static func _antenne_su(st: SurfaceTool, lung: float, colore: Color) -> void:
 				for v: Array in [[a, d1, raggi[k]], [b, d1, raggi[k + 1]],
 						[b, d2, raggi[k + 1]], [a, d1, raggi[k]],
 						[b, d2, raggi[k + 1]], [a, d2, raggi[k]]]:
-					st.set_color(colore)
+					st.set_color(c)
 					st.set_normal(v[1])
 					st.add_vertex((v[0] as Vector3) + (v[1] as Vector3) * float(v[2]))
 
@@ -251,14 +261,30 @@ static func corpo(lung: float) -> ArrayMesh:
 
 ## LA BATTUTA, e ce n'è UNA SOLA in tutto il gioco.
 ##
-## `sin()` puro ha salita e discesa identiche e nessuna pausa in cima:
-## è il carillon che la REGOLA ZERO vieta — «un sin() puro si smaschera
-## in due cicli». Una farfalla vera scende in fretta (è la battuta che
-## porta), risale piano, e in cima si FERMA un istante. `pow` sul seno
-## fa i fronti ripidi e il colmo piatto, senza un secondo orologio.
+## `sin()` puro ha salita e discesa identiche e nessuna pausa in cima: è
+## il carillon che la REGOLA ZERO vieta — «un sin() puro si smaschera in
+## due cicli». Una farfalla vera fa due cose insieme, e qui ci sono
+## tutte e due:
+##
+##  1. IL TEMPO SI DEFORMA — `sin(θ + 0.35·sin θ)`. La derivata della
+##     fase vale `1 + 0.35·cos θ`: si passa in un verso a 1.35 e
+##     nell'altro a 0.65, e il COLMO cade al 39.5% del mezzo ciclo
+##     invece che al 50% esatto. È la battuta che porta contro quella
+##     che recupera.
+##  2. IL COLMO È PIATTO — `pow` sul seno tiene l'ala in cima più a
+##     lungo (47.1% del tempo sopra 0.8, contro il 41.0% del seno) e la
+##     fa schizzare via dal fondo, senza un secondo orologio.
+##
+## ⚠️ LA PRIMA STESURA AVEVA SOLO LA (2), e il commento prometteva la
+## (1): `pow(|sin|)` ha il colmo piatto ma sale e scende IDENTICO. Se
+## n'è accorto il TEST, che pretendeva un'asimmetria di tempo e non la
+## trovava — non la rilettura del commento. E la prima stesura della
+## guardia la cercava nel posto sbagliato («quanto tempo si sta sopra lo
+## zero»): la legge è DISPARI, quindi ci sta esattamente metà del tempo.
+## L'asimmetria è in DOVE CADE IL COLMO.
 ##
 ## La trascrive anche il vertex shader delle novanta: se qui si cambia,
 ## là si cambia — è la stessa legge in due lingue, come `nottambulo()`.
 static func battito(theta: float) -> float:
-	var s := sin(theta)
+	var s := sin(theta + 0.35 * sin(theta))
 	return signf(s) * pow(absf(s), 0.62)

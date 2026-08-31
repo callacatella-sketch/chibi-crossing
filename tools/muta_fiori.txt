@@ -1,0 +1,83 @@
+la battuta torna un pow(|sin|) senza deformazione del tempo
+scenes/world/FarfalleGeo.gd
+	var s := sin(theta + 0.35 * sin(theta))
+-->
+	var s := sin(theta)
+=====
+la conca torna a misurarsi sulla LUNGHEZZA
+scenes/world/FioriGeo.gd
+			var su := conca * mezza * v * v * u
+-->
+			var su := conca * lung * v * v * u
+=====
+il campo di fiori accende use_colors
+scenes/world/CozyWorld.gd
+	if not custom.is_empty():
+		mm.use_custom_data = true
+-->
+	if not custom.is_empty():
+		mm.use_custom_data = true
+		mm.use_colors = true
+=====
+le antenne perdono il loro canale
+scenes/world/FarfalleGeo.gd
+	var c := Color(colore.r, colore.g, 1.0, colore.a)
+-->
+	var c := colore
+=====
+le antenne tornano a misure assolute
+scenes/world/FarfalleGeo.gd
+		for k in punti.size():
+			punti[k] = Vector3(punti[k].x * lung, punti[k].y * lung, punti[k].z)
+-->
+		pass
+=====
+la corolla della margherita torna larga come prima
+scenes/world/WorldGeo.gd
+					lung * rng.randf_range(0.90, 1.09),
+-->
+					lung * 3.4 * rng.randf_range(0.90, 1.09),
+=====
+la semina dimentica i sentieri
+scenes/world/CozyWorld.gd
+	for i in _path_samples.size():
+		if p.distance_to(_path_samples[i]) < 1.1:
+			return false
+	return true
+-->
+	return true
+=====
+il petalo torna a un foglio solo
+scenes/world/FioriGeo.gd
+	for lato in [1.0, -1.0]:
+-->
+	for lato in [1.0]:
+=====
+la larghezza del petalo torna al plateau
+scenes/world/FioriGeo.gd
+	var ventre: float = o.get("ventre", 0.10)
+	var apertura: float = o.get("apertura", 0.72)
+	var punta: float = o.get("punta", 0.75)
+-->
+	var ventre: float = o.get("ventre", 0.20)
+	var apertura: float = o.get("apertura", 0.62)
+	var punta: float = o.get("punta", 0.45)
+=====
+la punta del petalo non si incide più
+scenes/world/FioriGeo.gd
+	var incisione: float = o.get("incisione", 0.17)
+-->
+	var incisione: float = 0.0
+=====
+il torace torna a una misura assoluta
+scenes/world/FarfalleGeo.gd
+	return apertura * TORACE_FRAZIONE
+-->
+	return 0.014
+=====
+l'habitat smette di spostare la densità
+scenes/world/CozyWorld.gd
+	return clampf(1.0 + acqua * (vicino * 2.0 - 1.0)
+			+ bosco * (boscoso * 2.0 - 1.0), 0.06, 3.0)
+-->
+	return 1.0

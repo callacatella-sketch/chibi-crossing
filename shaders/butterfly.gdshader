@@ -37,7 +37,10 @@ varying float orlo;
 // `sin()` puro ha salita e discesa identiche e nessuna pausa: è il
 // carillon che si smaschera in due cicli.
 float battito(float theta) {
-	float s = sin(theta);
+	// il tempo si deforma (un mezzo colpo dura quasi il doppio
+	// dell'altro) e il colmo è piatto (l'ala si ferma un istante in
+	// cima). Due cose, un'espressione.
+	float s = sin(theta + 0.35 * sin(theta));
 	return sign(s) * pow(abs(s), 0.62);
 }
 
@@ -55,9 +58,13 @@ void vertex() {
 	float sw = battito(theta);
 	float a = (0.45 + 0.5 * speed) * abs(sw);
 
+	// ⚠️ la cerniera è gatata su COLOR.a: le ANTENNE escono dal raggio
+	// del torace ma non sono ala, e senza questo verrebbero piegate
+	// come due punte d'ala
 	float sx = sign(VERTEX.x);
 	float dentro = min(abs(VERTEX.x), raggio_torace);
-	float w = max(abs(VERTEX.x) - raggio_torace, 0.0);
+	float w = max(abs(VERTEX.x) - raggio_torace, 0.0) * COLOR.a;
+	dentro = mix(abs(VERTEX.x), dentro, COLOR.a);
 	VERTEX.x = sx * (dentro + w * cos(a));
 	VERTEX.y += w * sin(a) * 0.9;
 	// il corpo sale sulla battuta in giù: è il rimbalzo di portanza, e
