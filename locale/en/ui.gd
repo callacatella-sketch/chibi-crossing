@@ -455,6 +455,7 @@ const T := {
 	"Il catalogo": "The catalogue",
 	"Tutto il catalogo": "The whole catalogue",
 	"I corredi": "The sets",
+	"Qui finiscono i pezzi che posi": "This is where the pieces you put down go",
 	# l'intestazione dice la GRANDEZZA: le categorie contano il possesso,
 	# i corredi contano quel che hai posato — e nella stessa colonna, con
 	# la stessa frazione, si leggerebbero come la stessa cosa

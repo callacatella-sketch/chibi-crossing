@@ -157,12 +157,14 @@ var _visibili: Array[int] = []      # gli indici mostrati adesso, in ordine
 var _unlocked := {}
 var _locks_active := false
 var _order_banner: Label
+var _order_pill: PanelContainer
 
 # --- economia: varianti di colore comprate dal mercante (vedi Economy.gd) ---
 # _variant è il colore scelto per il PROSSIMO pezzo da piazzare ("" = originale)
 var _variant := ""
 var _eco: Node
 var _variant_bar: PanelContainer
+var _variant_dock: CenterContainer
 var _variant_row: HBoxContainer
 
 ## Per gli screenshot da CLI: se impostato, il fantasma usa questa
@@ -353,6 +355,8 @@ func set_order_banner(text: String) -> void:
 		return
 	_order_banner.text = text
 	_order_banner.visible = text != ""
+	if _order_pill != null:
+		_order_pill.visible = text != ""
 
 
 # i dizionari del piano richiesto (0 = terra, 1 = sopra)
@@ -557,7 +561,7 @@ func _segna_recente(piece: String) -> void:
 	while _recenti.size() > RECENTI_MAX:
 		_recenti.pop_back()
 	if _cat_recenti_btn and is_instance_valid(_cat_recenti_btn):
-		_cat_recenti_btn.disabled = _recenti.is_empty()
+		_spegni_riga(_cat_recenti_btn, _recenti.is_empty())
 	if _cat == CAT_RECENTI and _panel and _panel.visible:
 		_rebuild_item_row()
 	elif not _aperto:
@@ -2595,14 +2599,25 @@ func _build_grid_plane() -> void:
 ## 1920x1080: `display/window/stretch/mode = "viewport"`).
 const ATE_MARGINE := 26.0
 const ATE_SOTTO := 16.0
+## La barra dei colori: quanto è alta e quanta aria la stacca dal pannello.
+const VAR_ALTA := 34.0
+const VAR_ARIA := 10.0
 const ATE_ALTA := 406.0     # aperto
-## ⚠️ 104 NON BASTAVANO, e si vede solo guardando: da piegati il dock deve
-## contenere l'intestazione (la riga «L'Atelier», la ricerca, i due
-## strumenti) PIÙ la striscia, e il bollo del pezzo in mano è alto 74. A
-## 104 la striscia usciva sotto il bordo dello schermo e del pezzo in mano
-## si vedeva la metà di sopra. Misurato sul provino: intestazione 48 +
-## aria 12 + bollo 74 + aria 14.
-const ATE_BASSA := 148.0    # piegato
+## ⚠️ QUESTO NUMERO NON SI SCEGLIE: È IL MINIMO MISURATO. Da piegati il
+## pannello deve contenere l'intestazione più la striscia, e il conto è
+## 24 (i margini di `_stile_pannello`, 12+12) + 34 (`_testata`) + 1
+## (`_filo`) + 74 (il bollo del pezzo in mano) + 20 (due separazioni del
+## vbox) = **153**. Sotto questo numero il pannello NON si restringe:
+## `Control._size_changed` alza il rect al minimo combinato e lo fa
+## crescere verso il BASSO, cioè fuori dallo schermo — e `clip_contents`
+## non salva niente, perché ritaglia sul rect già cresciuto.
+## A 104 (la prima stesura) il bollo del pezzo in mano perdeva 21 px su 74
+## — il 28% del ritratto — più il bordo e l'ombra del pannello. A 148 (la
+## prima cura, fatta a occhio su un provino) sforava ancora di CINQUE
+## pixel: misurato `panel.get_global_rect()` = 916..1069 dentro un dock
+## 916..1064. Chi rimpicciolisce la striscia abbassi anche questo; chi lo
+## abbassa da solo sega i bolli.
+const ATE_BASSA := 153.0    # piegato
 const ATE_SINISTRA := 236.0
 const ATE_DESTRA := 336.0
 ## La carta di un pezzo, e il suo ritratto dentro.
@@ -2790,6 +2805,14 @@ func _testata() -> Control:
 	bigl.add_theme_stylebox_override("panel", bsb)
 	bigl.add_child(_order_banner)
 	h.add_child(bigl)
+	# ⚠️ È IL CONTENITORE CHE SI NASCONDE, non la Label. Nella vecchia
+	# testata `_order_banner` era figlio diretto del VBox e nasconderlo lo
+	# faceva sparire; qui la Label sta dentro una pillola color miele, e
+	# spegnere solo lei lasciava a schermo una striscia gialla alta 4 px e
+	# larga mezza intestazione, vuota — che è quello che vede chi ha finito
+	# la campagna del Gufo, o chi ha un salvataggio anteriore agli Ordini.
+	_order_pill = bigl
+	bigl.visible = false
 
 	# LA RICERCA. Resta guidata dalla tastiera («/»), perché in un gioco
 	# che si costruisce con le lettere un cursore sempre acceso ruberebbe
@@ -2918,7 +2941,9 @@ func _rifai_sinistra() -> void:
 	_cat_buttons.clear()
 
 	_cat_recenti_btn = _riga_vista(L10n.t("★ Recenti"), CAT_RECENTI, "", CozyUI.GOLD)
-	_cat_recenti_btn.disabled = _recenti.is_empty()
+	_spegni_riga(_cat_recenti_btn, _recenti.is_empty())
+	if _recenti.is_empty():
+		_cat_recenti_btn.tooltip_text = L10n.t("Qui finiscono i pezzi che posi")
 	_sx_col.add_child(_cat_recenti_btn)
 	_sx_col.add_child(_riga_vista(L10n.t("Tutto il catalogo"), CAT_TUTTO,
 			str(_items.size()), CozyUI.PEACH))
@@ -2989,6 +3014,19 @@ func _spazio(h: int) -> Control:
 ## Una riga della colonna: il nome a sinistra, il conto a destra. È un
 ## bottone con dentro due etichette (che non intercettano il mouse, o il
 ## bottone smetterebbe di essere premibile in mezzo).
+## Una riga della colonna che NON si può premere deve dirlo. ⚠️ Non basta
+## `b.disabled`: `_riga_vista` mette le parole in due `Label` FIGLIE (il
+## bottone ha il testo vuoto), e `font_disabled_color` non tocca i figli —
+## quindi «★ Recenti» spenta aveva lo stesso inchiostro di tutte le altre,
+## il cursore a manina, e al clic non succedeva niente. E capita a OGNI
+## avvio, non solo in partita nuova: `_recenti` non è persistita.
+func _spegni_riga(b: Button, spenta: bool) -> void:
+	b.disabled = spenta
+	b.modulate = Color(1, 1, 1, 0.45) if spenta else Color(1, 1, 1, 1)
+	b.mouse_default_cursor_shape = Control.CURSOR_ARROW if spenta \
+			else Control.CURSOR_POINTING_HAND
+
+
 func _riga_vista(testo: String, vista: int, conto: String, tinta: Color) -> Button:
 	var b := _pillola("", tinta, 14)
 	b.toggle_mode = true
@@ -3206,15 +3244,31 @@ func _fatti_atelier() -> Dictionary:
 	f["corredo"] = meglio
 
 	# I RISPARMI: la cosa del carretto più vicina alle tue tasche.
+	#
+	# ⚠️ FRA QUELLE CHE IL CARRETTO HA IN BANCO OGGI, non fra tutto il
+	# listino. `Economy.rotate_stock` pesca 3-4 nomi per visita e il Shop
+	# mostra solo quelli: scorrendo `SHOP_PIECES` il taccuino prometteva un
+	# pezzo che quel giorno non era in vendita — il giocatore metteva da
+	# parte le noccioline, aspettava la visita, apriva il carretto e
+	# trovava altre tre voci. È una promessa che il gioco non può
+	# mantenere, cioè la stessa famiglia dell'inferenza smentibile: la
+	# carta successiva non la crederà più.
+	#
+	# Se il banco è vuoto (nessuna visita ancora, o comprato tutto) non si
+	# dice niente — il silenzio è un esito.
 	var eco := _economy()
 	if eco != null and eco.has_method("piece_offer"):
 		var borsa_n := int(eco.get("nuts"))
 		var borsa_s := int(eco.get("stars"))
 		var scelto := {}
 		var scarto := 1 << 30
+		var in_banco: Array = []
+		if eco.has_method("stock_offers"):
+			for o in eco.call("stock_offers"):
+				in_banco.append(str((o as Dictionary).get("name", "")))
 		for i in _items.size():
 			var nome := str(_items[i]["name"])
-			if is_unlocked(nome):
+			if is_unlocked(nome) or not in_banco.has(nome):
 				continue
 			var off := _shop_offer(nome)
 			if off.is_empty():
@@ -3746,7 +3800,9 @@ func _piega(aperto: bool) -> void:
 	var s := get_node_or_null(^"/root/Settings")
 	if s != null and bool(s.get("reduce_motion")):
 		_dock.offset_top = meta
+		_posa_variant_bar(aperto, false)
 		return
+	_posa_variant_bar(aperto, true)
 	var t := _dock.create_tween()
 	t.tween_property(_dock, "offset_top", meta, 0.24) \
 			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
@@ -3779,6 +3835,13 @@ func _rifai_striscia() -> void:
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_striscia_row.add_child(l)
+	# ⚠️ E CHI HA APPESO LE CARTE DEVE ANCHE ORDINARE I RITRATTI. `_bollo`
+	# si mette in `_carte_attesa`, ma mettersi in attesa non è chiedere: il
+	# solo che chiede è `_chiedi_recenti`, e da piegati lo chiamava soltanto
+	# `_chiedi_visibili` — che gira all'APERTURA. Girando la rotella da
+	# piegati (cioè facendo esattamente la cosa per cui lo stato piegato
+	# esiste) i bolli nuovi restavano bianchi per sempre.
+	_chiedi_recenti()
 
 
 func _rifai_striscia_se_serve(nome: String) -> void:
@@ -4014,6 +4077,13 @@ func _on_wallet_changed(_total: int) -> void:
 	for btn in _item_buttons:
 		if is_instance_valid(btn) and btn.has_meta("shop_offer"):
 			btn.tooltip_text = _shop_tooltip(btn.get_meta("shop_offer"))
+	# ⚠️ E IL TACCUINO PURE: da quando c'è la carta dei risparmi, il
+	# borsellino ha DUE lettori, e questo ne rinfrescava uno solo. Le
+	# noccioline salgono anche senza che il giocatore tocchi niente (un
+	# vicino compra dalla tua Bancarella, arriva il premio di una
+	# Commissione): l'Atelier restava aperto a dire «ancora 45» mentre in
+	# alto il contatore diceva che ce n'erano abbastanza.
+	_taccuino_sporco = true
 
 
 # comprato qualcosa: rinfresca la fila dei pezzi (nuovi sblocchi) e i colori
@@ -4046,12 +4116,19 @@ func _variant_for_current() -> String:
 func _build_variant_bar() -> void:
 	if _ui == null:
 		return
-	var dock := CenterContainer.new()
-	dock.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	dock.offset_top = -214.0
-	dock.offset_bottom = -180.0
-	dock.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_ui.add_child(dock)
+	# ⚠️ LA BARRA STA SOPRA IL PANNELLO, E LO SEGUE. Questi due offset erano
+	# rimasti a -214/-180, com'erano quando il builder era alto 272: il dock
+	# dell'Atelier occupa -422..-16, quindi la fascia dei colori cadeva
+	# DENTRO la griglia e copriva tre carte (misurato: la pillola a y 866
+	# dentro un pannello che va da 658 a 1064). Adesso la posizione si
+	# calcola dalle stesse costanti del dock — una fonte sola — e cambia
+	# quando si piega.
+	_variant_dock = CenterContainer.new()
+	_variant_dock.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_variant_dock.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ui.add_child(_variant_dock)
+	_posa_variant_bar(_aperto, false)
+	var dock := _variant_dock
 	_variant_bar = PanelContainer.new()
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.98, 0.95, 0.88, 0.94)
@@ -4090,6 +4167,24 @@ func _update_variant_bar() -> void:
 		var def: Dictionary = eco.variant_def(vid)
 		_variant_row.add_child(_variant_swatch(str(vid), def.get("tint", Color.WHITE), L10n.t(str(def.get("label", vid)))))
 	_variant_bar.visible = true
+
+
+## Dove sta la barra dei colori: appoggiata SOPRA il pannello, con la sua
+## aria. Il numero non è suo — è quello del dock dell'Atelier, letto dalle
+## stesse costanti: due geometrie che si inseguono a mano divergono al
+## primo che ritocca l'altezza del pannello.
+func _posa_variant_bar(aperto: bool, anima: bool) -> void:
+	if _variant_dock == null:
+		return
+	var sotto := -((ATE_ALTA if aperto else ATE_BASSA) + ATE_SOTTO) - VAR_ARIA
+	if not anima:
+		_variant_dock.offset_top = sotto - VAR_ALTA
+		_variant_dock.offset_bottom = sotto
+		return
+	var t := _variant_dock.create_tween()
+	t.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	t.tween_property(_variant_dock, "offset_top", sotto - VAR_ALTA, 0.24)
+	t.parallel().tween_property(_variant_dock, "offset_bottom", sotto, 0.24)
 
 
 func _variant_swatch(vid: String, color: Color, label: String) -> Button:
