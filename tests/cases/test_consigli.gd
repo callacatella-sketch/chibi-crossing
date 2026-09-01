@@ -28,6 +28,7 @@ func run(t) -> void:
 	_il_silenzio_e_un_esito(t)
 	_non_si_riempie_mai_la_colonna(t)
 	_nessuna_carta_mette_in_debito(t)
+	_il_carretto_non_promette_quel_che_non_ha(t)
 
 
 ## 1 — Il letto scoperto è il consiglio che cambia il villaggio, e sta
@@ -133,6 +134,38 @@ func _nessuna_carta_mette_in_debito(t) -> void:
 						"nessuna carta dice «%s» (%s)" % [parola, s])
 
 
+## 8 — IL CARRETTO NON PROMETTE QUEL CHE NON HA. Il mercante vende 3-4
+## pezzi per visita a rotazione, e passa ogni cinque-sette giorni: dire «ti
+## aspetta al carretto» di un pezzo qualunque del listino è una promessa
+## che il gioco non può mantenere — il giocatore mette da parte le
+## noccioline, aspetta, apre il carretto e trova altre tre voci.
+## ⚠️ E LA CURA NON È SPEGNERE LA CARTA: filtrare ai soli pezzi in banco la
+## farebbe sparire cinque giorni su sei. Si dice la PROVENIENZA, che è vera
+## sempre, invece della presenza.
+func _il_carretto_non_promette_quel_che_non_ha(t) -> void:
+	var base := {"nome": "Fontana", "costo": 120, "manca": 60, "cur": "nut",
+			"puoi": false}
+	var fuori := base.duplicate()
+	fuori["oggi"] = false
+	var c1: Array = CONSIGLI.consiglia({"posati": 9, "affare": fuori})
+	t.eq(c1.size(), 1, "la carta esce anche se il pezzo non è sul banco oggi")
+	var s1 := str(c1[0]["testo"])
+	t.ok(not s1.contains("ti aspetta"),
+			"e NON promette che è lì ad aspettarti (%s)" % s1)
+	t.ok(s1.contains("60") and s1.contains("Fontana"),
+			"ma dice quanto manca e per cosa (%s)" % s1)
+
+	# la controprova: quando il pezzo È sul banco, la promessa si può fare
+	var dentro := base.duplicate()
+	dentro["oggi"] = true
+	var c2: Array = CONSIGLI.consiglia({"posati": 9, "affare": dentro})
+	t.eq(c2.size(), 1, "e la carta esce anche quando è sul banco")
+	t.ok(str(c2[0]["testo"]).contains("ti aspetta"),
+			"lì sì che ti aspetta (%s)" % str(c2[0]["testo"]))
+	t.ok(str(c1[0]["testo"]) != str(c2[0]["testo"]),
+			"e le due frasi sono DIVERSE, o la bandiera non serve a niente")
+
+
 func _fatti_pieni() -> Dictionary:
 	return {
 		"posati": 30,
@@ -141,6 +174,6 @@ func _fatti_pieni() -> Dictionary:
 				"prossimo": "Tenda bar"},
 		"vicino": {"perno": "Panchina", "nome": "Lampione", "quante": 3, "su": 4},
 		"affare": {"nome": "Fontana", "costo": 120, "manca": 60, "cur": "nut",
-				"puoi": false},
+				"puoi": false, "oggi": true},
 		"mai_usato": "Sedia vimini",
 	}

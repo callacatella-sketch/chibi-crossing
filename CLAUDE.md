@@ -1361,6 +1361,72 @@ tutte.
     dello schermo**. Tutte e tre si vedono in un fotogramma, e nessuna
     poteva far fallire un test.
 
+### E LE ALTRE SEI, dal secondo giro (le lenti CORRETTEZZA e INTEGRAZIONE)
+
+Le due lenti erano cadute per limite di sessione nei primi due tentativi.
+Rilanciate, hanno trovato le cose che nessun'altra poteva vedere — fra cui
+**due cure mie che non bastavano**.
+
+14. **⚠️ 148 PX ERANO ANCORA POCHI: IL MINIMO È 153, E SI MISURA.** La
+    prima cura dello stato piegato l'avevo tarata **a occhio su un
+    provino**, e sforava ancora di cinque pixel. Il numero non si sceglie:
+    è `24` (margini del pannello) + `34` (testata) + `1` (filo) + `74` (il
+    bollo del pezzo in mano) + `20` (due separazioni del vbox) = **153**,
+    ed è quello che `_panel.get_combined_minimum_size().y` risponde col
+    Tab premuto davvero. Sotto quel numero il pannello **non si
+    restringe**: `Control._size_changed` alza il rect al minimo combinato
+    e lo fa crescere verso il BASSO, cioè fuori dallo schermo — e
+    `clip_contents` non salva, perché ritaglia sul rect già cresciuto.
+    *Una geometria si misura, non si guarda: cinque pixel su un provino
+    non si vedono, in un numero sì.*
+15. **METTERSI IN ATTESA NON È CHIEDERE.** La prima cura dei bolli li
+    faceva appendere a `_carte_attesa` — ma l'unico che ORDINA i ritratti
+    è `_chiedi_recenti`, e `_rifai_striscia` non lo chiamava. Girando la
+    rotella da piegati (cioè facendo esattamente la cosa per cui lo stato
+    piegato esiste) i bolli nuovi restavano bianchi per sempre.
+16. **⚠️ LA BARRA DEI COLORI CADEVA DENTRO LA GRIGLIA.** I suoi due offset
+    (`-214 / -180`) erano rimasti da quando il builder era alto 272 px; il
+    dock dell'Atelier arriva a `-422`, quindi la pillola coi pallini stava
+    piantata in mezzo alla seconda riga e copriva tre carte. **Non l'aveva
+    toccata questo lavoro**: a metterla lì è stata la geometria nuova — ed
+    è il difetto che si trova solo confrontando il pannello nuovo con
+    quello vecchio, cioè la lente che era caduta due volte. Adesso la
+    posizione si calcola dalle stesse costanti del dock (`_posa_variant_bar`)
+    e segue anche la piega: due geometrie che si inseguono a mano divergono
+    al primo che ritocca l'altezza del pannello.
+17. **SI NASCONDE IL CONTENITORE, NON L'ETICHETTA.** `set_order_banner("")`
+    spegneva la Label del Gufo, che nella vecchia testata ERA il banner;
+    nell'Atelier sta dentro una pillola color miele, e restava a schermo
+    una striscia gialla alta 4 px e larga mezza intestazione, vuota. La
+    vede chi ha finito la campagna del Gufo o ha un salvataggio anteriore
+    agli Ordini.
+18. **⚠️ UNA CARTA NON PROMETTE QUEL CHE IL GIOCO NON PUÒ MANTENERE.** «e
+    %s ti aspetta al carretto» si diceva di un pezzo qualunque del
+    listino — ma `Economy.rotate_stock` pesca 3-4 nomi per visita, e una
+    visita capita ogni cinque-sette giorni: il giocatore metteva da parte
+    le noccioline, aspettava, apriva il carretto e trovava altre tre voci.
+    ⚠️ **E LA CURA NON È FILTRARE**: tenendo solo i pezzi in banco la carta
+    sparirebbe cinque giorni su sei — legittimo («il silenzio è un esito»)
+    ma peggiore, perché spegne una carta buona per chiudere una parola
+    sbagliata. La bandiera `oggi` costa un `has()` e fa dire la verità in
+    tutti e due i casi: **presenza** quando è vero, **provenienza** quando
+    non lo è — che è la grammatica che `_shop_tooltip` usava già.
+19. **UN DATO CON DUE LETTORI VA RINFRESCATO SU TUTTI E DUE.**
+    `_on_wallet_changed` rinfrescava le didascalie delle carte del
+    carretto ma non il taccuino, che da quando esiste la carta dei
+    risparmi fa la stessa affermazione sul borsellino. Le noccioline
+    salgono anche senza che il giocatore tocchi niente (un vicino compra
+    dalla tua Bancarella, arriva il premio di una Commissione): l'Atelier
+    restava aperto a dire «ancora 45» mentre il contatore in alto diceva
+    che ce n'erano abbastanza.
+20. **`b.disabled` NON SPEGNE I FIGLI.** `_riga_vista` mette le parole in
+    due `Label` FIGLIE (il bottone ha il testo vuoto), quindi
+    `font_disabled_color` — scritto in `_pillola` apposta per questo — non
+    poteva raggiungerle: «★ Recenti» spenta aveva lo stesso inchiostro
+    delle altre, il cursore a manina, e al clic non succedeva niente. E
+    capita a **ogni avvio**, non solo in partita nuova: `_recenti` non è
+    persistita.
+
 ### LE DUE TRAPPOLE DI METODO, che riguardano i banchi e non il codice
 
 12. **⚠️ IL BANCO PREMIAVA LA RIMOZIONE DELLA CURA.** `misura_atelier`
@@ -1408,14 +1474,17 @@ uscite col riposo a 38,6 e a 40,65 ms.
 
 ### I RESIDUI, dichiarati
 
-- **La griglia adesso una guardia ce l'ha, ma non è un test**: è
-  `misura_atelier`, che conta le carte rimaste senza ritratto e sa fallire
-  (falsificato). Il LAYOUT invece continua a non averne nessuna: i difetti
-  6, 9, 10 e 11 si vedono in un fotogramma e nessuna asserzione può
-  toccarli. Chi ci torna: la strada è un banco che apra il pannello vero e
-  misuri i **rettangoli** dei Control (il nome coperto dal prezzo è
-  `label.get_global_rect().intersects(prezzo.get_global_rect())`), non un
-  provino da guardare.
+- **La griglia e la GEOMETRIA adesso una guardia ce l'hanno**, ed è
+  `misura_atelier`: conta le carte rimaste senza ritratto, misura il
+  pannello nei DUE stati e pretende che non sfori lo schermo, e che la
+  barra dei colori non intersechi la griglia. Sa fallire — falsificato su
+  tutti e tre i fronti. È nato dopo i difetti 14 e 16, che erano passati
+  proprio perché lo stato piegato non lo misurava nessuno e la scena della
+  barra dei colori non la scattava nessuno.
+- **Restano scoperti i rettangoli DENTRO la carta**: il nome coperto dal
+  prezzo (difetto 6 bis) si proverebbe con
+  `label.get_global_rect().intersects(prezzo.get_global_rect())`, e oggi
+  nessuno lo fa. È la stessa forma dei due chiusi, un piano più giù.
 - **`Consigli.consiglia` adesso è coperto** da
   [`test_consigli.gd`](tests/cases/test_consigli.gd) — prima era puro,
   statico, headless e **senza un solo lettore in tutta la suite**:
@@ -1431,12 +1500,16 @@ uscite col riposo a 38,6 e a 40,65 ms.
 - **Il costo con centotrentasette pezzi sbloccati non è misurato**: la
   corsa è su Arredo (31 carte visibili). La coda chiede solo ciò che si
   guarda, quindi non dovrebbe cambiare — ma «non dovrebbe» non è un numero.
-- **Due lenti su cinque sono cadute** per limite di sessione al primo giro
-  e al secondo (correttezza e integrazione): quello che avrebbero trovato
-  non lo sa nessuno. In particolare **nessuno ha confrontato il pannello
-  nuovo con quello vecchio funzione per funzione** per vedere se qualche
-  comportamento si è perso in silenzio (le scorciatoie, la demolizione, il
-  piano di sopra, l'anteprima).
+- **Le cinque lenti hanno girato tutte**, in tre tentativi (le prime due
+  volte correttezza e integrazione sono cadute per limite di sessione). Il
+  bilancio: **23 + 5 difetti segnalati, 13 sopravvissuti allo scettico**,
+  e i due che nessun'altra lente poteva trovare — la barra dei colori
+  dentro la griglia e i cinque pixel di troppo del pannello piegato — sono
+  venuti proprio dalle due che erano cadute. ⚠️ Nell'ultimo giro **quattro
+  scettici su cinque hanno dichiarato «refutato: già curato»** perché le
+  cure si applicavano mentre leggevano («l'ho visto succedere sotto le
+  mani»): sono conferme indipendenti, non assoluzioni, e chi rilegge quel
+  referto non lo scambi per un via libera.
 
 ## I VARCHI e i PIANI: il villaggio come grafo, e l'IA che cambia idea
 

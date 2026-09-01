@@ -90,8 +90,39 @@ func _go() -> void:
 	# e 87,9 la» significa confrontare due macchine, non due codici.
 	print("  SCARTO  medio=+", "%.2f" % (d_med - r_med),
 			" ms   peggiore=+", "%.2f" % (d_max - r_max), " ms")
+	# ⚠️ E LA GEOMETRIA DEI DUE STATI. Il pannello piegato e la barra dei
+	# colori sono passati attraverso una revisione intera senza che nessuno
+	# li misurasse: il primo stava in 104 px dove ne servono 153 (Godot alza
+	# il rect al minimo combinato e lo fa crescere verso il BASSO, cioè
+	# fuori dallo schermo), la seconda cadeva dentro la griglia e copriva
+	# tre carte. Due difetti di rettangoli, che nessuna asserzione della
+	# suite può toccare e che un provino vede solo se qualcuno pensa a
+	# scattare QUELLA scena.
+	var guai: Array[String] = []
+	var pan: Control = bs.get("_panel")
+	var barra: Control = bs.get("_variant_bar")
+	var alto := float(get_root().size.y)
+	for stato in [true, false]:
+		bs.call("_piega", stato)
+		await create_timer(0.6).timeout
+		var nome := "aperto" if stato else "piegato"
+		var r := pan.get_global_rect()
+		print("  %-8s pannello %s  (schermo alto %d)" % [nome, str(r), int(alto)])
+		if r.end.y > alto + 0.5:
+			guai.append("da %s il pannello sfora di %.0f px sotto lo schermo"
+					% [nome, r.end.y - alto])
+		if barra != null and barra.visible \
+				and r.intersects(barra.get_global_rect()):
+			guai.append("da %s la barra dei colori cade DENTRO il pannello" % nome)
+	if barra != null and not barra.visible:
+		print("  (la barra dei colori non è in scena: nessuna tinta sbloccata)")
+
 	if bianche > 0:
-		print("\n⚠️  ", bianche, " carte non hanno mai avuto il loro ritratto.")
+		guai.append("%d carte non hanno mai avuto il loro ritratto" % bianche)
+	if not guai.is_empty():
+		print("")
+		for g in guai:
+			print("⚠️  ", g)
 		quit(1)
 		return
 	quit()

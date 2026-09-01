@@ -114,15 +114,23 @@ static func consiglia(f: Dictionary) -> Array:
 					[L10n.t(str(aff.get("nome", ""))), int(aff.get("costo", 0)), soldi]),
 					str(aff.get("nome", "")), "borsa", 60))
 		else:
-			# ⚠️ DUE COSE INSIEME, e la seconda l'ha trovata il test.
+			# ⚠️ TRE COSE INSIEME, e le ultime due le hanno trovate i banchi.
 			# «e %s è tuo» concorda col nome, e 133 nomi su 137 lo fanno
-			# uscire sbagliato («e Fontana è tuo»); ma girare la frase in
-			# «per %s ti mancano %d» mette il giocatore in DEBITO, che è
-			# quello che la prima regola del tono vieta. La frase deve
-			# guardare avanti come guardava prima — senza concordare.
-			out.append(_carta(L10n.tf("Ancora %d %s, e %s ti aspetta al carretto.",
-					[int(aff.get("manca", 0)), soldi, L10n.t(str(aff.get("nome", "")))]),
-					str(aff.get("nome", "")), "borsa", 55))
+			# uscire sbagliato («e Fontana è tuo»); girare la frase in «per
+			# %s ti mancano %d» mette il giocatore in DEBITO, che la prima
+			# regola del tono vieta; e «ti aspetta al carretto» PROMETTE una
+			# presenza — ma il mercante vende 3-4 pezzi per visita a
+			# rotazione, e una visita ogni cinque-sette giorni. Quando quel
+			# pezzo non è sul banco si dice la PROVENIENZA, che è vera
+			# sempre: è la stessa grammatica che `_shop_tooltip` usa già.
+			if bool(aff.get("oggi", false)):
+				out.append(_carta(L10n.tf("Ancora %d %s, e %s ti aspetta al carretto.",
+						[int(aff.get("manca", 0)), soldi, L10n.t(str(aff.get("nome", "")))]),
+						str(aff.get("nome", "")), "borsa", 55))
+			else:
+				out.append(_carta(L10n.tf("Ancora %d %s per %s, dal carretto del mercante.",
+						[int(aff.get("manca", 0)), soldi, L10n.t(str(aff.get("nome", "")))]),
+						str(aff.get("nome", "")), "borsa", 55))
 
 	# 5 · IL PEZZO CHE NON C'È ANCORA. Ce l'hai, è tuo, e nel villaggio non
 	# se ne vede uno. Non è un rimprovero: è la scatola in fondo all'armadio.

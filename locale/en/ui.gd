@@ -501,6 +501,11 @@ const T := {
 	# catalogo: «a Armchair» e il secondo modo di sbagliare la stessa riga.
 	"Ancora %d %s, e %s ti aspetta al carretto.":
 			"Another %d %s, and %s is waiting at the pedlar's cart.",
+	# la sorella per quando quel pezzo NON è sul banco di oggi: si dice la
+	# provenienza, che è vera sempre, invece della presenza, che il
+	# mercante smentisce cinque giorni su sei
+	"Ancora %d %s per %s, dal carretto del mercante.":
+			"Another %d %s for %s, from the pedlar's cart.",
 	"Nel villaggio non c'è ancora traccia di %s.":
 			"There is not a single %s anywhere in the village yet.",
 	"Qui non c'è ancora niente. Un Pavimento è un buon posto da cui cominciare.":

@@ -56,7 +56,11 @@ func _go() -> void:
 	var scena := OS.get_environment("CHIBI_SCENA")
 	if scena == "":
 		scena = "aperto"
-	if scena == "aperto":
+	# ⚠️ anche «colori» apre i lucchetti: la barra delle varianti compare
+	# solo con in mano un pezzo VERNICIABILE, e col catalogo chiuso il
+	# builder ripiega sul Pavimento — che non lo è. Il provino mostrava una
+	# scena senza il soggetto che doveva giudicare.
+	if scena == "aperto" or scena == "colori":
 		bs.set("_locks_active", false)
 	bs.call("set_active_for_debug", true, Vector3(2, 0, 4), "Tavolino")
 	await create_timer(0.5).timeout
@@ -72,6 +76,20 @@ func _go() -> void:
 			bs.call("_piega", true)
 			await create_timer(0.6).timeout
 			await _scatta("p3-riaperto")
+		"colori":
+			# la barra delle varianti: sta SOPRA il pannello, o dentro la
+			# griglia? È il difetto che nessun provino aveva mai guardato,
+			# perché nessuna scena sbloccava una tinta.
+			var eco: Node = bs.call("_economy")
+			if eco != null and eco.has_method("unlock_variant"):
+				for tinta in ["menta", "lavanda", "miele"]:
+					eco.call("unlock_variant", tinta)
+			bs.call("_update_variant_bar")
+			await create_timer(2.5).timeout
+			await _scatta("v0-aperto")
+			bs.call("_piega", false)
+			await create_timer(1.0).timeout
+			await _scatta("v1-piegato")
 		"chiuso":
 			# il pannello di chi comincia: i «?», i prezzi, i corredi
 			await _scatta("q0-partenza")

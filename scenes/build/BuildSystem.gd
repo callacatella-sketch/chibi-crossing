@@ -3282,7 +3282,8 @@ func _fatti_atelier() -> Dictionary:
 			if d < scarto:
 				scarto = d
 				scelto = {"nome": nome, "costo": costo, "cur": cur,
-						"manca": maxi(costo - ho, 0), "puoi": ho >= costo}
+						"manca": maxi(costo - ho, 0), "puoi": ho >= costo,
+						"oggi": in_banco.has(nome)}
 		f["affare"] = scelto
 
 	# IL PEZZO CHE NON HAI MAI PROVATO: tuo, e mai posato. Si scorre dal
