@@ -19,11 +19,17 @@ scenes/world/CozyWorld.gd
 		mm.use_custom_data = true
 		mm.use_colors = true
 =====
-le antenne perdono il loro canale
-scenes/world/FarfalleGeo.gd
-	var c := Color(colore.r, colore.g, 1.0, colore.a)
+la cerniera del battito smette di essere gatata su COLOR.a
+shaders/butterfly.gdshader
+	float w = max(abs(VERTEX.x) - raggio_torace, 0.0) * COLOR.a;
 -->
-	var c := colore
+	float w = max(abs(VERTEX.x) - raggio_torace, 0.0);
+=====
+la maschera del corpo diventa una sfumatura
+scenes/world/FarfalleGeo.gd
+	var corpo := Color(0.0, 0.0, 0.0, 0.0)
+-->
+	var corpo := Color(0.0, 0.0, 0.0, 0.5)
 =====
 le antenne tornano a misure assolute
 scenes/world/FarfalleGeo.gd

@@ -428,13 +428,19 @@ func flatten_cell(cell: Vector2i) -> void:
 			var tf: Transform3D = _grass_base[i]
 			_grass_mm.set_instance_transform(i,
 					Transform3D(tf.basis.scaled(Vector3(1, 0.02, 1)), tf.origin))
+	_accuccia_fiori(cell)
+
+
+## Il ramo dei FIORI di `flatten_cell`, a parte perché ha due chiamanti:
+## il piazzamento, e il rifacimento dopo l'indicizzazione.
+func _accuccia_fiori(cell: Vector2i) -> void:
 	for v in _flower_cells.get(cell, []):
 		var c := int((v as Array)[0])
 		var idx: int = int((v as Array)[1])
-		var tf2: Transform3D = (_flower_base[c] as Array)[idx]
+		var tf: Transform3D = (_flower_base[c] as Array)[idx]
 		(_flower_fields[c] as MultiMeshInstance3D).multimesh \
 				.set_instance_transform(idx,
-				Transform3D(tf2.basis.scaled(Vector3(1, 0.02, 1)), tf2.origin))
+				Transform3D(tf.basis.scaled(Vector3(1, 0.02, 1)), tf.origin))
 
 
 ## E quando il pezzo viene rimosso, l'erba rinasce. E i fiori con lei.
@@ -584,6 +590,10 @@ func _build_flowers() -> void:
 ## qui TUTTI — la semina, le margherite della scogliera, quelle della
 ## riva — o le ultime resterebbero fuori dall'indice, cioè sarebbero le
 ## uniche a non accucciarsi, in silenzio.
+## ⚠️ E CI PASSANO TUTTI: `flatten_cell` indicizza `_flower_fields[c]`
+## con l'indice di `_flower_base`, quindi un `_flower_fields.append()`
+## fatto per un'altra strada sposterebbe SILENZIOSAMENTE i fiori
+## sbagliati. La guardia è in `test_fiori`, e costa un confronto.
 func _registra_campo(nodo: MultiMeshInstance3D, transforms: Array) -> void:
 	if nodo == null:
 		return
@@ -598,10 +608,31 @@ func _indicizza_fiori() -> void:
 		var tfs: Array = _flower_base[c]
 		for i in tfs.size():
 			var tf: Transform3D = tfs[i]
+			# ⚠️ SOLO QUELLI A TERRA. Fra i campi registrati ci sono le
+			# margherite della SCOGLIERA, che stanno metri più in alto:
+			# senza questo filtro, posare un pavimento in basso
+			# accuccerebbe fiori che stanno in cima alla parete — e la
+			# cella è (x, z), quindi la quota non la guarda nessuno.
+			if absf(tf.origin.y) > 0.5:
+				continue
 			var cella := Vector2i(roundi(tf.origin.x), roundi(tf.origin.z))
 			if not _flower_cells.has(cella):
 				_flower_cells[cella] = []
 			(_flower_cells[cella] as Array).append([c, i])
+	# ⚠️ E SI RIAPPLICA L'ACCUCCIAMENTO GIÀ CHIESTO, o non succede MAI
+	# su una partita CARICATA — cioè per ogni giocatore che torna.
+	# `BuildSystem._load_village` posa TUTTE le celle salvate dentro il
+	# frame 0 (non ha un solo `await`), mentre questa indicizzazione sta
+	# in fondo a un `_ready` che ne attraversa sette: al caricamento
+	# `flatten_cell` trovava `_flower_cells` vuoto, non accucciava niente
+	# — e timbrava comunque `_grass_flat`, quindi per via del `return`
+	# in testa non ci sarebbe tornata mai più. Margherite alte ventidue
+	# centimetri che spuntano dal parquet, in ogni partita riaperta.
+	#
+	# L'erba invece era a posto, perché `_build_grass()` gira PRIMA del
+	# primo `await`: è quell'asimmetria a dire dov'era il difetto.
+	for cell in _grass_flat:
+		_accuccia_fiori(cell)
 
 
 ## L'ERBARIO: quello che c'e' a terra oltre l'erba e i fiori. Un prato vero
@@ -1075,6 +1106,10 @@ func _make_butterfly(kind_i: int) -> void:
 	# senza `use_world_noise` la trama è in spazio OGGETTO.
 	var wing_mat := GEO.paint_mat(wing_col, wing_col.darkened(0.42),
 			26.0, 0.58, 0.0, false, 0.50)
+	# L'ORLO SCURO sul margine, la stessa cosa che fa lo shader delle
+	# novanta leggendo `COLOR.r`: una sagoma sola non basta se i due
+	# montaggi poi si dipingono in modo diverso.
+	wing_mat.set_shader_parameter("orlo", 1.0)
 	var wings: Array[Node3D] = []
 	for side: float in [-1.0, 1.0]:
 		var pivot := Node3D.new()

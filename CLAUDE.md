@@ -458,8 +458,8 @@ fatte. Perciò tre specie nuove, e sono le tre che cambiano la lettura:
 
 | | h | tris | classe |
 |---|---|---|---|
-| **trifoglio** | 0.079 | 94 | il TAPPETO, sotto la linea dell'erba |
-| non-ti-scordar-di-me | 0.127 | 382 | il piccolo AZZURRO, la tinta che mancava |
+| **trifoglio** | 0.086 | 138 | il TAPPETO, sotto la linea dell'erba |
+| non-ti-scordar-di-me | 0.124 | 382 | il piccolo AZZURRO, la tinta che mancava |
 | margherita (×2) · tulipano (×2) | 0.21 · 0.31 | 560 · 342 | i MEDI |
 | lavanda | 0.36 | 538 | l'alto sottile |
 | **papavero** | 0.32 | 298 | l'ALTO, testa FUORI ASSE |
@@ -486,6 +486,30 @@ Da **166 istanze a 1046**, e da 176k triangoli (com'era all'inizio) a
 - la base a **−0.012**: il suolo TAGLIA lo stelo e non si vede mai il
   disco d'appoggio — il trucco dei sassi dell'erbario.
 
+⚠️ **E IL RAGGIO DELLO STELO VA IN FRAZIONE DELL'ALTEZZA** (1.7%), non
+in metri: è la stessa mina delle farfalle un piano più in là. Le piante
+che passano da `stelo_fiore` vanno da 10.5 cm (il non-ti-scordar-di-me)
+a 29 (il papavero), e col numero assoluto la piccola aveva un gambo
+grosso il 3.2% della propria altezza e il papavero l'1.2%.
+
+### DUE LEZIONI DI FORMA, viste e non dedotte
+
+**UN FUNGO È UNA CALOTTA A FONDO PIATTO.** Il capolino del trifoglio era
+una cupola liscia su uno stecco, e leggeva fungo — non per la
+superficie, per la SAGOMA. Si chiude sotto con una seconda cupola ad
+`alt` NEGATIVA (che specchia il profilo e gira le normali da sola) e la
+silhouette diventa tonda. ⚠️ Ma perché le due metà combacino serve
+`bordo = 1.0`: il profilo di serie (`sqrt(1 − t²·0.86)`) lascia il
+margine RIALZATO — giusto per un capolino di margherita, e con due metà
+dà due piattini staccati.
+
+**E I LOBI VANNO CAMPIONATI.** `cupola_su(..., lobi, lobo)` modula il
+RAGGIO sull'angolo, ed è la sola leva che fa i fiorellini: modulare
+l'ALTEZZA (`grana`) su un disco alto due millimetri non si vede. Ma con
+nove segmenti e sette lobi il giro non li vede proprio — è aliasing, e
+la testa resta liscia. **Almeno due segmenti per lobo**, e qui ce ne
+sono tre.
+
 ### ⚠️ I FIORI SI ACCUCCIANO SOTTO I PAVIMENTI (il buco che la densità ha rivelato)
 
 `flatten_cell` toccava SOLO `_grass_cells`. Con 166 fiori sparsi su
@@ -496,6 +520,29 @@ difetto: l'ha reso visibile. Adesso `_flower_cells`/`_flower_base` sono
 l'idioma identico di `_grass_cells`/`_grass_base`, e
 `tools/prova_accuccia.gd` lo prova **nel MainLevel vero**, guardando
 l'altezza dei corpi: **1.2093 → 0.0242 → 1.2093**.
+
+> ### ⚠️⚠️ E NON BASTAVA: SU UNA PARTITA CARICATA NON SUCCEDEVA MAI
+>
+> `_indicizza_fiori()` sta in fondo a un `_ready` che attraversa SETTE
+> `await get_tree().process_frame`. `BuildSystem._load_village` posa
+> TUTTE le celle salvate dentro il frame 0 — **non ha un solo `await`**.
+> Al caricamento, quindi, ogni `flatten_cell` trovava l'indice VUOTO,
+> non accucciava niente, **e timbrava comunque `_grass_flat`**: per via
+> del `return` in testa non ci sarebbe tornata MAI più. Cioè il difetto
+> restava intero per ogni giocatore che RIAPRE la partita, che sono
+> tutti tranne chi comincia adesso.
+>
+> L'erba era a posto, perché `_build_grass()` gira PRIMA del primo
+> `await`: **è quell'asimmetria a dire dov'era il difetto**. La cura è
+> in coda a `_indicizza_fiori()` — si riapplica l'accucciamento a ogni
+> cella già timbrata — e `prova_accuccia.gd` adesso ha DUE scene: si
+> posa a mondo costruito (il caso facile) e si posa, si SALVA, si
+> RICARICA e si guarda prima di toccare niente. Falsificata: senza
+> quella riga la scena 1 resta verde e la scena 2 dà 1.2093.
+>
+> ⚠️ E il banco mette al riparo il `village.json` dell'autore e lo
+> rimette dov'era: il difetto vive nel caricamento, e non c'era altro
+> modo di provarlo.
 
 > ### ⚠️⚠️ E QUI C'È UNA TRAPPOLA DI GODOT CHE VALE PER TUTTI
 >
@@ -516,6 +563,16 @@ l'altezza dei corpi: **1.2093 → 0.0242 → 1.2093**.
 > moltiplica le RIGHE, cioè schiaccia lungo la y del MONDO — e su una
 > base inclinata `basis.get_scale().y` non lo vede. Si misura
 > `(basis * Vector3.UP).y`.
+>
+> ⚠️ **E IL BANCO SI RIFIUTA DI GIRARE HEADLESS**, invece di misurare
+> l'identità e uscire 0 su un gioco rotto. Un banco che non sa fallire
+> è un ritratto — e la prima stesura, oltre a girare headless in
+> silenzio, non asseriva niente (stampava tre numeri e usciva 0) e
+> chiedeva la cella da colpire E i fiori da guardare allo STESSO indice
+> che stava provando: con `roundi` mutato in `floori` sarebbe rimasto
+> verde mentre nel mondo si accucciava un'altra cella. Adesso la cella
+> e le altezze si ricavano da `_flower_base` ricalcolando la cella NEL
+> BANCO, e ogni riga è un'asserzione con `quit(1)`.
 
 ### LE FARFALLE: quattro triangoli e un corpo da mille
 
@@ -569,9 +626,27 @@ posteriore parte in **ritardo di 0.55 rad** (`COLOR.g`). Più l'ORLO
 scuro sul margine (`COLOR.r` porta la distanza dalla cerniera): a sei
 metri è quello a distinguere una farfalla da un coriandolo colorato.
 
-> ⚠️ **E LE ANTENNE HANNO UN CANALE LORO (`COLOR.b`).** Escono dal
-> raggio del torace ma non sono ala: senza, la cerniera le prenderebbe
-> per punte d'ala e le piegherebbe.
+> ⚠️ **E L'ORLO LO LEGGONO TUTTI E DUE I MONTAGGI.** Le CINQUE nominate
+> non sono dipinte da `butterfly.gdshader` ma da `handpaint`, che
+> `COLOR.r` non lo guardava: erano le uniche senza il margine scuro —
+> proprio quelle che si posano sul naso di Mochi, nell'unica
+> inquadratura in cui un'ala si vede a due centimetri. Avere UNA sagoma
+> non serve a niente se poi i due montaggi si dipingono diverso: adesso
+> `handpaint` ha l'uniform `orlo`, spento di serie come tutti gli altri
+> e acceso solo dal materiale delle ali.
+
+> ⚠️ **E LE ANTENNE NON HANNO UN CANALE LORO, ANCHE SE PER UN PEZZO
+> L'INTESTAZIONE HA GIURATO DI SÌ.** Escono dal raggio del torace ma
+> sono CORPO, e a tenerle fuori dalla cerniera è `COLOR.a` — la
+> maschera, che vale 1 o 0 e basta. Una stesura le marcava con un
+> `COLOR.b` tutto loro dicendo che «senza, la cerniera le prenderebbe
+> per punte d'ala»: non era vero, nessuno lo leggeva, e la mutazione che
+> «lo provava» faceva arrossire il test soltanto perché il test usava
+> quel canale come propria ESENZIONE. Il rosso certificava il banco, non
+> il gioco — che è più insidioso di una guardia muta, perché dice
+> «coperto» e non lo è. Canale tolto, intestazione corretta, e la
+> mutazione adesso guasta la riga che conta davvero (la cerniera gatata
+> su `COLOR.a`, in `butterfly.gdshader`).
 
 ### ⚠️ DARE UNA SAGOMA A UNA COSA NE RIVELA LA TAGLIA
 
@@ -605,21 +680,40 @@ più il materiale e il ritinto stagionale si spegne in silenzio.
 trecentottanta fiori che ondeggiavano nello stesso istante, dentro
 un'erba che ha la folata del mondo.
 
-### IL PREZZO, misurato
+### IL PREZZO, misurato — e il primo numero era SBAGLIATO
 
-`tools/prova_prato_vivo.gd`, parte P: A/B **nella stessa corsa**,
-finestre alternate coi campi accesi e spenti, vsync spento.
+`tools/prova_prato_vivo.gd`, parte P: A/B **nella stessa corsa**, vsync
+spento, e **TRE stati** invece di due.
 
-| | |
-|---|---|
-| coi fiori (1046 istanze) | 41.10 ms |
-| senza | 40.54 ms |
-| **scarto** | **+0.56 ms (+1.4%)** |
+| | fotogramma | scarto |
+|---|---|---|
+| tutto acceso | 41.04 ms | |
+| senza il PRATO (1046 istanze, 296k tris) | 40.22 ms | **+0.82 ms (+2.0%)** |
+| senza niente (anche l'ECOSISTEMA: 530 istanze, 115k tris) | 39.81 ms | **+0.42 ms (+1.0%)** |
+| **insieme** | | **+1.24 ms (+3.1%)** |
 
 Il cancello d'arresto dichiarato prima di misurare era **il 5%**.
-⚠️ La macchina aveva carico 4.10 (altre sessioni di agente): sono
-**pavimenti**, non misure pulite — ma l'A/B sta nella stessa corsa, che
-è l'unica cosa che conta.
+
+> ⚠️ **E IL PRIMO NUMERO PUBBLICATO QUI (+0.56 ms, +1.4%) ERA IL PREZZO
+> DEL PRATO SPACCIATO PER IL PREZZO DEL LAVORO.** L'A/B accendeva e
+> spegneva solo `_flower_fields` — ma i 380 fiori selvatici (da 16 a
+> ~250 triangoli l'uno) e le 90 farfalle (da 4 a 232) vivono sotto il
+> nodo dell'**Ecosystem**, che è un figlio runtime di CozyWorld e non
+> sta in quell'array. Centoquindicimila triangoli che la misura non
+> toglieva e il conteggio non sommava: il cancello del 5% era stato
+> applicato al più piccolo dei due numeri.
+
+> ⚠️ **E L'ORDINE DEGLI STATI SI ROVESCIA A OGNI GIRO.** Con tre stati
+> sempre nella stessa sequenza, qualunque DERIVA della macchina si alias
+> sullo stato e si legge come costo: la prima corsa a ordine fisso ha
+> dato «spegnere il prato costa **−10 ms**», cioè un'impossibilità
+> fisica. Alternando A-B-C / C-B-A la deriva lineare si cancella, e la
+> monotonia (tutto > senza-prato > niente) torna a essere il controllo
+> di sanità che deve essere.
+>
+> ⚠️ La macchina aveva carico 3.0–3.4 (altre sessioni di agente): sono
+> **pavimenti**, non misure pulite — ma l'A/B sta nella stessa corsa,
+> che è l'unica cosa che conta.
 
 ### Come si guarda
 
@@ -646,7 +740,34 @@ Godot --path . --resolution 640x400 --script res://tools/prova_accuccia.gd
 
 La guardia headless è [`tests/cases/test_fiori.gd`](tests/cases/test_fiori.gd),
 e **non è un source-check**: costruisce le mesh vere, campiona le leggi
-vere e guarda la geometria. Le mutazioni sono annotate nel commit.
+vere e guarda la geometria. Le mutazioni stanno in
+[`tools/muta_fiori.txt`](tools/muta_fiori.txt) e le fa girare
+[`tools/muta.sh`](tools/muta.sh).
+
+> ### ⚠️ E UN BANCO DI MUTAZIONE NON RIPRISTINA CON `git checkout`
+>
+> Quello rimette l'ultimo COMMIT, non lo stato di partenza — e in un
+> banco di mutazione c'è SEMPRE lavoro non committato, perché si sta
+> provando la guardia che si è appena scritta. Il 2026-08-30 si è
+> portato via una battuta asimmetrica e delle antenne proporzionali già
+> finite, e ucciso a metà ha lasciato una MUTAZIONE viva dentro
+> `FioriGeo.gd`. Si ripristina da una **copia su disco accanto al file**
+> (`*.pre-muta`), non da un temporaneo che il `trap EXIT` cancella, e il
+> trap rimette i file **prima** di uscire, anche su INT e TERM.
+>
+> E «0 rosse» non deve poter voler dire quattro cose diverse: il banco
+> pretende la riga `==== TEST:` (altrimenti dichiara *CORSA MORTA*),
+> riconosce il PARSE rotto (una mutazione che non compila non prova
+> niente), rifiuta un testo-da AMBIGUO (`replace(…, 1)` prenderebbe la
+> prima occorrenza, magari dentro un commento), conta i rossi **anche
+> fuori** dal file sorvegliato, e fa una corsa di RIFERIMENTO senza
+> mutazioni pretendendo zero.
+
+**⚠️ E COSA QUESTE GUARDIE NON DICONO, dichiarato:** il vertex shader
+non si può far girare headless, quindi che `FarfalleGeo.battito` e la
+funzione `battito` di `butterfly.gdshader` restino la STESSA legge lo
+tiene un source-check (i due numeri della legge, confrontati fra i due
+sorgenti) — la stessa disciplina di `nottambulo()`, ma più fragile.
 
 ## Il Prologo: il tutorial che ha avuto conseguenze
 

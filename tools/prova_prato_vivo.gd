@@ -13,7 +13,8 @@ extends SceneTree
 ##      che dice se la folata arriva ai fiori — e se la TESTA arriva in
 ##      ritardo sullo stelo, che è tutto il peso del fiore;
 ##  F — le FARFALLE vere del prato, quelle nominate, da vicino;
-##  C — il CONTO: quanti fiori, quanti triangoli, quante draw call.
+##  C — il CONTO: quanti fiori, quanti triangoli, quante draw call;
+##  P — il PREZZO del fotogramma, A/B nella stessa corsa.
 ##
 ## ⚠️ IL BANCO EREDITA IL SALVATAGGIO: senza fissare giorno, ora e
 ## stagione si fotografa un mondo in inverno di sera e si giudica la neve
@@ -55,6 +56,19 @@ func _conta_mesh(n: Node, acc: Dictionary) -> void:
 		_conta_mesh(f, acc)
 
 
+## Il nodo dell'ecosistema (fiori selvatici e farfalle del MultiMesh):
+## è un figlio runtime di CozyWorld, non sta in `_flower_fields`.
+func _ecosistema(cw: Node) -> Node:
+	if cw == null:
+		return null
+	for f in cw.get_children():
+		if (f as Node).get_script() != null \
+				and str((f as Node).get_script().resource_path).ends_with(
+						"Ecosystem.gd"):
+			return f
+	return null
+
+
 func _go() -> void:
 	if change_scene_to_file("res://scenes/levels/MainLevel.tscn") != OK:
 		push_error("MainLevel non si apre")
@@ -94,6 +108,18 @@ func _go() -> void:
 		if cw:
 			for f in (cw.get("_flower_fields") as Array):
 				_conta_mesh(f as Node, acc)
+		# ⚠️ E L'ECOSISTEMA, che è l'altra metà del lavoro: i 380 fiori
+		# selvatici sono passati da 16 a ~250 triangoli l'uno e le 90
+		# farfalle da 4 a 232. Vivono sotto un nodo LORO, fuori da
+		# `_flower_fields`: contare solo lì dentro dà il prezzo del
+		# PRATO, non il prezzo del lavoro.
+		var eco := _ecosistema(cw)
+		var acc2 := {}
+		if eco:
+			_conta_mesh(eco, acc2)
+			print("ECOSISTEMA: %d MultiMesh · %d istanze · %d triangoli"
+					% [int(acc2.get("mm", 0)), int(acc2.get("ist", 0)),
+							int(acc2.get("tri", 0))])
 		print("CAMPI DI FIORI: %d MultiMesh · %d istanze · %d triangoli"
 				% [int(acc.get("mm", 0)), int(acc.get("ist", 0)),
 						int(acc.get("tri", 0))])
@@ -156,13 +182,30 @@ func _go() -> void:
 		var giri := 3
 		if OS.get_environment("CHIBI_FPS_GIRI") != "":
 			giri = int(OS.get_environment("CHIBI_FPS_GIRI"))
-		var somma := {true: 0.0, false: 0.0}
-		var conta := {true: 0, false: 0}
+		var eco2 := _ecosistema(cw)
+		# TRE stati, non due: «tutto», «senza il prato», «senza niente».
+		# ⚠️ Con due soli stati non si sa DOVE va il costo — e il nodo
+		# dell'ecosistema porta anche le lucciole, che questo lavoro non
+		# ha toccato: spegnerlo tutto insieme al prato attribuisce al
+		# lavoro anche quello che non è suo.
+		var somma := {"tutto": 0.0, "senza_prato": 0.0, "niente": 0.0}
+		var conta := {"tutto": 0, "senza_prato": 0, "niente": 0}
+		# ⚠️ L'ORDINE SI ROVESCIA A OGNI GIRO. Con tre stati sempre nella
+		# stessa sequenza, qualunque DERIVA della macchina — un'altra
+		# sessione che parte, il termico, la cache che si scalda — si
+		# alias sullo stato, e si legge come costo. Alternando
+		# A-B-C / C-B-A la deriva lineare si cancella.
+		var ordini: Array = [["tutto", "senza_prato", "niente"],
+				["niente", "senza_prato", "tutto"]]
 		for g in giri:
-			for acceso in [true, false]:
+			for stato: String in ordini[g % 2]:
+				var prato := stato == "tutto"
+				var eco_on := stato != "niente"
 				if cw:
 					for f in (cw.get("_flower_fields") as Array):
-						(f as Node3D).visible = acceso
+						(f as Node3D).visible = prato
+				if eco2:
+					(eco2 as Node3D).visible = eco_on
 				# la prima mezza finestra si butta: è quella in cui il
 				# renderer si riassesta dopo il cambio
 				var t0 := Time.get_ticks_usec()
@@ -174,21 +217,32 @@ func _go() -> void:
 					await process_frame
 					n += 1
 				var dt := float(Time.get_ticks_usec() - t0) / 1000000.0
-				somma[acceso] = float(somma[acceso]) + dt
-				conta[acceso] = int(conta[acceso]) + n
+				somma[stato] = float(somma[stato]) + dt
+				conta[stato] = int(conta[stato]) + n
 		if cw:
 			for f in (cw.get("_flower_fields") as Array):
 				(f as Node3D).visible = true
-		var ms_on := float(somma[true]) * 1000.0 / maxf(float(conta[true]), 1.0)
-		var ms_off := float(somma[false]) * 1000.0 / maxf(float(conta[false]), 1.0)
+		if eco2:
+			(eco2 as Node3D).visible = true
+		var ms := func(k: String) -> float:
+			return float(somma[k]) * 1000.0 / maxf(float(conta[k]), 1.0)
+		print("   (carico della macchina: %s — se il divario fra gli stati "
+				% str(OS.get_static_memory_usage() > 0)
+				+ "è dell'ordine del rumore, la misura non è pronta)")
 		print("FOTOGRAMMA (A/B nella stessa corsa, %d giri da %.0f s)"
 				% [giri, sec])
-		print("   coi fiori   %.2f ms (%.1f fps, %d fotogrammi)"
-				% [ms_on, 1000.0 / ms_on, int(conta[true])])
-		print("   senza       %.2f ms (%.1f fps, %d fotogrammi)"
-				% [ms_off, 1000.0 / ms_off, int(conta[false])])
-		print("   scarto      %+.2f ms (%+.1f%%)"
-				% [ms_on - ms_off, (ms_on / ms_off - 1.0) * 100.0])
+		for k: String in ["tutto", "senza_prato", "niente"]:
+			print("   %-12s %.2f ms (%.1f fps, %d fotogrammi)"
+					% [k, ms.call(k), 1000.0 / ms.call(k), int(conta[k])])
+		print("   il PRATO costa      %+.2f ms (%+.1f%%)"
+				% [ms.call("tutto") - ms.call("senza_prato"),
+						(ms.call("tutto") / ms.call("senza_prato") - 1.0) * 100.0])
+		print("   l'ECOSISTEMA costa  %+.2f ms (%+.1f%%)"
+				% [ms.call("senza_prato") - ms.call("niente"),
+						(ms.call("senza_prato") / ms.call("niente") - 1.0) * 100.0])
+		print("   insieme             %+.2f ms (%+.1f%%)"
+				% [ms.call("tutto") - ms.call("niente"),
+						(ms.call("tutto") / ms.call("niente") - 1.0) * 100.0])
 
 	print("PRATO -> ", _dove)
 	quit()

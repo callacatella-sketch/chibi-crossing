@@ -18,6 +18,9 @@ const FIO = preload("res://scenes/world/FioriGeo.gd")
 const FARF = preload("res://scenes/world/FarfalleGeo.gd")
 ## il corso del fiume: si chiede a chi lo definisce, non si ricopia
 const MATH = preload("res://scenes/world/WorldMath.gd")
+## l'ecosistema del C++: qui se ne monta uno FUORI dall'albero, così il
+## suo `_ready` non parte e si possono chiedere le sole mesh
+const ECO = preload("res://scenes/world/Ecosystem.gd")
 
 
 func run(t) -> void:
@@ -35,6 +38,9 @@ func run(t) -> void:
 	_la_farfalla_ha_quattro_ali_e_un_corpo(t)
 	_il_battito_e_asimmetrico(t)
 	_il_torace_e_in_frazione_dellapertura(t)
+	_la_battuta_e_la_stessa_in_due_lingue(t)
+	_lecosistema_regge_i_suoi_contratti(t)
+	_i_due_array_dei_campi_restano_paralleli(t)
 
 
 # --------------------------------------------------------- gli attrezzi
@@ -152,9 +158,25 @@ func _le_leggi_del_petalo(t) -> void:
 		if w > wmax:
 			wmax = w
 			iu_max = iu
-	t.ok(float(iu_max) / float(nu) > 0.42,
-			"il massimo della larghezza cade oltre il 42%% (a %.2f)"
-			% (float(iu_max) / float(nu)))
+	# ⚠️ IL MASSIMO SI CERCA SU UNA GRIGLIA FITTA. Con `nu = 6` la
+	# discretizzazione lo inchioda all'indice 3, cioè a 0.50 esatto, sia
+	# col petalo obovato sia col PLATEAU: la soglia a 0.42 non
+	# distingueva le due cose, e a distinguerle era solo la larghezza
+	# dell'attacco, qui sotto.
+	var fitta: Array = FIO.petalo_griglia(0.030, 0.0072, 60, 2,
+			{"incisione": 0.19, "arco": 0.26, "caduta": 0.20, "conca": 0.62,
+			"torsione": 0.0})
+	var wf := 0.0
+	var iu_f := 0
+	for iu in 61:
+		var w: float = absf((fitta[iu][2] as Vector3).z
+				- (fitta[iu][0] as Vector3).z) * 0.5
+		if w > wf:
+			wf = w
+			iu_f = iu
+	t.ok(float(iu_f) / 60.0 > 0.50,
+			"il massimo della larghezza cade OLTRE metà petalo (a %.3f): "
+			% (float(iu_f) / 60.0) + "è la definizione di obovato")
 	t.ok(w0 < wmax * 0.72,
 			"…e l'attacco è ben più stretto del massimo (%.4f < %.4f)"
 			% [w0, wmax * 0.72])
@@ -169,6 +191,24 @@ func _le_leggi_del_petalo(t) -> void:
 	t.ok((g[nu][nv / 2] as Vector3).y < 0.0,
 			"…e la punta CADE sotto l'attacco (%.4f m)"
 			% (g[nu][nv / 2] as Vector3).y)
+	# 4. LA TORSIONE: il piano del lembo RUOTA lungo il petalo. È la
+	#    quinta legge («nessun petalo è planare, e due petali della
+	#    stessa corolla non prendono mai la stessa luce») e nessuna
+	#    asserzione la guardava — l'unico caso che poteva misurarla la
+	#    spegneva passando `torsione: 0.0`.
+	for tors: float in [0.0, 0.30]:
+		var gt: Array = FIO.petalo_griglia(0.030, 0.0072, 6, 2,
+				{"incisione": 0.0, "arco": 0.0, "caduta": 0.0,
+				"conca": 0.0, "torsione": tors})
+		var nt := FIO.lembo_normali(gt)
+		var gira: float = (nt[0][1] as Vector3).angle_to(nt[6][1] as Vector3)
+		if tors == 0.0:
+			t.almost(gira, 0.0,
+					"CONTROPROVA: senza torsione il lembo è planare", 0.01)
+		else:
+			t.ok(gira > tors * 0.5,
+					"con torsione 0.30 il piano del lembo ruota di %.3f rad "
+					% gira + "dalla radice alla punta")
 
 
 ## IL PETALO HA DUE FACCE: dorso e ventre, con normali OPPOSTE. È ciò
@@ -191,8 +231,35 @@ func _il_petalo_ha_due_facce(t) -> void:
 	t.ok(su > 0 and giu > 0,
 			"il petalo ha un dorso e un ventre (%d normali su, %d giù)"
 			% [su, giu])
-	t.ok(absf(float(su - giu)) < float(su + giu) * 0.35,
-			"…e le due facce sono equilibrate (%d contro %d)" % [su, giu])
+	# ⚠️ «e le due facce sono equilibrate» era una TAUTOLOGIA: i due
+	# fogli escono dalla stessa lista di quad col segno rovesciato,
+	# quindi `su` e `giu` sono uguali BIT PER BIT per qualunque
+	# geometria. Quello che va misurato è l'altra cosa, che è la vera
+	# invenzione del petalo: i due fogli sono SEPARATI in mezzo e
+	# COINCIDENTI sul margine — è così che si chiude senza un triangolo
+	# in più, e in controluce il bordo diventa una linea di spessore.
+	var g := FIO.petalo_griglia(0.030, 0.0072, 4, 2, {})
+	var nr := FIO.lembo_normali(g)
+	var spessore := 0.030 * 0.012
+	var scarto := func(iu: int, iv: int) -> float:
+		var sp: float = spessore * (1.0 - pow(lerpf(-1.0, 1.0,
+				float(iv) / 2.0), 2.0)) * (1.0 - pow(float(iu) / 4.0, 3.0))
+		return 2.0 * sp
+	t.ok(scarto.call(2, 1) > spessore * 0.5,
+			"in MEZZO i due fogli sono separati (%.5f m)" % scarto.call(2, 1))
+	t.almost(scarto.call(2, 0), 0.0,
+			"…e sul MARGINE coincidono: il petalo si chiude da sé", 1e-9)
+	t.almost(scarto.call(4, 1), 0.0,
+			"…e sulla PUNTA pure", 1e-9)
+	# e la mesh vera lo rispetta: due vertici alla stessa (u, v) di
+	# margine devono stare nello stesso posto
+	var bordo_uguali := 0
+	for iu in 5:
+		var a := (g[iu][0] as Vector3) + (nr[iu][0] as Vector3) * 0.0
+		var b := (g[iu][0] as Vector3) - (nr[iu][0] as Vector3) * 0.0
+		if a.distance_to(b) < 1e-9:
+			bordo_uguali += 1
+	t.eq(bordo_uguali, 5, "…su tutta la riga del margine")
 	# e il COLOR porta la MASCHERA: petalo, non cuore né verde
 	var col: PackedColorArray = arr[Mesh.ARRAY_COLOR]
 	t.ok(col.size() > 0, "il petalo porta la maschera d'organo nel COLOR")
@@ -219,6 +286,23 @@ func _le_normali_non_sono_quelle_di_una_sfera(t) -> void:
 			"meno del 12%% delle normali guarda di lato: è una lamina, "
 			+ "non un ellissoide (%.1f%%)"
 			% (100.0 * float(laterali) / float(nrm.size())))
+	# ⚠️ E LA COSA CHE CONTA È LA DISPERSIONE SU UNA FACCIA SOLA.
+	# «Non sono tutte verso l'alto» non sa fallire: i due fogli hanno il
+	# segno opposto, quindi metà punta in giù anche su una LASTRA PIATTA
+	# — cioè il difetto di partenza passerebbe la guardia intitolata a
+	# lui. Su una superficie vera le normali del solo dorso si aprono a
+	# ventaglio; su una lastra sono tutte identiche.
+	var apertura := 0.0
+	var sopra := 0
+	for n in nrm:
+		if n.y <= 0.0:
+			continue
+		sopra += 1
+		apertura = maxf(apertura, n.angle_to(Vector3.UP))
+	t.ok(sopra > 0, "c'è un dorso da misurare (%d normali)" % sopra)
+	t.ok(apertura > 0.25,
+			"e le normali del DORSO si aprono a ventaglio: %.3f rad dal "
+			% apertura + "verticale (su una lastra piatta sarebbe zero)")
 
 
 ## ⚠️ LA CONCA SI MISURA SULLA MEZZA LARGHEZZA, non sulla lunghezza. È
@@ -252,26 +336,96 @@ func _la_conca_si_misura_sulla_larghezza(t) -> void:
 ## chiede che la spina non abbia GOMITI — che l'angolo fra due tratti
 ## consecutivi resti piccolo.
 func _lo_stelo_e_una_curva_sola(t) -> void:
+	# ⚠️ SI MISURA LA MESH, non `_catmull`. La prima stesura campionava
+	# la sola interpolazione: chi tornasse ai due cilindri accostati
+	# lasciando `_catmull` intatta avrebbe lasciato la guardia verde —
+	# guardava un'altra cosa da quella di cui parlava.
+	#
+	# ⚠️ E CON UNA PIEGA VERA, quella del papavero (0.185 dell'altezza).
+	# Con la piega mite di prima persino una SPEZZATA — cioè letteralmente
+	# lo spigolo dei due cilindri — dà un salto di 0.0787 rad contro una
+	# soglia di 0.09: la guardia non aveva un caso in cui potesse fallire.
+	var h := 0.290
+	var dir := Vector3(0.62, 0.0, 0.78)
+	var cima := Vector3(0, h, 0) + dir * (h * 0.185)
+	var punti: Array = [Vector3.ZERO,
+			Vector3(0, h * 0.45, 0) + dir * (h * 0.185 * 0.16), cima]
+	var lati := 5
+	var anelli := 5
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var punti: Array = [Vector3.ZERO, Vector3(0.002, 0.09, -0.003),
-			Vector3(0.012, 0.20, -0.011)]
-	var peggio := 0.0
-	var prima := Vector3.ZERO
-	var precedente := Vector3.ZERO
-	for k in 13:
-		var p: Vector3 = FIO._catmull(punti, float(k) / 12.0)
-		if k >= 1:
-			var d := (p - precedente).normalized()
-			if k >= 2:
-				peggio = maxf(peggio, prima.angle_to(d))
-			prima = d
-		precedente = p
-	t.ok(peggio < 0.09,
-			"lo stelo non ha gomiti: il salto peggiore fra due tratti è "
-			+ "%.3f rad (i due cilindri di prima ne facevano 0.12)" % peggio)
-	FIO.stelo_su(st, Transform3D.IDENTITY, punti, [0.0034, 0.0026, 0.0021], 5, 5)
+	FIO.stelo_su(st, Transform3D.IDENTITY, punti, [0.005, 0.0038, 0.003],
+			lati, anelli)
 	var m: ArrayMesh = st.commit()
+	# ⚠️ I CENTRI SI RICAVANO DALL'ORDINE DI EMISSIONE, non raggruppando
+	# per quota: una corona di `stelo_su` è perpendicolare alla tangente,
+	# quindi i suoi vertici NON stanno tutti alla stessa y — e
+	# raggruppare per y rimescolava corone diverse, dando angoli da 2.5
+	# radianti su uno stelo perfettamente liscio.
+	# `stelo_su` emette `lati` quad (6 vertici) per ogni coppia di
+	# corone: la media di un blocco è il punto di mezzo di quella coppia.
+	var vtx: PackedVector3Array = m.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var per_blocco := lati * 6
+	var spina: Array[Vector3] = []
+	for b in int(vtx.size() / per_blocco):
+		var somma := Vector3.ZERO
+		for k in per_blocco:
+			somma += vtx[b * per_blocco + k]
+		spina.append(somma / float(per_blocco))
+	t.eq(spina.size(), anelli,
+			"la spina si ricava dalla mesh (%d tratti)" % spina.size())
+	# ⚠️ E IL METRO NON È L'ANGOLO PEGGIORE, è la sua CONCENTRAZIONE.
+	# A cinque anelli una curva vera gira comunque di qualche grado per
+	# tratto — è curva, non dritta — e un tetto assoluto finisce per
+	# vietare la curvatura invece del gomito. La differenza fra una
+	# curva e uno spigolo è che la prima DISTRIBUISCE la piega e il
+	# secondo la CONCENTRA tutta in un punto: si misura il rapporto fra
+	# l'angolo peggiore e la media.
+	var concentrazione := func(sp: Array) -> float:
+		var ang: Array[float] = []
+		for i in range(1, sp.size() - 1):
+			var a := ((sp[i] as Vector3) - (sp[i - 1] as Vector3)).normalized()
+			var b := ((sp[i + 1] as Vector3) - (sp[i] as Vector3)).normalized()
+			ang.append(a.angle_to(b))
+		var somma := 0.0
+		var peggio2 := 0.0
+		for x in ang:
+			somma += x
+			peggio2 = maxf(peggio2, x)
+		if somma <= 0.000001:
+			return 1.0
+		return peggio2 / (somma / float(ang.size()))
+	var peggio := 0.0
+	for i in range(1, spina.size() - 1):
+		var a := (spina[i] - spina[i - 1]).normalized()
+		var b := (spina[i + 1] - spina[i]).normalized()
+		peggio = maxf(peggio, a.angle_to(b))
+	# la CONTROPROVA: la stessa spina fatta a SPEZZATA (i due cilindri
+	# accostati di prima), campionata negli stessi punti
+	var peggio_spezzata := 0.0
+	var sp: Array[Vector3] = []
+	for k in spina.size():
+		var u := (float(k) + 0.5) / float(spina.size())
+		sp.append((punti[0] as Vector3).lerp(punti[1], u * 2.0) if u < 0.5
+				else (punti[1] as Vector3).lerp(punti[2], (u - 0.5) * 2.0))
+	for i in range(1, sp.size() - 1):
+		var a := (sp[i] - sp[i - 1]).normalized()
+		var b := (sp[i + 1] - sp[i]).normalized()
+		peggio_spezzata = maxf(peggio_spezzata, a.angle_to(b))
+	var conc_curva: float = concentrazione.call(spina)
+	var conc_spezzata: float = concentrazione.call(sp)
+	t.ok(peggio_spezzata > 0.05,
+			"CONTROPROVA: una spezzata sugli stessi controlli fa un gomito "
+			+ "di %.3f rad, concentrato %.2f volte la media"
+			% [peggio_spezzata, conc_spezzata])
+	t.ok(conc_spezzata > 1.6,
+			"…e lo concentra tutto in un punto (%.2f)" % conc_spezzata)
+	t.ok(conc_curva < conc_spezzata * 0.72,
+			"lo stelo DISTRIBUISCE la piega invece di concentrarla: "
+			+ "%.2f contro %.2f" % [conc_curva, conc_spezzata])
+	t.ok(peggio < peggio_spezzata,
+			"…e il suo tratto peggiore è comunque più dolce (%.3f < %.3f rad)"
+			% [peggio, peggio_spezzata])
 	t.ok(_tris(m) > 20 and _tris(m) < 120,
 			"…e costa poco (%d triangoli)" % _tris(m))
 
@@ -303,6 +457,13 @@ func _nessun_campo_accende_use_colors(t) -> void:
 			tf, false)
 	t.eq((mmi2.multimesh as MultiMesh).use_custom_data, false,
 			"chi non passa canali non paga il buffer")
+	# ⚠️ `_scatter_exact` restituisce dei NODI: senza liberarli Godot
+	# stampa «ObjectDB instances leaked at exit», che NON è un
+	# `SCRIPT ERROR` e quindi sfugge al secondo cancello di questo
+	# progetto. E `free()`, non `queue_free()`: nel runner non gira
+	# nessun frame e la coda non si smaltisce mai.
+	mmi.free()
+	mmi2.free()
 	w.free()
 
 
@@ -380,21 +541,40 @@ func _la_farfalla_ha_quattro_ali_e_un_corpo(t) -> void:
 	# il corpo sta TUTTO dentro il raggio del torace, o il battito lo
 	# piegherebbe come un'ala
 	var rt: float = FARF.raggio_torace(0.105)
-	# (le ANTENNE hanno `b = 1` e sono l'eccezione: escono dal torace ma
-	# non sono ala, e il vertex shader le tiene fuori dalla cerniera)
+	# ⚠️ IL TUBO DEL CORPO E LE ANTENNE si distinguono per GEOMETRIA: il
+	# tubo è schiacciato attorno all'asse, le antenne salgono. Non c'è
+	# più un canale che le marchi, e non serve: a tenerle fuori dalla
+	# cerniera è `COLOR.a`, che dice CORPO anche per loro.
+	var lung := 0.076 * 0.92
+	var soglia := lung * 0.13
 	var fuori := 0
 	var antenne := 0
+	var tubo := 0
 	for i in vtx.size():
 		if col[i].a > 0.5:
 			continue
-		if col[i].b > 0.5:
+		if vtx[i].y > soglia:
 			antenne += 1
 			continue
+		tubo += 1
 		if absf(vtx[i].x) > rt + 0.0001:
 			fuori += 1
 	t.eq(fuori, 0,
-			"il corpo sta tutto entro il raggio del torace (%.4f m)" % rt)
-	t.ok(antenne > 0, "…e le antenne hanno un canale loro (%d vertici)" % antenne)
+			"il TUBO del corpo sta tutto entro il raggio del torace "
+			+ "(%.4f m, %d vertici)" % [rt, tubo])
+	t.ok(antenne > 0 and tubo > 0,
+			"…e la soglia separa davvero due popolazioni: %d di tubo, "
+			% tubo + "%d di antenne" % antenne)
+	# le antenne ESCONO dal torace, ed è per questo che vale la pena
+	# dirlo: se non uscissero, la cerniera non le toccherebbe comunque
+	var antenna_lontana := 0.0
+	for i in vtx.size():
+		if col[i].a < 0.5 and vtx[i].y > soglia:
+			antenna_lontana = maxf(antenna_lontana, absf(vtx[i].x))
+	t.ok(antenna_lontana > rt,
+			"le antenne escono dal raggio del torace (%.4f > %.4f): a "
+			% [antenna_lontana, rt]
+			+ "tenerle ferme è la maschera, non la loro posizione")
 	# e le ali cominciano DENTRO il torace ma arrivano fuori
 	var span := 0.0
 	for i in vtx.size():
@@ -483,10 +663,169 @@ func _il_torace_e_in_frazione_dellapertura(t) -> void:
 	var grande: float = FARF.raggio_torace(0.210)
 	t.almost(grande, piccola * 2.0,
 			"il torace raddoppia con l'apertura", 0.00001)
-	t.ok(piccola < 0.105 * 0.5 * 0.25,
-			"…e resta sotto un quarto della semiapertura (%.4f)" % piccola)
+	# ⚠️ E IL PAVIMENTO NON PUÒ ESSERE SÉ STESSO. «Raddoppia» è vero per
+	# QUALUNQUE frazione, zero compresa; e un tetto senza pavimento
+	# lascia passare `TORACE_FRAZIONE = 0.0`. I due numeri contro cui si
+	# giudica vengono dalla MESH: il corpo deve starci dentro, e il
+	# torace deve restare molto sotto la semiapertura.
+	var apertura := 0.105
+	var rt: float = FARF.raggio_torace(apertura)
+	# ⚠️ contro il TUBO, non contro l'AABB di `corpo()`: quello comprende
+	# le ANTENNE, che escono di proposito e sono più larghe del torace.
+	# Il tubo si isola per quota, come nel caso della farfalla piatta.
+	var m: ArrayMesh = FARF.corpo(0.076 * 0.92)
+	var vv: PackedVector3Array = m.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var mezzo_tubo := 0.0
+	for v in vv:
+		if v.y <= 0.076 * 0.92 * 0.13:
+			mezzo_tubo = maxf(mezzo_tubo, absf(v.x))
+	t.ok(mezzo_tubo > 0.0001, "il tubo del corpo esiste (%.5f)" % mezzo_tubo)
+	t.ok(rt >= mezzo_tubo,
+			"il torace CONTIENE il tubo del corpo (%.5f >= %.5f): sotto, "
+			% [rt, mezzo_tubo]
+			+ "la cerniera piegherebbe l'addome come un'ala")
+	t.ok(rt < apertura * 0.5 * 0.30,
+			"…e resta molto sotto la semiapertura (%.5f < %.5f)"
+			% [rt, apertura * 0.5 * 0.30])
 	# il corpo scala con la sua lunghezza, non con dei metri assoluti
 	var a: AABB = FARF.corpo(0.060).get_aabb()
 	var b: AABB = FARF.corpo(0.120).get_aabb()
 	t.almost(b.size.x, a.size.x * 2.0,
 			"e anche lo spessore del corpo va con la lunghezza", 0.0005)
+	t.ok(a.size.x > 0.0001,
+			"…e il corpo non è degenere (%.5f m di larghezza)" % a.size.x)
+
+
+## ⚠️ LA BATTUTA È UNA LEGGE SOLA IN DUE LINGUE, e questa è la prova di
+## equivalenza che le tiene appaiate — la stessa disciplina che
+## `nottambulo()` ha in `test_ecs_mondo`. È un SOURCE-CHECK, e lo dico:
+## il vertex shader non si può far girare headless, quindi si legge la
+## sua trascrizione e si pretende che i due numeri della legge siano gli
+## stessi. Senza, cambiare `0.35` o `0.62` nel solo shader lascerebbe la
+## suite verde e le novanta batterebbero con una legge diversa dalle
+## cinque nominate.
+func _la_battuta_e_la_stessa_in_due_lingue(t) -> void:
+	var gd := FileAccess.get_file_as_string("res://scenes/world/FarfalleGeo.gd")
+	var sh := FileAccess.get_file_as_string("res://shaders/butterfly.gdshader")
+	t.ok(gd.length() > 0 and sh.length() > 0, "i due sorgenti si leggono")
+	var numeri := func(testo: String, chiave: String) -> Array:
+		var i := testo.find(chiave)
+		if i < 0:
+			return []
+		var riga := testo.substr(i, testo.find("\n", i) - i)
+		var out: Array = []
+		for pezzo in riga.split(" "):
+			var pulito := str(pezzo).replace("(", "").replace(")", "") \
+					.replace(";", "").replace(",", "").replace("*", "")
+			if pulito.is_valid_float():
+				out.append(float(pulito))
+		return out
+	var a: Array = numeri.call(gd, "sin(theta + ")
+	var b: Array = numeri.call(sh, "sin(theta + ")
+	t.ok(a.size() > 0 and a == b,
+			"la deformazione del tempo è la stessa: %s in GDScript, %s "
+			% [str(a), str(b)] + "nello shader")
+	var pa: Array = numeri.call(gd, "pow(absf(s), ")
+	var pb: Array = numeri.call(sh, "pow(abs(s), ")
+	t.ok(pa.size() > 0 and pa == pb,
+			"e il colmo piatto pure: %s contro %s" % [str(pa), str(pb)])
+	# e la cerniera del battito è gatata su COLOR.a — è quella riga a
+	# tenere il torace E LE ANTENNE fuori dalla piega
+	t.ok(sh.contains("raggio_torace, 0.0) * COLOR.a"),
+			"la cerniera è gatata su COLOR.a: il corpo non si piega")
+	# e l'ORLO lo leggono TUTTI E DUE i montaggi. Le cinque nominate sono
+	# dipinte da `handpaint`, le novanta dal loro shader: se solo uno dei
+	# due lo guardasse, la farfalla che catturi nel retino non sarebbe
+	# quella che hai visto volare — che è il difetto che avere UNA
+	# sagoma serve a impedire.
+	var hp := FileAccess.get_file_as_string("res://shaders/handpaint.gdshader")
+	var cwsrc := FileAccess.get_file_as_string("res://scenes/world/CozyWorld.gd")
+	t.ok(sh.contains("orlo = COLOR.r") or sh.contains("orlo;"),
+			"le novanta leggono l'orlo")
+	t.ok(hp.contains("uniform float orlo"),
+			"…e handpaint pure, per i cinque rig nominati")
+	t.ok(cwsrc.contains('wing_mat.set_shader_parameter("orlo"'),
+			"…e le ali dei rig lo accendono davvero")
+
+
+## ⚠️ LE TRE INVARIANTI DI `Ecosystem._flower_mesh` erano dichiarate «non
+## si toccano» e non aveva una guardia nessuna delle tre. Qui si monta un
+## `Ecosystem` FUORI dall'albero (il suo `_ready` non parte) e si
+## chiedono le mesh vere, quelle che il gioco consegna al MultiMesh del
+## C++ — non `FARF.piatta(…)` con numeri scritti a mano, che è quello
+## che il resto di questo file prova.
+func _lecosistema_regge_i_suoi_contratti(t) -> void:
+	var eco = ECO.new()
+	var fiore: ArrayMesh = eco.call("_flower_mesh")
+	t.eq(fiore.get_surface_count(), 1,
+			"il fiore selvatico è UNA superficie: con due, "
+			+ "`_wildflower_mat` non cattura più il materiale e il "
+			+ "ritinto stagionale si spegne in silenzio")
+	t.ok(eco.get("_wildflower_mat") != null, "…e il materiale è catturato")
+	t.eq(fiore.surface_get_material(0), eco.get("_wildflower_mat"),
+			"…ed è proprio quello della superficie 0")
+	# COLOR.a è una MASCHERA: 0 o 1, niente sfumature
+	var col: PackedColorArray = fiore.surface_get_arrays(0)[Mesh.ARRAY_COLOR]
+	var petali := 0
+	var verdi := 0
+	var sfumati := 0
+	for c in col:
+		if c.a > 0.99:
+			petali += 1
+		elif c.a < 0.01:
+			verdi += 1
+		else:
+			sfumati += 1
+	t.eq(sfumati, 0, "`COLOR.a` è una maschera, non una sfumatura")
+	t.ok(petali > 0 and verdi > 0,
+			"…e distingue petali (%d) da verde (%d): con la maschera "
+			% [petali, verdi] + "storta i petali diventano verdi")
+	# le tinte restano QUATTRO: `kind` 0..3 è persistito e riletto con
+	# un clamp, quindi tre tinte ricolorerebbero i salvataggi vecchi
+	var mat: ShaderMaterial = eco.get("_wildflower_mat")
+	for chiave: String in ["tint_a", "tint_b", "tint_c", "tint_d"]:
+		t.ok(mat.get_shader_parameter(chiave) != null,
+				"la tinta «%s» c'è (le tinte restano QUATTRO)" % chiave)
+	# e la farfalla: una superficie, e la CERNIERA allineata alla mesh
+	var farfalla: ArrayMesh = eco.call("_butterfly_mesh")
+	t.eq(farfalla.get_surface_count(), 1, "la farfalla è UNA superficie")
+	var bmat: ShaderMaterial = eco.get("_butterfly_mat")
+	t.eq(farfalla.surface_get_material(0), bmat,
+			"…e il suo materiale è catturato dalla superficie 0")
+	var apertura: float = farfalla.get_aabb().size.x
+	var rt: float = float(bmat.get_shader_parameter("raggio_torace"))
+	t.almost(rt, FARF.raggio_torace(apertura),
+			"la cerniera dello shader è allineata alla MESH consegnata: "
+			+ "senza quella riga il vertex ripiega sul suo valore di "
+			+ "serie e le farfalle si piegano dal punto sbagliato",
+			0.0002)
+	t.ok(apertura < 0.16,
+			"e l'apertura resta a misura di farfalla (%.3f m): a 28 cm "
+			% apertura + "era larga quanto la testa di un chibi")
+	eco.free()
+
+
+## GLI ARRAY PARALLELI. `flatten_cell` indicizza `_flower_fields[c]` con
+## l'indice di `_flower_base`: se qualcuno facesse `append` su uno solo
+## dei due, accuccerebbe SILENZIOSAMENTE i fiori sbagliati.
+func _i_due_array_dei_campi_restano_paralleli(t) -> void:
+	var w = CW.new()
+	var tf: Array[Transform3D] = [Transform3D.IDENTITY]
+	var g = GEO.new()
+	for k in 3:
+		w.call("_registra_campo",
+				w.call("_scatter_exact", g.clover_mesh(Color("fdf6ec")),
+						tf, false), tf)
+	t.eq((w.get("_flower_fields") as Array).size(),
+			(w.get("_flower_base") as Array).size(),
+			"i campi e le loro trasformate restano appaiati")
+	# e un campo VUOTO non sfasa gli indici: `_scatter_exact` torna null
+	w.call("_registra_campo", w.call("_scatter_exact",
+			g.clover_mesh(Color("fdf6ec")), [] as Array[Transform3D], false),
+			[] as Array[Transform3D])
+	t.eq((w.get("_flower_fields") as Array).size(),
+			(w.get("_flower_base") as Array).size(),
+			"…anche quando un campo non semina niente")
+	for n in (w.get("_flower_fields") as Array):
+		(n as Node).free()
+	w.free()

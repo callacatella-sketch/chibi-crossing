@@ -309,9 +309,15 @@ static func _lerp_lista(v: Array, t: float) -> float:
 ## flox): il raggio si modula sull'angolo, e quello che esce non è un
 ## poligono ma un fiorellino. Modularne l'ALTEZZA — che era l'unica leva
 ## di prima, `grana` — su un disco alto due millimetri non si vede.
+## `bordo` è quanto il profilo si abbassa sul MARGINE: 0.86 lascia il
+## bordo rialzato (un capolino di margherita), 1.0 lo porta a ZERO —
+## che è quel che serve per cucire due cupole in una PALLA, chiamandola
+## due volte con `alt` opposto. Senza, le due metà restano staccate e
+## quello che esce sono due piattini.
 static func cupola_su(st: SurfaceTool, base: Transform3D, raggio: float,
 		alt: float, segs := 10, anelli := 3, grana := 0.0,
-		conca := 0.18, maschera := CUORE, lobi := 0, lobo := 0.0) -> void:
+		conca := 0.18, maschera := CUORE, lobi := 0, lobo := 0.0,
+		bordo := 0.86) -> void:
 	var col := Color(maschera.r, maschera.g, maschera.b, 0.0)
 	var g: Array = []
 	for k in anelli + 1:
@@ -331,7 +337,7 @@ static func cupola_su(st: SurfaceTool, base: Transform3D, raggio: float,
 			# Senza, è un pulsante — ed è quello che c'era.
 			var incavo := maxf(0.0, 1.0 - t * 1.6)
 			var y := alt * (1.0 - conca * incavo * incavo) \
-					* sqrt(maxf(0.0, 1.0 - t * t * 0.86))
+					* sqrt(maxf(0.0, 1.0 - t * t * bordo))
 			if grana > 0.0:
 				y += grana * alt * sin(float(segs) * 0.5 * a) * t
 			riga.append(Vector3(cos(a) * rr, y, sin(a) * rr))

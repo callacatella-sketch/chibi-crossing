@@ -121,12 +121,15 @@ static func stelo_fiore(st: SurfaceTool, h: float, leaf_s := 1.0,
 	var cima := Vector3(0, h, 0) + dir * (h * piega)
 	var punti: Array = [Vector3.ZERO, Vector3(0, h * 0.45, 0)
 			+ dir * (h * piega * 0.16), cima]
-	# ⚠️ IL RAGGIO. Prima lo stelo era 7.5 mm di raggio — quindici
-	# millimetri di cannuccia sotto una testa che ora ne fa
-	# settantacinque. Un gambo vero sta a un decimo della sua corolla, e
-	# a cinque lati un tubo di sei millimetri si legge già tondo.
+	# ⚠️ IL RAGGIO, E IN FRAZIONE DELL'ALTEZZA. Prima lo stelo era 7.5 mm
+	# — quindici millimetri di cannuccia sotto una testa che ne fa
+	# settantacinque. Poi 3.4 mm, ma SCRITTI IN METRI: la stessa mina
+	# delle farfalle, un piano più in là. Le piante che passano di qui
+	# vanno da 10.5 cm (il non-ti-scordar-di-me) a 29 (il papavero):
+	# col numero assoluto la piccola aveva un gambo grosso il 3.2% della
+	# propria altezza e il papavero l'1.2%. Adesso è l'1.7% per tutte.
 	FIO.stelo_su(st, Transform3D.IDENTITY, punti,
-			[0.0034, 0.0026, 0.0021], 5, 5)
+			[h * 0.017, h * 0.0130, h * 0.0105], 5, 5)
 	# LA ROSETTA BASALE: tre foglie, non due. Due opposte fanno un'elica
 	# — da qualunque parte la guardi ne vedi una di taglio, e sparisce.
 	# Sono anche più larghe e più corte di prima: una lancia sottile a
@@ -322,9 +325,25 @@ static func clover_mesh(fiore: Color) -> ArrayMesh:
 				Basis(Vector3.UP, -a) * Basis(Vector3.BACK, 0.30),
 				Vector3(cos(a) * 0.003, 0.018, sin(a) * 0.003)),
 				FIO.contorno_lancia(0.021, 0.0092, 3, 0.10), 2.2, 0.20)
-	# il capolino: una cupola con la GRANA, che è quello che fa i flosculi
-	FIO.cupola_su(st, Transform3D(Basis.IDENTITY, cima),
-			0.0105, 0.0092, 7, 2, 0.26, 0.10, FIO.PETALO)
+	# ⚠️ IL CAPOLINO È UNA PALLA DI FLOSCULI, e con una cupola liscia
+	# quello che esce è un FUNGO: la `grana`, che modula l'ALTEZZA, su un
+	# disco alto nove millimetri non si vede. Sono i LOBI — che modulano
+	# il RAGGIO — a fare i fiorellini, ed è la stessa leva con cui il
+	# non-ti-scordar-di-me smette di essere un pentagono.
+	# ⚠️ DUE COSE, e la seconda è quella che conta.
+	# (a) i LOBI vanno campionati: con nove segmenti e sette lobi il
+	#     giro non li vede — è aliasing puro, e la testa resta liscia.
+	#     Ci vogliono almeno due segmenti per lobo, e qui ce ne sono tre.
+	# (b) UN FUNGO È UNA CALOTTA A FONDO PIATTO, e un trifoglio è una
+	#     PALLA. Era la SAGOMA a leggere fungo, non la superficie: si
+	#     chiude sotto con una seconda cupola ad `alt` NEGATIVA (che
+	#     specchia il profilo e gira le normali da sola), e la silhouette
+	#     diventa tonda.
+	var testa := Transform3D(Basis.IDENTITY, cima + Vector3(0, 0.0016, 0))
+	FIO.cupola_su(st, testa, 0.0104, 0.0130, 12, 2, 0.10, -0.06,
+			FIO.PETALO, 6, 0.22, 1.0)
+	FIO.cupola_su(st, testa, 0.0104, -0.0082, 12, 1, 0.10, -0.06,
+			FIO.PETALO, 6, 0.22, 1.0)
 	st.index()
 	st.set_material(fiore_mat(fiore, fiore.lerp(Color("c8ccd6"), 0.30),
 			fiore.darkened(0.16), Color("6b9a54"), 0.020, 0.08, 0.0,
@@ -388,21 +407,31 @@ static func forgetmenot_mesh() -> ArrayMesh:
 	var cima := stelo_fiore(st, 0.105, 0.72, 0.090, 53)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 5353
+	# ⚠️ E LE COROLLE HANNO UN FONDO. Alte 2.6 mm su un raggio di 9, e
+	# infilate su una spirale VERTICALE, di tre quarti si vedevano di
+	# taglio: cinque lenti azzurre impilate su uno stecco. Adesso la cima
+	# si apre più in orizzontale (i cinque fiori stanno quasi in un
+	# piano, come in una cima vera) e ogni corolla è una CIOTOLA — poco,
+	# ma abbastanza perché la luce la trovi anche da sotto l'orizzonte.
 	for i in 5:
 		var t := float(i) / 4.0
-		# la cima SCORPIOIDE: le corolle salgono arricciandosi, non
-		# stanno su un ombrello — è il segno della specie
+		# la cima SCORPIOIDE: le corolle si arricciano verso l'esterno,
+		# non stanno su un ombrello — è il segno della specie
 		var a := t * 3.4 + 0.5
-		var r := 0.0125 * (0.30 + 0.70 * t)
-		var p := cima + Vector3(cos(a) * r, t * 0.019, sin(a) * r)
+		var r := 0.0165 * (0.24 + 0.76 * t)
+		var p := cima + Vector3(cos(a) * r, t * 0.0105, sin(a) * r)
 		var base := Transform3D(
-				Basis(Vector3.UP, -a) * Basis(Vector3.BACK, 0.30 * (1.0 - t)),
+				Basis(Vector3.UP, -a) * Basis(Vector3.BACK, 0.46 * t + 0.10),
 				p)
-		FIO.cupola_su(st, base, 0.0092 * (0.72 + 0.28 * t), 0.0026,
-				10, 2, 0.0, 0.40, FIO.PETALO, 5, 0.26)
+		# ⚠️ dieci segmenti e DUE anelli: con tre, cinque corolle
+		# sfondavano il tetto di triangoli dichiarato — e un tetto che si
+		# alza quando morde non è un tetto. Due anelli bastano: i lobi
+		# stanno sul giro, non sulla colonna.
+		FIO.cupola_su(st, base, 0.0098 * (0.70 + 0.30 * t), 0.0044,
+				10, 2, 0.0, 0.62, FIO.PETALO, 5, 0.28)
 		FIO.cupola_su(st, Transform3D(base.basis,
-				p + base.basis * Vector3(0, 0.0015, 0)),
-				0.0025, 0.0010, 6, 1, 0.0, 0.0, FIO.CUORE)
+				p + base.basis * Vector3(0, 0.0022, 0)),
+				0.0028, 0.0014, 6, 1, 0.0, 0.0, FIO.CUORE)
 	st.index()
 	st.set_material(fiore_mat(Color("9ec4f0"), Color("6d95cc"),
 			Color("f7d572"), Color("7ba46a"), 0.026, 0.11, 0.0,

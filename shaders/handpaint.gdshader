@@ -57,6 +57,18 @@ uniform float testa_base = 0.0;
 uniform float testa_ritardo = 0.14;
 // il fremito del singolo petalo, in metri: minuscolo apposta
 uniform float fremito = 0.0;
+// L'ORLO SCURO DI UN'ALA. `COLOR.r` porta la distanza dalla cerniera, e
+// il margine si scurisce: è il segno che a sei metri distingue una
+// farfalla da un coriandolo colorato.
+// ⚠️ Serve QUI perché le cinque farfalle NOMINATE — quelle che il
+// retino cattura e che si posano sul naso di Mochi — sono dipinte da
+// questo shader, mentre le novanta del MultiMesh hanno il loro
+// (`butterfly.gdshader`). Senza, i due montaggi della STESSA sagoma
+// renderebbero in modo diverso, che è esattamente ciò che avere una
+// sagoma sola serve a impedire.
+// (Non convive con `usa_organi`: là `COLOR.r` è la maschera del petalo.
+// Nessun materiale accende tutti e due, e non deve cominciare.)
+uniform float orlo = 0.0;
 // LA VARIAZIONE PER ISTANZA. In un prato non ci sono due fiori dello
 // stesso identico colore: qui la tinta si sposta di poco, e lo
 // spostamento arriva dal MultiMesh (`INSTANCE_CUSTOM.x`, un numero fisso
@@ -195,6 +207,10 @@ void fragment() {
 					* (1.0 + 0.075 * (fract(v_varia * 7.31) - 0.5)) * varia_tinta
 					+ vec3(1.0 - varia_tinta);
 		}
+	}
+	if (orlo > 0.0) {
+		ALBEDO = mix(ALBEDO, ALBEDO * 0.52,
+				smoothstep(0.68, 1.0, COLOR.r) * orlo);
 	}
 	ROUGHNESS = 1.0;
 	SPECULAR = 0.08;

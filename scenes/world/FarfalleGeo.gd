@@ -42,9 +42,18 @@ extends RefCounted
 ##   r = quanto si è lontani dalla cerniera, 0..1 — è l'ORLO: le ali di
 ##       una farfalla hanno il margine scuro, ed è quello che a sei metri
 ##       la fa leggere come una farfalla invece che come un coriandolo
-##   b = 1 sulle ANTENNE. Non sono ala (non battono) e non sono torace
-##       (escono dal suo raggio): senza un canale loro, la cerniera del
-##       vertex shader le prenderebbe per punte d'ala e le piegherebbe.
+##
+## ⚠️ E LA MASCHERA `a` È UNA MASCHERA, non una sfumatura: vale 1 o 0 e
+## basta. È lei — e solo lei — a tenere il torace E LE ANTENNE fuori
+## dalla cerniera del vertex shader, che moltiplica la piega per
+## `COLOR.a`. Le antenne escono dal raggio del torace ma sono corpo, e
+## non si piegano perché la maschera dice corpo.
+##
+## (Una stesura precedente marcava le antenne con un `COLOR.b` tutto
+## loro, e l'intestazione diceva che senza quel canale la cerniera le
+## avrebbe piegate. Non era vero: nessuno lo leggeva, e a proteggerle
+## era già `a`. Un canale che nessuno legge, e una guardia che nessuna
+## mutazione può far arrossire per la ragione giusta, si tolgono.)
 
 ## Il torace in frazione dell'APERTURA: dentro questo raggio la
 ## geometria non è ala, e il battito non la tocca. Lo legge anche il
@@ -177,7 +186,6 @@ static func _antenne_su(st: SurfaceTool, lung: float, colore: Color) -> void:
 	# ⚠️ TUTTO IN FRAZIONI DI `lung`, come il corpo: scritte in metri
 	# assoluti, su una farfalla piccola le antenne restavano lunghe
 	# uguali e uscivano più delle ali
-	var c := Color(colore.r, colore.g, 1.0, colore.a)
 	for lato: float in [-1.0, 1.0]:
 		var punti: Array[Vector3] = [
 				Vector3(lato * 0.022, 0.017, lung * 0.46),
@@ -205,7 +213,7 @@ static func _antenne_su(st: SurfaceTool, lung: float, colore: Color) -> void:
 				for v: Array in [[a, d1, raggi[k]], [b, d1, raggi[k + 1]],
 						[b, d2, raggi[k + 1]], [a, d1, raggi[k]],
 						[b, d2, raggi[k + 1]], [a, d2, raggi[k]]]:
-					st.set_color(c)
+					st.set_color(colore)
 					st.set_normal(v[1])
 					st.add_vertex((v[0] as Vector3) + (v[1] as Vector3) * float(v[2]))
 
