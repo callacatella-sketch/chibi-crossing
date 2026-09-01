@@ -1,0 +1,610 @@
+[
+ {
+  "id": "AMP punto·orecchie ~0",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "AMP punto·peso che continua a 0",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "AMP punto·assestamento vrz a 0",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "TEMPO punto·orecchie lente",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "AMP raccolto·scala 0.84 (verso ✗)",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "AMP raccolto·orecchie ~0",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "AMP raccolto·passo indietro ~0",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "AMP raccolto·busto 6x (diluente)",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "AMP raccolto·braccia ~0",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "AMP rialzo·verticale 0.30 (verso ✗)",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "AMP rialzo·orecchie 0.70 (coprono)",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "FORMA rialzo·orecchie senza ritardo",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "AMP capo·ampiezza 0.24 (verso 1,10 ✗)",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "TEMPO capo·intervallo 0.35 (metronomo)",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "FORMA capo·molla sovrasmorzata",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "AMP largo·scostamento ~0 (canale portante)",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "AMP largo·inclinazione 0",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "AMP largo·rollio del capo 0",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "AMP largo·orecchie ~0",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "AMP coda·braccia ~0",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "FORMA coda·tremolio orecchie 0",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "AMP soma·pavimento 0.10",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "FORMA seconda lancetta = la prima",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "FORMA pigrizia uguale per tutti",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "FORMA scatto orecchio: gobba larga",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "VALV blend·nessun passo da spezzare",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "VALV strada·zero metri davanti",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "VALV anziano·aspetta 10 minuti",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "VALV gesto_libero·senza _hidden",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "VALV gesto_libero·senza dorme()",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "RETE sospeso·senza tk_nap",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "RETE soma·il ritmo non passa dalla rampa",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "RETE soma·una paura piccola ACCORCIA la grande",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "VALV largo·la testa non cede mai alla ricevuta",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "RETE ritmo·nessuna forbice",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "USH raggio 15 m (6,7 px = rumore)",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "USH quota dell'inquadratura 1,6 m",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "USH gettone del villaggio 0,5 s",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "USH sala d'attesa senza raggio",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "CABL ha_dedotto",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "CABL si_e_trattenuto",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "CABL ah_sei_tu",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "CABL quel_posto_no",
+  "verde": true,
+  "giro": 1,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "GEMELLA PUNTO_DECISA (= Visitor.TESTA_VAI)",
+  "verde": true,
+  "giro": 2,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "GEMELLA CAPO_K (= FaceController)",
+  "verde": true,
+  "giro": 2,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "TEMPO raccolto·attacco a scatto",
+  "verde": true,
+  "giro": 2,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "TEMPO raccolto·rilascio piu' veloce dell'attacco",
+  "verde": true,
+  "giro": 2,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "TEMPO raccolto·tenuta 0,2 s",
+  "verde": true,
+  "giro": 2,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "TEMPO rialzo·durata 0,25 s",
+  "verde": true,
+  "giro": 2,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "META' raccolto·orecchie stessa quota",
+  "verde": true,
+  "giro": 2,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "META' raccolto·braccia stessa quota",
+  "verde": true,
+  "giro": 2,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "META' raccolto·orecchio senza ritardo",
+  "verde": true,
+  "giro": 2,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "META' raccolto·orecchio non pigro",
+  "verde": true,
+  "giro": 2,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "META' raccolto·orecchio molla insieme",
+  "verde": true,
+  "giro": 2,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "META' raccolto·braccio non pigro",
+  "verde": true,
+  "giro": 2,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "META' largo·orecchie stessa quota",
+  "verde": true,
+  "giro": 2,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "META' largo·braccia stessa quota",
+  "verde": true,
+  "giro": 2,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "META' largo·senza pigrizia",
+  "verde": true,
+  "giro": 2,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "META' coda·stesso tau (un filo solo)",
+  "verde": true,
+  "giro": 2,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "META' coda·orecchie stessa quota",
+  "verde": true,
+  "giro": 2,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "META' coda·braccia stessa quota",
+  "verde": true,
+  "giro": 2,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "FORMA largo·tremolio 0",
+  "verde": true,
+  "giro": 2,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "GRAM rinuncia·non si esce col mezzo respiro",
+  "verde": true,
+  "giro": 2,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "VALV fiato·tutti anziani (nessun Punto frena)",
+  "verde": true,
+  "giro": 2,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "RETE livelli·rampa lineare (spigolo di velocita')",
+  "verde": true,
+  "giro": 2,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "RETE capo·il rollio ignora la rampa dei livelli",
+  "verde": true,
+  "giro": 2,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "VALV capo_concesso·senza registro NEGA (degrado al contrario)",
+  "verde": true,
+  "giro": 2,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "USH riarmo del sussulto 0,5 s (la coda diventa monotona)",
+  "verde": true,
+  "giro": 2,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "USH sussulto·raggio 30 m",
+  "verde": true,
+  "giro": 2,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "CABL era_per_me·nessun dono e' mai «fatto a me»",
+  "verde": true,
+  "giro": 3,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "VALV gesto_libero·un gesto sopra la rampa di quello di prima",
+  "verde": true,
+  "giro": 3,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "VALV largo·si recita da fermi",
+  "verde": true,
+  "giro": 3,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "RETE capo_pende·riarma il livello a ogni chiamata",
+  "verde": true,
+  "giro": 3,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "AMP rialzo·il petto non si apre",
+  "verde": true,
+  "giro": 3,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "TEMPO rialzo·salita istantanea",
+  "verde": true,
+  "giro": 3,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ },
+ {
+  "id": "TEMPO capo·intervallo FISSO (metronomo)",
+  "verde": true,
+  "giro": 3,
+  "err": 0,
+  "ok": 7892,
+  "intera": "VERDE"
+ }
+]

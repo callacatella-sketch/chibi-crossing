@@ -26,6 +26,9 @@ signal placed_changed
 const CATALOG := preload("res://scenes/build/BuildCatalog.gd")
 const GRID_SHADER := preload("res://shaders/grid.gdshader")
 const VARCHI := preload("res://scenes/build/Varchi.gd")
+## L'Atelier: lo studio che ritrae i pezzi, e il taccuino che ragiona.
+const MINIATURE := preload("res://scenes/build/Miniature.gd")
+const CONSIGLI := preload("res://scenes/build/Consigli.gd")
 
 const VALID_TINT := Color(0.45, 0.9, 0.5, 0.38)
 const INVALID_TINT := Color(0.95, 0.35, 0.3, 0.42)
@@ -98,10 +101,52 @@ var _cozy: Node3D
 var _ui: CanvasLayer
 var _panel: PanelContainer
 var _idle_hint: Label
-var _items_row: HBoxContainer
+var _items_row: GridContainer
+var _items_scroll: ScrollContainer
 var _cat_buttons: Array[Button] = []
 var _item_buttons: Array[Button] = []
 var _cat := 0
+
+# ============================================================ IL BANCO DEI PEZZI
+# Il catalogo è passato da una manciata di pezzi a CENTOTRENTASETTE, e la
+# riga sola che li conteneva è diventata illeggibile: trentotto bottoni
+# schiacciati in una fascia larga quanto lo schermo non sono un menù, sono
+# un righello. Peggio: i tasti 1-9 coprivano i primi nove e basta, e la
+# rotella scorreva l'intero catalogo un pezzo alla volta.
+#
+# Il banco nuovo ha tre idee, e ognuna toglie un modo di perdersi:
+#
+#  1. LA GRIGLIA. I pezzi stanno in righe da CO​LONNE bottoni a larghezza
+#     FISSA, dentro una finestra che scorre: un bottone è largo uguale che
+#     ce ne siano tre o quaranta, quindi il nome si legge SEMPRE. La
+#     finestra ha un'altezza fissa: il pannello non salta più cambiando
+#     categoria.
+#  2. LA RICERCA. Con centotrentasette pezzi, ricordarsi in che categoria
+#     sta la Fioriera è un lavoro. Si preme «/» e si scrive: la griglia
+#     mostra i pezzi di TUTTE le categorie che contengono quelle lettere,
+#     nel nome tradotto e in quello italiano (il salvataggio parla
+#     italiano: chi gioca in inglese trova «planter» E «fioriera»).
+#  3. I RECENTI. Chi costruisce una casa usa cinque pezzi in cerchio per
+#     dieci minuti. La prima scheda è la loro: gli ultimi pezzi POSATI, in
+#     ordine di quando li hai usati. Non è una preferenza da configurare —
+#     è il gioco che guarda cosa stai facendo.
+#
+# E i pezzi sotto chiave non stanno più mescolati ai tuoi: la griglia li
+# raccoglie in fondo, sotto la loro intestazione, così la prima cosa che
+# vedi è SEMPRE quello che puoi posare adesso.
+
+## Quanti pezzi ricorda la scheda dei recenti.
+const RECENTI_MAX := 12
+## L'indice della scheda «recenti» fra i bottoni delle categorie.
+const CAT_RECENTI := -1
+
+var _ricerca := ""                  # il testo cercato ("" = nessuna ricerca)
+var _ricerca_attiva := false        # si sta scrivendo adesso?
+var _ricerca_label: Label
+var _conta_label: Label
+var _recenti: Array[String] = []    # nomi dei pezzi posati, dal più recente
+var _cat_recenti_btn: Button
+var _visibili: Array[int] = []      # gli indici mostrati adesso, in ordine
 
 # --- recinto degli "Ordini del Gufo" ---------------------------------------
 # Il catalogo si apre a poco a poco: è GufoOrders che, sbloccando gli Ordini,
@@ -112,12 +157,14 @@ var _cat := 0
 var _unlocked := {}
 var _locks_active := false
 var _order_banner: Label
+var _order_pill: PanelContainer
 
 # --- economia: varianti di colore comprate dal mercante (vedi Economy.gd) ---
 # _variant è il colore scelto per il PROSSIMO pezzo da piazzare ("" = originale)
 var _variant := ""
 var _eco: Node
 var _variant_bar: PanelContainer
+var _variant_dock: CenterContainer
 var _variant_row: HBoxContainer
 
 ## Per gli screenshot da CLI: se impostato, il fantasma usa questa
@@ -163,6 +210,13 @@ func _ready() -> void:
 	_build_ui()
 	_build_variant_bar()
 	_refresh_ghost()
+
+	# IL TACCUINO SI SPORCA, NON SI RIFÀ. Caricare un villaggio posa
+	# cinquecento pezzi uno per uno: rileggere i fatti a ogni `placed_changed`
+	# vorrebbe dire cinquecento passate sul villaggio intero dentro lo
+	# stesso frame. Si alza una bandiera, e a fine frame si legge una
+	# volta sola — l'idioma di `request_save`.
+	placed_changed.connect(func(): _taccuino_sporco = true)
 
 	# in modalità screenshot CLI la demo costruisce una casetta di prova:
 	# niente caricamento né salvataggio, il villaggio vero resta intatto
@@ -232,8 +286,10 @@ func apply_unlocks(names: Array, active: bool) -> void:
 			_cat = int(_items[_index]["cat"])
 			_refresh_ghost()
 	if not _item_buttons.is_empty():
+		_rifai_sinistra()
 		_rebuild_item_row()
 		_sync_ui_selection()
+	_taccuino_sporco = true
 
 
 func _first_unlocked_index() -> int:
@@ -245,13 +301,29 @@ func _first_unlocked_index() -> int:
 
 # il vicino sbloccato nella direzione data (per la rotella), saltando i pezzi
 # ancora sotto chiave; se non ce n'è, resta dov'è
+## Il pezzo posabile dopo (o prima) DENTRO quello che si sta guardando.
+## Prima girava su tutto il catalogo: con centotrentasette pezzi la
+## rotella era un viaggio, e ti portava fuori dalla categoria senza che
+## l'avessi chiesto. Se la vista corrente non ha nulla di posabile si
+## ripiega sul catalogo intero, perché una rotella che non fa niente
+## sembra rotta.
 func _next_unlocked(dir: int) -> int:
-	var n := _items.size()
-	for step in range(1, n + 1):
-		var i := posmod(_index + dir * step, n)
+	var lista := _visibili if not _visibili.is_empty() else _pezzi_visibili()
+	var posabili: Array[int] = []
+	for i in lista:
 		if is_unlocked(str(_items[i]["name"])):
-			return i
-	return _index
+			posabili.append(i)
+	if posabili.is_empty():
+		var n := _items.size()
+		for step in range(1, n + 1):
+			var i2 := posmod(_index + dir * step, n)
+			if is_unlocked(str(_items[i2]["name"])):
+				return i2
+		return _index
+	var dove := posabili.find(_index)
+	if dove < 0:
+		return posabili[0] if dir > 0 else posabili[posabili.size() - 1]
+	return posabili[posmod(dove + dir, posabili.size())]
 
 
 ## Conteggio dei pezzi piazzati per nome (tutti i piani e i layer): il
@@ -283,6 +355,8 @@ func set_order_banner(text: String) -> void:
 		return
 	_order_banner.text = text
 	_order_banner.visible = text != ""
+	if _order_pill != null:
+		_order_pill.visible = text != ""
 
 
 # i dizionari del piano richiesto (0 = terra, 1 = sopra)
@@ -301,11 +375,34 @@ func has_cover(cell: Vector2i) -> bool:
 # ---------------------------------------------------------------- input
 
 func _unhandled_input(event: InputEvent) -> void:
+	# LA RICERCA PRIMA DI TUTTO. Mentre si scrive, «R» è una erre e non una
+	# rotazione: se il builder leggesse i suoi tasti prima, cercare
+	# «brandina» farebbe ruotare il fantasma cinque volte e cambiare piano.
+	if _active and _ricerca_attiva and event is InputEventKey \
+			and event.pressed and not event.echo:
+		if _ricerca_tasto(event as InputEventKey):
+			get_viewport().set_input_as_handled()
+			return
+	if _active and event is InputEventKey and event.pressed and not event.echo \
+			and (event as InputEventKey).keycode == KEY_SLASH:
+		_ricerca_accendi()
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("build_toggle"):
 		_set_active(not _active)
 		get_viewport().set_input_as_handled()
 		return
 	if not _active:
+		return
+
+	# TAB PIEGA L'ATELIER, non lo chiude. Si legge prima delle altre
+	# scorciatoie perché è l'unica che parla del pannello e non del
+	# villaggio, e perché in Godot il Tab girerebbe altrimenti al giro
+	# del fuoco (che qui non esiste: tutti i controlli sono FOCUS_NONE).
+	if event is InputEventKey and (event as InputEventKey).keycode == KEY_TAB \
+			and event.pressed and not event.echo:
+		_piega(not _aperto)
+		get_viewport().set_input_as_handled()
 		return
 
 	if event.is_action_pressed("build_level"):
@@ -333,13 +430,19 @@ func _unhandled_input(event: InputEvent) -> void:
 			_select(_next_unlocked(1))
 	elif event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode >= KEY_1 and event.keycode <= KEY_9:
-			var i: int = event.keycode - KEY_1
-			var cat_items := _cat_item_indices(_cat)
-			if i < cat_items.size():
-				if is_unlocked(str(_items[cat_items[i]]["name"])):
-					_select(cat_items[i])
-				elif _sfx:
-					_sfx.place_deny()
+			# il numero conta i pezzi POSABILI di quello che stai
+			# guardando, nello stesso ordine in cui la griglia li stampa
+			# sui bottoni: il «3» del cartellino e il «3» della tastiera
+			# devono essere lo stesso pezzo, sempre
+			var quale: int = event.keycode - KEY_1
+			var posabili: Array[int] = []
+			for i2 in _visibili:
+				if is_unlocked(str(_items[i2]["name"])):
+					posabili.append(i2)
+			if quale < posabili.size():
+				_select(posabili[quale])
+			elif _sfx:
+				_sfx.place_deny()
 
 
 func _set_active(active: bool) -> void:
@@ -351,6 +454,16 @@ func _set_active(active: bool) -> void:
 	_panel.visible = active
 	_idle_hint.visible = not active
 	_update_variant_bar()
+	if active:
+		# APRIRE È IL MOMENTO IN CUI SI GUARDA: il taccuino si rilegge (il
+		# villaggio è cambiato mentre l'Atelier era chiuso) e i ritratti
+		# delle carte in vista si mettono in coda. Chiuso non si chiede
+		# niente e non si conta niente: un pannello invisibile non costa.
+		_taccuino_sporco = true
+		_rifai_sinistra()
+		_sync_ui_selection()
+		_chiedi_visibili.call_deferred()
+		CozyUI.appear(_panel, 0.26)
 	if _sfx:
 		if active:
 			_sfx.build_open()
@@ -369,6 +482,110 @@ func set_active_for_debug(active: bool, ghost_world_pos: Vector3, item_name := "
 
 # ---------------------------------------------------------------- selezione
 
+## COSA SI VEDE ADESSO, in ordine. Una funzione sola, e la usano tutti:
+## la griglia per disegnarsi, i tasti 1-9 per sapere chi è il terzo, la
+## rotella per sapere chi viene dopo. Se le tre cose avessero tre liste
+## diverse, il «3» del cartellino e il «3» della tastiera finirebbero su
+## due pezzi diversi — ed è il genere di bugia che non dà nessun errore.
+##
+## L'ordine è: prima quello che puoi posare ADESSO, poi la merce del
+## mercante (col prezzo: sai per cosa stai risparmiando), poi quello che
+## arriva da sé. Dentro ogni gruppo resta l'ordine del catalogo, che è
+## quello con cui il villaggio è stato pensato.
+func _pezzi_visibili() -> Array[int]:
+	var liberi: Array[int] = []
+	var vetrina: Array[int] = []
+	var attesa: Array[int] = []
+	var candidati: Array[int] = []
+	if _ricerca != "":
+		candidati = _cerca_indici(_ricerca)
+	elif _cat == CAT_RECENTI:
+		# i recenti NON si riordinano per stato: l'ordine è quello con cui
+		# li hai usati, ed è tutto il valore della scheda
+		var out: Array[int] = []
+		for nome in _recenti:
+			var i := item_index(nome)
+			if i >= 0:
+				out.append(i)
+		return out
+	elif _cat == CAT_TUTTO:
+		for i2 in _items.size():
+			candidati.append(i2)
+	elif _cat <= CAT_SET:
+		# UN CORREDO NON È UNA CATEGORIA, è un posto: il bar, la caserma,
+		# la boutique. I suoi pezzi vivono sparsi in tre categorie diverse
+		# e non si vedevano mai insieme. L'elenco si legge da
+		# `Economy.CORREDO` (fonte unica), col capo per primo.
+		candidati = _indici_corredo(CAT_SET - _cat)
+	else:
+		candidati = _cat_item_indices(_cat)
+	for i in candidati:
+		var nome := str(_items[i]["name"])
+		if is_unlocked(nome):
+			liberi.append(i)
+		elif not _shop_offer(nome).is_empty():
+			vetrina.append(i)
+		else:
+			attesa.append(i)
+	var tutti: Array[int] = []
+	tutti.append_array(liberi)
+	tutti.append_array(vetrina)
+	tutti.append_array(attesa)
+	return tutti
+
+
+## La ricerca guarda il nome TRADOTTO e quello italiano. Il nome italiano
+## è la chiave del salvataggio e non cambia mai: chi gioca in inglese e
+## legge una guida italiana trova il pezzo lo stesso, e viceversa.
+func _cerca_indici(testo: String) -> Array[int]:
+	var q := testo.strip_edges().to_lower()
+	var out: Array[int] = []
+	if q == "":
+		return out
+	for i in _items.size():
+		var nome := str(_items[i]["name"])
+		if nome.to_lower().contains(q) or L10n.t(nome).to_lower().contains(q):
+			out.append(i)
+	return out
+
+
+## Un pezzo POSATO entra nei recenti (in testa, senza doppioni). Si segna
+## quando si posa, non quando si seleziona: sfogliare il catalogo non è
+## usare un pezzo, e una scheda «recenti» che si riempie sfogliando
+## diventa la copia della categoria che stavi guardando.
+func _segna_recente(piece: String) -> void:
+	if piece == "":
+		return
+	_recenti.erase(piece)
+	_recenti.push_front(piece)
+	while _recenti.size() > RECENTI_MAX:
+		_recenti.pop_back()
+	if _cat_recenti_btn and is_instance_valid(_cat_recenti_btn):
+		_spegni_riga(_cat_recenti_btn, _recenti.is_empty())
+	if _cat == CAT_RECENTI and _panel and _panel.visible:
+		_rebuild_item_row()
+	elif not _aperto:
+		_rifai_striscia()
+
+
+## Gli indici del corredo numero k, nell'ordine in cui il corredo è
+## scritto (il capo per primo): è l'ordine con cui quel posto è stato
+## pensato, e vale più di un riordino alfabetico.
+func _indici_corredo(k: int) -> Array[int]:
+	var out: Array[int] = []
+	var corr := _corredi()
+	var capi := corr.keys()
+	if k < 0 or k >= capi.size():
+		return out
+	var nomi: Array = [capi[k]]
+	nomi.append_array(corr[capi[k]])
+	for n in nomi:
+		var i := item_index(str(n))
+		if i >= 0:
+			out.append(i)
+	return out
+
+
 func _cat_item_indices(cat: int) -> Array[int]:
 	var out: Array[int] = []
 	for i in _items.size():
@@ -384,7 +601,10 @@ func _select(i: int) -> void:
 		return
 	_set_demolish(false)
 	_index = i
-	if _items[i]["cat"] != _cat:
+	# le VISTE (ricerca, recenti, «tutto», un corredo) non sono categorie:
+	# saltare alla categoria del pezzo scelto cancellerebbe la lista che
+	# stavi guardando proprio nell'istante in cui l'hai usata
+	if _ricerca == "" and _cat >= 0 and _items[i]["cat"] != _cat:
 		_cat = _items[i]["cat"]
 		_rebuild_item_row()
 	# i pezzi del piano di sopra portano il cursore su da soli
@@ -392,6 +612,10 @@ func _select(i: int) -> void:
 		_set_level(1)
 	_refresh_ghost()
 	_sync_ui_selection()
+	# «vicino ai tuoi X c'è quasi sempre Y» parla del pezzo IN MANO: se il
+	# taccuino non si rileggesse qui, resterebbe a raccontare il pezzo
+	# di prima — cioè una cosa vera detta della cosa sbagliata
+	_taccuino_sporco = true
 	if _sfx: _sfx.ui_select()
 
 
@@ -404,14 +628,6 @@ func _set_level(lvl: int) -> void:
 		_bounce(_ghost)
 	if _sfx:
 		_sfx.rotate_tick()
-
-
-func _sync_ui_selection() -> void:
-	for j in _cat_buttons.size():
-		_cat_buttons[j].set_pressed_no_signal(j == _cat)
-	var cat_items := _cat_item_indices(_cat)
-	for j in _item_buttons.size():
-		_item_buttons[j].set_pressed_no_signal(cat_items[j] == _index)
 
 
 func _refresh_ghost() -> void:
@@ -451,6 +667,11 @@ func _process(delta: float) -> void:
 		if is_instance_valid(pivot):
 			pivot.rotation.z = sin(_sway_t * 1.35) * 0.15
 			pivot.rotation.x = sin(_sway_t * 0.9 + 1.3) * 0.09
+
+	# il taccuino si rilegge al massimo una volta per fotogramma, e SOLO
+	# se qualcuno lo sta guardando
+	if _taccuino_sporco and _active and _aperto and _panel and _panel.visible:
+		_rifai_taccuino()
 
 	if not _active or _ghost == null:
 		return
@@ -868,6 +1089,9 @@ func _try_place() -> void:
 		place_cell(_cursor_key, item["name"], _rot, true, _level, v)
 	if wc:
 		wc.pay_for_piece(str(item["name"]))
+	# il pezzo appena POSATO entra nei recenti: è il gesto vero, non lo
+	# sfogliare il catalogo
+	_segna_recente(str(item["name"]))
 	if _sfx: _sfx.place_ok()
 	get_tree().call_group("regista", "note", "costruzione")
 	# il posto del pezzo, non quello di Mochi: `_cursor_pos` è il punto in
@@ -2339,90 +2563,163 @@ func _build_grid_plane() -> void:
 
 
 # ---------------------------------------------------------------- UI
+# ============================================================ L'ATELIER
+#
+# Il banco dei pezzi era una griglia di bottoni di SOLO TESTO: sei colonne
+# per tre righe, centotrentasette nomi in fila indiana. In un gioco dove
+# ogni pezzo è un oggetto costruito con amore — la fioriera che il prato si
+# è ripreso, il biliardino del bar, la conchiglia acustica — il catalogo
+# non mostrava un solo pezzo. Era un indice analitico.
+#
+# L'Atelier ha tre zone, e ognuna risponde a una domanda diversa:
+#
+#   A SINISTRA · «dove sta?»   — le categorie col loro conto (21/28) e i
+#     CORREDI come collezioni: il bar, la caserma, la boutique. Un corredo
+#     non è una categoria, è un posto — e finché non lo si poteva vedere
+#     intero, era solo un mucchio di quattordici voci quasi uguali.
+#   AL CENTRO · «com'è fatto?» — i RITRATTI. Ogni carta è il pezzo vero,
+#     fotografato dal suo builder in uno studio in miniatura
+#     ([`Miniature.gd`](Miniature.gd)): niente da disegnare a mano, niente
+#     da aggiornare quando ne arriva uno nuovo.
+#   A DESTRA · «e adesso?»     — IL TACCUINO ([`Consigli.gd`](Consigli.gd)):
+#     quello che il villaggio ha visto. Un letto senza tetto, un corredo
+#     che si sta popolando, i due pezzi che metti sempre vicini, quanto
+#     manca per il Cesto fiorito. Ogni riga viene da un dato che il gioco
+#     ha già, e ognuna è un bottone.
+#
+# E NON RUBA IL MONDO: **Tab** piega l'Atelier in una striscia alta un
+# quarto, che tiene il pezzo in mano e i ritratti dei recenti — si continua
+# a costruire guardando il villaggio, che è il motivo per cui si costruisce.
+#
+# Le scorciatoie di prima sono tutte al loro posto (B, R, V, F, X, clic,
+# rotella, 1-9, «/»), e la rotella dentro la griglia scorre invece di
+# cambiare pezzo: è la griglia a mangiarsi l'evento, non una riga in più.
+
+## La geometria dell'Atelier, a schermo intero (il gioco disegna sempre su
+## 1920x1080: `display/window/stretch/mode = "viewport"`).
+const ATE_MARGINE := 26.0
+const ATE_SOTTO := 16.0
+## La barra dei colori: quanto è alta e quanta aria la stacca dal pannello.
+const VAR_ALTA := 34.0
+const VAR_ARIA := 10.0
+const ATE_ALTA := 406.0     # aperto
+## ⚠️ QUESTO NUMERO NON SI SCEGLIE: È IL MINIMO MISURATO. Da piegati il
+## pannello deve contenere l'intestazione più la striscia, e il conto è
+## 24 (i margini di `_stile_pannello`, 12+12) + 34 (`_testata`) + 1
+## (`_filo`) + 74 (il bollo del pezzo in mano) + 20 (due separazioni del
+## vbox) = **153**. Sotto questo numero il pannello NON si restringe:
+## `Control._size_changed` alza il rect al minimo combinato e lo fa
+## crescere verso il BASSO, cioè fuori dallo schermo — e `clip_contents`
+## non salva niente, perché ritaglia sul rect già cresciuto.
+## A 104 (la prima stesura) il bollo del pezzo in mano perdeva 21 px su 74
+## — il 28% del ritratto — più il bordo e l'ombra del pannello. A 148 (la
+## prima cura, fatta a occhio su un provino) sforava ancora di CINQUE
+## pixel: misurato `panel.get_global_rect()` = 916..1069 dentro un dock
+## 916..1064. Chi rimpicciolisce la striscia abbassi anche questo; chi lo
+## abbassa da solo sega i bolli.
+const ATE_BASSA := 153.0    # piegato
+const ATE_SINISTRA := 236.0
+const ATE_DESTRA := 336.0
+## La carta di un pezzo, e il suo ritratto dentro.
+## LE TRE SOGLIE DELLA CARTA «QUELLO CHE METTI VICINO», e nessuna delle
+## tre e arbitraria: dicono quando un accostamento smette di essere un caso.
+## Sotto le tre copie non c'e nessun «quasi sempre» da dire (una volta e un
+## aneddoto, due sono una coincidenza); la FORZA e quanto quel vicino ricorre
+## in piu di quanto ricorra attorno a qualunque cosa, e mezzo punto vuol dire
+## «lo trovo accanto a questo pezzo nella meta dei casi in piu del normale»;
+## lo STACCO impedisce la carta quando due o tre pezzi sono a pari merito,
+## cioe quando la risposta onesta e «attorno c'e di tutto».
+const VICINO_COPIE_MIN := 3
+const VICINO_FORZA_MIN := 0.5
+const VICINO_STACCO := 0.15
+
+const CARTA := Vector2(106.0, 124.0)
+const CARTA_SEP := 8
+const MINIA_H := 74.0
+
+## Le due VISTE che non sono categorie (i recenti c'erano già).
+const CAT_TUTTO := -2
+## I corredi partono da qui e scendono: -100 è il primo, -101 il secondo…
+const CAT_SET := -100
+
+var _mini: Node                     # lo studio dei ritratti (Miniature.gd)
+var _dock: Control
+var _zone: HBoxContainer            # le tre colonne: lo stato aperto
+var _striscia: HBoxContainer        # lo stato piegato
+var _striscia_row: HBoxContainer
+var _sx_col: VBoxContainer
+var _taccuino: VBoxContainer
+var _ricerca_pill: Button
+var _piega_btn: Button
+var _aperto := true
+var _cat_btn := {}                  # id di vista -> Button (anche i negativi)
+var _carte_attesa := {}             # nome del pezzo -> Array[TextureRect]
+var _taccuino_sporco := true
+var _corredi_cache := {}
+var _corredi_letti := false
+
 
 func _build_ui() -> void:
 	_ui = CanvasLayer.new()
 	_ui.layer = 3
 	add_child(_ui)
 
+	# LO STUDIO DEI RITRATTI, prima di tutto: le carte glieli chiedono
+	# mentre si costruiscono. In headless nasce spento e non alloca niente.
+	_mini = MINIATURE.new()
+	_mini.name = "Miniature"
+	add_child(_mini)
+	_mini.pronta.connect(_su_miniatura)
+
 	var root := Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_ui.add_child(root)
 
+	_dock = Control.new()
+	_dock.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_dock.offset_left = ATE_MARGINE
+	_dock.offset_right = -ATE_MARGINE
+	_dock.offset_top = -(ATE_ALTA + ATE_SOTTO)
+	_dock.offset_bottom = -ATE_SOTTO
+	_dock.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_dock)
+
 	_panel = PanelContainer.new()
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.98, 0.95, 0.88, 0.94)
-	sb.set_corner_radius_all(16)
-	sb.border_color = Color(0.62, 0.46, 0.34, 0.5)
-	sb.set_border_width_all(2)
-	sb.content_margin_left = 14.0
-	sb.content_margin_right = 14.0
-	sb.content_margin_top = 8.0
-	sb.content_margin_bottom = 8.0
-	_panel.add_theme_stylebox_override("panel", sb)
-	var dock := CenterContainer.new()
-	dock.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	dock.offset_top = -172.0
-	dock.offset_bottom = -14.0
-	dock.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(dock)
-	dock.add_child(_panel)
+	_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_panel.add_theme_stylebox_override("panel", _stile_pannello())
+	_panel.clip_contents = true
 	_panel.visible = false
+	_dock.add_child(_panel)
 
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 6)
+	vbox.add_theme_constant_override("separation", 10)
 	_panel.add_child(vbox)
 
-	# la voce del Gufo in cima al pannello: l'Ordine in corso ("" = nascosto)
-	_order_banner = Label.new()
-	_order_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_order_banner.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_order_banner.custom_minimum_size = Vector2(380, 0)
-	_order_banner.add_theme_font_size_override("font_size", 13)
-	_order_banner.add_theme_color_override("font_color", Color("8a5a3a"))
-	_order_banner.visible = false
-	vbox.add_child(_order_banner)
+	vbox.add_child(_testata())
+	vbox.add_child(_filo(true))
 
-	# riga delle categorie
-	var cats := HBoxContainer.new()
-	cats.add_theme_constant_override("separation", 6)
-	cats.alignment = BoxContainer.ALIGNMENT_CENTER
-	vbox.add_child(cats)
-	var cat_group := ButtonGroup.new()
-	for c in CAT_NAMES.size():
-		var btn := _make_button(L10n.t(CAT_NAMES[c]), cat_group, 12)
-		btn.pressed.connect(_on_cat_pressed.bind(c))
-		cats.add_child(btn)
-		_cat_buttons.append(btn)
+	# ---- lo stato APERTO: tre colonne
+	_zone = HBoxContainer.new()
+	_zone.add_theme_constant_override("separation", 14)
+	_zone.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(_zone)
+	_zone.add_child(_colonna_sinistra())
+	_zone.add_child(_filo(false))
+	_zone.add_child(_colonna_centro())
+	_zone.add_child(_filo(false))
+	_zone.add_child(_colonna_destra())
 
-	# lo strumento demolizione: evidenzia in rosso, clic per abbattere
-	_demo_btn = _make_button(L10n.t("✕ Demolisci"), null, 12)
-	_demo_btn.add_theme_color_override("font_color", Color("a83a3a"))
-	_demo_btn.add_theme_color_override("font_hover_color", Color("a83a3a"))
-	_demo_btn.add_theme_color_override("font_pressed_color", Color("7a1f1f"))
-	var dsb := StyleBoxFlat.new()
-	dsb.bg_color = Color(0.95, 0.55, 0.5, 0.75)
-	dsb.set_corner_radius_all(10)
-	dsb.content_margin_left = 10.0
-	dsb.content_margin_right = 10.0
-	_demo_btn.add_theme_stylebox_override("pressed", dsb)
-	_demo_btn.add_theme_stylebox_override("hover_pressed", dsb)
-	_demo_btn.toggled.connect(func(on: bool): _set_demolish(on))
-	cats.add_child(_demo_btn)
-
-	# riga dei pezzi della categoria corrente
-	_items_row = HBoxContainer.new()
-	_items_row.add_theme_constant_override("separation", 6)
-	_items_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	vbox.add_child(_items_row)
-
-	var hint := Label.new()
-	hint.text = L10n.t("B esci  ·  rotella / 1-9 scegli  ·  R ruota  ·  V piano su/giù  ·  F ruota piazzato  ·  clic piazza  ·  X rimuovi")
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.add_theme_font_size_override("font_size", 12)
-	hint.add_theme_color_override("font_color", Color(UI_BROWN, 0.75))
-	vbox.add_child(hint)
+	# ---- lo stato PIEGATO: il pezzo in mano e i ritratti dei recenti
+	_striscia = HBoxContainer.new()
+	_striscia.add_theme_constant_override("separation", 12)
+	_striscia.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_striscia.visible = false
+	vbox.add_child(_striscia)
+	_striscia_row = HBoxContainer.new()
+	_striscia_row.add_theme_constant_override("separation", 8)
+	_striscia_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_striscia.add_child(_striscia_row)
 
 	_rebuild_item_row()
 	_sync_ui_selection()
@@ -2442,108 +2739,1257 @@ func _build_ui() -> void:
 	_idle_hint.offset_bottom = -12.0
 
 
-func _make_button(text: String, group: ButtonGroup, font_size: int) -> Button:
-	var btn := Button.new()
-	btn.text = text
-	btn.toggle_mode = true
-	if group:
-		btn.button_group = group
-	btn.focus_mode = Control.FOCUS_NONE
-	btn.custom_minimum_size = Vector2(0, 34)
-	btn.add_theme_font_size_override("font_size", font_size)
-	btn.add_theme_color_override("font_color", UI_BROWN)
-	btn.add_theme_color_override("font_pressed_color", Color("a83a5c"))
-	btn.add_theme_color_override("font_hover_color", UI_BROWN)
-	var bsb := StyleBoxFlat.new()
-	bsb.bg_color = Color(1, 1, 1, 0.35)
-	bsb.set_corner_radius_all(10)
-	bsb.content_margin_left = 10.0
-	bsb.content_margin_right = 10.0
-	btn.add_theme_stylebox_override("normal", bsb)
-	btn.add_theme_stylebox_override("hover", bsb)
-	var psb := bsb.duplicate() as StyleBoxFlat
-	psb.bg_color = Color(0.96, 0.72, 0.8, 0.85)
-	btn.add_theme_stylebox_override("pressed", psb)
-	btn.add_theme_stylebox_override("hover_pressed", psb)
-	return btn
+func _stile_pannello() -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(CozyUI.PAPER, 0.972)
+	sb.set_corner_radius_all(22)
+	sb.border_color = Color(0.62, 0.46, 0.34, 0.5)
+	sb.set_border_width_all(2)
+	sb.shadow_color = Color(0.26, 0.16, 0.11, 0.34)
+	sb.shadow_size = 22
+	sb.shadow_offset = Vector2(0, 8)
+	sb.content_margin_left = 18.0
+	sb.content_margin_right = 18.0
+	sb.content_margin_top = 12.0
+	sb.content_margin_bottom = 12.0
+	return sb
 
 
-func _on_cat_pressed(cat: int) -> void:
-	if cat == _cat:
+## Il filo che separa due zone: un capello di inchiostro annacquato. Un
+## bordo vero farebbe scatole dentro scatole, e questo è un banco di
+## legno, non un modulo da compilare.
+func _filo(orizzontale: bool) -> Control:
+	var r := ColorRect.new()
+	r.color = Color(0.62, 0.46, 0.34, 0.22)
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if orizzontale:
+		r.custom_minimum_size = Vector2(0, 1)
+	else:
+		r.custom_minimum_size = Vector2(1, 0)
+		r.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	return r
+
+
+# --------------------------------------------------------------- testata
+
+func _testata() -> Control:
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 12)
+	h.custom_minimum_size = Vector2(0, 34)
+
+	var tit := Label.new()
+	tit.text = L10n.t("L'Atelier")
+	tit.add_theme_font_size_override("font_size", 21)
+	tit.add_theme_color_override("font_color", CozyUI.TITLE)
+	tit.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	h.add_child(tit)
+
+	# la voce del Gufo: l'Ordine in corso, in un bigliettino appuntato
+	# accanto al titolo ("" = niente bigliettino)
+	_order_banner = Label.new()
+	_order_banner.add_theme_font_size_override("font_size", 13)
+	_order_banner.add_theme_color_override("font_color", Color("8a5a3a"))
+	_order_banner.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_order_banner.clip_text = true
+	_order_banner.custom_minimum_size = Vector2(0, 26)
+	_order_banner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_order_banner.visible = false
+	var bigl := PanelContainer.new()
+	bigl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bigl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var bsb := CozyUI.pill(Color(CozyUI.HONEY, 0.30), 13)
+	bsb.content_margin_left = 12.0
+	bsb.content_margin_right = 12.0
+	bsb.content_margin_top = 2.0
+	bsb.content_margin_bottom = 2.0
+	bigl.add_theme_stylebox_override("panel", bsb)
+	bigl.add_child(_order_banner)
+	h.add_child(bigl)
+	# ⚠️ È IL CONTENITORE CHE SI NASCONDE, non la Label. Nella vecchia
+	# testata `_order_banner` era figlio diretto del VBox e nasconderlo lo
+	# faceva sparire; qui la Label sta dentro una pillola color miele, e
+	# spegnere solo lei lasciava a schermo una striscia gialla alta 4 px e
+	# larga mezza intestazione, vuota — che è quello che vede chi ha finito
+	# la campagna del Gufo, o chi ha un salvataggio anteriore agli Ordini.
+	_order_pill = bigl
+	bigl.visible = false
+
+	# LA RICERCA. Resta guidata dalla tastiera («/»), perché in un gioco
+	# che si costruisce con le lettere un cursore sempre acceso ruberebbe
+	# R, V, F e X — ma adesso SEMBRA quello che è, e si accende anche
+	# cliccandola.
+	_ricerca_pill = Button.new()
+	_ricerca_pill.focus_mode = Control.FOCUS_NONE
+	_ricerca_pill.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_ricerca_pill.custom_minimum_size = Vector2(258, 30)
+	_ricerca_pill.clip_text = true
+	_ricerca_pill.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_ricerca_pill.add_theme_font_size_override("font_size", 13)
+	_ricerca_pill.add_theme_color_override("font_color", UI_BROWN)
+	_ricerca_pill.add_theme_color_override("font_hover_color", UI_BROWN)
+	var rsb := CozyUI.pill(Color(1, 1, 1, 0.62), 15)
+	rsb.border_color = Color(0.62, 0.46, 0.34, 0.30)
+	rsb.set_border_width_all(1)
+	rsb.content_margin_left = 12.0
+	rsb.content_margin_right = 12.0
+	var rho := rsb.duplicate() as StyleBoxFlat
+	rho.bg_color = Color(1, 1, 1, 0.85)
+	_ricerca_pill.add_theme_stylebox_override("normal", rsb)
+	_ricerca_pill.add_theme_stylebox_override("hover", rho)
+	_ricerca_pill.add_theme_stylebox_override("pressed", rho)
+	_ricerca_pill.pressed.connect(_ricerca_accendi)
+	h.add_child(_ricerca_pill)
+	_ricerca_label = null   # la pillola È l'etichetta della ricerca
+
+	_conta_label = Label.new()
+	_conta_label.add_theme_font_size_override("font_size", 13)
+	_conta_label.add_theme_color_override("font_color", Color(UI_BROWN, 0.62))
+	_conta_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_conta_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_conta_label.custom_minimum_size = Vector2(94, 0)
+	h.add_child(_conta_label)
+
+	_demo_btn = _pillola(L10n.t("✕ Demolisci"), CozyUI.DANGER, 13)
+	_demo_btn.toggle_mode = true
+	_demo_btn.add_theme_color_override("font_color", Color("a83a3a"))
+	_demo_btn.add_theme_color_override("font_hover_color", Color("a83a3a"))
+	_demo_btn.toggled.connect(func(on: bool): _set_demolish(on))
+	h.add_child(_demo_btn)
+
+	_piega_btn = _pillola(L10n.t("Tab — richiudi"), CozyUI.SKY, 13)
+	_piega_btn.pressed.connect(func(): _piega(not _aperto))
+	h.add_child(_piega_btn)
+	return h
+
+
+## Una pillola: il bottone piccolo della casa (categoria, strumento,
+## suggerimento). Non usa `CozyUI.cozy_button` perché quello è alto 52 e
+## qui la riga è alta 30 — ma ne tiene la grammatica: bianco latte a
+## riposo, la tinta al passaggio, l'inchiostro sempre leggibile.
+func _pillola(testo: String, tinta: Color, corpo := 13) -> Button:
+	var b := Button.new()
+	b.text = testo
+	b.focus_mode = Control.FOCUS_NONE
+	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	b.custom_minimum_size = Vector2(0, 30)
+	# ⚠️ NIENTE clip_text qui: toglie il testo dalla dimensione minima, e una
+	# pillola in un contenitore che si restringe collassa sui soli margini —
+	# ne uscivano tre cerchietti bianchi VUOTI (i due strumenti in alto e il
+	# pezzo consigliato dal taccuino). Chi ha un testo lungo lo clippa da sé.
+	b.add_theme_font_size_override("font_size", corpo)
+	b.add_theme_color_override("font_color", UI_BROWN)
+	b.add_theme_color_override("font_hover_color", UI_BROWN)
+	b.add_theme_color_override("font_pressed_color", UI_BROWN)
+	b.add_theme_color_override("font_disabled_color", Color(UI_BROWN, 0.38))
+	var n := CozyUI.pill(Color(1, 1, 1, 0.5), 15)
+	n.content_margin_left = 13.0
+	n.content_margin_right = 13.0
+	var ho := CozyUI.pill(Color(tinta, 0.70), 15)
+	ho.content_margin_left = 13.0
+	ho.content_margin_right = 13.0
+	var pr := CozyUI.pill(Color(tinta, 0.95), 15)
+	pr.content_margin_left = 13.0
+	pr.content_margin_right = 13.0
+	var di := CozyUI.pill(Color(0.82, 0.78, 0.72, 0.28), 15)
+	di.content_margin_left = 13.0
+	di.content_margin_right = 13.0
+	b.add_theme_stylebox_override("normal", n)
+	b.add_theme_stylebox_override("hover", ho)
+	b.add_theme_stylebox_override("pressed", pr)
+	b.add_theme_stylebox_override("hover_pressed", pr)
+	b.add_theme_stylebox_override("disabled", di)
+	return b
+
+
+# ------------------------------------------------------- colonna sinistra
+
+func _colonna_sinistra() -> Control:
+	var v := VBoxContainer.new()
+	v.custom_minimum_size = Vector2(ATE_SINISTRA, 0)
+	v.add_theme_constant_override("separation", 6)
+	v.add_child(_sezione(L10n.t("Il catalogo")))
+	var sc := ScrollContainer.new()
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	v.add_child(sc)
+	_sx_col = VBoxContainer.new()
+	_sx_col.add_theme_constant_override("separation", 3)
+	_sx_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(_sx_col)
+	_rifai_sinistra()
+	return v
+
+
+func _sezione(testo: String) -> Label:
+	var l := Label.new()
+	l.text = testo
+	l.add_theme_font_size_override("font_size", 12)
+	l.add_theme_color_override("font_color", Color(UI_BROWN, 0.52))
+	return l
+
+
+## Le righe di sinistra si RIFANNO, non si aggiornano a pezzi: i conti
+## («21 di 28») cambiano quando compri, quando il Gufo sblocca e quando
+## posi, e tre strade che scrivono la stessa etichetta divergono.
+func _rifai_sinistra() -> void:
+	if _sx_col == null:
 		return
-	_set_demolish(false)  # cambiare categoria esce dalla demolizione
-	_cat = cat
-	_rebuild_item_row()
-	# seleziona il primo pezzo SBLOCCATO della categoria (se ce n'è)
-	var cat_items := _cat_item_indices(cat)
-	var pick := -1
-	for ci in cat_items:
-		if is_unlocked(str(_items[ci]["name"])):
-			pick = ci
+	for c in _sx_col.get_children():
+		_sx_col.remove_child(c)
+		c.queue_free()
+	_cat_btn.clear()
+	_cat_buttons.clear()
+
+	_cat_recenti_btn = _riga_vista(L10n.t("★ Recenti"), CAT_RECENTI, "", CozyUI.GOLD)
+	_spegni_riga(_cat_recenti_btn, _recenti.is_empty())
+	if _recenti.is_empty():
+		_cat_recenti_btn.tooltip_text = L10n.t("Qui finiscono i pezzi che posi")
+	_sx_col.add_child(_cat_recenti_btn)
+	_sx_col.add_child(_riga_vista(L10n.t("Tutto il catalogo"), CAT_TUTTO,
+			str(_items.size()), CozyUI.PEACH))
+
+	_sx_col.add_child(_spazio(6))
+	for c in CAT_NAMES.size():
+		var liberi := 0
+		var tot := 0
+		for i in _items.size():
+			if int(_items[i]["cat"]) == c:
+				tot += 1
+				if is_unlocked(str(_items[i]["name"])):
+					liberi += 1
+		var conto := str(tot) if liberi == tot else "%d/%d" % [liberi, tot]
+		var b := _riga_vista(L10n.t(CAT_NAMES[c]), c, conto, CozyUI.PINK)
+		_sx_col.add_child(b)
+		_cat_buttons.append(b)
+
+	# I CORREDI. Un corredo non è una categoria: è un POSTO — il bar, la
+	# caserma, la boutique — e i suoi quattordici pezzi, sparsi in tre
+	# categorie diverse, non si vedevano mai insieme. Il conto è di pezzi
+	# POSATI su totali: una collezione che si riempie costruendo, non una
+	# lista di cose da fare.
+	var corr := _corredi()
+	if not corr.is_empty():
+		_sx_col.add_child(_spazio(8))
+		# ⚠️ L'INTESTAZIONE DICE LA GRANDEZZA, perché è diversa da quella di
+		# sopra. Le categorie contano quel che POSSIEDI, i corredi quel che
+		# hai POSATO — e nella stessa colonna, nella stessa pillola bianca,
+		# con la stessa frazione, si leggono come la stessa cosa. Non è
+		# teorico: Boutique e «Vetrina moda» sono ESATTAMENTE gli stessi
+		# quindici pezzi, e a tre righe di distanza mostravano due numeri
+		# diversi senza che niente spiegasse perché. E il conto dei posati
+		# può SCENDERE (demolisci e cala), cosa che il possesso non fa mai.
+		var t_cor := _sezione(L10n.t("I corredi — quanti ne hai posati"))
+		t_cor.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_sx_col.add_child(t_cor)
+		var conteggi := piece_counts()
+		var k := 0
+		for capo in corr:
+			var nomi: Array = [capo]
+			nomi.append_array(corr[capo])
+			var messi := 0
+			for n in nomi:
+				if int(conteggi.get(str(n), 0)) > 0:
+					messi += 1
+			# e la FORMA è diversa da quella delle categorie («21/28»):
+			# due grandezze diverse non indossano la stessa grammatica
+			var b2 := _riga_vista(L10n.t(str(capo)), CAT_SET - k,
+					L10n.tf("%d di %d", [messi, nomi.size()]), CozyUI.LAVENDER)
+			if not is_unlocked(str(capo)):
+				# non è tuo: resta leggibile ma spento, col suo prezzo
+				var off := _shop_offer(str(capo))
+				b2.modulate = Color(1, 1, 1, 0.62)
+				if not off.is_empty():
+					b2.tooltip_text = _shop_tooltip(off)
+			_sx_col.add_child(b2)
+			k += 1
+
+
+func _spazio(h: int) -> Control:
+	var c := Control.new()
+	c.custom_minimum_size = Vector2(0, h)
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return c
+
+
+## Una riga della colonna: il nome a sinistra, il conto a destra. È un
+## bottone con dentro due etichette (che non intercettano il mouse, o il
+## bottone smetterebbe di essere premibile in mezzo).
+## Una riga della colonna che NON si può premere deve dirlo. ⚠️ Non basta
+## `b.disabled`: `_riga_vista` mette le parole in due `Label` FIGLIE (il
+## bottone ha il testo vuoto), e `font_disabled_color` non tocca i figli —
+## quindi «★ Recenti» spenta aveva lo stesso inchiostro di tutte le altre,
+## il cursore a manina, e al clic non succedeva niente. E capita a OGNI
+## avvio, non solo in partita nuova: `_recenti` non è persistita.
+func _spegni_riga(b: Button, spenta: bool) -> void:
+	b.disabled = spenta
+	b.modulate = Color(1, 1, 1, 0.45) if spenta else Color(1, 1, 1, 1)
+	b.mouse_default_cursor_shape = Control.CURSOR_ARROW if spenta \
+			else Control.CURSOR_POINTING_HAND
+
+
+func _riga_vista(testo: String, vista: int, conto: String, tinta: Color) -> Button:
+	var b := _pillola("", tinta, 14)
+	b.toggle_mode = true
+	b.custom_minimum_size = Vector2(0, 30)
+	var h := HBoxContainer.new()
+	h.set_anchors_preset(Control.PRESET_FULL_RECT)
+	h.offset_left = 13.0
+	h.offset_right = -13.0
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	h.add_theme_constant_override("separation", 6)
+	var l := Label.new()
+	l.text = testo
+	l.add_theme_font_size_override("font_size", 14)
+	l.add_theme_color_override("font_color", UI_BROWN)
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.clip_text = true
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	h.add_child(l)
+	var c := Label.new()
+	c.text = conto
+	c.add_theme_font_size_override("font_size", 12)
+	c.add_theme_color_override("font_color", Color(UI_BROWN, 0.5))
+	c.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	h.add_child(c)
+	b.add_child(h)
+	b.pressed.connect(_on_cat_pressed.bind(vista))
+	_cat_btn[vista] = b
+	return b
+
+
+## I corredi, letti dalla loro fonte unica (`Economy.CORREDO`). Si legge
+## dalla mappa delle costanti dello script perché l'economia è un `Node`
+## non tipizzato: la costante non è raggiungibile per nome.
+func _corredi() -> Dictionary:
+	if _corredi_letti:
+		return _corredi_cache
+	var eco := _economy()
+	if eco == null:
+		return {}          # economia non ancora in scena: si riproverà
+	var sc := eco.get_script() as GDScript
+	if sc == null:
+		return {}
+	var tab: Variant = sc.get_script_constant_map().get("CORREDO")
+	if tab is Dictionary:
+		_corredi_cache = tab as Dictionary
+	_corredi_letti = true
+	return _corredi_cache
+
+
+# --------------------------------------------------------- colonna centro
+
+func _colonna_centro() -> Control:
+	var v := VBoxContainer.new()
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.add_theme_constant_override("separation", 6)
+	_items_scroll = ScrollContainer.new()
+	_items_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_items_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_items_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_items_scroll.follow_focus = true
+	v.add_child(_items_scroll)
+	# SI CHIEDE SOLO CIÒ CHE SI GUARDA: scorrendo, le carte che entrano in
+	# vista si mettono in coda per il ritratto. Senza, aprire il Giardino
+	# vorrebbe dire ordinare trentotto ritratti di cui se ne vedono venti.
+	_items_scroll.get_v_scroll_bar().value_changed.connect(
+			func(_v): _chiedi_visibili())
+	_items_row = GridContainer.new()
+	_items_row.columns = _colonne()
+	_items_row.add_theme_constant_override("h_separation", CARTA_SEP)
+	_items_row.add_theme_constant_override("v_separation", CARTA_SEP)
+	_items_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_items_scroll.add_child(_items_row)
+
+	var hint := Label.new()
+	hint.text = L10n.t("clic posa  ·  R gira  ·  V piano  ·  F gira un pezzo posato  ·  X toglie  ·  rotella e 1-9 scelgono  ·  / cerca  ·  Tab richiude  ·  B esce")
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.add_theme_font_size_override("font_size", 12)
+	hint.add_theme_color_override("font_color", Color(UI_BROWN, 0.55))
+	hint.clip_text = true
+	v.add_child(hint)
+	return v
+
+
+## Quante colonne ci stanno DAVVERO. Si calcola sulla larghezza vera dello
+## schermo invece di scriverla a mano: chi gioca in finestra piccola non
+## deve trovare la griglia tagliata a metà.
+func _colonne() -> int:
+	var largo := 1920.0
+	var vp := get_viewport()
+	if vp:
+		largo = vp.get_visible_rect().size.x
+	var utile := largo - 2.0 * ATE_MARGINE - 36.0 - ATE_SINISTRA - ATE_DESTRA \
+			- 2.0 * 14.0 - 2.0 - 16.0
+	return clampi(int(floor((utile + CARTA_SEP) / (CARTA.x + CARTA_SEP))), 3, 14)
+
+
+# --------------------------------------------------------- colonna destra
+
+func _colonna_destra() -> Control:
+	var v := VBoxContainer.new()
+	v.custom_minimum_size = Vector2(ATE_DESTRA, 0)
+	v.add_theme_constant_override("separation", 6)
+	v.add_child(_sezione(L10n.t("Il taccuino")))
+	var sc := ScrollContainer.new()
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	v.add_child(sc)
+	_taccuino = VBoxContainer.new()
+	_taccuino.add_theme_constant_override("separation", 7)
+	_taccuino.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(_taccuino)
+	return v
+
+
+## I FATTI, letti dalle loro fonti — mai inventati, mai ricopiati.
+func _fatti_atelier() -> Dictionary:
+	var f := {}
+	var conteggi := piece_counts()
+	var posati := 0
+	for n in conteggi:
+		posati += int(conteggi[n])
+	f["posati"] = posati
+
+	# i letti senza niente sopra: la stessa domanda del trasloco
+	var scoperti := 0
+	for letto in get_placed_by_name("Letto"):
+		if not has_cover(Vector2i(roundi(letto.position.x), roundi(letto.position.z))):
+			scoperti += 1
+	f["letti_scoperti"] = scoperti
+
+	# CHI STA VICINO A CHI — e ⚠️ LA GRANDEZZA CONTATA È LA VOLTA, NON LA
+	# CELLA. La prima stesura sommava una unità per ogni cella vicina, e
+	# così un Sentiero che passa davanti a UNA panchina valeva venti: la
+	# carta diceva «quasi sempre» su un campione di uno, e quasi sempre
+	# nominava il pavimento. È l'inferenza smentibile che il taccuino del
+	# Gufo ha per regola di non fare — e una carta smentibile non attenua
+	# la fiducia nel taccuino, la INVERTE.
+	#
+	# Adesso si conta, per ogni COPIA del pezzo che hai in mano, l'insieme
+	# DISTINTO di quel che le sta attorno; e si sottrae quanto quel vicino
+	# starebbe lì per caso, cioè quanto sta vicino a QUALUNQUE cosa (un
+	# pavimento è vicino a tutto: la sua frazione di fondo è alta e non
+	# emerge). Nessuna lista di esclusioni da tenere allineata a mano.
+	var perno := str(_items[_index]["name"]) if _index < _items.size() else ""
+	var mappa := _mappa_celle()
+	if perno != "" and mappa.size() > 1:
+		var conto := {}       # nome -> a quante COPIE del perno sta accanto
+		var fondo := {}       # nome -> a quante celle occupate sta accanto
+		var n_perni := 0
+		for cella in mappa:
+			var e_perno: bool = (mappa[cella] as Array).has(perno)
+			if e_perno:
+				n_perni += 1
+			var visti := {}
+			for dx in range(-2, 3):
+				for dz in range(-2, 3):
+					var altra: Variant = mappa.get(cella + Vector2i(dx, dz), null)
+					if altra == null:
+						continue
+					for nome in (altra as Array):
+						if str(nome) == perno:
+							continue
+						visti[nome] = true
+			for nome in visti:
+				fondo[nome] = int(fondo.get(nome, 0)) + 1
+				if e_perno:
+					conto[nome] = int(conto.get(nome, 0)) + 1
+		# «quasi sempre» non si dice su meno di tre volte: sotto, quello
+		# che si vede non è un'abitudine, è dove c'era posto
+		if n_perni >= VICINO_COPIE_MIN:
+			var mgl := ""
+			var mgl_n := 0
+			var mgl_forza := 0.0
+			var secondo := 0.0
+			for nome in conto:
+				var q := int(conto[nome])
+				var forza := float(q) / float(n_perni) \
+						- float(fondo.get(nome, 0)) / float(mappa.size())
+				if forza > mgl_forza:
+					secondo = mgl_forza
+					mgl_forza = forza
+					mgl_n = q
+					mgl = str(nome)
+				elif forza > secondo:
+					secondo = forza
+			# e deve STACCARE il secondo, o non è «quello che metti
+			# vicino»: è «attorno c'è di tutto», che non dice niente
+			if mgl_n >= VICINO_COPIE_MIN and mgl_forza >= VICINO_FORZA_MIN \
+					and mgl_forza >= secondo + VICINO_STACCO and is_unlocked(mgl):
+				f["vicino"] = {"perno": perno, "nome": mgl,
+						"quante": mgl_n, "su": n_perni}
+
+	# IL CORREDO CHE SI STA POPOLANDO: fra quelli tuoi, quello a cui manca
+	# meno (e che hai già cominciato).
+	var meglio := {}
+	for capo in _corredi():
+		if not is_unlocked(str(capo)):
+			continue
+		var nomi: Array = [capo]
+		nomi.append_array(_corredi()[capo])
+		var messi := 0
+		var prossimo := ""
+		for n in nomi:
+			if int(conteggi.get(str(n), 0)) > 0:
+				messi += 1
+			elif prossimo == "":
+				prossimo = str(n)
+		if messi == 0 or prossimo == "":
+			continue
+		if meglio.is_empty() or messi > int(meglio.get("messi", 0)):
+			meglio = {"capo": str(capo), "messi": messi, "totale": nomi.size(),
+					"prossimo": prossimo}
+	f["corredo"] = meglio
+
+	# I RISPARMI: la cosa del carretto più vicina alle tue tasche.
+	#
+	# ⚠️ FRA QUELLE CHE IL CARRETTO HA IN BANCO OGGI, non fra tutto il
+	# listino. `Economy.rotate_stock` pesca 3-4 nomi per visita e il Shop
+	# mostra solo quelli: scorrendo `SHOP_PIECES` il taccuino prometteva un
+	# pezzo che quel giorno non era in vendita — il giocatore metteva da
+	# parte le noccioline, aspettava la visita, apriva il carretto e
+	# trovava altre tre voci. È una promessa che il gioco non può
+	# mantenere, cioè la stessa famiglia dell'inferenza smentibile: la
+	# carta successiva non la crederà più.
+	#
+	# Se il banco è vuoto (nessuna visita ancora, o comprato tutto) non si
+	# dice niente — il silenzio è un esito.
+	var eco := _economy()
+	if eco != null and eco.has_method("piece_offer"):
+		var borsa_n := int(eco.get("nuts"))
+		var borsa_s := int(eco.get("stars"))
+		var scelto := {}
+		var scarto := 1 << 30
+		var in_banco: Array = []
+		if eco.has_method("stock_offers"):
+			for o in eco.call("stock_offers"):
+				in_banco.append(str((o as Dictionary).get("name", "")))
+		for i in _items.size():
+			var nome := str(_items[i]["name"])
+			if is_unlocked(nome) or not in_banco.has(nome):
+				continue
+			var off := _shop_offer(nome)
+			if off.is_empty():
+				continue
+			var cur := str(off.get("cur", "nut"))
+			var costo := int(off.get("cost", 0))
+			var ho := borsa_n if cur == "nut" else borsa_s
+			# le stelline sono rare: il loro scarto si pesa di più, o un
+			# pezzo da 4 stelline sembrerebbe sempre il più vicino
+			var d: int = maxi(costo - ho, 0) * (1 if cur == "nut" else 18)
+			if d < scarto:
+				scarto = d
+				scelto = {"nome": nome, "costo": costo, "cur": cur,
+						"manca": maxi(costo - ho, 0), "puoi": ho >= costo,
+						"oggi": in_banco.has(nome)}
+		f["affare"] = scelto
+
+	# IL PEZZO CHE NON HAI MAI PROVATO: tuo, e mai posato. Si scorre dal
+	# fondo del catalogo, dove stanno le cose arrivate per ultime.
+	var mai := ""
+	for i in range(_items.size() - 1, -1, -1):
+		var nome := str(_items[i]["name"])
+		if is_unlocked(nome) and int(conteggi.get(nome, 0)) == 0:
+			mai = nome
 			break
-	if pick >= 0:
-		_index = pick
-		_refresh_ghost()
+	f["mai_usato"] = mai
+	return f
+
+
+## Tutti i pezzi posati, per cella. I bordi hanno la chiave RADDOPPIATA
+## (un muro sta SUL confine): si riporta alla cella dividendo per due, o
+## il muro di casa risulterebbe a dieci metri dal letto che chiude.
+func _mappa_celle() -> Dictionary:
+	var out := {}
+	for lvl in 2:
+		for layer in [0, 1, 2, 3, "edge"]:
+			var d := _dicts(lvl)[layer] as Dictionary
+			for key in d:
+				var k: Vector2i = key
+				# `layer` gira su [0, 1, 2, 3, "edge"] e GDScript lo tipizza
+				# INT: confrontarlo con una stringa è un errore a runtime, e
+				# questa funzione sta in `_process` — un errore per fotogramma,
+				# che non fa fallire nessun test e sporca ogni log del gioco
+				var cella := Vector2i(k.x / 2, k.y / 2) if str(layer) == "edge" else k
+				var nome: String = (d[key] as Node3D).get_meta("item_name", "")
+				if nome == "":
+					continue
+				if not out.has(cella):
+					out[cella] = []
+				if not (out[cella] as Array).has(nome):
+					(out[cella] as Array).append(nome)
+	return out
+
+
+func _rifai_taccuino() -> void:
+	if _taccuino == null:
+		return
+	_taccuino_sporco = false
+	for c in _taccuino.get_children():
+		_taccuino.remove_child(c)
+		c.queue_free()
+	for carta in CONSIGLI.consiglia(_fatti_atelier()):
+		_taccuino.add_child(_carta_consiglio(carta as Dictionary))
+
+
+func _carta_consiglio(c: Dictionary) -> Control:
+	var tinta: Color = c.get("tinta", CozyUI.HONEY)
+	var p := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(tinta, 0.16)
+	sb.set_corner_radius_all(14)
+	sb.border_color = Color(tinta, 0.55)
+	sb.set_border_width_all(1)
+	# la costola colorata a sinistra: si riconosce la famiglia del
+	# consiglio prima di averlo letto
+	sb.border_width_left = 4
+	sb.content_margin_left = 12.0
+	sb.content_margin_right = 12.0
+	sb.content_margin_top = 9.0
+	sb.content_margin_bottom = 9.0
+	p.add_theme_stylebox_override("panel", sb)
+
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 7)
+	p.add_child(v)
+	var l := Label.new()
+	l.text = str(c.get("testo", ""))
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.add_theme_font_size_override("font_size", 13)
+	l.add_theme_color_override("font_color", CozyUI.INK)
+	v.add_child(l)
+
+	var pezzo := str(c.get("pezzo", ""))
+	var idx := item_index(pezzo)
+	if pezzo != "" and idx >= 0:
+		var b := _pillola(L10n.t(pezzo), tinta, 13)
+		b.custom_minimum_size = Vector2(0, 27)
+		# ⚠️ la pillola NON si restringe sul testo: _pillola ha clip_text, che
+		# toglie il testo dalla dimensione minima — con SHRINK_BEGIN il bottone
+		# collassava sui soli margini e usciva un cerchietto bianco VUOTO
+		b.size_flags_horizontal = Control.SIZE_FILL
+		# un consiglio è un BOTTONE: se il pezzo è tuo lo prende in mano,
+		# se non lo è ancora te lo fa VEDERE (nessun diniego in faccia a
+		# chi ha appena letto che gli piacerebbe averlo)
+		if is_unlocked(pezzo):
+			b.pressed.connect(_select.bind(idx))
+		else:
+			b.pressed.connect(_mostra_pezzo.bind(pezzo))
+		v.add_child(b)
+	return p
+
+
+## Portare in vista un pezzo che non è (ancora) tuo: si apre la sua
+## categoria e lo si cerca per nome, così compare al centro con la sua
+## promessa addosso. Non si SELEZIONA — selezionarlo sarebbe un diniego.
+func _mostra_pezzo(pezzo: String) -> void:
+	var i := item_index(pezzo)
+	if i < 0:
+		return
+	# ⚠️ NELLA BARRA VA IL NOME TRADOTTO. `pezzo` è la chiave di catalogo,
+	# che è la frase ITALIANA (la regola della lingua: la chiave È la
+	# frase): scrivendola così, chi gioca in inglese vedeva comparire una
+	# parola italiana in un campo che ha appena scritto lui. La ricerca
+	# trova comunque (`_cerca_indici` guarda il nome E la traduzione), e in
+	# italiano `L10n.t` è l'identità — quindi non cambia un bit.
+	_ricerca = L10n.t(pezzo)
+	_ricerca_attiva = false
+	_rebuild_item_row()
 	_sync_ui_selection()
 	if _sfx: _sfx.ui_select()
 
 
+# ------------------------------------------------------------- le carte
+
+func _on_cat_pressed(cat: int) -> void:
+	if cat == _cat and _ricerca == "":
+		_sync_ui_selection()
+		return
+	_set_demolish(false)  # cambiare vista esce dalla demolizione
+	# toccare una scheda chiude la ricerca: sono due modi di guardare lo
+	# stesso banco, e tenerli accesi insieme lascia il giocatore a
+	# chiedersi perché la categoria che ha appena scelto è mezza vuota
+	_ricerca = ""
+	_ricerca_attiva = false
+	_cat = cat
+	_rebuild_item_row()
+	# seleziona il primo pezzo POSABILE della scheda (se ce n'è)
+	var pick := -1
+	for i in _visibili:
+		if is_unlocked(str(_items[i]["name"])):
+			pick = i
+			break
+	if pick >= 0:
+		_select(pick)
+	else:
+		_sync_ui_selection()
+
+
 func _rebuild_item_row() -> void:
-	for btn in _item_buttons:
-		btn.queue_free()
+	if _items_row == null:
+		return
 	_item_buttons.clear()
+	_carte_attesa.clear()
+	for f in _items_row.get_children():
+		_items_row.remove_child(f)
+		f.queue_free()
+	if _mini: _mini.svuota_coda()
+	_items_row.columns = _colonne()
 	var group := ButtonGroup.new()
-	var cat_items := _cat_item_indices(_cat)
-	for j in cat_items.size():
-		var i := cat_items[j]
-		var piece := str(_items[i]["name"])
-		var locked := not is_unlocked(piece)
-		# Due lucchetti diversi meritano due promesse diverse.
-		#   · Ordini del Gufo: restano un "?" grigio, come i ricordi non ancora
-		#     vissuti del Guardaroba — lì la rivelazione È il premio.
-		#   · Mercante: sono MERCE IN VETRINA, non un segreto. Si mostrano col
-		#     nome e col prezzo, così sai per cosa stai risparmiando. (Prima
-		#     erano "?" con la didascalia del Gufo: un Ordine che per loro non
-		#     sarebbe mai arrivato, perché si comprano e basta.)
-		var offer := _shop_offer(piece) if locked else {}
-		var in_vetrina := not offer.is_empty()
-		# `piece` è la chiave del salvataggio: si traduce solo l'etichetta
-		var label: String
-		if in_vetrina:
-			label = "%s · %d" % [L10n.t(piece), int(offer.get("cost", 0))]
-		elif locked:
-			label = "?"
+	_visibili = _pezzi_visibili()
+	var n_libero := 0          # i numeri 1-9 contano SOLO i posabili
+	for j in _visibili.size():
+		var i := _visibili[j]
+		var numero := 0
+		if is_unlocked(str(_items[i]["name"])):
+			n_libero += 1
+			# il numero è una SCORCIATOIA, e le scorciatoie sono nove:
+			# stamparlo sulla decima carta sarebbe un tasto che non esiste
+			if n_libero <= 9:
+				numero = n_libero
+		var carta := _carta_pezzo(i, numero, group)
+		_items_row.add_child(carta)
+		_item_buttons.append(carta)
+	if _visibili.is_empty():
+		var vuoto := Label.new()
+		vuoto.text = L10n.t("Niente da queste parti.") if _ricerca == "" \
+				else L10n.t("Nessun pezzo con questo nome.")
+		vuoto.add_theme_font_size_override("font_size", 13)
+		vuoto.add_theme_color_override("font_color", Color(UI_BROWN, 0.6))
+		_items_row.add_child(vuoto)
+	_aggiorna_barra()
+	if _items_scroll:
+		_items_scroll.scroll_vertical = 0
+	_chiedi_visibili.call_deferred()
+
+
+## La carta di un pezzo: il suo RITRATTO, il nome, e — se non è ancora
+## tuo — la promessa giusta. Tre promesse diverse, perché tre sono i modi
+## in cui un pezzo arriva: si compra al carretto (prezzo), viene col
+## corredo di un altro (il nome del capo), o lo porta un Ordine del Gufo —
+## e quello resta un «?», perché la rivelazione È il premio.
+func _carta_pezzo(i: int, numero: int, group: ButtonGroup) -> Button:
+	var piece := str(_items[i]["name"])
+	var locked := not is_unlocked(piece)
+	var offer := _shop_offer(piece) if locked else {}
+	var padrone := _padrone_corredo(piece) if locked and offer.is_empty() else ""
+	var segreto := locked and offer.is_empty() and padrone == ""
+
+	var b := Button.new()
+	b.toggle_mode = true
+	b.button_group = group
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = CARTA
+	b.tooltip_text = L10n.t(piece)
+	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_veste_carta(b, segreto)
+
+	var v := VBoxContainer.new()
+	v.set_anchors_preset(Control.PRESET_FULL_RECT)
+	v.offset_left = 6.0
+	v.offset_right = -6.0
+	v.offset_top = 6.0
+	v.offset_bottom = -6.0
+	v.add_theme_constant_override("separation", 2)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(v)
+
+	if segreto:
+		var q := Label.new()
+		q.text = "?"
+		q.add_theme_font_size_override("font_size", 34)
+		q.add_theme_color_override("font_color", Color(UI_BROWN, 0.34))
+		q.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		q.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		q.custom_minimum_size = Vector2(0, MINIA_H)
+		q.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.add_child(q)
+		b.tooltip_text = L10n.t("Un Ordine del Gufo lo porterà")
+	else:
+		var tr := TextureRect.new()
+		tr.custom_minimum_size = Vector2(0, MINIA_H)
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tr.modulate = Color(1, 1, 1, 1) if not locked else Color(1, 1, 1, 0.55)
+		v.add_child(tr)
+		var gia: Texture2D = _mini.presa(piece) if _mini else null
+		if gia != null:
+			tr.texture = gia
 		else:
-			label = str(j + 1) + " " + L10n.t(piece)
-		var btn := _make_button(label, group, 13)
-		btn.custom_minimum_size = Vector2(0, 38)
-		if locked:
-			btn.disabled = true
-			if in_vetrina:
-				# leggibile, non spenta: si vede cosa ti aspetta al carretto.
-				# Il prezzo prende il colore della sua valuta, come nel negozio.
-				btn.modulate = Color(1, 1, 1, 0.88)
-				btn.add_theme_color_override("font_disabled_color",
-						CozyUI.NUT if str(offer.get("cur", "nut")) == "nut" \
-						else CozyUI.HONEY.darkened(0.1))
-				btn.set_meta("shop_offer", offer)
-				btn.tooltip_text = _shop_tooltip(offer)
-			else:
-				btn.modulate = Color(1, 1, 1, 0.5)
-				# Il Gufo non porta i compagni di corredo: quelli arrivano
-				# tutti insieme al pezzo che si compra al carretto. Dirgli
-				# «lo porterà un Ordine» era una promessa falsa — un Ordine
-				# per loro non arriva mai.
-				var padrone := _padrone_corredo(piece)
-				if padrone.is_empty():
-					btn.tooltip_text = L10n.t("Un Ordine del Gufo lo porterà")
-				else:
-					btn.tooltip_text = L10n.tf("Arriva col corredo di %s",
-							[L10n.t(padrone)])
+			# il ritratto non c'è ancora: la carta lo aspetta, e quando
+			# arriva entra in dissolvenza invece di comparire di scatto
+			if not _carte_attesa.has(piece):
+				_carte_attesa[piece] = []
+			(_carte_attesa[piece] as Array).append(tr)
+
+	var l := Label.new()
+	l.text = L10n.t("un giorno") if segreto else L10n.t(piece)
+	l.add_theme_font_size_override("font_size", 11)
+	l.add_theme_color_override("font_color",
+			Color(UI_BROWN, 0.42) if locked else CozyUI.INK)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	# due righe, e i puntini invece del taglio a metà parola: i nomi lunghi
+	# ("Lampada semplice", "Campana caserma") uscivano mozzati da tutte e due
+	# le parti, perché il testo è centrato e clip_text taglia dove capita
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.max_lines_visible = 2
+	l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	l.custom_minimum_size = Vector2(0, 30)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(l)
+
+	if numero > 0:
+		b.add_child(_gettone(str(numero), Color(1, 1, 1, 0.72),
+				Color(UI_BROWN, 0.75)))
+	if not offer.is_empty():
+		b.add_child(_prezzo(int(offer.get("cost", 0)), str(offer.get("cur", "nut"))))
+		b.tooltip_text = _shop_tooltip(offer)
+		b.set_meta("shop_offer", offer)
+	elif padrone != "":
+		b.add_child(_nastro(L10n.t("corredo"), CozyUI.LAVENDER))
+		b.tooltip_text = L10n.tf("Arriva col corredo di %s", [L10n.t(padrone)])
+
+	if locked:
+		b.disabled = true
+	else:
+		b.pressed.connect(_select.bind(i))
+	return b
+
+
+func _veste_carta(b: Button, segreto: bool) -> void:
+	var n := StyleBoxFlat.new()
+	n.bg_color = Color(1, 1, 1, 0.42) if not segreto else Color(1, 1, 1, 0.14)
+	n.set_corner_radius_all(14)
+	n.border_color = Color(0.62, 0.46, 0.34, 0.20)
+	n.set_border_width_all(1)
+	var h := n.duplicate() as StyleBoxFlat
+	h.bg_color = Color(1, 1, 1, 0.86)
+	h.border_color = Color(CozyUI.PINK_DEEP, 0.75)
+	h.set_border_width_all(2)
+	h.shadow_color = Color(0.4, 0.25, 0.3, 0.22)
+	h.shadow_size = 8
+	h.shadow_offset = Vector2(0, 3)
+	var p := n.duplicate() as StyleBoxFlat
+	p.bg_color = Color(CozyUI.PINK, 0.55)
+	p.border_color = CozyUI.PINK_TEXT
+	p.set_border_width_all(2)
+	p.shadow_color = Color(0.5, 0.3, 0.35, 0.28)
+	p.shadow_size = 10
+	p.shadow_offset = Vector2(0, 4)
+	var d := n.duplicate() as StyleBoxFlat
+	# ⚠️ ANCHE IL «disabled» DEVE SAPERE DEL SEGRETO. Una carta segreta è
+	# per costruzione `b.disabled = true`, quindi Godot disegna QUESTO
+	# stilo e non `normal`: scrivendo qui un colore fisso, il ramo segreto
+	# di `n` non veniva mai disegnato e in una partita nuova la griglia era
+	# un muro di carte tutte dello stesso peso — i pochi pezzi già tuoi non
+	# spiccavano più di quelli che il Gufo deve ancora portare.
+	d.bg_color = Color(1, 1, 1, 0.20 if not segreto else 0.09)
+	b.add_theme_stylebox_override("normal", n)
+	b.add_theme_stylebox_override("hover", h)
+	b.add_theme_stylebox_override("pressed", p)
+	b.add_theme_stylebox_override("hover_pressed", p)
+	b.add_theme_stylebox_override("disabled", d)
+	b.add_theme_stylebox_override("focus", CozyUI.pill(Color(1, 1, 1, 0.0), 14))
+
+
+## Il numerino della scorciatoia, in alto a sinistra sulla carta.
+func _gettone(testo: String, sfondo: Color, inchiostro: Color) -> Control:
+	var p := PanelContainer.new()
+	p.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	p.offset_left = 5.0
+	p.offset_top = 4.0
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sb := CozyUI.pill(sfondo, 8)
+	sb.content_margin_left = 5.0
+	sb.content_margin_right = 5.0
+	sb.content_margin_top = 0.0
+	sb.content_margin_bottom = 0.0
+	p.add_theme_stylebox_override("panel", sb)
+	var l := Label.new()
+	l.text = testo
+	l.add_theme_font_size_override("font_size", 11)
+	l.add_theme_color_override("font_color", inchiostro)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	p.add_child(l)
+	return p
+
+
+## Il cartellino del prezzo, in basso a destra: la moneta disegnata a mano
+## (`CozyUI.nut/star`) e il numero. È la stessa moneta del borsellino in
+## alto a destra, ed è per quello che si legge senza spiegazioni.
+func _prezzo(costo: int, cur: String) -> Control:
+	var p := PanelContainer.new()
+	# ⚠️ IL CARTELLINO STA SUL BORDO DELLA MINIATURA, NON SUL NOME. A
+	# -48/-28 cadeva sulla fascia y 76..96 e il nome comincia a 82: sulle
+	# carte a pagamento — cioè su TUTTE quelle del carretto, in una partita
+	# vera — il prezzo copriva il nome del pezzo. Qui sotto c'e solo il
+	# disco d'ombra del ritratto, e restano quattro pixel d'aria.
+	p.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	p.offset_left = -62.0
+	p.offset_right = -5.0
+	p.offset_top = -66.0
+	p.offset_bottom = -46.0
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sb := CozyUI.pill(Color(CozyUI.CREAM, 0.93), 9)
+	sb.border_color = Color(CozyUI.NUT if cur == "nut" else CozyUI.GOLD, 0.75)
+	sb.set_border_width_all(1)
+	sb.content_margin_left = 5.0
+	sb.content_margin_right = 5.0
+	sb.content_margin_top = 0.0
+	sb.content_margin_bottom = 0.0
+	p.add_theme_stylebox_override("panel", sb)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 2)
+	h.alignment = BoxContainer.ALIGNMENT_CENTER
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	p.add_child(h)
+	var ic: Control = CozyUI.nut(13) if cur == "nut" else CozyUI.star(13)
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	h.add_child(ic)
+	var l := Label.new()
+	l.text = str(costo)
+	l.add_theme_font_size_override("font_size", 11)
+	l.add_theme_color_override("font_color", CozyUI.INK)
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	h.add_child(l)
+	return p
+
+
+## Il nastrino del corredo: una parola sola, perché il nome del capo può
+## essere lungo il doppio della carta. Chi vuole sapere con cosa arriva
+## legge la didascalia.
+func _nastro(testo: String, tinta: Color) -> Control:
+	var p := PanelContainer.new()
+	# ⚠️ IL CARTELLINO STA SUL BORDO DELLA MINIATURA, NON SUL NOME. A
+	# -48/-28 cadeva sulla fascia y 76..96 e il nome comincia a 82: sulle
+	# carte a pagamento — cioè su TUTTE quelle del carretto, in una partita
+	# vera — il prezzo copriva il nome del pezzo. Qui sotto c'e solo il
+	# disco d'ombra del ritratto, e restano quattro pixel d'aria.
+	p.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	p.offset_left = -66.0
+	p.offset_right = -5.0
+	p.offset_top = -66.0
+	p.offset_bottom = -46.0
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sb := CozyUI.pill(Color(tinta, 0.9), 9)
+	sb.content_margin_left = 5.0
+	sb.content_margin_right = 5.0
+	p.add_theme_stylebox_override("panel", sb)
+	var l := Label.new()
+	l.text = testo
+	l.add_theme_font_size_override("font_size", 10)
+	l.add_theme_color_override("font_color", CozyUI.INK)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	p.add_child(l)
+	return p
+
+
+# ------------------------------------------------------------- i ritratti
+
+## Le carte che si vedono ADESSO chiedono il loro ritratto — e in ordine
+## di schermo, così il primo che arriva è il primo che si guarda.
+func _chiedi_visibili() -> void:
+	if _mini == null or _mini.spento() or _items_scroll == null:
+		return
+	if not (_panel and _panel.visible):
+		return
+	# ⚠️ DA PIEGATI SI CHIEDONO LO STESSO — i bolli della striscia hanno un
+	# ritratto come le carte. Il `return` stava sopra il blocco dei recenti
+	# (che il commento in fondo dichiara servire «anche da piegati»): chi
+	# apriva il builder già piegato non vedeva vestirsi un solo bollo, mai.
+	if not _aperto:
+		_chiedi_recenti()
+		return
+	var alto := _items_scroll.size.y
+	var da := _items_scroll.scroll_vertical
+	for j in _item_buttons.size():
+		if j >= _visibili.size():
+			break
+		var b := _item_buttons[j]
+		if not is_instance_valid(b):
+			continue
+		var y := b.position.y
+		# una riga di margine sopra e sotto: chi sta per entrare in vista
+		# è già in coda quando ci entra
+		if y + CARTA.y < da - CARTA.y or y > da + alto + CARTA.y:
+			continue
+		var piece := str(_items[_visibili[j]]["name"])
+		if _carte_attesa.has(piece):
+			_mini.chiedi(piece, _items[_visibili[j]]["builder"])
+	_chiedi_recenti()
+
+
+## Il pezzo in mano e i recenti: si vedono in tutti e due gli stati, e da
+## piegati sono gli UNICI che si vedono.
+func _chiedi_recenti() -> void:
+	if _mini == null or _mini.spento():
+		return
+	var ordine: Array[String] = []
+	if _index < _items.size():
+		ordine.append(str(_items[_index]["name"]))
+	for n in _recenti:
+		if not ordine.has(n):
+			ordine.append(n)
+	for nome in ordine:
+		var i := item_index(nome)
+		if i >= 0 and _mini.presa(nome) == null:
+			_mini.chiedi(nome, _items[i]["builder"])
+
+
+func _su_miniatura(nome: String, tex: Texture2D) -> void:
+	var attesa: Variant = _carte_attesa.get(nome, null)
+	if attesa != null:
+		for tr in (attesa as Array):
+			if not is_instance_valid(tr):
+				continue
+			var t := tr as TextureRect
+			t.texture = tex
+			# LA DISSOLVENZA NON È UN VEZZO: i ritratti arrivano uno per
+			# fotogramma, e venti carte che sbattono dentro una dopo
+			# l'altra sono uno sfarfallio. Così sembra che si sviluppino.
+			#
+			# ⚠️ E SI TORNA ALL'ALPHA CHE LA CARTA AVEVA GIÀ. Prima si
+			# leggeva `t.get_meta("spento")` — un meta che NESSUNO in tutto
+			# il progetto scriveva, quindi il ramo della penombra era morto
+			# e la dissolvenza portava a 1.0 anche i pezzi non ancora tuoi,
+			# cancellando lo 0.55 che `_carta_pezzo` gli aveva messo: al
+			# carretto un pezzo da comprare aveva il ritratto luminoso come
+			# i tuoi. Chi crea la carta ha già detto quanto dev'essere
+			# acceso — lo si rilegge, invece di chiederlo una seconda volta.
+			var acceso := t.modulate.a
+			t.modulate.a = 0.0
+			t.create_tween().tween_property(t, "modulate:a", acceso, 0.22)
+		_carte_attesa.erase(nome)
+	# LA CODA SI RIALIMENTA. `_chiedi_visibili` gira all'apertura, allo
+	# scroll e al cambio di vista — e all'apertura il layout della griglia
+	# NON è ancora calcolato, quindi vede la finestra sbagliata e mette in
+	# coda solo la prima riga. Misurato: dieci ritratti, coda a zero, e
+	# metà catalogo bianco per sempre. Chiedendo di nuovo a ogni ritratto
+	# che arriva, la coda si riempie da sé finché resta una carta vuota, e
+	# si ferma da sé quando non ne resta nessuna (`_carte_attesa` vuoto).
+	if not _carte_attesa.is_empty():
+		_chiedi_visibili.call_deferred()
+	_rifai_striscia_se_serve(nome)
+
+
+# ------------------------------------------------------- aperto / piegato
+
+## Tab piega l'Atelier. Non lo chiude: resta il pezzo in mano, restano i
+## ritratti dei recenti, resta la riga dei tasti. Si continua a costruire
+## GUARDANDO il villaggio, che è la ragione per cui si costruisce.
+func _piega(aperto: bool) -> void:
+	if _aperto == aperto:
+		return
+	_aperto = aperto
+	_zone.visible = aperto
+	_striscia.visible = not aperto
+	_piega_btn.text = L10n.t("Tab — richiudi") if aperto else L10n.t("Tab — apri")
+	if not aperto:
+		_rifai_striscia()
+	else:
+		_taccuino_sporco = true
+		_chiedi_visibili.call_deferred()
+	if _sfx: _sfx.ui_select()
+	var meta := -((ATE_ALTA if aperto else ATE_BASSA) + ATE_SOTTO)
+	var s := get_node_or_null(^"/root/Settings")
+	if s != null and bool(s.get("reduce_motion")):
+		_dock.offset_top = meta
+		_posa_variant_bar(aperto, false)
+		return
+	_posa_variant_bar(aperto, true)
+	var t := _dock.create_tween()
+	t.tween_property(_dock, "offset_top", meta, 0.24) \
+			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+
+func _rifai_striscia() -> void:
+	if _striscia_row == null:
+		return
+	for c in _striscia_row.get_children():
+		_striscia_row.remove_child(c)
+		c.queue_free()
+	# il pezzo in mano, grande; poi i recenti, piccoli
+	var ordine: Array[String] = []
+	if _index < _items.size():
+		ordine.append(str(_items[_index]["name"]))
+	for n in _recenti:
+		if not ordine.has(n) and ordine.size() < 9:
+			ordine.append(n)
+	for k in ordine.size():
+		var nome := ordine[k]
+		var i := item_index(nome)
+		if i < 0:
+			continue
+		_striscia_row.add_child(_bollo(i, k == 0))
+	var l := Label.new()
+	l.text = L10n.t("Tab — apri l'Atelier")
+	l.add_theme_font_size_override("font_size", 13)
+	l.add_theme_color_override("font_color", Color(UI_BROWN, 0.55))
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_striscia_row.add_child(l)
+	# ⚠️ E CHI HA APPESO LE CARTE DEVE ANCHE ORDINARE I RITRATTI. `_bollo`
+	# si mette in `_carte_attesa`, ma mettersi in attesa non è chiedere: il
+	# solo che chiede è `_chiedi_recenti`, e da piegati lo chiamava soltanto
+	# `_chiedi_visibili` — che gira all'APERTURA. Girando la rotella da
+	# piegati (cioè facendo esattamente la cosa per cui lo stato piegato
+	# esiste) i bolli nuovi restavano bianchi per sempre.
+	_chiedi_recenti()
+
+
+func _rifai_striscia_se_serve(nome: String) -> void:
+	if _aperto or _striscia_row == null:
+		return
+	for c in _striscia_row.get_children():
+		if c.has_meta("pezzo") and str(c.get_meta("pezzo")) == nome:
+			_rifai_striscia()
+			return
+
+
+## Il bollo dello stato piegato: solo il ritratto e, per il pezzo in mano,
+## il nome accanto.
+func _bollo(i: int, grande: bool) -> Control:
+	var nome := str(_items[i]["name"])
+	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(76, 74) if grande else Vector2(62, 62)
+	b.tooltip_text = L10n.t(nome)
+	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	b.set_meta("pezzo", nome)
+	_veste_carta(b, false)
+	if grande:
+		b.set_pressed_no_signal(true)
+		b.add_theme_stylebox_override("normal",
+				b.get_theme_stylebox("pressed"))
+	var tr := TextureRect.new()
+	tr.set_anchors_preset(Control.PRESET_FULL_RECT)
+	tr.offset_left = 5.0
+	tr.offset_right = -5.0
+	tr.offset_top = 5.0
+	tr.offset_bottom = -5.0
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var t: Texture2D = _mini.presa(nome) if _mini else null
+	if t != null:
+		tr.texture = t
+	elif _mini != null:
+		# ⚠️ E SE NON C'È ANCORA, IL BOLLO SI METTE IN ATTESA. Senza questa
+		# riga il ritratto arrivava (la coda gira lo stesso) e non lo
+		# raccoglieva nessuno: il bollo restava bianco fino a che non si
+		# riapriva il pannello. È lo stesso appiglio di `_carta_pezzo`.
+		if not _carte_attesa.has(nome):
+			_carte_attesa[nome] = []
+		(_carte_attesa[nome] as Array).append(tr)
+	b.add_child(tr)
+	b.pressed.connect(_select.bind(i))
+	if grande:
+		var l := Label.new()
+		l.text = L10n.t(nome)
+		l.add_theme_font_size_override("font_size", 14)
+		l.add_theme_color_override("font_color", CozyUI.INK)
+		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		var h := HBoxContainer.new()
+		h.add_theme_constant_override("separation", 10)
+		h.add_child(b)
+		h.add_child(l)
+		return h
+	return b
+
+
+# ------------------------------------------------------------- la barra
+
+## Il conto e la pillola della ricerca: due righe che dicono se stai
+## guardando tutto o una fetta, e cosa stai cercando.
+func _aggiorna_barra() -> void:
+	if _ricerca_pill:
+		if _ricerca_attiva or _ricerca != "":
+			_ricerca_pill.text = "🔍  " + _ricerca + ("▏" if _ricerca_attiva else "")
+			_ricerca_pill.modulate = Color(1, 1, 1, 1.0)
 		else:
-			btn.pressed.connect(_select.bind(i))
-		_items_row.add_child(btn)
-		_item_buttons.append(btn)
+			_ricerca_pill.text = "🔍  " + L10n.t("cerca un pezzo…")
+			_ricerca_pill.modulate = Color(1, 1, 1, 0.62)
+	if _conta_label:
+		var posabili := 0
+		for i in _visibili:
+			if is_unlocked(str(_items[i]["name"])):
+				posabili += 1
+		_conta_label.text = L10n.tf("%d di %d", [posabili, _visibili.size()]) \
+				if posabili != _visibili.size() \
+				else L10n.tf("%d pezzi", [_visibili.size()])
+
+
+func _sync_ui_selection() -> void:
+	for vista in _cat_btn:
+		var b := _cat_btn[vista] as Button
+		if is_instance_valid(b):
+			b.set_pressed_no_signal(int(vista) == _cat and _ricerca == "")
+	# le carte stanno in parallelo a `_visibili`: se le due liste si
+	# sfasassero, la carta accesa sarebbe quella sbagliata
+	for j in _item_buttons.size():
+		if j < _visibili.size():
+			_item_buttons[j].set_pressed_no_signal(_visibili[j] == _index)
+	if not _aperto:
+		_rifai_striscia()
+
+
+## La ricerca si accende con «/» (o cliccando la pillola) e si spegne con
+## Esc. Mentre è accesa i tasti del builder (R, V, F, X…) diventano
+## lettere: è per questo che serve una modalità e non un campo sempre
+## attivo — in un gioco dove si costruisce con le lettere, un cursore che
+## ruba i tasti è una trappola.
+func _ricerca_accendi() -> void:
+	if not _aperto:
+		_piega(true)
+	_ricerca_attiva = true
+	_aggiorna_barra()
+	if _sfx: _sfx.ui_select()
+
+
+func _ricerca_spegni(pulisci: bool) -> void:
+	_ricerca_attiva = false
+	if pulisci and _ricerca != "":
+		_ricerca = ""
+		_rebuild_item_row()
+		_sync_ui_selection()
+	else:
+		_aggiorna_barra()
+
+
+func _ricerca_tasto(event: InputEventKey) -> bool:
+	if event.keycode == KEY_ESCAPE:
+		_ricerca_spegni(true)
+		return true
+	if event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
+		_ricerca_spegni(false)
+		# Invio prende il primo pezzo posabile fra i risultati: cercare e
+		# poi doverlo anche cliccare sarebbe metà lavoro
+		for i in _visibili:
+			if is_unlocked(str(_items[i]["name"])):
+				_select(i)
+				break
+		return true
+	if event.keycode == KEY_BACKSPACE:
+		if _ricerca != "":
+			_ricerca = _ricerca.substr(0, _ricerca.length() - 1)
+			_rebuild_item_row()
+			_sync_ui_selection()
+		return true
+	var ch := char(event.unicode)
+	if event.unicode >= 32 and ch != "":
+		_ricerca += ch
+		_rebuild_item_row()
+		_sync_ui_selection()
+		return true
+	return false
 
 
 # ============================================================ economia colori
@@ -2632,13 +4078,22 @@ func _on_wallet_changed(_total: int) -> void:
 	for btn in _item_buttons:
 		if is_instance_valid(btn) and btn.has_meta("shop_offer"):
 			btn.tooltip_text = _shop_tooltip(btn.get_meta("shop_offer"))
+	# ⚠️ E IL TACCUINO PURE: da quando c'è la carta dei risparmi, il
+	# borsellino ha DUE lettori, e questo ne rinfrescava uno solo. Le
+	# noccioline salgono anche senza che il giocatore tocchi niente (un
+	# vicino compra dalla tua Bancarella, arriva il premio di una
+	# Commissione): l'Atelier restava aperto a dire «ancora 45» mentre in
+	# alto il contatore diceva che ce n'erano abbastanza.
+	_taccuino_sporco = true
 
 
 # comprato qualcosa: rinfresca la fila dei pezzi (nuovi sblocchi) e i colori
 func _on_shop_changed() -> void:
 	if not _item_buttons.is_empty():
+		_rifai_sinistra()
 		_rebuild_item_row()
 		_sync_ui_selection()
+	_taccuino_sporco = true
 	_update_variant_bar()
 
 
@@ -2662,12 +4117,19 @@ func _variant_for_current() -> String:
 func _build_variant_bar() -> void:
 	if _ui == null:
 		return
-	var dock := CenterContainer.new()
-	dock.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	dock.offset_top = -214.0
-	dock.offset_bottom = -180.0
-	dock.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_ui.add_child(dock)
+	# ⚠️ LA BARRA STA SOPRA IL PANNELLO, E LO SEGUE. Questi due offset erano
+	# rimasti a -214/-180, com'erano quando il builder era alto 272: il dock
+	# dell'Atelier occupa -422..-16, quindi la fascia dei colori cadeva
+	# DENTRO la griglia e copriva tre carte (misurato: la pillola a y 866
+	# dentro un pannello che va da 658 a 1064). Adesso la posizione si
+	# calcola dalle stesse costanti del dock — una fonte sola — e cambia
+	# quando si piega.
+	_variant_dock = CenterContainer.new()
+	_variant_dock.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_variant_dock.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ui.add_child(_variant_dock)
+	_posa_variant_bar(_aperto, false)
+	var dock := _variant_dock
 	_variant_bar = PanelContainer.new()
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.98, 0.95, 0.88, 0.94)
@@ -2706,6 +4168,24 @@ func _update_variant_bar() -> void:
 		var def: Dictionary = eco.variant_def(vid)
 		_variant_row.add_child(_variant_swatch(str(vid), def.get("tint", Color.WHITE), L10n.t(str(def.get("label", vid)))))
 	_variant_bar.visible = true
+
+
+## Dove sta la barra dei colori: appoggiata SOPRA il pannello, con la sua
+## aria. Il numero non è suo — è quello del dock dell'Atelier, letto dalle
+## stesse costanti: due geometrie che si inseguono a mano divergono al
+## primo che ritocca l'altezza del pannello.
+func _posa_variant_bar(aperto: bool, anima: bool) -> void:
+	if _variant_dock == null:
+		return
+	var sotto := -((ATE_ALTA if aperto else ATE_BASSA) + ATE_SOTTO) - VAR_ARIA
+	if not anima:
+		_variant_dock.offset_top = sotto - VAR_ALTA
+		_variant_dock.offset_bottom = sotto
+		return
+	var t := _variant_dock.create_tween()
+	t.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	t.tween_property(_variant_dock, "offset_top", sotto - VAR_ALTA, 0.24)
+	t.parallel().tween_property(_variant_dock, "offset_bottom", sotto, 0.24)
 
 
 func _variant_swatch(vid: String, color: Color, label: String) -> Button:

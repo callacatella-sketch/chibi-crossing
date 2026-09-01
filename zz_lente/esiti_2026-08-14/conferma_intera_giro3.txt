@@ -1,0 +1,18 @@
+da confermare sulla suite INTERA: 7
+BASE  passati=67748 falliti=0 err=0
+CABL era_per_me·nessun dono e' mai «fatto a me»      >>> VERDE <<<  err=0 pass=67748
+VALV gesto_libero·un gesto sopra la rampa di quello di prima >>> VERDE <<<  err=0 pass=67748
+VALV largo·si recita da fermi                        >>> VERDE <<<  err=0 pass=67748
+RETE capo_pende·riarma il livello a ogni chiamata    >>> VERDE <<<  err=0 pass=67748
+AMP rialzo·il petto non si apre                      >>> VERDE <<<  err=0 pass=67748
+TEMPO rialzo·salita istantanea                       >>> VERDE <<<  err=0 pass=67748
+TEMPO capo·intervallo FISSO (metronomo)              >>> VERDE <<<  err=0 pass=67748
+
+=== 7 confermate VERDI sulla suite INTERA ===
+   CABL era_per_me·nessun dono e' mai «fatto a me»
+   VALV gesto_libero·un gesto sopra la rampa di quello di prima
+   VALV largo·si recita da fermi
+   RETE capo_pende·riarma il livello a ogni chiamata
+   AMP rialzo·il petto non si apre
+   TEMPO rialzo·salita istantanea
+   TEMPO capo·intervallo FISSO (metronomo)

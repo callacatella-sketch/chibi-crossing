@@ -585,6 +585,31 @@ static func puff_mesh(r: float, seed_v: int, squash := 0.82, lump := 0.09,
 # tronco vero: svasato alla base, affusolato in cima, corteccia
 # irregolare e una lieve inclinazione — con le normali che seguono
 # davvero gobbe e svasatura (la luce radente rivela la corteccia)
+## LA SVASATURA DELLE RADICI, IN UN POSTO SOLO. Il moltiplicatore del
+## raggio alla quota `t` (0 = terra, 1 = cima).
+## ⚠️ Non e' un dettaglio da ricopiare: questa curva vive in TRE posti — qui,
+## e le due ricostruzioni del tronco intagliato in `Woodcutting` — e finche'
+## era scritta a mano in tutti e tre bastava ritoccarla di qua perche' il
+## tronco tagliato nascesse con un profilo diverso da quello intero. C'e' un
+## test che lo prende (`test_woodcutting`, l'ordine dei vertici), e l'ha
+## preso davvero il giorno in cui questa curva e' stata addolcita.
+##
+## Si allarga di poco piu' della meta' e si consuma in mezzo metro, non in
+## sette centimetri. Con 1.1 ed esponente 7 il primo anello era inclinato di
+## 47,3 gradi VERSO IL CIELO (misurato sulle normali vere della mesh:
+## n.y = +0.735, contro +0.047 del fusto): prendeva il sole — e la neve,
+## perche' `v_up` nasce da questa normale — come un tetto, mentre il fusto
+## sopra e' quasi radente. Quaranta gradi di salto in pochi centimetri, cioe'
+## la linea esatta su cui scattava il gradino del toon, e da cui nasceva la
+## gonna vermiglia al piede di ogni albero del gioco.
+## 0.55 / 3.5 e' scelto su una tabella di pendenze MISURATE (1.1/7.0 = 47.4
+## gradi · 0.8/5.0 = 33.0 · 0.55/3.5 = 20.9 · 0.45/3.0 = 16.8): il piede
+## resta largo 2.56 volte la cima — la radice si vede ancora, non e' un palo
+## — ma non guarda piu' in su. Sotto 0.45 la svasatura sparisce come lettura.
+static func svaso_radici(t: float) -> float:
+	return 1.0 + 0.55 * pow(1.0 - t, 3.5)
+
+
 static func trunk_mesh(h: float, rb: float, rt: float, seed_v: int,
 		bend := 0.07, segs := 10) -> ArrayMesh:
 	var rng := RandomNumberGenerator.new()
@@ -600,8 +625,8 @@ static func trunk_mesh(h: float, rb: float, rt: float, seed_v: int,
 		var prow: Array[Vector3] = []
 		for j in segs:
 			var lon := float(j) / float(segs) * TAU
-			# affusolamento + svasatura delle radici alla base
-			var r := lerpf(rb, rt, pow(t, 0.85)) * (1.0 + 1.1 * pow(1.0 - t, 7.0))
+			# affusolamento + svasatura (la curva sta in `svaso_radici`)
+			var r := lerpf(rb, rt, pow(t, 0.85)) * svaso_radici(t)
 			# corteccia: gobbe radiali che ruotano piano salendo
 			r *= 1.0 + 0.055 * sin(lon * 3.0 + t * kink + ph) \
 					+ 0.03 * sin(lon * 7.0 - t * 2.0)
@@ -673,7 +698,21 @@ static func leaf_target(c: Color, klass: String, season: int) -> Color:
 			if klass == "needle":
 				return Color.from_hsv(fposmod(c.h - 0.01, 1.0), c.s * 0.95, c.v * 0.97)
 			if klass == "cherry":
-				return Color.from_hsv(lerpf(0.98, 0.07, clampf(c.v, 0.0, 1.0)), 0.55,
+				# ⚠️ LA TINTA E' UN CERCHIO, E QUI SI FACEVA IL GIRO LUNGO.
+				# L'intento e' scritto due righe sopra — «oro, rame,
+				# cremisi» — cioe' cremisi (0.98) per gli strati scuri e
+				# oro (0.07) per quelli chiari: sono NOVE CENTESIMI di
+				# ruota passando per lo zero. Interpolando da 0.98 a 0.07
+				# in linea retta se ne percorrono NOVANTUNO, dalla parte
+				# sbagliata: si attraversa il blu (0.6), il ciano (0.5) e
+				# il VERDE (0.3). MISURATO sul ciliegio vero: lo strato
+				# scuro (v = 0.749) usciva a tinta 0.298, cioe' `#6ec257`
+				# — un ciliegio d'autunno con la gonna d'ombra VERDE
+				# addosso, sotto due strati arancioni.
+				# Il file lo sapeva gia': le conifere, qui sotto, girano
+				# con `fposmod`. Questa riga se l'era dimenticato.
+				return Color.from_hsv(fposmod(lerpf(-0.02, 0.07,
+						clampf(c.v, 0.0, 1.0)), 1.0), 0.55,
 						clampf(c.v * 0.95 + 0.05, 0.0, 1.0))
 			return Color.from_hsv(lerpf(0.03, 0.10, clampf(c.v, 0.0, 1.0)), 0.72,
 					clampf(c.v * 1.02 + 0.05, 0.0, 1.0))

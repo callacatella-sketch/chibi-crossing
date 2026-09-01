@@ -48,6 +48,13 @@ const POMPA_ROSSO_SCURO := Color("a8443c")
 const OTTONE := Color("d9a441")
 const OTTONE_SCURO := Color("b0812c")
 const GOMMA := Color("4a4640")
+## La TELA del tubo. Una manichetta non e di plastica bianca: e canapa
+## tessuta, che con gli anni sbianca sulle creste e resta scura nelle
+## pieghe — ed e quello che la fa leggere come un tubo invece che come
+## un filo di ferro (il modello vecchio era CREAM schiarito, e di faccia
+## sembrava un bersaglio).
+const CANAPA := Color("c3ab7f")
+const CANAPA_SCURA := Color("8f7a53")
 const VETRO := Color("cfe6ee")
 
 # --- i due fuochi del catalogo ------------------------------------------
@@ -399,8 +406,14 @@ static func items() -> Array[Dictionary]:
 			"cols": [[Vector3(0.6, 0.45, 0.36), Vector3(0.02, 0.22, -0.04)]]},
 		{"name": "Idrante", "cat": 2, "type": "cell", "layer": 2, "builder": _idrante,
 			"cols": [[Vector3(0.3, 0.7, 0.3), Vector3(0, 0.35, 0)]]},
+		# ⚠️ L'INGOMBRO COMPRENDE LA MANOVELLA E LA LANCIA. Il modello vecchio
+		# stava in 0.34 di profondità perché non aveva né l'una né l'altra:
+		# adesso la manovella sporge di 0.31 da una parte e la lancia appesa
+		# di 0.24 dall'altra, ed è giusto che sporgano (una manovella dentro
+		# la sagoma non si può girare). Chi passa ci sbatterebbe dentro senza
+		# nessun muro davanti.
 		{"name": "Manichetta", "cat": 2, "type": "cell", "layer": 2, "builder": _manichetta,
-			"cols": [[Vector3(0.56, 0.58, 0.34), Vector3(0, 0.29, 0)]]},
+			"cols": [[Vector3(0.58, 0.60, 0.66), Vector3(0, 0.30, 0.03)]]},
 		{"name": "Faro caserma", "cat": 2, "type": "cell", "layer": 2,
 			"builder": _faro_caserma,
 			"cols": [[Vector3(0.34, 1.62, 0.34), Vector3(0, 0.81, 0)]]},
@@ -9396,39 +9409,208 @@ static func _idrante() -> Node3D:
 ## LA MANICHETTA ARROTOLATA. Il cavalletto di legno, le spire avvolte
 ## strette e la lancia d'ottone appoggiata davanti.
 static func _manichetta() -> Node3D:
+	# LA MANICHETTA A BOBINA. Il modello vecchio era quattro anelli
+	# CONCENTRICI sospesi a mezz'aria dietro un cavalletto, con il perno che
+	# ci passava DAVANTI invece che dentro: di faccia si leggeva come un
+	# bersaglio, di tre quarti come un giradischi — e infatti l'autore ha
+	# scritto «non ho ben capito che cosa sarebbe o come funzionerebbe».
+	#
+	# Una manichetta si legge da quattro cose, e nessuna c'era: le GUANCE
+	# (i due dischi con le razze che tengono il rotolo), il TAMBURO su cui
+	# il tubo è davvero avvolto, la MANOVELLA con cui si riavvolge, e il
+	# CAPO che scende con la lancia in fondo — cioè la prova che quel tubo
+	# esce di lì. Il tubo, poi, è di TELA: bianco latte sembrava fil di
+	# ferro.
 	var n := Node3D.new()
-	var wood := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
-	var tubo := _mat(CREAM.darkened(0.08), WOOD_PALE.darkened(0.15), 7.0, 0.45)
+	var lacca := _mat(POMPA_ROSSO, POMPA_ROSSO_SCURO, 5.0, 0.45)
+	var lacca_cupa := _mat(POMPA_ROSSO_SCURO, POMPA_ROSSO_SCURO.darkened(0.22), 5.0, 0.5)
+	var ferro := _mat(METAL, METAL.darkened(0.3), 6.0, 0.5)
+	var tela := _mat(CANAPA, CANAPA_SCURA, 9.0, 0.55)
 	var ottone := _mat(OTTONE, OTTONE_SCURO, 5.0, 0.4)
-	# il cavalletto: le due fiancate stanno DI TAGLIO al fronte, così la
-	# bobina si vede in faccia da davanti (girata di 90° si vedrebbe solo
-	# lo spessore del tubo, ed era la cosa che non si capiva)
-	for z: float in [-0.18, 0.18]:
-		for x: float in [-0.19, 0.19]:
-			var gamba := _box(n, Vector3(0.05, 0.34, 0.05), wood,
-					Vector3(x, 0.17, z))
-			gamba.rotation.z = -signf(x) * 0.13
-		_box(n, Vector3(0.44, 0.05, 0.05), wood, Vector3(0, 0.02, z))
-	var perno := _cyl(n, 0.035, 0.035, 0.44, wood, Vector3(0, 0.3, 0))
-	perno.rotation.x = PI * 0.5
-	# le spire: anelli concentrici che si stringono verso il perno
-	for i in 4:
-		var r := 0.28 - float(i) * 0.055
-		var spira := TorusMesh.new()
-		spira.inner_radius = r - 0.026
-		spira.outer_radius = r
-		var mi := MeshInstance3D.new()
-		mi.mesh = spira
-		mi.material_override = tubo
-		mi.position = Vector3(0, 0.3, 0.0)
-		mi.rotation.x = PI * 0.5
-		n.add_child(mi)
-	# il capo del tubo che scende, e la lancia d'ottone appoggiata
-	_cyl(n, 0.026, 0.026, 0.24, tubo, Vector3(0.28, 0.16, 0))
-	var lancia := _cyl(n, 0.028, 0.045, 0.2, ottone, Vector3(0.29, 0.045, -0.1))
-	lancia.rotation.x = PI * 0.5
-	lancia.rotation.y = 0.4
+	var gomma := _mat(GOMMA, GOMMA.darkened(0.25), 7.0, 0.5)
+	var legno := _mat(WOOD, WOOD_DARK, 4.0, 0.5)
+
+	# --- IL TELAIO, un tubolare piegato a U -----------------------------
+	# Non due gambe e una traversa: UN ferro solo, piegato, come sono
+	# fatti davvero. Gli angoli tondi si vedono, e sono la differenza fra
+	# un pezzo di arredo e quattro travetti incrociati.
+	for z: float in [-0.135, 0.135]:
+		BUILDER.tube(n, [
+				Vector3(-0.235, 0.012, z), Vector3(-0.235, 0.20, z),
+				Vector3(-0.222, 0.44, z), Vector3(-0.155, 0.505, z),
+				Vector3(0.0, 0.522, z), Vector3(0.155, 0.505, z),
+				Vector3(0.222, 0.44, z), Vector3(0.235, 0.20, z),
+				Vector3(0.235, 0.012, z)],
+				[0.017, 0.017, 0.017, 0.017, 0.017, 0.017, 0.017, 0.017, 0.017],
+				lacca, 44, 10)
+	# i piedi a slitta: il pezzo TOCCA terra, o sembra incollato al prato
+	for x: float in [-0.235, 0.235]:
+		BUILDER.tube(n, [Vector3(x, 0.014, -0.185), Vector3(x, 0.012, -0.135),
+				Vector3(x, 0.012, 0.135), Vector3(x, 0.014, 0.185)],
+				[0.014, 0.019, 0.019, 0.014], lacca_cupa, 16, 8)
+	# la traversa che tiene insieme i due ferri, dietro
+	_cyl(n, 0.014, 0.014, 0.27, lacca_cupa, Vector3(0, 0.10, 0)).rotation.x = PI * 0.5
+	# e le due piastre del cuscinetto, dove passa l'albero
+	for z: float in [-0.135, 0.135]:
+		var pi3 := _cyl(n, 0.036, 0.036, 0.018, ferro, Vector3(0, 0.315, z))
+		pi3.rotation.x = PI * 0.5
+
+	# --- L'ALBERO E LE GUANCE -------------------------------------------
+	var asse := _cyl(n, 0.019, 0.019, 0.36, ferro, Vector3(0, 0.315, 0))
+	asse.rotation.x = PI * 0.5
+	# ⚠️ E IL TAMBURO, che alla prima stesura mancava: fra il mozzo e la
+	# prima spira restava il vuoto, e il rotolo si avvolgeva sul niente. È
+	# il pezzo su cui il tubo POGGIA, e senza, di faccia il centro della
+	# bobina è un buco scuro che si legge come un guasto del modello.
+	var tamb := _cyl(n, 0.088, 0.088, 0.196, lacca_cupa, Vector3(0, 0.315, 0))
+	tamb.rotation.x = PI * 0.5
+	# le due flange che tengono il tamburo sulle guance. ⚠️ Del colore del
+	# TAMBURO e più STRETTE delle spire: in ferro grigio e più larghe
+	# facevano da bordo chiaro davanti al rotolo, e di tre quarti sembrava
+	# che il tubo passasse dietro il tamburo invece che sopra.
+	for z2: float in [-0.094, 0.094]:
+		var fl := _cyl(n, 0.094, 0.094, 0.008, lacca_cupa, Vector3(0, 0.315, z2))
+		fl.rotation.x = PI * 0.5
+	for z: float in [-0.112, 0.112]:
+		_guancia_manichetta(n, z, lacca, ferro)
+
+	# --- IL TUBO AVVOLTO ------------------------------------------------
+	# ⚠️ SPIRE VERE, NON ANELLI CONCENTRICI. Il tubo si avvolge a ELICA e
+	# torna indietro a strati: è questo che dice «è arrotolato», e nessun
+	# numero di cerchi affiancati lo dice. Il terzo strato è a metà, e il
+	# capo esce di lì — una manichetta tutta avvolta non ha una storia.
+	# ⚠️ SEDICI PUNTI PER GIRO, NON OTTO. `BUILDER.tube` interpola i punti
+	# di controllo con una Catmull-Rom: a otto punti (45° l'uno dall'altro)
+	# la curva TAGLIA gli angoli e la spira si stringe verso il mozzo — di
+	# profilo il rotolo usciva come un piatto di spaghetti, col tubo che
+	# passava dentro il buco che dovrebbe restare vuoto.
+	# ⚠️ E IL PASSO È PIÙ LARGO DEL TUBO. A passo uguale al diametro le
+	# spire si toccano e formano una superficie CONTINUA: di faccia il
+	# rotolo era un cilindro di cartone liscio. Serve la gola fra una spira
+	# e l'altra — è quella che dice «è avvolto», non il colore.
+	const RAG_TUBO := 0.0155
+	var strati := [[0.106, 4, -1], [0.140, 4, 1], [0.174, 2, -1]]
+	var fine := Vector3.ZERO
+	for k in strati.size():
+		var r: float = strati[k][0]
+		var giri: int = strati[k][1]
+		var verso: int = strati[k][2]
+		var pts: Array = []
+		var raggi: Array = []
+		var passi := giri * 16
+		for i in passi + 1:
+			var t := float(i) / float(passi)
+			var ang := t * float(giri) * TAU + float(k) * 1.9
+			var z := lerpf(-0.084, 0.084, t) * float(verso)
+			pts.append(Vector3(cos(ang) * r, 0.315 + sin(ang) * r, z))
+			raggi.append(RAG_TUBO)
+		BUILDER.tube(n, pts, raggi, tela, passi * 2, 8)
+		fine = pts[pts.size() - 1]
+
+	# --- IL CAPO CHE SCENDE, E LA LANCIA --------------------------------
+	# la prova che quel rotolo è un tubo: esce, scavalca il ferro, e finisce
+	# in una lancia agganciata al telaio. Senza, è un rocchetto di spago.
+	# ⚠️ IL CAPO ESCE DI FIANCO, e la lancia si appende ALTA. Passando in
+	# mezzo ai due ferri finiva sopra la slitta, appoggiata per terra fra i
+	# piedi: sembrava caduta, non appesa. E scavalcando il montante ci
+	# passava DENTRO — un tubo che attraversa il ferro è la cosa che si
+	# nota per prima, anche a chi non sa cos'è una manichetta.
+	BUILDER.tube(n, [fine,
+			Vector3(fine.x * 1.15, 0.40, fine.z - 0.05),
+			Vector3(0.255, 0.44, -0.20),
+			Vector3(0.300, 0.36, -0.235),
+			Vector3(0.310, 0.255, -0.238)],
+			[RAG_TUBO, RAG_TUBO, RAG_TUBO, RAG_TUBO, RAG_TUBO], tela, 34, 9)
+	# il raccordo filettato, e poi la lancia che si rastrema
+	var racc := _cyl(n, 0.022, 0.022, 0.030, ottone, Vector3(0.310, 0.240, -0.238))
+	racc.rotation.z = 0.05
+	for g in 3:
+		_cyl(n, 0.0235, 0.0235, 0.004, ottone,
+				Vector3(0.310, 0.233 + float(g) * 0.009, -0.238))
+	# la ghiera zigrinata che si stringe a mano, e la lancia
+	_cyl(n, 0.025, 0.025, 0.018, ottone, Vector3(0.310, 0.206, -0.238))
+	_cyl(n, 0.0100, 0.020, 0.105, ottone, Vector3(0.310, 0.145, -0.238))
+	# e il gancio a cui è appesa: due ferri saldati al montante
+	BUILDER.tube(n, [Vector3(0.235, 0.285, -0.135), Vector3(0.280, 0.283, -0.185),
+			Vector3(0.308, 0.272, -0.228), Vector3(0.310, 0.250, -0.238)],
+			[0.009, 0.009, 0.008, 0.007], ferro, 16, 7)
+
+	# --- LA MANOVELLA ---------------------------------------------------
+	# consumata dove ci si mette la mano: è il dettaglio che racconta che
+	# qualcuno, in questo villaggio, la usa
+	var mozzo := _cyl(n, 0.030, 0.030, 0.030, ferro, Vector3(0, 0.315, 0.155))
+	mozzo.rotation.x = PI * 0.5
+	BUILDER.tube(n, [Vector3(0, 0.315, 0.168), Vector3(0, 0.315, 0.196),
+			Vector3(0.035, 0.365, 0.200), Vector3(0.088, 0.408, 0.200),
+			Vector3(0.088, 0.408, 0.228)],
+			[0.012, 0.011, 0.011, 0.011, 0.010], ferro, 24, 8)
+	var manop := _cyl(n, 0.0175, 0.019, 0.058, legno, Vector3(0.088, 0.408, 0.256))
+	manop.rotation.x = PI * 0.5
+	_ball(n, 0.020, legno, Vector3(0.088, 0.408, 0.286), Vector3(1, 1, 0.7))
+
+	# --- IL VOLANTINO DELLA VALVOLA -------------------------------------
+	# sul montante, dove sta in una manichetta vera: il tubo non si apre
+	# dalla lancia, si apre da qui
+	var vol := TorusMesh.new()
+	vol.inner_radius = 0.036
+	vol.outer_radius = 0.048
+	var vmi := MeshInstance3D.new()
+	vmi.mesh = vol
+	vmi.material_override = lacca
+	# ⚠️ IL VOLANTINO STA SUL RETRO (+Z), come la manovella. La faccia della
+	# bobina è quello che il giocatore vede: un volantino e un tubo di gomma
+	# davanti tagliavano il rotolo in due, e di fronte sembrava un cavo
+	# appeso davanti a una ruota. Davanti restano il telaio, le guance, il
+	# rotolo e la lancia — le quattro cose che dicono che cos'è.
+	vmi.position = Vector3(-0.235, 0.155, 0.198)
+	vmi.rotation.x = PI * 0.5
+	n.add_child(vmi)
+	for r in 3:
+		var raz := _box(n, Vector3(0.084, 0.010, 0.010), lacca,
+				Vector3(-0.235, 0.155, 0.198))
+		raz.rotation.z = float(r) * PI / 3.0
+	_cyl(n, 0.014, 0.014, 0.048, ottone, Vector3(-0.235, 0.155, 0.176)).rotation.x = PI * 0.5
+	# ⚠️ IL TRATTO DI GOMMA PASSA DIETRO, e sotto la bobina. Portandolo al
+	# centro dell'albero attraversava la guancia e il rotolo: di faccia si
+	# vedeva un cavo nero spezzato in mezzo al tubo di tela, e di tre
+	# quarti sembrava rotto. L'acqua entra dal fianco dell'albero, che è
+	# anche dove entra in una manichetta vera.
+	BUILDER.tube(n, [Vector3(-0.235, 0.140, 0.176), Vector3(-0.235, 0.100, 0.205),
+			Vector3(-0.175, 0.068, 0.212), Vector3(-0.085, 0.078, 0.200),
+			Vector3(-0.040, 0.155, 0.180), Vector3(-0.030, 0.270, 0.166),
+			Vector3(-0.014, 0.312, 0.158)],
+			[0.013, 0.013, 0.013, 0.013, 0.013, 0.012, 0.012], gomma, 34, 8)
+	# la ghiera d'ottone dove la gomma si innesta sull'albero: è il giunto
+	# rotante, e in una manichetta vera l'acqua entra esattamente di lì
+	var inn := _cyl(n, 0.020, 0.020, 0.024, ottone, Vector3(0, 0.315, 0.150))
+	inn.rotation.x = PI * 0.5
 	return n
+
+
+## Una guancia della bobina: il cerchione, il mozzo e cinque razze. È un
+## anello con dentro una stella, non un disco pieno — di faccia si vede il
+## rotolo attraverso, e sono le razze a dire «questa cosa GIRA».
+static func _guancia_manichetta(parent: Node3D, z: float, lacca: Material,
+		ferro: Material) -> void:
+	var cerc := TorusMesh.new()
+	cerc.inner_radius = 0.196
+	cerc.outer_radius = 0.216
+	var mi := MeshInstance3D.new()
+	mi.mesh = cerc
+	mi.material_override = lacca
+	mi.position = Vector3(0, 0.315, z)
+	mi.rotation.x = PI * 0.5
+	parent.add_child(mi)
+	# il mozzo, e le razze che ci si innestano
+	var moz := _cyl(parent, 0.042, 0.042, 0.014, ferro, Vector3(0, 0.315, z))
+	moz.rotation.x = PI * 0.5
+	for r in 5:
+		var raz := _box(parent, Vector3(0.172, 0.016, 0.009), lacca,
+				Vector3(0, 0.315, z))
+		raz.rotation.z = float(r) * TAU / 5.0 + 0.31
+		# ⚠️ la razza parte dal MOZZO e arriva al cerchione: centrata
+		# sull'asse sbucherebbe dall'altra parte di dieci centimetri
+		raz.position += Vector3(cos(raz.rotation.z), sin(raz.rotation.z), 0.0) * 0.108
 
 
 ## IL CASCO E IL GIUBBETTO APPESI. Pezzo da muro: l'asse coi ganci, il

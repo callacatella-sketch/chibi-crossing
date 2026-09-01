@@ -738,6 +738,26 @@ func _build_erbario() -> void:
 ## Ogni albero lascia la sua impronta sul terreno: l'ombra di contatto
 ## nasce da qui, non da una lista scritta a mano che diverge al primo
 ## albero spostato.
+## LA CONIFERA, DISEGNATA UNA VOLTA SOLA. Il bosco la fa col MultiMesh
+## (mesh fusa, economica, centinaia in un nodo) e `_make_tree` la rifà come
+## albero VERO quando il giocatore le si avvicina a cinque metri — due
+## costruzioni diverse per forza, ma UNA forma sola.
+## Prima questi numeri stavano solo nel MultiMesh e l'albero che nasceva al
+## posto del pino era una latifoglia tonda: camminando nel bosco i pini si
+## trasformavano sotto gli occhi del giocatore, e cambiavano anche taglia
+## (4,55 m contro 2,55). Ricopiarli qui sotto invece di leggerli avrebbe
+## rifatto lo stesso guasto al primo ritocco.
+## Ogni strato: [raggio, altezza, quota, ondulazione, onde, imbardata]
+const CONIFERA_STRATI := [
+	[1.4,  1.15, 1.5,  0.16, 7, 0.0],
+	[1.08, 1.0,  2.3,  0.15, 6, 0.4],
+	[0.78, 0.9,  3.05, 0.14, 6, 0.9],
+	[0.5,  0.8,  3.75, 0.13, 5, 1.3],
+]
+const CONIFERA_PUNTA := 4.55     # la vetta, sopra l'ultimo strato
+const CONIFERA_TRONCO := 1.9     # il tronco su cui queste quote sono tarate
+
+
 func _make_tree(pos: Vector3, size: float, leaf_a: Color, leaf_b: Color,
 		seed_v := 0, leaf_klass := "green") -> Node3D:
 	var rng := RandomNumberGenerator.new()
@@ -787,23 +807,41 @@ func _make_tree(pos: Vector3, size: float, leaf_a: Color, leaf_b: Color,
 	# ondeggiare e frustare in ritardo quando l'albero viene abbattuto.
 	var leaf_parts := []
 	const CANOPY_Y := 1.5
-	leaf_parts.append([GEO.puff_mesh(0.92, rng.randi(), 0.6, 0.07, 16, 9), # gonna d'ombra
-			Transform3D(Basis.IDENTITY, Vector3(0, 1.52 - CANOPY_Y, 0)), leaf_dark])
-	leaf_parts.append([GEO.puff_mesh(0.88, rng.randi(), 0.85, 0.1, 16, 9), # cuore
-			Transform3D(Basis.IDENTITY, Vector3(0, 1.9 - CANOPY_Y, 0)), leaf_mid])
-	for i in 5: # lobi di mezzo intorno
-		var a := float(i) / 5.0 * TAU + rng.randf_range(-0.25, 0.25)
-		var r := rng.randf_range(0.5, 0.64)
-		leaf_parts.append([GEO.puff_mesh(r, rng.randi(), 0.82, 0.11, 16, 9),
-				Transform3D(Basis(Vector3.UP, rng.randf() * TAU),
-				Vector3(cos(a) * 0.62, rng.randf_range(1.62, 1.82) - CANOPY_Y, sin(a) * 0.62)),
-				leaf_mid if i % 2 == 0 else leaf_dark])
-	for i in 3: # ciuffi di luce in cima
-		var a := float(i) / 3.0 * TAU + rng.randf_range(-0.4, 0.4)
-		leaf_parts.append([GEO.puff_mesh(rng.randf_range(0.3, 0.42), rng.randi(), 0.8, 0.13, 16, 9),
-				Transform3D(Basis(Vector3.UP, rng.randf() * TAU),
-				Vector3(cos(a) * 0.38, rng.randf_range(2.35, 2.55) - CANOPY_Y, sin(a) * 0.38)),
-				leaf_light])
+	if leaf_klass == "needle":
+		# LA CONIFERA NON E' UNA NUVOLA. Stessa forma del pino del bosco
+		# (`CONIFERA_STRATI`), rimpicciolita sul tronco di questo albero: e'
+		# l'albero che nasce quando il giocatore si avvicina a un pino del
+		# MultiMesh, e deve essere lo STESSO pino, non un altro albero.
+		var k := 1.35 / CONIFERA_TRONCO
+		for i in CONIFERA_STRATI.size():
+			var st: Array = CONIFERA_STRATI[i]
+			leaf_parts.append([
+					GEO.skirt_mesh(float(st[0]) * k, float(st[1]) * k,
+							rng.randi(), float(st[3]), int(st[4])),
+					Transform3D(Basis(Vector3.UP, float(st[5]) + rng.randf_range(-0.2, 0.2)),
+							Vector3(0, float(st[2]) * k - CANOPY_Y, 0)),
+					[leaf_dark, leaf_mid, leaf_mid, leaf_light][i]])
+		leaf_parts.append([GEO.sphere_mesh(0.09 * k, 7),
+				Transform3D(Basis.IDENTITY.scaled(Vector3(0.7, 1.5, 0.7)),
+						Vector3(0, CONIFERA_PUNTA * k - CANOPY_Y, 0)), leaf_light])
+	else:
+		leaf_parts.append([GEO.puff_mesh(0.92, rng.randi(), 0.6, 0.07, 16, 9), # gonna d'ombra
+				Transform3D(Basis.IDENTITY, Vector3(0, 1.52 - CANOPY_Y, 0)), leaf_dark])
+		leaf_parts.append([GEO.puff_mesh(0.88, rng.randi(), 0.85, 0.1, 16, 9), # cuore
+				Transform3D(Basis.IDENTITY, Vector3(0, 1.9 - CANOPY_Y, 0)), leaf_mid])
+		for i in 5: # lobi di mezzo intorno
+			var a := float(i) / 5.0 * TAU + rng.randf_range(-0.25, 0.25)
+			var r := rng.randf_range(0.5, 0.64)
+			leaf_parts.append([GEO.puff_mesh(r, rng.randi(), 0.82, 0.11, 16, 9),
+					Transform3D(Basis(Vector3.UP, rng.randf() * TAU),
+					Vector3(cos(a) * 0.62, rng.randf_range(1.62, 1.82) - CANOPY_Y, sin(a) * 0.62)),
+					leaf_mid if i % 2 == 0 else leaf_dark])
+		for i in 3: # ciuffi di luce in cima
+			var a := float(i) / 3.0 * TAU + rng.randf_range(-0.4, 0.4)
+			leaf_parts.append([GEO.puff_mesh(rng.randf_range(0.3, 0.42), rng.randi(), 0.8, 0.13, 16, 9),
+					Transform3D(Basis(Vector3.UP, rng.randf() * TAU),
+					Vector3(cos(a) * 0.38, rng.randf_range(2.35, 2.55) - CANOPY_Y, sin(a) * 0.38)),
+					leaf_light])
 
 	var tree := Node3D.new()
 	tree.position = pos
@@ -1539,21 +1577,19 @@ func _build_forest_trees(rng: RandomNumberGenerator) -> void:
 
 	# il pino: gonne smerlate che ricadono, tono che si schiarisce
 	# salendo verso il germoglio in punta
+	var aghi := [needle_a, needle_b, needle_a, needle_lite]
 	var pine_kit := func(seed_v: int) -> ArrayMesh:
-		return GEO.merge([
-			[GEO.trunk_mesh(1.9, 0.24, 0.13, seed_v), Transform3D.IDENTITY, bark],
-			[GEO.skirt_mesh(1.4, 1.15, seed_v + 1, 0.16, 7),
-					Transform3D(Basis.IDENTITY, Vector3(0, 1.5, 0)), needle_a],
-			[GEO.skirt_mesh(1.08, 1.0, seed_v + 2, 0.15, 6),
-					Transform3D(Basis(Vector3.UP, 0.4), Vector3(0, 2.3, 0)), needle_b],
-			[GEO.skirt_mesh(0.78, 0.9, seed_v + 3, 0.14, 6),
-					Transform3D(Basis(Vector3.UP, 0.9), Vector3(0, 3.05, 0)), needle_a],
-			[GEO.skirt_mesh(0.5, 0.8, seed_v + 4, 0.13, 5),
-					Transform3D(Basis(Vector3.UP, 1.3), Vector3(0, 3.75, 0)), needle_lite],
-			[GEO.sphere_mesh(0.09, 7), Transform3D(
-					Basis.IDENTITY.scaled(Vector3(0.7, 1.5, 0.7)),
-					Vector3(0, 4.55, 0)), needle_lite],
-		])
+		var parti := [[GEO.trunk_mesh(CONIFERA_TRONCO, 0.24, 0.13, seed_v),
+				Transform3D.IDENTITY, bark]]
+		for i in CONIFERA_STRATI.size():
+			var st: Array = CONIFERA_STRATI[i]
+			parti.append([GEO.skirt_mesh(st[0], st[1], seed_v + 1 + i, st[3], st[4]),
+					Transform3D(Basis(Vector3.UP, st[5]), Vector3(0, st[2], 0)),
+					aghi[i]])
+		parti.append([GEO.sphere_mesh(0.09, 7), Transform3D(
+				Basis.IDENTITY.scaled(Vector3(0.7, 1.5, 0.7)),
+				Vector3(0, CONIFERA_PUNTA, 0)), needle_lite])
+		return GEO.merge(parti)
 	# la latifoglia: tronco alto, chioma-nuvola con ombra sotto e luce
 	# sopra (14×8: il cel-shading sulle chiome chiare rivela ogni faccia,
 	# e la mesh è UNA per variante — la risoluzione costa quasi nulla)
@@ -1707,18 +1743,56 @@ func _build_forest_undergrowth(rng: RandomNumberGenerator) -> void:
 		fern_tf.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), _forest_spot(rng)))
 	_scatter_exact(fern, fern_tf, false)
 
-	# rocce muschiose
+	# ROCCE MUSCHIOSE, e sono la stessa pietra dei sassi del prato — la
+	# tecnica sta scritta la' sopra e qui era rimasta fuori:
+	#  · il centro AFFONDA sotto lo zero, cosi' il suolo taglia il bordo
+	#    d'appoggio invece di lasciarlo in vista (un masso appoggiato sul
+	#    prato si vede che e' appoggiato);
+	#  · `puff_mesh` e non `sphere_mesh`: una pietra non e' un ellissoide
+	#    liscio, e il cel-shading su una sfera perfetta fa bande regolari.
+	# ⚠️ E IL MUSCHIO NON E' UNA PALLA VERDE APPOGGIATA SOPRA. Prima era una
+	# sfera piena che spuntava dal fianco del sasso: l'intersezione fra due
+	# solidi e' una curva NETTA, e si leggeva come una placca di vernice
+	# verde con lo spigolo poligonale. Adesso e' una CROSTA — bassa, larga,
+	# schiacciata — che sta sulla CALOTTA e segue il sasso: il suo bordo e'
+	# la sua stessa silhouette morbida, non un taglio.
+	# ⚠️ E d'inverno prendeva la neve un decimo di quanto la prendesse il
+	# sasso: il mondo era tutto bianco e li' in mezzo restava una macchia di
+	# verde saturo. Il manto dello shader si posa sulle facce rivolte al
+	# CIELO (`v_up`), e una crosta piatta ne ha molte piu' di una palla che
+	# sporge di fianco — adesso si imbianca insieme alla pietra.
 	var rock_gray := GEO.paint_mat(Color("8f9088"), Color("74786f"), 2.0, 0.5)
-	var moss := GEO.paint_mat(Color("6a9a5a"), Color("55804a"), 3.0, 0.5)
+	# il muschio e' spento e un filo grigio: il verde acceso di prima
+	# gridava piu' dell'erba vera che gli sta intorno
+	var moss := GEO.paint_mat(Color("6f8f60"), Color("5a7850"), 3.0, 0.45)
 	var rock := GEO.merge([
-		[GEO.sphere_mesh(0.5, 10), Transform3D(Basis.IDENTITY.scaled(Vector3(1, 0.62, 0.85)), Vector3(0, 0.2, 0)), rock_gray],
-		[GEO.sphere_mesh(0.32, 8), Transform3D(Basis.IDENTITY.scaled(Vector3(1, 0.55, 0.9)), Vector3(0.42, 0.12, 0.18)), rock_gray],
-		[GEO.sphere_mesh(0.3, 8), Transform3D(Basis.IDENTITY.scaled(Vector3(1, 0.4, 1)), Vector3(0, 0.4, -0.04)), moss],
+		[GEO.puff_mesh(0.5, 41, 0.62, 0.13, 12, 7),
+				Transform3D(Basis.IDENTITY.scaled(Vector3(1, 1, 0.85)),
+				Vector3(0, 0.12, 0)), rock_gray],
+		[GEO.puff_mesh(0.32, 77, 0.58, 0.15, 10, 6),
+				Transform3D(Basis.IDENTITY.scaled(Vector3(1, 1, 0.9)),
+				Vector3(0.42, 0.02, 0.18)), rock_gray],
+		# LE QUOTE NON SONO A OCCHIO: la calotta della pietra sta a
+		# 0.12 + 0.5*0.62 = 0.43, e una crosta alta 0.42*0.26 = 0.11
+		# centrata a 0.37 ne emerge per quattro centimetri. Piu' in basso
+		# sparisce DENTRO il sasso (provato: a 0.29 non si vedeva
+		# affatto), piu' in alto torna la palla appoggiata di prima.
+		# E sono DUE, sbilenche: una crosta sola esce con un bordo a
+		# ellisse pulita e si legge come un coperchio verde. Il muschio
+		# cresce a chiazze — due macchie di grandezza diversa, spostate
+		# dal centro, con `lump` alto perche' il bordo sia frastagliato.
+		[GEO.puff_mesh(0.26, 113, 0.42, 0.30, 12, 6),
+				Transform3D(Basis.IDENTITY, Vector3(-0.09, 0.37, -0.06)), moss],
+		[GEO.puff_mesh(0.17, 149, 0.46, 0.34, 10, 5),
+				Transform3D(Basis.IDENTITY, Vector3(0.16, 0.35, 0.11)), moss],
 	])
 	var rock_tf: Array[Transform3D] = []
 	for i in 36:
 		var s := rng.randf_range(0.5, 1.3)
 		var rp := _forest_spot(rng, 1.1)
+		# affiora, non sta appoggiato: quanto piu' e' grosso tanto piu' e'
+		# sepolto (la stessa regola dei sassi del prato)
+		rp.y = -0.09 * s - rng.randf_range(0.0, 0.04)
 		rock_tf.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), rp))
 		# il masso occupa terreno: chi cerca dove piantare un albero deve saperlo
 		_rock_spots.append(Vector3(rp.x, s, rp.z))   # y = raggio del masso
@@ -2162,7 +2236,19 @@ func take_forest_tree(key: String, index: int) -> bool:
 
 ## Pianta un albero NUOVO nel mondo (la ricrescita del bosco). È un albero
 ## vero, nel gruppo "albero": nasce già tagliabile come tutti gli altri.
-func plant_tree(pos: Vector3, size := 1.0, seed_v := 0) -> Node3D:
+## LA SPECIE SI CONSERVA. `specie` e' "pine" o "broad", e arriva da chi
+## chiama: quando il bosco scambia un'istanza del MultiMesh con un albero
+## vero (a cinque metri, `Woodcutting._materialize_forest`) l'informazione
+## c'e' gia' — `nearest_forest_tree` la restituisce. Buttarla voleva dire
+## che ogni pino diventava una latifoglia sotto gli occhi del giocatore
+## semplicemente passandogli accanto. Il valore di serie e' "broad" perche'
+## l'altro chiamante e' la RICRESCITA del bosco, e li' non c'e' nessun
+## albero di cui rispettare la specie.
+func plant_tree(pos: Vector3, size := 1.0, seed_v := 0, specie := "broad") -> Node3D:
+	if specie == "pine":
+		# gli stessi verdi degli aghi del bosco (chiaro, scuro)
+		return _make_tree(pos, size, Color("5c8f65"), Color("3f7050"),
+				seed_v, "needle")
 	var verde := Color("86c46c").lerp(Color("a8d98a"), randf())
 	var scuro := Color("64a854").lerp(Color("4e8a52"), randf())
 	return _make_tree(pos, size, verde, scuro, seed_v)

@@ -1,0 +1,23 @@
+da confermare sulla suite INTERA: 26
+BASE  passati=67748 falliti=0 err=0
+GEMELLA PUNTO_DECISA (= Visitor.TESTA_VAI)           >>> VERDE <<<  err=0 pass=67748
+GEMELLA CAPO_K (= FaceController)                    >>> VERDE <<<  err=0 pass=67748
+TEMPO raccolto·attacco a scatto                      >>> VERDE <<<  err=0 pass=67748
+TEMPO raccolto·rilascio piu' veloce dell'attacco     >>> VERDE <<<  err=0 pass=67748
+TEMPO raccolto·tenuta 0,2 s                          >>> VERDE <<<  err=0 pass=67748
+TEMPO rialzo·durata 0,25 s                           >>> VERDE <<<  err=0 pass=67748
+META' raccolto·orecchie stessa quota                 >>> VERDE <<<  err=0 pass=67748
+META' raccolto·braccia stessa quota                  >>> VERDE <<<  err=0 pass=67748
+META' raccolto·orecchio senza ritardo                >>> VERDE <<<  err=0 pass=67748
+META' raccolto·orecchio non pigro                    >>> VERDE <<<  err=0 pass=67748
+META' raccolto·orecchio molla insieme                >>> VERDE <<<  err=0 pass=67748
+META' raccolto·braccio non pigro                     >>> VERDE <<<  err=0 pass=67748
+META' largo·orecchie stessa quota                    >>> VERDE <<<  err=0 pass=67748
+META' largo·braccia stessa quota                     >>> VERDE <<<  err=0 pass=67748
+META' largo·senza pigrizia                           >>> VERDE <<<  err=0 pass=67748
+META' coda·stesso tau (un filo solo)                 >>> VERDE <<<  err=0 pass=67748
+META' coda·orecchie stessa quota                     >>> VERDE <<<  err=0 pass=67748
+META' coda·braccia stessa quota                      >>> VERDE <<<  err=0 pass=67748
+FORMA largo·tremolio 0                               >>> VERDE <<<  err=0 pass=67748
+GRAM rinuncia·non si esce col mezzo respiro          >>> VERDE <<<  err=0 pass=67748
+VALV fiato·tutti anziani (nessun Punto frena)        >>> VERDE <<<  err=0 pass=67748

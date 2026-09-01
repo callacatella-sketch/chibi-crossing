@@ -1,0 +1,14 @@
+da confermare sulla suite INTERA: 5
+BASE  passati=67748 falliti=0 err=0
+RETE livelli·rampa lineare (spigolo di velocita')    >>> VERDE <<<  err=0 pass=67748
+RETE capo·il rollio ignora la rampa dei livelli      >>> VERDE <<<  err=0 pass=67748
+VALV capo_concesso·senza registro NEGA (degrado al contrario) >>> VERDE <<<  err=0 pass=67748
+USH riarmo del sussulto 0,5 s (la coda diventa monotona) >>> VERDE <<<  err=0 pass=67748
+USH sussulto·raggio 30 m                             >>> VERDE <<<  err=0 pass=67748
+
+=== 5 confermate VERDI sulla suite INTERA ===
+   RETE livelli·rampa lineare (spigolo di velocita')
+   RETE capo·il rollio ignora la rampa dei livelli
+   VALV capo_concesso·senza registro NEGA (degrado al contrario)
+   USH riarmo del sussulto 0,5 s (la coda diventa monotona)
+   USH sussulto·raggio 30 m

@@ -1,0 +1,12 @@
+da confermare sulla suite INTERA: 4
+BASE  passati=67748 falliti=0 err=0
+FORMA pigrizia uguale per tutti                      >>> VERDE <<<  err=0 pass=67748
+FORMA scatto orecchio: gobba larga                   >>> VERDE <<<  err=0 pass=67748
+VALV strada·zero metri davanti                       >>> VERDE <<<  err=0 pass=67748
+VALV gesto_libero·senza dorme()                      >>> VERDE <<<  err=0 pass=67748
+
+=== 4 confermate VERDI sulla suite INTERA ===
+   FORMA pigrizia uguale per tutti
+   FORMA scatto orecchio: gobba larga
+   VALV strada·zero metri davanti
+   VALV gesto_libero·senza dorme()

@@ -1136,6 +1136,205 @@ Si guarda con [`tools/provino_seduta.gd`](tools/provino_seduta.gd), che
 fotografa salita e discesa **di profilo** a intervalli fissi — il movimento
 non si giudica in una posa, si giudica in una pellicola.
 
+## LE CRICCHE SI VEDONO — il duetto, e i tre canali che non parlano
+
+`Cricche.gd` sa dire chi si ritrova con chi. Un predicato che nessuno vede
+però è un foglio di calcolo: qui c'è come il giocatore **se ne accorge senza
+che il gioco glielo dica** — dove si mettono, con chi, a che ora, e il
+momento in cui due si trovano.
+
+| canale | cosa vede chi gioca | dove |
+|---|---|---|
+| **IL DUETTO** | due che ci stanno tornando si fermano, a un battito l'uno dall'altro | `Visitors.chiedi_duetto` · occasione `ci_si_trova` |
+| **CI SEI ANCHE TU** | uno arriva nel loro posto, **ci sei tu**, e si ferma | occasione `ci_sei_anche_tu` |
+| **NON CI SI ALZA PER PRIMI** | l'agenda tace sei secondi in più mentre l'altro — o Mochi — è lì accanto | `Visitors.trattieni_insieme` |
+| **L'ANCORA DELLA PANCHINA** | certi posti diventano di qualcuno | `_ancora_ritrovo`, **terza** nella cascata |
+
+**Nessuno dei quattro inventa un canale del rig, un testo, un simbolo o un
+evento** — zero stringhe, quindi zero traduzioni. E **il villaggio non si
+incontra una volta di più**: chi si ritrova ci andava comunque, all'ora in
+cui ci va sempre. L'unica cosa che cambia è che ogni tanto lo si vede.
+
+E il canale su cui si appendono è **la coppia, non la cricca**: misurato,
+in sette giornate il villaggio produce due coppie che si ritrovano e **zero
+cricche a tre**. Appenderli a `cricche()` sarebbe stato codice morto in
+partita con la suite verde.
+
+### Il duetto: il significato sta NELL'INTERVALLO
+
+Non è un gesto nuovo. È il **Punto deciso, due volte, sfalsato di 0,40 s** —
+e quel ritardo *è* la frase: a zero sono due corpi che si bloccano nello
+stesso fotogramma, cioè un singhiozzo del motore. MISURATO col provino
+(`tools/provino_duetto.gd`, che stampa il ciclo del passo dei due accanto
+alle tessere):
+
+```
+duetto 0,40   98/98  50/87  07/86  01/45  00/09   ← due rampe uguali, SPOSTATE
+duetto 0,00   98/98  50/50  07/07  02/02  00/00   ← una rampa sola: il motore
+SINGHIOZZO    98/98  85/85  91/91  91/91  92/92   ← nessuna rampa, e insieme
+```
+
+La tessera di controllo è un **singhiozzo VERO** (il `_process` dei due
+spento per tre fotogrammi). È la ragione per cui questo provino sa fallire:
+se il duetto le somigliasse, il numero sarebbe sbagliato. E nel MainLevel
+vero il Δt si misura sul corpo: **primo fermo a 0,40 s, secondo a 0,80 s**.
+
+⚠️ **Un fotogramma FERMO non può giudicare una battuta**: due corpi immobili
+a sette metri si somigliano qualunque sia il ritardo. Le tessere servono a
+vedere che la scena si legge; a decidere il numero è la pellicola in cifre.
+
+**Le regole che lo tengono in piedi:**
+
+1. **OLTRE IL RAGGIO DELLA CHIACCHIERA** (`DUETTO_MIN` 2,2 m, contro gli 1,9
+   di `_chats`). «In questo gioco non succede mai niente insieme» è **falso**:
+   `_run_chat` gira i due musi nello stesso frame e la nuvoletta del secondo
+   esce a +1,1 s — la chiacchierata *è già* un duetto sfalsato. Sotto i 2,2 m
+   il giocatore legge «una chiacchierata a cui non sono uscite le bolle», che
+   è peggio di niente. Sopra, una chiacchierata è impossibile **per
+   costruzione**. (E il +1,1 s è anche il precedente misurato che dice che un
+   ritardo si legge come reazione.)
+2. **O TUTTI E DUE, O NESSUNO.** Si accende **prima chi risponde** — che per
+   quattro decimi sta in sala d'attesa e non si vede — e solo dopo chi apre;
+   se chi apre non ce la fa, la battuta si annulla e non è mai esistita.
+   L'ordine inverso lascia in scena un corpo fermo senza risposta, e **un
+   Punto solitario il giocatore lo attribuisce a tutt'altro**.
+3. **UN GETTONE IN DUE, IL RIPOSO A TESTA.** Il riposo doppio è un cancello,
+   non una simmetria: senza, i due che si ritrovano diventerebbero i due che
+   si vedono di più — la classifica dalla porta di servizio. E il gettone lo
+   tiene **chi risponde**, perché finisce per ultimo.
+4. **L'ANZIANO APRE**, e non per gentilezza: il suo corpo non frena
+   (`frena=false`), si accomoda sopra il fermo che fa già da sé — **il suo
+   fermo è già in calendario**, e l'altro reagisce. Se il suo respiro adesso
+   non c'è, **non apre nessuno**. Il ruolo non si indovina: si ENUMERANO le
+   due letture e si prende la prima che sta in piedi per intero.
+5. **UNO AL GIORNO IN TUTTO IL VILLAGGIO, e mai due volte sulla stessa coppia
+   dentro la settimana.** Non è prudenza, è la meccanica: un momento che
+   capita due volte in un minuto smette di essere un momento, e la stessa
+   coppia ripetuta ogni giorno **disegna la mappa di chi sta con chi**.
+   Il rovescio conta quanto il dritto: siccome ogni giorno tocca a una coppia
+   diversa, **un vicino che non si ritrova con nessuno è indistinguibile da
+   uno il cui turno non è ancora arrivato**.
+
+### Le due cose da non sbagliare, e come sono chiuse
+
+**CHI STA DA SOLO NON CAMBIA DI UN BIT.** Nessun canale si accende sul
+VUOTO: ogni condizione è un fatto positivo («questi due si ritrovano»), e non
+esiste un ramo che chieda «e chi non si ritrova con nessuno?». MISURATO nel
+MainLevel vero, col solitario messo **in mezzo** a due che si trovano, alla
+loro ora, nel loro posto: lease `0,00 → 0,00`, gesto `«» → «»`, ancora della
+panchina **casa sua a 0,000 m di scarto** — mentre nello stesso istante i
+due, lì accanto, il loro momento ce l'hanno.
+
+**IL GIOCATORE NON È MAI LASCIATO FUORI.** `ci_sei_anche_tu` gli parla
+addosso (sei nel loro posto, alla loro ora, e uno se n'è accorto); i sei
+secondi contano **Mochi come «qualcuno»** con la stessa riga che vale per i
+vicini — misurato, il lease sale a 6,00 s con lei accanto e resta 0,00 senza
+nessuno; e **l'ancora del ritrovo sta DOPO quella di Mochi** nella cascata di
+`_panchina_per`. Se salisse sopra, il villaggio si raggrupperebbe altrove
+**proprio nel momento in cui arrivi**, e il giocatore avrebbe imparato senza
+una parola di essere quello di troppo.
+
+### Le trappole già pagate
+
+- **`punto_impedimento()` — una fonte, tre lettori**, e prima erano due copie
+  **già divergenti**: il referto dei no guardava `blend <= 0.6` dove il gesto
+  guarda `< 0.6`, e metteva `_gs_viaggio` prima della strada. Un referto che
+  racconta un no diverso da quello vero costa venti minuti nel posto
+  sbagliato.
+- **La sala d'attesa ha DUE VERSI** (`_gs_attesa_fiato`): col fiato la
+  scadenza è la rinuncia, con la battuta la scadenza **accende**. Due sale
+  sarebbero due stati da spegnere, e il secondo si dimenticherebbe.
+- **Una guardia che nessun test può far fallire non c'è**: in
+  `_ancora_ritrovo` c'era un `if loro.is_empty()` davanti a un ciclo che con
+  l'elenco vuoto finiva comunque su `if n == 0`. L'ha trovata una mutazione,
+  ed è stata tolta (come `GIORNATE_RESTA_LUNGA` nel predicato).
+- **Il canale sottrattivo stava dietro a un `return`** e non girava quando
+  uno si era fermato per Mochi — cioè **proprio nella scena per cui esiste**.
+- **Non si intercetta il FRONTE dell'agenda per trattenere qualcuno**:
+  `azione_cambiata` è vero in un fotogramma solo, e non recitare lì dentro
+  vuol dire che quella decisione non verrà recitata MAI (livelock muto, col
+  vicino fermo e la fame che sale). Si alza il **lease**, prima che il motore
+  decida, e solo con `maxf`.
+
+### ⚠️ Le trappole di BANCO, che qui sono costate più di quelle di codice
+
+1. **Fra l'ultimo spostamento e la domanda non deve passare un fotogramma.**
+   I corpi camminano davvero: mezzo secondo sono 65 cm, e arrivano a meno di
+   `GESTO_STRADA_MIN` dalla loro meta. Il banco stampava venti righe di
+   `apre=false` che sembravano un difetto del gesto.
+2. **Rimettere un corpo al suo posto NON deve toccarne lo stato.** La cura
+   della trappola 1 chiamava `_posa`, che fa `_enter_state("r_idle")`:
+   geometria perfetta, e «non cammina» su tutta la linea. **Due cause
+   diverse, lo stesso sintomo — per questo un banco stampa il MOTIVO.**
+3. **LA CAMERA DI QUESTO GIOCO NON SI GIRA.** Spostare Mochi attorno alla
+   scena per cambiare inquadratura mette il soggetto **dietro l'obiettivo**:
+   tre quarti delle tessere uscivano col prato vuoto e la nuca di Mochi. Si
+   ruota la **direzione di arrivo**, non la macchina. E lo scatto che non
+   trova i corpi adesso **lo dichiara** invece di salvare il quadro intero.
+4. **La geometria della convergenza non è arbitraria**: ognuno vuole più di
+   3 m di strada davanti, la meta entro 4 m dal posto, e i due entro 6 m fra
+   loro. Due che arrivano da parti opposte disterebbero per forza più di sei
+   metri — ci si arriva **dallo stesso quadrante**, su un arco di 60°, che è
+   la corda uguale al raggio.
+5. **Un banco che mette il soggetto fuori campo non prova la regola che crede
+   di provare**: nel caso dei quattro convergenti il quarto corpo finiva a
+   9,3 m (oltre `GESTO_RAGGIO`), quindi a fermare il secondo duetto non era il
+   tetto giornaliero ma il raggio — e la mutazione che toglie il tetto
+   **sopravviveva**.
+6. **Le due scorte si azzerano prima di misurare il ritmo naturale**, o il
+   conto è zero *per costruzione* e si legge come «la fase è morta».
+
+### ⚠️ QUANTO SUCCEDE DAVVERO — e il numero è scomodo
+
+MISURATO nel MainLevel vero (`tools/prova_si_trovano.gd`, sei residenti, una
+coppia viva, Mochi che gira come gira un giocatore):
+
+| | |
+|---|---|
+| il duetto **guidato** (corpi veri, usciere vero, cancelli veri) | funziona: Δt **0,40 s**, apre l'uno e risponde l'altro |
+| «non ci si alza per primi», spontaneo | **1** in sette minuti |
+| il duetto **spontaneo**, in sette minuti | **0** |
+| l'ora della coppia si è presentata | **33 volte** |
+| e a fermarlo è stato, **11 volte su 11** | *«non stanno camminando tutti e due»* |
+
+**Il cancello che morde non è un tetto né la geometria: è che due persone
+precise sono raramente in cammino nello stesso secondo.** Il resto — i due
+tetti, la distanza, l'inquadratura, l'usciere — non è nemmeno stato
+interrogato.
+
+⚠️ **E LA RISPOSTA NON È ALLARGARE LE VALVOLE.** Ognuna di quelle condizioni
+esiste per una ragione misurata altrove: senza «stanno camminando» il Punto
+non ha un passo da spezzare, senza «ci stanno tornando» è un incrocio e non
+un ritrovo. Chi vorrà alzare quel numero ha due strade oneste — **misurare su
+un villaggio pieno e su più giornate di gioco** (qui c'era UNA coppia viva
+soltanto, e il banco dura minuti mentre l'abitudine dura giorni), oppure
+guardare se sia il caso che il momento sappia ASPETTARE, con la sala d'attesa
+che il vocabolario del corpo ha già (`_rimanda_gesto`). Quello che non si fa è
+togliere una condizione per far salire un contatore.
+
+### Come si guarda, e come si misura
+
+```
+CHIBI_DUETTO=<dir> ~/Downloads/Godot.app/Contents/MacOS/Godot --path . \
+    --resolution 1280x720 --script res://tools/provino_duetto.gd
+CHIBI_MINUTI=7 Godot --headless --path . --script res://tools/prova_si_trovano.gd
+Godot --headless --path . --script res://tools/misura_cricche.gd
+```
+
+`prova_si_trovano` stampa **ogni no col suo nome** (`debug_momenti`): un
+momento che tace quasi sempre, senza il conto per motivo, è indistinguibile da
+un cablaggio rotto.
+
+La guardia headless è
+[`tests/cases/test_cricche_corpo.gd`](tests/cases/test_cricche_corpo.gd):
+corpi `Visitor` VERI col rig di `ChibiBuilder` e l'usciere VERO (niente doppi
+che ri-implementano quel che si prova — la lezione del `Corpo` di
+`test_deduzioni`), **31 mutazioni plausibili una per volta, tutte rosse**.
+Cinque sono sopravvissute alla prima stesura, e ognuna era un buco vero: la
+soglia del passo presa sul filo, la valvola di chi apre isolata da quella di
+chi risponde, la guardia ridondante, e i due tetti che il gettone stava
+coprendo.
+
 ## REGOLA: i sogni — sognare è ciò che salva un ricordo
 
 Nel proprio letto, «E — vai a dormire»: lo schermo si chiude e **prima del
@@ -1443,6 +1642,324 @@ res://tools/provino_rastrelliere.gd` (una, due, tre miste, quattro) e con
 `tools/prova_rastrelliere_vive.gd`, che le posa nel MainLevel vero e conta i
 piedi a slitta: **due** su una fila di tre, **quattro** dopo aver tolto
 quella di mezzo.
+
+## L'ATELIER — il builder che si può GUARDARE, non solo scorrere
+
+Con centotrentasette pezzi a catalogo, la vecchia barra del builder era una
+fila di nomi che non ci stavano: si sceglieva leggendo, e per sapere che
+faccia avesse un pezzo bisognava posarlo. L'Atelier
+([`BuildSystem._costruisci_pannello`](scenes/build/BuildSystem.gd)) ha tre
+zone, e ognuna risponde a una domanda diversa:
+
+| zona | risponde a | dove |
+|---|---|---|
+| **la colonna** | *quanto mi manca, e di che famiglia?* | le viste + il conto per categoria |
+| **la griglia** | *che cosa È questo pezzo?* | le carte col RITRATTO, [`Miniature.gd`](scenes/build/Miniature.gd) |
+| **il taccuino** | *e adesso?* | [`Consigli.gd`](scenes/build/Consigli.gd) |
+
+`/` cerca per nome (italiano **e** tradotto), `1-9` e la rotella scelgono,
+`Tab` richiude il pannello lasciando in mano il pezzo, `★ Recenti` si
+riempie **al momento di POSARE** e non al momento di scegliere — sfogliare
+il catalogo non è usarlo.
+
+### IL RITRATTO SI FA IN CASA, e costa due fotogrammi a testa
+
+Il catalogo è geometria **procedurale**: non esiste nessuna immagine da
+caricare, esiste una funzione che costruisce un `Node3D`. `Miniature.gd` è
+lo studio fotografico che la trasforma in un ritratto — un `SubViewport`
+con un mondo suo, tre luci, un disco d'ombra morbida, e la stessa
+inquadratura del catalogo visivo (l'ingombro VERO delle mesh, e la camera
+arretra quanto chiedono gli otto spigoli: una camera fissa lascia il fungo
+in un puntino e il campanile fuori campo).
+
+**Un ritratto costa DUE `await` strutturali** — uno perché le mesh esistano
+davvero (l'ingombro si MISURA, e misurare un albero che non c'è ancora dà
+una scatola vuota), uno perché il viewport disegni. Non è tempo di CPU: è
+latenza. Servendone uno per volta, la griglia si riempie alla velocità del
+**frame rate**, non a quella della macchina.
+
+MISURATO nel MainLevel vero (Arredo, 30 ritratti, **vsync spento**), e i
+numeri sono **scarti dal riposo della propria corsa** — mai millisecondi
+nudi: in questa serie il riposo è passato da 38,6 a 44,3 ms secondo quanto
+era carica la macchina.
+
+| studi | la griglia è piena dopo | fotogramma mentre dipinge | il PEGGIORE |
+|---|---|---|---|
+| 1 | **3175 ms** | +7,66 ms | +48,40 ms |
+| 4 | **935 ms** | +16,81 ms | +47,93 ms |
+
+**Il fotogramma peggiore non cambia** — mezzo millisecondo su quarantotto:
+lo fa un singolo builder pesante, non la concorrenza. Quello che cambia è il transitorio di carte bianche,
+da tre secondi a meno di uno — ed è l'unica delle due cose che il giocatore
+vede. Ogni studio ha un mondo suo (due pezzi nello stesso mondo si
+fotograferebbero a vicenda), il ritratto finito resta in cache per tutta la
+sessione, e **in `--headless` lo studio nasce spento e non alloca niente**:
+la suite non paga nulla.
+
+### IL TACCUINO NON INVENTA NIENTE
+
+Ogni riga nasce da un dato che il gioco possiede già — un letto senza
+tetto (`BuildSystem.has_cover`), un corredo che si sta popolando
+(`Economy.CORREDO`), il borsellino contro il listino. **Se non lo si può
+derivare, non si scrive**: un consiglio inventato non è un aiuto più
+debole, è una UI che smette di meritare fiducia, e da lì non si torna
+indietro. E il tono viene dalla REGOLA SACRA: non mette fretta («del
+corredo del bar hai posato nove pezzi», mai «te ne mancano cinque»), non
+nomina nessun vicino, non mette i pezzi in classifica — e **il silenzio è
+un esito**: un villaggio appena nato ha una riga sola, e va bene così.
+
+### LE TRAPPOLE GIÀ PAGATE
+
+1. **UN `SCRIPT ERROR` PER FOTOGRAMMA, CON LA SUITE VERDE.** `_mappa_celle`
+   confronta il layer con `"edge"`, ma il ciclo dei layer è
+   `[0, 1, 2, 3, "edge"]` e GDScript tipizza la variabile del `for` come
+   **int** sul primo elemento: il confronto con una `String` è un errore a
+   runtime, e girava dentro `_process`. Si scrive `str(layer) == "edge"`.
+   È la lezione del capitolo «Test» applicata alla UI: un errore a runtime
+   **non fa fallire niente**, interrompe la funzione e basta.
+2. **LA CODA SI PROSCIUGA DA SOLA.** `_chiedi_visibili()` mette in coda
+   solo le carte dentro la finestra dello scroll — ma all'apertura il
+   layout della griglia **non è ancora calcolato**, quindi vede la finestra
+   sbagliata e ne accoda una riga. Misurato: `n: 10` su 31, con la seconda
+   riga bianca per sempre. La cura è che la coda **si rialimenti a ogni
+   ritratto che arriva** (`_su_miniatura`), e non cicla perché
+   `_carte_attesa.erase()` avviene sempre: se non arriva niente, non gira
+   niente. Dopo: `n: 31, in_coda: 0`.
+   ⚠️ E la prima diagnosi era sbagliata: avevo dato la colpa allo studio
+   singolo e costruito il pool, che **da solo non cambiò un bit** (`n: 10`
+   identico). È il pool ad aver dimostrato dov'era il difetto, non il
+   contrario — e il numero che lo dice è `n`, non i millisecondi.
+3. **`clip_text` TOGLIE IL TESTO DALLA DIMENSIONE MINIMA.** In `_pillola`
+   c'era `clip_text = true`: dentro un contenitore che si restringe
+   (`SHRINK_BEGIN`, o una riga in alto a destra) il bottone collassa sui
+   soli margini, e in partita uscivano **tre cerchietti bianchi vuoti** —
+   i due strumenti dell'intestazione e il pezzo consigliato dal taccuino.
+   Chi ha un testo lungo lo clippa da sé.
+4. **UN NOME CENTRATO CON `clip_text` SI TAGLIA DA TUTTE E DUE LE PARTI.**
+   «Lampada semplice» usciva «.ampada semplice». Le etichette delle carte
+   vanno **su due righe** (`AUTOWRAP_WORD_SMART` + `max_lines_visible = 2`)
+   con `OVERRUN_TRIM_ELLIPSIS` come ultima rete.
+5. **Le celle di riempimento della griglia devono avere una LARGHEZZA.**
+   Un `Control` vuoto largo zero in un `GridContainer` sfalsa le colonne, e
+   l'intestazione di una sezione finisce di fianco a un bottone.
+
+### LE ALTRE SETTE, dalla REVISIONE AVVERSARIALE
+
+Cinque lenti indipendenti (correttezza · integrazione · il GENERE · i test ·
+cosa resta aperto), ognuna coi propri difetti passati a uno scettico
+incaricato di refutarli. Ventitré segnalati, **sette sopravvissuti** — e i
+due peggiori sono della lente del GENERE, cioè della regola che sta sopra
+tutte.
+
+6. **⚠️ «QUASI SEMPRE» SU UN CAMPIONE DI UNO.** La carta «quello che metti
+   vicino» contava **una unità per ogni CELLA vicina**, quindi un Sentiero
+   che passa davanti a UNA panchina valeva venti: la frase diceva «Vicino
+   ai tuoi Panchina c'è quasi sempre Sentiero» a chi ne aveva posata una
+   sola, e quasi sempre nominava il pavimento (che è vicino a tutto). È
+   l'**inferenza smentibile** che il taccuino del Gufo ha per regola di non
+   fare, ed è la modalità di guasto che la testata di `Consigli.gd`
+   dichiara fatale: una carta che il giocatore può smentire non attenua la
+   fiducia nel taccuino, la INVERTE. Adesso si conta **per COPIA del
+   perno** (insieme distinto, non celle), si sottrae la frequenza di FONDO
+   (nessuna lista di esclusioni da tenere allineata), e la carta dice il
+   FATTO col suo campione: «Pavimento e Sentiero: li hai messi insieme 8
+   volte su 8». Il numero c'era già nei fatti e si buttava.
+7. **⚠️ I NOMI DI CATALOGO NON ENTRANO IN UNO SLOT CHE CHIEDE LA
+   CONCORDANZA.** «Vicino ai tuoi **Panchina**», «e **Fontana** è tuo»,
+   «hai posato **1 pezzi** su 14» (che capita al PRIMO pezzo di ogni
+   corredo, cioè la prima volta che quella carta si legge), «**Sedia
+   vimini** … non l'hai mai **posato**». Su 137 nomi del catalogo, 133
+   uscivano sbagliati. La casa aveva già deciso il contrario per iscritto:
+   `Critters.gd` dice che *«l'italiano non si deriva dal nome, va detto»*,
+   ed è per questo che ogni specie porta il campo `articolo`. Qui la cura è
+   più economica di un campo su 137 pezzi: **si girano le frasi** in forme
+   che non concordano — che è quello che il resto del pannello faceva già
+   («Arriva col corredo di %s»). Il singolare del corredo è una frase sua.
+8. **UNA FRASE NON PUÒ AFFERMARE UN DATO CHE NON ESISTE.** «%s ce l'hai **da
+   un po'**, e non l'hai mai posato» — ma `Economy._unlocked_pieces` è
+   `{nome: true}`, un bool: nel salvataggio non c'è nessuna data di
+   sblocco. E il selettore sceglie apposta il pezzo **più recente**
+   (scorre `_items` all'indietro, «dove stanno le cose arrivate per
+   ultime»): le due metà della stessa funzione si contraddicevano, e la
+   carta arrivava su un pezzo comprato dal carretto dieci secondi prima.
+   Girando il soggetto sul VILLAGGIO («Nel villaggio non c'è ancora traccia
+   di %s») cadono insieme l'affermazione falsa, la concordanza, e il
+   rimprovero.
+9. **DUE GRANDEZZE DIVERSE NON INDOSSANO LA STESSA GRAMMATICA.** Nella
+   colonna, le categorie contano quel che **possiedi** e i corredi quel che
+   hai **posato** — stessa pillola bianca, stessa frazione `%d/%d`, stesso
+   inchiostro. E non è teorico: la categoria **Boutique** e il corredo
+   **Vetrina moda** sono ESATTAMENTE gli stessi quindici pezzi, e a tre
+   righe di distanza mostravano due numeri diversi senza che niente
+   spiegasse perché. Peggio: il conto dei posati **scende** quando demolisci,
+   e il possesso non scende mai. Adesso l'intestazione dichiara la
+   grandezza e la forma cambia («4 di 15» contro «21/28»).
+10. **UN META CHE NESSUNO SCRIVE È UN RAMO MORTO.** La dissolvenza dei
+    ritratti tornava a `1.0 if not t.get_meta("spento", false) else 0.55`, e
+    `set_meta("spento", …)` **non esiste in nessun file del progetto**:
+    quindi cancellava lo 0.55 che `_carta_pezzo` aveva messo, e al carretto
+    un pezzo da comprare aveva il ritratto luminoso come i tuoi. Chi crea la
+    carta ha già detto quanto dev'essere accesa: si rilegge `t.modulate.a`
+    invece di chiederlo una seconda volta.
+11. **LO STATO PIEGATO ERA UNA CONFIGURAZIONE MAI GUARDATA, e ne aveva
+    due.** `_chiedi_visibili` usciva col `return` **sopra** il blocco dei
+    recenti — quello il cui commento dichiarava «si vedono anche da
+    piegati» — quindi da piegati non si chiedeva un solo ritratto; e
+    `_bollo` non si appendeva a `_carte_attesa`, quindi il ritratto che
+    arrivava non lo raccoglieva nessuno. E `ATE_BASSA` era 104 px dove ne
+    servono 148: **il bollo del pezzo in mano era tagliato a metà dal bordo
+    dello schermo**. Tutte e tre si vedono in un fotogramma, e nessuna
+    poteva far fallire un test.
+
+### E LE ALTRE SEI, dal secondo giro (le lenti CORRETTEZZA e INTEGRAZIONE)
+
+Le due lenti erano cadute per limite di sessione nei primi due tentativi.
+Rilanciate, hanno trovato le cose che nessun'altra poteva vedere — fra cui
+**due cure mie che non bastavano**.
+
+14. **⚠️ 148 PX ERANO ANCORA POCHI: IL MINIMO È 153, E SI MISURA.** La
+    prima cura dello stato piegato l'avevo tarata **a occhio su un
+    provino**, e sforava ancora di cinque pixel. Il numero non si sceglie:
+    è `24` (margini del pannello) + `34` (testata) + `1` (filo) + `74` (il
+    bollo del pezzo in mano) + `20` (due separazioni del vbox) = **153**,
+    ed è quello che `_panel.get_combined_minimum_size().y` risponde col
+    Tab premuto davvero. Sotto quel numero il pannello **non si
+    restringe**: `Control._size_changed` alza il rect al minimo combinato
+    e lo fa crescere verso il BASSO, cioè fuori dallo schermo — e
+    `clip_contents` non salva, perché ritaglia sul rect già cresciuto.
+    *Una geometria si misura, non si guarda: cinque pixel su un provino
+    non si vedono, in un numero sì.*
+15. **METTERSI IN ATTESA NON È CHIEDERE.** La prima cura dei bolli li
+    faceva appendere a `_carte_attesa` — ma l'unico che ORDINA i ritratti
+    è `_chiedi_recenti`, e `_rifai_striscia` non lo chiamava. Girando la
+    rotella da piegati (cioè facendo esattamente la cosa per cui lo stato
+    piegato esiste) i bolli nuovi restavano bianchi per sempre.
+16. **⚠️ LA BARRA DEI COLORI CADEVA DENTRO LA GRIGLIA.** I suoi due offset
+    (`-214 / -180`) erano rimasti da quando il builder era alto 272 px; il
+    dock dell'Atelier arriva a `-422`, quindi la pillola coi pallini stava
+    piantata in mezzo alla seconda riga e copriva tre carte. **Non l'aveva
+    toccata questo lavoro**: a metterla lì è stata la geometria nuova — ed
+    è il difetto che si trova solo confrontando il pannello nuovo con
+    quello vecchio, cioè la lente che era caduta due volte. Adesso la
+    posizione si calcola dalle stesse costanti del dock (`_posa_variant_bar`)
+    e segue anche la piega: due geometrie che si inseguono a mano divergono
+    al primo che ritocca l'altezza del pannello.
+17. **SI NASCONDE IL CONTENITORE, NON L'ETICHETTA.** `set_order_banner("")`
+    spegneva la Label del Gufo, che nella vecchia testata ERA il banner;
+    nell'Atelier sta dentro una pillola color miele, e restava a schermo
+    una striscia gialla alta 4 px e larga mezza intestazione, vuota. La
+    vede chi ha finito la campagna del Gufo o ha un salvataggio anteriore
+    agli Ordini.
+18. **⚠️ UNA CARTA NON PROMETTE QUEL CHE IL GIOCO NON PUÒ MANTENERE.** «e
+    %s ti aspetta al carretto» si diceva di un pezzo qualunque del
+    listino — ma `Economy.rotate_stock` pesca 3-4 nomi per visita, e una
+    visita capita ogni cinque-sette giorni: il giocatore metteva da parte
+    le noccioline, aspettava, apriva il carretto e trovava altre tre voci.
+    ⚠️ **E LA CURA NON È FILTRARE**: tenendo solo i pezzi in banco la carta
+    sparirebbe cinque giorni su sei — legittimo («il silenzio è un esito»)
+    ma peggiore, perché spegne una carta buona per chiudere una parola
+    sbagliata. La bandiera `oggi` costa un `has()` e fa dire la verità in
+    tutti e due i casi: **presenza** quando è vero, **provenienza** quando
+    non lo è — che è la grammatica che `_shop_tooltip` usava già.
+19. **UN DATO CON DUE LETTORI VA RINFRESCATO SU TUTTI E DUE.**
+    `_on_wallet_changed` rinfrescava le didascalie delle carte del
+    carretto ma non il taccuino, che da quando esiste la carta dei
+    risparmi fa la stessa affermazione sul borsellino. Le noccioline
+    salgono anche senza che il giocatore tocchi niente (un vicino compra
+    dalla tua Bancarella, arriva il premio di una Commissione): l'Atelier
+    restava aperto a dire «ancora 45» mentre il contatore in alto diceva
+    che ce n'erano abbastanza.
+20. **`b.disabled` NON SPEGNE I FIGLI.** `_riga_vista` mette le parole in
+    due `Label` FIGLIE (il bottone ha il testo vuoto), quindi
+    `font_disabled_color` — scritto in `_pillola` apposta per questo — non
+    poteva raggiungerle: «★ Recenti» spenta aveva lo stesso inchiostro
+    delle altre, il cursore a manina, e al clic non succedeva niente. E
+    capita a **ogni avvio**, non solo in partita nuova: `_recenti` non è
+    persistita.
+
+### LE DUE TRAPPOLE DI METODO, che riguardano i banchi e non il codice
+
+12. **⚠️ IL BANCO PREMIAVA LA RIMOZIONE DELLA CURA.** `misura_atelier`
+    misurava «quando la coda si svuota» — e togliendo la rialimentazione di
+    `_su_miniatura` la coda si prosciuga **prima**: il banco avrebbe
+    dichiarato il codice rotto *tre volte più veloce*. MISURATO: con la
+    mutazione, «coda svuotata dopo 312 ms» contro i 978 del codice sano.
+    Adesso conta anche **le carte ancora bianche**, e con la mutazione ne
+    trova 21 e fallisce. ⚠️ E il conto si fa **dopo trenta fotogrammi
+    tranquilli**: la rialimentazione passa da un `call_deferred`, quindi
+    esiste un fotogramma in cui la coda è vuota e le carte in attesa ci
+    sono ancora — contando lì, un codice sano sembra rotto (successo alla
+    prima stesura: tre carte bianche fantasma).
+13. **⚠️ IL VSYNC ERA ACCESO**, unico banco del progetto a non spegnerlo, e
+    la tabella qui sopra confrontava **millisecondi NUDI di due corse
+    diverse** — cioè proprio quello che l'intestazione di quel banco vieta.
+    Rifatta col vsync spento e con gli SCARTI dal proprio riposo, la
+    conclusione regge (+48,40 contro +47,93 ms): *reggeva la conclusione,
+    non il modo di ricavarla*. Il banco adesso stampa lo scarto da sé.
+
+### Come si guarda
+
+```
+CHIBI_ATELIER=<dir> ~/Downloads/Godot.app/Contents/MacOS/Godot --path . \
+    --resolution 1920x1080 --script res://tools/provino_atelier.gd
+~/Downloads/Godot.app/Contents/MacOS/Godot --path . --resolution 1920x1080 \
+    --script res://tools/misura_atelier.gd
+```
+
+`CHIBI_SCENA` sceglie la configurazione, ed è il residuo che ha prodotto
+tre difetti su sette: `aperto` (lucchetti aperti, il caso comodo),
+`piegato` (la striscia, i bolli, l'altezza), `chiuso` (il pannello di chi
+NON ha ancora tutto: le carte col «?», i cartellini del prezzo, i conti dei
+corredi). L'Atelier era stato guardato in **una configurazione sola**.
+
+⚠️ **Nessuno dei due in `--headless`**: senza schermo lo studio nasce
+spento, e il provino fotograferebbe la propria assenza. Il primo scatta tre
+istanti (subito · 2 s · 6 s) e stampa le misure — **se la terza tessera ha
+ancora una carta bianca, la catena si è interrotta**, ed è il modo in cui
+questa UI si rompe senza che una sola asserzione se ne accorga. Il secondo
+è il metro: quando la griglia è piena, e quanto pesa il fotogramma mentre
+dipinge. ⚠️ Si confrontano gli **scarti dal proprio riposo**, mai i
+millisecondi nudi: due corse dello stesso codice, in questa serie, sono
+uscite col riposo a 38,6 e a 40,65 ms.
+
+### I RESIDUI, dichiarati
+
+- **La griglia e la GEOMETRIA adesso una guardia ce l'hanno**, ed è
+  `misura_atelier`: conta le carte rimaste senza ritratto, misura il
+  pannello nei DUE stati e pretende che non sfori lo schermo, e che la
+  barra dei colori non intersechi la griglia. Sa fallire — falsificato su
+  tutti e tre i fronti. È nato dopo i difetti 14 e 16, che erano passati
+  proprio perché lo stato piegato non lo misurava nessuno e la scena della
+  barra dei colori non la scattava nessuno.
+- **Restano scoperti i rettangoli DENTRO la carta**: il nome coperto dal
+  prezzo (difetto 6 bis) si proverebbe con
+  `label.get_global_rect().intersects(prezzo.get_global_rect())`, e oggi
+  nessuno lo fa. È la stessa forma dei due chiusi, un piano più giù.
+- **`Consigli.consiglia` adesso è coperto** da
+  [`test_consigli.gd`](tests/cases/test_consigli.gd) — prima era puro,
+  statico, headless e **senza un solo lettore in tutta la suite**:
+  invertendo un confronto spariva il consiglio del letto scoperto e la
+  suite restava verde. Il test guarda cosa ESCE dai fatti, e ha una
+  guardia sul TONO (nessuna carta può dire «devi», «ti manca», «da un
+  po'») che ha subito trovato un difetto in una delle cure qui sopra.
+- **`_fatti_atelier` no**: la raccolta dei fatti tocca il villaggio e non
+  gira headless. Le soglie della carta «vicino» (`VICINO_COPIE_MIN`,
+  `VICINO_FORZA_MIN`, `VICINO_STACCO`) sono perciò sorvegliate solo da
+  quello che si vede in partita — e in partita si vedono (misurato: «8
+  volte su 8» su un villaggio con otto pavimenti).
+- **Il costo con centotrentasette pezzi sbloccati non è misurato**: la
+  corsa è su Arredo (31 carte visibili). La coda chiede solo ciò che si
+  guarda, quindi non dovrebbe cambiare — ma «non dovrebbe» non è un numero.
+- **Le cinque lenti hanno girato tutte**, in tre tentativi (le prime due
+  volte correttezza e integrazione sono cadute per limite di sessione). Il
+  bilancio: **23 + 5 difetti segnalati, 13 sopravvissuti allo scettico**,
+  e i due che nessun'altra lente poteva trovare — la barra dei colori
+  dentro la griglia e i cinque pixel di troppo del pannello piegato — sono
+  venuti proprio dalle due che erano cadute. ⚠️ Nell'ultimo giro **quattro
+  scettici su cinque hanno dichiarato «refutato: già curato»** perché le
+  cure si applicavano mentre leggevano («l'ho visto succedere sotto le
+  mani»): sono conferme indipendenti, non assoluzioni, e chi rilegge quel
+  referto non lo scambi per un via libera.
 
 ## I VARCHI e i PIANI: il villaggio come grafo, e l'IA che cambia idea
 
