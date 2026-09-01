@@ -48,14 +48,44 @@ func _go() -> void:
 	# ⚠️ il villaggio dell'autore non si tocca, e i lucchetti si aprono:
 	# un catalogo tutto chiuso mostrerebbe una griglia di punti interrogativi
 	bs.call("set_persist_for_debug", false)
-	bs.set("_locks_active", false)
+	# ⚠️ I LUCCHETTI SI APRONO SOLO PER LA SCENA «aperto». Le altre scene
+	# esistono APPOSTA per guardare il pannello di chi non ha ancora tutto:
+	# le carte col «?», i cartellini del prezzo, i conti dei corredi. Era
+	# il residuo dichiarato di questo lavoro — l'Atelier era stato guardato
+	# in UNA configurazione sola, e tre difetti su sette vivevano nelle altre.
+	var scena := OS.get_environment("CHIBI_SCENA")
+	if scena == "":
+		scena = "aperto"
+	if scena == "aperto":
+		bs.set("_locks_active", false)
 	bs.call("set_active_for_debug", true, Vector3(2, 0, 4), "Tavolino")
 	await create_timer(0.5).timeout
-	await _scatta("a-subito")
-	await create_timer(2.0).timeout
-	await _scatta("b-dopo2s")
-	await create_timer(4.0).timeout
-	await _scatta("c-dopo6s")
+	match scena:
+		"piegato":
+			# la striscia: i bolli si vestono, e ci sta dentro l'altezza?
+			await _scatta("p0-aperto")
+			bs.call("_piega", false)
+			await create_timer(0.6).timeout
+			await _scatta("p1-piegato-subito")
+			await create_timer(4.0).timeout
+			await _scatta("p2-piegato-dopo4s")
+			bs.call("_piega", true)
+			await create_timer(0.6).timeout
+			await _scatta("p3-riaperto")
+		"chiuso":
+			# il pannello di chi comincia: i «?», i prezzi, i corredi
+			await _scatta("q0-partenza")
+			await create_timer(3.0).timeout
+			await _scatta("q1-dopo3s")
+			bs.call("_on_cat_pressed", bs.get("CAT_TUTTO"))
+			await create_timer(3.5).timeout
+			await _scatta("q2-tutto-il-catalogo")
+		_:
+			await _scatta("a-subito")
+			await create_timer(2.0).timeout
+			await _scatta("b-dopo2s")
+			await create_timer(4.0).timeout
+			await _scatta("c-dopo6s")
 	var mini: Node = bs.get("_mini")
 	if mini != null and mini.has_method("misure"):
 		print("MISURE: ", mini.call("misure"))

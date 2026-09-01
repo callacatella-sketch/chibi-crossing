@@ -72,9 +72,19 @@ static func consiglia(f: Dictionary) -> Array:
 	var cor: Dictionary = f.get("corredo", {})
 	if not cor.is_empty() and int(cor.get("messi", 0)) > 0 \
 			and str(cor.get("prossimo", "")) != "":
-		out.append(_carta(L10n.tf("Del corredo di %s hai posato %d pezzi su %d. C'è anche %s, da qualche parte.",
-				[L10n.t(str(cor.get("capo", ""))), int(cor.get("messi", 0)),
-				int(cor.get("totale", 0)), L10n.t(str(cor.get("prossimo", "")))]),
+		# ⚠️ DUE FRASI, E NON È PIGNOLERIA: «hai posato 1 pezzi su 14» è la
+		# macchina che si vede attraverso, e capita al PRIMO pezzo di ogni
+		# corredo — cioè proprio quando questa carta si legge per la prima
+		# volta. Vale identico in inglese («1 pieces»).
+		var _messi := int(cor.get("messi", 0))
+		var _frase := "Del corredo di %s hai posato un pezzo su %d. C'è anche %s, da qualche parte." \
+				if _messi == 1 \
+				else "Del corredo di %s hai posato %d pezzi su %d. C'è anche %s, da qualche parte."
+		var _arg := [L10n.t(str(cor.get("capo", ""))), int(cor.get("totale", 0)),
+				L10n.t(str(cor.get("prossimo", "")))] if _messi == 1 \
+				else [L10n.t(str(cor.get("capo", ""))), _messi,
+				int(cor.get("totale", 0)), L10n.t(str(cor.get("prossimo", "")))]
+		out.append(_carta(L10n.tf(_frase, _arg),
 				str(cor.get("prossimo", "")), "corredo", 80))
 
 	# 3 · QUELLO CHE METTI SEMPRE VICINO. Non è una regola scritta da
@@ -82,8 +92,14 @@ static func consiglia(f: Dictionary) -> Array:
 	# meno di due celle da quello che hai in mano.
 	var vic: Dictionary = f.get("vicino", {})
 	if not vic.is_empty():
-		out.append(_carta(L10n.tf("Vicino ai tuoi %s c'è quasi sempre %s.",
-				[L10n.t(str(vic.get("perno", ""))), L10n.t(str(vic.get("nome", "")))]),
+		# ⚠️ SI DICE IL FATTO, COL SUO CAMPIONE. «Vicino ai tuoi %s c'è
+		# quasi sempre %s» era due cose sbagliate insieme: un'INFERENZA
+		# («quasi sempre») che il giocatore può smentire, e un nome di
+		# catalogo dentro uno slot che chiede la concordanza («ai tuoi
+		# Panchina»). Il numero c'era già nei fatti e si buttava.
+		out.append(_carta(L10n.tf("%s e %s: li hai messi insieme %d volte su %d.",
+				[L10n.t(str(vic.get("perno", ""))), L10n.t(str(vic.get("nome", ""))),
+				int(vic.get("quante", 0)), int(vic.get("su", 0))]),
 				str(vic.get("nome", "")), "insieme", 70))
 
 	# 4 · I RISPARMI. Il pezzo del carretto più vicino alle tue tasche: o
@@ -98,16 +114,28 @@ static func consiglia(f: Dictionary) -> Array:
 					[L10n.t(str(aff.get("nome", ""))), int(aff.get("costo", 0)), soldi]),
 					str(aff.get("nome", "")), "borsa", 60))
 		else:
-			out.append(_carta(L10n.tf("Ancora %d %s e %s è tuo.",
+			# ⚠️ DUE COSE INSIEME, e la seconda l'ha trovata il test.
+			# «e %s è tuo» concorda col nome, e 133 nomi su 137 lo fanno
+			# uscire sbagliato («e Fontana è tuo»); ma girare la frase in
+			# «per %s ti mancano %d» mette il giocatore in DEBITO, che è
+			# quello che la prima regola del tono vieta. La frase deve
+			# guardare avanti come guardava prima — senza concordare.
+			out.append(_carta(L10n.tf("Ancora %d %s, e %s ti aspetta al carretto.",
 					[int(aff.get("manca", 0)), soldi, L10n.t(str(aff.get("nome", "")))]),
 					str(aff.get("nome", "")), "borsa", 55))
 
-	# 5 · IL PEZZO CHE NON HAI MAI PROVATO. Ce l'hai, è tuo, e non l'hai
-	# mai posato nemmeno una volta. Non è un rimprovero: è la scatola in
-	# fondo all'armadio.
+	# 5 · IL PEZZO CHE NON C'È ANCORA. Ce l'hai, è tuo, e nel villaggio non
+	# se ne vede uno. Non è un rimprovero: è la scatola in fondo all'armadio.
+	# ⚠️ Due cose curate qui, e tirano nella stessa direzione. «non l'hai
+	# mai posato» concorda col nome (esce «Sedia vimini … posato»), e «ce
+	# l'hai da un po'» è un'AFFERMAZIONE CHE IL GIOCO NON PUÒ SOSTENERE:
+	# `mai_usato` non guarda da quanto lo possiedi, quindi la frase arriva
+	# anche su un pezzo comprato dal carretto dieci secondi prima. Girando
+	# il soggetto sul VILLAGGIO cadono tutte e due — e la carta smette di
+	# essere un rimprovero che non si può chiudere.
 	var mai := str(f.get("mai_usato", ""))
 	if mai != "":
-		out.append(_carta(L10n.tf("%s ce l'hai da un po', e non l'hai mai posato nemmeno una volta.",
+		out.append(_carta(L10n.tf("Nel villaggio non c'è ancora traccia di %s.",
 				[L10n.t(mai)]), mai, "mai", 40))
 
 	# 6 · IL PRIMO GIORNO. Se non c'è niente, non c'è niente da dedurre —

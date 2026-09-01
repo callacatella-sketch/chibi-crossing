@@ -61,21 +61,27 @@ const GEO := preload("res://scenes/world/WorldGeo.gd")
 ## catalogo si riempie alla velocità del FRAME RATE, non a quella della
 ## macchina, e trenta ritratti sono sessanta fotogrammi in fila.
 ##
-## MISURATO nel MainLevel vero (Arredo, 30 ritratti, ogni corsa col proprio
-## fotogramma a riposo come termine di paragone — due corse diverse non
-## sono confrontabili, e la terza di questa serie l'ha dimostrato uscendo
-## col riposo a 40,65 ms invece di 38,6):
+## MISURATO nel MainLevel vero (Arredo, 30 ritratti, vsync SPENTO), e i
+## numeri sono **scarti dal riposo della propria corsa** — mai millisecondi
+## nudi: due corse diverse non sono confrontabili, e in questa serie il
+## riposo è passato da 38,6 a 44,3 ms secondo quanto era carica la macchina.
 ##
 ## | studi | la griglia è piena dopo | fotogramma mentre dipinge | il PEGGIORE |
 ## |---|---|---|---|
-## | 1 | **2954 ms** | +9,7 ms | 87,9 ms |
-## | 4 | **921 ms** | +19,9 ms | 86,3 ms |
+## | 1 | **3175 ms** | +7,66 ms | +48,40 ms |
+## | 4 | **935 ms** | +16,81 ms | +47,93 ms |
 ##
-## Il **fotogramma peggiore non cambia**: lo fa un singolo builder pesante,
-## non la concorrenza. Quello che cambia è il transitorio di carte bianche,
-## da tre secondi a meno di uno — ed è l'unica delle due cose che il
-## giocatore vede. Ogni studio ha un mondo suo: due pezzi nello stesso
-## mondo si fotograferebbero a vicenda.
+## Il **fotogramma peggiore non cambia** — mezzo millisecondo su quarantotto:
+## lo fa un singolo builder pesante, non la concorrenza. Quello che cambia è
+## il transitorio di carte bianche, da tre secondi a meno di uno, ed è
+## l'unica delle due cose che il giocatore vede. Ogni studio ha un mondo suo:
+## due pezzi nello stesso mondo si fotograferebbero a vicenda.
+##
+## ⚠️ La prima stesura di questa tabella deduceva «non cambia» da 87,9
+## contro 86,3 — millisecondi NUDI di due corse diverse, cioè proprio il
+## confronto che la riga sopra vieta, e per giunta col vsync acceso (che
+## allinea i delta ai refresh e nasconde una differenza più piccola di
+## 16,67 ms). La conclusione reggeva, il modo di ricavarla no.
 const STUDI := 4
 
 var _studi: Array[Dictionary] = []      # {sv, cam, disco}

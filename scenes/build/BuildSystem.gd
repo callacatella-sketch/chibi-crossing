@@ -2596,10 +2596,28 @@ func _build_grid_plane() -> void:
 const ATE_MARGINE := 26.0
 const ATE_SOTTO := 16.0
 const ATE_ALTA := 406.0     # aperto
-const ATE_BASSA := 104.0    # piegato
+## ⚠️ 104 NON BASTAVANO, e si vede solo guardando: da piegati il dock deve
+## contenere l'intestazione (la riga «L'Atelier», la ricerca, i due
+## strumenti) PIÙ la striscia, e il bollo del pezzo in mano è alto 74. A
+## 104 la striscia usciva sotto il bordo dello schermo e del pezzo in mano
+## si vedeva la metà di sopra. Misurato sul provino: intestazione 48 +
+## aria 12 + bollo 74 + aria 14.
+const ATE_BASSA := 148.0    # piegato
 const ATE_SINISTRA := 236.0
 const ATE_DESTRA := 336.0
 ## La carta di un pezzo, e il suo ritratto dentro.
+## LE TRE SOGLIE DELLA CARTA «QUELLO CHE METTI VICINO», e nessuna delle
+## tre e arbitraria: dicono quando un accostamento smette di essere un caso.
+## Sotto le tre copie non c'e nessun «quasi sempre» da dire (una volta e un
+## aneddoto, due sono una coincidenza); la FORZA e quanto quel vicino ricorre
+## in piu di quanto ricorra attorno a qualunque cosa, e mezzo punto vuol dire
+## «lo trovo accanto a questo pezzo nella meta dei casi in piu del normale»;
+## lo STACCO impedisce la carta quando due o tre pezzi sono a pari merito,
+## cioe quando la risposta onesta e «attorno c'e di tutto».
+const VICINO_COPIE_MIN := 3
+const VICINO_FORZA_MIN := 0.5
+const VICINO_STACCO := 0.15
+
 const CARTA := Vector2(106.0, 124.0)
 const CARTA_SEP := 8
 const MINIA_H := 74.0
@@ -2927,7 +2945,17 @@ func _rifai_sinistra() -> void:
 	var corr := _corredi()
 	if not corr.is_empty():
 		_sx_col.add_child(_spazio(8))
-		_sx_col.add_child(_sezione(L10n.t("I corredi")))
+		# ⚠️ L'INTESTAZIONE DICE LA GRANDEZZA, perché è diversa da quella di
+		# sopra. Le categorie contano quel che POSSIEDI, i corredi quel che
+		# hai POSATO — e nella stessa colonna, nella stessa pillola bianca,
+		# con la stessa frazione, si leggono come la stessa cosa. Non è
+		# teorico: Boutique e «Vetrina moda» sono ESATTAMENTE gli stessi
+		# quindici pezzi, e a tre righe di distanza mostravano due numeri
+		# diversi senza che niente spiegasse perché. E il conto dei posati
+		# può SCENDERE (demolisci e cala), cosa che il possesso non fa mai.
+		var t_cor := _sezione(L10n.t("I corredi — quanti ne hai posati"))
+		t_cor.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_sx_col.add_child(t_cor)
 		var conteggi := piece_counts()
 		var k := 0
 		for capo in corr:
@@ -2937,8 +2965,10 @@ func _rifai_sinistra() -> void:
 			for n in nomi:
 				if int(conteggi.get(str(n), 0)) > 0:
 					messi += 1
+			# e la FORMA è diversa da quella delle categorie («21/28»):
+			# due grandezze diverse non indossano la stessa grammatica
 			var b2 := _riga_vista(L10n.t(str(capo)), CAT_SET - k,
-					"%d/%d" % [messi, nomi.size()], CozyUI.LAVENDER)
+					L10n.tf("%d di %d", [messi, nomi.size()]), CozyUI.LAVENDER)
 			if not is_unlocked(str(capo)):
 				# non è tuo: resta leggibile ma spento, col suo prezzo
 				var off := _shop_offer(str(capo))
@@ -3091,16 +3121,30 @@ func _fatti_atelier() -> Dictionary:
 			scoperti += 1
 	f["letti_scoperti"] = scoperti
 
-	# CHI STA VICINO A CHI. Si contano i pezzi a meno di due celle da ogni
-	# copia di quello che hai in mano; vince chi ricorre di più, e serve
-	# almeno il doppio (o sarebbe una coincidenza raccontata come regola).
+	# CHI STA VICINO A CHI — e ⚠️ LA GRANDEZZA CONTATA È LA VOLTA, NON LA
+	# CELLA. La prima stesura sommava una unità per ogni cella vicina, e
+	# così un Sentiero che passa davanti a UNA panchina valeva venti: la
+	# carta diceva «quasi sempre» su un campione di uno, e quasi sempre
+	# nominava il pavimento. È l'inferenza smentibile che il taccuino del
+	# Gufo ha per regola di non fare — e una carta smentibile non attenua
+	# la fiducia nel taccuino, la INVERTE.
+	#
+	# Adesso si conta, per ogni COPIA del pezzo che hai in mano, l'insieme
+	# DISTINTO di quel che le sta attorno; e si sottrae quanto quel vicino
+	# starebbe lì per caso, cioè quanto sta vicino a QUALUNQUE cosa (un
+	# pavimento è vicino a tutto: la sua frazione di fondo è alta e non
+	# emerge). Nessuna lista di esclusioni da tenere allineata a mano.
 	var perno := str(_items[_index]["name"]) if _index < _items.size() else ""
 	var mappa := _mappa_celle()
 	if perno != "" and mappa.size() > 1:
-		var conto := {}
+		var conto := {}       # nome -> a quante COPIE del perno sta accanto
+		var fondo := {}       # nome -> a quante celle occupate sta accanto
+		var n_perni := 0
 		for cella in mappa:
-			if not (mappa[cella] as Array).has(perno):
-				continue
+			var e_perno: bool = (mappa[cella] as Array).has(perno)
+			if e_perno:
+				n_perni += 1
+			var visti := {}
 			for dx in range(-2, 3):
 				for dz in range(-2, 3):
 					var altra: Variant = mappa.get(cella + Vector2i(dx, dz), null)
@@ -3109,15 +3153,35 @@ func _fatti_atelier() -> Dictionary:
 					for nome in (altra as Array):
 						if str(nome) == perno:
 							continue
-						conto[nome] = int(conto.get(nome, 0)) + 1
-		var mgl := ""
-		var mgl_n := 0
-		for nome in conto:
-			if int(conto[nome]) > mgl_n:
-				mgl_n = int(conto[nome])
-				mgl = str(nome)
-		if mgl_n >= 2 and is_unlocked(mgl):
-			f["vicino"] = {"perno": perno, "nome": mgl, "quante": mgl_n}
+						visti[nome] = true
+			for nome in visti:
+				fondo[nome] = int(fondo.get(nome, 0)) + 1
+				if e_perno:
+					conto[nome] = int(conto.get(nome, 0)) + 1
+		# «quasi sempre» non si dice su meno di tre volte: sotto, quello
+		# che si vede non è un'abitudine, è dove c'era posto
+		if n_perni >= VICINO_COPIE_MIN:
+			var mgl := ""
+			var mgl_n := 0
+			var mgl_forza := 0.0
+			var secondo := 0.0
+			for nome in conto:
+				var q := int(conto[nome])
+				var forza := float(q) / float(n_perni) \
+						- float(fondo.get(nome, 0)) / float(mappa.size())
+				if forza > mgl_forza:
+					secondo = mgl_forza
+					mgl_forza = forza
+					mgl_n = q
+					mgl = str(nome)
+				elif forza > secondo:
+					secondo = forza
+			# e deve STACCARE il secondo, o non è «quello che metti
+			# vicino»: è «attorno c'è di tutto», che non dice niente
+			if mgl_n >= VICINO_COPIE_MIN and mgl_forza >= VICINO_FORZA_MIN \
+					and mgl_forza >= secondo + VICINO_STACCO and is_unlocked(mgl):
+				f["vicino"] = {"perno": perno, "nome": mgl,
+						"quante": mgl_n, "su": n_perni}
 
 	# IL CORREDO CHE SI STA POPOLANDO: fra quelli tuoi, quello a cui manca
 	# meno (e che hai già cominciato).
@@ -3269,7 +3333,13 @@ func _mostra_pezzo(pezzo: String) -> void:
 	var i := item_index(pezzo)
 	if i < 0:
 		return
-	_ricerca = pezzo
+	# ⚠️ NELLA BARRA VA IL NOME TRADOTTO. `pezzo` è la chiave di catalogo,
+	# che è la frase ITALIANA (la regola della lingua: la chiave È la
+	# frase): scrivendola così, chi gioca in inglese vedeva comparire una
+	# parola italiana in un campo che ha appena scritto lui. La ricerca
+	# trova comunque (`_cerca_indici` guarda il nome E la traduzione), e in
+	# italiano `L10n.t` è l'identità — quindi non cambia un bit.
+	_ricerca = L10n.t(pezzo)
 	_ricerca_attiva = false
 	_rebuild_item_row()
 	_sync_ui_selection()
@@ -3456,7 +3526,13 @@ func _veste_carta(b: Button, segreto: bool) -> void:
 	p.shadow_size = 10
 	p.shadow_offset = Vector2(0, 4)
 	var d := n.duplicate() as StyleBoxFlat
-	d.bg_color = Color(1, 1, 1, 0.20)
+	# ⚠️ ANCHE IL «disabled» DEVE SAPERE DEL SEGRETO. Una carta segreta è
+	# per costruzione `b.disabled = true`, quindi Godot disegna QUESTO
+	# stilo e non `normal`: scrivendo qui un colore fisso, il ramo segreto
+	# di `n` non veniva mai disegnato e in una partita nuova la griglia era
+	# un muro di carte tutte dello stesso peso — i pochi pezzi già tuoi non
+	# spiccavano più di quelli che il Gufo deve ancora portare.
+	d.bg_color = Color(1, 1, 1, 0.20 if not segreto else 0.09)
 	b.add_theme_stylebox_override("normal", n)
 	b.add_theme_stylebox_override("hover", h)
 	b.add_theme_stylebox_override("pressed", p)
@@ -3492,11 +3568,16 @@ func _gettone(testo: String, sfondo: Color, inchiostro: Color) -> Control:
 ## alto a destra, ed è per quello che si legge senza spiegazioni.
 func _prezzo(costo: int, cur: String) -> Control:
 	var p := PanelContainer.new()
+	# ⚠️ IL CARTELLINO STA SUL BORDO DELLA MINIATURA, NON SUL NOME. A
+	# -48/-28 cadeva sulla fascia y 76..96 e il nome comincia a 82: sulle
+	# carte a pagamento — cioè su TUTTE quelle del carretto, in una partita
+	# vera — il prezzo copriva il nome del pezzo. Qui sotto c'e solo il
+	# disco d'ombra del ritratto, e restano quattro pixel d'aria.
 	p.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	p.offset_left = -62.0
 	p.offset_right = -5.0
-	p.offset_top = -48.0
-	p.offset_bottom = -28.0
+	p.offset_top = -66.0
+	p.offset_bottom = -46.0
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var sb := CozyUI.pill(Color(CozyUI.CREAM, 0.93), 9)
 	sb.border_color = Color(CozyUI.NUT if cur == "nut" else CozyUI.GOLD, 0.75)
@@ -3529,11 +3610,16 @@ func _prezzo(costo: int, cur: String) -> Control:
 ## legge la didascalia.
 func _nastro(testo: String, tinta: Color) -> Control:
 	var p := PanelContainer.new()
+	# ⚠️ IL CARTELLINO STA SUL BORDO DELLA MINIATURA, NON SUL NOME. A
+	# -48/-28 cadeva sulla fascia y 76..96 e il nome comincia a 82: sulle
+	# carte a pagamento — cioè su TUTTE quelle del carretto, in una partita
+	# vera — il prezzo copriva il nome del pezzo. Qui sotto c'e solo il
+	# disco d'ombra del ritratto, e restano quattro pixel d'aria.
 	p.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	p.offset_left = -66.0
 	p.offset_right = -5.0
-	p.offset_top = -48.0
-	p.offset_bottom = -28.0
+	p.offset_top = -66.0
+	p.offset_bottom = -46.0
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var sb := CozyUI.pill(Color(tinta, 0.9), 9)
 	sb.content_margin_left = 5.0
@@ -3557,7 +3643,14 @@ func _nastro(testo: String, tinta: Color) -> Control:
 func _chiedi_visibili() -> void:
 	if _mini == null or _mini.spento() or _items_scroll == null:
 		return
-	if not (_panel and _panel.visible and _aperto):
+	if not (_panel and _panel.visible):
+		return
+	# ⚠️ DA PIEGATI SI CHIEDONO LO STESSO — i bolli della striscia hanno un
+	# ritratto come le carte. Il `return` stava sopra il blocco dei recenti
+	# (che il commento in fondo dichiara servire «anche da piegati»): chi
+	# apriva il builder già piegato non vedeva vestirsi un solo bollo, mai.
+	if not _aperto:
+		_chiedi_recenti()
 		return
 	var alto := _items_scroll.size.y
 	var da := _items_scroll.scroll_vertical
@@ -3575,8 +3668,21 @@ func _chiedi_visibili() -> void:
 		var piece := str(_items[_visibili[j]]["name"])
 		if _carte_attesa.has(piece):
 			_mini.chiedi(piece, _items[_visibili[j]]["builder"])
-	# il pezzo in mano e i recenti si vedono anche da piegati
-	for nome in _recenti:
+	_chiedi_recenti()
+
+
+## Il pezzo in mano e i recenti: si vedono in tutti e due gli stati, e da
+## piegati sono gli UNICI che si vedono.
+func _chiedi_recenti() -> void:
+	if _mini == null or _mini.spento():
+		return
+	var ordine: Array[String] = []
+	if _index < _items.size():
+		ordine.append(str(_items[_index]["name"]))
+	for n in _recenti:
+		if not ordine.has(n):
+			ordine.append(n)
+	for nome in ordine:
 		var i := item_index(nome)
 		if i >= 0 and _mini.presa(nome) == null:
 			_mini.chiedi(nome, _items[i]["builder"])
@@ -3593,9 +3699,18 @@ func _su_miniatura(nome: String, tex: Texture2D) -> void:
 			# LA DISSOLVENZA NON È UN VEZZO: i ritratti arrivano uno per
 			# fotogramma, e venti carte che sbattono dentro una dopo
 			# l'altra sono uno sfarfallio. Così sembra che si sviluppino.
+			#
+			# ⚠️ E SI TORNA ALL'ALPHA CHE LA CARTA AVEVA GIÀ. Prima si
+			# leggeva `t.get_meta("spento")` — un meta che NESSUNO in tutto
+			# il progetto scriveva, quindi il ramo della penombra era morto
+			# e la dissolvenza portava a 1.0 anche i pezzi non ancora tuoi,
+			# cancellando lo 0.55 che `_carta_pezzo` gli aveva messo: al
+			# carretto un pezzo da comprare aveva il ritratto luminoso come
+			# i tuoi. Chi crea la carta ha già detto quanto dev'essere
+			# acceso — lo si rilegge, invece di chiederlo una seconda volta.
+			var acceso := t.modulate.a
 			t.modulate.a = 0.0
-			t.create_tween().tween_property(t, "modulate:a",
-					1.0 if not t.get_meta("spento", false) else 0.55, 0.22)
+			t.create_tween().tween_property(t, "modulate:a", acceso, 0.22)
 		_carte_attesa.erase(nome)
 	# LA CODA SI RIALIMENTA. `_chiedi_visibili` gira all'apertura, allo
 	# scroll e al cambio di vista — e all'apertura il layout della griglia
@@ -3702,6 +3817,14 @@ func _bollo(i: int, grande: bool) -> Control:
 	var t: Texture2D = _mini.presa(nome) if _mini else null
 	if t != null:
 		tr.texture = t
+	elif _mini != null:
+		# ⚠️ E SE NON C'È ANCORA, IL BOLLO SI METTE IN ATTESA. Senza questa
+		# riga il ritratto arrivava (la coda gira lo stesso) e non lo
+		# raccoglieva nessuno: il bollo restava bianco fino a che non si
+		# riapriva il pannello. È lo stesso appiglio di `_carta_pezzo`.
+		if not _carte_attesa.has(nome):
+			_carte_attesa[nome] = []
+		(_carte_attesa[nome] as Array).append(tr)
 	b.add_child(tr)
 	b.pressed.connect(_select.bind(i))
 	if grande:

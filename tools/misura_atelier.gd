@@ -25,6 +25,14 @@ func _process(_d: float) -> bool:
 	return false
 func _go() -> void:
 	await process_frame
+	# ⚠️ IL VSYNC SI SPEGNE, o si misura il monitor invece del gioco: con
+	# il vsync acceso i delta si allineano ai refresh (16,67 · 33,3 · 50 ms)
+	# e una differenza vera piu piccola di un refresh sparisce dentro la
+	# quantizzazione. E il tappo dei fps farebbe lo stesso. E' la regola
+	# della sezione «Le PRESTAZIONI non si misurano headless» del CLAUDE.md,
+	# ed e la stessa riga che ha `tools/misura_fps.gd`.
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	Engine.max_fps = 0
 	change_scene_to_file("res://scenes/levels/MainLevel.tscn")
 	for i in 8: await process_frame
 	await create_timer(2.0).timeout
@@ -48,13 +56,44 @@ func _go() -> void:
 				svuota = Time.get_ticks_msec() - t0
 				break
 	var dip := _dt.duplicate()
+	# ⚠️ E SI CONTA DOPO AVER LASCIATO RESPIRARE LA CODA. La rialimentazione
+	# passa da un `call_deferred`, quindi esiste un fotogramma in cui la
+	# coda è vuota e le carte in attesa ci sono ancora: contando lì, un
+	# codice sano sembra rotto. Si aspetta che si fermi DAVVERO — e se
+	# dopo trenta fotogrammi tranquilli restano carte appese, allora è vero.
+	for i in 30:
+		await process_frame
+	# ⚠️ «CODA VUOTA» NON VUOL DIRE «GRIGLIA PIENA», e senza questo conto il
+	# banco PREMIA chi toglie la cura: togliendo la rialimentazione di
+	# `_su_miniatura` la coda si prosciuga prima, quindi «svuotata dopo»
+	# scende — e il banco direbbe che il codice rotto è più veloce. Le
+	# carte ancora appese sono la vera domanda.
+	var bianche := 0
+	var attesa: Variant = bs.get("_carte_attesa")
+	if attesa is Dictionary:
+		for nome in (attesa as Dictionary):
+			bianche += ((attesa as Dictionary)[nome] as Array).size()
 	print("STUDI=", mini.get("STUDI") if mini else "?")
 	print("  coda svuotata dopo  : ", svuota, " ms")
+	print("  CARTE ANCORA BIANCHE: ", bianche, "  (deve essere 0)")
 	print("  misure              : ", mini.call("misure") if mini else "?")
-	print("  riposo  n=", riposo.size(), " medio=", "%.2f" % (_media(riposo) * 1000.0),
-			" max=", "%.2f" % (_max(riposo) * 1000.0), " ms")
-	print("  dipinge n=", dip.size(), " medio=", "%.2f" % (_media(dip) * 1000.0),
-			" max=", "%.2f" % (_max(dip) * 1000.0), " ms")
+	var r_med := _media(riposo) * 1000.0
+	var d_med := _media(dip) * 1000.0
+	var r_max := _max(riposo) * 1000.0
+	var d_max := _max(dip) * 1000.0
+	print("  riposo  n=", riposo.size(), " medio=", "%.2f" % r_med,
+			" max=", "%.2f" % r_max, " ms")
+	print("  dipinge n=", dip.size(), " medio=", "%.2f" % d_med,
+			" max=", "%.2f" % d_max, " ms")
+	# ⚠️ QUESTI sono i numeri da confrontare fra due corse, e gli altri no:
+	# lo SCARTO dal proprio riposo. Dire «il fotogramma peggiore e 86,3 qui
+	# e 87,9 la» significa confrontare due macchine, non due codici.
+	print("  SCARTO  medio=+", "%.2f" % (d_med - r_med),
+			" ms   peggiore=+", "%.2f" % (d_max - r_max), " ms")
+	if bianche > 0:
+		print("\n⚠️  ", bianche, " carte non hanno mai avuto il loro ritratto.")
+		quit(1)
+		return
 	quit()
 func _media(a: Array[float]) -> float:
 	if a.is_empty(): return 0.0

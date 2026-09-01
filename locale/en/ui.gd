@@ -455,6 +455,10 @@ const T := {
 	"Il catalogo": "The catalogue",
 	"Tutto il catalogo": "The whole catalogue",
 	"I corredi": "The sets",
+	# l'intestazione dice la GRANDEZZA: le categorie contano il possesso,
+	# i corredi contano quel che hai posato — e nella stessa colonna, con
+	# la stessa frazione, si leggerebbero come la stessa cosa
+	"I corredi — quanti ne hai posati": "The sets — how many you have put down",
 	"Il taccuino": "The notebook",
 	"cerca un pezzo…": "search for a piece…",
 	"Tab — richiudi": "Tab — fold away",
@@ -480,13 +484,24 @@ const T := {
 			"There are %d beds sleeping under the stars. A Roof on their cell is all it takes.",
 	"Del corredo di %s hai posato %d pezzi su %d. C'è anche %s, da qualche parte.":
 			"Of the %s set you have put down %d pieces out of %d. There is also %s, somewhere.",
-	"Vicino ai tuoi %s c'è quasi sempre %s.":
-			"Near your %s there is nearly always %s.",
+	# la sorella al singolare: «1 pieces» e la macchina che si vede
+	# attraverso, e capita al PRIMO pezzo di ogni corredo
+	"Del corredo di %s hai posato un pezzo su %d. C'è anche %s, da qualche parte.":
+			"Of the %s set you have put down one piece out of %d. There is also %s, somewhere.",
+	# il FATTO col suo campione, mai l'inferenza: «nearly always» il
+	# giocatore la puo smentire, «three times out of four» no
+	"%s e %s: li hai messi insieme %d volte su %d.":
+			"%s and %s: you have put them together %d times out of %d.",
 	"Hai da parte abbastanza per %s: %d %s.":
 			"You have enough put by for %s: %d %s.",
-	"Ancora %d %s e %s è tuo.": "Another %d %s and %s is yours.",
-	"%s ce l'hai da un po', e non l'hai mai posato nemmeno una volta.":
-			"You have had %s for a while, and you have never once put it down.",
+	# ⚠️ L'ORDINE DEI SEGNAPOSTO È QUELLO DELL'ITALIANO: gli argomenti
+	# arrivano gia in fila da `L10n.tf`, e girarli qui stampa una frase con
+	# i pezzi al posto sbagliato. E niente articolo davanti a un nome di
+	# catalogo: «a Armchair» e il secondo modo di sbagliare la stessa riga.
+	"Ancora %d %s, e %s ti aspetta al carretto.":
+			"Another %d %s, and %s is waiting at the pedlar's cart.",
+	"Nel villaggio non c'è ancora traccia di %s.":
+			"There is not a single %s anywhere in the village yet.",
 	"Qui non c'è ancora niente. Un Pavimento è un buon posto da cui cominciare.":
 			"There is nothing here yet. A Floor is a good place to begin.",
 	"Fioriera": "Planter",
