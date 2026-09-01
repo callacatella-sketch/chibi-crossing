@@ -74,20 +74,79 @@ func _go() -> void:
 		push_error("MainLevel non si apre")
 		quit(1)
 		return
+	# ⚠️ SI ASPETTA CHE IL MONDO SIA FINITO, non un numero di fotogrammi.
+	# La generazione è differita su più frame e finisce con
+	# `world_built`; `_init_season()` gira SUBITO DOPO e riscrive la
+	# stagione. Con un'attesa fissa la si impostava PRIMA, e la propria
+	# scelta veniva cancellata: il prato usciva biancastro e si giudicava
+	# una veste che non si era chiesta. (È capitato appena la semina si è
+	# spostata dopo il bosco, che ha allungato la costruzione.)
+	# ⚠️ e PRIMA di cercare il mondo bisogna che la scena esista: subito
+	# dopo `change_scene_to_file` l'albero è ancora quello vecchio, e un
+	# `find_child` lì torna `null` — silenziosamente, lasciando il banco
+	# senza mondo per tutto il resto della corsa.
+	for _i in 8:
+		await process_frame
+	var cw0 := root.find_child("CozyWorld", true, false)
+	var atteso := 0
+	while cw0 != null and atteso < 900 \
+			and (cw0.get("_flower_fields") as Array).is_empty():
+		await process_frame
+		atteso += 1
 	for _i in 24:
 		await process_frame
 	var dn := root.find_child("DayNight", true, false)
 	if dn:
 		dn.set("day", 12)
-		dn.set("time", 0.40)
+		# ⚠️ 0.40 è MATTINA, e la mattina il villaggio può avere la
+		# nebbiolina: il fondo sbianca e si giudica la foschia credendola
+		# il prato. A 0.52 il sole è alto e l'aria è pulita.
+		var ora := 0.52
+		if OS.get_environment("CHIBI_ORA") != "":
+			ora = float(OS.get_environment("CHIBI_ORA"))
+		dn.set("time", ora)
 		# l'orologio si FERMA: un giorno dura quattro minuti, il banco di
 		# più, e a metà prova si fotograferebbe il tramonto
 		dn.set("cycle_seconds", 100000.0)
-	var cw := root.find_child("CozyWorld", true, false)
-	var stag := int(OS.get_environment("CHIBI_STAG"))
-	if cw and cw.has_method("set_season"):
+		# ⚠️ SCRIVERE `day` NON RICALCOLA LA STAGIONE. `_update_season()`
+		# è l'unico a scrivere il globale `snow_amount`, e gira al
+		# `_ready` col giorno SALVATO: se quel giorno era d'inverno, il
+		# globale resta innevato per tutta la corsa — e il banco
+		# fotografa un mondo bianco credendo di aver chiesto la
+		# primavera. Il tranello è che `dn.snow_amount()`, interrogata,
+		# RICALCOLA e risponde 0.00: la diagnosi e il mondo dicono due
+		# cose diverse. (Costato tre rese lette come un difetto dei
+		# fiori — la stessa forma della trappola già scritta in
+		# `provino_terreno`, un piano più in là.)
+		if dn.has_method("_update_season"):
+			dn.call("_update_season", true)
+	var cw := cw0
+	# CHIBI_STAG=-1 non tocca la stagione: si guarda la veste che il
+	# gioco si dà da solo (utile a capire chi sta scrivendo cosa)
+	var stag := 0
+	if OS.get_environment("CHIBI_STAG") != "":
+		stag = int(OS.get_environment("CHIBI_STAG"))
+	if stag >= 0 and cw and cw.has_method("set_season"):
 		cw.call("set_season", stag, 0.85 if stag == 3 else 0.0, false)
 	for _i in 40:
+		await process_frame
+	# ⚠️ IL BANCO DICE IN CHE MONDO STA FOTOGRAFANDO. `DayNight._process`
+	# riscrive `snow_amount` e la veste stagionale a OGNI fotogramma da
+	# `day`: chiamare `set_season` e basta non serve a niente, e si
+	# finisce per giudicare la neve credendola il prato — è la trappola
+	# che `provino_terreno` ha già pagato.
+	if dn:
+		var we0 := root.find_child("Weather", true, false)
+		print("MONDO: giorno %s · stagione %s · neve %.2f · ora %.2f · "
+				% [str(dn.get("day")), str(dn.call("get_season")),
+						float(dn.call("snow_amount")), float(dn.get("time"))]
+				+ "cielo %s · bagnato %.2f"
+				% [str(we0.get("_state")) if we0 else "?",
+						float(we0.get("_wetness")) if we0 else 0.0])
+	if stag >= 0 and cw and cw.has_method("set_season"):
+		# e si RIMETTE, perché `_init_season()` può averla riscritta
+		cw.call("set_season", stag, 0.85 if stag == 3 else 0.0, false)
+	for _i in 10:
 		await process_frame
 
 	_dove = OS.get_environment("CHIBI_PRATO")

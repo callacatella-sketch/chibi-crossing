@@ -32,6 +32,7 @@ func run(t) -> void:
 	_le_normali_non_sono_quelle_di_una_sfera(t)
 	_la_conca_si_misura_sulla_larghezza(t)
 	_lo_stelo_e_una_curva_sola(t)
+	_lo_stelo_va_con_laltezza(t)
 	_nessun_campo_accende_use_colors(t)
 	_la_semina_non_invade(t)
 	_lhabitat_sposta_la_densita(t)
@@ -123,6 +124,27 @@ func _la_proporzione_del_capolino(t) -> void:
 	t.ok(tf.get_aabb().size.y < a.size.y * 0.55,
 			"il trifoglio è il tappeto: meno di metà della margherita (%.3f)"
 			% tf.get_aabb().size.y)
+	# ⚠️ E IL CAPOLINO DEL TRIFOGLIO È UNA PALLA, non una calotta. La
+	# differenza fra un trifoglio e un FUNGO non è la superficie, è la
+	# SAGOMA: una calotta a fondo piatto su uno stecco legge fungo, e si
+	# vede in un colpo d'occhio. Si misura sulla testa isolata dalla
+	# maschera d'organo: alta quanto è larga, o quasi.
+	var arr_t := tf.surface_get_arrays(0)
+	var col_t: PackedColorArray = arr_t[Mesh.ARRAY_COLOR]
+	var vtx_t: PackedVector3Array = arr_t[Mesh.ARRAY_VERTEX]
+	var alto := -9.0
+	var basso := 9.0
+	var largo := 0.0
+	for i in vtx_t.size():
+		if col_t[i].r < 0.5:
+			continue  # solo la testa (maschera PETALO)
+		alto = maxf(alto, vtx_t[i].y)
+		basso = minf(basso, vtx_t[i].y)
+		largo = maxf(largo, absf(vtx_t[i].x))
+	t.ok(largo > 0.0001, "la testa del trifoglio si isola dalla maschera")
+	t.ok((alto - basso) / (largo * 2.0) > 0.62,
+			"…ed è una PALLA, non una calotta: alta %.4f su %.4f di "
+			% [alto - basso, largo * 2.0] + "larghezza")
 	# e il papavero è l'ALTO
 	var pa: Mesh = g.poppy_mesh(Color("e8574f"))
 	t.ok(pa.get_aabb().size.y > a.size.y * 1.3,
@@ -430,6 +452,34 @@ func _lo_stelo_e_una_curva_sola(t) -> void:
 			"…e costa poco (%d triangoli)" % _tris(m))
 
 
+## IL RAGGIO DELLO STELO VA CON L'ALTEZZA, non in metri. È la stessa
+## mina del torace delle farfalle, un piano più in là: le piante che
+## passano da `stelo_fiore` vanno da 10.5 cm a 29, e col numero assoluto
+## la piccola aveva un gambo grosso il 3.2% della propria altezza contro
+## l'1.2% del papavero — una a filo di ferro, l'altra a cannuccia.
+func _lo_stelo_va_con_laltezza(t) -> void:
+	var mezzo := func(h: float) -> float:
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		var g = GEO.new()
+		g.stelo_fiore(st, h, 1.0, 0.05, 7)
+		var m: ArrayMesh = st.commit()
+		var vtx: PackedVector3Array = m.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+		var r := 0.0
+		for v in vtx:
+			# solo l'attacco a terra: le foglie basali stanno più in fuori
+			if v.y < h * 0.03:
+				r = maxf(r, absf(v.x))
+		return r
+	var piccolo: float = mezzo.call(0.105)
+	var grande: float = mezzo.call(0.290)
+	t.ok(piccolo > 0.0001 and grande > 0.0001,
+			"i due steli esistono (%.5f e %.5f)" % [piccolo, grande])
+	t.almost(grande / piccolo, 0.290 / 0.105,
+			"il gambo cresce con la pianta: %.5f contro %.5f su altezze "
+			% [grande, piccolo] + "che stanno come 2.76 a 1", 0.15)
+
+
 ## ⚠️ NESSUN CAMPO DI FIORI ACCENDE `use_colors`, e non è pignoleria:
 ## Godot MOLTIPLICA il colore d'istanza dentro il `COLOR` dei vertici, e
 ## per un fiore quel COLOR è la MASCHERA D'ORGANO. Accenderlo dipinge i
@@ -534,6 +584,16 @@ func _la_farfalla_ha_quattro_ali_e_un_corpo(t) -> void:
 		else:
 			corpo += 1
 	t.ok(ali > 0 and corpo > 0, "ci sono ali (%d) e corpo (%d)" % [ali, corpo])
+	# ⚠️ E `COLOR.a` È UNA MASCHERA, non una sfumatura: vale 1 o 0 e
+	# basta. È lei a gatare la cerniera del vertex shader — con un valore
+	# in mezzo il torace si piegherebbe A METÀ, che è il difetto vecchio
+	# (una banda dipinta) travestito da nuovo. Per il fiore selvatico
+	# questa guardia c'era; per la farfalla no, e la mutazione era MUTA.
+	var sfumati := 0
+	for c in col:
+		if c.a > 0.01 and c.a < 0.99:
+			sfumati += 1
+	t.eq(sfumati, 0, "`COLOR.a` è una maschera, non una sfumatura")
 	t.ok(post > 0 and post < ali,
 			"…e fra le ali ce ne sono di posteriori (%d su %d): sono "
 			+ "QUATTRO ali, ed è l'intaglio a far leggere «farfalla»"

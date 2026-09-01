@@ -738,6 +738,34 @@ Godot --path . --resolution 640x400 --script res://tools/prova_accuccia.gd
   giorno dura quattro minuti e il banco di più, e a metà prova si
   fotograferebbe il tramonto.
 
+> ### ⚠️ SCRIVERE `day` NON RICALCOLA LA STAGIONE — tre rese perdute
+>
+> `DayNight._update_season()` è l'UNICO a scrivere il globale
+> `snow_amount`, e gira al `_ready` col giorno **salvato**. Un banco che
+> fa `dn.set("day", 12)` cambia il giorno e basta: se il salvataggio era
+> d'inverno, il globale resta innevato per tutta la corsa — e si
+> fotografa un mondo bianco credendo di aver chiesto la primavera.
+>
+> Il tranello è che la DIAGNOSI e il MONDO dicono due cose diverse:
+> `dn.snow_amount()`, interrogata, RICALCOLA da `day` e risponde 0.00,
+> mentre il globale che gli shader leggono è ancora quello vecchio. Ho
+> letto tre rese di fila come un difetto dei fiori prima di accorgermene
+> — è la stessa forma della trappola già scritta per `provino_terreno`
+> («il banco eredita il salvataggio»), un piano più in là. Dopo aver
+> scritto il giorno si chiama `_update_season()`.
+>
+> E per la stessa ragione il banco **stampa in che mondo sta
+> fotografando** (giorno · stagione · neve · ora · cielo · bagnato): un
+> banco che non lo dice lascia indovinare, e si finisce per accusare la
+> geometria.
+>
+> ⚠️ Altre due, pagate nello stesso pomeriggio: `find_child` subito dopo
+> `change_scene_to_file` torna **`null`** (l'albero è ancora quello
+> vecchio) e lascia il banco senza mondo in silenzio; e si aspetta che
+> la generazione sia FINITA — non un numero fisso di fotogrammi — perché
+> `_init_season()` gira alla fine e riscrive la stagione che il banco
+> aveva chiesto.
+
 La guardia headless è [`tests/cases/test_fiori.gd`](tests/cases/test_fiori.gd),
 e **non è un source-check**: costruisce le mesh vere, campiona le leggi
 vere e guarda la geometria. Le mutazioni stanno in

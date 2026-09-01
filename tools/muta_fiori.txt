@@ -87,3 +87,22 @@ scenes/world/CozyWorld.gd
 			+ bosco * (boscoso * 2.0 - 1.0), 0.06, 3.0)
 -->
 	return 1.0
+=====
+la torsione del petalo si spegne
+scenes/world/FioriGeo.gd
+		var rr := torsione * u * u
+-->
+		var rr := 0.0
+=====
+il raggio dello stelo torna a metri assoluti
+scenes/world/WorldGeo.gd
+			[h * 0.017, h * 0.0130, h * 0.0105], 5, 5)
+-->
+			[0.0034, 0.0026, 0.0021], 5, 5)
+=====
+il capolino del trifoglio torna una calotta a fondo piatto
+scenes/world/WorldGeo.gd
+	FIO.cupola_su(st, testa, 0.0104, -0.0082, 12, 1, 0.10, -0.06,
+			FIO.PETALO, 6, 0.22, 1.0)
+-->
+	pass
