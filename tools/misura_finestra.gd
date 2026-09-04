@@ -133,6 +133,7 @@ func _go() -> void:
 
 	var esito_ind := _blocco(quanti, giorni, 0.0,
 			"AMBIENTE INDIPENDENTE DAL GENOTIPO (il gioco com'è)")
+	var residuo := _blocco_vero(mini(quanti, 80), giorni)
 	var esito_rge := _blocco(quanti, giorni, 1.0,
 			"AMBIENTE CORRELATO AL GENOTIPO (lettura esplorativa: rGE)")
 
@@ -173,6 +174,29 @@ func _go() -> void:
 			% [esito_rge["salita_f"], esito_rge["salita_c"]])
 	print("  vita %.4f → %.4f contro %.4f → %.4f."
 			% [esito_rge["f0"], esito_rge["fN"], esito_rge["c0"], esito_rge["cN"]])
+	print("")
+	print("")
+	print("█".repeat(76))
+	print("E IL CANCELLO (b) PROVATO DALLA PORTA VERA")
+	print("█".repeat(76))
+	print("  divergenza a %d giornate (7 dopo l'età adulta), attraversando"
+			% (LEGAMI.GIORNI_ADULTO + 7))
+	print("  `Animo.ricorda` → `Limbico.rivaluta` → la chimica → l'umore:")
+	print("     tratto:  media %.6f · massima %.6f"
+			% [float(residuo["tratto_media"]), float(residuo["tratto_max"])])
+	print("     rancore: media %.6f · massima %.6f"
+			% [float(residuo["rancore_media"]), float(residuo["rancore_max"])])
+	print("     (dentro la finestra la finestra sposta il tratto di %.4f)"
+			% float(residuo["dentro_max"]))
+	print("  CONTROLLO — a due giornate dall'età adulta i due bracci")
+	print("  divergono di %.6f: se fosse zero anche qui, il banco non"
+			% float(residuo["meta_max"]))
+	print("  saprebbe distinguerli e lo zero finale non direbbe niente.")
+	print("  %s" % ("⇒ il residuo è sotto un decimo dell'effetto: il pavimento"
+			+ " tiene anche ad anello chiuso"
+			if float(residuo["tratto_max"]) <= 0.1 * float(residuo["dentro_max"])
+			else "⇒ ⚠️ IL RESIDUO NON È TRASCURABILE: un'infanzia amplificata"
+			+ " lascia un segno, e la regola 4 va riguardata"))
 	print("")
 	print("(non è una dimostrazione dell'effetto Wilson né una sua spiegazione:")
 	print(" è la verifica che il meccanismo, come è scritto, ne porti la firma)")
@@ -268,3 +292,93 @@ func _blocco(quanti: int, giorni: int, rge: float, titolo: String) -> Dictionary
 			"salita_f": salita_f, "salita_c": salita_c,
 			"a": cN <= c0 + 0.010, "b": div_max <= 1e-9,
 			"c": salita_f > 0.010 and salita_c <= 0.010}
+
+
+## ⚠️ **IL CANCELLO (b) DALLA PORTA VERA — e senza questo blocco era vero per
+## COSTRUZIONE.**
+##
+## `_blocco` qui sopra fabbrica le righe a mano e chiama solo `Deriva`: i due
+## bracci ricevono prove identiche perché nessuno gliele fa divergere. Ma nel
+## gioco l'anello è CHIUSO — `_ricalcola_deriva` → `limbico.riproietta` →
+## `tinta_carattere` → `neuro_base` → `bersaglio_umore` → `umore`, e
+## `Limbico.rivaluta` legge `letto = valenza + umore·0.22`, il cui `sentito`
+## è quello che si incide **per sempre** nei ricordi. Un'infanzia amplificata
+## scrive quindi ricordi di VALORE diverso, e quei ricordi sono l'ingresso
+## della deriva dell'adulto.
+##
+## Se quel residuo non fosse trascurabile, «un bambino non è ottimizzabile»
+## sarebbe falso — ed è l'unica promessa su cui poggia la regola 4 degli
+## Affetti. Perciò si rifà lo stesso A/B con gli `Animo` VERI, lo stesso
+## copione di eventi, e si guarda quanto resta SETTE GIORNATE DOPO l'età
+## adulta.
+func _blocco_vero(quanti: int, giorni: int) -> Dictionary:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 987654
+	var copioni: Array = []
+	var semi: Array = []
+	for i in quanti:
+		semi.append(7000 + i * 13)
+		var righe: Array = []
+		var ritmo := rng.randf_range(0.0, 1.0)
+		for g in giorni:
+			var oggi_righe: Array = []
+			for _k in 3:
+				if rng.randf() < ritmo * 0.55:
+					oggi_righe.append([rng.randf_range(0.4, 0.95),
+							rng.randf_range(0.5, 1.0)])
+			righe.append(oggi_righe)
+		copioni.append(righe)
+
+	var fine := mini(LEGAMI.GIORNI_ADULTO + 7, giorni)
+	var t_somma := 0.0
+	var t_max := 0.0
+	var r_somma := 0.0
+	var r_max := 0.0
+	var dentro_max := 0.0
+	var meta_max := 0.0
+	for i in quanti:
+		var esiti: Array = []
+		for finestra in [false, true]:
+			var dna: Dictionary = DNAG.generate(int(semi[i]))
+			var a = ANIMO.new()
+			a.setup(dna)
+			var dentro := 0.0
+			var meta_finestra := 0.0
+			for g in fine:
+				var crescita := 1.0
+				if finestra:
+					crescita = clampf(float(g) / float(LEGAMI.GIORNI_ADULTO),
+							0.0, 1.0)
+				a.set("crescita", crescita)
+				a.set("_deriva_giorno", -1)
+				a.call("_ricalcola_deriva")
+				for riga in (copioni[i] as Array)[g]:
+					a.ricorda("regalo", "giocatore", float(riga[0]), float(riga[1]))
+				a.passa_giorno()
+				if g == LEGAMI.GIORNI_ADULTO - 2:
+					# ⚠️ **IL CONTROLLO DEL BANCO**: dentro la finestra i due
+					# bracci DEVONO essere diversi. Uno zero alla fine non
+					# vuol dire niente se il banco non sa distinguerli
+					# nemmeno quando la differenza c'e' per costruzione.
+					meta_finestra = a.tratto(TRATTO)
+				if finestra and g < LEGAMI.GIORNI_ADULTO:
+					dentro = maxf(dentro,
+							absf(a.tratto(TRATTO) - a.tratto_base(TRATTO)))
+			esiti.append({"tratto": a.tratto(TRATTO), "meta": meta_finestra,
+					"rancore": a.rancore("giocatore"), "dentro": dentro})
+		var dt: float = absf(float((esiti[1] as Dictionary)["tratto"])
+				- float((esiti[0] as Dictionary)["tratto"]))
+		var dr: float = absf(float((esiti[1] as Dictionary)["rancore"])
+				- float((esiti[0] as Dictionary)["rancore"]))
+		var dm: float = absf(float((esiti[1] as Dictionary)["meta"])
+				- float((esiti[0] as Dictionary)["meta"]))
+		meta_max = maxf(meta_max, dm)
+		t_somma += dt
+		r_somma += dr
+		t_max = maxf(t_max, dt)
+		r_max = maxf(r_max, dr)
+		dentro_max = maxf(dentro_max, float((esiti[1] as Dictionary)["dentro"]))
+	var n := float(maxi(quanti, 1))
+	return {"tratto_media": t_somma / n, "tratto_max": t_max,
+			"rancore_media": r_somma / n, "rancore_max": r_max,
+			"dentro_max": dentro_max, "meta_max": meta_max}
