@@ -152,6 +152,29 @@ const FRAZIONE := 0.40
 const SAZIETA := 8.0
 
 
+## ────────────────────────────────────────────────────────────────────────
+## LA FINESTRA SENSIBILE DELLO SVILUPPO
+## ────────────────────────────────────────────────────────────────────────
+##
+## Un cucciolo non è un adulto piccolo: quello che gli succede lo segna di
+## più. `plasticita_di` traduce la crescita (`Legami.crescita`) in un
+## moltiplicatore di `FRAZIONE`, e le due costanti qui sotto sono i suoi due
+## estremi.
+##
+## ⚠️ **IL PAVIMENTO È 1.0, cioè il gioco di oggi**, e non è una taratura
+## prudente: è il cancello dell'autore scritto in aritmetica. Un adulto non
+## deve diventare meno plasmabile di quanto sia adesso, o il gioco comincia a
+## dire «troppo tardi» — e questa è la frase che un gioco cozy non può dire.
+##
+## ⚠️ **E IL TETTO È 2.4 PERCHÉ 2.5 ROMPE UN TEOREMA.** `delta` conserva
+## l'ordine dei caratteri solo finché `FRAZIONE · plasticita < 1`: a 2.5
+## esatti la derivata rispetto alla base si annulla, e sopra due codardi
+## diversi si INVERTONO. Il numero non si tocca senza rifare quel conto —
+## `test_finestra` lo ricalcola invece di ricopiarlo.
+const PLASTICITA_CUCCIOLO := 2.0
+const PLASTICITA_MAX := 2.4
+
+
 ## LA PRESSIONE che la vita ha fatto su un tratto, −1 .. +1. Pura, e **zero se
 ## non ci sono prove**.
 ##
@@ -277,17 +300,55 @@ static func spinta(tratto: String, ricordi: Array, sommario: Dictionary,
 ##    e nell'ordine in cui erano.
 ## 3. **un tratto che nasce a 0 o a 1 non deriva** — e va bene: non ha
 ##    distanza da percorrere.
-static func delta(base: float, pressione: float) -> float:
-	if not is_finite(base) or not is_finite(pressione):
+## 4. **e con `plasticita` a 1.0 è il gioco di ieri, bit per bit.** Il terzo
+##    parametro moltiplica `FRAZIONE`, e 1.0 è il suo PAVIMENTO — vedi
+##    `plasticita_di`.
+static func delta(base: float, pressione: float, plasticita := 1.0) -> float:
+	if not is_finite(base) or not is_finite(pressione) or not is_finite(plasticita):
 		return 0.0
 	var b := clampf(base, 0.0, 1.0)
 	var s := clampf(pressione, -1.0, 1.0)
-	return FRAZIONE * s * (1.0 - b) if s >= 0.0 else FRAZIONE * s * b
+	# ⚠️ **IL PAVIMENTO STA DENTRO IL CLAMP, e non è una precauzione: è il
+	# cancello.** «Troppo tardi» è la frase che questo gioco non può dire, e
+	# scritta in un `clampf(…, 1.0, …)` non la può dire nessun chiamante —
+	# nemmeno uno sbagliato, nemmeno un salvataggio corrotto, nemmeno un
+	# banco. La finestra si APRE verso l'alto per i piccoli; non si CHIUDE
+	# verso il basso per i grandi.
+	#
+	# E il tetto non è un gusto: sopra `1 / FRAZIONE` il teorema 2 cade e due
+	# codardi diversi si invertono d'ordine. `test_finestra` lo sorveglia con
+	# un'asserzione che quel numero non lo ricopia.
+	var f := FRAZIONE * clampf(plasticita, 1.0, PLASTICITA_MAX)
+	return f * s * (1.0 - b) if s >= 0.0 else f * s * b
+
+
+## LA PLASTICITÀ DI CHI STA CRESCENDO, da `Legami.crescita` (0 appena nato,
+## 1 finito di crescere — e **1 per chiunque non sia nato qui**, il che vuol
+## dire che chi arriva col trolley ha esattamente il gioco di ieri).
+##
+## ⚠️ **NON HA UNA BARRA, UN CONTATORE NÉ UNA LETTERA, e non è una svista.**
+## Se il giocatore capisce che esiste un periodo critico comincia a
+## ottimizzare l'infanzia di un bambino — e un bambino ottimizzabile è lo
+## strumento che la regola 4 degli Affetti vieta per iscritto. La finestra si
+## vede solo nel referto di un banco (`tools/misura_finestra.gd`); in partita
+## si vede soltanto che quel cucciolo, crescendo, è diventato sé stesso.
+##
+## E per la stessa ragione **non si congela mai la crescita**: `GIORNI_ADULTO`
+## resta di `Legami`, questa funzione la legge e basta.
+static func plasticita_di(crescita: float) -> float:
+	if not is_finite(crescita):
+		return 1.0
+	return lerpf(PLASTICITA_CUCCIOLO, 1.0, clampf(crescita, 0.0, 1.0))
 
 
 ## IL TRATTO DI ADESSO, dato chi era e cosa gli è successo. La composizione in
 ## un posto solo, così nessuno la somma a mano da qualche parte.
-static func derivato(base: float, pressione: float) -> float:
+## ⚠️ E il terzo parametro si PROPAGA anche qui, che in produzione non ha
+## chiamanti e nei test ne ha una sessantina: senza, i test misurerebbero una
+## funzione diversa da quella che gira nel gioco — a plasticità 1.0 fissa,
+## cioè cieca proprio alla cosa nuova.
+static func derivato(base: float, pressione: float, plasticita := 1.0) -> float:
 	if not is_finite(base):
 		return 0.0
-	return clampf(clampf(base, 0.0, 1.0) + delta(base, pressione), 0.0, 1.0)
+	return clampf(clampf(base, 0.0, 1.0)
+			+ delta(base, pressione, plasticita), 0.0, 1.0)

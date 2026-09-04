@@ -1,0 +1,81 @@
+il pavimento sparisce: si puo' dire «troppo tardi»
+scenes/npc/Deriva.gd
+	var f := FRAZIONE * clampf(plasticita, 1.0, PLASTICITA_MAX)
+-->
+	var f := FRAZIONE * clampf(plasticita, 0.0, PLASTICITA_MAX)
+=====
+la finestra si chiude verso il basso invece di aprirsi verso l'alto
+scenes/npc/Deriva.gd
+	return lerpf(PLASTICITA_CUCCIOLO, 1.0, clampf(crescita, 0.0, 1.0))
+-->
+	return lerpf(PLASTICITA_CUCCIOLO, 0.5, clampf(crescita, 0.0, 1.0))
+=====
+la finestra non si apre affatto
+scenes/npc/Deriva.gd
+	return lerpf(PLASTICITA_CUCCIOLO, 1.0, clampf(crescita, 0.0, 1.0))
+-->
+	return 1.0
+=====
+la finestra e' rovesciata: plastici da grandi
+scenes/npc/Deriva.gd
+	return lerpf(PLASTICITA_CUCCIOLO, 1.0, clampf(crescita, 0.0, 1.0))
+-->
+	return lerpf(1.0, PLASTICITA_CUCCIOLO, clampf(crescita, 0.0, 1.0))
+=====
+il tetto sfonda il teorema dell'ordine
+scenes/npc/Deriva.gd
+const PLASTICITA_MAX := 2.4
+-->
+const PLASTICITA_MAX := 3.0
+=====
+un NaN spegne la deriva invece di tornare il pavimento
+scenes/npc/Deriva.gd
+static func plasticita_di(crescita: float) -> float:
+	if not is_finite(crescita):
+		return 1.0
+-->
+static func plasticita_di(crescita: float) -> float:
+	if not is_finite(crescita):
+		return 0.0
+=====
+l'eta' non arriva piu' alla deriva
+scenes/npc/Animo.gd
+		nuovo[t] = DERIVA.delta(float(tratti.get(t, 0.5)), pressione,
+				DERIVA.plasticita_di(crescita))
+-->
+		nuovo[t] = DERIVA.delta(float(tratti.get(t, 0.5)), pressione)
+=====
+di serie si nasce cuccioli invece che adulti
+scenes/npc/Animo.gd
+var crescita := 1.0
+-->
+var crescita := 0.0
+=====
+`derivato` non propaga piu' la plasticita'
+scenes/npc/Deriva.gd
+	return clampf(clampf(base, 0.0, 1.0)
+			+ delta(base, pressione, plasticita), 0.0, 1.0)
+-->
+	return clampf(clampf(base, 0.0, 1.0)
+			+ delta(base, pressione), 0.0, 1.0)
+=====
+il ponte dichiara tutti adulti
+scenes/npc/Visitors.gd
+	a.set("crescita", clampf(float(lg.call("crescita", nome)), 0.0, 1.0))
+	a.set("_deriva_giorno", -1)
+-->
+	a.set("crescita", 1.0)
+	a.set("_deriva_giorno", -1)
+=====
+il ponte invalida ma non ricalcola: il prestito arriva un giorno dopo
+scenes/npc/Visitors.gd
+	a.set("crescita", clampf(float(lg.call("crescita", nome)), 0.0, 1.0))
+	a.set("_deriva_giorno", -1)
+-->
+	a.set("crescita", clampf(float(lg.call("crescita", nome)), 0.0, 1.0))
+=====
+l'eta' entra nel salvataggio (la seconda casa di un dato solo)
+scenes/npc/Animo.gd
+		"scatti": scatti.duplicate(true), "oggi": oggi, "ultimo_scatto": _ultimo_scatto,
+-->
+		"scatti": scatti.duplicate(true), "oggi": oggi, "ultimo_scatto": _ultimo_scatto, "crescita": crescita,
