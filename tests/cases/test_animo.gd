@@ -563,8 +563,17 @@ func _il_substrato_dell_assenza(t) -> void:
 	vivace.lutto("Prugna", "")
 	var appena_successo := vivace.assenza()
 	t.ok(appena_successo > 0.0, "PREMESSA: la perdita pesa (%.4f)" % appena_successo)
+	# ⚠️ UNA VITA PIENA E' FATTA DI COSE DIVERSE, non di sessanta volte la
+	# stessa. Da quando la potatura non e' piu' un FIFO ma sceglie chi
+	# sacrificare (`Schema`), sessanta ripetizioni identiche NON scacciano
+	# un lutto: e' unico e intenso, e resiste — che e' la meccanica che
+	# funziona, non un difetto. A spingerlo nel sommario e' una vita
+	# piena DAVVERO, cioe' fatta di fatti forti e ognuno diverso.
+	# (Misurato: con sessanta righe uguali il lutto resta vivo; con
+	# sessanta diverse esce, e `assenza()` vale 0.5000 in tutti e due i
+	# casi — che e' esattamente cio' che questo caso difende.)
 	for i2 in 60:
-		vivace.ricorda("visto", "giocatore", 0.3, 0.4)
+		vivace.ricorda("evento_%d" % i2, "giocatore", -0.95, 1.0)
 	t.ok(not vivace.ricordi.any(func(r): return str(r.get("tipo", "")) == "lutto"),
 			"PREMESSA: la riga della perdita e' stata potata via dai ricordi vivi")
 	t.almost(vivace.assenza(), appena_successo,

@@ -108,6 +108,9 @@ const TELEGRAFO := {
 ## può rimediare, ed è ciò che rende il sistema un dialogo e non una condanna.
 const MEZZA_VITA := 18.0
 const DERIVA := preload("res://scenes/npc/Deriva.gd")
+## LO SCHEMA DEL SÉ: chi si sacrifica quando la memoria è piena. Puro e
+## statico, e — per costruzione — CIECO all'attore.
+const SCHEMA := preload("res://scenes/npc/Schema.gd")
 ## Oltre questo numero i ricordi non spariscono: si FONDONO in un sommario
 ## (tipo+attore -> quante volte, quanto pesavano). È l'aggregazione a creare
 ## la frase «mi hai mandato a spaccare legna quarantasette volte»: senza,
@@ -220,6 +223,15 @@ const SOGNI := ["boscaiolo", "giardiniere", "cuoco", "guerriero", "artista",
 
 var nome := "chibi"
 var sogno := "boscaiolo"
+## ⚠️ SOLO PER IL BANCO: rimette la potatura FIFO di prima (`pop_front`).
+## Serve al CONTROLLO di `tools/misura_memoria.gd`, perché le due
+## previsioni — convergenza col FIFO, divergenza con lo schema del sé —
+## sono opposte e si misurano APPAIATE: il termine di paragone dev'essere
+## il vecchio codice VERO, non una sua imitazione riscritta nel banco (un
+## doppio che mente è peggio di nessun doppio).
+## Nel gioco non la accende nessuno, e un caso di `test_schema` scandaglia
+## `scenes/` e `systems/` perché resti così.
+var debug_potatura_fifo := false
 var tratti := {}          # nome tratto -> 0..1
 var drive := {}           # nome drive -> 0..1
 var ricordi: Array = []   # {tipo, attore, quando, valenza, intensita}
@@ -495,8 +507,44 @@ func lutto(amico: String, consolato_da := "", quanto := 1.0) -> void:
 # i ricordi vecchi non svaniscono: si fondono nel sommario, che è ciò che
 # permette di dire «quarantasette volte» invece di «qualche volta»
 func _potatura() -> void:
+	# ⚠️ NON PIÙ `pop_front()`. Era un FIFO, cioè una memoria ordinata solo
+	# dal tempo — e siccome `cause()` cerca i «colpi singoli che hanno
+	# lasciato il segno» SOLO fra i ricordi vivi (i compiti ripetuti li
+	# conta anche dal sommario), il FIFO cancellava esattamente gli
+	# episodi UNICI e teneva quelli frequenti. Col tempo ogni vicino
+	# finiva per saper dire soltanto la cosa che il giocatore fa più
+	# spesso: convergenza, e non per caso — per aritmetica.
+	#
+	# Adesso si sceglie chi sacrificare, come fa `Legami.indice_da_potare`
+	# col filo dei momenti e come fa già il grafo dei ricordi in C++.
+	# ⚠️ E la scelta è CIECA ALL'ATTORE per firma, non per disciplina:
+	# `SCHEMA.scheda()` costruisce una vista senza quel campo. Proteggere
+	# «chi me l'ha fatto» invece di «cosa mi è successo» trasformerebbe la
+	# potatura in un archivio di rancori — e la chiave del sommario è
+	# letteralmente `"tipo|attore"`, quindi sarebbe la gogna dalla porta
+	# di servizio.
+	var schede: Array = []
+	if not debug_potatura_fifo:
+		for r in ricordi:
+			schede.append(SCHEMA.scheda(r, sogno, COMPITI))
 	while ricordi.size() > RICORDI_VIVI:
-		var r: Dictionary = ricordi.pop_front()
+		var vittima := 0
+		if not debug_potatura_fifo:
+			vittima = SCHEMA.indice_da_sacrificare(schede, oggi, MEZZA_VITA)
+			if vittima < 0:
+				# tutto intoccabile: meglio sforare di uno che buttare un
+				# ricordo insostituibile (la valvola di `Legami`)
+				break
+		var r: Dictionary = ricordi[vittima]
+		ricordi.remove_at(vittima)
+		if not debug_potatura_fifo:
+			schede.remove_at(vittima)
+		# ⚠️ E LA RIGA POTATA FINISCE COMUNQUE NEL SOMMARIO, come sempre:
+		# la potatura non cancella un fatto, gli toglie la CITABILITÀ come
+		# episodio. `quante_volte()`, `rancore()` e il primo punto di
+		# `cause()` continuano a contare tutto — cambia soltanto che cosa
+		# un vicino sa ancora dire come episodio singolo, che è
+		# esattamente la cosa che dice chi è.
 		var k := "%s|%s" % [r["tipo"], r["attore"]]
 		var voce: Dictionary = sommario.get(k, {"n": 0, "peso": 0.0, "ultimo": 0})
 		voce["n"] = int(voce["n"]) + 1

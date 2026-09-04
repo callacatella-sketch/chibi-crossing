@@ -1,0 +1,58 @@
+la potatura torna un FIFO
+scenes/npc/Animo.gd
+	var schede: Array = []
+	if not debug_potatura_fifo:
+-->
+	var schede: Array = []
+	if false:
+=====
+la congruenza smette di guardare i sogni traditi
+scenes/npc/Schema.gd
+	if sogno in (c.get("tradisce", []) as Array):
+		return 1.0
+-->
+	pass
+=====
+la congruenza smette di guardare il sogno realizzato
+scenes/npc/Schema.gd
+	if str(c.get("serve", "")) == sogno:
+		return 1.0
+-->
+	pass
+=====
+lo schema non pesa piu' niente
+scenes/npc/Schema.gd
+const PESO_SCHEMA := 1.6
+-->
+const PESO_SCHEMA := 0.0
+=====
+la distintivita' smette di contare
+scenes/npc/Schema.gd
+					/ float(maxi(quanti, 1))
+-->
+					/ 1.0
+=====
+la scheda si porta dietro l'attore
+scenes/npc/Schema.gd
+	return {
+		"tipo": tipo,
+-->
+	return {
+		"attore": str(r.get("attore", "")),
+		"tipo": tipo,
+=====
+gli intoccabili diventano tutti i congruenti, non il primo
+scenes/npc/Schema.gd
+	for j in i:
+		if str((schede[j] as Dictionary).get("tipo", "")) == tipo \
+				and float((schede[j] as Dictionary).get("congruenza", 0.0)) > 0.0:
+			return false
+	return true
+-->
+	return true
+=====
+l'anzianita' smette di contare
+scenes/npc/Schema.gd
+const PESO_ANZIANITA := 1.0
+-->
+const PESO_ANZIANITA := 0.0
