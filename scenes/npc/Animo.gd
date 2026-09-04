@@ -111,6 +111,7 @@ const DERIVA := preload("res://scenes/npc/Deriva.gd")
 ## LO SCHEMA DEL SÉ: chi si sacrifica quando la memoria è piena. Puro e
 ## statico, e — per costruzione — CIECO all'attore.
 const SCHEMA := preload("res://scenes/npc/Schema.gd")
+const RILETTURA := preload("res://scenes/npc/Rilettura.gd")
 ## Oltre questo numero i ricordi non spariscono: si FONDONO in un sommario
 ## (tipo+attore -> quante volte, quanto pesavano). È l'aggregazione a creare
 ## la frase «mi hai mandato a spaccare legna quarantasette volte»: senza,
@@ -232,6 +233,15 @@ var sogno := "boscaiolo"
 ## Nel gioco non la accende nessuno, e un caso di `test_schema` scandaglia
 ## `scenes/` e `systems/` perché resti così.
 var debug_potatura_fifo := false
+## ⚠️ SOLO PER IL BANCO: spegne la rilettura e lascia solo il morso della
+## lingua, cioè il gioco di prima. Serve al braccio di CONTROLLO di
+## `tools/misura_rilettura.gd` — «quanto costa NON rileggere» si misura
+## appaiato, e la rilettura cambia la storia di quel vicino, quindi l'A/B
+## non può stare dentro una corsa sola (la stessa eccezione, con la stessa
+## ragione, delle cricche).
+## Nel gioco non la accende nessuno, e un caso di `test_rilettura`
+## scandaglia `scenes/` e `systems/` perché resti così.
+var debug_niente_rilettura := false
 var tratti := {}          # nome tratto -> 0..1
 var drive := {}           # nome drive -> 0..1
 var ricordi: Array = []   # {tipo, attore, quando, valenza, intensita}
@@ -657,6 +667,21 @@ var _deriva_giorno := -1
 ## giorno. **Non si salva**: sta nel registro delle cricche, che e' gia'
 ## persistito, e ricopiarla qui sarebbe la seconda casa di un dato solo.
 var compagnia: Array = []
+## QUANTO GLI MANCA A CRESCERE: 0 appena nato, 1 finito — e **1 per chiunque
+## non sia nato qui**, che è il valore di serie e vuol dire «il gioco di
+## ieri, bit per bit». Prestata da `Visitors` come si presta la compagnia, e
+## per la stessa ragione: `Animo` non ha un orologio e non deve averne uno.
+##
+## ⚠️ **NON SI SALVA**, e non è una comodità: la sua casa è già nel
+## salvataggio (`legami → <nome> → giorno_arrivo`), e una seconda copia qui
+## sarebbe la seconda casa di un dato solo. È la decisione fondativa di
+## `Deriva`: la deriva è una LETTURA, non uno stato.
+##
+## ⚠️ E a differenza della compagnia **non vuole nessuna traduzione fra i due
+## orologi**: l'età è una DURATA, non una data. Chi un domani la ricalcasse
+## sulla compagnia per simmetria applicherebbe una conversione che qui è
+## sbagliata.
+var crescita := 1.0
 
 
 ## IL TRATTO DI ADESSO — chi vuole il tratto lo chiede QUI, e solo qui.
@@ -686,7 +711,8 @@ func _ricalcola_deriva() -> void:
 		var pressione: float = DERIVA.spinta(t, ricordi, sommario,
 				limbico.marchi if limbico != null else {}, _recenza, compagnia,
 				compiti_del_sogno())
-		nuovo[t] = DERIVA.delta(float(tratti.get(t, 0.5)), pressione)
+		nuovo[t] = DERIVA.delta(float(tratti.get(t, 0.5)), pressione,
+				DERIVA.plasticita_di(crescita))
 	_deriva = nuovo
 	# e le due grandezze che il Limbico DERIVA dai tratti si rifanno: senza,
 	# la deriva si fermerebbe un millimetro prima del corpo.
@@ -736,15 +762,29 @@ func quante_volte(tipo: String, attore := "") -> int:
 	return n
 
 
-## Il rancore verso qualcuno: 0 (nessuno) .. 1 (insopportabile).
-## È una saturazione, non una somma: cento torti non fanno un rancore cento
-## volte più grande, ma quarantasette pesano molto più di cinque.
-func rancore(attore := "giocatore") -> float:
-	var somma := 0.0
+## IL LIBRO MASTRO VERSO QUALCUNO, prima che diventi un numero solo.
+##
+## Due colonne che il gioco calcolava già e teneva per sé dentro `rancore()`:
+## i TORTI (il peso dei ricordi negativi, vivi e riassunti) e le PROVE, cioè
+## «i ricordi belli scontano il rancore» — la riga che c'era da sempre e che
+## nessuno poteva leggere da fuori.
+##
+## ⚠️ **STA QUI E NON IN DUE POSTI.** `rancore()` è la saturazione di questo
+## conto, e `Rilettura` ne è il secondo lettore: se la rilettura si
+## ricalcolasse le prove per conto suo avremmo due libri mastri sullo stesso
+## dato, e il giorno che qualcuno tocca il perdono i due divergono in
+## silenzio. È la regola delle fonti uniche applicata a un numero che
+## esisteva già.
+##
+## `{"torti", "prove", "media_prove", "n_prove"}` — e `media_prove` è quanto
+## valeva **in media** una delle cose belle, che è il tetto oltre il quale
+## una rilettura non può far sperare (`Rilettura.fiducia_restituita`).
+func conto_verso(attore := "giocatore") -> Dictionary:
+	var torti := 0.0
 	for r in ricordi:
 		if r["attore"] != attore or float(r["valenza"]) >= 0.0:
 			continue
-		somma += -float(r["valenza"]) * float(r["intensita"]) * _recenza(int(r["quando"]))
+		torti += -float(r["valenza"]) * float(r["intensita"]) * _recenza(int(r["quando"]))
 	for k in sommario:
 		var parti: PackedStringArray = k.split("|")
 		if parti.size() < 2 or parti[1] != attore:
@@ -752,12 +792,61 @@ func rancore(attore := "giocatore") -> float:
 		var v: Dictionary = sommario[k]
 		if float(v["peso"]) >= 0.0:
 			continue
-		somma += -float(v["peso"]) * _recenza(int(v["ultimo"]))
-	# il perdono: i ricordi belli scontano il rancore
-	var buoni := 0.0
+		torti += -float(v["peso"]) * _recenza(int(v["ultimo"]))
+	# le PROVE CHE ASSOLVONO. Solo `valenza > 0`, e il peso lo dà
+	# `Rilettura.peso_prova` — il `maxf(0.0, …)` che rende questo modulo
+	# strutturalmente incapace di accusare qualcuno sta LÌ, non qui.
+	var prove := 0.0
+	var somma_val := 0.0
+	var n := 0
 	for r in ricordi:
-		if r["attore"] == attore and float(r["valenza"]) > 0.0:
-			buoni += float(r["valenza"]) * float(r["intensita"]) * _recenza(int(r["quando"]))
+		if r["attore"] != attore or float(r["valenza"]) <= 0.0:
+			continue
+		prove += RILETTURA.peso_prova(float(r["valenza"]), float(r["intensita"]),
+				_recenza(int(r["quando"])))
+		somma_val += float(r["valenza"])
+		n += 1
+	# ⚠️ **E LE PROVE LEGGONO IL SOMMARIO, COME I TORTI.** Prima no — `buoni`
+	# guardava solo le righe vive — e finché la potatura era un FIFO la cosa
+	# non si vedeva: se ne andavano i vecchi, buoni e cattivi in proporzione.
+	# Con la potatura per SCHEMA DEL SÉ si sacrificano per prime le righe
+	# RIPETUTE (`costo` divide per `quanti`), e le gentilezze del giocatore
+	# — piatto, regalo, festa — sono per definizione le righe ripetute:
+	# sparivano nel sommario e da lì **non le contava più nessuno**, mentre i
+	# torti nel sommario continuavano a contare.
+	#
+	# MISURATO su una storia di un piatto e una legna al giorno: le prove
+	# passano da 3.79 (25 giornate) a 3.30 (40) a **3.18** (60) mentre i
+	# torti salgono 0.76 → 1.12 → 1.57. Lette anche dal sommario fanno 3.79
+	# → 4.93 → **6.73**. Cioè: **il perdono smetteva di accumularsi proprio
+	# per il giocatore più attento**, e il rancore no.
+	#
+	# Era un'asimmetria già lì, ma innocua; la potatura nuova l'ha resa
+	# sistematica. Renderla simmetrica cambia `rancore()` — più mite nelle
+	# partite lunghe — ed è quello che la sua stessa riga dichiara di fare:
+	# «i ricordi belli scontano il rancore, e li mette lì chi gioca».
+	for k in sommario:
+		var parti_b: PackedStringArray = k.split("|")
+		if parti_b.size() < 2 or parti_b[1] != attore:
+			continue
+		var vb: Dictionary = sommario[k]
+		if float(vb["peso"]) <= 0.0:
+			continue
+		prove += RILETTURA.peso_prova(float(vb["peso"]), 1.0,
+				_recenza(int(vb["ultimo"])))
+		somma_val += float(vb["peso"]) / float(maxi(int(vb["n"]), 1))
+		n += 1
+	return {"torti": torti, "prove": prove, "n_prove": n,
+			"media_prove": (somma_val / float(n)) if n > 0 else 0.0}
+
+
+## Il rancore verso qualcuno: 0 (nessuno) .. 1 (insopportabile).
+## È una saturazione, non una somma: cento torti non fanno un rancore cento
+## volte più grande, ma quarantasette pesano molto più di cinque.
+func rancore(attore := "giocatore") -> float:
+	var c := conto_verso(attore)
+	var somma: float = float(c["torti"])
+	var buoni: float = float(c["prove"])
 	# ⚠️ **IL PERDONO NON DIPENDE DA QUANTI AMICI TI HA DATO IL MONDO.** Qui
 	# c'era un moltiplicatore sull'ossitocina, e l'ossitocina la fa
 	# l'appartenenza (`sincronizza_neuro`), che a sua volta la fa `_chats` —
@@ -963,7 +1052,53 @@ func decide(azioni: Array, chiede := "giocatore", nitidezza := 1.6) -> String:
 	return str(top[0]["a"])
 
 
-## Tenta di mordersi la lingua delegando al Limbico (con costo modulato dal cortisolo)
+## LA PORTA UNICA DELLA REGOLAZIONE — si chiede QUI, non dentro il Limbico.
+##
+## Davanti allo stesso impulso ci sono due strade, e sceglierle è di chi ha
+## tutti e due i pezzi: `Animo` possiede i **ricordi** (dove stanno le prove)
+## e il **limbico** (dove sta la forza per trattenersi). Prima `Visitors`
+## scendeva dentro `animo.limbico.trattieni()`, cioè attraverso l'oggetto per
+## arrivare al suo campo: con due strategie sarebbero diventate due decisioni
+## prese da chi non ha il materiale per prenderle.
+##
+## L'ordine NON è una preferenza di gusto: **si rilegge prima di trattenersi**
+## perché rileggere è a monte — se il fatto, riletto, non fa più male, non
+## c'è niente da tenere dentro. Provare prima a mordersi la lingua e poi a
+## rileggere vorrebbe dire pagare la `regolazione` per un'emozione che non
+## sarebbe mai arrivata.
+##
+## Torna la scheda di `Limbico.rilegge` con in più `"modo"`:
+## `"rilettura"` · `"morso"` (trattenuto) · `"scoppio"` (non ce l'ha fatta).
+func regola(attore := "giocatore") -> Dictionary:
+	if limbico == null:
+		return {"modo": "morso", "riletto": false, "rapporto": 0.0,
+				"divario": 0.0}
+	var c := conto_verso(attore)
+	var sch := RILETTURA.scheda(float(c["torti"]), float(c["prove"]),
+			limbico.divario(attore, float(c["media_prove"])))
+	if bool(sch["riletto"]) and not debug_niente_rilettura:
+		# ⚠️ **E NON C'È NIENTE DA APPLICARE: rileggere È non pagare.** Non
+		# si tocca `regolazione`, non si tocca il cortisolo, non si tocca il
+		# ricordo e non si toccano le attese. Il torto resta intero — quello
+		# che cambia è che quel vicino non ha dovuto spendere niente per
+		# tenerselo dentro, ed è esattamente la previsione di Gross &
+		# Levenson: la soppressione lascia il corpo attivato, la
+		# rivalutazione no. Se un domani questo ramo cominciasse a scrivere
+		# qualcosa, la meccanica sarebbe diventata una seconda soppressione
+		# con un altro nome.
+		var out := sch.duplicate()
+		out["modo"] = "rilettura"
+		return out
+	# nessuna prova che regga: si torna esattamente al gioco di prima.
+	var ok: bool = limbico.trattieni()
+	var giu := sch.duplicate()
+	giu["modo"] = "morso" if ok else "scoppio"
+	giu["riletto"] = false
+	return giu
+
+
+## Tenta di mordersi la lingua delegando al Limbico (con costo modulato dal
+## cortisolo). ⚠️ Non ha chiamanti di produzione: la porta e' `regola()`.
 func trattieni(costo := -1.0) -> bool:
 	if limbico == null:
 		return true

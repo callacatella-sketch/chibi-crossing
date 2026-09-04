@@ -36,6 +36,8 @@ extends RefCounted
 ## Tutto puro e testabile: entra un evento, esce come è stato SENTITO, con la
 ## sua spiegazione in italiano (tests/cases/test_limbico.gd).
 
+const RILETTURA := preload("res://scenes/npc/Rilettura.gd")
+
 # ---------------------------------------------------------------- costanti
 
 ## Quanto in fretta ci si abitua: 0 = non ci si abitua mai (ogni regalo
@@ -683,6 +685,37 @@ func trattieni(costo := COSTO_MORSO) -> bool:
 	morsi_oggi += 1
 	stimola_neuro("cortisolo", 0.02)
 	return true
+
+
+## IL DIVARIO verso qualcuno: quanto le aspettative stanno SOTTO quello che
+## le prove dicono di lui. È il materiale che le `attese` mettono a
+## disposizione della rilettura, ed è **di sola lettura**: questa funzione
+## non scrive un bit.
+##
+## ⚠️ **E LA PRIMA STESURA INVECE SCRIVEVA.** Rialzava le attese verso quella
+## persona («chi rilegge si rimette a sperare»), e una revisione avversariale
+## ha mostrato che il conto non torna: la `regolazione` risparmiata si
+## rigenera ogni notte (`consolida_sonno`), mentre un'attesa alzata sbiadisce
+## di 0,04 al giorno, cioè per settimane. E siccome `fiducia_restituita`
+## lasciava ferme le chiavi già alte — quelle dei DONI, che l'abitudine tiene
+## in cima — a salire erano solo quelle dei COMPITI: lo stesso identico
+## incarico si incideva peggio a chi ti aveva portato da mangiare. Il
+## guadagno durava una notte, il costo settimane, e cadeva addosso a chi era
+## stato gentile. **Il rimedio non è tarare: è che rileggere non deve costare
+## niente a nessuno.**
+##
+## Torna 0 quando non c'è niente da rileggere — chi si aspetta già quello che
+## ha ricevuto non ha una lettura alternativa da trovare, ha un fatto.
+func divario(attore: String, media_prove: float) -> float:
+	if attore == "" or not is_finite(media_prove):
+		return 0.0
+	var coda := "|" + attore
+	var peggiore := 0.0
+	for k in attese:
+		if not str(k).ends_with(coda):
+			continue
+		peggiore = maxf(peggiore, media_prove - float(attese[k]))
+	return peggiore
 
 
 ## Ha finito la pazienza? (Serve a chi decide se far uscire la battuta.)

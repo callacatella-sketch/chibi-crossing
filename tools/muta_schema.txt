@@ -1,10 +1,26 @@
-la potatura torna un FIFO
+la potatura torna un FIFO (pop_front, come prima)
 scenes/npc/Animo.gd
-	var schede: Array = []
-	if not debug_potatura_fifo:
+		vittima = SCHEMA.indice_da_sacrificare(schede, oggi, MEZZA_VITA)
 -->
-	var schede: Array = []
-	if false:
+		vittima = 0
+=====
+la forza smette di contare: un fatto tiepido batte una botta vera
+scenes/npc/Schema.gd
+const PESO_FORZA := 0.8
+-->
+const PESO_FORZA := 0.0
+=====
+la distintivita' smette di contare (la costante, non il termine)
+scenes/npc/Schema.gd
+const PESO_DISTINTIVO := 1.0
+-->
+const PESO_DISTINTIVO := 0.0
+=====
+la leva del banco nasce accesa
+scenes/npc/Animo.gd
+var debug_potatura_fifo := false
+-->
+var debug_potatura_fifo := true
 =====
 la congruenza smette di guardare i sogni traditi
 scenes/npc/Schema.gd

@@ -684,7 +684,7 @@ func _perche_no(nodo: Node3D, nome: String) -> String:
 	if _e_un_punto(nome):
 		var p := str(nodo.call("punto_impedimento"))
 		return p if p != "" else "corpo occupato"
-	if nome == "sollievo":
+	if _chiede_il_buio(nome):
 		# ⚠️ E LO SI CHIEDE AL CORPO, non lo si indovina. Un'etichetta messa a
 		# naso è la stessa cosa di «zero gesti»: durante una messa a punto ho
 		# letto «nessun buio prima» su un rifiuto che di buio ne aveva da
@@ -694,6 +694,19 @@ func _perche_no(nodo: Node3D, nome: String) -> String:
 				if not bool(nodo.call("_sussulto_fresco"))
 				else "corpo occupato")
 	return "corpo occupato"
+
+
+## Questa frase chiede il BUIO? Si legge dalla TABELLA, mai da un elenco di
+## nomi scritto qui.
+##
+## ⚠️ **Era `nome == "sollievo"`, e con una seconda frase che gata sul buio
+## (`rilettura`) ogni suo rifiuto veniva contato come «corpo occupato» — cioè
+## la causa sbagliata, proprio nel banco scritto per misurarla.** È la stessa
+## lezione della funzione qui sopra, un gradino più in là: un elenco ricopiato
+## non fallisce, **smette di descrivere**, e lo fa in silenzio.
+func _chiede_il_buio(nome: String) -> bool:
+	var f: Dictionary = GESTI.FRASI.get(nome, {})
+	return bool((f.get("d", {}) as Dictionary).get("buio", false))
 
 
 ## Questa frase è un PUNTO? Cioè: `punto_impedimento()` sa rispondere per lei?
@@ -2934,6 +2947,8 @@ func _ensure_brain(r: Dictionary) -> RefCounted:
 		# nessuno confronta due partite.
 		_presta_la_compagnia_a(animo,
 				str((r.get("dna", {}) as Dictionary).get("name", "")))
+		_presta_l_eta_a(animo,
+				str((r.get("dna", {}) as Dictionary).get("name", "")))
 		# il timido saluta solo gli amici veri
 		var node := r.get("node") as Node3D
 		if node:
@@ -3511,7 +3526,24 @@ func _tick_confronti(delta: float) -> void:
 				_sussulto_cd["morso_" + label] = cd
 				continue
 			_sussulto_cd["morso_" + label] = 12.0
-			if not animo.limbico.trattieni():
+			# ⚠️ **SI CHIEDE ALL'ANIMO, NON AL LIMBICO.** Davanti a questo
+			# impulso le strade sono due — rileggerlo o tenerlo dentro — e a
+			# sceglierle dev'essere chi ha tutti e due i pezzi: i ricordi
+			# (dove stanno le prove) e la forza per trattenersi. Scendere
+			# dentro `animo.limbico` da qui vorrebbe dire prendere metà della
+			# decisione con metà del materiale.
+			var reg: Dictionary = animo.regola("giocatore")
+			var modo := str(reg.get("modo", "morso"))
+			_gesto_si["regola: " + modo] = \
+					int(_gesto_si.get("regola: " + modo, 0)) + 1
+			if modo == "rilettura":
+				# NON È SUCCESSO NIENTE, ed è il punto. Nessun toast, nessuna
+				# bolla, nessuna postura imposta: chi rilegge non ha una
+				# faccia da rilettura. L'unica cosa che si vede — quando il
+				# corpo è nelle condizioni — è che si tira su.
+				chiedi_gesto(label, "ha_riletto")
+				continue
+			if modo == "scoppio":
 				# non ce l'ha fatta: qualcosa esce, di sbieco
 				_show_toast(L10n.tf("%s: «…niente. Lascia stare.»", [label]))
 				if node.has_method("chat_bubble"):
@@ -6079,6 +6111,46 @@ func _leggi_ambiente() -> Dictionary:
 ## ⚠️ Se il registro non c'e' (i banchi, il diorama del titolo, il Prologo) si
 ## presta un elenco vuoto — cioe' nessuna spinta, cioe' chi era. Il degrado va
 ## verso il comportamento di sempre.
+## L'ETÀ SI PRESTA COME SI PRESTA LA COMPAGNIA — e per la stessa ragione:
+## `Animo` è un `RefCounted` senza orologio e senza albero della scena, e la
+## sua unica fonte possibile è chi ce l'ha (`Legami`).
+##
+## ⚠️ **`Legami.crescita` torna 1.0 per chiunque non sia NATO QUI**, ed è
+## esattamente quello che serve: chi arriva col trolley arriva già grande, e
+## `giorni_di_amicizia` per lui misura «da quanto lo conosco», non la sua
+## età. Un ponte che leggesse quel numero grezzo dichiarerebbe neonato
+## plasticissimo ogni nuovo arrivato. La distinzione la fa `e_nato()`, che è
+## dentro `crescita` e non qui.
+##
+## ⚠️ E come per la compagnia, l'ultima riga NON è decorativa: `Animo.load()`
+## riempie la cache della deriva in coda a se stesso, cioè prima che
+## `_ensure_brain` arrivi a prestare. Senza, il prestito è un no-op.
+func _presta_l_eta_a(a: RefCounted, nome: String) -> void:
+	if a == null or nome == "":
+		return
+	# ⚠️ `_ensure_brain` gira anche fuori dall'albero (i banchi, le fixture),
+	# e li' `get_tree()` e' NULL: chiamarlo e' un errore a runtime che non fa
+	# fallire niente — interrompe `_ensure_brain` a meta' e lascia la suite
+	# verde. Ce ne sono stati tredici prima che il conto dei SCRIPT ERROR li
+	# vedesse.
+	var lg: Node = null
+	if is_inside_tree():
+		lg = get_tree().get_first_node_in_group("legami")
+	if lg == null or not is_instance_valid(lg) or not lg.has_method("crescita"):
+		a.set("crescita", 1.0)      # senza Legami si e' adulti: il gioco di ieri
+		a.set("_deriva_giorno", -1)
+		a.call("_ricalcola_deriva")
+		return
+	a.set("crescita", clampf(float(lg.call("crescita", nome)), 0.0, 1.0))
+	a.set("_deriva_giorno", -1)
+	# ⚠️ **E SI RICALCOLA SUBITO, come fa il prestito della compagnia.**
+	# Invalidare non basta: `tratto()` legge la cache e non la rifà, e
+	# nessuno la rifà prima del prossimo `passa_giorno` — cioè fino a quattro
+	# minuti reali. Al CARICAMENTO e alla NASCITA la finestra sarebbe stata
+	# spenta proprio nei due momenti in cui c'è un cucciolo in scena.
+	a.call("_ricalcola_deriva")
+
+
 func _presta_la_compagnia() -> void:
 	var cr := get_tree().get_first_node_in_group("cricche")
 	var vive: Array = []
@@ -6086,6 +6158,7 @@ func _presta_la_compagnia() -> void:
 		vive = cr.get("_incontri") as Array
 	for lab in _animi:
 		_presta_la_compagnia_a(_animi[lab], _nome_da_label(str(lab)), vive)
+		_presta_l_eta_a(_animi[lab], _nome_da_label(str(lab)))
 
 
 ## La stessa riga per uno solo — la usano il ponte giornaliero e la nascita

@@ -6700,6 +6700,341 @@ recenza · il villaggio non fa più il ponte · le giornate insieme guardano un
 lato solo della riga (che non ha verso, quindi dimenticarne uno è la
 distrazione plausibile) · senza il registro si tiene la compagnia di ieri.
 
+
+## LA MEMORIA AUTOBIOGRAFICA — i ricordi che dicono chi sei resistono
+
+`Animo._potatura` era un **FIFO**: oltre quaranta ricordi vivi si faceva
+`pop_front()`, e la memoria di un vicino era ordinata solo dal tempo. Adesso
+si sacrifica il ricordo che **dice di meno su chi sei**
+([`scenes/npc/Schema.gd`](scenes/npc/Schema.gd), puro e statico, sulla forma
+di `Legami.indice_da_potare`).
+
+**E non era cosmetico**, per una ragione che sta in una riga sola: `cause()`
+— quello che un vicino ti dice in faccia — ha DUE passate. I compiti ripetuti
+li conta dai ricordi vivi **e dal sommario**, quindi «taglia_legna × 47»
+sopravvive sempre; ma i «colpi singoli che hanno lasciato il segno» li cerca
+**solo fra i vivi**. Il FIFO cancellava perciò esattamente gli episodi UNICI
+e conservava quelli frequenti: col tempo ogni vicino restava a saper dire
+soltanto la cosa che il giocatore fa più spesso. Convergenza — e non
+un'ipotesi: l'aritmetica di come `cause()` è scritta.
+
+**MISURATO** (`tools/misura_memoria.gd`, quattordici vicini con la STESSA
+identica storia, sei semi, i due bracci nella stessa corsa):
+
+| | distanza media a coppie fra come si COMPONE la memoria |
+|---|---|
+| FIFO | **0.000** (dispersione fra semi 0.000) |
+| schema del sé | **0.120** (dispersione 0.031) |
+
+Col FIFO la convergenza è **perfetta alla cifra**: stessa storia, stessa
+identica memoria per tutti. Con lo schema un ottavo della memoria si compone
+in modo diverso fra due vicini trattati allo stesso modo — e quell'ottavo può
+venire solo da chi sono.
+
+E l'arricchimento verso il sé, **con l'ingresso come denominatore** (senza,
+«0.398» non si sa se è tanto o poco): di ciò che è successo parlava già del
+proprio sogno lo **0.283**; la memoria col FIFO 0.334 (+18.0%), con lo schema
+**0.398 (+40.8%)**.
+
+### IL CANCELLO NON È RISPETTATO: È IMPOSSIBILE DA VIOLARE
+
+«La congruenza si misura sul sogno e sul tipo di gesto, **mai sull'attore**.»
+`Schema.scheda()` costruisce una vista del ricordo **senza quel campo**, e
+`costo()` riceve solo quelle: la funzione non può pesare l'attore nemmeno per
+sbaglio, perché non ce l'ha. Non è pignoleria — la chiave del sommario è
+letteralmente `"tipo|attore"`, e `rancore()`, `cause()` e `quante_volte()`
+leggono tutti e tre per attore: una congruenza che vedesse l'attore
+proteggerebbe *per costruzione* le righe di una persona, cioè «quali torti di
+chi restano rinfacciabili». La gogna dalla porta di servizio.
+
+**E la congruenza non è la valenza.** `COMPITI[tipo]` dice già `serve` e
+`tradisce`, e tutti e due gli estremi dicono chi sei: il giorno in cui ho
+fatto la cosa che sognavo, e il giorno in cui mi è stato chiesto il contrario.
+Si pesa il **valore assoluto** dell'allineamento — pesarne uno solo darebbe un
+diario rosa o un libro dei torti.
+
+**E la congruenza MOLTIPLICA la rarità, non ci si somma.** L'ha trovato
+`test_animo`, non una rilettura: con quaranta righe identiche che portavano
+1.6 ciascuna, lo scenario canonico del brief — «l'ho mandato a tagliare legna
+quaranta giorni e ho ignorato la morte del suo amico» — perdeva la seconda
+metà, perché le legne scacciavano il lutto. La quarantesima volta non è
+quaranta volte più definente della prima: quel conto lo tiene già il sommario.
+
+### ⚠️ TRE MISURE SBAGLIATE, e stanno nel frontespizio del banco
+
+Le **etichette** di `cause()` incastonano il sogno nella stringa, quindi due
+vicini risultavano «divergenti» anche ricordando le stesse cose (e il FIFO ne
+usciva più divergente dello schema); l'**insieme dei tipi vivi** è identico
+per tutti quando i tipi sono una dozzina (0.000 in tutti e due i bracci).
+Quello che differisce non è QUALI tipi, è **QUANTI**.
+
+**E un cancello l'ho dichiarato male.** Chiedeva che la parte di memoria che
+parla del proprio sogno fosse 1,3 volte quella del FIFO: **1,19×, fallito come
+dichiarato**. Ma la linea di base è alta per costruzione e il tetto è basso —
+un cancello col tetto più basso della soglia non è severo, è sbagliato. Non
+l'ho ritoccato: l'ho declassato a numero riportato, scrivendo perché.
+
+**Il controllo è il VECCHIO CODICE VERO** (`Animo.debug_potatura_fifo`), non
+una sua imitazione nel banco — un doppio che mente è peggio di nessun doppio —
+e una guardia scandaglia `scenes/` e `systems/` perché quella leva resti spenta.
+
+Guardia: [`tests/cases/test_schema.gd`](tests/cases/test_schema.gd), e
+**8 mutazioni su 8 rosse** (`tools/muta_schema.txt`); quella che rimette il
+FIFO ne accende 3 nel file e **6 in tutta la suite** — le altre tre sono in
+`test_animo`, cioè lo scenario canonico del brief.
+
+```
+Godot --headless --path . --script res://tools/misura_memoria.gd
+bash tools/muta.sh test_schema tools/muta_schema.txt
+```
+
+
+
+## LA RILETTURA — il secondo modo di regolare un'emozione, e non costa niente
+
+Il villaggio ne aveva **uno** solo, ed è la SOPPRESSIONE (`Limbico.trattieni`):
+l'impulso arriva intero e ci si morde la lingua. Costa `regolazione`, che è
+finita, alza il cortisolo, e prima o poi qualcosa esce di sbieco. Adesso, allo
+stesso identico bivio (`Visitors._tick_confronti`, Mochi a meno di 2,6 m e quel
+vicino con qualcosa da rinfacciarle), c'è l'altra strada: **rileggere**.
+
+| dove | cosa |
+|---|---|
+| [`scenes/npc/Rilettura.gd`](scenes/npc/Rilettura.gd) | la parte PURA: cosa rende possibile una rilettura |
+| `Limbico.divario` | il materiale delle `attese`, di sola lettura |
+| `Animo.conto_verso` | il libro mastro (torti e prove), estratto da `rancore()` |
+| `Animo.regola` | **la porta unica**: si rilegge, o ci si morde la lingua |
+| `Regia.OCCASIONI["ha_riletto"]` · `Gesti.FRASI["rilettura"]` | il Rialzo senza il Raccolto |
+
+### LE QUATTRO REGOLE, e nessuna è una taratura
+
+1. **La disponibilità non si tira a dadi: è una PROVA nel grafo.** Nel modulo
+   non c'è un `randf()` e non ce ne può essere uno. Una rilettura è possibile
+   quando fra i ricordi di quel vicino c'è abbastanza materiale che regge una
+   lettura più benevola — e quel materiale ce l'ha messo il giocatore.
+2. **Si guarda solo la prova che ASSOLVE.** `peso_prova` torna
+   `maxf(0.0, valenza)·…`: una riga ostile pesa **zero**, non poco. ⚠️ E qui
+   l'attore si guarda, mentre in `Schema.gd` è vietato per iscritto: non è
+   un'incoerenza, è la stessa regola. Là si decideva *quali ricordi
+   sopravvivono*, e proteggerli per attore avrebbe costruito un archivio di
+   rancori; qui il segno è fissato nel codice, quindi un indice per attore può
+   solo SCIOGLIERE un rancore — è strutturalmente incapace di costruirne uno.
+   Un caso passa un mucchio di righe ostili pretendendo la stessa identica
+   risposta di zero righe.
+3. **Non è un tratto.** Nel file non compare nessun nome di carattere, e la
+   guardia non si ferma lì: due caratteri OPPOSTI con la stessa identica
+   storia devono ricevere da `regola()` lo stesso modo — perché il tratto
+   potrebbe entrare **al sito di chiamata**, dove un source-check non arriva.
+4. **Una rilettura non cancella il fatto — perché non lo TOCCA.** Il torto
+   resta intero, il ricordo resta com'è, le attese non si spostano di un bit.
+   Quello che cambia è soltanto che quel vicino **non ha dovuto pagare**.
+
+### ⚠️ LA PRIMA STESURA RIALZAVA LE ATTESE, E ERA UNA TRAPPOLA PER CHI ERA STATO GENTILE
+
+«Chi rilegge si rimette a sperare, e in questo motore un'attesa più alta è una
+lama più affilata»: suonava bene, e l'ha smontata una **revisione
+avversariale**. Il conto non torna in due modi indipendenti:
+
+- la `regolazione` risparmiata si **rigenera ogni notte** (`consolida_sonno`),
+  mentre un'attesa alzata sbiadisce di 0,04 al giorno — cioè per settimane. Il
+  guadagno durava una notte, il costo un mese;
+- e `fiducia_restituita` lasciava ferme le chiavi già alte — quelle dei DONI,
+  che l'abitudine di `rivaluta` tiene in cima — quindi a salire erano **solo
+  quelle dei COMPITI**. Tradotto: lo stesso identico incarico dalla Lavagna si
+  incideva peggio a chi ti aveva portato da mangiare per una settimana.
+
+**Il rimedio non è tararla: è che rileggere non deve costare niente a
+nessuno.** Con lei sono spariti `QUOTA_MAX`, `RAPPORTO_PIENO`, `FIDUCIA` e
+`fiducia_restituita` — una guardia che nessun test può far fallire si toglie, e
+tre di quelle costanti la lente dei test le aveva già trovate senza guardia o
+giudicate contro sé stesse. Le `attese` restano il materiale del brief, ma come
+INGRESSO: `Limbico.divario` dice quanto le aspettative stanno sotto quello che
+le prove mostrano, e chi si aspetta già quello che ha ricevuto non ha una
+lettura alternativa da trovare — ha un fatto.
+
+L'invariante che ne è nata è un caso di test:
+**lo stesso incarico si sente IDENTICO a chi ha riletto e a chi no.**
+
+### ⚠️ E UNA REGRESSIONE VERA: il perdono smetteva di accumularsi
+
+`conto_verso` è estratto da `rancore()`, dove `buoni` — «i ricordi belli
+scontano il rancore» — leggeva **solo le righe vive**, mentre i torti leggono
+vive **e sommario**. Era un'asimmetria già lì e innocua: col FIFO se ne
+andavano i vecchi, buoni e cattivi in proporzione. La potatura per SCHEMA DEL
+SÉ però sacrifica per prime le righe **ripetute** (`costo` divide per
+`quanti`) — e le gentilezze del giocatore sono per definizione le righe
+ripetute. MISURATO su una storia di un piatto e una legna al giorno:
+
+| giornate | torti | prove (com'erano) | prove leggendo anche il sommario |
+|---|---|---|---|
+| 25 | 0.764 | 3.786 | 3.786 |
+| 40 | 1.123 | **3.304** | 4.934 |
+| 60 | 1.573 | **3.184** | **6.725** |
+
+Il perdono smetteva di crescere proprio per il giocatore più attento, mentre il
+rancore continuava. Adesso le prove leggono il sommario, simmetriche ai torti —
+il che rende `rancore()` più mite nelle partite lunghe, ed è quello che la sua
+stessa riga dichiara di fare.
+
+### QUANTO SUCCEDE, in partita
+
+MISURATO nel MainLevel vero (`tools/misura_rilettura.gd`, 14 residenti, 12
+minuti, metà con un passato di dieci gentilezze e **lo stesso identico torto
+per tutti**):
+
+**⚠️ E LA LETTURA ONESTA NON È LA PERCENTUALE GLOBALE.** Sul totale le
+riletture sono 2 su 31 (6,5%) — un numero che racconta una storia sbagliata,
+perché le decisioni **non si distribuiscono fra i due gruppi**: il giro di
+Mochi le porta dove i corpi si trovano, e in questa corsa il gruppo con un
+passato buono ne ha prese 2 e quello senza 29. Il referto stampa perciò i
+numeri PER GRUPPO, che sono l'unica cosa appaiabile:
+
+| il gruppo **con un passato buono** | con la rilettura | controllo (leva accesa) |
+|---|---|---|
+| morsi della lingua riusciti | **0** | **3** |
+| `regolazione` a fine partita | **1.0000** | 0.8882 |
+| cortisolo | **0.2120** | 0.3809 |
+
+| il gruppo **senza passato**, che non può rileggere | con | controllo |
+|---|---|---|
+| morsi riusciti | 6 | 6 |
+| `regolazione` | 0.7143 | 0.7454 |
+
+**Chi era stato trattato bene non ha dovuto mordersi la lingua nemmeno una
+volta**, ha finito la partita con la forza di trattenersi intatta e col
+**44% di cortisolo in meno** — ed è la previsione di Gross & Levenson
+misurata in un villaggio vero. Il gruppo che non può rileggere è
+praticamente identico nei due bracci: la meccanica tocca solo chi deve.
+
+Le due corse sono appaiate (31 contro 32 decisioni in totale), ed è costato
+tre stesure del banco arrivarci — con un bersaglio tirato a sorte davano
+**22 decisioni contro 2**, e con quello scarto le colonne non dicono niente.
+
+⚠️ **E 0 GESTI CONCESSI SU 2 RILETTURE.** Vedi il residuo qui sotto.
+
+### ⚠️ IL RESIDUO CHE PESA: la meccanica succede e quasi non si vede
+
+La frase è un Rialzo, e ogni Rialzo di questo gioco chiede il **buio**
+(`_sussulto_fresco`). La prima stesura della nota in `Gesti.gd` diceva che il
+buio c'è per costruzione — «la strada veloce gira a 3,5 m e il confronto a
+2,6» — ed era sbagliata su tutti e due i fatti: il raggio è **3,2 m**, e
+soprattutto la coda somatica la arma **solo** `trasalisce`, che a passo d'uomo
+non scatta mai (`indizio_grezzo` vale **0,185 anche a distanza zero**, contro
+`RIFLESSO_GREZZO` 0,25). E il vicino che ha le prove per rileggere è per
+definizione quello che *non* ha un marchio negativo addosso: **il buio manca
+proprio a chi rilegge.**
+
+**Non si toglie il `buio` per farla vedere** — sarebbe la lampadina a
+mezzogiorno, e la regola vale per tutti i Rialzi. Le due strade oneste stanno
+scritte accanto alla frase, e nessuna delle due è alzare un'ampiezza.
+
+## LA FINESTRA SENSIBILE DELLO SVILUPPO — e la domanda che aveva una risposta
+
+Un cucciolo non è un adulto piccolo: quello che gli succede lo segna di più.
+`Deriva.delta` prende un terzo parametro `plasticita` che moltiplica
+`FRAZIONE`, e l'età si presta ad `Animo` **come si presta la compagnia** —
+`Visitors._presta_l_eta_a`, da `Legami.crescita`.
+
+### I DUE CANCELLI DELL'AUTORE, e tutti e due stanno nel codice
+
+**1 · «Troppo tardi» è la frase che questo gioco non può dire.** La
+plasticità non scende a zero ma a un **pavimento che è la plasticità di
+oggi**: la finestra si apre verso l'alto per i piccoli, non si chiude verso
+il basso per i grandi. E non è una promessa in un commento — è
+`clampf(plasticita, 1.0, PLASTICITA_MAX)` **dentro `delta`**: non la può
+violare un chiamante sbagliato, un salvataggio corrotto o un banco. A 1.0 il
+gioco è quello di ieri **bit per bit**, e un caso lo prova su una griglia
+riscrivendo l'aritmetica vecchia per esteso invece di chiamare la funzione.
+
+**2 · Nessuna barra, nessun contatore, nessuna lettera.** Se il giocatore
+capisce che esiste un periodo critico comincia a ottimizzare l'infanzia di un
+bambino — e un bambino ottimizzabile è lo strumento che la **regola 4 degli
+Affetti** vieta per iscritto. La finestra si vede solo nel referto di un
+banco; in partita si vede soltanto che quel cucciolo, crescendo, è diventato
+sé stesso. Guardia: un caso scandaglia `scenes/ui/` e `systems/` e pretende
+zero occorrenze, e `Deriva.gd` non nomina `L10n`.
+
+### ⚠️ IL TETTO NON È UN GUSTO: SOPRA 2,5 UN TEOREMA CADE
+
+`delta` conserva l'ordine dei caratteri solo finché `FRAZIONE · plasticita <
+1` (la derivata rispetto alla base vale `1 − FRAZIONE·p·|s|`). A **2,5** esatti
+si annulla; sopra, due codardi diversi si **invertono**. `PLASTICITA_MAX` è
+2,4 e `test_finestra` **ricalcola** quel numero invece di ricopiarlo, poi
+guarda il comportamento su una griglia.
+
+E `derivato()` propaga il terzo parametro anche se in produzione non ha
+chiamanti: nei test ne ha una sessantina, e senza propagarlo **i test
+misurerebbero una funzione diversa da quella che gira**, cieca proprio alla
+cosa nuova.
+
+### LA DOMANDA DELL'AUTORE, e la risposta è «sì, ma dentro la finestra»
+
+*Chiudere la plasticità con l'età riproduce l'aumento della quota di varianza
+genetica con l'età (l'effetto Wilson)?* Si può rispondere perché **qui il
+genotipo vero c'è**: `tratto = base + delta`, dove `base` viene da `ChibiDNA`,
+è nel salvataggio e non cambia mai, e `delta` è tutto ambiente. La quota è
+`r²(base, tratto)` sulla popolazione.
+
+**MISURATO** (`tools/misura_finestra.gd`, 500 individui, 42 giornate, i due
+bracci con **lo stesso identico ambiente**, seme compreso):
+
+| | quota, giorno 1 | il minimo | età adulta (g. 15) | giorno 42 |
+|---|---|---|---|---|
+| CONTROLLO (plasticità 1.0, il gioco di oggi) | 0.9759 | — | 0.8485 | 0.8486 |
+| FINESTRA | 0.9075 | **0.7154** (g. 6) | 0.8485 | 0.8486 |
+
+- **(a)** col controllo la quota non sale da sola — **sì** (scende);
+- **(b)** da adulti i due bracci coincidono, divergenza `0.000000000000` —
+  **sì**: è il pavimento reso osservabile;
+- **(c)** dentro la finestra la quota **sale di +0.1608**, e il controllo
+  sullo stesso identico tratto di vita fa **−0.0284** — **sì**.
+
+⇒ **La firma c'è, ed è dentro la finestra.** Sull'intera vita invece la quota
+**scende in tutti e due i bracci**, per un confondente che con la plasticità
+non c'entra: le prove si ACCUMULANO, quindi l'ambiente pesa sempre di più.
+
+> ### ⚠️ E I MIEI PRIMI TRE CANCELLI ERANO CONTRADDITTORI FRA LORO
+>
+> La prima stesura chiedeva che il braccio della finestra **finisse più in
+> alto** del controllo *e* che i due **coincidessero** da adulti. Non possono
+> essere veri insieme: se coincidono, finisce esattamente uguale. Era scritto
+> male — non severo, **impossibile** — ed è la stessa forma dell'errore già
+> pagato con la memoria autobiografica. Non si ritara: si dichiara sbagliato e
+> si sostituisce con la domanda che era davvero da fare (dentro la finestra).
+
+**E una lettura esplorativa, dichiarata tale**: il modello non ha
+correlazione genotipo-ambiente, che è il meccanismo a cui la letteratura
+attribuisce buona parte dell'effetto. Con una rGE piena la firma compare anche
+**sull'intera vita** (0.9124 → 0.9975 con la finestra, contro 0.9797 → 0.9975
+col controllo) e dentro la finestra vale +0.2139 contro +0.0285. **Nessuno ha
+misurato se il gioco vero abbia una rGE**, e inventarla nel banco per farla
+uscire sarebbe barare: è una riga per chi ci torna, non un risultato.
+
+### Le trappole già pagate
+
+- **`tratto()` NON ricalcola niente**: legge la cache. A rifarla sono `setup`,
+  `load`, il prestito e `passa_giorno` — e al `setup` le prove non ci sono
+  ancora. La prima stesura del caso di cablaggio misurava una deriva di
+  **zero** credendo che il cablaggio fosse rotto.
+- **`get_tree()` è NULL fuori dall'albero**, e `_ensure_brain` gira anche lì
+  (banchi, fixture): chiamarlo è un errore a runtime che **non fa fallire
+  niente** — interrompe `_ensure_brain` a metà e lascia la suite verde. Ce ne
+  sono stati **tredici** prima che il conto dei `SCRIPT ERROR` li vedesse.
+- **`Legami.crescita` torna 1.0 per chi non è NATO QUI**, ed è esattamente
+  quello che serve: `giorni_di_amicizia` per chi arriva col trolley misura «da
+  quanto lo conosco». Un ponte che leggesse quel numero grezzo dichiarerebbe
+  **neonato plasticissimo ogni nuovo arrivato**.
+- **L'età è una DURATA, non una data**: a differenza della compagnia non vuole
+  nessuna traduzione fra i due orologi. Chi la ricalcasse sulla compagnia per
+  simmetria applicherebbe una conversione che qui è sbagliata.
+- **Non si salva**: la sua casa è già `legami → <nome> → giorno_arrivo`, e la
+  deriva è una LETTURA, non uno stato.
+
+```
+Godot --headless --path . --script res://tools/misura_finestra.gd
+bash tools/muta.sh test_finestra tools/muta_finestra.txt
+```
+
 ## Test
 
 Test-suite **dependency-free** (nessun addon, nessuna rete) in `tests/`:

@@ -31,6 +31,8 @@ func run(t) -> void:
 	_la_memoria_resta_limitata(t)
 	_il_sommario_dice_ancora_la_verita(t)
 	_quello_che_sa_dire_e_cambiato(t)
+	_una_botta_vera_batte_un_fatto_tiepido(t)
+	_la_leva_del_banco_e_DAVVERO_un_fifo(t)
 	_la_leva_del_banco_non_la_accende_nessuno(t)
 
 
@@ -99,38 +101,51 @@ func _le_memorie_che_dicono_chi_sei_resistono(t) -> void:
 	# routine vecchia e tiepida, e devono — un ricordo che dice chi sei è
 	# un episodio singolo e vivido, non una consuetudine. Pretendere il
 	# contrario sarebbe una memoria che si fossilizza.
+	# ⚠️ **IL PRIMO DEL SUO TIPO È SEMPRE INTOCCABILE** (`intoccabile` cicla
+	# `for j in i`, che per i = 0 è vuoto), e la prima stesura di questo caso
+	# ci era cascata: metteva l'unica riga congruente in fondo, dove era
+	# protetta dalla valvola invece che dal PESO. Con `PESO_SCHEMA = 0.0`
+	# restava verde. Ci vuole un DECOY dello stesso tipo davanti, così la
+	# riga sotto esame è sacrificabile e a difenderla resta solo il peso.
 	var pari: Array = [
-		_sk("guardia", 8, -0.6, 0.6, 0.0),
-		_sk("cucina", 8, -0.6, 0.6, 0.0),
-		_sk("taglia_legna", 8, -0.6, 0.6, 1.0),
+		_sk("taglia_legna", 8, -0.6, 0.6, 1.0),   # l'intoccabile
+		_sk("taglia_legna", 8, -0.6, 0.6, 1.0),   # congruente, sacrificabile
+		_sk("guardia", 8, -0.6, 0.6, 0.0),        # non dice niente
 	]
-	var v: int = SCHEMA.indice_da_sacrificare(pari, 12, 18.0)
-	t.ok(v >= 0 and float((pari[v] as Dictionary)["congruenza"]) <= 0.0,
+	t.eq(SCHEMA.indice_da_sacrificare(pari, 12, 18.0), 2,
 			"a parità di età, forza e rarità, a cadere NON è quella che "
 			+ "dice chi sono")
-	# la CONTROPROVA nello stesso caso: azzerata la congruenza, la scelta
-	# torna a essere indifferente e cade la prima
+	# la CONTROPROVA nello stesso caso: azzerata la congruenza, a cadere è
+	# proprio quella che prima era protetta
 	var senza: Array = []
 	for x in pari:
 		var c := (x as Dictionary).duplicate()
 		c["congruenza"] = 0.0
 		senza.append(c)
-	t.eq(SCHEMA.indice_da_sacrificare(senza, 12, 18.0), 0,
-			"CONTROPROVA: senza schema le tre sono identiche e cade la prima")
+	# ⚠️ senza congruenza NESSUNA è più intoccabile, quindi le due ripetute
+	# pareggiano e a decidere torna l'indice: quello che conta è che a
+	# cadere NON sia più la riga unica, che prima il peso proteggeva.
+	t.ok(SCHEMA.indice_da_sacrificare(senza, 12, 18.0) != 2,
+			"CONTROPROVA: senza schema non cade più quella unica")
 
 	# E LA SPROPORZIONE SI MISURA: quanta anzianità in più regge una
 	# memoria congruente prima di essere sacrificata al posto di una che
 	# non dice niente. È il numero che dà senso alla parola.
+	# ⚠️ E QUI LA STESSA TRAPPOLA, che rendeva il ciclo INFINITO: con la
+	# congruente all'indice 0 la risposta non poteva MAI essere 0, il
+	# `break` non scattava e `regge` finiva a 199 — un numero che avrebbe
+	# dovuto insospettire, e che restava 199 anche con `PESO_SCHEMA = 0.0`.
 	var regge := 0
 	for g in range(0, 200):
-		var due: Array = [
-			_sk("taglia_legna", 100 - g, -0.5, 0.5, 1.0),
+		var tre: Array = [
+			_sk("taglia_legna", 100, -0.5, 0.5, 1.0),         # l'intoccabile
+			_sk("taglia_legna", 100 - g, -0.5, 0.5, 1.0),     # sotto esame
 			_sk("guardia", 100, -0.5, 0.5, 0.0),
 		]
-		if SCHEMA.indice_da_sacrificare(due, 100, 18.0) == 0:
+		if SCHEMA.indice_da_sacrificare(tre, 100, 18.0) == 1:
 			break
 		regge = g
-	t.ok(regge >= 18,
+	t.ok(regge >= 6 and regge < 199,
 			"una memoria che dice chi sei regge %d giornate in più di una "
 			% regge + "che non dice niente, prima di essere sacrificata")
 
@@ -251,6 +266,63 @@ func _quello_che_sa_dire_e_cambiato(t) -> void:
 	t.ok(boscaiolo != artista,
 			"e con lo STESSO trattamento due vicini con sogni diversi si "
 			+ "tengono ricordi diversi — è la divergenza")
+
+
+## ⚠️ **`PESO_FORZA` NON AVEVA NESSUNA GUARDIA.** È uno dei quattro termini
+## di `costo()`, e la sua testata dichiara cosa succede senza: «un fatto
+## tiepido ma unico scaccia una botta vera». Azzerarlo lasciava verdi tutti e
+## quattro i casi che toccano `costo`, perché tutti danno alle schede la
+## stessa `valenza` — il termine si semplificava.
+func _una_botta_vera_batte_un_fatto_tiepido(t) -> void:
+	var due: Array = [
+		_sk("guardia", 10, -0.9, 1.0, 0.0),     # una botta vera
+		_sk("cucina", 10, -0.1, 0.3, 0.0),      # un fatto tiepido
+	]
+	t.eq(SCHEMA.indice_da_sacrificare(due, 10, 18.0), 1,
+			"a parità di età e rarità se ne va il fatto TIEPIDO")
+	# e la controprova: pareggiata la forza, decide di nuovo l'indice
+	var pari: Array = [
+		_sk("guardia", 10, -0.9, 1.0, 0.0),
+		_sk("cucina", 10, -0.9, 1.0, 0.0),
+	]
+	t.eq(SCHEMA.indice_da_sacrificare(pari, 10, 18.0), 0,
+			"CONTROPROVA: a forza pari torna a decidere l'anzianità")
+
+
+## ⚠️ **LA LEVA DEL BANCO VA ESERCITATA, non solo trovata spenta.**
+## `debug_potatura_fifo` è il termine di paragone di `tools/misura_memoria.gd`
+## — le due previsioni sono OPPOSTE e si misurano appaiate — quindi deve
+## essere davvero un FIFO. Se non lo fosse, il banco confronterebbe due volte
+## il codice nuovo e riporterebbe «zero differenza». È la lezione del
+## `MotoreFinto`: un doppio che mente è peggio di nessun doppio.
+func _la_leva_del_banco_e_DAVVERO_un_fifo(t) -> void:
+	var a = _animo(777, "artista")
+	a.set("debug_potatura_fifo", true)
+	# si riempie oltre il tetto con ricordi RICONOSCIBILI e diversi fra loro
+	for i in ANIMO.RICORDI_VIVI + 6:
+		a.ricordi.append({"tipo": "t%d" % i, "attore": "giocatore",
+				"quando": 0, "valenza": -0.9 + 0.01 * float(i),
+				"intensita": 0.5, "come": ""})
+	a.call("_potatura")
+	t.eq(a.ricordi.size(), ANIMO.RICORDI_VIVI,
+			"la leva pota fino al tetto come il codice vero")
+	t.eq(str((a.ricordi[0] as Dictionary)["tipo"]), "t6",
+			"e se ne sono andati i SEI PIÙ VECCHI, in ordine: è un pop_front")
+	# la controprova: con la leva spenta l'ordine NON è quello del tempo
+	var b = _animo(777, "artista")
+	for i in ANIMO.RICORDI_VIVI + 6:
+		b.ricordi.append({"tipo": "t%d" % i, "attore": "giocatore",
+				"quando": 0, "valenza": -0.9 + 0.01 * float(i),
+				"intensita": 0.5, "come": ""})
+	b.call("_potatura")
+	t.eq(b.ricordi.size(), ANIMO.RICORDI_VIVI, "e anche lo schema pota")
+	# ⚠️ le forze DECRESCONO con l'indice, quindi lo schema sacrifica dalla
+	# CODA (le righe più tiepide) mentre il FIFO taglia dalla testa: è
+	# l'unica geometria in cui i due si distinguono. Con forze crescenti —
+	# la prima stesura — i due davano lo stesso identico risultato e la
+	# controprova falliva su codice sano.
+	t.eq(str((b.ricordi[0] as Dictionary)["tipo"]), "t0",
+			"CONTROPROVA: senza la leva la testa RESTA e cade la coda tiepida")
 
 
 ## ⚠️ LA LEVA DEL BANCO NON LA ACCENDE NESSUNO. `debug_potatura_fifo`

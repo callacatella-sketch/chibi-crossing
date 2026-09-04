@@ -1,0 +1,139 @@
+la prova che ACCUSA torna a contare
+scenes/npc/Rilettura.gd
+	return maxf(0.0, valenza) * clampf(intensita, 0.0, 1.0) * maxf(0.0, recenza)
+-->
+	return absf(valenza) * clampf(intensita, 0.0, 1.0) * maxf(0.0, recenza)
+=====
+non serve piu' nessuna prova
+scenes/npc/Rilettura.gd
+const RAPPORTO_MIN := 0.50
+-->
+const RAPPORTO_MIN := 0.00
+=====
+il rapporto diventa una quantita' assoluta
+scenes/npc/Rilettura.gd
+	return maxf(0.0, prove) / torto
+-->
+	return maxf(0.0, prove)
+=====
+il torto minimo sparisce: si divide per quasi zero
+scenes/npc/Rilettura.gd
+	if torto < torto_min:
+		return 0.0
+	return maxf(0.0, prove) / torto
+-->
+	return maxf(0.0, prove) / maxf(torto, 1e-12)
+=====
+il divario smette di essere un cancello
+scenes/npc/Rilettura.gd
+	if not is_finite(divario) or divario <= 0.0:
+		return false
+-->
+	if not is_finite(divario):
+		return false
+=====
+il divario risponde sempre di si'
+scenes/npc/Limbico.gd
+	var coda := "|" + attore
+	var peggiore := 0.0
+	for k in attese:
+		if not str(k).ends_with(coda):
+			continue
+		peggiore = maxf(peggiore, media_prove - float(attese[k]))
+	return peggiore
+-->
+	return 1.0
+=====
+chiedere il divario SCRIVE (non e' piu' di sola lettura)
+scenes/npc/Limbico.gd
+		peggiore = maxf(peggiore, media_prove - float(attese[k]))
+-->
+		peggiore = maxf(peggiore, media_prove - float(attese[k]))
+		attese[k] = media_prove
+=====
+ci si morde la lingua PRIMA di rileggere
+scenes/npc/Animo.gd
+	if bool(sch["riletto"]) and not debug_niente_rilettura:
+-->
+	if limbico.trattieni() and bool(sch["riletto"]) and not debug_niente_rilettura:
+=====
+chi rilegge paga la regolazione, come chi si morde la lingua
+scenes/npc/Animo.gd
+		var out := sch.duplicate()
+		out["modo"] = "rilettura"
+		return out
+-->
+		var out := sch.duplicate()
+		out["modo"] = "rilettura"
+		limbico.regolazione = maxf(0.0, limbico.regolazione - 0.22)
+		return out
+=====
+chi rilegge resta col corpo attivato
+scenes/npc/Animo.gd
+		var out := sch.duplicate()
+		out["modo"] = "rilettura"
+		return out
+-->
+		var out := sch.duplicate()
+		out["modo"] = "rilettura"
+		limbico.stimola_neuro("cortisolo", 0.02)
+		return out
+=====
+il conto si ricalcola le prove per conto suo (via la recenza)
+scenes/npc/Animo.gd
+		prove += RILETTURA.peso_prova(float(r["valenza"]), float(r["intensita"]),
+				_recenza(int(r["quando"])))
+		somma_val += float(r["valenza"])
+-->
+		prove += float(r["valenza"]) * float(r["intensita"])
+		somma_val += float(r["valenza"])
+=====
+il perdono torna a NON leggere il sommario
+scenes/npc/Animo.gd
+		prove += RILETTURA.peso_prova(float(vb["peso"]), 1.0,
+				_recenza(int(vb["ultimo"])))
+-->
+		prove += 0.0
+=====
+il rancore smette di leggere il conto
+scenes/npc/Animo.gd
+	var c := conto_verso(attore)
+	var somma: float = float(c["torti"])
+	var buoni: float = float(c["prove"])
+-->
+	var c := conto_verso(attore)
+	var somma: float = float(c["torti"])
+	var buoni: float = 0.0
+=====
+il villaggio torna a scendere dentro il Limbico
+scenes/npc/Visitors.gd
+			var reg: Dictionary = animo.regola("giocatore")
+			var modo := str(reg.get("modo", "morso"))
+-->
+			var reg: Dictionary = {}
+			var modo := "morso" if animo.limbico.trattieni() else "scoppio"
+=====
+il villaggio chiede l'occasione del MORSO invece della rilettura
+scenes/npc/Visitors.gd
+				chiedi_gesto(label, "ha_riletto")
+-->
+				chiedi_gesto(label, "si_e_trattenuto")
+=====
+la frase della rilettura perde il buio
+scenes/npc/Gesti.gd
+	"rilettura": {"g": "rialzo", "d": {"buio": true}},
+-->
+	"rilettura": {"g": "rialzo", "d": {}},
+=====
+il referto dei no torna a un elenco di nomi ricopiato
+scenes/npc/Visitors.gd
+	var f: Dictionary = GESTI.FRASI.get(nome, {})
+	return bool((f.get("d", {}) as Dictionary).get("buio", false))
+-->
+	return nome == "sollievo"
+=====
+la leva del banco nasce accesa
+scenes/npc/Animo.gd
+var debug_niente_rilettura := false
+-->
+var debug_niente_rilettura := true

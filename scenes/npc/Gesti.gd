@@ -1363,4 +1363,41 @@ const FRASI := {
 	"rinuncia": {"g": "raccolto", "d": {"rialzo": 0.6}},
 	"evitamento": {"g": "largo", "d": {}},
 	"sollievo": {"g": "rialzo", "d": {"buio": true}},
+	# LA RILETTURA — il Rialzo SENZA il Raccolto, ed e' esattamente quello
+	# che la meccanica dice: chi rilegge non si e' dovuto raccogliere,
+	# perche' non ha dovuto tenere dentro niente. La rinuncia e' il
+	# Raccolto che poi si rialza; questa e' solo la seconda meta'.
+	#
+	# ⚠️ **E IL BUIO E' LO STESSO DEL SOLLIEVO, non un secondo buio.** La
+	# regola («una scintilla senza il buio prima e' una lampadina accesa a
+	# mezzogiorno») non si negozia, e quando il buio c'e' il Rialzo lo
+	# scioglie (`soma_sciogli`) — che e' anche la cosa che la soppressione
+	# NON fa.
+	#
+	# ⚠️⚠️ **RESIDUO DICHIARATO, E MISURATO: QUASI SEMPRE IL BUIO NON C'E'.**
+	# La prima stesura di questa nota diceva che il buio c'e' «per
+	# costruzione, la strada veloce gira a 3,5 m e il confronto a 2,6»: era
+	# sbagliata su tutti e due i fatti. Il raggio del sussulto e' **3,2 m**
+	# (scritto in `Visitors._tick_sussulti`), e soprattutto la coda somatica la arma
+	# **solo** il ramo `trasalisce`, che vuole una carica negativa oppure
+	# `grezzo > RIFLESSO_GREZZO` (0,25). A passo d'uomo (3,0 m/s del
+	# `PlayerController`) `indizio_grezzo` vale **0,185 anche a distanza
+	# zero**: chi cammina non fa sussultare nessuno. E il vicino che ha le
+	# prove per rileggere e' per definizione quello che NON ha un marchio
+	# negativo addosso — cioe' il buio manca proprio a chi rilegge.
+	#
+	# MISURATO nel MainLevel vero (`tools/misura_rilettura.gd`, 14 residenti,
+	# 12 minuti): **9 riletture, 0 gesti concessi**. La meccanica succede e
+	# quasi non si vede.
+	#
+	# **Non si toglie il `buio` per farla vedere**: sarebbe una lampadina a
+	# mezzogiorno, e la regola vale per tutti i Rialzi di questo gioco. Chi
+	# la vorra' rendere visibile ha due strade oneste, e nessuna delle due e'
+	# alzare un'ampiezza (il verso di una rotazione CALA crescendo, misurato
+	# in `provino_verso`): dare alla rilettura un buio SUO che sia vero — la
+	# tensione del confronto e' reale, ma oggi nessun canale del corpo la
+	# porta — oppure accettare che il canale visibile di questa meccanica sia
+	# **quello che NON si vede piu'**: chi rilegge non dice mai «…niente.
+	# Lascia stare.», e quel toast il giocatore lo conosce.
+	"rilettura": {"g": "rialzo", "d": {"buio": true}},
 }

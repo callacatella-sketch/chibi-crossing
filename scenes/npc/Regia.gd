@@ -130,6 +130,18 @@ const OCCASIONI := {
 	# di questo, ed era il caso COMUNE senza corpo (il gioco reagiva solo al
 	# morso fallito).
 	"si_e_trattenuto": {"frase": "rinuncia", "attesa": 0.45},
+	# L'HA RILETTA. Stesso identico momento del morso della lingua — Mochi a
+	# meno di 2,6 m, e quel vicino ha qualcosa da rinfacciarle — ma questa
+	# volta nei suoi ricordi c'e' abbastanza roba bella da reggere una
+	# lettura piu' benevola, e allora non c'e' niente da tenere dentro.
+	#
+	# ⚠️ **ASPETTA UN FILO MENO DI `si_e_trattenuto`, e la ragione e' la
+	# colonna della RARITA'.** Sull'attribuibilita' pareggiano (e' lo stesso
+	# istante, la stessa distanza, la stessa cosa appena fatta dal giocatore);
+	# sulla frequenza no — trattenersi lo puo' fare chiunque abbia un torto,
+	# rileggere solo chi ha anche un passato che lo regge. E quel passato ce
+	# l'ha messo il giocatore, il che la rende **la piu' sua** delle due.
+	"ha_riletto": {"frase": "rilettura", "attesa": 0.40},
 	# QUEL POSTO LÌ, NO. Un marchio del Limbico gli fa cambiare idea. Capita
 	# solo a chi ha imparato a temere qualcosa, e solo quando ci stava
 	# andando.
