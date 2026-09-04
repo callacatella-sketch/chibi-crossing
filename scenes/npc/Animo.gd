@@ -121,6 +121,35 @@ const RICORDI_VIVI := 40
 ## e nel mezzo c'è il tempo di accorgersene e rimediare.
 const SATURAZIONE := 55.0
 
+## QUANTE PROVE SATURANO LA FIDUCIA.
+##
+## ⚠️ **NON è `SATURAZIONE`, e non ricopiarla È la decisione — la trappola qui
+## SEMBRA la regola delle fonti uniche e la viola.** Quel 55 è tarato su una
+## serie che SENSIBILIZZA (`Limbico.rivaluta` spinge verso −0.30 sui torti
+## d'identità); i doni invece ABITUANO, e il loro asintoto è molto più basso.
+## Rapporto misurato: **4,5 volte**. Con 55 questa funzione non supererebbe
+## **0.24 in nessuna partita possibile** — cioè dichiarerebbe 0..1 e non
+## arriverebbe a un quarto.
+##
+## La fonte unica vincola la FORMA (`1 − exp(−x/S·3)`) e la RECENZA
+## (`_recenza`, `MEZZA_VITA`), non lo scalare di scala: è esattamente quello
+## che ha già fatto `Deriva.SAZIETA := 8.0`.
+##
+## L'UNITÀ, dichiarata: **venti gesti veri del giocatore, sparsi su una
+## settimana, valgono 1 − 1/e** (≈0,63). Chi la muove resti fra 5 e 15 e porti
+## la misura.
+const SAZIETA_FIDUCIA := 12.0
+
+## QUANTO PUÒ SMORZARE, al massimo, il logorio della richiesta ripetuta.
+##
+## Non è scelto: è DERIVATO. L'effetto massimo vale `SMORZO_FIDUCIA * 0.5` =
+## 0.20, e deve restare sotto il **tiro del sogno più debole** —
+## `0.45 * (0.5 + ambizione)` con ambizione a zero, cioè 0.225. La fiducia in
+## chi chiede non può MAI pesare quanto la vocazione, né quanto il carattere
+## (`AMPIEZZA_TRATTO`). Un test legge le due costanti dal sorgente invece di
+## riscriverle.
+const SMORZO_FIDUCIA := 0.4
+
 ## Quanto conta, per un chibi, che il compito tradisca il suo sogno.
 ## Mandare a spaccare legna chi voleva diventare guerriero brucia molto più
 ## in fretta che mandarci chi voleva fare il boscaiolo.
@@ -724,6 +753,91 @@ func rancore(attore := "giocatore") -> float:
 	return 1.0 - exp(-somma / SATURAZIONE * 3.0)
 
 
+## LA FIDUCIA verso qualcuno: 0 (nessuna) … 1 (piena). La gemella di
+## `rancore()`, e nasce perché il libro mastro sa dire quanto qualcuno ti ha
+## fatto del male e **non sa dire quanto ti ha fatto del bene**.
+##
+## Lo sconto del perdono — il `− buoni * 1.4` qui sopra — si ferma a zero,
+## quindi cinquanta giornate di piatti caldi possono al massimo azzerare un
+## torto, e da lì in poi non lasciano traccia da nessuna parte. E `opinione`,
+## l'unico modello generalizzato che un vicino ha di una persona, ha **un solo
+## scrittore in tutto il gioco**: `senti_dire()`, cioè il pettegolezzo. Quello
+## che un vicino pensa di te era fatto soltanto di quello che gli hanno detto
+## gli altri.
+##
+## È una LETTURA, come `Affetti.coppia()`, `assenza()` e `Deriva.spinta()`:
+## zero chiavi nuove, zero migrazioni, niente che possa restare appeso a metà.
+## `save()` non la conosce e non deve conoscerla — un salvataggio di ieri
+## riaperto oggi risponde con le prove che aveva già. E **non ha cache**:
+## `_ricalcola_deriva()` ne ha una per giornata, e una qui vorrebbe dire che
+## un piatto conta solo dal mattino dopo.
+##
+## ⚠️ **IL NOME È GIÀ OCCUPATO DUE VOLTE, e questa non è nessuna delle due**:
+## `Voce.si_confida()` chiama «fiducia» una porta sulle giornate del Filo
+## Rosso, e `FiatoSospeso.SOGLIA_FIDUCIA` è la calma del prato verso gli
+## animali. Questa è un'opinione su una persona, ricavata dal libro mastro di
+## chi la pensa.
+##
+## [param tranne] salta le righe di QUEL tipo — serve al suo unico chiamante,
+## e chiude un anello in codice invece che in un commento (vedi `punteggio`).
+func fiducia(attore := "giocatore", tranne := "") -> float:
+	var somma := 0.0
+	for r in ricordi:
+		if str(r["attore"]) != attore:
+			continue
+		if tranne != "" and str(r["tipo"]) == tranne:
+			continue
+		# ⚠️ **SI SCEGLIE PER SEGNO, MAI PER UNA LISTA DI TIPI.** Una lista
+		# sarebbe la gemella di `Deriva.SPINTE["codardia"]`
+		# (`piatto/regalo/festa`) — che infatti ha già dimenticato
+		# «accompagnato» e non vede «consolato»: un elenco scritto a mano
+		# nasce incompleto, e una riga che non entra non fa fallire nessun
+		# test. Il segno vede per costruzione ogni gesto presente e futuro.
+		var v := float(r["valenza"])
+		if v <= 0.0:
+			continue
+		somma += v * float(r["intensita"]) * _recenza(int(r["quando"]))
+	# --- e quelle FONDUTE nel sommario, che non si pota mai. Guardare solo
+	#     `ricordi` farebbe sparire la fiducia oltre le `RICORDI_VIVI` righe,
+	#     cioè PROPRIO nei villaggi vissuti — dove nessun collaudo arriva.
+	for k in sommario:
+		var parti: PackedStringArray = str(k).split("|")
+		if parti.size() < 2 or str(parti[1]) != attore:
+			continue
+		if tranne != "" and str(parti[0]) == tranne:
+			continue
+		var voce: Dictionary = sommario[k]
+		# `peso` è già `valenza * intensita` sommata: moltiplicarlo per
+		# un'intensità la conterebbe due volte.
+		var pe := float(voce["peso"])
+		if pe <= 0.0:
+			continue
+		somma += pe * _recenza(int(voce["ultimo"]))
+	# ⚠️ **NESSUNO SCONTO COI TORTI, ed è una decisione.** Il `− buoni * 1.4`
+	# di `rancore()` non è una costante di simmetria: è un pollice sulla
+	# bilancia A FAVORE del giocatore — un gesto bello cancella più del torto
+	# che pareggia, «senza questa porta il sistema sarebbe una condanna».
+	# Specchiarlo lo CAPOVOLGE: un torto cancellerebbe 1,4 volte la
+	# gentilezza, e una brutta giornata spazzerebbe settimane di doni. E
+	# darebbe due pene allo stesso evento — il rancore verso la porta della
+	# diserzione, la fiducia verso qui — la seconda senza nessun telegrafo.
+	# I torti passano da una porta sola.
+	#
+	# Conseguenza dichiarata: rancore e fiducia possono essere positivi
+	# insieme, e va bene — una persona può ricordare quello che le hai fatto
+	# e quello che le hai dato. Non vengono mai mostrati insieme.
+	somma -= rancore(attore) * SAZIETA_FIDUCIA * 0.5
+	if not is_finite(somma) or somma <= 0.0:
+		return 0.0
+	# ⚠️ **ZERO ESATTO PER UNO SCONOSCIUTO**, e non per un `if` scritto
+	# apposta: senza righe la somma è zero e questa forma dà 0.0. È il degrado
+	# verso il gioco di ieri (`opinione.get(chiede, 0.0)` vale già zero per
+	# chi non ha una storia), ed è l'unico valore che non sia né un regalo né
+	# un'accusa. Un credito iniziale invaliderebbe in un colpo ogni misura mai
+	# presa su `punteggio()` e `decide()`.
+	return 1.0 - exp(-somma / SAZIETA_FIDUCIA * 3.0)
+
+
 # ---------------------------------------------------------------- la scala
 
 ## Le soglie di QUESTO chibi: i tratti le spostano, ed è qui che due
@@ -856,9 +970,43 @@ func punteggio(azione: String, chiede := "giocatore") -> float:
 		s += 0.45 * (0.5 + tratto("ambizione"))
 	elif sogno in (c.get("tradisce", []) as Array):
 		s -= 0.5 * (0.5 + tratto("orgoglio"))
-	# i ricordi: se questo compito ti ha già bruciato, pesa
-	s -= 0.5 * minf(1.0, float(quante_volte(azione, chiede)) / 25.0)
-	# l'opinione su chi chiede, e il gradino della scala
+	# i ricordi: se questo compito ti ha già bruciato, pesa — ma da chi ti ha
+	# voluto bene, la ventesima volta pesa meno. È l'UNICO posto di
+	# `punteggio()` in cui il rapporto con chi chiede possa toccare il costo
+	# di UNA cosa specifica.
+	#
+	# ⚠️ **MOLTIPLICATIVO, e il pavimento è STRUTTURALE**: con `fiducia == 0`
+	# l'espressione è `* 1.0`, cioè **bit per bit la riga di ieri** — chi non
+	# ha una storia col richiedente ha il gioco di prima, senza nessun ramo
+	# scritto apposta. Il tetto è `SMORZO_FIDUCIA`: il logorio non scende mai
+	# sotto il 60% di quello che era. Una cosa che ti ha bruciato ti brucia
+	# comunque, anche se te la chiede chi ti vuole bene.
+	#
+	# ⚠️ E `fiducia(chiede, azione)` con il `tranne`: questa riga conta GIÀ le
+	# righe di quel tipo (`quante_volte(azione, chiede)`), quindi pesarle di
+	# nuovo con la fiducia sarebbe contare due volte le stesse righe dentro
+	# una sola espressione. Non è una lista bianca — è non guardare due volte
+	# la riga che il chiamante ha già in mano. E taglia il canale dominante
+	# dell'anello di «se_stesso», che si auto-confermerebbe il lavoro dei
+	# sogni.
+	s -= 0.5 * minf(1.0, float(quante_volte(azione, chiede)) / 25.0) \
+			* (1.0 - SMORZO_FIDUCIA * fiducia(chiede, azione))
+	# ⚠️ **E LE DUE RIGHE QUI SOTTO NON POSSONO CAMBIARE NIENTE, MAI.**
+	# `opinione` e `gradino` non dipendono da `azione`: dentro una chiamata a
+	# `decide()` il `chiede` è fisso, quindi sono la STESSA costante su tutti
+	# i candidati — e `decide()` ordina, prende le prime tre e pesa
+	# `exp((s − base) * nitidezza)` con `base` preso dai voti stessi. Una
+	# costante additiva si cancella ESATTAMENTE: stesso ordinamento, stesso
+	# `top`, stessa differenza, stesso tiro. E `punteggio()` ha **un solo
+	# lettore in tutto il gioco** (`decide()`), quindi non c'è nessun altro
+	# che la possa vedere.
+	#
+	# Non si tolgono — il degrado va verso il gioco di ieri, e due test le
+	# leggono in assoluto. Ma chi passa di qui deve saperlo: mettere un
+	# termine nuovo ACCANTO a queste, invece che dentro la riga sopra, vuol
+	# dire scrivere una funzione che compila, si legge benissimo, ha un test
+	# facile che passa, e **non cambia nessuna decisione del gioco**. Sarebbe
+	# la nona volta.
 	s += float(opinione.get(chiede, 0.0)) * 0.6
 	s -= float(gradino) / float(SCALA.size()) * 1.2
 	return s
