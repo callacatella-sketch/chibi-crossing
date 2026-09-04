@@ -173,7 +173,17 @@ var debug_ghost_pos := Vector3.INF
 
 # persistenza: il villaggio si risalva da solo a ogni modifica
 # (var e non const: la verifica CLI lo punta a un file di prova)
-var save_path := "user://village.json"
+## ⚠️ `CHIBI_VILLAGGIO` LO SPOSTA, ed è la condizione perché una misura sia
+## ripetibile. Fino al 2026-09-04 OGNI banco girava sopra il `village.json`
+## dell'autore (nessuno chiama `debug_clear()`, e `set_persist_for_debug`
+## blocca le sole SCRITTURE): «stessi parametri» non implicava «stesso
+## villaggio», e due corse dello stesso banco partivano da due mondi diversi
+## a seconda di cosa l'autore aveva costruito nel frattempo.
+##
+## Il degrado va dove va sempre: senza la variabile, è il salvataggio vero.
+var save_path := ("user://village.json"
+		if OS.get_environment("CHIBI_VILLAGGIO") == ""
+		else OS.get_environment("CHIBI_VILLAGGIO"))
 var _persist := true
 var _loading := false
 
@@ -2285,6 +2295,16 @@ func _save_village() -> void:
 	payload.merge({"cells": cells, "edges": edges,
 			"up_cells": up_cells, "up_edges": up_edges,
 			"variants": _collect_variants()}, true)
+	# ⚠️ LA RADICE DEI DADI, E VIAGGIA COME STRINGA. È lo stesso motivo per
+	# cui `Animo._rng.state` è una stringa (Animo.gd:1144): il salvataggio
+	# passa da `JSON.stringify`/`JSON.parse_string`, che restituisce ogni
+	# numero come float — misurato, uno stato salvato come intero perdeva
+	# undici bit e il dado ripartiva da un altro punto dello stream.
+	#
+	# È qui e non in un `save_extra` perché nessun nodo ne risponde: la
+	# radice non è di un sistema, è della PARTITA. E scriverla qui vuol dire
+	# che un villaggio la riceve al primo salvataggio, senza migrazione.
+	payload["seme"] = str(Dadi.radice())
 	# SCRITTURA BLINDATA: prima su un file temporaneo, poi la versione
 	# precedente diventa .bak e il temporaneo prende il suo posto. Un crash
 	# a metà scrittura (o il disco pieno) non può mai lasciare mezzo
@@ -2330,6 +2350,17 @@ func _load_village() -> void:
 			printerr("BuildSystem: village.json illeggibile — ripristinato dalla copia .bak")
 		else:
 			return
+	# ⚠️ LA RADICE SI POSA PRIMA DI TUTTO, e prima vuol dire davvero prima:
+	# da qui in giù `place_cell` costruisce, i persistable si caricano e i
+	# cervelli nascono — e ognuno di loro può chiedere un dado. Una radice
+	# posata dopo il primo tiro dà una corsa che non è né la vecchia né la
+	# nuova.
+	#
+	# Chi ha già parlato comanda: `CHIBI_SEME` e i banchi stanno SOPRA il
+	# salvataggio, o non si potrebbe rigiocare un villaggio vero con un seme
+	# scelto. Ed è anche perché `radice_posata()` esiste.
+	if not Dadi.radice_posata() and data.has("seme"):
+		Dadi.posa_radice(int(str(data["seme"])))
 	_loading = true
 	var vmap: Dictionary = data.get("variants", {})
 	for c in data.get("cells", []):

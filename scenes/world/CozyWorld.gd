@@ -2052,10 +2052,20 @@ func _build_campfire() -> void:
 	root.add_child(_campfire_light)
 
 
+## Quanti funghi da raccolta sono nati in questa partita: è la chiave del
+## loro dado, non una statistica.
+var _funghi_nati := 0
+
+
 # funghi da raccolta: più grandi dei decorativi, il bottino della passeggiata
 func _spawn_pickup_mushroom() -> void:
-	var rng := RandomNumberGenerator.new()
-	rng.randomize()
+	# ⚠️ Veniva da `randomize()`. La chiave è il CONTATORE dei funghi nati in
+	# questa partita: ogni fungo resta diverso dal precedente (che è quello
+	# che serviva), e due corse con la stessa radice fanno nascere gli stessi
+	# funghi nello stesso ordine. Il porcino d'autunno smette di essere un
+	# bivio che nessuna misura può ripetere.
+	_funghi_nati += 1
+	var rng := Dadi.rng(Dadi.AMBIENTE, "fungo:%d" % _funghi_nati)
 	# d'autunno, ogni tanto, il bosco regala un PORCINO: più grande, cappella
 	# bruna senza puntini, e al carretto vale molto di più (vedi Critters)
 	var specie := "fungo"

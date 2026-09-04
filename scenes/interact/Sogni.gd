@@ -160,7 +160,8 @@ var _rng := RandomNumberGenerator.new()
 func _ready() -> void:
 	add_to_group("sogni")
 	add_to_group("persistable")
-	_rng.randomize()
+	# uno solo per villaggio: il suo nome È la sua chiave.
+	_rng = Dadi.rng(Dadi.VILLAGGIO, "sogni")
 	_cabla()
 
 

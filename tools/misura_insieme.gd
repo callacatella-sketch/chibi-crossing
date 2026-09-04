@@ -525,6 +525,17 @@ func _p(v: Array, q: float) -> float:
 	return float(s[clampi(int(q * float(s.size())), 0, s.size() - 1)])
 
 
+## ⚠️ LE MISURE LEGGIBILI A MACCHINA. Il referto qui sotto è per un umano —
+## quaranta righe di prosa — e per anni non c'è stato modo di estrarne un
+## numero se non a occhio. `tools/banco_repliche.py` legge queste righe, e
+## SOLO queste: `MISURA <nome> <valore>`, una per riga, alla fine.
+##
+## Non è un secondo referto: sono gli STESSI numeri che il referto stampa
+## in prosa, presi dove vengono calcolati. Ricalcolarli qui sarebbe la
+## tabella gemella che diverge al primo che ritocca una formula.
+var _misura := {}
+
+
 func _referto(res: Array) -> void:
 	var AZIONI := ["spuntino", "riposo", "chiacchiere", "giardino",
 			"meraviglia", "stella", "regia", "gironzola"]
@@ -576,6 +587,8 @@ func _referto(res: Array) -> void:
 		print("   valutazioni col bit acceso: %d · argmax cambiato: %d (%.2f%%)"
 				% [_scavalchi_visti, _scavalchi,
 				100.0 * float(_scavalchi) / float(_scavalchi_visti)])
+		_misura["argmax_cambiato_pct"] = (100.0 * float(_scavalchi)
+				/ float(_scavalchi_visti))
 		print("   scarto sul punteggio del riposo:  mediano %.4f · p90 %.4f · max %.4f"
 				% [_p(_scarti, 0.5), _p(_scarti, 0.9), _p(_scarti, 0.999)])
 	else:
@@ -604,6 +617,8 @@ func _referto(res: Array) -> void:
 	# 7
 	print("\n7. IL GRAPPOLO — massimo %d seduti vicini · campioni con tre o piu': %d"
 			% [_grappolo_max, _camp_tre])
+	_misura["grappolo_max"] = float(_grappolo_max)
+	_misura["coppie_sedute_distinte"] = float(_coppie_distinte.size())
 
 	# 8
 	_stampa_esclusione()
@@ -625,6 +640,7 @@ func _referto(res: Array) -> void:
 				% [righe.size(), _giorni, float(righe.size()) / float(_giorni)])
 
 	_stampa_lealta()
+	_stampa_misure()
 
 
 ## Una barra sola, stampata come le altre — piu' la coda alta, che e' la
@@ -643,6 +659,10 @@ func _stampa_barra(titolo: String, isto: Dictionary, tot: int) -> void:
 			coda += f
 		print("   %2d vicini  %5.2f%%%s" % [int(k), f,
 				"   ← IL CANCELLO DI ARRESTO" if int(k) == 0 else ""])
+		# la barra dello ZERO è il cancello d'arresto di tutto il lavoro
+		# sull'insieme: se scende, il villaggio si sta ammucchiando.
+		if int(k) == 0 and titolo.begins_with("8b."):
+			_misura["barra_zero_pct"] = f
 	print("   …la coda da 5 vicini in su: %.2f%% (la firma del rito)" % coda)
 
 
@@ -739,6 +759,9 @@ func _stampa_lealta() -> void:
 	print("   → righe di co-presenza: %d in totale, %.2f per residente per giornata"
 			% [righe_tot, float(righe_tot) / maxf(1.0, float(animi.size()))
 					/ maxf(1.0, float(_giorni))])
+	# ⚠️ QUESTO È IL NUMERO CHE BALLAVA DI 5,7 VOLTE fra due corse identiche.
+	_misura["copresenza_per_residente_giorno"] = (float(righe_tot)
+			/ maxf(1.0, float(animi.size())) / maxf(1.0, float(_giorni)))
 	print("   → MISURATO: %d residenti su %d hanno la lealta' mossa; media %+.4f, massimo %+.4f"
 			% [mossi, animi.size(), d_somma / maxf(1.0, float(animi.size())), d_max])
 
@@ -765,3 +788,20 @@ func _stampa_lealta() -> void:
 	chi.set("compagnia", salva)
 	chi.set("_deriva_giorno", -1)
 	chi.call("_ricalcola_deriva")
+
+
+## Le misure per il banco delle repliche. In fondo a tutto e su righe loro,
+## così un occhio umano non le confonde col referto e una macchina non deve
+## capire la prosa. Se il referto non ne ha prodotta nessuna lo si DICE: un
+## banco che tace non è un banco a zero.
+func _stampa_misure() -> void:
+	print("")
+	if _misura.is_empty():
+		print("MISURE_ASSENTI  il referto non ha prodotto nessun numero")
+		return
+	var chiavi: Array = _misura.keys()
+	chiavi.sort()
+	for k in chiavi:
+		print("MISURA %s %.6f" % [str(k), float(_misura[k])])
+	print("MISURA_CONDIZIONE_LEVE %s" % Leve.condizione())
+	print("MISURA_RADICE %d" % Dadi.radice())

@@ -129,10 +129,13 @@ var _toast_label: Label
 func _ready() -> void:
 	add_to_group("persistable")
 	add_to_group("visitors")   # il cursore delle Voci ci chiede un assaggio
-	# in partita le chiacchiere non si ripetono uguali da una sessione
-	# all'altra; nei banchi il seme resta quello di fabbrica (che `_ready`
-	# non viene chiamato) e le misure sono ripetibili
-	_chat_rng.randomize()
+	# ⚠️ Veniva da `randomize()`, e la ragione scritta era giusta: «in partita
+	# le chiacchiere non si ripetono uguali da una sessione all'altra».
+	# Adesso quella varietà viene dalla RADICE della partita invece che
+	# dall'orologio — due villaggi restano diversi, e lo stesso villaggio si
+	# può rigiocare. Era anche l'unico dado che i banchi dovevano riseminare
+	# a mano sapendone il nome (`prova_identico._semina_i_dadi`).
+	_chat_rng = Dadi.rng(Dadi.VILLAGGIO, "chiacchiere")
 	_player = get_node("%Player")
 	_build = get_node("../BuildSystem")
 	_daynight = get_node_or_null("../DayNight")
@@ -405,6 +408,13 @@ func chiedi_gesto(label: String, occasione: String, extra := {},
 		# in `Percezione.accaduto`).
 		push_warning("Visitors: occasione sconosciuta «%s» (quel momento non si vedrà mai)" % occasione)
 		return false
+	# ⚠️ IL NO DELLA LEVA HA UN NOME COME GLI ALTRI SETTE. Un banco che spegne
+	# il vocabolario del corpo deve poter leggere nel referto CHE È STATO LUI:
+	# un silenzio senza nome è indistinguibile da un cablaggio rotto, ed è la
+	# ragione per cui `_gesto_no` conta ogni no per nome.
+	if not Leve.acceso(Leve.GESTI):
+		_no(conta, "leva spenta")
+		return false
 	var perche_cancello := _cancelli_gesto(label, occasione)
 	if perche_cancello != "":
 		_no(conta, perche_cancello)
@@ -574,6 +584,9 @@ func chiedi_duetto(label_a: String, label_b: String, occasione: String,
 	if conta:
 		_gesto_no["chiesti"] = int(_gesto_no.get("chiesti", 0)) + 1
 		_gesto_no["? " + occasione] = int(_gesto_no.get("? " + occasione, 0)) + 1
+	if not Leve.acceso(Leve.RITROVI):
+		_no(conta, "leva spenta")
+		return false
 	var nome := REGIA.frase_di(occasione)
 	if nome == "":
 		push_warning("Visitors: occasione sconosciuta «%s» (quel momento non si vedrà mai)" % occasione)
@@ -1317,6 +1330,8 @@ var _insieme_oggi := {}       # label -> giorno in cui gli è già toccato
 ## E si può solo ALZARE: `maxf`. Abbassare un lease vorrebbe dire scavalcare
 ## un sistema a evento — il concerto, il congedo — con una regola di gruppo.
 func trattieni_insieme(label: String) -> bool:
+	if not Leve.acceso(Leve.RITROVI):
+		return false
 	if _phase() == "fire":
 		return false      # al falò si sta insieme comunque: non è una notizia
 	var giorno: int = int(_daynight.get("day")) if _daynight else 0
@@ -2098,6 +2113,13 @@ func _panchina_per(r: Dictionary, home: Vector3) -> Node3D:
 ## rinfresco che tocca UN residente per fotogramma (`FATTI_OGNI`). Misurato
 ## in partita, sta nei microsecondi.
 func _seduta_da(ancora: Vector3, chiede: Node3D = null) -> Node3D:
+	# ⚠️ LA LEVA SPEGNE LA PREFERENZA, NON LA SEDUTA. Col meccanismo spento
+	# ci si siede comunque — si sceglie solo senza guardare chi c'e' gia'.
+	# Ed e' anche il ramo che costa meno: `_free_bench(ancora, true)` chiama
+	# `_seduto_accanto` per ogni candidato (misurato: da 83 a 445 µs con
+	# ventotto residenti), e un banco che spegne l'insieme non deve pagarlo.
+	if not Leve.acceso(Leve.INSIEME):
+		return _free_bench(ancora)
 	var accompagnata: Node3D = _free_bench(ancora, true, chiede)
 	return accompagnata if accompagnata != null else _free_bench(ancora)
 
@@ -2112,6 +2134,11 @@ func _seduta_da(ancora: Vector3, chiede: Node3D = null) -> Node3D:
 ## torna `home` ESATTO, e da lì in giù non cambia una virgola di quello che
 ## il villaggio faceva prima.
 func _ancora_ritrovo(r: Dictionary, home: Vector3) -> Vector3:
+	# `home` è già l'uscita a vuoto dichiarata di questa funzione («da lì in
+	# giù non cambia una virgola di quello che il villaggio faceva prima»):
+	# la leva non ne inventa una nuova, prende quella.
+	if not Leve.acceso(Leve.RITROVI):
+		return home
 	var cr := get_tree().get_first_node_in_group("cricche")
 	if cr == null or not is_instance_valid(cr) or not cr.has_method("compagni"):
 		return home
@@ -2613,8 +2640,16 @@ func _luoghi_del_piano(r: Dictionary, home: Vector3) -> Array:
 	# Zero query nuove: `_panchina_per` era gia' chiamata proprio qui.
 	var panca: Node3D = _panchina_per(r, home)
 	fuori.append(cerca.call(panca))
-	r[FATTO_INSIEME] = panca != null \
+	# ⚠️ SI CALCOLA SEMPRE, MORDE SOLO SE ACCESO — la forma di
+	# `debug_occlusione`: il ramo spento non salta il lavoro, neutralizza il
+	# verdetto. Cosi' `insieme_osservato` resta un ORACOLO interrogabile in
+	# tutte e due le condizioni, e un banco puo' chiedere la cosa che conta —
+	# «quante volte il fatto SAREBBE stato vero, e quante ha cambiato una
+	# decisione» — invece di due numeri presi in due corse diverse.
+	var accanto: bool = panca != null \
 			and _accanto_a_qualcuno(panca, r.get("node") as Node3D)
+	r["insieme_osservato"] = accanto
+	r[FATTO_INSIEME] = accanto and Leve.acceso(Leve.INSIEME)
 	# ⚠️ **RESIDUO DICHIARATO, e la cura era peggiore del male.** A mandare
 	# il corpo e' `_recita`, che chiama `_panchina_per` una SECONDA volta —
 	# fino a mezzo secondo dopo (`FATTI_OGNI`) — e da quando esiste il filtro

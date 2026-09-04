@@ -633,6 +633,18 @@ func _ricalcola_deriva() -> void:
 		return
 	_deriva_giorno = oggi
 	var nuovo := {}
+	# ⚠️ SPENTA, LA DERIVA È UN DIZIONARIO VUOTO — non uno zero scritto sopra
+	# ogni tratto. `_tratti_derivati()` legge la base quando la chiave manca,
+	# quindi il vuoto vuol dire ESATTAMENTE «chi sei sempre stato», che è la
+	# condizione di controllo che serve. Scrivere degli zeri sarebbe una
+	# seconda verità sulla stessa domanda.
+	# (Non è hot: `_ricalcola_deriva` la chiamano in tre soli posti — setup,
+	# load e passa_giorno — quindi un vuoto che rifà il giro non costa.)
+	if not Leve.acceso(Leve.DERIVA):
+		_deriva = nuovo
+		if limbico != null:
+			limbico.riproietta(_tratti_derivati())
+		return
 	for nome in DERIVA.DERIVANO:
 		var t := str(nome)
 		var pressione: float = DERIVA.spinta(t, ricordi, sommario,

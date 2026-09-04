@@ -9721,8 +9721,12 @@ static func _stivale(parent: Node3D) -> Node3D:
 
 static func _stivali() -> Node3D:
 	var n := Node3D.new()
-	var rng := RandomNumberGenerator.new()
-	rng.randomize()    # ogni soglia dispone gli stivali a modo suo
+	# ⚠️ DICHIARATO COSMETICO, e passa dal canale libero per essere CENSIBILE.
+	# La disposizione di sei stivali su una soglia non può raggiungere nessuna
+	# misura: non cambia il numero di nodi, non entra in nessuna decisione,
+	# non tocca il grafo dei varchi. Un canale libero che passa da un'API si
+	# distingue da una svista; uno che chiama `randomize()` a mano no.
+	var rng := Dadi.libero()    # ogni soglia dispone gli stivali a modo suo
 	# le disposizioni: [x, z, giro] per sei stivali; "fiore" e "caduto"
 	# sono indici (o -1). La margherita NON sta mai in mezzo alla fila:
 	# cresce nel paio in fondo, vicino al muro, dove l'acqua ristagna.

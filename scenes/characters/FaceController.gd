@@ -250,6 +250,8 @@ var _mouth_mix := 1.0
 # ---------------------------------------------------------------- vita propria
 var _t := 0.0
 var _rng := RandomNumberGenerator.new()
+## Quanti volti sono stati costruiti in questa corsa: la chiave del loro dado.
+static var _volti_costruiti := 0
 
 # ammicco
 var _blink_enabled := true
@@ -312,7 +314,16 @@ func setup(rig: Dictionary) -> void:
 		_glint_base.append(g.position)
 		_glint_base_scale.append(g.scale)
 
-	_rng.randomize()
+	# ⚠️ Veniva da `randomize()`. Qui non c'è un'identità da cui derivare — il
+	# rig arriva come Dictionary di nodi — quindi la chiave è l'ORDINE DI
+	# COSTRUZIONE, che è più debole della regola generale di `Dadi` (le
+	# chiavi dovrebbero essere indipendenti dall'ordine). Si accetta per due
+	# ragioni dichiarate: questo dado sceglie soltanto la FASE con cui un
+	# volto interroga la luce — non decide niente — e in una corsa
+	# riproducibile l'ordine di costruzione è a sua volta riproducibile.
+	# Chi darà un nome ai volti sostituisca il contatore con quello.
+	_volti_costruiti += 1
+	_rng = Dadi.rng(Dadi.CORPO, "volto:%d" % _volti_costruiti)
 	# ogni volto interroga la luce in un istante suo: mai tutti nello
 	# stesso frame (con 28 vicini si sentirebbe)
 	_luce_cd = _rng.randf_range(0.0, 0.3)

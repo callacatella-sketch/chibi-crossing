@@ -1057,7 +1057,12 @@ immaginate):**
   letto. **Un bambino cancellato dal salvataggio è la cosa peggiore che
   questo sistema potesse fare**, ed era una regressione mia.
 - **`_rng.state` non sopravviveva al JSON:** salvato come intero perdeva
-  undici bit. Si salva come stringa.
+  undici bit. Si salva come stringa. ⚠️ **E il file è `Animo.gd` (1144-1149,
+  riletto a 1175), non `Affetti.gd`**: `Affetti` non contiene NEMMENO UN
+  generatore — questa nota lo ha detto per un pezzo, e chi andava a cercare
+  la trappola dove era scritta non la trovava. `Animo._rng` è anche **l'unico
+  dado persistito di tutto il progetto** (verificato: `.state` compare in due
+  righe sole in `scenes/` e `systems/`).
 - `Animo.punteggio()` era CIECO ai tratti: i pesi di carattere vivevano in
   `disagio()` e non venivano mai chiamati, quindi due vicini con gli stessi
   bisogni ricevevano punteggi identici. Finché era così, «libero arbitrio»
@@ -2565,6 +2570,27 @@ qualunque RNG (i dadi del villaggio si salvano) e qualunque persistenza.
 `TransformComponent` è **dichiarato e mai istanziato**: entra vivo quando
 arriva il suo primo lettore (il cammino), e fino ad allora
 `debug_quante_pose()` deve tornare 0 — un test lo pretende.
+
+> ### ⚠️ CORREZIONE: «il C++ non ha un RNG» è vero per l'ECS e FALSO per il gioco
+>
+> Questa frase sta in `src/ecs_mondo.h:31`, in `src/ecs_componenti.h` e in
+> `src/grafo_ricordi.h`, ed è vera per **ECS, agenda, sonno, piani e grafi**:
+> lì un dado non c'è e non deve esserci, perché i dadi del villaggio si
+> salvano e un secondo generatore sarebbe una seconda storia che nessun
+> salvataggio racconta.
+>
+> Ma il cuore C++ **non è solo l'ECS**: `src/ecosystem_manager.cpp` tira dal
+> generatore **GLOBALE** di Godot in **48 punti** (`UtilityFunctions::randf`,
+> `randf_range`), e `update_butterflies` (riga 353) ne consuma **due per
+> farfalla per passo di fisica** — fino a **180 estrazioni per fotogramma**
+> con `BF_MAX = 90`.
+>
+> Le due conseguenze non sono teoriche: un `seed()` chiamato da GDScript
+> semina anche l'ecosistema, e **cambiare il numero di farfalle sposta tutti
+> i numeri a valle di chiunque peschi dal flusso globale**. È la ragione
+> strutturale per cui il flusso globale non si può rendere riproducibile con
+> un seme, e per cui il codice che decide qualcosa deve stare sui **flussi
+> nominati** (vedi «UNA GIORNATA SI PUÒ RIPETERE», più sotto).
 
 E `VillagerBrain.nottambulo()` **resta in GDScript** (la usa anche l'attività
 «stella», `VillagerBrain.gd:180`): è l'unica formula che vive in due lingue, e
@@ -6699,6 +6725,187 @@ cioè tre buchi veri): la compagnia non è più un carburante · non ha più
 recenza · il villaggio non fa più il ponte · le giornate insieme guardano un
 lato solo della riga (che non ha verso, quindi dimenticarne uno è la
 distrazione plausibile) · senza il registro si tiene la compagnia di ieri.
+
+## UNA GIORNATA SI PUÒ RIPETERE — i dadi nominati, le leve, le repliche
+
+Due corse di `misura_insieme` con **gli stessi identici parametri** davano
+**0,31 e 1,77** righe di co-presenza per residente: un fattore **5,7**. Da
+lì in poi ogni referto di questo progetto ha dovuto scrivere «le due corse
+non sono appaiate» — tre volte solo nel capitolo delle cricche — e una volta
+uno scarto da 0,80 a 1,27% è stato indicato come *«il numero da confrontare
+in futuro»*: era rumore.
+
+**Non è un difetto di misura, è un difetto del gioco.** Senza ripetizione
+non esiste ablazione (spegnere un meccanismo e vedere cosa cambia), non
+esiste sensibilità (muovere una costante e vedere quanto pesa), non esiste
+confronto fra condizioni. Tutte le misure psicologiche del progetto —
+l'inerzia dell'insieme, la saturazione della deriva, il grappolo che si
+ferma a tre — erano **ipotesi ben poste, non risultati**.
+
+### L'EPICENTRO era una riga, e violava una regola già scritta
+
+```
+scenes/npc/VillagerBrain.gd:105
+_rng.seed = hash(str(dna.get("name", "?"))) + Time.get_ticks_msec() % 1000
+```
+
+Il dado di ogni vicino partiva dall'**orologio**. La regola c'era già —
+«semi da `hash()` stabili» — e questa riga la violava con l'unica sorgente
+che nessuno aveva pensato a vietare. Da quel dado esce `jitter()`, cioè **il
+dado congelato dell'agenda**: quello che decide fra due azioni quasi pari.
+
+Il censimento attorno: **91 `RandomNumberGenerator.new()`**, 86 semi
+espliciti (la disciplina c'era), **7 `randomize()`** e **255 usi del
+generatore GLOBALE**.
+
+### I FLUSSI NOMINATI — [`systems/Dadi.gd`](systems/Dadi.gd)
+
+Un **seme di radice** per partita, e flussi che ne *derivano*:
+`VILLAGGIO` (le decisioni), `AMBIENTE` (il mondo), `CORPO` (il rig),
+`LIBERO` (**dichiarato cosmetico**: non seminato, e va bene così).
+
+> #### ⚠️ SI DERIVA, NON SI CONDIVIDE — ed è la proprietà che tiene tutto
+>
+> Un flusso **non è un generatore condiviso**: è una regola per derivarne
+> uno da una chiave. `rng(VILLAGGIO, "Ciliegia")` e `rng(VILLAGGIO,
+> "Nocciola")` sono indipendenti, e nessuno consuma i numeri dell'altro.
+>
+> Con un flusso condiviso, **aggiungere un chiamante sposta tutti i numeri a
+> valle**: spegnere un meccanismo per misurarlo cambierebbe anche tutti gli
+> altri, e il banco delle repliche direbbe numeri che non vogliono dire
+> niente. Corollario operativo: **si può aggiungere un consumatore senza
+> invalidare nessuna misura già presa**, ed è sorvegliato da un caso di test
+> perché è la proprietà che si perde per prima quando qualcuno «ottimizza».
+
+**La radice viene, in ordine:** `CHIBI_SEME` → la chiave `"seme"` del
+salvataggio → coniata con entropia vera. `Dadi.conia()` e `Dadi.libero()`
+sono **l'unico posto autorizzato del progetto** a usare entropia vera, e la
+guardia esenta quel file per dire che è UNO.
+
+⚠️ **La radice viaggia come STRINGA** nel `village.json`, per la stessa
+ragione di `Animo._rng.state`: il JSON restituisce ogni numero come float, e
+un intero perdeva undici bit.
+
+### LE LEVE — [`systems/Leve.gd`](systems/Leve.gd)
+
+Un meccanismo si giudica in un modo solo: **lo si spegne e si guarda cosa
+cambia**. `CHIBI_LEVE="insieme:off,deriva:off"`, quattro leve cablate
+(`insieme`, `ritrovi`, `deriva`, `gesti`), e quattro regole:
+
+1. **di serie è tutto acceso** (una leva è uno strumento, non una configurazione);
+2. **una leva dichiarata deve avere un lettore, e un lettore un nome dichiarato** —
+   sorvegliato nei due versi: una leva senza lettore è una promessa vuota (il
+   banco la spegne, non succede niente, e si legge come «quel meccanismo non
+   conta»);
+3. **un nome sconosciuto non spegne niente** e si lamenta;
+4. **nel gioco non le tocca nessuno**, e una guardia scandaglia i sorgenti.
+
+⚠️ **Il ramo spento non salta il lavoro: neutralizza il verdetto.** È la
+forma di `debug_occlusione`, che spenta tira i raggi lo stesso. Applicata al
+fatto dell'insieme: si calcola sempre e si pubblica in `insieme_osservato`,
+così un banco può chiedere «quante volte SAREBBE stato vero» e «quante ha
+cambiato una decisione» **nella stessa corsa**.
+
+⚠️ **`Visitors.debug_occlusione` NON è stata portata dentro**: ha già il suo
+lettore, la sua guardia in `test_regia` e un banco che la alterna. Spostarla
+vorrebbe dire riscrivere una guardia che funziona per un'uniformità che non
+compra niente.
+
+### IL BANCO DELLE REPLICHE — [`tools/banco_repliche.py`](tools/banco_repliche.py)
+
+N semi × K condizioni, **un processo per replica**, e in uscita una
+distribuzione invece di un numero.
+
+```
+python3 tools/banco_repliche.py tools/misura_insieme.gd \
+    --semi 8 --condizioni "tutto" "insieme" \
+    --env CHIBI_GIORNI=2 CHIBI_QUANTI=13 CHIBI_GAZEBO=1
+```
+
+Stampa, in quest'ordine: **il controllo** (stesso seme, stessa condizione,
+due volte — se non è zero, tutto il resto è sospetto), **la distribuzione**
+per condizione (mediana e quartili, mai una media su due corse), e **lo
+scarto APPAIATO** con quanti semi concordano nel segno.
+
+Le cinque regole, e ognuna chiude una trappola pagata:
+
+1. ⚠️ **`--fixed-fps 60`, sempre.** Senza, il passo arriva dall'orologio
+   vero: `prova_identico` ne ha misurati **19 valori distinti** in una
+   corsa, e due corse identiche divergevano del **37,9%** contro un segnale
+   del 25,0% — il banco era più rumoroso di ciò che doveva rilevare. E
+   «`--headless` forza il passo fisso» è **falso**: quella riga di `--help`
+   sta sotto `--write-movie`.
+2. ⚠️ **Un processo per replica**, e non è prudenza: `banco.gd::apri()` non
+   è rientrante, il `Traduttore` della Fase 5 si apre una volta per
+   processo, e il dado globale sopravvive a `change_scene_to_file`.
+3. ⚠️ **Un villaggio ermetico** (`CHIBI_VILLAGGIO`). Fino al 2026-09-04 ogni
+   banco girava sopra il `village.json` **dell'autore** — nessuno chiama
+   `debug_clear()`, e `set_persist_for_debug` blocca le sole scritture:
+   «stessi parametri» non implicava «stesso villaggio».
+4. **Il banco non inventa un numero**: legge `MISURA <nome> <valore>`, e se
+   non ne trova lo DICE (un banco che tace non è un banco a zero).
+5. **Niente tagli silenziosi**: ogni replica caduta viene nominata.
+
+### ⚠️ COSA RESTA APERTO, dichiarato
+
+Fissare i semi **non basta**, e le sorgenti che restano sono misurate:
+
+- **il flusso GLOBALE non si può rendere riproducibile con un seme**:
+  `EcosystemManager` ne consuma fino a **180 estrazioni per fotogramma**
+  (90 farfalle × 2, `ecosystem_manager.cpp:353`). Chi cambia il numero di
+  farfalle sposta tutti i numeri a valle di chiunque peschi di lì. Restano
+  **~130 righe comportamentali** sul globale in `Visitors`, `Visitor`,
+  `Collection`, `Fishing`, `Nascondino` e altri: **è il lavoro successivo**,
+  e il flusso a cui appartengono è `VILLAGGIO`;
+- **il mondo non ha un seme**: `CozyWorld` usa **nove costanti scritte a
+  mano** (77, 4242, 90210, 88, 7, 99, 33, 505, 71) — due villaggi hanno lo
+  stesso prato. Darglielo rompe ogni salvataggio esistente (le case si
+  troverebbero su un terreno diverso), quindi va fatto con una migrazione;
+- **l'orologio da polso in `Visitors._chats`** (riga 4559) misura il
+  raffreddamento delle coppie in tempo REALE, non di gioco: su un banco che
+  gira più veloce del reale quel riposo non scade mai. `prova_identico` lo
+  **dichiara** come cosa che la traccia non copre, invece di curarlo;
+- **`Concertino.gd:159`** semina la canzone del carillon con
+  `Time.get_ticks_msec() / 600000`: il contenuto cambia a scaglioni di dieci
+  minuti reali. Non è un `randf()` e nessun censimento del dado lo trova;
+- **`Animo.descrizione()`** fa `_rng.randf() < 0.5` su un dado **persistito**:
+  una funzione di presentazione che avanza lo stream della simulazione —
+  osservare cambia il gioco. Oggi non ha chiamanti in produzione;
+- **`RegiaDiorama.semina()`** e **`OraDelGiorno`** usano il tempo vero, ed è
+  una **feature dichiarata** del menù: non si rendono deterministiche, si
+  scavalcano.
+
+### Le due cose che NON si toccano
+
+- **`Animo._rng` resta persistito.** Riproducibilità di una corsa e
+  resistenza al save-scumming sono due cose diverse: quel dado è salvato
+  apposta perché «due save-scumming e il giocatore scopriva il dado».
+- **`VillagerBrain._rng` resta NON persistito**, ed è voluto: ricaricare
+  rigioca la stessa sequenza di jitter, che è esattamente la ripetibilità
+  che si vuole.
+
+### Come si verifica
+
+```
+Godot --headless --path . --script res://tests/test_runner.gd     # test_dadi.gd
+python3 tools/banco_repliche.py tools/misura_insieme.gd --semi 4 \
+    --condizioni "tutto" "insieme" --env CHIBI_GIORNI=1 CHIBI_QUANTI=8
+```
+
+La guardia è [`tests/cases/test_dadi.gd`](tests/cases/test_dadi.gd), e non è
+un source-check travestito: prova **comportamentalmente** che due dadi con la
+stessa chiave danno la stessa vita, che chiavi diverse divergono, e che **un
+consumatore in più non sposta gli altri**. Poi scandaglia i sorgenti per
+l'orologio in posizione di seme — spogliando i commenti con lo spogliatore di
+`test_fiato` (l'unico che toglie anche quelli in coda e rispetta le
+virgolette), **perché la cura all'epicentro nomina apposta la chiamata
+vietata** per spiegare cosa c'era prima. E conta quanti file ha letto: una
+guardia che per un percorso sbagliato ne legge zero è verde.
+
+Alla prima corsa ha trovato **nove `randomize()` in posizione di seme**, due
+dei quali erano i suoi autorizzati e sette erano lavoro vero: il fungo da
+raccolta, gli stivali del catalogo, il volto, i sogni, la posta, **il genoma
+di chi arriva ad abitare** e il dado delle chiacchiere.
 
 ## Test
 
