@@ -65,6 +65,7 @@ spegne due.
 """
 
 import argparse
+import functools
 import os
 import re
 import shutil
@@ -79,6 +80,13 @@ GODOT_CANDIDATI = [
     "/Applications/Godot.app/Contents/MacOS/Godot",
     shutil.which("godot") or "",
 ]
+
+# ⚠️ SI STAMPA SUBITO. Una replica costa minuti; con lo stdout bufferizzato il
+# banco resta muto per mezz'ora e chi guarda non sa distinguerlo da un banco
+# piantato — e lo ammazza. È la stessa ragione per cui `prova_si_trovano`
+# stampa ogni no col suo nome.
+print = functools.partial(__builtins__.print if not isinstance(__builtins__, dict)
+                          else __builtins__["print"], flush=True)
 
 RIGA_MISURA = re.compile(r"^\s*MISURA\s+([A-Za-z0-9_.:]+)\s+(-?[0-9.eE+]+)\s*$", re.M)
 

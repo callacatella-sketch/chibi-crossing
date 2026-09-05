@@ -592,9 +592,32 @@ func _manda_incontro(chi: String, verso: String) -> void:
 		_manda(chi, node.global_position)
 
 
+## ⚠️ LE DUE ANAGRAFI, E QUI COSTAVANO I TRE GESTI PIÙ PESANTI DEL GIOCO.
+## Tutta la Voce lavora per ETICHETTA (`_vicino_a` scorre `_etichette()`, le
+## bolle e i toast vogliono la label), ma il libro mastro degli Affetti è
+## indicizzato per NOME del DNA: `conto()`, `le_coppie()` e `_tutti()`
+## leggono di lì. Passando la label, `coraggio` (1.20), `consolazione`
+## (1.00) e `fianco` (0.35) finivano nel mastro con una chiave che nessun
+## lettore usa MAI — righe fantasma che occupavano posto nella potatura
+## (il tetto è 420) e non contavano per nessuno.
+##
+## E non è un difetto di contabilità: `GESTI_VERI_MIN` chiede TRE gesti
+## sopra `PESO_VERO` perché una coppia esista, e `coraggio` è il più
+## pesante che il giocatore possa provocare. Tutti gli altri chiamanti di
+## `gesto()` convertivano già (`Salone._nome_di`, `Concerto._nome_di`,
+## `Veglia._nome_da_label`, le due `chiacchiera` e i due `piatto` di
+## `Visitors`): questo era l'unico rimasto indietro, e in silenzio.
 func _gesto_affetti(da: String, verso: String, tipo: String) -> void:
-	if _affetti and _affetti.has_method("gesto"):
-		_affetti.call("gesto", da, verso, tipo)
+	if _affetti == null or not _affetti.has_method("gesto"):
+		return
+	_affetti.call("gesto", _nome(da), _nome(verso), tipo)
+
+
+## Dalla label al nome del DNA, che è l'anagrafe del libro mastro.
+func _nome(label: String) -> String:
+	if _visitors == null or not _visitors.has_method("_nome_da_label"):
+		return label
+	return str(_visitors.call("_nome_da_label", label))
 
 
 func _bolla(label: String, simbolo: String) -> void:
