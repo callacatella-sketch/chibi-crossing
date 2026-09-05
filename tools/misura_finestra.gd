@@ -311,6 +311,26 @@ func _blocco(quanti: int, giorni: int, rge: float, titolo: String) -> Dictionary
 ## Affetti. Perciò si rifà lo stesso A/B con gli `Animo` VERI, lo stesso
 ## copione di eventi, e si guarda quanto resta SETTE GIORNATE DOPO l'età
 ## adulta.
+##
+## ⚠️⚠️ **E LA PRIMA STESURA DI QUESTO BLOCCO NON MISURAVA NIENTE.** Dava
+## residuo **esattamente 0.000000**, ed era un'IDENTITÀ, non una misura: la
+## catena che dichiarava di chiudere è severa in due punti, e una revisione
+## avversariale li ha trovati tutti e due.
+##
+##  · **`bersaglio_umore()` raggiunge `umore` SOLO dentro `passo_neuro`**, e
+##    `passo_neuro` ha un chiamante solo in tutto il gioco
+##    (`Visitors._ciclo_sonno`). Il blocco chiamava `ricorda` e
+##    `passa_giorno` e mai `passo_neuro`: il ramo chimico era reciso.
+##  · **`abitudine` deriva dall'AMBIZIONE**, il cui unico carburante è il
+##    sogno servito — e il copione scrive solo righe `regalo`, quindi δ
+##    ambizione = 0 in tutti e due i bracci. L'altra grandezza che
+##    `riproietta` scrive, `reattivita`, moltiplica soltanto `arousal`, che
+##    non tocca né `letto`, né `attese`, né `ricordi`, né `rancore()`.
+##
+## Adesso il blocco chiama `passo_neuro` come lo chiama il villaggio, e
+## somma al copione delle righe di COMPITO-DEL-SOGNO, che fanno derivare
+## l'ambizione e quindi `abitudine`, che `rivaluta` legge davvero. Il numero
+## che ne esce è una misura; quello di prima era un ritratto.
 func _blocco_vero(quanti: int, giorni: int) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 987654
@@ -326,6 +346,10 @@ func _blocco_vero(quanti: int, giorni: int) -> Dictionary:
 				if rng.randf() < ritmo * 0.55:
 					oggi_righe.append([rng.randf_range(0.4, 0.95),
 							rng.randf_range(0.5, 1.0)])
+			# ⚠️ e un COMPITO-DEL-SOGNO ogni tanto: è l'unico carburante
+			# dell'ambizione, e senza di lui `abitudine` non deriva — cioè
+			# la catena che questo blocco esiste per chiudere resta aperta.
+			oggi_righe.append([-1.0, 1.0] if rng.randf() < ritmo * 0.3 else [0.0, 0.0])
 			righe.append(oggi_righe)
 		copioni.append(righe)
 
@@ -353,7 +377,23 @@ func _blocco_vero(quanti: int, giorni: int) -> Dictionary:
 				a.set("_deriva_giorno", -1)
 				a.call("_ricalcola_deriva")
 				for riga in (copioni[i] as Array)[g]:
-					a.ricorda("regalo", "giocatore", float(riga[0]), float(riga[1]))
+					var v0 := float(riga[0])
+					if v0 < 0.0:
+						# il marcatore del compito-del-sogno: il nome lo dice
+						# `Animo.compiti_del_sogno()`, perché il sogno di
+						# ognuno lo tira `ChibiDNA` e un compito scritto qui
+						# servirebbe il sogno di qualcun altro.
+						var suoi: Array = a.compiti_del_sogno()
+						if not suoi.is_empty():
+							a.esegue(str(suoi[0]), "giocatore")
+					elif v0 > 0.0:
+						a.ricorda("regalo", "giocatore", v0, float(riga[1]))
+				# ⚠️ **E LA CHIMICA SI FA SCORRERE**, come la fa scorrere il
+				# villaggio (`Visitors._ciclo_sonno`): è l'unica porta di
+				# `bersaglio_umore`, cioè l'unico modo in cui la deriva
+				# arriva all'umore e da lì a quello che si incide nei
+				# ricordi. Senza, il residuo è zero per costruzione.
+				a.limbico.passo_neuro(60.0, {}, false, 0.0)
 				a.passa_giorno()
 				if g == LEGAMI.GIORNI_ADULTO - 2:
 					# ⚠️ **IL CONTROLLO DEL BANCO**: dentro la finestra i due
