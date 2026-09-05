@@ -1045,6 +1045,36 @@ immaginate):**
   verde su un villaggio che non esiste. Ora i gesti pesanti arrivano dal
   LAVORO che il giocatore assegna (chi fa la guardia veglia su chi dorme,
   chi cucina divide quello che ha) e dalle nascite.
+- **⚠️ E METÀ DELLE PORTE ERANO ANCORA CHIUSE, per le DUE ANAGRAFI.** Le
+  vere porte d'ingresso al sistema sono **quattro** — `piatto` (0.70),
+  `veglia` (0.80), `consolazione` (1.00), `coraggio` (1.20) — perché
+  `nascita` (2.00) è **circolare**: per farne una serve già una coppia. Di
+  quelle quattro, **due erano rotte**: `Voce._gesto_affetti` passava le
+  ETICHETTE («la volpina Pepita») a un libro mastro indicizzato per NOME del
+  DNA («Pepita»), e sono i due gesti più pesanti che il giocatore possa
+  provocare. Finivano in `_righe` con una chiave che nessun lettore usa mai:
+  righe fantasma che occupavano anche il posto nella potatura (il tetto è
+  420), e `conto()` non le vedeva. Tutti gli altri chiamanti di `gesto()`
+  convertivano già (`Salone._nome_di`, `Concerto._nome_di`,
+  `Veglia._nome_da_label`, le due `chiacchiera` e i due `piatto` di
+  `Visitors`): la Voce era l'unica rimasta indietro, **e in silenzio**.
+  MISURATO sul salvataggio vero (giorno 22, 13 residenti): **1030 righe,
+  tutte `chiacchiera`, zero gesti veri** — cioè `GESTI_VERI_MIN` (3) non era
+  raggiungibile e non esisteva una sola coppia in tutto il villaggio.
+  ⚠️ **E LA SUITE ERA VERDE**: nessuna asserzione, in tutto il progetto,
+  guardava che cosa la Voce SCRIVE. Tredici casi provavano cosa PESCA (le
+  cinque famiglie della confidenza) e cosa DICE (le tabelle-ponte, la lettera
+  del Gufo), nessuno dove finisce quello che fa. La guardia nuova
+  (`test_voce._test_i_gesti_entrano_col_nome_giusto`) ha due metà, e la
+  seconda è quella che conta: prova che `conto()` VEDE i gesti con la chiave
+  giusta e **non vede niente** con le label. Senza quella controprova
+  proverebbe una conversione senza dire perché serve.
+  ⚠️ E una trappola di BANCO, ripresa in pieno: `_residents` è
+  `Array[Dictionary]`, e un `set()` con un Array NUDO **non assegna e non
+  dice niente** — il fixture restava vuoto, `_nome_da_label` ripiegava sul
+  suo `return label`, e il caso falliva accusando la cura invece del proprio
+  banco. È la stessa trappola già scritta per il finto BuildSystem di
+  `test_insieme`.
 - **Il tempo rompeva le coppie.** `coppia()` chiede il valore assoluto sopra
   soglia e il conto decade: una coppia nata sul filo si scioglieva in
   quattro giorni di niente — sedici minuti reali. Il decadimento ERA il tick
