@@ -18,6 +18,23 @@ extends RefCounted
 ## Quanto si smorza una voce a ogni passaggio di bocca. Sotto 1.0, o il
 ## pettegolezzo diventa un moto perpetuo e il villaggio esplode ogni volta.
 const ANIMO := preload("res://scenes/npc/Animo.gd")
+## LE DUE VALENZE del passaparola. Il rancore era CABLATO a -1.0 dentro il
+## passo 2; il sollievo non esisteva, benche' `senti_dire` sia a due segni
+## per costruzione e `opinione` pure — il canale c'era ed era vuoto.
+##
+## ⚠️ IL SOLLIEVO NON COSTA MENO DEL RANCORE, e il numero non e' scelto:
+## si deriva da `Animo.SCONTO_PERDONO`, cioe' dallo stesso sconto con cui
+## un ricordo bello smorza il rancore dentro una persona sola. Se il
+## sollievo smorzasse di piu', la rivolta diventerebbe reversibile in un
+## giorno e la scala perderebbe senso.
+##
+## ⚠️ E LA LEVA E' LA VALENZA, MAI LA FORZA: i due cancelli di `senti_dire`
+## (0.001 per attecchire, 0.18 per lasciare un ricordo) guardano il PESO.
+## Smorzando la forza il sollievo passerebbe il primo e non il secondo:
+## mezzo canale, che si legge come un canale intero.
+const VALENZA_RANCORE := -1.0
+const VALENZA_SOLLIEVO := 1.0 / ANIMO.SCONTO_PERDONO
+
 const SMORZAMENTO := 0.55
 ## Sotto questa forza la voce non vale più la pena di essere riportata.
 const SOGLIA_VOCE := 0.06
@@ -88,29 +105,58 @@ func simula_giorno() -> Array:
 	for nome in animi:
 		var a = animi[nome]
 		if a.aggiorna_scala():
-			cronaca.append({"tipo": "scatto", "chi": nome, "a": a.stato(),
-					"perche": a.racconta()})
+			# il "da" serve a chi mostra il toast: la battuta del gradino
+			# d'arrivo, letta su una DISCESA, rimprovera chi sta guarendo
+			# («Oggi no. Chiedilo a qualcun altro.» nel giorno in cui il
+			# giocatore l'ha appena rimesso a posto). Un gesto di cura a
+			# cui il gioco risponde con un rimbrotto non attenua la
+			# ricompensa: la inverte.
+			cronaca.append({"tipo": "scatto", "chi": nome,
+					"da": a.scatti[a.scatti.size() - 1].get("da", "") if not a.scatti.is_empty() else "",
+					"a": a.stato(), "perche": a.racconta()})
 
-	# 2) il passaparola: chi è sceso in basso irradia verso i suoi amici
+	# 2) il passaparola. Chi è sceso in basso irradia il MALCONTENTO verso i
+	#    suoi amici — e da oggi chi ieri è RISALITO irradia il SOLLIEVO
+	#    sulla stessa identica strada, con gli stessi passaggi, lo stesso
+	#    smorzamento e la stessa soglia. Prima solo il peggioramento
+	#    viaggiava: il giocatore poteva riparare con la persona ferita ma
+	#    non col villaggio, e chi si era preso il malumore da lei se lo
+	#    teneva. Adesso rimetti a posto le cose con chi aveva cominciato, e
+	#    il giorno dopo lo vedi arrivare addosso a due dei suoi amici.
+	#
+	#    ⚠️ UNA NOTIZIA PER ORATORE, e chi ne ha una buona TACE quella
+	#    cattiva: uno che ieri è risalito ha ancora un `eco()` alto (è
+	#    sceso di un gradino, non è tornato sereno), e senza questa regola
+	#    porterebbe le due notizie insieme — dicendo e disdicendo nello
+	#    stesso giro, a due passanti diversi.
 	for giro in PASSAGGI:
 		var voci := []
 		for nome in animi:
 			var a = animi[nome]
-			var forza: float = a.eco() * pow(SMORZAMENTO, float(giro))
+			var buona: float = a.eco_serena()
+			var forza: float = (buona if buona > 0.0 else a.eco()) \
+					* pow(SMORZAMENTO, float(giro))
 			if forza < SOGLIA_VOCE:
 				continue
+			var valenza: float = VALENZA_SOLLIEVO if buona > 0.0 else VALENZA_RANCORE
 			for amico in amicizie.get(nome, {}):
 				if not animi.has(amico):
 					continue
-				voci.append([nome, amico, forza])
+				voci.append([nome, amico, forza, valenza])
 		# si applicano tutte insieme: nessuno "sente" due volte lo stesso
 		# giro solo perché il dizionario lo mette prima nell'ordine
 		for v in voci:
 			var da: String = v[0]
 			var a_chi: String = v[1]
-			var peso: float = animi[a_chi].senti_dire(da, "giocatore", -1.0, float(v[2]))
+			var val: float = float(v[3])
+			var peso: float = animi[a_chi].senti_dire(da, "giocatore", val, float(v[2]))
 			if peso > 0.01:
+				# ⚠️ IL TIPO RESTA "voce" e il verso è un CAMPO. Con un tipo
+				# nuovo, `test_villaggio._test_niente_fantasmi` — che filtra
+				# su `tipo == "voce"` — continuerebbe a passare coprendo
+				# metà del canale.
 				cronaca.append({"tipo": "voce", "da": da, "a": a_chi,
+						"verso": ("sollievo" if val > 0.0 else "rancore"),
 						"forza": snappedf(peso, 0.01)})
 
 	# 3) chi ha sentito le voci può scattare a sua volta: è il secondo anello
@@ -118,8 +164,15 @@ func simula_giorno() -> Array:
 	for nome in animi:
 		var a = animi[nome]
 		if a.aggiorna_scala():
-			cronaca.append({"tipo": "scatto", "chi": nome, "a": a.stato(),
-					"perche": a.racconta()})
+			# il "da" serve a chi mostra il toast: la battuta del gradino
+			# d'arrivo, letta su una DISCESA, rimprovera chi sta guarendo
+			# («Oggi no. Chiedilo a qualcun altro.» nel giorno in cui il
+			# giocatore l'ha appena rimesso a posto). Un gesto di cura a
+			# cui il gioco risponde con un rimbrotto non attenua la
+			# ricompensa: la inverte.
+			cronaca.append({"tipo": "scatto", "chi": nome,
+					"da": a.scatti[a.scatti.size() - 1].get("da", "") if not a.scatti.is_empty() else "",
+					"a": a.stato(), "perche": a.racconta()})
 
 	for nome in animi:
 		animi[nome].passa_giorno()

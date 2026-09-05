@@ -227,6 +227,12 @@ var sommario := {}        # "tipo|attore" -> {"n": int, "peso": float, "ultimo":
 var opinione := {}        # attore -> -1..1 (il giocatore è "giocatore")
 var legami := {}          # nome di un altro chibi -> -1..1 (quanto gli si crede)
 var gradino := 0          # dove sta sulla SCALA
+## QUANTO SCONTA UN RICORDO BELLO. Era un letterale in mezzo a `rancore()`;
+## adesso ha un nome perche' ha un SECONDO lettore: la valenza del sollievo
+## in Villaggio si deriva da qui (1/SCONTO_PERDONO), invece di essere un
+## secondo numero da tenere allineato a mano.
+const SCONTO_PERDONO := 1.4
+
 var scatti: Array = []    # la cronaca degli scatti: {giorno, da, a, cause}
 var oggi := 0
 var _voce_del_giorno := {}   # chi mi ha già parlato oggi
@@ -720,7 +726,7 @@ func rancore(attore := "giocatore") -> float:
 	# visti» che la regola 3 degli Affetti vieta per iscritto: una ferita la
 	# cui unica chiave sta in mano al caso invece che al giocatore. I ricordi
 	# belli scontano il rancore, e li mette li' chi gioca.
-	somma = maxf(0.0, somma - buoni * 1.4)
+	somma = maxf(0.0, somma - buoni * SCONTO_PERDONO)
 	return 1.0 - exp(-somma / SATURAZIONE * 3.0)
 
 
@@ -965,6 +971,38 @@ func senti_dire(da: String, su: String, valenza: float, forza := 1.0) -> float:
 func eco() -> float:
 	return frazione(gradino) \
 			* (0.5 + 0.5 * tratto("orgoglio"))
+
+
+## Quanto irradia chi ieri e' SCESO di gradino: la buona notizia.
+##
+## E' il gemello di `eco()`, e la differenza fra i due e' tutta la
+## meccanica: `eco()` guarda il LIVELLO — chi sta in basso irradia ogni
+## giorno, finche' ci resta — mentre questa guarda l'EVENTO, e lo racconta
+## UNA VOLTA SOLA, con l'ampiezza del gradino da cui si e' scesi.
+##
+## ⚠️ IRRADIARE IL LIVELLO SAREBBE LA MACCHINA CHE SI AUTOCONSOLA: chi sta
+## bene diventerebbe una sorgente permanente di sollievo, il villaggio si
+## rimetterebbe a posto da solo e la riparazione del giocatore non varrebbe
+## piu' niente. Per la stessa ragione la somma e' asimmetrica e deve
+## restarlo: il rancore si irradia ogni giorno che uno resta lassu' (~3.0
+## unita' su una salita fino al settimo gradino), il sollievo una volta
+## sola (~1.0). Chi rompe e poi ripara NON ci guadagna.
+##
+## LA FINESTRA E' IERI, non oggi: cosi' ogni discesa ha la stessa latenza,
+## e il sollievo resta strutturalmente piu' lento del rancore. Non si tocca.
+func eco_serena() -> float:
+	if scatti.is_empty():
+		return 0.0
+	var ultimo: Dictionary = scatti[scatti.size() - 1]
+	if int(ultimo.get("giorno", -999)) != oggi - 1:
+		return 0.0
+	var da := int(indice(str(ultimo.get("da", ""))))
+	var a := int(indice(str(ultimo.get("a", ""))))
+	if da <= a:
+		return 0.0          # si e' SALITI: non e' una buona notizia
+	# l'ampiezza e' quella del gradino da cui si e' scesi — un ammutinato
+	# che torna in se' e' una notizia piu' grande di uno svogliato
+	return frazione(da) * (0.5 + 0.5 * tratto("orgoglio"))
 
 
 # ---------------------------------------------------------------- IL PERCHÉ
