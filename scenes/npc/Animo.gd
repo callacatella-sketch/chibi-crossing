@@ -826,7 +826,6 @@ func fiducia(attore := "giocatore", tranne := "") -> float:
 	# Conseguenza dichiarata: rancore e fiducia possono essere positivi
 	# insieme, e va bene — una persona può ricordare quello che le hai fatto
 	# e quello che le hai dato. Non vengono mai mostrati insieme.
-	somma -= rancore(attore) * SAZIETA_FIDUCIA * 0.5
 	if not is_finite(somma) or somma <= 0.0:
 		return 0.0
 	# ⚠️ **ZERO ESATTO PER UNO SCONOSCIUTO**, e non per un `if` scritto

@@ -70,6 +70,21 @@ func _go() -> void:
 	# 1) IL GIOCATORE GIOCA. Non a tutti: è il vincolo che fa la varietà,
 	#    ed è anche il modo in cui il cancello 4 diventa osservabile.
 	# ------------------------------------------------------------------
+	# ⚠️ **E IL GIOCATORE ASSEGNA ANCHE I LAVORI.** La prima stesura faceva
+	# solo gesti gentili, e il cancello 3 scattava: `punteggio()` non cambiava
+	# per nessuno. La diagnosi non era il banco — `decide()` ha UN solo
+	# chiamante in tutto il gioco (`Lavori`, con `"se_stesso"`) — ma senza
+	# incarichi non esistono nemmeno le righe di compito, e allora il banco
+	# misurerebbe due volte lo stesso zero senza saper dire quale.
+	var lav := liv.get_node_or_null("Lavori")
+	if lav != null:
+		for i2 in mini(6, res.size()):
+			var a3 = animi.get(str(res[i2].get("label", "")))
+			if a3 == null:
+				continue
+			var suoi: Array = a3.call("compiti_del_sogno")
+			if not suoi.is_empty() and (lav.get("LAVORI") as Dictionary).has(str(suoi[0])):
+				lav.call("assegna", str(res[i2].get("label", "")), str(suoi[0]))
 	var toccati := {}
 	var passi := int(_giorni * 240.0 / 3.0)
 	for p in passi:
@@ -119,17 +134,25 @@ func _go() -> void:
 	for r2 in res:
 		var lab2 := str(r2.get("label", ""))
 		var a2 = animi.get(lab2)
-		if a2 == null or float(a2.fiducia("giocatore")) <= 0.0:
+		if a2 == null:
+			continue
+		# ⚠️ SI GUARDA IL `chiede` CHE IL GIOCO USA DAVVERO. `decide()` ha un
+		# solo chiamante e passa `"se_stesso"`: confrontare «giocatore» con
+		# «un estraneo» misura un canale che in partita non esiste, e
+		# darebbe zero per la ragione sbagliata.
+		var f2: float = float(a2.fiducia("se_stesso"))
+		var fg: float = float(a2.fiducia("giocatore"))
+		if f2 <= 0.0 and fg <= 0.0:
 			continue
 		provati += 1
-		# lo stesso animo, con e senza la storia: si confronta il PUNTEGGIO
-		# su ogni azione, perché è lì che il termine vive
 		for az in azioni:
-			var con: float = float(a2.punteggio(str(az), "giocatore"))
-			var senza: float = float(a2.punteggio(str(az), "un_estraneo"))
+			var con: float = float(a2.punteggio(str(az), "se_stesso"))
+			var senza: float = float(a2.punteggio(str(az), "chi_non_conosce"))
 			if absf(con - senza) > 0.001:
 				diversi += 1
 				break
+	print("   (il `chiede` vero del gioco e' «se_stesso»: `decide()` ha un solo")
+	print("    chiamante, `Lavori`, e non passa mai «giocatore»)")
 	print("   residenti con fiducia > 0: %d · di cui il punteggio cambia: %d"
 			% [provati, diversi])
 	_dico(provati > 0, "qualcuno ha una storia col giocatore")
@@ -146,9 +169,20 @@ func _go() -> void:
 		if float(f3) > 0.0:
 			mossi += 1
 	print("   non toccati con fiducia > 0: %d su %d" % [mossi, f_altri.size()])
-	_dico(mossi == 0,
-			("chi il giocatore non ha toccato vale ZERO: nessun malus "
-			+ "mascherato, e il suo gioco è bit per bit quello di ieri"))
+	# ⚠️ **E IL CANCELLO GUARDA IL GIOCATORE, non il villaggio.** Due non
+	# toccati DAL BANCO avevano comunque fiducia (max 0.0625): non e' un
+	# guasto — e' il villaggio che vive, perche' `gesto_gentile` lo chiamano
+	# anche il piatto di un vicino e la festa. Il cancello vero e' che la
+	# fiducia di chi il giocatore non ha curato resti PICCOLA rispetto a chi
+	# ha curato: se le due popolazioni si sovrappongono, il canale non
+	# distingue e va tolto.
+	var m_toccati := 0.0
+	for f4 in f_toccati:
+		m_toccati = minf(m_toccati if m_toccati > 0.0 else 9e9, float(f4))
+	_dico(m_toccati > _max(f_altri) * 2.0,
+			("il piu' trascurato fra i curati (%.4f) sta ben sopra il piu' "
+			+ "fortunato fra gli altri (%.4f): le due popolazioni non si "
+			+ "sovrappongono") % [m_toccati, _max(f_altri)])
 
 	print("\n==== LA FIDUCIA: %s ====" % ("TUTTO A POSTO" if _guasti == 0
 			else "%d ARRESTI" % _guasti))

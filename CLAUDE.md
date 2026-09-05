@@ -5733,6 +5733,125 @@ recenza · il villaggio non fa più il ponte · le giornate insieme guardano un
 lato solo della riga (che non ha verso, quindi dimenticarne uno è la
 distrazione plausibile) · senza il registro si tiene la compagnia di ieri.
 
+## LA FIDUCIA — la gemella di `rancore()`, e il canale che non c'era
+
+Il libro mastro sapeva dire **quanto qualcuno ti ha fatto del male** e non
+sapeva dire quanto ti ha fatto del bene. `rancore()` chiude con
+`maxf(0.0, somma − buoni·1.4)`: cinquanta giornate di piatti caldi potevano al
+massimo azzerare un torto, e da lì in poi non lasciavano traccia da nessuna
+parte. E `opinione[]` — l'unico modello generalizzato che un vicino ha di una
+persona — aveva **un solo scrittore in tutto il gioco**: `senti_dire()`, cioè
+il pettegolezzo.
+
+`Animo.fiducia(attore, tranne)` è la gemella: stessa forma, stessa recenza,
+**lettura derivata** da prove già salvate. Zero chiavi nuove, zero migrazioni.
+
+### Le cinque decisioni, e nessuna è una taratura
+
+1. **`SAZIETA_FIDUCIA := 12.0`, non `SATURAZIONE` (55).** Ricopiarla *sembra*
+   la regola delle fonti uniche e la viola: quel 55 è tarato su una serie che
+   **sensibilizza** (`Limbico.rivaluta` spinge verso −0.30 sui torti
+   d'identità), mentre i doni **abituano** — rapporto misurato **4,5×**. Con 55
+   la funzione non supererebbe **0,24 in nessuna partita possibile**, cioè
+   dichiarerebbe 0..1 e mentirebbe. La fonte unica vincola la FORMA e la
+   RECENZA, non lo scalare di scala: è quello che ha già fatto
+   `Deriva.SAZIETA := 8.0`.
+2. **Si sceglie per SEGNO, mai per una lista di tipi.** Una lista sarebbe la
+   gemella di `Deriva.SPINTE["codardia"]` — che infatti ha già dimenticato
+   «accompagnato» e non vede «consolato». Un elenco scritto a mano nasce
+   incompleto, e una riga che non entra non fa fallire nessun test.
+3. **Legge anche il SOMMARIO.** Guardare solo i ricordi vivi farebbe sparire
+   la fiducia oltre le `RICORDI_VIVI` righe — cioè **proprio nei villaggi
+   vissuti**, dove nessun collaudo arriva.
+4. **Nessuno sconto coi torti.** Il `− buoni · 1.4` di `rancore()` non è una
+   costante di simmetria: è un pollice sulla bilancia **a favore del
+   giocatore**. Specchiarlo lo capovolge — un torto cancellerebbe 1,4 volte la
+   gentilezza, e una brutta giornata spazzerebbe settimane di doni. E darebbe
+   **due pene allo stesso evento**, la seconda senza nessun telegrafo. I torti
+   passano da una porta sola.
+5. **Zero esatto per uno sconosciuto**, e non per un `if` scritto apposta:
+   senza righe la somma è zero e la forma dà 0.0. Un credito iniziale
+   invaliderebbe in un colpo ogni misura mai presa su `decide()`.
+
+### ⚠️ E L'INNESTO OVVIO SAREBBE STATO INERTE — è algebra, non una stima
+
+`punteggio()` ha **un solo lettore** in tutto il gioco (`decide()`), che ordina,
+prende i primi tre e pesa `exp((s − base) · nitidezza)` con **`base` preso dai
+voti stessi**. Un termine che non dipende da `azione` è la stessa costante su
+tutti i candidati, quindi `(s+c) − (base+c) = s − base`: **si cancella
+esattamente**.
+
+`s += fiducia(chiede) * 0.6` accanto a `opinione` — la stesura che si scrive
+per prima, che compila, che si legge benissimo e che ha un test facile che
+passa — **non avrebbe cambiato nessuna decisione, per nessun coefficiente**.
+Sarebbe stata la nona funzione completa-provata-verde-e-spenta.
+
+L'innesto è quindi sulla riga del **logorio**, l'unico termine che dipende
+insieme da `azione` e da `chiede`:
+
+```gdscript
+s -= 0.5 * minf(1.0, quante_volte(azione, chiede) / 25.0) \
+        * (1.0 - SMORZO_FIDUCIA * fiducia(chiede, azione))
+```
+
+*Da chi ti ha voluto bene, la ventesima volta pesa meno.* Moltiplicativo, e il
+pavimento è **strutturale**: con `fiducia == 0` è `× 1.0`, cioè bit per bit la
+riga di ieri. Il tetto è `SMORZO_FIDUCIA`, e non è scelto — l'effetto massimo
+(0,20) deve restare sotto il **tiro del sogno più debole** (0,225): la fiducia
+in chi chiede non può mai pesare quanto la vocazione.
+
+E `fiducia(chiede, azione)` col `tranne`: quella riga conta **già** le righe di
+quel tipo, quindi pesarle di nuovo sarebbe contarle due volte dentro una sola
+espressione. Non è una lista bianca — è non guardare due volte la riga che il
+chiamante ha già in mano. E taglia il canale dominante dell'anello di
+«se_stesso», che si auto-confermerebbe il lavoro dei sogni.
+
+### ⚠️ E `opinione` È MORTA DA SEMPRE, per due ragioni indipendenti
+
+Oltre a essere additiva (e quindi cancellata dal softmax), è letta con
+`chiede`, e **`decide()` ha un solo chiamante**: `Lavori.gd:122`, che passa
+**`"se_stesso"`**. Mentre `senti_dire()` scrive `opinione["giocatore"]`.
+
+Legge una chiave che nessuno scrive. Il termine non ha mai influenzato niente,
+e il commento accanto adesso lo dice — perché il prossimo non ripaghi la
+giornata.
+
+### I NUMERI, dal villaggio vero
+
+`tools/misura_fiducia.gd`, tredici residenti, tre giornate, col giocatore che
+cura solo i primi quattro e assegna i lavori dei sogni:
+
+| | |
+|---|---|
+| fiducia di chi il giocatore ha curato | media **0,623** · da 0,588 a 0,648 |
+| fiducia degli altri | media **0,014** · massimo 0,063 |
+| residenti per cui `punteggio()` cambia | **13 su 13** |
+
+Le due popolazioni non si sovrappongono: il più trascurato fra i curati sta
+dieci volte sopra il più fortunato fra gli altri. ⚠️ E i due «altri» con
+fiducia non nulla non sono un guasto: è il villaggio che vive — `gesto_gentile`
+lo chiamano anche il piatto di un vicino e la festa.
+
+**Nove mutazioni, tutte rosse.** E due erano mute alla prima stesura, in tutti
+e due i casi **per un difetto del banco, non del codice**: misuravo il sommario
+con una soglia che i quaranta ricordi vivi già superavano, e confrontavo un
+«prima» a `oggi = 10` con un «dopo» a `oggi = 35` — venticinque giornate di
+decadimento che avevo scambiato per l'effetto dei torti. Adesso sono due
+gemelli a parità di orologio.
+
+### ⚠️ IL RESIDUO, e ha aperto il lavoro dopo
+
+Il canale che il committente voleva — «lo faccio perché lo chiedi **tu**» — non
+esiste: `decide()` non riceve mai `"giocatore"`. Quello che morde oggi è
+`fiducia("se_stesso")`, cioè **l'autoefficacia**: quanto le proprie scelte
+passate ti hanno fatto bene, alimentata dalle righe `+0.12` del sogno servito.
+È un significato vero, ed è misurato (13 su 13), ma non è quello chiesto.
+
+La lacuna vera è più profonda: **nel gioco non esiste un momento in cui un
+vicino decide se accettare qualcosa dal giocatore.** Il giocatore ordina (la
+Lavagna) o dona (i gesti gentili); non chiede mai, e le Commissioni vanno
+nell'altro verso.
+
 ## Test
 
 Test-suite **dependency-free** (nessun addon, nessuna rete) in `tests/`:
