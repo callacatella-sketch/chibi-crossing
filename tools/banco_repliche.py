@@ -98,14 +98,34 @@ def trova_godot() -> str:
     sys.exit("Godot non trovato: metti l'eseguibile in ~/Downloads/Godot.app")
 
 
-def una_replica(godot, progetto, script, seme, leve, extra_env, cartella, timeout):
-    """Una corsa isolata. Torna (misure, secondi, errore-o-None)."""
+def una_replica(godot, progetto, script, seme, leve, extra_env, cartella, timeout,
+                etichetta="x"):
+    """Una corsa isolata. Torna (misure, secondi, errore-o-None).
+
+    `etichetta` distingue il VILLAGGIO di questa replica da quello di ogni
+    altra: vedi il commento su CHIBI_VILLAGGIO qui sotto.
+    """
     env = dict(os.environ)
     env.update(extra_env)
     env["CHIBI_SEME"] = str(seme)
+    # ⚠️ IL TURNO DELLE ROTTE A CONTEGGIO, e non è una preferenza: in partita
+    # si misura in microsecondi VERI, quindi sotto carico due corse identiche
+    # fanno passare un numero diverso di domande per frame e mandano in giro
+    # corpi diversi. È non-determinismo che nessun seme può togliere. Un banco
+    # misura un COMPORTAMENTO, non dei millisecondi.
+    env.setdefault("CHIBI_ROTTE_CONTO", "6")
     env["CHIBI_LEVE"] = ",".join("%s:off" % l for l in leve) if leve else ""
-    # il villaggio di QUESTA replica, e di nessun'altra
-    env["CHIBI_VILLAGGIO"] = os.path.join(cartella, "villaggio_%d.json" % seme)
+    # ⚠️ IL VILLAGGIO DI QUESTA REPLICA, E DI NESSUN'ALTRA — e la prima stesura
+    # indicizzava solo sul SEME, cioè mentiva. Le due corse del controllo hanno
+    # lo stesso seme, e ogni condizione riusa gli stessi semi: il file era
+    # condiviso, e il banco misurato lo SCRIVE (dei sei che aprono il MainLevel,
+    # solo alcuni spengono la persistenza, e `misura_insieme` lo fa dopo
+    # quaranta fotogrammi, cioè dopo che `_load_village` ha già girato).
+    # Risultato: la seconda corsa caricava il mondo salvato dalla prima — il
+    # «rumore proprio» misurato sarebbe stato del BANCO, non del gioco, e lo
+    # scarto appaiato avrebbe avuto un bias in una direzione sola.
+    env["CHIBI_VILLAGGIO"] = os.path.join(
+        cartella, "villaggio_%d_%s.json" % (seme, etichetta))
     cmd = [godot, "--headless", "--path", progetto,
            "--fixed-fps", "60",              # regola 1: non è opzionale
            "--script", "res://" + script]
@@ -182,8 +202,10 @@ def main():
         nome0, leve0 = condizioni[0]
         rumore = []
         for s in semi[:2]:
-            m1, t1, e1 = una_replica(godot, a.progetto, a.script, s, leve0, extra, cartella, a.timeout)
-            m2, t2, e2 = una_replica(godot, a.progetto, a.script, s, leve0, extra, cartella, a.timeout)
+            m1, t1, e1 = una_replica(godot, a.progetto, a.script, s, leve0, extra,
+                                     cartella, a.timeout, "ctrlA")
+            m2, t2, e2 = una_replica(godot, a.progetto, a.script, s, leve0, extra,
+                                     cartella, a.timeout, "ctrlB")
             if e1 or e2:
                 print("   seme %-6d CADUTA (%s)" % (s, e1 or e2))
                 caduti.append("controllo/%d: %s" % (s, e1 or e2))
@@ -207,7 +229,9 @@ def main():
     for nome, leve in condizioni:
         risultati[nome] = {}
         for s in semi:
-            m, dt, err = una_replica(godot, a.progetto, a.script, s, leve, extra, cartella, a.timeout)
+            m, dt, err = una_replica(godot, a.progetto, a.script, s, leve, extra,
+                                     cartella, a.timeout,
+                                     re.sub(r"[^A-Za-z0-9]+", "_", nome))
             if err:
                 print("   %-16s seme %-6d CADUTA — %s" % (nome, s, err))
                 caduti.append("%s/%d: %s" % (nome, s, err))

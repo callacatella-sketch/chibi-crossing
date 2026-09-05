@@ -74,6 +74,15 @@ var _pockets: Node
 var _chat_acc := 0.0
 var _wish_acc := 0.0
 var _pair_cd := {}
+## L'orologio del VILLAGGIO in millisecondi, mosso dal `delta` in `_process`.
+## Non è `Time.get_ticks_msec()`: vedi il commento lì e in `_chats`.
+##
+## ⚠️ È un FLOAT, e la prima stesura era un intero con `+= int(delta * 1000.0)`:
+## a 60 fps `delta` vale 0.0166666…, cioè 16.666 ms, e `int()` tronca a 16 —
+## **l'orologio perdeva il 4% del tempo**, e il raffreddamento delle coppie da
+## 35 s ne durava 36,4. Un errore che si accumula non è un errore di
+## arrotondamento: è un orologio che va piano.
+var _orologio_ms := 0.0
 ## Il registro delle cricche, se c'è: la co-presenza che `_chats` costruisce
 ## e oggi butta via. Si ricerca finché non si trova — il nodo nasce nel
 ## livello, e in un banco non nasce affatto.
@@ -1070,6 +1079,14 @@ func is_bed_claimed(cell: Vector2i) -> bool:
 
 
 func _process(delta: float) -> void:
+	# ⚠️ L'OROLOGIO DEL VILLAGGIO, in millisecondi, e non è quello da polso.
+	# Vedi `_chats`: il raffreddamento delle coppie si misurava con
+	# `Time.get_ticks_msec()`, cioè col tempo VERO — e un tempo vero dipende
+	# dal carico della macchina, non dal gioco. Questo scorre col `delta`,
+	# quindi due corse a passo fisso lo vedono identico, e in partita si ferma
+	# quando il gioco è in pausa (che è anche più giusto: una pausa non deve
+	# far scadere l'attesa fra due chiacchierate).
+	_orologio_ms += delta * 1000.0
 	_tick_gesti(delta)
 	_tick_sussulti(delta)
 	_tick_confronti(delta)
@@ -1265,7 +1282,20 @@ func _routine(delta: float) -> void:
 			continue
 		if str(r.get("phase", "")) != ph:
 			r["phase"] = ph
-			r["next_act"] = randf_range(0.4, 1.8)
+			# ⚠️ QUESTO LEASE DECIDE IL NUMERO CHE BALLAVA DI 5,7 VOLTE.
+			# `_chats` guarda `next_act` per sapere chi è disponibile, e da lì
+			# escono le righe di co-presenza delle Cricche: un lease diverso
+			# è un incontro che non viene registrato. Veniva dal generatore
+			# GLOBALE, che in partita non semina nessuno e che il C++
+			# dell'ecosistema consuma fino a 180 volte per fotogramma —
+			# quindi la sua posizione dipendeva da quante farfalle erano
+			# nate. Adesso è un flusso nominato, e il suo dado non lo tocca
+			# nessun altro.
+			var n_lease := int(r.get("_lease_n", 0)) + 1
+			r["_lease_n"] = n_lease
+			r["next_act"] = Dadi.rng(Dadi.VILLAGGIO,
+					"lease:%s:%d" % [str(r.get("label", i)), n_lease]) \
+					.randf_range(0.4, 1.8)
 		var prima_lease := float(r.get("next_act", 1.0))
 		r["next_act"] = prima_lease - delta
 		if float(r["next_act"]) > 0.0:
@@ -4591,7 +4621,15 @@ func _chats(delta: float) -> void:
 		return
 	_chat_acc = 3.5
 	var chatty := ["r_idle", "r_wander", "r_sniff", "r_fire", "r_bench"]
-	var now := Time.get_ticks_msec()
+	# ⚠️ L'OROLOGIO DEL VILLAGGIO, NON QUELLO DA POLSO. Qui c'era
+	# `Time.get_ticks_msec()`, e `prova_identico` lo dichiarava da anni come
+	# «una cosa che la traccia non copre» invece di curarlo: su un banco che
+	# gira più veloce del reale quel riposo non scadeva mai, e sotto carico
+	# due corse identiche vedevano trascorrere millisecondi diversi per lo
+	# stesso numero di fotogrammi — quindi facevano chiacchierare coppie
+	# diverse, quindi mandavano i corpi in posti diversi, quindi registravano
+	# co-presenze diverse. Era non-determinismo che nessun seme può togliere.
+	var now := int(_orologio_ms)
 	# SI GUARDANO TUTTE, e non è uno spreco: la scansione completa la si
 	# pagava già ogni volta che nessuno si parlava — cioè quasi sempre —
 	# perché il ciclo si interrompeva solo QUANDO trovava una coppia. Quello

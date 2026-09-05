@@ -91,6 +91,19 @@ var _scavalchi := 0          # quante volte il bit CAMBIA l'argmax
 var _scavalchi_visti := 0    # su quante valutazioni col bit acceso
 var _scarti := []            # di quanto muove il punteggio del riposo
 var _coppie_sedute := 0.0    # secondi-coppia
+
+## ⚠️ L'ORACOLO DELL'ABLAZIONE, e per un pezzo non l'ha letto NESSUNO.
+## `Visitors` calcola il fatto «posto accanto» SEMPRE e lo pubblica in
+## `r["insieme_osservato"]`, poi lo neutralizza col bit se la leva è spenta:
+## è la forma di `debug_occlusione`, «il ramo spento non salta il lavoro».
+## Ma senza un lettore quella spesa non compra niente — e il referto, a leva
+## spenta, non sa distinguere «il fatto non si è mai acceso» da «si sarebbe
+## acceso e la leva l'ha tolto di mezzo», che è ESATTAMENTE la domanda per
+## cui si paga di calcolarlo lo stesso. È la modalità di guasto che
+## `Leve.gd` nomina da sé («una leva senza lettore è una promessa vuota»),
+## applicata all'oracolo invece che alla leva.
+var _oss_visti := 0
+var _oss_accesi := 0
 var _coppie_distinte := {}
 var _grappolo_max := 0
 var _camp_tre := 0
@@ -386,6 +399,11 @@ func _ogni_frame(res: Array, dt: float) -> void:
 ## appaiate, che costano una chiamata al C++ per residente.
 func _campiona(res: Array) -> void:
 	var bit := _bit_insieme()
+	# l'oracolo: quante volte il fatto SAREBBE stato vero, leva o non leva
+	for r in res:
+		_oss_visti += 1
+		if bool(r.get("insieme_osservato", false)):
+			_oss_accesi += 1
 	var seduti: Array = []
 	# ⚠️ **IL RITO SI RICONOSCE DALLA FASE, non dallo stato.** La prima
 	# stesura guardava chi fosse in `r_fire`, e non bastava: durante la fase
@@ -618,6 +636,12 @@ func _referto(res: Array) -> void:
 	print("\n7. IL GRAPPOLO — massimo %d seduti vicini · campioni con tre o piu': %d"
 			% [_grappolo_max, _camp_tre])
 	_misura["grappolo_max"] = float(_grappolo_max)
+	if _oss_visti > 0:
+		print("   l'ORACOLO — il fatto SAREBBE stato vero nel %.2f%% dei campioni"
+				% (100.0 * float(_oss_accesi) / float(_oss_visti))
+				+ "  (leve spente: %s)" % Leve.condizione())
+		_misura["insieme_osservato_pct"] = (100.0 * float(_oss_accesi)
+				/ float(_oss_visti))
 	_misura["coppie_sedute_distinte"] = float(_coppie_distinte.size())
 
 	# 8

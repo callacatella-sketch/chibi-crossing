@@ -115,15 +115,67 @@ static var _radice := 0
 static var _posata := false
 
 
+## DOVE VIVE IL VILLAGGIO. Sta qui e non in `BuildSystem` perché `Dadi` deve
+## poter leggere la radice PRIMA che BuildSystem esista (vedi `radice()`), e
+## due strade scritte a mano divergerebbero al primo che ne ritocca una.
+## `BuildSystem.save_path` la prende di qui.
+static func percorso_villaggio() -> String:
+	var e := OS.get_environment("CHIBI_VILLAGGIO")
+	return e if e != "" else "user://village.json"
+
+
 ## La radice di questa corsa. Vedi «DA DOVE VIENE LA RADICE».
+##
+## ⚠️ **LA LEGGE DA SÉ DAL SALVATAGGIO, e non è un lusso: è l'unico ordine
+## che funziona.** La prima stesura la faceva posare a
+## `BuildSystem._load_village`, che è `call_deferred`: in Godot i `_ready` di
+## TUTTI i nodi girano prima che la coda differita si svuoti, e in
+## `MainLevel.tscn` `CozyWorld`, `Mail` e `Visitors` vengono tutti prima — e
+## tutti e tre chiedono un dado nel loro `_ready`. Il primo che chiedeva
+## faceva coniare una radice nuova, `radice_posata()` diventava vera, e
+## quando finalmente `_load_village` girava **scartava il seme del
+## salvataggio**. Peggio: al salvataggio dopo lo SOVRASCRIVEVA con quello
+## coniato adesso — quindi la radice cambiava a ogni avvio, e il ramo 2 di
+## «DA DOVE VIENE LA RADICE» era codice morto.
+##
+## Il difetto era invisibile a ogni banco, perché lì `CHIBI_SEME` c'è sempre
+## ed è il primo ramo. L'ha trovato una revisione avversariale riproducendolo
+## in una scena minima, non una rilettura.
 static func radice() -> int:
-	if not _posata:
-		var da_ambiente := OS.get_environment("CHIBI_SEME")
-		if da_ambiente != "":
+	if _posata:
+		return _radice
+	var da_ambiente := OS.get_environment("CHIBI_SEME")
+	if da_ambiente != "":
+		# ⚠️ Si valida: `int("ciao")` in GDScript è 0 e `int("0x1F")` è 1, e
+		# due corse che si volevano DIVERSE finirebbero sulla stessa radice
+		# senza un errore — il verso pericoloso per uno strumento di misura.
+		if da_ambiente.is_valid_int():
 			posa_radice(int(da_ambiente))
-		else:
-			posa_radice(conia())
+			return _radice
+		push_error("CHIBI_SEME=«%s» non è un intero: la radice si conia."
+				% da_ambiente)
+	var dal_file: Variant = _radice_dal_salvataggio()
+	posa_radice(int(dal_file) if dal_file != null else conia())
 	return _radice
+
+
+## Il seme scritto nel villaggio, o `null`. Legge il file da sé — è il prezzo
+## di poter rispondere prima che BuildSystem esista, ed è una lettura sola
+## per processo (dopo, `_posata` è vera).
+static func _radice_dal_salvataggio() -> Variant:
+	var p := percorso_villaggio()
+	if not FileAccess.file_exists(p):
+		return null
+	var f := FileAccess.open(p, FileAccess.READ)
+	if f == null:
+		return null
+	var d: Variant = JSON.parse_string(f.get_as_text())
+	f.close()
+	if d is Dictionary and (d as Dictionary).has("seme"):
+		var t := str((d as Dictionary)["seme"])
+		if t.is_valid_int():
+			return int(t)
+	return null
 
 
 ## La posa chi possiede la radice: il caricamento del villaggio, o un banco.
@@ -184,6 +236,31 @@ static func libero() -> RandomNumberGenerator:
 	var g := RandomNumberGenerator.new()
 	g.randomize()
 	return g
+
+
+## ⚠️ DARE UNA POSIZIONE AL FLUSSO GLOBALE, e non è un flusso nominato: è il
+## generatore condiviso del motore, quello che risponde a `randf()` senza
+## istanza. Ha due proprietà che i flussi nominati non hanno, e vanno sapute
+## tutte e due:
+##
+## 1. **In partita non lo semina NESSUNO.** Verificato: `seed(...)` compare
+##    in tutto il progetto solo dentro tre banchi. Ogni processo parte quindi
+##    da una posizione diversa — ed è la ragione per cui, dopo aver curato
+##    l'epicentro, la corsa di controllo del banco delle repliche continuava
+##    a NON dare zero (misurato: copresenza 1,75 contro 0,50 sullo stesso
+##    seme).
+## 2. **Lo consuma anche il C++**: `EcosystemManager` ne fa 48 tiri, e
+##    `update_butterflies` ne prende DUE per farfalla per passo di fisica —
+##    fino a 180 per fotogramma con 90 farfalle. Quindi la posizione dipende
+##    da quanti fotogrammi sono passati, e seminarlo rende ripetibile una
+##    corsa **solo a passo fisso** (`--fixed-fps 60`). Fuori da lì è un
+##    miglioramento, non una garanzia — e va detto invece che promesso.
+##
+## Per questo il flusso globale non è in `FLUSSI`: non è una casa dove
+## mettere il codice che decide. È una risorsa condivisa a cui si dà una
+## posizione, mentre il codice che decide si sposta sui flussi nominati.
+static func semina_globale() -> void:
+	seed(radice())
 
 
 ## Rimette il modulo com'era. Serve a un banco che fa più repliche dentro lo

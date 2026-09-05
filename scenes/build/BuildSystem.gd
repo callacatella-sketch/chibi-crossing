@@ -181,9 +181,12 @@ var debug_ghost_pos := Vector3.INF
 ## a seconda di cosa l'autore aveva costruito nel frattempo.
 ##
 ## Il degrado va dove va sempre: senza la variabile, è il salvataggio vero.
-var save_path := ("user://village.json"
-		if OS.get_environment("CHIBI_VILLAGGIO") == ""
-		else OS.get_environment("CHIBI_VILLAGGIO"))
+##
+## ⚠️ La strada la dice `Dadi`, e non è un giro largo: `Dadi.radice()` deve
+## poter leggere il seme dal villaggio PRIMA che questo nodo esista, quindi
+## la conosce già. Due strade scritte a mano divergerebbero al primo che ne
+## ritocca una — ed è la regola delle fonti uniche applicata a un percorso.
+var save_path := Dadi.percorso_villaggio()
 var _persist := true
 var _loading := false
 
@@ -231,6 +234,13 @@ func _ready() -> void:
 	# in modalità screenshot CLI la demo costruisce una casetta di prova:
 	# niente caricamento né salvataggio, il villaggio vero resta intatto
 	_persist = OS.get_environment("CHIBI_SHOT") == ""
+	# ⚠️ ANCHE QUANDO NON SI CARICA NIENTE. Un villaggio nuovo, la modalità
+	# screenshot, un banco senza salvataggio: `_load_village` o non viene
+	# chiamata o esce prima. Senza questa riga il flusso globale resterebbe
+	# dove l'ha lasciato il motore, cioè in un punto diverso a ogni avvio, e
+	# la generazione del mondo (CozyWorld chiede al globale in 37 punti) non
+	# si ripeterebbe.
+	Dadi.semina_globale()
 	if _persist:
 		# i persistable che nascono dopo il load (mondo differito) si servono
 		# da soli via node_added: vedi _on_node_added
@@ -2004,16 +2014,38 @@ func muri() -> Dictionary:
 const BUDGET_ROTTE_US := 1500
 var _turno_frame := -1
 var _turno_speso := 0
+## Quante domande ha ricevuto il turno in questo frame (per `CHIBI_ROTTE_CONTO`).
+var _turno_domande := 0
 var _turno_attivo := true
 
 
 ## C'è ancora tempo, in questo frame, per cercare una strada? Chi la chiede
 ## deve domandarlo PRIMA (`Visitor._deviazione`): un «no» non è un rifiuto,
 ## è un «fra un frame».
+## ⚠️ IL TURNO A CONTEGGIO, per i banchi — e non è una comodità.
+## Il turno vero si misura in microsecondi VERI (vedi sopra: è la scelta
+## giusta in partita, perché le domande a buon mercato non consumano
+## niente). Ma un tempo vero dipende dal CARICO DELLA MACCHINA: sotto altre
+## sessioni, due corse identiche fanno passare un numero diverso di domande
+## per frame, quindi mandano in giro corpi diversi, quindi registrano
+## co-presenze diverse. È non-determinismo che NESSUN seme può togliere, e
+## il banco delle repliche l'ha misurato prima che lo trovassi leggendo.
+##
+## `CHIBI_ROTTE_CONTO=N` sostituisce il cronometro con un CONTATORE: N
+## domande per frame, sempre le stesse. Non tocca il gioco — di serie è
+## vuoto e questo ramo non esiste.
+static var _conto_rotte := -2
+
+
 func turno_rotte_libero() -> bool:
 	if not _turno_attivo:
 		return true
 	_turno_rinfresca()
+	if _conto_rotte == -2:
+		var e := OS.get_environment("CHIBI_ROTTE_CONTO")
+		_conto_rotte = int(e) if e != "" else -1
+	if _conto_rotte >= 0:
+		return _turno_domande < _conto_rotte
 	return _turno_speso < BUDGET_ROTTE_US
 
 
@@ -2022,6 +2054,7 @@ func _turno_rinfresca() -> void:
 	if f != _turno_frame:
 		_turno_frame = f
 		_turno_speso = 0
+		_turno_domande = 0
 
 
 ## Spegne il turno: serve ai banchi di prova che fanno mille viaggi dentro
@@ -2208,6 +2241,7 @@ func deviazione(da: Vector3, a: Vector3) -> Array[Vector3]:
 		return niente   # la meta è nell'acqua: nessuna strada ci arriva
 	# da qui in giù si SPENDE: il tempo speso va sul conto del frame, ed è
 	# quello che tiene la sera del falò dentro un frame (vedi il turno)
+	_turno_domande += 1
 	var orologio := Time.get_ticks_usec()
 	var tappe := rotta_mondo(da, a, VARCHI.ROTTA_TETTO)
 	_turno_rinfresca()
@@ -2359,8 +2393,13 @@ func _load_village() -> void:
 	# Chi ha già parlato comanda: `CHIBI_SEME` e i banchi stanno SOPRA il
 	# salvataggio, o non si potrebbe rigiocare un villaggio vero con un seme
 	# scelto. Ed è anche perché `radice_posata()` esiste.
-	if not Dadi.radice_posata() and data.has("seme"):
-		Dadi.posa_radice(int(str(data["seme"])))
+	# ⚠️ LA RADICE NON SI POSA PIÙ QUI, ed è la cura di un difetto vero: questa
+	# funzione è `call_deferred`, i `_ready` che chiedono un dado no, e posarla
+	# qui voleva dire arrivare sempre secondi — il seme del salvataggio veniva
+	# scartato, e al salvataggio dopo sovrascritto. Adesso `Dadi.radice()`
+	# legge il seme dal file da sé, e questa riga rimette soltanto la
+	# POSIZIONE del flusso globale dopo che il mondo è nato.
+	Dadi.semina_globale()
 	_loading = true
 	var vmap: Dictionary = data.get("variants", {})
 	for c in data.get("cells", []):

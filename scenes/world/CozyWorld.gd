@@ -138,6 +138,18 @@ signal world_built
 
 
 func _ready() -> void:
+	# ⚠️ QUI E NON IN `BuildSystem`, e la ragione è l'ORDINE DEI NODI.
+	# In `MainLevel.tscn` CozyWorld viene PRIMA di BuildSystem, quindi il
+	# mondo si generava già — chiedendo al flusso globale in trentasette
+	# punti — prima che qualcuno gli avesse dato una posizione. La prima
+	# stesura di questa cura seminava solo di là, e il banco delle repliche
+	# ha continuato a dire di no: è stato lui a trovarlo, non una rilettura.
+	#
+	# Seminare due volte non è un doppione: qui si fissa il mondo, e in
+	# `BuildSystem` si rifissa la posizione DOPO che il mondo è nato — così
+	# quello che viene dopo non dipende da quanti tiri ha fatto la
+	# generazione.
+	Dadi.semina_globale()
 	add_to_group("cozy_world")
 	add_to_group("season_listener")
 	# la calma del giocatore arriva da una casa sola: il Fiato Sospeso
