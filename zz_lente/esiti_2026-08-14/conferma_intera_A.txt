@@ -1,0 +1,54 @@
+da confermare sulla suite INTERA: 21
+BASE  passati=67748 falliti=0 err=0
+AMP punto·orecchie ~0                                >>> VERDE <<<  err=0 pass=67748
+AMP punto·peso che continua a 0                      ROSSE 3        err=0 pass=67745
+         FAIL: [test_scarico.gd] senza lasciare niente col nome del modello
+         FAIL: [test_scarico.gd] l'annullamento ha lasciato un pezzo (-1 byte)
+         FAIL: [test_scarico.gd] e finisce col file giusto (lunghezza 300000 invece di 1000000)
+AMP punto·assestamento vrz a 0                       ROSSE 7        err=0 pass=67741
+         FAIL: [test_salvataggio_finestra.gd] il Filo Rosso sopravvive a un salvataggio nei primi frame
+         FAIL: [test_salvataggio_finestra.gd] il lutto sopravvive a un salvataggio nei primi frame
+         FAIL: [test_salvataggio_finestra.gd] l'Ordine del Gufo in corso sopravvive
+TEMPO punto·orecchie lente                           ROSSE 8        err=0 pass=67740
+         FAIL: [test_offerta_modello.gd] con il consenso agli atti, si riprende (atteso pezzo, ottenuto offerta)
+         FAIL: [test_offerta_modello.gd] e si dice a che punto era
+         FAIL: [test_salvataggio_finestra.gd] e intanto le chiavi orfane restano al loro posto
+AMP raccolto·scala 0.84 (verso ✗)                    >>> VERDE <<<  err=0 pass=67748
+AMP raccolto·orecchie ~0                             >>> VERDE <<<  err=0 pass=67748
+AMP raccolto·passo indietro ~0                       >>> VERDE <<<  err=0 pass=67748
+AMP raccolto·busto 6x (diluente)                     >>> VERDE <<<  err=0 pass=67748
+AMP raccolto·braccia ~0                              ROSSE 12       err=0 pass=67736
+         FAIL: [test_scarico.gd] e il file è quello giusto, non quello con l'inizio due volte (lunghezza 0 invece di 300000)
+         FAIL: [test_scarico.gd] un pezzo che comincia altrove non fa saltare il viaggio (atteso 1, ottenuto 8)
+         FAIL: [test_scarico.gd] e il file resta quello vero: si è ricominciato da capo, non cucito storto (lunghezza 0 invece di 300000)
+AMP rialzo·verticale 0.30 (verso ✗)                  >>> VERDE <<<  err=0 pass=67748
+AMP rialzo·orecchie 0.70 (coprono)                   >>> VERDE <<<  err=0 pass=67748
+FORMA rialzo·orecchie senza ritardo                  >>> VERDE <<<  err=0 pass=67748
+AMP capo·ampiezza 0.24 (verso 1,10 ✗)                >>> VERDE <<<  err=0 pass=67748
+TEMPO capo·intervallo 0.35 (metronomo)               >>> VERDE <<<  err=0 pass=67748
+FORMA capo·molla sovrasmorzata                       >>> VERDE <<<  err=0 pass=67748
+AMP largo·scostamento ~0 (canale portante)           >>> VERDE <<<  err=0 pass=67748
+AMP largo·inclinazione 0                             >>> VERDE <<<  err=0 pass=67748
+AMP largo·rollio del capo 0                          >>> VERDE <<<  err=0 pass=67748
+AMP largo·orecchie ~0                                >>> VERDE <<<  err=0 pass=67748
+AMP coda·braccia ~0                                  >>> VERDE <<<  err=0 pass=67748
+FORMA coda·tremolio orecchie 0                       >>> VERDE <<<  err=0 pass=67748
+
+=== 17 confermate VERDI sulla suite INTERA ===
+   AMP punto·orecchie ~0
+   AMP raccolto·scala 0.84 (verso ✗)
+   AMP raccolto·orecchie ~0
+   AMP raccolto·passo indietro ~0
+   AMP raccolto·busto 6x (diluente)
+   AMP rialzo·verticale 0.30 (verso ✗)
+   AMP rialzo·orecchie 0.70 (coprono)
+   FORMA rialzo·orecchie senza ritardo
+   AMP capo·ampiezza 0.24 (verso 1,10 ✗)
+   TEMPO capo·intervallo 0.35 (metronomo)
+   FORMA capo·molla sovrasmorzata
+   AMP largo·scostamento ~0 (canale portante)
+   AMP largo·inclinazione 0
+   AMP largo·rollio del capo 0
+   AMP largo·orecchie ~0
+   AMP coda·braccia ~0
+   FORMA coda·tremolio orecchie 0

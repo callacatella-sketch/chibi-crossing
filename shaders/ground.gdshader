@@ -26,6 +26,12 @@ uniform float pozzanghere : hint_range(0.0, 1.0) = 0.0;
 // 1 mentre la pioggia CADE: l'acqua raccolta si increspa ad anelli;
 // appena smette torna specchio calmo
 uniform float pioggia_cade : hint_range(0.0, 1.0) = 0.0;
+// LA STAGIONE NON E' SOLO UNA TINTA. D'autunno la lettiera si ACCUMULA
+// dove cade — sotto le chiome — e d'inverno la neve sotto un albero
+// arriva meno che in mezzo al prato. Lo dice il canale G della mappa del
+// terreno, lo stesso dell'ombra di contatto: una verita' sola letta due
+// volte, non due tabelle da tenere allineate.
+uniform float lettiera : hint_range(0.0, 1.0) = 0.0;
 // il cielo di adesso, per il riflesso a gradiente (li scrive DayNight
 // ogni frame: le pozzanghere riflettono LO STESSO tramonto del giocatore)
 global uniform vec4 cielo_alto;
@@ -204,6 +210,15 @@ void fragment() {
 	// zero triangoli e zero draw call.
 	col *= 1.0 - 0.34 * smoothstep(0.05, 0.85, tmap.g);
 
+	// LA LETTIERA DELL'AUTUNNO: si accumula sotto le chiome, non sparsa a
+	// caso sul prato. E' quello che fa sembrare l'autunno una STAGIONE e
+	// non un filtro colore passato sopra a tutto.
+	if (lettiera > 0.001) {
+		float lf = smoothstep(0.08, 0.78, tmap.g) * lettiera;
+		lf *= 0.55 + 0.45 * fbm3(wpos.xz * 3.1);
+		col = mix(col, forest_litter.rgb, lf * 0.72);
+	}
+
 	// l'ombra dei ciuffi: dove l'erba si addensa il manto si scurisce
 	// (stesso campo che decide dove nascono i fili) — le radici hanno
 	// una casa scura in cui affondare, non un pavimento chiaro
@@ -304,6 +319,9 @@ void fragment() {
 		float drift = fbm(wpos.xz * 0.6 + 20.0) * 0.6 + fbm(wpos.xz * 2.1 + 4.0) * 0.4;
 		float cover = smoothstep(0.32, 0.78, drift + snow_amount * 0.55 - 0.08) * snow_amount;
 		cover *= 1.0 - smoothstep(0.5, 0.95, v_river);
+		// SOTTO UN ALBERO NEVICA MENO: le chiome intercettano, e attorno
+		// ai tronchi resta l'anello scoperto che ogni inverno vero ha
+		cover *= 1.0 - 0.62 * smoothstep(0.10, 0.72, tmap.g);
 		cover = clamp(cover, 0.0, 0.93);
 		col = mix(col, vec3(0.93, 0.95, 1.0), cover);
 		// cristalli radi che scintillano al sole

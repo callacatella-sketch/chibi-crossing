@@ -1,0 +1,48 @@
+BASE  passati=7892 falliti=0 err=0   (filtro)
+CABL era_per_me·nessun dono e' mai «fatto a me»      >>> VERDE <<<  err=0 pass=7892
+VALV gesto_libero·tutte e tre le valvole tolte       ROSSE 1        err=0 pass=7891
+         FAIL: [test_regia.gd] durante la scena non parte niente
+VALV gesto_libero·un gesto sopra la rampa di quello di prima >>> VERDE <<<  err=0 pass=7892
+VALV punto·nessun passo richiesto                    ROSSE 2        err=0 pass=7890
+         FAIL: [test_regia.gd] su un corpo fermo il Punto non parte
+         FAIL: [test_regia.gd] appena il corpo cammina, l'occasione rimandata parte (atteso punto, ottenuto )
+VALV largo·si recita da fermi                        >>> VERDE <<<  err=0 pass=7892
+RETE capo_pende·riarma il livello a ogni chiamata    >>> VERDE <<<  err=0 pass=7892
+RETE capo_livello·legge il bit derivato invece del livello ROSSE 3        err=0 pass=7889
+         FAIL: [test_regia.gd] …ma il livello del villaggio è spento: quel rollio è della frase
+         FAIL: [test_regia.gd] …e il pensiero resta: la frase l'ha mostrato, il villaggio lo tiene
+         FAIL: [test_regia.gd] (il villaggio gli toglie il livello)
+USH capo·il registro legge la TESTA invece del livello ROSSE 2        err=0 pass=7890
+         FAIL: [test_regia.gd] il registro riconosce il pensiero che era già lì invece di ignorarlo, e non gli fa pagare un posto che occupa già
+         FAIL: [test_regia.gd] …e il pensiero resta: la frase l'ha mostrato, il villaggio lo tiene
+AMP punto·nessuno scarto personale                   ROSSE 1        err=0 pass=7891
+         FAIL: [test_gesti.gd] in un secondo e due il gemello fa 1.74 m e chi si è fermato 0.41
+AMP raccolto·braccio destro ~0                       ROSSE 2        err=0 pass=7890
+         FAIL: [test_gesti.gd] il Raccolto: le due BRACCIA non sono un filo solo (residuo 1.5%)
+         FAIL: [test_gesti.gd] il Raccolto→Rialzo: le due BRACCIA non sono un filo solo (residuo 1.5%)
+AMP rialzo·il petto non si apre                      >>> VERDE <<<  err=0 pass=7892
+AMP largo·braccia 0                                  ROSSE 1        err=0 pass=7891
+         FAIL: [test_gesti.gd] il Largo: le due BRACCIA non sono un filo solo (residuo 4.7%)
+META' coda·la seconda meta' muore subito             ROSSE 2        err=0 pass=7890
+         FAIL: [test_gesti.gd] …e la coda somatica si vede addosso (0.130 rad)
+         FAIL: [test_gesti.gd] …e rientrano davvero (0.0005 rad)
+TEMPO soma·rallentando di un secondo                 ROSSE 2        err=0 pass=7890
+         FAIL: [test_gesti.gd] a nove secondi il RALLENTANDO vive ancora (1.000)
+         FAIL: [test_regia.gd] l'orologio della coda gira anche a scena aperta (0.0 s)
+TEMPO coda·posa che dura mezzo secondo               ROSSE 5        err=0 pass=7887
+         FAIL: [test_gesti.gd] …ma a sei secondi c'è ancora
+         FAIL: [test_gesti.gd] la coda somatica si vede addosso (le orecchie)
+         FAIL: [test_gesti.gd] …e rientrano davvero (0.0000 rad)
+TEMPO rialzo·salita istantanea                       >>> VERDE <<<  err=0 pass=7892
+TEMPO capo·intervallo FISSO (metronomo)              >>> VERDE <<<  err=0 pass=7892
+AMP capo·ampiezza FISSA                              ROSSE 1        err=0 pass=7891
+         FAIL: [test_gesti.gd] il rollio sta nella forbice misurata (0.168)
+
+=== 18 mutazioni · 7 VERDI (la suite non le vede) ===
+   VERDE  CABL era_per_me·nessun dono e' mai «fatto a me»
+   VERDE  VALV gesto_libero·un gesto sopra la rampa di quello di prima
+   VERDE  VALV largo·si recita da fermi
+   VERDE  RETE capo_pende·riarma il livello a ogni chiamata
+   VERDE  AMP rialzo·il petto non si apre
+   VERDE  TEMPO rialzo·salita istantanea
+   VERDE  TEMPO capo·intervallo FISSO (metronomo)

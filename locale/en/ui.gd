@@ -432,6 +432,84 @@ const T := {
 	"Lavagnetta": "Little chalkboard",
 	"Biliardino": "Table football",
 	"Ombrellone": "Parasol",
+	# ------------------------------------------- il banco del builder
+	# Con centotrentasette pezzi il pannello ha una griglia, una ricerca e
+	# la scheda dei recenti: queste sono le sue parole.
+	"★ Recenti": "★ Recent",
+	"/ per cercare un pezzo": "/ to search for a piece",
+	"Dal mercante": "From the pedlar",
+	"Arriva col tempo": "Comes in time",
+	"Niente da queste parti.": "Nothing over here.",
+	"Nessun pezzo con questo nome.": "No piece by that name.",
+	"%d di %d": "%d of %d",
+	"%d pezzi": "%d pieces",
+	"B esci  ·  / cerca  ·  rotella / 1-9 scegli  ·  R ruota  ·  V piano su/giù  ·  F ruota piazzato  ·  clic piazza  ·  X rimuovi":
+			"B exit  ·  / search  ·  wheel / 1-9 pick  ·  R rotate  ·  V floor up/down  ·  F turn placed  ·  click to place  ·  X remove",
+	# ------------------------------------------------------- L'ATELIER
+	# Il banco dei pezzi è diventato uno studio: a sinistra le categorie e
+	# i corredi, al centro i ritratti dei pezzi, a destra il taccuino che
+	# dice quello che il villaggio ha visto. «Atelier» resta com'è: in
+	# inglese vuol dire la stessa cosa (lo studio di chi fa le cose a
+	# mano) ed è il NOME del posto, non la sua descrizione.
+	"L'Atelier": "The Atelier",
+	"Il catalogo": "The catalogue",
+	"Tutto il catalogo": "The whole catalogue",
+	"I corredi": "The sets",
+	"Qui finiscono i pezzi che posi": "This is where the pieces you put down go",
+	# l'intestazione dice la GRANDEZZA: le categorie contano il possesso,
+	# i corredi contano quel che hai posato — e nella stessa colonna, con
+	# la stessa frazione, si leggerebbero come la stessa cosa
+	"I corredi — quanti ne hai posati": "The sets — how many you have put down",
+	"Il taccuino": "The notebook",
+	"cerca un pezzo…": "search for a piece…",
+	"Tab — richiudi": "Tab — fold away",
+	"Tab — apri": "Tab — open up",
+	"Tab — apri l'Atelier": "Tab — open the Atelier",
+	# la carta di un pezzo che porterà un Ordine del Gufo: il nome non si
+	# dice (la rivelazione è il premio), e sotto il punto interrogativo
+	# c'è solo una promessa di tempo
+	"un giorno": "one day",
+	# il nastrino sulla carta di un compagno di corredo: UNA parola, o non
+	# ci sta (il nome del capo può essere lungo il doppio della carta)
+	"corredo": "set",
+	"clic posa  ·  R gira  ·  V piano  ·  F gira un pezzo posato  ·  X toglie  ·  rotella e 1-9 scelgono  ·  / cerca  ·  Tab richiude  ·  B esce":
+			"click to place  ·  R turns  ·  V storey  ·  F turns a placed piece  ·  X removes  ·  wheel and 1-9 choose  ·  / search  ·  Tab folds away  ·  B leaves",
+	# --- il taccuino: quello che il villaggio ha visto (Consigli.gd).
+	# Nessuna di queste frasi mette fretta e nessuna accusa nessuno: dicono
+	# cosa c'è, mai cosa manca. In inglese vale doppio — «you still need»
+	# sarebbe una lista di cose da fare, e questo è un gioco in cui si
+	# torna volentieri.
+	"Un letto dorme sotto le stelle. Un Tetto sulla sua cella, e qualcuno potrà abitarci.":
+			"A bed is sleeping under the stars. A Roof on its cell, and someone will be able to live there.",
+	"Ci sono %d letti che dormono sotto le stelle. Basta un Tetto sulla loro cella.":
+			"There are %d beds sleeping under the stars. A Roof on their cell is all it takes.",
+	"Del corredo di %s hai posato %d pezzi su %d. C'è anche %s, da qualche parte.":
+			"Of the %s set you have put down %d pieces out of %d. There is also %s, somewhere.",
+	# la sorella al singolare: «1 pieces» e la macchina che si vede
+	# attraverso, e capita al PRIMO pezzo di ogni corredo
+	"Del corredo di %s hai posato un pezzo su %d. C'è anche %s, da qualche parte.":
+			"Of the %s set you have put down one piece out of %d. There is also %s, somewhere.",
+	# il FATTO col suo campione, mai l'inferenza: «nearly always» il
+	# giocatore la puo smentire, «three times out of four» no
+	"%s e %s: li hai messi insieme %d volte su %d.":
+			"%s and %s: you have put them together %d times out of %d.",
+	"Hai da parte abbastanza per %s: %d %s.":
+			"You have enough put by for %s: %d %s.",
+	# ⚠️ L'ORDINE DEI SEGNAPOSTO È QUELLO DELL'ITALIANO: gli argomenti
+	# arrivano gia in fila da `L10n.tf`, e girarli qui stampa una frase con
+	# i pezzi al posto sbagliato. E niente articolo davanti a un nome di
+	# catalogo: «a Armchair» e il secondo modo di sbagliare la stessa riga.
+	"Ancora %d %s, e %s ti aspetta al carretto.":
+			"Another %d %s, and %s is waiting at the pedlar's cart.",
+	# la sorella per quando quel pezzo NON è sul banco di oggi: si dice la
+	# provenienza, che è vera sempre, invece della presenza, che il
+	# mercante smentisce cinque giorni su sei
+	"Ancora %d %s per %s, dal carretto del mercante.":
+			"Another %d %s for %s, from the pedlar's cart.",
+	"Nel villaggio non c'è ancora traccia di %s.":
+			"There is not a single %s anywhere in the village yet.",
+	"Qui non c'è ancora niente. Un Pavimento è un buon posto da cui cominciare.":
+			"There is nothing here yet. A Floor is a good place to begin.",
 	"Fioriera": "Planter",
 	# le tre sorelle della fioriera: cesto di vimini, cassa da bistrot,
 	# e quella che nessuno pota

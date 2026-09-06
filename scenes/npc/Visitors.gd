@@ -74,6 +74,35 @@ var _pockets: Node
 var _chat_acc := 0.0
 var _wish_acc := 0.0
 var _pair_cd := {}
+## I DADI DEL VILLAGGIO, uno per SCOPO, creati una volta sola.
+##
+## ⚠️ Perché non basta seminare il generatore globale: quello lo consuma
+## anche il C++ (`EcosystemManager`, fino a 180 estrazioni per fotogramma con
+## novanta farfalle), quindi la sua POSIZIONE dipende da quante farfalle sono
+## vive — e due corse identiche pescavano numeri diversi anche col globale
+## seminato. Un dado per scopo è isolato da tutto questo per costruzione.
+##
+## La chiave porta il PERCHÉ, non un numero: un referto che dice
+## «lease:Ciliegia» si legge, «rng_7» no. Il dado si tiene (non si rifà a
+## ogni tiro): rifarlo lo rimanderebbe indietro nel tempo, ed è la trappola
+## che `prova_identico._semina_cervelli` aveva già dovuto chiudere a mano.
+var _dadi := {}
+
+func _dado(perche: String) -> RandomNumberGenerator:
+	if not _dadi.has(perche):
+		_dadi[perche] = Dadi.rng(Dadi.VILLAGGIO, perche)
+	return _dadi[perche]
+
+
+## L'orologio del VILLAGGIO in millisecondi, mosso dal `delta` in `_process`.
+## Non è `Time.get_ticks_msec()`: vedi il commento lì e in `_chats`.
+##
+## ⚠️ È un FLOAT, e la prima stesura era un intero con `+= int(delta * 1000.0)`:
+## a 60 fps `delta` vale 0.0166666…, cioè 16.666 ms, e `int()` tronca a 16 —
+## **l'orologio perdeva il 4% del tempo**, e il raffreddamento delle coppie da
+## 35 s ne durava 36,4. Un errore che si accumula non è un errore di
+## arrotondamento: è un orologio che va piano.
+var _orologio_ms := 0.0
 ## Il registro delle cricche, se c'è: la co-presenza che `_chats` costruisce
 ## e oggi butta via. Si ricerca finché non si trova — il nodo nasce nel
 ## livello, e in un banco non nasce affatto.
@@ -112,6 +141,12 @@ var _riconoscimenti := {}
 # la posizione del giocatore al tick precedente, per sapere quanto corre
 var _pp_prec := Vector3.ZERO
 var _spiegato_le_strade := false
+## IL TAMPONE SOCIALE — l'anagrafe rovesciata, rifatta una volta al giorno.
+## `{nome del DNA -> etichetta}`, e un nome che tocca a DUE residenti vale ""
+## (vedi `_mappa_nome_etichetta`). Dettagli in `_conforto_del_compagno`.
+var _conforto_nomi := {}
+var _conforto_giorno := -99999
+var _conforto_quanti := -1
 ## Chi ti sta venendo a cercare, e da quanto: {label -> secondi di attesa}.
 var _in_confronto := {}
 ## L'orologio del canale della vita quotidiana: secondi da quando gira il
@@ -129,10 +164,13 @@ var _toast_label: Label
 func _ready() -> void:
 	add_to_group("persistable")
 	add_to_group("visitors")   # il cursore delle Voci ci chiede un assaggio
-	# in partita le chiacchiere non si ripetono uguali da una sessione
-	# all'altra; nei banchi il seme resta quello di fabbrica (che `_ready`
-	# non viene chiamato) e le misure sono ripetibili
-	_chat_rng.randomize()
+	# ⚠️ Veniva da `randomize()`, e la ragione scritta era giusta: «in partita
+	# le chiacchiere non si ripetono uguali da una sessione all'altra».
+	# Adesso quella varietà viene dalla RADICE della partita invece che
+	# dall'orologio — due villaggi restano diversi, e lo stesso villaggio si
+	# può rigiocare. Era anche l'unico dado che i banchi dovevano riseminare
+	# a mano sapendone il nome (`prova_identico._semina_i_dadi`).
+	_chat_rng = Dadi.rng(Dadi.VILLAGGIO, "chiacchiere")
 	_player = get_node("%Player")
 	_build = get_node("../BuildSystem")
 	_daynight = get_node_or_null("../DayNight")
@@ -186,7 +224,7 @@ func _random_resident_node() -> Node3D:
 		var node := r.get("node") as Node3D
 		if node and is_instance_valid(node) and not node.call("is_hidden"):
 			pool.append(node)
-	return pool[randi() % pool.size()] if not pool.is_empty() else null
+	return pool[_dado("assaggio_voce").randi() % pool.size()] if not pool.is_empty() else null
 
 
 ## Un «ya-ho» di prova per il cursore delle Voci: chi muove la manopola
@@ -405,6 +443,13 @@ func chiedi_gesto(label: String, occasione: String, extra := {},
 		# in `Percezione.accaduto`).
 		push_warning("Visitors: occasione sconosciuta «%s» (quel momento non si vedrà mai)" % occasione)
 		return false
+	# ⚠️ IL NO DELLA LEVA HA UN NOME COME GLI ALTRI SETTE. Un banco che spegne
+	# il vocabolario del corpo deve poter leggere nel referto CHE È STATO LUI:
+	# un silenzio senza nome è indistinguibile da un cablaggio rotto, ed è la
+	# ragione per cui `_gesto_no` conta ogni no per nome.
+	if not Leve.acceso(Leve.GESTI):
+		_no(conta, "leva spenta")
+		return false
 	var perche_cancello := _cancelli_gesto(label, occasione)
 	if perche_cancello != "":
 		_no(conta, perche_cancello)
@@ -574,6 +619,9 @@ func chiedi_duetto(label_a: String, label_b: String, occasione: String,
 	if conta:
 		_gesto_no["chiesti"] = int(_gesto_no.get("chiesti", 0)) + 1
 		_gesto_no["? " + occasione] = int(_gesto_no.get("? " + occasione, 0)) + 1
+	if not Leve.acceso(Leve.RITROVI):
+		_no(conta, "leva spenta")
+		return false
 	var nome := REGIA.frase_di(occasione)
 	if nome == "":
 		push_warning("Visitors: occasione sconosciuta «%s» (quel momento non si vedrà mai)" % occasione)
@@ -1057,6 +1105,14 @@ func is_bed_claimed(cell: Vector2i) -> bool:
 
 
 func _process(delta: float) -> void:
+	# ⚠️ L'OROLOGIO DEL VILLAGGIO, in millisecondi, e non è quello da polso.
+	# Vedi `_chats`: il raffreddamento delle coppie si misurava con
+	# `Time.get_ticks_msec()`, cioè col tempo VERO — e un tempo vero dipende
+	# dal carico della macchina, non dal gioco. Questo scorre col `delta`,
+	# quindi due corse a passo fisso lo vedono identico, e in partita si ferma
+	# quando il gioco è in pausa (che è anche più giusto: una pausa non deve
+	# far scadere l'attesa fra due chiacchierate).
+	_orologio_ms += delta * 1000.0
 	_tick_gesti(delta)
 	_tick_sussulti(delta)
 	_tick_confronti(delta)
@@ -1074,7 +1130,7 @@ func _process(delta: float) -> void:
 				if not house.is_empty() and _residents.size() < MAX_RESIDENTS:
 					_spawn_candidate(DNA.generate(), house)
 				else:
-					_spawn(SPECIES[randi() % SPECIES.size()])
+					_spawn(SPECIES[_dado("specie_ospite").randi() % SPECIES.size()])
 
 	# il candidato in attesa sull'uscio: verdetto quando la pazienza finisce
 	if _active and _active.get("mode") == "candidate" and not _decided \
@@ -1142,7 +1198,7 @@ func _process(delta: float) -> void:
 # ---------------------------------------------------------------- visite
 
 func _spawn(species: String) -> void:
-	_timer = randf_range(80.0, 160.0)
+	_timer = _dado("prossimo_ospite").randf_range(80.0, 160.0)
 	var v: Node3D = VISITOR.new()
 	v.species = species
 
@@ -1168,7 +1224,7 @@ func _spawn(species: String) -> void:
 		bench = benches[0]
 
 	add_child(v)
-	v.setup(species, ENTRIES[randi() % ENTRIES.size()], PLAZA, pois, bench,
+	v.setup(species, ENTRIES[_dado("ingresso").randi() % ENTRIES.size()], PLAZA, pois, bench,
 			Vector3(0, 0, -9), Vector3(-2, 0, -15))
 	v.wants_gift.connect(_on_gift_dropped)
 	v.finished.connect(func(): if _active == v: _active = null)
@@ -1252,7 +1308,20 @@ func _routine(delta: float) -> void:
 			continue
 		if str(r.get("phase", "")) != ph:
 			r["phase"] = ph
-			r["next_act"] = randf_range(0.4, 1.8)
+			# ⚠️ QUESTO LEASE DECIDE IL NUMERO CHE BALLAVA DI 5,7 VOLTE.
+			# `_chats` guarda `next_act` per sapere chi è disponibile, e da lì
+			# escono le righe di co-presenza delle Cricche: un lease diverso
+			# è un incontro che non viene registrato. Veniva dal generatore
+			# GLOBALE, che in partita non semina nessuno e che il C++
+			# dell'ecosistema consuma fino a 180 volte per fotogramma —
+			# quindi la sua posizione dipendeva da quante farfalle erano
+			# nate. Adesso è un flusso nominato, e il suo dado non lo tocca
+			# nessun altro.
+			var n_lease := int(r.get("_lease_n", 0)) + 1
+			r["_lease_n"] = n_lease
+			r["next_act"] = Dadi.rng(Dadi.VILLAGGIO,
+					"lease:%s:%d" % [str(r.get("label", i)), n_lease]) \
+					.randf_range(0.4, 1.8)
 		var prima_lease := float(r.get("next_act", 1.0))
 		r["next_act"] = prima_lease - delta
 		if float(r["next_act"]) > 0.0:
@@ -1317,6 +1386,8 @@ var _insieme_oggi := {}       # label -> giorno in cui gli è già toccato
 ## E si può solo ALZARE: `maxf`. Abbassare un lease vorrebbe dire scavalcare
 ## un sistema a evento — il concerto, il congedo — con una regola di gruppo.
 func trattieni_insieme(label: String) -> bool:
+	if not Leve.acceso(Leve.RITROVI):
+		return false
 	if _phase() == "fire":
 		return false      # al falò si sta insieme comunque: non è una notizia
 	var giorno: int = int(_daynight.get("day")) if _daynight else 0
@@ -1428,7 +1499,7 @@ func _recita(r: Dictionary, node: Node3D, brain: RefCounted, act: String, ph: St
 					_vita_toast("annaffia", L10n.tf("♥ %s sta annaffiando le tue aiuole!", [r["label"]]))
 					return
 		"riposo":
-			if brain.get("quirk") == "pisolini_ovunque" and randf() < 0.5:
+			if brain.get("quirk") == "pisolini_ovunque" and _dado("pisolino").randf() < 0.5:
 				node.call("do_task", "nap", Vector3.ZERO, func(): brain.satisfy("pisolino"))
 				_vita_toast("pisolino", L10n.tf("%s si è addormentato lì, così.", [r["label"]]))
 				return
@@ -1473,7 +1544,7 @@ func _recita(r: Dictionary, node: Node3D, brain: RefCounted, act: String, ph: St
 				if meta == null or str(other["label"]) == best_label:
 					meta = on
 			if meta:
-				var fianco: Vector3 = meta.global_position + Vector3(randf_range(-0.9, 0.9), 0, 0.9)
+				var fianco: Vector3 = meta.global_position + Vector3(_dado("fianco_meta").randf_range(-0.9, 0.9), 0, 0.9)
 				node.call("do_routine", "sniff", fianco)
 				return
 		"meraviglia":
@@ -1484,7 +1555,7 @@ func _recita(r: Dictionary, node: Node3D, brain: RefCounted, act: String, ph: St
 			if albero:
 				posti.append((albero as Node3D).global_position + Vector3(1.6, 0, 1.2))
 			if not posti.is_empty():
-				node.call("do_task", "wonder", posti[randi() % posti.size()], func():
+				node.call("do_task", "wonder", posti[_dado("posto_meraviglia").randi() % posti.size()], func():
 					brain.satisfy("meraviglia")
 					brain.remember("sole", "un posto bellissimo"))
 				return
@@ -2050,27 +2121,36 @@ func _ancora_ricordo(r: Dictionary, home: Vector3, cosa: String) -> Vector3:
 ##    il vicino si addormenterebbe per terra — cioè starebbe PEGGIO per
 ##    averti visto, che è il modo più veloce per rendere illeggibile un
 ##    sistema che non parla. L'emozione AGGIUNGE, mai toglie.
-func _panchina_per(r: Dictionary, home: Vector3) -> Node3D:
+##
+## ⚠️ **`come_se_accesa` E' L'ORACOLO, e non lo usa nessuno in partita.** Con
+## la leva `INSIEME` spenta questa funzione risponde «la panca che avrei
+## scelto senza guardare chi c'e' gia'» — cioe' il valore ABLATO. A un banco
+## di ablazione serve l'altra meta': il CONTROFATTUALE, «quale avrei scelto
+## se la leva fosse accesa». Passando `true` la si ottiene senza toccare la
+## leva (che vale per tutto il villaggio e per tutto il resto del frame), e
+## chi la chiede la usa SOLO per leggere — il corpo va dove dice il ramo
+## normale, o l'ablazione non ablerebbe niente. Vedi `_luoghi_del_piano`.
+func _panchina_per(r: Dictionary, home: Vector3, come_se_accesa := false) -> Node3D:
 	# CHI sta chiedendo: serve a non farsi compagnia da soli (vedi
 	# `_seduto_accanto`). Puo' essere `null` nei banchi, e li' il
 	# comportamento e' quello di prima.
 	var corpo := r.get("node") as Node3D
 	var verso_te := ancora_riposo(home, _dove_sta_mochi(home), _ammirazione_di(r))
 	if verso_te != home:
-		var vicina: Node3D = _seduta_da(verso_te, corpo)
+		var vicina: Node3D = _seduta_da(verso_te, corpo, come_se_accesa)
 		if vicina != null:
 			return vicina
 	var verso_opera := _ancora_ricordo(r, home, "casa")
 	if verso_opera != home:
-		var nuova: Node3D = _seduta_da(verso_opera, corpo)
+		var nuova: Node3D = _seduta_da(verso_opera, corpo, come_se_accesa)
 		if nuova != null:
 			return nuova
 	var verso_loro := _ancora_ritrovo(r, home)
 	if verso_loro != home:
-		var insieme: Node3D = _seduta_da(verso_loro, corpo)
+		var insieme: Node3D = _seduta_da(verso_loro, corpo, come_se_accesa)
 		if insieme != null:
 			return insieme
-	return _seduta_da(home, corpo)
+	return _seduta_da(home, corpo, come_se_accesa)
 
 
 ## FRA I POSTI CHE QUEL VICINO AVREBBE USATO COMUNQUE, QUELLO CON COMPAGNIA.
@@ -2097,7 +2177,22 @@ func _panchina_per(r: Dictionary, home: Vector3) -> Node3D:
 ## Il costo: fino a due scansioni per anello invece di una, dentro un
 ## rinfresco che tocca UN residente per fotogramma (`FATTI_OGNI`). Misurato
 ## in partita, sta nei microsecondi.
-func _seduta_da(ancora: Vector3, chiede: Node3D = null) -> Node3D:
+func _seduta_da(ancora: Vector3, chiede: Node3D = null,
+		come_se_accesa := false) -> Node3D:
+	# ⚠️ LA LEVA SPEGNE LA PREFERENZA, NON LA SEDUTA. Col meccanismo spento
+	# ci si siede comunque — si sceglie solo senza guardare chi c'e' gia'.
+	#
+	# ⚠️ **E QUI IL LAVORO SI SALTA DAVVERO**, il che vuol dire che a leva
+	# spenta la panca preferita non esiste da nessuna parte: non e' un
+	# verdetto neutralizzato dopo, e' una domanda che nessuno fa piu'. Per un
+	# pezzo il commento di `_luoghi_del_piano` ha promesso il contrario («il
+	# ramo spento non salta il lavoro») e l'oracolo dell'ablazione ne e'
+	# uscito bugiardo: e' il livello a cui quella promessa si rompe, ed e'
+	# per questo che `come_se_accesa` la scavalca **qui** invece che di la'.
+	# Chi la passa `true` paga la scansione filtrata (misurato: `_free_bench`
+	# da 83 a 445 µs con ventotto residenti) e sa perche' la sta pagando.
+	if not (come_se_accesa or Leve.acceso(Leve.INSIEME)):
+		return _free_bench(ancora)
 	var accompagnata: Node3D = _free_bench(ancora, true, chiede)
 	return accompagnata if accompagnata != null else _free_bench(ancora)
 
@@ -2112,6 +2207,11 @@ func _seduta_da(ancora: Vector3, chiede: Node3D = null) -> Node3D:
 ## torna `home` ESATTO, e da lì in giù non cambia una virgola di quello che
 ## il villaggio faceva prima.
 func _ancora_ritrovo(r: Dictionary, home: Vector3) -> Vector3:
+	# `home` è già l'uscita a vuoto dichiarata di questa funzione («da lì in
+	# giù non cambia una virgola di quello che il villaggio faceva prima»):
+	# la leva non ne inventa una nuova, prende quella.
+	if not Leve.acceso(Leve.RITROVI):
+		return home
 	var cr := get_tree().get_first_node_in_group("cricche")
 	if cr == null or not is_instance_valid(cr) or not cr.has_method("compagni"):
 		return home
@@ -2613,8 +2713,45 @@ func _luoghi_del_piano(r: Dictionary, home: Vector3) -> Array:
 	# Zero query nuove: `_panchina_per` era gia' chiamata proprio qui.
 	var panca: Node3D = _panchina_per(r, home)
 	fuori.append(cerca.call(panca))
-	r[FATTO_INSIEME] = panca != null \
-			and _accanto_a_qualcuno(panca, r.get("node") as Node3D)
+	# ⚠️ **L'ORACOLO E' UN CONTROFATTUALE, E VA CHIESTO A PARTE.** Qui c'era
+	# scritto «si calcola sempre, morde solo se acceso — la forma di
+	# `debug_occlusione`: il ramo spento non salta il lavoro», ed era **falso
+	# di un livello**: a saltare il lavoro e' `_seduta_da`, un piano piu' in
+	# su, che con la leva spenta esce alla prima riga senza guardare chi c'e'
+	# gia' seduto. `insieme_osservato` non valeva quindi «il fatto SAREBBE
+	# stato vero» ma «la panca che avrei scelto COMUNQUE aveva per caso
+	# qualcuno accanto» — cioe' il valore ABLATO, non il controfattuale — e
+	# il referto di `misura_insieme` ne stampava la conclusione OPPOSTA a
+	# quella vera: chi leggeva «il fatto si sarebbe acceso quasi mai»
+	# concludeva «il meccanismo non avrebbe avuto occasione di accendersi»,
+	# mentre l'occasione, accendendolo, c'era. Un oracolo che mente e' peggio
+	# di nessun oracolo: nessun oracolo ti fa misurare, uno che mente ti fa
+	# credere di aver gia' misurato.
+	#
+	# La domanda giusta e' una sola: **quale panca avrei scelto se la leva
+	# fosse accesa, e aveva qualcuno accanto?** Si ripete percio' la scelta
+	# forzando la preferenza, e il risultato si usa SOLO per leggere: il
+	# corpo resta su `panca`, quella non-preferita, o l'ablazione non
+	# ablerebbe piu' niente.
+	#
+	# ⚠️ E SI PAGA SOLO A LEVA SPENTA — cioe' su un banco, mai in partita.
+	# Con la leva accesa la panca preferita E' quella scelta e la seconda
+	# domanda non si fa: zero microsecondi in piu' sulla macchina di chi
+	# gioca. Con la leva spenta costa una seconda `_panchina_per` (fino a
+	# quattro `_free_bench` filtrati, misurato 83 → 445 µs a scansione con
+	# ventotto residenti) dentro un rinfresco che tocca UN residente per
+	# fotogramma: e' il prezzo dichiarato di un'ablazione onesta.
+	var preferita: Node3D = panca
+	if not Leve.acceso(Leve.INSIEME):
+		preferita = _panchina_per(r, home, true)
+	var accanto: bool = preferita != null \
+			and _accanto_a_qualcuno(preferita, r.get("node") as Node3D)
+	r["insieme_osservato"] = accanto
+	# ⚠️ E IL FATTO RESTA DERIVATO DAL POSTO CHE E' STATO SCELTO (la regola
+	# dell'aiuola, dieci righe piu' su): con la leva accesa `preferita` E'
+	# `panca`, quindi questo bit non cambia di un valore rispetto a prima;
+	# con la leva spenta e' falso comunque, e l'oracolo non puo' accenderlo.
+	r[FATTO_INSIEME] = accanto and Leve.acceso(Leve.INSIEME)
 	# ⚠️ **RESIDUO DICHIARATO, e la cura era peggiore del male.** A mandare
 	# il corpo e' `_recita`, che chiama `_panchina_per` una SECONDA volta —
 	# fino a mezzo secondo dopo (`FATTI_OGNI`) — e da quando esiste il filtro
@@ -3439,7 +3576,7 @@ func conforta_mochi(motivo: String) -> bool:
 		return false
 	var label := str(vicino_r.get("label", ""))
 	vicino_r["next_act"] = 30.0
-	var fianco: Vector3 = _player.global_position + Vector3(randf_range(-0.8, 0.8), 0, 0.9)
+	var fianco: Vector3 = _player.global_position + Vector3(_dado("fianco_giocatore").randf_range(-0.8, 0.8), 0, 0.9)
 	vicino.call("do_routine", "sniff", fianco, _player.global_position)
 	# le parole giuste per ogni premura (nel lutto: quasi niente — si siede
 	# accanto e basta, è il capolavoro dell'empatia)
@@ -3567,6 +3704,129 @@ static func indizio_grezzo(velocita: float, buio: float, vicino: float) -> float
 	return clampf(svelto * (0.45 + 0.75 * buio) * (0.55 + 0.45 * vicino), 0.0, 1.0)
 
 
+# ===================== IL TAMPONE SOCIALE ================================
+#
+# La presenza della figura di attaccamento smorza l'allarme: chi ha il
+# proprio compagno a un passo trasalisce di meno. È la firma psicologica di
+# una cosa che il villaggio simulava già e che non arrivava a nessun corpo —
+# `Affetti.coppia()` sa chi sta con chi da sempre, e la strada veloce del
+# `Limbico` non l'aveva mai interrogata.
+#
+# **L'UNICA USCITA È UN SUSSULTO CHE NON PARTE.** Nessun toast, nessuna
+# parola, nessun simbolo, nessuna riga di registro che il giocatore possa
+# vedere: quello che si nota è che quel vicino, oggi, non si è spaventato —
+# e accanto a lui c'era qualcuno. Il gioco non lo dice mai, e chi legge
+# questo codice non deve aggiungercelo.
+#
+# **E il conforto può solo ABBASSARE.** Zero è il neutro ESATTO (`x / 1.0`
+# è esatto in IEEE-754), quindi tutto il villaggio che non ha un compagno
+# accanto si comporta **bit per bit** come prima di questa riga: le misure
+# della paura già prese restano valide senza rifarle.
+#
+# ⚠️ **E MOCHI NON ENTRA FRA I CONFORTI.** Il giocatore È la figura di
+# attaccamento, ma sull'ALTRA strada: sulla veloce è lo STIMOLO (è il suo
+# arrivo che si sta valutando), sulla lenta — quattro decimi dopo — è il
+# conforto, ed è letteralmente «ah… sei tu» (`_tick_riconoscimenti`). Non si
+# può essere l'allarme e il tampone dentro lo stesso evento.
+
+## La mappa NOME DEL DNA → ETICHETTA, rifatta quando cambia la giornata (o
+## quando cambia il numero dei residenti: un arrivo o una partenza a metà
+## giornata lascerebbe altrimenti una riga che punta a un corpo che non c'è).
+##
+## ⚠️ **SI COSTRUISCE DA `_residents`, che ha tutte e due le colonne — mai
+## con `_nome_da_label`.** Quella cammina nel verso opposto e ha un ripiego
+## silenzioso (`return label`): usata qui darebbe una «etichetta» che non
+## esiste, quindi nessun nodo, quindi conforto 0.0 **per sempre e senza un
+## errore** — cioè la meccanica spenta con la suite verde.
+##
+## ⚠️ **E un nome che tocca a DUE residenti si marca ambiguo e si scarta.**
+## L'unicità in questo villaggio è imposta sulla LABEL, non sul nome (è il
+## difetto aperto dell'omonimia, scritto nelle due anagrafi): con due
+## «Pepita» in paese la mappa sceglierebbe un corpo a caso, e il tampone si
+## poserebbe addosso alla persona sbagliata. Il degrado va verso «niente
+## conforto», che è il gioco di prima.
+func _mappa_nome_etichetta() -> Dictionary:
+	# ⚠️ il giorno si LEGGE con la rete: un nodo che non ha quella proprietà
+	# torna `null`, e `int(null)` è un errore a runtime — che nel runner non
+	# fa fallire niente e lascia la suite verde con la funzione interrotta a
+	# metà. Senza cielo (i banchi, il diorama) la mappa si rifà solo quando
+	# cambia il numero dei residenti, ed è quanto basta: lì non c'è nemmeno
+	# un nodo `affetti` a cui chiedere un compagno.
+	var giorno_v = _daynight.get("day") if _daynight != null else null
+	var g := int(giorno_v) if giorno_v != null else 0
+	if g == _conforto_giorno and _residents.size() == _conforto_quanti:
+		return _conforto_nomi
+	_conforto_giorno = g
+	_conforto_quanti = _residents.size()
+	_conforto_nomi = {}
+	for r in _residents:
+		var nome := str((r.get("dna", {}) as Dictionary).get("name", ""))
+		if nome == "":
+			continue
+		if _conforto_nomi.has(nome):
+			_conforto_nomi[nome] = ""     # omonimi: non si sa di chi si parla
+			continue
+		_conforto_nomi[nome] = str(r.get("label", ""))
+	return _conforto_nomi
+
+
+## QUANTO IL COMPAGNO STA SMORZANDO L'ALLARME DI `r`, 0..1 — dove **zero è
+## il neutro esatto**, cioè «il gioco di oggi».
+##
+## `pos` è la posizione di CHI PERCEPISCE, e non è un dettaglio: le valvole
+## passano da `Percezione.puo_vedere`, che comprende anche la DISTANZA.
+## Passandole la posizione del compagno la distanza sarebbe zero per
+## costruzione e delle quattro valvole ne vivrebbero tre — è il difetto già
+## pagato dalla ricevuta delle Deduzioni, e sta scritto in `Deduzioni.gd`.
+##
+## La rampa è LINEARE con **zero duro** oltre `VICINI`: un `exp(-d/R)` non
+## vale zero a nessuna distanza, quindi il bit-identico salterebbe per tutto
+## il villaggio in silenzio — ogni residente si porterebbe addosso un
+## milionesimo di tampone anche col compagno dall'altra parte del prato.
+##
+## Il raggio è `VICINI` e non un numero nuovo: è la distanza a cui questo
+## villaggio ha già deciso, per un'altra ragione, che due chibi sono INSIEME
+## (`_chats`, `Cricche`, il fattore dell'insieme). Due numeri diversi
+## vorrebbero dire un abbraccio che conta a una distanza e un incontro che si
+## registra a un'altra.
+##
+## IL DEGRADO VA SEMPRE VERSO QUELLO CHE C'ERA — 0.0, cioè nessun tampone —
+## quando: non c'è nessun nodo `affetti` (il bosco, il Prologo, il diorama
+## del titolo, i banchi), quando il libro mastro non conosce ancora nessuna
+## coppia, quando il compagno non è più in paese, e quando l'anagrafe è
+## ambigua.
+func _conforto_del_compagno(r: Dictionary, pos: Vector3) -> float:
+	# `is_inside_tree()` e non `get_tree() == null`: il secondo stampa
+	# comunque un ERROR del motore prima di tornare null, e la strada veloce
+	# gira addosso a ogni residente (è la stessa cintura di `_puo_entrare`).
+	if not is_inside_tree():
+		return 0.0
+	var aff := get_tree().get_first_node_in_group("affetti")
+	if aff == null or not is_instance_valid(aff):
+		return 0.0
+	var mio := str((r.get("dna", {}) as Dictionary).get("name", ""))
+	if mio == "":
+		return 0.0
+	# ⚠️ la CACHE giornaliera degli affetti, non `le_coppie()`: quella rifà il
+	# predicato da capo e costa ~233 ms (156 `conto()` con tredici abitanti).
+	# Qui si è dentro un `_process`, addosso a ogni residente.
+	var suo := str(aff.call("compagno_di_ieri", mio))
+	if suo == "":
+		return 0.0
+	var etichetta := str(_mappa_nome_etichetta().get(suo, ""))
+	if etichetta == "":
+		return 0.0     # partito, non ancora censito, oppure due omonimi
+	var compagno := node_di(etichetta)
+	# LE VALVOLE SONO UNA CHIAMATA SOLA, e non tre `if` riscritti qui: chi è
+	# nascosto in casa, chi dorme e chi è dentro una scena non conforta
+	# nessuno — e il giorno che qualcuno aggiunge la quarta valvola, questa
+	# riga se la eredita senza saperlo.
+	if not PERCEZIONE.puo_vedere(compagno, pos, VICINI):
+		return 0.0
+	var d: float = pos.distance_to(compagno.global_position)
+	return clampf(1.0 - d / VICINI, 0.0, 1.0)
+
+
 func _tick_sussulti(delta: float) -> void:
 	if _player == null:
 		return
@@ -3598,7 +3858,20 @@ func _tick_sussulti(delta: float) -> void:
 			continue
 		var animo: RefCounted = _animi[label]
 		var grezzo := indizio_grezzo(vel, buio, clampf(1.0 - d / 3.2, 0.0, 1.0))
-		var s: Dictionary = animo.limbico.percepisci("giocatore", "", grezzo)
+		# IL TAMPONE SOCIALE: se il suo compagno gli è accanto adesso,
+		# l'allarme si smorza (vedi `_conforto_del_compagno`). Si chiede
+		# **dopo** il raffreddamento e dopo il cancello dei 3,2 m, cioè al
+		# più una volta ogni nove secondi per residente: è la stessa
+		# disciplina dei quattro cancelli di `BuildSystem.deviazione`, il
+		# caso comune non paga il caso raro.
+		var conforto := _conforto_del_compagno(r, node.global_position)
+		var s: Dictionary = animo.limbico.percepisci("giocatore", "", grezzo, conforto)
+		# ⚠️ **E IL RAFFREDDAMENTO RESTA QUI, FUORI DAL `match`.** Un sussulto
+		# tamponato brucia i suoi nove secondi come se fosse partito.
+		# Spostarlo dentro il ramo `trasalisce` per «recuperare» i sussulti
+		# soppressi farebbe di questa meccanica un moltiplicatore di percetti
+		# addosso a chi ha un compagno — cioè la classifica sociale dalla
+		# porta di servizio, che la regola 2 degli Affetti vieta.
 		_sussulto_cd[label] = 9.0
 		match str(s.get("reazione", "nulla")):
 			"trasalisce":
@@ -4095,10 +4368,10 @@ func _mostra_telegrafo(label: String, tel: Array) -> void:
 
 # rare, innocue, indimenticabili: il tocco che rende ognuno SUO
 func _quirk_tick(r: Dictionary, node: Node3D, brain: RefCounted, delta: float, t_ora: float) -> void:
-	r["quirk_cd"] = float(r.get("quirk_cd", randf_range(20.0, 40.0))) - delta
+	r["quirk_cd"] = float(r.get("quirk_cd", _dado("quirk_primo").randf_range(20.0, 40.0))) - delta
 	if float(r["quirk_cd"]) > 0.0:
 		return
-	r["quirk_cd"] = randf_range(45.0, 90.0)
+	r["quirk_cd"] = _dado("quirk_riposo").randf_range(45.0, 90.0)
 	if str(node.get("_state")) not in ["r_idle", "r_wander", "r_sniff"]:
 		return
 	match str(brain.get("quirk")):
@@ -4127,7 +4400,7 @@ func _quirk_tick(r: Dictionary, node: Node3D, brain: RefCounted, delta: float, t
 		"ballerino":
 			node.call("do_task", "twirl", Vector3.ZERO, Callable())
 		"pisolini_ovunque":
-			if randf() < 0.4:
+			if _dado("quirk_scatta").randf() < 0.4:
 				node.call("do_task", "nap", Vector3.ZERO,
 						func(): brain.satisfy("pisolino"))
 
@@ -4572,7 +4845,15 @@ func _chats(delta: float) -> void:
 		return
 	_chat_acc = 3.5
 	var chatty := ["r_idle", "r_wander", "r_sniff", "r_fire", "r_bench"]
-	var now := Time.get_ticks_msec()
+	# ⚠️ L'OROLOGIO DEL VILLAGGIO, NON QUELLO DA POLSO. Qui c'era
+	# `Time.get_ticks_msec()`, e `prova_identico` lo dichiarava da anni come
+	# «una cosa che la traccia non copre» invece di curarlo: su un banco che
+	# gira più veloce del reale quel riposo non scadeva mai, e sotto carico
+	# due corse identiche vedevano trascorrere millisecondi diversi per lo
+	# stesso numero di fotogrammi — quindi facevano chiacchierare coppie
+	# diverse, quindi mandavano i corpi in posti diversi, quindi registravano
+	# co-presenze diverse. Era non-determinismo che nessun seme può togliere.
+	var now := int(_orologio_ms)
 	# SI GUARDANO TUTTE, e non è uno spreco: la scansione completa la si
 	# pagava già ogni volta che nessuno si parlava — cioè quasi sempre —
 	# perché il ciclo si interrompeva solo QUANDO trovava una coppia. Quello
@@ -4757,12 +5038,12 @@ func _run_chat(a: Node3D, b: Node3D) -> void:
 		topic = str(_ecs.nome_cosa(novita))
 	elif _weather and _weather.is_raining():
 		topic = "pioggia"
-	elif brain_a and randf() < 0.35 and not (brain_a.ricordo_recente() as Array).is_empty():
+	elif brain_a and _dado("chat_ricordo").randf() < 0.35 and not (brain_a.ricordo_recente() as Array).is_empty():
 		topic = str((brain_a.ricordo_recente() as Array)[0])
 	elif _daynight and float(_daynight.get("time")) > 0.68:
-		topic = ["fuoco", "dormire", "cibo", "amico"][randi() % 4]
+		topic = ["fuoco", "dormire", "cibo", "amico"][_dado("chat_tema_notte").randi() % 4]
 	else:
-		topic = ["fiore", "cibo", "amico", "felice"][randi() % 4]
+		topic = ["fiore", "cibo", "amico", "felice"][_dado("chat_tema_giorno").randi() % 4]
 	# un concetto che il corpo non sa mostrare diventa «amico»: il ripiego
 	# c'era già, e adesso guarda la tabella VERA dei simboli
 	if not VISITOR.LP_SIMBOLI.has(topic):
@@ -4813,10 +5094,10 @@ func _run_chat(a: Node3D, b: Node3D) -> void:
 			else:
 				b.call("chat_bubble", VISITOR.LP_SIMBOLI[topic])
 				# la risposta: d'accordo («ha!») o entusiasta
-				b.call("speak", ["si", topic] if randf() < 0.5 else ["~", "felice"], "felice"))
+				b.call("speak", ["si", topic] if _dado("chat_risposta").randf() < 0.5 else ["~", "felice"], "felice"))
 	get_tree().create_timer(2.2).timeout.connect(func():
 		if is_instance_valid(a):
-			if randf() < 0.5:
+			if _dado("chat_eco").randf() < 0.5:
 				a.call("_spawn_heart")
 			else:
 				a.call("chat_bubble", "!"))
@@ -4871,7 +5152,7 @@ func _gen_wish(dna: Dictionary) -> Dictionary:
 	var best := "Fungo"
 	var best_v := -99.0
 	for entry in WISH_POOL:
-		var v: float = float(w.get(entry[1], 0.5)) * randf_range(0.85, 1.15)
+		var v: float = float(w.get(entry[1], 0.5)) * _dado("peso_desiderio").randf_range(0.85, 1.15)
 		if v > best_v:
 			best_v = v
 			best = entry[0]
@@ -4893,7 +5174,7 @@ func _bump_friend(r: Dictionary, amount: int) -> void:
 		# femminile sono DUE frasi da tradurre, non una stringa più una lettera
 		# (in inglese quella lettera non ha dove andare)
 		var grazie := "Mi trovo così bene nel villaggio.\nGrazie di essermi amica." \
-				if randf() < 0.5 \
+				if _dado("scelta_dono").randf() < 0.5 \
 				else "Mi trovo così bene nel villaggio.\nGrazie di essermi amico."
 		_mail.call("queue_letter", {
 			"from_key": str(r.get("dna", {}).get("name", "Un amico")),
@@ -5429,7 +5710,7 @@ func _spawn_candidate(dna: Dictionary, house: Dictionary) -> void:
 		if label_ok and arche_ok:
 			break
 		dna = DNA.generate()
-	_timer = randf_range(80.0, 160.0)
+	_timer = _dado("prossimo_ospite").randf_range(80.0, 160.0)
 	_cand_label = str(dna["label"])
 	_mind = MIND.new("chibi", int(_cand_visits.get(dna["name"], 0)), dna["weights"])
 	_decided = false
@@ -5438,7 +5719,7 @@ func _spawn_candidate(dna: Dictionary, house: Dictionary) -> void:
 	v.species = "chibi"
 	v.dna = dna
 	add_child(v)
-	v.setup_candidate(house, ENTRIES[randi() % ENTRIES.size()], Vector3(0, 0, -9), Vector3(-2, 0, -15))
+	v.setup_candidate(house, ENTRIES[_dado("ingresso_candidato").randi() % ENTRIES.size()], Vector3(0, 0, -9), Vector3(-2, 0, -15))
 	v.finished.connect(func(): if _active == v: _active = null)
 	_active = v
 	var trait_line: String = (dna["traits"] as Array)[0]
@@ -5723,7 +6004,7 @@ func _dona_sasso(r: Dictionary, node: Node3D) -> void:
 		return
 	if _player.global_position.distance_to(node.global_position) > 7.0:
 		return   # se non c'eri, il sasso resta nella sua collezione
-	if randf() > 0.45:
+	if _dado("dono_capita").randf() > 0.45:
 		return
 	var scheda: Dictionary = _inventory.add_treasure("sasso_piatto")
 	if scheda.is_empty():
@@ -5742,13 +6023,13 @@ func _collect_gift() -> void:
 	# il dono del bosco diventa un Tesoro vero nelle Tasche (era solo testo)
 	var what := ""
 	if _inventory:
-		var scheda: Dictionary = _inventory.add_random_gift(_gift_species, randi())
+		var scheda: Dictionary = _inventory.add_random_gift(_gift_species, _dado("dono_seme").randi())
 		if not scheda.is_empty():
 			what = "%s %s" % [scheda.get("art", ""), scheda.get("name", "")]
 			_build.request_save()
 	if what == "":
 		var gifts: Array = GIFTS[_gift_species]
-		what = L10n.t(str(gifts[randi() % gifts.size()]))
+		what = L10n.t(str(gifts[_dado("dono_quale").randi() % gifts.size()]))
 	_show_toast(L10n.tf("%s ti ha lasciato %s!",
 			[L10n.t(str(SPECIES_LABEL[_gift_species])), what]))
 	# dai regali del passerotto nasce la sciarpina di lana
@@ -5767,7 +6048,7 @@ func _collect_gift() -> void:
 	# cuoricini di gratitudine
 	for i in 3:
 		get_tree().create_timer(0.15 * i).timeout.connect(func():
-			_mini_heart(pos + Vector3(randf_range(-0.12, 0.12), 0.3, randf_range(-0.08, 0.08))))
+			_mini_heart(pos + Vector3(_dado("cuoricino").randf_range(-0.12, 0.12), 0.3, _dado("cuoricino").randf_range(-0.08, 0.08))))
 
 
 func _mini_heart(pos: Vector3) -> void:

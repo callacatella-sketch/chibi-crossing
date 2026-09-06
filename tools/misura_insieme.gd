@@ -22,7 +22,11 @@ extends SceneTree
 ##     esiste nessuna finestra dentro cui un secondo possa arrivare.
 ##  2. **il FATTO si accende davvero** — quante volte, e su quanti residenti.
 ##     Zero vorrebbe dire codice morto in partita con la suite verde, che e'
-##     il guasto che questo progetto ha gia' pagato tre volte.
+##     il guasto che questo progetto ha gia' pagato tre volte. Accanto, il
+##     suo **CONTROFATTUALE**: quante volte si SAREBBE acceso, che a leva
+##     spenta e' l'unico numero che dica qualcosa (il fatto, li', e' zero
+##     per costruzione). Le due frazioni hanno lo stesso denominatore e per
+##     questo si stampano attaccate.
 ##  3. **IL TREMOLIO**: flip/min del fatto contro cambi d'azione/min. Il
 ##     fatto dev'essere piu' FERMO della decisione che alimenta, o
 ##     reinietta il rumore che il dado congelato ha tolto. Si conta anche il
@@ -46,10 +50,18 @@ extends SceneTree
 ##     posti, spariscono le distanze che raccontano qualcosa.
 ##  9. **le righe che il registro delle cricche incassa** per giornata.
 ##
-## ⚠️ **L'ORACOLO E' INDIPENDENTE**: i grappoli e le coppie si contano dalle
-## POSIZIONI DEI CORPI, campionate dal banco, mai chiedendo a `Cricche` ne'
-## al fatto stesso. Chiedere al giudice se e' d'accordo con se' stesso e'
-## l'errore che `tools/misura_cammino.gd` esiste per non commettere.
+## ⚠️ **L'ORACOLO DELLA GEOMETRIA E' INDIPENDENTE**: i grappoli e le coppie
+## si contano dalle POSIZIONI DEI CORPI, campionate dal banco, mai chiedendo
+## a `Cricche` ne' al fatto stesso. Chiedere al giudice se e' d'accordo con
+## se' stesso e' l'errore che `tools/misura_cammino.gd` esiste per non
+## commettere.
+##
+## ⚠️ E NON E' L'ORACOLO DELL'ABLAZIONE del numero 2, che invece **al giudice
+## lo chiede apposta**: la domanda «quale panca avresti scelto a leva accesa»
+## ha una risposta sola, e rifarla qui vorrebbe dire ricopiare i quattro
+## anelli di `_panchina_per` in un banco — la tabella gemella che diverge al
+## primo che tocca l'ordine delle ancore. I due nomi si somigliano e le due
+## regole sono opposte: se ne parla in due punti diversi apposta.
 ##
 ## ⚠️ **E NON SI TOCCA IL `village.json` DELL'AUTORE**:
 ## `set_persist_for_debug(false)` prima di posare qualunque cosa, e
@@ -91,6 +103,31 @@ var _scavalchi := 0          # quante volte il bit CAMBIA l'argmax
 var _scavalchi_visti := 0    # su quante valutazioni col bit acceso
 var _scarti := []            # di quanto muove il punteggio del riposo
 var _coppie_sedute := 0.0    # secondi-coppia
+
+## ⚠️ L'ORACOLO DELL'ABLAZIONE — «quante volte il fatto SI SAREBBE ACCESO»,
+## che a leva spenta è l'unica domanda per cui vale la pena misurare.
+##
+## Senza, il referto non distingue «il fatto non si è mai acceso» da «si
+## sarebbe acceso e la leva l'ha tolto di mezzo» — e sono le due conclusioni
+## opposte. `Visitors._luoghi_del_piano` risponde in `r["insieme_osservato"]`
+## rifacendo la scelta della panca **come se la leva fosse accesa**, e paga
+## quella seconda scansione solo qui, su un banco, mai in partita.
+##
+## ⚠️ E PER UN PEZZO QUEL CAMPO HA MENTITO, con questo file a stamparne la
+## conclusione rovesciata. Portava il valore ABLATO — «la panca che avrei
+## scelto comunque aveva per caso qualcuno accanto» — perché a saltare il
+## lavoro era `_seduta_da`, un piano sopra il punto in cui il commento di là
+## prometteva «il ramo spento non salta il lavoro». Chi leggeva questo
+## referto concludeva che il meccanismo non avrebbe avuto occasione di
+## accendersi, mentre l'occasione c'era.
+##
+## ⚠️ **IL DENOMINATORE È UNO SOLO, ed è `_fatto_camp`.** Prima l'oracolo
+## contava in un ciclo suo, che non aveva la guardia sul nodo valido: due
+## percentuali stampate a tre righe di distanza, presentate come
+## confrontabili, avevano denominatori diversi. Adesso i due contatori
+## salgono nella stessa riga dello stesso ciclo, e la divergenza è
+## impossibile per costruzione invece che per disciplina.
+var _oss_accesi := 0
 var _coppie_distinte := {}
 var _grappolo_max := 0
 var _camp_tre := 0
@@ -414,10 +451,18 @@ func _campiona(res: Array) -> void:
 			continue
 		var lab := str(d.get("label", ""))
 		_campioni += 1
-		# --- il fatto
+		# --- il fatto, e il suo CONTROFATTUALE, sullo stesso campione
+		# ⚠️ Le due righe stanno insieme apposta: `_fatto_camp` e' il
+		# denominatore di TUTTI E DUE i numeri, e prima l'oracolo aveva un
+		# ciclo suo senza la guardia sul nodo valido tre righe piu' su —
+		# due percentuali confrontate nel referto e contate su insiemi
+		# diversi. Un denominatore per due frazioni, o non sono frazioni
+		# della stessa cosa.
 		if bit != 0 and (int(d.get("fatti", 0)) & bit) != 0:
 			_fatto_acceso += 1
 			_fatto_chi[lab] = int(_fatto_chi[lab]) + 1
+		if bool(d.get("insieme_osservato", false)):
+			_oss_accesi += 1
 		_fatto_camp += 1
 		# --- l'argmax, e IL CONFRONTO APPAIATO
 		if _ecs != null and d.has("ecs"):
@@ -525,6 +570,17 @@ func _p(v: Array, q: float) -> float:
 	return float(s[clampi(int(q * float(s.size())), 0, s.size() - 1)])
 
 
+## ⚠️ LE MISURE LEGGIBILI A MACCHINA. Il referto qui sotto è per un umano —
+## quaranta righe di prosa — e per anni non c'è stato modo di estrarne un
+## numero se non a occhio. `tools/banco_repliche.py` legge queste righe, e
+## SOLO queste: `MISURA <nome> <valore>`, una per riga, alla fine.
+##
+## Non è un secondo referto: sono gli STESSI numeri che il referto stampa
+## in prosa, presi dove vengono calcolati. Ricalcolarli qui sarebbe la
+## tabella gemella che diverge al primo che ritocca una formula.
+var _misura := {}
+
+
 func _referto(res: Array) -> void:
 	var AZIONI := ["spuntino", "riposo", "chiacchiere", "giardino",
 			"meraviglia", "stella", "regia", "gironzola"]
@@ -556,6 +612,21 @@ func _referto(res: Array) -> void:
 	print("\n2. IL FATTO — acceso nel %.2f%% dei campioni (%d su %d), su %d residenti di %d"
 			% [100.0 * float(_fatto_acceso) / maxf(1.0, float(_fatto_camp)),
 			_fatto_acceso, _fatto_camp, chi, res.size()])
+	# ⚠️ L'ORACOLO STA QUI, appiccicato al fatto, e non piu' in fondo alla
+	# sezione 7 fra i grappoli: le due frazioni hanno lo STESSO
+	# denominatore, e stampate a settanta righe di distanza si leggevano
+	# come due misure indipendenti. A leva accesa i due numeri coincidono
+	# per costruzione (la panca preferita E' quella scelta) — se divergono,
+	# a divergere e' il cablaggio, non il villaggio.
+	if _fatto_camp > 0:
+		print("   l'ORACOLO — si SAREBBE acceso nel %.2f%% degli STESSI campioni"
+				% (100.0 * float(_oss_accesi) / float(_fatto_camp))
+				+ " (%d su %d)" % [_oss_accesi, _fatto_camp])
+		print("   cioe': con la leva accesa la panca preferita da questi corpi"
+				+ " aveva qualcuno accanto cosi' spesso.  (leve spente: %s)"
+				% Leve.condizione())
+		_misura["insieme_osservato_pct"] = (100.0 * float(_oss_accesi)
+				/ float(_fatto_camp))
 
 	# 3
 	var sf := 0; var sn := 0; var sa := 0
@@ -576,6 +647,8 @@ func _referto(res: Array) -> void:
 		print("   valutazioni col bit acceso: %d · argmax cambiato: %d (%.2f%%)"
 				% [_scavalchi_visti, _scavalchi,
 				100.0 * float(_scavalchi) / float(_scavalchi_visti)])
+		_misura["argmax_cambiato_pct"] = (100.0 * float(_scavalchi)
+				/ float(_scavalchi_visti))
 		print("   scarto sul punteggio del riposo:  mediano %.4f · p90 %.4f · max %.4f"
 				% [_p(_scarti, 0.5), _p(_scarti, 0.9), _p(_scarti, 0.999)])
 	else:
@@ -604,6 +677,8 @@ func _referto(res: Array) -> void:
 	# 7
 	print("\n7. IL GRAPPOLO — massimo %d seduti vicini · campioni con tre o piu': %d"
 			% [_grappolo_max, _camp_tre])
+	_misura["grappolo_max"] = float(_grappolo_max)
+	_misura["coppie_sedute_distinte"] = float(_coppie_distinte.size())
 
 	# 8
 	_stampa_esclusione()
@@ -625,6 +700,7 @@ func _referto(res: Array) -> void:
 				% [righe.size(), _giorni, float(righe.size()) / float(_giorni)])
 
 	_stampa_lealta()
+	_stampa_misure()
 
 
 ## Una barra sola, stampata come le altre — piu' la coda alta, che e' la
@@ -643,6 +719,10 @@ func _stampa_barra(titolo: String, isto: Dictionary, tot: int) -> void:
 			coda += f
 		print("   %2d vicini  %5.2f%%%s" % [int(k), f,
 				"   ← IL CANCELLO DI ARRESTO" if int(k) == 0 else ""])
+		# la barra dello ZERO è il cancello d'arresto di tutto il lavoro
+		# sull'insieme: se scende, il villaggio si sta ammucchiando.
+		if int(k) == 0 and titolo.begins_with("8b."):
+			_misura["barra_zero_pct"] = f
 	print("   …la coda da 5 vicini in su: %.2f%% (la firma del rito)" % coda)
 
 
@@ -739,6 +819,9 @@ func _stampa_lealta() -> void:
 	print("   → righe di co-presenza: %d in totale, %.2f per residente per giornata"
 			% [righe_tot, float(righe_tot) / maxf(1.0, float(animi.size()))
 					/ maxf(1.0, float(_giorni))])
+	# ⚠️ QUESTO È IL NUMERO CHE BALLAVA DI 5,7 VOLTE fra due corse identiche.
+	_misura["copresenza_per_residente_giorno"] = (float(righe_tot)
+			/ maxf(1.0, float(animi.size())) / maxf(1.0, float(_giorni)))
 	print("   → MISURATO: %d residenti su %d hanno la lealta' mossa; media %+.4f, massimo %+.4f"
 			% [mossi, animi.size(), d_somma / maxf(1.0, float(animi.size())), d_max])
 
@@ -765,3 +848,20 @@ func _stampa_lealta() -> void:
 	chi.set("compagnia", salva)
 	chi.set("_deriva_giorno", -1)
 	chi.call("_ricalcola_deriva")
+
+
+## Le misure per il banco delle repliche. In fondo a tutto e su righe loro,
+## così un occhio umano non le confonde col referto e una macchina non deve
+## capire la prosa. Se il referto non ne ha prodotta nessuna lo si DICE: un
+## banco che tace non è un banco a zero.
+func _stampa_misure() -> void:
+	print("")
+	if _misura.is_empty():
+		print("MISURE_ASSENTI  il referto non ha prodotto nessun numero")
+		return
+	var chiavi: Array = _misura.keys()
+	chiavi.sort()
+	for k in chiavi:
+		print("MISURA %s %.6f" % [str(k), float(_misura[k])])
+	print("MISURA_CONDIZIONE_LEVE %s" % Leve.condizione())
+	print("MISURA_RADICE %d" % Dadi.radice())

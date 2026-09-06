@@ -34,8 +34,12 @@ func _go() -> void:
 		dn.set("day", 12)
 		dn.set("time", 0.42)
 	var cw := root.find_child("CozyWorld", true, false)
+	# la STAGIONE si sceglie: 0 primavera · 1 estate · 2 autunno · 3 inverno
+	# (CHIBI_STAG=2 per guardare la lettiera, =3 per la neve)
+	var stag := int(OS.get_environment("CHIBI_STAG"))
+	var neve := 0.85 if stag == 3 else 0.0
 	if cw and cw.has_method("set_season"):
-		cw.call("set_season", 0, 0.0, false)
+		cw.call("set_season", stag, neve, false)
 	for _i in 45:
 		await process_frame
 	var dove := OS.get_environment("CHIBI_TERRENO")

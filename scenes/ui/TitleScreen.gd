@@ -30,7 +30,14 @@ const MAIN_SCENE := "res://scenes/levels/MainLevel.tscn"
 ## nel villaggio da soli. «Continua» ci passa sopra: il temporale è già
 ## successo, e non si rivive.
 const PROLOGO_SCENE := "res://scenes/prologo/Prologo.tscn"
-const SAVE_PATH := "user://village.json"
+## ⚠️ LA STRADA DEL VILLAGGIO NON STA QUI, e non è un vezzo: la dice `Dadi`
+## (`Dadi.percorso_villaggio()`), che è la fonte unica — `BuildSystem` la
+## prende di lì da quando `Dadi.radice()` deve poter leggere il seme prima
+## che BuildSystem esista. Qui c'era una TERZA copia scritta a mano, e con
+## `CHIBI_VILLAGGIO` addosso guardava un altro file: il menù avrebbe
+## archiviato un villaggio e `Dadi` ne avrebbe riletto un altro — cioè
+## proprio il modo in cui la dimenticanza della radice, in `_start_new`, non
+## funzionerebbe più.
 const PROLOGO_APPUNTI := "user://prologo.json"
 
 const RIASSUNTO := preload("res://scenes/ui/RiassuntoSalvataggio.gd")
@@ -86,7 +93,7 @@ func _ready() -> void:
 	_sfx = get_node_or_null(^"/root/Sfx")
 	# il ritratto del salvataggio PRIMA di costruire: albero, luce, fiori,
 	# vicini e perfino il sottotitolo dipendono da com'è messo il villaggio
-	_save = RIASSUNTO.dal_disco(SAVE_PATH)
+	_save = RIASSUNTO.dal_disco(Dadi.percorso_villaggio())
 	_clima = _save.clima()
 	_build_world()
 	_build_ui()
@@ -916,7 +923,7 @@ func _build_menu() -> Control:
 	gap.custom_minimum_size = Vector2(0, 22)
 	box.add_child(gap)
 
-	if FileAccess.file_exists(SAVE_PATH):
+	if FileAccess.file_exists(Dadi.percorso_villaggio()):
 		box.add_child(_title_button(L10n.t("Continua"), CozyUI.MINT, _continue))
 		box.add_child(_title_button(L10n.t("Nuovo villaggio"), CozyUI.PINK, _ask_new))
 	else:
@@ -948,11 +955,37 @@ func _start_new() -> void:
 	# caricamento non distingueva "manca" da "è rotto"). Adesso la
 	# distinzione c'è in BuildSystem, e questa è la seconda cintura.
 	var stamp := Time.get_datetime_string_from_system().replace(":", "-")
-	if FileAccess.file_exists(SAVE_PATH):
-		DirAccess.rename_absolute(SAVE_PATH, "user://village_%s.json" % stamp)
-	if FileAccess.file_exists(SAVE_PATH + ".bak"):
-		DirAccess.rename_absolute(SAVE_PATH + ".bak",
+	var villaggio := Dadi.percorso_villaggio()
+	if FileAccess.file_exists(villaggio):
+		DirAccess.rename_absolute(villaggio, "user://village_%s.json" % stamp)
+	if FileAccess.file_exists(villaggio + ".bak"):
+		DirAccess.rename_absolute(villaggio + ".bak",
 				"user://village_%s.json.bak" % stamp)
+	# ⚠️ E SI DIMENTICA LA RADICE DEI DADI. È l'UNICO posto del gioco
+	# autorizzato a farlo (un caso di `test_dadi` tiene chiusa la porta a
+	# tutti gli altri), ed è il gesto che dice «questa partita non è quella
+	# di prima»: senza, il villaggio nuovo nasceva con la radice del vecchio
+	# e ne ereditava gli ABITANTI — stessi nomi nello stesso ordine, stesso
+	# manto, stessi tratti (`ChibiDNA` e `FaceController` derivano di lì).
+	#
+	# La catena sta tutta dentro QUESTO processo, e per questo non si vedeva:
+	# `_build_world()` costruisce Mochi e gli attori del diorama → il `setup`
+	# del volto → `Dadi.rng(Dadi.CORPO, …)` → `Dadi.radice()`, che legge il
+	# seme dal villaggio ancora sul disco e resta POSATA. Poi si archivia il
+	# file, ma la radice è già in mano al modulo, e un cambio di scena non
+	# azzera una `static var`: `_save_village` la scriveva pari pari dentro
+	# il villaggio nuovo.
+	#
+	# Non è contabilità: rompe la promessa scritta in `Dadi` («due villaggi
+	# non si somigliano») e la PRIMA domanda della REGOLA SACRA —
+	# ricominciare è il rimedio del giocatore, e un rimedio che gli ridà le
+	# stesse identiche persone non rimedia.
+	#
+	# Va QUI, dopo l'archiviazione e prima di cambiare scena: la prossima
+	# `Dadi.radice()` non deve più trovare né il file né la sua copia, o se
+	# la riprenderebbe di lì (`_radice_dal_salvataggio` adesso guarda anche
+	# il `.bak`, ed è la stessa ragione per cui il `.bak` si archivia).
+	Dadi.dimentica()
 	# GLI ALTRI DEPOSITI. Il villaggio non vive tutto dentro village.json:
 	# tre cose si salvano per conto loro, e restavano in piedi nel
 	# villaggio nuovo — le cornici sopra letti che non esistono più e i

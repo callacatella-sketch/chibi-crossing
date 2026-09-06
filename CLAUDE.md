@@ -334,6 +334,12 @@ sono state estratte in due librerie di funzioni `static`:
   geometria: mesh procedurali (`puff_mesh`, `trunk_mesh`, `skirt_mesh`,
   `blade_mesh`, fiori), primitive, `merge`, materiali `paint_mat`, texture
   `soft_circle`, emettitori `drift_emitter`.
+- [`scenes/world/FioriGeo.gd`](scenes/world/FioriGeo.gd) — gli ORGANI di un
+  fiore (petalo, lamina, stelo, capolino, campanella) e
+  [`scenes/world/FarfalleGeo.gd`](scenes/world/FarfalleGeo.gd) — la sagoma
+  e la battuta di una farfalla. Non caricano nessuno: sono le case delle
+  leggi di forma, e le chiamano sia il prato sia l'ecosistema del C++.
+  Vedi «I FIORI E LE FARFALLE», più sotto.
 
 Si usano tramite i `const MATH`/`const GEO` in cima a CozyWorld
 (`GEO.cone_mesh(...)`). Nelle librerie i nomi NON hanno l'underscore iniziale.
@@ -346,6 +352,450 @@ quindi un confronto esatto dell'albero dà falsi allarmi. Usare
 [`tests/world_snapshot.gd`](tests/world_snapshot.gd) confrontando
 l'**istogramma per classe** (quello sì stabile) e, per le funzioni pure, scrivere
 una prova di equivalenza vecchia-vs-nuova implementazione.
+
+
+## I FIORI E LE FARFALLE — il petalo ha due facce
+
+«Fanno schifo perché sono solo poligoni e squadrati.» Il difetto era
+letterale, e **non era il conteggio**: una margherita del prato costava
+**1464 triangoli** — più di tutta l'erba del villaggio — ed era fatta di
+TREDICI SFERE scalate 0.62 × 0.22 × 1.75. Un ellissoide schiacciato
+porta le normali di una SFERA: la luce ci cade sopra come su una biglia,
+mai come su un petalo. La regola era già scritta in casa, in
+[`_bis_petalo`](scenes/build/BuildCatalog.gd): *«è la forma, non la
+tinta, a togliere il sapore di caramella: un ellissoide schiacciato
+resta un confetto»* — e i fiori del prato non potevano chiamarla.
+
+### ⚠️ E METÀ DEL DIFETTO NON ERA LA FORMA: ERA LA PROPORZIONE
+
+La corolla faceva **ø 0.229 su uno stelo di 0.20** — larga quanto alta,
+in un prato dove il filo d'erba ne fa 0.30. Era QUELLA, prima degli otto
+meridiani, a farla leggere come una girandola di confetti. Adesso
+ø 0.075 su 0.21, e il numero contro cui si giudica **non è suo**: è
+`blade_mesh`, il filo d'erba (`test_fiori._la_proporzione_del_capolino`).
+
+### LE CASE
+
+| dove | cosa |
+|---|---|
+| [`scenes/world/FioriGeo.gd`](scenes/world/FioriGeo.gd) | gli ORGANI: petalo, lamina, stelo, capolino, campanella. Puro, non carica nessuno |
+| [`scenes/world/FarfalleGeo.gd`](scenes/world/FarfalleGeo.gd) | la SAGOMA di una farfalla, e la sua BATTUTA |
+| `WorldGeo.daisy/tulip/lavender/clover/poppy/forgetmenot_mesh` | le sette specie del prato |
+| `Ecosystem._flower_mesh` · `_butterfly_mesh` | le popolazioni del C++ (380 fiori selvatici, 90 farfalle) |
+| `CozyWorld._make_butterfly` | i cinque rig nominati (retino, taccuino, Fiato Sospeso) |
+
+### LE CINQUE LEGGI DEL PETALO, e sono misurabili
+
+1. **OBOVATO** — `w = W · sin(π·(0.20 + 0.62·u))^0.45` era un PLATEAU: la
+   mezza larghezza andava 0.79 → 1.00 → 0.75, cioè un rettangolo con la
+   punta intaccata. **Dei nastri**, che è il difetto di partenza sotto
+   un'altra forma. Con `0.10 · 0.72 · 0.75` va 0.41 → 1.00 → 0.63.
+2. **LA PUNTA È INCISA** — `x -= incisione·u¹⁰·(1−v²)`: senza, cinque
+   punte a mandorla fanno una stella marina.
+3. **LA PUNTA CADE** — la spina sale e ricade. Un petalo dritto è un
+   raggio di ruota.
+4. **LA CONCA** — ⚠️ e si misura sulla **MEZZA LARGHEZZA**, non sulla
+   lunghezza: è una curvatura TRASVERSALE. Legata alla lunghezza esplode
+   sui petali lunghi e stretti — su un petalo di tulipano lungo 62 mm
+   faceva **16 mm di incurvatura per lato**, i bordi attraversavano il
+   fiore e uscivano dall'altra parte, e in cima usciva una corona
+   sfrangiata che sembrava un bicchiere di carta strappato. **È una
+   legge sbagliata, non un numero da tarare.**
+5. **LA TORSIONE** — nessun petalo è planare, e due petali della stessa
+   corolla non prendono mai la stessa luce.
+
+**E HA DUE FACCE.** Dorso e ventre sono due fogli con normali OPPOSTE,
+separati da uno spessore che si annulla sul margine (`(1−v²)·(1−u³)`):
+il petalo si chiude da sé **senza un triangolo in più**, e in controluce
+il bordo diventa una LINEA DI SPESSORE invece di un taglio. È la sola
+cosa che rende visibile il `translucency` che questi materiali avevano
+già a 0.5 e che non si era mai visto.
+
+### UNA SUPERFICIE PER FIORE, e il COLOR è il contratto
+
+Un fiore è largo otto centimetri: tre superfici erano tre draw call per
+niente. La **maschera d'organo** viaggia nel COLOR dei vertici — `r`
+petalo, `g` cuore, `b` verde — e `a` porta la **fase personale del
+petalo**, perché una corolla che si muove tutta insieme è un palloncino.
+In `handpaint.gdshader` sono tre uniform in più, **tutti spenti di
+serie**: nessun altro materiale dipinto a mano cambia di un bit.
+
+> ⚠️ **E `use_colors` DEL MULTIMESH RESTA SPENTO, SEMPRE.** Godot
+> MOLTIPLICA il colore d'istanza dentro il `COLOR` dei vertici: per un
+> fiore quel COLOR è la maschera d'organo, e accenderlo **dipinge i
+> petali del colore del gambo, senza un errore**. I canali per istanza
+> viaggiano in `custom_data` (`_scatter_exact(..., custom)`), e la
+> guardia sta in `test_fiori._nessun_campo_accende_use_colors`.
+
+### LA FOLATA ARRIVA AI FIORI (ed è quello che si vede di più)
+
+Prima passavano `wind_strength = 0.02` all'ondina locale — un `sin()`
+con la stessa fase per tutta la pianta, **1,25 mm** su una margherita —
+dentro un'erba che ha la folata del mondo. Bastava guardarli per sentire
+che l'aria non era la stessa aria. Adesso accendono il ramo `chioma` di
+`handpaint`, che è la STESSA folata di erba e chiome, più:
+
+- **IL RITARDO DELLA TESTA**: sopra `testa_base` la corolla campiona la
+  folata a `TIME − 0.14 s` e si somma la **DIFFERENZA** (così ad aria
+  ferma la testa non si sposta di un millimetro). Non è un secondo seno
+  da tarare: è il **peso del fiore** — la corolla arriva dopo lo stelo e
+  torna dopo;
+- **IL FREMITO per petalo**, con la fase da `COLOR.a`.
+
+MISURATO **nello studio**, dove non c'è altro che si muova (nel
+MainLevel lo scarto fra due fotogrammi è dominato dall'erba): lo scarto
+fra fotogrammi consecutivi passa da **0.075** (il pavimento del
+renderer) a **0.20–0.34**, e la spiga di lavanda si vede piegata.
+
+### LE TRE CLASSI DI SAGOMA — la varietà si decide a OTTO METRI
+
+A otto metri — l'inquadratura normale, con la camera a 2.70 sopra e 3.70
+dietro Mochi — di un fiore alto 22 cm si vedono **trenta pixel** e di un
+petalo otto: la corolla non esiste, e leggono soltanto la **classe di
+sagoma**, la massa e il movimento. Quattro specie tutte alte fra 0.20 e
+0.36 sono lo stesso plotone in quattro colori, per quanto bene siano
+fatte. Perciò tre specie nuove, e sono le tre che cambiano la lettura:
+
+| | h | tris | classe |
+|---|---|---|---|
+| **trifoglio** | 0.086 | 138 | il TAPPETO, sotto la linea dell'erba |
+| non-ti-scordar-di-me | 0.124 | 382 | il piccolo AZZURRO, la tinta che mancava |
+| margherita (×2) · tulipano (×2) | 0.21 · 0.31 | 560 · 342 | i MEDI |
+| lavanda | 0.36 | 538 | l'alto sottile |
+| **papavero** | 0.32 | 298 | l'ALTO, testa FUORI ASSE |
+
+Da **166 istanze a 1046**, e da 176k triangoli (com'era all'inizio) a
+270k: sei volte i fiori per una volta e mezzo il costo.
+
+**LA SEMINA**, che prima era cieca:
+
+- `CozyWorld.suolo_libero()` è **UNO** per tutto ciò che si posa a terra
+  — stagno, letto del fiume, sentieri. Ce l'aveva solo l'erbario; i
+  fiori guardavano lo stagno e una `z > -14.5`;
+- ⚠️ **e per questo `_build_flowers()` sta DOPO `_build_forest()`**:
+  `_path_samples` esiste solo allora, e chi lo interroga prima trova una
+  lista vuota **senza un errore e senza una traccia**. È la trappola che
+  l'erbario ha già pagato una volta;
+- `peso_habitat()` da dati che il mondo ha già (distanza dall'acqua,
+  quanto si va verso il bosco): l'azzurro sta all'umido, il papavero
+  all'asciutto. **Costa zero e fa il lavoro che tre specie in più non
+  farebbero** — attraversando il prato i fiori CAMBIANO;
+- la taglia tirata verso il piccolo (`0.70 + 0.55·r^1.7`) e
+  l'inclinazione **correlata alla taglia**: i più alti pendono di più
+  perché pesano di più (con ±0.09 rad per tutti era un plotone);
+- la base a **−0.012**: il suolo TAGLIA lo stelo e non si vede mai il
+  disco d'appoggio — il trucco dei sassi dell'erbario.
+
+⚠️ **E IL RAGGIO DELLO STELO VA IN FRAZIONE DELL'ALTEZZA** (1.7%), non
+in metri: è la stessa mina delle farfalle un piano più in là. Le piante
+che passano da `stelo_fiore` vanno da 10.5 cm (il non-ti-scordar-di-me)
+a 29 (il papavero), e col numero assoluto la piccola aveva un gambo
+grosso il 3.2% della propria altezza e il papavero l'1.2%.
+
+### DUE LEZIONI DI FORMA, viste e non dedotte
+
+**UN FUNGO È UNA CALOTTA A FONDO PIATTO.** Il capolino del trifoglio era
+una cupola liscia su uno stecco, e leggeva fungo — non per la
+superficie, per la SAGOMA. Si chiude sotto con una seconda cupola ad
+`alt` NEGATIVA (che specchia il profilo e gira le normali da sola) e la
+silhouette diventa tonda. ⚠️ Ma perché le due metà combacino serve
+`bordo = 1.0`: il profilo di serie (`sqrt(1 − t²·0.86)`) lascia il
+margine RIALZATO — giusto per un capolino di margherita, e con due metà
+dà due piattini staccati.
+
+**E I LOBI VANNO CAMPIONATI.** `cupola_su(..., lobi, lobo)` modula il
+RAGGIO sull'angolo, ed è la sola leva che fa i fiorellini: modulare
+l'ALTEZZA (`grana`) su un disco alto due millimetri non si vede. Ma con
+nove segmenti e sette lobi il giro non li vede proprio — è aliasing, e
+la testa resta liscia. **Almeno due segmenti per lobo**, e qui ce ne
+sono tre.
+
+### ⚠️ I FIORI SI ACCUCCIANO SOTTO I PAVIMENTI (il buco che la densità ha rivelato)
+
+`flatten_cell` toccava SOLO `_grass_cells`. Con 166 fiori sparsi su
+ventidue metri capitava di rado e nessuno l'aveva visto; con mille
+capita **a ogni pezzo posato** — margherite alte 22 cm che spuntano dal
+parquet, dentro le case, sotto i tappeti. La densità non ha creato il
+difetto: l'ha reso visibile. Adesso `_flower_cells`/`_flower_base` sono
+l'idioma identico di `_grass_cells`/`_grass_base`, e
+`tools/prova_accuccia.gd` lo prova **nel MainLevel vero**, guardando
+l'altezza dei corpi: **1.2093 → 0.0242 → 1.2093**.
+
+> ### ⚠️⚠️ E NON BASTAVA: SU UNA PARTITA CARICATA NON SUCCEDEVA MAI
+>
+> `_indicizza_fiori()` sta in fondo a un `_ready` che attraversa SETTE
+> `await get_tree().process_frame`. `BuildSystem._load_village` posa
+> TUTTE le celle salvate dentro il frame 0 — **non ha un solo `await`**.
+> Al caricamento, quindi, ogni `flatten_cell` trovava l'indice VUOTO,
+> non accucciava niente, **e timbrava comunque `_grass_flat`**: per via
+> del `return` in testa non ci sarebbe tornata MAI più. Cioè il difetto
+> restava intero per ogni giocatore che RIAPRE la partita, che sono
+> tutti tranne chi comincia adesso.
+>
+> L'erba era a posto, perché `_build_grass()` gira PRIMA del primo
+> `await`: **è quell'asimmetria a dire dov'era il difetto**. La cura è
+> in coda a `_indicizza_fiori()` — si riapplica l'accucciamento a ogni
+> cella già timbrata — e `prova_accuccia.gd` adesso ha DUE scene: si
+> posa a mondo costruito (il caso facile) e si posa, si SALVA, si
+> RICARICA e si guarda prima di toccare niente. Falsificata: senza
+> quella riga la scena 1 resta verde e la scena 2 dà 1.2093.
+>
+> ⚠️ E il banco mette al riparo il `village.json` dell'autore e lo
+> rimette dov'era: il difetto vive nel caricamento, e non c'era altro
+> modo di provarlo.
+
+> ### ⚠️⚠️ E QUI C'È UNA TRAPPOLA DI GODOT CHE VALE PER TUTTI
+>
+> **`MultiMesh.get_instance_transform()` torna l'IDENTITÀ in
+> `--headless`.** Il renderer fittizio non conserva il buffer, mentre
+> `set_instance_transform` funziona e con la finestra aperta il mondo si
+> disegna giusto. MISURATO: con la finestra le origini sono quelle vere,
+> in headless sono **tutte (0, 0, 0)**.
+>
+> Un indice costruito rileggendo il MultiMesh è quindi rotto in ogni
+> test headless, **in silenzio e con la suite verde** — la prima stesura
+> di `_indicizza_fiori` metteva tutti i 1046 fiori nella cella (0,0). Le
+> trasformate si TENGONO in GDScript (`_flower_base`), che è esattamente
+> perché `_grass_base` esiste. E **anche un banco può caderci**: la
+> prova viva dell'accucciamento va fatta con la finestra, non headless.
+>
+> Corollario minore, pagato nello stesso banco: `Basis.scaled()`
+> moltiplica le RIGHE, cioè schiaccia lungo la y del MONDO — e su una
+> base inclinata `basis.get_scale().y` non lo vede. Si misura
+> `(basis * Vector3.UP).y`.
+>
+> ⚠️ **E IL BANCO SI RIFIUTA DI GIRARE HEADLESS**, invece di misurare
+> l'identità e uscire 0 su un gioco rotto. Un banco che non sa fallire
+> è un ritratto — e la prima stesura, oltre a girare headless in
+> silenzio, non asseriva niente (stampava tre numeri e usciva 0) e
+> chiedeva la cella da colpire E i fiori da guardare allo STESSO indice
+> che stava provando: con `roundi` mutato in `floori` sarebbe rimasto
+> verde mentre nel mondo si accucciava un'altra cella. Adesso la cella
+> e le altezze si ricavano da `_flower_base` ricalcolando la cella NEL
+> BANCO, e ogni riga è un'asserzione con `quit(1)`.
+
+### LE FARFALLE: quattro triangoli e un corpo da mille
+
+Il budget c'era già, ed era **speso al contrario**.
+
+- le **NOVANTA** dell'ecosistema erano due quadrilateri — **quattro
+  triangoli in tutto**, con `set_normal(Vector3.UP)` su ogni vertice:
+  in piena battuta l'ala restava illuminata come una lastra orizzontale;
+- le **CINQUE** nominate avevano una `CapsuleMesh` **senza
+  `radial_segments`**, cioè il default di Godot 64 × 8 ≈ **1030
+  triangoli per un corpo di 12 mm**, con l'ombra accesa, contro quattro
+  triangoli d'ala fatti di un cerchio sfumato tagliato ad
+  `alpha_scissor 0.4` e UNSHADED — un pallino a bordo duro che il ciclo
+  del giorno non tocca mai.
+
+Adesso 232 triangoli le piatte e 248 il rig: **le cinque costano il 5%
+di prima**. Una sagoma, due montaggi (`piatta` per il MultiMesh,
+`ali_lato` + `corpo` per i rig): se divergessero, quella che catturi nel
+retino non sarebbe quella che hai visto volare.
+
+**QUATTRO ALI, non due** — è l'INTAGLIO fra anteriore e posteriore a far
+leggere «farfalla» invece di «fogliolina». E **l'apice dell'anteriore
+sta fuori E AVANTI**: sono servite tre stesure per arrivarci, perché con
+l'apice a metà corda escono due lame spazzate all'indietro — un paio di
+baffi — e questo si vede in un colpo d'occhio nella lastra dall'alto,
+non in un numero.
+
+**LA BATTUTA È UNA SOLA IN TUTTO IL GIOCO** (`FarfalleGeo.battito`,
+trascritta nel vertex shader delle novanta), e fa due cose:
+
+1. **il tempo si deforma** — `sin(θ + 0.35·sin θ)`: la derivata della
+   fase vale `1 + 0.35·cos θ`, si passa in un verso a 1.35 e nell'altro
+   a 0.65. MISURATO: il colmo cade al **39.5% del mezzo ciclo** contro
+   il 50.0% esatto del seno puro;
+2. **il colmo è piatto** — `pow` sul seno: si sta in cima il **47.1%**
+   del tempo contro il 41.0% del seno.
+
+> ⚠️ **E LA PRIMA STESURA AVEVA SOLO LA (2), mentre il commento
+> prometteva la (1).** `pow(|sin|)` ha il colmo piatto ma sale e scende
+> IDENTICO. Se n'è accorto il test — che pretendeva un'asimmetria di
+> tempo e non la trovava — non la rilettura del commento. E la prima
+> stesura della guardia la cercava nel posto sbagliato («quanto tempo
+> si sta sopra lo zero»): la legge è DISPARI, quindi ci sta esattamente
+> metà del tempo. L'asimmetria è in **dove cade il colmo**.
+
+**NELLO SHADER DELLE NOVANTA**, quattro cose: la cerniera è oltre il
+RAGGIO DEL TORACE (era «tutto ciò che sta entro |x| < 0.0714», e un
+torace modellato verrebbe piegato come un'ala); il corpo lo dice la MESH
+(`COLOR.a`), non una banda dipinta; le NORMALI girano col battito; l'ala
+posteriore parte in **ritardo di 0.55 rad** (`COLOR.g`). Più l'ORLO
+scuro sul margine (`COLOR.r` porta la distanza dalla cerniera): a sei
+metri è quello a distinguere una farfalla da un coriandolo colorato.
+
+> ⚠️ **E L'ORLO LO LEGGONO TUTTI E DUE I MONTAGGI.** Le CINQUE nominate
+> non sono dipinte da `butterfly.gdshader` ma da `handpaint`, che
+> `COLOR.r` non lo guardava: erano le uniche senza il margine scuro —
+> proprio quelle che si posano sul naso di Mochi, nell'unica
+> inquadratura in cui un'ala si vede a due centimetri. Avere UNA sagoma
+> non serve a niente se poi i due montaggi si dipingono diverso: adesso
+> `handpaint` ha l'uniform `orlo`, spento di serie come tutti gli altri
+> e acceso solo dal materiale delle ali.
+
+> ⚠️ **E LE ANTENNE NON HANNO UN CANALE LORO, ANCHE SE PER UN PEZZO
+> L'INTESTAZIONE HA GIURATO DI SÌ.** Escono dal raggio del torace ma
+> sono CORPO, e a tenerle fuori dalla cerniera è `COLOR.a` — la
+> maschera, che vale 1 o 0 e basta. Una stesura le marcava con un
+> `COLOR.b` tutto loro dicendo che «senza, la cerniera le prenderebbe
+> per punte d'ala»: non era vero, nessuno lo leggeva, e la mutazione che
+> «lo provava» faceva arrossire il test soltanto perché il test usava
+> quel canale come propria ESENZIONE. Il rosso certificava il banco, non
+> il gioco — che è più insidioso di una guardia muta, perché dice
+> «coperto» e non lo è. Canale tolto, intestazione corretta, e la
+> mutazione adesso guasta la riga che conta davvero (la cerniera gatata
+> su `COLOR.a`, in `butterfly.gdshader`).
+
+### ⚠️ DARE UNA SAGOMA A UNA COSA NE RIVELA LA TAGLIA
+
+Nel MainLevel vero, alla camera vera del gioco: le farfalle erano larghe
+**quanto la testa di un chibi** — 28 cm d'apertura. Era la taglia che
+avevano da sempre (un quad di 15 cm per lato), ma finché erano pallini
+sfumati **nessuno le leggeva come farfalle, quindi nessuno vedeva che
+erano enormi**. Adesso 12,9 cm le nominate e 10,5 cm quelle del
+MultiMesh.
+
+E la stessa lezione due volte dentro `FarfalleGeo`: il raggio del TORACE
+e i raggi del CORPO erano in **metri assoluti**. Finché tutte avevano la
+stessa apertura non si vedeva; su una piccola quel torace era un quarto
+della semiapertura. Adesso sono FRAZIONI, e la libellula (0.18 × 0.04) e
+la falena (0.16 × 0.10) restano proporzionate senza numeri loro.
+
+### IL FIORE SELVATICO DEL C++ (380 istanze, 16 triangoli)
+
+Era il pezzo più squadrato del gioco: gambo a DUE LAME INCROCIATE,
+cinque petali da UN quadrilatero, cuore un QUADRATO orizzontale di
+5,6 cm, tutto con la normale verso l'alto. Adesso passa dagli stessi
+organi. **I tre vincoli non si toccano** e stanno scritti sopra la
+funzione: `COLOR.a` è la maschera petalo/verde (con la maschera storta i
+petali diventano verdi); le tinte restano **QUATTRO** (`kind` 0..3 è
+PERSISTITO e riletto con un CLAMP, quindi tre tinte ricolorerebbero i
+salvataggi vecchi); **UNA** superficie, o `_wildflower_mat` non cattura
+più il materiale e il ritinto stagionale si spegne in silenzio.
+
+⚠️ **E la sua fase di vento veniva dalle coordinate OGGETTO**
+(`VERTEX.x·2 + VERTEX.z·2`), che sono identiche in ogni istanza:
+trecentottanta fiori che ondeggiavano nello stesso istante, dentro
+un'erba che ha la folata del mondo.
+
+### IL PREZZO, misurato — e il primo numero era SBAGLIATO
+
+`tools/prova_prato_vivo.gd`, parte P: A/B **nella stessa corsa**, vsync
+spento, e **TRE stati** invece di due.
+
+| | fotogramma | scarto |
+|---|---|---|
+| tutto acceso | 41.04 ms | |
+| senza il PRATO (1046 istanze, 296k tris) | 40.22 ms | **+0.82 ms (+2.0%)** |
+| senza niente (anche l'ECOSISTEMA: 530 istanze, 115k tris) | 39.81 ms | **+0.42 ms (+1.0%)** |
+| **insieme** | | **+1.24 ms (+3.1%)** |
+
+Il cancello d'arresto dichiarato prima di misurare era **il 5%**.
+
+> ⚠️ **E IL PRIMO NUMERO PUBBLICATO QUI (+0.56 ms, +1.4%) ERA IL PREZZO
+> DEL PRATO SPACCIATO PER IL PREZZO DEL LAVORO.** L'A/B accendeva e
+> spegneva solo `_flower_fields` — ma i 380 fiori selvatici (da 16 a
+> ~250 triangoli l'uno) e le 90 farfalle (da 4 a 232) vivono sotto il
+> nodo dell'**Ecosystem**, che è un figlio runtime di CozyWorld e non
+> sta in quell'array. Centoquindicimila triangoli che la misura non
+> toglieva e il conteggio non sommava: il cancello del 5% era stato
+> applicato al più piccolo dei due numeri.
+
+> ⚠️ **E L'ORDINE DEGLI STATI SI ROVESCIA A OGNI GIRO.** Con tre stati
+> sempre nella stessa sequenza, qualunque DERIVA della macchina si alias
+> sullo stato e si legge come costo: la prima corsa a ordine fisso ha
+> dato «spegnere il prato costa **−10 ms**», cioè un'impossibilità
+> fisica. Alternando A-B-C / C-B-A la deriva lineare si cancella, e la
+> monotonia (tutto > senza-prato > niente) torna a essere il controllo
+> di sanità che deve essere.
+>
+> ⚠️ La macchina aveva carico 3.0–3.4 (altre sessioni di agente): sono
+> **pavimenti**, non misure pulite — ma l'A/B sta nella stessa corsa,
+> che è l'unica cosa che conta.
+
+### Come si guarda
+
+```
+CHIBI_FIORI=<dir> Godot --path . --resolution 1100x680 \
+    --script res://tools/provino_fiori.gd      # CHIBI_PARTI=F D M W
+CHIBI_FARF=<dir>  Godot --path . --resolution 1500x620 \
+    --script res://tools/provino_farfalle.gd   # CHIBI_PARTI=S B M
+CHIBI_PRATO=<dir> Godot --path . --resolution 1280x720 \
+    --script res://tools/prova_prato_vivo.gd   # CHIBI_PARTI=D V F C P
+Godot --path . --resolution 640x400 --script res://tools/prova_accuccia.gd
+```
+
+- `provino_fiori` — la FILA, il DETTAGLIO da quattro azimut, la MACCHIA
+  a sei metri (dove «si smaschera il coriandolo»), e il VENTO isolato;
+- `provino_farfalle` — la SAGOMA (compreso **da sotto**, che è come la
+  vede Mochi quando le si posa sul muso), la PELLICOLA DEL BATTITO con
+  il `sin()` puro nella riga accanto, e le novanta con lo shader VERO;
+- `prova_prato_vivo` — il MainLevel vero alle quattro distanze che
+  contano, la pellicola del vento a `vento_forza` 1.0 e 1.775, e il
+  prezzo del fotogramma. ⚠️ **Ferma l'orologio** (`cycle_seconds`): un
+  giorno dura quattro minuti e il banco di più, e a metà prova si
+  fotograferebbe il tramonto.
+
+> ### ⚠️ SCRIVERE `day` NON RICALCOLA LA STAGIONE — tre rese perdute
+>
+> `DayNight._update_season()` è l'UNICO a scrivere il globale
+> `snow_amount`, e gira al `_ready` col giorno **salvato**. Un banco che
+> fa `dn.set("day", 12)` cambia il giorno e basta: se il salvataggio era
+> d'inverno, il globale resta innevato per tutta la corsa — e si
+> fotografa un mondo bianco credendo di aver chiesto la primavera.
+>
+> Il tranello è che la DIAGNOSI e il MONDO dicono due cose diverse:
+> `dn.snow_amount()`, interrogata, RICALCOLA da `day` e risponde 0.00,
+> mentre il globale che gli shader leggono è ancora quello vecchio. Ho
+> letto tre rese di fila come un difetto dei fiori prima di accorgermene
+> — è la stessa forma della trappola già scritta per `provino_terreno`
+> («il banco eredita il salvataggio»), un piano più in là. Dopo aver
+> scritto il giorno si chiama `_update_season()`.
+>
+> E per la stessa ragione il banco **stampa in che mondo sta
+> fotografando** (giorno · stagione · neve · ora · cielo · bagnato): un
+> banco che non lo dice lascia indovinare, e si finisce per accusare la
+> geometria.
+>
+> ⚠️ Altre due, pagate nello stesso pomeriggio: `find_child` subito dopo
+> `change_scene_to_file` torna **`null`** (l'albero è ancora quello
+> vecchio) e lascia il banco senza mondo in silenzio; e si aspetta che
+> la generazione sia FINITA — non un numero fisso di fotogrammi — perché
+> `_init_season()` gira alla fine e riscrive la stagione che il banco
+> aveva chiesto.
+
+La guardia headless è [`tests/cases/test_fiori.gd`](tests/cases/test_fiori.gd),
+e **non è un source-check**: costruisce le mesh vere, campiona le leggi
+vere e guarda la geometria. Le mutazioni stanno in
+[`tools/muta_fiori.txt`](tools/muta_fiori.txt) e le fa girare
+[`tools/muta.sh`](tools/muta.sh).
+
+> ### ⚠️ E UN BANCO DI MUTAZIONE NON RIPRISTINA CON `git checkout`
+>
+> Quello rimette l'ultimo COMMIT, non lo stato di partenza — e in un
+> banco di mutazione c'è SEMPRE lavoro non committato, perché si sta
+> provando la guardia che si è appena scritta. Il 2026-08-30 si è
+> portato via una battuta asimmetrica e delle antenne proporzionali già
+> finite, e ucciso a metà ha lasciato una MUTAZIONE viva dentro
+> `FioriGeo.gd`. Si ripristina da una **copia su disco accanto al file**
+> (`*.pre-muta`), non da un temporaneo che il `trap EXIT` cancella, e il
+> trap rimette i file **prima** di uscire, anche su INT e TERM.
+>
+> E «0 rosse» non deve poter voler dire quattro cose diverse: il banco
+> pretende la riga `==== TEST:` (altrimenti dichiara *CORSA MORTA*),
+> riconosce il PARSE rotto (una mutazione che non compila non prova
+> niente), rifiuta un testo-da AMBIGUO (`replace(…, 1)` prenderebbe la
+> prima occorrenza, magari dentro un commento), conta i rossi **anche
+> fuori** dal file sorvegliato, e fa una corsa di RIFERIMENTO senza
+> mutazioni pretendendo zero.
+
+**⚠️ E COSA QUESTE GUARDIE NON DICONO, dichiarato:** il vertex shader
+non si può far girare headless, quindi che `FarfalleGeo.battito` e la
+funzione `battito` di `butterfly.gdshader` restino la STESSA legge lo
+tiene un source-check (i due numeri della legge, confrontati fra i due
+sorgenti) — la stessa disciplina di `nottambulo()`, ma più fragile.
 
 ## Il Prologo: il tutorial che ha avuto conseguenze
 
@@ -595,6 +1045,36 @@ immaginate):**
   verde su un villaggio che non esiste. Ora i gesti pesanti arrivano dal
   LAVORO che il giocatore assegna (chi fa la guardia veglia su chi dorme,
   chi cucina divide quello che ha) e dalle nascite.
+- **⚠️ E METÀ DELLE PORTE ERANO ANCORA CHIUSE, per le DUE ANAGRAFI.** Le
+  vere porte d'ingresso al sistema sono **quattro** — `piatto` (0.70),
+  `veglia` (0.80), `consolazione` (1.00), `coraggio` (1.20) — perché
+  `nascita` (2.00) è **circolare**: per farne una serve già una coppia. Di
+  quelle quattro, **due erano rotte**: `Voce._gesto_affetti` passava le
+  ETICHETTE («la volpina Pepita») a un libro mastro indicizzato per NOME del
+  DNA («Pepita»), e sono i due gesti più pesanti che il giocatore possa
+  provocare. Finivano in `_righe` con una chiave che nessun lettore usa mai:
+  righe fantasma che occupavano anche il posto nella potatura (il tetto è
+  420), e `conto()` non le vedeva. Tutti gli altri chiamanti di `gesto()`
+  convertivano già (`Salone._nome_di`, `Concerto._nome_di`,
+  `Veglia._nome_da_label`, le due `chiacchiera` e i due `piatto` di
+  `Visitors`): la Voce era l'unica rimasta indietro, **e in silenzio**.
+  MISURATO sul salvataggio vero (giorno 22, 13 residenti): **1030 righe,
+  tutte `chiacchiera`, zero gesti veri** — cioè `GESTI_VERI_MIN` (3) non era
+  raggiungibile e non esisteva una sola coppia in tutto il villaggio.
+  ⚠️ **E LA SUITE ERA VERDE**: nessuna asserzione, in tutto il progetto,
+  guardava che cosa la Voce SCRIVE. Tredici casi provavano cosa PESCA (le
+  cinque famiglie della confidenza) e cosa DICE (le tabelle-ponte, la lettera
+  del Gufo), nessuno dove finisce quello che fa. La guardia nuova
+  (`test_voce._test_i_gesti_entrano_col_nome_giusto`) ha due metà, e la
+  seconda è quella che conta: prova che `conto()` VEDE i gesti con la chiave
+  giusta e **non vede niente** con le label. Senza quella controprova
+  proverebbe una conversione senza dire perché serve.
+  ⚠️ E una trappola di BANCO, ripresa in pieno: `_residents` è
+  `Array[Dictionary]`, e un `set()` con un Array NUDO **non assegna e non
+  dice niente** — il fixture restava vuoto, `_nome_da_label` ripiegava sul
+  suo `return label`, e il caso falliva accusando la cura invece del proprio
+  banco. È la stessa trappola già scritta per il finto BuildSystem di
+  `test_insieme`.
 - **Il tempo rompeva le coppie.** `coppia()` chiede il valore assoluto sopra
   soglia e il conto decade: una coppia nata sul filo si scioglieva in
   quattro giorni di niente — sedici minuti reali. Il decadimento ERA il tick
@@ -607,7 +1087,12 @@ immaginate):**
   letto. **Un bambino cancellato dal salvataggio è la cosa peggiore che
   questo sistema potesse fare**, ed era una regressione mia.
 - **`_rng.state` non sopravviveva al JSON:** salvato come intero perdeva
-  undici bit. Si salva come stringa.
+  undici bit. Si salva come stringa. ⚠️ **E il file è `Animo.gd` (1144-1149,
+  riletto a 1175), non `Affetti.gd`**: `Affetti` non contiene NEMMENO UN
+  generatore — questa nota lo ha detto per un pezzo, e chi andava a cercare
+  la trappola dove era scritta non la trovava. `Animo._rng` è anche **l'unico
+  dado persistito di tutto il progetto** (verificato: `.state` compare in due
+  righe sole in `scenes/` e `systems/`).
 - `Animo.punteggio()` era CIECO ai tratti: i pesi di carattere vivevano in
   `disagio()` e non venivano mai chiamati, quindi due vicini con gli stessi
   bisogni ricevevano punteggi identici. Finché era così, «libero arbitrio»
@@ -685,6 +1170,205 @@ Dopo: **1,81 m/s di massimo, zero scivoli, zero frame di levitazione**.
 Si guarda con [`tools/provino_seduta.gd`](tools/provino_seduta.gd), che
 fotografa salita e discesa **di profilo** a intervalli fissi — il movimento
 non si giudica in una posa, si giudica in una pellicola.
+
+## LE CRICCHE SI VEDONO — il duetto, e i tre canali che non parlano
+
+`Cricche.gd` sa dire chi si ritrova con chi. Un predicato che nessuno vede
+però è un foglio di calcolo: qui c'è come il giocatore **se ne accorge senza
+che il gioco glielo dica** — dove si mettono, con chi, a che ora, e il
+momento in cui due si trovano.
+
+| canale | cosa vede chi gioca | dove |
+|---|---|---|
+| **IL DUETTO** | due che ci stanno tornando si fermano, a un battito l'uno dall'altro | `Visitors.chiedi_duetto` · occasione `ci_si_trova` |
+| **CI SEI ANCHE TU** | uno arriva nel loro posto, **ci sei tu**, e si ferma | occasione `ci_sei_anche_tu` |
+| **NON CI SI ALZA PER PRIMI** | l'agenda tace sei secondi in più mentre l'altro — o Mochi — è lì accanto | `Visitors.trattieni_insieme` |
+| **L'ANCORA DELLA PANCHINA** | certi posti diventano di qualcuno | `_ancora_ritrovo`, **terza** nella cascata |
+
+**Nessuno dei quattro inventa un canale del rig, un testo, un simbolo o un
+evento** — zero stringhe, quindi zero traduzioni. E **il villaggio non si
+incontra una volta di più**: chi si ritrova ci andava comunque, all'ora in
+cui ci va sempre. L'unica cosa che cambia è che ogni tanto lo si vede.
+
+E il canale su cui si appendono è **la coppia, non la cricca**: misurato,
+in sette giornate il villaggio produce due coppie che si ritrovano e **zero
+cricche a tre**. Appenderli a `cricche()` sarebbe stato codice morto in
+partita con la suite verde.
+
+### Il duetto: il significato sta NELL'INTERVALLO
+
+Non è un gesto nuovo. È il **Punto deciso, due volte, sfalsato di 0,40 s** —
+e quel ritardo *è* la frase: a zero sono due corpi che si bloccano nello
+stesso fotogramma, cioè un singhiozzo del motore. MISURATO col provino
+(`tools/provino_duetto.gd`, che stampa il ciclo del passo dei due accanto
+alle tessere):
+
+```
+duetto 0,40   98/98  50/87  07/86  01/45  00/09   ← due rampe uguali, SPOSTATE
+duetto 0,00   98/98  50/50  07/07  02/02  00/00   ← una rampa sola: il motore
+SINGHIOZZO    98/98  85/85  91/91  91/91  92/92   ← nessuna rampa, e insieme
+```
+
+La tessera di controllo è un **singhiozzo VERO** (il `_process` dei due
+spento per tre fotogrammi). È la ragione per cui questo provino sa fallire:
+se il duetto le somigliasse, il numero sarebbe sbagliato. E nel MainLevel
+vero il Δt si misura sul corpo: **primo fermo a 0,40 s, secondo a 0,80 s**.
+
+⚠️ **Un fotogramma FERMO non può giudicare una battuta**: due corpi immobili
+a sette metri si somigliano qualunque sia il ritardo. Le tessere servono a
+vedere che la scena si legge; a decidere il numero è la pellicola in cifre.
+
+**Le regole che lo tengono in piedi:**
+
+1. **OLTRE IL RAGGIO DELLA CHIACCHIERA** (`DUETTO_MIN` 2,2 m, contro gli 1,9
+   di `_chats`). «In questo gioco non succede mai niente insieme» è **falso**:
+   `_run_chat` gira i due musi nello stesso frame e la nuvoletta del secondo
+   esce a +1,1 s — la chiacchierata *è già* un duetto sfalsato. Sotto i 2,2 m
+   il giocatore legge «una chiacchierata a cui non sono uscite le bolle», che
+   è peggio di niente. Sopra, una chiacchierata è impossibile **per
+   costruzione**. (E il +1,1 s è anche il precedente misurato che dice che un
+   ritardo si legge come reazione.)
+2. **O TUTTI E DUE, O NESSUNO.** Si accende **prima chi risponde** — che per
+   quattro decimi sta in sala d'attesa e non si vede — e solo dopo chi apre;
+   se chi apre non ce la fa, la battuta si annulla e non è mai esistita.
+   L'ordine inverso lascia in scena un corpo fermo senza risposta, e **un
+   Punto solitario il giocatore lo attribuisce a tutt'altro**.
+3. **UN GETTONE IN DUE, IL RIPOSO A TESTA.** Il riposo doppio è un cancello,
+   non una simmetria: senza, i due che si ritrovano diventerebbero i due che
+   si vedono di più — la classifica dalla porta di servizio. E il gettone lo
+   tiene **chi risponde**, perché finisce per ultimo.
+4. **L'ANZIANO APRE**, e non per gentilezza: il suo corpo non frena
+   (`frena=false`), si accomoda sopra il fermo che fa già da sé — **il suo
+   fermo è già in calendario**, e l'altro reagisce. Se il suo respiro adesso
+   non c'è, **non apre nessuno**. Il ruolo non si indovina: si ENUMERANO le
+   due letture e si prende la prima che sta in piedi per intero.
+5. **UNO AL GIORNO IN TUTTO IL VILLAGGIO, e mai due volte sulla stessa coppia
+   dentro la settimana.** Non è prudenza, è la meccanica: un momento che
+   capita due volte in un minuto smette di essere un momento, e la stessa
+   coppia ripetuta ogni giorno **disegna la mappa di chi sta con chi**.
+   Il rovescio conta quanto il dritto: siccome ogni giorno tocca a una coppia
+   diversa, **un vicino che non si ritrova con nessuno è indistinguibile da
+   uno il cui turno non è ancora arrivato**.
+
+### Le due cose da non sbagliare, e come sono chiuse
+
+**CHI STA DA SOLO NON CAMBIA DI UN BIT.** Nessun canale si accende sul
+VUOTO: ogni condizione è un fatto positivo («questi due si ritrovano»), e non
+esiste un ramo che chieda «e chi non si ritrova con nessuno?». MISURATO nel
+MainLevel vero, col solitario messo **in mezzo** a due che si trovano, alla
+loro ora, nel loro posto: lease `0,00 → 0,00`, gesto `«» → «»`, ancora della
+panchina **casa sua a 0,000 m di scarto** — mentre nello stesso istante i
+due, lì accanto, il loro momento ce l'hanno.
+
+**IL GIOCATORE NON È MAI LASCIATO FUORI.** `ci_sei_anche_tu` gli parla
+addosso (sei nel loro posto, alla loro ora, e uno se n'è accorto); i sei
+secondi contano **Mochi come «qualcuno»** con la stessa riga che vale per i
+vicini — misurato, il lease sale a 6,00 s con lei accanto e resta 0,00 senza
+nessuno; e **l'ancora del ritrovo sta DOPO quella di Mochi** nella cascata di
+`_panchina_per`. Se salisse sopra, il villaggio si raggrupperebbe altrove
+**proprio nel momento in cui arrivi**, e il giocatore avrebbe imparato senza
+una parola di essere quello di troppo.
+
+### Le trappole già pagate
+
+- **`punto_impedimento()` — una fonte, tre lettori**, e prima erano due copie
+  **già divergenti**: il referto dei no guardava `blend <= 0.6` dove il gesto
+  guarda `< 0.6`, e metteva `_gs_viaggio` prima della strada. Un referto che
+  racconta un no diverso da quello vero costa venti minuti nel posto
+  sbagliato.
+- **La sala d'attesa ha DUE VERSI** (`_gs_attesa_fiato`): col fiato la
+  scadenza è la rinuncia, con la battuta la scadenza **accende**. Due sale
+  sarebbero due stati da spegnere, e il secondo si dimenticherebbe.
+- **Una guardia che nessun test può far fallire non c'è**: in
+  `_ancora_ritrovo` c'era un `if loro.is_empty()` davanti a un ciclo che con
+  l'elenco vuoto finiva comunque su `if n == 0`. L'ha trovata una mutazione,
+  ed è stata tolta (come `GIORNATE_RESTA_LUNGA` nel predicato).
+- **Il canale sottrattivo stava dietro a un `return`** e non girava quando
+  uno si era fermato per Mochi — cioè **proprio nella scena per cui esiste**.
+- **Non si intercetta il FRONTE dell'agenda per trattenere qualcuno**:
+  `azione_cambiata` è vero in un fotogramma solo, e non recitare lì dentro
+  vuol dire che quella decisione non verrà recitata MAI (livelock muto, col
+  vicino fermo e la fame che sale). Si alza il **lease**, prima che il motore
+  decida, e solo con `maxf`.
+
+### ⚠️ Le trappole di BANCO, che qui sono costate più di quelle di codice
+
+1. **Fra l'ultimo spostamento e la domanda non deve passare un fotogramma.**
+   I corpi camminano davvero: mezzo secondo sono 65 cm, e arrivano a meno di
+   `GESTO_STRADA_MIN` dalla loro meta. Il banco stampava venti righe di
+   `apre=false` che sembravano un difetto del gesto.
+2. **Rimettere un corpo al suo posto NON deve toccarne lo stato.** La cura
+   della trappola 1 chiamava `_posa`, che fa `_enter_state("r_idle")`:
+   geometria perfetta, e «non cammina» su tutta la linea. **Due cause
+   diverse, lo stesso sintomo — per questo un banco stampa il MOTIVO.**
+3. **LA CAMERA DI QUESTO GIOCO NON SI GIRA.** Spostare Mochi attorno alla
+   scena per cambiare inquadratura mette il soggetto **dietro l'obiettivo**:
+   tre quarti delle tessere uscivano col prato vuoto e la nuca di Mochi. Si
+   ruota la **direzione di arrivo**, non la macchina. E lo scatto che non
+   trova i corpi adesso **lo dichiara** invece di salvare il quadro intero.
+4. **La geometria della convergenza non è arbitraria**: ognuno vuole più di
+   3 m di strada davanti, la meta entro 4 m dal posto, e i due entro 6 m fra
+   loro. Due che arrivano da parti opposte disterebbero per forza più di sei
+   metri — ci si arriva **dallo stesso quadrante**, su un arco di 60°, che è
+   la corda uguale al raggio.
+5. **Un banco che mette il soggetto fuori campo non prova la regola che crede
+   di provare**: nel caso dei quattro convergenti il quarto corpo finiva a
+   9,3 m (oltre `GESTO_RAGGIO`), quindi a fermare il secondo duetto non era il
+   tetto giornaliero ma il raggio — e la mutazione che toglie il tetto
+   **sopravviveva**.
+6. **Le due scorte si azzerano prima di misurare il ritmo naturale**, o il
+   conto è zero *per costruzione* e si legge come «la fase è morta».
+
+### ⚠️ QUANTO SUCCEDE DAVVERO — e il numero è scomodo
+
+MISURATO nel MainLevel vero (`tools/prova_si_trovano.gd`, sei residenti, una
+coppia viva, Mochi che gira come gira un giocatore):
+
+| | |
+|---|---|
+| il duetto **guidato** (corpi veri, usciere vero, cancelli veri) | funziona: Δt **0,40 s**, apre l'uno e risponde l'altro |
+| «non ci si alza per primi», spontaneo | **1** in sette minuti |
+| il duetto **spontaneo**, in sette minuti | **0** |
+| l'ora della coppia si è presentata | **33 volte** |
+| e a fermarlo è stato, **11 volte su 11** | *«non stanno camminando tutti e due»* |
+
+**Il cancello che morde non è un tetto né la geometria: è che due persone
+precise sono raramente in cammino nello stesso secondo.** Il resto — i due
+tetti, la distanza, l'inquadratura, l'usciere — non è nemmeno stato
+interrogato.
+
+⚠️ **E LA RISPOSTA NON È ALLARGARE LE VALVOLE.** Ognuna di quelle condizioni
+esiste per una ragione misurata altrove: senza «stanno camminando» il Punto
+non ha un passo da spezzare, senza «ci stanno tornando» è un incrocio e non
+un ritrovo. Chi vorrà alzare quel numero ha due strade oneste — **misurare su
+un villaggio pieno e su più giornate di gioco** (qui c'era UNA coppia viva
+soltanto, e il banco dura minuti mentre l'abitudine dura giorni), oppure
+guardare se sia il caso che il momento sappia ASPETTARE, con la sala d'attesa
+che il vocabolario del corpo ha già (`_rimanda_gesto`). Quello che non si fa è
+togliere una condizione per far salire un contatore.
+
+### Come si guarda, e come si misura
+
+```
+CHIBI_DUETTO=<dir> ~/Downloads/Godot.app/Contents/MacOS/Godot --path . \
+    --resolution 1280x720 --script res://tools/provino_duetto.gd
+CHIBI_MINUTI=7 Godot --headless --path . --script res://tools/prova_si_trovano.gd
+Godot --headless --path . --script res://tools/misura_cricche.gd
+```
+
+`prova_si_trovano` stampa **ogni no col suo nome** (`debug_momenti`): un
+momento che tace quasi sempre, senza il conto per motivo, è indistinguibile da
+un cablaggio rotto.
+
+La guardia headless è
+[`tests/cases/test_cricche_corpo.gd`](tests/cases/test_cricche_corpo.gd):
+corpi `Visitor` VERI col rig di `ChibiBuilder` e l'usciere VERO (niente doppi
+che ri-implementano quel che si prova — la lezione del `Corpo` di
+`test_deduzioni`), **31 mutazioni plausibili una per volta, tutte rosse**.
+Cinque sono sopravvissute alla prima stesura, e ognuna era un buco vero: la
+soglia del passo presa sul filo, la valvola di chi apre isolata da quella di
+chi risponde, la guardia ridondante, e i due tetti che il gettone stava
+coprendo.
 
 ## REGOLA: i sogni — sognare è ciò che salva un ricordo
 
@@ -993,6 +1677,324 @@ res://tools/provino_rastrelliere.gd` (una, due, tre miste, quattro) e con
 `tools/prova_rastrelliere_vive.gd`, che le posa nel MainLevel vero e conta i
 piedi a slitta: **due** su una fila di tre, **quattro** dopo aver tolto
 quella di mezzo.
+
+## L'ATELIER — il builder che si può GUARDARE, non solo scorrere
+
+Con centotrentasette pezzi a catalogo, la vecchia barra del builder era una
+fila di nomi che non ci stavano: si sceglieva leggendo, e per sapere che
+faccia avesse un pezzo bisognava posarlo. L'Atelier
+([`BuildSystem._costruisci_pannello`](scenes/build/BuildSystem.gd)) ha tre
+zone, e ognuna risponde a una domanda diversa:
+
+| zona | risponde a | dove |
+|---|---|---|
+| **la colonna** | *quanto mi manca, e di che famiglia?* | le viste + il conto per categoria |
+| **la griglia** | *che cosa È questo pezzo?* | le carte col RITRATTO, [`Miniature.gd`](scenes/build/Miniature.gd) |
+| **il taccuino** | *e adesso?* | [`Consigli.gd`](scenes/build/Consigli.gd) |
+
+`/` cerca per nome (italiano **e** tradotto), `1-9` e la rotella scelgono,
+`Tab` richiude il pannello lasciando in mano il pezzo, `★ Recenti` si
+riempie **al momento di POSARE** e non al momento di scegliere — sfogliare
+il catalogo non è usarlo.
+
+### IL RITRATTO SI FA IN CASA, e costa due fotogrammi a testa
+
+Il catalogo è geometria **procedurale**: non esiste nessuna immagine da
+caricare, esiste una funzione che costruisce un `Node3D`. `Miniature.gd` è
+lo studio fotografico che la trasforma in un ritratto — un `SubViewport`
+con un mondo suo, tre luci, un disco d'ombra morbida, e la stessa
+inquadratura del catalogo visivo (l'ingombro VERO delle mesh, e la camera
+arretra quanto chiedono gli otto spigoli: una camera fissa lascia il fungo
+in un puntino e il campanile fuori campo).
+
+**Un ritratto costa DUE `await` strutturali** — uno perché le mesh esistano
+davvero (l'ingombro si MISURA, e misurare un albero che non c'è ancora dà
+una scatola vuota), uno perché il viewport disegni. Non è tempo di CPU: è
+latenza. Servendone uno per volta, la griglia si riempie alla velocità del
+**frame rate**, non a quella della macchina.
+
+MISURATO nel MainLevel vero (Arredo, 30 ritratti, **vsync spento**), e i
+numeri sono **scarti dal riposo della propria corsa** — mai millisecondi
+nudi: in questa serie il riposo è passato da 38,6 a 44,3 ms secondo quanto
+era carica la macchina.
+
+| studi | la griglia è piena dopo | fotogramma mentre dipinge | il PEGGIORE |
+|---|---|---|---|
+| 1 | **3175 ms** | +7,66 ms | +48,40 ms |
+| 4 | **935 ms** | +16,81 ms | +47,93 ms |
+
+**Il fotogramma peggiore non cambia** — mezzo millisecondo su quarantotto:
+lo fa un singolo builder pesante, non la concorrenza. Quello che cambia è il transitorio di carte bianche,
+da tre secondi a meno di uno — ed è l'unica delle due cose che il giocatore
+vede. Ogni studio ha un mondo suo (due pezzi nello stesso mondo si
+fotograferebbero a vicenda), il ritratto finito resta in cache per tutta la
+sessione, e **in `--headless` lo studio nasce spento e non alloca niente**:
+la suite non paga nulla.
+
+### IL TACCUINO NON INVENTA NIENTE
+
+Ogni riga nasce da un dato che il gioco possiede già — un letto senza
+tetto (`BuildSystem.has_cover`), un corredo che si sta popolando
+(`Economy.CORREDO`), il borsellino contro il listino. **Se non lo si può
+derivare, non si scrive**: un consiglio inventato non è un aiuto più
+debole, è una UI che smette di meritare fiducia, e da lì non si torna
+indietro. E il tono viene dalla REGOLA SACRA: non mette fretta («del
+corredo del bar hai posato nove pezzi», mai «te ne mancano cinque»), non
+nomina nessun vicino, non mette i pezzi in classifica — e **il silenzio è
+un esito**: un villaggio appena nato ha una riga sola, e va bene così.
+
+### LE TRAPPOLE GIÀ PAGATE
+
+1. **UN `SCRIPT ERROR` PER FOTOGRAMMA, CON LA SUITE VERDE.** `_mappa_celle`
+   confronta il layer con `"edge"`, ma il ciclo dei layer è
+   `[0, 1, 2, 3, "edge"]` e GDScript tipizza la variabile del `for` come
+   **int** sul primo elemento: il confronto con una `String` è un errore a
+   runtime, e girava dentro `_process`. Si scrive `str(layer) == "edge"`.
+   È la lezione del capitolo «Test» applicata alla UI: un errore a runtime
+   **non fa fallire niente**, interrompe la funzione e basta.
+2. **LA CODA SI PROSCIUGA DA SOLA.** `_chiedi_visibili()` mette in coda
+   solo le carte dentro la finestra dello scroll — ma all'apertura il
+   layout della griglia **non è ancora calcolato**, quindi vede la finestra
+   sbagliata e ne accoda una riga. Misurato: `n: 10` su 31, con la seconda
+   riga bianca per sempre. La cura è che la coda **si rialimenti a ogni
+   ritratto che arriva** (`_su_miniatura`), e non cicla perché
+   `_carte_attesa.erase()` avviene sempre: se non arriva niente, non gira
+   niente. Dopo: `n: 31, in_coda: 0`.
+   ⚠️ E la prima diagnosi era sbagliata: avevo dato la colpa allo studio
+   singolo e costruito il pool, che **da solo non cambiò un bit** (`n: 10`
+   identico). È il pool ad aver dimostrato dov'era il difetto, non il
+   contrario — e il numero che lo dice è `n`, non i millisecondi.
+3. **`clip_text` TOGLIE IL TESTO DALLA DIMENSIONE MINIMA.** In `_pillola`
+   c'era `clip_text = true`: dentro un contenitore che si restringe
+   (`SHRINK_BEGIN`, o una riga in alto a destra) il bottone collassa sui
+   soli margini, e in partita uscivano **tre cerchietti bianchi vuoti** —
+   i due strumenti dell'intestazione e il pezzo consigliato dal taccuino.
+   Chi ha un testo lungo lo clippa da sé.
+4. **UN NOME CENTRATO CON `clip_text` SI TAGLIA DA TUTTE E DUE LE PARTI.**
+   «Lampada semplice» usciva «.ampada semplice». Le etichette delle carte
+   vanno **su due righe** (`AUTOWRAP_WORD_SMART` + `max_lines_visible = 2`)
+   con `OVERRUN_TRIM_ELLIPSIS` come ultima rete.
+5. **Le celle di riempimento della griglia devono avere una LARGHEZZA.**
+   Un `Control` vuoto largo zero in un `GridContainer` sfalsa le colonne, e
+   l'intestazione di una sezione finisce di fianco a un bottone.
+
+### LE ALTRE SETTE, dalla REVISIONE AVVERSARIALE
+
+Cinque lenti indipendenti (correttezza · integrazione · il GENERE · i test ·
+cosa resta aperto), ognuna coi propri difetti passati a uno scettico
+incaricato di refutarli. Ventitré segnalati, **sette sopravvissuti** — e i
+due peggiori sono della lente del GENERE, cioè della regola che sta sopra
+tutte.
+
+6. **⚠️ «QUASI SEMPRE» SU UN CAMPIONE DI UNO.** La carta «quello che metti
+   vicino» contava **una unità per ogni CELLA vicina**, quindi un Sentiero
+   che passa davanti a UNA panchina valeva venti: la frase diceva «Vicino
+   ai tuoi Panchina c'è quasi sempre Sentiero» a chi ne aveva posata una
+   sola, e quasi sempre nominava il pavimento (che è vicino a tutto). È
+   l'**inferenza smentibile** che il taccuino del Gufo ha per regola di non
+   fare, ed è la modalità di guasto che la testata di `Consigli.gd`
+   dichiara fatale: una carta che il giocatore può smentire non attenua la
+   fiducia nel taccuino, la INVERTE. Adesso si conta **per COPIA del
+   perno** (insieme distinto, non celle), si sottrae la frequenza di FONDO
+   (nessuna lista di esclusioni da tenere allineata), e la carta dice il
+   FATTO col suo campione: «Pavimento e Sentiero: li hai messi insieme 8
+   volte su 8». Il numero c'era già nei fatti e si buttava.
+7. **⚠️ I NOMI DI CATALOGO NON ENTRANO IN UNO SLOT CHE CHIEDE LA
+   CONCORDANZA.** «Vicino ai tuoi **Panchina**», «e **Fontana** è tuo»,
+   «hai posato **1 pezzi** su 14» (che capita al PRIMO pezzo di ogni
+   corredo, cioè la prima volta che quella carta si legge), «**Sedia
+   vimini** … non l'hai mai **posato**». Su 137 nomi del catalogo, 133
+   uscivano sbagliati. La casa aveva già deciso il contrario per iscritto:
+   `Critters.gd` dice che *«l'italiano non si deriva dal nome, va detto»*,
+   ed è per questo che ogni specie porta il campo `articolo`. Qui la cura è
+   più economica di un campo su 137 pezzi: **si girano le frasi** in forme
+   che non concordano — che è quello che il resto del pannello faceva già
+   («Arriva col corredo di %s»). Il singolare del corredo è una frase sua.
+8. **UNA FRASE NON PUÒ AFFERMARE UN DATO CHE NON ESISTE.** «%s ce l'hai **da
+   un po'**, e non l'hai mai posato» — ma `Economy._unlocked_pieces` è
+   `{nome: true}`, un bool: nel salvataggio non c'è nessuna data di
+   sblocco. E il selettore sceglie apposta il pezzo **più recente**
+   (scorre `_items` all'indietro, «dove stanno le cose arrivate per
+   ultime»): le due metà della stessa funzione si contraddicevano, e la
+   carta arrivava su un pezzo comprato dal carretto dieci secondi prima.
+   Girando il soggetto sul VILLAGGIO («Nel villaggio non c'è ancora traccia
+   di %s») cadono insieme l'affermazione falsa, la concordanza, e il
+   rimprovero.
+9. **DUE GRANDEZZE DIVERSE NON INDOSSANO LA STESSA GRAMMATICA.** Nella
+   colonna, le categorie contano quel che **possiedi** e i corredi quel che
+   hai **posato** — stessa pillola bianca, stessa frazione `%d/%d`, stesso
+   inchiostro. E non è teorico: la categoria **Boutique** e il corredo
+   **Vetrina moda** sono ESATTAMENTE gli stessi quindici pezzi, e a tre
+   righe di distanza mostravano due numeri diversi senza che niente
+   spiegasse perché. Peggio: il conto dei posati **scende** quando demolisci,
+   e il possesso non scende mai. Adesso l'intestazione dichiara la
+   grandezza e la forma cambia («4 di 15» contro «21/28»).
+10. **UN META CHE NESSUNO SCRIVE È UN RAMO MORTO.** La dissolvenza dei
+    ritratti tornava a `1.0 if not t.get_meta("spento", false) else 0.55`, e
+    `set_meta("spento", …)` **non esiste in nessun file del progetto**:
+    quindi cancellava lo 0.55 che `_carta_pezzo` aveva messo, e al carretto
+    un pezzo da comprare aveva il ritratto luminoso come i tuoi. Chi crea la
+    carta ha già detto quanto dev'essere accesa: si rilegge `t.modulate.a`
+    invece di chiederlo una seconda volta.
+11. **LO STATO PIEGATO ERA UNA CONFIGURAZIONE MAI GUARDATA, e ne aveva
+    due.** `_chiedi_visibili` usciva col `return` **sopra** il blocco dei
+    recenti — quello il cui commento dichiarava «si vedono anche da
+    piegati» — quindi da piegati non si chiedeva un solo ritratto; e
+    `_bollo` non si appendeva a `_carte_attesa`, quindi il ritratto che
+    arrivava non lo raccoglieva nessuno. E `ATE_BASSA` era 104 px dove ne
+    servono 148: **il bollo del pezzo in mano era tagliato a metà dal bordo
+    dello schermo**. Tutte e tre si vedono in un fotogramma, e nessuna
+    poteva far fallire un test.
+
+### E LE ALTRE SEI, dal secondo giro (le lenti CORRETTEZZA e INTEGRAZIONE)
+
+Le due lenti erano cadute per limite di sessione nei primi due tentativi.
+Rilanciate, hanno trovato le cose che nessun'altra poteva vedere — fra cui
+**due cure mie che non bastavano**.
+
+14. **⚠️ 148 PX ERANO ANCORA POCHI: IL MINIMO È 153, E SI MISURA.** La
+    prima cura dello stato piegato l'avevo tarata **a occhio su un
+    provino**, e sforava ancora di cinque pixel. Il numero non si sceglie:
+    è `24` (margini del pannello) + `34` (testata) + `1` (filo) + `74` (il
+    bollo del pezzo in mano) + `20` (due separazioni del vbox) = **153**,
+    ed è quello che `_panel.get_combined_minimum_size().y` risponde col
+    Tab premuto davvero. Sotto quel numero il pannello **non si
+    restringe**: `Control._size_changed` alza il rect al minimo combinato
+    e lo fa crescere verso il BASSO, cioè fuori dallo schermo — e
+    `clip_contents` non salva, perché ritaglia sul rect già cresciuto.
+    *Una geometria si misura, non si guarda: cinque pixel su un provino
+    non si vedono, in un numero sì.*
+15. **METTERSI IN ATTESA NON È CHIEDERE.** La prima cura dei bolli li
+    faceva appendere a `_carte_attesa` — ma l'unico che ORDINA i ritratti
+    è `_chiedi_recenti`, e `_rifai_striscia` non lo chiamava. Girando la
+    rotella da piegati (cioè facendo esattamente la cosa per cui lo stato
+    piegato esiste) i bolli nuovi restavano bianchi per sempre.
+16. **⚠️ LA BARRA DEI COLORI CADEVA DENTRO LA GRIGLIA.** I suoi due offset
+    (`-214 / -180`) erano rimasti da quando il builder era alto 272 px; il
+    dock dell'Atelier arriva a `-422`, quindi la pillola coi pallini stava
+    piantata in mezzo alla seconda riga e copriva tre carte. **Non l'aveva
+    toccata questo lavoro**: a metterla lì è stata la geometria nuova — ed
+    è il difetto che si trova solo confrontando il pannello nuovo con
+    quello vecchio, cioè la lente che era caduta due volte. Adesso la
+    posizione si calcola dalle stesse costanti del dock (`_posa_variant_bar`)
+    e segue anche la piega: due geometrie che si inseguono a mano divergono
+    al primo che ritocca l'altezza del pannello.
+17. **SI NASCONDE IL CONTENITORE, NON L'ETICHETTA.** `set_order_banner("")`
+    spegneva la Label del Gufo, che nella vecchia testata ERA il banner;
+    nell'Atelier sta dentro una pillola color miele, e restava a schermo
+    una striscia gialla alta 4 px e larga mezza intestazione, vuota. La
+    vede chi ha finito la campagna del Gufo o ha un salvataggio anteriore
+    agli Ordini.
+18. **⚠️ UNA CARTA NON PROMETTE QUEL CHE IL GIOCO NON PUÒ MANTENERE.** «e
+    %s ti aspetta al carretto» si diceva di un pezzo qualunque del
+    listino — ma `Economy.rotate_stock` pesca 3-4 nomi per visita, e una
+    visita capita ogni cinque-sette giorni: il giocatore metteva da parte
+    le noccioline, aspettava, apriva il carretto e trovava altre tre voci.
+    ⚠️ **E LA CURA NON È FILTRARE**: tenendo solo i pezzi in banco la carta
+    sparirebbe cinque giorni su sei — legittimo («il silenzio è un esito»)
+    ma peggiore, perché spegne una carta buona per chiudere una parola
+    sbagliata. La bandiera `oggi` costa un `has()` e fa dire la verità in
+    tutti e due i casi: **presenza** quando è vero, **provenienza** quando
+    non lo è — che è la grammatica che `_shop_tooltip` usava già.
+19. **UN DATO CON DUE LETTORI VA RINFRESCATO SU TUTTI E DUE.**
+    `_on_wallet_changed` rinfrescava le didascalie delle carte del
+    carretto ma non il taccuino, che da quando esiste la carta dei
+    risparmi fa la stessa affermazione sul borsellino. Le noccioline
+    salgono anche senza che il giocatore tocchi niente (un vicino compra
+    dalla tua Bancarella, arriva il premio di una Commissione): l'Atelier
+    restava aperto a dire «ancora 45» mentre il contatore in alto diceva
+    che ce n'erano abbastanza.
+20. **`b.disabled` NON SPEGNE I FIGLI.** `_riga_vista` mette le parole in
+    due `Label` FIGLIE (il bottone ha il testo vuoto), quindi
+    `font_disabled_color` — scritto in `_pillola` apposta per questo — non
+    poteva raggiungerle: «★ Recenti» spenta aveva lo stesso inchiostro
+    delle altre, il cursore a manina, e al clic non succedeva niente. E
+    capita a **ogni avvio**, non solo in partita nuova: `_recenti` non è
+    persistita.
+
+### LE DUE TRAPPOLE DI METODO, che riguardano i banchi e non il codice
+
+12. **⚠️ IL BANCO PREMIAVA LA RIMOZIONE DELLA CURA.** `misura_atelier`
+    misurava «quando la coda si svuota» — e togliendo la rialimentazione di
+    `_su_miniatura` la coda si prosciuga **prima**: il banco avrebbe
+    dichiarato il codice rotto *tre volte più veloce*. MISURATO: con la
+    mutazione, «coda svuotata dopo 312 ms» contro i 978 del codice sano.
+    Adesso conta anche **le carte ancora bianche**, e con la mutazione ne
+    trova 21 e fallisce. ⚠️ E il conto si fa **dopo trenta fotogrammi
+    tranquilli**: la rialimentazione passa da un `call_deferred`, quindi
+    esiste un fotogramma in cui la coda è vuota e le carte in attesa ci
+    sono ancora — contando lì, un codice sano sembra rotto (successo alla
+    prima stesura: tre carte bianche fantasma).
+13. **⚠️ IL VSYNC ERA ACCESO**, unico banco del progetto a non spegnerlo, e
+    la tabella qui sopra confrontava **millisecondi NUDI di due corse
+    diverse** — cioè proprio quello che l'intestazione di quel banco vieta.
+    Rifatta col vsync spento e con gli SCARTI dal proprio riposo, la
+    conclusione regge (+48,40 contro +47,93 ms): *reggeva la conclusione,
+    non il modo di ricavarla*. Il banco adesso stampa lo scarto da sé.
+
+### Come si guarda
+
+```
+CHIBI_ATELIER=<dir> ~/Downloads/Godot.app/Contents/MacOS/Godot --path . \
+    --resolution 1920x1080 --script res://tools/provino_atelier.gd
+~/Downloads/Godot.app/Contents/MacOS/Godot --path . --resolution 1920x1080 \
+    --script res://tools/misura_atelier.gd
+```
+
+`CHIBI_SCENA` sceglie la configurazione, ed è il residuo che ha prodotto
+tre difetti su sette: `aperto` (lucchetti aperti, il caso comodo),
+`piegato` (la striscia, i bolli, l'altezza), `chiuso` (il pannello di chi
+NON ha ancora tutto: le carte col «?», i cartellini del prezzo, i conti dei
+corredi). L'Atelier era stato guardato in **una configurazione sola**.
+
+⚠️ **Nessuno dei due in `--headless`**: senza schermo lo studio nasce
+spento, e il provino fotograferebbe la propria assenza. Il primo scatta tre
+istanti (subito · 2 s · 6 s) e stampa le misure — **se la terza tessera ha
+ancora una carta bianca, la catena si è interrotta**, ed è il modo in cui
+questa UI si rompe senza che una sola asserzione se ne accorga. Il secondo
+è il metro: quando la griglia è piena, e quanto pesa il fotogramma mentre
+dipinge. ⚠️ Si confrontano gli **scarti dal proprio riposo**, mai i
+millisecondi nudi: due corse dello stesso codice, in questa serie, sono
+uscite col riposo a 38,6 e a 40,65 ms.
+
+### I RESIDUI, dichiarati
+
+- **La griglia e la GEOMETRIA adesso una guardia ce l'hanno**, ed è
+  `misura_atelier`: conta le carte rimaste senza ritratto, misura il
+  pannello nei DUE stati e pretende che non sfori lo schermo, e che la
+  barra dei colori non intersechi la griglia. Sa fallire — falsificato su
+  tutti e tre i fronti. È nato dopo i difetti 14 e 16, che erano passati
+  proprio perché lo stato piegato non lo misurava nessuno e la scena della
+  barra dei colori non la scattava nessuno.
+- **Restano scoperti i rettangoli DENTRO la carta**: il nome coperto dal
+  prezzo (difetto 6 bis) si proverebbe con
+  `label.get_global_rect().intersects(prezzo.get_global_rect())`, e oggi
+  nessuno lo fa. È la stessa forma dei due chiusi, un piano più giù.
+- **`Consigli.consiglia` adesso è coperto** da
+  [`test_consigli.gd`](tests/cases/test_consigli.gd) — prima era puro,
+  statico, headless e **senza un solo lettore in tutta la suite**:
+  invertendo un confronto spariva il consiglio del letto scoperto e la
+  suite restava verde. Il test guarda cosa ESCE dai fatti, e ha una
+  guardia sul TONO (nessuna carta può dire «devi», «ti manca», «da un
+  po'») che ha subito trovato un difetto in una delle cure qui sopra.
+- **`_fatti_atelier` no**: la raccolta dei fatti tocca il villaggio e non
+  gira headless. Le soglie della carta «vicino» (`VICINO_COPIE_MIN`,
+  `VICINO_FORZA_MIN`, `VICINO_STACCO`) sono perciò sorvegliate solo da
+  quello che si vede in partita — e in partita si vedono (misurato: «8
+  volte su 8» su un villaggio con otto pavimenti).
+- **Il costo con centotrentasette pezzi sbloccati non è misurato**: la
+  corsa è su Arredo (31 carte visibili). La coda chiede solo ciò che si
+  guarda, quindi non dovrebbe cambiare — ma «non dovrebbe» non è un numero.
+- **Le cinque lenti hanno girato tutte**, in tre tentativi (le prime due
+  volte correttezza e integrazione sono cadute per limite di sessione). Il
+  bilancio: **23 + 5 difetti segnalati, 13 sopravvissuti allo scettico**,
+  e i due che nessun'altra lente poteva trovare — la barra dei colori
+  dentro la griglia e i cinque pixel di troppo del pannello piegato — sono
+  venuti proprio dalle due che erano cadute. ⚠️ Nell'ultimo giro **quattro
+  scettici su cinque hanno dichiarato «refutato: già curato»** perché le
+  cure si applicavano mentre leggevano («l'ho visto succedere sotto le
+  mani»): sono conferme indipendenti, non assoluzioni, e chi rilegge quel
+  referto non lo scambi per un via libera.
 
 ## I VARCHI e i PIANI: il villaggio come grafo, e l'IA che cambia idea
 
@@ -1598,6 +2600,27 @@ qualunque RNG (i dadi del villaggio si salvano) e qualunque persistenza.
 `TransformComponent` è **dichiarato e mai istanziato**: entra vivo quando
 arriva il suo primo lettore (il cammino), e fino ad allora
 `debug_quante_pose()` deve tornare 0 — un test lo pretende.
+
+> ### ⚠️ CORREZIONE: «il C++ non ha un RNG» è vero per l'ECS e FALSO per il gioco
+>
+> Questa frase sta in `src/ecs_mondo.h:31`, in `src/ecs_componenti.h` e in
+> `src/grafo_ricordi.h`, ed è vera per **ECS, agenda, sonno, piani e grafi**:
+> lì un dado non c'è e non deve esserci, perché i dadi del villaggio si
+> salvano e un secondo generatore sarebbe una seconda storia che nessun
+> salvataggio racconta.
+>
+> Ma il cuore C++ **non è solo l'ECS**: `src/ecosystem_manager.cpp` tira dal
+> generatore **GLOBALE** di Godot in **48 punti** (`UtilityFunctions::randf`,
+> `randf_range`), e `update_butterflies` (riga 353) ne consuma **due per
+> farfalla per passo di fisica** — fino a **180 estrazioni per fotogramma**
+> con `BF_MAX = 90`.
+>
+> Le due conseguenze non sono teoriche: un `seed()` chiamato da GDScript
+> semina anche l'ecosistema, e **cambiare il numero di farfalle sposta tutti
+> i numeri a valle di chiunque peschi dal flusso globale**. È la ragione
+> strutturale per cui il flusso globale non si può rendere riproducibile con
+> un seme, e per cui il codice che decide qualcosa deve stare sui **flussi
+> nominati** (vedi «UNA GIORNATA SI PUÒ RIPETERE», più sotto).
 
 E `VillagerBrain.nottambulo()` **resta in GDScript** (la usa anche l'attività
 «stella», `VillagerBrain.gd:180`): è l'unica formula che vive in due lingue, e
@@ -5847,75 +6870,24 @@ esiste: `decide()` non riceve mai `"giocatore"`. Quello che morde oggi è
 passate ti hanno fatto bene, alimentata dalle righe `+0.12` del sogno servito.
 È un significato vero, ed è misurato (13 su 13), ma non è quello chiesto.
 
-La lacuna vera è più profonda: **nel gioco non esiste un momento in cui un
-vicino decide se accettare qualcosa dal giocatore.** Il giocatore ordina (la
-Lavagna) o dona (i gesti gentili); non chiede mai, e le Commissioni vanno
+La lacuna vera è più profonda: **nel gioco non esisteva un momento in cui un
+vicino decidesse se accettare qualcosa dal giocatore.** Il giocatore ordina (la
+Lavagna) o dona (i gesti gentili); non chiedeva mai, e le Commissioni vanno
 nell'altro verso.
 
-## LA FIDUCIA — la gemella di `rancore()`, e il momento in cui si può dire di no
+**⚠️ E QUESTO RESIDUO È STATO CHIUSO — vedi «IL «NON OGGI»», qui sotto.** Il
+canale non è stato inventato: era tre quarti già scritto, sulla soglia
+dell'Accompagnare. La fiducia adesso ha un secondo lettore, ed è quello in cui
+si sente: se un vicino ce la fa a entrare nel posto che teme dipende anche da
+quanto si fida di chi ce l'ha portato.
 
-Il villaggio sapeva misurare **quanto ti detesta** (`Animo.rancore()`) e non
-sapeva misurare **quanto si fida di te**. E cercando dove innestare la
-risposta è venuto fuori che mancava una cosa più grossa: **nel gioco non
-esisteva un momento in cui un vicino decidesse se accettare qualcosa dal
-giocatore.** Lui ordina (la Lavagna) o dona; non chiede mai.
+## IL «NON OGGI» — la soglia dell'Accompagnare adesso DECIDE
 
-Sono due lavori, e il secondo è il vero.
-
-### 1 · `Animo.fiducia(attore, tranne)` — cinque decisioni, nessuna taratura
-
-Stessa forma di `rancore()`, stessa recenza, **lettura derivata** da prove già
-salvate: zero chiavi nuove, zero migrazioni.
-
-1. **`SAZIETA_FIDUCIA := 12.0`, non `SATURAZIONE` (55).** Ricopiarla *sembra*
-   la regola delle fonti uniche e la viola: quel 55 è tarato su una serie che
-   **sensibilizza** (`Limbico.rivaluta` spinge verso −0.30 sui torti
-   d'identità), mentre i doni **abituano** — rapporto misurato **4,5×**. Con 55
-   la funzione non supererebbe **0,24 in nessuna partita possibile**, cioè
-   dichiarerebbe 0..1 e mentirebbe. La fonte unica vincola la FORMA e la
-   RECENZA, non lo scalare di scala.
-2. **Si sceglie per SEGNO, mai per una lista di tipi.** Una lista sarebbe la
-   gemella di `Deriva.SPINTE["codardia"]` — che infatti ha già dimenticato
-   «accompagnato» e non vede «consolato».
-3. **Legge anche il SOMMARIO**, o la fiducia sparirebbe oltre le
-   `RICORDI_VIVI` righe — cioè **proprio nei villaggi vissuti**.
-4. **Nessuno sconto coi torti.** Il `− buoni · 1.4` di `rancore()` non è
-   simmetria: è un pollice sulla bilancia **a favore del giocatore**.
-   Specchiarlo lo capovolge, e darebbe **due pene allo stesso evento**.
-5. **Zero esatto per uno sconosciuto**, e non per un `if`: senza righe la somma
-   è zero e la forma dà 0.0.
-
-> ### ⚠️ E L'INNESTO OVVIO SAREBBE STATO INERTE — è algebra, non una stima
->
-> `punteggio()` ha **un solo lettore** (`decide()`), che pesa
-> `exp((s − base) · nitidezza)` con **`base` presa dai voti stessi**. Un
-> termine che non dipende da `azione` è la stessa costante su tutti i
-> candidati, quindi `(s+c) − (base+c) = s − base`: **si cancella esattamente**.
-> `s += fiducia(chiede) * 0.6` — la stesura che si scrive per prima, che
-> compila, che si legge benissimo e che ha un test facile che passa — **non
-> avrebbe cambiato nessuna decisione, per nessun coefficiente.**
->
-> L'innesto è quindi sulla riga del **logorio**, l'unico termine che dipende
-> insieme da `azione` e da `chiede`: *da chi ti ha voluto bene, la ventesima
-> volta pesa meno.* Moltiplicativo, col pavimento **strutturale** (a fiducia
-> zero è `× 1.0`, cioè bit per bit la riga di ieri) e il tetto `SMORZO_FIDUCIA`
-> sotto il **tiro del sogno più debole**: la fiducia in chi chiede non può mai
-> pesare quanto la vocazione.
-
-> ### ⚠️ E `opinione` È MORTA DA SEMPRE, per due ragioni indipendenti
->
-> Oltre a essere additiva (e quindi cancellata dal softmax), è letta con
-> `chiede`, e **`decide()` ha un solo chiamante**: `Lavori.gd:122`, che passa
-> **`"se_stesso"`** — mentre `senti_dire()` scrive `opinione["giocatore"]`.
-> Legge una chiave che nessuno scrive. Il termine non ha mai influenzato
-> niente, e il commento accanto adesso lo dice.
-
-**I NUMERI** (`tools/misura_fiducia.gd`, tredici residenti, tre giornate, col
-giocatore che cura solo i primi quattro): fiducia di chi è stato curato
-**0,623** (da 0,588 a 0,648) contro **0,014** degli altri (massimo 0,063), e
-`punteggio()` cambia per **13 su 13**. Le due popolazioni non si sovrappongono.
-
-### 2 · «NON OGGI» — la soglia dell'Accompagnare adesso DECIDE
+Il canale che il residuo qui sopra dichiarava mancante. E non è stato
+inventato: era **tre quarti già scritto** — la soglia dell'Accompagnare esiste
+da sempre (`Accompagna._avanza`, fase «soglia»: il vicino arriva a due passi
+dal posto che teme e si ferma), e mancava soltanto la possibilità che quel
+passo non venisse fatto.
 
 Il canale mancante non è stato inventato: era **tre quarti già scritto**. La
 soglia dell'Accompagnare esiste da sempre (`Accompagna._avanza`, fase
@@ -6047,6 +7019,163 @@ guardiano ingenuo dichiara rotto proprio il file riparato; all'inverso, un
 commento che promette una cosa fa passare un codice che non la fa. Stava in
 `test_vento.gd`, che l'aveva pagata per primo; da quando ha due lettori sta
 nell'harness — **una lezione ricopiata invecchia**.
+## UNA GIORNATA SI PUÒ RIPETERE — i dadi nominati, le leve, le repliche
+
+Due corse di `misura_insieme` con **gli stessi identici parametri** davano
+**0,31 e 1,77** righe di co-presenza per residente: un fattore **5,7**. Da
+lì in poi ogni referto di questo progetto ha dovuto scrivere «le due corse
+non sono appaiate» — tre volte solo nel capitolo delle cricche — e una volta
+uno scarto da 0,80 a 1,27% è stato indicato come *«il numero da confrontare
+in futuro»*: era rumore.
+
+**Non è un difetto di misura, è un difetto del gioco.** Senza ripetizione
+non esiste ablazione (spegnere un meccanismo e vedere cosa cambia), non
+esiste sensibilità (muovere una costante e vedere quanto pesa), non esiste
+confronto fra condizioni. Tutte le misure psicologiche del progetto —
+l'inerzia dell'insieme, la saturazione della deriva, il grappolo che si
+ferma a tre — erano **ipotesi ben poste, non risultati**.
+
+### L'EPICENTRO era una riga, e violava una regola già scritta
+
+```
+scenes/npc/VillagerBrain.gd:105
+_rng.seed = hash(str(dna.get("name", "?"))) + Time.get_ticks_msec() % 1000
+```
+
+Il dado di ogni vicino partiva dall'**orologio**. La regola c'era già —
+«semi da `hash()` stabili» — e questa riga la violava con l'unica sorgente
+che nessuno aveva pensato a vietare. Da quel dado esce `jitter()`, cioè **il
+dado congelato dell'agenda**: quello che decide fra due azioni quasi pari.
+
+Il censimento attorno: **91 `RandomNumberGenerator.new()`**, 86 semi
+espliciti (la disciplina c'era), **7 `randomize()`** e **255 usi del
+generatore GLOBALE**.
+
+### I FLUSSI NOMINATI — [`systems/Dadi.gd`](systems/Dadi.gd)
+
+Un **seme di radice** per partita, e flussi che ne *derivano*:
+`VILLAGGIO` (le decisioni), `AMBIENTE` (il mondo), `CORPO` (il rig),
+`LIBERO` (**dichiarato cosmetico**: non seminato, e va bene così).
+
+> #### ⚠️ SI DERIVA, NON SI CONDIVIDE — ed è la proprietà che tiene tutto
+>
+> Un flusso **non è un generatore condiviso**: è una regola per derivarne
+> uno da una chiave. `rng(VILLAGGIO, "Ciliegia")` e `rng(VILLAGGIO,
+> "Nocciola")` sono indipendenti, e nessuno consuma i numeri dell'altro.
+>
+> Con un flusso condiviso, **aggiungere un chiamante sposta tutti i numeri a
+> valle**: spegnere un meccanismo per misurarlo cambierebbe anche tutti gli
+> altri, e il banco delle repliche direbbe numeri che non vogliono dire
+> niente. Corollario operativo: **si può aggiungere un consumatore senza
+> invalidare nessuna misura già presa**, ed è sorvegliato da un caso di test
+> perché è la proprietà che si perde per prima quando qualcuno «ottimizza».
+
+**La radice viene, in ordine:** `CHIBI_SEME` → la chiave `"seme"` del
+salvataggio → coniata con entropia vera. `Dadi.conia()` e `Dadi.libero()`
+sono **l'unico posto autorizzato del progetto** a usare entropia vera, e la
+guardia esenta quel file per dire che è UNO.
+
+⚠️ **La radice viaggia come STRINGA** nel `village.json`, per la stessa
+ragione di `Animo._rng.state`: il JSON restituisce ogni numero come float, e
+un intero perdeva undici bit.
+
+### LE LEVE — [`systems/Leve.gd`](systems/Leve.gd)
+
+Un meccanismo si giudica in un modo solo: **lo si spegne e si guarda cosa
+cambia**. `CHIBI_LEVE="insieme:off,deriva:off"`, quattro leve cablate
+(`insieme`, `ritrovi`, `deriva`, `gesti`), e quattro regole:
+
+1. **di serie è tutto acceso** (una leva è uno strumento, non una configurazione);
+2. **una leva dichiarata deve avere un lettore, e un lettore un nome dichiarato** —
+   sorvegliato nei due versi: una leva senza lettore è una promessa vuota (il
+   banco la spegne, non succede niente, e si legge come «quel meccanismo non
+   conta»);
+3. **un nome sconosciuto non spegne niente** e si lamenta;
+4. **nel gioco non le tocca nessuno**, e una guardia scandaglia i sorgenti.
+
+⚠️ **Il ramo spento non salta il lavoro: neutralizza il verdetto.** È la
+forma di `debug_occlusione`, che spenta tira i raggi lo stesso. Applicata al
+fatto dell'insieme: si calcola sempre e si pubblica in `insieme_osservato`,
+così un banco può chiedere «quante volte SAREBBE stato vero» e «quante ha
+cambiato una decisione» **nella stessa corsa**.
+
+⚠️ **`Visitors.debug_occlusione` NON è stata portata dentro**: ha già il suo
+lettore, la sua guardia in `test_regia` e un banco che la alterna. Spostarla
+vorrebbe dire riscrivere una guardia che funziona per un'uniformità che non
+compra niente.
+
+### IL BANCO DELLE REPLICHE — [`tools/banco_repliche.py`](tools/banco_repliche.py)
+
+N semi × K condizioni, **un processo per replica**, e in uscita una
+distribuzione invece di un numero.
+
+```
+python3 tools/banco_repliche.py tools/misura_insieme.gd \
+    --semi 8 --condizioni "tutto" "insieme" \
+    --env CHIBI_GIORNI=2 CHIBI_QUANTI=13 CHIBI_GAZEBO=1
+```
+
+Stampa, in quest'ordine: **il controllo** (stesso seme, stessa condizione,
+due volte — se non è zero, tutto il resto è sospetto), **la distribuzione**
+per condizione (mediana e quartili, mai una media su due corse), e **lo
+scarto APPAIATO** con quanti semi concordano nel segno.
+
+Le cinque regole, e ognuna chiude una trappola pagata:
+
+1. ⚠️ **`--fixed-fps 60`, sempre.** Senza, il passo arriva dall'orologio
+   vero: `prova_identico` ne ha misurati **19 valori distinti** in una
+   corsa, e due corse identiche divergevano del **37,9%** contro un segnale
+   del 25,0% — il banco era più rumoroso di ciò che doveva rilevare. E
+   «`--headless` forza il passo fisso» è **falso**: quella riga di `--help`
+   sta sotto `--write-movie`.
+2. ⚠️ **Un processo per replica**, e non è prudenza: `banco.gd::apri()` non
+   è rientrante, il `Traduttore` della Fase 5 si apre una volta per
+   processo, e il dado globale sopravvive a `change_scene_to_file`.
+3. ⚠️ **Un villaggio ermetico** (`CHIBI_VILLAGGIO`). Fino al 2026-09-04 ogni
+   banco girava sopra il `village.json` **dell'autore** — nessuno chiama
+   `debug_clear()`, e `set_persist_for_debug` blocca le sole scritture:
+   «stessi parametri» non implicava «stesso villaggio».
+4. **Il banco non inventa un numero**: legge `MISURA <nome> <valore>`, e se
+   non ne trova lo DICE (un banco che tace non è un banco a zero).
+5. **Niente tagli silenziosi**: ogni replica caduta viene nominata.
+
+### ⚠️ COSA RESTA APERTO, dichiarato
+
+Fissare i semi **non basta**, e le sorgenti che restano sono misurate:
+
+- **il flusso GLOBALE non si può rendere riproducibile con un seme**:
+  `EcosystemManager` ne consuma fino a **180 estrazioni per fotogramma**
+  (90 farfalle × 2, `ecosystem_manager.cpp:353`). Chi cambia il numero di
+  farfalle sposta tutti i numeri a valle di chiunque peschi di lì. Restano
+  **~130 righe comportamentali** sul globale in `Visitors`, `Visitor`,
+  `Collection`, `Fishing`, `Nascondino` e altri: **è il lavoro successivo**,
+  e il flusso a cui appartengono è `VILLAGGIO`;
+- **il mondo non ha un seme**: `CozyWorld` usa **nove costanti scritte a
+  mano** (77, 4242, 90210, 88, 7, 99, 33, 505, 71) — due villaggi hanno lo
+  stesso prato. Darglielo rompe ogni salvataggio esistente (le case si
+  troverebbero su un terreno diverso), quindi va fatto con una migrazione;
+- **l'orologio da polso in `Visitors._chats`** (riga 4559) misura il
+  raffreddamento delle coppie in tempo REALE, non di gioco: su un banco che
+  gira più veloce del reale quel riposo non scade mai. `prova_identico` lo
+  **dichiara** come cosa che la traccia non copre, invece di curarlo;
+- **`Concertino.gd:159`** semina la canzone del carillon con
+  `Time.get_ticks_msec() / 600000`: il contenuto cambia a scaglioni di dieci
+  minuti reali. Non è un `randf()` e nessun censimento del dado lo trova;
+- **`Animo.descrizione()`** fa `_rng.randf() < 0.5` su un dado **persistito**:
+  una funzione di presentazione che avanza lo stream della simulazione —
+  osservare cambia il gioco. Oggi non ha chiamanti in produzione;
+- **`RegiaDiorama.semina()`** e **`OraDelGiorno`** usano il tempo vero, ed è
+  una **feature dichiarata** del menù: non si rendono deterministiche, si
+  scavalcano.
+
+### Le due cose che NON si toccano
+
+- **`Animo._rng` resta persistito.** Riproducibilità di una corsa e
+  resistenza al save-scumming sono due cose diverse: quel dado è salvato
+  apposta perché «due save-scumming e il giocatore scopriva il dado».
+- **`VillagerBrain._rng` resta NON persistito**, ed è voluto: ricaricare
+  rigioca la stessa sequenza di jitter, che è esattamente la ripetibilità
+  che si vuole.
 
 ### Come si verifica
 
@@ -6069,6 +7198,25 @@ suite riusando **l'harness vero**: non è un secondo runner, e sta in `tools/`
 apposta. Serve alla batteria di mutazioni — su una macchina carica la suite
 intera costa decine di minuti, e quindici mutazioni non si provano. Il verdetto
 finale si dà comunque con la suite intera.
+Godot --headless --path . --script res://tests/test_runner.gd     # test_dadi.gd
+python3 tools/banco_repliche.py tools/misura_insieme.gd --semi 4 \
+    --condizioni "tutto" "insieme" --env CHIBI_GIORNI=1 CHIBI_QUANTI=8
+```
+
+La guardia è [`tests/cases/test_dadi.gd`](tests/cases/test_dadi.gd), e non è
+un source-check travestito: prova **comportamentalmente** che due dadi con la
+stessa chiave danno la stessa vita, che chiavi diverse divergono, e che **un
+consumatore in più non sposta gli altri**. Poi scandaglia i sorgenti per
+l'orologio in posizione di seme — spogliando i commenti con lo spogliatore di
+`test_fiato` (l'unico che toglie anche quelli in coda e rispetta le
+virgolette), **perché la cura all'epicentro nomina apposta la chiamata
+vietata** per spiegare cosa c'era prima. E conta quanti file ha letto: una
+guardia che per un percorso sbagliato ne legge zero è verde.
+
+Alla prima corsa ha trovato **nove `randomize()` in posizione di seme**, due
+dei quali erano i suoi autorizzati e sette erano lavoro vero: il fungo da
+raccolta, gli stivali del catalogo, il volto, i sogni, la posta, **il genoma
+di chi arriva ad abitare** e il dado delle chiacchiere.
 
 ## Test
 

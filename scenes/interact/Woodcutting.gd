@@ -34,6 +34,7 @@ extends Node
 ## viaggia in user://village.json senza toccare BuildSystem) e nel gruppo
 ## "woodcutting" (così BuildSystem gli chiede il legno per costruire).
 
+const GEO_W := preload("res://scenes/world/WorldGeo.gd")
 const CATALOG := preload("res://scenes/build/BuildCatalog.gd")
 
 # --- estetica ---
@@ -260,7 +261,7 @@ func _carved_trunk_mesh(spec: Array, notch_dir: float, depth01: float) -> ArrayM
 		var crow: Array[float] = []
 		for j in TRUNK_SEGS:
 			var lon := float(j) / float(TRUNK_SEGS) * TAU
-			var r := lerpf(rb, rt, pow(t, 0.85)) * (1.0 + 1.1 * pow(1.0 - t, 7.0))
+			var r := lerpf(rb, rt, pow(t, 0.85)) * GEO_W.svaso_radici(t)
 			r *= 1.0 + 0.055 * sin(lon * 3.0 + t * kink + ph) \
 					+ 0.03 * sin(lon * 7.0 - t * 2.0)
 			var cut := 0.0
@@ -427,7 +428,7 @@ func _make_stump(spec: Array, bark: Variant) -> Node3D:
 		var prow: Array[Vector3] = []
 		for j in TRUNK_SEGS:
 			var lon := float(j) / float(TRUNK_SEGS) * TAU
-			var r := lerpf(rb, rt, pow(t, 0.85)) * (1.0 + 1.1 * pow(1.0 - t, 7.0))
+			var r := lerpf(rb, rt, pow(t, 0.85)) * GEO_W.svaso_radici(t)
 			r *= 1.0 + 0.055 * sin(lon * 3.0 + t * kink + ph) \
 					+ 0.03 * sin(lon * 7.0 - t * 2.0)
 			var c := Vector3(lean.x * t * t, t * h, lean.y * t * t)
@@ -598,7 +599,11 @@ func _materialize_forest() -> void:
 	if not _cozy.take_forest_tree(got["key"], got["index"]):
 		return
 	var pos: Vector3 = got["pos"]
-	var node: Node3D = _cozy.plant_tree(pos, float(got["scale"]) * 0.9, int(pos.x * 31.0 + pos.z * 17.0))
+	# LA SPECIE VIAGGIA CON LO SCAMBIO: `nearest_forest_tree` la sa gia'
+	# ("pine" o "broad"), e senza passarla ogni conifera del bosco diventava
+	# una latifoglia tonda appena Mochi le arrivava a cinque metri.
+	var node: Node3D = _cozy.plant_tree(pos, float(got["scale"]) * 0.9,
+			int(pos.x * 31.0 + pos.z * 17.0), str(got.get("kind", "broad")))
 	if node == null:
 		return
 	var t := _adopt(node)

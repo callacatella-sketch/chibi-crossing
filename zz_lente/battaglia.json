@@ -1,0 +1,158 @@
+[
+ {
+  "id": "CABL ha_dedotto",
+  "file": "scenes/npc/Visitors.gd",
+  "da": "chiedi_gesto(str(r.get(\"label\", \"\")), \"ha_dedotto\")",
+  "a": "pass  # MUTAZIONE"
+ },
+ {
+  "id": "CABL si_e_trattenuto",
+  "file": "scenes/npc/Visitors.gd",
+  "da": "chiedi_gesto(label, \"si_e_trattenuto\")",
+  "a": "pass  # MUTAZIONE"
+ },
+ {
+  "id": "CABL ah_sei_tu",
+  "file": "scenes/npc/Visitors.gd",
+  "da": "chiedi_gesto(label, \"ah_sei_tu\")",
+  "a": "pass  # MUTAZIONE"
+ },
+ {
+  "id": "CABL quel_posto_no",
+  "file": "scenes/npc/Visitors.gd",
+  "da": "_rimanda_gesto(label, \"quel_posto_no\", 4.0, {\"posto\": dove}, dove)",
+  "a": "pass  # MUTAZIONE"
+ },
+ {
+  "id": "CABL era_per_me",
+  "file": "scenes/npc/Percezione.gd",
+  "da": "soggetto >= 0 and soggetto == id)",
+  "a": "false)  # MUTAZIONE"
+ },
+ {
+  "id": "VALV _hidden",
+  "file": "scenes/npc/Visitor.gd",
+  "da": "if _hidden or dorme() or in_scena():",
+  "a": "if dorme() or in_scena():  # MUTAZIONE"
+ },
+ {
+  "id": "VALV dorme()",
+  "file": "scenes/npc/Visitor.gd",
+  "da": "if _hidden or dorme() or in_scena():",
+  "a": "if _hidden or in_scena():  # MUTAZIONE"
+ },
+ {
+  "id": "VALV blend minimo",
+  "file": "scenes/npc/Visitor.gd",
+  "da": "or float(_andatura.blend) < GESTO_BLEND_MIN:",
+  "a": "or false:  # MUTAZIONE"
+ },
+ {
+  "id": "VALV strada minima",
+  "file": "scenes/npc/Visitor.gd",
+  "da": "if global_position.distance_to(meta_cammino()) < GESTO_STRADA_MIN:",
+  "a": "if false:  # MUTAZIONE"
+ },
+ {
+  "id": "VALV rig assente",
+  "file": "scenes/npc/Visitor.gd",
+  "da": "if dna.is_empty() or _vis == null or _corpo == null:",
+  "a": "if false:  # MUTAZIONE"
+ },
+ {
+  "id": "DOC raggio 9->15",
+  "file": "scenes/npc/Visitors.gd",
+  "da": "const GESTO_RAGGIO := 9.0",
+  "a": "const GESTO_RAGGIO := 15.0"
+ },
+ {
+  "id": "DOC quota 0.55->1.6",
+  "file": "scenes/npc/Visitors.gd",
+  "da": "const GESTO_QUOTA := 0.55",
+  "a": "const GESTO_QUOTA := 1.6"
+ },
+ {
+  "id": "DOC TREM_DX 0.73->1.0",
+  "file": "scenes/npc/Gesti.gd",
+  "da": "const TREM_DX := 0.73",
+  "a": "const TREM_DX := 1.0"
+ },
+ {
+  "id": "DOC largo su imbardata",
+  "file": "scenes/npc/Gesti.gd",
+  "da": "out[\"hz\"] = float(d.get(\"hz\", LARGO_HZ)) * via * a",
+  "a": "out[\"hy\"] = float(d.get(\"hz\", LARGO_HZ)) * via * a  # MUTAZIONE"
+ },
+ {
+  "id": "AMP capo max 0.11->0.24",
+  "file": "scenes/npc/Gesti.gd",
+  "da": "const CAPO_AMP_MAX := 0.11",
+  "a": "const CAPO_AMP_MAX := 0.24"
+ },
+ {
+  "id": "AMP capo min 0.08->0.008",
+  "file": "scenes/npc/Gesti.gd",
+  "da": "const CAPO_AMP_MIN := 0.08",
+  "a": "const CAPO_AMP_MIN := 0.008"
+ },
+ {
+  "id": "AMP largo px 0.09->0.02",
+  "file": "scenes/npc/Gesti.gd",
+  "da": "const LARGO_PX := 0.09",
+  "a": "const LARGO_PX := 0.02"
+ },
+ {
+  "id": "AMP raccolto ear 0.22->0.55",
+  "file": "scenes/npc/Gesti.gd",
+  "da": "const RACCOLTO_EAR := 0.22",
+  "a": "const RACCOLTO_EAR := 0.55"
+ },
+ {
+  "id": "AMP raccolto sy 0.90->0.99",
+  "file": "scenes/npc/Gesti.gd",
+  "da": "const RACCOLTO_SY := 0.90",
+  "a": "const RACCOLTO_SY := 0.99"
+ },
+ {
+  "id": "AMP punto ear -0.30->-0.02",
+  "file": "scenes/npc/Gesti.gd",
+  "da": "const PUNTO_EAR := -0.30",
+  "a": "const PUNTO_EAR := -0.02"
+ },
+ {
+  "id": "AMP soma pavimento 0.72->0.10",
+  "file": "scenes/npc/Gesti.gd",
+  "da": "const SOMA_PAVIMENTO := 0.72",
+  "a": "const SOMA_PAVIMENTO := 0.10"
+ },
+ {
+  "id": "AMP rialzo vy 0.055->0.010",
+  "file": "scenes/npc/Gesti.gd",
+  "da": "const RIALZO_VY := 0.055",
+  "a": "const RIALZO_VY := 0.010"
+ },
+ {
+  "id": "AMP largo dip 0.45->0.05",
+  "file": "scenes/npc/Gesti.gd",
+  "da": "const LARGO_DIP := 0.45",
+  "a": "const LARGO_DIP := 0.05"
+ },
+ {
+  "id": "ADES tremolio armonico",
+  "file": "scenes/npc/Gesti.gd",
+  "da": "return sin(t * 2.9 * w + fase) * 0.58 + sin(t * 6.83 * w + fase * 2.7) * 0.42",
+  "a": "return sin(t * 2.9 * w + fase) * 0.58 + sin(t * 5.8 * w + fase * 2.7) * 0.42  # MUTAZIONE"
+ },
+ {
+  "id": "ADES capo intervallo fisso",
+  "file": "scenes/npc/Gesti.gd",
+  "da": "var w := sin(t * 0.31 + fase) * 0.58 + sin(t * 0.73 + fase * 2.3) * 0.42\n\treturn lerpf(CAPO_IV_MIN, CAPO_IV_MAX, clampf(0.5 + 0.5 * w, 0.0, 1.0))",
+  "a": "return 0.5 * (CAPO_IV_MIN + CAPO_IV_MAX)  # MUTAZIONE"
+ },
+ {
+  "id": "ADES rialzo senza micro",
+  "file": "scenes/npc/Gesti.gd",
+  "da": "const RIALZO_EAR_RIT := 0.06",
+  "a": "const RIALZO_EAR_RIT := 0.0"
+ }
+]

@@ -1,0 +1,53 @@
+da confermare sulla suite INTERA: 22
+BASE  passati=67748 falliti=0 err=0
+AMP soma·pavimento 0.10                              >>> VERDE <<<  err=0 pass=67748
+FORMA seconda lancetta = la prima                    >>> VERDE <<<  err=0 pass=67748
+FORMA pigrizia uguale per tutti                      ROSSE 4        err=0 pass=67742
+         FAIL: [test_scarico.gd] un pezzo che comincia altrove non fa saltare il viaggio (atteso 1, ottenuto 8)
+         FAIL: [test_scarico.gd] e il file resta quello vero: si è ricominciato da capo, non cucito storto (lunghezza 0 invece di 300000)
+         FAIL: [test_scarico.gd] cadendo dietro un rimbalzo si arriva lo stesso (atteso 1, ottenuto 8)
+FORMA scatto orecchio: gobba larga                   ROSSE 2        err=0 pass=67748
+         FAIL: [test_scarico.gd] ripartendo dal pezzo si arriva in fondo (atteso 1, ottenuto 8)
+         FAIL: [test_scarico.gd] e il file è giusto (lunghezza 0 invece di 300000)
+VALV blend·nessun passo da spezzare                  >>> VERDE <<<  err=0 pass=67748
+VALV strada·zero metri davanti                       ROSSE 1        err=0 pass=67747
+         FAIL: [test_offerta_modello.gd] macchina capace, niente pezzo: si chiede (atteso offerta, ottenuto arrivato)
+VALV anziano·aspetta 10 minuti                       >>> VERDE <<<  err=0 pass=67748
+VALV gesto_libero·senza _hidden                      >>> VERDE <<<  err=0 pass=67748
+VALV gesto_libero·senza dorme()                      ROSSE 15       err=0 pass=67734
+         FAIL: [test_llm_spedito.gd] un CHIBI_MODELLO che punta al nulla non scavalca niente (atteso /Users/duck/Library/Application Support/Godot/ap
+         FAIL: [test_llm_spedito.gd] senza CHIBI_MODELLO vince il modello di chi gioca, col percorso VERO su disco (atteso /Users/duck/Library/Applic
+         FAIL: [test_llm_spedito.gd] col contrassegno del corriere il modello scaricato SI riverifica a ogni caricamento (atteso 882e8d2db44dc554fb0e
+RETE sospeso·senza tk_nap                            >>> VERDE <<<  err=0 pass=67748
+RETE soma·il ritmo non passa dalla rampa             >>> VERDE <<<  err=0 pass=67748
+RETE soma·una paura piccola ACCORCIA la grande       >>> VERDE <<<  err=0 pass=67748
+VALV largo·la testa non cede mai alla ricevuta       >>> VERDE <<<  err=0 pass=67748
+RETE ritmo·nessuna forbice                           >>> VERDE <<<  err=0 pass=67748
+USH raggio 15 m (6,7 px = rumore)                    >>> VERDE <<<  err=0 pass=67748
+USH quota dell'inquadratura 1,6 m                    >>> VERDE <<<  err=0 pass=67748
+USH gettone del villaggio 0,5 s                      >>> VERDE <<<  err=0 pass=67748
+USH sala d'attesa senza raggio                       >>> VERDE <<<  err=0 pass=67748
+CABL ha_dedotto                                      >>> VERDE <<<  err=0 pass=67748
+CABL si_e_trattenuto                                 >>> VERDE <<<  err=0 pass=67748
+CABL ah_sei_tu                                       >>> VERDE <<<  err=0 pass=67748
+CABL quel_posto_no                                   >>> VERDE <<<  err=0 pass=67748
+
+=== 18 confermate VERDI sulla suite INTERA ===
+   AMP soma·pavimento 0.10
+   FORMA seconda lancetta = la prima
+   VALV blend·nessun passo da spezzare
+   VALV anziano·aspetta 10 minuti
+   VALV gesto_libero·senza _hidden
+   RETE sospeso·senza tk_nap
+   RETE soma·il ritmo non passa dalla rampa
+   RETE soma·una paura piccola ACCORCIA la grande
+   VALV largo·la testa non cede mai alla ricevuta
+   RETE ritmo·nessuna forbice
+   USH raggio 15 m (6,7 px = rumore)
+   USH quota dell'inquadratura 1,6 m
+   USH gettone del villaggio 0,5 s
+   USH sala d'attesa senza raggio
+   CABL ha_dedotto
+   CABL si_e_trattenuto
+   CABL ah_sei_tu
+   CABL quel_posto_no

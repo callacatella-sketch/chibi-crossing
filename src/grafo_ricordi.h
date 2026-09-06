@@ -249,6 +249,42 @@ int inserisci(GrafoRicordi &r_grafo, const Ricordo &p_nuovo, float p_ora,
 int da_raccontare(const GrafoRicordi &p_grafo, float p_ora, double p_mezza_vita,
 		uint32_t p_gia_saputi = 0);
 
+// QUALI VERBI QUESTO GRAFO SA, ADESSO: la maschera che `p_gia_saputi` si
+// aspetta, prodotta dal grafo invece che creduta. È la gemella esatta di
+// `da_raccontare` — quella CONSUMA una maschera, questa la PRODUCE — e
+// insieme chiudono il cerchio: *cosa racconterei a chi sa questo* e *cosa sa
+// davvero questo*.
+//
+// ⚠️ ESISTE PERCHÉ AVEVA DUE LETTORI E UNA SOLA CASA, ED ERA DENTRO UN `if`.
+// Questo conto è l'ONNISCIENZA: fino a ieri viveva inline nel ramo del banco
+// di `EcsMondo::racconta`, e nessuno poteva chiederglielo da fuori. Le
+// conseguenze erano due, e la seconda è quella che morde:
+//  · il banco che vuole misurare la RIDONDANZA della teoria della mente
+//    («A ha raccontato a B una cosa che B sapeva già?») doveva ricostruire
+//    questa maschera dalle righe crude di `debug_grafo` — cioè scrivere un
+//    secondo oracolo, e giudicare la regola nuova contro una propria copia
+//    della vecchia. È l'errore che `tools/misura_cammino.gd` esiste per non
+//    commettere, un piano più su;
+//  · e quella copia sarebbe stata scritta con `peso > 0` **dedotto**, cioè
+//    appoggiandosi al fatto misurato che `2^(-dt/mv)` non raggiunge lo zero
+//    prima di ~1074 mezze vite. Vero oggi, e non è un contratto: il giorno
+//    che il peso prendesse un pavimento, il termine di paragone dell'A/B
+//    comincerebbe a divergere dal ramo che l'A/B usa davvero, in silenzio.
+// Adesso c'è UNA implementazione e due letture: il ramo della leva e il
+// metro del banco guardano la stessa riga.
+//
+// SI GUARDANO TUTTI I RICORDI, anche quelli che a sua volta ha solo sentito
+// dire (`R_SENTITO`): sapere è sapere, da qualunque parte sia arrivato — e
+// la simmetria con `da_raccontare`, che i sentiti li SALTA, è voluta. Una
+// notizia non riparte da chi l'ha sentita, ma chi l'ha sentita la sa.
+//
+// ⚠️ E UN RICORDO SPENTO NON È CONOSCENZA. Da quando l'eco porta anche il
+// freddo che il ricordo ha già preso, una voce arrivata molto tardi entra
+// nel grafo a intensità ZERO: senza il `peso > 0` quella riga morta
+// tapperebbe il suo verbo per sempre.
+uint32_t verbi_vivi(const GrafoRicordi &p_grafo, float p_ora,
+		double p_mezza_vita);
+
 } // namespace chibi
 
 #endif // CHIBI_GRAFO_RICORDI_H

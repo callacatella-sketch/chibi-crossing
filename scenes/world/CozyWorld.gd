@@ -8,6 +8,9 @@ extends Node3D
 
 const MATH := preload("res://scenes/world/WorldMath.gd")
 const GEO := preload("res://scenes/world/WorldGeo.gd")
+## La sagoma delle farfalle: una fonte, due montaggi (i cinque rig
+## nominati qui, le novanta del MultiMesh in Ecosystem).
+const FARF := preload("res://scenes/world/FarfalleGeo.gd")
 const RIVER_SHADER := preload("res://shaders/river.gdshader")
 const WATERFALL_SHADER := preload("res://shaders/waterfall.gdshader")
 const GRASS_BLADE := preload("res://shaders/grass_blade.gdshader")
@@ -87,6 +90,20 @@ var _petal_fx: Array[GPUParticles3D] = []   # i petali dei ciliegi (solo primave
 var _forest_leaf_fx: GPUParticles3D      # le foglie che cadono nel bosco (autunno)
 var _forest_leaf_mat: StandardMaterial3D  # il loro colore, ridipinto per stagione
 var _flower_fields: Array[MultiMeshInstance3D] = []  # i campi di fiori (spariscono d'inverno)
+## cella -> [[indice del campo, indice dell'istanza], …] e, in parallelo
+## ai campi, le trasformate VERE. È l'idioma identico di
+## `_grass_cells`/`_grass_base`, e serve alla stessa cosa: accucciare i
+## fiori sotto un pavimento.
+##
+## ⚠️ E LE TRASFORMATE SI TENGONO QUI, non si rileggono dal MultiMesh:
+## `MultiMesh.get_instance_transform()` torna l'IDENTITÀ in `--headless`
+## (il renderer fittizio non conserva il buffer, mentre `set_` funziona
+## e con la finestra aperta il mondo si disegna giusto). Un indice
+## costruito rileggendo sarebbe rotto in ogni test headless, IN SILENZIO
+## e con la suite verde. Misurato: con la finestra le origini sono
+## quelle vere, in headless sono tutte (0, 0, 0).
+var _flower_cells := {}
+var _flower_base: Array = []
 var _snow_fx: GPUParticles3D             # la nevicata sul villaggio (inverno)
 var _meadow_leaf_fx: GPUParticles3D      # le foglie che volano sul prato (autunno)
 var _season_tw: Tween
@@ -121,6 +138,31 @@ signal world_built
 
 
 func _ready() -> void:
+	# ⚠️ L'UNICO POSTO DEL GIOCO CHE DÀ UNA POSIZIONE AL FLUSSO GLOBALE, e
+	# deve restare uno solo. Sta qui perché è il PRIMO che lo consuma: in
+	# `MainLevel.tscn` CozyWorld viene prima di BuildSystem, il mondo si
+	# generava chiedendo al globale in trentasette punti, e prima di questa
+	# riga nessuno gli aveva mai dato una posizione. (La prima stesura della
+	# cura seminava solo in `BuildSystem` e il banco delle repliche ha
+	# continuato a dire di no: è stato lui a trovarlo, non una rilettura.)
+	#
+	# ⚠️ E SEMINARE DUE VOLTE ERA UN DOPPIONE CHE FACEVA DANNO, col commento
+	# che prometteva il contrario di quello che succedeva. Questa funzione è
+	# una COROUTINE: semina, costruisce l'erba, e poi cede il controllo per
+	# sette fotogrammi. Il `_ready` di BuildSystem e il suo `_load_village`
+	# differito cadono tutti e due **dentro quel primo `await`**, cioè fra
+	# `_build_grass()` e tutto il resto: le loro riseminate rimettevano la
+	# posizione IN MEZZO alla generazione, e sassi, nuvole, polline, bosco e
+	# fiori ripartivano dalla stessa testa di sequenza che l'erba aveva
+	# appena consumato. Non era «quel che viene dopo non dipende dalla
+	# generazione»: era la generazione che dipendeva da quante volte veniva
+	# interrotta. Sono state tolte tutte e due.
+	#
+	# Residuo dichiarato: prima di noi girano i tre autoload (Settings, Sfx,
+	# Quality). Un tiro al globale fatto lì è ancora dove l'ha lasciato il
+	# motore — «la più presto possibile» è questo `_ready`, non l'avvio del
+	# processo.
+	Dadi.semina_globale()
 	add_to_group("cozy_world")
 	add_to_group("season_listener")
 	# la calma del giocatore arriva da una casa sola: il Fiato Sospeso
@@ -131,8 +173,6 @@ func _ready() -> void:
 	# secondo. I fratelli prendono comunque subito il riferimento a CozyWorld (il
 	# nodo esiste da subito) e interrogano la geometria solo a runtime.
 	_build_grass()
-	await get_tree().process_frame
-	_build_flowers()
 	await get_tree().process_frame
 	_build_trees()
 	await get_tree().process_frame
@@ -186,6 +226,17 @@ func _ready() -> void:
 	_build_pollen()
 	await get_tree().process_frame
 	_build_forest()
+	# I FIORI vengono DOPO il bosco, e per la stessa ragione dell'erbario
+	# qui sotto: la loro semina interroga `_path_samples`, e chi lo
+	# interrogasse prima troverebbe una lista vuota — senza un errore,
+	# senza una traccia. È la trappola che l'erbario ha già pagato una
+	# volta, e con centinaia di fiori si vedrebbe subito: margherite in
+	# mezzo al sentiero.
+	_build_flowers()
+	# l'erbario e la mappa vengono DOPO il bosco, e per la stessa ragione:
+	# il sentiero esiste solo adesso, e chi lo interrogasse prima
+	# troverebbe una lista vuota — senza un errore, senza una traccia
+	_build_erbario()
 	# la mappa del terreno si cuoce ADESSO: il sentiero del bosco esiste
 	# solo dopo _build_forest, e una tela cotta prima esce vuota in silenzio
 	_bake_terreno_map()
@@ -201,6 +252,11 @@ func _ready() -> void:
 	# le particelle stagionali (neve e foglie al vento) e la prima veste:
 	# ora tutta la geometria esiste, i materiali sono raccolti, si può dipingere
 	_build_season_fx()
+	# IL SECCHIELLO dei fiori per cella si riempie a mondo FINITO: le
+	# margherite della scogliera e quelle della riva entrano in
+	# `_flower_fields` dopo la semina, e indicizzare prima le lascerebbe
+	# fuori — cioè le uniche che non si accuccerebbero, in silenzio.
+	_indicizza_fiori()
 	world_built.emit()
 	_init_season()
 	# le farfalle nascono DOPO la prima veste stagionale: il bestiario decide
@@ -381,25 +437,50 @@ func _build_grass() -> void:
 
 ## Sotto un pavimento o un tappeto l'erba si accuccia (il BuildSystem
 ## chiama qui a ogni piazzamento): nessun filo spunta dal parquet.
+##
+## ⚠️ E CON L'ERBA SI ACCUCCIANO I FIORI. Questa funzione toccava SOLO
+## `_grass_cells`: con centosessanta fiori sparsi su ventidue metri
+## capitava di rado e nessuno l'aveva vista; con mille capita a ogni
+## pezzo posato — margherite alte ventidue centimetri che spuntano dal
+## parquet, dentro le case, sotto i tappeti. La densità non ha creato il
+## difetto: l'ha reso visibile.
 func flatten_cell(cell: Vector2i) -> void:
-	if _grass_flat.has(cell) or not _grass_cells.has(cell):
+	if _grass_flat.has(cell):
 		return
 	_grass_flat[cell] = true
-	for i in (_grass_cells[cell] as PackedInt32Array):
-		var tf: Transform3D = _grass_base[i]
-		_grass_mm.set_instance_transform(i,
+	if _grass_cells.has(cell):
+		for i in (_grass_cells[cell] as PackedInt32Array):
+			var tf: Transform3D = _grass_base[i]
+			_grass_mm.set_instance_transform(i,
+					Transform3D(tf.basis.scaled(Vector3(1, 0.02, 1)), tf.origin))
+	_accuccia_fiori(cell)
+
+
+## Il ramo dei FIORI di `flatten_cell`, a parte perché ha due chiamanti:
+## il piazzamento, e il rifacimento dopo l'indicizzazione.
+func _accuccia_fiori(cell: Vector2i) -> void:
+	for v in _flower_cells.get(cell, []):
+		var c := int((v as Array)[0])
+		var idx: int = int((v as Array)[1])
+		var tf: Transform3D = (_flower_base[c] as Array)[idx]
+		(_flower_fields[c] as MultiMeshInstance3D).multimesh \
+				.set_instance_transform(idx,
 				Transform3D(tf.basis.scaled(Vector3(1, 0.02, 1)), tf.origin))
 
 
-## E quando il pezzo viene rimosso, l'erba rinasce.
+## E quando il pezzo viene rimosso, l'erba rinasce. E i fiori con lei.
 func unflatten_cell(cell: Vector2i) -> void:
 	if not _grass_flat.has(cell):
 		return
 	_grass_flat.erase(cell)
-	if not _grass_cells.has(cell):
-		return
-	for i in (_grass_cells[cell] as PackedInt32Array):
-		_grass_mm.set_instance_transform(i, _grass_base[i])
+	if _grass_cells.has(cell):
+		for i in (_grass_cells[cell] as PackedInt32Array):
+			_grass_mm.set_instance_transform(i, _grass_base[i])
+	for v in _flower_cells.get(cell, []):
+		var c := int((v as Array)[0])
+		var idx: int = int((v as Array)[1])
+		(_flower_fields[c] as MultiMeshInstance3D).multimesh \
+				.set_instance_transform(idx, (_flower_base[c] as Array)[idx])
 
 
 # ---------------------------------------------------------------- fiori
@@ -412,51 +493,265 @@ func unflatten_cell(cell: Vector2i) -> void:
 
 
 
-# semina un campo a macchie: i fiori veri crescono in famigliole, non
-# equidistanti — centri di macchia + 2-5 fiori stretti intorno + sparsi
+## IL SUOLO LIBERO, e ce n'è UNO. Lo stagno, il letto del fiume, i
+## sentieri del bosco: le stesse esclusioni per tutto ciò che si posa a
+## terra. L'erbario ce l'aveva; i fiori guardavano SOLO lo stagno e una
+## `z > -14.5`, e a centosessanta istanze non si vedeva — a mille sì.
+func suolo_libero(p: Vector3, bordo := 0.0) -> bool:
+	if p.distance_to(POND_CENTER) < POND_R + bordo:
+		return false
+	if absf(p.x - MATH.river_x(p.z)) < 2.2 + bordo:
+		return false
+	for i in _path_samples.size():
+		if p.distance_to(_path_samples[i]) < 1.1:
+			return false
+	return true
+
+
+## IL PESO DI HABITAT, da dati che il mondo ha GIÀ: quanto si è vicini
+## all'acqua e quanto si va verso il bosco. `acqua` e `bosco` vanno da
+## −1 (scappa) a +1 (cerca); a 0 la specie è indifferente e il peso
+## vale 1 ovunque.
+##
+## Costa zero e fa il lavoro che tre specie in più non farebbero:
+## attraversando il prato i fiori CAMBIANO, invece di essere la stessa
+## spruzzata dappertutto.
+func peso_habitat(p: Vector3, acqua: float, bosco: float) -> float:
+	var d := minf(p.distance_to(POND_CENTER) - POND_R,
+			absf(p.x - MATH.river_x(p.z)) - 2.2)
+	var vicino := clampf(1.0 - d / 9.0, 0.0, 1.0)
+	var boscoso := clampf((-p.z - 2.0) / 14.0, 0.0, 1.0)
+	return clampf(1.0 + acqua * (vicino * 2.0 - 1.0)
+			+ bosco * (boscoso * 2.0 - 1.0), 0.06, 3.0)
+
+
+# Semina un campo a macchie: i fiori veri crescono in famigliole, non
+# equidistanti — centri di macchia + un pugno di fiori stretti intorno +
+# sparsi. Ogni specie ha il suo habitat, e la sua posa.
 func _flower_field(mesh: Mesh, clusters: int, per_min: int, per_max: int,
-		singles: int, rng: RandomNumberGenerator) -> MultiMeshInstance3D:
+		singles: int, rng: RandomNumberGenerator,
+		acqua := 0.0, bosco := 0.0, raggio_macchia := 0.55) -> void:
 	var transforms: Array[Transform3D] = []
+	var custom: Array[Color] = []
 	var spot := func() -> Vector3:
-		for attempt in 10:
-			var r := rng.randf_range(2.5, 21.0)
+		for attempt in 14:
+			var r := rng.randf_range(2.2, 22.0)
 			var a := rng.randf() * TAU
 			var p := Vector3(cos(a) * r, 0, sin(a) * r)
-			if p.distance_to(POND_CENTER) > POND_R + 1.6 and p.z > -14.5:
-				return p
-		return Vector3(6, 0, 6)
+			if not suolo_libero(p, 1.4):
+				continue
+			# il peso di habitat come rifiuto: si tira un dado contro il
+			# peso, così la specie si addensa dove le piace senza che
+			# nessuna zona resti vietata per decreto
+			if rng.randf() * 3.0 > peso_habitat(p, acqua, bosco):
+				continue
+			return p
+		return Vector3.ZERO
+	var posa := func(p: Vector3, ang: float) -> void:
+		if p == Vector3.ZERO:
+			return
+		# LA TAGLIA tirata verso il piccolo: in un prato vero i grandi
+		# sono pochi. E l'inclinazione CORRELATA alla taglia — i più alti
+		# pendono di più, perché pesano di più. Con ±0.09 rad per tutti
+		# quello che si otteneva era un plotone sull'attenti.
+		var sc := 0.70 + 0.55 * pow(rng.randf(), 1.7)
+		var pend := rng.randf_range(-0.26, 0.26) * sc
+		var b := Basis(Vector3.UP, rng.randf() * TAU) \
+				.scaled(Vector3.ONE * sc)
+		b = Basis(Vector3(cos(ang), 0, sin(ang)).cross(Vector3.UP).normalized(),
+				pend) * b
+		# LA BASE SOTTO LO ZERO: il suolo taglia lo stelo, e non si vede
+		# mai il disco d'appoggio. È il trucco dei sassi dell'erbario.
+		transforms.append(Transform3D(b, p + Vector3(0, -0.012, 0)))
+		# ⚠️ mai esattamente ZERO: lo zero è il valore che arriva a un
+		# fiore NON istanziato, e vuol dire «nessuna variazione»
+		custom.append(Color(rng.randf_range(0.06, 1.0), rng.randf(), 0.0, 0.0))
 	for c in clusters:
 		var centro: Vector3 = spot.call()
 		for i in rng.randi_range(per_min, per_max):
 			var ang := rng.randf() * TAU
-			var rr := sqrt(rng.randf()) * 0.55
-			var p := centro + Vector3(cos(ang) * rr, 0, sin(ang) * rr)
-			var b := Basis(Vector3.UP, rng.randf() * TAU) \
-					.scaled(Vector3.ONE * rng.randf_range(0.8, 1.2))
-			# ogni fiore pende dalla sua parte: niente plotone sull'attenti
-			b = Basis(Vector3(cos(ang), 0, sin(ang)).cross(Vector3.UP).normalized(),
-					rng.randf_range(-0.09, 0.09)) * b
-			transforms.append(Transform3D(b, p))
+			var rr := sqrt(rng.randf()) * raggio_macchia
+			posa.call(centro + Vector3(cos(ang) * rr, 0, sin(ang) * rr), ang)
 	for i in singles:
-		var b := Basis(Vector3.UP, rng.randf() * TAU) \
-				.scaled(Vector3.ONE * rng.randf_range(0.75, 1.15))
-		transforms.append(Transform3D(b, spot.call()))
-	return _scatter_exact(mesh, transforms, false)
+		posa.call(spot.call(), rng.randf() * TAU)
+	_registra_campo(_scatter_exact(mesh, transforms, false, custom), transforms)
 
 
 func _build_flowers() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 4242
-	# margherite bianche e rosa, tulipani caldi, spighe di lavanda.
-	# I campi si raccolgono: d'inverno il prato gelato li nasconde sotto la neve
-	for field in [
-			_flower_field(GEO.daisy_mesh(Color("fffaf4"), Color("ffcf5e")), 9, 3, 5, 8, rng),
-			_flower_field(GEO.daisy_mesh(Color("ffc4d6"), Color("ffd76e")), 7, 3, 5, 6, rng),
-			_flower_field(GEO.tulip_mesh(Color("ffb35c")), 5, 2, 4, 4, rng),
-			_flower_field(GEO.tulip_mesh(Color("f2879e")), 5, 2, 4, 4, rng),
-			_flower_field(GEO.lavender_mesh(), 6, 3, 6, 4, rng)]:
-		if field:
-			_flower_fields.append(field)
+	# ⚠️ LE CLASSI DI SAGOMA, non le specie. A otto metri — che è
+	# l'inquadratura normale — di un fiore alto ventidue centimetri si
+	# vedono trenta pixel: la corolla non esiste, e leggono soltanto la
+	# CLASSE (tappeto · medio · alto), la massa, e il movimento. Quattro
+	# specie tutte alte fra 0.20 e 0.36 sono lo stesso plotone in quattro
+	# colori. Il trifoglio sta SOTTO la linea dell'erba, il papavero
+	# sopra: sono quelli i due che cambiano la lettura.
+	#
+	# I campi si raccolgono: d'inverno il prato gelato li nasconde.
+	# il TAPPETO, fitto e ovunque, un filo più verso l'acqua
+	_flower_field(GEO.clover_mesh(Color("fdf6ec")), 24, 12, 22, 60,
+			rng, 0.35, 0.0, 0.85)
+	_flower_field(GEO.clover_mesh(Color("f6d8e2")), 10, 8, 14, 20,
+			rng, 0.35, 0.0, 0.75)
+	# i MEDI
+	_flower_field(GEO.daisy_mesh(Color("fffaf4"), Color("ffcf5e")),
+			16, 4, 8, 22, rng, 0.0, -0.25)
+	_flower_field(GEO.daisy_mesh(Color("ffc4d6"), Color("ffd76e")),
+			11, 3, 6, 14, rng, 0.0, -0.15)
+	# l'AZZURRO, che è la tinta che manca al prato: sta all'umido e verso
+	# il bosco, come il suo vero
+	_flower_field(GEO.forgetmenot_mesh(), 13, 6, 12, 18, rng, 0.75, 0.35, 0.60)
+	# gli ALTI, radi apposta: sono la rottura di sagoma, e una rottura che
+	# si ripete non rompe più niente
+	_flower_field(GEO.lavender_mesh(), 9, 4, 8, 10, rng, -0.45, 0.0)
+	_flower_field(GEO.poppy_mesh(Color("e8574f")), 7, 2, 5, 12, rng,
+			-0.55, -0.35, 0.75)
+	_flower_field(GEO.tulip_mesh(Color("ffb35c")), 5, 2, 4, 4, rng)
+	_flower_field(GEO.tulip_mesh(Color("f2879e")), 5, 2, 4, 4, rng)
+
+
+## Registra un campo di fiori: il nodo e le sue trasformate. Passano di
+## qui TUTTI — la semina, le margherite della scogliera, quelle della
+## riva — o le ultime resterebbero fuori dall'indice, cioè sarebbero le
+## uniche a non accucciarsi, in silenzio.
+## ⚠️ E CI PASSANO TUTTI: `flatten_cell` indicizza `_flower_fields[c]`
+## con l'indice di `_flower_base`, quindi un `_flower_fields.append()`
+## fatto per un'altra strada sposterebbe SILENZIOSAMENTE i fiori
+## sbagliati. La guardia è in `test_fiori`, e costa un confronto.
+func _registra_campo(nodo: MultiMeshInstance3D, transforms: Array) -> void:
+	if nodo == null:
+		return
+	_flower_fields.append(nodo)
+	_flower_base.append(transforms)
+
+
+## Il secchiello cella → istanze, per `flatten_cell`.
+func _indicizza_fiori() -> void:
+	_flower_cells.clear()
+	for c in _flower_base.size():
+		var tfs: Array = _flower_base[c]
+		for i in tfs.size():
+			var tf: Transform3D = tfs[i]
+			# ⚠️ SOLO QUELLI A TERRA. Fra i campi registrati ci sono le
+			# margherite della SCOGLIERA, che stanno metri più in alto:
+			# senza questo filtro, posare un pavimento in basso
+			# accuccerebbe fiori che stanno in cima alla parete — e la
+			# cella è (x, z), quindi la quota non la guarda nessuno.
+			if absf(tf.origin.y) > 0.5:
+				continue
+			var cella := Vector2i(roundi(tf.origin.x), roundi(tf.origin.z))
+			if not _flower_cells.has(cella):
+				_flower_cells[cella] = []
+			(_flower_cells[cella] as Array).append([c, i])
+	# ⚠️ E SI RIAPPLICA L'ACCUCCIAMENTO GIÀ CHIESTO, o non succede MAI
+	# su una partita CARICATA — cioè per ogni giocatore che torna.
+	# `BuildSystem._load_village` posa TUTTE le celle salvate dentro il
+	# frame 0 (non ha un solo `await`), mentre questa indicizzazione sta
+	# in fondo a un `_ready` che ne attraversa sette: al caricamento
+	# `flatten_cell` trovava `_flower_cells` vuoto, non accucciava niente
+	# — e timbrava comunque `_grass_flat`, quindi per via del `return`
+	# in testa non ci sarebbe tornata mai più. Margherite alte ventidue
+	# centimetri che spuntano dal parquet, in ogni partita riaperta.
+	#
+	# L'erba invece era a posto, perché `_build_grass()` gira PRIMA del
+	# primo `await`: è quell'asimmetria a dire dov'era il difetto.
+	for cell in _grass_flat:
+		_accuccia_fiori(cell)
+
+
+## L'ERBARIO: quello che c'e' a terra oltre l'erba e i fiori. Un prato vero
+## non e' erba e basta — ha i sassi mezzi sepolti che rompono il piano, i
+## ciuffi alti e le canne dove il terreno e' umido, i rametti caduti al
+## limitare del bosco. Tutto su MultiMesh (una draw call a specie) e tutto
+## posato con le stesse esclusioni del resto del mondo: mai nell'acqua, mai
+## sul sentiero, mai dove si costruisce.
+func _build_erbario() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 90210
+	var libero := func(p: Vector3, bordo: float) -> bool:
+		return suolo_libero(p, bordo)
+
+	# I SASSI MEZZI SEPOLTI: affiorano, non stanno appoggiati. Il trucco e'
+	# tutto qui — il centro sta SOTTO lo zero, quindi il suolo li taglia e
+	# non si vede mai il bordo d'appoggio.
+	var sasso := GEO.merge([
+		[GEO.puff_mesh(0.28, 7, 0.55, 0.16), Transform3D.IDENTITY,
+				GEO.paint_mat(Color("b9b3a6"), Color("968f83"), 2.0, 0.6)],
+		[GEO.puff_mesh(0.17, 13, 0.62, 0.18),
+				Transform3D(Basis.IDENTITY, Vector3(0.18, -0.04, 0.09)),
+				GEO.paint_mat(Color("a8a196"), Color("857f74"), 2.0, 0.6)]])
+	var sassi: Array[Transform3D] = []
+	for i in 44:
+		var r := rng.randf_range(3.0, 23.0)
+		var a := rng.randf() * TAU
+		var p := Vector3(cos(a) * r, 0, sin(a) * r)
+		if not libero.call(p, 1.2):
+			continue
+		var sc := rng.randf_range(0.5, 1.35)
+		var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(
+				Vector3(sc, sc * rng.randf_range(0.5, 0.8), sc))
+		# il centro AFFONDA: quanto piu' e' grosso, tanto piu' e' sepolto
+		p.y = -0.10 * sc - rng.randf_range(0.0, 0.05)
+		sassi.append(Transform3D(b, p))
+	_scatter_exact(sasso, sassi)
+
+	# LE CANNE dove il terreno e' umido: attorno allo stagno e lungo il
+	# fiume. Non in mezzo al prato — una canna asciutta e' una bugia.
+	var canna := GEO.merge([
+		[GEO.blade_mesh(), Transform3D(Basis(Vector3.UP, 0.0).scaled(
+				Vector3(1.0, 3.4, 1.0)), Vector3.ZERO),
+				GEO.paint_mat(Color("7f9c58"), Color("607c44"), 1.2, 0.5)],
+		[GEO.blade_mesh(), Transform3D(Basis(Vector3.UP, 1.9).scaled(
+				Vector3(0.9, 2.7, 0.9)), Vector3(0.06, 0, 0.04)),
+				GEO.paint_mat(Color("93ab63"), Color("74904e"), 1.2, 0.5)],
+		[GEO.blade_mesh(), Transform3D(Basis(Vector3.UP, 3.9).scaled(
+				Vector3(0.8, 2.1, 0.8)), Vector3(-0.05, 0, 0.07)),
+				GEO.paint_mat(Color("6f8c50"), Color("55703c"), 1.2, 0.5)]])
+	var canne: Array[Transform3D] = []
+	for i in 90:
+		var p := Vector3.ZERO
+		if i % 2 == 0:
+			var a2 := rng.randf() * TAU
+			var rr := POND_R + rng.randf_range(0.15, 1.05)
+			p = POND_CENTER + Vector3(cos(a2) * rr, 0, sin(a2) * rr)
+		else:
+			var z := rng.randf_range(-16.0, 12.0)
+			var lato := 1.0 if rng.randf() < 0.5 else -1.0
+			p = Vector3(MATH.river_x(z) + lato * rng.randf_range(2.1, 3.2), 0, z)
+		for j in _path_samples.size():
+			if p.distance_to(_path_samples[j]) < 1.0:
+				p = Vector3.ZERO
+				break
+		if p == Vector3.ZERO:
+			continue
+		var sc2 := rng.randf_range(0.75, 1.3)
+		var b2 := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(sc2, sc2, sc2))
+		# le canne si piegano tutte un po' dalla stessa parte: e' il vento
+		b2 = Basis(Vector3.RIGHT, rng.randf_range(0.04, 0.16)) * b2
+		canne.append(Transform3D(b2, p))
+	_scatter_exact(canna, canne, false)
+
+	# I RAMETTI caduti, al limitare del bosco: piccoli, sdraiati, e sempre
+	# piu' fitti man mano che ci si avvicina agli alberi
+	var ramo := GEO.merge([
+		[GEO.trunk_mesh(0.42, 0.028, 0.018, 3), Transform3D(
+				Basis(Vector3.FORWARD, PI * 0.5), Vector3.ZERO),
+				GEO.paint_mat(Color("7a5c42"), Color("5f4733"), 3.0, 0.6)]])
+	var rametti: Array[Transform3D] = []
+	for i in 70:
+		var z2 := rng.randf_range(-19.0, 2.0)
+		var x2 := rng.randf_range(-17.0, 17.0)
+		var p2 := Vector3(x2, 0.02, z2)
+		# la densita' cresce verso il bosco (z negativo)
+		if rng.randf() > smoothstep(4.0, -18.0, z2):
+			continue
+		if not libero.call(p2, 0.8):
+			continue
+		var b3 := Basis(Vector3.UP, rng.randf() * TAU).scaled(
+				Vector3.ONE * rng.randf_range(0.6, 1.25))
+		rametti.append(Transform3D(b3, p2))
+	_scatter_exact(ramo, rametti, false)
 
 
 # ---------------------------------------------------------------- alberi
@@ -468,6 +763,26 @@ func _build_flowers() -> void:
 ## Ogni albero lascia la sua impronta sul terreno: l'ombra di contatto
 ## nasce da qui, non da una lista scritta a mano che diverge al primo
 ## albero spostato.
+## LA CONIFERA, DISEGNATA UNA VOLTA SOLA. Il bosco la fa col MultiMesh
+## (mesh fusa, economica, centinaia in un nodo) e `_make_tree` la rifà come
+## albero VERO quando il giocatore le si avvicina a cinque metri — due
+## costruzioni diverse per forza, ma UNA forma sola.
+## Prima questi numeri stavano solo nel MultiMesh e l'albero che nasceva al
+## posto del pino era una latifoglia tonda: camminando nel bosco i pini si
+## trasformavano sotto gli occhi del giocatore, e cambiavano anche taglia
+## (4,55 m contro 2,55). Ricopiarli qui sotto invece di leggerli avrebbe
+## rifatto lo stesso guasto al primo ritocco.
+## Ogni strato: [raggio, altezza, quota, ondulazione, onde, imbardata]
+const CONIFERA_STRATI := [
+	[1.4,  1.15, 1.5,  0.16, 7, 0.0],
+	[1.08, 1.0,  2.3,  0.15, 6, 0.4],
+	[0.78, 0.9,  3.05, 0.14, 6, 0.9],
+	[0.5,  0.8,  3.75, 0.13, 5, 1.3],
+]
+const CONIFERA_PUNTA := 4.55     # la vetta, sopra l'ultimo strato
+const CONIFERA_TRONCO := 1.9     # il tronco su cui queste quote sono tarate
+
+
 func _make_tree(pos: Vector3, size: float, leaf_a: Color, leaf_b: Color,
 		seed_v := 0, leaf_klass := "green") -> Node3D:
 	var rng := RandomNumberGenerator.new()
@@ -517,23 +832,41 @@ func _make_tree(pos: Vector3, size: float, leaf_a: Color, leaf_b: Color,
 	# ondeggiare e frustare in ritardo quando l'albero viene abbattuto.
 	var leaf_parts := []
 	const CANOPY_Y := 1.5
-	leaf_parts.append([GEO.puff_mesh(0.92, rng.randi(), 0.6, 0.07, 16, 9), # gonna d'ombra
-			Transform3D(Basis.IDENTITY, Vector3(0, 1.52 - CANOPY_Y, 0)), leaf_dark])
-	leaf_parts.append([GEO.puff_mesh(0.88, rng.randi(), 0.85, 0.1, 16, 9), # cuore
-			Transform3D(Basis.IDENTITY, Vector3(0, 1.9 - CANOPY_Y, 0)), leaf_mid])
-	for i in 5: # lobi di mezzo intorno
-		var a := float(i) / 5.0 * TAU + rng.randf_range(-0.25, 0.25)
-		var r := rng.randf_range(0.5, 0.64)
-		leaf_parts.append([GEO.puff_mesh(r, rng.randi(), 0.82, 0.11, 16, 9),
-				Transform3D(Basis(Vector3.UP, rng.randf() * TAU),
-				Vector3(cos(a) * 0.62, rng.randf_range(1.62, 1.82) - CANOPY_Y, sin(a) * 0.62)),
-				leaf_mid if i % 2 == 0 else leaf_dark])
-	for i in 3: # ciuffi di luce in cima
-		var a := float(i) / 3.0 * TAU + rng.randf_range(-0.4, 0.4)
-		leaf_parts.append([GEO.puff_mesh(rng.randf_range(0.3, 0.42), rng.randi(), 0.8, 0.13, 16, 9),
-				Transform3D(Basis(Vector3.UP, rng.randf() * TAU),
-				Vector3(cos(a) * 0.38, rng.randf_range(2.35, 2.55) - CANOPY_Y, sin(a) * 0.38)),
-				leaf_light])
+	if leaf_klass == "needle":
+		# LA CONIFERA NON E' UNA NUVOLA. Stessa forma del pino del bosco
+		# (`CONIFERA_STRATI`), rimpicciolita sul tronco di questo albero: e'
+		# l'albero che nasce quando il giocatore si avvicina a un pino del
+		# MultiMesh, e deve essere lo STESSO pino, non un altro albero.
+		var k := 1.35 / CONIFERA_TRONCO
+		for i in CONIFERA_STRATI.size():
+			var st: Array = CONIFERA_STRATI[i]
+			leaf_parts.append([
+					GEO.skirt_mesh(float(st[0]) * k, float(st[1]) * k,
+							rng.randi(), float(st[3]), int(st[4])),
+					Transform3D(Basis(Vector3.UP, float(st[5]) + rng.randf_range(-0.2, 0.2)),
+							Vector3(0, float(st[2]) * k - CANOPY_Y, 0)),
+					[leaf_dark, leaf_mid, leaf_mid, leaf_light][i]])
+		leaf_parts.append([GEO.sphere_mesh(0.09 * k, 7),
+				Transform3D(Basis.IDENTITY.scaled(Vector3(0.7, 1.5, 0.7)),
+						Vector3(0, CONIFERA_PUNTA * k - CANOPY_Y, 0)), leaf_light])
+	else:
+		leaf_parts.append([GEO.puff_mesh(0.92, rng.randi(), 0.6, 0.07, 16, 9), # gonna d'ombra
+				Transform3D(Basis.IDENTITY, Vector3(0, 1.52 - CANOPY_Y, 0)), leaf_dark])
+		leaf_parts.append([GEO.puff_mesh(0.88, rng.randi(), 0.85, 0.1, 16, 9), # cuore
+				Transform3D(Basis.IDENTITY, Vector3(0, 1.9 - CANOPY_Y, 0)), leaf_mid])
+		for i in 5: # lobi di mezzo intorno
+			var a := float(i) / 5.0 * TAU + rng.randf_range(-0.25, 0.25)
+			var r := rng.randf_range(0.5, 0.64)
+			leaf_parts.append([GEO.puff_mesh(r, rng.randi(), 0.82, 0.11, 16, 9),
+					Transform3D(Basis(Vector3.UP, rng.randf() * TAU),
+					Vector3(cos(a) * 0.62, rng.randf_range(1.62, 1.82) - CANOPY_Y, sin(a) * 0.62)),
+					leaf_mid if i % 2 == 0 else leaf_dark])
+		for i in 3: # ciuffi di luce in cima
+			var a := float(i) / 3.0 * TAU + rng.randf_range(-0.4, 0.4)
+			leaf_parts.append([GEO.puff_mesh(rng.randf_range(0.3, 0.42), rng.randi(), 0.8, 0.13, 16, 9),
+					Transform3D(Basis(Vector3.UP, rng.randf() * TAU),
+					Vector3(cos(a) * 0.38, rng.randf_range(2.35, 2.55) - CANOPY_Y, sin(a) * 0.38)),
+					leaf_light])
 
 	var tree := Node3D.new()
 	tree.position = pos
@@ -814,34 +1147,48 @@ func _make_butterfly(kind_i: int) -> void:
 			flap = 12.0
 			wing_size = Vector2(0.12, 0.1)
 
+	# IL CORPO. Era una `CapsuleMesh` senza `radial_segments`, cioè il
+	# default di Godot: 64 × 8 ≈ MILLE TRENTA triangoli per un corpo di
+	# dodici millimetri — e con l'ombra accesa — contro quattro triangoli
+	# d'ala. Il budget c'era già, era speso al contrario.
 	var body := MeshInstance3D.new()
-	var cap := CapsuleMesh.new()
-	cap.radius = 0.012
-	cap.height = body_len
-	body.mesh = cap
-	body.rotation.x = PI * 0.5
+	body.mesh = FARF.corpo(body_len * 0.72)
 	body.material_override = GEO.paint_mat(Color("6a5a4a"), Color("4a3e33"), 8.0, 0.4)
 	b.add_child(body)
 
+	# LE ALI. Erano un QuadMesh col `soft_circle` tagliato ad
+	# `alpha_scissor 0.4` e UNSHADED: un pallino a bordo duro che il ciclo
+	# del giorno non tocca mai, una sola ala per lato e nessuna sagoma.
+	# Adesso sono anteriore + posteriore con l'intaglio in mezzo — è
+	# l'intaglio a far leggere «farfalla» — e sono MEMBRANE: col
+	# `translucency` acceso, al tramonto il sole ci passa dietro.
 	var wing_col: Color = CRIT.colore(kind)
+	# ⚠️ `noise_scale` è tarato su oggetti grandi metri: su un'ala di
+	# dieci centimetri il lavaggio non varia di niente e resta una tinta
+	# piatta. A 26 diventa la MACULATURA, e sta ferma sull'ala perché
+	# senza `use_world_noise` la trama è in spazio OGGETTO.
+	var wing_mat := GEO.paint_mat(wing_col, wing_col.darkened(0.42),
+			26.0, 0.58, 0.0, false, 0.50)
+	# L'ORLO SCURO sul margine, la stessa cosa che fa lo shader delle
+	# novanta leggendo `COLOR.r`: una sagoma sola non basta se i due
+	# montaggi poi si dipingono in modo diverso.
+	wing_mat.set_shader_parameter("orlo", 1.0)
 	var wings: Array[Node3D] = []
 	for side: float in [-1.0, 1.0]:
 		var pivot := Node3D.new()
 		b.add_child(pivot)
-		var quad := QuadMesh.new()
-		quad.size = wing_size
-		var mat := StandardMaterial3D.new()
-		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
-		mat.alpha_scissor_threshold = 0.4
-		mat.albedo_texture = GEO.soft_circle(wing_col, 0.75)
-		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		quad.material = mat
 		var mi := MeshInstance3D.new()
-		mi.mesh = quad
-		mi.rotation.x = -PI * 0.5
-		mi.position = Vector3(side * (wing_size.x * 0.57), 0, 0)
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		# l'attacco sta nell'ORIGINE del perno: è così che `rotation.z`
+		# la fa ruotare dal punto giusto, ed è il contratto che
+		# `_farfalla_fidata` si aspetta per posarla sul naso di Mochi
+		# ⚠️ LA SCALA. Con i moltiplicatori della prima stesura veniva
+		# un'apertura di 28 cm: larga quanto la testa di un chibi. Era la
+		# taglia che avevano da sempre — un quad di 15 cm per lato — ma
+		# finché erano pallini sfumati nessuno la leggeva come una
+		# farfalla, quindi nessuno vedeva che era enorme. Dare una sagoma
+		# a una cosa ne rivela la taglia.
+		mi.mesh = FARF.ali_lato(side, wing_size.x * 0.86, wing_size.y * 0.70)
+		mi.material_override = wing_mat
 		pivot.add_child(mi)
 		wings.append(pivot)
 
@@ -1041,7 +1388,7 @@ func _farfalla_fidata(b: Dictionary, delta: float) -> void:
 			if moto.length() > 0.001:
 				node.rotation.y = lerp_angle(node.rotation.y,
 						atan2(-moto.x, -moto.z), 1.0 - exp(-5.0 * delta))
-		flap = sin(_t * float(b.get("flap", 17.0)) + s) * 1.05
+		flap = FARF.battito(_t * float(b.get("flap", 17.0)) + s) * 1.05
 		node.rotation.x = lerpf(node.rotation.x, 0.0, 1.0 - exp(-6.0 * delta))
 	else:
 		b["posa_t"] = float(b.get("posa_t", 0.0)) + delta
@@ -1126,15 +1473,26 @@ func _build_pollen() -> void:
 
 
 
-func _scatter_exact(mesh: Mesh, transforms: Array, shadows := true) -> MultiMeshInstance3D:
+## ⚠️ E `use_colors` RESTA SPENTO su ogni campo di fiori, ed è una
+## regola: Godot moltiplica il colore d'istanza dentro il `COLOR` dei
+## vertici, e per un fiore quel COLOR è la MASCHERA D'ORGANO — accenderlo
+## dipingerebbe i petali del colore del gambo, senza un errore. I canali
+## per istanza viaggiano in `custom_data`.
+func _scatter_exact(mesh: Mesh, transforms: Array, shadows := true,
+		custom: Array = []) -> MultiMeshInstance3D:
 	if transforms.is_empty():
 		return null
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
+	if not custom.is_empty():
+		mm.use_custom_data = true
 	mm.mesh = mesh
 	mm.instance_count = transforms.size()
 	for i in transforms.size():
 		mm.set_instance_transform(i, transforms[i])
+	if not custom.is_empty():
+		for i in mini(custom.size(), transforms.size()):
+			mm.set_instance_custom_data(i, custom[i])
 	var mmi := MultiMeshInstance3D.new()
 	mmi.multimesh = mm
 	if not shadows:
@@ -1244,21 +1602,19 @@ func _build_forest_trees(rng: RandomNumberGenerator) -> void:
 
 	# il pino: gonne smerlate che ricadono, tono che si schiarisce
 	# salendo verso il germoglio in punta
+	var aghi := [needle_a, needle_b, needle_a, needle_lite]
 	var pine_kit := func(seed_v: int) -> ArrayMesh:
-		return GEO.merge([
-			[GEO.trunk_mesh(1.9, 0.24, 0.13, seed_v), Transform3D.IDENTITY, bark],
-			[GEO.skirt_mesh(1.4, 1.15, seed_v + 1, 0.16, 7),
-					Transform3D(Basis.IDENTITY, Vector3(0, 1.5, 0)), needle_a],
-			[GEO.skirt_mesh(1.08, 1.0, seed_v + 2, 0.15, 6),
-					Transform3D(Basis(Vector3.UP, 0.4), Vector3(0, 2.3, 0)), needle_b],
-			[GEO.skirt_mesh(0.78, 0.9, seed_v + 3, 0.14, 6),
-					Transform3D(Basis(Vector3.UP, 0.9), Vector3(0, 3.05, 0)), needle_a],
-			[GEO.skirt_mesh(0.5, 0.8, seed_v + 4, 0.13, 5),
-					Transform3D(Basis(Vector3.UP, 1.3), Vector3(0, 3.75, 0)), needle_lite],
-			[GEO.sphere_mesh(0.09, 7), Transform3D(
-					Basis.IDENTITY.scaled(Vector3(0.7, 1.5, 0.7)),
-					Vector3(0, 4.55, 0)), needle_lite],
-		])
+		var parti := [[GEO.trunk_mesh(CONIFERA_TRONCO, 0.24, 0.13, seed_v),
+				Transform3D.IDENTITY, bark]]
+		for i in CONIFERA_STRATI.size():
+			var st: Array = CONIFERA_STRATI[i]
+			parti.append([GEO.skirt_mesh(st[0], st[1], seed_v + 1 + i, st[3], st[4]),
+					Transform3D(Basis(Vector3.UP, st[5]), Vector3(0, st[2], 0)),
+					aghi[i]])
+		parti.append([GEO.sphere_mesh(0.09, 7), Transform3D(
+				Basis.IDENTITY.scaled(Vector3(0.7, 1.5, 0.7)),
+				Vector3(0, CONIFERA_PUNTA, 0)), needle_lite])
+		return GEO.merge(parti)
 	# la latifoglia: tronco alto, chioma-nuvola con ombra sotto e luce
 	# sopra (14×8: il cel-shading sulle chiome chiare rivela ogni faccia,
 	# e la mesh è UNA per variante — la risoluzione costa quasi nulla)
@@ -1412,18 +1768,56 @@ func _build_forest_undergrowth(rng: RandomNumberGenerator) -> void:
 		fern_tf.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), _forest_spot(rng)))
 	_scatter_exact(fern, fern_tf, false)
 
-	# rocce muschiose
+	# ROCCE MUSCHIOSE, e sono la stessa pietra dei sassi del prato — la
+	# tecnica sta scritta la' sopra e qui era rimasta fuori:
+	#  · il centro AFFONDA sotto lo zero, cosi' il suolo taglia il bordo
+	#    d'appoggio invece di lasciarlo in vista (un masso appoggiato sul
+	#    prato si vede che e' appoggiato);
+	#  · `puff_mesh` e non `sphere_mesh`: una pietra non e' un ellissoide
+	#    liscio, e il cel-shading su una sfera perfetta fa bande regolari.
+	# ⚠️ E IL MUSCHIO NON E' UNA PALLA VERDE APPOGGIATA SOPRA. Prima era una
+	# sfera piena che spuntava dal fianco del sasso: l'intersezione fra due
+	# solidi e' una curva NETTA, e si leggeva come una placca di vernice
+	# verde con lo spigolo poligonale. Adesso e' una CROSTA — bassa, larga,
+	# schiacciata — che sta sulla CALOTTA e segue il sasso: il suo bordo e'
+	# la sua stessa silhouette morbida, non un taglio.
+	# ⚠️ E d'inverno prendeva la neve un decimo di quanto la prendesse il
+	# sasso: il mondo era tutto bianco e li' in mezzo restava una macchia di
+	# verde saturo. Il manto dello shader si posa sulle facce rivolte al
+	# CIELO (`v_up`), e una crosta piatta ne ha molte piu' di una palla che
+	# sporge di fianco — adesso si imbianca insieme alla pietra.
 	var rock_gray := GEO.paint_mat(Color("8f9088"), Color("74786f"), 2.0, 0.5)
-	var moss := GEO.paint_mat(Color("6a9a5a"), Color("55804a"), 3.0, 0.5)
+	# il muschio e' spento e un filo grigio: il verde acceso di prima
+	# gridava piu' dell'erba vera che gli sta intorno
+	var moss := GEO.paint_mat(Color("6f8f60"), Color("5a7850"), 3.0, 0.45)
 	var rock := GEO.merge([
-		[GEO.sphere_mesh(0.5, 10), Transform3D(Basis.IDENTITY.scaled(Vector3(1, 0.62, 0.85)), Vector3(0, 0.2, 0)), rock_gray],
-		[GEO.sphere_mesh(0.32, 8), Transform3D(Basis.IDENTITY.scaled(Vector3(1, 0.55, 0.9)), Vector3(0.42, 0.12, 0.18)), rock_gray],
-		[GEO.sphere_mesh(0.3, 8), Transform3D(Basis.IDENTITY.scaled(Vector3(1, 0.4, 1)), Vector3(0, 0.4, -0.04)), moss],
+		[GEO.puff_mesh(0.5, 41, 0.62, 0.13, 12, 7),
+				Transform3D(Basis.IDENTITY.scaled(Vector3(1, 1, 0.85)),
+				Vector3(0, 0.12, 0)), rock_gray],
+		[GEO.puff_mesh(0.32, 77, 0.58, 0.15, 10, 6),
+				Transform3D(Basis.IDENTITY.scaled(Vector3(1, 1, 0.9)),
+				Vector3(0.42, 0.02, 0.18)), rock_gray],
+		# LE QUOTE NON SONO A OCCHIO: la calotta della pietra sta a
+		# 0.12 + 0.5*0.62 = 0.43, e una crosta alta 0.42*0.26 = 0.11
+		# centrata a 0.37 ne emerge per quattro centimetri. Piu' in basso
+		# sparisce DENTRO il sasso (provato: a 0.29 non si vedeva
+		# affatto), piu' in alto torna la palla appoggiata di prima.
+		# E sono DUE, sbilenche: una crosta sola esce con un bordo a
+		# ellisse pulita e si legge come un coperchio verde. Il muschio
+		# cresce a chiazze — due macchie di grandezza diversa, spostate
+		# dal centro, con `lump` alto perche' il bordo sia frastagliato.
+		[GEO.puff_mesh(0.26, 113, 0.42, 0.30, 12, 6),
+				Transform3D(Basis.IDENTITY, Vector3(-0.09, 0.37, -0.06)), moss],
+		[GEO.puff_mesh(0.17, 149, 0.46, 0.34, 10, 5),
+				Transform3D(Basis.IDENTITY, Vector3(0.16, 0.35, 0.11)), moss],
 	])
 	var rock_tf: Array[Transform3D] = []
 	for i in 36:
 		var s := rng.randf_range(0.5, 1.3)
 		var rp := _forest_spot(rng, 1.1)
+		# affiora, non sta appoggiato: quanto piu' e' grosso tanto piu' e'
+		# sepolto (la stessa regola dei sassi del prato)
+		rp.y = -0.09 * s - rng.randf_range(0.0, 0.04)
 		rock_tf.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), rp))
 		# il masso occupa terreno: chi cerca dove piantare un albero deve saperlo
 		_rock_spots.append(Vector3(rp.x, s, rp.z))   # y = raggio del masso
@@ -1683,10 +2077,20 @@ func _build_campfire() -> void:
 	root.add_child(_campfire_light)
 
 
+## Quanti funghi da raccolta sono nati in questa partita: è la chiave del
+## loro dado, non una statistica.
+var _funghi_nati := 0
+
+
 # funghi da raccolta: più grandi dei decorativi, il bottino della passeggiata
 func _spawn_pickup_mushroom() -> void:
-	var rng := RandomNumberGenerator.new()
-	rng.randomize()
+	# ⚠️ Veniva da `randomize()`. La chiave è il CONTATORE dei funghi nati in
+	# questa partita: ogni fungo resta diverso dal precedente (che è quello
+	# che serviva), e due corse con la stessa radice fanno nascere gli stessi
+	# funghi nello stesso ordine. Il porcino d'autunno smette di essere un
+	# bivio che nessuna misura può ripetere.
+	_funghi_nati += 1
+	var rng := Dadi.rng(Dadi.AMBIENTE, "fungo:%d" % _funghi_nati)
 	# d'autunno, ogni tanto, il bosco regala un PORCINO: più grande, cappella
 	# bruna senza puntini, e al carretto vale molto di più (vedi Critters)
 	var specie := "fungo"
@@ -1867,7 +2271,19 @@ func take_forest_tree(key: String, index: int) -> bool:
 
 ## Pianta un albero NUOVO nel mondo (la ricrescita del bosco). È un albero
 ## vero, nel gruppo "albero": nasce già tagliabile come tutti gli altri.
-func plant_tree(pos: Vector3, size := 1.0, seed_v := 0) -> Node3D:
+## LA SPECIE SI CONSERVA. `specie` e' "pine" o "broad", e arriva da chi
+## chiama: quando il bosco scambia un'istanza del MultiMesh con un albero
+## vero (a cinque metri, `Woodcutting._materialize_forest`) l'informazione
+## c'e' gia' — `nearest_forest_tree` la restituisce. Buttarla voleva dire
+## che ogni pino diventava una latifoglia sotto gli occhi del giocatore
+## semplicemente passandogli accanto. Il valore di serie e' "broad" perche'
+## l'altro chiamante e' la RICRESCITA del bosco, e li' non c'e' nessun
+## albero di cui rispettare la specie.
+func plant_tree(pos: Vector3, size := 1.0, seed_v := 0, specie := "broad") -> Node3D:
+	if specie == "pine":
+		# gli stessi verdi degli aghi del bosco (chiaro, scuro)
+		return _make_tree(pos, size, Color("5c8f65"), Color("3f7050"),
+				seed_v, "needle")
 	var verde := Color("86c46c").lerp(Color("a8d98a"), randf())
 	var scuro := Color("64a854").lerp(Color("4e8a52"), randf())
 	return _make_tree(pos, size, verde, scuro, seed_v)
@@ -2518,9 +2934,7 @@ func _build_cliff() -> void:
 				Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.9, 1.2)),
 				Vector3(MATH.cliff_x(dz) + rng.randf_range(0.7, 2.6), CLIFF_H, dz)))
 	# anche le margherite della scogliera spariscono sotto la neve d'inverno
-	var cliff_daisies := _scatter_exact(daisy, dts, false)
-	if cliff_daisies:
-		_flower_fields.append(cliff_daisies)
+	_registra_campo(_scatter_exact(daisy, dts, false), dts)
 
 	# la parete è roccia vera: non ci si arrampica. I box seguono il
 	# TANGENTE della parete (vicino alla cascata corre in diagonale)
@@ -2985,12 +3399,8 @@ func _build_east_bank(rng: RandomNumberGenerator) -> void:
 		else:
 			dts.append(tf)
 	# le margherite e la lavanda della riva seguono lo stesso destino invernale
-	var bank_daisies := _scatter_exact(daisy, dts, false)
-	if bank_daisies:
-		_flower_fields.append(bank_daisies)
-	var bank_lav := _scatter_exact(lav, lts, false)
-	if bank_lav:
-		_flower_fields.append(bank_lav)
+	_registra_campo(_scatter_exact(daisy, dts, false), dts)
+	_registra_campo(_scatter_exact(lav, lts, false), lts)
 
 	# due alberi di riva, coi piedi nel prato
 	_make_tree(Vector3(MATH.river_x(9.5) + 6.4, 0, 9.5), 0.95,
@@ -3148,6 +3558,10 @@ func set_season(season: int, snow: float, transition: bool) -> void:
 	_season = season
 	_season_snow = snow
 	_apply_season(transition)
+	# la lettiera dell'autunno: la stagione prende una FORMA, non solo una
+	# tinta — si accumula sotto le chiome (canale G della mappa del terreno)
+	if _ground_mat:
+		_ground_mat.set_shader_parameter("lettiera", 1.0 if season == 2 else 0.0)
 	# le particelle della stagione. Le voci morte si scartano prima: un
 	# ciliegio abbattuto dal taglialegna porta via il suo emettitore di
 	# petali, e la lista non deve puntare a un nodo liberato
@@ -3372,7 +3786,13 @@ func _process(delta: float) -> void:
 			var target := atan2(-vel.x, -vel.z)
 			node.rotation.y = lerp_angle(node.rotation.y, target, 1.0 - exp(-6.0 * delta))
 		# quando schiva, le alette battono più fitte: lo sforzo si vede
-		var flap := sin(_t * float(b.get("flap", 17.0)) + s) \
+		# ⚠️ NON `sin()`: la battuta è ASIMMETRICA — scende in fretta,
+		# risale piano, e in cima si ferma un istante. Un `sin()` puro ha
+		# salita e discesa identiche e nessuna pausa, e «si smaschera in
+		# due cicli». La legge sta in `FarfalleGeo.battito`, e ce n'è UNA
+		# in tutto il gioco: la stessa la trascrive il vertex shader
+		# delle novanta del MultiMesh.
+		var flap := FARF.battito(_t * float(b.get("flap", 17.0)) + s) \
 				* (0.85 + minf(dodge.length() * 0.5, 0.35))
 		(b["wing_l"] as Node3D).rotation.z = flap
 		(b["wing_r"] as Node3D).rotation.z = -flap

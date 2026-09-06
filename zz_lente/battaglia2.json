@@ -1,0 +1,92 @@
+[
+ {
+  "id": "2 Limbico soglia umore",
+  "file": "scenes/npc/Limbico.gd",
+  "da": "\tif umore < -0.35:",
+  "a": "\tif umore < -0.90:  # MUTAZIONE"
+ },
+ {
+  "id": "2 CAPO_MAX 2->5",
+  "file": "scenes/npc/Visitors.gd",
+  "da": "const CAPO_MAX := 2",
+  "a": "const CAPO_MAX := 5"
+ },
+ {
+  "id": "2 SPEGNI 0.35->0.02",
+  "file": "scenes/npc/Gesti.gd",
+  "da": "const SPEGNI := 0.35",
+  "a": "const SPEGNI := 0.02"
+ },
+ {
+  "id": "2 RACCOLTO_VZ 0.030->0.002",
+  "file": "scenes/npc/Gesti.gd",
+  "da": "const RACCOLTO_VZ := 0.030",
+  "a": "const RACCOLTO_VZ := 0.002"
+ },
+ {
+  "id": "2 PUNTO_VZ 0.030->0.0",
+  "file": "scenes/npc/Gesti.gd",
+  "da": "const PUNTO_VZ := 0.030",
+  "a": "const PUNTO_VZ := 0.0"
+ },
+ {
+  "id": "2 LARGO_TESTA 0.55->0.0",
+  "file": "scenes/npc/Gesti.gd",
+  "da": "const LARGO_TESTA := 0.55",
+  "a": "const LARGO_TESTA := 0.0"
+ },
+ {
+  "id": "2 CODA_SCATTO 0.09->0.0",
+  "file": "scenes/npc/Gesti.gd",
+  "da": "const CODA_SCATTO := 0.09",
+  "a": "const CODA_SCATTO := 0.0"
+ },
+ {
+  "id": "2 CODA_EAR 0.45->0.05",
+  "file": "scenes/npc/Gesti.gd",
+  "da": "const CODA_EAR := 0.45",
+  "a": "const CODA_EAR := 0.05"
+ },
+ {
+  "id": "2 GESTO_PASSO 12->0.5",
+  "file": "scenes/npc/Visitors.gd",
+  "da": "const GESTO_PASSO := 12.0",
+  "a": "const GESTO_PASSO := 0.5"
+ },
+ {
+  "id": "2 GESTO_EVITA_RAGGIO 7->100",
+  "file": "scenes/npc/Visitors.gd",
+  "da": "const GESTO_EVITA_RAGGIO := 7.0",
+  "a": "const GESTO_EVITA_RAGGIO := 100.0"
+ },
+ {
+  "id": "2 cessione della testa spenta",
+  "file": "scenes/npc/Visitor.gd",
+  "da": "\treturn frazione * ang * _gs_cede",
+  "a": "\treturn 0.0  # MUTAZIONE"
+ },
+ {
+  "id": "2 RIALZO_EAR 0.34->0.70",
+  "file": "scenes/npc/Gesti.gd",
+  "da": "const RIALZO_EAR := 0.34",
+  "a": "const RIALZO_EAR := 0.70"
+ },
+ {
+  "id": "2 PUNTO_SWAY_VRZ 0.014->0.0",
+  "file": "scenes/npc/Gesti.gd",
+  "da": "const PUNTO_SWAY_VRZ := 0.014",
+  "a": "const PUNTO_SWAY_VRZ := 0.0"
+ },
+ {
+  "id": "2 attesa ah_sei_tu 0.10->1.00",
+  "file": "scenes/npc/Regia.gd",
+  "da": "\"ah_sei_tu\": {\"frase\": \"sollievo\", \"attesa\": 0.10},",
+  "a": "\"ah_sei_tu\": {\"frase\": \"sollievo\", \"attesa\": 1.00},"
+ },
+ {
+  "id": "2 ancora_valida 0.25->50",
+  "file": "scenes/npc/Regia.gd",
+  "da": "return posto.distance_to(casa) > 0.25",
+  "a": "return posto.distance_to(casa) > 50.0"
+ }
+]
