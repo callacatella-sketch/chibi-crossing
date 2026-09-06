@@ -82,7 +82,9 @@ extends RefCounted
 ##    porta dietro per sempre (`village.json`, chiave `"seme"`). Così la
 ##    partita di chi gioca è **sua** — due villaggi non si somigliano — e
 ##    insieme è **ripetibile con sé stessa**, che è quello che serve per
-##    diagnosticare un difetto segnalato da chi gioca.
+##    diagnosticare un difetto segnalato da chi gioca. ⚠️ E si guarda anche
+##    la **copia `.bak`**, con la stessa disciplina di
+##    `BuildSystem._load_village`: vedi `_radice_dal_salvataggio()`.
 ## 3. se non c'è nessuna delle due (partita nuova, o salvataggio anteriore a
 ##    questa versione), se ne conia una con entropia VERA — ed è **l'unico
 ##    posto autorizzato del progetto** a usarla — e la si salva. Il villaggio
@@ -162,17 +164,77 @@ static func radice() -> int:
 ## Il seme scritto nel villaggio, o `null`. Legge il file da sé — è il prezzo
 ## di poter rispondere prima che BuildSystem esista, ed è una lettura sola
 ## per processo (dopo, `_posata` è vera).
+##
+## ⚠️ CONOSCE LA COPIA `.bak`, e con la STESSA disciplina di
+## `BuildSystem._load_village`: **il file che MANCA è un villaggio NUOVO** (si
+## conia), **il ripiego vale SOLO se il file c'è ed è illeggibile**. Senza,
+## andava perduto in silenzio proprio lo scenario per cui la scrittura è
+## blindata — il `village.json` troncato a metà: di là `_load_village`
+## recuperava il villaggio dalla copia e stampava «ripristinato dalla copia
+## .bak», di qua il parse falliva, si tornava `null` e `radice()` **coniava**.
+## Il villaggio era lo stesso, la sua radice no: il seme con cui un giocatore
+## aveva riprodotto un difetto era perduto **il giorno stesso in cui il disco
+## aveva fatto i capricci**, che è la ragione n. 2 di «DA DOVE VIENE LA
+## RADICE» smontata nell'unico caso in cui serviva.
+##
+## E la distinzione fra «manca» e «è rotto» non è pignoleria copiata per
+## simmetria: «Nuovo villaggio» archivia il `.json` E il `.bak` proprio
+## perché una copia rimasta indietro RESUSCITA il villaggio vecchio — di là
+## erano case, residenti e noccioline, di qua sarebbe un numero solo, e
+## quindi ancora più muto.
 static func _radice_dal_salvataggio() -> Variant:
 	var p := percorso_villaggio()
 	if not FileAccess.file_exists(p):
 		return null
-	var f := FileAccess.open(p, FileAccess.READ)
+	var dati: Variant = leggi_salvataggio(p)
+	if dati != null:
+		# il file c'è e si legge: la sua parola è definitiva, anche quando
+		# tace. Un salvataggio senza `"seme"` è anteriore a questa versione —
+		# si conia e al primo salvataggio la radice ci entra dentro (ramo 3),
+		# e andarla a cercare nel `.bak` vorrebbe dire ripescare lo stato di
+		# un attimo fa dello STESSO villaggio per una chiave che non ha.
+		return _seme_di(dati)
+	var s: Variant = _seme_di(leggi_salvataggio(p + ".bak"))
+	if s != null:
+		# si dice, come lo dice BuildSystem: sono due fatti diversi (di là il
+		# villaggio, di qua la sua radice) e chi diagnostica li vuole
+		# tutti e due.
+		printerr("Dadi: «%s» illeggibile — la radice viene dalla copia .bak" % p)
+	return s
+
+
+## Il salvataggio letto e interpretato: il Dictionary, oppure `null` se il
+## file manca **o** non è JSON valido. I due casi qui si fondono apposta —
+## chi ha bisogno di distinguerli (`_radice_dal_salvataggio`) ha già chiesto
+## `FileAccess.file_exists` prima, che è l'unico ordine in cui la distinzione
+## si legge.
+##
+## Sta in `Dadi` per la stessa ragione di `percorso_villaggio()`: il
+## salvataggio va letto PRIMA che BuildSystem esista, e due letture scritte a
+## mano divergono al primo che ne ritocca una.
+## (`BuildSystem._leggi_salvataggio` fa oggi lo stesso identico gesto: chi
+## passa di lì lo sostituisca con questa chiamata.)
+static func leggi_salvataggio(percorso: String) -> Variant:
+	if not FileAccess.file_exists(percorso):
+		return null
+	var f := FileAccess.open(percorso, FileAccess.READ)
 	if f == null:
 		return null
 	var d: Variant = JSON.parse_string(f.get_as_text())
 	f.close()
-	if d is Dictionary and (d as Dictionary).has("seme"):
-		var t := str((d as Dictionary)["seme"])
+	return d if d is Dictionary else null
+
+
+## La radice dentro un salvataggio già letto, o `null`. È una funzione a sé
+## perché ha DUE chiamanti (il file vero e la sua copia): ricopiarla nel
+## secondo era il modo di farli divergere il giorno che la chiave cambia.
+##
+## ⚠️ Si rilegge da TESTO: la radice viaggia come stringa perché il JSON
+## restituisce ogni numero come float, e un intero ci perdeva undici bit
+## (stessa trappola di `Animo._rng.state`).
+static func _seme_di(dati: Variant) -> Variant:
+	if dati is Dictionary and (dati as Dictionary).has("seme"):
+		var t := str((dati as Dictionary)["seme"])
 		if t.is_valid_int():
 			return int(t)
 	return null

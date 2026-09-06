@@ -138,17 +138,30 @@ signal world_built
 
 
 func _ready() -> void:
-	# ⚠️ QUI E NON IN `BuildSystem`, e la ragione è l'ORDINE DEI NODI.
-	# In `MainLevel.tscn` CozyWorld viene PRIMA di BuildSystem, quindi il
-	# mondo si generava già — chiedendo al flusso globale in trentasette
-	# punti — prima che qualcuno gli avesse dato una posizione. La prima
-	# stesura di questa cura seminava solo di là, e il banco delle repliche
-	# ha continuato a dire di no: è stato lui a trovarlo, non una rilettura.
+	# ⚠️ L'UNICO POSTO DEL GIOCO CHE DÀ UNA POSIZIONE AL FLUSSO GLOBALE, e
+	# deve restare uno solo. Sta qui perché è il PRIMO che lo consuma: in
+	# `MainLevel.tscn` CozyWorld viene prima di BuildSystem, il mondo si
+	# generava chiedendo al globale in trentasette punti, e prima di questa
+	# riga nessuno gli aveva mai dato una posizione. (La prima stesura della
+	# cura seminava solo in `BuildSystem` e il banco delle repliche ha
+	# continuato a dire di no: è stato lui a trovarlo, non una rilettura.)
 	#
-	# Seminare due volte non è un doppione: qui si fissa il mondo, e in
-	# `BuildSystem` si rifissa la posizione DOPO che il mondo è nato — così
-	# quello che viene dopo non dipende da quanti tiri ha fatto la
-	# generazione.
+	# ⚠️ E SEMINARE DUE VOLTE ERA UN DOPPIONE CHE FACEVA DANNO, col commento
+	# che prometteva il contrario di quello che succedeva. Questa funzione è
+	# una COROUTINE: semina, costruisce l'erba, e poi cede il controllo per
+	# sette fotogrammi. Il `_ready` di BuildSystem e il suo `_load_village`
+	# differito cadono tutti e due **dentro quel primo `await`**, cioè fra
+	# `_build_grass()` e tutto il resto: le loro riseminate rimettevano la
+	# posizione IN MEZZO alla generazione, e sassi, nuvole, polline, bosco e
+	# fiori ripartivano dalla stessa testa di sequenza che l'erba aveva
+	# appena consumato. Non era «quel che viene dopo non dipende dalla
+	# generazione»: era la generazione che dipendeva da quante volte veniva
+	# interrotta. Sono state tolte tutte e due.
+	#
+	# Residuo dichiarato: prima di noi girano i tre autoload (Settings, Sfx,
+	# Quality). Un tiro al globale fatto lì è ancora dove l'ha lasciato il
+	# motore — «la più presto possibile» è questo `_ready`, non l'avvio del
+	# processo.
 	Dadi.semina_globale()
 	add_to_group("cozy_world")
 	add_to_group("season_listener")

@@ -113,7 +113,29 @@ def una_replica(godot, progetto, script, seme, leve, extra_env, cartella, timeou
     # fanno passare un numero diverso di domande per frame e mandano in giro
     # corpi diversi. È non-determinismo che nessun seme può togliere. Un banco
     # misura un COMPORTAMENTO, non dei millisecondi.
-    env.setdefault("CHIBI_ROTTE_CONTO", "6")
+    #
+    # ⚠️ E IL NUMERO È **UNO**, DERIVATO — prima era un 6 senza provenienza.
+    # Il tetto vero è `BuildSystem.BUDGET_ROTTE_US = 1500` µs, una domanda
+    # cara è misurata a ~1,5 ms, e il cancello si guarda PRIMA di spendere:
+    # la prima passa sempre, la seconda trova il conto già pieno. **Una
+    # domanda cara per frame**, ed è quello che `tools/prova_fiume.gd` ha
+    # visto dal vivo nel caso peggiore possibile — ventotto vicini che
+    # chiedono nello stesso identico fotogramma, serviti in ventotto
+    # fotogrammi (0,47 s).
+    #
+    # Uno è anche l'unico numero che OGNI macchina concede: su una più
+    # veloce una ricerca costa meno e ne passano due o tre, su una più lenta
+    # una sola — il pavimento è uno, e un banco che ne chiede sei misura una
+    # macchina che non esiste. Col 6, la sera del falò sarebbero entrati
+    # nove millisecondi di ricerca in un fotogramma solo, cioè corpi che
+    # ricevono la strada sei volte prima di quanto il gioco la dia mai.
+    #
+    # E non strozza il caso comune: `_turno_domande` si alza DOPO i quattro
+    # cancelli, quindi conta solo le domande care (in un villaggio normale
+    # 0,57 al secondo). Chi trova il turno occupato non perde la sua strada:
+    # cammina dritto per un fotogramma — quattro centimetri — e la
+    # ripropone (`Visitor._rotta_attesa`).
+    env.setdefault("CHIBI_ROTTE_CONTO", "1")
     env["CHIBI_LEVE"] = ",".join("%s:off" % l for l in leve) if leve else ""
     # ⚠️ IL VILLAGGIO DI QUESTA REPLICA, E DI NESSUN'ALTRA — e la prima stesura
     # indicizzava solo sul SEME, cioè mentiva. Le due corse del controllo hanno

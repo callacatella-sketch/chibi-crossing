@@ -473,6 +473,50 @@ func compagno_di(nome: String) -> String:
 	return ""
 
 
+## CON CHI STAVA IERI, dalla cache giornaliera. `""` se con nessuno.
+##
+## ⚠️ **E NON PASSA DA `le_coppie()`, che è la stessa funzione fatta al
+## momento.** Quella ricostruisce il predicato da capo: per ogni residente un
+## `il_piu_caro()` su tutti gli altri, cioè 156 `conto()` con tredici
+## abitanti, e ognuno riscorre l'intero libro mastro. Misurato altrove in
+## questo file: **~233 ms per chiamata**, ed è il motivo per cui il giro
+## degli affetti gira **una volta per giornata di gioco** (quattro minuti
+## reali) e non più spesso. Un chiamante che vive dentro un `_process` — il
+## tampone sociale del `Limbico`, che chiede «chi gli è accanto adesso» a
+## ogni percetto — se la chiedesse ogni volta pianterebbe il fotogramma.
+##
+## Qui invece si legge `_coppie_ieri`, che è la **fotografia** che
+## `giro_del_giorno()` ha già pagato e ha messo da parte (ed è persistita:
+## `save_extra`). Al massimo è vecchia di una giornata di gioco, ed è
+## esattamente quello che serve a chi chiede «con chi sta»: una coppia è
+## un'abitudine, non un fatto del fotogramma.
+##
+## ⚠️ **L'ANAGRAFE QUI È IL NOME DEL DNA**, non l'etichetta. Tutto questo
+## libro mastro è indicizzato per nome (`_tutti()` legge `dna.name`), e le due
+## anagrafi del villaggio si somigliano abbastanza da non fare rumore quando
+## si sbagliano: chi chiama con una label si prende un `""` e crede che quel
+## vicino sia solo.
+##
+## Degrado dichiarato: prima del primo `giro_del_giorno()` — villaggio appena
+## caricato senza salvataggio, banchi, diorama — l'elenco è vuoto e la
+## risposta è `""`. Va verso «nessun compagno», cioè verso il gioco che c'era.
+func compagno_di_ieri(nome: String) -> String:
+	if nome == "":
+		return ""
+	for c in _coppie_ieri:
+		# ⚠️ e la riga si guarda PRIMA di indicizzarla: `_coppie_ieri` torna
+		# dal JSON (`load_extra`), e un salvataggio storto darebbe qui un
+		# errore a runtime — che nel runner non fa fallire niente e lascia la
+		# suite verde con la funzione interrotta a metà.
+		if typeof(c) != TYPE_ARRAY or (c as Array).size() < 2:
+			continue
+		if str((c as Array)[0]) == nome:
+			return str((c as Array)[1])
+		if str((c as Array)[1]) == nome:
+			return str((c as Array)[0])
+	return ""
+
+
 func _tutti() -> Array:
 	_cabla()
 	var out: Array = []

@@ -22,7 +22,11 @@ extends SceneTree
 ##     esiste nessuna finestra dentro cui un secondo possa arrivare.
 ##  2. **il FATTO si accende davvero** — quante volte, e su quanti residenti.
 ##     Zero vorrebbe dire codice morto in partita con la suite verde, che e'
-##     il guasto che questo progetto ha gia' pagato tre volte.
+##     il guasto che questo progetto ha gia' pagato tre volte. Accanto, il
+##     suo **CONTROFATTUALE**: quante volte si SAREBBE acceso, che a leva
+##     spenta e' l'unico numero che dica qualcosa (il fatto, li', e' zero
+##     per costruzione). Le due frazioni hanno lo stesso denominatore e per
+##     questo si stampano attaccate.
 ##  3. **IL TREMOLIO**: flip/min del fatto contro cambi d'azione/min. Il
 ##     fatto dev'essere piu' FERMO della decisione che alimenta, o
 ##     reinietta il rumore che il dado congelato ha tolto. Si conta anche il
@@ -46,10 +50,18 @@ extends SceneTree
 ##     posti, spariscono le distanze che raccontano qualcosa.
 ##  9. **le righe che il registro delle cricche incassa** per giornata.
 ##
-## ⚠️ **L'ORACOLO E' INDIPENDENTE**: i grappoli e le coppie si contano dalle
-## POSIZIONI DEI CORPI, campionate dal banco, mai chiedendo a `Cricche` ne'
-## al fatto stesso. Chiedere al giudice se e' d'accordo con se' stesso e'
-## l'errore che `tools/misura_cammino.gd` esiste per non commettere.
+## ⚠️ **L'ORACOLO DELLA GEOMETRIA E' INDIPENDENTE**: i grappoli e le coppie
+## si contano dalle POSIZIONI DEI CORPI, campionate dal banco, mai chiedendo
+## a `Cricche` ne' al fatto stesso. Chiedere al giudice se e' d'accordo con
+## se' stesso e' l'errore che `tools/misura_cammino.gd` esiste per non
+## commettere.
+##
+## ⚠️ E NON E' L'ORACOLO DELL'ABLAZIONE del numero 2, che invece **al giudice
+## lo chiede apposta**: la domanda «quale panca avresti scelto a leva accesa»
+## ha una risposta sola, e rifarla qui vorrebbe dire ricopiare i quattro
+## anelli di `_panchina_per` in un banco — la tabella gemella che diverge al
+## primo che tocca l'ordine delle ancore. I due nomi si somigliano e le due
+## regole sono opposte: se ne parla in due punti diversi apposta.
 ##
 ## ⚠️ **E NON SI TOCCA IL `village.json` DELL'AUTORE**:
 ## `set_persist_for_debug(false)` prima di posare qualunque cosa, e
@@ -92,17 +104,29 @@ var _scavalchi_visti := 0    # su quante valutazioni col bit acceso
 var _scarti := []            # di quanto muove il punteggio del riposo
 var _coppie_sedute := 0.0    # secondi-coppia
 
-## ⚠️ L'ORACOLO DELL'ABLAZIONE, e per un pezzo non l'ha letto NESSUNO.
-## `Visitors` calcola il fatto «posto accanto» SEMPRE e lo pubblica in
-## `r["insieme_osservato"]`, poi lo neutralizza col bit se la leva è spenta:
-## è la forma di `debug_occlusione`, «il ramo spento non salta il lavoro».
-## Ma senza un lettore quella spesa non compra niente — e il referto, a leva
-## spenta, non sa distinguere «il fatto non si è mai acceso» da «si sarebbe
-## acceso e la leva l'ha tolto di mezzo», che è ESATTAMENTE la domanda per
-## cui si paga di calcolarlo lo stesso. È la modalità di guasto che
-## `Leve.gd` nomina da sé («una leva senza lettore è una promessa vuota»),
-## applicata all'oracolo invece che alla leva.
-var _oss_visti := 0
+## ⚠️ L'ORACOLO DELL'ABLAZIONE — «quante volte il fatto SI SAREBBE ACCESO»,
+## che a leva spenta è l'unica domanda per cui vale la pena misurare.
+##
+## Senza, il referto non distingue «il fatto non si è mai acceso» da «si
+## sarebbe acceso e la leva l'ha tolto di mezzo» — e sono le due conclusioni
+## opposte. `Visitors._luoghi_del_piano` risponde in `r["insieme_osservato"]`
+## rifacendo la scelta della panca **come se la leva fosse accesa**, e paga
+## quella seconda scansione solo qui, su un banco, mai in partita.
+##
+## ⚠️ E PER UN PEZZO QUEL CAMPO HA MENTITO, con questo file a stamparne la
+## conclusione rovesciata. Portava il valore ABLATO — «la panca che avrei
+## scelto comunque aveva per caso qualcuno accanto» — perché a saltare il
+## lavoro era `_seduta_da`, un piano sopra il punto in cui il commento di là
+## prometteva «il ramo spento non salta il lavoro». Chi leggeva questo
+## referto concludeva che il meccanismo non avrebbe avuto occasione di
+## accendersi, mentre l'occasione c'era.
+##
+## ⚠️ **IL DENOMINATORE È UNO SOLO, ed è `_fatto_camp`.** Prima l'oracolo
+## contava in un ciclo suo, che non aveva la guardia sul nodo valido: due
+## percentuali stampate a tre righe di distanza, presentate come
+## confrontabili, avevano denominatori diversi. Adesso i due contatori
+## salgono nella stessa riga dello stesso ciclo, e la divergenza è
+## impossibile per costruzione invece che per disciplina.
 var _oss_accesi := 0
 var _coppie_distinte := {}
 var _grappolo_max := 0
@@ -399,11 +423,6 @@ func _ogni_frame(res: Array, dt: float) -> void:
 ## appaiate, che costano una chiamata al C++ per residente.
 func _campiona(res: Array) -> void:
 	var bit := _bit_insieme()
-	# l'oracolo: quante volte il fatto SAREBBE stato vero, leva o non leva
-	for r in res:
-		_oss_visti += 1
-		if bool(r.get("insieme_osservato", false)):
-			_oss_accesi += 1
 	var seduti: Array = []
 	# ⚠️ **IL RITO SI RICONOSCE DALLA FASE, non dallo stato.** La prima
 	# stesura guardava chi fosse in `r_fire`, e non bastava: durante la fase
@@ -432,10 +451,18 @@ func _campiona(res: Array) -> void:
 			continue
 		var lab := str(d.get("label", ""))
 		_campioni += 1
-		# --- il fatto
+		# --- il fatto, e il suo CONTROFATTUALE, sullo stesso campione
+		# ⚠️ Le due righe stanno insieme apposta: `_fatto_camp` e' il
+		# denominatore di TUTTI E DUE i numeri, e prima l'oracolo aveva un
+		# ciclo suo senza la guardia sul nodo valido tre righe piu' su —
+		# due percentuali confrontate nel referto e contate su insiemi
+		# diversi. Un denominatore per due frazioni, o non sono frazioni
+		# della stessa cosa.
 		if bit != 0 and (int(d.get("fatti", 0)) & bit) != 0:
 			_fatto_acceso += 1
 			_fatto_chi[lab] = int(_fatto_chi[lab]) + 1
+		if bool(d.get("insieme_osservato", false)):
+			_oss_accesi += 1
 		_fatto_camp += 1
 		# --- l'argmax, e IL CONFRONTO APPAIATO
 		if _ecs != null and d.has("ecs"):
@@ -585,6 +612,21 @@ func _referto(res: Array) -> void:
 	print("\n2. IL FATTO — acceso nel %.2f%% dei campioni (%d su %d), su %d residenti di %d"
 			% [100.0 * float(_fatto_acceso) / maxf(1.0, float(_fatto_camp)),
 			_fatto_acceso, _fatto_camp, chi, res.size()])
+	# ⚠️ L'ORACOLO STA QUI, appiccicato al fatto, e non piu' in fondo alla
+	# sezione 7 fra i grappoli: le due frazioni hanno lo STESSO
+	# denominatore, e stampate a settanta righe di distanza si leggevano
+	# come due misure indipendenti. A leva accesa i due numeri coincidono
+	# per costruzione (la panca preferita E' quella scelta) — se divergono,
+	# a divergere e' il cablaggio, non il villaggio.
+	if _fatto_camp > 0:
+		print("   l'ORACOLO — si SAREBBE acceso nel %.2f%% degli STESSI campioni"
+				% (100.0 * float(_oss_accesi) / float(_fatto_camp))
+				+ " (%d su %d)" % [_oss_accesi, _fatto_camp])
+		print("   cioe': con la leva accesa la panca preferita da questi corpi"
+				+ " aveva qualcuno accanto cosi' spesso.  (leve spente: %s)"
+				% Leve.condizione())
+		_misura["insieme_osservato_pct"] = (100.0 * float(_oss_accesi)
+				/ float(_fatto_camp))
 
 	# 3
 	var sf := 0; var sn := 0; var sa := 0
@@ -636,12 +678,6 @@ func _referto(res: Array) -> void:
 	print("\n7. IL GRAPPOLO — massimo %d seduti vicini · campioni con tre o piu': %d"
 			% [_grappolo_max, _camp_tre])
 	_misura["grappolo_max"] = float(_grappolo_max)
-	if _oss_visti > 0:
-		print("   l'ORACOLO — il fatto SAREBBE stato vero nel %.2f%% dei campioni"
-				% (100.0 * float(_oss_accesi) / float(_oss_visti))
-				+ "  (leve spente: %s)" % Leve.condizione())
-		_misura["insieme_osservato_pct"] = (100.0 * float(_oss_accesi)
-				/ float(_oss_visti))
 	_misura["coppie_sedute_distinte"] = float(_coppie_distinte.size())
 
 	# 8
