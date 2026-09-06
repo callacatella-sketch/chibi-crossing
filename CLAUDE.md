@@ -5056,6 +5056,236 @@ sembrava non essere mai esistito. Un provino che chiede al codice curato di
 rifare il difetto misura la cura. La forza di ieri è una **misura**, e sta
 scritta nel file con la sua provenienza.
 
+## IL TAMPONE SOCIALE — l'attaccamento come guadagno della paura
+
+Il gioco aveva il LEGAME (`Affetti.compagno_di`) e aveva la PAURA
+(`Limbico.percepisci`), e i due non si toccavano mai: l'allarme era
+modulato dal carattere e dallo stato, **mai da chi è presente**. Adesso la
+presenza della figura di attaccamento smorza l'allarme — ed è uno degli
+effetti meglio misurati dell'affettività vera, con una **firma** precisa
+che è anche l'unica cosa che questo sistema esiste per riprodurre:
+
+1. **è un'INTERAZIONE, non una sottrazione**: lo smorzamento è più grande
+   nei soggetti più REATTIVI — chi non si allarmava non ha niente da farsi
+   smorzare;
+2. **è SPECIFICO della figura di attaccamento**, non della compagnia
+   generica: un vicino qualunque a mezzo metro non tampona niente.
+
+### LA FORMA: si divide il GUADAGNO, non si sottrae dal risultato
+
+```gdscript
+if not is_finite(conforto):
+    conforto = 0.0
+conforto = clampf(conforto, 0.0, 1.0)
+var guadagno: float = reattivita / (1.0 + conforto * TAMPONE_SOCIALE)
+```
+
+**E la firma 1 viene GRATIS dalla struttura, senza tararla.** `reattivita`
+è per definizione il guadagno della paura («la codardia lo alza, la grinta
+lo abbassa»): dividendolo, lo smorzamento ASSOLUTO resta proporzionale a
+quanto quel corpo è reattivo. Sottrarre sarebbe stato un BONUS — lo stesso
+sollievo per tutti, che chi è calmo perde sotto zero e chi è terrorizzato
+non sente.
+
+**E il bit-identico a `conforto = 0` è una PROPRIETÀ, non una speranza:**
+`0.0 * K` è `+0.0`, `1.0 + 0.0` è `1.0` esatto, e `x / 1.0` è esatto in
+IEEE-754 (la divisione è correttamente arrotondata e il risultato è
+rappresentabile). L'albero delle operazioni si riduce **letteralmente** a
+quello di prima. Perciò le guardie pretendono `==` e **mai** una
+tolleranza. MISURATO: a conforto omesso / 0.0 / NaN / −5.0 la forza esce
+`0.87500000000000000` in tutti e quattro i casi; a conforto 1.0 vale
+`0.43750000000000000`, rapporto **2,000000 esatto**.
+
+### LE REGOLE CHE NON SI NEGOZIANO
+
+1. **IL PARAMETRO PUÒ SOLO ABBASSARE, e zero è il neutro ESATTO.** Farne un
+   malus quando si è soli sarebbe punire chi sta per conto suo, e la terza
+   domanda della REGOLA SACRA cadrebbe. Si evita **per costruzione**: il
+   divisore vale `1 + conforto·K` con `conforto` stretto in [0, 1], quindi
+   sta in [1, 1+K] e non scende mai sotto uno.
+   ⚠️ **E `is_finite` NON BASTA** — è la nona trappola, trovata dalla
+   revisione e non prevista da nessuno: un conforto **negativo e finito**
+   passa `is_finite`, fa scendere il divisore sotto 1, e la divisione
+   **AMPLIFICA** l'allarme. Il malus rientrerebbe dall'aritmetica invece che
+   dal design. Il `clampf` a [0,1] è la garanzia, non l'igiene.
+   ⚠️ E l'ORDINE conta: MISURATO che `clampf(NAN, 0, 1)` restituisce `nan`
+   (le due comparazioni sono false e la funzione ricade sul valore), e
+   `allarme` alimenta `arousal`, che è PERSISTITO. Il cancello del NaN sta
+   **prima** del clamp.
+2. **NON SI NOMINA MAI.** Nessun toast, nessuna parola, nessun simbolo,
+   nessuna posa nuova: `percepisci` torna `reazione = "nulla"`, che è il
+   ramo su cui il gioco tace da sempre. **L'unica uscita è un sussulto che
+   non parte.**
+3. **NIENTE CAMPI NUOVI, NIENTE CHIAVI DI SALVATAGGIO.** Il conforto si
+   ricava ogni volta da dati che esistono già; `ultimo_sussulto` porta una
+   chiave in più (`conforto`) e non è persistito — verificati tutti e
+   tredici i suoi lettori: nessuno cicla le chiavi né confronta il
+   dizionario intero.
+4. **IL RAMO `calore` NON SI TOCCA.** Il cuoricino di chi ti vuole bene non
+   si spegne perché il suo compagno gli è accanto: sarebbe il capitolo «LA
+   GIOIA NON PORTA LA FACCIA DELLA PAURA» rifatto al contrario, e la cosa
+   più fredda che questo sistema possa fare. È chiuso strutturalmente (il
+   divisore tocca `reattivita`, e `calore = maxf(0.0, carica)` è la riga di
+   sempre), e c'è comunque il cancello.
+5. **MOCHI NON ENTRA FRA I CONFORTI**, e la ragione è la più bella di tutta
+   la fase: **il giocatore è già la figura di attaccamento di questo gioco,
+   ma sull'ALTRA strada.** Sulla strada veloce lui è lo STIMOLO
+   (`percepisci("giocatore", …)`); sulla strada lenta, 0,4 s dopo, è il
+   CONFORTO — è letteralmente «ah… sei tu». Non si può essere l'allarme e
+   il tampone dentro lo stesso evento, e il tampone sociale si infila
+   esattamente nel buco che restava: il conforto di *qualcun altro*,
+   nell'istante in cui quello del giocatore non è ancora disponibile.
+6. **IL RAFFREDDAMENTO RESTA DOV'È** (`_sussulto_cd[label] = 9.0`, fuori dal
+   `match`): un sussulto tamponato brucia i suoi nove secondi come se fosse
+   partito. Spostarlo dentro il ramo `trasalisce` per «recuperare» i
+   sussulti soppressi farebbe della meccanica un moltiplicatore di percetti
+   sui vicini in coppia — la classifica sociale dalla porta di servizio.
+7. **LA CLASSE SI DICE «accompagnato ADESSO / solo adesso»**, mai «con
+   compagno / senza compagno»: la seconda è una proprietà della persona, la
+   prima è una proprietà dell'istante.
+
+### IL CABLAGGIO, e le due trappole che ci vivevano
+
+`Visitors._conforto_del_compagno()`, dentro `_tick_sussulti`, dopo il
+cancello dei 3,2 m e dopo il raffreddamento. Il raggio è **`VICINI`
+(1,9 m)** — che esiste già ed è *letteralmente la stessa domanda*: è la
+distanza con cui `_chats` decide che due chibi sono insieme e con cui le
+Cricche incassano la co-presenza. E non è stretto: i tre sgabelli del
+Gazebo stanno a 0,92–1,00 m l'uno dall'altro, cioè il tampone si accende
+precisamente nella configurazione che il giocatore legge come «stanno
+insieme».
+
+- ⚠️ **LE DUE ANAGRAFI.** `Affetti` è indicizzato per NOME del DNA,
+  `_tick_sussulti` ha la LABEL. E `_nome_da_label` ha un **ripiego
+  silenzioso** (`return label`): sbagliando verso, il conforto sarebbe
+  stato 0 per ogni residente **per sempre, senza un errore**, e la
+  meccanica sarebbe stata spenta con la suite verde — perché zero è anche
+  il comportamento legittimo di chi non ha compagno. La mappa si costruisce
+  perciò nel verso **NOME → ETICHETTA** da `_residents` (che ha tutte e due
+  le colonne), un nome che tocca a due residenti si marca ambiguo e si
+  scarta, e **il banco pretende un conforto > 0 in almeno un caso**: una
+  guardia che può solo confermare lo zero non è una guardia.
+- ⚠️ **LA CACHE.** `le_coppie()` costa 156 `conto()` e ~233 ms per
+  chiamata: non è chiamabile per percetto. Si legge `_coppie_ieri`
+  (persistita, riempita una volta al giorno da `giro_del_giorno`) da una
+  porta pubblica, `Affetti.compagno_di_ieri()`.
+- **LE VALVOLE sono UNA chiamata a `Percezione.puo_vedere`**, non tre `if`
+  riscritti a mano: copre `is_hidden()`, `dorme()` e `in_scena()`, e chi la
+  usa eredita la quarta il giorno che qualcuno la aggiunge. Serve davvero:
+  `resident_sleep()` non sposta il corpo, quindi di notte due sposati coi
+  letti vicini si tamponerebbero con due corpi che il giocatore non vede.
+  ⚠️ E si passa la posizione di **CHI PERCEPISCE**, non quella del
+  compagno: altrimenti la distanza è zero per costruzione e delle valvole
+  ne vive una in meno — il difetto già pagato nel capitolo delle Deduzioni.
+- **L'ATTENUAZIONE HA LO ZERO DURO**: `clampf(1.0 - d / VICINI, 0.0, 1.0)`.
+  ⚠️ Un `exp(-d/R)` non vale zero a nessuna distanza finita: il divisore
+  sarebbe `1 + ε` per **tutto il villaggio** e il bit-identico salterebbe
+  per tutti e per sempre, in silenzio.
+- **IL DEGRADO VA SEMPRE VERSO IL GIOCO DI OGGI**: niente nodo Affetti
+  (bosco, prologo, diorama, banchi), nessuna coppia, compagno partito,
+  anagrafe ambigua, `Visitors` fuori dall'albero → conforto 0.0.
+
+### I NUMERI, e il cancello d'arresto
+
+MISURATO con [`tools/misura_tampone.gd`](tools/misura_tampone.gd) nel
+MainLevel vero, coppie costruite dal banco (660 s):
+
+| il cancello | esito |
+|---|---|
+| chi sta da solo cambia | **0 su 80 percetti** |
+| percetti con la forza ALZATA (il malus) | **0** |
+| cuoricini comparsi o spariti | **0** |
+| reazioni non-nulla | 108, contro **120** senza il tampone |
+| pose nuove nel vocabolario | **nessuna** |
+| il salvataggio dell'autore | **intatto** |
+
+E le due firme:
+
+| | |
+|---|---|
+| percetti col COMPAGNO visibile | 102, tamponati 102 |
+| percetti con un **NON-compagno** e nessun compagno | **153, tamponati ZERO** |
+| firma 1 (calo **sullo stimolo**) | **+1,38×** dal terzile basso all'alto |
+| …contro una reattività che cresce di | 1,52× |
+| il calo **relativo** fra le fasce | 29,6 · 29,6 · **29,8 %** |
+
+**La riga che convince non è un cancello: è il calo RELATIVO costante.**
+Vale `1 − 1/(1+c·K)`, una quantità che **non contiene la reattività** — cioè
+è la prova aritmetica, non l'affermazione, che il conforto divide il
+*guadagno* e non sottrae dal *risultato*.
+
+**Il tetto del `clampf`, temuto e misurato:** dei percetti tamponati l'86%
+sta sotto il tetto (smorzamento pieno), il 13% lo scavalla, e **l'1% (un
+percetto su 105) è saturo da tutte e due le parti** — cioè dove il
+tamponamento non può fare niente. Il tetto è PRE-ESISTENTE al tampone, e
+non si cura cambiando la forma decisa dall'autore.
+
+**Il prezzo, che è vero e va detto:** 12 sussulti soppressi su 109 (11%), e
+`_riconoscimenti` si scrive SOLO dentro il ramo `trasalisce` — quindi ogni
+sussulto tamponato è anche un **«ah… sei tu» che non succede**. La
+meccanica paga in contenuto visibile, e il suo unico guadagno visibile è un
+saluto felice al posto di un «…».
+
+### ⚠️ IL BANCO STAVA PER DICHIARARE ROVESCIATA LA FIRMA CHE IL CODICE HA
+
+Alla prima corsa il calo cresceva di **0,45×** dal terzile meno reattivo al
+più reattivo, cioè il contrario di quello che il social buffering fa. Non
+era la meccanica: **il calo NUDO non è confrontabile fra terzili**, perché
+vale `stimolo · reattività · f(conforto)` e i terzili non ricevono lo
+stesso percetto. MISURATO sui numeri della corsa stessa: lo stimolo del
+terzile basso era **3,73 volte** quello dell'alto — un confondente che
+schiaccia il segnale e si legge esattamente come una smentita del
+meccanismo. Il metro riporta adesso il calo **normalizzato sullo stimolo**,
+che è la grandezza di cui la firma 1 parla.
+
+*È la stessa famiglia dell'errore che il capitolo delle Cricche ha già
+dovuto ritrattare: chiamare segnale un mezzo punto di rumore. Qui era il
+contrario — chiamare smentita un confondente — e avrebbe portato a curare
+del codice sano.*
+
+### E il banco sa RIFIUTARE una domanda mal posta
+
+Con `CHIBI_COPPIE=0` il metro si ferma e lo dichiara: *«`_coppie_ieri` è
+vuota, quindi il conforto non può essere diverso da zero da nessuna parte e
+ogni numero che segue direbbe "la meccanica non esiste" quando invece è la
+SCENA a non esistere»*. È la lezione di `prova_villaggio_gesti` («un
+villaggio appena nato non gesticola, e non è un guasto») portata un piano
+più in là.
+
+### Come si verifica
+
+```
+Godot --headless --path . --script res://tests/test_runner.gd
+CHIBI_FORMA=420 CHIBI_VIVO=240 CHIBI_SEME=7 Godot --headless --path . \
+    --fixed-fps 60 --script res://tools/misura_tampone.gd
+```
+
+La guardia è [`tests/cases/test_tampone.gd`](tests/cases/test_tampone.gd),
+**sedici mutazioni annotate una per una col numero di asserzioni rosse** —
+e una di quelle mutazioni è la **versione vietata** della formula
+(`clampf(prodotto, 0, 1) / D`, cioè dividere DOPO il tetto): il caso 7 la
+fa arrossire. La forma decisa dall'autore non è scritta in un commento, è
+un'asserzione che si rompe.
+
+### I RESIDUI, dichiarati
+
+- **Le coppie, in partita, oggi non nascono.** Sul salvataggio vero
+  (giorno 22) il libro mastro ha 1030 righe **tutte `chiacchiera`** e zero
+  gesti veri: il tampone è quindi cablato e provato, ma **non ancora visto
+  in un villaggio dove una coppia sia nata da sola**. Metà delle porte era
+  chiusa dalle due anagrafi della Voce (curato); se questo basti è una
+  misura ancora da fare, e va fatta su un villaggio VISSUTO — i gesti veri
+  li provoca il giocatore (assegnare la guardia, far cucinare, portare una
+  voce), non il tempo che passa.
+- **Il costo per fotogramma non ha un numero.** La cascata di uscite
+  anticipate esce alla terza riga quando non ci sono coppie, e i percetti
+  sono rari (~0,3/s misurati altrove), ma «dovrebbe costare poco» non è una
+  misura.
+- **Il tampone non si guarda.** L'unica uscita è un'assenza, e un'assenza
+  non si fotografa: non esiste un provino che possa dire «si vede». La
+  domanda onesta — *il giocatore se ne accorge?* — resta aperta, e la
+  risposta probabile è che se ne accorga solo in aggregato, dopo molte ore.
+
 ## IL PROVINO DEL VOCABOLARIO — l'unica fase che decide se quel lavoro esiste
 
 Il vocabolario del corpo (sopra) e la regia (sopra) sono stati **guardati**,
