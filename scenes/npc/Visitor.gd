@@ -1493,7 +1493,7 @@ func _process(delta: float) -> void:
 				_enter_state("browse")
 		"sit":
 			_timer -= delta
-			_anim_sit()
+			_anim_sit(delta)
 			if _timer <= 0.0 and _bench and is_instance_valid(_bench):
 				var down: Vector3 = _bench.global_transform * Vector3(0, 0, 0.85)
 				_gift_pos = down
@@ -1540,7 +1540,7 @@ func _process(delta: float) -> void:
 				_enter_state("r_idle")
 		"r_idle":
 			_timer -= delta
-			_anim_sit()
+			_anim_sit(delta)
 			_resident_greet(delta)
 			if _timer <= 0.0:
 				_enter_state("r_wander")
@@ -1553,7 +1553,7 @@ func _process(delta: float) -> void:
 				_enter_state("r_idle")
 		"r_bench":
 			_timer -= delta
-			_anim_sit()
+			_anim_sit(delta)
 			# CHI E' SEDUTO TI SALUTA. Lo facevano gia' `r_idle`, `r_sniff`,
 			# `r_attesa` e `r_fire`; questo no, e non si vedeva perche' una
 			# seduta durava trenta millisecondi. Da quando dura quindici
@@ -1592,7 +1592,7 @@ func _process(delta: float) -> void:
 				_pasto_via()
 				_enter_state(_pasto_ritorno if _pasto_ritorno != "" else "r_idle")
 		"r_fire":
-			_anim_sit()
+			_anim_sit(delta)
 			_resident_greet(delta)
 		"lp_wait":
 			_timer -= delta
@@ -1740,7 +1740,7 @@ func _process(delta: float) -> void:
 				_enter_state("th_perch")
 		"th_perch":
 			_timer -= delta
-			_anim_sit()
+			_anim_sit(delta)
 			if _player_ref:
 				var to_p := _player_ref.global_position - position
 				_yaw = lerp_angle(_yaw, atan2(-to_p.x, -to_p.z), 1.0 - exp(-4.0 * delta))
@@ -2279,7 +2279,28 @@ func _anim_dorme(dur: float, delta: float) -> void:
 	_sonno_r_prev = r
 
 
-func _anim_sit() -> void:
+## ⚠️ IL DELTA ARRIVA DA FUORI, e prima veniva da `get_process_delta_time()`.
+## Era l'UNICA occorrenza in tutto il file — il gemello `_anim_dorme(dur, delta)`
+## il delta lo riceve da sempre — e in partita i due numeri coincidono, quindi
+## per chi gioca non cambia un pixel. Cambia per chi guida `_process` a mano:
+## i banchi (`provino_seduta`, `prova_seduta_troncata`, `provino_gesti`,
+## `test_gesti`) passano il loro passo, e poi vedevano `_sit_t` fare un balzo
+## pari alla durata del frame del MOTORE — cioè misuravano un assestamento che
+## il gioco non produce.
+##
+## MISURATO: `test_gesti._il_gesto_troncato_rientra_senza_saltare` diventa rosso
+## appena il frame del motore supera 0,0875 s, che sotto carico succede sempre
+## (0,145–0,150 s con altre sessioni addosso). Il salto coincideva alla quarta
+## cifra con `assesto_seduta(dt_motore)["fianchi"]`: a 0,1167 s dà esattamente
+## lo 0,0363 della rossa, e col passo del banco il massimo torna 0,0189 — il
+## regime su cui il tetto 0,030 era stato tarato.
+## **Non era una tolleranza da alzare: erano due orologi.**
+##
+## E il canale che falliva non era nemmeno del gesto: il Raccolto non scrive
+## `vrz` (vedi la tabella in `Gesti.gd`), quindi `vis.rz` durante `r_idle` può
+## venire solo di qui. È la stessa trappola già scritta in testa a quel caso
+## («non era il gesto: era il ciclo del passo»), un piano più in là.
+func _anim_sit(delta: float) -> void:
 	# riposo beato — ma PRIMA l'assestamento: il plop con un rimbalzo,
 	# i fianchi che si sistemano, il sospiro, la coda che si accomoda
 	# con due colpi. Gli anziani fanno tutto con più calma. Solo dopo
@@ -2288,7 +2309,7 @@ func _anim_sit() -> void:
 	# IL PLOP SUONA SULL'ATTERRAGGIO. Finché il corpo sta ancora salendo
 	# sul sedile l'assestamento non parte: un tonfo mentre si è per aria è
 	# la stessa bugia di una posa senza micro-movimento, al contrario.
-	var dt := get_process_delta_time()
+	var dt := delta
 	if _sit_attesa > 0.0:
 		_sit_attesa = maxf(0.0, _sit_attesa - dt)
 	else:

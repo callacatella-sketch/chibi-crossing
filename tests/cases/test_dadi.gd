@@ -66,6 +66,7 @@ func run(t) -> void:
 	_la_radice_si_posa_e_si_dimentica(t)
 	_il_canale_libero_e_dichiarato(t)
 	_lorologio_non_semina_piu(t)
+	_lorologio_del_villaggio_non_e_quello_da_polso(t)
 	_ogni_leva_ha_un_lettore(t)
 	_ogni_lettore_usa_un_nome_dichiarato(t)
 	_le_leve_partono_accese(t)
@@ -172,6 +173,18 @@ func _il_canale_libero_e_dichiarato(t) -> void:
 const VIETATE := ["get_ticks_msec", "get_ticks_usec", "get_unix_time_from_system",
 		"get_instance_id", "randomize()"]
 
+## Il registro dei vicini, che è il solo posto del gioco ad avere un orologio
+## suo (`_orologio_ms`). La strada sta in una costante perché la usano in tre
+## (la sorgente, il divieto, il corpo di `_chats`), e tre letterali uguali
+## sono la tabella gemella che diverge appena qualcuno sposta il file.
+const VIA_VISITORS := "res://scenes/npc/Visitors.gd"
+
+## Gli orologi che possono FARE da orologio del villaggio, cioè quelli che
+## misurano un'attesa fra due fotogrammi diversi. `get_ticks_usec` NON è qui:
+## cronometra una durata dentro un fotogramma, ed è giusto — una regola larga
+## abbastanza da prenderlo ucciderebbe le righe buone insieme a quella storta.
+const DA_POLSO := ["get_ticks_msec", "get_unix_time_from_system"]
+
 
 func _lorologio_non_semina_piu(t) -> void:
 	var colpevoli: Array = []
@@ -213,6 +226,88 @@ static func _e_una_seminatura(riga: String) -> bool:
 		return true
 	return riga.contains(".seed") or riga.contains("seed(") \
 			or riga.contains(".state")
+
+
+## ⭐ L'ALTRA METÀ DELLA STESSA STORIA, e prima di questo caso non la
+## sorvegliava nessuno. Lo scandaglio qui sopra vieta all'orologio di finire
+## dentro un SEME; questo gli vieta di tornare a essere **il tempo con cui il
+## villaggio si misura**.
+##
+## Il difetto pagato: `_chats` cronometrava il raffreddamento delle coppie con
+## `Time.get_ticks_msec()`, cioè col tempo VERO. Sotto carico due corse
+## identiche vedevano trascorrere millisecondi diversi per lo stesso numero di
+## fotogrammi, quindi facevano chiacchierare coppie diverse, quindi mandavano i
+## corpi in posti diversi, quindi registravano co-presenze diverse: è
+## **non-determinismo che nessun seme può togliere**, ed è la ragione per cui
+## `prova_identico` lo DICHIARAVA da anni come «una cosa che la traccia non
+## copre» invece di curarlo. Un seme fissato sopra un orologio da polso non
+## rende ripetibile niente.
+##
+## ⚠️ LE DUE METÀ SI ROMPONO UNA SENZA L'ALTRA, e per questo si asseriscono
+## separate: rimettere il tempo vero nel LETTORE lascia la sorgente a scorrere
+## col `delta`, verde e inutile.
+##  · la SORGENTE è behavioral, su un registro VERO (mai messo in scena: il
+##    `_ready` scatta all'ingresso nell'albero, e il suo vuole `%Player` e il
+##    BuildSystem — non staged, quindi non chiamato, quindi niente da
+##    scavalcare e nessun doppio da fidarsi);
+##  · il LETTORE è un source-check **per una ragione dichiarata**, ed è la
+##    stessa di `_il_gesto_del_villaggio_nuovo…`: quella riga vive dentro
+##    `_process`, che per girare vuole il giocatore, il cielo, il villaggio
+##    costruito e ventotto corpi. Un banco che ricostruisse tutto questo per
+##    guardare una somma proverebbe il proprio impianto, e un doppio che
+##    rifacesse `_process` sarebbe il `MotoreFinto` che mente — già pagato
+##    dalla Fase 5. Si dichiara invece di fingere.
+##
+## E il divieto è STRETTO ai due orologi che possono FARE da orologio del
+## villaggio (`get_ticks_msec`, `get_unix_time_from_system`): `get_ticks_usec`
+## resta fuori apposta, perché cronometra una durata dentro un fotogramma ed è
+## giusto — è la stessa disciplina di `VIETATE` qui sopra, e la ragione per cui
+## non si scrive una regola larga abbastanza da uccidere le righe buone.
+func _lorologio_del_villaggio_non_e_quello_da_polso(t) -> void:
+	# LA SORGENTE, sul registro vero.
+	var v = load(VIA_VISITORS).new()
+	var zero = v.get("_orologio_ms")
+	t.eq(typeof(zero), TYPE_FLOAT,
+			"l'orologio del villaggio è un FLOAT: da intero, `+= int(delta *"
+			+ " 1000.0)` tronca 16,666 ms a 16 e l'orologio perde il 4% del"
+			+ " tempo — un errore che si accumula non è un arrotondamento, è un"
+			+ " orologio che va piano")
+	t.eq(float(zero), 0.0,
+			"…e nasce a ZERO: un villaggio comincia adesso, non da quanti"
+			+ " millisecondi è acceso il processo che lo disegna")
+	v.free()
+	# MUTAZIONE: `var _orologio_ms := 0`                        → 1 rossa.
+	# MUTAZIONE: `var _orologio_ms := float(Time.get_ticks_msec())` → 1 rossa
+	#   qui, più 1 nella metà del lettore (il sorgente lo nomina in codice).
+
+	# IL LETTORE: il villaggio ha UN orologio, e `_chats` deve leggere quello.
+	var src := _senza_commenti(FileAccess.get_file_as_string(VIA_VISITORS))
+	t.ok(src.length() > 10000,
+			"il sorgente del registro si legge (%d caratteri): uno scandaglio"
+			% src.length() + " che per un percorso storto legge il vuoto è verde")
+	var polsi: Array = []
+	for polso in DA_POLSO:
+		if src.contains(polso):
+			polsi.append(polso)
+	t.eq(polsi.size(), 0,
+			"nessuna riga di CODICE del registro guarda il tempo vero: %s"
+			% ", ".join(polsi)
+			+ " — i «Time.get_ticks_msec()» che restano nel file sono commenti"
+			+ " che raccontano il difetto, ed è per loro che si spoglia prima")
+	var chats := _senza_commenti(_corpo(VIA_VISITORS, "_chats"))
+	t.ok(chats.length() > 200,
+			"il corpo di _chats si legge (%d caratteri)" % chats.length())
+	t.ok(chats.contains("_orologio_ms"),
+			"…e il raffreddamento delle coppie si misura sull'orologio del"
+			+ " VILLAGGIO: senza questa metà «non nomina il tempo vero» resta"
+			+ " verde anche per un lettore che non guarda più nessun orologio")
+	# MUTAZIONE: in `_chats`, `int(_orologio_ms)` → `Time.get_ticks_msec()`
+	#   → 2 rosse (il divieto e la metà che pretende la lettura).
+	# MUTAZIONE: togliere `_orologio_ms += delta * 1000.0` da `_process`
+	#   → 0 rosse, ed è DICHIARATO: un orologio fermo è la sorgente, non il
+	#   lettore, e per vederlo servirebbe far girare `_process` (vedi sopra).
+	#   Lo tiene il raffreddamento vero, che con un orologio fermo non scade
+	#   mai — cioè `test_cricche_corpo`, non questo file.
 
 
 func _lo_spogliatore_sa_leggere(t) -> void:

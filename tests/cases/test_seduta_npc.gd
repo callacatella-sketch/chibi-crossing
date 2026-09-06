@@ -60,22 +60,28 @@ func _test_seduta_viva(t, vs: GDScript) -> void:
 	v.dna = dna_s.generate(4242)
 	t.stage(v)
 
-	# L'ISTANTE va compensato del delta del frame. `_anim_sit()` fa
-	# `_sit_t += get_process_delta_time()` PRIMA di leggere l'assesto:
-	# partendo da 0.0 non si misurava l'attimo del plop ma l'assesto un
-	# delta più tardi — e nel runner il delta di un caso è la DURATA del
-	# caso precedente (un caso per frame), cioè un numero che cambia da
-	# una macchina all'altra e da un giro all'altro. A 0.13 s il plop ha
-	# già quasi finito di rimbalzare (-0.005 invece di -0.035) e
-	# l'asserzione diventava rossa senza che nessuno avesse toccato il
-	# corpo: un falso allarme che costa un'indagine. Partendo da -delta,
-	# l'istante misurato è esattamente quello scritto qui sotto.
-	var dt: float = v.get_process_delta_time()
+	# ⚠️ LA COMPENSAZIONE NON SERVE PIÙ, ed è la storia che questo commento
+	# raccontava già. `_anim_sit()` faceva `_sit_t += get_process_delta_time()`
+	# prima di leggere l'assesto — l'orologio del MOTORE, non il passo che il
+	# banco gli dà — e nel runner il delta di un caso è la DURATA del caso
+	# precedente (un caso per frame): un numero che cambia da una macchina
+	# all'altra e da un giro all'altro. A 0,13 s il plop ha già quasi finito
+	# di rimbalzare (−0,005 invece di −0,035) e l'asserzione diventava rossa
+	# senza che nessuno avesse toccato il corpo. Qui si compensava partendo
+	# da `-delta`; in `test_gesti` lo stesso orologio faceva fallire il gesto
+	# troncato (0,0363 contro un tetto di 0,030) appena il frame del motore
+	# superava 0,0875 s, cioè sempre, sotto carico.
+	#
+	# Adesso `_anim_sit(delta)` riceve il passo da fuori, come il gemello
+	# `_anim_dorme`: un banco passa il suo, e l'istante misurato è esattamente
+	# quello scritto qui sotto. Zero è il passo giusto per una POSA — qui non
+	# si fa scorrere il tempo, si guarda un istante preciso.
+	var dt := 0.0
 
 	# l'attimo del plop
 	v._sit_t = 0.0 - dt
 	v._t = 0.0
-	v._anim_sit()
+	v._anim_sit(dt)
 	t.ok(v._vis.position.y < -0.02,
 			"appena seduto il corpo AFFONDA (%.3f)" % v._vis.position.y)
 	t.ok(absf((v._head as Node3D).rotation.y) < 0.03,
@@ -83,14 +89,14 @@ func _test_seduta_viva(t, vs: GDScript) -> void:
 
 	# il sospiro a metà assestamento: le spalle si alzano
 	v._sit_t = 1.3 - dt
-	v._anim_sit()
+	v._anim_sit(dt)
 	t.ok((v._c_arms[0] as Node3D).rotation.x < 0.05,
 			"il sospiro alza le spalle (%.2f)" % (v._c_arms[0] as Node3D).rotation.x)
 
 	# assestato: solo respiro, e la testolina libera di girarsi
 	v._sit_t = 5.0 - dt
 	v._t = 3.0
-	v._anim_sit()
+	v._anim_sit(dt)
 	t.ok(absf(v._vis.position.y) < 0.02, "assestato: resta il respiro")
 	t.ok(absf((v._head as Node3D).rotation.y) > 0.05,
 			"…e ora sì che ci si guarda intorno")
