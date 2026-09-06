@@ -34,7 +34,7 @@ scenes/world/CozyWorld.gd
 =====
 un lasciapassare intestato a un chiamante che non esiste
 tests/cases/test_dadi.gd
-const AMMESSI_SCRITTURE
+const AMMESSI_SCRITTURE := ["TitleScreen.gd → Dadi.dimentica("]
 -->
-const AMMESSI_MORTI := ["Nessuno.gd → Dadi.posa_radice("]
-const AMMESSI_SCRITTURE
+const AMMESSI_SCRITTURE := ["TitleScreen.gd → Dadi.dimentica(",
+		"Nessuno.gd → Dadi.posa_radice("]
