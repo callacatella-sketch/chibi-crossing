@@ -5,6 +5,12 @@
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/packed_float64_array.hpp>
 #include <godot_cpp/variant/packed_int32_array.hpp>
+// gli handle ECS attraversano il ponte a 64 bit (`a_handle` torna un
+// int64_t): la lista dei co-testimoni non può viaggiare in un
+// PackedInt32Array senza troncare la versione dell'entità — cioè senza
+// riaprire, sulla riga stessa che chiude il buco, la trappola dell'handle
+// nudo.
+#include <godot_cpp/variant/packed_int64_array.hpp>
 #include <godot_cpp/variant/packed_string_array.hpp>
 #include <godot_cpp/variant/string.hpp>
 #include <godot_cpp/variant/vector3.hpp>
@@ -61,6 +67,32 @@ class EcsMondo : public godot::Node {
 	//
 	// L'orologio monotono della memoria e del sistema
 	double _tempo = 0.0;
+
+	// ⚠️ LA LEVA DELL'A/B DELLA TEORIA DELLA MENTE, e può fare UNA cosa sola:
+	// rimettere `racconta()` a leggere il grafo VERO dell'ascoltatore, cioè
+	// il narratore onnisciente di prima. Non scrive una credenza, non ne
+	// cancella una, non ne fabbrica una: sceglie soltanto quale delle due
+	// LETTURE produce la maschera. Non c'è nessun cammino, con la leva
+	// alzata, che possa far credere a qualcuno una cosa falsa.
+	//
+	// Falsa di serie, e in partita è inerte: un `bool` letto una volta per
+	// racconto, cioè ~0.29 volte al secondo in tutto il villaggio
+	// (`Visitors._chat_acc` = 3.5 s, e per tick esce al massimo una
+	// chiacchierata). Zero costo per fotogramma perché non c'è nessun
+	// fotogramma che la guardi.
+	//
+	// ⚠️ E IL RAMO VECCHIO NON SI «MIGLIORA». Riproduce la maschera di
+	// allora riga per riga, pavimento compreso (accetta qualunque
+	// `peso > 0`, che 2^(-dt/mv) non raggiunge prima di ~1074 mezze vite):
+	// un termine di paragone tarato meglio del suo originale non è un
+	// termine di paragone, e la differenza misurata non sarebbe più della
+	// regola nuova.
+	//
+	// La tira il banco (`EcsMondo::debug_onniscienza`). Nessun sorgente di
+	// `scenes/` o `systems/` deve nominarla — è la disciplina dei `banco_*`
+	// di `test_llm_banco.gd`, e la sorveglia un test che scandaglia i
+	// sorgenti.
+	bool _onnisciente = false;
 
 	// Contesto ambientale (temperatura, luce, pioggia, ora)
 
@@ -344,7 +376,47 @@ public:
 	//
 	// E da `p_b` non riparte: il suo ricordo porta `R_SENTITO`, e
 	// `da_raccontare` salta i sentiti. Una notizia non è un broadcast.
+	//
+	// ⚠️ **E DA QUI IN POI NON LEGGE PIÙ LA MENTE DI `p_b`.** La maschera di
+	// ciò che l'ascoltatore sa già viene dalle CREDENZE di `p_a`
+	// (`chibi::saputi_di`), non dal grafo vero di `p_b`. Il grafo di `p_b` in
+	// questa funzione si SCRIVE soltanto — è la prova strutturale che
+	// l'onniscienza è andata via, e si cerca con un grep: `gb.g` compare una
+	// volta sola, come argomento di `inserisci`. (Tranne dietro la leva
+	// `debug_onniscienza`, che è del banco.)
+	//
+	// E il racconto ACCADUTO scrive DUE credenze vere, che sono vere quanto
+	// quelle della co-testimonianza: A ora sa che B lo sa (gliel'ha appena
+	// detto) e B sa che A lo sa (l'ha appena sentito da lui). Nessuna delle
+	// due è un'inferenza su una mente: sono due fatti osservati.
 	int racconta(int64_t p_a, int64_t p_b, double p_smorzamento);
+
+	// --- TEORIA DELLA MENTE: chi ha visto CHI vedere ---------------------
+
+	// ERAVAMO LÌ INSIEME. `p_presenti` sono gli handle di tutti i testimoni
+	// dello STESSO gesto — cioè la lista `visti` che `Percezione.accaduto`
+	// costruisce e oggi lascia cadere —, e da qui esce l'unico fatto da cui
+	// questo villaggio ha il permesso di costruire un modello di un'altra
+	// mente: ognuno ha visto gli altri essere lì.
+	//
+	// SI CHIAMA UNA VOLTA PER GESTO, con la lista intera, e non una volta per
+	// coppia: le coppie ordinate sono k(k−1), cioè fino a 756 traversate del
+	// ponte per una pietra di sentiero. Il ciclo sta di qua, dove costa
+	// niente, e attraversa **una** lista di interi — la stessa disciplina del
+	// foglio del Pensatoio e degli indici di `deduci`: attraversano byte, non
+	// decisioni.
+	//
+	// Va chiamata DOPO le due righe di `_testimonia`, e FUORI dal loro ciclo:
+	// la co-testimonianza è una proprietà della LISTA, non di un testimone —
+	// dentro `_testimonia` non si potrebbe nemmeno vedere. E quel corpo
+	// ospita le due righe che non si separano: una terza scrittura verso il
+	// ponte, k volte, è esattamente la modifica che quel commento esiste per
+	// impedire.
+	//
+	// Chi non è (più) conosciuto viene saltato in silenzio: una lista con
+	// dentro un vicino appena congedato non è un errore del chiamante, è il
+	// mondo che si muove fra un frame e l'altro.
+	void co_testimoni(const godot::PackedInt64Array &p_presenti, int p_verbo);
 
 	// LO SPECCHIO DEL GUSTO, come `riferisci_bisogni`: il proprietario resta
 	// il GDScript (scenes/npc/Gusto.gd, derivato da dna.weights + indole,
@@ -542,6 +614,102 @@ public:
 	// partita. Senza, la scelta filtrata sarebbe provabile solo di rimbalzo.
 	int debug_grafo_novita(const godot::Dictionary &p_grafo, double p_ora,
 			double p_mezza_vita, int p_gia_saputi) const;
+
+	// --- TEORIA DELLA MENTE: la leva del banco e le letture --------------
+
+	// ⚠️ LA LEVA DELL'A/B. `true` rimette `racconta()` a leggere il grafo VERO
+	// dell'ascoltatore — il narratore onnisciente di prima, riga per riga.
+	// Non scrive né cancella nessuna credenza: sceglie una lettura, e la
+	// lettura che sceglie è quella che sbaglia MENO (per costruzione non
+	// sbaglia mai). Non è una porta per barare: alzarla non può far credere
+	// niente di falso a nessuno, può solo togliere la coda dei ritardatari.
+	//
+	// La chiama il banco e nessun altro: in `scenes/` e `systems/` non deve
+	// comparire, come i `banco_*` del traduttore.
+	//
+	// ⚠️ E LE CREDENZE SI SCRIVONO LO STESSO, con la leva alzata. Voluto: le
+	// due corse devono avere la tabella POPOLATA allo stesso modo, o le due
+	// maschere non sarebbero confrontabili sullo stesso istante — e un banco
+	// appaiato che confronta due modelli diversi non misura la regola, misura
+	// due villaggi.
+	void debug_onniscienza(bool p_acceso);
+
+	// QUANTO DURA UNA CREDENZA, in secondi. La derivano `imposta_ritmo()` dal
+	// ciclo del giorno (una mezza vita della memoria: *A crede che B sappia
+	// per il tempo in cui un ricordo dimezza*) e questa, che è la manopola
+	// del banco. `<= 0` vuol dire **non scade**, ed è il caso che il banco
+	// deve poter misurare per primo: è così che la scadenza è falsificabile.
+	//
+	// ⚠️ IL NUMERO È L'UNICA COSA DI QUESTA FASE CHE NON SI DECIDE A TAVOLINO.
+	// Troppo lungo e il pettegolezzo si spegne (nessuno ha più niente da dire a
+	// nessuno, in silenzio, con la suite verde); troppo corto e il modello è
+	// inerte, cioè l'onniscienza con un filtro. Il cancello d'arresto è le
+	// **notizie al minuto nell'ultimo quinto della corsa contro il primo**:
+	// se scendono a meno della metà, la durata va abbassata — o il
+	// meccanismo va tolto.
+	void debug_tara_credenze(double p_durata);
+
+	// LE CREDENZE di un residente: **una riga per persona conosciuta**, con
+	// l'handle, la maschera di adesso e gli otto timbri crudi.
+	//
+	// ⚠️ E NIENTE DI PIÙ, MAI. Non c'è un conteggio, non c'è un `popcount`,
+	// non c'è un ordinamento e non c'è un aggregato fra persone: «quanto ne
+	// sa B» è una classifica fra persone dalla porta di servizio, ed è
+	// vietata dalla stessa regola per cui il posto al falò non si ordina per
+	// affetto. Un numero che esiste in un log finisce in un pannello.
+	godot::Dictionary debug_credenze(int64_t p_id) const;
+
+	// Le costanti del C++ (`MAX_CONOSCIUTI`, `N_VERBI`, `CREDENZA_MAI`) più
+	// la durata viva, così nessun test ne riscrive una a mano.
+	godot::Dictionary debug_credenze_costanti() const;
+
+	// I DUE ORACOLI PURI, e servono a una cosa sola: rendere la MONOTONIA una
+	// proprietà provata invece che promessa. Lo spazio è finito — 256
+	// maschere di partenza × 8 verbi — quindi un test lo può **enumerare
+	// tutto** e pretendere l'uguaglianza esatta `m | (1<<v)`, senza mezzo
+	// villaggio in scena. È lo stesso mestiere dei quattro oracoli puri del
+	// grafo dei ricordi.
+	//
+	// La forma del Dictionary è { "voci": [ { "chi", "quando" } ], "n" }.
+	godot::Dictionary debug_credenze_so_che_sa(const godot::Dictionary &p_credenze,
+			int64_t p_chi, int p_verbo, double p_ora) const;
+	int debug_credenze_saputi(const godot::Dictionary &p_credenze, int64_t p_chi,
+			double p_ora, double p_durata) const;
+
+	// ⚠️ IL METRO DELLA RIDONDANZA, e senza di lui questa fase non ha un
+	// numero. La maschera dei verbi che `p_id` sa DAVVERO, adesso: la verità
+	// contro cui si legge una credenza.
+	//
+	// Con questa e `debug_credenze(a)` il banco misura le DUE forme d'errore
+	// previste, sullo stesso istante e nella stessa corsa — senza bisogno di
+	// alzare la leva, che dà due villaggi diversi:
+	//  · **ripetizione benigna**: A racconta il verbo `v`, e il bit `v` era
+	//    già acceso qui ⇒ B lo sapeva e A non lo credeva;
+	//  · **ritardatario**: A crede che B sappia `v` (bit acceso in
+	//    `debug_credenze(a)` alla voce di B) e qui è spento ⇒ B ha
+	//    dimenticato, e nessuno glielo ridirà finché la credenza non sbiadisce.
+	//
+	// ⚠️ **È LA STESSA FUNZIONE CHE USA LA LEVA** (`chibi::verbi_vivi`), non
+	// una sua ricostruzione: un metro che ricopia il termine di paragone
+	// misura la propria copia. Ed è esattamente il motivo per cui quel conto
+	// è stato tirato fuori dall'`if` in cui viveva.
+	//
+	// ⚠️ E NON È UN AGGREGATO FRA PERSONE. Torna gli otto bit di UNA persona
+	// — nessun conteggio, nessun `popcount`, nessun ordinamento: «quanto ne
+	// sa B» è una classifica dalla porta di servizio, ed è vietata dalla
+	// stessa regola per cui il posto al falò non si ordina per affetto. Il
+	// `popcount` che un banco può fare sui suoi campioni è una statistica di
+	// misura; un numero per persona esposto dal ponte finirebbe in un
+	// pannello.
+	int debug_saputi_veri(int64_t p_id) const;
+
+	// L'ORACOLO PURO dello stesso conto, per il test che non vuole mezzo
+	// villaggio in scena: prende il grafo nella forma di `debug_grafo` e ne
+	// torna la maschera. È il gemello di `debug_grafo_novita`, che di
+	// maschere ne CONSUMA una — e insieme rendono provabile il cerchio senza
+	// che il test scriva un solo shift a mano.
+	int debug_grafo_saputi(const godot::Dictionary &p_grafo, double p_ora,
+			double p_mezza_vita) const;
 
 	// I NOMI dei verbi e delle cose. Come per indoli, quirk, fatti e azioni,
 	// il ponte parla per NOME e la traduzione sta in un posto solo: il bus
