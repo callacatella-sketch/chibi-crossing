@@ -1386,9 +1386,18 @@ const FRASI := {
 	# prove per rileggere e' per definizione quello che NON ha un marchio
 	# negativo addosso — cioe' il buio manca proprio a chi rilegge.
 	#
-	# MISURATO nel MainLevel vero (`tools/misura_rilettura.gd`, 14 residenti,
-	# 12 minuti): **9 riletture, 0 gesti concessi**. La meccanica succede e
+	# MISURATO nel MainLevel vero (`tools/misura_rilettura.gd`): **zero gesti
+	# concessi su tutte le riletture della corsa**. La meccanica succede e
 	# quasi non si vede.
+	#
+	# ⚠️ **E IL NUMERO VIVE IN UN POSTO SOLO**, che è la sezione «LA
+	# RILETTURA» di CLAUDE.md. Qui c'era «9 riletture» e là «2 su 31»: due
+	# misure della stessa corsa dichiarata con gli stessi parametri, prese
+	# da due stesure diverse del banco (il bersaglio di Mochi è passato da
+	# «a sorte» a «a giro», e quel cambio sposta il totale). Un risultato
+	# ricopiato in due posti diverge in silenzio come una tabella gemella —
+	# e chi domani vuole sapere se questo residuo è ancora vero trova due
+	# cifre incompatibili e nessun modo di scegliere.
 	#
 	# **Non si toglie il `buio` per farla vedere**: sarebbe una lampadina a
 	# mezzogiorno, e la regola vale per tutti i Rialzi di questo gioco. Chi

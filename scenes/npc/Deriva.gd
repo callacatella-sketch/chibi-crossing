@@ -166,11 +166,30 @@ const SAZIETA := 8.0
 ## deve diventare meno plasmabile di quanto sia adesso, o il gioco comincia a
 ## dire «troppo tardi» — e questa è la frase che un gioco cozy non può dire.
 ##
-## ⚠️ **E IL TETTO È 2.4 PERCHÉ 2.5 ROMPE UN TEOREMA.** `delta` conserva
-## l'ordine dei caratteri solo finché `FRAZIONE · plasticita < 1`: a 2.5
-## esatti la derivata rispetto alla base si annulla, e sopra due codardi
-## diversi si INVERTONO. Il numero non si tocca senza rifare quel conto —
-## `test_finestra` lo ricalcola invece di ricopiarlo.
+## ⚠️ **E I DUE NUMERI QUI SOTTO NON GOVERNANO LA STESSA COSA. Chi legge in
+## fretta li prende per «minimo e massimo della meccanica», e sbaglia di
+## quattro decimi:**
+##
+## · **`PLASTICITA_CUCCIOLO = 2.0` È IL TETTO DEL GIOCO.** L'unica sorgente di
+##   plasticità in tutta la produzione è `plasticita_di`, che è
+##   `lerpf(PLASTICITA_CUCCIOLO, 1.0, crescita)`: il suo estremo superiore è
+##   2.0, e ci sta **un cucciolo appena nato**, un istante solo e poi scende.
+##   Chi vuole cambiare quanto la finestra sensibile pesa in partita tocca
+##   QUESTO numero, non quello sotto.
+## · **`PLASTICITA_MAX = 2.4` è una RETE, ed è dichiaratamente INERTE oggi.**
+##   Il `clampf` dentro `delta` taglia lì, cioè **quattro decimi sopra il
+##   valore più alto che possa mai arrivargli**: nessun cammino di produzione
+##   lo sfiora, e non lo sfiorerà finché la plasticità la fabbrica
+##   `plasticita_di`. Serve contro un chiamante FUTURO che passasse
+##   `plasticita` da fuori — un salvataggio corrotto, un banco, un sistema
+##   nuovo — e il valore non è di gusto: sopra `1 / FRAZIONE` (= 2.5) `delta`
+##   smette di conservare l'ordine dei caratteri (teorema 2), la derivata
+##   rispetto alla base si annulla, e due codardi diversi si INVERTONO.
+##   `test_finestra` ricalcola quel confine invece di ricopiarlo.
+##
+## ⚠️ Dichiarare inerte una guardia è meglio che lasciarla passare per un
+## vincolo del sistema: una rete presentata come manopola fa tarare il numero
+## sbagliato, e la taratura non ha nessun effetto — con la suite verde.
 const PLASTICITA_CUCCIOLO := 2.0
 const PLASTICITA_MAX := 2.4
 
@@ -315,9 +334,13 @@ static func delta(base: float, pressione: float, plasticita := 1.0) -> float:
 	# banco. La finestra si APRE verso l'alto per i piccoli; non si CHIUDE
 	# verso il basso per i grandi.
 	#
-	# E il tetto non è un gusto: sopra `1 / FRAZIONE` il teorema 2 cade e due
-	# codardi diversi si invertono d'ordine. `test_finestra` lo sorveglia con
-	# un'asserzione che quel numero non lo ricopia.
+	# ⚠️ E IL TETTO DI QUESTO CLAMP NON È IL TETTO DEL GIOCO: `PLASTICITA_MAX`
+	# (2.4) sta quattro decimi sopra il massimo che `plasticita_di` sappia
+	# produrre (2.0, un cucciolo appena nato), quindi **oggi non morde mai** —
+	# è la rete contro un chiamante futuro che passasse la plasticità da fuori.
+	# Il valore però non è di gusto: sopra `1 / FRAZIONE` il teorema 2 cade e
+	# due codardi diversi si invertono d'ordine. `test_finestra` lo sorveglia
+	# con un'asserzione che quel numero non lo ricopia.
 	var f := FRAZIONE * clampf(plasticita, 1.0, PLASTICITA_MAX)
 	return f * s * (1.0 - b) if s >= 0.0 else f * s * b
 
@@ -341,14 +364,51 @@ static func plasticita_di(crescita: float) -> float:
 	return lerpf(PLASTICITA_CUCCIOLO, 1.0, clampf(crescita, 0.0, 1.0))
 
 
-## IL TRATTO DI ADESSO, dato chi era e cosa gli è successo. La composizione in
-## un posto solo, così nessuno la somma a mano da qualche parte.
-## ⚠️ E il terzo parametro si PROPAGA anche qui, che in produzione non ha
-## chiamanti e nei test ne ha una sessantina: senza, i test misurerebbero una
-## funzione diversa da quella che gira nel gioco — a plasticità 1.0 fissa,
-## cioè cieca proprio alla cosa nuova.
+## CHI ERA + QUANTO SI È SPOSTATO = CHI È ADESSO. **La composizione, e sta qui
+## e in nessun altro posto.**
+##
+## ⚠️ **È nata perché `derivato()` PROMETTEVA di essere quel posto e non lo
+## era.** L'unico consumatore di produzione della deriva è `Animo.tratto()`,
+## che sommava a mano (`clampf(tratti[n] + _deriva[n], 0, 1)`) esattamente la
+## cosa che `derivato` esisteva per centralizzare — e `derivato` non aveva
+## nessun chiamante fuori dai test. Le due formule coincidevano **per caso**:
+## `derivato` clampa la base a 0..1 prima di sommare, la somma a mano no. Con
+## un `animo.tratti` sporco (JSON di un salvataggio vecchio, un banco, un
+## `set()` sbagliato) le due davano numeri diversi, e i test verdi
+## sorvegliavano la formula che il gioco non chiama.
+##
+## Il clamp della BASE è dentro apposta: una base fuori intervallo è un dato
+## rotto, e un dato rotto non deve poter portare un tratto oltre il muro
+## passando dalla porta di servizio.
+##
+## ⚠️ Il parametro si chiama `scarto` e non `delta` perché in questo file
+## `delta` è già il nome di una funzione: ombrarla sarebbe una mina per chi
+## un domani volesse chiamarla da qui dentro.
+static func componi(base: float, scarto: float) -> float:
+	if not is_finite(base):
+		return 0.0
+	var b := clampf(base, 0.0, 1.0)
+	if not is_finite(scarto):
+		return b
+	return clampf(b + scarto, 0.0, 1.0)
+
+
+## IL TRATTO DI ADESSO, dato chi era e cosa gli è successo — la scorciatoia che
+## calcola lo scarto e lo compone in un colpo solo.
+##
+## ⚠️ **In produzione non ha chiamanti**, e va detto invece di lasciar credere
+## il contrario: il gioco tiene la deriva in un campo suo (`Animo._deriva`, che
+## `crescita()` riempie una volta per giornata) e la compone con
+## `componi()` a ogni lettura. Questa resta **la composizione di riferimento**
+## — il posto dove si legge in due righe cosa vuol dire «derivato» — ed è quel
+## che chiamano i banchi e i test, che di scarto e composizione fanno un passo
+## solo.
+##
+## ⚠️ E il terzo parametro si PROPAGA anche qui, che nei test ha una
+## sessantina di chiamate: senza, misurerebbero una funzione diversa da quella
+## che gira nel gioco — a plasticità 1.0 fissa, cioè cieca proprio alla cosa
+## nuova.
 static func derivato(base: float, pressione: float, plasticita := 1.0) -> float:
 	if not is_finite(base):
 		return 0.0
-	return clampf(clampf(base, 0.0, 1.0)
-			+ delta(base, pressione, plasticita), 0.0, 1.0)
+	return componi(base, delta(base, pressione, plasticita))

@@ -431,7 +431,9 @@ func passa_giorno() -> void:
 ## È il canale principale del risentimento: qui l'evento viene VALUTATO
 ## contro il sogno di chi lo esegue, ed è quella valutazione — non il compito
 ## in sé — a decidere quanto brucia.
-func esegue(compito: String, ordinante := "giocatore") -> void:
+## Torna il `sentito` che il compito ha inciso — vedi `ricorda()`: chi vuole
+## sapere com'è andata NON deve dedurlo da `ricordi.back()`.
+func esegue(compito: String, ordinante := "giocatore") -> float:
 	var c: Dictionary = COMPITI.get(compito, {"fatica": 0.12, "noia": 0.10})
 	for d in DRIVES:
 		if not c.has(d):
@@ -460,15 +462,33 @@ func esegue(compito: String, ordinante := "giocatore") -> void:
 	var valenza := 0.12 if e_sogno else (-0.28 * mult if e_tradito else -0.08 * mult)
 	# se il compito tradisce il sogno, l'evento tocca l'IDENTITÀ: non ci si
 	# abitua, ci si sensibilizza (vedi Limbico.rivaluta)
-	ricorda(compito, ordinante, valenza, 0.5 + 0.5 * minf(1.0, mult / CONTRO_SOGNO),
-			"", e_tradito)
+	var sentito := ricorda(compito, ordinante, valenza,
+			0.5 + 0.5 * minf(1.0, mult / CONTRO_SOGNO), "", e_tradito)
 	sincronizza_neuro()
+	return sentito
 
 
 ## Un fatto qualunque della vita del villaggio.
 ## [param valenza] -1 (terribile) .. +1 (bellissimo); [param intensita] 0..1.
+## ⚠️ **TORNA IL `sentito` CHE HA APPENA INCISO, e non è una comodità.**
+## `Visitors.assegna_compito` leggeva `ricordi[size-1]` per sapere com'era
+## andata — una deduzione che il FIFO garantiva (`pop_front` non può togliere
+## la riga appena appesa) e che la potatura per SCHEMA DEL SÉ **rompe**: fra
+## righe dello stesso tipo scritte lo stesso giorno il `recente` è 1.0 per
+## tutte e `quanti` è identico, quindi decide `PESO_FORZA * forza` — e
+## `Limbico.rivaluta` incide ogni ripetizione MENO della precedente, cioè la
+## riga appena scritta ha la forza minima ed è proprio lei la vittima.
+##
+## Concreto: residente a quaranta ricordi vivi, il giocatore gli riassegna lo
+## stesso compito una seconda volta nello stesso giorno; la riga nuova viene
+## potata dentro `ricorda()`, e tre righe dopo `ricordi.back()` è un'ALTRA —
+## per esempio il lutto di un amico a −0.8. Parte `_marchia("luogo|bosco",
+## −0.8)`, e alla seconda volta quel posto supera `SOGLIA_EVITAMENTO`: il
+## vicino comincia a evitare il bosco per via di un lutto.
+##
+## La riga non si deduce dall'array: si fa restituire.
 func ricorda(tipo: String, attore: String, valenza: float, intensita := 0.5,
-		luogo := "", identita := false) -> void:
+		luogo := "", identita := false) -> float:
 	# IL FATTO PASSA DAL CORPO PRIMA DI DIVENTARE RICORDO. Quello che resta
 	# non è ciò che è successo, ma quanto ha sorpreso: il decimo regalo si
 	# incide poco, una gentilezza dopo il gelo si incide profondissima.
@@ -486,6 +506,7 @@ func ricorda(tipo: String, attore: String, valenza: float, intensita := 0.5,
 	# possono succedere cento cose, e i ricordi vivi devono restare pochi
 	# perché il sommario (quello che sa dire «quarantasette volte») si riempia
 	_potatura()
+	return sentito
 
 
 ## Un lutto ignorato: il caso che il brief cita, e che deve pesare tanto.
@@ -533,11 +554,28 @@ func _potatura() -> void:
 	# potatura in un archivio di rancori — e la chiave del sommario è
 	# letteralmente `"tipo|attore"`, quindi sarebbe la gogna dalla porta
 	# di servizio.
+	# ⚠️ **LE SCHEDE SI COSTRUISCONO SOLO SE C'È DA POTARE.** La prima
+	# stesura le faceva SEMPRE, prima di guardare la condizione del `while`
+	# — cioè anche nel caso comune, in cui l'array è sotto il tetto e non si
+	# pota niente. `ricorda()` gira a ogni evento della vita del villaggio, e
+	# `scheda()` alloca un Dictionary e chiama `congruenza()` **e** `verso()`
+	# per ogni ricordo vivo: quaranta Dictionary e ottanta ricerche in
+	# tabella per una chiamata che non fa niente.
+	#
+	# Dove si vedeva: la partenza di un vicino mette in lutto OGNI residente
+	# e `Animo.lutto()` chiama `ricorda()` due volte — con ventotto vicini
+	# sono ~56 potature complete nello stesso fotogramma, cioè la scena
+	# dell'addio, che è la più coreografata del gioco. E la suite intera è
+	# passata da ~90 s a oltre sette minuti di CPU il giorno in cui `verso()`
+	# si è aggiunto a `congruenza()` dentro `scheda()`.
+	#
+	# Col `pop_front()` era O(1) e zero allocazioni; adesso è O(n²), ma
+	# **solo quando pota davvero**.
 	var schede: Array = []
-	if not debug_potatura_fifo:
-		for r in ricordi:
-			schede.append(SCHEMA.scheda(r, sogno, COMPITI))
 	while ricordi.size() > RICORDI_VIVI:
+		if schede.is_empty() and not debug_potatura_fifo:
+			for r0 in ricordi:
+				schede.append(SCHEMA.scheda(r0, sogno, COMPITI))
 		var vittima := 0
 		if not debug_potatura_fifo:
 			vittima = SCHEMA.indice_da_sacrificare(schede, oggi, MEZZA_VITA)
@@ -685,9 +723,50 @@ var crescita := 1.0
 
 
 ## IL TRATTO DI ADESSO — chi vuole il tratto lo chiede QUI, e solo qui.
+##
+## ⚠️ **LA COMPOSIZIONE NON SI RIFÀ A MANO: la fa `Deriva`.** Qui c'era
+## `clampf(base + δ, 0, 1)` ricopiato, cioè esattamente quello che
+## `Deriva.derivato()` esiste per centralizzare — e infatti `derivato` non
+## aveva **nessun chiamante di produzione**: le undici chiamate che lo
+## esercitano stanno tutte nei test (`test_deriva`, `test_finestra`), cioè
+## sorvegliavano una funzione che il gioco non chiamava, e chi avesse rotto
+## QUESTA riga li avrebbe lasciati tutti verdi.
+##
+## E la copia era già DIVERGENTE, non solo ridondante: là la BASE si clampa
+## **prima** di sommare, qui no. Con un `tratti` sporco a 1.4 (un salvataggio
+## vecchio, un banco, un `set()` sbagliato) e δ = −0.1, la riga di qui dava
+## `clampf(1.3) = 1.0` e la funzione dava `clampf(1.0 − 0.1) = 0.9` — cioè un
+## dato rotto portava il tratto al muro passando dalla porta di servizio. Due
+## clamp scritti in due posti divergono al primo che ne ritocca uno.
+##
+## `componi(base, δ)` e non `derivato(base, pressione, plasticita)` perché il
+## δ qui è già calcolato: `_ricalcola_deriva()` lo fa **una volta al giorno**
+## (e la spinta costa una scansione di tutti i ricordi). Passare da `derivato`
+## vorrebbe dire rifare quella scansione a ogni lettura di un tratto, cioè
+## decine di volte per fotogramma per residente — e con una `pressione` che
+## qui non abbiamo nemmeno in mano.
+## ⚠️⚠️ **E LA COMPOSIZIONE È SCRITTA QUI IN LINEA, NON CHIAMATA — perché
+## una chiamata statica costa 23 volte tanto, MISURATO.**
+##
+## Una revisione avversariale ha chiesto (giustamente) che la composizione
+## avesse un posto solo: `Deriva.componi(base, scarto)`. Sostituita qui, la
+## suite è passata da ~90 secondi a **oltre sette minuti di CPU**. Il conto,
+## cronometrato su due milioni di giri: l'aritmetica in linea **116 ms**, la
+## stessa cosa attraverso `DERIVA.componi` **2725 ms** — un fattore
+## **23,4×**. In GDScript una statica raggiunta da un `const preload` non è
+## una chiamata a buon mercato, e `tratto()` è una delle funzioni più calde
+## del gioco: la leggono `peso_drive`, `punteggio` (per ogni azione di ogni
+## decisione), `soglie()`, `_tratti_derivati()`, gli Affetti.
+##
+## Il buco che quella richiesta voleva chiudere era vero — se qualcuno
+## rompesse questa riga, gli undici casi che esercitano `Deriva.derivato`
+## resterebbero verdi — ma si chiude con una GUARDIA, non con una chiamata:
+## `test_finestra._la_composizione_e_la_stessa` pretende che questa riga e
+## `Deriva.componi` diano lo stesso identico numero su una griglia. Il posto
+## unico è la DEFINIZIONE, non l'istruzione macchina.
 func tratto(nome: String) -> float:
-	return clampf(float(tratti.get(nome, 0.5))
-			+ float(_deriva.get(nome, 0.0)), 0.0, 1.0)
+	var b := clampf(float(tratti.get(nome, 0.5)), 0.0, 1.0)
+	return clampf(b + float(_deriva.get(nome, 0.0)), 0.0, 1.0)
 
 
 ## CHI SEI SEMPRE STATO. Lo leggono le porte, le soglie e le frasi, e nessun
@@ -776,9 +855,40 @@ func quante_volte(tipo: String, attore := "") -> int:
 ## silenzio. È la regola delle fonti uniche applicata a un numero che
 ## esisteva già.
 ##
-## `{"torti", "prove", "media_prove", "n_prove"}` — e `media_prove` è quanto
-## valeva **in media** una delle cose belle, che è il tetto oltre il quale
-## una rilettura non può far sperare (`Rilettura.fiducia_restituita`).
+## Torna `{"torti", "prove", "prove_totali"}` — tre numeri, e ognuno ha il suo
+## lettore: `rancore()` legge i primi due, `Rilettura` il terzo.
+##
+## ⚠️ **CE N'ERANO ALTRI DUE, `media_prove` e `n_prove`, E SONO STATI TOLTI.**
+## Non perché fossero di troppo: perché erano **sbagliati e pubblici**, che è
+## la combinazione peggiore. Nessuno dei due aveva un lettore — `media_prove`
+## era l'ingresso di `Limbico.divario`, il cancello sulle `attese` che si è
+## rivelato aperto per costruzione ed è stato tolto anche lui (vedi
+## `Rilettura.disponibile`) — e tutti e due invitavano a un conto scorretto:
+##
+## · **`n_prove` mescolava DUE POPOLAZIONI.** Lo stesso contatore avanzava di
+##   uno per ogni riga viva **e** di uno per ogni riga di sommario, ma `prove`
+##   esclude il sommario per scelta misurata (vedi più sotto) mentre
+##   `prove_totali` lo comprende: `prove / n_prove` era sbagliato per
+##   costruzione, e `prove_totali / n_prove` contava un blocco di quaranta
+##   gentilezze riassunte come **1**. Un campo pubblico che sta in mezzo a due
+##   aggregati diversi non è un numero in più: è una divisione sbagliata che
+##   aspetta il suo chiamante.
+##
+## · **`media_prove` SOMMAVA DUE UNITÀ DIVERSE.** Dalle righe vive prendeva la
+##   `valenza` NUDA, dal sommario `peso / n` — dove `peso` è già una somma di
+##   `valenza × intensita`. Cioè la stessa identica gentilezza valeva due
+##   numeri a seconda di quale lato della soglia `RICORDI_VIVI` si trovasse, e
+##   il valore **saltava nel fotogramma in cui la potatura scatta**.
+##
+## Non sono state riparate ma tolte, perché in questo progetto una guardia che
+## nessun test può far fallire si toglie, e a maggior ragione un numero che
+## nessuno legge e che chiunque leggesse userebbe male. **Chi un domani avrà
+## davvero la domanda «quanto valeva in media una di quelle cose» la ricalcoli
+## qui, con l'unità DICHIARATA** — `valenza × intensita` da tutte e due le
+## parti — **e con un `n` che conti i ricordi veri e non i blocchi** (per il
+## sommario `n += int(v["n"])`, non `n += 1`). E si porti dietro il proprio
+## test: il costo di riscrivere sei righe è minore di quello di fidarsi di un
+## numero che nessuno ha mai guardato.
 func conto_verso(attore := "giocatore") -> Dictionary:
 	var torti := 0.0
 	for r in ricordi:
@@ -797,34 +907,49 @@ func conto_verso(attore := "giocatore") -> Dictionary:
 	# `Rilettura.peso_prova` — il `maxf(0.0, …)` che rende questo modulo
 	# strutturalmente incapace di accusare qualcuno sta LÌ, non qui.
 	var prove := 0.0
-	var somma_val := 0.0
-	var n := 0
 	for r in ricordi:
 		if r["attore"] != attore or float(r["valenza"]) <= 0.0:
 			continue
 		prove += RILETTURA.peso_prova(float(r["valenza"]), float(r["intensita"]),
 				_recenza(int(r["quando"])))
-		somma_val += float(r["valenza"])
-		n += 1
-	# ⚠️ **E LE PROVE LEGGONO IL SOMMARIO, COME I TORTI.** Prima no — `buoni`
-	# guardava solo le righe vive — e finché la potatura era un FIFO la cosa
-	# non si vedeva: se ne andavano i vecchi, buoni e cattivi in proporzione.
-	# Con la potatura per SCHEMA DEL SÉ si sacrificano per prime le righe
-	# RIPETUTE (`costo` divide per `quanti`), e le gentilezze del giocatore
-	# — piatto, regalo, festa — sono per definizione le righe ripetute:
-	# sparivano nel sommario e da lì **non le contava più nessuno**, mentre i
-	# torti nel sommario continuavano a contare.
+	# ⚠️ **E QUI NASCONO DUE NUMERI, NON UNO — perché le domande sono due.**
 	#
-	# MISURATO su una storia di un piatto e una legna al giorno: le prove
-	# passano da 3.79 (25 giornate) a 3.30 (40) a **3.18** (60) mentre i
-	# torti salgono 0.76 → 1.12 → 1.57. Lette anche dal sommario fanno 3.79
-	# → 4.93 → **6.73**. Cioè: **il perdono smetteva di accumularsi proprio
-	# per il giocatore più attento**, e il rancore no.
+	# `prove` conta solo le righe VIVE. È quello che legge `rancore()`, ed è
+	# il comportamento che il gioco ha sempre avuto: una gentilezza ripetuta
+	# a un certo punto si dà per scontata e smette di scontare il rancore.
+	# È la stessa abitudine che `Limbico.rivaluta` applica ai doni, un piano
+	# più in su.
 	#
-	# Era un'asimmetria già lì, ma innocua; la potatura nuova l'ha resa
-	# sistematica. Renderla simmetrica cambia `rancore()` — più mite nelle
-	# partite lunghe — ed è quello che la sua stessa riga dichiara di fare:
-	# «i ricordi belli scontano il rancore, e li mette lì chi gioca».
+	# ⚠️ **E NON SI TOCCA, perché è la riga che impedisce di comprarsi il
+	# silenzio di qualcuno.** MISURATO (`tools/misura_gradino.gd`, lo
+	# scenario canonico del brief: `taglia_legna` ogni giorno per uno che
+	# sognava di fare il guerriero, 120 giornate, tre semi):
+	#
+	#   un piatto      → confronto, con le prove del sommario   senza
+	#   mai            giorno 71                                 71
+	#   ogni 3 giorni  giorno 105                                72
+	#   ogni 2 giorni  **MAI**                                   71
+	#   ogni giorno    **MAI**                                   70
+	#
+	# Cioè: contando anche il sommario, chi porta un piatto a giorni alterni
+	# rende il confronto IRRAGGIUNGIBILE mentre ogni giorno ruba la vita a
+	# quella persona. Non è mitezza — è un villaggio che si placa col cibo, e
+	# la promessa di `aggiorna_scala` («ogni gradino deve poter essere visto
+	# e corretto») diventa «non c'è mai niente da correggere».
+	#
+	# `prove_totali` conta anche il SOMMARIO, e la legge soltanto la
+	# RILETTURA. La sua domanda è un'altra — non «quanto ti tengo il muso»
+	# ma «c'è materiale per una lettura più benevola» — e lì cento
+	# gentilezze riassunte SONO materiale. Senza il sommario le prove vive
+	# si appiattiscono a ~0.8 qualunque sia la generosità (la potatura per
+	# schema sacrifica per prime le righe RIPETUTE, che sono le gentilezze
+	# del giocatore): misurato 0.87 con un piatto a settimana e 0.75 con uno
+	# al giorno. Cioè la rilettura sarebbe CIECA alla cosa che deve leggere.
+	#
+	# Non è una tabella gemella: è un conto solo, con due aggregati che
+	# dicono quale domanda servono. Chi ne aggiunge un terzo si chieda
+	# prima quale domanda nuova ha.
+	var prove_totali := prove
 	for k in sommario:
 		var parti_b: PackedStringArray = k.split("|")
 		if parti_b.size() < 2 or parti_b[1] != attore:
@@ -832,12 +957,9 @@ func conto_verso(attore := "giocatore") -> Dictionary:
 		var vb: Dictionary = sommario[k]
 		if float(vb["peso"]) <= 0.0:
 			continue
-		prove += RILETTURA.peso_prova(float(vb["peso"]), 1.0,
+		prove_totali += RILETTURA.peso_prova(float(vb["peso"]), 1.0,
 				_recenza(int(vb["ultimo"])))
-		somma_val += float(vb["peso"]) / float(maxi(int(vb["n"]), 1))
-		n += 1
-	return {"torti": torti, "prove": prove, "n_prove": n,
-			"media_prove": (somma_val / float(n)) if n > 0 else 0.0}
+	return {"torti": torti, "prove": prove, "prove_totali": prove_totali}
 
 
 ## Il rancore verso qualcuno: 0 (nessuno) .. 1 (insopportabile).
@@ -1067,15 +1189,16 @@ func decide(azioni: Array, chiede := "giocatore", nitidezza := 1.6) -> String:
 ## rileggere vorrebbe dire pagare la `regolazione` per un'emozione che non
 ## sarebbe mai arrivata.
 ##
-## Torna la scheda di `Limbico.rilegge` con in più `"modo"`:
+## Torna la scheda di `Rilettura.scheda` con in più `"modo"`:
 ## `"rilettura"` · `"morso"` (trattenuto) · `"scoppio"` (non ce l'ha fatta).
 func regola(attore := "giocatore") -> Dictionary:
 	if limbico == null:
-		return {"modo": "morso", "riletto": false, "rapporto": 0.0,
-				"divario": 0.0}
+		return {"modo": "morso", "riletto": false, "rapporto": 0.0}
 	var c := conto_verso(attore)
-	var sch := RILETTURA.scheda(float(c["torti"]), float(c["prove"]),
-			limbico.divario(attore, float(c["media_prove"])))
+	# ⚠️ **`prove_totali`, non `prove`**: la rilettura è l'unica che legge
+	# anche il sommario. Vedi la testata di `conto_verso` — con le sole
+	# righe vive sarebbe cieca a quanto il giocatore è stato generoso.
+	var sch := RILETTURA.scheda(float(c["torti"]), float(c["prove_totali"]))
 	if bool(sch["riletto"]) and not debug_niente_rilettura:
 		# ⚠️ **E NON C'È NIENTE DA APPLICARE: rileggere È non pagare.** Non
 		# si tocca `regolazione`, non si tocca il cortisolo, non si tocca il

@@ -31,6 +31,7 @@ func run(t) -> void:
 	_la_memoria_resta_limitata(t)
 	_il_sommario_dice_ancora_la_verita(t)
 	_quello_che_sa_dire_e_cambiato(t)
+	_la_ferita_ha_una_chiave_a_forma_di_giocatore(t)
 	_una_botta_vera_batte_un_fatto_tiepido(t)
 	_la_leva_del_banco_e_DAVVERO_un_fifo(t)
 	_la_leva_del_banco_non_la_accende_nessuno(t)
@@ -38,10 +39,13 @@ func run(t) -> void:
 
 # ------------------------------------------------------------ attrezzi
 
+## ⚠️ **E IL `verso` C'È, di serie 0.** Senza, tutte le schede del banco
+## avrebbero verso zero e la mutazione «togli la decadenza dell'immunità»
+## lascerebbe questo file completamente verde: la cura sarebbe muta.
 func _sk(tipo: String, quando: int, valenza := -0.6, intensita := 0.6,
-		congruenza := 0.0) -> Dictionary:
+		congruenza := 0.0, verso := 0) -> Dictionary:
 	return {"tipo": tipo, "quando": quando, "valenza": valenza,
-			"intensita": intensita, "congruenza": congruenza}
+			"intensita": intensita, "congruenza": congruenza, "verso": verso}
 
 
 func _animo(seme := 4242, sogno := "artista"):
@@ -266,6 +270,57 @@ func _quello_che_sa_dire_e_cambiato(t) -> void:
 	t.ok(boscaiolo != artista,
 			"e con lo STESSO trattamento due vicini con sogni diversi si "
 			+ "tengono ricordi diversi — è la divergenza")
+
+
+## ⚠️⚠️ **L'IMMUNITÀ DELLA FERITA HA UNA CHIAVE, E LA TIENE IL GIOCATORE.**
+##
+## `intoccabile()` protegge il primo ricordo congruente del suo tipo — serve
+## a non buttare l'unico episodio che spiega chi sei. Ma la congruenza è
+## positiva solo per i COMPITI, quindi la prima volta che al vicino è stato
+## chiesto il contrario di quello che sogna diventava **permanente**:
+## nessuna potatura la toccava più, `cause()` e `sfogo()` potevano citarla
+## al confronto fra sei mesi, e non esisteva nessun gesto che la cancellasse.
+## È lo «stato permanente la cui unica chiave non è in mano al giocatore»
+## che la **regola 1 degli Affetti** vieta per iscritto — ed era per giunta
+## intestato a un gesto suo.
+##
+## Adesso una scheda con `verso < 0` (il compito che TRADISCE il sogno)
+## smette di essere intoccabile appena fra le schede vive ce n'è almeno una
+## con `verso > 0`: il giorno in cui il giocatore gli ha dato la cosa che
+## sognava. La controprova è la chiave.
+##
+## ⚠️ E il verso POSITIVO non decade, apposta: quella non è una ferita, è il
+## giorno buono, e farlo consumare vorrebbe dire che un gesto bello del
+## giocatore si logora da sé.
+func _la_ferita_ha_una_chiave_a_forma_di_giocatore(t) -> void:
+	# la ferita da sola: intoccabile, e nessuna potatura la tocca
+	var sola: Array = [
+		_sk("taglia_legna", 5, -0.8, 0.9, 1.0, -1),
+		_sk("guardia", 5, -0.6, 0.6, 0.0, 0),
+		_sk("cucina", 5, -0.6, 0.6, 0.0, 0),
+	]
+	t.eq(SCHEMA.intoccabile(sola, 0), true,
+			"la ferita d'identita' e' intoccabile finche' non c'e' la chiave")
+	t.ok(SCHEMA.indice_da_sacrificare(sola, 8, 18.0) != 0,
+			"e la potatura non la sceglie mai")
+
+	# ⇢ e adesso il giocatore gli da' la cosa che sognava
+	var con_chiave: Array = [
+		_sk("taglia_legna", 5, -0.8, 0.9, 1.0, -1),
+		_sk("guardia", 5, -0.6, 0.6, 0.0, 0),
+		_sk("allenare", 5, 0.5, 0.6, 1.0, 1),
+	]
+	t.eq(SCHEMA.intoccabile(con_chiave, 0), false,
+			"con la controprova la ferita smette di essere permanente")
+	t.eq(SCHEMA.intoccabile(con_chiave, 2), true,
+			"e il giorno buono resta intoccabile: non si logora da se'")
+
+	# ⚠️ e la congruenza NON e' cambiata: resta il valore assoluto
+	# dell'allineamento, cioe' i due estremi pesano uguale nella potatura
+	t.almost(float(con_chiave[0]["congruenza"]),
+			float(con_chiave[2]["congruenza"]),
+			"serve e tradisce pesano uguale: nessun diario rosa, nessun"
+			+ " libro dei torti", 1e-12)
 
 
 ## ⚠️ **`PESO_FORZA` NON AVEVA NESSUNA GUARDIA.** È uno dei quattro termini

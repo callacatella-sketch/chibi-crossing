@@ -15,7 +15,9 @@ extends RefCounted
 ## mangiare». Non è forza di volontà — è che il fatto, riletto, pesa meno.
 ##
 ## Qui vive la parte PURA e statica: cosa rende una rilettura possibile, e
-## quanto vale. Chi la applica è `Limbico.rilegge`; chi la chiede è
+## quanto vale. **Ad applicarla non è nessuno** — rileggere è NON pagare, e
+## il modulo non scrive un bit; il materiale delle `attese` lo legge
+## nessuno, e a decidere è `Animo.regola`. Chi la chiede è
 ## `Visitors._tick_confronti`, nello stesso identico punto in cui oggi si
 ## chiede di trattenersi. Questo file non conosce Godot, non tiene stato, e
 ## non tira un solo dado.
@@ -71,29 +73,6 @@ extends RefCounted
 ## L'ha trovata una revisione avversariale, e la cura non è tararla: è che il
 ## guadagno di una rilettura non deve avere un costo da nessuna parte.
 ##
-## ────────────────────────────────────────────────────────────────────────
-## E LA RILETTURA NON È GRATIS PER IL GIOCATORE — è un investimento
-## ────────────────────────────────────────────────────────────────────────
-##
-## Chi rilegge non si limita a soffrire meno: **si rimette a sperare**. Le
-## `attese` verso quella persona risalgono verso quello che le prove dicono
-## di lei (`fiducia_restituita`), e in questo motore un'attesa più alta è una
-## lama più affilata — `Limbico.rivaluta` calcola `sorpresa = letto - atteso`,
-## e su questa riga è costruita la frase «il male da chi ti aspettavi il bene
-## è insopportabile».
-##
-## Quindi: essere stati buoni con qualcuno gli risparmia di doversi mordere
-## la lingua, **e rende il prossimo torto più grande**. È l'opposto esatto di
-## una lavanderia, e nessuno l'ha dovuto scrivere come regola: esce dalla
-## formula che c'era già.
-##
-## ⚠️ **E IL TETTO DELLA FIDUCIA È UN DATO, NON UN NUMERO.** Non si può
-## arrivare ad aspettarsi da qualcuno più di quanto quel qualcuno abbia
-## davvero mostrato: `fiducia_restituita` è tagliata sulla MEDIA delle prove
-## che assolvono. Un tetto scritto a mano avrebbe fatto sperare, dopo una
-## caramella, uno a cui è stata data una caramella.
-
-
 ## Il torto dev'essere almeno questo, o non c'è niente da rileggere — e serve
 ## soprattutto a non dividere per un denominatore che tende a zero, che è il
 ## modo classico di fabbricare un infinito e leggerlo come «rilettura sempre
@@ -139,29 +118,38 @@ static func rapporto(torto: float, prove: float, torto_min := TORTO_MIN) -> floa
 	return maxf(0.0, prove) / torto
 
 
-## C'È DI CHE RILEGGERE? Nessun dado, nessun tratto: il rapporto, e il
-## DIVARIO — cioè che ci sia davvero qualcosa da rileggere.
+## C'È DI CHE RILEGGERE? Nessun dado, nessun tratto: il rapporto, e basta.
 ##
-## ⚠️ **IL DIVARIO È IL MATERIALE DELLE `attese`, e va passato come dato.**
-## È quanto le aspettative verso quella persona stanno SOTTO quello che le
-## prove dicono di lei: se uno si aspetta già esattamente quello che ha
-## ricevuto, non c'è nessuna lettura alternativa da trovare — c'è solo un
-## fatto, e i fatti si tengono. Lo calcola `Limbico.divario`, che è l'unico
-## che possiede quelle chiavi; qui arriva come numero, perché `Limbico`
-## precarica QUESTO file e precaricarlo al contrario ucciderebbe il parse in
-## silenzio (la trappola Strati/Scavi, già pagata una volta).
-static func disponibile(torto: float, prove: float, divario := 1.0,
+## ⚠️⚠️ **E LE `attese` NON CI SONO, anche se il brief le dava come materiale
+## insieme ai ricordi. Ci ho provato, e non ne esce una condizione.**
+##
+## L'idea era: chi si aspetta già esattamente quello che ha ricevuto non ha
+## una lettura alternativa da trovare — ha un fatto, e i fatti si tengono.
+## Si era scritta come `Limbico.divario`, il massimo di `media_prove − attesa`
+## sulle chiavi `tipo|attore` di quella persona. Una revisione avversariale ha
+## mostrato che è **aperta per costruzione**: chi arriva qui ha per forza un
+## torto ripetuto (il ramo di `_tick_confronti` vuole gradino ≥ «svogliato»),
+## e quel torto ha già scritto un'attesa NEGATIVA — quattro «ignorato» a −0,8
+## con `ABITUDINE` 0,30 lasciano ≈ −0,60, quindi il divario valeva ≈ 0,60
+## anche per chi non ha una sola prova buona.
+##
+## E la lettura opposta — il divario sulle sole chiavi delle PROVE — si chiude
+## **sempre**, perché l'abitudine di `rivaluta` porta proprio quelle al
+## livello delle prove. Un cancello che non può chiudersi e uno che non può
+## aprirsi non sono due tarature diverse della stessa idea: sono la stessa
+## idea che non dice niente. Si toglie, come si fa qui con ogni guardia che
+## nessun test può far fallire — e si scrive che metà del materiale del brief
+## non ha prodotto una condizione, invece di lasciare in piedi una firma che
+## sembra severa e non lo è.
+static func disponibile(torto: float, prove: float,
 		torto_min := TORTO_MIN) -> bool:
-	if not is_finite(divario) or divario <= 0.0:
-		return false
 	return rapporto(torto, prove, torto_min) >= RAPPORTO_MIN
 
 
 ## LA SCHEDA COMPLETA, per chi la deve applicare e per chi la deve misurare.
-## `{"riletto", "rapporto", "divario"}` — e `riletto` è l'unica cosa che il
-## chiamante deve guardare per decidere se saltare il morso della lingua.
-static func scheda(torto: float, prove: float, divario := 1.0,
+## `{"riletto", "rapporto"}` — e `riletto` è l'unica cosa che il chiamante
+## deve guardare per decidere se saltare il morso della lingua.
+static func scheda(torto: float, prove: float,
 		torto_min := TORTO_MIN) -> Dictionary:
-	return {"riletto": disponibile(torto, prove, divario, torto_min),
-			"rapporto": rapporto(torto, prove, torto_min),
-			"divario": divario if is_finite(divario) else 0.0}
+	return {"riletto": disponibile(torto, prove, torto_min),
+			"rapporto": rapporto(torto, prove, torto_min)}

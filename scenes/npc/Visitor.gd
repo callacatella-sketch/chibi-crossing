@@ -4345,12 +4345,27 @@ func _capo_aggiorna() -> void:
 ## «SONO ANCORA GUARDINGO» — i due strati somatici. `forza` è quella che
 ## `Visitors._tick_sussulti` calcola già: nessun innesco nuovo.
 ##
-## ⚠️ **ED È LA FORZA DELL'ALLARME, non «di una reazione».** Una gioia non ne
-## ha (`Limbico.percepisci` la misura a parte, sotto il nome di `calore`), e
-## `Visitors` la chiama solo dentro il ramo di chi ha trasalito: due guardie
-## indipendenti sulla stessa regola, perché questo livello è la faccia della
-## paura e sopra un cuoricino diceva il contrario di quel che stava
-## succedendo.
+## ⚠️ **ED È LA FORZA DELL'ALLARME, non «di una reazione».** Su un cuoricino
+## non si accende mai: accesa un gradino più su si posava su tutte e tre le
+## risposte della strada veloce, e siccome la gioia è dodici volte più
+## frequente della paura (misurato: 48 «si illumina» contro 4 «trasalisce»)
+## il livello «guardingo» stava addosso a chi ti vuole bene molto più che a
+## chi ti teme. Le due strade che la chiamano sono tutte e due tensione:
+##
+##  · il ramo di chi ha TRASALITO (`Visitors._tick_sussulti`), dove la forza
+##    la misura il `Limbico` — e per una gioia vale zero: è una seconda
+##    guardia, a monte e indipendente da questa;
+##  · la TENSIONE DEL CONFRONTO (`Visitors._tick_confronti`), che è l'altra
+##    cosa che stringe un corpo: qualcuno a due metri e mezzo a cui si ha
+##    qualcosa da rinfacciare. È il buio che alla rilettura mancava — senza,
+##    il Rialzo di chi rilegge si rifiutava sempre, e la generosità del
+##    giocatore non aveva un corpo.
+##
+## ⚠️ E la seconda strada NON passa dal `Limbico`, quindi la sua guardia è
+## un'altra e sta scritta accanto alla sua costante: `TENSIONE_CONFRONTO`
+## tiene il tetto **sotto metà** di uno spavento pieno. La tensione di un
+## confronto non è uno spavento, e chi alzasse quel numero metterebbe addosso
+## a chi ha un torto la faccia di chi ha appena avuto paura di te.
 ##
 ## `maxf` e non `=`: un secondo spavento dentro il primo non lo ACCORCIA.
 func somatico(forza: float) -> void:

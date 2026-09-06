@@ -22,6 +22,12 @@ scenes/npc/Deriva.gd
 -->
 	return lerpf(1.0, PLASTICITA_CUCCIOLO, clampf(crescita, 0.0, 1.0))
 =====
+il cucciolo non e' piu' segnato il DOPPIO
+scenes/npc/Deriva.gd
+const PLASTICITA_CUCCIOLO := 2.0
+-->
+const PLASTICITA_CUCCIOLO := 2.4
+=====
 il tetto sfonda il teorema dell'ordine
 scenes/npc/Deriva.gd
 const PLASTICITA_MAX := 2.4
@@ -38,6 +44,18 @@ static func plasticita_di(crescita: float) -> float:
 	if not is_finite(crescita):
 		return 0.0
 =====
+`componi` non clampa piu' la base
+scenes/npc/Deriva.gd
+	var b := clampf(base, 0.0, 1.0)
+	if not is_finite(scarto):
+		return b
+	return clampf(b + scarto, 0.0, 1.0)
+-->
+	var b := base
+	if not is_finite(scarto):
+		return b
+	return clampf(b + scarto, 0.0, 1.0)
+=====
 l'eta' non arriva piu' alla deriva
 scenes/npc/Animo.gd
 		nuovo[t] = DERIVA.delta(float(tratti.get(t, 0.5)), pressione,
@@ -51,28 +69,18 @@ var crescita := 1.0
 -->
 var crescita := 0.0
 =====
-`derivato` non propaga piu' la plasticita'
-scenes/npc/Deriva.gd
-	return clampf(clampf(base, 0.0, 1.0)
-			+ delta(base, pressione, plasticita), 0.0, 1.0)
--->
-	return clampf(clampf(base, 0.0, 1.0)
-			+ delta(base, pressione), 0.0, 1.0)
-=====
 il ponte dichiara tutti adulti
 scenes/npc/Visitors.gd
 	a.set("crescita", clampf(float(lg.call("crescita", nome)), 0.0, 1.0))
-	a.set("_deriva_giorno", -1)
 -->
 	a.set("crescita", 1.0)
-	a.set("_deriva_giorno", -1)
 =====
-il ponte invalida ma non ricalcola: il prestito arriva un giorno dopo
+il villaggio non presta piu' l'eta' alla nascita
 scenes/npc/Visitors.gd
-	a.set("crescita", clampf(float(lg.call("crescita", nome)), 0.0, 1.0))
-	a.set("_deriva_giorno", -1)
+		_presta_l_eta_a(animo,
+				str((r.get("dna", {}) as Dictionary).get("name", "")))
 -->
-	a.set("crescita", clampf(float(lg.call("crescita", nome)), 0.0, 1.0))
+		pass
 =====
 l'eta' entra nel salvataggio (la seconda casa di un dato solo)
 scenes/npc/Animo.gd

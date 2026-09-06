@@ -70,8 +70,8 @@ func run(t) -> void:
 	_solo_la_prova_che_assolve(t)
 	_una_gentilezza_sola_non_compra_un_torto_grosso(t)
 	_il_torto_minimo_morde(t)
-	_il_divario_e_il_materiale_delle_attese(t)
 	_rileggere_non_tocca_NIENTE(t)
+	_due_domande_due_aggregati(t)
 	_chi_rilegge_non_paga_e_chi_si_morde_si(t)
 	_non_punisce_chi_e_stato_gentile(t)
 	_le_prove_invecchiano(t)
@@ -169,6 +169,19 @@ func _solo_la_prova_che_assolve(t) -> void:
 ## ⚠️ E si giudica `scheda()["riletto"]`, che e' quello che il gioco legge —
 ## non `disponibile()` per conto suo. Le due devono anche COINCIDERE, o una
 ## delle due sarebbe una funzione che nessuno esegue.
+##
+## ⚠️ **E LA SPAZZATA FINALE NON ATTRAVERSAVA LA SOGLIA.** Andava da 0,30 a
+## 3,60 con `prove = 2.0`, e il rapporto scende sotto `RAPPORTO_MIN` solo
+## oltre `prove / RAPPORTO_MIN` = **4,00**: `riletto` era `true` per tutte e
+## dodici le iterazioni, quindi `prima` restava `true` e `t.ok(prima or not
+## ok, …)` era una **costante vera** — la stessa famiglia del `t.ok(… or
+## true)` che questo progetto ha gia' tolto altrove. Adesso il fondo della
+## spazzata si RICAVA da `RAPPORTO_MIN` (il doppio del punto di spegnimento),
+## cosi' l'intervallo lo attraversa qualunque sia la taratura: un intervallo
+## scritto a mano si smura da solo il giorno che qualcuno tocca la costante.
+## E si pretende che il passaggio sia AVVENUTO, una volta sola — senza quella
+## riga, una monotonia provata su un intervallo muto non si distingue da una
+## monotonia provata davvero.
 func _una_gentilezza_sola_non_compra_un_torto_grosso(t) -> void:
 	t.eq(bool(RIL.scheda(2.0, 0.72)["riletto"]), false,
 			"una gentilezza sola non rilegge un torto grosso")
@@ -181,14 +194,36 @@ func _una_gentilezza_sola_non_compra_un_torto_grosso(t) -> void:
 			t.eq(bool(RIL.scheda(torto, prove)["riletto"]),
 					RIL.disponibile(torto, prove),
 					"la scheda e la disponibilita' non divergono mai")
-	# piu' grosso e' il torto, meno lo si rilegge
+	# piu' grosso e' il torto, meno lo si rilegge — e la spazzata arriva al
+	# DOPPIO del punto in cui la rilettura si spegne, che non e' un numero
+	# scritto qui: e' `prove / RAPPORTO_MIN`, letto dalla costante vera.
+	# ⚠️ il pavimento sotto `RAPPORTO_MIN` non e' una taratura: serve perche'
+	# una mutazione che la porta a ZERO dia un ROSSO invece di un `fine` a
+	# infinito (che produce torti NaN, e un NaN in `rapporto` torna 0.0, cioe'
+	# «spenta» — la mutazione passerebbe proprio la riga scritta per lei).
+	var prove_fisse := 2.0
+	var inizio: float = maxf(0.2, RIL.TORTO_MIN * 2.0)
+	var fine: float = prove_fisse / maxf(RIL.RAPPORTO_MIN, 0.01) * 2.0
+	t.ok(fine > inizio * 2.0,
+			"la spazzata ha spazio per attraversare la soglia (%.2f -> %.2f)"
+			% [inizio, fine])
 	var prima := true
-	for k in 12:
-		var torto := 0.3 + 0.3 * float(k)
-		var ok: bool = bool(RIL.scheda(torto, 2.0)["riletto"])
+	var spenta := false
+	var cambi := 0
+	for k in 41:
+		var torto: float = inizio + (fine - inizio) * float(k) / 40.0
+		var ok: bool = bool(RIL.scheda(torto, prove_fisse)["riletto"])
 		t.ok(prima or not ok,
 				"la disponibilita' non torna dopo essere sparita (%.2f)" % torto)
+		if prima and not ok:
+			cambi += 1
+		if not ok:
+			spenta = true
 		prima = ok
+	t.ok(spenta,
+			"e dentro la spazzata (fino a %.2f di torto) la rilettura si SPEGNE"
+			% fine + ": senza questa riga la monotonia e' una costante vera")
+	t.eq(cambi, 1, "e si spegne una volta sola, non a intermittenza")
 
 
 # ── 5 ─────────────────────────────────────────────────────────────────────
@@ -196,44 +231,55 @@ func _una_gentilezza_sola_non_compra_un_torto_grosso(t) -> void:
 ## un denominatore che tende a zero — cioe' a non fabbricare un infinito che
 ## poi si legge come «rilettura sempre disponibile». Toglierla lasciava tutta
 ## la suite verde.
+##
+## ⚠️⚠️ **E LA PRIMA CURA LA GIUDICAVA CONTRO SE' STESSA.** I due campioni
+## nascevano dalla costante (`TORTO_MIN * 0.5` e `* 2.0`): mettendo
+## `TORTO_MIN := 0.001` si spostavano CON lei e tutte e cinque le asserzioni
+## restavano verdi — e nessun altro caso mordeva, perche' tutti lavorano su
+## torti veri, un ordine di grandezza sopra. La soglia che esiste «per non
+## fabbricare un infinito» si poteva azzerare di fatto.
+##
+## La cura e' la stessa gia' applicata a `Deriva.FRAZIONE` in
+## `test_finestra.gd`: **si ancora a un numero che non e' lei**, e il numero
+## sta nella sua stessa testata — «meno di un decimo di un solo ricordo
+## brutto». Quel «solo ricordo brutto» non si scrive a mano: si costruisce un
+## `Animo` vero, gli si incide UN torto a piena forza, e si MISURA quanto vale
+## sulla scala di `conto_verso` (che e' la sola scala su cui `TORTO_MIN` ha un
+## significato: vedi la testata di `Rilettura.gd`, «non e' la
+## `SOGLIA_SORPRESA` del Limbico anche se il numero e' lo stesso»).
+##
+## E i due campioni si ricavano dal torto MISURATO, non dalla costante: dentro
+## la banda, un quarantesimo sta sempre sotto e un quarto sempre sopra. Con
+## `TORTO_MIN := 0.001` diventano rosse **due** asserzioni, non una.
 func _il_torto_minimo_morde(t) -> void:
 	t.almost(RIL.rapporto(0.0, 5.0), 0.0,
 			"senza torto il rapporto e' zero, non infinito", 1e-12)
 	t.eq(bool(RIL.scheda(0.0, 5.0)["riletto"]), false,
 			"e senza torto non c'e' niente da rileggere")
-	var sotto: float = RIL.TORTO_MIN * 0.5
-	var sopra: float = RIL.TORTO_MIN * 2.0
+
+	# il METRO: un solo ricordo brutto a piena forza, inciso oggi, letto sulla
+	# scala vera di `Animo.conto_verso`
+	var uno_brutto := _animo()
+	uno_brutto.ricorda("ignorato", "giocatore", -1.0, 1.0)
+	var cb: Dictionary = uno_brutto.conto_verso("giocatore")
+	var pieno: float = float(cb["torti"])
+	t.ok(pieno > 0.5,
+			"un solo ricordo brutto a piena forza vale %.3f di torto: e' il"
+			% pieno + " metro, e se fosse degenere la banda non direbbe niente")
+	t.ok(RIL.TORTO_MIN >= pieno / 20.0 and RIL.TORTO_MIN <= pieno / 5.0,
+			"TORTO_MIN (%.4f) sta fra un ventesimo e un quinto di un solo"
+			% RIL.TORTO_MIN + " ricordo brutto (%.3f): «meno di un decimo»,"
+			% pieno + " come dichiara la sua testata")
+
+	var sotto: float = pieno / 40.0
+	var sopra: float = pieno / 4.0
 	t.almost(RIL.rapporto(sotto, 5.0), 0.0,
-			"sotto la soglia il rapporto resta zero", 1e-12)
+			"sotto la soglia (%.4f) il rapporto resta zero" % sotto, 1e-12)
 	t.ok(RIL.rapporto(sopra, 5.0) > RIL.RAPPORTO_MIN,
-			"e appena sopra torna un numero vero (%.2f)" % RIL.rapporto(sopra, 5.0))
+			"e sopra (%.3f) torna un numero vero (%.2f)"
+			% [sopra, RIL.rapporto(sopra, 5.0)])
 	t.ok(is_finite(RIL.rapporto(1e-12, 5.0)),
 			"e non esce mai un infinito")
-
-
-# ── 6 ─────────────────────────────────────────────────────────────────────
-## IL DIVARIO — il materiale che le `attese` mettono a disposizione. Chi si
-## aspetta gia' esattamente quello che ha ricevuto non ha una lettura
-## alternativa da trovare: ha un fatto, e i fatti si tengono.
-func _il_divario_e_il_materiale_delle_attese(t) -> void:
-	t.eq(RIL.disponibile(1.0, 5.0, 0.0), false,
-			"senza divario non si rilegge, per quante prove ci siano")
-	t.eq(RIL.disponibile(1.0, 5.0, -0.3), false, "ne' con un divario negativo")
-	t.eq(RIL.disponibile(1.0, 5.0, 0.4), true, "col divario si")
-	t.eq(RIL.disponibile(1.0, 5.0, NAN), false, "e un NaN non e' un divario")
-
-	var a := _animo()
-	_gentilezze(a, 10)
-	_torti(a, 3)
-	var c: Dictionary = a.conto_verso("giocatore")
-	var d: float = a.limbico.divario("giocatore", float(c["media_prove"]))
-	t.ok(d > 0.0, "chi ha subito un torto ha un divario da colmare (%.3f)" % d)
-	t.almost(a.limbico.divario("Nessuno", float(c["media_prove"])), 0.0,
-			"e verso chi non conosce non c'e' nessun divario", 1e-12)
-	# ⚠️ ed e' di SOLA LETTURA
-	var prima: Dictionary = (a.limbico.attese as Dictionary).duplicate()
-	a.limbico.divario("giocatore", 0.9)
-	t.eq(a.limbico.attese, prima, "chiedere il divario non scrive un bit")
 
 
 # ── 7 ─────────────────────────────────────────────────────────────────────
@@ -260,7 +306,54 @@ func _rileggere_non_tocca_NIENTE(t) -> void:
 				"rileggere non tocca «%s»" % k)
 
 
-# ── 8 ─────────────────────────────────────────────────────────────────────
+# ── 6 ─────────────────────────────────────────────────────────────────────
+## ⚠️ **DUE DOMANDE, DUE AGGREGATI — e non è una tabella gemella.**
+##
+## `prove` conta solo le righe VIVE e la legge `rancore()`: è il
+## comportamento che il gioco ha sempre avuto, e la riga che impedisce di
+## comprarsi il silenzio di qualcuno. MISURATO (`tools/misura_gradino.gd`,
+## lo scenario del brief: `taglia_legna` ogni giorno per uno che sognava di
+## fare il guerriero): contando anche il sommario, chi porta un piatto a
+## giorni alterni rende il confronto **IRRAGGIUNGIBILE** — 120 giornate e il
+## gradino si ferma a «rifiuto», mentre senza il sommario ci arriva al
+## giorno 71.
+##
+## `prove_totali` conta anche il SOMMARIO e la legge solo la RILETTURA: la
+## sua domanda è un'altra, e senza il sommario le prove vive si appiattiscono
+## a ~0.8 qualunque sia la generosità (0.87 con un piatto a settimana, 0.75
+## con uno al giorno) — cioè la rilettura sarebbe cieca alla cosa che deve
+## leggere.
+func _due_domande_due_aggregati(t) -> void:
+	var a := _animo()
+	for g in 30:
+		a.ricorda("piatto", "giocatore", 0.7, 0.8)
+		a.ricorda("ignorato", "giocatore", -0.7, 0.8)
+		a.passa_giorno()
+	var c: Dictionary = a.conto_verso("giocatore")
+	t.ok(float(c["prove_totali"]) > float(c["prove"]) + 1e-6,
+			"le prove totali contano piu' delle sole vive (%.3f contro %.3f)"
+			% [float(c["prove_totali"]), float(c["prove"])])
+	# ⚠️ e `rancore()` legge le VIVE: si ricostruisce la sua formula con
+	# `prove`, e si pretende che con `prove_totali` NON torni
+	var con_vive: float = 1.0 - exp(-maxf(0.0,
+			float(c["torti"]) - float(c["prove"]) * 1.4) / ANIMO.SATURAZIONE * 3.0)
+	var con_tutte: float = 1.0 - exp(-maxf(0.0,
+			float(c["torti"]) - float(c["prove_totali"]) * 1.4)
+			/ ANIMO.SATURAZIONE * 3.0)
+	t.almost(a.rancore("giocatore"), con_vive,
+			"il rancore legge le sole righe VIVE", 1e-9)
+	t.ok(con_tutte < con_vive - 1e-9,
+			"e col sommario sarebbe piu' mite (%.4f contro %.4f): e' la"
+			% [con_tutte, con_vive] + " differenza che rende il villaggio"
+			+ " placabile col cibo")
+	# la rilettura invece guarda il totale: la sua scheda deve cambiare
+	# quando cambia `prove_totali`, non `prove`
+	t.eq(bool(RIL.scheda(float(c["torti"]), float(c["prove_totali"]))["riletto"]),
+			bool(a.regola("giocatore")["modo"] == "rilettura"),
+			"la porta decide col totale, non con le vive")
+
+
+# ── 7 ─────────────────────────────────────────────────────────────────────
 ## ⚠️ **LA PREVISIONE FALSIFICABILE DI TUTTO IL LAVORO.** Chi rilegge non
 ## spende `regolazione` e non alza il cortisolo; chi si morde la lingua fa
 ## tutti e due. Se un domani questa asserzione diventasse rossa, la
@@ -412,13 +505,13 @@ func _la_leva_del_banco_e_DAVVERO_il_gioco_di_prima(t) -> void:
 
 
 # ── 13 ────────────────────────────────────────────────────────────────────
-## ⚠️ **IL PERDONO LEGGE ANCHE IL SOMMARIO, come il rancore.** Prima no, e
-## finche' la potatura era un FIFO non si vedeva: se ne andavano i vecchi,
-## buoni e cattivi in proporzione. Con la potatura per SCHEMA si sacrificano
-## per prime le righe RIPETUTE — e le gentilezze del giocatore sono per
-## definizione le righe ripetute. MISURATO su un piatto e una legna al
-## giorno: le prove passavano da 3.79 (25 giornate) a 3.18 (60) mentre i
-## torti salivano da 0.76 a 1.57.
+## ⚠️ **IL SOMMARIO CONTA PER LA RILETTURA E NON PER IL RANCORE.** Con la
+## potatura per SCHEMA si sacrificano per prime le righe RIPETUTE — e le
+## gentilezze del giocatore sono per definizione le righe ripetute — quindi
+## le sole righe vive si appiattiscono: misurato, 0.87 con un piatto a
+## settimana e 0.75 con uno al giorno. La rilettura ha bisogno del sommario
+## o e' cieca alla generosita'; `rancore()` no, o il villaggio diventa
+## placabile col cibo (vedi `_due_domande_due_aggregati`).
 func _il_perdono_legge_anche_il_sommario(t) -> void:
 	var a := _animo()
 	# si riempie oltre il tetto dei ricordi vivi, cosi' la potatura lavora
@@ -441,9 +534,12 @@ func _il_perdono_legge_anche_il_sommario(t) -> void:
 			vive += RIL.peso_prova(float(r["valenza"]), float(r["intensita"]),
 					pow(0.5, float(int(a.oggi) - int(r["quando"])) / ANIMO.MEZZA_VITA))
 	var c: Dictionary = a.conto_verso("giocatore")
-	t.ok(float(c["prove"]) > vive + 1e-6,
-			"le prove valgono piu' delle sole righe vive (%.3f contro %.3f)"
-			% [float(c["prove"]), vive])
+	t.almost(float(c["prove"]), vive,
+			"`prove` sono ESATTAMENTE le sole righe vive: e' quello che"
+			+ " legge `rancore()`", 1e-9)
+	t.ok(float(c["prove_totali"]) > vive + 1e-6,
+			"e `prove_totali` valgono di piu' (%.3f contro %.3f): e' quello"
+			% [float(c["prove_totali"]), vive] + " che legge la rilettura")
 
 
 # ── 14 ────────────────────────────────────────────────────────────────────

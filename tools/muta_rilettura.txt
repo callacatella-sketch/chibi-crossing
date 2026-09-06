@@ -24,32 +24,17 @@ scenes/npc/Rilettura.gd
 -->
 	return maxf(0.0, prove) / maxf(torto, 1e-12)
 =====
-il divario smette di essere un cancello
+la soglia del torto si azzera di fatto
 scenes/npc/Rilettura.gd
-	if not is_finite(divario) or divario <= 0.0:
-		return false
+const TORTO_MIN := 0.08
 -->
-	if not is_finite(divario):
-		return false
+const TORTO_MIN := 0.001
 =====
-il divario risponde sempre di si'
-scenes/npc/Limbico.gd
-	var coda := "|" + attore
-	var peggiore := 0.0
-	for k in attese:
-		if not str(k).ends_with(coda):
-			continue
-		peggiore = maxf(peggiore, media_prove - float(attese[k]))
-	return peggiore
+la soglia del torto diventa un muro
+scenes/npc/Rilettura.gd
+const TORTO_MIN := 0.08
 -->
-	return 1.0
-=====
-chiedere il divario SCRIVE (non e' piu' di sola lettura)
-scenes/npc/Limbico.gd
-		peggiore = maxf(peggiore, media_prove - float(attese[k]))
--->
-		peggiore = maxf(peggiore, media_prove - float(attese[k]))
-		attese[k] = media_prove
+const TORTO_MIN := 0.40
 =====
 ci si morde la lingua PRIMA di rileggere
 scenes/npc/Animo.gd
@@ -83,26 +68,25 @@ il conto si ricalcola le prove per conto suo (via la recenza)
 scenes/npc/Animo.gd
 		prove += RILETTURA.peso_prova(float(r["valenza"]), float(r["intensita"]),
 				_recenza(int(r["quando"])))
-		somma_val += float(r["valenza"])
 -->
 		prove += float(r["valenza"]) * float(r["intensita"])
-		somma_val += float(r["valenza"])
 =====
-il perdono torna a NON leggere il sommario
+la rilettura legge le sole righe VIVE (cieca alla generosita')
 scenes/npc/Animo.gd
-		prove += RILETTURA.peso_prova(float(vb["peso"]), 1.0,
-				_recenza(int(vb["ultimo"])))
+	var sch := RILETTURA.scheda(float(c["torti"]), float(c["prove_totali"]))
 -->
-		prove += 0.0
+	var sch := RILETTURA.scheda(float(c["torti"]), float(c["prove"]))
+=====
+il rancore legge il SOMMARIO (il villaggio si compra col cibo)
+scenes/npc/Animo.gd
+	var buoni: float = float(c["prove"])
+-->
+	var buoni: float = float(c["prove_totali"])
 =====
 il rancore smette di leggere il conto
 scenes/npc/Animo.gd
-	var c := conto_verso(attore)
-	var somma: float = float(c["torti"])
 	var buoni: float = float(c["prove"])
 -->
-	var c := conto_verso(attore)
-	var somma: float = float(c["torti"])
 	var buoni: float = 0.0
 =====
 il villaggio torna a scendere dentro il Limbico
@@ -118,6 +102,21 @@ scenes/npc/Visitors.gd
 				chiedi_gesto(label, "ha_riletto")
 -->
 				chiedi_gesto(label, "si_e_trattenuto")
+=====
+il ramo della rilettura perde il `continue` (il corpo del morso addosso a chi non si e' morso)
+scenes/npc/Visitors.gd
+				chiedi_gesto(label, "ha_riletto")
+				continue
+-->
+				chiedi_gesto(label, "ha_riletto")
+=====
+la tensione del confronto non si arma piu' (la rilettura torna senza corpo)
+scenes/npc/Visitors.gd
+				node.call("somatico", lerpf(GESTI.CODA_SOGLIA * 2.0,
+						TENSIONE_CONFRONTO,
+						ANIMO.frazione(int(animo.gradino))))
+-->
+				pass
 =====
 la frase della rilettura perde il buio
 scenes/npc/Gesti.gd

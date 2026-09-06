@@ -48,6 +48,37 @@ extends SceneTree
 ##     salire. E' qui che la firma dell'effetto Wilson puo' vivere, perche'
 ##     e' l'unico tratto di vita in cui la plasticita' cambia.
 ##
+## ⚠️⚠️ **E DUE DI QUESTI TRE NON SANNO FALLIRE COM'ERANO SCRITTI. Chi legge
+## il referto deve saperlo prima dei numeri, o legge tre «sì» e ne conta tre.**
+##
+## · **(b), dentro `_blocco`, È UN'IDENTITÀ e non una misura.** Per
+##   `g >= GIORNI_ADULTO` la `crescita` vale 1.0, quindi `plasticita_di(1.0)`
+##   torna il pavimento — che è **1.0 esatto**, per il `clampf` dentro
+##   `Deriva.delta` — e i due bracci valutano *letteralmente la stessa
+##   espressione*, `delta(b, pres, 1.0)`, sugli stessi identici ingressi. La
+##   divergenza non può che essere zero in virgola mobile: non ci sono due
+##   cammini da confrontare. Un cancello che non può fallire **si dichiara,
+##   non si toglie in silenzio** — e quello che PUÒ fallire è il blocco
+##   `_blocco_vero`, che rifà lo stesso A/B ad anello chiuso passando dalla
+##   porta vera (`Animo.ricorda` → la chimica → l'umore → il `sentito` che si
+##   incide). Il residuo di là è una misura; questa divergenza è aritmetica.
+##
+## · **(c) ERA FORZATO DALL'ALGEBRA, per come sceglieva l'indice.** `i_min`
+##   era l'argmin del braccio della FINESTRA, e `salita_c` veniva letta allo
+##   **stesso** indice: cioè l'indice più favorevole al braccio che doveva
+##   vincere, applicato d'ufficio anche all'altro. E il resto è aritmetica:
+##   `delta` è lineare in `plasticita`, quindi `q_fin` sta sotto `q_ctrl`
+##   dovunque la plasticità sia > 1 e ci coincide all'età adulta; siccome le
+##   prove si accumulano `q_ctrl` scende; quindi «la finestra sale dal minimo
+##   di `q_fin`» e «il controllo non sale da lì» erano vere **per
+##   costruzione** ogni volta che la plasticità decresce.
+##   Adesso **ogni braccio si misura dal PROPRIO minimo**, e il referto
+##   stampa accanto la lettura a **indice FISSO** (g = 1 → età adulta),
+##   dichiarata prima e uguale per tutti e due.
+##   ⚠️ Dal proprio minimo la salita non può essere negativa: il numero che
+##   discrimina non è il SEGNO ma la GRANDEZZA, e il controllo viene giudicato
+##   nel suo caso più favorevole — se anche lì non sale, non sale.
+##
 ## ⚠️ **E C'E' UN CONFONDENTE STRUTTURALE, che va detto prima dei numeri.**
 ## Le prove si ACCUMULANO col tempo: piu' uno vive, piu' ambiente ha addosso,
 ## quindi `Var(delta)` cresce e la quota del genotipo scende — in tutti e due
@@ -145,20 +176,44 @@ func _go() -> void:
 			% [esito_ind["c0"], esito_ind["cN"], "sì" if esito_ind["a"] else "NO"])
 	print("(b) da adulti i due bracci COINCIDONO (divergenza max %.12f)   %s"
 			% [esito_ind["div"], "sì" if esito_ind["b"] else "NO"])
-	print("(c) DENTRO la finestra la quota sale (%+.4f) e il controllo no (%+.4f)   %s"
-			% [esito_ind["salita_f"], esito_ind["salita_c"],
-			"sì" if esito_ind["c"] else "NO"])
+	print("    ⚠️ QUI NON È UNA MISURA, È UN'IDENTITÀ: per g ≥ %d la crescita"
+			% LEGAMI.GIORNI_ADULTO)
+	print("    vale 1.0, `plasticita_di(1.0)` torna il pavimento 1.0, e i due")
+	print("    bracci valutano la STESSA espressione sugli stessi ingressi. Un")
+	print("    cancello che non può fallire va dichiarato, non tolto in silenzio:")
+	print("    quello che PUÒ fallire è il blocco qui sotto, ad anello chiuso.")
+	print("(c) DENTRO la finestra, ogni braccio dal PROPRIO minimo:")
+	print("      finestra  %+.4f  (dal giorno %d all'età adulta, giorno %d)"
+			% [esito_ind["salita_f"], int(esito_ind["i_min_f"]),
+			int(esito_ind["i_ad"])])
+	print("      controllo %+.4f  (dal giorno %d — il suo caso più favorevole)"
+			% [esito_ind["salita_c"], int(esito_ind["i_min_c"])])
+	print("      ⇒ %s" % ("sì" if esito_ind["c"] else "NO"))
+	print("    ⚠️ dal proprio minimo la salita non può essere negativa: a")
+	print("    discriminare non è il segno ma la GRANDEZZA, e il controllo è")
+	print("    giudicato nel suo caso migliore. A INDICE FISSO (giorno 1 → %d),"
+			% int(esito_ind["i_ad"]))
+	print("    che è la lettura senza nessuna scelta di indice: finestra %+.4f,"
+			% esito_ind["fisso_f"])
+	print("    controllo %+.4f — e lì la quota parte da ~1 con la storia ancora"
+			% esito_ind["fisso_c"])
+	print("    vuota, quindi può quasi solo scendere in tutti e due i bracci.")
 	print("")
-	if esito_ind["a"] and esito_ind["b"]:
+	if esito_ind["a"]:
 		if esito_ind["c"]:
-			print("⇒ LA FIRMA C'È, ED È DENTRO LA FINESTRA. Dal minimo all'età")
-			print("  adulta la quota di varianza spiegata dal genotipo sale di")
-			print("  %+.4f, mentre nello stesso identico tratto di vita il gioco"
+			print("⇒ LA FIRMA C'È, ED È DENTRO LA FINESTRA. Dal proprio minimo")
+			print("  all'età adulta la quota di varianza spiegata dal genotipo")
+			print("  sale di %+.4f, mentre nello stesso tratto di vita il gioco"
 					% esito_ind["salita_f"])
-			print("  di oggi la porta di %+.4f." % esito_ind["salita_c"])
+			print("  di oggi — misurato dal SUO minimo, cioè nel suo caso più")
+			print("  favorevole — la porta di %+.4f." % esito_ind["salita_c"])
+			print("  ⚠️ E il «sì» di (b) non è una prova: è l'identità dichiarata")
+			print("  qui sopra. Questa conclusione poggia su (a) e (c) soltanto.")
 		else:
-			print("⇒ LA FIRMA NON C'È: dentro la finestra la quota fa %+.4f."
+			print("⇒ LA FIRMA NON C'È: dentro la finestra la quota fa %+.4f,"
 					% esito_ind["salita_f"])
+			print("  e il controllo, dal suo minimo, %+.4f."
+					% esito_ind["salita_c"])
 		print("")
 		print("  E SULL'INTERA VITA la quota SCENDE in tutti e due i bracci —")
 		print("  %.4f → %.4f col controllo, %.4f → %.4f con la finestra — per un"
@@ -167,12 +222,16 @@ func _go() -> void:
 		print("  ACCUMULANO, quindi l'ambiente pesa sempre di più. Chi volesse")
 		print("  la firma sull'intera vita deve guardare la rGE, non questo.")
 	else:
-		print("⇒ LA MISURA NON È PRONTA: (a) o (b) non passa, e (c) non si legge.")
+		print("⇒ LA MISURA NON È PRONTA: (a) non passa — la quota sale da sola")
+		print("  anche col controllo, e allora niente di quello che fa la")
+		print("  finestra si può attribuire alla finestra. (c) non si legge.")
 	print("")
-	print("  Il blocco rGE, come lettura esplorativa: dentro la finestra")
-	print("  %+.4f con la finestra contro %+.4f col controllo, e sull'intera"
-			% [esito_rge["salita_f"], esito_rge["salita_c"]])
-	print("  vita %.4f → %.4f contro %.4f → %.4f."
+	print("  Il blocco rGE, come lettura esplorativa (ogni braccio dal PROPRIO")
+	print("  minimo, come sopra): dentro la finestra %+.4f con la finestra"
+			% esito_rge["salita_f"])
+	print("  contro %+.4f col controllo; a indice fisso %+.4f contro %+.4f; e"
+			% [esito_rge["salita_c"], esito_rge["fisso_f"], esito_rge["fisso_c"]])
+	print("  sull'intera vita %.4f → %.4f contro %.4f → %.4f."
 			% [esito_rge["f0"], esito_rge["fN"], esito_rge["c0"], esito_rge["cN"]])
 	print("")
 	print("")
@@ -277,19 +336,37 @@ func _blocco(quanti: int, giorni: int, rge: float, titolo: String) -> Dictionary
 	var fN: float = float(q_fin[q_fin.size() - 1])
 	# l'indice dell'eta' adulta (crescita == 1 la prima volta)
 	var i_ad: int = mini(LEGAMI.GIORNI_ADULTO, q_fin.size()) - 1
-	# il MINIMO dentro la finestra, e da li' si guarda la salita
-	var i_min := 0
+	# ⚠️ **OGNI BRACCIO DAL PROPRIO MINIMO — e la prima stesura no.** `i_min`
+	# era l'argmin del solo braccio della FINESTRA, e `salita_c` veniva letta
+	# allo STESSO indice: un indice scelto per essere il piu' favorevole al
+	# braccio che doveva vincere, e poi applicato d'ufficio anche all'altro.
+	# Con `delta` lineare in `plasticita`, `q_fin <= q_ctrl` dovunque la
+	# plasticita' superi 1 e le due coincidono all'eta' adulta; e `q_ctrl`
+	# scende perche' le prove si accumulano. Le due meta' di (c) passavano
+	# percio' **per costruzione**, non per una proprieta' del meccanismo.
+	var i_min_f := 0
+	var i_min_c := 0
 	for k in range(0, i_ad + 1):
-		if float(q_fin[k]) < float(q_fin[i_min]):
-			i_min = k
-	var salita_f: float = float(q_fin[i_ad]) - float(q_fin[i_min])
-	var salita_c: float = float(q_ctrl[i_ad]) - float(q_ctrl[i_min])
+		if float(q_fin[k]) < float(q_fin[i_min_f]):
+			i_min_f = k
+		if float(q_ctrl[k]) < float(q_ctrl[i_min_c]):
+			i_min_c = k
+	var salita_f: float = float(q_fin[i_ad]) - float(q_fin[i_min_f])
+	var salita_c: float = float(q_ctrl[i_ad]) - float(q_ctrl[i_min_c])
+	# e la lettura a INDICE FISSO, dichiarata prima e IDENTICA per i due
+	# bracci: al primo giorno la storia e' quasi vuota, quindi la quota parte
+	# da ~1 e di li' puo' quasi solo scendere. Serve da contrappeso — se le
+	# due letture raccontano due cose diverse, e' l'indice che sta parlando.
+	var fisso_f: float = float(q_fin[i_ad]) - float(q_fin[0])
+	var fisso_c: float = float(q_ctrl[i_ad]) - float(q_ctrl[0])
 	var div_max := 0.0
 	for k in range(i_ad, q_ctrl.size()):
 		div_max = maxf(div_max, absf(float(q_ctrl[k]) - float(q_fin[k])))
 
 	return {"c0": c0, "cN": cN, "f0": f0, "fN": fN, "div": div_max,
 			"salita_f": salita_f, "salita_c": salita_c,
+			"i_min_f": i_min_f + 1, "i_min_c": i_min_c + 1,
+			"fisso_f": fisso_f, "fisso_c": fisso_c, "i_ad": i_ad + 1,
 			"a": cN <= c0 + 0.010, "b": div_max <= 1e-9,
 			"c": salita_f > 0.010 and salita_c <= 0.010}
 

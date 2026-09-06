@@ -6760,6 +6760,65 @@ quaranta giorni e ho ignorato la morte del suo amico» — perdeva la seconda
 metà, perché le legne scacciavano il lutto. La quarantesima volta non è
 quaranta volte più definente della prima: quel conto lo tiene già il sommario.
 
+### ⚠️ L'IMMUNITÀ DELLA FERITA HA UNA CHIAVE, E LA TIENE IL GIOCATORE
+
+`intoccabile()` protegge il primo ricordo congruente del suo tipo — serve a
+non buttare l'unico episodio che spiega chi sei. Ma la congruenza è positiva
+solo per i COMPITI, quindi **la prima volta che al vicino è stato chiesto il
+contrario di quello che sogna diventava permanente**: nessuna potatura la
+toccava più, `cause()` e `sfogo()` potevano citarla al confronto sei mesi
+dopo, e non esisteva nessun gesto che la cancellasse. Sotto il vecchio FIFO
+invecchiava e usciva.
+
+È lo «stato permanente la cui unica chiave non è in mano al giocatore» che la
+**regola 1 degli Affetti** vieta per iscritto — ed era per giunta intestato a
+un gesto suo. L'ha trovato la lente del GENERE.
+
+**LA CURA:** `Schema.verso()` dice se un compito **serve** (+1) o **tradisce**
+(−1) il sogno, e una scheda con `verso < 0` smette di essere intoccabile
+appena fra le schede vive ce n'è almeno una con `verso > 0` — il giorno in cui
+il giocatore gli ha dato la cosa che sognava. La controprova **è** la chiave.
+Il conto resta nel sommario, quindi `cause()` può ancora dire «taglia_legna ×
+40»: decade la CITABILITÀ come episodio, non il numero.
+
+⚠️ **E il verso POSITIVO non decade, apposta**: quella non è una ferita, è il
+giorno buono, e farlo consumare vorrebbe dire che un gesto bello del giocatore
+si logora da sé.
+
+⚠️ **E il cancello dell'autore regge**: `verso()` ha la stessa firma di
+`congruenza()` — riceve `tipo`, `sogno`, `compiti`, **mai il ricordo** —
+quindi l'attore continua a non esistere nemmeno come argomento. E la
+`congruenza` resta il **modulo** del verso: nella potatura i due estremi
+pesano uguale, nessun diario rosa e nessun libro dei torti.
+
+### ⚠️ IL RESIDUO DICHIARATO: la congruenza esiste solo per i COMPITI
+
+`Schema.congruenza()` legge `Animo.COMPITI` e torna 0 per qualunque tipo che
+non sia il nome di un compito: `piatto`, `regalo`, `festa`, `vegliato`,
+`reperto`, i momenti del Filo Rosso, la nascita, il lutto — tutto quello che
+il villaggio si fa fra sé e sé, e tutto quello che il giocatore fa di
+affettuoso, non partecipa mai al termine che vale **1.6 su 3.8** del costo.
+
+Conseguenza, e l'ha trovata la lente del GENERE: quello che resta come
+EPISODIO citabile deriva verso il **registro delle mansioni**. Il vicino sa
+ancora dire *cosa gli è stato fatto fare*, non *con chi ha vissuto* — e in
+un gioco che si dichiara un simulatore di persone che si vogliono bene,
+questa è la terza domanda del collaudo che comincia a scricchiolare.
+
+⚠️ **Non l'ho chiusa, e la ragione è che la cura richiede una decisione che
+non è mia**: allargare la fonte vuol dire dichiarare quali altri tipi sono
+«auto-definenti» (i momenti del Filo Rosso? la nascita di un cucciolo? il
+primo gesto gentile ricevuto?), e sceglierli a naso metterebbe un peso di
+1.6 su una tabella indovinata. La forma della cura invece è chiara e non
+rompe nessun cancello: si tiene la firma `scheda(r, sogno, compiti)` e si
+passa una **seconda tabella come DATO**, con lo stesso valore assoluto
+(parlano di me sia quando confermano sia quando smentiscono chi sono) e
+senza mai vedere l'attore. Zero campi nuovi nel salvataggio.
+
+Il numero che dice se è urgente non c'è ancora: **la frazione di ricordi
+vivi con `attore == "giocatore"`, col FIFO e con lo schema**. Se sale molto,
+un villaggio che ricorda solo te è un villaggio che ti orbita attorno.
+
 ### ⚠️ TRE MISURE SBAGLIATE, e stanno nel frontespizio del banco
 
 Le **etichette** di `cause()` incastonano il sogno nella stringa, quindi due
@@ -6779,9 +6838,16 @@ una sua imitazione nel banco — un doppio che mente è peggio di nessun doppio 
 e una guardia scandaglia `scenes/` e `systems/` perché quella leva resti spenta.
 
 Guardia: [`tests/cases/test_schema.gd`](tests/cases/test_schema.gd), e
-**8 mutazioni su 8 rosse** (`tools/muta_schema.txt`); quella che rimette il
-FIFO ne accende 3 nel file e **6 in tutta la suite** — le altre tre sono in
-`test_animo`, cioè lo scenario canonico del brief.
+**11 mutazioni su 11 rosse** (`tools/muta_schema.txt`); quella che rimette
+il `pop_front()` ne accende 3, e «lo schema non pesa più niente» ne accende
+4 — erano 2 finché tre casi erano VACUI (il primo del suo tipo con
+congruenza > 0 è **sempre** intoccabile, quindi cicli e asserzioni non
+potevano fallire: se n'è accorta una revisione avversariale, non io).
+
+⚠️ **E QUESTO NUMERO ERA SBAGLIATO IN QUESTA STESSA RIGA**: diceva «8 su 8»
+mentre il file ne conteneva già 11. Un conto che non corrisponde al file è
+peggio di nessun conto — è l'unico modo che questo progetto ha di dire
+«quella guardia morde», e un numero vecchio è un via libera.
 
 ```
 Godot --headless --path . --script res://tools/misura_memoria.gd
@@ -6801,7 +6867,7 @@ vicino con qualcosa da rinfacciarle), c'è l'altra strada: **rileggere**.
 | dove | cosa |
 |---|---|
 | [`scenes/npc/Rilettura.gd`](scenes/npc/Rilettura.gd) | la parte PURA: cosa rende possibile una rilettura |
-| `Limbico.divario` | il materiale delle `attese`, di sola lettura |
+| `Visitors.TENSIONE_CONFRONTO` | il **corpo** della rilettura: il buio che si scioglie |
 | `Animo.conto_verso` | il libro mastro (torti e prove), estratto da `rancore()` |
 | `Animo.regola` | **la porta unica**: si rilegge, o ci si morde la lingua |
 | `Regia.OCCASIONI["ha_riletto"]` · `Gesti.FRASI["rilettura"]` | il Rialzo senza il Raccolto |
@@ -6847,10 +6913,24 @@ avversariale**. Il conto non torna in due modi indipendenti:
 nessuno.** Con lei sono spariti `QUOTA_MAX`, `RAPPORTO_PIENO`, `FIDUCIA` e
 `fiducia_restituita` — una guardia che nessun test può far fallire si toglie, e
 tre di quelle costanti la lente dei test le aveva già trovate senza guardia o
-giudicate contro sé stesse. Le `attese` restano il materiale del brief, ma come
-INGRESSO: `Limbico.divario` dice quanto le aspettative stanno sotto quello che
-le prove mostrano, e chi si aspetta già quello che ha ricevuto non ha una
-lettura alternativa da trovare — ha un fatto.
+giudicate contro sé stesse. ⚠️⚠️ **E LE `attese` — metà del materiale che il brief indicava — NON HANNO
+PRODOTTO UNA CONDIZIONE. Provate, e dichiarate fallite.** L'idea era: chi si
+aspetta già esattamente quello che ha ricevuto non ha una lettura alternativa
+da trovare, ha un fatto. Si era scritta come `Limbico.divario`, il massimo di
+`media_prove − attesa` sulle chiavi di quella persona; una revisione
+avversariale ha mostrato che è **aperta per costruzione** — chi arriva a quel
+ramo ha per forza un torto ripetuto, e quel torto ha già scritto un'attesa
+NEGATIVA (quattro «ignorato» a −0,8 lasciano ≈ −0,60), quindi il divario
+valeva ≈ 0,60 anche per chi non ha una sola prova buona. E la lettura opposta
+— sulle sole chiavi delle PROVE — si chiude **sempre**, perché l'abitudine
+porta proprio quelle al livello delle prove.
+
+Un cancello che non può chiudersi e uno che non può aprirsi non sono due
+tarature della stessa idea: sono la stessa idea che non dice niente.
+`Limbico.divario` è stata **tolta**, e la ragione per esteso sta nella
+testata di `Rilettura.disponibile`. La rilettura si decide sul solo rapporto
+prove/torto — e questo va detto, invece di lasciare in piedi una firma che
+sembra severa e non lo è.
 
 L'invariante che ne è nata è un caso di test:
 **lo stesso incarico si sente IDENTICO a chi ha riletto e a chi no.**
@@ -6873,8 +6953,54 @@ ripetute. MISURATO su una storia di un piatto e una legna al giorno:
 
 Il perdono smetteva di crescere proprio per il giocatore più attento, mentre il
 rancore continuava. Adesso le prove leggono il sommario, simmetriche ai torti —
-il che rende `rancore()` più mite nelle partite lunghe, ed è quello che la sua
-stessa riga dichiara di fare.
+il che rendeva `rancore()` più mite nelle partite lunghe.
+
+> ### ⚠️⚠️ E QUELLA CURA ERA PEGGIORE DEL DIFETTO: IL VILLAGGIO DIVENTAVA PLACABILE COL CIBO
+>
+> La riga qui sopra chiudeva **argomentando** («ed è quello che la sua stessa
+> riga dichiara di fare») su una funzione che decide chi se ne va dal
+> villaggio. Una revisione avversariale l'ha chiesto, e la misura c'è:
+> `tools/misura_gradino.gd`, lo scenario canonico del brief — `taglia_legna`
+> ogni giorno per uno che sognava di fare il guerriero, 120 giornate, tre
+> semi, e il CONTROFATTUALE nella stessa corsa (le voci positive del
+> sommario tolte attorno alla domanda vera, senza reimplementare
+> `aggiorna_scala`):
+>
+> | un piatto | → confronto, col sommario | senza |
+> |---|---|---|
+> | mai | giorno 71 | 71 |
+> | ogni 3 giorni | 105 | 72 |
+> | ogni 2 giorni | **MAI** | 71 |
+> | ogni giorno | **MAI** | 70 |
+>
+> Cioè: **chi porta un piatto a giorni alterni rendeva il confronto
+> irraggiungibile mentre ogni giorno rubava la vita a quella persona.** Non
+> è mitezza — è un villaggio che si compra col cibo, e la promessa scritta
+> in `aggiorna_scala` («ogni gradino deve poter essere visto e corretto»)
+> diventa «non c'è mai niente da correggere».
+
+### LA FORMA GIUSTA: due domande, due aggregati
+
+`conto_verso` torna **`prove`** (solo le righe vive) e **`prove_totali`**
+(anche il sommario), e non è una tabella gemella: è un conto solo con due
+aggregati che dicono quale domanda servono.
+
+- **`rancore()` legge `prove`**, cioè il comportamento che il gioco ha sempre
+  avuto: una gentilezza ripetuta a un certo punto si dà per scontata e
+  smette di scontare il rancore. È la stessa abitudine che `Limbico.rivaluta`
+  applica ai doni un piano più in su — e la riga che impedisce di comprarsi
+  il silenzio di qualcuno.
+- **La rilettura legge `prove_totali`**, perché la sua domanda è un'altra:
+  non «quanto ti tengo il muso» ma «c'è materiale per una lettura più
+  benevola», e lì cento gentilezze riassunte SONO materiale. Senza il
+  sommario sarebbe cieca alla generosità: misurato, le prove vive si
+  appiattiscono a **0,87 con un piatto a settimana e 0,75 con uno al
+  giorno** — la potatura per schema sacrifica per prime le righe ripetute,
+  che sono esattamente le gentilezze del giocatore.
+
+E il perdono pesa **dove deve**: su un tradimento d'identità ripetuto ogni
+giorno il ritmo del piatto sposta il confronto di **una giornata sola** (da
+71 a 70). Non ti compri il silenzio di uno a cui rubi la vita.
 
 ### QUANTO SUCCEDE, in partita
 
@@ -6911,6 +7037,93 @@ tre stesure del banco arrivarci — con un bersaglio tirato a sorte davano
 **22 decisioni contro 2**, e con quello scarto le colonne non dicono niente.
 
 ⚠️ **E 0 GESTI CONCESSI SU 2 RILETTURE.** Vedi il residuo qui sotto.
+
+### ⚠️ LE DUE PORTE QUASI SI ESCLUDONO — e il numero non c'è ancora
+
+Il ramo di `_tick_confronti` che chiama `Animo.regola` vuole
+`gradino ≥ svogliato`, cioè `rancore() ≥ SOGLIA["svogliato"]` = 0,18. Ma
+`rancore()` è `1 − exp(−max(0, torti − prove·1,4)/55·3)`, e la rilettura
+chiede `prove_totali ≥ 0,5·torti`. Le due condizioni tirano in direzioni
+opposte: **il morso vuole che le prove NON coprano i torti, la rilettura
+vuole che li coprano per metà.**
+
+Nel migliore dei casi (rapporto esattamente 0,5 e prove tutte nel sommario)
+resta `torti − 0,7·torti = 0,3·torti` di rancore, e per superare 0,18 di
+soglia servono **torti ≥ 12** — cioè una storia lunga e brutta *insieme* a
+una storia lunga e bella con la stessa persona. Esiste, ma è una fascia
+stretta, e nessuno l'ha ancora misurata in una partita vera.
+
+⚠️ **E il banco fino a ieri la nascondeva**: `misura_rilettura._prepara`
+scriveva `gradino = 2` **a mano** su vicini il cui rancore vero era
+`0.000` esatto (le prove coprivano i torti), cioè misurava la rilettura in
+uno stato che il gioco non produce. Adesso chiama `aggiorna_scala()` come
+fa il gioco, e il referto dice **quanti residenti stanno davvero nella
+fascia** — che è la cosa più importante che quel banco possa dire.
+
+Se il numero uscisse zero, la manopola onesta **non è allargare
+`RAPPORTO_MIN`**: è il `×1.4` di `rancore()`, che è la riga che chiude la
+porta a cui la rilettura bussa. E quella è una taratura del 2026-07, non
+mia.
+
+### IL CORPO DELLA RILETTURA: la tensione del confronto
+
+La frase è un Rialzo, e ogni Rialzo di questo gioco chiede il **buio** — «una
+scintilla senza il buio prima è una lampadina accesa a mezzogiorno». Ma il
+buio mancava **proprio a chi rilegge**: la coda somatica la arma solo
+`trasalisce`, che vuole una carica negativa oppure `grezzo > 0,25`, e a passo
+d'uomo `indizio_grezzo` vale **0,185 anche a distanza zero**. Chi ha le prove
+per rileggere è per definizione chi NON ha un marchio negativo addosso.
+MISURATO: **9 riletture, 0 gesti concessi**.
+
+E la lente del GENERE ci ha visto una cosa peggiore del silenzio: il
+giocatore che ha portato piatti per settimane, avvicinandosi a chi ha un
+torto, vedeva **esattamente niente**; quello che non ha costruito nessun
+passato vedeva il Raccolto e il toast «…niente. Lascia stare.». **Il
+villaggio aveva un corpo per la sofferenza e nessuno per la generosità**, e
+la generosità è l'unica delle due che il giocatore ha pagato.
+
+**LA CURA — un buio che è già vero.** Il ramo di `_tick_confronti` gira solo
+con Mochi entro 2,6 m e il vicino a gradino ≥ «svogliato»: una persona che ha
+davvero qualcosa da dirti addosso. Quella tensione c'è, e nessun canale del
+corpo la portava. Adesso si arma una coda somatica **leggera** nell'istante
+in cui la decisione si prende (`Visitors.TENSIONE_CONFRONTO`), e poi:
+
+- chi **rilegge** ottiene il Rialzo, che la **scioglie** (`soma_sciogli`, che
+  quel gesto faceva già);
+- chi si **morde la lingua** la **tiene**, perché il Raccolto non scioglie
+  niente.
+
+I due esiti si distinguono per una cosa che si vede — uno si scioglie,
+l'altro resta chiuso — con **zero gesti nuovi, zero testi, zero traduzioni**.
+
+⚠️ **La forza viene dal TORTO**, non è inventata: è `ANIMO.frazione(gradino)`,
+la posizione sulla scala della ribellione che il resto del gioco legge già.
+E i due estremi non sono a occhio: il pavimento è `Gesti.CODA_SOGLIA × 2` (il
+punto sotto il quale `coda_ampiezza` smorza tutto e **il Rialzo si
+rifiuterebbe lo stesso**), il tetto è dichiarato sotto metà — svogliato
+**0,167**, sabotaggio **0,309**, contro un sussulto vero che va da 0,447 a
+1,000. Vita 2,9–4,6 s contro i 12 s di raffreddamento del ramo: passa, non
+resta accesa.
+
+⚠️ **E SI ARMA PER TUTTI E TRE GLI ESITI**, non solo per chi rilegge: la
+tensione non dipende da come andrà a finire, e accenderla solo nel ramo buono
+sarebbe una posa scritta apposta — cioè l'adesivo che la REGOLA ZERO vieta.
+
+> **UNA CURA OVVIA PROVATA E SCARTATA**, e la ragione sta nel sorgente:
+> sciogliere a mano la coda quando `chiedi_gesto` viene rifiutato sembra la
+> cura e non lo è. Se un sussulto VERO fosse ancora vivo, la nostra tensione
+> non l'avrebbe nemmeno sovrascritta (`somatico` tiene la più forte), e quella
+> riga scioglierebbe **la paura di qualcuno spaventato due decimi di secondo
+> prima, senza mostrargli nessun sollievo**. Il canale resta con un padrone
+> solo, il Rialzo.
+
+⚠️⚠️ **E QUESTA CURA NON È STATA GUARDATA**, che in questo progetto è la
+regola che precede tutte. I numeri qui sopra escono dall'aritmetica di
+`Gesti.coda_ampiezza`, non da un fotogramma. Prima di considerarla finita
+servono due cose: il referto di `tools/misura_rilettura.gd` (quante riletture
+ottengono il gesto — erano 0 su 9), e un provino a due metri che metta
+**accanto** chi rilegge e chi si morde la lingua, perché uno scioglimento si
+giudica in una pellicola e non in una posa.
 
 ### ⚠️ IL RESIDUO CHE PESA: la meccanica succede e quasi non si vede
 
@@ -6984,8 +7197,12 @@ bracci con **lo stesso identico ambiente**, seme compreso):
 | FINESTRA | 0.9075 | **0.7154** (g. 6) | 0.8485 | 0.8486 |
 
 - **(a)** col controllo la quota non sale da sola — **sì** (scende);
-- **(b)** da adulti i due bracci coincidono, divergenza `0.000000000000` —
-  **sì**: è il pavimento reso osservabile;
+- **(b)** da adulti i due bracci coincidono, divergenza `0.000000000000`.
+  ⚠️ **E NON È UNA MISURA: È UN'IDENTITÀ**, e l'avevo presentata come «il
+  pavimento reso osservabile». Per `g ≥ GIORNI_ADULTO` i due bracci valutano
+  **letteralmente la stessa espressione** (`delta(b, pres, 1.0)`), perché
+  `plasticita_di(1.0)` è 1.0 per costruzione. Un cancello che non può
+  fallire va dichiarato, non contato fra quelli passati;
 - **(c)** dentro la finestra la quota **sale di +0.1608**, e il controllo
   sullo stesso identico tratto di vita fa **−0.0284** — **sì**.
 
@@ -7009,6 +7226,32 @@ attribuisce buona parte dell'effetto. Con una rGE piena la firma compare anche
 col controllo) e dentro la finestra vale +0.2139 contro +0.0285. **Nessuno ha
 misurato se il gioco vero abbia una rGE**, e inventarla nel banco per farla
 uscire sarebbe barare: è una riga per chi ci torna, non un risultato.
+
+### ⚠️⚠️ IL RESIDUO CHE CAMBIA COSA SIGNIFICA QUESTA MECCANICA
+
+**La finestra non lascia NESSUNA traccia.** `_ricalcola_deriva()` ricostruisce
+`_deriva` da zero ogni giornata con la plasticità di OGGI, e `_deriva` non si
+salva (è una lettura, ed è la decisione fondativa di `Deriva`). Quindi appena
+`crescita` tocca 1.0 il δ dell'ex cucciolo è **bit-identico** a quello di un
+adulto che avesse vissuto la stessa vita: l'infanzia amplificata non
+consolida niente — è un transitorio di quattordici giornate di gioco (≈56
+minuti reali) che si azzera.
+
+**Detto in una riga: un cucciolo è segnato il doppio *finché è cucciolo*.**
+
+⚠️ **E NON SI "RIPARA" SENZA CHIEDERE ALL'AUTORE**, perché è proprio quella
+inerzia a tenere in piedi il secondo cancello. Il miglioramento ovvio —
+consolidare il δ maturato da piccolo, che è la definizione di periodo
+critico — è **esattamente** la cosa che rende un'infanzia ottimizzabile, e
+un bambino ottimizzabile è lo strumento che la **regola 4 degli Affetti**
+vieta per iscritto. Oggi la finestra è sicura *perché* è inerte.
+
+Chi ci torna ha due strade oneste, e sono decisioni dell'autore, non
+dell'agente: **(a)** lasciarla com'è e scrivere in chiaro che è un
+moltiplicatore temporaneo sull'infanzia, non un periodo critico; **(b)**
+consolidare, e allora il cancello (b) va riscritto perché quel residuo è
+PREVISTO e va misurato invece che azzerato — e con lui va rifatto il
+collaudo della regola 4.
 
 ### Le trappole già pagate
 
