@@ -54,6 +54,32 @@ const GIORNI_CONFERMA := 3
 const PESO_VERO := 0.5
 const GESTI_VERI_MIN := 3
 
+## QUANTO SQUILIBRIO È UN DEBITO — cioè quanto uno deve aver ricevuto più di
+## quanto ha dato perché la cosa valga ancora qualcosa.
+##
+## NON È UN NUMERO NUOVO: è `PESO_VERO` letto attraverso l'`ASIMMETRIA`, e la
+## derivazione dice esattamente cosa significa. Un gesto solo, a senso unico,
+## sposta lo `squilibrio` di `peso * (1 - ASIMMETRIA)` — la parte del peso che
+## i due lati NON leggono uguale. Quindi un gesto singolo passa questa soglia
+## se e solo se è un gesto VERO (`peso >= PESO_VERO`): la stessa domanda che
+## `gesti_veri()` fa a una coppia, fatta da un'altra parte.
+##
+## Perciò qui NON serve un secondo filtro «solo i gesti veri»: LA SOGLIA È IL
+## FILTRO. Scriverne uno accanto sarebbe una regola gemella, che diverge in
+## silenzio il giorno che qualcuno tocca `GESTI`. MISURATO sulla tabella di
+## oggi, riga singola letta lo stesso giorno: chiacchiera 0,0225 · salone
+## 0,135 · fianco 0,1575 · musica 0,180 restano sotto; piatto 0,315 · veglia
+## 0,360 · consolazione 0,450 · coraggio 0,540 · nascita 0,900 la passano.
+## (E due gesti leggeri a senso unico la passano insieme: è accumulazione
+## onesta — due volte «seduti al buio ad ascoltare» e mai una in cambio è
+## davvero uno squilibrio.)
+##
+## E IL DEBITO SBIADISCE, come tutto in questo file: con la mezza vita media
+## un piatto smette di essere un debito dopo ~26 giorni (0,315 · 2^(−g/54) =
+## 0,225) e un atto di coraggio dopo ~68. La chiave a forma di giocatore non è
+## l'unica che apre questa porta: c'è anche il tempo che passa.
+const SQUILIBRIO_MIN := PESO_VERO * (1.0 - ASIMMETRIA)
+
 ## L'ABITUDINE NON È UN GESTO. Lo stesso gesto pesante, fra le stesse due
 ## persone e nello stesso verso, non si riscrive prima di una settimana: chi
 ## tiene accesa una luce sulla stessa porta ogni notte non sta rifacendo una
@@ -72,6 +98,29 @@ const GESTI_VERI_MIN := 3
 ## a 14-21 chi veglia non può più essere ricambiato affatto (misurato: a 28
 ## residenti la prima coppia slitta al giorno 114-198, oltre l'orizzonte di
 ## quasi ogni partita).
+##
+## ⚠️ E ADESSO QUESTO NUMERO HA UN SECONDO LETTORE, CHE NON È UN GESTO. La
+## riconoscenza (`da_ringraziare`) manda un corpo ad attraversare il villaggio
+## per mettersi accanto a chi si è preso cura di lui, e `Visitors` raffredda
+## quella visita QUI — sulla coppia, con questa costante, per la stessa
+## ragione: una cosa che si ripete ogni giorno smette di essere quella cosa.
+##
+## Ma non è solo buon gusto: è un FIREWALL, e la sua aritmetica va saputa
+## prima di toccare il 7. Un corpo che si ferma a 0,9 m da un altro fa
+## scrivere a `Visitors._segna_incontro` una riga di co-presenza, e
+## `Cricche.ritrovo_vivo()` diventa vero con `GIORNATE_RITROVO` (3) giornate
+## DIVERSE dentro `Cricche.FINESTRA` (7). Con un raffreddamento di C giorni,
+## in una finestra di sette ci stanno al più `ceil(7/C)` visite: a 7 una, a 4
+## due, **a 3 tre — e il ritrovo si forma**. Cioè un debito da un piatto
+## fabbricherebbe un ritrovo, che riordina il cerchio del falò e finisce nel
+## filo di un cucciolo per sempre: il libro mastro entrerebbe per la porta di
+## servizio in due sistemi progettati apposta per non guardarlo — la forma
+## esatta del guasto che questa tabella ha già chiuso togliendo la voce `falo`.
+##
+## CHI ABBASSA QUESTO NUMERO PER UNA RAGIONE DI AFFETTI riapre quel ciclo
+## senza toccare una riga della riconoscenza. (La coincidenza col 7 di
+## `Cricche.FINESTRA` è una coincidenza: sono due domande diverse, e nessuno
+## dei due si scrive in funzione dell'altro.)
 const GIORNI_RIPETIZIONE := 7
 
 ## UNA RIGA PER TIPO DI GESTO, e vale come fonte unica. I numeri non sono
@@ -424,6 +473,98 @@ static func giorni_dall_ultimo(righe: Array, da: String, verso: String,
 	return maxi(0, oggi - ultimo)
 
 
+# ------------------------------------------------------------ la reciprocità
+#
+# CHI HA RICEVUTO E NON HA RICAMBIATO se ne ricorda. Non c'è nessun dato
+# nuovo: il libro mastro è DATATO e DIREZIONALE da sempre, e la differenza fra
+# i due versi è già scritta — `ASIMMETRIA` esiste apposta perché «un rapporto
+# a senso unico si legga storto dai due lati senza una riga di codice
+# dedicata». Qui quella riga storta si legge, e basta.
+#
+# ⚠️ IL VERSO NON SI ROVESCIA MAI. Si muove chi ha RICEVUTO; chi ha dato non
+# sa niente, e non deve saperlo. `squilibrio()` è antisimmetrica, quindi per
+# ogni debitore esiste un creditore con lo stesso numero cambiato di segno,
+# già calcolato, a un `if` di distanza: un ramo su quel segno — «vado a
+# riscuotere», «giro al largo da chi mi deve qualcosa» — sarebbe il gioco che
+# dice a qualcuno che non ha ricambiato. Questo libro mastro non ha una riga
+# «tradimento» (è la regola 5), e non deve averne una scritta col corpo.
+#
+# ⚠️ E LA LETTURA NON SCRIVE. Il debito si estingue in un modo solo — l'altro
+# riceve qualcosa a sua volta — più il tempo che passa. La variante elegante
+# (far scrivere alla visita una riga `fianco` vera, che estinguerebbe il
+# debito e regalerebbe il raffreddamento) è stata esaminata e SCARTATA: è un
+# quinto scrittore autonomo sul libro mastro, sposta `conto()`, quindi
+# `il_piu_caro()`, quindi le soglie di `coppia()`, e tutte le misure già prese
+# su questo file andrebbero rifatte. È un lavoro suo, con la misura in mano.
+# Sta scritta qui come strada aperta, non si fa di contrabbando.
+
+## QUANTO `io` HA RICEVUTO IN PIÙ DI QUANTO HA DATO, verso `altro`. Puro.
+##
+## Positivo: `io` è in debito, cioè ha ricevuto più di quanto ha reso.
+## Negativo: ha dato di più. È la stessa colonna letta dai due lati e
+## sottratta, nient'altro — per una riga sola vale `peso * recenza *
+## (1 - ASIMMETRIA)`, cioè esattamente la parte di quel gesto che i due non
+## leggono uguale.
+##
+## ⚠️ UNA SOLA `lealta`, e non è pignoleria: con due lealtà diverse
+## `squilibrio(a, b)` smetterebbe di essere `-squilibrio(b, a)`, e il
+## carattere di UNA persona entrerebbe nel conto di quanto le si DEVE — cioè
+## chi è leale «meriterebbe» più riconoscenza. Chi legge passa la propria, e
+## legge il proprio debito.
+##
+## ⚠️ E NON SI DIVIDE MAI per `(1 - ASIMMETRIA)` per «normalizzare» il numero:
+## una mutazione che porta `ASIMMETRIA` a 1.0 deve far diventare ROSSO un
+## test, non farlo esplodere — un errore a runtime non fa fallire niente,
+## interrompe la funzione a metà e lascia la suite verde.
+static func squilibrio(righe: Array, io: String, altro: String, oggi: int,
+		lealta := 0.5) -> float:
+	return conto(righe, io, altro, oggi, lealta) \
+			- conto(righe, altro, io, oggi, lealta)
+
+
+## A CHI `io` DEVE UN GRAZIE, e quanto. Puro. `["", 0.0]` se a nessuno — che è
+## il caso normale, ed è un esito, non un ripiego.
+##
+## È lo scheletro di `il_piu_caro()` con due sole differenze, e nessuna delle
+## due è un numero nuovo: si legge lo `squilibrio` invece del `conto`, e chi
+## sta sotto `SQUILIBRIO_MIN` non è nemmeno un candidato.
+##
+## Il resto è identico apposta, `MARGINE_ELEZIONE` compreso: A PARI MERITO NON
+## SI ELEGGE NESSUNO. Se due si sono presi cura di te lo stesso giorno e nello
+## stesso modo, la sola cosa che romperebbe il pareggio sarebbe l'ordine
+## dell'array dei residenti — e il gioco non sceglie al posto di chi deve il
+## grazie. (Il pareggio si guarda fra i soli DEBITI: due creditori sotto
+## soglia non pareggiano niente, perché nessuno dei due è un creditore.)
+##
+## ⚠️ UN NEGATIVO NON PUÒ VINCERE, e per costruzione due volte: la soglia è
+## positiva e il massimo parte da zero. «Andare a riscuotere» non è un ramo
+## che manca — è un ramo che non ha un posto dove stare.
+static func da_ringraziare(righe: Array, io: String, tutti: Array, oggi: int,
+		lealta := 0.5, margine := MARGINE_ELEZIONE) -> Array:
+	var chi := ""
+	var quanto := 0.0
+	var secondo := 0.0
+	for altro in tutti:
+		if str(altro) == io:
+			continue
+		var s := squilibrio(righe, io, str(altro), oggi, lealta)
+		# sotto la soglia non è un debito: è la scia di una chiacchiera, o un
+		# gesto vero che il tempo ha già quasi finito di chiudere
+		if s < SQUILIBRIO_MIN:
+			continue
+		if s > quanto:
+			secondo = quanto
+			quanto = s
+			chi = str(altro)
+		elif s > secondo:
+			secondo = s
+	if chi == "":
+		return ["", 0.0]
+	if secondo > 0.0 and quanto < secondo * margine:
+		return ["", 0.0]
+	return [chi, quanto]
+
+
 # ============================================================ la porta unica
 
 ## UN GESTO È SUCCESSO. È l'unica porta per scrivere sul libro mastro: due
@@ -454,6 +595,48 @@ func quanto(io: String, altro: String) -> float:
 	return conto(_righe, io, altro, _giorno(), _lealta_di(io))
 
 
+## A CHI `nome` DEVE UN GRAZIE, fra quelli che ci sono ADESSO. "" se a
+## nessuno, ed è la risposta normale: la maggior parte delle giornate nessuno
+## deve niente a nessuno.
+##
+## L'incapsulamento è quello di `quanto()`, e per la stessa ragione: `_righe`,
+## `_giorno()` e `_lealta_di()` sono privati, e un chiamante che si rifacesse
+## il conto per conto proprio scriverebbe una gemella con la soglia o il
+## margine ricopiati.
+##
+## ⚠️ `fra` NON HA UN VALORE DI SERIE, e la tentazione c'è: `_tutti()` sta
+## venti righe più giù. Ma `_tutti()` comprende chi dorme, chi è nascosto e
+## chi è dentro una scena: usarlo come ripiego trasformerebbe «non c'è nessuno
+## in giro» in «non ti ho detto chi è in giro», e manderebbe un corpo verso
+## una casa chiusa. Chi chiama sa chi è in piedi; questo file no, e non deve
+## provare a indovinarlo.
+func chi_ringraziare(nome: String, fra: Array) -> String:
+	if nome == "" or fra.is_empty():
+		return ""
+	return str(da_ringraziare(_righe, nome, fra, _giorno(), _lealta_di(nome))[0])
+
+
+## CHI CONTA DI PIÙ PER `nome`, fra quelli che ci sono adesso. "" a pari
+## merito, e "" se il libro mastro non ha ancora niente da dire.
+##
+## Sostituisce `VillagerBrain.migliore_amico()`, che leggeva `affinita` — un
+## contatore di prossimità in circolo chiuso (si sale stando vicini, e si sta
+## vicini perché si è saliti). Non è una meccanica nuova: è una migrazione
+## finita, e il libro mastro alla stessa domanda risponde con le cose che sono
+## successe davanti al giocatore.
+##
+## ⚠️ QUI NON C'È UNA SOGLIA MINIMA, e la perdita è consapevole: quella
+## funzione ne aveva una interna («sotto tre chiacchierate non è ancora
+## amicizia»), ma era la soglia di un'ALTRA moneta. Ricopiarla qui vorrebbe
+## dire tarare un numero nuovo per una domanda che questo file sa già pesare
+## da sé — e il degrado va dove va sempre: libro mastro muto, si risponde "",
+## e chi chiama ripiega esattamente come ha sempre fatto.
+func chi_e_il_piu_caro(nome: String, fra: Array) -> String:
+	if nome == "" or fra.is_empty():
+		return ""
+	return str(il_piu_caro(_righe, nome, fra, _giorno(), _lealta_di(nome))[0])
+
+
 ## Le coppie del villaggio, adesso.
 func le_coppie() -> Array:
 	var tutti := _tutti()
@@ -471,6 +654,26 @@ func compagno_di(nome: String) -> String:
 		if str((c as Array)[1]) == nome:
 			return str((c as Array)[0])
 	return ""
+
+
+## LE COPPIE DI ADESSO, senza ricalcolarle: è la fotografia che
+## `giro_del_giorno()` ha già pagato all'ultimo cambio di giorno.
+##
+## Chi la legge NON deve chiamare `le_coppie()` per conto suo — quella
+## scansione gira una volta per giornata di gioco apposta: MISURATO, il giorno
+## che il libro mastro si è riempito è costata 55 secondi.
+##
+## Torna una COPIA, e l'idioma è quello di `ferita_di()`: `save_extra()`
+## restituisce `_coppie_ieri` per riferimento, e un consumatore che mutasse
+## l'array riscriverebbe lo stato persistito degli affetti senza passare da
+## nessuna porta.
+##
+## ⚠️ Il nome dice la verità di chi legge, non quella del campo: in coda al
+## giro `_coppie_ieri` diventa le coppie di OGGI. Prima del primo giro (una
+## partita appena caricata, un banco senza `Legami`) è quello che ha messo
+## `load_extra` — cioè le coppie con cui il villaggio si è addormentato.
+func coppie_di_oggi() -> Array:
+	return _coppie_ieri.duplicate(true)
 
 
 func _tutti() -> Array:
