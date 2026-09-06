@@ -6756,7 +6756,7 @@ recenza · il villaggio non fa più il ponte · le giornate insieme guardano un
 lato solo della riga (che non ha verso, quindi dimenticarne uno è la
 distrazione plausibile) · senza il registro si tiene la compagnia di ieri.
 
-## UNA GIORNATA SI PUÒ RIPETERE — i dadi nominati, le leve, le repliche
+## UNA GIORNATA NON SI RIPETEVA — i dadi nominati, le leve, le repliche
 
 Due corse di `misura_insieme` con **gli stessi identici parametri** davano
 **0,31 e 1,77** righe di co-presenza per residente: un fattore **5,7**. Da
@@ -6876,34 +6876,87 @@ Le cinque regole, e ognuna chiude una trappola pagata:
    non ne trova lo DICE (un banco che tace non è un banco a zero).
 5. **Niente tagli silenziosi**: ogni replica caduta viene nominata.
 
-### ⚠️ COSA RESTA APERTO, dichiarato
+### ⚠️ IL BANCO HA SMONTATO LA CURA QUATTRO VOLTE, ed è il risultato migliore
 
-Fissare i semi **non basta**, e le sorgenti che restano sono misurate:
+La corsa di controllo (stesso seme, stessa condizione, **due processi**) è
+l'unica cosa qui che ha continuato a dire la verità. Ogni volta che la cura
+sembrava chiusa, il controllo ha detto di no — e ogni no indicava un difetto
+vero, compresi due che nessuna rilettura aveva visto:
+
+1. **La radice salvata non veniva MAI usata.** `_load_village` è
+   `call_deferred`, e i `_ready` che chiedono un dado — CozyWorld, Mail,
+   Visitors — girano prima che la coda si svuoti. Il primo che chiedeva
+   faceva coniare una radice nuova; il caricamento poi SCARTAVA il seme del
+   salvataggio, e il salvataggio dopo lo sovrascriveva. **Invisibile a ogni
+   banco**, perché lì `CHIBI_SEME` è sempre il primo ramo. Ora `Dadi.radice()`
+   legge il seme dal file da sé, e l'ordine non conta.
+2. **Il flusso globale non lo seminava nessuno**, e la prima cura lo seminava
+   in `BuildSystem` — che in `MainLevel.tscn` viene **dopo** CozyWorld: il
+   mondo era già nato. Ora una posizione sola, in testa a `CozyWorld._ready`.
+3. **L'orologio da polso dentro una decisione**: `_chats` misurava il
+   raffreddamento delle coppie con `Time.get_ticks_msec()`, quindi sotto
+   carico due corse identiche facevano chiacchierare coppie diverse. Ora
+   `_orologio_ms`, mosso dal delta — e in FLOAT, perché `int(delta * 1000.0)`
+   troncava e perdeva il 4%.
+4. **Il turno delle rotte si misura in microsecondi VERI.** È la scelta
+   giusta in partita e resta; `CHIBI_ROTTE_CONTO` lo sostituisce con un
+   contatore per i banchi (di serie **1**, derivato: budget 1500 µs contro
+   una domanda cara da ~1,5 ms).
+
+E una **regressione**, trovata da una revisione avversariale che l'ha
+riprodotta in una scena minima: «Nuovo villaggio» ereditava la radice del
+villaggio appena archiviato — arrivavano gli **stessi vicini, nello stesso
+ordine**. Fallisce la prima domanda della REGOLA SACRA: ricominciare è il
+rimedio del giocatore, e il rimedio non rimediava. Ora `TitleScreen._start_new`
+dimentica la radice dopo l'archiviazione.
+
+### ⚠️ E UNA GIORNATA NON SI RIPETE ANCORA — il numero, onesto
+
+Dopo tutto questo, il controllo **non dà zero**. E con due semi il banco non
+distingue il proprio rumore dal segnale: fra due corse dello stesso codice il
+residuo è passato da **7,3 a 22,6**. Quindi:
+
+> **Nessuno dei numeri di ablazione di questo progetto è ancora un
+> risultato.** Chi ci torna misuri con più semi PRIMA di crederci.
+
+I sospetti restano nominati e ordinati:
 
 - **il flusso GLOBALE non si può rendere riproducibile con un seme**:
   `EcosystemManager` ne consuma fino a **180 estrazioni per fotogramma**
-  (90 farfalle × 2, `ecosystem_manager.cpp:353`). Chi cambia il numero di
-  farfalle sposta tutti i numeri a valle di chiunque peschi di lì. Restano
-  **~130 righe comportamentali** sul globale in `Visitors`, `Visitor`,
-  `Collection`, `Fishing`, `Nascondino` e altri: **è il lavoro successivo**,
-  e il flusso a cui appartengono è `VILLAGGIO`;
-- **il mondo non ha un seme**: `CozyWorld` usa **nove costanti scritte a
-  mano** (77, 4242, 90210, 88, 7, 99, 33, 505, 71) — due villaggi hanno lo
-  stesso prato. Darglielo rompe ogni salvataggio esistente (le case si
-  troverebbero su un terreno diverso), quindi va fatto con una migrazione;
-- **l'orologio da polso in `Visitors._chats`** (riga 4559) misura il
-  raffreddamento delle coppie in tempo REALE, non di gioco: su un banco che
-  gira più veloce del reale quel riposo non scade mai. `prova_identico` lo
-  **dichiara** come cosa che la traccia non copre, invece di curarlo;
+  (90 farfalle × 2, `ecosystem_manager.cpp:353`), quindi la sua posizione
+  dipende da quante farfalle sono nate. `Visitors.gd` è stato tolto di lì per
+  intero (24 estrazioni su dadi per SCOPO, `Visitors._dado("perche")`);
+  **restano `Visitor.gd` (19) e `CozyWorld.gd` (37)**, ed è il lavoro
+  successivo;
+- **il mondo non ha un seme**: nove costanti scritte a mano (77, 4242, 90210,
+  88, 7, 99, 33, 505, 71). Darglielo rompe ogni salvataggio esistente, quindi
+  vuole una migrazione;
 - **`Concertino.gd:159`** semina la canzone del carillon con
   `Time.get_ticks_msec() / 600000`: il contenuto cambia a scaglioni di dieci
-  minuti reali. Non è un `randf()` e nessun censimento del dado lo trova;
+  minuti reali, e nessun censimento del dado lo trova;
 - **`Animo.descrizione()`** fa `_rng.randf() < 0.5` su un dado **persistito**:
-  una funzione di presentazione che avanza lo stream della simulazione —
-  osservare cambia il gioco. Oggi non ha chiamanti in produzione;
+  una funzione di presentazione che avanza lo stream — osservare cambia il
+  gioco. Oggi non ha chiamanti in produzione;
 - **`RegiaDiorama.semina()`** e **`OraDelGiorno`** usano il tempo vero, ed è
   una **feature dichiarata** del menù: non si rendono deterministiche, si
   scavalcano.
+
+### ⚠️ ERANO DUE OROLOGI, e la lezione vale oltre i dadi
+
+`Visitor._anim_sit` avanzava `_sit_t` con `get_process_delta_time()` — quello
+del MOTORE — invece del passo che il chiamante gli dà; unica occorrenza nel
+file, mentre il gemello `_anim_dorme(dur, delta)` lo riceve da sempre. In
+partita i due numeri coincidono; per un banco che guida `_process` a mano no.
+
+MISURATO: `test_gesti` diventava rosso appena il frame del motore superava
+**0,0875 s** — sotto carico, sempre. Il salto coincideva **alla quarta cifra**
+con `assesto_seduta(dt_motore)["fianchi"]`: a 0,1167 s dà esattamente lo
+0,0363 della rossa. E il canale che falliva non era nemmeno del gesto (il
+Raccolto non scrive `vrz`).
+
+**Alzare la tolleranza avrebbe coperto i due orologi e legato una guardia del
+rig al carico della macchina.** `test_seduta_npc` documentava già lo stesso
+difetto e lo compensava a mano — quella compensazione adesso è sparita.
 
 ### Le due cose che NON si toccano
 
