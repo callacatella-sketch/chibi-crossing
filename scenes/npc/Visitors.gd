@@ -3271,6 +3271,22 @@ func manda(label: String, pos: Vector3) -> void:
 		return
 
 
+## ⚠️ **L'OPPOSTO DI `manda`: gli si restituisce la sua giornata.**
+##
+## `manda` scrive `next_act = 45 s` per tenere il corpo su una meta mentre una
+## scena è in corso. Se la scena finisce PRIMA — e adesso può, perché un
+## vicino può dire di no sulla soglia dell'Accompagnare — quel lease resta
+## appeso, e quello che il giocatore vede non è un rifiuto: è un fermo
+## immagine di quarantacinque secondi. È la stessa cosa che fa già
+## `_filtra_luogo` quando un posto è murato: si torna alla routine.
+func libera(label: String) -> void:
+	for r in _residents:
+		if str(r.get("label", "")) != label:
+			continue
+		r["next_act"] = 0.0
+		return
+
+
 ## Il posto di ognuno attorno al fuoco: cerchi concentrici — undici per
 ## anello, poi si allarga — così anche in ventotto nessuno finisce seduto
 ## in braccio a un altro.

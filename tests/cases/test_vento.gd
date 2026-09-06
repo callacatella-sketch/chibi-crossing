@@ -199,13 +199,12 @@ static func _script_sotto(radice: String) -> Array:
 ## (Weather, CordeVive): la chiamata vietata ci è NOMINATA, e un guardiano
 ## ingenuo la scambierebbe per un suo ritorno — dichiarando rotto proprio
 ## il file che l'ha tolta.
+## ⚠️ IL FERRO STA NELL'HARNESS (`tests/test_util.gd`): da quando ha due
+## lettori, tenerne una copia qui sarebbe la tabella gemella che questo
+## progetto vieta. Il perché — chi paga un difetto lo NOMINA nei commenti — è
+## scritto accanto alla funzione vera.
 static func _codice(percorso: String) -> String:
-    var righe := PackedStringArray()
-    for r in _sorgente(percorso).split("\n"):
-        if (r as String).strip_edges().begins_with("#"):
-            continue
-        righe.append(r)
-    return "\n".join(righe)
+    return load("res://tests/test_util.gd").codice(percorso)
 
 
 static func _sorgente(percorso: String) -> String:

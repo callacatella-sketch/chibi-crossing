@@ -66,3 +66,21 @@ func report() -> void:
 	print("==== TEST: %d passati, %d falliti ====" % [passes, failures])
 	for f in _fails:
 		print("  FAIL: ", f)
+
+
+## ⚠️ **IL SORGENTE SENZA I COMMENTI.** Un guardiano che cerca una stringa nel
+## sorgente crudo sbaglia in tutti e due i versi: chi ha PAGATO un difetto lo
+## racconta nei propri commenti — e allora la chiamata vietata ci è NOMINATA, e
+## il guardiano dichiara rotto proprio il file che l'ha tolta; e all'inverso un
+## commento che promette una cosa fa passare un codice che non la fa.
+##
+## Stava in `test_vento.gd`, che l'aveva pagata per primo (`CordeVive` nomina
+## `global_shader_parameter_get` apposta, per spiegare perché non si usa). Sta
+## qui perché adesso ha due lettori, e una lezione ricopiata invecchia.
+static func codice(percorso: String) -> String:
+	var righe := PackedStringArray()
+	for r in FileAccess.get_file_as_string(percorso).split("\n"):
+		if (r as String).strip_edges().begins_with("#"):
+			continue
+		righe.append(r)
+	return "\n".join(righe)

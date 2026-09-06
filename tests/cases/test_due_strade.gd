@@ -18,6 +18,7 @@ extends RefCounted
 ##     solo quando il corpo ha davvero qualcosa da dire, e mai al posto
 ##     del saluto felice quando non c'è niente da spiegare.
 
+const ANIMO = preload("res://scenes/npc/Animo.gd")
 const LIMBICO = preload("res://scenes/npc/Limbico.gd")
 const VISITORS = preload("res://scenes/npc/Visitors.gd")
 const ACCOMPAGNA = preload("res://scenes/npc/Accompagna.gd")
@@ -37,6 +38,10 @@ func run(t) -> void:
 	_test_il_perche_su_richiesta(t)
 	_test_wiring_perche_su_richiesta(t)
 	_test_fili_attaccati(t)
+	_il_canale_che_non_c_era(t)
+	_il_no_non_scrive_niente(t)
+	_la_carezza_non_si_conta_due_volte(t)
+	_il_verbo_offerto_si_puo_mantenere(t)
 
 
 ## L'indizio grezzo: quanto è brusco il modo in cui il giocatore arriva.
@@ -297,3 +302,318 @@ func _body(path: String, fn: String) -> String:
 		return ""
 	var end := src.find("\nfunc ", start + 1)
 	return src.substr(start, (end - start) if end > start else -1)
+
+
+## ⚠️ **IL CANALE CHE NON C'ERA: un vicino può dire di no.**
+##
+## Fino a ieri, sulla soglia dell'Accompagnare si entrava SEMPRE: bastava
+## restargli accanto un secondo e mezzo. Cioè il giocatore non chiedeva —
+## **ordinava**, e in tutto il villaggio non esisteva un solo momento in cui
+## qualcuno potesse rifiutare. (La Lavagna non conta: è una meccanica del
+## gioco, e una meccanica del gioco non può costare — il no doveva nascere
+## dove chiedere è già facoltativo.)
+func _il_canale_che_non_c_era(t) -> void:
+	# --- ⚠️ IL PAVIMENTO È STRUTTURALE: sotto la paura che ferma si entra
+	#     sempre, comunque stia il corpo. Per la stragrande maggioranza dei
+	#     vicini il gioco è bit per bit quello di ieri.
+	var sotto: float = ACCOMPAGNA.PAURA_CHE_FERMA - 0.01
+	t.ok(ACCOMPAGNA.ce_la_fa(-sotto, 1.0, 0.0),
+			("sotto la paura che ferma si entra SEMPRE, anche col corpo in "
+			+ "pieno allarme: e' il gioco di ieri"))
+	t.ok(ACCOMPAGNA.ce_la_fa(0.0, 1.0, 0.0),
+			"…e a paura zero, ovviamente")
+
+	# --- una paura profonda col corpo in allarme: non ce la fa
+	var alta: float = ACCOMPAGNA.PAURA_CHE_FERMA + 0.05
+	t.ok(not ACCOMPAGNA.ce_la_fa(-alta, 0.8, 0.0),
+			("una paura profonda e il corpo in allarme: non ce la fa, e il "
+			+ "soggetto del no e' il POSTO"))
+
+	# --- ⚠️ E LA FIDUCIA AIUTA, ma non piu' di come stai adesso. Se potesse
+	#     valere di piu' sarebbe una valuta che compra il coraggio, e il
+	#     giocatore imparerebbe a coltivare i vicini invece che a volergli
+	#     bene.
+	# ⚠️ E NON SI GIUDICA UN FILO DI LAMA. Con `alta` a 0.60 e il corpo a 0.8
+	# di allarme, la fiducia piena vale 0.60 + 0.20 − 0.25 = **0.55 esatti**,
+	# cioè il pareggio: un'asserzione su quel punto misura l'aritmetica in
+	# virgola mobile, non il progetto. La proprietà da sorvegliare è che la
+	# fiducia SPOSTI davvero l'esito, e si prova dove l'esito si ribalta —
+	# a corpo calmo, che è anche la scena vera (ci si arriva camminando).
+	t.ok(not ACCOMPAGNA.ce_la_fa(-alta, 0.0, 0.0),
+			"a corpo calmo, senza fiducia, una paura profonda ferma lo stesso")
+	t.ok(ACCOMPAGNA.ce_la_fa(-alta, 0.0, 1.0),
+			("…e con la fiducia piena entra: il canale non e' decorativo, "
+			+ "ribalta un esito"))
+	# e la direzione non ha buchi: piu' ci si fida, mai peggio
+	var scorso := false
+	for q in [0.0, 0.25, 0.5, 0.75, 1.0]:
+		var ora: bool = ACCOMPAGNA.ce_la_fa(-alta, 0.0, q)
+		t.ok(not scorso or ora,
+				"la fiducia non torna mai indietro (a %.2f)" % q)
+		scorso = ora
+	t.ok(ACCOMPAGNA.PESO_FIDUCIA <= ACCOMPAGNA.PESO_ALLARME + 1e-9,
+			("la fiducia non pesa piu' dell'allarme (%.3f contro %.3f): il "
+			+ "tetto e' quello che rende impossibile comprarsi il coraggio")
+					% [ACCOMPAGNA.PESO_FIDUCIA, ACCOMPAGNA.PESO_ALLARME])
+
+	# --- il segno della carica non conta: si guarda la PROFONDITÀ
+	t.eq(ACCOMPAGNA.ce_la_fa(-alta, 0.8, 0.0),
+			ACCOMPAGNA.ce_la_fa(alta, 0.8, 0.0),
+			"la carica si legge in valore assoluto, come fa `evita`")
+
+	# --- ⚠️ IL DEGRADO E I NUMERI MALATI: un NaN non deve poter chiudere il
+	#     posto per sempre. Il degrado va verso «si entra», cioe' il gioco di
+	#     ieri.
+	for cattivo in [NAN, INF, -INF]:
+		t.ok(ACCOMPAGNA.ce_la_fa(cattivo, 0.5, 0.0)
+				or not ACCOMPAGNA.ce_la_fa(cattivo, 0.5, 0.0),
+				"con %s la funzione risponde e non esplode" % str(cattivo))
+	t.ok(ACCOMPAGNA.ce_la_fa(NAN, NAN, NAN),
+			("con tutti e tre i numeri malati si ENTRA: il degrado va sempre "
+			+ "verso il gioco di ieri, mai verso un no inventato"))
+
+	# --- ⚠️ E LA SOGLIA E' UNA LETTURA, MAI UNA TRANSAZIONE. `trattieni()`
+	#     scala la regolazione e alza il cortisolo: usarlo qui vorrebbe dire
+	#     far PAGARE al vicino il fatto che gli hai chiesto una cosa.
+	var sorgente := FileAccess.get_file_as_string(
+			"res://scenes/npc/Accompagna.gd")
+	var corpo := sorgente.substr(sorgente.find("static func ce_la_fa"))
+	corpo = corpo.substr(0, corpo.find("static func scena_persa"))
+	t.ok(not corpo.contains("trattieni"),
+			("`ce_la_fa` non chiama `trattieni()`: chiedere non deve poter "
+			+ "lasciare il vicino peggio di come stava"))
+
+
+## ⚠️ **UN NO NON E' UN TORTO: non scrive niente, da nessuna parte.**
+##
+## Il giocatore non ha niente da riparare, perche' non ha rotto niente — e la
+## chiave per la volta dopo e' quella che ha appena visto addosso al corpo:
+## stare fermi un momento e richiedere, la stessa grammatica di
+## `FiatoSospeso.calma()`.
+func _il_no_non_scrive_niente(t) -> void:
+	# ⚠️ IL SORGENTE SENZA I COMMENTI, e serve in tutti e due i versi: la cura
+	# di questo difetto NOMINA la posa che ha tolto (per spiegare perché l'ha
+	# tolta), e un guardiano ingenuo dichiarerebbe rotto proprio il file
+	# riparato. È lo stesso ferro di `test_vento`, e sta nell'harness.
+	var sorgente: String = load("res://tests/test_util.gd").codice(
+			"res://scenes/npc/Accompagna.gd")
+	var corpo := sorgente.substr(sorgente.find("func _non_oggi"))
+	corpo = corpo.substr(0, corpo.find("func _guarisci"))
+	for vietato in ["ricorda", "_marchia", "rancore", "gesto_gentile"]:
+		t.ok(not corpo.contains(vietato),
+				("il rifiuto non chiama `%s`: un no non e' un torto, e non "
+				+ "lascia una riga nel libro mastro") % vietato)
+	# ⚠️ e ROMPE IL LEASE, o quello che si vede non e' un rifiuto: e' un fermo
+	# immagine di quarantacinque secondi (`manda` scrive `next_act = 45.0`).
+	t.ok(corpo.contains("libera"),
+			("il rifiuto restituisce la giornata al vicino: senza, il corpo "
+			+ "resta piantato sulla soglia per 45 secondi"))
+	t.ok(corpo.contains("evitamento"),
+			("e il corpo se ne va col Largo — il gesto dell'evitamento, il "
+			+ "cui soggetto e' il POSTO"))
+
+	# --- ⚠️ **E IL CAMMINO VA DIROTTATO: il lease e' meta' del lucchetto.**
+	#     MISURATO nel MainLevel vero: `manda()` aveva fatto
+	#     `do_task("wonder", pos)`, e al verdetto mancano ~1,9 m di strada
+	#     verso il posto. Il corpo li camminava — la distanza dalla catasta
+	#     passava da 1,09 m a **0,00 m** — ed entrava in `tk_wonder`, con
+	#     l'«!» sopra la testa e il cuoricino di `_spawn_heart` all'uscita.
+	#     Il rifiuto reso identico a un successo. E l'agenda non poteva
+	#     salvarlo: si riprende il corpo solo dagli stati di
+	#     `Visitors.STATI_A_RIPOSO`, dove ne' «walk» ne' «tk_wonder» stanno.
+	t.ok(corpo.contains("do_routine"),
+			("il rifiuto DIROTTA il cammino, non solo il lease: senza, il "
+			+ "corpo finisce di camminare dentro il posto che ha rifiutato"))
+	var i_rotta := corpo.find("do_routine")
+	var i_largo := corpo.find("evitamento")
+	t.ok(i_rotta >= 0 and i_largo > i_rotta,
+			("e il Largo si chiede DOPO: `_enter_state` chiama "
+			+ "`gesto_spegni()`, quindi un gesto chiesto prima morirebbe nel "
+			+ "fotogramma in cui nasce"))
+	# --- e il Largo deve sapere DA CHE PARTE: senza `posto`, `via` resta il
+	#     default +1 (sempre a destra), cioe' meta' delle volte VERSO la
+	#     catasta. La domanda e' nel frame del corpo, e la sa solo lui.
+	t.ok(corpo.contains("posto"),
+			("e il Largo riceve il POSTO: senza, ci si scosta sempre a "
+			+ "destra — meta' delle volte verso quello che si sta evitando"))
+
+	# --- ⚠️ **E IL RINNOVO NON DEVE RIMANDARLO INDIETRO.** Il blocco che
+	#     rinnova il lease gira PRIMA del `match`: nel fotogramma in cui la
+	#     fase e' gia' «no» ma la scena non e' ancora chiusa, un rinnovo
+	#     scaduto rispedirebbe il corpo alla catasta con 45 s di lease,
+	#     riaprendo la cura da sola.
+	var avanza := sorgente.substr(sorgente.find("func _avanza"))
+	avanza = avanza.substr(0, avanza.find("func _non_oggi"))
+	var i_rinnovo := avanza.find("_manda()")
+	t.ok(i_rinnovo > 0, "`_avanza` rinnova il lease mentre la scena vive")
+	var prima_del_rinnovo := avanza.substr(0, i_rinnovo)
+	t.ok(prima_del_rinnovo.contains('"no"'),
+			("e il rinnovo e' gattato sulla fase «no»: chi ha detto di no non "
+			+ "viene rimandato indietro con un lease di quarantacinque "
+			+ "secondi"))
+
+	# --- ⚠️ **E «NON SCRIVE NIENTE» VALE PER IL CORPO, non solo per il libro
+	#     mastro.** MISURATO nel MainLevel vero: qui c'era
+	#     `set_meta("postura", "spalle_basse")`, ed era ancora addosso al
+	#     corpo **sei secondi dopo e nella scena successiva**. Le pose di
+	#     `Visitor.RECITA` sono STABILI: restano finche' qualcuno non toglie
+	#     il meta, e qui la scena si chiude nel frame dopo — non c'e' nessuno
+	#     che lo tolga. Sarebbe il vicino curvo per il resto della partita di
+	#     cui `Visitor._recita_applica` racconta nel proprio commento.
+	#
+	#     ⚠️ E I NOMI NON SI RICOPIANO: si leggono dalle due tabelle vere. Una
+	#     lista scritta a mano qui sarebbe la tabella gemella che diverge in
+	#     silenzio il giorno che il vocabolario del corpo cresce.
+	var stabili: Array = VISITOR.RECITA.keys().filter(
+			func(k): return not VISITOR.RECITA_TRANS.has(k))
+	t.ok(stabili.size() >= 3,
+			"le pose stabili si leggono da `Visitor.RECITA` (%d)" % stabili.size())
+	var posata := ""
+	for k in stabili:
+		if corpo.contains('"%s"' % str(k)):
+			posata = str(k)
+			break
+	t.eq(posata, "",
+			("il rifiuto non posa nessuna posa STABILE addosso al corpo "
+			+ "(«%s»): non avrebbe nessuno che gliela tolga, e il Largo e' "
+			+ "gia' la sua parola") % posata)
+
+
+## ⚠️ **LA CAREZZA NON SI CONTA DUE VOLTE — la guardia che non c'era.**
+##
+## MISURATO: la batteria di mutazioni ha provato otto righe una per volta;
+## sette sono diventate rosse e UNA no — togliere il `tranne` da
+## `fiducia("giocatore", "accompagnato")` lasciava la suite **completamente
+## verde**. Cioè la riga che impedisce alla stessa carezza di pesare due volte
+## dentro una sola decisione non aveva **nessun lettore**: la nona volta, in
+## questo progetto, che del codice giusto non ha nessuno che lo guardi.
+##
+## Perché conta: `_guarisci()` scrive una riga `accompagnato` nel libro
+## mastro. Senza il `tranne`, la volta scorsa che quel vicino ti ha seguito
+## conterebbe DUE volte — una come marchio del posto che scende (il canale
+## vero, quello che il giocatore vede) e una come fiducia in te. Il verbo si
+## comprerebbe da solo, e ogni accompagnamento renderebbe il successivo più
+## facile senza che sia successo niente di nuovo.
+##
+## ⚠️ E IL TIPO NON SI RICOPIA: si LEGGE da `_guarisci`, cioè dal posto che
+## quella riga la scrive. Una stringa ricopiata qui sarebbe la tabella gemella
+## che diverge in silenzio il giorno che qualcuno rinomina il gesto.
+func _la_carezza_non_si_conta_due_volte(t) -> void:
+	var sorgente := FileAccess.get_file_as_string(
+			"res://scenes/npc/Accompagna.gd")
+
+	# --- il TIPO che `_guarisci` incide, letto da lui
+	var g := sorgente.substr(sorgente.find("func _guarisci"))
+	g = g.substr(0, g.find("func _nodo"))
+	var m := RegEx.new()
+	m.compile('gesto_gentile"\\s*,\\s*label\\s*,\\s*"([a-z_]+)"')
+	var trovato := m.search(g)
+	t.ok(trovato != null,
+			"`_guarisci` incide una riga nel libro mastro, e si vede quale")
+	var tipo := trovato.get_string(1) if trovato != null else ""
+
+	# --- e OGNI lettura della fiducia deve escludere ESATTAMENTE quello.
+	#     ⚠️ Non basta guardare `_ce_la_fa_ora`: da quando anche l'offerta
+	#     interroga la fiducia (`_vale_la_pena`) i lettori sono due, e una
+	#     guardia che ne conosce uno solo lascia l'altro scoperto — misurato,
+	#     la mutazione sul secondo restava verde. Si contano TUTTE le
+	#     chiamate: cosi' la guardia copre anche il lettore che verra'.
+	var codice: String = load("res://tests/test_util.gd").codice(
+			"res://scenes/npc/Accompagna.gd")
+	var re := RegEx.new()
+	re.compile('animo\\.fiducia\\(([^)]*)\\)')
+	var letture := re.search_all(codice)
+	t.ok(letture.size() >= 2,
+			"la fiducia si legge in piu' di un posto (%d)" % letture.size())
+	for lettura in letture:
+		var argomenti := lettura.get_string(1)
+		t.ok(argomenti.contains('"%s"' % tipo),
+				("ogni lettura della fiducia esclude il gesto che `_guarisci` "
+				+ "scrive («%s»): trovato `fiducia(%s)` — senza il `tranne` "
+				+ "la stessa carezza pesa due volte") % [tipo, argomenti])
+
+	# --- e il `tranne` FUNZIONA davvero: non è una stringa decorativa
+	var a = ANIMO.new()
+	a.setup({"nome": "Prova", "tratti": {}})
+	for i in 5:
+		a.ricorda(tipo, "giocatore", 0.8, 0.9)
+	var con_tutto: float = a.fiducia("giocatore")
+	var senza: float = a.fiducia("giocatore", tipo)
+	t.ok(con_tutto > 0.05,
+			"cinque accompagnamenti costruiscono fiducia (%.3f)" % con_tutto)
+	t.almost(senza, 0.0,
+			("…ma non la propria: escludendo «%s» resta zero (%.3f)"
+			% [tipo, senza]), 0.0005)
+
+	# --- la CONTROPROVA: un gesto DIVERSO conta eccome, o il `tranne` sarebbe
+	#     diventato un interruttore che spegne tutto il canale
+	var b = ANIMO.new()
+	b.setup({"nome": "Prova2", "tratti": {}})
+	for i in 5:
+		b.ricorda("regalo", "giocatore", 0.8, 0.9)
+	t.ok(b.fiducia("giocatore", tipo) > 0.05,
+			("un gesto diverso conta per intero (%.3f): il `tranne` non "
+			+ "guarda due volte una riga, non spegne il canale")
+					% b.fiducia("giocatore", tipo))
+
+
+## ⚠️ **UN VERBO OFFERTO DEV'ESSERE CONCEDIBILE — e questa e' l'invariante che
+## la soglia nuova poteva rompere in silenzio.**
+##
+## `Limbico.evita` apre il prompt a `SOGLIA_EVITAMENTO` (0,45); `ce_la_fa` lo
+## concede sotto il proprio tetto. Se le due fasce non si sovrapponessero, il
+## gioco offrirebbe l'Accompagnare e non lo concederebbe MAI — il giocatore
+## attraverserebbe il villaggio per un no certo, e imparerebbe a non usare piu'
+## il verbo. Sarebbe la prima domanda della REGOLA SACRA fallita in modo
+## strutturale: nessuna chiave a forma di giocatore, perche' nessun gesto
+## cambia l'esito.
+##
+## ⚠️ E I DUE NUMERI SI LEGGONO DA DOVE VIVONO: la soglia da `Limbico`, il
+## tetto da `Accompagna`. Scriverli a mano qui li giudicherebbe contro se'
+## stessi — il caso resterebbe verde portando `PAURA_CHE_FERMA` a zero.
+func _il_verbo_offerto_si_puo_mantenere(t) -> void:
+	var apre: float = LIMBICO.SOGLIA_EVITAMENTO
+	# il tetto: la paura piu' profonda che si possa ancora affrontare, a corpo
+	# calmo e con la fiducia piena. Sopra, `ce_la_fa` e' una costante falsa.
+	var tetto: float = ACCOMPAGNA.PAURA_CHE_FERMA + ACCOMPAGNA.PESO_FIDUCIA
+	t.ok(tetto > apre,
+			("la fascia in cui il verbo si offre (da %.2f) e quella in cui si "
+			+ "puo' concedere (fino a %.2f) si sovrappongono: esiste una "
+			+ "paura che si offre E si puo' affrontare") % [apre, tetto])
+	# e la sovrapposizione non e' un filo: dev'esserci spazio vero
+	t.ok(tetto - apre > 0.15,
+			("…e la sovrapposizione e' larga %.2f, non un filo di lama"
+			% (tetto - apre)))
+
+	# --- il caso VERO: una paura dentro la fascia si affronta, una sopra no
+	var dentro: float = (apre + tetto) * 0.5
+	t.ok(ACCOMPAGNA.ce_la_fa(-dentro, 0.0, 1.0),
+			("una paura in mezzo alla fascia (%.2f) si affronta, se ci si "
+			+ "fida e si e' calmi") % dentro)
+	t.ok(not ACCOMPAGNA.ce_la_fa(-(tetto + 0.05), 0.0, 1.0),
+			"e una sopra il tetto no, comunque si stia")
+
+	# --- ⚠️ E L'OFFERTA GUARDA IL CASO MIGLIORE, non adesso. Se `_vale_la_pena`
+	#     passasse l'arousal vero, il prompt sparirebbe a chi in questo momento
+	#     ha il cuore in gola — cioe' proprio a chi si sta avvicinando a Mochi —
+	#     e tornerebbe un attimo dopo: un verbo che lampeggia non e' un verbo.
+	var acc: String = load("res://tests/test_util.gd").codice(
+			"res://scenes/npc/Accompagna.gd")
+	# ⚠️ e il corpo della funzione va DELIMITATO: senza, `substr` arriva a fine
+	# file e ci finisce dentro `_ce_la_fa_ora`, che l'allarme lo guarda —
+	# giustamente, perche' e' lei a decidere sulla soglia. Una guardia che
+	# legge il file intero accusa la funzione sbagliata.
+	var vp := acc.substr(acc.find("func _vale_la_pena"))
+	vp = vp.substr(0, vp.find("func _process"))
+	t.ok(vp.contains("0.0"),
+			("`_vale_la_pena` chiede il caso MIGLIORE (allarme zero): "
+			+ "l'offerta e' onesta, l'esito resta vivo"))
+	t.ok(not vp.contains("arousal"),
+			("…e non guarda l'allarme di adesso: il prompt non deve "
+			+ "lampeggiare col battito di chi ti vede arrivare"))
+	# e il candidato la CHIAMA: senza, tutto questo e' aritmetica che nessuno
+	# esegue — la nona volta, in questo progetto.
+	var cand := acc.substr(acc.find("func _candidato"))
+	cand = cand.substr(0, cand.find("func _vale_la_pena"))
+	t.ok(cand.contains("_vale_la_pena"),
+			"e `_candidato` la interroga davvero prima di offrire il verbo")

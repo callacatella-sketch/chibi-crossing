@@ -5852,6 +5852,224 @@ vicino decide se accettare qualcosa dal giocatore.** Il giocatore ordina (la
 Lavagna) o dona (i gesti gentili); non chiede mai, e le Commissioni vanno
 nell'altro verso.
 
+## LA FIDUCIA — la gemella di `rancore()`, e il momento in cui si può dire di no
+
+Il villaggio sapeva misurare **quanto ti detesta** (`Animo.rancore()`) e non
+sapeva misurare **quanto si fida di te**. E cercando dove innestare la
+risposta è venuto fuori che mancava una cosa più grossa: **nel gioco non
+esisteva un momento in cui un vicino decidesse se accettare qualcosa dal
+giocatore.** Lui ordina (la Lavagna) o dona; non chiede mai.
+
+Sono due lavori, e il secondo è il vero.
+
+### 1 · `Animo.fiducia(attore, tranne)` — cinque decisioni, nessuna taratura
+
+Stessa forma di `rancore()`, stessa recenza, **lettura derivata** da prove già
+salvate: zero chiavi nuove, zero migrazioni.
+
+1. **`SAZIETA_FIDUCIA := 12.0`, non `SATURAZIONE` (55).** Ricopiarla *sembra*
+   la regola delle fonti uniche e la viola: quel 55 è tarato su una serie che
+   **sensibilizza** (`Limbico.rivaluta` spinge verso −0.30 sui torti
+   d'identità), mentre i doni **abituano** — rapporto misurato **4,5×**. Con 55
+   la funzione non supererebbe **0,24 in nessuna partita possibile**, cioè
+   dichiarerebbe 0..1 e mentirebbe. La fonte unica vincola la FORMA e la
+   RECENZA, non lo scalare di scala.
+2. **Si sceglie per SEGNO, mai per una lista di tipi.** Una lista sarebbe la
+   gemella di `Deriva.SPINTE["codardia"]` — che infatti ha già dimenticato
+   «accompagnato» e non vede «consolato».
+3. **Legge anche il SOMMARIO**, o la fiducia sparirebbe oltre le
+   `RICORDI_VIVI` righe — cioè **proprio nei villaggi vissuti**.
+4. **Nessuno sconto coi torti.** Il `− buoni · 1.4` di `rancore()` non è
+   simmetria: è un pollice sulla bilancia **a favore del giocatore**.
+   Specchiarlo lo capovolge, e darebbe **due pene allo stesso evento**.
+5. **Zero esatto per uno sconosciuto**, e non per un `if`: senza righe la somma
+   è zero e la forma dà 0.0.
+
+> ### ⚠️ E L'INNESTO OVVIO SAREBBE STATO INERTE — è algebra, non una stima
+>
+> `punteggio()` ha **un solo lettore** (`decide()`), che pesa
+> `exp((s − base) · nitidezza)` con **`base` presa dai voti stessi**. Un
+> termine che non dipende da `azione` è la stessa costante su tutti i
+> candidati, quindi `(s+c) − (base+c) = s − base`: **si cancella esattamente**.
+> `s += fiducia(chiede) * 0.6` — la stesura che si scrive per prima, che
+> compila, che si legge benissimo e che ha un test facile che passa — **non
+> avrebbe cambiato nessuna decisione, per nessun coefficiente.**
+>
+> L'innesto è quindi sulla riga del **logorio**, l'unico termine che dipende
+> insieme da `azione` e da `chiede`: *da chi ti ha voluto bene, la ventesima
+> volta pesa meno.* Moltiplicativo, col pavimento **strutturale** (a fiducia
+> zero è `× 1.0`, cioè bit per bit la riga di ieri) e il tetto `SMORZO_FIDUCIA`
+> sotto il **tiro del sogno più debole**: la fiducia in chi chiede non può mai
+> pesare quanto la vocazione.
+
+> ### ⚠️ E `opinione` È MORTA DA SEMPRE, per due ragioni indipendenti
+>
+> Oltre a essere additiva (e quindi cancellata dal softmax), è letta con
+> `chiede`, e **`decide()` ha un solo chiamante**: `Lavori.gd:122`, che passa
+> **`"se_stesso"`** — mentre `senti_dire()` scrive `opinione["giocatore"]`.
+> Legge una chiave che nessuno scrive. Il termine non ha mai influenzato
+> niente, e il commento accanto adesso lo dice.
+
+**I NUMERI** (`tools/misura_fiducia.gd`, tredici residenti, tre giornate, col
+giocatore che cura solo i primi quattro): fiducia di chi è stato curato
+**0,623** (da 0,588 a 0,648) contro **0,014** degli altri (massimo 0,063), e
+`punteggio()` cambia per **13 su 13**. Le due popolazioni non si sovrappongono.
+
+### 2 · «NON OGGI» — la soglia dell'Accompagnare adesso DECIDE
+
+Il canale mancante non è stato inventato: era **tre quarti già scritto**. La
+soglia dell'Accompagnare esiste da sempre (`Accompagna._avanza`, fase
+«soglia»: il vicino arriva a due passi dal posto che teme e si ferma), e
+mancava soltanto la possibilità che quel passo non venisse fatto.
+
+Adesso `ce_la_fa(carica, allarme, fiducia)` decide, e se la paura vince il
+vicino si scosta, fa il **Largo** attorno al posto e se ne va. Nessuna parola,
+nessun toast, nessuna faccia verso di te — chi guarda vede **un corpo che gira
+al largo da una catasta**, che è esattamente quello che è successo.
+
+**Le quattro regole che non si negoziano:**
+
+1. **IL PAVIMENTO È STRUTTURALE.** Sotto `PAURA_CHE_FERMA` (0,55) si entra
+   **sempre**, comunque stia il corpo: per la stragrande maggioranza dei
+   vicini il gioco è bit per bit quello di ieri.
+2. **IL SOGGETTO DEL NO È IL POSTO, mai il giocatore.** Ha camminato con te
+   attraverso mezzo villaggio: il rifiuto non è sulla tua richiesta.
+3. **UN NO NON SCRIVE NIENTE**, e vale per il libro mastro **e per il corpo**
+   (vedi la trappola 1 più sotto). Nessuna riga, nessun marchio, nessun
+   rancore: non hai niente da riparare perché non hai rotto niente.
+4. **LA SOGLIA È UNA LETTURA, MAI UNA TRANSAZIONE.** I collaudi hanno bocciato
+   `trattieni()` — che scala la regolazione e alza il cortisolo — perché usarlo
+   qui vorrebbe dire **far pagare al vicino il fatto che gli hai chiesto una
+   cosa**.
+
+E `PESO_FIDUCIA` ha per tetto `PESO_ALLARME`: **la fiducia non può mai valere
+più di come stai adesso**, o diventerebbe una valuta che compra il coraggio, e
+il giocatore imparerebbe a coltivare i vicini invece che a volergli bene.
+Il `tranne` su `fiducia("giocatore", "accompagnato")` non è una lista bianca:
+è **non guardare due volte la riga che il chiamante ha già in mano** — senza,
+la volta scorsa che ti ha seguito conterebbe due volte, e il verbo si
+comprerebbe da solo.
+
+### ⚠️ COSA HA TROVATO LA REVISIONE AVVERSARIALE (cinque lenti, poi uno scettico)
+
+Quarantadue difetti proposti, **diciotto sopravvissuti** a chi doveva
+refutarli. I due `alta`, e nessuno dei due era visibile dalla suite:
+
+1. **IL CORPO CAMMINAVA DENTRO IL POSTO CHE AVEVA APPENA RIFIUTATO, con un
+   cuoricino.** `libera()` restituisce la giornata scrivendo `next_act = 0.0`
+   sulla riga del residente — e basta: non tocca `_target`, non cambia stato.
+   Ma `manda()` aveva fatto `do_task("wonder", pos)`, cioè `_walk_to` verso il
+   posto con `tk_wonder` in coda. MISURATO nel MainLevel vero: al verdetto
+   mancano ~1,9 m, e il corpo **li camminava** — distanza dalla catasta da
+   1,09 m a **0,00 m** — poi `_enter_state("tk_wonder")` gli metteva l'«!»
+   sopra la testa, restava 4,5 s incantato **dentro** il posto temuto, e
+   all'uscita `_spawn_heart()` gli faceva uscire un **cuore**. *Il rifiuto reso
+   identico a un successo, meno il toast e più un cuoricino.* E l'agenda non
+   poteva salvarlo: si riprende il corpo solo dagli stati di
+   `STATI_A_RIPOSO`, dove né «walk» né «tk_wonder» stanno.
+   Curato dirottando il cammino (`do_routine("wander", …)`, il ripiego
+   universale, che finisce in `r_idle`); dopo: **1,09 → 3,05 m**, e nessun
+   incanto.
+2. **SOPRA IL TETTO IL VERBO ERA SPENTO, e il gioco lo offriva lo stesso.**
+   `evita` apre il prompt a 0,45 di marchio; `ce_la_fa` lo concede sotto
+   `PAURA_CHE_FERMA + PESO_FIDUCIA`. In mezzo c'era una fascia in cui il
+   giocatore attraversava il villaggio per un **no certo** — nessun gesto,
+   nessuna fiducia, nessuna calma poteva cambiarlo. MISURATO
+   (`Limbico.rivaluta`, spaventi pieni): il marchio sale a **0,882** al terzo
+   spavento, poi l'abitudine lo riporta a **0,7196** a regime; il tetto con la
+   fiducia vera (0,623) è **0,706**. La fascia esiste, ed è proprio dove
+   stanno le paure appena fatte.
+   Curato con `_vale_la_pena`, che applica la regola **già scritta in quel
+   file** — *«meglio non offrire un verbo che non si può mantenere»* — alla
+   paura invece che alla mappa. E la domanda è sul **caso migliore** (corpo
+   calmo, la fiducia di oggi), non su adesso: **l'offerta è onesta, l'esito
+   resta vivo.** Così un no vuol dire «non come stiamo oggi» — a cui il
+   giocatore può rimediare — invece di «mai», che è una porta murata.
+
+| giorno dopo tre spaventi | 0–1 | 2–3 | 4+ |
+|---|---|---|---|
+| paura | 0,88 · 0,76 | 0,64 · 0,52 | 0,40 |
+| `evita` (il prompt) | sì | sì | no |
+| **si offre?** | **no — silenzio** | **sì, e si può vincere** | la paura è passata da sé |
+
+### ⚠️ LE TRAPPOLE PAGATE, e due sono di BANCO
+
+1. **`spalle_basse` È UNA POSA STABILE, e non gliela toglieva nessuno.**
+   `_non_oggi` la posava; sta in `Visitor.RECITA` (non in `RECITA_TRANS`),
+   quindi resta finché qualcuno non toglie il meta — e la scena si chiude nel
+   frame dopo. MISURATO: era addosso al corpo **sei secondi dopo e nella scena
+   successiva**. È il guasto che il commento di `Visitor._recita_applica`
+   racconta come già pagato una volta. E sarebbe stata una bugia: «un no non
+   scrive niente» vale anche per il CORPO. Tolta: il rifiuto ha già la sua
+   parola, ed è il Largo.
+2. **⚠️ L'ORACOLO DEL BANCO MISURAVA I METRI, NON LA DIREZIONE** — cioè mi ha
+   dato il **verde su un guasto grosso**. «1,88 m percorsi» passava come «se
+   n'è andato», e quei metri erano camminati *dentro* la catasta. Adesso si
+   guarda se la distanza dal posto CRESCE, e se il corpo entra in `tk_wonder`.
+3. **IL LARGO SI CHIEDE DOPO IL DIROTTAMENTO, E COL POSTO.** `_enter_state`
+   chiama `gesto_spegni()`, quindi un Largo chiesto prima morirebbe nel
+   fotogramma in cui nasce; e senza `posto` il corpo non sa da che parte
+   scostarsi (`via` resta +1, cioè sempre a destra — metà delle volte **verso**
+   la catasta).
+4. **IL RINNOVO POTEVA RIMANDARLO INDIETRO.** Il blocco che rinnova il lease
+   gira PRIMA del `match`: nel fotogramma in cui la fase è già «no» ma la scena
+   non è ancora chiusa, un rinnovo scaduto rispediva il corpo alla catasta con
+   45 s di lease, riaprendo la cura da sola.
+5. **IL GRUPPO «player» NON ESISTE.** Il banco lo cercava come ripiego, e
+   `test_scena_cablaggi` è diventato rosso — giustamente: un banco che
+   interroga un gruppo vuoto misura sempre `null` e non se ne accorge. Il
+   giocatore si prende da dove lo prende la scena (`Accompagna._player`).
+6. **UNA GUARDIA CHE LEGGE FINO A FINE FILE ACCUSA LA FUNZIONE SBAGLIATA.** Il
+   controllo su `_vale_la_pena` non era delimitato e ci finiva dentro
+   `_ce_la_fa_ora`, che l'allarme lo guarda — giustamente, perché è lei a
+   decidere sulla soglia.
+
+### ⚠️ E DUE GUARDIE ERANO MUTE (la batteria le ha trovate, non la rilettura)
+
+- **il `tranne`**: quindici mutazioni, quattordici rosse e **una verde** —
+  togliere `"accompagnato"` da `fiducia()` lasciava tutto verde. La riga che
+  impedisce alla stessa carezza di pesare due volte non aveva **nessun
+  lettore**: la nona volta, in questo progetto, che del codice giusto non ha
+  chi lo guardi. Chiusa legando i due posti — il tipo si **legge** da
+  `_guarisci`, non si ricopia, e la mutazione che lo rinomina lì fa arrossire
+  la guardia qui.
+- **…e poi di nuovo**, perché da quando anche l'offerta interroga la fiducia i
+  lettori sono DUE, e una guardia che ne conosce uno solo lascia l'altro
+  scoperto. Adesso si contano **tutte** le chiamate: copre anche il lettore che
+  verrà.
+
+### Il ferro dei source-check sta nell'harness
+
+`tests/test_util.gd::codice(percorso)` — il sorgente **senza i commenti**.
+Serve in tutti e due i versi: chi ha PAGATO un difetto lo racconta nei propri
+commenti (la cura di `spalle_basse` nomina la posa che ha tolto), e un
+guardiano ingenuo dichiara rotto proprio il file riparato; all'inverso, un
+commento che promette una cosa fa passare un codice che non la fa. Stava in
+`test_vento.gd`, che l'aveva pagata per primo; da quando ha due lettori sta
+nell'harness — **una lezione ricopiata invecchia**.
+
+### Come si verifica
+
+```
+Godot --headless --path . --script res://tests/test_runner.gd
+Godot --headless --path . --script res://tools/prova_non_oggi.gd
+CHIBI_CASO=test_due_strade.gd Godot --headless --path . \
+    --script res://tools/prova_un_caso.gd     # il giro CORTO, per le mutazioni
+```
+
+[`tools/prova_non_oggi.gd`](tools/prova_non_oggi.gd) è il banco vivo: MainLevel
+vero, un vicino vero, la scena vera dal `_comincia` alla soglia — **non chiama
+`ce_la_fa` a mano**, o misurerebbe un corpo che entra sempre senza accorgersene.
+Sei cancelli, con oracoli indipendenti (il libro mastro contato a mano, la
+distanza dal posto, lo stato del corpo) e la **controprova** che sotto il
+pavimento si entra come sempre.
+
+[`tools/prova_un_caso.gd`](tools/prova_un_caso.gd) fa girare UN caso della
+suite riusando **l'harness vero**: non è un secondo runner, e sta in `tools/`
+apposta. Serve alla batteria di mutazioni — su una macchina carica la suite
+intera costa decine di minuti, e quindici mutazioni non si provano. Il verdetto
+finale si dà comunque con la suite intera.
+
 ## Test
 
 Test-suite **dependency-free** (nessun addon, nessuna rete) in `tests/`:
