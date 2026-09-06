@@ -87,3 +87,17 @@ scenes/npc/Animo.gd
 		"scatti": scatti.duplicate(true), "oggi": oggi, "ultimo_scatto": _ultimo_scatto,
 -->
 		"scatti": scatti.duplicate(true), "oggi": oggi, "ultimo_scatto": _ultimo_scatto, "crescita": crescita,
+=====
+il ponte GIORNALIERO non porta piu' l'eta': il cucciolo resta cucciolo per sempre
+scenes/npc/Visitors.gd
+		_presta_l_eta_a(a, nome)
+-->
+		pass
+=====
+il cancello del non-finito in tratto() non morde (il NaN entra nel gioco)
+scenes/npc/Animo.gd
+	if base > -INF and base < INF and scarto > -INF and scarto < INF:
+		return clampf(clampf(base, 0.0, 1.0) + scarto, 0.0, 1.0)
+	return DERIVA.componi(base, scarto)
+-->
+	return clampf(clampf(base, 0.0, 1.0) + scarto, 0.0, 1.0)

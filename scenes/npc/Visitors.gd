@@ -3546,6 +3546,65 @@ func conforta_mochi(motivo: String) -> bool:
 const TENSIONE_CONFRONTO := 0.45
 
 
+## SI PUÒ ARMARE IL BUIO ADDOSSO A QUESTO CORPO?
+##
+## ⚠️ **LA TENSIONE È L'UNICA COSA DEL VILLAGGIO CHE ACCENDE UN LIVELLO DEL
+## CORPO SENZA PASSARE DALL'USCIERE.** Ogni altro canale del vocabolario
+## passa da `chiedi_gesto`, che ha i suoi sette cancelli; `Visitor.somatico`
+## è una porta di servizio, aperta per i sussulti del `Limbico` — che sono un
+## RIFLESSO, e un riflesso non ha un giocatore da servire. La tensione del
+## confronto invece **non è un riflesso: è una premessa scritta apposta
+## perché il giocatore la veda**, e una premessa che nessuno vede è
+## esattamente ciò che `_nell_inquadratura` ha già chiuso per i gesti
+## (MISURATO: 12 concessi, 8 fuori dall'inquadratura — il 67%).
+##
+## LO SCENARIO CHE QUESTA FUNZIONE CHIUDE: è notte, Mochi passa a 2,4 m da
+## una casa, e dentro dorme un residente a gradino «svogliato»
+## (`resident_sleep()` l'ha rimpicciolito a scala 0.03, `is_hidden()` è
+## vero). La tensione si armava su quel corpo, e si riarmava ogni dodici
+## secondi fino al mattino. Due danni, e il secondo è quello grave:
+##  · il livello «guardingo» acceso su un corpo che il giocatore non può
+##    vedere in nessun modo — una premessa che non è mai esistita e che si
+##    legge quando quel corpo torna in scena, appesa a niente;
+##  · **`_sussulto_fresco()` diventa VERO senza che ci sia stato un
+##    sussulto**, e quella è la valvola scritta apposta perché «il Rialzo non
+##    si reciti da solo» (`Visitor.frase`, ramo `rialzo`). Una porta di
+##    servizio che scardina la guardia della porta principale.
+##
+## Le prime tre domande sono **le stesse di `Visitor.gesto_libero`** (dentro
+## casa · addormentato · a un appuntamento), la quarta è quella della
+## ricevuta delle deduzioni. Non è prudenza in più, ed è la ragione per cui
+## sono proprio queste: **il buio esiste per il gesto** — è la condizione
+## sotto cui il Rialzo potrebbe essere recitato, e armarlo dove il gesto è
+## impossibile vuol dire accendere una premessa che non avrà mai la sua
+## conseguenza. La quinta non riguarda chi guarda ma chi possiede il canale:
+## il perché sta per esteso sopra `Visitor.sta_sciogliendo`.
+##
+## ⚠️ **STA DOPO IL RAFFREDDAMENTO, non prima, e non tocca `regola()`.** La
+## decisione interiore è di chi ha i ricordi e la forza di trattenersi; qui
+## si decide soltanto se il CORPO deve portarne il segno. Metterla davanti a
+## tutto il ramo spegnerebbe la rilettura di chi dorme — che è un'altra
+## domanda, e non la si risponde di straforo dentro una guardia del rig.
+##
+## Il degrado va SEMPRE verso quello che c'era: a una domanda a cui il corpo
+## non sa rispondere (un doppio di banco, un corpo di un'altra specie) si
+## passa. Zero vuol dire «non lo so», e «non lo so» non è mai un no — la
+## stessa regola di `_nell_inquadratura`, che senza camera dice sì.
+func _buio_armabile(node: Node3D) -> bool:
+	if node.has_method("is_hidden") and bool(node.call("is_hidden")):
+		return false      # è dentro casa: il giocatore non ha niente da vedere
+	if node.has_method("dorme") and bool(node.call("dorme")):
+		return false      # dorme, e un corpo addormentato non si confronta
+	if node.has_method("in_scena") and bool(node.call("in_scena")):
+		return false      # il corpo non è suo: è di chi ha scritto la scena
+	# …E NON SI ANNULLA UNO SCIOGLIMENTO IN CORSO. Costa al più i 0,35 s
+	# della rampa di rilascio, e la tensione non si perde: il raffreddamento
+	# del morso la ripropone dodici secondi dopo, a corpo sciolto.
+	if node.has_method("sta_sciogliendo") and bool(node.call("sta_sciogliendo")):
+		return false
+	return _nell_inquadratura(node.global_position)
+
+
 # CHI HA QUALCOSA DA DIRTI TE LO VIENE A DIRE.
 #
 # È il momento che il giocatore ricorderà: non un contatore che sale in un
@@ -3622,7 +3681,12 @@ func _tick_confronti(delta: float) -> void:
 			# acceso in RAM e invisibile sullo schermo — e il Rialzo si
 			# rifiuterebbe lo stesso, perché `_sussulto_fresco()` chiede
 			# un'ampiezza maggiore di zero.
-			if node.has_method("somatico"):
+			#
+			# ⚠️ **E SI ARMA SOLO SE IL CORPO PUÒ PORTARLO** — le valvole
+			# dell'usciere, che questa chiamata scavalcherebbe tutte perché
+			# non passa da `chiedi_gesto`. Il perché, con lo scenario
+			# misurato, sta per esteso sopra `_buio_armabile`.
+			if node.has_method("somatico") and _buio_armabile(node):
 				node.call("somatico", lerpf(GESTI.CODA_SOGLIA * 2.0,
 						TENSIONE_CONFRONTO,
 						ANIMO.frazione(int(animo.gradino))))
@@ -3656,6 +3720,15 @@ func _tick_confronti(delta: float) -> void:
 				# prima, senza mostrargli nessun sollievo**. Meglio un esito
 				# che assomiglia all'altro che una paura che evapora da sola:
 				# il canale resta con UN solo padrone, il Rialzo.
+				#
+				# Il residuo si è ristretto da sé con `_buio_armabile`: i no
+				# che vengono dal CORPO (dentro casa, addormentato, dentro
+				# una scena, fuori dall'inquadratura) adesso non armano
+				# nemmeno la tensione, quindi non lasciano più addosso una
+				# premessa senza conseguenza. Resta quello che riguarda il
+				# turno — il gettone del villaggio e il riposo di quella
+				# persona — che sono cancelli di REGIA e non del corpo: lì la
+				# tensione è armata e il Rialzo non arriva.
 				chiedi_gesto(label, "ha_riletto")
 				continue
 			if modo == "scoppio":

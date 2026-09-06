@@ -136,3 +136,46 @@ scenes/npc/Animo.gd
 var debug_niente_rilettura := false
 -->
 var debug_niente_rilettura := true
+=====
+la tensione del confronto scende sotto la soglia della coda (accesa in RAM, invisibile a schermo)
+scenes/npc/Visitors.gd
+const TENSIONE_CONFRONTO := 0.45
+-->
+const TENSIONE_CONFRONTO := 0.05
+=====
+la tensione diventa uno spavento pieno (la faccia della paura su chi ha solo un torto)
+scenes/npc/Visitors.gd
+const TENSIONE_CONFRONTO := 0.45
+-->
+const TENSIONE_CONFRONTO := 1.0
+=====
+la tensione si arma anche su chi dorme o e' dentro casa
+scenes/npc/Visitors.gd
+	if node.has_method("is_hidden") and bool(node.call("is_hidden")):
+		return false      # è dentro casa: il giocatore non ha niente da vedere
+	if node.has_method("dorme") and bool(node.call("dorme")):
+		return false      # dorme, e un corpo addormentato non si confronta
+-->
+	pass
+=====
+la tensione ANNULLA uno scioglimento in corso (il sollievo appena mostrato, disfatto)
+scenes/npc/Visitors.gd
+	if node.has_method("sta_sciogliendo") and bool(node.call("sta_sciogliendo")):
+		return false
+-->
+	pass
+=====
+il `sentito` non torna piu': nessun luogo di lavoro si marchia
+scenes/npc/Animo.gd
+	_potatura()
+	return sentito
+-->
+	_potatura()
+	return 0.0
+=====
+si rilegge l'array invece del valore tornato (il difetto che la cura ha chiuso)
+scenes/npc/Visitors.gd
+	var sentito: float = float(animo.esegue(compito, ordinante))
+-->
+	animo.esegue(compito, ordinante)
+	var sentito: float = 0.0 if animo.ricordi.is_empty() else float((animo.ricordi[animo.ricordi.size() - 1] as Dictionary).get("valenza", 0.0))

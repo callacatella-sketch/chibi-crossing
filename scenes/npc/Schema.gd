@@ -199,15 +199,39 @@ static func congruenza(tipo: String, sogno: String, compiti: Dictionary) -> floa
 ##  · FORZA — senza, un fatto tiepido ma unico scaccia una botta vera;
 ##  · ANZIANITÀ — senza, la memoria si fossilizza sul primo mese e non
 ##    entra più niente di nuovo.
-static func costo(schede: Array, i: int, oggi: int, mezza_vita: float) -> float:
+##
+## ⚠️ **IL CONTEGGIO PER TIPO ARRIVA DA FUORI, E NON È UNA CIVETTERIA.**
+## Contare qui dentro quante schede hanno lo stesso tipo vuol dire, per
+## ogni indice, una passata su tutto l'array con un `str()` e un
+## confronto fra String a testa: chiamata `n` volte da
+## `indice_da_sacrificare` è `n²`, cioè **1681 confronti** per potatura
+## con `Animo.RICORDI_VIVI + 1 = 41` schede. E la potatura non è rara nel
+## momento peggiore: la partenza di un vicino mette in lutto OGNI
+## residente e `Animo.lutto()` chiama `ricorda()` **due** volte — con
+## ventotto vicini sono ~56 potature complete NELLO STESSO FOTOGRAMMA,
+## cioè la scena dell'addio, la più coreografata del gioco: **~94.000
+## iterazioni**. Con la tabella `tipo → quante` costruita in UNA passata
+## da chi pota e letta in O(1): **1681 → 41 `str()` più 41 letture**, e
+## il fotogramma dell'addio da ~94.000 a **~4.600**.
+##
+## ⚠️ **E IL NUMERO CHE ESCE NON CAMBIA DI UN BIT**, che è tutto il
+## punto: la tabella è lo STESSO conteggio, fatto una volta invece di
+## `n`. Il dizionario vuoto vuol dire «non me l'hanno data» — e allora il
+## conto si rifà qui, esattamente come prima, così chi chiama `costo()`
+## con quattro argomenti (i banchi) resta identico. Ci ricade anche un
+## tipo che nella tabella non c'è: il degrado va dove va sempre, verso il
+## comportamento che c'era già, mai verso un conteggio inventato.
+static func costo(schede: Array, i: int, oggi: int, mezza_vita: float,
+		conteggi: Dictionary = {}) -> float:
 	if i < 0 or i >= schede.size():
 		return INF
 	var s: Dictionary = schede[i]
 	var tipo := str(s.get("tipo", ""))
-	var quanti := 0
-	for k in schede:
-		if str((k as Dictionary).get("tipo", "")) == tipo:
-			quanti += 1
+	var quanti := int(conteggi.get(tipo, 0))
+	if quanti <= 0:
+		for k in schede:
+			if str((k as Dictionary).get("tipo", "")) == tipo:
+				quanti += 1
 	var recente := pow(0.5, float(oggi - int(s.get("quando", 0)))
 			/ maxf(mezza_vita, 0.001))
 	var forza: float = absf(float(s.get("valenza", 0.0))) \
@@ -287,16 +311,40 @@ static func intoccabile(schede: Array, i: int) -> bool:
 	return true
 
 
+## QUANTE SCHEDE HANNO CIASCUN TIPO, in una passata sola.
+##
+## È il conteggio che `costo()` faceva da sé per ogni indice (vedi la sua
+## testata): la stessa aritmetica, pagata una volta invece di `n`. Le
+## chiavi si normalizzano con `str()` come faceva il ciclo di prima —
+## altrimenti una scheda con un tipo `StringName` finirebbe in un
+## secchiello suo e il conto tornerebbe diverso, in silenzio.
+static func conteggio_tipi(schede: Array) -> Dictionary:
+	var conteggi := {}
+	for k in schede:
+		var tipo := str((k as Dictionary).get("tipo", ""))
+		conteggi[tipo] = int(conteggi.get(tipo, 0)) + 1
+	return conteggi
+
+
 ## L'indice del ricordo che costa meno perdere, o -1 se è tutto
 ## intoccabile (e allora si sfora, come fa il filo dei Legami).
+##
+## ⚠️ La tabella dei tipi si costruisce QUI e si ricostruisce a ogni
+## chiamata, invece di farsela passare da `Animo._potatura`: quel `while`
+## toglie una scheda per giro (`schede.remove_at(vittima)`), quindi una
+## tabella conservata fra un giro e l'altro conterebbe una riga che non
+## c'è più — e sarebbe il conteggio sbagliato **senza un errore**. Una
+## passata in più per giro costa `n`; il difetto costerebbe un costo
+## falso proprio sul secondo ricordo potato.
 static func indice_da_sacrificare(schede: Array, oggi: int,
 		mezza_vita: float) -> int:
+	var conteggi := conteggio_tipi(schede)
 	var scelto := -1
 	var minimo := INF
 	for i in schede.size():
 		if intoccabile(schede, i):
 			continue
-		var c := costo(schede, i, oggi, mezza_vita)
+		var c := costo(schede, i, oggi, mezza_vita, conteggi)
 		if c < minimo:
 			minimo = c
 			scelto = i

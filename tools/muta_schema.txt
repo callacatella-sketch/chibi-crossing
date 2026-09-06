@@ -67,3 +67,9 @@ scenes/npc/Schema.gd
 		"attore": str(r.get("attore", "")),
 		"congruenza": congruenza(tipo, sogno, compiti),
 		"verso": verso(tipo, sogno, compiti),
+=====
+la scheda porta il SEGNO invece del modulo: il diario rosa
+scenes/npc/Schema.gd
+		"congruenza": absf(float(v)),
+-->
+		"congruenza": float(v),

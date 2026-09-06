@@ -14,16 +14,25 @@ extends RefCounted
 ##     non ci torna mai, quindi la paura non si spegneva più.
 ##  3. Le manopole della vignetta — quattro uniform che nessuno scriveva:
 ##     la carta restava congelata sui valori di fabbrica.
+##
+## E un QUARTO caso, che è il rovescio degli altri tre: un motore ACCESO di
+## cui però nessuno sorvegliava il cavo — il marchio del luogo di lavoro
+## (`_test_marchio_del_luogo`). Un cablaggio senza guardia non è più sicuro
+## di un motore staccato: è solo più difficile accorgersi del giorno in cui
+## si stacca.
 
 const ANIMO := preload("res://scenes/npc/Animo.gd")
 const CARTA := preload("res://scenes/world/Carta.gd")
 const DNA := preload("res://scenes/npc/ChibiDNA.gd")
+const VISITORS := preload("res://scenes/npc/Visitors.gd")
+const LIMBICO := preload("res://scenes/npc/Limbico.gd")
 
 
 func run(t) -> void:
 	_test_decide_e_acceso(t)
 	_test_guarigione_raggiungibile(t)
 	_test_carta_respira(t)
+	_test_marchio_del_luogo(t)
 
 
 # ------------------------------------------------- 1. la scelta libera
@@ -237,6 +246,152 @@ func _test_carta_respira(t) -> void:
 							or float(v["grana"]) < 0.0 or float(v["grana"]) > 0.2:
 						fuori += 1
 	t.eq(fuori, 0, "in 200 combinazioni nessuna manopola esce dal suo hint_range")
+
+
+# -------------------------------- 4. il marchio del luogo di lavoro
+
+## ⚠️ **IL CAVO CHE NESSUNO SORVEGLIAVA.**
+##
+## `Visitors.assegna_compito` prende il `sentito` che `Animo.esegue` gli
+## TORNA e, se quel lavoro ha lasciato il segno (`absf(sentito) > 0.25`),
+## carica il LUOGO di quel compito
+## (`Limbico._marchia("luogo|" + LUOGO_DEL_LAVORO[compito], sentito)`):
+## dopo abbastanza volte quel posto diventa qualcosa da evitare, e da lì
+## nasce l'occasione `quel_posto_no` del vocabolario del corpo — l'unica
+## delle sette che parla di un POSTO invece che di una persona.
+##
+## Il cablaggio c'era; la guardia no. E due mutazioni plausibili restavano
+## **verdi tutte e due**. MISURATE una per una, rifacendo il corpo di
+## `assegna_compito` con la riga guasta sopra lo stesso banco:
+##
+## | | sentito · carica dopo due giornate | rosse |
+## |---|---|---|
+## | sana | −0.798 → −0.4389, poi −0.899 → **−0.8015** | — |
+## | (a) `Animo.ricorda()` torna `0.0` invece del sentito | 0.0000 → **nessun marchio** | **7** |
+## | (b) si rilegge `animo.ricordi[size - 1]` | +0.800 → **+0.4400**, poi +0.7480 | **3** |
+##
+##  (a) la firma resta `-> float`, quindi non se ne accorge nemmeno il
+##      parser: nessun luogo riceve più un marchio, `Limbico.evita()` non
+##      si accende mai, e `quel_posto_no` è irraggiungibile in partita;
+##  (b) è il difetto che la cura ha chiuso, rimesso identico. La chiude la
+##      CONTROPROVA in fondo a questa funzione, perché nel caso comune
+##      `ricordi.back()` **è** la riga appena incisa e la mutazione dà lo
+##      stesso identico numero — verde su tutta la linea. Con la memoria
+##      piena, invece, la catasta si carica **+0.44**: il posto diventa un
+##      bel posto perché il giocatore gli aveva fatto un regalo.
+func _test_marchio_del_luogo(t) -> void:
+	var vis = RegistroCompiti.new()
+	t.stage(vis)
+	# il posto lo dice la tabella di `Visitors`, non una stringa ricopiata
+	# qui: se un domani la catasta cambia nome, questo caso deve seguirla
+	var luogo := str(VISITORS.LUOGO_DEL_LAVORO["taglia_legna"])
+	var altrove := str(VISITORS.LUOGO_DEL_LAVORO["coltiva"])
+
+	# ── il cablaggio nudo ────────────────────────────────────────────────
+	# spaccare legna a chi sognava di combattere: `COMPITI` dice che
+	# `taglia_legna` TRADISCE il sogno «guerriero», ed è il moltiplicatore
+	# `CONTRO_SOGNO` a portare il sentito ben oltre la soglia dei 0.25.
+	var g = _guerriero("G")
+	(vis.get("_animi") as Dictionary)["G"] = g
+	vis.assegna_compito("G", "taglia_legna")
+	var c1: float = g.limbico.carica_di(luogo)
+	t.ok(c1 < 0.0, ("il posto del lavoro si CARICA di com'è andata (%.3f): "
+			+ "il marchio non lo scrive nessuno, lo lascia il lavoro") % c1)
+	t.ok(not g.limbico.evita(altrove),
+			"…e si carica solo QUEL posto: l'orto non c'entra niente")
+
+	vis.assegna_compito("G", "taglia_legna")
+	var c2: float = g.limbico.carica_di(luogo)
+	t.ok(c2 < c1, ("…e la seconda volta pesa di più (%.3f contro %.3f)"
+			% [c2, c1]))
+	# l'aritmetica di `_marchia` (0.7 · quel che c'era + 0.55 · sentito)
+	# porta un tradimento del sogno oltre la soglia alla SECONDA volta:
+	# «bastano due spaventi nello stesso posto per non volerci più andare».
+	# MISURATO con questo carattere: −0.4389 la prima, −0.8015 la seconda,
+	# contro una soglia di 0.45 — e il margine non è tarato qui, viene da
+	# `CONTRO_SOGNO` che è già tarato altrove.
+	t.ok(c2 <= -LIMBICO.SOGLIA_EVITAMENTO,
+			("due giornate così e la carica supera la soglia "
+			+ "dell'evitamento (%.3f contro %.3f)")
+			% [c2, -LIMBICO.SOGLIA_EVITAMENTO])
+	t.ok(g.limbico.evita(luogo),
+			"e il posto diventa da evitare: è di qui che nasce «quel_posto_no»")
+
+	# ── e una giornata QUALUNQUE non marchia niente ──────────────────────
+	# `esplora` ha un luogo (il bosco) ma non tradisce nessun sogno: il
+	# sentito resta sotto 0.25 e il posto non si carica. Senza questa
+	# guardia il cancello `absf(sentito) > 0.25` potrebbe sparire, e allora
+	# ogni mestiere di ogni giornata marchierebbe il suo posto — cioè un
+	# villaggio in cui alla fine non si può più andare da nessuna parte.
+	var chi_esplora = _guerriero("E")
+	(vis.get("_animi") as Dictionary)["E"] = chi_esplora
+	vis.assegna_compito("E", "esplora")
+	t.ok(not (chi_esplora.limbico.marchi as Dictionary).has(
+					"luogo|" + str(VISITORS.LUOGO_DEL_LAVORO["esplora"])),
+			"una giornata che non toglie niente a nessuno non marchia il bosco")
+
+	# ── LA CONTROPROVA: la riga appena incisa può NON essere l'ultima ────
+	# ⚠️ Nel caso comune `ricordi.back()` è proprio la riga appena scritta,
+	# quindi la mutazione (b) darebbe lo stesso numero e questa funzione
+	# resterebbe verde: un test che sceglie l'unico caso in cui il codice
+	# sbagliato è giusto non è un test, è un ritratto.
+	#
+	# Qui la memoria è PIENA di righe dello stesso tipo e dello stesso
+	# giorno, e allora la potatura per schema del sé sacrifica proprio la
+	# riga nuova: `recente` vale 1.0 per tutte e la congruenza divisa per
+	# `quanti` è identica, quindi a decidere resta `PESO_FORZA * forza` —
+	# e la forza della riga appena incisa (|sentito| × 0.975, che è
+	# l'intensità con cui `esegue` incide un tradimento del sogno) sta per
+	# COSTRUZIONE sotto quella dei riempitivi, che vale 1.0 tondo. In coda ai ricordi vivi resta allora
+	# un REGALO del giocatore, cioè una valenza dell'ALTRO SEGNO: con la
+	# mutazione la catasta diventerebbe un bel posto perché gli hai fatto
+	# un regalo (misurato: +0.4400 invece di −0.4389).
+	#
+	# ⚠️ E il margine è una garanzia, non una taratura: il sentito è
+	# clampato a 1 e l'intensità sta sotto, quindi la forza della riga
+	# nuova non può arrivare a 1.0 nemmeno al limite. Se
+	# un domani la potatura cambiasse idea, a dirlo è l'asserzione sulla
+	# CODA qui sotto — che è il pezzo del banco che sorveglia il banco.
+	var p = _guerriero("P")
+	(vis.get("_animi") as Dictionary)["P"] = p
+	for i in ANIMO.RICORDI_VIVI - 1:
+		(p.ricordi as Array).append({"tipo": "taglia_legna",
+				"attore": "giocatore", "quando": p.oggi,
+				"valenza": -1.0, "intensita": 1.0, "come": ""})
+	(p.ricordi as Array).append({"tipo": "regalo", "attore": "giocatore",
+			"quando": p.oggi, "valenza": 0.8, "intensita": 0.9, "come": ""})
+
+	vis.assegna_compito("P", "taglia_legna")
+	t.eq((p.ricordi as Array).size(), ANIMO.RICORDI_VIVI,
+			"la memoria era piena: la potatura ha girato per davvero")
+	var coda: Dictionary = (p.ricordi as Array)[ANIMO.RICORDI_VIVI - 1]
+	t.eq(str(coda.get("tipo", "")), "regalo",
+			"IL BANCO È AFFILATO: la riga del lavoro è stata potata, e in "
+			+ "coda ai ricordi vivi ne resta un'ALTRA")
+	t.ok(float(coda.get("valenza", 0.0)) > 0.0,
+			"…e di segno opposto, o la mutazione passerebbe lo stesso")
+	var d1: float = p.limbico.carica_di(luogo)
+	t.ok(d1 < 0.0, ("il marchio porta il sentito che `esegue` ha TORNATO "
+			+ "(%.3f), non la valenza dell'ultima riga rimasta nell'array")
+			% d1)
+
+	vis.assegna_compito("P", "taglia_legna")
+	var d2: float = p.limbico.carica_di(luogo)
+	t.ok(d2 <= -LIMBICO.SOGLIA_EVITAMENTO,
+			("…e due volte bastano anche con la memoria piena (%.3f)") % d2)
+	t.ok(p.limbico.evita(luogo),
+			"il posto è da evitare, e per il lavoro: non per un regalo")
+
+
+## Un animo DETERMINISTICO che sognava di combattere: tratti tutti scritti
+## (niente dado), sogno esplicito. È il caso del brief — «mi hai mandato a
+## spaccare legna e io volevo fare il guerriero».
+func _guerriero(nome: String):
+	var a = ANIMO.new()
+	a.setup({"name": nome, "seed": 4242, "sogno": "guerriero",
+			"tratti": {"orgoglio": 0.5, "lealta": 0.5, "grinta": 0.5,
+					"codardia": 0.5, "ambizione": 0.4}})
+	return a
 
 
 func _corpo(src: String, nome: String) -> String:

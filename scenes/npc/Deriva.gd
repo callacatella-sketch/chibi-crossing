@@ -381,6 +381,28 @@ static func plasticita_di(crescita: float) -> float:
 ## rotto, e un dato rotto non deve poter portare un tratto oltre il muro
 ## passando dalla porta di servizio.
 ##
+## ⚠️⚠️ **E I DUE `is_finite` NON SONO DECORO: il NAN passa attraverso il
+## clamp.** In Godot `clampf(NAN, 0.0, 1.0)` torna **NAN** — i confronti col
+## NAN sono tutti falsi, quindi né il pavimento né il tetto lo toccano — e da
+## lì in poi è ASSORBENTE: chi legge un tratto lo porta dentro `peso_drive`,
+## `punteggio` e il softmax di `decide()`, e quella personalità è cancellata
+## per sempre, in silenzio. Le due risposte sono scelte, non ripieghi:
+## **base rotta → 0.0** (non c'è nessun «chi era» a cui tornare, e si risponde
+## un numero deterministico) e **scarto rotto → la base**, cioè *sparisce la
+## deriva e resta il genoma* — che è esattamente il verso in cui questo file
+## degrada dappertutto.
+##
+## ⚠️ **E QUESTO CORPO È TRASCRITTO IN `Animo.tratto()`.** Non chiamato:
+## trascritto, perché una statica raggiunta da un `const preload` costa
+## **23,4×** e `tratto()` è la funzione più calda del gioco (la misura sta là,
+## accanto alla trascrizione). Là il collaudo del finito è scritto come
+## confronti (`x > -INF and x < INF`, lo stesso predicato senza la chiamata) e
+## sul dato ROTTO si ricade qui, così la risposta a un dato rotto la dà **la
+## definizione**, in un posto solo. Chi tocca queste sei righe tocca anche
+## quelle, e a tenerle insieme c'è solo
+## `test_finestra._la_composizione_e_la_stessa` — la stessa disciplina, e la
+## stessa fragilità, di `nottambulo()` e della battuta delle farfalle.
+##
 ## ⚠️ Il parametro si chiama `scarto` e non `delta` perché in questo file
 ## `delta` è già il nome di una funzione: ombrarla sarebbe una mina per chi
 ## un domani volesse chiamarla da qui dentro.
@@ -398,11 +420,12 @@ static func componi(base: float, scarto: float) -> float:
 ##
 ## ⚠️ **In produzione non ha chiamanti**, e va detto invece di lasciar credere
 ## il contrario: il gioco tiene la deriva in un campo suo (`Animo._deriva`, che
-## `crescita()` riempie una volta per giornata) e la compone con
-## `componi()` a ogni lettura. Questa resta **la composizione di riferimento**
-## — il posto dove si legge in due righe cosa vuol dire «derivato» — ed è quel
-## che chiamano i banchi e i test, che di scarto e composizione fanno un passo
-## solo.
+## `crescita()` riempie una volta per giornata) e la compone **in linea**, con
+## l'aritmetica di `componi()` trascritta in `Animo.tratto()` — la chiamata
+## vera la fa solo quando il dato è rotto. Questa resta **la composizione di
+## riferimento** — il posto dove si legge in due righe cosa vuol dire
+## «derivato» — ed è quel che chiamano i banchi e i test, che di scarto e
+## composizione fanno un passo solo.
 ##
 ## ⚠️ E il terzo parametro si PROPAGA anche qui, che nei test ha una
 ## sessantina di chiamate: senza, misurerebbero una funzione diversa da quella

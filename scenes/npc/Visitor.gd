@@ -4361,11 +4361,14 @@ func _capo_aggiorna() -> void:
 ##    il Rialzo di chi rilegge si rifiutava sempre, e la generosità del
 ##    giocatore non aveva un corpo.
 ##
-## ⚠️ E la seconda strada NON passa dal `Limbico`, quindi la sua guardia è
-## un'altra e sta scritta accanto alla sua costante: `TENSIONE_CONFRONTO`
-## tiene il tetto **sotto metà** di uno spavento pieno. La tensione di un
+## ⚠️ E la seconda strada NON passa dal `Limbico`, quindi le sue guardie sono
+## altre e stanno tutte di là, accanto alla sua costante: `TENSIONE_CONFRONTO`
+## tiene il tetto **sotto metà** di uno spavento pieno — la tensione di un
 ## confronto non è uno spavento, e chi alzasse quel numero metterebbe addosso
-## a chi ha un torto la faccia di chi ha appena avuto paura di te.
+## a chi ha un torto la faccia di chi ha appena avuto paura di te — e
+## `Visitors._buio_armabile` tiene le valvole che questa porta di servizio
+## salterebbe: dentro casa, addormentato, dentro una scena, fuori
+## dall'inquadratura, e sopra uno scioglimento in corso.
 ##
 ## `maxf` e non `=`: un secondo spavento dentro il primo non lo ACCORCIA.
 func somatico(forza: float) -> void:
@@ -4379,6 +4382,13 @@ func somatico(forza: float) -> void:
 		# UNA PAURA NUOVA NON ASPETTA CHE FINISCA IL SOLLIEVO DI PRIMA: senza
 		# questa riga il corpo resterebbe sordo per tutto lo scioglimento,
 		# cioè proprio nei decimi di secondo in cui il giocatore è lì.
+		#
+		# ⚠️ **«PAURA NUOVA» — e la tensione del confronto non lo è.** Questa
+		# riga vale per un allarme vero; un buio di comodo che passasse di qui
+		# durante un rilascio se lo porterebbe via (la soglia del riarmo
+		# crolla con `_soma_resto()`, quindi qualunque forza la supera). A
+		# cedere il passo è chi chiede, non questa riga: vedi
+		# `sta_sciogliendo()` qui sotto e `Visitors._buio_armabile`.
 		_gs_soma_sciolto = -1.0
 
 
@@ -4403,6 +4413,45 @@ func soma_sciogli() -> void:
 ## Quanto resta della coda per via del rilascio in corso; 1.0 se non ce n'è.
 func _soma_resto() -> float:
 	return 1.0 if _gs_soma_sciolto < 0.0 else GESTI.coda_rilascio(_gs_soma_sciolto)
+
+
+## IL CORPO STA MOLLANDO ADESSO — c'è un rilascio in corso su questo canale.
+##
+## ⚠️ **ESISTE PER UN LETTORE SOLO, ed è quello che stava per portare via il
+## sollievo a metà**: la TENSIONE DEL CONFRONTO
+## (`Visitors._tick_confronti` → `_buio_armabile`). Il riarmo di `somatico()`
+## confronta la forza nuova con `_gs_soma * exp(−t/CODA_TAU) * _soma_resto()`,
+## e **durante un rilascio `_soma_resto()` tende a zero in 0,35 s**
+## (`Gesti.coda_rilascio`, la rampa di `SPEGNI`): la soglia crolla, quindi
+## QUALUNQUE forza la supera — anche i 0,167 della tensione più debole — e
+## quel ramo scrive `_gs_soma_sciolto = -1.0`, cioè **cancella lo
+## scioglimento in corso**.
+##
+## Lo scenario è di due secondi ed è in faccia al giocatore: un vicino che ti
+## vuole bene ma ha un torto, Mochi che gli corre incontro di notte →
+## trasalisce → 0,4 s dopo il riconoscimento → «ah… sei tu», il Rialzo chiama
+## `soma_sciogli()` e il corpo comincia a mollare. Nello stesso avvicinamento
+## Mochi è sotto i 2,6 m, e appena scade il raffreddamento del morso parte la
+## tensione: **il rilascio viene annullato e la coda guardinga riparte da
+## capo, subito dopo che il corpo si era sciolto.** Vale identico per il
+## Rialzo della rilettura, cioè per il gesto che quella tensione esiste per
+## rendere possibile: il sollievo si rimangia da sé.
+##
+## ⚠️ **E LA RIGA DI `somatico()` NON SI TOCCA.** La sua ragione è vera e
+## scritta — «una paura NUOVA non aspetta che finisca il sollievo di prima» —
+## e vale per un allarme vero: chi si spaventa mentre molla deve poter
+## riprendersi il corpo. La tensione del confronto non è una paura nuova: è
+## un buio di comodo, che il villaggio arma perché un gesto abbia la sua
+## premessa. Distinguerle con un parametro dentro `somatico()` vorrebbe dire
+## due specie di coda dentro la porta di TUTTE le paure, e la seconda sarebbe
+## una coda che entra senza prendersi il canale — cioè il canale a due
+## padroni che `_tick_confronti` dichiara per iscritto di non volere. Si cede
+## il passo dal lato di chi chiede: **chi arma un buio di comodo aspetta che
+## chi sta sciogliendo un buio vero abbia finito**, e non perde niente — il
+## rilascio dura 0,35 s e il raffreddamento del morso ripropone la tensione
+## dodici secondi dopo.
+func sta_sciogliendo() -> bool:
+	return _gs_soma > 0.0 and _gs_soma_sciolto >= 0.0
 
 
 ## La fase e lo scarto personali: UNA volta, e dal genoma. Un dado tirato

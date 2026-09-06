@@ -4876,6 +4876,21 @@ MISURATO nel villaggio vero ([`tools/misura_sussulti.gd`](tools/misura_sussulti.
 | `si_illumina` | **48** | **45 (94%)** | | 0 | — |
 | `nulla` | 129 | **91 (71%)** | | 129 | **1 (1%)** |
 
+> ### ⚠️ QUESTA TABELLA È STATA MISURATA PRIMA CHE ESISTESSE UNA SECONDA SORGENTE
+>
+> Dal 2026-09-06 la coda somatica ha **due** padroni: il sussulto della
+> strada veloce (questa tabella) e la **tensione del confronto**
+> (`Visitors.TENSIONE_CONFRONTO`, il buio che rende visibile la rilettura —
+> vedi «LA RILETTURA», più in basso). La seconda si arma quando Mochi è entro
+> 2,6 m e il vicino ha gradino ≥ «svogliato», cioè **dentro** i 3,2 m del
+> percetto: `tools/misura_sussulti.gd` la vedrebbe come un arm senza percetto
+> e la attribuirebbe al percetto più vicino nel tempo.
+>
+> Chi rimisura questi numeri **senza scontare la tensione leggerebbe una
+> regressione della cura della gioia dove invece c'è una sorgente nuova e
+> legittima.** Il banco adesso sa distinguerle; la tabella no, e va rifatta
+> prima di ricopiarla come ancora valida.
+
 **La gioia è dodici volte più frequente della paura** (48 contro 4): il livello
 «guardingo» stava addosso a chi ti vuole bene molto più che a chi ti teme. E
 il rallentando — l'unica cosa del vocabolario che arriva ai vicini lontani —

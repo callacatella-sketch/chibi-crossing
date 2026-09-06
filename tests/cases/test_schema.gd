@@ -315,12 +315,102 @@ func _la_ferita_ha_una_chiave_a_forma_di_giocatore(t) -> void:
 	t.eq(SCHEMA.intoccabile(con_chiave, 2), true,
 			"e il giorno buono resta intoccabile: non si logora da se'")
 
-	# ⚠️ e la congruenza NON e' cambiata: resta il valore assoluto
-	# dell'allineamento, cioe' i due estremi pesano uguale nella potatura
-	t.almost(float(con_chiave[0]["congruenza"]),
-			float(con_chiave[2]["congruenza"]),
-			"serve e tradisce pesano uguale: nessun diario rosa, nessun"
-			+ " libro dei torti", 1e-12)
+	# ⚠️ **LE SEI SCHEDE QUI SOPRA SONO SINTETICHE**, e per le funzioni pure
+	# va bene: `intoccabile()` e `costo()` ricevono le schede come DATO. Ma
+	# allora è il BANCO a scrivere il `verso` che apre e chiude questa porta,
+	# e né `verso()` né `scheda()` girano mai. La stessa scena, rifatta
+	# passando dalle TABELLE VERE, chiude anche la mutazione che smette di
+	# emettere il verso — invisibile a un fixture che se lo scrive da sé.
+	#
+	# Per un artista: «taglia_legna» e «guardia» lo TRADISCONO, «cucina» col
+	# suo sogno non c'entra, «suona» è il giorno in cui gli hanno dato quello
+	# che sognava.
+	t.eq(SCHEMA.intoccabile(
+			_schede_vere(["taglia_legna", "guardia", "cucina"], "artista"), 0),
+			true,
+			"con le tabelle VERE la ferita e' intoccabile finche' non c'e' "
+			+ "la chiave")
+	t.eq(SCHEMA.intoccabile(
+			_schede_vere(["taglia_legna", "guardia", "suona"], "artista"), 0),
+			false,
+			"…e la chiave la apre lo stesso: il verso lo scrive `scheda()`, "
+			+ "non il banco")
+
+	_i_due_estremi_pesano_uguale(t)
+
+
+## Le schede come le costruisce il GIOCO: dal ricordo vero, col sogno vero e
+## con `Animo.COMPITI`. Serve a non far scrivere al banco proprio i due campi
+## (`congruenza` e `verso`) che sono l'oggetto della prova.
+func _schede_vere(tipi: Array, sogno: String) -> Array:
+	var compiti: Dictionary = ANIMO.COMPITI
+	var out: Array = []
+	for tipo in tipi:
+		out.append(SCHEMA.scheda({"tipo": str(tipo), "attore": "giocatore",
+				"quando": 5, "valenza": -0.7, "intensita": 0.8},
+				sogno, compiti))
+	return out
+
+
+## ⚠️⚠️ **QUI SI CONFRONTAVANO DUE LETTERALI DEL BANCO.** L'asserzione stava
+## in coda al caso della chiave, diceva «serve e tradisce pesano uguale:
+## nessun diario rosa, nessun libro dei torti», e leggeva
+## `con_chiave[0]["congruenza"]` contro `con_chiave[2]["congruenza"]`: due
+## `1.0` che `_sk` aveva scritto a mano tre righe più sopra. **Né
+## `Schema.congruenza()` né `Schema.scheda()` giravano**, quindi la frase
+## dichiarava di sorvegliare una regola che nessuno eseguiva.
+##
+## La mutazione che restava VERDE è esattamente il diario rosa che quella
+## frase vieta: in `Schema.scheda()`, `"congruenza": absf(float(v))` →
+## `float(v)`. Una ferita d'identità esce allora con congruenza **−1**,
+## `intoccabile()` la scarta al primo cancello (`congruenza <= 0.0`), e **il
+## primo episodio che spiega chi sei torna potabile mentre il giorno buono
+## resta protetto** — cioè l'immunità sopravvive solo dalla parte bella, che
+## è la metà peggiore delle due.
+##
+## Adesso si legano le funzioni VERE, sui tipi VERI di `Animo.COMPITI` e su
+## tutti e tre i versi:
+##  · `congruenza(tipo, sogno)` **è** il modulo di `verso(tipo, sogno)` — la
+##    frase della testata di `Schema` scritta in aritmetica invece che in un
+##    commento;
+##  · e la SCHEDA porta quel modulo, non il segno (è la riga mutata).
+##
+## ⚠️ E i due estremi devono essere entrambi **> 0**, o «pesano uguale»
+## sarebbe vero anche a zero — cioè resterebbe verde una tabella che non
+## riconosce più né `serve` né `tradisce`, che è il modo in cui questa
+## meccanica si spegne senza rumore.
+func _i_due_estremi_pesano_uguale(t) -> void:
+	var compiti: Dictionary = ANIMO.COMPITI
+	# i tre versi VERI dello STESSO sogno: «suona» serve l'artista,
+	# «taglia_legna» lo tradisce, «cucina» col suo sogno non c'entra
+	for tipo: String in ["suona", "taglia_legna", "cucina"]:
+		var v: int = SCHEMA.verso(tipo, "artista", compiti)
+		t.almost(SCHEMA.congruenza(tipo, "artista", compiti), absf(float(v)),
+				"«%s»: la congruenza E' il modulo del verso (%d)" % [tipo, v],
+				1e-12)
+		var sc: Dictionary = SCHEMA.scheda(
+				{"tipo": tipo, "attore": "giocatore", "quando": 5,
+				"valenza": -0.6, "intensita": 0.6}, "artista", compiti)
+		# ⚠️ `.get()` e non `sc["verso"]`: se un giorno la scheda smettesse di
+		# emettere il campo, l'indicizzazione sarebbe un errore a runtime —
+		# che NON fa fallire il caso, lo interrompe lasciando la suite verde.
+		# Con un ripiego impossibile, invece, diventa un rosso.
+		t.eq(int(sc.get("verso", 999)), v,
+				"…e la scheda di «%s» porta il verso vero" % tipo)
+		t.almost(float(sc.get("congruenza", -999.0)),
+				SCHEMA.congruenza(tipo, "artista", compiti),
+				"…e la sua congruenza e' il MODULO, non il segno: una ferita "
+				+ "con congruenza negativa non sarebbe piu' intoccabile",
+				1e-12)
+	# i due estremi: uguali, E maggiori di zero
+	var serve: float = SCHEMA.congruenza("suona", "artista", compiti)
+	var tradisce: float = SCHEMA.congruenza("taglia_legna", "artista", compiti)
+	t.ok(serve > 0.0 and tradisce > 0.0,
+			"serve (%.3f) e tradisce (%.3f) pesano tutti e due: senza, "
+			% [serve, tradisce] + "«uguali» sarebbe vero anche a zero")
+	t.almost(serve, tradisce,
+			"…e pesano UGUALE: nessun diario rosa, nessun libro dei torti",
+			1e-12)
 
 
 ## ⚠️ **`PESO_FORZA` NON AVEVA NESSUNA GUARDIA.** È uno dei quattro termini

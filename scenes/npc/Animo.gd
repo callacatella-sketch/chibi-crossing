@@ -764,9 +764,71 @@ var crescita := 1.0
 ## `test_finestra._la_composizione_e_la_stessa` pretende che questa riga e
 ## `Deriva.componi` diano lo stesso identico numero su una griglia. Il posto
 ## unico è la DEFINIZIONE, non l'istruzione macchina.
+##
+## ⚠️⚠️ **E PER UN PEZZO LA TRASCRIZIONE È STATA INCOMPLETA, cioè la
+## promessa qui sopra era falsa: `componi` fermava il NON FINITO e questa riga
+## no.** In Godot `clampf(NAN, 0.0, 1.0)` torna **NAN**, non il pavimento — i
+## confronti col NAN sono tutti falsi, quindi il clamp non lo tocca — e la
+## somma se lo porta dietro. Con un `_deriva` sporco `componi` rispondeva la
+## BASE (chi quella persona è sempre stata: sparisce la deriva, resta il
+## genoma — il degrado giusto) e questa riga rispondeva NAN; con un `tratti`
+## sporco — un salvataggio vecchio, un banco, un `set()` — `componi`
+## rispondeva 0.0 e questa riga NAN.
+##
+## **Il non finito NON deve arrivare fin qui**, e il controllo si è aggiunto
+## di QUA invece di toglierlo di là, per tre ragioni:
+##
+## 1. **il NAN è ASSORBENTE, e questa è la porta d'ingresso di mezzo
+##    villaggio**: da `tratto()` il numero passa in `peso_drive`, in
+##    `punteggio` (per ogni azione di ogni decisione) e nel softmax di
+##    `decide()`. Un NAN lì non degrada la personalità: la cancella, in
+##    silenzio — e non se ne va da solo, perché il dato sporco resta dov'è e
+##    `_ricalcola_deriva()` lo rilegge ogni giorno.
+## 2. **il degrado va dove va sempre in questo progetto: verso il gioco che
+##    continua.** Togliere il controllo da `componi` allineerebbe le due
+##    stesure peggiorando quella di RIFERIMENTO, e lascerebbe il dato rotto
+##    senza nessun posto in cui fermarsi: lì la definizione è anche l'unica
+##    difesa che quel dato incontri.
+## 3. **una guardia che pretendesse NAN == NAN non sarebbe una guardia**: i
+##    confronti col NAN sono falsi, quindi `t.almost(NAN, NAN, …)` FALLISCE.
+##    La griglia che sorveglia le due stesure può estendersi al non finito
+##    solo se tutte e due rispondono un NUMERO.
+##
+## ⚠️ **E il collaudo del finito è scritto come CONFRONTI, non come
+## `is_finite()`**: `x > -INF and x < INF` è lo stesso predicato (il NAN
+## fallisce tutti e due i confronti, un infinito ne fallisce uno) e non mette
+## una CHIAMATA sulla riga che i 23,4× qui sopra hanno insegnato a tenere
+## sgombra. Non è un'ottimizzazione dichiarata — il costo di `is_finite` su
+## questa riga **non è misurato** — è il rifiuto di pagare, sulla funzione
+## più calda del gioco, un prezzo che nessuno ha contato. Sul dato ROTTO
+## invece `Deriva.componi` si chiama sul serio: la risposta a un dato rotto la
+## dà la DEFINIZIONE, una volta sola e in un posto solo, e la paga chi ha il
+## salvataggio sporco.
+##
+## ⚠️ Chi tocca questo corpo tocca anche `Deriva.componi`: sono la stessa
+## legge scritta due volte, e a tenerle insieme c'è solo quella guardia — la
+## stessa disciplina di `nottambulo()` e della battuta delle farfalle.
+##
+## Da dove entra il veleno, per chi si chiede se il controllo serve davvero:
+## da `tratti`, che arriva dal salvataggio e che chiunque può scrivere con un
+## `set()`. **Non da `_deriva`**, che è nostro e che `_ricalcola_deriva()`
+## riempie con `DERIVA.delta`, il quale un ingresso non finito lo ferma già da
+## sé (torna 0.0). Il secondo confronto è quindi la rete del banco e del
+## chiamante futuro, non di un guasto che si conosca oggi.
+##
+## Verificato a tavolino su **2601 coppie** (la griglia dei tratti, i bordi
+## fuori intervallo, ±INF e NAN) riscrivendo la `CLAMP` di Godot — due
+## confronti, e il NAN ci passa in mezzo: zero divergenze da `Deriva.componi`
+## su tutto il dominio, zero uscite NAN, e **zero divergenze dal gioco di
+## ieri sui valori finiti**. ⚠️ È un conto su carta, non il motore: la prova
+## vera è la griglia di `test_finestra`, che oggi è tutta di valori finiti —
+## cioè cieca esattamente dove le due stesure divergevano.
 func tratto(nome: String) -> float:
-	var b := clampf(float(tratti.get(nome, 0.5)), 0.0, 1.0)
-	return clampf(b + float(_deriva.get(nome, 0.0)), 0.0, 1.0)
+	var base := float(tratti.get(nome, 0.5))
+	var scarto := float(_deriva.get(nome, 0.0))
+	if base > -INF and base < INF and scarto > -INF and scarto < INF:
+		return clampf(clampf(base, 0.0, 1.0) + scarto, 0.0, 1.0)
+	return DERIVA.componi(base, scarto)
 
 
 ## CHI SEI SEMPRE STATO. Lo leggono le porte, le soglie e le frasi, e nessun

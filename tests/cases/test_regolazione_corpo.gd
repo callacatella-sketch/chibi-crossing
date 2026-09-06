@@ -58,6 +58,8 @@ extends RefCounted
 
 const DNA := preload("res://scenes/npc/ChibiDNA.gd")
 const ANIMO := preload("res://scenes/npc/Animo.gd")
+const GESTI := preload("res://scenes/npc/Gesti.gd")
+const VISITORS := preload("res://scenes/npc/Visitors.gd")
 
 ## Un carattere qualunque: il modo NON dipende dai tratti (lo prova
 ## `test_rilettura._non_e_un_tratto`), quindi qui non ne serve uno scelto.
@@ -72,6 +74,24 @@ const TRATTI := {"codardia": 0.50, "grinta": 0.50, "lealta": 0.50,
 ## `Animo.SCALA` è diventata fonte unica per disinnescare.
 const GRADINO := "attrezzi"
 
+## I DUE ESTREMI VERI DI QUESTO RAMO, e nemmeno questi si scrivono a indice.
+## Sotto «svogliato» il ramo non gira; da «confronto» in su si passa dall'altra
+## parte (lo sfogo). Quindi la tensione del confronto può nascere soltanto
+## dentro questa finestra, e il gradino più alto che possa MAI vedere è quello
+## appena sotto «confronto» — che è dove va provato il suo tetto, perché è lì
+## che vale di più.
+const GRADINO_BASSO := "svogliato"
+const GRADINO_ALTO := "sabotaggio"
+
+## ⚠️ **IL METRO DELLA TENSIONE NON È LA TENSIONE.** La forza minima che uno
+## SPAVENTO vero produce in questo gioco, MISURATA sul rig con la catena vera
+## (`tools/provino_carattere.gd`, cinque caratteri davanti allo stesso
+## soprassalto: la forza esce fra **0,447 e 1,000**). Un confronto non è uno
+## spavento — chi ha un torto da rinfacciarti non deve indossare la faccia di
+## chi ha appena avuto paura di te — e questo numero è l'unico modo di
+## giudicare `TENSIONE_CONFRONTO` con qualcosa che non sia lei stessa.
+const SPAVENTO_MINIMO := 0.447
+
 ## Etichette LUNGHE e distinte apposta: il toast dello scoppio si riconosce
 ## cercandoci dentro il nome, e con etichette da un carattere qualunque
 ## parola italiana della frase le farebbe combaciare per sbaglio.
@@ -84,6 +104,9 @@ func run(t) -> void:
 	_ogni_modo_porta_la_sua_occasione(t)
 	_chi_rilegge_non_lascia_traccia_e_chi_scoppia_si(t)
 	_i_contatori_dicono_i_modi_giusti(t)
+	_il_confronto_arma_il_buio(t)
+	_la_tensione_cresce_col_torto(t)
+	_la_tensione_non_si_arma_su_chi_non_la_puo_mostrare(t)
 
 
 # ==========================================================================
@@ -387,3 +410,252 @@ func _i_contatori_dicono_i_modi_giusti(t) -> void:
 			+ "(referto: %s)" % str(c2))
 	t.eq(int(c2.get("morso", 0)), 1, "…e vale per tutti i modi (%s)" % str(c2))
 	t.eq(int(c2.get("scoppio", 0)), 1, "…tutti e tre (%s)" % str(c2))
+
+
+# ==========================================================================
+# LA TENSIONE DEL CONFRONTO — il buio, e nessuno lo guardava
+# ==========================================================================
+#
+# ⚠️ **PERCHÉ QUESTA SECONDA METÀ ESISTE.** `Visitors.TENSIONE_CONFRONTO` non
+# compariva in un solo file della suite, e `_gs_soma` non veniva letto da
+# nessuno dopo `_tick_confronti`. Applicando la mutazione già scritta in
+# `tools/muta_rilettura.txt` («la tensione del confronto non si arma piu'» →
+# `pass`) si torna ESATTAMENTE allo stato misurato prima della cura — 9
+# riletture, **0 gesti concessi**, la meccanica invisibile in partita — con
+# **zero asserzioni rosse**. Cioè la riga che rende visibile la generosità
+# del giocatore si poteva cancellare senza che niente se ne accorgesse.
+#
+# La catena è tutta qui, ed è per questo che si guarda il CORPO e non la
+# costante: la rilettura è un Rialzo (`Gesti.FRASI`), ogni Rialzo dichiara il
+# buio, e `Visitor._sussulto_fresco()` si rifiuta se quel buio non c'è. Il
+# ramo `trasalisce` non lo arma mai a chi rilegge (per definizione non ha un
+# marchio negativo addosso, e a passo d'uomo `indizio_grezzo` vale 0,185
+# contro `RIFLESSO_GREZZO` 0,25): senza la tensione, quel corpo non ha
+# NESSUNA strada per avere il buio, e il gesto è rifiutato sempre.
+#
+# ── LE MUTAZIONI ──────────────────────────────────────────────────────────
+#
+# ⚠️ **ONESTÀ SUI NUMERI: queste rosse sono DERIVATE, non fatte girare.** La
+# sessione che ha scritto questi casi non poteva eseguire la suite (una
+# trentina di processi Godot di altre sessioni sulla stessa macchina, e un'ora
+# a corsa): la verifica è stata `--check-only`. I conti qui sotto però sono
+# esatti e si rifanno a mano, perché la forza è un `lerpf` deterministico fra
+# `CODA_SOGLIA*2` = 0,12 e `TENSIONE_CONFRONTO` = 0,45, e i tre gradini di
+# questo banco danno frazioni 1/7 · 2/7 · 4/7:
+#
+#   svogliato 0,1671 · attrezzi 0,2143 · sabotaggio 0,3086
+#
+#  | mutazione, in `Visitors`                              | rosse derivate |
+#  |-------------------------------------------------------|----------------|
+#  | la tensione non si arma più (il `somatico` → `pass`)   |    9 (4+2+3)   |
+#  | `TENSIONE_CONFRONTO` 0.45 → 0.05                       |    6 (3+3)     |
+#  | `TENSIONE_CONFRONTO` 0.45 → 1.0                        |    1           |
+#  | la forza non viene dal gradino (`frazione` → costante) |    1           |
+#  | la tensione si arma DENTRO il solo ramo `rilettura`    |    4 (2+2)     |
+#  | `_buio_armabile` → `return true` (valvole spente)      |    3           |
+#
+# I due conti che vale la pena rifare, perché sono quelli che tengono la
+# costante ancorata a numeri che non sono lei:
+#
+#  · **a 0,05** il `lerp` va all'INGIÙ e a «attrezzi» dà 0,10: sotto il doppio
+#    della soglia, dove `coda_ampiezza` smorza a 0,074 — il livello resta
+#    acceso in RAM e invisibile sullo schermo, e a «sabotaggio» (0,08) è
+#    perfino più debole che a «svogliato» (0,11), cioè la tensione
+#    DIMINUIREBBE col torto;
+#  · **a 1,0** a «sabotaggio» dà 0,6229, cioè più forte di uno spavento vero
+#    (0,447): la faccia della paura addosso a chi ha solo un torto.
+#
+# ⚠️ E una nota su un'asserzione che da sola NON basta: `coda_ampiezza(0, 0)`
+# torna 0, quindi il confronto «l'ampiezza non è smorzata» PASSA su un corpo
+# senza tensione. È il motivo per cui accanto c'è sempre `soma > 0`: separate
+# sono due domande, insieme sono la guardia.
+#
+# ⚠️ E il tetto e il pavimento NON si giudicano contro `TENSIONE_CONFRONTO`:
+# quello sarebbe il numero che giudica sé stesso, ed è il difetto che questo
+# progetto ha già pagato in cinque punti diversi. Il tetto è
+# `SPAVENTO_MINIMO`, misurato altrove e su un'altra meccanica; il pavimento è
+# la LEGGE di `Gesti.coda_ampiezza`, che sotto il doppio della soglia smorza
+# — un livello armato là sotto è acceso in RAM e invisibile sullo schermo.
+
+
+## La coda somatica di quel corpo, adesso: è il buio, e non si legge da un
+## registro del banco ma dal `Visitor` VERO.
+func _tensione(b: Dictionary, label: String) -> float:
+	return float((b["corpi"][label] as Node).get("_gs_soma"))
+
+
+## Sposta un residente su un altro gradino della scala PRIMA del giro.
+##
+## ⚠️ Si scrive su `animo.gradino`, che è quello che `_tick_confronti` legge;
+## la copia dentro la riga del residente si aggiorna per non lasciare in giro
+## due verità sullo stesso dato, ma non è lei a decidere.
+func _rimetti_gradino(b: Dictionary, label: String, gradino: String) -> void:
+	var idx := ANIMO.indice(gradino)
+	var a = b["animi"][label]
+	a.gradino = idx
+	var vis = b["vis"]
+	for r in vis._residents:
+		if str((r as Dictionary).get("label", "")) == label:
+			(r as Dictionary)["gradino"] = idx
+
+
+## Spegne un corpo scrivendogli lo STATO VERO, mai un booleano di comodo: è
+## l'idioma di `test_deduzioni` (un doppio che si inventa una valvola prova la
+## valvola del doppio, non quella del gioco).
+func _fuori_gioco(b: Dictionary, label: String, come: String) -> void:
+	var c = b["corpi"][label]
+	match come:
+		"dorme":
+			c.set("_state", "tk_nap")     # il pisolino: nel mondo, a occhi chiusi
+		"e' rientrato in casa":
+			c.set("_hidden", true)        # la notte: il corpo sparisce dal prato
+		"e' a un appuntamento":
+			c.call("apri_scena", 3.0)     # la porta vera delle scene rare
+
+
+# ── 4 ─────────────────────────────────────────────────────────────────────
+## ⚠️ **IL BUIO ARRIVA AL CORPO, e ci arriva PER TUTTI E TRE GLI ESITI.**
+##
+## La tensione si arma quando la decisione si PRENDE, cioè prima di
+## `Animo.regola()`: chi si trova davanti qualcuno a cui deve qualcosa la
+## sente comunque, e quello che i tre esiti fanno di diverso è come la
+## lasciano andare (chi rilegge la SCIOGLIE col Rialzo, gli altri due se la
+## tengono). Armarla dentro il solo ramo della rilettura sarebbe una posa
+## scritta apposta per quel ramo — cioè l'adesivo che la REGOLA ZERO vieta —
+## e questo caso lo rende rosso da due parti: chi morde e chi scoppia
+## resterebbero a zero.
+##
+## E l'ultima asserzione è quella che conta davvero: non «c'è un numero
+## dentro `_gs_soma`», ma **`_sussulto_fresco()` risponde di sì** — che è
+## letteralmente la porta su cui il Rialzo della rilettura sbatteva, e la
+## ragione per cui in dodici minuti di MainLevel i gesti concessi erano zero.
+##
+## ⚠️ **DA SAPERE PRIMA DI DIAGNOSTICARE UN ROSSO QUI:** l'ultima domanda di
+## `Visitors._buio_armabile` è `_nell_inquadratura`, e nel runner non c'è
+## nessuna `Camera3D` — quindi degrada a sì, che è la regola dichiarata («zero
+## vuol dire non lo so, e non lo so non è mai un no»). Il giorno che un banco
+## mettesse una camera in scena, questi casi andrebbero messi davanti al
+## corpo, non indeboliti.
+func _il_confronto_arma_il_buio(t) -> void:
+	var b := _banco(t)
+	var vis = b["vis"]
+	vis.call("_tick_confronti", 0.1)
+
+	# il giro è passato da tutti e tre i modi: senza questa riga, «per tutti e
+	# tre gli esiti» sarebbe una cosa sperata invece che vista.
+	var c: Dictionary = vis.call("debug_regola_contatori")
+	t.eq([int(c.get("rilettura", 0)), int(c.get("morso", 0)),
+			int(c.get("scoppio", 0))], [1, 1, 1],
+			"il giro ha prodotto i tre modi, uno per residente (referto: %s)"
+					% str(c))
+
+	for label in [CHI_RILEGGE, CHI_MORDE, CHI_SCOPPIA]:
+		var soma := _tensione(b, label)
+		t.ok(soma > 0.0,
+				("%s ha la tensione addosso: la si arma quando la decisione "
+				+ "si prende, non dentro un ramo solo (coda %.4f)")
+						% [label, soma])
+		# …e non è accesa solo in RAM: `coda_ampiezza` sotto il doppio della
+		# soglia SMORZA, e un livello smorzato non si vede sullo schermo.
+		t.almost(GESTI.coda_ampiezza(soma, 0.0), soma,
+				("…e si VEDE: sopra il doppio di `CODA_SOGLIA` l'ampiezza non "
+				+ "è più smorzata (%s, coda %.4f)") % [label, soma], 1e-9)
+
+	t.ok(bool((b["corpi"][CHI_RILEGGE] as Node).call("_sussulto_fresco")),
+			("e chi rilegge ha finalmente IL BUIO che il Rialzo chiede: senza, "
+			+ "`frase(\"rilettura\")` si rifiuta sempre e la generosità del "
+			+ "giocatore non ha un corpo (misurato prima della cura: 9 "
+			+ "riletture, 0 gesti concessi)"))
+
+
+# ── 5 ─────────────────────────────────────────────────────────────────────
+## ⚠️ **LA FORZA VIENE DAL TORTO, E STA SOTTO UNO SPAVENTO.**
+##
+## Due banchi identici — stesso genoma, stessa storia, stesso corpo, stessa
+## distanza — che differiscono per UNA cosa sola: dove sta quel vicino sulla
+## scala della ribellione. È l'unico modo di misurare il gradino senza
+## incrociarlo con la storia, e per farlo servono due giri (dentro un banco
+## solo, il raffreddamento di dodici secondi ne concede uno).
+##
+## Le tre asserzioni si ancorano a tre cose che NON sono
+## `TENSIONE_CONFRONTO`: la legge di `coda_ampiezza` in basso, la forza di uno
+## spavento vero in alto, e il gradino in mezzo.
+func _la_tensione_cresce_col_torto(t) -> void:
+	var basso := _banco(t)
+	_rimetti_gradino(basso, CHI_MORDE, GRADINO_BASSO)
+	basso["vis"].call("_tick_confronti", 0.1)
+	var t_basso := _tensione(basso, CHI_MORDE)
+
+	var alto := _banco(t)
+	_rimetti_gradino(alto, CHI_MORDE, GRADINO_ALTO)
+	alto["vis"].call("_tick_confronti", 0.1)
+	var t_alto := _tensione(alto, CHI_MORDE)
+
+	# il banco sta davvero nella finestra che crede
+	t.ok(ANIMO.almeno(ANIMO.indice(GRADINO_BASSO), "svogliato")
+			and not ANIMO.almeno(ANIMO.indice(GRADINO_ALTO), "confronto"),
+			("i due gradini di prova stanno dentro la finestra di questo ramo "
+			+ "(«%s» … «%s»)") % [GRADINO_BASSO, GRADINO_ALTO])
+
+	t.ok(t_alto > t_basso + 1e-6,
+			("chi ha un torto più grosso è più teso: la forza viene dalla "
+			+ "scala della ribellione, non da un numero scelto "
+			+ "(«%s» %.4f -> «%s» %.4f)")
+					% [GRADINO_BASSO, t_basso, GRADINO_ALTO, t_alto])
+
+	t.ok(t_basso >= GESTI.CODA_SOGLIA * 2.0 - 1e-9,
+			("…e perfino al gradino più basso la tensione ESISTE sullo schermo: "
+			+ "sotto il doppio della soglia `coda_ampiezza` smorza, e il "
+			+ "Rialzo si rifiuterebbe lo stesso (%.4f, pavimento %.4f)")
+					% [t_basso, GESTI.CODA_SOGLIA * 2.0])
+
+	t.ok(t_alto < SPAVENTO_MINIMO,
+			("…e al gradino più alto che questo ramo possa vedere resta SOTTO "
+			+ "uno spavento vero (%.4f < %.3f): un confronto non è una paura, "
+			+ "e chi alzasse quel numero metterebbe addosso a chi ha un torto "
+			+ "la faccia di chi ha appena avuto paura di te")
+					% [t_alto, SPAVENTO_MINIMO])
+
+	# …e il tetto della propria formula non lo sfonda comunque (sanità del
+	# lerp: questa sola, delle quattro, è giudicata contro sé stessa).
+	t.ok(t_alto <= VISITORS.TENSIONE_CONFRONTO + 1e-9,
+			"…e non sfora il proprio tetto (%.4f <= %.4f)"
+					% [t_alto, VISITORS.TENSIONE_CONFRONTO])
+
+
+# ── 6 ─────────────────────────────────────────────────────────────────────
+## ⚠️ **E NON SI ARMA SU CHI NON HA UN CORPO DA MOSTRARE.**
+##
+## La porta è `Visitors._buio_armabile`, e la ragione per cui una porta serve
+## è che questa chiamata **non passa da `chiedi_gesto`**: scavalcherebbe da
+## sola tutte le valvole dell'usciere.
+##
+## Un livello è una cosa che il giocatore VEDE: armarlo su chi dorme, su chi è
+## rientrato in casa (di notte il corpo sparisce dal prato) o su chi sta a un
+## appuntamento vuol dire spendere il raffreddamento di dodici secondi per una
+## tensione che nessuno guarderà — e per chi sta in una scena rara è peggio,
+## perché quelle sono le poche pagine scritte a mano perché una volta ogni
+## tanto succeda qualcosa di preciso.
+##
+## ⚠️ **UN BANCO PER VALVOLA, CON LA CONTROPROVA DENTRO LO STESSO GIRO.** Chi
+## rilegge resta nel mondo e la tensione la prende: senza di lui «non si arma»
+## sarebbe verde anche se `_tick_confronti` non girasse affatto — che è
+## l'asserzione che non sa fallire, cioè nessuna asserzione.
+##
+## ⚠️ E qui si misura l'ARMAMENTO, non la resa: nel banco non passa nessun
+## fotogramma, quindi `Visitor._gesto_passo` — che sospende i livelli di chi è
+## in scena — non gira mai. È la forma giusta della domanda: la valvola deve
+## stare a monte, dove si decide, non a valle dove si disegna.
+func _la_tensione_non_si_arma_su_chi_non_la_puo_mostrare(t) -> void:
+	for come in ["dorme", "e' rientrato in casa", "e' a un appuntamento"]:
+		var b := _banco(t)
+		_fuori_gioco(b, CHI_MORDE, str(come))
+		b["vis"].call("_tick_confronti", 0.1)
+
+		t.almost(_tensione(b, CHI_MORDE), 0.0,
+				("a chi %s non si arma nessuna tensione: un livello che "
+				+ "nessuno può vedere spende il raffreddamento per niente")
+						% str(come), 1e-12)
+		t.ok(_tensione(b, CHI_RILEGGE) > 0.0,
+				("…e nello stesso identico giro chi è nel mondo la prende "
+				+ "(controprova, mentre l'altro %s)") % str(come))
