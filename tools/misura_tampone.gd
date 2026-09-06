@@ -321,9 +321,12 @@ func _go() -> void:
 	_build = _trova("build_system")
 	_dn = _trova("daynight") as Node3D
 	_aff = _trova("affetti")
+	# ⚠️ SI CERCA IL NODO, NON UN GRUPPO. La prima stesura aveva un ripiego
+	# su `get_first_node_in_group("player")`, e quel gruppo NON ESISTE in
+	# tutto il progetto: era un ramo morto che non poteva salvare nessuno, e
+	# `test_scena_cablaggi` l'ha preso al primo giro («il gruppo player ha
+	# qualcuno che ci entra»). Il modo giusto è quello di `misura_sussulti`.
 	_player = current_scene.get_node_or_null("Player") as Node3D
-	if _player == null:
-		_player = get_first_node_in_group("player") as Node3D
 	if _vis == null or _build == null or _dn == null or _aff == null or _player == null:
 		push_error("manca Visitors, BuildSystem, DayNight, Affetti o Player")
 		quit(1)
@@ -1058,17 +1061,42 @@ func _sezione_b() -> void:
 			if float((d as Dictionary)["forza0"]) > 0.0:
 				rl.append(1.0 - float((d as Dictionary)["forza"])
 						/ float((d as Dictionary)["forza0"]))
-		cali_fascia.append(_media(ca))
+		# ⚠️ IL CALO NORMALIZZATO SULLO STIMOLO — ed è QUESTA la firma 1.
+		# Il calo NUDO non è confrontabile fra i terzili, perché i terzili
+		# non ricevono lo stesso percetto: `calo = stimolo · reatt · f(c)`,
+		# e in una corsa vera lo `stimolo` (la carica del marchio più la
+		# bruschezza, per la scia) varia di più della reattività. MISURATO
+		# alla prima corsa: stimolo 0.4485 nel terzile basso contro 0.1203
+		# nell'alto, cioè **3,73 volte**, e il calo nudo usciva 0,45× —
+		# la firma ROVESCIATA, per un confondente del campione.
+		# Dividendo per lo stimolo resta `reatt · f(c)`, che è la grandezza
+		# di cui la firma 1 parla: a parità di percetto, chi reagisce di più
+		# guadagna di più ad avere qualcuno accanto.
+		var st: Array = []
+		for d in f:
+			var f0: float = float((d as Dictionary)["forza0"])
+			var rr: float = float((d as Dictionary)["reatt"])
+			if f0 > 0.0 and rr > 0.0:
+				# stimolo = allarme_senza / reattivita
+				st.append((float((d as Dictionary)["forza0"])
+						- float((d as Dictionary)["forza"])) / (f0 / rr))
+		cali_fascia.append(_media(st))
 		reatt_fascia.append(_media(re))
-		print("  %-18s n %3d · reatt %.3f · conforto %.3f · CALO %.4f · rel %.1f%%"
-				% [nomi[i], f.size(), _media(re), _media(co), _media(ca), 100.0 * _media(rl)])
+		print("  %-18s n %3d · reatt %.3f · conforto %.3f · CALO %.4f · rel %.1f%% · calo/stimolo %.4f"
+				% [nomi[i], f.size(), _media(re), _media(co), _media(ca),
+				100.0 * _media(rl), _media(st)])
 	var r_calo: float = float(cali_fascia[2]) / maxf(0.000001, float(cali_fascia[0]))
 	var r_reatt: float = float(reatt_fascia[2]) / maxf(0.000001, float(reatt_fascia[0]))
 	print("")
-	print("  ⇒ il calo cresce di %.2f× dal terzile basso all'alto" % r_calo)
+	print("  ⇒ il calo SULLO STIMOLO cresce di %.2f× dal terzile basso all'alto" % r_calo)
 	print("    e la reattività cresce di %.2f×" % r_reatt)
 	print("    LA FIRMA 1 C'È se i due si somigliano: il conforto entra sul")
 	print("    GUADAGNO, quindi smorza in proporzione a quanto uno reagisce.")
+	print("    ⚠️ E SI GUARDA QUESTO, NON IL CALO NUDO: i terzili non ricevono")
+	print("       lo stesso percetto, e alla prima corsa il calo nudo dava 0,45×")
+	print("       — la firma rovesciata — perché lo stimolo del terzile basso")
+	print("       era 3,73 volte quello dell'alto. Un campione non appaiato che")
+	print("       si legge come una smentita del meccanismo.")
 	print("    (⚠️ il calo RELATIVO invece dev'essere COSTANTE fra le fasce —")
 	print("     vale 1−1/(1+c·K) e non contiene la reattività: è la controprova")
 	print("     che la forma è una divisione del guadagno e non una sottrazione)")
