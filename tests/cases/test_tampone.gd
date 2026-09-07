@@ -27,7 +27,7 @@ extends RefCounted
 ## ---------------------------------------------------------------------
 ## LE MUTAZIONI, una riga di produzione per volta, col numero di asserzioni
 ## diventate rosse — MISURATE facendo girare questo file su un `Limbico` e un
-## `Visitors` col tampone dentro, non stimate. Diciannove, tutte rosse:
+## `Visitors` col tampone dentro, non stimate. Venti, tutte rosse:
 ##
 ##   un PAVIMENTO sul conforto (`maxf(conforto, 0.02)`) .............. 89
 ##   la chiave `conforto` tolta dal referto .......................... 17
@@ -51,6 +51,9 @@ extends RefCounted
 ##       (l'omonimo si prende 0,7368 di conforto che è del compagno
 ##        vero, e il compagno vero resta a zero: era ROVESCIATO) ......  1
 ##   il raffreddamento spostato dentro il ramo `trasalisce` ..........  1
+##   una cache sull'anagrafe la cui chiave non vede la sostituzione
+##       (chi eredita l'etichetta di un partito conforta il compagno
+##        superstite: 0,6842 di conforto da uno sconosciuto) .........  1
 ##   ——— e la costante stessa (caso 13) ———
 ##   `TAMPONE_SOCIALE := 9.0` (la compagnia ABOLISCE la paura) .......  2
 ##   `TAMPONE_SOCIALE := 0.0` (una firma senza meccanica) ............ 15
@@ -151,6 +154,7 @@ func run(t) -> void:
 	_il_nome_ambiguo_si_scarta(t)
 	_l_ambiguo_puo_essere_chi_chiede(t)
 	_il_tampone_non_azzera_la_paura(t)
+	_l_anagrafe_non_resta_indietro(t)
 
 
 # =========================================================================
@@ -868,3 +872,63 @@ func _il_tampone_non_azzera_la_paura(t) -> void:
 	t.ok(pieno >= nudo * 0.5 - 1e-9, "col conforto al massimo l'allarme non"
 			+ " scende sotto la METÀ: %.4f contro %.4f" % [pieno, nudo])
 	t.ok(pieno < nudo, "…e scende: %.4f contro %.4f" % [pieno, nudo])
+
+
+# =========================================================================
+# 14 · L'ANAGRAFE NON RESTA INDIETRO — il caso che la cache non vedeva
+# =========================================================================
+#
+# ⚠️ `_mappa_nome_etichetta` aveva una cache con chiave `(giornata, numero
+# di residenti)`, e il commento diceva che quella chiave copriva «un arrivo
+# o una partenza a metà giornata». Non le copriva insieme: una partenza E
+# un arrivo nella stessa giornata lasciano il numero dov'era, quindi la
+# mappa restava ferma su un'anagrafe vecchia.
+#
+# Il caso peggiore non è la riga che punta a un corpo che non c'è —
+# `Percezione.puo_vedere` guarda `null` e risponde no, quindi lì il degrado
+# era sano. È il **riuso dell'etichetta**: l'unicità in questo villaggio è
+# imposta sulla label e non sul nome, quindi chi arriva con lo stesso
+# archetipo e lo stesso nome di chi è appena partito ne eredita l'etichetta
+# — e il compagno superstite si prenderebbe il conforto da uno
+# SCONOSCIUTO, che è l'omonimia da una porta diversa.
+#
+# Qui si rifà quella scena: B (il compagno vero di A) se ne va, e al suo
+# posto arriva un corpo NUOVO che porta la sua stessa etichetta, piazzato
+# addosso ad A. Con l'anagrafe ferma, A riceverebbe il tampone da lui.
+#
+# LA MUTAZIONE che rende rosso questo caso: rimettere la cache, in
+# qualunque forma la cui chiave non veda la sostituzione (giornata, numero
+# di residenti, o tutte e due).
+func _l_anagrafe_non_resta_indietro(t) -> void:
+	var v := _villaggio(t)
+	var vis = v["vis"]
+	# si SCALDA la mappa con l'anagrafe di adesso, come farebbe un percetto
+	# qualunque: senza questo passo non c'è niente da lasciare indietro, e il
+	# caso proverebbe il proprio nulla invece della sostituzione.
+	_percetto(v)
+	var prima := _referto(v, "A")
+	t.ok(float(prima.get("conforto", 0.0)) > 0.0,
+			"il banco parte da un tampone VIVO (conforto %.4f), o non prova"
+			+ " la sostituzione" % float(prima.get("conforto", 0.0)))
+
+	# «Biscotto» — il compagno vero di A — se ne va, e un ESTRANEO ne eredita
+	# l'ETICHETTA: in questo villaggio l'unicità è imposta sulla label, quindi
+	# chi arriva con lo stesso archetipo e lo stesso nome la riusa.
+	var b := v["corpi"]["B"] as Node3D
+	var estraneo = _corpo(t, "Estraneo", b.global_position, 9911)
+	b.global_position = Vector3(900, 0, 900)     # B è via: non conforta nessuno
+	var residenti: Array[Dictionary] = []
+	for r in (vis.get("_residents") as Array):
+		var d := r as Dictionary
+		if str(d.get("label", "")) == "B":
+			d = {"node": estraneo, "label": "B", "dna": estraneo.dna,
+					"cell": d.get("cell"), "species": "chibi", "friend": 2}
+		residenti.append(d)
+	vis.set("_residents", residenti)
+
+	_percetto(v)
+	var dopo := _referto(v, "A")
+	t.eq(float(dopo.get("conforto", -1.0)), 0.0,
+			"l'anagrafe si rifà: chi eredita l'etichetta di un partito non"
+			+ " conforta il compagno superstite (conforto %.4f)"
+			% float(dopo.get("conforto", -1.0)))

@@ -5275,6 +5275,38 @@ l'omonimo si prende **0,7368** di conforto che non è suo.
 rinominarlo non è coprire l'altro. La guardia nuova
 (`_l_ambiguo_puo_essere_chi_chiede`) è il suo specchio.
 
+### ⚠️ E UNA CACHE COSTAVA UN DIFETTO SENZA COMPRARE NIENTE
+
+`_mappa_nome_etichetta` aveva una cache con chiave **(giornata, numero di
+residenti)**, e il commento accanto dichiarava che quella chiave copriva
+«un arrivo o una partenza a metà giornata». Non le copre **insieme**: una
+partenza E un arrivo nella stessa giornata lasciano il numero dov'era, e la
+mappa resta ferma su un'anagrafe vecchia. In questo gioco succede facile —
+un giorno dura quattro minuti e gli arrivi sono a 80–160 s l'uno
+dall'altro.
+
+Il caso peggiore **non** è la riga che punta a un corpo che non c'è: lì
+`Percezione.puo_vedere` guarda `null` e risponde no, quindi il degrado era
+sano. È il **riuso dell'etichetta** — l'unicità in questo villaggio è
+imposta sulla label e non sul nome, quindi chi arriva con lo stesso
+archetipo e lo stesso nome di chi è appena partito ne eredita l'etichetta,
+e **il compagno superstite riceve il conforto da uno sconosciuto**. È
+l'omonimia da una porta diversa, ed è lo stesso difetto che la revisione
+aveva già trovato una volta in questo file.
+
+E la cache non pagava il proprio rischio. MISURATO: ricostruire la mappa
+con ventotto residenti costa **16,6 µs** (100.000 giri), e l'unico
+chiamante è `_conforto_del_compagno`, che sta **dopo** il raffreddamento e
+**dopo** il cancello dei 3,2 m — al più una volta ogni nove secondi per
+residente. Al tetto teorico fanno 51,5 µs **al secondo**, cioè lo
+**0,005% di un fotogramma**. *Una cache che costa un difetto e non compra
+niente si toglie*, e con lei se ne vanno tre campi e la lettura del cielo.
+
+Il caso 14 rifà quella scena — il compagno vero se ne va, un estraneo ne
+eredita l'etichetta, e gli si piazza addosso — e **falsificato rimettendo
+la cache dà 1 rossa che stampa il difetto: 0,6842 di conforto da uno
+sconosciuto.**
+
 ### ⚠️ I DUE OROLOGI — il banco viveva su quello sbagliato
 
 `CHIBI_FORMA` e `CHIBI_VIVO` erano secondi di **MURO**
@@ -5382,13 +5414,13 @@ CHIBI_FORMA=420 CHIBI_VIVO=240 CHIBI_SEME=7 Godot --headless --path . \
 ```
 
 La guardia è [`tests/cases/test_tampone.gd`](tests/cases/test_tampone.gd),
-**diciannove mutazioni annotate una per una col numero di asserzioni
+**venti mutazioni annotate una per una col numero di asserzioni
 rosse** — e una di quelle è la **versione vietata** della formula
 (`clampf(prodotto, 0, 1) / D`, cioè dividere DOPO il tetto): il caso 7 la
 fa arrossire. La forma decisa dall'autore non è scritta in un commento, è
-un'asserzione che si rompe. Le tre ultime arrivate — l'omonimia di chi
-chiede, il tetto e il pavimento di K — sono state falsificate una per una
-(**1 · 2 · 15** asserzioni rosse).
+un'asserzione che si rompe. Le quattro ultime arrivate — l'omonimia di chi
+chiede, il tetto e il pavimento di K, e l'anagrafe che resta indietro —
+sono state falsificate una per una (**1 · 2 · 15 · 1** asserzioni rosse).
 
 ### I RESIDUI, dichiarati
 
