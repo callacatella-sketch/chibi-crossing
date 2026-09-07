@@ -105,6 +105,52 @@ extends RefCounted
 ## contrario del punto.
 ##
 ## ============================================================
+## ⚠️ FIN DOVE ARRIVA L'ANCORA — l'aritmetica che decide se questa
+## meccanica si può chiamare «IL POSTO dei suoi»
+## ============================================================
+## Il punto che si eredita **non è una panchina**: è la media dei punti-medi
+## fra i due corpi quando si sono incontrati (`Cricche.rapporto_da` →
+## `dove`), cioè un punto in mezzo al prato. E l'adulto **non abita a casa
+## dei suoi**: `Visitors.accogli_nato` gli dà `_free_house()`, una casa
+## qualunque, e il debito è già dichiarato per iscritto lì (la cella è la
+## chiave di unicità del letto, e dare al nato la soglia della madre lo
+## cancellava dal salvataggio).
+##
+## Il quinto anello quindi non porta il corpo SUL punto: sposta l'ancora da
+## casa verso il punto di al massimo `Visitors.SPOSTA_MAX`, e da lì
+## `_free_bench` cerca entro `Visitors.RAGGIO_SEDUTA` **la più vicina
+## ALL'ANCORA, non al punto**. Da quelle due righe escono DUE confini, e non
+## sono lo stesso numero — MISURATI sulla `_free_bench` di produzione da
+## `test_eredita._fin_dove_arriva_l_ancora`, che li ricava dai numeri veri
+## invece di riscriverli:
+##
+## | | dist(casa, punto) fin dove la seduta SUL punto vince | |
+## |---|---|---|
+## | c'è una seduta anche vicino a casa | **11 m** | il confine è `2 · SPOSTA_MAX` |
+## | il punto è l'unica seduta in giro | **22 m** | il confine è `SPOSTA_MAX + RAGGIO_SEDUTA` |
+##
+## Il secondo è il limite di CANDIDATURA: oltre `SPOSTA_MAX + RAGGIO_SEDUTA`
+## una seduta piantata sul punto esce dal raggio di `_free_bench`, e oltre
+## `SPOSTA_MAX + RAGGIO_SEDUTA + POSTO_LARGO` (**26,5 m**) ne esce anche
+## qualunque seduta entro `POSTO_LARGO` dal punto — cioè il cancello
+## d'arresto G3 («la seduta scelta cade entro `POSTO_LARGO` dal posto
+## appreso») è zero **per costruzione**, non per sfortuna.
+##
+## ⚠️ **MA QUELLO CHE DECIDE IN PARTITA È IL PRIMO, ed è meno della metà.**
+## L'adulto una casa ce l'ha, e chi gioca le panchine le mette dove passa:
+## appena esiste una seduta dalle parti di casa, l'ancora — che sta sempre a
+## `SPOSTA_MAX` da casa — la trova più vicina di quella sul punto non appena
+## `dist(casa, punto)` supera **12 m**. Sopra quella distanza questa
+## meccanica non sta consegnando «il posto dei suoi»: sta consegnando «si
+## siede da quella parte», che è un'altra frase.
+##
+## ⚠️ **E LA CURA NON È ALZARE `SPOSTA_MAX`.** Raddoppiarlo raddoppia tutti e
+## due i confini e allunga il guinzaglio delle **altre tre** ancore, la cui
+## ragione scritta non è un raggio ma che *nessuno cammini verso una
+## PERSONA*. Il lavoro vero è `accogli_nato`: il debito è che il cucciolo
+## non abita dai suoi, e sta già dichiarato nel sorgente di `Visitors`.
+##
+## ============================================================
 ## ⚠️ IL CERCHIO DEL FALÒ DICE LA STESSA COSA DALL'ALTRA PARTE — E I DUE
 ## NON SI FONDONO
 ## ============================================================

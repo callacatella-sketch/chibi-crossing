@@ -95,6 +95,26 @@ func rimuovi(nome: String) -> void:
 	# (senti_dire parte solo da chi è ancora in `animi`)
 
 
+## La riga di cronaca di uno scatto.
+##
+## ⚠️ IL "da" È IL CAMPO SU CUI SI DECIDE LA DIREZIONE, e sta qui in un posto
+## solo apposta. Chi mostra il toast fa uscire la battuta del gradino
+## d'ARRIVO: letta su una DISCESA, quella battuta rimprovera chi sta guarendo
+## («Oggi no. Chiedilo a qualcun altro.» nel giorno in cui il giocatore l'ha
+## appena rimesso a posto). Un gesto di cura a cui il gioco risponde con un
+## rimbrotto non attenua la ricompensa: la inverte.
+##
+## E gli scatti nascono in DUE momenti della giornata — chi fa i conti con sé
+## stesso, e chi scatta dopo aver sentito le voci. Finché la riga era scritta
+## a mano tutte e due le volte, chi ne avesse toccata una sola avrebbe
+## lasciato scoperta metà delle discese: e la metà scoperta era proprio
+## quella per CONTAGIO, cioè l'unica che questo canale esiste per produrre.
+func _riga_scatto(nome: String, a) -> Dictionary:
+	return {"tipo": "scatto", "chi": nome,
+			"da": str(a.scatti[a.scatti.size() - 1].get("da", "")) if not a.scatti.is_empty() else "",
+			"a": a.stato(), "perche": a.racconta()}
+
+
 ## Un giorno di villaggio: prima ognuno fa i conti con sé stesso, poi le
 ## voci girano. Ritorna la CRONACA — chi ha detto cosa a chi, e chi è
 ## scattato — perché una cascata che non si può leggere non si può bilanciare.
@@ -105,15 +125,7 @@ func simula_giorno() -> Array:
 	for nome in animi:
 		var a = animi[nome]
 		if a.aggiorna_scala():
-			# il "da" serve a chi mostra il toast: la battuta del gradino
-			# d'arrivo, letta su una DISCESA, rimprovera chi sta guarendo
-			# («Oggi no. Chiedilo a qualcun altro.» nel giorno in cui il
-			# giocatore l'ha appena rimesso a posto). Un gesto di cura a
-			# cui il gioco risponde con un rimbrotto non attenua la
-			# ricompensa: la inverte.
-			cronaca.append({"tipo": "scatto", "chi": nome,
-					"da": a.scatti[a.scatti.size() - 1].get("da", "") if not a.scatti.is_empty() else "",
-					"a": a.stato(), "perche": a.racconta()})
+			cronaca.append(_riga_scatto(nome, a))
 
 	# 2) il passaparola. Chi è sceso in basso irradia il MALCONTENTO verso i
 	#    suoi amici — e da oggi chi ieri è RISALITO irradia il SOLLIEVO
@@ -164,15 +176,7 @@ func simula_giorno() -> Array:
 	for nome in animi:
 		var a = animi[nome]
 		if a.aggiorna_scala():
-			# il "da" serve a chi mostra il toast: la battuta del gradino
-			# d'arrivo, letta su una DISCESA, rimprovera chi sta guarendo
-			# («Oggi no. Chiedilo a qualcun altro.» nel giorno in cui il
-			# giocatore l'ha appena rimesso a posto). Un gesto di cura a
-			# cui il gioco risponde con un rimbrotto non attenua la
-			# ricompensa: la inverte.
-			cronaca.append({"tipo": "scatto", "chi": nome,
-					"da": a.scatti[a.scatti.size() - 1].get("da", "") if not a.scatti.is_empty() else "",
-					"a": a.stato(), "perche": a.racconta()})
+			cronaca.append(_riga_scatto(nome, a))
 
 	for nome in animi:
 		animi[nome].passa_giorno()

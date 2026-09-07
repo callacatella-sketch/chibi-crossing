@@ -122,10 +122,17 @@ func _una_voce_buona_pesa_quanto_una_cattiva(t) -> void:
 	# lo scarto sta tutto nello spostamento dell'opinione, e vale lo sconto
 	# del perdono: 1.4, lo stesso con cui un ricordo bello smorza il rancore
 	# dentro una persona sola
-	var s_buona: float = float(buona.opinione["giocatore"])
-	var s_cattiva: float = float(cattiva.opinione["giocatore"])
-	t.ok(s_buona > 0.0 and s_cattiva < 0.0, "…e i due versi sono opposti")
-	t.almost(absf(s_cattiva / s_buona), ANIMO.SCONTO_PERDONO,
+	# ⚠️ `.get()` E NON `[]`: se il passaparola smettesse di spostare le
+	# opinioni, la chiave non esisterebbe e l'accesso secco sarebbe un errore
+	# a RUNTIME — che in questo runner non fa fallire niente: interrompe il
+	# caso a metà e si porta via le tre asserzioni che seguono. MISURATO
+	# spegnendo la riga che scrive `opinione` in `senti_dire`: un SCRIPT
+	# ERROR qui, e la guardia del rapporto 1.4 non girava affatto.
+	var s_buona: float = float(buona.opinione.get("giocatore", 0.0))
+	var s_cattiva: float = float(cattiva.opinione.get("giocatore", 0.0))
+	t.ok(s_buona > 0.0 and s_cattiva < 0.0,
+			"…e i due versi sono opposti (%+.6f contro %+.6f)" % [s_buona, s_cattiva])
+	t.almost(absf(s_cattiva / maxf(1e-12, s_buona)), ANIMO.SCONTO_PERDONO,
 			"…nel rapporto esatto dello sconto del perdono", 1e-6)
 
 
@@ -270,27 +277,69 @@ func _la_cronaca_dice_il_verso(t) -> void:
 
 
 # ── 9. una notizia per oratore ──────────────────────────────────────────
+##
+## Uno che ieri è risalito ha ancora un `eco()` alto — è sceso di un gradino,
+## non è tornato sereno — e senza la regola porterebbe le due notizie
+## insieme, dicendo e disdicendo nello stesso giro a due passanti diversi.
+##
+## ⚠️ E LA FIXTURE SI COSTRUISCE DENTRO AL VILLAGGIO, non appiccicando un
+## gradino a mano. La prima stesura di questo caso lo faceva, e la mutazione
+## che gli toglie la regola SOPRAVVIVEVA: `_abitante` ha i tratti di serie,
+## quindi non accumula rancore, quindi `aggiorna_scala` — che gira nel PASSO 1
+## di `simula_giorno`, cioè prima del passaparola — gli rimetteva il gradino a
+## zero e incideva uno scatto DATATO OGGI. Al passo 2 quel corpo aveva
+## `eco() == 0` e `eco_serena() == 0`: non diceva niente di niente, e «zero
+## rancori» era vero per costruzione. MISURATO: gradino 4 → 0 nella prima riga
+## della funzione sotto prova.
+##
+## La precondizione, letta un istante prima della chiamata, PASSAVA — ed è la
+## forma peggiore di guardia muta: dichiara di aver preparato la scena, e la
+## scena si smonta dentro la funzione che dovrebbe giudicarla. Perciò adesso
+## si asserisce anche sull'osservabile — che la buona notizia sia davvero
+## GIRATA quel giorno — o «zero cattive» resta soddisfatto dal silenzio.
 func _chi_ha_una_notizia_buona_tace_quella_cattiva(t) -> void:
 	var v = VILLAGGIO.new()
-	for nome in ["Misto", "Ascolta"]:
-		v.aggiungi(_abitante(nome))
+	v.aggiungi(_ribelle("Misto"))
+	v.aggiungi(_abitante("Ascolta"))
 	v.lega("Misto", "Ascolta")
 	var m = v.animi["Misto"]
-	# è sceso di un gradino, ma è ancora in alto: ha ENTRAMBE le notizie
-	_fai_salire(m)
-	m.scatti = [{"giorno": m.oggi, "da": ANIMO.SCALA[6], "a": ANIMO.SCALA[4]}]
-	m.gradino = 4
-	for nome in v.animi:
-		v.animi[nome].oggi += 1
+	# la salita, col torto vero: il guerriero mandato a spaccare legna
+	for g in 30:
+		m.esegue("taglia_legna")
+		if g == 20:
+			m.lutto("Pepe")
+		v.simula_giorno()
+	var alto: int = m.gradino
+	t.ok(alto >= 2, "Misto è salito in alto sulla scala (gradino %d)" % alto)
+	# la riparazione, fino alla PRIMA discesa — che è a salto pieno ma non
+	# arriva in fondo: resta in alto abbastanza da avere ancora la cattiva
+	var sceso := false
+	for g in 60:
+		m.ricorda("regalo", "giocatore", 1.0, 1.0)
+		v.simula_giorno()
+		if m.gradino < alto:
+			sceso = true
+			break
+	t.ok(sceso and m.gradino > 0,
+			"…ed è sceso di un gradino restando in alto (%d → %d)" % [alto, m.gradino])
+	if not (sceso and m.gradino > 0):
+		return
+	# IL GIORNO DOPO: ha tutte e due le notizie in mano
 	t.ok(m.eco() > 0.0 and m.eco_serena() > 0.0,
-			"ha davvero tutte e due le notizie (eco %.2f, serena %.2f)"
+			"ha davvero tutte e due le notizie (eco %.3f, serena %.3f)"
 			% [m.eco(), m.eco_serena()])
-	var cronaca: Array = v.simula_giorno()
+	var sollievi := 0
 	var rancori := 0
-	for r in cronaca:
-		if str(r.get("tipo", "")) == "voce" and str(r.get("da", "")) == "Misto" \
-				and str(r.get("verso", "")) == "rancore":
+	for r in v.simula_giorno():
+		if str(r.get("tipo", "")) != "voce" or str(r.get("da", "")) != "Misto":
+			continue
+		if str(r.get("verso", "")) == "sollievo":
+			sollievi += 1
+		else:
 			rancori += 1
+	# ⚠️ QUESTA RIGA RENDE L'ALTRA UNA GUARDIA: senza, «zero cattive» sarebbe
+	# soddisfatto da un oratore che non ha aperto bocca
+	t.ok(sollievi > 0, "quel giorno la buona notizia è girata davvero (%d voci)" % sollievi)
 	t.eq(rancori, 0,
 			"chi ha una notizia buona TACE quella cattiva: non dice e disdice nello stesso giro")
 
@@ -546,11 +595,25 @@ func _chi_ha_visto_tutta_la_storia_non_finisce_meglio_di_prima(t) -> void:
 	t.ok(int(arco["discese"]) >= 1,
 			"…ed è stata riparata davvero (%d discese)" % int(arco["discese"]))
 	t.almost(v.tensione(), 0.0, "…fino a rimettere la tensione a zero", 1e-9)
+	# ⚠️ E LA STORIA DEVE ESSERE ARRIVATA ADDOSSO A QUALCUNO, o l'invariante
+	# passerebbe su un villaggio in cui `senti_dire` non ha mosso un bit —
+	# tutte le opinioni a zero esatto, e `0 <= 0` vero per tutti. MISURATO:
+	# il Capo finisce a +0.00000 proprio così, perché è la sorgente e nessuno
+	# ha mai parlato di lui a lui; sono i due che l'hanno sentito dire a
+	# portare il numero.
+	var toccati := 0
+	var peggio := 0.0
 	for nome in (arco["dal_primo_giorno"] as Array):
 		var o: float = float(v.animi[nome].opinione.get("giocatore", 0.0))
 		t.ok(o <= 0.0,
 				"%s ha visto tutta la storia e non finisce meglio di prima (%.5f)"
 				% [nome, o])
+		if o < 0.0:
+			toccati += 1
+			peggio = minf(peggio, o)
+	t.ok(toccati > 0,
+			"…e la storia è arrivata addosso a qualcuno (%d su %d, il più segnato a %.5f): senza, l'invariante sarebbe vera su un villaggio muto"
+			% [toccati, (arco["dal_primo_giorno"] as Array).size(), peggio])
 	# LA CONTROPROVA, che rende l'esclusione una cosa vera invece di una
 	# cautela: il nuovo arrivato è entrato il giorno in cui il capo è tornato
 	# sereno, ha sentito solo la buona notizia, e finisce sopra zero
@@ -585,12 +648,7 @@ func _arco_completo() -> Dictionary:
 	v.lega("Capo", "Vicina")
 	v.lega("Capo", "Altro")
 	v.lega("Vicina", "Altro")
-	var dal_primo_giorno := ["Capo", "Vicina", "Altro"]
-	var sr := 0.0
-	var ss := 0.0
-	var salite := 0
-	var discese := 0
-	var scatti := []
+	var reg := _registro_vuoto()
 	var focolaio_a_meta := {}
 	var arrivato := ""
 
@@ -600,7 +658,8 @@ func _arco_completo() -> Dictionary:
 		capo.esegue("taglia_legna")
 		if g == 20:
 			capo.lutto("Pepe")
-		_conta(v.simula_giorno(), capo.oggi, scatti, salite, discese, sr, ss)
+		var oggi: int = capo.oggi
+		_conta(v.simula_giorno(), oggi, reg)
 	focolaio_a_meta = v.primo_focolaio()
 
 	# ── LA RIPARAZIONE: nessun torto nuovo, e un gesto gentile al giorno.
@@ -609,8 +668,9 @@ func _arco_completo() -> Dictionary:
 	for g in 60:
 		for nome in v.animi:
 			v.animi[nome].ricorda("regalo", "giocatore", 1.0, 1.0)
+		var oggi: int = capo.oggi
 		var cronaca: Array = v.simula_giorno()
-		_conta(cronaca, capo.oggi, scatti, salite, discese, sr, ss)
+		_conta(cronaca, oggi, reg)
 		if arrivato == "":
 			for r in cronaca:
 				if str(r.get("tipo", "")) == "scatto" \
@@ -618,14 +678,59 @@ func _arco_completo() -> Dictionary:
 					# entra nel villaggio il giorno in cui qualcuno torna
 					# sereno: sentirà solo la buona notizia
 					var nuovo = _ribelle("Nuovo")
+					# ⚠️ l'orologio si allinea a quello degli altri, o
+					# `eco_serena` — che chiede «ieri» — leggerebbe una
+					# finestra sfasata per lui solo
 					nuovo.oggi = capo.oggi
 					v.aggiungi(nuovo)
 					v.lega("Capo", "Nuovo")
 					arrivato = "Nuovo"
 					break
 
-	_arco = {"villaggio": v, "dal_primo_giorno": dal_primo_giorno,
-			"arrivato_dopo": arrivato, "rancore": sr, "sollievo": ss,
-			"salite": salite, "discese": discese, "scatti": scatti,
+	_arco = {"villaggio": v, "dal_primo_giorno": ["Capo", "Vicina", "Altro"],
+			"arrivato_dopo": arrivato, "rancore": float(reg["rancore"]),
+			"sollievo": float(reg["sollievo"]), "salite": int(reg["salite"]),
+			"discese": int(reg["discese"]), "scatti": reg["scatti"],
 			"focolaio_a_meta": focolaio_a_meta, "focolaio_finale": v.primo_focolaio()}
 	return _arco
+
+
+func _registro_vuoto() -> Dictionary:
+	return {"rancore": 0.0, "sollievo": 0.0, "salite": 0, "discese": 0, "scatti": []}
+
+
+## Somma una giornata di cronaca dentro il registro dell'arco.
+##
+## ⚠️ IL REGISTRO È UN DIZIONARIO, e non cinque variabili passate per
+## argomento: in GDScript gli interi e i float viaggiano per VALORE, quindi
+## una funzione che li ricevesse non potrebbe restituirli. La prima stesura
+## di questo banco lo faceva, e non compilava affatto — ma se avesse
+## compilato sarebbe stato peggio: l'arco avrebbe dichiarato Σ 0.000 di
+## rancore e Σ 0.000 di sollievo su settanta giornate piene di voci, e i tre
+## casi che leggono quei numeri avrebbero raccontato un canale spento
+## mentre girava.
+##
+## ⚠️ E IL GIORNO SI LEGGE PRIMA della giornata, non dopo: `simula_giorno`
+## finisce con `passa_giorno()` per tutti, mentre lo scatto viene inciso
+## prima — con l'orologio di ieri. Prendendolo dopo, ogni riga di scatto
+## porterebbe un giorno più avanti di quello che `primo_focolaio` legge
+## dentro `Animo.scatti`, e il confronto fra i due sarebbe sfalsato di uno
+## in silenzio.
+func _conta(cronaca: Array, giorno: int, reg: Dictionary) -> void:
+	for r in cronaca:
+		var tipo := str(r.get("tipo", ""))
+		if tipo == "voce":
+			var verso := "sollievo" if str(r.get("verso", "")) == "sollievo" else "rancore"
+			reg[verso] = float(reg[verso]) + float(r.get("forza", 0.0))
+		elif tipo == "scatto":
+			# il giorno lo mette il banco: la riga di cronaca non lo porta, e
+			# senza non si potrebbe dire QUALE salita è la prima
+			var riga: Dictionary = (r as Dictionary).duplicate()
+			riga["giorno_villaggio"] = giorno
+			(reg["scatti"] as Array).append(riga)
+			var i_da := ANIMO.indice(str(r.get("da", "")))
+			var i_a := ANIMO.indice(str(r.get("a", "")))
+			if i_a > i_da:
+				reg["salite"] = int(reg["salite"]) + 1
+			elif i_a < i_da:
+				reg["discese"] = int(reg["discese"]) + 1

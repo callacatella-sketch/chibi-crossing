@@ -36,6 +36,9 @@ extends RefCounted
 const AFF := preload("res://scenes/npc/Affetti.gd")
 const VISITOR := preload("res://scenes/npc/Visitor.gd")
 const DNA := preload("res://scenes/npc/ChibiDNA.gd")
+## per il caso del FIREWALL, nel pacchetto in fondo: le righe di
+## co-presenza si leggono e si giudicano con le funzioni pure di casa
+const CRICCHE := preload("res://scenes/npc/Cricche.gd")
 
 
 func run(t) -> void:
@@ -50,11 +53,15 @@ func run(t) -> void:
 	_da_ringraziare_dice_lo_STESSO_numero(t)
 	# ---- la parte INCAPSULATA: le tre porte che `Visitors` chiamerà
 	_i_candidati_sono_un_argomento(t)
+	_la_lealta_e_quella_di_chi_legge(t)
 	_il_piu_caro_e_una_migrazione_finita(t)
 	_le_coppie_di_oggi_sono_gia_pagate(t)
 	_la_lettura_non_scrive(t)
-	# ---- la parte COMPORTAMENTALE che vive già oggi: il terzo anello
+	# ---- la parte COMPORTAMENTALE che vive già oggi: il terzo anello, il
+	#      degrado, e il libro mastro dentro il villaggio vero
 	_il_ripiego_e_quello_di_sempre(t)
+	_senza_libro_mastro_il_villaggio_e_quello_di_sempre(t)
+	_il_libro_mastro_vive_nel_villaggio(t)
 
 
 func _riga(a: String, b: String, tipo: String, giorno: int) -> Dictionary:
@@ -386,6 +393,56 @@ func _i_candidati_sono_un_argomento(t) -> void:
 			"senza un nome non c'è nemmeno la domanda")
 
 
+## ⚠️ UNA SOLA LEALTÀ, E DEV'ESSERE QUELLA DI CHI LEGGE.
+##
+## È il vincolo che tiene in piedi l'antisimmetria — provata qui sopra sul
+## puro — nel momento in cui il conto passa dalla porta incapsulata:
+## `chi_ringraziare` deve chiedere `_lealta_di(nome)`, cioè la lealtà del
+## DEBITORE. Con quella del creditore, il carattere di UNA persona entrerebbe
+## nel conto di quanto le si deve — chi è leale «meriterebbe» più
+## riconoscenza; con una costante, il carattere sparirebbe del tutto.
+##
+## Il discriminatore è la MEZZA VITA, che è la sola cosa che la lealtà tocca
+## (`lerpf(RECENZA_BASE, RECENZA_LEALE, lealtà)`). Un piatto a senso unico
+## vale 0,315 e la soglia è 0,225, quindi smette di essere un debito quando la
+## recenza scende sotto 0,7143 — cioè dopo 0,4854 mezze vite: **17,5 giorni**
+## per chi non ricorda, **26,2** per la media, **34,9** per chi non dimentica.
+## La fixture si siede a TRENTA giorni, in mezzo alle ultime due, con un
+## margine del 5% da tutte e due le parti.
+##
+## ⚠️ E LO STESSO NUMERO FA DA GUARDIA AL GIORNO: cinque giorni di scarto su
+## quello che la porta legge fanno cadere una delle due metà. Nel resto del
+## file `_giorno()` è dettato e nessuno lo guarda; qui è il fulcro.
+func _la_lealta_e_quella_di_chi_legge(t) -> void:
+	# il piatto è del giorno 50, e il registro legge il giorno 80: trenta
+	var libro := [_riga("Cannella", "Prugna", "piatto", 50)]
+	# PRIMA si prova che la fixture DISCRIMINA, sul puro, dove non c'è
+	# nessuna porta di mezzo: senza questa metà, le due dopo potrebbero
+	# essere verdi soltanto perché il libro mastro tace comunque.
+	var mai := AFF.squilibrio(libro, "Prugna", "Cannella", 80, 0.0)
+	var media := AFF.squilibrio(libro, "Prugna", "Cannella", 80, 0.5)
+	var sempre := AFF.squilibrio(libro, "Prugna", "Cannella", 80, 1.0)
+	t.ok(mai < AFF.SQUILIBRIO_MIN,
+			"per chi non ricorda, a trenta giorni non è più un debito (%.4f)"
+					% mai)
+	t.ok(media < AFF.SQUILIBRIO_MIN,
+			"e nemmeno per la media (%.4f): è il valore che uscirebbe da una"
+					% media + " lealtà scritta a mano")
+	t.ok(sempre >= AFF.SQUILIBRIO_MIN,
+			"per chi non dimentica invece sì (%.4f)" % sempre)
+	# …e adesso la porta. Il debitore è leale, il creditore no.
+	var leale = _registro(t, libro, {"Prugna": 1.0, "Cannella": 0.0})
+	t.eq(leale.chi_ringraziare("Prugna", ["Cannella"]), "Cannella",
+			"chi non dimentica deve ancora il suo grazie — e lo deve con la"
+			+ " PROPRIA memoria, non con quella di chi gliel'ha dato")
+	# la controprova, coi due caratteri scambiati: adesso è il creditore a
+	# non dimenticare, e non deve cambiare niente
+	var smemorato = _registro(t, libro, {"Prugna": 0.0, "Cannella": 1.0})
+	t.eq(smemorato.chi_ringraziare("Prugna", ["Cannella"]), "",
+			"e chi non ricorda non deve più niente, per quanto bene se lo"
+			+ " ricordi l'altro")
+
+
 ## `chi_e_il_piu_caro` è una MIGRAZIONE FINITA, non una meccanica nuova:
 ## sostituisce `VillagerBrain.migliore_amico()`, che leggeva `affinita` — un
 ## contatore di prossimità in circolo chiuso (si sale stando vicini, e si sta
@@ -523,11 +580,23 @@ class RegistroAffetti extends "res://scenes/npc/Affetti.gd":
 	func _tutti() -> Array:
 		return ["Cannella", "Prugna", "Malva", "Nocciola"]
 
+	## ⚠️ E ANCHE LE LEALTÀ SI DÀNNO. Vengono da `Animo`, che qui non c'è, e
+	## sono un DATO come chi esiste e come che giorno è — non una decisione:
+	## quello che si prova è CHI di loro la porta va a chiedere. Vuoto vuol
+	## dire «la media», cioè esattamente quello che risponde il vero quando il
+	## villaggio non c'è, e per tutti gli altri casi di questo file non cambia
+	## un bit.
+	var lealta_dettata := {}
 
-func _registro(t, righe: Array):
+	func _lealta_di(nome: String) -> float:
+		return float(lealta_dettata.get(nome, 0.5))
+
+
+func _registro(t, righe: Array, lealta := {}):
 	var reg = RegistroAffetti.new()
 	t.stage(reg)
 	reg.set("_righe", righe.duplicate(true))
+	reg.set("lealta_dettata", lealta.duplicate())
 	return reg
 
 
@@ -640,9 +709,17 @@ func _corpo(t, seme: int) -> Node3D:
 	return v
 
 
+## ⚠️ E SI SGOMBRA ANCHE IL GRUPPO «affetti», non solo «visitors». I nodi
+## messi in scena da un caso restano vivi fino al frame dopo, cioè fino alla
+## FINE DI TUTTO IL FILE: un `Affetti` vero staged dal caso di prima sarebbe
+## ancora nel gruppo mentre il caso del degrado misura un villaggio che deve
+## essere senza libro mastro — e quel caso passerebbe, o fallirebbe, per
+## l'ordine in cui `run()` chiama le funzioni invece che per il codice.
 func _villaggio(t, quanti: int) -> Dictionary:
 	for vecchio in t.tree().get_nodes_in_group("visitors"):
 		(vecchio as Node).remove_from_group("visitors")
+	for vecchio2 in t.tree().get_nodes_in_group("affetti"):
+		(vecchio2 as Node).remove_from_group("affetti")
 	var casa := Node3D.new()
 	casa.name = "Villaggio"
 	t.stage(casa)
@@ -667,4 +744,561 @@ func _villaggio(t, quanti: int) -> Dictionary:
 			"cell": Vector2i(i * 30, 0), "species": "chibi",
 			"next_act": 0.0, "phase": "day"})
 		corpi.append(c)
-	return {"casa": casa, "vis": vis, "corpi": corpi}
+	return {"casa": casa, "vis": vis, "corpi": corpi, "giorno": giorno}
+
+
+## SENZA LIBRO MASTRO IL VILLAGGIO È QUELLO DI SEMPRE, ed è il contratto che
+## deve restare vero DOPO il cablaggio, non solo prima.
+##
+## `Affetti` è un figlio RUNTIME di `MainLevel`: nel bosco, nel Prologo, nel
+## diorama del titolo e in mezza suite quel nodo non c'è. Il degrado va dove
+## va sempre in questo progetto — verso quello che si faceva ieri — e qui si
+## scrive una volta per tutte: **niente libro mastro, niente riconoscenza, e
+## il ripiego decide come ha sempre deciso.**
+##
+## ⚠️ E LA PREMESSA SI ASSERISCE, invece di darla per buona. Un caso che
+## misura un villaggio senza `Affetti` e non controlla che `Affetti` non ci
+## sia è verde tanto per il degrado quanto per un cablaggio spento: dichiara
+## il MOTIVO, che è la lezione già pagata dal banco delle cricche.
+func _senza_libro_mastro_il_villaggio_e_quello_di_sempre(t) -> void:
+	var v := _villaggio(t, 3)
+	var vis = v["vis"]
+	var corpi: Array = v["corpi"]
+	t.ok(t.tree().get_nodes_in_group("affetti").is_empty(),
+			"la premessa: in questo villaggio non c'è nessun libro mastro")
+	var r: Dictionary = (vis.get("_residents") as Array)[0]
+	var io := corpi[0] as Node3D
+	vis._recita(r, io, vis._ensure_brain(r), "quattro_chiacchiere", "day")
+	t.eq(str(io.get("_next_state")), "r_sniff",
+			"il corpo va ad annusare, come ha sempre fatto")
+	_va_da(t, io, corpi[1], "il primo residente valido dell'elenco")
+
+
+## IL LIBRO MASTRO DENTRO IL VILLAGGIO VERO — e questa è la fixture che il
+## cablaggio userà, provata PRIMA che il cablaggio esista.
+##
+## `RegistroAffetti` detta tre cose (il giorno, chi esiste, le lealtà) perché
+## le prove pure non vogliono mezzo villaggio addosso. Ma il giorno che
+## `Visitors` chiamerà `chi_ringraziare` per davvero, quelle tre cose
+## arriveranno dall'albero — e se `_cabla()` non trovasse i suoi due fratelli
+## `_giorno()` risponderebbe **1** e `_lealta_di` **0,5**, in silenzio: un
+## libro mastro datato al giorno 50 si leggerebbe tutto «nel futuro», la
+## recenza varrebbe 1,0 per ogni riga, e un banco costruito male misurerebbe
+## un villaggio che non esiste.
+##
+## Perciò qui c'è un `Affetti` VERO, coi nomi giusti (`../Visitors`,
+## `../DayNight`), e si prova che il giorno arriva davvero dal cielo: spostare
+## l'orologio in avanti fa sbiadire il debito. Se il cablaggio non ci fosse,
+## questa sarebbe una fixture che nessuno ha mai acceso.
+##
+## ⚠️ E QUI `_tutti()` È QUELLO VERO. Nel registro di banco è dettato, quindi
+## la mutazione «se `fra` è vuoto ripiega su `_tutti()`» arrossisce per il
+## motivo giusto solo se il ripiego avrebbe davvero qualcuno da restituire:
+## in questo villaggio ce l'ha, ed è l'unico posto del file in cui quella
+## guardia è provata contro l'anagrafe vera.
+func _il_libro_mastro_vive_nel_villaggio(t) -> void:
+	# Vicino0 ci è andato per primo, per Vicino1: trenta giorni fa
+	var v := _villaggio_con_libro(t, 3, [
+		_riga("Vicino0", "Vicino1", "coraggio", 50),
+	], 80)
+	var aff = v["aff"]
+	t.ok(bool(aff.get("_cablato")),
+			"il libro mastro ha trovato i suoi due fratelli nell'albero")
+	t.eq(int(aff.call("_giorno")), 80,
+			"…e il giorno gli arriva dal cielo, non da un valore di serie")
+	t.eq(aff.chi_ringraziare("Vicino1", ["Vicino0"]), "Vicino0",
+			"chi ci è andato per primo per te è ancora lì da ringraziare")
+	t.eq(aff.chi_ringraziare("Vicino0", ["Vicino1"]), "",
+			"e chi ci è andato non deve niente a nessuno")
+	# `fra` resta un argomento anche quando l'anagrafe vera avrebbe di che
+	# rispondere: è la guardia contro il ripiego su `_tutti()`
+	t.ok((aff.call("_tutti") as Array).has("Vicino0"),
+			"la premessa: l'anagrafe vera qui ha davvero dei nomi da dare")
+	t.eq(aff.chi_ringraziare("Vicino1", []), "",
+			"…e con nessuno in giro non si va comunque dal creditore")
+	# l'orologio: portato avanti, il debito sbiadisce da sé — è la prova che
+	# `_giorno()` è vivo e non una costante
+	(v["giorno"] as Node3D).set("day", 200)
+	t.eq(aff.chi_ringraziare("Vicino1", ["Vicino0"]), "",
+			"e centocinquanta giorni dopo non c'è più niente da ringraziare:"
+			+ " il tempo è la seconda chiave di questa porta")
+
+
+## Il villaggio di sopra, più un `Affetti` VERO come terzo fratello. Il libro
+## mastro si detta (è un dato); tutto il resto — il cablaggio, il giorno, la
+## lealtà, la soglia, il margine — resta quello del gioco.
+##
+## ⚠️ L'ORDINE DEI FIGLI CONTA: `Affetti._ready` chiama `_cabla()` nell'istante
+## in cui entra nell'albero, e `casa` è già in scena. Se entrasse per primo non
+## troverebbe nessuno — `_cablato` resterebbe falso, e siccome `_cabla()` si
+## riprova a ogni chiamata la cosa si aggiusterebbe da sé, ma l'asserzione che
+## la sorveglia perderebbe il suo senso.
+func _villaggio_con_libro(t, quanti: int, righe: Array,
+		giorno := 80) -> Dictionary:
+	var v := _villaggio(t, quanti)
+	(v["giorno"] as Node3D).set("day", giorno)
+	var aff = AFF.new()
+	aff.name = "Affetti"
+	(v["casa"] as Node3D).add_child(aff)
+	aff.set("_righe", righe.duplicate(true))
+	v["aff"] = aff
+	return v
+
+
+# ======================================================================
+#  IL PACCHETTO PER IL CABLATORE — undici casi già scritti, MAI ESEGUITI
+# ======================================================================
+#
+# ⚠️ LEGGERE PRIMA DI TOCCARLI. Questi undici casi sorvegliano il CABLAGGIO
+# della riconoscenza, che vive in `Visitors.gd` — un file che non appartiene
+# a chi ha scritto questo. Sono qui, e non in un documento, perché il
+# protocollo del pacchetto dice che il proprietario **innesta, non
+# riscrive**: un caso ricopiato a mano da un referto è un caso in cui la
+# ragione scritta nel commento smette di corrispondere al codice.
+#
+# **NON SONO CHIAMATI DA `run()`, ED È VOLUTO.** Alla fine della fase 0 la
+# suite dev'essere verde e nel gioco non dev'essere cambiato niente: le
+# query pure di `Affetti` non hanno ancora un lettore. Chiamarli adesso
+# vorrebbe dire quindici rossi su un lavoro che sta andando come deve.
+#
+# **CHI CABLA AGGIUNGE QUESTE UNDICI RIGHE IN `run()`**, in coda, e nello
+# STESSO COMMIT del cablaggio (un cablaggio senza guardia è la forma di
+# guasto che questo progetto ha già pagato sei volte):
+#
+#	_il_corpo_va_da_chi_si_e_preso_cura_di_lui(t)
+#	_la_riconoscenza_viene_prima_dell_abitudine(t)
+#	_la_preferenza_non_allarga_i_candidati(t)
+#	_chi_e_in_una_scena_non_viene_disturbato(t)
+#	_il_grazie_e_uno_al_giorno(t)
+#	_e_uno_al_giorno_anche_per_chi_lo_riceve(t)
+#	_la_riconoscenza_non_diventa_un_orbita(t)
+#	_la_visita_non_puo_fabbricare_un_ritrovo(t)
+#	_il_pareggio_non_elegge_nessuno_nel_corpo(t)
+#	_il_debito_non_e_una_classifica_visibile(t)
+#	_il_referto_conta_i_silenzi(t)
+#
+# ⚠️ E OGNUNO VA FATTO DIVENTARE ROSSO PRIMA DI DICHIARARLO VERDE. Sono
+# scritti contro un'API che ancora non esiste: nessuno li ha mai eseguiti, e
+# un caso mai eseguito è una promessa, non una guardia. In particolare la
+# MUTAZIONE DESIGNATA di questa meccanica — togliere il raffreddamento della
+# coppia da `_riconoscenza`, tornando al solo gettone giornaliero — deve far
+# arrossire `_la_riconoscenza_non_diventa_un_orbita` **e**
+# `_la_visita_non_puo_fabbricare_un_ritrovo`. Se ne arrossisce una sola, il
+# firewall verso il falò e l'eredità non è sorvegliato.
+#
+# L'API contro cui sono scritti è quella consegnata al cablatore:
+#
+#	var _grazie_oggi := {}    # NOME -> giorno (dato O ricevuto)
+#	var _grazie_verso := {}   # CRICCHE.chiave(a, b) -> giorno dell'ultimo
+#	func _riconoscenza(r: Dictionary, candidati: Array) -> String
+#	func _compagnia_per(r: Dictionary, brain: RefCounted) -> Node3D
+#	func debug_reciprocita() -> Dictionary
+
+
+## IL CORPO VA DA CHI SI È PRESO CURA DI LUI, ed è tutta la meccanica.
+##
+## Senza libro mastro questo stesso villaggio manda Vicino0 dal PRIMO valido
+## dell'elenco (Vicino1) — è quello che prova `_il_ripiego_e_quello_di_sempre`
+## trenta righe più su. Con un debito vivo verso Vicino2, ci va invece da lui:
+## la differenza fra le due scene è il libro mastro, e nient'altro.
+##
+## ⚠️ MA QUESTO CASO NON ISOLA IL PRIMO ANELLO DAL SECONDO, e va detto: qui
+## il creditore è anche l'unico con cui Vicino0 abbia una riga, quindi è pure
+## il suo più caro — togliendo la riconoscenza, l'abitudine manderebbe il
+## corpo nello stesso posto e il caso resterebbe verde. A separare le due
+## domande è il caso qui sotto, ed è quello che tiene l'ORDINE.
+func _il_corpo_va_da_chi_si_e_preso_cura_di_lui(t) -> void:
+	var v := _villaggio_con_libro(t, 3, [
+		_riga("Vicino2", "Vicino0", "coraggio", 50),
+	], 80)
+	var vis = v["vis"]
+	var corpi: Array = v["corpi"]
+	var r: Dictionary = (vis.get("_residents") as Array)[0]
+	var io := corpi[0] as Node3D
+	vis._recita(r, io, vis._ensure_brain(r), "quattro_chiacchiere", "day")
+	t.eq(str(io.get("_next_state")), "r_sniff",
+			"il corpo va ad annusare — lo STESSO stato del ripiego, perché"
+			+ " da fuori le due scene devono essere la stessa scena")
+	_va_da(t, io, corpi[2], "chi ci è andato per primo per lui")
+
+
+## LA RICONOSCENZA VIENE PRIMA DELL'ABITUDINE — l'ordine dei tre anelli.
+##
+## ⚠️ E LA FIXTURE DEVE SEPARARE LE DUE DOMANDE, che sul libro mastro sono
+## vicinissime: «chi conta di più» e «a chi devo un grazie» leggono la stessa
+## colonna. Una nascita a SENSO UNICO farebbe di Vicino1 il più caro E il
+## creditore, e il caso sarebbe verde in tutti e due i mondi. Qui la nascita è
+## RECIPROCA — stesso giorno, tutti e due i versi — quindi il conto è enorme e
+## lo squilibrio è zero esatto: Vicino1 è il più caro e non è creditore di
+## niente.
+func _la_riconoscenza_viene_prima_dell_abitudine(t) -> void:
+	var v := _villaggio_con_libro(t, 3, [
+		_riga("Vicino1", "Vicino0", "nascita", 78),
+		_riga("Vicino0", "Vicino1", "nascita", 78),
+		_riga("Vicino2", "Vicino0", "piatto", 78),
+	], 80)
+	var aff = v["aff"]
+	# la premessa, dichiarata invece che sperata
+	t.eq(aff.chi_e_il_piu_caro("Vicino0", ["Vicino1", "Vicino2"]), "Vicino1",
+			"la premessa: il più caro è quello con cui ha fatto una vita")
+	t.eq(aff.chi_ringraziare("Vicino0", ["Vicino1", "Vicino2"]), "Vicino2",
+			"…e il creditore è un altro: le due domande sono separate")
+	var vis = v["vis"]
+	var corpi: Array = v["corpi"]
+	var r: Dictionary = (vis.get("_residents") as Array)[0]
+	var io := corpi[0] as Node3D
+	vis._recita(r, io, vis._ensure_brain(r), "quattro_chiacchiere", "day")
+	_va_da(t, io, corpi[2], "il creditore, e non l'affetto di sempre")
+
+
+## LA PREFERENZA NON ALLARGA I CANDIDATI. Il creditore che non è in piedi non
+## è un candidato, e il primo anello non può andarselo a prendere: `fra` è la
+## lista di chi c'è, e chi la costruisce sa cose che il libro mastro non sa.
+func _la_preferenza_non_allarga_i_candidati(t) -> void:
+	var v := _villaggio_con_libro(t, 3, [
+		_riga("Vicino2", "Vicino0", "coraggio", 50),
+	], 80)
+	var vis = v["vis"]
+	var corpi: Array = v["corpi"]
+	(corpi[2] as Node3D).set("_hidden", true)
+	var r: Dictionary = (vis.get("_residents") as Array)[0]
+	var io := corpi[0] as Node3D
+	vis._recita(r, io, vis._ensure_brain(r), "quattro_chiacchiere", "day")
+	_va_da(t, io, corpi[1], "il ripiego di sempre, perché il creditore è"
+			+ " dentro casa e non lo si va a chiamare")
+
+
+## CHI È IN UNA SCENA NON VIENE DISTURBATO, e le tre valvole sono tre.
+##
+## Il concerto, il congedo, il nascondino: durante una scena quel corpo non è
+## di nessuno di noi. E chi dorme il suo pisolino non è «uno che è lì».
+func _chi_e_in_una_scena_non_viene_disturbato(t) -> void:
+	for guasto in ["_hidden", "scena", "nap"]:
+		var v := _villaggio_con_libro(t, 3, [
+			_riga("Vicino2", "Vicino0", "coraggio", 50),
+		], 80)
+		var vis = v["vis"]
+		var corpi: Array = v["corpi"]
+		var creditore := corpi[2] as Node3D
+		match str(guasto):
+			"_hidden": creditore.set("_hidden", true)
+			"scena": creditore.set("_scena_t", 4.0)
+			"nap": creditore.set("_state", "tk_nap")
+		var r: Dictionary = (vis.get("_residents") as Array)[0]
+		var io := corpi[0] as Node3D
+		vis._recita(r, io, vis._ensure_brain(r), "quattro_chiacchiere", "day")
+		_va_da(t, io, corpi[1],
+				"il ripiego: il creditore non è disponibile (%s)" % str(guasto))
+
+
+## UNO AL GIORNO, PER PERSONA. Il secondo grazie della stessa giornata non
+## parte: si ripiega, in silenzio, come se non ci fosse nessun debito.
+func _il_grazie_e_uno_al_giorno(t) -> void:
+	# ⚠️ LA NASCITA RECIPROCA CON VICINO1 NON È DECORAZIONE. Senza, l'unica
+	# riga di Vicino0 sarebbe quella col creditore, che diventerebbe anche il
+	# suo più caro: alla seconda occasione il SECONDO anello lo rimanderebbe
+	# nello stesso identico posto e il gettone sembrerebbe non aver fatto
+	# niente. Il gettone spegne la RICONOSCENZA, non la compagnia.
+	var v := _villaggio_con_libro(t, 3, [
+		_riga("Vicino2", "Vicino0", "coraggio", 50),
+		_riga("Vicino1", "Vicino0", "nascita", 78),
+		_riga("Vicino0", "Vicino1", "nascita", 78),
+	], 80)
+	var vis = v["vis"]
+	var corpi: Array = v["corpi"]
+	var r: Dictionary = (vis.get("_residents") as Array)[0]
+	var io := corpi[0] as Node3D
+	vis._recita(r, io, vis._ensure_brain(r), "quattro_chiacchiere", "day")
+	_va_da(t, io, corpi[2], "il creditore, la prima volta")
+	io.set("_state", "r_idle")
+	vis._recita(r, io, vis._ensure_brain(r), "quattro_chiacchiere", "day")
+	_va_da(t, io, corpi[1],
+			"e alla seconda occasione della stessa giornata la riconoscenza"
+			+ " tace: decide l'anello dopo, e va dal suo più caro")
+
+
+## ⚠️ …E VALE ANCHE PER CHI LO RICEVE — è la trappola più cara di M3.
+##
+## Con il gettone sul solo debitore, un cuoco che ha cucinato per tutti
+## riceve tredici visite grate nello stesso pomeriggio: il libro mastro degli
+## affetti disegnato sul prato come un corteo, cioè la classifica dalla porta
+## di servizio che questo sistema si è ripromesso di non scrivere. E il
+## raffreddamento della coppia NON lo ferma, perché le coppie sono diverse.
+##
+## Qui due debitori distinti devono un grazie alla stessa persona, lo stesso
+## giorno: il secondo si ripiega.
+func _e_uno_al_giorno_anche_per_chi_lo_riceve(t) -> void:
+	# la nascita reciproca dà al secondo debitore un più caro che NON è il
+	# generoso: senza, sarebbe il secondo anello a rimandarcelo, e il gettone
+	# del ricevente sembrerebbe reggere mentre non regge (vedi il caso sopra)
+	var v := _villaggio_con_libro(t, 4, [
+		_riga("Vicino3", "Vicino0", "coraggio", 50),
+		_riga("Vicino3", "Vicino1", "coraggio", 50),
+		_riga("Vicino2", "Vicino1", "nascita", 78),
+		_riga("Vicino1", "Vicino2", "nascita", 78),
+	], 80)
+	var vis = v["vis"]
+	var corpi: Array = v["corpi"]
+	var residenti: Array = vis.get("_residents") as Array
+	var primo := corpi[0] as Node3D
+	vis._recita(residenti[0], primo, vis._ensure_brain(residenti[0]),
+			"quattro_chiacchiere", "day")
+	_va_da(t, primo, corpi[3], "il generoso, per il primo dei suoi debitori")
+	var secondo := corpi[1] as Node3D
+	vis._recita(residenti[1], secondo, vis._ensure_brain(residenti[1]),
+			"quattro_chiacchiere", "day")
+	_va_da(t, secondo, corpi[2],
+			"e il secondo se ne va dal suo più caro: nessuno riceve un corteo")
+	t.ok(secondo.call("meta_cammino").distance_to(
+			(corpi[3] as Node3D).global_position) > 2.0,
+			"…cioè non addosso al generoso, che oggi ha già avuto il suo")
+
+
+## ⚠️ LA RICONOSCENZA NON DIVENTA UN'ORBITA — è la correzione di genere di
+## questo collaudo, e la sua mutazione designata.
+##
+## Senza raffreddamento, un debito da un piatto manda lo stesso corpo dallo
+## stesso creditore **ogni giorno per ventisei giorni** (un atto di coraggio
+## per sessantotto). Ventisei giornate di gioco con la stessa persona che ti
+## attraversa il villaggio e ti si mette accanto non è un momento: è
+## un'orbita, e «nessuno ti orbita attorno» vale fra vicini come vale per il
+## giocatore.
+##
+## Il numero si LEGGE da `Affetti.GIORNI_RIPETIZIONE`, mai ricopiato: è lo
+## stesso che tiene l'abitudine fuori dal libro mastro, per la stessa ragione
+## — una cosa che si ripete ogni giorno smette di essere quella cosa.
+##
+## ⚠️ E LA CONTROPROVA STA NELLO STESSO CASO: una coppia DIVERSA, il giorno
+## dopo, passa. Il raffreddamento è sulla coppia, non sulla persona; senza la
+## controprova, un raffreddamento sbagliato (per persona, o per villaggio)
+## resterebbe verde.
+func _la_riconoscenza_non_diventa_un_orbita(t) -> void:
+	# ⚠️ E ANCHE QUI LA NASCITA RECIPROCA SERVE: nei sei giorni di silenzio
+	# il corpo deve avere un posto DOVE ANDARE che non sia il creditore, o a
+	# rimandarcelo sarebbe il secondo anello e il raffreddamento sembrerebbe
+	# non mordere. Il raffreddamento spegne la riconoscenza, non la vita.
+	var v := _villaggio_con_libro(t, 4, [
+		_riga("Vicino3", "Vicino0", "coraggio", 50),
+		_riga("Vicino3", "Vicino1", "coraggio", 50),
+		_riga("Vicino1", "Vicino0", "nascita", 78),
+		_riga("Vicino0", "Vicino1", "nascita", 78),
+	], 80)
+	var vis = v["vis"]
+	var corpi: Array = v["corpi"]
+	var giorno := v["giorno"] as Node3D
+	var residenti: Array = vis.get("_residents") as Array
+	var io := corpi[0] as Node3D
+	vis._recita(residenti[0], io, vis._ensure_brain(residenti[0]),
+			"quattro_chiacchiere", "day")
+	_va_da(t, io, corpi[3], "il creditore, il primo giorno")
+	# i giorni in mezzo: il debito è ancora vivo, e non succede niente
+	for g in range(81, 80 + AFF.GIORNI_RIPETIZIONE):
+		giorno.set("day", g)
+		io.set("_state", "r_idle")
+		vis._recita(residenti[0], io, vis._ensure_brain(residenti[0]),
+				"quattro_chiacchiere", "day")
+		t.ok(io.call("meta_cammino").distance_to(
+				(corpi[3] as Node3D).global_position) > 2.0,
+				"giorno %d: non ci torna — e il debito è ancora lì" % g)
+		_va_da(t, io, corpi[1],
+				"giorno %d: se ne va dal suo più caro, come farebbe" % g
+				+ " chiunque non abbia niente da ringraziare")
+	# LA CONTROPROVA: un'ALTRA coppia, dentro la stessa finestra, passa
+	giorno.set("day", 81)
+	var altro := corpi[1] as Node3D
+	vis._recita(residenti[1], altro, vis._ensure_brain(residenti[1]),
+			"quattro_chiacchiere", "day")
+	_va_da(t, altro, corpi[3],
+			"…ma un'altra coppia sì: il raffreddamento è sulla COPPIA, non"
+			+ " sulla persona e non sul villaggio")
+	# e alla settima giornata la stessa coppia torna
+	giorno.set("day", 80 + AFF.GIORNI_RIPETIZIONE)
+	io.set("_state", "r_idle")
+	vis._recita(residenti[0], io, vis._ensure_brain(residenti[0]),
+			"quattro_chiacchiere", "day")
+	_va_da(t, io, corpi[3],
+			"e dopo %d giorni ci si torna: non è un divieto, è una cadenza"
+					% AFF.GIORNI_RIPETIZIONE)
+
+
+## ⚠️ LA VISITA NON PUÒ FABBRICARE UN RITROVO — ed è il FIREWALL, non
+## un'eleganza.
+##
+## Un corpo che si ferma a 0,9 m da un altro fa scrivere a `_segna_incontro`
+## una riga di co-presenza (0,9 è sotto `VICINI`, ed è la riga del `fianco`
+## che il ripiego usa da sempre). `Cricche.ritrovo_vivo()` diventa vero con
+## `GIORNATE_RITROVO` giornate DIVERSE dentro `Cricche.FINESTRA`. Senza
+## raffreddamento la visita ne scriverebbe una al giorno: tre in tre giorni,
+## e il ritrovo si forma — cioè un debito da un piatto riordinerebbe il
+## cerchio del falò e finirebbe nel filo di un cucciolo per sempre. Il libro
+## mastro degli affetti entrato per la porta di servizio in due sistemi
+## progettati apposta per non guardarlo.
+##
+## Con il raffreddamento è un'IMPOSSIBILITÀ, non un margine tarato:
+## `Cricche.registra` tiene UNA riga al giorno per coppia, quindi in una
+## finestra di sette giorni ci stanno al più `ceil(7 / GIORNI_RIPETIZIONE)`
+## visite — cioè UNA, contro le TRE che servono.
+##
+## ⚠️ E SI FA GIRARE `_chats` VERO. Chiamare `Cricche.incontro` a mano nel
+## banco vorrebbe dire provare il proprio doppio: `_segna_incontro` ha cinque
+## cancelli suoi (la fase del falò, lo stato `r_fire`, `in_scena`, il lease
+## sopra `LEASE_SPONTANEO`, la radura), e se il banco ne inciampasse uno per
+## caso misurerebbe zero righe su un codice rotto.
+func _la_visita_non_puo_fabbricare_un_ritrovo(t) -> void:
+	# ⚠️ E LA NASCITA RECIPROCA CON VICINO1 È IL CUORE DELLA FIXTURE, non un
+	# contorno. Nei sei giorni di silenzio il corpo deve avere un posto dove
+	# andare che NON sia il creditore: se il secondo anello lo rimandasse lì
+	# ogni giorno, le righe di co-presenza si accumulerebbero comunque e
+	# questo caso arrossirebbe accusando il raffreddamento di una cosa che
+	# non ha fatto. Che l'ABITUDINE fabbrichi un ritrovo è giusto — è la
+	# frase che `Cricche` esiste per dire; quello che non deve poterlo fare
+	# è il DEBITO.
+	var v := _villaggio_con_libro(t, 3, [
+		_riga("Vicino2", "Vicino0", "coraggio", 50),
+		_riga("Vicino1", "Vicino0", "nascita", 78),
+		_riga("Vicino0", "Vicino1", "nascita", 78),
+	], 80)
+	var vis = v["vis"]
+	var corpi: Array = v["corpi"]
+	var giorno := v["giorno"] as Node3D
+	var residenti: Array = vis.get("_residents") as Array
+	var cri = CRICCHE.new()
+	cri.name = "Cricche"
+	(v["casa"] as Node3D).add_child(cri)
+	var visite := 0
+	for g in range(80, 87):
+		giorno.set("day", g)
+		var io := corpi[0] as Node3D
+		io.set("_state", "r_idle")
+		vis._recita(residenti[0], io, vis._ensure_brain(residenti[0]),
+				"quattro_chiacchiere", "day")
+		# il corpo ARRIVA: la meta si posa addosso, e i due si trovano vicini
+		var meta: Vector3 = io.call("meta_cammino")
+		io.global_position = meta
+		io.set("_state", "r_sniff")
+		# tutti gli stati devono stare nella lista `chatty` di `_chats`, o la
+		# coppia non viene nemmeno guardata e il caso misurerebbe il proprio
+		# banco invece del cancello
+		for altro in corpi:
+			if altro != io:
+				(altro as Node3D).set("_state", "r_idle")
+		if meta.distance_to((corpi[2] as Node3D).global_position) < 2.0:
+			visite += 1
+		vis.set("_chat_acc", 0.0)
+		vis._chats(0.0)
+		cri.call("giro_del_giorno", g)
+	var righe: Array = cri.get("_incontri") as Array
+	var campioni: Array = CRICCHE.campioni(righe, "Vicino0", "Vicino2")
+	t.ok(visite >= 1,
+			"la premessa: in sette giornate almeno una visita c'è stata"
+			+ " (altrimenti questo caso misurerebbe il proprio silenzio)")
+	# ⚠️ E IL CONTROLLO DI SANITÀ: `_segna_incontro` ha cinque cancelli suoi,
+	# e se il banco ne inciampasse uno per caso scriverebbe ZERO righe — il
+	# firewall sembrerebbe reggere su un codice che non gira. Le righe
+	# dell'ABITUDINE devono esserci.
+	t.ok(righe.size() >= 3,
+			"…e il registro delle co-presenze si è riempito davvero (%d"
+					% righe.size() + " righe): il cancello non è un banco muto")
+	t.ok(campioni.size() < CRICCHE.GIORNATE_RITROVO,
+			("le righe di co-presenza fra i due restano sotto le %d che"
+			+ " servono a un ritrovo (%d)")
+					% [CRICCHE.GIORNATE_RITROVO, campioni.size()])
+	# `abitudine()` È il predicato di casa — `ritrovo_vivo` torna il REFERTO
+	# (un Dictionary, vuoto quando non c'è), e chiederne il valore di verità
+	# non compila nemmeno. Si chiede al predicato, non alla scheda.
+	t.ok(not CRICCHE.abitudine(righe, "Vicino0", "Vicino2", 86),
+			"…e nessun ritrovo si è formato: il cerchio del falò e il filo"
+			+ " di un cucciolo non sanno niente del libro mastro")
+
+
+## IL PAREGGIO NON ELEGGE NESSUNO, NEMMENO NEL CORPO. È la stessa guardia del
+## puro, vista da fuori: se due si sono presi cura di te lo stesso giorno e
+## nello stesso modo, il gioco non sceglie al posto tuo — e il corpo se ne va
+## dove sarebbe andato comunque.
+func _il_pareggio_non_elegge_nessuno_nel_corpo(t) -> void:
+	var v := _villaggio_con_libro(t, 3, [
+		_riga("Vicino1", "Vicino0", "coraggio", 50),
+		_riga("Vicino2", "Vicino0", "coraggio", 50),
+	], 80)
+	var vis = v["vis"]
+	var corpi: Array = v["corpi"]
+	var aff = v["aff"]
+	t.eq(aff.chi_ringraziare("Vicino0", ["Vicino1", "Vicino2"]), "",
+			"la premessa: due crediti identici non eleggono nessuno")
+	var r: Dictionary = (vis.get("_residents") as Array)[0]
+	var io := corpi[0] as Node3D
+	vis._recita(r, io, vis._ensure_brain(r), "quattro_chiacchiere", "day")
+	_va_da(t, io, corpi[1],
+			"il ripiego di sempre — e non il primo dell'array dei crediti,"
+			+ " che sarebbe il gioco che rompe il pareggio per conto suo")
+
+
+## ⚠️ IL DEBITO NON È UNA CLASSIFICA VISIBILE, e questo è il caso che tiene
+## la REGOLA SACRA.
+##
+## Se la visita grata avesse un toast, una nuvoletta, una postura o uno stato
+## del corpo diverso dal ripiego, il gioco starebbe dicendo a schermo «questo
+## qui ti deve qualcosa» — cioè accusando qualcuno di non aver ricambiato. Il
+## libro mastro non ha una riga «tradimento», e non deve averne una scritta
+## col corpo: da fuori, la visita grata e il giro di sempre devono essere la
+## STESSA SCENA.
+func _il_debito_non_e_una_classifica_visibile(t) -> void:
+	var grato := _villaggio_con_libro(t, 3, [
+		_riga("Vicino2", "Vicino0", "coraggio", 50),
+	], 80)
+	var normale := _villaggio_con_libro(t, 3, [], 80)
+	var pose: Array = []
+	var stati: Array = []
+	for v in [grato, normale]:
+		var vis = (v as Dictionary)["vis"]
+		var corpi: Array = (v as Dictionary)["corpi"]
+		var r: Dictionary = (vis.get("_residents") as Array)[0]
+		var io := corpi[0] as Node3D
+		vis._recita(r, io, vis._ensure_brain(r), "quattro_chiacchiere", "day")
+		stati.append([str(io.get("_state")), str(io.get("_next_state"))])
+		pose.append(str(io.get_meta("postura", "")))
+	t.eq(str(stati[0]), str(stati[1]),
+			"il corpo fa la stessa identica cosa nelle due scene: %s"
+					% str(stati[0]))
+	t.eq(str(pose[0]), str(pose[1]),
+			"e non indossa nessuna posa che dica quale delle due è")
+	t.eq(str(pose[0]), "",
+			"…che è nessuna posa affatto")
+	# e il libro mastro non si è mosso di un byte: la lettura non scrive
+	var aff = grato["aff"]
+	t.eq(JSON.stringify(aff.get("_righe")),
+			JSON.stringify([_riga("Vicino2", "Vicino0", "coraggio", 50)]),
+			"il libro mastro è byte per byte quello di prima")
+	var chiavi := (aff.save_extra() as Dictionary).keys()
+	chiavi.sort()
+	t.eq(str(chiavi), str(["affetti", "coppie_ieri", "ferite"]),
+			"e il salvataggio ha ancora le stesse tre chiavi")
+
+
+## IL REFERTO CONTA I SILENZI, uno per uno.
+##
+## Un banco che dice «zero visite grate» lascia indovinare, e si finisce per
+## accusare il cablaggio quando era il gettone — è la lezione già pagata dal
+## vocabolario del corpo, dove il silenzio ha sei nomi diversi. Qui ne ha
+## cinque, e vanno contati separatamente o il banco vivo non saprà mai se il
+## primo anello è spento o solo prudente.
+func _il_referto_conta_i_silenzi(t) -> void:
+	var v := _villaggio_con_libro(t, 3, [
+		_riga("Vicino2", "Vicino0", "coraggio", 50),
+	], 80)
+	var vis = v["vis"]
+	var corpi: Array = v["corpi"]
+	var r: Dictionary = (vis.get("_residents") as Array)[0]
+	var io := corpi[0] as Node3D
+	var prima: Dictionary = vis.debug_reciprocita()
+	for k in ["grazie", "ripieghi", "no_gettone", "no_raffreddamento",
+			"no_debito"]:
+		t.ok(prima.has(str(k)), "il referto ha la voce «%s»" % str(k))
+	vis._recita(r, io, vis._ensure_brain(r), "quattro_chiacchiere", "day")
+	t.eq(int(vis.debug_reciprocita()["grazie"]), int(prima["grazie"]) + 1,
+			"una visita grata si conta")
+	io.set("_state", "r_idle")
+	vis._recita(r, io, vis._ensure_brain(r), "quattro_chiacchiere", "day")
+	t.eq(int(vis.debug_reciprocita()["no_gettone"]),
+			int(prima["no_gettone"]) + 1,
+			"…e il secondo silenzio della giornata si conta col SUO nome")

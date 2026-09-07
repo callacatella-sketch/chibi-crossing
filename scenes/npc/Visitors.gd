@@ -18,6 +18,7 @@ const VILLAGGIO := preload("res://scenes/npc/Villaggio.gd")
 const REGIA := preload("res://scenes/npc/Regia.gd")
 const GESTI := preload("res://scenes/npc/Gesti.gd")
 const POSTO := preload("res://scenes/world/PostoDiSempre.gd")
+const EREDITA := preload("res://scenes/npc/Eredita.gd")
 const UI_BROWN := Color("6a4a3a")
 # Fino a ventotto vicini: il passaparola del Villaggio, le chiacchiere, le
 # indoli e le stravaganze rendono per densità — la scala dell'Animo produce
@@ -217,6 +218,51 @@ func _on_new_day(_day: int) -> void:
 		# progetto ne ha già una (`day_changed`, che detta anche l'età, i
 		# desideri e il giro dell'Animo).
 		r["promosso_oggi"] = false
+	_impara_il_posto_dei_suoi()
+
+
+## SI IMPARA IL POSTO DEI SUOI — una giornata per volta, alla prima occasione
+## buona. Non alla nascita in un colpo: un bambino non eredita, IMPARA.
+##
+## ⚠️ `ritrovo_di`, MAI `compagni()`. La seconda legge la cache
+## `Cricche._coppie`, che si riempie dentro `giro_del_giorno`, che gira in
+## `_process` e NON su `day_changed`: qui dentro sarebbe ancora quella di
+## IERI, e su una partita appena caricata è VUOTA. La trasmissione morirebbe
+## in silenzio proprio nel momento in cui deve funzionare. `ritrovo_di` rifà
+## il conto dal registro ogni volta.
+##
+## ⚠️ E il Filo Rosso è un figlio RUNTIME di CozyWorld: `null` per parecchi
+## frame dopo il caricamento, e per sempre nei banchi, nel diorama e nel
+## Prologo. Il degrado va verso «oggi non si impara», mai verso un errore —
+## che in questo runner non fa fallire niente: interrompe la funzione a metà
+## e lascia il verde.
+func _impara_il_posto_dei_suoi() -> void:
+	if not is_inside_tree():
+		return
+	var legami := get_tree().get_first_node_in_group("legami")
+	if legami == null or not is_instance_valid(legami) \
+			or not legami.has_method("puo_imparare_il_posto"):
+		return
+	var cr := get_tree().get_first_node_in_group("cricche")
+	if cr == null or not is_instance_valid(cr) or not cr.has_method("ritrovo_di"):
+		return
+	for r in _residents:
+		var nome := str((r.get("dna", {}) as Dictionary).get("name", ""))
+		if nome == "" or not bool(legami.call("puo_imparare_il_posto", nome)):
+			continue
+		# i due nomi si passano NELL'ORDINE della nascita, e va bene: le righe
+		# di `Cricche` non hanno verso (i due nomi in ordine alfabetico).
+		# ⚠️ E le due anagrafi combaciano solo se non le si tocca: `genitori_di`
+		# dà NOMI e `Cricche._incontri` è chiavato per NOMI — passare da
+		# `label_di_nome` o da `cella_di` in mezzo spezza la catena in silenzio.
+		var suoi: Array = legami.call("genitori_di", nome)
+		if suoi.size() < 2:
+			continue
+		var rit: Dictionary = cr.call("ritrovo_di", str(suoi[0]), str(suoi[1]))
+		var dove: Variant = EREDITA.posto_dal_ritrovo(rit)
+		if dove == null:
+			continue
+		legami.call("impara_il_posto", nome, dove as Vector3)
 
 
 # =========================================================================
@@ -2070,6 +2116,18 @@ func _panchina_per(r: Dictionary, home: Vector3) -> Node3D:
 		var insieme: Node3D = _seduta_da(verso_loro, corpo)
 		if insieme != null:
 			return insieme
+	# ⚜️ IL QUINTO ANELLO STA QUI E NON PIU' IN ALTO, e l'ordine di questa
+	# cascata E' la terza domanda della REGOLA SACRA scritta in un ordine. Se
+	# salisse sopra `ancora_riposo`, un adulto se ne andrebbe nell'angolo dei
+	# suoi genitori PROPRIO nel momento in cui il giocatore arriva — e il
+	# giocatore avrebbe imparato, senza una parola, di essere quello di troppo.
+	# Sotto il ritrovo SUO, perche' la propria vita viene prima di quella dei
+	# suoi; sopra casa, perche' e' comunque qualcosa che si sa di se'.
+	var verso_suoi := _ancora_dei_suoi(r, home)
+	if verso_suoi != home:
+		var dei_suoi: Node3D = _seduta_da(verso_suoi, corpo)
+		if dei_suoi != null:
+			return dei_suoi
 	return _seduta_da(home, corpo)
 
 
@@ -2143,6 +2201,42 @@ func _ancora_ritrovo(r: Dictionary, home: Vector3) -> Vector3:
 	if n == 0:
 		return home
 	return home.move_toward(somma / float(n), SPOSTA_MAX)
+
+
+## L'ANCORA DEL POSTO DEI SUOI: casa propria, spostata verso il punto in cui
+## si ritrovavano i suoi genitori mentre lui cresceva — e mai piu' di
+## `SPOSTA_MAX`.
+##
+## Un PUNTO, non un corpo: i suoi possono traslocare, smettere di ritrovarsi,
+## partire col fagotto, ed e' lo stesso. Nessuno li insegue. E' la stessa
+## distinzione che rende sicure le altre tre ancore, ed e' anche la ragione
+## per cui questo non e' un guinzaglio: `SPOSTA_MAX` e' la lunghezza di quello
+## che NON deve esserci.
+##
+## ⚠️ Senza Filo Rosso, senza posto imparato, o per chi non e' nato qui, torna
+## `home` **ESATTO**. L'uguaglianza dev'essere esatta e non «quasi»:
+## `_panchina_per` salta l'anello con `if verso != home`, e tredici asserzioni
+## di `test_cuore_vicini` girano su una fixture che in scena non mette nessun
+## `Legami`.
+##
+## ⚠️ E `get_tree()` NON si chiama nudo qui. `_ancora_ritrovo` puo' permetterselo
+## perche' e' sempre in scena; questa no — per un registro costruito fuori
+## dall'albero `get_tree()` e' `null`, e l'errore che ne esce non fa fallire
+## niente: interrompe la funzione e lascia la suite verde.
+func _ancora_dei_suoi(r: Dictionary, home: Vector3) -> Vector3:
+	if not is_inside_tree():
+		return home
+	var legami := get_tree().get_first_node_in_group("legami")
+	if legami == null or not is_instance_valid(legami) \
+			or not legami.has_method("posto_dei_suoi"):
+		return home
+	var nome := str((r.get("dna", {}) as Dictionary).get("name", ""))
+	if nome == "":
+		return home
+	var p: Variant = legami.call("posto_dei_suoi", nome)
+	if p == null:
+		return home
+	return home.move_toward(p as Vector3, SPOSTA_MAX)
 
 
 ## Dove sta Mochi. Senza giocatore (i banchi di prova, il diorama del titolo)
@@ -4056,8 +4150,28 @@ func _giorno_di_animo() -> void:
 		var tel: Array = animo.telegrafo()
 		_mostra_telegrafo(chi, tel)
 		# solo i passaggi che contano finiscono nei toast: se avvisassimo a
-		# ogni mugugno, il giocatore smetterebbe di leggere
-		if ANIMO.almeno(int(animo.gradino), "rifiuto"):
+		# ogni mugugno, il giocatore smetterebbe di leggere.
+		#
+		# ⚜️ E SI ANNUNCIA SOLO LA SALITA. Il corpo cambia comunque — chi si e'
+		# calmato lo si VEDE, `_mostra_telegrafo` sta due righe sopra — ma un
+		# toast sulla discesa direbbe «guarda, si e' ripreso»: e' il gioco che
+		# tiene il punteggio delle persone, e la REGOLA SACRA lo vieta. Una
+		# riparazione si nota da se', ed e' meglio cosi'.
+		#
+		# ⚠️ LA DIREZIONE SI LEGGE DALL'EVENTO, MAI DA `animo.gradino`.
+		# `aggiorna_scala` mette il freno di `_ultimo_scatto` sulle SALITE e
+		# non sulle discese, quindi lo stesso vicino puo' produrre due righe di
+		# cronaca nella stessa giornata (una al passo 1, una al passo 3 dopo
+		# aver sentito le voci): giudicando col gradino ATTUALE, la prima
+		# verrebbe letta con la direzione della seconda. Ogni riga invece e'
+		# autoconsistente, perche' `da` e `a` vengono dallo stesso scatto.
+		#
+		# ⚠️ E IL DEGRADO VA VERSO IERI, gratis: `ANIMO.indice("")` vale -1,
+		# quindi con un `da` mancante (una cronaca vecchia, un doppio di banco)
+		# il confronto e' vero e il toast esce come e' sempre uscito.
+		var da := ANIMO.indice(str(evento.get("da", "")))
+		if ANIMO.almeno(int(animo.gradino), "rifiuto") \
+				and ANIMO.indice(str(evento.get("a", ""))) > da:
 			_show_toast("%s: «%s»" % [chi, L10n.t(str(tel[1]))])
 
 

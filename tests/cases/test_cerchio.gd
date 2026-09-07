@@ -55,6 +55,7 @@ func run(t) -> void:
 	_il_vicino_resta_accanto_al_vuoto(t)
 	_il_vicino_del_vuoto_puo_essere_sparito(t)
 	_al_massimo_due_vuoti(t)
+	_un_fantasma_ha_una_sedia_sola(t)
 	_i_vuoti_tornano_a_ritroso(t)
 	_dal_disco_tornano_interi(t)
 	_una_riga_sporca_non_ruba_una_sedia(t)
@@ -253,6 +254,23 @@ func _i_partiti_non_siedono(t) -> void:
 			"e la famiglia mutilata funziona lo stesso: il genitore rimasto "
 			+ "siede col figlio")
 
+	# ⚠️ E LO STESSO SI CHIEDE AD `anello` DA SOLA, o il suo filtro non ha
+	# lettori. Passando da `cerchio()` i partiti non arrivano mai fin qui —
+	# `catenelle` li ha già tolti costruendo i legami — quindi la riga di
+	# `anello` che li scarta è una SECONDA rete, e le reti seconde non le prova
+	# nessuno: MISURATO, togliendola la suite restava verde. Ma `anello` è
+	# pubblica, il cablatore può chiamarla, e il suo contratto scritto è
+	# proprio questo: `Legami.figli_di` e `genitori_di` elencano anche chi è
+	# partito, ed è il loro mestiere.
+	var viva := _base(3)
+	var con_partito := [PackedStringArray(["N0", "Andato", "N1"])]
+	var g2: PackedStringArray = CERCHIO.anello(viva, con_partito)
+	t.eq(g2, PackedStringArray(["N0", "N1", "N2"]),
+			"`anello` scarta da sé chi non è nella base di stasera (%s)" % str(g2))
+	t.ok(_accanto(g2, "N0", "N1"),
+			"…e i due che restano si ritrovano accanto: il buco di un partito "
+			+ "dentro una famiglia si chiude, non lascia una sedia")
+
 
 # ------------------------------------------------ ⚜️ l'ancora, cioè il genere
 
@@ -347,6 +365,24 @@ func _la_stessa_sera_due_volte(t) -> void:
 	t.eq(CERCHIO.cerchio(base, fam, cop2, [], rit2), atteso,
 			"l'ordine in cui i registri elencano i legami non cambia un posto")
 
+	# ⚠️ MA CON QUESTI LEGAMI L'ORDINE NON POTEVA CAMBIARE NIENTE, e il
+	# rovesciamento qui sopra non provava quel che dice: sono coppie isolate,
+	# che si cuciono uguale da qualunque parte si cominci. L'ordine conta solo
+	# dove i legami COMPETONO, e a farli competere è il tetto: una fila di
+	# quattro conoscenze consecutive ne concede tre, quindi **quella che resta
+	# fuori dipende da dove si è cominciato**. Le catenelle vanno sui PARI,
+	# così chi si siede insieme si porta dietro un cambio di posto visibile
+	# invece di restare nell'ordine di trasloco.
+	# MISURATO: togliendo l'ordinamento dal sorgente, queste due letture danno
+	# «N0 N2 N4 N6 …» e «N0 N1 N2 N4 …» — e prima nessun caso le distingueva.
+	var b10 := _base(10)
+	var su := {"N0": PackedStringArray(["N2"]), "N2": PackedStringArray(["N4"]),
+			"N4": PackedStringArray(["N6"]), "N6": PackedStringArray(["N8"])}
+	var giu := {"N6": PackedStringArray(["N8"]), "N4": PackedStringArray(["N6"]),
+			"N2": PackedStringArray(["N4"]), "N0": PackedStringArray(["N2"])}
+	t.eq(CERCHIO.cerchio(b10, [], [], [], giu), CERCHIO.cerchio(b10, [], [], [], su),
+			"e nemmeno quando è il TETTO a decidere chi resta fuori")
+
 
 # --------------------------------------------------- chi siede accanto a chi
 
@@ -440,6 +476,27 @@ func _il_ritrovo_non_spezza_una_coppia(t) -> void:
 			"…e chi si ritrova con loro si mette a un capo, non in mezzo")
 	t.ok(_e_permutazione(giro, base), "e il cerchio resta intero")
 
+	# ⚠️ UNA COPPIA NON HA UN MEZZO: con una catenella di DUE, «non ci si cuce
+	# in mezzo» non ha nessun posto in cui essere falso, e il caso qui sopra
+	# vive tutto sul controllo dell'estremo di CHI ARRIVA. Serve una catenella
+	# di TRE — e chi bussa deve avere l'indice PIÙ BASSO del centro, perché
+	# `_riga_legame` mette sempre davanti il più anziano: solo così il centro
+	# finisce dalla parte del legame che l'altro controllo non guarda.
+	# MISURATO: senza questo blocco, togliere quel controllo dal sorgente
+	# lasciava la suite completamente verde.
+	var b5 := _base(5)
+	var catena := [["N2", "N3"], ["N3", "N4"]]     # N3 sta in MEZZO
+	var senza := CERCHIO.cerchio(b5, [], catena, [], {})
+	var con := CERCHIO.cerchio(b5, [], catena, [],
+			{"N0": PackedStringArray(["N3"])})      # N0 bussa al centro
+	t.eq(con, senza,
+			"un ritrovo che bussa al CENTRO di una catenella non entra: la sera è quella di prima (%s)"
+			% str(con))
+	t.ok(_accanto(con, "N2", "N3") and _accanto(con, "N3", "N4"),
+			"la catenella resta intera")
+	t.ok(not _accanto(con, "N0", "N2"),
+			"e non nasce un'adiacenza che nessun registro ha chiesto")
+
 
 ## **IL TETTO, e vale solo per i legami molli.** Quattro sedie sono 126° del
 ## primo anello: sopra, un gruppo di conoscenti non si legge più come un
@@ -501,6 +558,24 @@ func _non_si_chiude_ad_anello(t) -> void:
 	for c in cat:
 		quanti += (c as PackedStringArray).size()
 	t.eq(quanti, base.size(), "e ogni sedia è di uno solo")
+
+	# ⚠️ E IL TRIANGOLO VA FATTO CON LEGAMI **DURI**, o questo caso è un
+	# ritratto. MISURATO: col triangolo di soli ritrovi qui sopra, a rifiutare
+	# la terza cucitura non è la guardia dell'anello — è il TETTO
+	# (`3 + 3 > CATENELLA_MAX`), che morde per primo. Togliendo `ia == ib` dal
+	# sorgente il cerchio restava identico e questo caso restava VERDE: un
+	# cancello ne copriva un altro, ed è la famiglia di buchi che questo
+	# progetto ha già pagato tre volte. Le coppie passano con `tetto = 0`,
+	# quindi qui non c'è più niente che copra.
+	var tri := [["N0", "N1"], ["N0", "N2"], ["N1", "N2"]]
+	var g2 := CERCHIO.cerchio(_base(3), [], tri, [], {})
+	t.ok(_e_permutazione(g2, _base(3)),
+			"nemmeno un triangolo di COPPIE chiude l'anello (%s)" % str(g2))
+	var cat2: Array = CERCHIO.catenelle(_base(3), [], tri, [], {})
+	var q2 := 0
+	for c in cat2:
+		q2 += (c as PackedStringArray).size()
+	t.eq(q2, 3, "e le tre sedie ci sono ancora tutte")
 
 
 # --------------------------------------------- il posto di chi non c'è più
@@ -618,6 +693,42 @@ func _al_massimo_due_vuoti(t) -> void:
 	var giro := CERCHIO.cerchio(base, [], [], CERCHIO.vuoti_vivi(v, 13), {})
 	t.eq(giro.size(), base.size() + CERCHIO.VUOTI_MAX,
 			"e il cerchio ne mostra due, non tre")
+
+
+## **UNA PERSONA, UNA SEDIA VUOTA** — anche quando le righe sono due.
+##
+## `vuoti_vivi` pota per CALENDARIO e non guarda i nomi: due righe per lo stesso
+## nome ci passano tutte e due, ed è giusto che ci passino — succede a chi se ne
+## va, torna e riparte, e succede a un salvataggio riletto due volte. A non dare
+## due sedie alla stessa assenza è `_infila_i_vuoti`, e finché nessuno gliene
+## chiedeva due quella riga era spenta: MISURATO, togliendone metà la suite
+## restava verde.
+##
+## Due sedie vuote per una persona sola non sono un errore di conteggio: sono
+## **la stessa assenza raccontata due volte**, cioè il buco che smette di essere
+## la spaziatura doppia di qualcuno e diventa un vuoto generico nel cerchio.
+func _un_fantasma_ha_una_sedia_sola(t) -> void:
+	var base := _base(4)
+	var doppia := [
+		_vuoto("Fiordaliso", "N1", 2, 5, 6),
+		_vuoto("Fiordaliso", "N2", 1, 4, 6),      # la stessa persona, due righe
+	]
+	var vivi: Array = CERCHIO.vuoti_vivi(doppia, 6)
+	t.eq(vivi.size(), 2, "le due righe arrivano tutte e due (potare è del calendario)")
+	var giro := CERCHIO.cerchio(base, [], [], vivi, {})
+	var quante := 0
+	for n in giro:
+		if str(n) == CERCHIO.chiave_vuoto("Fiordaliso"):
+			quante += 1
+	t.eq(quante, 1, "ma la sedia vuota è UNA (%s)" % str(giro))
+	t.eq(giro.size(), base.size() + 1, "e il cerchio ha una sedia in più, non due")
+
+	# …e l'altra metà della stessa riga: chi è TORNATO non lascia un fantasma.
+	# È il caso di un salvataggio in cui la riga del vuoto è sopravvissuta al
+	# ritorno: il vivo ha sempre la precedenza sul proprio ricordo.
+	var tornato := [_vuoto("N2", "N1", 2, 5, 6)]
+	var g2 := CERCHIO.cerchio(base, [], [], CERCHIO.vuoti_vivi(tornato, 6), {})
+	t.eq(g2, base, "chi è seduto non ha anche una sedia vuota (%s)" % str(g2))
 
 
 ## **I VUOTI TORNANO A RITROSO**, e questo caso è nato smontando la versione

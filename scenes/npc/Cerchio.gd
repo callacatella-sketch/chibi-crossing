@@ -619,6 +619,16 @@ static func _vuoti_in_ordine(vuoti: Array, indice: Dictionary) -> Array:
 ## Un legame normalizzato e mai ripetuto: `[ancora, altro_indice, a, b]` col
 ## più anziano davanti. Restituisce `[]` se quel legame è già passato — la
 ## stessa coppia elencata dai due lati non è due legami.
+##
+## ⚠️ **`viste` NON È UNA GUARDIA, ED È DICHIARATO PERCHÉ NESSUN TEST PUÒ FARLO
+## FALLIRE.** Il doppione non produce niente comunque: alla seconda passata i
+## due sono già nella stessa catenella, e `_cuci` la rifiuta col controllo
+## dell'anello. MISURATO col guasto vero — tolta questa riga, ventimila villaggi
+## a caso (coppie e ritrovi elencati apposta dai due lati) danno **la stessa
+## identica impronta**, `f029bebe…`. Resta perché `Cricche.compagni()` elenca
+## SEMPRE i due versi, quindi senza di lei ogni ritrovo del villaggio arriverebbe
+## a `_cuci` due volte: serve alla LISTA, non al cerchio. Chi cerca la mutazione
+## che la fa arrossire non la trova — non c'è, e questa nota è il motivo.
 static func _riga_legame(a: String, b: String, indice: Dictionary,
 		viste: Dictionary) -> Array:
 	var ia: int = indice[a]

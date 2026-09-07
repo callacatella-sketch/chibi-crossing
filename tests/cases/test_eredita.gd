@@ -55,23 +55,39 @@ extends RefCounted
 ##    intercettate dal criterio d'accettazione del progetto, che pretende zero
 ##    `SCRIPT ERROR` oltre a zero rossi. **Chi le tocca conti gli errori, non
 ##    solo i rossi.**
-## 2. **IL CABLAGGIO IN `Visitors.gd` NON È SORVEGLIATO DA QUI.** Il quinto
-##    anello di `_panchina_per`, `_ancora_dei_suoi` e il giro giornaliero
-##    vivono in un file che questa consegna non possiede: i due casi che li
-##    provano (`_l_ancora_non_allunga_il_guinzaglio` e
-##    `_l_ordine_dei_CINQUE_anelli`) sono già scritti e consegnati al
-##    proprietario di `Visitors.gd`, e atterrano **nello stesso commit del
-##    cablaggio** — che è la regola del passaggio di consegna. Finché non
-##    atterrano, di questa meccanica è provata la REGOLA e non il suo
-##    ESECUTORE, ed è bene saperlo invece di leggere il verde come «finita».
+## 2. **IL GIRO GIORNALIERO NON È SORVEGLIATO DA QUI.**
+##    `Visitors._impara_il_posto_dei_suoi` vive in un file che questa
+##    consegna non possiede, e non ha un adattatore: quello che si prova qui
+##    è la sua ARITMETICA (`_giornata`, che fa gli stessi tre passi con le
+##    funzioni vere), non che qualcuno la chiami. È la cosa che in questo
+##    progetto è mancata sei volte con la suite verde, e va saputa invece di
+##    leggere il verde come «finita».
+##
+##    I due casi che sorvegliano la CASCATA
+##    (`_l_ancora_non_allunga_il_guinzaglio`, `_l_ordine_dei_CINQUE_anelli`)
+##    e il cancello d'arresto G3 (`_fin_dove_arriva_l_ancora`) invece ci
+##    sono, e girano **sulla `_panchina_per` e sulla `_free_bench` di
+##    produzione**: oggi provano la cascata a QUATTRO anelli (Mochi prima di
+##    tutto, il ritrovo sopra il posto, casa come ripiego — cioè le tre
+##    proprietà che il quinto anello non deve rompere), e il giorno che
+##    `_ancora_dei_suoi` atterra passano da sole a sorvegliare il quinto.
+##    L'adattatore è `_ancora`, e la sua ragione è la stessa di `_puo` /
+##    `_impara` / `_posto`.
 
 const EREDITA := preload("res://scenes/npc/Eredita.gd")
 const CRICCHE := preload("res://scenes/npc/Cricche.gd")
 const LEGAMI := preload("res://scenes/world/Legami.gd")
+const VIS := preload("res://scenes/npc/Visitors.gd")
+const VISITOR := preload("res://scenes/npc/Visitor.gd")
+const DNA := preload("res://scenes/npc/ChibiDNA.gd")
+
+const DT := 1.0 / 60.0
 
 
 func run(t) -> void:
 	_il_posto_e_di_CHI_lo_ha_cresciuto(t)
+	_il_giro_del_giorno_lo_fa_imparare(t)
+	_senza_cricche_il_giro_non_impara_niente(t)
 	_l_ordine_dei_GENITORI_non_conta(t)
 	_si_impara_solo_da_cuccioli(t)
 	_si_impara_UNA_volta_sola(t)
@@ -85,6 +101,9 @@ func run(t) -> void:
 	_niente_testo_e_niente_momento(t)
 	_il_degrado_va_verso_ieri(t)
 	_la_catena_intera(t)
+	_l_ancora_non_allunga_il_guinzaglio(t)
+	_fin_dove_arriva_l_ancora(t)
+	_l_ordine_dei_CINQUE_anelli(t)
 
 
 # ============================================================ gli attrezzi
@@ -101,12 +120,71 @@ class Orologio extends Node3D:
 ## lascerebbe `_day()` inchiodato a 1 — cioè nessuno crescerebbe mai.
 class FiloVero extends "res://scenes/world/Legami.gd":
 	func _ready() -> void:
+		# ⚠️ **IL GRUPPO NON È DECORATIVO**, e senza di lui la metà di
+		# cablaggio di questo file sarebbe un ritratto: `_ancora_dei_suoi` e
+		# `_impara_il_posto_dei_suoi` trovano il Filo Rosso **solo** con
+		# `get_first_node_in_group("legami")` — è la trappola del figlio
+		# runtime di CozyWorld, quella che ha ucciso il taccuino del Gufo.
+		# Un fixture che lo perde fa degradare il cablaggio a «come ieri» e
+		# lo lascia verde. («persistable» invece resta fuori apposta: qui non
+		# c'è nessun salvataggio da tenere aggiornato, e un banco che si
+		# offre a un BuildSystem altrui è un banco che scrive sul disco.)
+		add_to_group("legami")
 		var o := Orologio.new()
 		add_child(o)
 		_daynight = o
 
 	func giorno(g: int) -> void:
 		_daynight.set("day", g)
+
+
+## Il registro dei vicini VERO, col solo `_ready` scavalcato: quello di
+## produzione vuole `%Player` e `../BuildSystem`, cioè il villaggio intero.
+## `_panchina_per`, `_seduta_da`, `_free_bench`, `ancora_riposo` e
+## `_ancora_ritrovo` restano il codice che gira in partita: qui non si
+## sostituisce **nessuna decisione**.
+class Registro extends "res://scenes/npc/Visitors.gd":
+	func _ready() -> void:
+		set_process(false)
+		set_physics_process(false)
+		_build_ui()
+
+
+## L'elenco dei pezzi posati. **Non è un BuildSystem finto**: non ha una
+## regola dentro — risponde a due lookup, e la regola che questo file sta
+## provando (quale seduta si sceglie) vive in `_free_bench`, che è quella
+## vera. È l'idioma del `Magazzino` di `test_cuore_vicini`.
+class Magazzino extends Node3D:
+	var pezzi := {}
+	func get_placed_by_name(n: String) -> Array:
+		return pezzi.get(n, [])
+	func raggiungibile(_a: Vector2i, _b: Vector2i) -> bool:
+		return true
+
+
+## Chi si ritrova con chi — e anche questo è un lookup, non una decisione:
+## `_ancora_ritrovo` prende l'elenco e ne fa il punto medio delle CASE da sé,
+## con le funzioni vere (`label_di_nome`, `cella_di`).
+class Compagnie extends Node:
+	var loro := PackedStringArray()
+	func _ready() -> void:
+		add_to_group("cricche")
+	func compagni(_nome: String) -> PackedStringArray:
+		return loro
+
+
+## Chi si ritrova con chi, per il giro del giorno. **Non decide niente**: il
+## referto glielo costruiscono le porte VERE di `Cricche` (`registra` +
+## `ritrovo_vivo`), lui lo consegna. È l'idioma del `Magazzino` e di
+## `Compagnie` — un doppio che REIMPLEMENTA la cosa da provare la lascia
+## senza lettori, ed è il difetto che questo progetto ha già pagato col
+## `MotoreFinto` della Fase 5.
+class Ritrovi extends Node:
+	var rit := {}
+	func _ready() -> void:
+		add_to_group("cricche")
+	func ritrovo_di(_a: String, _b: String) -> Dictionary:
+		return rit
 
 
 func _filo_vero(t):
@@ -165,6 +243,86 @@ static func _posto(lg, nome: String):
 	if not fili.has(chiave):
 		return null
 	return EREDITA.posto_ereditato(fili[chiave], float(lg.crescita(chiave)))
+
+
+## --- l'adattatore della CASCATA: la funzione VERA se c'è, altrimenti il
+##     testo esatto della richiesta d'innesto consegnata al proprietario di
+##     `Visitors.gd`. Ha la stessa forma di `_ancora_ritrovo` — il lookup, il
+##     degrado a `home` ESATTO, e lo spostamento di al massimo `SPOSTA_MAX`.
+##
+## ⚠️ **`home` esatto e non «quasi»**: il quinto anello si salta con
+## `if verso != home`, e otto asserzioni di `test_cuore_vicini` poggiano su
+## quell'uguaglianza. Un degrado che tornasse `home + 0.0001` accenderebbe
+## l'anello per tutto il villaggio, sempre.
+static func _ancora(vis, lg, r: Dictionary, home: Vector3) -> Vector3:
+	if vis.has_method("_ancora_dei_suoi"):
+		return vis.call("_ancora_dei_suoi", r, home)
+	var nome := str((r.get("dna", {}) as Dictionary).get("name", ""))
+	if nome == "":
+		return home
+	var p: Variant = _posto(lg, nome)
+	if p == null:
+		return home
+	return home.move_toward(p as Vector3, VIS.SPOSTA_MAX)
+
+
+## Il villaggio minimo per la cascata: registro VERO in scena, N corpi veri,
+## un magazzino di pezzi. Torna `{"vis", "righe", "build"}`.
+func _villaggio(t, quanti: int) -> Dictionary:
+	var vis = t.stage(Registro.new())
+	var righe: Array = []
+	for i in quanti:
+		var v = VISITOR.new()
+		v.dna = DNA.generate(4400 + i * 37)
+		v.mode = "resident"
+		t.stage(v)
+		v._enter_state("r_idle")
+		v._timer = 9999.0
+		var r := {"node": v, "label": "Erede%d" % i, "dna": v.dna,
+				"cell": Vector2i(0, 0), "species": "chibi"}
+		vis._residents.append(r)
+		righe.append(r)
+		# niente quirk: `_quirk_tick` andrebbe a cercare funghi in un
+		# villaggio che qui non c'è
+		var b: RefCounted = vis._ensure_brain(r)
+		b.quirk = ""
+	var build = t.stage(Magazzino.new())
+	vis._build = build
+	return {"vis": vis, "righe": righe, "build": build}
+
+
+func _seduta(t, pos: Vector3) -> Node3D:
+	var n := Node3D.new()
+	t.stage(n)
+	n.global_position = pos
+	return n
+
+
+## Un cucciolo VERO che ha già imparato il suo punto ed è diventato grande.
+## Torna il Filo Rosso in scena (nel gruppo, come in partita).
+func _erede(t, r: Dictionary, punto: Vector3):
+	# ⚠️ **UN FILO ROSSO SOLO NEL GRUPPO, e non è pignoleria.** Il runner
+	# libera i nodi messi in scena a fine FILE, non a fine caso: i dieci casi
+	# qui sopra hanno già lasciato dieci `FiloVero` nel gruppo «legami», e
+	# `_ancora_dei_suoi` chiederà `get_first_node_in_group`. Senza questa
+	# riga il cablaggio, il giorno che atterra, interrogherebbe il filo di un
+	# ALTRO caso — non troverebbe il nostro erede, degraderebbe a `home`, e
+	# la guardia della cascata diventerebbe un ritratto proprio nel commit in
+	# cui deve mordere.
+	for vecchio in t.tree().get_nodes_in_group("legami"):
+		vecchio.remove_from_group("legami")
+	var lg = _filo_vero(t)
+	# …e lo si DICE, o sarebbe una guardia che nessun test può far fallire:
+	# oggi il gruppo non lo interroga ancora nessuno, e senza questa riga
+	# togliere il ciclo qui sopra resterebbe verde fino al commit sbagliato.
+	t.eq(t.tree().get_nodes_in_group("legami").size(), 1,
+			"nel gruppo «legami» c'è UN filo solo: quello di questo caso")
+	var nome := str((r["dna"] as Dictionary)["name"])
+	lg.giorno(20)
+	lg.nascita(nome, "Nocciola", "Malva")
+	_impara(lg, nome, punto)
+	lg.giorno(20 + LEGAMI.GIORNI_ADULTO)
+	return lg
 
 
 ## Il giro di una giornata, come lo farà `Visitors._impara_il_posto_dei_suoi`:
@@ -763,3 +921,361 @@ func _la_catena_intera(t) -> void:
 	lg.giorno(nascita + LEGAMI.GIORNI_ADULTO)
 	t.ok(not lg.e_nato("Cannella"), "Cannella è arrivata col trolley")
 	t.ok(_posto(lg, "Cannella") == null, "…e per lei non è cambiato niente")
+
+
+## ⚠️ **L'ANCORA NON ALLUNGA IL GUINZAGLIO DI UN METRO.**
+##
+## `Visitors.SPOSTA_MAX` non è un raggio di ricerca: la sua ragione scritta è
+## che **nessuno cammini verso una PERSONA** — si cambia solo QUALE panchina,
+## fra quelle che c'erano già. Un'ancora ereditata che si spostasse più in là
+## porterebbe l'adulto dove non sarebbe mai potuto andare da sé, e siccome il
+## punto ereditato può stare dall'altra parte del villaggio (viene dagli
+## incontri di due persone, non dalla sua casa) sarebbe il caso peggiore
+## possibile.
+##
+## Il numero si LEGGE da `Visitors`, mai riscritto qui: chi un domani lo
+## cambia sposta le quattro ancore insieme e questo caso continua a valere.
+func _l_ancora_non_allunga_il_guinzaglio(t) -> void:
+	var mondo := _villaggio(t, 2)
+	var vis = mondo["vis"]
+	var r: Dictionary = mondo["righe"][0]
+	var senza: Dictionary = mondo["righe"][1]
+	var punto := Vector3(30.0, 0.0, 0.0)
+	var lg = _erede(t, r, punto)
+	var nome := str((r["dna"] as Dictionary)["name"])
+	t.ok(_posto(lg, nome) != null,
+			"PREMESSA: l'erede ha davvero un posto acceso")
+	t.ok(_posto(lg, str((senza["dna"] as Dictionary)["name"])) == null,
+			"…e l'altro residente no (non è nato qui)")
+
+	var casa := Vector3.ZERO
+	# (a) SENZA POSTO: `home` ESATTO. È l'uguaglianza su cui poggiano il
+	#     salto dell'anello (`if verso != home`) e otto asserzioni di
+	#     `test_cuore_vicini`, la cui fixture non mette nessun Legami in scena.
+	t.ok(_ancora(vis, lg, senza, casa) == casa,
+			"chi non ha imparato niente ha l'ancora a casa, IDENTICA")
+
+	# (b) COL POSTO: ci si sposta verso, e non più di SPOSTA_MAX
+	var a := _ancora(vis, lg, r, casa)
+	t.ok(a != casa, "l'erede invece l'ancora la sposta (controprova)")
+	t.almost(a.distance_to(casa), VIS.SPOSTA_MAX,
+			"…di ESATTAMENTE SPOSTA_MAX, perché il punto è lontano", 1e-4)
+	t.ok(a.distance_to(punto) < casa.distance_to(punto),
+			"…e nella direzione giusta")
+
+	# (c) LA SPAZZATA: il guinzaglio non esiste per NESSUNA configurazione.
+	#     Il posto si riscrive a mano sul filo — `incidi` rifiuterebbe la
+	#     seconda incisione, ed è il suo mestiere: qui si sta misurando la
+	#     GEOMETRIA, non la regola (che ha già il suo caso).
+	var fili: Dictionary = lg.get("_fili")
+	var filo: Dictionary = fili[nome]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 20260906
+	var fuori := 0
+	var mossi := 0
+	var oltre := 0
+	for _k in 600:
+		var h := Vector3(rng.randf_range(-40.0, 40.0), 0.0,
+				rng.randf_range(-40.0, 40.0))
+		var p := Vector3(rng.randf_range(-40.0, 40.0), 0.0,
+				rng.randf_range(-40.0, 40.0))
+		filo[EREDITA.CHIAVE_POSTO] = [p.x, p.z]
+		var an := _ancora(vis, lg, r, h)
+		if an.distance_to(h) > VIS.SPOSTA_MAX + 1e-4:
+			fuori += 1
+		if an != h:
+			mossi += 1
+		# e non si SUPERA mai il punto: chi è già lì ci resta
+		if an.distance_to(p) > h.distance_to(p) + 1e-4:
+			oltre += 1
+	t.eq(fuori, 0,
+			"su seicento configurazioni a caso l'ancora non esce MAI da %.1f m da casa"
+					% VIS.SPOSTA_MAX)
+	t.eq(oltre, 0, "…e non supera mai il punto: ci arriva e si ferma")
+	t.ok(mossi > 60,
+			"…e si è mossa davvero (%d volte su 600): una garanzia rispettata da un canale spento non prova niente"
+					% mossi)
+
+
+## ⚠️ **IL CANCELLO D'ARRESTO G3, provato sulla `_free_bench` DI PRODUZIONE.**
+##
+## G3 chiede che la seduta scelta cada entro `Cricche.POSTO_LARGO` dal posto
+## appreso; sotto la metà, questa meccanica **non si consegna come «il posto
+## dei suoi»** — si legge «si siede da quella parte», che è un'altra frase.
+##
+## Qui non si misura la frequenza (quella la dà il banco in partita, e vuole
+## dei cuccioli veri): si misura **fin dove è possibile**, che è una cosa che
+## si sa senza il villaggio ed è quella che decide. Il punto ereditato è la
+## media dei punti-medi degli incontri dei genitori — un punto in mezzo al
+## prato — e l'adulto non abita a casa dei suoi (`accogli_nato` gli dà
+## `_free_house()`, e il debito è dichiarato lì): la distanza fra casa e
+## punto è quindi arbitraria, ed è **lei** a decidere.
+##
+## La soglia si COMPONE dai tre numeri veri, non si riscrive: oltre
+## `SPOSTA_MAX + RAGGIO_SEDUTA + POSTO_LARGO` una seduta vicino al punto non
+## è nemmeno un candidato di `_free_bench`, e G3 è zero per costruzione.
+##
+## ⚠️ E quando succede **la cura non è alzare `SPOSTA_MAX`** (quel guinzaglio
+## tiene su le altre tre ancore): è `accogli_nato`.
+func _fin_dove_arriva_l_ancora(t) -> void:
+	var mondo := _villaggio(t, 1)
+	var vis = mondo["vis"]
+	var r: Dictionary = mondo["righe"][0]
+	var punto := Vector3(0.0, 0.0, 0.0)
+	var lg = _erede(t, r, punto)
+	var nome := str((r["dna"] as Dictionary)["name"])
+	var filo: Dictionary = (lg.get("_fili") as Dictionary)[nome]
+
+	var soglia: float = VIS.SPOSTA_MAX + VIS.RAGGIO_SEDUTA + CRICCHE.POSTO_LARGO
+	t.ok(soglia > 0.0,
+			"la soglia si compone dai tre numeri veri: %.1f + %.1f + %.1f = %.1f m"
+					% [VIS.SPOSTA_MAX, VIS.RAGGIO_SEDUTA, CRICCHE.POSTO_LARGO,
+					soglia])
+
+	# due sedute e basta: una SUL punto, una a casa. Chi vince dice tutto.
+	var sul_punto := _seduta(t, punto)
+
+	# (a) CASA VICINA AL PUNTO — la meccanica mantiene la sua frase
+	var vicina := punto + Vector3(0.0, 0.0, 3.0)
+	var a_casa_v := _seduta(t, vicina)
+	(mondo["build"] as Node).set("pezzi",
+			{"Panchina": [sul_punto, a_casa_v]})
+	filo[EREDITA.CHIAVE_POSTO] = [punto.x, punto.z]
+	var scelta_v: Node3D = vis._seduta_da(_ancora(vis, lg, r, vicina),
+			r["node"] as Node3D)
+	t.eq(scelta_v, sul_punto,
+			"a %.1f m da casa si sceglie la seduta SUL punto dei suoi"
+					% vicina.distance_to(punto))
+	t.ok(scelta_v != null
+			and scelta_v.global_position.distance_to(punto) <= CRICCHE.POSTO_LARGO,
+			"…cioè G3 passa (%.2f m <= %.2f)"
+					% [scelta_v.global_position.distance_to(punto)
+							if scelta_v else -1.0, CRICCHE.POSTO_LARGO])
+
+	# (b) CASA OLTRE LA SOGLIA — la seduta sul punto non è più candidata
+	var lontana := punto + Vector3(0.0, 0.0, soglia + 5.0)
+	var a_casa_l := _seduta(t, lontana)
+	(mondo["build"] as Node).set("pezzi",
+			{"Panchina": [sul_punto, a_casa_l]})
+	var scelta_l: Node3D = vis._seduta_da(_ancora(vis, lg, r, lontana),
+			r["node"] as Node3D)
+	t.eq(scelta_l, a_casa_l,
+			"a %.1f m da casa (oltre la soglia) si ripiega sulla seduta di casa"
+					% lontana.distance_to(punto))
+	t.ok(scelta_l != null
+			and scelta_l.global_position.distance_to(punto) > CRICCHE.POSTO_LARGO,
+			"…e G3 è zero PER COSTRUZIONE, non per sfortuna")
+
+	# (c) DOVE STA IL CONFINE, MISURATO invece che dedotto — e sono DUE, e il
+	#     più stretto è quello che decide in partita.
+	#
+	#     ⚠️ La soglia composta qui sopra è il limite ASSOLUTO: oltre, la
+	#     seduta sul punto non è nemmeno un candidato. Ma `_free_bench` prende
+	#     la più vicina ALL'ANCORA, non al punto — e l'ancora sta sempre a
+	#     `SPOSTA_MAX` da casa. Quindi appena c'è **una qualunque seduta
+	#     vicino a casa** (cioè sempre: l'adulto una casa ce l'ha) la seduta
+	#     sul punto perde già a `2 · SPOSTA_MAX`, meno della METÀ del limite
+	#     assoluto. MISURATO qui sotto: **11 m contro 22**.
+	#
+	#     È il numero che il banco in partita deve confrontare con la
+	#     distanza casa→punto, e la ragione per cui questa meccanica non si
+	#     ripara con `SPOSTA_MAX`: raddoppiarlo raddoppierebbe tutti e due i
+	#     confini e allungherebbe il guinzaglio delle altre TRE ancore.
+	var con_casa := -1.0
+	var da_sola := -1.0
+	for i in range(0, 61):
+		var d := float(i)
+		var h := punto + Vector3(0.0, 0.0, d)
+		var a_casa := _seduta(t, h)
+		var an := _ancora(vis, lg, r, h)
+		(mondo["build"] as Node).set("pezzi", {"Panchina": [sul_punto, a_casa]})
+		if vis._seduta_da(an, r["node"] as Node3D) == sul_punto:
+			con_casa = d
+		(mondo["build"] as Node).set("pezzi", {"Panchina": [sul_punto]})
+		if vis._seduta_da(an, r["node"] as Node3D) == sul_punto:
+			da_sola = d
+	t.ok(con_casa >= 0.0 and da_sola >= 0.0,
+			"i due confini si sono visti (con una seduta a casa: %.0f m; senza: %.0f m)"
+					% [con_casa, da_sola])
+	t.ok(con_casa < 2.0 * VIS.SPOSTA_MAX,
+			"con una seduta a casa il punto perde entro 2·SPOSTA_MAX (%.0f < %.1f)"
+					% [con_casa, 2.0 * VIS.SPOSTA_MAX])
+	t.ok(da_sola > 2.0 * VIS.SPOSTA_MAX,
+			"…e senza, si arriva molto più lontano (%.0f > %.1f): i due confini "
+			% [da_sola, 2.0 * VIS.SPOSTA_MAX]
+			+ "sono davvero due, e il più stretto è quello che si vive")
+	t.ok(da_sola <= soglia,
+			"…ma nemmeno quello supera il limite assoluto (%.0f <= %.1f)"
+					% [da_sola, soglia])
+
+
+## ⚠️ **L'ORDINE DEGLI ANELLI È LA TERZA DOMANDA DELLA REGOLA SACRA SCRITTA
+## IN UN ORDINE**, ed è l'unico modo in cui questa meccanica può uscire dai
+## binari senza che niente se ne accorga.
+##
+## Il quinto anello sta **sotto il ritrovo e sopra casa**, e **mai sopra
+## Mochi**. Se salisse sopra `ancora_riposo`, un adulto se ne andrebbe
+## nell'angolo dei suoi genitori **proprio nel momento in cui il giocatore
+## arriva** — e il giocatore avrebbe imparato, senza una parola, di essere
+## quello di troppo. Non si vede in nessun caso di test che guardi una
+## funzione sola: si vede solo mettendo quattro sedute nello stesso villaggio
+## e guardando quale si sceglie.
+##
+## ⚠️ E la guardia che c'era — `test_cricche_corpo._ordine_delle_ancore` — è
+## un SOURCE-CHECK che conosce TRE nomi: aggiungere righe non la rompe, e la
+## quinta ancora non la vede proprio. Questa è comportamentale, e gira sulla
+## `_panchina_per` vera.
+##
+## Le scene 1, 3 e 4 valgono **oggi**: sono le tre proprietà della cascata a
+## quattro anelli che il quinto non deve rompere. La scena 2 è l'unica che
+## cambia risposta quando il cablaggio atterra, e in tutte e due le versioni
+## dice una cosa vera — è lo stesso contratto di `_puo` / `_impara` /
+## `_posto`.
+func _l_ordine_dei_CINQUE_anelli(t) -> void:
+	var mondo := _villaggio(t, 2)
+	var vis = mondo["vis"]
+	var r: Dictionary = mondo["righe"][0]
+	var corpo := r["node"] as Node3D
+	var casa := Vector3.ZERO
+
+	# il punto dei suoi, a 24 m: l'ancora del quinto anello cade a (0,0,-6)
+	var punto := Vector3(0.0, 0.0, -24.0)
+	var lg = _erede(t, r, punto)
+	var nome := str((r["dna"] as Dictionary)["name"])
+
+	# il compagno di ritrovo abita a 24 m dall'altra parte: l'ancora del
+	# terzo anello cade a (6,0,0) — le calcola `_ancora_ritrovo` da sé
+	var altro: Dictionary = mondo["righe"][1]
+	altro["cell"] = Vector2i(24, 0)
+	var cric = t.stage(Compagnie.new())
+
+	# quattro sedute, una per anello, ognuna ESATTAMENTE sulla sua ancora
+	var s_mochi := _seduta(t, Vector3(0.0, 0.0, 6.0))
+	var s_loro := _seduta(t, Vector3(6.0, 0.0, 0.0))
+	var s_suoi := _seduta(t, Vector3(0.0, 0.0, -6.0))
+	var s_casa := _seduta(t, casa)
+	(mondo["build"] as Node).set("pezzi",
+			{"Panchina": [s_mochi, s_loro, s_suoi, s_casa]})
+
+	var mochi := t.stage(Node3D.new()) as Node3D
+	mochi.global_position = Vector3(0.0, 0.0, 80.0)   # lontanissima
+	vis._player = mochi
+
+	# --- SCENA 3: niente posto, niente ritrovo → CASA (il ripiego)
+	var fili: Dictionary = lg.get("_fili")
+	var filo: Dictionary = fili[nome]
+	var inciso: Variant = filo[EREDITA.CHIAVE_POSTO]
+	filo.erase(EREDITA.CHIAVE_POSTO)
+	t.ok(_posto(lg, nome) == null, "PREMESSA: adesso non ha nessun posto")
+	t.eq(vis._panchina_per(r, casa), s_casa,
+			"senza niente si ripiega su casa — e l'eredità AGGIUNGE, mai toglie")
+	filo[EREDITA.CHIAVE_POSTO] = inciso
+	t.ok(_posto(lg, nome) != null, "…e il posto è tornato (controprova)")
+
+	# --- SCENA 2: col posto, e senza nient'altro
+	var scelta_2 = vis._panchina_per(r, casa)
+	if vis.has_method("_ancora_dei_suoi"):
+		t.eq(scelta_2, s_suoi,
+				"col posto dei suoi, e nient'altro, si va NEL POSTO DEI SUOI")
+	else:
+		t.eq(scelta_2, s_casa,
+				"il quinto anello non è ancora cablato: si ripiega su casa "
+				+ "(e la materia prima c'è già, vedi la riga sopra)")
+
+	# --- SCENA 4: il RITROVO suo batte il posto dei suoi. Chi ha una vita
+	#     propria la vive; l'eredità è quello che resta quando non ce l'ha.
+	cric.loro = PackedStringArray([str((altro["dna"] as Dictionary)["name"])])
+	t.ok(vis._ancora_ritrovo(r, casa) != casa,
+			"PREMESSA: adesso il terzo anello ha davvero un'ancora")
+	t.eq(vis._panchina_per(r, casa), s_loro,
+			"il ritrovo SUO sta sopra il posto dei suoi genitori")
+	cric.loro = PackedStringArray()
+
+	# --- SCENA 1: MOCHI PRIMA DI TUTTO, e non si negozia
+	vis._ciclo_sonno(DT, 0.5)          # nasce l'entità nel registro C++
+	var id: int = int(r.get("ecs", -1))
+	t.ok(id >= 0, "PREMESSA: il cuore C++ ha dato un'entità a questo corpo")
+	if id < 0:
+		return
+	vis._ecs.osserva(id, vis._ecs.indice_verbo("annaffia"), Vector3(1, 0, 1), -1)
+	t.ok(float(vis._ecs.ammirazione(id)) > VIS.AMMIRA_SOGLIA,
+			"…e una sola occhiata basta a spostare l'ancora di Mochi (%.3f)"
+					% float(vis._ecs.ammirazione(id)))
+	mochi.global_position = Vector3(0.0, 0.0, 10.0)
+	t.eq(vis._panchina_per(r, casa), s_mochi,
+			"quando arrivi, il villaggio NON si raggruppa altrove: Mochi prima "
+			+ "di tutto, posto dei suoi compreso")
+
+	# …e col ritrovo vivo INSIEME a Mochi, vince comunque Mochi
+	cric.loro = PackedStringArray([str((altro["dna"] as Dictionary)["name"])])
+	t.eq(vis._panchina_per(r, casa), s_mochi,
+			"…anche col ritrovo suo acceso nello stesso istante")
+
+
+## ⚠️ LA PROVA CHE IL CABLAGGIO ESISTE — e prima di lei non esisteva.
+##
+## MISURATO il 2026-09-06, togliendo `_impara_il_posto_dei_suoi()` dal giro
+## del giorno di `Visitors`: questo file restava verde su **158 asserzioni su
+## 158**. L'aritmetica dell'eredità era provata da undici casi; la riga che la
+## fa ACCADERE, da nessuno. È la forma di guasto che questo progetto ha già
+## pagato sette volte — il Filo Rosso, le 247 righe di somatizzazione, il
+## canale della melatonina: sistemi interi completi, provati, verdi, e senza
+## un solo chiamante in partita.
+##
+## Qui si attraversa `Visitors._on_new_day` VERO, e l'osservabile è che il
+## cucciolo NON PUÒ PIÙ imparare: si impara una volta sola, quindi «non può
+## più» è esattamente «l'ha appena fatto».
+func _il_giro_del_giorno_lo_fa_imparare(t) -> void:
+	for vecchio in t.tree().get_nodes_in_group("legami"):
+		vecchio.remove_from_group("legami")
+	for vecchio in t.tree().get_nodes_in_group("cricche"):
+		vecchio.remove_from_group("cricche")
+	var oggi := 20
+	var lg = _filo_vero(t)
+	lg.giorno(oggi)
+	lg.nascita("Erede", "Nocciola", "Malva")
+	var punto := Vector3(7.0, 0.0, -4.0)
+	var rit := _ritrovo("Nocciola", "Malva", _giornate(oggi), 0.55, punto, oggi)
+	t.ok(not rit.is_empty(), "la materia prima c'è: i suoi si ritrovano davvero")
+	var cric = t.stage(Ritrovi.new())
+	cric.rit = rit
+	var vis = t.stage(Registro.new())
+	vis._residents.append({"dna": {"name": "Erede"}, "label": "Erede",
+			"cell": Vector2i(0, 0), "species": "chibi"})
+	t.ok(lg.puo_imparare_il_posto("Erede"),
+			"prima del giro non ha ancora imparato niente")
+
+	vis._on_new_day(oggi)
+
+	t.ok(not lg.puo_imparare_il_posto("Erede"),
+			"IL GIRO DEL GIORNO LO FA IMPARARE: adesso non può più, e si impara una volta sola")
+	# …e quel che ha imparato è il posto dei SUOI, non un punto qualunque:
+	# da adulto l'ancora lo sa dire
+	lg.giorno(oggi + LEGAMI.GIORNI_ADULTO + 1)
+	var p = lg.posto_dei_suoi("Erede")
+	t.ok(p != null, "da adulto il posto dei suoi c'è")
+	if p != null:
+		t.almost((p as Vector3).distance_to(punto), 0.0,
+				"…ed è ESATTAMENTE il punto in cui si ritrovavano", 0.001)
+
+
+## LA CONTROPROVA, e senza di lei la riga qui sopra non direbbe niente: il
+## degrado va verso «oggi non si impara», mai verso un errore. Senza nessuno
+## nel gruppo «cricche» — i banchi, il diorama del titolo, il Prologo, e i
+## parecchi frame dopo un caricamento — il giro del giorno passa e non
+## succede niente.
+func _senza_cricche_il_giro_non_impara_niente(t) -> void:
+	for vecchio in t.tree().get_nodes_in_group("legami"):
+		vecchio.remove_from_group("legami")
+	for vecchio in t.tree().get_nodes_in_group("cricche"):
+		vecchio.remove_from_group("cricche")
+	var oggi := 20
+	var lg = _filo_vero(t)
+	lg.giorno(oggi)
+	lg.nascita("Solo", "Nocciola", "Malva")
+	var vis = t.stage(Registro.new())
+	vis._residents.append({"dna": {"name": "Solo"}, "label": "Solo",
+			"cell": Vector2i(0, 0), "species": "chibi"})
+	vis._on_new_day(oggi)
+	t.ok(lg.puo_imparare_il_posto("Solo"),
+			"senza il registro dei ritrovi non si impara niente, e non si rompe niente")
