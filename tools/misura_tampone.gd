@@ -321,9 +321,11 @@ func _go() -> void:
 	_build = _trova("build_system")
 	_dn = _trova("daynight") as Node3D
 	_aff = _trova("affetti")
+	# ⚠️ NIENTE RIPIEGO SUL GRUPPO «player»: quel gruppo **non esiste** in
+	# questo gioco, quindi il ripiego era codice morto — e faceva arrossire il
+	# guardiano dei cablaggi in `test_scena_cablaggi`, giustamente: un banco
+	# che interroga un gruppo vuoto misura sempre `null` e non se ne accorge.
 	_player = current_scene.get_node_or_null("Player") as Node3D
-	if _player == null:
-		_player = get_first_node_in_group("player") as Node3D
 	if _vis == null or _build == null or _dn == null or _aff == null or _player == null:
 		push_error("manca Visitors, BuildSystem, DayNight, Affetti o Player")
 		quit(1)

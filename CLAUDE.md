@@ -7010,15 +7010,28 @@ refutarli. I due `alta`, e nessuno dei due era visibile dalla suite:
   scoperto. Adesso si contano **tutte** le chiamate: copre anche il lettore che
   verrà.
 
-### Il ferro dei source-check sta nell'harness
+### Il ferro dei source-check sta nell'harness, e ce n'è UNA casa sola
 
-`tests/test_util.gd::codice(percorso)` — il sorgente **senza i commenti**.
-Serve in tutti e due i versi: chi ha PAGATO un difetto lo racconta nei propri
-commenti (la cura di `spalle_basse` nomina la posa che ha tolto), e un
-guardiano ingenuo dichiara rotto proprio il file riparato; all'inverso, un
-commento che promette una cosa fa passare un codice che non la fa. Stava in
-`test_vento.gd`, che l'aveva pagata per primo; da quando ha due lettori sta
-nell'harness — **una lezione ricopiata invecchia**.
+`tests/test_util.gd::senza_commenti(src)` / `codice(percorso)` — il sorgente
+**senza i commenti**. Serve in tutti e due i versi: chi ha PAGATO un difetto lo
+racconta nei propri commenti (la cura di `spalle_basse` nomina la posa che ha
+tolto), e un guardiano ingenuo dichiara rotto proprio il file riparato;
+all'inverso, un commento che promette una cosa fa passare un codice che non la
+fa.
+
+⚠️ **Ne esistevano TRE copie** — `test_fiato` (che l'aveva pagata per primo),
+`test_dadi` (che l'ha ricopiata scrivendo nel commento «lo spogliatore è quello
+di `test_fiato`») e una versione **debole** in `test_vento`, che scartava solo
+le righe *interamente* di commento. Su un ferro che i guardiani usano per
+giudicare, la copia debole è peggio della copia: `var x = 1  # nome_vietato`
+passava intatto, cioè un commento in coda faceva fallire una guardia a torto —
+ed è esattamente il caso in cui una cura nomina la cosa che ha tolto.
+FALSIFICATO: con lo spogliatore buono quel commento in coda lascia la suite
+verde, e le tre mutazioni vere restano rosse.
+
+Adesso l'implementazione (quella che rispetta le virgolette e i commenti in
+coda) sta nell'harness, e `test_fiato`, `test_dadi` e `test_vento` la chiamano.
+**Una lezione ricopiata invecchia.**
 ## UNA GIORNATA SI PUÒ RIPETERE — i dadi nominati, le leve, le repliche
 
 Due corse di `misura_insieme` con **gli stessi identici parametri** davano
