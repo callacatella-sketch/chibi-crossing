@@ -27,6 +27,7 @@ extends RefCounted
 
 const CERCHIO := preload("res://scenes/npc/Cerchio.gd")
 const VISITORS := preload("res://scenes/npc/Visitors.gd")
+const ANIMO := preload("res://scenes/npc/Animo.gd")
 
 
 func run(t) -> void:
@@ -67,6 +68,11 @@ func run(t) -> void:
 	# --- il genere
 	_il_cerchio_non_scrive_niente(t)
 	_nessuno_lo_nomina(t)
+	_il_cerchio_arriva_ai_corpi(t)
+	_senza_registri_il_cablaggio_e_il_falo_di_sempre(t)
+	_il_vuoto_si_apre_prima_della_rimozione(t)
+	_i_vuoti_sopravvivono_al_salvataggio(t)
+	_la_sera_il_cerchio_si_compone(t)
 
 
 # ------------------------------------------------------------------ attrezzi
@@ -1035,3 +1041,188 @@ func _nessuno_lo_nomina(t) -> void:
 				"e nessun nome vero può essere scambiato per un vuoto (%s)" % n)
 	t.ok(CERCHIO.chiave_vuoto("Papavero").begins_with("\n"),
 			"comincia con un a-capo: nessun nome del gioco ne contiene uno")
+
+
+# ═══════════════════════════════════════════ IL CABLAGGIO, e prima non c'era
+#
+# ⚠️ MISURATO il 2026-09-06, subito dopo aver cablato M2: guastando UNA PER
+# VOLTA le tre righe che portano il cerchio nel gioco — lo slot che torna
+# sempre l'ordine di trasloco, il vuoto che non si apre più, i vuoti che non
+# si salvano più — questo file restava **169 verdi su 169, tutte e tre le
+# volte**. L'intero collegamento si poteva cancellare senza che una sola
+# asserzione se ne accorgesse: i casi qui sopra chiamano `CERCHIO.cerchio()`
+# direttamente, cioè provano l'aritmetica e non il gioco.
+#
+# È la forma di guasto che questo progetto ha già pagato sette volte. Da qui
+# in giù si passa da `Visitors`.
+
+
+## L'orologio del villaggio. ⚠️ Dev'essere un `Node3D`: `Visitors._daynight` è
+## tipizzato, e un `set()` col tipo sbagliato **non assegna e non dice
+## niente** (la lezione di `test_deriva`).
+class Orologio extends Node3D:
+	var day := 10
+	var time := 0.50      # pieno giorno: `_phase()` dice "day"
+
+
+## Il registro dei vicini VERO, col solo `_ready` scavalcato: quello di
+## produzione vuole `%Player` e `../BuildSystem`, cioè il villaggio intero.
+## `_componi_il_cerchio`, `_slot_di` e `_apri_un_vuoto` restano il codice che
+## gira in partita — qui non si sostituisce nessuna decisione.
+class Registro extends "res://scenes/npc/Visitors.gd":
+	func _ready() -> void:
+		set_process(false)
+		set_physics_process(false)
+		_build_ui()
+
+
+## Il Filo Rosso VERO. ⚠️ E non un doppio con dentro `clampi(3 + n / 6, 3, 8)`
+## ricopiato: `giorni_di_vuoto` è proprio la formula che si sta provando, e un
+## doppio che la reimplementa la lascia senza lettori — è il difetto del
+## `MotoreFinto` della Fase 5, dove il finto faceva la cosa GIUSTA che il vero
+## non faceva, e nessun test poteva vederlo.
+class Filo extends "res://scenes/world/Legami.gd":
+	func _ready() -> void:
+		add_to_group("legami")
+
+
+## Chi sta in coppia. Un lookup, non una decisione.
+class Coppie extends Node:
+	var loro: Array = []
+	func _ready() -> void:
+		add_to_group("affetti")
+	func coppie_di_oggi() -> Array:
+		return loro
+
+
+## Toglie dai gruppi i registri lasciati dai casi precedenti: il runner libera
+## i nodi messi in scena a fine FILE, non a fine caso, e `_componi_il_cerchio`
+## chiede `get_first_node_in_group`. Senza, si interrogherebbe il registro di
+## un ALTRO caso e la guardia diventerebbe un ritratto.
+func _sgombra(t) -> void:
+	for g in ["legami", "affetti", "cricche"]:
+		for vecchio in t.tree().get_nodes_in_group(g):
+			vecchio.remove_from_group(g)
+
+
+func _registro(t, quanti: int):
+	var vis = t.stage(Registro.new())
+	# ⚠️ l'orologio si crea TIPIZZATO e poi si mette in scena: `t.stage` torna
+	# un valore non tipizzato, e `var oro := t.stage(...)` non compila.
+	var oro := Orologio.new()
+	t.stage(oro)
+	vis._daynight = oro
+	for i in quanti:
+		vis._residents.append({"dna": {"name": "N%d" % i}, "label": "N%d" % i,
+				"cell": Vector2i(i, 0), "species": "chibi"})
+	return vis
+
+
+## ⚜️ IL CERCHIO ARRIVA AI CORPI. Due che stanno in coppia si siedono
+## ACCANTO, e l'intero che il corpo riceve è il posto nel cerchio — non più
+## l'indice di trasloco.
+func _il_cerchio_arriva_ai_corpi(t) -> void:
+	_sgombra(t)
+	var vis = _registro(t, 5)
+	var aff = t.stage(Coppie.new())
+	aff.loro = [["N0", "N3"]]
+	vis._componi_il_cerchio()
+	var giro: PackedStringArray = vis.debug_cerchio()
+	t.eq(giro.size(), 5, "il cerchio ha tutti e cinque")
+	t.eq(absi(giro.find("N0") - giro.find("N3")), 1,
+			"chi sta in coppia si siede ACCANTO (%s)" % str(giro))
+	# …e lo slot che arriva al corpo è quello del CERCHIO, non l'indice
+	t.eq(vis._slot_di(vis._residents[3], 3), giro.find("N3"),
+			"il corpo riceve il posto nel cerchio, non l'ordine di trasloco")
+	t.ok(vis._slot_di(vis._residents[3], 3) != 3,
+			"…e i due numeri sono davvero diversi, o questa guardia non direbbe niente")
+
+
+## IL DEGRADO: senza registri, il falò di sempre — e ogni corpo riceve
+## esattamente l'indice che riceveva ieri.
+func _senza_registri_il_cablaggio_e_il_falo_di_sempre(t) -> void:
+	_sgombra(t)
+	var vis = _registro(t, 5)
+	vis._componi_il_cerchio()
+	for i in 5:
+		t.eq(vis._slot_di(vis._residents[i], i), i,
+				"senza registri il posto è quello di sempre (%d)" % i)
+
+
+## ⚜️ IL VUOTO SI APRE **PRIMA** DELLA RIMOZIONE, e si prova sull'ORDINE.
+##
+## Dopo `remove_at` l'indice non è più il suo posto e la riga `r` è già
+## uscita: chiamarlo dopo scriverebbe il vicino SBAGLIATO, e non si vedrebbe
+## mai — è per questo che la guardia guarda `vicino` e non `posto`, che
+## sarebbe giusto in tutti e due i casi.
+func _il_vuoto_si_apre_prima_della_rimozione(t) -> void:
+	_sgombra(t)
+	var vis = _registro(t, 5)
+	t.stage(Filo.new())
+	var r: Dictionary = vis._residents[2]
+	var animo = ANIMO.new()
+	animo.setup({"name": "N2", "seed": 7, "sogno": "boscaiolo", "tratti": {}})
+	vis._congeda(2, r, animo)
+	t.eq(vis._vuoti.size(), 1, "chi parte lascia un vuoto")
+	if vis._vuoti.is_empty():
+		return
+	var v: Dictionary = vis._vuoti[0]
+	t.eq(str(v.get("chi", "")), "N2", "ed è il suo")
+	t.eq(int(v.get("posto", -1)), 2, "nel posto che aveva")
+	t.eq(str(v.get("vicino", "")), "N3",
+			"e il vicino è quello di PRIMA della rimozione (dopo sarebbe N4)")
+	t.ok(int(v.get("giorni", 0)) >= 3,
+			"il vuoto dura quanto dice il filo (%d sere)" % int(v.get("giorni", 0)))
+
+
+## ⚠️ I VUOTI SOPRAVVIVONO AL SALVATAGGIO. Senza, chiudere e riaprire
+## richiude il buco: la metà che vale si spegnerebbe in silenzio, e solo per
+## chi RIAPRE — cioè per tutti tranne chi comincia adesso.
+func _i_vuoti_sopravvivono_al_salvataggio(t) -> void:
+	_sgombra(t)
+	var vis = _registro(t, 4)
+	vis._vuoti = [_vuoto("Papavero", "N1", 2, 9, 5)]
+	var salvato: Dictionary = vis.save_extra()
+	# il giro dal DISCO: il JSON riporta gli interi come float
+	var dal_disco: Dictionary = JSON.parse_string(JSON.stringify(salvato))
+	var vis2 = _registro(t, 4)
+	vis2.load_extra(dal_disco)
+	t.eq(vis2._vuoti.size(), 1, "il vuoto ha attraversato il salvataggio")
+	if vis2._vuoti.is_empty():
+		return
+	t.eq(str(vis2._vuoti[0].get("chi", "")), "Papavero", "…ed è ancora suo")
+	t.eq(int(vis2._vuoti[0].get("posto", -1)), 2, "…e nel suo posto")
+	# e da lì il cerchio lo rimette in scena
+	vis2._daynight.day = 10
+	vis2._componi_il_cerchio()
+	var giro: PackedStringArray = vis2.debug_cerchio()
+	t.eq(giro.size(), 5, "il fantasma tiene il posto anche dopo il caricamento")
+
+
+## ⚠️ E QUALCUNO LO COMPONE DAVVERO, LA SERA. Le guardie qui sopra provano che
+## il cerchio — **una volta composto** — arriva ai corpi, tiene il posto di
+## chi non c'è più e sopravvive al salvataggio. Non provano che esista la riga
+## che lo compone: MISURATO, togliendo le due righe dal fronte di fase di
+## `_routine` restavano tutte e tre verdi. È lo stesso buco, un piano più su.
+func _la_sera_il_cerchio_si_compone(t) -> void:
+	_sgombra(t)
+	var vis = _registro(t, 5)
+	var aff = t.stage(Coppie.new())
+	aff.loro = [["N0", "N3"]]
+	vis._daynight.time = 0.50          # pieno giorno: non è la sera di nessuno
+	vis._routine(0.016)
+	t.eq(vis.debug_cerchio().size(), 0,
+			"di giorno non si compone niente: il cerchio è una cosa della sera")
+	vis._daynight.time = 0.70          # la fascia del falò
+	vis._routine(0.016)
+	var giro: PackedStringArray = vis.debug_cerchio()
+	t.eq(giro.size(), 5,
+			"ALLA SERA IL CERCHIO SI COMPONE, e a comporlo è il giro della routine")
+	if giro.size() == 5:
+		t.eq(absi(giro.find("N0") - giro.find("N3")), 1,
+				"…e i due che stanno in coppia si ritrovano accanto")
+	# e UNA VOLTA SOLA: il secondo giro della stessa sera non ricompone niente
+	var prima := str(giro)
+	vis._routine(0.016)
+	t.eq(str(vis.debug_cerchio()), prima,
+			"…e si compone una volta per sera, non a ogni fotogramma")

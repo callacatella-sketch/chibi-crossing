@@ -19,6 +19,7 @@ const REGIA := preload("res://scenes/npc/Regia.gd")
 const GESTI := preload("res://scenes/npc/Gesti.gd")
 const POSTO := preload("res://scenes/world/PostoDiSempre.gd")
 const EREDITA := preload("res://scenes/npc/Eredita.gd")
+const CERCHIO := preload("res://scenes/npc/Cerchio.gd")
 const UI_BROWN := Color("6a4a3a")
 # Fino a ventotto vicini: il passaparola del Villaggio, le chiacchiere, le
 # indoli e le stravaganze rendono per densità — la scala dell'Animo produce
@@ -79,6 +80,24 @@ var _pair_cd := {}
 ## e oggi butta via. Si ricerca finché non si trova — il nodo nasce nel
 ## livello, e in un banco non nasce affatto.
 var _cricche: Node
+## IL CERCHIO DEL FALO' — chi si siede accanto a chi, e il posto di chi non
+## c'e' piu'.
+##
+## ⚠️ `_vuoti` E' PERSISTITO (`save_extra`/`load_extra`) e gli altri due no.
+## Senza, chiudere e riaprire la partita richiude il buco — cioe' spegne in
+## silenzio la meta' che vale della meccanica. `_cerchio` e `_cerchio_slot`
+## invece si ricompongono ogni sera: non c'e' niente da tenere allineato.
+##
+## ⚠️ E LO SLOT SI CHIAVA PER NOME, MAI PER INDICE. `_tick_partenze` gira in
+## `_process` a qualunque ora, falo' compreso, e fa `remove_at` all'indietro:
+## gli indici scalano in mezzo alla sera. Chi era NASCOSTO al fronte di fase
+## non aggiorna la propria `r["phase"]` e passa dal ramo "fire" ORE dopo la
+## composizione. Un indice conservato e' l'handle nudo che questo progetto ha
+## gia' pagato con `Ricordo.soggetto`.
+var _vuoti: Array = []
+var _cerchio := PackedStringArray()
+var _cerchio_slot := {}     # NOME -> il suo posto stasera
+var _cerchio_fatto := -1    # la giornata per cui e' stato composto
 ## Il dado delle chiacchiere: chi si parla adesso e chi apre bocca. NON si
 ## salva, ed è una decisione — una chiacchierata è ambiente, dura tre
 ## secondi e non lascia niente dietro di sé (`_run_chat` tira già `randf()`
@@ -1291,6 +1310,8 @@ func _phase() -> String:
 
 func _routine(delta: float) -> void:
 	var ph := _phase()
+	if ph == "fire":
+		_componi_il_cerchio()
 	for i in _residents.size():
 		var r := _residents[i]
 		var node := r.get("node") as Node3D
@@ -1315,7 +1336,7 @@ func _routine(delta: float) -> void:
 			"fire":
 				# la sera ci si ritrova tutti attorno al fuoco
 				r["next_act"] = 9999.0
-				node.call("do_routine", "fire", _posto_al_falo(i), CLEARING)
+				node.call("do_routine", "fire", _posto_al_falo(_slot_di(r, i)), CLEARING)
 				# (la compagnia del falò si paga all'arrivo: vedi
 				# STATO_CHE_SAZIA in _gesti_agenda)
 			"morning", "day":
@@ -3256,6 +3277,7 @@ func _congeda(i: int, r: Dictionary, animo: RefCounted) -> void:
 		tw.tween_property(node, "scale", Vector3.ONE * 0.01, 0.8) \
 				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 		tw.tween_callback(node.queue_free)
+	_apri_un_vuoto(i, r)             # il suo posto al falo' resta, per qualche sera
 	_residents.remove_at(i)          # il letto torna libero
 	_animi.erase(label)
 	_brains.erase(label)
@@ -3368,6 +3390,111 @@ func manda(label: String, pos: Vector3) -> void:
 ## Il posto di ognuno attorno al fuoco: cerchi concentrici — undici per
 ## anello, poi si allarga — così anche in ventotto nessuno finisce seduto
 ## in braccio a un altro.
+## SI COMPONE UNA VOLTA PER SERA, sul fronte di fase, e mai dentro il ciclo
+## dei residenti: comporlo per ognuno vorrebbe dire che i primi si siedono in
+## un cerchio e gli ultimi in un altro.
+##
+## ⚜️ L'ANCORA E' L'ANZIANITA', MAI L'AFFETTO — e `base` va costruita
+## nell'ordine di `_residents`, cioe' l'ordine di TRASLOCO. Una base gia'
+## ordinata per affetto trasformerebbe il cerchio in un PODIO, che e' la sola
+## cosa che la regola 2 degli Affetti vieta per iscritto.
+##
+## ⚠️ E QUESTO CANALE LEGGE E BASTA. `Cricche`, `Affetti` e `Legami` si
+## interrogano; non ci si scrive mai, nemmeno indirettamente — il firewall e'
+## `if _phase() == "fire": return` in `_segna_incontro`, e senza, la sera
+## fabbricherebbe i ritrovi che la sera dopo rilegge: le catenelle
+## diventerebbero clique per costruzione, cioe' l'ordine di trasloco
+## travestito da abitudine, e passerebbero ogni collaudo.
+func _componi_il_cerchio() -> void:
+	var oggi: int = int(_daynight.get("day")) if _daynight else 0
+	if _cerchio_fatto == oggi:
+		return
+	_cerchio_fatto = oggi
+	var base := PackedStringArray()
+	for r in _residents:
+		var nome := str((r.get("dna", {}) as Dictionary).get("name", ""))
+		if nome != "":
+			base.append(nome)
+	var famiglie: Array = []
+	var coppie: Array = []
+	var ritrovi := {}
+	if is_inside_tree():
+		var legami := get_tree().get_first_node_in_group("legami")
+		if legami != null and is_instance_valid(legami) \
+				and legami.has_method("figli_di"):
+			for nome in base:
+				var figli: Array = legami.call("figli_di", nome)
+				if not figli.is_empty():
+					famiglie.append({"genitori": [nome], "figli": figli})
+		var aff := get_tree().get_first_node_in_group("affetti")
+		if aff != null and is_instance_valid(aff) \
+				and aff.has_method("coppie_di_oggi"):
+			coppie = aff.call("coppie_di_oggi")
+		var cr := get_tree().get_first_node_in_group("cricche")
+		if cr != null and is_instance_valid(cr) and cr.has_method("compagni"):
+			for nome in base:
+				var loro: PackedStringArray = cr.call("compagni", nome)
+				if not loro.is_empty():
+					ritrovi[nome] = loro
+	# ⚠️ i vuoti VIVI, non tutto lo storico: la potatura e' una domanda sul
+	# CALENDARIO, e dentro `Cerchio` il calendario non c'e'.
+	_cerchio = CERCHIO.cerchio(base, famiglie, coppie,
+			CERCHIO.vuoti_vivi(_vuoti, oggi), ritrovi)
+	_cerchio_slot.clear()
+	for posto in _cerchio.size():
+		var chi := _cerchio[posto]
+		if CERCHIO.e_un_vuoto(chi):
+			continue      # il fantasma tiene il posto e non e' nessuno
+		_cerchio_slot[chi] = posto
+
+
+## Il posto di stasera, o l'indice di sempre. ⚠️ IL DEGRADO VA VERSO IL FALO'
+## DI SEMPRE: senza cerchio composto — i banchi, il diorama, la CLI, il primo
+## frame — si torna esattamente all'ordine di trasloco.
+func _slot_di(r: Dictionary, i: int) -> int:
+	var nome := str((r.get("dna", {}) as Dictionary).get("name", ""))
+	return int(_cerchio_slot.get(nome, i))
+
+
+## SI APRE UN VUOTO: chi parte lascia il suo posto, e il posto resta.
+##
+## ⚜️ E SI CHIAMA IDENTICA DAI DUE CONGEDI, senza un solo `if` che li
+## distingua. `_congeda` e' la DISERZIONE, `parte_per_il_grande_prato` e' il
+## Grande Prato: un ramo che desse meno sere al disertore sarebbe il gioco che
+## dice chi ha sbagliato — la seconda domanda della REGOLA SACRA con la
+## risposta sbagliata. La proporzione la fa gia' il filo, che e' piu' lungo
+## per chi e' stato di piu' con te.
+##
+## ⚠️ VA CHIAMATA **PRIMA** DI `remove_at`: dopo, `i` non e' piu' il suo posto
+## e `r` e' gia' uscito. E il nome si legge da `r["dna"]["name"]` diretto, mai
+## da `_nome_da_label`, che su un partito ritorna la label invariata e in
+## silenzio.
+func _apri_un_vuoto(i: int, r: Dictionary) -> void:
+	if not is_inside_tree():
+		return
+	var chi := str((r.get("dna", {}) as Dictionary).get("name", ""))
+	if chi == "":
+		return
+	var legami := get_tree().get_first_node_in_group("legami")
+	if legami == null or not is_instance_valid(legami) \
+			or not legami.has_method("giorni_di_vuoto"):
+		return      # senza filo non c'e' storia, e senza storia non c'e' vuoto
+	var quanti: int = (legami.call("momenti_di", chi) as Array).size()
+	var vicino := ""
+	if i + 1 < _residents.size():
+		vicino = str((_residents[i + 1].get("dna", {}) as Dictionary).get("name", ""))
+	elif i > 0:
+		vicino = str((_residents[i - 1].get("dna", {}) as Dictionary).get("name", ""))
+	_vuoti.append({"chi": chi, "vicino": vicino, "posto": i,
+			"giorno": int(_daynight.get("day")) if _daynight else 0,
+			"giorni": int(legami.call("giorni_di_vuoto", quanti))})
+
+
+## Il cerchio di stasera, per i banchi e per chi guarda. Fantasmi compresi.
+func debug_cerchio() -> PackedStringArray:
+	return _cerchio
+
+
 func _posto_al_falo(i: int) -> Vector3:
 	@warning_ignore("integer_division")
 	var anello := i / 11
@@ -3384,7 +3511,7 @@ func gather_fire() -> void:
 		if node == null or not is_instance_valid(node) or node.call("is_hidden"):
 			continue
 		r["next_act"] = 9999.0
-		node.call("do_routine", "fire", _posto_al_falo(i), CLEARING)
+		node.call("do_routine", "fire", _posto_al_falo(_slot_di(r, i)), CLEARING)
 
 
 ## La partenza per il Grande Prato: GENTILE. Niente lettera di rancore
@@ -3412,6 +3539,7 @@ func parte_per_il_grande_prato(label: String) -> void:
 		# r è ancora intero.
 		_seppellisci_ricordo(r, label)
 		_dimentica_ecs(r)
+		_apri_un_vuoto(i, r)     # e anche la partenza gentile lascia il posto
 		_residents.remove_at(i)
 		_animi.erase(label)
 		_brains.erase(label)
@@ -5980,12 +6108,20 @@ func save_extra() -> Dictionary:
 	var partiti: Dictionary = _partiti_salvati
 	if _villaggio != null:
 		partiti = _villaggio.partiti
-	return {"residents": rows, "cand_mem": _cand_visits,
+	# ⚠️ I VUOTI SI SALVANO. Senza, chiudere e riaprire la partita richiude il
+	# buco attorno al fuoco: la meta' che vale della meccanica si spegnerebbe
+	# in silenzio, e solo per chi riapre — cioe' per tutti tranne chi comincia
+	# adesso. E' la stessa forma del difetto che i fiori hanno gia' pagato con
+	# l'accucciamento al caricamento.
+	return {"residents": rows, "cand_mem": _cand_visits, "vuoti": _vuoti,
 			"villaggio": {"partiti": partiti}}
 
 
 func load_extra(data: Dictionary) -> void:
 	_cand_visits = data.get("cand_mem", {})
+	# ⚠️ le righe NON si rileggono a mano: dal JSON gli interi tornano `float`,
+	# e `is int` e' falso proprio per il numero appena passato dal disco.
+	_vuoti = CERCHIO.vuoti_letti(data.get("vuoti", []))
 	var vdata: Dictionary = data.get("villaggio", {})
 	_partiti_salvati = vdata.get("partiti", {})
 	for row in data.get("residents", []):
@@ -6071,7 +6207,7 @@ func debug_gather_fire() -> void:
 		var node := _residents[i].get("node") as Node3D
 		if node == null or not is_instance_valid(node):
 			continue
-		var spot := _posto_al_falo(i)
+		var spot := _posto_al_falo(_slot_di(_residents[i], i))
 		node.position = spot + Vector3(0.04, 0, 0.04)
 		node.call("do_routine", "fire", spot, CLEARING)
 		_residents[i]["phase"] = "fire"
