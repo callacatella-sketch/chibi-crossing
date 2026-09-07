@@ -27,7 +27,7 @@ extends RefCounted
 ## ---------------------------------------------------------------------
 ## LE MUTAZIONI, una riga di produzione per volta, col numero di asserzioni
 ## diventate rosse — MISURATE facendo girare questo file su un `Limbico` e un
-## `Visitors` col tampone dentro, non stimate. Sedici, tutte rosse:
+## `Visitors` col tampone dentro, non stimate. Diciannove, tutte rosse:
 ##
 ##   un PAVIMENTO sul conforto (`maxf(conforto, 0.02)`) .............. 89
 ##   la chiave `conforto` tolta dal referto .......................... 17
@@ -47,7 +47,13 @@ extends RefCounted
 ##   un fondo di conforto per chi non ha nessuno (`return 0.10`) .....  6
 ##   il compagno cercato fra TUTTI i vicini invece che nella coppia ...  2
 ##   il nome ambiguo risolto sul primo che capita invece di scartato ..  2
+##   l'ambiguità guardata solo sul nome CERCATO e non su chi CHIEDE
+##       (l'omonimo si prende 0,7368 di conforto che è del compagno
+##        vero, e il compagno vero resta a zero: era ROVESCIATO) ......  1
 ##   il raffreddamento spostato dentro il ramo `trasalisce` ..........  1
+##   ——— e la costante stessa (caso 13) ———
+##   `TAMPONE_SOCIALE := 9.0` (la compagnia ABOLISCE la paura) .......  2
+##   `TAMPONE_SOCIALE := 0.0` (una firma senza meccanica) ............ 15
 ##
 ## (*) le chiamate a quattro argomenti le controlla il PARSER, quindi
 ##     togliere il parametro non fa sparire i casi in silenzio: il file
@@ -144,6 +150,7 @@ func run(t) -> void:
 	_le_valvole_del_compagno(t)
 	_il_nome_ambiguo_si_scarta(t)
 	_l_ambiguo_puo_essere_chi_chiede(t)
+	_il_tampone_non_azzera_la_paura(t)
 
 
 # =========================================================================
@@ -819,3 +826,45 @@ func _l_ambiguo_puo_essere_chi_chiede(t) -> void:
 	var a := _referto(v, "A")
 	t.ok(float(a.get("conforto", 0.0)) >= 0.0,
 			"e il compagno vero non finisce peggio dell'omonimo")
+
+
+# =========================================================================
+# 13 · LA COMPAGNIA NON AZZERA LA PAURA — il tetto di K, che nessuno aveva
+# =========================================================================
+#
+# ⚠️ `TAMPONE_SOCIALE` era sorvegliato solo DAL BASSO: i casi 5 e 7 provano
+# che il parametro non alza mai l'allarme, quindi K = 0 (il tampone spento)
+# li lascia tutti verdi, e K = 9 pure — smorzerebbe di dieci volte, cioè
+# **la presenza di un amico abolirebbe la paura**, e nessuna asserzione se
+# ne accorgerebbe. È lo stesso buco che la revisione aveva già trovato su
+# `NOTTE_SY` («il tetto c'era, il pavimento no») letto al contrario.
+#
+# Il numero contro cui si giudica NON è K stesso — sarebbe il ritratto — ed
+# è la frase che il file di produzione afferma per iscritto, due volte:
+# «la compagnia non azzera la paura, la smorza» e «a 1.0 la presenza piena
+# DIMEZZA il guadagno». Quel dimezzamento è il tetto: sopra, la frase
+# diventa falsa e nessuno se ne accorge finché non la si legge.
+#
+# E il pavimento è che il tampone deve esistere: a K = 0 il quarto
+# parametro sarebbe una firma senza meccanica, e il caso 3 morirebbe con
+# lui — ma questo caso lo dice PRIMA, nominando la ragione.
+func _il_tampone_non_azzera_la_paura(t) -> void:
+	var k := _tampone(t)
+	t.ok(k > 0.0, "TAMPONE_SOCIALE dev'essere > 0: a zero il quarto"
+			+ " parametro è una firma senza meccanica (K = %.3f)" % k)
+	t.ok(k <= 1.0, "TAMPONE_SOCIALE non può superare 1.0: la presenza piena"
+			+ " dimezza il guadagno e non di più — «la compagnia non azzera"
+			+ " la paura, la smorza» (K = %.3f darebbe /%.2f)" % [k, 1.0 + k])
+	# e la frase si prova sul NUMERO, non sulla costante: col conforto al
+	# massimo l'allarme non può scendere sotto la metà di quello di ieri.
+	# ⚠️ fuori dal tetto del `clampf`, o le due gambe finirebbero tutte e due
+	# a 1,0 e il caso direbbe che va bene qualunque K.
+	var l = _lim({"codardia": 0.5, "grinta": 0.5}, -0.30)
+	var pieno: float = float(l.percepisci("giocatore", "", 0.10, 1.0)["forza"])
+	var l0 = _lim({"codardia": 0.5, "grinta": 0.5}, -0.30)
+	var nudo: float = float(l0.percepisci("giocatore", "", 0.10, 0.0)["forza"])
+	t.ok(nudo < 0.999, "il banco dev'essere SOTTO il tetto del clamp, o non"
+			+ " misura niente (allarme nudo %.4f)" % nudo)
+	t.ok(pieno >= nudo * 0.5 - 1e-9, "col conforto al massimo l'allarme non"
+			+ " scende sotto la METÀ: %.4f contro %.4f" % [pieno, nudo])
+	t.ok(pieno < nudo, "…e scende: %.4f contro %.4f" % [pieno, nudo])

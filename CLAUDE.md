@@ -5188,14 +5188,15 @@ insieme».
 ### I NUMERI, e il cancello d'arresto
 
 MISURATO con [`tools/misura_tampone.gd`](tools/misura_tampone.gd) nel
-MainLevel vero, coppie costruite dal banco (660 s):
+MainLevel vero, coppie costruite dal banco, **660 secondi di MOTORE**
+(⚠️ non di muro: vedi «I DUE OROLOGI», più sotto):
 
 | il cancello | esito |
 |---|---|
-| chi sta da solo cambia | **0 su 80 percetti** |
+| chi sta da solo cambia | **0 su 48 percetti** |
 | percetti con la forza ALZATA (il malus) | **0** |
 | cuoricini comparsi o spariti | **0** |
-| reazioni non-nulla | 108, contro **120** senza il tampone |
+| reazioni non-nulla | 86, contro **90** senza il tampone |
 | pose nuove nel vocabolario | **nessuna** |
 | il salvataggio dell'autore | **intatto** |
 
@@ -5203,28 +5204,148 @@ E le due firme:
 
 | | |
 |---|---|
-| percetti col COMPAGNO visibile | 102, tamponati 102 |
-| percetti con un **NON-compagno** e nessun compagno | **153, tamponati ZERO** |
-| firma 1 (calo **sullo stimolo**) | **+1,38×** dal terzile basso all'alto |
-| …contro una reattività che cresce di | 1,52× |
-| il calo **relativo** fra le fasce | 29,6 · 29,6 · **29,8 %** |
+| percetti col COMPAGNO visibile | 68, tamponati 68 |
+| percetti con un **NON-compagno** e nessun compagno | **88, tamponati ZERO** |
+| firma 1 (calo **sullo stimolo**) | **+1,39×** dal terzile basso all'alto |
+| …contro una reattività che cresce di | 1,53× |
+| il calo **relativo** fra le fasce | 29,6 · 29,6 · **29,0 %** |
 
-**La riga che convince non è un cancello: è il calo RELATIVO costante.**
-Vale `1 − 1/(1+c·K)`, una quantità che **non contiene la reattività** — cioè
-è la prova aritmetica, non l'affermazione, che il conforto divide il
-*guadagno* e non sottrae dal *risultato*.
+**E LA RIGA CHE CONVINCE NON È UNA STATISTICA: È UN'IDENTITÀ.** Il banco
+conosce il conforto di ogni campione e conosce K, quindi sotto il tetto può
+PREDIRE il calo relativo — `1 − 1/(1+c·K)`, una quantità che non contiene
+la reattività — invece di guardare se somiglia a una costante:
 
-**Il tetto del `clampf`, temuto e misurato:** dei percetti tamponati l'86%
-sta sotto il tetto (smorzamento pieno), il 13% lo scavalla, e **l'1% (un
-percetto su 105) è saturo da tutte e due le parti** — cioè dove il
-tamponamento non può fare niente. Il tetto è PRE-ESISTENTE al tampone, e
-non si cura cambiando la forma decisa dall'autore.
+| | residuo medio | residuo peggiore |
+|---|---|---|
+| il codice sano | **0,0000000000** | **0,0000000000** |
+| la forma vietata (sottrazione dal risultato) | 0,2781 | **0,7037** |
 
-**Il prezzo, che è vero e va detto:** 12 sussulti soppressi su 109 (11%), e
+Non è un margine, è un sì contro un no. ⚠️ **E il primo tentativo non
+discriminava**: confrontava due *coefficienti di variazione* e dava 0,7144
+contro 0,7129 — due millesimi. Prima ancora confrontava due *deviazioni
+standard nude* di grandezze su scale diverse (il calo relativo sta attorno
+a 0,30, l'assoluto attorno a 0,09), e quella versione **ha accusato codice
+sano in ogni corsa pubblicata**, tre righe sotto una tabella che mostrava
+il calo relativo costante al decimo di punto. *Una diagnosi che accusa
+sempre non è una diagnosi* — ed è la stessa famiglia dell'errore che la
+firma 1 aveva già dovuto ritrattare: confrontare grandezze non
+confrontabili.
+
+**Il tetto del `clampf`, temuto e misurato:** dei percetti tamponati il 72%
+sta sotto il tetto (smorzamento pieno), il 24% lo scavalla, e il **4% è
+saturo da tutte e due le parti** — cioè dove il tamponamento non può fare
+niente. Il tetto è PRE-ESISTENTE al tampone, e non si cura cambiando la
+forma decisa dall'autore.
+
+**Il prezzo, che è vero e va detto:** 4 sussulti soppressi su 90 (4%), e
 `_riconoscimenti` si scrive SOLO dentro il ramo `trasalisce` — quindi ogni
 sussulto tamponato è anche un **«ah… sei tu» che non succede**. La
 meccanica paga in contenuto visibile, e il suo unico guadagno visibile è un
 saluto felice al posto di un «…».
+
+### ⚠️ L'OMONIMIA ROVESCIAVA IL TAMPONE — l'unico difetto di PRODUZIONE
+
+La revisione avversariale ha prodotto **nove segnalazioni sopravvissute
+allo scettico su ventitré**, e una sola tocca il gioco.
+`_conforto_del_compagno` guardava l'ambiguità del nome CERCATO e non di
+quello che CHIEDE. `compagno_di_ieri` è indicizzata per NOME e `coppie()`
+deduplica: due omonimi ricevono **la stessa riga**, quindi con la coppia
+[Pepita, Timo] e due Pepita in paese —
+
+- **Timo, che è il compagno VERO**, chiede «Pepita», trova il nome
+  ambiguo e resta a **zero**;
+- **tutte e due le Pepita** ottengono il tampone pieno da lui.
+
+*Il compagno vero perdeva la cosa, l'omonimo la prendeva.* Non è un caso
+di bordo: l'unicità è imposta sulla LABEL, mai sul nome (cinque archetipi
+× ventotto nomi), e con tredici residenti la probabilità di almeno
+un'omonimia è del **96,4%**. Le corse del metro non l'avevano vista solo
+perché il villaggio dell'autore è caduto nel 3,6% — e **l'oracolo del
+banco la regola simmetrica ce l'aveva già** (`_leggi_le_coppie` scarta se
+il nome è ambiguo DA UNA PARTE O DALL'ALTRA): banco e produzione
+divergevano, che è il modo in cui una guardia dice «coperto» senza esserlo.
+
+La cura è un confronto solo — il proprio nome deve risolversi alla propria
+etichetta — e dice due cose in un colpo: «il nome esiste in anagrafe» e
+«non tocca a due corpi». **FALSIFICATA**: rimettendo il `if mio == ""`
+nudo, il caso nuovo diventa rosso da solo e stampa il numero del difetto —
+l'omonimo si prende **0,7368** di conforto che non è suo.
+
+⚠️ E il caso 11 non bastava perché **guardava solo il lato già coperto**:
+rinominarlo non è coprire l'altro. La guardia nuova
+(`_l_ambiguo_puo_essere_chi_chiede`) è il suo specchio.
+
+### ⚠️ I DUE OROLOGI — il banco viveva su quello sbagliato
+
+`CHIBI_FORMA` e `CHIBI_VIVO` erano secondi di **MURO**
+(`Time.get_ticks_msec()`), mentre il villaggio vive sul delta che il motore
+consegna a `_process` — e con `--fixed-fps 60` quello vale esattamente 1/60
+qualunque cosa faccia la macchina. I due non si somigliano nemmeno alla
+lontana: MISURATO su un albero vuoto, 600 fotogrammi sono **10,0000 s di
+motore contro 0,0500 s di muro — 200 volte**; dentro il MainLevel il
+rapporto è **2,2×** (660 s di motore contro 238,7 di muro, 165,9 fotogrammi
+al secondo veri).
+
+Le due conseguenze erano tutte e due mute:
+
+- la riga «660 s di banco» diceva un'altra cosa — il villaggio ne aveva
+  vissuti circa **millequattrocento**;
+- `_secondi_di` è il **DENOMINATORE del cancello 4** (percetti al minuto):
+  un conto di eventi che accadono sull'orologio del motore, diviso per una
+  durata presa sull'orologio del muro.
+
+Il confronto coppia/soli sopravviveva (il fattore è lo stesso nelle due
+gambe), il numero no — e infatti sull'orologio giusto quel cancello passa
+da **15,47 contro 11,78** a **10,661 contro 10,664**, cioè tre centesimi di
+scarto invece del trentuno per cento che si poteva leggere come una
+classifica sociale che si stava formando. ⚠️ Le due corse non sono
+appaiate (vivono quantità diverse di tempo di gioco), quindi il
+miglioramento non è tutto dell'orologio: quello che si può dire è che il
+numero di prima non era interpretabile.
+
+*È la stessa famiglia del difetto già scritto per `test_gesti` — «ERANO DUE
+OROLOGI» — un piano più in là.* E adesso il referto **stampa tutti e due**,
+più l'ora del mondo a cui sta fotografando: un banco che non lo dice
+lascia indovinare.
+
+### ⚠️ IL TETTO DI K, che nessuno aveva
+
+`TAMPONE_SOCIALE` era sorvegliato solo DAL BASSO: tutti i casi provano che
+il parametro non alza mai l'allarme, quindi **K = 0** (il tampone spento) e
+**K = 9** (che smorzerebbe di dieci volte, cioè *la presenza di un amico
+abolirebbe la paura*) li lasciavano tutti verdi. È lo stesso buco già
+trovato su `NOTTE_SY` — «il tetto c'era, il pavimento no» — letto al
+contrario.
+
+Il numero contro cui si giudica **non è K stesso**, sarebbe il ritratto: è
+la frase che il file di produzione afferma per iscritto, *«la compagnia non
+azzera la paura, la smorza»*, e il suo «a 1.0 la presenza piena DIMEZZA il
+guadagno». Il caso 13 prova la frase due volte — sulla costante e **sul
+numero** (col conforto al massimo l'allarme non scende sotto la metà,
+misurato fuori dal tetto del `clampf` o le due gambe finirebbero tutte e
+due a 1,0 e il caso direbbe che va bene qualunque K). Falsificato: K = 9 dà
+**2 rosse**, K = 0 ne dà **15**.
+
+### ⚠️ E UNA RIGA DEL CANCELLO 2 NON È COPERTURA — provato, non dedotto
+
+«Zero reazioni passate a «trasalisce»» sembra un secondo cancello accanto a
+«zero percetti con la forza alzata», e non lo è: se la forza non sale mai,
+quel ramo — che chiede `allarme > SOGLIA_SUSSULTO` — non può accendersi.
+Restava la speranza che cogliesse le mutazioni del RAMO invece che
+dell'aritmetica, e cioè un tampone che abbassasse la SOGLIA a chi ha
+compagnia, lasciando `forza` identica al bit.
+
+**PROVATO, e non le coglie:** con la soglia giù del 30% e poi del **95%**
+col conforto pieno, quella riga resta **0 tutte e due le volte**, e le
+reazioni non-nulla restano **47 contro 47**. La ragione è la seconda
+condizione di quel ramo (`carica < 0.0 or grezzo > RIFLESSO_GREZZO`): per
+chi riceve conforto in questo banco è quella a decidere, e la soglia non la
+interroga nessuno.
+
+Si tiene perché costa un confronto e perché dice l'invariante nella forma
+in cui il giocatore la vive — ma **non conta come coperta**, ed è scritto
+sia nel referto sia accanto al conto. La rete contro una mutazione del ramo
+oggi non c'è.
 
 ### ⚠️ IL BANCO STAVA PER DICHIARARE ROVESCIATA LA FIRMA CHE IL CODICE HA
 
@@ -5261,11 +5382,13 @@ CHIBI_FORMA=420 CHIBI_VIVO=240 CHIBI_SEME=7 Godot --headless --path . \
 ```
 
 La guardia è [`tests/cases/test_tampone.gd`](tests/cases/test_tampone.gd),
-**sedici mutazioni annotate una per una col numero di asserzioni rosse** —
-e una di quelle mutazioni è la **versione vietata** della formula
+**diciannove mutazioni annotate una per una col numero di asserzioni
+rosse** — e una di quelle è la **versione vietata** della formula
 (`clampf(prodotto, 0, 1) / D`, cioè dividere DOPO il tetto): il caso 7 la
 fa arrossire. La forma decisa dall'autore non è scritta in un commento, è
-un'asserzione che si rompe.
+un'asserzione che si rompe. Le tre ultime arrivate — l'omonimia di chi
+chiede, il tetto e il pavimento di K — sono state falsificate una per una
+(**1 · 2 · 15** asserzioni rosse).
 
 ### I RESIDUI, dichiarati
 
@@ -5285,6 +5408,17 @@ un'asserzione che si rompe.
   non si fotografa: non esiste un provino che possa dire «si vede». La
   domanda onesta — *il giocatore se ne accorge?* — resta aperta, e la
   risposta probabile è che se ne accorga solo in aggregato, dopo molte ore.
+- **Una mutazione del RAMO non ha una rete.** Un tampone che abbassasse
+  `SOGLIA_SUSSULTO` invece di dividere il guadagno lascerebbe `forza`
+  identica al bit, e nessun cancello del metro se ne accorgerebbe (provato:
+  vedi la sezione sul cancello 2). Chi la volesse chiudere deve fabbricare
+  una popolazione con `carica < 0` e allarme appena sotto soglia — cioè una
+  scena, non un'asserzione.
+- **Una corsa sola non è una misura.** Tutti i numeri qui sopra vengono da
+  UNA corsa a `CHIBI_SEME=7`, e il capitolo «UNA GIORNATA NON SI RIPETEVA»
+  dice che il controllo di quel banco non dà ancora zero. Chi ci torna li
+  rifaccia con [`tools/banco_repliche.py`](tools/banco_repliche.py) su più
+  semi prima di crederci: le righe `MISURA` ci sono già tutte.
 
 ## IL PROVINO DEL VOCABOLARIO — l'unica fase che decide se quel lavoro esiste
 
