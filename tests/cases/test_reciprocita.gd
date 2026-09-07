@@ -62,6 +62,19 @@ func run(t) -> void:
 	_il_ripiego_e_quello_di_sempre(t)
 	_senza_libro_mastro_il_villaggio_e_quello_di_sempre(t)
 	_il_libro_mastro_vive_nel_villaggio(t)
+	# ── IL PACCHETTO PER IL CABLATORE: undici casi scritti contro un'API che
+	#    al momento della consegna non esisteva ancora. Adesso esiste.
+	_il_corpo_va_da_chi_si_e_preso_cura_di_lui(t)
+	_la_riconoscenza_viene_prima_dell_abitudine(t)
+	_la_preferenza_non_allarga_i_candidati(t)
+	_chi_e_in_una_scena_non_viene_disturbato(t)
+	_il_grazie_e_uno_al_giorno(t)
+	_e_uno_al_giorno_anche_per_chi_lo_riceve(t)
+	_la_riconoscenza_non_diventa_un_orbita(t)
+	_la_visita_non_puo_fabbricare_un_ritrovo(t)
+	_il_pareggio_non_elegge_nessuno_nel_corpo(t)
+	_il_debito_non_e_una_classifica_visibile(t)
+	_il_referto_conta_i_silenzi(t)
 
 
 func _riga(a: String, b: String, tipo: String, giorno: int) -> Dictionary:

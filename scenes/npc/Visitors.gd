@@ -76,6 +76,24 @@ var _pockets: Node
 var _chat_acc := 0.0
 var _wish_acc := 0.0
 var _pair_cd := {}
+## LA RICONOSCENZA — chi ha ricevuto e non ha ancora reso attraversa il
+## villaggio e si mette accanto a chi si e' preso cura di lui.
+##
+## ⚠️ LE CHIAVI SONO IL NOME (`dna.name`), NON LA LABEL, ed e' una scelta: il
+## libro mastro degli affetti e' chiavato sul nome, e una domanda si fa con
+## l'anagrafe di chi risponde. Le label sono uniche e i nomi no — con due
+## omonimi si perde qualche visita, che e' il verso giusto (verso il
+## silenzio). Mescolarle darebbe un gettone per CORPO e un raffreddamento per
+## NOME, cioe' due regole diverse sullo stesso gesto.
+##
+## ⚠️ E NESSUN AZZERAMENTO IN `_on_new_day`: si memorizza il GIORNO e si
+## confronta, che e' l'idioma di `_insieme_oggi`. Un `clear()` la' sarebbe un
+## secondo orologio sul giorno, e questo file ne ha gia' uno.
+var _grazie_oggi := {}      # NOME -> il giorno in cui gli e' toccato, dato O ricevuto
+var _grazie_verso := {}     # CRICCHE.chiave(a, b) -> il giorno dell'ultimo grazie
+## Il silenzio ha cinque nomi, e da fuori si vedono tutti uguali.
+var _grazie_conto := {"grazie": 0, "ripieghi": 0, "no_candidati": 0,
+		"no_debito": 0, "no_gettone": 0, "no_raffreddamento": 0}
 ## Il registro delle cricche, se c'è: la co-presenza che `_chats` costruisce
 ## e oggi butta via. Si ricerca finché non si trova — il nodo nasce nel
 ## livello, e in un banco non nasce affatto.
@@ -1528,17 +1546,15 @@ func _recita(r: Dictionary, node: Node3D, brain: RefCounted, act: String, ph: St
 			node.call("do_task", "nap", Vector3.ZERO, func(): brain.satisfy("pisolino"))
 			return
 		"quattro_chiacchiere":
-			# cerca compagnia: il migliore amico se c'è, chiunque altrimenti
-			var meta: Node3D = null
-			var best_label: String = brain.migliore_amico()
-			for other in _residents:
-				if other == r:
-					continue
-				var on := other.get("node") as Node3D
-				if on == null or not is_instance_valid(on) or on.call("is_hidden"):
-					continue
-				if meta == null or str(other["label"]) == best_label:
-					meta = on
+			# CON CHI: la riconoscenza, il piu' caro, il primo che e' in giro.
+			# Il corpo fa la stessa identica cosa in tutti e tre i casi —
+			# cambia la meta, e da fuori le tre scene sono UNA SCENA SOLA. Se
+			# la visita grata avesse un toast, una nuvoletta o una postura
+			# sua, il gioco starebbe dicendo a schermo «questo qui ti deve
+			# qualcosa», cioe' accusando qualcuno di non aver ricambiato: il
+			# libro mastro non ha una riga «tradimento», e non deve averne una
+			# scritta col corpo.
+			var meta := _compagnia_per(r)
 			if meta:
 				var fianco: Vector3 = meta.global_position + Vector3(randf_range(-0.9, 0.9), 0, 0.9)
 				node.call("do_routine", "sniff", fianco)
@@ -3405,6 +3421,147 @@ func manda(label: String, pos: Vector3) -> void:
 ## fabbricherebbe i ritrovi che la sera dopo rilegge: le catenelle
 ## diventerebbero clique per costruzione, cioe' l'ordine di trasloco
 ## travestito da abitudine, e passerebbero ogni collaudo.
+## IL PRIMO ANELLO: a chi devo un grazie, fra quelli che sono in piedi. Torna
+## il NOME del creditore, o "" — che e' la risposta normale, ed e' un esito.
+##
+## ⚠️ DUE CANCELLI CHE SI SOMMANO, e non si sostituiscono a vicenda.
+##
+## 1. IL GETTONE DELLA GIORNATA, E STA SUI DUE LATI: uno al giorno per
+##    persona, dato O ricevuto. Sul solo debitore non basterebbe — un cuoco
+##    che ha cucinato per tutti si vedrebbe arrivare tredici debitori nello
+##    stesso pomeriggio, e il raffreddamento della coppia non lo fermerebbe
+##    perche' le coppie sono diverse. Sarebbe il libro mastro disegnato sul
+##    prato come un corteo: la classifica dalla porta di servizio, cioe' la
+##    seconda domanda della REGOLA SACRA.
+##
+## 2. IL RAFFREDDAMENTO DELLA COPPIA, e il numero si LEGGE da
+##    `Affetti.GIORNI_RIPETIZIONE`, mai ricopiato. Senza, un debito da un
+##    piatto manderebbe lo stesso corpo dallo stesso creditore ogni giorno per
+##    ventisei giorni: un'orbita, non un momento.
+##    ⚠️ E NON E' BUON GUSTO: E' IL FIREWALL verso il falo' e l'eredita'. Un
+##    corpo fermo a 0,9 m da un altro fa scrivere a `_segna_incontro` una riga
+##    di co-presenza, e `Cricche.ritrovo_vivo` diventa vero con tre giornate
+##    DIVERSE dentro una finestra di sette. Con sette giorni di
+##    raffreddamento, in quella finestra ce ne sta UNA: 1 < 3, ed e'
+##    un'impossibilita', non un margine tarato.
+##
+## ⚠️ E IL SEGNO NON HA UN RAMO. `Affetti.squilibrio()` e' antisimmetrica: per
+## ogni debitore esiste un creditore con lo stesso numero cambiato di segno.
+## Qui non si chiede mai «chi mi deve qualcosa»: si muove chi ha RICEVUTO, e
+## chi ha dato non sa niente.
+func _riconoscenza(r: Dictionary, candidati: Array) -> String:
+	if candidati.is_empty():
+		_grazie_conto["no_candidati"] += 1
+		return ""
+	# `is_inside_tree()` e non `get_tree() == null`: il secondo stampa un
+	# ERROR del motore prima di tornare null (e' l'idioma di `_puo_entrare`)
+	if not is_inside_tree():
+		return ""
+	var aff := get_tree().get_first_node_in_group("affetti")
+	if aff == null:
+		return ""
+	var io := str((r.get("dna", {}) as Dictionary).get("name", ""))
+	if io == "":
+		return ""
+	var giorno: int = int(_daynight.get("day")) if _daynight else 0
+	if int(_grazie_oggi.get(io, -1)) == giorno:
+		_grazie_conto["no_gettone"] += 1
+		return ""
+	var chi := str(aff.call("chi_ringraziare", io, candidati))
+	if chi == "":
+		_grazie_conto["no_debito"] += 1
+		return ""
+	if int(_grazie_oggi.get(chi, -1)) == giorno:
+		_grazie_conto["no_gettone"] += 1
+		return ""
+	# la costante si LEGGE dal nodo che la possiede: un `const` di GDScript
+	# risponde a `get()` attraverso l'istanza, e cosi' non serve ne' un
+	# preload nuovo ne' un accessore che oggi non avrebbe lettori
+	var coppia := CRICCHE.chiave(io, chi)
+	var cadenza := int(aff.get("GIORNI_RIPETIZIONE"))
+	if _grazie_verso.has(coppia) \
+			and giorno - int(_grazie_verso[coppia]) < cadenza:
+		_grazie_conto["no_raffreddamento"] += 1
+		return ""
+	# il gettone si paga SOLO se si torna un nome: un anello che paga e poi
+	# perde brucia la giornata di due persone per niente
+	_grazie_oggi[io] = giorno
+	_grazie_oggi[chi] = giorno
+	_grazie_verso[coppia] = giorno
+	_grazie_conto["grazie"] += 1
+	return chi
+
+
+## CON CHI SI VA A STARE — i tre anelli, in quest'ordine e mai in un altro.
+##
+##  1. la RICONOSCENZA: chi si e' preso cura di me e non gliel'ho ancora resa;
+##  2. il PIU' CARO, letto dal libro mastro (era `brain.migliore_amico()`);
+##  3. il PRIMO CHE E' IN GIRO, che e' quello che si faceva da sempre.
+##
+## ⚠️ IL TERZO NON SI TOCCA, MAI, e non e' prudenza: e' dove finisce chiunque
+## cambi idea, cioe' la strada piu' battuta del motore. Ed e' lui a rendere la
+## reciprocita' puramente ADDITIVA — chi ha il libro mastro vuoto, che e'
+## tutto il villaggio quasi sempre, riceve ESATTAMENTE quello che riceveva
+## prima. Toccarlo trasformerebbe un'assenza in una penalita', che e' il modo
+## in cui un sistema acceso su un fatto positivo comincia ad accendersi sul
+## vuoto.
+##
+## ⚠️ I PRIMI DUE SALTANO CHI DORME E CHI E' DENTRO UNA SCENA; il terzo no,
+## com'e' sempre stato. Sono due domande diverse: «chi vado a ringraziare»
+## sceglie una persona, «chi c'e' in giro» e' il ripiego che non deve cambiare.
+func _compagnia_per(r: Dictionary) -> Node3D:
+	# CHI E' IN PIEDI, e lo sa solo questo file: `Affetti` non deve provare a
+	# indovinarlo, o «non c'e' nessuno in giro» diventerebbe «non ti ho detto
+	# chi e' in giro» e manderemmo un corpo verso una casa chiusa.
+	var candidati: Array = []
+	var corpo_di := {}
+	for other in _residents:
+		if other == r:
+			continue
+		var on := other.get("node") as Node3D
+		if on == null or not is_instance_valid(on) or on.call("is_hidden"):
+			continue
+		if bool(on.call("in_scena")) or bool(on.call("dorme")):
+			continue
+		var n := str((other.get("dna", {}) as Dictionary).get("name", ""))
+		# con due omonimi vince il primo, e non e' arbitrario: il libro mastro
+		# non sa distinguerli, quindi non c'e' nessuna scelta da fare
+		if n == "" or corpo_di.has(n):
+			continue
+		candidati.append(n)
+		corpo_di[n] = on
+	var grazie := _riconoscenza(r, candidati)
+	if grazie != "" and corpo_di.has(grazie):
+		return corpo_di[grazie] as Node3D
+	var aff: Node = null
+	if is_inside_tree():
+		aff = get_tree().get_first_node_in_group("affetti")
+	if aff != null and not candidati.is_empty():
+		var mio := str((r.get("dna", {}) as Dictionary).get("name", ""))
+		var caro := str(aff.call("chi_e_il_piu_caro", mio, candidati))
+		if caro != "" and corpo_di.has(caro):
+			return corpo_di[caro] as Node3D
+	# IL RIPIEGO DI SEMPRE: il primo residente valido nell'ordine di
+	# `_residents`, saltando se' stesso, i null, gli invalidi e i nascosti.
+	# Non e' un dado, non salta chi dorme, non salta chi e' in scena.
+	for other in _residents:
+		if other == r:
+			continue
+		var on := other.get("node") as Node3D
+		if on == null or not is_instance_valid(on) or on.call("is_hidden"):
+			continue
+		_grazie_conto["ripieghi"] += 1
+		return on
+	return null
+
+
+## IL REFERTO. Un banco che dice «zero visite grate» lascia indovinare, e si
+## finisce per accusare il cablaggio quando era il gettone: e' la lezione gia'
+## pagata dal vocabolario del corpo, dove il silenzio ha sei nomi.
+func debug_reciprocita() -> Dictionary:
+	return _grazie_conto.duplicate()
+
+
 func _componi_il_cerchio() -> void:
 	var oggi: int = int(_daynight.get("day")) if _daynight else 0
 	if _cerchio_fatto == oggi:
