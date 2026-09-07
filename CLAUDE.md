@@ -6986,7 +6986,7 @@ recenza · il villaggio non fa più il ponte · le giornate insieme guardano un
 lato solo della riga (che non ha verso, quindi dimenticarne uno è la
 distrazione plausibile) · senza il registro si tiene la compagnia di ieri.
 
-## UNA GIORNATA NON SI RIPETEVA — i dadi nominati, le leve, le repliche
+## UNA GIORNATA SI RIPETE — i dadi nominati, le leve, le repliche
 
 Due corse di `misura_insieme` con **gli stessi identici parametri** davano
 **0,31 e 1,77** righe di co-presenza per residente: un fattore **5,7**. Da
@@ -7140,36 +7140,84 @@ ordine**. Fallisce la prima domanda della REGOLA SACRA: ricominciare è il
 rimedio del giocatore, e il rimedio non rimediava. Ora `TitleScreen._start_new`
 dimentica la radice dopo l'archiviazione.
 
-### ⚠️ E UNA GIORNATA NON SI RIPETE ANCORA — il numero, onesto
+### ⚠️ LA CAUSA ERANO DUE RIGHE, E NESSUNA GUARDIA POTEVA VEDERLE
 
-Dopo tutto questo, il controllo **non dà zero**. E con due semi il banco non
-distingue il proprio rumore dal segnale: fra due corse dello stesso codice il
-residuo è passato da **7,3 a 22,6**. Quindi:
+**Il rumore proprio è ZERO**: stesso seme, stessa condizione, due processi,
+**dieci misure su dieci identiche** su tutti e due i semi
+(`misura_insieme`, 1 giornata, 8 residenti, villaggio ermetico,
+`--fixed-fps 60`). Era il fattore 5,7 da cui è partito tutto.
 
-> **Nessuno dei numeri di ablazione di questo progetto è ancora un
-> risultato.** Chi ci torna misuri con più semi PRIMA di crederci.
+```
+scenes/characters/Mochi.gd:164   var _next_twitch := randf_range(3.0, 8.0)
+scenes/characters/Mochi.gd:168   var _next_anomaly := randf_range(16.0, 34.0)
+```
 
-I sospetti restano nominati e ordinati:
+**In Godot un inizializzatore di MEMBRO gira all'ISTANZIAZIONE.** Quando
+`change_scene_to_file` costruisce `MainLevel.tscn`, l'espressione di ogni `var`
+a livello di classe è valutata **prima di qualunque `_ready`** — quindi prima
+che `CozyWorld` dia una posizione al flusso globale. Quei due tiri arrivavano
+dal flusso com'era partito il **processo**: misurato su quattro corse con lo
+stesso seme e lo stesso villaggio, **3,85 · 4,60 · 3,02 · 7,80 s**.
 
-- **il flusso GLOBALE non si può rendere riproducibile con un seme**:
-  `EcosystemManager` ne consuma fino a **180 estrazioni per fotogramma**
-  (90 farfalle × 2, `ecosystem_manager.cpp:353`), quindi la sua posizione
-  dipende da quante farfalle sono nate. `Visitors.gd` è stato tolto di lì per
-  intero (24 estrazioni su dadi per SCOPO, `Visitors._dado("perche")`);
-  **restano `Visitor.gd` (19) e `CozyWorld.gd` (37)**, ed è il lavoro
-  successivo;
-- **il mondo non ha un seme**: nove costanti scritte a mano (77, 4242, 90210,
-  88, 7, 99, 33, 505, 71). Darglielo rompe ogni salvataggio esistente, quindi
-  vuole una migrazione;
-- **`Concertino.gd:159`** semina la canzone del carillon con
-  `Time.get_ticks_msec() / 600000`: il contenuto cambia a scaglioni di dieci
-  minuti reali, e nessun censimento del dado lo trova;
-- **`Animo.descrizione()`** fa `_rng.randf() < 0.5` su un dado **persistito**:
-  una funzione di presentazione che avanza lo stream — osservare cambia il
-  gioco. Oggi non ha chiamanti in produzione;
-- **`RegiaDiorama.semina()`** e **`OraDelGiorno`** usano il tempo vero, ed è
-  una **feature dichiarata** del menù: non si rendono deterministiche, si
-  scavalcano.
+E non restava un fatto privato di Mochi. Al fotogramma in cui lo scatto
+d'orecchio parte — diverso in ogni processo — il flusso si sfasa per **tutti i
+suoi quaranta consumatori**, C++ compreso. Fra loro c'è `Weather`, che decide
+QUANDO piove; la pioggia entra nell'agenda come il fatto `sunny` e gata la
+routine, quindi i corpi vanno in posti diversi e la co-presenza cambia.
+
+**LA PROVA È UN'ABLAZIONE APPAIATA CON CONTROLLO NEGATIVO**, fatta senza
+toccare il gioco (una sonda che pinza i due campi al primo fotogramma):
+**0 righe divergenti su 699** con la pinza, **445 su 699** senza — e la prima
+divergenza cade al **fotogramma 255**, mentre lo scatto più precoce delle due
+corse valeva 4,2197 s, cioè il **fotogramma 253**. *Il fotogramma della
+divergenza è il fotogramma dello scatto d'orecchio.*
+
+> ⚠️ **E IL COMMENTO CHE DOVEVA AVVISARE GUARDAVA LA FINESTRA SBAGLIATA.**
+> `CozyWorld` dichiarava il residuo così: «prima di noi girano i tre autoload
+> (Settings, Sfx, Quality)». La finestra vera non sono gli autoload: è
+> **l'istanziazione dell'intera scena**. È la nota che mandava a cercare nel
+> posto sbagliato, ed è per questo che il difetto è sopravvissuto a quattro
+> giri di cure.
+
+**DUE PISTE ESCLUSE CON LA MISURA**, e sarebbero costate ore:
+
+- **la fisica è deterministica** sotto `--fixed-fps 60`: `{1: 600}` passi in
+  tutte e due le corse, un solo valore di delta, impronta identica. Il C++
+  dell'ecosistema **non era la causa** — falsificato anche spegnendone il
+  `_physics_process` (la divergenza resta, si sposta soltanto);
+- **il conteggio dei nodi che balla** (357 ↔ 358 `MeshInstance3D`) è l'anello
+  di `water_ripple` sul canale `LIBERO`: **il canale dichiarato cosmetico che
+  fa esattamente quello che è dichiarato fare.** La pista più vistosa e la più
+  sbagliata da inseguire.
+
+La guardia è `test_dadi._nessun_tiro_prima_del_seme`, e la sua difficoltà è
+tutta nel distinguere: le estrazioni **dentro le funzioni sono duecento** e
+girano a chiamata, cioè dopo il seme — accusarle sarebbe rumore che nasconde
+le due che contano. Guarda perciò il RIENTRO, non la parola: solo ciò che sta
+a colonna zero è un membro di classe.
+
+### ⚠️ E QUELLO CHE ANCORA NON SI SA
+
+Il rumore proprio è zero su: **una** misura (`misura_insieme`), **una**
+giornata di gioco, **due** semi, **otto** residenti. Non è dimostrato che lo
+resti su quattro minuti di partita, su ventotto residenti, o su un altro
+banco. Chi ci torna misuri prima di estendere la frase.
+
+E restano **200 estrazioni dal flusso globale in 40 file** (Woodcutting 38,
+Collection 20, Mochi 13, Nascondino 10, Calendar 9…). Adesso non fanno danno,
+perché il flusso riceve una posizione prima che qualcuno lo consumi — ma sono
+la **fragilità strutturale**: la posizione di ognuna dipende da quante ne
+hanno fatte le altre, e il C++ ne consuma fino a 180 per fotogramma. Il giorno
+che qualcuno aggiunge una farfalla, tutti i numeri a valle si spostano. I tre
+file che DECIDONO (`Visitors`, `Visitor`, `CozyWorld`) sono a zero: è lì che
+la disciplina serve.
+
+Le altre sorgenti note e non curate: **`Concertino.gd:159`** semina la canzone
+del carillon con `Time.get_ticks_msec() / 600000` (il contenuto cambia a
+scaglioni di dieci minuti reali); **`Animo.descrizione()`** fa `_rng.randf()`
+su un dado **persistito**, cioè osservare cambia il gioco (oggi senza
+chiamanti in produzione); **`RegiaDiorama.semina()`** e **`OraDelGiorno`**
+usano il tempo vero, ed è una **feature dichiarata** del menù.
 
 ### ⚠️ ERANO DUE OROLOGI, e la lezione vale oltre i dadi
 
