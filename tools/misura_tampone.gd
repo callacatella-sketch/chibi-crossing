@@ -330,11 +330,10 @@ func _go() -> void:
 	_build = _trova("build_system")
 	_dn = _trova("daynight") as Node3D
 	_aff = _trova("affetti")
-	# ⚠️ SI CERCA IL NODO, NON UN GRUPPO. La prima stesura aveva un ripiego
-	# su `get_first_node_in_group("player")`, e quel gruppo NON ESISTE in
-	# tutto il progetto: era un ramo morto che non poteva salvare nessuno, e
-	# `test_scena_cablaggi` l'ha preso al primo giro («il gruppo player ha
-	# qualcuno che ci entra»). Il modo giusto è quello di `misura_sussulti`.
+	# ⚠️ NIENTE RIPIEGO SUL GRUPPO «player»: quel gruppo **non esiste** in
+	# questo gioco, quindi il ripiego era codice morto — e faceva arrossire il
+	# guardiano dei cablaggi in `test_scena_cablaggi`, giustamente: un banco
+	# che interroga un gruppo vuoto misura sempre `null` e non se ne accorge.
 	_player = current_scene.get_node_or_null("Player") as Node3D
 	if _vis == null or _build == null or _dn == null or _aff == null or _player == null:
 		push_error("manca Visitors, BuildSystem, DayNight, Affetti o Player")

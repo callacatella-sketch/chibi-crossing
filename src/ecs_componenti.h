@@ -5,6 +5,7 @@
 
 #include <godot_cpp/variant/vector3.hpp>
 
+#include "credenze.h"        // TEORIA DELLA MENTE: Credenze
 #include "grafo_deduzioni.h" // FASE 5: Deduzioni
 #include "grafo_ricordi.h"   // FASE 4: GrafoRicordi
 #include "sistema_occ.h"     // FASE 4: Gusto (e, per suo tramite, N_AZIONI)
@@ -218,6 +219,39 @@ static_assert(N_AZIONI == 8, "otto azioni, otto 1.0 letterali");
 // includono, in silenzio.
 struct DeduzioniComponent {
 	Deduzioni d;
+};
+
+// ======================================================================
+// TEORIA DELLA MENTE — quello che io credo che TU sappia
+// ======================================================================
+
+// LE CREDENZE — **VOLATILE**, come il grafo e come le deduzioni, e per una
+// ragione in più che nessuno dei due aveva: **è il modello di un dato che
+// non si salva**. Se le credenze attraversassero un riavvio e i ricordi no,
+// A si sveglierebbe credendo che B sappia cose che B non può possibilmente
+// ricordare — e non sarebbe una coda, sarebbe un muro permanente costruito
+// dal salvataggio. Volatili, credenza e ricordo nascono e muoiono insieme, e
+// il modello non può mai essere più vecchio del mondo che modella.
+//
+// ⚠️ **PERCHÉ NON È UN CAMPO DENTRO `GrafoComponent`**, e non è gusto.
+// `GrafoComponent` sta nella `vista2` di `avanza()`, che si itera per ogni
+// residente ogni frame: il suo pool porta 584 byte a entità, e infilarci
+// dentro le credenze lo porterebbe a 1596 — quasi il triplo dei byte che il
+// ciclo del cuore tocca sessanta volte al secondo, per un dato che
+// `punteggi()` non legge mai. Un componente a parte, **fuori da tutte e due
+// le viste**, non costa un byte di banda al frame: lo si tocca solo quando
+// qualcuno vede qualcosa e quando due si parlano.
+//
+// E c'è la ragione di specie, che questo file classifica apposta: il grafo è
+// *quello che ho visto del mondo*, le credenze sono *quello che credo di
+// un'altra persona*. Sono due generi di guasto diversi, e devono poter
+// essere sbagliati da soli.
+//
+// Nasce vuoto INSIEME agli altri, come i tre della Fase 4 e come le
+// deduzioni: un componente aggiunto «quando serve» farebbe sparire dei
+// residenti dalle viste che lo includono, in silenzio.
+struct CredenzeComponent {
+	Credenze c;
 };
 
 // ⚠️ **QUI C'ERA UN `ComponenteNeurochimica`, ed e' stato tolto.** Sette

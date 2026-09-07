@@ -955,22 +955,11 @@ static func _argomenti(script: GDScript, metodo: String) -> Array:
 ## Lo spogliatore di `test_fiato`: toglie anche i commenti in coda e rispetta
 ## le virgolette. Qui è obbligatorio, non consigliato — la cura all'epicentro
 ## nomina apposta la chiamata vietata per spiegare cosa c'era prima.
+## ⚠️ IL FERRO STA NELL'HARNESS (`tests/test_util.gd::senza_commenti`), e ci
+## sta perché ne esistevano tre copie identiche. Il perché — chi paga un
+## difetto lo NOMINA nei commenti — è scritto accanto alla funzione vera.
 static func _senza_commenti(src: String) -> String:
-	var out := ""
-	for riga in src.split("\n"):
-		var pulita := ""
-		var in_str := false
-		var i := 0
-		while i < riga.length():
-			var c := riga[i]
-			if c == "\"":
-				in_str = not in_str
-			elif c == "#" and not in_str:
-				break
-			pulita += c
-			i += 1
-		out += pulita + "\n"
-	return out
+	return load("res://tests/test_util.gd").senza_commenti(src)
 
 
 # ───────────────────────────────────────────── il mondo preso in prestito

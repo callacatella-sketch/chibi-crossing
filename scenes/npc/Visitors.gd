@@ -18,6 +18,8 @@ const VILLAGGIO := preload("res://scenes/npc/Villaggio.gd")
 const REGIA := preload("res://scenes/npc/Regia.gd")
 const GESTI := preload("res://scenes/npc/Gesti.gd")
 const POSTO := preload("res://scenes/world/PostoDiSempre.gd")
+const EREDITA := preload("res://scenes/npc/Eredita.gd")
+const CERCHIO := preload("res://scenes/npc/Cerchio.gd")
 const UI_BROWN := Color("6a4a3a")
 # Fino a ventotto vicini: il passaparola del Villaggio, le chiacchiere, le
 # indoli e le stravaganze rendono per densità — la scala dell'Animo produce
@@ -74,6 +76,25 @@ var _pockets: Node
 var _chat_acc := 0.0
 var _wish_acc := 0.0
 var _pair_cd := {}
+## LA RICONOSCENZA — chi ha ricevuto e non ha ancora reso attraversa il
+## villaggio e si mette accanto a chi si e' preso cura di lui.
+##
+## ⚠️ LE CHIAVI SONO IL NOME (`dna.name`), NON LA LABEL, ed e' una scelta: il
+## libro mastro degli affetti e' chiavato sul nome, e una domanda si fa con
+## l'anagrafe di chi risponde. Le label sono uniche e i nomi no — con due
+## omonimi si perde qualche visita, che e' il verso giusto (verso il
+## silenzio). Mescolarle darebbe un gettone per CORPO e un raffreddamento per
+## NOME, cioe' due regole diverse sullo stesso gesto.
+##
+## ⚠️ E NESSUN AZZERAMENTO IN `_on_new_day`: si memorizza il GIORNO e si
+## confronta, che e' l'idioma di `_insieme_oggi`. Un `clear()` la' sarebbe un
+## secondo orologio sul giorno, e questo file ne ha gia' uno.
+var _grazie_oggi := {}      # NOME -> il giorno in cui gli e' toccato, dato O ricevuto
+var _grazie_verso := {}     # CRICCHE.chiave(a, b) -> il giorno dell'ultimo grazie
+## Il silenzio ha cinque nomi, e da fuori si vedono tutti uguali.
+var _grazie_conto := {"grazie": 0, "ripieghi": 0, "no_candidati": 0,
+		"no_debito": 0, "no_gettone": 0, "no_raffreddamento": 0}
+
 ## I DADI DEL VILLAGGIO, uno per SCOPO, creati una volta sola.
 ##
 ## ⚠️ Perché non basta seminare il generatore globale: quello lo consuma
@@ -107,6 +128,24 @@ var _orologio_ms := 0.0
 ## e oggi butta via. Si ricerca finché non si trova — il nodo nasce nel
 ## livello, e in un banco non nasce affatto.
 var _cricche: Node
+## IL CERCHIO DEL FALO' — chi si siede accanto a chi, e il posto di chi non
+## c'e' piu'.
+##
+## ⚠️ `_vuoti` E' PERSISTITO (`save_extra`/`load_extra`) e gli altri due no.
+## Senza, chiudere e riaprire la partita richiude il buco — cioe' spegne in
+## silenzio la meta' che vale della meccanica. `_cerchio` e `_cerchio_slot`
+## invece si ricompongono ogni sera: non c'e' niente da tenere allineato.
+##
+## ⚠️ E LO SLOT SI CHIAVA PER NOME, MAI PER INDICE. `_tick_partenze` gira in
+## `_process` a qualunque ora, falo' compreso, e fa `remove_at` all'indietro:
+## gli indici scalano in mezzo alla sera. Chi era NASCOSTO al fronte di fase
+## non aggiorna la propria `r["phase"]` e passa dal ramo "fire" ORE dopo la
+## composizione. Un indice conservato e' l'handle nudo che questo progetto ha
+## gia' pagato con `Ricordo.soggetto`.
+var _vuoti: Array = []
+var _cerchio := PackedStringArray()
+var _cerchio_slot := {}     # NOME -> il suo posto stasera
+var _cerchio_fatto := -1    # la giornata per cui e' stato composto
 ## Il dado delle chiacchiere: chi si parla adesso e chi apre bocca. NON si
 ## salva, ed è una decisione — una chiacchierata è ambiente, dura tre
 ## secondi e non lascia niente dietro di sé (`_run_chat` tira già `randf()`
@@ -255,6 +294,51 @@ func _on_new_day(_day: int) -> void:
 		# progetto ne ha già una (`day_changed`, che detta anche l'età, i
 		# desideri e il giro dell'Animo).
 		r["promosso_oggi"] = false
+	_impara_il_posto_dei_suoi()
+
+
+## SI IMPARA IL POSTO DEI SUOI — una giornata per volta, alla prima occasione
+## buona. Non alla nascita in un colpo: un bambino non eredita, IMPARA.
+##
+## ⚠️ `ritrovo_di`, MAI `compagni()`. La seconda legge la cache
+## `Cricche._coppie`, che si riempie dentro `giro_del_giorno`, che gira in
+## `_process` e NON su `day_changed`: qui dentro sarebbe ancora quella di
+## IERI, e su una partita appena caricata è VUOTA. La trasmissione morirebbe
+## in silenzio proprio nel momento in cui deve funzionare. `ritrovo_di` rifà
+## il conto dal registro ogni volta.
+##
+## ⚠️ E il Filo Rosso è un figlio RUNTIME di CozyWorld: `null` per parecchi
+## frame dopo il caricamento, e per sempre nei banchi, nel diorama e nel
+## Prologo. Il degrado va verso «oggi non si impara», mai verso un errore —
+## che in questo runner non fa fallire niente: interrompe la funzione a metà
+## e lascia il verde.
+func _impara_il_posto_dei_suoi() -> void:
+	if not is_inside_tree():
+		return
+	var legami := get_tree().get_first_node_in_group("legami")
+	if legami == null or not is_instance_valid(legami) \
+			or not legami.has_method("puo_imparare_il_posto"):
+		return
+	var cr := get_tree().get_first_node_in_group("cricche")
+	if cr == null or not is_instance_valid(cr) or not cr.has_method("ritrovo_di"):
+		return
+	for r in _residents:
+		var nome := str((r.get("dna", {}) as Dictionary).get("name", ""))
+		if nome == "" or not bool(legami.call("puo_imparare_il_posto", nome)):
+			continue
+		# i due nomi si passano NELL'ORDINE della nascita, e va bene: le righe
+		# di `Cricche` non hanno verso (i due nomi in ordine alfabetico).
+		# ⚠️ E le due anagrafi combaciano solo se non le si tocca: `genitori_di`
+		# dà NOMI e `Cricche._incontri` è chiavato per NOMI — passare da
+		# `label_di_nome` o da `cella_di` in mezzo spezza la catena in silenzio.
+		var suoi: Array = legami.call("genitori_di", nome)
+		if suoi.size() < 2:
+			continue
+		var rit: Dictionary = cr.call("ritrovo_di", str(suoi[0]), str(suoi[1]))
+		var dove: Variant = EREDITA.posto_dal_ritrovo(rit)
+		if dove == null:
+			continue
+		legami.call("impara_il_posto", nome, dove as Vector3)
 
 
 # =========================================================================
@@ -1301,6 +1385,8 @@ func _phase() -> String:
 
 func _routine(delta: float) -> void:
 	var ph := _phase()
+	if ph == "fire":
+		_componi_il_cerchio()
 	for i in _residents.size():
 		var r := _residents[i]
 		var node := r.get("node") as Node3D
@@ -1338,7 +1424,7 @@ func _routine(delta: float) -> void:
 			"fire":
 				# la sera ci si ritrova tutti attorno al fuoco
 				r["next_act"] = 9999.0
-				node.call("do_routine", "fire", _posto_al_falo(i), CLEARING)
+				node.call("do_routine", "fire", _posto_al_falo(_slot_di(r, i)), CLEARING)
 				# (la compagnia del falò si paga all'arrivo: vedi
 				# STATO_CHE_SAZIA in _gesti_agenda)
 			"morning", "day":
@@ -1532,17 +1618,15 @@ func _recita(r: Dictionary, node: Node3D, brain: RefCounted, act: String, ph: St
 			node.call("do_task", "nap", Vector3.ZERO, func(): brain.satisfy("pisolino"))
 			return
 		"quattro_chiacchiere":
-			# cerca compagnia: il migliore amico se c'è, chiunque altrimenti
-			var meta: Node3D = null
-			var best_label: String = brain.migliore_amico()
-			for other in _residents:
-				if other == r:
-					continue
-				var on := other.get("node") as Node3D
-				if on == null or not is_instance_valid(on) or on.call("is_hidden"):
-					continue
-				if meta == null or str(other["label"]) == best_label:
-					meta = on
+			# CON CHI: la riconoscenza, il piu' caro, il primo che e' in giro.
+			# Il corpo fa la stessa identica cosa in tutti e tre i casi —
+			# cambia la meta, e da fuori le tre scene sono UNA SCENA SOLA. Se
+			# la visita grata avesse un toast, una nuvoletta o una postura
+			# sua, il gioco starebbe dicendo a schermo «questo qui ti deve
+			# qualcosa», cioe' accusando qualcuno di non aver ricambiato: il
+			# libro mastro non ha una riga «tradimento», e non deve averne una
+			# scritta col corpo.
+			var meta := _compagnia_per(r)
 			if meta:
 				var fianco: Vector3 = meta.global_position + Vector3(_dado("fianco_meta").randf_range(-0.9, 0.9), 0, 0.9)
 				node.call("do_routine", "sniff", fianco)
@@ -2150,6 +2234,23 @@ func _panchina_per(r: Dictionary, home: Vector3, come_se_accesa := false) -> Nod
 		var insieme: Node3D = _seduta_da(verso_loro, corpo, come_se_accesa)
 		if insieme != null:
 			return insieme
+	# ⚜️ IL QUINTO ANELLO STA QUI E NON PIU' IN ALTO, e l'ordine di questa
+	# cascata E' la terza domanda della REGOLA SACRA scritta in un ordine. Se
+	# salisse sopra `ancora_riposo`, un adulto se ne andrebbe nell'angolo dei
+	# suoi genitori PROPRIO nel momento in cui il giocatore arriva — e il
+	# giocatore avrebbe imparato, senza una parola, di essere quello di troppo.
+	# Sotto il ritrovo SUO, perche' la propria vita viene prima di quella dei
+	# suoi; sopra casa, perche' e' comunque qualcosa che si sa di se'.
+	#
+	# ⚠️ E `come_se_accesa` SI PASSA ANCHE QUI. E' la leva A/B del banco della
+	# compagnia: dimenticarla su un anello solo la spegnerebbe per quel ramo e
+	# per nessun altro, e la misura direbbe che il quinto anello non risponde
+	# alla leva invece che «me la sono dimenticata».
+	var verso_suoi := _ancora_dei_suoi(r, home)
+	if verso_suoi != home:
+		var dei_suoi: Node3D = _seduta_da(verso_suoi, corpo, come_se_accesa)
+		if dei_suoi != null:
+			return dei_suoi
 	return _seduta_da(home, corpo, come_se_accesa)
 
 
@@ -2243,6 +2344,42 @@ func _ancora_ritrovo(r: Dictionary, home: Vector3) -> Vector3:
 	if n == 0:
 		return home
 	return home.move_toward(somma / float(n), SPOSTA_MAX)
+
+
+## L'ANCORA DEL POSTO DEI SUOI: casa propria, spostata verso il punto in cui
+## si ritrovavano i suoi genitori mentre lui cresceva — e mai piu' di
+## `SPOSTA_MAX`.
+##
+## Un PUNTO, non un corpo: i suoi possono traslocare, smettere di ritrovarsi,
+## partire col fagotto, ed e' lo stesso. Nessuno li insegue. E' la stessa
+## distinzione che rende sicure le altre tre ancore, ed e' anche la ragione
+## per cui questo non e' un guinzaglio: `SPOSTA_MAX` e' la lunghezza di quello
+## che NON deve esserci.
+##
+## ⚠️ Senza Filo Rosso, senza posto imparato, o per chi non e' nato qui, torna
+## `home` **ESATTO**. L'uguaglianza dev'essere esatta e non «quasi»:
+## `_panchina_per` salta l'anello con `if verso != home`, e tredici asserzioni
+## di `test_cuore_vicini` girano su una fixture che in scena non mette nessun
+## `Legami`.
+##
+## ⚠️ E `get_tree()` NON si chiama nudo qui. `_ancora_ritrovo` puo' permetterselo
+## perche' e' sempre in scena; questa no — per un registro costruito fuori
+## dall'albero `get_tree()` e' `null`, e l'errore che ne esce non fa fallire
+## niente: interrompe la funzione e lascia la suite verde.
+func _ancora_dei_suoi(r: Dictionary, home: Vector3) -> Vector3:
+	if not is_inside_tree():
+		return home
+	var legami := get_tree().get_first_node_in_group("legami")
+	if legami == null or not is_instance_valid(legami) \
+			or not legami.has_method("posto_dei_suoi"):
+		return home
+	var nome := str((r.get("dna", {}) as Dictionary).get("name", ""))
+	if nome == "":
+		return home
+	var p: Variant = legami.call("posto_dei_suoi", nome)
+	if p == null:
+		return home
+	return home.move_toward(p as Vector3, SPOSTA_MAX)
 
 
 ## Dove sta Mochi. Senza giocatore (i banchi di prova, il diorama del titolo)
@@ -3299,6 +3436,7 @@ func _congeda(i: int, r: Dictionary, animo: RefCounted) -> void:
 		tw.tween_property(node, "scale", Vector3.ONE * 0.01, 0.8) \
 				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 		tw.tween_callback(node.queue_free)
+	_apri_un_vuoto(i, r)             # il suo posto al falo' resta, per qualche sera
 	_residents.remove_at(i)          # il letto torna libero
 	_animi.erase(label)
 	_brains.erase(label)
@@ -3408,9 +3546,271 @@ func manda(label: String, pos: Vector3) -> void:
 		return
 
 
+## ⚠️ **L'OPPOSTO DI `manda`: gli si restituisce la sua giornata.**
+##
+## `manda` scrive `next_act = 45 s` per tenere il corpo su una meta mentre una
+## scena è in corso. Se la scena finisce PRIMA — e adesso può, perché un
+## vicino può dire di no sulla soglia dell'Accompagnare — quel lease resta
+## appeso, e quello che il giocatore vede non è un rifiuto: è un fermo
+## immagine di quarantacinque secondi. È la stessa cosa che fa già
+## `_filtra_luogo` quando un posto è murato: si torna alla routine.
+func libera(label: String) -> void:
+	for r in _residents:
+		if str(r.get("label", "")) != label:
+			continue
+		r["next_act"] = 0.0
+		return
+
+
 ## Il posto di ognuno attorno al fuoco: cerchi concentrici — undici per
 ## anello, poi si allarga — così anche in ventotto nessuno finisce seduto
 ## in braccio a un altro.
+## SI COMPONE UNA VOLTA PER SERA, sul fronte di fase, e mai dentro il ciclo
+## dei residenti: comporlo per ognuno vorrebbe dire che i primi si siedono in
+## un cerchio e gli ultimi in un altro.
+##
+## ⚜️ L'ANCORA E' L'ANZIANITA', MAI L'AFFETTO — e `base` va costruita
+## nell'ordine di `_residents`, cioe' l'ordine di TRASLOCO. Una base gia'
+## ordinata per affetto trasformerebbe il cerchio in un PODIO, che e' la sola
+## cosa che la regola 2 degli Affetti vieta per iscritto.
+##
+## ⚠️ E QUESTO CANALE LEGGE E BASTA. `Cricche`, `Affetti` e `Legami` si
+## interrogano; non ci si scrive mai, nemmeno indirettamente — il firewall e'
+## `if _phase() == "fire": return` in `_segna_incontro`, e senza, la sera
+## fabbricherebbe i ritrovi che la sera dopo rilegge: le catenelle
+## diventerebbero clique per costruzione, cioe' l'ordine di trasloco
+## travestito da abitudine, e passerebbero ogni collaudo.
+## IL PRIMO ANELLO: a chi devo un grazie, fra quelli che sono in piedi. Torna
+## il NOME del creditore, o "" — che e' la risposta normale, ed e' un esito.
+##
+## ⚠️ DUE CANCELLI CHE SI SOMMANO, e non si sostituiscono a vicenda.
+##
+## 1. IL GETTONE DELLA GIORNATA, E STA SUI DUE LATI: uno al giorno per
+##    persona, dato O ricevuto. Sul solo debitore non basterebbe — un cuoco
+##    che ha cucinato per tutti si vedrebbe arrivare tredici debitori nello
+##    stesso pomeriggio, e il raffreddamento della coppia non lo fermerebbe
+##    perche' le coppie sono diverse. Sarebbe il libro mastro disegnato sul
+##    prato come un corteo: la classifica dalla porta di servizio, cioe' la
+##    seconda domanda della REGOLA SACRA.
+##
+## 2. IL RAFFREDDAMENTO DELLA COPPIA, e il numero si LEGGE da
+##    `Affetti.GIORNI_RIPETIZIONE`, mai ricopiato. Senza, un debito da un
+##    piatto manderebbe lo stesso corpo dallo stesso creditore ogni giorno per
+##    ventisei giorni: un'orbita, non un momento.
+##    ⚠️ E NON E' BUON GUSTO: E' IL FIREWALL verso il falo' e l'eredita'. Un
+##    corpo fermo a 0,9 m da un altro fa scrivere a `_segna_incontro` una riga
+##    di co-presenza, e `Cricche.ritrovo_vivo` diventa vero con tre giornate
+##    DIVERSE dentro una finestra di sette. Con sette giorni di
+##    raffreddamento, in quella finestra ce ne sta UNA: 1 < 3, ed e'
+##    un'impossibilita', non un margine tarato.
+##
+## ⚠️ E IL SEGNO NON HA UN RAMO. `Affetti.squilibrio()` e' antisimmetrica: per
+## ogni debitore esiste un creditore con lo stesso numero cambiato di segno.
+## Qui non si chiede mai «chi mi deve qualcosa»: si muove chi ha RICEVUTO, e
+## chi ha dato non sa niente.
+func _riconoscenza(r: Dictionary, candidati: Array) -> String:
+	if candidati.is_empty():
+		_grazie_conto["no_candidati"] += 1
+		return ""
+	# `is_inside_tree()` e non `get_tree() == null`: il secondo stampa un
+	# ERROR del motore prima di tornare null (e' l'idioma di `_puo_entrare`)
+	if not is_inside_tree():
+		return ""
+	var aff := get_tree().get_first_node_in_group("affetti")
+	if aff == null:
+		return ""
+	var io := str((r.get("dna", {}) as Dictionary).get("name", ""))
+	if io == "":
+		return ""
+	var giorno: int = int(_daynight.get("day")) if _daynight else 0
+	if int(_grazie_oggi.get(io, -1)) == giorno:
+		_grazie_conto["no_gettone"] += 1
+		return ""
+	var chi := str(aff.call("chi_ringraziare", io, candidati))
+	if chi == "":
+		_grazie_conto["no_debito"] += 1
+		return ""
+	if int(_grazie_oggi.get(chi, -1)) == giorno:
+		_grazie_conto["no_gettone"] += 1
+		return ""
+	# la costante si LEGGE dal nodo che la possiede: un `const` di GDScript
+	# risponde a `get()` attraverso l'istanza, e cosi' non serve ne' un
+	# preload nuovo ne' un accessore che oggi non avrebbe lettori
+	var coppia := CRICCHE.chiave(io, chi)
+	var cadenza := int(aff.get("GIORNI_RIPETIZIONE"))
+	if _grazie_verso.has(coppia) \
+			and giorno - int(_grazie_verso[coppia]) < cadenza:
+		_grazie_conto["no_raffreddamento"] += 1
+		return ""
+	# il gettone si paga SOLO se si torna un nome: un anello che paga e poi
+	# perde brucia la giornata di due persone per niente
+	_grazie_oggi[io] = giorno
+	_grazie_oggi[chi] = giorno
+	_grazie_verso[coppia] = giorno
+	_grazie_conto["grazie"] += 1
+	return chi
+
+
+## CON CHI SI VA A STARE — i tre anelli, in quest'ordine e mai in un altro.
+##
+##  1. la RICONOSCENZA: chi si e' preso cura di me e non gliel'ho ancora resa;
+##  2. il PIU' CARO, letto dal libro mastro (era `brain.migliore_amico()`);
+##  3. il PRIMO CHE E' IN GIRO, che e' quello che si faceva da sempre.
+##
+## ⚠️ IL TERZO NON SI TOCCA, MAI, e non e' prudenza: e' dove finisce chiunque
+## cambi idea, cioe' la strada piu' battuta del motore. Ed e' lui a rendere la
+## reciprocita' puramente ADDITIVA — chi ha il libro mastro vuoto, che e'
+## tutto il villaggio quasi sempre, riceve ESATTAMENTE quello che riceveva
+## prima. Toccarlo trasformerebbe un'assenza in una penalita', che e' il modo
+## in cui un sistema acceso su un fatto positivo comincia ad accendersi sul
+## vuoto.
+##
+## ⚠️ I PRIMI DUE SALTANO CHI DORME E CHI E' DENTRO UNA SCENA; il terzo no,
+## com'e' sempre stato. Sono due domande diverse: «chi vado a ringraziare»
+## sceglie una persona, «chi c'e' in giro» e' il ripiego che non deve cambiare.
+func _compagnia_per(r: Dictionary) -> Node3D:
+	# CHI E' IN PIEDI, e lo sa solo questo file: `Affetti` non deve provare a
+	# indovinarlo, o «non c'e' nessuno in giro» diventerebbe «non ti ho detto
+	# chi e' in giro» e manderemmo un corpo verso una casa chiusa.
+	var candidati: Array = []
+	var corpo_di := {}
+	for other in _residents:
+		if other == r:
+			continue
+		var on := other.get("node") as Node3D
+		if on == null or not is_instance_valid(on) or on.call("is_hidden"):
+			continue
+		if bool(on.call("in_scena")) or bool(on.call("dorme")):
+			continue
+		var n := str((other.get("dna", {}) as Dictionary).get("name", ""))
+		# con due omonimi vince il primo, e non e' arbitrario: il libro mastro
+		# non sa distinguerli, quindi non c'e' nessuna scelta da fare
+		if n == "" or corpo_di.has(n):
+			continue
+		candidati.append(n)
+		corpo_di[n] = on
+	var grazie := _riconoscenza(r, candidati)
+	if grazie != "" and corpo_di.has(grazie):
+		return corpo_di[grazie] as Node3D
+	var aff: Node = null
+	if is_inside_tree():
+		aff = get_tree().get_first_node_in_group("affetti")
+	if aff != null and not candidati.is_empty():
+		var mio := str((r.get("dna", {}) as Dictionary).get("name", ""))
+		var caro := str(aff.call("chi_e_il_piu_caro", mio, candidati))
+		if caro != "" and corpo_di.has(caro):
+			return corpo_di[caro] as Node3D
+	# IL RIPIEGO DI SEMPRE: il primo residente valido nell'ordine di
+	# `_residents`, saltando se' stesso, i null, gli invalidi e i nascosti.
+	# Non e' un dado, non salta chi dorme, non salta chi e' in scena.
+	for other in _residents:
+		if other == r:
+			continue
+		var on := other.get("node") as Node3D
+		if on == null or not is_instance_valid(on) or on.call("is_hidden"):
+			continue
+		_grazie_conto["ripieghi"] += 1
+		return on
+	return null
+
+
+## IL REFERTO. Un banco che dice «zero visite grate» lascia indovinare, e si
+## finisce per accusare il cablaggio quando era il gettone: e' la lezione gia'
+## pagata dal vocabolario del corpo, dove il silenzio ha sei nomi.
+func debug_reciprocita() -> Dictionary:
+	return _grazie_conto.duplicate()
+
+
+func _componi_il_cerchio() -> void:
+	var oggi: int = int(_daynight.get("day")) if _daynight else 0
+	if _cerchio_fatto == oggi:
+		return
+	_cerchio_fatto = oggi
+	var base := PackedStringArray()
+	for r in _residents:
+		var nome := str((r.get("dna", {}) as Dictionary).get("name", ""))
+		if nome != "":
+			base.append(nome)
+	var famiglie: Array = []
+	var coppie: Array = []
+	var ritrovi := {}
+	if is_inside_tree():
+		var legami := get_tree().get_first_node_in_group("legami")
+		if legami != null and is_instance_valid(legami) \
+				and legami.has_method("figli_di"):
+			for nome in base:
+				var figli: Array = legami.call("figli_di", nome)
+				if not figli.is_empty():
+					famiglie.append({"genitori": [nome], "figli": figli})
+		var aff := get_tree().get_first_node_in_group("affetti")
+		if aff != null and is_instance_valid(aff) \
+				and aff.has_method("coppie_di_oggi"):
+			coppie = aff.call("coppie_di_oggi")
+		var cr := get_tree().get_first_node_in_group("cricche")
+		if cr != null and is_instance_valid(cr) and cr.has_method("compagni"):
+			for nome in base:
+				var loro: PackedStringArray = cr.call("compagni", nome)
+				if not loro.is_empty():
+					ritrovi[nome] = loro
+	# ⚠️ i vuoti VIVI, non tutto lo storico: la potatura e' una domanda sul
+	# CALENDARIO, e dentro `Cerchio` il calendario non c'e'.
+	_cerchio = CERCHIO.cerchio(base, famiglie, coppie,
+			CERCHIO.vuoti_vivi(_vuoti, oggi), ritrovi)
+	_cerchio_slot.clear()
+	for posto in _cerchio.size():
+		var chi := _cerchio[posto]
+		if CERCHIO.e_un_vuoto(chi):
+			continue      # il fantasma tiene il posto e non e' nessuno
+		_cerchio_slot[chi] = posto
+
+
+## Il posto di stasera, o l'indice di sempre. ⚠️ IL DEGRADO VA VERSO IL FALO'
+## DI SEMPRE: senza cerchio composto — i banchi, il diorama, la CLI, il primo
+## frame — si torna esattamente all'ordine di trasloco.
+func _slot_di(r: Dictionary, i: int) -> int:
+	var nome := str((r.get("dna", {}) as Dictionary).get("name", ""))
+	return int(_cerchio_slot.get(nome, i))
+
+
+## SI APRE UN VUOTO: chi parte lascia il suo posto, e il posto resta.
+##
+## ⚜️ E SI CHIAMA IDENTICA DAI DUE CONGEDI, senza un solo `if` che li
+## distingua. `_congeda` e' la DISERZIONE, `parte_per_il_grande_prato` e' il
+## Grande Prato: un ramo che desse meno sere al disertore sarebbe il gioco che
+## dice chi ha sbagliato — la seconda domanda della REGOLA SACRA con la
+## risposta sbagliata. La proporzione la fa gia' il filo, che e' piu' lungo
+## per chi e' stato di piu' con te.
+##
+## ⚠️ VA CHIAMATA **PRIMA** DI `remove_at`: dopo, `i` non e' piu' il suo posto
+## e `r` e' gia' uscito. E il nome si legge da `r["dna"]["name"]` diretto, mai
+## da `_nome_da_label`, che su un partito ritorna la label invariata e in
+## silenzio.
+func _apri_un_vuoto(i: int, r: Dictionary) -> void:
+	if not is_inside_tree():
+		return
+	var chi := str((r.get("dna", {}) as Dictionary).get("name", ""))
+	if chi == "":
+		return
+	var legami := get_tree().get_first_node_in_group("legami")
+	if legami == null or not is_instance_valid(legami) \
+			or not legami.has_method("giorni_di_vuoto"):
+		return      # senza filo non c'e' storia, e senza storia non c'e' vuoto
+	var quanti: int = (legami.call("momenti_di", chi) as Array).size()
+	var vicino := ""
+	if i + 1 < _residents.size():
+		vicino = str((_residents[i + 1].get("dna", {}) as Dictionary).get("name", ""))
+	elif i > 0:
+		vicino = str((_residents[i - 1].get("dna", {}) as Dictionary).get("name", ""))
+	_vuoti.append({"chi": chi, "vicino": vicino, "posto": i,
+			"giorno": int(_daynight.get("day")) if _daynight else 0,
+			"giorni": int(legami.call("giorni_di_vuoto", quanti))})
+
+
+## Il cerchio di stasera, per i banchi e per chi guarda. Fantasmi compresi.
+func debug_cerchio() -> PackedStringArray:
+	return _cerchio
+
+
 func _posto_al_falo(i: int) -> Vector3:
 	@warning_ignore("integer_division")
 	var anello := i / 11
@@ -3427,7 +3827,7 @@ func gather_fire() -> void:
 		if node == null or not is_instance_valid(node) or node.call("is_hidden"):
 			continue
 		r["next_act"] = 9999.0
-		node.call("do_routine", "fire", _posto_al_falo(i), CLEARING)
+		node.call("do_routine", "fire", _posto_al_falo(_slot_di(r, i)), CLEARING)
 
 
 ## La partenza per il Grande Prato: GENTILE. Niente lettera di rancore
@@ -3455,6 +3855,7 @@ func parte_per_il_grande_prato(label: String) -> void:
 		# r è ancora intero.
 		_seppellisci_ricordo(r, label)
 		_dimentica_ecs(r)
+		_apri_un_vuoto(i, r)     # e anche la partenza gentile lascia il posto
 		_residents.remove_at(i)
 		_animi.erase(label)
 		_brains.erase(label)
@@ -4351,8 +4752,28 @@ func _giorno_di_animo() -> void:
 		var tel: Array = animo.telegrafo()
 		_mostra_telegrafo(chi, tel)
 		# solo i passaggi che contano finiscono nei toast: se avvisassimo a
-		# ogni mugugno, il giocatore smetterebbe di leggere
-		if ANIMO.almeno(int(animo.gradino), "rifiuto"):
+		# ogni mugugno, il giocatore smetterebbe di leggere.
+		#
+		# ⚜️ E SI ANNUNCIA SOLO LA SALITA. Il corpo cambia comunque — chi si e'
+		# calmato lo si VEDE, `_mostra_telegrafo` sta due righe sopra — ma un
+		# toast sulla discesa direbbe «guarda, si e' ripreso»: e' il gioco che
+		# tiene il punteggio delle persone, e la REGOLA SACRA lo vieta. Una
+		# riparazione si nota da se', ed e' meglio cosi'.
+		#
+		# ⚠️ LA DIREZIONE SI LEGGE DALL'EVENTO, MAI DA `animo.gradino`.
+		# `aggiorna_scala` mette il freno di `_ultimo_scatto` sulle SALITE e
+		# non sulle discese, quindi lo stesso vicino puo' produrre due righe di
+		# cronaca nella stessa giornata (una al passo 1, una al passo 3 dopo
+		# aver sentito le voci): giudicando col gradino ATTUALE, la prima
+		# verrebbe letta con la direzione della seconda. Ogni riga invece e'
+		# autoconsistente, perche' `da` e `a` vengono dallo stesso scatto.
+		#
+		# ⚠️ E IL DEGRADO VA VERSO IERI, gratis: `ANIMO.indice("")` vale -1,
+		# quindi con un `da` mancante (una cronaca vecchia, un doppio di banco)
+		# il confronto e' vero e il toast esce come e' sempre uscito.
+		var da := ANIMO.indice(str(evento.get("da", "")))
+		if ANIMO.almeno(int(animo.gradino), "rifiuto") \
+				and ANIMO.indice(str(evento.get("a", ""))) > da:
 			_show_toast("%s: «%s»" % [chi, L10n.t(str(tel[1]))])
 
 
@@ -6169,12 +6590,20 @@ func save_extra() -> Dictionary:
 	var partiti: Dictionary = _partiti_salvati
 	if _villaggio != null:
 		partiti = _villaggio.partiti
-	return {"residents": rows, "cand_mem": _cand_visits,
+	# ⚠️ I VUOTI SI SALVANO. Senza, chiudere e riaprire la partita richiude il
+	# buco attorno al fuoco: la meta' che vale della meccanica si spegnerebbe
+	# in silenzio, e solo per chi riapre — cioe' per tutti tranne chi comincia
+	# adesso. E' la stessa forma del difetto che i fiori hanno gia' pagato con
+	# l'accucciamento al caricamento.
+	return {"residents": rows, "cand_mem": _cand_visits, "vuoti": _vuoti,
 			"villaggio": {"partiti": partiti}}
 
 
 func load_extra(data: Dictionary) -> void:
 	_cand_visits = data.get("cand_mem", {})
+	# ⚠️ le righe NON si rileggono a mano: dal JSON gli interi tornano `float`,
+	# e `is int` e' falso proprio per il numero appena passato dal disco.
+	_vuoti = CERCHIO.vuoti_letti(data.get("vuoti", []))
 	var vdata: Dictionary = data.get("villaggio", {})
 	_partiti_salvati = vdata.get("partiti", {})
 	for row in data.get("residents", []):
@@ -6260,7 +6689,7 @@ func debug_gather_fire() -> void:
 		var node := _residents[i].get("node") as Node3D
 		if node == null or not is_instance_valid(node):
 			continue
-		var spot := _posto_al_falo(i)
+		var spot := _posto_al_falo(_slot_di(_residents[i], i))
 		node.position = spot + Vector3(0.04, 0, 0.04)
 		node.call("do_routine", "fire", spot, CLEARING)
 		_residents[i]["phase"] = "fire"
