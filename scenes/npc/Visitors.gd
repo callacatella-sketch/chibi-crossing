@@ -3608,6 +3608,36 @@ func libera(label: String) -> void:
 ## ogni debitore esiste un creditore con lo stesso numero cambiato di segno.
 ## Qui non si chiede mai «chi mi deve qualcosa»: si muove chi ha RICEVUTO, e
 ## chi ha dato non sa niente.
+## ⚠️ IL RAFFREDDAMENTO E' UNA REGOLA SUL GESTO — «attraversare il villaggio
+## per mettersi accanto a qualcuno» — NON sul primo anello, e per un giorno
+## intero lo e' stato per sbaglio.
+##
+## Una revisione avversariale l'ha smontato con i numeri: quando la
+## riconoscenza tace, il secondo anello (`chi_e_il_piu_caro`) legge LO STESSO
+## libro mastro, e un gesto vero non ricambiato vale 0,70-1,20 contro lo 0,05
+## di una chiacchiera — quindi **il creditore E' anche il piu' caro**.
+## MISURATO sulle funzioni pure: con un piatto e otto chiacchiere pari,
+## `da_ringraziare` e `il_piu_caro` danno la stessa persona (1,284 contro
+## 0,593). Il corpo ci tornava lo stesso, ogni giorno, dalla porta di
+## servizio: la co-presenza si accumulava, `Cricche.ritrovo_vivo` trovava le
+## sue tre giornate diverse in sette, e la porta che il commento dichiarava
+## chiusa era spalancata.
+##
+## Adesso la valvola guarda la COPPIA, qualunque anello l'abbia scelta. E le
+## visite normali fra amici non pagano niente: senza un debito non c'e' nessuna
+## riga in `_grazie_verso`, quindi nessun raffreddamento.
+func _in_raffreddamento(io: String, altro: String, giorno: int) -> bool:
+	if not is_inside_tree():
+		return false
+	var aff := get_tree().get_first_node_in_group("affetti")
+	if aff == null:
+		return false
+	var coppia := CRICCHE.chiave(io, altro)
+	if not _grazie_verso.has(coppia):
+		return false
+	return giorno - int(_grazie_verso[coppia]) < int(aff.get("GIORNI_RIPETIZIONE"))
+
+
 func _riconoscenza(r: Dictionary, candidati: Array) -> String:
 	if candidati.is_empty():
 		_grazie_conto["no_candidati"] += 1
@@ -3636,12 +3666,10 @@ func _riconoscenza(r: Dictionary, candidati: Array) -> String:
 	# la costante si LEGGE dal nodo che la possiede: un `const` di GDScript
 	# risponde a `get()` attraverso l'istanza, e cosi' non serve ne' un
 	# preload nuovo ne' un accessore che oggi non avrebbe lettori
-	var coppia := CRICCHE.chiave(io, chi)
-	var cadenza := int(aff.get("GIORNI_RIPETIZIONE"))
-	if _grazie_verso.has(coppia) \
-			and giorno - int(_grazie_verso[coppia]) < cadenza:
+	if _in_raffreddamento(io, chi, giorno):
 		_grazie_conto["no_raffreddamento"] += 1
 		return ""
+	var coppia := CRICCHE.chiave(io, chi)
 	# il gettone si paga SOLO se si torna un nome: un anello che paga e poi
 	# perde brucia la giornata di due persone per niente
 	_grazie_oggi[io] = giorno
@@ -3698,7 +3726,12 @@ func _compagnia_per(r: Dictionary) -> Node3D:
 	if aff != null and not candidati.is_empty():
 		var mio := str((r.get("dna", {}) as Dictionary).get("name", ""))
 		var caro := str(aff.call("chi_e_il_piu_caro", mio, candidati))
-		if caro != "" and corpo_di.has(caro):
+		# ⚠️ E ANCHE QUI, o il firewall del primo anello non vale niente: il
+		# creditore e' quasi sempre anche il piu' caro, e senza questa riga il
+		# corpo ci tornava ogni giorno da un'altra porta.
+		var oggi_g: int = int(_daynight.get("day")) if _daynight else 0
+		if caro != "" and corpo_di.has(caro) \
+				and not _in_raffreddamento(mio, caro, oggi_g):
 			return corpo_di[caro] as Node3D
 	# IL RIPIEGO DI SEMPRE: il primo residente valido nell'ordine di
 	# `_residents`, saltando se' stesso, i null, gli invalidi e i nascosti.
@@ -3737,11 +3770,29 @@ func _componi_il_cerchio() -> void:
 	if is_inside_tree():
 		var legami := get_tree().get_first_node_in_group("legami")
 		if legami != null and is_instance_valid(legami) \
-				and legami.has_method("figli_di"):
+				and legami.has_method("genitori_di"):
+			# ⚠️ SI COMPONE DAI FIGLI, NON DAI GENITORI VIVI, e non e' un
+			# dettaglio: ciclando i genitori una coppia produce DUE righe con
+			# un genitore ciascuna, e `Cerchio._blocchi_famiglia` e' scritta
+			# per riceverne UNA con tutti e due (`genitori[0]` … figli …
+			# `genitori[1]`). Con un figlio l'esito era giusto per caso; con
+			# due — e `Nascite.MAX_FIGLI` e' 3 — il secondo blocco non si puo'
+			# piu' cucire, e la cucitura della coppia ROVESCIA la famiglia:
+			# MISURATO, `[C2, C1, P, M]` invece di `[P, C1, C2, M]`. Cioe' i
+			# genitori si toccano e i cuccioli non sono piu' in mezzo, che e'
+			# esattamente la frase che questa meccanica esiste per dire.
+			# Dal figlio la riga esce giusta anche se un genitore e' partito.
+			var per_coppia := {}
 			for nome in base:
-				var figli: Array = legami.call("figli_di", nome)
-				if not figli.is_empty():
-					famiglie.append({"genitori": [nome], "figli": figli})
+				var suoi: Array = legami.call("genitori_di", nome)
+				if suoi.size() < 2 or str(suoi[0]) == "" or str(suoi[1]) == "":
+					continue
+				var chiave := CRICCHE.chiave(str(suoi[0]), str(suoi[1]))
+				if not per_coppia.has(chiave):
+					per_coppia[chiave] = {"genitori": [str(suoi[0]), str(suoi[1])],
+							"figli": []}
+				(per_coppia[chiave]["figli"] as Array).append(nome)
+			famiglie = per_coppia.values()
 		var aff := get_tree().get_first_node_in_group("affetti")
 		if aff != null and is_instance_valid(aff) \
 				and aff.has_method("coppie_di_oggi"):
@@ -3756,20 +3807,44 @@ func _componi_il_cerchio() -> void:
 	# CALENDARIO, e dentro `Cerchio` il calendario non c'e'.
 	_cerchio = CERCHIO.cerchio(base, famiglie, coppie,
 			CERCHIO.vuoti_vivi(_vuoti, oggi), ritrovi)
+	# ⚠️⚠️ LO SLOT SI CHIAVA SULLA **LABEL**, E IL NOME NON BASTA. I nomi NON
+	# sono unici: `_spawn_candidate` rigetta il DNA finche' la LABEL e' libera,
+	# e ci sono 28 nomi per 28 posti — MISURATO, la probabilita' di avere due
+	# omonimi e' 0.20 a quattro residenti, 0.91 a dodici, ~1.00 a venti. Con la
+	# chiave sul nome il secondo omonimo SOVRASCRIVEVA il primo, tutti e due
+	# ricevevano lo stesso intero, e `_posto_al_falo` li metteva nella STESSA
+	# SEDIA — ogni sera, in ogni villaggio maturo. Era una regressione: prima
+	# del cablaggio l'intero era l'indice in `_residents`, sempre distinto.
+	#
+	# Il giro torna NOMI, quindi si consuma per nome in ordine: il primo
+	# residente con quel nome prende la prima occorrenza, il secondo la
+	# seconda. Senza omonimi e' identico a prima; con omonimi ognuno ha la sua
+	# sedia. (E la LABEL e' stabile mentre gli indici scalano: `_tick_partenze`
+	# fa `remove_at` a meta' sera, ed e' per questo che non si chiava li'.)
+	var coda := {}
+	for r in _residents:
+		var nome := str((r.get("dna", {}) as Dictionary).get("name", ""))
+		if nome == "":
+			continue
+		if not coda.has(nome):
+			coda[nome] = []
+		(coda[nome] as Array).append(str(r.get("label", "")))
 	_cerchio_slot.clear()
 	for posto in _cerchio.size():
 		var chi := _cerchio[posto]
 		if CERCHIO.e_un_vuoto(chi):
 			continue      # il fantasma tiene il posto e non e' nessuno
-		_cerchio_slot[chi] = posto
+		var q: Array = coda.get(chi, [])
+		if q.is_empty():
+			continue
+		_cerchio_slot[q.pop_front()] = posto
 
 
 ## Il posto di stasera, o l'indice di sempre. ⚠️ IL DEGRADO VA VERSO IL FALO'
 ## DI SEMPRE: senza cerchio composto — i banchi, il diorama, la CLI, il primo
 ## frame — si torna esattamente all'ordine di trasloco.
 func _slot_di(r: Dictionary, i: int) -> int:
-	var nome := str((r.get("dna", {}) as Dictionary).get("name", ""))
-	return int(_cerchio_slot.get(nome, i))
+	return int(_cerchio_slot.get(str(r.get("label", "")), i))
 
 
 ## SI APRE UN VUOTO: chi parte lascia il suo posto, e il posto resta.

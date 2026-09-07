@@ -73,6 +73,8 @@ func run(t) -> void:
 	_il_vuoto_si_apre_prima_della_rimozione(t)
 	_i_vuoti_sopravvivono_al_salvataggio(t)
 	_la_sera_il_cerchio_si_compone(t)
+	_due_omonimi_hanno_due_sedie(t)
+	_con_due_figli_i_genitori_non_si_toccano(t)
 
 
 # ------------------------------------------------------------------ attrezzi
@@ -1226,3 +1228,64 @@ func _la_sera_il_cerchio_si_compone(t) -> void:
 	vis._routine(0.016)
 	t.eq(str(vis.debug_cerchio()), prima,
 			"…e si compone una volta per sera, non a ogni fotogramma")
+
+
+## ⚠️⚠️ DUE OMONIMI NON SI SIEDONO NELLA STESSA SEDIA.
+##
+## I nomi di questo gioco NON sono unici: `_spawn_candidate` rigetta il DNA
+## finché la LABEL è libera, e `ChibiDNA.NAMES` ha ventotto nomi per ventotto
+## posti. MISURATO: la probabilità di avere due omonimi è 0.20 a quattro
+## residenti, 0.91 a dodici, ~1.00 a venti — cioè in ogni villaggio maturo.
+##
+## La prima stesura del cablaggio chiavava lo slot sul NOME: il secondo
+## omonimo sovrascriveva il primo, tutti e due ricevevano lo stesso intero, e
+## `_posto_al_falo` li metteva nello stesso punto. Era una REGRESSIONE — prima
+## l'intero era l'indice in `_residents`, sempre distinto — e nessun caso
+## poteva vederla, perché la fixture qui sopra genera «N0».. tutti diversi.
+func _due_omonimi_hanno_due_sedie(t) -> void:
+	_sgombra(t)
+	var vis = _registro(t, 3)
+	# il quarto arriva e si chiama come il primo: label diversa, nome uguale
+	vis._residents.append({"dna": {"name": "N0"}, "label": "Gattina N0",
+			"cell": Vector2i(9, 0), "species": "chibi"})
+	vis._componi_il_cerchio()
+	var slot := {}
+	for i in vis._residents.size():
+		var s: int = vis._slot_di(vis._residents[i], i)
+		t.ok(not slot.has(s),
+				"ogni residente ha una sedia SUA (il %d° ha preso %d)" % [i, s])
+		slot[s] = true
+	t.eq(slot.size(), 4, "quattro residenti, quattro sedie distinte")
+
+
+## ⚜️ IL CUCCIOLO IN MEZZO, E I GENITORI NON SI TOCCANO. È la frase che questa
+## meccanica esiste per dire, e con DUE figli la prima stesura la rovesciava:
+## il cablaggio ciclava i genitori vivi e produceva DUE righe con un genitore
+## ciascuna, mentre `_blocchi_famiglia` è scritta per riceverne UNA con tutti
+## e due. MISURATO: `[C2, C1, P, M]` invece di `[P, C1, C2, M]` — i genitori
+## attaccati e i cuccioli spinti da una parte.
+func _con_due_figli_i_genitori_non_si_toccano(t) -> void:
+	_sgombra(t)
+	var vis = _registro(t, 0)
+	for nome in ["Padre", "Madre", "Uno", "Due"]:
+		vis._residents.append({"dna": {"name": nome}, "label": nome,
+				"cell": Vector2i(0, 0), "species": "chibi"})
+	var lg = Filo.new()
+	t.stage(lg)
+	lg.nascita("Uno", "Padre", "Madre")
+	lg.nascita("Due", "Padre", "Madre")
+	var aff = t.stage(Coppie.new())
+	aff.loro = [["Padre", "Madre"]]
+	vis._componi_il_cerchio()
+	var giro: PackedStringArray = vis.debug_cerchio()
+	t.eq(giro.size(), 4, "ci sono tutti e quattro")
+	var p := giro.find("Padre")
+	var m := giro.find("Madre")
+	t.ok(absi(p - m) > 1,
+			"i genitori NON si toccano: c'è un cucciolo in mezzo (%s)" % str(giro))
+	var u := giro.find("Uno")
+	var d := giro.find("Due")
+	t.ok(u > mini(p, m) and u < maxi(p, m),
+			"il primo cucciolo sta FRA i suoi (%s)" % str(giro))
+	t.ok(d > mini(p, m) and d < maxi(p, m),
+			"e anche il secondo (%s)" % str(giro))
