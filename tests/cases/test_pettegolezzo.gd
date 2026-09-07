@@ -449,6 +449,13 @@ func _un_eco_spenta_non_tappa_la_notizia_fresca(t, m) -> void:
 	# filtro di sopra potrebbe essere diventato «non filtro niente».
 	var d: int = n.registra(PackedStringArray([]), "")
 	n.osserva(d, v, Vector3(3.0, 0.0, 3.0), -1)
+	# ⚠️ E IL TAPPO ADESSO HA UNA CONDIZIONE, che prima non serviva: D tace
+	# se CREDE che B lo sappia, e lo crede perché erano lì insieme. Sotto
+	# l'onniscienza bastava che B lo sapesse; da quando A legge il modello e
+	# non la mente, «lo sa» e «lo so io che lo sa» sono due cose diverse — ed
+	# è tutta la fase. Senza questa riga la controprova pretenderebbe che D
+	# legga la memoria di B, cioè proprio la cosa che abbiamo tolto.
+	n.co_testimoni(PackedInt64Array([d, b]), v)
 	t.eq(int(n.racconta(d, b, 0.55)), -1,
 			"ma quello che B si ricorda per davvero non gli si ripassa: il tappo giusto c'è ancora")
 	n.free()
@@ -506,10 +513,19 @@ func _cio_che_sa_gia_non_si_ripassa(t, m) -> void:
 	m.osserva(a, annaffia, Vector3(1.0, 0.0, 1.0), -1)
 	m.osserva(a, pesca, Vector3(2.0, 0.0, 2.0), -1)
 	m.osserva(b, annaffia, Vector3(1.0, 0.0, 1.0), -1)
+	# ⚠️ E LA CO-TESTIMONIANZA SI INCIDE, come fa il gioco. Da quando A non
+	# legge piu' il grafo VERO di B ma il modello che ha di lui (la teoria
+	# della mente), «ha visto anche lui» non e' piu' una cosa che A puo'
+	# sapere per magia: la sa perche' ERA LI'. `Percezione.accaduto` chiama
+	# `osserva` per ognuno **e poi** `co_testimoni` con la lista intera; un
+	# banco che chiama solo il primo costruisce un mondo che il gioco non
+	# produce, e misura il ramo di degrado (racconto lo stesso) scambiandolo
+	# per una regressione.
+	m.co_testimoni(PackedInt64Array([a, b]), annaffia)
 
 	var cosa: int = m.racconta(a, b, 0.55)
 	t.eq(cosa, m.indice_cosa("pesce"),
-			"non gli ripete l'annaffiata che ha visto anche lui: gli racconta la pesca")
+			"non gli ripete l'annaffiata che ha visto anche lui — e lo sa perché\n\t\t\t\tc'era: gli racconta la pesca")
 	t.eq(_righe(m, b).size(), 2, "e a B è arrivata UNA notizia sola, non un doppione")
 	t.eq(int(_ricordo_di(m, a, pesca)["bandiere"]) & _detto, _detto,
 			"la pesca risulta raccontata…")
@@ -529,9 +545,12 @@ func _il_silenzio_non_brucia_la_notizia(t, m) -> void:
 	var v: int = m.indice_verbo("costruisce")
 	m.osserva(a, v, Vector3(7.0, 0.0, 8.0), -1)
 	m.osserva(b, v, Vector3(7.0, 0.0, 8.0), -1)
+	# (stessa ragione dello scenario qui sopra: erano li' insieme)
+	m.co_testimoni(PackedInt64Array([a, b]), v)
 
 	var versione_prima := int(m.debug_grafo(a)["versione"])
-	t.eq(m.racconta(a, b, 0.55), -1, "con chi c'era non c'è niente da dirsi")
+	t.eq(m.racconta(a, b, 0.55), -1,
+			"con chi c'era INSIEME A ME non c'è niente da dirsi")
 	t.eq(int(m.debug_grafo(a)["versione"]), versione_prima,
 			"e non si scrive niente: nemmeno la versione del grafo si muove")
 	t.eq(_righe(m, b).size(), 1, "…e a B non arriva un doppione di quel che ha visto")

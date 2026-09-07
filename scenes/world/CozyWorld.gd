@@ -138,6 +138,31 @@ signal world_built
 
 
 func _ready() -> void:
+	# ⚠️ L'UNICO POSTO DEL GIOCO CHE DÀ UNA POSIZIONE AL FLUSSO GLOBALE, e
+	# deve restare uno solo. Sta qui perché è il PRIMO che lo consuma: in
+	# `MainLevel.tscn` CozyWorld viene prima di BuildSystem, il mondo si
+	# generava chiedendo al globale in trentasette punti, e prima di questa
+	# riga nessuno gli aveva mai dato una posizione. (La prima stesura della
+	# cura seminava solo in `BuildSystem` e il banco delle repliche ha
+	# continuato a dire di no: è stato lui a trovarlo, non una rilettura.)
+	#
+	# ⚠️ E SEMINARE DUE VOLTE ERA UN DOPPIONE CHE FACEVA DANNO, col commento
+	# che prometteva il contrario di quello che succedeva. Questa funzione è
+	# una COROUTINE: semina, costruisce l'erba, e poi cede il controllo per
+	# sette fotogrammi. Il `_ready` di BuildSystem e il suo `_load_village`
+	# differito cadono tutti e due **dentro quel primo `await`**, cioè fra
+	# `_build_grass()` e tutto il resto: le loro riseminate rimettevano la
+	# posizione IN MEZZO alla generazione, e sassi, nuvole, polline, bosco e
+	# fiori ripartivano dalla stessa testa di sequenza che l'erba aveva
+	# appena consumato. Non era «quel che viene dopo non dipende dalla
+	# generazione»: era la generazione che dipendeva da quante volte veniva
+	# interrotta. Sono state tolte tutte e due.
+	#
+	# Residuo dichiarato: prima di noi girano i tre autoload (Settings, Sfx,
+	# Quality). Un tiro al globale fatto lì è ancora dove l'ha lasciato il
+	# motore — «la più presto possibile» è questo `_ready`, non l'avvio del
+	# processo.
+	Dadi.semina_globale()
 	add_to_group("cozy_world")
 	add_to_group("season_listener")
 	# la calma del giocatore arriva da una casa sola: il Fiato Sospeso
@@ -2052,10 +2077,20 @@ func _build_campfire() -> void:
 	root.add_child(_campfire_light)
 
 
+## Quanti funghi da raccolta sono nati in questa partita: è la chiave del
+## loro dado, non una statistica.
+var _funghi_nati := 0
+
+
 # funghi da raccolta: più grandi dei decorativi, il bottino della passeggiata
 func _spawn_pickup_mushroom() -> void:
-	var rng := RandomNumberGenerator.new()
-	rng.randomize()
+	# ⚠️ Veniva da `randomize()`. La chiave è il CONTATORE dei funghi nati in
+	# questa partita: ogni fungo resta diverso dal precedente (che è quello
+	# che serviva), e due corse con la stessa radice fanno nascere gli stessi
+	# funghi nello stesso ordine. Il porcino d'autunno smette di essere un
+	# bivio che nessuna misura può ripetere.
+	_funghi_nati += 1
+	var rng := Dadi.rng(Dadi.AMBIENTE, "fungo:%d" % _funghi_nati)
 	# d'autunno, ogni tanto, il bosco regala un PORCINO: più grande, cappella
 	# bruna senza puntini, e al carretto vale molto di più (vedi Critters)
 	var specie := "fungo"

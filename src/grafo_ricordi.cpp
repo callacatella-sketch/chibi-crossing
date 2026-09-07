@@ -189,4 +189,26 @@ int da_raccontare(const GrafoRicordi &p_grafo, float p_ora, double p_mezza_vita,
 	return migliore;
 }
 
+uint32_t verbi_vivi(const GrafoRicordi &p_grafo, float p_ora,
+		double p_mezza_vita) {
+	const int n = (p_grafo.n < MAX_FATTI) ? static_cast<int>(p_grafo.n) : MAX_FATTI;
+	uint32_t m = 0;
+	for (int i = 0; i < n; i++) {
+		const uint8_t v = p_grafo.f[i].verbo;
+		// come in `da_raccontare`: la maschera indicizza uno shift, e un
+		// verbo fuori tabella (possibile solo da un grafo costruito a mano,
+		// cioè da un oracolo di prova) darebbe uno shift oltre la larghezza
+		// del tipo — comportamento indefinito, non un errore visibile.
+		if (v >= N_VERBI) {
+			continue;
+		}
+		// UN RICORDO SPENTO NON È CONOSCENZA: vedi la testata.
+		if (!(peso(p_grafo.f[i], p_ora, p_mezza_vita) > 0.0)) {
+			continue;
+		}
+		m |= (1u << v);
+	}
+	return m;
+}
+
 } // namespace chibi

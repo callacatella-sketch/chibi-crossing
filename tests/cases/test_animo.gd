@@ -30,6 +30,9 @@ func run(t) -> void:
 
 	_il_substrato_dell_assenza(t)
 	_quanto_contava_lo_dice_il_libro_mastro(t)
+	_la_fiducia_e_la_gemella_del_rancore(t)
+	_la_fiducia_cambia_una_decisione_VERA(t)
+	_la_fiducia_non_e_una_porta(t)
 func _chibi(nome: String, tratti := {}, sogno := "boscaiolo"):
 	var a = ANIMO.new()
 	a.setup({"name": nome, "seed": abs(hash(nome)), "sogno": sogno, "tratti": tratti})
@@ -635,3 +638,247 @@ class RegistroLutto extends "res://scenes/npc/Visitors.gd":
 
 	func label_di_nome(_n: String) -> String:
 		return "X"
+
+
+## ⚠️ **LA FIDUCIA — la gemella di `rancore()`, e la forma che deve avere.**
+##
+## Il libro mastro sapeva dire quanto qualcuno ti ha fatto del male e non
+## sapeva dire quanto ti ha fatto del bene: `rancore()` chiude con
+## `maxf(0.0, somma − buoni·1.4)`, quindi cinquanta giornate di piatti caldi
+## potevano al massimo azzerare un torto. E `opinione` — l'unico modello
+## generalizzato che un vicino ha di una persona — aveva **un solo scrittore
+## in tutto il gioco**: il pettegolezzo.
+func _la_fiducia_e_la_gemella_del_rancore(t) -> void:
+	# --- ZERO ESATTO per uno sconosciuto: non un credito, non un'accusa
+	var nuovo = _chibi("Nuovo")
+	t.almost(nuovo.fiducia("giocatore"), 0.0,
+			("uno sconosciuto vale zero ESATTO: un credito iniziale "
+			+ "invaliderebbe ogni misura mai presa su `decide()`"), 1e-12)
+
+	# --- sale con le prove, e non arriva mai a uno
+	var caro = _chibi("Caro")
+	for g in 20:
+		caro.oggi = g
+		caro.ricorda("piatto", "giocatore", 0.85, 0.9)
+	caro.oggi = 20
+	var f: float = caro.fiducia("giocatore")
+	t.ok(f > 0.35 and f < 1.0,
+			"venti gesti veri valgono %.4f: sale, e non arriva a uno" % f)
+
+	# --- ⚠️ SI SCEGLIE PER SEGNO, non per una lista di tipi. Una lista nasce
+	#     incompleta: `Deriva.SPINTE["codardia"]` ha gia' dimenticato
+	#     «accompagnato» e non vede «consolato», e una riga che non entra non
+	#     fa fallire nessun test.
+	var ignoto = _chibi("Ignoto")
+	ignoto.oggi = 5
+	ignoto.ricorda("un_gesto_che_non_esiste_ancora", "giocatore", 0.9, 1.0)
+	ignoto.oggi = 5
+	t.ok(ignoto.fiducia("giocatore") > 0.0,
+			("un tipo di gesto che nessuno ha previsto conta lo stesso: il "
+			+ "segno vede per costruzione ogni gesto presente e futuro"))
+
+	# --- ⚠️ LEGGE ANCHE IL SOMMARIO, o la fiducia sparirebbe PROPRIO nei
+	#     villaggi vissuti — oltre le `RICORDI_VIVI` righe, dove nessun
+	#     collaudo arriva.
+	# ⚠️ E il banco deve spingere le righe BUONE **tutte** nel sommario, non
+	# solo passare la soglia: con quaranta righe vive positive ancora in
+	# canna, togliere il sommario non cambia abbastanza e la guardia resta
+	# muta (misurato: zero asserzioni rosse). Si mettono i doni, e poi si
+	# riempie l'anello con righe di un ALTRO attore — `_potatura` fa
+	# `pop_front()`, quindi i doni escono per primi.
+	var vissuto = _chibi("Vissuto")
+	for g2 in 15:
+		vissuto.oggi = g2
+		vissuto.ricorda("regalo", "giocatore", 0.7, 0.8)
+	for g3 in (int(ANIMO.RICORDI_VIVI) + 5):
+		vissuto.oggi = 15 + g3
+		vissuto.ricorda("chiacchiera", "un_vicino", 0.2, 0.5)
+	vissuto.oggi = 15 + int(ANIMO.RICORDI_VIVI) + 5
+	var vive := 0
+	for r in (vissuto.get("ricordi") as Array):
+		if str((r as Dictionary)["attore"]) == "giocatore":
+			vive += 1
+	t.eq(vive, 0,
+			("il banco ha spinto TUTTI i doni nel sommario (%d righe vive "
+			+ "rimaste): senza questo, la guardia qui sotto e' muta") % vive)
+	t.ok(vissuto.fiducia("giocatore") > 0.0,
+			("la fiducia sopravvive alla potatura (%.4f): guardare solo i "
+			+ "ricordi vivi la farebbe sparire PROPRIO nei villaggi vissuti, "
+			+ "dove nessun collaudo arriva") % vissuto.fiducia("giocatore"))
+
+	# --- ⚠️ NESSUNO SCONTO COI TORTI. Il `− buoni · 1.4` di `rancore()` e' un
+	#     pollice sulla bilancia A FAVORE del giocatore; specchiarlo lo
+	#     capovolgerebbe, e una brutta giornata spazzerebbe settimane di doni.
+	# ⚠️ E il banco deve avere un RANCORE VERO, maggiore di zero: la prima
+	# stesura metteva dieci doni e un torto solo, e `rancore()` sconta i
+	# cattivi coi buoni (`− buoni · 1.4`) — quindi il rancore era **zero**, e
+	# una mutazione che sottraeva il rancore dalla fiducia non toglieva
+	# niente. Guardia muta, misurata: zero asserzioni rosse.
+	# ⚠️ DUE GEMELLI A PARITA' DI OROLOGIO, non un prima-e-dopo. La prima
+	# stesura misurava `prima` a `oggi = 10` e `dopo` a `oggi = 35`: fra i due
+	# c'erano venticinque giornate di recenza, e la fiducia scendeva da 0.632
+	# a 0.405 **per il tempo**, non per i torti. Un banco che non tiene fermo
+	# l'orologio misura il decadimento e lo chiama effetto.
+	#
+	# E i due gemelli devono avere lo STESSO numero di righe, o uno pota e
+	# l'altro no: le righe di riempimento hanno valenza zero, che `fiducia()`
+	# salta per segno e `rancore()` pure, ma la potatura conta.
+	var solo_doni = _chibi("Misto")
+	var doni_e_torti = _chibi("Misto")
+	for g5 in 10:
+		solo_doni.oggi = g5
+		doni_e_torti.oggi = g5
+		solo_doni.ricorda("piatto", "giocatore", 0.85, 0.9)
+		doni_e_torti.ricorda("piatto", "giocatore", 0.85, 0.9)
+	for g6 in 25:
+		solo_doni.oggi = 10 + g6
+		doni_e_torti.oggi = 10 + g6
+		solo_doni.ricorda("nulla", "nessuno", 0.0, 0.0)
+		doni_e_torti.ricorda("tradisce", "giocatore", -0.9, 1.0)
+	solo_doni.oggi = 35
+	doni_e_torti.oggi = 35
+	t.ok(doni_e_torti.rancore("giocatore") > 0.1,
+			("il banco ha un rancore VERO (%.4f), non uno gia' scontato dal "
+			+ "perdono: con un torto solo, i dieci doni lo azzeravano e la "
+			+ "guardia restava muta") % doni_e_torti.rancore("giocatore"))
+	t.almost(doni_e_torti.fiducia("giocatore"), solo_doni.fiducia("giocatore"),
+			("e i torti non tolgono un bit di fiducia (%.4f contro %.4f): "
+			+ "passano da una porta sola, o lo stesso evento darebbe due pene "
+			+ "— la seconda senza nessun telegrafo")
+					% [doni_e_torti.fiducia("giocatore"),
+							solo_doni.fiducia("giocatore")], 1e-9)
+	t.ok(doni_e_torti.fiducia("giocatore") > 0.0,
+			("e i due sono positivi INSIEME: una persona puo' ricordare "
+			+ "quello che le hai fatto E quello che le hai dato"))
+
+	# --- il `tranne` salta quel tipo, e serve a non contare due volte
+	var solo_piatti = _chibi("Piatti")
+	for g4 in 8:
+		solo_piatti.oggi = g4
+		solo_piatti.ricorda("piatto", "giocatore", 0.85, 0.9)
+	solo_piatti.oggi = 8
+	t.ok(solo_piatti.fiducia("giocatore") > 0.0, "con i piatti c'e' fiducia")
+	t.almost(solo_piatti.fiducia("giocatore", "piatto"), 0.0,
+			"…e `tranne` la toglie tutta, se quello era l'unico tipo", 1e-12)
+
+	# --- ⚠️ LA RECENZA E' QUELLA CONDIVISA, non una sua. Una `MEZZA_VITA`
+	#     propria («la fiducia si perde piu' piano») sarebbe una seconda
+	#     verita' su «quanto pesa ancora cio' che e' successo».
+	var vecchio = _chibi("Vecchio")
+	vecchio.oggi = 0
+	for _i in 20:
+		vecchio.ricorda("piatto", "giocatore", 0.85, 0.9)
+	vecchio.oggi = int(ANIMO.MEZZA_VITA)
+	var meta: float = vecchio.fiducia("giocatore")
+	vecchio.oggi = 0
+	var pieno: float = vecchio.fiducia("giocatore")
+	t.ok(meta < pieno,
+			"dopo una mezza vita la fiducia e' scesa (%.4f contro %.4f)"
+					% [meta, pieno])
+
+
+## ⚠️ **IL RISCHIO NUMERO UNO, E NON È UNA STIMA: È ALGEBRA.**
+##
+## `punteggio()` ha **un solo lettore** in tutto il gioco (`decide()`), che
+## ordina, prende le prime tre e pesa `exp((s − base) · nitidezza)` con `base`
+## preso dai voti stessi. Qualunque termine che non dipenda da `azione` si
+## cancella ESATTAMENTE: stesso ordinamento, stesso `top`, stessa differenza.
+##
+## Quindi `s += fiducia(chiede) * 0.6` accanto a `opinione` — la stesura che
+## si scrive per prima, che compila, che si legge benissimo e che ha un test
+## facile che passa — **non cambierebbe nessuna decisione, per nessun
+## coefficiente**. Sarebbe la nona funzione completa-provata-verde-e-spenta di
+## questo progetto.
+##
+## L'oracolo di questo caso è la SCELTA di `decide()`, non il valore di
+## `punteggio()`. E la controprova è nello stesso caso: si dimostra che
+## `opinione`, che è additiva, è davvero inerte.
+func _la_fiducia_cambia_una_decisione_VERA(t) -> void:
+	var azioni := ["taglia_legna", "coltiva", "cucina", "riposa"]
+
+	# due gemelli identici: uno ha una storia col giocatore, l'altro no
+	var caro = _chibi("Gemello")
+	var estraneo = _chibi("Gemello")
+	# lo stesso logorio su UNA azione, per tutti e due
+	for g in 30:
+		caro.oggi = g
+		estraneo.oggi = g
+		caro.ricorda("taglia_legna", "giocatore", -0.08, 0.5)
+		estraneo.ricorda("taglia_legna", "giocatore", -0.08, 0.5)
+	# …e solo a uno il giocatore ha voluto bene
+	for g2 in 20:
+		caro.oggi = 30 + g2
+		caro.ricorda("piatto", "giocatore", 0.85, 0.9)
+	caro.oggi = 50
+	estraneo.oggi = 50
+
+	var p_caro: float = caro.punteggio("taglia_legna", "giocatore")
+	var p_estr: float = estraneo.punteggio("taglia_legna", "giocatore")
+	t.ok(p_caro > p_estr + 0.01,
+			("da chi ti ha voluto bene la trentesima volta pesa meno "
+			+ "(%.4f contro %.4f)") % [p_caro, p_estr])
+
+	# ⚠️ E IL TERMINE E' AZIONE-DIPENDENTE: su un'azione che non ha logorio la
+	# fiducia non cambia niente, perche' non c'e' niente da smorzare. E'
+	# questo che lo fa sopravvivere al softmax.
+	t.almost(caro.punteggio("riposa", "giocatore"),
+			estraneo.punteggio("riposa", "giocatore"),
+			("su un'azione senza logorio la fiducia non tocca niente: e' un "
+			+ "moltiplicatore su quel termine, non un premio generale"), 1e-9)
+
+	# ⚠️ **LA CONTROPROVA: `opinione` e' INERTE dentro `decide()`.** Si mette
+	# un'opinione enorme e si guarda che la scelta non cambi mai — e' la
+	# dimostrazione, sul codice vero, che un termine additivo li' non serve a
+	# niente.
+	var voti_prima := {}
+	var voti_dopo := {}
+	for i in 400:
+		var a1 = _chibi("Op%d" % i)
+		var a2 = _chibi("Op%d" % i)
+		a2.opinione["giocatore"] = 1.0
+		var s1 := str(a1.decide(azioni, "giocatore"))
+		var s2 := str(a2.decide(azioni, "giocatore"))
+		voti_prima[s1] = int(voti_prima.get(s1, 0)) + 1
+		voti_dopo[s2] = int(voti_dopo.get(s2, 0)) + 1
+	t.eq(str(voti_prima), str(voti_dopo),
+			("un'opinione a +1.0 non cambia NESSUNA scelta su 400 dadi "
+			+ "congelati: e' additiva e il softmax la cancella. E' la ragione "
+			+ "per cui la fiducia non sta li'"))
+
+
+## ⚠️ **NON DEVE DIVENTARE UNA PORTA NÉ UNA CLASSIFICA.**
+##
+## Tre regole che il progetto applica già: è derivata (niente da mostrare né
+## da salvare), è per-attore e non si confronta mai fra residenti, e non entra
+## in `soglie()` — quella è una porta, e sotto il gradino della diserzione c'è
+## `Visitors._congeda()`.
+func _la_fiducia_non_e_una_porta(t) -> void:
+	var caro = _chibi("Porta")
+	var vuoto = _chibi("Porta")
+	for g in 30:
+		caro.oggi = g
+		caro.ricorda("piatto", "giocatore", 0.85, 0.9)
+	caro.oggi = 30
+	vuoto.oggi = 30
+	var sc: Dictionary = caro.soglie()
+	var sv: Dictionary = vuoto.soglie()
+	for k in sc:
+		t.almost(float(sc[k]), float(sv[k]),
+				("la fiducia non tocca le soglie («%s»): quella e' una porta, "
+				+ "e un premio che diventa una porta resta una porta") % str(k),
+				1e-12)
+
+	# --- non entra nel salvataggio: e' una LETTURA
+	var d: Dictionary = caro.save()
+	t.ok(not d.has("fiducia"),
+			"non entra in `save()`: zero chiavi nuove, zero migrazioni")
+
+	# --- ⚠️ IL TETTO E' DERIVATO, non scelto: l'effetto massimo deve restare
+	#     sotto il tiro del sogno piu' debole, o la fiducia in chi chiede
+	#     peserebbe quanto la vocazione.
+	t.ok(ANIMO.SMORZO_FIDUCIA * 0.5 < 0.45 * 0.5,
+			("l'effetto massimo (%.3f) sta sotto il tiro del sogno piu' "
+			+ "debole (%.3f)") % [ANIMO.SMORZO_FIDUCIA * 0.5, 0.45 * 0.5])
+	t.ok(int(ANIMO.SAZIETA_FIDUCIA) != int(ANIMO.SATURAZIONE),
+			("la sazieta' della fiducia NON e' quella del rancore: quel 55 e' "
+			+ "tarato su una serie che sensibilizza, e i doni abituano"))

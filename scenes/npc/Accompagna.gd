@@ -48,6 +48,23 @@ const RAGGIO_LUOGO := 3.0
 ## scioglierebbe da sola mentre il giocatore è ancora lì.
 const RINNOVO := 9.0
 
+## Sotto questa profondità del marchio si entra SEMPRE. È il pavimento del
+## canale, e non è una taratura prudente: `Limbico.SOGLIA_EVITAMENTO` è la
+## soglia sotto cui un posto non viene nemmeno evitato, quindi una paura che
+## sta lì sotto non ha niente da vincere. Sopra, il no diventa possibile.
+const PAURA_CHE_FERMA := 0.55
+
+## Quanto il corpo in allarme ADESSO pesa sulla decisione. Piccolo apposta: è
+## un modificatore del momento, non una seconda paura — e la sua chiave è
+## stare fermi e richiedere, che si legge nell'istante in cui succede.
+const PESO_ALLARME := 0.25
+
+## Quanto la fiducia in chi ti ci ha portato aiuta a entrare. ⚠️ Il tetto è
+## `PESO_ALLARME`: la fiducia non può MAI valere più di come stai adesso —
+## altrimenti diventerebbe una valuta che compra il coraggio, e il giocatore
+## imparerebbe a coltivare i vicini invece che a volergli bene.
+const PESO_FIDUCIA := 0.25
+
 var _visitors: Node
 var _build: Node3D
 var _cozy: Node3D
@@ -96,6 +113,55 @@ static func visita_compiuta(dist_luogo: float, dist_giocatore: float,
 
 ## La scena si scioglie? Solo se il giocatore si è allontanato. Non è un
 ## fallimento: è che accompagnare qualcuno vuol dire restare.
+## ⚠️ **CE LA FA A ENTRARE? — il canale che mancava a tutto il gioco.**
+##
+## Fino a ieri, alla soglia si entrava SEMPRE: bastava restargli accanto un
+## secondo e mezzo. Cioè il giocatore non chiedeva — **ordinava**, e nel
+## villaggio non esisteva un solo momento in cui un vicino potesse dire di no.
+## (Lo stesso vale per la Lavagna, ma quella è una meccanica del gioco e non
+## può costare: il no doveva nascere dove chiedere è già facoltativo.)
+##
+## ⚠️ **È UNA LETTURA, MAI UNA TRANSAZIONE.** Non chiama `trattieni()`, non
+## scala la regolazione, non alza il cortisolo, non scrive niente: chiedere
+## non deve poter lasciare il vicino peggio di come stava. Sono tre numeri che
+## il gioco calcola già, guardati e basta.
+##
+## [param carica] quanto è ancora profonda quella paura — `absf(carica_di)`.
+##   È anche il contatore delle visite riuscite, gratis: `visita_serena`
+##   moltiplica per 0.62, quindi al secondo giro il numero è già più basso e
+##   non serve nessun campo nuovo.
+## [param allarme] com'è il suo corpo ADESSO (`arousal`). È la premessa che il
+##   giocatore ha appena visto — le orecchie indietro, il sussulto di quando
+##   gli sei corso incontro — e la chiave che la ripara è immediata e cozy:
+##   **stare fermi un momento e richiedere**, la stessa grammatica di
+##   `FiatoSospeso.calma()`.
+## [param fiducia] `Animo.fiducia(giocatore, "accompagnato")`.
+##
+## ⚠️ **E LA FIDUCIA ESCLUDE «accompagnato», o si conta due volte lo stesso
+## gesto.** Un accompagnamento riuscito rende la volta dopo più facile **già
+## adesso**, e per una strada che il giocatore vede: il marchio scende a 0.62
+## e lui esita meno. Ma `_guarisci` scrive anche `gesto_gentile(label,
+## "accompagnato", 0.5)`, cioè una riga positiva che `fiducia()` conterebbe —
+## e sarebbe la stessa carezza pesata due volte dentro una sola decisione. Il
+## `tranne` non è una lista bianca: è non guardare due volte la riga che il
+## chiamante ha già in mano. Quello che resta — i piatti, i regali, le feste —
+## è un canale DIVERSO, e quello sì che deve contare.
+##
+## IL PAVIMENTO È STRUTTURALE: sotto `PAURA_CHE_FERMA` si entra sempre, cioè
+## per la stragrande maggioranza dei vicini il gioco è **bit per bit quello di
+## ieri**.
+static func ce_la_fa(carica: float, allarme: float, fiducia := 0.0) -> bool:
+	var c := absf(carica) if is_finite(carica) else 0.0
+	if c < PAURA_CHE_FERMA:
+		return true
+	var a := clampf(allarme, 0.0, 1.0) if is_finite(allarme) else 0.0
+	var f := clampf(fiducia, 0.0, 1.0) if is_finite(fiducia) else 0.0
+	# la paura di quel posto, più quanto il corpo è in allarme adesso, meno
+	# quanto si fida di chi ce l'ha portato. Nessuna soglia nascosta: il
+	# confronto è con la paura che ferma.
+	return c + a * PESO_ALLARME - f * PESO_FIDUCIA < PAURA_CHE_FERMA
+
+
 static func scena_persa(dist_giocatore: float) -> bool:
 	return dist_giocatore > DISTANZA_MASSIMA * 1.6
 
@@ -185,9 +251,47 @@ func _candidato() -> Array:
 		var luogo := luogo_da_affrontare(temuti, loc)
 		if luogo == "":
 			continue
+		if not _vale_la_pena(label, luogo):
+			continue
 		best = d
 		out = [label, luogo]
 	return out
+
+
+## ⚠️ **NON SI OFFRE UN VERBO CHE NON SI PUÒ MANTENERE — e la regola non è
+## nuova: è quella scritta sopra `posizione_del_luogo`, applicata alla paura
+## invece che alla mappa.**
+##
+## `evita` apre il prompt a 0,45 di marchio, ma sulla soglia si entra solo se
+## `ce_la_fa`. In mezzo c'era una fascia in cui il gioco offriva
+## l'Accompagnare, il giocatore attraversava il villaggio, e il no era
+## **certo** — nessun gesto, nessuna fiducia, nessuna calma poteva cambiarlo.
+## Un verbo offerto e mai concesso non è profondità: insegna a non usarlo.
+##
+## MISURATO (`Limbico.rivaluta` con spaventi pieni): il marchio sale a 0,882
+## al terzo spavento, poi l'abitudine lo riporta a **0,7196** a regime; il
+## tetto con la fiducia vera di questo progetto (0,623 di media) è **0,706**.
+## La fascia esiste, ed è proprio dove stanno le paure appena fatte.
+##
+## LA DOMANDA È SUL CASO MIGLIORE — corpo calmo, la fiducia di oggi — non su
+## adesso: **l'offerta dev'essere onesta, l'esito resta vivo.** Se al suo più
+## calmo ce la farebbe, il prompt c'è; e poi sulla soglia decide come sta
+## davvero. Così un no vuol dire «non come stiamo oggi», che è una cosa a cui
+## il giocatore può rimediare — invece di «mai», che è una porta murata.
+##
+## E la paura troppo profonda non resta senza cura: l'estinzione la consuma di
+## 0,12 al giorno, e `Visitors._filtra_luogo` la DIMEZZA ogni volta che il
+## vicino ci si avvicina da solo con Mochi a due passi. Il verbo torna a
+## offrirsi da sé, quando è di nuovo una cosa che si può fare insieme.
+func _vale_la_pena(label: String, luogo: String) -> bool:
+	if _visitors == null:
+		return true
+	var animo: RefCounted = _visitors.call("animo_oggetto_di", label)
+	if animo == null or animo.limbico == null:
+		# il degrado va verso il gioco di ieri: nel dubbio si offre
+		return true
+	return ce_la_fa(float(animo.limbico.carica_di(luogo)), 0.0,
+			float(animo.fiducia("giocatore", "accompagnato")))
 
 
 func _process(delta: float) -> void:
@@ -255,7 +359,11 @@ func _avanza(delta: float) -> void:
 	var meta: Vector3 = _scena["pos"]
 	var dl: float = nodo.global_position.distance_to(meta)
 	_scena["rinnovo"] = float(_scena["rinnovo"]) - delta
-	if float(_scena["rinnovo"]) <= 0.0:
+	# ⚠️ **MAI RIMANDARLO SE HA DETTO DI NO.** Questo blocco gira PRIMA del
+	# `match`, quindi nel fotogramma in cui la fase è già «no» ma la scena non
+	# è ancora chiusa un rinnovo scaduto rispedirebbe il corpo alla catasta
+	# con un lease di 45 secondi — riaprendo da sola la cura qui sopra.
+	if str(_scena["fase"]) != "no" and float(_scena["rinnovo"]) <= 0.0:
 		_manda()
 
 	match str(_scena["fase"]):
@@ -270,15 +378,94 @@ func _avanza(delta: float) -> void:
 					nodo.call("chat_bubble", "…")
 		"soglia":
 			_scena["t"] = float(_scena["t"]) + delta
-			# se gli sei accanto, dopo un attimo di esitazione entra
+			# se gli sei accanto, dopo un attimo di esitazione DECIDE
 			if dg <= DISTANZA_MASSIMA and float(_scena["t"]) > 1.6:
-				_scena["fase"] = "insieme"
-				_scena["t"] = 0.0
-				_manda()
+				if _ce_la_fa_ora():
+					_scena["fase"] = "insieme"
+					_scena["t"] = 0.0
+					_manda()
+				else:
+					_non_oggi()
+		"no":
+			# il corpo se ne sta andando: la scena è finita, e non c'è niente
+			# da aspettare. La si chiude qui invece che con un timer, o al
+			# frame dopo il cartellino tornerebbe identico.
+			_scena = {}
 		"insieme":
 			_scena["t"] = float(_scena["t"]) + delta
 			if visita_compiuta(dl, dg, float(_scena["t"])):
 				_guarisci()
+
+
+## ⚠️ **IL «NON OGGI» — e il soggetto è il POSTO, mai il giocatore.**
+##
+## Lui ha detto di sì, ha camminato con te attraverso mezzo villaggio, è
+## arrivato fin lì. Poi la paura ha vinto **sulla soglia**: si scosta, fa un
+## largo attorno al posto e se ne va. Nessuna parola, nessun toast, nessuna
+## faccia verso di te — chi guarda vede un corpo che gira al largo da una
+## catasta, che è esattamente quello che è successo.
+##
+## ⚠️ **E NON SI SCRIVE NIENTE.** Nessuna riga nel libro mastro, nessun
+## marchio nuovo, nessun rancore: un no non è un torto. Il giocatore non ha
+## niente da riparare, perché non ha rotto niente — e la chiave per la volta
+## dopo è quella che ha appena visto addosso al corpo.
+func _non_oggi() -> void:
+	var nodo := _nodo()
+	_scena["fase"] = "no"
+	if nodo == null or not is_instance_valid(nodo):
+		_scena = {}
+		return
+	# ⚠️ **IL LEASE VA ROTTO, o il corpo resta piantato sulla soglia.**
+	# `manda()` scrive `next_act = 45 s`: senza restituirgli la sua giornata,
+	# il gesto non parte e quello che si vede non è un rifiuto — è un fermo
+	# immagine. È la stessa cosa che fa `Visitors._filtra_luogo` quando un
+	# posto è murato: si torna alla routine.
+	if _visitors != null and _visitors.has_method("libera"):
+		_visitors.call("libera", str(_scena["label"]))
+	# ⚠️ **MA IL LEASE È META' DEL LUCCHETTO: il CAMMINO va dirottato.**
+	# `manda()` aveva fatto `do_task("wonder", pos)`, cioè `_walk_to` verso
+	# il posto con `tk_wonder` in coda. `libera()` scrive solo `next_act` sulla
+	# riga del residente: non tocca `_target`, non cambia stato. MISURATO nel
+	# MainLevel vero (`tools/prova_non_oggi.gd`): al verdetto mancano ancora
+	# ~1,9 m, e il corpo li **camminava** — entrava nella catasta che aveva
+	# appena rifiutato, con l'«!» di `tk_wonder` sopra la testa e il
+	# **cuoricino** di `_spawn_heart` all'uscita. Il rifiuto reso identico a
+	# un successo, meno il toast e più un cuore.
+	#
+	# E l'agenda non poteva salvarlo: si riprende il corpo solo dagli stati di
+	# `Visitors.STATI_A_RIPOSO`, dove né «walk» né «tk_wonder» stanno.
+	# «wander» è il ripiego universale del gioco (due passi intorno a casa) e
+	# finisce in `r_idle`, che a riposo ci sta.
+	if nodo.has_method("do_routine"):
+		nodo.call("do_routine", "wander", nodo.global_position)
+	# il Largo: il corpo si scosta dal posto e se ne va. È il gesto
+	# dell'evitamento, e lo chiede all'usciere come tutti gli altri — se il
+	# palco è occupato non parte, e va bene: il corpo se ne va lo stesso.
+	# ⚠️ E IL LARGO SI CHIEDE **DOPO** il dirottamento, con il POSTO. Due
+	# ragioni, tutte e due misurate: `_enter_state` chiama `gesto_spegni()`,
+	# quindi un Largo chiesto prima morirebbe nel fotogramma in cui nasce; e
+	# senza `posto` il corpo non sa da che parte scostarsi (`via` resta il
+	# default +1, cioè sempre a destra — metà delle volte VERSO la catasta).
+	# Da che parte girare al largo è una domanda nel frame del corpo, e la sa
+	# solo lui.
+	if nodo.has_method("frase"):
+		nodo.call("frase", "evitamento", {"posto": _scena["pos"]})
+	# ⚠️ **E NON SI POSA NIENTE ADDOSSO AL CORPO.** Qui c'era un
+	# `set_meta("postura", "spalle_basse")`, e MISURATO nel MainLevel vero
+	# (`tools/prova_non_oggi.gd`) era ancora addosso **sei secondi dopo, e
+	# nella scena successiva**: `spalle_basse` sta in `Visitor.RECITA`, cioè
+	# è una posa STABILE, e una posa stabile resta finché qualcuno non toglie
+	# il meta. Qui non c'è nessuno che lo tolga — la scena si chiude nel
+	# frame dopo. Sarebbe un vicino curvo per il resto della partita, che è
+	# esattamente il guasto che il commento di `Visitor._recita_applica`
+	# racconta come già pagato una volta.
+	#
+	# E sarebbe anche una bugia: «un no non scrive niente» non vale solo per
+	# il libro mastro, vale per il CORPO. Il rifiuto ha già la sua parola, ed
+	# è il Largo qui sopra — un gesto, che ha una fine sua. In questo
+	# vocabolario `spalle_basse` è la mestizia che DURA (la ferita degli
+	# Affetti, chi è rimasto fuori tutta la notte): darla a un momento di due
+	# secondi sovraccarica una parola che pesa di più.
 
 
 func _guarisci() -> void:
@@ -333,6 +520,22 @@ func _manda() -> void:
 		return
 	_scena["rinnovo"] = RINNOVO
 	_visitors.call("manda", str(_scena["label"]), _scena["pos"])
+
+
+## I tre numeri di adesso, letti dove vivono. Nessuno viene scritto.
+func _ce_la_fa_ora() -> bool:
+	if _visitors == null or _scena.is_empty():
+		return true
+	var animo: RefCounted = _visitors.call("animo_oggetto_di",
+			str(_scena["label"]))
+	if animo == null or animo.limbico == null:
+		# ⚠️ il degrado va verso il gioco di ieri: senza l'animo si entra,
+		# come si è sempre fatto.
+		return true
+	var luogo := str(_scena["luogo"])
+	return ce_la_fa(float(animo.limbico.carica_di(luogo)),
+			float(animo.limbico.arousal),
+			float(animo.fiducia("giocatore", "accompagnato")))
 
 
 ## Il nome dal dna, passando dalla label: le due anagrafi del progetto.

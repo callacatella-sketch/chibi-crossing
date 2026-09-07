@@ -173,7 +173,20 @@ var debug_ghost_pos := Vector3.INF
 
 # persistenza: il villaggio si risalva da solo a ogni modifica
 # (var e non const: la verifica CLI lo punta a un file di prova)
-var save_path := "user://village.json"
+## ⚠️ `CHIBI_VILLAGGIO` LO SPOSTA, ed è la condizione perché una misura sia
+## ripetibile. Fino al 2026-09-04 OGNI banco girava sopra il `village.json`
+## dell'autore (nessuno chiama `debug_clear()`, e `set_persist_for_debug`
+## blocca le sole SCRITTURE): «stessi parametri» non implicava «stesso
+## villaggio», e due corse dello stesso banco partivano da due mondi diversi
+## a seconda di cosa l'autore aveva costruito nel frattempo.
+##
+## Il degrado va dove va sempre: senza la variabile, è il salvataggio vero.
+##
+## ⚠️ La strada la dice `Dadi`, e non è un giro largo: `Dadi.radice()` deve
+## poter leggere il seme dal villaggio PRIMA che questo nodo esista, quindi
+## la conosce già. Due strade scritte a mano divergerebbero al primo che ne
+## ritocca una — ed è la regola delle fonti uniche applicata a un percorso.
+var save_path := Dadi.percorso_villaggio()
 var _persist := true
 var _loading := false
 
@@ -221,6 +234,24 @@ func _ready() -> void:
 	# in modalità screenshot CLI la demo costruisce una casetta di prova:
 	# niente caricamento né salvataggio, il villaggio vero resta intatto
 	_persist = OS.get_environment("CHIBI_SHOT") == ""
+	# ⚠️ QUI NON SI SEMINA IL FLUSSO GLOBALE, E LA RIGA CHE C'ERA MENTIVA.
+	# Prometteva che «quello che viene dopo non dipende da quanti tiri ha
+	# fatto la generazione» — ed era vero al CONTRARIO. `CozyWorld` viene
+	# prima di noi in `MainLevel.tscn`, e il suo `_ready` è una coroutine che
+	# semina, costruisce l'ERBA e poi cede il controllo: questo `_ready` gira
+	# in quel `await`, cioè **in mezzo** a una generazione lunga sette
+	# fotogrammi. Rimettere qui la posizione la riportava in testa fra l'erba
+	# e gli alberi, e tutto quel che viene dopo — sassi, nuvole, polline,
+	# bosco, fiori — riconsumava la stessa testa di sequenza che l'erba aveva
+	# appena consumato. Cioè: era la generazione a dipendere da quante volte
+	# noi la interrompevamo.
+	#
+	# Adesso il flusso globale riceve una posizione **una volta sola**, la più
+	# presto possibile, e la dà `CozyWorld._ready` prima di generare qualunque
+	# cosa (la ragione per esteso è lì). Il degrado non peggiora: senza
+	# CozyWorld in scena non c'è nessun mondo procedurale da ripetere, e
+	# l'unico tiro che questo file fa al globale è l'intonazione di un
+	# cigolio.
 	if _persist:
 		# i persistable che nascono dopo il load (mondo differito) si servono
 		# da soli via node_added: vedi _on_node_added
@@ -1994,17 +2025,89 @@ func muri() -> Dictionary:
 const BUDGET_ROTTE_US := 1500
 var _turno_frame := -1
 var _turno_speso := 0
+## Quante domande CARE ha ricevuto il turno in questo frame (per
+## `CHIBI_ROTTE_CONTO`). Si alza dove si alza il cronometro — dopo i quattro
+## cancelli, in `deviazione` — quindi conta esattamente quello che il
+## cronometro paga: le domande a buon mercato non entrano né in un conto né
+## nell'altro, ed è la ragione per cui un tetto a conteggio è confrontabile
+## con un tetto a microsecondi.
+var _turno_domande := 0
 var _turno_attivo := true
 
 
 ## C'è ancora tempo, in questo frame, per cercare una strada? Chi la chiede
 ## deve domandarlo PRIMA (`Visitor._deviazione`): un «no» non è un rifiuto,
 ## è un «fra un frame».
+## ⚠️ IL TURNO A CONTEGGIO, per i banchi — e non è una comodità.
+## Il turno vero si misura in microsecondi VERI (vedi sopra: è la scelta
+## giusta in partita, perché le domande a buon mercato non consumano
+## niente). Ma un tempo vero dipende dal CARICO DELLA MACCHINA: sotto altre
+## sessioni, due corse identiche fanno passare un numero diverso di domande
+## per frame, quindi mandano in giro corpi diversi, quindi registrano
+## co-presenze diverse. È non-determinismo che NESSUN seme può togliere, e
+## il banco delle repliche l'ha misurato prima che lo trovassi leggendo.
+##
+## `CHIBI_ROTTE_CONTO=N` sostituisce il cronometro con un CONTATORE: N
+## domande CARE per frame, sempre le stesse. Non tocca il gioco — di serie è
+## vuoto e questo ramo non esiste.
+##
+## Quanto vale N in partita è MISURATO, e vale la pena scriverlo qui perché
+## è il numero che un banco deve chiedere per somigliare al gioco: una
+## domanda cara costa ~1,5 ms contro un budget di 1500 µs, e il cancello si
+## guarda PRIMA di spendere — quindi la prima passa sempre e la seconda no.
+## **Una domanda cara per frame**, ed è anche quello che il banco del fiume
+## ha visto dal vivo: ventotto vicini che chiedono nello stesso identico
+## fotogramma vengono serviti in ventotto fotogrammi.
+static var _conto_rotte := -2
+
+
 func turno_rotte_libero() -> bool:
 	if not _turno_attivo:
 		return true
 	_turno_rinfresca()
+	if _conto_rotte == -2:
+		_conto_rotte = _leggi_conto_rotte()
+	# ≥ 1 e non ≥ 0: dopo la validazione qui arrivano solo -1 (il cronometro)
+	# oppure un tetto vero, e lo `0` che dava «turno chiuso per sempre» non
+	# esiste più — vedi `_leggi_conto_rotte`.
+	if _conto_rotte >= 1:
+		return _turno_domande < _conto_rotte
 	return _turno_speso < BUDGET_ROTTE_US
+
+
+## ⚠️ SI VALIDA, E IL VERSO DEL GUASTO ERA QUELLO PERICOLOSO. In GDScript
+## `int("sei")` è **zero**, e uno zero qui non voleva dire «nessun tetto»:
+## voleva dire `_turno_domande < 0`, cioè **falso per sempre**. Nessuna
+## `deviazione` veniva più calcolata in tutta la corsa, ogni corpo ripiegava
+## sulla retta (`Visitor._rotta_attesa`) e camminava dritto attraverso
+## staccionate e recinti — e un banco misurava chi incontra chi in un
+## villaggio che non esiste, **senza un messaggio**. Un refuso in una
+## variabile d'ambiente non può spegnere le rotte di tutto il villaggio.
+##
+## La disciplina è quella di `Dadi.radice()` con `CHIBI_SEME`: si valida con
+## `is_valid_int()` (che rifiuta anche «0x1F», che `int()` leggerebbe come
+## 1), ci si lamenta col valore in chiaro, e si ripiega sul CRONOMETRO —
+## cioè su quello che il gioco fa quando la variabile non c'è. Il degrado va
+## dove va sempre: verso «le rotte si calcolano».
+##
+## Lo zero e i negativi cadono insieme ai refusi, e non è pignoleria: non
+## sono «un tetto più basso», sono il turno chiuso per sempre. Un banco che
+## voglia un turno che non morde ha già la sua leva, ed è quella opposta
+## (`set_turno_rotte_for_debug(false)`: passano tutti).
+static func _leggi_conto_rotte() -> int:
+	# `strip_edges` perché questa variabile la scrivono degli script di shell,
+	# e uno spazio in coda non è una richiesta diversa: è la stessa richiesta
+	# scritta male. Restare severi lì spegnerebbe il conteggio proprio nel
+	# banco che l'aveva chiesto, e lo rimanderebbe sotto il cronometro — cioè
+	# sotto il carico della macchina, che è quello da cui si stava scappando.
+	var e := OS.get_environment("CHIBI_ROTTE_CONTO").strip_edges()
+	if e == "":
+		return -1
+	if not e.is_valid_int() or int(e) < 1:
+		push_error(("CHIBI_ROTTE_CONTO=«%s» non è un intero ≥ 1: resta il "
+				+ "cronometro (%d µs a frame).") % [e, BUDGET_ROTTE_US])
+		return -1
+	return int(e)
 
 
 func _turno_rinfresca() -> void:
@@ -2012,6 +2115,7 @@ func _turno_rinfresca() -> void:
 	if f != _turno_frame:
 		_turno_frame = f
 		_turno_speso = 0
+		_turno_domande = 0
 
 
 ## Spegne il turno: serve ai banchi di prova che fanno mille viaggi dentro
@@ -2198,6 +2302,7 @@ func deviazione(da: Vector3, a: Vector3) -> Array[Vector3]:
 		return niente   # la meta è nell'acqua: nessuna strada ci arriva
 	# da qui in giù si SPENDE: il tempo speso va sul conto del frame, ed è
 	# quello che tiene la sera del falò dentro un frame (vedi il turno)
+	_turno_domande += 1
 	var orologio := Time.get_ticks_usec()
 	var tappe := rotta_mondo(da, a, VARCHI.ROTTA_TETTO)
 	_turno_rinfresca()
@@ -2285,6 +2390,16 @@ func _save_village() -> void:
 	payload.merge({"cells": cells, "edges": edges,
 			"up_cells": up_cells, "up_edges": up_edges,
 			"variants": _collect_variants()}, true)
+	# ⚠️ LA RADICE DEI DADI, E VIAGGIA COME STRINGA. È lo stesso motivo per
+	# cui `Animo._rng.state` è una stringa (Animo.gd:1144): il salvataggio
+	# passa da `JSON.stringify`/`JSON.parse_string`, che restituisce ogni
+	# numero come float — misurato, uno stato salvato come intero perdeva
+	# undici bit e il dado ripartiva da un altro punto dello stream.
+	#
+	# È qui e non in un `save_extra` perché nessun nodo ne risponde: la
+	# radice non è di un sistema, è della PARTITA. E scriverla qui vuol dire
+	# che un villaggio la riceve al primo salvataggio, senza migrazione.
+	payload["seme"] = str(Dadi.radice())
 	# SCRITTURA BLINDATA: prima su un file temporaneo, poi la versione
 	# precedente diventa .bak e il temporaneo prende il suo posto. Un crash
 	# a metà scrittura (o il disco pieno) non può mai lasciare mezzo
@@ -2330,6 +2445,30 @@ func _load_village() -> void:
 			printerr("BuildSystem: village.json illeggibile — ripristinato dalla copia .bak")
 		else:
 			return
+	# ⚠️ QUI NON SI TOCCA NESSUN DADO, e le due righe che c'erano sono cadute
+	# per due difetti diversi — vale la pena tenerne memoria, perché tutte e
+	# due nascevano dalla stessa illusione: che questa funzione giri «dopo».
+	#
+	# 1. LA RADICE non si posa più qui. Questa funzione è `call_deferred`, i
+	#    `_ready` che chiedono un dado no: posarla qui voleva dire arrivare
+	#    sempre secondi — il seme del salvataggio veniva scartato, e al
+	#    salvataggio dopo sovrascritto. Adesso `Dadi.radice()` legge il seme
+	#    dal file da sé, e `CHIBI_SEME` gli sta sopra.
+	# 2. LA POSIZIONE del flusso globale non si rimette più qui, e la riga
+	#    che lo faceva prometteva «dopo che il mondo è nato»: era falso. La
+	#    coda differita si svuota dentro il **frame 0**, mentre la
+	#    generazione di `CozyWorld` dura sette fotogrammi — quindi questa
+	#    riga cadeva prima di sassi, nuvole, polline, bosco e fiori, cioè in
+	#    mezzo alla generazione, e li faceva ripartire dalla stessa testa di
+	#    sequenza che l'erba aveva appena consumato. Adesso il globale riceve
+	#    una posizione una volta sola, in `CozyWorld._ready`, prima di tutto.
+	#
+	# Conseguenza dichiarata, ed è il prezzo giusto: quel che il mondo
+	# genera dopo il frame 0 dipende anche dai tiri fatti caricando il
+	# villaggio, cioè da quanto il giocatore ha costruito. Resta ripetibile —
+	# il villaggio è un ingresso come il seme (`CHIBI_VILLAGGIO`) — e in
+	# cambio nessuno rimette più indietro l'orologio a metà di una
+	# generazione.
 	_loading = true
 	var vmap: Dictionary = data.get("variants", {})
 	for c in data.get("cells", []):

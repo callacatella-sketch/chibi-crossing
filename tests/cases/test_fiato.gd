@@ -280,22 +280,11 @@ func _test_prestito(t) -> void:
 
 ## Il sorgente senza commenti: una guardia che legge anche i commenti
 ## accusa l'autore delle proprie buone intenzioni.
+## ⚠️ IL FERRO STA NELL'HARNESS (`tests/test_util.gd::senza_commenti`), e ci
+## sta perché ne esistevano tre copie identiche. Il perché — chi paga un
+## difetto lo NOMINA nei commenti — è scritto accanto alla funzione vera.
 static func _senza_commenti(src: String) -> String:
-	var out := ""
-	for riga in src.split("\n"):
-		var pulita := ""
-		var in_str := false
-		var i := 0
-		while i < riga.length():
-			var c := riga[i]
-			if c == "\"":
-				in_str = not in_str
-			elif c == "#" and not in_str:
-				break
-			pulita += c
-			i += 1
-		out += pulita + "\n"
-	return out
+	return load("res://tests/test_util.gd").senza_commenti(src)
 
 
 func _test_niente_ansia(t, _fs: GDScript) -> void:

@@ -1045,6 +1045,36 @@ immaginate):**
   verde su un villaggio che non esiste. Ora i gesti pesanti arrivano dal
   LAVORO che il giocatore assegna (chi fa la guardia veglia su chi dorme,
   chi cucina divide quello che ha) e dalle nascite.
+- **⚠️ E METÀ DELLE PORTE ERANO ANCORA CHIUSE, per le DUE ANAGRAFI.** Le
+  vere porte d'ingresso al sistema sono **quattro** — `piatto` (0.70),
+  `veglia` (0.80), `consolazione` (1.00), `coraggio` (1.20) — perché
+  `nascita` (2.00) è **circolare**: per farne una serve già una coppia. Di
+  quelle quattro, **due erano rotte**: `Voce._gesto_affetti` passava le
+  ETICHETTE («la volpina Pepita») a un libro mastro indicizzato per NOME del
+  DNA («Pepita»), e sono i due gesti più pesanti che il giocatore possa
+  provocare. Finivano in `_righe` con una chiave che nessun lettore usa mai:
+  righe fantasma che occupavano anche il posto nella potatura (il tetto è
+  420), e `conto()` non le vedeva. Tutti gli altri chiamanti di `gesto()`
+  convertivano già (`Salone._nome_di`, `Concerto._nome_di`,
+  `Veglia._nome_da_label`, le due `chiacchiera` e i due `piatto` di
+  `Visitors`): la Voce era l'unica rimasta indietro, **e in silenzio**.
+  MISURATO sul salvataggio vero (giorno 22, 13 residenti): **1030 righe,
+  tutte `chiacchiera`, zero gesti veri** — cioè `GESTI_VERI_MIN` (3) non era
+  raggiungibile e non esisteva una sola coppia in tutto il villaggio.
+  ⚠️ **E LA SUITE ERA VERDE**: nessuna asserzione, in tutto il progetto,
+  guardava che cosa la Voce SCRIVE. Tredici casi provavano cosa PESCA (le
+  cinque famiglie della confidenza) e cosa DICE (le tabelle-ponte, la lettera
+  del Gufo), nessuno dove finisce quello che fa. La guardia nuova
+  (`test_voce._test_i_gesti_entrano_col_nome_giusto`) ha due metà, e la
+  seconda è quella che conta: prova che `conto()` VEDE i gesti con la chiave
+  giusta e **non vede niente** con le label. Senza quella controprova
+  proverebbe una conversione senza dire perché serve.
+  ⚠️ E una trappola di BANCO, ripresa in pieno: `_residents` è
+  `Array[Dictionary]`, e un `set()` con un Array NUDO **non assegna e non
+  dice niente** — il fixture restava vuoto, `_nome_da_label` ripiegava sul
+  suo `return label`, e il caso falliva accusando la cura invece del proprio
+  banco. È la stessa trappola già scritta per il finto BuildSystem di
+  `test_insieme`.
 - **Il tempo rompeva le coppie.** `coppia()` chiede il valore assoluto sopra
   soglia e il conto decade: una coppia nata sul filo si scioglieva in
   quattro giorni di niente — sedici minuti reali. Il decadimento ERA il tick
@@ -1057,7 +1087,12 @@ immaginate):**
   letto. **Un bambino cancellato dal salvataggio è la cosa peggiore che
   questo sistema potesse fare**, ed era una regressione mia.
 - **`_rng.state` non sopravviveva al JSON:** salvato come intero perdeva
-  undici bit. Si salva come stringa.
+  undici bit. Si salva come stringa. ⚠️ **E il file è `Animo.gd` (1144-1149,
+  riletto a 1175), non `Affetti.gd`**: `Affetti` non contiene NEMMENO UN
+  generatore — questa nota lo ha detto per un pezzo, e chi andava a cercare
+  la trappola dove era scritta non la trovava. `Animo._rng` è anche **l'unico
+  dado persistito di tutto il progetto** (verificato: `.state` compare in due
+  righe sole in `scenes/` e `systems/`).
 - `Animo.punteggio()` era CIECO ai tratti: i pesi di carattere vivevano in
   `disagio()` e non venivano mai chiamati, quindi due vicini con gli stessi
   bisogni ricevevano punteggi identici. Finché era così, «libero arbitrio»
@@ -2565,6 +2600,27 @@ qualunque RNG (i dadi del villaggio si salvano) e qualunque persistenza.
 `TransformComponent` è **dichiarato e mai istanziato**: entra vivo quando
 arriva il suo primo lettore (il cammino), e fino ad allora
 `debug_quante_pose()` deve tornare 0 — un test lo pretende.
+
+> ### ⚠️ CORREZIONE: «il C++ non ha un RNG» è vero per l'ECS e FALSO per il gioco
+>
+> Questa frase sta in `src/ecs_mondo.h:31`, in `src/ecs_componenti.h` e in
+> `src/grafo_ricordi.h`, ed è vera per **ECS, agenda, sonno, piani e grafi**:
+> lì un dado non c'è e non deve esserci, perché i dadi del villaggio si
+> salvano e un secondo generatore sarebbe una seconda storia che nessun
+> salvataggio racconta.
+>
+> Ma il cuore C++ **non è solo l'ECS**: `src/ecosystem_manager.cpp` tira dal
+> generatore **GLOBALE** di Godot in **48 punti** (`UtilityFunctions::randf`,
+> `randf_range`), e `update_butterflies` (riga 353) ne consuma **due per
+> farfalla per passo di fisica** — fino a **180 estrazioni per fotogramma**
+> con `BF_MAX = 90`.
+>
+> Le due conseguenze non sono teoriche: un `seed()` chiamato da GDScript
+> semina anche l'ecosistema, e **cambiare il numero di farfalle sposta tutti
+> i numeri a valle di chiunque peschi dal flusso globale**. È la ragione
+> strutturale per cui il flusso globale non si può rendere riproducibile con
+> un seme, e per cui il codice che decide qualcosa deve stare sui **flussi
+> nominati** (vedi «UNA GIORNATA SI PUÒ RIPETERE», più sotto).
 
 E `VillagerBrain.nottambulo()` **resta in GDScript** (la usa anche l'attività
 «stella», `VillagerBrain.gd:180`): è l'unica formula che vive in due lingue, e
@@ -6699,6 +6755,481 @@ cioè tre buchi veri): la compagnia non è più un carburante · non ha più
 recenza · il villaggio non fa più il ponte · le giornate insieme guardano un
 lato solo della riga (che non ha verso, quindi dimenticarne uno è la
 distrazione plausibile) · senza il registro si tiene la compagnia di ieri.
+
+## LA FIDUCIA — la gemella di `rancore()`, e il canale che non c'era
+
+Il libro mastro sapeva dire **quanto qualcuno ti ha fatto del male** e non
+sapeva dire quanto ti ha fatto del bene. `rancore()` chiude con
+`maxf(0.0, somma − buoni·1.4)`: cinquanta giornate di piatti caldi potevano al
+massimo azzerare un torto, e da lì in poi non lasciavano traccia da nessuna
+parte. E `opinione[]` — l'unico modello generalizzato che un vicino ha di una
+persona — aveva **un solo scrittore in tutto il gioco**: `senti_dire()`, cioè
+il pettegolezzo.
+
+`Animo.fiducia(attore, tranne)` è la gemella: stessa forma, stessa recenza,
+**lettura derivata** da prove già salvate. Zero chiavi nuove, zero migrazioni.
+
+### Le cinque decisioni, e nessuna è una taratura
+
+1. **`SAZIETA_FIDUCIA := 12.0`, non `SATURAZIONE` (55).** Ricopiarla *sembra*
+   la regola delle fonti uniche e la viola: quel 55 è tarato su una serie che
+   **sensibilizza** (`Limbico.rivaluta` spinge verso −0.30 sui torti
+   d'identità), mentre i doni **abituano** — rapporto misurato **4,5×**. Con 55
+   la funzione non supererebbe **0,24 in nessuna partita possibile**, cioè
+   dichiarerebbe 0..1 e mentirebbe. La fonte unica vincola la FORMA e la
+   RECENZA, non lo scalare di scala: è quello che ha già fatto
+   `Deriva.SAZIETA := 8.0`.
+2. **Si sceglie per SEGNO, mai per una lista di tipi.** Una lista sarebbe la
+   gemella di `Deriva.SPINTE["codardia"]` — che infatti ha già dimenticato
+   «accompagnato» e non vede «consolato». Un elenco scritto a mano nasce
+   incompleto, e una riga che non entra non fa fallire nessun test.
+3. **Legge anche il SOMMARIO.** Guardare solo i ricordi vivi farebbe sparire
+   la fiducia oltre le `RICORDI_VIVI` righe — cioè **proprio nei villaggi
+   vissuti**, dove nessun collaudo arriva.
+4. **Nessuno sconto coi torti.** Il `− buoni · 1.4` di `rancore()` non è una
+   costante di simmetria: è un pollice sulla bilancia **a favore del
+   giocatore**. Specchiarlo lo capovolge — un torto cancellerebbe 1,4 volte la
+   gentilezza, e una brutta giornata spazzerebbe settimane di doni. E darebbe
+   **due pene allo stesso evento**, la seconda senza nessun telegrafo. I torti
+   passano da una porta sola.
+5. **Zero esatto per uno sconosciuto**, e non per un `if` scritto apposta:
+   senza righe la somma è zero e la forma dà 0.0. Un credito iniziale
+   invaliderebbe in un colpo ogni misura mai presa su `decide()`.
+
+### ⚠️ E L'INNESTO OVVIO SAREBBE STATO INERTE — è algebra, non una stima
+
+`punteggio()` ha **un solo lettore** in tutto il gioco (`decide()`), che ordina,
+prende i primi tre e pesa `exp((s − base) · nitidezza)` con **`base` preso dai
+voti stessi**. Un termine che non dipende da `azione` è la stessa costante su
+tutti i candidati, quindi `(s+c) − (base+c) = s − base`: **si cancella
+esattamente**.
+
+`s += fiducia(chiede) * 0.6` accanto a `opinione` — la stesura che si scrive
+per prima, che compila, che si legge benissimo e che ha un test facile che
+passa — **non avrebbe cambiato nessuna decisione, per nessun coefficiente**.
+Sarebbe stata la nona funzione completa-provata-verde-e-spenta.
+
+L'innesto è quindi sulla riga del **logorio**, l'unico termine che dipende
+insieme da `azione` e da `chiede`:
+
+```gdscript
+s -= 0.5 * minf(1.0, quante_volte(azione, chiede) / 25.0) \
+        * (1.0 - SMORZO_FIDUCIA * fiducia(chiede, azione))
+```
+
+*Da chi ti ha voluto bene, la ventesima volta pesa meno.* Moltiplicativo, e il
+pavimento è **strutturale**: con `fiducia == 0` è `× 1.0`, cioè bit per bit la
+riga di ieri. Il tetto è `SMORZO_FIDUCIA`, e non è scelto — l'effetto massimo
+(0,20) deve restare sotto il **tiro del sogno più debole** (0,225): la fiducia
+in chi chiede non può mai pesare quanto la vocazione.
+
+E `fiducia(chiede, azione)` col `tranne`: quella riga conta **già** le righe di
+quel tipo, quindi pesarle di nuovo sarebbe contarle due volte dentro una sola
+espressione. Non è una lista bianca — è non guardare due volte la riga che il
+chiamante ha già in mano. E taglia il canale dominante dell'anello di
+«se_stesso», che si auto-confermerebbe il lavoro dei sogni.
+
+### ⚠️ E `opinione` È MORTA DA SEMPRE, per due ragioni indipendenti
+
+Oltre a essere additiva (e quindi cancellata dal softmax), è letta con
+`chiede`, e **`decide()` ha un solo chiamante**: `Lavori.gd:122`, che passa
+**`"se_stesso"`**. Mentre `senti_dire()` scrive `opinione["giocatore"]`.
+
+Legge una chiave che nessuno scrive. Il termine non ha mai influenzato niente,
+e il commento accanto adesso lo dice — perché il prossimo non ripaghi la
+giornata.
+
+### I NUMERI, dal villaggio vero
+
+`tools/misura_fiducia.gd`, tredici residenti, tre giornate, col giocatore che
+cura solo i primi quattro e assegna i lavori dei sogni:
+
+| | |
+|---|---|
+| fiducia di chi il giocatore ha curato | media **0,623** · da 0,588 a 0,648 |
+| fiducia degli altri | media **0,014** · massimo 0,063 |
+| residenti per cui `punteggio()` cambia | **13 su 13** |
+
+Le due popolazioni non si sovrappongono: il più trascurato fra i curati sta
+dieci volte sopra il più fortunato fra gli altri. ⚠️ E i due «altri» con
+fiducia non nulla non sono un guasto: è il villaggio che vive — `gesto_gentile`
+lo chiamano anche il piatto di un vicino e la festa.
+
+**Nove mutazioni, tutte rosse.** E due erano mute alla prima stesura, in tutti
+e due i casi **per un difetto del banco, non del codice**: misuravo il sommario
+con una soglia che i quaranta ricordi vivi già superavano, e confrontavo un
+«prima» a `oggi = 10` con un «dopo» a `oggi = 35` — venticinque giornate di
+decadimento che avevo scambiato per l'effetto dei torti. Adesso sono due
+gemelli a parità di orologio.
+
+### ⚠️ IL RESIDUO, e ha aperto il lavoro dopo
+
+Il canale che il committente voleva — «lo faccio perché lo chiedi **tu**» — non
+esiste: `decide()` non riceve mai `"giocatore"`. Quello che morde oggi è
+`fiducia("se_stesso")`, cioè **l'autoefficacia**: quanto le proprie scelte
+passate ti hanno fatto bene, alimentata dalle righe `+0.12` del sogno servito.
+È un significato vero, ed è misurato (13 su 13), ma non è quello chiesto.
+
+La lacuna vera è più profonda: **nel gioco non esisteva un momento in cui un
+vicino decidesse se accettare qualcosa dal giocatore.** Il giocatore ordina (la
+Lavagna) o dona (i gesti gentili); non chiedeva mai, e le Commissioni vanno
+nell'altro verso.
+
+**⚠️ E QUESTO RESIDUO È STATO CHIUSO — vedi «IL «NON OGGI»», qui sotto.** Il
+canale non è stato inventato: era tre quarti già scritto, sulla soglia
+dell'Accompagnare. La fiducia adesso ha un secondo lettore, ed è quello in cui
+si sente: se un vicino ce la fa a entrare nel posto che teme dipende anche da
+quanto si fida di chi ce l'ha portato.
+
+## IL «NON OGGI» — la soglia dell'Accompagnare adesso DECIDE
+
+Il canale che il residuo qui sopra dichiarava mancante. E non è stato
+inventato: era **tre quarti già scritto** — la soglia dell'Accompagnare esiste
+da sempre (`Accompagna._avanza`, fase «soglia»: il vicino arriva a due passi
+dal posto che teme e si ferma), e mancava soltanto la possibilità che quel
+passo non venisse fatto.
+
+Il canale mancante non è stato inventato: era **tre quarti già scritto**. La
+soglia dell'Accompagnare esiste da sempre (`Accompagna._avanza`, fase
+«soglia»: il vicino arriva a due passi dal posto che teme e si ferma), e
+mancava soltanto la possibilità che quel passo non venisse fatto.
+
+Adesso `ce_la_fa(carica, allarme, fiducia)` decide, e se la paura vince il
+vicino si scosta, fa il **Largo** attorno al posto e se ne va. Nessuna parola,
+nessun toast, nessuna faccia verso di te — chi guarda vede **un corpo che gira
+al largo da una catasta**, che è esattamente quello che è successo.
+
+**Le quattro regole che non si negoziano:**
+
+1. **IL PAVIMENTO È STRUTTURALE.** Sotto `PAURA_CHE_FERMA` (0,55) si entra
+   **sempre**, comunque stia il corpo: per la stragrande maggioranza dei
+   vicini il gioco è bit per bit quello di ieri.
+2. **IL SOGGETTO DEL NO È IL POSTO, mai il giocatore.** Ha camminato con te
+   attraverso mezzo villaggio: il rifiuto non è sulla tua richiesta.
+3. **UN NO NON SCRIVE NIENTE**, e vale per il libro mastro **e per il corpo**
+   (vedi la trappola 1 più sotto). Nessuna riga, nessun marchio, nessun
+   rancore: non hai niente da riparare perché non hai rotto niente.
+4. **LA SOGLIA È UNA LETTURA, MAI UNA TRANSAZIONE.** I collaudi hanno bocciato
+   `trattieni()` — che scala la regolazione e alza il cortisolo — perché usarlo
+   qui vorrebbe dire **far pagare al vicino il fatto che gli hai chiesto una
+   cosa**.
+
+E `PESO_FIDUCIA` ha per tetto `PESO_ALLARME`: **la fiducia non può mai valere
+più di come stai adesso**, o diventerebbe una valuta che compra il coraggio, e
+il giocatore imparerebbe a coltivare i vicini invece che a volergli bene.
+Il `tranne` su `fiducia("giocatore", "accompagnato")` non è una lista bianca:
+è **non guardare due volte la riga che il chiamante ha già in mano** — senza,
+la volta scorsa che ti ha seguito conterebbe due volte, e il verbo si
+comprerebbe da solo.
+
+### ⚠️ COSA HA TROVATO LA REVISIONE AVVERSARIALE (cinque lenti, poi uno scettico)
+
+Quarantadue difetti proposti, **diciotto sopravvissuti** a chi doveva
+refutarli. I due `alta`, e nessuno dei due era visibile dalla suite:
+
+1. **IL CORPO CAMMINAVA DENTRO IL POSTO CHE AVEVA APPENA RIFIUTATO, con un
+   cuoricino.** `libera()` restituisce la giornata scrivendo `next_act = 0.0`
+   sulla riga del residente — e basta: non tocca `_target`, non cambia stato.
+   Ma `manda()` aveva fatto `do_task("wonder", pos)`, cioè `_walk_to` verso il
+   posto con `tk_wonder` in coda. MISURATO nel MainLevel vero: al verdetto
+   mancano ~1,9 m, e il corpo **li camminava** — distanza dalla catasta da
+   1,09 m a **0,00 m** — poi `_enter_state("tk_wonder")` gli metteva l'«!»
+   sopra la testa, restava 4,5 s incantato **dentro** il posto temuto, e
+   all'uscita `_spawn_heart()` gli faceva uscire un **cuore**. *Il rifiuto reso
+   identico a un successo, meno il toast e più un cuoricino.* E l'agenda non
+   poteva salvarlo: si riprende il corpo solo dagli stati di
+   `STATI_A_RIPOSO`, dove né «walk» né «tk_wonder» stanno.
+   Curato dirottando il cammino (`do_routine("wander", …)`, il ripiego
+   universale, che finisce in `r_idle`); dopo: **1,09 → 3,05 m**, e nessun
+   incanto.
+2. **SOPRA IL TETTO IL VERBO ERA SPENTO, e il gioco lo offriva lo stesso.**
+   `evita` apre il prompt a 0,45 di marchio; `ce_la_fa` lo concede sotto
+   `PAURA_CHE_FERMA + PESO_FIDUCIA`. In mezzo c'era una fascia in cui il
+   giocatore attraversava il villaggio per un **no certo** — nessun gesto,
+   nessuna fiducia, nessuna calma poteva cambiarlo. MISURATO
+   (`Limbico.rivaluta`, spaventi pieni): il marchio sale a **0,882** al terzo
+   spavento, poi l'abitudine lo riporta a **0,7196** a regime; il tetto con la
+   fiducia vera (0,623) è **0,706**. La fascia esiste, ed è proprio dove
+   stanno le paure appena fatte.
+   Curato con `_vale_la_pena`, che applica la regola **già scritta in quel
+   file** — *«meglio non offrire un verbo che non si può mantenere»* — alla
+   paura invece che alla mappa. E la domanda è sul **caso migliore** (corpo
+   calmo, la fiducia di oggi), non su adesso: **l'offerta è onesta, l'esito
+   resta vivo.** Così un no vuol dire «non come stiamo oggi» — a cui il
+   giocatore può rimediare — invece di «mai», che è una porta murata.
+
+| giorno dopo tre spaventi | 0–1 | 2–3 | 4+ |
+|---|---|---|---|
+| paura | 0,88 · 0,76 | 0,64 · 0,52 | 0,40 |
+| `evita` (il prompt) | sì | sì | no |
+| **si offre?** | **no — silenzio** | **sì, e si può vincere** | la paura è passata da sé |
+
+### ⚠️ LE TRAPPOLE PAGATE, e due sono di BANCO
+
+1. **`spalle_basse` È UNA POSA STABILE, e non gliela toglieva nessuno.**
+   `_non_oggi` la posava; sta in `Visitor.RECITA` (non in `RECITA_TRANS`),
+   quindi resta finché qualcuno non toglie il meta — e la scena si chiude nel
+   frame dopo. MISURATO: era addosso al corpo **sei secondi dopo e nella scena
+   successiva**. È il guasto che il commento di `Visitor._recita_applica`
+   racconta come già pagato una volta. E sarebbe stata una bugia: «un no non
+   scrive niente» vale anche per il CORPO. Tolta: il rifiuto ha già la sua
+   parola, ed è il Largo.
+2. **⚠️ L'ORACOLO DEL BANCO MISURAVA I METRI, NON LA DIREZIONE** — cioè mi ha
+   dato il **verde su un guasto grosso**. «1,88 m percorsi» passava come «se
+   n'è andato», e quei metri erano camminati *dentro* la catasta. Adesso si
+   guarda se la distanza dal posto CRESCE, e se il corpo entra in `tk_wonder`.
+3. **IL LARGO SI CHIEDE DOPO IL DIROTTAMENTO, E COL POSTO.** `_enter_state`
+   chiama `gesto_spegni()`, quindi un Largo chiesto prima morirebbe nel
+   fotogramma in cui nasce; e senza `posto` il corpo non sa da che parte
+   scostarsi (`via` resta +1, cioè sempre a destra — metà delle volte **verso**
+   la catasta).
+4. **IL RINNOVO POTEVA RIMANDARLO INDIETRO.** Il blocco che rinnova il lease
+   gira PRIMA del `match`: nel fotogramma in cui la fase è già «no» ma la scena
+   non è ancora chiusa, un rinnovo scaduto rispediva il corpo alla catasta con
+   45 s di lease, riaprendo la cura da sola.
+5. **IL GRUPPO «player» NON ESISTE.** Il banco lo cercava come ripiego, e
+   `test_scena_cablaggi` è diventato rosso — giustamente: un banco che
+   interroga un gruppo vuoto misura sempre `null` e non se ne accorge. Il
+   giocatore si prende da dove lo prende la scena (`Accompagna._player`).
+6. **UNA GUARDIA CHE LEGGE FINO A FINE FILE ACCUSA LA FUNZIONE SBAGLIATA.** Il
+   controllo su `_vale_la_pena` non era delimitato e ci finiva dentro
+   `_ce_la_fa_ora`, che l'allarme lo guarda — giustamente, perché è lei a
+   decidere sulla soglia.
+
+### ⚠️ E DUE GUARDIE ERANO MUTE (la batteria le ha trovate, non la rilettura)
+
+- **il `tranne`**: quindici mutazioni, quattordici rosse e **una verde** —
+  togliere `"accompagnato"` da `fiducia()` lasciava tutto verde. La riga che
+  impedisce alla stessa carezza di pesare due volte non aveva **nessun
+  lettore**: la nona volta, in questo progetto, che del codice giusto non ha
+  chi lo guardi. Chiusa legando i due posti — il tipo si **legge** da
+  `_guarisci`, non si ricopia, e la mutazione che lo rinomina lì fa arrossire
+  la guardia qui.
+- **…e poi di nuovo**, perché da quando anche l'offerta interroga la fiducia i
+  lettori sono DUE, e una guardia che ne conosce uno solo lascia l'altro
+  scoperto. Adesso si contano **tutte** le chiamate: copre anche il lettore che
+  verrà.
+
+### Il ferro dei source-check sta nell'harness, e ce n'è UNA casa sola
+
+`tests/test_util.gd::senza_commenti(src)` / `codice(percorso)` — il sorgente
+**senza i commenti**. Serve in tutti e due i versi: chi ha PAGATO un difetto lo
+racconta nei propri commenti (la cura di `spalle_basse` nomina la posa che ha
+tolto), e un guardiano ingenuo dichiara rotto proprio il file riparato;
+all'inverso, un commento che promette una cosa fa passare un codice che non la
+fa.
+
+⚠️ **Ne esistevano TRE copie** — `test_fiato` (che l'aveva pagata per primo),
+`test_dadi` (che l'ha ricopiata scrivendo nel commento «lo spogliatore è quello
+di `test_fiato`») e una versione **debole** in `test_vento`, che scartava solo
+le righe *interamente* di commento. Su un ferro che i guardiani usano per
+giudicare, la copia debole è peggio della copia: `var x = 1  # nome_vietato`
+passava intatto, cioè un commento in coda faceva fallire una guardia a torto —
+ed è esattamente il caso in cui una cura nomina la cosa che ha tolto.
+FALSIFICATO: con lo spogliatore buono quel commento in coda lascia la suite
+verde, e le tre mutazioni vere restano rosse.
+
+Adesso l'implementazione (quella che rispetta le virgolette e i commenti in
+coda) sta nell'harness, e `test_fiato`, `test_dadi` e `test_vento` la chiamano.
+**Una lezione ricopiata invecchia.**
+## UNA GIORNATA SI PUÒ RIPETERE — i dadi nominati, le leve, le repliche
+
+Due corse di `misura_insieme` con **gli stessi identici parametri** davano
+**0,31 e 1,77** righe di co-presenza per residente: un fattore **5,7**. Da
+lì in poi ogni referto di questo progetto ha dovuto scrivere «le due corse
+non sono appaiate» — tre volte solo nel capitolo delle cricche — e una volta
+uno scarto da 0,80 a 1,27% è stato indicato come *«il numero da confrontare
+in futuro»*: era rumore.
+
+**Non è un difetto di misura, è un difetto del gioco.** Senza ripetizione
+non esiste ablazione (spegnere un meccanismo e vedere cosa cambia), non
+esiste sensibilità (muovere una costante e vedere quanto pesa), non esiste
+confronto fra condizioni. Tutte le misure psicologiche del progetto —
+l'inerzia dell'insieme, la saturazione della deriva, il grappolo che si
+ferma a tre — erano **ipotesi ben poste, non risultati**.
+
+### L'EPICENTRO era una riga, e violava una regola già scritta
+
+```
+scenes/npc/VillagerBrain.gd:105
+_rng.seed = hash(str(dna.get("name", "?"))) + Time.get_ticks_msec() % 1000
+```
+
+Il dado di ogni vicino partiva dall'**orologio**. La regola c'era già —
+«semi da `hash()` stabili» — e questa riga la violava con l'unica sorgente
+che nessuno aveva pensato a vietare. Da quel dado esce `jitter()`, cioè **il
+dado congelato dell'agenda**: quello che decide fra due azioni quasi pari.
+
+Il censimento attorno: **91 `RandomNumberGenerator.new()`**, 86 semi
+espliciti (la disciplina c'era), **7 `randomize()`** e **255 usi del
+generatore GLOBALE**.
+
+### I FLUSSI NOMINATI — [`systems/Dadi.gd`](systems/Dadi.gd)
+
+Un **seme di radice** per partita, e flussi che ne *derivano*:
+`VILLAGGIO` (le decisioni), `AMBIENTE` (il mondo), `CORPO` (il rig),
+`LIBERO` (**dichiarato cosmetico**: non seminato, e va bene così).
+
+> #### ⚠️ SI DERIVA, NON SI CONDIVIDE — ed è la proprietà che tiene tutto
+>
+> Un flusso **non è un generatore condiviso**: è una regola per derivarne
+> uno da una chiave. `rng(VILLAGGIO, "Ciliegia")` e `rng(VILLAGGIO,
+> "Nocciola")` sono indipendenti, e nessuno consuma i numeri dell'altro.
+>
+> Con un flusso condiviso, **aggiungere un chiamante sposta tutti i numeri a
+> valle**: spegnere un meccanismo per misurarlo cambierebbe anche tutti gli
+> altri, e il banco delle repliche direbbe numeri che non vogliono dire
+> niente. Corollario operativo: **si può aggiungere un consumatore senza
+> invalidare nessuna misura già presa**, ed è sorvegliato da un caso di test
+> perché è la proprietà che si perde per prima quando qualcuno «ottimizza».
+
+**La radice viene, in ordine:** `CHIBI_SEME` → la chiave `"seme"` del
+salvataggio → coniata con entropia vera. `Dadi.conia()` e `Dadi.libero()`
+sono **l'unico posto autorizzato del progetto** a usare entropia vera, e la
+guardia esenta quel file per dire che è UNO.
+
+⚠️ **La radice viaggia come STRINGA** nel `village.json`, per la stessa
+ragione di `Animo._rng.state`: il JSON restituisce ogni numero come float, e
+un intero perdeva undici bit.
+
+### LE LEVE — [`systems/Leve.gd`](systems/Leve.gd)
+
+Un meccanismo si giudica in un modo solo: **lo si spegne e si guarda cosa
+cambia**. `CHIBI_LEVE="insieme:off,deriva:off"`, quattro leve cablate
+(`insieme`, `ritrovi`, `deriva`, `gesti`), e quattro regole:
+
+1. **di serie è tutto acceso** (una leva è uno strumento, non una configurazione);
+2. **una leva dichiarata deve avere un lettore, e un lettore un nome dichiarato** —
+   sorvegliato nei due versi: una leva senza lettore è una promessa vuota (il
+   banco la spegne, non succede niente, e si legge come «quel meccanismo non
+   conta»);
+3. **un nome sconosciuto non spegne niente** e si lamenta;
+4. **nel gioco non le tocca nessuno**, e una guardia scandaglia i sorgenti.
+
+⚠️ **Il ramo spento non salta il lavoro: neutralizza il verdetto.** È la
+forma di `debug_occlusione`, che spenta tira i raggi lo stesso. Applicata al
+fatto dell'insieme: si calcola sempre e si pubblica in `insieme_osservato`,
+così un banco può chiedere «quante volte SAREBBE stato vero» e «quante ha
+cambiato una decisione» **nella stessa corsa**.
+
+⚠️ **`Visitors.debug_occlusione` NON è stata portata dentro**: ha già il suo
+lettore, la sua guardia in `test_regia` e un banco che la alterna. Spostarla
+vorrebbe dire riscrivere una guardia che funziona per un'uniformità che non
+compra niente.
+
+### IL BANCO DELLE REPLICHE — [`tools/banco_repliche.py`](tools/banco_repliche.py)
+
+N semi × K condizioni, **un processo per replica**, e in uscita una
+distribuzione invece di un numero.
+
+```
+python3 tools/banco_repliche.py tools/misura_insieme.gd \
+    --semi 8 --condizioni "tutto" "insieme" \
+    --env CHIBI_GIORNI=2 CHIBI_QUANTI=13 CHIBI_GAZEBO=1
+```
+
+Stampa, in quest'ordine: **il controllo** (stesso seme, stessa condizione,
+due volte — se non è zero, tutto il resto è sospetto), **la distribuzione**
+per condizione (mediana e quartili, mai una media su due corse), e **lo
+scarto APPAIATO** con quanti semi concordano nel segno.
+
+Le cinque regole, e ognuna chiude una trappola pagata:
+
+1. ⚠️ **`--fixed-fps 60`, sempre.** Senza, il passo arriva dall'orologio
+   vero: `prova_identico` ne ha misurati **19 valori distinti** in una
+   corsa, e due corse identiche divergevano del **37,9%** contro un segnale
+   del 25,0% — il banco era più rumoroso di ciò che doveva rilevare. E
+   «`--headless` forza il passo fisso» è **falso**: quella riga di `--help`
+   sta sotto `--write-movie`.
+2. ⚠️ **Un processo per replica**, e non è prudenza: `banco.gd::apri()` non
+   è rientrante, il `Traduttore` della Fase 5 si apre una volta per
+   processo, e il dado globale sopravvive a `change_scene_to_file`.
+3. ⚠️ **Un villaggio ermetico** (`CHIBI_VILLAGGIO`). Fino al 2026-09-04 ogni
+   banco girava sopra il `village.json` **dell'autore** — nessuno chiama
+   `debug_clear()`, e `set_persist_for_debug` blocca le sole scritture:
+   «stessi parametri» non implicava «stesso villaggio».
+4. **Il banco non inventa un numero**: legge `MISURA <nome> <valore>`, e se
+   non ne trova lo DICE (un banco che tace non è un banco a zero).
+5. **Niente tagli silenziosi**: ogni replica caduta viene nominata.
+
+### ⚠️ COSA RESTA APERTO, dichiarato
+
+Fissare i semi **non basta**, e le sorgenti che restano sono misurate:
+
+- **il flusso GLOBALE non si può rendere riproducibile con un seme**:
+  `EcosystemManager` ne consuma fino a **180 estrazioni per fotogramma**
+  (90 farfalle × 2, `ecosystem_manager.cpp:353`). Chi cambia il numero di
+  farfalle sposta tutti i numeri a valle di chiunque peschi di lì. Restano
+  **~130 righe comportamentali** sul globale in `Visitors`, `Visitor`,
+  `Collection`, `Fishing`, `Nascondino` e altri: **è il lavoro successivo**,
+  e il flusso a cui appartengono è `VILLAGGIO`;
+- **il mondo non ha un seme**: `CozyWorld` usa **nove costanti scritte a
+  mano** (77, 4242, 90210, 88, 7, 99, 33, 505, 71) — due villaggi hanno lo
+  stesso prato. Darglielo rompe ogni salvataggio esistente (le case si
+  troverebbero su un terreno diverso), quindi va fatto con una migrazione;
+- **l'orologio da polso in `Visitors._chats`** (riga 4559) misura il
+  raffreddamento delle coppie in tempo REALE, non di gioco: su un banco che
+  gira più veloce del reale quel riposo non scade mai. `prova_identico` lo
+  **dichiara** come cosa che la traccia non copre, invece di curarlo;
+- **`Concertino.gd:159`** semina la canzone del carillon con
+  `Time.get_ticks_msec() / 600000`: il contenuto cambia a scaglioni di dieci
+  minuti reali. Non è un `randf()` e nessun censimento del dado lo trova;
+- **`Animo.descrizione()`** fa `_rng.randf() < 0.5` su un dado **persistito**:
+  una funzione di presentazione che avanza lo stream della simulazione —
+  osservare cambia il gioco. Oggi non ha chiamanti in produzione;
+- **`RegiaDiorama.semina()`** e **`OraDelGiorno`** usano il tempo vero, ed è
+  una **feature dichiarata** del menù: non si rendono deterministiche, si
+  scavalcano.
+
+### Le due cose che NON si toccano
+
+- **`Animo._rng` resta persistito.** Riproducibilità di una corsa e
+  resistenza al save-scumming sono due cose diverse: quel dado è salvato
+  apposta perché «due save-scumming e il giocatore scopriva il dado».
+- **`VillagerBrain._rng` resta NON persistito**, ed è voluto: ricaricare
+  rigioca la stessa sequenza di jitter, che è esattamente la ripetibilità
+  che si vuole.
+
+### Come si verifica
+
+```
+Godot --headless --path . --script res://tests/test_runner.gd
+Godot --headless --path . --script res://tools/prova_non_oggi.gd
+CHIBI_CASO=test_due_strade.gd Godot --headless --path . \
+    --script res://tools/prova_un_caso.gd     # il giro CORTO, per le mutazioni
+```
+
+[`tools/prova_non_oggi.gd`](tools/prova_non_oggi.gd) è il banco vivo: MainLevel
+vero, un vicino vero, la scena vera dal `_comincia` alla soglia — **non chiama
+`ce_la_fa` a mano**, o misurerebbe un corpo che entra sempre senza accorgersene.
+Sei cancelli, con oracoli indipendenti (il libro mastro contato a mano, la
+distanza dal posto, lo stato del corpo) e la **controprova** che sotto il
+pavimento si entra come sempre.
+
+[`tools/prova_un_caso.gd`](tools/prova_un_caso.gd) fa girare UN caso della
+suite riusando **l'harness vero**: non è un secondo runner, e sta in `tools/`
+apposta. Serve alla batteria di mutazioni — su una macchina carica la suite
+intera costa decine di minuti, e quindici mutazioni non si provano. Il verdetto
+finale si dà comunque con la suite intera.
+Godot --headless --path . --script res://tests/test_runner.gd     # test_dadi.gd
+python3 tools/banco_repliche.py tools/misura_insieme.gd --semi 4 \
+    --condizioni "tutto" "insieme" --env CHIBI_GIORNI=1 CHIBI_QUANTI=8
+```
+
+La guardia è [`tests/cases/test_dadi.gd`](tests/cases/test_dadi.gd), e non è
+un source-check travestito: prova **comportamentalmente** che due dadi con la
+stessa chiave danno la stessa vita, che chiavi diverse divergono, e che **un
+consumatore in più non sposta gli altri**. Poi scandaglia i sorgenti per
+l'orologio in posizione di seme — spogliando i commenti con lo spogliatore di
+`test_fiato` (l'unico che toglie anche quelli in coda e rispetta le
+virgolette), **perché la cura all'epicentro nomina apposta la chiamata
+vietata** per spiegare cosa c'era prima. E conta quanti file ha letto: una
+guardia che per un percorso sbagliato ne legge zero è verde.
+
+Alla prima corsa ha trovato **nove `randomize()` in posizione di seme**, due
+dei quali erano i suoi autorizzati e sette erano lavoro vero: il fungo da
+raccolta, gli stivali del catalogo, il volto, i sogni, la posta, **il genoma
+di chi arriva ad abitare** e il dado delle chiacchiere.
 
 ## Test
 
