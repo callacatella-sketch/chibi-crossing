@@ -28,6 +28,7 @@ var fallite := 0
 # (compila / esegui). Tutto il resto dello stato Lua non è mai esposto
 # al codice generato.
 const PRELUDIO := """
+math.randomseed(20260906)   -- SONDA TEMPORANEA (da revertire)
 local piano = {}
 
 -- i mattoncini: l'INTERO mondo visibile alle routine generate

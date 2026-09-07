@@ -52,8 +52,10 @@ extends SceneTree
 ##     è esatto in IEEE-754: qui l'uguaglianza è una PROPRIETÀ, non una
 ##     speranza). **Il numero che lo smentisce è UNO.**
 ##  2. **IL PARAMETRO PUÒ SOLO ABBASSARE.** Zero percetti con la forza vera
-##     sopra quella della gamba a conforto zero; zero reazioni che passano
-##     da «nulla» a «trasalisce». Un tampone che alza è un malus travestito.
+##     sopra quella della gamba a conforto zero. Un tampone che alza è un
+##     malus travestito. (La riga sulle reazioni che passano a «trasalisce»
+##     è lo STESSO cancello riletto, non un secondo: vedi il commento
+##     accanto al conto, e i due tentativi di farla fallire.)
 ##  3. **IL CALORE NON SI TOCCA** (il quarto divieto): `calore` e la reazione
 ##     `si_illumina` devono essere identici nelle due gambe. Il cuoricino di
 ##     chi ti vuole bene non si spegne perché il suo compagno gli è accanto.
@@ -229,6 +231,13 @@ var _snap := {}
 var _compagno := {}            # label -> label del compagno, per etichetta
 var _in_coppia := {}           # label -> true
 var _campioni: Array = []      # i percetti, con le due gambe
+## I DUE OROLOGI, tenuti tutti e due: quello del MOTORE è il tempo che il
+## villaggio ha vissuto (ed è quello su cui girano le fasi), quello del
+## MURO è il tempo di chi guarda. Il referto stampa il rapporto, o
+## «660 s di banco» resta una frase che ognuno legge come vuole.
+var _t_motore := 0.0
+var _t_muro := 0.0
+var _muro_ms := 0
 var _fase := "forma"
 var _infedeli := 0             # istantanee che non hanno riprodotto il vero
 var _senza_geo := 0            # percetti di cui non avevo la geometria
@@ -587,13 +596,40 @@ func _leggi_le_coppie(residenti: Array) -> void:
 
 # ======================================================== i due giri
 
+## IL PASSO È QUELLO DEL MOTORE, e per un pezzo è stato quello del MURO.
+##
+## ⚠️ `Time.get_ticks_msec()` misura il tempo di CHI GUARDA; il villaggio
+## vive sul delta che il motore consegna a `_process`, e con `--fixed-fps 60`
+## quello vale esattamente 1/60 qualunque cosa faccia la macchina. I due non
+## si somigliano nemmeno alla lontana: MISURATO su un albero vuoto, 600
+## fotogrammi sono **10,0000 s di motore contro 0,0500 s di muro — 200 volte**
+## (in headless niente frena i fotogrammi, quindi il muro corre molto più
+## piano del gioco). Dentro il MainLevel il rapporto è più piccolo, e questo
+## banco lo STAMPA nel referto invece di lasciarlo indovinare.
+##
+## Le due conseguenze erano tutte e due mute:
+##   · `CHIBI_FORMA`/`CHIBI_VIVO` erano secondi di MURO, quindi il villaggio
+##     ne viveva molti di più e la riga «660 s di banco» diceva un'altra cosa;
+##   · `_secondi_di` è il DENOMINATORE del cancello 4 (percetti al minuto):
+##     un conto di eventi che accadono sull'orologio del motore, diviso per
+##     una durata presa sull'orologio del muro. Il confronto coppia/soli
+##     sopravvive (il fattore è lo stesso nelle due gambe), il numero no.
+##
+## È la stessa famiglia del difetto già scritto in CLAUDE.md per
+## `test_gesti` — «ERANO DUE OROLOGI» — un piano più in là.
+func _passo() -> float:
+	if _player != null and is_instance_valid(_player):
+		return _player.get_process_delta_time()
+	return 0.0
+
+
 ## FASE A: i corpi restano dove li ho messi (li riposiziono ogni fotogramma,
 ## prima che il loro `_process` giri) e Mochi fa il giro dei gruppi. È colla,
 ## e va detto: quello che esce di qui è la FORMA dello smorzamento, non
 ## quanto capita.
 func _gira_la_forma(secondi: float, residenti: Array) -> void:
 	var t := 0.0
-	var ms := Time.get_ticks_msec()
+	_muro_ms = Time.get_ticks_msec()
 	var gruppo := 0
 	var sosta := 0.0
 	var oscilla := 0.0
@@ -601,12 +637,13 @@ func _gira_la_forma(secondi: float, residenti: Array) -> void:
 	var gruppi := _quante_coppie + _quanti_finti + _quanti_soli
 	while t < secondi:
 		await process_frame
-		var ora := Time.get_ticks_msec()
-		var dt := float(ora - ms) / 1000.0
-		ms = ora
-		if dt <= 0.0 or dt > 0.5:
+		var dt := _passo()
+		if dt <= 0.0:
 			continue
 		t += dt
+		_t_motore += dt
+		_t_muro += float(Time.get_ticks_msec() - _muro_ms) / 1000.0
+		_muro_ms = Time.get_ticks_msec()
 		# 1) i percetti del fotogramma appena passato, contro l'istantanea
 		_raccogli(residenti)
 		# 2) la colla, PRIMA del `_process` dei corpi
@@ -668,16 +705,17 @@ func _gira_il_vivo(secondi: float, residenti: Array) -> void:
 	var meta := Vector3(rng.randf_range(-10, 10), 0.0, rng.randf_range(-10, 10))
 	var sosta := 0.0
 	var t := 0.0
-	var ms := Time.get_ticks_msec()
 	var avviso := 0.0
+	_muro_ms = Time.get_ticks_msec()
 	while t < secondi:
 		await process_frame
-		var ora := Time.get_ticks_msec()
-		var dt := float(ora - ms) / 1000.0
-		ms = ora
-		if dt <= 0.0 or dt > 0.5:
+		var dt := _passo()
+		if dt <= 0.0:
 			continue
 		t += dt
+		_t_motore += dt
+		_t_muro += float(Time.get_ticks_msec() - _muro_ms) / 1000.0
+		_muro_ms = Time.get_ticks_msec()
 		_raccogli(residenti)
 		_istantanea(residenti, dt)
 		var p := _player.global_position
@@ -1060,17 +1098,42 @@ func _sezione_b() -> void:
 			if float((d as Dictionary)["forza0"]) > 0.0:
 				rl.append(1.0 - float((d as Dictionary)["forza"])
 						/ float((d as Dictionary)["forza0"]))
-		cali_fascia.append(_media(ca))
+		# ⚠️ IL CALO NORMALIZZATO SULLO STIMOLO — ed è QUESTA la firma 1.
+		# Il calo NUDO non è confrontabile fra i terzili, perché i terzili
+		# non ricevono lo stesso percetto: `calo = stimolo · reatt · f(c)`,
+		# e in una corsa vera lo `stimolo` (la carica del marchio più la
+		# bruschezza, per la scia) varia di più della reattività. MISURATO
+		# alla prima corsa: stimolo 0.4485 nel terzile basso contro 0.1203
+		# nell'alto, cioè **3,73 volte**, e il calo nudo usciva 0,45× —
+		# la firma ROVESCIATA, per un confondente del campione.
+		# Dividendo per lo stimolo resta `reatt · f(c)`, che è la grandezza
+		# di cui la firma 1 parla: a parità di percetto, chi reagisce di più
+		# guadagna di più ad avere qualcuno accanto.
+		var st: Array = []
+		for d in f:
+			var f0: float = float((d as Dictionary)["forza0"])
+			var rr: float = float((d as Dictionary)["reatt"])
+			if f0 > 0.0 and rr > 0.0:
+				# stimolo = allarme_senza / reattivita
+				st.append((float((d as Dictionary)["forza0"])
+						- float((d as Dictionary)["forza"])) / (f0 / rr))
+		cali_fascia.append(_media(st))
 		reatt_fascia.append(_media(re))
-		print("  %-18s n %3d · reatt %.3f · conforto %.3f · CALO %.4f · rel %.1f%%"
-				% [nomi[i], f.size(), _media(re), _media(co), _media(ca), 100.0 * _media(rl)])
+		print("  %-18s n %3d · reatt %.3f · conforto %.3f · CALO %.4f · rel %.1f%% · calo/stimolo %.4f"
+				% [nomi[i], f.size(), _media(re), _media(co), _media(ca),
+				100.0 * _media(rl), _media(st)])
 	var r_calo: float = float(cali_fascia[2]) / maxf(0.000001, float(cali_fascia[0]))
 	var r_reatt: float = float(reatt_fascia[2]) / maxf(0.000001, float(reatt_fascia[0]))
 	print("")
-	print("  ⇒ il calo cresce di %.2f× dal terzile basso all'alto" % r_calo)
+	print("  ⇒ il calo SULLO STIMOLO cresce di %.2f× dal terzile basso all'alto" % r_calo)
 	print("    e la reattività cresce di %.2f×" % r_reatt)
 	print("    LA FIRMA 1 C'È se i due si somigliano: il conforto entra sul")
 	print("    GUADAGNO, quindi smorza in proporzione a quanto uno reagisce.")
+	print("    ⚠️ E SI GUARDA QUESTO, NON IL CALO NUDO: i terzili non ricevono")
+	print("       lo stesso percetto, e alla prima corsa il calo nudo dava 0,45×")
+	print("       — la firma rovesciata — perché lo stimolo del terzile basso")
+	print("       era 3,73 volte quello dell'alto. Un campione non appaiato che")
+	print("       si legge come una smentita del meccanismo.")
 	print("    (⚠️ il calo RELATIVO invece dev'essere COSTANTE fra le fasce —")
 	print("     vale 1−1/(1+c·K) e non contiene la reattività: è la controprova")
 	print("     che la forma è una divisione del guadagno e non una sottrazione)")
@@ -1234,6 +1297,32 @@ func _sezione_g() -> void:
 	print("─".repeat(74))
 	print("  (g) QUALE FORMA È IN VIGORE — dedotta dai numeri")
 	print("─".repeat(74))
+	# ⚠️ **SI CONFRONTANO DUE DISPERSIONI RELATIVE, NON DUE DEVIAZIONI
+	# STANDARD** — e per due corse pubblicate qui c'erano le seconde.
+	#
+	# Il calo relativo sta attorno a 0,30 e quello assoluto attorno a 0,09:
+	# la deviazione standard del primo è più grande *perché il primo è più
+	# grande*, non perché vari di più. Il verdetto usciva quindi
+	# «SOTTRAENDO» **su codice sano, in tutte e due le corse**, tre righe
+	# sotto una tabella che mostrava il calo relativo costante al decimo di
+	# punto (29,6 · 29,6 · 29,6). Una diagnosi che accusa sempre non è una
+	# diagnosi — ed è la stessa famiglia dell'errore che la firma 1 aveva
+	# già dovuto ritrattare: confrontare grandezze non confrontabili.
+	#
+	# Il coefficiente di variazione (scarto / media) è adimensionale, e
+	# INVERTE fra le due forme invece di puntare sempre da una parte:
+	#  · dividendo il guadagno, `rel = 1 − 1/(1+c·K)` dipende dal solo
+	#    conforto, mentre `ass = allarme0 · rel` porta ANCHE la dispersione
+	#    dell'allarme grezzo → CV(rel) < CV(ass);
+	#  · sottraendo dal risultato, `ass` è quasi costante (lo stesso
+	#    sollievo per tutti) e `rel = ass/allarme0` eredita la dispersione
+	#    dell'allarme → CV(rel) > CV(ass).
+	# FALSIFICATO mutando `Limbico` alla forma vietata: vedi i due numeri
+	# stampati qui sotto, che si scambiano di posto.
+	#
+	# E i campioni AL TETTO restano fuori da questo conto: lì le due gambe
+	# sono tutte e due a 1,0, quindi `rel` e `ass` valgono zero e non dicono
+	# niente sulla forma — ci aggiungerebbero solo varianza.
 	var rel: Array = []
 	var ass: Array = []
 	var al_tetto := 0
@@ -1242,29 +1331,69 @@ func _sezione_g() -> void:
 		var d := c as Dictionary
 		if float(d["conforto"]) <= 0.0:
 			continue
-		ass.append(float(d["forza0"]) - float(d["forza"]))
-		if float(d["forza0"]) > 0.0:
-			rel.append(1.0 - float(d["forza"]) / float(d["forza0"]))
 		if float(d["forza0"]) >= 1.0:
 			al_tetto += 1
 			if float(d["forza"]) >= 1.0:
 				tetto_pieno += 1
-	if ass.is_empty():
-		print("  nessun campione tamponato: la forma non si può dedurre.")
+			continue
+		ass.append(float(d["forza0"]) - float(d["forza"]))
+		if float(d["forza0"]) > 0.0:
+			rel.append(1.0 - float(d["forza"]) / float(d["forza0"]))
+	if ass.size() < 2:
+		print("  meno di due campioni tamponati sotto il tetto: la forma non")
+		print("  si può dedurre, e un verdetto qui sarebbe inventato.")
 		return
-	print("  dispersione del calo RELATIVO ..... %.4f (attesa: piccola)"
-			% _scarto(rel))
-	print("  dispersione del calo ASSOLUTO ..... %.4f (attesa: grande)"
-			% _scarto(ass))
+	# ⚠️ E NON È UNA STATISTICA: È UN'IDENTITÀ. Il banco conosce il conforto
+	# di ogni campione (glielo dice `ultimo_sussulto`, ripulito) e conosce K
+	# (lo legge dalla costante): sotto il tetto, dividere il guadagno impone
+	# `rel = 1 − 1/(1+c·K)` **esattamente**, perché tutto il resto della
+	# catena si semplifica fra le due gambe. Non c'è niente da stimare — si
+	# predice e si confronta, che è la disciplina di `_allarme_di_ieri`.
+	#
+	# Il primo tentativo confrontava due COEFFICIENTI DI VARIAZIONE e non
+	# discriminava: contro la forma vietata dava 0,7144 contro 0,7129, due
+	# millesimi di margine. MISURATO sugli stessi campioni, il residuo
+	# dell'identità dà **0,0000000000 sul codice sano e 0,7037038031 sulla
+	# forma vietata** — non è un margine, è un sì contro un no.
+	var res: Array = []
+	for c in _campioni:
+		var d := c as Dictionary
+		var cf := float(d["conforto"])
+		if cf <= 0.0 or float(d["forza0"]) >= 1.0 or float(d["forza0"]) <= 0.0:
+			continue
+		var atteso := 1.0 - 1.0 / (1.0 + cf * _tampone)
+		res.append(absf((1.0 - float(d["forza"]) / float(d["forza0"])) - atteso))
+	print("  campioni sotto il tetto (gli unici che dicono la forma) ... %d"
+			% ass.size())
+	print("  calo relativo: medio %.4f · dispersione %.4f"
+			% [_media(rel), _scarto(rel)])
+	print("  calo assoluto: medio %.4f · dispersione %.4f"
+			% [_media(ass), _scarto(ass)])
 	print("  campioni al tetto ................. %d, di cui non tamponati %d"
 			% [al_tetto, tetto_pieno])
 	if al_tetto > 0 and tetto_pieno == 0:
 		print("  ⚠️ NESSUN campione al tetto è rimasto non tamponato: il tampone")
 		print("     sta mordendo DOPO il clamp. È `clampf(prodotto,0,1)/D`, cioè")
 		print("     una forma diversa da quella decisa dall'autore.")
-	if _scarto(rel) > _scarto(ass):
-		print("  ⚠️ il calo relativo varia PIÙ dell'assoluto: il conforto sta")
-		print("     SOTTRAENDO dal risultato invece di dividere il guadagno.")
+	if res.is_empty():
+		print("  nessun campione utile: la forma non si può dedurre.")
+		return
+	var peggio := 0.0
+	for x in res:
+		peggio = maxf(peggio, float(x))
+	print("")
+	print("  L'IDENTITÀ  rel = 1 − 1/(1+c·K)  su %d campioni:" % res.size())
+	print("     residuo medio ..... %.10f" % _media(res))
+	print("     residuo PEGGIORE .. %.10f" % peggio)
+	_misura("forma.residuo_peggiore", peggio)
+	if peggio < 1.0e-6:
+		print("  ⇒ la forma in vigore è la DIVISIONE DEL GUADAGNO, e non per")
+		print("     somiglianza: l'identità regge alla decima cifra.")
+	else:
+		print("  ⚠️ L'IDENTITÀ NON REGGE: il conforto NON sta dividendo il")
+		print("     guadagno. Una sottrazione dal risultato, un pavimento, un")
+		print("     tetto messo prima della divisione — la forma è un'altra, e")
+		print("     le firme misurate qui sopra non dicono quel che promettono.")
 
 
 func _scarto(a: Array) -> float:
@@ -1307,6 +1436,27 @@ func _cancelli(residenti: Array, secondi: float) -> void:
 		print("        solitari veri: CHIBI_COPPIE più basso, o più tempo)")
 
 	# 2 — può solo abbassare
+	#
+	# ⚠️ LA SECONDA RIGA NON È UN SECONDO CANCELLO: È LO STESSO, LETTO NELLA
+	# LINGUA DEL GIOCATORE — e va detto, o si legge come copertura.
+	#
+	# Se la forza non sale mai, una reazione non può diventare «trasalisce»:
+	# quel ramo chiede `allarme > SOGLIA_SUSSULTO`, quindi la seconda riga è
+	# implicata dalla prima per ogni mutazione dell'ARITMETICA. Restava la
+	# speranza che cogliesse quelle del RAMO — un tampone che invece di
+	# dividere il guadagno abbassasse la soglia a chi ha compagnia
+	# lascerebbe `forza` identica al bit. **PROVATO, e non le coglie:**
+	# mutando `Limbico` così, con la soglia giù del 30% e poi del 95% col
+	# conforto pieno, questa riga resta **0 tutte e due le volte** (e le
+	# reazioni non-nulla restano 47 contro 47). La ragione è la SECONDA
+	# condizione di quel ramo, `carica < 0.0 or grezzo > RIFLESSO_GREZZO`:
+	# per chi riceve conforto in questo banco è quella a decidere, e la
+	# soglia non la interroga nessuno.
+	#
+	# Si tiene perché costa un confronto e perché dice l'invariante nella
+	# forma in cui il giocatore la vive — ma **non conta come coperta**, e
+	# chi cercasse qui la rete contro una mutazione del ramo non la
+	# troverebbe. Quella rete oggi non c'è, ed è scritto fra i residui.
 	var alzati := 0
 	var reaz_alzate := 0
 	for c in _campioni:
@@ -1317,7 +1467,8 @@ func _cancelli(residenti: Array, secondi: float) -> void:
 			reaz_alzate += 1
 	print("  2. IL PARAMETRO PUÒ SOLO ABBASSARE")
 	print("     ⚠ percetti con la forza ALZATA ............... %d" % alzati)
-	print("     ⚠ reazioni diventate «trasalisce» ............ %d" % reaz_alzate)
+	print("       (lo stesso, in reazioni: passate a «trasalisce») ... %d"
+			% reaz_alzate)
 
 	# 3 — il calore non si tocca
 	var calore_rotto := 0
@@ -1415,6 +1566,16 @@ func _cancelli(residenti: Array, secondi: float) -> void:
 	print("")
 	print("  (%.0f s di banco in tutto · TAMPONE_SOCIALE = %.3f · VICINI = %.2f m)"
 			% [secondi, _tampone, VISITORS.VICINI])
+	# ⚠️ I DUE OROLOGI E L'ORA DEL MONDO. Un banco che non dice in che mondo
+	# sta misurando lascia indovinare, e si finisce per accusare la meccanica:
+	# è la stessa regola già scritta per `prova_prato_vivo`. Qui il mondo è
+	# fermo a metà pomeriggio apposta (o a metà prova i vicini vanno a letto e
+	# `puo_vedere` risponde no a tutti), e i secondi delle fasi sono quelli
+	# del MOTORE — il muro corre a un'altra velocità e adesso si vede.
+	print("  (l'orologio del mondo è FERMO a %.2f · il motore ha vissuto %.1f s"
+			% [float(_dn.get("time")), _t_motore])
+	print("   mentre il muro ne ha contati %.1f — %.1f fotogrammi al secondo veri)"
+			% [_t_muro, _t_motore / maxf(_t_muro, 0.0001) * 60.0])
 
 
 ## ⚠️ LE RIGHE PER LE REPLICHE, alla fine e in un posto solo.

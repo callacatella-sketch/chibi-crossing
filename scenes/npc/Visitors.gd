@@ -180,12 +180,6 @@ var _riconoscimenti := {}
 # la posizione del giocatore al tick precedente, per sapere quanto corre
 var _pp_prec := Vector3.ZERO
 var _spiegato_le_strade := false
-## IL TAMPONE SOCIALE — l'anagrafe rovesciata, rifatta una volta al giorno.
-## `{nome del DNA -> etichetta}`, e un nome che tocca a DUE residenti vale ""
-## (vedi `_mappa_nome_etichetta`). Dettagli in `_conforto_del_compagno`.
-var _conforto_nomi := {}
-var _conforto_giorno := -99999
-var _conforto_quanti := -1
 ## Chi ti sta venendo a cercare, e da quanto: {label -> secondi di attesa}.
 var _in_confronto := {}
 ## L'orologio del canale della vita quotidiana: secondi da quando gira il
@@ -4189,9 +4183,26 @@ static func indizio_grezzo(velocita: float, buio: float, vicino: float) -> float
 # conforto, ed è letteralmente «ah… sei tu» (`_tick_riconoscimenti`). Non si
 # può essere l'allarme e il tampone dentro lo stesso evento.
 
-## La mappa NOME DEL DNA → ETICHETTA, rifatta quando cambia la giornata (o
-## quando cambia il numero dei residenti: un arrivo o una partenza a metà
-## giornata lascerebbe altrimenti una riga che punta a un corpo che non c'è).
+## La mappa NOME DEL DNA → ETICHETTA, **rifatta ogni volta**.
+##
+## ⚠️ AVEVA UNA CACHE, con chiave `(giornata, numero di residenti)`, e quella
+## chiave non copriva il caso che il commento diceva di coprire: una partenza
+## E un arrivo nella STESSA giornata lasciano il numero dov'era, quindi la
+## mappa restava ferma. Il caso peggiore non era una riga che punta a un
+## corpo che non c'è (`puo_vedere` guarda `null` e risponde no, quindi il
+## degrado era sano): era il **riuso dell'etichetta** — l'unicità è imposta
+## sulla label, non sul nome, quindi un arrivo con lo stesso archetipo e lo
+## stesso nome di chi è appena partito eredita la sua etichetta, e il
+## compagno superstite riceverebbe il conforto da uno SCONOSCIUTO. È la
+## stessa famiglia dell'omonimia, da una porta diversa.
+##
+## E la cache non pagava il proprio rischio. MISURATO: ricostruirla con
+## ventotto residenti costa **16,6 µs** (100.000 giri), e questa funzione la
+## chiama solo `_conforto_del_compagno`, che sta dopo il raffreddamento e
+## dopo il cancello dei 3,2 m — al più **una volta ogni nove secondi per
+## residente**. Al tetto teorico fanno 51,5 µs al SECONDO, cioè lo
+## **0,005% di un fotogramma**. Una cache che costa un difetto e non compra
+## niente si toglie.
 ##
 ## ⚠️ **SI COSTRUISCE DA `_residents`, che ha tutte e due le colonne — mai
 ## con `_nome_da_label`.** Quella cammina nel verso opposto e ha un ripiego
@@ -4206,28 +4217,16 @@ static func indizio_grezzo(velocita: float, buio: float, vicino: float) -> float
 ## poserebbe addosso alla persona sbagliata. Il degrado va verso «niente
 ## conforto», che è il gioco di prima.
 func _mappa_nome_etichetta() -> Dictionary:
-	# ⚠️ il giorno si LEGGE con la rete: un nodo che non ha quella proprietà
-	# torna `null`, e `int(null)` è un errore a runtime — che nel runner non
-	# fa fallire niente e lascia la suite verde con la funzione interrotta a
-	# metà. Senza cielo (i banchi, il diorama) la mappa si rifà solo quando
-	# cambia il numero dei residenti, ed è quanto basta: lì non c'è nemmeno
-	# un nodo `affetti` a cui chiedere un compagno.
-	var giorno_v = _daynight.get("day") if _daynight != null else null
-	var g := int(giorno_v) if giorno_v != null else 0
-	if g == _conforto_giorno and _residents.size() == _conforto_quanti:
-		return _conforto_nomi
-	_conforto_giorno = g
-	_conforto_quanti = _residents.size()
-	_conforto_nomi = {}
+	var mappa := {}
 	for r in _residents:
 		var nome := str((r.get("dna", {}) as Dictionary).get("name", ""))
 		if nome == "":
 			continue
-		if _conforto_nomi.has(nome):
-			_conforto_nomi[nome] = ""     # omonimi: non si sa di chi si parla
+		if mappa.has(nome):
+			mappa[nome] = ""     # omonimi: non si sa di chi si parla
 			continue
-		_conforto_nomi[nome] = str(r.get("label", ""))
-	return _conforto_nomi
+		mappa[nome] = str(r.get("label", ""))
+	return mappa
 
 
 ## QUANTO IL COMPAGNO STA SMORZANDO L'ALLARME DI `r`, 0..1 — dove **zero è
@@ -4265,7 +4264,29 @@ func _conforto_del_compagno(r: Dictionary, pos: Vector3) -> float:
 	if aff == null or not is_instance_valid(aff):
 		return 0.0
 	var mio := str((r.get("dna", {}) as Dictionary).get("name", ""))
-	if mio == "":
+	# ⚠️ L'AMBIGUITÀ SI GUARDA ANCHE DI QUA, e la prima stesura la guardava
+	# solo di là. `compagno_di_ieri` è indicizzata per NOME e `coppie()`
+	# deduplica con `presi`: due omonimi ricevono LA STESSA riga, quindi chi
+	# in quella coppia non c'è si prenderebbe il conforto del partner
+	# dell'altro. E l'asimmetria era ROVESCIATA rispetto all'intento: con la
+	# coppia [Pepita, Timo] e due Pepita in paese, Timo — che è il compagno
+	# VERO — chiede «Pepita», trova il nome ambiguo e resta a zero, mentre
+	# TUTTE E DUE le Pepita ottengono il tampone pieno da lui. Il compagno
+	# vero perdeva la cosa, l'omonimo la prendeva.
+	#
+	# Non è un caso di bordo: l'unicità è imposta sulla LABEL, mai sul nome
+	# (cinque archetipi × ventotto nomi), e con tredici residenti la
+	# probabilità di almeno un'omonimia è del **96,4%**. Le corse del metro
+	# non l'hanno vista solo perché il villaggio dell'autore è caduto nel
+	# 3,6% — e l'oracolo del banco la regola simmetrica ce l'ha già
+	# (`misura_tampone._leggi_le_coppie` scarta se AMBIGUO DA UNA PARTE O
+	# DALL'ALTRA): banco e produzione divergevano.
+	#
+	# Confrontare col proprio nome in mappa dice in un colpo due cose: «il
+	# nome esiste in anagrafe» e «non tocca a due corpi» (gli ambigui la
+	# mappa li segna con ""). Il degrado resta quello dichiarato nella
+	# testata di `_mappa_nome_etichetta`: niente conforto, il gioco di ieri.
+	if mio == "" or str(_mappa_nome_etichetta().get(mio, "")) != str(r.get("label", "")):
 		return 0.0
 	# ⚠️ la CACHE giornaliera degli affetti, non `le_coppie()`: quella rifà il
 	# predicato da capo e costa ~233 ms (156 `conto()` con tredici abitanti).

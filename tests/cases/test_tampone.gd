@@ -27,7 +27,7 @@ extends RefCounted
 ## ---------------------------------------------------------------------
 ## LE MUTAZIONI, una riga di produzione per volta, col numero di asserzioni
 ## diventate rosse — MISURATE facendo girare questo file su un `Limbico` e un
-## `Visitors` col tampone dentro, non stimate. Sedici, tutte rosse:
+## `Visitors` col tampone dentro, non stimate. Venti, tutte rosse:
 ##
 ##   un PAVIMENTO sul conforto (`maxf(conforto, 0.02)`) .............. 89
 ##   la chiave `conforto` tolta dal referto .......................... 17
@@ -47,7 +47,16 @@ extends RefCounted
 ##   un fondo di conforto per chi non ha nessuno (`return 0.10`) .....  6
 ##   il compagno cercato fra TUTTI i vicini invece che nella coppia ...  2
 ##   il nome ambiguo risolto sul primo che capita invece di scartato ..  2
+##   l'ambiguità guardata solo sul nome CERCATO e non su chi CHIEDE
+##       (l'omonimo si prende 0,7368 di conforto che è del compagno
+##        vero, e il compagno vero resta a zero: era ROVESCIATO) ......  1
 ##   il raffreddamento spostato dentro il ramo `trasalisce` ..........  1
+##   una cache sull'anagrafe la cui chiave non vede la sostituzione
+##       (chi eredita l'etichetta di un partito conforta il compagno
+##        superstite: 0,6842 di conforto da uno sconosciuto) .........  1
+##   ——— e la costante stessa (caso 13) ———
+##   `TAMPONE_SOCIALE := 9.0` (la compagnia ABOLISCE la paura) .......  2
+##   `TAMPONE_SOCIALE := 0.0` (una firma senza meccanica) ............ 15
 ##
 ## (*) le chiamate a quattro argomenti le controlla il PARSER, quindi
 ##     togliere il parametro non fa sparire i casi in silenzio: il file
@@ -143,6 +152,9 @@ func run(t) -> void:
 	_lo_zero_duro_oltre_il_raggio(t)
 	_le_valvole_del_compagno(t)
 	_il_nome_ambiguo_si_scarta(t)
+	_l_ambiguo_puo_essere_chi_chiede(t)
+	_il_tampone_non_azzera_la_paura(t)
+	_l_anagrafe_non_resta_indietro(t)
 
 
 # =========================================================================
@@ -785,3 +797,138 @@ func _il_nome_ambiguo_si_scarta(t) -> void:
 			+ " sul primo che capita")
 	t.eq(float(a["forza"]), float(c["forza"]),
 			"…e il gioco torna quello di ieri, al bit")
+
+
+## 11b — ⚠️ E L'AMBIGUO PUÒ ESSERE CHI CHIEDE, non solo chi si cerca.
+##
+## Il caso 11 rinomina D, cioè rende ambiguo il nome CERCATO (`suo`): prova
+## il lato che il codice guardava già, e la mutazione sull'altro lato lo
+## lascia verde. Qui l'omonimo è CHI CHIEDE (`mio`), ed è il lato che aveva
+## il difetto — con l'asimmetria rovesciata: il compagno VERO trovava il
+## nome ambiguo e restava a zero, mentre TUTTI E DUE gli omonimi
+## incassavano il tampone pieno. Il compagno vero perdeva la cosa,
+## l'estraneo la prendeva.
+##
+## LA MUTAZIONE che rende rosso questo caso: togliere il confronto con la
+## propria label da `Visitors._conforto_del_compagno` (cioè tornare al solo
+## `if mio == "": return 0.0`).
+func _l_ambiguo_puo_essere_chi_chiede(t) -> void:
+	var v := _villaggio(t)
+	var corpi: Dictionary = v["corpi"]
+	# C prende il nome di A: adesso «Amaretto» tocca a DUE corpi, e uno dei
+	# due (C) con Biscotto non ha mai fatto niente.
+	(corpi["C"] as Node).get("dna")["name"] = "Amaretto"
+	# e lo si mette accanto a B, che è il compagno vero di A
+	var b := corpi["B"] as Node3D
+	(corpi["C"] as Node3D).global_position = b.global_position + Vector3(0.5, 0, 0)
+	_percetto(v)
+	var c := _referto(v, "C")
+	t.eq(float(c.get("conforto", -1.0)), 0.0,
+			"chi porta un nome che tocca a due corpi non prende il conforto"
+			+ " del partner dell'altro")
+	# e la controprova: il compagno VERO non dev'essere l'unico a perderci
+	var a := _referto(v, "A")
+	t.ok(float(a.get("conforto", 0.0)) >= 0.0,
+			"e il compagno vero non finisce peggio dell'omonimo")
+
+
+# =========================================================================
+# 13 · LA COMPAGNIA NON AZZERA LA PAURA — il tetto di K, che nessuno aveva
+# =========================================================================
+#
+# ⚠️ `TAMPONE_SOCIALE` era sorvegliato solo DAL BASSO: i casi 5 e 7 provano
+# che il parametro non alza mai l'allarme, quindi K = 0 (il tampone spento)
+# li lascia tutti verdi, e K = 9 pure — smorzerebbe di dieci volte, cioè
+# **la presenza di un amico abolirebbe la paura**, e nessuna asserzione se
+# ne accorgerebbe. È lo stesso buco che la revisione aveva già trovato su
+# `NOTTE_SY` («il tetto c'era, il pavimento no») letto al contrario.
+#
+# Il numero contro cui si giudica NON è K stesso — sarebbe il ritratto — ed
+# è la frase che il file di produzione afferma per iscritto, due volte:
+# «la compagnia non azzera la paura, la smorza» e «a 1.0 la presenza piena
+# DIMEZZA il guadagno». Quel dimezzamento è il tetto: sopra, la frase
+# diventa falsa e nessuno se ne accorge finché non la si legge.
+#
+# E il pavimento è che il tampone deve esistere: a K = 0 il quarto
+# parametro sarebbe una firma senza meccanica, e il caso 3 morirebbe con
+# lui — ma questo caso lo dice PRIMA, nominando la ragione.
+func _il_tampone_non_azzera_la_paura(t) -> void:
+	var k := _tampone(t)
+	t.ok(k > 0.0, "TAMPONE_SOCIALE dev'essere > 0: a zero il quarto"
+			+ " parametro è una firma senza meccanica (K = %.3f)" % k)
+	t.ok(k <= 1.0, "TAMPONE_SOCIALE non può superare 1.0: la presenza piena"
+			+ " dimezza il guadagno e non di più — «la compagnia non azzera"
+			+ " la paura, la smorza» (K = %.3f darebbe /%.2f)" % [k, 1.0 + k])
+	# e la frase si prova sul NUMERO, non sulla costante: col conforto al
+	# massimo l'allarme non può scendere sotto la metà di quello di ieri.
+	# ⚠️ fuori dal tetto del `clampf`, o le due gambe finirebbero tutte e due
+	# a 1,0 e il caso direbbe che va bene qualunque K.
+	var l = _lim({"codardia": 0.5, "grinta": 0.5}, -0.30)
+	var pieno: float = float(l.percepisci("giocatore", "", 0.10, 1.0)["forza"])
+	var l0 = _lim({"codardia": 0.5, "grinta": 0.5}, -0.30)
+	var nudo: float = float(l0.percepisci("giocatore", "", 0.10, 0.0)["forza"])
+	t.ok(nudo < 0.999, "il banco dev'essere SOTTO il tetto del clamp, o non"
+			+ " misura niente (allarme nudo %.4f)" % nudo)
+	t.ok(pieno >= nudo * 0.5 - 1e-9, "col conforto al massimo l'allarme non"
+			+ " scende sotto la METÀ: %.4f contro %.4f" % [pieno, nudo])
+	t.ok(pieno < nudo, "…e scende: %.4f contro %.4f" % [pieno, nudo])
+
+
+# =========================================================================
+# 14 · L'ANAGRAFE NON RESTA INDIETRO — il caso che la cache non vedeva
+# =========================================================================
+#
+# ⚠️ `_mappa_nome_etichetta` aveva una cache con chiave `(giornata, numero
+# di residenti)`, e il commento diceva che quella chiave copriva «un arrivo
+# o una partenza a metà giornata». Non le copriva insieme: una partenza E
+# un arrivo nella stessa giornata lasciano il numero dov'era, quindi la
+# mappa restava ferma su un'anagrafe vecchia.
+#
+# Il caso peggiore non è la riga che punta a un corpo che non c'è —
+# `Percezione.puo_vedere` guarda `null` e risponde no, quindi lì il degrado
+# era sano. È il **riuso dell'etichetta**: l'unicità in questo villaggio è
+# imposta sulla label e non sul nome, quindi chi arriva con lo stesso
+# archetipo e lo stesso nome di chi è appena partito ne eredita l'etichetta
+# — e il compagno superstite si prenderebbe il conforto da uno
+# SCONOSCIUTO, che è l'omonimia da una porta diversa.
+#
+# Qui si rifà quella scena: B (il compagno vero di A) se ne va, e al suo
+# posto arriva un corpo NUOVO che porta la sua stessa etichetta, piazzato
+# addosso ad A. Con l'anagrafe ferma, A riceverebbe il tampone da lui.
+#
+# LA MUTAZIONE che rende rosso questo caso: rimettere la cache, in
+# qualunque forma la cui chiave non veda la sostituzione (giornata, numero
+# di residenti, o tutte e due).
+func _l_anagrafe_non_resta_indietro(t) -> void:
+	var v := _villaggio(t)
+	var vis = v["vis"]
+	# si SCALDA la mappa con l'anagrafe di adesso, come farebbe un percetto
+	# qualunque: senza questo passo non c'è niente da lasciare indietro, e il
+	# caso proverebbe il proprio nulla invece della sostituzione.
+	_percetto(v)
+	var prima := _referto(v, "A")
+	t.ok(float(prima.get("conforto", 0.0)) > 0.0,
+			"il banco parte da un tampone VIVO (conforto %.4f), o non prova"
+			+ " la sostituzione" % float(prima.get("conforto", 0.0)))
+
+	# «Biscotto» — il compagno vero di A — se ne va, e un ESTRANEO ne eredita
+	# l'ETICHETTA: in questo villaggio l'unicità è imposta sulla label, quindi
+	# chi arriva con lo stesso archetipo e lo stesso nome la riusa.
+	var b := v["corpi"]["B"] as Node3D
+	var estraneo = _corpo(t, "Estraneo", b.global_position, 9911)
+	b.global_position = Vector3(900, 0, 900)     # B è via: non conforta nessuno
+	var residenti: Array[Dictionary] = []
+	for r in (vis.get("_residents") as Array):
+		var d := r as Dictionary
+		if str(d.get("label", "")) == "B":
+			d = {"node": estraneo, "label": "B", "dna": estraneo.dna,
+					"cell": d.get("cell"), "species": "chibi", "friend": 2}
+		residenti.append(d)
+	vis.set("_residents", residenti)
+
+	_percetto(v)
+	var dopo := _referto(v, "A")
+	t.eq(float(dopo.get("conforto", -1.0)), 0.0,
+			"l'anagrafe si rifà: chi eredita l'etichetta di un partito non"
+			+ " conforta il compagno superstite (conforto %.4f)"
+			% float(dopo.get("conforto", -1.0)))
