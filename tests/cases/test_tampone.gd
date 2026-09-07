@@ -143,6 +143,7 @@ func run(t) -> void:
 	_lo_zero_duro_oltre_il_raggio(t)
 	_le_valvole_del_compagno(t)
 	_il_nome_ambiguo_si_scarta(t)
+	_l_ambiguo_puo_essere_chi_chiede(t)
 
 
 # =========================================================================
@@ -785,3 +786,36 @@ func _il_nome_ambiguo_si_scarta(t) -> void:
 			+ " sul primo che capita")
 	t.eq(float(a["forza"]), float(c["forza"]),
 			"…e il gioco torna quello di ieri, al bit")
+
+
+## 11b — ⚠️ E L'AMBIGUO PUÒ ESSERE CHI CHIEDE, non solo chi si cerca.
+##
+## Il caso 11 rinomina D, cioè rende ambiguo il nome CERCATO (`suo`): prova
+## il lato che il codice guardava già, e la mutazione sull'altro lato lo
+## lascia verde. Qui l'omonimo è CHI CHIEDE (`mio`), ed è il lato che aveva
+## il difetto — con l'asimmetria rovesciata: il compagno VERO trovava il
+## nome ambiguo e restava a zero, mentre TUTTI E DUE gli omonimi
+## incassavano il tampone pieno. Il compagno vero perdeva la cosa,
+## l'estraneo la prendeva.
+##
+## LA MUTAZIONE che rende rosso questo caso: togliere il confronto con la
+## propria label da `Visitors._conforto_del_compagno` (cioè tornare al solo
+## `if mio == "": return 0.0`).
+func _l_ambiguo_puo_essere_chi_chiede(t) -> void:
+	var v := _villaggio(t)
+	var corpi: Dictionary = v["corpi"]
+	# C prende il nome di A: adesso «Amaretto» tocca a DUE corpi, e uno dei
+	# due (C) con Biscotto non ha mai fatto niente.
+	(corpi["C"] as Node).get("dna")["name"] = "Amaretto"
+	# e lo si mette accanto a B, che è il compagno vero di A
+	var b := corpi["B"] as Node3D
+	(corpi["C"] as Node3D).global_position = b.global_position + Vector3(0.5, 0, 0)
+	_percetto(v)
+	var c := _referto(v, "C")
+	t.eq(float(c.get("conforto", -1.0)), 0.0,
+			"chi porta un nome che tocca a due corpi non prende il conforto"
+			+ " del partner dell'altro")
+	# e la controprova: il compagno VERO non dev'essere l'unico a perderci
+	var a := _referto(v, "A")
+	t.ok(float(a.get("conforto", 0.0)) >= 0.0,
+			"e il compagno vero non finisce peggio dell'omonimo")

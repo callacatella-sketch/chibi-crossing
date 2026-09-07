@@ -66,6 +66,7 @@ func run(t) -> void:
 	_la_radice_si_posa_e_si_dimentica(t)
 	_il_canale_libero_e_dichiarato(t)
 	_lorologio_non_semina_piu(t)
+	_nessun_tiro_prima_del_seme(t)
 	_lorologio_del_villaggio_non_e_quello_da_polso(t)
 	_ogni_leva_ha_un_lettore(t)
 	_ogni_lettore_usa_un_nome_dichiarato(t)
@@ -1035,3 +1036,83 @@ static func _butta(percorso: String) -> void:
 		return
 	if FileAccess.file_exists(percorso):
 		DirAccess.remove_absolute(percorso)
+
+
+## ⚠️ NESSUN TIRO PRIMA DEL SEME — la guardia nata dal difetto che teneva
+## irripetibile tutto il villaggio, e che nessuna delle altre poteva vedere.
+##
+## In Godot un inizializzatore di MEMBRO gira all'ISTANZIAZIONE: quando
+## `change_scene_to_file` costruisce `MainLevel.tscn`, l'espressione di ogni
+## `var` a livello di classe viene valutata **prima di qualunque `_ready`** —
+## quindi prima che `CozyWorld._ready` dia una posizione al flusso globale.
+## Un `randf()` scritto lì pesca dal flusso com'è partito il PROCESSO, che è
+## diverso a ogni avvio.
+##
+## E non resta un fatto privato di quel nodo: al primo consumo il flusso si
+## sfasa per TUTTI i suoi quaranta consumatori, C++ compreso. In `Mochi.gd`
+## erano due righe, e MISURATO valevano 445 righe di traccia divergenti su 699.
+##
+## La guardia guarda il RIENTRO, non la parola: una riga è un inizializzatore
+## di membro solo se comincia a colonna zero con `var`/`@export var`/
+## `static var` — dentro una funzione il rientro c'è sempre, e lì il tiro
+## avviene a chiamata, cioè dopo il seme. Distinguere le due cose è tutto il
+## mestiere di questo caso: le estrazioni dentro le funzioni sono duecento, e
+## accusarle sarebbe rumore che nasconde le due che contano.
+##
+## MUTAZIONE che la fa arrossire: rimettere `var _next_twitch := randf_range(3.0, 8.0)`
+## a livello di classe in `scenes/characters/Mochi.gd`.
+func _nessun_tiro_prima_del_seme(t) -> void:
+	var colpevoli: Array = []
+	var visti := 0
+	for radice in RADICI:
+		for path in _tutti_i_gd(radice):
+			visti += 1
+			if path.ends_with("/Dadi.gd"):
+				continue
+			var n := 0
+			for riga in _senza_commenti(FileAccess.get_file_as_string(path)).split("\n"):
+				n += 1
+				if not _e_un_membro(riga):
+					continue
+				if _pesca_dal_globale(riga):
+					colpevoli.append("%s:%d" % [path.get_file(), n])
+	t.ok(visti >= 120,
+			"lo scandaglio ha davvero letto i sorgenti (%d file)" % visti)
+	t.eq(colpevoli.size(), 0,
+			"nessun inizializzatore di membro pesca dal flusso globale"
+			+ " (gira PRIMA che qualcuno lo semini): %s" % ", ".join(colpevoli))
+	# autocollaudo: la guardia deve saper distinguere le due cose, o non
+	# distingue niente
+	t.ok(_e_un_membro("var _x := randf()"), "riconosce un membro di classe")
+	t.ok(not _e_un_membro("\tvar _x := randf()"),
+			"…e lascia in pace una locale dentro una funzione")
+	t.ok(_pesca_dal_globale("var _x := randf_range(3.0, 8.0)"),
+			"vede il tiro nudo")
+	t.ok(not _pesca_dal_globale("var _x := Dadi.rng(Dadi.CORPO, \"k\").randf()"),
+			"…e non accusa un dado nominato")
+
+
+## Una riga è un inizializzatore di MEMBRO se sta a colonna zero e dichiara.
+static func _e_un_membro(riga: String) -> bool:
+	if riga.begins_with("\t") or riga.begins_with(" "):
+		return false
+	var r := riga.strip_edges()
+	return (r.begins_with("var ") or r.begins_with("@export var ")
+			or r.begins_with("static var ")) and "=" in r
+
+
+## Un tiro NUDO dal generatore globale: `randf(` non preceduto da un punto.
+static func _pesca_dal_globale(riga: String) -> bool:
+	for nome in ["randf", "randi", "randf_range", "randi_range", "randfn"]:
+		var da := 0
+		while true:
+			var i := riga.find(nome + "(", da)
+			if i < 0:
+				break
+			da = i + 1
+			if i == 0:
+				return true
+			var prima := riga[i - 1]
+			if not (prima == "." or prima == "_" or prima.is_valid_identifier()):
+				return true
+	return false

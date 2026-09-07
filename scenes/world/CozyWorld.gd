@@ -213,10 +213,17 @@ func _ready() -> void:
 	# generazione»: era la generazione che dipendeva da quante volte veniva
 	# interrotta. Sono state tolte tutte e due.
 	#
-	# Residuo dichiarato: prima di noi girano i tre autoload (Settings, Sfx,
-	# Quality). Un tiro al globale fatto lì è ancora dove l'ha lasciato il
-	# motore — «la più presto possibile» è questo `_ready`, non l'avvio del
-	# processo.
+	# ⚠️ E LA FINESTRA VERA NON SONO GLI AUTOLOAD. Questa nota diceva «prima di
+	# noi girano i tre autoload (Settings, Sfx, Quality)», e mandava a cercare
+	# nel posto sbagliato: prima di noi gira **l'ISTANZIAZIONE DELL'INTERA
+	# SCENA**, cioè l'inizializzatore di membro di OGNI nodo di
+	# `MainLevel.tscn`. Un `randf()` scritto a livello di classe è già stato
+	# tirato quando arriviamo qui.
+	#
+	# Ce n'erano due, in `Mochi.gd`, e tenevano irripetibile tutto il
+	# villaggio: vedi la testata di `Mochi._next_twitch` per la catena e per
+	# l'ablazione che la dimostra. La guardia che impedisce a un terzo di
+	# nascere sta in `test_dadi._nessun_tiro_prima_del_seme`.
 	Dadi.semina_globale()
 	add_to_group("cozy_world")
 	add_to_group("season_listener")

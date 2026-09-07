@@ -161,16 +161,67 @@ const LEG_POSES := {
 const POSE_LEAN := {"stand": 0.0, "sit": 0.12, "sleep": 0.95, "stargaze": 1.5, "soak": 0.06}
 
 var _t := 0.0
-var _next_twitch := randf_range(3.0, 8.0)
+## ⚠️ NON SI TIRA QUI, E QUESTA È LA RIGA CHE TENEVA IRRIPETIBILE IL VILLAGGIO.
+##
+## In Godot ogni inizializzatore di MEMBRO gira all'ISTANZIAZIONE, cioè quando
+## `change_scene_to_file` costruisce `MainLevel.tscn` — **prima di qualunque
+## `_ready`**, quindi prima che `CozyWorld._ready` dia una posizione al flusso
+## globale. Questi due tiri arrivavano perciò dal flusso com'era partito il
+## PROCESSO: diverso a ogni avvio (misurato su quattro corse con lo stesso
+## seme e lo stesso villaggio: 3,85 · 4,60 · 3,02 · 7,80 s).
+##
+## E non restava un fatto privato di Mochi. Al fotogramma in cui lo scatto
+## d'orecchio parte — diverso in ogni processo — `_update_ear_twitch` tira di
+## nuovo dal globale, e da lì lo stream è **sfasato per tutti i suoi quaranta
+## consumatori**, C++ compreso. Fra loro c'è `Weather`, che decide QUANDO
+## piove; la pioggia entra nell'agenda come il fatto `sunny` e gata la
+## routine, quindi i corpi vanno in posti diversi — e le misure sulla
+## co-presenza cambiano.
+##
+## MISURATO con un'ablazione appaiata (una sonda che pinza questi due campi al
+## primo fotogramma, senza toccare il gioco): **0 righe divergenti su 699**
+## con la pinza, **445 su 699 senza** — e la prima divergenza cade al
+## fotogramma 255, mentre lo scatto più precoce delle due corse valeva
+## 4,2197 s, cioè il fotogramma 253. *Il fotogramma della divergenza È il
+## fotogramma dello scatto d'orecchio.*
+##
+## Il sentinella negativo dice «non ancora deciso»: lo assegna `_ready`, dove
+## il flusso nominato esiste.
+var _next_twitch := -1.0
 var _twitch_t := -1.0
 var _twitch_ear: Node3D
 var _twitch_value := 0.0
-var _next_anomaly := randf_range(16.0, 34.0)
+## Vedi `_next_twitch`: stessa trappola, stesso rimedio.
+var _next_anomaly := -1.0
 var _anomaly_t := -1.0
 var _anomaly_duration_override := -1.0
 
 
+## I DUE DADI DI MOCHI, tenuti e non rifatti: `_update_ear_twitch` gira nel
+## `_process`, e un generatore nuovo a ogni fotogramma sarebbe un'allocazione
+## per fotogramma — e, peggio, ricomincerebbe sempre dallo stesso numero.
+var _rng_tic: RandomNumberGenerator = null
+var _rng_anomalia: RandomNumberGenerator = null
+
+
+func _dado_tic() -> RandomNumberGenerator:
+	if _rng_tic == null:
+		_rng_tic = Dadi.rng(Dadi.CORPO, "mochi:tic")
+	return _rng_tic
+
+
+func _dado_anomalia() -> RandomNumberGenerator:
+	if _rng_anomalia == null:
+		_rng_anomalia = Dadi.rng(Dadi.CORPO, "mochi:anomalia")
+	return _rng_anomalia
+
+
 func _ready() -> void:
+	# I DUE TIC, adesso che il flusso nominato esiste. `CORPO` e non
+	# `VILLAGGIO`: uno scatto d'orecchio non decide niente, si vede soltanto —
+	# ed è il flusso che un provino vuole poter tenere fermo.
+	_next_twitch = _dado_tic().randf_range(3.0, 8.0)
+	_next_anomaly = _dado_anomalia().randf_range(16.0, 34.0)
 	_build_body()
 	_build_head()
 	_build_tail()
@@ -1787,8 +1838,9 @@ func _update_ear_twitch(delta: float) -> void:
 		_next_twitch -= delta
 		if _next_twitch <= 0.0:
 			_twitch_t = 0.0
-			_twitch_ear = _ears[0] if randf() < 0.5 else _ears[1]
-			_next_twitch = randf_range(3.0, 9.0)
+			var d := _dado_tic()
+			_twitch_ear = _ears[0] if d.randf() < 0.5 else _ears[1]
+			_next_twitch = d.randf_range(3.0, 9.0)
 		return
 	_twitch_t += delta
 	var p := _twitch_t / 0.35
@@ -1807,7 +1859,7 @@ func _update_anomaly(delta: float) -> void:
 		_next_anomaly -= delta
 		if _next_anomaly <= 0.0:
 			_anomaly_t = 0.0
-			_next_anomaly = randf_range(20.0, 45.0)
+			_next_anomaly = _dado_anomalia().randf_range(20.0, 45.0)
 			# il vuoto: occhi neri spalancati, niente luci, niente bocca
 			_eye_mat.albedo_color = EYE_VOID
 			for h in _highlights:

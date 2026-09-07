@@ -3789,7 +3789,29 @@ func _conforto_del_compagno(r: Dictionary, pos: Vector3) -> float:
 	if aff == null or not is_instance_valid(aff):
 		return 0.0
 	var mio := str((r.get("dna", {}) as Dictionary).get("name", ""))
-	if mio == "":
+	# ⚠️ L'AMBIGUITÀ SI GUARDA ANCHE DI QUA, e la prima stesura la guardava
+	# solo di là. `compagno_di_ieri` è indicizzata per NOME e `coppie()`
+	# deduplica con `presi`: due omonimi ricevono LA STESSA riga, quindi chi
+	# in quella coppia non c'è si prenderebbe il conforto del partner
+	# dell'altro. E l'asimmetria era ROVESCIATA rispetto all'intento: con la
+	# coppia [Pepita, Timo] e due Pepita in paese, Timo — che è il compagno
+	# VERO — chiede «Pepita», trova il nome ambiguo e resta a zero, mentre
+	# TUTTE E DUE le Pepita ottengono il tampone pieno da lui. Il compagno
+	# vero perdeva la cosa, l'omonimo la prendeva.
+	#
+	# Non è un caso di bordo: l'unicità è imposta sulla LABEL, mai sul nome
+	# (cinque archetipi × ventotto nomi), e con tredici residenti la
+	# probabilità di almeno un'omonimia è del **96,4%**. Le corse del metro
+	# non l'hanno vista solo perché il villaggio dell'autore è caduto nel
+	# 3,6% — e l'oracolo del banco la regola simmetrica ce l'ha già
+	# (`misura_tampone._leggi_le_coppie` scarta se AMBIGUO DA UNA PARTE O
+	# DALL'ALTRA): banco e produzione divergevano.
+	#
+	# Confrontare col proprio nome in mappa dice in un colpo due cose: «il
+	# nome esiste in anagrafe» e «non tocca a due corpi» (gli ambigui la
+	# mappa li segna con ""). Il degrado resta quello dichiarato nella
+	# testata di `_mappa_nome_etichetta`: niente conforto, il gioco di ieri.
+	if mio == "" or str(_mappa_nome_etichetta().get(mio, "")) != str(r.get("label", "")):
 		return 0.0
 	# ⚠️ la CACHE giornaliera degli affetti, non `le_coppie()`: quella rifà il
 	# predicato da capo e costa ~233 ms (156 `conto()` con tredici abitanti).
