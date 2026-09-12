@@ -161,7 +161,7 @@ var _boxes_dirty := true
 
 func _ready() -> void:
 	add_to_group("persistable")
-	_rng.randomize()
+	_rng = Dadi.rng(Dadi.VILLAGGIO, "posta")
 	_player = get_node("%Player")
 	_build = get_node("../BuildSystem")
 	_daynight = get_node_or_null("../DayNight")

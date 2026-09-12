@@ -1,0 +1,40 @@
+la radice non si legge piu dal salvataggio (la cura spenta)
+systems/Dadi.gd
+static func _radice_dal_salvataggio() -> Variant:
+-->
+static func _radice_dal_salvataggio() -> Variant:
+	return null
+=====
+un villaggio nuovo eredita la radice di quello archiviato
+scenes/ui/TitleScreen.gd
+	Dadi.dimentica()
+-->
+	pass
+=====
+CHIBI_ROTTE_CONTO torna a non essere validato
+scenes/build/BuildSystem.gd
+	if not e.is_valid_int() or int(e) < 1:
+-->
+	if false:
+=====
+l oracolo torna a portare il valore ABLATO invece del controfattuale
+scenes/npc/Visitors.gd
+		preferita = _panchina_per(r, home, true)
+-->
+		preferita = panca
+=====
+una seconda posizione data al flusso globale, in mezzo alla generazione
+scenes/world/CozyWorld.gd
+	Dadi.semina_globale()
+	add_to_group("cozy_world")
+-->
+	Dadi.semina_globale()
+	add_to_group("cozy_world")
+	Dadi.semina_globale()
+=====
+un lasciapassare intestato a un chiamante che non esiste
+tests/cases/test_dadi.gd
+const AMMESSI_SCRITTURE := ["TitleScreen.gd → Dadi.dimentica("]
+-->
+const AMMESSI_SCRITTURE := ["TitleScreen.gd → Dadi.dimentica(",
+		"Nessuno.gd → Dadi.posa_radice("]

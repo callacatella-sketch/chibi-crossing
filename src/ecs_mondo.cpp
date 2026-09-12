@@ -3,6 +3,7 @@
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/core/error_macros.hpp>
 
+#include "credenze.h"
 #include "ecs_componenti.h"
 #include "ecs_entt.h"
 #include "grafo_deduzioni.h"
@@ -21,6 +22,28 @@ struct EcsMondo::Registro {
 	chibi::TaraturaAgenda tar;
 	chibi::TaraturaPiani tar_piani;
 	chibi::TaraturaOcc tar_occ;
+
+	// QUANTO DURA UNA CREDENZA, in secondi — la teoria della mente.
+	//
+	// ⚠️ NON STA IN `TaraturaOcc`, e non è una svista: `sistema_occ` è la
+	// LETTURA del proprio grafo (quanto ti ammiro, cosa mi interessa), e una
+	// credenza non è una lettura del proprio grafo — è quello che credo di
+	// una MENTE ALTRUI. Due generi di guasto diversi non condividono la
+	// scatola della taratura, o il giorno che qualcuno tara l'ammirazione
+	// muove anche il pettegolezzo senza saperlo.
+	//
+	// Il default vale il conto del gioco (mezza giornata: 240/2) ma non lo
+	// SOSTITUISCE: `imposta_ritmo()` lo DERIVA dal ciclo vero, sulla stessa
+	// riga che deriva `mezza_vita`. Un villaggio con le giornate lunghe ha
+	// ricordi lunghi E credenze lunghe, e i due numeri non possono
+	// divorziare perché sono lo stesso conto.
+	//
+	// PERCHÉ UNA MEZZA VITA DELLA MEMORIA, e non un numero scelto: è l'unico
+	// ancoraggio che non sia arbitrario — *una credenza dura quanto il tempo
+	// in cui il ricordo di cui parla dimezza*. Non è una taratura fatta a
+	// occhio; è una taratura RINVIATA, e chi la fissa lo deve fare col
+	// cancello d'arresto in mano (vedi `debug_tara_credenze`).
+	double durata_credenza = 120.0;
 
 	Registro() {
 		// ⚠️ LO SMORZAMENTO DEL SENTITO DIRE SI PAGA UNA VOLTA SOLA, E SI
@@ -213,6 +236,58 @@ Dictionary da_grafo(const chibi::GrafoRicordi &p_g) {
 	return d;
 }
 
+// --- TEORIA DELLA MENTE: le credenze in forma di Dictionary ------------
+// Servono ai due oracoli PURI, cioè al test che enumera tutto lo spazio
+// della monotonia (256 maschere × 8 verbi) senza mezzo villaggio in scena.
+
+chibi::Credenze credenze_da(const Dictionary &p_d) {
+	chibi::Credenze c;
+	const Array voci = p_d.get("voci", Array());
+	const int n = (voci.size() < chibi::MAX_CONOSCIUTI) ? static_cast<int>(voci.size())
+														: chibi::MAX_CONOSCIUTI;
+	for (int k = 0; k < n; k++) {
+		const Dictionary voce = voci[k];
+		c.chi[k] = static_cast<uint32_t>(static_cast<uint64_t>(
+				leggi_int(voce, "chi", static_cast<int64_t>(chibi::SOGG_NESSUNO))));
+		const PackedFloat64Array q = voce.get("quando", PackedFloat64Array());
+		for (int v = 0; v < chibi::N_VERBI; v++) {
+			// una voce che porta meno di otto timbri non è un errore del
+			// test: e' una voce di cui si sa meno. Il resto resta `MAI`, che
+			// e' il valore con cui il costruttore l'ha gia' riempita.
+			c.quando[k][v] = (v < q.size()) ? static_cast<float>(q[v]) : chibi::CREDENZA_MAI;
+		}
+	}
+	c.n = static_cast<uint8_t>(n);
+	return c;
+}
+
+Dictionary da_credenze(const chibi::Credenze &p_c, float p_ora, double p_durata) {
+	Array voci;
+	const int n = (p_c.n < chibi::MAX_CONOSCIUTI) ? static_cast<int>(p_c.n)
+												  : chibi::MAX_CONOSCIUTI;
+	for (int k = 0; k < n; k++) {
+		PackedFloat64Array q;
+		q.resize(chibi::N_VERBI);
+		for (int v = 0; v < chibi::N_VERBI; v++) {
+			q[v] = static_cast<double>(p_c.quando[k][v]);
+		}
+		Dictionary voce;
+		voce["chi"] = static_cast<int64_t>(p_c.chi[k]);
+		voce["quando"] = q;
+		// LA MASCHERA, e sta qui perche' e' la sola cosa che il gioco legge
+		// davvero. E' PER PERSONA, mai sommata su piu' persone: nessun
+		// `popcount`, nessun ordinamento, nessun aggregato. Vedi il veto in
+		// cima a credenze.h.
+		voce["saputi"] = static_cast<int64_t>(
+				chibi::saputi_di(p_c, p_c.chi[k], p_ora, p_durata));
+		voci.append(voce);
+	}
+	Dictionary d;
+	d["voci"] = voci;
+	d["n"] = n;
+	return d;
+}
+
 // L'handle che attraversa il ponte porta dentro la VERSIONE dell'entità:
 // così l'handle di un vicino congedato non risolve mai a un residente
 // nuovo che ne ha riciclato lo slot. È lo stesso motivo per cui la cella
@@ -302,6 +377,16 @@ void EcsMondo::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_emozioni", "id"), &EcsMondo::debug_emozioni);
 	ClassDB::bind_method(D_METHOD("debug_ritmo"), &EcsMondo::debug_ritmo);
 	ClassDB::bind_method(D_METHOD("debug_grafo_novita", "grafo", "ora", "mezza_vita", "gia_saputi"), &EcsMondo::debug_grafo_novita);
+	// TEORIA DELLA MENTE: la co-testimonianza, la leva del banco, le letture
+	ClassDB::bind_method(D_METHOD("co_testimoni", "presenti", "verbo"), &EcsMondo::co_testimoni);
+	ClassDB::bind_method(D_METHOD("debug_onniscienza", "acceso"), &EcsMondo::debug_onniscienza);
+	ClassDB::bind_method(D_METHOD("debug_tara_credenze", "durata"), &EcsMondo::debug_tara_credenze);
+	ClassDB::bind_method(D_METHOD("debug_credenze", "id"), &EcsMondo::debug_credenze);
+	ClassDB::bind_method(D_METHOD("debug_credenze_costanti"), &EcsMondo::debug_credenze_costanti);
+	ClassDB::bind_method(D_METHOD("debug_credenze_so_che_sa", "credenze", "chi", "verbo", "ora"), &EcsMondo::debug_credenze_so_che_sa);
+	ClassDB::bind_method(D_METHOD("debug_credenze_saputi", "credenze", "chi", "ora", "durata"), &EcsMondo::debug_credenze_saputi);
+	ClassDB::bind_method(D_METHOD("debug_saputi_veri", "id"), &EcsMondo::debug_saputi_veri);
+	ClassDB::bind_method(D_METHOD("debug_grafo_saputi", "grafo", "ora", "mezza_vita"), &EcsMondo::debug_grafo_saputi);
 	// FASE 5 (P3): l'injection. Il JSON si apre in GDScript; di qua passano
 	// due interi e una lista di indici (vedi la nota in ecs_mondo.h).
 	ClassDB::bind_method(D_METHOD("deduci", "id", "obiettivo", "righe", "soglia"), &EcsMondo::deduci);
@@ -408,6 +493,12 @@ int64_t EcsMondo::registra(const PackedStringArray &p_indole, const String &p_qu
 	// FASE 5: nasce vuoto insieme agli altri, e per chi non ha il modello
 	// resta vuoto per l'intera partita. Vedi `DeduzioniComponent`.
 	_reg->reg.emplace<chibi::DeduzioniComponent>(e);
+	// TEORIA DELLA MENTE: nasce vuota insieme agli altri, e vuota vuol dire
+	// «non so niente di nessuno» — cioè racconto tutto a tutti, il
+	// comportamento che il villaggio aveva prima di questa fase. Un
+	// componente aggiunto «quando serve» farebbe sparire dei residenti dalle
+	// viste che lo includono, in silenzio.
+	_reg->reg.emplace<chibi::CredenzeComponent>(e);
 	// NIENTE TransformComponent: vedi ecs_componenti.h
 	return a_handle(e);
 }
@@ -433,6 +524,49 @@ void EcsMondo::dimentica(int64_t p_id) {
 	const entt::entity e = da_handle(p_id);
 	if (e != entt::null && _reg->reg.valid(e)) {
 		_reg->reg.destroy(e);
+		// ⚠️ DOVE MUORE IL CERVELLO MUORE L'ENTITÀ, e con lei i suoi ricordi,
+		// le sue deduzioni e le sue credenze. Ma le credenze che gli ALTRI
+		// avevano SU DI LUI stanno nelle loro tabelle, e vanno tolte: senza,
+		// occuperebbero un posto per sempre.
+		//
+		// ⚠️ E QUESTA SPAZZATA NON È LA GARANZIA — è igiene. La garanzia è la
+		// VERSIONE dentro l'handle: se un domani nascesse un cammino che
+		// toglie un residente senza passare di qui (ed è successo: la regola
+		// 4 dell'ECS dice che questa disciplina la tiene una convenzione, non
+		// il compilatore), la voce stantia resterebbe **illeggibile** invece
+		// che sbagliata — nessun handle riciclato le somiglia, `saputi_di`
+		// torna 0, e si racconta. Chi un domani volesse risparmiare i quattro
+		// byte della versione fidandosi di questa riga riaprirebbe il guasto
+		// muto dei cento giorni: il vicino nuovo che eredita lo slot di chi è
+		// partito, con addosso le sue credenze, che non riceve una notizia
+		// per tutta la vita.
+		//
+		// Non prende un bersaglio: prende l'elenco dei VIVI (vedi
+		// `chibi::dimentica_gli_assenti`). In tutto il ponte non esiste un
+		// modo di dire «dimentica che B sa».
+		uint32_t vivi[chibi::MAX_CONOSCIUTI];
+		int n_vivi = 0;
+		bool troncato = false;
+		for (const entt::entity v : _reg->reg.view<chibi::CredenzeComponent>()) {
+			if (n_vivi >= chibi::MAX_CONOSCIUTI) {
+				troncato = true;
+				break;
+			}
+			vivi[n_vivi++] = static_cast<uint32_t>(entt::to_integral(v));
+		}
+		// ⚠️ SI SPAZZA SOLO SE L'ELENCO È COMPLETO. Con più entità vive di
+		// quante ne stiano nella tabella, `vivi` è troncato: passarlo
+		// dichiarerebbe morto chi non ci è entrato, e si perderebbero
+		// credenze vere. Il degrado (raccontare di più) sarebbe innocuo, ma
+		// una spazzata che cancella a caso è peggio di una spazzata che non
+		// gira: non si può misurare. (E il posto lo recupera comunque la
+		// potatura per capienza dentro `so_che_sa`.)
+		if (!troncato) {
+			for (const entt::entity v : _reg->reg.view<chibi::CredenzeComponent>()) {
+				chibi::dimentica_gli_assenti(
+						_reg->reg.get<chibi::CredenzeComponent>(v).c, vivi, n_vivi);
+			}
+		}
 	}
 }
 
@@ -1186,31 +1320,52 @@ int EcsMondo::racconta(int64_t p_a, int64_t p_b, double p_smorzamento) {
 	const float ora = static_cast<float>(_tempo);
 	const double mv = _reg->tar_occ.mezza_vita;
 
-	// COSA SA GIA B. Una maschera di verbi, e si guardano TUTTI i suoi
-	// ricordi — anche quelli che a sua volta ha solo sentito dire. Se una
-	// notizia gli e gia arrivata, ripassargliela non e un pettegolezzo: e un
-	// doppione nel suo grafo, che pesa due volte e gli occupa due righe delle
-	// ventiquattro.
+	chibi::CredenzeComponent &ca = _reg->reg.get<chibi::CredenzeComponent>(da_handle(p_a));
+	chibi::CredenzeComponent &cb = _reg->reg.get<chibi::CredenzeComponent>(da_handle(p_b));
+
+	// ⚠️ COSA **A CREDE** CHE B SAPPIA GIA. Fin qui questa maschera si
+	// costruiva leggendo il grafo VERO di B: il narratore era ONNISCIENTE
+	// sulla mente dell'ascoltatore, ed era la lacuna piu grande
+	// dell'architettura — nessun agente, in tutto il progetto, teneva una
+	// rappresentazione di cio che un altro sa.
 	//
-	// MA UN RICORDO SPENTO NON E CONOSCENZA, ed e la porta che il ritimbro
-	// dell'eco ha aperto: da quando l'intensita dell'eco porta anche il
-	// freddo che il ricordo ha gia preso (vedi sotto), una voce arrivata
-	// molto tardi entra nel grafo di B a intensita ZERO. Senza questa
-	// riga quella riga morta gli TAPPEREBBE quel verbo per sempre: chi
-	// avesse visto la cosa fresca non potrebbe piu raccontargliela, e la
-	// notizia vera resterebbe fuori per colpa di una che non pesa niente.
-	// `!(peso > 0)` prende zero, negativi e NaN, come ovunque qui.
+	// Adesso e una CREDENZA, e puo sbagliare in due modi soltanto: A crede
+	// che B sappia e B ha dimenticato (**la coda dei ritardatari**), oppure A
+	// non sa che un terzo gliel'ha gia detto (**la ripetizione benigna**, due
+	// che si raccontano la stessa cosa e ridono). Nessuno dei due e
+	// un'affermazione falsa su una persona — vedi il teorema in cima a
+	// credenze.h.
+	//
+	// La ragione per cui la maschera esiste NON e cambiata, e resta questa: in
+	// un villaggio dove Mochi annaffia tutti i giorni il ricordo piu pesante
+	// di TUTTI e «annaffia», e senza poter scendere di un gradino ogni
+	// chiacchierata proverebbe a raccontare l'unica notizia che sanno gia
+	// tutti. La domanda vera e «cosa racconterei A QUESTA PERSONA».
 	uint32_t saputi = 0;
-	const int nb = (gb.g.n < chibi::MAX_FATTI) ? static_cast<int>(gb.g.n) : chibi::MAX_FATTI;
-	for (int i = 0; i < nb; i++) {
-		const uint8_t v = gb.g.f[i].verbo;
-		if (v >= chibi::N_VERBI) {
-			continue;
-		}
-		if (!(chibi::peso(gb.g.f[i], ora, mv) > 0.0)) {
-			continue;
-		}
-		saputi |= (1u << v);
+	if (_onnisciente) {
+		// ⚠️ IL RAMO DEL BANCO, e riproduce l'onniscienza RIGA PER RIGA — con
+		// tutto quello che aveva addosso, pavimento compreso. Un termine di
+		// paragone «migliorato» non e un termine di paragone: la differenza
+		// misurata non sarebbe piu della regola nuova. In partita questo ramo
+		// non viene mai preso.
+		//
+		// ⚠️ E IL CONTO NON STA PIU QUI DENTRO: e `chibi::verbi_vivi`, e ha
+		// DUE lettori — questo ramo e `debug_saputi_veri`, con cui il banco
+		// misura la ridondanza. Scritto inline aveva una casa sola dentro un
+		// `if`, e chi doveva misurare l'A/B era costretto a ricostruirselo
+		// dalle righe crude di `debug_grafo`: cioe a giudicare la regola
+		// nuova contro una PROPRIA copia della vecchia. Vedi la testata di
+		// `verbi_vivi` per il perche quella copia avrebbe cominciato a
+		// divergere in silenzio.
+		saputi = chibi::verbi_vivi(gb.g, ora, mv);
+	} else {
+		// ⚠️ **E QUI IL GRAFO DI B NON SI LEGGE PIU.** Da questa riga in poi
+		// `gb` compare una volta sola in tutta la funzione, come argomento di
+		// `inserisci`: cioe si SCRIVE e basta. E la prova strutturale che
+		// l'onniscienza e andata via, e si cerca con un grep.
+		saputi = chibi::saputi_di(ca.c,
+				static_cast<uint32_t>(static_cast<uint64_t>(p_b)),
+				ora, _reg->durata_credenza);
 	}
 
 	const int i = chibi::da_raccontare(ga.g, ora, mv, saputi);
@@ -1247,6 +1402,10 @@ int EcsMondo::racconta(int64_t p_a, int64_t p_b, double p_smorzamento) {
 
 	const chibi::Ricordo &orig = ga.g.f[i];
 	const int cosa = static_cast<int>(orig.cosa);
+	// SI COPIA PRIMA di scrivere in `gb`: `orig` e un riferimento dentro un
+	// pool di EnTT, e leggerlo dopo un'altra `get<>` e il genere di
+	// distrazione che qui non deve essere possibile.
+	const uint8_t verbo = orig.verbo;
 
 	chibi::Ricordo eco;
 	eco.verbo = orig.verbo;
@@ -1313,12 +1472,95 @@ int EcsMondo::racconta(int64_t p_a, int64_t p_b, double p_smorzamento) {
 	ga.g.f[i].bandiere = static_cast<uint8_t>(ga.g.f[i].bandiere | chibi::R_DETTO);
 	ga.g.versione++;
 
+	// ⚠️ E IL RACCONTO CREA DUE CREDENZE, e sono vere quanto quelle della
+	// co-testimonianza: A ora sa che B lo sa (gliel'ha appena detto), e B sa
+	// che A lo sa (l'ha appena sentito da lui). Nessuna delle due e
+	// un'inferenza su una mente — sono due fatti che chi le scrive ha
+	// OSSERVATO, ed e la seconda (e ultima) sorgente legittima di questo
+	// modello.
+	//
+	// Senza la prima, A ripasserebbe lo stesso verbo a B a ogni chiacchierata
+	// per tutto il tempo in cui non li vede insieme a nessun gesto.
+	//
+	// Stanno QUI, dove il racconto ACCADE, come `R_DETTO`: la stessa regola
+	// per cui la sazieta si paga quando il gesto accade e non quando viene
+	// scelto.
+	//
+	// ⚠️ E SI SCRIVONO ANCHE COL RAMO DEL BANCO ALZATO. Voluto: le due corse
+	// dell'A/B devono avere la tabella POPOLATA allo stesso modo, o le due
+	// maschere non sarebbero confrontabili sullo stesso istante — e un banco
+	// appaiato che confronta due modelli diversi non misura una regola,
+	// misura due villaggi.
+	chibi::so_che_sa(ca.c, static_cast<uint32_t>(static_cast<uint64_t>(p_b)), verbo, ora);
+	chibi::so_che_sa(cb.c, static_cast<uint32_t>(static_cast<uint64_t>(p_a)), verbo, ora);
+
 	// SI TORNA LA COSA, non l'esito dell'inserimento in B. Il racconto e un
 	// gesto di A: A l'ha detto, e il simbolo esce dalla sua nuvoletta anche
 	// nel caso raro in cui il grafo di B fosse pieno di ricordi piu forti e
 	// se la lasciasse scivolare via. Quel caso si vede da `debug_grafo(b)`,
 	// non lo si nasconde.
 	return cosa;
+}
+
+// --- TEORIA DELLA MENTE: la co-testimonianza ---------------------------
+
+void EcsMondo::co_testimoni(const PackedInt64Array &p_presenti, int p_verbo) {
+	ERR_FAIL_NULL(_reg);
+	// IL RUMORE LO FA IL PONTE, UNA VOLTA SOLA. `so_che_sa` rifiuta in
+	// silenzio un verbo fuori tabella perche gira k(k-1) volte: un
+	// `ERR_FAIL` la dentro trasformerebbe un errore di cablaggio in
+	// ottocento righe di log. Qui invece si alza la voce, come in `osserva`,
+	// perche una parola sbagliata deve diventare un errore visibile e non
+	// una scrittura che non e mai avvenuta.
+	ERR_FAIL_COND_MSG(p_verbo < 0 || p_verbo >= static_cast<int>(chibi::N_VERBI),
+			"EcsMondo.co_testimoni: verbo fuori tabella.");
+
+	const int n = p_presenti.size();
+	// UNO SOLO NON HA VISTO NESSUNO VEDERE. Non e un caso limite da
+	// difendere: e il caso NORMALE (un gesto in mezzo al prato ha un
+	// testimone), e uscire subito e la ragione per cui questa funzione non
+	// costa niente in partita.
+	if (n < 2) {
+		return;
+	}
+
+	const float ora = static_cast<float>(_tempo);
+	for (int ia = 0; ia < n; ia++) {
+		const int64_t ha = p_presenti[ia];
+		// Chi non e (piu) conosciuto si salta in silenzio: una lista con
+		// dentro un vicino congedato fra un frame e l'altro non e un errore
+		// del chiamante, e il mondo che si muove.
+		if (!conosce(ha)) {
+			continue;
+		}
+		chibi::CredenzeComponent &ca = _reg->reg.get<chibi::CredenzeComponent>(da_handle(ha));
+		for (int ib = 0; ib < n; ib++) {
+			if (ib == ia) {
+				continue;
+			}
+			const int64_t hb = p_presenti[ib];
+			// UN DOPPIONE NELLA LISTA NON E UNA SECONDA PERSONA. Costerebbe
+			// solo un timbro riscritto uguale, ma la riga toglie un modo in
+			// cui «credo che io sappia» potrebbe entrare nella tabella di
+			// qualcuno — e una credenza su se stessi non vuol dire niente.
+			if (hb == ha || !conosce(hb)) {
+				continue;
+			}
+			chibi::so_che_sa(ca.c, static_cast<uint32_t>(static_cast<uint64_t>(hb)),
+					static_cast<uint8_t>(p_verbo), ora);
+		}
+	}
+}
+
+void EcsMondo::debug_onniscienza(bool p_acceso) {
+	_onnisciente = p_acceso;
+}
+
+void EcsMondo::debug_tara_credenze(double p_durata) {
+	ERR_FAIL_NULL(_reg);
+	// NON SI PINZA. `<= 0` e «non scade», ed e un valore che il banco DEVE
+	// poter chiedere: e la corsa contro cui si misura se la scadenza serve.
+	_reg->durata_credenza = p_durata;
 }
 
 void EcsMondo::riferisci_gusto(int64_t p_id, const PackedFloat64Array &p_gusto) {
@@ -1360,6 +1602,15 @@ void EcsMondo::imposta_ritmo(double p_ciclo_secondi) {
 	// MEZZA GIORNATA DI GIOCO. Si DERIVA: riscrivere 120 da qualche altra
 	// parte e il modo in cui i due numeri divorziano.
 	_reg->tar_occ.mezza_vita = p_ciclo_secondi * 0.5;
+	// E QUANTO DURA UNA CREDENZA SI DERIVA DALLO STESSO CONTO, sulla stessa
+	// riga: *A crede che B sappia per il tempo in cui un ricordo dimezza*.
+	// E' l'unico ancoraggio non arbitrario che questa fase abbia — e non e
+	// una taratura fatta a occhio, e una taratura RINVIATA: il numero vero lo
+	// deve fissare il banco, col cancello d'arresto in mano (vedi
+	// `debug_tara_credenze`). Derivandolo qui, un villaggio con le giornate
+	// lunghe ha ricordi lunghi E credenze lunghe, e i due non possono
+	// divorziare perche sono lo stesso conto.
+	_reg->durata_credenza = p_ciclo_secondi * 0.5;
 }
 
 // --- FASE 4 (P6): le tre letture vive ----------------------------------
@@ -1545,7 +1796,77 @@ Dictionary EcsMondo::debug_ritmo() const {
 	// numeri di sopra vanno letti, e un test che se lo ricostruisse
 	// sommando i delta terrebbe una seconda contabilita del tempo.
 	d["tempo"] = _tempo;
+	// TEORIA DELLA MENTE: la durata viva e lo stato della leva. Stanno qui e
+	// non in una lettura loro perche sono l'orologio con cui i numeri delle
+	// credenze vanno letti, ed e lo stesso mestiere di `mezza_vita`.
+	// `onnisciente` dev'essere FALSA in partita, e un test lo pretende: una
+	// leva di banco che restasse alzata spegnerebbe tutta questa fase in
+	// silenzio.
+	d["durata_credenza"] = _reg->durata_credenza;
+	d["onnisciente"] = _onnisciente;
 	return d;
+}
+
+// --- TEORIA DELLA MENTE: le letture di prova ---------------------------
+
+Dictionary EcsMondo::debug_credenze(int64_t p_id) const {
+	Dictionary d;
+	ERR_FAIL_COND_V(!conosce(p_id), d);
+	const chibi::Credenze &c =
+			_reg->reg.get<chibi::CredenzeComponent>(da_handle(p_id)).c;
+	return da_credenze(c, static_cast<float>(_tempo), _reg->durata_credenza);
+}
+
+Dictionary EcsMondo::debug_credenze_costanti() const {
+	Dictionary d;
+	ERR_FAIL_NULL_V(_reg, d);
+	d["max_conosciuti"] = chibi::MAX_CONOSCIUTI;
+	d["n_verbi"] = static_cast<int>(chibi::N_VERBI);
+	d["credenza_mai"] = static_cast<double>(chibi::CREDENZA_MAI);
+	d["durata"] = _reg->durata_credenza;
+	return d;
+}
+
+Dictionary EcsMondo::debug_credenze_so_che_sa(const Dictionary &p_credenze,
+		int64_t p_chi, int p_verbo, double p_ora) const {
+	chibi::Credenze c = credenze_da(p_credenze);
+	// SI PASSA IL VERBO GREZZO, anche fuori tabella: e' la funzione pura a
+	// doverlo rifiutare, ed e' l'unico modo di provarlo. Un cancello qui
+	// coprirebbe quello di la', e allora la mutazione che lo toglie
+	// resterebbe verde.
+	chibi::so_che_sa(c, static_cast<uint32_t>(static_cast<uint64_t>(p_chi)),
+			static_cast<uint8_t>(p_verbo & 0xFF), static_cast<float>(p_ora));
+	// si torna con durata 0 = «non scade»: l'oracolo della MONOTONIA deve
+	// vedere lo stato conservato, non una sua lettura con l'orologio addosso.
+	return da_credenze(c, static_cast<float>(p_ora), 0.0);
+}
+
+int EcsMondo::debug_credenze_saputi(const Dictionary &p_credenze, int64_t p_chi,
+		double p_ora, double p_durata) const {
+	const chibi::Credenze c = credenze_da(p_credenze);
+	return static_cast<int>(chibi::saputi_di(c,
+			static_cast<uint32_t>(static_cast<uint64_t>(p_chi)),
+			static_cast<float>(p_ora), p_durata));
+}
+
+int EcsMondo::debug_saputi_veri(int64_t p_id) const {
+	// ZERO, non un errore: chiedere di un vicino che non c'e piu deve
+	// rispondere «non sa niente», che e anche la verita. Il degrado va verso
+	// il comportamento di sempre — gli si racconterebbe tutto.
+	ERR_FAIL_COND_V(!conosce(p_id), 0);
+	// LA STESSA CHIAMATA DEL RAMO DELLA LEVA, e su questo sta tutto il valore
+	// di questo metodo: un metro che ricostruisse la maschera per conto suo
+	// misurerebbe la propria copia dell'onniscienza invece dell'onniscienza.
+	return static_cast<int>(chibi::verbi_vivi(
+			_reg->reg.get<chibi::GrafoComponent>(da_handle(p_id)).g,
+			static_cast<float>(_tempo), _reg->tar_occ.mezza_vita));
+}
+
+int EcsMondo::debug_grafo_saputi(const Dictionary &p_grafo, double p_ora,
+		double p_mezza_vita) const {
+	const chibi::GrafoRicordi g = grafo_da(p_grafo);
+	return static_cast<int>(chibi::verbi_vivi(g, static_cast<float>(p_ora),
+			p_mezza_vita));
 }
 
 int EcsMondo::debug_grafo_novita(const Dictionary &p_grafo, double p_ora,

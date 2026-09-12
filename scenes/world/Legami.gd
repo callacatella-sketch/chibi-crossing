@@ -17,6 +17,13 @@ extends Node
 
 const MAX_MOMENTI := 30
 
+## Le REGOLE dell'eredità stanno di là, e sono pure; qui c'è solo la
+## persistenza. ⚠️ Il preload va in QUESTA direzione e mai nell'altra:
+## `Eredita.gd` non precarica nessuno, e un ciclo di preload non dà un errore
+## — fa morire il parse in silenzio nei test headless (la trappola già pagata
+## fra Strati e Scavi).
+const EREDITA := preload("res://scenes/npc/Eredita.gd")
+
 # ============================================================ COME SI DIMENTICA
 # Un filo tiene al più MAX_MOMENTI momenti. Prima, quando sforava, faceva
 # `pop_front()`: buttava il PIÙ VECCHIO — cioè, in quest'ordine, "il primo
@@ -456,6 +463,51 @@ func genitori_di(nome: String) -> Array:
 	return [str(f.get("padre", "")), str(f.get("madre", ""))]
 
 
+# ─────────────────────────────────────────── il posto che si eredita
+# LE REGOLE STANNO IN `Eredita.gd`, che è puro: qui c'è solo il filo su cui
+# si incide. È la disciplina di `Cricche`, `Deriva`, `Gesti`, `Regia`.
+#
+# ⚠️ Si interroga `_fili.has()`, MAI `_filo()` — che il filo lo CREEREBBE: un
+# nome sconosciuto si porterebbe dietro un filo fantasma, che poi
+# `_nuovo_giorno` fa invecchiare e che finisce dritto nel salvataggio.
+# ⚠️ E i nomi si normalizzano SEMPRE con `nome_da_chiave` (le due anagrafi):
+# un posto inciso su una chiave-label lo perderebbe `migra_fili`, che nel ramo
+# di fusione copia quattro chiavi soltanto.
+
+
+## Può ancora imparare il posto dei suoi? (Finché cresce, e una volta sola.)
+func puo_imparare_il_posto(nome: String) -> bool:
+	var chiave := nome_da_chiave(nome)
+	if not _fili.has(chiave):
+		return false
+	return EREDITA.puo_imparare(_fili[chiave], crescita(chiave))
+
+
+## Incide il posto dei suoi; torna `true` se l'ha fatto davvero. Idempotente:
+## la seconda volta dice di no e non tocca il filo di un bit.
+func impara_il_posto(nome: String, dove: Vector3) -> bool:
+	var chiave := nome_da_chiave(nome)
+	if not _fili.has(chiave):
+		return false
+	if not EREDITA.incidi(_fili[chiave], crescita(chiave), dove):
+		return false
+	_salva()
+	return true
+
+
+## Il posto dei suoi, oppure `null` — finché cresce, e per chiunque non
+## l'abbia imparato.
+##
+## ⚠️ `null` e MAI `Vector3.ZERO`: l'origine è un punto VERO del villaggio, e
+## ci passa il fiume. Un ripiego a zero manderebbe un adulto a sedersi
+## nell'acqua, senza un errore.
+func posto_dei_suoi(nome: String) -> Variant:
+	var chiave := nome_da_chiave(nome)
+	if not _fili.has(chiave):
+		return null
+	return EREDITA.posto_ereditato(_fili[chiave], crescita(chiave))
+
+
 ## I figli di qualcuno, in ordine di nascita.
 func figli_di(nome: String) -> Array:
 	var chiave := nome_da_chiave(nome)
@@ -653,6 +705,21 @@ func partiti() -> Array:
 	return out
 
 
+## QUANTO DURA UN VUOTO, in giornate. ESTRATTA da `inizia_lutto`, che adesso
+## la chiama: i lettori sono DUE — il lutto del villaggio e il posto vuoto
+## attorno al falò (`Cerchio.gd`) — e una formula con due lettori ricopiata in
+## due posti è la tabella gemella che questo progetto vieta.
+##
+## ⚠️ QUALE NUMERO SI PASSA È UNA DECISIONE, NON UN DETTAGLIO. `inizia_lutto`
+## passa `momenti_di(nome).size()`, cioè l'array già POTATO a `MAX_MOMENTI`:
+## il termine `n / 6` non arriva mai a 5 e il clamp a 8 quasi non morde.
+## `momenti_vissuti()` invece non ha tetto, e sotto le trenta unità i due
+## numeri sono diversi. Chi chiama di qua deve DICHIARARE quale dei due passa,
+## non aggiustarlo di nascosto.
+static func giorni_di_vuoto(n_momenti: int) -> int:
+	return clampi(3 + n_momenti / 6, 3, 8)
+
+
 ## Apre il lutto del villaggio. `giorni` è proporzionale al filo: una
 ## storia lunga lascia un vuoto lungo (3..8 giorni).
 func inizia_lutto(nome_o_label: String, da_consolare: Array) -> void:
@@ -662,7 +729,7 @@ func inizia_lutto(nome_o_label: String, da_consolare: Array) -> void:
 	var nome := nome_da_chiave(nome_o_label)
 	var n := momenti_di(nome).size()
 	_lutto = {"nome": nome, "giorno_inizio": _day(),
-			"giorni": clampi(3 + n / 6, 3, 8), "da_consolare": da_consolare}
+			"giorni": giorni_di_vuoto(n), "da_consolare": da_consolare}
 	_salva()
 
 

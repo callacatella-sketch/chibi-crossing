@@ -308,22 +308,36 @@ func _rileggere_non_tocca_NIENTE(t) -> void:
 
 
 # ── 6 ─────────────────────────────────────────────────────────────────────
-## ⚠️ **DUE DOMANDE, DUE AGGREGATI — e non è una tabella gemella.**
+## ⚠️ **DUE AGGREGATI, E DAL 2026-09-12 UNA DOMANDA SOLA.**
 ##
-## `prove` conta solo le righe VIVE e la legge `rancore()`: è il
-## comportamento che il gioco ha sempre avuto, e la riga che impedisce di
-## comprarsi il silenzio di qualcuno. MISURATO (`tools/misura_gradino.gd`,
-## lo scenario del brief: `taglia_legna` ogni giorno per uno che sognava di
-## fare il guerriero): contando anche il sommario, chi porta un piatto a
-## giorni alterni rende il confronto **IRRAGGIUNGIBILE** — 120 giornate e il
-## gradino si ferma a «rifiuto», mentre senza il sommario ci arriva al
-## giorno 71.
+## `prove` conta le righe positive VIVE; `prove_totali` anche quelle fuse nel
+## SOMMARIO. Fino al merge con `origin/main` li leggevano due funzioni
+## diverse; adesso `rancore()` **e** la rilettura leggono tutti e due
+## `prove_totali`, e `prove` non ha più nessun lettore in produzione.
 ##
-## `prove_totali` conta anche il SOMMARIO e la legge solo la RILETTURA: la
-## sua domanda è un'altra, e senza il sommario le prove vive si appiattiscono
-## a ~0.8 qualunque sia la generosità (0.87 con un piatto a settimana, 0.75
-## con uno al giorno) — cioè la rilettura sarebbe cieca alla cosa che deve
-## leggere.
+## Non è una semplificazione: è il risultato di due misure che due sessioni
+## avevano preso nello stesso punto in direzioni opposte, e sono vere tutte e
+## due.
+##
+## · SENZA il sommario lo SCUDO DEL GIOCATORE EVAPORA: una storia esattamente
+##   in pari dà rancore **0.5566** invece di zero (100 righe per parte), e a
+##   pagarlo è chi ha giocato di più ed è stato più generoso.
+## · COL sommario il villaggio SI PLACA COL CIBO: un piatto a giorni alterni
+##   rendeva il confronto irraggiungibile mentre ogni giorno si ruba la vita
+##   a quella persona.
+##
+## ⚠️⚠️ **E LA RADICE NON È NESSUNA DELLE DUE: IL SOMMARIO NON DECADE.** Una
+## riga viva pesa `valenza × intensita × recenza(quando)`; una riga fusa pesa
+## `peso × recenza(ultimo)`, dove `peso` è la somma NON scontata di tutte le
+## occorrenze — per un comportamento in corso la recenza resta 1 e il peso
+## cresce lineare. Con la potatura per schema del sé il tradimento
+## d'identità (congruente) resta VIVO e satura, le gentilezze ripetute vanno
+## nel SOMMARIO e crescono senza limite: il perdono batte il rancore per
+## costruzione. Vedi «IL SOMMARIO NON DECADEVA» in CLAUDE.md.
+##
+## `prove` resta perché è il CONTRASTO che rende misurabile quanto aggiunge
+## il sommario — e perché la porta della rilettura ha una guardia sua
+## (`_la_porta_legge_il_sommario`) che senza di lui non saprebbe dire niente.
 func _due_domande_due_aggregati(t) -> void:
 	var a := _animo()
 	for g in 30:
@@ -334,19 +348,22 @@ func _due_domande_due_aggregati(t) -> void:
 	t.ok(float(c["prove_totali"]) > float(c["prove"]) + 1e-6,
 			"le prove totali contano piu' delle sole vive (%.3f contro %.3f)"
 			% [float(c["prove_totali"]), float(c["prove"])])
-	# ⚠️ e `rancore()` legge le VIVE: si ricostruisce la sua formula con
-	# `prove`, e si pretende che con `prove_totali` NON torni
+	# ⚠️ `rancore()` legge il TOTALE: si ricostruisce la sua formula con tutti
+	# e due gli aggregati e si pretende che torni quella col sommario. Lo
+	# sconto NON e' riscritto qui: si legge da `ANIMO.SCONTO_PERDONO`, o
+	# questa asserzione giudicherebbe la funzione contro una sua copia.
 	var con_vive: float = 1.0 - exp(-maxf(0.0,
-			float(c["torti"]) - float(c["prove"]) * 1.4) / ANIMO.SATURAZIONE * 3.0)
-	var con_tutte: float = 1.0 - exp(-maxf(0.0,
-			float(c["torti"]) - float(c["prove_totali"]) * 1.4)
+			float(c["torti"]) - float(c["prove"]) * ANIMO.SCONTO_PERDONO)
 			/ ANIMO.SATURAZIONE * 3.0)
-	t.almost(a.rancore("giocatore"), con_vive,
-			"il rancore legge le sole righe VIVE", 1e-9)
+	var con_tutte: float = 1.0 - exp(-maxf(0.0,
+			float(c["torti"]) - float(c["prove_totali"]) * ANIMO.SCONTO_PERDONO)
+			/ ANIMO.SATURAZIONE * 3.0)
+	t.almost(a.rancore("giocatore"), con_tutte,
+			"il rancore legge ANCHE il sommario: senza, lo scudo evapora", 1e-9)
 	t.ok(con_tutte < con_vive - 1e-9,
-			"e col sommario sarebbe piu' mite (%.4f contro %.4f): e' la"
-			% [con_tutte, con_vive] + " differenza che rende il villaggio"
-			+ " placabile col cibo")
+			("e i due numeri sono DIVERSI (%.4f col sommario, %.4f con le sole"
+			+ " vive): se coincidessero questa guardia sarebbe muta")
+			% [con_tutte, con_vive])
 	# la rilettura invece guarda il totale: la sua scheda deve cambiare
 	# quando cambia `prove_totali`, non `prove`
 	t.eq(bool(RIL.scheda(float(c["torti"]), float(c["prove_totali"]))["riletto"]),

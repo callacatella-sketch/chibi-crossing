@@ -363,12 +363,23 @@ static func _tratti_raccontabili(w: Dictionary, indole: Array,
 	return out
 
 
+## Quanti genomi sono stati coniati SENZA seme in questa corsa. Non è una
+## statistica: è la chiave del loro dado.
+static var _nati := 0
+
+
 static func generate(seed_v := -1) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	if seed_v >= 0:
 		rng.seed = seed_v
 	else:
-		rng.randomize()
+		# ⚠️ Veniva da `randomize()`, ed è il dado che decide CHI ARRIVA nel
+		# villaggio: senza seme, due corse della stessa partita facevano
+		# arrivare due persone diverse — e nessuna misura sugli abitanti
+		# poteva ripetersi. La chiave è «il vicino n-esimo nato in questa
+		# partita»: chi arriva resta una sorpresa, e resta la STESSA sorpresa.
+		_nati += 1
+		rng = Dadi.rng(Dadi.VILLAGGIO, "dna:%d" % _nati)
 
 	var arche: String = ARCHETYPES[rng.randi() % ARCHETYPES.size()]
 	var fur := Color(FURS[rng.randi() % FURS.size()])

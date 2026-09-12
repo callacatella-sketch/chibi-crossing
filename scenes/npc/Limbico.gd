@@ -65,6 +65,27 @@ const SOGLIA_SUSSULTO := 0.22
 const RIFLESSO_GREZZO := 0.25
 ## Quanta scia lascia un allarme nel corpo.
 const SCIA_ALLARME := 0.55
+## **IL TAMPONE SOCIALE** — quanto la presenza della figura di attaccamento
+## smorza l'allarme. Entra come DIVISORE del guadagno (`reattivita`), non come
+## sottrazione dal risultato, e la differenza è tutta la meccanica:
+##
+##  · **sottrarre sarebbe un BONUS**: lo stesso identico sollievo per tutti,
+##    cioè una costante che chi è già calmo non usa (finisce sotto zero e la
+##    perde) e che chi è terrorizzato non sente. Il conforto diventerebbe una
+##    proprietà del CONFORTO, non della persona confortata;
+##  · **dividere il guadagno è un'INTERAZIONE**: `reattivita` è per definizione
+##    il guadagno della paura («la codardia lo alza, la grinta lo abbassa»),
+##    quindi lo smorzamento ASSOLUTO resta proporzionale a quanto quel corpo è
+##    reattivo. Chi trasale di più riceve di più — che è la firma psicologica
+##    del fenomeno, e **non c'è niente da tarare, perché quella proporzione la
+##    porta la struttura** invece di un secondo numero da tenere allineato.
+##
+## A 1.0 la presenza piena dimezza il guadagno. Zero è il neutro **ESATTO** e
+## non per tolleranza: `0.0 * K` è +0.0, `1.0 + 0.0` è 1.0 esatto, e `x / 1.0`
+## è esatto in IEEE-754 — quindi a conforto zero (cioè in tutti i banchi, nel
+## Prologo, nel diorama e in ogni chiamante che non lo passa) il gioco è
+## bit-identico a prima, e le guardie possono pretendere `==`.
+const TAMPONE_SOCIALE := 1.0
 
 # ================== I 7 CANALI NEUROCHIMICI, e la loro casa ==============
 #
@@ -476,7 +497,13 @@ static func produzione_ambientale(amb: Dictionary, dorme: bool,
 ## quello che la rende vera: un attimo dopo la strada lenta la corregge
 ## («ah… sei tu»). Senza questo parametro il corpo poteva allarmarsi solo
 ## per chi già temeva, e la doppia strada non si vedeva mai.
-func percepisci(attore := "", luogo := "", indizio := 0.0) -> Dictionary:
+## [param conforto] 0..1 è quanto è VICINA adesso la figura di attaccamento di
+## chi percepisce (vedi `TAMPONE_SOCIALE`). Può solo ABBASSARE l'allarme, e
+## zero — il valore di serie, cioè quello di ogni chiamante che non lo passa —
+## è il neutro esatto. Chi lo calcola sta in `Visitors._tick_sussulti`: qui non
+## si sa e non si deve sapere CHI sia quella persona, si riceve solo un numero.
+func percepisci(attore := "", luogo := "", indizio := 0.0,
+		conforto := 0.0) -> Dictionary:
 	var carica := 0.0
 	var fonte := ""
 	for chiave in [("chi|" + attore) if attore != "" else "", ("luogo|" + luogo) if luogo != "" else ""]:
@@ -487,6 +514,26 @@ func percepisci(attore := "", luogo := "", indizio := 0.0) -> Dictionary:
 			carica = c
 			fonte = chiave
 	var grezzo := clampf(indizio, 0.0, 1.0)
+	# ⚠️ **IL CANCELLO DEL NaN STA PRIMA DEL CLAMP, e l'ordine è tutto:**
+	# `clampf(NAN, 0, 1)` restituisce **NaN** (le due comparazioni sono false, e
+	# il valore passa intatto), quindi un clamp messo davanti non ferma niente e
+	# fa solo credere di aver chiuso la porta. E qui un NaN non si fermerebbe
+	# alla riga dopo: `allarme` alimenta `arousal`, che è **PERSISTITO** — cioè
+	# la stessa forma assorbente già pagata in `stimola_neuro`, ma su un canale
+	# che finisce nel salvataggio.
+	if not is_finite(conforto):
+		conforto = 0.0
+	# ⚠️ **E il clamp a [0,1] è la garanzia ANTI-MALUS, non igiene.** Un conforto
+	# NEGATIVO e finito passa `is_finite`, porta il divisore sotto 1, e la
+	# divisione **AMPLIFICA** l'allarme: sarebbe il malus «stai peggio perché
+	# sei solo» — quello che la REGOLA SACRA vieta — entrato dalla porta di
+	# servizio, senza che nessuno l'abbia scritto da nessuna parte. Sopra 1 il
+	# tetto tiene il tampone a un dimezzamento: la compagnia non azzera la
+	# paura, la smorza.
+	conforto = clampf(conforto, 0.0, 1.0)
+	# La presenza entra sul GUADAGNO, non sul risultato: vedi `TAMPONE_SOCIALE`
+	# per il perché (è un'interazione, non un bonus).
+	var guadagno: float = reattivita / (1.0 + conforto * TAMPONE_SOCIALE)
 	# ⚠️ **DUE MONETE, NON UNA — ed è la correzione più importante di questo
 	# file.** Una sola `forza` pagava tutte e due le reazioni, e quella forza
 	# era fatta di soli ingredienti dell'ALLARME: il valore assoluto del
@@ -520,8 +567,33 @@ func percepisci(attore := "", luogo := "", indizio := 0.0) -> Dictionary:
 	#
 	# `forza` resta l'allarme e SOLO l'allarme, anche quando non basta a far
 	# trasalire nessuno: chi la legge legge quanto il corpo si è attivato.
-	var allarme: float = clampf((maxf(0.0, -carica) + grezzo) * reattivita
+	#
+	# ⚠️ **IL RESIDUO DEL TETTO, dichiarato e non curato.** Il `clampf` finale
+	# è PRE-ESISTENTE al tampone, e in cima alla scala se lo mangia. Chiamando
+	# `P` il prodotto prima del taglio:
+	#  · da `P >= 1 + conforto` in su il tamponamento **sparisce del tutto**
+	#    (tutte e due le versioni tagliano a 1.0): col conforto pieno è `P = 2`;
+	#  · fra `P = 1` e `P = 1 + conforto` lo smorzamento c'è ancora, ma **la
+	#    firma 1 si degrada** — il termine di paragone è già stato tagliato dal
+	#    tetto, quindi lo scarto non è più proporzionale alla reattività.
+	# E il caso limite NON è remoto: `P` arriva fino a **4.8**, e per sfondare
+	# il 2.0 basta un marchio pieno più qualcosa di brusco addosso a un codardo
+	# già in allerta. Cioè, nella parte alta della scala, il corpo trasale
+	# uguale con o senza la persona a cui vuole bene.
+	# ⚠️ E il massimo di `reattivita` è **1.5**, non 1.8: 1.8 è il tetto del
+	# `clampf`, ma la formula dai tratti (`0.6 + cod·0.9 − gri·0.35`) non ci
+	# arriva — il campo vero è [0.25, 1.5]. Chi rifà questo conto leggendo la
+	# costante invece della formula lo sbaglia del 20%.
+	# È un tetto che c'era già: va MISURATO e detto — **non curato cambiando la
+	# forma**, che è decisa: il conforto divide il guadagno e basta.
+	var allarme: float = clampf((maxf(0.0, -carica) + grezzo) * guadagno
 			* (1.0 + arousal * 0.6), 0.0, 1.0)
+	# ⚠️ **E IL CONFORTO NON TOCCA QUESTA RIGA.** Il `calore` è la carica
+	# positiva e basta: nessun guadagno, nessuna allerta, e **nessun tampone**.
+	# Il cuoricino di chi ti vuole bene non si spegne perché il suo compagno gli
+	# è accanto — sarebbe la felicità smorzata dalla compagnia, cioè l'esatto
+	# contrario di quello che questo parametro dice. Il tampone smorza l'ALLARME
+	# e solo l'allarme, come `forza` è l'allarme e solo l'allarme.
 	var calore: float = maxf(0.0, carica)
 	var reazione := "nulla"
 	if allarme > SOGLIA_SUSSULTO and (carica < 0.0 or grezzo > RIFLESSO_GREZZO):
@@ -537,8 +609,15 @@ func percepisci(attore := "", luogo := "", indizio := 0.0) -> Dictionary:
 		reazione = "si_illumina"
 		stimola_neuro("ossitocina", calore * 0.20)
 		stimola_neuro("dopamina", calore * 0.15)
+	# `conforto` è quello RIPULITO (finito e dentro [0,1]), cioè esattamente il
+	# numero che ha diviso il guadagno: serve ai banchi per ricostruire la gamba
+	# vera senza rifarne il conto — chiedere a un oracolo di ricalcolare la
+	# formula che sta provando è chiedere al giudice se è d'accordo con sé
+	# stesso. Non è persistito: `ultimo_sussulto` è una fotografia dell'istante,
+	# non uno stato, e infatti `save()` non lo guarda.
 	ultimo_sussulto = {"reazione": reazione, "forza": allarme, "calore": calore,
-			"fonte": fonte, "carica": carica, "grezzo": grezzo}
+			"fonte": fonte, "carica": carica, "grezzo": grezzo,
+			"conforto": conforto}
 	return ultimo_sussulto
 
 

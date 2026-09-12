@@ -137,7 +137,94 @@ func _refresh_critters() -> void:
 signal world_built
 
 
+# ================================================================== i dadi
+# ⚠️ PERCHÉ LE ESTRAZIONI NUDE DAL GLOBALE SE NE VANNO DI QUI, e non è
+# pulizia. Il generatore GLOBALE del motore (`randf()` senza istanza) lo
+# consuma anche il C++: `EcosystemManager` ne fa 48 tiri, e
+# `update_butterflies` ne prende DUE per farfalla per passo di FISICA — fino
+# a 180 per fotogramma con novanta farfalle. La POSIZIONE nello stream
+# dipende quindi da quante farfalle sono vive e da quanti fotogrammi sono
+# passati: due corse identiche pescano numeri diversi **anche col globale
+# seminato**. Un dado per SCOPO è isolato da tutto questo per costruzione.
+#
+# ⚠️ E I NOVE DADI SEMINATI A MANO (77, 4242, 90210, 88, 7, 99, 33, 505, 71)
+# NON SI TOCCANO. Sono già ripetibili; cambiarne il seme — o anche solo
+# consumarne un tiro in più a metà sequenza — sposterebbe erba, alberi,
+# bosco e stagno sotto le case di ogni salvataggio che esiste. Per la stessa
+# ragione il dado per-albero di `_make_tree` (seminato dalla posizione)
+# resta il suo: qui lo si USA, non lo si ridefinisce.
+
+## I dadi TENUTI di questo mondo, uno per scopo, indicizzati dal PERCHÉ.
+var _dadi := {}
+## Il canale cosmetico, tenuto anche lui (vedi `_dado_libero`).
+var _libero: RandomNumberGenerator
+
+
+## Il dado di un PERCHÉ — il flusso è `AMBIENTE` perché questo file
+## costruisce e anima il MONDO: cambia cosa c'è, mai chi decide. (Il giorno
+## che qui dentro nascesse una scelta che riguarda gli abitanti, quella
+## andrebbe su `Dadi.VILLAGGIO` e non da questa porta.)
+##
+## ⚠️ SI TIENE, e questa è tutta la funzione. `Dadi.rng()` con la stessa
+## chiave riparte ogni volta dalla stessa testa di sequenza: rifare il dado
+## a ogni tiro vuol dire un `_bf_respawn` che vale SEMPRE lo stesso numero —
+## ripetibile, e falso. Qui dentro finiscono solo i perché che tirano PIÙ
+## VOLTE (i respawn del `_process`, la ricrescita); chi tira una volta sola
+## per elemento chiama `Dadi.rng()` diretto con l'indice nella chiave, o
+## questo dizionario crescerebbe di una voce per farfalla nata.
+##
+## E la chiave porta il perché, non un numero: «farfalla_ricrescita» si
+## legge in un referto, «rng_3» no.
+func _dado(perche: String) -> RandomNumberGenerator:
+	if not _dadi.has(perche):
+		_dadi[perche] = Dadi.rng(Dadi.AMBIENTE, perche)
+	return _dadi[perche]
+
+
+## Il canale COSMETICO, dichiarato tale: gli anelli sull'acqua, il plop del
+## pesce, la schiuma della cascata. NON è seminato — due corse lo vedono
+## diverso, ed è giusto così: se il suo numero potesse raggiungere una
+## misura non sarebbe cosmetico. Passa da qui solo per essere CENSIBILE: un
+## canale libero che chiama `randf()` a mano è indistinguibile da una svista.
+func _dado_libero() -> RandomNumberGenerator:
+	if _libero == null:
+		_libero = Dadi.libero()
+	return _libero
+
+
 func _ready() -> void:
+	# ⚠️ L'UNICO POSTO DEL GIOCO CHE DÀ UNA POSIZIONE AL FLUSSO GLOBALE, e
+	# deve restare uno solo. Sta qui perché è il PRIMO che lo consuma: in
+	# `MainLevel.tscn` CozyWorld viene prima di BuildSystem, il mondo si
+	# generava chiedendo al globale in trentasette punti, e prima di questa
+	# riga nessuno gli aveva mai dato una posizione. (La prima stesura della
+	# cura seminava solo in `BuildSystem` e il banco delle repliche ha
+	# continuato a dire di no: è stato lui a trovarlo, non una rilettura.)
+	#
+	# ⚠️ E SEMINARE DUE VOLTE ERA UN DOPPIONE CHE FACEVA DANNO, col commento
+	# che prometteva il contrario di quello che succedeva. Questa funzione è
+	# una COROUTINE: semina, costruisce l'erba, e poi cede il controllo per
+	# sette fotogrammi. Il `_ready` di BuildSystem e il suo `_load_village`
+	# differito cadono tutti e due **dentro quel primo `await`**, cioè fra
+	# `_build_grass()` e tutto il resto: le loro riseminate rimettevano la
+	# posizione IN MEZZO alla generazione, e sassi, nuvole, polline, bosco e
+	# fiori ripartivano dalla stessa testa di sequenza che l'erba aveva
+	# appena consumato. Non era «quel che viene dopo non dipende dalla
+	# generazione»: era la generazione che dipendeva da quante volte veniva
+	# interrotta. Sono state tolte tutte e due.
+	#
+	# ⚠️ E LA FINESTRA VERA NON SONO GLI AUTOLOAD. Questa nota diceva «prima di
+	# noi girano i tre autoload (Settings, Sfx, Quality)», e mandava a cercare
+	# nel posto sbagliato: prima di noi gira **l'ISTANZIAZIONE DELL'INTERA
+	# SCENA**, cioè l'inizializzatore di membro di OGNI nodo di
+	# `MainLevel.tscn`. Un `randf()` scritto a livello di classe è già stato
+	# tirato quando arriviamo qui.
+	#
+	# Ce n'erano due, in `Mochi.gd`, e tenevano irripetibile tutto il
+	# villaggio: vedi la testata di `Mochi._next_twitch` per la catena e per
+	# l'ablazione che la dimostra. La guardia che impedisce a un terzo di
+	# nascere sta in `test_dadi._nessun_tiro_prima_del_seme`.
+	Dadi.semina_globale()
 	add_to_group("cozy_world")
 	add_to_group("season_listener")
 	# la calma del giocatore arriva da una casa sola: il Fiato Sospeso
@@ -846,7 +933,13 @@ func _make_tree(pos: Vector3, size: float, leaf_a: Color, leaf_b: Color,
 	var tree := Node3D.new()
 	tree.position = pos
 	tree.scale = Vector3.ONE * size
-	tree.rotation.y = randf() * TAU
+	# AMBIENTE. Era l'unico tiro NUDO di questa funzione, in mezzo a una
+	# chioma già interamente decisa da `rng` (seminato dalla posizione): lo
+	# stesso albero nasceva identico e poi si girava a caso. Adesso la sua
+	# imbardata è sua come tutto il resto — nessuna chiave nuova, nessun
+	# dado nuovo. ⚠️ E sta in FONDO apposta: `rng` non viene più letto dopo
+	# di qui, quindi questo tiro in più non sposta un solo ramo.
+	tree.rotation.y = rng.randf() * TAU
 
 	var trunk_mi := MeshInstance3D.new()
 	trunk_mi.name = "Tronco"
@@ -979,17 +1072,24 @@ func _build_stones() -> void:
 		Vector3(0.9, 0, 1.6), Vector3(1.7, 0, 2.1), Vector3(2.6, 0, 2.4),
 		Vector3(3.5, 0, 2.6), Vector3(4.4, 0, 2.9), Vector3(5.2, 0, 3.3),
 	]
-	for p in pts:
+	# AMBIENTE: sono sassi del mondo, e dove stanno si vede.
+	# ⚠️ LA CHIAVE È L'INDICE, non un dado solo che scorre la fila: così
+	# ogni sasso è diverso dal precedente (che è quello che serviva) E
+	# aggiungerne uno in mezzo non ne rimescola altri sei.
+	for i in pts.size():
+		var p: Vector3 = pts[i]
+		var rng := Dadi.rng(Dadi.AMBIENTE, "sasso:%d" % i)
 		var stone := CylinderMesh.new()
-		stone.top_radius = randf_range(0.24, 0.32)
+		stone.top_radius = rng.randf_range(0.24, 0.32)
 		stone.bottom_radius = stone.top_radius + 0.04
 		stone.height = 0.07
 		var mi := MeshInstance3D.new()
 		mi.mesh = stone
 		mi.material_override = mat
-		mi.position = p + Vector3(randf_range(-0.15, 0.15), 0.035, randf_range(-0.15, 0.15))
-		mi.rotation.y = randf() * TAU
-		mi.scale = Vector3(1, 1, randf_range(0.8, 1.0))
+		mi.position = p + Vector3(rng.randf_range(-0.15, 0.15), 0.035,
+				rng.randf_range(-0.15, 0.15))
+		mi.rotation.y = rng.randf() * TAU
+		mi.scale = Vector3(1, 1, rng.randf_range(0.8, 1.0))
 		add_child(mi)
 
 
@@ -1000,12 +1100,19 @@ func _build_clouds() -> void:
 	mat.set_shader_parameter("rim_strength", 0.3)
 	mat.set_shader_parameter("rim_color", Color(1, 0.98, 0.95))
 	for i in 5:
+		# AMBIENTE, ed è LA causa n.1 per cui il conteggio dei nodi del
+		# mondo non era deterministico: `randi_range(4, 6)` blob per nuvola,
+		# dal globale, cioè da una posizione che dipendeva da quante
+		# farfalle stavano volando. Il dado è UNO per nuvola e scorre i suoi
+		# blob — sono roba sua — mentre la nuvola accanto non se ne accorge.
+		var rng := Dadi.rng(Dadi.AMBIENTE, "nuvola:%d" % i)
 		var cloud := Node3D.new()
-		cloud.position = Vector3(randf_range(-40.0, 40.0), randf_range(14.0, 20.0), randf_range(-34.0, -8.0))
-		var blob_count := randi_range(4, 6)
+		cloud.position = Vector3(rng.randf_range(-40.0, 40.0),
+				rng.randf_range(14.0, 20.0), rng.randf_range(-34.0, -8.0))
+		var blob_count := rng.randi_range(4, 6)
 		for j in blob_count:
 			var s := SphereMesh.new()
-			var r := randf_range(1.2, 2.4)
+			var r := rng.randf_range(1.2, 2.4)
 			s.radius = r
 			s.height = r * 2.0
 			s.radial_segments = 20
@@ -1014,12 +1121,13 @@ func _build_clouds() -> void:
 			mi.mesh = s
 			mi.material_override = mat
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			mi.position = Vector3(float(j) * 1.5 - blob_count * 0.75, randf_range(-0.3, 0.4), randf_range(-0.6, 0.6))
+			mi.position = Vector3(float(j) * 1.5 - blob_count * 0.75,
+					rng.randf_range(-0.3, 0.4), rng.randf_range(-0.6, 0.6))
 			mi.scale = Vector3(1, 0.55, 0.8)
 			cloud.add_child(mi)
 		add_child(cloud)
 		_clouds.append(cloud)
-		_cloud_speeds.append(randf_range(0.25, 0.55))
+		_cloud_speeds.append(rng.randf_range(0.25, 0.55))
 
 
 # ---------------------------------------------------------------- farfalle
@@ -1071,6 +1179,11 @@ func _cull_butterflies() -> void:
 			_butterflies.remove_at(i)
 
 
+## Quante farfalle sono nate in questa partita: è la chiave del loro dado,
+## non una statistica (l'idioma è quello di `_funghi_nati`).
+var _farfalle_nate := 0
+
+
 ## Fa nascere una farfalla scelta tra quelle disponibili ADESSO (estrazione
 ## pesata dal bestiario, col tetto per specie: mai tre falene insieme).
 func _spawn_butterfly_available() -> void:
@@ -1085,7 +1198,16 @@ func _spawn_butterfly_available() -> void:
 			pool.append(id)
 	if pool.is_empty():
 		return
-	var kind := CRIT.estrai(pool, randf())
+	# AMBIENTE: chi vola nel prato adesso è cosa c'è nel mondo — il retino,
+	# il bestiario e il taccuino del Gufo ci passano tutti.
+	# ⚠️ LA CHIAVE È IL CONTATORE, come per i funghi: ogni farfalla resta
+	# diversa dalla precedente e due corse con la stessa radice fanno
+	# nascere le stesse farfalle nello stesso ordine. Avanza QUI perché
+	# questa è l'unica porta da cui si nasce (`_make_butterfly` ha un
+	# chiamante solo, ed è la riga qui sotto).
+	_farfalle_nate += 1
+	var kind := CRIT.estrai(pool,
+			Dadi.rng(Dadi.AMBIENTE, "farfalla:specie:%d" % _farfalle_nate).randf())
 	var kind_i := _bf_kinds.find(kind)
 	if kind_i >= 0:
 		_make_butterfly(kind_i)
@@ -1171,7 +1293,15 @@ func _make_butterfly(kind_i: int) -> void:
 		"node": b,
 		"wing_l": wings[0],
 		"wing_r": wings[1],
-		"seed": randf() * 100.0,
+		# AMBIENTE, non cosmetico: questo seme È la traiettoria (`_t + seed`
+		# muove il volo, non solo la battuta d'ala), quindi decide dove
+		# passa la farfalla — e lì ci sono il retino, il Fiato Sospeso e la
+		# lettera del Gufo che cita chi ti sei fermata a guardare.
+		# ⚠️ CHIAVE DIVERSA da quella della specie, e non è pignoleria: due
+		# `Dadi.rng` con la STESSA chiave sono lo stesso stream ricominciato,
+		# quindi il seme di volo verrebbe uguale al numero che ha scelto la
+		# specie — tutte le cavolaie con la stessa fase.
+		"seed": Dadi.rng(Dadi.AMBIENTE, "farfalla:volo:%d" % _farfalle_nate).randf() * 100.0,
 		"prev": Vector3.ZERO,
 		"kind": kind,
 		"home": home,
@@ -1388,7 +1518,11 @@ func _farfalla_fidata(b: Dictionary, delta: float) -> void:
 func catch_butterfly(i: int) -> Dictionary:
 	var b: Dictionary = _butterflies[i]
 	_butterflies.remove_at(i)
-	_bf_respawn = randf_range(45.0, 90.0)
+	# AMBIENTE (quando il prato si ripopola), e il dado si TIENE: l'altra
+	# metà di questa attesa la scrive il refill in `_process`, ed è lo
+	# stesso perché — un dado solo che avanza, non uno nuovo per tiro (che
+	# ridarebbe sempre lo stesso numero).
+	_bf_respawn = _dado("farfalla_ricrescita").randf_range(45.0, 90.0)
 	return {"kind": b["kind"], "node": b["node"]}
 
 
@@ -2052,10 +2186,20 @@ func _build_campfire() -> void:
 	root.add_child(_campfire_light)
 
 
+## Quanti funghi da raccolta sono nati in questa partita: è la chiave del
+## loro dado, non una statistica.
+var _funghi_nati := 0
+
+
 # funghi da raccolta: più grandi dei decorativi, il bottino della passeggiata
 func _spawn_pickup_mushroom() -> void:
-	var rng := RandomNumberGenerator.new()
-	rng.randomize()
+	# ⚠️ Veniva da `randomize()`. La chiave è il CONTATORE dei funghi nati in
+	# questa partita: ogni fungo resta diverso dal precedente (che è quello
+	# che serviva), e due corse con la stessa radice fanno nascere gli stessi
+	# funghi nello stesso ordine. Il porcino d'autunno smette di essere un
+	# bivio che nessuna misura può ripetere.
+	_funghi_nati += 1
+	var rng := Dadi.rng(Dadi.AMBIENTE, "fungo:%d" % _funghi_nati)
 	# d'autunno, ogni tanto, il bosco regala un PORCINO: più grande, cappella
 	# bruna senza puntini, e al carretto vale molto di più (vedi Critters)
 	var specie := "fungo"
@@ -2249,8 +2393,17 @@ func plant_tree(pos: Vector3, size := 1.0, seed_v := 0, specie := "broad") -> No
 		# gli stessi verdi degli aghi del bosco (chiaro, scuro)
 		return _make_tree(pos, size, Color("5c8f65"), Color("3f7050"),
 				seed_v, "needle")
-	var verde := Color("86c46c").lerp(Color("a8d98a"), randf())
-	var scuro := Color("64a854").lerp(Color("4e8a52"), randf())
+	# AMBIENTE: è la tinta di un albero VERO, che resta nel mondo e si
+	# taglia. ⚠️ La chiave è fatta degli stessi ingredienti da cui
+	# `_make_tree` semina il proprio dado — il posto e il seme di chi
+	# chiama — così un albero ripiantato dov'era prima ha la stessa tinta,
+	# e due che nascono insieme non ce l'hanno uguale. (Il dado di
+	# `_make_tree` non si può usare qui: nasce dentro di lui, e questi due
+	# colori sono proprio i suoi argomenti.)
+	var rng := Dadi.rng(Dadi.AMBIENTE,
+			"albero_tinta:%d:%.2f:%.2f" % [seed_v, pos.x, pos.z])
+	var verde := Color("86c46c").lerp(Color("a8d98a"), rng.randf())
+	var scuro := Color("64a854").lerp(Color("4e8a52"), rng.randf())
 	return _make_tree(pos, size, verde, scuro, seed_v)
 
 
@@ -2270,7 +2423,9 @@ func nearest_pickup(pos: Vector3, max_d: float) -> int:
 func collect_pickup(i: int) -> Node3D:
 	var node := _pickups[i]
 	_pickups.remove_at(i)
-	_pickup_respawn = randf_range(50.0, 100.0)
+	# AMBIENTE, dado TENUTO: come per le farfalle, l'altra metà di questa
+	# attesa la scrive il refill in `_process` ed è lo stesso perché.
+	_pickup_respawn = _dado("fungo_ricrescita").randf_range(50.0, 100.0)
 	return node
 
 
@@ -2422,7 +2577,18 @@ func _spawn_frog(angle: float) -> void:
 	frog.position = pos
 	frog.rotation.y = angle + PI * 0.5
 	add_child(frog)
-	_frogs.append({"node": frog, "angle": angle, "state": "sit", "timer": 0.0, "seed": randf() * 10.0})
+	# ⚠️ SEMBRA COSMETICO E NON LO È: questo seme è la fase del respiro da
+	# seduta, dodici millimetri di alzata — ma quei millimetri entrano nel
+	# `distance_to` che decide il tuffo, quindi possono spostare di un
+	# fotogramma il momento in cui la rana scappa. E la rana che non scappa
+	# più è metà del Fiato Sospeso. Quindi AMBIENTE, e ripetibile.
+	# ⚠️ E il dado è SUO, non quello dello stagno (seme 33): pescare di lì
+	# dentro il ciclo che sta chiamando `_spawn_frog` interleaverebbe i
+	# tiri e sposterebbe l'angolo delle due rane dopo. La chiave è quante
+	# rane ci sono già, cioè l'indice di questa.
+	var rng := Dadi.rng(Dadi.AMBIENTE, "rana:%d" % _frogs.size())
+	_frogs.append({"node": frog, "angle": angle, "state": "sit", "timer": 0.0,
+			"seed": rng.randf() * 10.0})
 
 
 ## Un anello che si allarga sull'acqua e svanisce (tuffi, galleggiante…).
@@ -2504,25 +2670,34 @@ func _update_stagno(delta: float) -> void:
 	_stagno_cd -= delta * levata
 	if _stagno_cd > 0.0:
 		return
-	_stagno_cd = randf_range(STAGNO_BOLLA.x, STAGNO_BOLLA.y)
+	# ⚠️ TUTTA LA VITA DI SUPERFICIE È DICHIARATA COSMETICA, ed è la sola
+	# cosa di questo file che sta sul canale libero. Un anello che si
+	# allarga e svanisce, un plop a undici metri: nessuno di questi numeri
+	# decide niente e nessuno può raggiungere una misura — chi pesca guarda
+	# la LEVATA (`levata_dei_pesci`, pura e testata), non dove è salita la
+	# bolla di prima. Se un domani un'ombra sull'acqua diventasse un indizio
+	# che il giocatore può leggere, quel tiro dovrà tornare su `AMBIENTE`.
+	var d := _dado_libero()
+	_stagno_cd = d.randf_range(STAGNO_BOLLA.x, STAGNO_BOLLA.y)
 
 	# dove sale: di solito accanto a una ninfea (lì si posano gli
 	# insetti), ogni tanto in mezzo all'acqua aperta
 	var punto: Vector3
-	if randf() < 0.62:
-		var lily: Node3D = _lilies[randi() % _lilies.size()]
-		var a := randf() * TAU
-		var d := randf_range(0.22, 0.62)
-		punto = lily.global_position + Vector3(cos(a) * d, 0, sin(a) * d)
+	if d.randf() < 0.62:
+		var lily: Node3D = _lilies[d.randi() % _lilies.size()]
+		var a := d.randf() * TAU
+		var dist := d.randf_range(0.22, 0.62)
+		punto = lily.global_position + Vector3(cos(a) * dist, 0, sin(a) * dist)
 	else:
-		var a2 := randf() * TAU
-		var r2 := sqrt(randf()) * POND_R * 0.86
+		var a2 := d.randf() * TAU
+		var r2 := sqrt(d.randf()) * POND_R * 0.86
 		punto = POND_CENTER + Vector3(cos(a2) * r2 * 1.15, 0, sin(a2) * r2)
 
-	if randf() < 0.22:
+	if d.randf() < 0.22:
 		# la libellula che sfiora: due tocchi minuti, uno accanto all'altro
 		water_ripple(punto, 0.34)
-		var vicino := punto + Vector3(randf_range(-0.3, 0.3), 0, randf_range(-0.3, 0.3))
+		var vicino := punto + Vector3(d.randf_range(-0.3, 0.3), 0,
+				d.randf_range(-0.3, 0.3))
 		get_tree().create_timer(0.26).timeout.connect(func():
 			if is_inside_tree():
 				water_ripple(vicino, 0.28))
@@ -2530,16 +2705,20 @@ func _update_stagno(delta: float) -> void:
 
 	# la bolla del pesce: il cerchio, e a volte il colpo di coda che ne
 	# manda un secondo più largo appena dopo
-	water_ripple(punto, randf_range(0.75, 1.15))
+	water_ripple(punto, d.randf_range(0.75, 1.15))
 	var sfx = get_node_or_null(^"/root/Sfx")
 	if sfx and _player_ref \
 			and _player_ref.global_position.distance_to(punto) < 11.0:
-		sfx.play("plop", -26.0, randf_range(1.15, 1.45))
-	if randf() < 0.3:
+		sfx.play("plop", -26.0, d.randf_range(1.15, 1.45))
+	if d.randf() < 0.3:
+		# lo scarto del secondo anello si calcola QUI e non dentro il
+		# timer: una lambda cattura per valore, e tirarlo di là vorrebbe
+		# dire un tiro che dipende da quanti ne sono passati nel frattempo
+		var largo := punto + Vector3(d.randf_range(-0.2, 0.2), 0,
+				d.randf_range(-0.2, 0.2))
 		get_tree().create_timer(0.18).timeout.connect(func():
 			if is_inside_tree():
-				water_ripple(punto + Vector3(randf_range(-0.2, 0.2), 0,
-						randf_range(-0.2, 0.2)), 1.5))
+				water_ripple(largo, 1.5))
 
 
 func _update_frogs(delta: float) -> void:
@@ -2574,7 +2753,12 @@ func _update_frogs(delta: float) -> void:
 							sfx.play("step_wet2", -14.0, 1.2)
 						node.visible = false
 						f["state"] = "hidden"
-						f["timer"] = randf_range(22.0, 40.0))
+						# AMBIENTE: quanto resta sott'acqua è quando la
+						# sponda torna ad avere una rana. Dado TENUTO (le
+						# tre rane si tuffano più volte in una giornata),
+						# e va bene che sia uno solo per tutte: l'ordine
+						# in cui si tuffano è deterministico.
+						f["timer"] = _dado("rana_tuffo").randf_range(22.0, 40.0))
 			"hidden":
 				f["timer"] = float(f["timer"]) - delta
 				if float(f["timer"]) <= 0.0 and player \
@@ -3447,9 +3631,13 @@ func _update_river(delta: float) -> void:
 	# il tonfo della cascata: anelli di schiuma che sbocciano di continuo
 	_fall_ripple_cd -= delta
 	if _fall_ripple_cd <= 0.0:
-		_fall_ripple_cd = randf_range(0.35, 0.7)
-		water_ripple(_fall_base + Vector3(randf_range(-0.3, 0.1), 0, randf_range(-0.7, 0.7)),
-				randf_range(0.7, 1.2), RIVER_WATER_Y + 0.03)
+		# COSMETICO come la vita dello stagno: schiuma che sboccia e
+		# svanisce sotto il tonfo, due volte al secondo. Nessuno la misura.
+		var d := _dado_libero()
+		_fall_ripple_cd = d.randf_range(0.35, 0.7)
+		water_ripple(_fall_base + Vector3(d.randf_range(-0.3, 0.1), 0,
+				d.randf_range(-0.7, 0.7)),
+				d.randf_range(0.7, 1.2), RIVER_WATER_Y + 0.03)
 
 
 # ---------------------------------------------------------------- stagioni
@@ -3677,14 +3865,16 @@ func _process(delta: float) -> void:
 	if _butterflies.size() < 5:
 		_bf_respawn -= delta
 		if _bf_respawn <= 0.0:
-			_bf_respawn = randf_range(4.0, 9.0)
+			# stesso perché di `catch_butterfly`, stesso dado tenuto
+			_bf_respawn = _dado("farfalla_ricrescita").randf_range(4.0, 9.0)
 			_spawn_butterfly_available()
 
 	# e il bosco di funghi da raccogliere
 	if _pickups.size() < 5:
 		_pickup_respawn -= delta
 		if _pickup_respawn <= 0.0:
-			_pickup_respawn = randf_range(50.0, 100.0)
+			# stesso perché di `collect_pickup`, stesso dado tenuto
+			_pickup_respawn = _dado("fungo_ricrescita").randf_range(50.0, 100.0)
 			_spawn_pickup_mushroom()
 
 	# quanto ha fretta Mochi: di corsa le creature si scansano, da ferma

@@ -125,6 +125,13 @@ const DURATA_SGUARDO := 3.2
 var _visitors: Node = null
 var _cuore: Object = null
 
+## CHI HA INCISO DAVVERO, per il gesto in corso. Vive come campo e non come
+## variabile locale per non riallocare un array a ogni gesto del villaggio:
+## `accaduto` lo svuota e lo riempie, e nessun altro lo legge.
+## È `PackedInt64Array` perché è ciò che il ponte attraversa: una lista di
+## interi, non di Variant.
+var _incisi := PackedInt64Array()
+
 ## LA FINESTRA DI FUSIONE DEL GRAFO, in secondi, letta dal C++ una volta
 ## sola (`EcsMondo.debug_grafo_costanti`). Non è una costante di questo file
 ## e non deve diventarlo: è il numero che decide se un gesto fa un ricordo
@@ -228,6 +235,8 @@ func accaduto(verbo: String, pos: Vector3, a_chi := "") -> void:
 	var visti: Array = testimoni(pos, RAGGIO)
 	if visti.is_empty():
 		return
+	# chi, di questi, ha davvero inciso il ricordo (lo riempie `_testimonia`)
+	_incisi.clear()
 
 	# Il DESTINATARIO, se c'è, è uno dei testimoni: un dono lo si fa in
 	# faccia a qualcuno, e qualcuno che non poteva vedere non lo ha ricevuto.
@@ -249,6 +258,32 @@ func accaduto(verbo: String, pos: Vector3, a_chi := "") -> void:
 	# più) — con la geometria giusta e nessun test in grado di accorgersene.
 	for i in visti.size():
 		_testimonia(visti[i], v, pos, soggetto)
+
+	# ------------------------------------------------------------------
+	# LA CO-TESTIMONIANZA — e fin qui era un dato calcolato e buttato via.
+	#
+	# `visti` dice chi c'era: ognuno di loro ha visto lo stesso gesto E ha
+	# visto gli altri esserci. È il substrato della teoria della mente, ed è
+	# l'unica sorgente che il modello ha: A crede che B sappia perché A ha
+	# visto B guardare, non perché qualcuno gli abbia letto la mente.
+	#
+	# ⚠️ **STA FUORI DAL CICLO, e non è una comodità.** La co-testimonianza è
+	# una proprietà della LISTA, non di un testimone: dentro `_testimonia`
+	# non si potrebbe nemmeno vedere. E le coppie ordinate sono k(k−1) —
+	# fino a centinaia per una pietra di sentiero: il ciclo sta di là, in
+	# C++, e di qua attraversa il ponte UNA volta con una lista di interi.
+	# È la disciplina del foglio del Pensatoio: attraversano byte, non
+	# decisioni.
+	#
+	# ⚠️ E PASSA SOLO CHI HA DAVVERO INCISO IL RICORDO. `osserva()` torna
+	# l'indice della riga scritta, o −1 quando l'anello dei ventiquattro
+	# rifiuta il ricordo perché più debole di tutti. Accendere «B sa» su un
+	# ricordo che B non ha memorizzato sarebbe una credenza FALSA entrata
+	# dalla porta di servizio — cioè esattamente ciò che questa architettura
+	# esiste per rendere impossibile. Il valore c'era già e si buttava, come
+	# si buttava questa lista.
+	if _cuore != null and _incisi.size() > 1:
+		_cuore.call("co_testimoni", _incisi, v)
 
 
 ## CHI C'ERA. Delega al registro dei vicini, che è l'unico a sapere quali
@@ -273,7 +308,11 @@ func _testimonia(riga: Dictionary, verbo: int, pos: Vector3, soggetto: int) -> v
 	if node == null or not is_instance_valid(node) or id < 0:
 		return
 	var nuovo := bool(node.call("guarda_gesto", pos, DURATA_SGUARDO, verbo, _finestra))
-	_cuore.call("osserva", id, verbo, pos, soggetto)
+	# l'esito di `osserva` NON si butta: −1 vuol dire che il ricordo non è
+	# entrato nell'anello, e chi non l'ha memorizzato non lo sa (vedi la
+	# co-testimonianza, in fondo ad `accaduto`)
+	if int(_cuore.call("osserva", id, verbo, pos, soggetto)) >= 0:
+		_incisi.append(id)
 	# ------------------------------------------------------------------
 	# E LA TERZA RIGA, che è di un'altra specie e sta DOPO le due apposta.
 	#

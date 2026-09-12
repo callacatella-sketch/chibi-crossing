@@ -30,6 +30,81 @@ var species := "riccio"
 
 ## Se presente, il corpo viene costruito dal genoma (villager generato).
 var dna := {}
+
+# ------------------------------------------------------- I DADI DI QUESTO CORPO
+## Un dado per SCOPO, e per CORPO, creati una volta sola.
+##
+## ⚠️ NON BASTA SEMINARE IL GENERATORE GLOBALE, e la ragione non è di stile:
+## quello lo consuma anche il C++ — `EcosystemManager` ne fa 48 tiri, e
+## `update_butterflies` ne prende DUE per farfalla per passo di FISICA, fino a
+## 180 per fotogramma con novanta farfalle. La POSIZIONE nello stream dipende
+## quindi da quante farfalle sono vive, e due corse identiche pescavano numeri
+## diversi **anche col globale seminato**. Un dado nominato è isolato da tutto
+## questo per costruzione (vedi la testata di `Dadi`: SI DERIVA, NON SI
+## CONDIVIDE — aggiungere un consumatore non sposta i numeri di nessun altro).
+##
+## ⚠️ E LA CHIAVE PORTA L'IDENTITÀ DEL CORPO. Questo file è un'ISTANZA per
+## vicino, non un singolone come `Visitors`: con la sola parola del perché,
+## ventotto corpi condividerebbero lo stesso seme e il villaggio si
+## sincronizzerebbe — tutti si annusano nello stesso istante, a tutti scatta lo
+## stesso orecchio nel sonno. Il perché resta comunque nella chiave perché un
+## referto che dice «r_sniff|la volpina Pepita#8471» si legge, «rng_7» no.
+##
+## Il dado si TIENE e non si rifà a ogni tiro: rifarlo lo rimanderebbe indietro
+## nel tempo — ripetibile, e falso.
+var _dadi := {}
+
+
+## Il dado (flusso, perché) di QUESTO corpo. `flusso` è quello di `Dadi`, e va
+## scelto secondo cosa quel numero può raggiungere: `VILLAGGIO` se può cambiare
+## dove va o cosa decide, `CORPO` se muove solo il rig.
+func _dado(flusso: String, perche: String) -> RandomNumberGenerator:
+	var k := "%s|%s" % [perche, _identita_corpo()]
+	if not _dadi.has(k):
+		_dadi[k] = Dadi.rng(flusso, k)
+	return _dadi[k]
+
+
+## Il canale COSMETICO di questo corpo, tenuto per non allocare un generatore a
+## ogni passo (`_anim_move` gira nel `_process`). Non è seminato — sceglie
+## QUALE dei tre campioni di un suono suona, e un numero che non può raggiungere
+## nessuna misura non è una cosa da tenere ferma. Passa da `Dadi` solo per
+## essere CENSIBILE: un canale libero che chiama `randf()` a mano è
+## indistinguibile da una svista.
+var _libero: RandomNumberGenerator
+
+
+func _dado_libero() -> RandomNumberGenerator:
+	if _libero == null:
+		_libero = Dadi.libero()
+	return _libero
+
+
+## CHI È QUESTO CORPO, come testo. È la stessa cascata che `_taratura_sguardo` e
+## `_gesto_taratura` usano già da sempre per le loro tarature personali —
+## genoma, poi etichetta, poi il nome del nodo — con una precisazione pagata
+## altrove.
+##
+## ⚠️ L'ETICHETTA DA SOLA NON BASTA: con diciannove residenti due etichette si
+## ripetono (è la trappola già scritta per i provini, «la chiave di un censimento
+## è il corpo, non il nome»). Qui una collisione non incrocia due flussi — ogni
+## corpo ha il suo generatore — ma li SINCRONIZZA, e due omonimi farebbero le
+## stesse cose negli stessi istanti per tutta la partita. Il seme del genoma è
+## unico per costruzione (`Dadi.rng(VILLAGGIO, "dna:%d")`), e l'etichetta gli
+## resta incollata solo perché una chiave va letta.
+##
+## ⚠️ RESIDUO DICHIARATO: gli OSPITI del bosco (riccio, passerotto) non hanno
+## genoma né etichetta, e ripiegano sul nome del nodo — che Godot conia da sé
+## (`@Node3D@42`), cioè dalla storia delle allocazioni. Per loro la chiave è
+## stabile dentro una corsa e non fra due, esattamente come lo era già la
+## taratura del loro sguardo. Ne vive uno per volta e non entra in nessuna
+## misura sugli abitanti; chi vorrà chiudere anche quello deve dare un nome agli
+## ospiti dove nascono (`Visitors._spawn`), non inventarne uno qui.
+func _identita_corpo() -> String:
+	var s := int(dna.get("seed", 0))
+	if s != 0:
+		return "%s#%d" % [str(dna.get("label", "")), s]
+	return str(dna.get("label", name))
 var _c_arms: Array[Node3D] = []
 var _c_ears: Array[Node3D] = []
 var _c_legs: Array[Node3D] = []
@@ -1157,6 +1232,11 @@ func _enter_state(s: String) -> void:
 	# ogni seduta ricomincia dall'ASSESTAMENTO (plop, fianchi, sospiro)
 	_sit_t = 0.0
 	_sit_attesa = 0.0
+	# ⚠️ I `_timer` di questo blocco sono COMPORTAMENTALI: dicono quanto dura
+	# uno stato, cioè QUANDO comincia il prossimo — e da lì passa tutto quello
+	# che le misure guardano (chi è in cammino quando, chi è seduto accanto a
+	# chi). Vanno perciò su `Dadi.VILLAGGIO`, uno per stato e per corpo: la
+	# chiave `durata:<stato>` si legge in un referto.
 	match s:
 		"browse":
 			if _poi_i < _pois.size():
@@ -1164,10 +1244,10 @@ func _enter_state(s: String) -> void:
 			else:
 				_go_bench_or_gift()
 		"inspect":
-			_timer = randf_range(3.0, 4.5)
+			_timer = _dado(Dadi.VILLAGGIO, "durata:inspect").randf_range(3.0, 4.5)
 			_emote("?", Color(0.55, 0.45, 0.75))
 		"sit":
-			_timer = randf_range(8.0, 12.0)
+			_timer = _dado(Dadi.VILLAGGIO, "durata:sit").randf_range(8.0, 12.0)
 			_mount_bench()
 		"gift":
 			_timer = 1.4
@@ -1187,7 +1267,7 @@ func _enter_state(s: String) -> void:
 			_timer = 0.0
 		"on_soak":
 			# il sospiro di chi si scioglie nell'acqua calda
-			_timer = randf_range(12.0, 16.0)
+			_timer = _dado(Dadi.VILLAGGIO, "durata:on_soak").randf_range(12.0, 16.0)
 			speak(["~", "~"], "triste")
 			_spawn_heart()
 		"on_out":
@@ -1199,7 +1279,7 @@ func _enter_state(s: String) -> void:
 			_timer = 0.0
 		"th_perch":
 			# «ya-ho!» dal trespolo, con un cuoricino
-			_timer = randf_range(6.0, 9.0)
+			_timer = _dado(Dadi.VILLAGGIO, "durata:th_perch").randf_range(6.0, 9.0)
 			speak(["ciao", "felice"], "felice")
 			_spawn_heart()
 		"c_inspect":
@@ -1219,7 +1299,7 @@ func _enter_state(s: String) -> void:
 				_suitcase.queue_free()
 				_suitcase = null
 		"r_idle":
-			_timer = randf_range(4.0, 8.0)
+			_timer = _dado(Dadi.VILLAGGIO, "durata:r_idle").randf_range(4.0, 8.0)
 		"r_wander":
 			# `_house` PUÒ ESSERE VUOTO, e questo stato è il ripiego
 			# universale: `Visitors._recita()` ci manda chiunque non abbia
@@ -1232,10 +1312,14 @@ func _enter_state(s: String) -> void:
 			# `.get("front", position)`, cioè «se non hai una casa, gira
 			# intorno a dove sei».
 			var front: Vector3 = _house.get("front", position)
-			var a := randf() * TAU
-			_walk_to(front + Vector3(cos(a), 0, sin(a)) * randf_range(1.0, 3.2), "r_idle")
+			# COMPORTAMENTALE, e delle due è la più pesante: decide DOVE va il
+			# corpo. Angolo e raggio dallo STESSO dado, in quest'ordine — sono
+			# un punto solo, e separarli non comprerebbe niente.
+			var d_vaga := _dado(Dadi.VILLAGGIO, "dove:r_wander")
+			var a := d_vaga.randf() * TAU
+			_walk_to(front + Vector3(cos(a), 0, sin(a)) * d_vaga.randf_range(1.0, 3.2), "r_idle")
 		"r_sniff":
-			_timer = randf_range(3.5, 5.5)
+			_timer = _dado(Dadi.VILLAGGIO, "durata:r_sniff").randf_range(3.5, 5.5)
 			_emote("?", Color(0.55, 0.45, 0.75))
 		"r_bench":
 			if _routine_aux and is_instance_valid(_routine_aux):
@@ -1264,7 +1348,8 @@ func _enter_state(s: String) -> void:
 				else:
 					_yaw = _routine_aux.rotation.y + PI
 				_siediti(seat)
-			_timer = _routine_durata if _routine_durata > 0.0 else randf_range(14.0, 22.0)
+			_timer = _routine_durata if _routine_durata > 0.0 \
+					else _dado(Dadi.VILLAGGIO, "durata:r_bench").randf_range(14.0, 22.0)
 		"r_attesa":
 			# arrivato al posto dell'appuntamento: si volta verso il
 			# fenomeno e aspetta. Il timer e' lunghissimo di proposito —
@@ -1283,7 +1368,7 @@ func _enter_state(s: String) -> void:
 			var to_conf := _fire_look - position
 			if to_conf.length() > 0.01:
 				_yaw = atan2(-to_conf.x, -to_conf.z)
-			_timer = randf_range(7.0, 10.0)
+			_timer = _dado(Dadi.VILLAGGIO, "durata:r_confronto").randf_range(7.0, 10.0)
 		"r_fire":
 			# si accomoda e guarda il fuoco: la serata è questa
 			var to_fire := _fire_look - position
@@ -1493,7 +1578,7 @@ func _process(delta: float) -> void:
 				_enter_state("browse")
 		"sit":
 			_timer -= delta
-			_anim_sit()
+			_anim_sit(delta)
 			if _timer <= 0.0 and _bench and is_instance_valid(_bench):
 				var down: Vector3 = _bench.global_transform * Vector3(0, 0, 0.85)
 				_gift_pos = down
@@ -1540,7 +1625,7 @@ func _process(delta: float) -> void:
 				_enter_state("r_idle")
 		"r_idle":
 			_timer -= delta
-			_anim_sit()
+			_anim_sit(delta)
 			_resident_greet(delta)
 			if _timer <= 0.0:
 				_enter_state("r_wander")
@@ -1553,7 +1638,7 @@ func _process(delta: float) -> void:
 				_enter_state("r_idle")
 		"r_bench":
 			_timer -= delta
-			_anim_sit()
+			_anim_sit(delta)
 			# CHI E' SEDUTO TI SALUTA. Lo facevano gia' `r_idle`, `r_sniff`,
 			# `r_attesa` e `r_fire`; questo no, e non si vedeva perche' una
 			# seduta durava trenta millisecondi. Da quando dura quindici
@@ -1592,7 +1677,7 @@ func _process(delta: float) -> void:
 				_pasto_via()
 				_enter_state(_pasto_ritorno if _pasto_ritorno != "" else "r_idle")
 		"r_fire":
-			_anim_sit()
+			_anim_sit(delta)
 			_resident_greet(delta)
 		"lp_wait":
 			_timer -= delta
@@ -1740,7 +1825,7 @@ func _process(delta: float) -> void:
 				_enter_state("th_perch")
 		"th_perch":
 			_timer -= delta
-			_anim_sit()
+			_anim_sit(delta)
 			if _player_ref:
 				var to_p := _player_ref.global_position - position
 				_yaw = lerp_angle(_yaw, atan2(-to_p.x, -to_p.z), 1.0 - exp(-4.0 * delta))
@@ -2042,7 +2127,9 @@ func _anim_move(delta: float) -> void:
 		if hop > 0.9 and _step_acc > 0.3:
 			_step_acc = 0.0
 			if _sfx:
-				_sfx.play("step_grass" + str(1 + randi() % 3), -24.0, 1.5)
+				# COSMETICO: quale dei tre campioni suona. Non tocca stato,
+				# posa né posizione — non può raggiungere nessuna misura.
+				_sfx.play("step_grass" + str(1 + _dado_libero().randi() % 3), -24.0, 1.5)
 	else:
 		# trotterello: dondolio laterale + zampettio fitto
 		_vis.position.y = absf(sin(_t * 9.0)) * 0.03
@@ -2053,7 +2140,8 @@ func _anim_move(delta: float) -> void:
 		if _step_acc > 0.3:
 			_step_acc = 0.0
 			if _sfx:
-				_sfx.play("step_grass" + str(1 + randi() % 3), -25.0, 1.2)
+				# COSMETICO, come sopra
+				_sfx.play("step_grass" + str(1 + _dado_libero().randi() % 3), -25.0, 1.2)
 
 
 # da fermi i piedini tornano a posto con dolcezza (mai congelati a mezz'aria)
@@ -2248,9 +2336,14 @@ func _anim_dorme(dur: float, delta: float) -> void:
 		# il fremito del sogno: ogni tanto un orecchio scatta e si riposa
 		_sonno_fremito -= delta
 		if _sonno_fremito <= 0.0:
-			_sonno_fremito = randf_range(3.5, 8.0)
+			# CORPO: quando scatta l'orecchio e QUALE dei due. Non cambia
+			# nessuna decisione — chi dorme non decide niente — ma cambia
+			# quello che si vede, e un provino del sonno lo vuole fermo.
+			# Un dado solo per tutti e due i numeri: sono lo stesso fremito.
+			var d_fr := _dado(Dadi.CORPO, "fremito_del_sogno")
+			_sonno_fremito = d_fr.randf_range(3.5, 8.0)
 			_sonno_fremito_t = 0.35
-			_sonno_fremito_i = randi() % maxi(_c_ears.size(), 1)
+			_sonno_fremito_i = d_fr.randi() % maxi(_c_ears.size(), 1)
 		var fr := 0.0
 		if _sonno_fremito_t > 0.0:
 			_sonno_fremito_t -= delta
@@ -2279,7 +2372,28 @@ func _anim_dorme(dur: float, delta: float) -> void:
 	_sonno_r_prev = r
 
 
-func _anim_sit() -> void:
+## ⚠️ IL DELTA ARRIVA DA FUORI, e prima veniva da `get_process_delta_time()`.
+## Era l'UNICA occorrenza in tutto il file — il gemello `_anim_dorme(dur, delta)`
+## il delta lo riceve da sempre — e in partita i due numeri coincidono, quindi
+## per chi gioca non cambia un pixel. Cambia per chi guida `_process` a mano:
+## i banchi (`provino_seduta`, `prova_seduta_troncata`, `provino_gesti`,
+## `test_gesti`) passano il loro passo, e poi vedevano `_sit_t` fare un balzo
+## pari alla durata del frame del MOTORE — cioè misuravano un assestamento che
+## il gioco non produce.
+##
+## MISURATO: `test_gesti._il_gesto_troncato_rientra_senza_saltare` diventa rosso
+## appena il frame del motore supera 0,0875 s, che sotto carico succede sempre
+## (0,145–0,150 s con altre sessioni addosso). Il salto coincideva alla quarta
+## cifra con `assesto_seduta(dt_motore)["fianchi"]`: a 0,1167 s dà esattamente
+## lo 0,0363 della rossa, e col passo del banco il massimo torna 0,0189 — il
+## regime su cui il tetto 0,030 era stato tarato.
+## **Non era una tolleranza da alzare: erano due orologi.**
+##
+## E il canale che falliva non era nemmeno del gesto: il Raccolto non scrive
+## `vrz` (vedi la tabella in `Gesti.gd`), quindi `vis.rz` durante `r_idle` può
+## venire solo di qui. È la stessa trappola già scritta in testa a quel caso
+## («non era il gesto: era il ciclo del passo»), un piano più in là.
+func _anim_sit(delta: float) -> void:
 	# riposo beato — ma PRIMA l'assestamento: il plop con un rimbalzo,
 	# i fianchi che si sistemano, il sospiro, la coda che si accomoda
 	# con due colpi. Gli anziani fanno tutto con più calma. Solo dopo
@@ -2288,7 +2402,7 @@ func _anim_sit() -> void:
 	# IL PLOP SUONA SULL'ATTERRAGGIO. Finché il corpo sta ancora salendo
 	# sul sedile l'assestamento non parte: un tonfo mentre si è per aria è
 	# la stessa bugia di una posa senza micro-movimento, al contrario.
-	var dt := get_process_delta_time()
+	var dt := delta
 	if _sit_attesa > 0.0:
 		_sit_attesa = maxf(0.0, _sit_attesa - dt)
 	else:
@@ -2321,7 +2435,8 @@ func _anim_sit() -> void:
 		if _emote_cd <= 0.0:
 			_emote_cd = 4.0
 			if _sfx:
-				_sfx.play("chirp" + str(1 + randi() % 3), -20.0, 1.2)
+				# COSMETICO: quale cinguettio, e basta
+				_sfx.play("chirp" + str(1 + _dado_libero().randi() % 3), -20.0, 1.2)
 	elif _emote_cd <= 0.0:
 		_emote_cd = 5.0
 		_spawn_heart()
@@ -2650,7 +2765,12 @@ func _next_plan_step() -> void:
 			_walk_to(Vector3(float(passo[1]), 0, float(passo[2])), "lp_next")
 		"verso_casa":
 			var front: Vector3 = _house.get("front", position)
-			_walk_to(front + Vector3(randf_range(-0.5, 0.5), 0, randf_range(-0.5, 0.5)), "lp_next")
+			# COMPORTAMENTALE: mezzo metro di scarto è poco da guardare e
+			# tanto da misurare — la posizione è quello che leggono la
+			# co-presenza, il raggio dei gesti e chi si siede accanto a chi.
+			var d_casa := _dado(Dadi.VILLAGGIO, "dove:verso_casa")
+			_walk_to(front + Vector3(d_casa.randf_range(-0.5, 0.5), 0,
+					d_casa.randf_range(-0.5, 0.5)), "lp_next")
 		"aspetta":
 			_timer = float(passo[1])
 			_state = "lp_wait"
@@ -3528,7 +3648,8 @@ func _resident_greet(delta: float) -> void:
 			_:
 				speak(["ciao"], "felice")
 		if _sfx and species == "passerotto":
-			_sfx.play("chirp" + str(1 + randi() % 3), -18.0, 1.2)
+			# COSMETICO: quale cinguettio, e basta
+			_sfx.play("chirp" + str(1 + _dado_libero().randi() % 3), -18.0, 1.2)
 		# e Mochi risponde con la zampina, dopo un attimo di reazione
 		get_tree().create_timer(0.35).timeout.connect(func():
 			if _player_ref:

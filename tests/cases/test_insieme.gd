@@ -128,6 +128,8 @@ func run(t) -> void:
 	_il_fatto_segue_l_ancora_SPOSTATA(t)
 	_accanto_e_il_piu_vicino_non_il_primo(t)
 	_mochi_resta_il_primo_anello(t)
+	_l_oracolo_dell_ablazione_e_un_controfattuale(t)
+	_l_oracolo_attraversa_l_anello_che_risponde(t)
 	_il_tetto_del_lease_sta_sopra_la_posa(t)
 
 
@@ -1286,6 +1288,201 @@ func _mochi_resta_il_primo_anello(t) -> void:
 			"PREMESSA: cercando la compagnia da CASA la si trova")
 	t.ok(vis._panchina_per(r, home) == dalla_tua_parte,
 			"ma l'invito non scavalca il giocatore: ci si siede dove sei TU")
+
+
+## ⚠️ **L'ORACOLO DELL'ABLAZIONE E' UN CONTROFATTUALE, NON IL VALORE ABLATO.**
+##
+## A leva spenta `_seduta_da` esce alla prima riga: la panca preferita non
+## viene calcolata da NESSUNA PARTE. Per un pezzo `insieme_osservato` portava
+## percio' il valore ABLATO — «la panca che avrei scelto comunque aveva per
+## caso qualcuno accanto» — invece della domanda che un'ablazione fa: «quale
+## panca avrei scelto SE la leva fosse accesa, e aveva qualcuno accanto?». Il
+## referto di `misura_insieme` ne stampava la conclusione OPPOSTA a quella
+## vera: chi leggeva «il fatto si sarebbe acceso quasi mai» concludeva «il
+## meccanismo non avrebbe avuto occasione», mentre l'occasione, accendendolo,
+## c'era. **Un oracolo che mente e' peggio di nessun oracolo: nessun oracolo
+## ti fa misurare, uno che mente ti fa credere di aver gia' misurato.**
+##
+## ⚠️ E la mutazione che rimette il difetto — cancellare le due righe
+## `if not Leve.acceso(...): preferita = _panchina_per(r, home, true)` e
+## lasciare `preferita = panca` — **lasciava la suite completamente verde**:
+## in tutto il progetto nessun caso leggeva `insieme_osservato`. L'unico
+## lettore era il banco, cioe' proprio la cosa che l'oracolo doveva servire.
+##
+## LA GEOMETRIA e' quella di `_la_compagnia_piu_vicina_prima`, ed e' l'unica
+## che rende le due risposte DISTINGUIBILI: la seduta piu' vicina all'ancora
+## e' libera e SOLA — e' quella che il corpo prende davvero a leva spenta — e
+## la compagnia sta piu' in la' ma dentro `RAGGIO_SEDUTA`, cioe' e' quella
+## che il controfattuale deve saper nominare. Con le due sedute confuse in
+## una il caso resterebbe verde su tutte e due le stesure.
+func _l_oracolo_dell_ablazione_e_un_controfattuale(t) -> void:
+	var v := _villaggio(t, 2)
+	var casa: Node = v["casa"]
+	var vis = v["vis"]
+	var build = v["build"]
+	# la piu' vicina a casa: libera, e nessuno entro `VICINI` (il seduto sta
+	# a 8,9 m). La compagnia e' a dieci metri, dentro il raggio di sempre.
+	var sola := _seduta(Vector3(2.0, 0, 0), casa)
+	var accompagnata := _seduta(Vector3(10.0, 0, 0), casa)
+	var occupata := _seduta(Vector3(10.9, 0, 0), casa)
+	build.pezzi["Panchina"] = [sola, accompagnata, occupata]
+	_siedi(v["corpi"][1], occupata, Vector3(10.9, 0, 0))
+
+	var r: Dictionary = vis._residents[0]
+	r["cell"] = Vector2i(0, 0)
+	var home := Vector3(0, 0, 0)
+	(v["corpi"][0] as Node3D).global_position = home
+
+	# ⚠️ SI MISURA PRIMA E SI ASSERISCE DOPO, e la leva si rimette a posto in
+	# mezzo: un errore a runtime dentro un'asserzione non fa fallire il caso,
+	# lo INTERROMPE — e una leva rimasta spenta si porterebbe dietro tutti i
+	# casi successivi, che non sanno nemmeno che esista.
+	var era_accesa := Leve.acceso(Leve.INSIEME)
+
+	Leve.spegni(Leve.INSIEME)
+	vis._luoghi_del_piano(r, home)
+	var spenta_oss := bool(r.get("insieme_osservato", false))
+	var spenta_fatto := bool(r.get(VISITORS.FATTO_INSIEME, true))
+	var spenta_panca = r.get("panca_scelta")
+	# …e con NESSUNO seduto in tutto il villaggio l'oracolo deve tacere: e'
+	# l'unica lettura che distingue un controfattuale da un `true` costante.
+	(v["corpi"][1] as Node3D).set("_state", "r_idle")
+	vis._luoghi_del_piano(r, home)
+	var deserto_oss := bool(r.get("insieme_osservato", true))
+	_siedi(v["corpi"][1], occupata, Vector3(10.9, 0, 0))
+
+	Leve.accendi(Leve.INSIEME)
+	vis._luoghi_del_piano(r, home)
+	var accesa_oss := bool(r.get("insieme_osservato", false))
+	var accesa_fatto := bool(r.get(VISITORS.FATTO_INSIEME, false))
+	var accesa_panca = r.get("panca_scelta")
+
+	if era_accesa:
+		Leve.accendi(Leve.INSIEME)
+	else:
+		Leve.spegni(Leve.INSIEME)
+
+	# PREMESSA: le due domande hanno risposte diverse, o non c'e' niente da
+	# separare e il caso sarebbe verde su qualunque stesura.
+	t.ok(vis._free_bench(home) == sola,
+			"PREMESSA: senza filtro la panchina di casa e' quella VICINA e sola")
+	t.ok(vis._free_bench(home, true, v["corpi"][0]) == accompagnata,
+			"PREMESSA: col filtro si troverebbe l'altra, quella con qualcuno accanto")
+
+	# MUTAZIONE: `preferita = panca` (cioe' cancellare le due righe della
+	# cura in `_luoghi_del_piano`) → 2 rosse, ed erano ZERO in tutto il
+	# progetto. MUTAZIONE: il QUARTO anello di `_panchina_per` che si
+	# dimentica `come_se_accesa` → 1 rossa, questa.
+	t.ok(spenta_oss,
+			"a leva SPENTA l'oracolo dice il CONTROFATTUALE: il fatto si sarebbe acceso")
+	# MUTAZIONE: `r[FATTO_INSIEME] = accanto` (senza l'`and Leve.acceso`) →
+	# l'oracolo smetterebbe di essere un'osservazione e tornerebbe a decidere.
+	t.ok(not spenta_fatto,
+			"…ma il fatto che il motore legge resta SPENTO: leggere non e' decidere")
+	# MUTAZIONE: `panca = preferita` — l'oracolo che manda il corpo. Con
+	# quella l'ablazione non ablerebbe piu' niente, e la condizione «senza
+	# insieme» misurerebbe il gioco con l'insieme acceso.
+	t.ok(spenta_panca == sola,
+			"e il CORPO resta sulla panca non preferita: si legge, non si dirotta")
+	# MUTAZIONE: `r["insieme_osservato"] = true` costante → questa e' la sola
+	# lettura che la vede (le altre due chiedono `true`).
+	t.ok(not deserto_oss,
+			"e con nessuno seduto in giro l'oracolo tace: parla ancora del mondo")
+
+	# LA CONTROPROVA, a leva ACCESA: le due meta' coincidono, ed e' quello
+	# che dev'essere — `preferita` E' `panca`, e il bit non cambia di un
+	# valore rispetto a prima che l'oracolo esistesse. Senza questa meta' il
+	# caso non distinguerebbe la cura da un oracolo che risponde a caso: le
+	# tre letture di sopra sono tutte a leva SPENTA.
+	# MUTAZIONE: `_seduta_da` che torna sempre `_free_bench(ancora)`, cioe'
+	# il meccanismo spento a mano → 8 rosse in questo file, 3 delle quali qui.
+	t.ok(accesa_oss and accesa_fatto,
+			"a leva ACCESA l'osservazione e il fatto dicono la stessa cosa")
+	t.ok(accesa_panca == accompagnata,
+			"…e li' il corpo ci va davvero: il posto scelto e' quello accompagnato")
+
+
+## ⚠️ **E L'ORACOLO ATTRAVERSA L'ANELLO CHE HA RISPOSTO, non solo l'ultimo.**
+##
+## `_panchina_per` ha quattro anelli e `come_se_accesa` deve arrivare a tutti:
+## un anello che se lo dimentica da' un oracolo vero **solo per chi passa di
+## li'**, e siccome il primo anello che risponde chiude la funzione, il
+## controfattuale diventa una bugia intermittente — la peggiore da leggere in
+## un referto, perche' la percentuale c'e' ed e' quasi giusta.
+##
+## Il caso di sopra copre il QUARTO anello (l'ancora e' casa, gli altri tre
+## tornano `home` e vengono saltati). Qui si copre il PRIMO — Mochi vicina e
+## ammirazione sopra soglia — e la geometria lo rende STRUTTURALE invece che
+## incidentale: **da casa non si vede nessuna delle due sedute** (stanno a 17
+## e 21 metri, oltre `RAGGIO_SEDUTA`), quindi a rispondere puo' essere solo
+## l'anello dell'ancora spostata.
+##
+## ⚠️ RESIDUO DICHIARATO: il secondo anello (l'ancora del ricordo) e il terzo
+## (quella del ritrovo) restano scoperti QUI — vogliono il grafo dei ricordi
+## e un registro delle cricche. A tenerli c'e' il source-check di
+## `test_dadi._loracolo_dellablazione_si_puo_chiedere`, che conta i
+## `come_se_accesa)` dentro `_panchina_per`: e' una guardia piu' debole, e va
+## saputo invece che lasciato credere.
+func _l_oracolo_attraversa_l_anello_che_risponde(t) -> void:
+	var v := _villaggio(t, 2)
+	var casa: Node = v["casa"]
+	var vis = v["vis"]
+	var build = v["build"]
+	# il giocatore, e un vicino che lo ammira: l'ancora si sposta di
+	# `SPOSTA_MAX` verso di lui, da (0,0,0) a (6,0,0)
+	var mochi := Node3D.new()
+	casa.add_child(mochi)
+	mochi.global_position = Vector3(10, 0, 0)
+	vis.set("_player", mochi)
+	vis.finta_ammirazione = 0.5
+
+	# 17 e 21 metri da CASA (fuori raggio), 11 e 15 dall'ANCORA (dentro).
+	var sola := _seduta(Vector3(17.0, 0, 0), casa)
+	var accompagnata := _seduta(Vector3(21.0, 0, 0), casa)
+	var occupata := _seduta(Vector3(21.9, 0, 0), casa)
+	build.pezzi["Panchina"] = [sola, accompagnata, occupata]
+	_siedi(v["corpi"][1], occupata, Vector3(21.9, 0, 0))
+
+	var r: Dictionary = vis._residents[0]
+	r["cell"] = Vector2i(0, 0)
+	var home := Vector3(0, 0, 0)
+	(v["corpi"][0] as Node3D).global_position = home
+
+	var era_accesa := Leve.acceso(Leve.INSIEME)
+
+	Leve.spegni(Leve.INSIEME)
+	vis._luoghi_del_piano(r, home)
+	var oss := bool(r.get("insieme_osservato", false))
+	var panca = r.get("panca_scelta")
+	var scelta_spenta = vis._panchina_per(r, home)
+	Leve.accendi(Leve.INSIEME)
+	var scelta_accesa = vis._panchina_per(r, home)
+
+	if era_accesa:
+		Leve.accendi(Leve.INSIEME)
+	else:
+		Leve.spegni(Leve.INSIEME)
+
+	# PREMESSA: dal quarto anello non si vede niente — e le due domande
+	# dirette non passano dalla leva, quindi si possono fare qui. Senza
+	# queste tre righe il caso proverebbe di nuovo l'anello di casa e
+	# sarebbe un doppione muto di quello di sopra.
+	t.ok(vis._free_bench(home) == null and vis._free_bench(home, true, v["corpi"][0]) == null,
+			"PREMESSA: da CASA le due sedute sono fuori raggio, in tutti e due i modi")
+	t.ok(scelta_spenta == sola,
+			"PREMESSA: a rispondere e' l'anello di Mochi, e a leva spenta da' la seduta sola")
+	t.ok(scelta_accesa == accompagnata,
+			"PREMESSA: lo stesso anello, a leva accesa, da' quella con compagnia")
+
+	# MUTAZIONE: `_seduta_da(verso_te, corpo)` — cioe' il primo anello che si
+	# dimentica `come_se_accesa` → 1 rossa, questa: l'oracolo ricadrebbe
+	# sulla panca ablata e direbbe di no proprio dove il meccanismo avrebbe
+	# agito. E `preferita = panca` (la cura cancellata) la fa arrossire
+	# insieme a quella dell'anello di casa: 2 rosse in tutto il file.
+	t.ok(oss,
+			"il controfattuale arriva anche all'anello di Mochi: il fatto si sarebbe acceso")
+	t.ok(panca == sola,
+			"…e il corpo, intanto, resta dove l'ablazione lo manda")
 
 
 ## ⚠️ **IL TETTO DEL LEASE STA SOPRA LA POSA PIU' LUNGA — misurata dal corpo.**

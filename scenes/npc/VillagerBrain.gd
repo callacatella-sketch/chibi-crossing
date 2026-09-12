@@ -101,8 +101,32 @@ func setup(dna: Dictionary) -> void:
 		var second := (first + 1 + _rng.randi() % (keys.size() - 1)) % keys.size()
 		indole = [keys[first], keys[second]]
 		quirk = QUIRKS[_rng.randi() % QUIRKS.size()] if _rng.randf() < 0.65 else ""
-	# il seme del comportamento quotidiano resta personale ma vario
-	_rng.seed = hash(str(dna.get("name", "?"))) + Time.get_ticks_msec() % 1000
+	# ⚠️ IL SEME DEL COMPORTAMENTO QUOTIDIANO, E VENIVA DALL'OROLOGIO.
+	#
+	# Qui c'era `hash(nome) + Time.get_ticks_msec() % 1000`, e da quel dado
+	# esce `jitter()` — cioè il **dado congelato dell'agenda**, quello che
+	# decide fra due azioni quasi pari. L'intenzione era giusta («personale
+	# ma vario»: due sessioni non si somigliano); la sorgente no.
+	#
+	# Con l'orologio, una giornata di questo villaggio NON SI POTEVA
+	# RIPETERE: due corse della stessa misura con gli stessi parametri
+	# davano 0,31 e 1,77 righe di co-presenza per residente. E senza
+	# ripetizione non esiste ablazione, né sensibilità, né confronto fra
+	# condizioni — cioè tutte le misure psicologiche del progetto restavano
+	# ipotesi ben poste invece che risultati.
+	#
+	# La varietà adesso viene dalla RADICE della partita invece che
+	# dall'orologio: due villaggi diversi restano diversi (la radice è
+	# coniata una volta e vive in `village.json`), e la stessa partita si
+	# può rigiocare. `prova_identico._semina_cervelli` faceva già questo a
+	# mano, con un registro di chi era già passato di lì: adesso non serve
+	# più a nessuno saperlo.
+	#
+	# ⚠️ Nota onesta: `_rng` non è persistito (vedi `to_dict`), quindi
+	# ricaricare una partita rigioca la stessa sequenza di jitter. È voluto
+	# — è la ripetibilità — e non apre il save-scumming: il dado che
+	# protegge da quello è `Animo._rng`, che è salvato apposta.
+	_rng = Dadi.rng(Dadi.VILLAGGIO, "cervello:" + str(dna.get("name", "?")))
 
 
 func has_indole(id: String) -> bool:

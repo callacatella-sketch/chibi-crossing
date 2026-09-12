@@ -30,6 +30,7 @@ func run(t) -> void:
 	_test_le_tabelle_ponte(t)
 	_test_la_lettera_del_gufo(t)
 	_test_persistenza(t)
+	_test_i_gesti_entrano_col_nome_giusto(t)
 
 
 ## Le tre porte: la fiducia (giorni di Filo), il bisogno (umore +
@@ -291,3 +292,108 @@ func _test_persistenza(t) -> void:
 			"la scadenza funziona anche sulla voce ricaricata")
 	v.free()
 	v2.free()
+
+
+## ⚠️ I GESTI DELLA VOCE ENTRANO NEL MASTRO CON L'ANAGRAFE GIUSTA.
+##
+## Tutta la Voce lavora per ETICHETTA («la volpina Pepita»), il libro
+## mastro degli Affetti per NOME del DNA («Pepita»). Fino al 2026-09-04
+## `_gesto_affetti` passava la label cruda, e i TRE GESTI PIÙ PESANTI che
+## il giocatore possa provocare — `coraggio` (1.20), `consolazione` (1.00),
+## `fianco` (0.35) — finivano nel mastro con una chiave che nessun lettore
+## usa mai: `conto()` non li vedeva, `GESTI_VERI_MIN` non li contava, e
+## nessuna coppia poteva nascere da lì. Righe fantasma che occupavano
+## anche il posto nella potatura.
+##
+## ⚠️ E LA SUITE ERA VERDE. Nessuna asserzione, in tutto il progetto,
+## guardava che cosa la Voce SCRIVE: si provava che cosa PESCA (le cinque
+## famiglie) e che cosa DICE (le tabelle-ponte), mai dove finisce quello
+## che fa. La mutazione che rende rosso questo caso è rimettere la label:
+## `_affetti.call("gesto", da, verso, tipo)`.
+func _test_i_gesti_entrano_col_nome_giusto(t) -> void:
+	var AFFETTI := load("res://scenes/npc/Affetti.gd")
+	# un registro finto che si limita a REGISTRARE cosa gli arriva: non
+	# ri-implementa niente di quello che si sta provando (la lezione del
+	# `Corpo` di test_deduzioni), dice solo con quale chiave è stato chiamato
+	var spia := Node.new()
+	spia.set_script(GDScript.new())
+	var libro: Array = []
+	spia.set_meta("libro", libro)
+
+	var voce := VOCE.new()
+	var vis := VISITORS.new()
+	# ⚠️ `_residents` è `Array[Dictionary]`, e un `set()` con un Array NUDO
+	# non assegna e NON DICE NIENTE (la trappola è già scritta nel CLAUDE.md,
+	# a proposito del finto BuildSystem di `test_insieme`): il fixture
+	# restava vuoto, `_nome_da_label` ripiegava sul suo `return label`, e il
+	# caso falliva accusando la cura invece del proprio banco.
+	var abitanti: Array[Dictionary] = [
+		{"label": "la volpina Pepita", "dna": {"name": "Pepita"}},
+		{"label": "il gattino Mirtillo", "dna": {"name": "Mirtillo"}},
+	]
+	vis.set("_residents", abitanti)
+	voice_cabla(voce, vis)
+
+	# la conversione è quella VERA di Visitors, non una copia del test
+	t.eq(vis._nome_da_label("la volpina Pepita"), "Pepita",
+			"la label si converte nel nome del DNA")
+	t.eq(vis._nome_da_label("il gattino Mirtillo"), "Mirtillo",
+			"e vale per tutti e due")
+
+	# e quello che la Voce manda agli Affetti dev'essere il NOME
+	var visto: Array = []
+	voce.set("_affetti", _spia_affetti(visto))
+	voce.call("_gesto_affetti", "la volpina Pepita", "il gattino Mirtillo",
+			"coraggio")
+	t.eq(visto.size(), 1, "il gesto arriva agli Affetti")
+	if visto.size() == 1:
+		var g: Dictionary = visto[0]
+		t.eq(str(g.get("da", "")), "Pepita",
+				"e chi lo fa è il NOME, non l'etichetta (%s)" % str(g.get("da", "")))
+		t.eq(str(g.get("verso", "")), "Mirtillo",
+				"e chi lo riceve pure (%s)" % str(g.get("verso", "")))
+		t.eq(str(g.get("tipo", "")), "coraggio", "e il tipo passa intatto")
+
+	# LA CONTROPROVA CHE CONTA: con quelle chiavi il conto le VEDE, e con
+	# le label no. Senza questa metà, il caso sopra proverebbe una
+	# conversione senza dire perché serve.
+	var aff = AFFETTI.new()
+	var oggi := 0
+	var righe_nome: Array = [
+		{"a": "Mirtillo", "b": "Pepita", "t": "coraggio", "d": oggi},
+		{"a": "Mirtillo", "b": "Pepita", "t": "consolazione", "d": oggi},
+		{"a": "Mirtillo", "b": "Pepita", "t": "piatto", "d": oggi},
+	]
+	var righe_label: Array = [
+		{"a": "il gattino Mirtillo", "b": "la volpina Pepita", "t": "coraggio", "d": oggi},
+		{"a": "il gattino Mirtillo", "b": "la volpina Pepita", "t": "consolazione", "d": oggi},
+		{"a": "il gattino Mirtillo", "b": "la volpina Pepita", "t": "piatto", "d": oggi},
+	]
+	var c_nome: float = AFFETTI.conto(righe_nome, "Pepita", "Mirtillo", oggi, 0.5)
+	var c_label: float = AFFETTI.conto(righe_label, "Pepita", "Mirtillo", oggi, 0.5)
+	t.ok(c_nome > 0.0, "col nome il conto vede i gesti (%.3f)" % c_nome)
+	t.almost(c_label, 0.0,
+			"con le label il conto non vede NIENTE — ed è il difetto che c'era", 0.0001)
+	aff.free()
+	voce.free()
+	vis.free()
+
+
+## Un registro che REGISTRA e basta: appende quel che gli arriva.
+func _spia_affetti(dove: Array) -> Node:
+	var n := Node.new()
+	var sc := GDScript.new()
+	sc.source_code = """
+extends Node
+var visto: Array = []
+func gesto(da: String, verso: String, tipo: String) -> void:
+	visto.append({"da": da, "verso": verso, "tipo": tipo})
+"""
+	sc.reload()
+	n.set_script(sc)
+	n.set("visto", dove)
+	return n
+
+
+func voice_cabla(voce, vis) -> void:
+	voce.set("_visitors", vis)
