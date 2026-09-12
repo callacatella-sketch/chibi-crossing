@@ -57,3 +57,8 @@ addons/lua-gdextension/build/*
 # solo come file di lavoro locali, non si versionano.
 docs/catalogo/**/*.png
 .DS_Store
+
+# le copie di sicurezza del banco di mutazione (tools/muta.sh):
+# vivono solo fra la mutazione e il ripristino, e non devono MAI entrare
+# in un commit (vedi la guardia in .claude/hooks/git-backup.sh)
+*.pre-muta
