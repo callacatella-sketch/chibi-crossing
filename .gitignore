@@ -62,3 +62,8 @@ docs/catalogo/**/*.png
 # vivono solo fra la mutazione e il ripristino, e non devono MAI entrare
 # in un commit (vedi la guardia in .claude/hooks/git-backup.sh)
 *.pre-muta
+
+# le misure temporanee delle revisioni avversariali: i file lo dichiarano
+# di se' («misure temporanee, file NON tracciato») e l'hook di backup, con
+# il suo `git add -A`, li raccoglieva lo stesso
+zz_lente/
