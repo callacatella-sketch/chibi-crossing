@@ -77,15 +77,15 @@ scenes/npc/Animo.gd
 -->
 	var sch := RILETTURA.scheda(float(c["torti"]), float(c["prove"]))
 =====
-il rancore legge il SOMMARIO (il villaggio si compra col cibo)
+il rancore torna alle sole righe VIVE (lo scudo del giocatore evapora)
 scenes/npc/Animo.gd
-	var buoni: float = float(c["prove"])
--->
 	var buoni: float = float(c["prove_totali"])
-=====
-il rancore smette di leggere il conto
-scenes/npc/Animo.gd
+-->
 	var buoni: float = float(c["prove"])
+=====
+il rancore smette di leggere il conto (nessun perdono, mai)
+scenes/npc/Animo.gd
+	var buoni: float = float(c["prove_totali"])
 -->
 	var buoni: float = 0.0
 =====
