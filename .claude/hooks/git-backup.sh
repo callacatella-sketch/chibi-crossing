@@ -54,6 +54,26 @@ _fresh() {
 # 1) Throttle: se il backup di oggi è già stato fatto, niente da fare.
 _fresh && exit 0
 
+# 1-bis) UN BANCO DI MUTAZIONE STA GIRANDO: non si tocca niente.
+#
+# ⚠️ È SUCCESSO, il 2026-09-12 alle 20:00:36. `tools/muta.sh` guasta UNA riga
+# per volta e la rimette dopo aver fatto girare la suite: per ore i sorgenti
+# sono guasti a intermittenza. Questo hook è scattato proprio dentro una di
+# quelle finestre e ha committato `scenes/npc/Animo.gd` **con la mutazione
+# dentro** (+1 riga) più la copia di sicurezza `Animo.gd.pre-muta` (1551
+# righe). Il `trap` del banco ha poi rimesso a posto il sorgente, quindi
+# l'albero di lavoro era sano e IL COMMIT IN TESTA PORTAVA UNA MUTAZIONE VIVA
+# — cioè esattamente la riga che una guardia era stata scritta per sorvegliare,
+# capovolta, in un commit che si chiama «backup automatico».
+#
+# Il banco si riconosce da un fatto positivo: la copia `*.pre-muta` esiste solo
+# fra la mutazione e il ripristino. Se c'è, si esce senza toccare niente —
+# NON si timbra, così il backup vero parte alla prima risposta dopo il banco.
+if find scenes systems shaders tools tests src -name '*.pre-muta' 2>/dev/null \
+		| grep -q .; then
+	exit 0
+fi
+
 # 2) Lock: un solo backup per volta (agenti concorrenti). Un lock rimasto
 #    orfano da oltre 10 minuti è stantìo (processo morto): si rimuove.
 if [ -d "$lock" ]; then

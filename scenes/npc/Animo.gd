@@ -1273,7 +1273,6 @@ func regola(attore := "giocatore") -> Dictionary:
 		# con un altro nome.
 		var out := sch.duplicate()
 		out["modo"] = "rilettura"
-		limbico.regolazione = maxf(0.0, limbico.regolazione - 0.22)
 		return out
 	# nessuna prova che regga: si torna esattamente al gioco di prima.
 	var ok: bool = limbico.trattieni()
