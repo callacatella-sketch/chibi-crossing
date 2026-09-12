@@ -7501,9 +7501,50 @@ giornate, tre semi, e il controfattuale **nella stessa corsa**):
 Cioè: **oggi il villaggio si placa col cibo**, e la promessa di
 `aggiorna_scala` («ogni gradino deve poter essere visto e corretto») diventa
 «non c'è mai niente da correggere». Non è una regressione di questo merge —
-è il comportamento che `main` ha adesso — ma la cura non è scegliere l'altro
-lato: è far decadere il sommario come decadono le righe vive. Vedi «IL
-SOMMARIO NON DECADEVA», più sotto.
+è il comportamento che `main` ha adesso.
+
+### ⚠️⚠️ LA CURA OVVIA È STATA PROVATA, MISURATA E BUTTATA
+
+Far decadere il sommario come decadono le righe vive — scontare il `peso`
+fino alla data con cui verrà letto, nei due versi, così il risultato non
+dipende dall'ordine in cui la potatura fonde le righe — è **cinque righe**,
+è simmetrico per costruzione, e cura il difetto descritto qui sopra. Scritto,
+compilato, misurato:
+
+| un piatto | confronto, col sommario nudo | **col sommario che decade** |
+|---|---|---|
+| **mai** | giorno 71 | **MAI** |
+| ogni 7 giorni | 81 | **MAI** |
+| ogni 3 giorni | 105 | **MAI** |
+| ogni 2 giorni | MAI | **MAI** |
+| ogni giorno | MAI | **MAI** |
+
+I torti passano da **36,9 a 25,2** e il rancore satura a **0,7473**, sotto la
+soglia del confronto. Cioè: **nessuno ti affronta più, mai — nemmeno chi
+tratti male tutti i giorni e a cui non porti niente.**
+
+E si capisce perché, ed è la cosa che vale la pena portarsi via:
+**`rancore()` contava sulla crescita illimitata del sommario per arrivare in
+cima alla scala.** Con un accumulatore che decade davvero, il rancore smette
+di dipendere dal TOTALE dei torti e comincia a dipendere dal loro RITMO — che
+è quasi certamente più giusto («quanto sono arrabbiato adesso» non è «quanto
+mi hai fatto in tutta la vita») — ma **le soglie di `SOGLIA`/`soglie()` sono
+tarate sul vecchio comportamento**, e sotto quelle soglie c'è
+`Visitors._congeda()`, cioè chi se ne va dal villaggio.
+
+**Perciò la cura non è stata consegnata**: vale una ritaratura della scala
+della ribellione, non una riga, ed è una decisione dell'autore — questo è il
+meccanismo che decide se qualcuno ti affronta e se qualcuno se ne va. Chi ci
+torna ha già i due numeri di arresto: il confronto deve restare raggiungibile
+**senza** piatti (oggi giorno 71), e non deve diventare irraggiungibile
+**con** i piatti (oggi MAI). Lo strumento è `tools/misura_gradino.gd`, che
+gira il controfattuale nella stessa corsa.
+
+⚠️ E un avviso per chi rimisura: le colonne `prove` e `solo vive` di quel
+banco stampano tutte e due l'aggregato delle sole righe VIVE, che dal merge
+**non è più quello che `rancore()` legge**. I giorni del confronto sono
+giusti (vengono da `aggiorna_scala` vera); le due colonne del libro mastro
+no, e vanno rifatte su `prove_totali` prima di citarle.
 
 ### QUANTO SUCCEDE, in partita
 
