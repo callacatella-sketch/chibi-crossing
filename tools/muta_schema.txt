@@ -61,12 +61,12 @@ const PESO_ANZIANITA := 0.0
 =====
 la scheda si porta dietro l'attore
 scenes/npc/Schema.gd
-		"congruenza": congruenza(tipo, sogno, compiti),
-		"verso": verso(tipo, sogno, compiti),
+		"tipo": tipo,
+		"quando": int(r.get("quando", 0)),
 -->
+		"tipo": tipo,
 		"attore": str(r.get("attore", "")),
-		"congruenza": congruenza(tipo, sogno, compiti),
-		"verso": verso(tipo, sogno, compiti),
+		"quando": int(r.get("quando", 0)),
 =====
 la scheda porta il SEGNO invece del modulo: il diario rosa
 scenes/npc/Schema.gd

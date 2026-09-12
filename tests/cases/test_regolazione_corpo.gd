@@ -92,6 +92,17 @@ const GRADINO_ALTO := "sabotaggio"
 ## giudicare `TENSIONE_CONFRONTO` con qualcosa che non sia lei stessa.
 const SPAVENTO_MINIMO := 0.447
 
+## QUANTO SI PORTA AVANTI LA RAMPA DI RILASCIO prima di chiedere il buio, in
+## frazione di `Gesti.SPEGNI` — mai in secondi.
+##
+## ⚠️ **In frazione perché così sta DENTRO la rampa per costruzione**, anche
+## il giorno che qualcuno ritocca `SPEGNI`. A rampa finita `coda_rilascio`
+## vale zero, `_gesto_soma` spegne il canale da sé, e il banco si ritroverebbe
+## a interrogare un corpo che non sta sciogliendo più niente — cioè a provare
+## un'altra cosa, restando verde. Che il numero sia quello giusto non si
+## spera: lo dice il gemello in coda a `_la_tensione_non_annulla_uno_scioglimento`.
+const RILASCIO_AVANTI := 0.6
+
 ## Etichette LUNGHE e distinte apposta: il toast dello scoppio si riconosce
 ## cercandoci dentro il nome, e con etichette da un carattere qualunque
 ## parola italiana della frase le farebbe combaciare per sbaglio.
@@ -107,6 +118,7 @@ func run(t) -> void:
 	_il_confronto_arma_il_buio(t)
 	_la_tensione_cresce_col_torto(t)
 	_la_tensione_non_si_arma_su_chi_non_la_puo_mostrare(t)
+	_la_tensione_non_annulla_uno_scioglimento(t)
 
 
 # ==========================================================================
@@ -513,6 +525,32 @@ func _fuori_gioco(b: Dictionary, label: String, come: String) -> void:
 			c.call("apri_scena", 3.0)     # la porta vera delle scene rare
 
 
+## Mette un corpo nello stato del SOLLIEVO: un sussulto vero addosso, e il
+## Rialzo che l'ha appena mollato — con la rampa di rilascio già cominciata.
+##
+## ⚠️ **Lo stato NON si scrive a mano su `_gs_soma_sciolto`.** Si accende con
+## le due porte VERE di quel canale (`somatico` · `soma_sciogli`) e lo si
+## porta avanti col passo VERO (`_gesto_soma`, che in partita lo muove un
+## fotogramma per volta, e qui di fotogrammi non ne passa nessuno). Un banco
+## che si scrive addosso lo stato prova la propria idea del rilascio, non
+## quello del gioco — ed è esattamente il difetto che il `MotoreFinto` della
+## Fase 5 ha già fatto pagare a questo progetto.
+##
+## La forza è il sussulto più DEBOLE che questo gioco produca, e non è un
+## dettaglio: più la coda armata è debole, più bassa è la soglia di riarmo di
+## `somatico()` e più facilmente la tensione si prenderebbe il canale. È il
+## caso peggiore per la valvola, cioè quello da provare.
+##
+## Il guadagno è 0: qui serve solo l'orologio del canale, non i canali del rig
+## (che in questo banco non disegna nessuno), e `_gesto_soma` esce prima di
+## toccarli.
+func _in_scioglimento(c) -> void:
+	c.call("somatico", SPAVENTO_MINIMO)
+	c.call("soma_sciogli")
+	c.call("_gesto_soma", GESTI.SPEGNI * RILASCIO_AVANTI,
+			{"r": 1.0, "sy": 1.0}, 0.0)
+
+
 # ── 4 ─────────────────────────────────────────────────────────────────────
 ## ⚠️ **IL BUIO ARRIVA AL CORPO, e ci arriva PER TUTTI E TRE GLI ESITI.**
 ##
@@ -659,3 +697,114 @@ func _la_tensione_non_si_arma_su_chi_non_la_puo_mostrare(t) -> void:
 		t.ok(_tensione(b, CHI_RILEGGE) > 0.0,
 				("…e nello stesso identico giro chi è nel mondo la prende "
 				+ "(controprova, mentre l'altro %s)") % str(come))
+
+
+# ── 7 ─────────────────────────────────────────────────────────────────────
+## ⚠️ **E NON SI ARMA SOPRA UN CORPO CHE SI STA SCIOGLIENDO — cioè sopra il
+## SOLLIEVO APPENA MOSTRATO.**
+##
+## È la quinta valvola di `Visitors._buio_armabile`, l'unica che non riguarda
+## chi guarda ma chi POSSIEDE il canale, e in tutta la suite non aveva un solo
+## lettore: sostituendo le sue due righe con `pass` le 76000 asserzioni
+## restavano verdi.
+##
+## Lo scenario è di due secondi ed è in faccia al giocatore (sta per esteso
+## sopra `Visitor.sta_sciogliendo`): Mochi corre incontro di notte a un vicino
+## che le vuole bene ma ha un torto → trasalisce → 0,4 s dopo il
+## riconoscimento → «ah… sei tu», il Rialzo chiama `soma_sciogli()` e il corpo
+## comincia a mollare. Nello stesso avvicinamento Mochi è già sotto i 2,6 m,
+## quindi appena scade il raffreddamento del morso parte la tensione del
+## confronto — e senza questa valvola **il rilascio viene annullato e la coda
+## guardinga riparte da capo**: il sollievo si rimangia da sé, sotto gli occhi
+## di chi lo stava guardando. Vale identico per il Rialzo della RILETTURA,
+## cioè per il gesto che quella tensione esiste apposta per rendere possibile.
+##
+## ⚠️ **PERCHÉ `somatico()` DA SOLO NON SI DIFENDE, ed è la cosa che rende
+## difficile scrivere bene questo caso.** Il suo riarmo confronta la forza
+## nuova con `_gs_soma · exp(−t/CODA_TAU) · _soma_resto()`, e durante un
+## rilascio `_soma_resto()` crolla verso zero in `Gesti.SPEGNI` secondi. A
+## scioglimento **appena cominciato** vale ancora 1: la tensione (0,31 al
+## gradino più alto di questo ramo) starebbe sotto un sussulto vero (0,447) e
+## verrebbe rifiutata da `somatico` stesso. Un banco piazzato lì sarebbe VERDE
+## anche con la valvola tolta — la stessa forma dell'asserzione che non sa
+## fallire. Il guasto vive **dentro** la rampa, ed è dove questo banco si
+## mette; che ci si sia messo davvero lo dice il gemello, in coda.
+##
+## | mutazione, in `Visitors._buio_armabile`              | rosse |
+## |------------------------------------------------------|-------|
+## | le due righe di `sta_sciogliendo` → `pass`            |   3   |
+##
+## ⚠️ **ONESTÀ SU QUEL 3.** `Visitors.gd` lo stavano editando altre sessioni,
+## quindi la mutazione non è stata applicata al sorgente: si è **invertita
+## l'attesa** delle tre asserzioni sensibili (il `not` della porta, il `not`
+## dello scioglimento sopravvissuto, e la coda confrontata con la forza della
+## tensione invece che con sé stessa) e si è fatta girare la suite intera.
+## Rosse **esattamente quelle tre**, e la terza ha stampato i due numeri che
+## chiudono il conto: coda addosso **0,4470** contro tensione **0,3086**. La
+## soglia di riarmo di `somatico()` in quell'istante vale 0,146 — cioè la
+## tensione la supera, cioè con la valvola tolta quelle tre asserzioni cadono
+## davvero, e non per un epsilon.
+func _la_tensione_non_annulla_uno_scioglimento(t) -> void:
+	# ── LA PORTA, sullo stesso corpo, prima e dopo ────────────────────────
+	var a := _banco(t)
+	var corpo = a["corpi"][CHI_RILEGGE]
+
+	# la CONTROPROVA per prima: senza, una valvola che rifiutasse TUTTO
+	# passerebbe l'asserzione qui sotto e sembrerebbe viva.
+	t.ok(bool(a["vis"].call("_buio_armabile", corpo)),
+			"su un corpo che non sta sciogliendo niente il buio si arma")
+
+	_in_scioglimento(corpo)
+	t.ok(bool(corpo.call("sta_sciogliendo")),
+			("…e adesso quello stesso corpo sta davvero mollando (forza "
+			+ "addosso %.4f): il banco è nello stato che crede, non in uno "
+			+ "sperato") % _tensione(a, CHI_RILEGGE))
+	t.ok(not bool(a["vis"].call("_buio_armabile", corpo)),
+			("…e sopra uno scioglimento in corso il buio NON si arma: sarebbe "
+			+ "il sollievo appena mostrato, disfatto un attimo dopo"))
+
+	# ── IL GIRO VERO: `_tick_confronti` non porta via il rilascio ─────────
+	var b := _banco(t)
+	# IL CASO PEGGIORE PER LA VALVOLA è la tensione più FORTE che questo ramo
+	# possa produrre: più è forte, più facilmente si prende il canale.
+	_rimetti_gradino(b, CHI_MORDE, GRADINO_ALTO)
+	_rimetti_gradino(b, CHI_RILEGGE, GRADINO_ALTO)
+	var che_molla = b["corpi"][CHI_MORDE]
+	_in_scioglimento(che_molla)
+	var prima := _tensione(b, CHI_MORDE)
+
+	b["vis"].call("_tick_confronti", 0.1)
+
+	# ⚠️ LA CONTROPROVA DENTRO LO STESSO GIRO, e vale doppio: dice che il giro
+	# ha davvero armato qualcuno — senza, «il rilascio sopravvive» sarebbe
+	# verde anche se `_tick_confronti` non facesse niente — e dice che i due
+	# residenti stanno dentro la finestra di questo ramo, perché da
+	# «confronto» in su si passa dall'altra parte e non si arma nulla.
+	var forza_tensione := _tensione(b, CHI_RILEGGE)
+	t.ok(forza_tensione > 0.0,
+			"nello stesso giro chi non sta sciogliendo la tensione la prende "
+			+ "(forza %.4f)" % forza_tensione)
+
+	t.ok(bool(che_molla.call("sta_sciogliendo")),
+			("…e chi stava mollando molla ancora: il giro non gli ha annullato "
+			+ "il rilascio"))
+	t.almost(_tensione(b, CHI_MORDE), prima,
+			("…e la sua coda non è risalita di un bit: riarmarla vuol dire "
+			+ "ricominciare da capo l'allerta che si era appena sciolta"),
+			1e-12)
+
+	# ── E IL BANCO SA FALLIRE ─────────────────────────────────────────────
+	# La stessa forza, nello stesso stato, armata a mano dalla porta di
+	# servizio: lo scioglimento se lo porta via. È la riga che tiene onesto
+	# tutto il caso — il giorno che la geometria del banco finisse fuori dalla
+	# rampa di rilascio, questa diventerebbe rossa e direbbe che le tre
+	# asserzioni qui sopra sono diventate cieche, invece di lasciarle verdi
+	# sopra una valvola tolta.
+	var c := _banco(t)
+	var gemello = c["corpi"][CHI_MORDE]
+	_in_scioglimento(gemello)
+	gemello.call("somatico", forza_tensione)
+	t.ok(not bool(gemello.call("sta_sciogliendo")),
+			("la stessa tensione, armata a mano su un corpo nello stesso stato, "
+			+ "lo scioglimento se lo porta via (forza %.4f): è la prova che le "
+			+ "asserzioni qui sopra sanno diventare rosse") % forza_tensione)

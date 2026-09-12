@@ -78,6 +78,7 @@ func run(t) -> void:
 	_senza_prove_il_gioco_e_quello_di_prima(t)
 	_la_leva_del_banco_e_DAVVERO_il_gioco_di_prima(t)
 	_il_perdono_legge_anche_il_sommario(t)
+	_la_porta_legge_il_sommario(t)
 	_il_rancore_e_derivato_dal_conto(t)
 	_la_frase_e_cablata(t)
 	_la_leva_del_banco_non_la_accende_nessuno(t)
@@ -540,6 +541,104 @@ func _il_perdono_legge_anche_il_sommario(t) -> void:
 	t.ok(float(c["prove_totali"]) > vive + 1e-6,
 			"e `prove_totali` valgono di piu' (%.3f contro %.3f): e' quello"
 			% [float(c["prove_totali"]), vive] + " che legge la rilettura")
+
+
+# ── 13 bis ────────────────────────────────────────────────────────────────
+## ⚠️ **E LA PORTA DEVE USARLO DAVVERO — questa riga non aveva una guardia.**
+##
+## Sostituire `prove_totali` con `prove` dentro `Animo.regola` lasciava tutta
+## la suite verde: la rilettura diventava CIECA alla generosita' del
+## giocatore, cioe' smetteva di leggere la cosa per cui esiste, e nessuna
+## asserzione se ne accorgeva.
+##
+## Perche' nessun caso mordeva, ed e' la stessa forma gia' pagata altrove:
+## `_due_domande_due_aggregati` e `_il_perdono_legge_anche_il_sommario`
+## asseriscono sui tre numeri di `conto_verso` — che la mutazione non tocca —
+## e le loro storie sono troppo corte perche' i due aggregati cadano su due
+## LATI DIVERSI della soglia: `disponibile()` risponde la stessa cosa a tutti
+## e due, quindi la porta sceglie lo stesso modo comunque e la riga mutata
+## non decide piu' niente.
+##
+## Qui la storia e' quella che la testata di `conto_verso` descrive: quattro
+## mesi con un piatto al giorno, poi un mese di indifferenza. Le righe
+## RIPETUTE sono le prime che la potatura per schema del se' sacrifica, e le
+## gentilezze del giocatore sono per definizione le righe ripetute — quindi
+## la memoria VIVA resta piena dei torti recenti e tutta la generosita' sta
+## nel sommario. Letto con le sole righe vive quel vicino non ha niente da
+## rileggere; letto per intero, ne ha in abbondanza.
+##
+## ⚠️ **I NUMERI SONO MISURATI, non scelti**, e la storia e' stata cercata
+## finche' la soglia non si e' attraversata con margine: torti **5.566**,
+## prove vive **0.618** (rapporto 0.111, cioe' meno di un quarto di
+## `RAPPORTO_MIN`), prove totali **7.025** (rapporto 1.262, il doppio e
+## mezzo). Le storie piu' corte non bastano: con trenta giornate di
+## piatto+ignorato i due rapporti valgono 0.705 e 1.010, cioe' stanno dalla
+## **stessa parte** della soglia — ed e' esattamente per questo che i casi
+## 6 e 13, che quella fixture la usano, non potevano mordere.
+##
+## FALSIFICATO facendo girare la porta VERA contro un `conto_verso` che
+## riproduce la mutazione dal di fuori (`prove_totali := prove`): sano
+## `modo=rilettura rapporto=1.2622`, mutato `modo=morso rapporto=0.1110`.
+## ⇒ **due asserzioni rosse**, il modo e il rapporto. Le due righe della
+## controprova restano verdi, e devono: parlano del libro mastro, non della
+## porta — sono quelle che dicono PERCHE' il rosso e' quello giusto.
+func _la_porta_legge_il_sommario(t) -> void:
+	var a := _animo()
+	for g in 120:
+		a.ricorda("piatto", "giocatore", 0.7, 0.9)
+		a.passa_giorno()
+	for g in 30:
+		a.ricorda("ignorato", "giocatore", -0.8, 0.9)
+		a.passa_giorno()
+
+	var c: Dictionary = a.conto_verso("giocatore")
+	var tt: float = float(c["torti"])
+	var pv: float = float(c["prove"])
+	var pt: float = float(c["prove_totali"])
+
+	# LA CONTROPROVA, e sta PRIMA perche' e' quella che rende il caso non
+	# vacuo: i due numeri non sono intercambiabili, e su questa storia stanno
+	# su due lati diversi della soglia. Senza queste righe l'asserzione sulla
+	# porta resterebbe verde per il motivo sbagliato — sarebbe un caso che
+	# passa perche' i due aggregati dicono la stessa cosa, non perche' la
+	# porta legge quello giusto.
+	t.eq(RIL.disponibile(tt, pv), false,
+			"con le sole righe VIVE (%.3f di prove contro %.3f di torto) non"
+			% [pv, tt] + " ci sarebbe niente da rileggere")
+	t.eq(RIL.disponibile(tt, pt), true,
+			"col SOMMARIO (%.3f) si': e' la stessa storia, letta per intero"
+			% pt)
+	# e il salto non e' un epsilon. Il metro non e' un numero scritto qui:
+	# e' `RAPPORTO_MIN`, cioe' la soglia vera — sotto la meta' da una parte e
+	# sopra il doppio dall'altra, cosi' la banda regge anche se un domani
+	# qualcuno tara la costante.
+	t.ok(RIL.rapporto(tt, pv) < RIL.RAPPORTO_MIN * 0.5
+			and RIL.rapporto(tt, pt) > RIL.RAPPORTO_MIN * 2.0,
+			"e la soglia (%.2f) si attraversa con margine: %.3f con le vive,"
+			% [RIL.RAPPORTO_MIN, RIL.rapporto(tt, pv)]
+			+ " %.3f col totale" % RIL.rapporto(tt, pt))
+
+	# ⇒ E ADESSO LA PORTA, che e' dove la mutazione vive: asserire sui tre
+	# numeri di `conto_verso` non basta, perche' quelli non cambiano — cambia
+	# quale dei due la porta prende in mano.
+	var r: Dictionary = a.regola("giocatore")
+	t.eq(str(r["modo"]), "rilettura",
+			"chi e' stato nutrito per mesi RILEGGE, anche se le sue righe"
+			+ " vive raccontano soltanto l'ultimo mese")
+	t.almost(float(r["rapporto"]), RIL.rapporto(tt, pt),
+			"e la scheda che la porta restituisce e' pesata col totale", 1e-9)
+
+	# IL CONTROLLO: lo stesso identico mese di indifferenza, senza i quattro
+	# mesi prima. Nessun sommario da leggere, e ci si morde la lingua — cosi'
+	# si legge che a fare la differenza e' il passato, non la fixture.
+	var solo := _animo()
+	for g in 30:
+		solo.ricorda("ignorato", "giocatore", -0.8, 0.9)
+		solo.passa_giorno()
+	var rs: Dictionary = solo.regola("giocatore")
+	t.ok(str(rs["modo"]) != "rilettura",
+			"lo stesso mese senza quei piatti non si rilegge (%s)"
+			% str(rs["modo"]))
 
 
 # ── 14 ────────────────────────────────────────────────────────────────────
