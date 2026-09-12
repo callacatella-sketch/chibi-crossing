@@ -757,6 +757,42 @@ func rancore(attore := "giocatore") -> float:
 	for r in ricordi:
 		if r["attore"] == attore and float(r["valenza"]) > 0.0:
 			buoni += float(r["valenza"]) * float(r["intensita"]) * _recenza(int(r["quando"]))
+	# ⚠️ **E ANCHE DAL SOMMARIO — o lo scudo del giocatore EVAPORA, e solo nei
+	# villaggi vissuti.**
+	#
+	# Le due metà negative qui sopra scandagliano `ricordi` **e** `sommario`;
+	# questa scandagliava solo i ricordi vivi. Oltre `RICORDI_VIVI` (40)
+	# `_potatura()` fonde le righe più vecchie nel sommario — e da quel
+	# momento i piatti e i regali del giocatore smettevano di scontare
+	# qualcosa, mentre i torti fusi continuavano a contare. Un'asimmetria che
+	# non punisce un gesto: punisce il **tempo di gioco** e la **generosità**,
+	# che sono le due cose che questo gioco chiede.
+	#
+	# MISURATO su una storia ESATTAMENTE IN PARI (un regalo per ogni torto,
+	# alternati, che con `SCONTO_PERDONO` 1.4 deve dare rancore ZERO per
+	# sempre): 20/20 → 0.0000 · 25/25 → 0.0413 · 40/40 → 0.1828 · 60/60 →
+	# 0.3314 · **100/100 → 0.5566**, con 15,5 unità di perdono buttate. Cioè
+	# chi è stato gentile quanto è stato sgarbato si vedeva crescere addosso
+	# un rancore senza limite.
+	#
+	# È la stessa forma che `fiducia()` ha chiuso apposta («farebbe sparire la
+	# fiducia oltre le `RICORDI_VIVI` righe, cioè PROPRIO nei villaggi
+	# vissuti — dove nessun collaudo arriva») e che `assenza()` ha chiuso per
+	# il lutto. Qui era ancora aperta, ed era l'unica delle tre a colpire la
+	# parte del giocatore.
+	#
+	# La spazzata è la GEMELLA ESATTA di quella negativa, riflessa: stessa
+	# chiave, stessa recenza, stesso `peso` già moltiplicato per l'intensità
+	# al momento della potatura. Il `peso` del sommario è una somma CON SEGNO
+	# per `tipo|attore`: un segno solo decide, come già fa il ramo negativo.
+	for k in sommario:
+		var pb: PackedStringArray = k.split("|")
+		if pb.size() < 2 or pb[1] != attore:
+			continue
+		var vb: Dictionary = sommario[k]
+		if float(vb["peso"]) <= 0.0:
+			continue
+		buoni += float(vb["peso"]) * _recenza(int(vb["ultimo"]))
 	# ⚠️ **IL PERDONO NON DIPENDE DA QUANTI AMICI TI HA DATO IL MONDO.** Qui
 	# c'era un moltiplicatore sull'ossitocina, e l'ossitocina la fa
 	# l'appartenenza (`sincronizza_neuro`), che a sua volta la fa `_chats` —

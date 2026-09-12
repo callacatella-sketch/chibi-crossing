@@ -108,7 +108,64 @@ static func _solo(canale: String, valore: float) -> Dictionary:
 	return c
 
 
+## ⚠️ **LE VENTI POSE CHE NON SONO MAI PASSATE DA QUI.**
+##
+## `Visitor.RECITA` (nove stabili) e `RECITA_TRANS` (undici transitori) sono il
+## canale espressivo piu' vecchio e piu' usato del gioco: ci parlano gli
+## Affetti, il telegrafo della ribellione, il Concerto, il Salone, le
+## Promesse, l'Accompagnare e tutti e otto i saluti. Le loro colonne sono
+## `ax · az · ear · hx · vx · hy_amp` — e **nessuna tocca un canale portante**
+## (`vy`, `vz`, `px`, `sy`). Sono braccia, orecchie, mento, busto e imbardata,
+## cioe' esattamente la classe che la parte 1 ha misurato NON portare il verso.
+##
+## Il cancello e' nato DOPO che quelle pose erano gia' scritte. Questa parte le
+## fa passare, con lo stesso criterio e senza riscrivere niente:
+## `Visitor.recita_bersagli()` e' statica ed espande una posa **nello stesso
+## spazio di canali** che `debug_posa` scrive, quindi si misura lo scrittore
+## VERO. Ricopiare qui l'espansione sarebbe la gemella di `_recita_applica`.
+##
+## Per i transitori si misura il COLMO (`env` massima), che e' l'istante in cui
+## quella posa ha piu' da dire; per l'imbardata che vaga (`hy_amp`) si prende
+## il `t` in cui e' piu' larga, o si misurerebbe la posa nel momento in cui non
+## sta facendo niente.
+func _sonde_pose() -> Array:
+	var out := []
+	for nome in VS.RECITA:
+		if str(nome) == "sereno":
+			continue
+		out.append(["[S] " + str(nome), _colmo(str(nome), "", 0.0)])
+	for nome in VS.RECITA_TRANS:
+		var dur := float((VS.RECITA_TRANS[nome] as Dictionary).get("dur", 1.0))
+		# il colmo della busta: `smoothstep(0,0.22) * (1-smoothstep(0.68,1))`
+		# e' piatta fra 0.22 e 0.68 — si prende la meta'. `trasalisce` ha una
+		# busta sua, `exp(-3.2t)`, che e' massima a zero.
+		var tt := 0.0 if str(nome) == "trasalisce" else dur * 0.45
+		out.append(["[T] " + str(nome), _colmo("sereno", str(nome), tt)])
+	return out
+
+
+## La posa nell'istante in cui e' piu' larga. Il `t` dell'orologio entra solo
+## nell'imbardata che vaga: si campiona un giro intero e si tiene il momento
+## con lo scarto piu' grande, o una posa che vaga si misurerebbe mentre passa
+## per lo zero.
+func _colmo(stabile: String, trans: String, trans_t: float) -> Dictionary:
+	var best := {}
+	var best_n := -1.0
+	for i in 24:
+		var t := float(i) * 0.37
+		var b: Dictionary = VS.recita_bersagli(stabile, trans, trans_t, t)
+		var n := 0.0
+		for c in b:
+			n += absf(float(b[c]))
+		if n > best_n:
+			best_n = n
+			best = b
+	return best
+
+
 func _sonde() -> Array:
+	if OS.get_environment("CHIBI_POSE") != "":
+		return _sonde_pose()
 	var out := []
 	# --- i CANALI, isolati ---
 	out.append(["· scala −10%", _solo("sy", 0.90)])
@@ -299,8 +356,14 @@ func _go() -> void:
 	await create_timer(0.8).timeout
 
 	# CHIBI_PARTI sceglie le sezioni: "1" il cancello · "2" la scala delle
-	# ampiezze · "3" il moto. Una tornata intera sono venti minuti, e quando
-	# si sta tarando UN numero non si rifanno le altre due.
+	# ampiezze · "3" il moto · **"4" LE VENTI POSE CHE ESISTONO DA ANNI**.
+	# Una tornata intera sono venti minuti, e quando si sta tarando UN numero
+	# non si rifanno le altre due.
+	#
+	# ⚠️ La parte 4 usa lo STESSO ciclo e lo STESSO criterio della parte 1:
+	# cambia solo l'elenco delle sonde (`CHIBI_POSE=1`). Un secondo provino
+	# sarebbe un secondo giudice, e due giudici sullo stesso criterio sono la
+	# tabella gemella che questo progetto vieta.
 	var parti := OS.get_environment("CHIBI_PARTI")
 	if parti == "":
 		parti = "123"
@@ -310,6 +373,8 @@ func _go() -> void:
 		await _le_ampiezze()
 	if parti.contains("3"):
 		await _il_moto()
+	if parti.contains("4"):
+		await _il_verso()
 	quit(0)
 
 

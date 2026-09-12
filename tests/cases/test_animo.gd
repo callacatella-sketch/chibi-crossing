@@ -29,6 +29,7 @@ func run(t) -> void:
 
 
 	_il_substrato_dell_assenza(t)
+	_lo_scudo_non_evapora(t)
 	_quanto_contava_lo_dice_il_libro_mastro(t)
 	_la_fiducia_e_la_gemella_del_rancore(t)
 	_la_fiducia_cambia_una_decisione_VERA(t)
@@ -882,3 +883,105 @@ func _la_fiducia_non_e_una_porta(t) -> void:
 	t.ok(int(ANIMO.SAZIETA_FIDUCIA) != int(ANIMO.SATURAZIONE),
 			("la sazieta' della fiducia NON e' quella del rancore: quel 55 e' "
 			+ "tarato su una serie che sensibilizza, e i doni abituano"))
+
+
+## ⚠️ **LO SCUDO DEL GIOCATORE NON EVAPORA — e prima evaporava, solo nei
+## villaggi vissuti.**
+##
+## `rancore()` somma i torti leggendo `ricordi` **e** `sommario`; lo sconto dei
+## ricordi buoni leggeva solo `ricordi`. Oltre `RICORDI_VIVI` la potatura fonde
+## le righe vecchie nel sommario, e da quel momento i piatti del giocatore
+## smettevano di scontare mentre i torti fusi continuavano a contare.
+##
+## L'ORACOLO E' UNA STORIA IN PARI: un regalo per ogni torto, alternati. Con
+## `SCONTO_PERDONO` = 1.4 il perdono e' PIU' che sufficiente, quindi il rancore
+## dev'essere **zero esatto a qualunque lunghezza** — non «piccolo»: zero. Un
+## numero che non dipende da nessuna taratura, e che si rompe appena
+## l'asimmetria torna.
+##
+## MISURATO prima della cura: 20/20 → 0.0000 · 25/25 → 0.0413 · 40/40 →
+## 0.1828 · 60/60 → 0.3314 · **100/100 → 0.5566**.
+func _lo_scudo_non_evapora(t) -> void:
+	var vivi: int = ANIMO.RICORDI_VIVI
+	# ⚠️ si prova SOPRA la soglia, o il caso e' cieco per costruzione: sotto
+	# `RICORDI_VIVI` il sommario e' vuoto e le due spazzate sono la stessa.
+	for quanti in [5, vivi / 2, vivi, vivi * 2, vivi * 3]:
+		var a = ANIMO.new()
+		a.setup({"nome": "Pari", "tratti": {}})
+		a.oggi = 0
+		for i in int(quanti):
+			a.ricorda("torto", "giocatore", -0.8, 0.9)
+			a.ricorda("regalo", "giocatore", 0.8, 0.9)
+		t.almost(a.rancore("giocatore"), 0.0,
+				("una storia in pari (%d regali, %d torti) non lascia rancore: "
+				+ "lo sconto legge il sommario come lo leggono i torti")
+						% [int(quanti), int(quanti)], 0.0005)
+
+	# --- la CONTROPROVA, o la cura sarebbe «il rancore non esiste piu'»:
+	#     i torti veri continuano a contare, anche oltre la potatura
+	var b = ANIMO.new()
+	b.setup({"nome": "Torti", "tratti": {}})
+	b.oggi = 0
+	for i in vivi * 2:
+		b.ricorda("torto", "giocatore", -0.8, 0.9)
+	t.ok(b.rancore("giocatore") > 0.3,
+			("e ottanta torti senza un regalo pesano eccome (%.4f): la cura "
+			+ "sconta, non azzera") % b.rancore("giocatore"))
+
+	# --- e la gentilezza da sola non fabbrica un credito: `maxf(0, …)`
+	var c = ANIMO.new()
+	c.setup({"nome": "Buono", "tratti": {}})
+	c.oggi = 0
+	for i in vivi * 2:
+		c.ricorda("regalo", "giocatore", 0.8, 0.9)
+	t.almost(c.rancore("giocatore"), 0.0,
+			"e ottanta regali senza torti restano zero, non un credito", 0.0005)
+
+	# --- ⚠️ E LO SCONTO DEL SOMMARIO GUARDA LA PERSONA GIUSTA. La chiave e'
+	#     `tipo|attore`: senza il confronto sull'attore, i regali di un VICINO
+	#     sconterebbero il rancore verso il GIOCATORE — cioe' qualcun altro
+	#     potrebbe farsi perdonare al posto tuo.
+	var d = ANIMO.new()
+	d.setup({"nome": "Altri", "tratti": {}})
+	d.oggi = 0
+	for i in vivi * 2:
+		d.ricorda("torto", "giocatore", -0.8, 0.9)
+		d.ricorda("regalo", "Nocciola", 0.8, 0.9)
+	t.ok(d.rancore("giocatore") > 0.3,
+			("i regali di un altro non scontano il rancore verso il giocatore "
+			+ "(%.4f): nessuno si fa perdonare al posto tuo")
+					% d.rancore("giocatore"))
+
+	# --- ⚠️ **E IL PERDONO FUSO INVECCHIA, come invecchiano i torti fusi.**
+	#     Senza la recenza sul sommario, una gentilezza di mesi fa sconterebbe
+	#     un torto di stamattina **per sempre**: lo scudo diventerebbe
+	#     immortale mentre i torti continuano a decadere — l'asimmetria di
+	#     prima, rovesciata. Una storia in pari non puo' vederlo (i due lati
+	#     decadono insieme e zero resta zero): serve il tempo in mezzo.
+	var e = ANIMO.new()
+	e.setup({"nome": "Vecchi", "tratti": {}})
+	e.oggi = 0
+	for i in vivi * 2:
+		e.ricorda("regalo", "giocatore", 0.8, 0.9)   # tutti FUSI nel sommario
+	# passano mesi: sei mezze vite, cioe' il perdono vale 1/64 di allora
+	e.oggi = int(ANIMO.MEZZA_VITA * 6)
+	for i in 6:
+		e.ricorda("torto", "giocatore", -0.8, 0.9)   # e oggi qualcosa succede
+	t.ok(e.rancore("giocatore") > 0.05,
+			("una gentilezza di mesi fa non copre un torto di stamattina "
+			+ "(%.4f): il perdono fuso invecchia come i torti fusi")
+					% e.rancore("giocatore"))
+	# e la CONTROPROVA, o l'asserzione di sopra passerebbe anche se il
+	# perdono fuso non contasse affatto: gli stessi identici torti, con la
+	# gentilezza ADESSO invece che mesi fa, non lasciano rancore
+	var f = ANIMO.new()
+	f.setup({"nome": "Freschi", "tratti": {}})
+	f.oggi = int(ANIMO.MEZZA_VITA * 6)
+	for i in vivi * 2:
+		f.ricorda("regalo", "giocatore", 0.8, 0.9)
+	for i in 6:
+		f.ricorda("torto", "giocatore", -0.8, 0.9)
+	t.almost(f.rancore("giocatore"), 0.0,
+			("…ma la stessa gentilezza fatta ADESSO li copre (%.4f): e' la "
+			+ "recenza che lavora, non l'assenza dello sconto")
+					% f.rancore("giocatore"), 0.0005)

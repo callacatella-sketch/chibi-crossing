@@ -7728,6 +7728,119 @@ dei quali erano i suoi autorizzati e sette erano lavoro vero: il fungo da
 raccolta, gli stivali del catalogo, il volto, i sogni, la posta, **il genoma
 di chi arriva ad abitare** e il dado delle chiacchiere.
 
+## LO SCUDO CHE EVAPORAVA — e le venti pose che parlano piano
+
+Due lavori che non aggiungono niente: tolgono un'asimmetria, e misurano una
+cosa che c'era da anni.
+
+### 1 · `rancore()` sconta i ricordi buoni SOLO dai vivi — e i torti da tutti
+
+Le due metà negative di `rancore()` scandagliano `ricordi` **e** `sommario`;
+lo sconto del perdono scandagliava solo `ricordi`. Oltre `RICORDI_VIVI` (40)
+`_potatura()` fonde le righe più vecchie nel sommario — e da quel momento i
+piatti e i regali del giocatore smettevano di scontare, **mentre i torti fusi
+continuavano a contare**.
+
+MISURATO su una storia **esattamente in pari** (un regalo per ogni torto,
+alternati; con `SCONTO_PERDONO` 1.4 il rancore deve restare zero per sempre):
+
+| regali / torti | 20/20 | 25/25 | 40/40 | 60/60 | **100/100** |
+|---|---|---|---|---|---|
+| **prima** | 0,0000 | 0,0413 | 0,1828 | 0,3314 | **0,5566** |
+| **dopo** | 0,0000 | 0,0000 | 0,0000 | 0,0000 | **0,0000** |
+| perdono buttato | 0 | 2,14 | 4,94 | 8,48 | **15,49** |
+
+Chi è stato **gentile esattamente quanto è stato sgarbato** si vedeva crescere
+addosso un rancore senza limite — a 100/100 il vicino sta a 0,56, cioè oltre i
+gradini della ribellione. L'asimmetria non puniva un gesto: puniva il **tempo
+di gioco** e la **generosità**, che sono le due cose che questo gioco chiede.
+E colpiva solo i villaggi vissuti, cioè dove nessun collaudo arriva.
+
+È la stessa forma che `fiducia()` aveva chiuso apposta (*«farebbe sparire la
+fiducia oltre le `RICORDI_VIVI` righe, cioè PROPRIO nei villaggi vissuti»*) e
+che `assenza()` aveva chiuso per il lutto. Era l'unica delle tre a colpire la
+parte del **giocatore**.
+
+La cura è la spazzata gemella, riflessa: stessa chiave, stessa recenza, stesso
+`peso`. Quattro mutazioni, tutte rosse — e una era **muta** alla prima stesura:
+togliere la recenza dal perdono fuso rendeva lo scudo **immortale** mentre i
+torti decadono (l'asimmetria rovesciata), e una storia in pari non può vederlo
+perché i due lati decadono insieme e zero resta zero. Serve il **tempo in
+mezzo**: gentilezza fusa, sei mezze vite, poi un torto fresco — più la
+controprova con la stessa gentilezza fatta adesso.
+
+### 2 · IL CANCELLO DEL VERSO, passato sulle venti pose che esistono da anni
+
+`Visitor.RECITA` (otto pose stabili oltre «sereno») e `RECITA_TRANS` (undici
+transitori) sono il canale espressivo più vecchio e più usato del gioco: ci
+parlano gli Affetti, il telegrafo della ribellione, il Concerto, il Salone, le
+Promesse, l'Accompagnare e tutti e otto i saluti. Le loro colonne sono
+`ax · az · ear · hx · vx · hy_amp` — **nessuna tocca un canale portante**
+(`vy`, `vz`, `px`, `sy`). Il cancello è nato DOPO che quelle pose erano già
+scritte.
+
+Adesso ci passano: `CHIBI_POSE=1 CHIBI_PARTI=1`, **stesso ciclo e stesso
+criterio** della parte 1 — cambia solo l'elenco delle sonde. `recita_bersagli()`
+è statica ed espande una posa **nello stesso spazio di canali** che
+`debug_posa` scrive, quindi si misura lo scrittore VERO; ricopiare qui
+l'espansione sarebbe la gemella di `_recita_applica`.
+
+**IL VERDETTO: diciannove su diciannove sotto il criterio**, in quasi tutte le
+colonne. Le peggiori sono quelle dominate dall'imbardata — `distratto`
+(0,97–1,53, sotto **dappertutto**) e `sguardo_sfuggente` (0,88–1,69) — che è
+coerente: `hy` è il canale peggiore mai misurato (0,88). Le migliori sono
+quelle con più inclinazione di busto: `saluto_inchino` (`vx` 0,34) arriva a
+1,81, e `trasalisce` — l'unica a cui il lavoro sul sussulto ha già dato `vz` e
+`vy`, cioè due canali portanti — arriva a **1,93**. *Quella è la prova che la
+strada funziona.*
+
+> ### ⚠️ MA GLI OTTO SALUTI NON SONO IL PROBLEMA, e dirlo cambia il lavoro
+>
+> `Visitor._resident_greet` scatta a **meno di 1,4 m**. Gli otto `saluto_*` (e
+> `celebrate()`, che li riusa) si vedono **sempre da vicino, per costruzione**:
+> misurarli a nove metri risponde a una domanda che nessuno si fa. Il problema
+> vero sono le **otto pose stabili** — indossate per minuti, a qualunque
+> distanza — più `esita`, `trasalisce`, `si_illumina`. `spalle_basse`, che è la
+> ferita degli Affetti, sta a **1,04** di fronte a sei metri.
+
+**Per chi ci torna:** la cura non è ingrandire una rotazione — questo progetto
+ha già misurato che il verso di un rollio *cala* crescendo. È aggiungere una
+componente di **silhouette** (traslazione o scala) che dica la stessa cosa che
+la posa dice già, ed è la strada che `trasalisce` ha già percorso. Prima di
+scrivere: `CHIBI_POSE=1 CHIBI_PARTI=1` per la baseline, poi il provino delle
+varianti affiancate, poi di nuovo il cancello.
+
+### ⚠️ E QUATTRO PROGETTI SONO STATI BOCCIATI DALLO SCETTICO
+
+Le quattro lacune «dato senza lettori» sono state progettate in parallelo e
+ognuna passata a chi doveva bocciarla. **Tutte e quattro bocciate**, e le
+ragioni valgono più dei progetti:
+
+- **l'età nella psicologia** — il termine era cablato davvero, e il suo effetto
+  **sotto la risoluzione di ogni strumento** che questo progetto ha dichiarato.
+  È il gemello del difetto pagato nove volte: non «un pezzo che nessuno
+  chiama», ma un pezzo chiamato il cui effetto è matematicamente nullo.
+- **`assenza()`** — bocciata sui NUMERI: la baseline era falsa
+  (`appartenenza` non vale 0,85, vale **1,0**), e con quella vera il
+  meccanismo cambia natura.
+- **le Promesse** — la metà chimica è aritmeticamente nulla proprio dove
+  dovrebbe vedersi: **il canale è già al soffitto** durante tutta la rampa.
+- **la credibilità della fonte** — bocciata su tre fronti, e il progetto stesso
+  aveva già riconosciuto che l'idea *com'era posta* non si fa (è a un passo
+  dalla gogna che `senti_dire()` esiste per impedire). Ma è **da quella
+  bocciatura che è uscito lo scudo che evapora**, qui sopra.
+
+### Come si verifica
+
+```
+Godot --headless --audio-driver Dummy --path . --script res://tests/test_runner.gd
+CHIBI_POSE=1 CHIBI_PARTI=1 Godot --path . --resolution 1280x720 \
+    --script res://tools/provino_verso.gd
+```
+
+⚠️ **`--audio-driver Dummy` su ogni corsa**: i banchi aprono il MainLevel vero,
+che ha la musica, e chi sta lavorando accanto se la sente tutta.
+
 ## Test
 
 Test-suite **dependency-free** (nessun addon, nessuna rete) in `tests/`:
