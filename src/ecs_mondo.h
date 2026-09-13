@@ -239,6 +239,30 @@ public:
 			const godot::PackedFloat64Array &p_bersaglio,
 			const godot::PackedFloat64Array &p_neuro) const;
 
+	// ⚠️ **DOVE SI SPEZZEREBBE QUESTA MENTE — la partizione minima.**
+	//
+	// `phi_integrato` la calcola per forza (Φ È il valore alla MIP) e fino a
+	// oggi il ponte la buttava via: un dato computato senza nessun lettore,
+	// che è la firma esatta del difetto che questo progetto ha pagato nove
+	// volte.
+	//
+	// ⚠️ **E MOSTRARE LA MIP NON È COME MOSTRARE Φ.** Φ è un numero ordinato:
+	// appena si vede, si vuole farlo salire, e una mente diventa un puzzle da
+	// ottimizzare — che è il modo in cui questo materiale si rovina. Una
+	// PARTIZIONE non ha un verso: non esiste una partizione «migliore», non
+	// c'è niente da massimizzare. Dice una cosa sola, e non è un punteggio:
+	// *se questa mente si spezzasse, si spezzerebbe QUI.* Con sette canali le
+	// risposte possibili sono 63 — troppe per sembrare una tabella, troppo
+	// poche per sembrare rumore.
+	//
+	// Torna una maschera di bit sui sette canali (il bit 0 è sempre nella
+	// parte «sinistra», così ogni taglio si conta una volta sola), oppure 0
+	// se il sostrato non regge.
+	godot::PackedInt32Array intreccio_mip(
+			const godot::PackedFloat64Array &p_lambda,
+			const godot::PackedFloat64Array &p_tratti,
+			double p_h, double p_kappa) const;
+
 	// L'informazione integrata di QUESTA mente, adesso. Zero se il sostrato
 	// non regge — e zero è anche la risposta onesta per la chimica diagonale
 	// di ieri, che è il confronto che conta.

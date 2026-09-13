@@ -350,6 +350,29 @@ PackedFloat64Array EcsMondo::intreccio_passo(
 	return out;
 }
 
+PackedInt32Array EcsMondo::intreccio_mip(const PackedFloat64Array &p_lambda,
+		const PackedFloat64Array &p_tratti, double p_h, double p_kappa) const {
+	PackedInt32Array out;
+	if (p_lambda.size() != chibi::INTRECCIO_N) return out;
+	double lam[chibi::INTRECCIO_N];
+	for (int i = 0; i < chibi::INTRECCIO_N; ++i) lam[i] = p_lambda[i];
+	double tr[5] = {0.5, 0.5, 0.5, 0.5, 0.5};
+	for (int i = 0; i < 5 && i < p_tratti.size(); ++i) tr[i] = p_tratti[i];
+	chibi::Intreccio it;
+	if (!chibi::costruisci_intreccio(lam, tr, &it)) return out;
+	double E[chibi::INTRECCIO_N * chibi::INTRECCIO_N];
+	double Q[chibi::INTRECCIO_N * chibi::INTRECCIO_N];
+	if (!chibi::matrice_di_transizione(it, p_h, p_kappa, E, Q)) return out;
+	const chibi::RisultatoPhi r = chibi::phi_integrato(E, Q, chibi::INTRECCIO_N);
+	if (!r.valido) return out;
+	// il lato di ogni canale: 0 = sinistra (dove sta sempre il canale 0)
+	out.resize(chibi::INTRECCIO_N);
+	out.set(0, 0);
+	for (int i = 1; i < chibi::INTRECCIO_N; ++i)
+		out.set(i, ((r.mip >> (i - 1)) & 1u) ? 0 : 1);
+	return out;
+}
+
 double EcsMondo::intreccio_phi(const PackedFloat64Array &p_lambda,
 		const PackedFloat64Array &p_tratti, double p_h, double p_kappa) const {
 	if (p_lambda.size() != chibi::INTRECCIO_N) return 0.0;
@@ -370,6 +393,7 @@ double EcsMondo::intreccio_phi(const PackedFloat64Array &p_lambda,
 void EcsMondo::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("intreccio_passo", "lambda", "tratti", "h", "kappa", "bersaglio", "neuro"), &EcsMondo::intreccio_passo);
 	ClassDB::bind_method(D_METHOD("intreccio_phi", "lambda", "tratti", "h", "kappa"), &EcsMondo::intreccio_phi);
+	ClassDB::bind_method(D_METHOD("intreccio_mip", "lambda", "tratti", "h", "kappa"), &EcsMondo::intreccio_mip);
 	ClassDB::bind_method(D_METHOD("registra", "indole", "quirk"), &EcsMondo::registra);
 	ClassDB::bind_method(D_METHOD("riproietta", "id", "indole", "quirk"), &EcsMondo::riproietta);
 	ClassDB::bind_method(D_METHOD("dimentica", "id"), &EcsMondo::dimentica);

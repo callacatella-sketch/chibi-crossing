@@ -994,6 +994,27 @@ static var _ecs_intreccio = null
 static var _ecs_cercato := false
 
 
+## ⚠️ **IL PONTE, E LA RICERCA STA QUI E NON DENTRO IL PASSO.**
+##
+## Alla prima stesura la ricerca viveva dentro `_intreccio_passo`, e chi
+## chiedeva `phi()` o `dove_si_spezza()` **prima** che quella mente avesse
+## fatto un passo riceveva zero — o un array vuoto — **in silenzio**. Cioè le
+## due funzioni che esistono per far VEDERE la mente rispondevano «niente»
+## proprio a chi si era limitato a guardarla: misurato, cinque vicini su
+## cinque e cinque livelli di tensione su cinque.
+##
+## È la forma piccola del difetto pagato nove volte: un dato calcolato e un
+## lettore che non lo riceve mai.
+static func _ponte():
+	if not _ecs_cercato:
+		_ecs_cercato = true
+		if ClassDB.class_exists("EcsMondo"):
+			var n = ClassDB.instantiate("EcsMondo")
+			if n != null and n.has_method("intreccio_passo"):
+				_ecs_intreccio = n
+	return _ecs_intreccio
+
+
 ## Vero se il passo l'ha fatto l'intreccio. Falso = il chiamante faccia quello
 ## che faceva ieri.
 ##
@@ -1004,13 +1025,7 @@ static var _ecs_cercato := false
 ## corpo calmo e uno teso. «La mente si restringe» smette di essere una
 ## metafora e diventa un numero che si può far crollare.
 func _intreccio_passo(dt: float, prod: Dictionary) -> bool:
-	if not _ecs_cercato:
-		_ecs_cercato = true
-		if ClassDB.class_exists("EcsMondo"):
-			var n = ClassDB.instantiate("EcsMondo")
-			if n != null and n.has_method("intreccio_passo"):
-				_ecs_intreccio = n
-	if _ecs_intreccio == null:
+	if _ponte() == null:
 		return false
 	var lam := PackedFloat64Array()
 	var ber := PackedFloat64Array()
@@ -1049,7 +1064,7 @@ func _intreccio_passo(dt: float, prod: Dictionary) -> bool:
 ## Sette canali che non si parlano hanno Φ = 0 per teorema, non per
 ## approssimazione — ed è il confronto che dà un senso al numero.
 func phi(dt := 0.05) -> float:
-	if _ecs_intreccio == null:
+	if _ponte() == null:
 		return 0.0
 	var lam := PackedFloat64Array()
 	for tipo in NEURO_TRASMETTITORI:
@@ -1075,3 +1090,36 @@ func _tratti_vettore() -> PackedFloat64Array:
 func _kappa() -> float:
 	return clampf(1.0 - 0.9 * clampf(float(neuro.get("cortisolo", 0.0)),
 			0.0, 1.0), 0.0, 1.0)
+
+
+## ⚠️ **DOVE SI SPEZZEREBBE QUESTA MENTE, adesso.** I nomi dei canali, divisi
+## nei due lati della partizione minima: `[["cortisolo", …], ["dopamina", …]]`.
+## Vuoto se il sostrato non regge — e vuoto è anche la risposta onesta per la
+## chimica diagonale, che si spezza dappertutto allo stesso modo perché non è
+## attaccata da nessuna parte.
+##
+## ⚠️ **E NON È Φ.** Φ è un numero ordinato: appena lo si vede si vuole farlo
+## salire, e una mente diventa un punteggio da ottimizzare. Una partizione non
+## ha un verso — non esiste una partizione «migliore» — quindi non c'è niente
+## da massimizzare. Dice una cosa sola: *se questa mente cedesse, cederebbe
+## QUI.* E cambia mentre la si guarda, perché cambia con la tensione.
+func dove_si_spezza(dt := 0.05) -> Array:
+	if _ponte() == null or not _ecs_intreccio.has_method("intreccio_mip"):
+		return []
+	var lam := PackedFloat64Array()
+	for tipo in NEURO_TRASMETTITORI:
+		lam.append(float(NEURO_DECADIMENTO.get(tipo, 0.05)))
+	var lati: PackedInt32Array = _ecs_intreccio.call("intreccio_mip", lam,
+			_tratti_vettore(), dt, _kappa())
+	if lati.size() != NEURO_TRASMETTITORI.size():
+		return []
+	var a: Array = []
+	var b: Array = []
+	var i := 0
+	for tipo in NEURO_TRASMETTITORI:
+		if lati[i] == 0:
+			a.append(tipo)
+		else:
+			b.append(tipo)
+		i += 1
+	return [a, b]

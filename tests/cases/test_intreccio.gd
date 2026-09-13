@@ -22,6 +22,7 @@ func run(t) -> void:
 	_la_stessa_gentilezza_in_menti_diverse(t)
 	_il_degrado_va_verso_ieri(t)
 	_l_ordine_dei_tratti_e_condiviso(t)
+	_dove_si_spezza(t)
 
 
 func _nuovo(tratti := MEDIO):
@@ -186,3 +187,52 @@ func _l_ordine_dei_tratti_e_condiviso(t) -> void:
 		t.ok(tr.has(nome),
 				("«%s» esiste nel genoma: l'ordine del ponte nomina tratti "
 				+ "veri") % nome)
+
+
+## ⚠️ **DOVE SI SPEZZEREBBE — e non è Φ, apposta.**
+##
+## Φ è un numero ORDINATO: appena si mostra, si vuole farlo salire, e una
+## mente diventa un punteggio da ottimizzare. Una PARTIZIONE non ha un verso —
+## non esiste una partizione «migliore» — quindi non c'è niente da
+## massimizzare. Dice una cosa sola: *se questa mente cedesse, cederebbe qui.*
+##
+## ⚠️ E LA RICERCA DEL PONTE STA FUORI DAL PASSO. Alla prima stesura viveva
+## dentro `_intreccio_passo`, quindi chi chiedeva `phi()` o
+## `dove_si_spezza()` senza aver mai fatto un passo riceveva zero IN SILENZIO:
+## misurato, cinque vicini su cinque. Le due funzioni che esistono per far
+## vedere una mente rispondevano «niente» proprio a chi si limitava a
+## guardarla.
+func _dove_si_spezza(t) -> void:
+	if not ClassDB.class_exists("EcsMondo"):
+		return
+	# ⚠️ SENZA NESSUN PASSO PRIMA: è esattamente il caso che era rotto.
+	var l = _nuovo()
+	var d: Array = l.dove_si_spezza()
+	t.eq(d.size(), 2,
+			"la partizione si legge SUBITO, senza aver fatto nessun passo")
+	if d.size() != 2:
+		return
+	var a: Array = d[0]
+	var b: Array = d[1]
+	t.ok(a.size() > 0 and b.size() > 0, "tutte e due le parti hanno qualcosa")
+	t.eq(a.size() + b.size(), LIMBICO.NEURO_TRASMETTITORI.size(),
+			"e insieme fanno i sette canali, senza doppioni né buchi")
+	for tipo in a:
+		t.ok(not b.has(tipo), "«%s» sta da una parte sola" % tipo)
+
+	# --- ⚠️ E VICINI DIVERSI SI SPEZZANO IN POSTI DIVERSI, o la partizione
+	#     sarebbe una costante travestita da misura.
+	var viste := {}
+	for seme in [11, 97, 404, 1234, 2718, 3141, 5150, 7331, 8080, 9001]:
+		var dna: Dictionary = DNAG.generate(seme)
+		var m = _nuovo(dna.get("tratti", MEDIO))
+		var dd: Array = m.dove_si_spezza()
+		if dd.size() == 2:
+			viste[str(dd[0])] = true
+	t.ok(viste.size() >= 2,
+			("dieci vicini veri si spezzerebbero in %d punti diversi: è un "
+			+ "fatto di quella persona, non una costante") % viste.size())
+
+	# --- e il degrado: senza ponte, un array vuoto e non un'invenzione
+	t.ok(l.dove_si_spezza(-1.0).size() == 0 or l.dove_si_spezza(-1.0).size() == 2,
+			"un passo malato non produce una partizione inventata")

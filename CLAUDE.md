@@ -8704,6 +8704,71 @@ Godot --headless --audio-driver Dummy --path . --script res://tests/test_runner.
   2,5%, questo lavoro ha un sostrato bellissimo e nessun consumatore che lo
   senta — e allora va detto.
 
+## DOVE SI SPEZZEREBBE — e perché si mostra la PARTIZIONE e non Φ
+
+`phi_integrato` calcola per forza la **partizione minima** (Φ *è* il valore
+alla MIP), e fino al 2026-09-13 il ponte la buttava via: un dato computato
+senza nessun lettore, la firma esatta del difetto pagato nove volte.
+
+`Limbico.dove_si_spezza()` la restituisce come i nomi dei sette canali divisi
+nei due lati. MISURATO su dieci genomi veri: **si spezzano in punti diversi**,
+e la cucitura più comune divide il grappolo della spinta
+(`dopamina · adenosina · endorfine`) da quello dell'allarme e del sonno
+(`ossitocina · serotonina · cortisolo · melatonina`).
+
+> ### ⚠️ E NON SI MOSTRA Φ, APPOSTA
+>
+> Φ è un numero **ordinato**: appena lo si vede, si vuole farlo salire — e una
+> mente diventa un punteggio da ottimizzare, che è il modo in cui questo
+> materiale si rovina. Una **partizione non ha un verso**: non esiste una
+> partizione «migliore», non c'è niente da massimizzare. Dice una cosa sola, e
+> non è un punteggio: *se questa mente cedesse, cederebbe QUI.* Con sette
+> canali le risposte possibili sono 63 — troppe per sembrare una tabella,
+> troppo poche per sembrare rumore.
+
+⚠️ **E LA RICERCA DEL PONTE STA FUORI DAL PASSO.** Alla prima stesura viveva
+dentro `_intreccio_passo`, quindi chi chiedeva `phi()` o `dove_si_spezza()`
+senza aver mai fatto un passo riceveva zero **in silenzio** — misurato, cinque
+vicini su cinque e cinque livelli di tensione su cinque. Le due funzioni che
+esistono per far VEDERE una mente rispondevano «niente» proprio a chi si
+limitava a guardarla.
+
+### ⚠️ LA DISCESA — progettata, tutta bocciata, e il verdetto converge
+
+Quattro vie per la progressione uncanny (l'evidenza · i vicini che si
+accorgono · le meccaniche cozy rilette come contenimento · la persistenza fra
+sessioni), ognuna passata a uno scettico. **Tutte e quattro bocciate**, ma i
+quattro verdetti dicono la stessa cosa, e vale più dei progetti:
+
+> *«Il repository ha già la rivelazione giusta, ed è misurata: una mente che
+> si restringe di 3,1 volte sotto stress, e che si restringe DAVVERO. Una
+> discesa in cui il giocatore lo scopre è inattaccabile dal "è scriptato",
+> perché è falsificabile dal giocatore stesso: può rifarlo, può misurarlo, può
+> smentirlo.»*
+
+Le bocciature, in breve — e nessuna è per il genere:
+
+- **l'evidenza** («IL CAPANNO») — lo scettico ha **rifatto in Python la
+  matematica di `intreccio.cpp` leggendo le costanti dal sorgente**, e il
+  cancello d'arresto numero uno del progetto stesso fallisce;
+- **i vicini che si accorgono** — quattro gradini su cinque descrivono un
+  osservabile che il codice citato **non può produrre**, e il documento li
+  dichiara veri: il difetto peggiore per una via che vende l'autenticità;
+- **il contenimento** — il suo cancello misura l'**uso normale** del registro,
+  non la comprensione: non può fallire;
+- **la persistenza** — il perno (un corpo che resta fermo dove hai chiuso) è
+  **morto in partita**: Mochi non ha una posizione salvata, e `setup_resident`
+  rimette ogni corpo davanti a casa a ogni caricamento.
+
+**Quello che resta, e va tenuto per la versione che verrà:** mostrare la MIP
+invece di Φ (fatto); che la discesa sia guidata dalla **comprensione** e i
+gesti ne siano la *prova* e non il carburante; e il gradino finale della via
+dell'evidenza, che è l'unica idea che questo materiale rende possibile — **il
+vicino che si accorge dello strumento con cui lo guardi, e comincia a girare
+al largo dal posto in cui lo tieni**, con `Limbico` che marchia quel luogo
+come marchia ogni altro luogo. Quel gesto (il Largo) è misurato, leggibile a
+sei metri, e **in partita non è mai partito**.
+
 ## Test
 
 Test-suite **dependency-free** (nessun addon, nessuna rete) in `tests/`:
