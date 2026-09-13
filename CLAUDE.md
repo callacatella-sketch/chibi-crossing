@@ -8887,6 +8887,93 @@ quello cambia il certificato di contrazione.
 chiamante di produzione esercita**; `ber.append(b + p/l)` calcolato e buttato
 a `Limbico.gd:1044`; `il_piu_caro` che torna `""` a pari merito.
 
+## IL CARICO — il secondo stato stabile, e il teorema che lo rendeva impossibile
+
+Fino al 2026-09-13 questo sostrato **non poteva** avere due stati stabili, e
+non per taratura. I sette archi di `G` formano un **DAG** (verificato: ordine
+topologico adenosina→dopamina→endorfine→cortisolo→serotonina→melatonina, più
+ossitocina→cortisolo, **zero cicli**), quindi gli autovalori di `M = −Λ + κG`
+sono esattamente i `−λᵢ` e l'ascissa spettrale vale **−0,02000000** per ogni
+carattere e ogni κ. E il budget di riga rende la mappa una **contrazione**,
+che ha **UN** punto fisso.
+
+**Un sistema così non può crollare, non può restare giù, e non può
+oscillare.** Qualunque «stato» ci si mettesse sopra sarebbe un transitorio con
+un nome.
+
+### Il meccanismo, che è vero e non inventato per l'occasione
+
+Sotto stress prolungato il **recettore dei glucocorticoidi si desensibilizza**:
+il cortisolo alto danneggia proprio la retroazione negativa che dovrebbe
+spegnerlo. È un autofeedback **positivo che satura** — trascurabile in basso,
+dominante oltre una soglia — ed è esattamente la forma che serve.
+
+```
+ċ = −λ(c − t) + H(c)
+H(c) = 0                                  per c ≤ SOGLIA      ← la zona morta
+H(c) = α·d²/(σ² + d²),  d = c − SOGLIA    per c > SOGLIA
+```
+
+⚠️ **LA ZONA MORTA È LA RIGA CHE SALVA TUTTO IL RESTO.** Sotto `SOGLIA` il
+termine è **zero esatto**, quindi il punto di riposo resta `t` al bit. Senza
+(misurato, la stessa funzione senza zona morta) lo stato basso si sposta da
+**0,080 a 0,145** — mezzo gioco ritarato in silenzio dentro un commit che si
+presenta come «uno stato nuovo».
+
+### I tre punti fissi, MISURATI
+
+| | valore | |
+|---|---|---|
+| stato basso | **0,0800** | il punto di riposo di **sempre** |
+| crinale (instabile) | **0,5700** | e la vita normale arriva a **0,42** |
+| stato alto | **0,9124** | stabile: **ci si resta** |
+
+⚠️ **Sono misurati, non calcolati su carta.** La prima stesura aveva
+0,587 / 0,801 da un conto in Python fatto con θ = 0,50 mentre l'header diceva
+0,55: il banco ha trovato 0,661 / 0,784, cioè uno stacco di soli 0,12 — un
+secondo bacino troppo debole per essere una cosa. Adesso lo stacco è **0,342**.
+
+⚠️ **E IL CRINALE STA SOPRA LA VITA NORMALE: è il numero che decide se questo
+lavoro si può consegnare.** Non ci si cade vivendo. Se un giorno una taratura
+altrove alzasse il cortisolo della vita normale sopra 0,5, questo meccanismo
+diventerebbe **il villaggio come ospedale** — ed è il primo numero da
+riguardare.
+
+### L'isteresi, misurata nel modo giusto
+
+Non «quanti punti devi scendere»: **se togliere la causa riporta indietro.**
+
+| | |
+|---|---|
+| spinto a 0,72, poi **un'ora di gioco senza più nessuna causa** | **0,9139** |
+| lo **stesso identico colpo**, col carico spento | **0,0800** |
+
+*Lo stesso colpo, nel gioco di ieri, veniva riassorbito e dimenticato. Adesso
+no.* È la differenza fra un brutto periodo e uno **stato**. E l'uscita esiste
+e non è una trappola: bisogna portarlo sotto 0,57, cioè toglierne 0,34 — **ed
+è quello che il giocatore deve fare.**
+
+### Il certificato, che sostituisce quello di contrazione
+
+1. `H ≥ 0` e `H ≤ α` (satura): il campo è limitato;
+2. `f(1) < 0` ⟺ `α < λ(1−t) = 0,0736`, e `α = 0,068` — il margine è **stretto
+   apposta**, perché è lo stacco fra i due bacini a costare. Un `static_assert`
+   lo impone. **Provato**: 40 000 passi partendo da tutti i canali a 1, e
+   nessuno esce mai da [0,1];
+3. sotto `SOGLIA` il sistema è quello di prima, contrazione compresa.
+
+⚠️ **E Φ NON VEDE IL CARICO**, ed è dichiarato: Φ si calcola sulla parte
+LINEARE, e il carico è la non-linearità. Chi vorrà un Φ che lo veda deve
+linearizzare attorno allo stato **alto**, non al riposo.
+
+### ⚠️ COSA C'È E COSA NON C'È ANCORA
+
+`carico_acceso` è **spento di serie**, e nessuno lo accende: il sostrato è
+dimostrato, il cablaggio no. Manca **cosa spinge qualcuno oltre il crinale**,
+**cosa si vede addosso al corpo**, e **quale gesto del giocatore toglie i
+0,34**. La suite è rimasta **78419/0, identica** — che è la prova che finora
+non cambia niente per nessuno.
+
 ## Test
 
 Test-suite **dependency-free** (nessun addon, nessuna rete) in `tests/`:
