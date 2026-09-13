@@ -8769,6 +8769,58 @@ al largo dal posto in cui lo tieni**, con `Limbico` che marchia quel luogo
 come marchia ogni altro luogo. Quel gesto (il Largo) è misurato, leggibile a
 sei metri, e **in partita non è mai partito**.
 
+## ESSERE GUARDATI — e il gesto è lo STESSO con cui il prato si fida di te
+
+[`scenes/npc/Osservare.gd`](scenes/npc/Osservare.gd). Il Fiato Sospeso —
+fermarsi, accovacciarsi, non fare rumore — è la cosa più gentile che questo
+gioco conosca: `calma()` sale e il mondo si avvicina, la farfalla si posa, la
+trota resta. Fatto addosso a una **persona**, e tenuto, è un'altra cosa. Non
+perché il gioco decida che lo sia: perché la differenza fra guardare una
+bestiola e guardare qualcuno che ti può guardare indietro è che **il secondo
+se ne accorge** — e quel canale (`Percezione.puo_vedere`) esiste da sempre.
+
+**Il segno va sul POSTO, mai sulla persona.** Un marchio Limbico sul luogo da
+cui guardavi, come la catasta e l'orto. Tre ragioni, e la terza decide: è vero
+(chi si è sentito osservato ricorda il posto, non la faccia); il gioco ha già
+tutta la cura (l'estinzione a 0,12/giorno, `visita_serena`, l'Accompagnare);
+e un marchio su una PERSONA sarebbe un giudizio su di te che non vedi e non
+puoi disfare, mentre un posto lo vedi — ci passi davanti, e vedi qualcuno
+girare al largo.
+
+**Tre valvole:** la durata (`PAZIENZA` 14 s, fuori scala rispetto ai 3,2 s di
+una testa che si gira), la distanza (`Visitor.FACCIA_AL_GIOCATORE`, letta di
+là) e **deve poterti vedere** — chi dorme o è dentro casa non si accorge di
+niente, o il giocatore verrebbe marchiato per essere stato fermo dietro una
+parete, che è il guasto che inverte il meccanismo.
+
+> ### ⚠️ E I DUE NUMERI SONO MISURATI, perché la prima stesura aveva
+> ### un'idea sbagliata di come funziona il Limbico
+>
+> L'idea era «accumulo graduale: tante volte, un pochino per volta». MISURATO
+> contro `rivaluta` vero:
+>
+> | peso per episodio | esito |
+> |---|---|
+> | 0,30 | **non marchia affatto** (`Limbico` ha un pavimento suo: `absf(sentito) > 0.3`) |
+> | 0,42 | plateau a 0,344 — **mai chiuso in 60 episodi** |
+> | 0,48 | plateau a 0,444 — **mai chiuso in 60 episodi** |
+> | 0,52 | **chiuso in 3** |
+>
+> **L'accumulo graduale non esiste, e non per un difetto: per
+> l'ABITUAZIONE.** `rivaluta` smorza ciò che si ripete uguale (la stessa
+> distinzione abitudine/sensibilizzazione che questo progetto misura a 4,5×),
+> quindi ripetere lo stesso gesto porta a un plateau e basta. **È psicologia
+> giusta: ci si abitua a essere guardati.**
+>
+> Quindi la scala non è «quante volte», è **QUANTO A LUNGO**: sotto ~30 s
+> oltre la pazienza non resta niente, mai, per quante volte lo si faccia;
+> oltre ~70 s il posto si chiude in due o tre volte. *La differenza fra
+> osservare e fissare è la durata,* e adesso il numero lo dice.
+>
+> ⚠️ E `TETTO_EPISODIO` sta **sopra** `SOGLIA_EVITAMENTO`, che è il contrario
+> di quel che sembra prudente: sotto la soglia il posto non si chiuderebbe
+> mai — conseguenza morta in partita con la suite verde.
+
 ## Test
 
 Test-suite **dependency-free** (nessun addon, nessuna rete) in `tests/`:
