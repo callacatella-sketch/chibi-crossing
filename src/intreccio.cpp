@@ -167,50 +167,6 @@ void exp_matrice(const double *M, double h, double *out) {
 
 } // namespace
 
-static_assert(CARICO_ALPHA < 0.08 * (1.0 - 0.08),
-              "alpha deve stare sotto lambda*(1-riposo) o lo stato scappa da [0,1]");
-static_assert(CARICO_SOGLIA > 0.45 && CARICO_SOGLIA < 1.0,
-              "il crinale deve stare sopra il cortisolo della vita normale (0.42)");
-
-double carico(double c) {
-    // ⚠️ LA ZONA MORTA, e non è una comodità: sotto il crinale il termine è
-    // zero ESATTO, quindi il punto di riposo resta quello di sempre al bit.
-    // Senza, lo stato basso si sposterebbe da 0.080 a 0.145 — mezzo gioco
-    // ritarato in silenzio dentro un commit che si presenta come «uno stato
-    // nuovo».
-    if (!std::isfinite(c)) return 0.0;
-    const double d = c - CARICO_SOGLIA;
-    if (d <= 0.0) return 0.0;
-    return CARICO_ALPHA * d * d / (CARICO_SIGMA * CARICO_SIGMA + d * d);
-}
-
-int punti_fissi_carico(double lambda, double riposo, double *out3) {
-    if (out3 == nullptr) return 0;
-    if (!(std::isfinite(lambda) && lambda > 0.0 && std::isfinite(riposo))) return 0;
-    // f(c) = −λ(c − riposo) + carico(c); si cercano i cambi di segno su [0,1]
-    int n = 0;
-    double prec = -lambda * (0.0 - riposo) + carico(0.0);
-    const int passi = 200000;
-    for (int i = 1; i <= passi && n < 3; ++i) {
-        const double c = static_cast<double>(i) / passi;
-        const double f = -lambda * (c - riposo) + carico(c);
-        if ((prec < 0.0 && f >= 0.0) || (prec > 0.0 && f <= 0.0)) {
-            // bisezione per raffinare
-            double a = static_cast<double>(i - 1) / passi, b = c;
-            for (int k = 0; k < 60; ++k) {
-                const double m = 0.5 * (a + b);
-                const double fm = -lambda * (m - riposo) + carico(m);
-                if ((prec < 0.0) == (fm < 0.0)) a = m; else b = m;
-            }
-            const double r = 0.5 * (a + b);
-            // niente doppioni: la radice alla baseline si tocca una volta sola
-            if (n == 0 || std::fabs(r - out3[n - 1]) > 1e-4) out3[n++] = r;
-        }
-        prec = f;
-    }
-    return n;
-}
-
 bool costruisci_intreccio(const double *lambda, const double *tratti,
                           Intreccio *out) {
     if (lambda == nullptr || out == nullptr) return false;
@@ -287,15 +243,6 @@ bool passo_intreccio(const Intreccio &it, double h, double kappa,
         for (int j = 0; j < N; ++j) acc += E[i * N + j] * d[j];
         fuori[i] = bersaglio[i] + acc;
         if (!std::isfinite(fuori[i])) return false;
-    }
-    // ⚠️ IL CARICO, e SOLO se qualcuno l'ha acceso. Si applica DOPO il passo
-    // lineare (split-step): il termine è limitato da `CARICO_ALPHA` e h è al
-    // massimo `NEURO_PASSO_MAX`, quindi l'errore del primo ordine è sotto
-    // `α·h²/2 ≈ 2·10⁻³` sul passo più lungo — e sotto il crinale è **zero
-    // esatto**, che è il caso che deve restare intatto.
-    if (it.carico_acceso) {
-        const double dc = carico(fuori[C_CORTISOLO]) * h;
-        if (std::isfinite(dc)) fuori[C_CORTISOLO] += dc;
     }
     for (int i = 0; i < N; ++i)
         neuro[i] = fuori[i] < 0.0 ? 0.0 : (fuori[i] > 1.0 ? 1.0 : fuori[i]);

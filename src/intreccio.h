@@ -119,105 +119,47 @@ enum Canale {
 static constexpr double INTRECCIO_KAPPA_MIN = 0.55;
 static constexpr double INTRECCIO_KAPPA_MAX = 1.00;
 
-// ===========================================================================
-//  IL CARICO — il secondo stato stabile, e il teorema che lo rendeva
-//  impossibile
-// ===========================================================================
+// ⚠️ **IL CARICO NON STA QUI, E LA RAGIONE VALE PIÙ DEL CODICE CHE C'ERA.**
 //
-//  Fino a oggi questo sostrato **non poteva** avere due stati stabili, e non
-//  per taratura: i sette archi di `G` formano un **DAG** (verificato: ordine
-//  topologico adenosina→dopamina→endorfine→cortisolo→serotonina→melatonina,
-//  più ossitocina→cortisolo, zero cicli), quindi gli autovalori di
-//  `M = −Λ + κG` sono esattamente i `−λᵢ` e l'ascissa spettrale vale
-//  **−0.02000000** per ogni carattere e ogni κ. E il budget di riga
-//  (Gershgorin) rende la mappa una **contrazione** — che ha **UN** punto
-//  fisso, per teorema.
+// Il 2026-09-13 questo file ha avuto per qualche ora un termine `carico(c)`:
+// un autofeedback saturo sul LIVELLO del cortisolo, con zona morta, che
+// produceva due bacini (0.080 / 0.570 / 0.912) e un certificato
+// `α < λ(1−t) = 0.0736`. Era sbagliato in due modi, tutti e due misurati, e
+// tutti e due della stessa famiglia: **misurare col caso di riposo invece
+// che col caso vero.**
 //
-//  Un sistema così non può crollare, non può restare giù, e non può
-//  oscillare. Qualunque «stato» ci si volesse mettere sopra sarebbe stato un
-//  transitorio con un nome.
+//  1. **IL CERTIFICATO ERA CALCOLATO SUL BERSAGLIO SBAGLIATO.** `t` non è la
+//     baseline: è `B + Π/λ`, e `produzione_ambientale` la alza col maltempo.
+//     MISURATO: un codardo sotto tempesta ha **t = 0.4900**, quindi il
+//     certificato vuole `α < 0.0408` — e α valeva 0.068, che lo sfonda del
+//     **67%**. Sotto la pioggia lo stato cavalcava il clamp a 1.0, e **un
+//     clamp non è un punto fisso**: i «due bacini» diventavano «un bacino e
+//     un muro». Peggio: quel vicino sedeva a 0.49 con il crinale a 0.570 —
+//     **otto centesimi**, e un solo `rivaluta` ne somma fino a 0.63. Era
+//     esattamente «il villaggio come ospedale», cioè il guasto che il
+//     commento di allora dichiarava essere il primo numero da riguardare.
+//  2. **E UNA NOTTE LO CANCELLAVA COMUNQUE.** `Limbico.consolida_sonno` fa
+//     `move_toward(cortisolo, base_cort, 0.40..0.85)`: da 0.91 alla baseline
+//     ci sono 0.83, meno del drenaggio. **Lo stato alto non sopravviveva a
+//     una singola notte**, quindi la bistabilità era irraggiungibile oltre
+//     una giornata di gioco — codice completo, provato, verde e inerte in
+//     partita, un piano sotto il difetto di `opinione`.
 //
-// ---------------------------------------------------------------------------
-//  IL MECCANISMO, che è vero e non inventato per l'occasione
-// ---------------------------------------------------------------------------
-//
-//  Sotto stress prolungato il **recettore dei glucocorticoidi si
-//  desensibilizza**: il cortisolo alto danneggia proprio la retroazione
-//  negativa che dovrebbe spegnerlo. È un autofeedback POSITIVO che SATURA —
-//  trascurabile in basso, dominante oltre una soglia — ed è esattamente la
-//  forma che serve per due stati stabili.
-//
-//      ċ = −λ(c − t)  +  H(c)
-//      H(c) = 0                                    per c ≤ SOGLIA
-//      H(c) = α·d²/(σ² + d²),   d = c − SOGLIA     per c > SOGLIA
-//
-//  ⚠️ **LA ZONA MORTA È LA RIGA CHE SALVA TUTTO IL RESTO.** Sotto `SOGLIA`
-//  il termine è **zero esatto**, quindi il punto di riposo resta `t` al bit e
-//  ogni taratura già misurata di questo gioco è intatta. Senza la zona morta
-//  (misurato: la stessa funzione senza) lo stato basso si sposta da 0.080 a
-//  **0.145**, cioè si sarebbe ritarato mezzo gioco in silenzio dentro un
-//  commit che si presenta come «uno stato nuovo».
-//
-// ---------------------------------------------------------------------------
-//  I TRE PUNTI FISSI, CALCOLATI (λ = 0.08, t = 0.08, α = 0.060, θ = 0.55,
-//  σ = 0.06)
-// ---------------------------------------------------------------------------
-//
-//    stato basso   0.0800   ← il punto di riposo di SEMPRE
-//    CRINALE       0.5704   ← instabile
-//    stato alto    0.9195   ← stabile: **ci si resta**
-//
-//  ⚠️ **E QUESTI SONO MISURATI, non calcolati su carta.** La prima stesura
-//  aveva 0.587 / 0.801 da un conto in Python fatto con θ = 0.50 mentre
-//  l'header diceva 0.55: il banco ha trovato 0.661 / 0.784 — un crinale più
-//  alto e uno stacco di soli 0.12, cioè un secondo bacino troppo debole per
-//  essere una cosa. Il numero lo dà `tools/prova_carico.cpp`, non io.
-//
-//  ⚠️ **E IL CRINALE STA SOPRA LA VITA NORMALE, ed è il numero che decide se
-//  questo lavoro si può consegnare.** MISURATO altrove in questo progetto: un
-//  vicino «in ansia» arriva a **0.42**. Il crinale è a 0.587. Quindi non ci
-//  si cade vivendo: ci si arriva solo se qualcosa spinge, e continua a
-//  spingere. Se un giorno una taratura altrove alzasse il cortisolo della
-//  vita normale sopra 0.5, questo meccanismo diventerebbe **il villaggio come
-//  ospedale** — ed è il primo numero da riguardare.
-//
-//  **L'ISTERESI**: per entrare bisogna essere spinti sopra 0.587; per uscire
-//  bisogna essere riportati sotto 0.587 — ma da 0.801 il sistema tira in SU.
-//  La strada del ritorno non è quella dell'andata, e serve che qualcuno
-//  faccia qualcosa. *È il punto.*
-//
-//  **IL CERTIFICATO**, e sostituisce quello di contrazione che qui cade:
-//   1. `H ≥ 0` e `H ≤ α` (satura): il campo è limitato;
-//   2. `f(1) = −λ(1−t) + H(1) < 0` ⟺ `α < λ(1−t) = 0.0736` (e `α = 0.068`:
-//      il margine è **stretto apposta**, perché è lo stacco fra i due bacini
-//      a costare — chi lo alza deve rifare il `static_assert` e la misura) — e
-//      `static_assert` lo impone. Quindi da 1 si torna sempre giù: **lo stato
-//      non può uscire da [0,1]**, senza bisogno del clamp;
-//   3. sotto `SOGLIA` il sistema è quello di prima, contrazione compresa.
-//  Non è più «un punto fisso»: sono **due bacini**, e la dimostrazione è
-//  trovare le radici — che `tools/prova_carico.cpp` fa, invece di crederci.
-
-/// Il crinale: sotto, il termine è zero esatto e il gioco è quello di ieri.
-static constexpr double CARICO_SOGLIA = 0.50;
-/// Quanto forte può diventare l'autofeedback. ⚠️ Sotto λ(1−t) o lo stato
-/// scappa da [0,1]: lo impone un `static_assert`.
-static constexpr double CARICO_ALPHA = 0.068;
-/// Quanto in fretta satura oltre il crinale.
-static constexpr double CARICO_SIGMA = 0.06;
-
-/// Il termine di carico su un livello. Zero sotto il crinale, sempre.
-double carico(double c);
-
-/// I tre punti fissi, per chi vuole verificare invece di credere. Torna
-/// quanti ne ha trovati (3 = bistabile, 1 = un bacino solo).
-int punti_fissi_carico(double lambda, double riposo, double *out3);
+// **La forma giusta è in `Limbico.gd`**, e non è un termine sul livello: è
+// uno **scarto del PUNTO DI RIPOSO**, con la disciplina di
+// `tinta_carattere`. Da lì discendono tre cose che qui non si potevano
+// avere: la matrice resta esattamente questa (Gershgorin, il DAG, i cinque
+// `static_assert`, «il bersaglio sta fuori dalla matrice» — tutto intatto);
+// `consolida_sonno` punta a `neuro_base`, quindi **il sonno smette di
+// riparare senza toccarne una riga**; e `trattieni()` scala su
+// `livello − riposo`, che all'equilibrio è **zero** — cioè l'autocontrollo di
+// chi è crollato costa esattamente quanto quello di chiunque altro, e «una
+// condizione non rende nessuno inaffidabile» diventa un **teorema** invece
+// di una mitigazione.
 
 struct Intreccio {
     double G[INTRECCIO_N * INTRECCIO_N] = {0};   // accoppiamento, diag. nulla
     double lambda[INTRECCIO_N] = {0};            // i decadimenti di Limbico
-    /// ⚠️ **SPENTO DI SERIE.** Chi non l'accende ha il gioco di ieri, bit per
-    /// bit — e non per una zona morta, ma perché il ramo non gira affatto.
-    bool carico_acceso = false;
     bool pronto = false;
 };
 

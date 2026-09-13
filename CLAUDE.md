@@ -8887,92 +8887,94 @@ quello cambia il certificato di contrazione.
 chiamante di produzione esercita**; `ber.append(b + p/l)` calcolato e buttato
 a `Limbico.gd:1044`; `il_piu_caro` che torna `""` a pari merito.
 
-## IL CARICO — il secondo stato stabile, e il teorema che lo rendeva impossibile
+## IL CARICO — quello che una brutta stagione lascia addosso
 
-Fino al 2026-09-13 questo sostrato **non poteva** avere due stati stabili, e
-non per taratura. I sette archi di `G` formano un **DAG** (verificato: ordine
-topologico adenosina→dopamina→endorfine→cortisolo→serotonina→melatonina, più
-ossitocina→cortisolo, **zero cicli**), quindi gli autovalori di `M = −Λ + κG`
-sono esattamente i `−λᵢ` e l'ascissa spettrale vale **−0,02000000** per ogni
-carattere e ogni κ. E il budget di riga rende la mappa una **contrazione**,
-che ha **UN** punto fisso.
+### ⚠️ E PRIMA: LA VERSIONE SBAGLIATA, CONSEGNATA E RITIRATA NELLA STESSA GIORNATA
 
-**Un sistema così non può crollare, non può restare giù, e non può
-oscillare.** Qualunque «stato» ci si mettesse sopra sarebbe un transitorio con
-un nome.
+Il sostrato chimico non può avere due stati stabili, e non per taratura: i
+sette archi formano un **DAG** (ascissa spettrale −0,02 per tutti) e il budget
+di riga lo rende una **contrazione**, che ha **un** punto fisso.
 
-### Il meccanismo, che è vero e non inventato per l'occasione
+La prima cura fu un **autofeedback saturo sul LIVELLO del cortisolo**, con
+zona morta, che produceva due bacini (0,080 / 0,570 / 0,912) e un certificato
+`α < λ(1−t) = 0,0736`. Era **sbagliata in due modi**, tutti e due misurati, e
+tutti e due della stessa famiglia — **misurare col caso di riposo invece che
+col caso vero**:
 
-Sotto stress prolungato il **recettore dei glucocorticoidi si desensibilizza**:
-il cortisolo alto danneggia proprio la retroazione negativa che dovrebbe
-spegnerlo. È un autofeedback **positivo che satura** — trascurabile in basso,
-dominante oltre una soglia — ed è esattamente la forma che serve.
+1. **il certificato usava la baseline invece del bersaglio vero.** `t` non è
+   0,08: è `B + Π/λ`, e `produzione_ambientale` lo alza col maltempo.
+   MISURATO: **codardo sotto tempesta → t = 0,4900**, quindi il certificato
+   vuole `α < 0,0408` — e α valeva 0,068, che lo sfonda del **67%**. Lo stato
+   cavalcava il clamp a 1,0, e **un clamp non è un punto fisso**. Peggio: quel
+   vicino sedeva a **otto centesimi** dal crinale, e un solo `rivaluta` somma
+   fino a 0,63 in un fotogramma. Era *il villaggio come ospedale*, cioè
+   precisamente il guasto che il commento di allora dichiarava essere «il
+   primo numero da riguardare»;
+2. **e una notte lo cancellava comunque.** `consolida_sonno` fa
+   `move_toward(cortisolo, base_cort, 0,85)`: da 0,91 alla baseline ci sono
+   0,83, meno del drenaggio. **Lo stato alto non sopravviveva a una singola
+   notte** — completo, provato, verde e inerte in partita.
 
-```
-ċ = −λ(c − t) + H(c)
-H(c) = 0                                  per c ≤ SOGLIA      ← la zona morta
-H(c) = α·d²/(σ² + d²),  d = c − SOGLIA    per c > SOGLIA
-```
+Il banco che l'aveva «validato» usava la baseline come punto di partenza **e**
+come bersaglio, e non chiamava mai `passa_giorno`: non poteva vedere né l'uno
+né l'altro.
 
-⚠️ **LA ZONA MORTA È LA RIGA CHE SALVA TUTTO IL RESTO.** Sotto `SOGLIA` il
-termine è **zero esatto**, quindi il punto di riposo resta `t` al bit. Senza
-(misurato, la stessa funzione senza zona morta) lo stato basso si sposta da
-**0,080 a 0,145** — mezzo gioco ritarato in silenzio dentro un commit che si
-presenta come «uno stato nuovo».
+### La forma giusta: il carico sposta il PUNTO DI RIPOSO, non il livello
 
-### I tre punti fissi, MISURATI
+Da quella riga discendono tre cose che sul livello non si potevano avere:
 
-| | valore | |
-|---|---|---|
-| stato basso | **0,0800** | il punto di riposo di **sempre** |
-| crinale (instabile) | **0,5700** | e la vita normale arriva a **0,42** |
-| stato alto | **0,9124** | stabile: **ci si resta** |
+1. **la matrice resta esattamente quella di prima** — Gershgorin, il DAG, i
+   cinque `static_assert`, «il bersaglio sta fuori dalla matrice»: intatti;
+2. **`consolida_sonno` punta a `neuro_base`**, quindi il sonno smette di
+   riparare **senza toccarne una riga**: la notte riporta il livello al
+   riposo, e il riposo è quello spostato;
+3. **⚠️ E `trattieni()` SCALA SU `livello − riposo`, CHE ALL'EQUILIBRIO È
+   ZERO.** MISURATO: la deviazione di chi è carico e di chi sta bene è la
+   **stessa**. «Una condizione non rende nessuno inaffidabile» smette di
+   essere una mitigazione e diventa una **conseguenza della forma**.
 
-⚠️ **Sono misurati, non calcolati su carta.** La prima stesura aveva
-0,587 / 0,801 da un conto in Python fatto con θ = 0,50 mentre l'header diceva
-0,55: il banco ha trovato 0,661 / 0,784, cioè uno stacco di soli 0,12 — un
-secondo bacino troppo debole per essere una cosa. Adesso lo stacco è **0,342**.
+**Il pavimento, che è il numero che decide se si può consegnare:** dodici
+giornate col sereno → carico **0,000000**; col temporale → **0,000000**; un
+**codardo** sotto temporale → **0,000000**. *Non ci si carica vivendo.*
 
-⚠️ **E IL CRINALE STA SOPRA LA VITA NORMALE: è il numero che decide se questo
-lavoro si può consegnare.** Non ci si cade vivendo. Se un giorno una taratura
-altrove alzasse il cortisolo della vita normale sopra 0,5, questo meccanismo
-diventerebbe **il villaggio come ospedale** — ed è il primo numero da
-riguardare.
+E una stagione brutta vera (dieci giornate) lascia **0,41**, che sposta il
+riposo del cortisolo da 0,080 a **0,249**. Una notte non lo tocca.
 
-### L'isteresi, misurata nel modo giusto
+**L'uscita è il FARE** (*behavioural activation*: funziona attraverso il fare,
+non attraverso l'umore che migliora prima). Da 0,80, dieci giornate:
 
-Non «quanti punti devi scendere»: **se togliere la causa riporta indietro.**
-
-| | |
+| | carico dopo |
 |---|---|
-| spinto a 0,72, poi **un'ora di gioco senza più nessuna causa** | **0,9139** |
-| lo **stesso identico colpo**, col carico spento | **0,0800** |
+| senza fare niente | **0,573** |
+| portando a termine qualcosa | **0,001** |
 
-*Lo stesso colpo, nel gioco di ieri, veniva riassorbito e dimenticato. Adesso
-no.* È la differenza fra un brutto periodo e uno **stato**. E l'uscita esiste
-e non è una trappola: bisogna portarlo sotto 0,57, cioè toglierne 0,34 — **ed
-è quello che il giocatore deve fare.**
+### ⚠️ E NON È UN SECONDO STATO STABILE — l'anello NON si chiude, misurato
 
-### Il certificato, che sostituisce quello di contrazione
+Il disegno voleva un circolo. **Non succede**, e il conto dice perché.
+`bersaglio_umore` pesa i canali 0,20 / 0,35 / 0,20 / 0,15 / −0,40; con lo
+scarto del carico il guadagno sarebbe K = 0,5425, ma **i clamp se ne mangiano
+un pezzo** (la dopamina scende di 0,50 e ne ha 0,40 di margine, le endorfine
+di 0,30 e ne hanno 0,15): K efficace **0,50**.
 
-1. `H ≥ 0` e `H ≤ α` (satura): il campo è limitato;
-2. `f(1) < 0` ⟺ `α < λ(1−t) = 0,0736`, e `α = 0,068` — il margine è **stretto
-   apposta**, perché è lo stacco fra i due bacini a costare. Un `static_assert`
-   lo impone. **Provato**: 40 000 passi partendo da tutti i canali a 1, e
-   nessuno esce mai da [0,1];
-3. sotto `SOGLIA` il sistema è quello di prima, contrazione compresa.
+MISURATO: a carico **pieno** l'umore si posa a **−0,325** — e 0,175 − 0,50 =
+−0,325, il conto torna al millesimo. La soglia è **0,35**. Quindi la spinta
+vale **0,0000 a ogni livello**, e il guadagno d'anello è **zero**.
 
-⚠️ **E Φ NON VEDE IL CARICO**, ed è dichiarato: Φ si calcola sulla parte
-LINEARE, e il carico è la non-linearità. Chi vorrà un Φ che lo veda deve
-linearizzare attorno allo stato **alto**, non al riposo.
+E non è una taratura da trovare: per chiudere l'anello a metà strada
+servirebbe **K ≈ 1,35**, quasi tre volte quello che i cinque canali possono
+dare portati **tutti** al proprio limite. **Il margine non c'è.**
 
-### ⚠️ COSA C'È E COSA NON C'È ANCORA
+Le due strade per chi ci tornerà, e nessuna è gratis: abbassare `CARICO_M0`
+(ma è tarata sulla soglia di `stato_corpo()` e sull'umore medio del villaggio:
+abbassarla vuol dire che le brutte giornate normali cominciano a caricare), o
+un secondo termine che **non passi dall'umore** — e allora serve un
+certificato nuovo, di nuovo.
 
-`carico_acceso` è **spento di serie**, e nessuno lo accende: il sostrato è
-dimostrato, il cablaggio no. Manca **cosa spinge qualcuno oltre il crinale**,
-**cosa si vede addosso al corpo**, e **quale gesto del giocatore toglie i
-0,34**. La suite è rimasta **78419/0, identica** — che è la prova che finora
-non cambia niente per nessuno.
+**Quindi si chiama col suo nome**: un **carico lento con isteresi nei tempi**
+— tre giornate per prenderselo, trenta per smaltirlo da solo, e i gesti che lo
+scaricano sono quelli **portati a termine**. Una brutta stagione lascia
+qualcosa, e quel qualcosa non se ne va aspettando. È meno di quello che il
+disegno prometteva, ed è quello che i numeri concedono.
 
 ## Test
 

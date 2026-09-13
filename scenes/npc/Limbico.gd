@@ -50,6 +50,118 @@ const ABITUDINE := 0.30
 ## garantire.
 const RESIDUO_BELLO := 0.167
 
+# =========================================================== IL CARICO
+#
+# ⚠️ **UNO STATO LENTO, e sposta il PUNTO DI RIPOSO — non il livello.**
+#
+# Il sostrato chimico non poteva avere due stati stabili, e non per taratura:
+# i sette archi formano un DAG (ascissa spettrale −0.02 per tutti) e il budget
+# di riga lo rende una CONTRAZIONE, che ha UN punto fisso. Un sistema così non
+# può crollare e non può restare giù.
+#
+# La prima cura provata fu un autofeedback saturo sul LIVELLO del cortisolo.
+# Era sbagliata in due modi, tutti e due MISURATI, e tutti e due della stessa
+# famiglia — **misurare col caso di riposo invece che col caso vero**:
+#  1. il certificato usava la baseline (0.08) invece del bersaglio vero
+#     `B + Π/λ`, che col maltempo arriva a **0.49** per un codardo: il termine
+#     lo sfondava del 67%, lo stato cavalcava il clamp a 1.0, e quel vicino
+#     sedeva a otto centesimi dal ribaltamento. Il villaggio come ospedale;
+#  2. e **una notte lo cancellava comunque**: `consolida_sonno` fa
+#     `move_toward(cortisolo, base_cort, 0.85)`, che da 0.91 alla baseline
+#     arriva in un colpo. Bistabilità irraggiungibile oltre una giornata.
+#
+# Qui il carico **non tocca il livello**: sposta `neuro_base`, cioè dove il
+# livello TORNA. Tre conseguenze, e nessuna è una taratura:
+#
+#  1. **la matrice resta esattamente quella di prima** — Gershgorin, il DAG, i
+#     cinque `static_assert`, «il bersaglio sta fuori dalla matrice»: intatti;
+#  2. **`consolida_sonno` punta a `neuro_base`**, quindi il sonno smette di
+#     riparare **senza toccarne una riga**. Una notte non cancella più niente:
+#     riporta il livello al riposo, e il riposo è quello spostato;
+#  3. **`trattieni()` scala su `livello − riposo`**, che all'equilibrio è
+#     **zero**. L'autocontrollo di chi è crollato costa esattamente quanto
+#     quello di chiunque altro — e «una condizione non rende nessuno
+#     inaffidabile» smette di essere una mitigazione e diventa un TEOREMA.
+#
+# ⚠️ **E L'ANELLO NON SI CHIUDE — MISURATO, e il limite è STRUTTURALE.**
+#
+# Il disegno voleva un circolo: carico ↑ ⇒ riposo peggiore ⇒
+# `bersaglio_umore` ↓ ⇒ umore ↓ ⇒ `s(−umore)` ↑ ⇒ carico ↑, cioè un secondo
+# stato stabile. **Non succede**, e il conto dice perché.
+#
+# `bersaglio_umore` pesa i canali così: dopamina 0.20, serotonina 0.35,
+# ossitocina 0.20, endorfine 0.15, cortisolo −0.40. Con lo scarto qui sopra
+# il guadagno sarebbe K = 0.5425 — ma **i clamp se ne mangiano un pezzo**: la
+# dopamina scende di 0.50 e ne ha solo 0.40 di margine, le endorfine di 0.30
+# e ne hanno 0.15. K efficace = **0.50**.
+#
+# MISURATO: a carico **pieno** l'umore si posa a **−0.325** (e 0.175 − 0.50 =
+# −0.325: il conto torna al millesimo). La soglia `CARICO_M0` è **0.35**.
+# Quindi la spinta vale **0.0000 a ogni livello di carico**, e il guadagno
+# d'anello è **zero**.
+#
+# E non è una taratura da trovare: perché l'anello si chiudesse a metà strada
+# servirebbe K ≈ **1.35**, cioè quasi tre volte quello che i cinque canali
+# possono dare portati tutti al proprio limite. **Il margine non c'è.**
+#
+# Le due strade per chiuderlo, per chi ci tornerà, e nessuna è gratis:
+#  · **abbassare `CARICO_M0`** — ma è tarata sulla soglia con cui
+#    `stato_corpo()` dice «di malumore» (−0.35) e sull'umore medio del
+#    villaggio (+0.32): abbassarla vuol dire che le brutte giornate normali
+#    cominciano a caricare, cioè **il villaggio come ospedale**;
+#  · **un secondo termine nell'anello** che non passi dall'umore (il carico
+#    che si alimenta da sé, o da qualcosa che non sia `bersaglio_umore`) — e
+#    allora serve un certificato nuovo, di nuovo.
+#
+# **QUINDI QUESTO NON È UN SECONDO STATO STABILE, ed è scritto qui perché
+# nessuno lo chiami così.** È un **carico lento con isteresi nei tempi**: tre
+# giornate per prenderselo, trenta per smaltirlo da solo, e i gesti che lo
+# scaricano davvero sono quelli **portati a termine**. Una brutta stagione
+# lascia qualcosa, e quel qualcosa non se ne va aspettando. È meno di quello
+# che il disegno prometteva, ed è quello che i numeri concedono.
+#
+# **IL CERTIFICATO**, e sostituisce quello di contrazione che qui non basta:
+#  · **[0,1] è invariante per il carico, ESATTAMENTE e senza clamp**: in
+#    salita `ȧ = (s−a)/τ` con `s ∈ [0,1]`, quindi in a=0 è ≥ 0 e in a=1 è ≤ 0;
+#    in discesa `ȧ = −a·r ≤ 0` e si annulla in zero;
+#  · **i sette canali restano limitati**, ereditato: `neuro_base(a)` è affine
+#    in `a`, quindi il bersaglio sta nell'inviluppo convesso di quello a
+#    carico zero e di quello a carico uno — tutti e due già in [0,1] per i
+#    clamp che ci sono. E per ogni `a` fissato la mappa è la contrazione di
+#    prima. **Niente muri, niente clamp che facciano finta di essere un punto
+#    fisso.**
+
+## Dove comincia e dove satura la spinta del malumore sul carico. Sotto M0 non
+## si accumula niente: è la zona morta, e garantisce che una brutta giornata
+## non lasci niente.
+## ⚠️ MISURATI contro le grandezze vere di questo gioco: l'umore medio del
+## villaggio sta a **+0.32**, il peggio assoluto dei bisogni a **−0.5615**, e
+## la soglia con cui `stato_corpo()` dice «di malumore» è **−0.35**. M0 sta lì.
+const CARICO_M0 := 0.35
+const CARICO_M1 := 0.65
+
+## Le costanti di tempo, in secondi di gioco (una giornata ne dura 240).
+## ⚠️ **ASIMMETRICHE DI DIECI VOLTE, ed è l'isteresi**: tre giornate per
+## caricarsi, trenta per scaricarsi da solo. Il ritorno non è la strada
+## dell'andata, e senza l'aiuto di qualcuno è lunghissimo.
+const CARICO_TAU_SU := 720.0
+const CARICO_TAU_GIU := 7200.0
+
+## Quanto ogni atto PORTATO A TERMINE scarica il carico. ⚠️ È la
+## *behavioural activation*, che è il trattamento con più evidenza per la
+## depressione e funziona attraverso il FARE, non attraverso l'umore che
+## migliora prima. Per questo è un conteggio di gesti compiuti e non una
+## somma di conforto ricevuto.
+const CARICO_PER_ATTO := 0.05
+
+## Di quanto il carico pieno sposta il punto di riposo, canale per canale.
+## Stessa disciplina di `AMPIEZZA_TINTA`: uno SCARTO, e a carico zero somma
+## **zero esatto**.
+const CARICO_SCARTO := {
+	"cortisolo": 0.45, "serotonina": -0.45, "dopamina": -0.50,
+	"ossitocina": -0.30, "endorfine": -0.30,
+}
+
 const SOGLIA_SORPRESA := 0.08
 ## Quanto scende l'attivazione del corpo a ogni giorno.
 const CALMA := 0.45
@@ -349,6 +461,15 @@ static func tinta_carattere(tratti: Dictionary) -> Dictionary:
 ## chiamato in coda a `Animo.sincronizza_neuro()`: se ne esistessero due,
 ## sarebbero due composizioni da tenere allineate a mano.
 func applica_tinta(base: Dictionary) -> void:
+	# ⚠️ E IL CARICO ENTRA QUI, insieme alla tinta del carattere e per la
+	# stessa ragione: è uno SCARTO dal punto di riposo, non un'assegnazione.
+	# A carico zero somma **zero esatto**, quindi per chi non è mai stato
+	# spinto oltre il crinale il gioco è quello di ieri, al bit.
+	var _c := clampf(carico, 0.0, 1.0) if is_finite(carico) else 0.0
+	if _c > 0.0:
+		for _k in CARICO_SCARTO:
+			base[_k] = clampf(float(base.get(_k, 0.0))
+					+ float(CARICO_SCARTO[_k]) * _c, 0.0, 1.0)
 	for c in neuro_tinta:
 		if base.has(c):
 			base[c] = clampf(float(base[c]) + float(neuro_tinta[c]), 0.0, 1.0)
@@ -989,7 +1110,7 @@ func save() -> Dictionary:
 	return {"arousal": arousal, "umore": umore, "regolazione": regolazione,
 			"attese": attese.duplicate(), "marchi": marchi.duplicate(true),
 			"reattivita": reattivita, "abitudine": abitudine,
-			"neuro": neuro.duplicate()}
+			"neuro": neuro.duplicate(), "carico": carico}
 
 
 func load(d: Dictionary) -> void:
@@ -1002,6 +1123,13 @@ func load(d: Dictionary) -> void:
 	# (`riproietta`), e rileggerle dal disco le congelava per sempre — un
 	# salvataggio vecchio riportava una reattivita' che non corrispondeva piu'
 	# a quella persona. Si continuano a scrivere in `save()` come diagnostica.
+	# ⚠️ IL CARICO SI RILEGGE — è la cosa lenta, e senza di lui una brutta
+	# stagione sparirebbe a ogni caricamento. Un salvataggio di ieri non ce
+	# l'ha e risponde 0.0, che è esattamente il gioco di prima: nessuna
+	# migrazione.
+	carico = clampf(float(d.get("carico", 0.0)), 0.0, 1.0)
+	if not is_finite(carico):
+		carico = 0.0
 	var n_salvato: Dictionary = d.get("neuro", {})
 	neuro = NEURO_BASELINE.duplicate()
 	for k in n_salvato:
@@ -1019,6 +1147,13 @@ func load(d: Dictionary) -> void:
 const ORDINE_TRATTI := ["codardia", "grinta", "lealta", "ambizione", "orgoglio"]
 
 var _tratti := {}
+
+## ⚠️ **IL CARICO, 0..1 — ed è PERSISTITO.** È la cosa lenta: quello che resta
+## addosso quando una brutta stagione ha smesso di essere una brutta giornata.
+## Sta in GDScript e non nel C++ perché **si salva**, ed è la regola che questo
+## progetto applica da sempre («due case sullo stesso dato salvato è il guasto
+## che le fonti uniche vietano»).
+var carico := 0.0
 
 static var _ecs_intreccio = null
 static var _ecs_cercato := false
@@ -1153,3 +1288,42 @@ func dove_si_spezza(dt := 0.05) -> Array:
 			b.append(tipo)
 		i += 1
 	return [a, b]
+
+
+## ⚠️ **IL PASSO DEL CARICO.** Lento apposta, e con l'isteresi nelle costanti
+## di tempo: tre giornate per caricarsi, trenta per scaricarsi da solo.
+##
+## `atti` sono i gesti PORTATI A TERMINE nell'intervallo — non il conforto
+## ricevuto: la *behavioural activation* funziona attraverso il fare, ed è il
+## trattamento con più evidenza per la depressione. È anche la ragione per cui
+## l'uscita non è «stargli vicino»: è dargli qualcosa da finire.
+func passo_carico(dt: float, atti := 0.0) -> void:
+	if not is_finite(dt) or dt <= 0.0:
+		return
+	dt = minf(dt, NEURO_PASSO_MAX)
+	if not is_finite(carico):
+		carico = 0.0
+	var m: float = -clampf(umore, -1.0, 1.0)
+	# la spinta: zero sotto M0 (la zona morta), satura sopra M1
+	var spinta: float = smoothstep(CARICO_M0, CARICO_M1, m)
+	var prima := carico
+	if spinta > carico:
+		carico += (spinta - carico) * (dt / CARICO_TAU_SU)
+	else:
+		var tasso: float = 1.0 / CARICO_TAU_GIU
+		if is_finite(atti) and atti > 0.0:
+			tasso += CARICO_PER_ATTO * atti / maxf(dt, 1e-6)
+		carico -= carico * minf(1.0, tasso * dt)
+	carico = clampf(carico, 0.0, 1.0)
+	if not is_finite(carico):
+		carico = prima
+	# il riposo si rifà: è l'unico posto da cui il carico tocca il mondo
+	neuro_base = NEURO_BASELINE.duplicate()
+	applica_tinta(neuro_base)
+
+
+## Quanto pesa il carico su questa mente, adesso: 0 (niente) .. 1 (pieno).
+## ⚠️ È una LETTURA e non un'etichetta. Il gioco non dice mai «è depressa»:
+## dice quanto è carico, e il resto si vede addosso al corpo.
+func quanto_carico() -> float:
+	return clampf(carico, 0.0, 1.0) if is_finite(carico) else 0.0
