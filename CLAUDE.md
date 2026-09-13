@@ -7841,6 +7841,199 @@ CHIBI_POSE=1 CHIBI_PARTI=1 Godot --path . --resolution 1280x720 \
 ⚠️ **`--audio-driver Dummy` su ogni corsa**: i banchi aprono il MainLevel vero,
 che ha la musica, e chi sta lavorando accanto se la sente tutta.
 
+## L'INTRECCIO — la mente integrata, e Φ misurato invece che evocato
+
+> «Un sistema è cosciente se le sue parti sono collegate in modo così stretto
+> che non puoi dividerlo senza distruggerlo. Un computer elabora tantissimi
+> dati, ma ogni chip fa il suo lavoro in modo separato.»
+
+Fino al 2026-09-13 la chimica di un vicino era **letteralmente** la seconda
+metà di quella frase. `Limbico.passo_neuro` era questo:
+
+```gdscript
+for tipo in NEURO_TRASMETTITORI:
+    n = eq + (n - eq) * exp(-lam * dt)      # ogni canale per conto suo
+```
+
+Sette equazioni differenziali che non si guardano. La matrice di transizione
+è `A = diag(exp(−λᵢ·dt))`: **esattamente diagonale**, quindi **Φ = 0 per
+teorema** — non per approssimazione. Sette scalari scollegati che per caso li
+legge lo stesso corpo.
+
+Adesso i canali si parlano: [`src/intreccio.{h,cpp}`](src/intreccio.h), e
+l'informazione integrata è **calcolata**, in
+[`src/phi_integrato.{h,cpp}`](src/phi_integrato.h).
+
+### Φ — il formalismo, e perché un Φ sbagliato è peggio di nessun Φ
+
+*Stochastic interaction* gaussiana (Ay 2001; **Barrett & Seth 2011**,
+«Practical Measures of Integrated Information»). Per `x(t+1) = A·x(t) + ε`,
+`ε ~ N(0,Q)`, con Σ che risolve la Lyapunov discreta `Σ = A·Σ·Aᵀ + Q`:
+
+```
+Φ_p = ½·[ Σᵢ ln det(C_cond,ᵢ)  −  ln det(Q) ]
+C_cond,ᵢ = A_ij · Σ_{j|i} · A_ijᵀ + Q_ii      Σ_{j|i} = Σ_jj − Σ_ji·Σ_ii⁻¹·Σ_ij
+```
+
+Φ è il valore alla **partizione minima**: il punto debole del sistema. La
+normalizzazione di Tononi **sceglie il taglio, non misura** — senza, il minimo
+cade sempre sulla bipartizione più sbilanciata.
+
+**VERIFICATO** ([`tools/prova_phi.cpp`](tools/prova_phi.cpp), 20 casi, e due
+revisori indipendenti hanno rifatto le formule e le hanno confermate):
+sistema staccato → **zero al bit** (n = 4, 6, 7, 8); monotona
+nell'accoppiamento; la MIP trova il filo fra due grappoli; residuo di
+Lyapunov **1,5·10⁻¹⁵**; un sistema instabile **rifiuta di rispondere** invece
+di inventare.
+
+| unità | bipartizioni | costo |
+|---|---|---|
+| **7** | 63 | **44 µs** |
+| 10 | 511 | 775 µs |
+| 12 | 2047 | **5 ms** |
+
+⚠️ **Una matrice densa presa a caso è INSTABILE per costruzione**, e la
+covarianza stazionaria non esiste: `scala_a_raggio_spettrale` è obbligatoria.
+Sei dei primi otto rossi del banco erano una fixture che si era costruita un
+sistema che diverge — non il codice.
+
+⚠️ **E LA PORTA DA CUI SI BAREREBBE.** Φ_SI conta come integrazione anche la
+correlazione **istantanea** del rumore: con A diagonale — parti che non si
+parlano affatto — e Q pieno, Φ esce **0,553**. Non è un difetto della formula:
+è cosa misura. Si chiude con una proprietà STRUTTURALE, non con una taratura:
+il sostrato tiene **Q diagonale**, e Φ finisce per misurare solo
+l'accoppiamento dinamico.
+
+### Le tre righe che rendono l'intreccio sicuro
+
+```
+N(t+H) = t + E·(N(t) − t)        E = exp(M·H),  M = −Λ + G,  t = B + Λ⁻¹Π
+```
+
+1. **IL BERSAGLIO STA FUORI DALLA MATRICE**, ed è la riga più importante. La
+   forma che si scrive per prima (`Ṅ = M·N + Π`) ha punto fisso `−M⁻¹Π`, che
+   **non è** quello di prima: sposterebbe **ogni equilibrio del gioco** in
+   silenzio, dentro un commit che si presenta come «integrazione». MISURATO:
+   cortisolo medio da 0,1275 a **0,0334** — sotto la sua stessa baseline — e
+   la porta della tunnel-vision da 0,56% del tempo a **0,00%**. Con la forma
+   giusta il punto fisso è `t` **per qualunque E**: è algebra, non taratura, e
+   il banco la verifica a **0,000e+00** dopo 4000 passi.
+2. **IL BUDGET DI RIGA È UN TEOREMA AL POSTO DI UNA TARATURA.** Se
+   `Σⱼ|gᵢⱼ| < λᵢ`, per Gershgorin ogni autovalore di M ha parte reale
+   negativa: il sistema **non può** oscillare né divergere, con nessun
+   accoppiamento e nessun passo. Lo controllano cinque `static_assert`.
+3. **E LA MODULAZIONE NON PUÒ ROMPERLO**: κ scala il budget, quindi una riga
+   che rispettava il vincolo lo rispetta ancora.
+
+### ⚠️ PERCHÉ Φ QUI MISURA UNA MENTE, E NON UNA TABELLA
+
+Un Φ calcolato su costanti è un test unitario: uguale per tutti, per sempre.
+Qui G è **personale** (tutti e sette gli archi tinti dal carattere) e **dipende
+dallo stato** (κ dal cortisolo di adesso). MISURATO nel gioco vero, su dieci
+genomi veri:
+
+| | |
+|---|---|
+| Φ fra dieci vicini veri | da 0,0000097 a 0,0000818 — **×8,4** |
+| Φ nella stessa mente, da calma a tesa | 0,000096 → 0,000031 — **×3,1** |
+| Φ della chimica di ieri | **0,000000 — per teorema** |
+
+**«Sotto stress la mente si restringe» smette di essere una metafora e
+diventa un numero che si può far crollare.**
+
+⚠️ Alla prima stesura erano tinti **tre** archi su sette, e Φ variava dello
+**0,2%** fra quindici caratteri: l'intreccio era del villaggio, non della
+persona. Adesso sono sette, con l'ampiezza più larga che il budget concede.
+
+### LA TESI, RESA UN NUMERO
+
+La stessa identica gentilezza (+0,15 dopamina, +0,12 ossitocina, +0,12
+serotonina), in tre menti che stanno in tre modi diversi:
+
+| | cortisolo dopo 30 s | dopamina |
+|---|---|---|
+| sereno | −0,0195 | 0,4132 |
+| **in ansia** | **−0,3286** | 0,4132 |
+| esausto | −0,0146 | **0,3076** |
+
+**Senza intreccio il cortisolo non si muove in nessuno dei tre**, perché i
+canali non si parlano: un regalo non poteva calmare nessuno, per costruzione.
+E non c'è nessuna tabella che dica cosa fa un regalo — dipende da dov'era
+quella mente.
+
+### Il lettore che lo può vedere, e non è quello ovvio
+
+Il punto fisso è invariante **apposta**, quindi ogni consumatore che legge il
+livello a regime vede il gioco di ieri — ed è la garanzia, non un limite.
+Chi vede l'intreccio è chi legge il **transitorio**: `Limbico.trattieni()`,
+che scala su `max(0, livello − riposo)`.
+
+⚠️ **E NON è `Animo.decide()`**, che sarebbe la scelta ovvia e sarebbe
+**matematicamente muta**: gira solo sul confine del giorno, e
+`consolida_sonno` inchioda il cortisolo al punto fisso un istante prima (un
+`move_toward` di ≥ 0,40 contro una deviazione massima di 0,038). È il gemello
+del difetto già pagato con `opinione`: un termine che viene letto, in un punto
+in cui non può differire.
+
+### Il ponte, e il degrado
+
+`EcsMondo.intreccio_passo()` / `intreccio_phi()` sono **senza stato, apposta**:
+ricevono λ e tratti (che vivono in GDScript e sono persistiti là) e tornano i
+sette livelli. Niente handle da tenere allineato, niente entità che possa
+restare orfana, nessuna migrazione — la regola dell'ECS applicata alla
+lettera. Un array vuoto vuol dire «fai quello che facevi ieri».
+
+MISURATO: il passo costa **0,45 µs** (28 vicini a 20 Hz = **0,25 ms/s**), Φ
+costa **44 µs** (28 vicini a 1 Hz = **1,24 ms/s**). E la suite è rimasta
+**74156/0, identica al numero di prima** — che è la prova dell'invarianza: non
+una taratura si è spostata.
+
+### Cosa questo numero NON è
+
+Non è «coscienza». È la quantità che la teoria di Tononi propone come sua
+misura, calcolata su un'approssimazione lineare-gaussiana di un sostrato che
+lineare non è. Fa una cosa sola e la fa bene: **dire se le parti si possono
+staccare senza perdere niente.** Chi la citerà come altro, la citerà male.
+
+### ⚠️ E QUATTRO ARCHITETTURE SONO STATE BOCCIATE PRIMA DI QUESTA
+
+Quattro progetti indipendenti (un sostrato ricorrente a 12 unità, un campo
+percettivo fuso, un cervello predittivo, e il minimo), ognuno passato a uno
+scettico. **Tutti e quattro bocciati**, e le ragioni valgono più dei progetti:
+il sostrato a 12 unità aveva un Φ ~20× più piccolo della propria soglia
+d'arresto; il campo e il predittivo cadevano sulla matematica; e il minimo —
+che è quello da cui viene questo lavoro — aveva attaccato la cura a un
+consumatore (`decide()`) che **non la può vedere**, per teorema. *«Trovato un
+lettore che campiona il TRANSITORIO invece del punto fisso, questo stesso
+progetto torna in piedi quasi intatto»* — ed è quello che è stato fatto.
+
+### Come si verifica
+
+```
+clang++ -std=c++17 -O2 -Isrc tools/prova_phi.cpp src/phi_integrato.cpp \
+    -o /tmp/prova_phi && /tmp/prova_phi
+clang++ -std=c++17 -O2 -Isrc tools/prova_intreccio.cpp src/intreccio.cpp \
+    src/phi_integrato.cpp -o /tmp/prova_intreccio && /tmp/prova_intreccio
+Godot --headless --audio-driver Dummy --path . --script res://tests/test_runner.gd
+```
+
+⚠️ **Il C++ è cambiato: la CI su tutti e tre i sistemi è obbligatoria.**
+
+### Cosa resta aperto, dichiarato
+
+- **Le afferenze del COLORE non ci sono ancora.** Oggi arrivano luce, pioggia
+  e temperatura, e la mappa è una **tabella scritta a mano** (luce→serotonina,
+  pioggia→cortisolo). Il colore non raggiunge nessuna mente. Chi ci torna:
+  la valenza di un colore non deve venire da una tabella colore→emozione —
+  che è l'esatto contrario dell'integrazione — ma dalle associazioni di QUEL
+  vicino (i suoi ricordi hanno già un colore, un'ora e un tempo).
+- **Φ non è ancora misurato in partita su ventotto residenti**: i numeri qui
+  sopra vengono da `Limbico` veri ma fuori dal MainLevel.
+- **`trattieni()` è il lettore giusto e non è ancora stato misurato**: oggi il
+  suo numero è 20,0 contro 20,5 scoppi, e va rifatto in partita. Se resta il
+  2,5%, questo lavoro ha un sostrato bellissimo e nessun consumatore che lo
+  senta — e allora va detto.
+
 ## Test
 
 Test-suite **dependency-free** (nessun addon, nessuna rete) in `tests/`:

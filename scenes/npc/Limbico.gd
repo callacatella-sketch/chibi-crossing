@@ -244,6 +244,12 @@ var abitudine := ABITUDINE
 
 
 func setup(tratti: Dictionary) -> void:
+	# ⚠️ I TRATTI SI CONSERVANO, e NON si salvano: `Animo.setup(dna)` li
+	# ripassa a ogni caricamento, quindi sono derivati da un dato che sta già
+	# nel salvataggio (il DNA). Una seconda copia salvata sarebbe la doppia
+	# casa che questo progetto vieta — e questo file ne ha già pagata una
+	# (`dna.tratti` contro `animo.tratti`).
+	_tratti = tratti.duplicate()
 	var cod: float = float(tratti.get("codardia", 0.5))
 	var gri: float = float(tratti.get("grinta", 0.5))
 	var amb: float = float(tratti.get("ambizione", 0.5))
@@ -405,6 +411,21 @@ func passo_neuro(dt: float, amb: Dictionary = {}, dorme := false,
 		return
 	dt = minf(dt, NEURO_PASSO_MAX)
 	var prod := produzione_ambientale(amb, dorme, notte)
+	# ⚠️ **L'INTRECCIO, se il cuore sa farlo.** Fino a oggi questo era un
+	# ciclo di sette equazioni che non si guardavano — matrice di transizione
+	# `diag(exp(-λ·dt))`, cioè informazione integrata **zero per teorema**.
+	# Sette macchine separate che per caso le legge lo stesso corpo.
+	# Adesso i canali si parlano (`src/intreccio.{h,cpp}`), e il bersaglio
+	# resta FUORI dalla matrice: il punto di riposo è invariante al bit, così
+	# nessuna delle tarature di questo gioco si sposta.
+	#
+	# Il degrado va dove va sempre: se il binario non sa rispondere — una
+	# GDExtension più vecchia di questa riga, un banco, il Prologo — si fa
+	# esattamente quel che si faceva ieri.
+	if _intreccio_passo(dt, prod):
+		var bers := bersaglio_umore()
+		umore = clampf(bers + (umore - bers) * exp(-dt / UMORE_TAU), -1.0, 1.0)
+		return
 	for tipo in NEURO_TRASMETTITORI:
 		var lam: float = float(NEURO_DECADIMENTO.get(tipo, 0.05))
 		var b: float = float(neuro_base.get(tipo, NEURO_BASELINE.get(tipo, 0.0)))
@@ -956,3 +977,101 @@ func load(d: Dictionary) -> void:
 	for k in n_salvato:
 		neuro[k] = float(n_salvato[k])
 
+
+# =========================================================== L'INTRECCIO
+
+## Il ponte verso il cuore, cercato UNA volta e ricordato. `null` vuol dire
+## «non c'è», e allora non si riprova a ogni fotogramma: con ventotto vicini a
+## 60 Hz un `has_method` fallito milleseicento volte al secondo è un costo
+## vero per una risposta che non cambierà mai.
+## L'ordine dei cinque tratti come li aspetta il cuore. Fonte unica di questo
+## lato del ponte.
+const ORDINE_TRATTI := ["codardia", "grinta", "lealta", "ambizione", "orgoglio"]
+
+var _tratti := {}
+
+static var _ecs_intreccio = null
+static var _ecs_cercato := false
+
+
+## Vero se il passo l'ha fatto l'intreccio. Falso = il chiamante faccia quello
+## che faceva ieri.
+##
+## ⚠️ **`kappa` È LA STRETTA DA STRESS, e la porta è il cortisolo di ADESSO.**
+## È la riga che rende Φ una misura di questa mente in questo momento invece
+## che una proprietà di una tabella: sotto tensione l'accoppiamento si
+## restringe, e MISURATO l'informazione integrata cala di 3,4 volte fra un
+## corpo calmo e uno teso. «La mente si restringe» smette di essere una
+## metafora e diventa un numero che si può far crollare.
+func _intreccio_passo(dt: float, prod: Dictionary) -> bool:
+	if not _ecs_cercato:
+		_ecs_cercato = true
+		if ClassDB.class_exists("EcsMondo"):
+			var n = ClassDB.instantiate("EcsMondo")
+			if n != null and n.has_method("intreccio_passo"):
+				_ecs_intreccio = n
+	if _ecs_intreccio == null:
+		return false
+	var lam := PackedFloat64Array()
+	var ber := PackedFloat64Array()
+	var cur := PackedFloat64Array()
+	for tipo in NEURO_TRASMETTITORI:
+		var l: float = float(NEURO_DECADIMENTO.get(tipo, 0.05))
+		var b: float = float(neuro_base.get(tipo, NEURO_BASELINE.get(tipo, 0.0)))
+		var p: float = float(prod.get(tipo, 0.0))
+		if l <= 0.0:
+			return false      # il ramo senza decadimento resta di chi l'aveva
+		lam.append(l)
+		# il BERSAGLIO di oggi, canale per canale: `B + Π/λ`. È lo stesso
+		# punto fisso di prima — ed è quello che l'intreccio promette di non
+		# spostare.
+		ber.append(b + p / l)
+		cur.append(float(neuro.get(tipo, b)))
+	var tr := _tratti_vettore()
+	var kappa: float = _kappa()
+	var fuori: PackedFloat64Array = _ecs_intreccio.call(
+			"intreccio_passo", lam, tr, dt, kappa, ber, cur)
+	if fuori.size() != NEURO_TRASMETTITORI.size():
+		return false
+	var i := 0
+	for tipo in NEURO_TRASMETTITORI:
+		var v: float = fuori[i]
+		if not is_finite(v):
+			return false
+		neuro[tipo] = clampf(v, 0.0, 1.0)
+		i += 1
+	return true
+
+
+## L'INFORMAZIONE INTEGRATA di questa mente, adesso. In nat.
+##
+## ⚠️ **Zero non è un guasto: è la risposta giusta per la chimica di ieri.**
+## Sette canali che non si parlano hanno Φ = 0 per teorema, non per
+## approssimazione — ed è il confronto che dà un senso al numero.
+func phi(dt := 0.05) -> float:
+	if _ecs_intreccio == null:
+		return 0.0
+	var lam := PackedFloat64Array()
+	for tipo in NEURO_TRASMETTITORI:
+		lam.append(float(NEURO_DECADIMENTO.get(tipo, 0.05)))
+	return float(_ecs_intreccio.call("intreccio_phi", lam,
+			_tratti_vettore(), dt, _kappa()))
+
+
+## I cinque tratti nell'ordine di `ChibiDNA`. ⚠️ L'ordine è una convenzione
+## condivisa col C++ (`T_CODARDIA`… in `intreccio.cpp`): un test lo lega, o
+## due elenchi scritti a mano divergerebbero in silenzio e il carattere
+## tingerebbe l'arco sbagliato senza che nessuno se ne accorga.
+func _tratti_vettore() -> PackedFloat64Array:
+	var tr := PackedFloat64Array()
+	for nome in ORDINE_TRATTI:
+		tr.append(clampf(float(_tratti.get(nome, 0.5)), 0.0, 1.0))
+	return tr
+
+
+## LA STRETTA DA STRESS: quanto il cortisolo di adesso restringe
+## l'accoppiamento. È la riga che rende Φ una misura di questa mente in
+## questo momento — e non di una tabella uguale per tutti e per sempre.
+func _kappa() -> float:
+	return clampf(1.0 - 0.9 * clampf(float(neuro.get("cortisolo", 0.0)),
+			0.0, 1.0), 0.0, 1.0)

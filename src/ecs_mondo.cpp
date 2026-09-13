@@ -1,5 +1,8 @@
 #include "ecs_mondo.h"
 
+#include "intreccio.h"
+#include "phi_integrato.h"
+
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/core/error_macros.hpp>
 
@@ -318,7 +321,55 @@ EcsMondo::~EcsMondo() {
 	}
 }
 
+PackedFloat64Array EcsMondo::intreccio_passo(
+		const PackedFloat64Array &p_lambda, const PackedFloat64Array &p_tratti,
+		double p_h, double p_kappa, const PackedFloat64Array &p_bersaglio,
+		const PackedFloat64Array &p_neuro) const {
+	PackedFloat64Array vuoto;
+	if (p_lambda.size() != chibi::INTRECCIO_N
+			|| p_bersaglio.size() != chibi::INTRECCIO_N
+			|| p_neuro.size() != chibi::INTRECCIO_N) {
+		return vuoto;
+	}
+	double lam[chibi::INTRECCIO_N], ber[chibi::INTRECCIO_N], neu[chibi::INTRECCIO_N];
+	for (int i = 0; i < chibi::INTRECCIO_N; ++i) {
+		lam[i] = p_lambda[i];
+		ber[i] = p_bersaglio[i];
+		neu[i] = p_neuro[i];
+	}
+	double tr[5] = {0.5, 0.5, 0.5, 0.5, 0.5};
+	for (int i = 0; i < 5 && i < p_tratti.size(); ++i) tr[i] = p_tratti[i];
+
+	chibi::Intreccio it;
+	if (!chibi::costruisci_intreccio(lam, tr, &it)) return vuoto;
+	if (!chibi::passo_intreccio(it, p_h, p_kappa, ber, neu)) return vuoto;
+
+	PackedFloat64Array out;
+	out.resize(chibi::INTRECCIO_N);
+	for (int i = 0; i < chibi::INTRECCIO_N; ++i) out.set(i, neu[i]);
+	return out;
+}
+
+double EcsMondo::intreccio_phi(const PackedFloat64Array &p_lambda,
+		const PackedFloat64Array &p_tratti, double p_h, double p_kappa) const {
+	if (p_lambda.size() != chibi::INTRECCIO_N) return 0.0;
+	double lam[chibi::INTRECCIO_N];
+	for (int i = 0; i < chibi::INTRECCIO_N; ++i) lam[i] = p_lambda[i];
+	double tr[5] = {0.5, 0.5, 0.5, 0.5, 0.5};
+	for (int i = 0; i < 5 && i < p_tratti.size(); ++i) tr[i] = p_tratti[i];
+	chibi::Intreccio it;
+	if (!chibi::costruisci_intreccio(lam, tr, &it)) return 0.0;
+	double E[chibi::INTRECCIO_N * chibi::INTRECCIO_N];
+	double Q[chibi::INTRECCIO_N * chibi::INTRECCIO_N];
+	if (!chibi::matrice_di_transizione(it, p_h, p_kappa, E, Q)) return 0.0;
+	const chibi::RisultatoPhi r = chibi::phi_integrato(E, Q, chibi::INTRECCIO_N);
+	return r.valido ? r.phi : 0.0;
+}
+
+
 void EcsMondo::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("intreccio_passo", "lambda", "tratti", "h", "kappa", "bersaglio", "neuro"), &EcsMondo::intreccio_passo);
+	ClassDB::bind_method(D_METHOD("intreccio_phi", "lambda", "tratti", "h", "kappa"), &EcsMondo::intreccio_phi);
 	ClassDB::bind_method(D_METHOD("registra", "indole", "quirk"), &EcsMondo::registra);
 	ClassDB::bind_method(D_METHOD("riproietta", "id", "indole", "quirk"), &EcsMondo::riproietta);
 	ClassDB::bind_method(D_METHOD("dimentica", "id"), &EcsMondo::dimentica);

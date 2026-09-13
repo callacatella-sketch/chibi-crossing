@@ -218,6 +218,34 @@ public:
 	double fase_circadiana(int64_t p_id, double p_anticipo) const;
 
 	// --- tabelle: i NOMI restano in GDScript, qui solo la traduzione -----
+	// ------------------------------------------------------- L'INTRECCIO
+	//
+	// ⚠️ **SENZA STATO, APPOSTA.** L'intreccio non possiede niente: riceve i
+	// λ e i tratti (che vivono in GDScript e sono persistiti là), torna i
+	// sette livelli nuovi, e non ricorda nulla fra una chiamata e l'altra.
+	// È la regola dell'ECS applicata alla lettera — «i dati PERSISTITI
+	// restano in GDScript: due case sullo stesso dato salvato è il guasto che
+	// le fonti uniche vietano» — e in cambio non c'è nessun handle da
+	// tenere allineato, nessuna entità che possa restare orfana, e nessuna
+	// migrazione.
+	//
+	// Torna un array VUOTO quando qualcosa non va (passo non finito,
+	// bersaglio malato, budget di riga sfondato): il chiamante allora fa
+	// quello che faceva ieri. Il degrado va verso il gioco di ieri, sempre.
+	godot::PackedFloat64Array intreccio_passo(
+			const godot::PackedFloat64Array &p_lambda,
+			const godot::PackedFloat64Array &p_tratti,
+			double p_h, double p_kappa,
+			const godot::PackedFloat64Array &p_bersaglio,
+			const godot::PackedFloat64Array &p_neuro) const;
+
+	// L'informazione integrata di QUESTA mente, adesso. Zero se il sostrato
+	// non regge — e zero è anche la risposta onesta per la chimica diagonale
+	// di ieri, che è il confronto che conta.
+	double intreccio_phi(const godot::PackedFloat64Array &p_lambda,
+			const godot::PackedFloat64Array &p_tratti,
+			double p_h, double p_kappa) const;
+
 	int maschera_indole(const godot::PackedStringArray &p_nomi) const;
 	int indice_quirk(const godot::String &p_nome) const;
 	int maschera_fatti(const godot::PackedStringArray &p_nomi) const;
