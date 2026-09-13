@@ -42,6 +42,14 @@ extends RefCounted
 ## commuove come il primo, e il gioco diventa una macchinetta), 1 = subito.
 const ABITUDINE := 0.30
 ## Sotto questa sorpresa l'evento non si sente proprio: è routine.
+## ⚠️ Quanto resta di una cosa bella vista da chi sta malissimo. Non zero (il
+## malumore toglie colore davvero) e non uno (la lente deve pesare): un sesto.
+## Il numero non è tarato a occhio — è scelto perché la valenza più piccola e
+## positiva del gioco (`+0.12`, il compito del sogno) resti **sopra zero** con
+## l'umore al fondo, che è l'invariante che questa costante esiste per
+## garantire.
+const RESIDUO_BELLO := 0.167
+
 const SOGLIA_SORPRESA := 0.08
 ## Quanto scende l'attivazione del corpo a ogni giorno.
 const CALMA := 0.45
@@ -659,8 +667,30 @@ func rivaluta(tipo: String, attore: String, valenza: float, luogo := "",
 		identita := false) -> Dictionary:
 	var k := "%s|%s" % [tipo, attore]
 	var atteso: float = float(attese.get(k, 0.0))
-	# l'umore è la lente: di malumore anche un gesto neutro sembra un torto
+	# l'umore è la lente: di malumore anche un gesto neutro sembra un torto.
+	#
+	# ⚠️ **MA UNA LENTE NON PUÒ ROVESCIARE IL SEGNO DI UNA COSA BELLA.**
+	# `umore * 0.22` è uno scarto, e su una valenza piccola e positiva bastava
+	# a portarla sotto zero: MISURATO, per `umore < −0.5455` il gesto più
+	# significativo che questo gioco conosca — leggere il sogno di qualcuno e
+	# dargli quel lavoro (`Animo.esegue`, valenza fissa **+0.12**) — si
+	# incideva come un **TORTO**. E chi ha quell'umore è chi ha perso
+	# qualcuno, chi è stato lasciato, chi è stato trascurato: **esattamente
+	# la persona che stavi provando ad aiutare.**
+	#
+	# Il gioco aveva già incontrato questa famiglia di guasto e ne aveva
+	# chiusa una via: il commento di `esegue` racconta che l'ordine della
+	# classificazione era sbagliato e «il lavoro-del-sogno maturava un ricordo
+	# NEGATIVO». Quella porta fu chiusa; questa era rimasta aperta.
+	#
+	# La cura non toglie la lente — il malumore deve continuare a togliere
+	# colore, ed è vero — ma le impedisce di attraversare lo zero: **una cosa
+	# bella, vista da chi sta male, vale MENO. Non diventa una cosa brutta.**
+	# Il gesto neutro (valenza zero) resta tingibile in negativo, che è la
+	# cosa che il commento qui sopra promette e che resta vera.
 	var letto: float = clampf(valenza + umore * 0.22, -1.0, 1.0)
+	if valenza > 0.0 and letto < valenza * RESIDUO_BELLO:
+		letto = valenza * RESIDUO_BELLO
 	var sorpresa: float = letto - atteso
 	# ABITUDINE contro SENSIBILIZZAZIONE — la distinzione che fa la
 	# differenza fra un sistema realistico e uno vero.

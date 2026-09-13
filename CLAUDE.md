@@ -8821,6 +8821,72 @@ parete, che è il guasto che inverte il meccanismo.
 > di quel che sembra prudente: sotto la soglia il posto non si chiuderebbe
 > mai — conseguenza morta in partita con la suite verde.
 
+## LA LENTE DEL MALUMORE NON PUÒ ROVESCIARE UNA COSA BELLA
+
+`Limbico.rivaluta` legge ogni fatto attraverso l'umore:
+`letto = valenza + umore * 0.22`. È giusto — chi sta male vede tutto più
+grigio — ma su una valenza piccola e positiva bastava ad **attraversare lo
+zero**.
+
+MISURATO: per `umore < −0,5455` il gesto più significativo che questo gioco
+conosca — *leggere il sogno di qualcuno e dargli quel lavoro*
+(`Animo.esegue`, valenza fissa **+0,12**) — si incideva come un **TORTO**.
+
+E chi ha quell'umore è chi ha perso qualcuno, chi è stato lasciato, chi è
+stato trascurato: **esattamente la persona che stavi provando ad aiutare.** Il
+gioco puniva il giocatore per il gesto più gentile che conosce, e solo verso
+chi ne aveva più bisogno.
+
+⚠️ **E il gioco aveva già incontrato questa famiglia di guasto e ne aveva
+chiusa UNA via**: il commento di `esegue` racconta che l'ordine della
+classificazione era sbagliato e «il lavoro-del-sogno maturava un ricordo
+NEGATIVO». Quella porta fu chiusa. Questa era rimasta aperta.
+
+La cura (`RESIDUO_BELLO`) non toglie la lente: le impedisce di attraversare lo
+zero. **Una cosa bella, vista da chi sta male, vale meno — non diventa una
+cosa brutta.** Misurato dopo:
+
+| umore | +0,40 | 0,00 | −0,55 | −1,00 |
+|---|---|---|---|---|
+| il compito del sogno | +0,208 | +0,120 | **+0,020** | **+0,020** |
+
+E le due cose che NON sono cambiate: il gesto **neutro** resta tingibile in
+negativo (−0,176 a umore −0,8), che è quello che la lente esiste per fare; e
+una cosa brutta resta brutta e peggiora col malumore (−0,212 → −0,476).
+
+### ⚠️ SEI DOMINI DI PSICOPATOLOGIA, PROGETTATI E TUTTI BOCCIATI
+
+Evitamento · ritiro · ruminazione · sonno · memoria intrusiva · l'allarme
+precoce. Progettati come **reti di sintomi che si auto-sostengono** (network
+theory: Borsboom & Cramer 2013) invece che come catalogo di diagnosi — mai
+un'etichetta su una persona, sempre uno stato **derivato**.
+
+Sei scettici hanno **iterato l'aritmetica vera** invece di discutere, e i
+circoli **non si chiudono**:
+
+- **il ritiro**: `energia` non passa da `satisfy`, passa dalla notte —
+  `brain.tick(delta, asleep)` ne aggiunge 0,05/s mentre si dorme, quindi
+  **venti secondi di sonno la riportano a 1,0**. L'anello si azzera ogni
+  mattina, per costruzione;
+- **la ruminazione**: mappa iterata da 41 condizioni iniziali — **non è
+  bistabile**: 68% del villaggio monostabile in basso, 22% monostabile a 1,0;
+- **la memoria intrusiva**: tre circoli su cinque hanno **guadagno d'anello
+  esattamente zero** col codice di oggi;
+- **l'allarme precoce**: la scienza è citata bene (undici riferimenti
+  corretti uno per uno) e il risultato centrale è vero, ma lo strumento non
+  recupera il numero che il progetto stesso dimostra essere noto.
+
+**E il teorema che ne è uscito, verificato:** i sette archi di
+`intreccio.cpp` formano un **DAG — zero cicli** — e l'ascissa spettrale di
+`M = −Λ + κG` vale **−0,02000000** per ogni carattere e per ogni κ. Chi
+volesse chiudere un circolo nella chimica deve **aggiungere un ciclo**, e
+quello cambia il certificato di contrazione.
+
+**I residui che quelle bocciature hanno trovato, e che valgono da soli:**
+`consolida_sonno(resa)` ha un ramo `resa < 1` scritto, provato e che **nessun
+chiamante di produzione esercita**; `ber.append(b + p/l)` calcolato e buttato
+a `Limbico.gd:1044`; `il_piu_caro` che torna `""` a pari merito.
+
 ## Test
 
 Test-suite **dependency-free** (nessun addon, nessuna rete) in `tests/`:

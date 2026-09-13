@@ -26,6 +26,7 @@ func run(t) -> void:
 	_test_neurochimica(t)
 	_test_consolida_sonno(t)
 	_test_salvataggio(t)
+	_la_lente_non_rovescia(t)
 
 
 	_il_passo_e_invariante(t)
@@ -515,3 +516,53 @@ func _la_deriva_rifa_la_tinta(t) -> void:
 			("la deriva rifa' la tinta: %+.4f → %+.4f") % [prima, dopo])
 	t.almost(float(LIMBICO.tinta_carattere({"codardia": 0.30})["cortisolo"]),
 			dopo, "…e con la STESSA funzione pura, non una gemella", 1e-12)
+
+
+## ⚠️ **UNA LENTE NON PUÒ ROVESCIARE IL SEGNO DI UNA COSA BELLA.**
+##
+## `letto = valenza + umore * 0.22` e' la lente del malumore, ed e' giusta:
+## chi sta male vede tutto piu' grigio. Ma su una valenza piccola e positiva
+## bastava ad attraversare lo zero. MISURATO: per `umore < −0.5455` il gesto
+## piu' significativo che questo gioco conosca — leggere il sogno di qualcuno
+## e dargli quel lavoro (`Animo.esegue`, valenza fissa **+0.12**) — si
+## incideva come un **TORTO**.
+##
+## E chi ha quell'umore e' chi ha perso qualcuno, chi e' stato lasciato, chi e'
+## stato trascurato: **esattamente la persona che stavi provando ad aiutare.**
+## Il gioco puniva il giocatore per il gesto piu' gentile che conosce, e solo
+## verso chi ne aveva piu' bisogno.
+func _la_lente_non_rovescia(t) -> void:
+	# la valenza del compito del sogno, presa da dove vive
+	var sogno_val := 0.12
+	for u in [0.4, 0.0, -0.55, -0.8, -1.0]:
+		var l = LIMBICO.new()
+		l.setup({})
+		l.umore = float(u)
+		var e: Dictionary = l.rivaluta("annaffiare", "giocatore", sogno_val)
+		t.ok(float(e["sentito"]) > 0.0,
+				("il compito del sogno resta un BENE a umore %+.2f "
+				+ "(sentito %+.4f): il malumore toglie colore, non rovescia")
+						% [float(u), float(e["sentito"])])
+	# --- e la lente PESA ancora: attenua davvero
+	var a = LIMBICO.new(); a.setup({}); a.umore = 0.4
+	var b = LIMBICO.new(); b.setup({}); b.umore = -0.8
+	var ea: float = float(a.rivaluta("x", "giocatore", sogno_val)["sentito"])
+	var eb: float = float(b.rivaluta("x", "giocatore", sogno_val)["sentito"])
+	t.ok(eb < ea * 0.5,
+			("…ma la stessa cosa vale molto meno a chi sta male (%+.4f contro "
+			+ "%+.4f): la lente non e' stata spenta") % [eb, ea])
+
+	# --- ⚠️ IL GESTO NEUTRO RESTA TINGIBILE, che e' quello che la lente
+	#     esiste per fare e che il commento del sorgente promette
+	var c = LIMBICO.new(); c.setup({}); c.umore = -0.8
+	t.ok(float(c.rivaluta("neutro", "giocatore", 0.0)["sentito"]) < -0.05,
+			"un gesto NEUTRO visto da chi sta male sembra ancora un torto")
+
+	# --- e una cosa brutta resta brutta, e peggiora
+	var d = LIMBICO.new(); d.setup({}); d.umore = 0.4
+	var f = LIMBICO.new(); f.setup({}); f.umore = -0.8
+	var ed: float = float(d.rivaluta("y", "giocatore", -0.30)["sentito"])
+	var ef: float = float(f.rivaluta("y", "giocatore", -0.30)["sentito"])
+	t.ok(ef < ed and ed < 0.0,
+			("una cosa brutta resta brutta e peggiora col malumore "
+			+ "(%+.4f → %+.4f): quel ramo non e' stato toccato") % [ed, ef])
