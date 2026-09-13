@@ -567,8 +567,17 @@ func _il_substrato_dell_assenza(t) -> void:
 	vivace.lutto("Prugna", "")
 	var appena_successo := vivace.assenza()
 	t.ok(appena_successo > 0.0, "PREMESSA: la perdita pesa (%.4f)" % appena_successo)
+	# ⚠️ UNA VITA PIENA E' FATTA DI COSE DIVERSE, non di sessanta volte la
+	# stessa. Da quando la potatura non e' piu' un FIFO ma sceglie chi
+	# sacrificare (`Schema`), sessanta ripetizioni identiche NON scacciano
+	# un lutto: e' unico e intenso, e resiste — che e' la meccanica che
+	# funziona, non un difetto. A spingerlo nel sommario e' una vita
+	# piena DAVVERO, cioe' fatta di fatti forti e ognuno diverso.
+	# (Misurato: con sessanta righe uguali il lutto resta vivo; con
+	# sessanta diverse esce, e `assenza()` vale 0.5000 in tutti e due i
+	# casi — che e' esattamente cio' che questo caso difende.)
 	for i2 in 60:
-		vivace.ricorda("visto", "giocatore", 0.3, 0.4)
+		vivace.ricorda("evento_%d" % i2, "giocatore", -0.95, 1.0)
 	t.ok(not vivace.ricordi.any(func(r): return str(r.get("tipo", "")) == "lutto"),
 			"PREMESSA: la riga della perdita e' stata potata via dai ricordi vivi")
 	t.almost(vivace.assenza(), appena_successo,
@@ -685,15 +694,25 @@ func _la_fiducia_e_la_gemella_del_rancore(t) -> void:
 	# solo passare la soglia: con quaranta righe vive positive ancora in
 	# canna, togliere il sommario non cambia abbastanza e la guardia resta
 	# muta (misurato: zero asserzioni rosse). Si mettono i doni, e poi si
-	# riempie l'anello con righe di un ALTRO attore — `_potatura` fa
-	# `pop_front()`, quindi i doni escono per primi.
+	# riempie l'anello con righe di un ALTRO attore.
+	#
+	# ⚠️⚠️ **E IL RIEMPIMENTO NON PUÒ ESSERE QUARANTACINQUE RIGHE UGUALI E
+	# DEBOLI.** Questa riga diceva «`_potatura` fa `pop_front()`, quindi i
+	# doni escono per primi»: era vero, e dal 2026-09-12 non lo è più. La
+	# potatura sacrifica il ricordo che dice MENO su chi sei
+	# (`Schema.indice_da_sacrificare`), e fra quindici doni ripetuti e
+	# quarantacinque chiacchiere ripetute e tiepide le chiacchiere costano
+	# meno: uscivano loro, e restavano dieci doni VIVI — con la guardia qui
+	# sotto che tornava muta senza dirlo. Il riempimento è perciò fatto di
+	# righe FORTI e ognuna DIVERSA (`quanti` = 1, quindi care), che è la
+	# stessa correzione già applicata a `_il_substrato_dell_assenza`.
 	var vissuto = _chibi("Vissuto")
 	for g2 in 15:
 		vissuto.oggi = g2
 		vissuto.ricorda("regalo", "giocatore", 0.7, 0.8)
 	for g3 in (int(ANIMO.RICORDI_VIVI) + 5):
 		vissuto.oggi = 15 + g3
-		vissuto.ricorda("chiacchiera", "un_vicino", 0.2, 0.5)
+		vissuto.ricorda("evento_%d" % g3, "un_vicino", -0.95, 1.0)
 	vissuto.oggi = 15 + int(ANIMO.RICORDI_VIVI) + 5
 	var vive := 0
 	for r in (vissuto.get("ricordi") as Array):

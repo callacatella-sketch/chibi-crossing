@@ -1,0 +1,181 @@
+la prova che ACCUSA torna a contare
+scenes/npc/Rilettura.gd
+	return maxf(0.0, valenza) * clampf(intensita, 0.0, 1.0) * maxf(0.0, recenza)
+-->
+	return absf(valenza) * clampf(intensita, 0.0, 1.0) * maxf(0.0, recenza)
+=====
+non serve piu' nessuna prova
+scenes/npc/Rilettura.gd
+const RAPPORTO_MIN := 0.50
+-->
+const RAPPORTO_MIN := 0.00
+=====
+il rapporto diventa una quantita' assoluta
+scenes/npc/Rilettura.gd
+	return maxf(0.0, prove) / torto
+-->
+	return maxf(0.0, prove)
+=====
+il torto minimo sparisce: si divide per quasi zero
+scenes/npc/Rilettura.gd
+	if torto < torto_min:
+		return 0.0
+	return maxf(0.0, prove) / torto
+-->
+	return maxf(0.0, prove) / maxf(torto, 1e-12)
+=====
+la soglia del torto si azzera di fatto
+scenes/npc/Rilettura.gd
+const TORTO_MIN := 0.08
+-->
+const TORTO_MIN := 0.001
+=====
+la soglia del torto diventa un muro
+scenes/npc/Rilettura.gd
+const TORTO_MIN := 0.08
+-->
+const TORTO_MIN := 0.40
+=====
+ci si morde la lingua PRIMA di rileggere
+scenes/npc/Animo.gd
+	if bool(sch["riletto"]) and not debug_niente_rilettura:
+-->
+	if limbico.trattieni() and bool(sch["riletto"]) and not debug_niente_rilettura:
+=====
+chi rilegge paga la regolazione, come chi si morde la lingua
+scenes/npc/Animo.gd
+		var out := sch.duplicate()
+		out["modo"] = "rilettura"
+		return out
+-->
+		var out := sch.duplicate()
+		out["modo"] = "rilettura"
+		limbico.regolazione = maxf(0.0, limbico.regolazione - 0.22)
+		return out
+=====
+chi rilegge resta col corpo attivato
+scenes/npc/Animo.gd
+		var out := sch.duplicate()
+		out["modo"] = "rilettura"
+		return out
+-->
+		var out := sch.duplicate()
+		out["modo"] = "rilettura"
+		limbico.stimola_neuro("cortisolo", 0.02)
+		return out
+=====
+il conto si ricalcola le prove per conto suo (via la recenza)
+scenes/npc/Animo.gd
+		prove += RILETTURA.peso_prova(float(r["valenza"]), float(r["intensita"]),
+				_recenza(int(r["quando"])))
+-->
+		prove += float(r["valenza"]) * float(r["intensita"])
+=====
+la rilettura legge le sole righe VIVE (cieca alla generosita')
+scenes/npc/Animo.gd
+	var sch := RILETTURA.scheda(float(c["torti"]), float(c["prove_totali"]))
+-->
+	var sch := RILETTURA.scheda(float(c["torti"]), float(c["prove"]))
+=====
+il rancore torna alle sole righe VIVE (lo scudo del giocatore evapora)
+scenes/npc/Animo.gd
+	var buoni: float = float(c["prove_totali"])
+-->
+	var buoni: float = float(c["prove"])
+=====
+il rancore smette di leggere il conto (nessun perdono, mai)
+scenes/npc/Animo.gd
+	var buoni: float = float(c["prove_totali"])
+-->
+	var buoni: float = 0.0
+=====
+il villaggio torna a scendere dentro il Limbico
+scenes/npc/Visitors.gd
+			var reg: Dictionary = animo.regola("giocatore")
+			var modo := str(reg.get("modo", "morso"))
+-->
+			var reg: Dictionary = {}
+			var modo := "morso" if animo.limbico.trattieni() else "scoppio"
+=====
+il villaggio chiede l'occasione del MORSO invece della rilettura
+scenes/npc/Visitors.gd
+				chiedi_gesto(label, "ha_riletto")
+-->
+				chiedi_gesto(label, "si_e_trattenuto")
+=====
+il ramo della rilettura perde il `continue` (il corpo del morso addosso a chi non si e' morso)
+scenes/npc/Visitors.gd
+				chiedi_gesto(label, "ha_riletto")
+				continue
+-->
+				chiedi_gesto(label, "ha_riletto")
+=====
+la tensione del confronto non si arma piu' (la rilettura torna senza corpo)
+scenes/npc/Visitors.gd
+				node.call("somatico", lerpf(GESTI.CODA_SOGLIA * 2.0,
+						TENSIONE_CONFRONTO,
+						ANIMO.frazione(int(animo.gradino))))
+-->
+				pass
+=====
+la frase della rilettura perde il buio
+scenes/npc/Gesti.gd
+	"rilettura": {"g": "rialzo", "d": {"buio": true}},
+-->
+	"rilettura": {"g": "rialzo", "d": {}},
+=====
+il referto dei no torna a un elenco di nomi ricopiato
+scenes/npc/Visitors.gd
+	var f: Dictionary = GESTI.FRASI.get(nome, {})
+	return bool((f.get("d", {}) as Dictionary).get("buio", false))
+-->
+	return nome == "sollievo"
+=====
+la leva del banco nasce accesa
+scenes/npc/Animo.gd
+var debug_niente_rilettura := false
+-->
+var debug_niente_rilettura := true
+=====
+la tensione del confronto scende sotto la soglia della coda (accesa in RAM, invisibile a schermo)
+scenes/npc/Visitors.gd
+const TENSIONE_CONFRONTO := 0.45
+-->
+const TENSIONE_CONFRONTO := 0.05
+=====
+la tensione diventa uno spavento pieno (la faccia della paura su chi ha solo un torto)
+scenes/npc/Visitors.gd
+const TENSIONE_CONFRONTO := 0.45
+-->
+const TENSIONE_CONFRONTO := 1.0
+=====
+la tensione si arma anche su chi dorme o e' dentro casa
+scenes/npc/Visitors.gd
+	if node.has_method("is_hidden") and bool(node.call("is_hidden")):
+		return false      # è dentro casa: il giocatore non ha niente da vedere
+	if node.has_method("dorme") and bool(node.call("dorme")):
+		return false      # dorme, e un corpo addormentato non si confronta
+-->
+	pass
+=====
+la tensione ANNULLA uno scioglimento in corso (il sollievo appena mostrato, disfatto)
+scenes/npc/Visitors.gd
+	if node.has_method("sta_sciogliendo") and bool(node.call("sta_sciogliendo")):
+		return false
+-->
+	pass
+=====
+il `sentito` non torna piu': nessun luogo di lavoro si marchia
+scenes/npc/Animo.gd
+	_potatura()
+	return sentito
+-->
+	_potatura()
+	return 0.0
+=====
+si rilegge l'array invece del valore tornato (il difetto che la cura ha chiuso)
+scenes/npc/Visitors.gd
+	var sentito: float = float(animo.esegue(compito, ordinante))
+-->
+	animo.esegue(compito, ordinante)
+	var sentito: float = 0.0 if animo.ricordi.is_empty() else float((animo.ricordi[animo.ricordi.size() - 1] as Dictionary).get("valenza", 0.0))

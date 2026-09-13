@@ -491,6 +491,16 @@ var _gesto_no := {}
 ## non QUALI momenti della vita interiore il giocatore ha potuto vedere —
 ## che è l'unica cosa che questa fase deve misurare.
 var _gesto_si := {}
+## ⚠️ **E I MODI DELLA REGOLAZIONE STANNO IN UN DIZIONARIO LORO, non in
+## `_gesto_si`.** La prima stesura li contava lì, e `debug_gesti_contatori()`
+## antepone «✓ » a ogni chiave di `_gesto_si` — dove «✓ » significa «gesto
+## CONCESSO», cioè una cosa che ha superato `_paga_gesto`. Nel referto
+## comparivano `✓ regola: rilettura 9` mentre i gesti concessi erano ZERO, e
+## quel referto lo stampano SEI banchi (`prova_villaggio_gesti`,
+## `misura_capi`, `provino_vocabolario`, `guarda_cricche`,
+## `prova_si_trovano`, `misura_occlusione`). Un numero che in un referto
+## altrui vuol dire un'altra cosa è peggio di un numero che manca.
+var _regola_conta := {}
 
 ## `conta` distingue il PRIMO tentativo dalle riprove della sala d'attesa:
 ## senza, un'occasione che aspetta il passo per tre secondi si conterebbe
@@ -810,7 +820,7 @@ func _perche_no(nodo: Node3D, nome: String) -> String:
 	if _e_un_punto(nome):
 		var p := str(nodo.call("punto_impedimento"))
 		return p if p != "" else "corpo occupato"
-	if nome == "sollievo":
+	if _chiede_il_buio(nome):
 		# ⚠️ E LO SI CHIEDE AL CORPO, non lo si indovina. Un'etichetta messa a
 		# naso è la stessa cosa di «zero gesti»: durante una messa a punto ho
 		# letto «nessun buio prima» su un rifiuto che di buio ne aveva da
@@ -820,6 +830,19 @@ func _perche_no(nodo: Node3D, nome: String) -> String:
 				if not bool(nodo.call("_sussulto_fresco"))
 				else "corpo occupato")
 	return "corpo occupato"
+
+
+## Questa frase chiede il BUIO? Si legge dalla TABELLA, mai da un elenco di
+## nomi scritto qui.
+##
+## ⚠️ **Era `nome == "sollievo"`, e con una seconda frase che gata sul buio
+## (`rilettura`) ogni suo rifiuto veniva contato come «corpo occupato» — cioè
+## la causa sbagliata, proprio nel banco scritto per misurarla.** È la stessa
+## lezione della funzione qui sopra, un gradino più in là: un elenco ricopiato
+## non fallisce, **smette di descrivere**, e lo fa in silenzio.
+func _chiede_il_buio(nome: String) -> bool:
+	var f: Dictionary = GESTI.FRASI.get(nome, {})
+	return bool((f.get("d", {}) as Dictionary).get("buio", false))
 
 
 ## Questa frase è un PUNTO? Cioè: `punto_impedimento()` sa rispondere per lei?
@@ -999,6 +1022,13 @@ func debug_quote_coperte(pos: Vector3) -> int:
 
 ## Il referto dei NO, per i banchi (`prova_villaggio_gesti`). In RAM, non si
 ## salva, e nel gioco non lo chiama nessuno.
+## Quante volte si e' regolato un impulso, e come: `{"rilettura", "morso",
+## "scoppio"}`. In RAM, non si salva, e nel gioco non lo chiama nessuno —
+## lo legge `tools/misura_rilettura.gd`.
+func debug_regola_contatori() -> Dictionary:
+	return _regola_conta.duplicate()
+
+
 func debug_gesti_contatori() -> Dictionary:
 	var d: Dictionary = _gesto_no.duplicate()
 	for o in _gesto_si:
@@ -3202,6 +3232,15 @@ func _ensure_brain(r: Dictionary) -> RefCounted:
 		# nessuno confronta due partite.
 		_presta_la_compagnia_a(animo,
 				str((r.get("dna", {}) as Dictionary).get("name", "")))
+		_presta_l_eta_a(animo,
+				str((r.get("dna", {}) as Dictionary).get("name", "")))
+		# ⚠️ **E LA DERIVA SI RIFA' UNA VOLTA SOLA, DOPO TUTTI E DUE.** I
+		# prestiti invalidano e basta: rifarla dentro ognuno voleva dire due
+		# passate complete per residente (con ventotto vicini, 56 al giorno
+		# invece di 28), e la prima girava con la `crescita` ancora al valore
+		# di serie — cioe' la plasticita' di un adulto addosso a un cucciolo.
+		# Qui la `crescita` c'e' gia', quindi la passata e' quella giusta.
+		animo.call("_ricalcola_deriva")
 		# il timido saluta solo gli amici veri
 		var node := r.get("node") as Node3D
 		if node:
@@ -4066,6 +4105,113 @@ func conforta_mochi(motivo: String) -> bool:
 # scritti a mano, 5 e 6, e bastava inserire un gradino in mezzo alla scala
 # perché puntassero al gradino sbagliato senza un errore.
 
+## LA TENSIONE DEL CONFRONTO — il buio che alla rilettura mancava.
+##
+## ⚠️ **CHI RILEGGE NON AVEVA UN CORPO, e non per una taratura: per
+## costruzione.** La frase `rilettura` è un Rialzo che dichiara il buio
+## (`Gesti.FRASI`), e il Rialzo si rifiuta se quel corpo non ha davvero
+## sussultato — ma la coda somatica la armava **solo** il ramo `trasalisce`,
+## che vuole una carica negativa oppure `grezzo > RIFLESSO_GREZZO` (0,25). A
+## passo d'uomo `indizio_grezzo` vale 0,185 **anche a distanza zero**, e chi
+## ha le prove per rileggere è per definizione chi NON ha un marchio negativo
+## addosso: **il buio mancava proprio a chi rilegge**. MISURATO nel MainLevel
+## vero (`tools/misura_rilettura.gd`, 14 residenti, 12 minuti): 9 riletture,
+## **0 gesti concessi**.
+##
+## E la conseguenza è di GENERE, non di rifinitura: il giocatore che ha
+## portato piatti per settimane, avvicinandosi a chi ha un torto, vedeva
+## esattamente NIENTE; quello che non ha costruito niente vedeva il Raccolto
+## e il toast «…niente. Lascia stare.». Il villaggio aveva un corpo per la
+## sofferenza e nessuno per la generosità.
+##
+## ⚠️ **IL BUIO NON SI TOGLIE: GLIENE SI DÀ UNO VERO** (togliere il `buio`
+## sarebbe una lampadina accesa a mezzogiorno, e vale per tutti i Rialzi di
+## questo gioco). Questa tensione c'è già — a due metri e mezzo, davanti a
+## qualcuno che ha qualcosa da rinfacciarti — e non la portava nessun canale
+## del corpo. Adesso la porta il livello che il gioco possiede già, e i due
+## esiti si distinguono per una cosa che si VEDE: chi rilegge la **scioglie**
+## (il Rialzo chiama `soma_sciogli`, `Visitor._gesto_accendi`), chi si morde
+## la lingua se la tiene — il Raccolto non scioglie niente. Nessun gesto
+## nuovo, nessun testo, nessuna traduzione.
+
+## Il TETTO della tensione: la scala della ribellione ci si stende sopra.
+##
+## ⚠️ **SOTTO METÀ, e non è prudenza.** La coda somatica piena è la faccia
+## della PAURA — orecchie giù, braccia chiuse, corpo rimpicciolito, passo al
+## 72% — e un confronto non è uno spavento: un sussulto vero, misurato in
+## questo gioco, va da 0,447 a 1,000. Al gradino più alto che questo ramo
+## possa vedere («sabotaggio», frazione 4/7 = 0,571) la tensione fa **0,309**,
+## cioè un terzo di uno spavento pieno; al più basso («svogliato», 1/7) fa
+## 0,167. Chi alzasse questo numero metterebbe addosso a chi ha un torto la
+## faccia di chi ha appena avuto paura di te.
+##
+## E dura poco, per costruzione: `coda_ampiezza` la spegne sotto `CODA_SOGLIA`,
+## quindi la tensione vive **da 2,9 s (svogliato) a 4,6 s (sabotaggio)** —
+## calcolato dalla legge, `−τ·ln(forza/soglia)` — contro i dodici secondi di
+## raffreddamento di questo ramo. Non è un livello che resta acceso: è una
+## cosa che passa, a meno che non ci si torni davanti.
+const TENSIONE_CONFRONTO := 0.45
+
+
+## SI PUÒ ARMARE IL BUIO ADDOSSO A QUESTO CORPO?
+##
+## ⚠️ **LA TENSIONE È L'UNICA COSA DEL VILLAGGIO CHE ACCENDE UN LIVELLO DEL
+## CORPO SENZA PASSARE DALL'USCIERE.** Ogni altro canale del vocabolario
+## passa da `chiedi_gesto`, che ha i suoi sette cancelli; `Visitor.somatico`
+## è una porta di servizio, aperta per i sussulti del `Limbico` — che sono un
+## RIFLESSO, e un riflesso non ha un giocatore da servire. La tensione del
+## confronto invece **non è un riflesso: è una premessa scritta apposta
+## perché il giocatore la veda**, e una premessa che nessuno vede è
+## esattamente ciò che `_nell_inquadratura` ha già chiuso per i gesti
+## (MISURATO: 12 concessi, 8 fuori dall'inquadratura — il 67%).
+##
+## LO SCENARIO CHE QUESTA FUNZIONE CHIUDE: è notte, Mochi passa a 2,4 m da
+## una casa, e dentro dorme un residente a gradino «svogliato»
+## (`resident_sleep()` l'ha rimpicciolito a scala 0.03, `is_hidden()` è
+## vero). La tensione si armava su quel corpo, e si riarmava ogni dodici
+## secondi fino al mattino. Due danni, e il secondo è quello grave:
+##  · il livello «guardingo» acceso su un corpo che il giocatore non può
+##    vedere in nessun modo — una premessa che non è mai esistita e che si
+##    legge quando quel corpo torna in scena, appesa a niente;
+##  · **`_sussulto_fresco()` diventa VERO senza che ci sia stato un
+##    sussulto**, e quella è la valvola scritta apposta perché «il Rialzo non
+##    si reciti da solo» (`Visitor.frase`, ramo `rialzo`). Una porta di
+##    servizio che scardina la guardia della porta principale.
+##
+## Le prime tre domande sono **le stesse di `Visitor.gesto_libero`** (dentro
+## casa · addormentato · a un appuntamento), la quarta è quella della
+## ricevuta delle deduzioni. Non è prudenza in più, ed è la ragione per cui
+## sono proprio queste: **il buio esiste per il gesto** — è la condizione
+## sotto cui il Rialzo potrebbe essere recitato, e armarlo dove il gesto è
+## impossibile vuol dire accendere una premessa che non avrà mai la sua
+## conseguenza. La quinta non riguarda chi guarda ma chi possiede il canale:
+## il perché sta per esteso sopra `Visitor.sta_sciogliendo`.
+##
+## ⚠️ **STA DOPO IL RAFFREDDAMENTO, non prima, e non tocca `regola()`.** La
+## decisione interiore è di chi ha i ricordi e la forza di trattenersi; qui
+## si decide soltanto se il CORPO deve portarne il segno. Metterla davanti a
+## tutto il ramo spegnerebbe la rilettura di chi dorme — che è un'altra
+## domanda, e non la si risponde di straforo dentro una guardia del rig.
+##
+## Il degrado va SEMPRE verso quello che c'era: a una domanda a cui il corpo
+## non sa rispondere (un doppio di banco, un corpo di un'altra specie) si
+## passa. Zero vuol dire «non lo so», e «non lo so» non è mai un no — la
+## stessa regola di `_nell_inquadratura`, che senza camera dice sì.
+func _buio_armabile(node: Node3D) -> bool:
+	if node.has_method("is_hidden") and bool(node.call("is_hidden")):
+		return false      # è dentro casa: il giocatore non ha niente da vedere
+	if node.has_method("dorme") and bool(node.call("dorme")):
+		return false      # dorme, e un corpo addormentato non si confronta
+	if node.has_method("in_scena") and bool(node.call("in_scena")):
+		return false      # il corpo non è suo: è di chi ha scritto la scena
+	# …E NON SI ANNULLA UNO SCIOGLIMENTO IN CORSO. Costa al più i 0,35 s
+	# della rampa di rilascio, e la tensione non si perde: il raffreddamento
+	# del morso la ripropone dodici secondi dopo, a corpo sciolto.
+	if node.has_method("sta_sciogliendo") and bool(node.call("sta_sciogliendo")):
+		return false
+	return _nell_inquadratura(node.global_position)
+
+
 # CHI HA QUALCOSA DA DIRTI TE LO VIENE A DIRE.
 #
 # È il momento che il giocatore ricorderà: non un contatore che sale in un
@@ -4118,7 +4264,81 @@ func _tick_confronti(delta: float) -> void:
 				_sussulto_cd["morso_" + label] = cd
 				continue
 			_sussulto_cd["morso_" + label] = 12.0
-			if not animo.limbico.trattieni():
+			# ⚠️ **IL BUIO SI ARMA QUI, cioè QUANDO LA DECISIONE SI PRENDE** —
+			# non a ogni fotogramma in cui Mochi è nei paraggi. Sopra c'è il
+			# raffreddamento di dodici secondi, ed è lui a rendere questa una
+			# tensione invece che un livello permanente addosso a chiunque
+			# abbia un torto: un livello che si riarma sessanta volte al
+			# secondo non è un momento, è il livello monotono che la regola
+			# dei livelli vieta.
+			#
+			# ⚠️ E SI ARMA **PRIMA** DI `regola()`, per tutti e tre gli esiti.
+			# La tensione non dipende da come andrà a finire — chi si trova
+			# davanti qualcuno a cui deve qualcosa la sente comunque — e
+			# accenderla dentro il solo ramo della rilettura sarebbe una posa
+			# scritta apposta per quel ramo, cioè un adesivo. Quello che i tre
+			# esiti fanno di diverso è come la lasciano andare.
+			#
+			# LA FORZA VIENE DAL TORTO, non da un numero scelto: è la
+			# posizione sulla scala della ribellione (`ANIMO.frazione`, la
+			# stessa che legge il resto del gioco), stesa fra i due soli
+			# estremi che questo livello possiede. Il pavimento è
+			# `Gesti.CODA_SOGLIA * 2`, dove `coda_ampiezza` smette di smorzare
+			# e il livello comincia a esistere davvero: sotto di lì sarebbe
+			# acceso in RAM e invisibile sullo schermo — e il Rialzo si
+			# rifiuterebbe lo stesso, perché `_sussulto_fresco()` chiede
+			# un'ampiezza maggiore di zero.
+			#
+			# ⚠️ **E SI ARMA SOLO SE IL CORPO PUÒ PORTARLO** — le valvole
+			# dell'usciere, che questa chiamata scavalcherebbe tutte perché
+			# non passa da `chiedi_gesto`. Il perché, con lo scenario
+			# misurato, sta per esteso sopra `_buio_armabile`.
+			if node.has_method("somatico") and _buio_armabile(node):
+				node.call("somatico", lerpf(GESTI.CODA_SOGLIA * 2.0,
+						TENSIONE_CONFRONTO,
+						ANIMO.frazione(int(animo.gradino))))
+			# ⚠️ **SI CHIEDE ALL'ANIMO, NON AL LIMBICO.** Davanti a questo
+			# impulso le strade sono due — rileggerlo o tenerlo dentro — e a
+			# sceglierle dev'essere chi ha tutti e due i pezzi: i ricordi
+			# (dove stanno le prove) e la forza per trattenersi. Scendere
+			# dentro `animo.limbico` da qui vorrebbe dire prendere metà della
+			# decisione con metà del materiale.
+			var reg: Dictionary = animo.regola("giocatore")
+			var modo := str(reg.get("modo", "morso"))
+			_regola_conta[modo] = int(_regola_conta.get(modo, 0)) + 1
+			if modo == "rilettura":
+				# NON È SUCCESSO NIENTE, ed è il punto. Nessun toast, nessuna
+				# bolla, nessuna postura imposta: chi rilegge non ha una
+				# faccia da rilettura. L'unica cosa che si vede — quando il
+				# corpo è nelle condizioni — è che **si tira su e MOLLA**: il
+				# Rialzo scioglie la tensione armata quando la decisione si è
+				# presa, e quello scioglimento è tutta la differenza fra
+				# questo esito e gli altri due, che se la tengono.
+				#
+				# ⚠️ **RESIDUO DICHIARATO, e la cura ovvia è peggiore.** Il
+				# gesto può non arrivare (il gettone, il riposo, un corpo
+				# occupato), e allora resta solo la tensione: chi ha riletto
+				# si legge come chi si è morso la lingua. Sciogliere a mano
+				# qui — `node.call("soma_sciogli")` sul rifiuto — sembra la
+				# cura e non lo è: se un sussulto VERO fosse ancora vivo, la
+				# nostra tensione non l'avrebbe nemmeno sovrascritta
+				# (`somatico` tiene la più forte), e quella riga scioglierebbe
+				# **la paura di qualcuno spaventato due decimi di secondo
+				# prima, senza mostrargli nessun sollievo**. Meglio un esito
+				# che assomiglia all'altro che una paura che evapora da sola:
+				# il canale resta con UN solo padrone, il Rialzo.
+				#
+				# Il residuo si è ristretto da sé con `_buio_armabile`: i no
+				# che vengono dal CORPO (dentro casa, addormentato, dentro
+				# una scena, fuori dall'inquadratura) adesso non armano
+				# nemmeno la tensione, quindi non lasciano più addosso una
+				# premessa senza conseguenza. Resta quello che riguarda il
+				# turno — il gettone del villaggio e il riposo di quella
+				# persona — che sono cancelli di REGIA e non del corpo: lì la
+				# tensione è armata e il Rialzo non arriva.
+				chiedi_gesto(label, "ha_riletto")
+				continue
+			if modo == "scoppio":
 				# non ce l'ha fatta: qualcosa esce, di sbieco
 				_show_toast(L10n.tf("%s: «…niente. Lascia stare.»", [label]))
 				if node.has_method("chat_bubble"):
@@ -4552,15 +4772,21 @@ func assegna_compito(label: String, compito: String, ordinante := "giocatore") -
 	if not _animi.has(label):
 		return
 	var animo: RefCounted = _animi[label]
-	animo.esegue(compito, ordinante)
+	# ⚠️ **IL `sentito` LO TORNA `esegue`, non si ripesca da `ricordi.back()`.**
+	# Quella deduzione era una garanzia del FIFO — `pop_front` non può
+	# togliere la riga appena appesa — e la potatura per SCHEMA DEL SÉ la
+	# rompe: fra righe dello stesso tipo scritte lo stesso giorno la vittima
+	# è quella di forza minima, cioè proprio l'ultima incisa (`rivaluta`
+	# incide ogni ripetizione meno della precedente). Con l'array si finiva
+	# per marchiare il LUOGO DEL LAVORO con la valenza di un'altra riga — per
+	# esempio il lutto di un amico — e dopo due volte quel posto superava
+	# `SOGLIA_EVITAMENTO`: un vicino che evita il bosco per un lutto.
+	var sentito: float = float(animo.esegue(compito, ordinante))
 	# e il POSTO si carica di com'è andata: dopo abbastanza volte, quel posto
 	# diventa qualcosa da evitare — senza che nessuno lo scriva
 	var luogo := str(LUOGO_DEL_LAVORO.get(compito, ""))
-	if luogo != "" and not animo.ricordi.is_empty():
-		var ultimo: Dictionary = animo.ricordi[animo.ricordi.size() - 1]
-		var sentito: float = float(ultimo.get("valenza", 0.0))
-		if absf(sentito) > 0.25:
-			animo.limbico._marchia("luogo|" + luogo, sentito)
+	if luogo != "" and absf(sentito) > 0.25:
+		animo.limbico._marchia("luogo|" + luogo, sentito)
 
 
 ## Un gesto bello verso un residente: i regali e le attenzioni SCIOLGONO il
@@ -6885,13 +7111,73 @@ func _leggi_ambiente() -> Dictionary:
 ## ⚠️ Se il registro non c'e' (i banchi, il diorama del titolo, il Prologo) si
 ## presta un elenco vuoto — cioe' nessuna spinta, cioe' chi era. Il degrado va
 ## verso il comportamento di sempre.
+## L'ETÀ SI PRESTA COME SI PRESTA LA COMPAGNIA — e per la stessa ragione:
+## `Animo` è un `RefCounted` senza orologio e senza albero della scena, e la
+## sua unica fonte possibile è chi ce l'ha (`Legami`).
+##
+## ⚠️ **`Legami.crescita` torna 1.0 per chiunque non sia NATO QUI**, ed è
+## esattamente quello che serve: chi arriva col trolley arriva già grande, e
+## `giorni_di_amicizia` per lui misura «da quanto lo conosco», non la sua
+## età. Un ponte che leggesse quel numero grezzo dichiarerebbe neonato
+## plasticissimo ogni nuovo arrivato. La distinzione la fa `e_nato()`, che è
+## dentro `crescita` e non qui.
+##
+## ⚠️ E come per la compagnia, l'ultima riga NON è decorativa: `Animo.load()`
+## riempie la cache della deriva in coda a se stesso, cioè prima che
+## `_ensure_brain` arrivi a prestare. Senza l'invalidazione il prestito è un
+## no-op — ma il RICALCOLO non sta qui: lo fa chi presta tutti e due (vedi la
+## nota in coda alla funzione).
+func _presta_l_eta_a(a: RefCounted, nome: String) -> void:
+	if a == null or nome == "":
+		return
+	# ⚠️ `_ensure_brain` gira anche fuori dall'albero (i banchi, le fixture),
+	# e li' `get_tree()` e' NULL: chiamarlo e' un errore a runtime che non fa
+	# fallire niente — interrompe `_ensure_brain` a meta' e lascia la suite
+	# verde. Ce ne sono stati tredici prima che il conto dei SCRIPT ERROR li
+	# vedesse.
+	var lg: Node = null
+	if is_inside_tree():
+		lg = get_tree().get_first_node_in_group("legami")
+	if lg == null or not is_instance_valid(lg) or not lg.has_method("crescita"):
+		a.set("crescita", 1.0)      # senza Legami si e' adulti: il gioco di ieri
+		a.set("_deriva_giorno", -1)
+		return
+	a.set("crescita", clampf(float(lg.call("crescita", nome)), 0.0, 1.0))
+	# ⚠️ **QUI SI INVALIDA E BASTA: IL RICALCOLO È DEL CHIAMANTE.**
+	#
+	# Invalidare da solo non basterebbe — `tratto()` legge la cache e non la
+	# rifà, e nessuno la rifà prima del prossimo `passa_giorno`, cioè fino a
+	# quattro minuti reali: al CARICAMENTO e alla NASCITA la finestra
+	# resterebbe spenta proprio nei due momenti in cui c'è un cucciolo in
+	# scena. Ma i due prestiti viaggiano SEMPRE in coppia (`_ensure_brain` e
+	# `_presta_la_compagnia`), e finché ricalcolavano tutti e due il villaggio
+	# faceva **56 passate complete al giorno invece di 28** con ventotto
+	# residenti — la spinta scandaglia tutti i ricordi di quella persona.
+	#
+	# ⚠️ E la prima delle due era anche SBAGLIATA: girava con `crescita`
+	# ancora al valore di serie (1.0), quindi per un cucciolo scriveva
+	# `Limbico.reattivita`, `abitudine` e `neuro_tinta` (via `riproietta`) con
+	# la plasticità di un adulto — un valore che il gioco non aveva ancora
+	# chiesto a nessuno, e che restava lì fino alla passata dopo.
+	#
+	# L'invariante «invalida, poi ricalcola» vive perciò in UN posto solo, ed
+	# è chi presta tutti e due.
+	a.set("_deriva_giorno", -1)
+
+
 func _presta_la_compagnia() -> void:
 	var cr := get_tree().get_first_node_in_group("cricche")
 	var vive: Array = []
 	if cr != null and is_instance_valid(cr):
 		vive = cr.get("_incontri") as Array
 	for lab in _animi:
-		_presta_la_compagnia_a(_animi[lab], _nome_da_label(str(lab)), vive)
+		var a: RefCounted = _animi[lab]
+		var nome := _nome_da_label(str(lab))
+		_presta_la_compagnia_a(a, nome, vive)
+		_presta_l_eta_a(a, nome)
+		# …e UNA sola passata, dopo tutti e due: la ragione sta in
+		# `_ensure_brain`, che è l'altro chiamante di questa coppia.
+		a.call("_ricalcola_deriva")
 
 
 ## La stessa riga per uno solo — la usano il ponte giornaliero e la nascita
@@ -6949,7 +7235,7 @@ func _presta_la_compagnia_a(a: RefCounted, nome: String, righe = null) -> void:
 		for g in giorni:
 			tradotte.append(oggi_animo - (oggi_villaggio - int(g)))
 		a.compagnia = tradotte
-	# ⚠️ **E LA DERIVA SI RIFA', o il prestito e' un NO-OP.**
+	# ⚠️ **E LA CACHE DELLA DERIVA SI INVALIDA, o il prestito e' un NO-OP.**
 	#
 	# `_ricalcola_deriva()` ha una cache per giornata (`_deriva_giorno`), e
 	# `Animo.load()` la riempie **in coda a se stesso** — cioe' PRIMA che
@@ -6963,5 +7249,10 @@ func _presta_la_compagnia_a(a: RefCounted, nome: String, righe = null) -> void:
 	# guardava `compagnia.size()` — cioe' il REGISTRO invece del MONDO. E' lo
 	# stesso difetto che il capo che pende ha gia' pagato, scritto in
 	# CLAUDE.md, e l'ho rifatto: adesso il caso guarda `tratto("lealta")`.
+	#
+	# ⚠️ **MA IL RICALCOLO NON SI FA QUI**, e la ragione sta per esteso in
+	# coda a `_presta_l_eta_a`: i due prestiti viaggiano sempre in coppia, e
+	# rifare la deriva dentro ognuno voleva dire due passate complete per
+	# residente al giorno — la prima con una `crescita` che nessuno aveva
+	# ancora prestato. Ricalcola chi presta tutti e due.
 	a.set("_deriva_giorno", -1)
-	a.call("_ricalcola_deriva")

@@ -1,0 +1,676 @@
+extends RefCounted
+
+## LA FINESTRA SENSIBILE DELLO SVILUPPO — la guardia.
+##
+## Non e' un source-check: si costruiscono `Animo` VERI, si presta l'eta'
+## come la presta il villaggio, e si guarda il tratto che ne esce.
+## Le mutazioni stanno in `tools/muta_finestra.txt`.
+
+const DERIVA := preload("res://scenes/npc/Deriva.gd")
+const ANIMO := preload("res://scenes/npc/Animo.gd")
+const LEGAMI := preload("res://scenes/world/Legami.gd")
+
+const TRATTI := {"codardia": 0.60, "grinta": 0.50, "lealta": 0.50,
+		"ambizione": 0.50, "orgoglio": 0.50}
+
+
+func _animo(crescita := 1.0) -> RefCounted:
+	var a = ANIMO.new()
+	a.setup({"name": "Prova", "tratti": TRATTI.duplicate(), "sogno": "combattere"})
+	a.crescita = crescita
+	a.set("_deriva_giorno", -1)
+	return a
+
+
+func run(t) -> void:
+	_a_plasticita_uno_e_il_gioco_di_ieri(t)
+	_il_pavimento_e_uno_e_non_si_puo_dire_troppo_tardi(t)
+	_la_finestra_si_apre_solo_verso_l_alto(t)
+	_il_tetto_non_rompe_l_ordine_dei_caratteri(t)
+	_i_tre_teoremi_reggono_anche_al_massimo(t)
+	_un_cucciolo_e_segnato_di_piu(t)
+	_l_eta_arriva_davvero_alla_DERIVA(t)
+	_l_eta_non_si_salva_e_di_serie_si_e_adulti(t)
+	_derivato_propaga_la_plasticita(t)
+	_il_ponte_porta_l_eta_davvero(t)
+	_il_villaggio_presta_l_eta_alla_nascita(t)
+	_il_ponte_giornaliero_porta_l_eta_nuova(t)
+	_la_composizione_e_la_stessa(t)
+	_niente_barra_niente_contatore_niente_lettera(t)
+
+
+# ── 1 ─────────────────────────────────────────────────────────────────────
+## ⚠️ **IL CANCELLO DELL'AUTORE: «1.0 = oggi bit per bit».** Non «quasi», non
+## «entro tolleranza»: la stessa identica aritmetica di prima, che qui si
+## riscrive per esteso invece di chiamare la funzione (chiedere alla
+## funzione se e' d'accordo con se' stessa non prova niente).
+func _a_plasticita_uno_e_il_gioco_di_ieri(t) -> void:
+	for i in 21:
+		for j in 21:
+			var b := float(i) / 20.0
+			var s := -1.0 + float(j) / 10.0
+			var ieri: float = DERIVA.FRAZIONE * s * (1.0 - b) if s >= 0.0 \
+					else DERIVA.FRAZIONE * s * b
+			t.almost(DERIVA.delta(b, s, 1.0), ieri,
+					"a plasticita' 1.0 e' il gioco di ieri (b=%.2f s=%.2f)"
+					% [b, s], 1e-12)
+			t.almost(DERIVA.delta(b, s), ieri,
+					"e senza il parametro pure", 1e-12)
+
+
+# ── 2 ─────────────────────────────────────────────────────────────────────
+## ⚠️ **«TROPPO TARDI» E' LA FRASE CHE QUESTO GIOCO NON PUO' DIRE.** Il
+## pavimento sta dentro il `clampf`, quindi nemmeno un chiamante sbagliato,
+## un salvataggio corrotto o un banco possono portare la plasticita' sotto
+## quella di oggi. Si prova passando i valori che quel guasto produrrebbe.
+func _il_pavimento_e_uno_e_non_si_puo_dire_troppo_tardi(t) -> void:
+	t.almost(DERIVA.plasticita_di(1.0), 1.0,
+			"a crescita finita la plasticita' e' ESATTAMENTE quella di oggi",
+			1e-12)
+	for p in [0.0, 0.3, 0.999, -1.0, -100.0]:
+		for b in [0.1, 0.5, 0.9]:
+			for s in [-0.8, -0.2, 0.3, 0.9]:
+				t.almost(DERIVA.delta(b, s, p), DERIVA.delta(b, s, 1.0),
+						"plasticita' %.3f non puo' scendere sotto uno" % p, 1e-12)
+	# e nemmeno un NaN puo' spegnere la deriva
+	t.almost(DERIVA.plasticita_di(NAN), 1.0, "un NaN torna il pavimento", 1e-12)
+	t.almost(DERIVA.delta(0.6, -0.5, NAN), 0.0,
+			"e un NaN nel delta non propaga: torna zero", 1e-12)
+
+
+# ── 3 ─────────────────────────────────────────────────────────────────────
+## La finestra si APRE verso l'alto per i piccoli; non si CHIUDE verso il
+## basso per i grandi. Monotona, e mai sotto uno.
+func _la_finestra_si_apre_solo_verso_l_alto(t) -> void:
+	var prima := DERIVA.plasticita_di(0.0)
+	t.almost(prima, DERIVA.PLASTICITA_CUCCIOLO,
+			"appena nato e' la plasticita' del cucciolo", 1e-12)
+	for k in 41:
+		var c := float(k) / 40.0
+		var p := DERIVA.plasticita_di(c)
+		t.ok(p >= 1.0 - 1e-12, "mai sotto il pavimento (crescita %.2f)" % c)
+		t.ok(p <= prima + 1e-12, "e non risale crescendo")
+		prima = p
+
+
+# ── 4 ─────────────────────────────────────────────────────────────────────
+## ⚠️ **IL TETTO NON E' UN GUSTO: SOPRA `1/FRAZIONE` UN TEOREMA CADE.** La
+## derivata di `delta` rispetto alla base vale `1 − FRAZIONE·p·|s|`: a 2.5
+## esatti si annulla, e sopra due codardi diversi si INVERTONO d'ordine.
+## Il numero non si ricopia — si ricalcola qui, e poi si guarda il
+## comportamento.
+func _il_tetto_non_rompe_l_ordine_dei_caratteri(t) -> void:
+	t.ok(DERIVA.FRAZIONE * DERIVA.PLASTICITA_MAX < 1.0,
+			"il tetto sta sotto 1/FRAZIONE = %.3f (e vale %.2f)"
+			% [1.0 / DERIVA.FRAZIONE, DERIVA.PLASTICITA_MAX])
+	t.ok(DERIVA.PLASTICITA_CUCCIOLO <= DERIVA.PLASTICITA_MAX,
+			"e il cucciolo ci sta dentro")
+	# ⚠️ **E `FRAZIONE` VA ANCORATA A UN NUMERO CHE NON È LEI.** Ogni
+	# asserzione di questo file la riscrive su tutti e due i lati, quindi la
+	# costante si annullava: `FRAZIONE := 0.05` restava verde in tutta la
+	# suite, cioè sotto il pavimento di leggibilità (0.20 di spostamento)
+	# che `Deriva.gd` si impone da sé. Il numero che la fissa è nella sua
+	# stessa testata, ed è MISURATO: al valore mediano della codardia
+	# (0.534) una pressione piena sposta di una deviazione standard, 0.2146.
+	t.almost(absf(DERIVA.delta(0.534, -1.0, 1.0)), 0.2136,
+			"a pressione piena la codardia mediana si sposta di ~una "
+			+ "deviazione standard", 0.02)
+	t.ok(DERIVA.FRAZIONE >= 0.30 and DERIVA.FRAZIONE <= 0.45,
+			"e FRAZIONE resta nella banda che il suo file si impone")
+	# e l'ordine si conserva DAVVERO, alla plasticita' massima
+	for j in 21:
+		var s := -1.0 + float(j) / 10.0
+		var prima := -2.0
+		for i in 21:
+			var b := float(i) / 20.0
+			var dopo: float = b + DERIVA.delta(b, s, DERIVA.PLASTICITA_MAX)
+			t.ok(dopo > prima,
+					"chi partiva piu' in alto resta piu' in alto (s=%.2f)" % s)
+			prima = dopo
+
+
+# ── 5 ─────────────────────────────────────────────────────────────────────
+## I tre teoremi di `delta` valgono anche col terzo parametro al massimo:
+## nessuno al muro, e chi nasce al bordo non deriva.
+func _i_tre_teoremi_reggono_anche_al_massimo(t) -> void:
+	for i in 41:
+		for j in 21:
+			var b := float(i) / 40.0
+			var s := -1.0 + float(j) / 10.0
+			var d: float = DERIVA.delta(b, s, DERIVA.PLASTICITA_MAX)
+			var fin := b + d
+			t.ok(fin > -1e-9 and fin < 1.0 + 1e-9,
+					"nessuno esce dai bordi (b=%.3f s=%.2f -> %.4f)"
+					% [b, s, fin])
+	for s in [-1.0, -0.4, 0.4, 1.0]:
+		var giu: float = DERIVA.delta(0.0, s, DERIVA.PLASTICITA_MAX)
+		var su: float = DERIVA.delta(1.0, s, DERIVA.PLASTICITA_MAX)
+		if s < 0.0:
+			t.almost(giu, 0.0, "chi nasce a zero non scende", 1e-12)
+		else:
+			t.almost(su, 0.0, "chi nasce a uno non sale", 1e-12)
+
+
+# ── 6 ─────────────────────────────────────────────────────────────────────
+## Lo STESSO identico ambiente segna di piu' un cucciolo, e il rapporto e'
+## esattamente la plasticita' — non «di piu' e basta».
+func _un_cucciolo_e_segnato_di_piu(t) -> void:
+	for b in [0.2, 0.5, 0.85]:
+		for s in [-0.9, -0.3, 0.4, 0.8]:
+			var adulto: float = DERIVA.delta(b, s, DERIVA.plasticita_di(1.0))
+			var cucciolo: float = DERIVA.delta(b, s, DERIVA.plasticita_di(0.0))
+			t.ok(absf(cucciolo) >= absf(adulto) - 1e-12,
+					"il cucciolo non e' mai segnato di meno")
+			if not is_zero_approx(adulto):
+				t.almost(cucciolo / adulto, DERIVA.PLASTICITA_CUCCIOLO,
+						"e il rapporto e' esattamente la plasticita'", 1e-9)
+	# e a meta' crescita sta in mezzo
+	var meta: float = DERIVA.plasticita_di(0.5)
+	t.almost(meta, (DERIVA.PLASTICITA_CUCCIOLO + 1.0) * 0.5,
+			"a meta' strada la plasticita' e' a meta'", 1e-12)
+
+	# ⚠️ **E `PLASTICITA_CUCCIOLO` VA ANCORATA A UN NUMERO CHE NON È LEI** —
+	# la stessa cicatrice che `FRAZIONE` ha già pagato al caso 4, un piano
+	# più in là. Ogni asserzione di questo file la riscriveva su tutti e due
+	# i lati (qui sopra due volte, al caso 3 e al caso 7), quindi la costante
+	# si annullava: gli unici vincoli che NON erano lei restavano un pavimento
+	# (`absf(dp) > absf(dg) * 1.5`) e il tetto `PLASTICITA_MAX` (2.4).
+	# In quella fessura ci stava dentro `PLASTICITA_CUCCIOLO := 2.4`, e ci
+	# stava anche `1.6`: la grandezza dell'INTERA meccanica poteva cambiare
+	# del venti per cento con la suite verde.
+	#
+	# Il numero che la fissa non è una taratura misurata come quello di
+	# `FRAZIONE`: è **l'unità dell'autore**, scritta nella testata di
+	# `Deriva.gd` — *un cucciolo è segnato il DOPPIO di un adulto*. Un'unità
+	# si pretende esatta; chi la vuole muovere porti la nuova unità, non una
+	# tolleranza più larga. E l'altro capo del rapporto è ancorato altrove:
+	# `plasticita_di(1.0) == 1.0` è «il gioco di ieri», il letterale del caso 2.
+	t.almost(DERIVA.plasticita_di(0.0) / DERIVA.plasticita_di(1.0), 2.0,
+			"un cucciolo appena nato e' segnato ESATTAMENTE il doppio di un "
+			+ "adulto: e' l'unita' dell'autore, non una manopola", 1e-9)
+	# …e detto sul COMPORTAMENTO, non sul rapporto fra due costanti: lo stesso
+	# identico ambiente, sulla stessa identica base.
+	t.almost(absf(DERIVA.delta(0.6, -0.9, DERIVA.plasticita_di(0.0))),
+			2.0 * absf(DERIVA.delta(0.6, -0.9, DERIVA.plasticita_di(1.0))),
+			"lo stesso ambiente lo sposta esattamente del doppio", 1e-12)
+
+
+# ── 7 ─────────────────────────────────────────────────────────────────────
+## ⚠️ **IL CABLAGGIO, e senza questo caso tutto il resto sarebbe aritmetica
+## che nessuno esegue.** Due `Animo` con la stessa identica storia e due
+## eta' diverse devono avere DUE TRATTI DIVERSI — passando dalla porta vera
+## (`tratto()`), non da `Deriva`.
+func _l_eta_arriva_davvero_alla_DERIVA(t) -> void:
+	var grande := _animo(1.0)
+	var piccolo := _animo(0.0)
+	for x in [grande, piccolo]:
+		for _i in 8:
+			x.ricorda("regalo", "giocatore", 0.8, 0.9)
+		# ⚠️ **`tratto()` NON RICALCOLA NIENTE**: legge la cache. A rifarla
+		# sono `setup`, `load`, il prestito e `passa_giorno` — e al `setup`
+		# le prove non c'erano ancora. Si passa dalla porta vera, o si
+		# misurerebbe una deriva di zero credendo che il cablaggio sia rotto.
+		x.passa_giorno()
+	var dg: float = grande.tratto("codardia") - grande.tratto_base("codardia")
+	var dp: float = piccolo.tratto("codardia") - piccolo.tratto_base("codardia")
+	t.ok(absf(dg) > 1e-4, "l'adulto deriva (%.5f)" % dg)
+	t.ok(absf(dp) > absf(dg) * 1.5,
+			"e il cucciolo deriva molto di piu' (%.5f contro %.5f)" % [dp, dg])
+	t.almost(dp / dg, DERIVA.PLASTICITA_CUCCIOLO,
+			"esattamente della plasticita' del cucciolo", 1e-6)
+	# la base non si muove di un bit: chi era resta scritto
+	t.almost(grande.tratto_base("codardia"), piccolo.tratto_base("codardia"),
+			"e il genotipo e' identico nei due", 1e-12)
+
+
+# ── 8 ─────────────────────────────────────────────────────────────────────
+## Di serie si e' adulti (chi arriva col trolley), e l'eta' NON si salva: la
+## sua casa e' `legami → <nome> → giorno_arrivo`, e una seconda copia qui
+## sarebbe la seconda casa di un dato solo.
+func _l_eta_non_si_salva_e_di_serie_si_e_adulti(t) -> void:
+	var a = ANIMO.new()
+	a.setup({"name": "P", "tratti": TRATTI.duplicate(), "sogno": "combattere"})
+	t.almost(a.crescita, 1.0, "di serie si e' adulti: il gioco di ieri", 1e-12)
+	a.crescita = 0.0
+	var d: Dictionary = a.save()
+	t.eq(d.has("crescita"), false, "e la crescita non entra nel salvataggio")
+	# `Legami.crescita` torna 1.0 per chi non e' nato qui: e' la riga che
+	# impedisce di dichiarare neonato ogni nuovo arrivato
+	var lg = LEGAMI.new()
+	t.almost(float(lg.crescita("MaiVisto")), 1.0,
+			"chi non e' nato qui e' gia' cresciuto", 1e-12)
+	lg.free()
+
+
+# ── 9 ─────────────────────────────────────────────────────────────────────
+func _derivato_propaga_la_plasticita(t) -> void:
+	for b in [0.15, 0.5, 0.9]:
+		for s in [-0.7, 0.6]:
+			for p in [1.0, 1.5, DERIVA.PLASTICITA_MAX]:
+				t.almost(DERIVA.derivato(b, s, p),
+						clampf(b + DERIVA.delta(b, s, p), 0.0, 1.0),
+						"derivato = base + delta, con la stessa plasticita'",
+						1e-12)
+			t.ok(absf(DERIVA.derivato(b, s, 2.0) - DERIVA.derivato(b, s, 1.0))
+					> 1e-6, "e il parametro arriva davvero (b=%.2f)" % b)
+
+
+# ── 10 ────────────────────────────────────────────────────────────────────
+## ⚠️ **IL PONTE NON AVEVA UN SOLO LETTORE.** La fixture di questo file
+## scriveva `crescita` e `_deriva_giorno` a mano, cioè ri-implementava
+## esattamente `Visitors._presta_l_eta_a` — e nessun test della suite metteva
+## un nodo nel gruppo `legami` guardando poi la deriva. Due mutazioni
+## restavano verdi: «il ponte dichiara tutti adulti» (la finestra spenta in
+## partita) e «il ponte non invalida la cache» (il prestito no-op, cioè
+## **esattamente il difetto già pagato sulla compagnia**, che di là ha un
+## caso e di qua non ce l'aveva).
+func _il_ponte_porta_l_eta_davvero(t) -> void:
+	var lg := FintiLegami.new()
+	lg.crescite = {"Cucciolo": 0.2, "Grande": 1.0}
+	t.stage(lg)
+	var vis := RegistroVicini.new()
+	t.stage(vis)
+
+	var esiti: Dictionary = {}
+	for nome in ["Cucciolo", "Grande"]:
+		var a = ANIMO.new()
+		a.setup({"name": nome, "tratti": TRATTI.duplicate(),
+				"sogno": "combattere"})
+		for _i in 8:
+			a.ricorda("regalo", "giocatore", 0.8, 0.9)
+		# la cache si riempie col valore di serie (adulto), come fa `load()`
+		a.set("_deriva_giorno", -1)
+		a.call("_ricalcola_deriva")
+		var prima: float = a.tratto("codardia") - a.tratto_base("codardia")
+		# ⇢ e adesso il PONTE VERO
+		vis.call("_presta_l_eta_a", a, nome)
+		# ⚠️ **IL PRESTITO INVALIDA E BASTA: il ricalcolo è del CHIAMANTE.**
+		# Prima le due righe stavano dentro il prestito, e siccome
+		# `_presta_la_compagnia_a` e `_presta_l_eta_a` viaggiano sempre in
+		# coppia il villaggio faceva 56 passate complete al giorno invece di
+		# 28 — e la PRIMA girava con `crescita` ancora al valore di serie,
+		# scrivendo `Limbico.reattivita`/`abitudine`/`neuro_tinta` con la
+		# plasticità di un adulto addosso a un cucciolo. Adesso l'invariante
+		# «invalida, poi ricalcola» vive in un posto solo, e questo caso la
+		# esercita come la esercita il gioco: prima la cache è INVALIDA, e a
+		# rifarla è chi ha chiamato.
+		var invalida: bool = int(a.get("_deriva_giorno")) != int(a.get("oggi"))
+		a.call("_ricalcola_deriva")
+		esiti[nome] = {"crescita": float(a.get("crescita")),
+				"invalida": invalida,
+				"prima": prima,
+				"dopo": a.tratto("codardia") - a.tratto_base("codardia")}
+
+	var cu: Dictionary = esiti["Cucciolo"]
+	var gr: Dictionary = esiti["Grande"]
+	t.almost(float(cu["crescita"]), 0.2,
+			"il ponte porta la crescita vera dal gruppo «legami»", 1e-9)
+	t.almost(float(gr["crescita"]), 1.0, "e l'adulto resta adulto", 1e-9)
+	# ⚠️ e INVALIDA: se non lo facesse, il ricalcolo del chiamante uscirebbe
+	# subito sulla cache per giornata (`_deriva_giorno == oggi`) e il
+	# prestito sarebbe un no-op — cioè la finestra spenta al caricamento e
+	# alla nascita, i due soli momenti in cui c'è un cucciolo in scena. È
+	# esattamente il difetto già pagato una volta sul prestito della
+	# compagnia.
+	t.eq(bool(cu["invalida"]), true,
+			"il prestito INVALIDA la cache della deriva")
+	t.eq(bool(gr["invalida"]), true, "anche per l'adulto")
+	t.almost(float(gr["dopo"]), float(gr["prima"]),
+			"per l'adulto non cambia un bit", 1e-12)
+	t.ok(absf(float(cu["dopo"])) > absf(float(cu["prima"])) * 1.5,
+			"e per il cucciolo la deriva si apre SUBITO (%.5f -> %.5f)"
+			% [float(cu["prima"]), float(cu["dopo"])])
+	t.almost(float(cu["dopo"]) / float(cu["prima"]),
+			DERIVA.plasticita_di(0.2),
+			"esattamente della plasticita' della sua eta'", 1e-6)
+
+
+# ── 10 bis ────────────────────────────────────────────────────────────────
+## ⚠️ **IL PONTE FUNZIONA, MA NESSUNO LO CHIAMAVA — e si poteva scollegare
+## restando verdi.**
+##
+## Il caso qui sopra invoca `_presta_l_eta_a` **a mano**: prova la funzione,
+## non il fatto che qualcuno la chiami. E l'unico sito di chiamata di
+## produzione sono DUE RIGHE dentro `Visitors._ensure_brain` — cioè il posto
+## da cui nasce ogni animo del villaggio: la nascita di un cucciolo e ogni
+## caricamento di partita, che sono esattamente i due soli momenti in cui una
+## finestra sensibile ha un soggetto. Cancellandole, `crescita` resta 1.0 per
+## sempre, `plasticita_di` torna il pavimento, e **la meccanica è spenta in
+## partita con zero asserzioni rosse**. È la sesta volta in questo progetto
+## che un sistema completo, provato e verde non ha un lettore.
+##
+## Qui si passa dalla porta VERA: si costruisce la riga come la ricostruisce
+## un caricamento (`label`, `dna`, `animo`) e si chiama `_ensure_brain`.
+##
+## ⚠️ E le prove sono **un salvataggio solo, duplicato**. `ricorda()` passa dal
+## `Limbico` di quella persona (la sorpresa, l'abitudine, il dado), quindi due
+## animi costruiti a parte non inciderebbero le stesse valenze: la differenza
+## misurata sarebbe dei ricordi e non dell'età, e il caso direbbe una cosa che
+## non sta provando.
+func _il_villaggio_presta_l_eta_alla_nascita(t) -> void:
+	var lg := FintiLegami.new()
+	lg.crescite = {"Cucciolo": 0.2, "Grande": 1.0}
+	t.stage(lg)
+	var vis := RegistroVicini.new()
+	t.stage(vis)
+
+	var prove := _salvataggio_con_prove()
+	var esiti: Dictionary = {}
+	for nome in ["Cucciolo", "Grande"]:
+		# ⚠️ il nome che il ponte legge sta in `dna.name`, non in `label`: sono
+		# le DUE ANAGRAFI di questo progetto, e chi le confonde presta l'eta'
+		# di nessuno (`Legami.crescita` risponderebbe 1.0, cioe' «gia'
+		# cresciuto», e la finestra sarebbe spenta senza un errore).
+		var riga := {
+			"label": nome,
+			"dna": {"name": nome, "tratti": TRATTI.duplicate(),
+					"sogno": "combattere"},
+			"animo": prove.duplicate(true),
+		}
+		(vis.get("_residents") as Array).append(riga)
+		vis.call("_ensure_brain", riga)
+		var a = (vis.get("_animi") as Dictionary).get(nome)
+		t.ok(a != null, "il caricamento fa nascere l'animo di %s" % nome)
+		if a == null:
+			return
+		esiti[nome] = {
+			"crescita": float(a.get("crescita")),
+			"d": float(a.tratto("codardia")) - float(a.tratto_base("codardia")),
+		}
+
+	var cu: Dictionary = esiti["Cucciolo"]
+	var gr: Dictionary = esiti["Grande"]
+	t.almost(float(cu["crescita"]), 0.2,
+			("l'eta' arriva all'animo passando da `_ensure_brain`, non da una "
+			+ "chiamata a mano del banco"), 1e-9)
+	t.almost(float(gr["crescita"]), 1.0,
+			"e chi e' gia' cresciuto resta adulto", 1e-9)
+	t.ok(absf(float(gr["d"])) > 1e-4,
+			"l'adulto deriva davvero, o non c'e' niente da confrontare (%.5f)"
+			% float(gr["d"]))
+	# ⚠️ e si guarda il TRATTO, non il campo `crescita`: guardare il registro
+	# invece del mondo e' il difetto che il capo che pende ha gia' pagato, ed
+	# e' quello che lascerebbe passare un prestito che scrive l'eta' e non
+	# invalida la cache — cioe' un no-op.
+	t.ok(absf(float(cu["d"])) > absf(float(gr["d"])) * 1.5,
+			("e il cucciolo, con le stesse identiche prove, deriva molto di "
+			+ "piu' (%.5f contro %.5f)") % [float(cu["d"]), float(gr["d"])])
+	t.almost(float(cu["d"]) / float(gr["d"]), DERIVA.plasticita_di(0.2),
+			"esattamente della plasticita' della sua eta'", 1e-6)
+
+
+# ── 10 ter ────────────────────────────────────────────────────────────────
+## ⚠️ **IL PONTE HA DUE CHIAMANTI, E IL SECONDO NON AVEVA UN LETTORE SUL
+## MONDO.**
+##
+## La coppia `_presta_la_compagnia_a` + `_presta_l_eta_a` viene chiamata da due
+## posti: `Visitors._ensure_brain` — la nascita e ogni caricamento, ed è il
+## caso 10 bis — e il ciclo di `Visitors._presta_la_compagnia()`, che gira
+## **una volta al giorno** dentro `_giorno_di_animo()`. Il secondo era scoperto:
+## l'unico caso che lo esercita
+## (`test_deriva._il_villaggio_presta_la_compagnia_prima_della_giornata`)
+## asserisce `chi.compagnia.size() == 2`, cioè guarda il **REGISTRO invece del
+## MONDO** — il difetto che il capo che pende ha già pagato, scritto in
+## CLAUDE.md, e rifatto qui un piano più in là. Dell'età, in quel caso, non c'è
+## una parola.
+##
+## La mutazione plausibile è togliere `_presta_l_eta_a(a, nome)` da quel ciclo,
+## ed è **muta**: il prestito della compagnia continua a invalidare la cache,
+## quindi la deriva si rifà lo stesso — solo che si rifà per sempre con la
+## `crescita` del giorno della NASCITA. Cioè **un cucciolo che cresce giorno
+## per giorno resta a plasticità di cucciolo per tutta la vita**, e continua a
+## essere segnato al doppio quando quel corpo è ormai adulto. Nessuna
+## asserzione, oggi, se ne accorge — e la finestra sensibile è proprio la
+## meccanica che vive di questa transizione.
+##
+## Qui il cucciolo nasce dalla porta vera, poi CRESCE (`Legami` risponde 1.0) e
+## il ponte giornaliero gira: si guarda il TRATTO.
+##
+## ⚠️ **E l'orologio dell'animo NON si fa avanzare fra le due misure**, per
+## quanto «il giorno dopo» inviti a farlo. `passa_giorno()` smorza i ricordi e
+## il passaparola di `simula_giorno()` ne scrive di nuovi: il rapporto
+## misurerebbe il decadimento delle prove invece dell'età, e questo caso
+## direbbe una cosa che non sta provando. Le prove devono restare le STESSE
+## identiche; a cambiare dev'essere una cosa sola. Per la stessa ragione si
+## chiama `_presta_la_compagnia()` e non `_giorno_di_animo()`, che è il suo
+## unico chiamante di produzione ma ci mette in mezzo un giorno di villaggio.
+func _il_ponte_giornaliero_porta_l_eta_nuova(t) -> void:
+	# ⚠️ **TRAPPOLA DI BANCO: i casi di questo file girano tutti nello STESSO
+	# fotogramma.** `cleanup_staged()` arriva al frame dopo, quindi i
+	# `FintiLegami` dei casi 10 e 10 bis sono ANCORA nel gruppo «legami», e
+	# `get_first_node_in_group` risponde col PRIMO — non con quello messo in
+	# scena qui. Scrivendo sul mio, il ponte leggerebbe l'età di un altro
+	# banco e questo caso misurerebbe una costante: verde su qualunque
+	# mutazione. Si scrive perciò sul nodo che il gioco troverà DAVVERO, e con
+	# un nome che nessun altro caso usa. (Uno se ne mette in scena comunque,
+	# così il caso regge anche se un domani cambia l'ordine di `run()` o
+	# questo resta l'unico caso del file.)
+	t.stage(FintiLegami.new())
+	var reg = t.tree().get_first_node_in_group("legami")
+	t.ok(reg != null, "c'e' un registro dei legami in scena")
+	if reg == null:
+		return
+	reg.crescite["Piccolo"] = 0.2
+
+	var vis := RegistroVicini.new()
+	t.stage(vis)
+	# ⚠️ label e nome del DNA DIVERSI, apposta: il ciclo giornaliero passa da
+	# `_nome_da_label`, e chi confondesse le DUE ANAGRAFI presterebbe l'eta' di
+	# nessuno — `Legami.crescita` risponderebbe 1.0, cioe' «gia' cresciuto», e
+	# la finestra sarebbe spenta senza un errore e senza una riga rossa.
+	var riga := {
+		"label": "Vicino1",
+		"dna": {"name": "Piccolo", "tratti": TRATTI.duplicate(),
+				"sogno": "combattere"},
+		"animo": _salvataggio_con_prove(),
+	}
+	(vis.get("_residents") as Array).append(riga)
+	vis.call("_ensure_brain", riga)
+	var a = (vis.get("_animi") as Dictionary).get("Vicino1")
+	t.ok(a != null, "il caricamento fa nascere l'animo")
+	if a == null:
+		return
+	t.almost(float(a.get("crescita")), 0.2, "nasce cucciolo", 1e-9)
+	var da_cucciolo: float = a.tratto("codardia") - a.tratto_base("codardia")
+	t.ok(absf(da_cucciolo) > 1e-4,
+			"e deriva davvero, o non c'e' niente da confrontare (%.5f)"
+			% da_cucciolo)
+
+	# ⇢ È CRESCIUTO, e a portarlo dentro dev'essere il PONTE GIORNALIERO:
+	#   `_ensure_brain` di qui non passa più, l'animo esiste già.
+	reg.crescite["Piccolo"] = 1.0
+	vis.call("_presta_la_compagnia")
+	var da_adulto: float = a.tratto("codardia") - a.tratto_base("codardia")
+
+	t.almost(float(a.get("crescita")), 1.0,
+			("il ponte giornaliero porta l'eta' NUOVA, non quella del giorno "
+			+ "in cui l'animo e' nato"), 1e-9)
+	t.ok(absf(da_adulto) > 1e-4,
+			"e da adulto la deriva resta viva (%.5f)" % da_adulto)
+	t.ok(absf(da_cucciolo) > absf(da_adulto) * 1.5,
+			("con le stesse identiche prove il tratto si muove molto meno da "
+			+ "adulto (%.5f contro %.5f)") % [da_cucciolo, da_adulto])
+	# ⚠️ e il rapporto e' ESATTO: il ponte non tocca le prove, tocca l'eta'.
+	# Un «di meno e basta» lascerebbe passare un ponte che presta un'eta'
+	# qualunque purche' diversa.
+	t.almost(da_cucciolo / da_adulto, DERIVA.plasticita_di(0.2),
+			"esattamente del rapporto delle due plasticita'", 1e-6)
+	# la base non si muove di un bit: chi era resta scritto
+	t.almost(a.tratto_base("codardia"), float(TRATTI["codardia"]),
+			"e il genotipo non si e' mosso", 1e-12)
+
+
+## LE PROVE, incise una volta sola e poi duplicate: otto regali del giocatore,
+## ridotti alla riga che il salvataggio conserva. Cosi' due animi diversi
+## nascono con lo stesso identico passato.
+func _salvataggio_con_prove() -> Dictionary:
+	var a = ANIMO.new()
+	a.setup({"name": "Prova", "tratti": TRATTI.duplicate(),
+			"sogno": "combattere"})
+	for _i in 8:
+		a.ricorda("regalo", "giocatore", 0.8, 0.9)
+	return a.save()
+
+
+class FintiLegami extends Node:
+	var crescite := {}
+	func _ready() -> void:
+		add_to_group("legami")
+	func crescita(nome: String) -> float:
+		return float(crescite.get(nome, 1.0))
+
+
+class RegistroVicini extends "res://scenes/npc/Visitors.gd":
+	func _ready() -> void:
+		set_process(false)
+		set_physics_process(false)
+	func _process(_d: float) -> void:
+		pass
+
+
+# ── 11 ────────────────────────────────────────────────────────────────────
+## ⚠️ **IL SECONDO CANCELLO DELL'AUTORE: nessuna barra, nessun contatore,
+## nessuna lettera.** Se il giocatore capisce che esiste un periodo critico
+## comincia a ottimizzare l'infanzia di un bambino, e un bambino
+## ottimizzabile e' lo strumento che la regola 4 degli Affetti vieta per
+## iscritto. La finestra si vede SOLO nel referto di un banco.
+func _niente_barra_niente_contatore_niente_lettera(t) -> void:
+	var sporchi: Array = []
+	for cartella: String in ["res://scenes/ui", "res://systems"]:
+		_scandaglia(cartella, sporchi)
+	t.eq(sporchi.size(), 0,
+			"la plasticita' non arriva a nessuna interfaccia: %s" % str(sporchi))
+	# e non c'e' testo nuovo da nessuna parte
+	var src := FileAccess.get_file_as_string("res://scenes/npc/Deriva.gd")
+	t.ok(not src.contains("L10n."),
+			"la finestra non ha una parola da dire a nessuno")
+
+
+func _scandaglia(dove: String, fuori: Array) -> void:
+	var d := DirAccess.open(dove)
+	if d == null:
+		return
+	d.list_dir_begin()
+	var n := d.get_next()
+	while n != "":
+		var via := dove + "/" + n
+		if d.current_is_dir():
+			if not n.begins_with("."):
+				_scandaglia(via, fuori)
+		elif n.ends_with(".gd"):
+			for riga in FileAccess.get_file_as_string(via).split("\n"):
+				var r := str(riga)
+				var i := r.find("#")
+				if i >= 0:
+					r = r.substr(0, i)
+				if r.contains("plasticita") or r.contains("PLASTICITA"):
+					fuori.append(via)
+					break
+		n = d.get_next()
+	d.list_dir_end()
+
+
+# ── 12 ────────────────────────────────────────────────────────────────────
+## ⚠️ **`Animo.tratto()` E `Deriva.componi()` DEVONO DARE LO STESSO NUMERO.**
+##
+## `tratto()` compone a mano (base + delta, coi due clamp) invece di chiamare
+## `componi`, e la ragione è misurata: la chiamata statica attraverso un
+## `const preload` costa **23,4 volte** l'aritmetica in linea (116 ms contro
+## 2725 ms su due milioni di giri), e `tratto()` è una delle funzioni più
+## calde del gioco — sostituirla ha portato la suite da 90 secondi a oltre
+## sette minuti di CPU.
+##
+## Ma il buco che quella sostituzione voleva chiudere è vero: undici casi di
+## test esercitano `Deriva.derivato` (che passa da `componi`) mentre il gioco
+## chiama `tratto()`, quindi rompere `tratto()` li lascerebbe tutti verdi.
+## Questa è la guardia che lega le due formule: **il posto unico è la
+## definizione, non l'istruzione macchina.**
+func _la_composizione_e_la_stessa(t) -> void:
+	var a = ANIMO.new()
+	a.setup({"name": "P", "tratti": TRATTI.duplicate(), "sogno": "combattere"})
+	for i in 21:
+		for j in 21:
+			var base := float(i) / 20.0
+			var scarto := -1.0 + float(j) / 10.0
+			a.tratti["codardia"] = base
+			(a.get("_deriva") as Dictionary)["codardia"] = scarto
+			t.almost(a.tratto("codardia"), DERIVA.componi(base, scarto),
+					"tratto() compone come `Deriva.componi` (b=%.2f d=%.2f)"
+					% [base, scarto], 1e-12)
+	# e i bordi che il clamp deve tenere
+	for coppia in [[1.4, -0.3], [-0.5, 0.2], [0.9, 0.5], [0.1, -0.5]]:
+		a.tratti["codardia"] = float(coppia[0])
+		(a.get("_deriva") as Dictionary)["codardia"] = float(coppia[1])
+		t.almost(a.tratto("codardia"),
+				DERIVA.componi(float(coppia[0]), float(coppia[1])),
+				"anche fuori dai bordi", 1e-12)
+
+	# ── e la griglia qui sopra è CIECA esattamente dove le due stesure
+	#    differiscono ────────────────────────────────────────────────────
+	#
+	# ⚠️ **Su valori FINITI le due non possono divergere.** Sono la stessa
+	# aritmetica — `clampf(clampf(base) + scarto, 0, 1)` — quindi 21×21 punti
+	# più quattro bordi provano una cosa che era vera per costruzione: una
+	# griglia larga che non separa niente è un ritratto, non un test. L'unico
+	# posto in cui le due stesure possono dire numeri diversi è il
+	# **NON-FINITO**, ed è esattamente il posto in cui questa griglia non
+	# guardava.
+	#
+	# `tratto()` ha una strada veloce per i numeri finiti e per tutto il resto
+	# **delega a `componi`**: la guardia qui sotto non prova quindi due
+	# aritmetiche gemelle, prova che quel CANCELLO sia scritto bene — che nel
+	# ramo veloce non sgusci dentro un non-finito. È facilissimo scriverlo in
+	# un modo che non morde (`base != NAN` è VERO per un NaN, che è la
+	# proprietà per cui NaN è famoso), e nessuna asserzione su valori finiti
+	# potrebbe accorgersene.
+	#
+	# E cosa succede se sguscia non è una curiosità di virgola mobile — è la
+	# ragione per cui quei controlli esistono. In Godot `clampf(NAN, 0, 1)`
+	# torna **NAN**, non 0 e non 1, perché il clamp è
+	# `x < min ? min : (x > max ? max : x)` e con un NaN tutti e due i
+	# confronti sono falsi:
+	#
+	# · **il NaN si propaga e SPEGNE un carattere.** `tratti` arriva dal JSON
+	#   di un salvataggio, `_deriva` esce da `spinta()` (una somma di prodotti
+	#   con dentro un `exp` e una potenza). Un NaN che esce da `tratto()`
+	#   entra in `peso_drive`, in `punteggio` — per ogni azione di ogni
+	#   decisione — e nelle `soglie()`, dove **ogni confronto con un NaN è
+	#   falso**: l'argmax cade sulla prima voce della tabella e quel vicino
+	#   smette di avere un carattere. Senza un errore, e con la suite verde.
+	# · **l'INF arriva al MURO passando dalla porta di servizio.**
+	#   `clampf(INF, 0, 1)` torna 1.0: un dato rotto diventa un codardo
+	#   massimo, che è precisamente la cosa che il clamp della base dentro
+	#   `componi` esiste per impedire (sta scritto nella sua testata).
+	#
+	# Si incrociano quindi i valori normali con i tre non-finiti su TUTTI E
+	# DUE i lati — la base può essere sporca (il disco) e lo scarto anche (il
+	# conto) — e si pretende che le due stesure diano lo stesso numero.
+	var basi := [0.0, 0.25, 0.60, 1.0, 1.4, -0.5, NAN, INF, -INF]
+	var scarti := [-0.5, -0.1, 0.0, 0.3, 0.9, NAN, INF, -INF]
+	for base2 in basi:
+		for scarto2 in scarti:
+			a.tratti["codardia"] = float(base2)
+			(a.get("_deriva") as Dictionary)["codardia"] = float(scarto2)
+			var v: float = a.tratto("codardia")
+			t.almost(v, DERIVA.componi(float(base2), float(scarto2)),
+					("tratto() compone come `Deriva.componi` anche sul "
+					+ "non-finito (b=%s d=%s)") % [str(base2), str(scarto2)],
+					1e-12)
+			# ⚠️ **E L'ANCORA CHE NON È `componi`.** Legare le due stesure fra
+			# loro dice che sono d'accordo, non che hanno ragione: se un
+			# domani qualcuno le allineasse *sul comportamento sbagliato* —
+			# tutte e due a NaN — questa riga resterebbe verde. Un tratto è
+			# sempre un numero fra zero e uno, qualunque schifezza gli arrivi
+			# dal disco, e questo è vero indipendentemente da chi lo calcola.
+			t.ok(is_finite(v) and v >= 0.0 and v <= 1.0,
+					("un tratto resta un numero fra 0 e 1 (b=%s d=%s -> %s)")
+					% [str(base2), str(scarto2), str(v)])
+	# …e che `componi` non sia LEI a restituire NaN, o l'uguaglianza qui sopra
+	# sarebbe mal posta: `absf(NAN - NAN)` è NaN, e `t.almost` direbbe rosso
+	# su due funzioni perfettamente d'accordo.
+	for base3 in basi:
+		for scarto3 in scarti:
+			var c: float = DERIVA.componi(float(base3), float(scarto3))
+			t.ok(is_finite(c) and c >= 0.0 and c <= 1.0,
+					"`componi` non restituisce mai un non-finito (b=%s d=%s)"
+					% [str(base3), str(scarto3)])

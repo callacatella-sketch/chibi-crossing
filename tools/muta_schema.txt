@@ -1,0 +1,75 @@
+la potatura torna un FIFO (pop_front, come prima)
+scenes/npc/Animo.gd
+			vittima = SCHEMA.indice_da_sacrificare(schede, oggi, MEZZA_VITA)
+-->
+			vittima = 0
+=====
+la forza smette di contare: un fatto tiepido batte una botta vera
+scenes/npc/Schema.gd
+const PESO_FORZA := 0.8
+-->
+const PESO_FORZA := 0.0
+=====
+la distintivita' smette di contare (la costante)
+scenes/npc/Schema.gd
+const PESO_DISTINTIVO := 1.0
+-->
+const PESO_DISTINTIVO := 0.0
+=====
+la leva del banco nasce accesa
+scenes/npc/Animo.gd
+var debug_potatura_fifo := false
+-->
+var debug_potatura_fifo := true
+=====
+il verso smette di guardare i sogni traditi
+scenes/npc/Schema.gd
+	if sogno in (c.get("tradisce", []) as Array):
+-->
+	if false:
+=====
+il verso smette di guardare il sogno realizzato
+scenes/npc/Schema.gd
+	if str(c.get("serve", "")) == sogno:
+-->
+	if false:
+=====
+l'immunita' della ferita non decade MAI (nessuna chiave per il giocatore)
+scenes/npc/Schema.gd
+	if int(s.get("verso", 0)) < 0 and controprova(schede):
+		return false
+-->
+	pass
+=====
+anche il giorno BUONO si logora
+scenes/npc/Schema.gd
+	if int(s.get("verso", 0)) < 0 and controprova(schede):
+-->
+	if int(s.get("verso", 0)) != 0 and controprova(schede):
+=====
+lo schema non pesa piu' niente
+scenes/npc/Schema.gd
+const PESO_SCHEMA := 1.6
+-->
+const PESO_SCHEMA := 0.0
+=====
+l'anzianita' smette di contare
+scenes/npc/Schema.gd
+const PESO_ANZIANITA := 1.0
+-->
+const PESO_ANZIANITA := 0.0
+=====
+la scheda si porta dietro l'attore
+scenes/npc/Schema.gd
+		"tipo": tipo,
+		"quando": int(r.get("quando", 0)),
+-->
+		"tipo": tipo,
+		"attore": str(r.get("attore", "")),
+		"quando": int(r.get("quando", 0)),
+=====
+la scheda porta il SEGNO invece del modulo: il diario rosa
+scenes/npc/Schema.gd
+		"congruenza": absf(float(v)),
+-->
+		"congruenza": float(v),
