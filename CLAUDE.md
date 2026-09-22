@@ -1347,6 +1347,34 @@ volto come sta**, battuta per battuta. Due mutazioni, due asserzioni diverse:
 rimettendo il difetto → *«atteso gioia, ottenuto neutro»*; spegnendo
 `_expr_for_state` per sempre → cade la **controprova**, che è lì apposta.
 
+## ⚠️ SETTE ALBERI DEL BOSCO STAVANO SOSPESI SOPRA LA PARETE
+
+`_build_forest` solleva a `CLIFF_H` gli alberi che stanno «oltre la parete»,
+perché lassù c'è il ripiano d'erba. Ma la soglia era `cliff_x(z) − 2.5`, cioè
+**due metri e mezzo PRIMA** della parete — e quel `2.5` era **`CLIFF_H`**,
+un'**altezza** usata come ascissa. Il ripiano invece comincia a
+`cliff_x(z) + 0.05`, il primo scalino di `xoff` in `_build_cliff`: l'unico
+suolo che stia a quella quota.
+
+**MISURATO** rifacendo la semina vera (stessa griglia, stesso dado): **7
+alberi su 55 sollevati — il 12,7% — erano sospesi nel vuoto**, il peggiore a
+**2,47 m** dal ripiano. È il pezzo di mondo che si guarda dalla cascata.
+
+La cura è una **fonte unica** (`CLIFF_CAP_X0`, letta dal ripiano e dalla
+soglia) più una **legge estratta**: `CozyWorld.sopra_il_ripiano(x, z)`.
+
+⚠️ **E l'estrazione non è cosmetica: è quello che rende il difetto
+provabile.** Finché quella riga viveva dentro il ciclo di `_build_forest`
+nessun test poteva chiederle niente — ed è rimasta sbagliata di due metri e
+mezzo. La prima stesura della guardia era anche **vacua**: dentro
+`if x > soglia` chiedeva `if x < soglia`, quindi contava sempre zero e
+sarebbe stata verde su qualunque codice.
+
+Due mutazioni su asserzioni diverse: la soglia di ieri → *«atteso 0,
+ottenuto 7»*; il ripiano spostato → cade il lettore che tiene insieme le due
+metà. E la **controprova** pretende esattamente quei 7, o «zero sospesi»
+sarebbe vero anche con la fascia vuota.
+
 ## ⚠️ DUE CONVENZIONI DI CELLA, E UNA FUNZIONE LE CONFONDEVA
 
 Questo villaggio ha **due** chiavi: i layer **0-3** sono celle in metri 1:1

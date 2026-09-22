@@ -1826,7 +1826,13 @@ func _build_forest_trees(rng: RandomNumberGenerator) -> void:
 			var rx := MATH.river_x(pos.z)
 			if absf(pos.x - rx) < 5.2:
 				continue
-			if pos.x > MATH.cliff_x(pos.z) - 2.5:
+			# ⚠️ **LA SOGLIA È DOVE COMINCIA IL RIPIANO, non 2,5 m PRIMA.**
+			# Quel `- 2.5` era `CLIFF_H` — un'ALTEZZA usata come ascissa — e
+			# il ripiano d'erba parte invece a `cliff_x + CLIFF_CAP_X0`.
+			# Gli alberi nella fascia in mezzo venivano sollevati a 2,5 m
+			# **con niente sotto**: restavano sospesi sopra la parete, che è
+			# il pezzo di mondo che si guarda dalla cascata.
+			if sopra_il_ripiano(pos.x, pos.z):
 				pos.y = CLIFF_H
 			var s := rng.randf_range(0.75, 1.35)
 			var tf := Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), pos)
@@ -2842,6 +2848,24 @@ const RIVER_Z_MIN := -56.0
 const RIVER_Z_MAX := 56.0
 const RIVER_WATER_Y := -0.45
 const CLIFF_H := 2.5
+## ⚠️ DOVE COMINCIA DAVVERO IL RIPIANO DELLA SCOGLIERA, in metri a est della
+## parete. È il primo scalino di `xoff` in `_build_cliff`, ed è **l'unico
+## suolo che stia a `CLIFF_H`**: chiunque voglia posare qualcosa «sopra la
+## scogliera» deve chiedere qui, o lo posa nel vuoto.
+const CLIFF_CAP_X0 := 0.05
+
+
+## Questo punto sta SOPRA il ripiano della scogliera, cioè c'è suolo a
+## `CLIFF_H` sotto di lui?
+##
+## ⚠️ Una riga, e ha una casa sua perché la si possa INTERROGARE: finché
+## viveva dentro il ciclo di `_build_forest` nessun test poteva chiederle
+## niente, e la soglia è rimasta sbagliata di due metri e mezzo — `- 2.5`,
+## cioè `CLIFF_H`, un'ALTEZZA usata come ascissa — mentre il ripiano
+## comincia a `cliff_x + CLIFF_CAP_X0`. Gli alberi in mezzo venivano
+## sollevati a 2,5 m con NIENTE SOTTO.
+static func sopra_il_ripiano(x: float, z: float) -> bool:
+	return x > MATH.cliff_x(z) + CLIFF_CAP_X0
 ## Il profilo della parete: [sporgenza verso il fiume, quota], svasato alla
 ## base e col ciglio che aggetta. La prima riga è il PIEDE — quanto la
 ## roccia si spinge in avanti a quota zero, cioè dove un corpo che cammina
@@ -3078,7 +3102,7 @@ func _build_cliff() -> void:
 	# il pianoro erboso in cima, fino alle colline lontane
 	st = SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var xoff := [0.05, 6.0, 16.0, 30.0, 46.0]
+	var xoff := [CLIFF_CAP_X0, 6.0, 16.0, 30.0, 46.0]
 	var cap: Array = []
 	z = RIVER_Z_MIN
 	while z <= RIVER_Z_MAX + 0.01:
