@@ -196,6 +196,21 @@ var _gs_dur := 0.0
 var _gs_dati := {}
 var _gs_fase := 0.0         # la fase personale, dal genoma (mai un dado)
 var _gs_cur := {}           # i canali del gesto, questo frame
+## ⚠️ **SOLO L'EVENTO, senza i due LIVELLI**, ed è la fotografia che la
+## rampa di `gesto_spegni` si porta dietro. `_gs_cur` invece è la
+## composizione INTERA (evento + livelli), perché è quella che va al rig.
+##
+## Confonderli costava un doppio conteggio: la rampa (passo 3) risomma la
+## fotografia, e il passo 4 riaggiunge i livelli — che nella fotografia
+## c'erano già. Per i 0,35 s di `Gesti.SPEGNI` un vicino con la coda
+## somatica addosso la prendeva DUE VOLTE, e su `sy`, che è
+## moltiplicativo, il rimpicciolimento usciva al QUADRATO.
+##
+## Il commento del passo 4 dichiarava per iscritto l'opposto — «un livello
+## non è mai dentro la rampa di un evento (sono cose diverse, e comporle
+## vorrebbe dire che spegnere un gesto spegne anche l'allerta)» — e per un
+## pezzo è stato vero solo nel commento.
+var _gs_evento := {}
 var _gs_r := 1.0            # il moltiplicatore del ritmo, questo frame
 var _gs_debito := 0.0       # quanti metri di strada ha già rubato
 var _gs_spegni := 0.0       # 1 → 0 mentre un gesto troncato rientra
@@ -4461,6 +4476,7 @@ func gesto_spegni(subito := false) -> void:
 		_gs_nome = ""
 		_gs_spegni = 0.0
 		_gs_ultimo = {}
+		_gs_evento = {}
 		_gs_cur = {}
 		_gs_r = 1.0
 		_gesto_scala(1.0)
@@ -4468,7 +4484,7 @@ func gesto_spegni(subito := false) -> void:
 	if _gs_nome == "":
 		return
 	_gs_nome = ""
-	_gs_ultimo = _gs_cur.duplicate()
+	_gs_ultimo = _gs_evento.duplicate()
 	_gs_spegni = 1.0
 	# ⚠️ **E QUI NON SI SPEGNE NESSUN CAPO.** La riga c'era, e non bastava:
 	# il ramo `subito` esce quattro righe più su e quello del gesto già
@@ -4735,6 +4751,7 @@ func _gesto_passo(delta: float) -> void:
 			# da ricordarsi.
 			_gs_nome = ""
 			_gs_cur = {}
+			_gs_evento = {}
 			canali = GESTI.riposo()
 		elif _gs_nome == "largo":
 			canali["hy"] = _gesto_largo_testa(float(canali["hy"]), delta)
@@ -4752,6 +4769,11 @@ func _gesto_passo(delta: float) -> void:
 				canali[c] += vecchio * f
 		if _gs_spegni <= 0.0:
 			_gs_ultimo = {}
+
+	# ⚠️ LA FOTOGRAFIA PER LA RAMPA SI SCATTA QUI, cioè con l'evento e la
+	#    sua rampa dentro e i LIVELLI ancora fuori: è l'unica posizione in
+	#    cui `_gs_evento` significa quello che il passo 4 dichiara.
+	_gs_evento = canali.duplicate()
 
 	# 4) I DUE LIVELLI, in coda: un livello non si tronca, e non è mai
 	#    dentro la rampa di un evento (sono cose diverse, e comporle

@@ -87,6 +87,7 @@ const DT := 1.0 / 60.0
 
 func run(t) -> void:
 	_la_tabella_e_pura(t)
+	_la_rampa_non_conta_i_livelli_due_volte(t)
 	_il_costo_in_metri(t)
 	_il_ritmo_torna_a_uno(t)
 	_il_punto_spezza_il_passo(t)
@@ -1265,3 +1266,67 @@ func _scandaglia(percorso: String, trovati: Array[String]) -> void:
 						trovati.append("%s:%d" % [f, i + 1])
 		f = dir.get_next()
 	dir.list_dir_end()
+
+
+## ⚠️ LA RAMPA DI UN GESTO TRONCATO CONTAVA I LIVELLI DUE VOLTE.
+##
+## `_gesto_passo` compone in quest'ordine: (2) l'evento, (3) la RAMPA di chi
+## e' stato troncato, (4) i due LIVELLI (il capo, la coda somatica, la
+## notte), (5) `_gs_cur = canali` — cioe' la composizione INTERA, quella che
+## va al rig.
+##
+## `gesto_spegni` fotografava `_gs_cur`, quindi la fotografia conteneva
+## anche i livelli; la rampa la risommava al passo 3, e il passo 4
+## riaggiungeva i livelli che nella fotografia c'erano gia'. Per i 0,35 s di
+## `Gesti.SPEGNI` un vicino con la coda somatica addosso la prendeva DUE
+## VOLTE.
+##
+## ⚠️ E il commento del passo 4 dichiarava per iscritto l'opposto: «un
+## livello non e' mai dentro la rampa di un evento (sono cose diverse, e
+## comporle vorrebbe dire che spegnere un gesto spegne anche l'allerta)».
+## Per un pezzo e' stato vero solo nel commento.
+##
+## MISURATO sullo stesso corpo, con e senza la cura, nell'istante del taglio:
+## orecchio **+0,5540 contro +0,1311** (0,4229 rad = **24,2 gradi** di
+## salto), e `sy` **0,9363 contro 0,9676** — dove 0,9676² = 0,9363 **esatto**,
+## che e' la firma aritmetica del doppio conteggio su un canale
+## moltiplicativo. I due rientrano insieme a 0,333 s, cioe' a rampa finita.
+##
+## Ventiquattro gradi e' esattamente il salto che `LIVELLI_RAMPA` esiste per
+## non far vedere (0,4158 rad, misurati nello stesso file): il difetto lo
+## rifaceva dall'altra parte.
+func _la_rampa_non_conta_i_livelli_due_volte(t) -> void:
+	var v = _corpo(t)
+	_in_cammino(v)
+	v.call("somatico", 1.0)        # la coda somatica addosso, piena
+	_gira(v, 0.2)
+	var prima_ear := float((v.get("_gs_cur") as Dictionary).get("ear", 0.0))
+	var prima_sy := float((v.get("_gs_cur") as Dictionary).get("sy", 1.0))
+	t.ok(prima_sy < 0.999,
+			"la scena esiste: il livello sta schiacciando il corpo (sy %.4f)"
+					% prima_sy)
+
+	t.ok(v.gesto("punto"), "il Punto parte")
+	_gira(v, 0.2)
+	v.call("gesto_spegni")          # troncato: parte la rampa
+	t.ok(float(v.get("_gs_spegni")) > 0.9, "la rampa e' accesa")
+
+	# IL FOTOGRAMMA DEL TAGLIO, che e' quello in cui il doppio si vede
+	v._process(1.0 / 60.0)
+	var cur: Dictionary = v.get("_gs_cur")
+	var sy := float(cur.get("sy", 1.0))
+	# ⚠️ L'ORACOLO NON E' UN NUMERO TARATO: e' il QUADRATO. Un livello
+	# moltiplicativo contato due volte da esattamente `x * x`.
+	t.ok(sy > prima_sy * prima_sy + 0.005,
+			"`sy` non e' il livello al QUADRATO (%.4f contro %.4f)"
+					% [sy, prima_sy * prima_sy])
+	t.ok(absf(float(cur.get("ear", 0.0))) < absf(prima_ear) * 1.6,
+			"…e l'orecchio non prende una doppia dose (%.4f contro %.4f)"
+					% [float(cur.get("ear", 0.0)), prima_ear])
+
+	# ⚠️ LA CONTROPROVA: la rampa DEVE esistere. Una cura che svuotasse la
+	# fotografia toglierebbe il difetto e anche la rampa, cioe' rimetterebbe
+	# il taglio secco che `Gesti.SPEGNI` esiste per non far vedere.
+	t.ok((v.get("_gs_ultimo") as Dictionary).size() > 4,
+			"la fotografia della rampa c'e' ancora (%d canali)"
+					% (v.get("_gs_ultimo") as Dictionary).size())

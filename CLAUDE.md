@@ -1347,6 +1347,48 @@ volto come sta**, battuta per battuta. Due mutazioni, due asserzioni diverse:
 rimettendo il difetto → *«atteso gioia, ottenuto neutro»*; spegnendo
 `_expr_for_state` per sempre → cade la **controprova**, che è lì apposta.
 
+## ⚠️ LA RAMPA DI UN GESTO TRONCATO CONTAVA I LIVELLI DUE VOLTE
+
+`_gesto_passo` compone in quest'ordine: (2) l'**evento**, (3) la **rampa** di
+chi è stato troncato, (4) i due **livelli** (il capo, la coda somatica, la
+notte), (5) `_gs_cur = canali` — cioè la composizione **intera**, quella che
+va al rig.
+
+`gesto_spegni` fotografava `_gs_cur`, quindi la fotografia conteneva **anche
+i livelli**; la rampa la risommava al passo 3, e il passo 4 riaggiungeva i
+livelli che nella fotografia c'erano già.
+
+⚠️ **E il commento del passo 4 dichiarava per iscritto l'opposto**: *«un
+livello non è mai dentro la rampa di un evento (sono cose diverse, e comporle
+vorrebbe dire che spegnere un gesto spegne anche l'allerta)»*. Per un pezzo è
+stato vero solo nel commento.
+
+**MISURATO** sullo stesso corpo, stessa scena, con e senza la cura,
+nell'istante del taglio:
+
+| | orecchio | `sy` |
+|---|---|---|
+| prima | **+0,5540** | **0,9363** |
+| dopo | +0,1311 | 0,9676 |
+| a 0,333 s (rampa finita) | +0,3390 · +0,3390 | 0,9712 · 0,9712 |
+
+**0,9676² = 0,9363 esatto**: è la firma aritmetica del doppio conteggio su un
+canale moltiplicativo, non una somiglianza. E i **24,2°** di salto
+sull'orecchio sono esattamente ciò che `LIVELLI_RAMPA` esiste per non far
+vedere (0,4158 rad, misurati nello stesso file): il difetto lo rifaceva
+dall'altra parte.
+
+La cura è una **seconda fotografia** (`_gs_evento`), scattata fra il passo 3
+e il passo 4 — l'unica posizione in cui significa quello che il passo 4
+dichiara. `_gs_cur` resta la composizione intera, perché è quella che il rig
+legge.
+
+⚠️ **E l'oracolo della guardia non è un numero tarato: è il QUADRATO.** Un
+livello moltiplicativo contato due volte dà esattamente `x · x`. Due
+mutazioni su asserzioni diverse, e la seconda è la **controprova**: svuotare
+la fotografia toglie il difetto **e la rampa**, e il taglio secco torna
+(*«max 0,2646 su ear1, tetto 0,030»*).
+
 ## ⚠️ ENTRARE IN CHIESA VOLEVA DIRE GUARDARE IL MURO DI PIETRA
 
 `BuildSystem._register` è l'unico scrittore di `_walls`, e passa da
