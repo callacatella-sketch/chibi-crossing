@@ -28,6 +28,7 @@ func run(t) -> void:
 	_test_quando_si_nasce(t)
 	_test_la_coppia(t)
 	_la_soglia_e_nell_unita_del_libro_mastro(t)
+	_il_nome_del_cucciolo_non_ruba_un_filo(t)
 	_test_il_verso_della_crescita(t)
 	_test_la_parola_storta(t)
 	_test_voce_da_cucciolo(t)
@@ -444,3 +445,77 @@ func _la_soglia_e_nell_unita_del_libro_mastro(t) -> void:
 			func(_a, _b): return soglia - 0.05, func(_a, _b): return 0)
 	t.ok(not sopra.is_empty() and sotto.is_empty(),
 			"cinque centesimi sopra si', cinque sotto no: nessuno tronca piu' a intero")
+
+
+## ⚠️ IL NOME DEL CUCCIOLO LO SCRIVE IL GIOCATORE, E NON LO GUARDAVA NESSUNO.
+##
+## `Legami` indicizza il filo rosso per NOME: chiamare il cucciolo come un
+## residente vivo — o come qualcuno che e' partito — non creava un omonimo,
+## gli DIROTTAVA il filo addosso. Il nuovo nato ereditava i momenti, i giorni
+## di amicizia e la storia di un altro, e chi l'aveva vissuta se li vedeva
+## intestati a un neonato.
+##
+## E la conoscenza per impedirlo c'era gia': `_nome_libero` costruisce
+## l'elenco dei nomi presi — e lo usava SOLTANTO per proporre il segnaposto.
+## Adesso quell'elenco e' una funzione con DUE lettori.
+##
+## ⚠️ E NON SI RINOMINA DI NASCOSTO: prendere il nome che il giocatore ha
+## scritto e cambiarlo senza dirlo e' peggio del difetto. Il pannello RESTA
+## APERTO e lo dice — e' l'unica forma in cui il giocatore puo' rimediare.
+func _il_nome_del_cucciolo_non_ruba_un_filo(t) -> void:
+	var n := NASCITE.new()
+	var vis := FintiVisitors.new()
+	var leg := FintiLegami.new()
+	n.set("_visitors", vis)
+	n.set("_legami", leg)
+
+	var presi: Dictionary = n.call("_nomi_presi")
+	t.ok(presi.has("Prugna"), "un residente vivo e' fra i nomi presi")
+	t.ok(presi.has("Nocciola"), "…e anche chi e' partito: il suo filo esiste ancora")
+	t.ok(not presi.has("Ribes"), "un nome mai usato non lo e'")
+
+	# I DUE LETTORI DEVONO ESSERE D'ACCORDO: quello che il gioco PROPONE non
+	# puo' essere uno di quelli che poi RIFIUTA.
+	for seme in [1, 7, 99, 1234]:
+		var proposto := str(n.call("_nome_libero", seme))
+		t.ok(not presi.has(proposto),
+				"il nome proposto (seme %d: «%s») non e' gia' di qualcuno"
+						% [seme, proposto])
+
+	# E LA PORTA: un nome preso non deve chiudere il pannello.
+	var pan := PanelContainer.new()
+	var campo := LineEdit.new()
+	var titolo := Label.new()
+	pan.add_child(campo)
+	pan.add_child(titolo)
+	n.set("_pannello", pan)
+	n.set("_campo", campo)
+	n.set("_titolo", titolo)
+	n.set("_in_arrivo", {"padre": "Timo", "madre": "Pepita", "seme": 3, "giorno": 5})
+	pan.visible = true
+	campo.text = "Prugna"
+	var prima := str(titolo.text)
+	n.call("_conferma_nome")
+	t.ok(pan.visible,
+			"con un nome gia' preso il pannello RESTA APERTO (si puo' rimediare)")
+	t.ok(str(titolo.text) != prima and str(titolo.text) != "",
+			"…e lo dice, invece di rinominare di nascosto («%s»)" % str(titolo.text))
+	t.ok(not (n.get("_in_arrivo") as Dictionary).is_empty(),
+			"e il cucciolo e' ancora in arrivo: non si e' consumato niente")
+	pan.free()
+	n.free()
+	vis.free()
+	leg.free()
+
+
+## Due finti che dicono un DATO e basta: chi c'e' e chi e' partito. Nessuno
+## dei due decide niente — la decisione resta in `Nascite`, che e' la cosa
+## che questo caso prova.
+class FintiVisitors extends Node:
+	func adulti_del_villaggio() -> Array:
+		return [["Prugna", "L_prugna", {}], ["Timo", "L_timo", {}]]
+
+
+class FintiLegami extends Node:
+	func partiti() -> Array:
+		return [["Nocciola", 3]]

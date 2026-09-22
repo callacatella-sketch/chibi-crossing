@@ -405,6 +405,23 @@ func _conferma_nome() -> void:
 	var nome := _campo.text.strip_edges()
 	if nome == "":
 		nome = _campo.placeholder_text
+	# ⚠️ **IL NOME LO SCRIVE IL GIOCATORE, E PRIMA NON LO GUARDAVA NESSUNO.**
+	# `Legami` indicizza il filo rosso per NOME: chiamare il cucciolo come un
+	# residente vivo (o come qualcuno che è partito) non creava un omonimo —
+	# gli DIROTTAVA il filo addosso, cioè il nuovo nato ereditava i momenti,
+	# i giorni di amicizia e la storia di un altro. E la conoscenza per
+	# impedirlo c'era già: `_nome_libero` costruisce l'elenco dei presi, e lo
+	# usava soltanto per proporre il segnaposto.
+	#
+	# ⚠️ E NON SI RINOMINA DI NASCOSTO: prendere il nome del giocatore e
+	# cambiarlo senza dirlo è peggio del difetto. Il pannello RESTA APERTO e
+	# lo dice — è l'unica forma in cui il giocatore può rimediare, ed è la
+	# prima domanda del collaudo della REGOLA SACRA.
+	if _nomi_presi().has(nome):
+		_titolo.text = L10n.tf("Quel nome ce l'ha già %s.\nCome si chiama?", [nome])
+		_campo.text = ""
+		_campo.grab_focus()
+		return
 	_pannello.visible = false
 	var padre := str(_in_arrivo.get("padre", ""))
 	var madre := str(_in_arrivo.get("madre", ""))
@@ -579,7 +596,11 @@ func _label_di(nome: String) -> String:
 ## Un nome che nel villaggio non c'è già — né fra i vivi né fra chi è
 ## partito: l'unicità delle label è un'invariante di Visitors (due «la
 ## volpina Pepita» si ruberebbero cervello, animo e compleanno).
-func _nome_libero(seme: int) -> String:
+## ⚠️ I NOMI GIÀ PRESI, e sta in una funzione sua perché ha DUE lettori: chi
+## propone un nome libero e chi controlla quello che il giocatore ha scritto.
+## Finché la conoscenza viveva dentro `_nome_libero`, il secondo lettore non
+## c'era — e il nome digitato non lo guardava nessuno.
+func _nomi_presi() -> Dictionary:
 	var presi := {}
 	if _visitors:
 		for riga in _visitors.call("adulti_del_villaggio"):
@@ -587,6 +608,11 @@ func _nome_libero(seme: int) -> String:
 	if _legami:
 		for riga in _legami.call("partiti"):
 			presi[str(riga[0])] = true
+	return presi
+
+
+func _nome_libero(seme: int) -> String:
+	var presi := _nomi_presi()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = absi(seme)
 	var pool: Array = DNA.NAMES_NATI.duplicate()

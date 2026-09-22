@@ -1066,6 +1066,32 @@ guardia.
   sorgenti di `scenes/` e `systems/` — saltando i commenti, perché questa
   lezione la chiamata vietata la nomina apposta.
 
+## ⚠️ E IL NOME DEL CUCCIOLO LO SCRIVEVA IL GIOCATORE SENZA CHE NESSUNO LO GUARDASSE
+
+`Legami` indicizza il filo rosso **per NOME**. Chiamare il cucciolo come un
+residente vivo — o come qualcuno che è partito — non creava un omonimo: gli
+**dirottava il filo addosso**. Il nuovo nato ereditava i momenti, i giorni di
+amicizia e la storia di un altro, e chi quella storia l'aveva vissuta se la
+vedeva intestata a un neonato.
+
+⚠️ **E la conoscenza per impedirlo c'era già**: `_nome_libero` costruisce
+l'elenco dei nomi presi (i vivi da `adulti_del_villaggio`, i partiti da
+`Legami.partiti`) — e lo usava **soltanto per proporre il segnaposto**. Un
+dato calcolato con un lettore solo, un'altra volta. Adesso è `_nomi_presi()`,
+e i lettori sono due.
+
+⚠️ **E NON SI RINOMINA DI NASCOSTO.** Prendere il nome che il giocatore ha
+scritto e cambiarlo senza dirglielo è peggio del difetto. Il pannello **resta
+aperto** e lo dice — *«Quel nome ce l'ha già %s. Come si chiama?»* — perché è
+l'unica forma in cui il giocatore può rimediare, che è la prima domanda del
+collaudo della REGOLA SACRA. (Voce inglese aggiunta nella stessa sessione,
+come vuole la regola sulla lingua.)
+
+La guardia sta in `test_nascite._il_nome_del_cucciolo_non_ruba_un_filo` e
+lega **i due lettori**: quello che il gioco PROPONE non può essere uno di
+quelli che poi RIFIUTA — provato su quattro semi. Falsificata spegnendo il
+controllo: **2 rosse**.
+
 ## ⚠️⚠️ NESSUN CUCCIOLO POTEVA NASCERE — la soglia era in un'altra unità
 
 `Nascite.AFFINITA_MINIMA` valeva **8**, e il suo commento diceva perché:

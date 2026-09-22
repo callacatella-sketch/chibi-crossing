@@ -516,6 +516,10 @@ const T := {
 	"E — conosci il cucciolo": "E — meet the little one",
 	"%s e %s aspettano te.\nCome si chiama?":
 			"%s and %s are waiting for you.\nWhat shall we call them?",
+	# ⚠️ Il nome digitato dal giocatore è già di qualcuno: il pannello resta
+	# aperto e glielo dice, invece di rinominare di nascosto.
+	"Quel nome ce l'ha già %s.\nCome si chiama?":
+			"%s already has that name.\nWhat shall this one be called?",
 	"Invio — e da quel momento è il suo nome":
 			"Enter — and from that moment it is their name",
 	"Non c'è un lettino libero dove metterlo. Aspettano.":
