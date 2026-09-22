@@ -269,13 +269,39 @@ const char *nome_tipo(uint32_t t) {
 // LE ATTESE SUGLI ARRAY, e perché la tabella è così corta.
 //
 // Non è una copia del formato GGUF: è l'elenco esatto dei metadati che llama
-// legge con `llama_model_loader::get_arr`, che è l'UNICO punto della lettura
-// dove un tipo sbagliato diventa un `abort()` invece di un'eccezione (il ramo
-// scalare, `GKV::get_kv`, tira `std::runtime_error` e il gioco lo vede come
-// «modello non caricato» — sano). Ogni riga qui sotto chiude una porta
-// misurata, non una immaginata; le chiavi che finiscono col nome dell'arch
-// davanti si riconoscono dalla CODA, così la tabella non deve conoscere le
-// sessanta architetture di llama.cpp.
+// legge in un modo che, con un tipo sbagliato, diventa un `abort()` invece di
+// un'eccezione (il ramo scalare normale, `GKV::get_kv`, tira
+// `std::runtime_error` e il gioco lo vede come «modello non caricato» —
+// sano). Ogni riga qui sotto chiude una porta misurata, non una immaginata;
+// le chiavi che finiscono col nome dell'arch davanti si riconoscono dalla
+// CODA, così la tabella non deve conoscere le sessanta architetture di
+// llama.cpp.
+//
+// ⚠️ **E `llama_model_loader::get_arr` NON È L'UNICO PUNTO — questa riga ha
+// detto il contrario per un pezzo.** VERIFICATO nel sottomodulo pinnato
+// (b10326) ce ne sono altri due, e tutti e due leggono il GGUF *a mano*
+// invece che dal loader:
+//
+//  · `llama-vocab.cpp:2588` — `tokenizer.ggml.suppress_tokens`, letta con un
+//    cast crudo `(const int32_t *) gguf_get_arr_data(...)` e nessun controllo
+//    di tipo. `gguf_get_arr_data` (ggml/src/gguf.cpp:1058) asserisce
+//    `get_type() != GGUF_TYPE_STRING`: con una stringa il processo MUORE, con
+//    qualunque altro tipo sbagliato il tokenizzatore legge spazzatura **in
+//    silenzio** — la stessa famiglia di `token_type` e `scores`. E quel
+//    blocco sta FUORI dalla catena `tokenizer_model == …`: gira per OGNI
+//    modello, gemma compresa.
+//  · `llama-vocab.cpp:2029` — `tokenizer.ggml.precompiled_charsmap`, con DUE
+//    assert: `gguf_get_arr_type` (gguf.cpp:1052) pretende `is_array`, e la
+//    riga dopo pretende INT8 o UINT8. Qui a morire è anche la FORMA, non solo
+//    il tipo dell'elemento: uno scalare basta.
+//
+// Da qui la colonna `forma`: la stragrande maggioranza delle righe guarda il
+// tipo **solo quando la chiave è un elenco** (`qualunque`, il comportamento
+// di sempre, bit per bit), e solo le due righe nuove chiedono di più. È
+// voluto: l'invariante di questo filtro è che possa non coprire una porta
+// nuova, **mai rifiutare un modello buono**, e allargare il controllo a tutti
+// gli scalari rifiuterebbe un `head_count` scritto a 64 bit da un
+// convertitore che non conosciamo.
 //
 // Se un domani llama leggesse un array nuovo, il peggio che può capitare è
 // che questo filtro non lo copra: non che rifiuti un modello buono. Le attese
@@ -286,25 +312,46 @@ enum class Attesa {
 	stringhe, // array di stringhe
 	interi, // array di i32/u32 (llama li legge come uint32_t/int32_t)
 	reali, // array di f32
+	byte, // array di i8/u8 (la charsmap precompilata)
+};
+
+// QUANTO SI PRETENDE DALLA FORMA, e ogni valore corrisponde a come llama
+// legge QUELLA chiave. Non è una taratura: è la trascrizione di tre righe di
+// llama.cpp.
+enum class Forma {
+	// il comportamento di sempre: si guarda il tipo SOLO se la chiave è un
+	// elenco. Uno scalare passa, perché llama lo legge dal loader e un tipo
+	// sbagliato diventa un'eccezione, non un abort.
+	qualunque,
+	// llama la legge con `gguf_get_arr_data` anche quando è uno scalare
+	// (`gguf_get_arr_n` non asserisce `is_array`), quindi il tipo va guardato
+	// in tutti e due i casi.
+	anche_scalare,
+	// llama la legge con `gguf_get_arr_type`, che ASSERISCE `is_array`: uno
+	// scalare, qualunque sia il suo tipo, è il processo che muore.
+	solo_elenco,
 };
 
 struct RigaAttesa {
 	const char *chiave;
 	bool per_coda; // true = si confronta la fine della chiave (dopo l'arch)
 	Attesa attesa;
+	Forma forma;
 };
 
 const RigaAttesa ATTESE[] = {
-	{ "tokenizer.ggml.tokens", false, Attesa::stringhe },
-	{ "tokenizer.ggml.merges", false, Attesa::stringhe },
-	{ "tokenizer.ggml.token_type", false, Attesa::interi },
-	{ "tokenizer.ggml.scores", false, Attesa::reali },
-	{ ".attention.head_count", true, Attesa::interi },
-	{ ".attention.head_count_kv", true, Attesa::interi },
-	{ ".feed_forward_length", true, Attesa::interi },
-	{ ".rope.dimension_sections", true, Attesa::interi },
-	{ ".attention.layer_norm_rms_epsilon", true, Attesa::reali },
-	{ ".attention.layer_norm_epsilon", true, Attesa::reali },
+	{ "tokenizer.ggml.tokens", false, Attesa::stringhe, Forma::qualunque },
+	{ "tokenizer.ggml.merges", false, Attesa::stringhe, Forma::qualunque },
+	{ "tokenizer.ggml.token_type", false, Attesa::interi, Forma::qualunque },
+	{ "tokenizer.ggml.scores", false, Attesa::reali, Forma::qualunque },
+	{ "tokenizer.ggml.suppress_tokens", false, Attesa::interi, Forma::anche_scalare },
+	{ "tokenizer.ggml.precompiled_charsmap", false, Attesa::byte, Forma::solo_elenco },
+	{ ".attention.head_count", true, Attesa::interi, Forma::qualunque },
+	{ ".attention.head_count_kv", true, Attesa::interi, Forma::qualunque },
+	{ ".feed_forward_length", true, Attesa::interi, Forma::qualunque },
+	{ ".rope.dimension_sections", true, Attesa::interi, Forma::qualunque },
+	{ ".attention.layer_norm_rms_epsilon", true, Attesa::reali, Forma::qualunque },
+	{ ".attention.layer_norm_epsilon", true, Attesa::reali, Forma::qualunque },
 };
 
 bool finisce_con(const std::string &s, const char *coda) {
@@ -313,11 +360,30 @@ bool finisce_con(const std::string &s, const char *coda) {
 }
 
 // Torna "" se va bene, altrimenti il motivo del rifiuto.
-std::string attesa_rispettata(const std::string &chiave, uint32_t tipo_elemento) {
+//
+// `p_e_elenco` dice se la chiave è un array: serve alle due righe che non si
+// accontentano del tipo dell'elemento (vedi `Forma`). Per tutte le altre —
+// cioè per tutte quelle che c'erano prima — questa funzione si comporta
+// esattamente come prima: uno scalare esce subito, un elenco si giudica sul
+// tipo.
+std::string attesa_rispettata(const std::string &chiave, uint32_t tipo_elemento,
+		bool p_e_elenco) {
 	for (const RigaAttesa &r : ATTESE) {
 		const bool mia = r.per_coda ? finisce_con(chiave, r.chiave) : chiave == r.chiave;
 		if (!mia) {
 			continue;
+		}
+		if (!p_e_elenco) {
+			if (r.forma == Forma::qualunque) {
+				return std::string();
+			}
+			if (r.forma == Forma::solo_elenco) {
+				return "il metadato «" + chiave + "» non è un elenco: llama.cpp lo "
+						"legge con gguf_get_arr_type, che ASSERISCE di averne uno — "
+						"e un assert di ggml non è un errore, è il processo che muore";
+			}
+			// Forma::anche_scalare: si prosegue e si giudica il tipo, che qui
+			// è quello dello scalare.
 		}
 		bool bene = false;
 		const char *voluto = "";
@@ -333,6 +399,10 @@ std::string attesa_rispettata(const std::string &chiave, uint32_t tipo_elemento)
 			case Attesa::reali:
 				bene = tipo_elemento == GGUF_TYPE_FLOAT32;
 				voluto = "numeri a 32 bit";
+				break;
+			case Attesa::byte:
+				bene = tipo_elemento == GGUF_TYPE_INT8 || tipo_elemento == GGUF_TYPE_UINT8;
+				voluto = "byte";
 				break;
 		}
 		if (!bene) {
@@ -508,14 +578,21 @@ FattiGguf esamina_gguf(const std::string &percorso, bool con_impronta) {
 							std::to_string(quanti) + " elementi";
 					return fatti;
 				}
-				const std::string no = attesa_rispettata(chiave, tipo_elemento);
+			} else if (tipo >= GGUF_TYPE_COUNT) {
+				fatti.motivo = "il metadato «" + chiave + "» ha tipo " + std::to_string(tipo);
+				return fatti;
+			}
+			// ⚠️ SI CHIEDE ANCHE PER GLI SCALARI, e non e un allargamento: le
+			// righe con `Forma::qualunque` — cioe tutte quelle che c'erano
+			// prima — escono subito quando la chiave non e un elenco, quindi
+			// per loro il comportamento e identico bit per bit. Le due righe
+			// nuove invece devono poter dire di no proprio sulla forma.
+			{
+				const std::string no = attesa_rispettata(chiave, tipo_elemento, e_array);
 				if (!no.empty()) {
 					fatti.motivo = no;
 					return fatti;
 				}
-			} else if (tipo >= GGUF_TYPE_COUNT) {
-				fatti.motivo = "il metadato «" + chiave + "» ha tipo " + std::to_string(tipo);
-				return fatti;
 			}
 
 			// ⚠️ L'UNICO METADATO CHE ABORTISCE, e non è in llama: è in ggml.

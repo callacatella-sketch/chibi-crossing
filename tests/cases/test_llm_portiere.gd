@@ -34,6 +34,7 @@ const LLM := preload("res://systems/Llm.gd")
 const DOVE := "user://prova_portiere.gguf"
 
 # I tipi GGUF, che sono un numero sul disco.
+const T_U8 := 0
 const T_U32 := 4
 const T_I32 := 5
 const T_F32 := 6
@@ -49,6 +50,7 @@ func run(t) -> void:
 		return
 
 	_il_file_sano_passa(t, cuore)
+	_le_forme_buone_delle_due_chiavi_passano(t, cuore)
 	_ogni_guasto_ha_il_suo_no(t, cuore)
 	_l_impronta_e_quella_vera(t, cuore)
 	_la_stima_cresce_con_la_finestra(t, cuore)
@@ -114,6 +116,37 @@ func _ogni_guasto_ha_il_suo_no(t, cuore) -> void:
 		["il metadato doppio", _modellino_doppione(), "due volte"],
 		["senza architettura", _modellino_senza("general.architecture"), "architecture"],
 		["senza vocabolario", _modellino_senza("tokenizer.ggml.tokens"), "vocabolario"],
+
+		# ⚠️ LE DUE CHIAVI CHE LLAMA LEGGE A MANO, e per un pezzo la testata
+		# di `ATTESE` ha giurato che `get_arr` fosse l'unico punto d'abort.
+		# VERIFICATO nel sottomodulo pinnato (b10326):
+		#  · `llama-vocab.cpp:2588` legge `suppress_tokens` con un cast crudo
+		#    su `gguf_get_arr_data`, che ASSERISCE `type != STRING` — e quel
+		#    blocco sta FUORI dalla catena `tokenizer_model == …`, cioè gira
+		#    per OGNI modello. Con un tipo non-stringa sbagliato non abortisce
+		#    e basta: il tokenizzatore legge spazzatura in silenzio.
+		#  · `llama-vocab.cpp:2029` legge `precompiled_charsmap` con
+		#    `gguf_get_arr_type`, che ASSERISCE `is_array`, e poi pretende
+		#    INT8/UINT8. Qui a morire è anche la FORMA: uno scalare basta.
+		# MISURATO sul portiere di PRIMA, con questi stessi cinque file:
+		# diceva **OK a tutti e cinque**.
+		["suppress_tokens fatto di stringhe",
+			_modellino(T_STRINGA, _kv_elenco("tokenizer.ggml.suppress_tokens",
+					T_STRINGA, 1, _testo("x"))), "suppress_tokens"],
+		["suppress_tokens fatto di numeri",
+			_modellino(T_STRINGA, _kv_elenco("tokenizer.ggml.suppress_tokens",
+					T_F32, 1, _quattro(0))), "suppress_tokens"],
+		# lo SCALARE stringa: `gguf_get_arr_n` non asserisce `is_array`,
+		# quindi llama ci arriva lo stesso e muore su `gguf_get_arr_data`
+		["suppress_tokens scalare, ma stringa",
+			_modellino(T_STRINGA, _kv_scalare("tokenizer.ggml.suppress_tokens",
+					T_STRINGA, _testo("x"))), "suppress_tokens"],
+		["la charsmap che non è un elenco",
+			_modellino(T_STRINGA, _kv_scalare("tokenizer.ggml.precompiled_charsmap",
+					T_U32, _quattro(5))), "non è un elenco"],
+		["la charsmap fatta di numeri",
+			_modellino(T_STRINGA, _kv_elenco("tokenizer.ggml.precompiled_charsmap",
+					T_F32, 1, _quattro(0))), "precompiled_charsmap"],
 	]
 	for caso in speciali:
 		_scrivi(caso[1])
@@ -193,12 +226,13 @@ func _il_carico_vero_passa_dal_portiere(t, cuore) -> void:
 ## Un GGUF minimo ma completo: intestazione, tre metadati, un tensore da 32
 ## numeri, e i suoi 128 byte di dati. `p_tipo_tokens` serve a rompere il tipo
 ## dell'unico elenco che llama.cpp legge senza controllarlo.
-func _modellino(p_tipo_tokens := T_STRINGA) -> PackedByteArray:
+func _modellino(p_tipo_tokens := T_STRINGA,
+		p_extra := PackedByteArray()) -> PackedByteArray:
 	var b := PackedByteArray()
 	b.append_array("GGUF".to_utf8_buffer())
 	_u32(b, 3) # versione
 	_u64(b, 1) # tensori
-	_u64(b, 7) # metadati
+	_u64(b, 7 + (1 if not p_extra.is_empty() else 0)) # metadati
 
 	# I tre numeri con cui si stima la cache di attenzione. Ci sono perché
 	# senza di loro la stima varrebbe zero e il tetto dei 2 GB non avrebbe
@@ -239,8 +273,45 @@ func _modellino(p_tipo_tokens := T_STRINGA) -> PackedByteArray:
 		_u32(b, 1)
 		_u32(b, 2)
 
+	b.append_array(p_extra)
+
 	_tensore(b, "pesi", 32, 0, 0)
 	return _con_dati(b, 128)
+
+
+## UN METADATO, nella forma che sta sul disco. Servono alle due chiavi che
+## llama legge A MANO invece che dal loader (vedi la testata di `ATTESE` in
+## `src/llm_gguf.cpp`): per quelle la FORMA conta quanto il tipo, quindi il
+## banco deve poter fabbricare tutte e due.
+func _kv_elenco(chiave: String, tipo: int, quanti: int,
+		valori: PackedByteArray) -> PackedByteArray:
+	var b := PackedByteArray()
+	_stringa(b, chiave)
+	_u32(b, T_ARRAY)
+	_u32(b, tipo)
+	_u64(b, quanti)
+	b.append_array(valori)
+	return b
+
+
+func _kv_scalare(chiave: String, tipo: int, valore: PackedByteArray) -> PackedByteArray:
+	var b := PackedByteArray()
+	_stringa(b, chiave)
+	_u32(b, tipo)
+	b.append_array(valore)
+	return b
+
+
+func _quattro(n: int) -> PackedByteArray:
+	var b := PackedByteArray()
+	_u32(b, n)
+	return b
+
+
+func _testo(s: String) -> PackedByteArray:
+	var b := PackedByteArray()
+	_stringa(b, s)
+	return b
 
 
 func _modellino_troncato() -> PackedByteArray:
@@ -397,3 +468,28 @@ func _scrivi(dati: PackedByteArray) -> void:
 		return
 	f.store_buffer(dati)
 	f.close()
+
+
+## ⚠️ LA CONTROPROVA DELLE DUE CHIAVI NUOVE, e senza non provano niente.
+##
+## Un'attesa che rifiuta ogni forma sarebbe verde in tutti e cinque i casi di
+## rifiuto qui sopra e spegnerebbe la funzione per chiunque abbia un modello
+## che quelle chiavi ce l'ha per davvero — cioè il guasto peggiore che questo
+## file possa produrre, perché il gioco continuerebbe a girare dicendo «non
+## ho un modello». Le tre forme legittime, una per ramo della `Forma`.
+func _le_forme_buone_delle_due_chiavi_passano(t, cuore) -> void:
+	var buoni := [
+		["suppress_tokens come elenco di i32",
+			_modellino(T_STRINGA, _kv_elenco("tokenizer.ggml.suppress_tokens",
+					T_I32, 1, _quattro(7)))],
+		["suppress_tokens come scalare i32",
+			_modellino(T_STRINGA, _kv_scalare("tokenizer.ggml.suppress_tokens",
+					T_I32, _quattro(7)))],
+		["la charsmap come elenco di byte",
+			_modellino(T_STRINGA, _kv_elenco("tokenizer.ggml.precompiled_charsmap",
+					T_U8, 4, PackedByteArray([1, 2, 3, 4])))],
+	]
+	for caso in buoni:
+		_scrivi(caso[1])
+		var e = cuore.esamina(DOVE, false)
+		t.ok(bool(e["ok"]), "passa: %s (motivo: «%s»)" % [caso[0], str(e["motivo"])])

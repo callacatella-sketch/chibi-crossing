@@ -2993,6 +2993,49 @@ priorità normale e ≈37 s alla priorità di fondo che usa il gioco), e per
 questo è l'**ultimo** dei quattro cancelli invece del primo. Il quadro
 completo, coi numeri e con l'ordine, sta in «IL MODELLO CHE SPEDIAMO».
 
+> ### ⚠️⚠️ «L'UNICO PUNTO» ERANO TRE, e la tabella ne copriva uno
+>
+> La testata di `ATTESE` dichiarava che `llama_model_loader::get_arr` è
+> *«l'UNICO punto della lettura dove un tipo sbagliato diventa un `abort()`»*.
+> **VERIFICATO nel sottomodulo pinnato (b10326): non lo è.** Ce ne sono altri
+> due, e tutti e due leggono il GGUF **a mano** invece che dal loader — cioè
+> proprio dove la regola della tabella non poteva arrivare:
+>
+> | dove | chiave | cosa succede |
+> |---|---|---|
+> | `llama-vocab.cpp:2588` | `tokenizer.ggml.suppress_tokens` | cast crudo su `gguf_get_arr_data`, che asserisce `type != STRING`: con una stringa **il processo muore**, con qualunque altro tipo sbagliato il tokenizzatore legge **spazzatura in silenzio** |
+> | `llama-vocab.cpp:2029` | `tokenizer.ggml.precompiled_charsmap` | `gguf_get_arr_type` asserisce `is_array`, e la riga dopo pretende INT8/UINT8: qui a morire è anche la **FORMA** — uno scalare basta |
+>
+> ⚠️ E il blocco di `suppress_tokens` sta **FUORI** dalla catena
+> `tokenizer_model == …`: gira per OGNI modello, gemma compresa.
+>
+> **MISURATO** fabbricando i cinque file guasti e i tre buoni e dandoli al
+> portiere VERO (compilato a mano contro `llm-build`, perché senza `cmake` in
+> locale `llm=yes` non si compila):
+>
+> | | il portiere di PRIMA | adesso |
+> |---|---|---|
+> | i 5 file guasti | **OK a tutti e cinque** | NO, ognuno col suo motivo |
+> | i 3 buoni + il sano | OK | OK |
+>
+> La cura è una colonna `Forma` per riga, e la sua forma conta: le dodici
+> righe che c'erano prima hanno `Forma::qualunque`, cioè **escono subito
+> quando la chiave non è un elenco** — per loro il comportamento è identico
+> bit per bit. Solo le due righe nuove chiedono di più
+> (`anche_scalare`, `solo_elenco`). È voluto: l'invariante di questo filtro è
+> che possa non coprire una porta nuova, **mai rifiutare un modello buono**,
+> e allargare il controllo a tutti gli scalari rifiuterebbe un `head_count`
+> scritto a 64 bit da un convertitore che non conosciamo.
+>
+> ⚠️ **E LA GUARDIA NON SI PUÒ FAR GIRARE DA UN MAC** (`test_llm_portiere`
+> esce subito senza `LLM.disponibile()`): il giudice è il job `test-llm` di
+> `tests.yml`. Quello che si può fare da qui — ed è stato fatto — è
+> verificare che il **fabbricatore GDScript produca i byte giusti**: si fa
+> scrivere i nove file dal banco vero e li si dà al portiere compilato a
+> mano. Quattro OK e cinque NO, coi motivi che contengono esattamente le
+> parole che il test cerca. Un banco che non si può eseguire si prova così,
+> non lo si dichiara «coperto».
+
 **E il PROCESSO SEPARATO?** Valutato e **non fatto**, con la misura in mano:
 l'unica famiglia di abort raggiungibile è chiusa dal portiere, un helper
 eseguibile andrebbe compilato, impacchettato, firmato e notarizzato su due
