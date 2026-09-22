@@ -7084,32 +7084,62 @@ func load_extra(data: Dictionary) -> void:
 		var cell := Vector2i(int(row.get("x", 0)), int(row.get("z", 0)))
 		if is_bed_claimed(cell):
 			continue
-		# il letto deve esistere ancora, altrimenti il villager è partito
+		# ⚠️ **IL LETTO NON C'È PIÙ: PRIMA SI CERCA UNA CASA, POI SI DICE.**
+		#
+		# Questo ciclo era un `for … break` senza `else`: se nessun Letto
+		# stava su quella cella il residente veniva **scartato in silenzio**,
+		# e siccome `save_extra` scrive soltanto `_residents`, al salvataggio
+		# dopo non esisteva più — con il suo animo, il suo libro mastro, i
+		# suoi ricordi e il suo Filo Rosso. Basta demolire un letto per
+		# cancellare una persona, e il gioco non lo dice a nessuno.
+		#
+		# Il commento di prima («il letto deve esistere ancora, altrimenti il
+		# villager è partito») dichiarava l'intento, ma «è partito» in questo
+		# gioco è una SCENA — il congedo, la lettera, il filo che si
+		# accorcia —, non una riga che sparisce da un array.
+		#
+		# La cura è la domanda che il villaggio sa già fare: c'è un altro
+		# letto libero e coperto? (`_free_house`, lo stesso che usa chi
+		# arriva). Se sì **ci si trasloca**, e non si perde niente: il
+		# giocatore che demolisce un letto e ne ricostruisce un altro se li
+		# ritrova tutti. Se no, si scarta — ma lo si SCRIVE, col nome, così
+		# chi diagnostica una partita vede cos'è successo invece di contare
+		# i residenti e non capire.
+		var house := {}
 		for bed in _build.get_placed_by_name("Letto"):
 			if Vector2i(roundi(bed.position.x), roundi(bed.position.z)) == cell:
-				var house := _make_house(bed, cell)
-				var v: Node3D = VISITOR.new()
-				v.species = species
-				var dna: Dictionary = row.get("dna", {})
-				if not dna.is_empty():
-					v.dna = dna
-				add_child(v)
-				v.setup_resident(house)
-				_residents.append({"species": species, "cell": cell, "node": v,
-						"dna": dna, "label": str(row.get("label", "")),
-						"friend": int(row.get("friend", 0)), "wish": row.get("wish", {}),
-						"brain": row.get("brain", {}),
-						# senza questa riga l'animo salvato non tornava mai:
-						# _ensure_brain lo cerca in r["animo"] (rancore, ricordi,
-						# gradino di ribellione ripartivano da zero a ogni avvio)
-						"animo": row.get("animo", {})})
-				_spawn_suitcase_prop(cell)
-				# il Filo Rosso lo riconosce (o lo adotta, dai salvataggi
-				# di prima del Filo) e l'età gli torna addosso
-				get_tree().call_group("legami", "registra_arrivo",
-						str(dna.get("name", "")))
-				_apply_eta.call_deferred()
+				house = _make_house(bed, cell)
 				break
+		if house.is_empty():
+			house = _free_house()
+			if house.is_empty():
+				push_warning(("Visitors: «%s» aveva il letto in %s, quel letto "
+						+ "non c'è più e non ce n'è nessun altro libero e "
+						+ "coperto: il residente non viene ricaricato.")
+						% [str(row.get("label", "?")), str(cell)])
+				continue
+			cell = Vector2i(house.get("cell", cell))
+		var v: Node3D = VISITOR.new()
+		v.species = species
+		var dna: Dictionary = row.get("dna", {})
+		if not dna.is_empty():
+			v.dna = dna
+		add_child(v)
+		v.setup_resident(house)
+		_residents.append({"species": species, "cell": cell, "node": v,
+				"dna": dna, "label": str(row.get("label", "")),
+				"friend": int(row.get("friend", 0)), "wish": row.get("wish", {}),
+				"brain": row.get("brain", {}),
+				# senza questa riga l'animo salvato non tornava mai:
+				# _ensure_brain lo cerca in r["animo"] (rancore, ricordi,
+				# gradino di ribellione ripartivano da zero a ogni avvio)
+				"animo": row.get("animo", {})})
+		_spawn_suitcase_prop(cell)
+		# il Filo Rosso lo riconosce (o lo adotta, dai salvataggi
+		# di prima del Filo) e l'età gli torna addosso
+		get_tree().call_group("legami", "registra_arrivo",
+				str(dna.get("name", "")))
+		_apply_eta.call_deferred()
 
 
 # ---------------------------------------------------------------- debug CLI

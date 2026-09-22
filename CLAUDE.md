@@ -1240,6 +1240,44 @@ immaginate):**
   su una persona attecchiva più di una sul re del villaggio. È la via più
   corta perché una storia triste diventi una gogna.
 
+## ⚠️ BASTAVA DEMOLIRE UN LETTO PER CANCELLARE UNA PERSONA
+
+`Visitors.load_extra` cercava il Letto sulla cella salvata con un
+`for … break` **senza `else`**: se nessun letto stava lì, la riga veniva
+saltata e basta. E siccome `save_extra` scrive soltanto `_residents`, al
+salvataggio successivo quella persona **non esisteva più** — col suo animo,
+il suo libro mastro, i suoi ricordi e il suo Filo Rosso. **In silenzio**:
+nessun log, nessuna lettera, nessun congedo.
+
+Il commento di allora — *«il letto deve esistere ancora, altrimenti il
+villager è partito»* — dichiarava l'intento. Ma **«è partito», in questo
+gioco, è una SCENA**: il congedo, la lettera, il filo che si accorcia. Non
+una riga che sparisce da un array. È la stessa famiglia del difetto già
+scritto per le nascite — *«un bambino cancellato dal salvataggio è la cosa
+peggiore che questo sistema potesse fare»*.
+
+**La cura è la domanda che il villaggio sa già fare**: `_free_house()`, lo
+stesso che usa chi arriva — c'è un altro letto libero e coperto? Se sì **ci
+si trasloca**, e non si perde niente: chi demolisce un letto e ne
+ricostruisce un altro se li ritrova tutti (è la «chiave a forma di
+giocatore»). Se no si scarta — resta l'intento dichiarato — ma **lo si
+scrive**, col nome e con la cella, così chi diagnostica una partita vede
+cos'è successo invece di contare i residenti e non capire.
+
+La guardia è
+[`test_letto_scomparso.gd`](tests/cases/test_letto_scomparso.gd): fa girare
+`load_extra` **vera** su un `Visitors` vero, con un BuildSystem finto che
+dice solo DOVE sono i letti (un dato, non una decisione). Pretende che
+l'animo salvato arrivi dall'altra parte — *è metà del motivo di questa
+cura*. Falsificata togliendo il trasloco: **1 rossa**.
+
+⚠️ **Due trappole di banco pagate scrivendolo**, tutte e due della stessa
+famiglia — *un errore a runtime non fa fallire un test, lo interrompe*:
+il genoma dev'essere **INTERO** (`ChibiDNA.generate`, o `ChibiBuilder` non
+costruisce il corpo e muore su `dna.fur`), e il finto BuildSystem deve
+rispondere a **tutto** quello che il cammino vero chiede — `request_save()`
+compreso, che `load_extra` chiama in coda.
+
 ## REGOLA: il tween che muove il CORPO è di chi l'ha acceso
 
 Un `Tween` è legato al **nodo**, non allo stato che l'ha creato: continua a
