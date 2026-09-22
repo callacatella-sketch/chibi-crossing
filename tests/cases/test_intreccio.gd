@@ -32,6 +32,7 @@ func run(t) -> void:
 	_la_stessa_gentilezza_in_menti_diverse(t)
 	_il_degrado_va_verso_ieri(t)
 	_l_ordine_dei_tratti_e_condiviso(t)
+	_i_lambda_del_certificato_sono_quelli_veri(t)
 	_dove_si_spezza(t)
 	_la_deriva_arriva_all_intreccio(t)
 
@@ -381,3 +382,73 @@ func _la_deriva_arriva_all_intreccio(t) -> void:
 						% [phi_prima, l.phi()])
 		t.ok(str(l.dove_si_spezza()) != str(spezza_prima),
 				"e la mente si spezza in un altro punto")
+
+
+## ⚠️ IL CERTIFICATO DI GERSHGORIN VIVE IN DUE LINGUE, E QUESTO E' IL NODO.
+##
+## `intreccio.h` promette che il budget di riga e' «un TEOREMA al posto di una
+## taratura», controllato da «uno `static_assert` su costanti, non un test che
+## qualcuno puo' dimenticare». La promessa ha due meta', e per un pezzo
+## nessuna delle due era vera:
+##
+##  · i cinque assert erano scritti coi numeri RICOPIATI A MANO da `ARCHI[]` e
+##    `TINTE[]`, quindi il compilatore non poteva vedere una divergenza.
+##    MISURATO: portando un arco da −0.011 a −0.019 **e** una tinta da −0.006
+##    a −0.011, il file di prima **compilava senza un avviso**. Adesso il
+##    budget si CALCOLA dalle tabelle e l'assert e' UNO: le stesse due
+##    mutazioni fermano la build.
+##  · i **λ** contro cui lo si misura in C++ non esistono nemmeno: vivono qui,
+##    in `Limbico.NEURO_DECADIMENTO`, e arrivano al cuore a runtime. Lo
+##    `static_assert` da' per buona una tabella di λ scritta in C++ — e senza
+##    questo caso, che la LEGA a quella vera, resterebbe un desiderio.
+##
+## Il legame si fa nei DUE VERSI: ogni λ del certificato e' quello del gioco,
+## e ogni canale del gioco ha il suo λ nel certificato. Un verso solo lascia
+## passare una tabella piu' corta o piu' lunga.
+func _i_lambda_del_certificato_sono_quelli_veri(t) -> void:
+	var m = ClassDB.instantiate("EcsMondo")
+	if m == null or not m.has_method("intreccio_certificato"):
+		t.ok(false, "il binario non espone il certificato dell'intreccio")
+		if m != null:
+			m.free()
+		return
+	var c: Dictionary = m.intreccio_certificato()
+	var lam: PackedFloat64Array = c["lambda"]
+	var bud: PackedFloat64Array = c["budget"]
+	var canali: Array = LIMBICO.NEURO_TRASMETTITORI
+
+	t.eq(lam.size(), canali.size(),
+			"il certificato ha un lambda per canale (%d su %d)"
+					% [lam.size(), canali.size()])
+
+	# VERSO 1: quello che il certificato assume e' quello che il gioco usa
+	for i in mini(lam.size(), canali.size()):
+		var nome := str(canali[i])
+		t.almost(lam[i], float(LIMBICO.NEURO_DECADIMENTO[nome]),
+				"il lambda di %s nel certificato e' quello vero" % nome, 1e-12)
+
+	# VERSO 2: nessun canale del gioco resta fuori dal certificato
+	for nome in LIMBICO.NEURO_DECADIMENTO:
+		t.ok(canali.has(str(nome)),
+				"il canale %s del decadimento e' fra i trasmettitori" % str(nome))
+
+	# ⚠️ E IL MARGINE SI GUARDA, o il certificato potrebbe reggere «per un
+	# pelo» senza che nessuno se ne accorga leggendo il sorgente. Il budget
+	# lo calcola il C++ dalle tabelle: qui si pretende solo che sia SOTTO —
+	# lo stesso che promette lo `static_assert`, letto dal binario.
+	var peggiore := 0.0
+	var quale := ""
+	for i in mini(bud.size(), lam.size()):
+		t.ok(bud[i] < lam[i],
+				"la riga di %s sta sotto il suo lambda (%.4f < %.4f)"
+						% [str(canali[i]), bud[i], lam[i]])
+		var q: float = bud[i] / maxf(1e-12, lam[i])
+		if q > peggiore:
+			peggiore = q
+			quale = str(canali[i])
+	# non e' una soglia tarata: e' che almeno UNA riga deve davvero spendere
+	# qualcosa, o il certificato sarebbe vacuo (G tutta a zero lo passa)
+	t.ok(peggiore > 0.1,
+			"il budget e' davvero speso: la riga piu' carica e' %s al %.0f%% del suo lambda"
+					% [quale, peggiore * 100.0])
+	m.free()

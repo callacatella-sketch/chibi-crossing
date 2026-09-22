@@ -8961,6 +8961,55 @@ N(t+H) = t + E·(N(t) − t)        E = exp(M·H),  M = −Λ + G,  t = B + Λ�
 3. **E LA MODULAZIONE NON PUÒ ROMPERLO**: κ scala il budget, quindi una riga
    che rispettava il vincolo lo rispetta ancora.
 
+### ⚠️⚠️ «VERIFICATO DAL COMPILATORE» ERA UNA TABELLA GEMELLA
+
+`intreccio.h` promette che il budget di riga è *«un TEOREMA al posto di una
+taratura»*, controllato da *«uno `static_assert` su costanti, non un test che
+qualcuno può dimenticare»*. La promessa ha **due** metà, e nessuna delle due
+era vera.
+
+**1 · Gli assert non nominavano le tabelle.** I cinque `static_assert` erano
+scritti coi numeri **ricopiati a mano** da `ARCHI[]` e `TINTE[]`: il
+compilatore non poteva vedere nessuno dei due versi di una divergenza.
+MISURATO — portando un arco da −0.011 a −0.019 **e** una tinta da −0.006 a
+−0.011, il file di prima **compilava senza un avviso**. Cambiare un arco
+lasciava gli assert a verificare i numeri vecchi, in silenzio.
+
+Adesso il budget si **calcola** dalle tabelle (`budget_riga`, `constexpr`) e
+l'assert è **UNO** (`certificato_regge()`): aggiungere un canale o un arco
+non può lasciarne una fuori, che è esattamente il modo in cui cinque assert
+scritti a mano si sarebbero rotti. Le stesse due mutazioni adesso **fermano
+la build**.
+
+**2 · E i λ in C++ non esistono nemmeno.** Vivono in
+`Limbico.NEURO_DECADIMENTO` e arrivano al cuore a runtime, per persona: lo
+`static_assert` dà per buona una tabella di λ scritta in C++, e senza
+qualcuno che la leghi a quella vera resta **un desiderio**. Il nodo è
+`EcsMondo.intreccio_certificato()` — che torna i λ assunti e il budget
+calcolato — più il caso
+`test_intreccio._i_lambda_del_certificato_sono_quelli_veri`, che li lega nei
+**due versi** (ogni λ del certificato è quello del gioco; ogni canale del
+gioco ha il suo λ nel certificato — un verso solo lascia passare una tabella
+più corta o più lunga).
+
+**Quattro mutazioni, e due specie diverse di rosso:**
+
+| mutazione | chi se ne accorge |
+|---|---|
+| un arco più grosso del budget | **la build** |
+| una tinta più larga | **la build** |
+| il λ del certificato diverge da quello del gioco | il test |
+| il gioco cambia un λ e il certificato non lo sa | il test |
+
+⚠️ **E il caso pretende che il budget sia DAVVERO SPESO** (la riga più carica
+sopra il 10% del suo λ): un `G` tutto a zero passerebbe il certificato a
+pieni voti, e un certificato vacuo si legge come un certificato.
+
+⚠️ **Residuo dichiarato:** il controllo a runtime (`costruisci_intreccio`,
+sui numeri veri di quella persona) quando fallisce torna `false`, e il
+ripiego è la chimica diagonale — **indistinguibile da «GDExtension
+assente»**. Non diagnostica niente, e non è stato toccato qui.
+
 ### ⚠️ PERCHÉ Φ QUI MISURA UNA MENTE, E NON UNA TABELLA
 
 Un Φ calcolato su costanti è un test unitario: uguale per tutti, per sempre.

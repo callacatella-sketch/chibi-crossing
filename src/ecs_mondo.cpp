@@ -373,6 +373,27 @@ PackedInt32Array EcsMondo::intreccio_mip(const PackedFloat64Array &p_lambda,
 	return out;
 }
 
+// ⚠️ IL CERTIFICATO DI GERSHGORIN, COME LO VEDE IL BINARIO. Serve a LEGARE
+// i due lati di un vincolo che oggi vive in due lingue: il budget per riga
+// si calcola in C++ dalle tabelle `ARCHI`/`TINTE`, ma i λ contro cui lo si
+// misura stanno in `Limbico.NEURO_DECADIMENTO` (GDScript) e arrivano a
+// runtime. Lo `static_assert` da' per buona una tabella di λ scritta in
+// C++: senza questo ponte nessuno puo' verificare che sia quella vera, e la
+// garanzia «verificata dal compilatore» resta un desiderio.
+Dictionary EcsMondo::intreccio_certificato() const {
+	PackedFloat64Array lam;
+	PackedFloat64Array bud;
+	const double *l = chibi::lambda_certificato();
+	for (int i = 0; i < chibi::INTRECCIO_N; ++i) {
+		lam.append(l[i]);
+		bud.append(chibi::budget_certificato(i));
+	}
+	Dictionary d;
+	d["lambda"] = lam;
+	d["budget"] = bud;
+	return d;
+}
+
 double EcsMondo::intreccio_phi(const PackedFloat64Array &p_lambda,
 		const PackedFloat64Array &p_tratti, double p_h, double p_kappa) const {
 	if (p_lambda.size() != chibi::INTRECCIO_N) return 0.0;
@@ -394,6 +415,7 @@ void EcsMondo::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("intreccio_passo", "lambda", "tratti", "h", "kappa", "bersaglio", "neuro"), &EcsMondo::intreccio_passo);
 	ClassDB::bind_method(D_METHOD("intreccio_phi", "lambda", "tratti", "h", "kappa"), &EcsMondo::intreccio_phi);
 	ClassDB::bind_method(D_METHOD("intreccio_mip", "lambda", "tratti", "h", "kappa"), &EcsMondo::intreccio_mip);
+	ClassDB::bind_method(D_METHOD("intreccio_certificato"), &EcsMondo::intreccio_certificato);
 	ClassDB::bind_method(D_METHOD("registra", "indole", "quirk"), &EcsMondo::registra);
 	ClassDB::bind_method(D_METHOD("riproietta", "id", "indole", "quirk"), &EcsMondo::riproietta);
 	ClassDB::bind_method(D_METHOD("dimentica", "id"), &EcsMondo::dimentica);

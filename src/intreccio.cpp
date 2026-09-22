@@ -97,28 +97,79 @@ constexpr Tinta TINTE[] = {
 };
 constexpr int NTINTE = static_cast<int>(sizeof(TINTE) / sizeof(TINTE[0]));
 
-// ⚠️ IL BUDGET DI RIGA, verificato dal COMPILATORE. Il λ più piccolo è
-// quello della serotonina (0.02): se una riga di G sommasse in valore
-// assoluto più di λ, Gershgorin non garantirebbe più che tutti gli
-// autovalori di M = −Λ + G abbiano parte reale negativa, e il sistema
-// potrebbe oscillare o divergere. Il margine è calcolato sul caso peggiore:
-// l'arco più grande più la sua tinta più larga.
-// ogni riga, nel CASO PEGGIORE (arco + tinta al massimo), contro il suo λ:
-//   cortisolo  λ=0.08 : (0.030+0.010) + (0.022+0.010) = 0.072
-//   endorfine  λ=0.06 : (0.020+0.018)                 = 0.038
-//   serotonina λ=0.02 : (0.011+0.006)                 = 0.017
-//   dopamina   λ=0.05 : (0.026+0.016)                 = 0.042
-//   melatonina λ=0.10 : (0.020+0.014) + (0.018+0.014) = 0.066
-static_assert((0.030 + 0.010) + (0.022 + 0.010) < 0.08,
-              "la riga del cortisolo deve stare sotto il suo lambda");
-static_assert((0.011 + 0.006) < 0.02,
-              "la riga della serotonina deve stare sotto il suo lambda");
-static_assert((0.026 + 0.016) < 0.05,
-              "la riga della dopamina deve stare sotto il suo lambda");
-static_assert((0.020 + 0.014) + (0.018 + 0.014) < 0.10,
-              "la riga della melatonina deve stare sotto il suo lambda");
-static_assert((0.020 + 0.018) < 0.06,
-              "la riga delle endorfine deve stare sotto il suo lambda");
+// ⚠️ IL BUDGET DI RIGA, verificato dal COMPILATORE — e adesso DAVVERO.
+//
+// Se per ogni riga `Σⱼ|gᵢⱼ| < λᵢ`, per Gershgorin ogni autovalore di
+// M = −Λ + G ha parte reale negativa: il sistema non può oscillare né
+// divergere, con nessun accoppiamento e nessun passo.
+//
+// ⚠️ **E PER UN PEZZO IL COMPILATORE NON POTEVA VEDERE NIENTE.** I cinque
+// `static_assert` erano scritti con i numeri RICOPIATI A MANO da tre tabelle
+// — i `g` di `ARCHI[]`, gli `amp` di `TINTE[]`, e i λ, che in C++ non
+// esistono nemmeno (vivono in `Limbico.NEURO_DECADIMENTO` e arrivano a
+// runtime). Nessuno dei cinque nominava `ARCHI` o `TINTE`: cambiare un arco
+// lasciava gli assert a verificare i numeri VECCHI, in silenzio, e la
+// promessa «non un test che qualcuno può dimenticare» diventava una tabella
+// gemella — cioè la cosa che questo progetto vieta per iscritto.
+//
+// Adesso il budget si CALCOLA dalle tabelle, a compile time, e l'assert è
+// UNO: aggiungere un canale o un arco non può far dimenticare una riga.
+constexpr double val_ass(double x) { return x < 0.0 ? -x : x; }
+
+// la tinta più larga che può toccare l'arco `a` (in valore assoluto): una
+// tinta vale `amp·(v−0.5)·2` con v ∈ [0,1], quindi al più `|amp|`.
+constexpr double tinta_max(int a) {
+    double m = 0.0;
+    for (int k = 0; k < NTINTE; ++k) {
+        if (TINTE[k].arco != a) continue;
+        const double v = val_ass(TINTE[k].amp);
+        if (v > m) m = v;
+    }
+    return m;
+}
+
+// il caso peggiore della riga `canale`: ogni arco che ci arriva, al massimo
+// del suo modulo più la sua tinta più larga.
+constexpr double budget_riga(int canale) {
+    double s = 0.0;
+    for (int a = 0; a < NARCHI; ++a) {
+        if (ARCHI[a].bersaglio != canale) continue;
+        s += val_ass(ARCHI[a].g) + tinta_max(a);
+    }
+    return s;
+}
+
+// ⚠️ I λ CONTRO CUI IL CERTIFICATO È CALCOLATO, e NON sono una seconda casa:
+// i λ veri vivono in `Limbico.NEURO_DECADIMENTO` e arrivano a runtime, per
+// persona. Questi sono quello che il certificato ASSUME — e senza qualcuno
+// che leghi le due tabelle resterebbero un desiderio, non una garanzia.
+// Il legame è `test_intreccio._i_lambda_del_certificato_sono_quelli_veri`,
+// che li legge dal BINARIO (`EcsMondo.intreccio_lambda_certificato`) e li
+// confronta con il dizionario di GDScript, nei due versi.
+constexpr double LAMBDA_CERTIFICATO[N] = {
+    0.05, // dopamina
+    0.05, // ossitocina
+    0.02, // serotonina
+    0.08, // cortisolo
+    0.10, // melatonina
+    0.04, // adenosina
+    0.06, // endorfine
+};
+
+constexpr bool certificato_regge() {
+    for (int i = 0; i < N; ++i) {
+        if (!(budget_riga(i) < LAMBDA_CERTIFICATO[i])) return false;
+    }
+    return true;
+}
+
+// UN assert per tutte le righe: aggiungere un canale o un arco non può
+// lasciarne una fuori, che è esattamente il modo in cui cinque assert
+// scritti a mano si sarebbero rotti.
+static_assert(certificato_regge(),
+              "una riga di G somma piu' del suo lambda: Gershgorin non "
+              "garantisce piu' che la chimica non oscilli");
+
 static_assert(INTRECCIO_KAPPA_MIN > 0.0 && INTRECCIO_KAPPA_MAX <= 1.0,
               "kappa scala il budget: fuori da (0,1] il certificato cade");
 
@@ -166,6 +217,19 @@ void exp_matrice(const double *M, double h, double *out) {
 }
 
 } // namespace
+
+// ⚠️ I λ CHE IL CERTIFICATO ASSUME, esposti perche' qualcuno possa LEGARLI
+// a quelli veri. I λ del gioco vivono in `Limbico.NEURO_DECADIMENTO` e
+// arrivano qui a runtime, per persona: la tabella di sopra e' quello che lo
+// `static_assert` da' per buono, e senza un lettore che confronti le due
+// resterebbe un desiderio. Il lettore e'
+// `test_intreccio._i_lambda_del_certificato_sono_quelli_veri`.
+const double *lambda_certificato() { return LAMBDA_CERTIFICATO; }
+
+double budget_certificato(int p_canale) {
+    if (p_canale < 0 || p_canale >= N) return 0.0;
+    return budget_riga(p_canale);
+}
 
 bool costruisci_intreccio(const double *lambda, const double *tratti,
                           Intreccio *out) {

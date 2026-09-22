@@ -167,6 +167,13 @@ struct Intreccio {
 // carattere. `tratti` sono i cinque in [0,1] nell'ordine di `ChibiDNA`.
 // Pura: nessun dado, nessuno stato. Torna false se il budget di riga non
 // regge (e allora il chiamante NON deve usarlo: il degrado è la diagonale).
+// I λ contro cui è calcolato il certificato di Gershgorin, e il budget
+// peggiore di ogni riga — derivato dalle tabelle, non ricopiato. Servono al
+// test che LEGA questa tabella a `Limbico.NEURO_DECADIMENTO`: senza, lo
+// `static_assert` verifica un λ che nessuno garantisce sia quello vero.
+const double *lambda_certificato();
+double budget_certificato(int p_canale);
+
 bool costruisci_intreccio(const double *lambda, const double *tratti,
                           Intreccio *out);
 

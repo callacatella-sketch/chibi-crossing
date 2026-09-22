@@ -266,6 +266,11 @@ public:
 	// L'informazione integrata di QUESTA mente, adesso. Zero se il sostrato
 	// non regge — e zero è anche la risposta onesta per la chimica diagonale
 	// di ieri, che è il confronto che conta.
+	// IL CERTIFICATO DI GERSHGORIN, come lo vede il binario: i lambda che lo
+	// `static_assert` assume e il budget peggiore di ogni riga, derivato
+	// dalle tabelle. Serve a LEGARE quella tabella a
+	// `Limbico.NEURO_DECADIMENTO`, che vive in GDScript.
+	godot::Dictionary intreccio_certificato() const;
 	double intreccio_phi(const godot::PackedFloat64Array &p_lambda,
 			const godot::PackedFloat64Array &p_tratti,
 			double p_h, double p_kappa) const;
