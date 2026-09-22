@@ -96,19 +96,34 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          leggi() {  # $1 = nome della costante, $2 = forma del valore
-            sed -n "s/^const $1 := \"\\($2\\)\"\$/\\1/p;s/^const $1 := \\($2\\)\$/\\1/p" systems/Llm.gd | head -n1
+          # ⚠️ LE COSTANTI STANNO IN DUE FILE, e il file va detto per nome.
+          # Fino al 2026-09-22 questo passo leggeva SORGENTE_REPO/_FILE/
+          # _REVISIONE da systems/Llm.gd, dove non sono MAI esistite: il
+          # corriere le ha portate in systems/Scarico.gd il giorno in cui e'
+          # nato (2026-08-13) con i nomi REPO/FILE_A_MONTE/REVISIONE, e questo
+          # passo e' nato puntando al file sbagliato. Tre estrazioni su cinque
+          # tornavano vuote, il cancello usciva 1, e siccome `windows` e
+          # `macos` hanno `needs: preflight` il PRIMO tag non avrebbe prodotto
+          # nessuna Release. Non se n'era accorto nessuno perche' non c'e' mai
+          # stato un tag — e il messaggio d'errore mandava a cercare la
+          # costante nel file in cui non c'e'.
+          leggi() {  # $1 = file, $2 = nome della costante, $3 = forma del valore
+            sed -n "s/^const $2 := \"\\($3\\)\"\$/\\1/p;s/^const $2 := \\($3\\)\$/\\1/p" "$1" | head -n1
           }
-          repo="$(leggi SORGENTE_REPO '.*')"
-          file="$(leggi SORGENTE_FILE '.*')"
-          rev="$(leggi SORGENTE_REVISIONE '.*')"
-          impronta="$(leggi IMPRONTA_SPEDITO '[0-9a-f]\{64\}')"
-          byte="$(leggi BYTE_MODELLO '[0-9]\{1,\}')"
-          for coppia in "SORGENTE_REPO:$repo" "SORGENTE_FILE:$file" "SORGENTE_REVISIONE:$rev" \
-                        "IMPRONTA_SPEDITO:$impronta" "BYTE_MODELLO:$byte"; do
-            test -n "${coppia#*:}" \
-              || { echo "::error::Non riesco a leggere ${coppia%%:*} da systems/Llm.gd. O e' stata rinominata, o ha cambiato forma: senza, questo controllo non giudica piu' niente e il download del gioco resta senza nessuna guardia. Allinea l'estrazione qui sopra alla fonte unica."; exit 1; }
-          done
+          pretendi() {  # $1 = file, $2 = nome, $3 = valore letto
+            test -n "$3" \
+              || { echo "::error::Non riesco a leggere $2 da $1. O e' stata rinominata, o ha cambiato forma, o VIVE IN UN ALTRO FILE: senza, questo controllo non giudica piu' niente e il download del gioco resta senza nessuna guardia. Le cinque costanti stanno in due case — systems/Scarico.gd dice DOVE andare a prendere il modello (REPO, FILE_A_MONTE, REVISIONE), systems/Llm.gd dice COS'E' (IMPRONTA_SPEDITO, BYTE_MODELLO). Allinea l'estrazione qui sopra a quelle, e provala con tools/prova_release.py senza aspettare un tag."; exit 1; }
+          }
+          repo="$(leggi systems/Scarico.gd REPO '.*')"
+          file="$(leggi systems/Scarico.gd FILE_A_MONTE '.*')"
+          rev="$(leggi systems/Scarico.gd REVISIONE '.*')"
+          impronta="$(leggi systems/Llm.gd IMPRONTA_SPEDITO '[0-9a-f]\{64\}')"
+          byte="$(leggi systems/Llm.gd BYTE_MODELLO '[0-9]\{1,\}')"
+          pretendi systems/Scarico.gd REPO "$repo"
+          pretendi systems/Scarico.gd FILE_A_MONTE "$file"
+          pretendi systems/Scarico.gd REVISIONE "$rev"
+          pretendi systems/Llm.gd IMPRONTA_SPEDITO "$impronta"
+          pretendi systems/Llm.gd BYTE_MODELLO "$byte"
           url="https://huggingface.co/$repo/resolve/$rev/$file"
           echo "il gioco scarichera': $url"
           echo "e pretendera': $byte byte · sha256 $impronta"
@@ -127,10 +142,10 @@ jobs:
           case "$codice" in
             200|302|307) ;;
             401|403)
-              echo "::error::Hugging Face risponde $codice SENZA credenziali: il repository e' diventato «gated». Il gioco scarica il modello da li' e un token non ce l'ha: la funzione sarebbe spenta per TUTTI i giocatori, in silenzio. Va scelta un'altra sorgente (o un altro modello) e aggiornate INSIEME, in systems/Llm.gd, SORGENTE_* e IMPRONTA_SPEDITO."
+              echo "::error::Hugging Face risponde $codice SENZA credenziali: il repository e' diventato «gated». Il gioco scarica il modello da li' e un token non ce l'ha: la funzione sarebbe spenta per TUTTI i giocatori, in silenzio. Va scelta un'altra sorgente (o un altro modello) e aggiornate INSIEME Scarico.REPO/FILE_A_MONTE/REVISIONE (systems/Scarico.gd) e Llm.IMPRONTA_SPEDITO (systems/Llm.gd)."
               exit 1 ;;
             404)
-              echo "::error::Hugging Face risponde 404: il file pinnato non c'e' piu' a quella revisione. Il gioco lo cercherebbe li' e non lo troverebbe. Si aggiornano INSIEME SORGENTE_REVISIONE e IMPRONTA_SPEDITO in systems/Llm.gd."
+              echo "::error::Hugging Face risponde 404: il file pinnato non c'e' piu' a quella revisione. Il gioco lo cercherebbe li' e non lo troverebbe. Si aggiornano INSIEME Scarico.REVISIONE (systems/Scarico.gd) e Llm.IMPRONTA_SPEDITO (systems/Llm.gd)."
               exit 1 ;;
             *)
               echo "::warning::Hugging Face risponde $codice: non e' un no definitivo (429, 5xx, un intoppo della CDN). La Release esce lo stesso, ma il download del gioco non e' stato verificato."
@@ -145,7 +160,7 @@ jobs:
             # e' il portiere, sul disco di chi gioca, a scaricamento finito.
             echo "::warning::Hugging Face non ha mandato x-linked-etag: non posso confrontare l'impronta senza scaricare 2,4 GB. Il controllo vero resta il portiere, dopo il download."
           elif [ "$etag" != "$impronta" ]; then
-            echo "::error::Il file a monte ha impronta $etag, il gioco ne pretende $impronta (Llm.IMPRONTA_SPEDITO). Cosi' com'e', ogni giocatore scaricherebbe 2,4 GB per sentirsi dire che non e' il file giusto — e la funzione resterebbe spenta senza che nessuno capisca perche'. O e' cambiato il file a monte (allora si aggiornano INSIEME SORGENTE_REVISIONE e IMPRONTA_SPEDITO), o si sta pinnando la revisione sbagliata."
+            echo "::error::Il file a monte ha impronta $etag, il gioco ne pretende $impronta (Llm.IMPRONTA_SPEDITO). Cosi' com'e', ogni giocatore scaricherebbe 2,4 GB per sentirsi dire che non e' il file giusto — e la funzione resterebbe spenta senza che nessuno capisca perche'. O e' cambiato il file a monte (allora si aggiornano INSIEME Scarico.REVISIONE e Llm.IMPRONTA_SPEDITO), o si sta pinnando la revisione sbagliata."
             exit 1
           else
             echo "    ok  l'impronta a monte combacia con Llm.IMPRONTA_SPEDITO"
@@ -291,7 +306,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bin="bin/chibi_crossing.dll"
+          bin="bin/chibi_crossing.windows.template_release.x86_64.dll"
           test -f "$bin" || { echo "::error::Non trovo $bin dopo la compilazione."; exit 1; }
           quante="$(grep -ac 'LlmLocale' "$bin" || true)"
           echo "$bin · $(wc -c < "$bin" | tr -d ' ') byte · LlmLocale: $quante"
@@ -807,9 +822,9 @@ jobs:
             # L'asterisco davanti per la stessa ragione del NOTICE qui sopra
             # (un pacchetto a barre rovesciate mette il percorso dentro il
             # nome), e i nomi vengono da chibi_crossing.gdextension.
-            done < <(find "/tmp/pacchi/$s" \( -name '*chibi_crossing.dll' -o -name '*libchibi_crossing.*.dylib' \))
+            done < <(find "/tmp/pacchi/$s" \( -name '*chibi_crossing.windows.*.dll' -o -name '*libchibi_crossing.*.dylib' \))
             test "$trovati" -ge 1 \
-              || { echo "::error::Nel pacchetto $s non c'e' NESSUNA libreria del cuore C++ (ne' chibi_crossing.dll ne' libchibi_crossing.*.dylib): il gioco esportato e' senza GDExtension, cioe' senza camera — «schermo grigio con la sola musica». O l'export non l'ha copiata, o e' cambiato il nome del file in chibi_crossing.gdextension e questo controllo cerca quello vecchio."; exit 1; }
+              || { echo "::error::Nel pacchetto $s non c'e' NESSUNA libreria del cuore C++ (ne' chibi_crossing.windows.*.dll ne' libchibi_crossing.*.dylib): il gioco esportato e' senza GDExtension, cioe' senza camera — «schermo grigio con la sola musica». O l'export non l'ha copiata, o e' cambiato il nome del file in chibi_crossing.gdextension e questo controllo cerca quello vecchio."; exit 1; }
           done
 
       - name: Crea la GitHub Release (solo sui tag)

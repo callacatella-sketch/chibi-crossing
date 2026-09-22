@@ -37,8 +37,10 @@ jobs:
             os: windows-latest
             scons_args: platform=windows
             artifacts: |
-              bin/chibi_crossing.dll
-              bin/chibi_crossing.lib
+              bin/chibi_crossing.windows.template_debug.x86_64.dll
+              bin/chibi_crossing.windows.template_debug.x86_64.lib
+              bin/chibi_crossing.windows.template_release.x86_64.dll
+              bin/chibi_crossing.windows.template_release.x86_64.lib
           - name: macos
             os: macos-latest
             scons_args: platform=macos arch=universal

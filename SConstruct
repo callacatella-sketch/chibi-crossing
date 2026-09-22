@@ -464,8 +464,19 @@ if env["PLATFORM"] == "win32":
         _llm_cabla(env, env, "windows")
         sources = sources + _llm_oggetti_ponte(env, _llm_sorgenti_ponte, True)
 
+    # ⚠️ IL NOME PORTA IL TARGET, come su macOS e Linux. Fino al 2026-09-22
+    # era `bin/chibi_crossing` per tutti e due: debug e release scrivevano lo
+    # STESSO file, e l'ultimo compilato vinceva. Il `.gdextension` mappava
+    # `windows.debug.x86_64` e `windows.release.x86_64` sullo stesso percorso,
+    # quindi l'EDITOR su Windows caricava qualunque cosa ci fosse — dopo la
+    # sequenza di `build.yml` (debug e poi release) era la RELEASE: niente
+    # DEBUG_ENABLED, `NDEBUG`, `/O2`. Cioe' la cura di DEBUG_ENABLED qui sopra
+    # era INERTE finche' la release sovrascriveva la debug.
+    # Il suffisso si scrive a mano perche' questo ramo costruisce `env` da se'
+    # e non eredita `godot_env["suffix"]`; `.dll` esplicito per la stessa
+    # ragione del ramo macOS (SCons scambierebbe `.x86_64` per l'estensione).
     library = env.SharedLibrary(
-        "bin/chibi_crossing",
+        "bin/chibi_crossing.windows.{}.x86_64.dll".format(env["target"]),
         source=sources
     )
 else:

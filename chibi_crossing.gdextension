@@ -15,8 +15,13 @@ compatibility_minimum = "4.7"
 
 [libraries]
 
-windows.debug.x86_64 = "res://bin/chibi_crossing.dll"
-windows.release.x86_64 = "res://bin/chibi_crossing.dll"
+; I due target di Windows hanno DUE file, come macOS e Linux. Quando puntavano
+; allo stesso `chibi_crossing.dll` l'editor caricava qualunque binario fosse
+; stato compilato per ultimo (la release, dopo la sequenza di build.yml): senza
+; DEBUG_ENABLED, con NDEBUG e /O2, cioe' senza i controlli che la debug ha su
+; macOS e Linux.
+windows.debug.x86_64 = "res://bin/chibi_crossing.windows.template_debug.x86_64.dll"
+windows.release.x86_64 = "res://bin/chibi_crossing.windows.template_release.x86_64.dll"
 macos.debug = "res://bin/libchibi_crossing.macos.template_debug.universal.dylib"
 macos.release = "res://bin/libchibi_crossing.macos.template_release.universal.dylib"
 linux.debug.x86_64 = "res://bin/libchibi_crossing.linux.template_debug.x86_64.so"

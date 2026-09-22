@@ -115,7 +115,7 @@ def fabbrica(dist, licenze, *, llm_win=True, llm_mac=True, salta_licenza=None,
                          zipfile.ZIP_DEFLATED) as z:
         z.writestr("ChibiCrossing.exe", os.urandom(65536))
         if not senza_dll:
-            z.writestr("chibi_crossing.dll", cuore(llm_win))
+            z.writestr("chibi_crossing.windows.template_release.x86_64.dll", cuore(llm_win))
         z.writestr("lua_gdextension.dll", os.urandom(4096))  # un'altra dll, per non farla facile
         for n, c in licenze.items():
             if n == salta_licenza:
@@ -205,6 +205,23 @@ def la_controprova():
     except SystemExit:
         return riga(True, "il passo non esisteva ancora in git HEAD: salto")
     doc = carica()
+    adesso = passo(doc, "release", "Le licenze sono DENTRO i pacchetti?")
+    # ⚠️ SE I DUE CANCELLI SONO LO STESSO CANCELLO, NON C'E' NIENTE DA
+    # DIMOSTRARE — e pretenderlo lo stesso e' una guardia che non puo' MAI
+    # essere verde, cioe' lo specchio di una che non puo' mai essere rossa.
+    #
+    # Questa riga chiede `vecchio verde E nuovo rosso`: vero soltanto finche'
+    # il miglioramento e' NON COMMITTATO. Committato, git HEAD e l'albero di
+    # lavoro sono lo stesso testo, tutti e due escono 1, e la controprova
+    # resta rossa per sempre. Cosi' `prova_release.py` ha stampato «QUALCOSA
+    # NON VA» a ogni corsa dal giorno in cui quel cancello e' stato migliorato
+    # — e un attrezzo che dice sempre di no smette di essere letto. E' per
+    # questo che il difetto del preflight (nato il 2026-08-13: tre costanti su
+    # cinque lette dal file sbagliato, e `needs: preflight` che avrebbe fatto
+    # fallire il PRIMO tag) e' rimasto li' quaranta giorni: il banco lo
+    # diceva, in mezzo a un verdetto rosso che non voleva dire piu' niente.
+    if prima.strip() == adesso.strip():
+        return riga(True, "il cancello non e' cambiato da git HEAD: niente da distinguere")
     banco = os.path.join(LAVORO, "controprova")
     shutil.rmtree(banco, ignore_errors=True)
     txt = os.path.join(banco, "misc/licenze")
@@ -218,9 +235,19 @@ def la_controprova():
     fabbrica(os.path.join(banco, "dist"), vere)
     gira(passo(doc, "release", "Apri i pacchetti"), banco)
     v, _ = gira(prima, banco)
-    n, _ = gira(passo(doc, "release", "Le licenze sono DENTRO i pacchetti?"), banco)
+    n, _ = gira(adesso, banco)
+    # ⚠️ E SE IL VECCHIO GIA' LA VEDEVA (v != 0), IL ROSSO NON DICE «il tuo
+    # cancello e' rotto»: dice «hai cambiato QUESTO passo per un'altra
+    # ragione, e su QUESTA scena i due si comportano uguale». Va scritto, o il
+    # prossimo va a cercare un guasto che non c'e' — che e' la stessa trappola
+    # per cui questa funzione era rimasta rossa per sempre.
+    nota = ""
+    if v != 0:
+        nota = (" — il vecchio la vedeva gia': se questo passo l'hai cambiato"
+                " per un'altra ragione, la scena da distinguere e' un'altra")
     return riga(v == 0 and n != 0,
-                "una licenza nuova: il cancello vecchio esce %d, il nuovo %d" % (v, n))
+                "una licenza nuova: il cancello vecchio esce %d, il nuovo %d%s"
+                % (v, n, nota))
 
 
 # ===========================================================================
@@ -239,23 +266,36 @@ def il_preflight(con_rete=False):
     print("\n== il preflight (la sorgente del modello) ==")
     doc = carica()
     script = passo(doc, "preflight", "Il modello si scarica ancora senza credenziali?")
-    vero = open(os.path.join(RADICE, "systems/Llm.gd"), encoding="utf-8").read()
+    # ⚠️ LE CINQUE COSTANTI STANNO IN DUE CASE, e il banco deve metterle in
+    # scena tutte e due: `systems/Scarico.gd` dice DOVE andare a prendere il
+    # modello (REPO, FILE_A_MONTE, REVISIONE), `systems/Llm.gd` dice COS'E'
+    # (IMPRONTA_SPEDITO, BYTE_MODELLO).
+    #
+    # Fino al 2026-09-22 questo banco ne metteva in scena UNA — ma anche il
+    # passo vero leggeva tutto da Llm.gd, quindi la scena «verde» era ROSSA e
+    # diceva esattamente la cosa giusta: tre costanti su cinque non si
+    # leggevano, il preflight usciva 1, e con `needs: preflight` il primo tag
+    # non avrebbe prodotto nessuna Release. Il banco la guardia ce l'aveva;
+    # non l'aveva fatto girare nessuno dal 2026-08-13.
+    CASE = ("systems/Llm.gd", "systems/Scarico.gd")
+    veri = {f: open(os.path.join(RADICE, f), encoding="utf-8").read() for f in CASE}
 
-    def leggi(nome, forma='"([^"]*)"'):
+    def leggi(dove, nome, forma='"([^"]*)"'):
         import re
-        m = re.search(r'^const %s := %s$' % (nome, forma), vero, re.M)
+        m = re.search(r'^const %s := %s$' % (nome, forma), veri[dove], re.M)
         return m.group(1) if m else ""
 
-    impronta = leggi("IMPRONTA_SPEDITO")
-    byte = leggi("BYTE_MODELLO", r"(\d+)")
+    impronta = leggi("systems/Llm.gd", "IMPRONTA_SPEDITO")
+    byte = leggi("systems/Llm.gd", "BYTE_MODELLO", r"(\d+)")
 
     def scena(titolo, *, atteso, cerca=None, guasto=None, risposta=None):
         banco = os.path.join(LAVORO, "preflight")
         shutil.rmtree(banco, ignore_errors=True)
         os.makedirs(os.path.join(banco, "systems"))
         os.makedirs(os.path.join(banco, "finto"))
-        open(os.path.join(banco, "systems/Llm.gd"), "w", encoding="utf-8").write(
-            guasto(vero) if guasto else vero)
+        for f, t in veri.items():
+            open(os.path.join(banco, f), "w", encoding="utf-8").write(
+                guasto(f, t) if guasto else t)
         amb = dict(os.environ)
         if risposta is not None:
             # un finto `curl` in testa al PATH: la rete non si interroga otto
@@ -272,19 +312,38 @@ def il_preflight(con_rete=False):
             ok = cerca in fuori
         return riga(ok, titolo, "" if ok else "\n      " + fuori.strip()[-600:])
 
+    rev = leggi("systems/Scarico.gd", "REVISIONE")
     buona = teste(etag=impronta, size=byte)
     prove = [
         scena("le costanti del gioco + la risposta buona", atteso="verde",
               cerca="scaricabile senza credenziali", risposta=buona),
-        scena("IMPRONTA_SPEDITO rinominata", atteso="rosso",
+        scena("IMPRONTA_SPEDITO rinominata (Llm.gd)", atteso="rosso",
               cerca="Non riesco a leggere IMPRONTA_SPEDITO", risposta=buona,
-              guasto=lambda t: t.replace("const IMPRONTA_SPEDITO :=", "const IMPRONTA_X :=")),
-        scena("SORGENTE_REVISIONE rinominata", atteso="rosso",
-              cerca="Non riesco a leggere SORGENTE_REVISIONE", risposta=buona,
-              guasto=lambda t: t.replace("const SORGENTE_REVISIONE :=", "const REVISIONE :=")),
-        scena("BYTE_MODELLO rinominata", atteso="rosso",
+              guasto=lambda f, t: t.replace("const IMPRONTA_SPEDITO :=", "const IMPRONTA_X :=")),
+        scena("REPO rinominata (Scarico.gd)", atteso="rosso",
+              cerca="Non riesco a leggere REPO", risposta=buona,
+              guasto=lambda f, t: t.replace("const REPO :=", "const REPOSITORY :=")),
+        scena("FILE_A_MONTE rinominata (Scarico.gd)", atteso="rosso",
+              cerca="Non riesco a leggere FILE_A_MONTE", risposta=buona,
+              guasto=lambda f, t: t.replace("const FILE_A_MONTE :=", "const IL_FILE :=")),
+        scena("REVISIONE rinominata (Scarico.gd)", atteso="rosso",
+              cerca="Non riesco a leggere REVISIONE", risposta=buona,
+              guasto=lambda f, t: t.replace("const REVISIONE :=", "const REV :=")),
+        # ⚠️ IL DIFETTO DEL 2026-08-13, RIPRODOTTO: la costante non sparisce —
+        # TRASLOCA. C'e' ancora, nel progetto, col suo nome e col suo valore,
+        # solo in un'altra casa; e il cancello deve accorgersene lo stesso,
+        # perche' e' esattamente cosi' che si e' rotto (il corriere si porto'
+        # via le tre costanti della sorgente e questo passo resto' a cercarle
+        # dov'erano non state mai).
+        scena("REVISIONE traslocata da Scarico.gd a Llm.gd", atteso="rosso",
+              cerca="VIVE IN UN ALTRO FILE", risposta=buona,
+              guasto=lambda f, t: (
+                  t.replace("const REVISIONE :=", "const REVISIONE_ALTROVE :=")
+                  if f.endswith("Scarico.gd")
+                  else t + '\nconst REVISIONE := "%s"\n' % rev)),
+        scena("BYTE_MODELLO rinominata (Llm.gd)", atteso="rosso",
               cerca="Non riesco a leggere BYTE_MODELLO", risposta=buona,
-              guasto=lambda t: t.replace("const BYTE_MODELLO :=", "const QUANTO_PESA :=")),
+              guasto=lambda f, t: t.replace("const BYTE_MODELLO :=", "const QUANTO_PESA :=")),
         scena("il file a monte e' stato RICARICATO diverso", atteso="rosso",
               cerca="Il file a monte ha impronta", risposta=teste(etag="a" * 64, size=byte)),
         scena("il file a monte ha cambiato dimensione", atteso="rosso", cerca="la barra mente",

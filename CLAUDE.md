@@ -2426,6 +2426,116 @@ lettere del Gufo), grafie britanniche e parole vietate dal glossario. La
 soglia di copertura sale con la traduzione: **non abbassarla** per far passare
 la suite — aggiungi le voci che mancano.
 
+## ⚠️⚠️ LA RELEASE NON POTEVA USCIRE, E IL BANCO LO DICEVA DA QUARANTA GIORNI
+
+Tre difetti, uno dentro l'altro, e il terzo spiega perché i primi due sono
+sopravvissuti. Nessuno si vede giocando: si vedono il giorno in cui si pusha
+un tag — e un tag non è mai stato pushato (`git tag` è vuoto).
+
+### 1 · Il preflight leggeva tre costanti da un file in cui non sono MAI state
+
+Il passo «Il modello si scarica ancora senza credenziali?» di
+[`release.yml`](.github/workflows/release.yml) leggeva col `sed`
+`SORGENTE_REPO`, `SORGENTE_FILE` e `SORGENTE_REVISIONE` da
+`systems/Llm.gd`. Quelle costanti in `Llm.gd` non ci sono — e **`git log -S`
+dice che non ci sono mai state**: vivono in
+[`systems/Scarico.gd`](systems/Scarico.gd) coi nomi `REPO`, `FILE_A_MONTE`,
+`REVISIONE`, dal giorno in cui il corriere è nato (2026-08-13). Il passo è
+nato puntando al file sbagliato.
+
+Tre estrazioni su cinque tornavano vuote → `exit 1`. E **`windows` e `macos`
+hanno `needs: preflight`**: i due job di export sarebbero stati saltati, il
+job `release` con loro. **Il primo tag non avrebbe prodotto nessuna
+Release** — e il messaggio d'errore mandava a cercare la costante nel file
+in cui non c'è.
+
+⚠️ E il commento sopra quelle costanti, in `Scarico.gd`, **prometteva**
+l'aggancio: *«`release.yml` legge queste righe con `sed` … invece di tenersi
+una copia che diverge in silenzio»*. Una promessa che nessuno manteneva, che
+è il modo in cui in questo progetto una nota diventa una bugia.
+
+Adesso `leggi()` prende il FILE come primo argomento, `pretendi()` nomina
+**la casa di ogni costante** nel proprio errore, e i tre messaggi che
+dicevano «aggiornate INSIEME … in systems/Llm.gd» nominano le due case
+giuste. MISURATO con la rete vera (`--rete`): `LA SORGENTE VERA, adesso` è
+verde, cioè il modello è ancora scaricabile senza credenziali e le cinque
+costanti combaciano con quello che Hugging Face serve.
+
+### 2 · Windows: debug e release scrivevano lo STESSO `.dll`
+
+Il ramo `win32` del `SConstruct` faceva `env.SharedLibrary("bin/chibi_crossing")`
+— **senza il target nel nome**, a differenza di macOS e Linux, che ereditano
+`godot_env["suffix"]`. E `chibi_crossing.gdextension` mappava
+`windows.debug.x86_64` **e** `windows.release.x86_64` sullo stesso percorso.
+
+Conseguenza: l'ultimo compilato vince. `build.yml` compila `template_debug`
+e **poi** `template_release`, quindi l'artifact `bin-windows` è la release
+etichettata come se fosse tutto, e **l'editor su Windows carica la
+release** — niente `DEBUG_ENABLED`, `NDEBUG`, `/O2`.
+
+⚠️ **Cioè la cura di `DEBUG_ENABLED` era INERTE.** Quel difetto — «la debug
+di Windows non ha i controlli che la debug di macOS e Linux hanno» — era
+stato curato poco sopra nello stesso file, e non poteva funzionare finché la
+release sovrascriveva la debug. *Due difetti che si coprivano a vicenda.*
+
+Adesso `bin/chibi_crossing.windows.template_{debug,release}.x86_64.dll`, e
+si allineano **cinque** posti: il `SConstruct`, il `.gdextension` (dove i
+commenti vanno con `;`), gli artifact di `build.yml` (che adesso sono
+quattro, come macOS e Linux ne hanno due), il cancello di `release.yml` sul
+binario appena compilato, e quello sul PACCHETTO — il cui `find` cercava
+`*chibi_crossing.dll`, che il nome nuovo non combacia più. Quel cancello
+aveva **previsto** questa giornata: il suo messaggio d'errore dice *«o è
+cambiato il nome del file in chibi_crossing.gdextension e questo controllo
+cerca quello vecchio»*.
+
+⚠️ La verifica è la CI: da un Mac il ramo Windows non si compila. Ma
+`if-no-files-found: error` su `upload-artifact` fa sì che un nome sbagliato
+**fermi la CI** invece di passare in silenzio.
+
+### 3 · ⚠️ LA CONTROPROVA NON POTEVA PIÙ ESSERE VERDE, ed è la causa dei primi due
+
+`tools/prova_release.py` esiste apposta perché *«i cancelli della release si
+provano SENZA aspettare un tag»*. Il difetto 1 era dentro il suo referto —
+dodici righe rosse che lo dicevano per nome. Nessuno le ha lette, e la
+ragione è strutturale.
+
+`la_controprova()` fa girare il cancello di **git HEAD** e quello
+dell'albero di lavoro sulla stessa scena, e pretende `vecchio verde E nuovo
+rosso`. È vero **soltanto finché il miglioramento non è committato**:
+committato, i due testi sono lo stesso testo, escono tutti e due 1, e la
+controprova resta rossa **per sempre**. Da quel giorno `prova_release.py` ha
+stampato `QUALCOSA NON VA` a ogni corsa — e un attrezzo che dice sempre di
+no smette di essere letto.
+
+**È lo specchio di una guardia che non può essere rossa**, e fa un danno
+peggiore: quella tace, questa grida sempre, e sotto il grido si nasconde
+tutto il resto.
+
+La cura è la stessa forma dei due rami di rinuncia che quella funzione aveva
+già (*«nessuna versione precedente in git: salto»*): se i due cancelli sono
+lo stesso testo, **non c'è niente da distinguere**, e si passa. Più una
+riga nel messaggio per il caso in cui il vecchio vedesse già la scena — o il
+prossimo va a cercare un guasto che non c'è.
+
+**FALSIFICATA**: indebolendo il cancello nell'albero di lavoro (`exit 0` in
+testa) la controprova torna rossa — `il vecchio esce 1, il nuovo 0` — quindi
+il ramo di rinuncia non inghiotte una regressione vera.
+
+### Cosa il banco prova adesso
+
+Tre scene in più nel preflight (`REPO`, `FILE_A_MONTE` e `REVISIONE`
+rinominate, ognuna nella sua casa) e soprattutto **il
+TRASLOCO**: la costante non sparisce, si sposta in un altro file col suo
+nome e col suo valore — che è *esattamente* come si è rotto — e il cancello
+deve accorgersene lo stesso. Il banco mette in scena tutte e due le case,
+quindi la scena «verde» è verde solo se l'estrazione funziona contro i
+sorgenti VERI: è la riga che ha trovato tutto questo.
+
+```
+python3 tools/prova_release.py            # 15/15 preflight, 9/9 pacchetti
+python3 tools/prova_release.py --rete     # e la sorgente vera, con una HEAD
+```
+
 ## Trappola: l'importer legge i `.obj` di MSVC come MESH
 
 SCons scrive gli oggetti compilati **accanto ai sorgenti**. Su macOS e Linux
