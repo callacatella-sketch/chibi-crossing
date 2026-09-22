@@ -1347,6 +1347,37 @@ volto come sta**, battuta per battuta. Due mutazioni, due asserzioni diverse:
 rimettendo il difetto → *«atteso gioia, ottenuto neutro»*; spegnendo
 `_expr_for_state` per sempre → cade la **controprova**, che è lì apposta.
 
+## ⚠️ ENTRARE IN CHIESA VOLEVA DIRE GUARDARE IL MURO DI PIETRA
+
+`BuildSystem._register` è l'unico scrittore di `_walls`, e passa da
+`WALL_ITEMS` — che era ferma ai **tre pezzi del primo commit** del
+repository (`git log -S"WALL_ITEMS"` non dà altro). Nel frattempo il
+catalogo ha preso la **chiesa**, la **caserma** e la **boutique**: i loro
+muri non si dissolvevano mai, quindi dentro non si vedeva niente. Non è un
+dettaglio di resa — quelle categorie esistono per l'interno che contengono.
+
+⚠️ **E LA LISTA RESTA SCRITTA A MANO, dopo averlo provato a derivare.**
+Misurato su tutti e ventuno i pezzi di bordo del catalogo:
+
+| la regola provata | cosa fa |
+|---|---|
+| `cols` alto **e** largo quanto la cella | prende i sei muri nuovi, **perde le PORTE** |
+| solo l'altezza | si porta dentro i **pali delle insegne** |
+
+Il `cols` di una porta è lo **stipite** (0,16 m), perché ci si deve passare:
+quel dizionario dice dove si **cammina**, non cosa si **vede**. Il segnale
+giusto sarebbe l'ingombro delle MESH, che però esiste solo a pezzo
+costruito.
+
+Quello che il banco fa — ed è la parte che vale — è impedire che la lista
+resti indietro **da sola**: ogni pezzo di bordo con la collisione alta e
+larga quanto la cella è un muro senza discussioni e deve stare lì dentro.
+Un pezzo nuovo che ne ha bisogno lo dice subito, invece che sette anni dopo.
+Due mutazioni: la lista di ieri → *«manca [Muro di pietra, Vetrata,
+Frontone, Portone rimessa, Vetrina moda, Scaffale a giorno]»*; una lista che
+prende tutto → cade la **controprova** (staccionate e insegne non si
+dissolvono).
+
 ## ⚠️ SETTE ALBERI DEL BOSCO STAVANO SOSPESI SOPRA LA PARETE
 
 `_build_forest` solleva a `CLIFF_H` gli alberi che stanno «oltre la parete»,

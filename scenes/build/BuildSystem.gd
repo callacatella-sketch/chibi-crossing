@@ -83,7 +83,32 @@ var _up_fade := 0.0
 var _lanterns: Array[Node3D] = []
 var _sway_t := 0.0
 
-const WALL_ITEMS := ["Muro", "Finestra", "Porta"]
+## I pezzi di BORDO che si dissolvono quando stanno fra la camera e Mochi.
+##
+## ⚠️ **ERA FERMA AI TRE PEZZI DEL PRIMO COMMIT** (`git log -S` dà solo
+## quello), mentre il catalogo nel frattempo ha preso la chiesa, la caserma e
+## la boutique. `_register` è l'unico scrittore di `_walls` e passa da questa
+## lista: entrare in una chiesa voleva dire **guardare il muro di pietra**,
+## perché dentro non si vedeva niente. Non è un dettaglio di resa — quelle
+## categorie esistono per l'interno che contengono.
+##
+## ⚠️ **E LA LISTA È SCRITTA A MANO, dopo averlo provato a derivare.**
+## Misurato su tutti e ventuno i pezzi di bordo del catalogo: la regola
+## «`cols` alto e largo quanto la cella» prende i sei muri nuovi e **perde le
+## PORTE** — il `cols` di una porta è lo STIPITE (0,16 m), perché ci si deve
+## passare: quel dizionario dice dove si CAMMINA, non cosa si VEDE. La
+## regola sulla sola altezza, invece, si porta dentro i pali delle insegne.
+## Il segnale giusto sarebbe l'ingombro delle MESH, che però esiste solo a
+## pezzo costruito.
+##
+## Quello che il banco può fare — e fa — è che la lista non resti più
+## indietro **da sola**: `test_muri_dissolvono` pretende che ogni pezzo di
+## bordo con la collisione alta e larga quanto la cella stia qui dentro.
+const WALL_ITEMS := ["Muro", "Finestra", "Porta",
+		# la chiesa (cat. 4)
+		"Muro di pietra", "Vetrata", "Portale", "Frontone",
+		# la caserma e la boutique (cat. 0 e 5)
+		"Portone rimessa", "Vetrina moda", "Scaffale a giorno"]
 var _demolish := false
 var _demo_btn: Button
 var _demo_target: Node3D
