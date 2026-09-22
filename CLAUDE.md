@@ -9217,6 +9217,27 @@ silenzio. macOS/Linux non ce l'hanno perché ereditano `godot_env`.
   dopo. Il costo è un ERROR per corsa, cioè rumore che insegna a non leggere
   gli errori: il gradino prima di non accorgersi di quelli veri.
 
+### IL CONFRONTO SI CONSUMAVA SU UNO SCHERMO NERO
+
+Lo sfogo è il momento più drammatico della scala della ribellione: il vicino ti
+viene incontro, si ferma a due passi, ti guarda in faccia e te lo dice — e
+succede **una volta sola** (`r["sfogato"]` resta acceso finché non gli dai di
+nuovo il motivo).
+
+`_tick_confronti` però non guardava **né `is_hidden()`, né `dorme()`, né
+`in_scena()`**. E `resident_sleep()` **non sposta il corpo**: lo rimpicciolisce
+a scala 0,03 e lo nasconde, ma la posizione resta sulla cella di casa. Passando
+accanto a una casa al buio partiva tutto — toast, nuvoletta, `petto_in_fuori`,
+`face_towards` — addosso a un corpo invisibile, **e il latch restava acceso**:
+la scena si spendeva su uno schermo nero e non tornava più.
+
+Una chiamata sola, non tre `if` ricopiati: `Percezione.puo_vedere` copre i tre
+stati, e chi la usa eredita il quarto il giorno che qualcuno lo aggiunge.
+⚠️ La guardia ha **tre** blocchi, non due: alla luce del sole lo sfogo deve
+succedere (senza, «non si vede» non si distingue da «non è abbastanza
+arrabbiato»), al buio no, **e appena torna fuori te lo dice** — la scena è
+rimandata, non persa.
+
 ### UNA VOCE TI TOGLIEVA QUELLO CHE AVEVI VISTO CON I TUOI OCCHI
 
 `chibi::inserisci` fonde due ricordi vicini unendo le bandiere, e poi cancella

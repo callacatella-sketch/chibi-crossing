@@ -4324,6 +4324,24 @@ func _tick_confronti(delta: float) -> void:
 		var node := r.get("node") as Node3D
 		if node == null or not is_instance_valid(node):
 			continue
+		# ⚠️⚠️ **E SI SFOGA SOLO CON CHI PUÒ VEDERLO.** Qui non c'era nessuna
+		# valvola, e di notte `resident_sleep()` NON sposta il corpo: lo
+		# rimpicciolisce a scala 0,03 e lo nasconde, ma la posizione resta
+		# sulla cella di casa. Passando accanto a una casa al buio, il
+		# confronto partiva addosso a un corpo invisibile — toast, nuvoletta,
+		# `petto_in_fuori` e `face_towards` su qualcuno che non c'è — e il
+		# latch `sfogato` restava acceso: **il momento più drammatico della
+		# scala della ribellione si consumava su uno schermo nero, e non
+		# tornava.** Vale anche per chi è dentro una scena (il concerto, il
+		# congedo): il corpo in quel momento è di chi l'ha scritta.
+		#
+		# Una chiamata sola, non tre `if` ricopiati: `Percezione.puo_vedere`
+		# copre `is_hidden()`, `dorme()` e `in_scena()`, e chi la usa eredita
+		# la quarta il giorno che qualcuno la aggiunge. Il raggio è `INF`
+		# perché qui la distanza la decide la scena poco sotto (ci si viene
+		# incontro da lontano): di quella funzione servono i tre stati.
+		if not PERCEZIONE.puo_vedere(node, pp, INF):
+			continue
 		var animo: RefCounted = _animi[label]
 		var d: float = pp.distance_to(node.global_position)
 
