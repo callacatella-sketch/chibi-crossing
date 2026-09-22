@@ -9115,6 +9115,72 @@ Adesso la cella promessa al candidato conta come presa, e `_decide` lo
 richiede prima di accodare — con un parametro, perché lì la domanda è «me
 l'ha preso qualcun **altro**?».
 
+### IL FRONTE DI FASE SCIPPAVA IL CORPO A UNA SCENA
+
+Gli undici sistemi a evento zittiscono l'agenda in un modo solo: un lease
+lungo in `next_act` (9999 per il Concerto, il Congedo, le Promesse, la Veglia;
+45 s per l'Accompagnare). Ma `_routine`, sul **fronte di fase**, riassegnava
+quel campo con un `=` nudo — `randf_range(0.4, 1.8)` — cioè riportava a un
+secondo e mezzo un lease che valeva diecimila: **l'agenda si riprendeva il
+corpo in mezzo alla scena**.
+
+E non è raro: `_phase()` cambia a `t = 0,28 · 0,42 · 0,66 · 0,82`, cioè
+**quattro volte per giornata di gioco, una ogni minuto reale**, mentre un
+concerto dura 48 secondi e un accompagnamento 45. L'unico salto del ciclo era
+`is_hidden()`: nessuno guardava `in_scena()`.
+
+La regola era già scritta in questo file, e vale da anni: *«Non si intercetta
+il FRONTE dell'agenda per trattenere qualcuno… Si alza il **lease**, prima che
+il motore decida, e **solo con `maxf`**»*. Il rimedio è stretto a chi è in
+scena: per tutti gli altri il lease resta quello di ieri **al bit**, quindi le
+misure già prese su quel numero (compreso quello che ballava di 5,7 volte)
+restano valide senza rifarle.
+
+⚠️ E una trappola di banco ripresa in pieno mentre si scriveva la guardia:
+`Visitors._daynight` è **tipizzato `Node3D`**, e un finto cielo che estende
+`Node` non viene assegnato da `set()` — *senza un errore*. Il banco misurava
+un villaggio senza cielo credendo di avergliene dato uno, e leggeva «la fase
+non avanza» come un difetto del gioco.
+
+### IL CANCELLO DELLA MERAVIGLIA CERCAVA DUE PEZZI CHE NON ESISTONO
+
+`_nearest_named(["Stagno", "Grande Albero", "Panchina"], home, 18.0)` scorre i
+pezzi POSATI confrontando il meta `item_name` col catalogo — e dei
+**centotrentasette** nomi a catalogo **nessuno è «Stagno» né «Grande Albero»**:
+lo stagno e l'albero sono geografia, li costruisce `CozyWorld`. Quella lista
+valeva quindi «c'è una Panchina entro 18 m», e la usavano in DUE posti:
+
+- il fatto `meraviglia_posto`, che dice se l'azione è fattibile;
+- il luogo «bello» del **pianificatore**, cioè la meta di
+  `provvedi_meraviglia` — e quindi anche di una deduzione della Fase 5.
+
+Mentre `_recita` manda il corpo allo **stagno** o al **Grande Albero**, presi
+da tutt'altra parte. Le due metà erano **disgiunte**, e si vedeva nei due
+versi: chi non aveva una panchina entro diciotto metri non poteva
+meravigliarsi **nemmeno stando davanti allo stagno**, e chi ce l'aveva partiva
+per un posto che poteva stare a quaranta metri. È esattamente ciò che il
+commento sopra il fatto dichiara di voler impedire («prima vinceva lo stesso e
+poi il corpo gironzolava»), preso dal lato opposto.
+
+Adesso i posti belli li dice UNA funzione (`_posti_belli`), e la leggono tutti
+e tre. MISURATO sul villaggio vero, A/B nella stessa corsa:
+
+| | |
+|---|---|
+| `meraviglia_posto` vero, regola di ieri (la panchina) | **13 su 13** |
+| …regola di oggi (lo stagno e l'albero) | **12 su 13** |
+| l'unico che la perde | Nocciola, che dal posto bello più vicino sta a **20,2 m** |
+
+Il cancello vecchio non gatava niente (con ventotto panchine in paese una è
+sempre vicina); quello nuovo dice il vero, e toglie l'azione a una persona
+sola — quella per cui è vera.
+
+⚠️ **E la guardia nuova non conosce quel caso: conosce la REGOLA.**
+[`test_nomi_dei_pezzi.gd`](tests/cases/test_nomi_dei_pezzi.gd) scandaglia
+`scenes/` e `systems/`, estrae ogni nome passato a `_nearest_named` e pretende
+che stia a catalogo. Un nome fantasma non trova mai niente **e non lo dice**:
+nessun errore, nessun avviso, e la lista si legge benissimo.
+
 ### WINDOWS: `DEBUG_ENABLED` NON ERA MAI DEFINITO
 
 Il ramo `win32` dello `SConstruct` costruisce l'ambiente a mano e non definiva

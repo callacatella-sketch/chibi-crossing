@@ -177,6 +177,10 @@ var _sussulto_cd := {}
 ## osservando senza interruzioni, e da DOVE aveva cominciato. Non si salvano:
 ## sono la stessa lettura derivata di `coppia()` — un episodio interrotto da
 ## un caricamento non è mai esistito, ed è il verso giusto.
+## Fin dove si va a meravigliarsi. Era il raggio con cui si cercava una
+## «Panchina» (un pezzo che la scena non visita mai): adesso misura lo stagno
+## e il Grande Albero, cioè i due posti dove il corpo va davvero.
+const MERAVIGLIA_RAGGIO := 18.0
 var _osservato_da := {}
 var _osservato_dove := {}
 ## La calma del giocatore, dal bus di `FiatoSospeso` (`calma_listener`).
@@ -1458,20 +1462,39 @@ func _routine(delta: float) -> void:
 			continue
 		if str(r.get("phase", "")) != ph:
 			r["phase"] = ph
-			# ⚠️ QUESTO LEASE DECIDE IL NUMERO CHE BALLAVA DI 5,7 VOLTE.
-			# `_chats` guarda `next_act` per sapere chi è disponibile, e da lì
-			# escono le righe di co-presenza delle Cricche: un lease diverso
-			# è un incontro che non viene registrato. Veniva dal generatore
-			# GLOBALE, che in partita non semina nessuno e che il C++
-			# dell'ecosistema consuma fino a 180 volte per fotogramma —
-			# quindi la sua posizione dipendeva da quante farfalle erano
-			# nate. Adesso è un flusso nominato, e il suo dado non lo tocca
-			# nessun altro.
-			var n_lease := int(r.get("_lease_n", 0)) + 1
-			r["_lease_n"] = n_lease
-			r["next_act"] = Dadi.rng(Dadi.VILLAGGIO,
-					"lease:%s:%d" % [str(r.get("label", i)), n_lease]) \
-					.randf_range(0.4, 1.8)
+			# ⚠️⚠️ **MA NON A CHI E' DENTRO UNA SCENA.** Questa riga assegna il
+			# lease con un `=` NUDO, e la regola di questo progetto dice il
+			# contrario per iscritto: «si alza il lease, prima che il motore
+			# decida, e **solo con `maxf`**». Gli undici sistemi a evento
+			# zittiscono l'agenda scrivendo `next_act = 9999` (il Concerto, il
+			# Congedo, le Promesse, la Veglia) o 45 s (l'Accompagnare): un
+			# fronte di fase glielo riportava a 0,4–1,8 s, cioe' **l'agenda si
+			# riprendeva il corpo in mezzo alla scena**.
+			#
+			# E non e' raro: `_phase()` cambia a t = 0,28 · 0,42 · 0,66 · 0,82,
+			# cioe' QUATTRO volte per giornata di gioco — una ogni minuto
+			# reale. Un concerto dura 48 s, un accompagnamento 45: prima o poi
+			# uno di loro attraversa un confine.
+			#
+			# Il rimedio e' stretto a chi e' in scena, e per chi non lo e' il
+			# gioco resta identico al bit — cioe' tutte le misure gia' prese
+			# su questo lease (il numero che ballava di 5,7 volte, qui sotto)
+			# restano valide senza rifarle.
+			if not node.call("in_scena"):
+				# ⚠️ QUESTO LEASE DECIDE IL NUMERO CHE BALLAVA DI 5,7 VOLTE.
+				# `_chats` guarda `next_act` per sapere chi è disponibile, e da lì
+				# escono le righe di co-presenza delle Cricche: un lease diverso
+				# è un incontro che non viene registrato. Veniva dal generatore
+				# GLOBALE, che in partita non semina nessuno e che il C++
+				# dell'ecosistema consuma fino a 180 volte per fotogramma —
+				# quindi la sua posizione dipendeva da quante farfalle erano
+				# nate. Adesso è un flusso nominato, e il suo dado non lo tocca
+				# nessun altro.
+				var n_lease := int(r.get("_lease_n", 0)) + 1
+				r["_lease_n"] = n_lease
+				r["next_act"] = Dadi.rng(Dadi.VILLAGGIO,
+						"lease:%s:%d" % [str(r.get("label", i)), n_lease]) \
+						.randf_range(0.4, 1.8)
 		var prima_lease := float(r.get("next_act", 1.0))
 		r["next_act"] = prima_lease - delta
 		if float(r["next_act"]) > 0.0:
@@ -1696,12 +1719,17 @@ func _recita(r: Dictionary, node: Node3D, brain: RefCounted, act: String, ph: St
 				node.call("do_routine", "sniff", fianco)
 				return
 		"meraviglia":
-			var posti: Array[Vector3] = []
-			if _cozy:
-				posti.append(_cozy.POND_CENTER + Vector3(0, 0, _cozy.POND_R + 0.9))
-			var albero := get_tree().get_first_node_in_group("grande_albero")
-			if albero:
-				posti.append((albero as Node3D).global_position + Vector3(1.6, 0, 1.2))
+			# ⚠️ **I POSTI VICINI PRIMA**, o il cancello passa su uno e il corpo
+			# parte per l'altro: `meraviglia_posto` guarda `_posti_belli_vicini`,
+			# e mandare il corpo fuori da quel raggio vuol dire che il cancello
+			# non stava misurando questo viaggio. Se nessuno è vicino si va
+			# comunque (il degrado va verso «si cammina»): a quel punto però
+			# l'azione non era nemmeno fattibile, e ci si arriva solo da
+			# `debug_force_activity`.
+			var home_r := Vector3(r["cell"].x, 0, r["cell"].y)
+			var posti: Array = _posti_belli_vicini(home_r)
+			if posti.is_empty():
+				posti = _posti_belli()
 			if not posti.is_empty():
 				node.call("do_task", "wonder", posti[_dado("posto_meraviglia").randi() % posti.size()], func():
 					brain.satisfy("meraviglia")
@@ -2755,8 +2783,12 @@ func _fatti_di(r: Dictionary, node: Node3D) -> int:
 			nomi.append("regia_pronta")
 	# DIVERGENZA VOLUTA: senza un posto da guardare, «meraviglia» non è
 	# fattibile. Prima vinceva lo stesso e poi il corpo gironzolava.
+	# ⚠️ E il posto si chiede a `_posti_belli_vicini`, che è la stessa fonte
+	# che `_recita` usa per mandarci il corpo: prima qui si cercava una
+	# «Panchina» (più due nomi che a catalogo non esistono) e la scena andava
+	# allo stagno. Vedi la nota sopra `_posti_belli()`.
 	var home := Vector3(r["cell"].x, 0, r["cell"].y)
-	if _nearest_named(["Stagno", "Grande Albero", "Panchina"], home, 18.0) != null:
+	if not _posti_belli_vicini(home).is_empty():
 		nomi.append("meraviglia_posto")
 	# FASE 3: i cinque luoghi, e quali si raggiungono davvero. Si calcolano
 	# qui perché `_recita` li ritrovi pronti nello stesso ciclo — chiedere
@@ -2978,7 +3010,16 @@ func _luoghi_del_piano(r: Dictionary, home: Vector3) -> Array:
 	# La panca scelta si conserva PER DIAGNOSI, non per il corpo: vedi il
 	# residuo qui sopra.
 	r["panca_scelta"] = panca
-	fuori.append(cerca.call(_nearest_named(["Stagno", "Grande Albero", "Panchina"], home, 18.0)))
+	# il «bello»: la stessa fonte del fatto e della scena (vedi `_posti_belli`)
+	var belli := _posti_belli_vicini(home)
+	if belli.is_empty():
+		fuori.append({"ok": false, "metri": 0.0, "pos": Vector3.ZERO})
+	else:
+		var b: Vector3 = belli[0]
+		for c: Vector3 in belli:
+			if c.distance_to(home) < b.distance_to(home):
+				b = c
+		fuori.append({"ok": true, "metri": b.distance_to(home), "pos": b})
 	# LA LAVAGNA È PRONTA solo se non c'è già un biglietto di questo vicino:
 	# uno che ha già chiesto non va a chiedere di nuovo, va a fare altro.
 	# Senza questa condizione il piano «vai a chiedere» resterebbe il più
@@ -7423,3 +7464,49 @@ func _chiudi_sguardo(label: String) -> void:
 	# giudizio su una persona — che è precisamente la cosa che la testata di
 	# `Osservare.gd` esiste per impedire.
 	animo.limbico.rivaluta("osservato", "", -p, OSSERVA.luogo_di(dove))
+
+
+# ------------------------------------------------- I POSTI BELLI (meraviglia)
+#
+## ⚠️ **«Stagno» E «Grande Albero» NON SONO NOMI DI PEZZI, e per un pezzo il
+## cancello e la scena hanno guardato due cose diverse.**
+##
+## `_nearest_named` cerca fra i pezzi POSATI, confrontando il meta `item_name`
+## col catalogo: dei centotrentasette nomi a catalogo nessuno è «Stagno» né
+## «Grande Albero» — lo stagno e l'albero sono geografia, li costruisce
+## `CozyWorld`, e a catalogo non ci sono mai stati. Quella lista si riduceva
+## quindi a **«c'è una Panchina entro 18 m»**, in DUE posti diversi:
+##   · il fatto `meraviglia_posto`, che dice se l'azione è fattibile;
+##   · il luogo «bello» del PIANIFICATORE, cioè la meta di
+##     `provvedi_meraviglia` (e quindi anche di una deduzione della Fase 5).
+## Mentre `_recita` manda il corpo allo STAGNO o al GRANDE ALBERO, presi da
+## tutt'altra parte (`_cozy.POND_CENTER`, il gruppo `grande_albero`).
+##
+## Le due metà erano disgiunte, e si vedeva in tutti e due i versi: chi non
+## aveva una panchina entro diciotto metri non poteva meravigliarsi **nemmeno
+## stando davanti allo stagno**, e chi ce l'aveva partiva per un posto che
+## poteva stare a quaranta metri — cioè il cancello misurava una cosa e il
+## corpo ne faceva un'altra. È esattamente ciò che il commento sopra il fatto
+## dichiara di voler impedire («prima vinceva lo stesso e poi il corpo
+## gironzolava»), preso dal lato opposto.
+##
+## Adesso i posti belli li dice UNA funzione, e la leggono tutti e tre.
+func _posti_belli() -> Array:
+	var out: Array = []
+	if _cozy != null and is_instance_valid(_cozy):
+		out.append(_cozy.POND_CENTER + Vector3(0, 0, _cozy.POND_R + 0.9))
+	var albero := get_tree().get_first_node_in_group("grande_albero")
+	if albero != null and is_instance_valid(albero):
+		out.append((albero as Node3D).global_position + Vector3(1.6, 0, 1.2))
+	return out
+
+
+## Quelli a portata di casa sua. ⚠️ Il raggio è lo stesso di prima (18 m), ma
+## adesso è misurato su ciò che il corpo VISITA davvero invece che su una
+## panchina che la scena non guarda.
+func _posti_belli_vicini(home: Vector3) -> Array:
+	var out: Array = []
+	for p: Vector3 in _posti_belli():
+		if p.distance_to(home) <= MERAVIGLIA_RAGGIO:
+			out.append(p)
+	return out
