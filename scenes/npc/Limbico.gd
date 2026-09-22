@@ -1195,8 +1195,22 @@ static func _ponte():
 		_ecs_cercato = true
 		if ClassDB.class_exists("EcsMondo"):
 			var n = ClassDB.instantiate("EcsMondo")
-			if n != null and n.has_method("intreccio_passo"):
-				_ecs_intreccio = n
+			if n != null:
+				if n.has_method("intreccio_passo"):
+					_ecs_intreccio = n
+				else:
+					# ⚠️ **UN `EcsMondo` È UN `Node`, NON UN `RefCounted`.**
+					# Non è contato per riferimento e non sta nell'albero:
+					# lasciarlo cadere non lo libera — resta appeso per tutta
+					# la vita del processo col suo `Registro` (l'`entt::registry`
+					# e le tre tarature) allocato nel costruttore.
+					# Questo ramo si imbocca quando il binario è più VECCHIO
+					# del metodo, cioè esattamente quando qualcuno sta provando
+					# una GDExtension non ricompilata — e lì un oggetto appeso
+					# è l'ultima cosa che aiuta a capire cosa non va.
+					# La cura è strutturale: non c'è nessun cammino in cui un
+					# `EcsMondo` istanziato qui possa restare senza padrone.
+					n.free()
 	return _ecs_intreccio
 
 
