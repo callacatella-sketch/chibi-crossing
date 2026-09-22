@@ -87,6 +87,14 @@ const T := {
 	"guardia": "standing guard",
 	"esplora": "exploring the woods",
 	"riposa": "resting",
+	# ⚠️ Questi due mancavano: «abbellisce» (il Salone) e «suona»
+	# (l'anfiteatro) sono compiti come gli altri e finiscono nella stessa
+	# frase — la spiegazione di `Animo.cause()`, che il Gufo recita nella
+	# lettera d'addio. Senza la voce uscivano CRUDI, in italiano, dentro la
+	# versione inglese. Il precedente era già stato pagato qui accanto: era
+	# stata tradotta la LABEL «Suonare all'anfiteatro» e non l'ID.
+	"abbellisce": "doing everyone's hair",
+	"suona": "playing at the amphitheatre",
 	"festa": "parties",
 	"lutto": "a loss",
 	"lutto_ignorato": "grief left alone",

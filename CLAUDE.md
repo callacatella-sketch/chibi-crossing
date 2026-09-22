@@ -2651,6 +2651,24 @@ regole di stile stanno in [`docs/TRADUZIONE.md`](docs/TRADUZIONE.md).
 > diventa **rosso** se una frase avvolta in `L10n.t()` non ha la sua voce in
 > tabella: la suite verde è la prova che hai finito.
 
+> ### ⚠️ DUE COMPITI USCIVANO IN ITALIANO DENTRO LA VERSIONE INGLESE
+>
+> «abbellisce» (il Salone) e «suona» (l'anfiteatro) sono compiti come gli
+> altri e finiscono nella stessa frase — la spiegazione di `Animo.cause()`,
+> che il Gufo recita nella **lettera d'addio**. Non avevano voce in
+> `locale/en/npc.gd`, e uscivano **crudi**.
+>
+> ⚠️ **E QUESTO TEST NON POTEVA VEDERLO.** Le sue guardie scandagliano i
+> SORGENTI cercando i letterali avvolti in `L10n.t("…")`: una **chiave di
+> dato**, passata a runtime, non è un letterale e non compare da nessuna
+> parte. Il precedente era già stato pagato nello stesso file — era stata
+> tradotta la LABEL «Suonare all'anfiteatro» e non l'ID.
+>
+> La cura è **legare la TABELLA alla lingua** invece di sperare che qualcuno
+> si ricordi: `test_localizzazione._test_i_compiti_hanno_tutti_una_voce`
+> pretende una voce per ogni chiave di `Animo.COMPITI`, così il giorno che si
+> aggiunge un mestiere il test lo dice. Falsificata togliendo una voce.
+
 Il test controlla anche: segnaposto identici (`%s`/`%d` — uno in meno e il
 gioco crasha al primo format), a capo conservati (sono l'impaginazione delle
 lettere del Gufo), grafie britanniche e parole vietate dal glossario. La

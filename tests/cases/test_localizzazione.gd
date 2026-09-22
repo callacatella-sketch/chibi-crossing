@@ -48,6 +48,7 @@ func run(t) -> void:
     _test_ogni_frase_avvolta_e_tradotta(t)
     _test_copertura(t)
     _test_le_tabelle_dati(t)
+    _test_i_compiti_hanno_tutti_una_voce(t)
 
 
 # ------------------------------------------ la guardia della REGOLA
@@ -544,3 +545,37 @@ static func _prime_colonne(tabella_dati: Dictionary) -> Array:
         if riga is Array and not (riga as Array).is_empty():
             out.append(str(riga[0]))
     return out
+
+
+## ⚠️ OGNI COMPITO DEVE AVERE LA SUA VOCE INGLESE, e due non ce l'avevano.
+##
+## I nomi dei compiti (`Animo.COMPITI`) sono DATI — viaggiano nei salvataggi
+## e nei predicati, quindi restano italiani per sempre — ma finiscono anche
+## dentro una FRASE che il giocatore legge: `Animo.cause()` li mette nella
+## spiegazione che il Gufo recita nella lettera d'addio, e la traduzione la
+## fa `L10n` al momento di mostrare.
+##
+## ⚠️ E QUESTO FILE NON POTEVA VEDERLO. Le altre guardie scandagliano i
+## SORGENTI cercando i letterali avvolti in `L10n.t("…")`: una chiave di
+## dato, passata a runtime, non e' un letterale e non compare. «abbellisce»
+## (il Salone) e «suona» (l'anfiteatro) non avevano voce, e uscivano CRUDI —
+## in italiano, dentro la versione inglese. Il precedente era gia' stato
+## pagato nello stesso file: era stata tradotta la LABEL «Suonare
+## all'anfiteatro» e non l'ID.
+##
+## La cura e' legare la TABELLA alla lingua, invece di sperare che qualcuno
+## si ricordi: il giorno che si aggiunge un mestiere, questo caso lo dice.
+func _test_i_compiti_hanno_tutti_una_voce(t) -> void:
+    var tabella := {}
+    for parte in L.TABELLE.get("en", []):
+        for chiave in parte.tabella():
+            tabella[chiave] = true
+
+    var mancanti: Array[String] = []
+    for compito in ANIMO.COMPITI:
+        if not tabella.has(str(compito)):
+            mancanti.append(str(compito))
+    t.ok(ANIMO.COMPITI.size() >= 6,
+            "la tabella dei compiti si legge (%d voci)" % ANIMO.COMPITI.size())
+    t.eq(mancanti.size(), 0,
+            "ogni compito ha la sua voce inglese (mancano: %s)" % str(mancanti))
