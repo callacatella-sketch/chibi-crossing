@@ -9241,6 +9241,39 @@ silenzio. macOS/Linux non ce l'hanno perché ereditano `godot_env`.
   dopo. Il costo è un ERROR per corsa, cioè rumore che insegna a non leggere
   gli errori: il gradino prima di non accorgersi di quelli veri.
 
+### LA PLATEA SVANIVA DALLA GRADINATA A METÀ BRANO
+
+`corpo_libero` è l'**unica** protezione di `passo_sonno` contro il mandare a
+letto qualcuno che sta recitando, e il cablaggio lo calcolava come «lo stato è
+fra gli interrompibili». Ma quella lista contiene proprio gli stati in cui gli
+undici sistemi a evento **parcheggiano** i corpi: `r_bench` (il pianista e la
+platea del Concerto, il cliente del Salone), `r_sniff` (il raduno del lutto, il
+Concertino, il Nascondino), `r_fire` (il falò).
+
+Il Concerto va da **0,72 a 0,92**; la finestra di sonno di chi non è nottambulo
+apre a **0,80**. Da lì in poi `passo_sonno` diceva DORME — e
+`Visitor.resident_sleep()` **non manda nessuno a casa a piedi**: rimpicciolisce
+il corpo a scala 0,03 dov'è (sta scritto sopra `ANTICIPO_NOTTE`). La platea
+quindi non se ne andava: **svaniva dalla gradinata**, per gli ultimi 28,8
+secondi reali di una serata da 48, ogni sera.
+
+⚠️ **E il Concerto l'aveva VISTO**: sopra l'applauso c'è scritto «*a metà brano
+metà platea è a letto*», e quella nota cura la **contabilità** (non si
+distribuiscono gesti d'affetto a chi dorme) — non la causa. Trovare il commento
+non voleva dire trovare la decisione.
+
+La valvola è `in_scena()`, ed è stretta apposta: vera solo dentro una scena
+**dichiarata** (`apri_scena`, che il Concerto chiama per l'artista e per il
+pubblico) e scade da sé con la durata che le è stata data. La dormita si
+**rimanda alla fine della serata**, non si abolisce.
+
+⚠️ **E NON è il lease.** Uno dei tre scettici aveva proposto `next_act > 0` in
+OR, e aveva ragione a essere refutato: quel campo è positivo quasi sempre — la
+routine ne scrive 0,4–1,8 s a ogni fronte di fase — quindi una valvola su di
+lui vorrebbe dire che **non dorme più nessuno**. La guardia ha un terzo corpo
+col lease a 9999 e senza scena, che deve andare a letto lo stesso: senza quella
+riga, scambiare `in_scena()` col lease resterebbe verde.
+
 ### IL BUDGET DEI PIANI MISURAVA L'ATTESA DEL GIOCATORE
 
 `TaraturaPiani.budget_secondi` (40 s) è, per il suo stesso commento, **«il

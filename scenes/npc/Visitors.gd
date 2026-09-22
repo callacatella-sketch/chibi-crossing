@@ -3154,8 +3154,32 @@ func _ciclo_sonno(delta: float, t_ora: float) -> void:
 		brain.tick(delta, nascosto)
 		if _ecs != null:
 			var id_e: int = _ecs_id(r)
+			# ⚠️⚠️ **E CHI È DENTRO UNA SCENA NON È UN CORPO LIBERO.**
+			# `corpo_libero` è l'UNICA protezione di `passo_sonno` contro il
+			# mandare a letto qualcuno che sta recitando — e la lista degli
+			# stati interrompibili contiene proprio quelli in cui gli undici
+			# sistemi a evento PARCHEGGIANO i corpi: `r_bench` (il pianista e
+			# la platea del Concerto, il cliente del Salone), `r_sniff` (il
+			# raduno del lutto, il Concertino, il Nascondino), `r_fire`.
+			#
+			# Il Concerto va da 0,72 a 0,92 e la finestra di sonno di chi non è
+			# nottambulo apre a **0,80**: a quel punto, per ogni non-nottambulo
+			# seduto, `passo_sonno` diceva DORME. E `resident_sleep()` **non
+			# manda nessuno a casa a piedi**: rimpicciolisce il corpo a scala
+			# 0,03 dov'è. Cioè la platea non se ne andava — **svaniva dalla
+			# gradinata a metà brano**, per gli ultimi 28,8 secondi reali di
+			# una serata da 48. Il Concerto l'aveva VISTO e ne aveva curato
+			# solo la contabilità («chi se n'è andato non applaude»).
+			#
+			# ⚠️ E si guarda `in_scena()`, **non** il lease: `next_act` è
+			# positivo quasi sempre (la routine ne scrive 0,4–1,8 s a ogni
+			# fronte), quindi metterlo qui vorrebbe dire che non dorme più
+			# nessuno. `in_scena()` invece è vera solo dentro una scena
+			# DICHIARATA, e scade da sé con la durata che le è stata data:
+			# la dormita si rimanda alla fine della serata, non si abolisce.
 			_ecs.riferisci(id_e, nascosto,
-					str(node.get("_state")) in STATI_INTERROMPIBILI,
+					str(node.get("_state")) in STATI_INTERROMPIBILI
+							and not bool(node.call("in_scena")),
 					_puo_entrare(r))
 			# --- FASE 2: i fatti dell'agenda ---
 			_ecs.riferisci_bisogni(id_e, brain.bisogni_packed())
