@@ -2525,9 +2525,18 @@ func occupied_spots() -> Array:
 	var out := []
 	for lvl in 2:
 		for layer in [0, 1, 2, 3, "edge"]:
+			# ⚠️ **DUE CONVENZIONI, NON UNA.** Le celle dei layer 0-3 sono
+			# METRI 1:1 (`place_cell`: `node.position = Vector3(cell.x, …,
+			# cell.y)`); solo i BORDI hanno la chiave raddoppiata, e infatti
+			# `_edge_key_to_transform` è l'unico posto del file che moltiplica
+			# per mezzo. Applicando quel mezzo a tutti, ogni pezzo veniva
+			# dichiarato a **metà della propria distanza dall'origine**: un
+			# albero poteva ricrescere dentro casa, e restava un divieto
+			# fantasma a mezza strada verso il centro.
+			var mezzo: float = 0.5 if str(layer) == "edge" else 1.0
 			for key in (_dicts(lvl)[layer] as Dictionary).keys():
 				var k: Vector2i = key
-				out.append(Vector3(k.x * 0.5, 1.1, k.y * 0.5))
+				out.append(Vector3(k.x * mezzo, 1.1, k.y * mezzo))
 	return out
 
 
@@ -2613,6 +2622,24 @@ func _rotate_placed() -> void:
 	tween.tween_property(node, "rotation:y", target, 0.22) \
 			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	_bounce(node)
+	# ⚠️ **E SI RINFRESCA COME SE IL PEZZO FOSSE STATO APPENA POSATO.**
+	# Due delle tre famiglie che si fondono guardano la ROTAZIONE per
+	# decidere chi sta in fila con chi — la Gradinata (`rinfresca_braccioli`
+	# legge `passo_fila(rot)`) e le Rastrelliere (stessa regola, dentro il
+	# flush delle serre). `place_cell` e `_remove_at` chiamano tutti e
+	# cinque i rinfresca; questa funzione, che cambia proprio quel `rot`,
+	# non ne chiamava **nessuno**: due rastrelliere restavano unite dopo
+	# che una era stata girata di novanta gradi, col montante condiviso e i
+	# ripiani che proseguono in una fila che non esiste più.
+	#
+	# Nessuno di questi rifà il NODO — accendono e spengono figli, o li
+	# scambiano — quindi il tween sulla `rotation:y` appena acceso
+	# sopravvive.
+	rinfresca_braccioli(dict, _hover_cell)
+	rinfresca_sentieri(dict, _hover_cell)
+	rinfresca_aiuole(dict, _hover_cell)
+	_segna_serre(dict, _hover_cell)
+	_segna_festoni(dict, _hover_cell)
 	if _sfx: _sfx.rotate_tick()
 	request_save()
 

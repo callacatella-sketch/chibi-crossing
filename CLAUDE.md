@@ -1347,6 +1347,52 @@ volto come sta**, battuta per battuta. Due mutazioni, due asserzioni diverse:
 rimettendo il difetto → *«atteso gioia, ottenuto neutro»*; spegnendo
 `_expr_for_state` per sempre → cade la **controprova**, che è lì apposta.
 
+## ⚠️ DUE CONVENZIONI DI CELLA, E UNA FUNZIONE LE CONFONDEVA
+
+Questo villaggio ha **due** chiavi: i layer **0-3** sono celle in metri 1:1
+(`place_cell` scrive `node.position = Vector3(cell.x, …, cell.y)`), i
+**bordi** hanno la chiave **raddoppiata** — e `_edge_key_to_transform` è
+l'unico posto del file che moltiplica per mezzo.
+
+`occupied_spots()` applicava quel mezzo a **tutti** i layer. Il suo unico
+lettore è `Woodcutting._semina` (*«dove c'è un pezzo, non cresce niente»*),
+quindi ogni pezzo costruito veniva dichiarato a **metà della propria
+distanza dall'origine**: un albero poteva ricrescere **dentro casa**, e
+restava un divieto fantasma a mezza strada verso il centro. Più il pezzo è
+lontano, più il divieto è lontano dal pezzo.
+
+⚠️ E il confronto si scrive **`str(layer) == "edge"`**: il ciclo tipizza la
+variabile come `int` sul primo elemento, e confrontarla con una `String` è
+un errore a runtime — che non fa fallire niente, interrompe la funzione. È
+la lezione già pagata da `_mappa_celle`.
+
+Due mutazioni **opposte**: il mezzo per tutti → **8 rosse**; il mezzo a
+nessuno → **2**, che è la controprova (una cura che lo togliesse a tutti
+sposterebbe i divieti dei bordi al doppio).
+
+## ⚠️ F RUOTAVA UN PEZZO E NON RINFRESCAVA NIENTE
+
+Due delle tre famiglie che si fondono guardano la **rotazione** per decidere
+chi sta in fila con chi — la Gradinata (`_fila_continua`: *«stessa rotazione
+o niente: due file che si voltano le spalle non sono una platea»*) e le
+Rastrelliere, stessa regola.
+
+`place_cell` e `_remove_at` chiamano **tutti e cinque** i rinfresca.
+`_rotate_placed` — che cambia proprio quel `rot` — non ne chiamava
+**nessuno**: due rastrelliere restavano unite dopo che una era stata girata
+di novanta gradi, col montante condiviso e i ripiani che proseguono in una
+fila che non esiste più; una gradinata restava senza bracciolo sul fianco
+che adesso è un capo.
+
+Nessuno dei cinque rifà il **nodo** — accendono e spengono figli, o li
+scambiano — quindi il tween sulla `rotation:y` appena acceso sopravvive.
+
+La guardia ha **due metà, e servono tutte e due**: che la rotazione CAMBI
+l'esito del rinfresco (comportamentale, sulla funzione statica vera, senza
+villaggio) e che `_rotate_placed` lo chiami davvero. Senza la seconda, la
+prima resta verde su un gioco che mostra file che non esistono — **5 rosse**
+togliendo il cablaggio, **1** togliendo la regola.
+
 ## ⚠️ ARRIVAVA LA LETTERA DI SCUSA DI QUALCUNO CHE NON C'ERA PIÙ
 
 `Visitors._congeda` e la partenza per il Grande Prato dicono al **calendario**
