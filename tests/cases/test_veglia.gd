@@ -36,6 +36,7 @@ func run(t) -> void:
     _test_il_ramo_che_mancava(t)
     _test_i_fili(t)
     _protetto_e_un_fatto_DI_QUELLA_PERSONA(t)
+    _il_credito_della_veglia_CRESCE(t)
 
 
 # ------------------------------------------------------------ chi è al buio
@@ -412,11 +413,78 @@ class RegistroVeglia extends Node:
         if tipo == "vegliato":
             righe[label] = int(righe.get(label, 0)) + 1
 
-    func lega_vicini(_a: String, _b: String, _q: float) -> void:
-        pass
+    ## ⚠️ IL GRAFO DELLE AMICIZIE, e il finto lo TIENE invece di buttarlo.
+    ## `Villaggio.lega` ASSEGNA (`amicizie[a][b] = forza`), quindi il modo in
+    ## cui la Veglia la chiama e' tutta la differenza fra «il legame cresce
+    ## di 0.05» e «il legame diventa 0.05». Un doppio che scrive `pass` non
+    ## puo' vedere quella differenza — ed e' per questo che il difetto e'
+    ## vissuto qui dentro con la suite verde.
+    var amicizie := {}
+
+    func lega_vicini(a: String, b: String, forza: float,
+            forza_inversa := -1.0) -> void:
+        if not amicizie.has(a):
+            amicizie[a] = {}
+        if not amicizie.has(b):
+            amicizie[b] = {}
+        amicizie[a][b] = clampf(forza, -1.0, 1.0)
+        amicizie[b][a] = clampf(forza if forza_inversa < 0.0 else forza_inversa,
+                -1.0, 1.0)
+
+    func amici_di(label: String) -> Dictionary:
+        return (amicizie.get(label, {}) as Dictionary).duplicate()
 
     ## `_annota_la_veglia` la chiede per intestare la riga del libro mastro:
     ## senza, il caso si INTERROMPE a meta' — e un errore a runtime non fa
     ## fallire un test, lo interrompe lasciando la suite verde.
     func _nome_da_label(label: String) -> String:
         return label
+
+
+## ⚠️ IL CREDITO DELLA VEGLIA CRESCE, e per un pezzo ASSEGNAVA.
+##
+## `VEGLIA_CREDITO` ha sempre detto che cosa fa: «Quanto CRESCE il legame
+## verso chi ha vegliato». Ma `Villaggio.lega` scrive `amicizie[a][b] =
+## forza`, e la Veglia gli passava la costante nuda: non aumentava il legame
+## di 0.05 — lo PORTAVA a 0.05, cioe' una notte di ronda appiattiva a un
+## ventesimo qualunque amicizia ci fosse prima. E siccome `forza_inversa` di
+## serie vale −1.0 («lo stesso valore»), appiattiva **tutti e due i versi**.
+## Succedeva OGNI NOTTE, su ogni residente che la ronda raggiungeva.
+##
+## ⚠️ E IL DOPPIO NON POTEVA VEDERLO: `RegistroVeglia.lega_vicini` era un
+## `pass`. Un doppio che butta via il dato e' cieco proprio alla differenza
+## fra «cresce» e «diventa» — adesso tiene il grafo, con la stessa
+## aritmetica di `Villaggio.lega` (che e' un DATO, non una decisione).
+##
+## `Voce` invece usa `lega_vicini` CORRETTAMENTE come assegnazione, e
+## conserva il verso altrui passandolo per esteso: era quella l'asimmetria
+## che nominava il difetto.
+func _il_credito_della_veglia_CRESCE(t) -> void:
+    var v = VegliaConLuci.new()
+    t.stage(v)
+    var reg = RegistroVeglia.new()
+    t.stage(reg)
+    v.set("_visitors", reg)
+    v.set("_guardia", "G")
+    v.set("_resa", 1.0)
+    v.luci = []
+    reg._residents = [
+        {"label": "G", "node": _corpo_a(t, Vector3(20, 0, 20))},
+        {"label": "caro", "node": _corpo_a(t, Vector3(40, 0, 40))},
+    ]
+    # erano gia' amici: 0.80 da una parte, 0.60 dall'altra
+    reg.lega_vicini("caro", "G", 0.80, 0.60)
+
+    v.rendiconto_del_mattino()
+
+    var mio: float = float((reg.amici_di("caro") as Dictionary).get("G", -1.0))
+    var suo: float = float((reg.amici_di("G") as Dictionary).get("caro", -1.0))
+    t.almost(mio, 0.85,
+            "il legame verso chi ha vegliato CRESCE di VEGLIA_CREDITO (era 0.80)",
+            0.0001)
+    t.almost(suo, 0.60,
+            "…e il verso della guardia non si tocca: la costante parla di UN lato",
+            0.0001)
+    t.ok(mio > 0.5,
+            "una notte di ronda non appiattisce un'amicizia a un ventesimo (%.2f)"
+                    % mio)

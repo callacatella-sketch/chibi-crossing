@@ -551,7 +551,28 @@ func rendiconto_del_mattino() -> Dictionary:
 			if serviva:
 				_visitors.call("ricorda_per", label, "vegliato", _guardia,
 						0.30 * _resa)
-				_visitors.call("lega_vicini", label, _guardia, VEGLIA_CREDITO)
+				# ⚠️ **CRESCE, e per un pezzo ASSEGNAVA.** `Villaggio.lega`
+				# scrive `amicizie[a][b] = forza`: passargli `VEGLIA_CREDITO`
+				# nudo non aumentava il legame di 0.05 — lo PORTAVA a 0.05,
+				# cioe' una notte di ronda appiattiva a un ventesimo
+				# qualunque amicizia ci fosse prima. E siccome
+				# `forza_inversa` di serie vale −1.0 («lo stesso valore»),
+				# appiattiva **tutti e due i versi**: anche il lato della
+				# guardia verso di lui. Succedeva OGNI NOTTE, su ogni
+				# residente che la ronda raggiungeva.
+				#
+				# La costante lo diceva da sempre: «Quanto CRESCE il legame
+				# verso chi ha vegliato».
+				#
+				# L'idioma e' quello che `Voce` usa gia' due righe piu' in
+				# la': si legge il proprio lato, si somma, e si CONSERVA
+				# quello dell'altro passandolo per esteso.
+				var mio: float = float((_visitors.call("amici_di", label)
+						as Dictionary).get(_guardia, 0.0))
+				var suo: float = float((_visitors.call("amici_di", _guardia)
+						as Dictionary).get(label, 0.0))
+				_visitors.call("lega_vicini", label, _guardia,
+						minf(1.0, mio + VEGLIA_CREDITO), suo)
 		elif buio:
 			_visitors.call("dona_drive", label, "sicurezza", -BUIO_SICUREZZA,
 					SICUREZZA_MINIMA)

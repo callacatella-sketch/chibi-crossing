@@ -1304,6 +1304,41 @@ costruisce il corpo e muore su `dna.fur`), e il finto BuildSystem deve
 rispondere a **tutto** quello che il cammino vero chiede — `request_save()`
 compreso, che `load_extra` chiama in coda.
 
+## ⚠️ UNA NOTTE DI RONDA APPIATTIVA OGNI AMICIZIA A UN VENTESIMO
+
+`Veglia.VEGLIA_CREDITO` ha sempre detto cosa fa: *«Quanto **CRESCE** il
+legame verso chi ha vegliato»*. Ma `Villaggio.lega` scrive
+`amicizie[a][b] = forza` — **assegna** — e la Veglia gli passava la costante
+nuda: non aumentava il legame di 0,05, lo **portava** a 0,05.
+
+E siccome `forza_inversa` di serie vale −1.0 («lo stesso valore»), appiattiva
+**tutti e due i versi**: anche il lato della guardia. MISURATO sul banco: due
+che si volevano bene a **0,80 / 0,60** uscivano da una notte di ronda a
+**0,05 / 0,05**. Succedeva **ogni notte**, su ogni residente che la ronda
+raggiungeva.
+
+⚠️ **E `Voce` LO FACEVA GIUSTO**, due file più in là: usa `lega_vicini` come
+assegnazione — che è quello che è — e **conserva il verso altrui passandolo
+per esteso** (*«Il lato di chi già amava non si tocca»*). È quell'asimmetria
+a nominare il difetto, un'altra volta.
+
+⚠️ **E IL DOPPIO NON POTEVA VEDERLO:** `RegistroVeglia.lega_vicini` era un
+`pass`. Un doppio che butta via il dato è cieco **proprio** alla differenza
+fra «cresce» e «diventa» — ed è per questo che il difetto è vissuto lì dentro
+con la suite verde. Adesso tiene il grafo, con la stessa aritmetica di
+`Villaggio.lega` (che lì è un **dato**, non una decisione).
+
+Falsificata rimettendo l'assegnazione nuda: **3 rosse**, e stampano il
+difetto (`atteso ~0.85, ottenuto 0.05`).
+
+⚠️ **E LA CURA HA CHIESTO QUALCOSA IN PIÙ AL COLLABORATORE.** Leggere il
+legame prima di riscriverlo vuol dire chiamare `amici_di`, che un secondo
+doppio (`test_gesti_veri.FintiVicini`) non offriva: **377 errori a runtime e
+15 rossi** alla prima corsa della suite. Non è un incidente — è la regola che
+funziona: *il finto deve rispondere a tutto quello che il cammino vero
+chiede*, e quando non lo fa la suite lo dice subito invece di lasciar passare
+un caricamento troncato.
+
 ## REGOLA: il tween che muove il CORPO è di chi l'ha acceso
 
 Un `Tween` è legato al **nodo**, non allo stato che l'ha creato: continua a

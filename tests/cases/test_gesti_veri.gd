@@ -121,8 +121,26 @@ class FintiVicini extends Node:
 		pass
 	func ricorda_per(_l: String, _t: String, _a: String, _q: float) -> void:
 		pass
-	func lega_vicini(_a: String, _b: String, _f: float) -> void:
-		pass
+	## ⚠️ IL GRAFO DELLE AMICIZIE, e il finto lo TIENE. `Villaggio.lega`
+	## ASSEGNA, quindi chi vuole FAR CRESCERE un legame deve prima leggerlo
+	## (`amici_di`) e poi riscriverlo — e un doppio che butta via il dato non
+	## puo' vedere la differenza fra «cresce» e «diventa». La stessa
+	## aritmetica di `Villaggio.lega`, che qui e' un DATO e non una
+	## decisione.
+	var amicizie := {}
+
+	func lega_vicini(a: String, b: String, forza: float,
+			forza_inversa := -1.0) -> void:
+		if not amicizie.has(a):
+			amicizie[a] = {}
+		if not amicizie.has(b):
+			amicizie[b] = {}
+		amicizie[a][b] = clampf(forza, -1.0, 1.0)
+		amicizie[b][a] = clampf(forza if forza_inversa < 0.0 else forza_inversa,
+				-1.0, 1.0)
+
+	func amici_di(label: String) -> Dictionary:
+		return (amicizie.get(label, {}) as Dictionary).duplicate()
 
 
 class FintoBuild extends Node3D:
