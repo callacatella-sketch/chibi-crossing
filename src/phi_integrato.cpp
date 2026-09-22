@@ -148,11 +148,26 @@ RisultatoPhi phi_integrato(const double *A, const double *Q, int n) {
     double best_phi = 0.0;
     unsigned best_mask = 0u;
 
-    // Le bipartizioni: ogni maschera da 1 a 2^(n-1)-1 con il bit 0 SEMPRE
-    // nella parte sinistra — così ogni taglio si conta una volta sola
-    // (una partizione e il suo complemento sono lo stesso taglio).
+    // Le bipartizioni: ogni maschera da 0 a 2^(n-1)-2, coi bit che dicono
+    // quali delle unità 1…n-1 stanno a sinistra insieme all'unità 0 — che ci
+    // sta SEMPRE, così ogni taglio si conta una volta sola (una partizione e
+    // il suo complemento sono lo stesso taglio).
+    //
+    // ⚠️ SI PARTE DA ZERO, e per un pezzo si partiva da UNO. La maschera 0 è
+    // il taglio **{unità 0} | tutte le altre**: è valido, ed è l'UNICO modo
+    // di generarlo (per avere l'unità 0 dall'altra parte servirebbe una
+    // maschera che non esiste). Saltandola si perdeva uno degli n tagli a
+    // singoletto — e i singoletti sono i candidati naturali a essere la MIP,
+    // perché la normalizzazione di Tononi divide per la parte più piccola.
+    // Φ È UN MINIMO: un taglio saltato non è rumore, è un Φ SOVRASTIMATO.
+    //
+    // E il giro non si spendeva a vuoto una volta sola: la maschera
+    // `2^(n-1)-1` accende tutti i bit, cioè lascia la parte destra VUOTA —
+    // invalida, e infatti la scarta il `continue` qui sotto. Si valutavano
+    // 2^(n-1)-2 tagli su 2^(n-1)-1, pagando un giro per niente: **62 su 63**
+    // con i sette canali della neurochimica.
     const unsigned lim = 1u << (n - 1);
-    for (unsigned mask = 1u; mask < lim; ++mask) {
+    for (unsigned mask = 0u; mask < lim; ++mask) {
         int idx_a[NMAX], idx_b[NMAX];
         int na = 0, nb = 0;
         for (int i = 0; i < n; ++i) {

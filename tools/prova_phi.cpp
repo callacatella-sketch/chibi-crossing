@@ -64,6 +64,35 @@ int main() {
         zero(r.phi, 1e-10, "   Φ");
     }
 
+    // ⚠️ IL TAGLIO A SINGOLETTO SULL'UNITÀ 0, che per un pezzo non è stato
+    // valutato mai. Il ciclo delle bipartizioni partiva da `mask = 1`, e la
+    // maschera 0 È il taglio «{unità 0} | tutte le altre»: l'unico modo di
+    // generarlo, perché per avere l'unità 0 dall'altra parte servirebbe una
+    // maschera che non esiste. In cambio si spendeva un giro sulla maschera
+    // `2^(n-1)-1`, che lascia la parte destra vuota ed è invalida: 62 tagli
+    // valutati su 63, con i sette canali della neurochimica.
+    //
+    // Φ è un MINIMO: un taglio saltato non è rumore, è un Φ SOVRASTIMATO.
+    // Qui si stacca proprio l'unità 0 dal resto, quindi quel taglio non
+    // distrugge NIENTE e Φ deve essere zero al bit. Col ciclo di prima
+    // usciva il minimo sugli altri tagli, che spezzano un blocco connesso.
+    //
+    // ⚠️ E il caso 1 non lo copriva: taglia a `n/2`, cioè su una maschera
+    // diversa da zero, che veniva valutata comunque.
+    std::printf("\n=== 1b. IL TAGLIO A SINGOLETTO SULL'UNITÀ 0 ===\n");
+    std::printf("(l'unità 0 staccata da tutte le altre: quel taglio non toglie niente)\n");
+    for (int n : {4, 6, 7, 8}) {
+        double A[PHI_MAX_N * PHI_MAX_N], Q[PHI_MAX_N * PHI_MAX_N];
+        blocchi(A, Q, n, 1, 0.6, 0.0);
+        RisultatoPhi r = phi_integrato(A, Q, n);
+        char m[160];
+        std::snprintf(m, sizeof m, "n=%d, l'unità 0 e' staccata: il taglio esiste", n);
+        ok(r.valido, m);
+        zero(r.phi, 1e-10, "   Φ");
+        std::snprintf(m, sizeof m, "   …e la MIP e' proprio quella maschera (0x%02x)", r.mip);
+        ok(r.mip == 0u, m);
+    }
+
     std::printf("\n=== 2. UNA SOLA CONNESSIONE ACCENDE Φ ===\n");
     for (double c : {0.0, 0.02, 0.05, 0.10, 0.20, 0.35}) {
         double A[PHI_MAX_N * PHI_MAX_N], Q[PHI_MAX_N * PHI_MAX_N];

@@ -8850,6 +8850,35 @@ C_cond,ᵢ = A_ij · Σ_{j|i} · A_ijᵀ + Q_ii      Σ_{j|i} = Σ_jj − Σ_ji�
 normalizzazione di Tononi **sceglie il taglio, non misura** — senza, il minimo
 cade sempre sulla bipartizione più sbilanciata.
 
+> ### ⚠️ E UN TAGLIO NON VENIVA VALUTATO MAI — 62 su 63
+>
+> Il ciclo delle bipartizioni partiva da `mask = 1`. Ma la maschera **0** È
+> un taglio valido: **{unità 0} | tutte le altre**, e l'unico modo di
+> generarlo — per avere l'unità 0 dall'altra parte servirebbe una maschera
+> che non esiste. In cambio si spendeva un giro sulla maschera `2^(n-1)-1`,
+> che lascia la parte destra vuota ed è invalida (la scarta il `continue`).
+>
+> **Φ è un MINIMO**: un taglio saltato non è rumore, è un Φ **sovrastimato**.
+> E il taglio perso era un **singoletto**, cioè proprio la famiglia che la
+> normalizzazione di Tononi rende candidata naturale a essere la MIP.
+>
+> ⚠️ **E il numero stampato dal banco era un'ETICHETTA, non una misura**:
+> «63 bipartizioni» è `2^(n-1)-1` calcolato a parte, mentre il ciclo ne
+> valutava 62.
+>
+> **MISURATO sull'effetto in partita, e va detto com'è: ZERO.** Sui sette
+> canali veri, con cinque caratteri agli estremi, `phi()` e
+> `dove_si_spezza()` escono **identici alla nona cifra** prima e dopo — su
+> quella matrice il taglio mancante non era la MIP. La cura vale perché Φ
+> torna a essere quello che il file dichiara (il minimo su TUTTI i tagli) e
+> perché costa zero, non perché abbia cambiato un numero del gioco.
+>
+> La guardia è il caso **1b** di `prova_phi.cpp`: si stacca proprio l'unità 0
+> dal resto, quindi quel taglio non distrugge niente e Φ deve essere zero al
+> bit — e la MIP dev'essere quella maschera. Il caso 1, che taglia a `n/2`,
+> non lo copriva: quella maschera non è zero e veniva valutata comunque.
+> **Falsificata rimettendo `mask = 1`: 8 asserzioni rosse.**
+
 **VERIFICATO** ([`tools/prova_phi.cpp`](tools/prova_phi.cpp), 20 casi, e due
 revisori indipendenti hanno rifatto le formule e le hanno confermate):
 sistema staccato → **zero al bit** (n = 4, 6, 7, 8); monotona
