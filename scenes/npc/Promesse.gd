@@ -412,6 +412,35 @@ func _esito_finale() -> String:
 
 
 ## Si chiude. Il gessetto sparisce dalla lavagna e — se ti sei perso la
+## ⚠️ CHI SE NE VA SI PORTA VIA LA SUA PROMESSA.
+##
+## `Visitors._congeda` e la partenza per il Grande Prato dicono al
+## CALENDARIO di dimenticare chi parte — «una festa a sorpresa per chi non
+## c'è più sarebbe la cosa più triste del villaggio» — e non lo dicevano a
+## nessun altro. La promessa restava `_attiva` col suo nome dentro: il
+## gessetto sulla lavagna continuava ad aspettarlo, e la mattina dopo
+## arrivava la **lettera di scusa di qualcuno che non c'è più**.
+##
+## Un appuntamento può stare fino a ventotto giorni avanti (la bruma, la
+## neve): la finestra in cui succede non è stretta.
+##
+## ⚠️ E SI CHIUDE IN SILENZIO, non con la lettera del «mancato». Quella
+## lettera racconta una cosa bella che non è successa — e qui non è che
+## l'appuntamento sia andato storto: è che non c'è più nessuno dall'altra
+## parte. Raccontarglielo sarebbe un rimprovero al giocatore per una
+## partenza, cioè la cosa che questo file esiste per non fare.
+func dimentica(chi: String) -> void:
+	if _attiva.is_empty() or chi == "":
+		return
+	if str(_attiva.get("chi", "")) != chi and str(_attiva.get("nome", "")) != chi:
+		return
+	_attiva = {}
+	if get_tree() != null:
+		get_tree().call_group("calendario", "aggiorna_lavagna")
+	if _build and _build.has_method("request_save"):
+		_build.call("request_save")
+
+
 ## scena — la mattina dopo arriva la lettera che te la racconta. Mai un
 ## rimprovero, mai un regalino di consolazione: non c'è niente da
 ## risarcire, c'è solo una cosa bella da raccontare.

@@ -37,6 +37,7 @@ func run(t) -> void:
 	_test_testi(t, p)
 	_test_niente_ansia(t, p)
 	_test_due_posti(t, p)
+	_chi_se_ne_va_si_porta_via_la_promessa(t, p)
 
 
 func _test_solo_il_certo(t, p: GDScript) -> void:
@@ -209,3 +210,58 @@ func _test_due_posti(t, p: GDScript) -> void:
 	# ed è montato nel gioco
 	var lvl := FileAccess.get_file_as_string("res://scenes/levels/MainLevel.gd")
 	t.ok(lvl.contains("Promesse.gd"), "il sistema è montato in MainLevel")
+
+## ⚠️ CHI SE NE VA SI PORTA VIA LA SUA PROMESSA.
+##
+## `Visitors._congeda` e la partenza per il Grande Prato dicono al CALENDARIO
+## di dimenticare chi parte — «una festa a sorpresa per chi non c'e' piu'
+## sarebbe la cosa piu' triste del villaggio» — e non lo dicevano a nessun
+## altro. La promessa restava `_attiva` col suo nome dentro: il gessetto
+## sulla lavagna continuava ad aspettarlo, e la mattina dopo arrivava la
+## LETTERA DI SCUSA DI QUALCUNO CHE NON C'E' PIU'. Un appuntamento puo' stare
+## fino a ventotto giorni avanti (la bruma, la neve): la finestra non e'
+## stretta.
+##
+## ⚠️ E SI CHIUDE IN SILENZIO, non con la lettera del «mancato»: quella
+## racconta una cosa bella che non e' successa, e qui non e' che
+## l'appuntamento sia andato storto — e' che non c'e' piu' nessuno dall'altra
+## parte. Raccontarglielo sarebbe un rimprovero al giocatore per una
+## partenza.
+func _chi_se_ne_va_si_porta_via_la_promessa(t, p: GDScript) -> void:
+	var pr = p.new()
+	t.stage(pr)
+	pr.set("_attiva", {"chi": "L_prugna", "nome": "Prugna", "giorno": 7,
+			"fen": "bruma", "esito": "", "arrivato": false})
+
+	# qualcun ALTRO se ne va: la promessa non si tocca
+	pr.call("dimentica", "L_timo")
+	t.ok(not (pr.get("_attiva") as Dictionary).is_empty(),
+			"la partenza di un altro non tocca l'appuntamento")
+
+	# e adesso se ne va LUI
+	pr.call("dimentica", "L_prugna")
+	t.ok((pr.get("_attiva") as Dictionary).is_empty(),
+			"chi se ne va si porta via la sua promessa")
+
+	# e la stessa cosa col NOME del DNA, perche' in questo gioco le anagrafi
+	# sono DUE e chi chiama potrebbe avere l'una o l'altro
+	pr.set("_attiva", {"chi": "L_prugna", "nome": "Prugna", "giorno": 7,
+			"fen": "neve", "esito": "", "arrivato": false})
+	pr.call("dimentica", "Prugna")
+	t.ok((pr.get("_attiva") as Dictionary).is_empty(),
+			"…e la riconosce anche col nome del DNA: le anagrafi sono due")
+
+	# una stringa vuota non deve spazzare via niente
+	pr.set("_attiva", {"chi": "L_prugna", "nome": "Prugna", "giorno": 7,
+			"fen": "neve", "esito": "", "arrivato": false})
+	pr.call("dimentica", "")
+	t.ok(not (pr.get("_attiva") as Dictionary).is_empty(),
+			"e una chiamata a vuoto non cancella l'appuntamento di nessuno")
+
+	# ⚠️ E IL CABLAGGIO: le due partenze devono davvero chiamarla. Si legge
+	# il sorgente SPOGLIATO dei commenti — la cura nomina apposta il gruppo
+	# che ha aggiunto, e un guardiano ingenuo matcherebbe la spiegazione.
+	var util := load("res://tests/test_util.gd")
+	var vis: String = util.codice("res://scenes/npc/Visitors.gd")
+	t.eq(vis.count('call_group("promesse", "dimentica"'), 2,
+			"tutte e DUE le partenze avvisano le promesse (il congedo e il Grande Prato)")

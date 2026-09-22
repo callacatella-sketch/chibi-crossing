@@ -3576,6 +3576,12 @@ func _congeda(i: int, r: Dictionary, animo: RefCounted) -> void:
 	# chi non c'è più sarebbe la cosa più triste del villaggio
 	get_tree().call_group("calendario", "dimentica",
 			str((r.get("dna", {}) as Dictionary).get("name", "")))
+	# ⚠️ **E ALLE PROMESSE**, con la stessa ragione: un appuntamento può
+	# stare fino a ventotto giorni avanti, e senza questa riga il gessetto
+	# sulla lavagna continuava ad aspettare chi non c'è più — e la mattina
+	# dopo arrivava la sua lettera di scusa. Si passa la LABEL, che è la
+	# chiave con cui la promessa conosce il suo vicino.
+	get_tree().call_group("promesse", "dimentica", label)
 	# LA STRATIGRAFIA: chi se ne va sotterra un piccolo oggetto vicino a
 	# casa sua (scenes/world/Strati.gd). QUI e non più in basso: fra poche
 	# righe r esce da _residents e l'ultima riga azzera l'incarico — il
@@ -4073,6 +4079,9 @@ func parte_per_il_grande_prato(label: String) -> void:
 		# e' partito per il Grande Prato non festeggia piu' qui
 		get_tree().call_group("calendario", "dimentica",
 				str((r.get("dna", {}) as Dictionary).get("name", "")))
+		# ⚠️ E ALLE PROMESSE, come sopra: anche la partenza gentile si porta
+		# via il suo appuntamento.
+		get_tree().call_group("promesse", "dimentica", label)
 		# LA STRATIGRAFIA — anche la partenza gentile lascia un ricordo
 		# alla terra. Le celle attorno escludono (+1,+1): lì il Congedo
 		# pianta il fiore-memoriale, e il reperto non va sotto i suoi

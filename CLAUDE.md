@@ -1266,6 +1266,27 @@ immaginate):**
   su una persona attecchiva più di una sul re del villaggio. È la via più
   corta perché una storia triste diventi una gogna.
 
+## ⚠️ ARRIVAVA LA LETTERA DI SCUSA DI QUALCUNO CHE NON C'ERA PIÙ
+
+`Visitors._congeda` e la partenza per il Grande Prato dicono al **calendario**
+di dimenticare chi parte — *«una festa a sorpresa per chi non c'è più sarebbe
+la cosa più triste del villaggio»* — e non lo dicevano a **nessun altro**. La
+promessa restava `_attiva` col suo nome dentro: il gessetto sulla lavagna
+continuava ad aspettarlo, e la mattina dopo arrivava la **sua lettera di
+scusa**. Un appuntamento può stare fino a **ventotto giorni** avanti (la
+bruma, la neve): la finestra in cui succede non è stretta.
+
+⚠️ **E SI CHIUDE IN SILENZIO**, non con la lettera del «mancato». Quella
+racconta una cosa bella che non è successa — e qui non è che l'appuntamento
+sia andato storto: è che non c'è più nessuno dall'altra parte. Raccontarglielo
+sarebbe un rimprovero al giocatore **per una partenza**, cioè la cosa che
+quel file esiste per non fare.
+
+`Promesse.dimentica()` riconosce **tutte e due le anagrafi** (la label e il
+nome del DNA), perché chi chiama potrebbe avere l'una o l'altro. Due
+mutazioni, due asserzioni diverse: una sola partenza che avvisa → rossa; un
+`dimentica` che cancella l'appuntamento di chiunque → rossa.
+
 ## ⚠️ SI POTEVA COLTIVARE L'ORTO DA SEDUTI, O CON UN PANNELLO DAVANTI
 
 Quando un pannello è aperto (le tasche, il negozio, la Lavagna), o Mochi è
