@@ -67,3 +67,6 @@ docs/catalogo/**/*.png
 # di se' («misure temporanee, file NON tracciato») e l'hook di backup, con
 # il suo `git add -A`, li raccoglieva lo stesso
 zz_lente/
+
+# Gli stub che l'importer di Godot lasciava sugli oggetti di MSVC (vedi src/.gdignore)
+*.obj.import

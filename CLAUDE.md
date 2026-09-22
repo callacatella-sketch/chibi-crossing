@@ -2426,6 +2426,52 @@ lettere del Gufo), grafie britanniche e parole vietate dal glossario. La
 soglia di copertura sale con la traduzione: **non abbassarla** per far passare
 la suite — aggiungi le voci che mancano.
 
+## Trappola: l'importer legge i `.obj` di MSVC come MESH
+
+SCons scrive gli oggetti compilati **accanto ai sorgenti**. Su macOS e Linux
+escono `.os` e non succede niente; su **Windows** escono `.obj` — e `.obj`
+per Godot è un formato 3D. `src/thirdparty/` aveva il suo `.gdignore` da
+sempre, con il perché scritto qui dentro («l'importer di Godot scandaglia
+`src/` sul serio»); **`src/` no**.
+
+⚠️ **E non era teorico: era vivo nella release.**
+[`release.yml`](.github/workflows/release.yml) compila il cuore su
+`windows-latest` (che lascia **21** `.obj` in `src/`, uno per sorgente) e
+**poi** fa `--import`, con `exclude_filter=""` in `export_presets.cfg`.
+Ventun oggetti compilati dati in pasto al `ResourceImporterOBJ`, a ogni tag.
+
+**RIPRODOTTO su Mac**, che è l'unico modo di vederlo da qui — si copia un
+`src/*.os` in `src/_prova.obj` e si chiede un `--import`:
+
+```
+at: _parse_obj (editor/import/3d/resource_importer_obj.cpp:280)
+ERROR: Error importing 'res://src/_prova_difetto.obj'.
+```
+
+e resta uno stub `.import` con `valid=false`. Col `.gdignore`: **zero righe,
+nessuno stub**.
+
+⚠️ **LA PROVA CHE ERA GIÀ SUCCESSO STAVA NEL REPOSITORY.** Cinque
+`src/*.obj.import` erano **tracciati in git dal primo commit** — orfani, i
+`.obj` a cui puntavano non esistono più — perché `.gitignore` ignorava
+`*.obj` ma **non** `*.obj.import`, quindi il `git add -A` dell'hook di
+backup se li prendeva. Tolti dal repository, e `*.obj.import` aggiunto alla
+lista.
+
+⚠️ **E la cura ha un rischio suo, misurato prima di consegnarla:** quattro
+test (`test_fiato`, `test_teoria_mente`, `test_llm_terreno`,
+`test_pensatoio`) leggono i sorgenti C++ con
+`FileAccess.open("res://src/...")`. Se il `.gdignore` li rendesse
+irraggiungibili, quelle quattro guardie smetterebbero di giudicare **in
+silenzio** — che è peggio del difetto curato. Misurato: si leggono, e la
+suite resta verde con le classi C++ registrate.
+
+La guardia è [`tests/cases/test_importer.gd`](tests/cases/test_importer.gd),
+**tre mutazioni tutte rosse** (via il `.gdignore` · uno stub rimasto in
+`src/` · un sorgente che non si apre più). Dichiara anche cosa **non** può
+fare: il difetto vive su Windows, e da un Mac non è verificabile — il
+giudice resta la CI.
+
 ## Trappola: i commenti nei file ConfigFile (`;` non `#`)
 
 `*.gdextension`, `export_presets.cfg`, `project.godot` sono in formato
