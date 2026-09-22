@@ -2103,6 +2103,40 @@ durante il frame ogni tanto fa un singhiozzo).
   Portare il corpo a metà strada e piantarcelo è il guasto che questa fase
   esiste per rendere impossibile.
 
+> #### ⚠️ «IL PRIMO PASSO DI OGNI PIANO È SEMPRE UN TRASFERIMENTO» È FALSO
+>
+> `sistema_piani.h` lo prometteva, e ci si appoggia il canale della ricevuta
+> della Fase 5: `Deduzioni.meta_del_gesto` legge il `luogo` di `passi[0]` per
+> sapere DOVE andrà il corpo, ed è quello che la testa guarda mentre la
+> deduzione si fa vedere.
+>
+> L'eccezione è **UNA**, e si riconosce dalla tabella: `OP_PISOLINO` è
+> l'unico operatore con `luogo = L_NESSUNO` **e** `richiede = 0`, cioè
+> l'unico che può scattare dalla RADICE. Tutti gli altri senza luogo chiedono
+> una posa (`A_AL_CIBO`, `A_ALL_AIUOLA`, `A_ALLA_SEDUTA`, `A_AL_BELLO`,
+> `A_ALLA_LAVAGNA`), che solo un trasferimento accende.
+>
+> **MISURATO:** `pianifica(provvedi_energia)` **con** `seduta_libera_vicina`
+> dà due passi e il primo ha luogo 2; **senza**, dà **un** passo col luogo a
+> **−1**. Lì `meta_del_gesto` torna `{}` e la ricevuta non si paga.
+>
+> **E il silenzio è la risposta GIUSTA**: quel gesto si compie dove il vicino
+> già si trova, quindi non c'è nessuna direzione da mostrare, e una testa che
+> si gira verso il niente non è una premessa. La deduzione resta muta e
+> ASPETTA — e qui l'attesa ha un senso, perché una panchina si può liberare.
+> ⚠️ **E NON si ripiega sulla posizione del vicino**: sarebbe la «meta
+> addosso» che `chibi::Lettura` dichiara come RESIDUO (il filtro della
+> direzione smette di filtrare), cioè si comprerebbe una ricevuta spegnendo
+> la valvola che la rende leggibile.
+>
+> Quello che era rotto erano i **commenti**: l'invariante nell'header, e il
+> «non può succedere» in `meta_del_gesto` — che mandava il prossimo a cercare
+> un difetto del risolutore. La guardia è **strutturale** e non guarda quel
+> caso: `test_goap_piani._un_solo_operatore_scatta_senza_luogo` scandaglia
+> TUTTI gli operatori e pretende che chi non ha un luogo chieda una posa.
+> Falsificata togliendo la posa a `OP_SIEDI`: **3 asserzioni rosse**, e una
+> stampa i due indici colpevoli.
+
 ### [`Piani.gd`](scenes/npc/Piani.gd) — l'ufficio, e dove interviene
 
 `OBIETTIVO` lega quattro azioni della Fase 2 ai quattro obiettivi; le

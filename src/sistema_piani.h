@@ -43,8 +43,24 @@ enum Luogo : int32_t {
 
 // LE POSE DELL'AGENTE (bit 16-20). Le accende SOLO un operatore, mai il
 // mondo: la posizione dei corpi non sta nell'ECS, e non deve entrarci per
-// pianificare. Conseguenza dichiarata: il primo passo di ogni piano è
-// sempre un trasferimento — il vicino non sa di essere già arrivato.
+// pianificare. Conseguenza dichiarata: il vicino non sa di essere già
+// arrivato, quindi ogni operatore che CHIEDE una posa deve farsi precedere
+// da un trasferimento.
+//
+// ⚠️ **MA «IL PRIMO PASSO DI OGNI PIANO È SEMPRE UN TRASFERIMENTO» È FALSO,
+// e per un pezzo questa riga lo ha promesso.** L'eccezione è UNA e si
+// riconosce dalla tabella: `OP_PISOLINO` è l'unico operatore con
+// `luogo = L_NESSUNO` **e** `richiede = 0` — scatta dalla RADICE, e quando
+// `F_SEDUTA` è spento soddisfa `A_PROV_ENERGIA` in un passo solo. MISURATO:
+// senza panchina libera, `pianifica(provvedi_energia)` torna un piano di UN
+// passo il cui `luogo` vale −1. Tutti gli altri operatori senza luogo
+// chiedono una posa (`A_AL_CIBO`, `A_ALL_AIUOLA`, `A_ALLA_SEDUTA`,
+// `A_AL_BELLO`, `A_ALLA_LAVAGNA`), che solo un trasferimento accende.
+//
+// Chi si appoggia a questa invariante deve quindi guardare il `luogo` invece
+// di darlo per buono — `Deduzioni.meta_del_gesto` lo fa, e tace. La guardia
+// che tiene l'eccezione a UNA è
+// `test_goap_piani._un_solo_operatore_scatta_senza_luogo`.
 enum Posa : uint32_t {
 	A_AL_CIBO = 1u << 16,
 	A_ALL_AIUOLA = 1u << 17,

@@ -38,6 +38,7 @@ func run(t) -> void:
 	_deterministico(t, m)
 	_mai_un_piano_a_meta(t, m)
 	_il_budget_misura_il_CORPO(t, m)
+	_un_solo_operatore_scatta_senza_luogo(t, m)
 	m.free()
 
 
@@ -282,3 +283,66 @@ func _il_budget_misura_il_CORPO(t, m) -> void:
 					% [float(chiedendo["costo"]), float(da_solo["costo"])])
 	t.eq(str(_nomi(m, da_solo["passi"])[0]), "vai_al_cibo",
 			"…e col cespuglio raggiungibile non si disturba nessuno")
+
+
+## ⚠️ «IL PRIMO PASSO DI OGNI PIANO E' SEMPRE UN TRASFERIMENTO» E' FALSO.
+##
+## `sistema_piani.h` lo prometteva, e tutto il canale della ricevuta della
+## Fase 5 ci si appoggia: `Deduzioni.meta_del_gesto` legge il `luogo` di
+## `passi[0]` per sapere DOVE il corpo andra', ed e' quello che la testa
+## guarda mentre la deduzione si fa vedere.
+##
+## L'eccezione e' UNA, `OP_PISOLINO`: l'unico operatore con
+## `luogo = L_NESSUNO` **e** `richiede = 0`, cioe' l'unico che puo' scattare
+## dalla RADICE. Quando non c'e' una panchina libera soddisfa
+## `A_PROV_ENERGIA` da solo. MISURATO: `pianifica(provvedi_energia)` senza
+## `seduta_libera_vicina` torna un piano di UN passo col luogo a −1, mentre
+## con la panchina ne torna due e il primo ha luogo 2.
+##
+## La guardia e' STRUTTURALE, non su quel caso: scandaglia TUTTI gli
+## operatori e pretende che chi non ha un luogo chieda una posa — che solo un
+## trasferimento accende. Cosi' il giorno che qualcuno aggiunge un secondo
+## operatore da radice senza luogo, questo caso lo dice invece di lasciarlo
+## scoprire a `meta_del_gesto`, che tacerebbe in silenzio.
+func _un_solo_operatore_scatta_senza_luogo(t, m) -> void:
+	# le pose stanno nei bit 16-20 (`MASCHERA_POSE` in sistema_piani.h): un
+	# operatore che ne CHIEDE una si fa per forza precedere da un
+	# trasferimento, perche' solo un trasferimento le accende.
+	const MASCHERA_POSE := 0x001F0000
+	var senza_luogo_dalla_radice := []
+	var quanti := 0
+	for i in 64:
+		var op: Dictionary = m.debug_operatore(i)
+		if op.is_empty():
+			break
+		quanti += 1
+		if int(op.get("luogo", -1)) >= 0:
+			continue
+		if (int(op.get("richiede", 0)) & MASCHERA_POSE) != 0:
+			continue
+		senza_luogo_dalla_radice.append(i)
+	t.ok(quanti >= 10, "la tabella degli operatori si legge (%d righe)" % quanti)
+	t.eq(senza_luogo_dalla_radice.size(), 1,
+			"UN solo operatore scatta dalla radice senza luogo (indici: %s)"
+					% str(senza_luogo_dalla_radice))
+	if senza_luogo_dalla_radice.size() == 1:
+		t.eq(int(senza_luogo_dalla_radice[0]), int(m.indice_operatore("pisolino")),
+				"ed e' il pisolino — l'eccezione ha un nome")
+
+	# E LA CONSEGUENZA, misurata sul risolutore vero: senza panchina il piano
+	# e' di un passo e non ha una meta da mostrare.
+	var vicini := PackedFloat64Array([1.0, 1.0, 1.0, 1.0, 1.0])
+	var ob := int(m.maschera_obiettivo("provvedi_energia"))
+	var con_panchina: Dictionary = m.debug_piano(
+			int(m.maschera_fatti(PackedStringArray(["seduta_libera_vicina"]))),
+			ob, vicini)
+	var senza: Dictionary = m.debug_piano(
+			int(m.maschera_fatti(PackedStringArray([]))), ob, vicini)
+	var pc: PackedInt32Array = con_panchina["passi"]
+	var ps: PackedInt32Array = senza["passi"]
+	t.ok(pc.size() >= 2 and int((m.debug_operatore(int(pc[0])) as Dictionary)["luogo"]) >= 0,
+			"con la panchina il primo passo E' un trasferimento (%d passi)" % pc.size())
+	t.eq(ps.size(), 1, "senza panchina il piano e' di UN passo")
+	if ps.size() == 1:
+		t.ok(int((m.debug_operatore(int(ps[0])) as Dictionary)["luogo"]) < 0,
+				"…e quel passo non ha nessun luogo: e' li' che l'invariante cade")

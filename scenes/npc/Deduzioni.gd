@@ -362,8 +362,24 @@ static func meta_del_gesto(cuore: Object, id: int, i: int, luoghi: Array,
 	var op: Dictionary = cuore.call("debug_operatore", int(passi[0]))
 	var l := int(op.get("luogo", -1))
 	if l < 0 or l >= luoghi.size():
-		# non può succedere (il primo passo è sempre un trasferimento), e se
-		# succedesse vorrebbe dire che il risolutore ha cambiato forma: si tace
+		# ⚠️ **SUCCEDE, e questo commento ha detto il contrario per un pezzo.**
+		# `sistema_piani.h` prometteva che «il primo passo di ogni piano è
+		# sempre un trasferimento»: è falso per UN operatore, `OP_PISOLINO`,
+		# l'unico con `luogo = L_NESSUNO` E `richiede = 0`. Quando non c'è una
+		# panchina libera (`F_SEDUTA` spento) scatta dalla radice e soddisfa
+		# `A_PROV_ENERGIA` da solo — MISURATO: il piano è di UN passo e il suo
+		# luogo vale −1.
+		#
+		# Il silenzio resta la risposta GIUSTA: quel gesto si compie dove il
+		# vicino già si trova, quindi non c'è nessuna direzione da mostrare, e
+		# una testa che si gira verso il niente non è una premessa. La
+		# deduzione resta muta e ASPETTA, che è quello che fa già col collo —
+		# e qui l'attesa ha un senso, perché una panchina si può liberare.
+		#
+		# ⚠️ E NON SI RIPIEGA sulla posizione del vicino stesso: sarebbe la
+		# «meta addosso» che `chibi::Lettura` dichiara come RESIDUO (il filtro
+		# della direzione smette di filtrare), cioè si comprerebbe una
+		# ricevuta spegnendo la valvola che la rende leggibile.
 		return {}
 	var voce: Dictionary = luoghi[l]
 	if not bool(voce.get("ok", false)):
