@@ -3997,9 +3997,50 @@ vicino, e non per simmetria: ha gli stessi collaboratori che nascono tardi.
    parecchi secondi spendere lo slot su di lui vuol dire buttarlo. (Di notte i
    ventotto sono tutti dentro, e allora **l'elenco vuoto si ricorda anche
    lui**, o si ricostruirebbe sessanta volte al secondo per tutta la notte.)
-4. **`gia_dedotto` si riempie.** Il ponte rifiuta la gemella di una deduzione
-   viva e il Giudice non ha modo di saperlo: lasciandolo vuoto si promuovono
-   bozze che il mondo butta, **e la seconda bocciatura è muta**.
+4. **`gia_dedotto` si riempie — e si SVUOTA.** Il ponte rifiuta la gemella di
+   una deduzione viva e il Giudice non ha modo di saperlo: lasciandolo vuoto
+   si promuovono bozze che il mondo butta, **e la seconda bocciatura è muta**.
+
+   > ### ⚠️ MA «VIVA» VA PRESO ALLA LETTERA, o la lista mente nel verso del SILENZIO
+   >
+   > `chibi::inserisci_deduzione` (regola 4) rifiuta la gemella **soltanto se
+   > `peso_utile(esistente) > soglia`**, e `peso_utile` torna **zero per
+   > costruzione** su una deduzione con `D_SPESA` — il commento accanto a
+   > quella riga lo dice per esteso: *«Viva vuol dire non spesa e sopra
+   > soglia»*.
+   >
+   > `Pensieri._gia_dedotto` invece prendeva **tutte** le righe dell'anello,
+   > spese e sbiadite comprese. Era un predicato **più severo di quello che
+   > diceva di anticipare**: il Giudice bocciava bozze che il ponte avrebbe
+   > ACCETTATO, e un obiettivo restava chiuso a quel vicino finché la riga
+   > morta viveva nell'anello. ⚠️ **È un guasto che è una cosa che NON
+   > succede** — invisibile per definizione, e con la suite verde.
+   >
+   > `peso_utile` **non si ricalcola in GDScript**: è già nel dizionario di
+   > `EcsMondo::debug_deduzioni`, calcolato col tempo e la mezza vita veri.
+   > Una seconda formula di qua sarebbe la tabella gemella.
+   >
+   > E la soglia **è la stessa variabile** che va al ponte (`var soglia` in
+   > `_consegna`, passata a tutte e due): una divergenza non è improbabile, è
+   > impossibile per costruzione.
+   >
+   > La guardia è `test_pensieri._una_deduzione_spesa_non_chiude_piu_la_porta`
+   > (2 asserzioni rosse sulla mutazione), e **il suo oracolo è il PONTE**: si
+   > chiede al cuore vero se accetterebbe la gemella e si pretende che i due
+   > siano d'accordo — che è l'unica cosa che «anticipare un predicato» può
+   > voler dire. Copre tutte e due le metà di «viva»: la **spesa** (peso zero)
+   > e la **sbiadita** (sotto soglia ma viva) — e serve la seconda, perché una
+   > spesa pesa zero esatto e quindi la distingue anche un confronto con zero:
+   > misurato, con `0.0` al posto della soglia il caso della spesa **resta
+   > verde**.
+   >
+   > ⚠️ **Cosa NON copre, dichiarato:** che il sito di chiamata passi la
+   > soglia giusta. La scena che lo coprirebbe — la gemella di una sbiadita
+   > che entra per la via vera — è stata scritta e **buttata**: per far
+   > sbiadire una deduzione servono quattromila secondi, e in quel tempo
+   > l'agenda va avanti e la grammatica non offre più quell'obiettivo (quel
+   > vicino nel frattempo lo sta perseguendo). Il caso cadeva per una ragione
+   > che col difetto non c'entra, cioè provava il silenzio.
 5. **Si collauda contro il ritratto con cui il pensiero è PARTITO**, che
    arriva col foglio: ricostruirlo alla consegna vuol dire giudicare contro un
    villaggio di un minuto dopo.

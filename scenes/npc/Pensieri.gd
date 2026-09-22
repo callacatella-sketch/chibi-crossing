@@ -473,14 +473,19 @@ func _consegna(c, bozze: PackedStringArray, foglio: Dictionary) -> void:
 		return
 	var aperte := DEDUZIONI.bozze_da(Array(bozze))
 	_bozze_tot += bozze.size()
+	# ⚠️ **UNA SOGLIA SOLA, E LA STESSA VARIABILE.** `_gia_dedotto` anticipa
+	# il predicato che il ponte applicherà (`peso_utile > soglia`), e il ponte
+	# lo applica con QUESTO numero: passarglielo invece di farglielo rileggere
+	# rende una divergenza impossibile per costruzione, non improbabile.
+	var soglia: float = VISITORS.AMMIRA_SOGLIA
 	var mondo := {
 		"fattibili": rit.get("fattibili", []),
 		# REGOLA 4: senza questa riga il Giudice promuove gemelle, e la
 		# seconda bocciatura — quella del ponte — è muta.
-		"gia_dedotto": _gia_dedotto(id),
+		"gia_dedotto": _gia_dedotto(id, soglia),
 	}
 	var esito: Dictionary = DEDUZIONI.incassa(_cuore, id, aperte, rit, mondo,
-			VISITORS.AMMIRA_SOGLIA)
+			soglia)
 	if int(esito.get("indice", -1)) >= 0:
 		_dedotte += 1
 		_bozze_ok += 1
@@ -495,10 +500,28 @@ func _consegna(c, bozze: PackedStringArray, foglio: Dictionary) -> void:
 ## GLI OBIETTIVI CHE QUESTO VICINO HA GIÀ DEDOTTO E CHE SONO ANCORA VIVI.
 ## La fonte è il ponte, e la traduzione maschera→nome è quella di `Deduzioni`
 ## (quattro confronti): nessun numero di `chibi::Provvedimento` ricopiato qui.
-func _gia_dedotto(id: int) -> Array:
+##
+## ⚠️ **E «VIVI» VA PRESO ALLA LETTERA, o questa lista mente nel verso del
+## SILENZIO.** Il ponte (`chibi::inserisci_deduzione`, regola 4) rifiuta una
+## gemella soltanto se `peso_utile(esistente) > soglia`, e `peso_utile` torna
+## **zero per costruzione** su una deduzione con `D_SPESA` — il suo commento
+## lo dice: «Viva vuol dire non spesa e sopra soglia». Questa funzione invece
+## prendeva TUTTE le righe dell'anello, spese e sbiadite comprese: era un
+## predicato più severo di quello che diceva di anticipare, quindi il Giudice
+## bocciava bozze che il ponte avrebbe ACCETTATO. Una deduzione spesa su un
+## obiettivo chiudeva quell'obiettivo a quel vicino finché la riga restava
+## nell'anello — e nessuno poteva accorgersene, perché il guasto è una cosa
+## che NON succede.
+##
+## `peso_utile` non si ricalcola qui: è già nel dizionario, calcolato dal
+## cuore con l'ora e la mezza vita vere (`EcsMondo::debug_deduzioni`). Una
+## seconda formula di qua sarebbe la tabella gemella.
+func _gia_dedotto(id: int, soglia: float) -> Array:
 	var out := []
 	var d: Dictionary = _cuore.call("debug_deduzioni", id)
 	for riga in (d.get("deduzioni", []) as Array):
+		if float((riga as Dictionary).get("peso_utile", 0.0)) <= soglia:
+			continue
 		var nome := DEDUZIONI.nome_obiettivo(_cuore,
 				int((riga as Dictionary).get("obiettivo", 0)))
 		if nome != "" and not out.has(nome):

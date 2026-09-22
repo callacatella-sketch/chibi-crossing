@@ -58,8 +58,11 @@ const BRAIN := preload("res://scenes/npc/VillagerBrain.gd")
 var _sporco: Array = []
 
 const CICLO := 240.0
-## `Visitors.AMMIRA_SOGLIA`: sotto questo peso un ricordo non conta più.
-const SOGLIA := 0.35
+## Sotto questo peso un ricordo non conta più. ⚠️ Si LEGGE da `Visitors`,
+## non si ricopia: è lo stesso numero che `Pensieri` passa al ponte e a
+## `_gia_dedotto`, e un 0.35 scritto qui a mano sarebbe la tabella gemella
+## che diverge il giorno che qualcuno tara quella costante.
+const SOGLIA: float = preload("res://scenes/npc/Visitors.gd").AMMIRA_SOGLIA
 
 
 # =========================================================================
@@ -198,6 +201,7 @@ func run(t) -> void:
 	_chi_e_dentro_casa_non_e_candidato(t)
 	_il_giro_si_chiude(t)
 	_gia_dedotto_si_riempie(t)
+	_una_deduzione_spesa_non_chiude_piu_la_porta(t)
 	_il_seme_non_si_ripete(t)
 	_uscire_dall_albero_butta_il_volo(t)
 
@@ -644,7 +648,7 @@ func _gia_dedotto_si_riempie(t) -> void:
 	t.ok(motivi.contains("azionabile"),
 			"e la ferma perché non c'era niente di azionabile (motivi: %s)" % motivi)
 	# e la fonte di quel «già dedotto» è il ponte, letto adesso
-	t.eq(n._gia_dedotto(id), [obiettivo],
+	t.eq(n._gia_dedotto(id, SOGLIA), [obiettivo],
 			"gli obiettivi già dedotti si leggono dal grafo vero")
 	_pulisci(cuore)
 
@@ -693,3 +697,127 @@ func _uscire_dall_albero_butta_il_volo(t) -> void:
 	t.ok(p.libero(), "e il motore torna libero (era ancora in coda)")
 	padre.add_child(n)   # torna dov'era: lo libera la pulizia del caso
 	_pulisci(cuore)
+
+
+## ⚠️ E SI SVUOTA QUANDO UNA DEDUZIONE MUORE — o mente nel verso del SILENZIO.
+##
+## `_gia_dedotto` esiste per ANTICIPARE il predicato del ponte
+## (`chibi::inserisci_deduzione`, regola 4: rifiuta la gemella soltanto se
+## `peso_utile(esistente) > soglia`). Prendeva tutte le righe dell'anello,
+## spese comprese — ma `peso_utile` torna **zero per costruzione** su una
+## deduzione con `D_SPESA`, e il suo stesso commento nel C++ dice «Viva vuol
+## dire non spesa e sopra soglia».
+##
+## Era quindi un predicato PIÙ SEVERO di quello che diceva di anticipare: il
+## Giudice bocciava bozze che il ponte avrebbe accettato, e un obiettivo
+## restava chiuso a quel vicino finché la riga spesa viveva nell'anello.
+## Un guasto che è una cosa che NON succede, cioè invisibile per definizione.
+##
+## L'ORACOLO NON È QUESTA FUNZIONE: è il PONTE. Si chiede al cuore vero se
+## accetterebbe la gemella, e si pretende che i due siano d'accordo — che è
+## l'unica cosa che «anticipare un predicato» può voler dire.
+func _una_deduzione_spesa_non_chiude_piu_la_porta(t) -> void:
+	var cuore := _cuore_vero()
+	var b := _acceso(t, cuore, 1)
+	var n = b[0]
+	var reg: Registro = b[1]
+	var id := int((reg._residents[0] as Dictionary)["ecs"])
+
+	# ⚠️ L'OBIETTIVO SI PRENDE DALLA GRAMMATICA, non dalla tabella. Quella che
+	# `grammatica_deduzione` offre e' gia' al netto di cio' che quel vicino sta
+	# perseguendo (proporglielo non sarebbe una deduzione) e di cio' che il
+	# mondo non sa servire: sceglierne uno a memoria fa cadere l'ultima scena
+	# per una ragione che con questo difetto non c'entra — misurato, il primo
+	# di `PIANI.OBIETTIVO` e' proprio quello che il vicino sta gia' facendo.
+	var r0: Dictionary = reg._residents[0]
+	var f0: Dictionary = n._foglio({"chi": id, "id": "vicino0", "r": r0})
+	var offerti := _offerti(str(f0.get("grammatica", "")))
+	if offerti.is_empty():
+		t.ok(false, "la grammatica non offre nessun obiettivo")
+		_pulisci(cuore)
+		return
+	var nome := str(offerti[0])
+	var maschera := int(cuore.maschera_obiettivo(nome))
+	var i := int(cuore.deduci(id, maschera, PackedInt32Array([0]), SOGLIA))
+	if i < 0:
+		t.ok(false, "la deduzione di partenza non entra nel grafo")
+		_pulisci(cuore)
+		return
+	t.eq(n._gia_dedotto(id, SOGLIA), [nome],
+			"finché è VIVA, l'obiettivo è chiuso")
+	# e il ponte è d'accordo: la gemella la rifiuta
+	t.eq(int(cuore.deduci(id, maschera, PackedInt32Array([0]), SOGLIA)), -1,
+			"e il ponte rifiuta la gemella, che è il predicato da anticipare")
+
+	cuore.deduzione_spendi(id, i)
+
+	# ⚠️ IL FILTRO PER PRIMO, e non è pignoleria: `_gia_dedotto` LEGGE,
+	# `deduci` SCRIVE. Interrogando il ponte prima, la gemella entrerebbe
+	# davvero e l'obiettivo tornerebbe vivo — quindi la riga qui sotto sarebbe
+	# verde su un codice rotto (misurato: succede, ed è il primo modo in cui
+	# questa guardia è stata scritta male).
+	var vivi: Array = n._gia_dedotto(id, SOGLIA)
+	t.ok(not vivi.has(nome),
+			"spesa, `gia_dedotto` non la nomina più (%s)" % str(vivi))
+	# e il ponte è d'accordo: adesso la gemella la accetta. Se non lo fosse,
+	# a mentire sarebbe il filtro nell'altro verso.
+	var dopo := int(cuore.deduci(id, maschera, PackedInt32Array([0]), SOGLIA))
+	t.ok(dopo >= 0,
+			"e il ponte ACCETTA di nuovo quell'obiettivo (esito %d)" % dopo)
+
+	# ⚠️ E L'ALTRA META' DI «VIVA»: **SOPRA SOGLIA**. Una spesa pesa zero
+	# esatto, quindi la distingue anche un confronto con zero — cioe' la
+	# SOGLIA, da sola, quel caso non lo prova: misurato, passando 0.0 al posto
+	# di `soglia` il caso qui sopra resta verde. Serve una deduzione VIVA ma
+	# SBIADITA: il ponte accetta la sua gemella (`peso_utile <= soglia`), e il
+	# filtro non deve nominarla.
+	var quanto := 0.0
+	while quanto < 4000.0 and _peso_utile(cuore, id, maschera) > SOGLIA:
+		_passano(cuore, 200.0)
+		quanto += 200.0
+	var pu := _peso_utile(cuore, id, maschera)
+	t.ok(pu > 0.0 and pu <= SOGLIA,
+			"la deduzione e' sbiadita ma NON spesa (peso utile %.4f)" % pu)
+	var sbiaditi: Array = n._gia_dedotto(id, SOGLIA)
+	t.ok(not sbiaditi.has(nome),
+			"sotto soglia, `gia_dedotto` non la nomina (%s)" % str(sbiaditi))
+
+	# ⚠️ **E LA PORTA NON E' COPERTA DA UN'ASSERZIONE, dichiarato.** Fin qui
+	# il banco chiama `_gia_dedotto` a mano e gli passa la soglia da se': una
+	# mutazione sul SITO DI CHIAMATA (un letterale al posto della variabile
+	# condivisa) resta verde, misurato. La scena che la coprirebbe — una
+	# gemella di sbiadita che entra per la via VERA — e' stata scritta e
+	# BUTTATA: dopo i quattromila secondi che servono a far sbiadire una
+	# deduzione, l'agenda di quel vicino e' andata avanti e la grammatica non
+	# offre piu' quell'obiettivo (misurato: `provvedi_pancino` sparisce dagli
+	# offerti perche' e' quello che sta perseguendo). Il caso cadeva per una
+	# ragione che con questo difetto non c'entra, cioe' provava il silenzio.
+	#
+	# Quello che tiene al suo posto il sito di chiamata non e' un'asserzione:
+	# e' che le due letture sono **la stessa variabile** (`var soglia` in
+	# `_consegna`, passata al filtro e al ponte). Una divergenza non e'
+	# improbabile, e' impossibile per costruzione — ma vale la pena scriverlo
+	# invece di lasciar credere che qui sotto ci sia una guardia.
+	_pulisci(cuore)
+
+
+## Il peso utile che il CUORE calcola per quell'obiettivo: si legge, non si
+## rifa'. Il massimo fra le righe, che e' quello che guarda la regola 4.
+func _peso_utile(cuore: Object, id: int, maschera: int) -> float:
+	var d: Dictionary = cuore.debug_deduzioni(id)
+	var m := 0.0
+	for riga in (d.get("deduzioni", []) as Array):
+		if int((riga as Dictionary).get("obiettivo", 0)) == maschera:
+			m = maxf(m, float((riga as Dictionary).get("peso_utile", 0.0)))
+	return m
+
+
+## A passi di mezzo secondo, come in `test_deduzioni`: `avanza` e' anche il
+## passo del sonno e dell'agenda, e saltare un minuto in un frame solo le
+## farebbe girare in un modo che in partita non capita mai.
+func _passano(m, sec: float) -> void:
+	var fatto := 0.0
+	while fatto < sec - 1e-6:
+		var dt: float = minf(0.5, sec - fatto)
+		m.avanza(dt, 0.5)
+		fatto += dt
