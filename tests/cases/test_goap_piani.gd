@@ -1,4 +1,6 @@
 extends RefCounted
+
+const PIANI := preload("res://scenes/npc/Piani.gd")
 ## IL PIANIFICATORE (GOAP): dall'obiettivo alla catena di gesti.
 ##
 ## La Fase 2 dice cosa un vicino VUOLE; qui si prova COME ci arriva — e
@@ -35,6 +37,7 @@ func run(t) -> void:
 	_il_piu_economico(t, m)
 	_deterministico(t, m)
 	_mai_un_piano_a_meta(t, m)
+	_il_budget_misura_il_CORPO(t, m)
 	m.free()
 
 
@@ -213,3 +216,69 @@ func _mai_un_piano_a_meta(t, m) -> void:
 	t.eq(int(d2["passi"].size()), 0,
 			"e un piano più lungo del tetto d'impegno non si comincia nemmeno")
 	m.debug_tara_piani(40.0, 256, 6)   # si rimette com'era
+
+
+## ⚠️ **IL BUDGET MISURA IL CORPO, NON L'ATTESA — e per un pezzo non era vero.**
+##
+## `budget_secondi` (40 s) è «il tetto d'impegno dell'agenda»: per quanto tempo
+## quel corpo resta occupato. Ma veniva confrontato col COSTO cumulativo, e
+## `chiedi_cibo`/`chiedi_cura` costano **26,6 s** — che non sono tempo di
+## corpo: il vicino scrive il biglietto e se ne va, e `_piano_dirotta` gli dà
+## `next_act = 9.0`. La mela arriva quando il giocatore la porta.
+##
+## Restavano quindi **13,4 s di cammino, cioè 18,09 m**, mentre
+## `Visitors._luoghi_del_piano` cerca la Lavagna fino a **60 m**: in mezzo
+## c'erano quarantadue metri in cui `lavagna_pronta` si accendeva, il piano
+## veniva scartato dal budget, `pianifica` tornava vuoto e la scena della
+## Fase 3 non succedeva **senza una traccia**.
+##
+## MISURATO col risolutore vero, prima: piano a 18,0 m, `esito 2` a 18,5 m.
+## Dopo: piano fino a 40 m, e oltre a fallire è il CAMMINO (59 m sono 43,7 s
+## di corpo occupato, cioè più del tetto) — che è il budget che fa il suo
+## mestiere invece di misurare l'attesa di qualcun altro.
+##
+## ⚠️ **Residuo dichiarato:** il tetto vero adesso è `40 s × 1,35 = 54 m`, e il
+## villaggio cerca la Lavagna a 60. Restano sei metri in cui il fatto si
+## accende e il piano viene rifiutato — ma adesso è il rifiuto GIUSTO (quel
+## cammino è davvero più lungo del tetto d'impegno), non un artefatto. Non si
+## scrive 54 a mano: sarebbe la gemella del budget, che vive in C++.
+func _il_budget_misura_il_CORPO(t, m) -> void:
+	var chiuso: int = m.maschera_fatti(PackedStringArray(
+			["spuntino_vicino", "lavagna_pronta"]))
+	var ob: int = m.maschera_obiettivo("provvedi_pancino")
+
+	# una Lavagna a VENTI METRI: una distanza ordinaria in questo villaggio
+	var venti := PackedFloat64Array([-1.0, -1.0, -1.0, -1.0, PIANI.secondi(20.0)])
+	var d: Dictionary = m.debug_piano(chiuso, ob, venti)
+	var nomi := _nomi(m, d["passi"])
+	t.eq(nomi.size(), 2,
+			"con la Lavagna a venti metri la scena della Fase 3 succede")
+	if nomi.size() == 2:
+		t.eq(str(nomi[0]), "vai_alla_lavagna", "si va alla Lavagna…")
+		t.eq(str(nomi[1]), "chiedi_cibo", "…e si chiede a Mochi")
+
+	# ...e a QUARANTA, che prima era fuori di ventidue metri
+	var quaranta := PackedFloat64Array([-1.0, -1.0, -1.0, -1.0, PIANI.secondi(40.0)])
+	t.eq(_nomi(m, (m.debug_piano(chiuso, ob, quaranta) as Dictionary)["passi"]).size(), 2,
+			"e anche a quaranta metri: i 26,6 s dell'attesa non li paga il corpo")
+
+	# ⚠️ LA CONTROPROVA: il budget deve ancora MORDERE sul cammino vero, o
+	# «non conta l'attesa» sarebbe diventato «non conta niente».
+	var lontanissima := PackedFloat64Array([-1.0, -1.0, -1.0, -1.0, PIANI.secondi(200.0)])
+	t.eq(_nomi(m, (m.debug_piano(chiuso, ob, lontanissima) as Dictionary)["passi"]).size(), 0,
+			"ma duecento metri di cammino restano più del tetto d'impegno")
+
+	# e il COSTO non è cambiato: chiedere deve costare più che andarselo a
+	# prendere, o il pianificatore comincerebbe a preferire la Lavagna
+	var aperto: int = m.maschera_fatti(PackedStringArray(
+			["spuntino_vicino", "spuntino_raggiungibile", "lavagna_pronta"]))
+	var vicino := PackedFloat64Array([PIANI.secondi(5.0), -1.0, -1.0, -1.0,
+			PIANI.secondi(5.0)])
+	var da_solo: Dictionary = m.debug_piano(aperto, ob, vicino)
+	var chiedendo: Dictionary = m.debug_piano(chiuso, ob, vicino)
+	t.ok(float(chiedendo["costo"]) > float(da_solo["costo"]),
+			("chiedere costa ancora più che andarselo a prendere (%.1f contro "
+			+ "%.1f s): il COSTO non è stato toccato, solo l'IMPEGNO")
+					% [float(chiedendo["costo"]), float(da_solo["costo"])])
+	t.eq(str(_nomi(m, da_solo["passi"])[0]), "vai_al_cibo",
+			"…e col cespuglio raggiungibile non si disturba nessuno")

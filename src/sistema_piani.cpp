@@ -50,10 +50,12 @@ const OperatoreDef TAB[N_OPERATORI] = {
 	// va a scrivere biglietti, e appena il giocatore chiude il recinto
 	// quella strada si apre. Costa molto (26.6 s) perché è lenta davvero —
 	// la mela arriva quando il giocatore la porta.
+	// ...e i 26,6 s NON occupano il corpo: e' l'attesa del giocatore, non il
+	// tempo in cui quel vicino e' impegnato (vedi `occupa_il_corpo`).
 	{ OP_CHIEDI_CIBO, L_NESSUNO, A_ALLA_LAVAGNA, F_CIBO_RAGG,
-			A_PROV_PANCINO, 0, 26.6 },
+			A_PROV_PANCINO, 0, 26.6, false },
 	{ OP_CHIEDI_CURA, L_NESSUNO, A_ALLA_LAVAGNA, F_AIUOLA_RAGG,
-			A_PROV_CURA, 0, 26.6 },
+			A_PROV_CURA, 0, 26.6, false },
 };
 
 // L'EURISTICA, precalcolata: per ogni bit di obiettivo, il minimo
@@ -85,7 +87,8 @@ double euristica(uint32_t p_stato, uint32_t p_obiettivo) {
 
 struct Nodo {
 	uint32_t stato;
-	double g;
+	double g;          // il COSTO cumulativo: serve all'A* per scegliere
+	double impegno;    // ...e quanto il CORPO resta occupato: e' il budget
 	int32_t padre;
 	int32_t op;
 	int32_t prof;
@@ -115,7 +118,7 @@ EsitoPiano pianifica(uint32_t p_stato, uint32_t p_obiettivo,
 	const int32_t tetto = (p_tar.max_nodi < 256) ? p_tar.max_nodi : 256;
 	int32_t n_nodi = 0;
 
-	nodi[0] = { p_stato, 0.0, -1, OP_NESSUNO, 0, true };
+	nodi[0] = { p_stato, 0.0, 0.0, -1, OP_NESSUNO, 0, true };
 	n_nodi = 1;
 
 	int32_t espansioni = 0;
@@ -183,7 +186,11 @@ EsitoPiano pianifica(uint32_t p_stato, uint32_t p_obiettivo,
 				continue; // un operatore che non cambia niente è un cappio
 			}
 			const double g = nodi[migliore].g + costo;
-			if (g > p_tar.budget_secondi) {
+			// IL TETTO SI APPLICA ALL'IMPEGNO, non al costo: vedi
+			// `occupa_il_corpo` in sistema_piani.h.
+			const double imp = nodi[migliore].impegno
+					+ (d.occupa_il_corpo ? costo : 0.0);
+			if (imp > p_tar.budget_secondi) {
 				continue; // più lungo del tetto d'impegno: non entra
 			}
 			// CHIUSA per scansione: se questo stato è già stato raggiunto a
@@ -207,7 +214,7 @@ EsitoPiano pianifica(uint32_t p_stato, uint32_t p_obiettivo,
 				out.n = 0;
 				return out;
 			}
-			nodi[n_nodi] = { nuovo, g, migliore, o, nodi[migliore].prof + 1, true };
+			nodi[n_nodi] = { nuovo, g, imp, migliore, o, nodi[migliore].prof + 1, true };
 			n_nodi++;
 		}
 	}

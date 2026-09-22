@@ -9241,6 +9241,52 @@ silenzio. macOS/Linux non ce l'hanno perché ereditano `godot_env`.
   dopo. Il costo è un ERROR per corsa, cioè rumore che insegna a non leggere
   gli errori: il gradino prima di non accorgersi di quelli veri.
 
+### IL BUDGET DEI PIANI MISURAVA L'ATTESA DEL GIOCATORE
+
+`TaraturaPiani.budget_secondi` (40 s) è, per il suo stesso commento, **«il
+tetto d'impegno dell'agenda»**: per quanto tempo quel corpo resta occupato. Ma
+veniva confrontato col **costo cumulativo**, e `chiedi_cibo`/`chiedi_cura`
+costano **26,6 s** — che non sono tempo di corpo: il vicino scrive il
+biglietto e se ne va, e `_piano_dirotta` gli dà `next_act = 9.0`. Quei 26,6
+secondi sono **la latenza con cui il giocatore porterà la mela**.
+
+Restavano quindi 13,4 s di cammino, cioè `13.4 × PASSO` = **18,09 m** —
+mentre `Visitors._luoghi_del_piano` cerca la Lavagna fino a **60 m**. In mezzo
+c'erano quarantadue metri in cui `lavagna_pronta` si accendeva,
+`OP_VAI_LAVAGNA` apriva il suo nodo, e poi il `chiedi` sfondava il budget:
+`pianifica` tornava vuoto, `_piano_dirotta` tornava `false`, e **la scena della
+Fase 3 non succedeva senza una traccia**.
+
+MISURATO col risolutore vero, prima e dopo:
+
+| Lavagna a | prima | dopo |
+|---|---|---|
+| 18,0 m | piano (costo 39,9) | piano |
+| **18,5 m** | **`esito 2`, niente** | piano |
+| 20 m | niente | piano (costo 41,4) |
+| 40 m | niente | piano (costo 56,2) |
+| 200 m | niente | **niente** — ed è giusto |
+
+La cura separa le due grandezze: `OperatoreDef.occupa_il_corpo` (di serie
+`true`, `false` per i due `chiedi`), e il tetto si applica all'**impegno**
+mentre il **costo** resta quello dell'A\*. Così «chiedere costa più che
+andarselo a prendere» — che è voluto e documentato — non cambia di un
+millesimo, e il test che lo sorveglia resta verde.
+
+⚠️ **E il budget deve ancora MORDERE**: duecento metri di cammino sono 148 s
+di corpo occupato e il piano si rifiuta. Senza quella controprova, «non conta
+l'attesa» sarebbe diventato «non conta niente».
+
+⚠️ **Residuo dichiarato:** il tetto vero è ora `40 s × 1,35` = **54 m**, e il
+villaggio cerca la Lavagna a 60. Restano sei metri in cui il fatto si accende
+e il piano viene rifiutato — ma adesso è il rifiuto **giusto** (quel cammino è
+davvero più lungo del tetto), non un artefatto. Non si scrive 54 a mano:
+sarebbe la gemella del budget, che vive in C++ e non ha un getter.
+
+⚠️ E il caso che copriva questa scena non poteva vederla: usava
+`VICINI = [2.0, 2.0, 2.0, 2.0, 2.0]`, cioè **tutti i luoghi a 2,7 metri**. Un
+banco che mette tutto addosso non prova mai un budget.
+
 ### I FIORI SONO TRE POPOLAZIONI, NON DUE
 
 Il difetto «I FIORI SI ACCUCCIANO SOTTO I PAVIMENTI» era stato pagato una

@@ -102,6 +102,19 @@ struct OperatoreDef {
 	uint32_t aggiunge = 0;
 	uint32_t toglie = 0;
 	double costo_base = 0.0; // secondi; ai trasferimenti si somma la rotta
+	// !!! COSTO e IMPEGNO sono due cose diverse, e confonderle ha ucciso una
+	// scena. Il COSTO serve all'A* per scegliere fra due piani; l'IMPEGNO e'
+	// per quanto tempo il CORPO resta occupato, ed e' quello che il budget
+	// misura («il tetto d'impegno dell'agenda», qui sotto). `chiedi_*` costa
+	// 26,6 s perche' la mela arriva quando il giocatore la porta — ma il
+	// corpo non e' occupato per niente: scrive il biglietto e se ne va
+	// (`Visitors._piano_dirotta` gli da' `next_act = 9.0`). Addebitarlo al
+	// budget lasciava 13,4 s di cammino, cioe' **18,09 m**, mentre il
+	// villaggio cerca la Lavagna fino a 60: in mezzo c'erano quarantadue
+	// metri in cui il fatto si accendeva e il piano veniva scartato SENZA
+	// una traccia. MISURATO col risolutore vero: piano a 18,0 m, niente a
+	// 18,5 m.
+	bool occupa_il_corpo = true;
 };
 
 const OperatoreDef *operatori();
