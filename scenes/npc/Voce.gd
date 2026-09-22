@@ -158,6 +158,21 @@ static func pesca_voce(nome: String, dati: Dictionary, oggi: int) -> Dictionary:
 	for k in marchi:
 		if not str(k).begins_with("luogo|"):
 			continue
+		# ⚠️ **SE NON SO COME SI CHIAMA, NON NE PARLO.** `LUOGO_DETTO` ha
+		# cinque voci, ma un marchio `luogo|` lo può scrivere chiunque — e
+		# da quando «essere guardati» è cablato ne esiste una famiglia
+		# intera che si chiama `sguardo_7_-12` (la CELLA da cui il giocatore
+		# stava a guardare, `Osservare.marchio_del_posto`). Senza questo
+		# cancello, `_frase_confidenza` ripiegava sull'id crudo e Mochi si
+		# sentiva sussurrare «C'è un posto dove non riesco più a passare…
+		# sguardo_7_-12.»
+		#
+		# Il silenzio è il comportamento normale: il marchio continua a
+		# vivere e a far girare al largo quel vicino — è il canale del
+		# CORPO, e quello si vede — ma non diventa una frase finché
+		# qualcuno non gli dà un nome.
+		if not LUOGO_DETTO.has(str(k).trim_prefix("luogo|")):
+			continue
 		var carica: float = float((marchi[k] as Dictionary).get("carica", 0.0))
 		if carica < -PAURA_SOGLIA and carica < carica_peggio:
 			carica_peggio = carica
@@ -645,6 +660,9 @@ func _frase_confidenza(voce: Dictionary) -> String:
 	var dettaglio := str(voce.get("dettaglio", ""))
 	match str(voce.get("famiglia", "")):
 		"paura":
+			# ⚠️ IL RIPIEGO RESTA, ma adesso è irraggiungibile da `pesca_voce`
+			# (che scarta i posti senza nome). È la rete per un chiamante
+			# futuro, non la porta da cui usciva `sguardo_7_-12`.
 			var luogo := str(LUOGO_DETTO.get(dettaglio, dettaglio))
 			return L10n.tf("%s, piano: «C'è un posto dove non riesco più a passare… %s.»",
 					[da, L10n.t(luogo)])

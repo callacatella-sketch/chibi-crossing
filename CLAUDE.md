@@ -1298,6 +1298,30 @@ immaginate):**
   su una persona attecchiva più di una sul re del villaggio. È la via più
   corta perché una storia triste diventi una gogna.
 
+## ⚠️ «C'È UN POSTO DOVE NON RIESCO PIÙ A PASSARE… sguardo_7_-12.»
+
+`Voce.LUOGO_DETTO` ha **cinque** voci (catasta, orto, cucina, confine,
+bosco), ma un marchio `luogo|` lo può scrivere **chiunque** — e da quando
+«essere guardati» è cablato ne esiste una famiglia intera che si chiama
+`sguardo_7_-12`: è la **cella** da cui il giocatore stava a guardare
+(`Osservare.marchio_del_posto`). `_frase_confidenza` ripiegava sull'id crudo,
+e Mochi si sentiva sussurrare un identificatore di sistema.
+
+⚠️ **È una porta che ha aperto il cablaggio di `Osservare`**, cioè una cura
+di poche ore prima: un canale nuovo che passa da una tabella vecchia, e la
+tabella non aveva modo di saperlo.
+
+Il cancello sta dove si PESCA, non dove si scrive la frase: *se non so come
+si chiama, non ne parlo*. Il marchio continua a vivere e a far girare al
+largo quel vicino — quello è il canale del **corpo**, e si vede — ma non
+diventa una frase finché qualcuno non gli dà un nome. **Il silenzio è il
+comportamento normale.**
+
+Due mutazioni su due asserzioni, e la seconda è la **controprova**: fra un
+posto senza nome più carico e uno con un nome, si dice quello che si sa dire
+— un cancello che scartasse tutto sarebbe verde sulla prima e spegnerebbe la
+porta della paura per sempre.
+
 ## ⚠️ IL VOLTO DEL PASTO NON SI VEDEVA MAI
 
 `Visitor._pasto_recita` scrive **cinque** espressioni lungo il rituale —

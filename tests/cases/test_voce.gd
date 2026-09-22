@@ -94,6 +94,33 @@ func _test_pesca_paura(t) -> void:
 	voce = VOCE.pesca_voce("riccio-1", {"marchi": {"chi|giocatore": {"carica": -0.9}}}, 3)
 	t.ok(voce.is_empty(), "un marchio su una persona non è una paura di luogo")
 
+	# ⚠️ **E UN LUOGO CHE NON SA DIRE COME SI CHIAMA NON SI CONFIDA.**
+	# `LUOGO_DETTO` ha cinque voci, ma un marchio `luogo|` lo può scrivere
+	# chiunque — e da quando «essere guardati» è cablato ne esiste una
+	# famiglia intera che si chiama `sguardo_7_-12` (la CELLA da cui il
+	# giocatore stava a guardare, `Osservare.marchio_del_posto`). Senza il
+	# cancello, `_frase_confidenza` ripiegava sull'id crudo e Mochi si
+	# sentiva sussurrare «C'è un posto dove non riesco più a passare…
+	# sguardo_7_-12.»
+	#
+	# Il silenzio è il comportamento normale: il marchio continua a vivere
+	# e a far girare al largo quel vicino — quello è il canale del CORPO, e
+	# si vede — ma non diventa una FRASE finché non ha un nome.
+	voce = VOCE.pesca_voce("riccio-1",
+			{"marchi": {"luogo|sguardo_7_-12": {"carica": -0.9}}}, 3)
+	t.ok(voce.is_empty(),
+			"un posto senza nome non diventa una confidenza (%s)" % str(voce))
+
+	# ⚠️ LA CONTROPROVA, e serve: un cancello che scartasse TUTTO sarebbe
+	# verde qui sopra e spegnerebbe la porta della paura per sempre. Fra un
+	# posto senza nome PIÙ carico e uno con un nome, si dice quello che si
+	# sa dire.
+	voce = VOCE.pesca_voce("riccio-1", {"marchi": {
+			"luogo|sguardo_7_-12": {"carica": -0.95},
+			"luogo|catasta": {"carica": -0.55}}}, 3)
+	t.eq(str(voce.get("dettaglio", "")), "catasta",
+			"…e fra i due si dice quello che ha un nome, non il più carico")
+
 
 ## Un torto: il lavoro che TRADISCE il sogno (Animo.COMPITI), non un
 ## semplice «non è quello che sognavo».
