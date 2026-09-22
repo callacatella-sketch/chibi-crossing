@@ -16,6 +16,8 @@ const RIASSUNTO := preload("res://scenes/ui/RiassuntoSalvataggio.gd")
 const TITOLO := preload("res://scenes/ui/TitleScreen.gd")
 const ALBERO := preload("res://scenes/world/AlberoGeo.gd")
 const L := preload("res://systems/L10n.gd")
+const ATTORE := preload("res://scenes/ui/AttoreTitolo.gd")
+const DNA := preload("res://scenes/npc/ChibiDNA.gd")
 
 
 func run(t) -> void:
@@ -27,6 +29,7 @@ func run(t) -> void:
 	_test_nel_lutto_non_gioca_nessuno(t)
 	_test_la_vivacita_segue_il_clima(t)
 	_test_ogni_sottotitolo_e_tradotto(t)
+	_nel_lutto_la_coda_non_scodinzola(t)
 
 
 ## Un salvataggio finto ma della forma vera.
@@ -210,3 +213,58 @@ func _test_ogni_sottotitolo_e_tradotto(t) -> void:
 			"e i climi non dicono tutti la stessa cosa (%d frasi diverse)"
 			% viste.size())
 	L.imposta(prima)
+
+
+## ⚠️ NEL LUTTO LA CODA NON SCODINZOLA, E LE GINOCCHIA RESTANO PIEGATE.
+##
+## «Il lutto si dice TOGLIENDO» e «nel lutto nessuno si rincorre» sono le
+## regole scritte in casa per questo menu. Ma `AttoreTitolo._process` chiude
+## con `_andatura.applica()`, che gira DOPO il mestiere e riscrive:
+##
+##  · `coda.rotation.y = sin(wag) * tail_amp` — e `wag` avanza anche da
+##    fermi, perche' sta FUORI dal blocco `if v > VELOCITA_FERMO`;
+##  · `gamba.rotation.x = -sin(pp) * 0.6 * blend`, che a corpo fermo vale
+##    **zero**.
+##
+## `_fa_veglia` scrive proprio quei due canali (coda a 0.0, ginocchia a
+## −1.35): venivano cancellati tutti e due. Nel clima di LUTTO — dove
+## `RegiaDiorama` mette «veglia» in **tre slot su quattro** — il menu
+## mostrava quindi un chibi **in piedi con la coda che scodinzola**.
+##
+## MISURATO sull'attore vero, novanta fotogrammi: prima **coda.y +0.1109 e
+## ginocchio 0.0000**; dopo **0.0000 e −1.2798**.
+##
+## ⚠️ L'esenzione esisteva gia' per «altalena», col suo perche' scritto
+## accanto: e' quell'asimmetria a nominare il difetto. Adesso e' un elenco
+## di chi ha una posa SUA (`POSA_PROPRIA`), non un nome solo.
+func _nel_lutto_la_coda_non_scodinzola(t) -> void:
+	var misure := {}
+	for mest in ["veglia", "annusa"]:
+		var a = ATTORE.new()
+		t.stage(a)
+		a.call("costruisci", DNA.generate(7), 7)
+		a.call("cambia_mestiere", mest)
+		var parti: Dictionary = a.get("_parti")
+		if not parti.has("tail"):
+			t.ok(false, "l'attore di prova ha un rig (senza, il caso non prova niente)")
+			return
+		for _i in 90:
+			a._process(1.0 / 60.0)
+		var gambe: Array = parti.get("legs", [])
+		misure[mest] = [
+			absf((parti["tail"] as Node3D).rotation.y),
+			(gambe[0] as Node3D).rotation.x if gambe.size() > 0 else 0.0,
+		]
+
+	t.almost(float((misure["veglia"] as Array)[0]), 0.0,
+			"nella veglia la coda sta FERMA: il lutto si dice togliendo", 0.001)
+	t.ok(float((misure["veglia"] as Array)[1]) < -0.8,
+			"…e le ginocchia restano piegate (%.4f)"
+					% float((misure["veglia"] as Array)[1]))
+
+	# ⚠️ LA CONTROPROVA: gli ALTRI mestieri devono continuare a dondolare,
+	# o una cura che spegne `applica()` per tutti passerebbe uguale — e il
+	# diorama diventerebbe una fila di statue.
+	t.ok(float((misure["annusa"] as Array)[0]) > 0.02,
+			"e chi non e' in veglia continua a muovere la coda (%.4f)"
+					% float((misure["annusa"] as Array)[0]))

@@ -958,6 +958,38 @@ La semina viene dal tempo vero: chi fa cosa, e dove, cambia a ogni
 apertura. **L'albero no** — quello ha semina fissa: è *il* tuo albero, non
 deve rifarsi la chioma ogni volta.
 
+> ### ⚠️ E NEL LUTTO LA CODA SCODINZOLAVA
+>
+> `AttoreTitolo._process` chiude con `_andatura.applica()`, che gira **dopo**
+> il mestiere e riscrive due canali: `coda.rotation.y = sin(wag) · tail_amp`
+> — e `wag` avanza **anche da fermi**, perché sta fuori dal blocco
+> `if v > VELOCITA_FERMO` — e `gamba.rotation.x = −sin(pp) · 0.6 · blend`,
+> che a corpo fermo vale **zero**.
+>
+> `_fa_veglia` scrive proprio quei due canali (coda a 0.0, ginocchia a
+> −1.35): venivano cancellati tutti e due. E nel clima di **lutto**
+> `RegiaDiorama` mette «veglia» in **tre slot su quattro** — quindi il menù
+> mostrava un chibi **in piedi con la coda che scodinzola**, che è l'esatto
+> contrario della regola scritta due paragrafi più su.
+>
+> **MISURATO** sull'attore vero, novanta fotogrammi:
+>
+> | | coda.y | ginocchio.x |
+> |---|---|---|
+> | veglia, prima | **+0.1109** | **0.0000** |
+> | veglia, dopo | **0.0000** | **−1.2798** |
+> | «annusa», dopo | +0.1397 | 0.0000 — *invariato* |
+>
+> ⚠️ **L'esenzione esisteva già per «altalena»**, col suo perché scritto
+> accanto: è quell'asimmetria a nominare il difetto. Adesso è un elenco di
+> chi ha una posa SUA (`POSA_PROPRIA`), non un nome solo — e `rilassa()` è
+> la cura giusta per tutti e due **non per caso**: tocca `coda.rotation.X`
+> (non la Y del dondolio) e le braccia, e le gambe non le guarda affatto.
+>
+> Due mutazioni, due asserzioni diverse — e la seconda è la **controprova**:
+> spegnendo `applica()` per tutti, il diorama diventerebbe una fila di
+> statue, e quel caso lo dice.
+
 **Le regole che lo tengono in piedi** (guardia:
 [`tests/cases/test_menu_vivo.gd`](tests/cases/test_menu_vivo.gd)):
 

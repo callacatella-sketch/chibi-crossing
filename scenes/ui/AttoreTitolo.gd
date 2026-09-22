@@ -25,6 +25,12 @@ const FACE := preload("res://scenes/characters/FaceController.gd")
 const MESTIERI := ["rincorre", "scappa", "seduto", "gioca", "altalena",
 		"dorme", "saluta", "annusa", "veglia", "guarda_in_su"]
 
+## ⚠️ I MESTIERI CHE SI SCRIVONO LA POSA DA SÉ, e a cui `Andatura.applica()`
+## la cancellerebbe. Per loro si chiama `rilassa()`, che porta a riposo la
+## coda (sulla X) e le braccia senza toccare il resto. Non è un elenco di
+## eccezioni: è l'elenco di chi ha una posa SUA.
+const POSA_PROPRIA := ["altalena", "veglia"]
+
 var mestiere := "seduto"
 ## Il centro attorno a cui si svolge il mestiere (l'albero, di solito).
 var perno := Vector3.ZERO
@@ -285,6 +291,21 @@ func _process(delta: float) -> void:
 	# Visitor.gd: la sua `_gait_chibi()` (l'equivalente di applica()) la
 	# chiamano SOLO `_anim_move` e `_anim_idle`, mai `_anim_sit` o
 	# `_anim_dorme` — le pose dedicate si scrivono l'intera posa e basta.
+	# ⚠️ **E LA VEGLIA STA QUI DAL 2026-09-22, che è il lutto del menù.**
+	# `_fa_veglia` scrive `tail.rotation.y = 0.0` (la coda FERMA) e piega le
+	# ginocchia con `gamba.rotation.x = -1.35 * q`. `applica()` riscriveva
+	# tutte e due: `coda.rotation.y = sin(wag) * tail_amp` — e `wag` avanza
+	# anche da fermi, perché sta FUORI dal blocco `if v > VELOCITA_FERMO` —
+	# e `gamba.rotation.x = -sin(pp) * 0.6 * blend`, che a corpo fermo vale
+	# **zero**. Nel clima di LUTTO (`RegiaDiorama`: tre slot su quattro sono
+	# «veglia») il menù mostrava quindi un chibi in piedi **con la coda che
+	# scodinzola** — cioè l'esatto contrario della regola scritta in casa:
+	# «il lutto si dice TOGLIENDO», e «nel lutto nessuno si rincorre».
+	#
+	# `rilassa()` è la cura giusta per tutti e due i mestieri, e non per
+	# caso: tocca `coda.rotation.X` (non la Y del dondolio) e le braccia, e
+	# le gambe non le guarda affatto.
+	#
 	# Qui applica() da sola non basta a far scendere `blend` a zero: anche a
 	# blend quasi zero SOVRASCRIVE incondizionatamente `_vis.rotation.x` e le
 	# gambe con "-0.05*blend - 0.28*eta" e "0" — cancellando l'inclinazione
@@ -292,7 +313,7 @@ func _process(delta: float) -> void:
 	# scritto due righe più su. `rilassa()` invece tocca solo coda e
 	# braccia (che `_fa_altalena` non usa), portandole alla posa di riposo
 	# senza toccare il resto: il corpo e le gambe restano quelli veri.
-	if mestiere == "altalena":
+	if mestiere in POSA_PROPRIA:
 		_andatura.rilassa(delta)
 	else:
 		_andatura.applica()
