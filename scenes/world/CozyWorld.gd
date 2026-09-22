@@ -3736,6 +3736,23 @@ func _register_leaf(mat: ShaderMaterial, a: Color, b: Color, klass: String,
 	mat.set_shader_parameter("chioma_base", base)
 	mat.set_shader_parameter("chioma_span", span)
 	_leaf_mats.append({"mat": mat, "a": a, "b": b, "klass": klass})
+	# ⚠️ **E LA STAGIONE DI ADESSO, SUBITO.** `_apply_season` è l'unico
+	# scrittore di `color_a`/`color_b`, e gira solo quando la stagione
+	# CAMBIA: una chioma registrata dopo l'ultimo cambio restava coi colori
+	# di nascita fino al successivo. Alla generazione non si vede (quei
+	# materiali nascono prima di `_init_season`, che li ridipinge tutti), ma
+	# un albero RICRESCIUTO in autunno restava verde per una stagione
+	# intera — e in inverno, per tre settimane di gioco.
+	# La tinta la decide `GEO.leaf_target`, la stessa di `_apply_season`:
+	# una seconda formula qui sarebbe la tabella gemella.
+	# ⚠️ E SOLO SE LA STAGIONE SI SA: `_season` parte da **−1**, e il ramo di
+	# serie di `leaf_target` è l'INVERNO — dipingerebbe di brina tutte le
+	# chiome alla generazione. Con il cancello, alla generazione non cambia
+	# un bit (ci pensa `_init_season`, che gira alla fine) e a runtime la
+	# chioma nasce già della stagione in corso.
+	if _season >= 0:
+		mat.set_shader_parameter("color_a", GEO.leaf_target(a, klass, _season))
+		mat.set_shader_parameter("color_b", GEO.leaf_target(b, klass, _season))
 
 
 ## Quanto si piega ogni famiglia di fronde. Non è un numero solo: una chioma

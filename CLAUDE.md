@@ -1266,6 +1266,34 @@ immaginate):**
   su una persona attecchiva più di una sul re del villaggio. È la via più
   corta perché una storia triste diventi una gogna.
 
+## ⚠️ E UN ALBERO RICRESCIUTO IN AUTUNNO RESTAVA VERDE
+
+`CozyWorld._apply_season` è l'**unico** scrittore di `color_a`/`color_b`
+sulle chiome, e gira soltanto quando la stagione **cambia**. `_register_leaf`
+invece metteva il materiale in `_leaf_mats` coi colori di NASCITA e non
+guardava `_season`: una chioma registrata dopo l'ultimo cambio restava coi
+suoi verdi fino al successivo.
+
+Alla generazione non si vede — quei materiali nascono prima di
+`_init_season`, che li ridipinge tutti. Ma un albero **ricresciuto** nasce a
+mondo già fatto: in autunno restava verde per una stagione intera, in inverno
+per tre settimane di gioco.
+
+⚠️ **E IL CANCELLO SU `_season >= 0` NON È PRUDENZA.** `_season` parte da
+**−1**, e il ramo di serie di `GEO.leaf_target` è l'**INVERNO**: senza il
+cancello, tutte le chiome del mondo nascerebbero **imbiancate** e si
+vedrebbero brinate finché `_init_season` non gira. Alla generazione, quindi,
+questa cura non cambia **un bit** — misurato.
+
+La tinta la decide `GEO.leaf_target`, la stessa che usa `_apply_season`.
+Guardia in
+[`test_chioma_stagione.gd`](tests/cases/test_chioma_stagione.gd), **due
+mutazioni su asserzioni diverse** (6 rosse togliendo la cura, 1 togliendo il
+cancello) e due controprove: l'autunno dev'essere diverso dalla primavera —
+o una cura che scrive sempre lo stesso colore passerebbe tutto — e la
+**classe** deve arrivare fino in fondo, perché una conifera d'autunno resta
+verde.
+
 ## ⚠️ UN ALBERO TAGLIATO E SCAVATO RINASCEVA A OGNI CARICAMENTO
 
 `Woodcutting._planted` aveva **UN solo scrittore** (`_sprout_tree`) e nessuno
