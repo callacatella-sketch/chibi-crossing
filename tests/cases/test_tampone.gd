@@ -907,9 +907,19 @@ func _l_anagrafe_non_resta_indietro(t) -> void:
 	# caso proverebbe il proprio nulla invece della sostituzione.
 	_percetto(v)
 	var prima := _referto(v, "A")
+	# ⚠️ LE PARENTESI ATTORNO ALLA CONCATENAZIONE NON SONO STILE. In GDScript
+	# `%` lega più stretto di `+`: senza, la formattazione si applicava alla
+	# SECONDA stringa — che di segnaposti non ne ha — e Godot tirava «not all
+	# arguments converted» a ogni corsa della suite.
+	# MISURATO, perché la prima diagnosi era più severa del vero: quell'errore
+	# **non interrompe la funzione** (l'operatore `%` di Godot stampa e
+	# restituisce la stringa non formattata), e le asserzioni di questo caso
+	# giravano lo stesso — 1054 prima e 1054 dopo. Il costo era un ERROR per
+	# corsa e un messaggio senza il suo numero: non una guardia morta, ma
+	# rumore che insegna a non leggere gli errori, che è il gradino prima.
 	t.ok(float(prima.get("conforto", 0.0)) > 0.0,
-			"il banco parte da un tampone VIVO (conforto %.4f), o non prova"
-			+ " la sostituzione" % float(prima.get("conforto", 0.0)))
+			("il banco parte da un tampone VIVO (conforto %.4f), o non prova"
+			+ " la sostituzione") % float(prima.get("conforto", 0.0)))
 
 	# «Biscotto» — il compagno vero di A — se ne va, e un ESTRANEO ne eredita
 	# l'ETICHETTA: in questo villaggio l'unicità è imposta sulla label, quindi

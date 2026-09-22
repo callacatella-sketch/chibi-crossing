@@ -97,6 +97,15 @@ func _go() -> void:
 	build.call("set_persist_for_debug", false)
 	await create_timer(1.2).timeout
 
+	# ⚠️ **IL VILLAGGIO SI SVUOTA PRIMA.** Questo banco costruisce la scena che
+	# gli serve — due case, un cespuglio, una panchina — e poi guarda dove il
+	# corpo va e dove gira la testa. Sopra il salvataggio dell'autore quei
+	# posti erano annegati fra ottantaquattro pezzi e sedici cespugli: l'ancora
+	# della ricevuta e la meta del gesto cadevano altrove e il banco dichiarava
+	# rotta la Fase 5. MISURATO: sul villaggio dell'autore 6 guasti, su un
+	# villaggio vuoto 0 — stesso identico codice.
+	# (`debug_clear` non passa da `_try_remove`: non seppellisce strati.)
+	build.call("debug_clear")
 	visitors.call("debug_reset")
 	build.call("place_cell", CASA, "Letto", 0, false)
 	build.call("place_cell", CASA, "Tetto", 0, false)
@@ -311,7 +320,39 @@ func _go() -> void:
 					and scarto_alla_ricevuta <= VISITOR.tetto_ricevuta() + 0.15,
 			"e nell'istante in cui si paga il posto era DAVANTI a lui (%.1f°, tetto %.1f°)"
 					% [rad_to_deg(scarto_alla_ricevuta), rad_to_deg(VISITOR.tetto_ricevuta())])
-	_dico(girata, "la testa si è girata davvero (non è restata a zero)")
+	# ⚠️ **E SI PRETENDE UNA GIRATA SOLO SE C'ERA DA GIRARE.**
+	# Il collo si misura in ASSOLUTO, ma quanto deve muoversi lo decide la
+	# GEOMETRIA della scena: se all'istante della ricevuta il posto sta già
+	# quasi davanti al corpo, la testa arriva sul bersaglio muovendosi di
+	# pochissimo — e quel poco NON è un guasto, è il caso in cui non c'era
+	# niente da fare. È la stessa lezione che sta scritta in `test_deduzioni`:
+	# «il posto raggiungibile non sta davanti — davanti la testa è già
+	# puntata, e il residuo resterebbe minuscolo anche con lo sguardo spento».
+	# MISURATO: con 1,6° di scarto iniziale il collo si muoveva di 5,2° e il
+	# banco dichiarava rotta una scena in cui la testa aveva puntato il posto
+	# a 0,0°. Un banco che accusa il gioco della propria inquadratura manda a
+	# cercare nel posto sbagliato.
+	# QUANTO deve girarsi lo decide la GEOMETRIA, non una costante: se il
+	# posto sta già quasi davanti, la testa ci arriva muovendosi di pochissimo,
+	# e pretendere un'imbardata grossa vorrebbe dire accusare il gioco della
+	# propria inquadratura. L'invariante che regge a qualunque geometria è
+	# un'altra, ed è quella che il giocatore vede: **la testa CHIUDE lo
+	# scarto**. L'imbardata in assoluto si pretende solo quando c'è abbastanza
+	# strada da fare perché si veda (il doppio della soglia di `girata`).
+	if scarto_alla_ricevuta > deg_to_rad(2.0):
+		_dico(picco <= maxf(deg_to_rad(2.0), scarto_alla_ricevuta * 0.5),
+				"la testa ha CHIUSO lo scarto (da %.1f° a %.1f°)"
+						% [rad_to_deg(scarto_alla_ricevuta), rad_to_deg(picco)])
+	else:
+		print(("        (alla ricevuta il posto era già sul muso (%.1f°): non"
+				+ " c'era nessuno scarto da chiudere)")
+				% rad_to_deg(scarto_alla_ricevuta))
+	if scarto_alla_ricevuta > 0.24:
+		_dico(girata, "e si è girata davvero (non è restata a zero)")
+	else:
+		print(("        (%.1f° di scarto: sotto il doppio della soglia di lettura"
+				+ " — l'imbardata in assoluto non è misurabile in questa scena)")
+				% rad_to_deg(scarto_alla_ricevuta))
 	_dico(picco < deg_to_rad(25.0),
 			"e ha puntato il posto (minimo %.1f° a t=%.2f)" % [rad_to_deg(picco), t_picco])
 	_dico(t_pronta > t_ricevuta,

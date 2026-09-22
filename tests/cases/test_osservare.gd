@@ -13,6 +13,7 @@ func run(t) -> void:
 	_il_peso_si_accumula(t)
 	_i_numeri_vengono_da_altrove(t)
 	_la_chiave_esiste(t)
+	_il_villaggio_guarda_davvero(t)
 
 
 ## ⚠️ **CHI GUARDA NORMALMENTE NON INCONTRA MAI QUESTA COSA.** È la garanzia
@@ -124,3 +125,118 @@ func _la_chiave_esiste(t) -> void:
 	t.ok(not m.evita(posto),
 			("e dodici giornate lo consumano comunque (%.3f): l'estinzione "
 			+ "vale anche qui") % m.carica_di(posto))
+
+
+## ⚠️ **QUESTA MECCANICA ESISTE IN PARTITA, o è una libreria che nessuno apre.**
+##
+## È la guardia che mancava, e la sua assenza è costata l'intera meccanica:
+## `Osservare.gd` è stato consegnato completo, provato, con i suoi numeri
+## MISURATI e una sezione nel CLAUDE.md — e **zero chiamanti di qualunque
+## tipo**. Tutte le altre asserzioni di questo file restavano verdi, perché
+## provano la REGOLA e non il cablaggio. È la firma numero uno di questo
+## progetto, e in questa tornata l'ha presa tre volte.
+##
+## Qui si fa girare `Visitors._tick_osservati` VERO, col corpo VERO (le tre
+## valvole passano da `Percezione.puo_vedere`, che chiama `is_hidden`, `dorme`
+## e `in_scena` su quel nodo) e il `Limbico` VERO.
+class Registro extends "res://scenes/npc/Visitors.gd":
+	func _ready() -> void:
+		set_process(false)
+		set_physics_process(false)
+
+	func _process(_d: float) -> void:
+		pass
+
+
+func _il_villaggio_guarda_davvero(t) -> void:
+	var vis = Registro.new()
+	t.stage(vis)
+	var mochi := Node3D.new()
+	t.stage(mochi)
+	mochi.global_position = Vector3(0, 0, 0)
+	vis.set("_player", mochi)
+
+	var corpo := Node3D.new()
+	corpo.set_script(preload("res://scenes/npc/Visitor.gd"))
+	t.stage(corpo)
+	corpo.set("dna", preload("res://scenes/npc/ChibiDNA.gd").generate(1717))
+	corpo.set("mode", "resident")
+	corpo.global_position = Vector3(0, 0, 2.0)      # dentro OSS.RAGGIO
+	var animo = preload("res://scenes/npc/Animo.gd").new()
+	animo.setup({"name": "Guardato", "tratti": {}, "sogno": "casa"})
+	(vis.get("_residents") as Array).append({
+		"label": "G", "cell": Vector2i(0, 0), "species": "chibi",
+		"node": corpo, "dna": corpo.get("dna")})
+	(vis.get("_animi") as Dictionary)["G"] = animo
+
+	var luogo := OSS.luogo_di(Vector2i(0, 0))
+	t.almost(float(animo.limbico.carica_di(luogo)), 0.0,
+			"il posto nasce senza marchio", 1e-9)
+
+	# --- 1) il Fiato Sospeso tenuto addosso, ben oltre la pazienza
+	vis.call("set_calma", 1.0, Vector3.ZERO)
+	for _i in int(90.0 / 0.25):
+		vis.call("_tick_osservati", 0.25)
+	# finché dura non è ancora successo niente: si paga alla FINE
+	t.almost(float(animo.limbico.carica_di(luogo)), 0.0,
+			"mentre dura non si è ancora inciso niente", 1e-9)
+	# il giocatore si alza: l'episodio si chiude
+	vis.call("set_calma", 0.0, Vector3.ZERO)
+	vis.call("_tick_osservati", 0.25)
+	var carica: float = float(animo.limbico.carica_di(luogo))
+	t.ok(carica < -0.05,
+			"novanta secondi di sguardo tenuto caricano il POSTO (%.4f)" % carica)
+
+	# ⚠️ E IL SEGNO NON È SU DI TE: `attore` è vuoto apposta
+	t.almost(float(animo.limbico.carica_di("", "giocatore")), 0.0,
+			"…e non c'è nessun marchio sulla PERSONA del giocatore", 1e-9)
+
+	# --- 2) LA CONTROPROVA: un'occhiata normale non lascia niente
+	var vis2 = Registro.new()
+	t.stage(vis2)
+	var mochi2 := Node3D.new()
+	t.stage(mochi2)
+	mochi2.global_position = Vector3(20, 0, 20)
+	vis2.set("_player", mochi2)
+	var corpo2 := Node3D.new()
+	corpo2.set_script(preload("res://scenes/npc/Visitor.gd"))
+	t.stage(corpo2)
+	corpo2.set("dna", preload("res://scenes/npc/ChibiDNA.gd").generate(1818))
+	corpo2.set("mode", "resident")
+	corpo2.global_position = Vector3(20, 0, 22.0)
+	var animo2 = preload("res://scenes/npc/Animo.gd").new()
+	animo2.setup({"name": "Sereno", "tratti": {}, "sogno": "casa"})
+	(vis2.get("_residents") as Array).append({
+		"label": "S", "cell": Vector2i(20, 20), "species": "chibi",
+		"node": corpo2, "dna": corpo2.get("dna")})
+	(vis2.get("_animi") as Dictionary)["S"] = animo2
+	vis2.call("set_calma", 1.0, Vector3.ZERO)
+	for _i in int(10.0 / 0.25):          # dieci secondi: sotto la PAZIENZA
+		vis2.call("_tick_osservati", 0.25)
+	vis2.call("set_calma", 0.0, Vector3.ZERO)
+	vis2.call("_tick_osservati", 0.25)
+	t.almost(float(animo2.limbico.carica_di(OSS.luogo_di(Vector2i(20, 20)))), 0.0,
+			"e un'occhiata di dieci secondi non lascia NIENTE", 1e-9)
+
+	# --- 3) ⚠️ E IL TICK DEVE GIRARE DAVVERO NEL `_process` DEL VILLAGGIO.
+	# I due blocchi qui sopra chiamano `_tick_osservati` a mano: provano la
+	# REGOLA, e resterebbero verdi anche togliendo la riga che la fa girare —
+	# cioè lascerebbero passare esattamente il difetto che questo caso esiste
+	# per chiudere (MISURATO: togliendo quella riga, 38 passati e 0 falliti).
+	# Il `_process` vero non si può far girare qui (vuole l'ECS, il
+	# BuildSystem, il cielo), quindi si guarda il SORGENTE — e lo si guarda
+	# **spogliato dei commenti**, col ferro dell'harness: questo file la
+	# chiamata la nomina apposta, e un guardiano ingenuo matcherebbe se stesso.
+	# ⚠️ `var src: String = …` e non `:=`: `load()` torna un valore non
+	# tipizzato, e l'inferenza non compila (è la trappola scritta nella
+	# convenzione dei test di questo progetto).
+	var src: String = load("res://tests/test_util.gd").codice(
+			"res://scenes/npc/Visitors.gd")
+	var i0 := src.find("func _process(delta")
+	t.ok(i0 >= 0, "il `_process` di Visitors si trova")
+	if i0 >= 0:
+		var i1 := src.find("\nfunc ", i0 + 8)
+		var corpo_process := src.substr(i0, (i1 - i0) if i1 > i0 else -1)
+		t.ok(corpo_process.contains("_tick_osservati("),
+				"e chiama `_tick_osservati` a ogni fotogramma: senza, tutto "
+				+ "`Osservare.gd` è una libreria che non apre nessuno")

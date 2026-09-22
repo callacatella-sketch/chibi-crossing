@@ -8976,6 +8976,234 @@ scaricano sono quelli **portati a termine**. Una brutta stagione lascia
 qualcosa, e quel qualcosa non se ne va aspettando. È meno di quello che il
 disegno prometteva, ed è quello che i numeri concedono.
 
+## LO STORMO — quello che una caccia con trentaquattro lenti ha trovato
+
+Trentaquattro agenti in sola lettura, una dimensione a testa (il cuore C++ per
+file, la psicologia per file, il mondo, la lingua, il salvataggio, la suite
+stessa, e sette cacce TRASVERSALI per classe di difetto), ognuno con la lista
+delle ventidue forme che i difetti prendono in questo progetto. Ogni
+segnalazione passata a scettici incaricati di **refutarla**, e ogni
+sopravvissuta riprodotta da me **da un'altra strada** prima di toccare una
+riga. Quello che segue è solo ciò che ha retto alla riproduzione.
+
+### ⚠️⚠️ QUATTRO MECCANICHE ERANO SPENTE IN PARTITA — e tre erano mie
+
+È la firma numero uno di questo progetto, e in una tornata sola l'ha presa
+**quattro volte**. Codice completo, provato, verde, documentato qui dentro
+come se fosse nel gioco, **e senza un solo chiamante**:
+
+| | il lettore c'era? | adesso |
+|---|---|---|
+| `Limbico.passo_carico()` — tutto il CARICO | no (solo `test_carico.gd`) | **cablato** in `Visitors`, accanto al passo della chimica |
+| `scenes/npc/Osservare.gd` — ESSERE GUARDATI | **no, di nessun tipo** | **cablato**: `Visitors._tick_osservati` |
+| `Limbico.phi()` · `dove_si_spezza()` | no | dichiarato: sono LETTURE senza superficie, e il commento adesso lo dice |
+| `src/neuroni.{h,cpp}` — 570 righe | no (nessun ponte) | dichiarato in testa al file: due strade, ed è una decisione dell'autore |
+
+**E c'era un secondo difetto dentro il primo.** `passo_carico` chiudeva con
+`neuro_base = NEURO_BASELINE.duplicate(); applica_tinta(neuro_base)` — cioè
+**cancellava i bisogni**: `Animo.sincronizza_neuro` scrive cinque canali su
+sette dai drive, e ripartire dalla baseline li buttava a ogni passo. È il
+difetto che la testata di `sincronizza_neuro` documenta di aver già pagato una
+volta, rifatto un piano più giù. Adesso il carico entra da dove entra la tinta
+del carattere (`applica_tinta`, uno SCARTO) e a rifare il punto di riposo è
+`Animo.passo_carico`, che possiede i bisogni.
+
+⚠️ **E la guardia che mancava non era sulla regola: era sul CABLAGGIO.** Le
+quindici asserzioni del carico e le trentotto di `Osservare` provavano
+l'aritmetica, e restavano verdi con la meccanica spenta. Adesso ce n'è una per
+ciascuna che chiama il ciclo VERO (`Visitors._ciclo_sonno`,
+`Visitors._tick_osservati`) e pretende che il numero si muova.
+⚠️ La prima stesura della guardia di `Osservare` era **muta**: chiamava
+`_tick_osservati` a mano, quindi togliere la riga dal `_process` la lasciava
+verde — cioè lasciava passare esattamente il difetto che esisteva per
+chiudere. Adesso guarda anche il corpo del `_process`, col sorgente spogliato
+dei commenti (questo file la chiamata la nomina apposta).
+
+### UN OMONIMO SPEGNEVA LE COPPIE DI CHI GLI VOLEVA BENE
+
+In questo villaggio **i nomi non sono unici**, e sta scritto in
+`Visitors.gd`: *«Le label sono uniche e i nomi no»* — `_spawn_candidate`
+rigenera il DNA finché è nuova la **label**, e cinque archetipi per ventotto
+nomi vuol dire che «il gattino Cannella» e «la volpina Cannella» convivono.
+Ma il libro mastro degli Affetti è indicizzato per NOME, e `_tutti()`
+accodava `dna.name` **senza deduplicare**.
+
+Dentro `il_piu_caro()` la seconda passata sullo stesso nome cadeva nel ramo
+`elif c > secondo` e portava `secondo` a **pareggiare** `quanto` — e poi il
+margine dell'elezione, che esiste per non scegliere a pari merito, trovava un
+pari merito FABBRICATO dal doppione e tornava `["", 0.0]`.
+
+MISURATO con le funzioni pure, stesso libro mastro e stessa storia:
+
+```
+coppia(Io, Cannella) senza omonimo = true
+coppia(Io, Cannella) CON omonimo   = false
+```
+
+Cioè: **chiunque avesse come più caro uno dei due omonimi non poteva formare
+coppia, mai, e senza un errore.** Il rimedio sta nella funzione PURA (che è
+statica e riceve l'elenco da quattro chiamanti diversi: una funzione pura deve
+reggere il proprio ingresso) e anche in `_tutti()`.
+⚠️ **Resta aperto, ed è un'altra cosa:** due omonimi CONDIVIDONO la riga del
+libro mastro, quindi i gesti dell'uno contano per l'altro. Quello è il residuo
+delle due anagrafi, e non si chiude di lì.
+
+### IL GRADO DEL LUTTO VALEVA ZERO PER TUTTI, SEMPRE
+
+`Animo.lutto(amico, consolato_da, quanto)` esiste perché una partenza non
+tocchi dodici persone allo stesso modo: il grado lo scrive il libro mastro.
+`Visitors.lutto_di` però faceva `affetto_fra(label, label_di_nome(amico))` —
+e quando il lutto si CHIUDE (`Congedo._giorno_di_lutto`, giorni dopo la
+partenza) il partito non è più in `_residents`: `label_di_nome` tornava `""`,
+`_nome_da_label("")` cadeva nel suo **ripiego silenzioso** (`return label`), e
+`quanto()` su una chiave vuota non trova nessuna riga.
+
+Una riga di ricordo con `intensita = 0` pesa zero. E `lutto_ignorato` verso il
+giocatore **non è scalato dal grado**: restava pieno. *Il dolore inerte e
+l'accusa intatta.*
+
+⚠️ **E la guardia c'era: mentiva il suo DOPPIO.** `test_animo.RegistroLutto`
+sovrascriveva `affetto_fra()` **e** `label_di_nome()`, cioè ri-implementava
+proprio l'attraversamento nome↔etichetta che `lutto_di` deve fare — con
+`label_di_nome` che tornava sempre `"X"` il giro andava a buon fine lì dentro
+e non poteva andare a buon fine in partita. È la lezione del `MotoreFinto`, un
+piano più in là: *un doppio che mente è peggio di nessun doppio*. Adesso detta
+un DATO (quanto vale quel legame) e il ponte resta quello del gioco, e che il
+ponte regga alla partenza lo prova `test_lutto_grado.gd`.
+
+### IL SALONE CANCELLAVA LA VECCHIAIA, PER SEMPRE
+
+`Visitor.rifai_il_look()` rifà il corpo (`_monta_corpo()` ne costruisce uno
+GIOVANE) e azzerava **solo** `_face`. I segni dell'autunno sono figli di
+`_vis` e se ne andavano col `queue_free()`; a non farli tornare erano tre
+cose insieme:
+
+- `_eta_dressed` restava acceso, e `_vesti_autunno()` ha il ramo
+  `if f >= 0.5 and not _eta_dressed`: **il bastoncino di ciliegio non tornava
+  MAI, per nessuno**;
+- `_skull_mat` puntava al materiale del cranio VECCHIO, quindi `_rughe_viso`
+  scriveva su un corpo che non esiste più;
+- `_orig_cols` è chiavato su `mat.get_instance_id()` di materiali morti.
+
+E `set_eta` esce subito se l'età non è cambiata di 0,005: per un anziano con
+`eta_f` SATURA a 1.0 quel valore non cambia più, quindi rughe e argento non
+tornavano nemmeno al giro del mattino. **Un danno permanente causato dal
+giocatore, e senza una chiave a forma di giocatore per ripararlo**: la prima
+domanda della REGOLA SACRA.
+
+⚠️ E l'oracolo della guardia ha dovuto essere rifatto: contare i segni
+«ancora validi» con `is_queued_for_deletion()` ne lasciava vivi cinque su sei,
+perché `queue_free()` su un figlio di `_vis` **non marca i suoi discendenti** e
+dentro un caso di test il fotogramma non avanza mai. Un segno c'è se è ancora
+**dentro il corpo di adesso**: si risale la catena dei genitori fino a `_vis`.
+
+### DUE RESIDENTI SULLA STESSA CELLA (cioè uno che sparisce)
+
+`is_bed_claimed(cell)` scorreva solo `_residents`, ma fra `_spawn_candidate`
+(che assegna una casa) e `_decide` (che mette il candidato in `_residents`)
+passano secondi veri. In quella finestra il letto risultava LIBERO, e
+`accogli_nato()` — la **nascita** — prende `_free_house()` senza guardare
+nessuno. Poi `_decide` accodava comunque, perché prima di accodare controllava
+solo che il letto ESISTESSE ancora.
+
+Il guasto non si vede subito: si vede al **caricamento dopo**, perché
+`load_extra` scarta ogni riga la cui cella è già presa. È la stessa catastrofe
+che il commento sopra `accogli_nato` racconta di aver già pagato («un bambino
+cancellato dal salvataggio è la cosa peggiore che questo sistema potesse
+fare»), entrata da un'altra porta.
+Adesso la cella promessa al candidato conta come presa, e `_decide` lo
+richiede prima di accodare — con un parametro, perché lì la domanda è «me
+l'ha preso qualcun **altro**?».
+
+### WINDOWS: `DEBUG_ENABLED` NON ERA MAI DEFINITO
+
+Il ramo `win32` dello `SConstruct` costruisce l'ambiente a mano e non definiva
+`DEBUG_ENABLED`, pur linkando `libgodot-cpp.windows.template_debug` — che
+godot-cpp compila CON quel define. E `binder_common.hpp` e `math_defs.hpp`
+cambiano il **corpo di funzioni inline/template** sotto di lui:
+`call_with_variant_args_helper` passa da `VariantCasterAndValidate` a
+`VariantCaster`, cioè la validazione degli argomenti dei metodi bindati c'è o
+non c'è. Due metà con due corpi diversi sono una violazione ODR, e la
+conseguenza pratica è che **la debug di Windows non ha i controlli che la
+debug di macOS e Linux hanno**: un errore che su un Mac si vede, lì è
+silenzio. macOS/Linux non ce l'hanno perché ereditano `godot_env`.
+⚠️ Da un Mac non è verificabile: **il giudice è la CI**.
+
+### LA SUITE: UNA SOGLIA FERMA E SEI SEGNAPOSTI CHE NON ESISTONO
+
+- **`test_localizzazione` accettava metà traduzione.** La soglia di copertura
+  era `>= 700` mentre la tabella inglese ha **1469 chiavi distinte**: si
+  potevano cancellare 769 voci — il **52%** — restando verdi. Portata a 1400,
+  con scritto perché va alzata e perché non si abbassa.
+- **GDScript non conosce `%e`.** I segnaposti sono `%s %c %d %o %x %X %f %v`:
+  un `%.2e` non è notazione scientifica, è un segnaposto che non esiste, e
+  Godot stampa «not all arguments converted» restituendo la stringa NON
+  formattata. Sei occorrenze in `test_intreccio.gd` (mie), più **due** `%`
+  legate alla stringa sbagliata (`test_tampone.gd`, `test_fiori.gd`): in
+  GDScript `%` lega più stretto di `+`, quindi senza parentesi attorno alla
+  concatenazione la formattazione si applica alla SECONDA stringa, che di
+  segnaposti non ne ha. **La suite adesso non stampa più un solo errore di
+  formattazione**, ed è il numero da tenere a zero: si conta con
+  `grep -c "String formatting error"` sull'uscita del runner, accanto ai
+  `SCRIPT ERROR`.
+  ⚠️ **E la prima diagnosi era più severa del vero**, corretta misurando:
+  quell'errore **non interrompe la funzione** — 1054 asserzioni prima e 1054
+  dopo. Il costo è un ERROR per corsa, cioè rumore che insegna a non leggere
+  gli errori: il gradino prima di non accorgersi di quelli veri.
+
+### ⚠️ TRE BANCHI VIVI ACCUSAVANO IL GIOCO DEL PROPRIO VILLAGGIO
+
+`prova_recinto` e `prova_deduzione` costruiscono la scena che gli serve e poi
+guardano il corpo — ma sopra il `village.json` di chi ci sta giocando quei
+pezzi annegavano fra ottantaquattro altri e **sedici cespugli**. Il
+pianificatore aveva ragione a non dirottare nessuno, e i banchi dichiaravano
+rotta la Fase 3 e la Fase 5.
+
+MISURATO, A/B con `CHIBI_VILLAGGIO` sullo **stesso identico codice**:
+
+| | villaggio dell'autore | villaggio ERMETICO |
+|---|---|---|
+| `prova_deduzione` | exit 1, **6 guasti** | exit 0, **0 guasti** |
+| `prova_recinto` | exit 1, **2 guasti** | exit 0, **0 guasti** |
+
+Adesso si svuotano il mondo da sé (`debug_clear`, che non passa da
+`_try_remove` e quindi non seppellisce strati). E `prova_arrivi`, che diceva
+«QUALCOSA NON TORNA» quando la causa vera era «non c'è nessuna casa libera»,
+adesso **dichiara la propria precondizione** e esce 2 invece di 1: un banco
+che non sa distinguere il guasto dalla condizione mancante manda a cercare nel
+posto sbagliato.
+
+**E due oracoli di banco erano sbagliati, non severi:**
+
+1. `prova_recinto` asseriva «cammina verso la LAVAGNA» con una tolleranza di
+   2,5 m — e il punto `(8.43, 5.19)`, che è **accanto a un altro cespuglio**,
+   dista 1,77 m dalla Lavagna. Verde su una scena in cui il corpo stava
+   andando a mangiare. Adesso chiede anche che sia più vicino alla Lavagna che
+   al cespuglio.
+2. `prova_deduzione` pretendeva che la testa si girasse «davvero», ma quanto
+   debba girarsi lo decide la GEOMETRIA: con 1,6° di scarto iniziale il collo
+   si muoveva di 5,2° e il banco dichiarava rotta una scena in cui la testa
+   aveva puntato il posto a **0,0°**. L'invariante che regge a qualunque
+   inquadratura è un'altra, ed è quella che il giocatore vede: **la testa
+   CHIUDE lo scarto**. L'imbardata in assoluto si pretende solo quando c'è
+   abbastanza strada da fare, e altrimenti il banco **dichiara che quella riga
+   non è misurabile** invece di accusare il gioco.
+
+### Come si rifà
+
+```bash
+Godot --headless --audio-driver Dummy --path . --script res://tests/test_runner.gd
+Godot --headless --audio-driver Dummy --path . --script res://tools/prova_recinto.gd
+Godot --headless --audio-driver Dummy --path . --script res://tools/prova_deduzione.gd
+CHIBI_VILLAGGIO=/tmp/vuoto/village.json Godot --headless --audio-driver Dummy \
+    --path . --script res://tools/prova_arrivi.gd
+```
+
+⚠️ **E non si modifica un sorgente MENTRE la suite gira**: i file che
+sottoclassano `Visitors.gd` si sono presi tre «non compilabile (errore di
+parse)» solo perché lo stavo scrivendo. Non era un difetto del codice, era il
+mio orologio contro il suo.
+
 ## Test
 
 Test-suite **dependency-free** (nessun addon, nessuna rete) in `tests/`:

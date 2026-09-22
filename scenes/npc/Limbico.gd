@@ -1257,6 +1257,15 @@ func _kappa() -> float:
 			0.0, 1.0), 0.0, 1.0)
 
 
+## ⚠️⚠️ **E OGGI NESSUNO LA CHIAMA — né questa né `phi()`.** Verificato il
+## 2026-09-22 su tutto `scenes/` e `systems/`: le due funzioni compaiono solo
+## nella propria definizione e nei test. Sono una LETTURA, non una meccanica
+## (non muovono un corpo, non decidono niente), e questo le rende meno gravi
+## del carico e di `Osservare.gd` — che erano meccaniche promesse e spente, e
+## che nella stessa tornata hanno avuto il loro lettore. Ma finché non c'è una
+## superficie che le mostra, quello che questo commento racconta è una cosa
+## che il giocatore non vede mai: chi legge non lo creda già successo.
+##
 ## ⚠️ **DOVE SI SPEZZEREBBE QUESTA MENTE, adesso.** I nomi dei canali, divisi
 ## nei due lati della partizione minima: `[["cortisolo", …], ["dopamina", …]]`.
 ## Vuoto se il sostrato non regge — e vuoto è anche la risposta onesta per la
@@ -1317,9 +1326,18 @@ func passo_carico(dt: float, atti := 0.0) -> void:
 	carico = clampf(carico, 0.0, 1.0)
 	if not is_finite(carico):
 		carico = prima
-	# il riposo si rifà: è l'unico posto da cui il carico tocca il mondo
-	neuro_base = NEURO_BASELINE.duplicate()
-	applica_tinta(neuro_base)
+	# ⚠️ **E IL RIPOSO NON SI RIFÀ QUI.** C'era
+	# `neuro_base = NEURO_BASELINE.duplicate(); applica_tinta(neuro_base)`, e
+	# quelle due righe **cancellavano i bisogni**: `Animo.sincronizza_neuro`
+	# scrive cinque canali su sette a partire dai drive, e ripartire dalla
+	# baseline li buttava tutti a ogni passo. È il difetto che la testata di
+	# `sincronizza_neuro` documenta di aver già pagato una volta — rifatto un
+	# piano più giù, e da me.
+	#
+	# Il carico entra nel mondo da `applica_tinta`, che è dove entra anche la
+	# tinta del carattere, e a chiamarla è `sincronizza_neuro` **dopo** aver
+	# scritto i bisogni. Rifare il punto di riposo è quindi mestiere di chi
+	# possiede i bisogni: `Animo.passo_carico` lo fa in coda, in un posto solo.
 
 
 ## Quanto pesa il carico su questa mente, adesso: 0 (niente) .. 1 (pieno).

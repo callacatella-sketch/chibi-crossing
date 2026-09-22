@@ -20,6 +20,7 @@ const GESTI := preload("res://scenes/npc/Gesti.gd")
 const POSTO := preload("res://scenes/world/PostoDiSempre.gd")
 const EREDITA := preload("res://scenes/npc/Eredita.gd")
 const CERCHIO := preload("res://scenes/npc/Cerchio.gd")
+const OSSERVA := preload("res://scenes/npc/Osservare.gd")
 const UI_BROWN := Color("6a4a3a")
 # Fino a ventotto vicini: il passaparola del Villaggio, le chiacchiere, le
 # indoli e le stravaganze rendono per densità — la scala dell'Animo produce
@@ -172,6 +173,14 @@ var _partiti_salvati := {}
 ## Il raffreddamento del sussulto: uno per residente, così la reazione
 ## istintiva scatta all'AVVICINARSI e non a ogni fotogramma.
 var _sussulto_cd := {}
+## ESSERE GUARDATI: per ogni label, da quanti secondi il giocatore la sta
+## osservando senza interruzioni, e da DOVE aveva cominciato. Non si salvano:
+## sono la stessa lettura derivata di `coppia()` — un episodio interrotto da
+## un caricamento non è mai esistito, ed è il verso giusto.
+var _osservato_da := {}
+var _osservato_dove := {}
+## La calma del giocatore, dal bus di `FiatoSospeso` (`calma_listener`).
+var _calma_ora := 0.0
 # LA STRADA LENTA in attesa: label -> secondi che restano prima che la
 # testa capisca chi è arrivato. Senza questa coda il sussulto restava una
 # reazione senza risoluzione — il vicino trasaliva e poi, semplicemente,
@@ -204,6 +213,10 @@ func _ready() -> void:
 	# può rigiocare. Era anche l'unico dado che i banchi dovevano riseminare
 	# a mano sapendone il nome (`prova_identico._semina_i_dadi`).
 	_chat_rng = Dadi.rng(Dadi.VILLAGGIO, "chiacchiere")
+	# la CALMA del giocatore arriva di qui, dal bus di `FiatoSospeso`: è la
+	# fonte unica, e ricalcolarla sarebbe la tabella gemella che quel file
+	# vieta per iscritto
+	add_to_group("calma_listener")
 	_player = get_node("%Player")
 	_build = get_node("../BuildSystem")
 	_daynight = get_node_or_null("../DayNight")
@@ -1205,9 +1218,35 @@ func _tick_capo(r: Dictionary, label: String, animo: RefCounted, nodo: Node3D) -
 	nodo.call("capo_pende", vuole)
 
 
-func is_bed_claimed(cell: Vector2i) -> bool:
+## ⚠️ **E IL CANDIDATO SULL'USCIO CONTA COME UNO CHE HA GIÀ PRESO IL LETTO.**
+## Fra `_spawn_candidate` (che gli assegna una casa) e `_decide` (che lo mette
+## in `_residents`) passano dei secondi veri, e in quella finestra il letto
+## risultava LIBERO a chiunque lo chiedesse. Il chiamante pericoloso non è
+## l'arrivo — quello gira solo con `_active == null` — è la **NASCITA**:
+## `accogli_nato()` prende `_free_house()` senza guardare nessuno, e si
+## sarebbe portata via proprio quel letto.
+##
+## Il guasto non si vedeva subito: si vedeva al CARICAMENTO DOPO, perché
+## `load_extra` scarta ogni riga la cui cella è già presa — cioè uno dei due
+## spariva dal villaggio senza un errore e senza una traccia. È la stessa
+## catastrofe che il commento sopra `accogli_nato` racconta di aver già
+## pagato («un bambino cancellato dal salvataggio è la cosa peggiore che
+## questo sistema potesse fare»), entrata da un'altra porta.
+##
+## Una funzione sola, due lettori (`_free_house` e `_decide`): il giorno che
+## qualcuno aggiunge un terzo modo di prendere un letto, lo eredita.
+## [param conta_il_candidato] va a `false` in un posto solo: `_decide()`, che
+## sta decidendo per il candidato stesso e si vedrebbe rifiutare il PROPRIO
+## letto. Lì la domanda è un'altra — «qualcun ALTRO me l'ha preso mentre ero
+## sull'uscio?» — ed è quella che serve prima di accodare.
+func is_bed_claimed(cell: Vector2i, conta_il_candidato := true) -> bool:
 	for r in _residents:
 		if r["cell"] == cell:
+			return true
+	if conta_il_candidato and _active != null and is_instance_valid(_active) \
+			and _active.get("mode") == "candidate":
+		var casa: Dictionary = _active.get("_house")
+		if casa != null and casa.get("cell", null) == cell:
 			return true
 	return false
 
@@ -1223,6 +1262,7 @@ func _process(delta: float) -> void:
 	_orologio_ms += delta * 1000.0
 	_tick_gesti(delta)
 	_tick_sussulti(delta)
+	_tick_osservati(delta)
 	_tick_confronti(delta)
 	_tick_partenze(delta)
 	# il prossimo ospite arriva col sereno, di giorno, quando non c'è nessuno
@@ -3166,6 +3206,18 @@ func _ciclo_sonno(delta: float, t_ora: float) -> void:
 			# BIT-IDENTICO a quello di prima (misurato su 600 fotogrammi).
 			if node.has_method("indossa_neuro"):
 				node.call("indossa_neuro", l.neuro)
+			# …E IL CARICO, che è l'altro orologio della stessa mente: quello
+			# della chimica misura minuti, questo misura GIORNATE (tre per
+			# prendersela, trenta per smaltirla da sola). Senza questa riga tutto
+			# il carico è codice morto in partita: `passo_carico` non aveva
+			# nessun chiamante fuori dai test, quindi `neuro_base` non si
+			# spostava mai e la meccanica non esisteva — con la suite verde.
+			# Gli ATTI li conta il corpo, che è l'unico a sapere quando un gesto
+			# è arrivato in fondo.
+			var atti := 0.0
+			if node.has_method("atti_finiti"):
+				atti = float(node.call("atti_finiti"))
+			animo_r.passo_carico(delta, atti)
 		# la posa della porta chiusa la mette e la toglie SEMPRE lo stesso
 		# posto, e solo se è ancora la nostra
 		_aggiorna_posa_fuori(lab, node, st == _ST_FUORI)
@@ -4817,8 +4869,39 @@ func lutto_di(label: String, amico: String, consolato_da := "") -> void:
 	# legame piu' forte del villaggio vale 0,79 e la coda sta sotto 0,3,
 	# quindi il grado nasce gia' distribuito da se'. **Il tetto non lo
 	# scrive nessuno: lo scrive il libro mastro.**
-	var quanto := affetto_fra(label, label_di_nome(amico))
+	# ⚠️ **E NON SI PASSA DALLA LABEL DEL PARTITO, perché non esiste più.**
+	# `amico` è il NOME del dna, e quando il lutto si chiude
+	# (`Congedo._giorno_di_lutto`, giorni dopo la partenza) quel corpo è già
+	# uscito da `_residents`: `label_di_nome(amico)` tornava `""`,
+	# `affetto_fra(label, "")` cadeva nel ripiego silenzioso di
+	# `_nome_da_label` (`return label`, cioè `""`), e `quanto()` su una chiave
+	# vuota non trova nessuna riga. Risultato: **il grado del lutto valeva
+	# 0,0 per tutti e per sempre** — cioè l'esatto contrario di quello che
+	# questa funzione dichiara di fare due righe più su — mentre il rancore
+	# verso il giocatore (`lutto_ignorato`, che NON è scalato) restava pieno.
+	# Il dolore inerte e l'accusa intatta.
+	#
+	# Il libro mastro è indicizzato per NOME e le righe di chi è partito ci
+	# sono ancora: si chiede di là, senza attraversare un'anagrafe che ha
+	# perso quella persona.
+	var quanto := _affetto_col_nome(label, amico)
 	(_animi[label] as RefCounted).lutto(amico, consolato_da, quanto)
+
+
+## QUANTO CONTA per `label` (una LABEL viva) una persona di cui si conosce
+## solo il NOME — **compreso chi non abita più qui**. È la porta che serve a
+## `lutto_di`: gli altri lettori hanno due corpi in scena e passano da
+## `affetto_fra`, che è la stessa domanda fatta con l'altra anagrafe.
+func _affetto_col_nome(label: String, nome: String) -> float:
+	if nome == "":
+		return 0.0
+	var aff := get_tree().get_first_node_in_group("affetti")
+	if aff != null:
+		return float(aff.call("quanto", _nome_da_label(label), nome))
+	# senza libro mastro resta l'affinità dei cervelli, che però è indicizzata
+	# per LABEL: vale solo se quel corpo è ancora in paese
+	var lb := label_di_nome(nome)
+	return 0.0 if lb == "" else float(affinita_fra(label, lb))
 
 
 ## LA FUNZIONE DELLA LEGGIBILITÀ: perché quel residente si comporta così.
@@ -6484,8 +6567,13 @@ func welcome_candidate() -> void:
 func _decide() -> void:
 	_decided = true
 	var house: Dictionary = _active.get("_house")
-	# il letto può essere stato demolito durante la visita
-	if not is_instance_valid(house.get("bed")):
+	# il letto può essere stato demolito durante la visita — o essere stato
+	# preso da un cucciolo nato mentre lui era sull'uscio. Il secondo caso
+	# `is_bed_claimed` non lo lascia più succedere, ma il controllo resta:
+	# accodare una riga con una cella già presa vuol dire perdere un residente
+	# al ricaricamento dopo, e questo è l'unico posto che accoda.
+	if not is_instance_valid(house.get("bed")) \
+			or is_bed_claimed(house.get("cell", Vector2i(0, 0)), false):
 		_show_toast(L10n.tf("«Oh… la casetta non c'è più.» E %s riparte col trolley.",
 				[_cand_label]))
 		_active.call("candidate_result", false, Vector3.ZERO)
@@ -7256,3 +7344,82 @@ func _presta_la_compagnia_a(a: RefCounted, nome: String, righe = null) -> void:
 	# residente al giorno — la prima con una `crescita` che nessuno aveva
 	# ancora prestato. Ricalcola chi presta tutti e due.
 	a.set("_deriva_giorno", -1)
+
+
+# --------------------------------------------------- ESSERE GUARDATI
+#
+## ⚠️ **IL LETTORE DI `Osservare.gd`, e per un pezzo non c'era.** Il modulo era
+## completo, provato, con i suoi numeri MISURATI (la scala è la DURATA, non le
+## ripetizioni: sotto ~30 s non resta niente per quante volte lo si faccia) e
+## una sezione nel CLAUDE.md — e **nessun chiamante, di nessun tipo**: la
+## meccanica non esisteva in partita. La firma numero uno di questo progetto.
+##
+## Quello che succede: se il giocatore tiene il Fiato Sospeso addosso a
+## qualcuno, da vicino, e quel qualcuno **può vederlo**, il posto da cui
+## guardava si carica. Il segno va sul LUOGO e mai sulla persona — perciò
+## `attore` è la stringa vuota, ed è l'unica cosa che impedisce a
+## `Limbico.rivaluta` di marchiare anche `chi|giocatore`.
+##
+## ⚠️ **E il peso si paga alla FINE dell'episodio, non ogni fotogramma.**
+## `Osservare.peso()` è scritta per rispondere a «quanto pesa quello che è
+## APPENA SUCCESSO»: chiamandola a ogni passo si sommerebbe sessanta volte al
+## secondo una curva che cresce col tempo, e il posto si chiuderebbe in un
+## respiro. Si accumula il tempo, si chiude quando le condizioni si rompono.
+##
+## ⚠️ **E il posto è dov'era chi guardava QUANDO HA COMINCIATO**, non dove si
+## trova adesso: il giocatore può fare due passi mentre guarda, e il ricordo
+## di chi si è sentito osservato è del punto da cui lo guardavano.
+##
+## Le tre valvole non si riscrivono qui: si chiede a `Osservare.osserva()` con
+## `da_quanto = PAZIENZA`, cioè lasciando passare il solo cancello del tempo.
+## Così distanza, calma e visibilità restano scritte in un posto solo.
+## Il bus della CALMA: `FiatoSospeso` lo chiama su tutto il gruppo
+## `calma_listener` a ogni fotogramma. Qui si tiene e basta — la formula è
+## di là, ed è fonte unica.
+func set_calma(q: float, _pos: Vector3) -> void:
+	_calma_ora = q
+
+
+func _tick_osservati(delta: float) -> void:
+	if _player == null or not is_instance_valid(_player):
+		_osservato_da.clear()
+		return
+	var pp: Vector3 = _player.global_position
+	for r in _residents:
+		var label := str(r.get("label", ""))
+		if label == "" or not _animi.has(label):
+			continue
+		var node := r.get("node") as Node3D
+		if node == null or not is_instance_valid(node):
+			_chiudi_sguardo(label)
+			continue
+		var d := pp.distance_to(node.global_position)
+		var regge: bool = OSSERVA.osserva(d, _calma_ora, OSSERVA.PAZIENZA,
+				PERCEZIONE.puo_vedere(node, pp, OSSERVA.RAGGIO))
+		if regge:
+			if not _osservato_da.has(label):
+				_osservato_dove[label] = Vector2i(roundi(pp.x), roundi(pp.z))
+			_osservato_da[label] = float(_osservato_da.get(label, 0.0)) + delta
+		else:
+			_chiudi_sguardo(label)
+
+
+## L'episodio si è rotto: si paga quello che è successo, e si dimentica.
+func _chiudi_sguardo(label: String) -> void:
+	if not _osservato_da.has(label):
+		return
+	var quanto: float = float(_osservato_da[label])
+	var dove: Vector2i = _osservato_dove.get(label, Vector2i.ZERO)
+	_osservato_da.erase(label)
+	_osservato_dove.erase(label)
+	var p: float = OSSERVA.peso(quanto)
+	if p <= 0.0 or not _animi.has(label):
+		return
+	var animo: RefCounted = _animi[label]
+	if animo == null or animo.limbico == null:
+		return
+	# ⚠️ attore VUOTO: il segno è del POSTO. Con «giocatore» qui dentro
+	# `rivaluta` marchierebbe anche `chi|giocatore`, cioè scriverebbe un
+	# giudizio su una persona — che è precisamente la cosa che la testata di
+	# `Osservare.gd` esiste per impedire.
+	animo.limbico.rivaluta("osservato", "", -p, OSSERVA.luogo_di(dove))

@@ -594,9 +594,13 @@ func _la_farfalla_ha_quattro_ali_e_un_corpo(t) -> void:
 		if c.a > 0.01 and c.a < 0.99:
 			sfumati += 1
 	t.eq(sfumati, 0, "`COLOR.a` è una maschera, non una sfumatura")
+	# ⚠️ le parentesi non sono stile: `%` lega più stretto di `+`, e senza
+	# la formattazione si applicava alla SECONDA stringa — che di segnaposti
+	# non ne ha. Godot stampava «not all arguments converted» a ogni corsa
+	# della suite e restituiva il messaggio non formattato.
 	t.ok(post > 0 and post < ali,
-			"…e fra le ali ce ne sono di posteriori (%d su %d): sono "
-			+ "QUATTRO ali, ed è l'intaglio a far leggere «farfalla»"
+			("…e fra le ali ce ne sono di posteriori (%d su %d): sono "
+			+ "QUATTRO ali, ed è l'intaglio a far leggere «farfalla»")
 			% [post, ali])
 	# il corpo sta TUTTO dentro il raggio del torace, o il battito lo
 	# piegherebbe come un'ala

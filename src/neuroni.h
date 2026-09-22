@@ -5,6 +5,30 @@
 //  I NEURONI — una rete che SPARA, e sinapsi che IMPARANO
 // ===========================================================================
 //
+//  !!!  QUESTO FILE NON HA NESSUN CHIAMANTE, E VA DETTO PRIMA DI TUTTO
+//  --------------------------------------------------------------------
+//  Verificato il 2026-09-22, cercando in tutto il progetto: `neuroni.h` lo
+//  include soltanto `neuroni.cpp` e `tools/prova_neuroni.cpp` (un eseguibile
+//  di prova a parte). Nessun metodo ponte lo espone a GDScript, nessuno in
+//  `scenes/` o `systems/` lo nomina. Entra nel binario perche' il SConstruct
+//  compila `Glob("src/*.cpp")`, quindi **570 righe girano in ogni binario
+//  spedito e non vengono mai eseguite in partita.**
+//
+//  E' la firma numero uno di questo progetto — «codice computato e mai
+//  letto» — e quello che c'e' scritto qui sotto descrive una cosa che OGGI
+//  NON SUCCEDE. Chi legge questa intestazione non deve credere che i vicini
+//  imparino gia' le associazioni: non le imparano.
+//
+//  Le due strade oneste, e sono tutte e due decisioni dell'AUTORE, non di un
+//  agente che passa a correggere difetti:
+//   1. **darle un lettore** — vuol dire un ponte in `EcsMondo`, un passo per
+//      residente per fotogramma (32 neuroni LIF + STDP: va MISURATO prima, e
+//      il metro e' il fotogramma con ventotto vicini), e la persistenza dei
+//      pesi quantizzati nel `village.json` (1 KiB a testa);
+//   2. **toglierla**, e togliere anche la sezione che la racconta.
+//  Quello che non si fa e' lasciarla com'e' fingendo che il primo ramo sia
+//  gia' successo.
+//
 //  Fino a oggi un vicino «giudicava» il mondo con delle tabelle: luce →
 //  serotonina, pioggia → cortisolo. Scritte da me, uguali per tutti, e
 //  incapaci di imparare qualunque cosa. Il colore non arrivava a nessuno.

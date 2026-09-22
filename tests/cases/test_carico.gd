@@ -2,6 +2,7 @@ extends RefCounted
 ## IL CARICO — quello che una brutta stagione lascia addosso.
 
 const LIMBICO = preload("res://scenes/npc/Limbico.gd")
+const ANIMO = preload("res://scenes/npc/Animo.gd")
 const CIELO := {"luce": 0.8, "pioggia": 0.0, "temperatura": 20.0}
 const TEMPESTA := {"luce": 0.3, "pioggia": 1.0, "temperatura": 2.0}
 
@@ -13,6 +14,7 @@ func run(t) -> void:
 	_l_autocontrollo_non_e_compromesso(t)
 	_si_scarica_facendo(t)
 	_il_degrado(t)
+	_il_villaggio_fa_avanzare_il_carico(t)
 
 
 func _vivi(l, sec: float, amb := CIELO, atti := 0.0) -> void:
@@ -20,6 +22,16 @@ func _vivi(l, sec: float, amb := CIELO, atti := 0.0) -> void:
 	for k in int(sec / dt):
 		l.passo_neuro(dt, amb, false, 0.0)
 		l.passo_carico(dt, atti * dt)
+
+
+## …e la stessa vita, ma dalla PORTA VERA: `Animo.passo_carico`, che fa
+## avanzare il carico e poi rifà il punto di riposo dai bisogni. È quella che
+## `Visitors` chiama a ogni fotogramma.
+func _vivi_animo(a, sec: float, amb := CIELO, atti := 0.0) -> void:
+	var dt := 0.25
+	for k in int(sec / dt):
+		a.limbico.passo_neuro(dt, amb, false, 0.0)
+		a.passo_carico(dt, atti * dt)
 
 
 ## ⚠️ **NESSUNO SI CARICA VIVENDO, e questo è il numero che decide se il
@@ -45,13 +57,23 @@ func _il_pavimento(t) -> void:
 			"e nemmeno un codardo sotto tempesta, che è il caso peggiore", 1e-9)
 
 
+## ⚠️ **E QUI SI PASSA DALL'ANIMO, non dal `Limbico` nudo.** Il punto di
+## riposo lo scrivono i BISOGNI (`Animo.sincronizza_neuro`), e il carico ci si
+## somma sopra dentro `applica_tinta`: è `Animo.passo_carico` a mettere le due
+## cose in fila, ed è la porta che il villaggio chiama davvero.
+##
+## La prima stesura guidava il limbico da sola, e quel file allora rifaceva
+## `neuro_base` dalla baseline a ogni passo — cioè **cancellava i drive**. Il
+## caso era verde perché non aveva drive da cancellare: un banco che non
+## attraversa la porta vera non può vedere cosa c'è dietro.
 func _una_stagione_lascia_qualcosa(t) -> void:
-	var l = LIMBICO.new()
-	l.setup({})
+	var a = ANIMO.new()
+	a.setup({"name": "Carico", "tratti": {}, "sogno": "casa"})
+	var l = a.limbico
 	var riposo_prima: float = float(l.neuro_base["cortisolo"])
 	for g in 10:
 		l.umore = -0.9        # una stagione brutta, tenuta
-		_vivi(l, 240.0)
+		_vivi_animo(a, 240.0)
 	t.ok(l.quanto_carico() > 0.25,
 			("dieci giornate di malumore vero lasciano un carico (%.4f)")
 					% l.quanto_carico())
@@ -157,3 +179,82 @@ func _il_degrado(t) -> void:
 	w.setup({})
 	w.load(l.save())
 	t.almost(w.quanto_carico(), 0.37, "e il carico sopravvive al salvataggio", 1e-6)
+
+
+## ⚠️ **IL CARICO HA UN LETTORE IN PARTITA, o è aritmetica che nessuno esegue.**
+##
+## È la guardia che mancava, e la sua assenza è costata tutto il meccanismo:
+## `passo_carico` è stato consegnato con quindici asserzioni, una sezione nel
+## CLAUDE.md e **nessun chiamante fuori dai test**. `neuro_base` non si
+## spostava mai, il corpo non indossava niente, e le altre guardie di questo
+## file restavano verdi — perché provano la REGOLA, non il cablaggio. È la
+## firma numero uno di questo progetto, e questa volta era mia.
+##
+## Si chiama il ciclo VERO (`Visitors._ciclo_sonno`) con un residente che sta
+## male: se la riga che fa avanzare il carico sparisce, qui diventa rosso.
+class VicinoDiProva extends "res://scenes/npc/Visitors.gd":
+	func _ready() -> void:
+		set_process(false)
+		set_physics_process(false)
+
+	func _process(_d: float) -> void:
+		pass
+
+	## il cielo è un DATO e si dà: senza un `DayNight` nell'albero
+	## `_leggi_ambiente` torna vuoto, che è il degrado dichiarato del Limbico
+	func _leggi_ambiente() -> Dictionary:
+		return CIELO
+
+
+func _il_villaggio_fa_avanzare_il_carico(t) -> void:
+	var vis = VicinoDiProva.new()
+	t.stage(vis)
+	var corpo := Node3D.new()
+	corpo.set_script(preload("res://scenes/npc/Visitor.gd"))
+	t.stage(corpo)
+	corpo.set("dna", preload("res://scenes/npc/ChibiDNA.gd").generate(3131))
+	(vis.get("_residents") as Array).append({
+		"label": "K", "cell": Vector2i(0, 0), "species": "chibi",
+		"node": corpo, "dna": corpo.get("dna")})
+
+	# un primo giro a vuoto, perché l'animo nasca
+	vis.call("_ciclo_sonno", 0.25, 0.5)
+	var a = (vis.get("_animi") as Dictionary).get("K")
+	t.ok(a != null, "il ciclo ha fatto nascere l'animo")
+	if a == null:
+		return
+	t.almost(a.limbico.quanto_carico(), 0.0,
+			"e nasce senza carico", 1e-9)
+
+	# dieci giornate di malumore vero, passate dalla porta del villaggio
+	for g in 10:
+		for _i in 960:                 # 240 s a dt 0.25
+			a.limbico.umore = -0.9
+			vis.call("_ciclo_sonno", 0.25, 0.5)
+	t.ok(a.limbico.quanto_carico() > 0.25,
+			("il villaggio fa avanzare il carico: dieci giornate di malumore "
+			+ "lasciano %.4f") % a.limbico.quanto_carico())
+	t.ok(float(a.limbico.neuro_base["cortisolo"])
+					> float(a.limbico.NEURO_BASELINE["cortisolo"]) + 0.10,
+			("…e il punto di riposo si è spostato (%.4f), che è l'unico modo "
+			+ "in cui il carico tocca il mondo")
+					% float(a.limbico.neuro_base["cortisolo"]))
+
+	# ⚠️ LA CONTROPROVA: chi NON sta male non si carica passando dalla stessa
+	# porta. Senza, «il villaggio fa avanzare il carico» sarebbe verde anche
+	# con un passo che carica chiunque.
+	var vis2 = VicinoDiProva.new()
+	t.stage(vis2)
+	var corpo2 := Node3D.new()
+	corpo2.set_script(preload("res://scenes/npc/Visitor.gd"))
+	t.stage(corpo2)
+	corpo2.set("dna", preload("res://scenes/npc/ChibiDNA.gd").generate(9090))
+	(vis2.get("_residents") as Array).append({
+		"label": "S", "cell": Vector2i(0, 0), "species": "chibi",
+		"node": corpo2, "dna": corpo2.get("dna")})
+	for g in 10:
+		for _i in 960:
+			vis2.call("_ciclo_sonno", 0.25, 0.5)
+	var b = (vis2.get("_animi") as Dictionary).get("S")
+	t.almost(b.limbico.quanto_carico(), 0.0,
+			"e chi vive la sua vita non si carica di niente", 1e-9)

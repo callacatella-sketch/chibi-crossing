@@ -432,6 +432,23 @@ if env["PLATFORM"] == "win32":
         # linker con /DEBUG produce comunque il .pdb finale della DLL.
         env.Append(CXXFLAGS=["/Od", "/Z7"])
         env.Append(LINKFLAGS=["/DEBUG"])
+        # ⚠️ DEBUG_ENABLED: lo definisce godot-cpp quando compila SE STESSO in
+        # `template_debug` (tools/godotcpp.py, ramo `debug_features`), e i
+        # nostri sorgenti ci si linkano contro. Ma `binder_common.hpp` e
+        # `math_defs.hpp` cambiano il CORPO di funzioni inline/template sotto
+        # quel define — `call_with_variant_args_helper` passa da
+        # `VariantCasterAndValidate` a `VariantCaster`, cioè la validazione
+        # degli argomenti dei metodi bindati c'è o non c'è. Compilare le due
+        # metà con due corpi diversi è una violazione ODR vera, e la
+        # conseguenza pratica è che la debug di Windows NON ha i controlli che
+        # la debug di macOS e Linux hanno: un errore che su un Mac si vede,
+        # lì è silenzio.
+        # Su macOS/Linux il problema non c'è perché quel ramo eredita
+        # `godot_env`, cioè l'ambiente di godot-cpp, che il define ce l'ha.
+        # Qui l'ambiente è costruito a mano, e va pareggiato a mano — è la
+        # stessa asimmetria che `src/ecs_entt.h` documenta per `NDEBUG` e per
+        # le eccezioni. ⚠️ Da un Mac NON è verificabile: il giudice è la CI.
+        env.Append(CPPDEFINES=["DEBUG_ENABLED"])
         env.Append(LIBS=["libgodot-cpp.windows.template_debug.x86_64.lib"])
     else:
         # Release: ottimizzazione per velocita' (/O2), intrinseche (/Oi),

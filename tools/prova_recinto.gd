@@ -84,6 +84,17 @@ func _go() -> void:
 	await create_timer(1.2).timeout
 
 	# ------------------------------------------------------- il villaggio
+	# ⚠️ **IL VILLAGGIO SI SVUOTA PRIMA, o questa prova non prova niente.**
+	# La scena è «chiudo l'UNICO cespuglio in un recinto e il vicino va a
+	# chiedere»: sul salvataggio dell'autore ce ne sono SEDICI, quindi il
+	# pianificatore trovava giustamente un'altra strada, il corpo andava a
+	# mangiare altrove e il banco dichiarava rotta la Fase 3.
+	# MISURATO: sul villaggio dell'autore 2 guasti, su un villaggio vuoto 0 —
+	# stesso identico codice. Un banco che non possiede il proprio mondo
+	# misura il mondo di qualcun altro.
+	# (`debug_clear` è la porta giusta: NON passa da `_try_remove`, quindi non
+	# seppellisce nessuno strato — vedi la regola 1 della Stratigrafia.)
+	build.call("debug_clear")
 	visitors.call("debug_reset")
 	build.call("place_cell", CASA, "Letto", 0, false)
 	build.call("place_cell", CASA, "Tetto", 0, false)
@@ -135,8 +146,16 @@ func _go() -> void:
 	await create_timer(0.6).timeout
 	var meta2 := _dove_va(corpo)
 	print("       va verso %s (stato «%s»)" % [meta2, corpo.get("_state")])
-	_dico(meta2.distance_to(Vector3(LAVAGNA.x, 0, LAVAGNA.y)) < 2.5,
-			"e adesso cammina verso la LAVAGNA")
+	# ⚠️ E NON BASTA LA DISTANZA. Con la tolleranza da 2,5 m un punto che sta
+	# accanto a un ALTRO cespuglio passava per «la Lavagna» (misurato:
+	# (8.43, 5.19) dista 1,77 m dalla Lavagna a (10, 6) — verde su una scena
+	# in cui il corpo stava andando a mangiare). Si guarda anche che il corpo
+	# sia più vicino alla Lavagna che al cespuglio: quella è la notizia.
+	var d_lav := meta2.distance_to(Vector3(LAVAGNA.x, 0, LAVAGNA.y))
+	var d_ces := meta2.distance_to(Vector3(CESPUGLIO.x, 0, CESPUGLIO.y))
+	_dico(d_lav < 2.5 and d_lav < d_ces,
+			"e adesso cammina verso la LAVAGNA (%.2f m) e non verso il cespuglio (%.2f m)"
+			% [d_lav, d_ces])
 
 	# il biglietto compare quando il gessetto si ferma, non prima
 	_dico(not bool(commissioni.call("ha_richiesta_di", chi)),

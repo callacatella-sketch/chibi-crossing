@@ -14,6 +14,16 @@ const MEDIO := {"codardia": 0.5, "grinta": 0.5, "lealta": 0.5,
 const CIELO := {"luce": 0.8, "pioggia": 0.0, "temperatura": 20.0}
 
 
+## ⚠️ **GDSCRIPT NON CONOSCE `%e`.** I segnaposti dell'operatore `%` sono
+## `%s %c %d %o %x %X %f %v` e basta: un `%.2e` non è una notazione
+## scientifica, è un segnaposto che non esiste — Godot stampa «not all
+## arguments converted during string formatting» e restituisce la stringa
+## NON formattata. Non fa fallire niente e non interrompe niente (misurato:
+## le asserzioni girano lo stesso), ma sporca ogni corsa della suite con sei
+## ERROR — e una suite che stampa errori di suo insegna a non leggerli, che è
+## il gradino prima di non accorgersi di quelli veri.
+## Qui i numeri sono piccolissimi (Φ sta attorno a 1e-5): si usa `%s`, che
+## di un float stampa la rappresentazione intera senza troncare.
 func run(t) -> void:
 	_il_ponte_c_e(t)
 	_il_punto_fisso_e_invariante(t)
@@ -66,7 +76,7 @@ func _il_punto_fisso_e_invariante(t) -> void:
 		for tipo in riposo:
 			peggio = maxf(peggio, absf(float(l.neuro[tipo]) - float(riposo[tipo])))
 		t.almost(peggio, 0.0,
-				("chi parte al proprio riposo ci resta (scarto %.2e): il "
+				("chi parte al proprio riposo ci resta (scarto %s): il "
 				+ "punto fisso è invariante all'accoppiamento") % peggio, 1e-9)
 
 
@@ -91,7 +101,7 @@ func _phi_di_ieri_e_zero(t) -> void:
 	l.passo_neuro(0.05, CIELO, false, 0.0)
 	var p: float = l.phi()
 	t.ok(p > 0.0,
-			("con l'intreccio Φ è POSITIVO (%.3e): le parti non si staccano "
+			("con l'intreccio Φ è POSITIVO (%s): le parti non si staccano "
 			+ "gratis") % p)
 
 
@@ -114,7 +124,7 @@ func _phi_misura_una_mente(t) -> void:
 	var mx: float = vals.max()
 	t.ok(mx > mn * 2.0,
 			("dieci vicini veri hanno informazione integrata diversa "
-			+ "(da %.2e a %.2e, ×%.1f): l'intreccio è della PERSONA, non del "
+			+ "(da %s a %s, ×%.1f): l'intreccio è della PERSONA, non del "
 			+ "villaggio") % [mn, mx, mx / maxf(mn, 1e-12)])
 
 	# --- e dentro la stessa persona, mentre si tende
@@ -124,7 +134,7 @@ func _phi_misura_una_mente(t) -> void:
 	b.neuro["cortisolo"] = 0.60
 	var teso: float = b.phi()
 	t.ok(calmo > teso * 1.5,
-			("sotto stress l'informazione integrata CALA (%.2e → %.2e): la "
+			("sotto stress l'informazione integrata CALA (%s → %s): la "
 			+ "mente si restringe, e non è una metafora") % [calmo, teso])
 	# ⚠️ e la controprova: il cortisolo NON deve poterlo alzare, o avremmo
 	# scritto il segno al contrario e nessuno se ne accorgerebbe

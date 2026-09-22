@@ -382,6 +382,31 @@ func sincronizza_neuro() -> void:
 	limbico.applica_tinta(base)
 
 
+## ⚠️ **IL PASSO DEL CARICO, e la porta è QUESTA e non il `Limbico`.**
+##
+## `Limbico.passo_carico` fa avanzare il numero; il punto di riposo però lo
+## scrivono i BISOGNI, e i bisogni stanno di qua. Chiamare il limbico da solo
+## faceva due cose sbagliate insieme: il carico non arrivava mai al mondo
+## (nessuno rifaceva `neuro_base`), oppure — com'era scritto — lo rifaceva
+## dalla baseline e cancellava i drive.
+##
+## ⚠️ E fino al 2026-09-22 **non lo chiamava nessuno**: tutta la meccanica del
+## carico era completa, provata, verde e inerte in partita — la firma numero
+## uno di questo progetto, per l'undicesima volta. Adesso il lettore è
+## `Visitors`, nello stesso ciclo che fa avanzare la chimica.
+##
+## [param atti] sono i gesti PORTATI A TERMINE nell'intervallo: l'uscita dal
+## carico è il fare, non il conforto ricevuto.
+func passo_carico(dt: float, atti := 0.0) -> void:
+	if limbico == null:
+		return
+	limbico.passo_carico(dt, atti)
+	# il riposo si rifà dai bisogni E dal carico, in quest'ordine: le cinque
+	# righe dei drive assegnano, `applica_tinta` ci somma sopra carattere e
+	# carico. È la stessa regola per cui il carattere è uno SCARTO.
+	sincronizza_neuro()
+
+
 ## Il carattere in una riga, per il diario e per il debug.
 func descrizione() -> String:
 	var forti := []

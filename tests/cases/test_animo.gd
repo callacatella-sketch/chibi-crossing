@@ -633,6 +633,21 @@ func _quanto_contava_lo_dice_il_libro_mastro(t) -> void:
 
 ## Il registro VERO, col solo `_ready` scavalcato, e una sola fonte di dati
 ## dettata: quanto vale un legame. Tutto il resto e' il gioco.
+## ⚠️ **IL DOPPIO DETTA UN DATO, E NON PIÙ IL PONTE FRA LE DUE ANAGRAFI.**
+##
+## Prima sovrascriveva `affetto_fra()` **e** `label_di_nome()` — cioè
+## ri-implementava proprio l'attraversamento nome↔etichetta che `lutto_di`
+## deve fare. Con `label_di_nome` che tornava sempre `"X"`, il giro andava
+## sempre a buon fine qui dentro e non poteva andare a buon fine in partita:
+## **il grado del lutto valeva 0,0 per tutti e sempre**, perché al momento in
+## cui il lutto si chiude il partito non è più in `_residents` e la label vera
+## torna `""`. È la lezione del `MotoreFinto`, un piano più in là — *un doppio
+## che mente è peggio di nessun doppio: nessun doppio ti fa scrivere un test
+## vero, uno che mente ti fa credere di averlo già scritto.*
+##
+## Adesso si detta la sola cosa che è un DATO — **quanto vale quel legame** —
+## e il ponte resta quello del gioco. Che il ponte regga alla partenza lo
+## prova `test_lutto_grado.gd`, con un partito vero fuori da `_residents`.
 class RegistroLutto extends "res://scenes/npc/Visitors.gd":
 	var legami := {}
 
@@ -643,11 +658,8 @@ class RegistroLutto extends "res://scenes/npc/Visitors.gd":
 	func _process(_d: float) -> void:
 		pass
 
-	func affetto_fra(a: String, _b: String) -> float:
-		return float(legami.get(a, 0.0))
-
-	func label_di_nome(_n: String) -> String:
-		return "X"
+	func _affetto_col_nome(label: String, _nome: String) -> float:
+		return float(legami.get(label, 0.0))
 
 
 ## ⚠️ **LA FIDUCIA — la gemella di `rancore()`, e la forma che deve avere.**

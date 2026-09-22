@@ -2811,7 +2811,28 @@ func do_task(kind: String, pos: Vector3, on_done := Callable()) -> void:
 		_enter_state("tk_" + kind)
 
 
+## ⚠️ **QUANTI GESTI HA PORTATO A TERMINE** da quando gliel'hanno chiesto
+## l'ultima volta (e il conto si azzera leggendolo). Serve al CARICO: la sua
+## uscita è il *fare*, cioè la behavioural activation, e «fare» in questo
+## corpo vuol dire arrivare in fondo a un gesto — non averlo cominciato.
+##
+## Il contatore sta QUI perché `_finish_task` è l'imbuto di tutti e nove i
+## gesti che finiscono (il pisolino, l'annaffiata, il boccone, il fungo, la
+## lavagna…): contarli dove vengono CHIESTI vorrebbe dire nove posti da
+## tenere allineati, e il decimo si dimenticherebbe.
+var _atti_finiti := 0
+
+
+func atti_finiti() -> int:
+	var n := _atti_finiti
+	_atti_finiti = 0
+	return n
+
+
 func _finish_task(call_cb := true) -> void:
+	# si conta anche se la callback è stata buttata: il gesto il corpo lo ha
+	# fatto lo stesso, ed è quello che il carico misura
+	_atti_finiti += 1
 	if call_cb and _task_cb.is_valid():
 		_task_cb.call()
 	_task_cb = Callable()
@@ -2949,6 +2970,29 @@ func rifai_il_look(nuovi: Dictionary) -> bool:
 		c.queue_free()
 	_face = null
 	_monta_corpo()
+	# ⚠️ **E L'ETÀ SI RIMETTE ADDOSSO, o il Salone la cancella per sempre.**
+	# `_monta_corpo()` ricostruisce un corpo GIOVANE: rughe, baffetti e pelo
+	# d'argento, e il bastoncino di ciliegio sono figli di `_vis` e se ne sono
+	# appena andati con `queue_free()`. Nessuno li rifà da sé:
+	#  · `_vesti_autunno()` ha il ramo `if f >= 0.5 and not _eta_dressed`, e
+	#    `_eta_dressed` era rimasto acceso → **il bastoncino non tornava MAI**;
+	#  · `_skull_mat` puntava al materiale del cranio VECCHIO, quindi
+	#    `_rughe_viso` scriveva su un corpo che non esiste più;
+	#  · `_orig_cols` è chiavato su `mat.get_instance_id()` dei materiali
+	#    morti: chiavi che non combaceranno mai più (e lo sbiadimento
+	#    ripartiva dai colori sbagliati).
+	# E `set_eta` esce subito se l'età non è cambiata di 0,005: per un anziano
+	# con `eta_f` SATURA a 1.0 quel valore non cambia più, quindi nemmeno il
+	# giro del mattino glieli rimetteva. Un danno permanente causato dal
+	# GIOCATORE, e senza una chiave a forma di giocatore per ripararlo — cioè
+	# la prima domanda della REGOLA SACRA.
+	_skull_mat = null
+	_orig_cols.clear()
+	_autunno.clear()   # i nodi ci sono ancora dentro, e sono già liberati
+	_eta_dressed = false
+	var eta_prima := _eta
+	_eta = -1.0          # scavalca la guardia dell'«è già quella»
+	set_eta(eta_prima)
 	# la VOCE non si ricalcola: `_voice` è già quella giusta, e rifarla
 	# sarebbe l'occasione buona per sbagliare
 	return true

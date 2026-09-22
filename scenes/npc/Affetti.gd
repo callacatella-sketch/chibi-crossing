@@ -307,14 +307,38 @@ static func conto(righe: Array, io: String, altro: String, oggi: int,
 ## (vedi `MARGINE_ELEZIONE`): a pari merito il gioco non sceglie al posto
 ## suo, perché l'unica cosa che romperebbe il pareggio sarebbe l'ordine
 ## dell'array dei residenti.
+## ⚠️ **E `tutti` SI LEGGE COME UN INSIEME, non come una lista.** Il libro
+## mastro è indicizzato per NOME del dna, e i nomi in questo villaggio NON
+## sono unici: `Visitors._spawn_candidate` rigenera il DNA finché è nuova la
+## **label**, e cinque archetipi per ventotto nomi vuol dire che «il gattino
+## Cannella» e «la volpina Cannella» convivono senza che niente si lamenti
+## (sta scritto in `Visitors.gd`: «Le label sono uniche e i nomi no»).
+##
+## Con lo stesso nome due volte nell'elenco, la seconda passata cadeva nel
+## ramo `elif c > secondo` e portava `secondo` a PAREGGIARE `quanto` — e poi
+## il margine dell'elezione, che esiste per non scegliere a pari merito,
+## trovava un pari merito fabbricato dal doppione e tornava `["", 0.0]`.
+## MISURATO sulle funzioni pure, stessa storia e stesso libro mastro:
+## `coppia(Io, Cannella)` vale **true** senza omonimo e **false** con un
+## omonimo in anagrafe. Cioè: chiunque avesse come più caro uno dei due
+## omonimi non poteva formare coppia, mai, e in silenzio.
+##
+## Il rimedio sta QUI e non solo in `_tutti()` perché questa è statica e
+## l'elenco glielo passano in quattro (`coppie`, `coppia`, `chi_e_il_piu_caro`,
+## `Cricche`): una funzione pura deve reggere il proprio ingresso.
+## ⚠️ **Resta aperto, ed è un'altra cosa:** due omonimi CONDIVIDONO la riga
+## del libro mastro, quindi i gesti dell'uno contano per l'altro. Quello è il
+## residuo delle due anagrafi, e non si chiude di qua.
 static func il_piu_caro(righe: Array, io: String, tutti: Array, oggi: int,
 		lealta := 0.5, margine := MARGINE_ELEZIONE) -> Array:
 	var chi := ""
 	var quanto := 0.0
 	var secondo := 0.0
+	var visti := {}
 	for altro in tutti:
-		if str(altro) == io:
+		if str(altro) == io or visti.has(str(altro)):
 			continue
+		visti[str(altro)] = true
 		var c := conto(righe, io, str(altro), oggi, lealta)
 		if c > quanto:
 			secondo = quanto
@@ -724,9 +748,14 @@ func _tutti() -> Array:
 	var out: Array = []
 	if _visitors == null:
 		return out
+	# l'elenco è un INSIEME di chiavi del libro mastro, non una lista di
+	# corpi: i nomi non sono unici (lo sono le label), e un doppione qui
+	# spegneva `il_piu_caro` — vedi la nota sopra quella funzione.
+	var visti := {}
 	for r in (_visitors.get("_residents") as Array):
 		var n := str((r.get("dna", {}) as Dictionary).get("name", ""))
-		if n != "":
+		if n != "" and not visti.has(n):
+			visti[n] = true
 			out.append(n)
 	return out
 

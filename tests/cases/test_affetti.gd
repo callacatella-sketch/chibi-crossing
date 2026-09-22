@@ -37,6 +37,7 @@ func run(t) -> void:
 	_test_la_valvola_dell_abitudine(t)
 	_test_la_veglia_non_annega_il_giocatore(t)
 	_test_la_valvola_si_ricorda_dopo_il_salvataggio(t)
+	_test_un_omonimo_non_spegne_le_coppie(t)
 
 
 func _riga(a: String, b: String, tipo: String, giorno: int) -> Dictionary:
@@ -654,3 +655,49 @@ func _test_la_valvola_si_ricorda_dopo_il_salvataggio(t) -> void:
 			_riga("Anna", "Bruno", "veglia", 11)]
 	t.eq(AFF.giorni_dall_ultimo(tante, "Anna", "Bruno", "veglia", 31), 1,
 			"fra tante righe conta l'ultima, non la prima trovata")
+
+
+## ⚠️ UN OMONIMO IN ANAGRAFE NON PUÒ SPEGNERE LE COPPIE.
+##
+## In questo villaggio i nomi NON sono unici: `Visitors._spawn_candidate`
+## rigenera il DNA finché è nuova la **label**, e cinque archetipi per
+## ventotto nomi vuol dire che «il gattino Cannella» e «la volpina Cannella»
+## convivono. Il libro mastro però è indicizzato per NOME, quindi l'elenco
+## che arriva a `il_piu_caro` può contenere due volte la stessa chiave.
+##
+## Prima della cura la seconda passata portava `secondo` a pareggiare
+## `quanto`, e il margine dell'elezione — che esiste per non scegliere a pari
+## merito — trovava un pari merito FABBRICATO dal doppione: `["", 0.0]`.
+## Chiunque avesse come più caro un omonimo non poteva formare coppia, mai,
+## e senza un errore.
+##
+## Il caso confronta le DUE liste sullo stesso identico libro mastro: è
+## l'unica forma che sa fallire, perché un elenco solo non distingue «la
+## coppia non c'è» da «la coppia non c'è a causa del doppione».
+func _test_un_omonimo_non_spegne_le_coppie(t) -> void:
+	var righe: Array = []
+	for i in 6:
+		righe.append(_riga("Anna", "Bruno", "coraggio", i))
+		righe.append(_riga("Bruno", "Anna", "piatto", i))
+	righe.append(_riga("Anna", "Carla", "chiacchiera", 4))
+
+	var sani := ["Anna", "Bruno", "Carla"]
+	var doppi := ["Anna", "Bruno", "Carla", "Bruno"]   # due «Bruno» in paese
+
+	var caro_sano: Array = AFF.il_piu_caro(righe, "Anna", sani, 6)
+	var caro_doppio: Array = AFF.il_piu_caro(righe, "Anna", doppi, 6)
+	t.eq(str(caro_sano[0]), "Bruno", "senza omonimi il più caro di Anna è Bruno")
+	t.eq(str(caro_doppio[0]), "Bruno",
+			"e un omonimo in anagrafe non glielo toglie")
+	t.almost(float(caro_doppio[1]), float(caro_sano[1]),
+			"…e nemmeno gli cambia il peso", 1e-12)
+
+	t.ok(AFF.coppia(righe, "Anna", "Bruno", sani, 6),
+			"senza omonimi Anna e Bruno sono una coppia")
+	t.ok(AFF.coppia(righe, "Anna", "Bruno", doppi, 6),
+			"e restano una coppia con un omonimo in anagrafe")
+
+	# la controprova: il doppione non deve nemmeno CREARE una coppia dove
+	# non c'era (se lo facesse, la cura sarebbe una tolleranza travestita)
+	t.ok(not AFF.coppia(righe, "Anna", "Carla", doppi, 6),
+			"e non fabbrica coppie che non esistono")

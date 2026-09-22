@@ -414,8 +414,23 @@ func _test_i_dati_non_si_traducono(t) -> void:
 func _test_copertura(t) -> void:
     var quante := L.quante("en")
     # la soglia sale quando la traduzione cresce: se qualcuno svuota una
-    # parte per sbaglio (o la rinomina), qui diventa rosso subito
-    t.ok(quante >= 700, "la traduzione inglese copre almeno 700 frasi (ora: %d)" % quante)
+    # parte per sbaglio (o la rinomina), qui diventa rosso subito.
+    #
+    # ⚠️ **E VA ALZATA, o smette di essere una soglia.** È rimasta a 700
+    # mentre la tabella arrivava a 1469 chiavi distinte: si potevano
+    # cancellare 769 voci — il 52% della traduzione inglese — e questa riga
+    # restava verde. Una guardia che non vede sparire metà di ciò che
+    # sorveglia dice «coperto» senza esserlo, che è peggio di nessuna
+    # guardia. Il numero non è a occhio: è il conto VERO del giorno in cui è
+    # stato scritto (1469) meno il margine che serve a non far arrossire chi
+    # riorganizza le tabelle senza perdere niente.
+    #
+    # Chi aggiunge traduzioni la alzi; chi la trova rossa aggiunga le voci
+    # che mancano. **Non si abbassa**: l'unica ragione legittima per cui
+    # questo numero può scendere è che qualcuno abbia tolto del TESTO dal
+    # gioco, e allora si scrive perché.
+    t.ok(quante >= 1400,
+            "la traduzione inglese copre almeno 1400 frasi (ora: %d)" % quante)
     t.eq(L.TABELLE["en"].size(), 4, "le quattro parti della tabella ci sono tutte")
 
     # le frasi che il giocatore vede nei PRIMI DIECI SECONDI: se mancano

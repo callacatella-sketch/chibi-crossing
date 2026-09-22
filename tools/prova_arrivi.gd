@@ -56,6 +56,26 @@ func _go() -> void:
 	print("CASA LIBERA: ", visitors.call("has_free_house"))
 	print("RESIDENTI INIZIALI: ", int(visitors.get("_residents").size()))
 
+	# ⚠️ **LA PRECONDIZIONE SI DICHIARA, NON SI CONFONDE COL GUASTO.**
+	# Questo banco chiede «uno che arriva, si trasferisce?», e per chiederlo
+	# gli serve una casa VUOTA. Sul salvataggio di chi ci sta giocando le
+	# case sono tutte occupate, e il banco rispondeva «QUALCOSA NON TORNA» —
+	# cioè accusava il gioco di un difetto che era una sua condizione
+	# mancante. Un banco che non sa distinguere le due cose è peggio di
+	# nessun banco: manda a cercare nel posto sbagliato.
+	if not bool(visitors.call("has_free_house")):
+		print("")
+		print("BANCO NON APPLICABILE: non c'è nessuna casa libera.")
+		print("  %d letti, %d residenti — il villaggio e' pieno."
+				% [letti.size(), int(visitors.get("_residents").size())])
+		print("  Serve il salvataggio di prova (dieci case complete e VUOTE):")
+		print("     tools/installa_salvataggio_prova.sh")
+		print("  oppure un villaggio ermetico:")
+		print("     CHIBI_VILLAGGIO=/tmp/mio/village.json ... --script res://tools/prova_arrivi.gd")
+		print("ESITO: NON MISURATO (non e' un guasto del gioco)")
+		quit(2)
+		return
+
 	# e adesso la domanda vera: uno che arriva, si trasferisce?
 	var prima := int(visitors.get("_residents").size())
 	var arrivati := 0
