@@ -8615,21 +8615,45 @@ diventa un numero che si può far crollare.**
 **0,2%** fra quindici caratteri: l'intreccio era del villaggio, non della
 persona. Adesso sono sette, con l'ampiezza più larga che il budget concede.
 
-### LA TESI, RESA UN NUMERO
+### LA TESI, RESA UN NUMERO — e il primo numero era un ARTEFATTO
 
-La stessa identica gentilezza (+0,15 dopamina, +0,12 ossitocina, +0,12
-serotonina), in tre menti che stanno in tre modi diversi:
+> ⚠️⚠️ **CORREZIONE (2026-09-22).** La tabella pubblicata qui prima attribuiva
+> al regalo un effetto di **−0,3286** sulla mente in ansia, e lo presentava
+> come la prova che «l'effetto dipende da dov'era quella mente». Quel numero
+> non è il regalo: è **il rientro omeostatico** del cortisolo, che il banco
+> metteva a mano a 0,42 e che con quel cielo ha per bersaglio 0,08 — la
+> produzione vale `0.030 · (0.6·pioggia + 0.4·(1 − comfort))`, cioè **zero
+> esatto** con `CIELO` (pioggia 0, temperatura 20 → comfort 1). Quei 0,34
+> tornano a casa da soli.
+>
+> E il verso era **rovesciato**. Lo ha trovato lo stormo, e l'ho riprodotto
+> isolando il regalo — stessa mente, stesso stato iniziale, con e senza
+> `stimola_neuro`, nella stessa corsa.
 
-| | cortisolo dopo 30 s | dopamina |
-|---|---|---|
-| sereno | −0,0195 | 0,4132 |
-| **in ansia** | **−0,3286** | 0,4132 |
-| esausto | −0,0146 | **0,3076** |
+| | totale a 30 s | senza regalo | **il regalo da solo** |
+|---|---|---|---|
+| sereno | +0,008925 | +0,026815 | **−0,017889** |
+| in ansia | −0,300978 | −0,285348 | **−0,015629** |
+| esausto | +0,012657 | +0,030326 | **−0,017669** |
 
-**Senza intreccio il cortisolo non si muove in nessuno dei tre**, perché i
-canali non si parlano: un regalo non poteva calmare nessuno, per costruzione.
-E non c'è nessuna tabella che dica cosa fa un regalo — dipende da dov'era
-quella mente.
+**Senza intreccio il regalo vale ZERO ESATTO in tutti e tre**, perché i canali
+non si parlano e il cortisolo non ha nessun ingresso da lì: quella parte della
+tesi regge, ed è quella che la guardia adesso pretende.
+
+**Ma la carezza arriva MENO a chi è in ansia, non di più** — e ha una ragione,
+che è la stessa cosa detta da un altro canale: `kappa = 1 − 0.9·cortisolo`,
+quindi **sotto tensione l'accoppiamento si stringe**. È il crollo di Φ (×3,4
+fra un corpo calmo e uno teso) visto dal lato del cortisolo. La tesi «l'effetto
+dipende da dov'era quella mente» resta vera e misurata; la direzione che era
+stata pubblicata no.
+
+⚠️ **E la guardia non poteva accorgersene**, perché confrontava i TOTALI: la
+soglia era 0,05 contro un artefatto da 0,31. MISURATO: con
+`Limbico._intreccio_passo` mutato in `return false` — cioè con la fase
+interamente spenta — quel caso restava **verde**, e restava verde anche
+togliendo le tre `stimola_neuro`, cioè senza il gesto che doveva misurare.
+Adesso isola il contributo del regalo e con la stessa mutazione dà **4 rosse**,
+stampando `+0.000000`.
 
 ### Il lettore che lo può vedere, e non è quello ovvio
 
@@ -9216,6 +9240,49 @@ silenzio. macOS/Linux non ce l'hanno perché ereditano `godot_env`.
   quell'errore **non interrompe la funzione** — 1054 asserzioni prima e 1054
   dopo. Il costo è un ERROR per corsa, cioè rumore che insegna a non leggere
   gli errori: il gradino prima di non accorgersi di quelli veri.
+
+### I FIORI SONO TRE POPOLAZIONI, NON DUE
+
+Il difetto «I FIORI SI ACCUCCIANO SOTTO I PAVIMENTI» era stato pagato una
+volta, e curato per l'erba (`_grass_cells`) e per il prato (`_flower_cells`).
+Ma le popolazioni di fiori sono **TRE**: ci sono anche i **380 selvatici del
+C++** (`EcosystemManager`), e di quelli non sapeva niente nessuno — in tutto
+`src/ecosystem_manager.*` e in `Ecosystem.gd` la parola «accuccia» non
+compariva.
+
+E cadono dove si costruisce: il prato del manager va da **(−13, −13,5) a
+(13, 12)**, cioè l'area costruibile, e un fiore arriva a **23,5 cm** di
+altezza (`cima = Vector3(0, 0.235, 0)` per una maturità piena). Esattamente le
+«margherite alte 22 cm che spuntano dal parquet, dentro le case, sotto i
+tappeti» — su una terza popolazione.
+
+La cura è simmetrica: `EcosystemManager::accuccia_cella(x, z)` tiene un set di
+celle, e la trasformata di un fiore schiaccia la `y` di **0.02**, cioè lo
+stesso fattore di `CozyWorld.flatten_cell` — così le tre popolazioni si
+appiattiscono allo stesso modo invece che ognuna col suo numero.
+
+> ### ⚠️⚠️ E LA PRIMA STESURA DEL CABLAGGIO ERA MORTA — la stessa trappola
+>
+> `CozyWorld._eco_manager()` alzava una bandiera «già cercato» alla **prima**
+> chiamata; ma l'`Ecosystem` nasce in fondo alla generazione differita, cioè
+> DOPO le prime `flatten_cell` del caricamento. Trovava `null` e **se lo teneva
+> per sempre**. MISURATO nel MainLevel vero, posando un pavimento su quaranta
+> celle con dentro un fiore: *«IL CABLAGGIO NON C'E'»*, zero fiori accucciati.
+>
+> È la regola che questo file documenta da mesi — «il cablaggio si riprova,
+> SEMPRE: cablare una volta sola dentro un `call_deferred` del `_ready` trova
+> `null` per sempre» — ripresa in pieno **mentre si curava proprio quella
+> classe di difetto**. Dopo: `alto 1.0000 → 0.0200`, `accucciato = true`.
+
+⚠️ **E LA GUARDIA HEADLESS NON RILEGGE IL MULTIMESH.** Senza schermo
+`MultiMesh.get_instance_transform()` torna l'IDENTITÀ, e un banco che leggesse
+di lì misurerebbe la propria cecità (è la trappola per cui `prova_accuccia.gd`
+si rifiuta di girare headless). La trasformata è stata **estratta** in
+`EcosystemManager::trasf_fiore`, e `debug_trasf_fiore` chiama quella: un
+secondo chiamante della funzione che scrive nel MultiMesh, non una copia.
+Perciò [`tools/prova_accuccia_cpp.gd`](tools/prova_accuccia_cpp.gd) — la prova
+VIVA del cablaggio — gira headless, e va fatta girare: la guardia del file di
+test prova la regola e resterebbe verde con il cablaggio staccato.
 
 ### IL CONFRONTO SI CONSUMAVA SU UNO SCHERMO NERO
 

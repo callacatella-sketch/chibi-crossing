@@ -141,8 +141,14 @@ int main() {
                         c.chi, cort0, n[C_CORTISOLO], n[C_CORTISOLO] - cort0,
                         n[C_DOPAMINA]);
         }
-        std::printf("  ⚠️ e SENZA intreccio la stessa gentilezza lascia il cortisolo\n"
-                    "     esattamente dov'era, in tutti e tre — perché i canali non si parlano.\n");
+                std::printf("  !!  QUESTI SONO TOTALI, NON L'EFFETTO DEL REGALO.\n"
+                    "     La riga \"in ansia\" parte da 0.42 messo a mano e il suo bersaglio\n"
+                    "     e' 0.08 (con questo cielo la produzione di cortisolo e' ZERO):\n"
+                    "     quasi tutto quello scarto e' il rientro omeostatico, non la carezza.\n"
+                    "     Il contributo VERO del regalo si isola facendo la stessa corsa\n"
+                    "     con e senza gli impulsi, e vale ~-0.018 / -0.016 / -0.018:\n"
+                    "     sotto tensione la carezza arriva MENO, perche' kappa stringe.\n"
+                    "     Senza intreccio, invece, vale zero esatto in tutti e tre.\n");
     }
 
     std::printf("\n=== 6. IL PREZZO ===\n");

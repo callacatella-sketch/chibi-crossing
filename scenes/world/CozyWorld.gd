@@ -520,7 +520,53 @@ func flatten_cell(cell: Vector2i) -> void:
 
 ## Il ramo dei FIORI di `flatten_cell`, a parte perché ha due chiamanti:
 ## il piazzamento, e il rifacimento dopo l'indicizzazione.
+##
+## ⚠️ **E CI SONO TRE POPOLAZIONI DI FIORI, non due.** Oltre all'erba e al
+## prato di `_flower_fields` ci sono i **380 fiori selvatici del C++**
+## (`EcosystemManager`), e di quelli qui non si sapeva niente: cadono
+## esattamente nell'area costruibile (il prato del manager va da (-13, -13.5)
+## a (13, 12)), arrivano a **23,5 cm**, e restavano dritti attraverso il
+## parquet, dentro le case, sotto i tappeti. È lo stesso difetto che questa
+## funzione esiste per curare, su una terza popolazione che nessuno aveva
+## collegato — e la densità l'ha reso comune, non l'ha creato.
+## Il manager del C++, preso dal GRUPPO.
+##
+## ⚠️⚠️ **IL CABLAGGIO SI RIPROVA, SEMPRE — e la prima stesura non lo faceva.**
+## C'era una bandiera «già cercato» che si alzava alla PRIMA chiamata, e
+## l'`Ecosystem` nasce in fondo a `_build_world`, cioè DOPO le prime
+## `flatten_cell` del caricamento: trovava `null` e se lo teneva **per
+## sempre**. MISURATO nel MainLevel vero, posando un pavimento su quaranta
+## celle con dentro un fiore: *«IL CABLAGGIO NON C'E'»*, zero fiori accucciati.
+## È la trappola che questo file documenta da mesi («cablare una volta sola
+## dentro un `call_deferred` del `_ready` trova `null` PER SEMPRE»), ripresa
+## mentre si curava proprio quella classe di difetto.
+##
+## Adesso si riprova finché non si trova, e si tiene solo quando c'è qualcosa
+## da tenere. ⚠️ E si chiede se il metodo ESISTE: una GDExtension compilata
+## prima di questa riga non ha il simbolo, e un metodo che non c'è è un errore
+## a runtime per ogni cella — il degrado va dove va sempre, al gioco di ieri.
+var _eco_mgr: Object = null
+
+
+func _eco_manager() -> Object:
+	if _eco_mgr != null and is_instance_valid(_eco_mgr):
+		return _eco_mgr
+	_eco_mgr = null
+	if not is_inside_tree():
+		return null
+	var nodo := get_tree().get_first_node_in_group("ecosystem")
+	if nodo == null:
+		return null
+	var m: Variant = nodo.get("eco")
+	if m is Object and (m as Object).has_method("accuccia_cella"):
+		_eco_mgr = m
+	return _eco_mgr
+
+
 func _accuccia_fiori(cell: Vector2i) -> void:
+	var mgr := _eco_manager()
+	if mgr != null:
+		mgr.call("accuccia_cella", cell.x, cell.y)
 	for v in _flower_cells.get(cell, []):
 		var c := int((v as Array)[0])
 		var idx: int = int((v as Array)[1])

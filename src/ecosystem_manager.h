@@ -8,7 +8,9 @@
 #include <godot_cpp/variant/callable.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/packed_vector3_array.hpp>
+#include <godot_cpp/variant/transform3d.hpp>
 
+#include <set>
 #include <vector>
 
 namespace godot {
@@ -84,6 +86,15 @@ class EcosystemManager : public Node3D {
     std::vector<Firefly> fireflies;
     std::vector<Sparrow> sparrows;
     std::vector<Wildflower> wildflowers;
+    // LE CELLE ACCUCCIATE. Un fiore alto 23,5 cm sotto un pavimento posato dal
+    // giocatore e' una corolla che attraversa il parquet, e i 380 fiori di
+    // questo manager cadono ESATTAMENTE nell'area costruibile (il prato va da
+    // (-13, -13.5) a (13, 12)). `CozyWorld.flatten_cell` accuccia gia' l'erba
+    // e i fiori del PRATO, ma non sapeva niente di questi: qui non c'e' mai
+    // stato un `accuccia`. Le chiavi sono impacchettate come gli interi di una
+    // cella, e l'insieme e' uno SET perche' la domanda si fa 380 volte per
+    // ogni `push_flowers` e deve costare un logaritmo, non una scansione.
+    std::set<int64_t> celle_accucciate;
     std::vector<Seed> seeds;
     std::vector<Egg> eggs;
 
@@ -155,6 +166,16 @@ public:
             const Ref<Mesh> &flower_mesh);
     void set_pond(const Vector3 &center, float radius);
     void set_meadow(const Vector3 &p_min, const Vector3 &p_max);
+    /// Il giocatore ha posato qualcosa su quella cella: i fiori che ci stanno
+    /// dentro si schiacciano, come fa gia' l'erba del prato. E' a senso unico,
+    /// esattamente come `CozyWorld._grass_flat`: demolire non li rialza.
+    void accuccia_cella(int p_x, int p_z);
+    /// La trasformata di un fiore: la STESSA che finisce nel MultiMesh.
+    Transform3D trasf_fiore(int p_i) const;
+    /// …e come la legge un banco, perche' in headless il MultiMesh non si
+    /// rilegge (torna l'identita').
+    Dictionary debug_trasf_fiore(int p_i) const;
+    int debug_quanti_fiori() const;
     void set_night(bool p_night);
     void set_flower_sources(const PackedVector3Array &sources);
     void set_ground_validator(const Callable &validator);

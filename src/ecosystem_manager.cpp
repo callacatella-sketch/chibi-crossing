@@ -12,6 +12,9 @@ void EcosystemManager::_bind_methods() {
     ClassDB::bind_method(D_METHOD("configure", "butterfly_mesh", "firefly_mesh", "flower_mesh"), &EcosystemManager::configure);
     ClassDB::bind_method(D_METHOD("set_pond", "center", "radius"), &EcosystemManager::set_pond);
     ClassDB::bind_method(D_METHOD("set_meadow", "min", "max"), &EcosystemManager::set_meadow);
+    ClassDB::bind_method(D_METHOD("accuccia_cella", "x", "z"), &EcosystemManager::accuccia_cella);
+    ClassDB::bind_method(D_METHOD("debug_trasf_fiore", "i"), &EcosystemManager::debug_trasf_fiore);
+    ClassDB::bind_method(D_METHOD("debug_quanti_fiori"), &EcosystemManager::debug_quanti_fiori);
     ClassDB::bind_method(D_METHOD("set_night", "night"), &EcosystemManager::set_night);
     ClassDB::bind_method(D_METHOD("set_flower_sources", "sources"), &EcosystemManager::set_flower_sources);
     ClassDB::bind_method(D_METHOD("set_ground_validator", "validator"), &EcosystemManager::set_ground_validator);
@@ -96,6 +99,21 @@ void EcosystemManager::configure(const Ref<Mesh> &butterfly_mesh, const Ref<Mesh
 void EcosystemManager::set_pond(const Vector3 &center, float radius) {
     pond_center = center;
     pond_radius = radius;
+}
+
+// la chiave di una cella, impacchettata: la stessa aritmetica di `Varchi.cella`
+static inline int64_t _chiave_cella(int p_x, int p_z) {
+    return ((int64_t)p_x << 32) | (int64_t)(uint32_t)p_z;
+}
+
+int EcosystemManager::debug_quanti_fiori() const {
+    return (int)wildflowers.size();
+}
+
+void EcosystemManager::accuccia_cella(int p_x, int p_z) {
+    if (celle_accucciate.insert(_chiave_cella(p_x, p_z)).second) {
+        push_flowers();
+    }
 }
 
 void EcosystemManager::set_meadow(const Vector3 &p_min, const Vector3 &p_max) {
@@ -553,17 +571,55 @@ void EcosystemManager::push_transforms() {
     }
 }
 
+// LA TRASFORMATA DI UN FIORE, in un posto solo.
+//
+// !!! E' ESTRATTA APPOSTA: `MultiMesh::get_instance_transform()` torna
+// l'IDENTITA' in `--headless` (il renderer fittizio non conserva il buffer),
+// quindi un banco che rileggesse il MultiMesh misurerebbe la propria cecita'.
+// `debug_trasf_fiore` chiama QUESTA, cioe' la stessa funzione che scrive nel
+// MultiMesh: non e' una ri-implementazione, e' un secondo chiamante.
+Transform3D EcosystemManager::trasf_fiore(int p_i) const {
+    if (p_i < 0 || p_i >= (int)wildflowers.size()) {
+        return Transform3D();
+    }
+    const Wildflower &w = wildflowers[p_i];
+    const float s = 0.3f + 0.7f * w.maturity;
+    const float yaw = (float)(w.kind * 1.7 + p_i * 0.61);
+    // ...e se il giocatore ha posato qualcosa su quella cella, il fiore si
+    // schiaccia: 0.02 e' lo stesso fattore con cui `CozyWorld.flatten_cell`
+    // accuccia l'erba e i fiori del prato, cosi' le tre popolazioni si
+    // appiattiscono allo stesso modo invece che ognuna col suo numero.
+    float sy = s;
+    if (!celle_accucciate.empty()
+            && celle_accucciate.count(_chiave_cella(
+                    (int)Math::round(w.pos.x), (int)Math::round(w.pos.z))) != 0) {
+        sy = s * 0.02f;
+    }
+    return Transform3D(Basis(Vector3(0, 1, 0), yaw).scaled(Vector3(s, sy, s)), w.pos);
+}
+
+Dictionary EcosystemManager::debug_trasf_fiore(int p_i) const {
+    Dictionary d;
+    if (p_i < 0 || p_i >= (int)wildflowers.size()) {
+        return d;
+    }
+    const Transform3D t = trasf_fiore(p_i);
+    d["pos"] = t.origin;
+    d["alto"] = (t.basis.xform(Vector3(0, 1, 0))).y;   // quanto e' alto adesso
+    d["accucciato"] = celle_accucciate.count(_chiave_cella(
+            (int)Math::round(wildflowers[p_i].pos.x),
+            (int)Math::round(wildflowers[p_i].pos.z))) != 0;
+    return d;
+}
+
 void EcosystemManager::push_flowers() {
     if (wf_mm.is_null()) return;
     int n = MIN((int)wildflowers.size(), WF_MAX);
     wf_mm->set_visible_instance_count(n);
     for (int i = 0; i < n; i++) {
-        const Wildflower &w = wildflowers[i];
-        float s = 0.3f + 0.7f * w.maturity;
-        float yaw = (float)(w.kind * 1.7 + i * 0.61);
-        Basis basis = Basis(Vector3(0, 1, 0), yaw).scaled(Vector3(s, s, s));
-        wf_mm->set_instance_transform(i, Transform3D(basis, w.pos));
-        wf_mm->set_instance_custom_data(i, Color((float)w.kind, w.maturity, 0, 0));
+        wf_mm->set_instance_transform(i, trasf_fiore(i));
+        wf_mm->set_instance_custom_data(i,
+                Color((float)wildflowers[i].kind, wildflowers[i].maturity, 0, 0));
     }
 }
 

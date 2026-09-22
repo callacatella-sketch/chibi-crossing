@@ -141,29 +141,69 @@ func _phi_misura_una_mente(t) -> void:
 	t.ok(teso < calmo, "e la direzione è quella: tendersi non integra di più")
 
 
-## ⚠️ **LA TESI, RESA UN NUMERO.** La stessa identica gentilezza, in tre menti
-## che stanno in tre modi diversi. Senza intreccio i canali non si parlano,
-## quindi il cortisolo NON si muove in nessuno dei tre — un regalo non può
-## calmare nessuno, per costruzione.
+## ⚠️ **LA TESI, RESA UN NUMERO — e il primo numero era un ARTEFATTO.**
+##
+## La stessa identica gentilezza, in tre menti che stanno in tre modi diversi.
+## Senza intreccio i canali non si parlano, quindi il cortisolo NON si muove in
+## nessuno dei tre: un regalo non può calmare nessuno, per costruzione.
+##
+## ⚠️⚠️ **MA LA PRIMA STESURA MISURAVA L'OMEOSTASI, NON LA GENTILEZZA**, e la
+## sua asserzione non poteva fallire. Confrontava la variazione TOTALE di
+## cortisolo dopo trenta secondi fra la riga «in ansia» (che parte da 0,42
+## messo a mano) e quella «serena» (che parte già al proprio punto di riposo,
+## 0,08). Ma con `CIELO` la produzione di cortisolo vale
+## `0.030 · (0.6·pioggia + 0.4·(1 − comfort))` = **zero esatto**, quindi il
+## bersaglio è 0,08 per tutte e tre e quei 0,34 di scarto **tornano a casa da
+## soli**: −0,285 di rientro contro −0,018 di regalo. La soglia era 0,05, tre
+## volte più piccola dell'artefatto — e il caso restava verde con
+## `_intreccio_passo` mutato in `return false`, cioè **con la fase interamente
+## spenta**, e anche togliendo le tre `stimola_neuro`, cioè senza il gesto che
+## doveva misurare.
+##
+## ⚠️ E il verso era ROVESCIATO. MISURATO isolando il regalo (stessa mente,
+## stesso stato, con e senza `stimola_neuro`, nella stessa corsa):
+##
+##     sereno   −0.017889     in ansia  −0.015629     esausto  −0.017669
+##
+## La carezza arriva **MENO** a chi è in ansia, non di più — e ha una ragione
+## che questo file misura già due casi più su: `kappa = 1 − 0.9·cortisolo`,
+## quindi **sotto tensione l'accoppiamento si stringe**. È la stessa cosa che
+## dice il crollo di Φ (×3,4 fra un corpo calmo e uno teso), vista da un altro
+## canale. La tesi regge, il verso no.
 func _la_stessa_gentilezza_in_menti_diverse(t) -> void:
-	var esiti: Array = []
+	# IL CONTRIBUTO DEL REGALO, ISOLATO: la stessa mente, lo stesso stato
+	# iniziale, con e senza. È l'unica forma che non può misurare il rientro.
+	var regalo: Array = []
 	for stato in [[0.08, 0.10], [0.42, 0.10], [0.08, 0.62]]:
-		var l = _nuovo()
-		l.neuro["cortisolo"] = float(stato[0])
-		l.neuro["adenosina"] = float(stato[1])
-		var prima: float = float(l.neuro["cortisolo"])
-		l.stimola_neuro("dopamina", 0.15)
-		l.stimola_neuro("ossitocina", 0.12)
-		l.stimola_neuro("serotonina", 0.12)
-		for k in 600:
-			l.passo_neuro(0.05, CIELO, false, 0.0)
-		esiti.append(float(l.neuro["cortisolo"]) - prima)
-	# in chi è in ansia la stessa carezza vale MOLTO di più
-	t.ok(esiti[1] < esiti[0] - 0.05,
-			("la stessa gentilezza calma chi è in ansia (%+.4f) molto più di "
-			+ "chi era già sereno (%+.4f): l'effetto dipende da dov'era "
-			+ "quella mente, e non c'è nessuna tabella che lo dica")
-					% [esiti[1], esiti[0]])
+		var esito: Array = []
+		for col_regalo in [true, false]:
+			var l = _nuovo()
+			l.neuro["cortisolo"] = float(stato[0])
+			l.neuro["adenosina"] = float(stato[1])
+			var prima: float = float(l.neuro["cortisolo"])
+			if col_regalo:
+				l.stimola_neuro("dopamina", 0.15)
+				l.stimola_neuro("ossitocina", 0.12)
+				l.stimola_neuro("serotonina", 0.12)
+			for k in 600:
+				l.passo_neuro(0.05, CIELO, false, 0.0)
+			esito.append(float(l.neuro["cortisolo"]) - prima)
+		regalo.append(float(esito[0]) - float(esito[1]))
+
+	# 1. IL REGALO CALMA — e senza intreccio non potrebbe, perché i canali
+	#    non si parlano e il cortisolo non ha nessun ingresso da lì.
+	for i in 3:
+		t.ok(float(regalo[i]) < -0.005,
+				("un regalo abbassa il cortisolo anche nella mente %d "
+				+ "(%+.6f): senza intreccio sarebbe zero esatto") % [i, regalo[i]])
+
+	# 2. E QUANTO ARRIVA DIPENDE DA DOV'ERA QUELLA MENTE — nel verso vero:
+	#    sotto tensione `kappa` stringe l'accoppiamento, e la carezza arriva
+	#    MENO. Non c'è nessuna tabella che lo dica: lo dice lo stato.
+	t.ok(float(regalo[1]) > float(regalo[0]) + 0.001,
+			("sotto tensione la stessa carezza arriva MENO (%+.6f contro "
+			+ "%+.6f): è la mente che si restringe, la stessa cosa che dice "
+			+ "il crollo di Φ") % [regalo[1], regalo[0]])
 
 
 ## Il degrado va SEMPRE verso il gioco di ieri: un passo malato non deve
