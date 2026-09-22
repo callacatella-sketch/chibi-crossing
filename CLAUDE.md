@@ -2492,6 +2492,19 @@ cerca quello vecchio»*.
 `if-no-files-found: error` su `upload-artifact` fa sì che un nome sbagliato
 **fermi la CI** invece di passare in silenzio.
 
+**VERIFICATO in CI** (run 35718042268, job *Compila (windows)*, 9m27s verde),
+e l'artifact scaricato è la prova che i due binari erano davvero uno solo:
+
+| `bin-windows`, prima | `bin-windows`, adesso |
+|---|---|
+| `chibi_crossing.dll` — **uno** | `…template_debug.x86_64.dll` — **3 891 200 byte** |
+| `chibi_crossing.lib` | `…template_release.x86_64.dll` — **848 896 byte** |
+
+**Quattro volte e mezzo di differenza** fra i due — che è quello che `/Od /Z7
+/DEBUG` produce contro `/O2 /OPT:REF /OPT:ICF`. Finché il nome era uno, uno
+dei due spariva a ogni build, e non c'era modo di accorgersene guardando il
+file.
+
 ### 3 · ⚠️ LA CONTROPROVA NON POTEVA PIÙ ESSERE VERDE, ed è la causa dei primi due
 
 `tools/prova_release.py` esiste apposta perché *«i cancelli della release si
