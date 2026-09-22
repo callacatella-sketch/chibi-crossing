@@ -1850,7 +1850,26 @@ func _process(delta: float) -> void:
 			_face.set_mood(_mood)
 		else:
 			_face.set_talking(false)
-			_face.set_expression(_expr_for_state(_state))
+			# ⚠️ **MENTRE MANGIA, LA FACCIA È DEL PASTO.** `_pasto_recita`
+			# scrive cinque espressioni lungo il rituale (prende → gioia,
+			# annusa → beato, soffia → soffio, morsi → gioia, sospiro →
+			# beato), e questa riga — che gira 180 righe dopo, nello STESSO
+			# fotogramma, senza nessun `return` in mezzo — le riscriveva
+			# tutte. `_expr_for_state` non conosce `"r_pasto"` e cade sul
+			# ramo di serie: **"neutro"**.
+			#
+			# La fusione (`_face.update`) parte quindi dai target neutri: i
+			# target del pasto vivevano ZERO passi di blend. Per un piatto
+			# caldo sono 3,50 s su 4,90 in cui il vicino mangia con la faccia
+			# di prima — e l'unico istante diverso arriva dal ramo di sopra,
+			# quando il «sospiro» fa partire la voce.
+			#
+			# Il recinto c'è già ed è lo stesso di tutti gli altri canali del
+			# pasto (`_pasto_occupa`): finché lo stato è suo, il volto lo
+			# scrive lui. E all'uscita `_pasto_via` rimette «neutro», quindi
+			# non resta niente appeso.
+			if _state != "r_pasto":
+				_face.set_expression(_expr_for_state(_state))
 		if _state == "tk_nap":
 			# a occhi chiusi non si insegue nessuno: chi dorme, dorme
 			_face.clear_gaze()

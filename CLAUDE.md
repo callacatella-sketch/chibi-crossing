@@ -1266,6 +1266,31 @@ immaginate):**
   su una persona attecchiva più di una sul re del villaggio. È la via più
   corta perché una storia triste diventi una gogna.
 
+## ⚠️ IL VOLTO DEL PASTO NON SI VEDEVA MAI
+
+`Visitor._pasto_recita` scrive **cinque** espressioni lungo il rituale —
+prende → *gioia*, annusa → *beato*, soffia → *soffio*, morsi → *gioia*,
+sospiro → *beato*. Ma centottanta righe più sotto, **nello stesso
+fotogramma** e senza nessun `return` in mezzo, `_process` faceva
+`_face.set_expression(_expr_for_state(_state))` — e `_expr_for_state` non
+conosce `"r_pasto"`, quindi cade sul ramo di serie: **«neutro»**.
+
+La fusione (`_face.update`) partiva perciò dai target neutri: quelli del
+pasto vivevano **zero passi di blend**. Per un piatto caldo sono **3,50 s su
+4,90** in cui il vicino mangia con la faccia di prima, e l'unico istante
+diverso arriva dall'altro ramo — quando il «sospiro» fa partire la voce.
+
+Il recinto c'è già ed è quello di tutti gli altri canali del pasto: finché lo
+stato è suo, il volto lo scrive lui. All'uscita `_pasto_via` rimette
+«neutro», quindi non resta niente appeso.
+
+⚠️ **E LA GUARDIA CHE C'ERA NON POTEVA VEDERLO:** `test_pasto` sorvegliava il
+cablaggio con un **source-check**, che resta verde qualunque sia l'ordine
+dentro `_process`. Quella nuova fa girare il `_process` VERO e **chiede al
+volto come sta**, battuta per battuta. Due mutazioni, due asserzioni diverse:
+rimettendo il difetto → *«atteso gioia, ottenuto neutro»*; spegnendo
+`_expr_for_state` per sempre → cade la **controprova**, che è lì apposta.
+
 ## ⚠️ ARRIVAVA LA LETTERA DI SCUSA DI QUALCUNO CHE NON C'ERA PIÙ
 
 `Visitors._congeda` e la partenza per il Grande Prato dicono al **calendario**

@@ -10,6 +10,7 @@ extends RefCounted
 
 const PASTO := preload("res://scenes/npc/Pasto.gd")
 const VISITOR := preload("res://scenes/npc/Visitor.gd")
+const DNA := preload("res://scenes/npc/ChibiDNA.gd")
 
 
 func run(t) -> void:
@@ -21,6 +22,7 @@ func run(t) -> void:
     _test_alzata_continua(t)
     _test_fabbriche(t)
     _test_il_filo_col_corpo(t)
+    _la_faccia_del_pasto_si_vede(t)
 
 
 # ------------------------------------------------------------- le battute
@@ -227,3 +229,62 @@ func _test_il_filo_col_corpo(t) -> void:
 
 static func _sorgente(percorso: String) -> String:
     return FileAccess.get_file_as_string(percorso)
+
+
+## ⚠️ IL VOLTO DEL PASTO NON SI VEDEVA MAI.
+##
+## `_pasto_recita` scrive CINQUE espressioni lungo il rituale (prende →
+## gioia, annusa → beato, soffia → soffio, morsi → gioia, sospiro → beato).
+## Ma 180 righe piu' sotto, nello STESSO fotogramma e senza nessun `return`
+## in mezzo, `_process` faceva `_face.set_expression(_expr_for_state(_state))`
+## — e `_expr_for_state` non conosce `"r_pasto"`, quindi cade sul ramo di
+## serie: **"neutro"**.
+##
+## La fusione (`_face.update`) partiva quindi dai target neutri: quelli del
+## pasto vivevano ZERO passi di blend. Per un piatto caldo sono 3,50 s su
+## 4,90 in cui il vicino mangia con la faccia di prima, e l'unico istante
+## diverso arriva dall'altro ramo — quando il «sospiro» fa partire la voce.
+##
+## ⚠️ E LA GUARDIA DI QUESTO FILE NON POTEVA VEDERLO: `_test_il_filo_col_corpo`
+## e' un SOURCE-CHECK, e resta verde qualunque sia l'ordine dentro `_process`.
+## Questo caso invece fa girare il `_process` VERO e chiede al volto come sta.
+func _la_faccia_del_pasto_si_vede(t) -> void:
+    var v = VISITOR.new()
+    v.species = "chibi"
+    v.dna = DNA.generate(4242)
+    t.stage(v)
+    v.set_process(false)          # i fotogrammi li facciamo girare NOI
+    var faccia = v.get("_face")
+    if faccia == null:
+        t.ok(false, "il chibi di prova ha un volto (senza, il caso non prova niente)")
+        return
+
+    var ciotola := Node3D.new()
+    t.stage(ciotola)
+    v.call("mangia", ciotola, Color("d8a05a"), true, true)
+    t.eq(str(v.get("_state")), "r_pasto", "il pasto si e' preso il corpo")
+
+    # PRENDE: la prima battuta scrive «gioia» (adorato). Un fotogramma vero.
+    v._process(1.0 / 60.0)
+    t.eq(str(faccia.call("expression")), "gioia",
+            "la prima battuta del pasto arriva al volto, e ci RESTA per il"
+            + " fotogramma (prima la riscriveva «neutro» 180 righe dopo)")
+
+    # ANNUSA: a 0.50 s la battuta cambia, e il volto con lei.
+    for _i in 34:
+        v._process(1.0 / 60.0)
+    t.eq(str(faccia.call("expression")), "beato",
+            "…e cambia con le battute: annusare ha la sua faccia")
+
+    # ⚠️ LA CONTROPROVA: fuori dal pasto il volto torna a essere dello STATO,
+    # o una cura che spegne `_expr_for_state` per sempre passerebbe uguale.
+    # Il pasto si lascia finire da solo — il suo RECINTO (`_pasto_occupa`)
+    # rifiuta i cambi di stato finche' e' acceso, ed e' giusto cosi'.
+    for _i in 420:
+        v._process(1.0 / 60.0)
+    t.ok(str(v.get("_state")) != "r_pasto",
+            "il pasto e' finito da se' (stato: %s)" % str(v.get("_state")))
+    v.call("_enter_state", "tk_nap")
+    v._process(1.0 / 60.0)
+    t.eq(str(faccia.call("expression")), "dorme",
+            "e finito il pasto il volto torna a seguire lo stato")
