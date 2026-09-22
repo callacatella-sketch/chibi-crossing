@@ -1533,7 +1533,7 @@ int EcsMondo::racconta(int64_t p_a, int64_t p_b, double p_smorzamento) {
 	// Il ricordo di B nasce ADESSO (`inserisci` timbra sempre `p_ora`): non
 	// eredita il tempo di chi l'ha visto. Un ricordo antidatato peserebbe gia
 	// meno del dovuto — e nella catena lunga non si potrebbe piu potare.
-	chibi::inserisci(gb.g, eco, ora, mv);
+	const int inciso = chibi::inserisci(gb.g, eco, ora, mv);
 
 	// A L'HA RACCONTATA. Il marchio si mette QUI, dove il racconto accade, e
 	// non dentro `da_raccontare` (che e una domanda, e una domanda non deve
@@ -1566,7 +1566,31 @@ int EcsMondo::racconta(int64_t p_a, int64_t p_b, double p_smorzamento) {
 	// maschere non sarebbero confrontabili sullo stesso istante — e un banco
 	// appaiato che confronta due modelli diversi non misura una regola,
 	// misura due villaggi.
-	chibi::so_che_sa(ca.c, static_cast<uint32_t>(static_cast<uint64_t>(p_b)), verbo, ora);
+	// ⚠️ **LA PRIMA SOLO SE B L'HA DAVVERO INCISA**, ed e la stessa
+	// disciplina che `Percezione.accaduto()` applica gia per iscritto
+	// all'altra sorgente legittima di questo modello: passa a
+	// `co_testimoni` solo `_incisi`, cioe chi ha davvero memorizzato,
+	// perche «accendere "B sa" su un ricordo che B non ha memorizzato
+	// sarebbe una credenza FALSA entrata dalla porta di servizio».
+	//
+	// `inserisci` torna -1 quando l'anello di B e pieno e l'eco e piu debole
+	// di tutte le sue ventiquattro righe — e un'eco e SMORZATA, quindi e
+	// proprio il candidato tipico a perdere. MISURATO (anello di B pieno con
+	// 24 righe forti, smorzamento 0.02): `racconta` riesce, B NON ha il
+	// ricordo, e A credeva di averglielo detto.
+	//
+	// Non e una sfumatura di contabilita: la credenza gata il verbo INTERO
+	// verso B (`da_raccontare` riceve `saputi` come maschera di verbi),
+	// quindi A non gli avrebbe raccontato nemmeno un ALTRO ricordo dello
+	// stesso verbo, per tutta la durata della credenza. `R_DETTO` invece
+	// resta incondizionato, ed e giusto: e il marchio del GESTO di A, non
+	// dello stato di B.
+	//
+	// La seconda resta incondizionata: B ha sentito A parlare, e quello e
+	// successo comunque.
+	if (inciso >= 0) {
+		chibi::so_che_sa(ca.c, static_cast<uint32_t>(static_cast<uint64_t>(p_b)), verbo, ora);
+	}
 	chibi::so_che_sa(cb.c, static_cast<uint32_t>(static_cast<uint64_t>(p_a)), verbo, ora);
 
 	// SI TORNA LA COSA, non l'esito dell'inserimento in B. Il racconto e un

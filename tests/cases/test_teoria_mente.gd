@@ -32,6 +32,7 @@ func run(t) -> void:
 			"il quaderno (%d) tiene tutto il villaggio (%d residenti)" % [max_con, int(vis.MAX_RESIDENTS)])
 
 	_il_caso_che_separa_le_due_regole(t)
+	_non_si_crede_a_un_racconto_che_non_e_entrato(t)
 
 	# ⚠️ IL SENTINELLA SI LEGGE, NON SI RISCRIVE. Scritto a mano (`-1.0`)
 	# valeva un timestamp VERO: tutte le credenze risultavano accese, e nove
@@ -250,3 +251,103 @@ func _il_caso_che_separa_le_due_regole(t) -> void:
 	for x in [a, b, c, d]:
 		m.dimentica(x)
 	m.free()
+
+
+## ⚠️ UNA CREDENZA SI SCRIVE SOLO SU UN RICORDO CHE E' DAVVERO ENTRATO.
+##
+## `credenze.h` promette che «non esiste sintatticamente un posto in cui
+## scrivere una credenza falsa», e `Percezione.accaduto()` applica la regola
+## per iscritto all'altra sorgente legittima del modello: passa a
+## `co_testimoni` solo `_incisi`, cioe' chi ha DAVVERO memorizzato, perche'
+## «accendere "B sa" su un ricordo che B non ha memorizzato sarebbe una
+## credenza FALSA entrata dalla porta di servizio».
+##
+## `EcsMondo::racconta` era quel posto: buttava via l'esito di `inserisci` e
+## incideva comunque «A sa che B lo sa». MISURATO prima della cura, con
+## l'anello di B PIENO (24 righe forti) e smorzamento 0.02: `racconta`
+## riesce, **B non ha il ricordo**, e A crede di averglielo detto.
+##
+## Non e' contabilita': la credenza gata il VERBO INTERO verso B
+## (`da_raccontare` riceve `saputi` come maschera di verbi), quindi A non gli
+## avrebbe raccontato nemmeno un ALTRO ricordo dello stesso verbo per tutta
+## la durata della credenza — e' la «coda di ritardatari» che `credenze.h`
+## nomina, generata pero' da una credenza che era falsa nell'istante in cui
+## e' stata scritta.
+##
+## ⚠️ E L'ANELLO SI RIEMPIE CON SOGGETTI DIVERSI, non con verbi ripetuti: i
+## ricordi FONDONO per (verbo, cosa, soggetto), quindi quarantotto
+## osservazioni su sei verbi fanno SEI righe e l'anello non si riempie mai.
+## E' il primo modo in cui questa scena e' stata scritta male, e il banco
+## sembrava dire che il difetto non esistesse.
+func _non_si_crede_a_un_racconto_che_non_e_entrato(t) -> void:
+	var m = ClassDB.instantiate("EcsMondo")
+	if m == null:
+		return
+	var v: int = m.indice_verbo("costruisce")
+
+	# --- IL CASO COMUNE, che e' anche la controprova: c'e' posto, entra,
+	# e A ci crede. Senza questa meta', una cura che spegnesse la credenza
+	# SEMPRE resterebbe verde.
+	var a: int = m.registra(PackedStringArray([]), "")
+	var b: int = m.registra(PackedStringArray([]), "")
+	m.osserva(a, v, Vector3(3.0, 0.0, 4.0), -1)
+	t.ok(int(m.racconta(a, b, 0.55)) >= 0, "con l'anello libero, A racconta")
+	t.ok(_ha_ricordo(m, b, v), "e B lo incide")
+	t.ok(_crede(m, a, b, v), "…quindi A sa che B lo sa")
+
+	# --- L'ANELLO PIENO: stessa scena, e il ricordo NON entra.
+	var c: int = m.registra(PackedStringArray([]), "")
+	var d: int = m.registra(PackedStringArray([]), "")
+	m.osserva(c, v, Vector3(3.0, 0.0, 4.0), -1)
+	var quanti := _riempi(m, d)
+	t.ok(quanti >= 24, "l'anello di D e' pieno (%d righe)" % quanti)
+	t.ok(not _ha_ricordo(m, d, v), "e quel verbo D non ce l'ha")
+
+	# ⚠️ IL RITORNO NON CAMBIA, ed e' voluto: il racconto e' un gesto di C,
+	# e il simbolo esce dalla sua nuvoletta anche se l'altro se lo lascia
+	# scivolare via. Il commento in `racconta` lo dichiara da sempre.
+	t.ok(int(m.racconta(c, d, 0.02)) >= 0,
+			"C racconta lo stesso: il gesto e' suo")
+	t.ok(not _ha_ricordo(m, d, v),
+			"ma l'anello l'ha rifiutata: D non ha il ricordo")
+	t.ok(not _crede(m, c, d, v),
+			"⇒ C NON crede di averglielo detto (la credenza sarebbe falsa)")
+	# e l'altra meta' resta vera: D ha sentito C parlare, e quello e'
+	# successo comunque.
+	t.ok(_crede(m, d, c, v), "…mentre D sa che C lo sa: l'ha sentito da lui")
+
+	for x in [a, b, c, d]:
+		m.dimentica(x)
+	m.free()
+
+
+func _crede(m, chi: int, altro: int, verbo: int) -> bool:
+	for voce in ((m.debug_credenze(chi) as Dictionary).get("voci", []) as Array):
+		if int((voce as Dictionary).get("chi", -1)) == altro:
+			return (int((voce as Dictionary).get("saputi", 0)) & (1 << verbo)) != 0
+	return false
+
+
+func _ha_ricordo(m, chi: int, verbo: int) -> bool:
+	for r in ((m.debug_grafo(chi) as Dictionary).get("ricordi", []) as Array):
+		if int((r as Dictionary).get("verbo", -1)) == verbo:
+			return true
+	return false
+
+
+## ⚠️ SOGGETTI DIVERSI, o i ricordi fondono e l'anello non si riempie.
+## Ogni riga si ripete cinque volte perche' `quante` sale e la riga diventa
+## FORTE: un anello pieno di righe deboli lascerebbe entrare l'eco lo stesso,
+## e la scena proverebbe il contrario di quello che crede.
+func _riempi(m, chi: int) -> int:
+	var soggetti := []
+	for k in 6:
+		soggetti.append(int(m.registra(PackedStringArray([]), "")))
+	for nome in ["annaffia", "dona", "pesca", "raccoglie", "pianta", "ripara"]:
+		var iv: int = m.indice_verbo(nome)
+		if iv < 0:
+			continue
+		for s in soggetti:
+			for ripeti in 5:
+				m.osserva(chi, iv, Vector3(2.0, 0.0, 2.0), s)
+	return int(((m.debug_grafo(chi) as Dictionary).get("ricordi", []) as Array).size())

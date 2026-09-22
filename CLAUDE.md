@@ -5104,6 +5104,54 @@ camera, stessa ombra) il corpo è visibilmente più alto e le orecchie sono
 passate da indietro a su.
 
 
+## ⚠️ «A CREDE DI AVERGLIELO DETTO» — la credenza falsa dalla porta di servizio
+
+`credenze.h` promette, in testata, che *«non esiste sintatticamente un posto
+in cui scrivere una credenza falsa»*, e `Percezione.accaduto()` applica la
+regola all'altra sorgente legittima del modello: passa a `co_testimoni` solo
+`_incisi`, cioè **chi ha davvero memorizzato**, perché *«accendere "B sa" su
+un ricordo che B non ha memorizzato sarebbe una credenza FALSA entrata dalla
+porta di servizio»*.
+
+`EcsMondo::racconta` **era** quel posto. Buttava via l'esito di
+`chibi::inserisci(gb.g, …)` e trentatré righe dopo incideva comunque «A sa
+che B lo sa» — mentre la sua stessa giustificazione dichiara che le due
+credenze sono *«due fatti che chi le scrive ha OSSERVATO»*. Nel caso
+rifiutato non è un fatto osservato: è un'inferenza, e sbagliata.
+
+**MISURATO**, con l'anello di B pieno (24 righe forti) e smorzamento 0.02:
+
+| | prima | dopo |
+|---|---|---|
+| `racconta` | riesce (2) | riesce (2) — *invariato, ed è voluto* |
+| B ha il ricordo | **no** | no |
+| A crede che B lo sappia | **sì** | **no** |
+| B crede che A lo sappia | sì | sì — *l'ha sentito da lui* |
+
+⚠️ **Non è contabilità.** La credenza gata il **verbo INTERO** verso B
+(`da_raccontare` riceve `saputi` come maschera di verbi): A non gli avrebbe
+raccontato nemmeno un ALTRO ricordo dello stesso verbo, per tutta la durata
+della credenza. È la «coda di ritardatari» che `credenze.h` nomina come
+firma del modello — generata però da una credenza che era **falsa
+nell'istante in cui è stata scritta**, che è un'altra cosa.
+
+**Cosa NON è cambiato, e sono due scelte dichiarate:** il valore di ritorno
+(il racconto è un gesto di A, e il simbolo esce dalla sua nuvoletta anche se
+l'altro se lo lascia scivolare via — il commento lo diceva già), e `R_DETTO`,
+che è il marchio del GESTO di A e non dello stato di B.
+
+⚠️ **E L'ANELLO SI RIEMPIE CON SOGGETTI DIVERSI**, non con verbi ripetuti: i
+ricordi **fondono** per (verbo, cosa, soggetto), quindi quarantotto
+osservazioni su sei verbi fanno **sei** righe. È il primo modo in cui questa
+scena è stata scritta, e il banco sembrava dire che il difetto non esistesse.
+Ogni riga si ripete cinque volte perché `quante` sale e la riga diventa
+FORTE: un anello pieno di righe deboli lascia entrare l'eco lo stesso.
+
+La guardia è `test_teoria_mente._non_si_crede_a_un_racconto_che_non_e_entrato`,
+e ha la **controprova nella stessa scena** (con l'anello libero il ricordo
+entra e A ci crede): falsificata nei due versi — credenza incondizionata → 1
+rossa, credenza mai scritta → 1 rossa, e sono due asserzioni diverse.
+
 ## LA GIOIA NON PORTA LA FACCIA DELLA PAURA
 
 La strada veloce del `Limbico` ha due risposte — **chi ti teme trasalisce, chi
