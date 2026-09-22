@@ -584,7 +584,20 @@ Transform3D EcosystemManager::trasf_fiore(int p_i) const {
     }
     const Wildflower &w = wildflowers[p_i];
     const float s = 0.3f + 0.7f * w.maturity;
-    const float yaw = (float)(w.kind * 1.7 + p_i * 0.61);
+    // ⚠️ L'IMBARDATA VIENE DAL FIORE, NON DAL SUO INDICE — e per un pezzo
+    // veniva dall'indice. `on_new_day()` toglie il 4% dei fiori con
+    // swap-and-pop: ogni morte porta l'ULTIMO elemento in uno slot diverso,
+    // quindi quel fiore cambiava indice e quindi cambiava `yaw` di
+    // `0.61 * delta_indice` radianti — e `push_flowers()` gira subito dopo,
+    // cioe' la rotazione si vedeva nello stesso fotogramma.
+    // MISURATO nel MainLevel vero, cinque giornate: **28 fiori su 761
+    // giornate-fiore (3,7%)** cambiavano indice, col salto peggiore a
+    // **178 gradi** — un fiore che si gira quasi del tutto, da solo,
+    // davanti a chi sta guardando.
+    // `w.pos` e' del fiore e non si muove: due fiori diversi hanno due
+    // posizioni diverse, quindi due imbardate diverse, e la stessa pianta
+    // tiene la sua per sempre.
+    const float yaw = (float)(w.kind * 1.7 + w.pos.x * 2.3 + w.pos.z * 1.7);
     // ...e se il giocatore ha posato qualcosa su quella cella, il fiore si
     // schiaccia: 0.02 e' lo stesso fattore con cui `CozyWorld.flatten_cell`
     // accuccia l'erba e i fiori del prato, cosi' le tre popolazioni si
@@ -606,6 +619,9 @@ Dictionary EcosystemManager::debug_trasf_fiore(int p_i) const {
     const Transform3D t = trasf_fiore(p_i);
     d["pos"] = t.origin;
     d["alto"] = (t.basis.xform(Vector3(0, 1, 0))).y;   // quanto e' alto adesso
+    // L'IMBARDATA: serve alla guardia che la vuole STABILE quando l'anello
+    // dei fiori si rimescola. Senza, quel difetto non ha nessun oracolo.
+    d["yaw"] = (double)Math::atan2(-t.basis[0][2], t.basis[2][2]);
     d["accucciato"] = celle_accucciate.count(_chiave_cella(
             (int)Math::round(wildflowers[p_i].pos.x),
             (int)Math::round(wildflowers[p_i].pos.z))) != 0;

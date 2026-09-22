@@ -574,6 +574,42 @@ l'altezza dei corpi: **1.2093 → 0.0242 → 1.2093**.
 > e le altezze si ricavano da `_flower_base` ricalcolando la cella NEL
 > BANCO, e ogni riga è un'asserzione con `quit(1)`.
 
+### ⚠️ E L'IMBARDATA DI UN FIORE SELVATICO VENIVA DAL SUO INDICE
+
+`trasf_fiore` calcolava `yaw = kind·1.7 + INDICE·0.61`. Ma `on_new_day()`
+toglie il 4% dei fiori con **swap-and-pop**: ogni morte porta l'ULTIMO
+elemento in uno slot diverso, quindi quel fiore cambia indice — e con
+l'indice cambia l'imbardata, di `0.61 · Δindice` radianti. `push_flowers()`
+gira **nella riga subito dopo**: la rotazione si vede nello stesso
+fotogramma.
+
+**MISURATO** nel MainLevel vero, cinque giornate di gioco:
+
+| | prima | dopo |
+|---|---|---|
+| fiori che cambiano indice | 28 su 761 giornate-fiore (3,7%) | 29 — *identico, lo swap-and-pop è giusto* |
+| fiori che **ruotano di scatto** | **28** | **0** |
+| salto peggiore | **178°** | 0,00° |
+
+Sei fiori per giornata di gioco — cioè ogni quattro minuti reali — che si
+girano da soli davanti a chi guarda, uno quasi del tutto. `w.pos` è del
+fiore e non si muove: due fiori diversi hanno due posizioni diverse, quindi
+due imbardate diverse, e la stessa pianta tiene la sua per sempre.
+
+⚠️ **E il difetto non aveva un ORACOLO**: `debug_trasf_fiore` tornava
+posizione e altezza, non l'imbardata. Adesso la torna — una guardia ha
+bisogno di poter guardare la cosa che sorveglia.
+
+La guardia sta in
+[`test_fiori_cpp_accuccia.gd`](tests/cases/test_fiori_cpp_accuccia.gd) e fa
+lo swap-and-pop **a mano** con `load_state`, invece di chiamare
+`on_new_day()` — che pesca dal flusso globale e farebbe anche germogliare,
+cioè misurerebbe due meccanismi invece di uno. **Due mutazioni, due
+asserzioni diverse**: l'imbardata che torna dall'indice accende «nessun
+fiore ha ruotato» (55,94°), un'imbardata COSTANTE accende la controprova
+(«1 distinta su 40») — che serve, perché una costante passerebbe il primo
+controllo a pieni voti e toglierebbe la varietà a tutto il prato.
+
 ### LE FARFALLE: quattro triangoli e un corpo da mille
 
 Il budget c'era già, ed era **speso al contrario**.

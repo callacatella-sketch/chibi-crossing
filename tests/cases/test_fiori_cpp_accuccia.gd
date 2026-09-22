@@ -28,6 +28,7 @@ func run(t) -> void:
 		m.free()
 		return
 	_i_fiori_si_schiacciano(t, m)
+	_l_imbardata_non_dipende_dall_indice(t, m)
 	m.free()
 
 
@@ -95,3 +96,83 @@ func _i_fiori_si_schiacciano(t, m) -> void:
 	t.eq(toccati, 0,
 			"e nessun fiore delle altre celle si è mosso (%d celle intatte)"
 					% (per_cella.size() - 1))
+
+
+## ⚠️ E L'IMBARDATA È DEL FIORE, NON DEL SUO POSTO NEL VETTORE.
+##
+## `on_new_day()` toglie il 4% dei fiori con **swap-and-pop**: ogni morte
+## porta l'ULTIMO elemento in uno slot diverso. Finché `yaw` veniva
+## dall'INDICE (`w.kind * 1.7 + p_i * 0.61`), quel fiore cambiava
+## orientamento di `0.61 · Δindice` radianti — e `push_flowers()` gira nella
+## riga subito dopo, cioè la rotazione si vedeva **nello stesso fotogramma**.
+##
+## MISURATO nel MainLevel vero, cinque giornate: **28 fiori su 761
+## giornate-fiore (3,7%)** cambiavano indice, col salto peggiore a **178
+## gradi**. Dopo: gli indici cambiano uguale (lo swap-and-pop è giusto), le
+## rotazioni sono **zero**.
+##
+## ⚠️ LA CONTROPROVA È NECESSARIA: un `yaw` costante passerebbe il primo
+## controllo a pieni voti e toglierebbe la varietà a tutto il prato. Si
+## pretende quindi anche che fiori diversi abbiano imbardate diverse.
+func _l_imbardata_non_dipende_dall_indice(t, m) -> void:
+	m.set_meadow(Vector3(-13, 0, -13.5), Vector3(13, 0, 12))
+	m.set_pond(Vector3(9.5, 0.0, -10.5), 3.6)
+	var wf: Array = []
+	for k in 40:
+		wf.append([-11.0 + float(k) * 0.53, -12.0 + float((k * 7) % 21) * 0.97,
+				1.0, k % 4])
+	m.load_state({"wf": wf})
+	var n: int = int(m.debug_quanti_fiori())
+	t.ok(n >= 20, "il banco ha abbastanza fiori (%d)" % n)
+	if n < 20:
+		return
+
+	var prima := {}
+	var imbardate := {}
+	for i in n:
+		var d: Dictionary = m.debug_trasf_fiore(i)
+		var p: Vector3 = d["pos"]
+		var k := "%.4f_%.4f" % [p.x, p.z]
+		prima[k] = float(d["yaw"])
+		imbardate["%.3f" % fposmod(float(d["yaw"]), TAU)] = true
+	# LA CONTROPROVA, prima: se fossero tutte uguali, il resto non varrebbe
+	t.ok(imbardate.size() >= n / 2,
+			"fiori diversi hanno imbardate diverse (%d distinte su %d)"
+					% [imbardate.size(), n])
+
+	# ⚠️ LO SWAP-AND-POP SI FA QUI A MANO, con `load_state`: `on_new_day()`
+	# pesca dal flusso globale e farebbe anche germogliare, cioè il banco
+	# misurerebbe due meccanismi invece di uno. Si rimescola l'ordine
+	# ESATTAMENTE come fa lo swap-and-pop — l'ultimo che prende il posto di
+	# uno in mezzo — e si ricarica.
+	var righe: Array = []
+	for i in n:
+		var d: Dictionary = m.debug_trasf_fiore(i)
+		var p: Vector3 = d["pos"]
+		righe.append([p.x, p.z, 1.0, i % 4])
+	var meta := int(righe.size() / 2)
+	righe[meta] = righe[righe.size() - 1]
+	righe.resize(righe.size() - 1)
+	m.load_state({"wf": righe})
+
+	var mossi := 0
+	var ruotati := 0
+	var peggio := 0.0
+	for i in int(m.debug_quanti_fiori()):
+		var d: Dictionary = m.debug_trasf_fiore(i)
+		var p: Vector3 = d["pos"]
+		var k := "%.4f_%.4f" % [p.x, p.z]
+		if not prima.has(k):
+			continue
+		var dy: float = absf(fposmod(float(d["yaw"]) - float(prima[k]) + PI, TAU) - PI)
+		if dy > 0.001:
+			ruotati += 1
+			peggio = maxf(peggio, dy)
+	# il fiore spostato in mezzo ha cambiato indice davvero: senza, il caso
+	# non prova niente
+	t.ok(int(m.debug_quanti_fiori()) == n - 1,
+			"un fiore e' stato tolto con lo swap-and-pop (%d → %d)"
+					% [n, int(m.debug_quanti_fiori())])
+	t.eq(ruotati, 0,
+			"nessun fiore sopravvissuto ha ruotato (peggiore %.2f gradi)"
+					% rad_to_deg(peggio))
