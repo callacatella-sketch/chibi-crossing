@@ -23,6 +23,7 @@ func run(t) -> void:
 	_test_wallet(t)
 	_test_afford(t)
 	_test_save_roundtrip(t)
+	_un_albero_tolto_non_rinasce(t)
 
 
 func _test_parse_gate(t) -> void:
@@ -141,8 +142,6 @@ func _test_ceppo_persistito(t) -> void:
 	t.eq(((wc3._pending_rows as Array)[2] as Array).size(), 0,
 			"salvataggio senza ceppi: riga vuota, nessun errore")
 	wc.free()
-	wc2.free()
-	wc3.free()
 
 
 # I fili nei sorgenti: l'abbattimento REGISTRA il ceppo (non lo sprofonda),
@@ -237,4 +236,70 @@ func _test_save_roundtrip(t) -> void:
 	t.eq(wc2.wood, WOOD.START_WOOD,
 			"salvataggio senza legna: si riceve la catasta iniziale, senza errori")
 	wc.free()
-	wc2.free()
+
+
+## ⚠️ UN ALBERO PIANTATO, TAGLIATO E SCAVATO RINASCEVA A OGNI CARICAMENTO.
+##
+## `_planted` aveva UN solo scrittore (`_sprout_tree`) e nessuno che lo
+## potasse mai: cercandolo in tutto il repository ci sono tre righe — la
+## dichiarazione, l'`append` e il salvataggio. Abbattere un albero riempie
+## `_ceppi`; scavarne la ceppaia (`_finish_pull`) sposta la memoria in
+## `_felled` — e lasciava `_planted` intatto.
+##
+## Al caricamento, `_apply_rows` passo 2 chiedeva soltanto «c'è un albero
+## qui?»: la risposta e' NO **proprio perche' il giocatore l'ha tolto**, e
+## quindi lo ripiantava. Il suo lavoro si disfaceva a ogni riapertura, e non
+## esisteva nessun gesto che potesse rimediare — la prima domanda del
+## collaudo della REGOLA SACRA.
+##
+## La cura e' in due punti: `_finish_pull` pota `_planted` (il libro resta
+## vero), e il passo 2 salta quel che sta in `_felled` — che e' anche la
+## RETE per i salvataggi gia' scritti, dove le righe stantie ci sono gia'.
+func _un_albero_tolto_non_rinasce(t) -> void:
+	var p := Vector2(9.0, -4.0)
+
+	# 1) IL LIBRO: scavare la ceppaia toglie il posto dai piantati
+	# ⚠️ IN SCENA: `_finish_pull` chiude chiedendo `get_tree()` per il
+	# salvataggio differito, e fuori dall'albero quella riga e' un errore a
+	# runtime — che non fa fallire un test, lo INTERROMPE a meta'.
+	var wc = WOOD.new()
+	t.stage(wc)
+	wc._planted = [p]
+	wc._ceppi = [p]
+	# ⚠️ `_stumps` e' `Array[Dictionary]`: un Array NUDO non si assegna e non
+	# dice niente — e un errore a runtime NON fa fallire un test, lo
+	# interrompe. E' la trappola gia' scritta per `_residents`.
+	var ceppo: Array[Dictionary] = [{"pos": p, "root": null}]
+	wc._stumps = ceppo
+	wc.call("_finish_pull", wc._stumps[0])
+	t.ok(not (p in wc._planted),
+			"scavata la ceppaia, il posto esce dai PIANTATI (%s)" % str(wc._planted))
+	t.ok(p in wc._felled, "…e entra nei TAGLIATI: e' li' che vive la memoria")
+
+	# 2) LA RETE, e la CONTROPROVA, con una SPIA su `_sprout_tree`: senza un
+	# CozyWorld in scena il germoglio vero non puo' girare (chiede il
+	# villaggio), e quello che questo caso prova e' il FILTRO, non il
+	# germoglio. La spia REGISTRA e basta — non reimplementa niente.
+	var spia = SpiaLegna.new()
+	t.stage(spia)
+	spia.call("_apply_rows", [[[p.x, p.y]], [[p.x, p.y]], []])
+	t.eq((spia.sbocciati as Array).size(), 0,
+			"con la riga stantia nel salvataggio vecchio NON si ripianta (%s)"
+					% str(spia.sbocciati))
+	t.ok(p in spia._felled, "e resta fra i tagliati")
+
+	var spia2 = SpiaLegna.new()
+	t.stage(spia2)
+	spia2.call("_apply_rows", [[], [[p.x, p.y]], []])
+	t.eq((spia2.sbocciati as Array).size(), 1,
+			"…mentre uno piantato e MAI tagliato torna dov'era: il filtro e' specifico")
+
+
+## Una spia che REGISTRA dove il caricamento vorrebbe far rinascere un
+## albero. Il germoglio vero chiede il villaggio (`get_first_node_in_group`),
+## che in un banco headless non c'e': quello che si prova qui e' il FILTRO.
+class SpiaLegna extends "res://scenes/interact/Woodcutting.gd":
+	var sbocciati: Array = []
+
+	func _sprout_tree(p: Vector2, _anim := true) -> void:
+		sbocciati.append(p)

@@ -1266,6 +1266,35 @@ immaginate):**
   su una persona attecchiva più di una sul re del villaggio. È la via più
   corta perché una storia triste diventi una gogna.
 
+## ⚠️ UN ALBERO TAGLIATO E SCAVATO RINASCEVA A OGNI CARICAMENTO
+
+`Woodcutting._planted` aveva **UN solo scrittore** (`_sprout_tree`) e nessuno
+che lo potasse mai: cercandolo in tutto il repository ci sono tre righe — la
+dichiarazione, l'`append` e il salvataggio. Abbattere un albero riempie
+`_ceppi`; scavarne la ceppaia (`_finish_pull`) sposta la memoria in `_felled`
+— **e lasciava `_planted` intatto**.
+
+Al caricamento, `_apply_rows` passo 2 chiedeva soltanto *«c'è un albero
+qui?»*: e la risposta è NO **proprio perché il giocatore l'ha tolto**. Quindi
+lo ripiantava. **Il suo lavoro si disfaceva a ogni riapertura**, e non
+esisteva nessun gesto che potesse rimediare — la prima domanda del collaudo
+della REGOLA SACRA.
+
+**La cura è in due punti**, e il secondo ripara anche le partite in corso:
+`_finish_pull` pota `_planted` (il libro resta vero), e il passo 2 salta quel
+che sta in `_felled` — che il passo 1 ha appena riempito. Senza il secondo,
+i salvataggi già scritti restano con le righe stantie dentro e nessuno le
+riconosce.
+
+Due mutazioni, **due asserzioni diverse**. ⚠️ E tre trappole di banco pagate
+scrivendolo, tutte della stessa famiglia (*un errore a runtime non fa fallire
+un test, lo interrompe*): `_stumps` è `Array[Dictionary]` e un Array **nudo**
+non si assegna; `_finish_pull` chiude chiedendo `get_tree()` per il
+salvataggio differito, quindi il nodo va **in scena**; e il germoglio vero
+chiede il villaggio, che in un banco headless non c'è — la controprova passa
+perciò da una **spia** su `_sprout_tree`, che REGISTRA dove il caricamento
+vorrebbe far rinascere un albero invece di reimplementare il germoglio.
+
 ## ⚠️ BASTAVA DEMOLIRE UN LETTO PER CANCELLARE UNA PERSONA
 
 `Visitors.load_extra` cercava il Letto sulla cella salvata con un

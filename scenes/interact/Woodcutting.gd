@@ -1075,6 +1075,14 @@ func _finish_pull(s: Dictionary) -> void:
 	# ai tagliati, e il nodo se ne va con le sue collisioni
 	_ceppi.erase(pos)
 	_felled.append(pos)
+	# ⚠️ **E SI TOGLIE DAI PIANTATI**, o il posto non è libero: è libero
+	# ADESSO e rinasce al prossimo caricamento. `_planted` aveva un solo
+	# scrittore (`_sprout_tree`) e nessuno che lo potasse mai: un albero
+	# piantato dal giocatore, ricresciuto, tagliato e con la ceppaia scavata
+	# restava in quella lista per sempre, e `_apply_rows` lo ripiantava —
+	# perché il suo passo 2 chiede soltanto «c'è un albero qui?», e lì non
+	# c'era più proprio perché il giocatore l'aveva tolto.
+	_planted.erase(pos)
 	_stumps.erase(s)
 	if is_instance_valid(root):
 		_toast(root.global_position + Vector3(0, 0.9, 0),
@@ -1541,10 +1549,22 @@ func _apply_rows(rows: Array) -> void:
 				_trees.remove_at(i)
 				(t["root"] as Node3D).queue_free()
 	# 2) e quelli nati altrove devono tornare dov'erano
+	#
+	# ⚠️ **MA NON QUELLI CHE IL GIOCATORE HA TOLTO.** Il passo 1 ha appena
+	# riempito `_felled`, e questo passo chiedeva soltanto «c'è un albero
+	# qui?» — a cui la risposta è NO proprio perché il giocatore l'ha
+	# abbattuto e ne ha scavato la ceppaia. Senza questa riga il suo lavoro
+	# si disfaceva a ogni caricamento, e nessun gesto poteva rimediare.
+	#
+	# È anche la RETE per i salvataggi già scritti: `_planted` non veniva
+	# potato (adesso sì, in `_finish_pull`), quindi le partite in corso hanno
+	# righe stantie che solo questo filtro sa riconoscere.
 	var piantati: Array = rows[1]
 	for riga in piantati:
 		if riga is Array and riga.size() >= 2:
 			var p := Vector2(float(riga[0]), float(riga[1]))
+			if p in _felled:
+				continue
 			if _tree_at(p) < 0:
 				_sprout_tree(p, false)
 	# 3) i ceppi ancora a terra: l'albero in quel punto torna com'era
