@@ -877,6 +877,50 @@ logica pura) e da quei tre minuti escono **tre conseguenze vere**:
   Prologo è l'unico, ed è per questo che marchia. Nel villaggio è la
   PIOGGIA a ricordarglielo.
 
+## ⚠️ IL TITOLO AVEVA UN VICOLO CIECO — «Impostazioni», e non si tornava indietro
+
+`TitleScreen._build_ui` costruisce il pannello delle impostazioni con
+`visible = false`, e `_open_settings` spegneva il menù e chiamava
+`CozyUI.appear(_settings)` — che toccava **solo** `modulate.a` e `scale`,
+**mai `visible`**.
+
+**MISURATO** facendo girare il titolo vero, headless:
+
+```
+prima del clic:  _settings.visible=false  menu.visible=true
+DOPO il clic:    _settings.visible=false  (in albero: false)  menu.visible=false
+modulate.a del pannello: 0.21
+```
+
+Schermo vuoto — e **nessuna via d'uscita**, perché l'unico modo di tornare
+indietro è il bottone di un pannello che non si vede, e in tutto
+`TitleScreen.gd` non c'è un `ui_cancel`. Succede sulla **PRIMA schermata del
+gioco**, su un bottone che chiunque prova.
+
+⚠️ **E IL GEMELLO LO FACEVA GIUSTO.** `PauseMenu._show_settings` scrive
+`_settings.visible = true` prima di chiamare `appear`, e ha anche l'uscita
+con ESC. *È quell'asimmetria a dire dov'era il difetto* — la stessa forma
+dell'erba che stava a posto perché `_build_grass()` gira prima del primo
+`await`.
+
+**La cura è in due punti, e il secondo chiude la CLASSE:**
+
+1. `TitleScreen` fa come il suo gemello;
+2. **`CozyUI.appear` accende `visible` da sé** — perché una funzione che si
+   chiama «appare» deve far apparire, e finché non lo faceva ogni chiamante
+   doveva ricordarselo. Verificati tutti e undici i siti: i dieci restanti
+   accendono già il nodo, o accendono il CONTENITORE (`_ui.visible = true`,
+   `_layer.visible = true`), quindi per loro è un **no-op esatto**.
+
+La guardia è
+[`test_titolo_impostazioni.gd`](tests/cases/test_titolo_impostazioni.gd), con
+**due mutazioni su due asserzioni diverse**. ⚠️ E **non apre il titolo**:
+costruirlo vuol dire costruire anche il diorama 3D, che è metà del
+villaggio. Prova la REGOLA sul nodo vero di `CozyUI` e il CABLAGGIO leggendo
+le due funzioni gemelle — col sorgente **spogliato dei commenti**, perché la
+cura nomina apposta la posa che ha aggiunto e un guardiano ingenuo
+matcherebbe la spiegazione invece del codice.
+
 ## Il menù principale è vivo (e sente)
 
 Il titolo ([`scenes/ui/TitleScreen.gd`](scenes/ui/TitleScreen.gd)) non è una

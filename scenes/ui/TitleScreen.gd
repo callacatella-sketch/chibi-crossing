@@ -1067,6 +1067,19 @@ func _open_settings() -> void:
 	var sc := _ui.get_node_or_null("SettingsCenter")
 	if sc:
 		sc.visible = true
+	# ⚠️ **E IL PANNELLO, o il titolo ha un vicolo cieco.** `_build_ui` lo
+	# costruisce con `visible = false` (è nascosto finché non serve) e
+	# `CozyUI.appear` tocca **solo** `modulate.a` e `scale`: non accende mai
+	# `visible`. Senza questa riga, premere «Impostazioni» spegneva il menu e
+	# non mostrava niente — schermo vuoto, e nessuna via d'uscita, perché
+	# l'unico modo di tornare indietro è il bottone di un pannello che non si
+	# vede e in tutto questo file non c'è un `ui_cancel`.
+	# MISURATO facendo girare il titolo vero: dopo il clic
+	# `_settings.visible == false`, `is_visible_in_tree() == false`,
+	# `_menu.visible == false`, e `modulate.a` era salito a 0.21 — cioè
+	# `appear` stava lavorando su un nodo nascosto.
+	# ⚠️ E succede sulla PRIMA schermata del gioco.
+	_settings.visible = true
 	CozyUI.appear(_settings, 0.34)
 
 

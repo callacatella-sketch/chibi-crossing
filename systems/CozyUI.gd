@@ -251,7 +251,28 @@ static func petals(amount := 26, soft := true) -> CozyPetals:
 
 
 # ---------------------------------------------------------------- animazioni
+## ⚠️ **E FA APPARIRE, anche quando il nodo era NASCOSTO.**
+##
+## Per un pezzo questa funzione toccava solo `modulate.a` e `scale`: su un
+## `Control` con `visible = false` animava un fantasma, e chi la chiamava
+## credeva di aver mostrato qualcosa. `TitleScreen._open_settings` faceva
+## esattamente così — spegneva il menù e chiamava `appear` sul pannello
+## costruito nascosto — e il risultato era uno **schermo vuoto senza via
+## d'uscita** sulla PRIMA schermata del gioco (MISURATO: dopo il clic
+## `_settings.visible == false`, `is_visible_in_tree() == false`,
+## `_menu.visible == false`, e `modulate.a` era salito a 0.21 — cioè il tween
+## stava lavorando su un nodo che nessuno vedeva).
+##
+## Il gemello lo faceva giusto: `PauseMenu._show_settings` scrive
+## `_settings.visible = true` PRIMA di chiamare `appear`. È quell'asimmetria
+## a dire dov'era il difetto.
+##
+## La riga qui sotto è la CINTURA, e il nome della funzione è il suo
+## argomento: una funzione che si chiama «appare» deve far apparire. Per i
+## dieci chiamanti che il nodo lo accendevano già (o che accendono il
+## CONTENITORE) è un no-op esatto.
 static func appear(c: Control, dur := 0.34) -> void:
+	c.visible = true
 	if _reduced(c):
 		c.modulate.a = 1.0
 		c.scale = Vector2.ONE
