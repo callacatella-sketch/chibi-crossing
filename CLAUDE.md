@@ -8771,6 +8771,59 @@ diventa un numero che si può far crollare.**
 **0,2%** fra quindici caratteri: l'intreccio era del villaggio, non della
 persona. Adesso sono sette, con l'ampiezza più larga che il budget concede.
 
+### ⚠️⚠️ E PER UN PEZZO «PERSONALE» VOLEVA DIRE «ALLA NASCITA»
+
+La riga qui sopra — *«G è **personale**, tutti e sette gli archi tinti dal
+carattere»* — era vera a metà, e la metà mancante è quella che il giocatore
+si guadagna.
+
+`Limbico.riproietta()` esiste apposta per rifare le grandezze che il corpo
+deriva dai tratti quando i tratti si muovono (`Animo._ricalcola_deriva`, che
+la chiama da setup, load e `passa_giorno`). La sua stessa testata lo dice:
+*«una formula che gira una volta sola è una formula che si ferma un
+millimetro prima del corpo»*. Rifaceva `reattivita`, `abitudine` e
+`neuro_tinta` — e **non `_tratti`**, che è l'unica sorgente di
+`_tratti_vettore()`, cioè delle sette tinte di carattere sugli archi della
+matrice di accoppiamento.
+
+⚠️ **E quella matrice non è una diagnostica.** `phi()` e `dove_si_spezza()`
+non hanno lettori in produzione, ma `_intreccio_passo` sì: è **il passo vivo
+della chimica**, che `Visitors` fa per ogni residente a ogni fotogramma. La
+mente di chi il giocatore ha reso codardo restava accoppiata come quella di
+chi era alla nascita, **per sempre**.
+
+MISURATO (codardia 0.20 → 0.85, grinta 0.80 → 0.25, il campo che la deriva
+sa davvero coprire):
+
+| | prima della cura | dopo |
+|---|---|---|
+| `reattivita` | 0.500000 → **1.277500** | idem — *questa arrivava già* |
+| `phi()` | 0.000077234 → **0.000077234** (bit-identico) | 0.000077234 → **0.000058735** |
+| `dove_si_spezza()` | la stessa cucitura | **un'altra cucitura** |
+
+La seconda riga è la firma del difetto: una grandezza che si muove e una che
+non si muove, nella stessa funzione, sugli stessi tratti. La terza è la cosa
+bella che la cura ha comprato — *la mente di chi è diventato codardo non si
+spezza più dove si spezzava quella di prima.*
+
+⚠️ **E il paragone NON è con «chi è nato così».** Sono due persone con due
+storie: la chimica a riposo di chi deriva porta ancora la tinta di prima
+finché `Animo.sincronizza_neuro()` non la riapplica, e κ dipende dal
+cortisolo di adesso. Chi nasce con quel carattere sta a 0.000051215, e la
+distanza che resta è legittima. Quello che la guardia pretende è più stretto
+e non dipende da nessun numero tarato: **dopo una riproiezione il vettore che
+va al cuore è quello nuovo**, e il cuore risponde.
+
+⚠️ **L'ordine lavora per noi, e va saputo:** in `Animo.setup()` la
+riproiezione gira PRIMA di `limbico.setup(tratti)`, quindi alla nascita
+`_tratti` resta il DNA — giusto, perché alla nascita δ = 0. In `load()`
+`_ricalcola_deriva()` sta **in coda**, e in `passa_giorno()` nessuno rifà
+`limbico.setup`. Chi sposta una di quelle tre chiamate rimette il carattere
+alla nascita senza che niente lo dica.
+
+La guardia è `test_intreccio._la_deriva_arriva_all_intreccio`, e togliendo la
+riga della cura accende **5 asserzioni**.
+
 ### LA TESI, RESA UN NUMERO — e il primo numero era un ARTEFATTO
 
 > ⚠️⚠️ **CORREZIONE (2026-09-22).** La tabella pubblicata qui prima attribuiva

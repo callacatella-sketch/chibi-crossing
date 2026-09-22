@@ -33,6 +33,7 @@ func run(t) -> void:
 	_il_degrado_va_verso_ieri(t)
 	_l_ordine_dei_tratti_e_condiviso(t)
 	_dove_si_spezza(t)
+	_la_deriva_arriva_all_intreccio(t)
 
 
 func _nuovo(tratti := MEDIO):
@@ -317,3 +318,66 @@ func _dove_si_spezza(t) -> void:
 				% str(dt_malato))
 		t.eq(visto.size(), LIMBICO.NEURO_TRASMETTITORI.size(),
 				"dt %s: ci sono tutti e sette i canali" % str(dt_malato))
+
+
+## ⚠️ LA DERIVA DEVE ARRIVARE ALL'INTRECCIO — e per un pezzo si fermava un
+## millimetro prima.
+##
+## `riproietta()` rifa' le grandezze che il Limbico deriva dai tratti quando i
+## tratti si muovono (vedi `Animo._ricalcola_deriva`, che la chiama da setup,
+## load e passa_giorno). Rifaceva `reattivita`, `abitudine` e `neuro_tinta`, e
+## NON `_tratti` — che e' l'unica sorgente di `_tratti_vettore()`, cioe' delle
+## sette tinte di carattere sugli archi della matrice di accoppiamento.
+##
+## E quella matrice non e' una diagnostica: `_intreccio_passo` e' il passo
+## VIVO della chimica, che il villaggio fa per ogni residente a ogni
+## fotogramma. La mente di chi il giocatore ha reso codardo restava accoppiata
+## come quella di chi era alla nascita, per sempre.
+##
+## MISURATO prima della cura (codardia 0.20 -> 0.85, grinta 0.80 -> 0.25):
+## `reattivita` 0.500000 -> 1.277500 (la deriva arrivava), `phi()`
+## 0.000077234 -> 0.000077234, cioe' **bit-identico**.
+##
+## ⚠️ E il paragone NON e' con «chi e' nato cosi'»: sono due persone con due
+## storie, e la chimica a riposo di chi deriva porta ancora la tinta di prima
+## finche' `Animo.sincronizza_neuro()` non la riapplica. Quello che si
+## pretende qui e' piu' stretto e non dipende da nessun numero tarato: dopo
+## una riproiezione, **il vettore dei tratti E' quello nuovo**, e il cuore
+## risponde di conseguenza — Φ si muove, e la cucitura con lui.
+func _la_deriva_arriva_all_intreccio(t) -> void:
+	var nato := {"codardia": 0.20, "grinta": 0.80, "lealta": 0.50,
+			"ambizione": 0.50, "orgoglio": 0.50}
+	var derivato := {"codardia": 0.85, "grinta": 0.25, "lealta": 0.50,
+			"ambizione": 0.50, "orgoglio": 0.50}
+	var l = _nuovo(nato)
+
+	# il termine di paragone e' il vettore che il cuore riceve, non un numero
+	# scelto da noi: si legge PRIMA, cosi' la mutazione non ha dove nascondersi
+	var prima: PackedFloat64Array = l._tratti_vettore()
+	var phi_prima: float = l.phi()
+	var spezza_prima: Array = l.dove_si_spezza()
+	var reatt_prima: float = l.reattivita
+
+	l.riproietta(derivato)
+
+	# la controprova positiva: le grandezze che gia' funzionavano si muovono
+	t.ok(absf(l.reattivita - reatt_prima) > 0.5,
+			"la deriva arriva a reattivita (%.6f -> %.6f)"
+					% [reatt_prima, l.reattivita])
+
+	var dopo: PackedFloat64Array = l._tratti_vettore()
+	for i in LIMBICO.ORDINE_TRATTI.size():
+		var nome := str(LIMBICO.ORDINE_TRATTI[i])
+		t.almost(dopo[i], float(derivato[nome]),
+				"il vettore che va al cuore porta la %s di ADESSO" % nome, 1e-9)
+	t.ok(absf(dopo[0] - prima[0]) > 0.5,
+			"e non e' quello di nascita (%.4f -> %.4f)" % [prima[0], dopo[0]])
+
+	# e il cuore risponde: se non rispondesse, il vettore sarebbe un dato che
+	# nessuno guarda — la forma di guasto che questo file esiste per chiudere
+	if l.phi() > 0.0 or phi_prima > 0.0:
+		t.ok(absf(l.phi() - phi_prima) > 1e-9,
+				"Phi si muove con il carattere (%.9f -> %.9f)"
+						% [phi_prima, l.phi()])
+		t.ok(str(l.dove_si_spezza()) != str(spezza_prima),
+				"e la mente si spezza in un altro punto")

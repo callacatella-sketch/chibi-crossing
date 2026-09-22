@@ -415,6 +415,19 @@ func riproietta(tratti: Dictionary) -> void:
 	# rimbalzo, la coda). Un tratto che deriva senza rifarle muove il
 	# comportamento e non muove NIENTE che si veda.
 	neuro_tinta = tinta_carattere(tratti)
+	# ⚠️ **E IL VETTORE DEI TRATTI, che e' la QUARTA delle grandezze e per un
+	# pezzo e' stata l'unica dimenticata.** `_tratti` alimenta
+	# `_tratti_vettore()`, cioe' le sette tinte di carattere sugli archi della
+	# matrice di accoppiamento dell'INTRECCIO — e quella matrice non e' una
+	# diagnostica: `_intreccio_passo` e' il passo VIVO della chimica, che il
+	# villaggio fa per ogni residente a ogni fotogramma. Senza questa riga la
+	# mente di chi e' diventato codardo restava accoppiata come quella di chi
+	# era alla nascita, per sempre.
+	# MISURATO (codardia 0.20 -> 0.85, grinta 0.80 -> 0.25): `reattivita`
+	# 0.500000 -> 1.277500, cioe' la deriva arrivava; `phi()` 0.000077234 ->
+	# 0.000077234, cioe' **bit-identico**, mentre chi NASCE con quel carattere
+	# sta a 0.000051215 (-34%).
+	_tratti = tratti.duplicate()
 
 
 ## ⚠️ **IL CARATTERE E' UNO SCARTO, non una scrittura.**
@@ -1146,6 +1159,13 @@ func load(d: Dictionary) -> void:
 ## lato del ponte.
 const ORDINE_TRATTI := ["codardia", "grinta", "lealta", "ambizione", "orgoglio"]
 
+## ⚠️ I TRATTI CON CUI IL CORPO E' STATO PROIETTATO L'ULTIMA VOLTA — non
+## quelli di NASCITA. `setup()` ci mette quelli del DNA, `riproietta()` ci
+## mette quelli DERIVATI: e' l'unico lettore (`_tratti_vettore()`) ad avere
+## bisogno del carattere di ADESSO, perche' da li' passa l'accoppiamento
+## della chimica. Resta non persistito: si ricostruisce a ogni caricamento
+## da `Animo.setup(dna)` piu' `Animo.load()`, che finisce con
+## `_ricalcola_deriva()` — cioe' con una riproiezione.
 var _tratti := {}
 
 ## ⚠️ **IL CARICO, 0..1 — ed è PERSISTITO.** È la cosa lenta: quello che resta
