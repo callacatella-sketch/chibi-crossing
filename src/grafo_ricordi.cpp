@@ -113,8 +113,25 @@ int inserisci(GrafoRicordi &r_grafo, const Ricordo &p_nuovo, float p_ora,
 		// prima sentito una voce e poi visto la cosa non potrebbe più
 		// raccontarla (`da_raccontare` salta i R_SENTITO) — e il
 		// pettegolezzo morirebbe proprio sul testimone giusto.
+		//
+		// !!! E VALE NEI DUE VERSI. Qui si guardava solo il ricordo NUOVO:
+		// se arrivava una voce su una cosa che quel vicino aveva VISTO con i
+		// propri occhi, l'unione delle bandiere gli appiccicava R_SENTITO —
+		// e `da_raccontare` salta i R_SENTITO, quindi il TESTIMONE smetteva
+		// di poter raccontare cio che aveva visto, perche qualcuno gliel'aveva
+		// nominato. E' l'esatto rovescio di quello che questa riga esiste per
+		// impedire, e contraddice l'invariante che `ecs_mondo.cpp` dichiara
+		// per iscritto: «chi vede la cosa con i propri occhi la ritrova a
+		// piena forza, perche inserisci() fonde tenendo l'intensita MASSIMA e
+		// cancella R_SENTITO» — vera solo quando la vista arriva per seconda.
+		//
+		// La regola giusta e una sola: **R_SENTITO sopravvive alla fusione
+		// solo se NESSUNO dei due e diretto.** Basta un paio d'occhi, prima o
+		// dopo, e quel fatto e tuo.
 		uint8_t b = static_cast<uint8_t>(v.bandiere | r.bandiere);
-		if ((r.bandiere & R_SENTITO) == 0) {
+		const bool v_diretto = (v.bandiere & R_SENTITO) == 0;
+		const bool r_diretto = (r.bandiere & R_SENTITO) == 0;
+		if (v_diretto || r_diretto) {
 			b = static_cast<uint8_t>(b & static_cast<uint8_t>(~static_cast<uint8_t>(R_SENTITO)));
 		}
 		v.bandiere = b;

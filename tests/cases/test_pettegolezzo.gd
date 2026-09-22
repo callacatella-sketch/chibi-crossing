@@ -84,6 +84,7 @@ func run(t) -> void:
 	_una_cosa_fuori_posto(t, m)
 	_lo_smorzamento_si_paga_una_volta(t, m)
 	_la_voce_non_risorge(t, m)
+	_una_voce_non_ti_toglie_quello_che_hai_visto(t, m)
 	_un_eco_spenta_non_tappa_la_notizia_fresca(t, m)
 	_da_chi_l_ha_sentita_non_riparte(t, m)
 	_chi_l_ha_raccontata_non_la_ripete(t, m)
@@ -942,3 +943,64 @@ func _dove_muore_il_cervello_muore_l_entita(t, m) -> void:
 
 	m.dimentica_tutti()
 	t.eq(m.quanti(), 0, "dimentica_tutti porta via tutto, grafi compresi")
+
+
+## ⚠️ **UNA VOCE NON TI TOGLIE QUELLO CHE HAI VISTO CON I TUOI OCCHI.**
+##
+## `inserisci()` fonde due ricordi vicini unendo le bandiere, e poi cancella
+## `R_SENTITO` «perché vederlo con i propri occhi cancella il sentito dire».
+## Ma quel cancello guardava **solo il ricordo NUOVO**: se arrivava una voce su
+## una cosa che quel vicino aveva già VISTO, l'unione gli appiccicava
+## `R_SENTITO` — e `da_raccontare` salta i sentiti. Cioè **il testimone
+## smetteva di poter raccontare ciò che aveva visto, perché qualcuno gliel'aveva
+## nominato.**
+##
+## È l'esatto rovescio della cosa che quella riga esiste per impedire, e
+## contraddice l'invariante che `ecs_mondo.cpp` dichiara per iscritto: *«chi
+## vede la cosa con i propri occhi la ritrova a piena forza, perché
+## `inserisci()` fonde tenendo l'intensità MASSIMA e cancella `R_SENTITO`»* —
+## vera soltanto quando la vista arriva per SECONDA.
+##
+## Il caso prova tutti e due gli ordini sullo stesso banco: è l'unica forma che
+## sa fallire, perché con un ordine solo «non si racconta più» non si
+## distingue da «non l'ha mai visto».
+func _una_voce_non_ti_toglie_quello_che_hai_visto(t, m) -> void:
+	var v: int = m.indice_verbo("annaffia")
+
+	# --- ordine 1: PRIMA la voce, POI lo vede coi suoi occhi (funzionava già)
+	var n1 = ClassDB.instantiate("EcsMondo")
+	n1.imposta_ritmo(240.0)
+	var a1: int = n1.registra(PackedStringArray([]), "")
+	var b1: int = n1.registra(PackedStringArray([]), "")
+	n1.osserva(a1, v, Vector3(3.0, 0.0, 4.0), -1)
+	n1.racconta(a1, b1, 0.55)
+	n1.osserva(b1, v, Vector3(3.0, 0.0, 4.0), -1)
+	var r1 := _ricordo_di(n1, b1, v)
+	t.ok(not r1.is_empty(), "prima la voce poi gli occhi: il ricordo c'è")
+	t.eq(int(r1["bandiere"]) & _sentito, 0,
+			"…e non è più un sentito dire: l'ha visto")
+	n1.free()
+
+	# --- ordine 2: PRIMA lo vede, POI gliene parlano (era il difetto)
+	var n2 = ClassDB.instantiate("EcsMondo")
+	n2.imposta_ritmo(240.0)
+	var a2: int = n2.registra(PackedStringArray([]), "")
+	var b2: int = n2.registra(PackedStringArray([]), "")
+	n2.osserva(b2, v, Vector3(3.0, 0.0, 4.0), -1)      # B lo VEDE
+	var prima := _ricordo_di(n2, b2, v)
+	t.eq(int(prima["bandiere"]) & _sentito, 0,
+			"PREMESSA: B l'ha visto, e non è un sentito dire")
+	n2.osserva(a2, v, Vector3(3.0, 0.0, 4.0), -1)      # anche A lo vede
+	n2.racconta(a2, b2, 0.55)                           # …e gliene parla
+	var dopo := _ricordo_di(n2, b2, v)
+	t.ok(not dopo.is_empty(), "il ricordo di B c'è ancora")
+	t.eq(int(dopo["bandiere"]) & _sentito, 0,
+			("una voce NON gli toglie quello che ha visto: il ricordo resta "
+			+ "diretto (bandiere %d)") % int(dopo["bandiere"]))
+	# e la conseguenza che si vede in partita: la riga è ancora sua da
+	# raccontare. (`da_raccontare` salta i R_SENTITO — è quella funzione a
+	# rendere il difetto visibile invece che contabile.)
+	var g2: Dictionary = n2.debug_grafo(b2)
+	t.ok(int(n2.debug_grafo_da_raccontare(g2, 0.0, 240.0)) >= 0,
+			"…e infatti può ancora raccontarlo lui")
+	n2.free()

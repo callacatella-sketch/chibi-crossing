@@ -9217,6 +9217,43 @@ silenzio. macOS/Linux non ce l'hanno perché ereditano `godot_env`.
   dopo. Il costo è un ERROR per corsa, cioè rumore che insegna a non leggere
   gli errori: il gradino prima di non accorgersi di quelli veri.
 
+### UNA VOCE TI TOGLIEVA QUELLO CHE AVEVI VISTO CON I TUOI OCCHI
+
+`chibi::inserisci` fonde due ricordi vicini unendo le bandiere, e poi cancella
+`R_SENTITO` «perché vederlo con i propri occhi cancella il sentito dire». Ma
+quel cancello guardava **solo il ricordo NUOVO**:
+
+```cpp
+if ((r.bandiere & R_SENTITO) == 0) { b &= ~R_SENTITO; }
+```
+
+Se arrivava una voce su una cosa che quel vicino aveva **già visto**, l'unione
+gli appiccicava `R_SENTITO` — e `da_raccontare` salta i sentiti. Cioè **il
+testimone smetteva di poter raccontare ciò che aveva visto, perché qualcuno
+gliel'aveva nominato**: l'esatto rovescio di quello che quella riga esiste per
+impedire.
+
+E contraddiceva un'invariante che il progetto dichiara per iscritto tre file
+più in là (`ecs_mondo.cpp:66`): *«chi vede la cosa con i propri occhi la
+ritrova a piena forza, perché `inserisci()` fonde tenendo l'intensità MASSIMA
+e cancella `R_SENTITO`»* — vera soltanto quando la vista arriva per **seconda**.
+
+La regola giusta è una sola: **`R_SENTITO` sopravvive alla fusione solo se
+NESSUNO dei due è diretto.** Basta un paio d'occhi, prima o dopo, e quel fatto
+è tuo. La guardia prova **tutti e due gli ordini sullo stesso banco**: con un
+ordine solo, «non si racconta più» non si distingue da «non l'ha mai visto».
+
+⚠️⚠️ **E LA GUARDIA C'ERA GIÀ — diceva il contrario del proprio commento.**
+In `test_grafo_ricordi.gd` sopra l'asserzione stava scritto: *«e il contrario
+NO: una voce non cancella quel che si è visto, **e non deve nemmeno marchiarlo
+come sentito**»*, e due righe sotto si pretendeva `== R_SENTITO`. Il commento
+era l'intento e l'asserzione la sua negazione: per tutto il tempo ha vinto
+l'asserzione, che consacrava il difetto. È una forma nuova di guardia muta e
+va nominata — **non è un'asserzione che non può fallire: è un'asserzione che
+fallisce quando il codice è giusto.** Si trova solo leggendo il commento e
+l'asserzione insieme, che è quello che un lettore umano fa e un test non fa
+mai.
+
 ### UNA TAUTOLOGIA TRAVESTITA DA GUARDIA SEVERA
 
 `test_intreccio.gd` sorvegliava il degrado di `dove_si_spezza()` così:

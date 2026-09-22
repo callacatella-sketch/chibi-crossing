@@ -431,11 +431,31 @@ func _la_fusione_non_confonde(t, m) -> void:
 	t.eq(m.debug_grafo_da_raccontare(h, 1.0, MV), 0, "adesso può raccontarlo")
 	# ...e il contrario NO: una voce non cancella quel che si è visto, e non
 	# deve nemmeno marchiarlo come sentito
+	#
+	# ⚠️⚠️ **E QUESTA ASSERZIONE DICEVA IL CONTRARIO DEL COMMENTO SOPRA.**
+	# Pretendeva `== R_SENTITO`, cioè consacrava esattamente il difetto che le
+	# due righe qui sopra descrivono come da evitare: il cancello di
+	# `chibi::inserisci` guardava solo il ricordo NUOVO, quindi una voce su una
+	# cosa VISTA gliela marchiava come sentita — e `da_raccontare` salta i
+	# sentiti, cioè **il testimone smetteva di poter raccontare quello che
+	# aveva visto perché qualcuno gliel'aveva nominato**.
+	#
+	# Il commento era l'intento e l'asserzione la sua negazione; per tutto il
+	# tempo ha vinto l'asserzione. Contraddiceva anche l'invariante scritta in
+	# `ecs_mondo.cpp:66` («chi vede la cosa con i propri occhi la ritrova a
+	# piena forza… e cancella R_SENTITO»), vera solo quando la vista arriva per
+	# SECONDA. Adesso `R_SENTITO` sopravvive alla fusione solo se NESSUNO dei
+	# due è diretto: basta un paio d'occhi, prima o dopo, e quel fatto è tuo.
 	var k = _vuoto()
 	k = _ins(m, k, _ric(m.V_PESCA, 5), 0.0)[0]
+	t.eq(m.debug_grafo_da_raccontare(k, 0.0, MV), 0,
+			"PREMESSA: l'ha visto, e può raccontarlo")
 	k = _ins(m, k, _ric(m.V_PESCA, 5, {"bandiere": m.R_SENTITO}), 1.0)[0]
-	t.eq(int(_righe(k)[0]["bandiere"]) & m.R_SENTITO, m.R_SENTITO,
-			"una voce su una cosa vista si somma (ed è l'unica direzione in cui si somma)")
+	t.eq(_righe(k).size(), 1, "la voce si fonde col ricordo che c'era")
+	t.eq(int(_righe(k)[0]["bandiere"]) & m.R_SENTITO, 0,
+			"una voce NON marchia come sentito quel che si è visto")
+	t.eq(m.debug_grafo_da_raccontare(k, 1.0, MV), 0,
+			"…e infatti può ancora raccontarlo lui")
 
 
 ## `quante` è a 8 bit e SATURA. Senza, la duecentocinquantaseiesima
