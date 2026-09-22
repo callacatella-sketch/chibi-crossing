@@ -1266,6 +1266,31 @@ immaginate):**
   su una persona attecchiva più di una sul re del villaggio. È la via più
   corta perché una storia triste diventi una gogna.
 
+## ⚠️ SI POTEVA COLTIVARE L'ORTO DA SEDUTI, O CON UN PANNELLO DAVANTI
+
+Quando un pannello è aperto (le tasche, il negozio, la Lavagna), o Mochi è
+seduta, nell'onsen, in modalità foto o davanti alle costellazioni, il Player
+ha la **fisica spenta**: da quel momento la E è di chi l'ha congelata. È la
+valvola che `Fishing`, `Scavi`, `Frutteto`, `Woodcutting`, `Rimbalzello` e
+`Collection` hanno per iscritto — *«niente lanci di canna col menu aperto»*.
+
+**Il Giardino era l'unico senza.** La sua unica guardia era `or _busy`:
+bastava una Sedia accanto a un'Aiuola per piantare, annaffiare e
+**raccogliere** da seduti.
+
+⚠️ **E `ArbitroE` non poteva rimediare da fuori**: quando Mochi è congelata
+lui **tace apposta** (*«così la E arriva intatta a chi ha congelato»*) — e il
+Giardino non è nemmeno fra i suoi iscritti. La valvola serve **dentro** ogni
+sito, iscritto o no.
+
+La guardia è strutturale e vale per **tutti e sette**
+(`test_arbitro_e._ogni_verbo_della_E_ha_la_valvola`): il giorno che ne arriva
+un ottavo, quel caso lo dice. ⚠️ Legge i sorgenti, **e lo dichiara** — quei
+sistemi vivono nel MainLevel e istanziarli vorrebbe dire mezzo villaggio;
+quello che si pretende è una riga che c'è o non c'è, con i sorgenti
+**spogliati dei commenti**, perché la cura nomina apposta la valvola che ha
+aggiunto.
+
 ## ⚠️ E UN ALBERO RICRESCIUTO IN AUTUNNO RESTAVA VERDE
 
 `CozyWorld._apply_season` è l'**unico** scrittore di `color_a`/`color_b`

@@ -141,6 +141,21 @@ func _update_near() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed("interact") or _busy:
 		return
+	# ⚠️ **MOCHI CONGELATA: LA E È DI CHI L'HA CONGELATA.** Quando un pannello
+	# è aperto (le tasche, il negozio, la Lavagna), o Mochi è seduta,
+	# nell'onsen, in modalità foto o davanti alle costellazioni, il Player
+	# ha la fisica spenta — ed è la stessa valvola che `Fishing`, `Scavi`,
+	# `Collection`, `Frutteto`, `Woodcutting` e `Rimbalzello` hanno per
+	# iscritto: «niente lanci di canna col menu aperto».
+	#
+	# Il Giardino era l'unico verbo della E che non ce l'aveva: bastava una
+	# Sedia accanto a un'Aiuola per piantare, annaffiare e RACCOGLIERE da
+	# seduti, o con un pannello davanti agli occhi. E `ArbitroE` non poteva
+	# rimediare da fuori: quando Mochi è congelata lui TACE apposta, «così la
+	# E arriva intatta a chi ha congelato» — e il Giardino non è nemmeno fra
+	# i suoi iscritti.
+	if _player == null or not _player.is_physics_processing():
+		return
 	if _near == null:
 		if _near_shroom >= 0:
 			_pick_mushroom(_near_shroom)

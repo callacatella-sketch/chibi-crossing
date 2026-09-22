@@ -33,6 +33,7 @@ func run(t) -> void:
 	_test_tace_se_nessuno(t)
 	_test_igiene(t)
 	_test_prima_ondata(t)
+	_ogni_verbo_della_E_ha_la_valvola(t)
 
 
 func _iscrivi(t, a, nome: String, gradino: int) -> FintoSito:
@@ -180,3 +181,42 @@ func _test_prima_ondata(t) -> void:
 func _sorgente(path: String) -> String:
 	var f := FileAccess.open(path, FileAccess.READ)
 	return f.get_as_text() if f else ""
+
+
+## ⚠️ OGNI SISTEMA CHE RISPONDE ALLA E DEVE AVERE LA VALVOLA «MOCHI CONGELATA».
+##
+## Quando un pannello e' aperto (le tasche, il negozio, la Lavagna), o Mochi
+## e' seduta, nell'onsen, in modalita' foto o davanti alle costellazioni, il
+## Player ha la fisica SPENTA. Da quel momento la E e' di chi l'ha congelata,
+## e chi la intercetta lo stesso ruba un tasto a un pannello aperto.
+##
+## ⚠️ **E L'ARBITRO NON PUO' RIMEDIARE DA FUORI**: quando Mochi e' congelata
+## lui TACE apposta («cosi' la E arriva intatta a chi ha congelato», tre
+## righe piu' su). La valvola serve dentro OGNI sito, iscritto o no.
+##
+## Il Giardino era l'unico senza: bastava una Sedia accanto a un'Aiuola per
+## piantare, annaffiare e raccogliere da SEDUTI, o con un pannello davanti
+## agli occhi. E non e' nemmeno fra gli iscritti all'arbitro, quindi nessuno
+## poteva vederlo.
+##
+## ⚠️ Questo caso legge i SORGENTI, e lo dichiara: i sei sistemi vivono nel
+## MainLevel e istanziarli vorrebbe dire mezzo villaggio. Quello che si
+## pretende e' una riga che c'e' o non c'e' — un fatto, non un commento che
+## si matcha da se' (i sorgenti si spogliano dei commenti, perche' la cura
+## nomina apposta la valvola che ha aggiunto).
+func _ogni_verbo_della_E_ha_la_valvola(t) -> void:
+	var util := load("res://tests/test_util.gd")
+	var siti := [
+		"res://scenes/interact/Garden.gd",
+		"res://scenes/interact/Fishing.gd",
+		"res://scenes/interact/Scavi.gd",
+		"res://scenes/interact/Frutteto.gd",
+		"res://scenes/interact/Woodcutting.gd",
+		"res://scenes/interact/Rimbalzello.gd",
+		"res://scenes/interact/Collection.gd",
+	]
+	for via in siti:
+		var src: String = util.codice(via)
+		t.ok(src.length() > 200, "%s si legge (%d byte)" % [via, src.length()])
+		t.ok(src.contains("is_physics_processing()"),
+				"%s guarda se Mochi e' congelata prima di prendersi la E" % via)
