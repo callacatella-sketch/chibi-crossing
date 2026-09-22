@@ -10,6 +10,7 @@ extends RefCounted
 
 const DNA = preload("res://scenes/npc/ChibiDNA.gd")
 const NASCITE = preload("res://scenes/world/Nascite.gd")
+const AFFETTI = preload("res://scenes/npc/Affetti.gd")
 const CHIBIESE = preload("res://audio/Chibiese.gd")
 const LEGAMI = preload("res://scenes/world/Legami.gd")
 const MAIL = preload("res://scenes/interact/Mail.gd")
@@ -26,6 +27,7 @@ func run(t) -> void:
 	_test_eredita_di_chi_e_partito(t)
 	_test_quando_si_nasce(t)
 	_test_la_coppia(t)
+	_la_soglia_e_nell_unita_del_libro_mastro(t)
 	_test_il_verso_della_crescita(t)
 	_test_la_parola_storta(t)
 	_test_voce_da_cucciolo(t)
@@ -226,23 +228,45 @@ func _test_la_coppia(t) -> void:
 	lei2["name"] = "Malva"
 	var adulti := [["Timo", "L_timo", lui], ["Pepita", "L_pepita", lei],
 			["Malva", "L_malva", lei2]]
-	var aff := {"L_timo|L_pepita": 20, "L_pepita|L_timo": 20,
-			"L_timo|L_malva": 40, "L_malva|L_timo": 1}
-	var f_aff := func(a, b): return int(aff.get("%s|%s" % [a, b], 0))
+	# ⚠️ I NUMERI SONO QUELLI DEL LIBRO MASTRO, e per un pezzo non lo erano.
+	# Questa fixture diceva 20/40/1 — l'unità del VECCHIO contatore di
+	# chiacchiere — e con valori così tutto passava qualunque fosse la
+	# soglia: è per questo che non poteva vedere il difetto che la soglia
+	# era rimasta a 8 mentre il sito di chiamata era passato agli Affetti,
+	# dove `SOGLIA_COPPIA` vale 2.4. **Una fixture che semplifica il dato
+	# rende il difetto invisibile**, ed è la trappola che questo progetto ha
+	# già scritto per le due anagrafi.
+	var aff := {"L_timo|L_pepita": 2.6, "L_pepita|L_timo": 2.6,
+			"L_timo|L_malva": 5.0, "L_malva|L_timo": 0.4}
+	var f_aff := func(a, b): return float(aff.get("%s|%s" % [a, b], 0.0))
 	var f_zero := func(_a, _b): return 0
 	var c := NASCITE.coppia_migliore(adulti, f_aff, f_zero)
+	# ⚠️ PRIMA SI GUARDA CHE CI SIA. Un `c[0]` su un array vuoto e' un errore
+	# a runtime, e **un errore a runtime non fa fallire un test: lo
+	# interrompe a meta' lasciando la suite verde**. Con la soglia
+	# nell'unita' sbagliata questa coppia non veniva scelta, e senza questa
+	# riga il caso sarebbe morto in silenzio invece di dirlo.
+	t.ok(not c.is_empty(),
+			"una coppia che si vuole bene sopra la soglia viene scelta")
+	if c.is_empty():
+		return
 	t.eq(str(c[0]), "Timo", "il padre è il maschio, sempre per primo")
 	t.eq(str(c[1]), "Pepita",
-			"vince chi si ricambia (20/20), non chi è ricambiato poco (40/1)")
+			"vince chi si ricambia (2.6/2.6), non chi è ricambiato poco (5.0/0.4)")
 	# due dello stesso sesso non fanno coppia
 	var solo_lei := [["Pepita", "L_pepita", lei], ["Malva", "L_malva", lei2]]
 	t.ok(NASCITE.coppia_migliore(solo_lei,
 			func(_a, _b): return 99, f_zero).is_empty(),
 			"due femmine non formano una coppia da cui nasce un cucciolo")
 	# sotto la soglia dell'affetto, niente
+	# ⚠️ E UN PELO SOTTO, non «meno uno»: la soglia è un FLOAT, e `- 1` su
+	# 2.4 proverebbe 1.4 — cioè un caso molto più facile di quello vero.
 	t.ok(NASCITE.coppia_migliore(adulti,
-			func(_a, _b): return NASCITE.AFFINITA_MINIMA - 1, f_zero).is_empty(),
+			func(_a, _b): return NASCITE.AFFINITA_MINIMA - 0.01, f_zero).is_empty(),
 			"chi si conosce appena non ha figli")
+	t.ok(not NASCITE.coppia_migliore(adulti,
+			func(_a, _b): return NASCITE.AFFINITA_MINIMA + 0.01, f_zero).is_empty(),
+			"…e un pelo sopra, sì: la soglia non è un muro che rifiuta tutto")
 	# e una famiglia già numerosa non cresce oltre
 	t.ok(NASCITE.coppia_migliore(adulti, f_aff,
 			func(_a, _b): return NASCITE.MAX_FIGLI).is_empty(),
@@ -357,3 +381,66 @@ func _body(path: String, fn: String) -> String:
 		return ""
 	var end := src.find("\nfunc ", start + 1)
 	return src.substr(start, (end - start) if end > start else -1)
+
+
+## ⚠️⚠️ LA SOGLIA DELLE NASCITE DEV'ESSERE NELL'UNITA' DEL LIBRO MASTRO.
+##
+## `AFFINITA_MINIMA` valeva **8**, e il suo commento diceva perche': «l'affinita'
+## sale di 1 a ogni chiacchierata vera». Era vero quando il sito di chiamata
+## passava `Visitors.affinita_fra` — il vecchio CONTATORE, un intero. Ma il
+## sito di chiamata e' passato al libro mastro degli Affetti (`affetto_fra` →
+## `Affetti.quanto` → `conto()`), e li' **essere una coppia** vale `2.4`,
+## mentre il gesto piu' pesante che esista pesa `2.00`.
+##
+## Pretendere 8.0 non e' una soglia severa: e' irraggiungibile. MISURATO sul
+## salvataggio vero (giorno 22, 13 residenti): il massimo di
+## `min(conto(a,b), conto(b,a))` in tutto il villaggio e' **1.3145**, e
+## `nascite.ultima` vale −999 — in quella partita non e' mai nato nessuno, e
+## non poteva. Tutta la meccanica delle nascite, coi cuccioli che crescono e
+## che ereditano un gene di chi e' partito, era **codice morto in partita**.
+##
+## ⚠️ E il caso `_test_la_coppia` non poteva vederlo, perche' la sua fixture
+## parlava la VECCHIA lingua: 20/40/1, valori che passano qualunque soglia.
+## Adesso parla quella vera (2.6 / 5.0 / 0.4).
+##
+## ⚠️ IL TETTO QUI SOTTO NON E' UNA TARATURA — e' un controllo di UNITA'. Il
+## vecchio 8 e' 3,33 volte `SOGLIA_COPPIA`: qualunque numero scritto in
+## quella scala sfonda un tetto costruito su `SOGLIA_COPPIA` stessa. Quanto
+## piu' alta della soglia debba stare e' una decisione dell'autore, e si fa
+## dentro questo intervallo.
+func _la_soglia_e_nell_unita_del_libro_mastro(t) -> void:
+	var soglia: float = float(NASCITE.AFFINITA_MINIMA)
+	var coppia: float = float(AFFETTI.SOGLIA_COPPIA)
+	t.ok(coppia > 0.0, "la soglia della coppia si legge dagli Affetti (%.2f)" % coppia)
+	t.ok(soglia >= coppia,
+			"non si fa un figlio con chi non e' nemmeno una coppia (%.2f >= %.2f)"
+					% [soglia, coppia])
+	t.ok(soglia <= coppia * 2.0,
+			"…e la soglia resta RAGGIUNGIBILE: %.2f e' %.2f volte quella della coppia (il vecchio 8 ne faceva 3.33)"
+					% [soglia, soglia / maxf(0.001, coppia)])
+
+	# LA META' COMPORTAMENTALE: una coppia vera — appena sopra la soglia
+	# degli Affetti — dev'essere scelta. Col vecchio 8 non lo era.
+	var lui := DNA.generate(71).duplicate()
+	lui["name"] = "Cacao"
+	var lei := DNA.generate(72).duplicate()
+	lei["name"] = "Nuvola"
+	var adulti := [["Cacao", "L_cacao", lui], ["Nuvola", "L_nuvola", lei]]
+	var valore: float = coppia + 0.2
+	var scelta: Array = NASCITE.coppia_migliore(adulti,
+			func(_a, _b): return valore,
+			func(_a, _b): return 0)
+	t.ok(not scelta.is_empty(),
+			"una coppia a %.2f (appena sopra gli Affetti) puo' avere un cucciolo"
+					% valore)
+
+	# ⚠️ E IL TRONCAMENTO: il libro mastro vive SOTTO l'uno (una chiacchierata
+	# pesa 0.05), quindi un `int()` buttava via proprio l'intervallo in cui
+	# succede tutto. Due valori che differiscono solo nella parte decimale
+	# devono dare esiti DIVERSI, o vuol dire che qualcuno tronca ancora.
+	var sopra: Array = NASCITE.coppia_migliore(adulti,
+			func(_a, _b): return soglia + 0.05, func(_a, _b): return 0)
+	var sotto: Array = NASCITE.coppia_migliore(adulti,
+			func(_a, _b): return soglia - 0.05, func(_a, _b): return 0)
+	t.ok(not sopra.is_empty() and sotto.is_empty(),
+			"cinque centesimi sopra si', cinque sotto no: nessuno tronca piu' a intero")

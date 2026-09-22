@@ -47,14 +47,45 @@ extends Node
 ## senza far passare quattro stagioni con le mani sulla tastiera.
 
 const DNA := preload("res://scenes/npc/ChibiDNA.gd")
+## ⚠️ SERVE PER LA SOGLIA, e si LEGGE invece di ricopiarla: vedi
+## `AFFINITA_MINIMA` qui sotto.
+const AFFETTI := preload("res://scenes/npc/Affetti.gd")
 
 ## Quanti cuccioli al massimo per coppia. Tre è già una famiglia numerosa
 ## in un paese di ventotto anime.
 const MAX_FIGLI := 3
 
-## Quanto devono essersi frequentati per arrivarci: l'affinità sale di 1
-## a ogni chiacchierata vera, quindi otto sono settimane di vicinanza.
-const AFFINITA_MINIMA := 8
+## ⚠️⚠️ **QUANTO DEVONO ESSERSI FREQUENTATI — E PER UN PEZZO IL NUMERO ERA
+## NELL'UNITÀ SBAGLIATA, cioè nessun cucciolo poteva nascere.**
+##
+## Questa costante valeva **8**, e il suo commento diceva perché: *«l'affinità
+## sale di 1 a ogni chiacchierata vera, quindi otto sono settimane di
+## vicinanza»*. Era vero quando il sito di chiamata passava
+## `Visitors.affinita_fra` — il vecchio CONTATORE DI CHIACCHIERE, un intero
+## che cresce di uno per volta.
+##
+## Ma il sito di chiamata è passato al **libro mastro degli Affetti**
+## (`affetto_fra` → `Affetti.quanto` → `conto()`), e quella è un'altra scala:
+## là dentro `SOGLIA_COPPIA` — cioè **essere una coppia** — vale `2.4`, e il
+## gesto più pesante che esista, `nascita`, ne pesa `2.00`. Pretendere `8.0`
+## vuol dire chiedere **più del triplo di quanto serva a essere una coppia**,
+## e non è una soglia severa: è irraggiungibile.
+##
+## MISURATO sul salvataggio vero (giorno 22, 13 residenti): il massimo di
+## `min(conto(a,b), conto(b,a))` su tutto il villaggio è **1.3145**, e
+## `nascite.ultima` vale −999 — in quella partita **non è mai nato nessuno**,
+## e non poteva.
+##
+## ⚠️ E NON SI RISCRIVE UN NUMERO: si LEGGE quello che il gioco usa già per
+## dire «questi due stanno insieme». Un 2.4 ricopiato qui sarebbe la tabella
+## gemella che diverge il giorno che qualcuno tara gli Affetti — cioè
+## esattamente com'è nato questo difetto.
+##
+## ⚠️ **RESIDUO DICHIARATO:** `Affetti.coppia()` chiede anche
+## `GESTI_VERI_MIN` gesti pesanti, e qui quella metà non si guarda (vorrebbe
+## un terzo `Callable`). La reciprocità invece c'è già: `coppia_migliore`
+## prende il `mini()` dei due versi.
+const AFFINITA_MINIMA: float = AFFETTI.SOGLIA_COPPIA
 
 ## La primavera è la stagione 0 (DayNight: 4 stagioni da 7 giorni).
 const STAGIONE_NASCITE := 0
@@ -145,7 +176,9 @@ static func quando(giorno: int, stagione: int, ultima: int,
 static func coppia_migliore(adulti: Array, affinita: Callable,
 		figli: Callable) -> Array:
 	var best: Array = []
-	var best_v := AFFINITA_MINIMA - 1
+	# ⚠️ UN PELO SOTTO LA SOGLIA, non «meno uno»: il libro mastro è un FLOAT,
+	# e `- 1` su una soglia di 2.4 lascerebbe entrare 1.5.
+	var best_v: float = AFFINITA_MINIMA - 0.000001
 	for i in adulti.size():
 		for j in range(i + 1, adulti.size()):
 			var a: Array = adulti[i]
@@ -158,8 +191,12 @@ static func coppia_migliore(adulti: Array, affinita: Callable,
 				continue
 			# l'affetto si guarda dai DUE lati: uno che chiacchiera molto
 			# con chi non lo ricambia non è una coppia, è un'infatuazione
-			var v: int = mini(int(affinita.call(str(a[1]), str(b[1]))),
-					int(affinita.call(str(b[1]), str(a[1]))))
+			# ⚠️ NIENTE `int()`: il libro mastro vive SOTTO l'uno (la soglia
+			# della coppia è 2.4 e una chiacchierata pesa 0.05), e troncare
+			# buttava via proprio l'intervallo in cui succede tutto — un
+			# residuo del vecchio contatore intero, come la soglia.
+			var v: float = minf(float(affinita.call(str(a[1]), str(b[1]))),
+					float(affinita.call(str(b[1]), str(a[1]))))
 			if v > best_v:
 				best_v = v
 				# il padre per primo: serve solo a scrivere le due chiavi

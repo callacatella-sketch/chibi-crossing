@@ -1022,6 +1022,59 @@ guardia.
   sorgenti di `scenes/` e `systems/` — saltando i commenti, perché questa
   lezione la chiamata vietata la nomina apposta.
 
+## ⚠️⚠️ NESSUN CUCCIOLO POTEVA NASCERE — la soglia era in un'altra unità
+
+`Nascite.AFFINITA_MINIMA` valeva **8**, e il suo commento diceva perché:
+*«l'affinità sale di 1 a ogni chiacchierata vera, quindi otto sono settimane
+di vicinanza»*. Era vero **quando il sito di chiamata passava
+`Visitors.affinita_fra`** — il vecchio CONTATORE di chiacchiere, un intero
+che sale di uno per volta.
+
+Ma il sito di chiamata è passato al **libro mastro degli Affetti**
+(`affetto_fra` → `Affetti.quanto` → `conto()`), e quella è un'altra scala:
+là dentro **essere una coppia** (`SOGLIA_COPPIA`) vale **2.4**, e il gesto
+più pesante che esista, `nascita`, ne pesa **2.00**. Pretendere `8.0` non è
+una soglia severa: è **irraggiungibile**.
+
+**MISURATO** sul salvataggio vero (giorno 22, 13 residenti): il massimo di
+`min(conto(a,b), conto(b,a))` in tutto il villaggio è **1.3145**, e
+`nascite.ultima` vale **−999** — in quella partita non è mai nato nessuno, e
+**non poteva**. Tutta la meccanica delle nascite — il cucciolo che cresce,
+il gene visibile ereditato da chi è partito, `GIORNI_ADULTO := 14` — era
+**codice morto in partita**.
+
+E c'era un secondo residuo della stessa origine: `int()` sui due versi.
+Il libro mastro vive **sotto l'uno** (una chiacchierata pesa 0.05), quindi
+troncare buttava via proprio l'intervallo in cui succede tutto.
+
+**La cura non riscrive un numero: LEGGE quello che il gioco usa già** per
+dire «questi due stanno insieme» (`AFFETTI.SOGLIA_COPPIA`). Un 2.4 ricopiato
+in `Nascite.gd` sarebbe la tabella gemella che diverge alla prima taratura
+degli Affetti — cioè esattamente com'è nato questo difetto.
+
+⚠️ **E LA GUARDIA NON POTEVA VEDERLO, perché la sua fixture parlava la
+VECCHIA LINGUA**: `20 / 40 / 1`, valori che passano qualunque soglia. È la
+trappola già scritta per le due anagrafi — *una fixture che semplifica il
+dato rende il difetto invisibile*. Adesso parla quella vera
+(`2.6 / 5.0 / 0.4`), e c'è un caso che lega la soglia all'unità del libro
+mastro: `>= SOGLIA_COPPIA` (non si fa un figlio con chi non è nemmeno una
+coppia) e `<= SOGLIA_COPPIA × 2` — che **non è una taratura, è un controllo
+di unità**: il vecchio 8 ne fa 3,33 e si denuncia da sé.
+
+**Due mutazioni, sei asserzioni rosse in tutto:** la soglia che torna a 8, e
+il troncamento a intero che torna.
+
+⚠️ **E una riga del caso vecchio poteva morire in silenzio:** `c[0]` su un
+array vuoto è un errore a runtime, e un errore a runtime **non fa fallire un
+test — lo interrompe a metà lasciando la suite verde**. Adesso si guarda
+prima che la coppia ci sia.
+
+**Residuo dichiarato:** `Affetti.coppia()` chiede anche `GESTI_VERI_MIN`
+gesti pesanti, e `coppia_migliore` quella metà non la guarda (vorrebbe un
+terzo `Callable`). La reciprocità invece c'è già, ed è il `mini()` dei due
+versi. **Quanto più alta della soglia debba stare è una decisione
+dell'autore**, e si fa dentro l'intervallo che la guardia sorveglia.
+
 ## REGOLA: gli affetti fra vicini, e il libero arbitrio
 
 Due vicini si affezionano, mettono su famiglia, e possono lasciarsi. Il
