@@ -243,6 +243,37 @@ func _dove_si_spezza(t) -> void:
 			("dieci vicini veri si spezzerebbero in %d punti diversi: è un "
 			+ "fatto di quella persona, non una costante") % viste.size())
 
-	# --- e il degrado: senza ponte, un array vuoto e non un'invenzione
-	t.ok(l.dove_si_spezza(-1.0).size() == 0 or l.dove_si_spezza(-1.0).size() == 2,
-			"un passo malato non produce una partizione inventata")
+	# --- e il degrado: un passo malato non produce una partizione inventata
+	#
+	# ⚠️ **QUI C'ERA UNA TAUTOLOGIA**, ed è la forma peggiore di guardia muta
+	# perché si legge come severa: `size() == 0 or size() == 2`. Ma
+	# `dove_si_spezza` ha TRE soli `return` — `[]`, `[]`, `[a, b]` — quindi
+	# quella dimensione è 0 o 2 **per costruzione sintattica**, per qualunque
+	# ingresso e su qualunque ramo. Nessuna mutazione del codice di produzione
+	# poteva farla arrossire.
+	#
+	# Quello che va preteso è che se una partizione ESCE, sia una partizione
+	# VERA: due parti non vuote, i sette canali tutti una volta sola. Questa
+	# sa fallire — basta che un ramo malato produca un lato vuoto o un
+	# doppione.
+	for dt_malato: float in [-1.0, 0.0, NAN, INF]:
+		var dm: Array = l.dove_si_spezza(dt_malato)
+		t.ok(dm.size() == 0 or dm.size() == 2,
+				"dt %s: o niente, o due lati" % str(dt_malato))
+		if dm.size() != 2:
+			continue
+		var pa: Array = dm[0]
+		var pb: Array = dm[1]
+		t.ok(pa.size() > 0 and pb.size() > 0,
+				"dt %s: nessun lato è vuoto (%d|%d)"
+						% [str(dt_malato), pa.size(), pb.size()])
+		var visto := {}
+		var doppi := 0
+		for c in pa + pb:
+			if visto.has(c):
+				doppi += 1
+			visto[c] = true
+		t.eq(doppi, 0, "dt %s: nessun canale sta da tutte e due le parti"
+				% str(dt_malato))
+		t.eq(visto.size(), LIMBICO.NEURO_TRASMETTITORI.size(),
+				"dt %s: ci sono tutti e sette i canali" % str(dt_malato))

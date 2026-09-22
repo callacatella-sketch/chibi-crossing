@@ -9217,6 +9217,23 @@ silenzio. macOS/Linux non ce l'hanno perché ereditano `godot_env`.
   dopo. Il costo è un ERROR per corsa, cioè rumore che insegna a non leggere
   gli errori: il gradino prima di non accorgersi di quelli veri.
 
+### UNA TAUTOLOGIA TRAVESTITA DA GUARDIA SEVERA
+
+`test_intreccio.gd` sorvegliava il degrado di `dove_si_spezza()` così:
+
+```gdscript
+t.ok(d.size() == 0 or d.size() == 2, "un passo malato non produce una partizione inventata")
+```
+
+Ma quella funzione ha **tre soli `return`** — `[]`, `[]`, `[a, b]` — quindi la
+dimensione è 0 o 2 **per costruzione sintattica**, per qualunque ingresso e su
+qualunque ramo. Nessuna mutazione del codice di produzione poteva farla
+arrossire. È la forma peggiore di guardia muta, perché si LEGGE come severa.
+Adesso pretende che, se una partizione esce, sia una partizione VERA (due lati
+non vuoti, i sette canali una volta sola) su `dt` = −1, 0, NaN e ∞ —
+falsificata con due mutazioni (un lato vuoto, un canale da tutte e due le
+parti).
+
 ### ⚠️ TRE BANCHI VIVI ACCUSAVANO IL GIOCO DEL PROPRIO VILLAGGIO
 
 `prova_recinto` e `prova_deduzione` costruiscono la scena che gli serve e poi
