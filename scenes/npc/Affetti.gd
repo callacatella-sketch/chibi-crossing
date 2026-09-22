@@ -461,7 +461,48 @@ static func pota(righe: Array, oggi: int, tetto := 400) -> Array:
 		# le cose grandi non si dimenticano; le chiacchiere di un anno fa sì
 		if peso >= PESO_VERO or giorni < 120:
 			out.append(r)
-	return out
+	if out.size() <= tetto:
+		return out
+
+	# ⚠️⚠️ **E SE L'ETÀ NON È BASTATA, IL TETTO DEVE ESSERE UN TETTO.**
+	# Questa funzione si chiama `pota`, il suo parametro si chiama `tetto` e
+	# il chiamante la invoca dentro un `if _righe.size() > 420` — ma il filtro
+	# qui sopra tiene una riga se «pesa» **oppure** se ha meno di 120 giornate,
+	# e una chiacchiera pesa 0,05: sopravviveva 120 giornate qualunque fosse la
+	# dimensione dell'array. Nessuna riga, da nessuna parte, imponeva
+	# `out.size() <= tetto`.
+	#
+	# MISURATO sul `village.json` dell'autore: **1030 righe al giorno 22**,
+	# cioè 2,45 volte il tetto, **tutte `chiacchiera`** — `pota()` ne buttava
+	# ZERO, e sopra le 420 girava a ogni `gesto()` (due volte per
+	# chiacchierata, ogni 3,5 s) per ricopiare 1030 elementi e non togliere
+	# niente. E il libro mastro lo rilegge `conto()`, che il giro del giorno
+	# chiama una volta per ogni coppia ordinata di residenti.
+	#
+	# Si lascia andare il LEGGERO più vecchio finché non si rientra. I gesti
+	# veri restano intoccabili come prima — è la stessa frase di sopra («le
+	# cose grandi non si dimenticano»), applicata anche quando a premere non è
+	# il tempo ma la quantità. E toglie le righe che `conto()` pesa di meno:
+	# la recenza le aveva già quasi azzerate.
+	var leggeri: Array = []
+	for i in out.size():
+		var w: float = absf(float(GESTI.get(str((out[i] as Dictionary).get("t", "")), 0.0)))
+		if w < PESO_VERO:
+			leggeri.append(i)
+	# dalla più vecchia: l'ordine dell'array è quello di scrittura, ma una
+	# fusione di fantasmi o un caricamento possono averlo mescolato
+	leggeri.sort_custom(func(a, b):
+			return int((out[a] as Dictionary).get("d", 0)) \
+					< int((out[b] as Dictionary).get("d", 0)))
+	var da_buttare := {}
+	var quante: int = mini(out.size() - tetto, leggeri.size())
+	for k in quante:
+		da_buttare[int(leggeri[k])] = true
+	var stretto: Array = []
+	for i in out.size():
+		if not da_buttare.has(i):
+			stretto.append(out[i])
+	return stretto
 
 
 ## DA QUANTI GIORNI questa stessa riga — stesso chi, stesso verso, stesso

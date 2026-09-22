@@ -9241,6 +9241,36 @@ silenzio. macOS/Linux non ce l'hanno perché ereditano `godot_env`.
   dopo. Il costo è un ERROR per corsa, cioè rumore che insegna a non leggere
   gli errori: il gradino prima di non accorgersi di quelli veri.
 
+### IL «TETTO» DEL LIBRO MASTRO ERA UN FILTRO D'ETÀ
+
+`Affetti.pota()` si chiama così, il suo parametro si chiama `tetto`, e il
+chiamante la invoca dentro un `if _righe.size() > 420`. Ma il filtro teneva una
+riga se **pesa** *oppure* se ha **meno di 120 giornate** — e una chiacchiera
+pesa 0,05: sopravviveva 120 giornate qualunque fosse la dimensione dell'array.
+Nessuna riga, da nessuna parte, imponeva `out.size() <= tetto`.
+
+MISURATO sul `village.json` dell'autore: **1030 righe al giorno 22**, cioè
+2,45 volte il tetto, **tutte `chiacchiera`** — `pota()` ne buttava **zero**, e
+sopra le 420 girava a ogni `gesto()` (due volte per chiacchierata, ogni 3,5 s)
+per ricopiare 1030 elementi e non togliere niente. E il libro mastro lo
+rilegge `conto()`, che il giro del giorno chiama per ogni coppia ordinata di
+residenti.
+
+Dopo: **1030 → 400**, e le coppie di quel salvataggio non cambiano.
+
+⚠️ **E la cosa che andava provata non è il numero: è che potare non possa
+sciogliere una coppia** — la regola 3 degli Affetti («niente penale per stare
+in coppia, la rottura non è un evento»). Regge per costruzione, e adesso anche
+per asserzione: `ancora_coppia` non ha **nessuna soglia assoluta** — chiede
+`gesti_veri >= GESTI_VERI_MIN` (righe **pesanti**, che non si potano mai) e un
+confronto **relativo**. Si lascia andare il leggero più vecchio, cioè proprio
+quello che la recenza aveva già quasi azzerato.
+
+⚠️ E una trappola di banco: mettere le novecento chiacchiere addosso alla
+coppia la **scioglie** — è la valvola della prossimità che fa il suo mestiere
+(una chiacchiera vale un ventesimo, ma novecento no). Un banco così smentisce
+la propria premessa invece di provare la potatura.
+
 ### LA PLATEA SVANIVA DALLA GRADINATA A METÀ BRANO
 
 `corpo_libero` è l'**unica** protezione di `passo_sonno` contro il mandare a

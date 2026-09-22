@@ -38,6 +38,7 @@ func run(t) -> void:
 	_test_la_veglia_non_annega_il_giocatore(t)
 	_test_la_valvola_si_ricorda_dopo_il_salvataggio(t)
 	_test_un_omonimo_non_spegne_le_coppie(t)
+	_test_il_tetto_e_un_tetto(t)
 
 
 func _riga(a: String, b: String, tipo: String, giorno: int) -> Dictionary:
@@ -701,3 +702,66 @@ func _test_un_omonimo_non_spegne_le_coppie(t) -> void:
 	# non c'era (se lo facesse, la cura sarebbe una tolleranza travestita)
 	t.ok(not AFF.coppia(righe, "Anna", "Carla", doppi, 6),
 			"e non fabbrica coppie che non esistono")
+
+
+## ⚠️ **IL TETTO DEVE ESSERE UN TETTO — e per un pezzo era un filtro d'età.**
+##
+## `pota()` si chiama così, il suo parametro si chiama `tetto`, e il chiamante
+## la invoca dentro un `if _righe.size() > 420`. Ma il filtro teneva una riga
+## se «pesa» **oppure** se ha meno di 120 giornate, e una chiacchiera pesa
+## 0,05: sopravviveva 120 giornate qualunque fosse la dimensione dell'array.
+## Nessuna riga imponeva `out.size() <= tetto`.
+##
+## MISURATO sul `village.json` dell'autore: **1030 righe al giorno 22**, cioè
+## 2,45 volte il tetto, **tutte `chiacchiera`** — `pota()` ne buttava ZERO, e
+## sopra le 420 girava a ogni `gesto()` per ricopiare 1030 elementi senza
+## togliere niente. Dopo la cura: 1030 → 400, e le coppie del salvataggio non
+## cambiano.
+##
+## ⚠️ E la cosa che va provata non è il numero: è che **potare non possa
+## sciogliere una coppia**. `ancora_coppia` non ha nessuna soglia assoluta —
+## chiede `gesti_veri >= GESTI_VERI_MIN` (righe pesanti, che non si potano
+## MAI) e un confronto relativo — ma quella proprietà va tenuta chiusa da
+## un'asserzione, non da una lettura.
+func _test_il_tetto_e_un_tetto(t) -> void:
+	var righe: Array = []
+	# due che si vogliono bene davvero, con gesti VERI
+	for i in 6:
+		righe.append(_riga("Anna", "Bruno", "coraggio", 40 + i))
+		righe.append(_riga("Bruno", "Anna", "consolazione", 40 + i))
+	# ...e un diluvio di chiacchiere vecchie fra ALTRI due, che è il caso che
+	# fa sfondare il tetto senza toccare chi si vuole bene. (Metterle addosso
+	# ad Anna e Bruno le farebbe superare i gesti veri — una chiacchiera vale
+	# un ventesimo, ma novecento no: è la valvola della prossimità, e in questo
+	# caso sarebbe il banco a smentire la propria premessa.)
+	for i in 900:
+		righe.append(_riga("Carla", "Dino", "chiacchiera", 1 + (i % 30)))
+	var tutti := ["Anna", "Bruno", "Carla", "Dino"]
+	var oggi := 50
+
+	t.ok(righe.size() > 420, "il libro mastro è sopra il tetto (%d righe)" % righe.size())
+	t.ok(AFF.coppia(righe, "Anna", "Bruno", tutti, oggi),
+			"PREMESSA: Anna e Bruno sono una coppia")
+
+	var potate: Array = AFF.pota(righe, oggi)
+	t.ok(potate.size() <= 400,
+			"dopo la potatura si rientra nel tetto (%d → %d)"
+					% [righe.size(), potate.size()])
+
+	# ⚠️ i gesti VERI non si buttano mai: è la frase «le cose grandi non si
+	# dimenticano», e ci si appoggia `giorni_dall_ultimo`, che senza sarebbe
+	# una risposta diversa prima e dopo un caricamento
+	var veri_prima := AFF.gesti_veri(righe, "Anna", "Bruno")
+	t.eq(AFF.gesti_veri(potate, "Anna", "Bruno"), veri_prima,
+			"e nessun gesto vero è stato buttato (%d)" % veri_prima)
+
+	# ⚠️ E LA COSA CHE CONTA: potare non scioglie una coppia.
+	t.ok(AFF.coppia(potate, "Anna", "Bruno", tutti, oggi),
+			"e Anna e Bruno sono ancora una coppia dopo la potatura")
+	t.ok(AFF.ancora_coppia(potate, "Anna", "Bruno", tutti, oggi),
+			"…anche per l'isteresi, che è quella che li tiene insieme")
+
+	# e sotto il tetto non si tocca niente: il caso comune è bit-identico
+	var poche: Array = righe.slice(0, 100)
+	t.eq(AFF.pota(poche, oggi).size(), 100,
+			"sotto il tetto la potatura non tocca una riga")
